@@ -88,6 +88,16 @@ tools/run-tests.sh
 
 For the full preset list and per-platform details, see `CMakePresets.json`.
 
+Native builds with a Vulkan 1.4 SDK and `glslangValidator` use GPU shaders for
+presentation scaling on compatible hardware, with automatic SDL fallback.
+Linux defaults to Wayland and a 1920×1080 window, letterboxing the original
+4:3 game view. X11 remains available as a fallback.
+For window borders and title-bar controls on GNOME Wayland, install
+`libdecor-devel` before configuring SDL.
+Set `ORION2RE_RENDERER=vulkan` to require Vulkan or `ORION2RE_RENDERER=sdl` to
+select the previous backend. See the [graphics development guide](docs/content/development/graphics-modernization.md)
+for captures, comparisons, validation, and build options.
+
 Supported source-owned mods are stored under `data/mods/`. Normal game builds package `data/base/` as `data/base.zip`, package each source-owned mod as `data/mods/<package>.zip`, and deploy all archives when `ORION2RE_GAME_DIR` is configured.
 
 Build only the distributable mod ZIP archives with:

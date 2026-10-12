@@ -9,5 +9,6 @@ The restoration deliberately preserves some original runtime models where replac
 - [Fields](fields.md) describes the global field list used for buttons, hit regions, text input, lists, help, and keyboard shortcuts.
 - [Networking](networking.md) describes the router-based TCP transport, LAN discovery, session model, and game-owned disconnect handling.
 - [Threading and SDL](threading.md) describes the two-thread arrangement inherited from `orion95.exe` and the frame, input, cursor, and exit handoffs used by the SDL port.
+- [Graphics modernization](graphics-modernization.md) describes lossless frame capture, production scaler comparisons, and the roadmap for high-resolution presentation.
 
 These are implementation guides, not stable extension APIs. Mods should use the interfaces documented under [Authoring Mods](../authoring-mods/index.md) instead of depending on native structures or thread behavior.

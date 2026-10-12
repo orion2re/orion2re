@@ -51,7 +51,7 @@ namespace video {
     }
 
     uint8_t* __cdecl Get_Selected_Page_Pixels() {
-        return nullptr;
+        return current_video_page;
     }
 
     void __cdecl Init_Off_Page_Ownership() {
@@ -153,4 +153,4 @@ namespace video {
         (void)unused;
         (void)entry_count;
     }
-}
+} // namespace video

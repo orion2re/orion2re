@@ -24,6 +24,7 @@ namespace video {
     extern s_page_buffer g_page_back;
 
     extern s_page_buffer g_page_published;
+    extern int32_t g_published_portrait_race;
 
     extern uint8_t* video_memory;
 

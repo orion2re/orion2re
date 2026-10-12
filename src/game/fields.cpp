@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "ttf_labels.h"
 
 namespace fields {
     namespace {
@@ -2162,6 +2163,9 @@ namespace fields {
                                 fonts::Print_Centered(cx, cy, radio->help);
                             }
                         }
+                        if (ttf_labels::Configured()) {
+                            ttf_labels::Capture_Button(fields[i].x, fields[i].y, *radio->selection == 1, video::Get_Selected_Page_Pixels(), video::g_screen_res_x, video::g_screen_res_y, video::g_palette_entries);
+                        }
                     } break;
                     case FIELD_TYPE_LOCKED: {
                         s_field_locked* locked = Field_Data_Locked_Button(&fields[i]);
@@ -2687,6 +2691,9 @@ namespace fields {
                         field->x + (field->x_end - field->x) / 2,
                         field->y + (field->y_end - field->y) / 2 - (font_height - 1) / 2,
                         radio->help);
+                }
+                if (ttf_labels::Configured()) {
+                    ttf_labels::Capture_Button(field->x, field->y, *radio->selection == 1, video::Get_Selected_Page_Pixels(), video::g_screen_res_x, video::g_screen_res_y, video::g_palette_entries);
                 }
                 break;
             }

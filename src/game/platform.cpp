@@ -2,6 +2,12 @@
 
 #include "config/config_runtime.h"
 #include "game/scalers/scaler.h"
+#include "game/portrait_replacement.h"
+#include "game/ttf_labels.h"
+#include <vector>
+#if defined(ORION2RE_ENABLE_VULKAN)
+#include "game/scalers/vulkan_scaler.h"
+#endif
 
 int16_t g_cached_mouse_x;
 int16_t g_cached_mouse_y;
@@ -13,6 +19,10 @@ namespace platform {
         bool g_has_lost_focus;
         SDL_Window* g_sdl_window;
         SDL_Renderer* g_sdl_renderer;
+#if defined(ORION2RE_ENABLE_VULKAN)
+        SDL_GPUDevice* g_vulkan_device;
+        vulkan_scalers::s_pipeline g_vulkan_pipeline;
+#endif
         SDL_Texture* g_sdl_present_texture;
         SDL_Surface* g_sdl_screen_index_surface;
         SDL_Surface* g_sdl_present_argb_surface;
@@ -71,14 +81,78 @@ namespace platform {
         e_present_scaler g_applied_present_scaler = (e_present_scaler)UINT8_MAX;
         int8_t g_applied_vsync_enabled = -1;
         uint32_t g_present_generation;
+        int32_t g_present_portrait_race = -1;
+        ttf_labels::s_frame g_present_labels;
+        SDL_Texture* g_portrait_textures[portrait_replacement::RACE_COUNT];
+        bool g_portrait_load_attempted[portrait_replacement::RACE_COUNT];
+        SDL_Texture* g_overlay_cursor_texture;
+        uint32_t g_capture_number;
+        uint32_t g_capture_frames_remaining;
+        bool g_capture_since_present;
+        struct s_frame_timing {
+            uint64_t started;
+            uint64_t finished;
+            uint32_t generation;
+            e_present_scaler scaler;
+            bool published;
+            bool captured;
+        };
+        std::vector<s_frame_timing> g_frame_timings;
+        bool g_record_frame_timings;
+        constexpr size_t k_max_frame_timings = 30000;
 
-        void Present_Indexed_Buffer(const uint8_t* src_pixels);
+        void Capture_Logical_Frame_() {
+            const char* directory = SDL_getenv("ORION2RE_CAPTURE_DIR");
+            if (directory == nullptr || directory[0] == '\0') return;
+            char path[4096];
+            const int length = SDL_snprintf(path, sizeof(path), "%s/frame-%04u.bmp", directory, ++g_capture_number);
+            if (length > 0 && (size_t)length < sizeof(path) && SDL_CreateDirectory(directory) &&
+                g_sdl_present_argb_surface != nullptr && SDL_SaveBMP(g_sdl_present_argb_surface, path)) {
+                SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Captured logical frame: %s", path);
+            } else {
+                g_capture_frames_remaining = 0;
+                SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Frame capture failed: %s", SDL_GetError());
+            }
+        }
+
+        void Save_Frame_Timings_() {
+            if (!g_record_frame_timings) return;
+            const char* path = SDL_getenv("ORION2RE_FRAME_TIMINGS");
+            SDL_IOStream* file = path != nullptr ? SDL_IOFromFile(path, "wb") : nullptr;
+            if (file == nullptr) {
+                SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Unable to save frame timings: %s", SDL_GetError());
+                return;
+            }
+            const char* header = "renderer,scaler,generation,published,captured,start_ms,present_ms,interval_ms\n";
+            bool success = SDL_WriteIO(file, header, SDL_strlen(header)) == SDL_strlen(header);
+            const char* renderer = SDL_GetRendererName(g_sdl_renderer);
+            uint64_t previous = 0;
+            const uint64_t origin = g_frame_timings.empty() ? 0 : g_frame_timings.front().started;
+            for (const s_frame_timing& timing : g_frame_timings) {
+                char row[256];
+                const int length = SDL_snprintf(row, sizeof(row), "%s,%s,%u,%d,%d,%.6f,%.6f,%.6f\n", renderer != nullptr ? renderer : "unknown", scalers::Get_Name(timing.scaler), timing.generation, timing.published, timing.captured, (timing.started - origin) / 1e6, (timing.finished - timing.started) / 1e6, previous != 0 ? (timing.finished - previous) / 1e6 : 0.0);
+                if (length <= 0 || (size_t)length >= sizeof(row) || SDL_WriteIO(file, row, length) != (size_t)length) {
+                    success = false;
+                    break;
+                }
+                previous = timing.finished;
+            }
+            success = SDL_CloseIO(file) && success;
+            if (!success)
+                SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Frame timing write failed: %s", SDL_GetError());
+            else
+                SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Saved %zu presentation timings: %s", g_frame_timings.size(), path);
+            g_frame_timings.clear();
+            g_record_frame_timings = false;
+        }
+
+        bool Present_Indexed_Buffer(const uint8_t* src_pixels);
         bool Ensure_Present_Palette();
         bool Ensure_Cursor_Surface();
         bool Ensure_Render_Presentation();
         bool Ensure_Scaler_Output();
         void Destroy_Scaler_Output();
-        void Present_Texture_To_Output(SDL_Texture* texture);
+        bool Present_Texture_To_Output(SDL_Texture* texture);
         void Apply_Pending_Cursor_State();
         void Blit_Cursor_On_Present_Surface();
         void Sync_Mouse_State_From_SDL();
@@ -87,6 +161,34 @@ namespace platform {
 
         e_present_scaler Requested_Present_Scaler() {
             return (e_present_scaler)SDL_GetAtomicInt(&g_requested_present_scaler);
+        }
+
+        SDL_Renderer* Create_Presentation_Renderer_() {
+            const char* requested = SDL_getenv("ORION2RE_RENDERER");
+#if defined(ORION2RE_ENABLE_VULKAN)
+            if (requested == nullptr || SDL_strcmp(requested, "sdl") != 0) {
+                if (g_vulkan_device == nullptr) g_vulkan_device = vulkan_scalers::Create_Device();
+                if (g_vulkan_device != nullptr) {
+                    SDL_Renderer* renderer = nullptr;
+                    if (g_vulkan_pipeline.implementation != nullptr ||
+                        vulkan_scalers::Initialize(&g_vulkan_pipeline, g_vulkan_device)) {
+                        renderer = SDL_CreateGPURenderer(g_vulkan_device, g_sdl_window);
+                    }
+                    if (renderer != nullptr) return renderer;
+                    vulkan_scalers::Shutdown(&g_vulkan_pipeline);
+                    SDL_DestroyGPUDevice(g_vulkan_device);
+                    g_vulkan_device = nullptr;
+                }
+                SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "Vulkan presentation unavailable: %s", SDL_GetError());
+                if (requested != nullptr && SDL_strcmp(requested, "vulkan") == 0) return nullptr;
+            }
+#else
+            if (requested != nullptr && SDL_strcmp(requested, "vulkan") == 0) {
+                SDL_SetError("Vulkan 1.4 presentation was not included in this build");
+                return nullptr;
+            }
+#endif
+            return SDL_CreateRenderer(g_sdl_window, nullptr);
         }
 
         void Publish_Present_Scaler_Config() {
@@ -387,6 +489,15 @@ namespace platform {
 
         bool Ensure_Scaler_Output() {
             const e_present_scaler requested_scaler = Requested_Present_Scaler();
+#if defined(ORION2RE_ENABLE_VULKAN)
+            if (g_vulkan_device != nullptr) {
+                if (g_vulkan_pipeline.implementation == nullptr &&
+                    !vulkan_scalers::Initialize(&g_vulkan_pipeline, g_vulkan_device)) return false;
+                if (!vulkan_scalers::Configure(&g_vulkan_pipeline, g_sdl_renderer, video::g_screen_res_x, video::g_screen_res_y, requested_scaler)) return false;
+                g_applied_present_scaler = requested_scaler;
+                return true;
+            }
+#endif
             if (g_sdl_present_texture != nullptr &&
                 g_applied_present_scaler == requested_scaler &&
                 scalers::Is_Configured(&g_present_scaler_pipeline, requested_scaler)) {
@@ -431,9 +542,9 @@ namespace platform {
             return true;
         }
 
-        void Present_Texture_To_Output(SDL_Texture* texture) {
+        bool Present_Texture_To_Output(SDL_Texture* texture) {
             if (g_sdl_renderer == nullptr || texture == nullptr) {
-                return;
+                return false;
             }
 
             const int8_t vsync_enabled =
@@ -445,8 +556,70 @@ namespace platform {
 
             SDL_RenderClear(g_sdl_renderer);
             SDL_RenderTexture(g_sdl_renderer, texture, nullptr, nullptr);
+            bool overlay_drawn = false;
+            const char* graphics_directory = SDL_getenv("ORION2RE_GRAPHICS_DIR");
+            const char* portrait_filename = portrait_replacement::Filename(g_present_portrait_race);
+            if (graphics_directory != nullptr && graphics_directory[0] != '\0' &&
+                portrait_filename != nullptr && !debug_overlay::Visible()) {
+                const int32_t race = g_present_portrait_race;
+                if (!g_portrait_load_attempted[race]) {
+                    g_portrait_load_attempted[race] = true;
+                    char* path = nullptr;
+                    SDL_asprintf(&path, "%s/%s", graphics_directory, portrait_filename);
+                    SDL_Surface* surface = path != nullptr ? SDL_LoadPNG(path) : nullptr;
+                    if (surface != nullptr && surface->w >= portrait_replacement::WIDTH &&
+                        surface->h >= portrait_replacement::HEIGHT && surface->w <= 4096 && surface->h <= 4096) {
+                        g_portrait_textures[race] = SDL_CreateTextureFromSurface(g_sdl_renderer, surface);
+                        if (g_portrait_textures[race] != nullptr) {
+                            SDL_SetTextureScaleMode(g_portrait_textures[race], SDL_SCALEMODE_LINEAR);
+                        }
+                    }
+                    if (g_portrait_textures[race] == nullptr) {
+                        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,
+                            "Portrait replacement unavailable: %s; using original artwork (%s)",
+                            portrait_filename,
+                            SDL_GetError());
+                    }
+                    SDL_DestroySurface(surface);
+                    SDL_free(path);
+                }
+                if (g_portrait_textures[race] != nullptr) {
+                    const SDL_FRect destination = {
+                        (float)portrait_replacement::X,
+                        (float)portrait_replacement::Y,
+                        (float)portrait_replacement::WIDTH,
+                        (float)portrait_replacement::HEIGHT,
+                    };
+                    overlay_drawn |= SDL_RenderTexture(g_sdl_renderer, g_portrait_textures[race], nullptr, &destination);
+                }
+            }
+            if (!debug_overlay::Visible()) overlay_drawn |= ttf_labels::Render(g_sdl_renderer, g_present_labels);
+            if (overlay_drawn) {
+                if (g_active_cursor_state.pixels != nullptr && g_active_cursor_state.enabled != 0 &&
+                    g_active_cursor_state.shape > 0 && Ensure_Cursor_Surface()) {
+                    if (g_overlay_cursor_texture == nullptr) {
+                        g_overlay_cursor_texture = SDL_CreateTexture(g_sdl_renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, k_cursor_dimension, k_cursor_dimension);
+                        if (g_overlay_cursor_texture != nullptr) {
+                            SDL_SetTextureBlendMode(g_overlay_cursor_texture, SDL_BLENDMODE_BLEND);
+                            SDL_SetTextureScaleMode(g_overlay_cursor_texture, SDL_SCALEMODE_NEAREST);
+                        }
+                    }
+                    SDL_Surface* cursor_argb = SDL_ConvertSurface(g_sdl_cursor_surface, SDL_PIXELFORMAT_ARGB8888);
+                    if (g_overlay_cursor_texture != nullptr && cursor_argb != nullptr &&
+                        SDL_UpdateTexture(g_overlay_cursor_texture, nullptr, cursor_argb->pixels, cursor_argb->pitch)) {
+                        const SDL_FRect cursor_destination = {
+                            (float)SDL_GetAtomicInt(&g_present_mouse_x),
+                            (float)SDL_GetAtomicInt(&g_present_mouse_y),
+                            (float)k_cursor_dimension,
+                            (float)k_cursor_dimension,
+                        };
+                        SDL_RenderTexture(g_sdl_renderer, g_overlay_cursor_texture, nullptr, &cursor_destination);
+                    }
+                    SDL_DestroySurface(cursor_argb);
+                }
+            }
             debug_overlay::Render_Published_Frame(g_sdl_renderer, g_present_generation);
-            SDL_RenderPresent(g_sdl_renderer);
+            return SDL_RenderPresent(g_sdl_renderer);
         }
 
         void Copy_Exit_Message(const char* message) {
@@ -680,7 +853,9 @@ namespace platform {
         }
 
         void Present_Published_Off_Page() {
-            if (Update_Active_Screen_Frame()) {
+            const uint64_t started = g_record_frame_timings ? SDL_GetTicksNS() : 0;
+            const bool published = Update_Active_Screen_Frame();
+            if (published) {
                 Request_Present_Refresh();
             }
 
@@ -692,7 +867,21 @@ namespace platform {
                 return;
             }
 
-            Present_Indexed_Buffer(g_present_surface);
+            if (!Present_Indexed_Buffer(g_present_surface)) {
+                Request_Present_Refresh();
+                return;
+            }
+            const bool sequence_capture = published && g_capture_frames_remaining > 0;
+            const bool captured = sequence_capture || g_capture_since_present;
+            if (g_record_frame_timings && g_frame_timings.size() < k_max_frame_timings) {
+                g_frame_timings.push_back({started, SDL_GetTicksNS(), g_present_generation, g_applied_present_scaler, published, captured});
+            }
+            // Disk I/O follows the measured presentation and is tagged in the timing log.
+            g_capture_since_present = false;
+            if (sequence_capture) {
+                --g_capture_frames_remaining;
+                Capture_Logical_Frame_();
+            }
         }
 
         bool Ensure_Present_Palette() {
@@ -762,7 +951,7 @@ namespace platform {
             }
 
             if (g_sdl_renderer == nullptr) {
-                g_sdl_renderer = SDL_CreateRenderer(g_sdl_window, nullptr);
+                g_sdl_renderer = Create_Presentation_Renderer_();
                 if (g_sdl_renderer == nullptr) {
                     g_sdl_renderer = SDL_CreateRenderer(g_sdl_window, "software");
                 }
@@ -790,7 +979,11 @@ namespace platform {
                 return false;
             }
 
-            if (g_present_scaler_pipeline.implementation == nullptr &&
+            if (
+#if defined(ORION2RE_ENABLE_VULKAN)
+                g_vulkan_device == nullptr &&
+#endif
+                g_present_scaler_pipeline.implementation == nullptr &&
                 !scalers::Initialize(
                     &g_present_scaler_pipeline,
                     video::g_screen_res_x,
@@ -842,6 +1035,18 @@ namespace platform {
         }
 
         void Destroy_Present_Backend() {
+            ttf_labels::Shutdown();
+            for (int32_t race = 0; race < portrait_replacement::RACE_COUNT; ++race) {
+                SDL_DestroyTexture(g_portrait_textures[race]);
+                g_portrait_textures[race] = nullptr;
+                g_portrait_load_attempted[race] = false;
+            }
+            SDL_DestroyTexture(g_overlay_cursor_texture);
+            g_overlay_cursor_texture = nullptr;
+            g_present_portrait_race = -1;
+#if defined(ORION2RE_ENABLE_VULKAN)
+            vulkan_scalers::Shutdown(&g_vulkan_pipeline);
+#endif
             Destroy_Scaler_Output();
             scalers::Shutdown(&g_present_scaler_pipeline);
 
@@ -894,22 +1099,33 @@ namespace platform {
             (void)SDL_SetPaletteColors(g_sdl_present_palette, colors, 0, 256);
         }
 
-        void Present_Indexed_Buffer(const uint8_t* src_pixels) {
+        bool Present_Indexed_Buffer(const uint8_t* src_pixels) {
             if (src_pixels == nullptr || !Ensure_Present_Backend()) {
-                return;
+                return false;
             }
 
             Update_SDL_Palette();
             if (!SDL_BlitSurface(g_sdl_screen_index_surface, nullptr, g_sdl_present_argb_surface, nullptr)) {
-                return;
+                return false;
             }
 
             Blit_Cursor_On_Present_Surface();
+#if defined(ORION2RE_ENABLE_VULKAN)
+            if (g_vulkan_device != nullptr) {
+                if (vulkan_scalers::Process(&g_vulkan_pipeline, g_sdl_present_pixels, video::g_screen_res_x)) {
+                    return Present_Texture_To_Output(vulkan_scalers::Get_Texture(&g_vulkan_pipeline));
+                } else {
+                    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Vulkan scaling failed: %s", SDL_GetError());
+                    Request_SDL_Exit();
+                }
+                return false;
+            }
+#endif
             if (!scalers::Process(
                     &g_present_scaler_pipeline,
                     g_sdl_present_pixels,
                     video::g_screen_res_x)) {
-                return;
+                return false;
             }
 
             const int32_t dirty_region_count =
@@ -922,8 +1138,8 @@ namespace platform {
                 scalers::Get_Output_Stride(&g_present_scaler_pipeline);
             bool updated = true;
             for (int32_t region_index = 0;
-                 region_index < dirty_region_count && updated;
-                 ++region_index) {
+                region_index < dirty_region_count && updated;
+                ++region_index) {
                 const scalers::s_region& region = dirty_regions[region_index];
                 const SDL_Rect output_region = {
                     region.x,
@@ -942,7 +1158,7 @@ namespace platform {
                 scalers::Invalidate(&g_present_scaler_pipeline);
             }
 
-            Present_Texture_To_Output(g_sdl_present_texture);
+            return updated && Present_Texture_To_Output(g_sdl_present_texture);
         }
 
         void Blit_Cursor_On_Present_Surface() {
@@ -1246,6 +1462,12 @@ namespace platform {
             SDL_DestroyWindow(g_sdl_window);
             g_sdl_window = nullptr;
         }
+#if defined(ORION2RE_ENABLE_VULKAN)
+        if (g_vulkan_device != nullptr) {
+            SDL_DestroyGPUDevice(g_vulkan_device);
+            g_vulkan_device = nullptr;
+        }
+#endif
 
         g_main_window = nullptr;
     }
@@ -1279,6 +1501,15 @@ namespace platform {
                 event.type == SDL_EVENT_WINDOW_RESTORED ||
                 event.type == SDL_EVENT_WINDOW_MAXIMIZED ||
                 event.type == SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED) {
+#if defined(ORION2RE_ENABLE_VULKAN)
+                // SDL's GPU renderer updates its backbuffer on present. Resize it
+                // before drawing with the new viewport, which may be larger.
+                if (g_vulkan_device != nullptr && g_sdl_renderer != nullptr &&
+                    (event.type == SDL_EVENT_WINDOW_RESIZED ||
+                        event.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED)) {
+                    SDL_RenderPresent(g_sdl_renderer);
+                }
+#endif
                 Queue_Debug_Overlay_Display_Size();
                 Request_Present_Refresh();
                 continue;
@@ -1302,6 +1533,19 @@ namespace platform {
             }
 
             if (event.type == SDL_EVENT_KEY_DOWN || event.type == SDL_EVENT_KEY_UP) {
+                // Opt-in developer capture of the logical frame, before presentation scaling.
+                const char* capture_directory = SDL_getenv("ORION2RE_CAPTURE_DIR");
+                if (capture_directory != nullptr && capture_directory[0] != '\0' && event.key.key == SDLK_F12) {
+                    if (event.type != SDL_EVENT_KEY_DOWN || event.key.repeat) continue;
+                    if ((event.key.mod & SDL_KMOD_SHIFT) != 0) {
+                        g_capture_frames_remaining = g_capture_frames_remaining == 0 ? 120 : 0;
+                        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Animation capture: %u published frames remaining", g_capture_frames_remaining);
+                    } else {
+                        Capture_Logical_Frame_();
+                        g_capture_since_present = true;
+                    }
+                    continue;
+                }
                 const bool overlay_captures_keyboard =
                     debug_overlay::Handle_Key_Event(event.key, g_sdl_window);
                 if (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_F10) {
@@ -1422,6 +1666,8 @@ namespace platform {
     }
 
     void Copy_Off_Page_To_Present_Surface() {
+        g_present_portrait_race = video::g_published_portrait_race;
+        g_present_labels = ttf_labels::published;
         uint8_t* dst = g_present_surface;
         const uint8_t* src = video::g_page_published.pixels;
         memcpy(g_present_palette_entries, video::g_submitted_palette_entries, sizeof(g_present_palette_entries));
@@ -1502,6 +1748,11 @@ namespace platform {
     int Run_Main_Loop(const char* command_line) {
         SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "platform: Run_Main_Loop start cmd='%s'", command_line != nullptr ? command_line : "");
 
+#if defined(__linux__)
+        // Environment overrides keep X11 and isolated display testing available.
+        SDL_SetHintWithPriority(SDL_HINT_VIDEO_DRIVER, "wayland,x11", SDL_HINT_DEFAULT);
+        SDL_SetHintWithPriority(SDL_HINT_VIDEO_WAYLAND_ALLOW_LIBDECOR, "1", SDL_HINT_DEFAULT);
+#endif
         if (!SDL_Init(SDL_INIT_VIDEO)) {
             SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "platform: SDL_Init(SDL_INIT_VIDEO) failed: %s", SDL_GetError());
             return 0;
@@ -1529,6 +1780,12 @@ namespace platform {
         g_game_mouse_buttons = 0;
         g_game_mouse_suppressed = false;
         g_present_generation = 0;
+        g_capture_number = 0;
+        g_capture_frames_remaining = 0;
+        g_capture_since_present = false;
+        g_frame_timings.clear();
+        const char* timing_path = SDL_getenv("ORION2RE_FRAME_TIMINGS");
+        g_record_frame_timings = timing_path != nullptr && timing_path[0] != '\0';
         SDL_SetAtomicInt(&g_present_refresh_requested, 0);
         Set_Present_Mouse_Position(0, 0);
         g_pending_cursor_state = {};
@@ -1559,14 +1816,28 @@ namespace platform {
         }
 
 #ifdef FULLSCREEN
-        int nWidth = k_windowed_logical_width;
-        int nHeight = k_windowed_logical_height;
+        int nWidth = 1920;
+        int nHeight = 1080;
         SDL_WindowFlags window_flags = SDL_WINDOW_FULLSCREEN | SDL_WINDOW_HIDDEN;
 #else
-        int nWidth = k_windowed_logical_width;
-        int nHeight = k_windowed_logical_height;
+        int nWidth = 1920;
+        int nHeight = 1080;
         SDL_WindowFlags window_flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIDDEN;
 #endif
+
+        const char* window_size = SDL_getenv("ORION2RE_WINDOW_SIZE");
+        if (window_size != nullptr) {
+            int32_t width = 0, height = 0;
+            char trailing = '\0';
+            if (SDL_sscanf(window_size, "%dx%d%c", &width, &height, &trailing) == 2 &&
+                width >= 320 && height >= 240 && width <= 8192 && height <= 8192) {
+                nWidth = width;
+                nHeight = height;
+            } else {
+                SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "Invalid ORION2RE_WINDOW_SIZE '%s'; using 1920x1080", window_size);
+            }
+        }
+        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "platform: requested window size %dx%d", nWidth, nHeight);
 
         g_sdl_window = SDL_CreateWindow("Orion2 Redone", nWidth, nHeight, window_flags);
         if (g_sdl_window == nullptr) {
@@ -1581,9 +1852,13 @@ namespace platform {
         }
         SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "platform: hidden window created");
 
+#ifndef FULLSCREEN
+        SDL_SetWindowBordered(g_sdl_window, true);
+#endif
+
         g_main_window = g_sdl_window;
 
-        g_sdl_renderer = SDL_CreateRenderer(g_sdl_window, nullptr);
+        g_sdl_renderer = Create_Presentation_Renderer_();
         if (g_sdl_renderer == nullptr) {
             SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "platform: SDL_CreateRenderer failed: %s", SDL_GetError());
             Destroy_Main_Window();
@@ -1593,7 +1868,7 @@ namespace platform {
             g_input_queue_mutex = nullptr;
             Shutdown_Exit();
             SDL_Quit();
-            return 0;
+            return EXIT_FAILURE;
         }
         g_applied_vsync_enabled = -1;
         SDL_ShowWindow(g_sdl_window);
@@ -1680,6 +1955,7 @@ namespace platform {
         exitm::Present_Exit_Message(g_main_window);
 
         SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "platform: Run_Main_Loop shutdown");
+        Save_Frame_Timings_();
         debug_overlay::Shutdown();
         Cleanup_Surfaces();
         Destroy_Main_Window();

@@ -210,6 +210,9 @@ orion2re_add_unit_test(test_resource_reload
 target_include_directories(test_resource_reload PRIVATE
     vendors/libsmacker vendors/yyjson/src
 )
+if(TARGET orion2re_vulkan_scalers)
+    target_link_libraries(test_resource_reload PRIVATE orion2re_vulkan_scalers)
+endif()
 
 if(MSVC)
     target_compile_options(test_allocate PRIVATE /Gy)
@@ -1270,6 +1273,8 @@ orion2re_add_unit_test(test_racesel_digest
         src/game/raceopt.cpp
         src/game/raceopt_config.cpp
         src/game/racesel.cpp
+        src/game/ttf_labels.cpp
+        src/game/portrait_replacement.cpp
     FAKE_SOURCES
         tests/fakes/fake_racesel_digest_runtime.cpp
         tests/fakes/fake_sdl_string.cpp
@@ -1886,6 +1891,7 @@ orion2re_add_unit_test(test_fields
     PRODUCTION_SOURCES
         src/game/exitm.cpp
         src/game/fields.cpp
+        src/game/ttf_labels.cpp
     FAKE_SOURCES
         tests/fakes/fake_animate.cpp
         tests/fakes/fake_fields_runtime.cpp
@@ -1975,3 +1981,22 @@ orion2re_add_unit_test(test_router_client
         orion2re_lz4
     LINK_SDL
 )
+
+orion2re_add_unit_test(test_portrait_replacement
+    SOURCES tests/unit/portrait_replacement_test.cpp
+    PRODUCTION_SOURCES src/game/portrait_replacement.cpp
+)
+
+orion2re_add_unit_test(test_ttf_labels
+    SOURCES tests/unit/ttf_labels_test.cpp
+    PRODUCTION_SOURCES src/game/ttf_labels.cpp src/game/ttf_label_renderer.cpp
+    LINK_SDL
+)
+target_compile_definitions(test_ttf_labels PRIVATE
+    ORION2RE_TTF_TEST_FONT="${ORION2RE_VENDORED_IMGUI_DIR}/misc/fonts/Roboto-Medium.ttf")
+
+find_package(Python3 QUIET COMPONENTS Interpreter)
+if(Python3_Interpreter_FOUND)
+    add_test(NAME test_frame_timings
+        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/unit/frame_timings_test.py")
+endif()

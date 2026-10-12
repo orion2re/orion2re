@@ -132,3 +132,4 @@ nav:
       - Fields: development/fields.md
       - Networking: development/networking.md
       - Threading and SDL: development/threading.md
+      - Graphics modernization: development/graphics-modernization.md

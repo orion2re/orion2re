@@ -336,6 +336,7 @@ if(ORION2RE_BUILD_GAME OR ORION2RE_BUILD_TESTS OR ORION2RE_BUILD_CONFIG_TOOL)
 
     add_subdirectory("${ORION2RE_VENDORED_MINIZ_DIR}" EXCLUDE_FROM_ALL)
     add_subdirectory(src/game/scalers)
+    include(cmake/VulkanScalers.cmake)
 endif()
 
 set(LIBUV_BUILD_SHARED OFF CACHE BOOL "" FORCE)
@@ -441,6 +442,7 @@ if(ORION2RE_BUILD_GAME OR ORION2RE_BUILD_CONFIG_TOOL)
 
     list(REMOVE_ITEM ORION2RE_SOURCES ${ORION2RE_CONFIG_GENERATED_FILES})
     list(REMOVE_ITEM ORION2RE_SOURCES ${ORION2RE_SCALER_SOURCES})
+    list(REMOVE_ITEM ORION2RE_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/game/scalers/vulkan_scaler.cpp")
     list(APPEND ORION2RE_SOURCES ${ORION2RE_CONFIG_GENERATED_FILES})
     list(REMOVE_ITEM ORION2RE_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp")
 
@@ -465,6 +467,10 @@ if(ORION2RE_BUILD_GAME OR ORION2RE_BUILD_CONFIG_TOOL)
         miniz
     )
     target_compile_definitions(orion2re_game_objects PRIVATE ORION2RE_ENABLE_DEBUG_OVERLAY=1)
+    if(TARGET orion2re_vulkan_scalers)
+        target_compile_definitions(orion2re_game_objects PRIVATE ORION2RE_ENABLE_VULKAN=1)
+        target_link_libraries(orion2re_game_objects PRIVATE orion2re_vulkan_scalers)
+    endif()
     target_include_directories(orion2re_game_objects PRIVATE
         "${ORION2RE_DEBUG_OVERLAY_GENERATED_DIR}"
     )
@@ -621,6 +627,9 @@ if(ORION2RE_BUILD_GAME)
         miniz
     )
     target_link_libraries(orion2re PRIVATE orion2re_imgui)
+    if(TARGET orion2re_vulkan_scalers)
+        target_link_libraries(orion2re PRIVATE orion2re_vulkan_scalers)
+    endif()
     add_executable(config-load-benchmark EXCLUDE_FROM_ALL
         tools/config/load_benchmark.cpp
         $<TARGET_OBJECTS:orion2re_game_objects>
@@ -636,6 +645,9 @@ if(ORION2RE_BUILD_GAME)
         "${ORION2RE_VENDORED_YYJSON_DIR}/src")
     target_link_libraries(config-load-benchmark PRIVATE SDL3::SDL3-static uv_a
         orion2re_lz4 orion2re_lua orion2re_scalers miniz orion2re_imgui)
+    if(TARGET orion2re_vulkan_scalers)
+        target_link_libraries(config-load-benchmark PRIVATE orion2re_vulkan_scalers)
+    endif()
     if(MSVC)
         target_compile_definitions(config-load-benchmark PRIVATE WIN32 _CRT_SECURE_NO_DEPRECATE _CRT_NONSTDC_NO_DEPRECATE)
     endif()
@@ -720,6 +732,9 @@ if(ORION2RE_BUILD_CONFIG_TOOL)
         miniz
     )
     target_link_libraries(config-tool PRIVATE orion2re_imgui)
+    if(TARGET orion2re_vulkan_scalers)
+        target_link_libraries(config-tool PRIVATE orion2re_vulkan_scalers)
+    endif()
 
     set(ORION2RE_DOCUMENTATION_BUILD_DIR
         "${CMAKE_CURRENT_BINARY_DIR}/docs")
@@ -1015,6 +1030,13 @@ if(ORION2RE_ENABLE_ASAN)
     else()
         message(FATAL_ERROR "ORION2RE_ENABLE_ASAN is unsupported for the current compiler.")
     endif()
+endif()
+
+if(ORION2RE_BUILD_GAME)
+    add_executable(scaler-compare EXCLUDE_FROM_ALL tools/scaler_compare.cpp)
+    target_compile_features(scaler-compare PRIVATE cxx_std_20)
+    target_include_directories(scaler-compare PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    target_link_libraries(scaler-compare PRIVATE SDL3::SDL3 orion2re_scalers)
 endif()
 
 if(ORION2RE_BUILD_TESTS)

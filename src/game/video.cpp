@@ -1,6 +1,8 @@
 #include "pch.h"
 
 #include "video_scan_bounds.h"
+#include "portrait_replacement.h"
+#include "ttf_labels.h"
 
 namespace video {
     int32_t g_screen_res_x;
@@ -8,6 +10,7 @@ namespace video {
     s_page_buffer g_page_off = {};
     s_page_buffer g_page_back = {};
     s_page_buffer g_page_published = {};
+    int32_t g_published_portrait_race = -1;
     uint8_t* video_memory;
     namespace {
         int16_t g_current_mouse_list_ptr;
@@ -121,6 +124,8 @@ namespace video {
 
         g_off_page_state = OFF_PAGE_WRITABLE;
         g_off_page_generation = 0;
+        g_published_portrait_race = -1;
+        ttf_labels::Clear_Published();
         g_last_presented_generation = 0;
     }
 
@@ -142,6 +147,8 @@ namespace video {
 
         g_off_page_state = OFF_PAGE_WRITABLE;
         g_off_page_generation = 0;
+        g_published_portrait_race = -1;
+        ttf_labels::Clear_Published();
         g_last_presented_generation = 0;
     }
 
@@ -157,6 +164,17 @@ namespace video {
 
         const size_t page_size = (size_t)video::g_screen_res_x * (size_t)video::g_screen_res_y;
         memcpy(g_page_published.pixels, g_page_off.pixels, page_size);
+        g_published_portrait_race = portrait_replacement::Match(&portrait_replacement::candidate,
+            fields::auto_active_flag != 0 && fields::function == RACESEL::Draw_Race_Selection_Screen,
+            g_page_off.pixels,
+            g_screen_res_x,
+            g_screen_res_y,
+            g_palette_entries);
+        ttf_labels::Publish(fields::auto_active_flag != 0 && fields::function == RACESEL::Draw_Race_Selection_Screen,
+            g_page_off.pixels,
+            g_screen_res_x,
+            g_screen_res_y,
+            g_palette_entries);
         if (g_palette_mutex != nullptr) {
             SDL_LockMutex(g_palette_mutex);
         }
@@ -195,6 +213,9 @@ namespace video {
         while (g_off_page_state != OFF_PAGE_WRITABLE) {
             SDL_WaitCondition(g_off_page_condition, g_off_page_mutex);
         }
+        // Palette-only frames include fades; retain the indexed presentation for those.
+        g_published_portrait_race = -1;
+        ttf_labels::Clear_Published();
 
         if (g_palette_mutex != nullptr) {
             SDL_LockMutex(g_palette_mutex);
