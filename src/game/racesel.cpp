@@ -963,6 +963,7 @@ namespace RACESEL {
 
         paragraph[0] = '\0';
         const char* ttf_font = SDL_getenv("ORION2RE_TTF_FONT");
+        ttf_labels::Clear_Text();
         if (ttf_font != nullptr && ttf_font[0] != '\0') {
             for (int i = 0; i < ttf_labels::COUNT; ++i) {
                 ttf_labels::Configure(i, (i / 7) * 126 + 363, (i % 7) * 48 + 99, i < STOCK_RACE_COUNT ? MOX::race_names[i] : "Custom");
@@ -1057,7 +1058,11 @@ namespace RACESEL {
 
             fonts::Set_Font_Style_Shadow_Down(2, &shadow_colors);
             fonts::Set_Outline_Color(0, 0);
+            if (ttf_font != nullptr && ttf_font[0] != '\0') {
+                ttf_labels::Begin_Text(fonts::Get_Font_Height(), fonts::font_header.line_height, shadow_colors.colors[7]);
+            }
             BILL::_Print_Paragraph(0x32, 0x187, 0x127, paragraph, 0);
+            ttf_labels::End_Text();
 
             if (RACESEL::displayed_race == 13) {
                 fonts::Set_Font_Style_Shadow_Down(4, &shadow_colors);

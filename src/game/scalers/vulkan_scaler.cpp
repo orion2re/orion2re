@@ -1,9 +1,8 @@
 #include "game/scalers/vulkan_scaler.h"
-#include <vulkan/vulkan.h>
 #include <cstring>
 #include <new>
-#include <vector>
 #include "vulkan_scaler_spv.h"
+#include "vulkan_palette_spv.h"
 
 namespace vulkan_scalers {
     namespace {
@@ -11,45 +10,23 @@ namespace vulkan_scalers {
             SDL_GPUDevice* device = nullptr;
             SDL_Renderer* renderer = nullptr;
             SDL_GPUComputePipeline* kernel = nullptr;
+            SDL_GPUComputePipeline* palette_kernel = nullptr;
             SDL_GPUSampler* sampler = nullptr;
             SDL_GPUTexture* input = nullptr;
             SDL_GPUTexture* intermediate = nullptr;
             SDL_GPUTexture* output = nullptr;
             SDL_GPUTransferBuffer* upload = nullptr;
+            SDL_GPUTexture* indices = nullptr;
+            SDL_GPUTexture* palette = nullptr;
+            SDL_GPUTexture* cursor = nullptr;
+            SDL_GPUTexture* converted = nullptr;
+            SDL_GPUTransferBuffer* indexed_upload = nullptr;
             SDL_Texture* presentation = nullptr;
             int32_t width = 0;
             int32_t height = 0;
             int32_t factor = 0;
             scalers::e_scaler scaler = scalers::SCALER_PIXELART;
         };
-
-        // Match SDL's selected device to Vulkan's own reported name, without parsing it.
-        bool Check_Device_Version_(SDL_GPUDevice* device) {
-            VkApplicationInfo application = {};
-            application.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-            application.apiVersion = VK_API_VERSION_1_4;
-            VkInstanceCreateInfo create = {};
-            create.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-            create.pApplicationInfo = &application;
-            VkInstance instance = VK_NULL_HANDLE;
-            if (vkCreateInstance(&create, nullptr, &instance) != VK_SUCCESS) return false;
-            uint32_t count = 0;
-            bool valid = vkEnumeratePhysicalDevices(instance, &count, nullptr) == VK_SUCCESS;
-            std::vector<VkPhysicalDevice> devices(count);
-            valid = valid && vkEnumeratePhysicalDevices(instance, &count, devices.data()) == VK_SUCCESS;
-            const char* name = SDL_GetStringProperty(SDL_GetGPUDeviceProperties(device), SDL_PROP_GPU_DEVICE_NAME_STRING, "");
-            bool found = false;
-            for (uint32_t i = 0; valid && i < count; ++i) {
-                VkPhysicalDeviceProperties properties = {};
-                vkGetPhysicalDeviceProperties(devices[i], &properties);
-                if (std::strcmp(properties.deviceName, name) == 0) {
-                    found = true;
-                    valid = properties.apiVersion >= VK_API_VERSION_1_4;
-                }
-            }
-            vkDestroyInstance(instance, nullptr);
-            return valid && found;
-        }
 
         SDL_GPUTexture* Create_Texture_(s_pipeline_state* state, int32_t width, int32_t height, bool storage) {
             SDL_GPUTextureCreateInfo info = {};
@@ -65,6 +42,16 @@ namespace vulkan_scalers {
             return SDL_CreateGPUTexture(state->device, &info);
         }
 
+        void Destroy_Indexed_Input_(s_pipeline_state* state) {
+            if (state->indices) SDL_ReleaseGPUTexture(state->device, state->indices);
+            if (state->palette) SDL_ReleaseGPUTexture(state->device, state->palette);
+            if (state->cursor) SDL_ReleaseGPUTexture(state->device, state->cursor);
+            if (state->converted) SDL_ReleaseGPUTexture(state->device, state->converted);
+            if (state->indexed_upload) SDL_ReleaseGPUTransferBuffer(state->device, state->indexed_upload);
+            state->indices = state->palette = state->cursor = state->converted = nullptr;
+            state->indexed_upload = nullptr;
+        }
+
         void Destroy_Output_(s_pipeline_state* state) {
             SDL_DestroyTexture(state->presentation);
             state->presentation = nullptr;
@@ -72,9 +59,57 @@ namespace vulkan_scalers {
             if (state->intermediate) SDL_ReleaseGPUTexture(state->device, state->intermediate);
             if (state->output) SDL_ReleaseGPUTexture(state->device, state->output);
             if (state->upload) SDL_ReleaseGPUTransferBuffer(state->device, state->upload);
+            Destroy_Indexed_Input_(state);
             state->input = state->intermediate = state->output = nullptr;
             state->upload = nullptr;
             state->width = state->height = state->factor = 0;
+        }
+
+        bool Ensure_Indexed_Input_(s_pipeline_state* state) {
+            if (state->indexed_upload != nullptr) return true;
+            SDL_GPUTextureCreateInfo info = {};
+            info.type = SDL_GPU_TEXTURETYPE_2D;
+            info.format = SDL_GPU_TEXTUREFORMAT_R8_UNORM;
+            info.usage = SDL_GPU_TEXTUREUSAGE_SAMPLER;
+            info.width = state->width;
+            info.height = state->height;
+            info.layer_count_or_depth = 1;
+            info.num_levels = 1;
+            info.sample_count = SDL_GPU_SAMPLECOUNT_1;
+            state->indices = SDL_CreateGPUTexture(state->device, &info);
+            info.width = info.height = 24;
+            state->cursor = SDL_CreateGPUTexture(state->device, &info);
+            info.width = 256;
+            info.height = 1;
+            info.format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
+            state->palette = SDL_CreateGPUTexture(state->device, &info);
+            if (state->factor != 1) state->converted = Create_Texture_(state, state->width, state->height, true);
+            SDL_GPUTransferBufferCreateInfo upload = {};
+            upload.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
+            upload.size = ((state->width * state->height + 3) & ~3) + 1024 + 24 * 24;
+            if (state->indices != nullptr && state->cursor != nullptr && state->palette != nullptr &&
+                (state->factor == 1 || state->converted != nullptr)) {
+                state->indexed_upload = SDL_CreateGPUTransferBuffer(state->device, &upload);
+            }
+            if (state->indexed_upload == nullptr) {
+                Destroy_Indexed_Input_(state);
+                return false;
+            }
+            return true;
+        }
+
+        void Upload_Texture_(SDL_GPUCopyPass* copy, SDL_GPUTransferBuffer* transfer, uint32_t offset, SDL_GPUTexture* texture, uint32_t width, uint32_t height) {
+            SDL_GPUTextureTransferInfo source = {};
+            source.transfer_buffer = transfer;
+            source.offset = offset;
+            source.pixels_per_row = width;
+            source.rows_per_layer = height;
+            SDL_GPUTextureRegion destination = {};
+            destination.texture = texture;
+            destination.w = width;
+            destination.h = height;
+            destination.d = 1;
+            SDL_UploadToGPUTexture(copy, &source, &destination, true);
         }
 
         void Dispatch_(s_pipeline_state* state, SDL_GPUCommandBuffer* commands, SDL_GPUTexture* input, SDL_GPUTexture* output, int32_t width, int32_t height, int32_t factor) {
@@ -107,25 +142,17 @@ namespace vulkan_scalers {
                 }
             }
         }
-        SDL_GPUVulkanOptions options = {};
-        options.vulkan_api_version = VK_API_VERSION_1_4;
         SDL_PropertiesID properties = SDL_CreateProperties();
         SDL_SetStringProperty(properties, SDL_PROP_GPU_DEVICE_CREATE_NAME_STRING, "vulkan");
         SDL_SetBooleanProperty(properties, SDL_PROP_GPU_DEVICE_CREATE_SHADERS_SPIRV_BOOLEAN, true);
         SDL_SetBooleanProperty(properties, SDL_PROP_GPU_DEVICE_CREATE_VULKAN_REQUIRE_HARDWARE_ACCELERATION_BOOLEAN, SDL_getenv("ORION2RE_VULKAN_ALLOW_SOFTWARE") == nullptr);
-        SDL_SetPointerProperty(properties, SDL_PROP_GPU_DEVICE_CREATE_VULKAN_OPTIONS_POINTER, &options);
         // Use Khronos validation instead of SDL's additional bounds assertions:
         // Vulkan permits scissors/viewports extending beyond a render target.
         SDL_SetBooleanProperty(properties, SDL_PROP_GPU_DEVICE_CREATE_DEBUGMODE_BOOLEAN, false);
         SDL_GPUDevice* device = SDL_CreateGPUDeviceWithProperties(properties);
         SDL_DestroyProperties(properties);
-        if (device != nullptr && !Check_Device_Version_(device)) {
-            SDL_DestroyGPUDevice(device);
-            SDL_SetError("The selected GPU does not support Vulkan 1.4");
-            return nullptr;
-        }
         if (device != nullptr) {
-            SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Vulkan 1.4 GPU scaler: %s", SDL_GetStringProperty(SDL_GetGPUDeviceProperties(device), SDL_PROP_GPU_DEVICE_NAME_STRING, "unknown"));
+            SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Vulkan GPU scaler: %s", SDL_GetStringProperty(SDL_GetGPUDeviceProperties(device), SDL_PROP_GPU_DEVICE_NAME_STRING, "unknown"));
         }
         return device;
     }
@@ -147,12 +174,16 @@ namespace vulkan_scalers {
         info.threadcount_x = info.threadcount_y = 8;
         info.threadcount_z = 1;
         state->kernel = SDL_CreateGPUComputePipeline(device, &info);
+        info.code = k_vulkan_palette_data;
+        info.code_size = k_vulkan_palette_size;
+        info.num_samplers = 3;
+        state->palette_kernel = SDL_CreateGPUComputePipeline(device, &info);
         SDL_GPUSamplerCreateInfo sampler = {};
         sampler.min_filter = sampler.mag_filter = SDL_GPU_FILTER_NEAREST;
         sampler.mipmap_mode = SDL_GPU_SAMPLERMIPMAPMODE_NEAREST;
         sampler.address_mode_u = sampler.address_mode_v = sampler.address_mode_w = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE;
         state->sampler = SDL_CreateGPUSampler(device, &sampler);
-        if (state->kernel == nullptr || state->sampler == nullptr) {
+        if (state->kernel == nullptr || state->palette_kernel == nullptr || state->sampler == nullptr) {
             Shutdown(pipeline);
             return false;
         }
@@ -240,6 +271,64 @@ namespace vulkan_scalers {
         return static_cast<s_pipeline_state*>(pipeline->implementation)->presentation;
     }
 
+    bool Process_Indexed(s_pipeline* pipeline, const uint8_t* pixels, int32_t stride, const uint32_t* palette, const uint8_t* cursor, int32_t cursor_x, int32_t cursor_y) {
+        if (pipeline == nullptr || pipeline->implementation == nullptr || pixels == nullptr || palette == nullptr) return false;
+        auto* state = static_cast<s_pipeline_state*>(pipeline->implementation);
+        if (state->output == nullptr || stride < state->width) return false;
+        // Avoid signed subtraction overflow in the shader for an offscreen cursor.
+        if (cursor_x <= -24 || cursor_y <= -24 || cursor_x >= state->width || cursor_y >= state->height) {
+            cursor = nullptr;
+            cursor_x = cursor_y = 0;
+        }
+
+        if (state->renderer != nullptr && !SDL_FlushRenderer(state->renderer)) return false;
+        if (!Ensure_Indexed_Input_(state)) return false;
+        auto* mapped = static_cast<uint8_t*>(SDL_MapGPUTransferBuffer(state->device, state->indexed_upload, true));
+        if (mapped == nullptr) return false;
+        for (int32_t y = 0; y < state->height; ++y) {
+            std::memcpy(mapped + y * state->width, pixels + (size_t)y * stride, state->width);
+        }
+        const uint32_t palette_offset = (state->width * state->height + 3) & ~3;
+        for (int i = 0; i < 256; ++i) {
+            uint8_t* color = mapped + palette_offset + i * 4;
+            color[0] = palette[i] >> 16;
+            color[1] = palette[i] >> 8;
+            color[2] = palette[i];
+            color[3] = palette[i] >> 24;
+        }
+        if (cursor != nullptr)
+            std::memcpy(mapped + palette_offset + 1024, cursor, 24 * 24);
+        else
+            std::memset(mapped + palette_offset + 1024, 0, 24 * 24);
+        SDL_UnmapGPUTransferBuffer(state->device, state->indexed_upload);
+        SDL_GPUCommandBuffer* commands = SDL_AcquireGPUCommandBuffer(state->device);
+        if (commands == nullptr) return false;
+        SDL_GPUCopyPass* copy = SDL_BeginGPUCopyPass(commands);
+        Upload_Texture_(copy, state->indexed_upload, 0, state->indices, state->width, state->height);
+        Upload_Texture_(copy, state->indexed_upload, palette_offset, state->palette, 256, 1);
+        Upload_Texture_(copy, state->indexed_upload, palette_offset + 1024, state->cursor, 24, 24);
+        SDL_EndGPUCopyPass(copy);
+        const int32_t parameters[8] = {state->width, state->height, cursor_x, cursor_y, cursor != nullptr ? 1 : 0};
+        SDL_PushGPUComputeUniformData(commands, 0, parameters, sizeof(parameters));
+        SDL_GPUStorageTextureReadWriteBinding destination = {};
+        destination.texture = state->factor == 1 ? state->output : state->converted;
+        destination.cycle = true;
+        SDL_GPUComputePass* pass = SDL_BeginGPUComputePass(commands, &destination, 1, nullptr, 0);
+        SDL_BindGPUComputePipeline(pass, state->palette_kernel);
+        const SDL_GPUTextureSamplerBinding sources[] = {
+            {state->indices, state->sampler}, {state->palette, state->sampler}, {state->cursor, state->sampler}};
+        SDL_BindGPUComputeSamplers(pass, 0, sources, 3);
+        SDL_DispatchGPUCompute(pass, (state->width + 7) / 8, (state->height + 7) / 8, 1);
+        SDL_EndGPUComputePass(pass);
+        if (state->intermediate != nullptr) {
+            Dispatch_(state, commands, state->converted, state->intermediate, state->width, state->height, 2);
+            Dispatch_(state, commands, state->intermediate, state->output, state->width * 2, state->height * 2, 2);
+        } else if (state->factor != 1) {
+            Dispatch_(state, commands, state->converted, state->output, state->width, state->height, state->factor);
+        }
+        return SDL_SubmitGPUCommandBuffer(commands);
+    }
+
     bool Readback(s_pipeline* pipeline, uint32_t* pixels, int32_t stride) {
         if (pipeline == nullptr || pipeline->implementation == nullptr || pixels == nullptr) return false;
         auto* state = static_cast<s_pipeline_state*>(pipeline->implementation);
@@ -290,6 +379,7 @@ namespace vulkan_scalers {
         SDL_WaitForGPUIdle(state->device);
         Destroy_Output_(state);
         if (state->kernel) SDL_ReleaseGPUComputePipeline(state->device, state->kernel);
+        if (state->palette_kernel) SDL_ReleaseGPUComputePipeline(state->device, state->palette_kernel);
         if (state->sampler) SDL_ReleaseGPUSampler(state->device, state->sampler);
         delete state;
         pipeline->implementation = nullptr;

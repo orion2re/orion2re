@@ -100,13 +100,14 @@ namespace platform {
         std::vector<s_frame_timing> g_frame_timings;
         bool g_record_frame_timings;
         constexpr size_t k_max_frame_timings = 30000;
+        bool Prepare_Logical_Frame_();
 
         void Capture_Logical_Frame_() {
             const char* directory = SDL_getenv("ORION2RE_CAPTURE_DIR");
             if (directory == nullptr || directory[0] == '\0') return;
             char path[4096];
             const int length = SDL_snprintf(path, sizeof(path), "%s/frame-%04u.bmp", directory, ++g_capture_number);
-            if (length > 0 && (size_t)length < sizeof(path) && SDL_CreateDirectory(directory) &&
+            if (length > 0 && (size_t)length < sizeof(path) && SDL_CreateDirectory(directory) && Prepare_Logical_Frame_() &&
                 g_sdl_present_argb_surface != nullptr && SDL_SaveBMP(g_sdl_present_argb_surface, path)) {
                 SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "Captured logical frame: %s", path);
             } else {
@@ -184,7 +185,7 @@ namespace platform {
             }
 #else
             if (requested != nullptr && SDL_strcmp(requested, "vulkan") == 0) {
-                SDL_SetError("Vulkan 1.4 presentation was not included in this build");
+                SDL_SetError("Vulkan presentation was not included in this build");
                 return nullptr;
             }
 #endif
@@ -1099,20 +1100,32 @@ namespace platform {
             (void)SDL_SetPaletteColors(g_sdl_present_palette, colors, 0, 256);
         }
 
-        bool Present_Indexed_Buffer(const uint8_t* src_pixels) {
-            if (src_pixels == nullptr || !Ensure_Present_Backend()) {
-                return false;
-            }
-
+        bool Prepare_Logical_Frame_() {
             Update_SDL_Palette();
+            if (g_sdl_screen_index_surface == nullptr || g_sdl_present_argb_surface == nullptr) return false;
             if (!SDL_BlitSurface(g_sdl_screen_index_surface, nullptr, g_sdl_present_argb_surface, nullptr)) {
                 return false;
             }
-
             Blit_Cursor_On_Present_Surface();
+            return true;
+        }
+
+        bool Present_Indexed_Buffer(const uint8_t* src_pixels) {
+            if (src_pixels == nullptr || !Ensure_Present_Backend()) return false;
 #if defined(ORION2RE_ENABLE_VULKAN)
             if (g_vulkan_device != nullptr) {
-                if (vulkan_scalers::Process(&g_vulkan_pipeline, g_sdl_present_pixels, video::g_screen_res_x)) {
+                Update_SDL_Palette();
+                Apply_Pending_Cursor_State();
+                uint32_t palette[256];
+                for (int i = 0; i < 256; ++i) {
+                    palette[i] = 0xff000000u | ((uint32_t)g_present_palette_entries[i].r << 16) |
+                        ((uint32_t)g_present_palette_entries[i].g << 8) | g_present_palette_entries[i].b;
+                }
+                const uint8_t* cursor = !debug_overlay::Visible() && g_active_cursor_state.enabled != 0 &&
+                        g_active_cursor_state.shape > 0
+                    ? g_active_cursor_state.pixels
+                    : nullptr;
+                if (vulkan_scalers::Process_Indexed(&g_vulkan_pipeline, src_pixels, video::g_screen_res_x, palette, cursor, SDL_GetAtomicInt(&g_present_mouse_x), SDL_GetAtomicInt(&g_present_mouse_y))) {
                     return Present_Texture_To_Output(vulkan_scalers::Get_Texture(&g_vulkan_pipeline));
                 } else {
                     SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Vulkan scaling failed: %s", SDL_GetError());
@@ -1121,6 +1134,7 @@ namespace platform {
                 return false;
             }
 #endif
+            if (!Prepare_Logical_Frame_()) return false;
             if (!scalers::Process(
                     &g_present_scaler_pipeline,
                     g_sdl_present_pixels,
@@ -1667,7 +1681,7 @@ namespace platform {
 
     void Copy_Off_Page_To_Present_Surface() {
         g_present_portrait_race = video::g_published_portrait_race;
-        g_present_labels = ttf_labels::published;
+        ttf_labels::Copy_Published(&g_present_labels);
         uint8_t* dst = g_present_surface;
         const uint8_t* src = video::g_page_published.pixels;
         memcpy(g_present_palette_entries, video::g_submitted_palette_entries, sizeof(g_present_palette_entries));

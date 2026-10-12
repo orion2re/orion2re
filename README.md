@@ -88,7 +88,7 @@ tools/run-tests.sh
 
 For the full preset list and per-platform details, see `CMakePresets.json`.
 
-Native builds with a Vulkan 1.4 SDK and `glslangValidator` use GPU shaders for
+Native builds with a Vulkan SDK and `glslangValidator` use GPU shaders for
 presentation scaling on compatible hardware, with automatic SDL fallback.
 Linux defaults to Wayland and a 1920×1080 window, letterboxing the original
 4:3 game view. X11 remains available as a fallback.

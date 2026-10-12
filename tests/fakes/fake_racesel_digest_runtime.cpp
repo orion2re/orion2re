@@ -108,6 +108,10 @@ namespace animate {
 } // namespace animate
 
 namespace fonts {
+    s_font font_header = {};
+    int16_t __cdecl Get_Font_Height() {
+        return 12;
+    }
     void __cdecl Set_Font_Style_Shadow_Down(int16_t, const s_colors*) {
     }
 

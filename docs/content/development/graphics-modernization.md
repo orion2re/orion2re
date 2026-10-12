@@ -80,13 +80,13 @@ Each screen includes CSV timings. Full-frame measurements invalidate the entire 
 
 ## Vulkan presentation
 
-Native builds automatically enable Vulkan presentation when a Vulkan 1.4 SDK and `glslangValidator` are available. The build translates the canonical HQx and MMPX integer kernels into GLSL, compiles SPIR-V for Vulkan 1.4, and embeds the shader in the executable. Runtime requires a Vulkan 1.4 loader and hardware device. Unsupported systems fall back to the existing SDL presentation path.
+Native builds automatically enable Vulkan presentation when a Vulkan SDK and `glslangValidator` are available. The build translates the canonical HQx and MMPX integer kernels into GLSL, targets Vulkan 1.0 / SPIR-V 1.0, and embeds the shaders in the executable. Device creation uses SDL's minimal Vulkan feature set; no additional device extensions are required by the scalers. Unsupported systems fall back to the existing SDL presentation path.
 
 Linux prefers Wayland, with X11 fallback when Wayland is unavailable. The default window is 1920×1080, with the original 4:3 logical frame letterboxed inside it. `SDL_VIDEODRIVER=x11` overrides the desktop backend; `ORION2RE_WINDOW_SIZE=1280x960` overrides the window size without changing gameplay coordinates.
 
 Windowed mode requests the desktop's normal frame, title bar, and window controls. GNOME Wayland requires SDL's libdecor support: install the `libdecor-devel` build package and retain the libdecor runtime and decoration plugin. The native Linux build uses dynamically loaded libdecor; it does not draw a replacement title bar inside the game.
 
-The Vulkan backend uploads the logical ARGB frame and runs compute shaders for the selected scaler. MMPX4 uses two 2x passes. Pixelart and bilinear preserve their 1x logical texture and use SDL's GPU presentation sampler for display scaling. All seven modes bypass CPU scaling on this backend. Palette conversion and software cursor composition remain on the CPU; window presentation, input mapping, and the debug overlay use SDL's GPU renderer.
+The Vulkan backend uploads the logical indexed frame, a 256-color palette, and a color-keyed 24×24 cursor. A compute shader converts the palette and composes the cursor before scaling. MMPX4 uses two 2x scaler passes. Pixelart and bilinear use the converted 1x texture directly, avoiding an extra scaler pass; SDL's GPU presentation sampler handles display scaling. All seven modes bypass CPU palette conversion and scaling on this backend. Logical-frame captures convert on the CPU only when requested. The SDL fallback retains its CPU conversion and scaler pipeline. Window presentation, input mapping, and the debug overlay use SDL's GPU renderer.
 
 ```sh
 cmake --build --preset linux-debug --target orion2re vulkan-scaler-check
@@ -105,6 +105,73 @@ out/build/Linux/linux-debug/vulkan-scaler-check captures/research.bmp out/gpu/re
 ```
 
 Add `--gpu-tool out/build/Linux/linux-debug/vulkan-scaler-check` to the gallery command to include validated shader outputs and timings. GPU timings include upload, submission, execution, and a completion wait, averaged over 10 iterations after five warmups. These differ from the CPU timing scope and exclude window presentation.
+
+The parity tool additionally checks indexed uploads, all 256 palette entries
+(including alpha), palette-only updates, cursor color key zero, and clipped
+cursors against CPU-composed frames for all seven modes. The game uses opaque
+palette colors, matching its existing SDL conversion. Transfer buffers and
+textures are cycled rather than waiting for GPU idle every frame; full idle
+waits are confined to reconfiguration and shutdown.
+
+On a real display, run the source-owned presentation fixture:
+
+```sh
+ORION2RE_VULKAN_VALIDATION=1 \
+    out/build/Linux/linux-debug/vulkan-scaler-check --present
+```
+
+It presents 32 frames per scaler with changing palettes and moving, clipped
+cursors, resizes the window, and checks both final compute output and a pixel
+sampled by the renderer against the CPU result. The frame loop has no explicit
+GPU idle waits or readbacks; synchronization is confined to final checks and
+scaler reconfiguration.
+This checks SDL texture interoperation and resource cycling as well as shader
+fidelity. The local Intel hardware run passed all seven modes with validation
+enabled. The expanded trait text also passed a separate isolated software
+Vulkan game run, popup fallback, logical-frame capture, and window resize review.
+
+## GPU timestamp profiling
+
+SDL's public GPU API does not expose timestamp queries or native command-buffer
+handles. The separate `vulkan-scaler-profile` tool therefore uses a minimal
+Vulkan 1.0 device and the same embedded scaler and palette shaders. It compares
+MMPX2 with full-color upload against indexed upload followed by GPU palette
+conversion. It verifies both outputs against the CPU scaler before reporting
+results; captures must contain no more than 256 distinct colors.
+
+```sh
+cmake --build --preset linux-debug --target vulkan-scaler-profile
+out/build/Linux/linux-debug/vulkan-scaler-profile > out/gpu-profile.csv
+out/build/Linux/linux-debug/vulkan-scaler-profile captures/diplomacy.bmp
+```
+
+Without a BMP argument it generates a source-owned 640×480 test pattern.
+`VK_INSTANCE_LAYERS=VK_LAYER_KHRONOS_validation` enables Vulkan validation for
+this standalone tool. Software devices are excluded unless
+`ORION2RE_VULKAN_ALLOW_SOFTWARE` is set. Missing timestamp support fails the tool
+with a diagnostic and does not affect the game.
+
+The CSV averages 30 iterations after five warmups. `host_pack_ms` measures CPU
+staging-buffer preparation. GPU timestamps separate upload, palette conversion,
+MMPX2 scaling, and readback, including the barriers between those stages.
+`submit_wait_ms` measures CPU submission and fence wait for the entire workload.
+The ARGB path has no palette work, so that column records timestamp overhead.
+The tool uses one queue, synchronous readback, and GENERAL image layouts;
+it does not reproduce SDL's resource cycling, layout policy, queued-frame
+overlap, or window presentation. Compare its two paths to investigate costs;
+do not treat it as a measurement of live game frame latency.
+
+On the local Intel Graphics LNL validation run, the indexed path uploaded
+308,800 bytes versus 1,228,800 bytes for ARGB. CPU buffer packing averaged
+approximately 0.01 ms versus 0.04 ms on both diplomacy and scout-combat captures.
+The additional GPU palette pass averaged approximately 0.03–0.04 ms. These are
+machine-specific samples with validation enabled, not a general frame-rate
+improvement claim. Palette conversion and cursor composition now execute on the
+GPU in the game, while dense text continues to be reviewed separately.
+
+Both shaders validate with `spirv-val --target-env vulkan1.0`. The compatibility
+checks used modern Intel and software Vulkan drivers with a Vulkan 1.0 instance
+and minimal requested features; older physical GPUs still require testing.
 
 ## Initial baseline
 
@@ -198,8 +265,9 @@ ORION2RE_GRAPHICS_DIR=/absolute/path/to/out/alien-races-v1 ./orion2re
 The flags are independent. Unset or empty `ORION2RE_TTF_FONT` keeps the original
 bitmap captions. A missing or unsupported font falls back without preventing
 play; restart to change fonts. The first integration replaces the 14 race button
-captions using ASCII game race names and “Custom”. Screen titles, trait text,
-and other screens still use bitmap fonts. Non-ASCII labels fall back individually.
+captions using ASCII game race names and “Custom”, plus the wrapped race-trait
+descriptions. Screen titles and other screens still use bitmap fonts. Non-ASCII
+labels and trait lines fall back individually.
 
 The backend uses the `stb_truetype` implementation already pinned in the Dear
 ImGui submodule (`vendors/imgui/imstb_truetype.h`, upstream dual MIT/public-domain
@@ -217,6 +285,14 @@ button borders. Because the original captions are baked into sprites, the trial
 reconstructs the caption background from clear side strips. This is a prototype
 of the label appearance, not a replacement for general text layout: original
 bitmap measurement, wrapping, and gameplay behavior remain in place.
+
+Trait descriptions reuse the original paragraph wrapper. Each rendered line
+captures its real background before bitmap drawing, then records the finished
+region for publication checks. The native-resolution overlay restores that
+background and draws the same line at its original location, size, and palette
+color. It supports up to eight ASCII lines within the existing bounds. Covered
+regions, palette fades, missing glyphs, and invalid geometry retain bitmap text.
+There is no change to paragraph wrapping, localization encodings, or hitboxes.
 
 Validation: `test_ttf_labels` checks frame eligibility, malformed font table
 bounds, ASCII fallback, cached rendering at 1×/3×, highlighted text, and missing

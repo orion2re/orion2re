@@ -1297,8 +1297,10 @@ orion2re_add_unit_test(test_bill_history
         tests/unit/bill_test.cpp
     PRODUCTION_SOURCES
         src/game/bill.cpp
+        src/game/ttf_labels.cpp
     FAKE_SOURCES
         tests/fakes/fake_bill_history_runtime.cpp
+        tests/fakes/fake_video.cpp
 )
 
 if(MSVC)

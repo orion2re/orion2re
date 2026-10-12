@@ -20,6 +20,12 @@ namespace ttf_labels {
             int scale = 0;
         };
         s_cached_label cache[COUNT];
+        struct s_cached_line {
+            SDL_Texture* texture = nullptr;
+            s_text_line line;
+            int scale = 0;
+        };
+        s_cached_line line_cache[TEXT_COUNT];
 
         bool Load_Font_() {
             if (attempted) return font_data != nullptr;
@@ -40,6 +46,46 @@ namespace ttf_labels {
             return true;
         }
 
+        bool Rasterize_Text_(const char* text, std::vector<uint8_t>* rgba, int width, int height, float pixel_height, const uint8_t* color, float margin, bool centered) {
+            int ascent, descent, gap;
+            stbtt_GetFontVMetrics(&font, &ascent, &descent, &gap);
+            float scale = stbtt_ScaleForPixelHeight(&font, pixel_height);
+            int units = 0;
+            for (const char* c = text; *c; ++c) {
+                if (stbtt_FindGlyphIndex(&font, *c) == 0) return false;
+                int advance, bearing;
+                stbtt_GetCodepointHMetrics(&font, *c, &advance, &bearing);
+                units += advance;
+                if (c[1]) units += stbtt_GetCodepointKernAdvance(&font, *c, c[1]);
+            }
+            if (units <= 0) return false;
+            scale = std::min(scale, (width - 2.0f * margin) / units);
+            float pen = centered ? (width - units * scale) * 0.5f : margin;
+            const int baseline = (int)std::lround((height - (ascent - descent) * scale) * 0.5f + ascent * scale);
+            for (const char* c = text; *c; ++c) {
+                int gw, gh, gx, gy;
+                unsigned char* glyph = stbtt_GetCodepointBitmap(&font, scale, scale, *c, &gw, &gh, &gx, &gy);
+                if (glyph != nullptr) {
+                    const int origin_x = (int)std::lround(pen) + gx;
+                    for (int y = 0; y < gh; ++y) {
+                        for (int x = 0; x < gw; ++x) {
+                            const int dx = origin_x + x, dy = baseline + gy + y;
+                            if (dx < 0 || dy < 0 || dx >= width || dy >= height) continue;
+                            const int alpha = glyph[y * gw + x];
+                            uint8_t* dst = rgba->data() + ((size_t)dy * width + dx) * 4;
+                            for (int channel = 0; channel < 3; ++channel) dst[channel] = (uint8_t)((dst[channel] * (255 - alpha) + color[channel] * alpha + 127) / 255);
+                        }
+                    }
+                    stbtt_FreeBitmap(glyph, nullptr);
+                }
+                int advance, bearing;
+                stbtt_GetCodepointHMetrics(&font, *c, &advance, &bearing);
+                pen += advance * scale;
+                if (c[1]) pen += stbtt_GetCodepointKernAdvance(&font, *c, c[1]) * scale;
+            }
+            return true;
+        }
+
         SDL_Texture* Build_Label_(SDL_Renderer* renderer, const s_label& label, int density) {
             const int width = WIDTH * density;
             const int height = HEIGHT * density;
@@ -55,47 +101,31 @@ namespace ttf_labels {
                     dst[3] = 255;
                 }
             }
-            int ascent, descent, gap;
-            stbtt_GetFontVMetrics(&font, &ascent, &descent, &gap);
-            float scale = stbtt_ScaleForPixelHeight(&font, 20.0f * density);
-            int units = 0;
-            for (const char* c = label.text; *c; ++c) {
-                if (stbtt_FindGlyphIndex(&font, *c) == 0) return nullptr;
-                int advance, bearing;
-                stbtt_GetCodepointHMetrics(&font, *c, &advance, &bearing);
-                units += advance;
-                if (c[1]) units += stbtt_GetCodepointKernAdvance(&font, *c, c[1]);
-            }
-            if (units <= 0) return nullptr;
-            scale = std::min(scale, (width - 4.0f * density) / units);
-            float pen = (width - units * scale) * 0.5f;
-            const int baseline = (int)std::lround((height - (ascent - descent) * scale) * 0.5f + ascent * scale);
             const uint8_t color[3] = {
                 (uint8_t)(label.selected ? 255 : 35),
                 (uint8_t)(label.selected ? 202 : 12),
                 (uint8_t)(label.selected ? 62 : 10),
             };
-            for (const char* c = label.text; *c; ++c) {
-                int gw, gh, gx, gy;
-                unsigned char* glyph = stbtt_GetCodepointBitmap(&font, scale, scale, *c, &gw, &gh, &gx, &gy);
-                if (glyph != nullptr) {
-                    const int origin_x = (int)std::lround(pen) + gx;
-                    for (int y = 0; y < gh; ++y) {
-                        for (int x = 0; x < gw; ++x) {
-                            const int dx = origin_x + x, dy = baseline + gy + y;
-                            if (dx < 0 || dy < 0 || dx >= width || dy >= height) continue;
-                            const int alpha = glyph[y * gw + x];
-                            uint8_t* dst = rgba.data() + ((size_t)dy * width + dx) * 4;
-                            for (int channel = 0; channel < 3; ++channel) dst[channel] = (uint8_t)((dst[channel] * (255 - alpha) + color[channel] * alpha + 127) / 255);
-                        }
-                    }
-                    stbtt_FreeBitmap(glyph, nullptr);
-                }
-                int advance, bearing;
-                stbtt_GetCodepointHMetrics(&font, *c, &advance, &bearing);
-                pen += advance * scale;
-                if (c[1]) pen += stbtt_GetCodepointKernAdvance(&font, *c, c[1]) * scale;
+            if (!Rasterize_Text_(label.text, &rgba, width, height, 20.0f * density, color, 2.0f * density, true)) return nullptr;
+            SDL_Texture* texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC, width, height);
+            if (texture != nullptr && !SDL_UpdateTexture(texture, nullptr, rgba.data(), width * 4)) {
+                SDL_DestroyTexture(texture);
+                return nullptr;
             }
+            if (texture != nullptr) SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_LINEAR);
+            return texture;
+        }
+        SDL_Texture* Build_Line_(SDL_Renderer* renderer, const s_text_line& line, int density) {
+            const int width = line.width * density, height = line.height * density;
+            std::vector<uint8_t> rgba((size_t)width * height * 4);
+            for (int y = 0; y < height; ++y)
+                for (int x = 0; x < width; ++x) {
+                    const uint8_t index = line.background[(y / density) * line.width + x / density];
+                    uint8_t* pixel = rgba.data() + ((size_t)y * width + x) * 4;
+                    memcpy(pixel, line.palette + index * 4, 3);
+                    pixel[3] = 255;
+                }
+            if (!Rasterize_Text_(line.text, &rgba, width, height, (float)line.font_height * density, line.palette + line.color * 4, (float)density, false)) return nullptr;
             SDL_Texture* texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC, width, height);
             if (texture != nullptr && !SDL_UpdateTexture(texture, nullptr, rgba.data(), width * 4)) {
                 SDL_DestroyTexture(texture);
@@ -127,11 +157,31 @@ namespace ttf_labels {
                 drawn |= SDL_RenderTexture(renderer, entry.texture, nullptr, &rect);
             }
         }
+        for (int slot = 0; slot < TEXT_COUNT; ++slot) {
+            const s_text_line& line = frame.lines[slot];
+            if (!line.valid || line.width < 3 || line.width > TEXT_WIDTH || line.height <= 0 || line.height > TEXT_HEIGHT ||
+                line.font_height <= 0 || line.font_height > line.height) continue;
+            s_cached_line& entry = line_cache[slot];
+            if (entry.texture == nullptr || entry.scale != density || memcmp(&entry.line, &line, sizeof(line)) != 0) {
+                SDL_DestroyTexture(entry.texture);
+                entry.texture = Build_Line_(renderer, line, density);
+                entry.line = line;
+                entry.scale = density;
+            }
+            if (entry.texture != nullptr) {
+                const SDL_FRect rect = {(float)line.x, (float)line.y, (float)line.width, (float)line.height};
+                drawn |= SDL_RenderTexture(renderer, entry.texture, nullptr, &rect);
+            }
+        }
         return drawn;
     }
 
     void Shutdown() {
         for (s_cached_label& entry : cache) {
+            SDL_DestroyTexture(entry.texture);
+            entry = {};
+        }
+        for (s_cached_line& entry : line_cache) {
             SDL_DestroyTexture(entry.texture);
             entry = {};
         }
