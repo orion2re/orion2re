@@ -1032,13 +1032,6 @@ if(ORION2RE_ENABLE_ASAN)
     endif()
 endif()
 
-if(ORION2RE_BUILD_GAME)
-    add_executable(scaler-compare EXCLUDE_FROM_ALL tools/scaler_compare.cpp)
-    target_compile_features(scaler-compare PRIVATE cxx_std_20)
-    target_include_directories(scaler-compare PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
-    target_link_libraries(scaler-compare PRIVATE SDL3::SDL3 orion2re_scalers)
-endif()
-
 if(ORION2RE_BUILD_TESTS)
     include("${ORION2RE_TESTS_DIR}/tests.cmake")
     add_executable(scaler-benchmark EXCLUDE_FROM_ALL

@@ -1,5 +1,4 @@
 #include "pch.h"
-#include "ttf_labels.h"
 
 namespace BILL {
     int16_t _pp_max_width;
@@ -391,9 +390,6 @@ namespace BILL {
             }
 
             if (draw_flag != 0) {
-                const int text_slot = mode == 0 && bitmap == nullptr && ttf_labels::Capturing_Text()
-                    ? ttf_labels::Capture_Text_Before(x, y, width, str, video::Get_Selected_Page_Pixels(), video::g_screen_res_x, video::g_screen_res_y, video::g_palette_entries)
-                    : -1;
                 if (bitmap != nullptr) {
                     mode |= 0x800;
                 }
@@ -424,7 +420,6 @@ namespace BILL {
                         Print_Display_To_Bitmap_Auto_Width(x, y, str, width, bitmap);
                         break;
                 }
-                if (text_slot >= 0) ttf_labels::Capture_Text_After(text_slot, video::Get_Selected_Page_Pixels(), video::g_screen_res_x, video::g_screen_res_y);
             }
 
             if ((int32_t)(uint16_t)(_pp_max_width) < (int32_t)str_width) {

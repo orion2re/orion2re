@@ -36,7 +36,7 @@ namespace {
     char trait_warlord[] = "Warlord";
     char trait_poor_home_world[] = "Poor Home World";
     char government_unification[] = "Unification";
-} // namespace
+}
 
 namespace TEST_RACESEL_DIGEST {
     void Reset_() {
@@ -84,13 +84,13 @@ namespace TEST_RACESEL_DIGEST {
     const char* Captured_Paragraph_() {
         return captured_paragraph;
     }
-} // namespace TEST_RACESEL_DIGEST
+}
 
 namespace MOX {
     void* global_cache_seg;
     char* government_labels[GOVERNMENT_COUNT];
     char* special_ability_names[32];
-} // namespace MOX
+}
 
 namespace DESIGN {
     const char s_comma_space[3] = ", ";
@@ -100,18 +100,14 @@ namespace buffer {
     void* __cdecl Buffer_Reload(const char*, int32_t, void*) {
         return nullptr;
     }
-} // namespace buffer
+}
 
 namespace animate {
     void __cdecl Draw(int16_t, int16_t, s_animation_header*) {
     }
-} // namespace animate
+}
 
 namespace fonts {
-    s_font font_header = {};
-    int16_t __cdecl Get_Font_Height() {
-        return 12;
-    }
     void __cdecl Set_Font_Style_Shadow_Down(int16_t, const s_colors*) {
     }
 
@@ -120,36 +116,20 @@ namespace fonts {
 
     void __cdecl Print_Centered(int16_t, int16_t, const char*) {
     }
-} // namespace fonts
+}
 
 namespace KEN {
     void __cdecl Ken_Get_Text_Message(int32_t message_id, char* buffer, int16_t buffer_size) {
         const char* message = message_id == 0x68 ? ", and " : "";
         strlcpy(buffer, message, buffer_size);
     }
-} // namespace KEN
+}
 
 namespace BILL {
-    void __cdecl _Print_Paragraph(int16_t x, int16_t y, int16_t width, const char* text, int16_t alignment) {
+    void __cdecl _Print_Paragraph(int16_t x, int16_t y, int16_t width,
+                                  const char* text, int16_t alignment) {
         if (x == 0x32 && y == 0x187 && width == 0x127 && alignment == 0) {
             strlcpy(captured_paragraph, text, sizeof(captured_paragraph));
         }
     }
-} // namespace BILL
-// These text-only tests do not provide a framebuffer or a portrait pack.
-namespace video {
-    int32_t g_screen_res_x = 640;
-    int32_t g_screen_res_y = 480;
-    s_palette_color g_palette_entries[256] = {};
-    uint8_t* Get_Selected_Page_Pixels() {
-        return nullptr;
-    }
-} // namespace video
-
-extern "C" const char* SDLCALL SDL_getenv(const char*) {
-    return nullptr;
-}
-
-namespace MOX {
-    char* race_names[20] = {};
 }

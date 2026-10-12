@@ -3,8 +3,6 @@
 #include "doctest/doctest.h"
 
 #include <cstring>
-#include <vector>
-#include "game/ttf_labels.h"
 
 #include "fakes/fake_test_support.h"
 
@@ -478,28 +476,6 @@ DOCTEST_TEST_CASE("draw field radio action path uses selected text offsets when 
     DOCTEST_REQUIRE(test::fakes::g_print_centered_calls.size() == 1);
     DOCTEST_CHECK(test::fakes::g_print_centered_calls[0].x == 30);
     DOCTEST_CHECK(test::fakes::g_print_centered_calls[0].y == 30);
-}
-
-DOCTEST_TEST_CASE("race label capture covers normal and pressed radio drawing") {
-    Fields_Test_Reset reset;
-    s_animation_header picture{};
-    int16_t selection = 1;
-    std::vector<uint8_t> pixels(640 * 480, 2);
-    uint8_t* previous_page = video::current_video_page;
-    video::current_video_page = pixels.data();
-    ttf_labels::candidates = {};
-    ttf_labels::Configure(0, 363, 99, "Alkari");
-    const int16_t field_idx = fields::Add_Radio_Button_Field(351, 90, "", &picture, &selection, "", 0);
-    fields::Draw_Visible_Fields();
-    DOCTEST_CHECK(ttf_labels::candidates.labels[0].valid);
-    DOCTEST_CHECK(ttf_labels::candidates.labels[0].selected);
-    ttf_labels::candidates.labels[0].valid = false;
-    selection = 0;
-    fields::Draw_Field(field_idx, 1);
-    DOCTEST_CHECK(ttf_labels::candidates.labels[0].valid);
-    DOCTEST_CHECK_FALSE(ttf_labels::candidates.labels[0].selected);
-    ttf_labels::candidates = {};
-    video::current_video_page = previous_page;
 }
 
 DOCTEST_TEST_CASE("draw field locked selected path uses selected text offsets") {

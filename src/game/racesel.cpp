@@ -1,8 +1,6 @@
 #include "pch.h"
 #include "fields.h"
 #include "raceopt.h"
-#include "portrait_replacement.h"
-#include "ttf_labels.h"
 
 namespace RACESEL {
 
@@ -50,8 +48,8 @@ namespace RACESEL {
                 (int8_t)bonus_value) {
                 custom_race_flags[bonus_idx + 1] = 2;
             } else if (raceopt::pick_rules.primary[bonus_idx]
-                                                  [raceopt::PRIMARY_CHOICE_MAJOR_BONUS]
-                                                      .value ==
+                                             [raceopt::PRIMARY_CHOICE_MAJOR_BONUS]
+                                                 .value ==
                 (int8_t)bonus_value) {
                 custom_race_flags[bonus_idx + 1] = 3;
             } else {
@@ -530,8 +528,8 @@ namespace RACESEL {
                             } else {
                                 int32_t pick_total =
                                     (int32_t)raceopt::pick_rules.primary[selected_group]
-                                                                        [selected_value - 1]
-                                                                            .cost +
+                                                                   [selected_value - 1]
+                                                                       .cost +
                                     static_cast<int32_t>(raceopt::negative_picks);
 
                                 if (pick_total < raceopt::pick_rules.negative_limit) {
@@ -962,13 +960,6 @@ namespace RACESEL {
         s_animation_header* animation;
 
         paragraph[0] = '\0';
-        const char* ttf_font = SDL_getenv("ORION2RE_TTF_FONT");
-        ttf_labels::Clear_Text();
-        if (ttf_font != nullptr && ttf_font[0] != '\0') {
-            for (int i = 0; i < ttf_labels::COUNT; ++i) {
-                ttf_labels::Configure(i, (i / 7) * 126 + 363, (i % 7) * 48 + 99, i < STOCK_RACE_COUNT ? MOX::race_names[i] : "Custom");
-            }
-        }
 
         if (RACESEL::custom_flag == 0) {
             animation = (s_animation_header*)buffer::Buffer_Reload("RACESEL.LBX", 0x21, MOX::global_cache_seg);
@@ -1029,8 +1020,8 @@ namespace RACESEL {
                     const int32_t special_level = static_cast<int8_t>(race_specials[ability_id]);
                     const int primary_pick = ability_id - TRAIT_POP_GROWTH_BONUS;
                     const int8_t bonus = raceopt::pick_rules.primary[primary_pick]
-                                                                    [special_level - 1]
-                                                                        .value;
+                                                               [special_level - 1]
+                                                                   .value;
                     strlcat(
                         paragraph,
                         ability_id == TRAIT_PRODUCTION_BONUS ? ": " : " ",
@@ -1058,11 +1049,7 @@ namespace RACESEL {
 
             fonts::Set_Font_Style_Shadow_Down(2, &shadow_colors);
             fonts::Set_Outline_Color(0, 0);
-            if (ttf_font != nullptr && ttf_font[0] != '\0') {
-                ttf_labels::Begin_Text(fonts::Get_Font_Height(), fonts::font_header.line_height, shadow_colors.colors[7]);
-            }
             BILL::_Print_Paragraph(0x32, 0x187, 0x127, paragraph, 0);
-            ttf_labels::End_Text();
 
             if (RACESEL::displayed_race == 13) {
                 fonts::Set_Font_Style_Shadow_Down(4, &shadow_colors);
@@ -1073,13 +1060,6 @@ namespace RACESEL {
 
         animation = (s_animation_header*)buffer::Buffer_Reload("RACESEL.LBX", 0, MOX::global_cache_seg);
         animate::Draw(0x30, 0x3a, animation);
-        const char* graphics_directory = SDL_getenv("ORION2RE_GRAPHICS_DIR");
-        portrait_replacement::Capture(&portrait_replacement::candidate,
-            graphics_directory != nullptr && graphics_directory[0] != '\0' && race_flag[displayed_race] == 0 ? displayed_race : -1,
-            video::Get_Selected_Page_Pixels(),
-            video::g_screen_res_x,
-            video::g_screen_res_y,
-            video::g_palette_entries);
     }
 
 } // namespace RACESEL
