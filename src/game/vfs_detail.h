@@ -73,6 +73,9 @@ namespace vfs_detail {
         bool initialized;
         char base_path[VFS_MAX_PATH];
         char fallback_path[VFS_MAX_PATH];
+        char user_config_path[VFS_MAX_PATH];
+        char user_mods_path[VFS_MAX_PATH];
+        std::vector<std::string> raw_search_paths;
         std::vector<s_vfs_zip_archive> zip_archives;
         std::vector<s_vfs_zip_cache_entry> zip_entries;
         std::vector<s_vfs_package_layer> package_layers;
@@ -96,6 +99,7 @@ namespace vfs_detail {
     bool Build_Asset_Key_(const char* asset_path, char* output_key, size_t output_key_size);
     bool Build_Candidate_Path_(const char* base_path, const char* prefix, const char* asset_path, char* output_path, size_t output_path_size);
     bool Resolve_Candidate_Path_(const char* candidate_path, char* resolved_path, size_t resolved_path_size, e_vfs_candidate_kind candidate_kind = VFS_CANDIDATE_FILE);
+    bool Resolve_User_Config_Asset_Path_(const char* asset_path, char* resolved_path, size_t resolved_path_size);
     bool Resolve_Override_Asset_Path_(const char* asset_path, char* resolved_path, size_t resolved_path_size);
     bool Resolve_Data_Asset_Path_(const char* asset_path, char* resolved_path, size_t resolved_path_size);
     bool Resolve_Package_Asset_Path_(const char* asset_path, char* resolved_path, size_t resolved_path_size);

@@ -54,6 +54,7 @@ nav:
           - Introduction: manual/overview/introduction.md
           - Version 2.00 highlights: manual/overview/highlights.md
           - Compatibility: manual/overview/compatibility.md
+          - File locations: manual/overview/file-locations.md
           - Critical bug fixes: manual/overview/critical-bug-fixes.md
           - Multiplayer: manual/multiplayer.md
       - User-facing changes:
