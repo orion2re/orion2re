@@ -9,6 +9,8 @@ Install a mod as either:
 - a directory named `data/mods/<id>/`; or
 - a ZIP file named `data/mods/<id>.zip`.
 
+In XDG mode on Linux, you can also install mods in `~/.local/share/orion2re/mods/` and enable them in `~/.config/orion2re/orion2re.cfg`; see [File locations](../overview/file-locations.md).
+
 Use only one form for the same mod ID. The package must be made for Orion2 Redone and include a `mod.json5` manifest. A loose 1.50 configuration, LBX replacement, or Lua script is not a version 2.00 package and should not be copied directly into `data/mods`.
 
 ## Enabling a mod

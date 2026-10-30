@@ -58,6 +58,9 @@ namespace vfs {
         vfs_detail::g_vfs_state.initialized = false;
         vfs_detail::g_vfs_state.base_path[0] = '\0';
         vfs_detail::g_vfs_state.fallback_path[0] = '\0';
+        vfs_detail::g_vfs_state.user_config_path[0] = '\0';
+        vfs_detail::g_vfs_state.user_mods_path[0] = '\0';
+        vfs_detail::g_vfs_state.raw_search_paths.clear();
     }
 
     int8_t Set_Raw_Fallback_Path(const char* path) {
@@ -68,6 +71,43 @@ namespace vfs {
         }
 
         strlcpy(vfs_detail::g_vfs_state.fallback_path, clean_fallback_path, sizeof(vfs_detail::g_vfs_state.fallback_path));
+        return 1;
+    }
+
+    int8_t Set_User_Config_Path(const char* path) {
+        char clean_path[vfs_detail::VFS_MAX_PATH];
+
+        if (!vfs_detail::Build_Base_Path_(path, clean_path, sizeof(clean_path))) {
+            return 0;
+        }
+
+        strlcpy(vfs_detail::g_vfs_state.user_config_path, clean_path, sizeof(vfs_detail::g_vfs_state.user_config_path));
+        return 1;
+    }
+
+    int8_t Set_User_Mods_Path(const char* path) {
+        char clean_path[vfs_detail::VFS_MAX_PATH];
+
+        if (!vfs_detail::Build_Base_Path_(path, clean_path, sizeof(clean_path))) {
+            return 0;
+        }
+
+        strlcpy(vfs_detail::g_vfs_state.user_mods_path, clean_path, sizeof(vfs_detail::g_vfs_state.user_mods_path));
+        return 1;
+    }
+
+    int8_t Add_Raw_Search_Path(const char* path) {
+        char clean_path[vfs_detail::VFS_MAX_PATH];
+
+        if (!vfs_detail::Build_Base_Path_(path, clean_path, sizeof(clean_path))) {
+            return 0;
+        }
+
+        if (clean_path[0] == '\0') {
+            return 0;
+        }
+
+        vfs_detail::g_vfs_state.raw_search_paths.push_back(clean_path);
         return 1;
     }
 
@@ -110,14 +150,24 @@ namespace vfs {
         char archive_candidate[vfs_detail::VFS_MAX_PATH];
         char directory_path[vfs_detail::VFS_MAX_PATH];
         char archive_path[vfs_detail::VFS_MAX_PATH];
-        const std::string directory_relative = std::string(vfs_detail::VFS_MODS_PATH) + package_id;
-        const std::string archive_relative = directory_relative + ".zip";
-        const bool have_directory =
-            vfs_detail::Build_Candidate_Path_(vfs_detail::g_vfs_state.base_path, "", directory_relative.c_str(), directory_candidate, sizeof(directory_candidate)) &&
-            vfs_detail::Resolve_Candidate_Path_(directory_candidate, directory_path, sizeof(directory_path), vfs_detail::VFS_CANDIDATE_DIRECTORY);
-        const bool have_archive =
-            vfs_detail::Build_Candidate_Path_(vfs_detail::g_vfs_state.base_path, "", archive_relative.c_str(), archive_candidate, sizeof(archive_candidate)) &&
-            vfs_detail::Resolve_Candidate_Path_(archive_candidate, archive_path, sizeof(archive_path));
+        bool have_directory = false;
+        bool have_archive = false;
+        const auto find_package = [&](const char* root, const char* prefix) {
+            const std::string directory_relative = std::string(prefix) + package_id;
+            const std::string archive_relative = directory_relative + ".zip";
+            have_directory =
+                vfs_detail::Build_Candidate_Path_(root, "", directory_relative.c_str(), directory_candidate, sizeof(directory_candidate)) &&
+                vfs_detail::Resolve_Candidate_Path_(directory_candidate, directory_path, sizeof(directory_path), vfs_detail::VFS_CANDIDATE_DIRECTORY);
+            have_archive =
+                vfs_detail::Build_Candidate_Path_(root, "", archive_relative.c_str(), archive_candidate, sizeof(archive_candidate)) &&
+                vfs_detail::Resolve_Candidate_Path_(archive_candidate, archive_path, sizeof(archive_path));
+            return have_directory || have_archive;
+        };
+        // A package in the user's mods directory replaces an installed one with the same ID.
+        if (vfs_detail::g_vfs_state.user_mods_path[0] == '\0' ||
+            !find_package(vfs_detail::g_vfs_state.user_mods_path, "")) {
+            find_package(vfs_detail::g_vfs_state.base_path, vfs_detail::VFS_MODS_PATH);
+        }
         if (have_directory == have_archive) {
             *diagnostic = have_directory ? "package '" + std::string(package_id) + "' has both directory and ZIP forms" : "package not found: '" + std::string(package_id) + "'";
             return 0;
@@ -358,6 +408,10 @@ namespace vfs {
             return nullptr;
         }
 
+        if (vfs_detail::Resolve_User_Config_Asset_Path_(asset_path, resolved_path, sizeof(resolved_path))) {
+            return vfs_detail::Open_Raw_File_(resolved_path, mode);
+        }
+
         if (vfs_detail::Resolve_Override_Asset_Path_(asset_path, resolved_path, sizeof(resolved_path))) {
             return vfs_detail::Open_Raw_File_(resolved_path, mode);
         }
@@ -490,6 +544,10 @@ namespace vfs {
                     vfs_detail::Find_Package_Zip_Entry_(asset_path, nullptr)
                 ? 1
                 : 0;
+        }
+
+        if (vfs_detail::Resolve_User_Config_Asset_Path_(asset_path, resolved_path, sizeof(resolved_path))) {
+            return 1;
         }
 
         if (vfs_detail::Resolve_Override_Asset_Path_(asset_path, resolved_path, sizeof(resolved_path))) {
