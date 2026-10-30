@@ -2456,6 +2456,7 @@
     monster_hit_points: {
       title: "Monster hit points",
       description: "Structural hit points for system guardians and random-event monsters.",
+      remarks: "The individual Crystal, Hydra, and Dragon overrides accept 0 through 32767 HP. Their default of -1 uses the corresponding shared value instead. An individual override takes precedence over the shared value regardless of assignment order. The shared fields remain available for existing configurations.",
       fields: [
         { id: "system_eel", title: "System Eel", description: "Hit points of a stationary Space Eel.", type: "uint16", constraints: { max: 32767 }, bind: ["system_eel"] },
         { id: "system_amoeba", title: "System Amoeba", description: "Hit points of a stationary Amoeba.", type: "uint16", constraints: { max: 32767 }, bind: ["system_amoeba"] },
@@ -2464,6 +2465,11 @@
         { id: "event_eel", title: "Event Eel", description: "Hit points of a Space Eel event monster.", type: "uint16", constraints: { max: 32767 }, bind: ["event_eel"] },
         { id: "event_hydra", title: "Event Hydra", description: "Hit points of a Hydra event monster.", type: "uint16", constraints: { max: 32767 }, bind: ["event_hydra"] },
         { id: "event_crystal_dragon", title: "Event Crystal and Dragon", description: "Hit points of Crystal and Dragon event monsters.", type: "uint16", constraints: { max: 32767 }, bind: ["event_crystal_dragon"] },
+        { id: "system_crystal", title: "System Crystal", description: "Hit points of a stationary Crystal; -1 uses system_crystal_hydra_dragon.", type: "int16", constraints: { min: -1 }, bind: ["system_crystal"] },
+        { id: "system_hydra", title: "System Hydra", description: "Hit points of a stationary Hydra; -1 uses system_crystal_hydra_dragon.", type: "int16", constraints: { min: -1 }, bind: ["system_hydra"] },
+        { id: "system_dragon", title: "System Dragon", description: "Hit points of a stationary Dragon; -1 uses system_crystal_hydra_dragon.", type: "int16", constraints: { min: -1 }, bind: ["system_dragon"] },
+        { id: "event_crystal", title: "Event Crystal", description: "Hit points of a Crystal event monster; -1 uses event_crystal_dragon.", type: "int16", constraints: { min: -1 }, bind: ["event_crystal"] },
+        { id: "event_dragon", title: "Event Dragon", description: "Hit points of a Dragon event monster; -1 uses event_crystal_dragon.", type: "int16", constraints: { min: -1 }, bind: ["event_dragon"] },
       ],
     },
     monster_drives: {
@@ -5760,6 +5766,11 @@
       remarks: "Each ship design owns its FTL drive. A design with No Drive remains stationary and uses its monster drive only to derive combat speed.",
       examples: [
         "ships monster hit_points system_eel = 300;",
+        "ships monster hit_points system_crystal = 500;",
+        "ships monster hit_points system_hydra = 600;",
+        "ships monster hit_points system_dragon = 700;",
+        "ships monster hit_points event_crystal = 2500;",
+        "ships monster hit_points event_dragon = 3000;",
         "ships monster drives amoeba = fusion;",
         "ships monster drives guardian = anti_matter;",
         "ships monster drives crystal = anti_matter;",

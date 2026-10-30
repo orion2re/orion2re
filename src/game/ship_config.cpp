@@ -46,6 +46,11 @@ namespace SHIP_CONFIG {
             .event_eel = 1000,
             .event_hydra = 1500,
             .event_crystal_dragon = 2500,
+            .system_crystal = -1,
+            .system_hydra = -1,
+            .system_dragon = -1,
+            .event_crystal = -1,
+            .event_dragon = -1,
         },
         .drives = {
             .amoeba = DRIVE_FUSION_DRIVE,

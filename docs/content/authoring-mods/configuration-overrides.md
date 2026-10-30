@@ -49,6 +49,33 @@ ships guardian weapons 1 mods = hv,eccm;
 
 Indexes follow the field definition. Some arrays are zero-based, others one-based, and some accept semantic names. Use the matching generated reference rather than assuming an index base.
 
+## Individual monster structural hit points
+
+The shared settings remain supported:
+
+```text
+ships monster hit_points system_crystal_hydra_dragon = 500;
+ships monster hit_points event_crystal_dragon = 2500;
+```
+
+To give each monster its own structural HP, use individual overrides:
+
+```text
+ships monster hit_points system_crystal = 500;
+ships monster hit_points system_hydra = 600;
+ships monster hit_points system_dragon = 700;
+ships monster hit_points event_crystal = 2500;
+ships monster hit_points event_dragon = 3000;
+ships monster hit_points event_hydra = 1500;
+```
+
+The five new overrides accept `0` through `32767`. They default to `-1`, which
+uses the corresponding shared setting and preserves existing mod behavior.
+Setting an override back to `-1` restores that fallback. An individual override
+takes precedence over its shared setting regardless of assignment or package
+order. `event_hydra` was already independent and accepts `0` through `32767`,
+without the `-1` fallback.
+
 ## Records and sequential assignments
 
 An aggregate assignment supplies writable leaves in declared order. For a weapon record ordered as type, arc, mods, ammo, and amount:

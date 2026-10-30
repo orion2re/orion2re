@@ -403,6 +403,11 @@ DOCTEST_TEST_CASE("monster structural hits use configured encounter values") {
         1001,
         1501,
         2501,
+        -1,
+        -1,
+        -1,
+        -1,
+        -1,
     };
 
     ships[0].d.previous_owner = NONPLAYER_SHIP_TYPE_AMOEBA;
@@ -422,6 +427,50 @@ DOCTEST_TEST_CASE("monster structural hits use configured encounter values") {
     DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(0) == 501);
     ships[0].d.ftl_type = DRIVE_FUSION_DRIVE;
     DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(0) == 1501);
+
+    const uint8_t builders[] = {
+        NONPLAYER_SHIP_TYPE_CRYSTAL,
+        NONPLAYER_SHIP_TYPE_HYDRA,
+        NONPLAYER_SHIP_TYPE_DRAGON,
+    };
+    for (uint8_t builder : builders) {
+        ships[0].d.previous_owner = builder;
+        ships[0].d.ftl_type = DRIVE_NO_DRIVE;
+        DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(0) == 501);
+        ships[0].d.ftl_type = DRIVE_FUSION_DRIVE;
+        DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(0) ==
+            (builder == NONPLAYER_SHIP_TYPE_HYDRA ? 1501 : 2501));
+    }
+
+    SHIP_CONFIG::monster.hit_points.system_crystal = 502;
+    SHIP_CONFIG::monster.hit_points.system_hydra = 503;
+    SHIP_CONFIG::monster.hit_points.system_dragon = 504;
+    SHIP_CONFIG::monster.hit_points.event_crystal = 2502;
+    SHIP_CONFIG::monster.hit_points.event_dragon = 2503;
+    const int16_t system_hits[] = {502, 503, 504};
+    const int16_t event_hits[] = {2502, 1501, 2503};
+    for (int i = 0; i < 3; ++i) {
+        ships[0].d.previous_owner = builders[i];
+        ships[0].d.ftl_type = DRIVE_NO_DRIVE;
+        DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(0) == system_hits[i]);
+        ships[0].d.ftl_type = DRIVE_FUSION_DRIVE;
+        DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(0) == event_hits[i]);
+    }
+
+    ships[0].d.previous_owner = NONPLAYER_SHIP_TYPE_DRAGON;
+    SHIP_CONFIG::monster.hit_points.event_dragon = 0;
+    DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(0) == 0);
+    SHIP_CONFIG::monster.hit_points.event_dragon = 32767;
+    DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(0) == 32767);
+    SHIP_CONFIG::monster.hit_points.event_dragon = -1;
+    DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(0) == 2501);
+    ships[0].d.ftl_type = DRIVE_NO_DRIVE;
+    SHIP_CONFIG::monster.hit_points.system_dragon = 0;
+    DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(0) == 0);
+    SHIP_CONFIG::monster.hit_points.system_dragon = 32767;
+    DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(0) == 32767);
+    SHIP_CONFIG::monster.hit_points.system_dragon = -1;
+    DOCTEST_CHECK(INITSHIP::Get_Ship_Structure(0) == 501);
 
     SHIP_CONFIG::monster.hit_points = original;
 }

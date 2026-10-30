@@ -8083,6 +8083,11 @@ DOCTEST_TEST_SUITE("generated configuration bindings") {
         DOCTEST_CHECK(SHIP_CONFIG::monster.hit_points.event_eel == 1000);
         DOCTEST_CHECK(SHIP_CONFIG::monster.hit_points.event_hydra == 1500);
         DOCTEST_CHECK(SHIP_CONFIG::monster.hit_points.event_crystal_dragon == 2500);
+        DOCTEST_CHECK(SHIP_CONFIG::monster.hit_points.system_crystal == -1);
+        DOCTEST_CHECK(SHIP_CONFIG::monster.hit_points.system_hydra == -1);
+        DOCTEST_CHECK(SHIP_CONFIG::monster.hit_points.system_dragon == -1);
+        DOCTEST_CHECK(SHIP_CONFIG::monster.hit_points.event_crystal == -1);
+        DOCTEST_CHECK(SHIP_CONFIG::monster.hit_points.event_dragon == -1);
         DOCTEST_CHECK(SHIP_CONFIG::monster.drives.amoeba == DRIVE_FUSION_DRIVE);
         DOCTEST_CHECK(SHIP_CONFIG::monster.drives.guardian == DRIVE_ANTI_MATTER_DRIVE);
         DOCTEST_CHECK(SHIP_CONFIG::monster.drives.crystal == DRIVE_ANTI_MATTER_DRIVE);
@@ -8166,6 +8171,67 @@ DOCTEST_TEST_SUITE("generated configuration bindings") {
             "ships monster drives guardian = unknown_drive;",
             &writes,
             &diagnostic));
+
+        DOCTEST_REQUIRE(config::Initialize_Defaults(&state));
+        DOCTEST_REQUIRE(config::Commit_State(&state));
+    }
+
+    DOCTEST_TEST_CASE("individual monster hit points bind independently of shared fallbacks") {
+        config::s_config_state state;
+        DOCTEST_REQUIRE(config::Initialize_Defaults(&state));
+        config::s_config_write_set writes;
+        config::s_cfg_diagnostic diagnostic;
+        DOCTEST_REQUIRE(Append_Decoded_(
+            "ships monster hit_points system_crystal_hydra_dragon = 800;"
+            "ships monster hit_points system_crystal = 500;"
+            "ships monster hit_points system_hydra = 600;"
+            "ships monster hit_points system_dragon = 700;"
+            "ships monster hit_points event_crystal = 2500;"
+            "ships monster hit_points event_dragon = 3000;"
+            "ships monster hit_points event_crystal_dragon = 4000;",
+            &writes,
+            &diagnostic));
+        DOCTEST_REQUIRE(config::Apply_Write_Set(&writes, &state, &diagnostic));
+        DOCTEST_REQUIRE(config::Commit_State(&state));
+        DOCTEST_CHECK(SHIP_CONFIG::monster.hit_points.system_crystal_hydra_dragon == 800);
+        DOCTEST_CHECK(SHIP_CONFIG::monster.hit_points.system_crystal == 500);
+        DOCTEST_CHECK(SHIP_CONFIG::monster.hit_points.system_hydra == 600);
+        DOCTEST_CHECK(SHIP_CONFIG::monster.hit_points.system_dragon == 700);
+        DOCTEST_CHECK(SHIP_CONFIG::monster.hit_points.event_crystal == 2500);
+        DOCTEST_CHECK(SHIP_CONFIG::monster.hit_points.event_dragon == 3000);
+        DOCTEST_CHECK(SHIP_CONFIG::monster.hit_points.event_crystal_dragon == 4000);
+        DOCTEST_CHECK(SHIP_CONFIG::monster.hit_points.event_hydra == 1500);
+
+        const char* fields[] = {
+            "system_crystal",
+            "system_hydra",
+            "system_dragon",
+            "event_crystal",
+            "event_dragon",
+        };
+        for (int value : {0, 32767, -1}) {
+            writes.writes.clear();
+            for (const char* field : fields) {
+                const std::string source = std::string("ships monster hit_points ") +
+                    field + " = " + std::to_string(value) + ";";
+                DOCTEST_REQUIRE(Append_Decoded_(source.c_str(), &writes, &diagnostic));
+            }
+            DOCTEST_REQUIRE(config::Apply_Write_Set(&writes, &state, &diagnostic));
+            DOCTEST_REQUIRE(config::Commit_State(&state));
+            DOCTEST_CHECK(SHIP_CONFIG::monster.hit_points.system_crystal == value);
+            DOCTEST_CHECK(SHIP_CONFIG::monster.hit_points.system_hydra == value);
+            DOCTEST_CHECK(SHIP_CONFIG::monster.hit_points.system_dragon == value);
+            DOCTEST_CHECK(SHIP_CONFIG::monster.hit_points.event_crystal == value);
+            DOCTEST_CHECK(SHIP_CONFIG::monster.hit_points.event_dragon == value);
+        }
+        for (const char* field : fields) {
+            for (int value : {-2, 32768}) {
+                writes.writes.clear();
+                const std::string source = std::string("ships monster hit_points ") +
+                    field + " = " + std::to_string(value) + ";";
+                DOCTEST_CHECK_FALSE(Append_Decoded_(source.c_str(), &writes, &diagnostic));
+            }
+        }
 
         DOCTEST_REQUIRE(config::Initialize_Defaults(&state));
         DOCTEST_REQUIRE(config::Commit_State(&state));

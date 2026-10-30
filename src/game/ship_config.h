@@ -12,6 +12,11 @@ namespace SHIP_CONFIG {
         uint16_t event_eel;
         uint16_t event_hydra;
         uint16_t event_crystal_dragon;
+        int16_t system_crystal;
+        int16_t system_hydra;
+        int16_t system_dragon;
+        int16_t event_crystal;
+        int16_t event_dragon;
     };
 
     struct s_monster_drives {

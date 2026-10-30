@@ -770,6 +770,7 @@ namespace INITSHIP {
         int16_t result;
         s_ship_data* ship = &MOX::ship[ship_idx];
         const uint8_t builder = ship->d.previous_owner;
+        const SHIP_CONFIG::s_monster_hit_points& hit_points = SHIP_CONFIG::monster.hit_points;
 
         if (builder <= 9) {
             return Get_Design_Structure(ship->d);
@@ -784,16 +785,16 @@ namespace INITSHIP {
                 break;
 
             case 11:
-                result = SHIP_CONFIG::monster.hit_points.event_crystal_dragon;
+                result = hit_points.event_crystal >= 0 ? hit_points.event_crystal : hit_points.event_crystal_dragon;
                 if (ship->d.ftl_type <= 0) {
-                    return SHIP_CONFIG::monster.hit_points.system_crystal_hydra_dragon;
+                    return hit_points.system_crystal >= 0 ? hit_points.system_crystal : hit_points.system_crystal_hydra_dragon;
                 }
                 break;
 
             case 12:
-                result = SHIP_CONFIG::monster.hit_points.event_crystal_dragon;
+                result = hit_points.event_dragon >= 0 ? hit_points.event_dragon : hit_points.event_crystal_dragon;
                 if (ship->d.ftl_type <= 0) {
-                    return SHIP_CONFIG::monster.hit_points.system_crystal_hydra_dragon;
+                    return hit_points.system_dragon >= 0 ? hit_points.system_dragon : hit_points.system_crystal_hydra_dragon;
                 }
                 break;
 
@@ -807,7 +808,7 @@ namespace INITSHIP {
             case 14:
                 result = SHIP_CONFIG::monster.hit_points.event_hydra;
                 if (ship->d.ftl_type <= 0) {
-                    return SHIP_CONFIG::monster.hit_points.system_crystal_hydra_dragon;
+                    return hit_points.system_hydra >= 0 ? hit_points.system_hydra : hit_points.system_crystal_hydra_dragon;
                 }
                 break;
 
