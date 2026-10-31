@@ -403,3 +403,29 @@ DOCTEST_TEST_CASE("native omniscience and cached Galactic Lore disclose player n
     world.players[1].name[0] = 0;
     DOCTEST_CHECK(observed.players[1].name == "Other");
 }
+
+DOCTEST_TEST_CASE("fresh native ship ownership binds only to authorized player records without authorizing enemy details") {
+    s_ship_world fixture;
+    fixture.world.players[0].color = 0;
+    fixture.world.players[1].color = 1;
+    memcpy(fixture.world.players[1].name, "Contact", 8);
+    SHIPS::Build_Ship_Icons();
+    rpc::s_map_observation observed;
+    DOCTEST_REQUIRE(game_rpc::Read_Refreshed_Ship_Observation(&observed));
+    DOCTEST_CHECK(observed.ships[0].owner_slot == 0);
+    DOCTEST_CHECK(observed.ships[1].owner_slot == -1);
+    fixture.world.players[0].contact[1] = 1;
+    SHIPS::Build_Ship_Icons();
+    DOCTEST_REQUIRE(game_rpc::Read_Refreshed_Ship_Observation(&observed));
+    DOCTEST_CHECK(observed.ships[1].owner_slot == 1);
+    DOCTEST_CHECK(observed.ships[1].name.empty());
+    rpc::s_bridge bridge;
+    rpc::s_game_store store;
+    DOCTEST_REQUIRE(rpc::Initialize_Game_Store(&store, &bridge));
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&store));
+    DOCTEST_REQUIRE(rpc::Capture_Map(&store, &observed));
+    const auto& snapshot = store.snapshots.back();
+    DOCTEST_CHECK(snapshot.map.ships[1].owner_id == snapshot.player_ids[1]);
+    DOCTEST_CHECK(snapshot.map.ships[1].owner_slot == -1);
+    rpc::Shutdown_Game_Store(&store);
+}

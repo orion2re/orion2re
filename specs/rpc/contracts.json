@@ -120,7 +120,7 @@
     "Player": {"kind":"object","policy":"players-known","fields":{"id":"Id","local":"Bool","contacted":"Bool","eliminated":"Bool","color":"PlayerColor","name":"KnownText","treasury":"KnownCredits","hud":"KnownPlayerHUD"},"fieldPolicies":{"treasury":"player-own-economy","hud":"player-own-economy"}},
     "Planet": {"kind":"object","policy":"disabled-planet","fields":{"id":"Id","systemId":"Id","orbit":"Orbit","name":"KnownText","kind":"KnownText"}},
     "Colony": {"kind":"object","policy":"disabled-colony","fields":{"id":"Id","planetId":"Id","owner":"KnownId","population":"KnownCount","production":"KnownText","buyCost":"KnownCredits"}},
-    "Ship": {"kind":"object","policy":"ships-refreshed","fields":{"id":"Id","x":"Coord","y":"Coord","owned":"Bool","owner":"KnownId","name":"KnownText","destination":"KnownId","eta":"KnownTurns"},"fieldPolicies":{"owner":"disabled-ship","name":"ship-own-name","destination":"disabled-ship","eta":"disabled-ship"}},
+    "Ship": {"kind":"object","policy":"ships-refreshed","fields":{"id":"Id","x":"Coord","y":"Coord","owned":"Bool","owner":"KnownId","name":"KnownText","destination":"KnownId","eta":"KnownTurns"},"fieldPolicies":{"owner":"ship-owner-known","name":"ship-own-name","destination":"disabled-ship","eta":"disabled-ship"}},
     "Fleet": {"kind":"object","policy":"disabled-fleet","fields":{"id":"Id","members":"Ids","destination":"KnownId","eta":"KnownTurns"}},
     "Design": {"kind":"object","policy":"disabled-design","fields":{"id":"Id","name":"KnownText","hull":"KnownText","cost":"KnownCredits"}},
     "Leader": {"kind":"object","policy":"disabled-leader","fields":{"id":"Id","name":"KnownText","assignment":"KnownId","hireCost":"KnownCredits","eta":"KnownTurns"}},

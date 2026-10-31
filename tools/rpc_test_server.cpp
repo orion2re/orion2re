@@ -100,6 +100,14 @@ int main() {
                 if (!map.ships.empty()) ++map.ships[0].x;
                 map.ships_captured = true;
                 rpc::Capture_Map(&store, &map);
+            } else if (command == "ship-owners") {
+                if (map.ships.size() >= 3) {
+                    map.ships[0].owner_slot = 0;
+                    map.ships[1].owner_slot = 1;
+                    map.ships[2].owner_slot = 2;
+                }
+                map.ships_captured = true;
+                rpc::Capture_Map(&store, &map);
             } else if (command == "map-only") {
                 map.ships_captured = false;
                 map.systems[0].name = "Later map";

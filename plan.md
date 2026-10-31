@@ -976,8 +976,9 @@ The initial projection contains native map positions and the bound human viewer'
 visited bit; visited non-black-hole names are bounded CP850-decoded copies with
 native outpost lowercase. Contact/lore-only names and system owner remain
 `unaudited`; planet and foreign economy data is not inspected. Ship observations
-copy only fresh surviving displayed links, map positions, own/foreign classification
-and owned names. Enemy ship names/routes/ETA/design/cargo are not read. Player
+copy only fresh surviving displayed links, map positions, own/foreign classification,
+owned names and owner references authorized by the same capture's known-player
+roster/banner colors. Enemy ship names/routes/ETA/design/cargo are not read. Player
 captures include the native known/eliminated/omniscient roster and only the bound
 player's already calculated treasury/HUD values; foreign economy is never read.
 Nebula positions
@@ -1050,7 +1051,7 @@ gates. P1 completion is not claimed by this foundation increment.
 - [ ] Q-04 — Implement `game.listSystems` and `game.getSystem` with authorized map/range/wormhole data.
 - [ ] Q-05 — Implement `game.listPlanets`, `game.getPlanet`, and `game.listNebulas`.
 - [ ] Q-06 — Implement `game.listColonies` and `game.getColony`, including authorized production, jobs, buildings, troops, events, and transfer settings.
-- [ ] Q-07 — Implement `game.listShips` and `game.getShip`, including conditional destination/ETA and scan disclosure (initial dated position/owned/name subset implemented and tested; enemy details, player-ID mapping, routes/ETA/scan and durable entity identity remain open).
+- [ ] Q-07 — Implement `game.listShips` and `game.getShip`, including conditional destination/ETA and scan disclosure (dated position/owned/name and known-player owner references implemented and tested; enemy details, routes/ETA/scan and durable entity identity remain open).
 - [ ] Q-08 — Implement `game.listFleets` and `game.getFleet` without exposing raw rebuilt stack indices.
 - [ ] Q-09 — Implement `game.getMovementOptions` with audited scratch-state handling and no hidden-information oracle.
 - [ ] Q-10 — Implement `game.listDesigns`, `game.getDesign`, and `game.getDesignOptions`.

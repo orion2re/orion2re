@@ -19,11 +19,33 @@ The copied ship collection is sorted by public fields, not native design-based
 display order, before handles or revisions are assigned.
 
 The initial fields are map `x/y`, `owned` (own versus foreign), and the bounded
-CP850-decoded name of an owned ship. Foreign name bytes are never read. Player-ID
-mapping (`owner`), foreign names, destination and ETA are explicitly `unaudited`.
+CP850-decoded name of an owned ship. Foreign name bytes are never read. After Q-03,
+`owner` can resolve through the same capture's known-player roster as described
+below. Foreign names, destination and ETA remain explicitly `unaudited`.
 Cargo, orders, raw location/status and design fields are not copied. Being detected
 does not authorize those details. Native scanner/stealth/mod/omniscience rules are
 reused unchanged through the native filter's already calculated result.
+
+### Known-player owner references
+
+The native ship icon selects its palette from the owner's empire banner color
+(`SHIPS::Get_Ship_Icon_Pict_Seg`); the race screen displays that same banner color.
+The follow-up capture therefore resolves own ownership, or a known empire with a
+unique color in the authorized roster, to that roster's opaque player handle.
+Ambiguous public colors, unlisted empires and special/NPC owners remain unaudited.
+The private binding is discarded before retention. A historical handle table or
+newer roster never authorizes an owner in an older ship capture. Hidden/unlisted
+owner changes do not alter IDs/revisions; unrelated own-HUD changes do not replace
+ship handles. Known ownership grants no enemy name, design, route, ETA, order,
+cargo, intelligence or economy disclosure.
+
+Owner-reference verification: the RPC/native projection/transport targets pass
+normally and with ASAN/UBSAN, and all 79 Python tests pass including 32 live cases.
+Tests cover same-capture links, discarded private bindings, unknown/forged owners,
+public-color ambiguity, unchanged ship handles under own-HUD updates and no
+retroactive ownership changes from a newer roster. No native game code changes
+are needed for this follow-up. The earlier RPC-disabled 106-target check remains
+applicable; this follow-up changes only RPC code/contracts/tests and documentation.
 
 ## Queries, identities and dating
 

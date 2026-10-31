@@ -54,7 +54,7 @@ namespace rpc {
             for (size_t index = 0; index < left->ships.size(); ++index) {
                 const auto& a = left->ships[index];
                 const auto& b = right->ships[index];
-                if (std::tie(a.x, a.y, a.owned, a.name) != std::tie(b.x, b.y, b.owned, b.name)) return false;
+                if (std::tie(a.x, a.y, a.owned, a.name, a.owner_id) != std::tie(b.x, b.y, b.owned, b.name, b.owner_id)) return false;
             }
             return true;
         }
@@ -110,9 +110,10 @@ namespace rpc {
         std::string Ship(const s_map_snapshot* snapshot, size_t index) {
             const s_ship_observation& item = snapshot->map.ships[index];
             const std::string name = item.owned ? "{\"availability\":\"current\",\"value\":" + Json_String(item.name) + "}" : "{\"availability\":\"unaudited\"}";
+            const std::string owner = item.owner_id.empty() ? "{\"availability\":\"unaudited\"}" : "{\"availability\":\"current\",\"value\":" + Json_String(item.owner_id) + "}";
             return "{\"id\":" + Json_String(snapshot->ship_ids[index]) + ",\"x\":" + std::to_string(item.x) +
                 ",\"y\":" + std::to_string(item.y) + ",\"owned\":" + (item.owned ? "true" : "false") + ",\"name\":" + name +
-                ",\"owner\":{\"availability\":\"unaudited\"},\"destination\":{\"availability\":\"unaudited\"},\"eta\":{\"availability\":\"unaudited\"}}";
+                ",\"owner\":" + owner + ",\"destination\":{\"availability\":\"unaudited\"},\"eta\":{\"availability\":\"unaudited\"}}";
         }
 
         std::string Player(const s_map_snapshot* snapshot, size_t index) {
@@ -496,9 +497,6 @@ namespace rpc {
             if (!ship.owned) ship.name.clear();
             if (ship.name.size() > 48) return false;
         }
-        std::sort(projected.ships.begin(), projected.ships.end(), [](const s_ship_observation& left, const s_ship_observation& right) {
-            return std::tie(left.x, left.y, left.owned, left.name) < std::tie(right.x, right.y, right.owned, right.name);
-        });
         store->capture_requested = false;
         if (!store->snapshots.empty() && (projected.systems.size() != store->snapshots.back().map.systems.size() || projected.nebulas.size() != store->snapshots.back().map.nebulas.size())) {
             Revoke_Game_View(store);
@@ -508,9 +506,33 @@ namespace rpc {
             if (!store->new_id(&store->perspective_id, store->id_context)) return false;
             store->viewer = projected.viewer;
         }
+        std::vector<std::string> player_ids;
+        for (const auto& player : projected.players) {
+            auto handle = std::find_if(store->player_handles.begin(), store->player_handles.end(), [&player](const s_player_handle& item) { return item.slot == player.slot; });
+            if (handle == store->player_handles.end()) {
+                std::string id;
+                if (!store->new_id(&id, store->id_context)) return false;
+                store->player_handles.push_back({player.slot, std::move(id)});
+                handle = std::prev(store->player_handles.end());
+            }
+            player_ids.push_back(handle->id);
+        }
+        for (auto& ship : projected.ships) {
+            ship.owner_id.clear();
+            const int32_t owner_slot = ship.owned ? projected.viewer : ship.owner_slot;
+            const auto owner = std::find_if(projected.players.begin(), projected.players.end(), [owner_slot](const s_player_observation& player) { return player.slot == owner_slot; });
+            if (owner != projected.players.end() && owner->local == ship.owned &&
+                (ship.owned || std::count_if(projected.players.begin(), projected.players.end(), [&owner](const s_player_observation& player) { return player.color == owner->color; }) == 1)) {
+                ship.owner_id = player_ids[(size_t)(owner - projected.players.begin())];
+            }
+            ship.owner_slot = -1;
+        }
+        std::sort(projected.ships.begin(), projected.ships.end(), [](const s_ship_observation& left, const s_ship_observation& right) {
+            return std::tie(left.x, left.y, left.owned, left.name, left.owner_id) < std::tie(right.x, right.y, right.owned, right.name, right.owner_id);
+        });
         if (!store->snapshots.empty() && Same_Map(&projected, &store->snapshots.back().map) &&
             (!projected.ships_captured || Same_Ships(&projected, &store->snapshots.back().map)) &&
-            (!projected.players_captured || Same_Players(&projected, &store->snapshots.back().map))) return true;
+            (!projected.players_captured || (Same_Players(&projected, &store->snapshots.back().map) && player_ids == store->snapshots.back().player_ids))) return true;
         if (store->revision == std::numeric_limits<uint64_t>::max()) return false;
         auto Extend = [store](std::vector<std::string>* ids, size_t count) {
             while (ids->size() < count) {
@@ -524,16 +546,7 @@ namespace rpc {
         s_map_snapshot snapshot;
         if (!store->new_id(&snapshot.id, store->id_context)) return false;
         snapshot.map = std::move(projected);
-        for (const auto& player : snapshot.map.players) {
-            auto handle = std::find_if(store->player_handles.begin(), store->player_handles.end(), [&player](const s_player_handle& item) { return item.slot == player.slot; });
-            if (handle == store->player_handles.end()) {
-                std::string id;
-                if (!store->new_id(&id, store->id_context)) return false;
-                store->player_handles.push_back({player.slot, std::move(id)});
-                handle = std::prev(store->player_handles.end());
-            }
-            snapshot.player_ids.push_back(handle->id);
-        }
+        snapshot.player_ids = std::move(player_ids);
         const auto* previous_ships = Select_Snapshot(store, true);
         if (snapshot.map.ships_captured && previous_ships != nullptr && Same_Ships(&snapshot.map, &previous_ships->map)) {
             snapshot.ship_ids = previous_ships->ship_ids;

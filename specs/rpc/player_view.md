@@ -54,6 +54,10 @@ roster, not the historical handle table, so unknown and no-longer-visible IDs ha
 the same object-unavailable error. Rediscovered empires can retain their handle.
 World/perspective revocation clears bindings, snapshots, cursors and subscriptions.
 
+The subsequent ship-owner increment uses only this same capture's visible roster
+to resolve own or unambiguously banner-identified ship owners. It does not resolve
+from retained historical handles when an empire is absent from that roster.
+
 Lists use the existing bounded snapshot-pinned pagination. Combined player/ship
 state and subscription baselines select one capture containing every requested
 topic, including its session metadata. They never splice a newer roster or treasury

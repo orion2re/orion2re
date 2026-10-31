@@ -536,6 +536,23 @@ class TransportTests(unittest.TestCase):
         self.assertEqual(client.Read()["method"], "state.changed")
         self.assertEqual(self.Query(client, "game.getPlayer", {"id":old_id}), self.Query(client, "game.getPlayer", {"id":"unknown"}))
 
+    def test_ship_owner_handles_reference_only_known_players_in_the_same_snapshot(self):
+        self.Fixture("world")
+        self.Fixture("ships")
+        self.Fixture("ship-owners")
+        client = self.Client()
+        client.Hello()
+        state = self.Query(client, "game.getState", {"include":["players","ships"]})["result"]
+        players = state["players"]
+        self.assertEqual(state["ships"][0]["owner"], {"availability":"current","value":players[0]["id"]})
+        self.assertEqual(state["ships"][1]["owner"], {"availability":"current","value":players[1]["id"]})
+        self.assertEqual(state["ships"][2]["owner"], {"availability":"unaudited"})
+        self.assertEqual(state["ships"][1]["name"], {"availability":"unaudited"})
+        self.assertEqual(state["ships"][1]["destination"], {"availability":"unaudited"})
+        self.Fixture("player-forget")
+        current = self.Query(client, "game.getState", {"include":["players","ships"]})["result"]
+        self.assertEqual(current["ships"][1]["owner"], {"availability":"unaudited"})
+
 
 if __name__ == "__main__":
     unittest.main()

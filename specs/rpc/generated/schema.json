@@ -2667,7 +2667,7 @@
         },
         "owner": {
           "$ref": "#/$defs/KnownId",
-          "x-rpc-policy": "disabled-ship"
+          "x-rpc-policy": "ship-owner-known"
         },
         "name": {
           "$ref": "#/$defs/KnownText",
@@ -7602,7 +7602,7 @@
     },
     "ships-refreshed": {
       "status": "reviewed",
-      "predicate": "Only synchronous post-Build_Ship_Icons capture for the bound active human viewer, outside world mutation/resolution. Follow fresh icon heads that are surviving stack heads and their linked nodes; never enumerate unlinked allocations or rebuild for a query. Copy only map x/y and own-versus-foreign classification. Sort the authorized projection before assigning opaque read-only observation handles; no native slots or durable ship identity are published. One coherent map/ship capture, explicitly dated last-native-ship-refresh. Handle sets are replaced when the projected ship collection changes; no action may use them.",
+      "predicate": "Only synchronous post-Build_Ship_Icons capture for the bound active human viewer, outside world mutation/resolution. Follow fresh icon heads that are surviving stack heads and their linked nodes; never enumerate unlinked allocations or rebuild for a query. Copy map x/y and own-versus-foreign classification; names and known-player owner references require their additional field policies. Sort the authorized projection before assigning opaque read-only observation handles; no native slots or durable ship identity are published. One coherent map/ship capture, explicitly dated last-native-ship-refresh. Handle sets are replaced when the projected ship collection changes; no action may use them.",
       "sources": [
         [
           "src/game/ships.cpp",
@@ -7650,9 +7650,32 @@
         "T-03"
       ]
     },
+    "ship-owner-known": {
+      "status": "reviewed",
+      "predicate": "Only a surviving freshly displayed ship. Resolve own ownership or a known empire's banner-color identity to an opaque player handle in the same coherent capture's authorized roster. Foreign mapping requires a unique color in that public roster; ambiguous colors, unlisted owners and special/NPC owners remain explicitly unaudited. Never use an old handle table or newer roster to authorize the link. Discard private owner bindings before retaining snapshots; compare only the resolved public ID. Ownership does not authorize enemy names/designs, routes, ETA, orders, cargo or economy.",
+      "sources": [
+        [
+          "src/game/ships.cpp",
+          "Get_Ship_Icon_Pict_Seg"
+        ],
+        [
+          "src/game/ships.cpp",
+          "Build_Ship_Icons"
+        ],
+        [
+          "src/game/racescrn.cpp",
+          "Draw_Race_Photos"
+        ]
+      ],
+      "tests": [
+        "T-01",
+        "T-02",
+        "T-05"
+      ]
+    },
     "disabled-ship": {
       "status": "disabled",
-      "predicate": "Player-ID mapping, enemy names/scan details, route/destination/ETA require independent field audits. Surviving detection does not authorize raw location, cargo, orders or enemy design data. No scanner-policy extraction is needed for the initial post-refresh projection.",
+      "predicate": "Unmapped/special owner identities, enemy names/scan details, route/destination/ETA require independent field audits. Surviving detection or known ownership does not authorize raw location, cargo, orders or enemy design data. No scanner-policy extraction is needed for the post-refresh projection.",
       "sources": [
         [
           "src/game/ships.cpp",
@@ -8009,7 +8032,7 @@
     "orderedEventsPerSubscription": 4096,
     "overflow": "Reject before admission; coalesce only complete unsent state. Ordered-event overflow signals a gap or disconnect. Never rewrite partial output or silently discard operation results."
   },
-  "x-rpc-sourceHash": "c2f39adf307918fd27da81e009f79d2aa52cfa0c391666c2d338a662c79e1145",
+  "x-rpc-sourceHash": "ebb9fce89a372bb76915cc45b354b29d2ed0c8171386c4e0ad97c76cf803a31a",
   "x-rpc-runtimeEnabled": false,
   "x-rpc-implementedMethods": [
     "rpc.hello",

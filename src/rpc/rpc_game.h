@@ -25,7 +25,12 @@ namespace rpc {
         int16_t x = 0;
         int16_t y = 0;
         bool owned = false;
-        std::string name; // Own name only; foreign names are not read.
+        // Own name only; foreign names are not read.
+        std::string name;
+        // Private authorized-parent binding, discarded before retention.
+        int32_t owner_slot = -1;
+        // Resolved only from the same capture's public player handles.
+        std::string owner_id;
     };
 
     struct s_player_hud {

@@ -105,6 +105,9 @@ namespace game_rpc {
                 item.x = ship->x;
                 item.y = ship->y;
                 item.owned = ship->owner == captured.viewer;
+                if (std::any_of(captured.players.begin(), captured.players.end(), [ship](const rpc::s_player_observation& player) { return player.slot == ship->owner; })) {
+                    item.owner_slot = ship->owner;
+                }
                 if (item.owned) {
                     const char* end = (const char*)memchr(ship->d.name, 0, sizeof(ship->d.name));
                     if (end == nullptr) return false;

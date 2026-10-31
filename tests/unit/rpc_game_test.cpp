@@ -545,3 +545,55 @@ DOCTEST_TEST_CASE("player capture requires a valid local record and rejects dupl
     map.players.back().hud.income = 32768;
     DOCTEST_CHECK_FALSE(rpc::Capture_Map(&fixture.store, &map));
 }
+
+DOCTEST_TEST_CASE("ship owners resolve only through the same capture's visible player roster") {
+    s_fixture fixture;
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&fixture.store));
+    auto map = Players();
+    map.ships_captured = true;
+    map.ships = Ships().ships;
+    map.ships[1].owner_slot = 2;
+    map.ships[2].owner_slot = 3; // Hidden empire, not an authorized parent.
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    const auto& snapshot = fixture.store.snapshots.back();
+    DOCTEST_CHECK(snapshot.map.ships[0].owner_id == snapshot.player_ids[0]);
+    DOCTEST_CHECK(snapshot.map.ships[1].owner_id == snapshot.player_ids[1]);
+    DOCTEST_CHECK(snapshot.map.ships[2].owner_id.empty());
+    DOCTEST_CHECK(snapshot.map.ships[1].owner_slot == -1);
+    auto list = Request("game.listShips");
+    const std::string baseline = rpc::Game_Query(&fixture.store, &list);
+    map.ships[2].owner_slot = 7; // Another unlisted identity must not alter public IDs/revisions.
+    map.ships[2].owner_id = "forged-parent";
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &list) == baseline);
+    const auto ship_ids = fixture.store.snapshots.back().ship_ids;
+    DOCTEST_REQUIRE(map.players[2].slot == map.viewer);
+    map.players[2].treasury++;
+    --map.players[2].hud.food_surplus;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    DOCTEST_CHECK(fixture.store.snapshots.back().ship_ids == ship_ids);
+    map.players[1].color = map.players[2].color; // Public ambiguity is not resolved using hidden slots.
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    DOCTEST_CHECK(fixture.store.snapshots.back().map.ships[1].owner_id.empty());
+    DOCTEST_CHECK_FALSE(fixture.store.snapshots.back().map.ships[0].owner_id.empty());
+}
+
+DOCTEST_TEST_CASE("a newer roster never retroactively discloses ownership in an older ship capture") {
+    s_fixture fixture;
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&fixture.store));
+    auto map = Players();
+    map.ships_captured = true;
+    map.ships = Ships().ships;
+    map.ships[1].owner_slot = 2;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    auto state = Request("game.getState", "{\"include\":[\"ships\",\"players\"]}");
+    const std::string baseline = rpc::Game_Query(&fixture.store, &state);
+    map.ships_captured = false;
+    map.players[1].visible = false;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &state) == baseline);
+    map.ships_captured = true;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    DOCTEST_CHECK(fixture.store.snapshots.back().map.ships[1].owner_id.empty());
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &state) != baseline);
+}
