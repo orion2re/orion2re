@@ -1074,7 +1074,7 @@ gates. P1 completion is not claimed by this foundation increment.
 - [x] Q-03 — Implement `game.listPlayers` and `game.getPlayer` with own HUD/economy and known-contact projections (audited name/color/contact/eliminated roster and own signed treasury/HUD; `player_view.md`, native roster/Lore/hidden-state tests, stable handles, pagination, subscriptions and live transport; traits/government/research remain unenabled pending their field audits).
 - [ ] Q-04 — Implement `game.listSystems` and `game.getSystem` with authorized map/range/wormhole data.
 - [ ] Q-05 — Implement `game.listPlanets`, `game.getPlanet`, and `game.listNebulas`.
-- [ ] Q-06 — Implement `game.listColonies` and `game.getColony`, including authorized production, jobs, buildings, troops, events, and transfer settings (own non-outpost roster, same-capture system/owner, orbital position and cached resident population implemented; planet handles, production/buy details, jobs/buildings/troops/events/transfers and foreign intelligence remain unaudited).
+- [ ] Q-06 — Implement `game.listColonies` and `game.getColony`, including authorized production, jobs, buildings, troops, events, and transfer settings (own non-outpost roster, same-capture system/owner, orbital position, cached resident population and infantry/armor counts implemented; planet handles, production/buy details, jobs/buildings, remaining troop details, events/transfers and foreign intelligence remain unaudited).
 - [ ] Q-07 — Implement `game.listShips` and `game.getShip`, including conditional destination/ETA and scan disclosure (dated position/owned/name, same-capture known-player owners, non-selection map-authorized destinations and head-only cached ordinary-route ETA implemented and tested; initialized selection/scan/fleet-box detail and durable entity identity remain open).
 - [ ] Q-08 — Implement `game.listFleets` and `game.getFleet` without exposing raw rebuilt stack indices.
 - [ ] Q-09 — Implement `game.getMovementOptions` with audited scratch-state handling and no hidden-information oracle.
@@ -1153,6 +1153,22 @@ newer-turn, cross-game and mixed-metadata responses; busy/limit/unknown knowledg
 is not an all-clear. It copies cached ETA only and invokes no server aggregation,
 movement calculator or gameplay action. Interactive saved-game/multiplayer and
 other-platform acceptance remain open; LeakSanitizer remains unsupported locally.
+
+Q-06 cached troop-count follow-up adds tagged `Colony.troops` infantry/armor
+counts from the own full colony's existing native military array. Exact native
+display evidence, zero/nonnegative int16 bounds and exclusions are documented in
+`specs/rpc/colony_view.md`. Foreign/outpost counts are filtered before reading or
+validation, including under omniscience. No militia, strength, technology,
+roundoff, inbound units or future outcomes are inferred. Counts share the same
+immutable population/map/player/ship capture and never enrich older snapshots.
+Q-06 remains unchecked for its remaining fields and contexts.
+
+Troop-count verification (macOS ARM64): 96 Python tests including 37 live
+WebSocket cases pass; RPC/native/transport targets pass normally and under
+ASAN/UBSAN; all 106 RPC-disabled targets pass. Generation drift, affected C++
+formatting and whitespace checks pass. No native code/API changes. These are
+synthetic/native-function and live-transport checks, not interactive saved-game,
+multiplayer or other-platform parity; LeakSanitizer remains unsupported locally.
 
 ### P2. Shared UI adapters and operation lifecycle
 

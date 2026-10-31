@@ -76,7 +76,7 @@ namespace rpc {
             for (size_t index = 0; index < left->colonies.size(); ++index) {
                 const auto& a = left->colonies[index];
                 const auto& b = right->colonies[index];
-                if (std::tie(a.system_id, a.orbit, a.population, a.owner_id) != std::tie(b.system_id, b.orbit, b.population, b.owner_id)) return false;
+                if (std::tie(a.system_id, a.orbit, a.population, a.owner_id, a.infantry, a.armor) != std::tie(b.system_id, b.orbit, b.population, b.owner_id, b.infantry, b.armor)) return false;
             }
             return true;
         }
@@ -159,7 +159,8 @@ namespace rpc {
             return "{\"id\":" + Json_String(snapshot->colony_ids[index]) + ",\"systemId\":" + Json_String(item.system_id) +
                 ",\"orbit\":" + std::to_string(item.orbit) + ",\"planetId\":{\"availability\":\"unaudited\"},\"owner\":{\"availability\":\"current\",\"value\":" +
                 Json_String(item.owner_id) + "},\"population\":{\"availability\":\"current\",\"value\":" + std::to_string(item.population) +
-                "},\"production\":{\"availability\":\"unaudited\"},\"buyCost\":{\"availability\":\"unaudited\"}}";
+                "},\"troops\":{\"availability\":\"current\",\"value\":{\"infantry\":" + std::to_string(item.infantry) +
+                ",\"armor\":" + std::to_string(item.armor) + "}},\"production\":{\"availability\":\"unaudited\"},\"buyCost\":{\"availability\":\"unaudited\"}}";
         }
 
         size_t Collection_Size(const s_map_snapshot* snapshot, const std::string& topic) {
@@ -538,7 +539,8 @@ namespace rpc {
         bool occupied[1024][5] = {};
         for (auto& colony : projected.colonies) {
             if (colony.system < 0 || (size_t)colony.system >= projected.systems.size() || colony.orbit < 1 || colony.orbit > 5 ||
-                colony.population < 0 || colony.population > 42 || occupied[colony.system][colony.orbit - 1]) return false;
+                colony.population < 0 || colony.population > 42 || colony.infantry < 0 || colony.infantry > 32767 ||
+                colony.armor < 0 || colony.armor > 32767 || occupied[colony.system][colony.orbit - 1]) return false;
             occupied[colony.system][colony.orbit - 1] = true;
             colony.system_id.clear();
             colony.owner_id.clear();
@@ -614,7 +616,7 @@ namespace rpc {
             colony.system = colony.owner_slot = -1;
         }
         std::sort(projected.colonies.begin(), projected.colonies.end(), [](const s_colony_observation& left, const s_colony_observation& right) {
-            return std::tie(left.system_id, left.orbit, left.population, left.owner_id) < std::tie(right.system_id, right.orbit, right.population, right.owner_id);
+            return std::tie(left.system_id, left.orbit, left.population, left.owner_id, left.infantry, left.armor) < std::tie(right.system_id, right.orbit, right.population, right.owner_id, right.infantry, right.armor);
         });
         std::sort(projected.ships.begin(), projected.ships.end(), [](const s_ship_observation& left, const s_ship_observation& right) {
             return std::tie(left.x, left.y, left.owned, left.name, left.owner_id, left.destination_available, left.destination_id, left.eta_available, left.eta) <

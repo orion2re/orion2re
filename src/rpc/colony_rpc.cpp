@@ -18,12 +18,14 @@ namespace colony_rpc {
             const int orbit = planet->orbit;
             if (system < 0 || (size_t)system >= observation->systems.size() || orbit < 0 || orbit >= 5 ||
                 MOX::star[system].planet_index[orbit] != planet_index || planet->colony_index != index ||
-                colony->n_pops > MAX_COLONY_POPULATION) return false;
+                colony->n_pops > MAX_COLONY_POPULATION || colony->military[0] < 0 || colony->military[1] < 0) return false;
             rpc::s_colony_observation item;
             item.owner_slot = observation->viewer;
             item.system = system;
             item.orbit = orbit + 1;
             item.population = colony->n_pops;
+            item.infantry = colony->military[0];
+            item.armor = colony->military[1];
             observation->colonies.push_back(std::move(item));
         }
         observation->colonies_captured = true;

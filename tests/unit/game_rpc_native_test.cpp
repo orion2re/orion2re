@@ -723,6 +723,8 @@ DOCTEST_TEST_CASE("maximum own colony capture is bounded and oversized complete 
     for (int index = 0; index < MAX_COLONIES; ++index) {
         world.colonies[index].planet = (int16_t)index;
         world.colonies[index].n_pops = MAX_COLONY_POPULATION;
+        world.colonies[index].military[0] = 32767;
+        world.colonies[index].military[1] = 32767;
         world.planets[index].star_index = (int16_t)(index / 5);
         world.planets[index].orbit = (int8_t)(index % 5);
         world.planets[index].colony_index = (int16_t)index;
@@ -748,6 +750,49 @@ DOCTEST_TEST_CASE("maximum own colony capture is bounded and oversized complete 
     request.params_json = "{\"include\":[\"colonies\"]}";
     DOCTEST_CHECK(rpc::Game_Query(&store, &request).find("-32005") != std::string::npos);
     rpc::Shutdown_Game_Store(&store);
+}
+
+DOCTEST_TEST_CASE("own colony troop counts copy displayed cached units without militia strength or foreign intelligence") {
+    s_world world;
+    MOX::NUM_COLONIES = 3;
+    world.colonies[0].planet = 0;
+    world.planets[0].star_index = 0;
+    world.planets[0].orbit = 0;
+    world.planets[0].colony_index = 0;
+    world.stars[0].planet_index[0] = 0;
+    world.colonies[0].military[0] = 0;
+    world.colonies[0].military[1] = 32767;
+    world.colonies[0].ground_strength = -123;
+    world.colonies[0].tank_roundoff = 99;
+    world.colonies[1].owner = 1;
+    world.colonies[1].planet = MAX_PLANETS;
+    world.colonies[1].military[0] = world.colonies[1].military[1] = -1;
+    world.colonies[2].outpost_flag = 1;
+    world.colonies[2].planet = MAX_PLANETS;
+    world.colonies[2].military[0] = world.colonies[2].military[1] = -1;
+    world.players[0].traits[TRAIT_OMNISCIENCE] = 1;
+    const auto before = world.colonies;
+    const uint32_t seed = game_random::Get_Random_Seed();
+    rpc::s_map_observation observed;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&observed));
+    DOCTEST_REQUIRE(observed.colonies.size() == 1);
+    DOCTEST_CHECK(observed.colonies[0].infantry == 0);
+    DOCTEST_CHECK(observed.colonies[0].armor == 32767);
+    DOCTEST_CHECK(memcmp(before.data(), world.colonies.data(), before.size() * sizeof(s_colony)) == 0);
+    world.colonies[0].military[0] = 32767;
+    world.colonies[0].military[1] = 0;
+    rpc::s_map_observation changed;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&changed));
+    DOCTEST_CHECK(changed.colonies[0].infantry == 32767);
+    DOCTEST_CHECK(changed.colonies[0].armor == 0);
+    DOCTEST_CHECK(observed.colonies[0].infantry == 0);
+    DOCTEST_CHECK(observed.colonies[0].armor == 32767);
+    for (int type = 0; type < 2; ++type) {
+        world.colonies[0].military[type] = -1;
+        DOCTEST_CHECK_FALSE(game_rpc::Read_Map_Observation(&changed));
+        world.colonies[0].military[type] = 0;
+    }
+    DOCTEST_CHECK(game_random::Get_Random_Seed() == seed);
 }
 
 DOCTEST_TEST_CASE("known war status follows the viewer treaty direction only for living current contacts") {

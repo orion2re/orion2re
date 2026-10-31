@@ -89,6 +89,8 @@ int main() {
                 if (map.colonies.size() >= 3) {
                     map.colonies.back().system = -99999;
                     map.colonies.back().population = -99999;
+                    map.colonies.back().infantry = -99999;
+                    map.colonies.back().armor = 99999;
                 }
                 rpc::Capture_Map(&store, &map);
             } else if (command == "player-hud") {
@@ -135,6 +137,8 @@ int main() {
             } else if (command == "colonies") {
                 map.colonies_captured = true;
                 map.colonies = {{0, 0, 1, 0}, {0, 0, 5, 42}, {1, 99999, -1, 99999}};
+                map.colonies[0].armor = 32767;
+                map.colonies[1].infantry = 32767;
                 rpc::Capture_Map(&store, &map);
             } else if (command == "war") {
                 map.players[1].at_war_available = true;
@@ -154,6 +158,9 @@ int main() {
                 rpc::Capture_Map(&store, &map);
             } else if (command == "colony-pop") {
                 if (!map.colonies.empty()) ++map.colonies[0].population;
+                rpc::Capture_Map(&store, &map);
+            } else if (command == "colony-troops") {
+                if (!map.colonies.empty()) ++map.colonies[0].infantry;
                 rpc::Capture_Map(&store, &map);
             } else if (command == "map-only") {
                 map.ships_captured = false;

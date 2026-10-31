@@ -73,7 +73,10 @@ class SidecarArchitectureTests(unittest.TestCase):
         adapter = (ROOT / "src/rpc/colony_rpc.cpp").read_text()
         self.assertIn("colony->n_pops", adapter)
         self.assertIn("colony->outpost_flag", adapter)
+        self.assertIn("colony->military[0]", adapter)
+        self.assertIn("colony->military[1]", adapter)
         self.assertNotRegex(adapter, r"(?:Build_Global_Colony_List|Sum_Colonists|Draw_Colony_Scan_Info|Planet_Max_Population_For_Player|Colony_Producing_Product_Cost)\s*\(")
+        self.assertNotRegex(adapter, r"(?:Troop_Popup|Print_Scanned_Military|Colony_Infantry_Limit|Colony_Tank_Limit|Colony_Ground_Strength)\s*\(")
 
 if __name__ == "__main__":
     unittest.main()

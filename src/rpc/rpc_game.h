@@ -76,6 +76,8 @@ namespace rpc {
         int32_t population = 0;  // Cached resident population units, not growth or inbound settlers.
         std::string system_id;
         std::string owner_id;
+        int32_t infantry = 0;
+        int32_t armor = 0;
     };
 
     struct s_map_observation {

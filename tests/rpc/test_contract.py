@@ -269,6 +269,21 @@ class TypedContractTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             audit.Validate_Value({"availability":"unknown","value":False}, "KnownBool", self.contracts)
 
+    def test_colony_troops_keep_native_count_bounds_and_explicit_knowledge(self):
+        for infantry, armor in ((0, 32767), (32767, 0), (0, 0)):
+            audit.Validate_Value({"availability":"current","value":{"infantry":infantry,"armor":armor}},
+                                 "KnownColonyTroops", self.contracts, self.policies, public=True)
+        audit.Validate_Value({"availability":"unaudited"}, "KnownColonyTroops", self.contracts)
+        for invalid in (-1, 32768, True, "1", None):
+            for field in ("infantry", "armor"):
+                value = {"infantry":0,"armor":0}
+                value[field] = invalid
+                with self.subTest(field=field, value=invalid), self.assertRaises(ValueError):
+                    audit.Validate_Value({"availability":"current","value":value}, "KnownColonyTroops", self.contracts)
+        with self.assertRaises(ValueError):
+            audit.Validate_Value({"availability":"unknown","value":{"infantry":0,"armor":0}},
+                                 "KnownColonyTroops", self.contracts)
+
     def test_missing_policy_and_recursive_contract_are_rejected(self):
         broken = copy.deepcopy(self.contracts)
         broken["types"]["System"]["fieldPolicies"]["name"] = "no-such-policy"

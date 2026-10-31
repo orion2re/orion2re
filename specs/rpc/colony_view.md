@@ -40,6 +40,44 @@ navigation. It copies already calculated native state only on the existing
 coherent map/ship-refresh boundaries. No foreign production, queues, population
 or economic fields are read.
 
+## Cached own-colony troop counts (Q-06 follow-up)
+
+`Colony.troops` is tagged current knowledge with `infantry` and `armor` counts.
+The source is the authorized colony's existing `military[0]` and `military[1]`:
+`COLONY::Print_Scanned_Military` formats these exact values, and
+`Do_Colony_Info_Military_Stuff_For` draws each unit or an exact compressed count.
+`Produce_Ground_Military` identifies the two storage categories as infantry and
+armor; it is evidence only and is never called by RPC. Native animations can
+select powered infantry or battloids, so the counts do not assert a particular
+unit design or unlock technology.
+
+Filter own full colonies before reading these fields, including under native
+omniscience. Preserve known zero and nonnegative native int16 counts through
+32767; malformed authorized negative counts fail closed. Foreign/outpost values
+are not read, and the store filters unauthorized rows before count validation,
+equality, handles, revisions and notifications. No militia is derived from
+population. Strength, weapon/armor technology, training, production roundoff,
+inbound units and combat/production outcomes remain unexposed. No troop popup,
+invasion limit, renderer or combat calculator is invoked.
+
+Troops use the same immutable capture and observation-handle replacement rules
+as population. A newer troop capture cannot be spliced into an older ship view;
+pinned pages retain the old values, and load/perspective revocation discards
+them. Native-array tests cover own/foreign/outpost/omniscience, zero/max/negative
+counts, copied lifetimes, native-record/RNG preservation and maximum-size output.
+Store/contract/live WebSocket tests cover count bounds, hidden-only equality,
+notifications, stale IDs, pinned pages, busy/reset and coherent combined reads.
+This remains synthetic/native-function and live-transport evidence, not
+interactive saved-game or multiplayer parity. Q-06 remains incomplete.
+
+Troop-count verification on macOS ARM64: 96 Python tests, including 37 live
+WebSocket cases, pass; the RPC/native-projection/transport targets pass normally
+and with ASAN/UBSAN. The RPC-disabled suite passes all 106 targets. Generated
+schema/reference/C++ metadata, affected C++ formatting and whitespace checks
+pass. This follow-up changes no native code/API, gameplay, saves, multiplayer
+authority, mods or RNG. Local leak detection remains unsupported; interactive
+saved-game/multiplayer and other-platform checks remain unperformed.
+
 ## Identity, coherence and bounds
 
 Colony IDs are read-only **observation handles**, not durable native colony

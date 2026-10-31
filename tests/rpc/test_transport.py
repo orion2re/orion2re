@@ -629,6 +629,33 @@ class TransportTests(unittest.TestCase):
         self.assertEqual(self.Query(client, "game.listPlayers")["result"]["items"][1]["atWar"], {"availability":"current","value":False})
         self.assertEqual(self.Query(client, "game.getState", {"include":["ships","players"]})["result"], baseline)
 
+    def test_own_colony_troops_are_cached_coherent_and_do_not_publish_hidden_counts(self):
+        self.Fixture("world")
+        self.Fixture("ships")
+        self.Fixture("colonies")
+        client = self.Client()
+        client.Hello()
+        topics = ["session", "ships", "colonies"]
+        subscription = self.Query(client, "rpc.subscribe", {"topics":topics,"events":["state.changed"]})["result"]
+        baseline = subscription["baseline"]
+        first, second = baseline["colonies"]
+        self.assertEqual(first["troops"], {"availability":"current","value":{"infantry":0,"armor":32767}})
+        self.assertEqual(second["troops"], {"availability":"current","value":{"infantry":32767,"armor":0}})
+        page = self.Query(client, "game.listColonies", {"limit":1})["result"]
+        self.Fixture("hidden")
+        self.assertEqual(self.Query(client, "game.getState", {"include":topics})["result"], baseline)
+        self.Fixture("colony-troops")
+        self.assertEqual(client.Read()["method"], "state.changed")
+        current = self.Query(client, "game.getState", {"include":topics})["result"]
+        self.assertEqual(current["colonies"][0]["troops"]["value"]["infantry"], 1)
+        self.assertNotEqual(current["colonies"][0]["id"], first["id"])
+        self.assertEqual(self.Query(client, "game.listColonies", {"cursor":page["nextCursor"]})["result"]["items"], [second])
+        self.assertEqual(self.Query(client, "game.getColony", {"id":first["id"]}),
+                         self.Query(client, "game.getColony", {"id":"unknown"}))
+        self.Fixture("map-only")
+        self.Fixture("colony-troops")
+        self.assertEqual(self.Query(client, "game.getState", {"include":topics})["result"], current)
+
     def test_client_derives_incoming_threats_after_an_ordinary_turn_event_without_a_briefing_api(self):
         self.Fixture("world")
         self.Fixture("ships")

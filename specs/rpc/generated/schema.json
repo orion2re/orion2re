@@ -384,6 +384,10 @@
           "$ref": "#/$defs/KnownCount",
           "x-rpc-policy": "colonies-own"
         },
+        "troops": {
+          "$ref": "#/$defs/KnownColonyTroops",
+          "x-rpc-policy": "colony-own-troops"
+        },
         "production": {
           "$ref": "#/$defs/KnownText",
           "x-rpc-policy": "disabled-colony"
@@ -400,6 +404,7 @@
         "planetId",
         "owner",
         "population",
+        "troops",
         "production",
         "buyCost"
       ],
@@ -423,6 +428,33 @@
         "item"
       ],
       "x-rpc-policy": "contract"
+    },
+    "ColonyTroopCount": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 32767,
+      "x-integerToken": true,
+      "x-unit": "count",
+      "description": "Nonnegative integer count of authorized projected records only."
+    },
+    "ColonyTroops": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "infantry": {
+          "$ref": "#/$defs/ColonyTroopCount",
+          "x-rpc-policy": "colony-own-troops"
+        },
+        "armor": {
+          "$ref": "#/$defs/ColonyTroopCount",
+          "x-rpc-policy": "colony-own-troops"
+        }
+      },
+      "required": [
+        "infantry",
+        "armor"
+      ],
+      "x-rpc-policy": "colony-own-troops"
     },
     "CombatOptionsRequest": {
       "type": "object",
@@ -820,6 +852,25 @@
         },
         "value": {
           "$ref": "#/$defs/Bool",
+          "x-rpc-policy": "contract"
+        }
+      },
+      "required": [
+        "availability",
+        "value"
+      ],
+      "x-rpc-policy": "contract"
+    },
+    "CurrentColonyTroops": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/Current",
+          "x-rpc-policy": "contract"
+        },
+        "value": {
+          "$ref": "#/$defs/ColonyTroops",
           "x-rpc-policy": "contract"
         }
       },
@@ -1434,6 +1485,16 @@
       "oneOf": [
         {
           "$ref": "#/$defs/CurrentBool"
+        },
+        {
+          "$ref": "#/$defs/Unavailable"
+        }
+      ]
+    },
+    "KnownColonyTroops": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CurrentColonyTroops"
         },
         {
           "$ref": "#/$defs/Unavailable"
@@ -7759,6 +7820,34 @@
         "T-05"
       ]
     },
+    "colony-own-troops": {
+      "status": "reviewed",
+      "predicate": "Only the bound active human viewer's own full colonies after owner/outpost authorization and parent-link validation. Copy existing military[0] infantry and military[1] armor counts, 0..32767 native int16 units, including known zero. Print_Scanned_Military displays these exact counts; Do_Colony_Info_Military_Stuff_For draws the units or the exact compressed count. Armor covers the native tank/battloid presentation, not a newly inferred unit design. Do not add population militia, inbound troops, troop strength, growth/roundoff, future production, weapon/armor technology or foreign/outpost intelligence. No troop popup, UI builder, invasion limit or combat calculator is invoked. Same immutable map/ship/roster/colony capture as population; hidden-only counts do not affect handles, revisions or notifications.",
+      "sources": [
+        [
+          "src/game/colony.cpp",
+          "Print_Scanned_Military"
+        ],
+        [
+          "src/game/colony_main.cpp",
+          "Do_Colony_Info_Military_Stuff_For"
+        ],
+        [
+          "src/game/colcalc.cpp",
+          "colony->military[0]"
+        ],
+        [
+          "src/game/colcalc.cpp",
+          "colony->military[1]"
+        ]
+      ],
+      "tests": [
+        "T-01",
+        "T-02",
+        "T-03",
+        "T-05"
+      ]
+    },
     "disabled-colony": {
       "status": "disabled",
       "predicate": "Planet handles, production/queues, buy costs/eligibility and other colony details remain unaudited. Do not mint unqueryable planet handles or invoke mutable builders/calculators for queries. Foreign intelligence is a separate policy.",
@@ -8260,7 +8349,7 @@
     "orderedEventsPerSubscription": 4096,
     "overflow": "Reject before admission; coalesce only complete unsent state. Ordered-event overflow signals a gap or disconnect. Never rewrite partial output or silently discard operation results."
   },
-  "x-rpc-sourceHash": "c6c8b33b87b707c881612ff0291bb7c2021548f27b472bfae5bbcb92ca3db4ca",
+  "x-rpc-sourceHash": "3f9d6585ff81832c5fdfc27d2132bfbfe225149b5fb3006066f9924b2e191ec8",
   "x-rpc-runtimeEnabled": false,
   "x-rpc-implementedMethods": [
     "rpc.hello",

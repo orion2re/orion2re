@@ -840,3 +840,60 @@ DOCTEST_TEST_CASE("known war state filters unavailable claims before public revi
     DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
     DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &list) == unknown);
 }
+
+DOCTEST_TEST_CASE("colony troops filter hidden counts before revisions and keep immutable coherent pages") {
+    s_fixture fixture;
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&fixture.store));
+    auto map = Colonies();
+    map.ships_captured = true;
+    map.ships = Ships().ships;
+    map.colonies[0].armor = 32767;
+    map.colonies[1].infantry = 32767;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    const auto ids = fixture.store.snapshots.back().colony_ids;
+    auto state = Request("game.getState", "{\"include\":[\"session\",\"ships\",\"players\",\"colonies\"]}");
+    const auto baseline = rpc::Game_Query(&fixture.store, &state);
+    DOCTEST_CHECK(baseline.find("\"troops\":{\"availability\":\"current\",\"value\":{\"infantry\":0,\"armor\":32767}}") != std::string::npos);
+    uint64_t epoch;
+    DOCTEST_REQUIRE(rpc::Register_Client(&fixture.bridge, 1, &epoch));
+    auto subscribe = Request("rpc.subscribe", "{\"topics\":[\"colonies\"],\"events\":[\"state.changed\"]}");
+    Dispatch(&fixture, 1, epoch, &subscribe);
+    map.colonies.back().infantry = -99999;
+    map.colonies.back().armor = 99999;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &state) == baseline);
+    rpc::Pump_Game_Queries(&fixture.store);
+    rpc::s_publication event;
+    DOCTEST_CHECK_FALSE(rpc::Take_Publication(&fixture.bridge, &event));
+    auto list = Request("game.listColonies", "{\"limit\":1}");
+    rpc::Game_Query(&fixture.store, &list);
+    const auto cursor = fixture.store.cursors.back().id;
+    ++map.colonies[0].infantry;
+    --map.colonies[1].infantry;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    DOCTEST_CHECK(fixture.store.snapshots.back().colony_ids != ids);
+    rpc::Pump_Game_Queries(&fixture.store);
+    DOCTEST_REQUIRE(rpc::Take_Publication(&fixture.bridge, &event));
+    DOCTEST_CHECK(event.json.find("state.changed") != std::string::npos);
+    list.params_json = "{\"cursor\":" + rpc::Json_String(cursor) + "}";
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &list).find("\"infantry\":32767") != std::string::npos);
+    const auto current = rpc::Game_Query(&fixture.store, &state);
+    map.ships_captured = false;
+    ++map.colonies[0].infantry;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &state) == current);
+    for (int32_t invalid : {-1, 32768}) {
+        map.colonies[0].infantry = invalid;
+        DOCTEST_CHECK_FALSE(rpc::Capture_Map(&fixture.store, &map));
+        map.colonies[0].infantry = 0;
+        map.colonies[0].armor = invalid;
+        DOCTEST_CHECK_FALSE(rpc::Capture_Map(&fixture.store, &map));
+        map.colonies[0].armor = 0;
+    }
+    rpc::Pause_Game_Queries(&fixture.store);
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &state).find("-32002") != std::string::npos);
+    rpc::Resume_Game_Queries(&fixture.store);
+    rpc::Begin_Game_Reset(&fixture.store);
+    DOCTEST_CHECK(fixture.store.snapshots.empty());
+    DOCTEST_CHECK_FALSE(rpc::Client_Is_Current(&fixture.bridge, 1, epoch));
+}
