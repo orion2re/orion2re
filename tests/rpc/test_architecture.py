@@ -40,5 +40,12 @@ class SidecarArchitectureTests(unittest.TestCase):
             self.assertNotRegex((ROOT / "src/rpc" / name).read_text(),
                                 r"(?:Find_Ship_Stacks|Build_Ship_Icons|Remove_Non_Detected_Ships)\s*\(")
 
+    def test_player_capture_uses_read_only_predicates_and_copies_existing_hud_values(self):
+        adapter = (ROOT / "src/rpc/players_rpc.cpp").read_text()
+        self.assertIn("HAROLD::Contact_With_Player", adapter)
+        self.assertIn("HAROLD::Player_Is_Omniscient", adapter)
+        self.assertIn("player->surplus_bc", adapter)
+        self.assertNotRegex(adapter, r"(?:Get_Active_Players|Get_Players_Dead_Or_Alive_Or_Omniscient|Init_Race_Display_Data|Print_Main_Screen_Data)\s*\(")
+
 if __name__ == "__main__":
     unittest.main()

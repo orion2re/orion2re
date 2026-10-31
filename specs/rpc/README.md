@@ -136,7 +136,7 @@ the illustrative `(include)` signature suffix. Owner names are **proposed
 ownership labels**, not claims that those C++ adapters already exist. Shared UI
 actions dispatch through the active registered owner, not a global input injector.
 
-Runtime is opt-in; `implementedMethods` lists the eleven implemented methods.
+Runtime is opt-in; `implementedMethods` lists the thirteen implemented methods.
 `contracts.json` supplies concrete
 request/result types for every named method; `field_policies.json` supplies native
 source anchors, predicates and required test IDs. These are contract definitions,

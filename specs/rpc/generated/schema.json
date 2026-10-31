@@ -849,6 +849,25 @@
       ],
       "x-rpc-policy": "contract"
     },
+    "CurrentPlayerHUD": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/Current",
+          "x-rpc-policy": "contract"
+        },
+        "value": {
+          "$ref": "#/$defs/PlayerHUD",
+          "x-rpc-policy": "contract"
+        }
+      },
+      "required": [
+        "availability",
+        "value"
+      ],
+      "x-rpc-policy": "contract"
+    },
     "CurrentText": {
       "type": "object",
       "additionalProperties": false,
@@ -1103,6 +1122,14 @@
       ],
       "x-rpc-policy": "contract"
     },
+    "FoodSurplus": {
+      "type": "integer",
+      "minimum": -32768,
+      "maximum": 32767,
+      "x-integerToken": true,
+      "x-unit": "food-surplus",
+      "description": "Signed displayed food surplus per turn."
+    },
     "Frame": {
       "type": "object",
       "additionalProperties": false,
@@ -1267,6 +1294,14 @@
       },
       "maxItems": 65536
     },
+    "HudCount": {
+      "type": "integer",
+      "minimum": -32768,
+      "maximum": 32767,
+      "x-integerToken": true,
+      "x-unit": "hud-count",
+      "description": "Signed integer displayed by the native HUD, including negative available freighters or command points; not a hidden capacity or allocation count."
+    },
     "Id": {
       "type": "string",
       "minLength": 1,
@@ -1283,6 +1318,14 @@
       },
       "maxItems": 256,
       "uniqueItems": true
+    },
+    "Income": {
+      "type": "integer",
+      "minimum": -32768,
+      "maximum": 32767,
+      "x-integerToken": true,
+      "x-unit": "bc-per-turn",
+      "description": "Signed net income per turn as displayed from native surplus_bc, not gross production."
     },
     "Intelligence": {
       "type": "object",
@@ -1341,6 +1384,16 @@
       "oneOf": [
         {
           "$ref": "#/$defs/CurrentId"
+        },
+        {
+          "$ref": "#/$defs/Unavailable"
+        }
+      ]
+    },
+    "KnownPlayerHUD": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CurrentPlayerHUD"
         },
         {
           "$ref": "#/$defs/Unavailable"
@@ -1979,23 +2032,95 @@
       "properties": {
         "id": {
           "$ref": "#/$defs/Id",
-          "x-rpc-policy": "disabled-player"
+          "x-rpc-policy": "players-known"
+        },
+        "local": {
+          "$ref": "#/$defs/Bool",
+          "x-rpc-policy": "players-known"
+        },
+        "contacted": {
+          "$ref": "#/$defs/Bool",
+          "x-rpc-policy": "players-known"
+        },
+        "eliminated": {
+          "$ref": "#/$defs/Bool",
+          "x-rpc-policy": "players-known"
+        },
+        "color": {
+          "$ref": "#/$defs/PlayerColor",
+          "x-rpc-policy": "players-known"
         },
         "name": {
           "$ref": "#/$defs/KnownText",
-          "x-rpc-policy": "disabled-player"
+          "x-rpc-policy": "players-known"
         },
         "treasury": {
           "$ref": "#/$defs/KnownCredits",
-          "x-rpc-policy": "disabled-player"
+          "x-rpc-policy": "player-own-economy"
+        },
+        "hud": {
+          "$ref": "#/$defs/KnownPlayerHUD",
+          "x-rpc-policy": "player-own-economy"
         }
       },
       "required": [
         "id",
+        "local",
+        "contacted",
+        "eliminated",
+        "color",
         "name",
-        "treasury"
+        "treasury",
+        "hud"
       ],
-      "x-rpc-policy": "disabled-player"
+      "x-rpc-policy": "players-known"
+    },
+    "PlayerColor": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 7,
+      "x-integerToken": true,
+      "x-unit": "player-color",
+      "description": "Native empire banner palette index 0..7, not a native player slot or an RGB value."
+    },
+    "PlayerHUD": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "income": {
+          "$ref": "#/$defs/Income",
+          "x-rpc-policy": "player-own-economy"
+        },
+        "foodSurplus": {
+          "$ref": "#/$defs/FoodSurplus",
+          "x-rpc-policy": "player-own-economy"
+        },
+        "freighters": {
+          "$ref": "#/$defs/HudCount",
+          "x-rpc-policy": "player-own-economy"
+        },
+        "freightersAvailable": {
+          "$ref": "#/$defs/HudCount",
+          "x-rpc-policy": "player-own-economy"
+        },
+        "commandPoints": {
+          "$ref": "#/$defs/HudCount",
+          "x-rpc-policy": "player-own-economy"
+        },
+        "commandPointsAvailable": {
+          "$ref": "#/$defs/HudCount",
+          "x-rpc-policy": "player-own-economy"
+        }
+      },
+      "required": [
+        "income",
+        "foodSurplus",
+        "freighters",
+        "freightersAvailable",
+        "commandPoints",
+        "commandPointsAvailable"
+      ],
+      "x-rpc-policy": "player-own-economy"
     },
     "PlayerResult": {
       "type": "object",
@@ -2805,7 +2930,8 @@
         "session",
         "systems",
         "nebulas",
-        "ships"
+        "ships",
+        "players"
       ]
     },
     "StateTopics": {
@@ -2813,7 +2939,7 @@
       "items": {
         "$ref": "#/$defs/StateTopic"
       },
-      "maxItems": 4,
+      "maxItems": 5,
       "uniqueItems": true
     },
     "StreamGap": {
@@ -2899,7 +3025,7 @@
       "items": {
         "$ref": "#/$defs/StateTopic"
       },
-      "maxItems": 4,
+      "maxItems": 5,
       "minItems": 1,
       "uniqueItems": true
     },
@@ -6473,7 +6599,7 @@
       "role": "reader",
       "availability": "committed-game",
       "kind": "query",
-      "implemented": false,
+      "implemented": true,
       "requestType": "GetRequest",
       "resultType": "PlayerResult",
       "request": {
@@ -6713,7 +6839,7 @@
       "role": "reader",
       "availability": "committed-game",
       "kind": "query",
-      "implemented": false,
+      "implemented": true,
       "requestType": "ListRequest",
       "resultType": "PlayersResult",
       "request": {
@@ -7386,13 +7512,57 @@
         "T-02"
       ]
     },
-    "disabled-player": {
-      "status": "disabled",
-      "predicate": "Pending active/contact/omniscience and field-specific own economy audit. No global player enumeration; own treasury does not authorize opponent treasury.",
+    "players-known": {
+      "status": "reviewed",
+      "predicate": "Bound active human viewer only. Include self and foreign empires listed by the native race screen: current contact, eliminated (even without contact), or native Player_Is_Omniscient including cached Galactic Lore. Prior contact alone is not current contact. Gate before reading bounded CP850 name/color; copy name, color, eliminated and living-foreign contact separately, not historical eliminated-contact flags, portraits/traits/government/research or hidden economy. Own name is also displayed by the self race report. Sort the authorized projection before assigning unpredictable perspective/game-scoped handles; no native slots, hidden counts or gaps in numbering are exposed. A temporarily absent empire cannot be looked up using an old handle.",
       "sources": [
         [
+          "src/game/bill.cpp",
+          "Get_Active_Players"
+        ],
+        [
+          "src/game/bill.cpp",
+          "Get_Players_Dead_Or_Alive_Or_Omniscient"
+        ],
+        [
           "src/game/racescrn.cpp",
-          "Init_Race_Display_Data"
+          "Draw_Race_Text"
+        ],
+        [
+          "src/game/racescrn.cpp",
+          "Draw_Race_Photos"
+        ],
+        [
+          "src/game/racerprt.cpp",
+          "MOX::cur_plyr_ptr->name"
+        ],
+        [
+          "src/game/harold.cpp",
+          "Contact_With_Player"
+        ],
+        [
+          "src/game/harold.cpp",
+          "Player_Is_Omniscient"
+        ],
+        [
+          "src/game/officer.cpp",
+          "One_Leader_With_Galactic_Lore"
+        ]
+      ],
+      "tests": [
+        "T-01",
+        "T-02",
+        "T-03",
+        "T-05"
+      ]
+    },
+    "player-own-economy": {
+      "status": "reviewed",
+      "predicate": "Only the bound local player's already calculated HUD values: bc, surplus_bc, surplus_food, n_freighters, surplus_freighters, command_points and native int16 command_points-minus-used result. Preserve signed deficits/known zero. Foreign treasury/HUD are explicitly unaudited and never read, even under native omniscience. Research display branches, forecasts, totals/maintenance and calculators are not enabled by this policy.",
+      "sources": [
+        [
+          "src/game/mainscr_main.cpp",
+          "Print_Main_Screen_Data"
         ]
       ],
       "tests": [
@@ -7839,7 +8009,7 @@
     "orderedEventsPerSubscription": 4096,
     "overflow": "Reject before admission; coalesce only complete unsent state. Ordered-event overflow signals a gap or disconnect. Never rewrite partial output or silently discard operation results."
   },
-  "x-rpc-sourceHash": "9f26dfa901604495944bbc24563d1b9d590cfa813e42692596d14dad60907e8a",
+  "x-rpc-sourceHash": "c2f39adf307918fd27da81e009f79d2aa52cfa0c391666c2d338a662c79e1145",
   "x-rpc-runtimeEnabled": false,
   "x-rpc-implementedMethods": [
     "rpc.hello",
@@ -7852,6 +8022,8 @@
     "game.getSystem",
     "game.listNebulas",
     "game.listShips",
-    "game.getShip"
+    "game.getShip",
+    "game.listPlayers",
+    "game.getPlayer"
   ]
 }

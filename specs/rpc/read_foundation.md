@@ -3,6 +3,8 @@
 The subsequent [ship-refresh increment](ship_refresh.md) adds conservative ship
 list/detail/state/subscription reads from already calculated native display state.
 The original session/map evidence below remains scoped to that foundation.
+The subsequent [player-view increment](player_view.md) adds known roster and own
+HUD/economy reads without invoking native UI builders or economic calculators.
 
 Prepared with AI assistance. This increment adds an initial read projection, not
 the complete game-query catalog. The dependency direction is now enforced:

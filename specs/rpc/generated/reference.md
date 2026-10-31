@@ -3,13 +3,13 @@
 
 **Optional runtime, disabled by default.** Only the implemented methods listed below are callable when the RPC build and settings enable it.
 
-Implemented methods: `rpc.hello`, `rpc.describe`, `rpc.subscribe`, `rpc.unsubscribe`, `game.getSession`, `game.getState`, `game.listSystems`, `game.getSystem`, `game.listNebulas`, `game.listShips`, `game.getShip`.
+Implemented methods: `rpc.hello`, `rpc.describe`, `rpc.subscribe`, `rpc.unsubscribe`, `game.getSession`, `game.getState`, `game.listSystems`, `game.getSystem`, `game.listNebulas`, `game.listShips`, `game.getShip`, `game.listPlayers`, `game.getPlayer`.
 
 This document is rendered from `schema.json`, not a second method catalog.
 The root schema validates acknowledged client requests; per-method success responses and server notifications have separate definitions.
 All fields are non-null unless explicitly stated. Unknown keys are rejected. UTF-8 byte limits, lexical integer tokens, duplicate keys, depth and authorization need the protocol guards in addition to standard JSON Schema validation.
 
-Source bundle SHA-256: `9f26dfa901604495944bbc24563d1b9d590cfa813e42692596d14dad60907e8a`.
+Source bundle SHA-256: `c2f39adf307918fd27da81e009f79d2aa52cfa0c391666c2d338a662c79e1145`.
 
 ## Methods
 
@@ -332,6 +332,13 @@ Values: `current`.
 | availability | Current | yes | contract |
 | value | Id | yes | contract |
 
+### CurrentPlayerHUD
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| availability | Current | yes | contract |
+| value | PlayerHUD | yes | contract |
+
 ### CurrentText
 
 | Field | Type | Required | Policy |
@@ -428,6 +435,12 @@ Array of `Fleet`; 0..65536 items; unique: false.
 | items | Fleets | yes | contract |
 | nextCursor | Id | no | contract |
 
+### FoodSurplus
+
+Signed displayed food surplus per turn.
+
+Constraints: `{"maximum": 32767, "minimum": -32768, "type": "integer", "x-integerToken": true}`.
+
 ### Frame
 
 | Field | Type | Required | Policy |
@@ -483,6 +496,12 @@ Array of `Fleet`; 0..65536 items; unique: false.
 
 Array of `HistoryPoint`; 0..65536 items; unique: false.
 
+### HudCount
+
+Signed integer displayed by the native HUD, including negative available freighters or command points; not a hidden capacity or allocation count.
+
+Constraints: `{"maximum": 32767, "minimum": -32768, "type": "integer", "x-integerToken": true}`.
+
 ### Id
 
 Unpredictable handle scoped to its owning connection, game or authorized perspective; never a native slot.
@@ -492,6 +511,12 @@ Constraints: `{"maxLength": 128, "minLength": 1, "type": "string", "x-maxUtf8Byt
 ### Ids
 
 Array of `Id`; 0..256 items; unique: true.
+
+### Income
+
+Signed net income per turn as displayed from native surplus_bc, not gross production.
+
+Constraints: `{"maximum": 32767, "minimum": -32768, "type": "integer", "x-integerToken": true}`.
 
 ### Intelligence
 
@@ -518,6 +543,10 @@ Exactly one of: CurrentCredits, Unavailable.
 ### KnownId
 
 Exactly one of: CurrentId, Unavailable.
+
+### KnownPlayerHUD
+
+Exactly one of: CurrentPlayerHUD, Unavailable.
 
 ### KnownText
 
@@ -762,9 +791,31 @@ Array of `Planet`; 0..65536 items; unique: false.
 
 | Field | Type | Required | Policy |
 | --- | --- | --- | --- |
-| id | Id | yes | disabled-player |
-| name | KnownText | yes | disabled-player |
-| treasury | KnownCredits | yes | disabled-player |
+| id | Id | yes | players-known |
+| local | Bool | yes | players-known |
+| contacted | Bool | yes | players-known |
+| eliminated | Bool | yes | players-known |
+| color | PlayerColor | yes | players-known |
+| name | KnownText | yes | players-known |
+| treasury | KnownCredits | yes | player-own-economy |
+| hud | KnownPlayerHUD | yes | player-own-economy |
+
+### PlayerColor
+
+Native empire banner palette index 0..7, not a native player slot or an RGB value.
+
+Constraints: `{"maximum": 7, "minimum": 0, "type": "integer", "x-integerToken": true}`.
+
+### PlayerHUD
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| income | Income | yes | player-own-economy |
+| foodSurplus | FoodSurplus | yes | player-own-economy |
+| freighters | HudCount | yes | player-own-economy |
+| freightersAvailable | HudCount | yes | player-own-economy |
+| commandPoints | HudCount | yes | player-own-economy |
+| commandPointsAvailable | HudCount | yes | player-own-economy |
 
 ### PlayerResult
 
@@ -1044,11 +1095,11 @@ Constraints: `{"maxLength": 128, "minLength": 0, "type": "string", "x-maxUtf8Byt
 
 ### StateTopic
 
-Values: `session`, `systems`, `nebulas`, `ships`.
+Values: `session`, `systems`, `nebulas`, `ships`, `players`.
 
 ### StateTopics
 
-Array of `StateTopic`; 0..4 items; unique: true.
+Array of `StateTopic`; 0..5 items; unique: true.
 
 ### StreamGap
 
@@ -1082,7 +1133,7 @@ Array of `SubscriptionEvent`; 1..2 items; unique: true.
 
 ### SubscriptionTopics
 
-Array of `StateTopic`; 1..4 items; unique: true.
+Array of `StateTopic`; 1..5 items; unique: true.
 
 ### System
 
@@ -1244,7 +1295,8 @@ Reviewed means static evidence, not runtime visibility approval.
 | system-name-visited | reviewed | Initial runtime subset: bound human viewer has visited and star is not a black hole. Copy bounded CP850 name, apply native ASCII outpost lowercase on the copy, then decode UTF-8. Contact/lore-only unvisited names remain explicitly unaudited; no UI/font/resource builder is called. | src/game/mainscr.cpp: Get_Star_Name; src/game/harold.cpp: Player_Has_Visited; src/game/harold.cpp: Star_Is_Outpost_Star; src/game/strings.cpp: String_To_Lower | T-01, T-02, T-03 |
 | nebulas-map | reviewed | Native map draws every existing nebula without a viewer gate. Publish only its unscaled map x/y and a perspective-scoped opaque ID; never type, hidden star membership or art/cache pointers. | src/game/mainscr.cpp: Draw_Nebulae | T-01, T-02 |
 | disabled-system-owner | disabled | Pending per-field review of Star_Owner, mixed owners, visited/contact/lore and outpost semantics. Raw star.owner forbidden. | src/game/harold.cpp: Star_Owner | T-01, T-02 |
-| disabled-player | disabled | Pending active/contact/omniscience and field-specific own economy audit. No global player enumeration; own treasury does not authorize opponent treasury. | src/game/racescrn.cpp: Init_Race_Display_Data | T-01, T-02, T-03 |
+| players-known | reviewed | Bound active human viewer only. Include self and foreign empires listed by the native race screen: current contact, eliminated (even without contact), or native Player_Is_Omniscient including cached Galactic Lore. Prior contact alone is not current contact. Gate before reading bounded CP850 name/color; copy name, color, eliminated and living-foreign contact separately, not historical eliminated-contact flags, portraits/traits/government/research or hidden economy. Own name is also displayed by the self race report. Sort the authorized projection before assigning unpredictable perspective/game-scoped handles; no native slots, hidden counts or gaps in numbering are exposed. A temporarily absent empire cannot be looked up using an old handle. | src/game/bill.cpp: Get_Active_Players; src/game/bill.cpp: Get_Players_Dead_Or_Alive_Or_Omniscient; src/game/racescrn.cpp: Draw_Race_Text; src/game/racescrn.cpp: Draw_Race_Photos; src/game/racerprt.cpp: MOX::cur_plyr_ptr-&gt;name; src/game/harold.cpp: Contact_With_Player; src/game/harold.cpp: Player_Is_Omniscient; src/game/officer.cpp: One_Leader_With_Galactic_Lore | T-01, T-02, T-03, T-05 |
+| player-own-economy | reviewed | Only the bound local player&#x27;s already calculated HUD values: bc, surplus_bc, surplus_food, n_freighters, surplus_freighters, command_points and native int16 command_points-minus-used result. Preserve signed deficits/known zero. Foreign treasury/HUD are explicitly unaudited and never read, even under native omniscience. Research display branches, forecasts, totals/maintenance and calculators are not enabled by this policy. | src/game/mainscr_main.cpp: Print_Main_Screen_Data | T-01, T-02, T-03 |
 | disabled-planet | disabled | Pending read-only equivalent of native explored-planet policy; do not invoke a mutable list builder. Orbit/name/type separately gated. | src/game/plntsum.cpp: Filter_Explored_Planets | T-01, T-02 |
 | disabled-colony | disabled | Own live colony and individually audited native display values only; foreign intelligence is a separate policy. Population is displayed units, never an unaudited native scaled value. | src/game/colony_main.cpp: Colony_Screen | T-01, T-02, T-03 |
 | ships-refreshed | reviewed | Only synchronous post-Build_Ship_Icons capture for the bound active human viewer, outside world mutation/resolution. Follow fresh icon heads that are surviving stack heads and their linked nodes; never enumerate unlinked allocations or rebuild for a query. Copy only map x/y and own-versus-foreign classification. Sort the authorized projection before assigning opaque read-only observation handles; no native slots or durable ship identity are published. One coherent map/ship capture, explicitly dated last-native-ship-refresh. Handle sets are replaced when the projected ship collection changes; no action may use them. | src/game/ships.cpp: Build_Ship_Icons; src/game/shipstak.cpp: Find_Ship_Stacks; src/game/shipstak.cpp: Remove_Non_Detected_Ships; src/game/haccess.cpp: Ship_Stack_X; src/game/haccess.cpp: Ship_Stack_Y; src/game/haccess.cpp: Ship_Stack_Owner | T-01, T-02, T-05 |

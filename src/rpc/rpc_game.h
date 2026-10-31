@@ -28,6 +28,27 @@ namespace rpc {
         std::string name; // Own name only; foreign names are not read.
     };
 
+    struct s_player_hud {
+        int32_t income = 0;
+        int32_t food_surplus = 0;
+        int32_t freighters = 0;
+        int32_t freighters_available = 0;
+        int32_t command_points = 0;
+        int32_t command_points_available = 0;
+    };
+
+    struct s_player_observation {
+        int32_t slot = -1; // Private identity; assigned a public handle only after authorization.
+        bool visible = false;
+        bool local = false;
+        bool contacted = false;
+        bool eliminated = false;
+        uint8_t color = 0;
+        std::string name;
+        int32_t treasury = 0;
+        s_player_hud hud;
+    };
+
     struct s_map_observation {
         int32_t viewer = -1; // Private native identity, never encoded.
         int32_t turn = 0;
@@ -35,6 +56,8 @@ namespace rpc {
         std::vector<s_nebula_observation> nebulas;
         bool ships_captured = false;
         std::vector<s_ship_observation> ships;
+        bool players_captured = false;
+        std::vector<s_player_observation> players;
     };
 
     struct s_map_snapshot {
@@ -42,6 +65,12 @@ namespace rpc {
         std::string id;
         uint64_t revision = 0;
         std::vector<std::string> ship_ids; // Read handles scoped to this immutable capture.
+        std::vector<std::string> player_ids;
+    };
+
+    struct s_player_handle {
+        int32_t slot;
+        std::string id;
     };
 
     struct s_map_cursor {
@@ -86,6 +115,7 @@ namespace rpc {
         std::string perspective_id;
         std::vector<std::string> system_ids;
         std::vector<std::string> nebula_ids;
+        std::vector<s_player_handle> player_handles;
         std::deque<s_map_snapshot> snapshots;
         std::vector<s_map_cursor> cursors;
         std::vector<s_state_subscription> subscriptions;

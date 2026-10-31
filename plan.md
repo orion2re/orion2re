@@ -2,7 +2,7 @@
 
 Status: P1 read foundation in progress. Optional libuv-backed WebSockets,
 configured-key hello, metadata discovery, game-thread dispatch and an initial
-immutable session/map and post-refresh ship projections, atomic audited-topic subscriptions, bounded
+immutable session/map/player-HUD and post-refresh ship projections, atomic audited-topic subscriptions, bounded
 state coalescing and committed-capture turn notifications are implemented. Game code is RPC-unaware and
 publishes only neutral observer events; the application composes the RPC sidecar.
 Most gameplay query families and all remote actions remain uncallable. P0-06, P0-09 and
@@ -950,8 +950,8 @@ discovery, per-client limits, bounded immutable output and copied-work bridge.
 Implemented/advertised methods are `rpc.hello`, `rpc.describe`, `rpc.subscribe`,
 `rpc.unsubscribe`, `game.getSession`,
 `game.getState`, `game.listSystems`, `game.getSystem`, `game.listNebulas`,
-`game.listShips` and `game.getShip`.
-`getState.include` is explicitly restricted to session/systems/nebulas/ships. Remaining
+`game.listShips`, `game.getShip`, `game.listPlayers` and `game.getPlayer`.
+`getState.include` is explicitly restricted to session/systems/nebulas/ships/players. Remaining
 query families, UI/media and all actions remain method-not-found;
 planned schemas alone do not authorize or implement them.
 
@@ -977,14 +977,17 @@ visited bit; visited non-black-hole names are bounded CP850-decoded copies with
 native outpost lowercase. Contact/lore-only names and system owner remain
 `unaudited`; planet and foreign economy data is not inspected. Ship observations
 copy only fresh surviving displayed links, map positions, own/foreign classification
-and owned names. Enemy names/routes/ETA/design/cargo are not read. Nebula positions
+and owned names. Enemy ship names/routes/ETA/design/cargo are not read. Player
+captures include the native known/eliminated/omniscient roster and only the bound
+player's already calculated treasury/HUD values; foreign economy is never read.
+Nebula positions
 follow native unconditional map drawing. Hidden-only changes do not revise views.
 Lists use opaque snapshot-pinned cursors, bounded to 64 cursors/four retained
 captures; expiry/eviction is explicit object-unavailable, never mixed revisions.
 Tests cover paired hidden-state changes, native formatting/RNG preservation,
 revocation/late results, cached read behavior and real WebSocket query dispatch.
 Subscriptions atomically return a selected-topic baseline and cursor on the game
-thread. Only session/systems/nebulas/ships topics are accepted; `state.changed` notifications
+thread. Only session/systems/nebulas/ships/players topics are accepted; `state.changed` notifications
 invalidate the selected public projection without disclosing hidden-only changes.
 Authenticated connections receive default `game.turnAdvanced`, emitted once per connection only
 after a higher committed turn is in the queryable map capture. These ordered
@@ -1043,7 +1046,7 @@ gates. P1 completion is not claimed by this foundation increment.
 
 - [x] Q-01 — Implement `rpc.hello`, `rpc.describe`, `rpc.subscribe`, and `rpc.unsubscribe` (subscriptions explicitly limited to initial audited topics, `state.changed` and `game.turnAdvanced`).
 - [x] Q-02 — Implement `game.getSession` and coherent `game.getState(include)` for the explicitly enabled initial topics.
-- [ ] Q-03 — Implement `game.listPlayers` and `game.getPlayer` with own HUD/economy and known-contact projections.
+- [x] Q-03 — Implement `game.listPlayers` and `game.getPlayer` with own HUD/economy and known-contact projections (audited name/color/contact/eliminated roster and own signed treasury/HUD; `player_view.md`, native roster/Lore/hidden-state tests, stable handles, pagination, subscriptions and live transport; traits/government/research remain unenabled pending their field audits).
 - [ ] Q-04 — Implement `game.listSystems` and `game.getSystem` with authorized map/range/wormhole data.
 - [ ] Q-05 — Implement `game.listPlanets`, `game.getPlanet`, and `game.listNebulas`.
 - [ ] Q-06 — Implement `game.listColonies` and `game.getColony`, including authorized production, jobs, buildings, troops, events, and transfer settings.

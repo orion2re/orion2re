@@ -163,7 +163,7 @@ class TransportTests(unittest.TestCase):
         described = client.Read()
         self.assertEqual(described["id"], "d")
         self.assertEqual({item["name"] for item in described["result"]["methods"]},
-                         {"rpc.hello","rpc.describe","rpc.subscribe","rpc.unsubscribe","game.getSession","game.getState","game.listSystems","game.getSystem","game.listNebulas","game.listShips","game.getShip"})
+                         {"rpc.hello","rpc.describe","rpc.subscribe","rpc.unsubscribe","game.getSession","game.getState","game.listSystems","game.getSystem","game.listNebulas","game.listShips","game.getShip","game.listPlayers","game.getPlayer"})
 
     def test_wrong_key_is_rejected_and_connection_closed(self):
         client = self.Client()
@@ -176,7 +176,7 @@ class TransportTests(unittest.TestCase):
         client.Send({"jsonrpc":"2.0", "id":4, "method":"game.readMemory", "params":None})
         self.assertEqual(client.Read()["error"]["code"], -32001)
         self.assertIn("result", client.Hello())
-        client.Send({"jsonrpc":"2.0", "id":5, "method":"game.getPlayer", "params":{"id":"unknown"}})
+        client.Send({"jsonrpc":"2.0", "id":5, "method":"game.getColony", "params":{"id":"unknown"}})
         self.assertEqual(client.Read()["error"]["code"], -32601)
 
     def test_fragmented_websocket_message_and_split_tcp_header(self):
@@ -493,6 +493,48 @@ class TransportTests(unittest.TestCase):
         self.Fixture("switch")
         with self.assertRaises((EOFError, ConnectionError)):
             client.Read()
+
+    def test_player_queries_filter_hidden_records_and_foreign_economy_before_ids_and_revisions(self):
+        self.Fixture("world")
+        client = self.Client()
+        client.Hello()
+        baseline = self.Query(client, "game.listPlayers")["result"]
+        self.assertEqual(len(baseline["items"]), 2)
+        own, other = baseline["items"]
+        self.assertTrue(own["local"])
+        self.assertEqual(own["treasury"], {"availability":"current","value":50})
+        self.assertEqual(own["hud"]["value"]["foodSurplus"], -4)
+        self.assertEqual(own["hud"]["value"]["freightersAvailable"], -2)
+        self.assertTrue(other["contacted"])
+        self.assertEqual(other["treasury"], {"availability":"unaudited"})
+        self.assertEqual(other["hud"], {"availability":"unaudited"})
+        self.assertNotIn("1234567", json.dumps(baseline))
+        self.assertNotIn("Hidden empire", json.dumps(baseline))
+        self.Fixture("hidden")
+        self.assertEqual(self.Query(client, "game.listPlayers")["result"], baseline)
+        self.assertEqual(self.Query(client, "game.getPlayer", {"id":other["id"]})["result"]["item"], other)
+        self.assertEqual(self.Query(client, "game.getPlayer", {"id":"unknown"})["error"]["code"], -32004)
+        self.assertEqual(self.Query(client, "game.getPlayer", {"id":other["id"],"viewerPlayerId":1})["error"]["code"], -32602)
+
+    def test_player_subscriptions_pages_and_current_membership_use_one_coherent_capture(self):
+        self.Fixture("world")
+        client = self.Client()
+        client.Hello()
+        subscribed = self.Query(client, "rpc.subscribe", {"topics":["players"],"events":["state.changed"]})["result"]
+        first = self.Query(client, "game.listPlayers", {"limit":1})["result"]
+        self.Fixture("player-hud")
+        self.assertEqual(client.Read()["method"], "state.changed")
+        now = self.Query(client, "game.listPlayers")["result"]
+        self.assertEqual(now["items"][0]["id"], first["items"][0]["id"])
+        page = self.Query(client, "game.listPlayers", {"cursor":first["nextCursor"]})["result"]
+        self.assertEqual(page["stamp"], first["stamp"])
+        self.Fixture("contact")
+        self.assertEqual(client.Read()["method"], "state.changed")
+        self.assertEqual(len(self.Query(client, "game.listPlayers")["result"]["items"]), 3)
+        old_id = subscribed["baseline"]["players"][1]["id"]
+        self.Fixture("player-forget")
+        self.assertEqual(client.Read()["method"], "state.changed")
+        self.assertEqual(self.Query(client, "game.getPlayer", {"id":old_id}), self.Query(client, "game.getPlayer", {"id":"unknown"}))
 
 
 if __name__ == "__main__":

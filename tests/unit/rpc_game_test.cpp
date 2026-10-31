@@ -40,6 +40,29 @@ namespace {
         map.ships = {{0, 0, true, "Own"}, {30, 0, false, "hidden enemy name"}, {60, 0, false, "another hidden name"}};
         return map;
     }
+    rpc::s_map_observation Players() {
+        auto map = Map();
+        map.players_captured = true;
+        rpc::s_player_observation own;
+        own.slot = 0;
+        own.visible = true;
+        own.name = "Local";
+        own.treasury = -50;
+        own.hud = {-3, -4, 10, -2, 7, -1};
+        rpc::s_player_observation contact;
+        contact.slot = 2;
+        contact.visible = true;
+        contact.contacted = true;
+        contact.color = 2;
+        contact.name = "Contact";
+        contact.treasury = 1234567;
+        contact.hud.food_surplus = 1000000; // Invalid if authorized; must be discarded before validation for foreign rows.
+        rpc::s_player_observation hidden;
+        hidden.slot = 3;
+        hidden.name = "Hidden empire";
+        map.players = {hidden, contact, own};
+        return map;
+    }
     std::string Dispatch(s_fixture* fixture, uint64_t client, uint64_t epoch, const rpc::s_request* request) {
         DOCTEST_REQUIRE(rpc::Submit_Work(&fixture->bridge, client, epoch, request, UINT64_MAX) == 0);
         rpc::Pump_Game_Queries(&fixture->store);
@@ -417,4 +440,108 @@ DOCTEST_TEST_CASE("maximum ship collections paginate within bounds and oversized
     DOCTEST_CHECK(Dispatch(&fixture, 1, epoch, &subscribe).find("-32005") != std::string::npos);
     DOCTEST_CHECK(fixture.store.subscriptions.empty());
     DOCTEST_CHECK(rpc::Client_Is_Current(&fixture.bridge, 1, epoch));
+}
+
+DOCTEST_TEST_CASE("player IDs and revisions depend only on authorized roster and own HUD state") {
+    s_fixture fixture;
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&fixture.store));
+    auto map = Players();
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    auto list = Request("game.listPlayers");
+    const std::string baseline = rpc::Game_Query(&fixture.store, &list);
+    DOCTEST_CHECK(baseline.find("Local") != std::string::npos);
+    DOCTEST_CHECK(baseline.find("Contact") != std::string::npos);
+    DOCTEST_CHECK(baseline.find("Hidden") == std::string::npos);
+    DOCTEST_CHECK(baseline.find("1234567") == std::string::npos);
+    DOCTEST_CHECK(baseline.find("\"value\":-50") != std::string::npos);
+    DOCTEST_CHECK(baseline.find("\"foodSurplus\":-4") != std::string::npos);
+    DOCTEST_CHECK(baseline.find("\"commandPointsAvailable\":-1") != std::string::npos);
+    const auto own_id = fixture.store.snapshots.back().player_ids[0];
+    const auto contact_id = fixture.store.snapshots.back().player_ids[1];
+    map.players[0].name = std::string(500, 'x');
+    map.players[1].treasury = -99999;
+    std::reverse(map.players.begin(), map.players.end());
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &list) == baseline);
+    map.players[0].treasury = -51;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    DOCTEST_CHECK(fixture.store.snapshots.back().player_ids[0] == own_id);
+    DOCTEST_CHECK(fixture.store.snapshots.back().player_ids[1] == contact_id);
+    auto get = Request("game.getPlayer");
+    get.params_json = "{\"id\":" + rpc::Json_String(contact_id) + "}";
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &get).find("Contact") != std::string::npos);
+    map.players[1].visible = false;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    const std::string unavailable = rpc::Game_Query(&fixture.store, &get);
+    get.params_json = "{\"id\":\"never-known\"}";
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &get) == unavailable);
+    DOCTEST_CHECK(unavailable.find("-32004") != std::string::npos);
+    DOCTEST_CHECK(fixture.store.player_handles.size() == 2);
+    map.players[1].visible = true;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    DOCTEST_CHECK(fixture.store.snapshots.back().player_ids[1] == contact_id);
+    get.params_json = "{\"id\":" + rpc::Json_String(contact_id) + "}";
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &get).find("Contact") != std::string::npos);
+    rpc::Pause_Game_Queries(&fixture.store);
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &list).find("-32002") != std::string::npos);
+    rpc::Resume_Game_Queries(&fixture.store);
+}
+
+DOCTEST_TEST_CASE("player pages baselines and combined ship state remain coherent and revoke on perspective change") {
+    s_fixture fixture;
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&fixture.store));
+    auto map = Players();
+    map.ships_captured = true;
+    map.ships = Ships().ships;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    auto state = Request("game.getState", "{\"include\":[\"players\",\"ships\",\"session\"]}");
+    const std::string baseline = rpc::Game_Query(&fixture.store, &state);
+    auto list = Request("game.listPlayers", "{\"limit\":1}");
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &list).find("nextCursor") != std::string::npos);
+    const std::string cursor = fixture.store.cursors.front().id;
+    uint64_t epoch;
+    DOCTEST_REQUIRE(rpc::Register_Client(&fixture.bridge, 1, &epoch));
+    auto subscribe = Request("rpc.subscribe", "{\"topics\":[\"players\"],\"events\":[\"state.changed\"]}");
+    DOCTEST_CHECK(Dispatch(&fixture, 1, epoch, &subscribe).find("Local") != std::string::npos);
+    map.ships_captured = false;
+    ++map.turn;
+    map.players[2].treasury = 77;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &state) == baseline);
+    rpc::Pump_Game_Queries(&fixture.store);
+    rpc::s_publication event;
+    DOCTEST_REQUIRE(rpc::Take_Publication(&fixture.bridge, &event));
+    DOCTEST_CHECK(event.json.find("state.changed") != std::string::npos);
+    list.params_json = "{\"cursor\":" + rpc::Json_String(cursor) + "}";
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &list).find("35000") != std::string::npos);
+    auto wrong_kind = Request("game.listSystems");
+    wrong_kind.params_json = list.params_json;
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &wrong_kind).find("-32004") != std::string::npos);
+    for (int index = 0; index < 4; ++index) {
+        ++map.turn;
+        DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    }
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &list).find("-32004") != std::string::npos);
+    rpc::Revoke_Game_View(&fixture.store);
+    DOCTEST_CHECK(fixture.store.player_handles.empty());
+    DOCTEST_CHECK(fixture.store.snapshots.empty());
+    DOCTEST_CHECK_FALSE(rpc::Client_Is_Current(&fixture.bridge, 1, epoch));
+}
+
+DOCTEST_TEST_CASE("player capture requires a valid local record and rejects duplicate public bindings") {
+    s_fixture fixture;
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&fixture.store));
+    auto map = Map();
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    auto list = Request("game.listPlayers");
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &list).find("-32002") != std::string::npos);
+    map = Players();
+    map.players.back().visible = false;
+    DOCTEST_CHECK_FALSE(rpc::Capture_Map(&fixture.store, &map));
+    map = Players();
+    map.players[0] = map.players[1];
+    DOCTEST_CHECK_FALSE(rpc::Capture_Map(&fixture.store, &map));
+    map = Players();
+    map.players.back().hud.income = 32768;
+    DOCTEST_CHECK_FALSE(rpc::Capture_Map(&fixture.store, &map));
 }

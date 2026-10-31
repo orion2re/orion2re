@@ -34,6 +34,25 @@ int main() {
         map.turn = 35000;
         map.systems = {{10, 20, true, true, "Home"}, {30, 40, false, false, "hidden"}, {50, 60, true, true, "Other"}};
         map.nebulas = {{70, 80}};
+        map.players_captured = true;
+        rpc::s_player_observation own;
+        own.slot = 0;
+        own.visible = true;
+        own.name = "Local empire";
+        own.treasury = 50;
+        own.hud = {-3, -4, 10, -2, 7, -1};
+        rpc::s_player_observation contact;
+        contact.slot = 1;
+        contact.visible = true;
+        contact.contacted = true;
+        contact.color = 1;
+        contact.name = "Known empire";
+        contact.treasury = 1234567;
+        rpc::s_player_observation hidden;
+        hidden.slot = 2;
+        hidden.name = "Hidden empire";
+        hidden.color = 2;
+        map.players = {own, contact, hidden};
         while (running) {
             std::string command;
             {
@@ -58,6 +77,20 @@ int main() {
             else if (command == "hidden") {
                 map.systems[1].name = "changed hidden world";
                 if (!map.ships.empty()) map.ships.back().name = "changed hidden ship name";
+                ++map.players[1].treasury;
+                map.players[2].name = "different hidden empire";
+                rpc::Capture_Map(&store, &map);
+            } else if (command == "player-hud") {
+                --map.players[0].treasury;
+                --map.players[0].hud.income;
+                rpc::Capture_Map(&store, &map);
+            } else if (command == "contact") {
+                map.players[2].visible = true;
+                map.players[2].contacted = true;
+                map.players[2].name = "New contact";
+                rpc::Capture_Map(&store, &map);
+            } else if (command == "player-forget") {
+                map.players[1].visible = false;
                 rpc::Capture_Map(&store, &map);
             } else if (command == "ships") {
                 map.ships_captured = true;

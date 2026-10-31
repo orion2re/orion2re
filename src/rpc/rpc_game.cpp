@@ -20,6 +20,7 @@ namespace rpc {
             store->perspective_id.clear();
             store->system_ids.clear();
             store->nebula_ids.clear();
+            store->player_handles.clear();
             store->snapshots.clear();
             store->cursors.clear();
             store->subscriptions.clear();
@@ -58,9 +59,20 @@ namespace rpc {
             return true;
         }
 
-        const s_map_snapshot* Select_Snapshot(const s_game_store* store, bool ships) {
+        bool Same_Players(const s_map_observation* left, const s_map_observation* right) {
+            if (left->players_captured != right->players_captured || left->players.size() != right->players.size()) return false;
+            for (size_t index = 0; index < left->players.size(); ++index) {
+                const auto& a = left->players[index];
+                const auto& b = right->players[index];
+                if (std::tie(a.local, a.contacted, a.eliminated, a.color, a.name, a.treasury, a.hud.income, a.hud.food_surplus, a.hud.freighters, a.hud.freighters_available, a.hud.command_points, a.hud.command_points_available) !=
+                    std::tie(b.local, b.contacted, b.eliminated, b.color, b.name, b.treasury, b.hud.income, b.hud.food_surplus, b.hud.freighters, b.hud.freighters_available, b.hud.command_points, b.hud.command_points_available)) return false;
+            }
+            return true;
+        }
+
+        const s_map_snapshot* Select_Snapshot(const s_game_store* store, bool ships, bool players = false) {
             for (auto snapshot = store->snapshots.rbegin(); snapshot != store->snapshots.rend(); ++snapshot) {
-                if (!ships || snapshot->map.ships_captured) return &*snapshot;
+                if ((!ships || snapshot->map.ships_captured) && (!players || snapshot->map.players_captured)) return &*snapshot;
             }
             return nullptr;
         }
@@ -103,8 +115,22 @@ namespace rpc {
                 ",\"owner\":{\"availability\":\"unaudited\"},\"destination\":{\"availability\":\"unaudited\"},\"eta\":{\"availability\":\"unaudited\"}}";
         }
 
+        std::string Player(const s_map_snapshot* snapshot, size_t index) {
+            const auto& item = snapshot->map.players[index];
+            std::string result = "{\"id\":" + Json_String(snapshot->player_ids[index]) + ",\"local\":" + (item.local ? "true" : "false") +
+                ",\"contacted\":" + (item.contacted ? "true" : "false") + ",\"eliminated\":" + (item.eliminated ? "true" : "false") +
+                ",\"color\":" + std::to_string(item.color) + ",\"name\":{\"availability\":\"current\",\"value\":" + Json_String(item.name) + "},\"treasury\":";
+            if (!item.local) return result + "{\"availability\":\"unaudited\"},\"hud\":{\"availability\":\"unaudited\"}}";
+            return result + "{\"availability\":\"current\",\"value\":" + std::to_string(item.treasury) +
+                "},\"hud\":{\"availability\":\"current\",\"value\":{\"income\":" + std::to_string(item.hud.income) +
+                ",\"foodSurplus\":" + std::to_string(item.hud.food_surplus) + ",\"freighters\":" + std::to_string(item.hud.freighters) +
+                ",\"freightersAvailable\":" + std::to_string(item.hud.freighters_available) + ",\"commandPoints\":" + std::to_string(item.hud.command_points) +
+                ",\"commandPointsAvailable\":" + std::to_string(item.hud.command_points_available) + "}}}";
+        }
+
         size_t Collection_Size(const s_map_snapshot* snapshot, const std::string& topic) {
             if (topic == "ships") return snapshot->map.ships.size();
+            if (topic == "players") return snapshot->map.players.size();
             return topic == "systems" ? snapshot->map.systems.size() : snapshot->map.nebulas.size();
         }
 
@@ -115,6 +141,8 @@ namespace rpc {
                 if (index != offset) result += ',';
                 if (topic == "ships")
                     result += Ship(snapshot, index);
+                else if (topic == "players")
+                    result += Player(snapshot, index);
                 else if (topic == "systems")
                     result += System(store, snapshot, index);
                 else
@@ -183,7 +211,9 @@ namespace rpc {
             }
             yyjson_doc_free(doc);
             if (store->busy_depth != 0 || !store->loaded || store->snapshots.empty()) return Error_Response(request, RPC_BUSY);
-            const auto* snapshot = Select_Snapshot(store, std::find(subscription.topics.begin(), subscription.topics.end(), "ships") != subscription.topics.end());
+            const bool ships = std::find(subscription.topics.begin(), subscription.topics.end(), "ships") != subscription.topics.end();
+            const bool players = std::find(subscription.topics.begin(), subscription.topics.end(), "players") != subscription.topics.end();
+            const auto* snapshot = Select_Snapshot(store, ships, players);
             if (snapshot == nullptr) return Error_Response(request, RPC_BUSY);
             const size_t client_count = std::count_if(store->subscriptions.begin(), store->subscriptions.end(), [work](const s_state_subscription& item) { return item.client == work->client; });
             if (store->subscriptions.size() >= 64 || client_count >= 16) {
@@ -206,7 +236,9 @@ namespace rpc {
                 if (subscription.revision == store->revision) continue;
                 subscription.revision = store->revision;
                 if (!subscription.state_changes) continue;
-                const auto* snapshot = Select_Snapshot(store, std::find(subscription.topics.begin(), subscription.topics.end(), "ships") != subscription.topics.end());
+                const bool ships = std::find(subscription.topics.begin(), subscription.topics.end(), "ships") != subscription.topics.end();
+                const bool players = std::find(subscription.topics.begin(), subscription.topics.end(), "players") != subscription.topics.end();
+                const auto* snapshot = Select_Snapshot(store, ships, players);
                 if (snapshot == nullptr) {
                     Cancel_Client(store->bridge, subscription.client);
                     continue;
@@ -270,14 +302,16 @@ namespace rpc {
                 return {};
             }
             bool ships = request->method == "game.listShips" || request->method == "game.getShip";
+            bool players = request->method == "game.listPlayers" || request->method == "game.getPlayer";
             if (request->method == "game.getState") {
                 size_t index, count;
                 yyjson_val* topic;
                 yyjson_arr_foreach(yyjson_obj_get(params, "include"), index, count, topic) {
                     ships |= std::string(yyjson_get_str(topic), yyjson_get_len(topic)) == "ships";
+                    players |= std::string(yyjson_get_str(topic), yyjson_get_len(topic)) == "players";
                 }
             }
-            const s_map_snapshot* snapshot = Select_Snapshot(store, ships);
+            const s_map_snapshot* snapshot = Select_Snapshot(store, ships, players);
             if (snapshot == nullptr) {
                 *error = Text(params, "cursor").empty() ? RPC_BUSY : RPC_OBJECT_UNAVAILABLE;
                 return {};
@@ -297,6 +331,8 @@ namespace rpc {
                         result += ",\"nebulas\":" + Collection(store, snapshot, name, 0, 57);
                     else if (name == "ships")
                         result += ",\"ships\":" + Collection(store, snapshot, name, 0, 10000);
+                    else if (name == "players")
+                        result += ",\"players\":" + Collection(store, snapshot, name, 0, 8);
                     else {
                         *error = RPC_INVALID_PARAMS;
                         return {};
@@ -304,22 +340,22 @@ namespace rpc {
                 }
                 return result + "}";
             }
-            if (request->method == "game.getSystem" || request->method == "game.getShip") {
+            if (request->method == "game.getSystem" || request->method == "game.getShip" || request->method == "game.getPlayer") {
                 const std::string id = Text(params, "id");
-                const auto& ids = ships ? snapshot->ship_ids : store->system_ids;
+                const auto& ids = players ? snapshot->player_ids : (ships ? snapshot->ship_ids : store->system_ids);
                 for (size_t index = 0; index < ids.size(); ++index) {
                     if (ids[index] == id) {
-                        return "{\"stamp\":" + Stamp(store, snapshot) + ",\"item\":" + (ships ? Ship(snapshot, index) : System(store, snapshot, index)) + "}";
+                        return "{\"stamp\":" + Stamp(store, snapshot) + ",\"item\":" + (players ? Player(snapshot, index) : (ships ? Ship(snapshot, index) : System(store, snapshot, index))) + "}";
                     }
                 }
                 *error = RPC_OBJECT_UNAVAILABLE;
                 return {};
             }
-            if (request->method != "game.listSystems" && request->method != "game.listNebulas" && request->method != "game.listShips") {
+            if (request->method != "game.listSystems" && request->method != "game.listNebulas" && request->method != "game.listShips" && request->method != "game.listPlayers") {
                 *error = RPC_METHOD_NOT_FOUND;
                 return {};
             }
-            const std::string topic = ships ? "ships" : (request->method == "game.listSystems" ? "systems" : "nebulas");
+            const std::string topic = players ? "players" : (ships ? "ships" : (request->method == "game.listSystems" ? "systems" : "nebulas"));
             size_t offset = 0;
             yyjson_val* requested_limit = yyjson_obj_get(params, "limit");
             size_t limit = requested_limit != nullptr ? (size_t)yyjson_get_uint(requested_limit) : 64;
@@ -420,7 +456,7 @@ namespace rpc {
     bool Capture_Map(s_game_store* store, const s_map_observation* observation) {
         if (store == nullptr || observation == nullptr || !store->loaded || store->busy_depth != 0 ||
             observation->viewer < 0 || observation->viewer >= 8 || observation->turn < 0 ||
-            observation->systems.size() > 1024 || observation->nebulas.size() > 57 || observation->ships.size() > 10000) return false;
+            observation->systems.size() > 1024 || observation->nebulas.size() > 57 || observation->ships.size() > 10000 || observation->players.size() > 8) return false;
         // Bind newly authorized default observers to the old coherent turn before replacing it.
         Sync_Turn_Observers(store);
         s_map_observation projected = *observation;
@@ -429,6 +465,32 @@ namespace rpc {
             if (!system.name_available) system.name.clear();
             if (system.name.size() > 4096) return false;
         }
+        if (!projected.players_captured) projected.players.clear();
+        std::erase_if(projected.players, [](const s_player_observation& player) { return !player.visible; });
+        bool slots[8] = {};
+        bool has_local = false;
+        for (s_player_observation& player : projected.players) {
+            if (player.slot < 0 || player.slot >= 8 || slots[player.slot] || player.name.size() > 60 || player.color >= 8) return false;
+            slots[player.slot] = true;
+            player.local = player.slot == projected.viewer;
+            if (player.eliminated) player.contacted = false;
+            if (player.local) {
+                if (player.eliminated) return false;
+                player.contacted = false;
+                has_local = true;
+            } else {
+                player.treasury = 0;
+                player.hud = {};
+            }
+            for (int32_t value : {player.hud.income, player.hud.food_surplus, player.hud.freighters, player.hud.freighters_available, player.hud.command_points, player.hud.command_points_available}) {
+                if (value < -32768 || value > 32767) return false;
+            }
+        }
+        if (projected.players_captured && !has_local) return false;
+        std::sort(projected.players.begin(), projected.players.end(), [](const s_player_observation& left, const s_player_observation& right) {
+            if (left.local != right.local) return left.local;
+            return std::tie(left.name, left.color, left.contacted, left.eliminated) < std::tie(right.name, right.color, right.contacted, right.eliminated);
+        });
         if (!projected.ships_captured) projected.ships.clear();
         for (s_ship_observation& ship : projected.ships) {
             if (!ship.owned) ship.name.clear();
@@ -447,7 +509,8 @@ namespace rpc {
             store->viewer = projected.viewer;
         }
         if (!store->snapshots.empty() && Same_Map(&projected, &store->snapshots.back().map) &&
-            (!projected.ships_captured || Same_Ships(&projected, &store->snapshots.back().map))) return true;
+            (!projected.ships_captured || Same_Ships(&projected, &store->snapshots.back().map)) &&
+            (!projected.players_captured || Same_Players(&projected, &store->snapshots.back().map))) return true;
         if (store->revision == std::numeric_limits<uint64_t>::max()) return false;
         auto Extend = [store](std::vector<std::string>* ids, size_t count) {
             while (ids->size() < count) {
@@ -461,6 +524,16 @@ namespace rpc {
         s_map_snapshot snapshot;
         if (!store->new_id(&snapshot.id, store->id_context)) return false;
         snapshot.map = std::move(projected);
+        for (const auto& player : snapshot.map.players) {
+            auto handle = std::find_if(store->player_handles.begin(), store->player_handles.end(), [&player](const s_player_handle& item) { return item.slot == player.slot; });
+            if (handle == store->player_handles.end()) {
+                std::string id;
+                if (!store->new_id(&id, store->id_context)) return false;
+                store->player_handles.push_back({player.slot, std::move(id)});
+                handle = std::prev(store->player_handles.end());
+            }
+            snapshot.player_ids.push_back(handle->id);
+        }
         const auto* previous_ships = Select_Snapshot(store, true);
         if (snapshot.map.ships_captured && previous_ships != nullptr && Same_Ships(&snapshot.map, &previous_ships->map)) {
             snapshot.ship_ids = previous_ships->ship_ids;

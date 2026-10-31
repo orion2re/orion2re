@@ -20,6 +20,8 @@ namespace {
         int16_t old_stars_count = MOX::NUM_STARS;
         uint8_t old_nebulas_count = MOX::NUM_NEBULAS;
         int32_t old_turn = MOX::stardate;
+        int16_t old_active_count = MOX::active_count;
+        std::vector<uint8_t> old_active_players = {std::begin(MOX::active_player), std::end(MOX::active_player)};
         std::vector<s_player> players = std::vector<s_player>(MAX_PLAYERS);
         std::vector<s_star_data> stars = std::vector<s_star_data>(MAX_STARS);
         std::vector<s_planet_data> planets = std::vector<s_planet_data>(MAX_PLANETS);
@@ -58,6 +60,8 @@ namespace {
             MOX::NUM_STARS = old_stars_count;
             MOX::NUM_NEBULAS = old_nebulas_count;
             MOX::stardate = old_turn;
+            MOX::active_count = old_active_count;
+            std::copy(old_active_players.begin(), old_active_players.end(), MOX::active_player);
         }
     };
 
@@ -312,4 +316,90 @@ DOCTEST_TEST_CASE("maximum precomputed ship display copies bounded projected rec
               << " capture_us=" << std::chrono::duration_cast<std::chrono::microseconds>(captured - started).count()
               << " page_encode_us=" << std::chrono::duration_cast<std::chrono::microseconds>(encoded - captured).count() << '\n';
     rpc::Shutdown_Game_Store(&store);
+}
+
+DOCTEST_TEST_CASE("player projection follows the native race roster while excluding hidden names and foreign economy") {
+    s_world world;
+    MOX::NUM_PLAYERS = MAX_PLAYERS;
+    for (int index = 0; index < MAX_PLAYERS; ++index) {
+        world.players[index].color = (uint8_t)index;
+        memcpy(world.players[index].name, "Empire", 7);
+    }
+    memcpy(world.players[0].name, "Own\x82", 5);
+    world.players[0].contact[1] = 1;
+    world.players[2].eliminated = 1; // The native race screen includes eliminated empires without contact.
+    world.players[0].n_times_established_contact[3] = 1;
+    memset(world.players[4].name, 'x', sizeof(world.players[4].name)); // Must never be inspected without authorization.
+    world.players[4].color = 255;
+    world.players[0].bc = -123;
+    world.players[0].surplus_bc = -5;
+    world.players[0].surplus_food = -7;
+    world.players[0].n_freighters = 10;
+    world.players[0].surplus_freighters = -2;
+    world.players[0].command_points = 10;
+    world.players[0].command_points_used = 15;
+    world.players[1].bc = 999999;
+    MOX::active_count = 77;
+    const uint32_t seed = game_random::Get_Random_Seed();
+    rpc::s_map_observation observed;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&observed));
+    DOCTEST_CHECK(MOX::active_count == 77);
+    DOCTEST_REQUIRE(observed.players_captured);
+    DOCTEST_REQUIRE(observed.players.size() == 3);
+    DOCTEST_CHECK(observed.players[0].local);
+    DOCTEST_CHECK(observed.players[0].name == "Own\xc3\xa9");
+    DOCTEST_CHECK(observed.players[0].treasury == -123);
+    DOCTEST_CHECK(observed.players[0].hud.income == -5);
+    DOCTEST_CHECK(observed.players[0].hud.food_surplus == -7);
+    DOCTEST_CHECK(observed.players[0].hud.freighters == 10);
+    DOCTEST_CHECK(observed.players[0].hud.freighters_available == -2);
+    DOCTEST_CHECK(observed.players[0].hud.command_points_available == -5);
+    DOCTEST_CHECK(observed.players[1].contacted);
+    DOCTEST_CHECK(observed.players[1].treasury == 0);
+    DOCTEST_CHECK(observed.players[2].eliminated);
+    DOCTEST_CHECK_FALSE(observed.players[2].contacted);
+    BILL::Get_Players_Dead_Or_Alive_Or_Omniscient(0, 0);
+    DOCTEST_REQUIRE(MOX::active_count == 2);
+    for (int index = 0; index < MOX::active_count; ++index) {
+        DOCTEST_CHECK(std::any_of(observed.players.begin(), observed.players.end(), [index](const rpc::s_player_observation& player) {
+            return player.slot == MOX::active_player[index];
+        }));
+    }
+    world.players[1].bc = -999999;
+    world.players[1].surplus_food = 30000;
+    world.players[0].contact[2] = 1; // Historical dead-empire flags are not current contact.
+    world.players[4].research_accumulated = 777;
+    rpc::s_map_observation changed;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&changed));
+    DOCTEST_CHECK(changed.players.size() == observed.players.size());
+    DOCTEST_CHECK(changed.players[1].treasury == 0);
+    DOCTEST_CHECK(changed.players[1].hud.food_surplus == 0);
+    DOCTEST_CHECK_FALSE(changed.players[2].contacted);
+    world.players[0].command_points = 32767;
+    world.players[0].command_points_used = -32768;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&changed));
+    DOCTEST_CHECK(changed.players[0].hud.command_points_available == -1);
+    DOCTEST_CHECK(game_random::Get_Random_Seed() == seed);
+}
+
+DOCTEST_TEST_CASE("native omniscience and cached Galactic Lore disclose player names but never foreign HUD state") {
+    s_world world;
+    memcpy(world.players[1].name, "Other", 6);
+    world.players[1].bc = 7654321;
+    world.players[1].surplus_bc = 1234;
+    rpc::s_map_observation observed;
+    DOCTEST_SUBCASE("omniscience trait") {
+        world.players[0].traits[TRAIT_OMNISCIENCE] = 1;
+    }
+    DOCTEST_SUBCASE("Galactic Lore") {
+        world.players[0].has_galactic_lore = 1;
+    }
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&observed));
+    DOCTEST_REQUIRE(observed.players.size() == 2);
+    DOCTEST_CHECK(observed.players[1].name == "Other");
+    DOCTEST_CHECK_FALSE(observed.players[1].contacted);
+    DOCTEST_CHECK(observed.players[1].treasury == 0);
+    DOCTEST_CHECK(observed.players[1].hud.income == 0);
+    world.players[1].name[0] = 0;
+    DOCTEST_CHECK(observed.players[1].name == "Other");
 }
