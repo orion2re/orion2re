@@ -1091,7 +1091,7 @@ gates. P1 completion is not claimed by this foundation increment.
 - [ ] N-02 — Emit `ui.contextChanged` for initialized active contexts, nested dialogs, and parent restoration rather than raw screen assignments.
 - [ ] N-03 — Emit `game.sessionChanged` for new/load/end/unload/revocation and invalidate stale identities.
 - [ ] N-04 — Add selected `state.changed` / `ui.viewChanged` subscriptions without emitting events for hidden-only changes.
-- [ ] N-05 — Validate a client example deriving incoming hostile ships from ships/colonies/known diplomacy after a turn event; add no server briefing API.
+- [x] N-05 — Validate a client example deriving incoming hostile ships from ships/colonies/known diplomacy after a turn event; add no server briefing API (`tools/rpc_incoming_threats.py`, pure client/CLI tests and live turn-event → coherent state → client alert test; source/limits in `specs/rpc/incoming_threats.md`; synthetic/native-function and live-transport evidence, not interactive parity).
 
 V-03/Q-07 approach approved: reuse the already calculated state via a neutral
 post-refresh hook and explicitly dated ship observations. The proposed native
@@ -1120,8 +1120,18 @@ ship name; do not change its semantics or substitute a hull-class/UI label. No
 `displayName` addition is approved or required by this decision. A native UI branch
 that discloses only a hull label does not authorize the enemy's canonical name.
 Enemy names remain unaudited until independently authorized by native evidence
-and initialized-context visibility tests. Q-07 stays unchecked. Continue toward
-Q-06/Q-13 and the client-side N-05 example without a server briefing API.
+and initialized-context visibility tests. Q-06/Q-07/Q-13 stay unchecked for their
+remaining field/context families; N-05 validates the implemented read subsets,
+not full query or interactive parity.
+
+N-05 verification on macOS ARM64: 93 Python tests including 36 live WebSocket
+cases pass; relevant RPC/native/transport targets pass normally and with ASAN/UBSAN;
+the RPC-disabled `tools/run-tests.sh` passes all 106 CTest targets. Generation drift,
+affected C++ formatting and whitespace checks pass. The client rejects stale,
+newer-turn, cross-game and mixed-metadata responses; busy/limit/unknown knowledge
+is not an all-clear. It copies cached ETA only and invokes no server aggregation,
+movement calculator or gameplay action. Interactive saved-game/multiplayer and
+other-platform acceptance remain open; LeakSanitizer remains unsupported locally.
 
 ### P2. Shared UI adapters and operation lifecycle
 

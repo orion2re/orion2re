@@ -2,6 +2,7 @@
 
 import base64
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -17,6 +18,9 @@ import unittest
 
 SERVER = os.environ.get("ORION2RE_RPC_TEST_SERVER")
 KEY = "rpc-test-key-not-a-real-secret"
+spec = importlib.util.spec_from_file_location("rpc_incoming_client", Path(__file__).resolve().parents[2] / "tools/rpc_incoming_threats.py")
+incoming_client = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(incoming_client)
 
 
 class WebSocket:
@@ -624,6 +628,32 @@ class TransportTests(unittest.TestCase):
         self.assertEqual(client.Read()["method"], "state.changed")
         self.assertEqual(self.Query(client, "game.listPlayers")["result"]["items"][1]["atWar"], {"availability":"current","value":False})
         self.assertEqual(self.Query(client, "game.getState", {"include":["ships","players"]})["result"], baseline)
+
+    def test_client_derives_incoming_threats_after_an_ordinary_turn_event_without_a_briefing_api(self):
+        self.Fixture("world")
+        self.Fixture("ships")
+        self.Fixture("colonies")
+        self.Fixture("threats")
+        client = self.Client()
+        client.Hello()
+        old = self.Query(client, "game.getState", {"include":["session","players","ships","colonies"]})
+        self.Fixture("advance")
+        event = client.Read()
+        request = incoming_client.State_Request(event)
+        response = self.Query(client, request["method"], request["params"])
+        result = incoming_client.Derive_Incoming(response, event)
+        self.assertTrue(result["ready"])
+        state = response["result"]
+        ship = state["ships"][1]
+        self.assertEqual(result["alerts"], [{"shipId":ship["id"], "playerId":state["players"][1]["id"],
+                                             "systemId":state["colonies"][0]["systemId"],
+                                             "colonyIds":sorted(colony["id"] for colony in state["colonies"]),
+                                             "cachedEtaTurns":2}])
+        self.assertEqual(result["unclassifiedShipIds"], [state["ships"][2]["id"]])
+        self.assertFalse(incoming_client.Derive_Incoming(old, event)["ready"])
+        self.Fixture("busy")
+        busy = self.Query(client, request["method"], request["params"])
+        self.assertEqual(incoming_client.Derive_Incoming(busy, event)["reason"], "busy")
 
 
 if __name__ == "__main__":

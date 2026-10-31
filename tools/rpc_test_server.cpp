@@ -140,6 +140,18 @@ int main() {
                 map.players[1].at_war_available = true;
                 map.players[1].at_war = !map.players[1].at_war;
                 rpc::Capture_Map(&store, &map);
+            } else if (command == "threats") {
+                if (map.ships.size() >= 3) {
+                    map.ships[1].owned = false;
+                    map.ships[1].owner_slot = 1;
+                    map.ships[1].destination_available = rpc::SHIP_CURRENT;
+                    map.ships[1].destination_system = 0;
+                    map.ships[1].eta_available = rpc::SHIP_CURRENT;
+                    map.ships[1].eta = 2;
+                    map.players[1].at_war_available = map.players[1].at_war = true;
+                }
+                map.ships_captured = true;
+                rpc::Capture_Map(&store, &map);
             } else if (command == "colony-pop") {
                 if (!map.colonies.empty()) ++map.colonies[0].population;
                 rpc::Capture_Map(&store, &map);
