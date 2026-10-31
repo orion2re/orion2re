@@ -163,7 +163,7 @@ class TransportTests(unittest.TestCase):
         described = client.Read()
         self.assertEqual(described["id"], "d")
         self.assertEqual({item["name"] for item in described["result"]["methods"]},
-                         {"rpc.hello","rpc.describe","rpc.subscribe","rpc.unsubscribe","game.getSession","game.getState","game.listSystems","game.getSystem","game.listNebulas","game.listShips","game.getShip","game.listPlayers","game.getPlayer"})
+                         {"rpc.hello","rpc.describe","rpc.subscribe","rpc.unsubscribe","game.getSession","game.getState","game.listSystems","game.getSystem","game.listNebulas","game.listShips","game.getShip","game.listPlayers","game.getPlayer","game.listColonies","game.getColony"})
 
     def test_wrong_key_is_rejected_and_connection_closed(self):
         client = self.Client()
@@ -176,7 +176,7 @@ class TransportTests(unittest.TestCase):
         client.Send({"jsonrpc":"2.0", "id":4, "method":"game.readMemory", "params":None})
         self.assertEqual(client.Read()["error"]["code"], -32001)
         self.assertIn("result", client.Hello())
-        client.Send({"jsonrpc":"2.0", "id":5, "method":"game.getColony", "params":{"id":"unknown"}})
+        client.Send({"jsonrpc":"2.0", "id":5, "method":"game.getPlanet", "params":{"id":"unknown"}})
         self.assertEqual(client.Read()["error"]["code"], -32601)
 
     def test_fragmented_websocket_message_and_split_tcp_header(self):
@@ -394,7 +394,7 @@ class TransportTests(unittest.TestCase):
         self.Fixture("world")
         client = self.Client()
         client.Hello()
-        for params in ({"topics":["colonies"],"events":["state.changed"]},
+        for params in ({"topics":["planets"],"events":["state.changed"]},
                        {"topics":["systems"],"events":["ui.contextChanged"]},
                        {"topics":[],"events":["state.changed"]},
                        {"topics":["systems"],"events":[]}):
@@ -572,6 +572,39 @@ class TransportTests(unittest.TestCase):
         self.assertEqual(self.Query(client, "game.getState", {"include":["session","systems","ships"]})["result"], baseline)
         self.Fixture("map-only")
         self.assertEqual(self.Query(client, "game.getState", {"include":["session","systems","ships"]})["result"], baseline)
+
+    def test_own_colonies_are_hidden_filtered_and_coherent_with_ships_map_and_roster(self):
+        self.Fixture("world")
+        client = self.Client()
+        client.Hello()
+        self.assertEqual(self.Query(client, "game.listColonies")["error"]["code"], -32002)
+        self.Fixture("ships")
+        self.Fixture("colonies")
+        topics = ["session", "systems", "players", "ships", "colonies"]
+        subscribed = self.Query(client, "rpc.subscribe", {"topics":topics,"events":["state.changed"]})["result"]
+        baseline = subscribed["baseline"]
+        first, second = baseline["colonies"]
+        self.assertEqual(first["systemId"], baseline["systems"][0]["id"])
+        self.assertEqual(first["owner"], {"availability":"current","value":baseline["players"][0]["id"]})
+        self.assertEqual(first["orbit"], 1)
+        self.assertEqual(first["population"], {"availability":"current","value":0})
+        self.assertEqual(second["population"], {"availability":"current","value":42})
+        for field in ("planetId", "production", "buyCost"):
+            self.assertEqual(first[field], {"availability":"unaudited"})
+        self.assertEqual(self.Query(client, "game.getColony", {"id":first["id"]})["result"]["item"], first)
+        page = self.Query(client, "game.listColonies", {"limit":1})["result"]
+        self.Fixture("hidden")
+        self.assertEqual(self.Query(client, "game.getState", {"include":topics})["result"], baseline)
+        self.Fixture("colony-pop")
+        self.assertEqual(client.Read()["method"], "state.changed")
+        pinned = self.Query(client, "game.listColonies", {"cursor":page["nextCursor"]})["result"]
+        self.assertEqual(pinned["stamp"], page["stamp"])
+        self.assertEqual(pinned["items"], [second])
+        self.assertEqual(self.Query(client, "game.getColony", {"id":first["id"]}), self.Query(client, "game.getColony", {"id":"unknown"}))
+        current = self.Query(client, "game.getState", {"include":topics})["result"]
+        self.Fixture("map-only")
+        self.Fixture("colony-pop")
+        self.assertEqual(self.Query(client, "game.getState", {"include":topics})["result"], current)
 
 
 if __name__ == "__main__":

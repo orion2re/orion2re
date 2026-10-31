@@ -84,6 +84,10 @@ int main() {
                 }
                 ++map.players[1].treasury;
                 map.players[2].name = "different hidden empire";
+                if (map.colonies.size() >= 3) {
+                    map.colonies.back().system = -99999;
+                    map.colonies.back().population = -99999;
+                }
                 rpc::Capture_Map(&store, &map);
             } else if (command == "player-hud") {
                 --map.players[0].treasury;
@@ -125,6 +129,13 @@ int main() {
                     map.ships[2].destination_available = map.ships[2].eta_available = rpc::SHIP_CONTEXT_REQUIRED;
                 }
                 map.ships_captured = true;
+                rpc::Capture_Map(&store, &map);
+            } else if (command == "colonies") {
+                map.colonies_captured = true;
+                map.colonies = {{0, 0, 1, 0}, {0, 0, 5, 42}, {1, 99999, -1, 99999}};
+                rpc::Capture_Map(&store, &map);
+            } else if (command == "colony-pop") {
+                if (!map.colonies.empty()) ++map.colonies[0].population;
                 rpc::Capture_Map(&store, &map);
             } else if (command == "map-only") {
                 map.ships_captured = false;

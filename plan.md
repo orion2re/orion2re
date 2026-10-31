@@ -950,8 +950,9 @@ discovery, per-client limits, bounded immutable output and copied-work bridge.
 Implemented/advertised methods are `rpc.hello`, `rpc.describe`, `rpc.subscribe`,
 `rpc.unsubscribe`, `game.getSession`,
 `game.getState`, `game.listSystems`, `game.getSystem`, `game.listNebulas`,
-`game.listShips`, `game.getShip`, `game.listPlayers` and `game.getPlayer`.
-`getState.include` is explicitly restricted to session/systems/nebulas/ships/players. Remaining
+`game.listShips`, `game.getShip`, `game.listPlayers`, `game.getPlayer`,
+`game.listColonies` and `game.getColony`.
+`getState.include` is explicitly restricted to session/systems/nebulas/ships/players/colonies. Remaining
 query families, UI/media and all actions remain method-not-found;
 planned schemas alone do not authorize or implement them.
 
@@ -975,7 +976,7 @@ changes close old connections and require a fresh key handshake.
 The initial projection contains native map positions and the bound human viewer's
 visited bit; visited non-black-hole names are bounded CP850-decoded copies with
 native outpost lowercase. Contact/lore-only names and system owner remain
-`unaudited`; planet and foreign economy data is not inspected. Ship observations
+`unaudited`; global planet and foreign economy data is not projected. Ship observations
 copy only fresh surviving displayed links, map positions, own/foreign classification,
 owned names and owner references authorized by the same capture's known-player
 roster/banner colors. The Q-07 follow-up copies non-selection map-authorized routes
@@ -987,6 +988,17 @@ and special destinations remain unaudited. Private destination bindings are disc
 before retaining snapshots. Player
 captures include the native known/eliminated/omniscient roster and only the bound
 player's already calculated treasury/HUD values; foreign economy is never read.
+Own full-colony captures filter out foreign/unowned/outpost records before reading
+links/population, then publish same-capture system/owner handles, one-based orbital
+position and cached resident population. Planet handles, production and buy details
+remain unaudited; no colony builder or calculator is invoked. Colony handles are
+read-only observations replaced on authorized projection changes, not durable
+native identities or action capabilities. See `specs/rpc/colony_view.md`.
+Own-colony increment verification on macOS ARM64: 84 Python tests including 34 live
+WebSocket cases pass; relevant RPC/native/transport CTest targets pass normally and
+with ASAN/UBSAN; the RPC-disabled suite passes all 106 CTest targets. Schema drift,
+affected C++ formatting and whitespace checks pass. Synthetic/native-array coverage
+does not close interactive saved-game, multiplayer or other-platform parity gates.
 Nebula positions
 follow native unconditional map drawing. Hidden-only changes do not revise views.
 Lists use opaque snapshot-pinned cursors, bounded to 64 cursors/four retained
@@ -994,7 +1006,7 @@ captures; expiry/eviction is explicit object-unavailable, never mixed revisions.
 Tests cover paired hidden-state changes, native formatting/RNG preservation,
 revocation/late results, cached read behavior and real WebSocket query dispatch.
 Subscriptions atomically return a selected-topic baseline and cursor on the game
-thread. Only session/systems/nebulas/ships/players topics are accepted; `state.changed` notifications
+thread. Only session/systems/nebulas/ships/players/colonies topics are accepted; `state.changed` notifications
 invalidate the selected public projection without disclosing hidden-only changes.
 Authenticated connections receive default `game.turnAdvanced`, emitted once per connection only
 after a higher committed turn is in the queryable map capture. These ordered
@@ -1056,7 +1068,7 @@ gates. P1 completion is not claimed by this foundation increment.
 - [x] Q-03 — Implement `game.listPlayers` and `game.getPlayer` with own HUD/economy and known-contact projections (audited name/color/contact/eliminated roster and own signed treasury/HUD; `player_view.md`, native roster/Lore/hidden-state tests, stable handles, pagination, subscriptions and live transport; traits/government/research remain unenabled pending their field audits).
 - [ ] Q-04 — Implement `game.listSystems` and `game.getSystem` with authorized map/range/wormhole data.
 - [ ] Q-05 — Implement `game.listPlanets`, `game.getPlanet`, and `game.listNebulas`.
-- [ ] Q-06 — Implement `game.listColonies` and `game.getColony`, including authorized production, jobs, buildings, troops, events, and transfer settings.
+- [ ] Q-06 — Implement `game.listColonies` and `game.getColony`, including authorized production, jobs, buildings, troops, events, and transfer settings (own non-outpost roster, same-capture system/owner, orbital position and cached resident population implemented; planet handles, production/buy details, jobs/buildings/troops/events/transfers and foreign intelligence remain unaudited).
 - [ ] Q-07 — Implement `game.listShips` and `game.getShip`, including conditional destination/ETA and scan disclosure (dated position/owned/name, same-capture known-player owners, non-selection map-authorized destinations and head-only cached ordinary-route ETA implemented and tested; initialized selection/scan/fleet-box detail and durable entity identity remain open).
 - [ ] Q-08 — Implement `game.listFleets` and `game.getFleet` without exposing raw rebuilt stack indices.
 - [ ] Q-09 — Implement `game.getMovementOptions` with audited scratch-state handling and no hidden-information oracle.

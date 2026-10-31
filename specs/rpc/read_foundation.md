@@ -5,6 +5,8 @@ list/detail/state/subscription reads from already calculated native display stat
 The original session/map evidence below remains scoped to that foundation.
 The subsequent [player-view increment](player_view.md) adds known roster and own
 HUD/economy reads without invoking native UI builders or economic calculators.
+The [own-colony subset](colony_view.md) adds full-colony roster/location and cached
+resident population without colony/UI recalculation or foreign intelligence.
 
 Prepared with AI assistance. This increment adds an initial read projection, not
 the complete game-query catalog. The dependency direction is now enforced:

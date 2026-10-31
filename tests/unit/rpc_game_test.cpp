@@ -63,6 +63,12 @@ namespace {
         map.players = {hidden, contact, own};
         return map;
     }
+    rpc::s_map_observation Colonies() {
+        auto map = Players();
+        map.colonies_captured = true;
+        map.colonies = {{0, 0, 1, 0}, {0, 0, 5, 42}, {2, 99999, -1, 99999}};
+        return map;
+    }
     std::string Dispatch(s_fixture* fixture, uint64_t client, uint64_t epoch, const rpc::s_request* request) {
         DOCTEST_REQUIRE(rpc::Submit_Work(&fixture->bridge, client, epoch, request, UINT64_MAX) == 0);
         rpc::Pump_Game_Queries(&fixture->store);
@@ -685,4 +691,107 @@ DOCTEST_TEST_CASE("ship route validation rejects invalid authorized destinations
     map.ships[0].owned = false;
     DOCTEST_CHECK_FALSE(rpc::Capture_Map(&fixture.store, &map));
     DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &list) == baseline);
+}
+
+DOCTEST_TEST_CASE("own colonies filter foreign payloads before validation handles revisions and subscriptions") {
+    s_fixture fixture;
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&fixture.store));
+    auto map = Colonies();
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    const auto& snapshot = fixture.store.snapshots.back();
+    DOCTEST_REQUIRE(snapshot.map.colonies.size() == 2);
+    DOCTEST_CHECK(snapshot.map.colonies[0].system == -1);
+    DOCTEST_CHECK(snapshot.map.colonies[0].owner_slot == -1);
+    DOCTEST_CHECK(snapshot.map.colonies[0].system_id == fixture.store.system_ids[0]);
+    DOCTEST_CHECK(snapshot.map.colonies[0].owner_id == snapshot.player_ids[0]);
+    auto state = Request("game.getState", "{\"include\":[\"session\",\"systems\",\"players\",\"colonies\"]}");
+    const auto baseline = rpc::Game_Query(&fixture.store, &state);
+    DOCTEST_CHECK(baseline.find("\"population\":{\"availability\":\"current\",\"value\":0}") != std::string::npos);
+    DOCTEST_CHECK(baseline.find("\"planetId\":{\"availability\":\"unaudited\"}") != std::string::npos);
+    const auto ids = snapshot.colony_ids;
+    uint64_t epoch;
+    DOCTEST_REQUIRE(rpc::Register_Client(&fixture.bridge, 1, &epoch));
+    auto subscribe = Request("rpc.subscribe", "{\"topics\":[\"colonies\"],\"events\":[\"state.changed\"]}");
+    Dispatch(&fixture, 1, epoch, &subscribe);
+    map.colonies.back().system = -99999;
+    map.colonies.back().system_id = "hidden-parent";
+    map.colonies.back().owner_id = "forged-owner";
+    map.colonies.back().population = -99999;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &state) == baseline);
+    rpc::Pump_Game_Queries(&fixture.store);
+    rpc::s_publication event;
+    DOCTEST_CHECK_FALSE(rpc::Take_Publication(&fixture.bridge, &event));
+    std::reverse(map.colonies.begin(), map.colonies.end());
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    DOCTEST_CHECK(fixture.store.snapshots.back().colony_ids == ids);
+    ++map.players.back().treasury;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    DOCTEST_CHECK(fixture.store.snapshots.back().colony_ids == ids);
+    auto list = Request("game.listColonies", "{\"limit\":1}");
+    rpc::Game_Query(&fixture.store, &list);
+    const auto cursor = fixture.store.cursors.back().id;
+    ++map.colonies.back().population;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    DOCTEST_CHECK(fixture.store.snapshots.back().colony_ids != ids);
+    rpc::Pump_Game_Queries(&fixture.store);
+    DOCTEST_REQUIRE(rpc::Take_Publication(&fixture.bridge, &event));
+    DOCTEST_CHECK(event.json.find("state.changed") != std::string::npos);
+    list.params_json = "{\"cursor\":" + rpc::Json_String(cursor) + "}";
+    const auto pinned = rpc::Game_Query(&fixture.store, &list);
+    DOCTEST_CHECK(pinned.find("\"population\":{\"availability\":\"current\",\"value\":42}") != std::string::npos);
+    auto lookup = Request("game.getColony");
+    lookup.params_json = "{\"id\":" + rpc::Json_String(ids[0]) + "}";
+    const auto stale = rpc::Game_Query(&fixture.store, &lookup);
+    lookup.params_json = "{\"id\":\"unknown\"}";
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &lookup) == stale);
+    rpc::Revoke_Game_View(&fixture.store);
+    DOCTEST_CHECK(fixture.store.snapshots.empty());
+    DOCTEST_CHECK_FALSE(rpc::Client_Is_Current(&fixture.bridge, 1, epoch));
+}
+
+DOCTEST_TEST_CASE("colonies share one ship/map/player capture and distinguish busy from an own known-empty roster") {
+    s_fixture fixture;
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&fixture.store));
+    auto map = Players();
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    auto list = Request("game.listColonies");
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &list).find("-32002") != std::string::npos);
+    map = Colonies();
+    map.ships_captured = true;
+    map.ships = Ships().ships;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    auto state = Request("game.getState", "{\"include\":[\"session\",\"ships\",\"systems\",\"players\",\"colonies\"]}");
+    const auto baseline = rpc::Game_Query(&fixture.store, &state);
+    map.ships_captured = false;
+    ++map.turn;
+    ++map.colonies[0].population;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &state) == baseline);
+    for (int index = 0; index < 4; ++index) {
+        ++map.turn;
+        DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    }
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &state).find("-32002") != std::string::npos);
+    map.colonies.clear();
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &list).find("\"items\":[]") != std::string::npos);
+    rpc::Pause_Game_Queries(&fixture.store);
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &list).find("-32002") != std::string::npos);
+    rpc::Resume_Game_Queries(&fixture.store);
+    map = Colonies();
+    map.colonies[0].system = 99;
+    DOCTEST_CHECK_FALSE(rpc::Capture_Map(&fixture.store, &map));
+    map = Colonies();
+    map.colonies[0].orbit = 0;
+    DOCTEST_CHECK_FALSE(rpc::Capture_Map(&fixture.store, &map));
+    map = Colonies();
+    map.colonies[0].population = 43;
+    DOCTEST_CHECK_FALSE(rpc::Capture_Map(&fixture.store, &map));
+    map = Colonies();
+    map.colonies[0].orbit = 5;
+    DOCTEST_CHECK_FALSE(rpc::Capture_Map(&fixture.store, &map));
+    map = Colonies();
+    map.players_captured = false;
+    DOCTEST_CHECK_FALSE(rpc::Capture_Map(&fixture.store, &map));
 }

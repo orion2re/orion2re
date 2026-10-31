@@ -8,6 +8,7 @@
 #include "rpc/rpc_service.h"
 #include "rpc/rpc_settings.h"
 #include "rpc/players_rpc.h"
+#include "rpc/colony_rpc.h"
 
 #include <algorithm>
 #include <tuple>
@@ -66,7 +67,7 @@ namespace game_rpc {
         for (int16_t index = 0; index < MOX::NUM_NEBULAS; ++index) {
             observation->nebulas.push_back({MOX::nebula[index].x, MOX::nebula[index].y});
         }
-        return players_rpc::Read_Players(observation);
+        return players_rpc::Read_Players(observation) && colony_rpc::Read_Colonies(observation);
     }
 
     static rpc::s_bridge* Initialize() {

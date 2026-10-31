@@ -362,19 +362,27 @@
       "properties": {
         "id": {
           "$ref": "#/$defs/Id",
-          "x-rpc-policy": "disabled-colony"
+          "x-rpc-policy": "colonies-own"
+        },
+        "systemId": {
+          "$ref": "#/$defs/Id",
+          "x-rpc-policy": "colonies-own"
+        },
+        "orbit": {
+          "$ref": "#/$defs/Orbit",
+          "x-rpc-policy": "colonies-own"
         },
         "planetId": {
-          "$ref": "#/$defs/Id",
+          "$ref": "#/$defs/KnownId",
           "x-rpc-policy": "disabled-colony"
         },
         "owner": {
           "$ref": "#/$defs/KnownId",
-          "x-rpc-policy": "disabled-colony"
+          "x-rpc-policy": "colonies-own"
         },
         "population": {
           "$ref": "#/$defs/KnownCount",
-          "x-rpc-policy": "disabled-colony"
+          "x-rpc-policy": "colonies-own"
         },
         "production": {
           "$ref": "#/$defs/KnownText",
@@ -387,13 +395,15 @@
       },
       "required": [
         "id",
+        "systemId",
+        "orbit",
         "planetId",
         "owner",
         "population",
         "production",
         "buyCost"
       ],
-      "x-rpc-policy": "disabled-colony"
+      "x-rpc-policy": "colonies-own"
     },
     "ColonyResult": {
       "type": "object",
@@ -3004,7 +3014,8 @@
         "systems",
         "nebulas",
         "ships",
-        "players"
+        "players",
+        "colonies"
       ]
     },
     "StateTopics": {
@@ -3012,7 +3023,7 @@
       "items": {
         "$ref": "#/$defs/StateTopic"
       },
-      "maxItems": 5,
+      "maxItems": 6,
       "uniqueItems": true
     },
     "StreamGap": {
@@ -3098,7 +3109,7 @@
       "items": {
         "$ref": "#/$defs/StateTopic"
       },
-      "maxItems": 5,
+      "maxItems": 6,
       "minItems": 1,
       "uniqueItems": true
     },
@@ -6512,7 +6523,7 @@
       "role": "reader",
       "availability": "committed-game",
       "kind": "query",
-      "implemented": false,
+      "implemented": true,
       "requestType": "GetRequest",
       "resultType": "ColonyResult",
       "request": {
@@ -6800,7 +6811,7 @@
       "role": "reader",
       "availability": "committed-game",
       "kind": "query",
-      "implemented": false,
+      "implemented": true,
       "requestType": "ListRequest",
       "resultType": "ColoniesResult",
       "request": {
@@ -7658,9 +7669,37 @@
         "T-02"
       ]
     },
+    "colonies-own": {
+      "status": "reviewed",
+      "predicate": "This list is explicitly the bound active human viewer's own full-colony roster, following native Colonies/transport lists: owner equals viewer and outpost_flag is zero. Foreign intelligence and outposts are not included. Filter before reading links/population, sorting, counts, handles, revisions or notifications. At the same map/roster capture, copy a validated system reference and one-based orbital position and cached n_pops resident population (0..42 whole displayed population units, not thousandths, growth or inbound settlers). Validate planet/star/colony backlinks and uniqueness. Resolve system/owner through the same capture; discard private bindings before retention. No UI list builder, Sum_Colonists, forecast or economic calculator is called. Opaque read-only observation handles are replaced on authorized collection changes, not durable colony identities/action capabilities. Known-empty refers to this own-full-colony scope, not to foreign intelligence.",
+      "sources": [
+        [
+          "src/game/colxport.cpp",
+          "Build_Global_Colony_List"
+        ],
+        [
+          "src/game/colxport.cpp",
+          "N_Colonies"
+        ],
+        [
+          "src/game/colsum.cpp",
+          "Draw_Colony_Scan_Info"
+        ],
+        [
+          "src/game/colony.cpp",
+          "Set_Colony_Globals"
+        ]
+      ],
+      "tests": [
+        "T-01",
+        "T-02",
+        "T-03",
+        "T-05"
+      ]
+    },
     "disabled-colony": {
       "status": "disabled",
-      "predicate": "Own live colony and individually audited native display values only; foreign intelligence is a separate policy. Population is displayed units, never an unaudited native scaled value.",
+      "predicate": "Planet handles, production/queues, buy costs/eligibility and other colony details remain unaudited. Do not mint unqueryable planet handles or invoke mutable builders/calculators for queries. Foreign intelligence is a separate policy.",
       "sources": [
         [
           "src/game/colony_main.cpp",
@@ -8159,7 +8198,7 @@
     "orderedEventsPerSubscription": 4096,
     "overflow": "Reject before admission; coalesce only complete unsent state. Ordered-event overflow signals a gap or disconnect. Never rewrite partial output or silently discard operation results."
   },
-  "x-rpc-sourceHash": "e5a6e76c8ebf699cea8f0ae5b185d92df61eb007cd3105f456e35fe74049ab16",
+  "x-rpc-sourceHash": "355c3506af7ba863b85b660a0f4c6efade730150c201db0c267ca58794eae694",
   "x-rpc-runtimeEnabled": false,
   "x-rpc-implementedMethods": [
     "rpc.hello",
@@ -8174,6 +8213,8 @@
     "game.listShips",
     "game.getShip",
     "game.listPlayers",
-    "game.getPlayer"
+    "game.getPlayer",
+    "game.listColonies",
+    "game.getColony"
   ]
 }

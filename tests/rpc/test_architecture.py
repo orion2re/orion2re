@@ -47,5 +47,11 @@ class SidecarArchitectureTests(unittest.TestCase):
         self.assertIn("player->surplus_bc", adapter)
         self.assertNotRegex(adapter, r"(?:Get_Active_Players|Get_Players_Dead_Or_Alive_Or_Omniscient|Init_Race_Display_Data|Print_Main_Screen_Data)\s*\(")
 
+    def test_colony_capture_does_not_build_lists_or_recalculate_population_economy(self):
+        adapter = (ROOT / "src/rpc/colony_rpc.cpp").read_text()
+        self.assertIn("colony->n_pops", adapter)
+        self.assertIn("colony->outpost_flag", adapter)
+        self.assertNotRegex(adapter, r"(?:Build_Global_Colony_List|Sum_Colonists|Draw_Colony_Scan_Info|Planet_Max_Population_For_Player|Colony_Producing_Product_Cost)\s*\(")
+
 if __name__ == "__main__":
     unittest.main()

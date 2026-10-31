@@ -243,6 +243,19 @@ class TypedContractTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 audit.Validate_Value({"availability":"current","value":value}, "ShipEta", self.contracts)
 
+    def test_own_colony_contract_does_not_enable_planet_production_or_buy_details(self):
+        colony = self.Sample("Colony")
+        with self.assertRaisesRegex(ValueError, "disabled field"):
+            audit.Validate_Value(colony, "Colony", self.contracts, self.policies, public=True)
+        for field in ("planetId", "production", "buyCost"):
+            colony[field] = {"availability":"unaudited"}
+        for value in (0, 42):
+            colony["population"] = {"availability":"current","value":value}
+            audit.Validate_Value(colony, "Colony", self.contracts, self.policies, public=True)
+        colony["planetId"] = "unqueryable-planet"
+        with self.assertRaises(ValueError):
+            audit.Validate_Value(colony, "Colony", self.contracts, self.policies, public=True)
+
     def test_missing_policy_and_recursive_contract_are_rejected(self):
         broken = copy.deepcopy(self.contracts)
         broken["types"]["System"]["fieldPolicies"]["name"] = "no-such-policy"

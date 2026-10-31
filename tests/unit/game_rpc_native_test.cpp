@@ -18,6 +18,7 @@ namespace {
         int16_t old_viewer = MOX::PLAYER_NUM;
         int16_t old_players_count = MOX::NUM_PLAYERS;
         int16_t old_stars_count = MOX::NUM_STARS;
+        int16_t old_colonies_count = MOX::NUM_COLONIES;
         uint8_t old_nebulas_count = MOX::NUM_NEBULAS;
         int32_t old_turn = MOX::stardate;
         int16_t old_active_count = MOX::active_count;
@@ -36,6 +37,7 @@ namespace {
             MOX::PLAYER_NUM = 0;
             MOX::NUM_PLAYERS = 2;
             MOX::NUM_STARS = 3;
+            MOX::NUM_COLONIES = 0;
             MOX::NUM_NEBULAS = 1;
             MOX::stardate = 35000;
             players[0].objectives = PLAYER_OBJECTIVE_HUMAN;
@@ -58,6 +60,7 @@ namespace {
             MOX::PLAYER_NUM = old_viewer;
             MOX::NUM_PLAYERS = old_players_count;
             MOX::NUM_STARS = old_stars_count;
+            MOX::NUM_COLONIES = old_colonies_count;
             MOX::NUM_NEBULAS = old_nebulas_count;
             MOX::stardate = old_turn;
             MOX::active_count = old_active_count;
@@ -529,4 +532,92 @@ DOCTEST_TEST_CASE("route capture distinguishes stationary, wormhole, special and
     SHIPS::Build_Ship_Icons();
     DOCTEST_REQUIRE(game_rpc::Read_Refreshed_Ship_Observation(&observed));
     DOCTEST_CHECK(observed.ships.back().destination_available == rpc::SHIP_CONTEXT_REQUIRED);
+}
+
+DOCTEST_TEST_CASE("own colony capture follows the native full-colony roster and copies only cached resident population") {
+    s_world world;
+    MOX::NUM_COLONIES = 4;
+    world.colonies[0].planet = 0;
+    world.colonies[0].n_pops = MAX_COLONY_POPULATION;
+    world.planets[0].star_index = 0;
+    world.planets[0].orbit = 2;
+    world.planets[0].colony_index = 0;
+    world.stars[0].planet_index[2] = 0;
+    world.colonies[1].owner = 1;
+    world.colonies[1].planet = MAX_PLANETS; // Hidden invalid links and population are never read.
+    world.colonies[1].n_pops = 255;
+    world.colonies[2].outpost_flag = 1;
+    world.colonies[2].planet = -1;
+    world.colonies[3].owner = -1;
+    struct s_native_list {
+        int16_t* old = COLXPORT::g_colony_list_ptr;
+        std::vector<int16_t> entries = std::vector<int16_t>(MAX_COLONIES);
+        s_native_list() {
+            COLXPORT::g_colony_list_ptr = entries.data();
+        }
+        ~s_native_list() {
+            COLXPORT::g_colony_list_ptr = old;
+        }
+    } list;
+    COLXPORT::Build_Global_Colony_List();
+    DOCTEST_REQUIRE(list.entries[0] == 0);
+    DOCTEST_CHECK(list.entries[1] == -1);
+    const auto before = world.colonies;
+    const uint32_t seed = game_random::Get_Random_Seed();
+    const auto count = COLONY::colonists_count;
+    rpc::s_map_observation observation;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&observation));
+    DOCTEST_REQUIRE(observation.colonies_captured);
+    DOCTEST_REQUIRE(observation.colonies.size() == 1);
+    DOCTEST_CHECK(observation.colonies[0].system == 0);
+    DOCTEST_CHECK(observation.colonies[0].orbit == 3);
+    DOCTEST_CHECK(observation.colonies[0].population == MAX_COLONY_POPULATION);
+    DOCTEST_CHECK(memcmp(before.data(), world.colonies.data(), before.size() * sizeof(s_colony)) == 0);
+    DOCTEST_CHECK(COLONY::colonists_count == count);
+    DOCTEST_CHECK(game_random::Get_Random_Seed() == seed);
+    world.players[0].traits[TRAIT_OMNISCIENCE] = 1;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&observation));
+    DOCTEST_CHECK(observation.colonies.size() == 1);
+    world.colonies[0].n_pops = 0;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&observation));
+    DOCTEST_CHECK(observation.colonies[0].population == 0);
+    world.colonies[0].n_pops = MAX_COLONY_POPULATION + 1;
+    DOCTEST_CHECK_FALSE(game_rpc::Read_Map_Observation(&observation));
+    world.colonies[0].n_pops = 1;
+    world.planets[0].colony_index = 1;
+    DOCTEST_CHECK_FALSE(game_rpc::Read_Map_Observation(&observation));
+}
+
+DOCTEST_TEST_CASE("maximum own colony capture is bounded and oversized complete views require pagination") {
+    s_world world;
+    MOX::NUM_STARS = MAX_STARS;
+    MOX::NUM_COLONIES = MAX_COLONIES;
+    for (int index = 0; index < MAX_COLONIES; ++index) {
+        world.colonies[index].planet = (int16_t)index;
+        world.colonies[index].n_pops = MAX_COLONY_POPULATION;
+        world.planets[index].star_index = (int16_t)(index / 5);
+        world.planets[index].orbit = (int8_t)(index % 5);
+        world.planets[index].colony_index = (int16_t)index;
+        world.stars[index / 5].planet_index[index % 5] = (int16_t)index;
+    }
+    rpc::s_map_observation observation;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&observation));
+    DOCTEST_REQUIRE(observation.colonies.size() == MAX_COLONIES);
+    rpc::s_bridge bridge;
+    rpc::s_game_store store;
+    DOCTEST_REQUIRE(rpc::Initialize_Game_Store(&store, &bridge));
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&store));
+    DOCTEST_REQUIRE(rpc::Capture_Map(&store, &observation));
+    rpc::s_request request;
+    request.method = "game.listColonies";
+    request.id_json = "1";
+    request.params_json = "{\"limit\":256}";
+    const auto page = rpc::Game_Query(&store, &request);
+    DOCTEST_CHECK(page.size() < 1048576);
+    DOCTEST_CHECK(page.find("\"error\"") == std::string::npos);
+    DOCTEST_CHECK(page.find("nextCursor") != std::string::npos);
+    request.method = "game.getState";
+    request.params_json = "{\"include\":[\"colonies\"]}";
+    DOCTEST_CHECK(rpc::Game_Query(&store, &request).find("-32005") != std::string::npos);
+    rpc::Shutdown_Game_Store(&store);
 }

@@ -67,6 +67,15 @@ namespace rpc {
         s_player_hud hud;
     };
 
+    struct s_colony_observation {
+        int32_t owner_slot = -1; // Private authorization binding, discarded before retention.
+        int32_t system = -1;     // Private same-capture parent binding, discarded before retention.
+        int32_t orbit = 0;       // Public one-based orbital position.
+        int32_t population = 0;  // Cached resident population units, not growth or inbound settlers.
+        std::string system_id;
+        std::string owner_id;
+    };
+
     struct s_map_observation {
         int32_t viewer = -1; // Private native identity, never encoded.
         int32_t turn = 0;
@@ -76,6 +85,8 @@ namespace rpc {
         std::vector<s_ship_observation> ships;
         bool players_captured = false;
         std::vector<s_player_observation> players;
+        bool colonies_captured = false;
+        std::vector<s_colony_observation> colonies;
     };
 
     struct s_map_snapshot {
@@ -84,6 +95,7 @@ namespace rpc {
         uint64_t revision = 0;
         std::vector<std::string> ship_ids; // Read handles scoped to this immutable capture.
         std::vector<std::string> player_ids;
+        std::vector<std::string> colony_ids; // Read-only observation handles, not action capabilities.
     };
 
     struct s_player_handle {
