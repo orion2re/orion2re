@@ -163,7 +163,7 @@ class TransportTests(unittest.TestCase):
         described = client.Read()
         self.assertEqual(described["id"], "d")
         self.assertEqual({item["name"] for item in described["result"]["methods"]},
-                         {"rpc.hello","rpc.describe","game.getSession","game.getState","game.listSystems","game.getSystem","game.listNebulas"})
+                         {"rpc.hello","rpc.describe","rpc.subscribe","rpc.unsubscribe","game.getSession","game.getState","game.listSystems","game.getSystem","game.listNebulas"})
 
     def test_wrong_key_is_rejected_and_connection_closed(self):
         client = self.Client()
@@ -362,6 +362,42 @@ class TransportTests(unittest.TestCase):
         second = self.Query(client, "game.listSystems", {"cursor":first["nextCursor"]})["result"]
         self.assertEqual(first["stamp"], second["stamp"])
         self.assertEqual(self.Query(client, "game.getSession")["result"]["turn"], 35001)
+
+    def test_atomic_subscription_invalidation_unsubscribe_and_fresh_baseline(self):
+        self.Fixture("world")
+        client = self.Client()
+        client.Hello()
+        params = {"topics":["session","systems"], "events":["state.changed"]}
+        subscribed = self.Query(client, "rpc.subscribe", params)["result"]
+        self.assertEqual(subscribed["cursor"], "0")
+        self.assertEqual(subscribed["baseline"]["session"]["turn"], 35000)
+        self.Fixture("hidden")
+        # A following response must be next: hidden-only mutations emitted nothing.
+        self.assertEqual(self.Query(client, "game.getSession")["result"]["turn"], 35000)
+        self.Fixture("advance")
+        changed = client.Read()
+        self.assertEqual(changed["method"], "state.changed")
+        self.assertEqual(changed["params"]["subscriptionId"], subscribed["subscriptionId"])
+        self.assertEqual(changed["params"]["cursor"], "1")
+        self.assertEqual(changed["params"]["stamp"]["turn"], 35001)
+        self.assertTrue(self.Query(client, "rpc.unsubscribe", {"subscriptionId":subscribed["subscriptionId"]})["result"]["removed"])
+        self.Fixture("advance")
+        fresh = self.Query(client, "rpc.subscribe", params)["result"]
+        self.assertEqual(fresh["cursor"], "0")
+        self.assertEqual(fresh["baseline"]["session"]["turn"], 35002)
+        self.assertNotEqual(fresh["subscriptionId"], subscribed["subscriptionId"])
+
+    def test_subscription_rejects_unsupported_topics_events_and_busy_capture(self):
+        self.Fixture("world")
+        client = self.Client()
+        client.Hello()
+        for params in ({"topics":["ships"],"events":["state.changed"]},
+                       {"topics":["systems"],"events":["game.turnAdvanced"]},
+                       {"topics":[],"events":["state.changed"]},
+                       {"topics":["systems"],"events":[]}):
+            self.assertEqual(self.Query(client, "rpc.subscribe", params)["error"]["code"], -32602)
+        self.Fixture("busy")
+        self.assertEqual(self.Query(client, "rpc.subscribe", {"topics":["systems"],"events":["state.changed"]})["error"]["code"], -32002)
 
 
 if __name__ == "__main__":

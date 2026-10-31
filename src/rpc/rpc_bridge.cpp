@@ -116,6 +116,29 @@ namespace rpc {
         }
     }
 
+    bool Has_Pending_Work(s_bridge* bridge) {
+        if (bridge == nullptr) return false;
+        std::lock_guard lock(bridge->mutex);
+        return !bridge->stopped && !bridge->pending.empty();
+    }
+
+    bool Publish_Event(s_bridge* bridge, uint64_t client, uint64_t epoch, const std::string* json) {
+        if (bridge == nullptr || json == nullptr) return false;
+        std::lock_guard lock(bridge->mutex);
+        if (!Current(bridge, client, epoch)) return false;
+        const size_t client_outstanding = std::count_if(bridge->ready.begin(), bridge->ready.end(), [client](const s_publication& item) { return item.client == client; }) +
+            std::count_if(bridge->tickets.begin(), bridge->tickets.end(), [client](const s_bridge_ticket& item) { return item.client == client; });
+        if (json->empty() || json->size() > MAX_RESULT_BYTES || json->size() > MAX_READY_BYTES - bridge->ready_bytes ||
+            bridge->tickets.size() + bridge->ready.size() >= MAX_WORK ||
+            client_outstanding >= MAX_CLIENT_WORK) {
+            Cancel(bridge, client);
+            return false;
+        }
+        bridge->ready.push_back({client, epoch, 0, *json});
+        bridge->ready_bytes += json->size();
+        return true;
+    }
+
     void Stop_Bridge(s_bridge* bridge) {
         if (bridge != nullptr) {
             std::lock_guard lock(bridge->mutex);

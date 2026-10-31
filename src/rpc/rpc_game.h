@@ -44,6 +44,16 @@ namespace rpc {
 
     using t_new_id = bool (*)(std::string* id, void* context);
 
+    struct s_state_subscription {
+        uint64_t client = 0;
+        uint64_t epoch = 0;
+        uint64_t cursor = 0;
+        uint64_t revision = 0;
+        std::string id;
+        std::vector<std::string> topics;
+        std::string projection;
+    };
+
     // Game-thread-owned. Only copied requests/publications cross the bridge.
     struct s_game_store {
         s_bridge* bridge = nullptr;
@@ -52,6 +62,7 @@ namespace rpc {
         void* id_context = nullptr;
         bool loaded = false;
         bool unavailable = false;
+        bool capture_requested = false;
         uint32_t busy_depth = 0;
         int32_t viewer = -1;
         uint64_t revision = 0;
@@ -61,6 +72,7 @@ namespace rpc {
         std::vector<std::string> nebula_ids;
         std::deque<s_map_snapshot> snapshots;
         std::vector<s_map_cursor> cursors;
+        std::vector<s_state_subscription> subscriptions;
     };
 
     bool Initialize_Game_Store(s_game_store* store, s_bridge* bridge, t_new_id new_id = nullptr, void* context = nullptr);
@@ -74,4 +86,5 @@ namespace rpc {
     bool Capture_Map(s_game_store* store, const s_map_observation* observation);
     std::string Game_Query(s_game_store* store, const s_request* request);
     void Pump_Game_Queries(s_game_store* store);
+    bool Needs_Game_Capture(s_game_store* store);
 } // namespace rpc

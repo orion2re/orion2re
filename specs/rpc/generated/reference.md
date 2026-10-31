@@ -3,13 +3,13 @@
 
 **Optional runtime, disabled by default.** Only the implemented methods listed below are callable when the RPC build and settings enable it.
 
-Implemented methods: `rpc.hello`, `rpc.describe`, `game.getSession`, `game.getState`, `game.listSystems`, `game.getSystem`, `game.listNebulas`.
+Implemented methods: `rpc.hello`, `rpc.describe`, `rpc.subscribe`, `rpc.unsubscribe`, `game.getSession`, `game.getState`, `game.listSystems`, `game.getSystem`, `game.listNebulas`.
 
 This document is rendered from `schema.json`, not a second method catalog.
 The root schema validates acknowledged client requests; per-method success responses and server notifications have separate definitions.
 All fields are non-null unless explicitly stated. Unknown keys are rejected. UTF-8 byte limits, lexical integer tokens, duplicate keys, depth and authorization need the protocol guards in addition to standard JSON Schema validation.
 
-Source bundle SHA-256: `8f32b303d18f3eddf8b8194e65d0978af36e2306dd2ed0850e2b27511495508e`.
+Source bundle SHA-256: `c5737b17adefcc9580cc0d67c1451bcdb12f9165890f02d1b41cb58ccd559178`.
 
 ## Methods
 
@@ -1058,8 +1058,8 @@ Array of `StateTopic`; 0..3 items; unique: true.
 
 | Field | Type | Required | Policy |
 | --- | --- | --- | --- |
-| topics | Topics | yes | request |
-| events | Events | yes | request |
+| topics | SubscriptionTopics | yes | request |
+| events | SubscriptionEvents | yes | request |
 
 ### SubscribeResult
 
@@ -1068,6 +1068,18 @@ Array of `StateTopic`; 0..3 items; unique: true.
 | subscriptionId | Id | yes | contract |
 | cursor | Counter | yes | contract |
 | baseline | State | yes | contract |
+
+### SubscriptionEvent
+
+Values: `state.changed`.
+
+### SubscriptionEvents
+
+Array of `SubscriptionEvent`; 1..1 items; unique: true.
+
+### SubscriptionTopics
+
+Array of `StateTopic`; 1..3 items; unique: true.
 
 ### System
 

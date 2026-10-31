@@ -21,6 +21,8 @@ namespace rpc {
             store->nebula_ids.clear();
             store->snapshots.clear();
             store->cursors.clear();
+            store->subscriptions.clear();
+            store->capture_requested = false;
         }
 
         bool Same_Map(const s_map_observation* left, const s_map_observation* right) {
@@ -86,6 +88,89 @@ namespace rpc {
         std::string Text(yyjson_val* object, const char* key) {
             yyjson_val* value = yyjson_obj_get(object, key);
             return yyjson_is_str(value) ? std::string(yyjson_get_str(value), yyjson_get_len(value)) : std::string();
+        }
+
+        std::string Topic_Projection(const s_game_store* store, const std::vector<std::string>* topics) {
+            const auto* snapshot = &store->snapshots.back();
+            std::string result;
+            for (const std::string& topic : *topics) {
+                result += ',' + Json_String(topic) + ':';
+                if (topic == "session")
+                    result += Session(store);
+                else
+                    result += Collection(store, snapshot, topic == "systems", 0, topic == "systems" ? 1024 : 57);
+            }
+            return result;
+        }
+
+        std::string Topics_Json(const std::vector<std::string>* topics) {
+            std::string result = "[";
+            for (const std::string& topic : *topics) {
+                if (result.size() != 1) result += ',';
+                result += Json_String(topic);
+            }
+            return result + ']';
+        }
+
+        void Prune_Subscriptions(s_game_store* store) {
+            std::erase_if(store->subscriptions, [store](const s_state_subscription& item) {
+                return !Client_Is_Current(store->bridge, item.client, item.epoch);
+            });
+        }
+
+        std::string Subscription_Query(s_game_store* store, const s_work* work) {
+            const s_request* request = &work->request;
+            if (!Validate_Params(&store->protocol, request)) return Error_Response(request, RPC_INVALID_PARAMS);
+            yyjson_doc* doc = yyjson_read(request->params_json.data(), request->params_json.size(), YYJSON_READ_NOFLAG);
+            if (doc == nullptr) return Error_Response(request, RPC_INVALID_PARAMS);
+            yyjson_val* params = yyjson_doc_get_root(doc);
+            if (request->method == "rpc.unsubscribe") {
+                const std::string id = Text(params, "subscriptionId");
+                const size_t removed = std::erase_if(store->subscriptions, [&](const s_state_subscription& item) {
+                    return item.client == work->client && item.epoch == work->epoch && item.id == id;
+                });
+                yyjson_doc_free(doc);
+                return Result_Response(request, removed != 0 ? "{\"removed\":true}" : "{\"removed\":false}");
+            }
+            s_state_subscription subscription;
+            subscription.client = work->client;
+            subscription.epoch = work->epoch;
+            size_t index, count;
+            yyjson_val* topic;
+            yyjson_arr_foreach(yyjson_obj_get(params, "topics"), index, count, topic) {
+                subscription.topics.emplace_back(yyjson_get_str(topic), yyjson_get_len(topic));
+            }
+            yyjson_doc_free(doc);
+            if (store->busy_depth != 0 || !store->loaded || store->snapshots.empty()) return Error_Response(request, RPC_BUSY);
+            const size_t client_count = std::count_if(store->subscriptions.begin(), store->subscriptions.end(), [work](const s_state_subscription& item) { return item.client == work->client; });
+            if (store->subscriptions.size() >= 64 || client_count >= 16) {
+                return Error_Response(request, RPC_LIMIT_EXCEEDED);
+            }
+            if (!store->new_id(&subscription.id, store->id_context)) return Error_Response(request, RPC_INTERNAL_ERROR);
+            subscription.projection = Topic_Projection(store, &subscription.topics);
+            subscription.revision = store->revision;
+            const std::string result = "{\"subscriptionId\":" + Json_String(subscription.id) +
+                ",\"cursor\":\"0\",\"baseline\":{\"stamp\":" + Stamp(store, &store->snapshots.back()) + subscription.projection + "}}";
+            store->subscriptions.push_back(std::move(subscription));
+            return Result_Response(request, result);
+        }
+
+        void Publish_State_Changes(s_game_store* store) {
+            if (store->busy_depth != 0 || !store->loaded || store->snapshots.empty()) return;
+            for (s_state_subscription& subscription : store->subscriptions) {
+                if (subscription.revision == store->revision) continue;
+                subscription.revision = store->revision;
+                std::string projection = Topic_Projection(store, &subscription.topics);
+                if (projection == subscription.projection) continue;
+                if (subscription.cursor == std::numeric_limits<uint64_t>::max()) {
+                    Cancel_Client(store->bridge, subscription.client);
+                    continue;
+                }
+                const std::string json = "{\"jsonrpc\":\"2.0\",\"method\":\"state.changed\",\"params\":{\"subscriptionId\":" +
+                    Json_String(subscription.id) + ",\"cursor\":" + Json_String(std::to_string(++subscription.cursor)) +
+                    ",\"topics\":" + Topics_Json(&subscription.topics) + ",\"stamp\":" + Stamp(store, &store->snapshots.back()) + "}}";
+                if (Publish_Event(store->bridge, subscription.client, subscription.epoch, &json)) subscription.projection = std::move(projection);
+            }
         }
 
         std::string Query(s_game_store* store, const s_request* request, yyjson_val* params, int32_t* error) {
@@ -239,6 +324,7 @@ namespace rpc {
             if (!system.name_available) system.name.clear();
             if (system.name.size() > 4096) return false;
         }
+        store->capture_requested = false;
         if (!store->snapshots.empty() && (projected.systems.size() != store->snapshots.back().map.systems.size() || projected.nebulas.size() != store->snapshots.back().map.nebulas.size())) {
             Revoke_Game_View(store);
         }
@@ -282,14 +368,26 @@ namespace rpc {
 
     void Pump_Game_Queries(s_game_store* store) {
         if (store == nullptr || store->bridge == nullptr) return;
+        Prune_Subscriptions(store);
         const uint64_t started = Monotonic_Us();
         for (uint32_t count = 0; count < Protocol_Limits()->commands_per_game_poll; ++count) {
             if (Monotonic_Us() - started >= Protocol_Limits()->game_poll_budget_us) break;
             s_work work;
             if (!Take_Work(store->bridge, Monotonic_Ms(), &work)) break;
-            std::string response = Game_Query(store, &work.request);
-            if (Monotonic_Ms() >= work.deadline_ms) response = Error_Response(&work.request, RPC_REQUEST_EXPIRED);
-            Complete_Work(store->bridge, &work, &response);
+            if (work.request.method != "rpc.unsubscribe") store->capture_requested = true;
+            const size_t previous_subscriptions = store->subscriptions.size();
+            std::string response = work.request.method == "rpc.subscribe" || work.request.method == "rpc.unsubscribe" ? Subscription_Query(store, &work) : Game_Query(store, &work.request);
+            const bool expired = Monotonic_Ms() >= work.deadline_ms;
+            if (expired) response = Error_Response(&work.request, RPC_REQUEST_EXPIRED);
+            const bool completed = Complete_Work(store->bridge, &work, &response);
+            if ((expired || !completed) && store->subscriptions.size() > previous_subscriptions) store->subscriptions.pop_back();
         }
+        Publish_State_Changes(store);
+    }
+
+    bool Needs_Game_Capture(s_game_store* store) {
+        if (store == nullptr || store->bridge == nullptr) return false;
+        Prune_Subscriptions(store);
+        return store->capture_requested || !store->subscriptions.empty() || Has_Pending_Work(store->bridge);
     }
 } // namespace rpc

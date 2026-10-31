@@ -946,10 +946,11 @@ whole-game RNG/save/mod comparisons were not run.
 `src/rpc/` implements the optional libwebsockets/libuv transport, strict yyjson
 envelope and source-driven argument checks, configured-key hello, supported-method
 discovery, per-client limits, bounded immutable output and copied-work bridge.
-Implemented/advertised methods are `rpc.hello`, `rpc.describe`, `game.getSession`,
+Implemented/advertised methods are `rpc.hello`, `rpc.describe`, `rpc.subscribe`,
+`rpc.unsubscribe`, `game.getSession`,
 `game.getState`, `game.listSystems`, `game.getSystem` and `game.listNebulas`.
 `getState.include` is explicitly restricted to session/systems/nebulas. Remaining
-query families, UI/media/subscriptions and all actions remain method-not-found;
+query families, UI/media and all actions remain method-not-found;
 planned schemas alone do not authorize or implement them.
 
 The application registers an RPC observer before the game thread starts. Neutral
@@ -978,8 +979,14 @@ Lists use opaque snapshot-pinned cursors, bounded to 64 cursors/four retained
 captures; expiry/eviction is explicit object-unavailable, never mixed revisions.
 Tests cover paired hidden-state changes, native formatting/RNG preservation,
 revocation/late results, cached read behavior and real WebSocket query dispatch.
-Output response bounds/fragmentation are implemented, but subscription baselines,
-state coalescing and ordered gameplay event streams are not (P1-08/P1-09 remain open).
+Subscriptions atomically return a selected-topic baseline and cursor on the game
+thread. Only session/systems/nebulas with `state.changed` are accepted; notifications
+invalidate the selected public projection without disclosing hidden-only changes.
+Unsubscribe is connection-owned; reconnect requires a fresh baseline, and view
+revocation clears subscriptions. Capture is requested by queued reads/subscriptions,
+not merely an idle authenticated connection. C++ ownership/bounds/visibility tests
+and 24 live transport tests pass on macOS ARM64. State coalescing and ordered gameplay
+event streams remain open (P1-09); overflowing output explicitly disconnects.
 
 See `specs/rpc/p1.md` for build/test commands, verified evidence and remaining P0
 gates. P1 completion is not claimed by this foundation increment.
@@ -993,7 +1000,7 @@ gates. P1 completion is not claimed by this foundation increment.
 - [x] P1-05 — Implement the game-thread request queue and immutable result/publication handoff; prohibit network waits in game callbacks.
 - [x] P1-06 — Implement coherent requested-topic capture, game/perspective identity, revisions, entity generations, and opaque public IDs (initial session/map subset; topology replacement revokes handles).
 - [x] P1-07 — Return explicit busy/unavailable or dated snapshots during unsafe capture periods; keep service heartbeats responsive.
-- [ ] P1-08 — Implement atomic subscription baseline/cursor setup, unsubscribe, reconnect baselines, and demand-driven capture.
+- [x] P1-08 — Implement atomic subscription baseline/cursor setup, unsubscribe, reconnect baselines, and demand-driven capture (initial audited topics; `rpc_game_test.cpp` and live subscription tests).
 - [ ] P1-09 — Implement bounded per-client output and state coalescing without rewriting partially sent messages or losing operation results silently.
 - [x] P1-10 — Implement startup/quit/fatal-exit cleanup, cancellation, wakeup, and join independent of another game poll.
 
@@ -1014,7 +1021,7 @@ gates. P1 completion is not claimed by this foundation increment.
 
 #### Common query API groups
 
-- [ ] Q-01 — Implement `rpc.hello`, `rpc.describe`, `rpc.subscribe`, and `rpc.unsubscribe`.
+- [x] Q-01 — Implement `rpc.hello`, `rpc.describe`, `rpc.subscribe`, and `rpc.unsubscribe` (subscriptions explicitly limited to initial audited topics and `state.changed`).
 - [x] Q-02 — Implement `game.getSession` and coherent `game.getState(include)` for the explicitly enabled initial topics.
 - [ ] Q-03 — Implement `game.listPlayers` and `game.getPlayer` with own HUD/economy and known-contact projections.
 - [ ] Q-04 — Implement `game.listSystems` and `game.getSystem` with authorized map/range/wormhole data.

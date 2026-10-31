@@ -45,6 +45,7 @@ namespace rpc {
     bool Register_Client(s_bridge* bridge, uint64_t client, uint64_t* epoch);
     bool Client_Is_Current(s_bridge* bridge, uint64_t client, uint64_t epoch);
     bool Has_Clients(s_bridge* bridge);
+    bool Has_Pending_Work(s_bridge* bridge);
     void Cancel_Client(s_bridge* bridge, uint64_t client);
     void Revoke_Bridge(s_bridge* bridge);
     void Stop_Bridge(s_bridge* bridge);
@@ -52,5 +53,6 @@ namespace rpc {
     bool Take_Work(s_bridge* bridge, uint64_t now_ms, s_work* work);
     void Expire_Work(s_bridge* bridge, uint64_t now_ms);
     bool Complete_Work(s_bridge* bridge, const s_work* work, const std::string* json);
+    bool Publish_Event(s_bridge* bridge, uint64_t client, uint64_t epoch, const std::string* json);
     bool Take_Publication(s_bridge* bridge, s_publication* publication);
 } // namespace rpc

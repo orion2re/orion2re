@@ -49,7 +49,8 @@ Menu entry unloads the view. Thread stopping precedes native resource teardown.
   human's visited bit and the conservative name subset below.
 - `game.listNebulas`: positions only, following unconditional native map drawing.
 
-The metadata methods remain available. All other queries/actions/subscriptions
+The metadata methods remain available. `rpc.subscribe` / `rpc.unsubscribe` now
+support the initial audited topics as described below. Other queries/actions
 remain method-not-found. Possession of the configured key does not select a
 viewer, enable debug/AI views or authorize hidden fields.
 
@@ -73,8 +74,9 @@ whole view rather than reusing a slot handle unsafely.
 Queries read **the last coherent map capture**, not a claim of latest live state
 in every native screen. Each stamp explicitly includes
 `captureMode: last-coherent-capture`, turn, revision and snapshot identity. Captures
-are limited to 10 Hz, and after the initial view binding they run only while a
-client is registered. Other screens can query the immutable capture without
+are limited to 10 Hz, and after the initial view binding run only for queued reads,
+read demand retained until the next capture, or active subscriptions. An idle
+connection alone does not request capture. Other screens can query the immutable capture without
 navigating back to the map. During resolution, data reads return busy; session
 metadata reports resolving. No half-updated world is captured.
 
@@ -89,6 +91,33 @@ capture and page size; four immutable captures and 64 cursors are retained.
 An evicted, wrong-kind or unknown cursor returns object-unavailable, as does an
 unknown/nonexistent/stale system handle. No hidden-property filters are accepted.
 `getState` can return the complete bounded initial map projection coherently.
+
+## Initial subscriptions
+
+`rpc.subscribe` requires one or more unique topics from `session`, `systems`,
+`nebulas` and `events: ["state.changed"]`. Unsupported topics/events and empty
+selections are invalid params. Baseline, opaque subscription ID and cursor `"0"`
+are established together on the game thread from one committed capture; unsafe
+or unavailable captures return busy. There is no replay/resume cursor: reconnect
+requires a fresh subscription and baseline.
+
+`state.changed` is an invalidation, not a replacement or ordered gameplay event.
+Its cursor increases when the selected authorized projection changes; it carries
+selected topics and the coherent stamp. Read the selected topics again after an
+invalidation. Hidden-only changes and changes to unselected projections do not
+emit notifications. Publication waits while queries are paused.
+
+Subscription IDs are connection-owned. `rpc.unsubscribe` returns `removed: false`
+for unknown/foreign IDs, and removes only that connection's subscription. Already
+queued invalidations may precede its response. Disconnection prunes subscriptions;
+world/perspective revocation clears them and requires reauthentication. There are
+at most 16 subscriptions per client/64 globally. Output overflow disconnects rather
+than silently dropping results. Coalescing is the next P1-09 increment.
+
+Verified on macOS ARM64: the RPC and native projection CTest targets pass, 45 Python
+contract/schema/architecture tests pass, and all 24 live WebSocket tests pass,
+including atomic baseline ordering, hidden-state equality, unsubscribe, fresh
+baselines, unsupported selection rejection and busy captures.
 
 ## Validation and limits
 

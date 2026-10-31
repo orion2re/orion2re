@@ -85,7 +85,7 @@ namespace game_rpc {
 
     static void Capture_Main_Map() {
         if (!active || !store.loaded || store.busy_depth != 0) return;
-        if (!store.snapshots.empty() && !rpc::Has_Clients(&bridge)) return;
+        if (!store.snapshots.empty() && !rpc::Needs_Game_Capture(&store)) return;
         const uint64_t now = rpc::Monotonic_Ms();
         if (last_capture_ms != 0 && now - last_capture_ms < rpc::Protocol_Limits()->capture_interval_ms) return;
         last_capture_ms = now;

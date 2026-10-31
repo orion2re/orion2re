@@ -33,6 +33,14 @@ namespace {
         map.nebulas = {{70, 80}};
         return map;
     }
+    std::string Dispatch(s_fixture* fixture, uint64_t client, uint64_t epoch, const rpc::s_request* request) {
+        DOCTEST_REQUIRE(rpc::Submit_Work(&fixture->bridge, client, epoch, request, UINT64_MAX) == 0);
+        rpc::Pump_Game_Queries(&fixture->store);
+        rpc::s_publication result;
+        DOCTEST_REQUIRE(rpc::Take_Publication(&fixture->bridge, &result));
+        DOCTEST_CHECK(result.ticket != 0);
+        return result.json;
+    }
 } // namespace
 
 DOCTEST_TEST_CASE("game queries expose an authorized coherent capture rather than live raw world state") {
@@ -121,4 +129,77 @@ DOCTEST_TEST_CASE("pagination pins a retained immutable snapshot and never silen
         DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
     }
     DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &list).find("-32004") != std::string::npos);
+}
+
+DOCTEST_TEST_CASE("subscriptions establish an atomic baseline and invalidate only selected public projections") {
+    s_fixture fixture;
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&fixture.store));
+    auto map = Map();
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    uint64_t epoch;
+    DOCTEST_REQUIRE(rpc::Register_Client(&fixture.bridge, 1, &epoch));
+    auto subscribe = Request("rpc.subscribe", "{\"topics\":[\"systems\"],\"events\":[\"state.changed\"]}");
+    const std::string baseline = Dispatch(&fixture, 1, epoch, &subscribe);
+    DOCTEST_CHECK(baseline.find("\"cursor\":\"0\"") != std::string::npos);
+    DOCTEST_CHECK(baseline.find("Home") != std::string::npos);
+    DOCTEST_REQUIRE(fixture.store.subscriptions.size() == 1);
+    const std::string id = fixture.store.subscriptions.front().id;
+    rpc::s_publication publication;
+    DOCTEST_CHECK_FALSE(rpc::Take_Publication(&fixture.bridge, &publication));
+    map.systems[1].name = "another hidden name";
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    rpc::Pump_Game_Queries(&fixture.store);
+    DOCTEST_CHECK_FALSE(rpc::Take_Publication(&fixture.bridge, &publication));
+    ++map.turn;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    rpc::Pump_Game_Queries(&fixture.store);
+    DOCTEST_CHECK_FALSE(rpc::Take_Publication(&fixture.bridge, &publication));
+    map.systems[0].name = "New name";
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    rpc::Pause_Game_Queries(&fixture.store);
+    rpc::Pump_Game_Queries(&fixture.store);
+    DOCTEST_CHECK_FALSE(rpc::Take_Publication(&fixture.bridge, &publication));
+    rpc::Resume_Game_Queries(&fixture.store);
+    rpc::Pump_Game_Queries(&fixture.store);
+    DOCTEST_REQUIRE(rpc::Take_Publication(&fixture.bridge, &publication));
+    DOCTEST_CHECK(publication.ticket == 0);
+    DOCTEST_CHECK(publication.json.find("state.changed") != std::string::npos);
+    DOCTEST_CHECK(publication.json.find("\"cursor\":\"1\"") != std::string::npos);
+    DOCTEST_CHECK(publication.json.find(id) != std::string::npos);
+    auto unsubscribe = Request("rpc.unsubscribe");
+    unsubscribe.params_json = "{\"subscriptionId\":" + rpc::Json_String(id) + "}";
+    DOCTEST_CHECK(Dispatch(&fixture, 1, epoch, &unsubscribe).find("\"removed\":true") != std::string::npos);
+    DOCTEST_CHECK(Dispatch(&fixture, 1, epoch, &unsubscribe).find("\"removed\":false") != std::string::npos);
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    DOCTEST_CHECK_FALSE(rpc::Needs_Game_Capture(&fixture.store));
+}
+
+DOCTEST_TEST_CASE("subscription ownership bounds reconnect and revocation fail closed") {
+    s_fixture fixture;
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&fixture.store));
+    auto map = Map();
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    uint64_t epoch;
+    DOCTEST_REQUIRE(rpc::Register_Client(&fixture.bridge, 1, &epoch));
+    DOCTEST_REQUIRE(rpc::Register_Client(&fixture.bridge, 2, &epoch));
+    auto subscribe = Request("rpc.subscribe", "{\"topics\":[\"session\"],\"events\":[\"state.changed\"]}");
+    DOCTEST_CHECK(Dispatch(&fixture, 1, epoch, &subscribe).find("baseline") != std::string::npos);
+    const std::string id = fixture.store.subscriptions.front().id;
+    auto unsubscribe = Request("rpc.unsubscribe");
+    unsubscribe.params_json = "{\"subscriptionId\":" + rpc::Json_String(id) + "}";
+    DOCTEST_CHECK(Dispatch(&fixture, 2, epoch, &unsubscribe).find("\"removed\":false") != std::string::npos);
+    for (int index = 1; index < 16; ++index) {
+        DOCTEST_CHECK(Dispatch(&fixture, 1, epoch, &subscribe).find("baseline") != std::string::npos);
+    }
+    DOCTEST_CHECK(Dispatch(&fixture, 1, epoch, &subscribe).find("-32005") != std::string::npos);
+    rpc::Cancel_Client(&fixture.bridge, 1);
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    DOCTEST_CHECK_FALSE(rpc::Needs_Game_Capture(&fixture.store));
+    DOCTEST_CHECK(fixture.store.subscriptions.empty());
+    DOCTEST_REQUIRE(rpc::Register_Client(&fixture.bridge, 3, &epoch));
+    DOCTEST_CHECK(Dispatch(&fixture, 3, epoch, &subscribe).find("\"cursor\":\"0\"") != std::string::npos);
+    DOCTEST_CHECK(fixture.store.subscriptions.front().id != id);
+    rpc::Revoke_Game_View(&fixture.store);
+    DOCTEST_CHECK(fixture.store.subscriptions.empty());
+    DOCTEST_CHECK_FALSE(rpc::Client_Is_Current(&fixture.bridge, 3, epoch));
 }

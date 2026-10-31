@@ -2823,11 +2823,11 @@
       "additionalProperties": false,
       "properties": {
         "topics": {
-          "$ref": "#/$defs/Topics",
+          "$ref": "#/$defs/SubscriptionTopics",
           "x-rpc-policy": "request"
         },
         "events": {
-          "$ref": "#/$defs/Events",
+          "$ref": "#/$defs/SubscriptionEvents",
           "x-rpc-policy": "request"
         }
       },
@@ -2860,6 +2860,30 @@
         "baseline"
       ],
       "x-rpc-policy": "contract"
+    },
+    "SubscriptionEvent": {
+      "type": "string",
+      "enum": [
+        "state.changed"
+      ]
+    },
+    "SubscriptionEvents": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/SubscriptionEvent"
+      },
+      "maxItems": 1,
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "SubscriptionTopics": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/StateTopic"
+      },
+      "maxItems": 3,
+      "minItems": 1,
+      "uniqueItems": true
     },
     "System": {
       "type": "object",
@@ -6895,7 +6919,7 @@
       "role": "reader",
       "availability": "authorized",
       "kind": "control",
-      "implemented": false,
+      "implemented": true,
       "requestType": "SubscribeRequest",
       "resultType": "SubscribeResult",
       "request": {
@@ -6911,7 +6935,7 @@
       "role": "reader",
       "availability": "authorized",
       "kind": "control",
-      "implemented": false,
+      "implemented": true,
       "requestType": "UnsubscribeRequest",
       "resultType": "UnsubscribeResult",
       "request": {
@@ -7751,11 +7775,13 @@
     "orderedEventsPerSubscription": 4096,
     "overflow": "Reject before admission; coalesce only complete unsent state. Ordered-event overflow signals a gap or disconnect. Never rewrite partial output or silently discard operation results."
   },
-  "x-rpc-sourceHash": "8f32b303d18f3eddf8b8194e65d0978af36e2306dd2ed0850e2b27511495508e",
+  "x-rpc-sourceHash": "c5737b17adefcc9580cc0d67c1451bcdb12f9165890f02d1b41cb58ccd559178",
   "x-rpc-runtimeEnabled": false,
   "x-rpc-implementedMethods": [
     "rpc.hello",
     "rpc.describe",
+    "rpc.subscribe",
+    "rpc.unsubscribe",
     "game.getSession",
     "game.getState",
     "game.listSystems",
