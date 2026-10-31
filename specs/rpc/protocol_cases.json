@@ -1,0 +1,33 @@
+{
+  "formatVersion": 1,
+  "cases": [
+    {"name":"valid empty query","json":"{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"game.getSession\"}","code":0},
+    {"name":"valid named params","json":"{\"jsonrpc\":\"2.0\",\"id\":\"s\",\"method\":\"game.getSystem\",\"params\":{\"id\":\"opaque\"}}","code":0},
+    {"name":"notification ignored","json":"{\"jsonrpc\":\"2.0\",\"method\":\"ui.activate\"}","code":null},
+    {"name":"invalid but identifiable notification stays silent","json":"{\"jsonrpc\":\"2.0\",\"method\":\"ui.activate\",\"extra\":true}","code":null},
+    {"name":"hello notification cannot authorize","authenticated":false,"json":"{\"jsonrpc\":\"2.0\",\"method\":\"rpc.hello\"}","code":null},
+    {"name":"auth before method oracle","authenticated":false,"json":"{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"game.readMemory\",\"params\":null}","code":-32001},
+    {"name":"no legacy method","json":"{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"MSG_STATE\"}","code":-32601},
+    {"name":"no viewer override","json":"{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"game.getSession\",\"params\":{\"viewerPlayerId\":2}}","code":-32602},
+    {"name":"root array unsupported","json":"[]","code":-32600},
+    {"name":"empty object invalid","json":"{}","code":-32600},
+    {"name":"wrong version type","json":"{\"jsonrpc\":2,\"id\":1,\"method\":\"game.getSession\"}","code":-32600},
+    {"name":"null id unsupported","json":"{\"jsonrpc\":\"2.0\",\"id\":null,\"method\":\"game.getSession\"}","code":-32600},
+    {"name":"boolean id unsupported","json":"{\"jsonrpc\":\"2.0\",\"id\":true,\"method\":\"game.getSession\"}","code":-32600},
+    {"name":"fractional id unsupported","json":"{\"jsonrpc\":\"2.0\",\"id\":1.5,\"method\":\"game.getSession\"}","code":-32600},
+    {"name":"unsafe integer id","json":"{\"jsonrpc\":\"2.0\",\"id\":9007199254740992,\"method\":\"game.getSession\"}","code":-32600},
+    {"name":"positional params unsupported","json":"{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"game.getSession\",\"params\":[]}","code":-32602},
+    {"name":"params null unsupported","json":"{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"game.getSession\",\"params\":null}","code":-32602},
+    {"name":"unknown envelope key","json":"{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"game.getSession\",\"viewer\":1}","code":-32600},
+    {"name":"duplicate decoded key","json":"{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"game.getSession\",\"m\\u0065thod\":\"game.getShip\"}","code":-32700},
+    {"name":"nested duplicate","json":"{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"game.getShip\",\"params\":{\"id\":\"a\",\"id\":\"b\"}}","code":-32700},
+    {"name":"comments rejected","json":"{/*comment*/}","code":-32700},
+    {"name":"trailing comma rejected","json":"{\"a\":1,}","code":-32700},
+    {"name":"trailing document rejected","json":"{} {}","code":-32700},
+    {"name":"NaN rejected","json":"{\"id\":NaN}","code":-32700},
+    {"name":"overflow number rejected","json":"{\"id\":1e999}","code":-32700},
+    {"name":"unpaired surrogate rejected","json":"{\"id\":\"\\ud800\"}","code":-32700},
+    {"name":"bom rejected","json":"﻿{}","code":-32700},
+    {"name":"braces inside string not nesting","json":"{\"jsonrpc\":\"2.0\",\"id\":\"[{[{[{\",\"method\":\"game.getSession\"}","code":0}
+  ]
+}

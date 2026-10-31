@@ -1,0 +1,22 @@
+{
+  "formatVersion": 1,
+  "sourceRevision":"e57a55b2b86f53ad42186312a2efb2d2a8a797c0",
+  "platform":"macOS arm64 / AppleClang 17 / Debug",
+  "scope":"Existing synthetic native-function tests, with their existing fakes. NOT a recorded interactive game, maximum-game capture, save-file golden fixture, or RPC parity result.",
+  "command":"out/build/test-debug/<target> --no-colors=true",
+  "results": {
+    "test_savegame":{"cases":5,"assertions":60703,"exit":0},
+    "test_config_snapshot":{"cases":42,"assertions":69384,"exit":0},
+    "test_config_loader":{"cases":70,"assertions":3166730,"exit":0},
+    "test_newgame":{"cases":9,"assertions":31,"exit":0},
+    "test_nextturn_order":{"cases":3,"assertions":16,"exit":0},
+    "test_lua_mod_runtime":{"cases":75,"assertions":2513,"exit":0},
+    "test_colmove":{"cases":5,"assertions":18,"exit":0},
+    "test_config_bindings":{"cases":213,"assertions":7712,"exit":0}
+  },
+  "nativeRngCheckpoints":[
+    {"source":"tests/unit/nextturn_test.cpp","initialSeed":3,"expectedSeed":1018653819,"scope":"Native officer-check permutation test, not a whole turn"},
+    {"source":"tests/unit/initgame_test.cpp","initialSeed":305419896,"expectedSeed":305419896,"scope":"Random(0) does not consume a draw"}
+  ],
+  "uncaptured":["native interactive screen traces","local save/mod golden comparisons","whole-game RNG checkpoint traces","host/client live-session traces"]
+}

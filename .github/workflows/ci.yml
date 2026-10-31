@@ -38,6 +38,8 @@ jobs:
             libudev-dev libdbus-1-dev libibus-1.0-dev libpipewire-0.3-dev
       - name: Packaging regression tests
         run: python3 -m unittest discover -s tests/packaging -v
+      - name: RPC schema drift and renderer tests
+        run: python3 -m unittest discover -s tests/rpc -p test_schema.py -v
       - run: cmake --preset linux-debug-asan-tests
       - run: cmake --build --preset linux-debug-asan-tests --parallel "$(nproc)"
       - name: Native game build smoke test

@@ -1,0 +1,24 @@
+{
+  "formatVersion": 1,
+  "dispositions": "Exact feature/owner/acceptance text remains canonical in plan.md Appendices F-H. Groups below persist every identity and its minimum release-test obligations; evidence is recorded per full commit SHA or path.",
+  "commitGroups": [
+    {
+      "category": "runtime",
+      "implementationOwner": "Appendix F feature owner; split into the matching native sidecar or infrastructure owner, not a cherry-pick",
+      "testsPlanned": ["T-01","T-02","T-03","T-04","T-05","T-06","T-07","T-08","T-09","T-10","T-11","T-12","T-13","T-14","T-15","T-16","T-17","T-18","T-20"],
+      "commits": ["007b4aa3","02fa6bff","096c97fb","0aae309f","0b15e0b6","0d2edae6","105c4054","1780203a","1982b2a1","1a3a449a","1b39a01f","1e608dfb","29047f2d","29c61acd","2a09cb76","2bbc0174","3096e0ee","31f0aed4","35486477","360b8d0c","36f080e7","380daf98","385d678a","39bfe4fb","39c5cc6d","3a015989","3d3c74b6","3fea2fb1","41c73182","42f32654","435627ff","4417efd2","45aba360","4b77ed0b","55362111","59425f3c","5a97facc","624081b7","62cc8968","670bd95c","67d3c9fe","6800ee70","6f76077b","707bcd96","7190eb2d","74b06b98","774f8267","77b1fb07","7a561725","7fbe221f","80484481","86842dfe","8dce5c84","90656654","91501ca3","96c39753","9759f1e0","998d17e3","9b7f61a4","9dc9601c","a7852545","a9a1f725","aa59219a","adbb683c","adc21aed","adfd7bb0","b1b25b88","b2fa0c79","b5692057","b73185d2","be79dadf","c024495c","c255dc67","c7205769","ca441bf9","ca4ea2e5","cb2bf131","da87ff51","dd384efa","e2a10520","e3ae40c8","e3d81221","e7e823c8","e9b3cf07","ebdf5e69","ec66171a","f0acb73d","f6177a05","f8c859b4","f93344f6","fa61b768","feeec356"]
+    },
+    {
+      "category": "documentation",
+      "implementationOwner": "Contract/build evidence review; no additional runtime feature",
+      "testsPlanned": ["T-17","T-20"],
+      "commits": ["0e021bda","21bdc2b8","24904c28","25fdf420","2ad3e8b4","31d9af5f","519edf8f","51e054cf","556edc34","5e4fa21a","5f4d7c76","64b570d4","6655bfd4","68d83e4f","6e12af0d","7501e682","7fa085d5","89a4ba95","8d7b3b26","8df5b5a5","95345611","ad90edd2","ca3aed67","d1efc870","e885ed8a","ec324fb8","f41e4cf2"]
+    }
+  ],
+  "fileGroups": [
+    {"implementationOwner":"rpc.protocol/service/bridge; replace binary/raw-layout representation","testsPlanned":["T-01","T-04","T-07","T-08","T-11","T-12","T-13","T-15","T-16","T-17","T-20"],"files":["src/ext/ext_api.cpp","src/ext/ext_api.h","src/ext/ext_layout.cpp","src/ext/ext_layout.h","src/ext/ext_layout_table.inc","src/ext/ext_server.cpp","src/ext/ext_server.h","tools/ext_layout_gen.py"]},
+    {"implementationOwner":"Native owner in Appendix H; shared operations, screen-local adapters and presentation hooks","testsPlanned":["T-01","T-02","T-03","T-04","T-05","T-06","T-08","T-09","T-10","T-14","T-16","T-18","T-20"],"files":["src/game/antaroom.cpp","src/game/beams.cpp","src/game/bitmap.cpp","src/game/cmbtdrw1.cpp","src/game/cmbtfir2.cpp","src/game/cmbtfire.cpp","src/game/cmbtmis.cpp","src/game/cmbtmov1.cpp","src/game/cmbtspec.cpp","src/game/colgcbt.cpp","src/game/colland.cpp","src/game/colmove.cpp","src/game/colmove.h","src/game/colony.cpp","src/game/colsum.cpp","src/game/combat1.cpp","src/game/combinit.cpp","src/game/council.cpp","src/game/desbox.cpp","src/game/dip_scrn.cpp","src/game/dip_scrn.h","src/game/dip_scrn_main.cpp","src/game/ericnet.cpp","src/game/events.cpp","src/game/fields.cpp","src/game/flcqueue.cpp","src/game/gendraw.cpp","src/game/hotpop.cpp","src/game/mainpups.cpp","src/game/mox2.cpp","src/game/mox2.h","src/game/multplay.cpp","src/game/netadapter.cpp","src/game/netadapter.h","src/game/netcode.cpp","src/game/netcode.h","src/game/netstart.cpp","src/game/newpup.cpp","src/game/platform.cpp","src/game/raceopt.cpp","src/game/racesel.cpp","src/game/science.cpp","src/game/score.cpp","src/game/smack.cpp","src/game/sound.cpp","src/game/tech.cpp","src/game/textbox.cpp","src/game/timer.cpp","src/game/turnsum.cpp","src/game/vfs_path.cpp"]},
+    {"implementationOwner":"Optional build integration / documentation evidence","testsPlanned":["T-17","T-20"],"files":["CMakeLists.txt","README.md","docs/extension-api.md"]}
+  ],
+  "evidence": {}
+}
