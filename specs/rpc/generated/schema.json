@@ -290,7 +290,8 @@
     "CaptureMode": {
       "type": "string",
       "enum": [
-        "last-coherent-capture"
+        "last-coherent-capture",
+        "last-native-ship-refresh"
       ]
     },
     "Chat": {
@@ -2525,7 +2526,19 @@
       "properties": {
         "id": {
           "$ref": "#/$defs/Id",
-          "x-rpc-policy": "disabled-ship"
+          "x-rpc-policy": "ships-refreshed"
+        },
+        "x": {
+          "$ref": "#/$defs/Coord",
+          "x-rpc-policy": "ships-refreshed"
+        },
+        "y": {
+          "$ref": "#/$defs/Coord",
+          "x-rpc-policy": "ships-refreshed"
+        },
+        "owned": {
+          "$ref": "#/$defs/Bool",
+          "x-rpc-policy": "ships-refreshed"
         },
         "owner": {
           "$ref": "#/$defs/KnownId",
@@ -2533,7 +2546,7 @@
         },
         "name": {
           "$ref": "#/$defs/KnownText",
-          "x-rpc-policy": "disabled-ship"
+          "x-rpc-policy": "ship-own-name"
         },
         "destination": {
           "$ref": "#/$defs/KnownId",
@@ -2546,12 +2559,15 @@
       },
       "required": [
         "id",
+        "x",
+        "y",
+        "owned",
         "owner",
         "name",
         "destination",
         "eta"
       ],
-      "x-rpc-policy": "disabled-ship"
+      "x-rpc-policy": "ships-refreshed"
     },
     "ShipResult": {
       "type": "object",
@@ -2788,7 +2804,8 @@
       "enum": [
         "session",
         "systems",
-        "nebulas"
+        "nebulas",
+        "ships"
       ]
     },
     "StateTopics": {
@@ -2796,7 +2813,7 @@
       "items": {
         "$ref": "#/$defs/StateTopic"
       },
-      "maxItems": 3,
+      "maxItems": 4,
       "uniqueItems": true
     },
     "StreamGap": {
@@ -2882,7 +2899,7 @@
       "items": {
         "$ref": "#/$defs/StateTopic"
       },
-      "maxItems": 3,
+      "maxItems": 4,
       "minItems": 1,
       "uniqueItems": true
     },
@@ -6520,7 +6537,7 @@
       "role": "reader",
       "availability": "committed-game",
       "kind": "query",
-      "implemented": false,
+      "implemented": true,
       "requestType": "GetRequest",
       "resultType": "ShipResult",
       "request": {
@@ -6728,7 +6745,7 @@
       "role": "reader",
       "availability": "committed-game",
       "kind": "query",
-      "implemented": false,
+      "implemented": true,
       "requestType": "ListRequest",
       "resultType": "ShipsResult",
       "request": {
@@ -7413,14 +7430,60 @@
         "T-03"
       ]
     },
-    "disabled-ship": {
-      "status": "disabled",
-      "predicate": "Pending pure detection policy extraction. Display-node identity and route/ETA conditions differ. No builder invocation, stale nodes, raw location, cargo, orders or enemy design dump.",
+    "ships-refreshed": {
+      "status": "reviewed",
+      "predicate": "Only synchronous post-Build_Ship_Icons capture for the bound active human viewer, outside world mutation/resolution. Follow fresh icon heads that are surviving stack heads and their linked nodes; never enumerate unlinked allocations or rebuild for a query. Copy only map x/y and own-versus-foreign classification. Sort the authorized projection before assigning opaque read-only observation handles; no native slots or durable ship identity are published. One coherent map/ship capture, explicitly dated last-native-ship-refresh. Handle sets are replaced when the projected ship collection changes; no action may use them.",
       "sources": [
+        [
+          "src/game/ships.cpp",
+          "Build_Ship_Icons"
+        ],
+        [
+          "src/game/shipstak.cpp",
+          "Find_Ship_Stacks"
+        ],
         [
           "src/game/shipstak.cpp",
           "Remove_Non_Detected_Ships"
         ],
+        [
+          "src/game/haccess.cpp",
+          "Ship_Stack_X"
+        ],
+        [
+          "src/game/haccess.cpp",
+          "Ship_Stack_Y"
+        ],
+        [
+          "src/game/haccess.cpp",
+          "Ship_Stack_Owner"
+        ]
+      ],
+      "tests": [
+        "T-01",
+        "T-02",
+        "T-05"
+      ]
+    },
+    "ship-own-name": {
+      "status": "reviewed",
+      "predicate": "Only the bound viewer's own ship: bounded NUL-terminated copy of d.name decoded from CP850 to UTF-8, at the same authorized post-refresh capture. Foreign name bytes are never read; their name is explicitly unaudited rather than a scan-knowledge claim.",
+      "sources": [
+        [
+          "src/game/fleetpop.cpp",
+          "Get_Fleetpop_Scanned_Ship_Info"
+        ]
+      ],
+      "tests": [
+        "T-01",
+        "T-02",
+        "T-03"
+      ]
+    },
+    "disabled-ship": {
+      "status": "disabled",
+      "predicate": "Player-ID mapping, enemy names/scan details, route/destination/ETA require independent field audits. Surviving detection does not authorize raw location, cargo, orders or enemy design data. No scanner-policy extraction is needed for the initial post-refresh projection.",
+      "sources": [
         [
           "src/game/ships.cpp",
           "Do_Ship_Destination_Lines"
@@ -7776,7 +7839,7 @@
     "orderedEventsPerSubscription": 4096,
     "overflow": "Reject before admission; coalesce only complete unsent state. Ordered-event overflow signals a gap or disconnect. Never rewrite partial output or silently discard operation results."
   },
-  "x-rpc-sourceHash": "2403a0cf8fd4aa478c9668b04f2308d986e5c76eb504e8ff5f5c3988aab535f6",
+  "x-rpc-sourceHash": "9f26dfa901604495944bbc24563d1b9d590cfa813e42692596d14dad60907e8a",
   "x-rpc-runtimeEnabled": false,
   "x-rpc-implementedMethods": [
     "rpc.hello",
@@ -7787,6 +7850,8 @@
     "game.getState",
     "game.listSystems",
     "game.getSystem",
-    "game.listNebulas"
+    "game.listNebulas",
+    "game.listShips",
+    "game.getShip"
   ]
 }

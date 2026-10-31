@@ -1,4 +1,5 @@
 #include "doctest/doctest.h"
+#include <algorithm>
 #include <string>
 #include "rpc/rpc_game.h"
 
@@ -31,6 +32,12 @@ namespace {
         map.turn = 35000;
         map.systems = {{10, 20, true, true, "Home"}, {30, 40, false, false, "hidden"}, {50, 60, true, true, ""}};
         map.nebulas = {{70, 80}};
+        return map;
+    }
+    rpc::s_map_observation Ships() {
+        auto map = Map();
+        map.ships_captured = true;
+        map.ships = {{0, 0, true, "Own"}, {30, 0, false, "hidden enemy name"}, {60, 0, false, "another hidden name"}};
         return map;
     }
     std::string Dispatch(s_fixture* fixture, uint64_t client, uint64_t epoch, const rpc::s_request* request) {
@@ -275,4 +282,139 @@ DOCTEST_TEST_CASE("default turn notifications require hello authorization but no
     DOCTEST_REQUIRE(rpc::Authorize_Client(&fixture.bridge, 2, epoch));
     rpc::Pump_Game_Queries(&fixture.store);
     DOCTEST_CHECK_FALSE(rpc::Take_Publication(&fixture.bridge, &publication));
+}
+
+DOCTEST_TEST_CASE("ship reads use authorized sorted copies and do not mistake an absent capture for known empty") {
+    s_fixture fixture;
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&fixture.store));
+    auto map = Map();
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    auto list = Request("game.listShips");
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &list).find("-32002") != std::string::npos);
+    map = Ships();
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    const std::string baseline = rpc::Game_Query(&fixture.store, &list);
+    DOCTEST_CHECK(baseline.find("last-native-ship-refresh") != std::string::npos);
+    DOCTEST_CHECK(baseline.find("Own") != std::string::npos);
+    DOCTEST_CHECK(baseline.find("hidden") == std::string::npos);
+    DOCTEST_CHECK(baseline.find("\"owned\":false") != std::string::npos);
+    std::reverse(map.ships.begin(), map.ships.end());
+    map.ships[0].name = "different secret";
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &list) == baseline);
+    rpc::Pause_Game_Queries(&fixture.store);
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &list).find("-32002") != std::string::npos);
+    rpc::Resume_Game_Queries(&fixture.store);
+    map.ships.clear();
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &list).find("\"items\":[]") != std::string::npos);
+}
+
+DOCTEST_TEST_CASE("combined ship state never mixes an older native refresh with newer map or session fields") {
+    s_fixture fixture;
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&fixture.store));
+    auto full = Ships();
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &full));
+    auto state = Request("game.getState", "{\"include\":[\"ships\",\"session\",\"systems\"]}");
+    const std::string baseline = rpc::Game_Query(&fixture.store, &state);
+    auto map = Map();
+    ++map.turn;
+    map.systems[0].name = "Later map";
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &state) == baseline);
+    auto session = Request("game.getSession");
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &session).find("35001") != std::string::npos);
+    uint64_t epoch;
+    DOCTEST_REQUIRE(rpc::Register_Client(&fixture.bridge, 1, &epoch));
+    auto subscribe = Request("rpc.subscribe", "{\"topics\":[\"ships\",\"session\"],\"events\":[\"state.changed\"]}");
+    const std::string subscribed = Dispatch(&fixture, 1, epoch, &subscribe);
+    DOCTEST_CHECK(subscribed.find("35000") != std::string::npos);
+    DOCTEST_CHECK(subscribed.find("Later map") == std::string::npos);
+    full.turn = map.turn;
+    full.systems[0].name = map.systems[0].name;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &full));
+    rpc::Pump_Game_Queries(&fixture.store);
+    rpc::s_publication event;
+    DOCTEST_REQUIRE(rpc::Take_Publication(&fixture.bridge, &event));
+    DOCTEST_CHECK(event.json.find("state.changed") != std::string::npos);
+    DOCTEST_CHECK(event.json.find("35001") != std::string::npos);
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &state).find("Later map") != std::string::npos);
+}
+
+DOCTEST_TEST_CASE("ship handles are projection scoped and pagination stays pinned through later refreshes") {
+    s_fixture fixture;
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&fixture.store));
+    auto map = Ships();
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    const std::string id = fixture.store.snapshots.back().ship_ids[0];
+    auto get = Request("game.getShip");
+    get.params_json = "{\"id\":" + rpc::Json_String(id) + "}";
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &get).find("Own") != std::string::npos);
+    auto list = Request("game.listShips", "{\"limit\":1}");
+    const std::string first = rpc::Game_Query(&fixture.store, &list);
+    DOCTEST_REQUIRE(fixture.store.cursors.size() == 1);
+    const std::string cursor = fixture.store.cursors.front().id;
+    map.ships[0].x = 99;
+    ++map.turn;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    const std::string unavailable = rpc::Game_Query(&fixture.store, &get);
+    get.params_json = "{\"id\":\"never-existed\"}";
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &get) == unavailable);
+    DOCTEST_CHECK(unavailable.find("-32004") != std::string::npos);
+    list.params_json = "{\"cursor\":" + rpc::Json_String(cursor) + "}";
+    const std::string second = rpc::Game_Query(&fixture.store, &list);
+    DOCTEST_CHECK(first.find("35000") != std::string::npos);
+    DOCTEST_CHECK(second.find("35000") != std::string::npos);
+    DOCTEST_CHECK(second.find("\"x\":30") != std::string::npos);
+    map.ships_captured = false;
+    for (int index = 0; index < 4; ++index) {
+        ++map.turn;
+        DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    }
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &list).find("-32004") != std::string::npos);
+}
+
+DOCTEST_TEST_CASE("ship subscriptions ignore hidden names and unselected map changes and revoke with the view") {
+    s_fixture fixture;
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&fixture.store));
+    auto map = Ships();
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    uint64_t epoch;
+    DOCTEST_REQUIRE(rpc::Register_Client(&fixture.bridge, 1, &epoch));
+    auto subscribe = Request("rpc.subscribe", "{\"topics\":[\"ships\"],\"events\":[\"state.changed\"]}");
+    DOCTEST_CHECK(Dispatch(&fixture, 1, epoch, &subscribe).find("Own") != std::string::npos);
+    map.systems[0].name = "Renamed star";
+    map.ships[1].name = "secret change";
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    rpc::Pump_Game_Queries(&fixture.store);
+    rpc::s_publication event;
+    DOCTEST_CHECK_FALSE(rpc::Take_Publication(&fixture.bridge, &event));
+    map.ships[1].x = 31;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    rpc::Pump_Game_Queries(&fixture.store);
+    DOCTEST_REQUIRE(rpc::Take_Publication(&fixture.bridge, &event));
+    DOCTEST_CHECK(event.json.find("state.changed") != std::string::npos);
+    DOCTEST_CHECK(event.json.find("secret") == std::string::npos);
+    rpc::Revoke_Game_View(&fixture.store);
+    DOCTEST_CHECK(fixture.store.snapshots.empty());
+    DOCTEST_CHECK(fixture.store.subscriptions.empty());
+    DOCTEST_CHECK_FALSE(rpc::Client_Is_Current(&fixture.bridge, 1, epoch));
+}
+
+DOCTEST_TEST_CASE("maximum ship collections paginate within bounds and oversized full baselines return explicit limits") {
+    s_fixture fixture;
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&fixture.store));
+    auto map = Ships();
+    map.ships.resize(10000, {32767, -32768, true, std::string(45, 'x')});
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    auto state = Request("game.getState", "{\"include\":[\"ships\"]}");
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &state).find("-32005") != std::string::npos);
+    auto list = Request("game.listShips", "{\"limit\":256}");
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &list).size() < 1048576);
+    uint64_t epoch;
+    DOCTEST_REQUIRE(rpc::Register_Client(&fixture.bridge, 1, &epoch));
+    auto subscribe = Request("rpc.subscribe", "{\"topics\":[\"ships\"],\"events\":[\"state.changed\"]}");
+    DOCTEST_CHECK(Dispatch(&fixture, 1, epoch, &subscribe).find("-32005") != std::string::npos);
+    DOCTEST_CHECK(fixture.store.subscriptions.empty());
+    DOCTEST_CHECK(rpc::Client_Is_Current(&fixture.bridge, 1, epoch));
 }

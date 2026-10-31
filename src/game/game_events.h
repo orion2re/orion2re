@@ -18,6 +18,7 @@ namespace game_events {
         RESOLUTION_END,
         MAP_OBSERVATION_POINT,
         IDLE_OBSERVATION_POINT,
+        SHIP_ICONS_REFRESHED,
     };
 
     using t_callback = void (*)(e_event event, void* context);

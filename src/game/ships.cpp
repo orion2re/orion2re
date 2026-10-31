@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game/game_events.h"
 
 namespace SHIPS {
 
@@ -744,6 +745,7 @@ namespace SHIPS {
         if (MOX::ship_icon_count > 0 && need_sort) {
             qsort(MOX::ship_icon, MOX::ship_icon_count, sizeof(MOX::ship_icon[0]), SHIPS::qsort_ship_icon);
         }
+        game_events::Publish(game_events::SHIP_ICONS_REFRESHED);
     }
 
     int16_t __cdecl Deploy_Ships_To_Attack_Antares(void) {

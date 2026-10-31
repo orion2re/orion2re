@@ -26,5 +26,19 @@ class SidecarArchitectureTests(unittest.TestCase):
         self.assertIn("MOX::star", adapter)
         self.assertIn("rpc::Capture_Map", adapter)
 
+    def test_ship_reads_copy_at_native_refresh_and_never_rebuild_display_state_for_a_query(self):
+        native = (ROOT / "src/game/ships.cpp").read_text()
+        start = native.index("void __cdecl Build_Ship_Icons()")
+        end = native.index("int16_t __cdecl Deploy_Ships_To_Attack_Antares", start)
+        builder = native[start:end]
+        self.assertEqual(builder.count("game_events::Publish(game_events::SHIP_ICONS_REFRESHED)"), 1)
+        self.assertLess(builder.index("SHIPSTAK::Find_Ship_Stacks()"), builder.index("SHIP_ICONS_REFRESHED"))
+        self.assertLess(builder.index("qsort("), builder.index("SHIP_ICONS_REFRESHED"))
+        adapter = (ROOT / "src/rpc/game_rpc.cpp").read_text()
+        self.assertIn("case game_events::SHIP_ICONS_REFRESHED: Capture_Refreshed_Ships();", adapter)
+        for name in ("game_rpc.cpp", "rpc_game.cpp"):
+            self.assertNotRegex((ROOT / "src/rpc" / name).read_text(),
+                                r"(?:Find_Ship_Stacks|Build_Ship_Icons|Remove_Non_Detected_Ships)\s*\(")
+
 if __name__ == "__main__":
     unittest.main()

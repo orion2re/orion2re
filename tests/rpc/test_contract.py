@@ -219,12 +219,18 @@ class TypedContractTests(unittest.TestCase):
 
     def test_unaudited_object_and_field_fail_closed(self):
         with self.assertRaisesRegex(ValueError, "disabled object"):
-            audit.Validate_Value(self.Sample("Ship"), "Ship", self.contracts, self.policies, public=True)
+            audit.Validate_Value(self.Sample("Fleet"), "Fleet", self.contracts, self.policies, public=True)
         system = self.Sample("System")
         with self.assertRaisesRegex(ValueError, "disabled field"):
             audit.Validate_Value(system, "System", self.contracts, self.policies, public=True)
         system["owner"] = {"availability":"unaudited"}
         audit.Validate_Value(system, "System", self.contracts, self.policies, public=True)
+        ship = self.Sample("Ship")
+        with self.assertRaisesRegex(ValueError, "disabled field"):
+            audit.Validate_Value(ship, "Ship", self.contracts, self.policies, public=True)
+        for field in ("owner", "destination", "eta"):
+            ship[field] = {"availability":"unaudited"}
+        audit.Validate_Value(ship, "Ship", self.contracts, self.policies, public=True)
 
     def test_missing_policy_and_recursive_contract_are_rejected(self):
         broken = copy.deepcopy(self.contracts)

@@ -8,6 +8,9 @@
 #include "rpc/rpc_service.h"
 #include "rpc/rpc_settings.h"
 
+#include <algorithm>
+#include <tuple>
+
 namespace game_rpc {
     namespace {
         rpc::s_bridge bridge;
@@ -70,6 +73,55 @@ namespace game_rpc {
         return active ? &bridge : nullptr;
     }
 
+    bool Read_Refreshed_Ship_Observation(rpc::s_map_observation* observation) {
+        if (observation == nullptr) return false;
+        *observation = {};
+        rpc::s_map_observation captured;
+        if (!Read_Map_Observation(&captured) || MOX::NUM_SHIPS < 0 || MOX::NUM_SHIPS > MAX_SHIPS ||
+            (MOX::NUM_SHIPS != 0 && MOX::ship == nullptr) || MOX::ship_stack_count < 0 || MOX::ship_stack_count > MAX_SHIPS ||
+            MOX::ship_icon_count < 0 || MOX::ship_icon_count > SHIP_ICON_COUNT) return false;
+        std::vector<bool> heads(MAX_SHIPS);
+        std::vector<bool> nodes(MAX_SHIPS);
+        std::vector<bool> ships(MAX_SHIPS);
+        for (int index = 0; index < MOX::ship_stack_count; ++index) {
+            const int16_t head = MOX::ship_stack_start[index];
+            if (head < 0 || head >= MAX_SHIPS || heads[head]) return false;
+            heads[head] = true;
+        }
+        for (int index = 0; index < MOX::ship_icon_count; ++index) {
+            int16_t node = MOX::ship_icon[index].node_idx;
+            if (node < 0 || node >= MAX_SHIPS || !heads[node]) return false;
+            while (node != -1) {
+                if (node < 0 || node >= MAX_SHIPS || nodes[node]) return false;
+                nodes[node] = true;
+                const s_ship_node* link = &MOX::ship_node[node];
+                const int16_t slot = link->ship_idx;
+                if (slot < 0 || slot >= MOX::NUM_SHIPS || ships[slot]) return false;
+                ships[slot] = true;
+                const s_ship_data* ship = &MOX::ship[slot];
+                if (ship->status < 0 || ship->status >= 3) return false;
+                rpc::s_ship_observation item;
+                item.x = ship->x;
+                item.y = ship->y;
+                item.owned = ship->owner == captured.viewer;
+                if (item.owned) {
+                    const char* end = (const char*)memchr(ship->d.name, 0, sizeof(ship->d.name));
+                    if (end == nullptr) return false;
+                    config::Decode_Cp850_To_Utf8(ship->d.name, (size_t)(end - ship->d.name), &item.name);
+                }
+                captured.ships.push_back(std::move(item));
+                node = link->next_node;
+            }
+        }
+        // Native sorting uses fields outside this allowlist. Never expose that ordering.
+        std::sort(captured.ships.begin(), captured.ships.end(), [](const rpc::s_ship_observation& left, const rpc::s_ship_observation& right) {
+            return std::tie(left.x, left.y, left.owned, left.name) < std::tie(right.x, right.y, right.owned, right.name);
+        });
+        captured.ships_captured = true;
+        *observation = std::move(captured);
+        return true;
+    }
+
     static void Shutdown() {
         rpc::Stop_Service(&service);
         if (active) rpc::Shutdown_Game_Store(&store);
@@ -97,6 +149,14 @@ namespace game_rpc {
 
     static void Menu() {
         if (active) rpc::End_Game(&store);
+    }
+
+    static void Capture_Refreshed_Ships() {
+        if (!active || !store.loaded || store.busy_depth != 0) return;
+        rpc::s_map_observation observation;
+        if (!Read_Refreshed_Ship_Observation(&observation) || !rpc::Capture_Map(&store, &observation)) {
+            rpc::Begin_Game_Reset(&store);
+        }
     }
 
     static void Revoke_Perspective() {
@@ -152,6 +212,7 @@ namespace game_rpc {
                 last_capture_ms = 0;
                 break;
             case game_events::MAP_OBSERVATION_POINT: Capture_Main_Map(); break;
+            case game_events::SHIP_ICONS_REFRESHED: Capture_Refreshed_Ships(); break;
             case game_events::IDLE_OBSERVATION_POINT: Pump(); break;
             default: break;
         }

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <limits>
+#include <tuple>
 #include <utility>
 
 #include "yyjson.h"
@@ -47,11 +48,28 @@ namespace rpc {
             return true;
         }
 
-        std::string Session(const s_game_store* store) {
+        bool Same_Ships(const s_map_observation* left, const s_map_observation* right) {
+            if (left->ships_captured != right->ships_captured || left->ships.size() != right->ships.size()) return false;
+            for (size_t index = 0; index < left->ships.size(); ++index) {
+                const auto& a = left->ships[index];
+                const auto& b = right->ships[index];
+                if (std::tie(a.x, a.y, a.owned, a.name) != std::tie(b.x, b.y, b.owned, b.name)) return false;
+            }
+            return true;
+        }
+
+        const s_map_snapshot* Select_Snapshot(const s_game_store* store, bool ships) {
+            for (auto snapshot = store->snapshots.rbegin(); snapshot != store->snapshots.rend(); ++snapshot) {
+                if (!ships || snapshot->map.ships_captured) return &*snapshot;
+            }
+            return nullptr;
+        }
+
+        std::string Session(const s_game_store* store, const s_map_snapshot* selected = nullptr) {
             if (store->snapshots.empty()) {
                 return store->loaded || store->unavailable ? "{\"phase\":\"unavailable\"}" : "{\"phase\":\"menu\"}";
             }
-            const s_map_snapshot& snapshot = store->snapshots.back();
+            const s_map_snapshot& snapshot = selected != nullptr ? *selected : store->snapshots.back();
             return "{\"gameId\":" + Json_String(store->game_id) + ",\"perspectiveId\":" + Json_String(store->perspective_id) +
                 ",\"revision\":" + Json_String(std::to_string(snapshot.revision)) + ",\"turn\":" + std::to_string(snapshot.map.turn) +
                 ",\"phase\":" + Json_String(store->busy_depth != 0 ? "resolving" : "committed") + "}";
@@ -60,7 +78,8 @@ namespace rpc {
         std::string Stamp(const s_game_store* store, const s_map_snapshot* snapshot) {
             return "{\"gameId\":" + Json_String(store->game_id) + ",\"perspectiveId\":" + Json_String(store->perspective_id) +
                 ",\"snapshotId\":" + Json_String(snapshot->id) + ",\"revision\":" + Json_String(std::to_string(snapshot->revision)) +
-                ",\"turn\":" + std::to_string(snapshot->map.turn) + ",\"captureMode\":\"last-coherent-capture\"}";
+                ",\"turn\":" + std::to_string(snapshot->map.turn) + ",\"captureMode\":" +
+                Json_String(snapshot->map.ships_captured ? "last-native-ship-refresh" : "last-coherent-capture") + "}";
         }
 
         std::string System(const s_game_store* store, const s_map_snapshot* snapshot, size_t index) {
@@ -76,12 +95,30 @@ namespace rpc {
             return "{\"id\":" + Json_String(store->nebula_ids[index]) + ",\"x\":" + std::to_string(item.x) + ",\"y\":" + std::to_string(item.y) + "}";
         }
 
-        std::string Collection(const s_game_store* store, const s_map_snapshot* snapshot, bool systems, size_t offset, size_t limit) {
-            const size_t count = systems ? snapshot->map.systems.size() : snapshot->map.nebulas.size();
+        std::string Ship(const s_map_snapshot* snapshot, size_t index) {
+            const s_ship_observation& item = snapshot->map.ships[index];
+            const std::string name = item.owned ? "{\"availability\":\"current\",\"value\":" + Json_String(item.name) + "}" : "{\"availability\":\"unaudited\"}";
+            return "{\"id\":" + Json_String(snapshot->ship_ids[index]) + ",\"x\":" + std::to_string(item.x) +
+                ",\"y\":" + std::to_string(item.y) + ",\"owned\":" + (item.owned ? "true" : "false") + ",\"name\":" + name +
+                ",\"owner\":{\"availability\":\"unaudited\"},\"destination\":{\"availability\":\"unaudited\"},\"eta\":{\"availability\":\"unaudited\"}}";
+        }
+
+        size_t Collection_Size(const s_map_snapshot* snapshot, const std::string& topic) {
+            if (topic == "ships") return snapshot->map.ships.size();
+            return topic == "systems" ? snapshot->map.systems.size() : snapshot->map.nebulas.size();
+        }
+
+        std::string Collection(const s_game_store* store, const s_map_snapshot* snapshot, const std::string& topic, size_t offset, size_t limit) {
+            const size_t count = Collection_Size(snapshot, topic);
             std::string result = "[";
             for (size_t index = offset; index < count && index - offset < limit; ++index) {
                 if (index != offset) result += ',';
-                result += systems ? System(store, snapshot, index) : Nebula(store, snapshot, index);
+                if (topic == "ships")
+                    result += Ship(snapshot, index);
+                else if (topic == "systems")
+                    result += System(store, snapshot, index);
+                else
+                    result += Nebula(store, snapshot, index);
             }
             return result + "]";
         }
@@ -91,15 +128,14 @@ namespace rpc {
             return yyjson_is_str(value) ? std::string(yyjson_get_str(value), yyjson_get_len(value)) : std::string();
         }
 
-        std::string Topic_Projection(const s_game_store* store, const std::vector<std::string>* topics) {
-            const auto* snapshot = &store->snapshots.back();
+        std::string Topic_Projection(const s_game_store* store, const s_map_snapshot* snapshot, const std::vector<std::string>* topics) {
             std::string result;
             for (const std::string& topic : *topics) {
                 result += ',' + Json_String(topic) + ':';
                 if (topic == "session")
-                    result += Session(store);
+                    result += Session(store, snapshot);
                 else
-                    result += Collection(store, snapshot, topic == "systems", 0, topic == "systems" ? 1024 : 57);
+                    result += Collection(store, snapshot, topic, 0, 10000);
             }
             return result;
         }
@@ -147,17 +183,21 @@ namespace rpc {
             }
             yyjson_doc_free(doc);
             if (store->busy_depth != 0 || !store->loaded || store->snapshots.empty()) return Error_Response(request, RPC_BUSY);
+            const auto* snapshot = Select_Snapshot(store, std::find(subscription.topics.begin(), subscription.topics.end(), "ships") != subscription.topics.end());
+            if (snapshot == nullptr) return Error_Response(request, RPC_BUSY);
             const size_t client_count = std::count_if(store->subscriptions.begin(), store->subscriptions.end(), [work](const s_state_subscription& item) { return item.client == work->client; });
             if (store->subscriptions.size() >= 64 || client_count >= 16) {
                 return Error_Response(request, RPC_LIMIT_EXCEEDED);
             }
             if (!store->new_id(&subscription.id, store->id_context)) return Error_Response(request, RPC_INTERNAL_ERROR);
-            subscription.projection = Topic_Projection(store, &subscription.topics);
+            subscription.projection = Topic_Projection(store, snapshot, &subscription.topics);
             subscription.revision = store->revision;
             const std::string result = "{\"subscriptionId\":" + Json_String(subscription.id) +
-                ",\"cursor\":\"0\",\"baseline\":{\"stamp\":" + Stamp(store, &store->snapshots.back()) + subscription.projection + "}}";
+                ",\"cursor\":\"0\",\"baseline\":{\"stamp\":" + Stamp(store, snapshot) + subscription.projection + "}}";
+            const std::string response = Result_Response(request, result);
+            if (response.size() > 1048576) return Error_Response(request, RPC_LIMIT_EXCEEDED);
             store->subscriptions.push_back(std::move(subscription));
-            return Result_Response(request, result);
+            return response;
         }
 
         void Publish_State_Changes(s_game_store* store) {
@@ -166,7 +206,16 @@ namespace rpc {
                 if (subscription.revision == store->revision) continue;
                 subscription.revision = store->revision;
                 if (!subscription.state_changes) continue;
-                std::string projection = Topic_Projection(store, &subscription.topics);
+                const auto* snapshot = Select_Snapshot(store, std::find(subscription.topics.begin(), subscription.topics.end(), "ships") != subscription.topics.end());
+                if (snapshot == nullptr) {
+                    Cancel_Client(store->bridge, subscription.client);
+                    continue;
+                }
+                std::string projection = Topic_Projection(store, snapshot, &subscription.topics);
+                if (projection.size() > 1048576) {
+                    Cancel_Client(store->bridge, subscription.client);
+                    continue;
+                }
                 if (projection == subscription.projection) continue;
                 if (subscription.cursor == std::numeric_limits<uint64_t>::max()) {
                     Cancel_Client(store->bridge, subscription.client);
@@ -174,7 +223,7 @@ namespace rpc {
                 }
                 const std::string json = "{\"jsonrpc\":\"2.0\",\"method\":\"state.changed\",\"params\":{\"subscriptionId\":" +
                     Json_String(subscription.id) + ",\"cursor\":" + Json_String(std::to_string(++subscription.cursor)) +
-                    ",\"topics\":" + Topics_Json(&subscription.topics) + ",\"stamp\":" + Stamp(store, &store->snapshots.back()) + "}}";
+                    ",\"topics\":" + Topics_Json(&subscription.topics) + ",\"stamp\":" + Stamp(store, snapshot) + "}}";
                 if (Publish_Event(store->bridge, subscription.client, subscription.epoch, &json, &subscription.id)) subscription.projection = std::move(projection);
             }
         }
@@ -220,7 +269,19 @@ namespace rpc {
                 *error = RPC_BUSY;
                 return {};
             }
-            const s_map_snapshot* snapshot = &store->snapshots.back();
+            bool ships = request->method == "game.listShips" || request->method == "game.getShip";
+            if (request->method == "game.getState") {
+                size_t index, count;
+                yyjson_val* topic;
+                yyjson_arr_foreach(yyjson_obj_get(params, "include"), index, count, topic) {
+                    ships |= std::string(yyjson_get_str(topic), yyjson_get_len(topic)) == "ships";
+                }
+            }
+            const s_map_snapshot* snapshot = Select_Snapshot(store, ships);
+            if (snapshot == nullptr) {
+                *error = Text(params, "cursor").empty() ? RPC_BUSY : RPC_OBJECT_UNAVAILABLE;
+                return {};
+            }
             if (request->method == "game.getState") {
                 std::string result = "{\"stamp\":" + Stamp(store, snapshot);
                 yyjson_val* include = yyjson_obj_get(params, "include");
@@ -229,11 +290,13 @@ namespace rpc {
                 yyjson_arr_foreach(include, index, count, topic) {
                     const std::string name(yyjson_get_str(topic), yyjson_get_len(topic));
                     if (name == "session")
-                        result += ",\"session\":" + Session(store);
+                        result += ",\"session\":" + Session(store, snapshot);
                     else if (name == "systems")
-                        result += ",\"systems\":" + Collection(store, snapshot, true, 0, 1024);
+                        result += ",\"systems\":" + Collection(store, snapshot, name, 0, 1024);
                     else if (name == "nebulas")
-                        result += ",\"nebulas\":" + Collection(store, snapshot, false, 0, 57);
+                        result += ",\"nebulas\":" + Collection(store, snapshot, name, 0, 57);
+                    else if (name == "ships")
+                        result += ",\"ships\":" + Collection(store, snapshot, name, 0, 10000);
                     else {
                         *error = RPC_INVALID_PARAMS;
                         return {};
@@ -241,21 +304,22 @@ namespace rpc {
                 }
                 return result + "}";
             }
-            if (request->method == "game.getSystem") {
+            if (request->method == "game.getSystem" || request->method == "game.getShip") {
                 const std::string id = Text(params, "id");
-                for (size_t index = 0; index < snapshot->map.systems.size(); ++index) {
-                    if (store->system_ids[index] == id) {
-                        return "{\"stamp\":" + Stamp(store, snapshot) + ",\"item\":" + System(store, snapshot, index) + "}";
+                const auto& ids = ships ? snapshot->ship_ids : store->system_ids;
+                for (size_t index = 0; index < ids.size(); ++index) {
+                    if (ids[index] == id) {
+                        return "{\"stamp\":" + Stamp(store, snapshot) + ",\"item\":" + (ships ? Ship(snapshot, index) : System(store, snapshot, index)) + "}";
                     }
                 }
                 *error = RPC_OBJECT_UNAVAILABLE;
                 return {};
             }
-            if (request->method != "game.listSystems" && request->method != "game.listNebulas") {
+            if (request->method != "game.listSystems" && request->method != "game.listNebulas" && request->method != "game.listShips") {
                 *error = RPC_METHOD_NOT_FOUND;
                 return {};
             }
-            const bool systems = request->method == "game.listSystems";
+            const std::string topic = ships ? "ships" : (request->method == "game.listSystems" ? "systems" : "nebulas");
             size_t offset = 0;
             yyjson_val* requested_limit = yyjson_obj_get(params, "limit");
             size_t limit = requested_limit != nullptr ? (size_t)yyjson_get_uint(requested_limit) : 64;
@@ -276,8 +340,8 @@ namespace rpc {
                 offset = cursor->offset;
                 limit = cursor->limit;
             }
-            const size_t total = systems ? snapshot->map.systems.size() : snapshot->map.nebulas.size();
-            std::string result = "{\"stamp\":" + Stamp(store, snapshot) + ",\"items\":" + Collection(store, snapshot, systems, offset, limit);
+            const size_t total = Collection_Size(snapshot, topic);
+            std::string result = "{\"stamp\":" + Stamp(store, snapshot) + ",\"items\":" + Collection(store, snapshot, topic, offset, limit);
             if (offset + limit < total) {
                 auto next = std::find_if(store->cursors.begin(), store->cursors.end(), [&](const s_map_cursor& item) {
                     return item.snapshot == snapshot->id && item.method == request->method && item.offset == offset + limit && item.limit == limit;
@@ -356,7 +420,7 @@ namespace rpc {
     bool Capture_Map(s_game_store* store, const s_map_observation* observation) {
         if (store == nullptr || observation == nullptr || !store->loaded || store->busy_depth != 0 ||
             observation->viewer < 0 || observation->viewer >= 8 || observation->turn < 0 ||
-            observation->systems.size() > 1024 || observation->nebulas.size() > 57) return false;
+            observation->systems.size() > 1024 || observation->nebulas.size() > 57 || observation->ships.size() > 10000) return false;
         // Bind newly authorized default observers to the old coherent turn before replacing it.
         Sync_Turn_Observers(store);
         s_map_observation projected = *observation;
@@ -365,6 +429,14 @@ namespace rpc {
             if (!system.name_available) system.name.clear();
             if (system.name.size() > 4096) return false;
         }
+        if (!projected.ships_captured) projected.ships.clear();
+        for (s_ship_observation& ship : projected.ships) {
+            if (!ship.owned) ship.name.clear();
+            if (ship.name.size() > 48) return false;
+        }
+        std::sort(projected.ships.begin(), projected.ships.end(), [](const s_ship_observation& left, const s_ship_observation& right) {
+            return std::tie(left.x, left.y, left.owned, left.name) < std::tie(right.x, right.y, right.owned, right.name);
+        });
         store->capture_requested = false;
         if (!store->snapshots.empty() && (projected.systems.size() != store->snapshots.back().map.systems.size() || projected.nebulas.size() != store->snapshots.back().map.nebulas.size())) {
             Revoke_Game_View(store);
@@ -374,7 +446,8 @@ namespace rpc {
             if (!store->new_id(&store->perspective_id, store->id_context)) return false;
             store->viewer = projected.viewer;
         }
-        if (!store->snapshots.empty() && Same_Map(&projected, &store->snapshots.back().map)) return true;
+        if (!store->snapshots.empty() && Same_Map(&projected, &store->snapshots.back().map) &&
+            (!projected.ships_captured || Same_Ships(&projected, &store->snapshots.back().map))) return true;
         if (store->revision == std::numeric_limits<uint64_t>::max()) return false;
         auto Extend = [store](std::vector<std::string>* ids, size_t count) {
             while (ids->size() < count) {
@@ -388,6 +461,11 @@ namespace rpc {
         s_map_snapshot snapshot;
         if (!store->new_id(&snapshot.id, store->id_context)) return false;
         snapshot.map = std::move(projected);
+        const auto* previous_ships = Select_Snapshot(store, true);
+        if (snapshot.map.ships_captured && previous_ships != nullptr && Same_Ships(&snapshot.map, &previous_ships->map)) {
+            snapshot.ship_ids = previous_ships->ship_ids;
+        }
+        if (!Extend(&snapshot.ship_ids, snapshot.map.ships.size())) return false;
         snapshot.revision = ++store->revision;
         store->snapshots.push_back(std::move(snapshot));
         if (store->snapshots.size() > 4) store->snapshots.pop_front();
@@ -404,7 +482,9 @@ namespace rpc {
         int32_t error = 0;
         const std::string result = Query(store, request, yyjson_doc_get_root(params), &error);
         yyjson_doc_free(params);
-        return error != 0 ? Error_Response(request, error) : Result_Response(request, result);
+        if (error != 0) return Error_Response(request, error);
+        const std::string response = Result_Response(request, result);
+        return response.size() > 1048576 ? Error_Response(request, RPC_LIMIT_EXCEEDED) : response;
     }
 
     void Pump_Game_Queries(s_game_store* store) {

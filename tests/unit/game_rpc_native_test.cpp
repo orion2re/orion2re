@@ -2,6 +2,7 @@
 #include "doctest/doctest.h"
 #include "rpc/game_rpc.h"
 #include "rpc/rpc_game.h"
+#include "game/game_events.h"
 
 #include <chrono>
 #include <iostream>
@@ -57,6 +58,70 @@ namespace {
             MOX::NUM_STARS = old_stars_count;
             MOX::NUM_NEBULAS = old_nebulas_count;
             MOX::stardate = old_turn;
+        }
+    };
+
+    struct s_ship_world {
+        s_world world;
+        s_ship_data* old_ships = MOX::ship;
+        void* old_pool = MOX::global_data_seg;
+        int16_t old_count = MOX::NUM_SHIPS;
+        int16_t old_stack_count = MOX::ship_stack_count;
+        int16_t old_icon_count = MOX::ship_icon_count;
+        int16_t old_free_node = MOX::next_free_node;
+        SHIPSTAK::s_scan_bonus old_scan = SHIPSTAK::scan_bonus;
+        SHIPSTAK::s_stealth_bonus old_stealth = SHIPSTAK::stealth_bonus;
+        int16_t old_colonies = MOX::NUM_COLONIES;
+        std::vector<s_ship_node> old_nodes = {std::begin(MOX::ship_node), std::end(MOX::ship_node)};
+        std::vector<int16_t> old_heads = {std::begin(MOX::ship_stack_start), std::end(MOX::ship_stack_start)};
+        std::vector<s_ship_icon> old_icons = {std::begin(MOX::ship_icon), std::end(MOX::ship_icon)};
+        std::vector<s_ship_data> ships = std::vector<s_ship_data>(MAX_SHIPS);
+        s_ship_world() {
+            MOX::ship = ships.data();
+            MOX::NUM_SHIPS = 3;
+            MOX::NUM_COLONIES = 0;
+            MOX::global_data_seg = allocate::Allocate_Space(1 << 20);
+            SHIPSTAK::scan_bonus = {};
+            SHIPSTAK::scan_bonus.no_scanner = 2;
+            SHIPSTAK::stealth_bonus = {};
+            SHIPSTAK::stealth_bonus.stealth_field = 10;
+            ships[0].owner = 0;
+            memcpy(ships[0].d.name, "Own\x82", 5);
+            ships[1].owner = 1;
+            ships[1].x = 30;
+            ships[2].owner = 1;
+            ships[2].x = 30000;
+        }
+        ~s_ship_world() {
+            free((allocate::s_alloc_header*)MOX::global_data_seg - 1);
+            MOX::global_data_seg = old_pool;
+            MOX::ship = old_ships;
+            MOX::NUM_SHIPS = old_count;
+            MOX::NUM_COLONIES = old_colonies;
+            MOX::ship_stack_count = old_stack_count;
+            MOX::ship_icon_count = old_icon_count;
+            MOX::next_free_node = old_free_node;
+            SHIPSTAK::scan_bonus = old_scan;
+            SHIPSTAK::stealth_bonus = old_stealth;
+            std::copy(old_nodes.begin(), old_nodes.end(), MOX::ship_node);
+            std::copy(old_heads.begin(), old_heads.end(), MOX::ship_stack_start);
+            std::copy(old_icons.begin(), old_icons.end(), MOX::ship_icon);
+        }
+    };
+
+    struct s_ship_listener {
+        rpc::s_map_observation observed;
+        bool valid = false;
+        int calls = 0;
+        uint64_t token = game_events::Subscribe([](game_events::e_event event, void* context) {
+            if (event != game_events::SHIP_ICONS_REFRESHED) return;
+            auto* listener = (s_ship_listener*)context;
+            ++listener->calls;
+            listener->valid = game_rpc::Read_Refreshed_Ship_Observation(&listener->observed);
+        },
+            this);
+        ~s_ship_listener() {
+            game_events::Unsubscribe(token);
         }
     };
 } // namespace
@@ -123,5 +188,128 @@ DOCTEST_TEST_CASE("maximum initial native projection fits the bridge response bo
               << " bytes=" << response.size()
               << " capture_us=" << std::chrono::duration_cast<std::chrono::microseconds>(captured - started).count()
               << " encode_us=" << std::chrono::duration_cast<std::chrono::microseconds>(encoded - captured).count() << '\n';
+    rpc::Shutdown_Game_Store(&store);
+}
+
+DOCTEST_TEST_CASE("native ship refresh publishes only surviving displayed links without changing rules or RNG") {
+    s_ship_world fixture;
+    s_ship_listener listener;
+    DOCTEST_REQUIRE(listener.token != 0);
+    const uint32_t seed = game_random::Get_Random_Seed();
+    SHIPS::Build_Ship_Icons();
+    DOCTEST_REQUIRE(listener.calls == 1);
+    DOCTEST_REQUIRE(listener.valid);
+    DOCTEST_REQUIRE(listener.observed.ships_captured);
+    DOCTEST_REQUIRE(listener.observed.ships.size() == 2);
+    DOCTEST_CHECK(listener.observed.ships[0].owned);
+    DOCTEST_CHECK(listener.observed.ships[0].name == "Own\xc3\xa9");
+    DOCTEST_CHECK_FALSE(listener.observed.ships[1].owned);
+    DOCTEST_CHECK(listener.observed.ships[1].name.empty());
+    DOCTEST_CHECK(listener.observed.ships[1].x == 30);
+    DOCTEST_CHECK(game_random::Get_Random_Seed() == seed);
+    rpc::s_bridge bridge;
+    rpc::s_game_store store;
+    DOCTEST_REQUIRE(rpc::Initialize_Game_Store(&store, &bridge));
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&store));
+    DOCTEST_REQUIRE(rpc::Capture_Map(&store, &listener.observed));
+    rpc::s_request list;
+    list.method = "game.listShips";
+    list.params_json = "{}";
+    list.id_json = "1";
+    const std::string baseline = rpc::Game_Query(&store, &list);
+
+    // Neither an unlinked ship's fields nor a detected enemy's secret fields are copied.
+    memset(fixture.ships[2].d.name, 'x', sizeof(fixture.ships[2].d.name));
+    memset(fixture.ships[1].d.name, 'y', sizeof(fixture.ships[1].d.name));
+    fixture.ships[1].turns_left = 99;
+    fixture.ships[1].location = SHIP_LOCATION_MOVING_OFFSET + 1;
+    MOX::NUM_SHIPS = 4;
+    fixture.ships[3].status = 5;
+    SHIPS::Build_Ship_Icons();
+    DOCTEST_REQUIRE(listener.valid);
+    DOCTEST_REQUIRE(listener.observed.ships.size() == 2);
+    DOCTEST_CHECK(listener.observed.ships[1].name.empty());
+    DOCTEST_REQUIRE(rpc::Capture_Map(&store, &listener.observed));
+    DOCTEST_CHECK(rpc::Game_Query(&store, &list) == baseline);
+
+    struct_::Set_Bit_Field(fixture.ships[1].d.special_device_flags, SPECIAL_STEALTH_FIELD);
+    SHIPS::Build_Ship_Icons();
+    DOCTEST_REQUIRE(listener.valid);
+    DOCTEST_CHECK(listener.observed.ships.size() == 1);
+    fixture.world.players[0].traits[TRAIT_OMNISCIENCE] = 1;
+    SHIPS::Build_Ship_Icons();
+    DOCTEST_REQUIRE(listener.valid);
+    DOCTEST_CHECK(listener.observed.ships.size() == 3);
+    DOCTEST_CHECK(game_random::Get_Random_Seed() == seed);
+    rpc::Shutdown_Game_Store(&store);
+}
+
+DOCTEST_TEST_CASE("ship projection fails closed on malformed fresh links and never retains native pointers") {
+    s_ship_world fixture;
+    SHIPS::Build_Ship_Icons();
+    const std::vector<s_ship_node> original_nodes(std::begin(MOX::ship_node), std::end(MOX::ship_node));
+    const std::vector<s_ship_icon> original_icons(std::begin(MOX::ship_icon), std::end(MOX::ship_icon));
+    rpc::s_map_observation captured;
+    DOCTEST_REQUIRE(game_rpc::Read_Refreshed_Ship_Observation(&captured));
+    DOCTEST_CHECK(memcmp(original_nodes.data(), MOX::ship_node, sizeof(MOX::ship_node)) == 0);
+    DOCTEST_CHECK(memcmp(original_icons.data(), MOX::ship_icon, sizeof(MOX::ship_icon)) == 0);
+    const int16_t head = MOX::ship_icon[0].node_idx;
+    const s_ship_node original = MOX::ship_node[head];
+    MOX::ship_node[head].next_node = head;
+    rpc::s_map_observation invalid;
+    DOCTEST_CHECK_FALSE(game_rpc::Read_Refreshed_Ship_Observation(&invalid));
+    DOCTEST_CHECK_FALSE(invalid.ships_captured);
+    DOCTEST_CHECK(invalid.ships.empty());
+    MOX::ship_node[head] = original;
+    MOX::ship_node[head].ship_idx = MOX::NUM_SHIPS;
+    DOCTEST_CHECK_FALSE(game_rpc::Read_Refreshed_Ship_Observation(&invalid));
+    MOX::ship_node[head] = original;
+    MOX::ship_icon[0].node_idx = MAX_SHIPS - 1; // Not a surviving stack head.
+    DOCTEST_CHECK_FALSE(game_rpc::Read_Refreshed_Ship_Observation(&invalid));
+    memset(fixture.ships[0].d.name, 'z', sizeof(fixture.ships[0].d.name));
+    DOCTEST_CHECK(captured.ships[0].name == "Own\xc3\xa9");
+}
+
+DOCTEST_TEST_CASE("maximum precomputed ship display copies bounded projected records and pages without game assets") {
+    s_ship_world fixture;
+    MOX::NUM_SHIPS = MAX_SHIPS;
+    MOX::ship_stack_count = 1;
+    MOX::ship_stack_start[0] = 0;
+    MOX::ship_icon_count = 1;
+    MOX::ship_icon[0].node_idx = 0;
+    for (int index = 0; index < MAX_SHIPS; ++index) {
+        MOX::ship_node[index] = {(int16_t)index, (int16_t)(index + 1 == MAX_SHIPS ? -1 : index + 1), 0};
+        fixture.ships[index].owner = 0;
+        fixture.ships[index].x = -32768;
+        fixture.ships[index].y = 32767;
+        memset(fixture.ships[index].d.name, 0xb0, sizeof(fixture.ships[index].d.name) - 1);
+        fixture.ships[index].d.name[sizeof(fixture.ships[index].d.name) - 1] = 0;
+    }
+    const uint32_t seed = game_random::Get_Random_Seed();
+    const auto started = std::chrono::steady_clock::now();
+    rpc::s_map_observation observed;
+    DOCTEST_REQUIRE(game_rpc::Read_Refreshed_Ship_Observation(&observed));
+    DOCTEST_REQUIRE(observed.ships.size() == MAX_SHIPS);
+    rpc::s_bridge bridge;
+    rpc::s_game_store store;
+    DOCTEST_REQUIRE(rpc::Initialize_Game_Store(&store, &bridge));
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&store));
+    DOCTEST_REQUIRE(rpc::Capture_Map(&store, &observed));
+    const auto captured = std::chrono::steady_clock::now();
+    rpc::s_request request;
+    request.method = "game.listShips";
+    request.id_json = "1";
+    request.params_json = "{\"limit\":256}";
+    const std::string page = rpc::Game_Query(&store, &request);
+    const auto encoded = std::chrono::steady_clock::now();
+    DOCTEST_CHECK(page.size() < 1048576);
+    DOCTEST_CHECK(page.find("\"error\"") == std::string::npos);
+    request.method = "game.getState";
+    request.params_json = "{\"include\":[\"ships\"]}";
+    DOCTEST_CHECK(rpc::Game_Query(&store, &request).find("-32005") != std::string::npos);
+    DOCTEST_CHECK(game_random::Get_Random_Seed() == seed);
+    std::cout << "ship-refresh-profile ships=" << observed.ships.size() << " page_bytes=" << page.size()
+              << " capture_us=" << std::chrono::duration_cast<std::chrono::microseconds>(captured - started).count()
+              << " page_encode_us=" << std::chrono::duration_cast<std::chrono::microseconds>(encoded - captured).count() << '\n';
     rpc::Shutdown_Game_Store(&store);
 }

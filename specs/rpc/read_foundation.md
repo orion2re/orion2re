@@ -1,5 +1,9 @@
 # P1 read sidecar and neutral game events
 
+The subsequent [ship-refresh increment](ship_refresh.md) adds conservative ship
+list/detail/state/subscription reads from already calculated native display state.
+The original session/map evidence below remains scoped to that foundation.
+
 Prepared with AI assistance. This increment adds an initial read projection, not
 the complete game-query catalog. The dependency direction is now enforced:
 

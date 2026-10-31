@@ -163,7 +163,7 @@ class TransportTests(unittest.TestCase):
         described = client.Read()
         self.assertEqual(described["id"], "d")
         self.assertEqual({item["name"] for item in described["result"]["methods"]},
-                         {"rpc.hello","rpc.describe","rpc.subscribe","rpc.unsubscribe","game.getSession","game.getState","game.listSystems","game.getSystem","game.listNebulas"})
+                         {"rpc.hello","rpc.describe","rpc.subscribe","rpc.unsubscribe","game.getSession","game.getState","game.listSystems","game.getSystem","game.listNebulas","game.listShips","game.getShip"})
 
     def test_wrong_key_is_rejected_and_connection_closed(self):
         client = self.Client()
@@ -394,7 +394,7 @@ class TransportTests(unittest.TestCase):
         self.Fixture("world")
         client = self.Client()
         client.Hello()
-        for params in ({"topics":["ships"],"events":["state.changed"]},
+        for params in ({"topics":["colonies"],"events":["state.changed"]},
                        {"topics":["systems"],"events":["ui.contextChanged"]},
                        {"topics":[],"events":["state.changed"]},
                        {"topics":["systems"],"events":[]}):
@@ -449,6 +449,50 @@ class TransportTests(unittest.TestCase):
         event = client.Read()
         self.assertEqual(event["method"], "game.turnAdvanced")
         self.assertEqual(event["params"]["turn"], 35001)
+
+    def test_ship_reads_and_combined_state_use_a_single_dated_refresh_without_secret_fields(self):
+        self.Fixture("world")
+        client = self.Client()
+        client.Hello()
+        self.assertEqual(self.Query(client, "game.listShips")["error"]["code"], -32002)
+        self.Fixture("ships")
+        baseline = self.Query(client, "game.getState", {"include":["session","systems","ships"]})["result"]
+        self.assertEqual(baseline["stamp"]["captureMode"], "last-native-ship-refresh")
+        self.assertEqual(len(baseline["ships"]), 3)
+        self.assertEqual(baseline["ships"][0]["name"], {"availability":"current","value":"Own ship"})
+        self.assertNotIn("secret", json.dumps(baseline))
+        for field in ("owner", "name", "destination", "eta"):
+            self.assertEqual(baseline["ships"][1][field], {"availability":"unaudited"})
+        known = baseline["ships"][0]
+        self.assertEqual(self.Query(client, "game.getShip", {"id":known["id"]})["result"]["item"], known)
+        self.Fixture("hidden")
+        self.assertEqual(self.Query(client, "game.getState", {"include":["session","systems","ships"]})["result"], baseline)
+        self.Fixture("map-only")
+        self.assertEqual(self.Query(client, "game.getState", {"include":["session","systems","ships"]})["result"], baseline)
+        self.assertEqual(self.Query(client, "game.listSystems")["result"]["items"][0]["name"]["value"], "Later map")
+
+    def test_ship_subscription_pagination_and_observation_handle_revocation(self):
+        self.Fixture("world")
+        self.Fixture("ships")
+        client = self.Client()
+        client.Hello()
+        subscribed = self.Query(client, "rpc.subscribe", {"topics":["ships"],"events":["state.changed"]})["result"]
+        known = subscribed["baseline"]["ships"][0]
+        first = self.Query(client, "game.listShips", {"limit":1})["result"]
+        self.Fixture("hidden")
+        self.assertEqual(self.Query(client, "game.getShip", {"id":known["id"]})["result"]["item"], known)
+        self.Fixture("ship-move")
+        changed = client.Read()
+        self.assertEqual(changed["method"], "state.changed")
+        self.assertEqual(changed["params"]["subscriptionId"], subscribed["subscriptionId"])
+        page = self.Query(client, "game.listShips", {"cursor":first["nextCursor"]})["result"]
+        self.assertEqual(page["stamp"], first["stamp"])
+        self.assertEqual(page["items"][0]["x"], 30)
+        stale = self.Query(client, "game.getShip", {"id":known["id"]})
+        self.assertEqual(stale, self.Query(client, "game.getShip", {"id":"unknown"}))
+        self.Fixture("switch")
+        with self.assertRaises((EOFError, ConnectionError)):
+            client.Read()
 
 
 if __name__ == "__main__":

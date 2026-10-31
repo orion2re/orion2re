@@ -21,17 +21,27 @@ namespace rpc {
         int16_t y = 0;
     };
 
+    struct s_ship_observation {
+        int16_t x = 0;
+        int16_t y = 0;
+        bool owned = false;
+        std::string name; // Own name only; foreign names are not read.
+    };
+
     struct s_map_observation {
         int32_t viewer = -1; // Private native identity, never encoded.
         int32_t turn = 0;
         std::vector<s_system_observation> systems;
         std::vector<s_nebula_observation> nebulas;
+        bool ships_captured = false;
+        std::vector<s_ship_observation> ships;
     };
 
     struct s_map_snapshot {
         s_map_observation map;
         std::string id;
         uint64_t revision = 0;
+        std::vector<std::string> ship_ids; // Read handles scoped to this immutable capture.
     };
 
     struct s_map_cursor {

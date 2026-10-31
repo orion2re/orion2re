@@ -3,13 +3,13 @@
 
 **Optional runtime, disabled by default.** Only the implemented methods listed below are callable when the RPC build and settings enable it.
 
-Implemented methods: `rpc.hello`, `rpc.describe`, `rpc.subscribe`, `rpc.unsubscribe`, `game.getSession`, `game.getState`, `game.listSystems`, `game.getSystem`, `game.listNebulas`.
+Implemented methods: `rpc.hello`, `rpc.describe`, `rpc.subscribe`, `rpc.unsubscribe`, `game.getSession`, `game.getState`, `game.listSystems`, `game.getSystem`, `game.listNebulas`, `game.listShips`, `game.getShip`.
 
 This document is rendered from `schema.json`, not a second method catalog.
 The root schema validates acknowledged client requests; per-method success responses and server notifications have separate definitions.
 All fields are non-null unless explicitly stated. Unknown keys are rejected. UTF-8 byte limits, lexical integer tokens, duplicate keys, depth and authorization need the protocol guards in addition to standard JSON Schema validation.
 
-Source bundle SHA-256: `2403a0cf8fd4aa478c9668b04f2308d986e5c76eb504e8ff5f5c3988aab535f6`.
+Source bundle SHA-256: `9f26dfa901604495944bbc24563d1b9d590cfa813e42692596d14dad60907e8a`.
 
 ## Methods
 
@@ -121,7 +121,7 @@ Values: `primary`, `secondary`.
 
 ### CaptureMode
 
-Values: `last-coherent-capture`.
+Values: `last-coherent-capture`, `last-native-ship-refresh`.
 
 ### Chat
 
@@ -957,9 +957,12 @@ Values: `menu`, `committed`, `resolving`, `revoked`, `ending`, `unavailable`.
 
 | Field | Type | Required | Policy |
 | --- | --- | --- | --- |
-| id | Id | yes | disabled-ship |
+| id | Id | yes | ships-refreshed |
+| x | Coord | yes | ships-refreshed |
+| y | Coord | yes | ships-refreshed |
+| owned | Bool | yes | ships-refreshed |
 | owner | KnownId | yes | disabled-ship |
-| name | KnownText | yes | disabled-ship |
+| name | KnownText | yes | ship-own-name |
 | destination | KnownId | yes | disabled-ship |
 | eta | KnownTurns | yes | disabled-ship |
 
@@ -1041,11 +1044,11 @@ Constraints: `{"maxLength": 128, "minLength": 0, "type": "string", "x-maxUtf8Byt
 
 ### StateTopic
 
-Values: `session`, `systems`, `nebulas`.
+Values: `session`, `systems`, `nebulas`, `ships`.
 
 ### StateTopics
 
-Array of `StateTopic`; 0..3 items; unique: true.
+Array of `StateTopic`; 0..4 items; unique: true.
 
 ### StreamGap
 
@@ -1079,7 +1082,7 @@ Array of `SubscriptionEvent`; 1..2 items; unique: true.
 
 ### SubscriptionTopics
 
-Array of `StateTopic`; 1..3 items; unique: true.
+Array of `StateTopic`; 1..4 items; unique: true.
 
 ### System
 
@@ -1244,7 +1247,9 @@ Reviewed means static evidence, not runtime visibility approval.
 | disabled-player | disabled | Pending active/contact/omniscience and field-specific own economy audit. No global player enumeration; own treasury does not authorize opponent treasury. | src/game/racescrn.cpp: Init_Race_Display_Data | T-01, T-02, T-03 |
 | disabled-planet | disabled | Pending read-only equivalent of native explored-planet policy; do not invoke a mutable list builder. Orbit/name/type separately gated. | src/game/plntsum.cpp: Filter_Explored_Planets | T-01, T-02 |
 | disabled-colony | disabled | Own live colony and individually audited native display values only; foreign intelligence is a separate policy. Population is displayed units, never an unaudited native scaled value. | src/game/colony_main.cpp: Colony_Screen | T-01, T-02, T-03 |
-| disabled-ship | disabled | Pending pure detection policy extraction. Display-node identity and route/ETA conditions differ. No builder invocation, stale nodes, raw location, cargo, orders or enemy design dump. | src/game/shipstak.cpp: Remove_Non_Detected_Ships; src/game/ships.cpp: Do_Ship_Destination_Lines; src/game/ships.cpp: Print_Eta_On_Ship_Icon | T-01, T-02 |
+| ships-refreshed | reviewed | Only synchronous post-Build_Ship_Icons capture for the bound active human viewer, outside world mutation/resolution. Follow fresh icon heads that are surviving stack heads and their linked nodes; never enumerate unlinked allocations or rebuild for a query. Copy only map x/y and own-versus-foreign classification. Sort the authorized projection before assigning opaque read-only observation handles; no native slots or durable ship identity are published. One coherent map/ship capture, explicitly dated last-native-ship-refresh. Handle sets are replaced when the projected ship collection changes; no action may use them. | src/game/ships.cpp: Build_Ship_Icons; src/game/shipstak.cpp: Find_Ship_Stacks; src/game/shipstak.cpp: Remove_Non_Detected_Ships; src/game/haccess.cpp: Ship_Stack_X; src/game/haccess.cpp: Ship_Stack_Y; src/game/haccess.cpp: Ship_Stack_Owner | T-01, T-02, T-05 |
+| ship-own-name | reviewed | Only the bound viewer&#x27;s own ship: bounded NUL-terminated copy of d.name decoded from CP850 to UTF-8, at the same authorized post-refresh capture. Foreign name bytes are never read; their name is explicitly unaudited rather than a scan-knowledge claim. | src/game/fleetpop.cpp: Get_Fleetpop_Scanned_Ship_Info | T-01, T-02, T-03 |
+| disabled-ship | disabled | Player-ID mapping, enemy names/scan details, route/destination/ETA require independent field audits. Surviving detection does not authorize raw location, cargo, orders or enemy design data. No scanner-policy extraction is needed for the initial post-refresh projection. | src/game/ships.cpp: Do_Ship_Destination_Lines; src/game/ships.cpp: Print_Eta_On_Ship_Icon | T-01, T-02 |
 | disabled-fleet | disabled | Group only already authorized ships; stable IDs must not be rebuilt stack indices. Destination/ETA separately filtered. | src/game/shipstak.cpp: Find_Ship_Stacks | T-01, T-02 |
 | disabled-design | disabled | Own templates or actual active scan-authorized details; calculators must be audited for mutation before sharing. | src/game/design_main.cpp: Design_Screen; src/game/cmbtdrw1.cpp: Detailed_View_Ship | T-01, T-02, T-03 |
 | disabled-leader | disabled | Only owned or actually offered/discovered leaders; no enumeration of generated/hidden hero slots. | src/game/officer.cpp: Officers_Screen; src/game/mainpups.cpp: Random_New_Officer_Popup | T-01, T-02 |

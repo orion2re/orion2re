@@ -123,6 +123,12 @@ decoded stardate. The listener is scoped and removed before fixture destruction;
 no packet data, game rules, native APIs or fixture values change. The audit permits
 this reviewed test path explicitly rather than allowing arbitrary unit-test drift.
 
+The approved post-refresh ship increment adds only a neutral publication after
+`SHIPS::Build_Ship_Icons` completes (`src/game/ships.cpp`). No detection calculations
+or gameplay API are extracted or changed. `game_rpc_native_test.cpp` observes the
+actual native filter/builder and verifies the sidecar's copied allowlist. This one
+additional native hook path is explicitly permitted by the drift audit.
+
 ## Static method descriptor source
 
 `methods.json` contains every explicitly named method in plan section 4, without
@@ -130,7 +136,7 @@ the illustrative `(include)` signature suffix. Owner names are **proposed
 ownership labels**, not claims that those C++ adapters already exist. Shared UI
 actions dispatch through the active registered owner, not a global input injector.
 
-Runtime is opt-in; `implementedMethods` lists the nine implemented methods.
+Runtime is opt-in; `implementedMethods` lists the eleven implemented methods.
 `contracts.json` supplies concrete
 request/result types for every named method; `field_policies.json` supplies native
 source anchors, predicates and required test IDs. These are contract definitions,

@@ -2,7 +2,7 @@
 
 Status: P1 read foundation in progress. Optional libuv-backed WebSockets,
 configured-key hello, metadata discovery, game-thread dispatch and an initial
-immutable session/map projection, atomic initial-topic subscriptions, bounded
+immutable session/map and post-refresh ship projections, atomic audited-topic subscriptions, bounded
 state coalescing and committed-capture turn notifications are implemented. Game code is RPC-unaware and
 publishes only neutral observer events; the application composes the RPC sidecar.
 Most gameplay query families and all remote actions remain uncallable. P0-06, P0-09 and
@@ -949,8 +949,9 @@ envelope and source-driven argument checks, configured-key hello, supported-meth
 discovery, per-client limits, bounded immutable output and copied-work bridge.
 Implemented/advertised methods are `rpc.hello`, `rpc.describe`, `rpc.subscribe`,
 `rpc.unsubscribe`, `game.getSession`,
-`game.getState`, `game.listSystems`, `game.getSystem` and `game.listNebulas`.
-`getState.include` is explicitly restricted to session/systems/nebulas. Remaining
+`game.getState`, `game.listSystems`, `game.getSystem`, `game.listNebulas`,
+`game.listShips` and `game.getShip`.
+`getState.include` is explicitly restricted to session/systems/nebulas/ships. Remaining
 query families, UI/media and all actions remain method-not-found;
 planned schemas alone do not authorize or implement them.
 
@@ -963,7 +964,7 @@ Local `rpc_enabled`,
 The key is converted from native CP850 config storage to UTF-8 for exact comparison.
 No approval dialog, per-launch secret file or arbitrary viewer selection exists.
 
-The sidecar captures only at a neutral initialized-map observation event, then
+The sidecar captures at neutral initialized-map and completed ship-icon refresh events, then
 serves the immutable capture from neutral idle events independently of the open
 screen. Captures explicitly report `last-coherent-capture`, turn/revision and
 snapshot identity; no latest-live-state claim is made. World replacement attempts,
@@ -974,14 +975,16 @@ changes close old connections and require a fresh key handshake.
 The initial projection contains native map positions and the bound human viewer's
 visited bit; visited non-black-hole names are bounded CP850-decoded copies with
 native outpost lowercase. Contact/lore-only names and system owner remain
-`unaudited`; planet/ship/foreign economy data is not inspected. Nebula positions
+`unaudited`; planet and foreign economy data is not inspected. Ship observations
+copy only fresh surviving displayed links, map positions, own/foreign classification
+and owned names. Enemy names/routes/ETA/design/cargo are not read. Nebula positions
 follow native unconditional map drawing. Hidden-only changes do not revise views.
 Lists use opaque snapshot-pinned cursors, bounded to 64 cursors/four retained
 captures; expiry/eviction is explicit object-unavailable, never mixed revisions.
 Tests cover paired hidden-state changes, native formatting/RNG preservation,
 revocation/late results, cached read behavior and real WebSocket query dispatch.
 Subscriptions atomically return a selected-topic baseline and cursor on the game
-thread. Only session/systems/nebulas topics are accepted; `state.changed` notifications
+thread. Only session/systems/nebulas/ships topics are accepted; `state.changed` notifications
 invalidate the selected public projection without disclosing hidden-only changes.
 Authenticated connections receive default `game.turnAdvanced`, emitted once per connection only
 after a higher committed turn is in the queryable map capture. These ordered
@@ -997,6 +1000,13 @@ per subscription in both bridge and service queues, preserving partially sent
 messages and all non-coalescible responses/events. Cursor jumps mean re-read the
 selected topics, not replay lost events. Output overflow explicitly disconnects.
 Other ordered gameplay event producers remain later work, not advertised functionality.
+
+Ship-containing state/baseline requests use one retained post-refresh capture for
+all topics, explicitly dated `last-native-ship-refresh`, never mixed-age data.
+Ship handles are read-only observation handles, replaced on projected ship-set
+changes; durable native entity identity and action use remain unimplemented.
+Maximum-size ship collections paginate; oversized full state/baselines return
+explicit limit errors. See `specs/rpc/ship_refresh.md` for exact field/lifetime rules.
 
 See `specs/rpc/p1.md` for build/test commands, verified evidence and remaining P0
 gates. P1 completion is not claimed by this foundation increment.
@@ -1018,7 +1028,7 @@ gates. P1 completion is not claimed by this foundation increment.
 
 - [x] V-01 — Bind authorization to the active local perspective; reject arbitrary viewer selection and remote privileged/omniscient switches (all implemented queries).
 - [ ] V-02 — Implement known-system/planet/nebula disclosure using audited native exploration/map rules.
-- [ ] V-03 — Implement read-only ship detection/visibility policy without rebuilding or walking stale display nodes during queries.
+- [x] V-03 — Implement read-only ship detection/visibility policy without rebuilding or walking stale display nodes during queries (approved post-refresh copy of surviving displayed links; actual native builder/filter, stealth/omniscience, hidden-state, lifetime and malformed-link tests; no native policy extraction).
 - [ ] V-04 — Gate enemy design/scan details, destinations, orders, cargo, and ETA separately from ship existence.
 - [ ] V-05 — Gate player/contact/trait/economy, colony, leader, research, diplomacy, intelligence, and chart fields individually.
 - [ ] V-06 — Preserve native distinctions between current, last-known, unknown, and known-empty information.
@@ -1037,7 +1047,7 @@ gates. P1 completion is not claimed by this foundation increment.
 - [ ] Q-04 — Implement `game.listSystems` and `game.getSystem` with authorized map/range/wormhole data.
 - [ ] Q-05 — Implement `game.listPlanets`, `game.getPlanet`, and `game.listNebulas`.
 - [ ] Q-06 — Implement `game.listColonies` and `game.getColony`, including authorized production, jobs, buildings, troops, events, and transfer settings.
-- [ ] Q-07 — Implement `game.listShips` and `game.getShip`, including conditional destination/ETA and scan disclosure.
+- [ ] Q-07 — Implement `game.listShips` and `game.getShip`, including conditional destination/ETA and scan disclosure (initial dated position/owned/name subset implemented and tested; enemy details, player-ID mapping, routes/ETA/scan and durable entity identity remain open).
 - [ ] Q-08 — Implement `game.listFleets` and `game.getFleet` without exposing raw rebuilt stack indices.
 - [ ] Q-09 — Implement `game.getMovementOptions` with audited scratch-state handling and no hidden-information oracle.
 - [ ] Q-10 — Implement `game.listDesigns`, `game.getDesign`, and `game.getDesignOptions`.
@@ -1055,14 +1065,10 @@ gates. P1 completion is not claimed by this foundation increment.
 - [ ] N-04 — Add selected `state.changed` / `ui.viewChanged` subscriptions without emitting events for hidden-only changes.
 - [ ] N-05 — Validate a client example deriving incoming hostile ships from ships/colonies/known diplomacy after a turn event; add no server briefing API.
 
-Next native-policy decision (V-03/Q-07): detection/stealth calculations currently
-live inside `SHIPSTAK::Remove_Non_Detected_Ships`, which mutates display links.
-The recommended route is to extract read-only native predicates shared by that
-filter and the sidecar, preserving scanner/stealth/mod/omniscience rules with
-native equivalence and RNG tests. No such extraction has been applied: section 2
-requires separate approval for native API additions/shared-policy extraction.
-The alternative is a neutral post-refresh capture hook with explicitly dated
-ship observations, not invoking the builder from a query or reading stale nodes.
+V-03/Q-07 approach approved: reuse the already calculated state via a neutral
+post-refresh hook and explicitly dated ship observations. The proposed native
+detection-policy extraction was not approved or applied and is not required by
+this implementation. Queries never invoke the builder or inspect stale nodes.
 
 ### P2. Shared UI adapters and operation lifecycle
 

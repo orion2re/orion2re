@@ -57,6 +57,19 @@ int main() {
                 rpc::Resume_Game_Queries(&store);
             else if (command == "hidden") {
                 map.systems[1].name = "changed hidden world";
+                if (!map.ships.empty()) map.ships.back().name = "changed hidden ship name";
+                rpc::Capture_Map(&store, &map);
+            } else if (command == "ships") {
+                map.ships_captured = true;
+                map.ships = {{0, 0, true, "Own ship"}, {30, 0, false, "hidden enemy name"}, {60, 0, false, "secret"}};
+                rpc::Capture_Map(&store, &map);
+            } else if (command == "ship-move") {
+                if (!map.ships.empty()) ++map.ships[0].x;
+                map.ships_captured = true;
+                rpc::Capture_Map(&store, &map);
+            } else if (command == "map-only") {
+                map.ships_captured = false;
+                map.systems[0].name = "Later map";
                 rpc::Capture_Map(&store, &map);
             } else if (command == "advance") {
                 ++map.turn;
