@@ -606,6 +606,25 @@ class TransportTests(unittest.TestCase):
         self.Fixture("colony-pop")
         self.assertEqual(self.Query(client, "game.getState", {"include":topics})["result"], current)
 
+    def test_known_war_status_is_tagged_and_never_spliced_into_older_ship_captures(self):
+        self.Fixture("world")
+        self.Fixture("ships")
+        client = self.Client()
+        client.Hello()
+        subscribed = self.Query(client, "rpc.subscribe", {"topics":["players"],"events":["state.changed"]})["result"]
+        self.assertEqual(subscribed["baseline"]["players"][0]["atWar"], {"availability":"unknown"})
+        self.Fixture("war")
+        self.assertEqual(client.Read()["method"], "state.changed")
+        baseline = self.Query(client, "game.getState", {"include":["ships","players"]})["result"]
+        self.assertEqual(baseline["players"][1]["atWar"], {"availability":"current","value":True})
+        self.Fixture("hidden")
+        self.assertEqual(self.Query(client, "game.getState", {"include":["ships","players"]})["result"], baseline)
+        self.Fixture("map-only")
+        self.Fixture("war")
+        self.assertEqual(client.Read()["method"], "state.changed")
+        self.assertEqual(self.Query(client, "game.listPlayers")["result"]["items"][1]["atWar"], {"availability":"current","value":False})
+        self.assertEqual(self.Query(client, "game.getState", {"include":["ships","players"]})["result"], baseline)
+
 
 if __name__ == "__main__":
     unittest.main()

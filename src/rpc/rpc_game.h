@@ -65,6 +65,8 @@ namespace rpc {
         std::string name;
         int32_t treasury = 0;
         s_player_hud hud;
+        bool at_war_available = false;
+        bool at_war = false;
     };
 
     struct s_colony_observation {

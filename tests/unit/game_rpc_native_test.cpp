@@ -621,3 +621,35 @@ DOCTEST_TEST_CASE("maximum own colony capture is bounded and oversized complete 
     DOCTEST_CHECK(rpc::Game_Query(&store, &request).find("-32005") != std::string::npos);
     rpc::Shutdown_Game_Store(&store);
 }
+
+DOCTEST_TEST_CASE("known war status follows the viewer treaty direction only for living current contacts") {
+    s_world world;
+    MOX::NUM_PLAYERS = 4;
+    world.players[0].traits[TRAIT_OMNISCIENCE] = 1;
+    world.players[0].contact[1] = 1;
+    world.players[0].contact[2] = 1;
+    world.players[2].eliminated = 1;
+    world.players[0].treaty[0] = 6;
+    world.players[0].treaty[2] = 6;
+    world.players[0].treaty[3] = 6;
+    world.players[1].treaty[0] = 0; // The foreign direction does not replace the native viewer's summary.
+    const uint32_t seed = game_random::Get_Random_Seed();
+    rpc::s_map_observation observation;
+    for (int8_t treaty : {0, 3, 4, 5, 6}) {
+        world.players[0].treaty[1] = treaty;
+        const auto before = world.players;
+        DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&observation));
+        DOCTEST_REQUIRE(observation.players.size() == 4);
+        DOCTEST_CHECK_FALSE(observation.players[0].at_war_available);
+        DOCTEST_CHECK(observation.players[1].at_war_available);
+        DOCTEST_CHECK(observation.players[1].at_war == (treaty >= 4));
+        DOCTEST_CHECK_FALSE(observation.players[2].at_war_available);
+        DOCTEST_CHECK_FALSE(observation.players[3].at_war_available);
+        DOCTEST_CHECK(memcmp(before.data(), world.players.data(), before.size() * sizeof(s_player)) == 0);
+    }
+    world.players[0].contact[1] = 0;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&observation));
+    DOCTEST_CHECK_FALSE(observation.players[1].at_war_available);
+    DOCTEST_CHECK_FALSE(observation.players[1].at_war);
+    DOCTEST_CHECK(game_random::Get_Random_Seed() == seed);
+}

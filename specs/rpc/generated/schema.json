@@ -810,6 +810,25 @@
         "current"
       ]
     },
+    "CurrentBool": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/Current",
+          "x-rpc-policy": "contract"
+        },
+        "value": {
+          "$ref": "#/$defs/Bool",
+          "x-rpc-policy": "contract"
+        }
+      },
+      "required": [
+        "availability",
+        "value"
+      ],
+      "x-rpc-policy": "contract"
+    },
     "CurrentCount": {
       "type": "object",
       "additionalProperties": false,
@@ -1410,6 +1429,16 @@
       "x-maxUtf8Bytes": 384,
       "x-unit": "credential",
       "description": "Locally configured shared key, decoded from native CP850 settings to UTF-8 and compared exactly; never returned by the service."
+    },
+    "KnownBool": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CurrentBool"
+        },
+        {
+          "$ref": "#/$defs/Unavailable"
+        }
+      ]
     },
     "KnownCount": {
       "oneOf": [
@@ -2118,6 +2147,10 @@
         "hud": {
           "$ref": "#/$defs/KnownPlayerHUD",
           "x-rpc-policy": "player-own-economy"
+        },
+        "atWar": {
+          "$ref": "#/$defs/KnownBool",
+          "x-rpc-policy": "player-contact-war"
         }
       },
       "required": [
@@ -2128,7 +2161,8 @@
         "color",
         "name",
         "treasury",
-        "hud"
+        "hud",
+        "atWar"
       ],
       "x-rpc-policy": "players-known"
     },
@@ -7655,6 +7689,34 @@
         "T-03"
       ]
     },
+    "player-contact-war": {
+      "status": "reviewed",
+      "predicate": "Only a currently contacted living foreign empire in this same capture's authorized roster: copy whether the viewer's directed treaty entry is >=4, the native UI/diplomacy war classification. Read only the viewer's treaty array, not foreign attitude/treaty/AI state. Self, eliminated and uncontacted empires (including omniscience/Lore-only rows) return unknown, never an inferred false. Discard unavailable values before ordering, equality, revisions or notifications. Known false means a current living contact is not classified at war by the native treaty display; it is not a claim of safety, future intentions, or bilateral intelligence. No raw treaty codes, labels, payments or hidden exact attitudes are exposed.",
+      "sources": [
+        [
+          "src/game/racescrn.cpp",
+          "Draw_Race_Text"
+        ],
+        [
+          "src/game/racescrn.cpp",
+          "treaty[target_player_idx] >= 4"
+        ],
+        [
+          "src/game/diplomac.cpp",
+          "TREATY_WAR"
+        ],
+        [
+          "src/game/harold.cpp",
+          "Contact_With_Player"
+        ]
+      ],
+      "tests": [
+        "T-01",
+        "T-02",
+        "T-03",
+        "T-05"
+      ]
+    },
     "disabled-planet": {
       "status": "disabled",
       "predicate": "Pending read-only equivalent of native explored-planet policy; do not invoke a mutable list builder. Orbit/name/type separately gated.",
@@ -8198,7 +8260,7 @@
     "orderedEventsPerSubscription": 4096,
     "overflow": "Reject before admission; coalesce only complete unsent state. Ordered-event overflow signals a gap or disconnect. Never rewrite partial output or silently discard operation results."
   },
-  "x-rpc-sourceHash": "355c3506af7ba863b85b660a0f4c6efade730150c201db0c267ca58794eae694",
+  "x-rpc-sourceHash": "c6c8b33b87b707c881612ff0291bb7c2021548f27b472bfae5bbcb92ca3db4ca",
   "x-rpc-runtimeEnabled": false,
   "x-rpc-implementedMethods": [
     "rpc.hello",

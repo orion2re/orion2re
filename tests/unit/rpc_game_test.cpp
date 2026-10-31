@@ -795,3 +795,48 @@ DOCTEST_TEST_CASE("colonies share one ship/map/player capture and distinguish bu
     map.players_captured = false;
     DOCTEST_CHECK_FALSE(rpc::Capture_Map(&fixture.store, &map));
 }
+
+DOCTEST_TEST_CASE("known war state filters unavailable claims before public revisions and keeps parent handles stable") {
+    s_fixture fixture;
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&fixture.store));
+    auto map = Players();
+    map.players[1].at_war_available = true;
+    map.ships_captured = true;
+    map.ships = Ships().ships;
+    map.ships[1].owner_slot = 2;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    const auto ids = fixture.store.snapshots.back().player_ids;
+    const auto ships = fixture.store.snapshots.back().ship_ids;
+    auto state = Request("game.getState", "{\"include\":[\"players\",\"ships\"]}");
+    const auto baseline = rpc::Game_Query(&fixture.store, &state);
+    DOCTEST_CHECK(baseline.find("\"atWar\":{\"availability\":\"current\",\"value\":false}") != std::string::npos);
+    map.players[0].at_war_available = map.players[0].at_war = true;         // Hidden row.
+    map.players.back().at_war_available = map.players.back().at_war = true; // Self.
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &state) == baseline);
+    uint64_t epoch;
+    DOCTEST_REQUIRE(rpc::Register_Client(&fixture.bridge, 1, &epoch));
+    auto subscribe = Request("rpc.subscribe", "{\"topics\":[\"players\"],\"events\":[\"state.changed\"]}");
+    Dispatch(&fixture, 1, epoch, &subscribe);
+    map.players[1].at_war = true;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    DOCTEST_CHECK(fixture.store.snapshots.back().player_ids == ids);
+    DOCTEST_CHECK(fixture.store.snapshots.back().ship_ids == ships);
+    rpc::Pump_Game_Queries(&fixture.store);
+    rpc::s_publication event;
+    DOCTEST_REQUIRE(rpc::Take_Publication(&fixture.bridge, &event));
+    DOCTEST_CHECK(event.json.find("state.changed") != std::string::npos);
+    const auto war = rpc::Game_Query(&fixture.store, &state);
+    DOCTEST_CHECK(war.find("\"atWar\":{\"availability\":\"current\",\"value\":true}") != std::string::npos);
+    map.ships_captured = false;
+    map.players[1].at_war = false;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &state) == war); // Do not splice newer diplomacy into older ships.
+    map.players[1].contacted = false;                              // A visible omniscience-only roster entry grants no treaty knowledge.
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    auto list = Request("game.listPlayers");
+    const auto unknown = rpc::Game_Query(&fixture.store, &list);
+    map.players[1].at_war = true;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &list) == unknown);
+}

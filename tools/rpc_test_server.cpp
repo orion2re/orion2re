@@ -84,6 +84,8 @@ int main() {
                 }
                 ++map.players[1].treasury;
                 map.players[2].name = "different hidden empire";
+                map.players[2].at_war_available = true;
+                map.players[2].at_war = !map.players[2].at_war;
                 if (map.colonies.size() >= 3) {
                     map.colonies.back().system = -99999;
                     map.colonies.back().population = -99999;
@@ -133,6 +135,10 @@ int main() {
             } else if (command == "colonies") {
                 map.colonies_captured = true;
                 map.colonies = {{0, 0, 1, 0}, {0, 0, 5, 42}, {1, 99999, -1, 99999}};
+                rpc::Capture_Map(&store, &map);
+            } else if (command == "war") {
+                map.players[1].at_war_available = true;
+                map.players[1].at_war = !map.players[1].at_war;
                 rpc::Capture_Map(&store, &map);
             } else if (command == "colony-pop") {
                 if (!map.colonies.empty()) ++map.colonies[0].population;

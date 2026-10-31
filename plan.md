@@ -988,6 +988,12 @@ and special destinations remain unaudited. Private destination bindings are disc
 before retaining snapshots. Player
 captures include the native known/eliminated/omniscient roster and only the bound
 player's already calculated treasury/HUD values; foreign economy is never read.
+Tagged `Player.atWar` reads only the viewer's native treaty classification for
+current living foreign contacts; self/eliminated/omniscience-only rows stay unknown.
+War-only increment verification: 86 Python tests including 35 live cases and the
+RPC/native/transport CTest targets pass normally and with ASAN/UBSAN on macOS ARM64;
+generation drift, affected C++ formatting and whitespace checks pass. No native
+files change; the own-colony increment's 106-target RPC-disabled result still applies.
 Own full-colony captures filter out foreign/unowned/outpost records before reading
 links/population, then publish same-capture system/owner handles, one-based orbital
 position and cached resident population. Planet handles, production and buy details
@@ -1075,7 +1081,7 @@ gates. P1 completion is not claimed by this foundation increment.
 - [ ] Q-10 — Implement `game.listDesigns`, `game.getDesign`, and `game.getDesignOptions`.
 - [ ] Q-11 — Implement `game.getResearch`, `game.listResearchOptions`, and `game.getTechnology`.
 - [ ] Q-12 — Implement `game.listLeaders` and `game.getLeader` for owned/offered/discovered leaders only.
-- [ ] Q-13 — Implement `game.getRelations` and `game.getIntelligence`.
+- [ ] Q-13 — Implement `game.getRelations` and `game.getIntelligence` (contact-gated native war classification is projected as tagged `Player.atWar`; full relations/treaties/intelligence methods remain unimplemented).
 - [ ] Q-14 — Implement `game.getHistory`, `game.listMessages`, and `game.getMessage` without consuming reports or improving hidden precision.
 - [x] Q-15 — Implement and test bounded snapshot-pinned pagination for enabled lists, plus bounded complete `getState` captures.
 

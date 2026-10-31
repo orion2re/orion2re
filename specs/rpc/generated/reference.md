@@ -9,7 +9,7 @@ This document is rendered from `schema.json`, not a second method catalog.
 The root schema validates acknowledged client requests; per-method success responses and server notifications have separate definitions.
 All fields are non-null unless explicitly stated. Unknown keys are rejected. UTF-8 byte limits, lexical integer tokens, duplicate keys, depth and authorization need the protocol guards in addition to standard JSON Schema validation.
 
-Source bundle SHA-256: `355c3506af7ba863b85b660a0f4c6efade730150c201db0c267ca58794eae694`.
+Source bundle SHA-256: `c6c8b33b87b707c881612ff0291bb7c2021548f27b472bfae5bbcb92ca3db4ca`.
 
 ## Methods
 
@@ -319,6 +319,13 @@ Constraints: `{"maximum": 2147483647, "minimum": -2147483648, "type": "integer",
 
 Values: `current`.
 
+### CurrentBool
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| availability | Current | yes | contract |
+| value | Bool | yes | contract |
+
 ### CurrentCount
 
 | Field | Type | Required | Policy |
@@ -552,6 +559,10 @@ Constraints: `{"maximum": 32767, "minimum": -32768, "type": "integer", "x-intege
 Locally configured shared key, decoded from native CP850 settings to UTF-8 and compared exactly; never returned by the service.
 
 Constraints: `{"maxLength": 384, "minLength": 1, "type": "string", "x-maxUtf8Bytes": 384, "x-minUtf8Bytes": 1}`.
+
+### KnownBool
+
+Exactly one of: CurrentBool, Unavailable.
 
 ### KnownCount
 
@@ -824,6 +835,7 @@ Array of `Planet`; 0..65536 items; unique: false.
 | name | KnownText | yes | players-known |
 | treasury | KnownCredits | yes | player-own-economy |
 | hud | KnownPlayerHUD | yes | player-own-economy |
+| atWar | KnownBool | yes | player-contact-war |
 
 ### PlayerColor
 
@@ -1330,6 +1342,7 @@ Reviewed means static evidence, not runtime visibility approval.
 | disabled-system-owner | disabled | Pending per-field review of Star_Owner, mixed owners, visited/contact/lore and outpost semantics. Raw star.owner forbidden. | src/game/harold.cpp: Star_Owner | T-01, T-02 |
 | players-known | reviewed | Bound active human viewer only. Include self and foreign empires listed by the native race screen: current contact, eliminated (even without contact), or native Player_Is_Omniscient including cached Galactic Lore. Prior contact alone is not current contact. Gate before reading bounded CP850 name/color; copy name, color, eliminated and living-foreign contact separately, not historical eliminated-contact flags, portraits/traits/government/research or hidden economy. Own name is also displayed by the self race report. Sort the authorized projection before assigning unpredictable perspective/game-scoped handles; no native slots, hidden counts or gaps in numbering are exposed. A temporarily absent empire cannot be looked up using an old handle. | src/game/bill.cpp: Get_Active_Players; src/game/bill.cpp: Get_Players_Dead_Or_Alive_Or_Omniscient; src/game/racescrn.cpp: Draw_Race_Text; src/game/racescrn.cpp: Draw_Race_Photos; src/game/racerprt.cpp: MOX::cur_plyr_ptr-&gt;name; src/game/harold.cpp: Contact_With_Player; src/game/harold.cpp: Player_Is_Omniscient; src/game/officer.cpp: One_Leader_With_Galactic_Lore | T-01, T-02, T-03, T-05 |
 | player-own-economy | reviewed | Only the bound local player&#x27;s already calculated HUD values: bc, surplus_bc, surplus_food, n_freighters, surplus_freighters, command_points and native int16 command_points-minus-used result. Preserve signed deficits/known zero. Foreign treasury/HUD are explicitly unaudited and never read, even under native omniscience. Research display branches, forecasts, totals/maintenance and calculators are not enabled by this policy. | src/game/mainscr_main.cpp: Print_Main_Screen_Data | T-01, T-02, T-03 |
+| player-contact-war | reviewed | Only a currently contacted living foreign empire in this same capture&#x27;s authorized roster: copy whether the viewer&#x27;s directed treaty entry is &gt;=4, the native UI/diplomacy war classification. Read only the viewer&#x27;s treaty array, not foreign attitude/treaty/AI state. Self, eliminated and uncontacted empires (including omniscience/Lore-only rows) return unknown, never an inferred false. Discard unavailable values before ordering, equality, revisions or notifications. Known false means a current living contact is not classified at war by the native treaty display; it is not a claim of safety, future intentions, or bilateral intelligence. No raw treaty codes, labels, payments or hidden exact attitudes are exposed. | src/game/racescrn.cpp: Draw_Race_Text; src/game/racescrn.cpp: treaty[target_player_idx] &gt;= 4; src/game/diplomac.cpp: TREATY_WAR; src/game/harold.cpp: Contact_With_Player | T-01, T-02, T-03, T-05 |
 | disabled-planet | disabled | Pending read-only equivalent of native explored-planet policy; do not invoke a mutable list builder. Orbit/name/type separately gated. | src/game/plntsum.cpp: Filter_Explored_Planets | T-01, T-02 |
 | colonies-own | reviewed | This list is explicitly the bound active human viewer&#x27;s own full-colony roster, following native Colonies/transport lists: owner equals viewer and outpost_flag is zero. Foreign intelligence and outposts are not included. Filter before reading links/population, sorting, counts, handles, revisions or notifications. At the same map/roster capture, copy a validated system reference and one-based orbital position and cached n_pops resident population (0..42 whole displayed population units, not thousandths, growth or inbound settlers). Validate planet/star/colony backlinks and uniqueness. Resolve system/owner through the same capture; discard private bindings before retention. No UI list builder, Sum_Colonists, forecast or economic calculator is called. Opaque read-only observation handles are replaced on authorized collection changes, not durable colony identities/action capabilities. Known-empty refers to this own-full-colony scope, not to foreign intelligence. | src/game/colxport.cpp: Build_Global_Colony_List; src/game/colxport.cpp: N_Colonies; src/game/colsum.cpp: Draw_Colony_Scan_Info; src/game/colony.cpp: Set_Colony_Globals | T-01, T-02, T-03, T-05 |
 | disabled-colony | disabled | Planet handles, production/queues, buy costs/eligibility and other colony details remain unaudited. Do not mint unqueryable planet handles or invoke mutable builders/calculators for queries. Foreign intelligence is a separate policy. | src/game/colony_main.cpp: Colony_Screen | T-01, T-02, T-03 |

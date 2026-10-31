@@ -46,6 +46,42 @@ outside this increment, not approximated from hidden arrays or recalculated.
 
 ## Identity and coherence
 
+### Known war classification (Q-13 read subset)
+
+`Player.atWar` is tagged knowledge for the viewer's current living foreign
+contacts only. `RACESCRN::Draw_Race_Text` displays the viewer's directed
+`treaty[target]` entry; the race-screen interaction and native diplomacy use
+`>= 4` to classify war. The adapter reads only that own-player array entry after
+contact authorization. It does not read a foreign reciprocal entry, exact AI
+attitude, future reaction, payments or other treaties, invoke diplomacy, or render
+localized labels. A current `false` is a native non-war classification, not a
+promise of safety or an inferred absence of hostile intent.
+
+Self, eliminated and uncontacted rows return `{"availability":"unknown"}`,
+including omniscience/Lore-only roster entries. Their treaty bytes are not read.
+The store additionally discards unavailable war values before public ordering,
+equality/revision and notification decisions. Player handles stay stable across
+war-state changes; ship owner links still resolve through the same capture only.
+Combined ship/player reads never splice newer diplomacy into older ship data.
+
+Native synthetic-array tests cover treaty values 0/3/4/5/6, viewer-versus-foreign
+direction, contact revocation, eliminated/omniscience-only exclusion, native-record
+and RNG preservation. Store/live tests cover tagged true/false/unknown, hidden
+claims, stable parent handles, invalidations and mixed-age rejection. This is not
+the complete relations/intelligence API; `game.getRelations` and
+`game.getIntelligence` remain unimplemented. Clients can combine this fact with
+authorized ship destinations and own colonies without a server briefing API.
+
+War-subset verification on macOS ARM64: all 86 Python tests pass, including
+35 live WebSocket cases; RPC/native projection/transport targets pass normally and
+with ASAN/UBSAN. Generated outputs, affected C++ formatting and whitespace checks
+pass. This follow-up changes only RPC code/contracts/tests/documentation; the
+preceding own-colony increment's RPC-disabled 106-target result remains applicable.
+Interactive saved-game/multiplayer and other-platform checks remain unperformed;
+LeakSanitizer remains unsupported on this macOS runtime.
+
+### Roster and ship-owner handles
+
 Opaque player IDs are assigned only after filtering and public ordering. The
 private binding uses the native empire slot, whose identity is fixed within the
 loaded world; it is never encoded. Handles remain stable across names, HUD and

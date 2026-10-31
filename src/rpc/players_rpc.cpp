@@ -31,6 +31,10 @@ namespace players_rpc {
             item.contacted = contacted;
             item.eliminated = eliminated;
             item.color = player->color;
+            if (contacted) {
+                item.at_war_available = true;
+                item.at_war = MOX::player[viewer].treaty[slot] >= 4;
+            }
             config::Decode_Cp850_To_Utf8(player->name, (size_t)(end - player->name), &item.name);
             if (local) {
                 item.treasury = player->bc;

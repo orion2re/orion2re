@@ -256,6 +256,16 @@ class TypedContractTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             audit.Validate_Value(colony, "Colony", self.contracts, self.policies, public=True)
 
+    def test_known_war_boolean_is_not_coerced_or_inferred_from_unknown(self):
+        for value in (True, False):
+            audit.Validate_Value({"availability":"current","value":value}, "KnownBool", self.contracts)
+        audit.Validate_Value({"availability":"unknown"}, "KnownBool", self.contracts)
+        for value in (1, "true", None):
+            with self.assertRaises(ValueError):
+                audit.Validate_Value({"availability":"current","value":value}, "KnownBool", self.contracts)
+        with self.assertRaises(ValueError):
+            audit.Validate_Value({"availability":"unknown","value":False}, "KnownBool", self.contracts)
+
     def test_missing_policy_and_recursive_contract_are_rejected(self):
         broken = copy.deepcopy(self.contracts)
         broken["types"]["System"]["fieldPolicies"]["name"] = "no-such-policy"
