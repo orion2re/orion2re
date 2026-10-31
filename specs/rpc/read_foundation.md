@@ -112,12 +112,26 @@ for unknown/foreign IDs, and removes only that connection's subscription. Alread
 queued invalidations may precede its response. Disconnection prunes subscriptions;
 world/perspective revocation clears them and requires reauthentication. There are
 at most 16 subscriptions per client/64 globally. Output overflow disconnects rather
-than silently dropping results. Coalescing is the next P1-09 increment.
+than silently dropping results.
+
+P1-09 coalesces unsent invalidations per subscription, first in the copied bridge
+and then in the service-owned output queue. A newer invalidation removes the older
+unsent one and is appended after intervening results/events. Cursor jumps are
+intentional: re-read the selected topics rather than treating invalidations as an
+ordered event log. The latest invalidation still covers the whole selected topic
+set. Once a message's first fragment has been sent, that message is immutable;
+only later unsent invalidations can be replaced. Responses and ordered events
+never receive coalescing keys. Any bound exceeded by non-coalescible output causes
+explicit disconnection, not silent loss. No gameplay/audio event producer is
+enabled by this queue infrastructure.
 
 Verified on macOS ARM64: the RPC and native projection CTest targets pass, 45 Python
 contract/schema/architecture tests pass, and all 24 live WebSocket tests pass,
 including atomic baseline ordering, hidden-state equality, unsubscribe, fresh
-baselines, unsupported selection rejection and busy captures.
+baselines, unsupported selection rejection and busy captures. The subsequent
+coalescing increment passes 25 live tests and the C++ output/bridge tests on normal
+and ASAN/UBSAN builds, including partial-send immutability, ordered-result retention,
+per-client isolation, message/byte/global limits and a live 100-change state burst.
 
 ## Validation and limits
 

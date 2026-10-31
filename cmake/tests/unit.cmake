@@ -2104,6 +2104,7 @@ if(ORION2RE_RPC_BUILT)
         tests/test_main.cpp
         tests/unit/rpc_protocol_test.cpp
         tests/unit/rpc_bridge_test.cpp
+        tests/unit/rpc_output_test.cpp
         tests/unit/rpc_service_test.cpp
         tests/unit/rpc_game_test.cpp
     )

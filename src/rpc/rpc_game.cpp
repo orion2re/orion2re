@@ -169,7 +169,7 @@ namespace rpc {
                 const std::string json = "{\"jsonrpc\":\"2.0\",\"method\":\"state.changed\",\"params\":{\"subscriptionId\":" +
                     Json_String(subscription.id) + ",\"cursor\":" + Json_String(std::to_string(++subscription.cursor)) +
                     ",\"topics\":" + Topics_Json(&subscription.topics) + ",\"stamp\":" + Stamp(store, &store->snapshots.back()) + "}}";
-                if (Publish_Event(store->bridge, subscription.client, subscription.epoch, &json)) subscription.projection = std::move(projection);
+                if (Publish_Event(store->bridge, subscription.client, subscription.epoch, &json, &subscription.id)) subscription.projection = std::move(projection);
             }
         }
 

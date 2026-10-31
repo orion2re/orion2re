@@ -399,6 +399,27 @@ class TransportTests(unittest.TestCase):
         self.Fixture("busy")
         self.assertEqual(self.Query(client, "rpc.subscribe", {"topics":["systems"],"events":["state.changed"]})["error"]["code"], -32002)
 
+    def test_state_burst_coalesces_and_keeps_connection_and_results(self):
+        self.Fixture("world")
+        client = self.Client()
+        client.Hello()
+        baseline = self.Query(client, "rpc.subscribe", {"topics":["session"],"events":["state.changed"]})["result"]
+        self.Fixture("burst")
+        previous = 0
+        for _ in range(100):
+            changed = client.Read()
+            self.assertEqual(changed["method"], "state.changed")
+            cursor = int(changed["params"]["cursor"])
+            self.assertGreater(cursor, previous)
+            self.assertEqual(changed["params"]["subscriptionId"], baseline["subscriptionId"])
+            previous = cursor
+            if changed["params"]["stamp"]["turn"] == 35100:
+                break
+        else:
+            self.fail("missing latest state invalidation")
+        self.assertEqual(previous, 100)
+        self.assertEqual(self.Query(client, "game.getSession")["result"]["turn"], 35100)
+
 
 if __name__ == "__main__":
     unittest.main()

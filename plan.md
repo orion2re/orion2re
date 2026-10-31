@@ -985,8 +985,11 @@ invalidate the selected public projection without disclosing hidden-only changes
 Unsubscribe is connection-owned; reconnect requires a fresh baseline, and view
 revocation clears subscriptions. Capture is requested by queued reads/subscriptions,
 not merely an idle authenticated connection. C++ ownership/bounds/visibility tests
-and 24 live transport tests pass on macOS ARM64. State coalescing and ordered gameplay
-event streams remain open (P1-09); overflowing output explicitly disconnects.
+and live transport tests pass on macOS ARM64. Unsent state invalidations coalesce
+per subscription in both bridge and service queues, preserving partially sent
+messages and all non-coalescible responses/events. Cursor jumps mean re-read the
+selected topics, not replay lost events. Output overflow explicitly disconnects.
+Ordered gameplay event producers remain later work, not advertised functionality.
 
 See `specs/rpc/p1.md` for build/test commands, verified evidence and remaining P0
 gates. P1 completion is not claimed by this foundation increment.
@@ -1001,7 +1004,7 @@ gates. P1 completion is not claimed by this foundation increment.
 - [x] P1-06 — Implement coherent requested-topic capture, game/perspective identity, revisions, entity generations, and opaque public IDs (initial session/map subset; topology replacement revokes handles).
 - [x] P1-07 — Return explicit busy/unavailable or dated snapshots during unsafe capture periods; keep service heartbeats responsive.
 - [x] P1-08 — Implement atomic subscription baseline/cursor setup, unsubscribe, reconnect baselines, and demand-driven capture (initial audited topics; `rpc_game_test.cpp` and live subscription tests).
-- [ ] P1-09 — Implement bounded per-client output and state coalescing without rewriting partially sent messages or losing operation results silently.
+- [x] P1-09 — Implement bounded per-client output and state coalescing without rewriting partially sent messages or losing operation results silently (`rpc_output_test.cpp`, bridge ordered-result/overflow tests and live 100-change burst; macOS normal and ASAN/UBSAN).
 - [x] P1-10 — Implement startup/quit/fatal-exit cleanup, cancellation, wakeup, and join independent of another game poll.
 
 #### Shared player-view policy

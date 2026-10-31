@@ -34,6 +34,7 @@ find_package(Threads REQUIRED)
 add_library(orion2re_rpc STATIC
     src/rpc/rpc_protocol.cpp
     src/rpc/rpc_bridge.cpp
+    src/rpc/rpc_output.cpp
     src/rpc/rpc_service.cpp
     src/rpc/rpc_game.cpp
     "${ORION2RE_VENDORED_YYJSON_DIR}/src/yyjson.c"

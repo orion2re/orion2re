@@ -1,4 +1,5 @@
 #include "rpc_service.h"
+#include "rpc_output.h"
 
 #include <algorithm>
 #include <array>
@@ -30,9 +31,7 @@ namespace rpc {
             bool close_after_output = false;
             std::string public_id;
             std::string input;
-            std::deque<std::string> output;
-            size_t output_bytes = 0;
-            size_t output_offset = 0;
+            s_output_queue output;
         };
 
         struct s_service_state {
@@ -88,20 +87,12 @@ namespace rpc {
             if (state->controller == connection->client) {
                 state->controller = 0;
             }
-            state->output_bytes -= connection->output_bytes;
+            state->output_bytes -= connection->output.bytes;
             *connection = {};
         }
 
-        bool Queue_Output(s_service_state* state, s_connection* connection, std::string json) {
-            const s_protocol_limits* limits = Protocol_Limits();
-            if (json.empty() || connection->output.size() >= limits->output_messages_per_connection ||
-                json.size() > limits->output_bytes_per_connection - connection->output_bytes ||
-                json.size() > limits->output_bytes_global - state->output_bytes) {
-                return false;
-            }
-            connection->output_bytes += json.size();
-            state->output_bytes += json.size();
-            connection->output.push_back(std::move(json));
+        bool Queue_Output(s_service_state* state, s_connection* connection, std::string json, const std::string* state_key = nullptr) {
+            if (!Queue_Output(&connection->output, std::move(json), state_key, &state->output_bytes)) return false;
             lws_callback_on_writable(connection->socket);
             return true;
         }
@@ -233,8 +224,7 @@ namespace rpc {
             if (request.method == "rpc.describe") {
                 return Queue_Output(state, connection, Result_Response(&request, Describe_Methods(&request)));
             }
-            const int32_t queued = Submit_Work(state->bridge, connection->client, connection->epoch,
-                &request, Monotonic_Ms() + Protocol_Limits()->request_timeout_ms);
+            const int32_t queued = Submit_Work(state->bridge, connection->client, connection->epoch, &request, Monotonic_Ms() + Protocol_Limits()->request_timeout_ms);
             return queued == 0 || Queue_Output(state, connection, Error_Response(&request, queued));
         }
 
@@ -315,26 +305,20 @@ namespace rpc {
                     connection->assembling = false;
                 }
             } else if (reason == LWS_CALLBACK_SERVER_WRITEABLE) {
-                if (connection->output.empty()) {
+                if (connection->output.messages.empty()) {
                     return connection->close_after_output ? Close(socket, LWS_CLOSE_STATUS_POLICY_VIOLATION) : 0;
                 }
-                const std::string& message = connection->output.front();
-                const size_t count = std::min((size_t)4096, message.size() - connection->output_offset);
+                const std::string& message = connection->output.messages.front().json;
+                const size_t count = std::min((size_t)4096, message.size() - connection->output.offset);
                 unsigned char buffer[LWS_PRE + 4096];
-                std::memcpy(buffer + LWS_PRE, message.data() + connection->output_offset, count);
-                const bool final = connection->output_offset + count == message.size();
-                const int written = lws_write(socket, buffer + LWS_PRE, count, lws_write_ws_flags(LWS_WRITE_TEXT, connection->output_offset == 0, final));
+                std::memcpy(buffer + LWS_PRE, message.data() + connection->output.offset, count);
+                const bool final = connection->output.offset + count == message.size();
+                const int written = lws_write(socket, buffer + LWS_PRE, count, lws_write_ws_flags(LWS_WRITE_TEXT, connection->output.offset == 0, final));
                 if (written < 0 || (size_t)written < count) {
                     return -1;
                 }
-                connection->output_offset += count;
-                if (final) {
-                    connection->output_bytes -= message.size();
-                    state->output_bytes -= message.size();
-                    connection->output.pop_front();
-                    connection->output_offset = 0;
-                }
-                if (!connection->output.empty() || connection->close_after_output) {
+                if (!Advance_Output(&connection->output, count, &state->output_bytes)) return -1;
+                if (!connection->output.messages.empty() || connection->close_after_output) {
                     lws_callback_on_writable(socket);
                 }
             }
@@ -359,7 +343,7 @@ namespace rpc {
                 for (s_connection& connection : state->connections) {
                     if (connection.socket != nullptr && connection.authenticated && connection.client == publication.client &&
                         connection.epoch == publication.epoch) {
-                        if (!Queue_Output(state, &connection, std::move(publication.json))) {
+                        if (!Queue_Output(state, &connection, std::move(publication.json), &publication.state_key)) {
                             lws_set_timeout(connection.socket, PENDING_TIMEOUT_USER_OK, LWS_TO_KILL_SYNC);
                         }
                         break;

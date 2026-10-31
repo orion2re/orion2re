@@ -22,6 +22,7 @@ namespace rpc {
         uint64_t epoch = 0;
         uint64_t ticket = 0;
         std::string json;
+        std::string state_key; // Nonempty only for replaceable state invalidations.
     };
 
     struct s_bridge_ticket {
@@ -53,6 +54,6 @@ namespace rpc {
     bool Take_Work(s_bridge* bridge, uint64_t now_ms, s_work* work);
     void Expire_Work(s_bridge* bridge, uint64_t now_ms);
     bool Complete_Work(s_bridge* bridge, const s_work* work, const std::string* json);
-    bool Publish_Event(s_bridge* bridge, uint64_t client, uint64_t epoch, const std::string* json);
+    bool Publish_Event(s_bridge* bridge, uint64_t client, uint64_t epoch, const std::string* json, const std::string* state_key = nullptr);
     bool Take_Publication(s_bridge* bridge, s_publication* publication);
 } // namespace rpc

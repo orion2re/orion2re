@@ -61,6 +61,12 @@ int main() {
             } else if (command == "advance") {
                 ++map.turn;
                 rpc::Capture_Map(&store, &map);
+            } else if (command == "burst") {
+                for (int index = 0; index < 100; ++index) {
+                    ++map.turn;
+                    rpc::Capture_Map(&store, &map);
+                    rpc::Pump_Game_Queries(&store);
+                }
             } else if (command == "revoke")
                 rpc::Revoke_Bridge(&bridge);
             else if (command == "publish" || command == "publish-large" || command == "overflow") {

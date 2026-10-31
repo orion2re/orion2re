@@ -121,3 +121,53 @@ DOCTEST_TEST_CASE("RPC bridge completes work across threads without native or so
     game.join();
     DOCTEST_CHECK(completed == 100);
 }
+
+DOCTEST_TEST_CASE("RPC bridge coalesces only same-client state and preserves completions and ordered events") {
+    rpc::s_bridge bridge;
+    uint64_t epoch;
+    DOCTEST_REQUIRE(rpc::Register_Client(&bridge, 1, &epoch));
+    DOCTEST_REQUIRE(rpc::Register_Client(&bridge, 2, &epoch));
+    const std::string key = "subscription";
+    const std::string old = "old-state";
+    const std::string latest = "latest-state";
+    const std::string ordered = "ordered-event";
+    DOCTEST_REQUIRE(rpc::Publish_Event(&bridge, 1, epoch, &old, &key));
+    DOCTEST_REQUIRE(rpc::Publish_Event(&bridge, 2, epoch, &old, &key));
+    auto request = Request();
+    DOCTEST_REQUIRE(rpc::Submit_Work(&bridge, 1, epoch, &request, 100) == 0);
+    rpc::s_work work;
+    DOCTEST_REQUIRE(rpc::Take_Work(&bridge, 0, &work));
+    const std::string result = "result";
+    DOCTEST_REQUIRE(rpc::Complete_Work(&bridge, &work, &result));
+    DOCTEST_REQUIRE(rpc::Publish_Event(&bridge, 1, epoch, &ordered));
+    for (int index = 0; index < 100; ++index) {
+        DOCTEST_REQUIRE(rpc::Publish_Event(&bridge, 1, epoch, &latest, &key));
+    }
+    DOCTEST_REQUIRE(bridge.ready.size() == 4);
+    rpc::s_publication publication;
+    DOCTEST_REQUIRE(rpc::Take_Publication(&bridge, &publication));
+    DOCTEST_CHECK(publication.client == 2);
+    DOCTEST_CHECK(publication.json == old);
+    DOCTEST_REQUIRE(rpc::Take_Publication(&bridge, &publication));
+    DOCTEST_CHECK(publication.ticket == work.ticket);
+    DOCTEST_CHECK(publication.json == result);
+    DOCTEST_REQUIRE(rpc::Take_Publication(&bridge, &publication));
+    DOCTEST_CHECK(publication.json == ordered);
+    DOCTEST_REQUIRE(rpc::Take_Publication(&bridge, &publication));
+    DOCTEST_CHECK(publication.json == latest);
+    DOCTEST_CHECK(bridge.ready_bytes == 0);
+    for (int index = 0; index < 16; ++index) {
+        DOCTEST_REQUIRE(rpc::Publish_Event(&bridge, 1, epoch, &ordered));
+    }
+    DOCTEST_CHECK_FALSE(rpc::Publish_Event(&bridge, 1, epoch, &ordered));
+    DOCTEST_CHECK_FALSE(rpc::Client_Is_Current(&bridge, 1, epoch));
+    DOCTEST_CHECK(bridge.ready_bytes == 0);
+    DOCTEST_CHECK(rpc::Client_Is_Current(&bridge, 2, epoch));
+    rpc::Revoke_Bridge(&bridge);
+    const uint64_t old_epoch = epoch;
+    DOCTEST_REQUIRE(rpc::Register_Client(&bridge, 1, &epoch));
+    DOCTEST_REQUIRE(rpc::Publish_Event(&bridge, 1, epoch, &latest, &key));
+    DOCTEST_CHECK_FALSE(rpc::Publish_Event(&bridge, 1, old_epoch, &old, &key));
+    DOCTEST_REQUIRE(rpc::Take_Publication(&bridge, &publication));
+    DOCTEST_CHECK(publication.json == latest);
+}
