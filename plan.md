@@ -1117,6 +1117,25 @@ unchanged. Safe same-capture identity binding, slot reuse, complete context and
 world/perspective/resolution revocation tests remain open before enabling it.
 See `specs/rpc/ship_refresh.md`; Q-07 and V-04 remain unchecked.
 
+Q-07 transient-association prerequisite: the native cached-result payload now
+copies its exact producer node as well as ship reference, and a distinct
+`SHIP_ICONS_REBUILD_BEGIN` precedes clear and builder mutations. A future consumer
+can invalidate the full refresh association separately from ordinary text
+replacement. Synthetic native-function tests cover copied references and actual
+pre/post-rebuild node reuse ordering. Neither reference is durable identity or
+authorization. RPC still does not subscribe or enable context ETA; initialized
+owner/selection, ship-slot reuse, complete lifecycle, immutable coherent capture,
+hidden-only, subscription and context-revoked pagination tests remain open.
+The store's current-destination requirement is unchanged; withheld/special stars
+do not mint handles. Q-07/V-04 stay unchecked.
+
+Transient-reference verification (macOS ARM64): 97 Python tests including 38
+live WebSocket cases pass; required RPC/native/transport plus neutral-event and
+fleet-owner targets pass normally and with ASAN/UBSAN; 106 RPC-disabled targets
+pass. Generation drift, affected C++ formatting and whitespace checks pass.
+LeakSanitizer remains unsupported locally. No interactive saved-game/multiplayer
+or other-platform parity is claimed; public methods/topics remain unchanged.
+
 Producer-prerequisite verification (macOS ARM64): 94 Python tests including 36
 live WebSocket cases; RPC/native/transport, neutral-event and fleet owner targets
 pass normally and with ASAN/UBSAN; all 106 RPC-disabled targets pass. Generation

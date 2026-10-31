@@ -589,6 +589,7 @@ DOCTEST_TEST_CASE("native fleet info publishes only produced cached ETA and neve
     FLEETPOP::Print_Fleet_Box_Info();
     DOCTEST_REQUIRE(state.copied.size() == 1);
     DOCTEST_CHECK(state.copied[0].ship == 1);
+    DOCTEST_CHECK(state.copied[0].node == 0);
     DOCTEST_CHECK(state.copied[0].turns_left == 255);
     DOCTEST_CHECK(state.copied[0].star == -1); // The producer withholds the unvisited name.
     DOCTEST_CHECK(memcmp(ships_before.data(), fixture.ships.data(), ships_before.size() * sizeof(s_ship_data)) == 0);
@@ -599,6 +600,14 @@ DOCTEST_TEST_CASE("native fleet info publishes only produced cached ETA and neve
     DOCTEST_CHECK(state.copied[1].star == 1);
     DOCTEST_CHECK(state.copied[1].turns_left == 0);
     DOCTEST_CHECK(state.copied[0].turns_left == 255); // No borrowed native lifetime.
+    MOX::fleet_movement_icon[0].ship_node_idx = 2;
+    MOX::ship_node[2].ship_idx = 1;
+    FLEETPOP::Print_Fleet_Box_Info();
+    DOCTEST_REQUIRE(state.copied.size() == 3);
+    DOCTEST_CHECK(state.copied[2].ship == 1);
+    DOCTEST_CHECK(state.copied[2].node == 2); // Same ship slot, different producer node.
+    DOCTEST_CHECK(state.copied[0].node == 0);
+    MOX::fleet_movement_icon[0].ship_node_idx = 0;
     for (s_ship_node& node : MOX::ship_node) {
         node.ship_idx = 0;
         node.selected = 0;
@@ -611,15 +620,56 @@ DOCTEST_TEST_CASE("native fleet info publishes only produced cached ETA and neve
     MOX::g_ship_move_info.turns_left = 12;
     MOX::eta_star_id = 1;
     FLEETPOP::Print_Fleet_Box_Info();
-    DOCTEST_CHECK(state.copied.size() == 2); // A candidate target never becomes cached ship state.
+    DOCTEST_CHECK(state.copied.size() == 3); // A candidate target never becomes cached ship state.
     MOX::eta_star_id = -1;
     fixture.ships[1].status = 0;
     fixture.ships[1].location = 1;
     FLEETPOP::Print_Fleet_Box_Info();
-    DOCTEST_CHECK(state.copied.size() == 2);
-    DOCTEST_CHECK(state.clears == 4);
+    DOCTEST_CHECK(state.copied.size() == 3);
+    DOCTEST_CHECK(state.clears == 5);
     SHIPS::Build_Ship_Icons();
-    DOCTEST_CHECK(state.clears == 5); // A rebuilt node/slot mapping cannot inherit the result.
+    DOCTEST_CHECK(state.clears == 6); // A rebuilt node/slot mapping cannot inherit the result.
+    DOCTEST_CHECK(game_random::Get_Random_Seed() == seed);
+}
+
+DOCTEST_TEST_CASE("ship icon rebuild invalidates transient node associations before reusing nodes") {
+    s_ship_world fixture;
+    struct s_rebuild_observer {
+        std::vector<game_events::e_event> events;
+        int16_t old_ship = -1;
+        int16_t new_ship = -1;
+        uint64_t token = game_events::Subscribe([](game_events::e_event event, void* context) {
+            auto* observer = (s_rebuild_observer*)context;
+            if (event == game_events::SHIP_ICONS_REBUILD_BEGIN) {
+                observer->old_ship = MOX::ship_node[0].ship_idx;
+                observer->events.push_back(event);
+            } else if (event == game_events::SHIP_ICONS_REFRESHED) {
+                observer->new_ship = MOX::ship_node[0].ship_idx;
+                observer->events.push_back(event);
+            } else if (event == game_events::FLEET_BOX_INFO_CLEARED) {
+                observer->events.push_back(event);
+            }
+        },
+            this);
+        ~s_rebuild_observer() {
+            game_events::Unsubscribe(token);
+        }
+    } observer;
+    DOCTEST_REQUIRE(observer.token != 0);
+    MOX::ship_node[0].ship_idx = MAX_SHIPS - 1;
+    const uint32_t seed = game_random::Get_Random_Seed();
+    SHIPS::Build_Ship_Icons();
+    DOCTEST_CHECK(observer.old_ship == MAX_SHIPS - 1);
+    DOCTEST_CHECK(observer.new_ship == 0);
+    const std::vector<game_events::e_event> expected = {
+        game_events::SHIP_ICONS_REBUILD_BEGIN, game_events::FLEET_BOX_INFO_CLEARED, game_events::SHIP_ICONS_REFRESHED};
+    DOCTEST_CHECK(observer.events == expected);
+    observer.events.clear();
+    fixture.ships[0].status = 5;
+    SHIPS::Build_Ship_Icons();
+    DOCTEST_CHECK(observer.old_ship == 0);
+    DOCTEST_CHECK(observer.new_ship == 1); // Reused node zero is not the old ship.
+    DOCTEST_CHECK(observer.events == expected);
     DOCTEST_CHECK(game_random::Get_Random_Seed() == seed);
 }
 

@@ -1073,7 +1073,7 @@ namespace FLEETPOP {
         }
 
         if (MOX::eta_star_id == -1 && (info_type == 2 || info_type == 3)) {
-            const game_events::s_fleet_box_info observation = {ship_idx, static_cast<uint8_t>(info_value), destination_star};
+            const game_events::s_fleet_box_info observation = {ship_idx, static_cast<uint8_t>(info_value), destination_star, MOX::fleet_movement_icon[0].ship_node_idx};
             game_events::Publish_Fleet_Box_Info(&observation);
         }
 

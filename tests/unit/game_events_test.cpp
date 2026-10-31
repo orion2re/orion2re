@@ -86,7 +86,7 @@ DOCTEST_TEST_CASE("fleet info publication borrows a synchronous value and shares
     const uint64_t token = game_events::Subscribe_Fleet_Box_Info(capture, &copy);
     DOCTEST_REQUIRE(token != 0);
     {
-        const game_events::s_fleet_box_info info = {7, 255, -1};
+        const game_events::s_fleet_box_info info = {7, 255, -1, 3};
         game_events::Publish_Fleet_Box_Info(&info);
     }
     game_events::Publish_Fleet_Box_Info(nullptr);
@@ -95,6 +95,7 @@ DOCTEST_TEST_CASE("fleet info publication borrows a synchronous value and shares
     DOCTEST_CHECK(copy.value.ship == 7);
     DOCTEST_CHECK(copy.value.turns_left == 255);
     DOCTEST_CHECK(copy.value.star == -1);
+    DOCTEST_CHECK(copy.value.node == 3);
     std::vector<uint64_t> extra;
     for (int i = 0; i < 7; ++i) extra.push_back(game_events::Subscribe_Fleet_Box_Info(capture, &copy));
     DOCTEST_CHECK(game_events::Subscribe_Fleet_Box_Info(capture, &copy) == 0);
@@ -102,7 +103,7 @@ DOCTEST_TEST_CASE("fleet info publication borrows a synchronous value and shares
     DOCTEST_CHECK(game_events::Subscribe_Fleet_Box_Info(nullptr, nullptr) == 0);
     for (uint64_t id : extra) game_events::Unsubscribe(id);
     game_events::Unsubscribe(token);
-    const game_events::s_fleet_box_info info = {0, 0, 0};
+    const game_events::s_fleet_box_info info = {0, 0, 0, 0};
     game_events::Publish_Fleet_Box_Info(&info);
     DOCTEST_CHECK(copy.calls == 1);
 }

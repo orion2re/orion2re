@@ -34,6 +34,7 @@ class SidecarArchitectureTests(unittest.TestCase):
         self.assertEqual(builder.count("game_events::Publish(game_events::SHIP_ICONS_REFRESHED)"), 1)
         self.assertLess(builder.index("SHIPSTAK::Find_Ship_Stacks()"), builder.index("SHIP_ICONS_REFRESHED"))
         self.assertLess(builder.index("qsort("), builder.index("SHIP_ICONS_REFRESHED"))
+        self.assertLess(builder.index("SHIP_ICONS_REBUILD_BEGIN"), builder.index("SHIPSTAK::Find_Ship_Stacks()"))
         adapter = (ROOT / "src/rpc/game_rpc.cpp").read_text()
         self.assertIn("case game_events::SHIP_ICONS_REFRESHED: Capture_Refreshed_Ships();", adapter)
         for name in ("game_rpc.cpp", "rpc_game.cpp"):
@@ -58,10 +59,10 @@ class SidecarArchitectureTests(unittest.TestCase):
         self.assertIn("MOX::eta_star_id == -1 && (info_type == 2 || info_type == 3)", producer)
         self.assertLess(producer.index("Get_Absolute_Location_Scan_Info("),
                         producer.index("Publish_Fleet_Box_Info("))
+        self.assertIn("MOX::fleet_movement_icon[0].ship_node_idx", producer)
         self.assertIn("game_events::s_fleet_box_view_scope", (ROOT / "src/game/mainscr_main.cpp").read_text())
         for path, function in (("fleetpop.cpp", "Fleet_Box_Data(int16_t ship_count)"),
-                               ("movebox.cpp", "Vanish_Fleet_Movement_Box()"),
-                               ("ships.cpp", "Build_Ship_Icons()")):
+                               ("movebox.cpp", "Vanish_Fleet_Movement_Box()")):
             text = (ROOT / "src/game" / path).read_text()
             self.assertRegex(text[text.index(function):],
                              r"^[^{]+\{\s*game_events::Publish\(game_events::FLEET_BOX_INFO_CLEARED\)")

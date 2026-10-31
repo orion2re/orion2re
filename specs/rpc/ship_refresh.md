@@ -164,6 +164,42 @@ No contract shape, implemented method or allowed-topic set changes. LeakSanitize
 is disabled only because it is unsupported locally; interactive parity and
 other-platform results remain unverified.
 
+### Q-07 transient producer association prerequisite
+
+The fleet-box payload additionally copies the exact first movement icon's native
+node reference, alongside the ship reference already selected by the producer.
+Neither reference is an identity or an authorization grant. Consumers must match
+both against a surviving authorized refresh and must not look up an old node
+later. `SHIP_ICONS_REBUILD_BEGIN` now precedes the existing clear and all builder
+mutations. This distinct neutral event lets a future consumer discard its entire
+node association when nodes are about to be reused, without confusing an ordinary
+info-text replacement clear with a node rebuild. No new native policy or operation
+is introduced, and RPC still does not subscribe to the borrowed payload.
+
+Synthetic native-function tests verify the actual producer copies different node
+references for the same ship slot, retains earlier copied values, and still
+excludes movement previews. An observer sees the old mapping at rebuild begin,
+then a new mapping at refresh, including reuse of node zero for a different ship.
+This is producer/ordering evidence only, not a tested RPC association, initialized
+owner-context authorization, native ship-slot identity or interactive parity.
+
+Public context disclosure remains disabled. The complete authorization/lifetime
+path must still prove initialized owner entry/exit, stale selection and ship-slot
+reuse rejection, world/reset/resolution/perspective revocation, copied fresh
+coherent captures for every requested topic (including session), hidden-only
+noninterference, subscription baselines and context-revoked pinned pagination.
+The store's current ETA still requires a current destination; a withheld `star ==
+-1` is not known-empty, and `NUM_STARS` must not acquire a fabricated handle.
+No retained capture is enriched with a later UI result. Q-07 remains unchecked.
+
+Transient-reference verification on macOS ARM64: 97 Python tests including 38
+live WebSocket cases pass; RPC/native-projection/transport, neutral-event and
+fleet-owner targets pass normally and with ASAN/UBSAN. The RPC-disabled suite
+passes 106 targets. Generator drift, affected C++ formatting (changed ranges in
+restored native owners) and whitespace checks pass. Leak detection alone remains
+disabled because it is unsupported locally. No interactive saved-game,
+multiplayer or other-platform parity is claimed.
+
 ## Queries, identities and dating
 
 Enabled methods now include `game.listShips` and `game.getShip`; `ships` is also

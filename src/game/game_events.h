@@ -21,6 +21,7 @@ namespace game_events {
         SHIP_ICONS_REFRESHED,
         FLEET_BOX_INFO_CLEARED,
         FLEET_BOX_INFO_READY,
+        SHIP_ICONS_REBUILD_BEGIN,
     };
 
     // Native fleet-box presentation result, borrowed only during publication.
@@ -29,6 +30,8 @@ namespace game_events {
         int16_t ship;
         uint8_t turns_left;
         int16_t star;
+        // Transient producer reference, not an identity across node rebuilds.
+        int16_t node;
     };
 
     using t_callback = void (*)(e_event event, void* context);
