@@ -2,7 +2,8 @@
 
 Status: P1 read foundation in progress. Optional libuv-backed WebSockets,
 configured-key hello, metadata discovery, game-thread dispatch and an initial
-immutable session/map projection are implemented. Game code is RPC-unaware and
+immutable session/map projection, atomic initial-topic subscriptions, bounded
+state coalescing and committed-capture turn notifications are implemented. Game code is RPC-unaware and
 publishes only neutral observer events; the application composes the RPC sidecar.
 Most gameplay query families and all remote actions remain uncallable. P0-06, P0-09 and
 P0-10 remain open for their unperformed platform/native-game acceptance checks.
@@ -980,16 +981,22 @@ captures; expiry/eviction is explicit object-unavailable, never mixed revisions.
 Tests cover paired hidden-state changes, native formatting/RNG preservation,
 revocation/late results, cached read behavior and real WebSocket query dispatch.
 Subscriptions atomically return a selected-topic baseline and cursor on the game
-thread. Only session/systems/nebulas with `state.changed` are accepted; notifications
+thread. Only session/systems/nebulas topics are accepted; `state.changed` notifications
 invalidate the selected public projection without disclosing hidden-only changes.
+Authenticated connections receive default `game.turnAdvanced`, emitted once per connection only
+after a higher committed turn is in the queryable map capture. These ordered
+events are never coalesced. The native resolution scope and authoritative network
+decode scope prevent intermediate publication; native differential-decode tests
+verify committed event ordering, with RPC/live tests covering paused captures.
 Unsubscribe is connection-owned; reconnect requires a fresh baseline, and view
-revocation clears subscriptions. Capture is requested by queued reads/subscriptions,
+revocation clears subscriptions. Capture is requested by queued reads/subscriptions
+or native resolution/network commit boundaries for default turn notifications,
 not merely an idle authenticated connection. C++ ownership/bounds/visibility tests
 and live transport tests pass on macOS ARM64. Unsent state invalidations coalesce
 per subscription in both bridge and service queues, preserving partially sent
 messages and all non-coalescible responses/events. Cursor jumps mean re-read the
 selected topics, not replay lost events. Output overflow explicitly disconnects.
-Ordered gameplay event producers remain later work, not advertised functionality.
+Other ordered gameplay event producers remain later work, not advertised functionality.
 
 See `specs/rpc/p1.md` for build/test commands, verified evidence and remaining P0
 gates. P1 completion is not claimed by this foundation increment.
@@ -1018,13 +1025,13 @@ gates. P1 completion is not claimed by this foundation increment.
 - [x] V-07 — Filter before IDs, totals, sorting, search, pagination, caching, errors, events, and revision comparisons (implemented projection; unsupported filters/streams remain uncallable).
 - [x] V-08 — Make unknown/nonexistent ID errors indistinguishable and reject filters/previews that probe hidden properties (implemented object/cursor paths).
 - [ ] V-09 — Apply visibility to messages/format arguments, legal-target previews, retained battle results, sound, effects, frames, and resources.
-- [x] V-10 — Revoke views, handles, pending work/results and snapshots on load/reset/perspective change (subscriptions are still unavailable).
+- [x] V-10 — Revoke views, handles, pending work/results, snapshots and subscriptions on load/reset/perspective change.
 - [x] V-11 — Require a fresh configured-key handshake after hotseat perspective revocation; never let an existing connection silently follow the next empire.
 - [ ] V-12 — Exclude raw structs, native layouts, RNG/Lua/debug access, arbitrary files/config/mod storage, save bytes, and cheat shortcuts.
 
 #### Common query API groups
 
-- [x] Q-01 — Implement `rpc.hello`, `rpc.describe`, `rpc.subscribe`, and `rpc.unsubscribe` (subscriptions explicitly limited to initial audited topics and `state.changed`).
+- [x] Q-01 — Implement `rpc.hello`, `rpc.describe`, `rpc.subscribe`, and `rpc.unsubscribe` (subscriptions explicitly limited to initial audited topics, `state.changed` and `game.turnAdvanced`).
 - [x] Q-02 — Implement `game.getSession` and coherent `game.getState(include)` for the explicitly enabled initial topics.
 - [ ] Q-03 — Implement `game.listPlayers` and `game.getPlayer` with own HUD/economy and known-contact projections.
 - [ ] Q-04 — Implement `game.listSystems` and `game.getSystem` with authorized map/range/wormhole data.
@@ -1042,11 +1049,20 @@ gates. P1 completion is not claimed by this foundation increment.
 
 #### Minimal notifications
 
-- [ ] N-01 — Emit `game.turnAdvanced` only after committed queryable state; cover single-player resolution and authoritative network-state application.
+- [x] N-01 — Emit `game.turnAdvanced` only after committed queryable state; cover single-player resolution and authoritative network-state application (existing neutral scopes, delayed map capture; RPC paused/ordered/client tests, live turn/query equality, native differential-decode commit ordering; interactive parity remains a P0 gate).
 - [ ] N-02 — Emit `ui.contextChanged` for initialized active contexts, nested dialogs, and parent restoration rather than raw screen assignments.
 - [ ] N-03 — Emit `game.sessionChanged` for new/load/end/unload/revocation and invalidate stale identities.
 - [ ] N-04 — Add selected `state.changed` / `ui.viewChanged` subscriptions without emitting events for hidden-only changes.
 - [ ] N-05 — Validate a client example deriving incoming hostile ships from ships/colonies/known diplomacy after a turn event; add no server briefing API.
+
+Next native-policy decision (V-03/Q-07): detection/stealth calculations currently
+live inside `SHIPSTAK::Remove_Non_Detected_Ships`, which mutates display links.
+The recommended route is to extract read-only native predicates shared by that
+filter and the sidecar, preserving scanner/stealth/mod/omniscience rules with
+native equivalence and RNG tests. No such extraction has been applied: section 2
+requires separate approval for native API additions/shared-policy extraction.
+The alternative is a neutral post-refresh capture hook with explicitly dated
+ship observations, not invoking the builder from a query or reading stale nodes.
 
 ### P2. Shared UI adapters and operation lifecycle
 

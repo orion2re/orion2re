@@ -63,7 +63,7 @@ int main() {
                 rpc::Capture_Map(&store, &map);
             } else if (command == "burst") {
                 for (int index = 0; index < 100; ++index) {
-                    ++map.turn;
+                    map.systems[0].name = "Home-" + std::to_string(index);
                     rpc::Capture_Map(&store, &map);
                     rpc::Pump_Game_Queries(&store);
                 }

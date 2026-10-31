@@ -146,7 +146,11 @@ namespace game_rpc {
                 rpc::Resume_Game_Queries(&store);
                 break;
             case game_events::WORLD_UPDATE_COMMITTED:
-            case game_events::RESOLUTION_END: rpc::Resume_Game_Queries(&store); break;
+            case game_events::RESOLUTION_END:
+                rpc::Resume_Game_Queries(&store);
+                store.capture_requested = true;
+                last_capture_ms = 0;
+                break;
             case game_events::MAP_OBSERVATION_POINT: Capture_Main_Map(); break;
             case game_events::IDLE_OBSERVATION_POINT: Pump(); break;
             default: break;

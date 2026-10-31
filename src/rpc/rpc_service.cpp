@@ -214,6 +214,7 @@ namespace rpc {
                 if (controller) {
                     state->controller = connection->client;
                 }
+                if (!Authorize_Client(state->bridge, connection->client, connection->epoch)) return false;
                 connection->authenticated = true;
                 connection->controller = controller;
                 std::string result = "{\"connectionId\":" + Json_String(connection->public_id);

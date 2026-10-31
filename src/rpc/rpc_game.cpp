@@ -22,6 +22,7 @@ namespace rpc {
             store->snapshots.clear();
             store->cursors.clear();
             store->subscriptions.clear();
+            store->turn_observers.clear();
             store->capture_requested = false;
         }
 
@@ -140,6 +141,10 @@ namespace rpc {
             yyjson_arr_foreach(yyjson_obj_get(params, "topics"), index, count, topic) {
                 subscription.topics.emplace_back(yyjson_get_str(topic), yyjson_get_len(topic));
             }
+            yyjson_arr_foreach(yyjson_obj_get(params, "events"), index, count, topic) {
+                const std::string event(yyjson_get_str(topic), yyjson_get_len(topic));
+                subscription.state_changes |= event == "state.changed";
+            }
             yyjson_doc_free(doc);
             if (store->busy_depth != 0 || !store->loaded || store->snapshots.empty()) return Error_Response(request, RPC_BUSY);
             const size_t client_count = std::count_if(store->subscriptions.begin(), store->subscriptions.end(), [work](const s_state_subscription& item) { return item.client == work->client; });
@@ -160,6 +165,7 @@ namespace rpc {
             for (s_state_subscription& subscription : store->subscriptions) {
                 if (subscription.revision == store->revision) continue;
                 subscription.revision = store->revision;
+                if (!subscription.state_changes) continue;
                 std::string projection = Topic_Projection(store, &subscription.topics);
                 if (projection == subscription.projection) continue;
                 if (subscription.cursor == std::numeric_limits<uint64_t>::max()) {
@@ -170,6 +176,39 @@ namespace rpc {
                     Json_String(subscription.id) + ",\"cursor\":" + Json_String(std::to_string(++subscription.cursor)) +
                     ",\"topics\":" + Topics_Json(&subscription.topics) + ",\"stamp\":" + Stamp(store, &store->snapshots.back()) + "}}";
                 if (Publish_Event(store->bridge, subscription.client, subscription.epoch, &json, &subscription.id)) subscription.projection = std::move(projection);
+            }
+        }
+
+        void Sync_Turn_Observers(s_game_store* store) {
+            std::vector<s_client_identity> clients;
+            Get_Authorized_Clients(store->bridge, &clients);
+            std::erase_if(store->turn_observers, [&clients](const s_turn_observer& observer) {
+                return std::none_of(clients.begin(), clients.end(), [&observer](const s_client_identity& identity) {
+                    return identity.client == observer.identity.client && identity.epoch == observer.identity.epoch;
+                });
+            });
+            if (!store->loaded || store->snapshots.empty()) return;
+            const int32_t turn = store->snapshots.back().map.turn;
+            for (const s_client_identity& identity : clients) {
+                auto observer = std::find_if(store->turn_observers.begin(), store->turn_observers.end(), [&identity](const s_turn_observer& item) {
+                    return item.identity.client == identity.client && item.identity.epoch == identity.epoch;
+                });
+                if (observer == store->turn_observers.end()) {
+                    store->turn_observers.push_back({identity, turn});
+                }
+            }
+        }
+
+        void Publish_Turn_Changes(s_game_store* store) {
+            Sync_Turn_Observers(store);
+            if (store->busy_depth != 0 || !store->loaded || store->snapshots.empty()) return;
+            const int32_t turn = store->snapshots.back().map.turn;
+            for (s_turn_observer& observer : store->turn_observers) {
+                if (turn <= observer.turn) continue;
+                const std::string json = "{\"jsonrpc\":\"2.0\",\"method\":\"game.turnAdvanced\",\"params\":{\"gameId\":" +
+                    Json_String(store->game_id) + ",\"turn\":" + std::to_string(turn) + ",\"revision\":" +
+                    Json_String(std::to_string(store->revision)) + "}}";
+                if (Publish_Event(store->bridge, observer.identity.client, observer.identity.epoch, &json)) observer.turn = turn;
             }
         }
 
@@ -318,6 +357,8 @@ namespace rpc {
         if (store == nullptr || observation == nullptr || !store->loaded || store->busy_depth != 0 ||
             observation->viewer < 0 || observation->viewer >= 8 || observation->turn < 0 ||
             observation->systems.size() > 1024 || observation->nebulas.size() > 57) return false;
+        // Bind newly authorized default observers to the old coherent turn before replacing it.
+        Sync_Turn_Observers(store);
         s_map_observation projected = *observation;
         for (s_system_observation& system : projected.systems) {
             system.name_available &= system.visited;
@@ -382,12 +423,14 @@ namespace rpc {
             const bool completed = Complete_Work(store->bridge, &work, &response);
             if ((expired || !completed) && store->subscriptions.size() > previous_subscriptions) store->subscriptions.pop_back();
         }
+        Publish_Turn_Changes(store);
         Publish_State_Changes(store);
     }
 
     bool Needs_Game_Capture(s_game_store* store) {
         if (store == nullptr || store->bridge == nullptr) return false;
         Prune_Subscriptions(store);
-        return store->capture_requested || !store->subscriptions.empty() || Has_Pending_Work(store->bridge);
+        return store->capture_requested || Has_Pending_Work(store->bridge) ||
+            std::any_of(store->subscriptions.begin(), store->subscriptions.end(), [](const s_state_subscription& item) { return item.state_changes; });
     }
 } // namespace rpc

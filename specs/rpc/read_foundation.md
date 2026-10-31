@@ -75,7 +75,8 @@ Queries read **the last coherent map capture**, not a claim of latest live state
 in every native screen. Each stamp explicitly includes
 `captureMode: last-coherent-capture`, turn, revision and snapshot identity. Captures
 are limited to 10 Hz, and after the initial view binding run only for queued reads,
-read demand retained until the next capture, or active subscriptions. An idle
+read demand retained until the next capture, active subscriptions, or native
+resolution/network commit boundaries for default turn events. An idle
 connection alone does not request capture. Other screens can query the immutable capture without
 navigating back to the map. During resolution, data reads return busy; session
 metadata reports resolving. No half-updated world is captured.
@@ -95,7 +96,7 @@ unknown/nonexistent/stale system handle. No hidden-property filters are accepted
 ## Initial subscriptions
 
 `rpc.subscribe` requires one or more unique topics from `session`, `systems`,
-`nebulas` and `events: ["state.changed"]`. Unsupported topics/events and empty
+`nebulas` and one or both of `state.changed`, `game.turnAdvanced`. Unsupported topics/events and empty
 selections are invalid params. Baseline, opaque subscription ID and cursor `"0"`
 are established together on the game thread from one committed capture; unsafe
 or unavailable captures return busy. There is no replay/resume cursor: reconnect
@@ -123,7 +124,7 @@ set. Once a message's first fragment has been sent, that message is immutable;
 only later unsent invalidations can be replaced. Responses and ordered events
 never receive coalescing keys. Any bound exceeded by non-coalescible output causes
 explicit disconnection, not silent loss. No gameplay/audio event producer is
-enabled by this queue infrastructure.
+enabled by this queue infrastructure except the committed turn notification below.
 
 Verified on macOS ARM64: the RPC and native projection CTest targets pass, 45 Python
 contract/schema/architecture tests pass, and all 24 live WebSocket tests pass,
@@ -132,6 +133,43 @@ baselines, unsupported selection rejection and busy captures. The subsequent
 coalescing increment passes 25 live tests and the C++ output/bridge tests on normal
 and ASAN/UBSAN builds, including partial-send immutability, ordered-result retention,
 per-client isolation, message/byte/global limits and a live 100-change state burst.
+
+## Committed turn notifications (N-01)
+
+Authenticated connections receive default `game.turnAdvanced` events after a
+higher turn enters the coherent queryable capture. When the game thread first
+observes an authenticated connection it establishes its starting turn from the
+last coherent capture; it does not replay prior advances. No game data is sent to
+unauthenticated registered sockets. Selecting `game.turnAdvanced` in a subscription
+is accepted but redundant: it neither duplicates nor disables this default stream.
+Unsubscribe removes selected state invalidations, not default lifecycle events.
+View revocation clears both and closes the connection. The event contains the
+same game ID, turn and revision as session queries, and is non-coalescible. Turn
+notifications alone do not enable state invalidations.
+
+The sidecar pauses captures through `NEXTTURN::Next_Turn`'s resolution scope and
+`NETMOX::Decode_Broadcast_Game_Data_Differential`'s world-update scope. Resume alone
+does not publish a turn: the initialized-map observation point must first capture
+the new committed projection. Notifications therefore may be delayed while a
+different native screen is open; they never claim a newer turn than queryable
+state. A failed/paused capture emits nothing. Network application failure revokes
+the view through the existing fail-closed path.
+
+Tests cover paused capture/resume without a capture, same-turn public changes,
+duplicate subscriptions, ordered consecutive captures and event/session equality
+over real WebSockets, including authenticated connections without subscriptions.
+The native differential-decode round-trip observes begin
+with the old stardate and committed with the decoded stardate, including growing
+and shrinking snapshot subcases. These are synthetic native-array tests, not
+interactive single-player/multiplayer acceptance traces.
+
+N-01 verification on macOS ARM64: 72 Python tests pass, including all 27 live
+WebSocket cases; RPC, native projection, native network-decode and neutral-event
+CTest targets pass. RPC/native projection/network-decode/live transport targets
+also pass with ASAN/UBSAN. The RPC-disabled `tools/run-tests.sh` passes all 106
+CTest targets. Generated schema/reference drift and RPC formatting checks pass;
+pre-existing whole-file formatting differences in `netmox_test.cpp` were not
+rewritten. Supported-platform and interactive acceptance gates remain open.
 
 ## Validation and limits
 

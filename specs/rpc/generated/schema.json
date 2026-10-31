@@ -2864,7 +2864,8 @@
     "SubscriptionEvent": {
       "type": "string",
       "enum": [
-        "state.changed"
+        "state.changed",
+        "game.turnAdvanced"
       ]
     },
     "SubscriptionEvents": {
@@ -2872,7 +2873,7 @@
       "items": {
         "$ref": "#/$defs/SubscriptionEvent"
       },
-      "maxItems": 1,
+      "maxItems": 2,
       "minItems": 1,
       "uniqueItems": true
     },
@@ -7775,7 +7776,7 @@
     "orderedEventsPerSubscription": 4096,
     "overflow": "Reject before admission; coalesce only complete unsent state. Ordered-event overflow signals a gap or disconnect. Never rewrite partial output or silently discard operation results."
   },
-  "x-rpc-sourceHash": "c5737b17adefcc9580cc0d67c1451bcdb12f9165890f02d1b41cb58ccd559178",
+  "x-rpc-sourceHash": "2403a0cf8fd4aa478c9668b04f2308d986e5c76eb504e8ff5f5c3988aab535f6",
   "x-rpc-runtimeEnabled": false,
   "x-rpc-implementedMethods": [
     "rpc.hello",

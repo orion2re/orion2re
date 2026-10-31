@@ -19,9 +19,10 @@ namespace rpc {
         }
 
         void Cancel(s_bridge* bridge, uint64_t client) {
-            for (uint64_t& registered : bridge->clients) {
-                if (registered == client) {
-                    registered = 0;
+            for (size_t index = 0; index < 4; ++index) {
+                if (bridge->clients[index] == client) {
+                    bridge->clients[index] = 0;
+                    bridge->authorized[index] = false;
                 }
             }
             std::erase_if(bridge->tickets, [client](const s_bridge_ticket& ticket) { return ticket.client == client; });
@@ -37,6 +38,7 @@ namespace rpc {
 
         void Clear(s_bridge* bridge) {
             std::fill(std::begin(bridge->clients), std::end(bridge->clients), 0);
+            std::fill(std::begin(bridge->authorized), std::end(bridge->authorized), false);
             bridge->tickets.clear();
             bridge->pending.clear();
             bridge->ready.clear();
@@ -95,6 +97,27 @@ namespace rpc {
         if (bridge != nullptr) {
             std::lock_guard lock(bridge->mutex);
             Cancel(bridge, client);
+        }
+    }
+
+    bool Authorize_Client(s_bridge* bridge, uint64_t client, uint64_t epoch) {
+        if (bridge == nullptr) return false;
+        std::lock_guard lock(bridge->mutex);
+        if (!Current(bridge, client, epoch)) return false;
+        for (size_t index = 0; index < 4; ++index) {
+            if (bridge->clients[index] == client) bridge->authorized[index] = true;
+        }
+        return true;
+    }
+
+    void Get_Authorized_Clients(s_bridge* bridge, std::vector<s_client_identity>* clients) {
+        if (clients == nullptr) return;
+        clients->clear();
+        if (bridge == nullptr) return;
+        std::lock_guard lock(bridge->mutex);
+        if (bridge->stopped) return;
+        for (size_t index = 0; index < 4; ++index) {
+            if (bridge->authorized[index] && bridge->clients[index] != 0) clients->push_back({bridge->clients[index], bridge->epoch});
         }
     }
 

@@ -31,12 +31,18 @@ namespace rpc {
         bool started;
     };
 
+    struct s_client_identity {
+        uint64_t client;
+        uint64_t epoch;
+    };
+
     struct s_bridge {
         std::mutex mutex;
         uint64_t epoch = 1;
         uint64_t next_ticket = 0;
         bool stopped = false;
         uint64_t clients[4] = {};
+        bool authorized[4] = {};
         std::vector<s_bridge_ticket> tickets;
         std::deque<s_work> pending;
         std::deque<s_publication> ready;
@@ -45,6 +51,8 @@ namespace rpc {
 
     bool Register_Client(s_bridge* bridge, uint64_t client, uint64_t* epoch);
     bool Client_Is_Current(s_bridge* bridge, uint64_t client, uint64_t epoch);
+    bool Authorize_Client(s_bridge* bridge, uint64_t client, uint64_t epoch);
+    void Get_Authorized_Clients(s_bridge* bridge, std::vector<s_client_identity>* clients);
     bool Has_Clients(s_bridge* bridge);
     bool Has_Pending_Work(s_bridge* bridge);
     void Cancel_Client(s_bridge* bridge, uint64_t client);

@@ -359,6 +359,7 @@ class TransportTests(unittest.TestCase):
         client.Hello()
         first = self.Query(client, "game.listSystems", {"limit":1})["result"]
         self.Fixture("advance")
+        self.assertEqual(client.Read()["method"], "game.turnAdvanced")
         second = self.Query(client, "game.listSystems", {"cursor":first["nextCursor"]})["result"]
         self.assertEqual(first["stamp"], second["stamp"])
         self.assertEqual(self.Query(client, "game.getSession")["result"]["turn"], 35001)
@@ -375,6 +376,7 @@ class TransportTests(unittest.TestCase):
         # A following response must be next: hidden-only mutations emitted nothing.
         self.assertEqual(self.Query(client, "game.getSession")["result"]["turn"], 35000)
         self.Fixture("advance")
+        self.assertEqual(client.Read()["method"], "game.turnAdvanced")
         changed = client.Read()
         self.assertEqual(changed["method"], "state.changed")
         self.assertEqual(changed["params"]["subscriptionId"], subscribed["subscriptionId"])
@@ -382,6 +384,7 @@ class TransportTests(unittest.TestCase):
         self.assertEqual(changed["params"]["stamp"]["turn"], 35001)
         self.assertTrue(self.Query(client, "rpc.unsubscribe", {"subscriptionId":subscribed["subscriptionId"]})["result"]["removed"])
         self.Fixture("advance")
+        self.assertEqual(client.Read()["method"], "game.turnAdvanced")
         fresh = self.Query(client, "rpc.subscribe", params)["result"]
         self.assertEqual(fresh["cursor"], "0")
         self.assertEqual(fresh["baseline"]["session"]["turn"], 35002)
@@ -392,7 +395,7 @@ class TransportTests(unittest.TestCase):
         client = self.Client()
         client.Hello()
         for params in ({"topics":["ships"],"events":["state.changed"]},
-                       {"topics":["systems"],"events":["game.turnAdvanced"]},
+                       {"topics":["systems"],"events":["ui.contextChanged"]},
                        {"topics":[],"events":["state.changed"]},
                        {"topics":["systems"],"events":[]}):
             self.assertEqual(self.Query(client, "rpc.subscribe", params)["error"]["code"], -32602)
@@ -413,12 +416,39 @@ class TransportTests(unittest.TestCase):
             self.assertGreater(cursor, previous)
             self.assertEqual(changed["params"]["subscriptionId"], baseline["subscriptionId"])
             previous = cursor
-            if changed["params"]["stamp"]["turn"] == 35100:
+            if changed["params"]["stamp"]["revision"] == "101":
                 break
         else:
             self.fail("missing latest state invalidation")
         self.assertEqual(previous, 100)
-        self.assertEqual(self.Query(client, "game.getSession")["result"]["turn"], 35100)
+        self.assertEqual(self.Query(client, "game.getSession")["result"]["turn"], 35000)
+
+    def test_turn_event_is_committed_queryable_and_not_a_state_invalidation(self):
+        self.Fixture("world")
+        client = self.Client()
+        client.Hello()
+        self.Query(client, "rpc.subscribe", {"topics":["session"],"events":["game.turnAdvanced"]})
+        self.Fixture("busy")
+        self.Fixture("advance")
+        self.Fixture("resume")
+        self.assertEqual(self.Query(client, "game.getSession")["result"]["turn"], 35000)
+        self.Fixture("advance")
+        event = client.Read()
+        self.assertEqual(event["method"], "game.turnAdvanced")
+        current = self.Query(client, "game.getSession")["result"]
+        self.assertEqual(event["params"], {name:current[name] for name in ("gameId", "turn", "revision")})
+        self.assertEqual(current["turn"], 35002)
+
+    def test_authorized_connections_receive_default_turns_without_subscribing(self):
+        self.Fixture("world")
+        client = self.Client()
+        client.Hello()
+        # Ensure the game thread has established the default baseline.
+        self.Query(client, "game.getSession")
+        self.Fixture("advance")
+        event = client.Read()
+        self.assertEqual(event["method"], "game.turnAdvanced")
+        self.assertEqual(event["params"]["turn"], 35001)
 
 
 if __name__ == "__main__":

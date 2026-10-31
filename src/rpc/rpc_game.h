@@ -52,6 +52,12 @@ namespace rpc {
         std::string id;
         std::vector<std::string> topics;
         std::string projection;
+        bool state_changes = false;
+    };
+
+    struct s_turn_observer {
+        s_client_identity identity;
+        int32_t turn;
     };
 
     // Game-thread-owned. Only copied requests/publications cross the bridge.
@@ -73,6 +79,7 @@ namespace rpc {
         std::deque<s_map_snapshot> snapshots;
         std::vector<s_map_cursor> cursors;
         std::vector<s_state_subscription> subscriptions;
+        std::vector<s_turn_observer> turn_observers;
     };
 
     bool Initialize_Game_Store(s_game_store* store, s_bridge* bridge, t_new_id new_id = nullptr, void* context = nullptr);

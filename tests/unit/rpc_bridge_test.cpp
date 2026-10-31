@@ -20,6 +20,14 @@ DOCTEST_TEST_CASE("RPC bridge owns bounded copies and immutable completions") {
     rpc::s_bridge bridge;
     uint64_t epoch;
     DOCTEST_REQUIRE(rpc::Register_Client(&bridge, 1, &epoch));
+    std::vector<rpc::s_client_identity> authorized;
+    rpc::Get_Authorized_Clients(&bridge, &authorized);
+    DOCTEST_CHECK(authorized.empty());
+    DOCTEST_REQUIRE(rpc::Authorize_Client(&bridge, 1, epoch));
+    rpc::Get_Authorized_Clients(&bridge, &authorized);
+    DOCTEST_REQUIRE(authorized.size() == 1);
+    DOCTEST_CHECK(authorized.front().client == 1);
+    DOCTEST_CHECK(authorized.front().epoch == epoch);
     rpc::s_request request = Request();
     for (int count = 0; count < 16; ++count) {
         DOCTEST_CHECK(rpc::Submit_Work(&bridge, 1, epoch, &request, 100) == 0);

@@ -9,7 +9,7 @@ This document is rendered from `schema.json`, not a second method catalog.
 The root schema validates acknowledged client requests; per-method success responses and server notifications have separate definitions.
 All fields are non-null unless explicitly stated. Unknown keys are rejected. UTF-8 byte limits, lexical integer tokens, duplicate keys, depth and authorization need the protocol guards in addition to standard JSON Schema validation.
 
-Source bundle SHA-256: `c5737b17adefcc9580cc0d67c1451bcdb12f9165890f02d1b41cb58ccd559178`.
+Source bundle SHA-256: `2403a0cf8fd4aa478c9668b04f2308d986e5c76eb504e8ff5f5c3988aab535f6`.
 
 ## Methods
 
@@ -1071,11 +1071,11 @@ Array of `StateTopic`; 0..3 items; unique: true.
 
 ### SubscriptionEvent
 
-Values: `state.changed`.
+Values: `state.changed`, `game.turnAdvanced`.
 
 ### SubscriptionEvents
 
-Array of `SubscriptionEvent`; 1..1 items; unique: true.
+Array of `SubscriptionEvent`; 1..2 items; unique: true.
 
 ### SubscriptionTopics
 

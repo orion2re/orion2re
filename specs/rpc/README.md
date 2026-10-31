@@ -116,6 +116,13 @@ TPOP constructor kinds, multiplayer phases and combat enum inventories against
 Appendices A-E, and commits/files against F-H. Target drift does not change these
 inventories. Semantic runtime equivalence remains a later implementation gate.
 
+P1 turn-notification test drift: `tests/unit/netmox_test.cpp` now subscribes to the
+neutral world-update events during its existing differential snapshot round-trip.
+It verifies that begin observes the old stardate and committed observes the fully
+decoded stardate. The listener is scoped and removed before fixture destruction;
+no packet data, game rules, native APIs or fixture values change. The audit permits
+this reviewed test path explicitly rather than allowing arbitrary unit-test drift.
+
 ## Static method descriptor source
 
 `methods.json` contains every explicitly named method in plan section 4, without
@@ -123,7 +130,7 @@ the illustrative `(include)` signature suffix. Owner names are **proposed
 ownership labels**, not claims that those C++ adapters already exist. Shared UI
 actions dispatch through the active registered owner, not a global input injector.
 
-Runtime is opt-in; `implementedMethods` lists the seven implemented methods.
+Runtime is opt-in; `implementedMethods` lists the nine implemented methods.
 `contracts.json` supplies concrete
 request/result types for every named method; `field_policies.json` supplies native
 source anchors, predicates and required test IDs. These are contract definitions,

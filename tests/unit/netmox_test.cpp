@@ -1,6 +1,7 @@
 #include "pch.h"
 
 #include "doctest/doctest.h"
+#include "game/game_events.h"
 
 #include <array>
 #include <cstring>
@@ -801,7 +802,27 @@ DOCTEST_TEST_CASE("broadcast differential decode round trips against cached prio
     std::memset(MOX::bill_savegame, 0, sizeof(MOX::bill_savegame));
     game_random::Set_Random_Seed(0);
 
+    struct s_observed_update {
+        std::vector<game_events::e_event> events;
+        std::vector<uint32_t> turns;
+        uint64_t token = 0;
+        ~s_observed_update() {
+            game_events::Unsubscribe(token);
+        }
+    } observed;
+    observed.token = game_events::Subscribe([](game_events::e_event event, void* context) {
+        if (event != game_events::WORLD_UPDATE_BEGIN && event != game_events::WORLD_UPDATE_COMMITTED && event != game_events::WORLD_UPDATE_FAILED) return;
+        auto* update = (s_observed_update*)context;
+        update->events.push_back(event);
+        update->turns.push_back(MOX::stardate);
+    }, &observed);
+    DOCTEST_REQUIRE(observed.token != 0);
     DOCTEST_REQUIRE(NETMOX::Decode_Broadcast_Game_Data_Differential(diff_payload.data(), (size_t)diff_payload_len, 0) == 1);
+    const std::vector<game_events::e_event> expected_update_events = {game_events::WORLD_UPDATE_BEGIN, game_events::WORLD_UPDATE_COMMITTED};
+    DOCTEST_CHECK(observed.events == expected_update_events);
+    DOCTEST_REQUIRE(observed.turns.size() == 2);
+    DOCTEST_CHECK(observed.turns[0] == 0);
+    DOCTEST_CHECK(observed.turns[1] == expected_stardate);
 
     DOCTEST_CHECK(NETMOX::net.host_election_id == expected_net.host_election_id);
     DOCTEST_CHECK(MOX::stardate == expected_stardate);

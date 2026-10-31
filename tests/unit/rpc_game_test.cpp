@@ -203,3 +203,76 @@ DOCTEST_TEST_CASE("subscription ownership bounds reconnect and revocation fail c
     DOCTEST_CHECK(fixture.store.subscriptions.empty());
     DOCTEST_CHECK_FALSE(rpc::Client_Is_Current(&fixture.bridge, 3, epoch));
 }
+
+DOCTEST_TEST_CASE("turn notifications wait for coherent committed captures and remain ordered and client scoped") {
+    s_fixture fixture;
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&fixture.store));
+    auto map = Map();
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    uint64_t epoch;
+    DOCTEST_REQUIRE(rpc::Register_Client(&fixture.bridge, 1, &epoch));
+    DOCTEST_REQUIRE(rpc::Authorize_Client(&fixture.bridge, 1, epoch));
+    auto subscribe = Request("rpc.subscribe", "{\"topics\":[\"session\"],\"events\":[\"game.turnAdvanced\"]}");
+    DOCTEST_CHECK(Dispatch(&fixture, 1, epoch, &subscribe).find("baseline") != std::string::npos);
+    DOCTEST_CHECK(Dispatch(&fixture, 1, epoch, &subscribe).find("baseline") != std::string::npos);
+    rpc::s_publication publication;
+    DOCTEST_CHECK_FALSE(rpc::Take_Publication(&fixture.bridge, &publication));
+    rpc::Pause_Game_Queries(&fixture.store);
+    ++map.turn;
+    DOCTEST_CHECK_FALSE(rpc::Capture_Map(&fixture.store, &map));
+    rpc::Pump_Game_Queries(&fixture.store);
+    DOCTEST_CHECK_FALSE(rpc::Take_Publication(&fixture.bridge, &publication));
+    rpc::Resume_Game_Queries(&fixture.store);
+    rpc::Pump_Game_Queries(&fixture.store);
+    DOCTEST_CHECK_FALSE(rpc::Take_Publication(&fixture.bridge, &publication));
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    rpc::Pump_Game_Queries(&fixture.store);
+    DOCTEST_REQUIRE(rpc::Take_Publication(&fixture.bridge, &publication));
+    DOCTEST_CHECK(publication.json.find("game.turnAdvanced") != std::string::npos);
+    DOCTEST_CHECK(publication.json.find("35001") != std::string::npos);
+    DOCTEST_CHECK(publication.state_key.empty());
+    DOCTEST_CHECK_FALSE(rpc::Take_Publication(&fixture.bridge, &publication));
+    auto session = Request("game.getSession");
+    DOCTEST_CHECK(Dispatch(&fixture, 1, epoch, &session).find("35001") != std::string::npos);
+    map.systems[0].name = "Renamed";
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    rpc::Pump_Game_Queries(&fixture.store);
+    DOCTEST_CHECK_FALSE(rpc::Take_Publication(&fixture.bridge, &publication));
+    for (int index = 0; index < 2; ++index) {
+        ++map.turn;
+        DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+        rpc::Pump_Game_Queries(&fixture.store);
+    }
+    DOCTEST_REQUIRE(rpc::Take_Publication(&fixture.bridge, &publication));
+    DOCTEST_CHECK(publication.json.find("35002") != std::string::npos);
+    DOCTEST_REQUIRE(rpc::Take_Publication(&fixture.bridge, &publication));
+    DOCTEST_CHECK(publication.json.find("35003") != std::string::npos);
+    DOCTEST_CHECK_FALSE(rpc::Take_Publication(&fixture.bridge, &publication));
+    rpc::Revoke_Game_View(&fixture.store);
+    DOCTEST_CHECK(fixture.store.subscriptions.empty());
+}
+
+DOCTEST_TEST_CASE("default turn notifications require hello authorization but no explicit subscription") {
+    s_fixture fixture;
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&fixture.store));
+    auto map = Map();
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    uint64_t epoch;
+    DOCTEST_REQUIRE(rpc::Register_Client(&fixture.bridge, 1, &epoch));
+    DOCTEST_REQUIRE(rpc::Register_Client(&fixture.bridge, 2, &epoch));
+    DOCTEST_REQUIRE(rpc::Authorize_Client(&fixture.bridge, 1, epoch));
+    ++map.turn;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    rpc::Pump_Game_Queries(&fixture.store);
+    rpc::s_publication publication;
+    DOCTEST_REQUIRE(rpc::Take_Publication(&fixture.bridge, &publication));
+    DOCTEST_CHECK(publication.client == 1);
+    DOCTEST_CHECK(publication.json.find("35001") != std::string::npos);
+    DOCTEST_CHECK_FALSE(rpc::Take_Publication(&fixture.bridge, &publication));
+    rpc::Cancel_Client(&fixture.bridge, 1);
+    rpc::Pump_Game_Queries(&fixture.store);
+    DOCTEST_CHECK(fixture.store.turn_observers.empty());
+    DOCTEST_REQUIRE(rpc::Authorize_Client(&fixture.bridge, 2, epoch));
+    rpc::Pump_Game_Queries(&fixture.store);
+    DOCTEST_CHECK_FALSE(rpc::Take_Publication(&fixture.bridge, &publication));
+}
