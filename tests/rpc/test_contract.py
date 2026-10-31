@@ -150,8 +150,11 @@ class LedgerTests(unittest.TestCase):
 
     def test_target_drift_excludes_only_p0_artifacts(self):
         audit.Validate_Target_Drift(["plan.md", "tools/audit_rpc_contract.py",
-                                     "specs/rpc/methods.json", "tests/rpc/test_contract.py"])
-        for path in ("src/game/harold.cpp", "specs/rpc_other/file", "src/game/combat1.cpp"):
+                                     "specs/rpc/methods.json", "tests/rpc/test_contract.py",
+                                     "src/game/fleetpop.cpp", "src/game/movebox.cpp",
+                                     "tools/rpc_incoming_threats.py"])
+        for path in ("src/game/harold.cpp", "specs/rpc_other/file", "src/game/combat1.cpp",
+                     "src/game/fleetpop_other.cpp", "tools/rpc_incoming_threats_other.py"):
             with self.subTest(path=path), self.assertRaisesRegex(ValueError, "target drift"):
                 audit.Validate_Target_Drift([path])
 

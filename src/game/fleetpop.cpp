@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game/game_events.h"
 
 namespace FLEETPOP {
     uint8_t n_added_buttons;
@@ -910,6 +911,7 @@ namespace FLEETPOP {
     }
 
     void __cdecl Fleet_Box_Data(int16_t ship_count) {
+        game_events::Publish(game_events::FLEET_BOX_INFO_CLEARED);
         if (MOX::first_time != 0) {
             MOX::fleet_box_scroll_first_ship = 0;
             MOX::fleet_box.mouse_pressed = 0;
@@ -969,6 +971,7 @@ namespace FLEETPOP {
     }
 
     void __cdecl Print_Fleet_Box_Info() {
+        game_events::Publish(game_events::FLEET_BOX_INFO_CLEARED);
         int16_t info_value = -1;
         int16_t destination_star = -1;
         int16_t info_type = 9;
@@ -1067,6 +1070,11 @@ namespace FLEETPOP {
             } else if (MOX::g_ship_move_info.hyperspace_flux != 0) {
                 info_type = 8;
             }
+        }
+
+        if (MOX::eta_star_id == -1 && (info_type == 2 || info_type == 3)) {
+            const game_events::s_fleet_box_info observation = {ship_idx, static_cast<uint8_t>(info_value), destination_star};
+            game_events::Publish_Fleet_Box_Info(&observation);
         }
 
         switch (info_type) {

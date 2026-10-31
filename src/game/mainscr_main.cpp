@@ -272,6 +272,7 @@ namespace MAINSCR {
      * Runs the main-screen event loop, including map interaction, popups, and screen transitions.
      */
     void __cdecl Main_Screen() {
+        game_events::s_fleet_box_view_scope fleet_box_view;
         int16_t exit_flag = 0;
         int16_t hovered_target_id = 0;
         int16_t boxes_saved_flag = 0;

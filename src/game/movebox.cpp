@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game/game_events.h"
 
 namespace MOVEBOX {
     void __cdecl Draw_Galaxy_Map_Box(s_animation_header* anim1, s_animation_header* unused_anim2, int16_t x_base, int16_t y_base, int16_t width, int16_t height, int16_t map_x_off, int16_t map_y_off, int16_t x_adj, int16_t y_adj, int16_t view_mode, int16_t exit_flag) {
@@ -116,6 +117,7 @@ namespace MOVEBOX {
     }
 
     void __cdecl Vanish_Fleet_Movement_Box() {
+        game_events::Publish(game_events::FLEET_BOX_INFO_CLEARED);
         MOX::moveable_box[2].id = MOX::box_off_flag[2];
 
         if (MOX::fleet_box.count > 0) {

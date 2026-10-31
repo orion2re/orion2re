@@ -1106,6 +1106,27 @@ code/API changes or shared-policy extraction. Known-empty, context-required,
 unknown and unaudited route knowledge stay distinct. Selection-only fields require
 a future initialized-context observation, not stale globals.
 
+Q-07 cached fleet-box ETA producer prerequisite: neutral borrowed-result hooks
+now observe only `Print_Fleet_Box_Info`'s already selected non-preview cached
+route branch. Native print replacement, fleet/icon rebuild, close and main-view
+entry/exit publish clear boundaries. Typed callbacks share the bounded neutral
+listener storage; native code remains unaware of RPC. This is not yet a public
+selection/scan implementation: RPC does not consume the payload, enrich retained
+snapshots or inspect selection globals. Current context-required answers are
+unchanged. Safe same-capture identity binding, slot reuse, complete context and
+world/perspective/resolution revocation tests remain open before enabling it.
+See `specs/rpc/ship_refresh.md`; Q-07 and V-04 remain unchecked.
+
+Producer-prerequisite verification (macOS ARM64): 94 Python tests including 36
+live WebSocket cases; RPC/native/transport, neutral-event and fleet owner targets
+pass normally and with ASAN/UBSAN; all 106 RPC-disabled targets pass. Generation
+drift, changed C++ formatting and whitespace checks pass. The exact-path drift
+audit now records the two new neutral-hook owners and the already implemented
+N-05 client artifact. No public fields/methods/topics are enabled by these hooks.
+Synthetic/native-function and existing live-transport evidence do not close
+interactive saved-game/multiplayer or other-platform gates; local leak detection
+remains unsupported.
+
 Route increment verification (macOS ARM64): 81 Python tests including 33 live
 WebSocket cases pass; relevant RPC/native/transport targets pass normally and with
 ASAN/UBSAN; RPC-disabled `tools/run-tests.sh` passes all 106 CTest targets. Generated

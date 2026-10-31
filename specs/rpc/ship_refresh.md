@@ -117,6 +117,53 @@ by this macOS runtime (`detect_leaks=1` aborts before tests); sanitizer runs use
 `UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1`. Leak detection, interactive
 saved-game parity and other-platform verification remain unperformed.
 
+### Q-07 fleet-box cached-ETA producer prerequisite
+
+The native owner now publishes a borrowed `game_events::s_fleet_box_info` only
+after `Print_Fleet_Box_Info` has selected its existing cached-route result
+(`eta_star_id == -1`, `info_type` 2 or 3). The payload copies the native ship
+reference, unsigned-byte ETA and the producer's destination-name reference, or
+`-1` when the producer withholds it. This is an internal neutral observation,
+not an RPC DTO or a public native-slot/system-location API. It neither invokes
+nor publishes `g_ship_move_info` previews. No canonical-name semantics change.
+
+The native owner clears observation validity before each replacement print,
+`Fleet_Box_Data` rebuild, `Build_Ship_Icons` node rebuild and fleet-box close.
+A main-view scope clears on entry and exit, including unwinding. Typed borrowed
+observers share the existing eight-listener bound and unregister semantics;
+the producer keeps no callback results or retained pointers. Existing world,
+resolution and perspective events remain the separate invalidation boundaries.
+
+**This prerequisite does not enable selection-only fields.** RPC does not yet
+subscribe to this payload. An initialized presentation result alone is not a
+safe association to a retained ship observation: the next increment must bind
+only the current surviving display capture, reject native slot reuse/stale
+selection, clear on all lifecycle boundaries, and publish an immutable coherent
+capture rather than enrich an older snapshot in place. Until that complete path
+is tested, existing `context-required`/`unaudited` answers remain unchanged.
+No query calls a native UI builder, renderer or movement calculator.
+
+Synthetic native-function tests run the actual info producer with empty local
+format strings (no proprietary assets/rendering): unvisited/visited destinations,
+wormhole cached ETA, unsigned 255 and zero, copied lifetimes, non-route/preview
+exclusion, node rebuild clears and RNG/native-record preservation. A regression
+test poisons stale selection/scan/target globals and verifies byte-identical
+public ship responses. Neutral tests cover bounded typed observer storage,
+borrowed-value copying and scoped clear pairing. Source architecture tests pin
+the hook gates and close/rebuild/exit sites. Full initialized interactive owner,
+load/reset/resolution/perspective, native-slot-reuse and live-transport disclosure
+tests remain required before enabling the new field path; Q-07 remains open.
+
+Producer-prerequisite verification on macOS ARM64: 94 Python tests (36 live
+WebSocket cases) pass; RPC/native-projection/transport, neutral-event and fleet
+owner targets pass normally and with ASAN/UBSAN. The RPC-disabled suite passes
+106 targets. Schema drift, changed C++ formatting and whitespace checks pass.
+The drift audit registers the exact two new native hook files and the previously
+implemented N-05 client artifact; neighboring unrelated paths remain rejected.
+No contract shape, implemented method or allowed-topic set changes. LeakSanitizer
+is disabled only because it is unsupported locally; interactive parity and
+other-platform results remain unverified.
+
 ## Queries, identities and dating
 
 Enabled methods now include `game.listShips` and `game.getShip`; `ships` is also

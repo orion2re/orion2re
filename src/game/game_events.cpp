@@ -8,6 +8,7 @@ namespace game_events {
             uint64_t id = 0;
             t_callback callback = nullptr;
             void* context = nullptr;
+            t_fleet_box_callback fleet_box_callback = nullptr;
         };
         s_listener listeners[8];
         uint64_t next_id = 0;
@@ -37,7 +38,19 @@ namespace game_events {
         }
     }
 
-    void Publish(e_event event) {
+    uint64_t Subscribe_Fleet_Box_Info(t_fleet_box_callback callback, void* context) {
+        if (callback == nullptr || next_id == std::numeric_limits<uint64_t>::max()) return 0;
+        for (s_listener& listener : listeners) {
+            if (listener.id == 0) {
+                listener = {++next_id, nullptr, context, callback};
+                ++count;
+                return listener.id;
+            }
+        }
+        return 0;
+    }
+
+    static void Deliver(e_event event, const s_fleet_box_info* info) {
         if (count == 0) return;
         uint64_t selected[8];
         for (uint32_t index = 0; index < 8; ++index) selected[index] = listeners[index].id;
@@ -46,11 +59,28 @@ namespace game_events {
             for (const s_listener& listener : listeners) {
                 if (listener.id == id) {
                     const s_listener call = listener;
-                    call.callback(event, call.context);
+                    if (call.callback != nullptr) call.callback(event, call.context);
+                    if (call.fleet_box_callback != nullptr && info != nullptr) call.fleet_box_callback(info, call.context);
                     break;
                 }
             }
         }
+    }
+
+    void Publish(e_event event) {
+        Deliver(event, nullptr);
+    }
+
+    void Publish_Fleet_Box_Info(const s_fleet_box_info* info) {
+        if (info != nullptr) Deliver(FLEET_BOX_INFO_READY, info);
+    }
+
+    s_fleet_box_view_scope::s_fleet_box_view_scope() {
+        Publish(FLEET_BOX_INFO_CLEARED);
+    }
+
+    s_fleet_box_view_scope::~s_fleet_box_view_scope() {
+        Publish(FLEET_BOX_INFO_CLEARED);
     }
 
     s_world_update_scope::s_world_update_scope(bool new_world) : replacement(new_world) {

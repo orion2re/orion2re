@@ -72,3 +72,49 @@ DOCTEST_TEST_CASE("new listeners wait for the next event and observer storage is
     game_events::Unsubscribe(first);
     game_events::Unsubscribe(context.added);
 }
+
+DOCTEST_TEST_CASE("fleet info publication borrows a synchronous value and shares the bounded listener lifetime") {
+    struct s_copy {
+        game_events::s_fleet_box_info value = {};
+        int calls = 0;
+    } copy;
+    const auto capture = [](const game_events::s_fleet_box_info* info, void* context) {
+        auto* copy = (s_copy*)context;
+        copy->value = *info;
+        ++copy->calls;
+    };
+    const uint64_t token = game_events::Subscribe_Fleet_Box_Info(capture, &copy);
+    DOCTEST_REQUIRE(token != 0);
+    {
+        const game_events::s_fleet_box_info info = {7, 255, -1};
+        game_events::Publish_Fleet_Box_Info(&info);
+    }
+    game_events::Publish_Fleet_Box_Info(nullptr);
+    game_events::Publish(game_events::IDLE_OBSERVATION_POINT);
+    DOCTEST_CHECK(copy.calls == 1);
+    DOCTEST_CHECK(copy.value.ship == 7);
+    DOCTEST_CHECK(copy.value.turns_left == 255);
+    DOCTEST_CHECK(copy.value.star == -1);
+    std::vector<uint64_t> extra;
+    for (int i = 0; i < 7; ++i) extra.push_back(game_events::Subscribe_Fleet_Box_Info(capture, &copy));
+    DOCTEST_CHECK(game_events::Subscribe_Fleet_Box_Info(capture, &copy) == 0);
+    DOCTEST_CHECK(game_events::Subscribe(Record, nullptr) == 0);
+    DOCTEST_CHECK(game_events::Subscribe_Fleet_Box_Info(nullptr, nullptr) == 0);
+    for (uint64_t id : extra) game_events::Unsubscribe(id);
+    game_events::Unsubscribe(token);
+    const game_events::s_fleet_box_info info = {0, 0, 0};
+    game_events::Publish_Fleet_Box_Info(&info);
+    DOCTEST_CHECK(copy.calls == 1);
+}
+
+DOCTEST_TEST_CASE("fleet view scope clears observations on entry and every exit") {
+    std::vector<game_events::e_event> events;
+    const uint64_t token = game_events::Subscribe(Record, &events);
+    DOCTEST_REQUIRE(token != 0);
+    {
+        game_events::s_fleet_box_view_scope scope;
+        DOCTEST_REQUIRE(events.size() == 1);
+    }
+    DOCTEST_CHECK(events == std::vector<game_events::e_event>{game_events::FLEET_BOX_INFO_CLEARED, game_events::FLEET_BOX_INFO_CLEARED});
+    game_events::Unsubscribe(token);
+}

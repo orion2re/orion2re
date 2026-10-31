@@ -47,6 +47,28 @@ class SidecarArchitectureTests(unittest.TestCase):
         self.assertIn("player->surplus_bc", adapter)
         self.assertNotRegex(adapter, r"(?:Get_Active_Players|Get_Players_Dead_Or_Alive_Or_Omniscient|Init_Race_Display_Data|Print_Main_Screen_Data)\s*\(")
 
+    def test_fleet_cached_info_hook_excludes_previews_and_has_native_lifetime_clears(self):
+        native = (ROOT / "src/game/fleetpop.cpp").read_text()
+        start = native.index("void __cdecl Print_Fleet_Box_Info()")
+        end = native.index("switch (info_type)", start)
+        producer = native[start:end]
+        self.assertIn("game_events::FLEET_BOX_INFO_CLEARED", producer)
+        self.assertIn("MOX::eta_star_id == -1 && (info_type == 2 || info_type == 3)", producer)
+        self.assertLess(producer.index("Get_Absolute_Location_Scan_Info("),
+                        producer.index("Publish_Fleet_Box_Info("))
+        self.assertIn("game_events::s_fleet_box_view_scope", (ROOT / "src/game/mainscr_main.cpp").read_text())
+        for path, function in (("fleetpop.cpp", "Fleet_Box_Data(int16_t ship_count)"),
+                               ("movebox.cpp", "Vanish_Fleet_Movement_Box()"),
+                               ("ships.cpp", "Build_Ship_Icons()")):
+            text = (ROOT / "src/game" / path).read_text()
+            self.assertRegex(text[text.index(function):],
+                             r"^[^{]+\{\s*game_events::Publish\(game_events::FLEET_BOX_INFO_CLEARED\)")
+        # Producer hooks alone do not authorize merging later UI results into
+        # a retained coherent ship capture or querying stale selection globals.
+        adapter = (ROOT / "src/rpc/game_rpc.cpp").read_text()
+        self.assertNotIn("Subscribe_Fleet_Box_Info", adapter)
+        self.assertNotRegex(adapter, r"MOX::(?:fleet_ship_scanned|fleet_box_ship_stack|eta_star_id|g_ship_move_info)")
+
     def test_colony_capture_does_not_build_lists_or_recalculate_population_economy(self):
         adapter = (ROOT / "src/rpc/colony_rpc.cpp").read_text()
         self.assertIn("colony->n_pops", adapter)

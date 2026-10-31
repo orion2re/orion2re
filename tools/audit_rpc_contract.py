@@ -82,7 +82,7 @@ def Catalog_Methods(plan):
 def Validate_Target_Drift(paths):
     for path in paths:
         if (path not in ("plan.md", "tools/audit_rpc_contract.py", "tools/check_rpc_backend.py",
-                         "tools/generate_rpc_schema.py", "tools/rpc_test_server.cpp", ".github/workflows/ci.yml",
+                         "tools/generate_rpc_schema.py", "tools/rpc_test_server.cpp", "tools/rpc_incoming_threats.py", ".github/workflows/ci.yml",
                          "CMakeLists.txt", "cmake/rpc.cmake", "cmake/tests/unit.cmake",
                          "data/orion2re.cfg", "specs/config/main.json5", "src/game/mox2.cpp",
                          "src/config/config_decode.cpp",
@@ -90,6 +90,7 @@ def Validate_Target_Drift(paths):
                          "src/game/fields.cpp", "src/game/russ.cpp", "src/game/mainscr_main.cpp",
                          "src/game/filedef.cpp", "src/game/initgame.cpp", "src/game/multplay.cpp",
                          "src/game/nextturn.cpp", "src/game/netturn.cpp", "src/game/netmox.cpp", "src/game/ships.cpp",
+                         "src/game/fleetpop.cpp", "src/game/movebox.cpp",
                          "src/game/rpc_config.cpp", "tests/unit/config_bindings_test.cpp", "tests/unit/netmox_test.cpp")
                 and not path.startswith(("specs/rpc/", "tests/rpc/", "src/rpc/", "src/config/generated/", "tests/unit/rpc_", "tests/unit/game_events", "tests/unit/game_rpc_"))):
             raise ValueError(f"target drift requires review before updating baseline: {path}")

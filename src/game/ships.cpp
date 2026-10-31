@@ -630,6 +630,7 @@ namespace SHIPS {
     }
 
     void __cdecl Build_Ship_Icons() {
+        game_events::Publish(game_events::FLEET_BOX_INFO_CLEARED);
         SHIPSTAK::Find_Ship_Stacks();
 
         allocate::Mark_Block(MOX::global_data_seg);

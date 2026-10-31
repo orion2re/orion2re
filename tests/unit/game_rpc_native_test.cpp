@@ -534,6 +534,134 @@ DOCTEST_TEST_CASE("route capture distinguishes stationary, wormhole, special and
     DOCTEST_CHECK(observed.ships.back().destination_available == rpc::SHIP_CONTEXT_REQUIRED);
 }
 
+DOCTEST_TEST_CASE("native fleet info publishes only produced cached ETA and never a movement preview") {
+    s_ship_world fixture;
+    struct s_info_state {
+        s_fleet_box box = MOX::fleet_box;
+        s_fleet_movement_icon icon = MOX::fleet_movement_icon[0];
+        s_movable_box moveable = MOX::moveable_box[2];
+        int16_t eta = MOX::eta_star_id;
+        int16_t scanned = MOX::fleet_ship_scanned;
+        int16_t chosen = MAINSCR::fleet_icon_chosen;
+        s_ship_move_info movement = MOX::g_ship_move_info;
+        std::vector<char> strings = MOX::h_strings;
+        std::vector<size_t> offsets = {std::begin(MOX::h_string_ix), std::end(MOX::h_string_ix)};
+        std::vector<game_events::s_fleet_box_info> copied;
+        int clears = 0;
+        uint64_t info_token = game_events::Subscribe_Fleet_Box_Info([](const game_events::s_fleet_box_info* info, void* context) {
+            ((s_info_state*)context)->copied.push_back(*info);
+        },
+            this);
+        uint64_t event_token = game_events::Subscribe([](game_events::e_event event, void* context) {
+            if (event == game_events::FLEET_BOX_INFO_CLEARED) ++((s_info_state*)context)->clears;
+        },
+            this);
+        ~s_info_state() {
+            game_events::Unsubscribe(info_token);
+            game_events::Unsubscribe(event_token);
+            MOX::fleet_box = box;
+            MOX::fleet_movement_icon[0] = icon;
+            MOX::moveable_box[2] = moveable;
+            MOX::eta_star_id = eta;
+            MOX::fleet_ship_scanned = scanned;
+            MAINSCR::fleet_icon_chosen = chosen;
+            MOX::g_ship_move_info = movement;
+            MOX::h_strings = std::move(strings);
+            std::copy(offsets.begin(), offsets.end(), MOX::h_string_ix);
+        }
+    } state;
+    DOCTEST_REQUIRE(state.info_token != 0);
+    DOCTEST_REQUIRE(state.event_token != 0);
+    // Empty synthetic localized formats stop before rendering; the native owner
+    // still selects and produces its real cached-route result.
+    MOX::h_strings = {'\0'};
+    std::fill(std::begin(MOX::h_string_ix), std::end(MOX::h_string_ix), 0);
+    MOX::fleet_box.count = 10;
+    MOX::moveable_box[2].id = MOX::box_off_flag[2];
+    MOX::fleet_movement_icon[0].ship_node_idx = 0;
+    MOX::ship_node[0].ship_idx = 1;
+    MOX::eta_star_id = MOX::fleet_ship_scanned = MAINSCR::fleet_icon_chosen = -1;
+    fixture.ships[1].status = 1;
+    fixture.ships[1].location = SHIP_LOCATION_WORMHOLE_OFFSET + 1;
+    fixture.ships[1].turns_left = -1;
+    const auto ships_before = fixture.ships;
+    const uint32_t seed = game_random::Get_Random_Seed();
+    FLEETPOP::Print_Fleet_Box_Info();
+    DOCTEST_REQUIRE(state.copied.size() == 1);
+    DOCTEST_CHECK(state.copied[0].ship == 1);
+    DOCTEST_CHECK(state.copied[0].turns_left == 255);
+    DOCTEST_CHECK(state.copied[0].star == -1); // The producer withholds the unvisited name.
+    DOCTEST_CHECK(memcmp(ships_before.data(), fixture.ships.data(), ships_before.size() * sizeof(s_ship_data)) == 0);
+    fixture.world.stars[1].visited = 1;
+    fixture.ships[1].turns_left = 0;
+    FLEETPOP::Print_Fleet_Box_Info();
+    DOCTEST_REQUIRE(state.copied.size() == 2);
+    DOCTEST_CHECK(state.copied[1].star == 1);
+    DOCTEST_CHECK(state.copied[1].turns_left == 0);
+    DOCTEST_CHECK(state.copied[0].turns_left == 255); // No borrowed native lifetime.
+    for (s_ship_node& node : MOX::ship_node) {
+        node.ship_idx = 0;
+        node.selected = 0;
+    }
+    MOX::ship_node[0].ship_idx = 1;
+    MOX::ship_node[1].selected = 1;
+    MOX::moveable_box[2].id = MOX::box_off_flag[2] + 1;
+    MOX::g_ship_move_info = {};
+    MOX::g_ship_move_info.moving = 1;
+    MOX::g_ship_move_info.turns_left = 12;
+    MOX::eta_star_id = 1;
+    FLEETPOP::Print_Fleet_Box_Info();
+    DOCTEST_CHECK(state.copied.size() == 2); // A candidate target never becomes cached ship state.
+    MOX::eta_star_id = -1;
+    fixture.ships[1].status = 0;
+    fixture.ships[1].location = 1;
+    FLEETPOP::Print_Fleet_Box_Info();
+    DOCTEST_CHECK(state.copied.size() == 2);
+    DOCTEST_CHECK(state.clears == 4);
+    SHIPS::Build_Ship_Icons();
+    DOCTEST_CHECK(state.clears == 5); // A rebuilt node/slot mapping cannot inherit the result.
+    DOCTEST_CHECK(game_random::Get_Random_Seed() == seed);
+}
+
+DOCTEST_TEST_CASE("fresh ship reads ignore stale fleet selection scan and movement globals") {
+    s_ship_world fixture;
+    SHIPS::Build_Ship_Icons();
+    rpc::s_map_observation baseline;
+    DOCTEST_REQUIRE(game_rpc::Read_Refreshed_Ship_Observation(&baseline));
+    const int16_t old_stack = MOX::fleet_box_ship_stack;
+    const int16_t old_scan = MOX::fleet_ship_scanned;
+    const int16_t old_eta = MOX::eta_star_id;
+    const int16_t old_chosen = MAINSCR::fleet_icon_chosen;
+    const s_ship_move_info old_movement = MOX::g_ship_move_info;
+    MOX::fleet_box_ship_stack = MAX_SHIPS;
+    MOX::fleet_ship_scanned = MAX_SHIPS;
+    MAINSCR::fleet_icon_chosen = MAX_SHIPS;
+    MOX::eta_star_id = MAX_STARS;
+    MOX::g_ship_move_info.moving = 1;
+    MOX::g_ship_move_info.turns_left = 99;
+    rpc::s_map_observation changed;
+    const bool valid = game_rpc::Read_Refreshed_Ship_Observation(&changed);
+    MOX::fleet_box_ship_stack = old_stack;
+    MOX::fleet_ship_scanned = old_scan;
+    MOX::eta_star_id = old_eta;
+    MAINSCR::fleet_icon_chosen = old_chosen;
+    MOX::g_ship_move_info = old_movement;
+    DOCTEST_REQUIRE(valid);
+    rpc::s_bridge bridge;
+    rpc::s_game_store store;
+    DOCTEST_REQUIRE(rpc::Initialize_Game_Store(&store, &bridge));
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&store));
+    DOCTEST_REQUIRE(rpc::Capture_Map(&store, &baseline));
+    rpc::s_request request;
+    request.method = "game.listShips";
+    request.params_json = "{}";
+    request.id_json = "1";
+    const std::string response = rpc::Game_Query(&store, &request);
+    DOCTEST_REQUIRE(rpc::Capture_Map(&store, &changed));
+    DOCTEST_CHECK(rpc::Game_Query(&store, &request) == response);
+    rpc::Shutdown_Game_Store(&store);
+}
+
 DOCTEST_TEST_CASE("own colony capture follows the native full-colony roster and copies only cached resident population") {
     s_world world;
     MOX::NUM_COLONIES = 4;
