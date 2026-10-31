@@ -1,0 +1,309 @@
+"""Live local WebSocket tests; opt in with ORION2RE_RPC_TEST_SERVER."""
+
+import base64
+import hashlib
+import json
+import os
+from pathlib import Path
+import queue
+import socket
+import struct
+import subprocess
+import tempfile
+import threading
+import time
+import unittest
+
+
+SERVER = os.environ.get("ORION2RE_RPC_TEST_SERVER")
+KEY = "rpc-test-key-not-a-real-secret"
+
+
+class WebSocket:
+    def __init__(self, port, origin="http://localhost:3000", host=None, path="/rpc"):
+        self.socket = socket.create_connection(("127.0.0.1", port), timeout=2)
+        key = base64.b64encode(os.urandom(16)).decode()
+        request = (f"GET {path} HTTP/1.1\r\nHost: {host or f'127.0.0.1:{port}'}\r\n"
+                   f"Upgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: {key}\r\n"
+                   "Sec-WebSocket-Version: 13\r\n")
+        if origin is not None:
+            request += f"Origin: {origin}\r\n"
+        self.socket.sendall((request + "\r\n").encode())
+        response = b""
+        try:
+            while b"\r\n\r\n" not in response and len(response) < 4096:
+                data = self.socket.recv(4096)
+                if not data:
+                    break
+                response += data
+            if not response.startswith(b"HTTP/1.1 101"):
+                raise ConnectionError("WebSocket upgrade refused")
+            accept = base64.b64encode(hashlib.sha1((key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").encode()).digest())
+            if accept not in response:
+                raise ConnectionError("Invalid WebSocket upgrade")
+        except BaseException:
+            self.socket.close()
+            raise
+
+    @staticmethod
+    def Frame(payload, opcode=1, final=True):
+        mask = os.urandom(4)
+        size = len(payload)
+        header = bytes([(0x80 if final else 0) | opcode])
+        if size < 126:
+            header += bytes([0x80 | size])
+        elif size <= 65535:
+            header += bytes([0x80 | 126]) + struct.pack("!H", size)
+        else:
+            header += bytes([0x80 | 127]) + struct.pack("!Q", size)
+        return header + mask + bytes(value ^ mask[index % 4] for index, value in enumerate(payload))
+
+    def Send(self, request):
+        self.socket.sendall(self.Frame(json.dumps(request).encode()))
+
+    def Exact(self, size):
+        value = b""
+        while len(value) < size:
+            part = self.socket.recv(size - len(value))
+            if not part:
+                raise EOFError("WebSocket closed")
+            value += part
+        return value
+
+    def Read_Frame(self):
+        first, second = self.Exact(2)
+        if second & 0x80:
+            raise AssertionError("server frames must not be masked")
+        size = second & 127
+        if size == 126:
+            size = struct.unpack("!H", self.Exact(2))[0]
+        elif size == 127:
+            size = struct.unpack("!Q", self.Exact(8))[0]
+        if size > 1048576:
+            raise AssertionError("unexpected oversized server frame")
+        return first & 15, bool(first & 0x80), self.Exact(size)
+
+    def Read(self):
+        message = b""
+        while True:
+            opcode, final, payload = self.Read_Frame()
+            if opcode == 8:
+                raise EOFError("WebSocket close frame")
+            if opcode == 9:
+                self.socket.sendall(self.Frame(payload, opcode=10))
+                continue
+            if opcode == 10:
+                continue
+            if opcode not in (0, 1):
+                raise AssertionError("unexpected data opcode")
+            message += payload
+            if final:
+                return json.loads(message)
+
+    def Hello(self, key=KEY, **params):
+        self.Send({"jsonrpc":"2.0", "id":1, "method":"rpc.hello", "params":{"key":key, **params}})
+        return self.Read()
+
+    def close(self):
+        self.socket.close()
+
+
+@unittest.skipUnless(SERVER, "set ORION2RE_RPC_TEST_SERVER to the built rpc-test-server executable")
+class TransportTests(unittest.TestCase):
+    def setUp(self):
+        self.errors = tempfile.TemporaryFile()
+        self.process = subprocess.Popen([str(Path(SERVER).resolve())], stdin=subprocess.PIPE,
+                                        stdout=subprocess.PIPE, stderr=self.errors)
+        self.clients = []
+        ready = queue.Queue()
+        threading.Thread(target=lambda: ready.put(self.process.stdout.readline()), daemon=True).start()
+        try:
+            self.port = int(ready.get(timeout=10))
+        except BaseException:
+            self.process.kill()
+            self.process.wait()
+            self.errors.close()
+            raise
+
+    def tearDown(self):
+        try:
+            if self.process.poll() is None:
+                self.Command("quit")
+            self.process.wait(timeout=3)
+            self.assertEqual(self.process.returncode, 0)
+        finally:
+            if self.process.poll() is None:
+                self.process.kill()
+                self.process.wait()
+            for client in self.clients:
+                client.close()
+            self.process.stdin.close()
+            self.process.stdout.close()
+            self.errors.seek(0)
+            logs = self.errors.read().decode(errors="replace")
+            self.errors.close()
+            self.assertNotIn(KEY, logs)
+
+    def Command(self, command):
+        self.process.stdin.write((command + "\n").encode())
+        self.process.stdin.flush()
+
+    def Client(self, **options):
+        client = WebSocket(self.port, **options)
+        self.clients.append(client)
+        return client
+
+    def test_configured_key_hello_and_explicit_supported_method_discovery(self):
+        client = self.Client()
+        hello = client.Hello()
+        self.assertEqual(hello["result"]["authorization"], "authorized")
+        self.assertEqual(hello["result"]["role"], "reader")
+        self.assertNotIn(KEY, json.dumps(hello))
+        client.Send({"jsonrpc":"2.0", "id":"d", "method":"rpc.describe"})
+        described = client.Read()
+        self.assertEqual(described["id"], "d")
+        self.assertEqual({item["name"] for item in described["result"]["methods"]}, {"rpc.hello","rpc.describe"})
+
+    def test_wrong_key_is_rejected_and_connection_closed(self):
+        client = self.Client()
+        self.assertEqual(client.Hello("wrong-key")["error"]["code"], -32001)
+        with self.assertRaises((EOFError, ConnectionError)):
+            client.Read()
+
+    def test_unauthenticated_requests_do_not_probe_method_or_params(self):
+        client = self.Client()
+        client.Send({"jsonrpc":"2.0", "id":4, "method":"game.readMemory", "params":None})
+        self.assertEqual(client.Read()["error"]["code"], -32001)
+        self.assertIn("result", client.Hello())
+        client.Send({"jsonrpc":"2.0", "id":5, "method":"game.getState", "params":{"include":["systems"]}})
+        self.assertEqual(client.Read()["error"]["code"], -32601)
+
+    def test_fragmented_websocket_message_and_split_tcp_header(self):
+        client = self.Client()
+        raw = json.dumps({"jsonrpc":"2.0", "id":2, "method":"rpc.hello", "params":{"key":KEY}}).encode()
+        first = client.Frame(raw[:17], final=False)
+        client.socket.sendall(first[:1])
+        time.sleep(0.01)
+        client.socket.sendall(first[1:])
+        client.socket.sendall(client.Frame(raw[17:55], opcode=0, final=False))
+        client.socket.sendall(client.Frame(raw[55:], opcode=0))
+        self.assertEqual(client.Read()["id"], 2)
+
+    def test_multiple_messages_in_one_tcp_write_keep_correlations(self):
+        client = self.Client()
+        self.assertIn("result", client.Hello())
+        frames = [client.Frame(json.dumps({"jsonrpc":"2.0", "id":number, "method":"rpc.describe"}).encode())
+                  for number in (2,3,4)]
+        client.socket.sendall(b"".join(frames))
+        self.assertEqual([client.Read()["id"] for _ in frames], [2,3,4])
+
+    def test_only_one_controller_and_no_in_place_role_change(self):
+        first, second = self.Client(), self.Client()
+        self.assertEqual(first.Hello(requestedRole="controller")["result"]["role"], "controller")
+        self.assertEqual(second.Hello(requestedRole="controller")["error"]["code"], -32007)
+        self.assertEqual(second.Hello()["result"]["role"], "reader")
+        self.assertEqual(first.Hello(requestedRole="reader")["error"]["code"], -32602)
+
+    def test_host_origin_path_and_url_keys_are_rejected(self):
+        for options in ({"host":"example.invalid"}, {"origin":"https://example.invalid"},
+                        {"origin":"null"}, {"origin":"http://localhost.evil.invalid"},
+                        {"path":"/files"}, {"path":"/rpc?key=not-a-secret"}):
+            with self.subTest(options=options), self.assertRaises((ConnectionError, EOFError)):
+                self.Client(**options)
+
+    def test_originless_native_client_can_authenticate(self):
+        self.assertIn("result", self.Client(origin=None).Hello())
+
+    def test_oversized_and_binary_messages_close_the_connection(self):
+        for opcode, payload in ((1, b"x" * 65537), (2, b"binary")):
+            client = self.Client()
+            client.socket.sendall(client.Frame(payload, opcode=opcode))
+            with self.assertRaises((EOFError, ConnectionError)):
+                client.Read()
+
+    def test_hello_notification_does_not_authenticate(self):
+        client = self.Client()
+        client.Send({"jsonrpc":"2.0", "method":"rpc.hello", "params":{"key":KEY}})
+        client.Send({"jsonrpc":"2.0", "id":2, "method":"rpc.describe"})
+        self.assertEqual(client.Read()["error"]["code"], -32001)
+
+    def test_invalid_websocket_utf8_closes_at_the_transport_boundary(self):
+        client = self.Client()
+        client.socket.sendall(client.Frame(b"\xff"))
+        with self.assertRaises((EOFError, ConnectionError)):
+            client.Read()
+
+    def test_live_duplicate_keys_are_rejected_without_payload_echo(self):
+        client = self.Client()
+        client.socket.sendall(client.Frame(b'{"jsonrpc":"2.0","id":1,"method":"rpc.hello","params":{"key":"a","key":"b"}}'))
+        error = client.Read()
+        self.assertEqual(error["error"]["code"], -32700)
+        self.assertIsNone(error["id"])
+
+    def test_large_copied_publication_uses_valid_output_fragments(self):
+        client = self.Client()
+        self.assertIn("result", client.Hello())
+        self.Command("publish")
+        publication = client.Read()
+        self.assertEqual(publication["id"], 99)
+        self.assertEqual(publication["result"]["fixture"], "x" * 32768)
+
+    def test_revocation_disconnects_without_game_poll(self):
+        client = self.Client()
+        self.assertIn("result", client.Hello())
+        self.Command("revoke")
+        with self.assertRaises((EOFError, ConnectionError)):
+            client.Read()
+
+    def test_bridge_output_overflow_is_explicit_disconnect(self):
+        client = self.Client()
+        self.assertIn("result", client.Hello())
+        self.Command("overflow")
+        with self.assertRaises((EOFError, ConnectionError)):
+            client.Read()
+
+    def test_connection_limit_and_flood_are_bounded(self):
+        for _ in range(4):
+            self.assertIn("result", self.Client().Hello())
+        with self.assertRaises((ConnectionError, EOFError)):
+            self.Client()
+
+    def test_request_flood_disconnects(self):
+        client = self.Client()
+        self.assertIn("result", client.Hello())
+        raw = json.dumps({"jsonrpc":"2.0", "id":9, "method":"rpc.describe"}).encode()
+        client.socket.sendall(b"".join(client.Frame(raw) for _ in range(80)))
+        closed = False
+        try:
+            for _ in range(81):
+                client.Read()
+        except (EOFError, ConnectionError):
+            closed = True
+        self.assertTrue(closed)
+
+    def test_authentication_timeout_and_active_socket_shutdown(self):
+        client = self.Client()
+        client.socket.settimeout(7)
+        begin = time.monotonic()
+        with self.assertRaises((EOFError, ConnectionError)):
+            client.Read()
+        self.assertLess(time.monotonic() - begin, 7)
+        live = self.Client()
+        self.assertIn("result", live.Hello())
+        begin = time.monotonic()
+        self.Command("quit")
+        self.process.wait(timeout=2)
+        self.assertLess(time.monotonic() - begin, 2)
+
+    def test_shutdown_does_not_wait_for_a_slow_output_reader(self):
+        client = self.Client()
+        self.assertIn("result", client.Hello())
+        client.socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1024)
+        self.Command("publish-large")
+        time.sleep(0.2)
+        self.Command("quit")
+        self.process.wait(timeout=2)
+
+
+if __name__ == "__main__":
+    unittest.main()

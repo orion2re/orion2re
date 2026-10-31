@@ -42,6 +42,7 @@ set(ORION2RE_DEFAULT_CONFIG_SOURCES
     src/game/racecust_config.cpp
     src/game/racesel_config.cpp
     src/game/report_config.cpp
+    src/game/rpc_config.cpp
     src/game/savegame_config.cpp
     src/game/score_config.cpp
     src/game/settler_config.cpp
@@ -2096,3 +2097,27 @@ orion2re_add_unit_test(test_router_client
         orion2re_lz4
     LINK_SDL
 )
+
+if(ORION2RE_RPC_BUILT)
+    add_executable(test_rpc
+        tests/test_main.cpp
+        tests/unit/rpc_protocol_test.cpp
+        tests/unit/rpc_bridge_test.cpp
+        tests/unit/rpc_service_test.cpp
+    )
+    target_compile_features(test_rpc PRIVATE cxx_std_20)
+    target_include_directories(test_rpc PRIVATE "${ORION2RE_VENDORED_DOCTEST_DIR}")
+    target_link_libraries(test_rpc PRIVATE orion2re_rpc)
+    add_dependencies(test_rpc rpc-test-server)
+    orion2re_enable_sanitizers(test_rpc)
+    add_test(NAME test_rpc COMMAND test_rpc)
+    set_tests_properties(test_rpc PROPERTIES TIMEOUT 30)
+    if(Python3_Interpreter_FOUND AND NOT CMAKE_CROSSCOMPILING)
+        add_test(NAME test_rpc_transport
+            COMMAND "${CMAKE_COMMAND}" -E env "ORION2RE_RPC_TEST_SERVER=$<TARGET_FILE:rpc-test-server>"
+                "${Python3_EXECUTABLE}" -m unittest discover
+                -s "${CMAKE_CURRENT_SOURCE_DIR}/tests/rpc" -p test_transport.py -v)
+        set_tests_properties(test_rpc_transport PROPERTIES
+            TIMEOUT 60 WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+    endif()
+endif()

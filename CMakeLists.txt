@@ -112,6 +112,7 @@ option(ORION2RE_ENABLE_ASAN "Enable AddressSanitizer (and UBSan with GCC/Clang) 
 option(ORION2RE_RELEASE_DEBUG_INFO "Emit debug info for non-Debug MSVC builds" OFF)
 option(ORION2RE_BUILD_GAME "Build the SDL game executable" ON)
 option(ORION2RE_BUILD_TESTS "Build tests" OFF)
+option(ORION2RE_ENABLE_RPC "Build the optional local WebSocket RPC service" OFF)
 set(ORION2RE_BUILD_CONFIG_TOOL_DEFAULT OFF)
 if(NOT CMAKE_CROSSCOMPILING AND
    EXISTS "${ORION2RE_VENDORED_YYJSON_DIR}/src/yyjson.h" AND
@@ -374,6 +375,11 @@ set(LIBUV_BUILD_BENCH OFF CACHE BOOL "" FORCE)
 
 add_subdirectory("${ORION2RE_VENDORED_LIBUV_DIR}" EXCLUDE_FROM_ALL)
 
+set(ORION2RE_RPC_BUILT OFF)
+if(ORION2RE_ENABLE_RPC AND ORION2RE_BUILD_GAME)
+    include(cmake/rpc.cmake)
+endif()
+
 add_library(orion2re_lz4 STATIC
     "${ORION2RE_VENDORED_LZ4_DIR}/lib/lz4.c"
 )
@@ -473,12 +479,16 @@ if(ORION2RE_BUILD_GAME OR ORION2RE_BUILD_CONFIG_TOOL)
     list(REMOVE_ITEM ORION2RE_SOURCES ${ORION2RE_SCALER_SOURCES})
     list(APPEND ORION2RE_SOURCES ${ORION2RE_CONFIG_GENERATED_FILES})
     list(REMOVE_ITEM ORION2RE_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp")
+    list(FILTER ORION2RE_SOURCES EXCLUDE REGEX "/src/rpc/.*\\.cpp$")
 
     add_library(orion2re_game_objects OBJECT
         ${ORION2RE_SOURCES}
         ${ORION2RE_HEADERS}
     )
     target_compile_features(orion2re_game_objects PRIVATE cxx_std_20)
+    if(ORION2RE_RPC_BUILT)
+        target_compile_definitions(orion2re_game_objects PRIVATE ORION2RE_ENABLE_RPC=1)
+    endif()
     target_include_directories(orion2re_game_objects PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src"
         "${ORION2RE_VENDORED_LIBSMACKER_DIR}"
@@ -893,6 +903,14 @@ if(ORION2RE_BUILD_DOCUMENTATION)
         COMMENT "Removing generated documentation while retaining the virtual environment"
         VERBATIM
     )
+endif()
+
+if(ORION2RE_RPC_BUILT)
+    foreach(ORION2RE_RPC_CONSUMER IN ITEMS orion2re config-tool config-load-benchmark)
+        if(TARGET ${ORION2RE_RPC_CONSUMER})
+            target_link_libraries(${ORION2RE_RPC_CONSUMER} PRIVATE orion2re_rpc)
+        endif()
+    endforeach()
 endif()
 
 add_executable(orion2re-router

@@ -46,6 +46,83 @@ jobs:
         run: cmake --build --preset linux-debug-asan-tests --target orion2re --parallel 4
       - run: ctest --preset linux-debug-asan-tests
 
+  rpc-tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: native
+          - runner: ubuntu-24.04
+            arch: linux-x86
+          - runner: macos-15
+            arch: native
+          - runner: windows-2022
+            arch: x86
+            generator-platform: Win32
+          - runner: windows-2022
+            arch: x64
+            generator-platform: x64
+          - runner: ubuntu-24.04
+            arch: mingw-x86
+            prefix: i686-w64-mingw32
+          - runner: ubuntu-24.04
+            arch: mingw-x64
+            prefix: x86_64-w64-mingw32
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event_name == 'release' && github.event.release.tag_name || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: Check out pinned RPC backend
+        shell: bash
+        run: |
+          pin=$(python3 -c 'import json; print(json.load(open("specs/rpc/backend.json"))["revision"])')
+          git clone --no-checkout --filter=blob:none https://github.com/warmcat/libwebsockets.git out/rpc-backend-source
+          git -C out/rpc-backend-source checkout --detach "$pin"
+      - name: Install POSIX MinGW toolchain
+        if: startsWith(matrix.arch, 'mingw-')
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y gcc-mingw-w64-${{ matrix.arch == 'mingw-x86' && 'i686' || 'x86-64' }}-posix g++-mingw-w64-${{ matrix.arch == 'mingw-x86' && 'i686' || 'x86-64' }}-posix
+          sudo update-alternatives --set ${{ matrix.prefix }}-gcc /usr/bin/${{ matrix.prefix }}-gcc-posix
+          sudo update-alternatives --set ${{ matrix.prefix }}-g++ /usr/bin/${{ matrix.prefix }}-g++-posix
+      - name: Install Linux x86 compiler runtime
+        if: matrix.arch == 'linux-x86'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y g++-multilib
+      - name: Generate configuration bindings with host tools before cross-build
+        if: startsWith(matrix.arch, 'mingw-')
+        run: |
+          cmake -S . -B out/build/rpc-host-tools -DCMAKE_BUILD_TYPE=Debug -DORION2RE_BUILD_GAME=OFF -DORION2RE_BUILD_TESTS=OFF -DORION2RE_BUILD_CONFIG_TOOL=ON -DSDL_UNIX_CONSOLE_BUILD=ON
+          cmake --build out/build/rpc-host-tools --target config-regenerate --parallel 3
+      - name: Configure RPC-enabled test build
+        shell: bash
+        run: |
+          args=()
+          if [[ '${{ runner.os }}' == Windows ]]; then
+            args+=(-G 'Visual Studio 17 2022' -A '${{ matrix.generator-platform }}' -DORION2RE_WINDOWS_ARCH='${{ matrix.arch }}')
+          elif [[ '${{ matrix.arch }}' == mingw-* ]]; then
+            target='${{ matrix.arch }}'
+            arch="${target#mingw-}"
+            args+=(-DCMAKE_TOOLCHAIN_FILE="cmake/toolchains/mingw-w64-${arch}.cmake" -DORION2RE_WINDOWS_ARCH="$arch")
+            args+=(-DORION2RE_BUILD_CONFIG_TOOL=OFF)
+          else
+            args+=(-DSDL_UNIX_CONSOLE_BUILD=ON)
+            if [[ '${{ matrix.arch }}' == linux-x86 ]]; then
+              args+=(-DCMAKE_C_FLAGS=-m32 -DCMAKE_CXX_FLAGS=-m32 -DCMAKE_EXE_LINKER_FLAGS=-m32)
+            fi
+          fi
+          cmake -S . -B out/build/rpc-ci -DORION2RE_BUILD_CONFIG_TOOL=ON "${args[@]}" -DCMAKE_BUILD_TYPE=Debug -DORION2RE_BUILD_TESTS=ON -DORION2RE_ENABLE_RPC=ON -DORION2RE_RPC_BACKEND_DIR="$PWD/out/rpc-backend-source"
+      - name: Build RPC and test harness
+        run: cmake --build out/build/rpc-ci --config Debug --target test_rpc --parallel 3
+      - name: Exercise native RPC transport and lifecycle
+        if: ${{ !startsWith(matrix.arch, 'mingw-') }}
+        run: ctest --test-dir out/build/rpc-ci -C Debug -R "^test_rpc" --output-on-failure
+
   documentation:
     runs-on: ubuntu-24.04
     timeout-minutes: 30

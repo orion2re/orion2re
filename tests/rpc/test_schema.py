@@ -53,7 +53,7 @@ class SchemaTests(unittest.TestCase):
         self.assertEqual(definitions["System"]["properties"]["owner"]["x-rpc-policy"], "disabled-system-owner")
         self.assertEqual(definitions["Coord"]["x-unit"], "map")
         self.assertEqual(definitions["Id"]["x-maxUtf8Bytes"], 128)
-        self.assertEqual(definitions["Secret"]["minLength"], 64)
+        self.assertEqual(definitions["Key"]["x-maxUtf8Bytes"], 384)
         self.assertEqual(definitions["Counter"]["x-maxDecimal"], "18446744073709551615")
         self.assertIn("not standard JSON Schema assertions", self.schema["description"])
 
@@ -68,7 +68,7 @@ class SchemaTests(unittest.TestCase):
         schema = json.loads(json.dumps(self.schema))
         reference = generator.Render_Markdown(schema)
         self.assertIn("do not edit", reference)
-        self.assertIn("no runtime method is enabled", reference)
+        self.assertIn("disabled by default", reference)
         for method in self.registry["methods"]:
             self.assertIn(method["name"], reference)
         schema["$defs"]["Id"]["description"] = "Schema-only documentation change"
@@ -77,6 +77,18 @@ class SchemaTests(unittest.TestCase):
 
     def test_reference_escapes_table_and_html_content(self):
         self.assertEqual(generator.Cell("<script>|\n"), "&lt;script&gt;\\|<br>")
+
+    def test_generation_replaces_complete_outputs_and_does_not_rewrite_unchanged_files(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "schema.json"
+            generator.Write_Output(path, "first\n")
+            self.assertEqual(path.read_text(), "first\n")
+            with patch.object(generator.os, "replace") as replace:
+                generator.Write_Output(path, "first\n")
+                replace.assert_not_called()
+            generator.Write_Output(path, "second\n")
+            self.assertEqual(path.read_text(), "second\n")
+            self.assertEqual(list(Path(directory).iterdir()), [path])
 
     def test_checked_in_schema_and_reference_are_current(self):
         result = subprocess.run([sys.executable, str(ROOT / "tools/generate_rpc_schema.py"), "--check"],

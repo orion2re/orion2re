@@ -1,10 +1,11 @@
 # Player-scoped RPC and WebSocket interface: implementation plan
 
-Status: P0 contract/evidence work implemented; three external/runtime acceptance
-gates remain open (P0-06, P0-09, P0-10). Typed contracts, field policy records,
-generated schema/reference and repeatable coverage auditing live in `specs/rpc/`
-and `tools/`. CI checks generated schema drift. No engine hooks, runtime RPC
-service or main-project dependency changes are enabled.
+Status: P1 transport foundation in progress. Optional libuv-backed WebSockets,
+configured-key hello, metadata discovery and bounded copied-work plumbing are
+implemented; gameplay queries/actions are still uncallable. P0-06, P0-09 and
+P0-10 remain open for their unperformed platform/native-game acceptance checks.
+Contracts, generated schema/reference/C++ metadata and coverage auditing remain
+in `specs/rpc/` and `tools/`; CI checks generation drift. RPC is off by default.
 Prepared with AI assistance and static source inspection; runtime behavior and
 visibility guarantees require the tests below. This file intentionally lives
 outside the generated documentation portal.
@@ -168,7 +169,7 @@ memory, debug-overlay data, future random outcomes, or every byte needed by AI.
    projection. Snapshot metadata counts visible records, not global allocations.
 7. Turn/reset metadata comes from committed player-visible state. Load/new game
    changes game identity; hotseat switching revokes the old view, clears queued
-   publications/results, and requires explicit local authorization before exposing
+   publications/results, and requires a fresh configured-key handshake before exposing
    the next player's state. Existing connections do not silently follow players.
 8. All action paths enforce local ownership, native phase/authority, and current
    context. Legal-target/movement previews cannot become oracles for hidden units,
@@ -280,7 +281,9 @@ do not suppress it or recursively drain the full command queue.
 
 - Optional build and runtime enablement; router-only builds do not acquire RPC.
   Loopback only initially. Bind failure disables RPC with a diagnostic.
-- Per-launch secret, reader/controller separation, one active controller,
+- Configured local `interface rpc_key`, matched against the client's first
+  `rpc.hello` request (user-directed simplification of the P0 authentication proposal).
+  Reader/controller separation, one active controller,
   explicit Origin/Host checks, authentication deadlines. Browser authentication
   uses the first message, not a secret in a URL or an assumed custom header.
 - Validate message size/depth, method arguments, IDs, list lengths and deadlines
@@ -873,12 +876,12 @@ P0 progress (checked contract tasks do not claim runtime implementation/parity):
 | P0-03 | `contracts.json` defines request/result types for all 60 named methods, errors, units/ranges, enum values, required/optional fields, explicit unavailable values, action identity and lifecycle metadata. This conservative initial field set is not full fork parity. |
 | P0-04 | `methods.json` plus its referenced contract bundle drives offline typed validation and explicit `--describe` output; no independent discovery catalog or schemas in ordinary state DTOs. Runtime handlers are not enabled. |
 | P0-05 | Every defined field resolves to a policy in `field_policies.json`, with native evidence/predicate or an explicit disabled disposition. Native source anchors and fail-closed disabled-field fixtures pass. Reviewed evidence is static, not runtime visibility approval; additional unaudited fields stay disabled. |
-| P0-06 | `backend.json` selects/pins the libwebsockets evaluation profile. Native macOS ARM64 static build and libuv lifecycle probe pass. Linux, Windows x86/x64, MinGW and macOS x86_64 checks remain not-run; backend is not vendored or linked into the main build. |
-| P0-07 | Strict yyjson/JSON-RPC, fixed errors, notification/no-dispatch semantics, local capability-file authentication, duplicate/retention and lifecycle rules are specified, with an offline conformance corpus. Runtime parsing/authentication/queue tests are P1 work. |
+| P0-06 | `backend.json` pins libwebsockets; the optional P1 build reuses project `uv_a`. Native macOS ARM64 build/lifecycle/live socket checks pass. CI now defines native Linux/macOS/MSVC x86/x64 and POSIX MinGW x86/x64 build checks; their unobserved results remain pending. Not vendored and not a required dependency of disabled/router-only builds. |
+| P0-07 | Strict yyjson/JSON-RPC, fixed errors and notification semantics are specified and implemented for the metadata subset. Per user direction, authentication is a simple configured `rpc_key` hello, not a capability file, per-launch secret or approval dialog. Native gameplay dispatch/operation retention remain later work. |
 | P0-08 | `lifecycle.md` completes the common source audit: owner-only decisions, animation/timed/raw-film polls, field replacement/restore, child continuations, host/client committed publication and exception-safe teardown. Actual hooks and dynamic route/lifetime tests remain P1/P2/P4 work. |
 | P0-09 | `contracts.json.limits` sets explicit provisional caps/overflow rules. Native maximum-game projection size/cost cannot be measured without a capture path and local game/save fixture; P0 gate remains open. |
 | P0-10 | `native_baseline.json` records eight executed synthetic native-function test targets and fixed RNG checkpoints. Interactive/save/mod/whole-game RNG traces still need a local game installation and fixtures; unit-test results are not those captures. |
-| P0-11 | `generate_rpc_schema.py` emits JSON Schema 2020-12 and renders `generated/reference.md` from the serialized schema. Both are versioned with a source hash; `--check`, renderer/schema tests and CI reject drift. Standard schema validation does not replace protocol/visibility guards. |
+| P0-11 | `generate_rpc_schema.py` emits JSON Schema 2020-12, renders `generated/reference.md` from it and generates runtime C++ descriptors/type data from the same bundle. Outputs are versioned; `--check`, renderer/schema tests and CI reject drift. Standard schema validation does not replace protocol/visibility guards. |
 
 Inventory/descriptor checks: `python3 -m unittest discover -s tests/rpc -p 'test_*.py'`.
 These checks do not prove runtime visibility, protocol handling or native parity.
@@ -903,18 +906,43 @@ whole-game RNG/save/mod comparisons were not run.
 
 ### P1. Transport, bridge, global queries, and visibility
 
+#### Current foundation increment
+
+`src/rpc/` implements the optional libwebsockets/libuv transport, strict yyjson
+envelope and source-driven argument checks, configured-key hello, supported-method
+discovery, per-client limits, bounded immutable output and copied-work bridge.
+Only `rpc.hello` and `rpc.describe` are implemented/advertised. Every gameplay,
+UI, media and subscription method remains method-not-found; the schema's planned
+contracts do not enable handlers or authorize data.
+
+The runtime starts inside `MOX2::thunk_main2` and stops after its normal/exception
+funnel before native sound/resource/network teardown. Local `rpc_enabled`,
+`rpc_port` and `rpc_key` preferences are unsaved/unsynchronized and startup-only.
+The key is converted from native CP850 config storage to UTF-8 for exact comparison.
+No approval dialog, per-launch secret file or arbitrary viewer selection exists.
+
+The bridge is tested for copied ownership, capacity, expiry without game polls,
+disconnect/epoch revocation, late/duplicate completion rejection and output
+overflow. Native query dispatch, world identity/projection and new/load/hotseat
+hooks are not integrated yet: P1-05/P1-06 and V-01/V-10/V-11 remain open.
+Output response bounds/fragmentation are implemented, but subscription baselines,
+state coalescing and ordered gameplay event streams are not (P1-08/P1-09 remain open).
+
+See `specs/rpc/p1.md` for build/test commands, verified evidence and remaining P0
+gates. P1 completion is not claimed by this foundation increment.
+
 #### Infrastructure
 
-- [ ] P1-01 — Add optional build/runtime RPC enablement without adding dependencies to disabled or router-only builds.
-- [ ] P1-02 — Implement bounded WebSocket connection/message handling and explicit bind-failure diagnostics.
-- [ ] P1-03 — Implement per-launch authentication, reader/controller permissions, one controller, Host/Origin validation, and authentication deadlines.
-- [ ] P1-04 — Implement strict envelope/argument validation, structured errors, rate limits, and redacted diagnostics.
+- [x] P1-01 — Add optional build/runtime RPC enablement without adding dependencies to disabled or router-only builds.
+- [x] P1-02 — Implement bounded WebSocket connection/message handling and explicit bind-failure diagnostics.
+- [x] P1-03 — Implement a simple hello matching the predefined key in local orion2re settings, reader/controller permissions, one controller, Host/Origin validation, and authentication deadlines; no approval dialogs or per-launch credential files.
+- [x] P1-04 — Implement strict envelope/argument validation, structured errors, rate limits, and redacted diagnostics.
 - [ ] P1-05 — Implement the game-thread request queue and immutable result/publication handoff; prohibit network waits in game callbacks.
 - [ ] P1-06 — Implement coherent requested-topic capture, game/perspective identity, revisions, entity generations, and opaque public IDs.
 - [ ] P1-07 — Return explicit busy/unavailable or dated snapshots during unsafe capture periods; keep service heartbeats responsive.
 - [ ] P1-08 — Implement atomic subscription baseline/cursor setup, unsubscribe, reconnect baselines, and demand-driven capture.
 - [ ] P1-09 — Implement bounded per-client output and state coalescing without rewriting partially sent messages or losing operation results silently.
-- [ ] P1-10 — Implement startup/quit/fatal-exit cleanup, cancellation, wakeup, and join independent of another game poll.
+- [x] P1-10 — Implement startup/quit/fatal-exit cleanup, cancellation, wakeup, and join independent of another game poll.
 
 #### Shared player-view policy
 
@@ -928,7 +956,7 @@ whole-game RNG/save/mod comparisons were not run.
 - [ ] V-08 — Make unknown/nonexistent ID errors indistinguishable and reject filters/previews that probe hidden properties.
 - [ ] V-09 — Apply visibility to messages/format arguments, legal-target previews, retained battle results, sound, effects, frames, and resources.
 - [ ] V-10 — Revoke views, handles, pending work/results, snapshots, and subscriptions on load/reset/perspective change as appropriate.
-- [ ] V-11 — Require explicit local reauthorization for hotseat perspective switches; never silently expose the next empire.
+- [ ] V-11 — Require a fresh configured-key handshake after hotseat perspective revocation; never let an existing connection silently follow the next empire.
 - [ ] V-12 — Exclude raw structs, native layouts, RNG/Lua/debug access, arbitrary files/config/mod storage, save bytes, and cheat shortcuts.
 
 #### Common query API groups

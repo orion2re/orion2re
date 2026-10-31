@@ -915,7 +915,8 @@ namespace config {
             descriptor.name = write.canonical_path.c_str();
             descriptor.type = variable->type;
             if (!Decode_Value(&descriptor, token, &write.value, &expected)) {
-                return Fail(token.location, "invalid value '" + token.raw + "' for '" + write.canonical_path + "'; expected " + expected, write_set, diagnostic);
+                const std::string value = write.canonical_path == "interface.rpc_key" ? "<redacted>" : token.raw;
+                return Fail(token.location, "invalid value '" + value + "' for '" + write.canonical_path + "'; expected " + expected, write_set, diagnostic);
             }
             if (selected_node.implicit_terminator &&
                 write.value.integer_value == selected_node.terminator) {

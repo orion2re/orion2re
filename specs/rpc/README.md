@@ -1,8 +1,53 @@
-# RPC P0 contracts and evidence
+# RPC contracts and P1 transport foundation
 
-Contract-only baseline, prepared with AI assistance. This is not a shipped API and is
-not included in the documentation portal. No socket, engine hook, dependency,
-gameplay, save, mod, or multiplayer behavior is changed by these artifacts.
+Experimental optional runtime, prepared with AI assistance. This reference is not
+included in the documentation portal. The current service implements `rpc.hello`
+and `rpc.describe` only. Gameplay methods remain uncallable: no native records,
+game state, renderer surfaces, Lua, files or debug inputs are exposed.
+
+## Build and connect
+
+RPC is disabled by default at both build time and runtime. Disabled and router-only
+builds do not require libwebsockets. For an enabled game build, obtain a clean
+libwebsockets checkout at the exact revision in `backend.json`, then configure:
+
+```sh
+cmake -S . -B out/build/rpc-debug -DCMAKE_BUILD_TYPE=Debug \
+  -DORION2RE_ENABLE_RPC=ON -DORION2RE_BUILD_TESTS=ON \
+  -DORION2RE_RPC_BACKEND_DIR=/absolute/path/to/pinned/libwebsockets
+cmake --build out/build/rpc-debug --target orion2re test_rpc --parallel 4
+ctest --test-dir out/build/rpc-debug -R '^test_rpc' --output-on-failure
+```
+
+The backend reuses the project's `uv_a` target. There is no second libuv or router
+protocol. Backend notices are copied into `data/licenses/libwebsockets.txt` in the
+build tree and included by the existing runtime-data packager. MinGW RPC builds
+require the POSIX-thread compiler variant for C++ standard threading support.
+
+Set local, unsaved, unsynchronized preferences in `orion2re.cfg` (or the file
+selected with `--config`), then restart:
+
+```text
+interface rpc_key = "replace-with-your-private-key";
+interface rpc_port = 17362;
+interface rpc_enabled = true;
+```
+
+An empty key refuses listener startup. Use a private value and protect the local
+configuration file. Connect to `ws://127.0.0.1:17362/rpc` and send:
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"rpc.hello","params":{"key":"replace-with-your-private-key"}}
+```
+
+The service compares this value to the configured key and returns an authorized
+reader result, or a fixed unauthorized error and closes the connection. There are
+no per-launch key files, approval dialogs or additional authentication services.
+`requestedRole: "controller"` is optional; only one controller can hold the role.
+Changing roles requires reconnecting. The default contract is `orion2.rpc/0`.
+The key is never returned or logged by RPC; invalid config-value diagnostics for
+this setting are redacted. Config strings use native CP850 storage, decoded to
+UTF-8 before comparison: 128 CP850 bytes can require up to 384 UTF-8 bytes on wire.
 
 ## Reproduce the inventory
 
@@ -37,7 +82,7 @@ never executes commands from evidence and cannot attest that a human-authored
 report is truthful; release review and actual test execution remain mandatory.
 
 `baseline.json` distinguishes the original target from the reviewed checkout.
-The audit fails on target drift outside these P0 artifacts rather than silently
+The audit fails on target drift outside the reviewed P0/P1 integration file set rather than silently
 repinning it (including tracked worktree changes). Review such a diff and update
 `reviewedTarget` intentionally. P0-only commits do not require a self-referential
 baseline SHA update. A shallow
@@ -76,14 +121,17 @@ the illustrative `(include)` signature suffix. Owner names are **proposed
 ownership labels**, not claims that those C++ adapters already exist. Shared UI
 actions dispatch through the active registered owner, not a global input injector.
 
-All runtime methods remain disabled. `contracts.json` supplies concrete
+Runtime is opt-in; `implementedMethods` lists the two implemented metadata methods.
+`contracts.json` supplies concrete
 request/result types for every named method; `field_policies.json` supplies native
 source anchors, predicates and required test IDs. These are contract definitions,
 **not** permission to serialize native records. Enabling handlers requires a
 separate reviewed change and runtime field-visibility tests. The unnamed
 operation families in plan section 4 are not implicitly registered.
 
-`Validate_Value` consumes these types for offline fixtures; `--describe` emits the
+`Validate_Value` consumes these types for offline fixtures; the generated C++ table
+and type data drive runtime parameter checks and supported-method discovery.
+`--describe` emits the
 same method/type bundle explicitly. There is no second hand-maintained discovery
 catalog. This CLI is not a JSON-RPC response or runtime dispatcher. Eventual
 runtime discovery lists enabled contracts only; ordinary state/view responses
@@ -99,8 +147,10 @@ The canonical source bundle is `methods.json`, `contracts.json` and
   errors, ownership/permission/lifecycle metadata, field policies and units.
 - `generated/reference.md`: human-readable reference rendered **only from the
   serialized schema**, not another list of methods or source DTOs.
+- `src/rpc/generated/rpc_contract_data.inc`: C++ descriptors, limits, fixed errors
+  and parameter type data used by the optional runtime.
 
-Both outputs are versioned, carry their canonical source notice and source-bundle
+The outputs are versioned, carry their canonical source notice and source-bundle
 SHA-256, and must be regenerated together after a contract change. Do not edit
 generated output by hand. `--check` detects drift without writing files; the CI
 schema/renderer tests run it and test deliberate stale-output rejection.
@@ -110,7 +160,8 @@ not fork Git objects, game data, backend libraries or a network connection.
 The root schema validates acknowledged client request shapes. Response validation
 selects the per-method response definition by the outstanding request's method;
 server notifications and errors have separate definitions. The contract is still
-pre-release (`orion2.rpc/0`) and enables no runtime method. Byte/depth limits,
+pre-release (`orion2.rpc/0`); the implemented-method annotation distinguishes the
+live metadata subset from planned gameplay contracts. Byte/depth limits,
 lexical integer tokens, duplicate-key rejection, counter bounds and visibility
 rules are retained as explicit `x-*` annotations when they cannot be expressed
 as standard JSON Schema assertions. The protocol guards remain required; a
@@ -229,40 +280,42 @@ control session even after result eviction. Same ID/same payload returns its
 retained result; same ID/different payload is invalid params. An older admitted
 ID without a retained result is expired, never executed again. A queued ticket must be
 resolved as applied/refused/partial/cancelled/expired; never silently discarded.
-Queue admission, expiration, overflow and shutdown tests remain P1 work.
+The bounded bridge implements copied queue admission, unstarted expiration,
+epoch/client revocation and immutable completion. Native dispatch and operation
+retention for actual gameplay actions remain later implementation work.
 
 ## Local authentication contract
 
-Bind only loopback literals on IPv4/IPv6; no wildcard or remotely supplied bind
-address. Validate the actual peer, exact Host including configured port, and an
-explicit local Origin allowlist before upgrade. Reject wildcard/null/unapproved
-Origins; an absent Origin is allowed only under the local native-client policy,
-not treated as proof of trust. Secret authentication is always required.
+Per user direction, authentication is a simple configured-key hello, not the P0
+per-launch-secret/approval proposal. No key in URLs or HTTP authentication headers.
+An acknowledged hello must authenticate within five seconds of upgrade; no other
+method is callable before it. Matching is
+exact and case-sensitive; an empty configured key never authenticates anybody.
+Repeating hello with the same key and role is idempotent; role changes need a new
+connection. Possession of the key grants the requested reader/controller role,
+but never authorizes hidden game fields, caller-selected viewers or debug access.
 
-Generate a per-launch secret from platform cryptographic entropy (never game RNG),
-delivered through a local trusted mechanism, never a URL, log or discoverable HTTP
-endpoint. P1 local delivery uses a user-only local capability file (0600 on POSIX,
-equivalent current-user ACL on Windows); browser clients receive it through local
-user mediation, not an unauthenticated endpoint. Remove it on exit; it contains no
-gameplay data. First request is `rpc.hello` within a bounded deadline; compare secrets
-without secret-dependent early exits. Local user approval binds the connection to
-one perspective and grants reader/controller separately, with at most one active
-controller. Revoke and purge work/results/publications on hotseat switch, load,
-disconnect or local revocation; require explicit reauthorization. Runtime secret
-file creation, entropy, ACLs and browser/native mediation are P1 implementation
-work and require security tests; this document does not implement them.
+The current listener binds only `127.0.0.1`, never a wildcard. Upgrade requires
+`/rpc` with no URL arguments and a Host of `127.0.0.1:<port>` or `localhost:<port>`.
+Browser Origins must be HTTP(S) loopback origins (`localhost`, `127.0.0.1` or
+`[::1]`, with an optional valid port); foreign and `null` Origins are rejected.
+Originless native clients still need the same key. Separate frontend loopback
+ports are allowed. Backend IPv6 support is compiled, but this initial listener
+does not open an IPv6 socket.
 
-The initial contract version is `orion2.rpc/0`, deliberately not a production
-compatibility promise. A valid hello can return `awaiting-local-approval`; it
-grants no reader/controller role until the local decision. Repeating hello with
-the same credentials is a rate-limited status check, not implicit rebinding or
-role escalation. No subscriptions are admitted while approval is pending.
+The bridge revokes pending/results and invalidates in-flight work on epoch or
+client revocation; the service closes old connections. Native new/load/hotseat
+hooks must use that mechanism before gameplay methods are enabled. A fresh key
+handshake must bind the next authorized perspective; old connections must not
+silently follow it. Those native world-lifecycle hooks are not implemented yet.
 
 ## Remaining gates
 
 See `lifecycle.md` for the source-audited pump/lifetime/publication/shutdown
 decisions. `protocol_cases.json` and `Check_Request` are an offline conformance
-oracle, not the future C++ yyjson parser, authentication service or dispatcher.
+oracle. `src/rpc/rpc_protocol.cpp` implements the strict C++ yyjson boundary for the
+published metadata surface; unsupported methods remain method-not-found. Native
+game handlers and visibility projections have not been enabled.
 `contracts.json.limits` supplies explicit provisional admission/queue/output/
 retention/polling limits. They are not a measured native maximum-game budget.
 

@@ -82,13 +82,17 @@ def Catalog_Methods(plan):
 def Validate_Target_Drift(paths):
     for path in paths:
         if (path not in ("plan.md", "tools/audit_rpc_contract.py", "tools/check_rpc_backend.py",
-                         "tools/generate_rpc_schema.py", ".github/workflows/ci.yml")
-                and not path.startswith(("specs/rpc/", "tests/rpc/"))):
+                         "tools/generate_rpc_schema.py", "tools/rpc_test_server.cpp", ".github/workflows/ci.yml",
+                         "CMakeLists.txt", "cmake/rpc.cmake", "cmake/tests/unit.cmake",
+                         "data/orion2re.cfg", "specs/config/main.json5", "src/game/mox2.cpp",
+                         "src/config/config_decode.cpp",
+                         "src/game/rpc_config.cpp", "tests/unit/config_bindings_test.cpp")
+                and not path.startswith(("specs/rpc/", "tests/rpc/", "src/rpc/", "src/config/generated/", "tests/unit/rpc_"))):
             raise ValueError(f"target drift requires review before updating baseline: {path}")
 
 
 def Validate_Methods(registry, expected):
-    if set(registry) != {"formatVersion", "status", "contracts", "perspective", "unknownFields", "methods"}:
+    if set(registry) != {"formatVersion", "status", "contracts", "perspective", "unknownFields", "implementedMethods", "methods"}:
         raise ValueError("unexpected registry fields")
     if (registry["formatVersion"] != 1 or registry["status"] != "contract-only"
             or registry["contracts"] != "contracts.json"
@@ -129,6 +133,9 @@ def Validate_Methods(registry, expected):
     if len(expected) != len(set(expected)) or set(names) != set(expected):
         raise ValueError(f"method catalog mismatch: missing={sorted(set(expected) - set(names))}, "
                          f"extra={sorted(set(names) - set(expected))}")
+    if (len(registry["implementedMethods"]) != len(set(registry["implementedMethods"]))
+            or not set(registry["implementedMethods"]) <= set(names)):
+        raise ValueError("invalid implemented method set")
     return len(names)
 
 
@@ -327,7 +334,8 @@ def Check_Request(raw, contracts, authenticated=True):
 
 def Describe_Contracts(registry, contracts):
     return {"status": "contract-only", "runtimeEnabled": False,
-            "methods": [dict(method, requestType=contracts["methods"][method["name"]][0],
+            "methods": [dict(method, implemented=method["name"] in registry["implementedMethods"],
+                             requestType=contracts["methods"][method["name"]][0],
                              resultType=contracts["methods"][method["name"]][1])
                         for method in registry["methods"]], "types": contracts["types"]}
 
@@ -542,14 +550,15 @@ def Audit(root):
     test_ids = set(re.findall(r"\bT-\d{2}\b", Section(plan, "Final validation and release gates")))
     Apply_Coverage(coverage, commit_ledger, file_ledger, test_ids)
     inventories = Validate_Inventories(root, plan, fork, files)
-    return {"baseline": baseline, "methodCount": count, "typeCount": types, "inventories": inventories,
+    return {"baseline": baseline, "methodCount": count, "implementedCount": len(registry["implementedMethods"]),
+            "typeCount": types, "inventories": inventories,
             "commits": commit_ledger, "files": file_ledger}
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--ledger", action="store_true", help="print full planned implementation/test ledger")
-    parser.add_argument("--describe", action="store_true", help="explicitly emit contract descriptors/types (no runtime methods enabled)")
+    parser.add_argument("--describe", action="store_true", help="emit the full static contract catalog/types, not a live service query")
     args = parser.parse_args()
     try:
         report = Audit(ROOT)
@@ -562,8 +571,8 @@ def main():
     elif args.ledger:
         print(json.dumps(report, indent=2, sort_keys=True))
     else:
-        print(f"RPC P0 evidence OK: {report['methodCount']} disabled methods, "
-              f"{len(report['commits'])} commits, {len(report['files'])} files; no runtime sign-off")
+        print(f"RPC evidence OK: {report['methodCount']} declared methods ({report['implementedCount']} implemented, runtime opt-in), "
+              f"{len(report['commits'])} commits, {len(report['files'])} files; no native parity sign-off")
     return 0
 
 

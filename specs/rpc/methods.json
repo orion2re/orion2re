@@ -4,6 +4,7 @@
   "contracts": "contracts.json",
   "perspective": "connection-bound-local-player",
   "unknownFields": "disabled",
+  "implementedMethods": ["rpc.hello", "rpc.describe"],
   "methods": [
     {"name":"rpc.hello","owner":"rpc.service","role":"unauthenticated","availability":"transport","kind":"control"},
     {"name":"rpc.describe","owner":"rpc.protocol","role":"reader","availability":"transport","kind":"query"},

@@ -4,13 +4,15 @@ Prepared with AI assistance; static evidence and performed checks are distinguis
 below. Function names are more durable
 than line numbers; anchors below refer to `baseline.json`'s reviewed target.
 
-## P0-06: WebSocket dependency candidate, not approval
+## P0-06: pinned backend and remaining platform gate
 
 Candidate: libwebsockets v4.5.4, upstream revision
 `c56adc3c62ee2545c77e0ba4cce67441be6955db`. The upstream tag API resolved directly
 to this commit during review and the evaluation checkout matches it exactly.
-`backend.json` pins the selected evaluation profile. It is not a vendored
-dependency; no main-project CMake/submodule changes have been made.
+`backend.json` pins the selected profile. P1 now links it only in an explicitly
+enabled experimental game build, reusing project `uv_a`; no submodule was added.
+Default and router-only builds do not require or link it. See `p1.md` for current
+live transport tests and the startup/shutdown integration.
 
 Primary evidence (review the immutable revision before adoption):
 
@@ -61,12 +63,14 @@ git clone --depth 1 --branch v4.5.4 https://github.com/warmcat/libwebsockets.git
 python3 tools/check_rpc_backend.py
 ```
 
-The checker verifies pins, reads all options from `backend.json`, and writes
+The original evaluation checker verifies pins, reads all options from `backend.json`, and writes
 configure/build/link logs under ignored `out/`. It does not download or install
 anything. There are no Windows/MinGW cross-compilers on this host. Linux,
 Windows x86/x64, MinGW and macOS x86_64 checks have not run; the complete supported
 target gate is not met. P0-06 stays open. Backend adoption must not be inferred
-from this one native build.
+from this one native build. P1 additionally passes actual local WebSocket tests
+(including slow-reader shutdown) and ASAN/UBSAN checks; the newly wired CI matrix
+still needs observed results before P0-06 can be checked complete.
 
 ## P0-08: candidate pump sites, not approved hooks
 

@@ -7,6 +7,7 @@
 #include "config/cfg_parser.h"
 #include "config/config_decode.h"
 #include "config/config_runtime.h"
+#include "config/text_encoding.h"
 #include "doctest/doctest.h"
 #include "game/antarans.h"
 #include "game/aidata.h"
@@ -61,6 +62,7 @@
 #include "game/settler.h"
 #include "game/tech.h"
 #include "game/techinit.h"
+#include "rpc/rpc_settings.h"
 
 namespace {
     bool Append_Decoded_(const char* source, config::s_config_write_set* write_set, config::s_cfg_diagnostic* diagnostic) {
@@ -1263,6 +1265,9 @@ DOCTEST_TEST_CASE("local presentation settings stay out of saves and synchroniza
         "interface.show_exit_message",
         "interface.allow_future_technology_browsing",
         "interface.main_menu_mod_list",
+        "interface.rpc_enabled",
+        "interface.rpc_port",
+        "interface.rpc_key",
     };
     for (const char* path : paths) {
         const config::t_variable_id variable = Variable_Id_(path);
@@ -1292,6 +1297,41 @@ DOCTEST_TEST_CASE("exit message defaults off and can be enabled through configur
     DOCTEST_REQUIRE(config::Initialize_Defaults(&state));
     DOCTEST_REQUIRE(config::Commit_State(&state));
     DOCTEST_CHECK_FALSE(MOX2::show_exit_message);
+}
+
+DOCTEST_TEST_CASE("RPC is opt-in and its configured key and port are local settings") {
+    config::s_config_state state;
+    DOCTEST_REQUIRE(config::Initialize_Defaults(&state));
+    DOCTEST_REQUIRE(config::Commit_State(&state));
+    DOCTEST_CHECK_FALSE(rpc::enabled);
+    DOCTEST_CHECK(rpc::port == 17362);
+    DOCTEST_CHECK(rpc::shared_key[0] == '\0');
+    config::s_config_write_set writes;
+    config::s_cfg_diagnostic diagnostic;
+    DOCTEST_REQUIRE(Append_Decoded_(
+        "interface rpc_enabled = true; interface rpc_port = 17363; interface rpc_key = \"rpc-test-key\";",
+        &writes, &diagnostic));
+    DOCTEST_REQUIRE(config::Apply_Write_Set(&writes, &state, &diagnostic));
+    DOCTEST_REQUIRE(config::Commit_State(&state));
+    DOCTEST_CHECK(rpc::enabled);
+    DOCTEST_CHECK(rpc::port == 17363);
+    DOCTEST_CHECK(std::strcmp(rpc::shared_key, "rpc-test-key") == 0);
+    writes.writes.clear();
+    DOCTEST_REQUIRE(Append_Decoded_("interface rpc_key = \"cl\xc3\xa9\";", &writes, &diagnostic));
+    DOCTEST_REQUIRE(config::Apply_Write_Set(&writes, &state, &diagnostic));
+    DOCTEST_REQUIRE(config::Commit_State(&state));
+    std::string utf8_key;
+    config::Decode_Cp850_To_Utf8(rpc::shared_key, std::strlen(rpc::shared_key), &utf8_key);
+    DOCTEST_CHECK(utf8_key == "cl\xc3\xa9");
+    writes.writes.clear();
+    DOCTEST_CHECK_FALSE(Append_Decoded_("interface rpc_port = 0;", &writes, &diagnostic));
+    DOCTEST_CHECK_FALSE(Append_Decoded_("interface rpc_port = 65536;", &writes, &diagnostic));
+    const std::string too_long = "interface rpc_key = \"" + std::string(129, 'x') + "\";";
+    DOCTEST_CHECK_FALSE(Append_Decoded_(too_long.c_str(), &writes, &diagnostic));
+    DOCTEST_CHECK(diagnostic.message.find(std::string(129, 'x')) == std::string::npos);
+    DOCTEST_CHECK(diagnostic.message.find("<redacted>") != std::string::npos);
+    DOCTEST_REQUIRE(config::Initialize_Defaults(&state));
+    DOCTEST_REQUIRE(config::Commit_State(&state));
 }
 
 DOCTEST_TEST_CASE("saved interface settings and synchronized policies use distinct groups") {
