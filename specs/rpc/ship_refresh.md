@@ -18,10 +18,11 @@ native pointers, slots, stack indices, selected flags or raw structs are retaine
 The copied ship collection is sorted by public fields, not native design-based
 display order, before handles or revisions are assigned.
 
-The initial fields are map `x/y`, `owned` (own versus foreign), and the bounded
+The initial fields were map `x/y`, `owned` (own versus foreign), and the bounded
 CP850-decoded name of an owned ship. Foreign name bytes are never read. After Q-03,
 `owner` can resolve through the same capture's known-player roster as described
-below. Foreign names, destination and ETA remain explicitly `unaudited`.
+below. The subsequent route increment adds the conservative destination/ETA subset
+documented below; foreign names remain explicitly `unaudited`.
 Cargo, orders, raw location/status and design fields are not copied. Being detected
 does not authorize those details. Native scanner/stealth/mod/omniscience rules are
 reused unchanged through the native filter's already calculated result.
@@ -46,6 +47,73 @@ public-color ambiguity, unchanged ship handles under own-HUD updates and no
 retroactive ownership changes from a newer roster. No native game code changes
 are needed for this follow-up. The earlier RPC-disabled 106-target check remains
 applicable; this follow-up changes only RPC code/contracts/tests and documentation.
+
+### Non-selection map destinations and cached ETA (Q-07 follow-up)
+
+The same synchronous post-refresh copy now follows the non-selection branches of
+`SHIPS::Do_Ship_Destination_Lines`. It reuses the existing read-only
+`Enemy_Ship_Heading_Toward_Our_Colony` and `HAROLD::Absolute_Location` predicates;
+there is no native API addition, policy extraction, UI builder or movement
+calculator. This is an explicitly dated subset of native disclosure, not a claim
+of initialized selection/scan/fleet-box state or an extra rendering pass.
+
+- An own ordinary/wormhole route can identify its destination map system, even
+  if the system name remains unvisited/unavailable.
+- A non-own moving head additionally requires native `settings.enemy_moves`
+  presentation or the native incoming predicate. Contact, known ownership and
+  omniscience alone do not grant a route. Neither "enemy" in that predicate nor
+  a displayed route means hostile or at war.
+- The native `Player_Has_Outpost` called by that predicate ignores its player
+  argument and accepts an outpost regardless of ownership. This source behavior
+  is preserved, not silently tightened, fixed, or described as proof of an own
+  outpost. Links are bounds-checked before invoking it. No native code changes.
+- A route identifies only a real system in this same capture, resolved to its
+  opaque system handle; the private binding is discarded before retention.
+  Antares/special destination encodings remain `unaudited`, never synthetic
+  systems or raw location values.
+- Only the head's cached `turns_left`, narrowed to `uint8_t` exactly as
+  `Print_Eta_On_Ship_Icon` does, is copied for an authorized ordinary route.
+  Preserve displayed zero and 255. Do not expose each member's hidden ETA.
+  Members share the displayed head's destination only after validating their
+  common owner, location and position. Wormhole/non-head ETA is `context-required`.
+- Stationary own ships have `{"availability":"known-empty"}` destination and
+  ETA, distinct from unknown, unaudited and context-required. Other enemy or
+  selection-only disclosure is `context-required`: refresh does not prove a live
+  moveable/fleet box, and no stale selection globals are read.
+
+The fleet-box audit covers `Print_Fleet_Box_Info` and
+`Get_Absolute_Location_Scan_Info`: those branches can disclose visited names,
+scan labels and cached ETA or use `g_ship_move_info` for a proposed movement.
+They require a valid initialized owner context. This increment does not invoke
+those renderers/calculators or publish previews as committed ship state.
+
+Canonical contracts add tagged known-empty route knowledge and a 0..255 cached
+ETA type. Store tests sanitize unavailable payloads before validation, sorting,
+IDs, equality/revisions and notifications, resolve only same-capture systems,
+reject malformed authorized values and preserve pinned pagination/combined-state
+dating. Native-array tests use the actual builder, incoming predicate and
+outpost behavior, cover contact/omniscience non-authorization, ordinary/wormhole/
+special routes, head-only ETA, native-record/RNG preservation and malformed links.
+Live WebSocket tests cover route knowledge, same-capture references and hidden-only
+updates. These are synthetic/native-function tests, not interactive parity.
+
+Enemy scan labels remain blocked on contract clarification: whether `Ship.name`
+is always an actual name with a separate native-label `displayName`, or means
+the native display label. No hull-class label is published as an actual enemy
+design name. Selection/scan projections and durable identity remain open Q-07 work.
+
+Verified for the route increment on macOS ARM64: the game and relevant targets
+build normally and with ASAN/UBSAN; RPC/native projection/live transport CTest
+targets pass in both configurations. All 81 Python tests pass, including 33 live
+WebSocket cases. The RPC-disabled `tools/run-tests.sh` passes all 106 CTest targets.
+Schema/reference/C++ metadata generation drift, affected C++ formatting and
+`git diff --check` pass. UBSAN caught reference binding to packed native fields
+in the new stack validation; direct value comparisons fix it, and the
+maximum-capacity native fixture passes the rerun. LeakSanitizer is unsupported
+by this macOS runtime (`detect_leaks=1` aborts before tests); sanitizer runs use
+`ASAN_OPTIONS=detect_leaks=0:halt_on_error=1` and
+`UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1`. Leak detection, interactive
+saved-game parity and other-platform verification remain unperformed.
 
 ## Queries, identities and dating
 

@@ -76,6 +76,7 @@ namespace {
         SHIPSTAK::s_scan_bonus old_scan = SHIPSTAK::scan_bonus;
         SHIPSTAK::s_stealth_bonus old_stealth = SHIPSTAK::stealth_bonus;
         int16_t old_colonies = MOX::NUM_COLONIES;
+        uint8_t old_enemy_moves = MOX::settings.enemy_moves;
         std::vector<s_ship_node> old_nodes = {std::begin(MOX::ship_node), std::end(MOX::ship_node)};
         std::vector<int16_t> old_heads = {std::begin(MOX::ship_stack_start), std::end(MOX::ship_stack_start)};
         std::vector<s_ship_icon> old_icons = {std::begin(MOX::ship_icon), std::end(MOX::ship_icon)};
@@ -84,6 +85,7 @@ namespace {
             MOX::ship = ships.data();
             MOX::NUM_SHIPS = 3;
             MOX::NUM_COLONIES = 0;
+            MOX::settings.enemy_moves = 0;
             MOX::global_data_seg = allocate::Allocate_Space(1 << 20);
             SHIPSTAK::scan_bonus = {};
             SHIPSTAK::scan_bonus.no_scanner = 2;
@@ -102,6 +104,7 @@ namespace {
             MOX::ship = old_ships;
             MOX::NUM_SHIPS = old_count;
             MOX::NUM_COLONIES = old_colonies;
+            MOX::settings.enemy_moves = old_enemy_moves;
             MOX::ship_stack_count = old_stack_count;
             MOX::ship_icon_count = old_icon_count;
             MOX::next_free_node = old_free_node;
@@ -428,4 +431,102 @@ DOCTEST_TEST_CASE("fresh native ship ownership binds only to authorized player r
     DOCTEST_CHECK(snapshot.map.ships[1].owner_id == snapshot.player_ids[1]);
     DOCTEST_CHECK(snapshot.map.ships[1].owner_slot == -1);
     rpc::Shutdown_Game_Store(&store);
+}
+
+DOCTEST_TEST_CASE("fresh map routes reuse native ambient disclosure and only the displayed head cached ETA") {
+    s_ship_world fixture;
+    const uint32_t seed = game_random::Get_Random_Seed();
+    fixture.ships[0].status = 1;
+    fixture.ships[0].location = SHIP_LOCATION_MOVING_OFFSET + 1;
+    fixture.ships[0].turns_left = -1; // Native map renders this as unsigned 255, not an estimate.
+    fixture.ships[1].status = 1;
+    fixture.ships[1].location = SHIP_LOCATION_MOVING_OFFSET;
+    fixture.ships[1].turns_left = 0;
+    SHIPS::Build_Ship_Icons();
+    rpc::s_map_observation observed;
+    DOCTEST_REQUIRE(game_rpc::Read_Refreshed_Ship_Observation(&observed));
+    DOCTEST_REQUIRE(observed.ships.size() == 2);
+    DOCTEST_CHECK(observed.ships[0].destination_available == rpc::SHIP_CURRENT);
+    DOCTEST_CHECK(observed.ships[0].destination_system == 1); // Unvisited map position is still drawn by a route line.
+    DOCTEST_CHECK(observed.ships[0].eta == 255);
+    DOCTEST_CHECK(observed.ships[1].destination_available == rpc::SHIP_CONTEXT_REQUIRED);
+    DOCTEST_CHECK(observed.ships[1].destination_system == -1);
+    DOCTEST_CHECK(observed.ships[1].eta_available == rpc::SHIP_CONTEXT_REQUIRED);
+
+    DOCTEST_SUBCASE("enemy-moves presentation, not contact or omniscience") {
+        fixture.world.players[0].contact[1] = 1;
+        fixture.world.players[0].traits[TRAIT_OMNISCIENCE] = 1;
+        DOCTEST_REQUIRE(game_rpc::Read_Refreshed_Ship_Observation(&observed));
+        DOCTEST_CHECK(observed.ships[1].destination_available == rpc::SHIP_CONTEXT_REQUIRED);
+        MOX::settings.enemy_moves = 1;
+    }
+    DOCTEST_SUBCASE("non-hostile foreign incoming to own colony") {
+        fixture.world.players[0].contact[1] = 1;
+        fixture.world.stars[0].has_colony = 1;
+    }
+    DOCTEST_SUBCASE("native outpost predicate ignores its viewer argument") {
+        fixture.world.stars[0].planet_index[0] = 0;
+        fixture.world.planets[0].colony_index = 0;
+        fixture.world.colonies[0].outpost_flag = 1;
+        fixture.world.colonies[0].owner = 1;
+    }
+    int16_t enemy_node = -1;
+    for (int index = 0; index < MOX::ship_icon_count; ++index) {
+        const int16_t node = MOX::ship_icon[index].node_idx;
+        if (MOX::ship_node[node].ship_idx == 1) enemy_node = node;
+    }
+    DOCTEST_REQUIRE(enemy_node >= 0);
+    DOCTEST_CHECK((MOX::settings.enemy_moves != 0 || SHIPS::Enemy_Ship_Heading_Toward_Our_Colony(enemy_node)));
+    const auto ships_before = fixture.ships;
+    DOCTEST_REQUIRE(game_rpc::Read_Refreshed_Ship_Observation(&observed));
+    DOCTEST_CHECK(observed.ships[1].destination_available == rpc::SHIP_CURRENT);
+    DOCTEST_CHECK(observed.ships[1].destination_system == 0);
+    DOCTEST_CHECK(observed.ships[1].eta_available == rpc::SHIP_CURRENT);
+    DOCTEST_CHECK(observed.ships[1].eta == 0);
+    DOCTEST_CHECK(memcmp(ships_before.data(), fixture.ships.data(), ships_before.size() * sizeof(s_ship_data)) == 0);
+    DOCTEST_CHECK(game_random::Get_Random_Seed() == seed);
+}
+
+DOCTEST_TEST_CASE("route capture distinguishes stationary, wormhole, special and undisclosed stack-member ETA") {
+    s_ship_world fixture;
+    rpc::s_map_observation observed;
+    SHIPS::Build_Ship_Icons();
+    DOCTEST_REQUIRE(game_rpc::Read_Refreshed_Ship_Observation(&observed));
+    DOCTEST_CHECK(observed.ships[0].destination_available == rpc::SHIP_KNOWN_EMPTY);
+    DOCTEST_CHECK(observed.ships[0].eta_available == rpc::SHIP_KNOWN_EMPTY);
+    fixture.ships[0].location = SHIP_LOCATION_WORMHOLE_OFFSET + 1;
+    fixture.ships[0].status = 1;
+    SHIPS::Build_Ship_Icons();
+    DOCTEST_REQUIRE(game_rpc::Read_Refreshed_Ship_Observation(&observed));
+    DOCTEST_CHECK(observed.ships[0].destination_available == rpc::SHIP_CURRENT);
+    DOCTEST_CHECK(observed.ships[0].eta_available == rpc::SHIP_CONTEXT_REQUIRED);
+    fixture.ships[0].location = SHIP_LOCATION_MOVING_OFFSET + MOX::NUM_STARS;
+    SHIPS::Build_Ship_Icons();
+    DOCTEST_REQUIRE(game_rpc::Read_Refreshed_Ship_Observation(&observed));
+    DOCTEST_CHECK(observed.ships[0].destination_available == rpc::SHIP_UNAUDITED);
+    DOCTEST_CHECK(observed.ships[0].destination_system == -1);
+    fixture.ships[0].location = SHIP_LOCATION_MOVING_OFFSET + 1;
+    fixture.ships[0].turns_left = 7;
+    fixture.ships[2] = fixture.ships[0];
+    SHIPS::Build_Ship_Icons();
+    DOCTEST_REQUIRE(game_rpc::Read_Refreshed_Ship_Observation(&observed));
+    DOCTEST_REQUIRE(observed.ships.size() == 3);
+    DOCTEST_CHECK(std::count_if(observed.ships.begin(), observed.ships.end(), [](const auto& ship) { return ship.eta_available == rpc::SHIP_CURRENT; }) == 1);
+    DOCTEST_CHECK(std::count_if(observed.ships.begin(), observed.ships.end(), [](const auto& ship) { return ship.destination_available == rpc::SHIP_CURRENT; }) == 2);
+    const auto head_eta = std::find_if(observed.ships.begin(), observed.ships.end(), [](const auto& ship) { return ship.eta_available == rpc::SHIP_CURRENT; })->eta;
+    for (int index = 0; index < MOX::ship_icon_count; ++index) {
+        const int16_t head = MOX::ship_icon[index].node_idx;
+        const int16_t next = MOX::ship_node[head].next_node;
+        if (next != -1) fixture.ships[MOX::ship_node[next].ship_idx].turns_left = 99;
+    }
+    SHIPS::Build_Ship_Icons();
+    DOCTEST_REQUIRE(game_rpc::Read_Refreshed_Ship_Observation(&observed));
+    DOCTEST_CHECK(std::count_if(observed.ships.begin(), observed.ships.end(), [head_eta](const auto& ship) { return ship.eta_available == rpc::SHIP_CURRENT && ship.eta == head_eta; }) == 1);
+    // A malformed unvisited route must not make the existing native predicate read out of bounds.
+    fixture.ships[1].status = 1;
+    fixture.ships[1].location = SHIP_LOCATION_MOVING_OFFSET + 1;
+    fixture.world.stars[1].planet_index[0] = MAX_PLANETS;
+    SHIPS::Build_Ship_Icons();
+    DOCTEST_REQUIRE(game_rpc::Read_Refreshed_Ship_Observation(&observed));
+    DOCTEST_CHECK(observed.ships.back().destination_available == rpc::SHIP_CONTEXT_REQUIRED);
 }

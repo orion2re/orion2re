@@ -77,6 +77,11 @@ int main() {
             else if (command == "hidden") {
                 map.systems[1].name = "changed hidden world";
                 if (!map.ships.empty()) map.ships.back().name = "changed hidden ship name";
+                if (map.ships.size() >= 3) {
+                    map.ships.back().destination_system = 99999;
+                    map.ships.back().destination_id = "hidden destination";
+                    map.ships.back().eta = -99999;
+                }
                 ++map.players[1].treasury;
                 map.players[2].name = "different hidden empire";
                 rpc::Capture_Map(&store, &map);
@@ -105,6 +110,19 @@ int main() {
                     map.ships[0].owner_slot = 0;
                     map.ships[1].owner_slot = 1;
                     map.ships[2].owner_slot = 2;
+                }
+                map.ships_captured = true;
+                rpc::Capture_Map(&store, &map);
+            } else if (command == "ship-routes") {
+                if (map.ships.size() >= 3) {
+                    map.ships[0].destination_available = rpc::SHIP_CURRENT;
+                    map.ships[0].destination_system = 1;
+                    map.ships[0].eta_available = rpc::SHIP_CURRENT;
+                    map.ships[0].eta = 0;
+                    map.ships[1].owned = true;
+                    map.ships[1].name = "Stationary";
+                    map.ships[1].destination_available = map.ships[1].eta_available = rpc::SHIP_KNOWN_EMPTY;
+                    map.ships[2].destination_available = map.ships[2].eta_available = rpc::SHIP_CONTEXT_REQUIRED;
                 }
                 map.ships_captured = true;
                 rpc::Capture_Map(&store, &map);

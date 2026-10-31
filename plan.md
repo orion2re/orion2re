@@ -978,7 +978,13 @@ native outpost lowercase. Contact/lore-only names and system owner remain
 `unaudited`; planet and foreign economy data is not inspected. Ship observations
 copy only fresh surviving displayed links, map positions, own/foreign classification,
 owned names and owner references authorized by the same capture's known-player
-roster/banner colors. Enemy ship names/routes/ETA/design/cargo are not read. Player
+roster/banner colors. The Q-07 follow-up copies non-selection map-authorized routes
+and the displayed head's cached ordinary-route ETA; enemy names/design/cargo remain
+unread. Enemy routes additionally require enemy-moves presentation or the existing
+native incoming predicate, not detection, contact or omniscience alone. Stationary
+own routes are known-empty, selection-only/wormhole/member ETA is context-required,
+and special destinations remain unaudited. Private destination bindings are discarded
+before retaining snapshots. Player
 captures include the native known/eliminated/omniscient roster and only the bound
 player's already calculated treasury/HUD values; foreign economy is never read.
 Nebula positions
@@ -1051,7 +1057,7 @@ gates. P1 completion is not claimed by this foundation increment.
 - [ ] Q-04 — Implement `game.listSystems` and `game.getSystem` with authorized map/range/wormhole data.
 - [ ] Q-05 — Implement `game.listPlanets`, `game.getPlanet`, and `game.listNebulas`.
 - [ ] Q-06 — Implement `game.listColonies` and `game.getColony`, including authorized production, jobs, buildings, troops, events, and transfer settings.
-- [ ] Q-07 — Implement `game.listShips` and `game.getShip`, including conditional destination/ETA and scan disclosure (dated position/owned/name and known-player owner references implemented and tested; enemy details, routes/ETA/scan and durable entity identity remain open).
+- [ ] Q-07 — Implement `game.listShips` and `game.getShip`, including conditional destination/ETA and scan disclosure (dated position/owned/name, same-capture known-player owners, non-selection map-authorized destinations and head-only cached ordinary-route ETA implemented and tested; initialized selection/scan/fleet-box detail and durable entity identity remain open).
 - [ ] Q-08 — Implement `game.listFleets` and `game.getFleet` without exposing raw rebuilt stack indices.
 - [ ] Q-09 — Implement `game.getMovementOptions` with audited scratch-state handling and no hidden-information oracle.
 - [ ] Q-10 — Implement `game.listDesigns`, `game.getDesign`, and `game.getDesignOptions`.
@@ -1073,6 +1079,30 @@ V-03/Q-07 approach approved: reuse the already calculated state via a neutral
 post-refresh hook and explicitly dated ship observations. The proposed native
 detection-policy extraction was not approved or applied and is not required by
 this implementation. Queries never invoke the builder or inspect stale nodes.
+
+Q-07 route/ETA evidence is in `specs/rpc/ship_refresh.md`: reuse native incoming
+and absolute-location predicates on fresh surviving icon heads; copy only cached
+ordinary-route ETA, never movement previews. Preserve the native outpost predicate's
+ignored player argument, without treating it or "enemy" as hostility. No native
+code/API changes or shared-policy extraction. Known-empty, context-required,
+unknown and unaudited route knowledge stay distinct. Selection-only fields require
+a future initialized-context observation, not stale globals.
+
+Route increment verification (macOS ARM64): 81 Python tests including 33 live
+WebSocket cases pass; relevant RPC/native/transport targets pass normally and with
+ASAN/UBSAN; RPC-disabled `tools/run-tests.sh` passes all 106 CTest targets. Generated
+schema/reference/C++ metadata drift, affected C++ formatting and whitespace checks
+pass. Native maximum-capacity sanitizer coverage caught and verified the fix for
+packed-field reference binding in stack validation. LeakSanitizer is unsupported
+on this runtime and disabled for ASAN/UBSAN runs; interactive saved-game parity
+and other-platform checks remain open. See ship-refresh evidence for reproduction.
+
+Pending scan-label contract clarification (no decision applied): should `Ship.name`
+remain an actual name with a separate `displayName` for native hull/UI labels
+(recommended), or mean the native displayed label? Enemy names remain unaudited
+until that decision and initialized-context visibility tests. Q-07 stays unchecked;
+Q-06/Q-13 and the client-side N-05 example remain subsequent increments, not a
+server briefing API.
 
 ### P2. Shared UI adapters and operation lifecycle
 

@@ -74,6 +74,46 @@ namespace game_rpc {
         return active ? &bridge : nullptr;
     }
 
+    static void Read_Map_Route(int16_t node, rpc::s_ship_observation* route) {
+        const s_ship_data* ship = &MOX::ship[MOX::ship_node[node].ship_idx];
+        const bool owned = ship->owner == MOX::PLAYER_NUM;
+        route->destination_available = route->eta_available = owned ? rpc::SHIP_UNAUDITED : rpc::SHIP_CONTEXT_REQUIRED;
+        if (owned && ship->location >= 0 && ship->location < MOX::NUM_STARS) {
+            route->destination_available = route->eta_available = rpc::SHIP_KNOWN_EMPTY;
+            return;
+        }
+        // This subset follows the non-selection branches of Do_Ship_Destination_Lines.
+        // No moveable/fleet-box state is assumed initialized at an icon refresh.
+        if (!owned && ship->status == 0) return;
+        if (ship->location < SHIP_LOCATION_MOVING_OFFSET || ship->location >= SHIP_LOCATION_LIMIT) return;
+        const int16_t destination = HAROLD::Absolute_Location(ship->location);
+        if (destination < 0 || destination >= MOX::NUM_STARS) {
+            if (owned) route->destination_available = route->eta_available = rpc::SHIP_UNAUDITED;
+            return; // Includes the special Antares destination, not a map system.
+        }
+        if (!owned && MOX::settings.enemy_moves == 0) {
+            // Validate only links the existing read-only predicate may follow.
+            if (!HAROLD::Player_Has_Colony(MOX::PLAYER_NUM, destination)) {
+                for (int orbit = 0; orbit < 5; ++orbit) {
+                    const int16_t planet = MOX::star[destination].planet_index[orbit];
+                    if (planet < -1 || planet >= MAX_PLANETS || (planet >= 0 && MOX::planet == nullptr)) return;
+                    if (planet >= 0) {
+                        const int16_t colony = MOX::planet[planet].colony_index;
+                        if (colony < -1 || colony >= MAX_COLONIES || (colony >= 0 && MOX::colony == nullptr)) return;
+                    }
+                }
+            }
+            if (!SHIPS::Enemy_Ship_Heading_Toward_Our_Colony(node)) return;
+        }
+        route->destination_available = rpc::SHIP_CURRENT;
+        route->destination_system = destination;
+        route->eta_available = rpc::SHIP_CONTEXT_REQUIRED;
+        if (ship->location < SHIP_LOCATION_WORMHOLE_OFFSET) {
+            route->eta_available = rpc::SHIP_CURRENT;
+            route->eta = (uint8_t)ship->turns_left;
+        }
+    }
+
     bool Read_Refreshed_Ship_Observation(rpc::s_map_observation* observation) {
         if (observation == nullptr) return false;
         *observation = {};
@@ -92,6 +132,8 @@ namespace game_rpc {
         for (int index = 0; index < MOX::ship_icon_count; ++index) {
             int16_t node = MOX::ship_icon[index].node_idx;
             if (node < 0 || node >= MAX_SHIPS || !heads[node]) return false;
+            const int16_t head = node;
+            rpc::s_ship_observation route;
             while (node != -1) {
                 if (node < 0 || node >= MAX_SHIPS || nodes[node]) return false;
                 nodes[node] = true;
@@ -101,7 +143,18 @@ namespace game_rpc {
                 ships[slot] = true;
                 const s_ship_data* ship = &MOX::ship[slot];
                 if (ship->status < 0 || ship->status >= 3) return false;
-                rpc::s_ship_observation item;
+                if (node == head)
+                    Read_Map_Route(head, &route);
+                else {
+                    const s_ship_data* first = &MOX::ship[MOX::ship_node[head].ship_idx];
+                    if (ship->x != first->x || ship->y != first->y || ship->owner != first->owner || ship->location != first->location) return false;
+                }
+                rpc::s_ship_observation item = route;
+                // The map prints only the head ship's cached ETA, not every member's.
+                if (node != head && item.eta_available == rpc::SHIP_CURRENT) {
+                    item.eta_available = rpc::SHIP_CONTEXT_REQUIRED;
+                    item.eta = 0;
+                }
                 item.x = ship->x;
                 item.y = ship->y;
                 item.owned = ship->owner == captured.viewer;

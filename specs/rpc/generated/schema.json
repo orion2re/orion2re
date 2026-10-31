@@ -287,6 +287,14 @@
         "secondary"
       ]
     },
+    "CachedShipTurns": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 255,
+      "x-integerToken": true,
+      "x-unit": "turns",
+      "description": "Nonnegative whole turns as displayed by the native UI."
+    },
     "CaptureMode": {
       "type": "string",
       "enum": [
@@ -868,6 +876,25 @@
       ],
       "x-rpc-policy": "contract"
     },
+    "CurrentShipEta": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/Current",
+          "x-rpc-policy": "contract"
+        },
+        "value": {
+          "$ref": "#/$defs/CachedShipTurns",
+          "x-rpc-policy": "contract"
+        }
+      },
+      "required": [
+        "availability",
+        "value"
+      ],
+      "x-rpc-policy": "contract"
+    },
     "CurrentText": {
       "type": "object",
       "additionalProperties": false,
@@ -1020,6 +1047,20 @@
       "additionalProperties": false,
       "properties": {},
       "required": [],
+      "x-rpc-policy": "contract"
+    },
+    "EmptyKnowledge": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/KnownEmpty",
+          "x-rpc-policy": "contract"
+        }
+      },
+      "required": [
+        "availability"
+      ],
       "x-rpc-policy": "contract"
     },
     "Event": {
@@ -1378,6 +1419,12 @@
         {
           "$ref": "#/$defs/Unavailable"
         }
+      ]
+    },
+    "KnownEmpty": {
+      "type": "string",
+      "enum": [
+        "known-empty"
       ]
     },
     "KnownId": {
@@ -2674,12 +2721,12 @@
           "x-rpc-policy": "ship-own-name"
         },
         "destination": {
-          "$ref": "#/$defs/KnownId",
-          "x-rpc-policy": "disabled-ship"
+          "$ref": "#/$defs/ShipDestination",
+          "x-rpc-policy": "ship-map-route"
         },
         "eta": {
-          "$ref": "#/$defs/KnownTurns",
-          "x-rpc-policy": "disabled-ship"
+          "$ref": "#/$defs/ShipEta",
+          "x-rpc-policy": "ship-map-eta"
         }
       },
       "required": [
@@ -2693,6 +2740,32 @@
         "eta"
       ],
       "x-rpc-policy": "ships-refreshed"
+    },
+    "ShipDestination": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CurrentId"
+        },
+        {
+          "$ref": "#/$defs/EmptyKnowledge"
+        },
+        {
+          "$ref": "#/$defs/Unavailable"
+        }
+      ]
+    },
+    "ShipEta": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CurrentShipEta"
+        },
+        {
+          "$ref": "#/$defs/EmptyKnowledge"
+        },
+        {
+          "$ref": "#/$defs/Unavailable"
+        }
+      ]
     },
     "ShipResult": {
       "type": "object",
@@ -7673,9 +7746,40 @@
         "T-05"
       ]
     },
-    "disabled-ship": {
-      "status": "disabled",
-      "predicate": "Unmapped/special owner identities, enemy names/scan details, route/destination/ETA require independent field audits. Surviving detection or known ownership does not authorize raw location, cargo, orders or enemy design data. No scanner-policy extraction is needed for the post-refresh projection.",
+    "ship-map-route": {
+      "status": "reviewed",
+      "predicate": "At the fresh surviving-icon capture only, reuse the non-selection map route gates: own route, or non-own moving head with enemy_moves presentation or the existing Enemy_Ship_Heading_Toward_Our_Colony predicate. The native outpost predicate ignores its player argument; preserve it, do not infer hostility or change rules. Only ordinary/wormhole destinations resolving to a system in this capture are published as opaque system handles; discard private bindings. A validated stationary own location is known-empty. Other enemy/selection-only data is context-required without inspecting selection globals; special Antares destinations remain unaudited. Stack members share only the displayed head's validated location/owner/position route, not private per-member fields. Detection, contact and omniscience alone do not authorize routes. No UI builders, movement calculators, previews or newly calculated estimates.",
+      "sources": [
+        [
+          "src/game/ships.cpp",
+          "Do_Ship_Destination_Lines"
+        ],
+        [
+          "src/game/ships.cpp",
+          "Enemy_Ship_Heading_Toward_Our_Colony"
+        ],
+        [
+          "src/game/harold.cpp",
+          "Absolute_Location"
+        ],
+        [
+          "src/game/harold.cpp",
+          "Player_Has_Outpost"
+        ],
+        [
+          "src/game/shipstak.cpp",
+          "Find_Ship_Stacks"
+        ]
+      ],
+      "tests": [
+        "T-01",
+        "T-02",
+        "T-05"
+      ]
+    },
+    "ship-map-eta": {
+      "status": "reviewed",
+      "predicate": "Only the surviving displayed head's cached uint8 turns_left when the non-selection map route is authorized and uses ordinary moving encoding. Preserve displayed zero and unsigned byte narrowing. Never calculate an ETA or expose another member's cached value. Wormhole and non-head ETA remain context-required pending initialized fleet-box capture; stationary own ships are known-empty. Special destinations remain unaudited. Same coherent explicitly dated capture as the ship and its destination.",
       "sources": [
         [
           "src/game/ships.cpp",
@@ -7684,6 +7788,29 @@
         [
           "src/game/ships.cpp",
           "Print_Eta_On_Ship_Icon"
+        ],
+        [
+          "src/game/fleetpop.cpp",
+          "Print_Fleet_Box_Info"
+        ],
+        [
+          "src/game/fleetpop.cpp",
+          "Get_Absolute_Location_Scan_Info"
+        ]
+      ],
+      "tests": [
+        "T-01",
+        "T-02",
+        "T-05"
+      ]
+    },
+    "disabled-ship": {
+      "status": "disabled",
+      "predicate": "Unmapped/special owner identities and enemy names/scan details require independent field audits and enemy-label contract clarification. Surviving detection or known ownership does not authorize raw location, cargo, orders or enemy design data. No scanner-policy extraction is needed for the post-refresh projection.",
+      "sources": [
+        [
+          "src/game/fleetpop.cpp",
+          "Get_Fleetpop_Scanned_Ship_Info"
         ]
       ],
       "tests": [
@@ -8032,7 +8159,7 @@
     "orderedEventsPerSubscription": 4096,
     "overflow": "Reject before admission; coalesce only complete unsent state. Ordered-event overflow signals a gap or disconnect. Never rewrite partial output or silently discard operation results."
   },
-  "x-rpc-sourceHash": "ebb9fce89a372bb76915cc45b354b29d2ed0c8171386c4e0ad97c76cf803a31a",
+  "x-rpc-sourceHash": "6a7872b740598b80ee74dff6bdf3f3459e8ffbf2d3b148b05a497c3cb5613c57",
   "x-rpc-runtimeEnabled": false,
   "x-rpc-implementedMethods": [
     "rpc.hello",

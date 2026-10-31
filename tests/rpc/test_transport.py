@@ -553,6 +553,26 @@ class TransportTests(unittest.TestCase):
         current = self.Query(client, "game.getState", {"include":["players","ships"]})["result"]
         self.assertEqual(current["ships"][1]["owner"], {"availability":"unaudited"})
 
+    def test_ship_routes_use_same_capture_system_handles_and_explicit_knowledge(self):
+        self.Fixture("world")
+        self.Fixture("ships")
+        self.Fixture("ship-routes")
+        client = self.Client()
+        client.Hello()
+        baseline = self.Query(client, "rpc.subscribe", {"topics":["session","systems","ships"],"events":["state.changed"]})["result"]["baseline"]
+        own, stationary, unavailable = baseline["ships"]
+        self.assertEqual(own["destination"], {"availability":"current","value":baseline["systems"][1]["id"]})
+        self.assertEqual(own["eta"], {"availability":"current","value":0})
+        self.assertEqual(stationary["destination"], {"availability":"known-empty"})
+        self.assertEqual(stationary["eta"], {"availability":"known-empty"})
+        self.assertEqual(unavailable["destination"], {"availability":"context-required"})
+        self.assertEqual(unavailable["eta"], {"availability":"context-required"})
+        self.assertEqual(self.Query(client, "game.getShip", {"id":own["id"]})["result"]["item"], own)
+        self.Fixture("hidden")
+        self.assertEqual(self.Query(client, "game.getState", {"include":["session","systems","ships"]})["result"], baseline)
+        self.Fixture("map-only")
+        self.assertEqual(self.Query(client, "game.getState", {"include":["session","systems","ships"]})["result"], baseline)
+
 
 if __name__ == "__main__":
     unittest.main()

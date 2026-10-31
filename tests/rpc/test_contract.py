@@ -226,11 +226,22 @@ class TypedContractTests(unittest.TestCase):
         system["owner"] = {"availability":"unaudited"}
         audit.Validate_Value(system, "System", self.contracts, self.policies, public=True)
         ship = self.Sample("Ship")
-        with self.assertRaisesRegex(ValueError, "disabled field"):
-            audit.Validate_Value(ship, "Ship", self.contracts, self.policies, public=True)
-        for field in ("owner", "destination", "eta"):
+        for field in ("owner", "name"):
             ship[field] = {"availability":"unaudited"}
         audit.Validate_Value(ship, "Ship", self.contracts, self.policies, public=True)
+
+    def test_ship_route_knowledge_and_cached_eta_bounds(self):
+        for field in ("ShipDestination", "ShipEta"):
+            for reason in ("known-empty", "unknown", "context-required", "unaudited"):
+                audit.Validate_Value({"availability":reason}, field, self.contracts)
+                with self.assertRaises(ValueError):
+                    audit.Validate_Value({"availability":reason,"value":0}, field, self.contracts)
+        audit.Validate_Value({"availability":"current","value":"opaque-system"}, "ShipDestination", self.contracts)
+        for value in (0, 255):
+            audit.Validate_Value({"availability":"current","value":value}, "ShipEta", self.contracts)
+        for value in (-1, 256, True, None):
+            with self.assertRaises(ValueError):
+                audit.Validate_Value({"availability":"current","value":value}, "ShipEta", self.contracts)
 
     def test_missing_policy_and_recursive_contract_are_rejected(self):
         broken = copy.deepcopy(self.contracts)

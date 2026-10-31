@@ -21,6 +21,14 @@ namespace rpc {
         int16_t y = 0;
     };
 
+    enum e_ship_knowledge {
+        SHIP_UNAUDITED,
+        SHIP_CURRENT,
+        SHIP_KNOWN_EMPTY,
+        SHIP_UNKNOWN,
+        SHIP_CONTEXT_REQUIRED,
+    };
+
     struct s_ship_observation {
         int16_t x = 0;
         int16_t y = 0;
@@ -31,6 +39,11 @@ namespace rpc {
         int32_t owner_slot = -1;
         // Resolved only from the same capture's public player handles.
         std::string owner_id;
+        e_ship_knowledge destination_available = SHIP_UNAUDITED;
+        int32_t destination_system = -1; // Private same-capture binding, discarded before retention.
+        std::string destination_id;
+        e_ship_knowledge eta_available = SHIP_UNAUDITED;
+        int32_t eta = 0;
     };
 
     struct s_player_hud {

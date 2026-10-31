@@ -9,7 +9,7 @@ This document is rendered from `schema.json`, not a second method catalog.
 The root schema validates acknowledged client requests; per-method success responses and server notifications have separate definitions.
 All fields are non-null unless explicitly stated. Unknown keys are rejected. UTF-8 byte limits, lexical integer tokens, duplicate keys, depth and authorization need the protocol guards in addition to standard JSON Schema validation.
 
-Source bundle SHA-256: `ebb9fce89a372bb76915cc45b354b29d2ed0c8171386c4e0ad97c76cf803a31a`.
+Source bundle SHA-256: `6a7872b740598b80ee74dff6bdf3f3459e8ffbf2d3b148b05a497c3cb5613c57`.
 
 ## Methods
 
@@ -118,6 +118,12 @@ Constraints: `{"type": "boolean"}`.
 ### Button
 
 Values: `primary`, `secondary`.
+
+### CachedShipTurns
+
+Nonnegative whole turns as displayed by the native UI.
+
+Constraints: `{"maximum": 255, "minimum": 0, "type": "integer", "x-integerToken": true}`.
 
 ### CaptureMode
 
@@ -339,6 +345,13 @@ Values: `current`.
 | availability | Current | yes | contract |
 | value | PlayerHUD | yes | contract |
 
+### CurrentShipEta
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| availability | Current | yes | contract |
+| value | CachedShipTurns | yes | contract |
+
 ### CurrentText
 
 | Field | Type | Required | Policy |
@@ -398,6 +411,12 @@ Array of `Design`; 0..4096 items; unique: false.
 
 | Field | Type | Required | Policy |
 | --- | --- | --- | --- |
+
+### EmptyKnowledge
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| availability | KnownEmpty | yes | contract |
 
 ### Event
 
@@ -539,6 +558,10 @@ Exactly one of: CurrentCount, Unavailable.
 ### KnownCredits
 
 Exactly one of: CurrentCredits, Unavailable.
+
+### KnownEmpty
+
+Values: `known-empty`.
 
 ### KnownId
 
@@ -1014,8 +1037,16 @@ Values: `menu`, `committed`, `resolving`, `revoked`, `ending`, `unavailable`.
 | owned | Bool | yes | ships-refreshed |
 | owner | KnownId | yes | ship-owner-known |
 | name | KnownText | yes | ship-own-name |
-| destination | KnownId | yes | disabled-ship |
-| eta | KnownTurns | yes | disabled-ship |
+| destination | ShipDestination | yes | ship-map-route |
+| eta | ShipEta | yes | ship-map-eta |
+
+### ShipDestination
+
+Exactly one of: CurrentId, EmptyKnowledge, Unavailable.
+
+### ShipEta
+
+Exactly one of: CurrentShipEta, EmptyKnowledge, Unavailable.
 
 ### ShipResult
 
@@ -1302,7 +1333,9 @@ Reviewed means static evidence, not runtime visibility approval.
 | ships-refreshed | reviewed | Only synchronous post-Build_Ship_Icons capture for the bound active human viewer, outside world mutation/resolution. Follow fresh icon heads that are surviving stack heads and their linked nodes; never enumerate unlinked allocations or rebuild for a query. Copy map x/y and own-versus-foreign classification; names and known-player owner references require their additional field policies. Sort the authorized projection before assigning opaque read-only observation handles; no native slots or durable ship identity are published. One coherent map/ship capture, explicitly dated last-native-ship-refresh. Handle sets are replaced when the projected ship collection changes; no action may use them. | src/game/ships.cpp: Build_Ship_Icons; src/game/shipstak.cpp: Find_Ship_Stacks; src/game/shipstak.cpp: Remove_Non_Detected_Ships; src/game/haccess.cpp: Ship_Stack_X; src/game/haccess.cpp: Ship_Stack_Y; src/game/haccess.cpp: Ship_Stack_Owner | T-01, T-02, T-05 |
 | ship-own-name | reviewed | Only the bound viewer&#x27;s own ship: bounded NUL-terminated copy of d.name decoded from CP850 to UTF-8, at the same authorized post-refresh capture. Foreign name bytes are never read; their name is explicitly unaudited rather than a scan-knowledge claim. | src/game/fleetpop.cpp: Get_Fleetpop_Scanned_Ship_Info | T-01, T-02, T-03 |
 | ship-owner-known | reviewed | Only a surviving freshly displayed ship. Resolve own ownership or a known empire&#x27;s banner-color identity to an opaque player handle in the same coherent capture&#x27;s authorized roster. Foreign mapping requires a unique color in that public roster; ambiguous colors, unlisted owners and special/NPC owners remain explicitly unaudited. Never use an old handle table or newer roster to authorize the link. Discard private owner bindings before retaining snapshots; compare only the resolved public ID. Ownership does not authorize enemy names/designs, routes, ETA, orders, cargo or economy. | src/game/ships.cpp: Get_Ship_Icon_Pict_Seg; src/game/ships.cpp: Build_Ship_Icons; src/game/racescrn.cpp: Draw_Race_Photos | T-01, T-02, T-05 |
-| disabled-ship | disabled | Unmapped/special owner identities, enemy names/scan details, route/destination/ETA require independent field audits. Surviving detection or known ownership does not authorize raw location, cargo, orders or enemy design data. No scanner-policy extraction is needed for the post-refresh projection. | src/game/ships.cpp: Do_Ship_Destination_Lines; src/game/ships.cpp: Print_Eta_On_Ship_Icon | T-01, T-02 |
+| ship-map-route | reviewed | At the fresh surviving-icon capture only, reuse the non-selection map route gates: own route, or non-own moving head with enemy_moves presentation or the existing Enemy_Ship_Heading_Toward_Our_Colony predicate. The native outpost predicate ignores its player argument; preserve it, do not infer hostility or change rules. Only ordinary/wormhole destinations resolving to a system in this capture are published as opaque system handles; discard private bindings. A validated stationary own location is known-empty. Other enemy/selection-only data is context-required without inspecting selection globals; special Antares destinations remain unaudited. Stack members share only the displayed head&#x27;s validated location/owner/position route, not private per-member fields. Detection, contact and omniscience alone do not authorize routes. No UI builders, movement calculators, previews or newly calculated estimates. | src/game/ships.cpp: Do_Ship_Destination_Lines; src/game/ships.cpp: Enemy_Ship_Heading_Toward_Our_Colony; src/game/harold.cpp: Absolute_Location; src/game/harold.cpp: Player_Has_Outpost; src/game/shipstak.cpp: Find_Ship_Stacks | T-01, T-02, T-05 |
+| ship-map-eta | reviewed | Only the surviving displayed head&#x27;s cached uint8 turns_left when the non-selection map route is authorized and uses ordinary moving encoding. Preserve displayed zero and unsigned byte narrowing. Never calculate an ETA or expose another member&#x27;s cached value. Wormhole and non-head ETA remain context-required pending initialized fleet-box capture; stationary own ships are known-empty. Special destinations remain unaudited. Same coherent explicitly dated capture as the ship and its destination. | src/game/ships.cpp: Do_Ship_Destination_Lines; src/game/ships.cpp: Print_Eta_On_Ship_Icon; src/game/fleetpop.cpp: Print_Fleet_Box_Info; src/game/fleetpop.cpp: Get_Absolute_Location_Scan_Info | T-01, T-02, T-05 |
+| disabled-ship | disabled | Unmapped/special owner identities and enemy names/scan details require independent field audits and enemy-label contract clarification. Surviving detection or known ownership does not authorize raw location, cargo, orders or enemy design data. No scanner-policy extraction is needed for the post-refresh projection. | src/game/fleetpop.cpp: Get_Fleetpop_Scanned_Ship_Info | T-01, T-02 |
 | disabled-fleet | disabled | Group only already authorized ships; stable IDs must not be rebuilt stack indices. Destination/ETA separately filtered. | src/game/shipstak.cpp: Find_Ship_Stacks | T-01, T-02 |
 | disabled-design | disabled | Own templates or actual active scan-authorized details; calculators must be audited for mutation before sharing. | src/game/design_main.cpp: Design_Screen; src/game/cmbtdrw1.cpp: Detailed_View_Ship | T-01, T-02, T-03 |
 | disabled-leader | disabled | Only owned or actually offered/discovered leaders; no enumeration of generated/hidden hero slots. | src/game/officer.cpp: Officers_Screen; src/game/mainpups.cpp: Random_New_Officer_Popup | T-01, T-02 |

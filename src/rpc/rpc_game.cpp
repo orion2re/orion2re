@@ -54,7 +54,8 @@ namespace rpc {
             for (size_t index = 0; index < left->ships.size(); ++index) {
                 const auto& a = left->ships[index];
                 const auto& b = right->ships[index];
-                if (std::tie(a.x, a.y, a.owned, a.name, a.owner_id) != std::tie(b.x, b.y, b.owned, b.name, b.owner_id)) return false;
+                if (std::tie(a.x, a.y, a.owned, a.name, a.owner_id, a.destination_available, a.destination_id, a.eta_available, a.eta) !=
+                    std::tie(b.x, b.y, b.owned, b.name, b.owner_id, b.destination_available, b.destination_id, b.eta_available, b.eta)) return false;
             }
             return true;
         }
@@ -107,13 +108,24 @@ namespace rpc {
             return "{\"id\":" + Json_String(store->nebula_ids[index]) + ",\"x\":" + std::to_string(item.x) + ",\"y\":" + std::to_string(item.y) + "}";
         }
 
+        std::string Ship_Knowledge(e_ship_knowledge available, const std::string& value) {
+            switch (available) {
+                case SHIP_CURRENT: return "{\"availability\":\"current\",\"value\":" + value + "}";
+                case SHIP_KNOWN_EMPTY: return "{\"availability\":\"known-empty\"}";
+                case SHIP_UNKNOWN: return "{\"availability\":\"unknown\"}";
+                case SHIP_CONTEXT_REQUIRED: return "{\"availability\":\"context-required\"}";
+                default: return "{\"availability\":\"unaudited\"}";
+            }
+        }
+
         std::string Ship(const s_map_snapshot* snapshot, size_t index) {
             const s_ship_observation& item = snapshot->map.ships[index];
             const std::string name = item.owned ? "{\"availability\":\"current\",\"value\":" + Json_String(item.name) + "}" : "{\"availability\":\"unaudited\"}";
             const std::string owner = item.owner_id.empty() ? "{\"availability\":\"unaudited\"}" : "{\"availability\":\"current\",\"value\":" + Json_String(item.owner_id) + "}";
             return "{\"id\":" + Json_String(snapshot->ship_ids[index]) + ",\"x\":" + std::to_string(item.x) +
                 ",\"y\":" + std::to_string(item.y) + ",\"owned\":" + (item.owned ? "true" : "false") + ",\"name\":" + name +
-                ",\"owner\":" + owner + ",\"destination\":{\"availability\":\"unaudited\"},\"eta\":{\"availability\":\"unaudited\"}}";
+                ",\"owner\":" + owner + ",\"destination\":" + Ship_Knowledge(item.destination_available, Json_String(item.destination_id)) +
+                ",\"eta\":" + Ship_Knowledge(item.eta_available, std::to_string(item.eta)) + "}";
         }
 
         std::string Player(const s_map_snapshot* snapshot, size_t index) {
@@ -496,6 +508,20 @@ namespace rpc {
         for (s_ship_observation& ship : projected.ships) {
             if (!ship.owned) ship.name.clear();
             if (ship.name.size() > 48) return false;
+            for (e_ship_knowledge available : {ship.destination_available, ship.eta_available}) {
+                if (available < SHIP_UNAUDITED || available > SHIP_CONTEXT_REQUIRED) return false;
+            }
+            if ((ship.destination_available == SHIP_KNOWN_EMPTY || ship.eta_available == SHIP_KNOWN_EMPTY) &&
+                (!ship.owned || ship.destination_available != SHIP_KNOWN_EMPTY || ship.eta_available != SHIP_KNOWN_EMPTY)) return false;
+            if (ship.destination_available != SHIP_CURRENT)
+                ship.destination_system = -1;
+            else if (ship.destination_system < 0 || (size_t)ship.destination_system >= projected.systems.size())
+                return false;
+            ship.destination_id.clear();
+            if (ship.eta_available != SHIP_CURRENT)
+                ship.eta = 0;
+            else if (ship.eta < 0 || ship.eta > 255 || ship.destination_available != SHIP_CURRENT)
+                return false;
         }
         store->capture_requested = false;
         if (!store->snapshots.empty() && (projected.systems.size() != store->snapshots.back().map.systems.size() || projected.nebulas.size() != store->snapshots.back().map.nebulas.size())) {
@@ -506,6 +532,15 @@ namespace rpc {
             if (!store->new_id(&store->perspective_id, store->id_context)) return false;
             store->viewer = projected.viewer;
         }
+        auto Extend = [store](std::vector<std::string>* ids, size_t count) {
+            while (ids->size() < count) {
+                std::string id;
+                if (!store->new_id(&id, store->id_context)) return false;
+                ids->push_back(std::move(id));
+            }
+            return true;
+        };
+        if (!Extend(&store->system_ids, projected.systems.size()) || !Extend(&store->nebula_ids, projected.nebulas.size())) return false;
         std::vector<std::string> player_ids;
         for (const auto& player : projected.players) {
             auto handle = std::find_if(store->player_handles.begin(), store->player_handles.end(), [&player](const s_player_handle& item) { return item.slot == player.slot; });
@@ -526,23 +561,17 @@ namespace rpc {
                 ship.owner_id = player_ids[(size_t)(owner - projected.players.begin())];
             }
             ship.owner_slot = -1;
+            if (ship.destination_available == SHIP_CURRENT) ship.destination_id = store->system_ids[(size_t)ship.destination_system];
+            ship.destination_system = -1;
         }
         std::sort(projected.ships.begin(), projected.ships.end(), [](const s_ship_observation& left, const s_ship_observation& right) {
-            return std::tie(left.x, left.y, left.owned, left.name, left.owner_id) < std::tie(right.x, right.y, right.owned, right.name, right.owner_id);
+            return std::tie(left.x, left.y, left.owned, left.name, left.owner_id, left.destination_available, left.destination_id, left.eta_available, left.eta) <
+                std::tie(right.x, right.y, right.owned, right.name, right.owner_id, right.destination_available, right.destination_id, right.eta_available, right.eta);
         });
         if (!store->snapshots.empty() && Same_Map(&projected, &store->snapshots.back().map) &&
             (!projected.ships_captured || Same_Ships(&projected, &store->snapshots.back().map)) &&
             (!projected.players_captured || (Same_Players(&projected, &store->snapshots.back().map) && player_ids == store->snapshots.back().player_ids))) return true;
         if (store->revision == std::numeric_limits<uint64_t>::max()) return false;
-        auto Extend = [store](std::vector<std::string>* ids, size_t count) {
-            while (ids->size() < count) {
-                std::string id;
-                if (!store->new_id(&id, store->id_context)) return false;
-                ids->push_back(std::move(id));
-            }
-            return true;
-        };
-        if (!Extend(&store->system_ids, projected.systems.size()) || !Extend(&store->nebula_ids, projected.nebulas.size())) return false;
         s_map_snapshot snapshot;
         if (!store->new_id(&snapshot.id, store->id_context)) return false;
         snapshot.map = std::move(projected);
