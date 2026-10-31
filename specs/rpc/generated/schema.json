@@ -7710,7 +7710,7 @@
     },
     "ship-own-name": {
       "status": "reviewed",
-      "predicate": "Only the bound viewer's own ship: bounded NUL-terminated copy of d.name decoded from CP850 to UTF-8, at the same authorized post-refresh capture. Foreign name bytes are never read; their name is explicitly unaudited rather than a scan-knowledge claim.",
+      "predicate": "Ship.name retains its canonical in-game ship-name semantics, never a substituted hull-class/UI label; no displayName field is introduced. Current implementation: only the bound viewer's own ship, a bounded NUL-terminated copy of d.name decoded from CP850 to UTF-8 at the same authorized post-refresh capture. Foreign name bytes are never read; native disclosure of a hull label does not authorize their canonical name, which remains explicitly unaudited rather than a scan-knowledge claim.",
       "sources": [
         [
           "src/game/fleetpop.cpp",
@@ -7806,7 +7806,7 @@
     },
     "disabled-ship": {
       "status": "disabled",
-      "predicate": "Unmapped/special owner identities and enemy names/scan details require independent field audits and enemy-label contract clarification. Surviving detection or known ownership does not authorize raw location, cargo, orders or enemy design data. No scanner-policy extraction is needed for the post-refresh projection.",
+      "predicate": "Unmapped/special owner identities and enemy canonical names/scan details require independent native authorization and initialized-context visibility tests. A hull-class label is not the canonical ship name. Surviving detection or known ownership does not authorize raw location, cargo, orders or enemy design data. No scanner-policy extraction is needed for the post-refresh projection.",
       "sources": [
         [
           "src/game/fleetpop.cpp",
@@ -8159,7 +8159,7 @@
     "orderedEventsPerSubscription": 4096,
     "overflow": "Reject before admission; coalesce only complete unsent state. Ordered-event overflow signals a gap or disconnect. Never rewrite partial output or silently discard operation results."
   },
-  "x-rpc-sourceHash": "6a7872b740598b80ee74dff6bdf3f3459e8ffbf2d3b148b05a497c3cb5613c57",
+  "x-rpc-sourceHash": "e5a6e76c8ebf699cea8f0ae5b185d92df61eb007cd3105f456e35fe74049ab16",
   "x-rpc-runtimeEnabled": false,
   "x-rpc-implementedMethods": [
     "rpc.hello",

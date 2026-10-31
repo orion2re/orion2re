@@ -97,10 +97,12 @@ special routes, head-only ETA, native-record/RNG preservation and malformed link
 Live WebSocket tests cover route knowledge, same-capture references and hidden-only
 updates. These are synthetic/native-function tests, not interactive parity.
 
-Enemy scan labels remain blocked on contract clarification: whether `Ship.name`
-is always an actual name with a separate native-label `displayName`, or means
-the native display label. No hull-class label is published as an actual enemy
-design name. Selection/scan projections and durable identity remain open Q-07 work.
+The user clarified that `Ship.name` is the canonical in-game ship name, without
+changing semantics. Hull-class/UI labels are not substituted for it, and this
+decision does not add or approve a `displayName` field. Native disclosure of only
+a hull label does not authorize reading the enemy's canonical name. Enemy names
+remain unaudited pending native authorization and initialized-context visibility
+tests. Selection/scan projections and durable identity remain open Q-07 work.
 
 Verified for the route increment on macOS ARM64: the game and relevant targets
 build normally and with ASAN/UBSAN; RPC/native projection/live transport CTest

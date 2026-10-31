@@ -1097,12 +1097,13 @@ packed-field reference binding in stack validation. LeakSanitizer is unsupported
 on this runtime and disabled for ASAN/UBSAN runs; interactive saved-game parity
 and other-platform checks remain open. See ship-refresh evidence for reproduction.
 
-Pending scan-label contract clarification (no decision applied): should `Ship.name`
-remain an actual name with a separate `displayName` for native hull/UI labels
-(recommended), or mean the native displayed label? Enemy names remain unaudited
-until that decision and initialized-context visibility tests. Q-07 stays unchecked;
-Q-06/Q-13 and the client-side N-05 example remain subsequent increments, not a
-server briefing API.
+Ship-name contract clarified by the user: `Ship.name` is the canonical in-game
+ship name; do not change its semantics or substitute a hull-class/UI label. No
+`displayName` addition is approved or required by this decision. A native UI branch
+that discloses only a hull label does not authorize the enemy's canonical name.
+Enemy names remain unaudited until independently authorized by native evidence
+and initialized-context visibility tests. Q-07 stays unchecked. Continue toward
+Q-06/Q-13 and the client-side N-05 example without a server briefing API.
 
 ### P2. Shared UI adapters and operation lifecycle
 
