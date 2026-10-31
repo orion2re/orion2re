@@ -80,6 +80,47 @@ preceding own-colony increment's RPC-disabled 106-target result remains applicab
 Interactive saved-game/multiplayer and other-platform checks remain unperformed;
 LeakSanitizer remains unsupported on this macOS runtime.
 
+### Research-treaty presence (Q-13 read subset)
+
+`Player.researchTreaty` reports only whether a research agreement is present in
+the viewer's directed native treaty summary. `RACESCRN::Draw_Race_Text` gates its
+research-agreement segment on `cur_plyr_ptr->research_treaty[target] != 0`.
+The adapter copies that exact nonzero test from the bound viewer's own array
+only for living current foreign contacts. The native summary excludes eliminated
+rows and displays no-contact instead of treaties for uncontacted omniscient
+entries; the sidecar conservatively requires current contact in every case.
+Self, eliminated and uncontacted/Lore-only rows return tagged `unknown`, not an
+inferred false. Reciprocal foreign flags are never read.
+
+This field is a presence boolean, not an RP/BC amount, agreement level or goal,
+duration, research unlock/progress, diplomatic attitude or forecast of renewal.
+The native formatted research amount can even use BC; no numeric amount or unit
+is inferred here. Neither war state nor a known owner establishes an agreement.
+No research, diplomacy, spy or UI calculation runs for the query. The existing
+contact-war field's meaning and canonical ship-name contract are unchanged.
+
+The store independently clears unavailable claims before public ordering,
+equality, revisions and notifications. Treaty changes retain player handles and
+do not replace unchanged ship handles. Pinned pages own their original values;
+combined state/baselines select one coherent capture instead of splicing newer
+treaties into older ships. Existing load/perspective revocation clears all data.
+
+Native synthetic-array tests cover zero and nonzero signed flags, direction,
+self/eliminated/contact/Lore gates, contact revocation, copied lifetimes and
+native-record/RNG preservation. Store and live WebSocket tests cover tagged
+true/false/unknown, hidden-only claims, stable handles, pinned pages,
+notifications and coherent mixed-age reads. `game.getRelations` and
+`game.getIntelligence` remain unimplemented and unadvertised; other treaties,
+agreement amounts and intelligence remain unaudited. Q-13 stays unchecked.
+
+Research-treaty verification on macOS ARM64: 97 Python tests, including 38 live
+WebSocket cases, pass; RPC/native-projection/transport targets pass normally and
+under ASAN/UBSAN. All 106 RPC-disabled targets pass. Generated outputs, affected
+C++ formatting and whitespace checks pass. No native code/API or gameplay,
+save, multiplayer-authority, mod or RNG changes are made. Interactive saved-game,
+multiplayer and other-platform results remain unverified; local LeakSanitizer
+remains unsupported and disabled only for that runtime limitation.
+
 ### Roster and ship-owner handles
 
 Opaque player IDs are assigned only after filtering and public ordering. The

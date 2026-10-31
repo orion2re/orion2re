@@ -67,6 +67,8 @@ namespace rpc {
         s_player_hud hud;
         bool at_war_available = false;
         bool at_war = false;
+        bool research_treaty_available = false;
+        bool research_treaty = false;
     };
 
     struct s_colony_observation {

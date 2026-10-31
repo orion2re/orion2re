@@ -826,3 +826,43 @@ DOCTEST_TEST_CASE("known war status follows the viewer treaty direction only for
     DOCTEST_CHECK_FALSE(observation.players[1].at_war);
     DOCTEST_CHECK(game_random::Get_Random_Seed() == seed);
 }
+
+DOCTEST_TEST_CASE("research treaty presence uses only the viewers flag for living current contacts") {
+    s_world world;
+    MOX::NUM_PLAYERS = 4;
+    world.players[0].has_galactic_lore = 1;
+    world.players[0].contact[1] = world.players[0].contact[2] = 1;
+    world.players[2].eliminated = 1;
+    world.players[0].research_treaty[0] = 1;
+    world.players[0].research_treaty[2] = 1;
+    world.players[0].research_treaty[3] = 1;
+    world.players[1].research_treaty[0] = 1; // Reciprocal state never grants a treaty in the viewer's direction.
+    const uint32_t seed = game_random::Get_Random_Seed();
+    rpc::s_map_observation observed;
+    for (int8_t flag : {0, 1, 2, -1}) {
+        world.players[0].research_treaty[1] = flag;
+        const auto before = world.players;
+        DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&observed));
+        DOCTEST_REQUIRE(observed.players.size() == 4);
+        DOCTEST_CHECK_FALSE(observed.players[0].research_treaty_available);
+        DOCTEST_CHECK(observed.players[1].research_treaty_available);
+        DOCTEST_CHECK(observed.players[1].research_treaty == (flag != 0));
+        DOCTEST_CHECK_FALSE(observed.players[2].research_treaty_available);
+        DOCTEST_CHECK_FALSE(observed.players[3].research_treaty_available);
+        DOCTEST_CHECK(memcmp(before.data(), world.players.data(), before.size() * sizeof(s_player)) == 0);
+    }
+    const auto copied = observed;
+    world.players[0].research_treaty[1] = 0;
+    world.players[0].current_research_agreement_level[1] = -32768;
+    world.players[0].research_agreement_goal[1] = 32767;
+    world.players[1].research_accumulated = 999999;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&observed));
+    DOCTEST_CHECK_FALSE(observed.players[1].research_treaty);
+    DOCTEST_CHECK(copied.players[1].research_treaty);
+    world.players[0].contact[1] = 0;
+    world.players[0].research_treaty[1] = 1;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&observed));
+    DOCTEST_CHECK_FALSE(observed.players[1].research_treaty_available);
+    DOCTEST_CHECK_FALSE(observed.players[1].research_treaty);
+    DOCTEST_CHECK(game_random::Get_Random_Seed() == seed);
+}

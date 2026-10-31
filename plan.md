@@ -1081,7 +1081,7 @@ gates. P1 completion is not claimed by this foundation increment.
 - [ ] Q-10 — Implement `game.listDesigns`, `game.getDesign`, and `game.getDesignOptions`.
 - [ ] Q-11 — Implement `game.getResearch`, `game.listResearchOptions`, and `game.getTechnology`.
 - [ ] Q-12 — Implement `game.listLeaders` and `game.getLeader` for owned/offered/discovered leaders only.
-- [ ] Q-13 — Implement `game.getRelations` and `game.getIntelligence` (contact-gated native war classification is projected as tagged `Player.atWar`; full relations/treaties/intelligence methods remain unimplemented).
+- [ ] Q-13 — Implement `game.getRelations` and `game.getIntelligence` (contact-gated native war classification and research-treaty presence are projected as tagged `Player.atWar`/`Player.researchTreaty`; full relations, remaining treaties/amounts and intelligence methods remain unimplemented).
 - [ ] Q-14 — Implement `game.getHistory`, `game.listMessages`, and `game.getMessage` without consuming reports or improving hidden precision.
 - [x] Q-15 — Implement and test bounded snapshot-pinned pagination for enabled lists, plus bounded complete `getState` captures.
 
@@ -1169,6 +1169,22 @@ ASAN/UBSAN; all 106 RPC-disabled targets pass. Generation drift, affected C++
 formatting and whitespace checks pass. No native code/API changes. These are
 synthetic/native-function and live-transport checks, not interactive saved-game,
 multiplayer or other-platform parity; LeakSanitizer remains unsupported locally.
+
+Q-13 research-treaty-presence follow-up adds tagged `Player.researchTreaty` from
+the viewer's directed nonzero research-treaty flag, only for living current
+foreign contacts. Self/eliminated/uncontacted/Lore-only rows are unknown. No
+foreign reciprocal flag, agreement amount/goal, research progress, attitude or
+future renewal is read or inferred. Player handles remain stable; hidden claims
+are discarded before revisions/notifications, and newer treaties never splice
+into older ship captures. See `specs/rpc/player_view.md`. The relations and
+intelligence methods remain unimplemented; Q-13 stays unchecked.
+
+Research-treaty verification (macOS ARM64): 97 Python tests including 38 live
+WebSocket cases pass; RPC/native/transport targets pass normally and under
+ASAN/UBSAN; all 106 RPC-disabled targets pass. Generation drift, affected C++
+formatting and whitespace checks pass. No native code/API changes. Synthetic/
+native-function and live-transport tests are not interactive saved-game,
+multiplayer or other-platform parity; local LeakSanitizer remains unsupported.
 
 ### P2. Shared UI adapters and operation lifecycle
 

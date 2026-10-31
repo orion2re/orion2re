@@ -897,3 +897,59 @@ DOCTEST_TEST_CASE("colony troops filter hidden counts before revisions and keep 
     DOCTEST_CHECK(fixture.store.snapshots.empty());
     DOCTEST_CHECK_FALSE(rpc::Client_Is_Current(&fixture.bridge, 1, epoch));
 }
+
+DOCTEST_TEST_CASE("research treaty knowledge is contact gated before equality and stays coherent with ships") {
+    s_fixture fixture;
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&fixture.store));
+    auto map = Players();
+    map.players[1].research_treaty_available = true;
+    map.ships_captured = true;
+    map.ships = Ships().ships;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    const auto ids = fixture.store.snapshots.back().player_ids;
+    const auto ship_ids = fixture.store.snapshots.back().ship_ids;
+    auto state = Request("game.getState", "{\"include\":[\"session\",\"players\",\"ships\"]}");
+    const auto baseline = rpc::Game_Query(&fixture.store, &state);
+    DOCTEST_CHECK(baseline.find("\"researchTreaty\":{\"availability\":\"current\",\"value\":false}") != std::string::npos);
+    uint64_t epoch;
+    DOCTEST_REQUIRE(rpc::Register_Client(&fixture.bridge, 1, &epoch));
+    auto subscribe = Request("rpc.subscribe", "{\"topics\":[\"players\"],\"events\":[\"state.changed\"]}");
+    Dispatch(&fixture, 1, epoch, &subscribe);
+    map.players[0].research_treaty_available = map.players[0].research_treaty = true;         // Hidden row.
+    map.players.back().research_treaty_available = map.players.back().research_treaty = true; // Self.
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &state) == baseline);
+    rpc::Pump_Game_Queries(&fixture.store);
+    rpc::s_publication event;
+    DOCTEST_CHECK_FALSE(rpc::Take_Publication(&fixture.bridge, &event));
+    auto list = Request("game.listPlayers", "{\"limit\":1}");
+    rpc::Game_Query(&fixture.store, &list);
+    const auto cursor = fixture.store.cursors.back().id;
+    map.players[1].research_treaty = true;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    DOCTEST_CHECK(fixture.store.snapshots.back().player_ids == ids);
+    DOCTEST_CHECK(fixture.store.snapshots.back().ship_ids == ship_ids);
+    rpc::Pump_Game_Queries(&fixture.store);
+    DOCTEST_REQUIRE(rpc::Take_Publication(&fixture.bridge, &event));
+    DOCTEST_CHECK(event.json.find("state.changed") != std::string::npos);
+    const auto current = rpc::Game_Query(&fixture.store, &state);
+    DOCTEST_CHECK(current.find("\"researchTreaty\":{\"availability\":\"current\",\"value\":true}") != std::string::npos);
+    list.params_json = "{\"cursor\":" + rpc::Json_String(cursor) + "}";
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &list).find("\"researchTreaty\":{\"availability\":\"current\",\"value\":false}") != std::string::npos);
+    map.ships_captured = false;
+    map.players[1].research_treaty = false;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &state) == current);
+    map.players[1].contacted = false;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    list.params_json = "{}";
+    const auto unknown = rpc::Game_Query(&fixture.store, &list);
+    DOCTEST_CHECK(unknown.find("\"researchTreaty\":{\"availability\":\"current\"") == std::string::npos);
+    map.players[1].research_treaty = true;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &list) == unknown);
+    map.players[1].eliminated = true;
+    map.players[1].contacted = true;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &list).find("\"researchTreaty\":{\"availability\":\"current\"") == std::string::npos);
+}

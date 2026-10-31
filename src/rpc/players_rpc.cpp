@@ -34,6 +34,8 @@ namespace players_rpc {
             if (contacted) {
                 item.at_war_available = true;
                 item.at_war = MOX::player[viewer].treaty[slot] >= 4;
+                item.research_treaty_available = true;
+                item.research_treaty = MOX::player[viewer].research_treaty[slot] != 0;
             }
             config::Decode_Cp850_To_Utf8(player->name, (size_t)(end - player->name), &item.name);
             if (local) {

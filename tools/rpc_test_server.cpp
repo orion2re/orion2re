@@ -86,6 +86,8 @@ int main() {
                 map.players[2].name = "different hidden empire";
                 map.players[2].at_war_available = true;
                 map.players[2].at_war = !map.players[2].at_war;
+                map.players[2].research_treaty_available = true;
+                map.players[2].research_treaty = !map.players[2].research_treaty;
                 if (map.colonies.size() >= 3) {
                     map.colonies.back().system = -99999;
                     map.colonies.back().population = -99999;
@@ -143,6 +145,13 @@ int main() {
             } else if (command == "war") {
                 map.players[1].at_war_available = true;
                 map.players[1].at_war = !map.players[1].at_war;
+                rpc::Capture_Map(&store, &map);
+            } else if (command == "research-treaty") {
+                map.players[1].research_treaty_available = true;
+                map.players[1].research_treaty = !map.players[1].research_treaty;
+                rpc::Capture_Map(&store, &map);
+            } else if (command == "player-uncontact") {
+                map.players[1].contacted = false;
                 rpc::Capture_Map(&store, &map);
             } else if (command == "threats") {
                 if (map.ships.size() >= 3) {

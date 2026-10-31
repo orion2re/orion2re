@@ -682,6 +682,37 @@ class TransportTests(unittest.TestCase):
         busy = self.Query(client, request["method"], request["params"])
         self.assertEqual(incoming_client.Derive_Incoming(busy, event)["reason"], "busy")
 
+    def test_research_treaty_presence_is_tagged_contact_knowledge_in_one_capture(self):
+        self.Fixture("world")
+        self.Fixture("ships")
+        client = self.Client()
+        client.Hello()
+        subscription = self.Query(client, "rpc.subscribe", {"topics":["players"],"events":["state.changed"]})["result"]
+        self.assertEqual(subscription["baseline"]["players"][0]["researchTreaty"], {"availability":"unknown"})
+        self.Fixture("research-treaty")
+        self.assertEqual(client.Read()["method"], "state.changed")
+        topics = ["session", "players", "ships"]
+        baseline = self.Query(client, "game.getState", {"include":topics})["result"]
+        contact = baseline["players"][1]
+        self.assertEqual(contact["researchTreaty"], {"availability":"current","value":True})
+        self.assertEqual(self.Query(client, "game.getPlayer", {"id":contact["id"]})["result"]["item"], contact)
+        page = self.Query(client, "game.listPlayers", {"limit":1})["result"]
+        self.Fixture("hidden")
+        self.assertEqual(self.Query(client, "game.getState", {"include":topics})["result"], baseline)
+        self.Fixture("map-only")
+        self.Fixture("research-treaty")
+        self.assertEqual(client.Read()["method"], "state.changed")
+        current = self.Query(client, "game.listPlayers")["result"]["items"][1]
+        self.assertEqual(current["id"], contact["id"])
+        self.assertEqual(current["researchTreaty"], {"availability":"current","value":False})
+        pinned = self.Query(client, "game.listPlayers", {"cursor":page["nextCursor"]})["result"]
+        self.assertEqual(pinned["items"], [contact])
+        self.assertEqual(self.Query(client, "game.getState", {"include":topics})["result"], baseline)
+        self.Fixture("player-uncontact")
+        self.assertEqual(client.Read()["method"], "state.changed")
+        self.assertEqual(self.Query(client, "game.getPlayer", {"id":contact["id"]})["result"]["item"]["researchTreaty"],
+                         {"availability":"unknown"})
+
 
 if __name__ == "__main__":
     unittest.main()
