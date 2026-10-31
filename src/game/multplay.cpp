@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game/game_events.h"
 
 namespace {
     constexpr int kPlayerRemapPaletteStart = 144;
@@ -341,6 +342,7 @@ namespace MULTPLAY {
     }
 
     void __cdecl Hotseat_Select_Player(void) {
+        game_events::Publish(game_events::PERSPECTIVE_SELECTION_BEGIN);
         uint8_t fade_flag = 0;
         uint8_t exit_code = 0;
         int16_t selected_player_idx = -1;

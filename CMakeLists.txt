@@ -480,15 +480,16 @@ if(ORION2RE_BUILD_GAME OR ORION2RE_BUILD_CONFIG_TOOL)
     list(APPEND ORION2RE_SOURCES ${ORION2RE_CONFIG_GENERATED_FILES})
     list(REMOVE_ITEM ORION2RE_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp")
     list(FILTER ORION2RE_SOURCES EXCLUDE REGEX "/src/rpc/.*\\.cpp$")
+    list(APPEND ORION2RE_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/rpc/rpc_settings.cpp")
+    if(ORION2RE_RPC_BUILT)
+        list(APPEND ORION2RE_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/rpc/game_rpc.cpp")
+    endif()
 
     add_library(orion2re_game_objects OBJECT
         ${ORION2RE_SOURCES}
         ${ORION2RE_HEADERS}
     )
     target_compile_features(orion2re_game_objects PRIVATE cxx_std_20)
-    if(ORION2RE_RPC_BUILT)
-        target_compile_definitions(orion2re_game_objects PRIVATE ORION2RE_ENABLE_RPC=1)
-    endif()
     target_include_directories(orion2re_game_objects PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src"
         "${ORION2RE_VENDORED_LIBSMACKER_DIR}"
@@ -909,6 +910,7 @@ if(ORION2RE_RPC_BUILT)
     foreach(ORION2RE_RPC_CONSUMER IN ITEMS orion2re config-tool config-load-benchmark)
         if(TARGET ${ORION2RE_RPC_CONSUMER})
             target_link_libraries(${ORION2RE_RPC_CONSUMER} PRIVATE orion2re_rpc)
+            target_compile_definitions(${ORION2RE_RPC_CONSUMER} PRIVATE ORION2RE_ENABLE_RPC=1)
         endif()
     endforeach()
 endif()

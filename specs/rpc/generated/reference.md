@@ -3,13 +3,13 @@
 
 **Optional runtime, disabled by default.** Only the implemented methods listed below are callable when the RPC build and settings enable it.
 
-Implemented methods: `rpc.hello`, `rpc.describe`.
+Implemented methods: `rpc.hello`, `rpc.describe`, `game.getSession`, `game.getState`, `game.listSystems`, `game.getSystem`, `game.listNebulas`.
 
 This document is rendered from `schema.json`, not a second method catalog.
 The root schema validates acknowledged client requests; per-method success responses and server notifications have separate definitions.
 All fields are non-null unless explicitly stated. Unknown keys are rejected. UTF-8 byte limits, lexical integer tokens, duplicate keys, depth and authorization need the protocol guards in addition to standard JSON Schema validation.
 
-Source bundle SHA-256: `158da9244b14fdbe73bd74b31da60bb703d44b6816d92902dec184bfc1f29df2`.
+Source bundle SHA-256: `8f32b303d18f3eddf8b8194e65d0978af36e2306dd2ed0850e2b27511495508e`.
 
 ## Methods
 
@@ -118,6 +118,10 @@ Constraints: `{"type": "boolean"}`.
 ### Button
 
 Values: `primary`, `secondary`.
+
+### CaptureMode
+
+Values: `last-coherent-capture`.
 
 ### Chat
 
@@ -940,7 +944,7 @@ Values: `new`, `loaded`, `ended`, `unloaded`, `perspective-revoked`.
 
 ### SessionPhase
 
-Values: `menu`, `committed`, `resolving`, `revoked`, `ending`.
+Values: `menu`, `committed`, `resolving`, `revoked`, `ending`, `unavailable`.
 
 ### SessionsResult
 
@@ -993,6 +997,7 @@ Constraints: `{"maxLength": 128, "minLength": 0, "type": "string", "x-maxUtf8Byt
 | snapshotId | Id | yes | contract |
 | revision | Counter | yes | contract |
 | turn | Turn | yes | contract |
+| captureMode | CaptureMode | yes | contract |
 
 ### State
 
@@ -1032,7 +1037,15 @@ Constraints: `{"maxLength": 128, "minLength": 0, "type": "string", "x-maxUtf8Byt
 
 | Field | Type | Required | Policy |
 | --- | --- | --- | --- |
-| include | Topics | yes | request |
+| include | StateTopics | yes | request |
+
+### StateTopic
+
+Values: `session`, `systems`, `nebulas`.
+
+### StateTopics
+
+Array of `StateTopic`; 0..3 items; unique: true.
 
 ### StreamGap
 
@@ -1063,7 +1076,7 @@ Constraints: `{"maxLength": 128, "minLength": 0, "type": "string", "x-maxUtf8Byt
 | id | Id | yes | systems-map |
 | x | Coord | yes | systems-map |
 | y | Coord | yes | systems-map |
-| name | KnownText | yes | system-name |
+| name | KnownText | yes | system-name-visited |
 | visited | Bool | yes | system-visited |
 | owner | KnownId | yes | disabled-system-owner |
 
@@ -1213,7 +1226,8 @@ Reviewed means static evidence, not runtime visibility approval.
 | systems-map | reviewed | Only systems whose native map position is drawn for this player. Coordinates are native star coordinates, before zoom/pan. ID assigned after this predicate; no slot-derived numbering. | src/game/mainscr.cpp: Print_Star_Names; src/game/mainscr.cpp: Get_Star_Draw_Coords | T-01, T-02 |
 | system-name | reviewed | Player_Is_Omniscient(viewer), or valid star owner plus Contact_With_One_Colony, or Player_Has_Visited. Reproduce rendered outpost/lore formatting; otherwise unknown. Get_Star_Name is evidence, NOT a pure query helper: it changes font/zoom state and may allocate a bitmap. | src/game/mainscr.cpp: Get_Star_Name; src/game/harold.cpp: Contact_With_One_Colony; src/game/harold.cpp: Player_Has_Visited | T-01, T-02, T-03 |
 | system-visited | reviewed | Only the bound player&#x27;s visited bit, never the complete bitmask. Does not grant planet/owner/special disclosure. | src/game/harold.cpp: Player_Has_Visited; src/game/mainscr.cpp: Get_Star_Name | T-01, T-02 |
-| nebulas-map | disabled | Pending independent audit of nebula map drawing and coordinate conversion. No type, hidden star membership or art/cache pointers. | src/game/mainscr.cpp: nebula | T-01, T-02 |
+| system-name-visited | reviewed | Initial runtime subset: bound human viewer has visited and star is not a black hole. Copy bounded CP850 name, apply native ASCII outpost lowercase on the copy, then decode UTF-8. Contact/lore-only unvisited names remain explicitly unaudited; no UI/font/resource builder is called. | src/game/mainscr.cpp: Get_Star_Name; src/game/harold.cpp: Player_Has_Visited; src/game/harold.cpp: Star_Is_Outpost_Star; src/game/strings.cpp: String_To_Lower | T-01, T-02, T-03 |
+| nebulas-map | reviewed | Native map draws every existing nebula without a viewer gate. Publish only its unscaled map x/y and a perspective-scoped opaque ID; never type, hidden star membership or art/cache pointers. | src/game/mainscr.cpp: Draw_Nebulae | T-01, T-02 |
 | disabled-system-owner | disabled | Pending per-field review of Star_Owner, mixed owners, visited/contact/lore and outpost semantics. Raw star.owner forbidden. | src/game/harold.cpp: Star_Owner | T-01, T-02 |
 | disabled-player | disabled | Pending active/contact/omniscience and field-specific own economy audit. No global player enumeration; own treasury does not authorize opponent treasury. | src/game/racescrn.cpp: Init_Race_Display_Data | T-01, T-02, T-03 |
 | disabled-planet | disabled | Pending read-only equivalent of native explored-planet policy; do not invoke a mutable list builder. Orbit/name/type separately gated. | src/game/plntsum.cpp: Filter_Explored_Planets | T-01, T-02 |
@@ -1249,6 +1263,7 @@ These do not close the native maximum-game profiling gate.
 - **requestIdBytes:** 64
 - **connections:** 4
 - **authenticationDeadlineMs:** 5000
+- **requestTimeoutMs:** 2000
 - **messagesPerSecond:** 32
 - **receiveCallbacksPerSecond:** 128
 - **outputMessagesPerConnection:** 16

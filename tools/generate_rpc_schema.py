@@ -190,7 +190,8 @@ def Render_Cpp(registry, contracts):
              "static constexpr s_protocol_limits rpc_limits = {",
              "    RPC_MAX_INPUT_BYTES, RPC_MAX_DEPTH, RPC_MAX_REQUEST_ID_BYTES,",
              f"    {limits['authenticationDeadlineMs']}, {limits['outputBytesPerConnection']}, {limits['outputBytesGlobal']},",
-             f"    {limits['outputMessagesPerConnection']}, {limits['messagesPerSecond']}, {limits['receiveCallbacksPerSecond']}",
+             f"    {limits['outputMessagesPerConnection']}, {limits['messagesPerSecond']}, {limits['receiveCallbacksPerSecond']},",
+             f"    {limits['requestTimeoutMs']}, {limits['commandsPerGamePoll']}, {limits['gamePollBudgetUs']}, {limits['minimumCaptureIntervalMs']}",
              "};", "static constexpr s_method_descriptor rpc_methods[] = {"]
     for method in registry["methods"]:
         request, result = contracts["methods"][method["name"]]

@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game/game_events.h"
 
 #include "lua/lua_network.h"
 
@@ -21,6 +22,7 @@ namespace NETTURN {
     }
 
     void __cdecl Net_Next_Turn() {
+        game_events::s_resolution_scope resolution;
         s_net_chat chat_buffer;
         s_net_election_msg election_msg;
 

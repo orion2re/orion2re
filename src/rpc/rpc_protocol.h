@@ -51,6 +51,10 @@ namespace rpc {
         size_t output_messages_per_connection;
         uint32_t messages_per_second;
         uint32_t receive_callbacks_per_second;
+        uint64_t request_timeout_ms;
+        uint32_t commands_per_game_poll;
+        uint64_t game_poll_budget_us;
+        uint64_t capture_interval_ms;
     };
 
     bool Initialize_Protocol(s_protocol* protocol);
@@ -65,4 +69,7 @@ namespace rpc {
     std::string Error_Response(const s_request* request, int32_t code);
     std::string Result_Response(const s_request* request, std::string_view result_json);
     bool Keys_Match(std::string_view configured, std::string_view supplied);
+    uint64_t Monotonic_Us();
+    uint64_t Monotonic_Ms();
+    bool New_Opaque_Id(std::string* id);
 } // namespace rpc

@@ -1,8 +1,10 @@
 # Player-scoped RPC and WebSocket interface: implementation plan
 
-Status: P1 transport foundation in progress. Optional libuv-backed WebSockets,
-configured-key hello, metadata discovery and bounded copied-work plumbing are
-implemented; gameplay queries/actions are still uncallable. P0-06, P0-09 and
+Status: P1 read foundation in progress. Optional libuv-backed WebSockets,
+configured-key hello, metadata discovery, game-thread dispatch and an initial
+immutable session/map projection are implemented. Game code is RPC-unaware and
+publishes only neutral observer events; the application composes the RPC sidecar.
+Most gameplay query families and all remote actions remain uncallable. P0-06, P0-09 and
 P0-10 remain open for their unperformed platform/native-game acceptance checks.
 Contracts, generated schema/reference/C++ metadata and coverage auditing remain
 in `specs/rpc/` and `tools/`; CI checks generation drift. RPC is off by default.
@@ -59,6 +61,37 @@ Review URL: <https://github.com/Data-crea/orion2re/tree/25fdf4209adf11f0a9743357
 
 ## 2. Architecture and ownership
 
+### Required dependency direction (user-directed sidecar boundary)
+
+The game is RPC-unaware. Changes in native game code are limited to neutral
+subscription/publication points for existing lifecycle, state-commit and safe
+observation boundaries. Native code must not include RPC headers, name RPC types,
+call RPC functions, build DTOs, dispatch remote work or branch on RPC build/runtime
+settings. Gameplay rules and native control flow do not depend on callbacks.
+
+`src/game/game_events.*` owns a small bounded synchronous observer API. Its events
+and lifetime scopes describe native facts (thread start/stop, world replacement
+success/failure, resolution, perspective selection, map/idle observation points),
+not protocol methods. Registration/unregistration occurs while quiescent or on
+the publishing thread. Removing a listener during publication prevents later
+delivery to its expired context; listeners added during delivery wait for the
+next event. Callbacks observe only, do not throw, and must not recursively mutate
+the game. Any future borrowed event payload must be native/read-only and remain
+valid only for the callback duration, never an RPC DTO or retained pointer.
+
+Application composition (`src/main.cpp`) connects optional modules to the game
+before its thread starts and disconnects them after it joins. RPC implementation
+under `src/rpc/` subscribes callbacks, reads native state and uses existing native
+APIs on the game thread. It owns all authentication, queues, identities,
+projection, JSON, transport and failure isolation. Its observer contains internal
+failures rather than changing game behavior. The thread-stopping publication
+precedes native resource teardown so observers can wake and join their own work.
+
+Dependency arrows are `game -> neutral events` and `RPC -> game APIs/events`;
+there is no `game -> RPC` dependency. Source/architecture tests must enforce this.
+Existing game APIs are reused; any API addition or shared-operation extraction
+beyond neutral hooks requires separate approval, not an implicit RPC refactor.
+
 ```text
 Renderer / voice client / agent
            | requests, responses, subscribed notifications
@@ -76,9 +109,9 @@ Proposed components (names below are new, not existing APIs):
 | `src/rpc/rpc_protocol.*` | Strict JSON-RPC envelope, errors, method descriptors, typed conversion utilities |
 | `src/rpc/rpc_service.*` | WebSocket lifecycle, authentication, subscriptions, limits, output queues |
 | `src/rpc/rpc_bridge.*` | Game-thread requests, immutable results, controller identity, request lifecycle |
-| `src/game/game_rpc.*` | Global game-query composition; player-scoped snapshot capture |
-| `src/game/player_view.*` | Shared field-level knowledge/visibility projection, independent of JSON and UI caches |
-| `src/game/<owner>_rpc.*` | Owner's view conversion, method registration, screen actions and context hooks |
+| `src/rpc/game_rpc.*` | Sidecar subscription callbacks and native player-scoped snapshot capture |
+| `src/rpc/rpc_game.*` | Immutable projected captures, lifecycle identities, query composition and pagination |
+| `src/rpc/<owner>_rpc.*` | Owner-specific adapters subscribing to neutral native events and using existing native APIs |
 
 Use plain structs, explicit registration tables, and free functions per the
 repository style guide. No reflection over native game structs, plugin hierarchy,
@@ -92,27 +125,28 @@ where the backend supports it, without coupling to the router's protocol.
 
 ### Screen-local integration
 
-An adapter owns a static method table, view capture, and action handlers. A small
-scope in the actual screen function registers its initialized state, pumps queued
-work at safe points, and unregisters before native fields/stack buffers die:
+An RPC-side adapter owns its static method table, capture and action handlers.
+The native owner publishes neutral initialized/observation/leaving events; only
+the subscribing sidecar registers contexts, pumps RPC work and converts views:
 
 ```text
 initialize native screen state
-enter RPC context with adapter + borrowed game-thread-local state
+publish native owner-initialized event
 repeat existing screen loop:
-    service RPC requests at an audited point
-    handle native/RPC intent through shared operations
+    publish native observation/decision-point event
+    handle native input through existing operations
     draw/update as before
-leave RPC context before releasing fields, allocations, or local buffers
+publish native owner-leaving event before releasing borrowed state
 ```
 
-The registration scope is not the public state: only copied values cross the
-thread boundary. Callbacks never outlive the scope. Nested dialogs push contexts
-and restore their parents; replacing fields increments a context generation.
+The sidecar's context is not native/public state: only copied authorized values
+cross threads. Native event payloads do not escape a callback. Neutral nested
+owner events let RPC push/restore its own contexts; field-replacement events let
+RPC increment its own generation. The engine stores no RPC context or generation.
 Do not change `MOX::current_screen` to report RPC-only context identity.
 
-Reuse existing operation functions or extract a small operation shared by native
-input and RPC. Do not duplicate input branches or game rules in the sidecar.
+Reuse existing operation functions. Do not extract or modify native gameplay
+operations for RPC without separate approval. Do not duplicate input branches or game rules in the sidecar.
 Prefer semantic actions to native field IDs. Shared text/list/confirmation
 adapters amortize work across screens; per-screen action schemas remain static.
 
@@ -139,8 +173,9 @@ consumed by that dialog's own loop. No unrestricted dispatcher reentry.
 - Bound connections, input bytes/depth, pending work, result retention, output
   bytes, capture frequency, and commands/time per game poll. Measure largest-game
   snapshots before choosing output caps; overflow is explicit, not unbounded.
-- Cleanup must cover normal exit and exceptions at `MOX2::thunk_main2`; stop,
-  cancel unstarted work, wake, and join without waiting for a future game poll.
+- A neutral thread-stopping event must cover normal exit and exceptions at
+  `MOX2::thunk_main2`; the RPC observer stops, cancels unstarted work, wakes and
+  joins before dependent native state dies, without a future game poll.
 
 ## 3. Player-visible-only contract (release blocker)
 
@@ -879,7 +914,7 @@ P0 progress (checked contract tasks do not claim runtime implementation/parity):
 | P0-06 | `backend.json` pins libwebsockets; the optional P1 build reuses project `uv_a`. Native macOS ARM64 build/lifecycle/live socket checks pass. CI now defines native Linux/macOS/MSVC x86/x64 and POSIX MinGW x86/x64 build checks; their unobserved results remain pending. Not vendored and not a required dependency of disabled/router-only builds. |
 | P0-07 | Strict yyjson/JSON-RPC, fixed errors and notification semantics are specified and implemented for the metadata subset. Per user direction, authentication is a simple configured `rpc_key` hello, not a capability file, per-launch secret or approval dialog. Native gameplay dispatch/operation retention remain later work. |
 | P0-08 | `lifecycle.md` completes the common source audit: owner-only decisions, animation/timed/raw-film polls, field replacement/restore, child continuations, host/client committed publication and exception-safe teardown. Actual hooks and dynamic route/lifetime tests remain P1/P2/P4 work. |
-| P0-09 | `contracts.json.limits` sets explicit provisional caps/overflow rules. Native maximum-game projection size/cost cannot be measured without a capture path and local game/save fixture; P0 gate remains open. |
+| P0-09 | The production native initial projection is now profiled on synthetic maximum-capacity arrays (1,024 systems/57 nebulas, wide coordinates and UTF-8-expanding names): one macOS Debug run encoded 211,902 bytes, capture/identity setup 1,623 us, encoding 1,158 us. It fits the 1 MiB bridge bound. Full planned-catalog, live maximum-game and multi-client profiling remain open; these subset measurements do not close the full P0 gate. |
 | P0-10 | `native_baseline.json` records eight executed synthetic native-function test targets and fixed RNG checkpoints. Interactive/save/mod/whole-game RNG traces still need a local game installation and fixtures; unit-test results are not those captures. |
 | P0-11 | `generate_rpc_schema.py` emits JSON Schema 2020-12, renders `generated/reference.md` from it and generates runtime C++ descriptors/type data from the same bundle. Outputs are versioned; `--check`, renderer/schema tests and CI reject drift. Standard schema validation does not replace protocol/visibility guards. |
 
@@ -906,25 +941,43 @@ whole-game RNG/save/mod comparisons were not run.
 
 ### P1. Transport, bridge, global queries, and visibility
 
-#### Current foundation increment
+#### Current read-foundation increment
 
 `src/rpc/` implements the optional libwebsockets/libuv transport, strict yyjson
 envelope and source-driven argument checks, configured-key hello, supported-method
 discovery, per-client limits, bounded immutable output and copied-work bridge.
-Only `rpc.hello` and `rpc.describe` are implemented/advertised. Every gameplay,
-UI, media and subscription method remains method-not-found; the schema's planned
-contracts do not enable handlers or authorize data.
+Implemented/advertised methods are `rpc.hello`, `rpc.describe`, `game.getSession`,
+`game.getState`, `game.listSystems`, `game.getSystem` and `game.listNebulas`.
+`getState.include` is explicitly restricted to session/systems/nebulas. Remaining
+query families, UI/media/subscriptions and all actions remain method-not-found;
+planned schemas alone do not authorize or implement them.
 
-The runtime starts inside `MOX2::thunk_main2` and stops after its normal/exception
-funnel before native sound/resource/network teardown. Local `rpc_enabled`,
+The application registers an RPC observer before the game thread starts. Neutral
+thread-start/stopping events start and stop the sidecar through the existing
+normal/exception funnel before native resource teardown. No game file includes
+RPC headers or names RPC functions/settings/types; architecture tests enforce it.
+Local `rpc_enabled`,
 `rpc_port` and `rpc_key` preferences are unsaved/unsynchronized and startup-only.
 The key is converted from native CP850 config storage to UTF-8 for exact comparison.
 No approval dialog, per-launch secret file or arbitrary viewer selection exists.
 
-The bridge is tested for copied ownership, capacity, expiry without game polls,
-disconnect/epoch revocation, late/duplicate completion rejection and output
-overflow. Native query dispatch, world identity/projection and new/load/hotseat
-hooks are not integrated yet: P1-05/P1-06 and V-01/V-10/V-11 remain open.
+The sidecar captures only at a neutral initialized-map observation event, then
+serves the immutable capture from neutral idle events independently of the open
+screen. Captures explicitly report `last-coherent-capture`, turn/revision and
+snapshot identity; no latest-live-state claim is made. World replacement attempts,
+success/failure, resolution and perspective-selection events drive sidecar busy,
+identity and revocation handling. Failed replacements fail closed. Hotseat/view
+changes close old connections and require a fresh key handshake.
+
+The initial projection contains native map positions and the bound human viewer's
+visited bit; visited non-black-hole names are bounded CP850-decoded copies with
+native outpost lowercase. Contact/lore-only names and system owner remain
+`unaudited`; planet/ship/foreign economy data is not inspected. Nebula positions
+follow native unconditional map drawing. Hidden-only changes do not revise views.
+Lists use opaque snapshot-pinned cursors, bounded to 64 cursors/four retained
+captures; expiry/eviction is explicit object-unavailable, never mixed revisions.
+Tests cover paired hidden-state changes, native formatting/RNG preservation,
+revocation/late results, cached read behavior and real WebSocket query dispatch.
 Output response bounds/fragmentation are implemented, but subscription baselines,
 state coalescing and ordered gameplay event streams are not (P1-08/P1-09 remain open).
 
@@ -937,32 +990,32 @@ gates. P1 completion is not claimed by this foundation increment.
 - [x] P1-02 — Implement bounded WebSocket connection/message handling and explicit bind-failure diagnostics.
 - [x] P1-03 — Implement a simple hello matching the predefined key in local orion2re settings, reader/controller permissions, one controller, Host/Origin validation, and authentication deadlines; no approval dialogs or per-launch credential files.
 - [x] P1-04 — Implement strict envelope/argument validation, structured errors, rate limits, and redacted diagnostics.
-- [ ] P1-05 — Implement the game-thread request queue and immutable result/publication handoff; prohibit network waits in game callbacks.
-- [ ] P1-06 — Implement coherent requested-topic capture, game/perspective identity, revisions, entity generations, and opaque public IDs.
-- [ ] P1-07 — Return explicit busy/unavailable or dated snapshots during unsafe capture periods; keep service heartbeats responsive.
+- [x] P1-05 — Implement the game-thread request queue and immutable result/publication handoff; prohibit network waits in game callbacks.
+- [x] P1-06 — Implement coherent requested-topic capture, game/perspective identity, revisions, entity generations, and opaque public IDs (initial session/map subset; topology replacement revokes handles).
+- [x] P1-07 — Return explicit busy/unavailable or dated snapshots during unsafe capture periods; keep service heartbeats responsive.
 - [ ] P1-08 — Implement atomic subscription baseline/cursor setup, unsubscribe, reconnect baselines, and demand-driven capture.
 - [ ] P1-09 — Implement bounded per-client output and state coalescing without rewriting partially sent messages or losing operation results silently.
 - [x] P1-10 — Implement startup/quit/fatal-exit cleanup, cancellation, wakeup, and join independent of another game poll.
 
 #### Shared player-view policy
 
-- [ ] V-01 — Bind authorization to the active local perspective; reject arbitrary viewer selection and remote privileged/omniscient switches.
+- [x] V-01 — Bind authorization to the active local perspective; reject arbitrary viewer selection and remote privileged/omniscient switches (all implemented queries).
 - [ ] V-02 — Implement known-system/planet/nebula disclosure using audited native exploration/map rules.
 - [ ] V-03 — Implement read-only ship detection/visibility policy without rebuilding or walking stale display nodes during queries.
 - [ ] V-04 — Gate enemy design/scan details, destinations, orders, cargo, and ETA separately from ship existence.
 - [ ] V-05 — Gate player/contact/trait/economy, colony, leader, research, diplomacy, intelligence, and chart fields individually.
 - [ ] V-06 — Preserve native distinctions between current, last-known, unknown, and known-empty information.
-- [ ] V-07 — Filter before IDs, totals, sorting, search, pagination, caching, errors, events, and revision comparisons.
-- [ ] V-08 — Make unknown/nonexistent ID errors indistinguishable and reject filters/previews that probe hidden properties.
+- [x] V-07 — Filter before IDs, totals, sorting, search, pagination, caching, errors, events, and revision comparisons (implemented projection; unsupported filters/streams remain uncallable).
+- [x] V-08 — Make unknown/nonexistent ID errors indistinguishable and reject filters/previews that probe hidden properties (implemented object/cursor paths).
 - [ ] V-09 — Apply visibility to messages/format arguments, legal-target previews, retained battle results, sound, effects, frames, and resources.
-- [ ] V-10 — Revoke views, handles, pending work/results, snapshots, and subscriptions on load/reset/perspective change as appropriate.
-- [ ] V-11 — Require a fresh configured-key handshake after hotseat perspective revocation; never let an existing connection silently follow the next empire.
+- [x] V-10 — Revoke views, handles, pending work/results and snapshots on load/reset/perspective change (subscriptions are still unavailable).
+- [x] V-11 — Require a fresh configured-key handshake after hotseat perspective revocation; never let an existing connection silently follow the next empire.
 - [ ] V-12 — Exclude raw structs, native layouts, RNG/Lua/debug access, arbitrary files/config/mod storage, save bytes, and cheat shortcuts.
 
 #### Common query API groups
 
 - [ ] Q-01 — Implement `rpc.hello`, `rpc.describe`, `rpc.subscribe`, and `rpc.unsubscribe`.
-- [ ] Q-02 — Implement `game.getSession` and coherent `game.getState(include)`.
+- [x] Q-02 — Implement `game.getSession` and coherent `game.getState(include)` for the explicitly enabled initial topics.
 - [ ] Q-03 — Implement `game.listPlayers` and `game.getPlayer` with own HUD/economy and known-contact projections.
 - [ ] Q-04 — Implement `game.listSystems` and `game.getSystem` with authorized map/range/wormhole data.
 - [ ] Q-05 — Implement `game.listPlanets`, `game.getPlanet`, and `game.listNebulas`.
@@ -975,7 +1028,7 @@ gates. P1 completion is not claimed by this foundation increment.
 - [ ] Q-12 — Implement `game.listLeaders` and `game.getLeader` for owned/offered/discovered leaders only.
 - [ ] Q-13 — Implement `game.getRelations` and `game.getIntelligence`.
 - [ ] Q-14 — Implement `game.getHistory`, `game.listMessages`, and `game.getMessage` without consuming reports or improving hidden precision.
-- [ ] Q-15 — Implement snapshot-pinned pagination if measurements require it; otherwise document and test bounded complete responses.
+- [x] Q-15 — Implement and test bounded snapshot-pinned pagination for enabled lists, plus bounded complete `getState` captures.
 
 #### Minimal notifications
 

@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game/game_events.h"
 
 #include "lua/lua_game.h"
 
@@ -37,6 +38,7 @@ namespace NEXTTURN {
     }
 
     void Next_Turn() {
+        game_events::s_resolution_scope resolution;
         if (MOX::game_type == 0 || MOX::game_type == 1) {
             Do_Autosave();
         }

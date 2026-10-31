@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game/game_events.h"
 #include "string_overrides.h"
 
 namespace RUSS {
@@ -229,6 +230,7 @@ namespace RUSS {
         platform::Check_Exit();
         sound::Sound_Update();
         NETMOX::Mox_Net_Update();
+        game_events::Publish(game_events::IDLE_OBSERVATION_POINT);
     }
 
     void __cdecl Mox_Sync_Update() {

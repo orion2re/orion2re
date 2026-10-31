@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game/game_events.h"
 #include "string_overrides.h"
 
 #include "lua/lua_game.h"
@@ -139,6 +140,7 @@ namespace INITGAME {
     }
 
     bool __cdecl Init_New_Game(int16_t game_difficulty, int16_t galaxy_size, int16_t galaxy_age, int16_t num_players, int16_t strategic_combat_flag, int16_t starting_civilization_level) {
+        game_events::s_world_update_scope world_update(true);
         orion2re::lua::game::Reset_Semantic_State();
         const bool random_player_count =
             num_players == NEW_GAME_RANDOM_PLAYER_COUNT;
@@ -313,6 +315,7 @@ namespace INITGAME {
         RUSS::Mox_Update();
 
         game_random::Set_Random_Seed(MOX::settings.start_of_game_seed);
+        world_update.Commit();
         return true;
     }
 

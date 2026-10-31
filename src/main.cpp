@@ -11,6 +11,10 @@
 #include "config/config_loader.h"
 #include "lua/lua_mod_runtime.h"
 #include "startup_options.h"
+#include "rpc/rpc_settings.h"
+#if defined(ORION2RE_ENABLE_RPC)
+#include "rpc/game_rpc.h"
+#endif
 
 #if defined(_WIN32)
 #include <io.h>
@@ -243,7 +247,17 @@ int main(int argc, char** argv) {
     SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION,
         config_loaded ? "configuration: loaded %s" : "configuration: %s not found; using defaults", startup_config_path);
 
+#if defined(ORION2RE_ENABLE_RPC)
+    if (rpc::enabled && !game_rpc::Subscribe_To_Game()) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "rpc: unable to register game observer");
+    }
+#else
+    if (rpc::enabled) SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "rpc: requested but not compiled into this build");
+#endif
     const int result = platform::Run_Main_Loop(nullptr);
+#if defined(ORION2RE_ENABLE_RPC)
+    game_rpc::Unsubscribe_From_Game();
+#endif
 
     orion2re::lua::Shutdown_Lua();
     ai_state::Shutdown();

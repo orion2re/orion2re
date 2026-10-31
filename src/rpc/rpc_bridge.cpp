@@ -98,6 +98,12 @@ namespace rpc {
         }
     }
 
+    bool Has_Clients(s_bridge* bridge) {
+        if (bridge == nullptr) return false;
+        std::lock_guard lock(bridge->mutex);
+        return !bridge->stopped && std::any_of(std::begin(bridge->clients), std::end(bridge->clients), [](uint64_t client) { return client != 0; });
+    }
+
     void Revoke_Bridge(s_bridge* bridge) {
         if (bridge != nullptr) {
             std::lock_guard lock(bridge->mutex);

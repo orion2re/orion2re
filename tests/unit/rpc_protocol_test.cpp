@@ -106,7 +106,7 @@ DOCTEST_TEST_CASE("RPC configured-key handshake and discovery use generated para
     std::string described = rpc::Describe_Methods(&request);
     DOCTEST_CHECK(described.find("rpc.hello") != std::string::npos);
     DOCTEST_CHECK(described.find("rpc.describe") != std::string::npos);
-    DOCTEST_CHECK(described.find("game.getState") == std::string::npos);
+    DOCTEST_CHECK(described.find("game.getState") != std::string::npos);
     request.params_json = "{\"methods\":[\"rpc.describe\"]}";
     DOCTEST_REQUIRE(rpc::Validate_Params(&protocol, &request));
     described = rpc::Describe_Methods(&request);
@@ -114,7 +114,7 @@ DOCTEST_TEST_CASE("RPC configured-key handshake and discovery use generated para
     request.params_json = "{\"methods\":[\"rpc.describe\",\"rpc.describe\"]}";
     DOCTEST_CHECK_FALSE(rpc::Validate_Params(&protocol, &request));
     DOCTEST_REQUIRE(rpc::Find_Method("game.getState") != nullptr);
-    DOCTEST_CHECK_FALSE(rpc::Find_Method("game.getState")->implemented);
+    DOCTEST_CHECK(rpc::Find_Method("game.getState")->implemented);
     rpc::Shutdown_Protocol(&protocol);
     rpc::Shutdown_Protocol(&protocol);
 }

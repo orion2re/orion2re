@@ -233,8 +233,9 @@ namespace rpc {
             if (request.method == "rpc.describe") {
                 return Queue_Output(state, connection, Result_Response(&request, Describe_Methods(&request)));
             }
-            // Game methods are added only with an audited projection and game-thread handler.
-            return Queue_Output(state, connection, Error_Response(&request, RPC_METHOD_NOT_FOUND));
+            const int32_t queued = Submit_Work(state->bridge, connection->client, connection->epoch,
+                &request, Monotonic_Ms() + Protocol_Limits()->request_timeout_ms);
+            return queued == 0 || Queue_Output(state, connection, Error_Response(&request, queued));
         }
 
         int Callback(lws* socket, lws_callback_reasons reason, void* user, void* input, size_t size) {
@@ -343,7 +344,7 @@ namespace rpc {
         void Tick(uv_timer_t* timer) {
             auto* state = (s_service_state*)timer->data;
             const uint64_t now = uv_now(&state->loop);
-            Expire_Work(state->bridge, now);
+            Expire_Work(state->bridge, Monotonic_Ms());
             // This is our own libuv timer, not a callback servicing any wsi. Close
             // synchronously: an async timeout alone need not wake lws' foreign-loop timer.
             for (s_connection& connection : state->connections) {

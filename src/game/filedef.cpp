@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game/game_events.h"
 
 #include "game/savegame.h"
 #include "game/config_refresh.h"
@@ -96,6 +97,7 @@ namespace FILEDEF {
     }
 
     uint32_t __cdecl Load_Game(int16_t slot_index) {
+        game_events::s_world_update_scope world_update(true);
         char filename[256];
         char error_message[128] = {};
         uint32_t random_seed;
@@ -214,6 +216,7 @@ namespace FILEDEF {
         RUSS::Release_All_Blocks(MOX::screen_seg);
         CONFIG_REFRESH::Request_Resource_Reload();
 
+        world_update.Commit();
         return 1;
     }
 

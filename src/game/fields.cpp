@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game/game_events.h"
 
 namespace fields {
     namespace {
@@ -166,6 +167,7 @@ namespace fields {
 
     int16_t __cdecl Get_Input() {
         platform::Check_Exit();
+        game_events::Publish(game_events::IDLE_OBSERVATION_POINT);
 
         if (input_delay > 0) {
             input_delay--;

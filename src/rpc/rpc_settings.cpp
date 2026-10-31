@@ -1,5 +1,3 @@
-#include "pch.h"
-
 #include "rpc/rpc_settings.h"
 
 namespace rpc {

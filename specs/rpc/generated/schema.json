@@ -287,6 +287,12 @@
         "secondary"
       ]
     },
+    "CaptureMode": {
+      "type": "string",
+      "enum": [
+        "last-coherent-capture"
+      ]
+    },
     "Chat": {
       "type": "object",
       "additionalProperties": false,
@@ -2490,7 +2496,8 @@
         "committed",
         "resolving",
         "revoked",
-        "ending"
+        "ending",
+        "unavailable"
       ]
     },
     "SessionsResult": {
@@ -2627,6 +2634,10 @@
         "turn": {
           "$ref": "#/$defs/Turn",
           "x-rpc-policy": "contract"
+        },
+        "captureMode": {
+          "$ref": "#/$defs/CaptureMode",
+          "x-rpc-policy": "contract"
         }
       },
       "required": [
@@ -2634,7 +2645,8 @@
         "perspectiveId",
         "snapshotId",
         "revision",
-        "turn"
+        "turn",
+        "captureMode"
       ],
       "x-rpc-policy": "contract"
     },
@@ -2762,7 +2774,7 @@
       "additionalProperties": false,
       "properties": {
         "include": {
-          "$ref": "#/$defs/Topics",
+          "$ref": "#/$defs/StateTopics",
           "x-rpc-policy": "request"
         }
       },
@@ -2770,6 +2782,22 @@
         "include"
       ],
       "x-rpc-policy": "request"
+    },
+    "StateTopic": {
+      "type": "string",
+      "enum": [
+        "session",
+        "systems",
+        "nebulas"
+      ]
+    },
+    "StateTopics": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/StateTopic"
+      },
+      "maxItems": 3,
+      "uniqueItems": true
     },
     "StreamGap": {
       "type": "object",
@@ -2851,7 +2879,7 @@
         },
         "name": {
           "$ref": "#/$defs/KnownText",
-          "x-rpc-policy": "system-name"
+          "x-rpc-policy": "system-name-visited"
         },
         "visited": {
           "$ref": "#/$defs/Bool",
@@ -6451,7 +6479,7 @@
       "role": "reader",
       "availability": "authorized",
       "kind": "query",
-      "implemented": false,
+      "implemented": true,
       "requestType": "Empty",
       "resultType": "Session",
       "request": {
@@ -6483,7 +6511,7 @@
       "role": "reader",
       "availability": "committed-game",
       "kind": "query",
-      "implemented": false,
+      "implemented": true,
       "requestType": "StateRequest",
       "resultType": "State",
       "request": {
@@ -6499,7 +6527,7 @@
       "role": "reader",
       "availability": "committed-game",
       "kind": "query",
-      "implemented": false,
+      "implemented": true,
       "requestType": "GetRequest",
       "resultType": "SystemResult",
       "request": {
@@ -6611,7 +6639,7 @@
       "role": "reader",
       "availability": "committed-game",
       "kind": "query",
-      "implemented": false,
+      "implemented": true,
       "requestType": "ListRequest",
       "resultType": "NebulasResult",
       "request": {
@@ -6691,7 +6719,7 @@
       "role": "reader",
       "availability": "committed-game",
       "kind": "query",
-      "implemented": false,
+      "implemented": true,
       "requestType": "ListRequest",
       "resultType": "SystemsResult",
       "request": {
@@ -7261,13 +7289,40 @@
         "T-02"
       ]
     },
-    "nebulas-map": {
-      "status": "disabled",
-      "predicate": "Pending independent audit of nebula map drawing and coordinate conversion. No type, hidden star membership or art/cache pointers.",
+    "system-name-visited": {
+      "status": "reviewed",
+      "predicate": "Initial runtime subset: bound human viewer has visited and star is not a black hole. Copy bounded CP850 name, apply native ASCII outpost lowercase on the copy, then decode UTF-8. Contact/lore-only unvisited names remain explicitly unaudited; no UI/font/resource builder is called.",
       "sources": [
         [
           "src/game/mainscr.cpp",
-          "nebula"
+          "Get_Star_Name"
+        ],
+        [
+          "src/game/harold.cpp",
+          "Player_Has_Visited"
+        ],
+        [
+          "src/game/harold.cpp",
+          "Star_Is_Outpost_Star"
+        ],
+        [
+          "src/game/strings.cpp",
+          "String_To_Lower"
+        ]
+      ],
+      "tests": [
+        "T-01",
+        "T-02",
+        "T-03"
+      ]
+    },
+    "nebulas-map": {
+      "status": "reviewed",
+      "predicate": "Native map draws every existing nebula without a viewer gate. Publish only its unscaled map x/y and a perspective-scoped opaque ID; never type, hidden star membership or art/cache pointers.",
+      "sources": [
+        [
+          "src/game/mainscr.cpp",
+          "Draw_Nebulae"
         ]
       ],
       "tests": [
@@ -7679,6 +7734,7 @@
     "requestIdBytes": 64,
     "connections": 4,
     "authenticationDeadlineMs": 5000,
+    "requestTimeoutMs": 2000,
     "messagesPerSecond": 32,
     "receiveCallbacksPerSecond": 128,
     "outputMessagesPerConnection": 16,
@@ -7695,10 +7751,15 @@
     "orderedEventsPerSubscription": 4096,
     "overflow": "Reject before admission; coalesce only complete unsent state. Ordered-event overflow signals a gap or disconnect. Never rewrite partial output or silently discard operation results."
   },
-  "x-rpc-sourceHash": "158da9244b14fdbe73bd74b31da60bb703d44b6816d92902dec184bfc1f29df2",
+  "x-rpc-sourceHash": "8f32b303d18f3eddf8b8194e65d0978af36e2306dd2ed0850e2b27511495508e",
   "x-rpc-runtimeEnabled": false,
   "x-rpc-implementedMethods": [
     "rpc.hello",
-    "rpc.describe"
+    "rpc.describe",
+    "game.getSession",
+    "game.getState",
+    "game.listSystems",
+    "game.getSystem",
+    "game.listNebulas"
   ]
 }

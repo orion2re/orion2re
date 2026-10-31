@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game/game_events.h"
 
 #include <algorithm>
 
@@ -961,6 +962,7 @@ namespace NETMOX {
 
     int8_t __cdecl Decode_Broadcast_Game_Data_Differential(
         void* buf, size_t size, uint8_t flag) {
+        game_events::s_world_update_scope world_update(flag != 0);
         if (buf == nullptr || size == 0 ||
             size > NETMOX_MAX_GAME_DATA_PAYLOAD_BYTES) {
             exitm::Exit_With_Message("invalid broadcast game data payload");
@@ -1058,6 +1060,7 @@ namespace NETMOX {
         s_net_snapshot_cache* cache = Open_Net_Snapshot_Cache(
             static_cast<uint32_t>(full_size));
         Write_Net_Snapshot_Cache(cache, full, full_size);
+        world_update.Commit();
         return 1;
     }
 

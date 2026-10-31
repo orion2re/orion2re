@@ -2,8 +2,10 @@
 
 Experimental optional runtime, prepared with AI assistance. This reference is not
 included in the documentation portal. The current service implements `rpc.hello`
-and `rpc.describe` only. Gameplay methods remain uncallable: no native records,
-game state, renderer surfaces, Lua, files or debug inputs are exposed.
+and `rpc.describe`, plus initial session/system/nebula reads. Remaining gameplay
+query families, all actions, renderer surfaces, Lua, files and debug inputs remain
+uncallable. See [the read-sidecar design](read_foundation.md) for the exact subset,
+native event boundaries and capture freshness contract.
 
 ## Build and connect
 
@@ -121,7 +123,7 @@ the illustrative `(include)` signature suffix. Owner names are **proposed
 ownership labels**, not claims that those C++ adapters already exist. Shared UI
 actions dispatch through the active registered owner, not a global input injector.
 
-Runtime is opt-in; `implementedMethods` lists the two implemented metadata methods.
+Runtime is opt-in; `implementedMethods` lists the seven implemented methods.
 `contracts.json` supplies concrete
 request/result types for every named method; `field_policies.json` supplies native
 source anchors, predicates and required test IDs. These are contract definitions,
@@ -304,18 +306,18 @@ ports are allowed. Backend IPv6 support is compiled, but this initial listener
 does not open an IPv6 socket.
 
 The bridge revokes pending/results and invalidates in-flight work on epoch or
-client revocation; the service closes old connections. Native new/load/hotseat
-hooks must use that mechanism before gameplay methods are enabled. A fresh key
-handshake must bind the next authorized perspective; old connections must not
-silently follow it. Those native world-lifecycle hooks are not implemented yet.
+client revocation; the service closes old connections. Neutral new/load/update,
+hotseat and thread lifecycle publications now drive the sidecar's reset/busy/view
+handling. A fresh key handshake binds the next authorized perspective; old
+connections never silently follow it. The game contains no RPC calls or types.
 
 ## Remaining gates
 
 See `lifecycle.md` for the source-audited pump/lifetime/publication/shutdown
 decisions. `protocol_cases.json` and `Check_Request` are an offline conformance
 oracle. `src/rpc/rpc_protocol.cpp` implements the strict C++ yyjson boundary for the
-published metadata surface; unsupported methods remain method-not-found. Native
-game handlers and visibility projections have not been enabled.
+published surface; unsupported methods remain method-not-found. The initial
+projection and query dispatcher are owned by RPC-side observers, not the engine.
 `contracts.json.limits` supplies explicit provisional admission/queue/output/
 retention/polling limits. They are not a measured native maximum-game budget.
 

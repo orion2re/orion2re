@@ -1,10 +1,6 @@
 #include "pch.h"
 
-#include "rpc/rpc_settings.h"
-#if defined(ORION2RE_ENABLE_RPC)
-#include "config/text_encoding.h"
-#include "rpc/rpc_service.h"
-#endif
+#include "game/game_events.h"
 
 #include <exception>
 #include "config/config_loader.h"
@@ -43,6 +39,7 @@ namespace MOX2 {
             int16_t current_screen = MOX::current_screen;
 
             if (current_screen == SCREEN_MAIN_MENU) {
+                game_events::Publish(game_events::MENU_ENTERED);
                 config::s_cfg_diagnostic diagnostic;
                 if (!config::Restore_Launch_Config(&diagnostic)) {
                     exitm::Exit_With_Message(diagnostic.message.c_str());
@@ -439,27 +436,8 @@ namespace MOX2 {
 
     int SDLCALL thunk_main2(void* unused) {
         (void)unused;
-#if defined(ORION2RE_ENABLE_RPC)
-        rpc::s_service rpc_service;
-#endif
         try {
-#if defined(ORION2RE_ENABLE_RPC)
-            if (rpc::enabled) {
-                rpc::s_service_config service_config;
-                service_config.port = rpc::port;
-                config::Decode_Cp850_To_Utf8(rpc::shared_key, strlen(rpc::shared_key), &service_config.key);
-                std::string diagnostic;
-                if (!rpc::Start_Service(&rpc_service, &service_config, &diagnostic)) {
-                    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "rpc: %s", diagnostic.c_str());
-                } else {
-                    SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "rpc: listening on loopback port %u", (unsigned)rpc::Service_Port(&rpc_service));
-                }
-            }
-#else
-            if (rpc::enabled) {
-                SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "rpc: requested but not compiled into this build");
-            }
-#endif
+            game_events::Publish(game_events::THREAD_STARTED);
             main2();
         } catch (const platform::process_exit_requested&) {
             SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "mox2: game thread exit requested message='%s'", platform::Exit_Message());
@@ -471,9 +449,7 @@ namespace MOX2 {
             platform::Request_Fatal_Exit("unknown game thread exception");
         }
 
-#if defined(ORION2RE_ENABLE_RPC)
-        rpc::Stop_Service(&rpc_service);
-#endif
+        game_events::Publish(game_events::THREAD_STOPPING);
         sound::Destroy_Sound();
         CONFIG_REFRESH::Resources_Unloaded();
         LOADER::Free_Pictures();

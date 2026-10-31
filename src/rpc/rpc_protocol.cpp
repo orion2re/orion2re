@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "yyjson.h"
+#include <uv.h>
 
 namespace rpc {
     namespace {
@@ -383,5 +384,28 @@ namespace rpc {
             different |= (unsigned char)configured[index] ^ (unsigned char)supplied[index];
         }
         return different == 0;
+    }
+
+    uint64_t Monotonic_Us() {
+        return uv_hrtime() / 1000;
+    }
+
+    uint64_t Monotonic_Ms() {
+        return Monotonic_Us() / 1000;
+    }
+
+    bool New_Opaque_Id(std::string* id) {
+        uint8_t bytes[16];
+        if (id == nullptr || uv_random(nullptr, nullptr, bytes, sizeof(bytes), 0, nullptr) != 0) {
+            return false;
+        }
+        constexpr char hex[] = "0123456789abcdef";
+        id->clear();
+        id->reserve(32);
+        for (uint8_t byte : bytes) {
+            *id += hex[byte >> 4];
+            *id += hex[byte & 15];
+        }
+        return true;
     }
 } // namespace rpc

@@ -42,7 +42,7 @@ set(ORION2RE_DEFAULT_CONFIG_SOURCES
     src/game/racecust_config.cpp
     src/game/racesel_config.cpp
     src/game/report_config.cpp
-    src/game/rpc_config.cpp
+    src/rpc/rpc_settings.cpp
     src/game/savegame_config.cpp
     src/game/score_config.cpp
     src/game/settler_config.cpp
@@ -56,6 +56,7 @@ set(ORION2RE_DEFAULT_CONFIG_SOURCES
 orion2re_test_shared_sources(ORION2RE_DEFAULT_CONFIG_OBJECTS ${ORION2RE_DEFAULT_CONFIG_SOURCES})
 add_library(orion2re_test_config_defaults STATIC
     ${ORION2RE_DEFAULT_CONFIG_OBJECTS}
+    src/game/game_events.cpp
 )
 target_compile_features(orion2re_test_config_defaults PRIVATE cxx_std_20)
 target_include_directories(orion2re_test_config_defaults PRIVATE
@@ -2104,6 +2105,7 @@ if(ORION2RE_RPC_BUILT)
         tests/unit/rpc_protocol_test.cpp
         tests/unit/rpc_bridge_test.cpp
         tests/unit/rpc_service_test.cpp
+        tests/unit/rpc_game_test.cpp
     )
     target_compile_features(test_rpc PRIVATE cxx_std_20)
     target_include_directories(test_rpc PRIVATE "${ORION2RE_VENDORED_DOCTEST_DIR}")
@@ -2112,6 +2114,19 @@ if(ORION2RE_RPC_BUILT)
     orion2re_enable_sanitizers(test_rpc)
     add_test(NAME test_rpc COMMAND test_rpc)
     set_tests_properties(test_rpc PROPERTIES TIMEOUT 30)
+    add_executable(test_game_rpc_native
+        tests/test_main.cpp tests/unit/game_rpc_native_test.cpp
+        $<TARGET_OBJECTS:orion2re_game_objects>
+        "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smacker.c"
+        "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smk_bitstream.c"
+        "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smk_hufftree.c"
+        "${ORION2RE_VENDORED_YYJSON_DIR}/src/yyjson.c")
+    target_compile_features(test_game_rpc_native PRIVATE cxx_std_20)
+    target_include_directories(test_game_rpc_native PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src"
+        "${ORION2RE_VENDORED_DOCTEST_DIR}" "${ORION2RE_VENDORED_LIBSMACKER_DIR}")
+    target_link_libraries(test_game_rpc_native PRIVATE orion2re_rpc SDL3::SDL3-static uv_a orion2re_lz4 orion2re_lua orion2re_scalers miniz orion2re_imgui)
+    orion2re_enable_sanitizers(test_game_rpc_native)
+    add_test(NAME test_game_rpc_native COMMAND test_game_rpc_native)
     if(Python3_Interpreter_FOUND AND NOT CMAKE_CROSSCOMPILING)
         add_test(NAME test_rpc_transport
             COMMAND "${CMAKE_COMMAND}" -E env "ORION2RE_RPC_TEST_SERVER=$<TARGET_FILE:rpc-test-server>"
@@ -2121,3 +2136,7 @@ if(ORION2RE_RPC_BUILT)
             TIMEOUT 60 WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
     endif()
 endif()
+
+orion2re_add_unit_test(test_game_events
+    SOURCES tests/unit/game_events_test.cpp
+)

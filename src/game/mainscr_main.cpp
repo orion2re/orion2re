@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game/game_events.h"
 
 #include "game/config_refresh.h"
 
@@ -415,6 +416,8 @@ namespace MAINSCR {
 
             fleet_ship_selection_status = -1;
             timer::Mark_Time();
+
+            game_events::Publish(game_events::MAP_OBSERVATION_POINT);
 
             int16_t input = fields::Get_Input();
             if (input < 0) {

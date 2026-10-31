@@ -162,7 +162,8 @@ class TransportTests(unittest.TestCase):
         client.Send({"jsonrpc":"2.0", "id":"d", "method":"rpc.describe"})
         described = client.Read()
         self.assertEqual(described["id"], "d")
-        self.assertEqual({item["name"] for item in described["result"]["methods"]}, {"rpc.hello","rpc.describe"})
+        self.assertEqual({item["name"] for item in described["result"]["methods"]},
+                         {"rpc.hello","rpc.describe","game.getSession","game.getState","game.listSystems","game.getSystem","game.listNebulas"})
 
     def test_wrong_key_is_rejected_and_connection_closed(self):
         client = self.Client()
@@ -175,7 +176,7 @@ class TransportTests(unittest.TestCase):
         client.Send({"jsonrpc":"2.0", "id":4, "method":"game.readMemory", "params":None})
         self.assertEqual(client.Read()["error"]["code"], -32001)
         self.assertIn("result", client.Hello())
-        client.Send({"jsonrpc":"2.0", "id":5, "method":"game.getState", "params":{"include":["systems"]}})
+        client.Send({"jsonrpc":"2.0", "id":5, "method":"game.getPlayer", "params":{"id":"unknown"}})
         self.assertEqual(client.Read()["error"]["code"], -32601)
 
     def test_fragmented_websocket_message_and_split_tcp_header(self):
@@ -303,6 +304,64 @@ class TransportTests(unittest.TestCase):
         time.sleep(0.2)
         self.Command("quit")
         self.process.wait(timeout=2)
+
+    def Fixture(self, command):
+        self.Command(command)
+        ready = queue.Queue()
+        threading.Thread(target=lambda: ready.put(self.process.stdout.readline()), daemon=True).start()
+        self.assertEqual(ready.get(timeout=3).strip(), b"done")
+
+    def Query(self, client, method, params=None):
+        request = {"jsonrpc":"2.0", "id":7, "method":method}
+        if params is not None: request["params"] = params
+        client.Send(request)
+        return client.Read()
+
+    def test_game_thread_queries_are_coherent_hidden_filtered_and_explicitly_dated(self):
+        self.Fixture("world")
+        client = self.Client()
+        self.assertIn("result", client.Hello())
+        baseline = self.Query(client, "game.getState", {"include":["session","systems","nebulas"]})
+        self.assertEqual(baseline["result"]["stamp"]["captureMode"], "last-coherent-capture")
+        self.assertNotIn("hidden", json.dumps(baseline))
+        self.assertEqual(baseline["result"]["systems"][1]["name"], {"availability":"unaudited"})
+        self.Fixture("hidden")
+        self.assertEqual(self.Query(client, "game.getState", {"include":["session","systems","nebulas"]}), baseline)
+        self.Fixture("busy")
+        self.assertEqual(self.Query(client, "game.getState", {"include":["systems"]})["error"]["code"], -32002)
+        self.assertEqual(self.Query(client, "game.getSession")["result"]["phase"], "resolving")
+        self.Fixture("resume")
+        system = baseline["result"]["systems"][0]
+        self.assertEqual(self.Query(client, "game.getSystem", {"id":system["id"]})["result"]["item"], system)
+        self.assertEqual(self.Query(client, "game.getSystem", {"id":"unknown"})["error"]["code"], -32004)
+
+    def test_world_and_perspective_changes_require_a_fresh_key_handshake(self):
+        self.Fixture("world")
+        client = self.Client()
+        client.Hello()
+        first = self.Query(client, "game.getSession")["result"]
+        self.Fixture("switch")
+        with self.assertRaises((EOFError, ConnectionError)): client.Read()
+        second_client = self.Client()
+        second_client.Hello()
+        second = self.Query(second_client, "game.getSession")["result"]
+        self.assertEqual(first["gameId"], second["gameId"])
+        self.assertNotEqual(first["perspectiveId"], second["perspectiveId"])
+        self.Fixture("world")
+        with self.assertRaises((EOFError, ConnectionError)): second_client.Read()
+        third = self.Client()
+        third.Hello()
+        self.assertNotEqual(first["gameId"], self.Query(third, "game.getSession")["result"]["gameId"])
+
+    def test_list_cursor_pins_one_capture_across_a_public_change(self):
+        self.Fixture("world")
+        client = self.Client()
+        client.Hello()
+        first = self.Query(client, "game.listSystems", {"limit":1})["result"]
+        self.Fixture("advance")
+        second = self.Query(client, "game.listSystems", {"cursor":first["nextCursor"]})["result"]
+        self.assertEqual(first["stamp"], second["stamp"])
+        self.assertEqual(self.Query(client, "game.getSession")["result"]["turn"], 35001)
 
 
 if __name__ == "__main__":

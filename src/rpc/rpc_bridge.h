@@ -44,6 +44,7 @@ namespace rpc {
 
     bool Register_Client(s_bridge* bridge, uint64_t client, uint64_t* epoch);
     bool Client_Is_Current(s_bridge* bridge, uint64_t client, uint64_t epoch);
+    bool Has_Clients(s_bridge* bridge);
     void Cancel_Client(s_bridge* bridge, uint64_t client);
     void Revoke_Bridge(s_bridge* bridge);
     void Stop_Bridge(s_bridge* bridge);
