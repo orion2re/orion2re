@@ -1081,7 +1081,7 @@ gates. P1 completion is not claimed by this foundation increment.
 - [ ] Q-10 — Implement `game.listDesigns`, `game.getDesign`, and `game.getDesignOptions`.
 - [ ] Q-11 — Implement `game.getResearch`, `game.listResearchOptions`, and `game.getTechnology`.
 - [ ] Q-12 — Implement `game.listLeaders` and `game.getLeader` for owned/offered/discovered leaders only.
-- [ ] Q-13 — Implement `game.getRelations` and `game.getIntelligence` (contact-gated native war classification and research-treaty presence are projected as tagged `Player.atWar`/`Player.researchTreaty`; full relations, remaining treaties/amounts and intelligence methods remain unimplemented).
+- [ ] Q-13 — Implement `game.getRelations` and `game.getIntelligence` (contact-gated native war classification and research/trade-treaty presence are projected as tagged `Player.atWar`/`Player.researchTreaty`/`Player.tradeTreaty`; full relations, remaining treaties/amounts and intelligence methods remain unimplemented).
 - [ ] Q-14 — Implement `game.getHistory`, `game.listMessages`, and `game.getMessage` without consuming reports or improving hidden precision.
 - [x] Q-15 — Implement and test bounded snapshot-pinned pagination for enabled lists, plus bounded complete `getState` captures.
 
@@ -1204,6 +1204,27 @@ ASAN/UBSAN; all 106 RPC-disabled targets pass. Generation drift, affected C++
 formatting and whitespace checks pass. No native code/API changes. Synthetic/
 native-function and live-transport tests are not interactive saved-game,
 multiplayer or other-platform parity; local LeakSanitizer remains unsupported.
+
+Q-13 trade-treaty-presence follow-up adds tagged `Player.tradeTreaty`, copying
+the viewer's directed nonzero trade flag only for living current foreign
+contacts. Self/eliminated/uncontacted/Lore-only rows stay unknown. No agreement
+level/goal, amount, reciprocal foreign flag, economy, attitude or forecast is
+read or inferred. Hidden-only claims are sanitized before ordering, identities,
+revisions and notifications. Player and unchanged ship handles stay stable;
+pinned pages retain old values, and combined state/subscription baselines keep
+all requested topics, including session, in one immutable capture. See
+`specs/rpc/player_view.md`. No method/topic additions; Q-06/Q-07/Q-13 stay open.
+
+Trade-presence verification (macOS ARM64): 99 Python tests including 39 live
+WebSocket cases pass; required RPC/native/transport targets pass normally and
+under ASAN/UBSAN; all 106 RPC-disabled targets pass. Generated schema/reference/
+C++ metadata, affected C++ formatting and whitespace checks pass. A new live-test
+fixture was corrected to unsubscribe its combined baseline before exhausting the
+four-capture retention window; no production retention behavior changed. No
+native code/API, gameplay/save/multiplayer-authority/mod/RNG changes in this
+follow-up. Synthetic/native-function and live-transport evidence do not establish
+interactive saved-game/multiplayer or other-platform parity. Local LeakSanitizer
+remains unsupported.
 
 ### P2. Shared UI adapters and operation lifecycle
 

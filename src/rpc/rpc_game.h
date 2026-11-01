@@ -69,6 +69,8 @@ namespace rpc {
         bool at_war = false;
         bool research_treaty_available = false;
         bool research_treaty = false;
+        bool trade_treaty_available = false;
+        bool trade_treaty = false;
     };
 
     struct s_colony_observation {

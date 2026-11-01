@@ -2216,6 +2216,10 @@
         "researchTreaty": {
           "$ref": "#/$defs/KnownBool",
           "x-rpc-policy": "player-contact-research-treaty"
+        },
+        "tradeTreaty": {
+          "$ref": "#/$defs/KnownBool",
+          "x-rpc-policy": "player-contact-trade-treaty"
         }
       },
       "required": [
@@ -2228,7 +2232,8 @@
         "treasury",
         "hud",
         "atWar",
-        "researchTreaty"
+        "researchTreaty",
+        "tradeTreaty"
       ],
       "x-rpc-policy": "players-known"
     },
@@ -7807,6 +7812,30 @@
         "T-05"
       ]
     },
+    "player-contact-trade-treaty": {
+      "status": "reviewed",
+      "predicate": "Only currently contacted living foreign empires in the same authorized roster. Copy whether the viewer's own directed trade_treaty[target] is nonzero, the native race-screen gate for displaying the trade-agreement summary. Presence only: no current agreement level/goal, BC amount, duration, reciprocal foreign flag, AI attitude or renewal forecast. Self, eliminated and uncontacted rows including omniscience/Lore-only entries return unknown, never inferred false. Sanitize unavailable claims before ordering, equality, revisions and notifications. Keep stable player handles and one immutable coherent map/ship/roster capture; never splice newer treaties into an older ship capture. No diplomacy/economy/spy calculation or UI builder is invoked.",
+      "sources": [
+        [
+          "src/game/racescrn.cpp",
+          "Draw_Race_Text"
+        ],
+        [
+          "src/game/racescrn.cpp",
+          "trade_treaty[display->player_idx] != 0"
+        ],
+        [
+          "src/game/harold.cpp",
+          "Contact_With_Player"
+        ]
+      ],
+      "tests": [
+        "T-01",
+        "T-02",
+        "T-03",
+        "T-05"
+      ]
+    },
     "disabled-planet": {
       "status": "disabled",
       "predicate": "Pending read-only equivalent of native explored-planet policy; do not invoke a mutable list builder. Orbit/name/type separately gated.",
@@ -8378,7 +8407,7 @@
     "orderedEventsPerSubscription": 4096,
     "overflow": "Reject before admission; coalesce only complete unsent state. Ordered-event overflow signals a gap or disconnect. Never rewrite partial output or silently discard operation results."
   },
-  "x-rpc-sourceHash": "8171445a62d5ccb548404e524e4b798ad66163311787f16f2f65ecccbd43c0ea",
+  "x-rpc-sourceHash": "edc3e56f204109c6611ef0e03eb92a7da9bd6760fbf920e18bea1951c5cdd908",
   "x-rpc-runtimeEnabled": false,
   "x-rpc-implementedMethods": [
     "rpc.hello",

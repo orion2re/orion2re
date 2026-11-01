@@ -47,7 +47,9 @@ class SidecarArchitectureTests(unittest.TestCase):
         self.assertIn("HAROLD::Player_Is_Omniscient", adapter)
         self.assertIn("player->surplus_bc", adapter)
         self.assertIn("MOX::player[viewer].research_treaty[slot] != 0", adapter)
+        self.assertIn("MOX::player[viewer].trade_treaty[slot] != 0", adapter)
         self.assertNotRegex(adapter, r"current_research_agreement_level|research_agreement_goal|research_accumulated")
+        self.assertNotRegex(adapter, r"current_trade_agreement_level|trade_agreement_goal")
         self.assertNotRegex(adapter, r"(?:Get_Active_Players|Get_Players_Dead_Or_Alive_Or_Omniscient|Init_Race_Display_Data|Print_Main_Screen_Data)\s*\(")
 
     def test_fleet_cached_info_hook_excludes_previews_and_has_native_lifetime_clears(self):

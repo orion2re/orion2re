@@ -125,7 +125,7 @@
     "PlayerHUD": {"kind":"object","policy":"player-own-economy","fields":{"income":"Income","foodSurplus":"FoodSurplus","freighters":"HudCount","freightersAvailable":"HudCount","commandPoints":"HudCount","commandPointsAvailable":"HudCount"}},
     "CurrentPlayerHUD": {"kind":"object","policy":"contract","fields":{"availability":"Current","value":"PlayerHUD"}},
     "KnownPlayerHUD": {"kind":"union","variants":["CurrentPlayerHUD","Unavailable"]},
-    "Player": {"kind":"object","policy":"players-known","fields":{"id":"Id","local":"Bool","contacted":"Bool","eliminated":"Bool","color":"PlayerColor","name":"KnownText","treasury":"KnownCredits","hud":"KnownPlayerHUD","atWar":"KnownBool","researchTreaty":"KnownBool"},"fieldPolicies":{"treasury":"player-own-economy","hud":"player-own-economy","atWar":"player-contact-war","researchTreaty":"player-contact-research-treaty"}},
+    "Player": {"kind":"object","policy":"players-known","fields":{"id":"Id","local":"Bool","contacted":"Bool","eliminated":"Bool","color":"PlayerColor","name":"KnownText","treasury":"KnownCredits","hud":"KnownPlayerHUD","atWar":"KnownBool","researchTreaty":"KnownBool","tradeTreaty":"KnownBool"},"fieldPolicies":{"treasury":"player-own-economy","hud":"player-own-economy","atWar":"player-contact-war","researchTreaty":"player-contact-research-treaty","tradeTreaty":"player-contact-trade-treaty"}},
     "Planet": {"kind":"object","policy":"disabled-planet","fields":{"id":"Id","systemId":"Id","orbit":"Orbit","name":"KnownText","kind":"KnownText"}},
     "ColonyTroopCount": {"kind":"integer","min":0,"max":32767,"unit":"count"},
     "ColonyTroops": {"kind":"object","policy":"colony-own-troops","fields":{"infantry":"ColonyTroopCount","armor":"ColonyTroopCount"}},

@@ -269,6 +269,20 @@ class TypedContractTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             audit.Validate_Value({"availability":"unknown","value":False}, "KnownBool", self.contracts)
 
+    def test_trade_treaty_is_presence_knowledge_with_its_own_field_policy(self):
+        player_type = self.contracts["types"]["Player"]
+        self.assertEqual(player_type["fields"]["tradeTreaty"], "KnownBool")
+        self.assertEqual(player_type["fieldPolicies"]["tradeTreaty"], "player-contact-trade-treaty")
+        player = self.Sample("Player")
+        for value in ({"availability":"current","value":True}, {"availability":"current","value":False},
+                      {"availability":"unknown"}):
+            player["tradeTreaty"] = value
+            audit.Validate_Value(player, "Player", self.contracts, self.policies, public=True)
+        for value in ({"availability":"current","value":1}, {"availability":"unknown","value":False}):
+            player["tradeTreaty"] = value
+            with self.assertRaises(ValueError):
+                audit.Validate_Value(player, "Player", self.contracts, self.policies, public=True)
+
     def test_colony_troops_keep_native_count_bounds_and_explicit_knowledge(self):
         for infantry, armor in ((0, 32767), (32767, 0), (0, 0)):
             audit.Validate_Value({"availability":"current","value":{"infantry":infantry,"armor":armor}},

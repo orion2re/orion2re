@@ -88,6 +88,8 @@ int main() {
                 map.players[2].at_war = !map.players[2].at_war;
                 map.players[2].research_treaty_available = true;
                 map.players[2].research_treaty = !map.players[2].research_treaty;
+                map.players[2].trade_treaty_available = true;
+                map.players[2].trade_treaty = !map.players[2].trade_treaty;
                 if (map.colonies.size() >= 3) {
                     map.colonies.back().system = -99999;
                     map.colonies.back().population = -99999;
@@ -149,6 +151,10 @@ int main() {
             } else if (command == "research-treaty") {
                 map.players[1].research_treaty_available = true;
                 map.players[1].research_treaty = !map.players[1].research_treaty;
+                rpc::Capture_Map(&store, &map);
+            } else if (command == "trade-treaty") {
+                map.players[1].trade_treaty_available = true;
+                map.players[1].trade_treaty = !map.players[1].trade_treaty;
                 rpc::Capture_Map(&store, &map);
             } else if (command == "player-uncontact") {
                 map.players[1].contacted = false;

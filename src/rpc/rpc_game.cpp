@@ -65,8 +65,8 @@ namespace rpc {
             for (size_t index = 0; index < left->players.size(); ++index) {
                 const auto& a = left->players[index];
                 const auto& b = right->players[index];
-                if (std::tie(a.local, a.contacted, a.eliminated, a.color, a.name, a.treasury, a.hud.income, a.hud.food_surplus, a.hud.freighters, a.hud.freighters_available, a.hud.command_points, a.hud.command_points_available, a.at_war_available, a.at_war, a.research_treaty_available, a.research_treaty) !=
-                    std::tie(b.local, b.contacted, b.eliminated, b.color, b.name, b.treasury, b.hud.income, b.hud.food_surplus, b.hud.freighters, b.hud.freighters_available, b.hud.command_points, b.hud.command_points_available, b.at_war_available, b.at_war, b.research_treaty_available, b.research_treaty)) return false;
+                if (std::tie(a.local, a.contacted, a.eliminated, a.color, a.name, a.treasury, a.hud.income, a.hud.food_surplus, a.hud.freighters, a.hud.freighters_available, a.hud.command_points, a.hud.command_points_available, a.at_war_available, a.at_war, a.research_treaty_available, a.research_treaty, a.trade_treaty_available, a.trade_treaty) !=
+                    std::tie(b.local, b.contacted, b.eliminated, b.color, b.name, b.treasury, b.hud.income, b.hud.food_surplus, b.hud.freighters, b.hud.freighters_available, b.hud.command_points, b.hud.command_points_available, b.at_war_available, b.at_war, b.research_treaty_available, b.research_treaty, b.trade_treaty_available, b.trade_treaty)) return false;
             }
             return true;
         }
@@ -147,6 +147,8 @@ namespace rpc {
             result += item.at_war_available ? std::string("{\"availability\":\"current\",\"value\":") + (item.at_war ? "true}" : "false}") : "{\"availability\":\"unknown\"}";
             result += ",\"researchTreaty\":";
             result += item.research_treaty_available ? std::string("{\"availability\":\"current\",\"value\":") + (item.research_treaty ? "true}" : "false}") : "{\"availability\":\"unknown\"}";
+            result += ",\"tradeTreaty\":";
+            result += item.trade_treaty_available ? std::string("{\"availability\":\"current\",\"value\":") + (item.trade_treaty ? "true}" : "false}") : "{\"availability\":\"unknown\"}";
             result += ",\"treasury\":";
             if (!item.local) return result + "{\"availability\":\"unaudited\"},\"hud\":{\"availability\":\"unaudited\"}}";
             return result + "{\"availability\":\"current\",\"value\":" + std::to_string(item.treasury) +
@@ -532,6 +534,8 @@ namespace rpc {
             if (!player.at_war_available) player.at_war = false;
             player.research_treaty_available &= player.contacted && !player.local && !player.eliminated;
             if (!player.research_treaty_available) player.research_treaty = false;
+            player.trade_treaty_available &= player.contacted && !player.local && !player.eliminated;
+            if (!player.trade_treaty_available) player.trade_treaty = false;
             for (int32_t value : {player.hud.income, player.hud.food_surplus, player.hud.freighters, player.hud.freighters_available, player.hud.command_points, player.hud.command_points_available}) {
                 if (value < -32768 || value > 32767) return false;
             }
@@ -551,7 +555,7 @@ namespace rpc {
         }
         std::sort(projected.players.begin(), projected.players.end(), [](const s_player_observation& left, const s_player_observation& right) {
             if (left.local != right.local) return left.local;
-            return std::tie(left.name, left.color, left.contacted, left.eliminated, left.at_war_available, left.at_war, left.research_treaty_available, left.research_treaty) < std::tie(right.name, right.color, right.contacted, right.eliminated, right.at_war_available, right.at_war, right.research_treaty_available, right.research_treaty);
+            return std::tie(left.name, left.color, left.contacted, left.eliminated, left.at_war_available, left.at_war, left.research_treaty_available, left.research_treaty, left.trade_treaty_available, left.trade_treaty) < std::tie(right.name, right.color, right.contacted, right.eliminated, right.at_war_available, right.at_war, right.research_treaty_available, right.research_treaty, right.trade_treaty_available, right.trade_treaty);
         });
         if (!projected.ships_captured) projected.ships.clear();
         for (s_ship_observation& ship : projected.ships) {

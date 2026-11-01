@@ -713,6 +713,53 @@ class TransportTests(unittest.TestCase):
         self.assertEqual(self.Query(client, "game.getPlayer", {"id":contact["id"]})["result"]["item"]["researchTreaty"],
                          {"availability":"unknown"})
 
+    def test_trade_treaty_presence_preserves_coherence_pinned_pages_and_hidden_equality(self):
+        self.Fixture("world")
+        self.Fixture("ships")
+        self.Fixture("colonies")
+        client = self.Client()
+        client.Hello()
+        subscription = self.Query(client, "rpc.subscribe", {"topics":["players"],"events":["state.changed"]})["result"]
+        self.assertEqual(subscription["baseline"]["players"][0]["tradeTreaty"], {"availability":"unknown"})
+        self.Fixture("trade-treaty")
+        self.assertEqual(client.Read()["method"], "state.changed")
+        topics = ["session", "systems", "nebulas", "players", "ships", "colonies"]
+        baseline = self.Query(client, "game.getState", {"include":topics})["result"]
+        contact = baseline["players"][1]
+        self.assertEqual(contact["tradeTreaty"], {"availability":"current","value":True})
+        self.assertEqual(contact["researchTreaty"], {"availability":"unknown"})
+        self.assertEqual(self.Query(client, "game.getPlayer", {"id":contact["id"]})["result"]["item"], contact)
+        page = self.Query(client, "game.listPlayers", {"limit":1})["result"]
+        self.Fixture("hidden")
+        self.assertEqual(self.Query(client, "game.getState", {"include":topics})["result"], baseline)
+        self.Fixture("map-only")
+        self.Fixture("trade-treaty")
+        self.assertEqual(client.Read()["method"], "state.changed")
+        current = self.Query(client, "game.listPlayers")["result"]["items"][1]
+        self.assertEqual(current["id"], contact["id"])
+        self.assertEqual(current["tradeTreaty"], {"availability":"current","value":False})
+        pinned = self.Query(client, "game.listPlayers", {"cursor":page["nextCursor"]})["result"]
+        self.assertEqual(pinned["items"], [contact])
+        self.assertEqual(self.Query(client, "game.getState", {"include":topics})["result"], baseline)
+        combined = self.Query(client, "rpc.subscribe", {"topics":topics,"events":["state.changed"]})["result"]
+        self.assertEqual(combined["baseline"], baseline)
+        self.assertEqual(baseline["session"]["revision"], baseline["stamp"]["revision"])
+        self.assertEqual(baseline["session"]["turn"], baseline["stamp"]["turn"])
+        self.Fixture("player-uncontact")
+        self.assertEqual(client.Read()["method"], "state.changed")
+        self.assertEqual(self.Query(client, "game.getPlayer", {"id":contact["id"]})["result"]["item"]["tradeTreaty"],
+                         {"availability":"unknown"})
+        # Later map-only captures can evict the last complete ship baseline;
+        # finish this subscription before testing independent roster errors.
+        self.assertTrue(self.Query(client, "rpc.unsubscribe", {"subscriptionId":combined["subscriptionId"]})["result"]["removed"])
+        self.Fixture("player-forget")
+        self.assertEqual(client.Read()["method"], "state.changed")
+        old = self.Query(client, "game.getPlayer", {"id":contact["id"]})["error"]
+        self.assertEqual(self.Query(client, "game.getPlayer", {"id":"unknown"})["error"], old)
+        self.Fixture("world")
+        with self.assertRaises((EOFError, ConnectionError)):
+            client.Read()
+
 
 if __name__ == "__main__":
     unittest.main()

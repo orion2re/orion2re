@@ -121,6 +121,49 @@ save, multiplayer-authority, mod or RNG changes are made. Interactive saved-game
 multiplayer and other-platform results remain unverified; local LeakSanitizer
 remains unsupported and disabled only for that runtime limitation.
 
+### Trade-treaty presence (Q-13 read subset)
+
+`Player.tradeTreaty` is tagged boolean knowledge for living current foreign
+contacts only. `RACESCRN::Draw_Race_Text` includes its trade-agreement summary
+when the viewer's directed `trade_treaty[target] != 0`. The adapter copies this
+exact signed-byte nonzero test from the bound viewer's array after contact
+authorization. Self, eliminated and uncontacted/Lore-only entries are unknown,
+not inferred false. Neither a reciprocal foreign flag, contact by itself nor
+another treaty grants presence.
+
+This is not the current trade level/goal, a BC amount or income estimate,
+duration, payment, attitude or renewal forecast. No foreign treasury/HUD is read,
+even under omniscience. No diplomacy/economic calculation or renderer runs.
+Trade knowledge is independent of research-treaty presence and war classification.
+
+The store sanitizes unavailable claims before sorting, equality/revisions and
+notifications. Public treaty changes preserve player handles and unchanged ship
+handles. Pinned pages own their old values; combined state and subscription
+baselines (including session metadata) select one capture with every requested
+topic, never newer treaties merged into older ships. Existing load/perspective
+revocation clears captures, cursors and queued publications.
+
+Synthetic native-array tests cover signed zero/nonzero flags, direction,
+self/eliminated/contact/Lore exclusions, contact loss, copied lifetimes and
+native-record/RNG preservation. Store and live WebSocket tests cover tagged
+true/false/unknown, hidden-only equality/no notifications, stable handles,
+pinned pages, coherent all-topic baselines, reset and indistinguishable
+unknown/no-longer-visible handle errors. These are not interactive saved-game or
+multiplayer parity. The 15-method and six-topic allowlists are unchanged;
+relations/intelligence methods, amounts and remaining treaties stay unimplemented.
+Q-06/Q-07/Q-13 remain unchecked.
+
+Trade-presence verification on macOS ARM64: 99 Python tests, including 39 live
+WebSocket cases, pass; required RPC/native-projection/transport targets pass
+normally and with ASAN/UBSAN; all 106 RPC-disabled targets pass. Canonical inputs
+were regenerated; generation drift, affected C++ formatting and whitespace checks
+pass. The new live fixture unsubscribes its older combined baseline before
+independent roster-error tests exhaust retention; established subscriptions still
+fail closed when their required capture is evicted. This follow-up changes no
+native code/API, gameplay, saves, multiplayer authority, mods or deterministic
+RNG. LeakSanitizer remains unsupported locally and disabled only for that reason.
+Interactive saved-game/multiplayer and other-platform results remain unverified.
+
 ### Roster and ship-owner handles
 
 Opaque player IDs are assigned only after filtering and public ordering. The

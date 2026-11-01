@@ -916,3 +916,45 @@ DOCTEST_TEST_CASE("research treaty presence uses only the viewers flag for livin
     DOCTEST_CHECK_FALSE(observed.players[1].research_treaty);
     DOCTEST_CHECK(game_random::Get_Random_Seed() == seed);
 }
+
+DOCTEST_TEST_CASE("trade treaty presence reads only the viewers directed flag after contact authorization") {
+    s_world world;
+    MOX::NUM_PLAYERS = 4;
+    world.players[0].has_galactic_lore = 1;
+    world.players[0].contact[1] = world.players[0].contact[2] = 1;
+    world.players[2].eliminated = 1;
+    world.players[0].trade_treaty[0] = world.players[0].trade_treaty[2] = world.players[0].trade_treaty[3] = 1;
+    world.players[1].trade_treaty[0] = 1;
+    world.players[0].research_treaty[1] = 1; // Neither another treaty nor the reciprocal flag authorizes presence.
+    const uint32_t seed = game_random::Get_Random_Seed();
+    rpc::s_map_observation observed;
+    for (int8_t flag : {0, 1, 2, -1, -128, 127}) {
+        world.players[0].trade_treaty[1] = flag;
+        const auto before = world.players;
+        DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&observed));
+        DOCTEST_REQUIRE(observed.players.size() == 4);
+        DOCTEST_CHECK_FALSE(observed.players[0].trade_treaty_available);
+        DOCTEST_CHECK(observed.players[1].trade_treaty_available);
+        DOCTEST_CHECK(observed.players[1].trade_treaty == (flag != 0));
+        DOCTEST_CHECK_FALSE(observed.players[2].trade_treaty_available);
+        DOCTEST_CHECK_FALSE(observed.players[3].trade_treaty_available);
+        DOCTEST_CHECK(memcmp(before.data(), world.players.data(), before.size() * sizeof(s_player)) == 0);
+    }
+    const auto copied = observed;
+    world.players[0].trade_treaty[1] = 0;
+    world.players[0].current_trade_agreement_level[1] = -32768;
+    world.players[0].trade_agreement_goal[1] = 32767;
+    world.players[1].bc = 999999;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&observed));
+    DOCTEST_CHECK_FALSE(observed.players[1].trade_treaty);
+    DOCTEST_CHECK(copied.players[1].trade_treaty);
+    world.players[0].contact[1] = 0;
+    world.players[0].trade_treaty[1] = 1;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&observed));
+    DOCTEST_CHECK_FALSE(observed.players[1].trade_treaty_available);
+    DOCTEST_CHECK_FALSE(observed.players[1].trade_treaty);
+    world.players[0].has_galactic_lore = 0;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&observed));
+    DOCTEST_CHECK(std::none_of(observed.players.begin(), observed.players.end(), [](const rpc::s_player_observation& player) { return player.slot == 1; }));
+    DOCTEST_CHECK(game_random::Get_Random_Seed() == seed);
+}
