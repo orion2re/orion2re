@@ -1226,6 +1226,33 @@ follow-up. Synthetic/native-function and live-transport evidence do not establis
 interactive saved-game/multiplayer or other-platform parity. Local LeakSanitizer
 remains unsupported.
 
+Q-07 narrow candidate audit found a specific missing native boundary: main-view
+entry/exit previously emitted the same clear as ordinary info replacement, and
+the scope began before setup. A ready payload therefore could not establish an
+initialized owner lifetime. This prerequisite-only increment adds neutral
+`FLEET_BOX_VIEW_ENTERED`/`INITIALIZED`/`LEAVING` events, with one-shot initialization
+after main-view setup and before input, plus paired exit on failed initialization
+or unwinding. Scope/source-order tests distinguish replacement and rebuild from
+owner initialization; no implicit parent restoration is introduced. See the
+candidate/retention audit in `specs/rpc/ship_refresh.md`.
+
+This is not public context-ETA completion. RPC still does not consume the payload;
+ambient offscreen ship reads and all public methods/topics remain unchanged.
+Surviving refresh association, stale selection/slot reuse, copied coherent new
+captures, complete context revocation of retained/pinned/subscribed/queued data,
+and the full native/store/live disclosure matrix remain required. Initialized
+main-view lifetime is not proof of an open fleet box or child-dialog authority.
+Q-06/Q-07/Q-13 and V-04 stay unchecked; no interactive parity is claimed.
+
+Main-view-lifetime verification (macOS ARM64): required game/RPC/native/transport
+targets plus neutral-event, fleetpop and `test_mainscr_reload` targets build and
+pass normally and under ASAN/UBSAN. All 100 Python tests, including 39 live
+WebSocket cases, and all 106 RPC-disabled CTest targets pass. Generator drift,
+affected C++ formatting (changed native range only) and whitespace checks pass.
+Only leak detection is disabled for the unsupported local runtime. No gameplay,
+save, multiplayer-authority, mod or RNG changes; interactive saved-game/multiplayer
+and other-platform checks remain unperformed.
+
 ### P2. Shared UI adapters and operation lifecycle
 
 - [ ] P2-01 — Implement scoped context registration, stack/parent restoration, and unregister-before-native-state-release behavior.

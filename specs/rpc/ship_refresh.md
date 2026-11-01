@@ -200,6 +200,58 @@ restored native owners) and whitespace checks pass. Leak detection alone remains
 disabled because it is unsupported locally. No interactive saved-game,
 multiplayer or other-platform parity is claimed.
 
+### Q-07 candidate audit and explicit main-view lifetime
+
+The next candidate is fleet-box cached ETA **only for a ship whose destination
+is independently current in the ambient projection** (for example, a surviving
+own wormhole-route head). This audit does not authorize that candidate yet:
+
+| Boundary | Source finding / remaining obligation |
+| --- | --- |
+| Initialized owner | Previously, `s_fleet_box_view_scope` only cleared on entry/exit. `Main_Screen` constructs it before setup, icon rebuild and selection reload; ordinary `Print_Fleet_Box_Info` replacement emits the identical clear. Neither clear nor ready distinguished an initialized owner from setup or an owner that had already left. This specific missing boundary justifies this prerequisite-only increment. |
+| Producer | `Print_Fleet_Box_Info` publishes the non-preview cached branch, not proof of an open box or a valid current selection. `Draw_Fleet_Movement_Box` prints during drawing. A setup-time result must not be promoted later merely because the owner subsequently initializes. |
+| Surviving association | `Read_Refreshed_Ship_Observation` copies only at refresh and discards native associations; it does not retain a node/ship binding for later payloads. A consumer must bind the current surviving refresh, reject stale selection and slot/node reuse, and never traverse nodes later. The two transient integers alone cannot prove identity. |
+| Coherence | `Capture_Refreshed_Ships` creates one map/player/colony/ship observation synchronously. A later ready payload must not enrich that retained capture. New public context data needs a fresh coherent immutable capture for every requested topic, including session. |
+| Revocation | `Clear_View` clears snapshots/cursors/subscriptions and `Revoke_Game_View` revokes bridge work/publications on world/perspective reset; resolution currently only pauses reads. `Select_Snapshot` and pinned cursors can still select older ship captures. Context-specific retention/publication revocation is not implemented; clearing an adapter cache would be insufficient. The service also owns queued output, so it must participate in any new revocation policy. |
+| Destination | Store current ETA requires a current same-capture destination. `Get_Absolute_Location_Scan_Info` may withhold the name reference (`-1`) or use the special `NUM_STARS` destination. Neither grants a system handle or known-empty destination. No new destination knowledge is inferred here. |
+
+The neutral scope now publishes `FLEET_BOX_VIEW_ENTERED` before its existing entry
+clear, a one-shot `FLEET_BOX_VIEW_INITIALIZED` only when `Main_Screen` completes
+setup immediately before the input loop, and `FLEET_BOX_VIEW_LEAVING` before its
+existing exit clear. Leaving is paired even for an uninitialized exit or exception
+unwinding. Scope copies are prohibited so they cannot manufacture extra exits.
+Entry/replacement starts uninitialized; there is no implicit restoration of an
+earlier owner. These events describe the main-view owner, not an initialized
+fleet selection, an open box, child-dialog authority or a ship identity. Existing
+replacement/close/rebuild clears and world/resolution/perspective events remain
+separate boundaries that a future consumer must honor.
+
+RPC still does not subscribe to the borrowed result or these new lifetime events.
+No public values, IDs, ordering, revisions, errors or notifications depend on
+them, including hidden-only owner activity. Ambient offscreen reads, immutable
+retention, pagination, subscriptions, unsigned-byte ETA and the 15-method/six-topic
+allowlists are unchanged. No native builders, renderers or calculators are called
+for reads. Q-07/V-04 and the end-to-end disclosure matrix remain incomplete.
+
+Neutral unit tests cover explicit/one-shot initialization, ordinary replacement
+and rebuild remaining distinct, uninitialized exit, replacement without implicit
+restoration, and initialized/uninitialized exception unwinding. The architecture
+test pins the native call after setup/selection reload and before the input loop.
+These are synthetic scope and source-order tests, not interactive owner-context
+or public context-ETA authorization evidence. No context ETA is enabled.
+
+Main-view-lifetime verification on macOS ARM64: `orion2re`, `test_rpc`,
+`test_game_rpc_native`, `rpc-test-server`, `test_game_events`, `test_fleetpop` and
+`test_mainscr_reload` build normally and with ASAN/UBSAN. All six corresponding
+CTest checks (including `test_rpc_transport`) pass in both configurations.
+All 100 Python tests pass, including the unchanged 39 live WebSocket cases; the
+RPC-disabled `tools/run-tests.sh` passes all 106 targets. Generator drift,
+affected C++ formatting (changed range only in `mainscr_main.cpp`) and whitespace
+checks pass. Leak detection alone remains disabled because it is unsupported
+locally. Interactive saved-game/multiplayer and other-platform checks remain
+unperformed. These hooks do not change gameplay, saves, multiplayer authority,
+mods or deterministic RNG.
+
 ## Queries, identities and dating
 
 Enabled methods now include `game.listShips` and `game.getShip`; `ships` is also

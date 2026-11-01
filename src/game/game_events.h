@@ -22,6 +22,9 @@ namespace game_events {
         FLEET_BOX_INFO_CLEARED,
         FLEET_BOX_INFO_READY,
         SHIP_ICONS_REBUILD_BEGIN,
+        FLEET_BOX_VIEW_ENTERED,
+        FLEET_BOX_VIEW_INITIALIZED,
+        FLEET_BOX_VIEW_LEAVING,
     };
 
     // Native fleet-box presentation result, borrowed only during publication.
@@ -44,9 +47,16 @@ namespace game_events {
     void Publish(e_event event);
     void Publish_Fleet_Box_Info(const s_fleet_box_info* info);
 
+    // Main-view owner lifetime, not proof of an open box or a valid selection.
     struct s_fleet_box_view_scope {
         s_fleet_box_view_scope();
         ~s_fleet_box_view_scope();
+        s_fleet_box_view_scope(const s_fleet_box_view_scope&) = delete;
+        s_fleet_box_view_scope& operator=(const s_fleet_box_view_scope&) = delete;
+        void Initialized();
+
+      private:
+        bool initialized = false;
     };
 
     struct s_world_update_scope {

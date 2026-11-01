@@ -76,11 +76,19 @@ namespace game_events {
     }
 
     s_fleet_box_view_scope::s_fleet_box_view_scope() {
+        Publish(FLEET_BOX_VIEW_ENTERED);
         Publish(FLEET_BOX_INFO_CLEARED);
     }
 
     s_fleet_box_view_scope::~s_fleet_box_view_scope() {
+        Publish(FLEET_BOX_VIEW_LEAVING);
         Publish(FLEET_BOX_INFO_CLEARED);
+    }
+
+    void s_fleet_box_view_scope::Initialized() {
+        if (initialized) return;
+        initialized = true;
+        Publish(FLEET_BOX_VIEW_INITIALIZED);
     }
 
     s_world_update_scope::s_world_update_scope(bool new_world) : replacement(new_world) {

@@ -114,8 +114,59 @@ DOCTEST_TEST_CASE("fleet view scope clears observations on entry and every exit"
     DOCTEST_REQUIRE(token != 0);
     {
         game_events::s_fleet_box_view_scope scope;
-        DOCTEST_REQUIRE(events.size() == 1);
+        DOCTEST_REQUIRE(events.size() == 2);
     }
-    DOCTEST_CHECK(events == std::vector<game_events::e_event>{game_events::FLEET_BOX_INFO_CLEARED, game_events::FLEET_BOX_INFO_CLEARED});
+    DOCTEST_CHECK(events == std::vector<game_events::e_event>{game_events::FLEET_BOX_VIEW_ENTERED, game_events::FLEET_BOX_INFO_CLEARED, game_events::FLEET_BOX_VIEW_LEAVING, game_events::FLEET_BOX_INFO_CLEARED});
+    game_events::Unsubscribe(token);
+}
+
+DOCTEST_TEST_CASE("fleet view initialization is explicit and distinct from info replacement") {
+    std::vector<game_events::e_event> events;
+    const uint64_t token = game_events::Subscribe(Record, &events);
+    DOCTEST_REQUIRE(token != 0);
+    {
+        game_events::s_fleet_box_view_scope scope;
+        scope.Initialized();
+        scope.Initialized();
+        game_events::Publish(game_events::FLEET_BOX_INFO_CLEARED);
+        game_events::Publish(game_events::SHIP_ICONS_REBUILD_BEGIN);
+    }
+    DOCTEST_CHECK(events == std::vector<game_events::e_event>{game_events::FLEET_BOX_VIEW_ENTERED, game_events::FLEET_BOX_INFO_CLEARED, game_events::FLEET_BOX_VIEW_INITIALIZED, game_events::FLEET_BOX_INFO_CLEARED, game_events::SHIP_ICONS_REBUILD_BEGIN, game_events::FLEET_BOX_VIEW_LEAVING, game_events::FLEET_BOX_INFO_CLEARED});
+    game_events::Unsubscribe(token);
+}
+
+DOCTEST_TEST_CASE("fleet view scope pairs leaving across initialization failure and unwinding") {
+    std::vector<game_events::e_event> events;
+    const uint64_t token = game_events::Subscribe(Record, &events);
+    DOCTEST_REQUIRE(token != 0);
+    for (bool initialize : {false, true}) {
+        events.clear();
+        try {
+            game_events::s_fleet_box_view_scope scope;
+            if (initialize) scope.Initialized();
+            throw 1;
+        } catch (int) {
+        }
+        std::vector<game_events::e_event> expected = {game_events::FLEET_BOX_VIEW_ENTERED, game_events::FLEET_BOX_INFO_CLEARED};
+        if (initialize) expected.push_back(game_events::FLEET_BOX_VIEW_INITIALIZED);
+        expected.push_back(game_events::FLEET_BOX_VIEW_LEAVING);
+        expected.push_back(game_events::FLEET_BOX_INFO_CLEARED);
+        DOCTEST_CHECK(events == expected);
+    }
+    game_events::Unsubscribe(token);
+}
+
+DOCTEST_TEST_CASE("replacement fleet view starts uninitialized without restoring an earlier owner") {
+    std::vector<game_events::e_event> events;
+    const uint64_t token = game_events::Subscribe(Record, &events);
+    DOCTEST_REQUIRE(token != 0);
+    {
+        game_events::s_fleet_box_view_scope first;
+        first.Initialized();
+        events.clear();
+        { game_events::s_fleet_box_view_scope replacement; }
+        DOCTEST_CHECK(events == std::vector<game_events::e_event>{game_events::FLEET_BOX_VIEW_ENTERED, game_events::FLEET_BOX_INFO_CLEARED, game_events::FLEET_BOX_VIEW_LEAVING, game_events::FLEET_BOX_INFO_CLEARED});
+    }
+    DOCTEST_CHECK(events == std::vector<game_events::e_event>{game_events::FLEET_BOX_VIEW_ENTERED, game_events::FLEET_BOX_INFO_CLEARED, game_events::FLEET_BOX_VIEW_LEAVING, game_events::FLEET_BOX_INFO_CLEARED, game_events::FLEET_BOX_VIEW_LEAVING, game_events::FLEET_BOX_INFO_CLEARED});
     game_events::Unsubscribe(token);
 }

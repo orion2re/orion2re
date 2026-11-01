@@ -394,6 +394,7 @@ namespace MAINSCR {
             }
         }
 
+        fleet_box_view.Initialized();
         while (exit_flag == 0 && MOX::global_esc == 0 &&
             !CONFIG_REFRESH::Resource_Reload_Pending()) {
             if (MOX::game_type == 2 || MOX::game_type == 3) {

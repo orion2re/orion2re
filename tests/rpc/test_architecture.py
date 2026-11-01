@@ -83,5 +83,20 @@ class SidecarArchitectureTests(unittest.TestCase):
         self.assertNotRegex(adapter, r"(?:Build_Global_Colony_List|Sum_Colonists|Draw_Colony_Scan_Info|Planet_Max_Population_For_Player|Colony_Producing_Product_Cost)\s*\(")
         self.assertNotRegex(adapter, r"(?:Troop_Popup|Print_Scanned_Military|Colony_Infantry_Limit|Colony_Tank_Limit|Colony_Ground_Strength)\s*\(")
 
+    def test_fleet_view_initialization_follows_setup_and_precedes_the_input_loop(self):
+        native = (ROOT / "src/game/mainscr_main.cpp").read_text()
+        start = native.index("void __cdecl Main_Screen()")
+        loop = native.index("while (exit_flag == 0", start)
+        setup = native[start:loop]
+        self.assertEqual(native.count("fleet_box_view.Initialized();"), 1)
+        entered = setup.index("game_events::s_fleet_box_view_scope fleet_box_view;")
+        initialized = setup.index("fleet_box_view.Initialized();")
+        for marker in ("SHIPS::Build_Ship_Icons();", "FLEETPOP::Reload_Ship_Selection_Status();",
+                       "MAINSCR::Add_Map_Fields();", "MAINSCR::Change_Home_Star_Name();",
+                       "MAINSCR::Warn_About_Cheating_Players();"):
+            self.assertLess(entered, setup.index(marker))
+            self.assertLess(setup.index(marker), initialized)
+        self.assertLess(loop, native.index("game_events::MAP_OBSERVATION_POINT", loop))
+
 if __name__ == "__main__":
     unittest.main()
