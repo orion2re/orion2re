@@ -83,6 +83,7 @@ namespace rpc {
         std::string destination_id;
         e_ship_knowledge eta_available = SHIP_UNAUDITED;
         int32_t eta = 0;
+        int32_t slot = -1; // Private same-capture leader binding, discarded before retention.
     };
 
     struct s_player_hud {
@@ -145,6 +146,39 @@ namespace rpc {
         std::vector<s_research_option> options;
     };
 
+    struct s_leader_skill {
+        std::string name;
+        std::string value;
+    };
+
+    struct s_leader_observation {
+        int32_t slot = -1; // Authorized native identity only; never serialized or used to order rows.
+        bool visible = false;
+        std::string disclosure;
+        std::string role;
+        std::string name;
+        std::string title;
+        std::string rank;
+        bool xp_available = false;
+        int32_t xp = 0;
+        std::vector<s_leader_skill> skills;
+        std::string status;
+        e_exploration_knowledge assignment_available = EXPLORATION_UNKNOWN;
+        std::string assignment_kind;
+        std::string assignment_name;
+        int32_t assignment_slot = -1; // Private same-capture system/ship binding.
+        std::string assignment_id;
+        e_exploration_knowledge eta_available = EXPLORATION_UNKNOWN;
+        int32_t eta = 0;
+        bool hire_cost_available = false;
+        int32_t hire_cost = 0;
+        int32_t upkeep = 0;
+        bool offer_turns_available = false;
+        int32_t offer_turns = 0;
+        bool benefits_available = false;
+        std::string benefits;
+    };
+
     struct s_map_observation {
         int32_t viewer = -1; // Private native identity, never encoded.
         int32_t turn = 0;
@@ -162,6 +196,8 @@ namespace rpc {
         bool exploration_sensitive = false;
         bool research_captured = false;
         s_research_observation research;
+        bool leaders_captured = false;
+        std::vector<s_leader_observation> leaders;
     };
 
     struct s_map_snapshot {
@@ -174,6 +210,7 @@ namespace rpc {
         std::vector<std::string> planet_ids;
         std::vector<std::string> technology_ids;
         std::vector<std::string> research_option_ids;
+        std::vector<std::string> leader_ids;
     };
 
     struct s_planet_handle {

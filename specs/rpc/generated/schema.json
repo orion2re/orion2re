@@ -957,6 +957,25 @@
       ],
       "x-rpc-policy": "contract"
     },
+    "CurrentLeaderAssignment": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/Current",
+          "x-rpc-policy": "contract"
+        },
+        "value": {
+          "$ref": "#/$defs/LeaderAssignmentValue",
+          "x-rpc-policy": "contract"
+        }
+      },
+      "required": [
+        "availability",
+        "value"
+      ],
+      "x-rpc-policy": "contract"
+    },
     "CurrentPlanetClimate": {
       "type": "object",
       "additionalProperties": false,
@@ -1989,33 +2008,166 @@
       "properties": {
         "id": {
           "$ref": "#/$defs/Id",
-          "x-rpc-policy": "disabled-leader"
+          "x-rpc-policy": "leaders-roster"
+        },
+        "disclosure": {
+          "$ref": "#/$defs/LeaderDisclosure",
+          "x-rpc-policy": "leaders-roster"
+        },
+        "role": {
+          "$ref": "#/$defs/LeaderRole",
+          "x-rpc-policy": "leaders-roster"
         },
         "name": {
-          "$ref": "#/$defs/KnownText",
-          "x-rpc-policy": "disabled-leader"
+          "$ref": "#/$defs/Text",
+          "x-rpc-policy": "leaders-roster"
+        },
+        "title": {
+          "$ref": "#/$defs/Text",
+          "x-rpc-policy": "leaders-roster"
+        },
+        "rank": {
+          "$ref": "#/$defs/Text",
+          "x-rpc-policy": "leaders-roster"
+        },
+        "experience": {
+          "$ref": "#/$defs/KnownCount",
+          "x-rpc-policy": "leaders-roster"
+        },
+        "abilities": {
+          "$ref": "#/$defs/LeaderAbilities",
+          "x-rpc-policy": "leader-abilities"
+        },
+        "status": {
+          "$ref": "#/$defs/LeaderStatus",
+          "x-rpc-policy": "leaders-roster"
         },
         "assignment": {
-          "$ref": "#/$defs/KnownId",
-          "x-rpc-policy": "disabled-leader"
+          "$ref": "#/$defs/LeaderAssignment",
+          "x-rpc-policy": "leader-assignment"
         },
         "hireCost": {
           "$ref": "#/$defs/KnownCredits",
-          "x-rpc-policy": "disabled-leader"
+          "x-rpc-policy": "leader-costs"
+        },
+        "upkeep": {
+          "$ref": "#/$defs/LeaderUpkeep",
+          "x-rpc-policy": "leader-costs"
         },
         "eta": {
+          "$ref": "#/$defs/LeaderTurns",
+          "x-rpc-policy": "leader-assignment"
+        },
+        "offerRemainingTurns": {
           "$ref": "#/$defs/KnownTurns",
-          "x-rpc-policy": "disabled-leader"
+          "x-rpc-policy": "leader-offer"
+        },
+        "offerBenefits": {
+          "$ref": "#/$defs/KnownText",
+          "x-rpc-policy": "leader-offer"
+        },
+        "description": {
+          "$ref": "#/$defs/KnownText",
+          "x-rpc-policy": "disabled-leader-description"
         }
       },
       "required": [
         "id",
+        "disclosure",
+        "role",
         "name",
+        "title",
+        "rank",
+        "experience",
+        "abilities",
+        "status",
         "assignment",
         "hireCost",
-        "eta"
+        "upkeep",
+        "eta",
+        "offerRemainingTurns",
+        "offerBenefits",
+        "description"
       ],
-      "x-rpc-policy": "disabled-leader"
+      "x-rpc-policy": "leaders-roster"
+    },
+    "LeaderAbilities": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/LeaderAbility"
+      },
+      "maxItems": 54
+    },
+    "LeaderAbility": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/Text",
+          "x-rpc-policy": "leader-abilities"
+        },
+        "displayValue": {
+          "$ref": "#/$defs/Text",
+          "x-rpc-policy": "leader-abilities"
+        }
+      },
+      "required": [
+        "name",
+        "displayValue"
+      ],
+      "x-rpc-policy": "leader-abilities"
+    },
+    "LeaderAssignment": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CurrentLeaderAssignment"
+        },
+        {
+          "$ref": "#/$defs/EmptyKnowledge"
+        },
+        {
+          "$ref": "#/$defs/Unavailable"
+        }
+      ]
+    },
+    "LeaderAssignmentKind": {
+      "type": "string",
+      "enum": [
+        "system",
+        "ship"
+      ]
+    },
+    "LeaderAssignmentValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/LeaderAssignmentKind",
+          "x-rpc-policy": "leader-assignment"
+        },
+        "name": {
+          "$ref": "#/$defs/Text",
+          "x-rpc-policy": "leader-assignment"
+        },
+        "target": {
+          "$ref": "#/$defs/KnownId",
+          "x-rpc-policy": "leader-assignment"
+        }
+      },
+      "required": [
+        "kind",
+        "name",
+        "target"
+      ],
+      "x-rpc-policy": "leader-assignment"
+    },
+    "LeaderDisclosure": {
+      "type": "string",
+      "enum": [
+        "owned",
+        "pending-offer",
+        "hiring-pool"
+      ]
     },
     "LeaderResult": {
       "type": "object",
@@ -2036,12 +2188,51 @@
       ],
       "x-rpc-policy": "contract"
     },
+    "LeaderRole": {
+      "type": "string",
+      "enum": [
+        "ship-officer",
+        "colony-leader"
+      ]
+    },
+    "LeaderStatus": {
+      "type": "string",
+      "enum": [
+        "unassigned",
+        "assigned",
+        "travelling",
+        "limbo",
+        "available-for-hire",
+        "unavailable"
+      ]
+    },
+    "LeaderTurns": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CurrentTurns"
+        },
+        {
+          "$ref": "#/$defs/EmptyKnowledge"
+        },
+        {
+          "$ref": "#/$defs/Unavailable"
+        }
+      ]
+    },
+    "LeaderUpkeep": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 32767,
+      "x-integerToken": true,
+      "x-unit": "bc-per-turn",
+      "description": "Signed net income per turn as displayed from native surplus_bc, not gross production."
+    },
     "Leaders": {
       "type": "array",
       "items": {
         "$ref": "#/$defs/Leader"
       },
-      "maxItems": 4096
+      "maxItems": 67
     },
     "LeadersResult": {
       "type": "object",
@@ -3798,7 +3989,8 @@
         "players",
         "colonies",
         "planets",
-        "research"
+        "research",
+        "leaders"
       ]
     },
     "StateTopics": {
@@ -3806,7 +3998,7 @@
       "items": {
         "$ref": "#/$defs/StateTopic"
       },
-      "maxItems": 8,
+      "maxItems": 9,
       "uniqueItems": true
     },
     "StreamGap": {
@@ -3892,7 +4084,7 @@
       "items": {
         "$ref": "#/$defs/StateTopic"
       },
-      "maxItems": 8,
+      "maxItems": 9,
       "minItems": 1,
       "uniqueItems": true
     },
@@ -7444,7 +7636,7 @@
       "role": "reader",
       "availability": "committed-game",
       "kind": "query",
-      "implemented": false,
+      "implemented": true,
       "requestType": "GetRequest",
       "resultType": "LeaderResult",
       "request": {
@@ -7684,7 +7876,7 @@
       "role": "reader",
       "availability": "committed-game",
       "kind": "query",
-      "implemented": false,
+      "implemented": true,
       "requestType": "ListRequest",
       "resultType": "LeadersResult",
       "request": {
@@ -9013,17 +9205,175 @@
         "T-03"
       ]
     },
-    "disabled-leader": {
-      "status": "disabled",
-      "predicate": "Only owned or actually offered/discovered leaders; no enumeration of generated/hidden hero slots.",
+    "leaders-roster": {
+      "status": "reviewed",
+      "predicate": "Bound local human perspective only. Shared Officer_Roster_Disclosure gates before copying: own nonnegative-status roster, distinguishing status 4 hiring pool from hired service, plus the actual pending officer_for_hire with matching owner/status -1. Never enumerate generated candidates, undiscovered marooned leaders or foreign records. Native ship/colony roles, bounded names/titles, computed localized rank; XP only for roster entries, not pending popup-only offers. Unclassified nonnegative native states are unavailable, not invented assignments. Capacity 67 includes leaders_no_limit. Publicly sort after projection; read handles are capture-scoped, not durable slot identities. Withdrawal/replacement revokes retained pages/output through existing perspective revocation. Transient rescue/ground-summary disclosures have no ambient roster grant.",
       "sources": [
         [
           "src/game/officer.cpp",
-          "Officers_Screen"
+          "Officer_Roster_Disclosure"
+        ],
+        [
+          "src/game/officer.cpp",
+          "Leader_Is_Displayed"
+        ],
+        [
+          "src/game/officer.cpp",
+          "Leader_Name"
+        ],
+        [
+          "src/game/officer.cpp",
+          "Owned_Officer_Level"
+        ],
+        [
+          "src/game/officer.cpp",
+          "Print_Officer_Data"
+        ],
+        [
+          "src/game/report.cpp",
+          "Has_Officer_For_Hire"
+        ],
+        [
+          "src/game/allocate.cpp",
+          "MAX_LEADERS"
+        ]
+      ],
+      "tests": [
+        "T-01",
+        "T-02",
+        "T-03",
+        "T-05",
+        "T-07"
+      ]
+    },
+    "leader-abilities": {
+      "status": "reviewed",
+      "predicate": "Only authorized roster/offer entries. Share native Officer_Displays_Skill and Copy_Officer_Skill_Value with Print_Officer_Data: role-specific skills first then general skills, retaining native order, localized names and formatted displayed values from Officer_Skill_Bonus. No raw masks, cost score, effectiveness inference or reinterpretation of value units. At most 54 native skill rows.",
+      "sources": [
+        [
+          "src/game/officer.cpp",
+          "Officer_Displays_Skill"
+        ],
+        [
+          "src/game/officer.cpp",
+          "Copy_Officer_Skill_Value"
+        ],
+        [
+          "src/game/officer.cpp",
+          "Print_Officer_Data"
+        ],
+        [
+          "src/game/officer.cpp",
+          "Officer_Skill_Bonus"
+        ]
+      ],
+      "tests": [
+        "T-01",
+        "T-02",
+        "T-03"
+      ]
+    },
+    "leader-assignment": {
+      "status": "reviewed",
+      "predicate": "Native status 0 unassigned and 2 limbo have known-empty assignment/ETA. Status 1 displays a ship name or system name; positive cached eta is travel turns, zero is known-empty travel ETA. Other states have unknown assignment/ETA. Never calculate transfer options or ETA. Link system/own ship only through the same capture; an authorized displayed assignment can have unknown target reference if the ship was not captured. No colony assignment. Context-derived ship handles inherit existing snapshot leases.",
+      "sources": [
+        [
+          "src/game/officer.cpp",
+          "Assign_Leader_To_Star"
+        ],
+        [
+          "src/game/officer.cpp",
+          "Assign_Leader_To_Ship"
+        ],
+        [
+          "src/game/officer.cpp",
+          "Print_Officer_Data"
+        ],
+        [
+          "src/game/officer.cpp",
+          "Print_ETA_On_Officer_Picture"
+        ],
+        [
+          "src/game/officer.cpp",
+          "Move_From_Limbo_To_Pool"
+        ]
+      ],
+      "tests": [
+        "T-01",
+        "T-02",
+        "T-05",
+        "T-07"
+      ]
+    },
+    "leader-costs": {
+      "status": "reviewed",
+      "predicate": "Native Calculate_Officer_Cost in whole BC only for actual pending offers and personal hiring pool, not hired leaders. Officer_Maintenance supplies displayed BC per turn for authorized hired/offer entries, including zero-maintenance skills and Loknar. Reuse native read-only cost functions, never Officer_Skill_Value recalculation or hiring operations.",
+      "sources": [
+        [
+          "src/game/officer.cpp",
+          "Calculate_Officer_Cost"
+        ],
+        [
+          "src/game/officer.cpp",
+          "Officer_Maintenance"
+        ],
+        [
+          "src/game/officer.cpp",
+          "Get_Officer_Costs"
         ],
         [
           "src/game/mainpups.cpp",
-          "Random_New_Officer_Popup"
+          "Draw_Random_New_Officer_Popup"
+        ]
+      ],
+      "tests": [
+        "T-01",
+        "T-02",
+        "T-03"
+      ]
+    },
+    "leader-offer": {
+      "status": "reviewed",
+      "predicate": "Status 4 personal hiring-pool remaining availability is 30 minus native eta, as displayed; not an arrival ETA. Pending offers have no audited expiry. Native Leader_Technology_String prose is available only for actual offers/pool entries and initialized persistent language tables, not a grant of hidden research references or predicted outcomes. Do not generate offers or consume reports. Decline retains a pool entry; expiry/dismissal/death/removal/replacement revoke old authorization.",
+      "sources": [
+        [
+          "src/game/officer.cpp",
+          "Decrement_Officer_ETA"
+        ],
+        [
+          "src/game/officer.cpp",
+          "Set_Officer_To_Player"
+        ],
+        [
+          "src/game/officer.cpp",
+          "Print_Officer_Data"
+        ],
+        [
+          "src/game/mainpups.cpp",
+          "Leader_Technology_String"
+        ],
+        [
+          "src/game/report.cpp",
+          "Has_Officer_For_Hire"
+        ]
+      ],
+      "tests": [
+        "T-01",
+        "T-02",
+        "T-05"
+      ]
+    },
+    "disabled-leader-description": {
+      "status": "disabled",
+      "predicate": "Help descriptions are screen_seg-owned and unavailable to ambient reads; never borrow stale pointers or invoke the screen loader/renderers.",
+      "sources": [
+        [
+          "src/game/officer.cpp",
+          "Load_Officer_Skill_Name_Descriptions"
+        ],
+        [
+          "src/game/officer.cpp",
+          "Print_Officer_Skill_Help"
         ]
       ],
       "tests": [
@@ -9376,7 +9726,7 @@
     "orderedEventsPerSubscription": 4096,
     "overflow": "Reject before admission; coalesce only complete unsent state. Ordered-event overflow signals a gap or disconnect. Never rewrite partial output or silently discard operation results."
   },
-  "x-rpc-sourceHash": "27101eb603c6020b78b977d6895b460f424812a961be547faa3b24dfbe6ce524",
+  "x-rpc-sourceHash": "df607a089f54a3b8896790d52d3822920454daf60aba0bb8446d3f53db0e0c68",
   "x-rpc-runtimeEnabled": false,
   "x-rpc-implementedMethods": [
     "rpc.hello",
@@ -9398,6 +9748,8 @@
     "game.getPlanet",
     "game.getResearch",
     "game.listResearchOptions",
-    "game.getTechnology"
+    "game.getTechnology",
+    "game.listLeaders",
+    "game.getLeader"
   ]
 }

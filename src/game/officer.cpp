@@ -49,8 +49,8 @@ namespace OFFICER {
         }
 
         bool Leader_Is_Displayed(const s_leader_data& leader) {
-            return leader.player_index == MOX::PLAYER_NUM &&
-                leader.status >= 0 &&
+            const auto disclosure = Officer_Roster_Disclosure(MOX::PLAYER_NUM, static_cast<int16_t>(&leader - MOX::leaders));
+            return (disclosure == ROSTER_OWNED || disclosure == ROSTER_HIRING_POOL) &&
                 leader.type == (Is_Fleet_Officer_Screen() ? LEADER_TYPE_SHIP : LEADER_TYPE_COLONY);
         }
 
@@ -98,6 +98,32 @@ namespace OFFICER {
             MOX::draw_officer_to_back = 1;
         }
     } // namespace
+
+    e_roster_disclosure Officer_Roster_Disclosure(int16_t player_idx, int16_t leader_idx) {
+        if (MOX::leaders == nullptr || player_idx < 0 || player_idx >= MOX::NUM_PLAYERS ||
+            player_idx >= MAX_PLAYERS || leader_idx < 0 || leader_idx >= MAX_LEADERS) return ROSTER_HIDDEN;
+        const auto& leader = MOX::leaders[leader_idx];
+        if (leader.player_index != player_idx) return ROSTER_HIDDEN;
+        if (leader.status == 4) return ROSTER_HIRING_POOL;
+        if (leader.status >= 0) return ROSTER_OWNED;
+        if (leader.status == -1 && MOX::player != nullptr && MOX::player[player_idx].officer_for_hire == leader_idx)
+            return ROSTER_PENDING_OFFER;
+        return ROSTER_HIDDEN;
+    }
+
+    bool Officer_Displays_Skill(int16_t leader_idx, int16_t skill_idx, bool general) {
+        const auto& leader = MOX::leaders[leader_idx];
+        const auto& skill = MOX::skill_data[skill_idx];
+        if (general) return skill.skill_type == 0 && Officer_Has_General_Skill(MOX::PLAYER_NUM, leader_idx, skill_idx);
+        const int16_t type = leader.type == LEADER_TYPE_SHIP ? 1 : (leader.type == LEADER_TYPE_COLONY ? 2 : -1);
+        return skill.skill_type == type && Officer_Has_Special_Skill(MOX::PLAYER_NUM, leader_idx, skill_idx);
+    }
+
+    bool Copy_Officer_Skill_Value(int16_t skill_idx, int16_t bonus, char* output, uint32_t size) {
+        if (output == nullptr || size == 0 || skill_idx < 0 || skill_idx >= 54) return false;
+        const int count = snprintf(output, size, MOX::skill_data[skill_idx].format_str, static_cast<int>(bonus));
+        return count >= 0 && static_cast<uint32_t>(count) < size;
+    }
 
     int16_t __cdecl Get_Officer_Level(int16_t leader_idx) {
         int16_t current_xp = MOX::leaders[leader_idx].xp;
@@ -3896,19 +3922,7 @@ namespace OFFICER {
         const int16_t skill_column_x = static_cast<int16_t>(text_x + 2);
 
         for (int16_t skill_idx = 0; skill_idx < 0x36; ++skill_idx) {
-            bool has_skill = false;
-
-            if (officer_type == LEADER_TYPE_SHIP) {
-                if (MOX::skill_data[skill_idx].skill_type == 1 &&
-                    OFFICER::Officer_Has_Special_Skill(MOX::PLAYER_NUM, officer_id, skill_idx)) {
-                    has_skill = true;
-                }
-            } else if (officer_type == LEADER_TYPE_COLONY) {
-                if (MOX::skill_data[skill_idx].skill_type == 2 &&
-                    OFFICER::Officer_Has_Special_Skill(MOX::PLAYER_NUM, officer_id, skill_idx)) {
-                    has_skill = true;
-                }
-            }
+            const bool has_skill = Officer_Displays_Skill(officer_id, skill_idx, false);
 
             if (has_skill) {
                 OFFICER::Draw_Officer_Skill_Icon(skill_column_x, current_y, skill_idx / 2);
@@ -3921,11 +3935,7 @@ namespace OFFICER {
                 const int16_t bonus =
                     static_cast<int16_t>(OFFICER::Officer_Skill_Bonus(MOX::PLAYER_NUM, officer_id, skill_idx));
 
-                snprintf(
-                    text_buffer,
-                    sizeof(text_buffer),
-                    MOX::skill_data[skill_idx].format_str,
-                    static_cast<int32_t>(bonus));
+                Copy_Officer_Skill_Value(skill_idx, bonus, text_buffer, sizeof(text_buffer));
 
                 const int16_t value_x =
                     (MOX::current_screen == SCREEN_OFFICERS)
@@ -3939,12 +3949,7 @@ namespace OFFICER {
         }
 
         for (int16_t skill_idx = 0; skill_idx < 0x36; ++skill_idx) {
-            bool has_skill = false;
-
-            if (MOX::skill_data[skill_idx].skill_type == 0 &&
-                OFFICER::Officer_Has_General_Skill(MOX::PLAYER_NUM, officer_id, skill_idx)) {
-                has_skill = true;
-            }
+            const bool has_skill = Officer_Displays_Skill(officer_id, skill_idx, true);
 
             if (has_skill) {
                 OFFICER::Draw_Officer_Skill_Icon(skill_column_x, current_y, skill_idx / 2);
@@ -3957,11 +3962,7 @@ namespace OFFICER {
                 const int16_t bonus =
                     static_cast<int16_t>(OFFICER::Officer_Skill_Bonus(MOX::PLAYER_NUM, officer_id, skill_idx));
 
-                snprintf(
-                    text_buffer,
-                    sizeof(text_buffer),
-                    MOX::skill_data[skill_idx].format_str,
-                    static_cast<int32_t>(bonus));
+                Copy_Officer_Skill_Value(skill_idx, bonus, text_buffer, sizeof(text_buffer));
 
                 const int16_t value_x =
                     (MOX::current_screen == SCREEN_OFFICERS)

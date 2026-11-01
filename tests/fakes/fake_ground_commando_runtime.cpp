@@ -47,6 +47,7 @@ namespace test_ground_commando_runtime {
             officer_ids[i] = -1;
         }
         MOX::PLAYER_NUM = 0;
+        MOX::NUM_PLAYERS = 2;
         MOX::officer_scrn_type = LEADER_TYPE_SHIP;
         MOX::n_fltscrn_officers = 0;
         OFFICER::leaders_no_limit = 0;
@@ -127,6 +128,7 @@ namespace MOX {
     s_settings settings = {};
     int16_t NUM_COLONIES = 1;
     int16_t PLAYER_NUM = 0;
+    int16_t NUM_PLAYERS = 2;
     int16_t n_fltscrn_officers = 0;
     int16_t* officer_id_list = officer_ids;
     int8_t officer_scrn_type = LEADER_TYPE_SHIP;

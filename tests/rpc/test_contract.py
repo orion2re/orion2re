@@ -286,6 +286,28 @@ class TypedContractTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 audit.Validate_Value({"include":[topic]}, "StateRequest", self.contracts)
 
+    def test_leader_contract_has_useful_details_explicit_knowledge_and_native_bounds(self):
+        for method in ("game.listLeaders", "game.getLeader"):
+            self.assertIn(method, self.registry["implementedMethods"])
+        topics = self.contracts["types"]["StateTopic"]["values"]
+        self.assertEqual(len(topics), 9)
+        audit.Validate_Value({"topics":topics, "events":["state.changed"]}, "SubscribeRequest", self.contracts)
+        leader = self.Sample("Leader")
+        leader["description"] = {"availability":"unaudited"}
+        for disclosure in ("owned", "pending-offer", "hiring-pool"):
+            leader["disclosure"] = disclosure
+            audit.Validate_Value(leader, "Leader", self.contracts, self.policies, public=True)
+        for availability in ("unknown", "known-empty"):
+            audit.Validate_Value({"availability":availability}, "LeaderAssignment", self.contracts)
+            with self.assertRaises(ValueError):
+                audit.Validate_Value({"availability":availability,"value":"hidden"}, "LeaderAssignment", self.contracts)
+        audit.Validate_Value([leader] * 67, "Leaders", self.contracts)
+        with self.assertRaises(ValueError):
+            audit.Validate_Value([leader] * 68, "Leaders", self.contracts)
+        leader["description"] = {"availability":"current","value":"not authorized"}
+        with self.assertRaisesRegex(ValueError, "disabled field"):
+            audit.Validate_Value(leader, "Leader", self.contracts, self.policies, public=True)
+
     def test_research_contract_preserves_native_modes_bounds_and_unaudited_fields(self):
         for mode in ("no-selection", "researching", "hyper", "completed"):
             research = self.Sample("Research")

@@ -120,6 +120,48 @@ namespace {
         return map;
     }
 
+    rpc::s_map_observation Leaders() {
+        auto map = Exploration();
+        map.research_captured = true;
+        map.leaders_captured = true;
+        map.ships[0].slot = 9999;
+        rpc::s_leader_observation own;
+        own.slot = 66;
+        own.visible = true;
+        own.disclosure = "owned";
+        own.name = "Captain";
+        own.role = "ship-officer";
+        own.rank = "Commander";
+        own.xp_available = true;
+        own.xp = 150;
+        own.skills = {{"Navigator", "+2"}};
+        own.status = "travelling";
+        own.assignment_available = rpc::EXPLORATION_CURRENT;
+        own.assignment_kind = "ship";
+        own.assignment_name = "Own";
+        own.assignment_slot = 9999;
+        own.eta_available = rpc::EXPLORATION_CURRENT;
+        own.eta = 3;
+        own.upkeep = 1;
+        auto pool = own;
+        pool.slot = 5;
+        pool.name = "Administrator";
+        pool.disclosure = "hiring-pool";
+        pool.role = "colony-leader";
+        pool.status = "available-for-hire";
+        pool.assignment_available = pool.eta_available = rpc::EXPLORATION_UNKNOWN;
+        pool.hire_cost_available = pool.offer_turns_available = true;
+        pool.hire_cost = 75;
+        pool.offer_turns = 30;
+        auto hidden = own;
+        hidden.visible = false;
+        hidden.slot = -999;
+        hidden.name = "hidden leader";
+        hidden.upkeep = -99999;
+        map.leaders = {own, hidden, pool};
+        return map;
+    }
+
     std::string Dispatch(s_fixture* fixture, uint64_t client, uint64_t epoch, const rpc::s_request* request) {
         DOCTEST_REQUIRE(rpc::Submit_Work(&fixture->bridge, client, epoch, request, UINT64_MAX) == 0);
         rpc::Pump_Game_Queries(&fixture->store);
@@ -143,6 +185,119 @@ namespace {
         return result;
     }
 } // namespace
+
+DOCTEST_TEST_CASE("leader list details linked assignments and subscription baseline share one capture") {
+    s_fixture fixture;
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&fixture.store));
+    auto map = Leaders();
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    const auto& snapshot = fixture.store.snapshots.back();
+    DOCTEST_REQUIRE(snapshot.map.leaders.size() == 2);
+    const auto own = std::find_if(snapshot.map.leaders.begin(), snapshot.map.leaders.end(), [](const auto& item) { return item.disclosure == "owned"; });
+    DOCTEST_REQUIRE(own != snapshot.map.leaders.end());
+    DOCTEST_CHECK(own->assignment_id == snapshot.ship_ids[0]);
+    DOCTEST_CHECK(snapshot.map.ships[0].slot == -1);
+    const auto id = snapshot.leader_ids[(size_t)(own - snapshot.map.leaders.begin())];
+    auto get = Request("game.getLeader");
+    get.params_json = "{\"id\":" + rpc::Json_String(id) + "}";
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &get).find("Navigator") != std::string::npos);
+    auto state = Request("game.getState", "{\"include\":[\"session\",\"leaders\",\"systems\",\"players\",\"colonies\",\"ships\",\"research\",\"planets\",\"nebulas\"]}");
+    const auto baseline = rpc::Game_Query(&fixture.store, &state);
+    auto list = Request("game.listLeaders");
+    DOCTEST_CHECK(Result_Field(rpc::Game_Query(&fixture.store, &list), "items") == Result_Field(baseline, "leaders"));
+    list.params_json = "{\"limit\":1}";
+    const auto first = rpc::Game_Query(&fixture.store, &list);
+    const auto cursor = fixture.store.cursors.back().id;
+    uint64_t epoch;
+    DOCTEST_REQUIRE(rpc::Register_Client(&fixture.bridge, 1, &epoch));
+    auto subscribe = Request("rpc.subscribe", "{\"topics\":[\"session\",\"leaders\",\"systems\",\"players\",\"colonies\",\"ships\",\"research\",\"planets\",\"nebulas\"],\"events\":[\"state.changed\"]}");
+    DOCTEST_CHECK(Result_Field(Dispatch(&fixture, 1, epoch, &subscribe), "baseline") == Result_Field(baseline));
+    map.leaders[1].skills.assign(100, {"hidden", "invalid"});
+    map.leaders[1].slot = 99999;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &state) == baseline);
+    rpc::Pump_Game_Queries(&fixture.store);
+    rpc::s_publication event;
+    DOCTEST_CHECK_FALSE(rpc::Take_Publication(&fixture.bridge, &event));
+    map.leaders[0].eta = 2;
+    ++map.ships[0].x;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    rpc::Pump_Game_Queries(&fixture.store);
+    DOCTEST_REQUIRE(rpc::Take_Publication(&fixture.bridge, &event));
+    DOCTEST_CHECK(event.json.find("state.changed") != std::string::npos);
+    list.params_json = "{\"cursor\":" + rpc::Json_String(cursor) + "}";
+    DOCTEST_CHECK(Result_Field(rpc::Game_Query(&fixture.store, &list), "stamp") == Result_Field(first, "stamp"));
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &get).find("-32004") != std::string::npos);
+    map.leaders[2].visible = false; // Expiry: revoke even pinned old output, not just current lookup.
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &list).find("-32004") != std::string::npos);
+    DOCTEST_CHECK_FALSE(rpc::Client_Is_Current(&fixture.bridge, 1, epoch));
+    DOCTEST_CHECK(fixture.store.subscriptions.empty());
+    map.leaders[2].visible = true;
+    map.leaders[2].name = "Replacement";
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &get).find("-32004") != std::string::npos);
+}
+
+DOCTEST_TEST_CASE("leader availability bounds and snapshot selection never splice newer assignments into ships") {
+    s_fixture fixture;
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&fixture.store));
+    auto map = Ships();
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    auto list = Request("game.listLeaders");
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &list).find("-32002") != std::string::npos);
+    map = Leaders();
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    auto state = Request("game.getState", "{\"include\":[\"session\",\"leaders\",\"ships\"]}");
+    const auto before = rpc::Game_Query(&fixture.store, &state);
+    map.ships_captured = false;
+    map.leaders[0].eta = 1;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &state) == before);
+    const auto& own = fixture.store.snapshots.back().map.leaders.back();
+    DOCTEST_CHECK(own.assignment_id.empty());
+    map.leaders.clear();
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    DOCTEST_CHECK(Result_Field(rpc::Game_Query(&fixture.store, &list), "items") == "[]");
+    map = Leaders();
+    const auto leader = map.leaders[0];
+    map.leaders.assign(67, leader);
+    for (int slot = 0; slot < 67; ++slot) map.leaders[(size_t)slot].slot = slot;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    DOCTEST_CHECK(fixture.store.snapshots.back().leader_ids.size() == 67);
+    map.leaders.push_back(leader);
+    DOCTEST_CHECK_FALSE(rpc::Capture_Map(&fixture.store, &map));
+    rpc::Begin_Game_Reset(&fixture.store);
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&fixture.store));
+    map.leaders.clear();
+    map.viewer = 1;
+    map.players = Players().players;
+    for (auto& player : map.players) {
+        if (player.slot == 0) player.slot = 1;
+    }
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    DOCTEST_CHECK(Result_Field(rpc::Game_Query(&fixture.store, &list), "items") == "[]");
+}
+
+DOCTEST_TEST_CASE("leader-only reads and pages inherit the lease of same-capture contextual ship references") {
+    s_fixture fixture;
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&fixture.store));
+    auto map = Leaders();
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    auto list = Request("game.listLeaders", "{\"limit\":1}");
+    const auto ambient = rpc::Game_Query(&fixture.store, &list);
+    map.context_epoch = rpc::Bridge_Context_Epoch(&fixture.bridge);
+    map.leaders[0].eta = 2;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    uint64_t context = 0;
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &list, &context) != ambient);
+    DOCTEST_CHECK(context == map.context_epoch);
+    const auto cursor = fixture.store.cursors.back().id;
+    rpc::Revoke_Game_Context(&fixture.store);
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &list) == ambient);
+    list.params_json = "{\"cursor\":" + rpc::Json_String(cursor) + "}";
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &list).find("-32004") != std::string::npos);
+}
 
 DOCTEST_TEST_CASE("research reads share atomic baselines and paginate immutable options with bounded authorized lookups") {
     s_fixture fixture;

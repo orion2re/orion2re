@@ -171,7 +171,79 @@ class TransportTests(unittest.TestCase):
         described = client.Read()
         self.assertEqual(described["id"], "d")
         self.assertEqual({item["name"] for item in described["result"]["methods"]},
-                         {"rpc.hello","rpc.describe","rpc.subscribe","rpc.unsubscribe","game.getSession","game.getState","game.listSystems","game.getSystem","game.listNebulas","game.listShips","game.getShip","game.listPlayers","game.getPlayer","game.listColonies","game.getColony","game.listPlanets","game.getPlanet","game.getResearch","game.listResearchOptions","game.getTechnology"})
+                         {"rpc.hello","rpc.describe","rpc.subscribe","rpc.unsubscribe","game.getSession","game.getState","game.listSystems","game.getSystem","game.listNebulas","game.listShips","game.getShip","game.listPlayers","game.getPlayer","game.listColonies","game.getColony","game.listPlanets","game.getPlanet","game.getResearch","game.listResearchOptions","game.getTechnology","game.listLeaders","game.getLeader"})
+
+    def test_leader_client_workflow_assignments_coherence_and_revocation(self):
+        self.Fixture("world")
+        self.Fixture("ships")
+        self.Fixture("colonies")
+        self.Fixture("research")
+        client = self.Client()
+        self.assertIn("result", client.Hello())
+        described = self.Query(client, "rpc.describe")["result"]
+        self.assertTrue({"game.listLeaders", "game.getLeader"} <= {item["name"] for item in described["methods"]})
+        self.assertEqual(self.Query(client, "game.listLeaders")["error"]["code"], -32002)
+        self.Fixture("leaders")
+        first = self.Query(client, "game.listLeaders", {"limit":1})["result"]
+        roster = first["items"][:]
+        page = first
+        while "nextCursor" in page:
+            page = self.Query(client, "game.listLeaders", {"cursor":page["nextCursor"]})["result"]
+            self.assertEqual(page["stamp"], first["stamp"])
+            roster.extend(page["items"])
+        self.assertEqual(len(roster), 4)
+        self.assertEqual({leader["disclosure"] for leader in roster}, {"owned", "pending-offer", "hiring-pool"})
+        self.assertNotIn("hidden", json.dumps(roster))
+        for leader in roster:
+            detail = self.Query(client, "game.getLeader", {"id":leader["id"]})["result"]
+            self.assertEqual(detail["item"], leader)
+            self.assertEqual(detail["stamp"], first["stamp"])
+            self.assertTrue(leader["rank"])
+            self.assertEqual(leader["abilities"], [{"name":"Navigator", "displayValue":"+2"}])
+            if leader["assignment"]["availability"] == "current":
+                assignment = leader["assignment"]["value"]
+                method = {"system":"game.getSystem", "ship":"game.getShip"}[assignment["kind"]]
+                target = self.Query(client, method, {"id":assignment["target"]["value"]})["result"]
+                self.assertEqual(target["stamp"], first["stamp"])
+        topics = ["session", "leaders", "systems", "players", "colonies", "ships", "research"]
+        subscription = self.Query(client, "rpc.subscribe", {"topics":topics, "events":["state.changed"]})["result"]
+        state = self.Query(client, "game.getState", {"include":topics})["result"]
+        self.assertEqual(subscription["baseline"], state)
+        self.assertEqual(state["leaders"], roster)
+        self.Fixture("hidden")
+        self.assertEqual(self.Query(client, "game.getState", {"include":topics})["result"], state)
+        self.Fixture("leader-change")
+        event = client.Read()
+        self.assertEqual(event["method"], "state.changed")
+        current = self.Query(client, "game.getState", {"include":topics})["result"]
+        self.assertEqual(current["stamp"], event["params"]["stamp"])
+        captain = next(leader for leader in current["leaders"] if leader["name"] == "Captain")
+        self.assertEqual(captain["eta"], {"availability":"current", "value":2})
+        self.assertEqual(self.Query(client, "game.getLeader", {"id":captain["id"]})["result"]["item"], captain)
+        unavailable = self.Query(client, "game.getLeader", {"id":"unknown-leader"})["error"]
+        self.assertEqual(self.Query(client, "game.getLeader", {"id":roster[0]["id"]})["error"], unavailable)
+        self.assertEqual(self.Query(client, "game.listLeaders", {"cursor":first["nextCursor"]})["result"]["stamp"], first["stamp"])
+        withdrawn_id = next(leader["id"] for leader in current["leaders"] if leader["disclosure"] == "hiring-pool")
+        self.Fixture("leader-withdraw")
+        with self.assertRaises((EOFError, ConnectionError)):
+            client.Read()
+        client = self.Client()
+        self.assertIn("result", client.Hello())
+        self.assertEqual(self.Query(client, "game.getLeader", {"id":withdrawn_id})["error"], unavailable)
+        self.assertEqual(self.Query(client, "game.listLeaders", {"cursor":first["nextCursor"]})["error"], unavailable)
+        self.Fixture("leader-replace")
+        replacement = self.Query(client, "game.listLeaders")["result"]
+        self.assertTrue(any(leader["name"] == "Replacement candidate" for leader in replacement["items"]))
+        self.assertEqual(self.Query(client, "game.getLeader", {"id":withdrawn_id})["error"], unavailable)
+        for boundary in ("world", "switch"):
+            old = self.Query(client, "game.listLeaders")["result"]["items"][0]["id"]
+            self.Fixture(boundary)
+            with self.assertRaises((EOFError, ConnectionError)):
+                client.Read()
+            client = self.Client()
+            self.assertIn("result", client.Hello())
+            self.assertEqual(self.Query(client, "game.getLeader", {"id":old})["error"], unavailable, boundary)
+        self.assertEqual(self.Query(client, "game.listLeaders")["result"]["items"], [])
 
     def test_own_research_client_workflow_and_revocation(self):
         self.Fixture("world")

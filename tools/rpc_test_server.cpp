@@ -74,12 +74,21 @@ int main() {
                 rpc::Revoke_Game_View(&store);
                 map.viewer = 1 - map.viewer;
                 map.research = {};
+                map.leaders.clear();
+                map.colonies.clear();
                 rpc::Capture_Map(&store, &map);
             } else if (command == "busy")
                 rpc::Pause_Game_Queries(&store);
             else if (command == "resume")
                 rpc::Resume_Game_Queries(&store);
             else if (command == "hidden") {
+                for (auto& leader : map.leaders) {
+                    if (!leader.visible) {
+                        leader.name = "changed hidden leader";
+                        leader.slot = -99999;
+                        leader.skills.assign(100, {"hidden", "invalid"});
+                    }
+                }
                 map.systems[1].name = "changed hidden world";
                 if (!map.ships.empty()) map.ships.back().name = "changed hidden ship name";
                 if (map.ships.size() >= 3) {
@@ -100,6 +109,68 @@ int main() {
                     map.colonies.back().population = -99999;
                     map.colonies.back().infantry = -99999;
                     map.colonies.back().armor = 99999;
+                }
+                rpc::Capture_Map(&store, &map);
+            } else if (command == "leaders") {
+                map.leaders_captured = true;
+                rpc::s_leader_observation own;
+                own.slot = 66;
+                own.visible = true;
+                own.disclosure = "owned";
+                own.role = "ship-officer";
+                own.name = "Captain";
+                own.rank = "Commander";
+                own.xp_available = true;
+                own.xp = 150;
+                own.skills = {{"Navigator", "+2"}};
+                own.status = "travelling";
+                own.assignment_available = own.eta_available = rpc::EXPLORATION_CURRENT;
+                own.assignment_kind = "ship";
+                own.assignment_name = "Own ship";
+                own.assignment_slot = 9999;
+                own.eta = 3;
+                own.upkeep = 1;
+                if (!map.ships.empty()) map.ships[0].slot = 9999;
+                auto colony = own;
+                colony.slot = 1;
+                colony.role = "colony-leader";
+                colony.name = "Administrator";
+                colony.status = "assigned";
+                colony.assignment_kind = "system";
+                colony.assignment_name = "Home";
+                colony.assignment_slot = 0;
+                colony.eta_available = rpc::EXPLORATION_EMPTY;
+                auto pending = own;
+                pending.slot = 2;
+                pending.name = "Pending candidate";
+                pending.disclosure = "pending-offer";
+                pending.status = "available-for-hire";
+                pending.xp_available = false;
+                pending.assignment_available = pending.eta_available = rpc::EXPLORATION_UNKNOWN;
+                pending.hire_cost_available = true;
+                pending.hire_cost = 75;
+                auto pool = pending;
+                pool.slot = 3;
+                pool.name = "Pool candidate";
+                pool.disclosure = "hiring-pool";
+                pool.offer_turns_available = true;
+                pool.offer_turns = 1;
+                auto hidden_leader = pending;
+                hidden_leader.visible = false;
+                hidden_leader.name = "hidden leader";
+                map.leaders = {own, colony, pending, pool, hidden_leader};
+                rpc::Capture_Map(&store, &map);
+            } else if (command == "leader-change") {
+                if (!map.leaders.empty()) map.leaders[0].eta = 2;
+                if (!map.ships.empty()) ++map.ships[0].x;
+                rpc::Capture_Map(&store, &map);
+            } else if (command == "leader-withdraw") {
+                if (map.leaders.size() > 3) map.leaders[3].visible = false;
+                rpc::Capture_Map(&store, &map);
+            } else if (command == "leader-replace") {
+                if (map.leaders.size() > 3) {
+                    map.leaders[3].visible = true;
+                    map.leaders[3].name = "Replacement candidate";
                 }
                 rpc::Capture_Map(&store, &map);
             } else if (command == "research") {

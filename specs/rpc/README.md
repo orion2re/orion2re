@@ -161,6 +161,41 @@ synthetic live client flow is exercised by
 `tests/rpc/test_transport.py::test_own_research_client_workflow_and_revocation`;
 native-function fixtures live in `tests/unit/game_rpc_native_test.cpp`.
 
+## Leader reads
+
+`game.listLeaders` and `game.getLeader` expose the bound player's ambient roster:
+hired leaders, actual pending offers, and the personal hiring pool retained after
+declining an offer. Generated candidates and undiscovered marooned leaders are
+not roster entries. Roles, localized rank/name/title, roster XP and native
+displayed ability names/values are copied without opening a screen. Ability
+values are presentation text, not a new numeric scoring or effectiveness API.
+
+Assignments distinguish unassigned, limbo, assigned and travelling leaders.
+Colony leaders are assigned to **systems**, not colonies. A displayed assignment
+includes its native name; its target handle is current only when it resolves
+through the same capture's authorized system/own-ship projection. Otherwise the
+target is unknown, not known-empty. Unclassified native states report
+`unavailable` rather than an invented assignment. Positive arrival ETA is cached
+whole turns; no transfer calculation runs. Costs are displayed BC and upkeep is
+BC/turn. Only hiring-pool entries have an audited remaining-offer countdown;
+pending offers have no inferred expiry. Offer benefits use native popup prose.
+Screen-owned help descriptions remain explicitly unaudited.
+
+Include `leaders` with other state/subscription topics to establish one coherent
+baseline. A later leader-only capture never enriches an older ship capture.
+Pagination pins the original capture; `state.changed` means re-read, and changed
+leader projections expire old lookup handles. Offer withdrawal, dismissal/death
+or replacement revoke the existing view, including pinned pages and queued
+output, requiring fresh authentication and a new baseline. Reset/perspective
+changes also revoke handles. Missing initialized storage is unavailable, not an
+empty roster. The complete ambient client flow is exercised by
+`tests/rpc/test_transport.py::test_leader_client_workflow_assignments_coherence_and_revocation`.
+
+Q-12 is not complete: failed-rescue popups and ground-summary disclosures require
+concrete initialized-owner observations and field-limited lifetimes. They do not
+authorize ambient access to the corresponding live pool/foreign leader records;
+the shared leader-read helper approval alone does not enable those observations.
+
 ## Documentation ownership
 
 `plan.md` owns working rules, bounded milestones and TODOs. `planning_baseline.md`
@@ -203,6 +238,9 @@ interactive saved-game/multiplayer or other-platform parity.
 
 For research changes, also build and select `test_tech_selection`, `test_techinit`
 and `test_techdata` in both normal and sanitizer trees.
+
+For leader changes, also build and select `test_ground_commando`,
+`test_mainpups_leader_technology` and `test_report` in both trees.
 
 Documentation-only changes need contract/schema/audit tests, local link checks
 and whitespace checks, not the game-build/transport gate above.

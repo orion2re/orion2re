@@ -11,6 +11,7 @@
 #include "rpc/colony_rpc.h"
 #include "rpc/exploration_rpc.h"
 #include "rpc/tech_rpc.h"
+#include "rpc/officer_rpc.h"
 #include "lua/lua_game_ship_identity.h"
 
 #include <algorithm>
@@ -45,7 +46,7 @@ namespace game_rpc {
         observation->viewer = viewer;
         observation->turn = MOX::stardate;
         return exploration_rpc::Read_Exploration(observation) && players_rpc::Read_Players(observation) &&
-            colony_rpc::Read_Colonies(observation) && tech_rpc::Read_Research(observation);
+            colony_rpc::Read_Colonies(observation) && tech_rpc::Read_Research(observation) && officer_rpc::Read_Leaders(observation);
     }
 
     static rpc::s_bridge* Initialize() {
@@ -138,6 +139,7 @@ namespace game_rpc {
                     if (ship->x != first->x || ship->y != first->y || ship->owner != first->owner || ship->location != first->location) return false;
                 }
                 rpc::s_ship_observation item = route;
+                item.slot = slot;
                 // The map prints only the head ship's cached ETA, not every member's.
                 if (node != head && item.eta_available == rpc::SHIP_CURRENT) {
                     item.eta_available = rpc::SHIP_CONTEXT_REQUIRED;

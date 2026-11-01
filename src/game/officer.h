@@ -77,6 +77,17 @@ namespace OFFICER {
 
     int16_t __cdecl Get_Officer_Base_Level(int16_t xp, int8_t warlord);
 
+    enum e_roster_disclosure {
+        ROSTER_HIDDEN,
+        ROSTER_OWNED,
+        ROSTER_PENDING_OFFER,
+        ROSTER_HIRING_POOL,
+    };
+
+    e_roster_disclosure Officer_Roster_Disclosure(int16_t player_idx, int16_t leader_idx);
+    bool Officer_Displays_Skill(int16_t leader_idx, int16_t skill_idx, bool general);
+    bool Copy_Officer_Skill_Value(int16_t skill_idx, int16_t bonus, char* output, uint32_t size);
+
     int16_t __cdecl Get_Officer_Level(int16_t leader_idx);
 
     int16_t __cdecl Bonus_For_Famous_Heroes(int16_t player_idx);

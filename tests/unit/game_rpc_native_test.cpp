@@ -3,6 +3,7 @@
 #include "rpc/game_rpc.h"
 #include "rpc/rpc_game.h"
 #include "rpc/tech_rpc.h"
+#include "rpc/officer_rpc.h"
 #include "game/game_events.h"
 #include "lua/lua_game_ship_identity.h"
 #include "config/text_encoding.h"
@@ -200,6 +201,228 @@ namespace {
         }
     };
 } // namespace
+
+namespace {
+    struct s_leader_world {
+        s_research_world world;
+        s_leader_data* old_leaders = MOX::leaders;
+        std::vector<s_leader_data> leaders = std::vector<s_leader_data>(MAX_LEADERS);
+        std::vector<s_skill_data> skills = {std::begin(MOX::skill_data), std::end(MOX::skill_data)};
+        std::vector<char*> old_ship_ranks = {std::begin(MOX::officer_level_names), std::end(MOX::officer_level_names)};
+        std::vector<char*> old_star_ranks = {std::begin(MOX::star_officer_level_names), std::end(MOX::star_officer_level_names)};
+        std::vector<char*> old_strings = {std::begin(ESTRINGS::strings), std::end(ESTRINGS::strings)};
+        std::vector<char*> old_governments = {std::begin(MOX::government_labels), std::end(MOX::government_labels)};
+        OFFICER::s_leader_progression old_progression = OFFICER::progression;
+        uint8_t old_warlord = OFFICER::leader_warlord_bonus;
+        uint8_t old_no_limit = OFFICER::leaders_no_limit;
+        char name[32] = "Native ability\x82";
+        char ship_rank[32] = "Ship rank";
+        char star_rank[32] = "Star rank";
+        char format[3] = "%s";
+        char empty[1] = "";
+        char prefix[8] = "Tech: ";
+        s_leader_world() {
+            MOX::leaders = leaders.data();
+            for (auto& ship : world.ships.ships) ship.officer_index = -1;
+            for (auto& leader : leaders) {
+                leader.player_index = -1;
+                leader.status = -1;
+                leader.location = -1;
+                strlcpy(leader.name, "Leader\x82", sizeof(leader.name));
+            }
+            for (auto& skill : MOX::skill_data) skill.name = name;
+            for (auto& rank : MOX::officer_level_names) rank = ship_rank;
+            for (auto& rank : MOX::star_officer_level_names) rank = star_rank;
+            const uint16_t thresholds[] = {60, 150, 300, 500, 1000};
+            std::copy(std::begin(thresholds), std::end(thresholds), OFFICER::progression.experience_thresholds);
+            OFFICER::leader_warlord_bonus = 1;
+            OFFICER::progression.special_leaders.advanced_government_leader_id = 2;
+            ESTRINGS::strings[7] = ESTRINGS::strings[207] = format;
+            ESTRINGS::strings[12] = empty;
+            ESTRINGS::strings[208] = prefix;
+            for (auto& government : MOX::government_labels) government = star_rank;
+            world.ships.world.players[0].officer_for_hire = -1;
+            world.ships.world.players[1].officer_for_hire = -1;
+        }
+        ~s_leader_world() {
+            MOX::leaders = old_leaders;
+            std::copy(skills.begin(), skills.end(), MOX::skill_data);
+            std::copy(old_ship_ranks.begin(), old_ship_ranks.end(), MOX::officer_level_names);
+            std::copy(old_star_ranks.begin(), old_star_ranks.end(), MOX::star_officer_level_names);
+            std::copy(old_strings.begin(), old_strings.end(), ESTRINGS::strings);
+            std::copy(old_governments.begin(), old_governments.end(), MOX::government_labels);
+            OFFICER::progression = old_progression;
+            OFFICER::leader_warlord_bonus = old_warlord;
+            OFFICER::leaders_no_limit = old_no_limit;
+        }
+        void Own(int16_t id, uint8_t type, int8_t status) {
+            leaders[id].player_index = 0;
+            leaders[id].type = type;
+            leaders[id].status = status;
+            leaders[id].xp = 150;
+            leaders[id].skill_value = 5;
+        }
+    };
+} // namespace
+
+DOCTEST_TEST_CASE("leader projection uses native disclosure skill formatting and role semantics without UI or RNG") {
+    s_leader_world fixture;
+    fixture.Own(0, LEADER_TYPE_COLONY, 0);
+    fixture.Own(1, LEADER_TYPE_SHIP, 1);
+    fixture.Own(2, LEADER_TYPE_SHIP, -1);
+    fixture.Own(3, LEADER_TYPE_SHIP, 4);
+    fixture.Own(4, LEADER_TYPE_SHIP, 2);
+    fixture.Own(5, LEADER_TYPE_COLONY, 3);
+    fixture.Own(MAX_LEADERS - 1, LEADER_TYPE_SHIP, 0);
+    fixture.leaders[0].special_skills = 1;
+    fixture.leaders[0].general_skills = 0x100; // Fixed native displayed Megawealth value.
+    fixture.leaders[1].special_skills = 1;
+    fixture.leaders[1].general_skills = 1;
+    fixture.leaders[1].location = 0;
+    fixture.leaders[1].eta = 3;
+    fixture.leaders[3].eta = 29;
+    fixture.leaders[2].tech_application[0] = 1;
+    fixture.leaders[4].location = 30000; // Limbo is known-empty, not a live assignment.
+    fixture.leaders[4].eta = 120;
+    fixture.leaders[5].location = 30000;
+    fixture.world.ships.world.players[0].officer_for_hire = 2;
+    fixture.world.ships.world.players[0].traits[TRAIT_WARLORD] = 1;
+    const uint32_t seed = game_random::Get_Random_Seed();
+    const auto screen = MOX::current_screen;
+    const int16_t fields_before = fields::Get_Field_Counter();
+    rpc::s_map_observation map;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&map));
+    DOCTEST_REQUIRE(map.leaders_captured);
+    DOCTEST_REQUIRE(map.leaders.size() == 7);
+    DOCTEST_CHECK(map.leaders[0].role == "colony-leader");
+    DOCTEST_CHECK(map.leaders[0].rank == "Star rank");
+    DOCTEST_CHECK(map.leaders[0].skills[1].value == "+10BC");
+    DOCTEST_CHECK(map.leaders[0].skills[0].value == "-40%");
+    DOCTEST_CHECK(OFFICER::Owned_Officer_Level(0) == OFFICER::Get_Officer_Level(0) + 1);
+    char benefits[500];
+    MAINPUPS::Leader_Technology_String(0, 2, benefits, sizeof(benefits));
+    std::string decoded_benefits;
+    config::Decode_Cp850_To_Utf8(benefits, strlen(benefits), &decoded_benefits);
+    DOCTEST_CHECK(map.leaders[2].benefits_available);
+    DOCTEST_CHECK(map.leaders[2].benefits == decoded_benefits);
+    for (const auto& leader : map.leaders) {
+        DOCTEST_CHECK(OFFICER::Officer_Roster_Disclosure(0, (int16_t)leader.slot) != OFFICER::ROSTER_HIDDEN);
+        size_t index = 0;
+        for (bool general : {false, true}) {
+            for (int16_t skill = 0; skill < 54; ++skill) {
+                if (!OFFICER::Officer_Displays_Skill((int16_t)leader.slot, skill, general)) continue;
+                char value[80];
+                const int16_t bonus = (int16_t)OFFICER::Officer_Skill_Bonus(0, (int16_t)leader.slot, skill);
+                DOCTEST_REQUIRE(OFFICER::Copy_Officer_Skill_Value(skill, bonus, value, sizeof(value)));
+                DOCTEST_REQUIRE(index < leader.skills.size());
+                DOCTEST_CHECK(leader.skills[index++].value == value);
+            }
+        }
+        DOCTEST_CHECK(leader.hire_cost == (leader.hire_cost_available ? OFFICER::Calculate_Officer_Cost(0, (int16_t)leader.slot) : 0));
+        DOCTEST_CHECK(leader.upkeep == OFFICER::Officer_Maintenance(0, (int16_t)leader.slot));
+    }
+    DOCTEST_CHECK(map.leaders[1].status == "travelling");
+    DOCTEST_CHECK(map.leaders[1].assignment_kind == "ship");
+    DOCTEST_CHECK(map.leaders[1].eta == 3);
+    DOCTEST_CHECK(map.leaders[2].disclosure == "pending-offer");
+    DOCTEST_CHECK_FALSE(map.leaders[2].xp_available);
+    DOCTEST_CHECK(map.leaders[3].disclosure == "hiring-pool");
+    DOCTEST_CHECK(map.leaders[3].offer_turns == 1);
+    DOCTEST_CHECK(map.leaders[4].assignment_available == rpc::EXPLORATION_EMPTY);
+    DOCTEST_CHECK(map.leaders[5].status == "unavailable");
+    DOCTEST_CHECK(map.leaders[5].assignment_available == rpc::EXPLORATION_UNKNOWN);
+    fixture.name[0] = 'X';
+    DOCTEST_CHECK(map.leaders[0].skills[0].name.starts_with("Native"));
+    DOCTEST_CHECK(game_random::Get_Random_Seed() == seed);
+    DOCTEST_CHECK(MOX::current_screen == screen);
+    DOCTEST_CHECK(fields::Get_Field_Counter() == fields_before);
+    DOCTEST_CHECK(fixture.world.ships.world.players[0].officer_for_hire == 2);
+}
+
+DOCTEST_TEST_CASE("native leader offers expire without disclosing candidate pools and support every modded slot") {
+    s_leader_world fixture;
+    rpc::s_map_observation map;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&map));
+    DOCTEST_CHECK(map.leaders_captured);
+    DOCTEST_CHECK(map.leaders.empty());
+    for (int16_t id = 0; id < MAX_LEADERS; ++id) fixture.Own(id, LEADER_TYPE_SHIP, 4);
+    OFFICER::leaders_no_limit = 1;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&map));
+    DOCTEST_CHECK(map.leaders.size() == MAX_LEADERS);
+    fixture.leaders[0].eta = 29;
+    OFFICER::Decrement_Officer_ETA();
+    DOCTEST_CHECK(OFFICER::Officer_Roster_Disclosure(0, 0) == OFFICER::ROSTER_HIDDEN);
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&map));
+    DOCTEST_CHECK(map.leaders.size() == MAX_LEADERS - 1);
+    OFFICER::Kill_Officer(1);
+    DOCTEST_CHECK(OFFICER::Officer_Roster_Disclosure(0, 1) == OFFICER::ROSTER_HIDDEN);
+    OFFICER::Deassign_Officer(2);
+    DOCTEST_CHECK(OFFICER::Officer_Roster_Disclosure(0, 2) == OFFICER::ROSTER_HIDDEN);
+    OFFICER::Set_Officer_To_Player(2, 0, 0);
+    DOCTEST_CHECK(OFFICER::Officer_Roster_Disclosure(0, 2) == OFFICER::ROSTER_HIRING_POOL);
+    fixture.leaders[0].type = 255;
+    memset(fixture.leaders[0].name, 'X', sizeof(fixture.leaders[0].name));
+    fixture.leaders[0].special_skills = UINT32_MAX;
+    fixture.leaders[0].location = 32000;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&map));
+    DOCTEST_CHECK(map.leaders.size() == MAX_LEADERS - 2);
+    MOX::leaders = nullptr;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&map));
+    DOCTEST_CHECK_FALSE(map.leaders_captured);
+}
+
+DOCTEST_TEST_CASE("leader projection retains every native displayed ability for either role") {
+    s_leader_world fixture;
+    fixture.Own(0, LEADER_TYPE_SHIP, 0);
+    fixture.Own(1, LEADER_TYPE_COLONY, 0);
+    for (int id = 0; id < 2; ++id) {
+        fixture.leaders[id].general_skills = UINT32_MAX;
+        fixture.leaders[id].special_skills = UINT32_MAX;
+    }
+    rpc::s_map_observation map;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&map));
+    for (int id = 0; id < 2; ++id) {
+        size_t count = 0;
+        for (int16_t skill = 0; skill < 54; ++skill) {
+            if (MOX::skill_data[skill].skill_type == 0 || MOX::skill_data[skill].skill_type == (id == 0 ? 1 : 2)) ++count;
+        }
+        DOCTEST_CHECK(map.leaders[(size_t)id].skills.size() == count);
+    }
+}
+
+DOCTEST_TEST_CASE("native leader ship and system assignments resolve only within a coherent capture") {
+    s_leader_world fixture;
+    fixture.Own(0, LEADER_TYPE_COLONY, 0);
+    fixture.Own(1, LEADER_TYPE_SHIP, 0);
+    OFFICER::Assign_Leader_To_Star(&MOX::player[0], &fixture.leaders[0], &MOX::star[0], 0);
+    OFFICER::Assign_Leader_To_Ship(&MOX::player[0], &fixture.leaders[1], &MOX::ship[0], 3);
+    SHIPS::Build_Ship_Icons();
+    rpc::s_bridge bridge;
+    rpc::s_game_store store;
+    DOCTEST_REQUIRE(rpc::Initialize_Game_Store(&store, &bridge));
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&store));
+    rpc::s_map_observation map;
+    DOCTEST_REQUIRE(game_rpc::Read_Refreshed_Ship_Observation(&map));
+    DOCTEST_REQUIRE(rpc::Capture_Map(&store, &map));
+    for (const auto& leader : store.snapshots.back().map.leaders) {
+        DOCTEST_CHECK_FALSE(leader.assignment_id.empty());
+        DOCTEST_CHECK(leader.assignment_slot == -1);
+    }
+    rpc::s_request state;
+    state.method = "game.getState";
+    state.id_json = "1";
+    state.params_json = "{\"include\":[\"session\",\"leaders\",\"systems\",\"players\",\"colonies\",\"ships\",\"research\"]}";
+    const auto baseline = rpc::Game_Query(&store, &state);
+    fixture.leaders[1].eta = 1;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&map));
+    DOCTEST_REQUIRE(rpc::Capture_Map(&store, &map));
+    DOCTEST_CHECK(rpc::Game_Query(&store, &state) == baseline);
+    DOCTEST_REQUIRE(game_rpc::Read_Refreshed_Ship_Observation(&map));
+    DOCTEST_REQUIRE(rpc::Capture_Map(&store, &map));
+    DOCTEST_CHECK(rpc::Game_Query(&store, &state) != baseline);
+    DOCTEST_CHECK(fixture.leaders[0].status == 1);
+    rpc::Shutdown_Game_Store(&store);
+}
 
 DOCTEST_TEST_CASE("research projection shares native offered choices and costs with modded fields without UI or RNG") {
     s_research_world world;
@@ -1284,6 +1507,11 @@ namespace {
         s_route_surface surface;
         s_eta_world(int path = 0) : foreign(path != 0), contextual(path >= 2), ordinary(path >= 3) {
             MOX::leaders = leaders.data();
+            for (auto& leader : leaders) {
+                leader.player_index = -1;
+                leader.status = -1;
+                leader.location = -1;
+            }
             DOCTEST_REQUIRE(orion2re::lua::game::Capture_Ship_Generation_State(generations.data(), MAX_SHIPS));
             native.world.stars[1].x = 100;
             native.world.stars[1].visited = 1;

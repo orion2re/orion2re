@@ -93,6 +93,8 @@ def Validate_Target_Drift(paths):
                          "src/game/nextturn.cpp", "src/game/netturn.cpp", "src/game/netmox.cpp", "src/game/ships.cpp",
                          "src/game/fleetpop.cpp", "src/game/movebox.cpp",
                          "src/game/tech.cpp", "src/game/tech.h", "src/game/tech_choices.cpp",
+                         "src/game/officer.cpp", "src/game/officer.h",
+                         "tests/fakes/fake_ground_commando_runtime.cpp",
                          "src/game/mainscr.cpp", "src/lua/lua_game_ship_identity.cpp",
                          "src/game/rpc_config.cpp", "tests/unit/config_bindings_test.cpp", "tests/unit/netmox_test.cpp",
                          "tests/unit/fields_test.cpp")
