@@ -24,6 +24,7 @@ namespace MSG_ {
     void __cdecl Add_Diplomacy_Msg(int16_t plr_a, int16_t plr_b, int16_t diplomacy_idx);
 
     extern char* msg_artifacts_fmt;
+    extern char artifacts_and[20];
     extern char* msg_colony_your_rebellion_lost_fmt;
     extern char* msg_colony_starvation_food_fmt;
     extern char* msg_colony_1_rebel_won_fmt;
@@ -93,6 +94,9 @@ namespace MSG_ {
     extern char* msg_colony_d_settlers_arrived_over_limit_fmt;
 
     void __cdecl sprintf_msg(char* out_text, uint32_t out_text_size, s_MSG* msg);
+    void Copy_Message_Text(char* out, uint32_t size, const s_MSG* msg, int16_t viewer);
+    bool Read_Message(int16_t viewer, int16_t position, char* out, uint32_t size, int16_t* colony);
+    int16_t Message_Colony(const s_MSG* msg, int16_t viewer);
 
     void __cdecl Add_Msg_All(s_MSG msg);
 

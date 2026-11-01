@@ -21,6 +21,7 @@ namespace game_events {
         s_relations_view_scope* relations_owner = nullptr;
         const s_relations_view* relations_view = nullptr;
         uint32_t relations_interruptions = 0;
+        int16_t message_recipient = -1;
     } // namespace
 
     uint64_t Subscribe(t_callback callback, void* context) {
@@ -117,6 +118,17 @@ namespace game_events {
 
     void Publish_Fleet_Box_Info(const s_fleet_box_info* info) {
         if (info != nullptr) Deliver(FLEET_BOX_INFO_READY, info);
+    }
+
+    void Publish_Messages_Replacing(int16_t recipient) {
+        const int16_t previous = message_recipient;
+        message_recipient = recipient;
+        Publish(MESSAGES_REPLACING);
+        message_recipient = previous;
+    }
+
+    int16_t Message_Recipient() {
+        return message_recipient;
     }
 
     const s_relations_view* Published_Relations_View() {

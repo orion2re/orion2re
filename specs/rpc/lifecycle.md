@@ -59,6 +59,15 @@ retain caller-backed text. Never read a surviving global pointer after its scope
 Report display routines may consume reports or open dialogs, so a global read
 must capture already authorized data, not invoke the display routine.
 
+Retained Info summaries are not owned by their list/popup screen. They remain
+recipient-readable after dismissal until native queue replacement. Entry/exit,
+child interruption and parent restoration therefore neither grant nor revoke
+these ambient messages. Their narrower storage boundary is the neutral
+pre-mutation recipient publication in `MSG_::Add_Msg`/`Allocate_Msg_Slots`, plus
+the existing resolution/world boundaries. Pending report and diplomacy queues
+and the transient `EVENTS::event_message` buffer have different lifetimes and are
+not part of this retained collection.
+
 Tests required: T-04 (identical field geometry/new meaning, truncation, mark and
 restore), T-05 (revocation/load/slot reuse), T-08 (nested confirmation, duplicate,
 refusal/partial result), T-10 (delay/animation/timed box/film), T-16 (thread handoff).

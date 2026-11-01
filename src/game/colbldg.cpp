@@ -893,11 +893,23 @@ namespace COLBLDG {
         last_setting = -1;
         last_app = -1;
 
-        char* opt_str = Option_String(COLONY_PRODUCTION_REFIT);
-        char* format = ESTRINGS::E_Strings(45);
-        snprintf(g_msg, sizeof(g_msg), format, opt_str, ship->d.name);
-
+        Copy_Selection_Name(id, g_msg, sizeof(g_msg));
         return g_msg;
+    }
+
+    void Copy_Selection_Name(int16_t id, char* out, uint32_t size, int16_t owner) {
+        if (Colony_Production_Is_Building(id)) {
+            strlcpy(out, COLONY::Real_Building_Name(id), size);
+        } else if (!Colony_Production_Is_Queued_Ship(id)) {
+            const char* name = Read_Option_String(id, owner);
+            strlcpy(out, name != nullptr ? name : "", size);
+        } else {
+            const auto& ship = MOX::ship[Colony_Production_Ship_Index(id)];
+            if (ship.status == 4)
+                snprintf(out, size, ESTRINGS::E_Strings(45), Option_String(COLONY_PRODUCTION_REFIT), ship.d.name);
+            else
+                strlcpy(out, ship.d.name, size);
+        }
     }
 
     void __cdecl Draw_Current_Selection() {
@@ -2494,6 +2506,15 @@ namespace COLBLDG {
     }
 
     char* __cdecl Option_String(int16_t option_id) {
+        const int16_t owner = Colony_Production_Is_Ship_Design(option_id) ? MOX::colony[COLONY::colony_handle].owner : -1;
+        char* result = Read_Option_String(option_id, owner);
+        if (result != nullptr) return result;
+        RUSS::PFMT(0, 0, ESTRINGS::E_Strings(248 /* 0xF8 */), option_id);
+        key::Wait_For_Key();
+        return ESTRINGS::E_Strings(0x00C);
+    }
+
+    char* Read_Option_String(int16_t option_id, int16_t owner) {
         switch (option_id) {
             case COLONY_PRODUCTION_OUTPOST_SHIP:
                 return ESTRINGS::E_Strings(0x195);
@@ -2532,14 +2553,10 @@ namespace COLBLDG {
         }
 
         if (COLBLDG::Colony_Production_Is_Ship_Design(option_id)) {
-            const int32_t colony_owner = (int32_t)MOX::colony[COLONY::colony_handle].owner;
             const int32_t ship_design_index = COLBLDG::Colony_Production_Ship_Design_Index(option_id);
-            return MOX::player[colony_owner].ship_designs[ship_design_index].name;
+            if (owner >= 0 && owner < MOX::NUM_PLAYERS && ship_design_index >= 0 && ship_design_index < 6) return MOX::player[owner].ship_designs[ship_design_index].name;
         }
-
-        RUSS::PFMT(0, 0, ESTRINGS::E_Strings(248 /* 0xF8 */), option_id);
-        key::Wait_For_Key();
-        return ESTRINGS::E_Strings(0x00C);
+        return nullptr;
     }
 
 } // namespace COLBLDG

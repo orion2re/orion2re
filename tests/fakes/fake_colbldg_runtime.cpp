@@ -55,6 +55,7 @@ namespace TEST_COLBLDG {
         COLBLDG::active_prod[0] = -1;
         COLBLDG::field_mode = 0;
         MOX::PLAYER_NUM = 0;
+        MOX::NUM_PLAYERS = MAX_PLAYERS;
         MOX::NUM_SHIPS = 0;
         orion2re::lua::game::Reset_Ship_Generations();
     }
@@ -83,6 +84,7 @@ namespace MOX {
     s_star_data* star = stars;
     s_settings settings;
     int16_t PLAYER_NUM;
+    int16_t NUM_PLAYERS;
     int16_t NUM_SHIPS;
 }
 

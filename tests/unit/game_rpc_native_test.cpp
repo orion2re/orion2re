@@ -8,6 +8,9 @@
 #include "rpc/players_rpc.h"
 #include "game/relations_read.h"
 #include "game/game_events.h"
+#include "game/history_read.h"
+#include "rpc/turn_review_rpc.h"
+#include "../support/rpc_native_turn_review.h"
 #include "lua/lua_game_ship_identity.h"
 #include "config/text_encoding.h"
 
@@ -15,6 +18,377 @@
 #include <iostream>
 #include <type_traits>
 #include <vector>
+
+namespace {
+    struct s_review_globals {
+        s_player* players = MOX::player;
+        s_ship_data* ships = MOX::ship;
+        s_leader_data* leaders = MOX::leaders;
+        s_star_data* stars = MOX::star;
+        s_planet_data* planets = MOX::planet;
+        s_colony* colonies = MOX::colony;
+        int16_t viewer = MOX::PLAYER_NUM;
+        int16_t n_players = MOX::NUM_PLAYERS;
+        int16_t n_ships = MOX::NUM_SHIPS;
+        int16_t n_stars = MOX::NUM_STARS;
+        int16_t n_planets = MOX::planet_count;
+        int16_t n_colonies = MOX::NUM_COLONIES;
+        int16_t selected_colony = COLONY::colony_handle;
+        int32_t turn = MOX::stardate;
+        bool smoothing = INFO::history_graph_smoothing;
+        bool sorting = REPORT::sort_serious_turn_summary_first;
+        decltype(MOX::settings) settings = MOX::settings;
+        std::vector<char> h_strings = MOX::h_strings;
+        std::vector<int16_t> bill = {std::begin(MOX::bill_savegame), std::end(MOX::bill_savegame)};
+        std::vector<s_MSG> messages = {std::begin(MSG_::msgs), std::end(MSG_::msgs)};
+        std::vector<uint8_t> first = {std::begin(MSG_::first_msg), std::end(MSG_::first_msg)};
+        std::vector<uint8_t> counts = {std::begin(MSG_::n_msgs), std::end(MSG_::n_msgs)};
+        std::vector<uint8_t> capacities = {std::begin(MSG_::max_msgs), std::end(MSG_::max_msgs)};
+        char* message_storage = MSG_::native_msg;
+        s_review_globals() {
+            test_native_turn_review::Seed();
+        }
+        ~s_review_globals() {
+            MOX::player = players;
+            MOX::ship = ships;
+            MOX::leaders = leaders;
+            MOX::star = stars;
+            MOX::planet = planets;
+            MOX::colony = colonies;
+            MOX::PLAYER_NUM = viewer;
+            MOX::NUM_PLAYERS = n_players;
+            MOX::NUM_SHIPS = n_ships;
+            MOX::NUM_STARS = n_stars;
+            MOX::planet_count = n_planets;
+            MOX::NUM_COLONIES = n_colonies;
+            COLONY::colony_handle = selected_colony;
+            MOX::stardate = turn;
+            MOX::settings = settings;
+            MOX::h_strings = std::move(h_strings);
+            INFO::history_graph_smoothing = smoothing;
+            REPORT::sort_serious_turn_summary_first = sorting;
+            std::copy(bill.begin(), bill.end(), MOX::bill_savegame);
+            std::copy(messages.begin(), messages.end(), MSG_::msgs);
+            std::copy(first.begin(), first.end(), MSG_::first_msg);
+            std::copy(counts.begin(), counts.end(), MSG_::n_msgs);
+            std::copy(capacities.begin(), capacities.end(), MSG_::max_msgs);
+            MSG_::native_msg = message_storage;
+        }
+    };
+} // namespace
+
+DOCTEST_TEST_CASE("turn review shares all four native producers and graph precision") {
+    s_review_globals fixture;
+    history_read::s_chart chart;
+    const int expected[] = {100, 150, 200};
+    DOCTEST_REQUIRE(history_read::Read_Chart(0, 1, &chart));
+    DOCTEST_CHECK(chart.count == 3);
+    DOCTEST_CHECK(chart.curves[0].player == 0);
+    DOCTEST_CHECK(chart.curves[1].player == 1);
+    DOCTEST_CHECK(chart.curves[2].player == 3);
+    DOCTEST_CHECK(chart.samples == 3);
+    DOCTEST_CHECK(chart.top_scale == 50);
+    for (int sample = 0; sample < 3; ++sample) DOCTEST_CHECK(chart.curves[0].height[sample] == expected[sample]);
+    for (int series : {2, 4, 8}) {
+        DOCTEST_REQUIRE(history_read::Read_Chart(0, (uint8_t)series, &chart));
+        DOCTEST_CHECK(chart.top_scale == 50);
+        DOCTEST_CHECK(chart.curves[0].height[0] == (series == 2 ? 150 : 200));
+    }
+    DOCTEST_REQUIRE(history_read::Read_Chart(0, 15, &chart));
+    DOCTEST_CHECK(chart.top_scale == 250);
+    DOCTEST_CHECK(chart.curves[0].height[0] == 130);
+    DOCTEST_CHECK(chart.curves[0].height[2] == 150);
+    MOX::player[2].population_history[0] = (int8_t)250;
+    DOCTEST_REQUIRE(history_read::Read_Chart(0, 1, &chart));
+    DOCTEST_CHECK(chart.top_scale == 50);
+    MOX::player[0].contact[2] = 1;
+    DOCTEST_REQUIRE(history_read::Read_Chart(0, 1, &chart));
+    DOCTEST_CHECK(chart.count == 4);
+    DOCTEST_CHECK(chart.top_scale == 500);
+    MOX::player[0].contact[2] = 0;
+    MOX::player[0].traits[TRAIT_OMNISCIENCE] = 1;
+    DOCTEST_REQUIRE(history_read::Read_Chart(0, 1, &chart));
+    DOCTEST_CHECK(chart.count == 4);
+}
+
+DOCTEST_TEST_CASE("turn review preserves native rescaling loss smoothing axes and ring windows") {
+    s_review_globals fixture;
+    MOX::player[0].total_pop = 503;
+    BILL::Record_History();
+    ++MOX::stardate;
+    DOCTEST_CHECK(MOX::bill_savegame[2] == 3);
+    DOCTEST_CHECK((uint8_t)MOX::player[0].population_history[0] == 6);
+    DOCTEST_CHECK((uint8_t)MOX::player[0].population_history[3] == 167);
+    history_read::s_chart chart;
+    DOCTEST_REQUIRE(history_read::Read_Chart(0, 1, &chart));
+    DOCTEST_CHECK(chart.top_scale == 1000);
+    DOCTEST_CHECK(chart.curves[0].height[0] == 4); // Quantized 18, not original 20.
+    int32_t smoothed[] = {18, 30, 39, 501};
+    for (int pass = 0; pass < 10; ++pass) {
+        for (int16_t sample = 0; sample < 4; ++sample) INFO::Smooth_History_Data(smoothed, sample, 4);
+    }
+    INFO::history_graph_smoothing = true;
+    DOCTEST_REQUIRE(history_read::Read_Chart(0, 1, &chart));
+    int32_t top = 25;
+    const int scales[] = {25, 50, 100, 250, 500, 1000};
+    for (int scale : scales)
+        if (*std::max_element(std::begin(smoothed), std::end(smoothed)) < scale) {
+            top = scale;
+            break;
+        }
+    DOCTEST_CHECK(chart.top_scale == top);
+    for (int sample = 0; sample < 4; ++sample) DOCTEST_CHECK(chart.curves[0].height[sample] == smoothed[sample] * 100 / (top * 100 / 250));
+    history_read::s_axis axis;
+    for (const auto& window : std::vector<std::pair<int, int>>{{35, 10}, {36, 5}, {70, 5}, {71, 2}, {175, 2}, {176, 1}, {351, 1}}) {
+        MOX::stardate = 35000 + window.first;
+        history_read::Read_Axis(&axis);
+        DOCTEST_CHECK(axis.x_step == window.second);
+    }
+    MOX::stardate = 35035;
+    MOX::settings.language = 0;
+    history_read::Read_Axis(&axis);
+    DOCTEST_CHECK(std::string(axis.labels[1]) == "3500.5");
+    MOX::settings.language = 1;
+    history_read::Read_Axis(&axis);
+    DOCTEST_CHECK(std::string(axis.labels[1]) == "3500,5");
+    MOX::stardate = 35351;
+    MOX::bill_savegame[1] = 349;
+    INFO::history_graph_smoothing = false;
+    MOX::player[0].population_history[349] = 1;
+    MOX::player[0].population_history[0] = 2;
+    DOCTEST_REQUIRE(history_read::Read_Chart(0, 1, &chart));
+    DOCTEST_CHECK(chart.samples == 350);
+    DOCTEST_CHECK(chart.curves[0].height[0] == 300 / (chart.top_scale * 100 / 250));
+    DOCTEST_CHECK(chart.curves[0].height[1] == 600 / (chart.top_scale * 100 / 250));
+    MOX::bill_savegame[2] = 0;
+    DOCTEST_CHECK_FALSE(history_read::Read_Chart(0, 1, &chart));
+    MOX::bill_savegame[2] = -16384;
+    MOX::player[0].population_history[349] = 1;
+    rpc::s_map_observation observed;
+    observed.viewer = 0;
+    DOCTEST_REQUIRE(players_rpc::Read_Players(&observed));
+    DOCTEST_REQUIRE(turn_review_rpc::Read_Turn_Review(&observed));
+    DOCTEST_REQUIRE(observed.history_captured);
+    DOCTEST_REQUIRE(history_read::Read_Chart(0, 1, &chart));
+    const int16_t native_y = (int16_t)(390 - (int16_t)chart.curves[0].height[0]);
+    DOCTEST_CHECK(native_y == -32378);
+    DOCTEST_CHECK(observed.history.charts[0].curves[0].y[0] == native_y);
+}
+
+DOCTEST_TEST_CASE("turn review formats the full retained native family without consumption or scratch changes") {
+    s_review_globals fixture;
+    test_native_turn_review::Add_Variants();
+    DOCTEST_REQUIRE(MSG_::n_msgs[0] == 33);
+    rpc::s_map_observation observation;
+    observation.viewer = 0;
+    DOCTEST_REQUIRE(players_rpc::Read_Players(&observation));
+    strlcpy(MOX::temp_string, "scratch sentinel", sizeof(MOX::temp_string));
+    const auto messages = std::vector<s_MSG>(std::begin(MSG_::msgs), std::end(MSG_::msgs));
+    const uint32_t seed = game_random::Get_Random_Seed();
+    const auto displayed = REPORT::displayed_msgs;
+    const auto selection = INFO::g_turn_message_ix;
+    for (int pass = 0; pass < 2; ++pass) {
+        DOCTEST_REQUIRE(turn_review_rpc::Read_Turn_Review(&observation));
+        DOCTEST_REQUIRE(observation.messages_captured);
+        DOCTEST_REQUIRE(observation.history_captured);
+        DOCTEST_REQUIRE(observation.messages.size() == 33);
+        for (int row = 0; row < 33; ++row) {
+            char native[256];
+            MSG_::sprintf_msg(native, sizeof(native), &MSG_::msgs[row]);
+            DOCTEST_CHECK(observation.messages[row].text == native);
+            DOCTEST_CHECK_FALSE(observation.messages[row].text.empty());
+        }
+    }
+    DOCTEST_CHECK(std::string(MOX::temp_string) == "scratch sentinel");
+    DOCTEST_CHECK(memcmp(messages.data(), MSG_::msgs, sizeof(MSG_::msgs)) == 0);
+    DOCTEST_CHECK(game_random::Get_Random_Seed() == seed);
+    DOCTEST_CHECK(REPORT::displayed_msgs == displayed);
+    DOCTEST_CHECK(INFO::g_turn_message_ix == selection);
+    DOCTEST_CHECK(observation.messages[0].text == "Scrapped Native building at Home Prime for 0");
+    DOCTEST_CHECK(observation.messages[31].text == "April notice");
+    REPORT::sort_serious_turn_summary_first = true;
+    DOCTEST_REQUIRE(turn_review_rpc::Read_Turn_Review(&observation));
+    DOCTEST_CHECK(observation.messages.front().serious);
+    DOCTEST_CHECK(memcmp(messages.data(), MSG_::msgs, sizeof(MSG_::msgs)) == 0);
+    char text[256];
+    DOCTEST_CHECK_FALSE(MSG_::Read_Message(1, 0, text, sizeof(text), nullptr));
+    MOX::player[2].population_history[0] = (int8_t)250;
+    DOCTEST_REQUIRE(turn_review_rpc::Read_Turn_Review(&observation));
+    DOCTEST_CHECK(observation.history.charts[0].top_scale == 50);
+    MSG_::Allocate_Msg_Slots();
+    s_MSG unknown = {};
+    unknown.msg_type = MSG_TYPE_UNKNOWN_0x3;
+    MSG_::Add_Msg(unknown, 0);
+    DOCTEST_REQUIRE(turn_review_rpc::Read_Turn_Review(&observation));
+    DOCTEST_REQUIRE(observation.messages.size() == 1);
+    DOCTEST_CHECK_FALSE(observation.messages[0].text_available);
+    char* storage = MSG_::native_msg;
+    MSG_::native_msg = nullptr;
+    DOCTEST_REQUIRE(turn_review_rpc::Read_Turn_Review(&observation));
+    DOCTEST_CHECK_FALSE(observation.messages_captured);
+    MSG_::native_msg = storage;
+    MSG_::Allocate_Msg_Slots();
+    DOCTEST_REQUIRE(turn_review_rpc::Read_Turn_Review(&observation));
+    DOCTEST_CHECK(observation.messages_captured);
+    DOCTEST_CHECK(observation.messages.empty());
+}
+
+DOCTEST_TEST_CASE("turn review retains native formatting branches localization and truncation") {
+    s_review_globals fixture;
+    auto Check = [](s_MSG message, const char* expected) {
+        MSG_::Allocate_Msg_Slots();
+        MSG_::Add_Msg(message, 0);
+        char text[256];
+        DOCTEST_REQUIRE(MSG_::Read_Message(0, 0, text, sizeof(text), nullptr));
+        DOCTEST_INFO("native text: ", text, "; expected substring: ", expected);
+        DOCTEST_CHECK(std::string(text).find(expected) != std::string::npos);
+    };
+    s_MSG message = {};
+    message.msg_type = MSG_TYPE_COLONY;
+    message.u.colony.subtype = MSG_COLONY_SUBTYPE_PRODUCTION_COMPLETED;
+    const std::pair<int, const char*> products[] = {
+        {COLONY_PRODUCTION_FREIGHTERS, "freighters"}, {COLONY_PRODUCTION_SPY, "spy"}, {COLONY_PRODUCTION_SCIENTIST, "scientist"}, {COLONY_PRODUCTION_WORKER, "worker"}, {COLONY_PRODUCTION_FARMER, "farmer"}};
+    message.u.colony.c.build.product_id = COLONY_PRODUCTION_NONE;
+    for (const auto& product : products) {
+        message.u.colony.c.build.build_id = (int16_t)product.first;
+        Check(message, product.second);
+    }
+    message.u.colony.c.build.build_id = COLBLDG::Colony_Production_From_Ship_Index(0);
+    Check(message, "built ship Native ship");
+    message.u.colony.c.build.is_refit = 1;
+    Check(message, "refitted Native ship");
+    message.u.colony.c.build.product_id = BUILDING_MARINE_BARRACKS;
+    Check(message, "; next Native building");
+    message.u.colony.c.build.append_fmt = 1;
+    Check(message, "; automatic Native building");
+    message.u.colony.c.build.product_id = COLBLDG::Colony_Production_From_Ship_Index(0);
+    MOX::ship[0].status = 4;
+    COLBLDG::last_setting = 7;
+    COLBLDG::last_app = 8;
+    Check(message, "; automatic Refit Native ship");
+    DOCTEST_CHECK(COLBLDG::last_setting == 7);
+    DOCTEST_CHECK(COLBLDG::last_app == 8);
+    strlcpy(MOX::player[0].ship_designs[0].name, "Own design", sizeof(MOX::player[0].ship_designs[0].name));
+    COLONY::colony_handle = -1;
+    message.u.colony.c.build.product_id = COLBLDG::Colony_Production_From_Ship_Design_Index(0);
+    Check(message, "; automatic Own design");
+    DOCTEST_CHECK(COLONY::colony_handle == -1);
+    message = {};
+    message.msg_type = MSG_TYPE_COLONY;
+    message.u.colony.subtype = MSG_COLONY_SUBTYPE_STARVATION;
+    message.u.colony.c.starvation.a = 2;
+    Check(message, "lost 2 food");
+    message.u.colony.c.starvation.b = 3;
+    Check(message, "lost 2 food and 3 industry");
+    message.u.colony.subtype = MSG_COLONY_SUBTYPE_SETTLERS_ARRIVED;
+    message.u.colony.c = {};
+    message.u.colony.c.settlers.settlers = 2;
+    message.u.colony.c.settlers.over_limit = 1;
+    Check(message, "2 settlers at Home Prime; 1 excess settler");
+    message.u.colony.c.settlers.over_limit = 2;
+    Check(message, "2 excess settlers");
+    message.u.colony.c.settlers.blockaded = 1;
+    Check(message, "; blockaded");
+    message.u.colony.subtype = MSG_COLONY_SUBTYPE_REBELLION;
+    message.u.colony.c = {};
+    for (int owner : {0, 1}) {
+        for (int count : {1, 2}) {
+            for (int lost : {0, count}) {
+                message.u.colony.c.rebels.owner_player = (int8_t)owner;
+                message.u.colony.c.rebels.rebels = (uint8_t)count;
+                message.u.colony.c.rebels.lost = (uint8_t)lost;
+                Check(message, lost == 0 ? "won" : "lost");
+            }
+        }
+    }
+    message = {};
+    message.msg_type = MSG_TYPE_HYPERSPACE_BEAST;
+    message.u.hyperspace_beast.ship_idx = -1;
+    Check(message, "hungry");
+    message.u.hyperspace_beast.ship_idx = 0;
+    Check(message, "Race 0 ship");
+    message.u.hyperspace_beast.fate = 1;
+    Check(message, "Native ship at Home");
+    for (int fate = 0; fate < 3; ++fate) {
+        message.u.hyperspace_beast.leader_status = (int8_t)fate;
+        Check(message, "Native leader");
+    }
+    message = {};
+    message.msg_type = MSG_TYPE_LOST_DEFENDING_SPY;
+    message.u.lost_defending_spy.count = 1;
+    Check(message, "Lost defending spy");
+    message.u.lost_defending_spy.count = 2;
+    Check(message, "Lost 2 defending spies");
+    message = {};
+    message.msg_type = MSG_TYPE_SCRAP_SHIP;
+    message.u.scrap_ship.where = MOX::NUM_STARS;
+    Check(message, "in transit");
+    message = {};
+    message.msg_type = MSG_TYPE_LOST_COLONY;
+    message.u.lost_colony.leader_idx = -1;
+    for (int reason = 0; reason < 4; ++reason) {
+        message.u.lost_colony.reason = (uint8_t)reason;
+        Check(message, MSG_::lost_colony_reason_strings[reason]);
+    }
+    message = {};
+    message.msg_type = MSG_TYPE_DIPLOMACY;
+    for (int variant = 0; variant < 5; ++variant) {
+        message.u.diplomacy.diplomacy_idx = (int8_t)variant;
+        Check(message, "Race 0");
+    }
+    message = {};
+    message.msg_type = MSG_TYPE_SPY_ASSASSINATION;
+    message.u.spy_assasination.victim_id = 1;
+    Check(message, "Assassinated defensive spy");
+    message.u.spy_assasination.victim_id = 0;
+    message.u.spy_assasination.plr_a = 1;
+    Check(message, "Leader Native leader lost to Race 1");
+    MOX::settings.language = 4;
+    MSG_::msg_spy_assassinated_victim_fmt = (char*)"Leader %s, %s, lost to %s";
+    Check(message, "spy against Race 0, lost to Race 1");
+    static std::string long_text(400, 'x');
+    MSG_::msg_april1_fmt = long_text.data();
+    message.msg_type = MSG_TYPE_APRIL1;
+    MSG_::Allocate_Msg_Slots();
+    MSG_::Add_Msg(message, 0);
+    char text[256];
+    DOCTEST_REQUIRE(MSG_::Read_Message(0, 0, text, sizeof(text), nullptr));
+    DOCTEST_CHECK(strlen(text) == 255);
+}
+
+DOCTEST_TEST_CASE("turn review queue lifetime publication precedes accepted writes and ignores rejected inserts") {
+    s_review_globals fixture;
+    MSG_::max_msgs[0] = 1;
+    struct s_observer {
+        int calls = 0;
+        int count = -1;
+        int recipient = -1;
+    } observer;
+    const auto token = game_events::Subscribe([](game_events::e_event event, void* context) {
+        if (event != game_events::MESSAGES_REPLACING) return;
+        auto* value = (s_observer*)context;
+        ++value->calls;
+        value->recipient = game_events::Message_Recipient();
+        value->count = MSG_::n_msgs[value->recipient];
+    },
+        &observer);
+    s_MSG message = {};
+    message.msg_type = MSG_TYPE_APRIL1;
+    MSG_::Add_Msg(message, 0);
+    DOCTEST_CHECK(observer.calls == 1);
+    DOCTEST_CHECK(observer.count == 0);
+    DOCTEST_CHECK(observer.recipient == 0);
+    MSG_::Add_Msg(message, 0);
+    DOCTEST_CHECK(observer.calls == 1);
+    message.priority = 1;
+    MSG_::Add_Msg(message, 0);
+    DOCTEST_CHECK(observer.calls == 2);
+    DOCTEST_CHECK(observer.count == 1);
+    MSG_::Add_Msg(message, 2);
+    DOCTEST_CHECK(observer.recipient == 2);
+    game_events::Unsubscribe(token);
+    DOCTEST_CHECK(game_events::Message_Recipient() == -1);
+}
 
 namespace {
     struct s_world {

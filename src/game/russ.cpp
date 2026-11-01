@@ -106,6 +106,7 @@ namespace RUSS {
         string_ptr = COLCALC::Load_Colcalc_Strings(RUSS::russ_strings.data());
         string_ptr = COMBFIND::Load_Combfind_Strings(string_ptr);
         string_ptr = MSG_::Load_Msg_Strings(string_ptr);
+        KEN::Ken_Get_Text_Message(0x68, MSG_::artifacts_and, 0x13);
         string_ptr = NETMOX::Load_Netmox_Strings(string_ptr);
         string_ptr = NETSTART::Load_Netstart_Strings(string_ptr);
         string_ptr = NETTURN::Load_Netturn_Strings(string_ptr);

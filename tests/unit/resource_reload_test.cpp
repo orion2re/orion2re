@@ -93,6 +93,13 @@ namespace {
             Write(prefix + "ESTRINGS.LBX/000", Table(21000, 812, label));
             Write(prefix + "HESTRNGS.LBX/000", Table(0x34D1, 397, label));
             Write(prefix + "RSTRING0.LBX/000", Table(6500, 182, label));
+            for (int language = 0; language < 6; ++language) {
+                char entry[4];
+                snprintf(entry, sizeof(entry), "%03d", 24 * 6 + language);
+                std::string text = std::string(1, label) + " and";
+                text.resize(100, '\0');
+                Write(prefix + "KENTEXT1.LBX/" + entry, Record(text));
+            }
             for (int message = 0x21; message <= 0x3C; ++message) {
                 if (message > 0x31 && message < 0x39) continue;
                 for (int language = 0; language < 6; ++language) {
@@ -208,6 +215,7 @@ DOCTEST_TEST_CASE("real resources switch repeatedly without consuming screen sto
         DOCTEST_CHECK(MOX::race_names[0] == ESTRINGS::E_Strings(0x285));
         DOCTEST_CHECK(MOX::h_strings[0] == expected);
         DOCTEST_CHECK(RUSS::russ_strings[0] == expected);
+        DOCTEST_CHECK(MSG_::artifacts_and[0] == expected);
         DOCTEST_CHECK(RACESCRN::relation_text[0][0] == expected);
         DOCTEST_CHECK(RACESCRN::relation_text[16][0] == expected);
         DOCTEST_CHECK(RACESCRN::research_treaty_buffer[0] == expected);

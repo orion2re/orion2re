@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "history_read.h"
 #include "game_events.h"
 
 #include "raceopt.h"
@@ -1154,9 +1155,7 @@ namespace INFO {
         fonts::Print_Centered(416 /* 0x1a0 */, 31 /* 0x1f */, msg_buffer);
 
         INFO::Set_Up_Player_Colors(lbx_images);
-        *MOX::active_player = static_cast<int8_t>(MOX::PLAYER_NUM);
-
-        BILL::Get_Players_Dead_Or_Alive_Or_Omniscient(1, 0);
+        MOX::active_count = history_read::Copy_Players(MOX::PLAYER_NUM, MOX::active_player);
         INFO::Get_Plyr_Hist_Btns(player_hist_buttons);
 
         // Ensure at least one graph is active
@@ -1231,133 +1230,24 @@ namespace INFO {
     }
 
     void __cdecl Draw_Histories(int16_t offset_x) {
-        int16_t btns[4];
-        int32_t history_data[MAX_PLAYERS][350];
-        int16_t n_points;
+        history_read::s_chart chart;
         char buffer[32];
-
-        Get_Plyr_Hist_Btns(btns);
-
-        int16_t active_btns = 0;
-        for (int i = 0; i < 4; ++i) {
-            if (btns[i] != 0) {
-                active_btns++;
-            }
-        }
-
-        if (active_btns == 0) {
-            return;
-        }
-
-        int16_t use_pop = btns[0];
-        int16_t use_prod = btns[1];
-        int16_t use_fleet = btns[2];
-        int16_t use_tech = btns[3];
-
-        for (int16_t p = MOX::active_count - 1; p >= 0; --p) {
-            uint8_t player_idx = MOX::active_player[p];
-            s_player* plr = &MOX::player[player_idx];
-
-            int16_t hist_idx = BILL::Get_History_Params(&n_points);
-            if (n_points > 0) {
-                for (int16_t t = 0; t < n_points; ++t) {
-                    int32_t val = 0;
-
-                    if (use_pop != 0) {
-                        val += static_cast<uint8_t>(plr->population_history[hist_idx]) * MOX::bill_savegame[2];
-                    }
-                    if (use_tech != 0) {
-                        val += static_cast<uint8_t>(plr->tech_history[hist_idx]) * MOX::bill_savegame[5];
-                    }
-                    if (use_fleet != 0) {
-                        val += static_cast<uint8_t>(plr->fleet_history[hist_idx]) * MOX::bill_savegame[4];
-                    }
-                    if (use_prod != 0) {
-                        val += static_cast<uint8_t>(plr->production_history[hist_idx]) * MOX::bill_savegame[3];
-                    }
-
-                    history_data[player_idx][t] = val;
-
-                    hist_idx++;
-                    if (hist_idx >= 350) {
-                        hist_idx = 0;
-                    }
-                }
-            }
-        }
-
-        if (history_graph_smoothing) {
-            for (int16_t p = MOX::active_count - 1; p >= 0; --p) {
-                uint8_t player_idx = MOX::active_player[p];
-                for (int i = 0; i < 10; ++i) {
-                    if (n_points > 0) {
-                        for (int16_t t = 0; t < n_points; ++t) {
-                            Smooth_History_Data(history_data[player_idx], t, n_points);
-                        }
-                    }
-                }
-            }
-        }
-
-        int32_t max_val = 0;
-        for (int16_t p = MOX::active_count - 1; p >= 0; --p) {
-            uint8_t player_idx = MOX::active_player[p];
-            if (n_points > 0) {
-                for (int16_t t = 0; t < n_points; ++t) {
-                    if (history_data[player_idx][t] > max_val) {
-                        max_val = history_data[player_idx][t];
-                    }
-                }
-            }
-        }
-
-        int32_t max_scale = 25;
-        bool scale_found = false;
-        while (!scale_found) {
-            if (max_val < max_scale) {
-                scale_found = true;
-            } else {
-                if (max_scale == 25)
-                    max_scale = 50;
-                else if (max_scale == 50)
-                    max_scale = 100;
-                else if (max_scale == 100)
-                    max_scale = 250;
-                else if (max_scale == 250)
-                    max_scale = 500;
-                else if (max_scale == 500)
-                    max_scale = 1000;
-                else if (max_scale == 1000)
-                    max_scale = 2000;
-                else
-                    max_scale += 2000;
-            }
-        }
-
-        int32_t divisor = (max_scale * 100) / 250;
-        for (int16_t p = MOX::active_count - 1; p >= 0; --p) {
-            uint8_t player_idx = MOX::active_player[p];
-            if (n_points > 0) {
-                for (int16_t t = 0; t < n_points; ++t) {
-                    history_data[player_idx][t] = (history_data[player_idx][t] * 100) / divisor;
-                }
-            }
-        }
+        if (!history_read::Read_Chart(MOX::PLAYER_NUM, MOX::player[MOX::PLAYER_NUM].history_btns & 15, &chart)) return;
 
         fonts::Set_Font_Style(1, &INFO::info_normal_color);
-        snprintf(buffer, sizeof(buffer), "%i", max_scale);
+        snprintf(buffer, sizeof(buffer), "%i", chart.top_scale);
         fonts::Print(0xF6, 0x8A, buffer);
 
-        int16_t draw_count = n_points - 1;
-        for (int16_t p = MOX::active_count - 1; p >= 0; --p) {
-            uint8_t player_idx = MOX::active_player[p];
+        int16_t draw_count = chart.samples - 1;
+        for (int16_t p = chart.count - 1; p >= 0; --p) {
+            uint8_t player_idx = (uint8_t)chart.curves[p].player;
             uint8_t color = INFO::hist_graph_palettes[player_idx]->colors[7];
 
             if (draw_count > 0) {
                 int16_t x = 0xEE;
                 for (int16_t t = 0; t < draw_count; ++t) {
-                    int16_t y1 = 0x186 - (int16_t)history_data[player_idx][t];
-                    int16_t y2 = 0x186 - (int16_t)history_data[player_idx][t + 1];
+                    int16_t y1 = 0x186 - (int16_t)chart.curves[p].height[t];
+                    int16_t y2 = 0x186 - (int16_t)chart.curves[p].height[t + 1];
 
                     line::Line(x + 1, y1 + 1, offset_x + x + 1, y2 + 1, 0xB1);
                     line::Line(x, y1, offset_x + x, y2, color);
@@ -1599,52 +1489,14 @@ namespace INFO {
 
         fonts::Set_Font_Style(1, &INFO::info_normal_color);
 
-        int32_t current_val = 0x88b8; /* 35000 */
-        int16_t return_val;
-        int16_t step;
-        int32_t stardate = MOX::stardate;
-
-        uint16_t check_date = (uint16_t)(stardate + 0x7748 /* 30536 */);
-
-        if (check_date <= 0x23 /* 35 */) {
-            return_val = 10;
-            step = 5;
-        } else if (check_date <= 0x46 /* 70 */) {
-            return_val = 5;
-            step = 10;
-        } else if (check_date <= 0xaf /* 175 */) {
-            return_val = 2;
-            step = 25 /* 0x19 */;
-        } else {
-            return_val = 1;
-            step = 50 /* 0x32 */;
-            if (check_date > 0x15e /* 350 */) {
-                current_val = ((stardate - 0x159 /* 345 */) / 10) * 10;
-            }
-        }
-
+        history_read::s_axis axis;
+        history_read::Read_Axis(&axis);
         uint16_t label_x = 0xef; /* 239 */
-        char buffer[16];
         for (int i = 0; i < 8; ++i) {
-            int32_t whole = current_val / 10;
-            int32_t fraction = current_val % 10;
-
-            if ((current_val % 5 == 0) && (fraction != 0)) {
-                if (MOX::settings.language == 0) {
-                    snprintf(buffer, sizeof(buffer), "%i.%i", whole, fraction);
-                } else {
-                    snprintf(buffer, sizeof(buffer), "%i,%i", whole, fraction);
-                }
-            } else {
-                snprintf(buffer, sizeof(buffer), "%i", whole);
-            }
-
-            fonts::Print_Centered(label_x, 400, buffer);
+            fonts::Print_Centered(label_x, 400, axis.labels[i]);
             label_x += 0x32;
-            current_val += step;
         }
-
-        return return_val;
+        return axis.x_step;
     }
 
     int16_t __cdecl Race_Stats_Subscreen(s_animation_header** anims, int16_t exit_threshold) {

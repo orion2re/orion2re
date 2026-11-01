@@ -13,6 +13,7 @@
 #include "rpc/tech_rpc.h"
 #include "rpc/officer_rpc.h"
 #include "rpc/relations_rpc.h"
+#include "rpc/turn_review_rpc.h"
 #include "lua/lua_game_ship_identity.h"
 
 #include <algorithm>
@@ -47,7 +48,7 @@ namespace game_rpc {
         observation->viewer = viewer;
         observation->turn = MOX::stardate;
         return exploration_rpc::Read_Exploration(observation) && players_rpc::Read_Players(observation) &&
-            colony_rpc::Read_Colonies(observation) && tech_rpc::Read_Research(observation) && officer_rpc::Read_Leaders(observation) && relations_rpc::Read_Relations(observation);
+            colony_rpc::Read_Colonies(observation) && tech_rpc::Read_Research(observation) && officer_rpc::Read_Leaders(observation) && relations_rpc::Read_Relations(observation) && turn_review_rpc::Read_Turn_Review(observation);
     }
 
     bool Capture_Leader_View(rpc::s_game_store* target, const rpc::s_map_observation* ambient, const game_events::s_leader_view* view) {
@@ -495,6 +496,9 @@ namespace game_rpc {
         }
         if (!active) return;
         switch (event) {
+            case game_events::MESSAGES_REPLACING:
+                if (game_events::Message_Recipient() == store.viewer) rpc::Expire_Game_Messages(&store);
+                break;
             case game_events::RELATIONS_VIEW_CLEARED:
                 rpc::Revoke_Game_Context(&store);
                 break;

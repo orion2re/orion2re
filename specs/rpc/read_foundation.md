@@ -51,6 +51,18 @@ appending the newest after intervening ordered output. Never coalesce results or
 rewrite a started message. Overflow disconnects explicitly. World/perspective
 revocation clears subscriptions and requires fresh authentication.
 
+Retained-summary results also carry the existing bridge context lease, even when
+their capture is ambient. `MESSAGES_REPLACING` carries only a callback-local
+recipient, before an accepted queue write or allocation reset. For the bound
+recipient, expiry clears summary data/handles and pinned message cursors from
+retained captures and revokes queued/started leased output; it does not discard
+independently authorized ambient projections. A pending subscription baseline
+cannot survive revocation without delivery. The shared lease conservatively also
+invalidates concurrent contextual output, which must be freshly presented under
+its existing owner rules. No new message cache, replay log or context stack exists.
+The observer never captures during a producer: the next existing coherent point
+must supply the complete replacement, or message-dependent requests remain busy.
+
 ## Committed turn notifications
 
 Authenticated clients receive default non-coalescible `game.turnAdvanced` only

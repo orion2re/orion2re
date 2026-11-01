@@ -215,7 +215,7 @@ class TypedContractTests(unittest.TestCase):
         if kind == "object":
             return {key: self.Sample(value) for key, value in schema["fields"].items()}
         if kind == "array":
-            return [self.Sample(schema["items"])] if schema.get("minItems", 0) else []
+            return [self.Sample(schema["items"]) for _ in range(schema.get("minItems", 0))]
         if kind == "union":
             return self.Sample(schema["variants"][0])
         if kind == "enum":
@@ -231,6 +231,25 @@ class TypedContractTests(unittest.TestCase):
             with self.subTest(method=name):
                 audit.Validate_Value(self.Sample(request), request, self.contracts)
                 audit.Validate_Value(self.Sample(result), result, self.contracts)
+
+    def test_turn_review_contract_has_graph_precision_and_no_fabricated_message_metadata(self):
+        self.assertTrue({"game.getHistory", "game.listMessages", "game.getMessage"} <= set(self.registry["implementedMethods"]))
+        self.assertTrue({"history", "messages"} <= set(self.contracts["types"]["StateTopic"]["values"]))
+        self.assertEqual(set(self.contracts["types"]["HistoryPoint"]["fields"]), {"x", "y"})
+        for y in (-32768, 32767):
+            audit.Validate_Value({"x":238,"y":y}, "HistoryPoint", self.contracts)
+        with self.assertRaises(ValueError):
+            audit.Validate_Value({"x":238,"y":32768}, "HistoryPoint", self.contracts)
+        message = self.Sample("Message")
+        audit.Validate_Value(message, "Message", self.contracts, self.policies, public=True)
+        for invented in ("turn", "read", "category", "severity"):
+            with self.assertRaises(ValueError):
+                audit.Validate_Value({**message, invented:0}, "Message", self.contracts)
+        self.assertEqual(self.contracts["types"]["Messages"]["maxItems"], 100)
+        history = self.Sample("History")
+        audit.Validate_Value(history, "History", self.contracts, self.policies, public=True)
+        with self.assertRaises(ValueError):
+            audit.Validate_Value({**history,"charts":[]}, "History", self.contracts)
 
     def test_contract_graph_and_all_native_evidence_anchors(self):
         count = audit.Validate_Contracts(ROOT, self.registry, self.contracts, self.policies)
@@ -290,7 +309,7 @@ class TypedContractTests(unittest.TestCase):
         for method in ("game.listLeaders", "game.getLeader"):
             self.assertIn(method, self.registry["implementedMethods"])
         topics = self.contracts["types"]["StateTopic"]["values"]
-        self.assertEqual(len(topics), 11)
+        self.assertEqual(len(topics), 13)
         audit.Validate_Value({"topics":topics, "events":["state.changed"]}, "SubscribeRequest", self.contracts)
         leader = self.Sample("RosterLeader")
         leader["description"] = {"availability":"unaudited"}

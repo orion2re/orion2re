@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game_events.h"
 
 namespace MSG_ {
     namespace {
@@ -15,6 +16,7 @@ namespace MSG_ {
     uint8_t max_msgs[MAX_PLAYERS];
 
     char* msg_artifacts_fmt;
+    char artifacts_and[20];
     char* msg_colony_your_rebellion_lost_fmt;
     char* msg_colony_starvation_food_fmt;
     char* msg_colony_1_rebel_won_fmt;
@@ -106,6 +108,7 @@ namespace MSG_ {
             return;
         }
 
+        if (MSG_QUEUE::Insertion_Index(&msgs[first_msg], capacity, n_msgs[plr_idx], msg.priority) >= 0) game_events::Publish_Messages_Replacing(plr_idx);
         MSG_QUEUE::Add(&msgs[first_msg], capacity, &n_msgs[plr_idx], msg);
     }
 
@@ -115,6 +118,9 @@ namespace MSG_ {
 
     /** Calculates and allocates message pool slices for all active players. */
     void __cdecl Allocate_Msg_Slots() {
+        for (int16_t player = 0; player < MAX_PLAYERS; ++player) {
+            if (n_msgs[player] != 0) game_events::Publish_Messages_Replacing(player);
+        }
         int active_players = 0;
 
         // First pass: Count active players
@@ -149,7 +155,10 @@ namespace MSG_ {
     }
 
     void __cdecl sprintf_msg(char* out_text, uint32_t out_text_size, s_MSG* msg) {
-        char and_text[20];
+        Copy_Message_Text(out_text, out_text_size, msg, MOX::PLAYER_NUM);
+    }
+
+    void Copy_Message_Text(char* out_text, uint32_t out_text_size, const s_MSG* msg, int16_t viewer) {
         char append_text[200];
         char details_text[200];
 
@@ -158,12 +167,14 @@ namespace MSG_ {
         }
 
         out_text[0] = '\0';
+        if (msg == nullptr || (msg->msg_type == MSG_TYPE_COLONY && (msg->u.colony.subtype < 0 || msg->u.colony.subtype >= MSG_COLONY_SUBTYPE_COUNT))) return;
 
         switch (msg->msg_type) {
             case MSG_TYPE_COLONY: {
                 const auto& colony_msg = msg->u.colony;
                 const int16_t planet_idx = colony_msg.planet_idx;
-                const char* planet_name = HACCESS::Get_Planet_Name(planet_idx);
+                char planet_name[31];
+                HACCESS::Do_Get_Planet_Name(planet_idx, planet_name, 1);
 
                 switch (colony_msg.subtype) {
                     case MSG_COLONY_SUBTYPE_BUILDING_SCRAPPED: {
@@ -212,7 +223,11 @@ namespace MSG_ {
                             if (build_msg.append_fmt != 0) {
                                 queue_fmt = msg_colony_built_auto_build_fmt;
                             }
-                            const char* product_name = AIBUILD::Product_Name(product_id);
+                            char product_name[800];
+                            if (product_id == COLONY_PRODUCTION_AI_TRADE_GOODS)
+                                strlcpy(product_name, "AI trade goods", sizeof(product_name));
+                            else
+                                COLBLDG::Copy_Selection_Name(product_id, product_name, sizeof(product_name), viewer);
                             snprintf(details_text, sizeof(details_text), queue_fmt, product_name);
                             strlcat(out_text, details_text, out_text_size);
                             return;
@@ -281,7 +296,7 @@ namespace MSG_ {
                         const auto& rebels_msg = colony_msg.c.rebels;
                         uint32_t owner_player_idx = (uint32_t)(uint8_t)rebels_msg.owner_player;
                         uint8_t rebel_count = rebels_msg.rebels;
-                        if ((int)MOX::PLAYER_NUM != (int)owner_player_idx) {
+                        if ((int)viewer != (int)owner_player_idx) {
                             if ((uint8_t)rebels_msg.lost < rebel_count) {
                                 const char* rebellion_fmt = msg_colony_d_rebels_won_fmt;
                                 if (rebel_count == 1) {
@@ -317,6 +332,7 @@ namespace MSG_ {
                         snprintf(out_text, out_text_size, msg_colony_android_killed_organic_fmt, planet_name, victim_race_name);
                         return;
                     }
+                    default: break;
                 }
                 break;
             }
@@ -355,7 +371,8 @@ namespace MSG_ {
             case MSG_TYPE_LOST_COLONY: {
                 const auto& lost_colony_msg = msg->u.lost_colony;
                 const char* reason_text = lost_colony_reason_strings[lost_colony_msg.reason];
-                const char* planet_name = HACCESS::Get_Planet_Name(lost_colony_msg.planet_idx);
+                char planet_name[31];
+                HACCESS::Do_Get_Planet_Name(lost_colony_msg.planet_idx, planet_name, 1);
                 snprintf(out_text, out_text_size, msg_lost_colony_fmt, msg_colony_or_outpost[(uint8_t)lost_colony_msg.colony_or_outpost], planet_name, reason_text);
                 int16_t leader_idx = lost_colony_msg.leader_idx;
                 if (leader_idx != -1) {
@@ -442,7 +459,7 @@ namespace MSG_ {
                 } else {
                     snprintf(details_text, sizeof(details_text), msg_offensive_spy_fmt, MOX::player[defending_player_idx].race_name);
                 }
-                if (assassination_msg.victim_id != MOX::PLAYER_NUM) {
+                if (assassination_msg.victim_id != viewer) {
                     snprintf(out_text, out_text_size, msg_spy_assassinated_fmt, details_text);
                     return;
                 }
@@ -477,8 +494,7 @@ namespace MSG_ {
                 if (artifacts_msg.tech2 == '\0') {
                     snprintf(details_text, sizeof(details_text), MOX::s_fmt_s, TECHDATA::technology_applications[(uint8_t)artifacts_msg.tech1].name);
                 } else {
-                    KEN::Ken_Get_Text_Message(0x68, and_text, 0x13);
-                    snprintf(details_text, sizeof(details_text), "%s %s %s", TECHDATA::technology_applications[(uint8_t)artifacts_msg.tech1].name, and_text, TECHDATA::technology_applications[(uint8_t)artifacts_msg.tech2].name);
+                    snprintf(details_text, sizeof(details_text), "%s %s %s", TECHDATA::technology_applications[(uint8_t)artifacts_msg.tech1].name, artifacts_and, TECHDATA::technology_applications[(uint8_t)artifacts_msg.tech2].name);
                 }
                 snprintf(out_text, out_text_size, msg_artifacts_fmt, details_text, &MOX::star[star_idx]);
                 return;
@@ -618,27 +634,34 @@ namespace MSG_ {
      * this function updates the screen state to navigate to that colony's management view.
      */
     int8_t __cdecl Goto_Msg_Colony(s_MSG* msg) {
-        if (msg->msg_type == MSG_TYPE_COLONY) {
-            int16_t planet_idx = msg->u.colony.planet_idx;
-            int16_t colony_idx = MOX::planet[planet_idx].colony_index;
+        const int16_t colony_idx = Message_Colony(msg, MOX::PLAYER_NUM);
+        if (colony_idx == -1) return 0;
+        MOX::return_screen = SCREEN_INFO;
+        MOX::current_screen = SCREEN_COLONY;
+        const s_planet_data* planet = &MOX::planet[MOX::colony[colony_idx].planet];
+        MOX::screen_data = planet->star_index;
+        COLONY::orbit_temp = (int16_t)planet->orbit;
+        return 1;
+    }
 
-            if (colony_idx != -1) {
-                s_colony* colony = &MOX::colony[colony_idx];
+    int16_t Message_Colony(const s_MSG* msg, int16_t viewer) {
+        if (msg == nullptr || msg->msg_type != MSG_TYPE_COLONY || MOX::planet == nullptr || MOX::colony == nullptr) return -1;
+        const int16_t planet = msg->u.colony.planet_idx;
+        if (planet < 0 || planet >= MOX::planet_count) return -1;
+        const int16_t colony = MOX::planet[planet].colony_index;
+        if (colony < 0 || colony >= MOX::NUM_COLONIES || MOX::colony[colony].owner != viewer) return -1;
+        return colony;
+    }
 
-                if (colony->owner == MOX::PLAYER_NUM) {
-                    MOX::return_screen = SCREEN_INFO;
-                    MOX::current_screen = SCREEN_COLONY;
-
-                    s_planet_data* planet = &MOX::planet[colony->planet];
-                    MOX::screen_data = planet->star_index;
-                    COLONY::orbit_temp = (int16_t)planet->orbit;
-
-                    return 1;
-                }
-            }
-        }
-
-        return 0;
+    bool Read_Message(int16_t viewer, int16_t position, char* out, uint32_t size, int16_t* colony) {
+        if (viewer < 0 || viewer >= MOX::NUM_PLAYERS || viewer >= MAX_PLAYERS || position < 0 || position >= n_msgs[viewer]) return false;
+        const int16_t first = first_msg[viewer];
+        if (n_msgs[viewer] > max_msgs[viewer] || first + n_msgs[viewer] > MAX_MESSAGES) return false;
+        const s_MSG* msg = &msgs[first + position];
+        if (native_msg == nullptr) return false;
+        Copy_Message_Text(out, size, msg, viewer);
+        if (colony != nullptr) *colony = Message_Colony(msg, viewer);
+        return true;
     }
 
     char* __cdecl Load_Msg_Strings(char* native_msg) {

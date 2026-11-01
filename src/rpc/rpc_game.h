@@ -224,6 +224,34 @@ namespace rpc {
         int32_t bonus = 0;
     };
 
+    struct s_history_curve {
+        int32_t slot = -1;
+        std::string player_id;
+        std::vector<int32_t> y;
+    };
+
+    struct s_history_chart {
+        uint8_t series = 0;
+        int32_t top_scale = 25;
+        std::vector<s_history_curve> curves;
+    };
+
+    struct s_history_observation {
+        int32_t x_step = 1;
+        bool smoothing = false;
+        std::vector<std::string> labels;
+        std::vector<s_history_chart> charts;
+    };
+
+    struct s_message_observation {
+        bool text_available = false;
+        std::string text;
+        bool serious = false;
+        int32_t colony_system = -1;
+        int32_t colony_orbit = 0;
+        std::string colony_id;
+    };
+
     struct s_map_observation {
         int32_t viewer = -1; // Private native identity, never encoded.
         int32_t turn = 0;
@@ -249,6 +277,10 @@ namespace rpc {
         std::vector<s_relation_observation> relations;
         s_intelligence_observation intelligence;
         bool relations_presentation = false;
+        bool history_captured = false;
+        s_history_observation history;
+        bool messages_captured = false;
+        std::vector<s_message_observation> messages;
     };
 
     struct s_map_snapshot {
@@ -262,6 +294,7 @@ namespace rpc {
         std::vector<std::string> technology_ids;
         std::vector<std::string> research_option_ids;
         std::vector<std::string> leader_ids;
+        std::vector<std::string> message_ids;
     };
 
     struct s_planet_handle {
@@ -335,6 +368,7 @@ namespace rpc {
     void Revoke_Game_View(s_game_store* store);
     void Revoke_Game_Context(s_game_store* store);
     void Pause_Game_Queries(s_game_store* store);
+    void Expire_Game_Messages(s_game_store* store);
     void Resume_Game_Queries(s_game_store* store);
     bool Capture_Map(s_game_store* store, const s_map_observation* observation);
     std::string Game_Query(s_game_store* store, const s_request* request, uint64_t* context_epoch = nullptr);

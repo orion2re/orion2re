@@ -301,7 +301,7 @@ field-audited methods/topics; schemas alone grant no authority.
 - [x] Q-11 — Implement own research/choices and authorized technology references.
 - [x] Q-12 — Implement owned/offered/discovered leader reads.
 - [x] Q-13 — Implement relations/own-intelligence dashboard reads with individually audited fields and scoped native disclosures; see [the client workflow](specs/rpc/README.md#relations-and-own-intelligence).
-- [ ] Q-14 — Implement native-precision history and non-consuming message reads.
+- [x] Q-14 — Implement native-precision history and non-consuming retained-summary reads; see [the turn-review workflow](specs/rpc/README.md#turn-review-historical-trends-and-retained-messages).
 - [x] Q-15 — Implement bounded pinned pagination and complete captures for enabled lists.
 
 #### Notifications

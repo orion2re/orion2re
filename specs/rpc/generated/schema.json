@@ -1887,54 +1887,172 @@
       "properties": {
         "stamp": {
           "$ref": "#/$defs/Stamp",
-          "x-rpc-policy": "contract"
+          "x-rpc-policy": "history-chart"
         },
-        "points": {
-          "$ref": "#/$defs/HistoryPoints",
-          "x-rpc-policy": "contract"
+        "smoothing": {
+          "$ref": "#/$defs/Bool",
+          "x-rpc-policy": "history-chart"
+        },
+        "xStep": {
+          "$ref": "#/$defs/HistorySpacing",
+          "x-rpc-policy": "history-chart"
+        },
+        "dateLabels": {
+          "$ref": "#/$defs/HistoryDateLabels",
+          "x-rpc-policy": "history-chart"
+        },
+        "charts": {
+          "$ref": "#/$defs/HistoryCharts",
+          "x-rpc-policy": "history-chart"
         }
       },
       "required": [
         "stamp",
+        "smoothing",
+        "xStep",
+        "dateLabels",
+        "charts"
+      ],
+      "x-rpc-policy": "history-chart"
+    },
+    "HistoryChart": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "selection": {
+          "$ref": "#/$defs/Bool",
+          "x-rpc-policy": "history-chart"
+        },
+        "series": {
+          "$ref": "#/$defs/HistorySeriesSet",
+          "x-rpc-policy": "history-chart"
+        },
+        "topScale": {
+          "$ref": "#/$defs/HistoryScale",
+          "x-rpc-policy": "history-chart"
+        },
+        "curves": {
+          "$ref": "#/$defs/HistoryCurves",
+          "x-rpc-policy": "history-chart"
+        }
+      },
+      "required": [
+        "selection",
+        "series",
+        "topScale",
+        "curves"
+      ],
+      "x-rpc-policy": "history-chart"
+    },
+    "HistoryCharts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/HistoryChart"
+      },
+      "maxItems": 5,
+      "minItems": 5
+    },
+    "HistoryCurve": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "player": {
+          "$ref": "#/$defs/Id",
+          "x-rpc-policy": "history-chart"
+        },
+        "points": {
+          "$ref": "#/$defs/HistoryPoints",
+          "x-rpc-policy": "history-chart"
+        }
+      },
+      "required": [
+        "player",
         "points"
       ],
-      "x-rpc-policy": "contract"
+      "x-rpc-policy": "history-chart"
+    },
+    "HistoryCurves": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/HistoryCurve"
+      },
+      "maxItems": 8
+    },
+    "HistoryDateLabels": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ShortText"
+      },
+      "maxItems": 8,
+      "minItems": 8
     },
     "HistoryPoint": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "turn": {
-          "$ref": "#/$defs/Turn",
-          "x-rpc-policy": "disabled-history"
+        "x": {
+          "$ref": "#/$defs/PixelX",
+          "x-rpc-policy": "history-chart"
         },
-        "player": {
-          "$ref": "#/$defs/Id",
-          "x-rpc-policy": "disabled-history"
-        },
-        "series": {
-          "$ref": "#/$defs/ShortText",
-          "x-rpc-policy": "disabled-history"
-        },
-        "displayedValue": {
-          "$ref": "#/$defs/Text",
-          "x-rpc-policy": "disabled-history"
+        "y": {
+          "$ref": "#/$defs/HistoryY",
+          "x-rpc-policy": "history-chart"
         }
       },
       "required": [
-        "turn",
-        "player",
-        "series",
-        "displayedValue"
+        "x",
+        "y"
       ],
-      "x-rpc-policy": "disabled-history"
+      "x-rpc-policy": "history-chart"
     },
     "HistoryPoints": {
       "type": "array",
       "items": {
         "$ref": "#/$defs/HistoryPoint"
       },
-      "maxItems": 65536
+      "maxItems": 350
+    },
+    "HistoryScale": {
+      "type": "integer",
+      "minimum": 25,
+      "maximum": 2147483647,
+      "x-integerToken": true,
+      "x-unit": "history-scale",
+      "description": "Native chart axis label after series selection, quantization and optional smoothing; not an exact historical statistic or an inverse conversion of graph endpoints."
+    },
+    "HistorySeries": {
+      "type": "string",
+      "enum": [
+        "population",
+        "production",
+        "fleet",
+        "technology"
+      ]
+    },
+    "HistorySeriesSet": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/HistorySeries"
+      },
+      "maxItems": 4,
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "HistorySpacing": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10,
+      "x-integerToken": true,
+      "x-unit": "logical-pixel",
+      "description": "Integer in the native 640x480 logical viewport, independent of window scale."
+    },
+    "HistoryY": {
+      "type": "integer",
+      "minimum": -32768,
+      "maximum": 32767,
+      "x-integerToken": true,
+      "x-unit": "logical-pixel",
+      "description": "Integer in the native 640x480 logical viewport, independent of window scale."
     },
     "HudCount": {
       "type": "integer",
@@ -2542,28 +2660,28 @@
       "properties": {
         "id": {
           "$ref": "#/$defs/Id",
-          "x-rpc-policy": "disabled-report"
-        },
-        "turn": {
-          "$ref": "#/$defs/Turn",
-          "x-rpc-policy": "disabled-report"
+          "x-rpc-policy": "retained-messages"
         },
         "text": {
-          "$ref": "#/$defs/Text",
-          "x-rpc-policy": "disabled-report"
+          "$ref": "#/$defs/KnownText",
+          "x-rpc-policy": "retained-messages"
         },
-        "links": {
-          "$ref": "#/$defs/Ids",
-          "x-rpc-policy": "disabled-report"
+        "serious": {
+          "$ref": "#/$defs/Bool",
+          "x-rpc-policy": "retained-messages"
+        },
+        "colony": {
+          "$ref": "#/$defs/KnownId",
+          "x-rpc-policy": "retained-messages"
         }
       },
       "required": [
         "id",
-        "turn",
         "text",
-        "links"
+        "serious",
+        "colony"
       ],
-      "x-rpc-policy": "disabled-report"
+      "x-rpc-policy": "retained-messages"
     },
     "MessageResult": {
       "type": "object",
@@ -2589,7 +2707,7 @@
       "items": {
         "$ref": "#/$defs/Message"
       },
-      "maxItems": 65536
+      "maxItems": 100
     },
     "MessagesResult": {
       "type": "object",
@@ -4526,7 +4644,7 @@
           "x-rpc-policy": "contract"
         },
         "history": {
-          "$ref": "#/$defs/HistoryPoints",
+          "$ref": "#/$defs/History",
           "x-rpc-policy": "contract"
         },
         "messages": {
@@ -4611,7 +4729,9 @@
         "research",
         "leaders",
         "relations",
-        "intelligence"
+        "intelligence",
+        "history",
+        "messages"
       ]
     },
     "StateTopics": {
@@ -4619,7 +4739,7 @@
       "items": {
         "$ref": "#/$defs/StateTopic"
       },
-      "maxItems": 11,
+      "maxItems": 13,
       "uniqueItems": true
     },
     "StreamGap": {
@@ -4705,7 +4825,7 @@
       "items": {
         "$ref": "#/$defs/StateTopic"
       },
-      "maxItems": 11,
+      "maxItems": 13,
       "minItems": 1,
       "uniqueItems": true
     },
@@ -8277,7 +8397,7 @@
       "role": "reader",
       "availability": "committed-game",
       "kind": "query",
-      "implemented": false,
+      "implemented": true,
       "requestType": "Empty",
       "resultType": "History",
       "request": {
@@ -8325,7 +8445,7 @@
       "role": "reader",
       "availability": "committed-game",
       "kind": "query",
-      "implemented": false,
+      "implemented": true,
       "requestType": "GetRequest",
       "resultType": "MessageResult",
       "request": {
@@ -8565,7 +8685,7 @@
       "role": "reader",
       "availability": "committed-game",
       "kind": "query",
-      "implemented": false,
+      "implemented": true,
       "requestType": "ListRequest",
       "resultType": "MessagesResult",
       "request": {
@@ -10109,19 +10229,58 @@
         "T-02"
       ]
     },
-    "disabled-report": {
-      "status": "disabled",
-      "predicate": "Only copied player-authorized messages and authorized entity links. Never call a report display/consume operation as query.",
+    "retained-messages": {
+      "status": "reviewed",
+      "predicate": "Only the bound active human recipient's native retained s_MSG slice, independently available through Info without showing the popup. Share Copy_Message_Text with sprintf_msg, including every supported type and all twelve colony subtypes, native 256-byte final buffer and localized intermediate truncation. Shared caller-buffer planet and refit product formatting writes no selection/scratch state; artifact conjunction initializes with native language/mod strings. Serious is exactly Is_Serious_Msg, not invented severity/category; ordering is native queue order or stable serious-first partition, not chronology. No occurrence turn or per-entry read status exists. Unknown type 3/unrecognized variants have unknown text. Native summary replacement, capacity eviction and reset end retention; no persistent archive. A recipient-scoped neutral pre-insertion/replacement publication expires handles, pinned pages and queued output before mutation; rejected/foreign insertions cannot churn the public projection. Existing resolution/world boundaries expire summary reads before queue allocation. Busy until a fresh complete coherent capture; never splice a later summary into an older ship capture. Colony links follow native Message_Colony ownership and resolve only an independently authorized same-capture own-full-colony handle. Names in text grant no foreign entity records. Pending report/diplomacy queues, science decisions and transient GNN text are not retained summaries and are excluded; never invoke Display_Report_Aux, Has_Report or event producers as queries.",
       "sources": [
         [
+          "src/game/msg.cpp",
+          "Read_Message"
+        ],
+        [
+          "src/game/msg.cpp",
+          "Copy_Message_Text"
+        ],
+        [
+          "src/game/msg.cpp",
+          "Message_Colony"
+        ],
+        [
+          "src/game/msg.cpp",
+          "Allocate_Msg_Slots"
+        ],
+        [
+          "src/game/msg_queue.cpp",
+          "Insertion_Index"
+        ],
+        [
           "src/game/report.cpp",
-          "Display_Report_Aux"
+          "Order_Turn_Summary_Messages"
+        ],
+        [
+          "src/game/info.cpp",
+          "_Init_Turn_Summary_List"
+        ],
+        [
+          "src/game/turnsum.cpp",
+          "Turn_Summary_Popup"
+        ],
+        [
+          "src/game/russ.cpp",
+          "Load_Russ_Strings"
+        ],
+        [
+          "src/game/colbldg.cpp",
+          "Copy_Selection_Name"
         ]
       ],
       "tests": [
         "T-01",
         "T-03",
-        "T-06"
+        "T-05",
+        "T-06",
+        "T-07",
+        "T-12"
       ]
     },
     "disabled-options": {
@@ -10384,18 +10543,45 @@
         "T-05"
       ]
     },
-    "disabled-history": {
-      "status": "disabled",
-      "predicate": "Native chart granularity/precision and known player coverage only. displayedValue is formatted chart value, never hidden exact history.",
+    "history-chart": {
+      "status": "reviewed",
+      "predicate": "Share history_read with native History_Subscreen/Draw_Histories/Draw_The_History_Graph. Independently include self, living current contacts, eliminated players, and native omniscience/Lore as that chart does; no blanket field grant or foreign treasury read. All four series use this predicate independently before samples, maxima, scaling, counts and equality. Return four independently scaled native single-series charts plus the player's combined native selection (all four when no buttons selected, without writing buttons). Preserve unsigned quantized history bytes, current per-series divisors, historical integer rescaling loss, 350-sample ring/window, ten in-place smoothing passes when configured, strict next native top-scale threshold, integer scaling and native int16 curve coordinates. Points are native logical graph coordinates, not exact population/building-cost/fleet-weight/tech-cost statistics, and carry no invented sample occurrence turns. Date labels and X spacing are exactly native, including rounding after the window fills. Do not expose raw bytes or divisors. Scale changes caused by native quantization can affect the displayed authorized curve; hidden samples never enter RPC normalization independently. Resolve curve player references through the same capture's independently authorized roster, never create roster entries from history. Initialized divisors/window required; absent storage is unavailable, not known-empty. Coherent captures/revisions/subscriptions and authority-loss/reset revocation use the existing store.",
       "sources": [
         [
+          "src/game/history_read.cpp",
+          "Copy_Players"
+        ],
+        [
+          "src/game/history_read.cpp",
+          "Read_Chart"
+        ],
+        [
+          "src/game/history_read.cpp",
+          "Read_Axis"
+        ],
+        [
           "src/game/info.cpp",
-          "History_Subscreen"
+          "Draw_Histories"
+        ],
+        [
+          "src/game/info.cpp",
+          "Smooth_History_Data"
+        ],
+        [
+          "src/game/bill.cpp",
+          "Record_History"
+        ],
+        [
+          "src/game/bill.cpp",
+          "Get_History_Params"
         ]
       ],
       "tests": [
         "T-01",
-        "T-03"
+        "T-02",
+        "T-03",
+        "T-05",
+        "T-07"
       ]
     },
     "context": {
@@ -10582,7 +10768,7 @@
     "orderedEventsPerSubscription": 4096,
     "overflow": "Reject before admission; coalesce only complete unsent state. Ordered-event overflow signals a gap or disconnect. Never rewrite partial output or silently discard operation results."
   },
-  "x-rpc-sourceHash": "059af6761fde10f7030e93e22e966a03ca0fcfe230c3ab6c7ef127ecf932765d",
+  "x-rpc-sourceHash": "c989fb184d73257a1dfb3ee71573ed47810f59c722a3190042a0bdbae2a375c0",
   "x-rpc-runtimeEnabled": false,
   "x-rpc-implementedMethods": [
     "rpc.hello",
@@ -10608,6 +10794,9 @@
     "game.listLeaders",
     "game.getLeader",
     "game.getRelations",
-    "game.getIntelligence"
+    "game.getIntelligence",
+    "game.getHistory",
+    "game.listMessages",
+    "game.getMessage"
   ]
 }

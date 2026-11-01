@@ -2,7 +2,7 @@
 
 Experimental optional runtime; AI-assisted documentation. The canonical enabled
 surface is `methods.json.implementedMethods`, discoverable with `rpc.describe`.
-Current reads cover session, exploration, players, own colonies, own research, leaders, relations, own intelligence and visible ships;
+Current reads cover session, exploration, players, own colonies, own research, leaders, relations, own intelligence, history, retained turn summaries and visible ships;
 all actions and unaudited fields remain unavailable. See
 [read-sidecar ownership](read_foundation.md) and the owner-specific field audits.
 
@@ -306,6 +306,94 @@ and `test_native_relations_contact_loss_elimination_reset_perspective_and_slot_r
 in `tests/rpc/test_transport.py`. This is synthetic native-function/live-transport
 evidence, not interactive saved-game, multiplayer or other-platform parity.
 
+## Turn review: historical trends and retained messages
+
+After `rpc.hello` and `rpc.describe`, establish a dashboard with one subscription:
+
+```json
+{"jsonrpc":"2.0","id":3,"method":"rpc.subscribe","params":{"topics":["session","players","colonies","research","leaders","relations","intelligence","history","messages"],"events":["state.changed"]}}
+```
+
+Use `game.getState` with the same topics after an invalidation. History, messages
+and current empire topics belong to that one capture; nested history has the
+same stamp. Ships can also be selected, but require a complete native ship-refresh
+capture. Newer trends or summaries are never added to an older ship baseline.
+When no complete authorized capture exists, the request is busy, not an empty set.
+
+`game.getHistory` returns four single-series charts (population, production,
+fleet and technology), followed by the player's native combined selection.
+The last chart has `selection: true`. No selection means the same all-four
+fallback as entering native History, without changing the player's buttons.
+Each chart has its own native `topScale` and player curves. Resolve curve `player`
+references with `game.getPlayer`; chart inclusion grants no additional current
+foreign fields.
+
+Points are **logical graph endpoints**, not exact historical statistics. Draw
+straight segments between consecutive points using native logical coordinates:
+the graph baseline is Y=390, its nominal top is Y=140, X starts at 238, and
+`xStep` is the native sample spacing. Date labels are centered at X=239+50*i,
+Y=400. Preserve those labels rather than inventing per-point dates: the native
+rolling-window axis rounds its date origin. `topScale` is the native axis label,
+not an inverse conversion of a smoothed/quantized curve into exact totals.
+Native signed/scaled endpoint behavior is preserved, including off-graph
+endpoints at extreme stored values; clip when rendering as the native viewport does.
+The projection includes native historical rescaling loss and optional ten-pass
+smoothing, with at most 350 samples per curve. Neither raw history bytes nor
+their internal divisors are public.
+
+`game.listMessages` uses normal pinned pagination; `game.getMessage` resolves a
+current summary handle. These methods expose the bound recipient's **retained
+Info/turn-summary collection**, independently of whether its popup has opened or
+been dismissed. They do not call report selection or build the native UI list.
+Text uses the same localized formatter and 256-byte native final buffer as Info
+and the popup, before font wrapping. `serious` is the native summary-trigger
+classification, not a new severity model. Ordering follows native queue order
+or the configured stable serious-first partition; priority eviction means it is
+not necessarily chronological. No occurrence timestamp, per-message read flag
+or category is inferred. Unrecognized native variants have unknown text.
+
+The full retained family includes:
+
+| Family | Variants |
+| --- | --- |
+| Colony | Building scrap; production/building/ship/refit, freighter, spy and three android products, next-queue/autobuild suffixes; genocide; assimilation; food/industry starvation; settlers with blockade/over-limit suffixes; plague; boom; comet; both rebellion perspectives and outcomes; no-room/android-population loss |
+| Empire/economy | Alliance/war declarations; all five diplomacy-summary forms; financial summary |
+| Ships/leaders | Lost/scrapped ship, lost colony/outpost and leader suffixes; hyperspace beast states/fates; Artemis with/without leader; retreat reasons/counts/leader suffix; leader dismissal |
+| Other | Attacking/defending spy losses; assassination recipient/language branches; flux; anomaly; eel appearance/disappearance; one/two artifact technologies; April notice |
+
+Only the native colony navigation target is linked: `colony` resolves through
+the same capture's independently authorized own-full-colony projection, otherwise
+it is unknown. A name appearing in a message is not a grant of a player, ship,
+technology, leader or foreign-colony record. Next-product design labels use the
+recipient explicitly, never the currently selected colony as offscreen authority.
+
+The native pool is bounded to 100 entries divided among active players. Accepted
+insertions/replacements revoke dependent summary handles, pages and queued output
+before mutation; rejected insertions and other recipients' activity do not.
+Turn allocation replaces the collection, including replacing it with known-empty.
+Reset, perspective and roster-authority changes also revoke old references.
+Re-read after the next coherent capture; no persistent archive is created. Started
+revoked output closes rather than completing with expired data. Ambient reads
+remain independent of summary-screen entry, exit, interruption and restoration.
+Repeated queries neither consume messages nor change summary selection, ordering,
+popup-display flags or gameplay RNG.
+
+Pending `REPORT::reports` (including stolen/artifact-tech presentations), pending
+diplomacy/decisions, and transient GNN/event presentations are separate native
+lifetimes, not retained turn summaries. They are not exposed or regenerated by
+these methods. Q-12/Q-13 contextual disclosures do not widen this message scope.
+Formatting resources initialize and reload through the existing native string
+lifecycle; queries never load a screen or rerun a report/event producer.
+
+Q-14 traceability: `src/game/history_read.cpp` is shared with Info's chart and
+axis renderer; `MSG_::Copy_Message_Text` is shared with both native summary
+presentations. `src/rpc/turn_review_rpc.cpp` feeds the existing capture/store.
+Native-function fixtures in `game_rpc_native_test.cpp` and
+`tests/support/rpc_native_turn_review.cpp` feed the three `test_native_turn_review_*`
+live WebSocket workflows in `tests/rpc/test_transport.py`. This is synthetic
+native-function/live-transport evidence, not interactive saved-game, multiplayer,
+mod/language-asset or other-platform parity certification.
+
 ## Documentation ownership
 
 `plan.md` owns working rules, bounded milestones and TODOs. `planning_baseline.md`
@@ -356,6 +444,12 @@ in both trees.
 For relations/intelligence changes, also build and select `test_spy`,
 `test_diplomac`, `test_info`, `test_text_format` and `test_resource_reload` in both
 trees.
+
+For turn-review changes, also build and select `test_bill_history`, `test_info`,
+`test_report`, `test_msg_queue`, `test_colbldg`, `test_resource_reload` and
+`test_fmtpara` in both trees. Use separate existing `TMPDIR` directories for
+concurrent normal, sanitizer and RPC-disabled suites; Lua fixtures use
+process-local temporary-name counters.
 
 Documentation-only changes need contract/schema/audit tests, local link checks
 and whitespace checks, not the game-build/transport gate above.

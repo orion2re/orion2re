@@ -21,6 +21,9 @@ KEY = "rpc-test-key-not-a-real-secret"
 spec = importlib.util.spec_from_file_location("rpc_incoming_client", Path(__file__).resolve().parents[2] / "tools/rpc_incoming_threats.py")
 incoming_client = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(incoming_client)
+contract_spec = importlib.util.spec_from_file_location("rpc_contract_audit", Path(__file__).resolve().parents[2] / "tools/audit_rpc_contract.py")
+contract_audit = importlib.util.module_from_spec(contract_spec)
+contract_spec.loader.exec_module(contract_audit)
 
 
 class WebSocket:
@@ -171,7 +174,130 @@ class TransportTests(unittest.TestCase):
         described = client.Read()
         self.assertEqual(described["id"], "d")
         self.assertEqual({item["name"] for item in described["result"]["methods"]},
-                         {"rpc.hello","rpc.describe","rpc.subscribe","rpc.unsubscribe","game.getSession","game.getState","game.listSystems","game.getSystem","game.listNebulas","game.listShips","game.getShip","game.listPlayers","game.getPlayer","game.listColonies","game.getColony","game.listPlanets","game.getPlanet","game.getResearch","game.listResearchOptions","game.getTechnology","game.listLeaders","game.getLeader","game.getRelations","game.getIntelligence"})
+                         {"rpc.hello","rpc.describe","rpc.subscribe","rpc.unsubscribe","game.getSession","game.getState","game.listSystems","game.getSystem","game.listNebulas","game.listShips","game.getShip","game.listPlayers","game.getPlayer","game.listColonies","game.getColony","game.listPlanets","game.getPlanet","game.getResearch","game.listResearchOptions","game.getTechnology","game.listLeaders","game.getLeader","game.getRelations","game.getIntelligence","game.getHistory","game.listMessages","game.getMessage"})
+
+    def Review(self):
+        for command in ("world", "ships", "colonies", "research", "leaders", "relations-native", "review-native"):
+            self.Fixture(command)
+        client = self.Client()
+        self.assertIn("result", client.Hello())
+        return client
+
+    def test_native_turn_review_dashboard_precision_text_pagination_and_noninterference(self):
+        client = self.Review()
+        enabled = {item["name"] for item in self.Query(client, "rpc.describe")["result"]["methods"]}
+        self.assertTrue({"game.getHistory", "game.listMessages", "game.getMessage"} <= enabled)
+        topics = ["session", "players", "colonies", "ships", "research", "leaders", "relations", "intelligence", "history", "messages"]
+        subscribed = self.Query(client, "rpc.subscribe", {"topics":topics, "events":["state.changed"]})["result"]
+        baseline = subscribed["baseline"]
+        root = Path(__file__).resolve().parents[2] / "specs/rpc"
+        contract_audit.Validate_Value(baseline, "State", contract_audit.Load_Json(root / "contracts.json"), contract_audit.Load_Json(root / "field_policies.json"), public=True)
+        self.assertEqual(self.Query(client, "game.getState", {"include":topics})["result"], baseline)
+        history = baseline["history"]
+        self.assertEqual(history, self.Query(client, "game.getHistory")["result"])
+        self.assertEqual(history["stamp"], baseline["stamp"])
+        self.assertEqual(history["xStep"], 10)
+        self.assertFalse(history["smoothing"])
+        self.assertEqual(history["dateLabels"][:2], ["3500", "3500.5"])
+        self.assertEqual(len(history["charts"]), 5)
+        local = next(player for player in baseline["players"] if player["local"])
+        for chart in history["charts"]:
+            self.assertEqual(len(chart["curves"]), 3)  # Self, living contact, eliminated.
+            for curve in chart["curves"]:
+                self.assertIn("result", self.Query(client, "game.getPlayer", {"id":curve["player"]}))
+        pop = next(curve for curve in history["charts"][0]["curves"] if curve["player"] == local["id"])
+        self.assertEqual(pop["points"], [{"x":238,"y":290}, {"x":248,"y":240}, {"x":258,"y":190}])
+        self.assertEqual(history["charts"][0]["topScale"], 50)
+        self.assertTrue(history["charts"][-1]["selection"])
+        messages = baseline["messages"]
+        self.assertEqual(len(messages), 33)
+        self.assertTrue(all(message["text"]["availability"] == "current" and message["text"]["value"] for message in messages))
+        text = "\n".join(message["text"]["value"] for message in messages)
+        for value in ("Home Prime", "Native ship", "Native leader", "Race 1", "Native technology A and Native technology B", "April notice"):
+            self.assertIn(value, text)
+        self.assertNotIn("turn", messages[0])
+        self.assertNotIn("read", messages[0])
+        self.assertIn("result", self.Query(client, "game.getColony", {"id":messages[0]["colony"]["value"]}))
+        for message in messages:
+            self.assertEqual(self.Query(client, "game.getMessage", {"id":message["id"]})["result"]["item"], message)
+        page = self.Query(client, "game.listMessages", {"limit":10})["result"]
+        self.assertEqual(page["items"], messages[:10])
+        next_page = self.Query(client, "game.listMessages", {"cursor":page["nextCursor"]})["result"]
+        self.assertEqual(next_page["items"], messages[10:20])
+        self.Fixture("review-hidden")
+        self.assertEqual(self.Query(client, "game.getState", {"include":topics})["result"], baseline)
+        self.Fixture("review-message")
+        event = client.Read()
+        self.assertEqual(event["method"], "state.changed")
+        current = self.Query(client, "game.getState", {"include":topics})["result"]
+        self.assertEqual(current["stamp"], event["params"]["stamp"])
+        self.assertIn("Balance 99", current["messages"][0]["text"]["value"])
+        self.assertEqual(self.Query(client, "game.listMessages", {"cursor":page["nextCursor"]})["error"]["code"], -32004)
+        self.assertEqual(self.Query(client, "game.getMessage", {"id":messages[0]["id"]})["error"]["code"], -32004)
+        self.Query(client, "rpc.unsubscribe", {"subscriptionId":subscribed["subscriptionId"]})
+        self.Fixture("review-sort")
+        sorted_messages = self.Query(client, "game.listMessages")["result"]["items"]
+        flags = [message["serious"] for message in sorted_messages]
+        self.assertEqual(flags, sorted(flags, reverse=True))
+
+    def test_native_turn_review_commit_retention_coherence_and_authority_changes(self):
+        client = self.Review()
+        topics = ["session", "players", "ships", "history", "messages"]
+        old = self.Query(client, "game.getState", {"include":topics})["result"]
+        self.Fixture("review-map-only")
+        self.Fixture("review-smooth")
+        self.assertEqual(self.Query(client, "game.getState", {"include":topics})["result"], old)
+        self.assertTrue(self.Query(client, "game.getHistory")["result"]["smoothing"])
+        self.Fixture("review-ships")
+        self.Fixture("review-advance")
+        self.assertEqual(client.Read()["method"], "game.turnAdvanced")
+        committed = self.Query(client, "game.getState", {"include":topics})["result"]
+        self.assertEqual(committed["messages"], [])
+        self.assertEqual(committed["session"]["turn"], old["session"]["turn"] + 1)
+        self.assertEqual(len(committed["history"]["charts"][0]["curves"][0]["points"]), 4)
+        self.assertEqual(self.Query(client, "game.getMessage", {"id":old["messages"][0]["id"]})["error"]["code"], -32004)
+        self.Fixture("busy")
+        self.assertEqual(self.Query(client, "game.getHistory")["error"]["code"], -32002)
+        self.assertEqual(self.Query(client, "game.listMessages")["error"]["code"], -32002)
+        self.Fixture("resume")
+        self.Fixture("review-contact")
+        self.assertEqual(len(self.Query(client, "game.getHistory")["result"]["charts"][0]["curves"]), 4)
+        for command in ("review-lost", "review-eliminated", "review-switch", "review-reset"):
+            self.Fixture(command)
+            with self.assertRaises((EOFError, OSError)):
+                client.Read()
+            client.close()
+            client = self.Client()
+            self.assertIn("result", client.Hello())
+            self.assertIn("result", self.Query(client, "game.getHistory"))
+
+    def test_native_turn_review_replacement_revokes_started_and_queued_output(self):
+        self.Review().close()
+        self.Fixture("review-large")
+        client = self.Client(receive_buffer=1024)
+        self.assertIn("result", client.Hello())
+        self.Fixture("review-output")
+        opcode, final, payload = client.Read_Frame()
+        self.assertEqual(opcode, 1)
+        self.assertFalse(final)
+        self.assertTrue(payload)
+        self.Fixture("review-message")
+        completed = 0
+        closed = False
+        for _ in range(4096):
+            try:
+                opcode, final, payload = client.Read_Frame()
+            except (EOFError, ConnectionError):
+                closed = True
+                break
+            if opcode == 8:
+                closed = True
+                break
+            completed += int(final and opcode in (0, 1))
+        self.assertTrue(closed)
+        # Bytes fully written before expiry can still arrive from the socket.
+        # The service must not finish all twelve old leased publications.
+        self.assertLess(completed, 12)
 
     def test_native_relations_intelligence_dashboard_workflow_and_context_revocation(self):
         self.Fixture("world")

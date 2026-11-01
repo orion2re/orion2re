@@ -275,6 +275,8 @@ namespace COLBLDG {
     void __cdecl Draw_Active_Prod();
 
     char* __cdecl Selection_Name(int16_t id);
+    void Copy_Selection_Name(int16_t id, char* out, uint32_t size, int16_t owner = -1);
+    char* Read_Option_String(int16_t id, int16_t owner);
 
     extern s_mouse_list mouse_list_to[4];
     extern s_mouse_list mouse_list_what;

@@ -2120,6 +2120,7 @@ if(ORION2RE_RPC_BUILT)
     set_tests_properties(test_rpc PROPERTIES TIMEOUT 30)
     add_executable(test_game_rpc_native
         tests/test_main.cpp tests/unit/game_rpc_native_test.cpp
+        tests/support/rpc_native_turn_review.cpp
         $<TARGET_OBJECTS:orion2re_game_objects>
         "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smacker.c"
         "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smk_bitstream.c"
@@ -2132,6 +2133,7 @@ if(ORION2RE_RPC_BUILT)
     orion2re_enable_sanitizers(test_game_rpc_native)
     add_test(NAME test_game_rpc_native COMMAND test_game_rpc_native)
     target_sources(rpc-test-server PRIVATE
+        tests/support/rpc_native_turn_review.cpp
         tests/support/rpc_native_leaders.cpp
         tests/support/rpc_native_relations.cpp
         $<TARGET_OBJECTS:orion2re_game_objects>

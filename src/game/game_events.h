@@ -43,6 +43,7 @@ namespace game_events {
         LEADER_VIEW_READY,
         RELATIONS_VIEW_CLEARED,
         RELATIONS_VIEW_READY,
+        MESSAGES_REPLACING,
     };
 
     struct s_fleet_box_node {
@@ -85,6 +86,8 @@ namespace game_events {
     uint64_t Subscribe_Ship_Destination(t_ship_destination_callback callback, void* context);
     void Unsubscribe(uint64_t subscription);
     void Publish(e_event event);
+    void Publish_Messages_Replacing(int16_t recipient);
+    int16_t Message_Recipient();
     void Publish_Fleet_Box_Info(const s_fleet_box_info* info);
     void Publish_Ship_Identity_Changing(int16_t ship);
     void Publish_Ship_Destination(const s_ship_destination_line* line);

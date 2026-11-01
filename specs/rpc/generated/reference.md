@@ -3,13 +3,13 @@
 
 **Optional runtime, disabled by default.** Only the implemented methods listed below are callable when the RPC build and settings enable it.
 
-Implemented methods: `rpc.hello`, `rpc.describe`, `rpc.subscribe`, `rpc.unsubscribe`, `game.getSession`, `game.getState`, `game.listSystems`, `game.getSystem`, `game.listNebulas`, `game.listShips`, `game.getShip`, `game.listPlayers`, `game.getPlayer`, `game.listColonies`, `game.getColony`, `game.listPlanets`, `game.getPlanet`, `game.getResearch`, `game.listResearchOptions`, `game.getTechnology`, `game.listLeaders`, `game.getLeader`, `game.getRelations`, `game.getIntelligence`.
+Implemented methods: `rpc.hello`, `rpc.describe`, `rpc.subscribe`, `rpc.unsubscribe`, `game.getSession`, `game.getState`, `game.listSystems`, `game.getSystem`, `game.listNebulas`, `game.listShips`, `game.getShip`, `game.listPlayers`, `game.getPlayer`, `game.listColonies`, `game.getColony`, `game.listPlanets`, `game.getPlanet`, `game.getResearch`, `game.listResearchOptions`, `game.getTechnology`, `game.listLeaders`, `game.getLeader`, `game.getRelations`, `game.getIntelligence`, `game.getHistory`, `game.listMessages`, `game.getMessage`.
 
 This document is rendered from `schema.json`, not a second method catalog.
 The root schema validates acknowledged client requests; per-method success responses and server notifications have separate definitions.
 All fields are non-null unless explicitly stated. Unknown keys are rejected. UTF-8 byte limits, lexical integer tokens, duplicate keys, depth and authorization need the protocol guards in addition to standard JSON Schema validation.
 
-Source bundle SHA-256: `059af6761fde10f7030e93e22e966a03ca0fcfe230c3ab6c7ef127ecf932765d`.
+Source bundle SHA-256: `c989fb184d73257a1dfb3ee71573ed47810f59c722a3190042a0bdbae2a375c0`.
 
 ## Methods
 
@@ -723,21 +723,76 @@ Constraints: `{"maximum": 32767, "minimum": -32768, "type": "integer", "x-intege
 
 | Field | Type | Required | Policy |
 | --- | --- | --- | --- |
-| stamp | Stamp | yes | contract |
-| points | HistoryPoints | yes | contract |
+| stamp | Stamp | yes | history-chart |
+| smoothing | Bool | yes | history-chart |
+| xStep | HistorySpacing | yes | history-chart |
+| dateLabels | HistoryDateLabels | yes | history-chart |
+| charts | HistoryCharts | yes | history-chart |
+
+### HistoryChart
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| selection | Bool | yes | history-chart |
+| series | HistorySeriesSet | yes | history-chart |
+| topScale | HistoryScale | yes | history-chart |
+| curves | HistoryCurves | yes | history-chart |
+
+### HistoryCharts
+
+Array of `HistoryChart`; 5..5 items; unique: false.
+
+### HistoryCurve
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| player | Id | yes | history-chart |
+| points | HistoryPoints | yes | history-chart |
+
+### HistoryCurves
+
+Array of `HistoryCurve`; 0..8 items; unique: false.
+
+### HistoryDateLabels
+
+Array of `ShortText`; 8..8 items; unique: false.
 
 ### HistoryPoint
 
 | Field | Type | Required | Policy |
 | --- | --- | --- | --- |
-| turn | Turn | yes | disabled-history |
-| player | Id | yes | disabled-history |
-| series | ShortText | yes | disabled-history |
-| displayedValue | Text | yes | disabled-history |
+| x | PixelX | yes | history-chart |
+| y | HistoryY | yes | history-chart |
 
 ### HistoryPoints
 
-Array of `HistoryPoint`; 0..65536 items; unique: false.
+Array of `HistoryPoint`; 0..350 items; unique: false.
+
+### HistoryScale
+
+Native chart axis label after series selection, quantization and optional smoothing; not an exact historical statistic or an inverse conversion of graph endpoints.
+
+Constraints: `{"maximum": 2147483647, "minimum": 25, "type": "integer", "x-integerToken": true}`.
+
+### HistorySeries
+
+Values: `population`, `production`, `fleet`, `technology`.
+
+### HistorySeriesSet
+
+Array of `HistorySeries`; 1..4 items; unique: true.
+
+### HistorySpacing
+
+Integer in the native 640x480 logical viewport, independent of window scale.
+
+Constraints: `{"maximum": 10, "minimum": 1, "type": "integer", "x-integerToken": true}`.
+
+### HistoryY
+
+Integer in the native 640x480 logical viewport, independent of window scale.
+
+Constraints: `{"maximum": 32767, "minimum": -32768, "type": "integer", "x-integerToken": true}`.
 
 ### HudCount
 
@@ -980,10 +1035,10 @@ Array of `Leader`; 0..67 items; unique: false.
 
 | Field | Type | Required | Policy |
 | --- | --- | --- | --- |
-| id | Id | yes | disabled-report |
-| turn | Turn | yes | disabled-report |
-| text | Text | yes | disabled-report |
-| links | Ids | yes | disabled-report |
+| id | Id | yes | retained-messages |
+| text | KnownText | yes | retained-messages |
+| serious | Bool | yes | retained-messages |
+| colony | KnownId | yes | retained-messages |
 
 ### MessageResult
 
@@ -994,7 +1049,7 @@ Array of `Leader`; 0..67 items; unique: false.
 
 ### Messages
 
-Array of `Message`; 0..65536 items; unique: false.
+Array of `Message`; 0..100 items; unique: false.
 
 ### MessagesResult
 
@@ -1702,7 +1757,7 @@ Constraints: `{"maximum": 2, "minimum": 0, "type": "integer", "x-integerToken": 
 | leaders | Leaders | no | contract |
 | relations | Relations | no | contract |
 | intelligence | Intelligence | no | contract |
-| history | HistoryPoints | no | contract |
+| history | History | no | contract |
 | messages | Messages | no | contract |
 | ui | View | no | contract |
 | combat | CombatView | no | contract |
@@ -1726,11 +1781,11 @@ Constraints: `{"maximum": 2, "minimum": 0, "type": "integer", "x-integerToken": 
 
 ### StateTopic
 
-Values: `session`, `systems`, `nebulas`, `ships`, `players`, `colonies`, `planets`, `research`, `leaders`, `relations`, `intelligence`.
+Values: `session`, `systems`, `nebulas`, `ships`, `players`, `colonies`, `planets`, `research`, `leaders`, `relations`, `intelligence`, `history`, `messages`.
 
 ### StateTopics
 
-Array of `StateTopic`; 0..11 items; unique: true.
+Array of `StateTopic`; 0..13 items; unique: true.
 
 ### StreamGap
 
@@ -1764,7 +1819,7 @@ Array of `SubscriptionEvent`; 1..2 items; unique: true.
 
 ### SubscriptionTopics
 
-Array of `StateTopic`; 1..11 items; unique: true.
+Array of `StateTopic`; 1..13 items; unique: true.
 
 ### System
 
@@ -1993,7 +2048,7 @@ Reviewed means static evidence, not runtime visibility approval.
 | leader-costs | reviewed | Native Calculate_Officer_Cost in whole BC only for actual pending offers and personal hiring pool, not hired leaders. Officer_Maintenance supplies displayed BC per turn for authorized hired/offer entries, including zero-maintenance skills and Loknar. Reuse native read-only cost functions, never Officer_Skill_Value recalculation or hiring operations. | src/game/officer.cpp: Calculate_Officer_Cost; src/game/officer.cpp: Officer_Maintenance; src/game/officer.cpp: Get_Officer_Costs; src/game/mainpups.cpp: Draw_Random_New_Officer_Popup | T-01, T-02, T-03 |
 | leader-offer | reviewed | Status 4 personal hiring-pool remaining availability is 30 minus native eta, as displayed; not an arrival ETA. Pending offers have no audited expiry. Native Leader_Technology_String prose is available only for actual offers/pool entries and initialized persistent language tables, not a grant of hidden research references or predicted outcomes. Do not generate offers or consume reports. Decline retains a pool entry; expiry/dismissal/death/removal/replacement revoke old authorization. | src/game/officer.cpp: Decrement_Officer_ETA; src/game/officer.cpp: Set_Officer_To_Player; src/game/officer.cpp: Print_Officer_Data; src/game/mainpups.cpp: Leader_Technology_String; src/game/report.cpp: Has_Officer_For_Hire | T-01, T-02, T-05 |
 | disabled-leader-description | disabled | Help descriptions are screen_seg-owned and unavailable to ambient reads; never borrow stale pointers or invoke the screen loader/renderers. | src/game/officer.cpp: Load_Officer_Skill_Name_Descriptions; src/game/officer.cpp: Print_Officer_Skill_Help | T-01, T-02 |
-| disabled-report | disabled | Only copied player-authorized messages and authorized entity links. Never call a report display/consume operation as query. | src/game/report.cpp: Display_Report_Aux | T-01, T-03, T-06 |
+| retained-messages | reviewed | Only the bound active human recipient&#x27;s native retained s_MSG slice, independently available through Info without showing the popup. Share Copy_Message_Text with sprintf_msg, including every supported type and all twelve colony subtypes, native 256-byte final buffer and localized intermediate truncation. Shared caller-buffer planet and refit product formatting writes no selection/scratch state; artifact conjunction initializes with native language/mod strings. Serious is exactly Is_Serious_Msg, not invented severity/category; ordering is native queue order or stable serious-first partition, not chronology. No occurrence turn or per-entry read status exists. Unknown type 3/unrecognized variants have unknown text. Native summary replacement, capacity eviction and reset end retention; no persistent archive. A recipient-scoped neutral pre-insertion/replacement publication expires handles, pinned pages and queued output before mutation; rejected/foreign insertions cannot churn the public projection. Existing resolution/world boundaries expire summary reads before queue allocation. Busy until a fresh complete coherent capture; never splice a later summary into an older ship capture. Colony links follow native Message_Colony ownership and resolve only an independently authorized same-capture own-full-colony handle. Names in text grant no foreign entity records. Pending report/diplomacy queues, science decisions and transient GNN text are not retained summaries and are excluded; never invoke Display_Report_Aux, Has_Report or event producers as queries. | src/game/msg.cpp: Read_Message; src/game/msg.cpp: Copy_Message_Text; src/game/msg.cpp: Message_Colony; src/game/msg.cpp: Allocate_Msg_Slots; src/game/msg_queue.cpp: Insertion_Index; src/game/report.cpp: Order_Turn_Summary_Messages; src/game/info.cpp: _Init_Turn_Summary_List; src/game/turnsum.cpp: Turn_Summary_Popup; src/game/russ.cpp: Load_Russ_Strings; src/game/colbldg.cpp: Copy_Selection_Name | T-01, T-03, T-05, T-06, T-07, T-12 |
 | disabled-options | disabled | Only options actually offered to the local player by the owning context; no hidden eligibility/AI reaction oracle. | src/game/tech.cpp: Commit_Selected_Entry | T-01, T-03, T-08 |
 | disabled-movement | disabled | Specified own live ships and known destinations; share audited read-only verdict logic, never mutate scratch/UI or expose hidden defenders. | src/game/shipmove.cpp: Ships_Try_To_Move_To | T-01, T-02, T-08 |
 | research-own | reviewed | Bound active human viewer only. Shared Read_Research_Choice follows configured group roots and field links, status 2 and AVAILABLE applications, preserving native no-application placeholders and synthetic hyper applications. Include current field as native change-research does, without clearing native state. Project is the current field; application is the selected application, not a prediction of all awards. HUD breakthrough takes precedence over no-selection; field status 3 is completed, and active hyper research is distinct. Authorize technology references only through current project/application or offered choices, never arbitrary catalog IDs, opponent arrays, AI priorities or future tree entries. Copy native names using caller-owned buffers and New_Get_Tech_Cost RP totals; remainingCost is max(0, native field cost minus accumulated RP), as in change-research, not guaranteed turns/threshold or independent application cost. Bound by native capacities and 8 groups times 4 choices, not stock review-category counts; do not enumerate review categories. Capture with map/ship state and retain only owned projection. Reuse immutable snapshot handles/pages and perspective revocation; changed research invalidates old lookup handles, pinned pages remain dated. No UI builders, initialization, selection, completion or RNG operations. | src/game/tech_choices.cpp: Read_Research_Choice; src/game/tech.cpp: Init_Entry_Data; src/game/tech.cpp: New_Get_Tech_Cost; src/game/tech.cpp: saved_current_field; src/game/mainscr_main.cpp: plr-&gt;research_breakthrough != 0; src/game/colcalc.cpp: plr-&gt;tech_fields[field_idx] == 3; src/game/colcalc.cpp: Player_Research_Cost; src/game/techinit.cpp: Validate_And_Rebuild_Technology | T-01, T-02, T-03, T-05 |
@@ -2004,7 +2059,7 @@ Reviewed means static evidence, not runtime visibility approval.
 | relations-disclosed | reviewed | Only shared native projections published from initialized recipient-bound Races overlay or selected living-contact Race Report. Overlay requires positive incoming spies and an actually substituted SPIES placeholder in configured text; absent/empty/literal/escaped formats grant no count and never establish zero. Report requires native noreport disabled and discloses incoming count including zero, displayed personality/objective labels and alliance/war race-name lists. Third-party labels grant no additional roster, contact, treasury, allocations or intention knowledge; reference only a same-capture independently known player, otherwise unknown. Copy callback-local payloads; revoke context leases, dependent pages and queued output before owner exit/replacement/interruption, reset/perspective/world mutation/resolution; no dossier. All relations/intelligence data is busy during resolution. Combine only a fresh coherent capture, never enrich an older ship baseline. | src/game/relations_read.cpp: Read_Overlay; src/game/relations_read.cpp: Read_Report; src/game/racescrn.cpp: Publish_Relations_View; src/game/racerprt.cpp: Publish_Relations_View; src/game/game_events.cpp: s_relations_view_scope | T-01, T-02, T-03, T-04, T-05, T-07, T-12 |
 | intelligence-own | reviewed | Bound human own organization only. Shared Read_Organization and Read_Assignment supply native home agents and per-living-contact low-six-bit counts 0..63, with selected high-bit mission 0 espionage, 1 sabotage, 2 hide. Native mission 3 is unclassified/unknown, not assassination. Known count zero retains the selected mission; uncontacted/eliminated roster allocations are unknown. No invented total pool across hidden targets, staged drag edits, opponent home/other-target allocations, hidden spy counts or future outcomes. Preserve signed displayed spy/agent bonus percentages and native argument order, using pure Compute_Spy_Bonuses; unavailable initialized leader storage yields unknown bonuses. No UI builder, commit, AI allocation, resolution, report consumption or RNG operation. | src/game/relations_read.cpp: Read_Organization; src/game/relations_read.cpp: Read_Assignment; src/game/racescrn.cpp: Init_Race_Display_Data; src/game/racescrn.cpp: Draw_Race_Text; src/game/bill.cpp: Get_My_Spy_Number; src/game/spy.cpp: Compute_Spy_Bonuses; src/game/spy.cpp: Resolve_Player_Spies | T-01, T-02, T-03, T-05, T-07 |
 | relation-indicator | reviewed | Only a living current foreign contact. Share Relationship_Indicator_Offset with Init_Race_Display_Data: native 26-position slider_remap_list[(relations + 100) / 8] minus 6 logical pixels relative to the bar top. Publish only the displayed quantized offset, not the exact relation byte, base attitude or AI intentions. No hidden/uncontacted/eliminated values are copied or used for validation/equality/notifications. Relationship text independently uses its native 17 buckets; within-position/label exact-score changes emit nothing. | src/game/relations_read.cpp: Relationship_Indicator_Offset; src/game/racescrn.cpp: relationship_slider_y; src/game/racescrn.cpp: slider_remap_list | T-01, T-02, T-03, T-05 |
-| disabled-history | disabled | Native chart granularity/precision and known player coverage only. displayedValue is formatted chart value, never hidden exact history. | src/game/info.cpp: History_Subscreen | T-01, T-03 |
+| history-chart | reviewed | Share history_read with native History_Subscreen/Draw_Histories/Draw_The_History_Graph. Independently include self, living current contacts, eliminated players, and native omniscience/Lore as that chart does; no blanket field grant or foreign treasury read. All four series use this predicate independently before samples, maxima, scaling, counts and equality. Return four independently scaled native single-series charts plus the player&#x27;s combined native selection (all four when no buttons selected, without writing buttons). Preserve unsigned quantized history bytes, current per-series divisors, historical integer rescaling loss, 350-sample ring/window, ten in-place smoothing passes when configured, strict next native top-scale threshold, integer scaling and native int16 curve coordinates. Points are native logical graph coordinates, not exact population/building-cost/fleet-weight/tech-cost statistics, and carry no invented sample occurrence turns. Date labels and X spacing are exactly native, including rounding after the window fills. Do not expose raw bytes or divisors. Scale changes caused by native quantization can affect the displayed authorized curve; hidden samples never enter RPC normalization independently. Resolve curve player references through the same capture&#x27;s independently authorized roster, never create roster entries from history. Initialized divisors/window required; absent storage is unavailable, not known-empty. Coherent captures/revisions/subscriptions and authority-loss/reset revocation use the existing store. | src/game/history_read.cpp: Copy_Players; src/game/history_read.cpp: Read_Chart; src/game/history_read.cpp: Read_Axis; src/game/info.cpp: Draw_Histories; src/game/info.cpp: Smooth_History_Data; src/game/bill.cpp: Record_History; src/game/bill.cpp: Get_History_Params | T-01, T-02, T-03, T-05, T-07 |
 | context | reviewed | Initialized live registered input owner bound to the local player, top-context interaction only. Copy IDs/labels/enabled flags; omit cheat/debug fields and unaudited formatted text. Parent visibility is not action authority. | src/game/fields.cpp: Clear_Fields; src/game/fields.cpp: Mark_Fields; src/game/fields.cpp: Release_Fields; src/game/gendraw.cpp: Confirmation_Box | T-01, T-04, T-05, T-08 |
 | disabled-view | disabled | Per-owner rendered title/lines/selection audit required. A process calculating a hidden event is not authorization to publish its text or arguments. | src/game/textbox.cpp: Do_Text_Box | T-01, T-03, T-04 |
 | disabled-saves | disabled | Initialized local slot metadata only, both entry routes. No filename/path/save bytes or filesystem listing. | src/game/loadsave.cpp: Do_Load_Game_Popup; src/game/mainmenu.cpp: Main_Menu_Screen | T-03, T-05, T-14 |

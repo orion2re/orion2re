@@ -22,6 +22,8 @@ namespace rpc {
             TOPIC_LEADERS = 1 << 8,
             TOPIC_RELATIONS = 1 << 9,
             TOPIC_INTELLIGENCE = 1 << 10,
+            TOPIC_HISTORY = 1 << 11,
+            TOPIC_MESSAGES = 1 << 12,
         };
 
         struct s_topic_methods {
@@ -43,6 +45,8 @@ namespace rpc {
             {TOPIC_LEADERS, "leaders", "game.listLeaders", "game.getLeader"},
             {TOPIC_RELATIONS, "relations", nullptr, "game.getRelations"},
             {TOPIC_INTELLIGENCE, "intelligence", nullptr, "game.getIntelligence"},
+            {TOPIC_HISTORY, "history", nullptr, "game.getHistory"},
+            {TOPIC_MESSAGES, "messages", "game.listMessages", "game.getMessage"},
         };
 
         e_topic Find_Topic(const std::string& name) {
@@ -224,6 +228,32 @@ namespace rpc {
             return true;
         }
 
+        bool Same_History(const s_map_observation* left, const s_map_observation* right) {
+            if (left->history_captured != right->history_captured) return false;
+            const auto& a = left->history;
+            const auto& b = right->history;
+            if (a.x_step != b.x_step || a.smoothing != b.smoothing || a.labels != b.labels || a.charts.size() != b.charts.size()) return false;
+            for (size_t chart = 0; chart < a.charts.size(); ++chart) {
+                const auto& x = a.charts[chart];
+                const auto& y = b.charts[chart];
+                if (x.series != y.series || x.top_scale != y.top_scale || x.curves.size() != y.curves.size()) return false;
+                for (size_t row = 0; row < x.curves.size(); ++row) {
+                    if (x.curves[row].player_id != y.curves[row].player_id || x.curves[row].y != y.curves[row].y) return false;
+                }
+            }
+            return true;
+        }
+
+        bool Same_Messages(const s_map_observation* left, const s_map_observation* right) {
+            if (left->messages_captured != right->messages_captured || left->messages.size() != right->messages.size()) return false;
+            for (size_t row = 0; row < left->messages.size(); ++row) {
+                const auto& a = left->messages[row];
+                const auto& b = right->messages[row];
+                if (std::tie(a.text_available, a.text, a.serious, a.colony_id) != std::tie(b.text_available, b.text, b.serious, b.colony_id)) return false;
+            }
+            return true;
+        }
+
         const s_map_snapshot* Select_Snapshot(const s_game_store* store, uint32_t topics) {
             for (auto snapshot = store->snapshots.rbegin(); snapshot != store->snapshots.rend(); ++snapshot) {
                 if (snapshot->map.leaders_only && (topics & ~(TOPIC_SESSION | TOPIC_LEADERS))) continue;
@@ -235,7 +265,9 @@ namespace rpc {
                     (!(topics & TOPIC_PLANETS) || snapshot->map.planets_captured) &&
                     (!(topics & TOPIC_RESEARCH) || snapshot->map.research_captured) &&
                     (!(topics & TOPIC_LEADERS) || snapshot->map.leaders_captured) &&
-                    (!(topics & (TOPIC_RELATIONS | TOPIC_INTELLIGENCE)) || snapshot->map.relations_captured)) return &*snapshot;
+                    (!(topics & (TOPIC_RELATIONS | TOPIC_INTELLIGENCE)) || snapshot->map.relations_captured) &&
+                    (!(topics & TOPIC_HISTORY) || snapshot->map.history_captured) &&
+                    (!(topics & TOPIC_MESSAGES) || snapshot->map.messages_captured)) return &*snapshot;
             }
             return nullptr;
         }
@@ -482,6 +514,50 @@ namespace rpc {
             return result + "]}";
         }
 
+        std::string History(const s_game_store* store, const s_map_snapshot* snapshot, bool stamped = true) {
+            const auto& history = snapshot->map.history;
+            std::string result = stamped ? "{\"stamp\":" + Stamp(store, snapshot) + ',' : "{";
+            result += "\"smoothing\":" + std::string(history.smoothing ? "true" : "false") + ",\"xStep\":" + std::to_string(history.x_step) + ",\"dateLabels\":[";
+            for (size_t index = 0; index < history.labels.size(); ++index) {
+                if (index != 0) result += ',';
+                result += Json_String(history.labels[index]);
+            }
+            result += "],\"charts\":[";
+            for (size_t index = 0; index < history.charts.size(); ++index) {
+                if (index != 0) result += ',';
+                const auto& chart = history.charts[index];
+                result += "{\"selection\":" + std::string(index == 4 ? "true" : "false") + ",\"series\":[";
+                const char* names[] = {"population", "production", "fleet", "technology"};
+                bool first = true;
+                for (int bit = 0; bit < 4; ++bit) {
+                    if (!(chart.series & (1 << bit))) continue;
+                    if (!first) result += ',';
+                    first = false;
+                    result += Json_String(names[bit]);
+                }
+                result += "],\"topScale\":" + std::to_string(chart.top_scale) + ",\"curves\":[";
+                for (size_t row = 0; row < chart.curves.size(); ++row) {
+                    if (row != 0) result += ',';
+                    const auto& curve = chart.curves[row];
+                    result += "{\"player\":" + Json_String(curve.player_id) + ",\"points\":[";
+                    for (size_t point = 0; point < curve.y.size(); ++point) {
+                        if (point != 0) result += ',';
+                        result += "{\"x\":" + std::to_string(238 + point * history.x_step) + ",\"y\":" + std::to_string(curve.y[point]) + "}";
+                    }
+                    result += "]}";
+                }
+                result += "]}";
+            }
+            return result + "]}";
+        }
+
+        std::string Message(const s_map_snapshot* snapshot, size_t index) {
+            const auto& message = snapshot->map.messages[index];
+            return "{\"id\":" + Json_String(snapshot->message_ids[index]) + ",\"text\":" +
+                Exploration_Knowledge(message.text_available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, Json_String(message.text)) +
+                ",\"serious\":" + (message.serious ? "true" : "false") + ",\"colony\":" + Id_Knowledge(message.colony_id) + "}";
+        }
+
         const std::vector<std::string>* Collection_Ids(const s_game_store* store, const s_map_snapshot* snapshot, e_topic topic) {
             switch (topic) {
                 case TOPIC_SYSTEMS: return &store->system_ids;
@@ -492,6 +568,7 @@ namespace rpc {
                 case TOPIC_PLANETS: return &snapshot->planet_ids;
                 case TOPIC_RESEARCH: return &snapshot->research_option_ids;
                 case TOPIC_LEADERS: return &snapshot->leader_ids;
+                case TOPIC_MESSAGES: return &snapshot->message_ids;
                 default: return nullptr;
             }
         }
@@ -506,6 +583,7 @@ namespace rpc {
                 case TOPIC_PLANETS: return Planet(snapshot, index);
                 case TOPIC_RESEARCH: return Research_Option(snapshot, index);
                 case TOPIC_LEADERS: return Leader(snapshot, index);
+                case TOPIC_MESSAGES: return Message(snapshot, index);
                 default: return {};
             }
         }
@@ -539,6 +617,8 @@ namespace rpc {
                     result += Relations(snapshot);
                 else if (selected == TOPIC_INTELLIGENCE)
                     result += Intelligence(store, snapshot, stamped);
+                else if (selected == TOPIC_HISTORY)
+                    result += History(store, snapshot, stamped);
                 else
                     result += Collection(store, snapshot, selected, 0, 10000);
             }
@@ -590,6 +670,10 @@ namespace rpc {
             const auto* snapshot = Select_Snapshot(store, topics);
             if (snapshot == nullptr) return Error_Response(request, RPC_BUSY);
             if (topics & (TOPIC_SHIPS | TOPIC_LEADERS | TOPIC_RELATIONS)) *context_epoch = snapshot->map.context_epoch;
+            if (topics & TOPIC_MESSAGES) {
+                *context_epoch = Bridge_Context_Epoch(store->bridge);
+                store->context_active = true;
+            }
             if (*context_epoch != 0) subscription.baseline_ticket = work->ticket;
             const size_t client_count = std::count_if(store->subscriptions.begin(), store->subscriptions.end(), [work](const s_state_subscription& item) { return item.client == work->client; });
             if (store->subscriptions.size() >= 64 || client_count >= 16) {
@@ -635,7 +719,12 @@ namespace rpc {
                 const std::string json = "{\"jsonrpc\":\"2.0\",\"method\":\"state.changed\",\"params\":{\"subscriptionId\":" +
                     Json_String(subscription.id) + ",\"cursor\":" + Json_String(std::to_string(++subscription.cursor)) +
                     ",\"topics\":" + Topics_Json(&subscription.topics) + ",\"stamp\":" + Stamp(store, snapshot) + "}}";
-                if (Publish_Event(store->bridge, subscription.client, subscription.epoch, &json, &subscription.id, (topics & (TOPIC_SHIPS | TOPIC_LEADERS | TOPIC_RELATIONS)) ? snapshot->map.context_epoch : 0)) subscription.projection = std::move(projection);
+                uint64_t lease = (topics & (TOPIC_SHIPS | TOPIC_LEADERS | TOPIC_RELATIONS)) ? snapshot->map.context_epoch : 0;
+                if (topics & TOPIC_MESSAGES) {
+                    lease = Bridge_Context_Epoch(store->bridge);
+                    store->context_active = true;
+                }
+                if (Publish_Event(store->bridge, subscription.client, subscription.epoch, &json, &subscription.id, lease)) subscription.projection = std::move(projection);
             }
         }
 
@@ -690,12 +779,17 @@ namespace rpc {
                 return {};
             }
             if (topics & (TOPIC_SHIPS | TOPIC_LEADERS | TOPIC_RELATIONS)) *context_epoch = snapshot->map.context_epoch;
+            if (topics & TOPIC_MESSAGES) {
+                *context_epoch = Bridge_Context_Epoch(store->bridge);
+                store->context_active = true;
+            }
             if (state) {
                 return "{\"stamp\":" + Stamp(store, snapshot) + Topic_Projection(store, snapshot, &selected, true) + "}";
             }
             if (request->method == "game.getResearch") return Research(store, snapshot);
             if (request->method == "game.getRelations") return "{\"stamp\":" + Stamp(store, snapshot) + ",\"items\":" + Relations(snapshot) + "}";
             if (request->method == "game.getIntelligence") return Intelligence(store, snapshot);
+            if (request->method == "game.getHistory") return History(store, snapshot);
             if (request->method == "game.getTechnology") {
                 const std::string id = Text(params, "id");
                 for (size_t index = 0; index < snapshot->technology_ids.size(); ++index) {
@@ -731,7 +825,7 @@ namespace rpc {
                     return {};
                 }
                 const auto pinned = std::find_if(store->snapshots.begin(), store->snapshots.end(), [&cursor](const s_map_snapshot& item) { return item.id == cursor->snapshot; });
-                if (pinned == store->snapshots.end() || ((topics & (TOPIC_SHIPS | TOPIC_LEADERS)) && !Authorized_Snapshot(store, &*pinned))) {
+                if (pinned == store->snapshots.end() || ((topics & TOPIC_MESSAGES) && !pinned->map.messages_captured) || ((topics & (TOPIC_SHIPS | TOPIC_LEADERS)) && !Authorized_Snapshot(store, &*pinned))) {
                     *error = RPC_OBJECT_UNAVAILABLE;
                     return {};
                 }
@@ -830,6 +924,26 @@ namespace rpc {
         if (std::any_of(store->snapshots.begin(), store->snapshots.end(), [](const s_map_snapshot& snapshot) { return snapshot.map.exploration_sensitive; })) Revoke_Game_View(store);
         Revoke_Game_Context(store);
         ++store->busy_depth;
+        Expire_Game_Messages(store);
+    }
+
+    void Expire_Game_Messages(s_game_store* store) {
+        if (store == nullptr) return;
+        const bool retained = std::any_of(store->snapshots.begin(), store->snapshots.end(), [](const s_map_snapshot& snapshot) { return snapshot.map.messages_captured; });
+        if (!retained) return;
+        for (const auto& subscription : store->subscriptions) {
+            if (Context_Response_Pending(store->bridge, subscription.client, subscription.baseline_ticket)) Cancel_Client(store->bridge, subscription.client);
+        }
+        Revoke_Bridge_Context(store->bridge);
+        store->context_active = false;
+        for (auto& snapshot : store->snapshots) {
+            snapshot.map.messages_captured = false;
+            snapshot.map.messages.clear();
+            snapshot.message_ids.clear();
+        }
+        std::erase_if(store->cursors, [](const s_map_cursor& cursor) { return cursor.method == "game.listMessages"; });
+        store->capture_requested = true;
+        for (auto& subscription : store->subscriptions) subscription.revision = 0;
     }
 
     void Resume_Game_Queries(s_game_store* store) {
@@ -989,6 +1103,43 @@ namespace rpc {
             }
         }
         if (projected.players_captured && !has_local) return false;
+        projected.history_captured = observation->history_captured;
+        if (projected.history_captured) {
+            if (!projected.players_captured || observation->history.charts.size() != 5 || observation->history.labels.size() != 8) return false;
+            projected.history.x_step = observation->history.x_step;
+            projected.history.smoothing = observation->history.smoothing;
+            projected.history.labels = observation->history.labels;
+            if (projected.history.x_step != 1 && projected.history.x_step != 2 && projected.history.x_step != 5 && projected.history.x_step != 10) return false;
+            for (const auto& label : projected.history.labels)
+                if (label.size() > 45) return false;
+            for (const auto& source : observation->history.charts) {
+                s_history_chart chart;
+                chart.series = source.series;
+                chart.top_scale = source.top_scale;
+                if (chart.series == 0 || chart.series > 15 || chart.top_scale < 25) return false;
+                bool included[8] = {};
+                for (const auto& curve : source.curves) {
+                    if (std::none_of(projected.players.begin(), projected.players.end(), [&curve](const auto& player) { return player.slot == curve.slot; })) continue;
+                    if (included[curve.slot] || curve.y.size() > 350) return false;
+                    included[curve.slot] = true;
+                    for (int32_t y : curve.y) {
+                        if (y < -32768 || y > 32767) return false;
+                    }
+                    chart.curves.push_back(curve);
+                }
+                projected.history.charts.push_back(std::move(chart));
+            }
+        }
+        projected.messages_captured = observation->messages_captured;
+        if (projected.messages_captured) {
+            if (observation->messages.size() > 100) return false;
+            projected.messages = observation->messages;
+            for (auto& message : projected.messages) {
+                if (!message.text_available) message.text.clear();
+                if (message.text.size() > 765) return false;
+                message.colony_id.clear();
+            }
+        }
         if (projected.relations_captured && !projected.players_captured) return false;
         std::erase_if(projected.relations, [&projected](const s_relation_observation& relation) {
             return std::none_of(projected.players.begin(), projected.players.end(), [&relation](const s_player_observation& player) { return !player.local && player.slot == relation.slot; });
@@ -1115,7 +1266,7 @@ namespace rpc {
             const auto previous_full = std::find_if(store->snapshots.rbegin(), store->snapshots.rend(), [](const s_map_snapshot& item) { return !item.map.leaders_only; });
             const auto& previous = previous_full != store->snapshots.rend() ? previous_full->map : projected;
             bool lost = false;
-            if (projected.relations_captured && previous.relations_captured && projected.players_captured && previous.players_captured) {
+            if ((projected.relations_captured || projected.history_captured || projected.messages_captured) && projected.players_captured && previous.players_captured) {
                 for (const auto& player : previous.players) {
                     const auto current = std::find_if(projected.players.begin(), projected.players.end(), [&player](const s_player_observation& item) { return item.slot == player.slot; });
                     lost |= current == projected.players.end() || current->name != player.name || current->color != player.color ||
@@ -1208,6 +1359,13 @@ namespace rpc {
             std::sort(relation.report.begin(), relation.report.end(), [](const auto& a, const auto& b) { return std::tie(a.name, a.alliance, a.player_id) < std::tie(b.name, b.alliance, b.player_id); });
         }
         std::sort(projected.relations.begin(), projected.relations.end(), [](const auto& a, const auto& b) { return a.player_id < b.player_id; });
+        for (auto& chart : projected.history.charts) {
+            for (auto& curve : chart.curves) {
+                const auto player = std::find_if(projected.players.begin(), projected.players.end(), [&curve](const auto& item) { return item.slot == curve.slot; });
+                curve.player_id = player_ids[(size_t)(player - projected.players.begin())];
+                curve.slot = -1;
+            }
+        }
         for (auto& ship : projected.ships) {
             ship.owner_id.clear();
             const int32_t owner_slot = ship.owned ? projected.viewer : ship.owner_slot;
@@ -1248,6 +1406,14 @@ namespace rpc {
         const auto* previous_colonies = Select_Snapshot(store, TOPIC_COLONIES);
         if (projected.colonies_captured && previous_colonies != nullptr && Same_Colonies(&projected, &previous_colonies->map)) colony_ids = previous_colonies->colony_ids;
         if (!Extend(&colony_ids, projected.colonies.size())) return false;
+        for (auto& message : projected.messages) {
+            const auto colony = std::find_if(projected.colonies.begin(), projected.colonies.end(), [&message, store](const auto& item) {
+                return message.colony_system >= 0 && (size_t)message.colony_system < store->system_ids.size() && item.system_id == store->system_ids[message.colony_system] && item.orbit == message.colony_orbit;
+            });
+            if (colony != projected.colonies.end()) message.colony_id = colony_ids[(size_t)(colony - projected.colonies.begin())];
+            message.colony_system = -1;
+            message.colony_orbit = 0;
+        }
         for (auto& planet : projected.planets) {
             const auto colony = std::find_if(projected.colonies.begin(), projected.colonies.end(), [&planet](const s_colony_observation& item) { return item.system_id == planet.system_id && item.orbit == planet.orbit; });
             if (colony != projected.colonies.end()) planet.colony_id = colony_ids[(size_t)(colony - projected.colonies.begin())];
@@ -1301,13 +1467,15 @@ namespace rpc {
                     (!projected.ships_captured || item.map.ships_captured) && (!projected.players_captured || item.map.players_captured) &&
                     (!projected.colonies_captured || item.map.colonies_captured) && (!projected.planets_captured || item.map.planets_captured) &&
                     (!projected.research_captured || item.map.research_captured) && (!projected.leaders_captured || item.map.leaders_captured) &&
-                    (!projected.relations_captured || item.map.relations_captured);
+                    (!projected.relations_captured || item.map.relations_captured) &&
+                    (!projected.history_captured || item.map.history_captured) && (!projected.messages_captured || item.map.messages_captured);
             });
             if (ambient != store->snapshots.rend() && Same_Map(&projected, &ambient->map) && (!projected.ships_captured || Same_Ships(&projected, &ambient->map)) &&
                 (!projected.players_captured || (Same_Players(&projected, &ambient->map) && player_ids == ambient->player_ids)) &&
                 (!projected.colonies_captured || Same_Colonies(&projected, &ambient->map)) && (!projected.planets_captured || Same_Planets(&projected, &ambient->map)) &&
                 (!projected.research_captured || Same_Research(&projected, &ambient->map)) &&
-                (!projected.leaders_captured || Same_Leaders(&projected, &ambient->map)) && Same_Relations(&projected, &ambient->map)) return true;
+                (!projected.leaders_captured || Same_Leaders(&projected, &ambient->map)) && Same_Relations(&projected, &ambient->map) &&
+                Same_History(&projected, &ambient->map) && Same_Messages(&projected, &ambient->map)) return true;
         }
         const bool equal = !store->snapshots.empty() && projected.leaders_only == store->snapshots.back().map.leaders_only && Same_Map(&projected, &store->snapshots.back().map) &&
             (!projected.ships_captured || Same_Ships(&projected, &store->snapshots.back().map)) &&
@@ -1315,7 +1483,8 @@ namespace rpc {
             (!projected.colonies_captured || Same_Colonies(&projected, &store->snapshots.back().map)) &&
             (!projected.planets_captured || Same_Planets(&projected, &store->snapshots.back().map)) &&
             (!projected.research_captured || Same_Research(&projected, &store->snapshots.back().map)) &&
-            (!projected.leaders_captured || Same_Leaders(&projected, &store->snapshots.back().map)) && Same_Relations(&projected, &store->snapshots.back().map);
+            (!projected.leaders_captured || Same_Leaders(&projected, &store->snapshots.back().map)) && Same_Relations(&projected, &store->snapshots.back().map) &&
+            Same_History(&projected, &store->snapshots.back().map) && Same_Messages(&projected, &store->snapshots.back().map);
         if (projected.context_epoch != 0) store->context_active = true;
         if (equal && (projected.context_epoch == store->snapshots.back().map.context_epoch || (!projected.ships_captured && !projected.leader_presentation && !projected.relations_presentation))) return true;
         if (store->revision == std::numeric_limits<uint64_t>::max()) return false;
@@ -1326,6 +1495,9 @@ namespace rpc {
         snapshot.planet_ids = std::move(planet_ids);
         snapshot.colony_ids = std::move(colony_ids);
         snapshot.ship_ids = std::move(ship_ids);
+        const auto* previous_messages = Select_Snapshot(store, TOPIC_MESSAGES);
+        if (snapshot.map.messages_captured && previous_messages != nullptr && Same_Messages(&snapshot.map, &previous_messages->map)) snapshot.message_ids = previous_messages->message_ids;
+        if (!Extend(&snapshot.message_ids, snapshot.map.messages.size())) return false;
         const auto* previous_leaders = Select_Snapshot(store, TOPIC_LEADERS);
         if (snapshot.map.leaders_captured && previous_leaders != nullptr && Same_Leaders(&snapshot.map, &previous_leaders->map)) snapshot.leader_ids = previous_leaders->leader_ids;
         if (!Extend(&snapshot.leader_ids, snapshot.map.leaders.size())) return false;
