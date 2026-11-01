@@ -471,6 +471,9 @@ namespace SHIPS {
 
                         SHIPS::Draw_Ship_Destination_Line(star_x, star_y, ship_x, ship_y, colors);
 
+                        const game_events::s_ship_destination_line observation = {node_idx, ship_id, abs_loc, is_selected};
+                        game_events::Publish_Ship_Destination(&observation);
+
                         if (location >= SHIP_LOCATION_MOVING_OFFSET && location < SHIP_LOCATION_WORMHOLE_OFFSET) {
                             int16_t zoom = HAROLD::Map_Scale_To_Zoom_Level();
                             SHIPS::Print_Eta_On_Ship_Icon(node_idx, zoom, ship_x, ship_y);

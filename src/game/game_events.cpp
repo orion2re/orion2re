@@ -10,6 +10,7 @@ namespace game_events {
             void* context = nullptr;
             t_fleet_box_callback fleet_box_callback = nullptr;
             t_ship_identity_callback ship_identity_callback = nullptr;
+            t_ship_destination_callback ship_destination_callback = nullptr;
         };
         s_listener listeners[8];
         uint64_t next_id = 0;
@@ -63,7 +64,19 @@ namespace game_events {
         return 0;
     }
 
-    static void Deliver(e_event event, const s_fleet_box_info* info, int16_t ship = -1) {
+    uint64_t Subscribe_Ship_Destination(t_ship_destination_callback callback, void* context) {
+        if (callback == nullptr || next_id == std::numeric_limits<uint64_t>::max()) return 0;
+        for (s_listener& listener : listeners) {
+            if (listener.id == 0) {
+                listener = {++next_id, nullptr, context, nullptr, nullptr, callback};
+                ++count;
+                return listener.id;
+            }
+        }
+        return 0;
+    }
+
+    static void Deliver(e_event event, const s_fleet_box_info* info, int16_t ship = -1, const s_ship_destination_line* line = nullptr) {
         if (count == 0) return;
         uint64_t selected[8];
         for (uint32_t index = 0; index < 8; ++index) selected[index] = listeners[index].id;
@@ -75,6 +88,7 @@ namespace game_events {
                     if (call.callback != nullptr) call.callback(event, call.context);
                     if (call.fleet_box_callback != nullptr && info != nullptr) call.fleet_box_callback(info, call.context);
                     if (call.ship_identity_callback != nullptr && ship >= 0) call.ship_identity_callback(ship, call.context);
+                    if (call.ship_destination_callback != nullptr && line != nullptr) call.ship_destination_callback(line, call.context);
                     break;
                 }
             }
@@ -91,6 +105,10 @@ namespace game_events {
 
     void Publish_Ship_Identity_Changing(int16_t ship) {
         Deliver(SHIP_IDENTITIES_CHANGING, nullptr, ship);
+    }
+
+    void Publish_Ship_Destination(const s_ship_destination_line* line) {
+        if (line != nullptr) Deliver(SHIP_DESTINATION_LINE_DRAWN, nullptr, -1, line);
     }
 
     s_observation_scope::s_observation_scope(e_event entered, e_event exit) : leaving(exit) {

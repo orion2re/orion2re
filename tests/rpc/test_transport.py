@@ -508,8 +508,11 @@ class TransportTests(unittest.TestCase):
     def test_non_own_context_eta_uses_the_same_coherent_capture_and_revocation_path(self):
         self.Check_Context_Eta(True)
 
-    def Check_Context_Eta(self, foreign):
-        prefix = "eta-foreign" if foreign else "eta"
+    def test_contextual_route_and_eta_are_withdrawn_together_without_losing_ambient_routes(self):
+        self.Check_Context_Eta(True, True)
+
+    def Check_Context_Eta(self, foreign, contextual_route=False):
+        prefix = "route" if contextual_route else ("eta-foreign" if foreign else "eta")
         index = 1 if foreign else 0
         self.Fixture("world")
         self.Fixture("colonies")
@@ -538,6 +541,14 @@ class TransportTests(unittest.TestCase):
         self.assertEqual(self.Query(client, "game.listShips", {"cursor":first["nextCursor"]})["error"]["code"], -32004)
         ambient = self.Query(client, "game.getState", {"include":topics})["result"]
         self.assertEqual(ambient["ships"][index]["eta"], {"availability":"context-required"})
+        if contextual_route:
+            self.assertEqual(ambient["ships"][index]["destination"], {"availability":"context-required"})
+            self.assertEqual(ambient["ships"][0]["destination"], state["ships"][0]["destination"])
+            self.assertEqual(ambient["ships"][0]["eta"], {"availability":"current", "value":255})
+            destination = state["ships"][index]["destination"]["value"]
+            system = next(item for item in state["systems"] if item["id"] == destination)
+            self.assertFalse(system["visited"])
+            self.assertEqual(system["name"], {"availability":"unaudited"})
         self.assertEqual(ambient["session"]["revision"], ambient["stamp"]["revision"])
         stale = self.Query(client, "game.getShip", {"id":state["ships"][index]["id"]})
         self.assertEqual(stale, self.Query(client, "game.getShip", {"id":"unknown"}))
@@ -545,10 +556,13 @@ class TransportTests(unittest.TestCase):
         self.assertEqual(client.Read()["method"], "state.changed")
         restored = self.Query(client, "game.listShips")["result"]
         self.assertEqual(restored["items"], state["ships"])
+        self.assertEqual(self.Query(client, "game.listShips", {"cursor":first["nextCursor"]})["error"]["code"], -32004)
         self.Fixture("busy")
         self.Fixture("resume")
         self.assertEqual(client.Read()["method"], "state.changed")
         self.assertEqual(self.Query(client, "game.listShips")["result"]["items"][index]["eta"], {"availability":"context-required"})
+        if contextual_route:
+            self.assertEqual(self.Query(client, "game.listShips")["result"]["items"][index]["destination"], {"availability":"context-required"})
 
     def test_context_revocation_closes_started_service_output_without_a_game_poll(self):
         self.Check_Context_Output("publish-context-large")
@@ -558,6 +572,13 @@ class TransportTests(unittest.TestCase):
         self.Fixture("colonies")
         self.Fixture("eta-foreign-ambient")
         self.Fixture("eta-foreign-context")
+        self.Check_Context_Output("publish-foreign-context-large")
+
+    def test_contextual_destination_and_eta_revoke_actual_service_owned_pending_output(self):
+        self.Fixture("world")
+        self.Fixture("colonies")
+        self.Fixture("route-ambient")
+        self.Fixture("route-context")
         self.Check_Context_Output("publish-foreign-context-large")
 
     def Check_Context_Output(self, command):

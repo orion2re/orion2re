@@ -27,6 +27,35 @@ DOCTEST_TEST_CASE("identity observations are callback-local and share the neutra
     DOCTEST_CHECK(slots == std::vector<int16_t>{7});
 }
 
+DOCTEST_TEST_CASE("destination line observations are synchronous copied values with bounded listener lifetimes") {
+    std::vector<game_events::s_ship_destination_line> lines;
+    const auto capture = [](const game_events::s_ship_destination_line* line, void* context) {
+        ((std::vector<game_events::s_ship_destination_line>*)context)->push_back(*line);
+    };
+    const auto token = game_events::Subscribe_Ship_Destination(capture, &lines);
+    DOCTEST_REQUIRE(token != 0);
+    {
+        const game_events::s_ship_destination_line line = {4, 7, 2, true};
+        game_events::Publish_Ship_Destination(&line);
+    }
+    game_events::Publish_Ship_Destination(nullptr);
+    game_events::Publish(game_events::SHIP_DESTINATION_LINE_DRAWN);
+    DOCTEST_REQUIRE(lines.size() == 1);
+    DOCTEST_CHECK(lines[0].node == 4);
+    DOCTEST_CHECK(lines[0].ship == 7);
+    DOCTEST_CHECK(lines[0].destination == 2);
+    DOCTEST_CHECK(lines[0].box_selected);
+    std::vector<uint64_t> extra;
+    for (int i = 0; i < 7; ++i) extra.push_back(game_events::Subscribe_Ship_Destination(capture, &lines));
+    DOCTEST_CHECK(game_events::Subscribe_Ship_Destination(capture, &lines) == 0);
+    DOCTEST_CHECK(game_events::Subscribe_Ship_Destination(nullptr, nullptr) == 0);
+    for (const auto id : extra) game_events::Unsubscribe(id);
+    game_events::Unsubscribe(token);
+    const game_events::s_ship_destination_line line = {0, 0, 0, false};
+    game_events::Publish_Ship_Destination(&line);
+    DOCTEST_CHECK(lines.size() == 1);
+}
+
 DOCTEST_TEST_CASE("neutral game events publish committed failed and nested resolution boundaries") {
     std::vector<game_events::e_event> events;
     const uint64_t id = game_events::Subscribe(Record, &events);

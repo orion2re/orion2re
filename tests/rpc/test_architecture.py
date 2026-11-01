@@ -143,5 +143,22 @@ class SidecarArchitectureTests(unittest.TestCase):
         self.assertIn("publication.context_epoch", service)
         self.assertIn("publication.revoked_json", service)
 
+    def test_contextual_route_observes_actual_line_before_same_frame_box_production(self):
+        ships = (ROOT / "src/game/ships.cpp").read_text()
+        route = ships[ships.index("void __cdecl Do_Ship_Destination_Lines()"):
+                      ships.index("void __cdecl Print_Eta_On_Ship_Icon(")]
+        self.assertLess(route.index("Draw_Ship_Destination_Line("), route.index("Publish_Ship_Destination("))
+        self.assertIn("{node_idx, ship_id, abs_loc, is_selected}", route)
+        native = (ROOT / "src/game/mainscr_main.cpp").read_text()
+        frame = native[native.index("void __cdecl Draw_Main_Screen()") :]
+        self.assertLess(frame.index("MAIN_SCREEN_FRAME_ENTERED"), frame.index("Do_Ship_Destination_Lines();"))
+        self.assertIn("MAIN_SCREEN_FRAME_LEAVING", frame)
+        self.assertLess(frame.index("Do_Ship_Destination_Lines();"), frame.index("MOVEBOX::Draw_Moveable_Box(box_id);"))
+        movebox = (ROOT / "src/game/movebox.cpp").read_text()
+        self.assertIn("FLEETPOP::Draw_Fleet_Movement_Box();", movebox)
+        adapter = (ROOT / "src/rpc/game_rpc.cpp").read_text()
+        self.assertIn("Subscribe_Ship_Destination", adapter)
+        self.assertNotRegex(adapter, r"(?:Do_Ship_Destination_Lines|Draw_Main_Screen|Print_Fleet_Box_Info|Make_Ships_Move_To|Get_Ship_Move_Info)\s*\(")
+
 if __name__ == "__main__":
     unittest.main()

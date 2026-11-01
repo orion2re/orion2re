@@ -637,6 +637,62 @@ DOCTEST_TEST_CASE("native fleet info publishes only produced cached ETA and neve
 }
 
 namespace {
+    // Synthetic dimensions/cache and a real software drawing surface;
+    // no game assets or renderer stubs are used by the route producer.
+    struct s_route_surface {
+        s_file_buffer_entry* old_files = buffer::file_buffer;
+        int16_t old_file_count = buffer::file_buffer_count;
+        int32_t old_load_count = buffer::global_load_count;
+        int32_t old_size = buffer::buffer_space_size;
+        void* old_buffer = buffer::buffer_space_seg;
+        void* old_cache = MOX::global_cache_seg;
+        uint8_t* old_page = video::current_video_page;
+        int16_t old_scale = MOX::cur_map_scale;
+        int16_t old_x = MOX::cur_map_x;
+        int16_t old_y = MOX::cur_map_y;
+        int16_t old_phase = MOX::multi_colored_line_start;
+        std::vector<s_animation_header*> old_pictures = {std::begin(MOX::ship_icon_seg), std::end(MOX::ship_icon_seg)};
+        std::vector<uint8_t> old_widths = {std::begin(MOX::ship_icon_width), std::end(MOX::ship_icon_width)};
+        std::vector<uint8_t> old_heights = {std::begin(MOX::ship_icon_height), std::end(MOX::ship_icon_height)};
+        allocate::s_alloc_header header = {};
+        s_file_buffer_entry file = {};
+        s_animation_header picture = {};
+        std::vector<uint8_t> pixels = std::vector<uint8_t>(640 * 480);
+        s_route_surface() {
+            picture.width = picture.height = 8;
+            strlcpy(file.file_name, "BUFFER0.LBX", sizeof(file.file_name));
+            file.segment_count = 32;
+            for (int index = 0; index < 32; ++index) {
+                file.segments[index].buffer_seg_id = 205 + index;
+                file.segments[index].is_loaded = 1;
+                file.segments[index].data_ptr = &picture;
+            }
+            buffer::file_buffer = &file;
+            buffer::file_buffer_count = 1;
+            buffer::buffer_space_size = 0;
+            buffer::buffer_space_seg = MOX::global_cache_seg = &header + 1;
+            video::current_video_page = pixels.data();
+            MOX::cur_map_scale = 10;
+            MOX::cur_map_x = MOX::cur_map_y = MOX::multi_colored_line_start = 0;
+        }
+        ~s_route_surface() {
+            buffer::file_buffer = old_files;
+            buffer::file_buffer_count = old_file_count;
+            buffer::global_load_count = old_load_count;
+            buffer::buffer_space_size = old_size;
+            buffer::buffer_space_seg = old_buffer;
+            MOX::global_cache_seg = old_cache;
+            video::current_video_page = old_page;
+            MOX::cur_map_scale = old_scale;
+            MOX::cur_map_x = old_x;
+            MOX::cur_map_y = old_y;
+            MOX::multi_colored_line_start = old_phase;
+            std::copy(old_pictures.begin(), old_pictures.end(), MOX::ship_icon_seg);
+            std::copy(old_widths.begin(), old_widths.end(), MOX::ship_icon_width);
+            std::copy(old_heights.begin(), old_heights.end(), MOX::ship_icon_height);
+        }
+    };
+
     struct s_eta_world {
         s_ship_world native;
         rpc::s_bridge bridge;
@@ -655,7 +711,9 @@ namespace {
         std::vector<char> strings = MOX::h_strings;
         std::vector<size_t> offsets = {std::begin(MOX::h_string_ix), std::end(MOX::h_string_ix)};
         bool foreign = false;
-        s_eta_world(bool non_own = false) : foreign(non_own) {
+        bool contextual = false;
+        s_route_surface surface;
+        s_eta_world(int path = 0) : foreign(path != 0), contextual(path == 2) {
             MOX::leaders = leaders.data();
             DOCTEST_REQUIRE(orion2re::lua::game::Capture_Ship_Generation_State(generations.data(), MAX_SHIPS));
             native.world.stars[1].x = 100;
@@ -671,13 +729,14 @@ namespace {
                 snprintf(native.ships[index].d.name, sizeof(native.ships[index].d.name), "Own-%d", index);
                 if (foreign) memset(native.ships[index].d.name, 0xff, sizeof(native.ships[index].d.name));
             }
-            if (foreign) MOX::settings.enemy_moves = 1;
+            if (foreign) MOX::settings.enemy_moves = contextual ? 0 : 1;
             native.ships[10] = {};
             native.ships[10].owner = foreign ? 0 : 1;
             native.ships[10].x = 30;
             orion2re::lua::game::Restore_Legacy_Ship_Generations();
             MOX::h_strings = {'\0'};
             std::fill(std::begin(MOX::h_string_ix), std::end(MOX::h_string_ix), 0);
+            MOX::fleet_box.name_seg = &surface.picture;
             MOX::eta_star_id = MOX::fleet_ship_scanned = MAINSCR::fleet_icon_chosen = -1;
             DOCTEST_REQUIRE(rpc::Initialize_Game_Store(&store, &bridge));
             DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&store));
@@ -715,6 +774,8 @@ namespace {
         }
         void Print() {
             game_events::s_observation_scope draw(game_events::MAIN_VIEW_DRAW_ENTERED, game_events::MAIN_VIEW_DRAW_LEAVING);
+            game_events::s_observation_scope frame(game_events::MAIN_SCREEN_FRAME_ENTERED, game_events::MAIN_SCREEN_FRAME_LEAVING);
+            if (contextual) SHIPS::Do_Ship_Destination_Lines();
             FLEETPOP::Print_Fleet_Box_Info();
         }
         std::string Query(const char* method = "game.listShips", const char* params = "{}", uint64_t* context = nullptr) {
@@ -731,11 +792,18 @@ namespace {
     };
 } // namespace
 
-DOCTEST_TEST_CASE_TEMPLATE("real cached producer authorizes only an initialized surviving wormhole head including zero", Fleet, std::false_type, std::true_type) {
+DOCTEST_TEST_CASE_TEMPLATE("real cached producer authorizes only an initialized surviving wormhole head including zero", Fleet, std::false_type, std::true_type, std::integral_constant<int, 2>) {
     s_eta_world fixture(Fleet::value);
     game_events::s_fleet_box_view_scope owner;
     fixture.Refresh();
     const auto ambient = fixture.Query();
+    if (fixture.contextual) {
+        DOCTEST_CHECK(MOX::settings.enemy_moves == 0);
+        DOCTEST_CHECK_FALSE(SHIPS::Enemy_Ship_Heading_Toward_Our_Colony(MOX::fleet_movement_icon[0].ship_node_idx));
+        for (const auto& item : fixture.adapter.associations) {
+            if (item.slot < 10) DOCTEST_CHECK(item.ship.destination_available == rpc::SHIP_CONTEXT_REQUIRED);
+        }
+    }
     fixture.Print();
     DOCTEST_CHECK(fixture.Query() == ambient);
     owner.Initialized();
@@ -750,6 +818,13 @@ DOCTEST_TEST_CASE_TEMPLATE("real cached producer authorizes only an initialized 
     DOCTEST_CHECK(fixture.Current_Etas() == 1);
     DOCTEST_CHECK(disclosed.find("\"eta\":{\"availability\":\"current\",\"value\":0}") != std::string::npos);
     const auto retained = fixture.store.snapshots.back();
+    if (fixture.contextual) {
+        DOCTEST_CHECK(std::count_if(retained.map.ships.begin(), retained.map.ships.end(), [](const rpc::s_ship_observation& ship) { return ship.destination_available == rpc::SHIP_CURRENT; }) == 1);
+        const auto head = std::find_if(retained.map.ships.begin(), retained.map.ships.end(), [](const rpc::s_ship_observation& ship) { return ship.eta_available == rpc::SHIP_CURRENT; });
+        DOCTEST_REQUIRE(head != retained.map.ships.end());
+        DOCTEST_CHECK(head->destination_id == fixture.store.system_ids[1]);
+        DOCTEST_CHECK(head->destination_system == -1);
+    }
     DOCTEST_CHECK(retained.map.players[0].treasury == 123);
     fixture.native.world.players[0].bc = 456;
     fixture.Print();
@@ -811,6 +886,99 @@ DOCTEST_TEST_CASE("non-own cached producer requires an independent native ambien
     DOCTEST_CHECK(fixture.Query().find("\"name\":{\"availability\":\"unaudited\"}") != std::string::npos);
 }
 
+DOCTEST_TEST_CASE("contextual destination requires an actual current same-frame selected-box route presentation") {
+    s_eta_world fixture(2);
+    game_events::s_fleet_box_view_scope owner;
+    fixture.Refresh();
+    owner.Initialized();
+    fixture.Print();
+    DOCTEST_REQUIRE(fixture.store.context_active);
+    const auto retained = fixture.store.snapshots.back();
+    fixture.Query("game.listShips", "{\"limit\":1}");
+    const auto cursor = fixture.store.cursors.back().id;
+    DOCTEST_SUBCASE("open box and cached producer without route drawing") {
+        game_events::s_main_view_input_scope input;
+        game_events::s_observation_scope frame(game_events::MAIN_SCREEN_FRAME_ENTERED, game_events::MAIN_SCREEN_FRAME_LEAVING);
+        FLEETPOP::Print_Fleet_Box_Info();
+    }
+    DOCTEST_SUBCASE("route drawn outside an active native frame cannot be promoted") {
+        game_events::s_main_view_input_scope input;
+        SHIPS::Do_Ship_Destination_Lines();
+        game_events::s_observation_scope frame(game_events::MAIN_SCREEN_FRAME_ENTERED, game_events::MAIN_SCREEN_FRAME_LEAVING);
+        FLEETPOP::Print_Fleet_Box_Info();
+    }
+    DOCTEST_SUBCASE("previous frame line cannot authorize a subsequent print") {
+        game_events::s_main_view_input_scope input;
+        {
+            game_events::s_observation_scope frame(game_events::MAIN_SCREEN_FRAME_ENTERED, game_events::MAIN_SCREEN_FRAME_LEAVING);
+            SHIPS::Do_Ship_Destination_Lines();
+        }
+        {
+            game_events::s_observation_scope frame(game_events::MAIN_SCREEN_FRAME_ENTERED, game_events::MAIN_SCREEN_FRAME_LEAVING);
+            FLEETPOP::Print_Fleet_Box_Info();
+        }
+    }
+    DOCTEST_SUBCASE("frame without any fleet-box print withdraws contextual authority") {
+        game_events::s_main_view_input_scope input;
+        game_events::s_observation_scope frame(game_events::MAIN_SCREEN_FRAME_ENTERED, game_events::MAIN_SCREEN_FRAME_LEAVING);
+        SHIPS::Do_Ship_Destination_Lines();
+    }
+    DOCTEST_SUBCASE("background line and producer cannot restore authority") {
+        game_events::Publish(game_events::MAIN_VIEW_INPUT_INTERRUPTED);
+        game_events::s_observation_scope frame(game_events::MAIN_SCREEN_FRAME_ENTERED, game_events::MAIN_SCREEN_FRAME_LEAVING);
+        SHIPS::Do_Ship_Destination_Lines();
+        FLEETPOP::Print_Fleet_Box_Info();
+    }
+    DOCTEST_SUBCASE("route drawn for a different open head cannot associate the cached producer") {
+        game_events::s_main_view_input_scope input;
+        game_events::s_observation_scope frame(game_events::MAIN_SCREEN_FRAME_ENTERED, game_events::MAIN_SCREEN_FRAME_LEAVING);
+        const int16_t old_stack = MOX::fleet_box_ship_stack;
+        MOX::fleet_box_ship_stack = HACCESS::Ship_Stack_From_Ship_Id(10);
+        SHIPS::Do_Ship_Destination_Lines();
+        MOX::fleet_box_ship_stack = old_stack;
+        FLEETPOP::Print_Fleet_Box_Info();
+    }
+    DOCTEST_CHECK_FALSE(fixture.store.context_active);
+    uint64_t context = 99;
+    const auto ambient = fixture.Query("game.listShips", "{}", &context);
+    DOCTEST_CHECK(context == 0);
+    DOCTEST_CHECK(ambient.find("\"destination\":{\"availability\":\"current\"") == std::string::npos);
+    DOCTEST_CHECK(ambient.find("\"eta\":{\"availability\":\"current\"") == std::string::npos);
+    DOCTEST_CHECK(retained.map.context_epoch != 0);
+    fixture.Print();
+    DOCTEST_CHECK(fixture.store.snapshots.back().ship_ids == retained.ship_ids);
+    DOCTEST_CHECK(fixture.store.snapshots.back().revision == retained.revision);
+    DOCTEST_CHECK(fixture.Query("game.listShips", ("{\"cursor\":" + rpc::Json_String(cursor) + "}").c_str()).find("\"error\"") != std::string::npos);
+}
+
+DOCTEST_TEST_CASE("contextual route revocation retains independently authorized native ambient destinations") {
+    s_eta_world fixture(2);
+    fixture.native.ships[10].status = 2;
+    fixture.native.ships[10].location = SHIP_LOCATION_WORMHOLE_OFFSET + 2;
+    fixture.native.ships[10].x = 0; // Keep the own scanner at origin 0; its ambient destination is 2.
+    game_events::s_fleet_box_view_scope owner;
+    fixture.Refresh();
+    owner.Initialized();
+    fixture.Print();
+    DOCTEST_REQUIRE(fixture.store.context_active);
+    MOVEBOX::Vanish_Fleet_Movement_Box();
+    DOCTEST_CHECK_FALSE(fixture.store.context_active);
+    uint64_t context = 99;
+    fixture.Query("game.listShips", "{}", &context);
+    DOCTEST_CHECK(context == 0);
+    const auto& ambient = fixture.store.snapshots.front().map;
+    const auto own = std::find_if(ambient.ships.begin(), ambient.ships.end(), [](const rpc::s_ship_observation& ship) { return ship.owned; });
+    DOCTEST_REQUIRE(own != ambient.ships.end());
+    DOCTEST_CHECK(own->destination_available == rpc::SHIP_CURRENT);
+    DOCTEST_CHECK(own->destination_id == fixture.store.system_ids[2]);
+    for (const auto& ship : ambient.ships) {
+        if (!ship.owned) {
+            DOCTEST_CHECK(ship.destination_available == rpc::SHIP_CONTEXT_REQUIRED);
+            DOCTEST_CHECK(ship.eta_available == rpc::SHIP_CONTEXT_REQUIRED);
+        }
+    }
+}
+
 DOCTEST_TEST_CASE("non-own cached ETA cannot acquire ambient authority after refresh or keep a withdrawn gate") {
     s_eta_world fixture(true);
     bool withdrawn = false;
@@ -833,7 +1001,7 @@ DOCTEST_TEST_CASE("non-own cached ETA cannot acquire ambient authority after ref
     DOCTEST_CHECK(fixture.store.context_active == !withdrawn);
 }
 
-DOCTEST_TEST_CASE_TEMPLATE("child parent draws cannot reauthorize and ordinary native redraw restores fresh ETA", Fleet, std::false_type, std::true_type) {
+DOCTEST_TEST_CASE_TEMPLATE("child parent draws cannot reauthorize and ordinary native redraw restores fresh ETA", Fleet, std::false_type, std::true_type, std::integral_constant<int, 2>) {
     s_eta_world fixture(Fleet::value);
     game_events::s_fleet_box_view_scope owner;
     fixture.Refresh();
@@ -844,6 +1012,8 @@ DOCTEST_TEST_CASE_TEMPLATE("child parent draws cannot reauthorize and ordinary n
     {
         game_events::s_main_view_input_scope input;
         game_events::Publish(game_events::MAIN_VIEW_INPUT_INTERRUPTED);
+        game_events::s_observation_scope frame(game_events::MAIN_SCREEN_FRAME_ENTERED, game_events::MAIN_SCREEN_FRAME_LEAVING);
+        if (fixture.contextual) SHIPS::Do_Ship_Destination_Lines();
         FLEETPOP::Print_Fleet_Box_Info(); // The child's saved parent draw, before child Get_Input.
         uint64_t context = 99;
         fixture.Query("game.listShips", "{}", &context);
@@ -861,7 +1031,7 @@ DOCTEST_TEST_CASE_TEMPLATE("child parent draws cannot reauthorize and ordinary n
     DOCTEST_CHECK(fixture.adapter.associations.empty());
 }
 
-DOCTEST_TEST_CASE_TEMPLATE("fleet box ETA preserves unsigned bytes and cannot manufacture destination knowledge", Fleet, std::false_type, std::true_type) {
+DOCTEST_TEST_CASE_TEMPLATE("fleet box ETA preserves unsigned bytes and cannot manufacture destination knowledge", Fleet, std::false_type, std::true_type, std::integral_constant<int, 2>) {
     s_eta_world fixture(Fleet::value);
     bool special = false;
     bool no_selection = false;
@@ -901,7 +1071,7 @@ DOCTEST_TEST_CASE_TEMPLATE("fleet box ETA preserves unsigned bytes and cannot ma
     DOCTEST_CHECK(fixture.adapter.associations.empty());
 }
 
-DOCTEST_TEST_CASE_TEMPLATE("native stale selection node reuse and slot retirement cannot inherit cached ETA", Fleet, std::false_type, std::true_type) {
+DOCTEST_TEST_CASE_TEMPLATE("native stale selection node reuse and slot retirement cannot inherit cached ETA", Fleet, std::false_type, std::true_type, std::integral_constant<int, 2>) {
     s_eta_world fixture(Fleet::value);
     game_events::s_fleet_box_view_scope owner;
     fixture.Refresh();
@@ -931,6 +1101,10 @@ DOCTEST_TEST_CASE_TEMPLATE("native stale selection node reuse and slot retiremen
     }
     DOCTEST_SUBCASE("duplicate box member") {
         MOX::fleet_movement_icon[1].ship_node_idx = first_node;
+        fixture.Print();
+    }
+    DOCTEST_SUBCASE("incomplete box membership") {
+        --MOX::fleet_box.count;
         fixture.Print();
     }
     DOCTEST_SUBCASE("movement preview is not cached state") {
@@ -965,7 +1139,7 @@ DOCTEST_TEST_CASE_TEMPLATE("native stale selection node reuse and slot retiremen
     DOCTEST_CHECK(context == 0);
 }
 
-DOCTEST_TEST_CASE_TEMPLATE("native rebuild and world boundaries revoke ETA without exposing hidden identity changes", Fleet, std::false_type, std::true_type) {
+DOCTEST_TEST_CASE_TEMPLATE("native rebuild and world boundaries revoke ETA without exposing hidden identity changes", Fleet, std::false_type, std::true_type, std::integral_constant<int, 2>) {
     s_eta_world fixture(Fleet::value);
     game_events::s_fleet_box_view_scope owner;
     fixture.Refresh();
@@ -974,6 +1148,8 @@ DOCTEST_TEST_CASE_TEMPLATE("native rebuild and world boundaries revoke ETA witho
     const auto before = fixture.Query();
     const auto before_ids = fixture.store.snapshots.back().ship_ids;
     const auto before_revision = fixture.store.snapshots.back().revision;
+    fixture.Query("game.listShips", "{\"limit\":1}");
+    const auto cursor = fixture.store.cursors.back().id;
     const auto context_epoch = rpc::Bridge_Context_Epoch(&fixture.bridge);
     DOCTEST_REQUIRE(orion2re::lua::game::Advance_Ship_Generation(MAX_SHIPS - 1));
     fixture.native.ships[MAX_SHIPS - 1].owner = 7;
@@ -993,6 +1169,7 @@ DOCTEST_TEST_CASE_TEMPLATE("native rebuild and world boundaries revoke ETA witho
         DOCTEST_CHECK(fixture.Current_Etas() == 1);
         DOCTEST_CHECK(fixture.store.snapshots.back().ship_ids == before_ids);
         DOCTEST_CHECK(fixture.store.snapshots.back().revision == before_revision);
+        DOCTEST_CHECK(fixture.Query("game.listShips", ("{\"cursor\":" + rpc::Json_String(cursor) + "}").c_str()).find("\"error\"") != std::string::npos);
     }
     DOCTEST_SUBCASE("resolution") {
         game_events::Publish(game_events::RESOLUTION_BEGIN);
@@ -1016,8 +1193,8 @@ DOCTEST_TEST_CASE_TEMPLATE("native rebuild and world boundaries revoke ETA witho
     }
 }
 
-DOCTEST_TEST_CASE("actual non-own retirement revokes native ETA pages and ready late and pending bridge reads") {
-    s_eta_world fixture(true);
+DOCTEST_TEST_CASE_TEMPLATE("actual non-own retirement revokes native ETA pages and ready late and pending bridge reads", Fleet, std::true_type, std::integral_constant<int, 2>) {
+    s_eta_world fixture(Fleet::value);
     game_events::s_fleet_box_view_scope owner;
     fixture.Refresh();
     owner.Initialized();
@@ -1042,6 +1219,8 @@ DOCTEST_TEST_CASE("actual non-own retirement revokes native ETA pages and ready 
     rpc::Pump_Game_Queries(&fixture.store); // Ready, but not delivered.
     request.params_json = "{\"cursor\":" + rpc::Json_String(cursor) + "}";
     DOCTEST_REQUIRE(rpc::Submit_Work(&fixture.bridge, 1, epoch, &request, UINT64_MAX) == 0);
+    request.params_json = "{}";
+    DOCTEST_REQUIRE(rpc::Submit_Work(&fixture.bridge, 1, epoch, &request, UINT64_MAX) == 0);
     const int16_t slot = MOX::ship_node[MOX::fleet_movement_icon[0].ship_node_idx].ship_idx;
     SHIPS::Kill_Ship(slot);
     DOCTEST_CHECK_FALSE(fixture.store.context_active);
@@ -1055,6 +1234,11 @@ DOCTEST_TEST_CASE("actual non-own retirement revokes native ETA pages and ready 
     rpc::Pump_Game_Queries(&fixture.store);
     DOCTEST_REQUIRE(rpc::Take_Publication(&fixture.bridge, &publication));
     DOCTEST_CHECK(publication.json == rpc::Error_Response(&request, rpc::RPC_OBJECT_UNAVAILABLE));
+    rpc::Pump_Game_Queries(&fixture.store);
+    DOCTEST_REQUIRE(rpc::Take_Publication(&fixture.bridge, &publication));
+    DOCTEST_CHECK(publication.context_epoch == 0);
+    DOCTEST_CHECK(publication.json.find("\"eta\":{\"availability\":\"current\"") == std::string::npos);
+    if (fixture.contextual) DOCTEST_CHECK(publication.json.find("\"destination\":{\"availability\":\"current\"") == std::string::npos);
     uint64_t ambient = 99;
     fixture.Query("game.listShips", "{}", &ambient);
     DOCTEST_CHECK(ambient == 0);

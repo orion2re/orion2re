@@ -953,6 +953,7 @@ namespace MAINSCR {
      * Draws one main-screen frame, including map contents, overlays, and movable boxes.
      */
     void __cdecl Draw_Main_Screen() {
+        game_events::s_observation_scope frame(game_events::MAIN_SCREEN_FRAME_ENTERED, game_events::MAIN_SCREEN_FRAME_LEAVING);
         if (MOX::stencil_box_id >= 0 && MOX::stencil_box_id <= 4) {
             Draw_Main_Screen_While_Moving_Boxes();
             video::Clip_Off();

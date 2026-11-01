@@ -608,6 +608,163 @@ multiplayer-authority, mod or deterministic-RNG changes are made. Untracked `.vo
 is untouched. This is one additional complete bounded P1/Q-07 path, not P2 or
 completion of Q-06/Q-07/Q-13/V-04.
 
+### Completed additional Q-07 contextual destination-and-cached-ETA path
+
+Prepared with AI assistance. This adds only the surviving **non-own status-2
+departing wormhole head** whose ambient destination is withheld but whose actual
+selected/open-box route line and cached ETA are presented together. It does not
+relax the existing ambient gates. The two preceding completed paths remain
+independently supported. Q-06/Q-07/Q-13/V-04 remain incomplete; this is P1, not P2,
+with the unchanged 15-method/six-topic surface.
+
+#### Native audit and neutral observations
+
+`SHIPS::Do_Ship_Destination_Lines` independently computes the ambient own/foreign
+gates and the selected-box branch. The latter requires
+`Moveable_Box_Selected(2)` and the open stack's head equal to this surviving icon's
+node. It does **not** require a selected member. For an ordinary/wormhole encoded
+location resolving to a real map star, this branch calls
+`Draw_Ship_Destination_Line`, including for a non-own ship without `enemy_moves`,
+an incoming-colony bit or an outpost. Detection/contact/known owner/omniscience
+alone still grant nothing. The native incoming predicate's non-own semantics and
+foreign-outpost behavior are unchanged.
+
+`MAINSCR::Draw_Main_Screen` calls that function before its moveable-box draw loop.
+Box 2 dispatches to `Draw_Fleet_Movement_Box`, which constructs the member icons
+and calls `Print_Fleet_Box_Info` when not expanding. With no movement preview or
+scan result, the latter selects `Get_Absolute_Location_Scan_Info` for a moving
+head of either owner, even with an empty member selection. Its type 2/3 result
+prints the cached unsigned byte, including zero and 255. A returned `star == -1`
+withholds the **name**, not the already drawn destination position. It is neither
+known-empty nor sufficient destination authority by itself. The route line reads
+no system name. Unvisited system names remain unaudited in the fresh map capture;
+no foreign canonical ship name is read by the adapter.
+
+The new neutral synchronous line observation occurs **after** the actual native
+`Draw_Ship_Destination_Line` call. It borrows only the node, ship, real destination
+reference and the producer's selected-box relation. A neutral observation scope
+also brackets each actual `Draw_Main_Screen` frame, including stencilled/child
+draws and exception exit. Neither observation is a callable policy/operation API;
+native control flow, drawing, gameplay records and RNG are unchanged.
+
+#### Association, capture and complete revocation
+
+The adapter accepts line evidence only during initialized main-owner presentation
+and the current native frame. It clears that evidence at frame entry/exit and
+every existing authority revocation. The cached ETA print must follow the line in
+that same frame. An open box, a previous frame's line, a background/child draw,
+or a cached producer without a line cannot authorize this path. A frame without
+a successful producer also withdraws previously contextual authority. An ordinary
+equal redraw does not revoke/regrant the lease or churn public revisions.
+
+Admission requires the exact surviving refresh head's node/ship, non-own status 2,
+wormhole encoding, matching real destination, and the existing complete current
+box membership/selection checks. All members must still match their private
+generation/owner/location/status and copied position. Stale or mismatched
+selections, incomplete/duplicate membership, retirement, slot/node reuse and
+preview results fail closed. No borrowed pointer escapes the callback and no
+display node is traversed later. Only the observed head acquires contextual
+destination and ETA; other members acquire no extra routes. These checks never
+become public identities or sorting keys.
+
+Both values enter the **same** fresh immutable coherent six-topic capture and
+existing private context lease. Destination resolves to the current capture's
+system handle before its private binding is discarded. Special/`NUM_STARS`/
+Antares destinations get no fabricated handles. Older captures are not enriched.
+No query calls a renderer, builder, movement calculator or mutable UI operation.
+There is no parallel cache, query family, name grant, order/cargo/design disclosure
+or inferred hostility classification.
+
+The existing pipeline needs no separate destination revocation mechanism:
+`Revoke_Game_Context` invalidates the entire contextual ship capture, expires its
+pinned pages, cancels undelivered subscription baselines using delivery receipts,
+and replaces delivered subscriptions' obsolete invalidations from the authorized
+ambient projection. Bridge ready and late results become object-unavailable;
+pending requests use current authority. Service-owned queued messages carry the
+same lease, checked by the service timer and before **each** fragment. Unsent
+responses can become errors; started revoked messages close, never complete or
+get rewritten. Independent ambient destinations/ETAs and non-ship projections
+remain readable. Rebuild expires old pages; fresh equal presentation preserves
+handles/revision but creates a fresh capture and never revives an expired cursor.
+
+#### Regression evidence
+
+The native lifetime matrix now runs three paths: own ambient destination, non-own
+ambient destination, and non-own contextual destination with **all ambient route
+gates absent**. It combines actual `Build_Ship_Icons`,
+`Do_Ship_Destination_Lines`, `Print_Fleet_Box_Info`, retirement and generation
+functions with synthetic initialized-owner/frame lifetimes. The route function
+uses a real software drawing surface and a synthetic in-memory dimensions cache;
+the ETA producer uses empty local format strings, not proprietary assets. These
+are actual native-function tests plus source-order checks, not DTO injection or
+scope ordering alone, and not interactive saved-game parity.
+
+Coverage includes initialization/non-promotion, zero/255, empty selection,
+unvisited-name withholding, special destinations, missing/old/out-of-frame or
+wrong-head route presentation, child/background drawing, normal redraw, owner
+replacement/exit, box close/replacement, stale selections, complete membership,
+rebuild, slot/node reuse, load/update/resolution/perspective revocation, copied
+lifetimes, immutable retained values, fresh own HUD capture, unchanged native
+records/RNG and hidden/unassociated identity noninterference. Actual non-own
+retirement tests also cover pinned pages and ready/late/pending bridge reads for
+both foreign paths. A separate native case preserves an independently authorized
+own ambient destination when the foreign contextual destination/ETA are revoked.
+
+Store regressions add the contextual-destination variant to coherent six-topic
+state/baselines, retained captures, page expiry, unavailable-handle equivalence,
+equal re-presentation and resolution/reset. Existing in-flight baseline tests
+already grant both fields contextually and retain their cancellation assertions.
+The queued-invalidation regression additionally starts with a withheld ambient
+destination, proving revocation does not swallow a later equal presentation.
+
+Live WebSocket regressions retain both completed paths and add withdrawal and
+restoration of both contextual fields, withheld unvisited names, six-topic
+baseline/state/session coherence, hidden-only equality, expired cursors that stay
+expired after restoration, indistinguishable stale handles, and preservation of
+an ordinary ambient destination/255 ETA. A further test queues large real
+six-topic results containing the contextual foreign destination and ETA. It waits
+boundedly for bridge drain and positively requires outstanding delivery receipts
+before revoking without another game poll: stale output is service-owned and
+pending, and started messages close. Projected transport fixtures test delivery,
+not native authorization; the separate native functions provide that evidence.
+
+#### Verification and limitations
+
+Verified on macOS ARM64 with the complete build/CTest/Python/RPC-disabled gate
+listed in the preceding completed-path section:
+
+- All nine requested build targets succeed normally and under ASAN/UBSAN.
+- All eight selected CTest targets pass in both configurations, including the
+  45-case live WebSocket suite and Lua mod-runtime.
+- All 112 Python tests pass with `ORION2RE_RPC_TEST_SERVER` set to the normal
+  server; `bash tools/run-tests.sh` passes all 106 RPC-disabled targets.
+- Canonical schema/reference/C++ metadata regeneration and `--check` pass.
+  Metadata is byte-identical; method/topic/type shapes are unchanged.
+- Affected-range C++ formatting and `git diff --check` pass. Formatting checks
+  cover the native event/header, ships/main owners, adapter/header, neutral/native/
+  store tests and test server without rewriting unrelated restored code.
+
+During test development, the incomplete-membership case needed a synthetic
+small-box title image, and the independent-ambient-route fixture initially moved
+the own scanner out of foreign detection range. The final fixture keeps that
+scanner at the actual origin with a distinct ambient destination. Neither failure
+was an authorization exception or a reason to bypass native detection. The final
+native and complete gates pass after these fixture corrections.
+
+Only leak detection is disabled (`ASAN_OPTIONS=detect_leaks=0:halt_on_error=1`)
+because local LeakSanitizer is unsupported; UBSAN retains
+`halt_on_error=1:print_stacktrace=1`. No leak verification is claimed. Interactive
+saved-game/multiplayer and other-platform parity remain unverified. No gameplay,
+save, multiplayer-authority, mod or deterministic-RNG changes are made. Untracked
+`.voc/` is untouched; `planning_baseline.md` is unchanged. This is one completed
+additional contextual route-and-ETA slice, not completion of Q-07 or a move to P2.
+
+Reproduce affected-range formatting with:
+
+```sh
+git-clang-format --diff 2930312 -- src/game/game_events.cpp src/game/game_events.h src/game/ships.cpp src/game/mainscr_main.cpp src/rpc/game_rpc.cpp src/rpc/game_rpc.h tests/unit/game_events_test.cpp tests/unit/game_rpc_native_test.cpp tests/unit/rpc_game_test.cpp tools/rpc_test_server.cpp
+```
+
 ## Queries, identities and dating
 
 Enabled methods now include `game.listShips` and `game.getShip`; `ships` is also

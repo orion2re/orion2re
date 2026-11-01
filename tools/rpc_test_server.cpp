@@ -55,6 +55,7 @@ int main() {
         map.players = {own, contact, hidden};
         bool polling = true;
         size_t eta_ship = 0;
+        bool contextual_route = false;
         while (running) {
             std::string command;
             std::string acknowledgment = "done";
@@ -141,21 +142,28 @@ int main() {
                 }
                 map.ships_captured = true;
                 rpc::Capture_Map(&store, &map);
-            } else if (command == "eta-ambient" || command == "eta-context" || command == "eta-foreign-ambient" || command == "eta-foreign-context") {
-                eta_ship = command.find("foreign") != std::string::npos ? 1 : 0;
-                const bool contextual = command == "eta-context" || command == "eta-foreign-context";
+            } else if (command == "eta-ambient" || command == "eta-context" || command == "eta-foreign-ambient" || command == "eta-foreign-context" || command == "route-ambient" || command == "route-context") {
+                contextual_route = command.starts_with("route-");
+                eta_ship = contextual_route || command.find("foreign") != std::string::npos ? 1 : 0;
+                const bool contextual = command.ends_with("-context");
                 map.ships_captured = true;
                 if (map.ships.empty()) map.ships = {{0, 0, true, "Own"}, {30, 0, false, ""}, {60, 0, false, ""}};
-                map.ships[eta_ship].destination_available = rpc::SHIP_CURRENT;
+                map.ships[eta_ship].destination_available = contextual_route && !contextual ? rpc::SHIP_CONTEXT_REQUIRED : rpc::SHIP_CURRENT;
                 map.ships[eta_ship].destination_system = 1;
                 map.ships[eta_ship].eta_available = contextual ? rpc::SHIP_CURRENT : rpc::SHIP_CONTEXT_REQUIRED;
                 map.ships[eta_ship].eta = 0;
+                if (contextual_route) {
+                    map.ships[0].destination_available = map.ships[0].eta_available = rpc::SHIP_CURRENT;
+                    map.ships[0].destination_system = 0;
+                    map.ships[0].eta = 255;
+                }
                 map.context_epoch = contextual ? rpc::Bridge_Context_Epoch(&bridge) : 0;
                 rpc::Capture_Map(&store, &map);
             } else if (command == "eta-revoke") {
                 rpc::Revoke_Game_Context(&store);
                 map.context_epoch = 0;
                 if (map.ships.size() > eta_ship) map.ships[eta_ship].eta_available = rpc::SHIP_CONTEXT_REQUIRED;
+                if (contextual_route && map.ships.size() > eta_ship) map.ships[eta_ship].destination_available = rpc::SHIP_CONTEXT_REQUIRED;
             } else if (command == "colonies") {
                 map.colonies_captured = true;
                 map.colonies = {{0, 0, 1, 0}, {0, 0, 5, 42}, {1, 99999, -1, 99999}};

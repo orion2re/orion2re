@@ -80,7 +80,7 @@ namespace {
     }
 } // namespace
 
-DOCTEST_TEST_CASE_TEMPLATE("context ETA captures revoke pages and queued baselines but preserve coherent ambient reads", Fleet, std::false_type, std::true_type) {
+DOCTEST_TEST_CASE_TEMPLATE("context ETA captures revoke pages and queued baselines but preserve coherent ambient reads", Fleet, std::false_type, std::true_type, std::integral_constant<int, 2>) {
     s_fixture fixture;
     auto& store = fixture.store;
     DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&store));
@@ -88,7 +88,7 @@ DOCTEST_TEST_CASE_TEMPLATE("context ETA captures revoke pages and queued baselin
     map.ships_captured = true;
     map.ships = Ships().ships;
     const size_t candidate = Fleet::value ? 1 : 0;
-    map.ships[candidate].destination_available = rpc::SHIP_CURRENT;
+    map.ships[candidate].destination_available = Fleet::value == 2 ? rpc::SHIP_CONTEXT_REQUIRED : rpc::SHIP_CURRENT;
     map.ships[candidate].destination_system = 1;
     map.ships[candidate].eta_available = rpc::SHIP_CONTEXT_REQUIRED;
     DOCTEST_REQUIRE(rpc::Capture_Map(&store, &map));
@@ -97,6 +97,7 @@ DOCTEST_TEST_CASE_TEMPLATE("context ETA captures revoke pages and queued baselin
     DOCTEST_REQUIRE(rpc::Register_Client(&fixture.bridge, 1, &client_epoch));
     DOCTEST_REQUIRE(rpc::Authorize_Client(&fixture.bridge, 1, client_epoch));
     map.context_epoch = rpc::Bridge_Context_Epoch(&fixture.bridge);
+    map.ships[candidate].destination_available = rpc::SHIP_CURRENT;
     map.ships[candidate].eta_available = rpc::SHIP_CURRENT;
     map.ships[candidate].eta = 0;
     map.players[0].treasury = 999; // Self is the third unsorted input row.
@@ -144,6 +145,11 @@ DOCTEST_TEST_CASE_TEMPLATE("context ETA captures revoke pages and queued baselin
     DOCTEST_CHECK(context == 0);
     DOCTEST_CHECK(fallback.find(ambient.id) != std::string::npos);
     DOCTEST_CHECK(fallback.find("context-required") != std::string::npos);
+    if (Fleet::value == 2) {
+        DOCTEST_CHECK(fallback.find("\"destination\":{\"availability\":\"current\"") == std::string::npos);
+        DOCTEST_CHECK(fallback.find("\"eta\":{\"availability\":\"current\"") == std::string::npos);
+        DOCTEST_CHECK(retained.map.ships[candidate].destination_id == store.system_ids[1]);
+    }
     auto unknown = Request("game.getShip");
     unknown.params_json = "{\"id\":" + rpc::Json_String(retained.ship_ids[candidate]) + "}";
     const auto stale = rpc::Game_Query(&store, &unknown);
@@ -218,15 +224,16 @@ DOCTEST_TEST_CASE("bounded fleet box capture retention preserves an authorized a
     DOCTEST_CHECK(response.find(ambient) != std::string::npos);
 }
 
-DOCTEST_TEST_CASE("revocation cannot silently lose a queued ship invalidation on equal re-presentation") {
+DOCTEST_TEST_CASE_TEMPLATE("revocation cannot silently lose a queued ship invalidation on equal re-presentation", Contextual, std::false_type, std::true_type) {
     s_fixture fixture;
     DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&fixture.store));
     auto map = Ships();
-    map.ships[0].destination_available = rpc::SHIP_CURRENT;
+    map.ships[0].destination_available = Contextual::value ? rpc::SHIP_CONTEXT_REQUIRED : rpc::SHIP_CURRENT;
     map.ships[0].destination_system = 0;
     map.ships[0].eta_available = rpc::SHIP_CONTEXT_REQUIRED;
     DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
     map.context_epoch = rpc::Bridge_Context_Epoch(&fixture.bridge);
+    map.ships[0].destination_available = rpc::SHIP_CURRENT;
     map.ships[0].eta_available = rpc::SHIP_CURRENT;
     DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
     uint64_t epoch;

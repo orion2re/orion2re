@@ -212,6 +212,16 @@ namespace game_rpc {
         adapter->authorized_head = -1;
         adapter->pending_head = -1;
         adapter->pending = {};
+        adapter->contextual_destination = false;
+        adapter->route_node = adapter->route_ship = adapter->route_destination = -1;
+    }
+
+    static void Observe_Ship_Destination(const game_events::s_ship_destination_line* line, void* context) {
+        auto* adapter = (s_fleet_eta_adapter*)context;
+        if (adapter->failed || !adapter->initialized || !adapter->presenting || !adapter->frame || !line->box_selected) return;
+        adapter->route_node = line->node;
+        adapter->route_ship = line->ship;
+        adapter->route_destination = line->destination;
     }
 
     static void Observe_Fleet_Info(const game_events::s_fleet_box_info* info, void* context) {
@@ -227,10 +237,18 @@ namespace game_rpc {
             });
             if (head == adapter->associations.end() || head->node != head->head ||
                 head->location < SHIP_LOCATION_WORMHOLE_OFFSET || head->location >= SHIP_LOCATION_LIMIT ||
-                head->ship.destination_available != rpc::SHIP_CURRENT || head->ship.eta_available != rpc::SHIP_CONTEXT_REQUIRED ||
-                (info->star != -1 && info->star != head->ship.destination_system) ||
+                head->ship.eta_available != rpc::SHIP_CONTEXT_REQUIRED ||
                 info->members[0].node != head->node || info->members[0].ship != head->slot) return;
-            if (!head->ship.owned && !Ambient_Foreign_Route(head->ship.destination_system)) return;
+            const bool contextual = head->ship.destination_available != rpc::SHIP_CURRENT;
+            const int16_t destination = contextual ? adapter->route_destination : head->ship.destination_system;
+            if (destination < 0 || destination >= MOX::NUM_STARS ||
+                (info->star != -1 && info->star != destination)) return;
+            if (contextual) {
+                if (head->ship.owned || head->status != 2 || !adapter->frame ||
+                    adapter->route_node != head->node || adapter->route_ship != head->slot ||
+                    HAROLD::Absolute_Location(head->location) != destination) return;
+            } else if (!head->ship.owned && !Ambient_Foreign_Route(destination))
+                return;
             std::vector<bool> members(MAX_SHIPS);
             std::vector<int32_t> associations(MAX_SHIPS, -1);
             for (size_t index = 0; index < adapter->associations.size(); ++index) associations[adapter->associations[index].node] = (int32_t)index;
@@ -269,6 +287,8 @@ namespace game_rpc {
                 }
                 captured.ships.push_back(item.ship);
                 if (item.node == head->node) {
+                    captured.ships.back().destination_available = rpc::SHIP_CURRENT;
+                    captured.ships.back().destination_system = destination;
                     captured.ships.back().eta_available = rpc::SHIP_CURRENT;
                     captured.ships.back().eta = info->turns_left;
                 }
@@ -276,6 +296,7 @@ namespace game_rpc {
             captured.ships_captured = true;
             adapter->pending = std::move(captured);
             adapter->pending_head = head->head;
+            adapter->pending_contextual_destination = contextual;
         } catch (...) {
             adapter->failed = true;
             Revoke_Fleet_Eta(adapter);
@@ -307,6 +328,16 @@ namespace game_rpc {
                 case game_events::MAIN_VIEW_DRAW_ENTERED: adapter->presenting = adapter->initialized; break;
                 case game_events::MAIN_VIEW_INPUT_LEAVING:
                 case game_events::MAIN_VIEW_DRAW_LEAVING: adapter->presenting = false; break;
+                case game_events::MAIN_SCREEN_FRAME_ENTERED:
+                    adapter->frame = adapter->presenting;
+                    adapter->frame_accepted = false;
+                    adapter->route_node = adapter->route_ship = adapter->route_destination = -1;
+                    break;
+                case game_events::MAIN_SCREEN_FRAME_LEAVING:
+                    if (adapter->contextual_destination && !adapter->frame_accepted) Revoke_Fleet_Eta(adapter);
+                    adapter->frame = false;
+                    adapter->route_node = adapter->route_ship = adapter->route_destination = -1;
+                    break;
                 case game_events::MAIN_VIEW_INPUT_INTERRUPTED:
                     adapter->presenting = false;
                     Revoke_Fleet_Eta(adapter);
@@ -329,6 +360,8 @@ namespace game_rpc {
                         break;
                     }
                     adapter->authorized_head = adapter->pending_head;
+                    adapter->contextual_destination = adapter->pending_contextual_destination;
+                    adapter->frame_accepted = true;
                     adapter->pending = {};
                     break;
                 case game_events::FLEET_BOX_INFO_CLEARED:
@@ -369,7 +402,8 @@ namespace game_rpc {
         adapter->events = game_events::Subscribe(Observe_Fleet_Event, adapter);
         adapter->info = game_events::Subscribe_Fleet_Box_Info(Observe_Fleet_Info, adapter);
         adapter->identity = game_events::Subscribe_Ship_Identity(Observe_Ship_Identity, adapter);
-        if (adapter->events != 0 && adapter->info != 0 && adapter->identity != 0) return true;
+        adapter->destination = game_events::Subscribe_Ship_Destination(Observe_Ship_Destination, adapter);
+        if (adapter->events != 0 && adapter->info != 0 && adapter->identity != 0 && adapter->destination != 0) return true;
         Shutdown_Fleet_Eta_Adapter(adapter);
         return false;
     }
@@ -379,6 +413,7 @@ namespace game_rpc {
         game_events::Unsubscribe(adapter->events);
         game_events::Unsubscribe(adapter->info);
         game_events::Unsubscribe(adapter->identity);
+        game_events::Unsubscribe(adapter->destination);
         if (adapter->store != nullptr) Revoke_Fleet_Eta(adapter);
         *adapter = {};
     }

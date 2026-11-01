@@ -34,6 +34,9 @@ namespace game_events {
         FLEET_BOX_PRINT_LEAVING,
         SHIP_IDENTITIES_CHANGING,
         SHIP_IDENTITIES_RESETTING,
+        MAIN_SCREEN_FRAME_ENTERED,
+        MAIN_SCREEN_FRAME_LEAVING,
+        SHIP_DESTINATION_LINE_DRAWN,
     };
 
     struct s_fleet_box_node {
@@ -58,6 +61,14 @@ namespace game_events {
     };
 
     using t_callback = void (*)(e_event event, void* context);
+    // Actual native line endpoints' semantic references, not name knowledge.
+    struct s_ship_destination_line {
+        int16_t node;
+        int16_t ship;
+        int16_t destination;
+        bool box_selected;
+    };
+    using t_ship_destination_callback = void (*)(const s_ship_destination_line* line, void* context);
     using t_fleet_box_callback = void (*)(const s_fleet_box_info* info, void* context);
     using t_ship_identity_callback = void (*)(int16_t ship, void* context);
     // Synchronous observation only. Register while quiescent or on the publishing
@@ -65,10 +76,12 @@ namespace game_events {
     uint64_t Subscribe(t_callback callback, void* context);
     uint64_t Subscribe_Fleet_Box_Info(t_fleet_box_callback callback, void* context);
     uint64_t Subscribe_Ship_Identity(t_ship_identity_callback callback, void* context);
+    uint64_t Subscribe_Ship_Destination(t_ship_destination_callback callback, void* context);
     void Unsubscribe(uint64_t subscription);
     void Publish(e_event event);
     void Publish_Fleet_Box_Info(const s_fleet_box_info* info);
     void Publish_Ship_Identity_Changing(int16_t ship);
+    void Publish_Ship_Destination(const s_ship_destination_line* line);
 
     struct s_observation_scope {
         e_event leaving;
