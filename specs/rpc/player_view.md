@@ -28,17 +28,21 @@ All three require a living current foreign contact. Self, eliminated and
 uncontacted/Lore-only entries are unknown; their treaty bytes are not read.
 Reciprocal foreign entries are never used. Agreement presence is not an amount,
 duration, level, attitude or forecast; non-war is not a safety guarantee.
-Full relations/intelligence methods remain unimplemented.
+Detailed relationships, agreements and own intelligence use the separately
+audited [relations/intelligence workflow](README.md#relations-and-own-intelligence).
 
 ## Identity and verification
 
 Player handles bind authorized empire slots privately and remain stable across
-public-field changes. Lookup uses the selected snapshot's visible roster, not a
+ordinary public-field changes. Authority loss, elimination and public identity
+replacement revoke the existing view and require a fresh handshake/baseline.
+Lookup uses the selected snapshot's visible roster, not a
 historical handle table. Ship owner links resolve only through that same roster
 and an unambiguous public color. World/perspective revocation clears the view.
 
 Unavailable claims are sanitized before ordering, equality and notifications.
-Pinned pages retain old values; combined reads and subscription baselines never
+Pinned pages retain dated values until eviction or authorization revocation;
+combined reads and subscription baselines never
 splice newer treaties/HUD into older ship data.
 
 Native projection tests compare the actual roster builder and cover contact loss,

@@ -171,7 +171,119 @@ class TransportTests(unittest.TestCase):
         described = client.Read()
         self.assertEqual(described["id"], "d")
         self.assertEqual({item["name"] for item in described["result"]["methods"]},
-                         {"rpc.hello","rpc.describe","rpc.subscribe","rpc.unsubscribe","game.getSession","game.getState","game.listSystems","game.getSystem","game.listNebulas","game.listShips","game.getShip","game.listPlayers","game.getPlayer","game.listColonies","game.getColony","game.listPlanets","game.getPlanet","game.getResearch","game.listResearchOptions","game.getTechnology","game.listLeaders","game.getLeader"})
+                         {"rpc.hello","rpc.describe","rpc.subscribe","rpc.unsubscribe","game.getSession","game.getState","game.listSystems","game.getSystem","game.listNebulas","game.listShips","game.getShip","game.listPlayers","game.getPlayer","game.listColonies","game.getColony","game.listPlanets","game.getPlanet","game.getResearch","game.listResearchOptions","game.getTechnology","game.listLeaders","game.getLeader","game.getRelations","game.getIntelligence"})
+
+    def test_native_relations_intelligence_dashboard_workflow_and_context_revocation(self):
+        self.Fixture("world")
+        self.Fixture("ships")
+        self.Fixture("colonies")
+        self.Fixture("research")
+        self.Fixture("relations-native")
+        client = self.Client()
+        self.assertIn("result", client.Hello())
+        methods = self.Query(client, "rpc.describe")["result"]["methods"]
+        self.assertTrue({"game.getRelations", "game.getIntelligence"} <= {item["name"] for item in methods})
+        topics = ["session", "players", "relations", "intelligence", "systems", "ships", "colonies", "research"]
+        subscription = self.Query(client, "rpc.subscribe", {"topics":topics, "events":["state.changed"]})["result"]
+        baseline = subscription["baseline"]
+        self.assertEqual(self.Query(client, "game.getState", {"include":topics})["result"], baseline)
+        known = {player["id"]:player for player in baseline["players"]}
+        self.assertEqual(len(known), 3)  # self, living contact, eliminated; hidden empire omitted.
+        contact = next(player for player in known.values() if player["contacted"])
+        relation = next(item for item in baseline["relations"] if item["player"] == contact["id"])
+        for item in baseline["relations"]:
+            resolved = self.Query(client, "game.getPlayer", {"id":item["player"]})["result"]
+            self.assertEqual(resolved["item"], known[item["player"]])
+            self.assertEqual(resolved["stamp"], baseline["stamp"])
+        self.assertEqual(relation["treaty"], {"availability":"current", "value":"ALLIANCE"})
+        self.assertEqual(relation["relationshipIndicatorOffset"], {"availability":"current", "value":32})
+        self.assertEqual(relation["researchAgreement"]["value"], {"level":-12, "unit":"bc-per-turn"})
+        self.assertEqual(relation["tradeAgreement"]["value"], {"level":25, "unit":"bc-per-turn"})
+        self.assertEqual(relation["tribute"]["value"], {"direction":"receiving", "percent":5})
+        self.assertEqual(relation["incomingSpies"], {"availability":"unknown"})
+        self.assertEqual(baseline["intelligence"]["agents"], {"availability":"current", "value":7})
+        allocation = next(item for item in baseline["intelligence"]["allocations"] if item["player"] == contact["id"])
+        self.assertEqual(allocation["spies"], {"availability":"current", "value":3})
+        self.assertEqual(allocation["mission"], {"availability":"current", "value":"hide"})
+        eliminated = next(item for item in baseline["intelligence"]["allocations"] if item["player"] != contact["id"])
+        self.assertEqual(eliminated["spies"], {"availability":"unknown"})
+        self.assertEqual(baseline["intelligence"]["stamp"], baseline["stamp"])
+        self.assertNotIn("123456789", json.dumps(baseline))
+        self.Fixture("relations-hidden")
+        self.assertEqual(self.Query(client, "game.getState", {"include":topics})["result"], baseline)
+        self.Fixture("relations-change")
+        event = client.Read()
+        self.assertEqual(event["method"], "state.changed")
+        current = self.Query(client, "game.getState", {"include":topics})["result"]
+        self.assertEqual(current["stamp"], event["params"]["stamp"])
+        self.assertEqual(current["intelligence"]["stamp"], current["stamp"])
+        changed = next(item for item in current["relations"] if item["player"] == contact["id"])
+        self.assertEqual(changed["researchAgreement"]["value"], {"level":14, "unit":"rp-per-turn"})
+        allocation = next(item for item in current["intelligence"]["allocations"] if item["player"] == contact["id"])
+        self.assertEqual(allocation["spies"], {"availability":"current", "value":0})
+        self.assertEqual(allocation["mission"]["value"], "sabotage")
+        self.assertEqual(self.Query(client, "game.getRelations")["result"]["items"], current["relations"])
+        self.assertEqual(self.Query(client, "game.getIntelligence")["result"], current["intelligence"])
+        self.Query(client, "rpc.unsubscribe", {"subscriptionId":subscription["subscriptionId"]})
+
+        self.Fixture("relations-overlay")
+        overlay = self.Query(client, "game.getRelations")["result"]
+        self.assertEqual(overlay["stamp"]["captureMode"], "native-relations-presentation")
+        self.assertTrue(any(item["incomingSpies"] == {"availability":"current", "value":2} for item in overlay["items"]))
+        # A retained ships baseline is not enriched with a newer native disclosure.
+        self.assertEqual(self.Query(client, "game.getState", {"include":topics})["result"], current)
+        self.Fixture("relations-report")
+        report = self.Query(client, "game.getRelations")["result"]
+        detail = next(item["report"]["value"] for item in report["items"] if item["report"]["availability"] == "current")
+        self.assertEqual(detail["personality"], {"availability":"current", "value":"Native personality"})
+        foreign = next(item for item in detail["treaties"] if item["name"] == "Race 2")
+        self.assertEqual(foreign["player"], {"availability":"unknown"})
+        # A report name is not a new player grant or a persistent dossier.
+        self.assertEqual(len(self.Query(client, "game.listPlayers")["result"]["items"]), 3)
+        self.Fixture("relations-report-zero")
+        zero = self.Query(client, "game.getRelations")["result"]
+        self.assertTrue(any(item["incomingSpies"] == {"availability":"current", "value":0} for item in zero["items"]))
+        self.Fixture("relations-child")
+        suspended = self.Query(client, "game.getRelations")["result"]
+        self.assertTrue(all(item["report"]["availability"] == "unknown" for item in suspended["items"]))
+        self.assertIn("result", self.Query(client, "game.getIntelligence"))
+        self.Fixture("relations-restore")
+        self.assertTrue(any(item["report"]["availability"] == "current" for item in self.Query(client, "game.getRelations")["result"]["items"]))
+        self.Fixture("relations-exit")
+        self.assertTrue(all(item["report"]["availability"] == "unknown" for item in self.Query(client, "game.getRelations")["result"]["items"]))
+        self.Fixture("busy")
+        for method in ("game.getRelations", "game.getIntelligence"):
+            self.assertEqual(self.Query(client, method)["error"]["code"], -32002)
+        self.Fixture("resume")
+
+    def test_native_relations_contact_loss_elimination_reset_perspective_and_slot_reuse(self):
+        self.Fixture("world")
+        self.Fixture("relations-native")
+        client = self.Client()
+        client.Hello()
+        first = self.Query(client, "game.listPlayers", {"limit":1})["result"]
+        old = self.Query(client, "game.getRelations")["result"]["items"]
+        contact_id = next(item["player"] for item in old if item["treaty"]["availability"] == "current")
+        self.Fixture("relations-contact")
+        gained = self.Query(client, "game.getRelations")["result"]["items"]
+        self.assertEqual(len(gained), 3)
+        new_contact = next(item for item in gained if item["player"] not in {row["player"] for row in old})
+        self.assertEqual(new_contact["researchAgreement"], {"availability":"known-empty"})
+        for boundary, revoked in (("relations-lost", True), ("relations-reuse", False), ("relations-eliminated", True), ("relations-reuse", True), ("relations-switch", True), ("relations-reset", True)):
+            previous = self.Query(client, "game.listPlayers")["result"]["items"]
+            self.Fixture(boundary)
+            if revoked:
+                with self.assertRaises((EOFError, ConnectionError)):
+                    client.Read()
+                client = self.Client()
+                self.assertIn("result", client.Hello())
+            unavailable = self.Query(client, "game.getPlayer", {"id":"missing"})["error"]
+            if revoked:
+                for player in previous:
+                    self.assertEqual(self.Query(client, "game.getPlayer", {"id":player["id"]})["error"], unavailable, boundary)
+            self.assertIn("result", self.Query(client, "game.getIntelligence"))
+        self.assertEqual(self.Query(client, "game.listPlayers", {"cursor":first["nextCursor"]})["error"]["code"], -32004)
+        self.assertEqual(self.Query(client, "game.getPlayer", {"id":contact_id})["error"]["code"], -32004)
 
     def test_leader_client_workflow_assignments_coherence_and_revocation(self):
         self.Fixture("world")

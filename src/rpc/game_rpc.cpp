@@ -12,6 +12,7 @@
 #include "rpc/exploration_rpc.h"
 #include "rpc/tech_rpc.h"
 #include "rpc/officer_rpc.h"
+#include "rpc/relations_rpc.h"
 #include "lua/lua_game_ship_identity.h"
 
 #include <algorithm>
@@ -46,7 +47,7 @@ namespace game_rpc {
         observation->viewer = viewer;
         observation->turn = MOX::stardate;
         return exploration_rpc::Read_Exploration(observation) && players_rpc::Read_Players(observation) &&
-            colony_rpc::Read_Colonies(observation) && tech_rpc::Read_Research(observation) && officer_rpc::Read_Leaders(observation);
+            colony_rpc::Read_Colonies(observation) && tech_rpc::Read_Research(observation) && officer_rpc::Read_Leaders(observation) && relations_rpc::Read_Relations(observation);
     }
 
     bool Capture_Leader_View(rpc::s_game_store* target, const rpc::s_map_observation* ambient, const game_events::s_leader_view* view) {
@@ -68,6 +69,19 @@ namespace game_rpc {
         }
         if (!officer_rpc::Read_Disclosures(view, &observation)) return false;
         observation.leader_presentation = true;
+        observation.context_epoch = rpc::Bridge_Context_Epoch(target->bridge);
+        return rpc::Capture_Map(target, &observation);
+    }
+
+    bool Capture_Relations_View(rpc::s_game_store* target, const rpc::s_map_observation* ambient, const game_events::s_relations_view* view) {
+        if (target == nullptr || ambient == nullptr || !target->loaded || target->busy_depth != 0 || ambient->viewer != target->viewer) return false;
+        auto observation = *ambient;
+        if (!relations_rpc::Read_Disclosures(view, &observation)) return false;
+        if (!rpc::Capture_Map(target, ambient)) return false;
+        if (!observation.relations_presentation) {
+            rpc::Revoke_Game_Context(target);
+            return true;
+        }
         observation.context_epoch = rpc::Bridge_Context_Epoch(target->bridge);
         return rpc::Capture_Map(target, &observation);
     }
@@ -481,6 +495,14 @@ namespace game_rpc {
         }
         if (!active) return;
         switch (event) {
+            case game_events::RELATIONS_VIEW_CLEARED:
+                rpc::Revoke_Game_Context(&store);
+                break;
+            case game_events::RELATIONS_VIEW_READY: {
+                rpc::s_map_observation observation;
+                if (store.busy_depth == 0 && Read_Map_Observation(&observation)) Capture_Relations_View(&store, &observation, game_events::Published_Relations_View());
+                break;
+            }
             case game_events::LEADER_VIEW_CLEARED:
                 rpc::Revoke_Game_Context(&store);
                 break;

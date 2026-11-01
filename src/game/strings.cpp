@@ -37,6 +37,7 @@ namespace strings {
         HAROLD::Load_H_Strings();
         RUSS::Load_Russ_Strings();
         ESTRINGS::Load_E_Strings();
+        RACESCRN::Load_Relations_Strings();
         COLSUM::colsum_strings_been_loaded = 0;
     }
 

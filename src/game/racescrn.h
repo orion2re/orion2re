@@ -55,6 +55,7 @@ struct s_racescrn_race_display {
 };
 
 namespace RACESCRN {
+    void Load_Relations_Strings();
     using render_fn = void (*)(s_racescrn_mouse_group*);
 
     extern s_racescrn_icon_layout mouse_group_data;

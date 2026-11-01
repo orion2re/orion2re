@@ -247,6 +247,40 @@
       },
       "maxItems": 256
     },
+    "Agreement": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "level": {
+          "$ref": "#/$defs/AgreementLevel",
+          "x-rpc-policy": "relations-contact"
+        },
+        "unit": {
+          "$ref": "#/$defs/AgreementUnit",
+          "x-rpc-policy": "relations-contact"
+        }
+      },
+      "required": [
+        "level",
+        "unit"
+      ],
+      "x-rpc-policy": "relations-contact"
+    },
+    "AgreementLevel": {
+      "type": "integer",
+      "minimum": -32768,
+      "maximum": 32767,
+      "x-integerToken": true,
+      "x-unit": "agreement-level",
+      "description": "Signed cached native agreement level, in the accompanying per-turn RP or BC unit. Not the hidden goal, growth or a forecast."
+    },
+    "AgreementUnit": {
+      "type": "string",
+      "enum": [
+        "rp-per-turn",
+        "bc-per-turn"
+      ]
+    },
     "Authorization": {
       "type": "string",
       "enum": [
@@ -301,7 +335,8 @@
         "last-coherent-capture",
         "last-native-ship-refresh",
         "last-native-fleet-box",
-        "native-leader-presentation"
+        "native-leader-presentation",
+        "native-relations-presentation"
       ]
     },
     "Chat": {
@@ -844,6 +879,25 @@
         "current"
       ]
     },
+    "CurrentAgreement": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/Current",
+          "x-rpc-policy": "contract"
+        },
+        "value": {
+          "$ref": "#/$defs/Agreement",
+          "x-rpc-policy": "contract"
+        }
+      },
+      "required": [
+        "availability",
+        "value"
+      ],
+      "x-rpc-policy": "contract"
+    },
     "CurrentBool": {
       "type": "object",
       "additionalProperties": false,
@@ -1224,6 +1278,44 @@
       ],
       "x-rpc-policy": "contract"
     },
+    "CurrentRelationIndicatorOffset": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/Current",
+          "x-rpc-policy": "contract"
+        },
+        "value": {
+          "$ref": "#/$defs/RelationIndicatorOffset",
+          "x-rpc-policy": "contract"
+        }
+      },
+      "required": [
+        "availability",
+        "value"
+      ],
+      "x-rpc-policy": "contract"
+    },
+    "CurrentRelationReport": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/Current",
+          "x-rpc-policy": "contract"
+        },
+        "value": {
+          "$ref": "#/$defs/RelationReport",
+          "x-rpc-policy": "contract"
+        }
+      },
+      "required": [
+        "availability",
+        "value"
+      ],
+      "x-rpc-policy": "contract"
+    },
     "CurrentResearchPoints": {
       "type": "object",
       "additionalProperties": false,
@@ -1262,6 +1354,63 @@
       ],
       "x-rpc-policy": "contract"
     },
+    "CurrentSpyCount": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/Current",
+          "x-rpc-policy": "contract"
+        },
+        "value": {
+          "$ref": "#/$defs/SpyCount",
+          "x-rpc-policy": "contract"
+        }
+      },
+      "required": [
+        "availability",
+        "value"
+      ],
+      "x-rpc-policy": "contract"
+    },
+    "CurrentSpyMission": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/Current",
+          "x-rpc-policy": "contract"
+        },
+        "value": {
+          "$ref": "#/$defs/SpyMission",
+          "x-rpc-policy": "contract"
+        }
+      },
+      "required": [
+        "availability",
+        "value"
+      ],
+      "x-rpc-policy": "contract"
+    },
+    "CurrentSpyPercent": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/Current",
+          "x-rpc-policy": "contract"
+        },
+        "value": {
+          "$ref": "#/$defs/SpyPercent",
+          "x-rpc-policy": "contract"
+        }
+      },
+      "required": [
+        "availability",
+        "value"
+      ],
+      "x-rpc-policy": "contract"
+    },
     "CurrentText": {
       "type": "object",
       "additionalProperties": false,
@@ -1272,6 +1421,25 @@
         },
         "value": {
           "$ref": "#/$defs/Text",
+          "x-rpc-policy": "contract"
+        }
+      },
+      "required": [
+        "availability",
+        "value"
+      ],
+      "x-rpc-policy": "contract"
+    },
+    "CurrentTribute": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/Current",
+          "x-rpc-policy": "contract"
+        },
+        "value": {
+          "$ref": "#/$defs/Tribute",
           "x-rpc-policy": "contract"
         }
       },
@@ -1799,7 +1967,7 @@
       "maximum": 32767,
       "x-integerToken": true,
       "x-unit": "bc-per-turn",
-      "description": "Signed net income per turn as displayed from native surplus_bc, not gross production."
+      "description": "Signed displayed BC per turn, including native HUD net income or an individual agreement level; not gross production."
     },
     "Intelligence": {
       "type": "object",
@@ -1807,23 +1975,33 @@
       "properties": {
         "stamp": {
           "$ref": "#/$defs/Stamp",
-          "x-rpc-policy": "disabled-intelligence"
+          "x-rpc-policy": "intelligence-own"
         },
         "agents": {
-          "$ref": "#/$defs/KnownCount",
-          "x-rpc-policy": "disabled-intelligence"
+          "$ref": "#/$defs/KnownSpyCount",
+          "x-rpc-policy": "intelligence-own"
+        },
+        "spyBonusPercent": {
+          "$ref": "#/$defs/KnownSpyPercent",
+          "x-rpc-policy": "intelligence-own"
+        },
+        "agentBonusPercent": {
+          "$ref": "#/$defs/KnownSpyPercent",
+          "x-rpc-policy": "intelligence-own"
         },
         "allocations": {
-          "$ref": "#/$defs/Options",
-          "x-rpc-policy": "disabled-intelligence"
+          "$ref": "#/$defs/SpyAllocations",
+          "x-rpc-policy": "intelligence-own"
         }
       },
       "required": [
         "stamp",
         "agents",
+        "spyBonusPercent",
+        "agentBonusPercent",
         "allocations"
       ],
-      "x-rpc-policy": "disabled-intelligence"
+      "x-rpc-policy": "intelligence-own"
     },
     "Key": {
       "type": "string",
@@ -1833,6 +2011,19 @@
       "x-maxUtf8Bytes": 384,
       "x-unit": "credential",
       "description": "Locally configured shared key, decoded from native CP850 settings to UTF-8 and compared exactly; never returned by the service."
+    },
+    "KnownAgreement": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CurrentAgreement"
+        },
+        {
+          "$ref": "#/$defs/EmptyKnowledge"
+        },
+        {
+          "$ref": "#/$defs/Unavailable"
+        }
+      ]
     },
     "KnownBool": {
       "oneOf": [
@@ -2047,6 +2238,26 @@
         }
       ]
     },
+    "KnownRelationIndicatorOffset": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CurrentRelationIndicatorOffset"
+        },
+        {
+          "$ref": "#/$defs/Unavailable"
+        }
+      ]
+    },
+    "KnownRelationReport": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CurrentRelationReport"
+        },
+        {
+          "$ref": "#/$defs/Unavailable"
+        }
+      ]
+    },
     "KnownResearchPoints": {
       "oneOf": [
         {
@@ -2060,10 +2271,53 @@
         }
       ]
     },
+    "KnownSpyCount": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CurrentSpyCount"
+        },
+        {
+          "$ref": "#/$defs/Unavailable"
+        }
+      ]
+    },
+    "KnownSpyMission": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CurrentSpyMission"
+        },
+        {
+          "$ref": "#/$defs/Unavailable"
+        }
+      ]
+    },
+    "KnownSpyPercent": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CurrentSpyPercent"
+        },
+        {
+          "$ref": "#/$defs/Unavailable"
+        }
+      ]
+    },
     "KnownText": {
       "oneOf": [
         {
           "$ref": "#/$defs/CurrentText"
+        },
+        {
+          "$ref": "#/$defs/Unavailable"
+        }
+      ]
+    },
+    "KnownTribute": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CurrentTribute"
+        },
+        {
+          "$ref": "#/$defs/EmptyKnowledge"
         },
         {
           "$ref": "#/$defs/Unavailable"
@@ -2234,7 +2488,7 @@
       "maximum": 32767,
       "x-integerToken": true,
       "x-unit": "bc-per-turn",
-      "description": "Signed net income per turn as displayed from native surplus_bc, not gross production."
+      "description": "Signed displayed BC per turn, including native HUD net income or an individual agreement level; not gross production."
     },
     "Leaders": {
       "type": "array",
@@ -2941,7 +3195,7 @@
       "maximum": 50,
       "x-integerToken": true,
       "x-unit": "percent",
-      "description": "Whole native gravity-productivity penalty percentage, 0, 25 or 50."
+      "description": "Whole native percentage; field-specific bounds distinguish gravity penalties, tribute and signed intelligence bonuses."
     },
     "PlanetKind": {
       "type": "string",
@@ -3308,30 +3562,97 @@
       "properties": {
         "player": {
           "$ref": "#/$defs/Id",
-          "x-rpc-policy": "disabled-relations"
+          "x-rpc-policy": "relations-known"
         },
         "relationship": {
           "$ref": "#/$defs/KnownText",
-          "x-rpc-policy": "disabled-relations"
+          "x-rpc-policy": "relations-contact"
         },
-        "treaties": {
-          "$ref": "#/$defs/Texts",
-          "x-rpc-policy": "disabled-relations"
+        "relationshipIndicatorOffset": {
+          "$ref": "#/$defs/KnownRelationIndicatorOffset",
+          "x-rpc-policy": "relation-indicator"
+        },
+        "treaty": {
+          "$ref": "#/$defs/KnownText",
+          "x-rpc-policy": "relations-contact"
+        },
+        "ignoring": {
+          "$ref": "#/$defs/KnownBool",
+          "x-rpc-policy": "relations-contact"
+        },
+        "researchAgreement": {
+          "$ref": "#/$defs/KnownAgreement",
+          "x-rpc-policy": "relations-known"
+        },
+        "tradeAgreement": {
+          "$ref": "#/$defs/KnownAgreement",
+          "x-rpc-policy": "relations-known"
+        },
+        "tribute": {
+          "$ref": "#/$defs/KnownTribute",
+          "x-rpc-policy": "relations-known"
+        },
+        "incomingSpies": {
+          "$ref": "#/$defs/KnownSpyCount",
+          "x-rpc-policy": "relations-disclosed"
+        },
+        "report": {
+          "$ref": "#/$defs/KnownRelationReport",
+          "x-rpc-policy": "relations-disclosed"
         }
       },
       "required": [
         "player",
         "relationship",
+        "relationshipIndicatorOffset",
+        "treaty",
+        "ignoring",
+        "researchAgreement",
+        "tradeAgreement",
+        "tribute",
+        "incomingSpies",
+        "report"
+      ],
+      "x-rpc-policy": "relations-known"
+    },
+    "RelationIndicatorOffset": {
+      "type": "integer",
+      "minimum": -6,
+      "maximum": 68,
+      "x-integerToken": true,
+      "x-unit": "relation-slider-offset",
+      "description": "Native relationship indicator Y offset in logical pixels relative to the bar top. One of the native 26 remapped positions, not an exact attitude score."
+    },
+    "RelationReport": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "personality": {
+          "$ref": "#/$defs/KnownText",
+          "x-rpc-policy": "relations-disclosed"
+        },
+        "objective": {
+          "$ref": "#/$defs/ExplorationText",
+          "x-rpc-policy": "relations-disclosed"
+        },
+        "treaties": {
+          "$ref": "#/$defs/ReportTreaties",
+          "x-rpc-policy": "relations-disclosed"
+        }
+      },
+      "required": [
+        "personality",
+        "objective",
         "treaties"
       ],
-      "x-rpc-policy": "disabled-relations"
+      "x-rpc-policy": "relations-disclosed"
     },
     "Relations": {
       "type": "array",
       "items": {
         "$ref": "#/$defs/Relation"
       },
-      "maxItems": 256
+      "maxItems": 7
     },
     "RelationsResult": {
       "type": "object",
@@ -3351,6 +3672,44 @@
         "items"
       ],
       "x-rpc-policy": "contract"
+    },
+    "ReportTreaties": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ReportTreaty"
+      },
+      "maxItems": 7
+    },
+    "ReportTreaty": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "player": {
+          "$ref": "#/$defs/KnownId",
+          "x-rpc-policy": "relations-disclosed"
+        },
+        "name": {
+          "$ref": "#/$defs/Text",
+          "x-rpc-policy": "relations-disclosed"
+        },
+        "kind": {
+          "$ref": "#/$defs/ReportTreatyKind",
+          "x-rpc-policy": "relations-disclosed"
+        }
+      },
+      "required": [
+        "player",
+        "name",
+        "kind"
+      ],
+      "x-rpc-policy": "relations-disclosed"
+    },
+    "ReportTreatyKind": {
+      "type": "string",
+      "enum": [
+        "alliance",
+        "war"
+      ]
     },
     "Research": {
       "type": "object",
@@ -4004,6 +4363,61 @@
       "x-unit": "native-value",
       "description": "Signed displayed native slider value or score points; the owning context supplies and enforces its current range."
     },
+    "SpyAllocation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "player": {
+          "$ref": "#/$defs/Id",
+          "x-rpc-policy": "intelligence-own"
+        },
+        "spies": {
+          "$ref": "#/$defs/KnownSpyCount",
+          "x-rpc-policy": "intelligence-own"
+        },
+        "mission": {
+          "$ref": "#/$defs/KnownSpyMission",
+          "x-rpc-policy": "intelligence-own"
+        }
+      },
+      "required": [
+        "player",
+        "spies",
+        "mission"
+      ],
+      "x-rpc-policy": "intelligence-own"
+    },
+    "SpyAllocations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/SpyAllocation"
+      },
+      "maxItems": 7
+    },
+    "SpyCount": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 63,
+      "x-integerToken": true,
+      "x-unit": "count",
+      "description": "Nonnegative integer count of authorized projected records only."
+    },
+    "SpyMission": {
+      "type": "string",
+      "enum": [
+        "espionage",
+        "sabotage",
+        "hide"
+      ]
+    },
+    "SpyPercent": {
+      "type": "integer",
+      "minimum": -32768,
+      "maximum": 32767,
+      "x-integerToken": true,
+      "x-unit": "percent",
+      "description": "Whole native percentage; field-specific bounds distinguish gravity penalties, tribute and signed intelligence bonuses."
+    },
     "Stamp": {
       "type": "object",
       "additionalProperties": false,
@@ -4195,7 +4609,9 @@
         "colonies",
         "planets",
         "research",
-        "leaders"
+        "leaders",
+        "relations",
+        "intelligence"
       ]
     },
     "StateTopics": {
@@ -4203,7 +4619,7 @@
       "items": {
         "$ref": "#/$defs/StateTopic"
       },
-      "maxItems": 9,
+      "maxItems": 11,
       "uniqueItems": true
     },
     "StreamGap": {
@@ -4289,7 +4705,7 @@
       "items": {
         "$ref": "#/$defs/StateTopic"
       },
-      "maxItems": 9,
+      "maxItems": 11,
       "minItems": 1,
       "uniqueItems": true
     },
@@ -4533,6 +4949,58 @@
       },
       "maxItems": 20,
       "uniqueItems": true
+    },
+    "Tribute": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "direction": {
+          "$ref": "#/$defs/TributeDirection",
+          "x-rpc-policy": "relations-contact"
+        },
+        "percent": {
+          "$ref": "#/$defs/TributePercent",
+          "x-rpc-policy": "relations-contact"
+        }
+      },
+      "required": [
+        "direction",
+        "percent"
+      ],
+      "x-rpc-policy": "relations-contact"
+    },
+    "TributeDirection": {
+      "type": "string",
+      "enum": [
+        "giving",
+        "receiving"
+      ]
+    },
+    "TributeFive": {
+      "type": "integer",
+      "minimum": 5,
+      "maximum": 5,
+      "x-integerToken": true,
+      "x-unit": "percent",
+      "description": "Whole native percentage; field-specific bounds distinguish gravity penalties, tribute and signed intelligence bonuses."
+    },
+    "TributePercent": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/TributeFive"
+        },
+        {
+          "$ref": "#/$defs/TributeTen"
+        }
+      ]
+    },
+    "TributeTen": {
+      "type": "integer",
+      "minimum": 10,
+      "maximum": 10,
+      "x-integerToken": true,
+      "x-unit": "percent",
+      "description": "Whole native percentage; field-specific bounds distinguish gravity penalties, tribute and signed intelligence bonuses."
     },
     "Turn": {
       "type": "integer",
@@ -7825,7 +8293,7 @@
       "role": "reader",
       "availability": "committed-game",
       "kind": "query",
-      "implemented": false,
+      "implemented": true,
       "requestType": "Empty",
       "resultType": "Intelligence",
       "request": {
@@ -7921,7 +8389,7 @@
       "role": "reader",
       "availability": "committed-game",
       "kind": "query",
-      "implemented": false,
+      "implemented": true,
       "requestType": "Empty",
       "resultType": "RelationsResult",
       "request": {
@@ -9045,15 +9513,15 @@
     },
     "player-contact-research-treaty": {
       "status": "reviewed",
-      "predicate": "Only currently contacted living foreign empires in the same authorized roster. Copy whether the viewer's own directed research_treaty[target] is nonzero, the native race-screen gate for displaying the research-agreement summary. This reports presence only, not agreement level/goal, RP/BC amounts, opponent research, treaty duration, AI attitude or future renewal. Self, eliminated and uncontacted rows including omniscience/Lore-only roster entries are unknown, not false. Never read a foreign reciprocal flag or derive presence from war/contact alone. Sanitize unavailable values before sorting, equality, revisions or notifications; retain stable player handles and one coherent map/ship/roster capture. No diplomacy/spy/research calculator or UI builder is invoked.",
+      "predicate": "Only currently contacted living foreign empires in the same authorized roster. Copy whether the viewer's own directed research_treaty[target] is nonzero, the shared native race-screen summary gate. This player field reports presence only; detailed levels have their separate relations-contact policy. Self, eliminated and uncontacted rows including omniscience/Lore-only roster entries are unknown, not false. No reciprocal foreign flag, goal, research state or forecast. Sanitize unavailable values before sorting, equality, revisions or notifications; one coherent capture. No calculator or UI builder.",
       "sources": [
         [
           "src/game/racescrn.cpp",
           "Draw_Race_Text"
         ],
         [
-          "src/game/racescrn.cpp",
-          "research_treaty[display->player_idx] != 0"
+          "src/game/relations_read.cpp",
+          "player->research_treaty[target] != 0"
         ],
         [
           "src/game/harold.cpp",
@@ -9069,15 +9537,15 @@
     },
     "player-contact-trade-treaty": {
       "status": "reviewed",
-      "predicate": "Only currently contacted living foreign empires in the same authorized roster. Copy whether the viewer's own directed trade_treaty[target] is nonzero, the native race-screen gate for displaying the trade-agreement summary. Presence only: no current agreement level/goal, BC amount, duration, reciprocal foreign flag, AI attitude or renewal forecast. Self, eliminated and uncontacted rows including omniscience/Lore-only entries return unknown, never inferred false. Sanitize unavailable claims before ordering, equality, revisions and notifications. Keep stable player handles and one immutable coherent map/ship/roster capture; never splice newer treaties into an older ship capture. No diplomacy/economy/spy calculation or UI builder is invoked.",
+      "predicate": "Only currently contacted living foreign empires in the same authorized roster. Copy whether the viewer's own directed trade_treaty[target] is nonzero, the shared native race-screen summary gate. This player field reports presence only; detailed levels have their separate relations-contact policy. Self, eliminated and uncontacted rows including omniscience/Lore-only roster entries are unknown, not false. No reciprocal foreign flag, economic base, goal or forecast. Sanitize unavailable values before sorting, equality, revisions or notifications; one coherent capture. No calculator or UI builder.",
       "sources": [
         [
           "src/game/racescrn.cpp",
           "Draw_Race_Text"
         ],
         [
-          "src/game/racescrn.cpp",
-          "trade_treaty[display->player_idx] != 0"
+          "src/game/relations_read.cpp",
+          "player->trade_treaty[target] != 0"
         ],
         [
           "src/game/harold.cpp",
@@ -9760,32 +10228,160 @@
         "T-03"
       ]
     },
-    "disabled-relations": {
-      "status": "disabled",
-      "predicate": "Known contacts and own treaties/visible indicators only; native labels, not hidden exact AI attitudes.",
+    "relations-known": {
+      "status": "reviewed",
+      "predicate": "One relation row per same-capture known foreign roster entry, not a new entity/list API. Roster inclusion, living contact and per-field disclosure are separate. Uncontacted or eliminated rows have unknown fields, not empty treaties or assignments. Resolve player references only through this capture; no historical dossier. Contact loss, elimination, roster withdrawal/replacement revoke dependent retained output and pages using existing view revocation. Context loss preserves independently authorized ambient reads.",
       "sources": [
+        [
+          "src/game/bill.cpp",
+          "Get_Players_Dead_Or_Alive_Or_Omniscient"
+        ],
+        [
+          "src/game/relations_read.cpp",
+          "Is_Contact"
+        ]
+      ],
+      "tests": [
+        "T-01",
+        "T-02",
+        "T-05",
+        "T-07"
+      ]
+    },
+    "relations-contact": {
+      "status": "reviewed",
+      "predicate": "Bound human living foreign contact only. Shared Read_Relation and Relationship_Bucket supply the same 17 native label buckets and clamped 0..5 treaty labels used by the UI; never serialize exact relations or war subtype 6. Own ignoring bit. Research/trade levels are copied only when the viewer-directed flag is nonzero: signed cached int16, no goal/recalculation; negative research is BC/turn, nonnegative RP/turn, trade BC/turn. Tribute copies only the displayed giving side, otherwise receiving side, mapping native 1 to 5 percent and other nonzero to 10. No foreign treasury, economic base, timers, AI proposals or forecasts. Missing initialized labels are unknown. Canonical language/mod text initializes through native Load_Strings, never query-time loaders or screen navigation.",
+      "sources": [
+        [
+          "src/game/relations_read.cpp",
+          "Read_Relation"
+        ],
+        [
+          "src/game/relations_read.cpp",
+          "Copy_Treaty_Summary"
+        ],
         [
           "src/game/racescrn.cpp",
           "Draw_Race_Text"
+        ],
+        [
+          "src/game/racescrn.cpp",
+          "Load_Relations_Strings"
+        ],
+        [
+          "src/game/trade.cpp",
+          "Process_Research_Agreement"
+        ],
+        [
+          "src/game/colcalc_main.cpp",
+          "current_research_agreement_level"
         ]
       ],
       "tests": [
         "T-01",
-        "T-03"
+        "T-02",
+        "T-03",
+        "T-05"
       ]
     },
-    "disabled-intelligence": {
-      "status": "disabled",
-      "predicate": "Own allocation/mission/pool as displayed; no opponent allocations or hidden spy internals.",
+    "relations-disclosed": {
+      "status": "reviewed",
+      "predicate": "Only shared native projections published from initialized recipient-bound Races overlay or selected living-contact Race Report. Overlay requires positive incoming spies and an actually substituted SPIES placeholder in configured text; absent/empty/literal/escaped formats grant no count and never establish zero. Report requires native noreport disabled and discloses incoming count including zero, displayed personality/objective labels and alliance/war race-name lists. Third-party labels grant no additional roster, contact, treasury, allocations or intention knowledge; reference only a same-capture independently known player, otherwise unknown. Copy callback-local payloads; revoke context leases, dependent pages and queued output before owner exit/replacement/interruption, reset/perspective/world mutation/resolution; no dossier. All relations/intelligence data is busy during resolution. Combine only a fresh coherent capture, never enrich an older ship baseline.",
       "sources": [
+        [
+          "src/game/relations_read.cpp",
+          "Read_Overlay"
+        ],
+        [
+          "src/game/relations_read.cpp",
+          "Read_Report"
+        ],
+        [
+          "src/game/racescrn.cpp",
+          "Publish_Relations_View"
+        ],
+        [
+          "src/game/racerprt.cpp",
+          "Publish_Relations_View"
+        ],
+        [
+          "src/game/game_events.cpp",
+          "s_relations_view_scope"
+        ]
+      ],
+      "tests": [
+        "T-01",
+        "T-02",
+        "T-03",
+        "T-04",
+        "T-05",
+        "T-07",
+        "T-12"
+      ]
+    },
+    "intelligence-own": {
+      "status": "reviewed",
+      "predicate": "Bound human own organization only. Shared Read_Organization and Read_Assignment supply native home agents and per-living-contact low-six-bit counts 0..63, with selected high-bit mission 0 espionage, 1 sabotage, 2 hide. Native mission 3 is unclassified/unknown, not assassination. Known count zero retains the selected mission; uncontacted/eliminated roster allocations are unknown. No invented total pool across hidden targets, staged drag edits, opponent home/other-target allocations, hidden spy counts or future outcomes. Preserve signed displayed spy/agent bonus percentages and native argument order, using pure Compute_Spy_Bonuses; unavailable initialized leader storage yields unknown bonuses. No UI builder, commit, AI allocation, resolution, report consumption or RNG operation.",
+      "sources": [
+        [
+          "src/game/relations_read.cpp",
+          "Read_Organization"
+        ],
+        [
+          "src/game/relations_read.cpp",
+          "Read_Assignment"
+        ],
         [
           "src/game/racescrn.cpp",
           "Init_Race_Display_Data"
+        ],
+        [
+          "src/game/racescrn.cpp",
+          "Draw_Race_Text"
+        ],
+        [
+          "src/game/bill.cpp",
+          "Get_My_Spy_Number"
+        ],
+        [
+          "src/game/spy.cpp",
+          "Compute_Spy_Bonuses"
+        ],
+        [
+          "src/game/spy.cpp",
+          "Resolve_Player_Spies"
         ]
       ],
       "tests": [
         "T-01",
-        "T-03"
+        "T-02",
+        "T-03",
+        "T-05",
+        "T-07"
+      ]
+    },
+    "relation-indicator": {
+      "status": "reviewed",
+      "predicate": "Only a living current foreign contact. Share Relationship_Indicator_Offset with Init_Race_Display_Data: native 26-position slider_remap_list[(relations + 100) / 8] minus 6 logical pixels relative to the bar top. Publish only the displayed quantized offset, not the exact relation byte, base attitude or AI intentions. No hidden/uncontacted/eliminated values are copied or used for validation/equality/notifications. Relationship text independently uses its native 17 buckets; within-position/label exact-score changes emit nothing.",
+      "sources": [
+        [
+          "src/game/relations_read.cpp",
+          "Relationship_Indicator_Offset"
+        ],
+        [
+          "src/game/racescrn.cpp",
+          "relationship_slider_y"
+        ],
+        [
+          "src/game/racescrn.cpp",
+          "slider_remap_list"
+        ]
+      ],
+      "tests": [
+        "T-01",
+        "T-02",
+        "T-03",
+        "T-05"
       ]
     },
     "disabled-history": {
@@ -9986,7 +10582,7 @@
     "orderedEventsPerSubscription": 4096,
     "overflow": "Reject before admission; coalesce only complete unsent state. Ordered-event overflow signals a gap or disconnect. Never rewrite partial output or silently discard operation results."
   },
-  "x-rpc-sourceHash": "9e1bf43eca99c162c33931199a5885b750095f742cbc0a6a531aebe3e961e9f4",
+  "x-rpc-sourceHash": "059af6761fde10f7030e93e22e966a03ca0fcfe230c3ab6c7ef127ecf932765d",
   "x-rpc-runtimeEnabled": false,
   "x-rpc-implementedMethods": [
     "rpc.hello",
@@ -10010,6 +10606,8 @@
     "game.listResearchOptions",
     "game.getTechnology",
     "game.listLeaders",
-    "game.getLeader"
+    "game.getLeader",
+    "game.getRelations",
+    "game.getIntelligence"
   ]
 }

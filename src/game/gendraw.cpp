@@ -90,6 +90,7 @@ namespace GENDRAW {
 
     void __cdecl Message_Box_Exploding(const char* str) {
         game_events::s_leader_interruption_scope leader_interruption;
+        game_events::s_relations_interruption_scope relations_interruption;
         Message_Box_Startup();
 
         fonts::Set_Font_Style(4, &message_text_colors);
@@ -154,6 +155,7 @@ namespace GENDRAW {
 
     int16_t __cdecl Confirmation_Box(const char* text) {
         game_events::s_leader_interruption_scope leader_interruption;
+        game_events::s_relations_interruption_scope relations_interruption;
         uint8_t color_1;
         uint8_t color_2;
         s_colors font_colors;

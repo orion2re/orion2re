@@ -113,6 +113,47 @@ namespace rpc {
         bool trade_treaty = false;
     };
 
+    struct s_relation_report_entry {
+        int32_t slot = -1;
+        std::string player_id;
+        std::string name;
+        bool alliance = false;
+    };
+
+    struct s_relation_observation {
+        int32_t slot = -1;
+        std::string player_id;
+        bool available = false;
+        std::string relationship;
+        int32_t relationship_offset = 0;
+        std::string treaty;
+        bool ignoring = false;
+        bool research = false;
+        int32_t research_level = 0;
+        bool trade = false;
+        int32_t trade_level = 0;
+        int32_t tribute_percent = 0;
+        bool giving = false;
+        bool assignment_available = false;
+        int32_t spies = 0;
+        int32_t mission = -1;
+        bool incoming_available = false;
+        int32_t incoming = 0;
+        bool report_available = false;
+        std::string personality;
+        std::string objective;
+        bool objective_empty = false;
+        std::vector<s_relation_report_entry> report;
+    };
+
+    struct s_intelligence_observation {
+        bool available = false;
+        int32_t agents = 0;
+        bool bonuses_available = false;
+        int32_t spy_bonus = 0;
+        int32_t agent_bonus = 0;
+    };
+
     struct s_colony_observation {
         int32_t owner_slot = -1; // Private authorization binding, discarded before retention.
         int32_t system = -1;     // Private same-capture parent binding, discarded before retention.
@@ -204,6 +245,10 @@ namespace rpc {
         std::vector<s_leader_observation> leaders;
         bool leader_presentation = false;
         bool leaders_only = false;
+        bool relations_captured = false;
+        std::vector<s_relation_observation> relations;
+        s_intelligence_observation intelligence;
+        bool relations_presentation = false;
     };
 
     struct s_map_snapshot {

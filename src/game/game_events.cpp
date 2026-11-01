@@ -18,6 +18,9 @@ namespace game_events {
         s_leader_view_scope* leader_owner = nullptr;
         const s_leader_view* leader_view = nullptr;
         uint32_t leader_interruptions = 0;
+        s_relations_view_scope* relations_owner = nullptr;
+        const s_relations_view* relations_view = nullptr;
+        uint32_t relations_interruptions = 0;
     } // namespace
 
     uint64_t Subscribe(t_callback callback, void* context) {
@@ -104,12 +107,72 @@ namespace game_events {
                 owner->ready = false;
                 owner->revoked = true;
             }
+            for (auto* owner = relations_owner; owner != nullptr; owner = owner->parent) {
+                owner->ready = false;
+                owner->revoked = true;
+            }
         }
         Deliver(event, nullptr);
     }
 
     void Publish_Fleet_Box_Info(const s_fleet_box_info* info) {
         if (info != nullptr) Deliver(FLEET_BOX_INFO_READY, info);
+    }
+
+    const s_relations_view* Published_Relations_View() {
+        return relations_view;
+    }
+
+    s_relations_view_scope::s_relations_view_scope(bool type) : report(type), parent(relations_owner) {
+        if (parent != nullptr) parent->ready = false;
+        relations_owner = this;
+        Publish(RELATIONS_VIEW_CLEARED);
+    }
+
+    s_relations_view_scope::~s_relations_view_scope() {
+        Close();
+    }
+
+    void s_relations_view_scope::Close() {
+        if (closed) return;
+        closed = true;
+        ready = false;
+        Publish(RELATIONS_VIEW_CLEARED);
+        relations_owner = parent;
+    }
+
+    void Ready_Relations_View(bool report) {
+        if (relations_owner != nullptr && !relations_owner->revoked && relations_owner->report == report && relations_interruptions == 0) relations_owner->ready = true;
+    }
+
+    void Publish_Relations_View(bool report, const relations_read::s_disclosure* items, int16_t count) {
+        if (relations_owner == nullptr || !relations_owner->ready || relations_owner->report != report || relations_interruptions != 0 || count < 0 || count > 8 || (count != 0 && items == nullptr)) return;
+        if (report && count == 1) {
+            relations_owner->report_data = items[0];
+            relations_owner->has_report = true;
+        }
+        const s_relations_view view{items, count};
+        relations_view = &view;
+        Publish(RELATIONS_VIEW_READY);
+        relations_view = nullptr;
+    }
+
+    void Present_Relations_Report() {
+        if (relations_owner == nullptr || !relations_owner->report || !relations_owner->has_report) return;
+        Ready_Relations_View(true);
+        Publish_Relations_View(true, &relations_owner->report_data, 1);
+    }
+
+    s_relations_interruption_scope::s_relations_interruption_scope() {
+        if (relations_owner == nullptr) return;
+        interrupted = true;
+        ++relations_interruptions;
+        relations_owner->ready = false;
+        Publish(RELATIONS_VIEW_CLEARED);
+    }
+
+    s_relations_interruption_scope::~s_relations_interruption_scope() {
+        if (interrupted) --relations_interruptions;
     }
 
     void Publish_Ship_Identity_Changing(int16_t ship) {

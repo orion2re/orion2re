@@ -4,6 +4,9 @@
 #include "rpc/rpc_game.h"
 #include "rpc/tech_rpc.h"
 #include "rpc/officer_rpc.h"
+#include "rpc/relations_rpc.h"
+#include "rpc/players_rpc.h"
+#include "game/relations_read.h"
 #include "game/game_events.h"
 #include "lua/lua_game_ship_identity.h"
 #include "config/text_encoding.h"
@@ -2627,4 +2630,232 @@ DOCTEST_TEST_CASE("trade treaty presence reads only the viewers directed flag af
     DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&observed));
     DOCTEST_CHECK(std::none_of(observed.players.begin(), observed.players.end(), [](const rpc::s_player_observation& player) { return player.slot == 1; }));
     DOCTEST_CHECK(game_random::Get_Random_Seed() == seed);
+}
+
+DOCTEST_TEST_CASE("relations shared projection preserves native buckets signed levels tribute and own missions without mutations") {
+    s_leader_world fixture;
+    auto& players = fixture.world.ships.world.players;
+    players[0].contact[1] = 1;
+    const auto old_labels = std::vector<char*>(std::begin(MOX::treaty_labels), std::end(MOX::treaty_labels));
+    char labels[7][30] = {"None", "Pact", "Alliance", "Peace", "War", "Final War", "PRIVATE"};
+    const char* displayed_labels[] = {"None", "PACT", "ALLIANCE", "PEACE", "WAR", "FINAL WAR"};
+    for (int i = 0; i < 7; ++i) MOX::treaty_labels[i] = labels[i];
+    for (int i = 0; i < 17; ++i) snprintf(RACESCRN::relation_text[i], sizeof(RACESCRN::relation_text[i]), "Bucket %i", i);
+    for (int value = -100; value <= 100; ++value) {
+        players[0].relations[1] = (int8_t)value;
+        int bucket = 0;
+        while (RACESCRN::relation_name_table[bucket] < value + 100) ++bucket;
+        relations_read::s_relation native;
+        relations_read::Read_Relation(0, 1, &native);
+        DOCTEST_CHECK(native.available);
+        DOCTEST_CHECK(std::string(native.relationship) == "Bucket " + std::to_string(bucket));
+        DOCTEST_CHECK(native.relationship_offset == RACESCRN::slider_remap_list[(value + 100) / 8] - 6);
+    }
+    for (int16_t treaty = 0; treaty <= 6; ++treaty) {
+        diplomac::Start_Treaty(0, 1, treaty);
+        relations_read::s_relation native;
+        relations_read::Read_Relation(0, 1, &native);
+        DOCTEST_CHECK(std::string(native.treaty) == displayed_labels[std::min<int16_t>(treaty, 5)]);
+    }
+    char long_treaty[200];
+    memset(long_treaty, 'x', sizeof(long_treaty) - 1);
+    long_treaty[199] = 0;
+    MOX::treaty_labels[5] = long_treaty;
+    relations_read::s_relation long_relation;
+    relations_read::Read_Relation(0, 1, &long_relation);
+    DOCTEST_CHECK(strlen(long_relation.treaty) == 199);
+    DOCTEST_CHECK(long_relation.treaty[198] == 'X');
+    MOX::treaty_labels[5] = labels[5];
+    char empty_label[] = "";
+    MOX::treaty_labels[5] = empty_label;
+    char summary[200];
+    relations_read::Copy_Treaty_Summary(0, 1, summary, sizeof(summary));
+    DOCTEST_CHECK(std::string(summary) == "None");
+    MOX::treaty_labels[5] = labels[5];
+    diplomac::Start_Tribute_Treaty(1, 0, 1);
+    players[0].research_treaty[1] = players[0].trade_treaty[1] = 1;
+    players[0].ignoring = 2;
+    for (int16_t level : {-32768, -1, 0, 32767}) {
+        players[0].current_research_agreement_level[1] = level;
+        players[0].current_trade_agreement_level[1] = level;
+        for (int16_t mission = 0; mission < 4; ++mission) {
+            BILL::Set_My_Spy_Number(1, mission == 0 ? 0 : 63);
+            BILL::Set_My_Spy_Mission(1, (int8_t)mission);
+            BILL::Set_My_Agent_Number(7);
+            const auto before = players;
+            const auto leaders_before = fixture.leaders;
+            const uint32_t seed = game_random::Get_Random_Seed();
+            const auto screen = MOX::current_screen;
+            const auto fields_before = fields::Get_Field_Counter();
+            rpc::s_map_observation map;
+            DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&map));
+            DOCTEST_REQUIRE(map.relations.size() == 1);
+            const auto& native = map.relations[0];
+            DOCTEST_CHECK(native.research_level == level);
+            DOCTEST_CHECK(native.trade_level == level);
+            DOCTEST_CHECK(native.ignoring);
+            DOCTEST_CHECK(native.tribute_percent == 5);
+            DOCTEST_CHECK_FALSE(native.giving);
+            DOCTEST_CHECK(native.spies == (mission == 0 ? 0 : 63));
+            DOCTEST_CHECK(native.mission == (mission < 3 ? mission : -1));
+            int16_t spy_bonus, agent_bonus;
+            spy::Compute_Spy_Bonuses(&players[0], &spy_bonus, &agent_bonus);
+            DOCTEST_CHECK(map.intelligence.agents == 7);
+            DOCTEST_CHECK(map.intelligence.spy_bonus == spy_bonus);
+            DOCTEST_CHECK(map.intelligence.agent_bonus == agent_bonus);
+            DOCTEST_CHECK(memcmp(before.data(), players.data(), before.size() * sizeof(s_player)) == 0);
+            DOCTEST_CHECK(memcmp(leaders_before.data(), fixture.leaders.data(), fixture.leaders.size() * sizeof(s_leader_data)) == 0);
+            DOCTEST_CHECK(game_random::Get_Random_Seed() == seed);
+            DOCTEST_CHECK(MOX::current_screen == screen);
+            DOCTEST_CHECK(fields::Get_Field_Counter() == fields_before);
+        }
+    }
+    diplomac::Start_Tribute_Treaty(0, 1, 2);
+    relations_read::s_relation native;
+    relations_read::Read_Relation(0, 1, &native);
+    DOCTEST_CHECK(native.giving);
+    DOCTEST_CHECK(native.tribute_percent == 10);
+    players[0].contact[1] = 0;
+    players[0].traits[TRAIT_OMNISCIENCE] = 1;
+    relations_read::Read_Relation(0, 1, &native);
+    DOCTEST_CHECK_FALSE(native.available);
+    DOCTEST_CHECK(native.research_level == 0);
+    relations_read::s_assignment assignment;
+    relations_read::Read_Assignment(0, 1, &assignment);
+    DOCTEST_CHECK_FALSE(assignment.available);
+    players[0].contact[1] = 1;
+    players[1].eliminated = 1;
+    relations_read::Read_Assignment(0, 1, &assignment);
+    DOCTEST_CHECK_FALSE(assignment.available);
+    std::copy(old_labels.begin(), old_labels.end(), MOX::treaty_labels);
+}
+
+DOCTEST_TEST_CASE("relations initialized recipient scopes copy observations and revoke contexts without destroying own intelligence") {
+    s_leader_world fixture;
+    auto& players = fixture.world.ships.world.players;
+    MOX::NUM_PLAYERS = 3;
+    players[0].contact[1] = 1;
+    players[1].treaty[2] = 4;
+    strlcpy(players[2].race_name, "Reported race", sizeof(players[2].race_name));
+    BILL::Set_Their_Spy_Number(1, 0, 2);
+    const auto old_format = TEXT_FORMAT::format[TEXT_FORMAT::ROW_RACE_SPIES];
+    const auto old_noreport = DIP_SCRN::noreport;
+    DIP_SCRN::noreport = 0;
+    relations_read::s_disclosure disclosed;
+    for (const char* format : {"", "literal", "$$SPIES$$"}) {
+        strlcpy(TEXT_FORMAT::format[TEXT_FORMAT::ROW_RACE_SPIES].template_text, format, 256);
+        DOCTEST_CHECK_FALSE(relations_read::Read_Overlay(0, 1, &disclosed));
+    }
+    strlcpy(TEXT_FORMAT::format[TEXT_FORMAT::ROW_RACE_SPIES].template_text, "$SPIES$", 256);
+    DOCTEST_REQUIRE(relations_read::Read_Overlay(0, 1, &disclosed));
+    DOCTEST_CHECK(disclosed.incoming == 2);
+    BILL::Set_Their_Spy_Number(1, 0, 0);
+    DOCTEST_CHECK_FALSE(relations_read::Read_Overlay(0, 1, &disclosed));
+    DOCTEST_REQUIRE(relations_read::Read_Report(0, 1, &disclosed));
+    DOCTEST_CHECK(disclosed.incoming_available);
+    DOCTEST_CHECK(disclosed.incoming == 0);
+    DOCTEST_CHECK(disclosed.count == 1);
+    DOCTEST_CHECK(disclosed.objective_empty);
+    const auto old_personality = MOX::personality_labels[0];
+    const auto old_objective = MOX::objective_labels[0];
+    char long_personality[128];
+    memset(long_personality, 'P', sizeof(long_personality) - 1);
+    long_personality[127] = 0;
+    char objective[] = "Hidden suffix";
+    MOX::personality_labels[0] = long_personality;
+    MOX::objective_labels[0] = objective;
+    players[1].objectives = 0;
+    relations_read::s_disclosure clipped;
+    DOCTEST_REQUIRE(relations_read::Read_Report(0, 1, &clipped));
+    DOCTEST_CHECK_FALSE(clipped.objective_empty);
+    DOCTEST_CHECK(clipped.objective[0] == 0);
+    long_personality[123] = 0;
+    DOCTEST_REQUIRE(relations_read::Read_Report(0, 1, &clipped));
+    DOCTEST_CHECK(std::string(clipped.objective) == "Hid");
+    MOX::personality_labels[0] = old_personality;
+    MOX::objective_labels[0] = old_objective;
+    players[1].objectives = PLAYER_OBJECTIVE_HUMAN;
+    DIP_SCRN::noreport = 1;
+    relations_read::s_disclosure withheld;
+    DOCTEST_CHECK_FALSE(relations_read::Read_Report(0, 1, &withheld));
+    DIP_SCRN::noreport = 0;
+    rpc::s_bridge bridge;
+    rpc::s_game_store store;
+    DOCTEST_REQUIRE(rpc::Initialize_Game_Store(&store, &bridge));
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&store));
+    rpc::s_map_observation ambient;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&ambient));
+    DOCTEST_REQUIRE(rpc::Capture_Map(&store, &ambient));
+    struct s_listener {
+        rpc::s_game_store* store;
+        rpc::s_map_observation* ambient;
+        int calls = 0;
+    } listener{&store, &ambient};
+    const auto token = game_events::Subscribe([](game_events::e_event event, void* data) {
+        auto* state = (s_listener*)data;
+        if (event == game_events::RELATIONS_VIEW_CLEARED) rpc::Revoke_Game_Context(state->store);
+        if (event == game_events::RELATIONS_VIEW_READY) {
+            ++state->calls;
+            DOCTEST_CHECK(game_rpc::Capture_Relations_View(state->store, state->ambient, game_events::Published_Relations_View()));
+        }
+    },
+        &listener);
+    DOCTEST_REQUIRE(token != 0);
+    rpc::s_request request;
+    request.id_json = "1";
+    request.params_json = "{}";
+    request.method = "game.getRelations";
+    game_events::Publish_Relations_View(true, &disclosed, 1);
+    DOCTEST_CHECK(listener.calls == 0);
+    {
+        game_events::s_relations_view_scope owner(true);
+        game_events::Publish_Relations_View(true, &disclosed, 1);
+        DOCTEST_CHECK(listener.calls == 0);
+        game_events::Ready_Relations_View(true);
+        game_events::Publish_Relations_View(true, &disclosed, 1);
+        DOCTEST_CHECK(listener.calls == 1);
+        uint64_t epoch = 0;
+        const auto result = rpc::Game_Query(&store, &request, &epoch);
+        DOCTEST_CHECK(epoch != 0);
+        DOCTEST_CHECK(result.find("Reported race") != std::string::npos);
+        DOCTEST_CHECK(result.find("\"incomingSpies\":{\"availability\":\"current\",\"value\":0}") != std::string::npos);
+        const auto revision = store.revision;
+        game_events::Publish_Relations_View(true, &disclosed, 1);
+        DOCTEST_CHECK(store.revision == revision);
+        uint64_t client_epoch = 0;
+        DOCTEST_REQUIRE(rpc::Register_Client(&bridge, 91, &client_epoch));
+        DOCTEST_REQUIRE(rpc::Authorize_Client(&bridge, 91, client_epoch));
+        DOCTEST_REQUIRE(rpc::Submit_Work(&bridge, 91, client_epoch, &request, UINT64_MAX) == 0);
+        rpc::s_work queued;
+        DOCTEST_REQUIRE(rpc::Take_Work(&bridge, 0, &queued));
+        DOCTEST_REQUIRE(rpc::Complete_Work(&bridge, &queued, &result, epoch));
+        disclosed.entries[0].name[0] = 'X';
+        DOCTEST_CHECK(rpc::Game_Query(&store, &request) == result);
+        {
+            game_events::s_relations_interruption_scope child;
+            game_events::Ready_Relations_View(true);
+            game_events::Publish_Relations_View(true, &disclosed, 1);
+            DOCTEST_CHECK(listener.calls == 2);
+            DOCTEST_CHECK(rpc::Game_Query(&store, &request).find("Reported race") == std::string::npos);
+            rpc::s_publication publication;
+            DOCTEST_REQUIRE(rpc::Take_Publication(&bridge, &publication));
+            DOCTEST_CHECK(publication.json.find("Reported race") == std::string::npos);
+            DOCTEST_CHECK(publication.json.find("\"error\"") != std::string::npos);
+        }
+        game_events::Publish_Relations_View(true, &disclosed, 1);
+        DOCTEST_CHECK(listener.calls == 2);
+        game_events::Ready_Relations_View(true);
+        game_events::Publish_Relations_View(true, &disclosed, 1);
+        DOCTEST_CHECK(listener.calls == 3);
+    }
+    DOCTEST_CHECK(rpc::Game_Query(&store, &request).find("eported race") == std::string::npos);
+    request.method = "game.getIntelligence";
+    DOCTEST_CHECK(rpc::Game_Query(&store, &request).find("\"allocations\"") != std::string::npos);
+    rpc::Pause_Game_Queries(&store);
+    DOCTEST_CHECK(rpc::Game_Query(&store, &request).find("-32002") != std::string::npos);
+    rpc::Resume_Game_Queries(&store);
+    game_events::Unsubscribe(token);
+    rpc::Shutdown_Game_Store(&store);
+    TEXT_FORMAT::format[TEXT_FORMAT::ROW_RACE_SPIES] = old_format;
+    DIP_SCRN::noreport = old_noreport;
 }

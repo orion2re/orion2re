@@ -213,7 +213,7 @@ MP_NONE (0) means no context. Host-only and player-visibility restrictions remai
 | MSG_SAVE_SLOTS | local slot metadata in setup/loadsave views, both main menu and game popup |
 | MSG_LAYOUT; ext_layout generator/table | replaced by explicit typed DTO/method contracts; no native offset/sizeof API or compatibility generator |
 | Base identity/map/settings | permitted session/map/preferences only; no raw s_settings or arbitrary player selection |
-| Raw players/stars/ships/colonies/planets/nebulas/leaders/Antarans | map to catalog groups after projection. Hidden allocations, opponent internals and Antaran future invasion state are intentionally not exposed |
+| Raw players/stars/ships/colonies/planets/nebulas/leaders/Antarans | map to catalog groups after projection. Q-13 replaces diplomatic/intelligence inspection with shared native projections, coherent reads and scoped native disclosures; see README relations/intelligence workflow and field policies. Hidden allocations, opponent internals and Antaran future invasion state are intentionally not exposed |
 | Raw ship icons/node tables + untagged icon owner bytes | visible display order/selection/group references in map/fleet views; do not expose stale node records or invisible ships |
 | Newgame temporary settings | setup view; distinguish staged edits from committed settings |
 

@@ -1,4 +1,6 @@
 #include "pch.h"
+#include "relations_read.h"
+#include "game_events.h"
 
 namespace RACERPRT {
 
@@ -7,6 +9,9 @@ namespace RACERPRT {
     s_racescrn_icon_layout spy_group_data = {24, 216, 187, 239, 24, nullptr};
 
     void __cdecl Race_Report_Screen(int16_t player_idx) {
+        game_events::s_relations_view_scope relations_owner(true);
+        relations_read::s_disclosure report;
+        const bool report_available = relations_read::Read_Report(MOX::PLAYER_NUM, player_idx, &report);
         int32_t paragraph_integer;
         char spy_status_text[40];
         s_animation_header* screen_anims[10];
@@ -19,12 +24,7 @@ namespace RACERPRT {
 
         MOX::cur_plyr_ptr = &MOX::player[player_idx];
 
-        if (MOX::cur_plyr_ptr->objectives == PLAYER_OBJECTIVE_HUMAN) {
-            strlcpy(personality_objective_text, MOX::personality_labels[(uint8_t)MOX::cur_plyr_ptr->personality], sizeof(personality_objective_text));
-        } else {
-            /* fmtpara: '\r' starts a new paragraph between the personality and objective lines. */
-            snprintf(personality_objective_text, sizeof(personality_objective_text), "%s\r%s", MOX::personality_labels[(uint8_t)MOX::cur_plyr_ptr->personality], MOX::objective_labels[MOX::cur_plyr_ptr->objectives]);
-        }
+        snprintf(personality_objective_text, sizeof(personality_objective_text), "%s%s%s", report.personality, report.objective[0] != 0 ? "\r" : "", report.objective);
 
         FMTPARA::Set_Paragraph_Integer_Pointer(0, &paragraph_integer);
         fields::Clear_Fields();
@@ -41,7 +41,7 @@ namespace RACERPRT {
             RUSS::Mox_Update();
         }
 
-        int16_t spy_count = BILL::Get_Their_Spy_Number(player_idx, MOX::PLAYER_NUM);
+        int16_t spy_count = report.incoming;
         RACESCRN::Setup_Icon_Group_Data(&spy_icon_group, &RACERPRT::spy_group_data, spy_count, spy_icon_sprite, nullptr);
 
         int16_t num_wars = 0;
@@ -49,20 +49,15 @@ namespace RACERPRT {
         int16_t num_alliances = 0;
         war_race_list[0] = '\0';
 
-        if (MOX::NUM_PLAYERS > 0) {
-            for (int16_t other_player_idx = 0; other_player_idx < MOX::NUM_PLAYERS; ++other_player_idx) {
-                if (other_player_idx != player_idx) {
-                    if (MOX::cur_plyr_ptr->treaty[other_player_idx] == 2) {
-                        strlcat(alliance_race_list, MOX::player[other_player_idx].race_name, sizeof(alliance_race_list));
-                        strlcat(alliance_race_list, string::s_Newline, sizeof(alliance_race_list));
-                        num_alliances++;
-                    } else if (MOX::cur_plyr_ptr->treaty[other_player_idx] >= 4) {
-                        strlcat(war_race_list, MOX::player[other_player_idx].race_name, sizeof(war_race_list));
-                        strlcat(war_race_list, string::s_Newline, sizeof(war_race_list));
-                        num_wars++;
-                    }
-                }
-            }
+        for (int16_t index = 0; index < report.count; ++index) {
+            const auto& entry = report.entries[index];
+            char* list = entry.alliance ? alliance_race_list : war_race_list;
+            strlcat(list, entry.name, sizeof(alliance_race_list));
+            strlcat(list, string::s_Newline, sizeof(alliance_race_list));
+            if (entry.alliance)
+                ++num_alliances;
+            else
+                ++num_wars;
         }
 
         if (num_alliances == 0) {
@@ -136,6 +131,8 @@ namespace RACERPRT {
             ERIC::Fast_Fade_In();
             MOX::first_time = 0;
             RACERPRT::race_report_jim_hack = 1;
+            game_events::Ready_Relations_View(true);
+            if (report_available) game_events::Publish_Relations_View(true, &report, 1);
 
             allocate::Mark_Block((void*)MOX::screen_seg);
             int16_t action = INFO::_Tech_Review_Subscreen(screen_anims + 2, INFO::g_exit_field + 1, player_idx);
@@ -145,6 +142,7 @@ namespace RACERPRT {
             RACERPRT::race_report_jim_hack = 0;
 
             if (action == INFO::g_exit_field) {
+                relations_owner.Close();
                 ERIC::Fast_Fade_Out();
                 MOX::cur_plyr_ptr = &MOX::player[MOX::PLAYER_NUM];
                 return;

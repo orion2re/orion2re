@@ -174,6 +174,7 @@ namespace TEXTBOX {
 
     void __cdecl Do_Text_Box(const char* title, const char* text, uint16_t input_ticks) {
         game_events::s_leader_interruption_scope leader_interruption(text);
+        game_events::s_relations_interruption_scope relations_interruption;
         s_colors primary_colors;
         s_animation_header* anim;
         s_colors secondary_colors;
@@ -306,6 +307,7 @@ namespace TEXTBOX {
 
     void __cdecl Draw_Help_Entry(int16_t help_id) {
         game_events::s_leader_interruption_scope leader_interruption;
+        game_events::s_relations_interruption_scope relations_interruption;
         box_x = 0;
         box_y = 0;
 

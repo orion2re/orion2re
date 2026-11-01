@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include "leader_read.h"
+#include "relations_read.h"
 
 namespace game_events {
     enum e_event {
@@ -40,6 +41,8 @@ namespace game_events {
         SHIP_DESTINATION_LINE_DRAWN,
         LEADER_VIEW_CLEARED,
         LEADER_VIEW_READY,
+        RELATIONS_VIEW_CLEARED,
+        RELATIONS_VIEW_READY,
     };
 
     struct s_fleet_box_node {
@@ -89,6 +92,36 @@ namespace game_events {
     struct s_leader_view {
         const leader_read::s_leader* leaders;
         int16_t count;
+    };
+
+    struct s_relations_view {
+        const relations_read::s_disclosure* items;
+        int16_t count;
+    };
+    const s_relations_view* Published_Relations_View();
+    void Ready_Relations_View(bool report);
+    void Publish_Relations_View(bool report, const relations_read::s_disclosure* items, int16_t count);
+    void Present_Relations_Report();
+    struct s_relations_view_scope {
+        bool report;
+        bool ready = false;
+        bool revoked = false;
+        s_relations_view_scope* parent;
+        bool closed = false;
+        bool has_report = false;
+        relations_read::s_disclosure report_data;
+        explicit s_relations_view_scope(bool report);
+        ~s_relations_view_scope();
+        void Close();
+        s_relations_view_scope(const s_relations_view_scope&) = delete;
+        s_relations_view_scope& operator=(const s_relations_view_scope&) = delete;
+    };
+    struct s_relations_interruption_scope {
+        bool interrupted = false;
+        s_relations_interruption_scope();
+        ~s_relations_interruption_scope();
+        s_relations_interruption_scope(const s_relations_interruption_scope&) = delete;
+        s_relations_interruption_scope& operator=(const s_relations_interruption_scope&) = delete;
     };
     // Callback-local payload only; no live UI pointers may escape publication.
     const s_leader_view* Published_Leader_View();

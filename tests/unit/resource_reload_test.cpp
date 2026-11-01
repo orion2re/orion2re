@@ -93,6 +93,16 @@ namespace {
             Write(prefix + "ESTRINGS.LBX/000", Table(21000, 812, label));
             Write(prefix + "HESTRNGS.LBX/000", Table(0x34D1, 397, label));
             Write(prefix + "RSTRING0.LBX/000", Table(6500, 182, label));
+            for (int message = 0x21; message <= 0x3C; ++message) {
+                if (message > 0x31 && message < 0x39) continue;
+                for (int language = 0; language < 6; ++language) {
+                    char entry[4];
+                    snprintf(entry, sizeof(entry), "%03d", message * 6 + language);
+                    std::string text = std::string(1, label) + std::to_string(message);
+                    text.resize(100, '\0');
+                    Write(prefix + "BILLTEXT.LBX/" + entry, Record(text));
+                }
+            }
             std::string titles(MAX_LEADERS * 59, '\0');
             for (int i = 0; i < MAX_LEADERS; ++i) titles[i * 59 + 15] = label;
             Write(prefix + "HERODATA.LBX/000", Record(titles, MAX_LEADERS, 59));
@@ -198,6 +208,12 @@ DOCTEST_TEST_CASE("real resources switch repeatedly without consuming screen sto
         DOCTEST_CHECK(MOX::race_names[0] == ESTRINGS::E_Strings(0x285));
         DOCTEST_CHECK(MOX::h_strings[0] == expected);
         DOCTEST_CHECK(RUSS::russ_strings[0] == expected);
+        DOCTEST_CHECK(RACESCRN::relation_text[0][0] == expected);
+        DOCTEST_CHECK(RACESCRN::relation_text[16][0] == expected);
+        DOCTEST_CHECK(RACESCRN::research_treaty_buffer[0] == expected);
+        DOCTEST_CHECK(RACESCRN::trade_treaty_buffer[0] == expected);
+        DOCTEST_CHECK(RACESCRN::giving_treaty_buffer[0] == expected);
+        DOCTEST_CHECK(RACESCRN::receiving_treaty_buffer[0] == expected);
         DOCTEST_CHECK(COLSUM::colsum_strings_been_loaded == 0);
         DOCTEST_CHECK(fonts::font_header.font_heights[0] == (mod ? 13 : 8));
         fonts::Load_Palette(5, 0, 255);

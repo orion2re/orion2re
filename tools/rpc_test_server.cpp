@@ -11,6 +11,7 @@
 #include "rpc/rpc_game.h"
 #ifdef ORION2RE_RPC_NATIVE_TESTS
 #include "rpc_native_leaders.h"
+#include "rpc_native_relations.h"
 #endif
 
 int main() {
@@ -61,6 +62,7 @@ int main() {
         bool contextual_route = false;
 #ifdef ORION2RE_RPC_NATIVE_TESTS
         test_native_leaders::Initialize(&store, &map);
+        test_native_relations::Initialize(&store, &map);
 #endif
         while (running) {
             std::string command;
@@ -75,6 +77,7 @@ int main() {
             bool native_command = false;
 #ifdef ORION2RE_RPC_NATIVE_TESTS
             native_command = test_native_leaders::Command(command);
+            native_command |= test_native_relations::Command(command);
 #endif
             if (native_command) {
             } else if (command == "world") {
@@ -463,6 +466,7 @@ int main() {
         }
 #ifdef ORION2RE_RPC_NATIVE_TESTS
         test_native_leaders::Shutdown();
+        test_native_relations::Shutdown();
 #endif
         rpc::Shutdown_Game_Store(&store);
     });

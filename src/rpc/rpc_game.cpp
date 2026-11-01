@@ -20,6 +20,8 @@ namespace rpc {
             TOPIC_PLANETS = 1 << 6,
             TOPIC_RESEARCH = 1 << 7,
             TOPIC_LEADERS = 1 << 8,
+            TOPIC_RELATIONS = 1 << 9,
+            TOPIC_INTELLIGENCE = 1 << 10,
         };
 
         struct s_topic_methods {
@@ -39,6 +41,8 @@ namespace rpc {
             {TOPIC_PLANETS, "planets", "game.listPlanets", "game.getPlanet"},
             {TOPIC_RESEARCH, "research", "game.listResearchOptions", "game.getTechnology"},
             {TOPIC_LEADERS, "leaders", "game.listLeaders", "game.getLeader"},
+            {TOPIC_RELATIONS, "relations", nullptr, "game.getRelations"},
+            {TOPIC_INTELLIGENCE, "intelligence", nullptr, "game.getIntelligence"},
         };
 
         e_topic Find_Topic(const std::string& name) {
@@ -201,17 +205,37 @@ namespace rpc {
                 (store->context_active && snapshot->map.context_epoch == Bridge_Context_Epoch(store->bridge));
         }
 
+        bool Same_Relations(const s_map_observation* left, const s_map_observation* right) {
+            if (left->relations_captured != right->relations_captured || left->relations.size() != right->relations.size()) return false;
+            const auto& a = left->intelligence;
+            const auto& b = right->intelligence;
+            if (std::tie(a.available, a.agents, a.bonuses_available, a.spy_bonus, a.agent_bonus) != std::tie(b.available, b.agents, b.bonuses_available, b.spy_bonus, b.agent_bonus)) return false;
+            for (size_t index = 0; index < left->relations.size(); ++index) {
+                const auto& x = left->relations[index];
+                const auto& y = right->relations[index];
+                if (x.relationship_offset != y.relationship_offset) return false;
+                if (std::tie(x.player_id, x.available, x.relationship, x.treaty, x.ignoring, x.research, x.research_level, x.trade, x.trade_level, x.tribute_percent, x.giving, x.assignment_available, x.spies, x.mission, x.incoming_available, x.incoming, x.report_available, x.personality, x.objective, x.objective_empty) !=
+                        std::tie(y.player_id, y.available, y.relationship, y.treaty, y.ignoring, y.research, y.research_level, y.trade, y.trade_level, y.tribute_percent, y.giving, y.assignment_available, y.spies, y.mission, y.incoming_available, y.incoming, y.report_available, y.personality, y.objective, y.objective_empty) ||
+                    x.report.size() != y.report.size()) return false;
+                for (size_t row = 0; row < x.report.size(); ++row) {
+                    if (std::tie(x.report[row].player_id, x.report[row].name, x.report[row].alliance) != std::tie(y.report[row].player_id, y.report[row].name, y.report[row].alliance)) return false;
+                }
+            }
+            return true;
+        }
+
         const s_map_snapshot* Select_Snapshot(const s_game_store* store, uint32_t topics) {
             for (auto snapshot = store->snapshots.rbegin(); snapshot != store->snapshots.rend(); ++snapshot) {
                 if (snapshot->map.leaders_only && (topics & ~(TOPIC_SESSION | TOPIC_LEADERS))) continue;
                 if (store->busy_depth != 0 && (!snapshot->map.leaders_only || !snapshot->map.leader_presentation)) continue;
-                if ((topics & (TOPIC_SHIPS | TOPIC_LEADERS)) && !Authorized_Snapshot(store, &*snapshot)) continue;
+                if ((topics & (TOPIC_SHIPS | TOPIC_LEADERS | TOPIC_RELATIONS)) && !Authorized_Snapshot(store, &*snapshot)) continue;
                 if ((!(topics & TOPIC_SHIPS) || snapshot->map.ships_captured) &&
                     (!(topics & TOPIC_PLAYERS) || snapshot->map.players_captured) &&
                     (!(topics & TOPIC_COLONIES) || snapshot->map.colonies_captured) &&
                     (!(topics & TOPIC_PLANETS) || snapshot->map.planets_captured) &&
                     (!(topics & TOPIC_RESEARCH) || snapshot->map.research_captured) &&
-                    (!(topics & TOPIC_LEADERS) || snapshot->map.leaders_captured)) return &*snapshot;
+                    (!(topics & TOPIC_LEADERS) || snapshot->map.leaders_captured) &&
+                    (!(topics & (TOPIC_RELATIONS | TOPIC_INTELLIGENCE)) || snapshot->map.relations_captured)) return &*snapshot;
             }
             return nullptr;
         }
@@ -230,7 +254,7 @@ namespace rpc {
             return "{\"gameId\":" + Json_String(store->game_id) + ",\"perspectiveId\":" + Json_String(store->perspective_id) +
                 ",\"snapshotId\":" + Json_String(snapshot->id) + ",\"revision\":" + Json_String(std::to_string(snapshot->revision)) +
                 ",\"turn\":" + std::to_string(snapshot->map.turn) + ",\"captureMode\":" +
-                Json_String(snapshot->map.leader_presentation ? "native-leader-presentation" : (snapshot->map.context_epoch != 0 ? "last-native-fleet-box" : (snapshot->map.ships_captured ? "last-native-ship-refresh" : "last-coherent-capture"))) + "}";
+                Json_String(snapshot->map.relations_presentation ? "native-relations-presentation" : (snapshot->map.leader_presentation ? "native-leader-presentation" : (snapshot->map.context_epoch != 0 ? "last-native-fleet-box" : (snapshot->map.ships_captured ? "last-native-ship-refresh" : "last-coherent-capture")))) + "}";
         }
 
         std::string Exploration_Knowledge(e_exploration_knowledge available, const std::string& value = {}) {
@@ -408,6 +432,56 @@ namespace rpc {
                 ",\"description\":{\"availability\":\"unaudited\"}}";
         }
 
+        std::string Relations(const s_map_snapshot* snapshot) {
+            std::string result = "[";
+            for (const auto& item : snapshot->map.relations) {
+                if (result.size() != 1) result += ',';
+                const auto known = item.available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN;
+                auto Agreement = [&](bool present, int32_t level, bool research) {
+                    return Exploration_Knowledge(!item.available ? EXPLORATION_UNKNOWN : (present ? EXPLORATION_CURRENT : EXPLORATION_EMPTY),
+                        "{\"level\":" + std::to_string(level) + ",\"unit\":" + Json_String(research && level >= 0 ? "rp-per-turn" : "bc-per-turn") + "}");
+                };
+                std::string tribute = "{\"direction\":" + Json_String(item.giving ? "giving" : "receiving") + ",\"percent\":" + std::to_string(item.tribute_percent) + "}";
+                result += "{\"player\":" + Json_String(item.player_id) +
+                    ",\"relationship\":" + Exploration_Knowledge(item.available && !item.relationship.empty() ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, Json_String(item.relationship)) +
+                    ",\"relationshipIndicatorOffset\":" + Exploration_Knowledge(known, std::to_string(item.relationship_offset)) +
+                    ",\"treaty\":" + Exploration_Knowledge(item.available && !item.treaty.empty() ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, Json_String(item.treaty)) +
+                    ",\"ignoring\":" + Exploration_Knowledge(known, item.ignoring ? "true" : "false") +
+                    ",\"researchAgreement\":" + Agreement(item.research, item.research_level, true) +
+                    ",\"tradeAgreement\":" + Agreement(item.trade, item.trade_level, false) +
+                    ",\"tribute\":" + Exploration_Knowledge(!item.available ? EXPLORATION_UNKNOWN : (item.tribute_percent != 0 ? EXPLORATION_CURRENT : EXPLORATION_EMPTY), tribute) +
+                    ",\"incomingSpies\":" + Exploration_Knowledge(item.incoming_available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, std::to_string(item.incoming)) +
+                    ",\"report\":";
+                std::string entries = "[";
+                for (const auto& entry : item.report) {
+                    if (entries.size() != 1) entries += ',';
+                    entries += "{\"player\":" + Id_Knowledge(entry.player_id) + ",\"name\":" + Json_String(entry.name) + ",\"kind\":" + Json_String(entry.alliance ? "alliance" : "war") + "}";
+                }
+                result += Exploration_Knowledge(item.report_available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN,
+                              "{\"personality\":" + Exploration_Knowledge(item.personality.empty() ? EXPLORATION_UNKNOWN : EXPLORATION_CURRENT, Json_String(item.personality)) + ",\"objective\":" + Exploration_Knowledge(item.objective_empty ? EXPLORATION_EMPTY : (item.objective.empty() ? EXPLORATION_UNKNOWN : EXPLORATION_CURRENT), Json_String(item.objective)) + ",\"treaties\":" + entries + "]}") +
+                    "}";
+            }
+            return result + ']';
+        }
+
+        std::string Intelligence(const s_game_store* store, const s_map_snapshot* snapshot, bool stamped = true) {
+            const auto& item = snapshot->map.intelligence;
+            std::string result = stamped ? "{\"stamp\":" + Stamp(store, snapshot) + ',' : "{";
+            result += "\"agents\":" + Exploration_Knowledge(item.available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, std::to_string(item.agents)) +
+                ",\"spyBonusPercent\":" + Exploration_Knowledge(item.bonuses_available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, std::to_string(item.spy_bonus)) +
+                ",\"agentBonusPercent\":" + Exploration_Knowledge(item.bonuses_available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, std::to_string(item.agent_bonus)) + ",\"allocations\":[";
+            bool first = true;
+            for (const auto& assignment : snapshot->map.relations) {
+                if (!first) result += ',';
+                first = false;
+                const char* mission = assignment.mission == 0 ? "espionage" : (assignment.mission == 1 ? "sabotage" : "hide");
+                result += "{\"player\":" + Json_String(assignment.player_id) +
+                    ",\"spies\":" + Exploration_Knowledge(assignment.assignment_available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, std::to_string(assignment.spies)) +
+                    ",\"mission\":" + Exploration_Knowledge(assignment.assignment_available && assignment.mission >= 0 ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, Json_String(mission)) + "}";
+            }
+            return result + "]}";
+        }
+
         const std::vector<std::string>* Collection_Ids(const s_game_store* store, const s_map_snapshot* snapshot, e_topic topic) {
             switch (topic) {
                 case TOPIC_SYSTEMS: return &store->system_ids;
@@ -461,6 +535,10 @@ namespace rpc {
                     result += Session(store, snapshot);
                 else if (selected == TOPIC_RESEARCH)
                     result += Research(store, snapshot, stamped);
+                else if (selected == TOPIC_RELATIONS)
+                    result += Relations(snapshot);
+                else if (selected == TOPIC_INTELLIGENCE)
+                    result += Intelligence(store, snapshot, stamped);
                 else
                     result += Collection(store, snapshot, selected, 0, 10000);
             }
@@ -511,7 +589,7 @@ namespace rpc {
             const uint32_t topics = Topic_Mask(&subscription.topics);
             const auto* snapshot = Select_Snapshot(store, topics);
             if (snapshot == nullptr) return Error_Response(request, RPC_BUSY);
-            if (topics & (TOPIC_SHIPS | TOPIC_LEADERS)) *context_epoch = snapshot->map.context_epoch;
+            if (topics & (TOPIC_SHIPS | TOPIC_LEADERS | TOPIC_RELATIONS)) *context_epoch = snapshot->map.context_epoch;
             if (*context_epoch != 0) subscription.baseline_ticket = work->ticket;
             const size_t client_count = std::count_if(store->subscriptions.begin(), store->subscriptions.end(), [work](const s_state_subscription& item) { return item.client == work->client; });
             if (store->subscriptions.size() >= 64 || client_count >= 16) {
@@ -557,7 +635,7 @@ namespace rpc {
                 const std::string json = "{\"jsonrpc\":\"2.0\",\"method\":\"state.changed\",\"params\":{\"subscriptionId\":" +
                     Json_String(subscription.id) + ",\"cursor\":" + Json_String(std::to_string(++subscription.cursor)) +
                     ",\"topics\":" + Topics_Json(&subscription.topics) + ",\"stamp\":" + Stamp(store, snapshot) + "}}";
-                if (Publish_Event(store->bridge, subscription.client, subscription.epoch, &json, &subscription.id, (topics & (TOPIC_SHIPS | TOPIC_LEADERS)) ? snapshot->map.context_epoch : 0)) subscription.projection = std::move(projection);
+                if (Publish_Event(store->bridge, subscription.client, subscription.epoch, &json, &subscription.id, (topics & (TOPIC_SHIPS | TOPIC_LEADERS | TOPIC_RELATIONS)) ? snapshot->map.context_epoch : 0)) subscription.projection = std::move(projection);
             }
         }
 
@@ -611,11 +689,13 @@ namespace rpc {
                 *error = Text(params, "cursor").empty() ? RPC_BUSY : RPC_OBJECT_UNAVAILABLE;
                 return {};
             }
-            if (topics & (TOPIC_SHIPS | TOPIC_LEADERS)) *context_epoch = snapshot->map.context_epoch;
+            if (topics & (TOPIC_SHIPS | TOPIC_LEADERS | TOPIC_RELATIONS)) *context_epoch = snapshot->map.context_epoch;
             if (state) {
                 return "{\"stamp\":" + Stamp(store, snapshot) + Topic_Projection(store, snapshot, &selected, true) + "}";
             }
             if (request->method == "game.getResearch") return Research(store, snapshot);
+            if (request->method == "game.getRelations") return "{\"stamp\":" + Stamp(store, snapshot) + ",\"items\":" + Relations(snapshot) + "}";
+            if (request->method == "game.getIntelligence") return Intelligence(store, snapshot);
             if (request->method == "game.getTechnology") {
                 const std::string id = Text(params, "id");
                 for (size_t index = 0; index < snapshot->technology_ids.size(); ++index) {
@@ -762,7 +842,8 @@ namespace rpc {
             observation->systems.size() > 1024 || observation->nebulas.size() > 57 || observation->ships.size() > 10000 || observation->players.size() > 8 || observation->colonies.size() > 5120) return false;
         if (observation->leaders_only && (!observation->leader_presentation || observation->viewer != store->viewer || !observation->systems.empty() || !observation->nebulas.empty() || observation->ships_captured || observation->players_captured || observation->colonies_captured || observation->planets_captured || observation->research_captured)) return false;
         if (observation->leader_presentation && (observation->context_epoch == 0 || !observation->leaders_captured)) return false;
-        if (observation->context_epoch != 0 && ((!observation->ships_captured && !observation->leader_presentation) || observation->context_epoch != Bridge_Context_Epoch(store->bridge))) return false;
+        if (observation->context_epoch != 0 && ((!observation->ships_captured && !observation->leader_presentation && !observation->relations_presentation) || observation->context_epoch != Bridge_Context_Epoch(store->bridge))) return false;
+        if (observation->relations_presentation && (!observation->relations_captured || observation->context_epoch == 0 || observation->leaders_only)) return false;
         // Bind newly authorized default observers to the old coherent turn before replacing it.
         Sync_Turn_Observers(store);
         s_map_observation projected;
@@ -784,6 +865,12 @@ namespace rpc {
         projected.research_captured = observation->research_captured;
         projected.research = observation->research;
         projected.leaders_captured = observation->leaders_captured;
+        projected.relations_captured = observation->relations_captured;
+        projected.relations_presentation = observation->relations_presentation;
+        if (projected.relations_captured) {
+            projected.relations = observation->relations;
+            projected.intelligence = observation->intelligence;
+        }
         if (projected.leaders_captured) {
             for (const auto& leader : observation->leaders) {
                 if (leader.visible) projected.leaders.push_back(leader);
@@ -902,6 +989,57 @@ namespace rpc {
             }
         }
         if (projected.players_captured && !has_local) return false;
+        if (projected.relations_captured && !projected.players_captured) return false;
+        std::erase_if(projected.relations, [&projected](const s_relation_observation& relation) {
+            return std::none_of(projected.players.begin(), projected.players.end(), [&relation](const s_player_observation& player) { return !player.local && player.slot == relation.slot; });
+        });
+        bool relation_slots[8] = {};
+        for (auto& relation : projected.relations) {
+            const auto player = std::find_if(projected.players.begin(), projected.players.end(), [&relation](const s_player_observation& item) { return item.slot == relation.slot; });
+            if (!player->contacted || player->eliminated) {
+                const int32_t slot = relation.slot;
+                relation = {};
+                relation.slot = slot;
+            }
+            if (relation_slots[relation.slot]) return false;
+            relation_slots[relation.slot] = true;
+            if (!relation.available) {
+                relation.relationship.clear();
+                relation.relationship_offset = 0;
+                relation.treaty.clear();
+                relation.ignoring = relation.research = relation.trade = relation.giving = false;
+                relation.tribute_percent = 0;
+            }
+            if (!relation.research) relation.research_level = 0;
+            if (!relation.trade) relation.trade_level = 0;
+            if (relation.tribute_percent == 0) relation.giving = false;
+            if (!relation.assignment_available) {
+                relation.spies = 0;
+                relation.mission = -1;
+            }
+            if (!projected.relations_presentation || !relation.available) relation.incoming_available = relation.report_available = false;
+            if (!relation.incoming_available) relation.incoming = 0;
+            if (!relation.report_available) {
+                relation.personality.clear();
+                relation.objective.clear();
+                relation.objective_empty = false;
+                relation.report.clear();
+            }
+            relation.player_id.clear();
+            if (relation.objective_empty) relation.objective.clear();
+            if (relation.relationship.size() > 42 || relation.relationship_offset < -6 || relation.relationship_offset > 68 || relation.treaty.size() > 597 || relation.personality.size() > 381 || relation.objective.size() > 381 ||
+                relation.research_level < -32768 || relation.research_level > 32767 || relation.trade_level < -32768 || relation.trade_level > 32767 ||
+                (relation.tribute_percent != 0 && relation.tribute_percent != 5 && relation.tribute_percent != 10) || relation.spies < 0 || relation.spies > 63 ||
+                relation.mission < -1 || relation.mission > 2 || relation.incoming < 0 || relation.incoming > 63 || relation.report.size() > 7) return false;
+            for (auto& entry : relation.report) {
+                entry.player_id.clear();
+                if (entry.name.size() > 381) return false;
+            }
+        }
+        auto& intelligence = projected.intelligence;
+        if (!intelligence.available) intelligence = {};
+        if (!intelligence.bonuses_available) intelligence.spy_bonus = intelligence.agent_bonus = 0;
+        if (intelligence.agents < 0 || intelligence.agents > 63 || intelligence.spy_bonus < -32768 || intelligence.spy_bonus > 32767 || intelligence.agent_bonus < -32768 || intelligence.agent_bonus > 32767) return false;
         if (!projected.colonies_captured) projected.colonies.clear();
         if (projected.colonies_captured && (!projected.players_captured || !has_local)) return false;
         std::erase_if(projected.colonies, [&projected](const s_colony_observation& colony) { return colony.owner_slot != projected.viewer; });
@@ -977,6 +1115,13 @@ namespace rpc {
             const auto previous_full = std::find_if(store->snapshots.rbegin(), store->snapshots.rend(), [](const s_map_snapshot& item) { return !item.map.leaders_only; });
             const auto& previous = previous_full != store->snapshots.rend() ? previous_full->map : projected;
             bool lost = false;
+            if (projected.relations_captured && previous.relations_captured && projected.players_captured && previous.players_captured) {
+                for (const auto& player : previous.players) {
+                    const auto current = std::find_if(projected.players.begin(), projected.players.end(), [&player](const s_player_observation& item) { return item.slot == player.slot; });
+                    lost |= current == projected.players.end() || current->name != player.name || current->color != player.color ||
+                        (player.contacted && !current->contacted) || (player.eliminated != current->eliminated);
+                }
+            }
             if (projected.leaders_captured && !projected.leaders_only) {
                 const auto old = std::find_if(store->snapshots.rbegin(), store->snapshots.rend(), [](const s_map_snapshot& item) { return item.map.leaders_captured && item.map.context_epoch == 0; });
                 if (old != store->snapshots.rend()) {
@@ -1051,6 +1196,18 @@ namespace rpc {
             }
             player_ids.push_back(handle->id);
         }
+        for (auto& relation : projected.relations) {
+            const auto player = std::find_if(projected.players.begin(), projected.players.end(), [&relation](const s_player_observation& item) { return item.slot == relation.slot; });
+            relation.player_id = player_ids[(size_t)(player - projected.players.begin())];
+            relation.slot = -1;
+            for (auto& entry : relation.report) {
+                const auto target = std::find_if(projected.players.begin(), projected.players.end(), [&entry](const s_player_observation& item) { return item.slot == entry.slot; });
+                if (target != projected.players.end()) entry.player_id = player_ids[(size_t)(target - projected.players.begin())];
+                entry.slot = -1;
+            }
+            std::sort(relation.report.begin(), relation.report.end(), [](const auto& a, const auto& b) { return std::tie(a.name, a.alliance, a.player_id) < std::tie(b.name, b.alliance, b.player_id); });
+        }
+        std::sort(projected.relations.begin(), projected.relations.end(), [](const auto& a, const auto& b) { return a.player_id < b.player_id; });
         for (auto& ship : projected.ships) {
             ship.owner_id.clear();
             const int32_t owner_slot = ship.owned ? projected.viewer : ship.owner_slot;
@@ -1133,13 +1290,24 @@ namespace rpc {
             Revoke_Game_Context(store);
             projected.context_epoch = Bridge_Context_Epoch(store->bridge);
         }
-        if (projected.context_epoch == 0 && projected.ships_captured && !store->snapshots.empty() && !Authorized_Snapshot(store, &store->snapshots.back())) {
-            const auto* ambient = Select_Snapshot(store, TOPIC_SHIPS | (projected.players_captured ? TOPIC_PLAYERS : TOPIC_NONE) | (projected.colonies_captured ? TOPIC_COLONIES : TOPIC_NONE));
-            if (ambient != nullptr && Same_Map(&projected, &ambient->map) && Same_Ships(&projected, &ambient->map) &&
+        const auto* old_relations = Select_Snapshot(store, TOPIC_RELATIONS);
+        if (projected.relations_presentation && old_relations != nullptr && old_relations->map.relations_presentation && !Same_Relations(&projected, &old_relations->map)) {
+            Revoke_Game_Context(store);
+            projected.context_epoch = Bridge_Context_Epoch(store->bridge);
+        }
+        if (projected.context_epoch == 0 && !store->snapshots.empty() && store->snapshots.back().map.context_epoch != 0) {
+            const auto ambient = std::find_if(store->snapshots.rbegin(), store->snapshots.rend(), [&projected](const s_map_snapshot& item) {
+                return item.map.context_epoch == 0 && !item.map.leaders_only &&
+                    (!projected.ships_captured || item.map.ships_captured) && (!projected.players_captured || item.map.players_captured) &&
+                    (!projected.colonies_captured || item.map.colonies_captured) && (!projected.planets_captured || item.map.planets_captured) &&
+                    (!projected.research_captured || item.map.research_captured) && (!projected.leaders_captured || item.map.leaders_captured) &&
+                    (!projected.relations_captured || item.map.relations_captured);
+            });
+            if (ambient != store->snapshots.rend() && Same_Map(&projected, &ambient->map) && (!projected.ships_captured || Same_Ships(&projected, &ambient->map)) &&
                 (!projected.players_captured || (Same_Players(&projected, &ambient->map) && player_ids == ambient->player_ids)) &&
                 (!projected.colonies_captured || Same_Colonies(&projected, &ambient->map)) && (!projected.planets_captured || Same_Planets(&projected, &ambient->map)) &&
                 (!projected.research_captured || Same_Research(&projected, &ambient->map)) &&
-                (!projected.leaders_captured || Same_Leaders(&projected, &ambient->map))) return true;
+                (!projected.leaders_captured || Same_Leaders(&projected, &ambient->map)) && Same_Relations(&projected, &ambient->map)) return true;
         }
         const bool equal = !store->snapshots.empty() && projected.leaders_only == store->snapshots.back().map.leaders_only && Same_Map(&projected, &store->snapshots.back().map) &&
             (!projected.ships_captured || Same_Ships(&projected, &store->snapshots.back().map)) &&
@@ -1147,9 +1315,9 @@ namespace rpc {
             (!projected.colonies_captured || Same_Colonies(&projected, &store->snapshots.back().map)) &&
             (!projected.planets_captured || Same_Planets(&projected, &store->snapshots.back().map)) &&
             (!projected.research_captured || Same_Research(&projected, &store->snapshots.back().map)) &&
-            (!projected.leaders_captured || Same_Leaders(&projected, &store->snapshots.back().map));
+            (!projected.leaders_captured || Same_Leaders(&projected, &store->snapshots.back().map)) && Same_Relations(&projected, &store->snapshots.back().map);
         if (projected.context_epoch != 0) store->context_active = true;
-        if (equal && (projected.context_epoch == store->snapshots.back().map.context_epoch || (!projected.ships_captured && !projected.leader_presentation))) return true;
+        if (equal && (projected.context_epoch == store->snapshots.back().map.context_epoch || (!projected.ships_captured && !projected.leader_presentation && !projected.relations_presentation))) return true;
         if (store->revision == std::numeric_limits<uint64_t>::max()) return false;
         s_map_snapshot snapshot;
         if (!store->new_id(&snapshot.id, store->id_context)) return false;

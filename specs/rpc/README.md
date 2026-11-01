@@ -2,7 +2,7 @@
 
 Experimental optional runtime; AI-assisted documentation. The canonical enabled
 surface is `methods.json.implementedMethods`, discoverable with `rpc.describe`.
-Current reads cover session, exploration, players, own colonies, own research, leaders and visible ships;
+Current reads cover session, exploration, players, own colonies, own research, leaders, relations, own intelligence and visible ships;
 all actions and unaudited fields remain unavailable. See
 [read-sidecar ownership](read_foundation.md) and the owner-specific field audits.
 
@@ -236,6 +236,76 @@ native-function and formatter fixtures also live in `game_rpc_native_test.cpp`
 and `events_test.cpp`. This is synthetic native-function/live-transport evidence,
 not interactive saved-game or multiplayer parity.
 
+## Relations and own intelligence
+
+`game.getRelations` and `game.getIntelligence` support an offscreen diplomatic/
+intelligence dashboard. They share native read projections with the existing
+Races and Race Report presentations; no query opens a screen, commits staged spy
+edits, generates a proposal or consumes RNG. Canonical relationship text is
+initialized by the native language/mod string lifecycle, not by opening Races.
+
+Relations reference the same capture's known foreign players. Living contacts
+have native relationship bucket labels, the native 26-position relationship
+indicator offset, treaty labels, ignoring status, current trade/research levels
+and directional tribute. Research levels below zero are
+BC/turn; nonnegative levels are RP/turn. Trade is signed BC/turn. Tribute is the
+displayed 5% or 10%, not a calculated BC payment or a read of foreign treasury.
+Native treaty labels clamp the internal war subtypes; exact attitude scores,
+agreement goals, expiry timers and AI intentions remain unavailable.
+The indicator is a logical-pixel Y offset relative to its bar top, not an exact
+attitude score. Eliminated or uncontacted roster inclusion—including
+omniscience/Lore—is not a field grant.
+Missing agreements are `known-empty` only for a currently authorized contact.
+
+Intelligence reports home defensive agents, displayed spy/agent bonus percentages,
+and per-contact spy counts and selected missions: `espionage`, `sabotage`, `hide`.
+Counts are native 0..63. Zero spies is a known count and can retain a selected
+mission; unknown target assignments are not zero. Unclassified mission bits are
+unknown. There is no invented total across undisclosed targets, opponent
+organization, staged drag state or success forecast. Missing initialized leader
+storage makes bonuses unknown without hiding an independently available home pool.
+
+Use one subscription baseline, for example:
+
+```json
+{"jsonrpc":"2.0","id":3,"method":"rpc.subscribe","params":{"topics":["session","players","relations","intelligence","systems","colonies","ships","research","leaders"],"events":["state.changed"]}}
+```
+
+After authentication and `rpc.describe`, resolve each relation/allocation `player`
+through `game.getPlayer`. On `state.changed`, reread the same selected topics with
+`game.getState`; nested intelligence and the enclosing state share a stamp.
+All relations/intelligence data requests are busy during resolution. A combined
+request can select an older complete ship capture; it never receives newer
+relationship or intelligence fields spliced into that capture.
+
+Additional disclosures are presentation-scoped. The Races incoming-spy overlay
+grants a positive count only when its configured text actually substitutes the
+count. An absent/disabled/literal overlay does not establish zero. The enabled
+selected-contact Race Report grants its displayed incoming count (including zero),
+personality/objective labels and alliance/war race-name lists. Label suffixes
+clipped by the native combined-text buffer are not exposed; an objective clipped
+away entirely is unknown, not known-empty. An unlisted empire
+in such a list has a displayed name but an unknown player reference; the report
+does not expand the roster or grant other foreign fields. These fields are unknown
+offscreen, not a persistent dossier. They do not gate ambient treaty or own-
+intelligence reads behind UI navigation.
+
+Owner exit, replacement, interruption and world/resolution boundaries revoke
+context-dependent output before cleanup; parent restoration needs fresh native
+presentation. Independently authorized ambient projections remain readable.
+Contact/roster authority loss, elimination and replacement use existing whole-view
+revocation to expire retained pages and queued output; reconnect and establish a
+new baseline. Reset/perspective changes likewise invalidate old references.
+
+Q-13 traceability: shared disclosure/presentation is in
+`src/game/relations_read.cpp`; the native adapter is `src/rpc/relations_rpc.cpp`.
+Native-function fixtures in `game_rpc_native_test.cpp` and
+`tests/support/rpc_native_relations.cpp` feed the live workflows
+`test_native_relations_intelligence_dashboard_workflow_and_context_revocation`
+and `test_native_relations_contact_loss_elimination_reset_perspective_and_slot_reuse`
+in `tests/rpc/test_transport.py`. This is synthetic native-function/live-transport
+evidence, not interactive saved-game, multiplayer or other-platform parity.
+
 ## Documentation ownership
 
 `plan.md` owns working rules, bounded milestones and TODOs. `planning_baseline.md`
@@ -282,6 +352,10 @@ and `test_techdata` in both normal and sanitizer trees.
 For leader changes, also build and select `test_ground_commando`,
 `test_mainpups_leader_technology`, `test_report`, `test_colgcbt` and `test_events`
 in both trees.
+
+For relations/intelligence changes, also build and select `test_spy`,
+`test_diplomac`, `test_info`, `test_text_format` and `test_resource_reload` in both
+trees.
 
 Documentation-only changes need contract/schema/audit tests, local link checks
 and whitespace checks, not the game-build/transport gate above.

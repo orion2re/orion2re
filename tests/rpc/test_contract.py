@@ -290,7 +290,7 @@ class TypedContractTests(unittest.TestCase):
         for method in ("game.listLeaders", "game.getLeader"):
             self.assertIn(method, self.registry["implementedMethods"])
         topics = self.contracts["types"]["StateTopic"]["values"]
-        self.assertEqual(len(topics), 9)
+        self.assertEqual(len(topics), 11)
         audit.Validate_Value({"topics":topics, "events":["state.changed"]}, "SubscribeRequest", self.contracts)
         leader = self.Sample("RosterLeader")
         leader["description"] = {"availability":"unaudited"}
@@ -320,6 +320,30 @@ class TypedContractTests(unittest.TestCase):
         partial["abilities"] = []
         with self.assertRaises(ValueError):
             audit.Validate_Value(partial, "Leader", self.contracts, self.policies, public=True)
+
+    def test_relations_intelligence_contract_has_native_values_and_explicit_knowledge(self):
+        for method in ("game.getRelations", "game.getIntelligence"):
+            self.assertIn(method, self.registry["implementedMethods"])
+        for name in ("Relation", "Intelligence"):
+            audit.Validate_Value(self.Sample(name), name, self.contracts, self.policies, public=True)
+        for value in (0, 63):
+            audit.Validate_Value({"availability":"current", "value":value}, "KnownSpyCount", self.contracts)
+        for value in (-1, 64, True):
+            with self.assertRaises(ValueError):
+                audit.Validate_Value({"availability":"current", "value":value}, "KnownSpyCount", self.contracts)
+        for value in (5, 10):
+            audit.Validate_Value(value, "TributePercent", self.contracts)
+        for value in (0, 6, 11, True):
+            with self.assertRaises(ValueError):
+                audit.Validate_Value(value, "TributePercent", self.contracts)
+        for availability in ("unknown", "known-empty"):
+            audit.Validate_Value({"availability":availability}, "KnownAgreement", self.contracts)
+        with self.assertRaises(ValueError):
+            audit.Validate_Value({"availability":"known-empty"}, "KnownSpyCount", self.contracts)
+        for mission in ("espionage", "sabotage", "hide"):
+            audit.Validate_Value({"availability":"current", "value":mission}, "KnownSpyMission", self.contracts)
+        for level in (-32768, 0, 32767):
+            audit.Validate_Value(level, "AgreementLevel", self.contracts)
 
     def test_research_contract_preserves_native_modes_bounds_and_unaudited_fields(self):
         for mode in ("no-selection", "researching", "hyper", "completed"):

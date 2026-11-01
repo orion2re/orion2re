@@ -240,6 +240,9 @@ orion2re_add_unit_test(test_resource_reload
 target_include_directories(test_resource_reload PRIVATE
     vendors/libsmacker vendors/yyjson/src
 )
+if(ORION2RE_RPC_BUILT)
+    target_link_libraries(test_resource_reload PRIVATE orion2re_rpc)
+endif()
 
 if(MSVC)
     target_compile_options(test_allocate PRIVATE /Gy)
@@ -2130,6 +2133,7 @@ if(ORION2RE_RPC_BUILT)
     add_test(NAME test_game_rpc_native COMMAND test_game_rpc_native)
     target_sources(rpc-test-server PRIVATE
         tests/support/rpc_native_leaders.cpp
+        tests/support/rpc_native_relations.cpp
         $<TARGET_OBJECTS:orion2re_game_objects>
         "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smacker.c"
         "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smk_bitstream.c"

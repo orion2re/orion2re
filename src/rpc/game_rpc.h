@@ -2,10 +2,12 @@
 
 #include "rpc/rpc_game.h"
 namespace game_events {
+    struct s_relations_view;
     struct s_leader_view;
 }
 
 namespace game_rpc {
+    bool Capture_Relations_View(rpc::s_game_store* target, const rpc::s_map_observation* ambient, const game_events::s_relations_view* view);
     struct s_ship_association {
         int16_t node = -1;
         int16_t head = -1;

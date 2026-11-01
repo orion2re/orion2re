@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game_events.h"
 
 #include "raceopt.h"
 
@@ -1560,6 +1561,7 @@ namespace INFO {
 
         LIST::Display_Selected_List_Text(INFO::g_header_p, INFO::g_selected_list_p);
         palette::Cycle_Palette_Color(0xBF, 8, 0x20, 0, 0x28, 0x3F, 8, 8);
+        game_events::Present_Relations_Report();
     }
 
     int16_t __cdecl Draw_The_History_Graph() {

@@ -3,13 +3,13 @@
 
 **Optional runtime, disabled by default.** Only the implemented methods listed below are callable when the RPC build and settings enable it.
 
-Implemented methods: `rpc.hello`, `rpc.describe`, `rpc.subscribe`, `rpc.unsubscribe`, `game.getSession`, `game.getState`, `game.listSystems`, `game.getSystem`, `game.listNebulas`, `game.listShips`, `game.getShip`, `game.listPlayers`, `game.getPlayer`, `game.listColonies`, `game.getColony`, `game.listPlanets`, `game.getPlanet`, `game.getResearch`, `game.listResearchOptions`, `game.getTechnology`, `game.listLeaders`, `game.getLeader`.
+Implemented methods: `rpc.hello`, `rpc.describe`, `rpc.subscribe`, `rpc.unsubscribe`, `game.getSession`, `game.getState`, `game.listSystems`, `game.getSystem`, `game.listNebulas`, `game.listShips`, `game.getShip`, `game.listPlayers`, `game.getPlayer`, `game.listColonies`, `game.getColony`, `game.listPlanets`, `game.getPlanet`, `game.getResearch`, `game.listResearchOptions`, `game.getTechnology`, `game.listLeaders`, `game.getLeader`, `game.getRelations`, `game.getIntelligence`.
 
 This document is rendered from `schema.json`, not a second method catalog.
 The root schema validates acknowledged client requests; per-method success responses and server notifications have separate definitions.
 All fields are non-null unless explicitly stated. Unknown keys are rejected. UTF-8 byte limits, lexical integer tokens, duplicate keys, depth and authorization need the protocol guards in addition to standard JSON Schema validation.
 
-Source bundle SHA-256: `9e1bf43eca99c162c33931199a5885b750095f742cbc0a6a531aebe3e961e9f4`.
+Source bundle SHA-256: `059af6761fde10f7030e93e22e966a03ca0fcfe230c3ab6c7ef127ecf932765d`.
 
 ## Methods
 
@@ -99,6 +99,23 @@ Source bundle SHA-256: `9e1bf43eca99c162c33931199a5885b750095f742cbc0a6a531aebe3
 
 Array of `AdvertisedSession`; 0..256 items; unique: false.
 
+### Agreement
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| level | AgreementLevel | yes | relations-contact |
+| unit | AgreementUnit | yes | relations-contact |
+
+### AgreementLevel
+
+Signed cached native agreement level, in the accompanying per-turn RP or BC unit. Not the hidden goal, growth or a forecast.
+
+Constraints: `{"maximum": 32767, "minimum": -32768, "type": "integer", "x-integerToken": true}`.
+
+### AgreementUnit
+
+Values: `rp-per-turn`, `bc-per-turn`.
+
 ### Authorization
 
 Values: `authorized`.
@@ -127,7 +144,7 @@ Constraints: `{"maximum": 255, "minimum": 0, "type": "integer", "x-integerToken"
 
 ### CaptureMode
 
-Values: `last-coherent-capture`, `last-native-ship-refresh`, `last-native-fleet-box`, `native-leader-presentation`.
+Values: `last-coherent-capture`, `last-native-ship-refresh`, `last-native-fleet-box`, `native-leader-presentation`, `native-relations-presentation`.
 
 ### Chat
 
@@ -333,6 +350,13 @@ Constraints: `{"maximum": 2147483647, "minimum": -2147483648, "type": "integer",
 
 Values: `current`.
 
+### CurrentAgreement
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| availability | Current | yes | contract |
+| value | Agreement | yes | contract |
+
 ### CurrentBool
 
 | Field | Type | Required | Policy |
@@ -473,6 +497,20 @@ Values: `current`.
 | availability | Current | yes | contract |
 | value | PlayerHUD | yes | contract |
 
+### CurrentRelationIndicatorOffset
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| availability | Current | yes | contract |
+| value | RelationIndicatorOffset | yes | contract |
+
+### CurrentRelationReport
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| availability | Current | yes | contract |
+| value | RelationReport | yes | contract |
+
 ### CurrentResearchPoints
 
 | Field | Type | Required | Policy |
@@ -487,12 +525,40 @@ Values: `current`.
 | availability | Current | yes | contract |
 | value | CachedShipTurns | yes | contract |
 
+### CurrentSpyCount
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| availability | Current | yes | contract |
+| value | SpyCount | yes | contract |
+
+### CurrentSpyMission
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| availability | Current | yes | contract |
+| value | SpyMission | yes | contract |
+
+### CurrentSpyPercent
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| availability | Current | yes | contract |
+| value | SpyPercent | yes | contract |
+
 ### CurrentText
 
 | Field | Type | Required | Policy |
 | --- | --- | --- | --- |
 | availability | Current | yes | contract |
 | value | Text | yes | contract |
+
+### CurrentTribute
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| availability | Current | yes | contract |
+| value | Tribute | yes | contract |
 
 ### CurrentTurns
 
@@ -691,7 +757,7 @@ Array of `Id`; 0..256 items; unique: true.
 
 ### Income
 
-Signed net income per turn as displayed from native surplus_bc, not gross production.
+Signed displayed BC per turn, including native HUD net income or an individual agreement level; not gross production.
 
 Constraints: `{"maximum": 32767, "minimum": -32768, "type": "integer", "x-integerToken": true}`.
 
@@ -699,15 +765,21 @@ Constraints: `{"maximum": 32767, "minimum": -32768, "type": "integer", "x-intege
 
 | Field | Type | Required | Policy |
 | --- | --- | --- | --- |
-| stamp | Stamp | yes | disabled-intelligence |
-| agents | KnownCount | yes | disabled-intelligence |
-| allocations | Options | yes | disabled-intelligence |
+| stamp | Stamp | yes | intelligence-own |
+| agents | KnownSpyCount | yes | intelligence-own |
+| spyBonusPercent | KnownSpyPercent | yes | intelligence-own |
+| agentBonusPercent | KnownSpyPercent | yes | intelligence-own |
+| allocations | SpyAllocations | yes | intelligence-own |
 
 ### Key
 
 Locally configured shared key, decoded from native CP850 settings to UTF-8 and compared exactly; never returned by the service.
 
 Constraints: `{"maxLength": 384, "minLength": 1, "type": "string", "x-maxUtf8Bytes": 384, "x-minUtf8Bytes": 1}`.
+
+### KnownAgreement
+
+Exactly one of: CurrentAgreement, EmptyKnowledge, Unavailable.
 
 ### KnownBool
 
@@ -785,13 +857,37 @@ Exactly one of: CurrentPlanetSpecial, EmptyKnowledge, Unavailable.
 
 Exactly one of: CurrentPlayerHUD, Unavailable.
 
+### KnownRelationIndicatorOffset
+
+Exactly one of: CurrentRelationIndicatorOffset, Unavailable.
+
+### KnownRelationReport
+
+Exactly one of: CurrentRelationReport, Unavailable.
+
 ### KnownResearchPoints
 
 Exactly one of: CurrentResearchPoints, EmptyKnowledge, Unavailable.
 
+### KnownSpyCount
+
+Exactly one of: CurrentSpyCount, Unavailable.
+
+### KnownSpyMission
+
+Exactly one of: CurrentSpyMission, Unavailable.
+
+### KnownSpyPercent
+
+Exactly one of: CurrentSpyPercent, Unavailable.
+
 ### KnownText
 
 Exactly one of: CurrentText, Unavailable.
+
+### KnownTribute
+
+Exactly one of: CurrentTribute, EmptyKnowledge, Unavailable.
 
 ### KnownTurns
 
@@ -857,7 +953,7 @@ Exactly one of: CurrentTurns, EmptyKnowledge, Unavailable.
 
 ### LeaderUpkeep
 
-Signed net income per turn as displayed from native surplus_bc, not gross production.
+Signed displayed BC per turn, including native HUD net income or an individual agreement level; not gross production.
 
 Constraints: `{"maximum": 32767, "minimum": 0, "type": "integer", "x-integerToken": true}`.
 
@@ -1120,7 +1216,7 @@ Constraints: `{"maximum": 2, "minimum": 0, "type": "integer", "x-integerToken": 
 
 ### PlanetGravityPenalty
 
-Whole native gravity-productivity penalty percentage, 0, 25 or 50.
+Whole native percentage; field-specific bounds distinguish gravity penalties, tribute and signed intelligence bonuses.
 
 Constraints: `{"maximum": 50, "minimum": 0, "type": "integer", "x-integerToken": true}`.
 
@@ -1266,13 +1362,34 @@ Values: `local`, `external`.
 
 | Field | Type | Required | Policy |
 | --- | --- | --- | --- |
-| player | Id | yes | disabled-relations |
-| relationship | KnownText | yes | disabled-relations |
-| treaties | Texts | yes | disabled-relations |
+| player | Id | yes | relations-known |
+| relationship | KnownText | yes | relations-contact |
+| relationshipIndicatorOffset | KnownRelationIndicatorOffset | yes | relation-indicator |
+| treaty | KnownText | yes | relations-contact |
+| ignoring | KnownBool | yes | relations-contact |
+| researchAgreement | KnownAgreement | yes | relations-known |
+| tradeAgreement | KnownAgreement | yes | relations-known |
+| tribute | KnownTribute | yes | relations-known |
+| incomingSpies | KnownSpyCount | yes | relations-disclosed |
+| report | KnownRelationReport | yes | relations-disclosed |
+
+### RelationIndicatorOffset
+
+Native relationship indicator Y offset in logical pixels relative to the bar top. One of the native 26 remapped positions, not an exact attitude score.
+
+Constraints: `{"maximum": 68, "minimum": -6, "type": "integer", "x-integerToken": true}`.
+
+### RelationReport
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| personality | KnownText | yes | relations-disclosed |
+| objective | ExplorationText | yes | relations-disclosed |
+| treaties | ReportTreaties | yes | relations-disclosed |
 
 ### Relations
 
-Array of `Relation`; 0..256 items; unique: false.
+Array of `Relation`; 0..7 items; unique: false.
 
 ### RelationsResult
 
@@ -1280,6 +1397,22 @@ Array of `Relation`; 0..256 items; unique: false.
 | --- | --- | --- | --- |
 | stamp | Stamp | yes | contract |
 | items | Relations | yes | contract |
+
+### ReportTreaties
+
+Array of `ReportTreaty`; 0..7 items; unique: false.
+
+### ReportTreaty
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| player | KnownId | yes | relations-disclosed |
+| name | Text | yes | relations-disclosed |
+| kind | ReportTreatyKind | yes | relations-disclosed |
+
+### ReportTreatyKind
+
+Values: `alliance`, `war`.
 
 ### Research
 
@@ -1506,6 +1639,34 @@ Signed displayed native slider value or score points; the owning context supplie
 
 Constraints: `{"maximum": 6, "minimum": 0, "type": "integer", "x-integerToken": true}`.
 
+### SpyAllocation
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| player | Id | yes | intelligence-own |
+| spies | KnownSpyCount | yes | intelligence-own |
+| mission | KnownSpyMission | yes | intelligence-own |
+
+### SpyAllocations
+
+Array of `SpyAllocation`; 0..7 items; unique: false.
+
+### SpyCount
+
+Nonnegative integer count of authorized projected records only.
+
+Constraints: `{"maximum": 63, "minimum": 0, "type": "integer", "x-integerToken": true}`.
+
+### SpyMission
+
+Values: `espionage`, `sabotage`, `hide`.
+
+### SpyPercent
+
+Whole native percentage; field-specific bounds distinguish gravity penalties, tribute and signed intelligence bonuses.
+
+Constraints: `{"maximum": 32767, "minimum": -32768, "type": "integer", "x-integerToken": true}`.
+
 ### Stamp
 
 | Field | Type | Required | Policy |
@@ -1565,11 +1726,11 @@ Constraints: `{"maximum": 2, "minimum": 0, "type": "integer", "x-integerToken": 
 
 ### StateTopic
 
-Values: `session`, `systems`, `nebulas`, `ships`, `players`, `colonies`, `planets`, `research`, `leaders`.
+Values: `session`, `systems`, `nebulas`, `ships`, `players`, `colonies`, `planets`, `research`, `leaders`, `relations`, `intelligence`.
 
 ### StateTopics
 
-Array of `StateTopic`; 0..9 items; unique: true.
+Array of `StateTopic`; 0..11 items; unique: true.
 
 ### StreamGap
 
@@ -1603,7 +1764,7 @@ Array of `SubscriptionEvent`; 1..2 items; unique: true.
 
 ### SubscriptionTopics
 
-Array of `StateTopic`; 1..9 items; unique: true.
+Array of `StateTopic`; 1..11 items; unique: true.
 
 ### System
 
@@ -1682,6 +1843,33 @@ Values: `session`, `players`, `systems`, `planets`, `nebulas`, `colonies`, `ship
 ### Topics
 
 Array of `Topic`; 0..20 items; unique: true.
+
+### Tribute
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| direction | TributeDirection | yes | relations-contact |
+| percent | TributePercent | yes | relations-contact |
+
+### TributeDirection
+
+Values: `giving`, `receiving`.
+
+### TributeFive
+
+Whole native percentage; field-specific bounds distinguish gravity penalties, tribute and signed intelligence bonuses.
+
+Constraints: `{"maximum": 5, "minimum": 5, "type": "integer", "x-integerToken": true}`.
+
+### TributePercent
+
+Exactly one of: TributeFive, TributeTen.
+
+### TributeTen
+
+Whole native percentage; field-specific bounds distinguish gravity penalties, tribute and signed intelligence bonuses.
+
+Constraints: `{"maximum": 10, "minimum": 10, "type": "integer", "x-integerToken": true}`.
 
 ### Turn
 
@@ -1784,8 +1972,8 @@ Reviewed means static evidence, not runtime visibility approval.
 | players-known | reviewed | Bound active human viewer only. Include self and foreign empires listed by the native race screen: current contact, eliminated (even without contact), or native Player_Is_Omniscient including cached Galactic Lore. Prior contact alone is not current contact. Gate before reading bounded CP850 name/color; copy name, color, eliminated and living-foreign contact separately, not historical eliminated-contact flags, portraits/traits/government/research or hidden economy. Own name is also displayed by the self race report. Sort the authorized projection before assigning unpredictable perspective/game-scoped handles; no native slots, hidden counts or gaps in numbering are exposed. A temporarily absent empire cannot be looked up using an old handle. | src/game/bill.cpp: Get_Active_Players; src/game/bill.cpp: Get_Players_Dead_Or_Alive_Or_Omniscient; src/game/racescrn.cpp: Draw_Race_Text; src/game/racescrn.cpp: Draw_Race_Photos; src/game/racerprt.cpp: MOX::cur_plyr_ptr-&gt;name; src/game/harold.cpp: Contact_With_Player; src/game/harold.cpp: Player_Is_Omniscient; src/game/officer.cpp: One_Leader_With_Galactic_Lore | T-01, T-02, T-03, T-05 |
 | player-own-economy | reviewed | Only the bound local player&#x27;s already calculated HUD values: bc, surplus_bc, surplus_food, n_freighters, surplus_freighters, command_points and native int16 command_points-minus-used result. Preserve signed deficits/known zero. Foreign treasury/HUD are explicitly unaudited and never read, even under native omniscience. Research display branches, forecasts, totals/maintenance and calculators are not enabled by this policy. | src/game/mainscr_main.cpp: Print_Main_Screen_Data | T-01, T-02, T-03 |
 | player-contact-war | reviewed | Only a currently contacted living foreign empire in this same capture&#x27;s authorized roster: copy whether the viewer&#x27;s directed treaty entry is &gt;=4, the native UI/diplomacy war classification. Read only the viewer&#x27;s treaty array, not foreign attitude/treaty/AI state. Self, eliminated and uncontacted empires (including omniscience/Lore-only rows) return unknown, never an inferred false. Discard unavailable values before ordering, equality, revisions or notifications. Known false means a current living contact is not classified at war by the native treaty display; it is not a claim of safety, future intentions, or bilateral intelligence. No raw treaty codes, labels, payments or hidden exact attitudes are exposed. | src/game/racescrn.cpp: Draw_Race_Text; src/game/racescrn.cpp: treaty[target_player_idx] &gt;= 4; src/game/diplomac.cpp: TREATY_WAR; src/game/harold.cpp: Contact_With_Player | T-01, T-02, T-03, T-05 |
-| player-contact-research-treaty | reviewed | Only currently contacted living foreign empires in the same authorized roster. Copy whether the viewer&#x27;s own directed research_treaty[target] is nonzero, the native race-screen gate for displaying the research-agreement summary. This reports presence only, not agreement level/goal, RP/BC amounts, opponent research, treaty duration, AI attitude or future renewal. Self, eliminated and uncontacted rows including omniscience/Lore-only roster entries are unknown, not false. Never read a foreign reciprocal flag or derive presence from war/contact alone. Sanitize unavailable values before sorting, equality, revisions or notifications; retain stable player handles and one coherent map/ship/roster capture. No diplomacy/spy/research calculator or UI builder is invoked. | src/game/racescrn.cpp: Draw_Race_Text; src/game/racescrn.cpp: research_treaty[display-&gt;player_idx] != 0; src/game/harold.cpp: Contact_With_Player | T-01, T-02, T-03, T-05 |
-| player-contact-trade-treaty | reviewed | Only currently contacted living foreign empires in the same authorized roster. Copy whether the viewer&#x27;s own directed trade_treaty[target] is nonzero, the native race-screen gate for displaying the trade-agreement summary. Presence only: no current agreement level/goal, BC amount, duration, reciprocal foreign flag, AI attitude or renewal forecast. Self, eliminated and uncontacted rows including omniscience/Lore-only entries return unknown, never inferred false. Sanitize unavailable claims before ordering, equality, revisions and notifications. Keep stable player handles and one immutable coherent map/ship/roster capture; never splice newer treaties into an older ship capture. No diplomacy/economy/spy calculation or UI builder is invoked. | src/game/racescrn.cpp: Draw_Race_Text; src/game/racescrn.cpp: trade_treaty[display-&gt;player_idx] != 0; src/game/harold.cpp: Contact_With_Player | T-01, T-02, T-03, T-05 |
+| player-contact-research-treaty | reviewed | Only currently contacted living foreign empires in the same authorized roster. Copy whether the viewer&#x27;s own directed research_treaty[target] is nonzero, the shared native race-screen summary gate. This player field reports presence only; detailed levels have their separate relations-contact policy. Self, eliminated and uncontacted rows including omniscience/Lore-only roster entries are unknown, not false. No reciprocal foreign flag, goal, research state or forecast. Sanitize unavailable values before sorting, equality, revisions or notifications; one coherent capture. No calculator or UI builder. | src/game/racescrn.cpp: Draw_Race_Text; src/game/relations_read.cpp: player-&gt;research_treaty[target] != 0; src/game/harold.cpp: Contact_With_Player | T-01, T-02, T-03, T-05 |
+| player-contact-trade-treaty | reviewed | Only currently contacted living foreign empires in the same authorized roster. Copy whether the viewer&#x27;s own directed trade_treaty[target] is nonzero, the shared native race-screen summary gate. This player field reports presence only; detailed levels have their separate relations-contact policy. Self, eliminated and uncontacted rows including omniscience/Lore-only roster entries are unknown, not false. No reciprocal foreign flag, economic base, goal or forecast. Sanitize unavailable values before sorting, equality, revisions or notifications; one coherent capture. No calculator or UI builder. | src/game/racescrn.cpp: Draw_Race_Text; src/game/relations_read.cpp: player-&gt;trade_treaty[target] != 0; src/game/harold.cpp: Contact_With_Player | T-01, T-02, T-03, T-05 |
 | disabled-planet | disabled | Pending read-only equivalent of native explored-planet policy; do not invoke a mutable list builder. Orbit/name/type separately gated. | src/game/plntsum.cpp: Filter_Explored_Planets | T-01, T-02 |
 | colonies-own | reviewed | This list is explicitly the bound active human viewer&#x27;s own full-colony roster, following native Colonies/transport lists: owner equals viewer and outpost_flag is zero. Foreign intelligence and outposts are not included. Filter before reading links/population, sorting, counts, handles, revisions or notifications. At the same map/roster capture, copy a validated system reference and one-based orbital position and cached n_pops resident population (0..42 whole displayed population units, not thousandths, growth or inbound settlers). Validate planet/star/colony backlinks and uniqueness. Resolve system/owner through the same capture; discard private bindings before retention. No UI list builder, Sum_Colonists, forecast or economic calculator is called. Opaque read-only observation handles are replaced on authorized collection changes, not durable colony identities/action capabilities. Known-empty refers to this own-full-colony scope, not to foreign intelligence. | src/game/colxport.cpp: Build_Global_Colony_List; src/game/colxport.cpp: N_Colonies; src/game/colsum.cpp: Draw_Colony_Scan_Info; src/game/colony.cpp: Set_Colony_Globals | T-01, T-02, T-03, T-05 |
 | colony-own-troops | reviewed | Only the bound active human viewer&#x27;s own full colonies after owner/outpost authorization and parent-link validation. Copy existing military[0] infantry and military[1] armor counts, 0..32767 native int16 units, including known zero. Print_Scanned_Military displays these exact counts; Do_Colony_Info_Military_Stuff_For draws the units or the exact compressed count. Armor covers the native tank/battloid presentation, not a newly inferred unit design. Do not add population militia, inbound troops, troop strength, growth/roundoff, future production, weapon/armor technology or foreign/outpost intelligence. No troop popup, UI builder, invasion limit or combat calculator is invoked. Same immutable map/ship/roster/colony capture as population; hidden-only counts do not affect handles, revisions or notifications. | src/game/colony.cpp: Print_Scanned_Military; src/game/colony_main.cpp: Do_Colony_Info_Military_Stuff_For; src/game/colcalc.cpp: colony-&gt;military[0]; src/game/colcalc.cpp: colony-&gt;military[1] | T-01, T-02, T-03, T-05 |
@@ -1811,8 +1999,11 @@ Reviewed means static evidence, not runtime visibility approval.
 | research-own | reviewed | Bound active human viewer only. Shared Read_Research_Choice follows configured group roots and field links, status 2 and AVAILABLE applications, preserving native no-application placeholders and synthetic hyper applications. Include current field as native change-research does, without clearing native state. Project is the current field; application is the selected application, not a prediction of all awards. HUD breakthrough takes precedence over no-selection; field status 3 is completed, and active hyper research is distinct. Authorize technology references only through current project/application or offered choices, never arbitrary catalog IDs, opponent arrays, AI priorities or future tree entries. Copy native names using caller-owned buffers and New_Get_Tech_Cost RP totals; remainingCost is max(0, native field cost minus accumulated RP), as in change-research, not guaranteed turns/threshold or independent application cost. Bound by native capacities and 8 groups times 4 choices, not stock review-category counts; do not enumerate review categories. Capture with map/ship state and retain only owned projection. Reuse immutable snapshot handles/pages and perspective revocation; changed research invalidates old lookup handles, pinned pages remain dated. No UI builders, initialization, selection, completion or RNG operations. | src/game/tech_choices.cpp: Read_Research_Choice; src/game/tech.cpp: Init_Entry_Data; src/game/tech.cpp: New_Get_Tech_Cost; src/game/tech.cpp: saved_current_field; src/game/mainscr_main.cpp: plr-&gt;research_breakthrough != 0; src/game/colcalc.cpp: plr-&gt;tech_fields[field_idx] == 3; src/game/colcalc.cpp: Player_Research_Cost; src/game/techinit.cpp: Validate_And_Rebuild_Technology | T-01, T-02, T-03, T-05 |
 | disabled-research-progress | disabled | Raw accumulated RP is not a universal native progress display. Colony-summary configuration changes accumulated/remaining/chance semantics. Keep progress unaudited; no invented percentage or forecast. | src/game/colsum.cpp: switch (print_research_value) | T-01, T-02, T-03 |
 | disabled-research-description | disabled | Description remains unaudited. Canonical application descriptions load localized help resources and render formatted paragraphs; this capability does not invoke that UI path or expose raw formatting/resource data. No inferred prerequisites. | src/game/tech.cpp: Draw_Application_Description | T-01, T-02, T-03 |
-| disabled-relations | disabled | Known contacts and own treaties/visible indicators only; native labels, not hidden exact AI attitudes. | src/game/racescrn.cpp: Draw_Race_Text | T-01, T-03 |
-| disabled-intelligence | disabled | Own allocation/mission/pool as displayed; no opponent allocations or hidden spy internals. | src/game/racescrn.cpp: Init_Race_Display_Data | T-01, T-03 |
+| relations-known | reviewed | One relation row per same-capture known foreign roster entry, not a new entity/list API. Roster inclusion, living contact and per-field disclosure are separate. Uncontacted or eliminated rows have unknown fields, not empty treaties or assignments. Resolve player references only through this capture; no historical dossier. Contact loss, elimination, roster withdrawal/replacement revoke dependent retained output and pages using existing view revocation. Context loss preserves independently authorized ambient reads. | src/game/bill.cpp: Get_Players_Dead_Or_Alive_Or_Omniscient; src/game/relations_read.cpp: Is_Contact | T-01, T-02, T-05, T-07 |
+| relations-contact | reviewed | Bound human living foreign contact only. Shared Read_Relation and Relationship_Bucket supply the same 17 native label buckets and clamped 0..5 treaty labels used by the UI; never serialize exact relations or war subtype 6. Own ignoring bit. Research/trade levels are copied only when the viewer-directed flag is nonzero: signed cached int16, no goal/recalculation; negative research is BC/turn, nonnegative RP/turn, trade BC/turn. Tribute copies only the displayed giving side, otherwise receiving side, mapping native 1 to 5 percent and other nonzero to 10. No foreign treasury, economic base, timers, AI proposals or forecasts. Missing initialized labels are unknown. Canonical language/mod text initializes through native Load_Strings, never query-time loaders or screen navigation. | src/game/relations_read.cpp: Read_Relation; src/game/relations_read.cpp: Copy_Treaty_Summary; src/game/racescrn.cpp: Draw_Race_Text; src/game/racescrn.cpp: Load_Relations_Strings; src/game/trade.cpp: Process_Research_Agreement; src/game/colcalc_main.cpp: current_research_agreement_level | T-01, T-02, T-03, T-05 |
+| relations-disclosed | reviewed | Only shared native projections published from initialized recipient-bound Races overlay or selected living-contact Race Report. Overlay requires positive incoming spies and an actually substituted SPIES placeholder in configured text; absent/empty/literal/escaped formats grant no count and never establish zero. Report requires native noreport disabled and discloses incoming count including zero, displayed personality/objective labels and alliance/war race-name lists. Third-party labels grant no additional roster, contact, treasury, allocations or intention knowledge; reference only a same-capture independently known player, otherwise unknown. Copy callback-local payloads; revoke context leases, dependent pages and queued output before owner exit/replacement/interruption, reset/perspective/world mutation/resolution; no dossier. All relations/intelligence data is busy during resolution. Combine only a fresh coherent capture, never enrich an older ship baseline. | src/game/relations_read.cpp: Read_Overlay; src/game/relations_read.cpp: Read_Report; src/game/racescrn.cpp: Publish_Relations_View; src/game/racerprt.cpp: Publish_Relations_View; src/game/game_events.cpp: s_relations_view_scope | T-01, T-02, T-03, T-04, T-05, T-07, T-12 |
+| intelligence-own | reviewed | Bound human own organization only. Shared Read_Organization and Read_Assignment supply native home agents and per-living-contact low-six-bit counts 0..63, with selected high-bit mission 0 espionage, 1 sabotage, 2 hide. Native mission 3 is unclassified/unknown, not assassination. Known count zero retains the selected mission; uncontacted/eliminated roster allocations are unknown. No invented total pool across hidden targets, staged drag edits, opponent home/other-target allocations, hidden spy counts or future outcomes. Preserve signed displayed spy/agent bonus percentages and native argument order, using pure Compute_Spy_Bonuses; unavailable initialized leader storage yields unknown bonuses. No UI builder, commit, AI allocation, resolution, report consumption or RNG operation. | src/game/relations_read.cpp: Read_Organization; src/game/relations_read.cpp: Read_Assignment; src/game/racescrn.cpp: Init_Race_Display_Data; src/game/racescrn.cpp: Draw_Race_Text; src/game/bill.cpp: Get_My_Spy_Number; src/game/spy.cpp: Compute_Spy_Bonuses; src/game/spy.cpp: Resolve_Player_Spies | T-01, T-02, T-03, T-05, T-07 |
+| relation-indicator | reviewed | Only a living current foreign contact. Share Relationship_Indicator_Offset with Init_Race_Display_Data: native 26-position slider_remap_list[(relations + 100) / 8] minus 6 logical pixels relative to the bar top. Publish only the displayed quantized offset, not the exact relation byte, base attitude or AI intentions. No hidden/uncontacted/eliminated values are copied or used for validation/equality/notifications. Relationship text independently uses its native 17 buckets; within-position/label exact-score changes emit nothing. | src/game/relations_read.cpp: Relationship_Indicator_Offset; src/game/racescrn.cpp: relationship_slider_y; src/game/racescrn.cpp: slider_remap_list | T-01, T-02, T-03, T-05 |
 | disabled-history | disabled | Native chart granularity/precision and known player coverage only. displayedValue is formatted chart value, never hidden exact history. | src/game/info.cpp: History_Subscreen | T-01, T-03 |
 | context | reviewed | Initialized live registered input owner bound to the local player, top-context interaction only. Copy IDs/labels/enabled flags; omit cheat/debug fields and unaudited formatted text. Parent visibility is not action authority. | src/game/fields.cpp: Clear_Fields; src/game/fields.cpp: Mark_Fields; src/game/fields.cpp: Release_Fields; src/game/gendraw.cpp: Confirmation_Box | T-01, T-04, T-05, T-08 |
 | disabled-view | disabled | Per-owner rendered title/lines/selection audit required. A process calculating a hidden event is not authorization to publish its text or arguments. | src/game/textbox.cpp: Do_Text_Box | T-01, T-03, T-04 |
