@@ -3,13 +3,13 @@
 
 **Optional runtime, disabled by default.** Only the implemented methods listed below are callable when the RPC build and settings enable it.
 
-Implemented methods: `rpc.hello`, `rpc.describe`, `rpc.subscribe`, `rpc.unsubscribe`, `game.getSession`, `game.getState`, `game.listSystems`, `game.getSystem`, `game.listNebulas`, `game.listShips`, `game.getShip`, `game.listPlayers`, `game.getPlayer`, `game.listColonies`, `game.getColony`, `game.listPlanets`, `game.getPlanet`.
+Implemented methods: `rpc.hello`, `rpc.describe`, `rpc.subscribe`, `rpc.unsubscribe`, `game.getSession`, `game.getState`, `game.listSystems`, `game.getSystem`, `game.listNebulas`, `game.listShips`, `game.getShip`, `game.listPlayers`, `game.getPlayer`, `game.listColonies`, `game.getColony`, `game.listPlanets`, `game.getPlanet`, `game.getResearch`, `game.listResearchOptions`, `game.getTechnology`.
 
 This document is rendered from `schema.json`, not a second method catalog.
 The root schema validates acknowledged client requests; per-method success responses and server notifications have separate definitions.
 All fields are non-null unless explicitly stated. Unknown keys are rejected. UTF-8 byte limits, lexical integer tokens, duplicate keys, depth and authorization need the protocol guards in addition to standard JSON Schema validation.
 
-Source bundle SHA-256: `b0bbf0441e062bcee84daeee92af0372d127a5f919acb7000b289006ba744c70`.
+Source bundle SHA-256: `27101eb603c6020b78b977d6895b460f424812a961be547faa3b24dfbe6ce524`.
 
 ## Methods
 
@@ -45,7 +45,7 @@ Source bundle SHA-256: `b0bbf0441e062bcee84daeee92af0372d127a5f919acb7000b289006
 | game.listNebulas | game.harold_rpc | reader | committed-game | ListRequest | NebulasResult |
 | game.listPlanets | game.plntsum_rpc | reader | committed-game | ListRequest | PlanetsResult |
 | game.listPlayers | game.racescrn_rpc | reader | committed-game | ListRequest | PlayersResult |
-| game.listResearchOptions | game.tech_rpc | reader | committed-game | Empty | OptionsResult |
+| game.listResearchOptions | game.tech_rpc | reader | committed-game | ListRequest | ResearchOptionsResult |
 | game.listShips | game.ships_rpc | reader | committed-game | ListRequest | ShipsResult |
 | game.listSystems | game.harold_rpc | reader | committed-game | ListRequest | SystemsResult |
 | invasion.getView | game.colgcbt_rpc | reader | active-context | ContextRequest | View |
@@ -452,6 +452,13 @@ Values: `current`.
 | availability | Current | yes | contract |
 | value | PlayerHUD | yes | contract |
 
+### CurrentResearchPoints
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| availability | Current | yes | contract |
+| value | ResearchPoints | yes | contract |
+
 ### CurrentShipEta
 
 | Field | Type | Required | Policy |
@@ -741,6 +748,10 @@ Exactly one of: CurrentPlanetSpecial, EmptyKnowledge, Unavailable.
 ### KnownPlayerHUD
 
 Exactly one of: CurrentPlayerHUD, Unavailable.
+
+### KnownResearchPoints
+
+Exactly one of: CurrentResearchPoints, EmptyKnowledge, Unavailable.
 
 ### KnownText
 
@@ -1165,10 +1176,45 @@ Array of `Relation`; 0..256 items; unique: false.
 
 | Field | Type | Required | Policy |
 | --- | --- | --- | --- |
-| stamp | Stamp | yes | disabled-research |
-| project | KnownId | yes | disabled-research |
-| progress | KnownCount | yes | disabled-research |
-| cost | KnownCount | yes | disabled-research |
+| stamp | Stamp | yes | research-own |
+| mode | ResearchMode | yes | research-own |
+| project | ExplorationId | yes | research-own |
+| application | ExplorationId | yes | research-own |
+| progress | KnownCount | yes | disabled-research-progress |
+| cost | KnownResearchPoints | yes | research-own |
+| options | ResearchOptions | yes | research-own |
+
+### ResearchMode
+
+Values: `no-selection`, `researching`, `hyper`, `completed`.
+
+### ResearchOption
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| id | Id | yes | research-own |
+| field | Id | yes | research-own |
+| application | ExplorationId | yes | research-own |
+| label | Text | yes | research-own |
+| remainingCost | ResearchPoints | yes | research-own |
+
+### ResearchOptions
+
+Array of `ResearchOption`; 0..32 items; unique: false.
+
+### ResearchOptionsResult
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| stamp | Stamp | yes | contract |
+| items | ResearchOptions | yes | contract |
+| nextCursor | Id | no | contract |
+
+### ResearchPoints
+
+Native displayed research points. Total field cost and change-research remaining cost are distinct; neither is a guaranteed breakthrough threshold.
+
+Constraints: `{"maximum": 2147483647, "minimum": 0, "type": "integer", "x-integerToken": true}`.
 
 ### Resource
 
@@ -1388,11 +1434,11 @@ Constraints: `{"maximum": 2, "minimum": 0, "type": "integer", "x-integerToken": 
 
 ### StateTopic
 
-Values: `session`, `systems`, `nebulas`, `ships`, `players`, `colonies`, `planets`.
+Values: `session`, `systems`, `nebulas`, `ships`, `players`, `colonies`, `planets`, `research`.
 
 ### StateTopics
 
-Array of `StateTopic`; 0..7 items; unique: true.
+Array of `StateTopic`; 0..8 items; unique: true.
 
 ### StreamGap
 
@@ -1426,7 +1472,7 @@ Array of `SubscriptionEvent`; 1..2 items; unique: true.
 
 ### SubscriptionTopics
 
-Array of `StateTopic`; 1..7 items; unique: true.
+Array of `StateTopic`; 1..8 items; unique: true.
 
 ### System
 
@@ -1467,10 +1513,16 @@ Array of `System`; 0..65536 items; unique: false.
 
 | Field | Type | Required | Policy |
 | --- | --- | --- | --- |
-| stamp | Stamp | yes | disabled-research |
-| id | Id | yes | disabled-research |
-| name | KnownText | yes | disabled-research |
-| description | KnownText | yes | disabled-research |
+| stamp | Stamp | yes | research-own |
+| id | Id | yes | research-own |
+| kind | TechnologyKind | yes | research-own |
+| name | KnownText | yes | research-own |
+| description | KnownText | yes | disabled-research-description |
+| cost | KnownResearchPoints | yes | research-own |
+
+### TechnologyKind
+
+Values: `field`, `application`.
 
 ### Text
 
@@ -1619,7 +1671,9 @@ Reviewed means static evidence, not runtime visibility approval.
 | disabled-report | disabled | Only copied player-authorized messages and authorized entity links. Never call a report display/consume operation as query. | src/game/report.cpp: Display_Report_Aux | T-01, T-03, T-06 |
 | disabled-options | disabled | Only options actually offered to the local player by the owning context; no hidden eligibility/AI reaction oracle. | src/game/tech.cpp: Commit_Selected_Entry | T-01, T-03, T-08 |
 | disabled-movement | disabled | Specified own live ships and known destinations; share audited read-only verdict logic, never mutate scratch/UI or expose hidden defenders. | src/game/shipmove.cpp: Ships_Try_To_Move_To | T-01, T-02, T-08 |
-| disabled-research | disabled | Own progress/choices or allowlisted public reference only. Costs/progress units and enemy scan disclosure require separate audits; no enemy research arrays. | src/game/tech.cpp: Commit_Selected_Entry; src/game/science.cpp: Science_Room | T-01, T-02, T-03 |
+| research-own | reviewed | Bound active human viewer only. Shared Read_Research_Choice follows configured group roots and field links, status 2 and AVAILABLE applications, preserving native no-application placeholders and synthetic hyper applications. Include current field as native change-research does, without clearing native state. Project is the current field; application is the selected application, not a prediction of all awards. HUD breakthrough takes precedence over no-selection; field status 3 is completed, and active hyper research is distinct. Authorize technology references only through current project/application or offered choices, never arbitrary catalog IDs, opponent arrays, AI priorities or future tree entries. Copy native names using caller-owned buffers and New_Get_Tech_Cost RP totals; remainingCost is max(0, native field cost minus accumulated RP), as in change-research, not guaranteed turns/threshold or independent application cost. Bound by native capacities and 8 groups times 4 choices, not stock review-category counts; do not enumerate review categories. Capture with map/ship state and retain only owned projection. Reuse immutable snapshot handles/pages and perspective revocation; changed research invalidates old lookup handles, pinned pages remain dated. No UI builders, initialization, selection, completion or RNG operations. | src/game/tech_choices.cpp: Read_Research_Choice; src/game/tech.cpp: Init_Entry_Data; src/game/tech.cpp: New_Get_Tech_Cost; src/game/tech.cpp: saved_current_field; src/game/mainscr_main.cpp: plr-&gt;research_breakthrough != 0; src/game/colcalc.cpp: plr-&gt;tech_fields[field_idx] == 3; src/game/colcalc.cpp: Player_Research_Cost; src/game/techinit.cpp: Validate_And_Rebuild_Technology | T-01, T-02, T-03, T-05 |
+| disabled-research-progress | disabled | Raw accumulated RP is not a universal native progress display. Colony-summary configuration changes accumulated/remaining/chance semantics. Keep progress unaudited; no invented percentage or forecast. | src/game/colsum.cpp: switch (print_research_value) | T-01, T-02, T-03 |
+| disabled-research-description | disabled | Description remains unaudited. Canonical application descriptions load localized help resources and render formatted paragraphs; this capability does not invoke that UI path or expose raw formatting/resource data. No inferred prerequisites. | src/game/tech.cpp: Draw_Application_Description | T-01, T-02, T-03 |
 | disabled-relations | disabled | Known contacts and own treaties/visible indicators only; native labels, not hidden exact AI attitudes. | src/game/racescrn.cpp: Draw_Race_Text | T-01, T-03 |
 | disabled-intelligence | disabled | Own allocation/mission/pool as displayed; no opponent allocations or hidden spy internals. | src/game/racescrn.cpp: Init_Race_Display_Data | T-01, T-03 |
 | disabled-history | disabled | Native chart granularity/precision and known player coverage only. displayedValue is formatted chart value, never hidden exact history. | src/game/info.cpp: History_Subscreen | T-01, T-03 |

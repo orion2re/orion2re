@@ -171,7 +171,68 @@ class TransportTests(unittest.TestCase):
         described = client.Read()
         self.assertEqual(described["id"], "d")
         self.assertEqual({item["name"] for item in described["result"]["methods"]},
-                         {"rpc.hello","rpc.describe","rpc.subscribe","rpc.unsubscribe","game.getSession","game.getState","game.listSystems","game.getSystem","game.listNebulas","game.listShips","game.getShip","game.listPlayers","game.getPlayer","game.listColonies","game.getColony","game.listPlanets","game.getPlanet"})
+                         {"rpc.hello","rpc.describe","rpc.subscribe","rpc.unsubscribe","game.getSession","game.getState","game.listSystems","game.getSystem","game.listNebulas","game.listShips","game.getShip","game.listPlayers","game.getPlayer","game.listColonies","game.getColony","game.listPlanets","game.getPlanet","game.getResearch","game.listResearchOptions","game.getTechnology"})
+
+    def test_own_research_client_workflow_and_revocation(self):
+        self.Fixture("world")
+        self.Fixture("ships")
+        client = self.Client()
+        self.assertIn("result", client.Hello())
+        self.assertEqual(self.Query(client, "game.getResearch")["error"]["code"], -32002)
+        self.Fixture("research")
+        research = self.Query(client, "game.getResearch")["result"]
+        self.assertEqual(research["mode"], "researching")
+        self.assertEqual(research["progress"], {"availability":"unaudited"})
+        first = self.Query(client, "game.listResearchOptions", {"limit":1})["result"]
+        choices = first["items"][:]
+        page = first
+        while "nextCursor" in page:
+            page = self.Query(client, "game.listResearchOptions", {"cursor":page["nextCursor"]})["result"]
+            self.assertEqual(page["stamp"], first["stamp"])
+            choices.extend(page["items"])
+        self.assertEqual(choices, research["options"])
+        self.assertEqual(choices[-1]["application"], {"availability":"known-empty"})
+        references = {choice["field"] for choice in choices}
+        references.update(choice["application"]["value"] for choice in choices if choice["application"]["availability"] == "current")
+        for reference in references:
+            technology = self.Query(client, "game.getTechnology", {"id":reference})["result"]
+            self.assertEqual(technology["stamp"], research["stamp"])
+            self.assertEqual(technology["cost"], {"availability":"current", "value":500})
+            self.assertEqual(technology["description"], {"availability":"unaudited"})
+        unavailable = self.Query(client, "game.getTechnology", {"id":"unavailable-choice"})["error"]
+        self.assertEqual(unavailable["code"], -32004)
+        self.assertEqual(self.Query(client, "game.getTechnology", {"id":choices[0]["id"]})["error"], unavailable)
+        topics = ["session", "research", "systems", "ships", "players"]
+        baseline = self.Query(client, "rpc.subscribe", {"topics":topics, "events":["state.changed"]})["result"]
+        state = self.Query(client, "game.getState", {"include":topics})["result"]
+        self.assertEqual(baseline["baseline"], state)
+        self.assertEqual(state["research"]["stamp"], state["stamp"])
+        self.Fixture("hidden")
+        self.assertEqual(self.Query(client, "game.getState", {"include":topics})["result"], state)
+        self.Fixture("research-change")
+        changed = client.Read()
+        self.assertEqual(changed["method"], "state.changed")
+        self.assertEqual(changed["params"]["subscriptionId"], baseline["subscriptionId"])
+        current = self.Query(client, "game.getState", {"include":topics})["result"]
+        self.assertEqual(current["stamp"], changed["params"]["stamp"])
+        self.assertEqual(current["research"]["stamp"], current["stamp"])
+        self.assertEqual(current["research"]["options"][0]["remainingCost"], 300)
+        self.assertTrue(any(ship["x"] == 123 for ship in current["ships"]))
+        self.assertEqual(self.Query(client, "game.getResearch")["result"], current["research"])
+        pinned = self.Query(client, "game.listResearchOptions", {"cursor":first["nextCursor"]})["result"]
+        self.assertEqual(pinned["stamp"], first["stamp"])
+        self.assertEqual(self.Query(client, "game.getTechnology", {"id":next(iter(references))})["error"], unavailable)
+        self.Fixture("switch")
+        with self.assertRaises((EOFError, ConnectionError)):
+            client.Read()
+        replacement = self.Client()
+        self.assertIn("result", replacement.Hello())
+        self.assertEqual(self.Query(replacement, "game.getTechnology", {"id":next(iter(references))})["error"], unavailable)
+        self.assertEqual(self.Query(replacement, "game.listResearchOptions", {"cursor":first["nextCursor"]})["error"], unavailable)
+        empty = self.Query(replacement, "game.getResearch")["result"]
+        self.assertEqual(empty["mode"], "no-selection")
+        self.assertEqual(empty["project"], {"availability":"known-empty"})
+        self.assertEqual(empty["options"], [])
 
     def test_wrong_key_is_rejected_and_connection_closed(self):
         client = self.Client()

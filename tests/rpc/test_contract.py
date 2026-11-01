@@ -174,17 +174,24 @@ class LedgerTests(unittest.TestCase):
 class PlanningTests(unittest.TestCase):
     def setUp(self):
         self.plan = (ROOT / "plan.md").read_text(encoding="utf-8")
-        self.baseline = (ROOT / audit.COVERAGE_SOURCE).read_text(encoding="utf-8")
 
     def test_plan_preserves_task_ids_without_freezing_future_progress(self):
         pattern = r"^- \[[ x]\] ([A-Z][A-Z0-9]*-\d{2})\b"
-        original = re.findall(pattern, self.baseline, re.MULTILINE)
+        counts = {"P0": 11, "P1": 10, "V": 12, "Q": 15, "N": 5,
+                  "P2": 16, "P3": 23, "P4": 15, "MP": 19, "P5": 17,
+                  "CE": 25, "P6": 13, "S": 37, "B": 38, "COV": 14, "T": 20}
+        original = {f"{group}-{number:02d}" for group, count in counts.items()
+                    for number in range(1, count + 1)}
+        original.update(f"TP-{number:02d}" for number in
+                        [*range(1, 14), 20, 22, 23, 24, 25])
         current = re.findall(pattern, self.plan, re.MULTILINE)
         self.assertEqual(len(current), len(set(current)))
-        self.assertTrue(set(original) <= set(current))
+        self.assertTrue(original <= set(current))
 
     def test_plan_retains_catalog_but_not_source_inventories(self):
-        self.assertEqual(audit.Catalog_Methods(self.plan), audit.Catalog_Methods(self.baseline))
+        registry = audit.Load_Json(ROOT / "specs/rpc/methods.json")
+        self.assertEqual(audit.Catalog_Methods(self.plan),
+                         [method["name"] for method in registry["methods"]])
         self.assertNotIn("## Appendix ", self.plan)
         self.assertNotIn("prerequisite verification", self.plan)
         self.assertNotIn("increment verification", self.plan)
@@ -269,15 +276,40 @@ class TypedContractTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             audit.Validate_Value({"availability":"current", "value":["same", "same"]}, "KnownExploredIds", self.contracts)
 
-    def test_exploration_reads_and_seven_topic_atomic_baselines_are_enabled(self):
-        for method in ("game.listPlanets", "game.getPlanet"):
+    def test_exploration_and_research_reads_and_eight_topic_atomic_baselines_are_enabled(self):
+        for method in ("game.listPlanets", "game.getPlanet", "game.getResearch", "game.listResearchOptions", "game.getTechnology"):
             self.assertIn(method, self.registry["implementedMethods"])
-        topics = ["session", "systems", "planets", "nebulas", "players", "colonies", "ships"]
+        topics = ["session", "systems", "planets", "nebulas", "players", "colonies", "ships", "research"]
         audit.Validate_Value({"include":topics}, "StateRequest", self.contracts)
         audit.Validate_Value({"topics":topics, "events":["state.changed"]}, "SubscribeRequest", self.contracts)
         for topic in ("fleets", "designs", "ui"):
             with self.assertRaises(ValueError):
                 audit.Validate_Value({"include":[topic]}, "StateRequest", self.contracts)
+
+    def test_research_contract_preserves_native_modes_bounds_and_unaudited_fields(self):
+        for mode in ("no-selection", "researching", "hyper", "completed"):
+            research = self.Sample("Research")
+            research["mode"] = mode
+            research["progress"] = {"availability":"unaudited"}
+            research["project"] = {"availability":"known-empty"}
+            research["application"] = {"availability":"known-empty"}
+            research["options"] = []
+            audit.Validate_Value(research, "Research", self.contracts, self.policies, public=True)
+            research["progress"] = {"availability":"current", "value":0}
+            with self.assertRaisesRegex(ValueError, "disabled field"):
+                audit.Validate_Value(research, "Research", self.contracts, self.policies, public=True)
+        technology = self.Sample("Technology")
+        technology["description"] = {"availability":"unaudited"}
+        audit.Validate_Value(technology, "Technology", self.contracts, self.policies, public=True)
+        for value in (0, 2147483647):
+            audit.Validate_Value({"availability":"current", "value":value}, "KnownResearchPoints", self.contracts)
+        for value in (-1, 2147483648, True):
+            with self.assertRaises(ValueError):
+                audit.Validate_Value({"availability":"current", "value":value}, "KnownResearchPoints", self.contracts)
+        options = [self.Sample("ResearchOption")] * 32
+        audit.Validate_Value(options, "ResearchOptions", self.contracts)
+        with self.assertRaises(ValueError):
+            audit.Validate_Value(options + options[:1], "ResearchOptions", self.contracts)
 
     def test_unaudited_object_and_field_fail_closed(self):
         with self.assertRaisesRegex(ValueError, "disabled object"):

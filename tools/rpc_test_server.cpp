@@ -73,6 +73,7 @@ int main() {
             } else if (command == "switch") {
                 rpc::Revoke_Game_View(&store);
                 map.viewer = 1 - map.viewer;
+                map.research = {};
                 rpc::Capture_Map(&store, &map);
             } else if (command == "busy")
                 rpc::Pause_Game_Queries(&store);
@@ -100,6 +101,24 @@ int main() {
                     map.colonies.back().infantry = -99999;
                     map.colonies.back().armor = 99999;
                 }
+                rpc::Capture_Map(&store, &map);
+            } else if (command == "research") {
+                map.research_captured = true;
+                map.research.mode = "researching";
+                map.research.project = 0;
+                map.research.application = 1;
+                map.research.technologies = {{false, "Research field", true, 500}, {true, "Offered application A", true, 500}, {true, "Offered application B", true, 500}};
+                map.research.options = {{0, 1, 450}, {0, 2, 450}, {0, -1, 450}};
+                rpc::Capture_Map(&store, &map);
+            } else if (command == "research-change") {
+                if (!map.research.options.empty()) {
+                    map.research.application = 2;
+                    for (auto& option : map.research.options) option.remaining = 300;
+                }
+                if (!map.ships.empty()) map.ships[0].x = 123;
+                rpc::Capture_Map(&store, &map);
+            } else if (command == "research-clear") {
+                map.research = {};
                 rpc::Capture_Map(&store, &map);
             } else if (command == "player-hud") {
                 --map.players[0].treasury;

@@ -11,11 +11,14 @@
   it hides for the same player, field and active context. Audit and test that
   authority before enabling a field; do not invent a divergent RPC policy.
 - Read repository instructions and relevant source/tests before editing. Make
-  small, tested increments; commit completed increments separately, never push
-  without a request, and preserve unrelated work, including untracked `.voc/`.
+  small, tested changes; never commit or push without a request, and preserve
+  unrelated work, including untracked `.voc/`.
 - Keep this file to rules, high-level decisions and TODOs. No restoration-specific
   narratives, source audits, implementation explanations, measurements or test
-  histories. Record evidence in the relevant `specs/rpc/` documents instead.
+  histories. Document current contracts and durable decisions, not the history of
+  producing them. Tests are the primary behavioral evidence; canonical field
+  policies hold native authorization anchors. Keep only unique supporting audits
+  in `specs/rpc/`; do not duplicate policies, commands or per-increment test counts.
 - Keep task IDs stable and partial items unchecked. Checked subset tasks do not
   imply full-catalog or interactive parity.
 - Missing assets/save fixtures block interactive parity verification, not
@@ -24,9 +27,9 @@
 - Regenerate schema, reference and C++ metadata from `specs/rpc/methods.json`,
   `contracts.json` and `field_policies.json`; never edit generated output manually.
 - Preserve coverage obligations for every fork change. Historical inventories and
-  exact dispositions are in [the planning baseline](specs/rpc/planning_baseline.md),
+  exact dispositions are in [the coverage baseline](specs/rpc/planning_baseline.md),
   with pinned revisions in `specs/rpc/baseline.json`. Refresh inventories when a
-  baseline changes; historical progress notes are not current status.
+  baseline changes; update implementation traceability at capability completion.
 
 ## 2. Architecture and ownership
 
@@ -175,6 +178,23 @@ field-audited methods/topics; schemas alone grant no authority.
 
 ## 7. Delivery and validation rules
 
+- Deliver bounded client capabilities, not individual fields or prerequisite
+  commits. Before starting, name the outcome, related methods/fields/contexts,
+  acceptance tests and exclusions. Audit related variants together and stop when
+  the agreed capability passes; do not expand it opportunistically.
+- Map native producers, authorization, owner lifetimes, identity, coherence and
+  revocation before implementation. If a substantial shared dependency is missing,
+  make it an explicit milestone or defer dependent fields. Do not build competing
+  per-field lifecycle mechanisms or a speculative generic framework.
+- Prefer one owner for each state transition. Separate native projection,
+  normalization/linking, snapshot retention and wire encoding with concrete free
+  functions as needed. Reuse existing mechanisms before adding flags, epochs,
+  queues or caches; keep hidden-data filtering and thread boundaries explicit.
+- Keep commits reviewable without treating every commit as a separate project.
+  Reassess scope when investigation repeatedly finds prerequisites without an
+  end-to-end result. Progress reports state delivered capability, checks and
+  blockers; record timings automatically where practical, not in manual diaries.
+
 | Phase | Completion gate |
 | --- | --- |
 | P0: contracts/evidence | Field policies, registry, backend/platform approval and capture/output budgets |
@@ -185,16 +205,24 @@ field-audited methods/topics; schemas alone grant no authority.
 | P5: battle/invasion | Observed views/actions/effects with unchanged ordering and RNG |
 | P6: full parity | All coverage obligations, lifecycle modes and supported platforms verified |
 
-- Before each commit, build required game/RPC/native/transport targets normally
-  and under ASAN/UBSAN; run relevant CTest, all RPC Python tests with the live
-  server, generator drift, the RPC-disabled suite, affected C++ formatting and
-  whitespace checks. Include affected native-owner targets when hooks change.
-  Commands live in `specs/rpc/ship_refresh.md`.
+- During development, run focused tests. Before a requested code commit, build
+  affected targets and run relevant tests, affected formatting and whitespace
+  checks; check generator drift when canonical inputs or generation change.
+- Run relevant ASAN/UBSAN checks for native-hook, ownership or lifetime changes
+  before treating them as complete. At capability completion, run normal and
+  sanitizer integration tests, relevant live RPC Python/transport tests, the
+  RPC-disabled regression suite and generator checks. Include affected native
+  owners. Shared commands live in `specs/rpc/README.md#verification`.
+- For documentation-only changes, run affected contract/audit/link checks and
+  whitespace checks, not game builds or unrelated runtime suites. Keep completion
+  notes short: outcome, checks and outstanding limitations, without repeated
+  architecture summaries, historical counts or fixture-debugging narratives.
 - Report unperformed checks accurately. Unsupported local LeakSanitizer may be
   disabled without disabling ASAN/UBSAN; do not claim leak verification.
 - Require noninterference, native-view parity, lifecycle/reuse, atomic baselines,
   pinned-page revocation, protocol/output bounds, action authority and platform
-  checks before release sign-off. Evidence belongs outside this plan.
+  checks before release sign-off. Capability-sized delivery does not waive these
+  requirements or turn synthetic tests into interactive parity evidence.
 
 ## Implementation tracking TODOs
 
@@ -264,7 +292,7 @@ field-audited methods/topics; schemas alone grant no authority.
 - [ ] Q-08 — Implement fleet list/detail without rebuilt-stack identifiers.
 - [ ] Q-09 — Implement movement options with audited scratch state and no hidden-data oracle.
 - [ ] Q-10 — Implement authorized design list/detail/options.
-- [ ] Q-11 — Implement own research/choices and authorized technology references.
+- [x] Q-11 — Implement own research/choices and authorized technology references.
 - [ ] Q-12 — Implement owned/offered/discovered leader reads.
 - [ ] Q-13 — Implement full relations/intelligence with individually audited fields.
 - [ ] Q-14 — Implement native-precision history and non-consuming message reads.

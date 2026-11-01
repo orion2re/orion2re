@@ -1,4 +1,5 @@
 #pragma once
+#include <cstddef>
 #include <cstdint>
 
 struct s_list_item_research;
@@ -37,6 +38,16 @@ struct s_list_item_research {
 
 namespace TECH {
     extern bool allow_future_technology_browsing;
+
+    struct s_research_choice {
+        int16_t field = 0;
+        int16_t applications[4] = {};
+        int16_t count = 0;
+    };
+
+    // The entry builder excludes the current field; change-research includes it.
+    bool Read_Research_Choice(const s_player* player, int16_t group, bool include_current, s_research_choice* choice);
+    void Copy_Application_Name(int16_t application, int16_t player, char* buffer, size_t size);
 
     /** Opens the technology selection screen for the current player. */
     void __cdecl Tech_Select();

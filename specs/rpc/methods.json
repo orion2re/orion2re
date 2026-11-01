@@ -4,7 +4,7 @@
   "contracts": "contracts.json",
   "perspective": "connection-bound-local-player",
   "unknownFields": "disabled",
-  "implementedMethods": ["rpc.hello", "rpc.describe", "rpc.subscribe", "rpc.unsubscribe", "game.getSession", "game.getState", "game.listSystems", "game.getSystem", "game.listNebulas", "game.listShips", "game.getShip", "game.listPlayers", "game.getPlayer", "game.listColonies", "game.getColony", "game.listPlanets", "game.getPlanet"],
+  "implementedMethods": ["rpc.hello", "rpc.describe", "rpc.subscribe", "rpc.unsubscribe", "game.getSession", "game.getState", "game.listSystems", "game.getSystem", "game.listNebulas", "game.listShips", "game.getShip", "game.listPlayers", "game.getPlayer", "game.listColonies", "game.getColony", "game.listPlanets", "game.getPlanet", "game.getResearch", "game.listResearchOptions", "game.getTechnology"],
   "methods": [
     {"name":"rpc.hello","owner":"rpc.service","role":"unauthenticated","availability":"transport","kind":"control"},
     {"name":"rpc.describe","owner":"rpc.protocol","role":"reader","availability":"transport","kind":"query"},

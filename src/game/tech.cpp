@@ -520,68 +520,21 @@ namespace TECH {
 
         s_list_item_research* item = entries;
         for (int i = 0; i < 8; ++i, ++item) {
-            int16_t tech_field_id = MOX::first_field_in_group[item->id];
-
-            if (tech_field_id != 0) {
-                while (true) {
-                    if (MOX::cur_plyr_ptr->tech_fields[tech_field_id] == 2 &&
-                        MOX::cur_plyr_ptr->current_research_field != tech_field_id) {
-                        break;
-                    }
-                    tech_field_id = TECHDATA::technology_fields[tech_field_id].next_field_id;
-                    if (tech_field_id == 0) {
-                        break;
-                    }
-                }
-            }
-
-            if (tech_field_id == 0) continue;
-
-            if (tech_field_id < TECH_FIELD_BIOLOGY) {
-                int visible_app_count = 0;
-                int16_t* techs = TECHDATA::technology_fields[tech_field_id].tech;
-                for (int app_index = 0; app_index < 4; ++app_index) {
-                    int16_t app_id = techs[app_index];
-                    if (MOX::cur_plyr_ptr->tech_applications[app_id] == TECH_RESEARCH_STATUS_AVAILABLE) {
-                        strlcpy(item->app_names[visible_app_count], Technology_Applications_Name(app_id, MOX::PLAYER_NUM), sizeof(item->app_names[visible_app_count]));
-                        item->app_ids[visible_app_count] = app_id;
-                        item->app_click_field_ids[visible_app_count] = fields::Add_Hidden_Field(
-                            item->x,
-                            tech_field_y1[visible_app_count] + item->y + 0x15,
-                            item->x + 0xDA,
-                            tech_field_y2[visible_app_count] + item->y + 0x15,
-                            "",
-                            0);
-                        ++visible_app_count;
-                    }
-                }
-
-                if (visible_app_count == 0) {
-                    strlcpy(item->app_names[0], no_available_app_text, sizeof(item->app_names[0]));
-                    item->app_ids[0] = 0;
-                    item->app_click_field_ids[0] = fields::Add_Hidden_Field(
-                        item->x,
-                        tech_field_y1[0] + item->y + 0x15,
-                        item->x + 0xDA,
-                        tech_field_y2[0] + item->y + 0x15,
-                        "",
-                        0);
-                    ++visible_app_count;
-                }
-
-                item->visible_app_count = visible_app_count;
-            } else {
-                uint16_t app_id = Get_Hyper_Tech_App_ID(tech_field_id);
-                strlcpy(item->app_names[0], Technology_Applications_Name(app_id, MOX::PLAYER_NUM), sizeof(item->app_names[0]));
-                item->app_ids[0] = Get_Hyper_Tech_App_ID(tech_field_id);
-                item->app_click_field_ids[0] = fields::Add_Hidden_Field(
+            s_research_choice choice;
+            if (!Read_Research_Choice(MOX::cur_plyr_ptr, item->id, false, &choice) || choice.field == 0) continue;
+            const int16_t tech_field_id = choice.field;
+            item->visible_app_count = (int8_t)choice.count;
+            for (int app = 0; app < choice.count; ++app) {
+                const int16_t application = choice.applications[app];
+                strlcpy(item->app_names[app], application == 0 ? no_available_app_text : Technology_Applications_Name(application, MOX::PLAYER_NUM), sizeof(item->app_names[app]));
+                item->app_ids[app] = application;
+                item->app_click_field_ids[app] = fields::Add_Hidden_Field(
                     item->x,
-                    tech_field_y1[0] + item->y + 0x15,
+                    tech_field_y1[app] + item->y + 0x15,
                     item->x + 0xDA,
-                    tech_field_y2[0] + item->y + 0x15,
+                    tech_field_y2[app] + item->y + 0x15,
                     "",
                     0);
-                item->visible_app_count = 1;
             }
 
             item->tech_field_id = tech_field_id;
@@ -1107,20 +1060,7 @@ namespace TECH {
         if (tech_app_id < TECH_APP_BIOLOGY) {
             return TECHDATA::technology_applications[tech_app_id].name;
         }
-
-        uint16_t hyper_tech =
-            static_cast<uint16_t>(MOX::player[player_idx].hyper_advanced_tech[tech_app_id - TECH_APP_BIOLOGY]) + 1;
-
-        strlcpy(MOX::temp_string_buf, TECHDATA::technology_applications[tech_app_id].name, sizeof(MOX::temp_string_buf));
-        strlcat(MOX::temp_string_buf, " ", sizeof(MOX::temp_string_buf));
-
-        if (hyper_tech > 0 && hyper_tech <= 20) {
-            strlcat(MOX::temp_string_buf, MOX::roman_literals[hyper_tech], sizeof(MOX::temp_string_buf));
-        } else {
-            char* end_ptr = MOX::temp_string_buf + strlen(MOX::temp_string_buf);
-            snprintf(end_ptr, sizeof(MOX::temp_string_buf) - (size_t)(end_ptr - MOX::temp_string_buf), "%u", (unsigned)hyper_tech);
-        }
-
+        Copy_Application_Name(tech_app_id, player_idx, MOX::temp_string_buf, sizeof(MOX::temp_string_buf));
         return MOX::temp_string_buf;
     }
 

@@ -89,6 +89,17 @@ class SidecarArchitectureTests(unittest.TestCase):
         self.assertNotRegex(adapter, r"(?:Build_Global_Colony_List|Sum_Colonists|Draw_Colony_Scan_Info|Planet_Max_Population_For_Player|Colony_Producing_Product_Cost)\s*\(")
         self.assertNotRegex(adapter, r"(?:Troop_Popup|Print_Scanned_Military|Colony_Infantry_Limit|Colony_Tank_Limit|Colony_Ground_Strength)\s*\(")
 
+    def test_research_capture_uses_shared_native_choices_without_ui_builders_or_mutation(self):
+        adapter = (ROOT / "src/rpc/tech_rpc.cpp").read_text()
+        self.assertIn("TECH::Read_Research_Choice", adapter)
+        self.assertIn("TECH::New_Get_Tech_Cost", adapter)
+        self.assertIn("TECH::Copy_Application_Name", adapter)
+        self.assertNotRegex(adapter, r"(?:Init_Entry_Data|Get_Group_List|Init_Player_Tech|Tech_Is_Legal_For_Player|Commit_Selected_Entry|Check_For_Research_Breakthrough|Draw_Application_Description|Random)\s*\(")
+        native = (ROOT / "src/game/tech.cpp").read_text()
+        self.assertIn("Read_Research_Choice(MOX::cur_plyr_ptr", native)
+        helper = (ROOT / "src/game/tech_choices.cpp").read_text()
+        self.assertNotRegex(helper, r"fields::|game_random::|MOX::cur_plyr_ptr")
+
     def test_fleet_view_initialization_follows_setup_and_precedes_the_input_loop(self):
         native = (ROOT / "src/game/mainscr_main.cpp").read_text()
         start = native.index("void __cdecl Main_Screen()")

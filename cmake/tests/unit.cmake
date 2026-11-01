@@ -2109,7 +2109,7 @@ if(ORION2RE_RPC_BUILT)
         tests/unit/rpc_game_test.cpp
     )
     target_compile_features(test_rpc PRIVATE cxx_std_20)
-    target_include_directories(test_rpc PRIVATE "${ORION2RE_VENDORED_DOCTEST_DIR}")
+    target_include_directories(test_rpc PRIVATE "${ORION2RE_VENDORED_DOCTEST_DIR}" "${ORION2RE_VENDORED_YYJSON_DIR}/src")
     target_link_libraries(test_rpc PRIVATE orion2re_rpc)
     add_dependencies(test_rpc rpc-test-server)
     orion2re_enable_sanitizers(test_rpc)

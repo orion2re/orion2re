@@ -124,6 +124,27 @@ namespace rpc {
         std::string planet_id;
     };
 
+    struct s_technology_observation {
+        bool application = false;
+        std::string name;
+        bool cost_available = false;
+        int32_t cost = 0;
+    };
+
+    struct s_research_option {
+        int32_t field = -1;       // Indices into this capture's authorized technologies, not native IDs.
+        int32_t application = -1; // -1 is the native no-application choice.
+        int32_t remaining = 0;
+    };
+
+    struct s_research_observation {
+        std::string mode = "no-selection";
+        int32_t project = -1;
+        int32_t application = -1;
+        std::vector<s_technology_observation> technologies;
+        std::vector<s_research_option> options;
+    };
+
     struct s_map_observation {
         int32_t viewer = -1; // Private native identity, never encoded.
         int32_t turn = 0;
@@ -139,6 +160,8 @@ namespace rpc {
         bool planets_captured = false;
         std::vector<s_planet_observation> planets;
         bool exploration_sensitive = false;
+        bool research_captured = false;
+        s_research_observation research;
     };
 
     struct s_map_snapshot {
@@ -149,6 +172,8 @@ namespace rpc {
         std::vector<std::string> player_ids;
         std::vector<std::string> colony_ids; // Read-only observation handles, not action capabilities.
         std::vector<std::string> planet_ids;
+        std::vector<std::string> technology_ids;
+        std::vector<std::string> research_option_ids;
     };
 
     struct s_planet_handle {

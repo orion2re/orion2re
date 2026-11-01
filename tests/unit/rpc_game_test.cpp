@@ -1,8 +1,10 @@
 #include "doctest/doctest.h"
 #include <algorithm>
+#include <cstdlib>
 #include <string>
 #include <type_traits>
 #include "rpc/rpc_game.h"
+#include "yyjson.h"
 
 namespace {
     bool Id(std::string* id, void* context) {
@@ -107,6 +109,17 @@ namespace {
         map.planets = {other, hidden, gas, own};
         return map;
     }
+    rpc::s_map_observation Research_Map() {
+        auto map = Ships();
+        map.research_captured = true;
+        map.research.mode = "researching";
+        map.research.project = 0;
+        map.research.application = 1;
+        map.research.technologies = {{false, "Field", true, 500}, {true, "Application A", true, 500}, {true, "Application B", true, 500}};
+        map.research.options = {{0, 1, 450}, {0, 2, 450}, {0, -1, 450}};
+        return map;
+    }
+
     std::string Dispatch(s_fixture* fixture, uint64_t client, uint64_t epoch, const rpc::s_request* request) {
         DOCTEST_REQUIRE(rpc::Submit_Work(&fixture->bridge, client, epoch, request, UINT64_MAX) == 0);
         rpc::Pump_Game_Queries(&fixture->store);
@@ -115,7 +128,157 @@ namespace {
         DOCTEST_CHECK(result.ticket != 0);
         return result.json;
     }
+
+    std::string Result_Field(const std::string& response, const char* field = nullptr) {
+        auto* doc = yyjson_read(response.data(), response.size(), YYJSON_READ_NOFLAG);
+        DOCTEST_REQUIRE(doc != nullptr);
+        auto* value = yyjson_obj_get(yyjson_doc_get_root(doc), "result");
+        if (field != nullptr) value = yyjson_obj_get(value, field);
+        DOCTEST_REQUIRE(value != nullptr);
+        char* encoded = yyjson_val_write(value, YYJSON_WRITE_NOFLAG, nullptr);
+        DOCTEST_REQUIRE(encoded != nullptr);
+        const std::string result(encoded);
+        std::free(encoded);
+        yyjson_doc_free(doc);
+        return result;
+    }
 } // namespace
+
+DOCTEST_TEST_CASE("research reads share atomic baselines and paginate immutable options with bounded authorized lookups") {
+    s_fixture fixture;
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&fixture.store));
+    auto missing = Request("game.getResearch");
+    auto map = Ships();
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &missing).find("-32002") != std::string::npos);
+    map = Research_Map();
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    auto state = Request("game.getState", "{\"include\":[\"session\",\"research\",\"systems\",\"ships\"]}");
+    auto get = Request("game.getResearch");
+    const auto before = rpc::Game_Query(&fixture.store, &state);
+    DOCTEST_CHECK(Result_Field(rpc::Game_Query(&fixture.store, &get)) == Result_Field(before, "research"));
+    auto options = Request("game.listResearchOptions");
+    const auto all = rpc::Game_Query(&fixture.store, &options);
+    for (const auto& id : fixture.store.snapshots.back().technology_ids) {
+        auto technology = Request("game.getTechnology");
+        technology.params_json = "{\"id\":" + rpc::Json_String(id) + "}";
+        DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &technology).find("\"description\":{\"availability\":\"unaudited\"}") != std::string::npos);
+    }
+    auto unknown = Request("game.getTechnology", "{\"id\":\"unknown\"}");
+    const auto error = rpc::Game_Query(&fixture.store, &unknown);
+    unknown.params_json = "{\"id\":" + rpc::Json_String(fixture.store.snapshots.back().research_option_ids[0]) + "}";
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &unknown) == error);
+    options.params_json = "{\"limit\":1}";
+    const auto page = rpc::Game_Query(&fixture.store, &options);
+    const auto cursor = fixture.store.cursors.back().id;
+    const auto old_technology = fixture.store.snapshots.back().technology_ids.back();
+    map.research.options[0].remaining = 400;
+    map.ships[0].x = 99;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    options.params_json = "{\"cursor\":" + rpc::Json_String(cursor) + "}";
+    const auto pinned = rpc::Game_Query(&fixture.store, &options);
+    DOCTEST_CHECK(Result_Field(pinned, "stamp") == Result_Field(page, "stamp"));
+    DOCTEST_CHECK(pinned.find("\"remainingCost\":450") != std::string::npos);
+    unknown.params_json = "{\"id\":" + rpc::Json_String(old_technology) + "}";
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &unknown) == error);
+    const auto after = rpc::Game_Query(&fixture.store, &state);
+    DOCTEST_CHECK(after.find("\"remainingCost\":400") != std::string::npos);
+    DOCTEST_CHECK(after.find("\"x\":99") != std::string::npos);
+    uint64_t epoch;
+    DOCTEST_REQUIRE(rpc::Register_Client(&fixture.bridge, 1, &epoch));
+    auto subscribe = Request("rpc.subscribe", "{\"topics\":[\"session\",\"research\",\"systems\",\"ships\"],\"events\":[\"state.changed\"]}");
+    DOCTEST_CHECK(Result_Field(Dispatch(&fixture, 1, epoch, &subscribe), "baseline") == Result_Field(after));
+    rpc::Begin_Game_Reset(&fixture.store);
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&fixture.store));
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &options).find("-32004") != std::string::npos);
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &unknown) == error);
+    DOCTEST_CHECK(fixture.store.subscriptions.empty());
+    DOCTEST_CHECK_FALSE(rpc::Client_Is_Current(&fixture.bridge, 1, epoch));
+}
+
+DOCTEST_TEST_CASE("research known-empty is not unavailable and research invalidations exclude unrelated captures") {
+    s_fixture fixture;
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&fixture.store));
+    auto map = Research_Map();
+    map.research = {};
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    auto get = Request("game.getResearch");
+    const auto empty = rpc::Game_Query(&fixture.store, &get);
+    DOCTEST_CHECK(empty.find("\"mode\":\"no-selection\"") != std::string::npos);
+    DOCTEST_CHECK(empty.find("\"project\":{\"availability\":\"known-empty\"}") != std::string::npos);
+    DOCTEST_CHECK(empty.find("\"options\":[]") != std::string::npos);
+    uint64_t epoch;
+    DOCTEST_REQUIRE(rpc::Register_Client(&fixture.bridge, 1, &epoch));
+    auto subscribe = Request("rpc.subscribe", "{\"topics\":[\"research\"],\"events\":[\"state.changed\"]}");
+    Dispatch(&fixture, 1, epoch, &subscribe);
+    ++map.ships[0].x;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    rpc::Pump_Game_Queries(&fixture.store);
+    rpc::s_publication event;
+    DOCTEST_CHECK_FALSE(rpc::Take_Publication(&fixture.bridge, &event));
+    map.research.mode = "completed";
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    rpc::Pump_Game_Queries(&fixture.store);
+    DOCTEST_REQUIRE(rpc::Take_Publication(&fixture.bridge, &event));
+    DOCTEST_CHECK(event.json.find("state.changed") != std::string::npos);
+    map.viewer = 1;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    DOCTEST_CHECK(fixture.store.subscriptions.empty());
+    DOCTEST_CHECK_FALSE(rpc::Client_Is_Current(&fixture.bridge, 1, epoch));
+}
+
+DOCTEST_TEST_CASE("topic routing agrees across state lists details and subscription baselines") {
+    s_fixture fixture;
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&fixture.store));
+    const auto map = Exploration();
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    const auto& snapshot = fixture.store.snapshots.back();
+    const char* topics = "[\"nebulas\",\"planets\",\"session\",\"colonies\",\"players\",\"ships\",\"systems\"]";
+    auto state = Request("game.getState");
+    state.params_json = std::string("{\"include\":") + topics + "}";
+    const auto response = rpc::Game_Query(&fixture.store, &state);
+    struct {
+        const char* topic;
+        const char* list;
+        const char* get;
+        const std::vector<std::string>* ids;
+    } routes[] = {
+        {"systems", "game.listSystems", "game.getSystem", &fixture.store.system_ids},
+        {"nebulas", "game.listNebulas", nullptr, &fixture.store.nebula_ids},
+        {"planets", "game.listPlanets", "game.getPlanet", &snapshot.planet_ids},
+        {"ships", "game.listShips", "game.getShip", &snapshot.ship_ids},
+        {"players", "game.listPlayers", "game.getPlayer", &snapshot.player_ids},
+        {"colonies", "game.listColonies", "game.getColony", &snapshot.colony_ids},
+    };
+    for (const auto& route : routes) {
+        DOCTEST_INFO(route.topic);
+        auto list = Request(route.list);
+        const auto listed = rpc::Game_Query(&fixture.store, &list);
+        DOCTEST_CHECK(Result_Field(listed, "items") == Result_Field(response, route.topic));
+        for (const auto& id : *route.ids) {
+            DOCTEST_CHECK(listed.find("\"id\":" + rpc::Json_String(id)) != std::string::npos);
+        }
+        if (route.get == nullptr) continue;
+        std::string detailed = "[";
+        for (const auto& id : *route.ids) {
+            auto get = Request(route.get);
+            get.params_json = "{\"id\":" + rpc::Json_String(id) + "}";
+            if (detailed.size() != 1) detailed += ',';
+            detailed += Result_Field(rpc::Game_Query(&fixture.store, &get), "item");
+        }
+        DOCTEST_CHECK(detailed + "]" == Result_Field(response, route.topic));
+    }
+    auto session = Request("game.getSession");
+    DOCTEST_CHECK(Result_Field(rpc::Game_Query(&fixture.store, &session)) == Result_Field(response, "session"));
+    DOCTEST_CHECK(response.find("\"nebulas\":") < response.find("\"planets\":"));
+    DOCTEST_CHECK(response.find("\"planets\":") < response.find("\"session\":"));
+    uint64_t epoch;
+    DOCTEST_REQUIRE(rpc::Register_Client(&fixture.bridge, 1, &epoch));
+    auto subscribe = Request("rpc.subscribe");
+    subscribe.params_json = std::string("{\"topics\":") + topics + ",\"events\":[\"state.changed\"]}";
+    DOCTEST_CHECK(Result_Field(Dispatch(&fixture, 1, epoch, &subscribe), "baseline") == Result_Field(response));
+}
 
 DOCTEST_TEST_CASE("exploration graph has reciprocal same-capture references and immutable publicly sorted pages") {
     s_fixture fixture;

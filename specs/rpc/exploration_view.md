@@ -1,7 +1,6 @@
 # Q-04 / Q-05 exploration catalog
 
-Prepared with AI assistance. This document records the exploration audit and its
-implementation/verification evidence. It does not grant ship scan intelligence,
+AI-assisted current field audit. This does not grant ship scan intelligence,
 foreign colony intelligence, movement options or actions.
 
 ## Field matrix and authority
@@ -103,27 +102,7 @@ Q-04/Q-05 and V-02 cover this global exploration scope. V-06 remains a cross-fam
 obligation: this family preserves native current/unknown/known-empty distinctions
 and does not invent a last-known store. Q-06/Q-07/Q-13/V-04 remain incomplete.
 
-## Verification
-
-Verified against starting commit `1df227e5497ef67bdc70b64ddb49c22f85fd8920`:
-
-- All 13 requested game/RPC/native-owner build targets succeed normally and under
-  ASAN/UBSAN. The original nine build targets are retained, with `test_shipmove`,
-  `test_plntsum_filters`, `test_colony_pop_growth` and `test_map_scale` added for
-  the native predicates used by this catalog. No native owner source is changed.
-- All **12 selected CTest targets pass in both configurations**, including the
-  expanded **53-case live WebSocket suite**. The native projection executable
-  passes **68 cases / 2,985 assertions**; the RPC/store/bridge executable passes
-  **62 cases / 1,830 assertions**. All existing Q-07 cases remain included.
-- All **122 RPC Python tests pass** with the normal live test server configured.
-- A fresh `bash tools/run-tests.sh` run passes all **106 RPC-disabled targets**.
-- Canonical contracts/methods/policies regenerate schema, reference and C++
-  metadata; `python3 tools/generate_rpc_schema.py --check` passes.
-- Affected-range C++ formatting against `1df227e`, full formatting of the new
-  adapter/header, and `git diff --check` pass. No unrelated restored code is
-  reformatted. `.voc/` and `planning_baseline.md` are untouched.
-
-### Evidence covered by the new regressions
+## Verification scope
 
 Native-array tests call the actual system/planet exploration predicates, native
 range predicates, dominant-owner selection, no-Prime name formatter, gravity
@@ -147,46 +126,16 @@ than relying solely on injected DTOs. Maximum native capacity includes all 5,120
 planets and own colonies: 256-record pages remain bounded; oversized complete
 state is rejected explicitly, not silently truncated.
 
-The new backpressure regression queues four real seven-topic exploration results,
+The backpressure regression queues four real seven-topic exploration results,
 observes a partial WebSocket frame, and positively requires outstanding delivery
 receipts after bridge drain before revoking without another game poll. Results
 already handed to the socket may complete; pending service-owned results must
-not all complete. Development exposed an invalid assumption that the *first*
-queued result was necessarily still pending. The final fixture proves ownership
-instead, and the service now checks whole-view epoch before every fragment,
-not just on its timer. Extending the existing receipts to ordinary responses
-also exposed a missing acknowledgment in the 100-response cross-thread test
-consumer; it now performs the same final-delivery acknowledgment as the real
-service. Neither output bounds nor the original 100-response assertion is relaxed.
+not all complete. The service checks whole-view epoch before every fragment,
+not just on its timer; consumers acknowledge final response delivery.
 
 ### Reproduction and limitations
 
-Use the full gate in [ship-refresh verification](ship_refresh.md), adding the four
-native-owner targets listed above. The exact expanded commands are:
-
-```sh
-cmake --build out/build/rpc-debug --target orion2re test_rpc test_game_rpc_native rpc-test-server test_game_events test_fields test_fleetpop test_mainscr_reload test_lua_mod_runtime test_shipmove test_plntsum_filters test_colony_pop_growth test_map_scale --parallel 4
-ctest --test-dir out/build/rpc-debug -R '^test_(rpc|rpc_transport|game_rpc_native|game_events|fields|fleetpop|mainscr_reload|lua_mod_runtime|shipmove|plntsum_filters|colony_pop_growth|map_scale)$' --output-on-failure
-cmake --build out/build/rpc-asan --target orion2re test_rpc test_game_rpc_native rpc-test-server test_game_events test_fields test_fleetpop test_mainscr_reload test_lua_mod_runtime test_shipmove test_plntsum_filters test_colony_pop_growth test_map_scale --parallel 4
-ASAN_OPTIONS=detect_leaks=0:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 ctest --test-dir out/build/rpc-asan -R '^test_(rpc|rpc_transport|game_rpc_native|game_events|fields|fleetpop|mainscr_reload|lua_mod_runtime|shipmove|plntsum_filters|colony_pop_growth|map_scale)$' --output-on-failure
-ORION2RE_RPC_TEST_SERVER=out/build/rpc-debug/rpc-test-server python3 -m unittest discover -s tests/rpc -p 'test_*.py'
-python3 tools/generate_rpc_schema.py --check
-bash tools/run-tests.sh
-git-clang-format --diff 1df227e -- src/rpc/game_rpc.cpp src/rpc/colony_rpc.cpp src/rpc/rpc_game.cpp src/rpc/rpc_game.h src/rpc/rpc_bridge.cpp src/rpc/rpc_bridge.h src/rpc/rpc_service.cpp tests/unit/game_rpc_native_test.cpp tests/unit/rpc_game_test.cpp tests/unit/rpc_bridge_test.cpp tools/rpc_test_server.cpp
-clang-format --dry-run --Werror src/rpc/exploration_rpc.cpp src/rpc/exploration_rpc.h
-git diff --check
-```
-
-Only leak detection is disabled because local macOS LeakSanitizer is unsupported;
-ASAN/UBSAN remain enabled with halt-on-error. No leak verification is claimed.
-These are synthetic native-function and real transport results, not interactive
-saved-game/multiplayer parity or other-platform verification. Existing unrelated
-restoration/compiler/linker warnings are not changed. Full-catalog performance
-and interactive parity remain P0/release obligations.
-
-The complete planned **global exploration** scope is reconciled in the matrix:
-Q-04/Q-05/V-02 are complete, not merely enabled method names. Foreign live colony
-intelligence and native action/hover/scan contexts are not granted by visitation
-and remain outside these global projections. Q-06/Q-07/Q-13/V-04 remain unchecked;
-V-06 remains a broader cross-family obligation. No new ship-disclosure path or P2
-context/action infrastructure is introduced.
+Use [Verification](README.md#verification), including `test_shipmove`,
+`test_plntsum_filters`, `test_colony_pop_growth` and `test_map_scale` for the native
+predicates. Synthetic native-function and real transport tests do not establish
+interactive saved-game/multiplayer, full-catalog performance or platform parity.

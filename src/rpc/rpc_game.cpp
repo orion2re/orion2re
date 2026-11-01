@@ -9,6 +9,68 @@
 
 namespace rpc {
     namespace {
+        enum e_topic : uint32_t {
+            TOPIC_NONE = 0,
+            TOPIC_SESSION = 1 << 0,
+            TOPIC_SYSTEMS = 1 << 1,
+            TOPIC_NEBULAS = 1 << 2,
+            TOPIC_SHIPS = 1 << 3,
+            TOPIC_PLAYERS = 1 << 4,
+            TOPIC_COLONIES = 1 << 5,
+            TOPIC_PLANETS = 1 << 6,
+            TOPIC_RESEARCH = 1 << 7,
+        };
+
+        struct s_topic_methods {
+            e_topic topic;
+            const char* name;
+            const char* list;
+            const char* get;
+        };
+
+        constexpr s_topic_methods TOPICS[] = {
+            {TOPIC_SESSION, "session", nullptr, "game.getSession"},
+            {TOPIC_SYSTEMS, "systems", "game.listSystems", "game.getSystem"},
+            {TOPIC_NEBULAS, "nebulas", "game.listNebulas", nullptr},
+            {TOPIC_SHIPS, "ships", "game.listShips", "game.getShip"},
+            {TOPIC_PLAYERS, "players", "game.listPlayers", "game.getPlayer"},
+            {TOPIC_COLONIES, "colonies", "game.listColonies", "game.getColony"},
+            {TOPIC_PLANETS, "planets", "game.listPlanets", "game.getPlanet"},
+            {TOPIC_RESEARCH, "research", "game.listResearchOptions", "game.getTechnology"},
+        };
+
+        e_topic Find_Topic(const std::string& name) {
+            for (const auto& topic : TOPICS) {
+                if (name == topic.name) return topic.topic;
+            }
+            return TOPIC_NONE;
+        }
+
+        const s_topic_methods* Find_Query_Topic(const std::string& method) {
+            for (const auto& topic : TOPICS) {
+                if (topic.topic == TOPIC_RESEARCH && method == "game.getResearch") return &topic;
+                if ((topic.list != nullptr && method == topic.list) ||
+                    (topic.get != nullptr && method == topic.get)) return &topic;
+            }
+            return nullptr;
+        }
+
+        uint32_t Topic_Mask(const std::vector<std::string>* topics) {
+            uint32_t mask = TOPIC_NONE;
+            for (const auto& topic : *topics) mask |= Find_Topic(topic);
+            return mask;
+        }
+
+        std::vector<std::string> Read_Topics(yyjson_val* array) {
+            std::vector<std::string> topics;
+            size_t index, count;
+            yyjson_val* topic;
+            yyjson_arr_foreach(array, index, count, topic) {
+                topics.emplace_back(yyjson_get_str(topic), yyjson_get_len(topic));
+            }
+            return topics;
+        }
+
         bool Default_Id(std::string* id, void* context) {
             (void)context;
             return New_Opaque_Id(id);
@@ -96,16 +158,38 @@ namespace rpc {
             return true;
         }
 
+        bool Same_Research(const s_map_observation* left, const s_map_observation* right) {
+            if (left->research_captured != right->research_captured) return false;
+            const auto& a = left->research;
+            const auto& b = right->research;
+            if (std::tie(a.mode, a.project, a.application) != std::tie(b.mode, b.project, b.application) ||
+                a.technologies.size() != b.technologies.size() || a.options.size() != b.options.size()) return false;
+            for (size_t index = 0; index < a.technologies.size(); ++index) {
+                const auto& x = a.technologies[index];
+                const auto& y = b.technologies[index];
+                if (std::tie(x.application, x.name, x.cost_available, x.cost) != std::tie(y.application, y.name, y.cost_available, y.cost)) return false;
+            }
+            for (size_t index = 0; index < a.options.size(); ++index) {
+                const auto& x = a.options[index];
+                const auto& y = b.options[index];
+                if (std::tie(x.field, x.application, x.remaining) != std::tie(y.field, y.application, y.remaining)) return false;
+            }
+            return true;
+        }
+
         bool Authorized_Snapshot(const s_game_store* store, const s_map_snapshot* snapshot) {
             return snapshot->map.context_epoch == 0 ||
                 (store->context_active && snapshot->map.context_epoch == Bridge_Context_Epoch(store->bridge));
         }
 
-        const s_map_snapshot* Select_Snapshot(const s_game_store* store, bool ships, bool players = false, bool colonies = false, bool planets = false) {
+        const s_map_snapshot* Select_Snapshot(const s_game_store* store, uint32_t topics) {
             for (auto snapshot = store->snapshots.rbegin(); snapshot != store->snapshots.rend(); ++snapshot) {
-                if (ships && !Authorized_Snapshot(store, &*snapshot)) continue;
-                if ((!ships || snapshot->map.ships_captured) && (!players || snapshot->map.players_captured) &&
-                    (!colonies || snapshot->map.colonies_captured) && (!planets || snapshot->map.planets_captured)) return &*snapshot;
+                if ((topics & TOPIC_SHIPS) && !Authorized_Snapshot(store, &*snapshot)) continue;
+                if ((!(topics & TOPIC_SHIPS) || snapshot->map.ships_captured) &&
+                    (!(topics & TOPIC_PLAYERS) || snapshot->map.players_captured) &&
+                    (!(topics & TOPIC_COLONIES) || snapshot->map.colonies_captured) &&
+                    (!(topics & TOPIC_PLANETS) || snapshot->map.planets_captured) &&
+                    (!(topics & TOPIC_RESEARCH) || snapshot->map.research_captured)) return &*snapshot;
             }
             return nullptr;
         }
@@ -224,31 +308,79 @@ namespace rpc {
                 ",\"armor\":" + std::to_string(item.armor) + "}},\"production\":{\"availability\":\"unaudited\"},\"buyCost\":{\"availability\":\"unaudited\"}}";
         }
 
-        size_t Collection_Size(const s_map_snapshot* snapshot, const std::string& topic) {
-            if (topic == "planets") return snapshot->map.planets.size();
-            if (topic == "colonies") return snapshot->map.colonies.size();
-            if (topic == "ships") return snapshot->map.ships.size();
-            if (topic == "players") return snapshot->map.players.size();
-            return topic == "systems" ? snapshot->map.systems.size() : snapshot->map.nebulas.size();
+        std::string Research_Id(const s_map_snapshot* snapshot, int32_t index) {
+            return index < 0 ? Exploration_Knowledge(EXPLORATION_EMPTY) : Exploration_Knowledge(EXPLORATION_CURRENT, Json_String(snapshot->technology_ids[(size_t)index]));
         }
 
-        std::string Collection(const s_game_store* store, const s_map_snapshot* snapshot, const std::string& topic, size_t offset, size_t limit) {
-            const size_t count = Collection_Size(snapshot, topic);
+        std::string Research_Cost(const s_technology_observation* technology) {
+            return Exploration_Knowledge(technology == nullptr ? EXPLORATION_EMPTY : (technology->cost_available ? EXPLORATION_CURRENT : EXPLORATION_UNAUDITED),
+                technology != nullptr ? std::to_string(technology->cost) : std::string());
+        }
+
+        std::string Research_Option(const s_map_snapshot* snapshot, size_t index) {
+            const auto& option = snapshot->map.research.options[index];
+            const auto& technology = snapshot->map.research.technologies[(size_t)(option.application >= 0 ? option.application : option.field)];
+            return "{\"id\":" + Json_String(snapshot->research_option_ids[index]) +
+                ",\"field\":" + Json_String(snapshot->technology_ids[(size_t)option.field]) +
+                ",\"application\":" + Research_Id(snapshot, option.application) +
+                ",\"label\":" + Json_String(technology.name) + ",\"remainingCost\":" + std::to_string(option.remaining) + "}";
+        }
+
+        std::string Research(const s_game_store* store, const s_map_snapshot* snapshot, bool stamped = true) {
+            const auto& research = snapshot->map.research;
+            std::string result = stamped ? "{\"stamp\":" + Stamp(store, snapshot) + ',' : "{";
+            result += "\"mode\":" + Json_String(research.mode) + ",\"project\":" + Research_Id(snapshot, research.project) +
+                ",\"application\":" + Research_Id(snapshot, research.application) +
+                ",\"progress\":{\"availability\":\"unaudited\"},\"cost\":" + Research_Cost(research.project >= 0 ? &research.technologies[(size_t)research.project] : nullptr) +
+                ",\"options\":[";
+            for (size_t index = 0; index < research.options.size(); ++index) {
+                if (index != 0) result += ',';
+                result += Research_Option(snapshot, index);
+            }
+            return result + "]}";
+        }
+
+        std::string Technology(const s_game_store* store, const s_map_snapshot* snapshot, size_t index) {
+            const auto& technology = snapshot->map.research.technologies[index];
+            return "{\"stamp\":" + Stamp(store, snapshot) + ",\"id\":" + Json_String(snapshot->technology_ids[index]) +
+                ",\"kind\":" + Json_String(technology.application ? "application" : "field") +
+                ",\"name\":" + Exploration_Knowledge(EXPLORATION_CURRENT, Json_String(technology.name)) +
+                ",\"description\":{\"availability\":\"unaudited\"},\"cost\":" + Research_Cost(&technology) + "}";
+        }
+
+        const std::vector<std::string>* Collection_Ids(const s_game_store* store, const s_map_snapshot* snapshot, e_topic topic) {
+            switch (topic) {
+                case TOPIC_SYSTEMS: return &store->system_ids;
+                case TOPIC_NEBULAS: return &store->nebula_ids;
+                case TOPIC_SHIPS: return &snapshot->ship_ids;
+                case TOPIC_PLAYERS: return &snapshot->player_ids;
+                case TOPIC_COLONIES: return &snapshot->colony_ids;
+                case TOPIC_PLANETS: return &snapshot->planet_ids;
+                case TOPIC_RESEARCH: return &snapshot->research_option_ids;
+                default: return nullptr;
+            }
+        }
+
+        std::string Collection_Item(const s_game_store* store, const s_map_snapshot* snapshot, e_topic topic, size_t index) {
+            switch (topic) {
+                case TOPIC_SYSTEMS: return System(store, snapshot, index);
+                case TOPIC_NEBULAS: return Nebula(store, snapshot, index);
+                case TOPIC_SHIPS: return Ship(snapshot, index);
+                case TOPIC_PLAYERS: return Player(snapshot, index);
+                case TOPIC_COLONIES: return Colony(snapshot, index);
+                case TOPIC_PLANETS: return Planet(snapshot, index);
+                case TOPIC_RESEARCH: return Research_Option(snapshot, index);
+                default: return {};
+            }
+        }
+
+        std::string Collection(const s_game_store* store, const s_map_snapshot* snapshot, e_topic topic, size_t offset, size_t limit) {
+            const auto* ids = Collection_Ids(store, snapshot, topic);
+            const size_t count = ids != nullptr ? ids->size() : 0;
             std::string result = "[";
             for (size_t index = offset; index < count && index - offset < limit; ++index) {
                 if (index != offset) result += ',';
-                if (topic == "planets")
-                    result += Planet(snapshot, index);
-                else if (topic == "colonies")
-                    result += Colony(snapshot, index);
-                else if (topic == "ships")
-                    result += Ship(snapshot, index);
-                else if (topic == "players")
-                    result += Player(snapshot, index);
-                else if (topic == "systems")
-                    result += System(store, snapshot, index);
-                else
-                    result += Nebula(store, snapshot, index);
+                result += Collection_Item(store, snapshot, topic, index);
             }
             return result + "]";
         }
@@ -258,14 +390,17 @@ namespace rpc {
             return yyjson_is_str(value) ? std::string(yyjson_get_str(value), yyjson_get_len(value)) : std::string();
         }
 
-        std::string Topic_Projection(const s_game_store* store, const s_map_snapshot* snapshot, const std::vector<std::string>* topics) {
+        std::string Topic_Projection(const s_game_store* store, const s_map_snapshot* snapshot, const std::vector<std::string>* topics, bool stamped = false) {
             std::string result;
             for (const std::string& topic : *topics) {
                 result += ',' + Json_String(topic) + ':';
-                if (topic == "session")
+                const e_topic selected = Find_Topic(topic);
+                if (selected == TOPIC_SESSION)
                     result += Session(store, snapshot);
+                else if (selected == TOPIC_RESEARCH)
+                    result += Research(store, snapshot, stamped);
                 else
-                    result += Collection(store, snapshot, topic, 0, 10000);
+                    result += Collection(store, snapshot, selected, 0, 10000);
             }
             return result;
         }
@@ -302,24 +437,19 @@ namespace rpc {
             s_state_subscription subscription;
             subscription.client = work->client;
             subscription.epoch = work->epoch;
+            subscription.topics = Read_Topics(yyjson_obj_get(params, "topics"));
             size_t index, count;
             yyjson_val* topic;
-            yyjson_arr_foreach(yyjson_obj_get(params, "topics"), index, count, topic) {
-                subscription.topics.emplace_back(yyjson_get_str(topic), yyjson_get_len(topic));
-            }
             yyjson_arr_foreach(yyjson_obj_get(params, "events"), index, count, topic) {
                 const std::string event(yyjson_get_str(topic), yyjson_get_len(topic));
                 subscription.state_changes |= event == "state.changed";
             }
             yyjson_doc_free(doc);
             if (store->busy_depth != 0 || !store->loaded || store->snapshots.empty()) return Error_Response(request, RPC_BUSY);
-            const bool ships = std::find(subscription.topics.begin(), subscription.topics.end(), "ships") != subscription.topics.end();
-            const bool players = std::find(subscription.topics.begin(), subscription.topics.end(), "players") != subscription.topics.end();
-            const bool colonies = std::find(subscription.topics.begin(), subscription.topics.end(), "colonies") != subscription.topics.end();
-            const bool planets = std::find(subscription.topics.begin(), subscription.topics.end(), "planets") != subscription.topics.end();
-            const auto* snapshot = Select_Snapshot(store, ships, players, colonies, planets);
+            const uint32_t topics = Topic_Mask(&subscription.topics);
+            const auto* snapshot = Select_Snapshot(store, topics);
             if (snapshot == nullptr) return Error_Response(request, RPC_BUSY);
-            if (ships) *context_epoch = snapshot->map.context_epoch;
+            if (topics & TOPIC_SHIPS) *context_epoch = snapshot->map.context_epoch;
             if (*context_epoch != 0) subscription.baseline_ticket = work->ticket;
             const size_t client_count = std::count_if(store->subscriptions.begin(), store->subscriptions.end(), [work](const s_state_subscription& item) { return item.client == work->client; });
             if (store->subscriptions.size() >= 64 || client_count >= 16) {
@@ -329,7 +459,7 @@ namespace rpc {
             subscription.projection = Topic_Projection(store, snapshot, &subscription.topics);
             subscription.revision = store->revision;
             const std::string result = "{\"subscriptionId\":" + Json_String(subscription.id) +
-                ",\"cursor\":\"0\",\"baseline\":{\"stamp\":" + Stamp(store, snapshot) + subscription.projection + "}}";
+                ",\"cursor\":\"0\",\"baseline\":{\"stamp\":" + Stamp(store, snapshot) + Topic_Projection(store, snapshot, &subscription.topics, true) + "}}";
             const std::string response = Result_Response(request, result);
             if (response.size() > 1048576) return Error_Response(request, RPC_LIMIT_EXCEEDED);
             store->subscriptions.push_back(std::move(subscription));
@@ -342,11 +472,8 @@ namespace rpc {
                 if (subscription.revision == store->revision) continue;
                 subscription.revision = store->revision;
                 if (!subscription.state_changes) continue;
-                const bool ships = std::find(subscription.topics.begin(), subscription.topics.end(), "ships") != subscription.topics.end();
-                const bool players = std::find(subscription.topics.begin(), subscription.topics.end(), "players") != subscription.topics.end();
-                const bool colonies = std::find(subscription.topics.begin(), subscription.topics.end(), "colonies") != subscription.topics.end();
-                const bool planets = std::find(subscription.topics.begin(), subscription.topics.end(), "planets") != subscription.topics.end();
-                const auto* snapshot = Select_Snapshot(store, ships, players, colonies, planets);
+                const uint32_t topics = Topic_Mask(&subscription.topics);
+                const auto* snapshot = Select_Snapshot(store, topics);
                 if (snapshot == nullptr) {
                     Cancel_Client(store->bridge, subscription.client);
                     continue;
@@ -364,7 +491,7 @@ namespace rpc {
                 const std::string json = "{\"jsonrpc\":\"2.0\",\"method\":\"state.changed\",\"params\":{\"subscriptionId\":" +
                     Json_String(subscription.id) + ",\"cursor\":" + Json_String(std::to_string(++subscription.cursor)) +
                     ",\"topics\":" + Topics_Json(&subscription.topics) + ",\"stamp\":" + Stamp(store, snapshot) + "}}";
-                if (Publish_Event(store->bridge, subscription.client, subscription.epoch, &json, &subscription.id, ships ? snapshot->map.context_epoch : 0)) subscription.projection = std::move(projection);
+                if (Publish_Event(store->bridge, subscription.client, subscription.epoch, &json, &subscription.id, (topics & TOPIC_SHIPS) ? snapshot->map.context_epoch : 0)) subscription.projection = std::move(projection);
             }
         }
 
@@ -409,70 +536,43 @@ namespace rpc {
                 *error = RPC_BUSY;
                 return {};
             }
-            bool ships = request->method == "game.listShips" || request->method == "game.getShip";
-            bool players = request->method == "game.listPlayers" || request->method == "game.getPlayer";
-            bool colonies = request->method == "game.listColonies" || request->method == "game.getColony";
-            bool planets = request->method == "game.listPlanets" || request->method == "game.getPlanet";
-            if (request->method == "game.getState") {
-                size_t index, count;
-                yyjson_val* topic;
-                yyjson_arr_foreach(yyjson_obj_get(params, "include"), index, count, topic) {
-                    ships |= std::string(yyjson_get_str(topic), yyjson_get_len(topic)) == "ships";
-                    players |= std::string(yyjson_get_str(topic), yyjson_get_len(topic)) == "players";
-                    colonies |= std::string(yyjson_get_str(topic), yyjson_get_len(topic)) == "colonies";
-                    planets |= std::string(yyjson_get_str(topic), yyjson_get_len(topic)) == "planets";
-                }
-            }
-            const s_map_snapshot* snapshot = Select_Snapshot(store, ships, players, colonies, planets);
+            const bool state = request->method == "game.getState";
+            const auto* method = Find_Query_Topic(request->method);
+            const auto selected = state ? Read_Topics(yyjson_obj_get(params, "include")) : std::vector<std::string>();
+            const uint32_t topics = state ? Topic_Mask(&selected) : (method != nullptr ? method->topic : TOPIC_NONE);
+            const s_map_snapshot* snapshot = Select_Snapshot(store, topics);
             if (snapshot == nullptr) {
                 *error = Text(params, "cursor").empty() ? RPC_BUSY : RPC_OBJECT_UNAVAILABLE;
                 return {};
             }
-            if (ships) *context_epoch = snapshot->map.context_epoch;
-            if (request->method == "game.getState") {
-                std::string result = "{\"stamp\":" + Stamp(store, snapshot);
-                yyjson_val* include = yyjson_obj_get(params, "include");
-                size_t index, count;
-                yyjson_val* topic;
-                yyjson_arr_foreach(include, index, count, topic) {
-                    const std::string name(yyjson_get_str(topic), yyjson_get_len(topic));
-                    if (name == "session")
-                        result += ",\"session\":" + Session(store, snapshot);
-                    else if (name == "systems")
-                        result += ",\"systems\":" + Collection(store, snapshot, name, 0, 1024);
-                    else if (name == "nebulas")
-                        result += ",\"nebulas\":" + Collection(store, snapshot, name, 0, 57);
-                    else if (name == "ships")
-                        result += ",\"ships\":" + Collection(store, snapshot, name, 0, 10000);
-                    else if (name == "players")
-                        result += ",\"players\":" + Collection(store, snapshot, name, 0, 8);
-                    else if (name == "colonies")
-                        result += ",\"colonies\":" + Collection(store, snapshot, name, 0, 5120);
-                    else if (name == "planets")
-                        result += ",\"planets\":" + Collection(store, snapshot, name, 0, 5120);
-                    else {
-                        *error = RPC_INVALID_PARAMS;
-                        return {};
-                    }
-                }
-                return result + "}";
+            if (topics & TOPIC_SHIPS) *context_epoch = snapshot->map.context_epoch;
+            if (state) {
+                return "{\"stamp\":" + Stamp(store, snapshot) + Topic_Projection(store, snapshot, &selected, true) + "}";
             }
-            if (request->method == "game.getSystem" || request->method == "game.getShip" || request->method == "game.getPlayer" || request->method == "game.getColony" || request->method == "game.getPlanet") {
+            if (request->method == "game.getResearch") return Research(store, snapshot);
+            if (request->method == "game.getTechnology") {
                 const std::string id = Text(params, "id");
-                const auto& ids = planets ? snapshot->planet_ids : (colonies ? snapshot->colony_ids : (players ? snapshot->player_ids : (ships ? snapshot->ship_ids : store->system_ids)));
-                for (size_t index = 0; index < ids.size(); ++index) {
-                    if (ids[index] == id) {
-                        return "{\"stamp\":" + Stamp(store, snapshot) + ",\"item\":" + (planets ? Planet(snapshot, index) : (colonies ? Colony(snapshot, index) : (players ? Player(snapshot, index) : (ships ? Ship(snapshot, index) : System(store, snapshot, index))))) + "}";
+                for (size_t index = 0; index < snapshot->technology_ids.size(); ++index) {
+                    if (snapshot->technology_ids[index] == id) return Technology(store, snapshot, index);
+                }
+                *error = RPC_OBJECT_UNAVAILABLE;
+                return {};
+            }
+            if (method == nullptr) {
+                *error = RPC_METHOD_NOT_FOUND;
+                return {};
+            }
+            const auto* ids = Collection_Ids(store, snapshot, method->topic);
+            if (method->get != nullptr && request->method == method->get) {
+                const std::string id = Text(params, "id");
+                for (size_t index = 0; index < ids->size(); ++index) {
+                    if ((*ids)[index] == id) {
+                        return "{\"stamp\":" + Stamp(store, snapshot) + ",\"item\":" + Collection_Item(store, snapshot, method->topic, index) + "}";
                     }
                 }
                 *error = RPC_OBJECT_UNAVAILABLE;
                 return {};
             }
-            if (request->method != "game.listSystems" && request->method != "game.listNebulas" && request->method != "game.listShips" && request->method != "game.listPlayers" && request->method != "game.listColonies" && request->method != "game.listPlanets") {
-                *error = RPC_METHOD_NOT_FOUND;
-                return {};
-            }
-            const std::string topic = planets ? "planets" : (colonies ? "colonies" : (players ? "players" : (ships ? "ships" : (request->method == "game.listSystems" ? "systems" : "nebulas"))));
             size_t offset = 0;
             yyjson_val* requested_limit = yyjson_obj_get(params, "limit");
             size_t limit = requested_limit != nullptr ? (size_t)yyjson_get_uint(requested_limit) : 64;
@@ -485,17 +585,17 @@ namespace rpc {
                     return {};
                 }
                 const auto pinned = std::find_if(store->snapshots.begin(), store->snapshots.end(), [&cursor](const s_map_snapshot& item) { return item.id == cursor->snapshot; });
-                if (pinned == store->snapshots.end() || (ships && !Authorized_Snapshot(store, &*pinned))) {
+                if (pinned == store->snapshots.end() || ((topics & TOPIC_SHIPS) && !Authorized_Snapshot(store, &*pinned))) {
                     *error = RPC_OBJECT_UNAVAILABLE;
                     return {};
                 }
                 snapshot = &*pinned;
-                if (ships) *context_epoch = snapshot->map.context_epoch;
+                if (topics & TOPIC_SHIPS) *context_epoch = snapshot->map.context_epoch;
                 offset = cursor->offset;
                 limit = cursor->limit;
             }
-            const size_t total = Collection_Size(snapshot, topic);
-            std::string result = "{\"stamp\":" + Stamp(store, snapshot) + ",\"items\":" + Collection(store, snapshot, topic, offset, limit);
+            const size_t total = Collection_Ids(store, snapshot, method->topic)->size();
+            std::string result = "{\"stamp\":" + Stamp(store, snapshot) + ",\"items\":" + Collection(store, snapshot, method->topic, offset, limit);
             if (offset + limit < total) {
                 auto next = std::find_if(store->cursors.begin(), store->cursors.end(), [&](const s_map_cursor& item) {
                     return item.snapshot == snapshot->id && item.method == request->method && item.offset == offset + limit && item.limit == limit;
@@ -598,6 +698,21 @@ namespace rpc {
         // Bind newly authorized default observers to the old coherent turn before replacing it.
         Sync_Turn_Observers(store);
         s_map_observation projected = *observation;
+        if (!projected.research_captured) projected.research = {};
+        auto& research = projected.research;
+        if (research.technologies.size() > 64 || research.options.size() > 32 ||
+            (research.mode != "no-selection" && research.mode != "researching" && research.mode != "hyper" && research.mode != "completed")) return false;
+        auto Research_Index = [&research](int32_t index, bool application, bool empty) {
+            return (empty && index == -1) || (index >= 0 && (size_t)index < research.technologies.size() && research.technologies[(size_t)index].application == application);
+        };
+        if (!Research_Index(research.project, false, true) || !Research_Index(research.application, true, true)) return false;
+        for (auto& technology : research.technologies) {
+            if (!technology.cost_available) technology.cost = 0;
+            if (technology.name.size() > 384 || technology.cost < 0) return false;
+        }
+        for (const auto& option : research.options) {
+            if (!Research_Index(option.field, false, false) || !Research_Index(option.application, true, true) || option.remaining < 0) return false;
+        }
         projected.exploration_sensitive = false;
         for (s_system_observation& system : projected.systems) {
             system.name_available &= system.visited || system.name_known;
@@ -817,7 +932,7 @@ namespace rpc {
                 std::tie(right.x, right.y, right.owned, right.name, right.owner_id, right.destination_available, right.destination_id, right.eta_available, right.eta);
         });
         std::vector<std::string> colony_ids;
-        const auto* previous_colonies = Select_Snapshot(store, false, false, true);
+        const auto* previous_colonies = Select_Snapshot(store, TOPIC_COLONIES);
         if (projected.colonies_captured && previous_colonies != nullptr && Same_Colonies(&projected, &previous_colonies->map)) colony_ids = previous_colonies->colony_ids;
         if (!Extend(&colony_ids, projected.colonies.size())) return false;
         for (auto& planet : projected.planets) {
@@ -826,16 +941,18 @@ namespace rpc {
             planet.system = -1;
         }
         if (projected.context_epoch == 0 && projected.ships_captured && !store->snapshots.empty() && !Authorized_Snapshot(store, &store->snapshots.back())) {
-            const auto* ambient = Select_Snapshot(store, true, projected.players_captured, projected.colonies_captured);
+            const auto* ambient = Select_Snapshot(store, TOPIC_SHIPS | (projected.players_captured ? TOPIC_PLAYERS : TOPIC_NONE) | (projected.colonies_captured ? TOPIC_COLONIES : TOPIC_NONE));
             if (ambient != nullptr && Same_Map(&projected, &ambient->map) && Same_Ships(&projected, &ambient->map) &&
                 (!projected.players_captured || (Same_Players(&projected, &ambient->map) && player_ids == ambient->player_ids)) &&
-                (!projected.colonies_captured || Same_Colonies(&projected, &ambient->map)) && (!projected.planets_captured || Same_Planets(&projected, &ambient->map))) return true;
+                (!projected.colonies_captured || Same_Colonies(&projected, &ambient->map)) && (!projected.planets_captured || Same_Planets(&projected, &ambient->map)) &&
+                (!projected.research_captured || Same_Research(&projected, &ambient->map))) return true;
         }
         const bool equal = !store->snapshots.empty() && Same_Map(&projected, &store->snapshots.back().map) &&
             (!projected.ships_captured || Same_Ships(&projected, &store->snapshots.back().map)) &&
             (!projected.players_captured || (Same_Players(&projected, &store->snapshots.back().map) && player_ids == store->snapshots.back().player_ids)) &&
             (!projected.colonies_captured || Same_Colonies(&projected, &store->snapshots.back().map)) &&
-            (!projected.planets_captured || Same_Planets(&projected, &store->snapshots.back().map));
+            (!projected.planets_captured || Same_Planets(&projected, &store->snapshots.back().map)) &&
+            (!projected.research_captured || Same_Research(&projected, &store->snapshots.back().map));
         if (projected.context_epoch != 0) store->context_active = true;
         if (equal && (projected.context_epoch == store->snapshots.back().map.context_epoch || !projected.ships_captured)) return true;
         if (store->revision == std::numeric_limits<uint64_t>::max()) return false;
@@ -845,6 +962,13 @@ namespace rpc {
         snapshot.player_ids = std::move(player_ids);
         snapshot.planet_ids = std::move(planet_ids);
         snapshot.colony_ids = std::move(colony_ids);
+        const auto* previous_research = Select_Snapshot(store, TOPIC_RESEARCH);
+        if (snapshot.map.research_captured && previous_research != nullptr && Same_Research(&snapshot.map, &previous_research->map)) {
+            snapshot.technology_ids = previous_research->technology_ids;
+            snapshot.research_option_ids = previous_research->research_option_ids;
+        }
+        if (!Extend(&snapshot.technology_ids, snapshot.map.research.technologies.size()) ||
+            !Extend(&snapshot.research_option_ids, snapshot.map.research.options.size())) return false;
         const s_map_snapshot* previous_ships = nullptr;
         for (auto item = store->snapshots.rbegin(); item != store->snapshots.rend(); ++item) {
             if (item->map.ships_captured) {

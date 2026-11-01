@@ -1,11 +1,10 @@
-# RPC contracts and P1 transport foundation
+# RPC interface
 
-Experimental optional runtime, prepared with AI assistance. This reference is not
-included in the documentation portal. The current service implements `rpc.hello`
-and `rpc.describe`, plus initial session/system/nebula reads. Remaining gameplay
-query families, all actions, renderer surfaces, Lua, files and debug inputs remain
-uncallable. See [the read-sidecar design](read_foundation.md) for the exact subset,
-native event boundaries and capture freshness contract.
+Experimental optional runtime; AI-assisted documentation. The canonical enabled
+surface is `methods.json.implementedMethods`, discoverable with `rpc.describe`.
+Current reads cover session, exploration, players, own colonies, own research and visible ships;
+all actions and unaudited fields remain unavailable. See
+[read-sidecar ownership](read_foundation.md) and the owner-specific field audits.
 
 ## Build and connect
 
@@ -130,29 +129,83 @@ or gameplay API are extracted or changed. `game_rpc_native_test.cpp` observes th
 actual native filter/builder and verifies the sidecar's copied allowlist. This one
 additional native hook path is explicitly permitted by the drift audit.
 
-## Plan and evidence ownership
+The approved research extraction shares native offered-choice enumeration and
+caller-buffer application-name formatting between the native UI and read sidecar.
+The drift audit permits `tech.cpp`, `tech.h` and `tech_choices.cpp` for that scope;
+it does not authorize research-changing RPC or a general UI-action framework.
 
-`plan.md` contains only working rules, high-level decisions and TODOs. Historical
-source inventories, coverage dispositions and progress notes are preserved in
-`planning_baseline.md`; it is not the current plan and must not receive new
-increment narratives. Current implementation evidence belongs in the relevant
-owner-specific document (`read_foundation.md`, `ship_refresh.md`,
-`player_view.md`, `colony_view.md` or `incoming_threats.md`). The audit reads
-coverage from the baseline document and method/test obligations from the plan.
+## Own research reads
 
-Plan/evidence separation verification (macOS ARM64, AI-assisted cleanup): all
-308 existing task IDs, ordering and completion states were compared with the
-pre-cleanup plan and preserved. The archived body is unchanged after its new
-historical header. Regression tests check stable task IDs without freezing
-future completion, unchanged catalog coverage and TODO-only tracking sections.
-All 103 Python tests pass, including the unchanged 39 live WebSocket cases.
-Required game/RPC/native-projection/server targets build normally and with
-ASAN/UBSAN; `test_rpc`, `test_game_rpc_native` and `test_rpc_transport` pass in
-both configurations. All 106 RPC-disabled CTest targets pass. Generator drift
-and whitespace checks pass; no C++ files changed, so C++ formatting is not
-applicable. Leak detection alone is disabled for the unsupported local runtime.
-This is documentation/audit-tool maintenance, not Q-07 disclosure or interactive
-saved-game/multiplayer/other-platform parity evidence.
+`game.getResearch` reports the current field (`project`), selected `application`,
+native research mode, field RP cost and offered options. An application selection
+does not predict all awards for creative or special fields. No selection is
+known-empty, not unknown; a completed/breakthrough state is distinct from active
+ordinary or hyper research. Options use the native change-research choices,
+including the current field and selectable no-application entries.
+
+`game.listResearchOptions` accepts the standard bounded `ListRequest` and returns
+`items` with field/application technology references. Resolve those references
+with `game.getTechnology` for copied native names and RP costs. Option IDs are
+choice references, not technology IDs or action capabilities. `remainingCost` is
+the native change-screen RP remainder, not a guaranteed completion threshold.
+Descriptions and raw progress remain explicitly unaudited; no prerequisites or
+forecasts are inferred.
+
+Include `research` in `game.getState` or `rpc.subscribe` for a coherent baseline
+and `state.changed` invalidations, including offered-choice changes. The nested
+research stamp matches the enclosing state stamp. Research changes expire old
+technology lookup handles; pinned option pages remain explicitly dated until
+eviction. Reset/perspective changes revoke both. Re-read a baseline after fresh
+authentication rather than carrying references between empires. The complete
+synthetic live client flow is exercised by
+`tests/rpc/test_transport.py::test_own_research_client_workflow_and_revocation`;
+native-function fixtures live in `tests/unit/game_rpc_native_test.cpp`.
+
+## Documentation ownership
+
+`plan.md` owns working rules, bounded milestones and TODOs. `planning_baseline.md`
+owns the pinned coverage inventories/dispositions consumed by the audit.
+`methods.json`, `contracts.json` and `field_policies.json` own public semantics,
+native authorization anchors and generation inputs. Tests provide executable
+behavioral evidence. Owner documents retain only unique current audit/architecture
+constraints, not per-increment narratives or repeated test counts:
+
+- [Exploration](exploration_view.md), [players](player_view.md),
+  [own colonies](colony_view.md), [ships](ship_refresh.md).
+- [Read ownership](read_foundation.md), [backend constraints](p1.md),
+  [native lifecycle audit](lifecycle.md), [remaining gates](evidence.md).
+- [Client-side incoming-threat example](incoming_threats.md).
+
+## Verification
+
+Use focused tests during development; run this integration gate at capability
+completion, adding affected native-owner targets when needed. Configure both
+build trees as above; for `rpc-asan` additionally set
+`-DORION2RE_ENABLE_ASAN=ON` (ASAN/UBSAN on Clang/GCC).
+
+```sh
+cmake --build out/build/rpc-debug --target orion2re test_rpc test_game_rpc_native rpc-test-server test_game_events test_fields test_fleetpop test_mainscr_reload test_lua_mod_runtime test_shipmove test_plntsum_filters test_colony_pop_growth test_map_scale --parallel 4
+ctest --test-dir out/build/rpc-debug -R '^test_(rpc|rpc_transport|game_rpc_native|game_events|fields|fleetpop|mainscr_reload|lua_mod_runtime|shipmove|plntsum_filters|colony_pop_growth|map_scale)$' --output-on-failure
+cmake --build out/build/rpc-asan --target orion2re test_rpc test_game_rpc_native rpc-test-server test_game_events test_fields test_fleetpop test_mainscr_reload test_lua_mod_runtime test_shipmove test_plntsum_filters test_colony_pop_growth test_map_scale --parallel 4
+ASAN_OPTIONS=detect_leaks=0:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 ctest --test-dir out/build/rpc-asan -R '^test_(rpc|rpc_transport|game_rpc_native|game_events|fields|fleetpop|mainscr_reload|lua_mod_runtime|shipmove|plntsum_filters|colony_pop_growth|map_scale)$' --output-on-failure
+ORION2RE_RPC_TEST_SERVER=out/build/rpc-debug/rpc-test-server python3 -m unittest discover -s tests/rpc -p 'test_*.py'
+python3 tools/generate_rpc_schema.py --check
+python3 tools/audit_rpc_contract.py
+bash tools/run-tests.sh
+git diff --check
+```
+
+Also check affected C++ formatting against the change's starting revision, without
+reformatting unrelated native code. `detect_leaks=0` is for the unsupported local
+macOS LeakSanitizer runtime only; use leak checking where supported. ASAN/UBSAN
+remain enabled. Synthetic native-function and live transport tests do not certify
+interactive saved-game/multiplayer or other-platform parity.
+
+For research changes, also build and select `test_tech_selection`, `test_techinit`
+and `test_techdata` in both normal and sanitizer trees.
+
+Documentation-only changes need contract/schema/audit tests, local link checks
+and whitespace checks, not the game-build/transport gate above.
 
 ## Static method descriptor source
 
@@ -161,7 +214,7 @@ the illustrative `(include)` signature suffix. Owner names are **proposed
 ownership labels**, not claims that those C++ adapters already exist. Shared UI
 actions dispatch through the active registered owner, not a global input injector.
 
-Runtime is opt-in; `implementedMethods` lists the thirteen implemented methods.
+Runtime is opt-in; `implementedMethods` lists the enabled methods.
 `contracts.json` supplies concrete
 request/result types for every named method; `field_policies.json` supplies native
 source anchors, predicates and required test IDs. These are contract definitions,
@@ -201,7 +254,7 @@ The root schema validates acknowledged client request shapes. Response validatio
 selects the per-method response definition by the outstanding request's method;
 server notifications and errors have separate definitions. The contract is still
 pre-release (`orion2.rpc/0`); the implemented-method annotation distinguishes the
-live metadata subset from planned gameplay contracts. Byte/depth limits,
+implemented subset from planned gameplay contracts. Byte/depth limits,
 lexical integer tokens, duplicate-key rejection, counter bounds and visibility
 rules are retained as explicit `x-*` annotations when they cannot be expressed
 as standard JSON Schema assertions. The protocol guards remain required; a

@@ -2,8 +2,10 @@
 #include "doctest/doctest.h"
 #include "rpc/game_rpc.h"
 #include "rpc/rpc_game.h"
+#include "rpc/tech_rpc.h"
 #include "game/game_events.h"
 #include "lua/lua_game_ship_identity.h"
+#include "config/text_encoding.h"
 
 #include <chrono>
 #include <iostream>
@@ -146,6 +148,237 @@ namespace {
         }
     };
 } // namespace
+
+namespace {
+    struct s_research_world {
+        s_ship_world ships;
+        std::vector<s_tech_field_data> old_fields = {std::begin(TECHDATA::technology_fields), std::end(TECHDATA::technology_fields)};
+        std::vector<s_tech_app_data> old_applications = {std::begin(TECHDATA::technology_applications), std::end(TECHDATA::technology_applications)};
+        std::vector<int16_t> old_roots = {std::begin(MOX::first_field_in_group), std::end(MOX::first_field_in_group)};
+        char* old_title = MOX::hyper_field_title;
+        char title[16] = "Hyper research";
+        char name[32] = "Synthetic tech\x82";
+        s_research_world() {
+            std::fill(std::begin(MOX::first_field_in_group), std::end(MOX::first_field_in_group), 0);
+            for (int16_t id = 0; id < TECH_FIELD_COUNT; ++id) {
+                TECHDATA::technology_fields[id] = {};
+                TECHDATA::technology_fields[id].tech_field_id = id;
+                TECHDATA::technology_fields[id].name = name;
+            }
+            for (int16_t id = 0; id < TECH_APP_COUNT; ++id) {
+                TECHDATA::technology_applications[id] = {};
+                TECHDATA::technology_applications[id].tech_app_id = id;
+                TECHDATA::technology_applications[id].name = name;
+            }
+            MOX::hyper_field_title = title;
+            MOX::first_field_in_group[4] = 1;
+            MOX::first_field_in_group[2] = 2;
+            MOX::first_field_in_group[6] = TECH_FIELD_BIOLOGY;
+            auto& player = ships.world.players[0];
+            player.current_research_field = 1;
+            player.current_research_application = 1;
+            player.research_accumulated = 125;
+            const int16_t available_fields[] = {1, 2, TECH_FIELD_BIOLOGY};
+            for (int16_t field : available_fields) player.tech_fields[field] = 2;
+            TECHDATA::technology_fields[1].cost = 600;
+            TECHDATA::technology_fields[2].cost = 900;
+            TECHDATA::technology_fields[TECH_FIELD_BIOLOGY].cost = 1000;
+            const int16_t applications[] = {1, 2, 3, 203};
+            std::copy(std::begin(applications), std::end(applications), TECHDATA::technology_fields[1].tech);
+            for (int16_t app : applications) {
+                player.tech_applications[app] = TECH_RESEARCH_STATUS_AVAILABLE;
+                TECHDATA::technology_applications[app].tech_field_id = 1;
+            }
+            TECHDATA::technology_applications[TECH_APP_BIOLOGY].tech_field_id = TECH_FIELD_BIOLOGY;
+            player.hyper_advanced_tech[0] = 20;
+        }
+        ~s_research_world() {
+            std::copy(old_fields.begin(), old_fields.end(), TECHDATA::technology_fields);
+            std::copy(old_applications.begin(), old_applications.end(), TECHDATA::technology_applications);
+            std::copy(old_roots.begin(), old_roots.end(), MOX::first_field_in_group);
+            MOX::hyper_field_title = old_title;
+        }
+    };
+} // namespace
+
+DOCTEST_TEST_CASE("research projection shares native offered choices and costs with modded fields without UI or RNG") {
+    s_research_world world;
+    auto& player = world.ships.world.players[0];
+    const uint32_t seed = game_random::Get_Random_Seed();
+    const int16_t fields_before = fields::Get_Field_Counter();
+    const auto old_screen = MOX::current_screen;
+    const auto old_player = MOX::cur_plyr_ptr;
+    rpc::s_map_observation map;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&map));
+    DOCTEST_REQUIRE(map.research_captured);
+    DOCTEST_CHECK(map.research.mode == "researching");
+    DOCTEST_REQUIRE(map.research.options.size() == 6);
+    size_t index = 0;
+    for (int16_t group : TECH::entry_to_group) {
+        TECH::s_research_choice choice;
+        DOCTEST_REQUIRE(TECH::Read_Research_Choice(&player, group, true, &choice));
+        for (int app = 0; app < choice.count; ++app, ++index) {
+            const auto& option = map.research.options[index];
+            DOCTEST_CHECK(option.remaining == TECH::New_Get_Tech_Cost(choice.field, false, 0) - player.research_accumulated);
+            DOCTEST_CHECK(map.research.technologies[(size_t)option.field].cost == COLCALC::Player_Research_Cost(&player, choice.field));
+            if (choice.applications[app] == 0) {
+                DOCTEST_CHECK(option.application == -1);
+            } else {
+                char name[128];
+                TECH::Copy_Application_Name(choice.applications[app], 0, name, sizeof(name));
+                std::string decoded;
+                config::Decode_Cp850_To_Utf8(name, strlen(name), &decoded);
+                DOCTEST_CHECK(map.research.technologies[(size_t)option.application].name == decoded);
+            }
+        }
+    }
+    TECH::s_research_choice excluded;
+    DOCTEST_REQUIRE(TECH::Read_Research_Choice(&player, 4, false, &excluded));
+    DOCTEST_CHECK(excluded.field == 0);
+    DOCTEST_CHECK(player.current_research_field == 1);
+    DOCTEST_CHECK(player.current_research_application == 1);
+    DOCTEST_CHECK((int32_t)player.research_accumulated == 125);
+    DOCTEST_CHECK(fields::Get_Field_Counter() == fields_before);
+    DOCTEST_CHECK(MOX::current_screen == old_screen);
+    DOCTEST_CHECK(MOX::cur_plyr_ptr == old_player);
+    DOCTEST_CHECK(game_random::Get_Random_Seed() == seed);
+    DOCTEST_CHECK(map.research.technologies.back().name.ends_with(" 21"));
+    world.name[0] = 'X';
+    DOCTEST_CHECK(map.research.technologies[0].name.starts_with("Synthetic"));
+}
+
+DOCTEST_TEST_CASE("native research modes preserve completion precedence no-selection hyper and known-empty choices") {
+    s_research_world world;
+    auto& player = world.ships.world.players[0];
+    rpc::s_map_observation map;
+    player.current_research_field = 0;
+    player.current_research_application = -1;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&map));
+    DOCTEST_CHECK(map.research.mode == "no-selection");
+    DOCTEST_CHECK(map.research.project == -1);
+    DOCTEST_CHECK(map.research.application == -1);
+    COLCALC::Resolve_Research_Completion(&player, true, 0);
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&map));
+    DOCTEST_CHECK(map.research.mode == "completed");
+    player.research_breakthrough = 0;
+    player.current_research_field = TECH_FIELD_BIOLOGY;
+    player.current_research_application = (int8_t)TECH_APP_BIOLOGY;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&map));
+    DOCTEST_CHECK(map.research.mode == "hyper");
+    player.current_research_field = 1;
+    player.current_research_application = 1;
+    player.tech_fields[1] = 3;
+    DOCTEST_REQUIRE(COLCALC::Player_N_Turns_Until_Research_Complete(&player) == 0);
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&map));
+    DOCTEST_CHECK(map.research.mode == "completed");
+    player.research_breakthrough = 1;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&map));
+    DOCTEST_CHECK(map.research.mode == "completed");
+    std::fill(std::begin(player.tech_fields), std::end(player.tech_fields), 0);
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&map));
+    DOCTEST_CHECK(map.research.options.empty());
+}
+
+DOCTEST_TEST_CASE("native research filters hidden apps before copying and follows configured chains with bounded failure") {
+    s_research_world world;
+    auto& player = world.ships.world.players[0];
+    player.tech_applications[203] = TECH_RESEARCH_STATUS_UNAVAILABLE;
+    TECHDATA::technology_applications[203].name = nullptr;
+    TECHDATA::technology_applications[203].tech_field_id = -32000;
+    world.ships.world.players[1].current_research_field = -1;
+    world.ships.world.players[1].research_accumulated = INT32_MIN;
+    rpc::s_map_observation map;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&map));
+    DOCTEST_CHECK(map.research.options.size() == 5);
+    player.tech_fields[1] = 1;
+    TECHDATA::technology_fields[1].next_field_id = 3;
+    player.tech_fields[3] = 2;
+    TECH::s_research_choice choice;
+    DOCTEST_REQUIRE(TECH::Read_Research_Choice(&player, 4, true, &choice));
+    DOCTEST_CHECK(choice.field == 3);
+    DOCTEST_CHECK(choice.count == 1);
+    DOCTEST_CHECK(choice.applications[0] == 0);
+    player.research_accumulated = 1000000;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&map));
+    for (const auto& option : map.research.options) DOCTEST_CHECK(option.remaining == 0);
+    player.tech_fields[3] = 1;
+    TECHDATA::technology_fields[3].next_field_id = 1;
+    DOCTEST_CHECK_FALSE(TECH::Read_Research_Choice(&player, 4, true, &choice));
+    TECHDATA::technology_fields[3].next_field_id = TECH_FIELD_COUNT;
+    DOCTEST_CHECK_FALSE(TECH::Read_Research_Choice(&player, 4, true, &choice));
+    DOCTEST_CHECK_FALSE(game_rpc::Read_Map_Observation(&map));
+}
+
+DOCTEST_TEST_CASE("native research and ship map captures remain coherent and hidden-only mutations do not revise research") {
+    s_research_world world;
+    rpc::s_bridge bridge;
+    rpc::s_game_store store;
+    DOCTEST_REQUIRE(rpc::Initialize_Game_Store(&store, &bridge));
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&store));
+    SHIPS::Build_Ship_Icons();
+    rpc::s_map_observation map;
+    DOCTEST_REQUIRE(game_rpc::Read_Refreshed_Ship_Observation(&map));
+    DOCTEST_REQUIRE(rpc::Capture_Map(&store, &map));
+    rpc::s_request request;
+    request.id_json = "1";
+    request.method = "game.getState";
+    request.params_json = "{\"include\":[\"session\",\"research\",\"ships\",\"systems\",\"players\"]}";
+    const auto before = rpc::Game_Query(&store, &request);
+    world.ships.world.players[1].research_accumulated = 99999;
+    world.ships.world.players[1].tech_applications[3] = TECH_RESEARCH_STATUS_RESEARCHED;
+    DOCTEST_REQUIRE(game_rpc::Read_Refreshed_Ship_Observation(&map));
+    DOCTEST_REQUIRE(rpc::Capture_Map(&store, &map));
+    DOCTEST_CHECK(rpc::Game_Query(&store, &request) == before);
+    world.ships.world.players[0].research_accumulated = 300;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&map));
+    DOCTEST_REQUIRE(rpc::Capture_Map(&store, &map));
+    DOCTEST_CHECK(rpc::Game_Query(&store, &request) == before);
+    world.ships.ships[0].x = 111;
+    SHIPS::Build_Ship_Icons();
+    DOCTEST_REQUIRE(game_rpc::Read_Refreshed_Ship_Observation(&map));
+    DOCTEST_REQUIRE(rpc::Capture_Map(&store, &map));
+    const auto after = rpc::Game_Query(&store, &request);
+    DOCTEST_CHECK(after != before);
+    DOCTEST_CHECK(after.find("\"remainingCost\":300") != std::string::npos);
+    DOCTEST_CHECK(after.find("\"x\":111") != std::string::npos);
+    rpc::Shutdown_Game_Store(&store);
+}
+
+DOCTEST_TEST_CASE("research supports every native option slot and the final hyper field and application") {
+    s_research_world world;
+    auto& player = world.ships.world.players[0];
+    for (int16_t group = 1; group <= 8; ++group) {
+        MOX::first_field_in_group[group] = group;
+        player.tech_fields[group] = 2;
+        for (int slot = 0; slot < 4; ++slot) {
+            const int16_t app = (int16_t)((group - 1) * 4 + slot + 1);
+            TECHDATA::technology_fields[group].tech[slot] = app;
+            TECHDATA::technology_applications[app].tech_field_id = group;
+            player.tech_applications[app] = TECH_RESEARCH_STATUS_AVAILABLE;
+        }
+    }
+    rpc::s_map_observation map;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&map));
+    DOCTEST_CHECK(map.research.options.size() == 32);
+    rpc::s_bridge bridge;
+    rpc::s_game_store store;
+    DOCTEST_REQUIRE(rpc::Initialize_Game_Store(&store, &bridge));
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&store));
+    DOCTEST_REQUIRE(rpc::Capture_Map(&store, &map));
+    const int16_t field = TECH_FIELD_COUNT - 1;
+    const int16_t app = TECH_APP_COUNT - 1;
+    MOX::first_field_in_group[8] = field;
+    player.tech_fields[field] = 2;
+    player.current_research_field = (int8_t)field;
+    player.current_research_application = (int8_t)app;
+    TECHDATA::technology_applications[app].tech_field_id = field;
+    player.hyper_advanced_tech[field - TECH_FIELD_BIOLOGY] = 255;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&map));
+    DOCTEST_CHECK(map.research.mode == "hyper");
+    DOCTEST_CHECK(map.research.technologies[(size_t)map.research.application].name.ends_with(" 256"));
+    DOCTEST_REQUIRE(rpc::Capture_Map(&store, &map));
+    rpc::Shutdown_Game_Store(&store);
+}
 
 DOCTEST_TEST_CASE("native map projection uses the local visited bit and native name formatting without RNG") {
     s_world world;

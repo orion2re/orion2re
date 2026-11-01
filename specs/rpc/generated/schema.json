@@ -1166,6 +1166,25 @@
       ],
       "x-rpc-policy": "contract"
     },
+    "CurrentResearchPoints": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/Current",
+          "x-rpc-policy": "contract"
+        },
+        "value": {
+          "$ref": "#/$defs/ResearchPoints",
+          "x-rpc-policy": "contract"
+        }
+      },
+      "required": [
+        "availability",
+        "value"
+      ],
+      "x-rpc-policy": "contract"
+    },
     "CurrentShipEta": {
       "type": "object",
       "additionalProperties": false,
@@ -1925,6 +1944,19 @@
       "oneOf": [
         {
           "$ref": "#/$defs/CurrentPlayerHUD"
+        },
+        {
+          "$ref": "#/$defs/Unavailable"
+        }
+      ]
+    },
+    "KnownResearchPoints": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CurrentResearchPoints"
+        },
+        {
+          "$ref": "#/$defs/EmptyKnowledge"
         },
         {
           "$ref": "#/$defs/Unavailable"
@@ -3023,28 +3055,124 @@
       "properties": {
         "stamp": {
           "$ref": "#/$defs/Stamp",
-          "x-rpc-policy": "disabled-research"
+          "x-rpc-policy": "research-own"
+        },
+        "mode": {
+          "$ref": "#/$defs/ResearchMode",
+          "x-rpc-policy": "research-own"
         },
         "project": {
-          "$ref": "#/$defs/KnownId",
-          "x-rpc-policy": "disabled-research"
+          "$ref": "#/$defs/ExplorationId",
+          "x-rpc-policy": "research-own"
+        },
+        "application": {
+          "$ref": "#/$defs/ExplorationId",
+          "x-rpc-policy": "research-own"
         },
         "progress": {
           "$ref": "#/$defs/KnownCount",
-          "x-rpc-policy": "disabled-research"
+          "x-rpc-policy": "disabled-research-progress"
         },
         "cost": {
-          "$ref": "#/$defs/KnownCount",
-          "x-rpc-policy": "disabled-research"
+          "$ref": "#/$defs/KnownResearchPoints",
+          "x-rpc-policy": "research-own"
+        },
+        "options": {
+          "$ref": "#/$defs/ResearchOptions",
+          "x-rpc-policy": "research-own"
         }
       },
       "required": [
         "stamp",
+        "mode",
         "project",
+        "application",
         "progress",
-        "cost"
+        "cost",
+        "options"
       ],
-      "x-rpc-policy": "disabled-research"
+      "x-rpc-policy": "research-own"
+    },
+    "ResearchMode": {
+      "type": "string",
+      "enum": [
+        "no-selection",
+        "researching",
+        "hyper",
+        "completed"
+      ]
+    },
+    "ResearchOption": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Id",
+          "x-rpc-policy": "research-own"
+        },
+        "field": {
+          "$ref": "#/$defs/Id",
+          "x-rpc-policy": "research-own"
+        },
+        "application": {
+          "$ref": "#/$defs/ExplorationId",
+          "x-rpc-policy": "research-own"
+        },
+        "label": {
+          "$ref": "#/$defs/Text",
+          "x-rpc-policy": "research-own"
+        },
+        "remainingCost": {
+          "$ref": "#/$defs/ResearchPoints",
+          "x-rpc-policy": "research-own"
+        }
+      },
+      "required": [
+        "id",
+        "field",
+        "application",
+        "label",
+        "remainingCost"
+      ],
+      "x-rpc-policy": "research-own"
+    },
+    "ResearchOptions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ResearchOption"
+      },
+      "maxItems": 32
+    },
+    "ResearchOptionsResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "stamp": {
+          "$ref": "#/$defs/Stamp",
+          "x-rpc-policy": "contract"
+        },
+        "items": {
+          "$ref": "#/$defs/ResearchOptions",
+          "x-rpc-policy": "contract"
+        },
+        "nextCursor": {
+          "$ref": "#/$defs/Id",
+          "x-rpc-policy": "contract"
+        }
+      },
+      "required": [
+        "stamp",
+        "items"
+      ],
+      "x-rpc-policy": "contract"
+    },
+    "ResearchPoints": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 2147483647,
+      "x-integerToken": true,
+      "x-unit": "rp",
+      "description": "Native displayed research points. Total field cost and change-research remaining cost are distinct; neither is a guaranteed breakthrough threshold."
     },
     "Resource": {
       "type": "object",
@@ -3669,7 +3797,8 @@
         "ships",
         "players",
         "colonies",
-        "planets"
+        "planets",
+        "research"
       ]
     },
     "StateTopics": {
@@ -3677,7 +3806,7 @@
       "items": {
         "$ref": "#/$defs/StateTopic"
       },
-      "maxItems": 7,
+      "maxItems": 8,
       "uniqueItems": true
     },
     "StreamGap": {
@@ -3763,7 +3892,7 @@
       "items": {
         "$ref": "#/$defs/StateTopic"
       },
-      "maxItems": 7,
+      "maxItems": 8,
       "minItems": 1,
       "uniqueItems": true
     },
@@ -3886,28 +4015,45 @@
       "properties": {
         "stamp": {
           "$ref": "#/$defs/Stamp",
-          "x-rpc-policy": "disabled-research"
+          "x-rpc-policy": "research-own"
         },
         "id": {
           "$ref": "#/$defs/Id",
-          "x-rpc-policy": "disabled-research"
+          "x-rpc-policy": "research-own"
+        },
+        "kind": {
+          "$ref": "#/$defs/TechnologyKind",
+          "x-rpc-policy": "research-own"
         },
         "name": {
           "$ref": "#/$defs/KnownText",
-          "x-rpc-policy": "disabled-research"
+          "x-rpc-policy": "research-own"
         },
         "description": {
           "$ref": "#/$defs/KnownText",
-          "x-rpc-policy": "disabled-research"
+          "x-rpc-policy": "disabled-research-description"
+        },
+        "cost": {
+          "$ref": "#/$defs/KnownResearchPoints",
+          "x-rpc-policy": "research-own"
         }
       },
       "required": [
         "stamp",
         "id",
+        "kind",
         "name",
-        "description"
+        "description",
+        "cost"
       ],
-      "x-rpc-policy": "disabled-research"
+      "x-rpc-policy": "research-own"
+    },
+    "TechnologyKind": {
+      "type": "string",
+      "enum": [
+        "field",
+        "application"
+      ]
     },
     "Text": {
       "type": "string",
@@ -5494,7 +5640,7 @@
           "const": "game.listResearchOptions"
         },
         "params": {
-          "$ref": "#/$defs/Empty"
+          "$ref": "#/$defs/ListRequest"
         }
       }
     },
@@ -5514,7 +5660,7 @@
           "$ref": "#/$defs/RpcRequestId"
         },
         "result": {
-          "$ref": "#/$defs/OptionsResult"
+          "$ref": "#/$defs/ResearchOptionsResult"
         }
       }
     },
@@ -7394,7 +7540,7 @@
       "role": "reader",
       "availability": "committed-game",
       "kind": "query",
-      "implemented": false,
+      "implemented": true,
       "requestType": "Empty",
       "resultType": "Research",
       "request": {
@@ -7474,7 +7620,7 @@
       "role": "reader",
       "availability": "committed-game",
       "kind": "query",
-      "implemented": false,
+      "implemented": true,
       "requestType": "GetRequest",
       "resultType": "Technology",
       "request": {
@@ -7618,9 +7764,9 @@
       "role": "reader",
       "availability": "committed-game",
       "kind": "query",
-      "implemented": false,
-      "requestType": "Empty",
-      "resultType": "OptionsResult",
+      "implemented": true,
+      "requestType": "ListRequest",
+      "resultType": "ResearchOptionsResult",
       "request": {
         "$ref": "#/$defs/Request_game_listResearchOptions"
       },
@@ -8930,17 +9076,72 @@
         "T-08"
       ]
     },
-    "disabled-research": {
+    "research-own": {
+      "status": "reviewed",
+      "predicate": "Bound active human viewer only. Shared Read_Research_Choice follows configured group roots and field links, status 2 and AVAILABLE applications, preserving native no-application placeholders and synthetic hyper applications. Include current field as native change-research does, without clearing native state. Project is the current field; application is the selected application, not a prediction of all awards. HUD breakthrough takes precedence over no-selection; field status 3 is completed, and active hyper research is distinct. Authorize technology references only through current project/application or offered choices, never arbitrary catalog IDs, opponent arrays, AI priorities or future tree entries. Copy native names using caller-owned buffers and New_Get_Tech_Cost RP totals; remainingCost is max(0, native field cost minus accumulated RP), as in change-research, not guaranteed turns/threshold or independent application cost. Bound by native capacities and 8 groups times 4 choices, not stock review-category counts; do not enumerate review categories. Capture with map/ship state and retain only owned projection. Reuse immutable snapshot handles/pages and perspective revocation; changed research invalidates old lookup handles, pinned pages remain dated. No UI builders, initialization, selection, completion or RNG operations.",
+      "sources": [
+        [
+          "src/game/tech_choices.cpp",
+          "Read_Research_Choice"
+        ],
+        [
+          "src/game/tech.cpp",
+          "Init_Entry_Data"
+        ],
+        [
+          "src/game/tech.cpp",
+          "New_Get_Tech_Cost"
+        ],
+        [
+          "src/game/tech.cpp",
+          "saved_current_field"
+        ],
+        [
+          "src/game/mainscr_main.cpp",
+          "plr->research_breakthrough != 0"
+        ],
+        [
+          "src/game/colcalc.cpp",
+          "plr->tech_fields[field_idx] == 3"
+        ],
+        [
+          "src/game/colcalc.cpp",
+          "Player_Research_Cost"
+        ],
+        [
+          "src/game/techinit.cpp",
+          "Validate_And_Rebuild_Technology"
+        ]
+      ],
+      "tests": [
+        "T-01",
+        "T-02",
+        "T-03",
+        "T-05"
+      ]
+    },
+    "disabled-research-progress": {
       "status": "disabled",
-      "predicate": "Own progress/choices or allowlisted public reference only. Costs/progress units and enemy scan disclosure require separate audits; no enemy research arrays.",
+      "predicate": "Raw accumulated RP is not a universal native progress display. Colony-summary configuration changes accumulated/remaining/chance semantics. Keep progress unaudited; no invented percentage or forecast.",
+      "sources": [
+        [
+          "src/game/colsum.cpp",
+          "switch (print_research_value)"
+        ]
+      ],
+      "tests": [
+        "T-01",
+        "T-02",
+        "T-03"
+      ]
+    },
+    "disabled-research-description": {
+      "status": "disabled",
+      "predicate": "Description remains unaudited. Canonical application descriptions load localized help resources and render formatted paragraphs; this capability does not invoke that UI path or expose raw formatting/resource data. No inferred prerequisites.",
       "sources": [
         [
           "src/game/tech.cpp",
-          "Commit_Selected_Entry"
-        ],
-        [
-          "src/game/science.cpp",
-          "Science_Room"
+          "Draw_Application_Description"
         ]
       ],
       "tests": [
@@ -9175,7 +9376,7 @@
     "orderedEventsPerSubscription": 4096,
     "overflow": "Reject before admission; coalesce only complete unsent state. Ordered-event overflow signals a gap or disconnect. Never rewrite partial output or silently discard operation results."
   },
-  "x-rpc-sourceHash": "b0bbf0441e062bcee84daeee92af0372d127a5f919acb7000b289006ba744c70",
+  "x-rpc-sourceHash": "27101eb603c6020b78b977d6895b460f424812a961be547faa3b24dfbe6ce524",
   "x-rpc-runtimeEnabled": false,
   "x-rpc-implementedMethods": [
     "rpc.hello",
@@ -9194,6 +9395,9 @@
     "game.listColonies",
     "game.getColony",
     "game.listPlanets",
-    "game.getPlanet"
+    "game.getPlanet",
+    "game.getResearch",
+    "game.listResearchOptions",
+    "game.getTechnology"
   ]
 }
