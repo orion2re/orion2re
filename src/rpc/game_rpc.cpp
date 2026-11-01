@@ -236,7 +236,7 @@ namespace game_rpc {
                 return item.node == info->node && item.slot == info->ship && item.head == info->box_head;
             });
             if (head == adapter->associations.end() || head->node != head->head ||
-                head->location < SHIP_LOCATION_WORMHOLE_OFFSET || head->location >= SHIP_LOCATION_LIMIT ||
+                head->location < SHIP_LOCATION_MOVING_OFFSET || head->location >= SHIP_LOCATION_LIMIT ||
                 head->ship.eta_available != rpc::SHIP_CONTEXT_REQUIRED ||
                 info->members[0].node != head->node || info->members[0].ship != head->slot) return;
             const bool contextual = head->ship.destination_available != rpc::SHIP_CURRENT;
@@ -244,10 +244,14 @@ namespace game_rpc {
             if (destination < 0 || destination >= MOX::NUM_STARS ||
                 (info->star != -1 && info->star != destination)) return;
             if (contextual) {
-                if (head->ship.owned || head->status != 2 || !adapter->frame ||
+                // Native departure uses the upper encoding; ordinary transit uses
+                // the lower encoding and status 1. Do not admit mixed states.
+                const int8_t status = head->location < SHIP_LOCATION_WORMHOLE_OFFSET ? 1 : 2;
+                if (head->ship.owned || head->status != status || !adapter->frame ||
                     adapter->route_node != head->node || adapter->route_ship != head->slot ||
                     HAROLD::Absolute_Location(head->location) != destination) return;
-            } else if (!head->ship.owned && !Ambient_Foreign_Route(destination))
+            } else if (head->location < SHIP_LOCATION_WORMHOLE_OFFSET ||
+                (!head->ship.owned && !Ambient_Foreign_Route(destination)))
                 return;
             std::vector<bool> members(MAX_SHIPS);
             std::vector<int32_t> associations(MAX_SHIPS, -1);

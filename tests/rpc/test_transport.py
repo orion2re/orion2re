@@ -511,8 +511,14 @@ class TransportTests(unittest.TestCase):
     def test_contextual_route_and_eta_are_withdrawn_together_without_losing_ambient_routes(self):
         self.Check_Context_Eta(True, True)
 
-    def Check_Context_Eta(self, foreign, contextual_route=False):
-        prefix = "route" if contextual_route else ("eta-foreign" if foreign else "eta")
+    def test_ordinary_departing_destination_and_eta_use_complete_context_revocation(self):
+        self.Check_Context_Eta(True, True, "ordinary-departing", 0)
+
+    def test_ordinary_transit_destination_and_eta_use_complete_context_revocation(self):
+        self.Check_Context_Eta(True, True, "ordinary-transit", 255)
+
+    def Check_Context_Eta(self, foreign, contextual_route=False, prefix=None, eta=0):
+        prefix = prefix or ("route" if contextual_route else ("eta-foreign" if foreign else "eta"))
         index = 1 if foreign else 0
         self.Fixture("world")
         self.Fixture("colonies")
@@ -526,7 +532,7 @@ class TransportTests(unittest.TestCase):
         self.assertEqual(state, baseline["baseline"])
         self.assertEqual(state["stamp"]["captureMode"], "last-native-fleet-box")
         self.assertEqual(state["session"]["revision"], state["stamp"]["revision"])
-        self.assertEqual(state["ships"][index]["eta"], {"availability":"current", "value":0})
+        self.assertEqual(state["ships"][index]["eta"], {"availability":"current", "value":eta})
         self.assertIn(state["ships"][index]["destination"]["value"], {item["id"] for item in state["systems"]})
         if foreign:
             self.assertFalse(state["ships"][index]["owned"])
@@ -579,6 +585,19 @@ class TransportTests(unittest.TestCase):
         self.Fixture("colonies")
         self.Fixture("route-ambient")
         self.Fixture("route-context")
+        self.Check_Context_Output("publish-foreign-context-large")
+
+    def test_ordinary_departing_fields_revoke_service_owned_pending_output(self):
+        self.Check_Ordinary_Output("ordinary-departing")
+
+    def test_ordinary_transit_fields_revoke_service_owned_pending_output(self):
+        self.Check_Ordinary_Output("ordinary-transit")
+
+    def Check_Ordinary_Output(self, prefix):
+        self.Fixture("world")
+        self.Fixture("colonies")
+        self.Fixture(prefix + "-ambient")
+        self.Fixture(prefix + "-context")
         self.Check_Context_Output("publish-foreign-context-large")
 
     def Check_Context_Output(self, command):

@@ -7997,7 +7997,7 @@
     },
     "ship-map-route": {
       "status": "reviewed",
-      "predicate": "Ambient subset at fresh surviving-icon capture: own route, or non-own moving head with enemy_moves presentation or the existing Enemy_Ship_Heading_Toward_Our_Colony predicate. Preserve the native outpost predicate's ignored player argument and non-own, not necessarily hostile, semantics. Validated ambient stack members share only the displayed head's location/owner/position route. Additional contextual subset: only a surviving non-own status-2 departing wormhole head whose actual selected/open-box destination line was drawn during current initialized main-owner presentation, in the same native frame before its actual non-preview cached fleet-box ETA producer. An open box or copied destination alone never authorizes it. Validate exact surviving head and complete current membership under ship-map-eta; grant only this head's route and ETA under one revocable capture lease. Resolve only real same-capture systems to opaque handles and discard private bindings. Line presentation grants map-position knowledge, not an unvisited system name; producer star -1 is withheld name knowledge, not known-empty. Revoke contextual destination and ETA together through pages, subscriptions, bridge work/publications, delivery receipts and service output; preserve independent ambient reads. Stationary own location is known-empty; remaining selection data is context-required and special destinations get no fabricated handles. Detection, contact, ownership and omniscience alone never authorize routes. No query invokes UI builders, renderers or movement calculators.",
+      "predicate": "Ambient subset at fresh surviving-icon capture: own route, or non-own moving head with enemy_moves presentation or the existing Enemy_Ship_Heading_Toward_Our_Colony predicate. Preserve the native outpost predicate's ignored player argument and non-own, not necessarily hostile, semantics. Validated ambient stack members share only the displayed head's location/owner/position route. Additional contextual subset: only a surviving non-own head with canonical movement encoding (status-2 upper-offset departure, including ordinary departure, or status-1 ordinary moving-offset transit) whose actual selected/open-box destination line was drawn during current initialized main-owner presentation, in the same native frame before its actual non-preview cached fleet-box ETA producer. Reject mixed status/location encodings. Ordinary map-icon ETA printing follows the line observation but is not the fleet-box producer or an independent context grant. An open box or copied destination alone never authorizes it. Validate exact surviving head and complete current membership under ship-map-eta; grant only this head's route and ETA under one revocable capture lease. Resolve only real same-capture systems to opaque handles and discard private bindings. Line presentation grants map-position knowledge, not an unvisited system name; producer star -1 is withheld name knowledge, not known-empty. Revoke contextual destination and ETA together through pages, subscriptions, bridge work/publications, delivery receipts and service output; preserve independent ambient reads. Stationary own location is known-empty; remaining selection data is context-required and special destinations get no fabricated handles. Detection, contact, ownership and omniscience alone never authorize routes. No query invokes UI builders, renderers or movement calculators.",
       "sources": [
         [
           "src/game/ships.cpp",
@@ -8026,6 +8026,14 @@
         [
           "src/game/fleetpop.cpp",
           "Print_Fleet_Box_Info"
+        ],
+        [
+          "src/game/shipmove.cpp",
+          "Make_Ships_Move_To"
+        ],
+        [
+          "src/game/shipmove.cpp",
+          "Move_All_Ships_Toward_Stars"
         ]
       ],
       "tests": [
@@ -8038,7 +8046,7 @@
     },
     "ship-map-eta": {
       "status": "reviewed",
-      "predicate": "Preserve cached uint8 turns_left including zero/255; never calculate ETA. Ambient ordinary-route ETA belongs only to its surviving displayed head. Fleet-box subset: actual non-preview cached producer for a surviving own/non-own wormhole head, initialized active main owner/presentation, exact complete current open-box membership and no stale selected references; empty selection is valid. Destination must either be independently current in the ambient capture (foreign enemy_moves or native incoming-colony/outpost gate rechecked at production), or satisfy the actual same-frame contextual route presentation in ship-map-route. Capture associations only at refresh; validate box members' private owner/location/status/generation and public position, reject retirement/slot/node reuse without later node traversal. Never read foreign canonical names or use private checks for public identity/sorting. Copy borrowed values into a fresh immutable coherent six-topic capture including session, stamped last-native-fleet-box; never enrich retained captures. Resolve only real same-capture destinations; producer star -1 withholds its name, not map knowledge and not known-empty. Revoke both contextual fields through retained pages, subscriptions, bridge work/publications, delivery receipts and every service-output fragment on authority loss, owner/box replacement, child interruption, rebuild, world/perspective changes and resolution. Started revoked messages close rather than finish; preserve independently authorized ambient offscreen reads. Equal fresh presentation after rebuild retains public IDs/revisions but never revives expired pages. Other wormhole/non-head ETA remains context-required, stationary own ships known-empty, special destinations get no fabricated handles. Grants no extra names, unaudited routes, orders, cargo, designs or hostility classification.",
+      "predicate": "Preserve cached uint8 turns_left including zero/255; never calculate ETA. Ambient ordinary-route ETA belongs only to its surviving displayed head. Fleet-box subset: actual non-preview cached producer for a surviving own/non-own upper-offset head with independently current ambient destination, or the canonical departing/ordinary-transit contextual head audited in ship-map-route. Require initialized active main owner/presentation, exact complete current open-box membership and no stale selected references; empty selection is valid. Foreign ambient enemy_moves or native incoming-colony/outpost gates are rechecked at production; they are not relaxed for ordinary contextual disclosure. Contextual destination instead requires actual same-frame line presentation followed by the fleet-box producer, not arbitrary cached or map-icon ETA. Capture associations only at refresh; validate box members' private owner/location/status/generation and public position, reject retirement/slot/node reuse without later node traversal. Never read foreign canonical names or use private checks for public identity/sorting. Copy borrowed values into a fresh immutable coherent six-topic capture including session, stamped last-native-fleet-box; never enrich retained captures. Resolve only real same-capture destinations; producer star -1 withholds its name, not map knowledge and not known-empty. Revoke both contextual fields through retained pages, subscriptions, bridge work/publications, delivery receipts and every service-output fragment on authority loss, owner/box replacement, child interruption, rebuild, world/perspective changes and resolution. Started revoked messages close rather than finish; preserve independently authorized ambient offscreen reads. Equal fresh presentation after rebuild retains public IDs/revisions but never revives expired pages. Other upper-offset/non-head ETA remains context-required, stationary own ships known-empty, special destinations get no fabricated handles. Grants no extra names, unaudited routes, orders, cargo, designs or hostility classification.",
       "sources": [
         [
           "src/game/ships.cpp",
@@ -8083,6 +8091,14 @@
         [
           "src/game/shipmove.cpp",
           "Advance_Ship_Generation"
+        ],
+        [
+          "src/game/shipmove.cpp",
+          "Make_Ships_Move_To"
+        ],
+        [
+          "src/game/shipmove.cpp",
+          "Move_All_Ships_Toward_Stars"
         ]
       ],
       "tests": [
@@ -8448,7 +8464,7 @@
     "orderedEventsPerSubscription": 4096,
     "overflow": "Reject before admission; coalesce only complete unsent state. Ordered-event overflow signals a gap or disconnect. Never rewrite partial output or silently discard operation results."
   },
-  "x-rpc-sourceHash": "600712dd287096285b1dc5bb45f6b85bf57f0c0093b2696bbb5525dc72bc1a29",
+  "x-rpc-sourceHash": "7f71b5aa5a60bb8639b57a54f47c0a07c9d2d7905202bdb2f34d7306db0ec408",
   "x-rpc-runtimeEnabled": false,
   "x-rpc-implementedMethods": [
     "rpc.hello",

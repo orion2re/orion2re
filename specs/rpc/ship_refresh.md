@@ -765,6 +765,169 @@ Reproduce affected-range formatting with:
 git-clang-format --diff 2930312 -- src/game/game_events.cpp src/game/game_events.h src/game/ships.cpp src/game/mainscr_main.cpp src/rpc/game_rpc.cpp src/rpc/game_rpc.h tests/unit/game_events_test.cpp tests/unit/game_rpc_native_test.cpp tests/unit/rpc_game_test.cpp tools/rpc_test_server.cpp
 ```
 
+### Completed additional Q-07 ordinary-route contextual destination-and-ETA path
+
+Prepared with AI assistance. This adds the surviving **non-own ordinary-route
+head**, with ambient route gates absent, only when its actual selected/open-box
+line and later non-preview cached fleet-box ETA are presented in the same active
+native frame. Departure and transit are audited together. The three completed
+paths above remain supported; ambient gates, foreign-name withholding, the
+15-method/six-topic surface and P1 scope are unchanged. Q-06, Q-07, Q-13 and V-04
+remain unchecked.
+
+#### Native encodings and presentation authority
+
+The symbolic `SHIP_LOCATION_WORMHOLE_OFFSET` is **not proof of wormhole travel**.
+`SHIPMOVE::Make_Ships_Move_To` writes that upper offset and status 2 for departure
+from a system, including ordinary movement with no wormhole link, navigator or
+jump-gate route. Its lower moving-offset branch writes status 1 for an already
+moving fleet. `Move_All_Ships_Toward_Stars` subtracts the moving offset from an
+upper-offset departing ship, advances its position, decrements the cached ETA,
+and writes status 1 if it has not arrived. Thus ordinary departure uses the
+already supported status-2 upper encoding; ordinary transit uses status 1 and
+`SHIP_LOCATION_MOVING_OFFSET + destination`. A status-2 lower encoding is not
+manufactured for success fixtures or admitted contextually. Historical references
+above to a departing “wormhole head” describe the upper encoding, not an assertion
+that every such departure uses a wormhole.
+
+`Do_Ship_Destination_Lines`' selected/open-box branch has no status-2 restriction
+and permits an empty member selection. It draws the ordinary destination line
+even without `enemy_moves` or native incoming-colony/outpost authority. The
+existing neutral destination observation follows the actual line draw. For the
+lower ordinary encoding the function then calls the real
+`Print_Eta_On_Ship_Icon`, using the head's cached unsigned byte. This map print is
+neither a new grant nor the producer consumed by this slice. The observation is
+sufficient evidence of the **drawn position** only; no capture is admitted until
+the later fleet-box producer succeeds in that same authorized frame.
+
+`Draw_Main_Screen` runs the route function before its moveable-box draw loop;
+box 2 dispatches `Draw_Fleet_Movement_Box`, which calls `Print_Fleet_Box_Info`
+when not expanding. Its no-preview/no-scan moving branch uses
+`Get_Absolute_Location_Scan_Info` for both statuses/owners. The accepted public
+ETA is that producer's cached byte, not a stale map print or movement preview.
+`star == -1` still withholds only the destination name. A line exposes no
+unvisited system name; map-position knowledge and name knowledge stay separate.
+Special/`NUM_STARS`/Antares destinations never receive synthetic system handles.
+No new native API, observation hook, policy extraction or gameplay change is
+necessary: the existing line/frame/print observations cover the complete path.
+
+#### Association and full-pipeline revocation
+
+The adapter's contextual admission now distinguishes canonical status-2 upper
+departure from status-1 lower ordinary transit. It does not merely remove the old
+location/status checks. Lower-offset ambient ETA remains the existing refresh
+path, not a new fleet-box override; foreign ambient gates are still rechecked at
+production. Contextual admission still requires initialized main-owner input or
+ordinary redraw, a current frame, an actual selected-box line for the exact
+surviving refresh head, and the later actual cached fleet-box producer. Missing,
+out-of-frame, previous-frame, child/background or wrong-head line evidence cannot
+authorize a print; a frame without an accepted producer withdraws both fields.
+
+The existing complete box-membership and current selected-reference checks apply
+unchanged, together with private generation/owner/status/location/position checks.
+Retirement, slot/node reuse, stale selection, duplicate/incomplete membership and
+preview results reject the capture. Empty selection remains valid. No borrowed
+pointer escapes and no display nodes are followed after synchronous observation.
+Foreign canonical names are never read or used as fingerprints. Only the head
+gets contextual destination and ETA, resolved against a fresh same-capture map.
+The copied six-topic capture, including session, is immutable; retained captures
+are never enriched. Queries invoke no native renderer, builder or calculator.
+
+Both fields use the **existing single capture lease**. Expiry covers retained
+ship reads/pages and subscriptions, bridge pending/ready/late work, delivery
+receipts and service-owned queued output. Delivered subscriptions revert to the
+authorized ambient projection; removing an obsolete queued invalidation cannot
+swallow a subsequent equal presentation. Undelivered baselines cancel their client
+and subscriptions rather than leave inaccessible subscriptions. Every output
+fragment and the service timer recheck the lease; unsent responses become ordinary
+unavailable errors, while started revoked messages close instead of completing
+or being rewritten. Still-authorized ambient routes/ETA and non-ship data survive.
+Rebuild expires old pages; equal fresh presentation preserves public handles and
+revision without reviving any expired cursor. No parallel cache or lease exists.
+
+#### Actual native-function and transport regressions
+
+`s_eta_world` now adds ordinary departure and transit to the complete native
+lifetime matrix. Both start with actual `Make_Ships_Move_To` writes, no wormhole
+links and ordinary speed 1. Transit additionally executes actual
+`Move_All_Ships_Toward_Stars`, asserting the resulting location/status/position
+and decremented ETA before presentation. A separate departure-to-transit case
+revokes through resolution, executes movement, refreshes and presents again,
+preserving the old immutable value and rejecting the expired page.
+
+Actual `Build_Ship_Icons`, `Do_Ship_Destination_Lines` (including the ordinary
+map-icon ETA renderer), `Print_Fleet_Box_Info`, retirement and generation functions
+provide native authorization evidence. Original in-memory one-pixel glyph data,
+synthetic dimensions and a selected 640x480 software page supply renderer state;
+no proprietary assets or renderer/authorization stubs are used. Fleet-box formats
+remain empty synthetic local strings as in the completed tests above. The native
+fixture retains a real own scanner at the origin, in detection range of transit.
+
+The expanded matrix covers initialization/non-promotion, zero/255, empty
+selection, unvisited-name withholding, special destinations, exact head and
+complete membership, stale selections, slot/node reuse, copied lifetimes,
+ordinary redraw, child/background interruption, owner replacement/exit,
+load/update/resolution/perspective revocation, immutable captures, hidden foreign
+name/unassociated identity noninterference and unchanged observed records/RNG.
+Negative cases reject mixed status/location encodings. Another test draws the
+route/map ETA, verifies no capture is granted, changes the cached byte, then
+executes the fleet-box producer: the public value is the later producer's byte.
+
+Store regressions extend contextual foreign captures to zero/255 values, coherent
+six-topic state/baselines, retained pages, unavailable-handle equivalence,
+re-presentation, resolution/reset and undelivered-baseline cancellation. The
+queued-invalidation test additionally exercises a foreign contextual head.
+Actual native retirement tests cover ready/late/pending bridge work for both new
+states. Four new live WebSocket tests cover ordinary departure/transit coherent
+baselines and withdrawal/restoration of both fields, and their service-owned
+pending output. The output tests wait boundedly for bridge drain and require
+outstanding delivery receipts before revocation without a game poll. Projected
+transport fixtures prove delivery behavior, not native authorization; the real
+native functions independently prove authorization. Neither claims interactive
+saved-game/multiplayer parity.
+
+#### Verification and limitations
+
+Verified on macOS ARM64 against starting commit `e8ee459`, using the complete
+build/CTest/Python/RPC-disabled commands in the preceding completed-path section:
+
+- All nine requested targets build normally and under ASAN/UBSAN.
+- All eight designated CTest targets pass in both configurations, including
+  the expanded 49-case live WebSocket suite. The native projection executable
+  passes 61 cases / 2,798 assertions; the actual departure-to-transit movement
+  and ordinary renderer cases are included, not substituted DTO tests.
+- All 116 Python tests pass with the normal `rpc-test-server` configured.
+- `bash tools/run-tests.sh` passes all 106 RPC-disabled targets.
+- Canonical policy inputs were regenerated into schema/reference/C++ metadata;
+  generator `--check` passes. C++ metadata, contract shapes, method and topic
+  allowlists are byte-identical; generated policy text/source evidence changes.
+- Affected-range C++ formatting and `git diff --check` pass. No unrelated restored
+  code was reformatted. No additional native owners are modified.
+
+Synthetic fixture development exposed missing selected-page state for the real
+font renderer, an incorrect font-style array bound, packed-field reference
+binding in new doctest assertions, and an invalid stationary scanner/malformed
+orbit position for the actual native coordinate routines. The final fixture
+supplies/restores a real selected software page and original glyph data, uses
+the actual array bound/value comparisons, and keeps orbiting records at a real
+system. It does not stub the ordinary route branch, alter native behavior or
+relax authority to avoid these failures. The final complete gate passes after
+those fixture corrections.
+
+Only leak detection is disabled (`ASAN_OPTIONS=detect_leaks=0:halt_on_error=1`)
+because local LeakSanitizer is unsupported. UBSAN uses
+`halt_on_error=1:print_stacktrace=1`; no leak verification is claimed. Interactive
+saved-game/multiplayer and other-platform parity remain unverified. No gameplay,
+save, multiplayer-authority, mod or deterministic-RNG changes are made.
+Untracked `.voc/` and `planning_baseline.md` are untouched. This completes one
+additional P1/Q-07 ordinary-route slice, not P2 or the remaining Q-07 scope.
+
+Reproduce the affected-range formatting check with:
+
+```sh
+git-clang-format --diff e8ee459 -- src/rpc/game_rpc.cpp tests/unit/game_rpc_native_test.cpp tests/unit/rpc_game_test.cpp tools/rpc_test_server.cpp
+```
+
 ## Queries, identities and dating
 
 Enabled methods now include `game.listShips` and `game.getShip`; `ships` is also

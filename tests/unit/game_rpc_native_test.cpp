@@ -647,6 +647,10 @@ namespace {
         void* old_buffer = buffer::buffer_space_seg;
         void* old_cache = MOX::global_cache_seg;
         uint8_t* old_page = video::current_video_page;
+        video::s_page_buffer old_off_page = video::g_page_off;
+        int32_t old_render_buffer = platform::g_render_buffer;
+        int32_t old_screen_x = video::g_screen_res_x;
+        int32_t old_screen_y = video::g_screen_res_y;
         int16_t old_scale = MOX::cur_map_scale;
         int16_t old_x = MOX::cur_map_x;
         int16_t old_y = MOX::cur_map_y;
@@ -657,8 +661,22 @@ namespace {
         allocate::s_alloc_header header = {};
         s_file_buffer_entry file = {};
         s_animation_header picture = {};
+        s_font old_font = fonts::font_header;
+        int16_t old_font_style = fonts::current_font_style;
+        s_colors old_font_colors = fonts::current_font_color_array;
+        uint8_t* old_font_data = fonts::font_data;
+        int16_t old_print_x = fonts::print_xpos;
+        int16_t old_print_y = fonts::print_ypos;
+        int16_t old_alias = fonts::draw_alias_flag;
+        uint8_t glyph[2] = {1, 0x80};
         std::vector<uint8_t> pixels = std::vector<uint8_t>(640 * 480);
         s_route_surface() {
+            fonts::font_header = {};
+            for (size_t style = 0; style < std::size(fonts::font_header.font_glyph_widths); ++style) {
+                fonts::font_header.font_heights[style] = 1;
+                std::fill(std::begin(fonts::font_header.font_glyph_widths[style]), std::end(fonts::font_header.font_glyph_widths[style]), 1);
+            }
+            fonts::font_data = glyph;
             picture.width = picture.height = 8;
             strlcpy(file.file_name, "BUFFER0.LBX", sizeof(file.file_name));
             file.segment_count = 32;
@@ -672,10 +690,21 @@ namespace {
             buffer::buffer_space_size = 0;
             buffer::buffer_space_seg = MOX::global_cache_seg = &header + 1;
             video::current_video_page = pixels.data();
+            video::g_page_off = {pixels.data(), 640, 480};
+            platform::g_render_buffer = 1;
+            video::g_screen_res_x = 640;
+            video::g_screen_res_y = 480;
             MOX::cur_map_scale = 10;
             MOX::cur_map_x = MOX::cur_map_y = MOX::multi_colored_line_start = 0;
         }
         ~s_route_surface() {
+            fonts::font_header = old_font;
+            fonts::current_font_style = old_font_style;
+            fonts::current_font_color_array = old_font_colors;
+            fonts::font_data = old_font_data;
+            fonts::print_xpos = old_print_x;
+            fonts::print_ypos = old_print_y;
+            fonts::draw_alias_flag = old_alias;
             buffer::file_buffer = old_files;
             buffer::file_buffer_count = old_file_count;
             buffer::global_load_count = old_load_count;
@@ -683,6 +712,10 @@ namespace {
             buffer::buffer_space_seg = old_buffer;
             MOX::global_cache_seg = old_cache;
             video::current_video_page = old_page;
+            video::g_page_off = old_off_page;
+            platform::g_render_buffer = old_render_buffer;
+            video::g_screen_res_x = old_screen_x;
+            video::g_screen_res_y = old_screen_y;
             MOX::cur_map_scale = old_scale;
             MOX::cur_map_x = old_x;
             MOX::cur_map_y = old_y;
@@ -712,8 +745,9 @@ namespace {
         std::vector<size_t> offsets = {std::begin(MOX::h_string_ix), std::end(MOX::h_string_ix)};
         bool foreign = false;
         bool contextual = false;
+        bool ordinary = false;
         s_route_surface surface;
-        s_eta_world(int path = 0) : foreign(path != 0), contextual(path == 2) {
+        s_eta_world(int path = 0) : foreign(path != 0), contextual(path >= 2), ordinary(path >= 3) {
             MOX::leaders = leaders.data();
             DOCTEST_REQUIRE(orion2re::lua::game::Capture_Ship_Generation_State(generations.data(), MAX_SHIPS));
             native.world.stars[1].x = 100;
@@ -733,9 +767,40 @@ namespace {
             native.ships[10] = {};
             native.ships[10].owner = foreign ? 0 : 1;
             native.ships[10].x = 30;
+            if (ordinary) {
+                for (auto& star : native.world.stars) star.wormhole_star_id = -1;
+                native.ships[10].x = 0; // Stationary scanner at the real origin system.
+                int16_t list[11];
+                for (int index = 0; index < 10; ++index) {
+                    list[index] = (int16_t)index;
+                    native.ships[index].location = 0;
+                    native.ships[index].status = 0;
+                }
+                list[10] = -1;
+                s_ship_move_info movement = {};
+                movement.turns_left = 3;
+                movement.traveling_speed = 1;
+                SHIPMOVE::Make_Ships_Move_To(list, 1, &movement);
+                DOCTEST_REQUIRE((native.ships[0].status == 2));
+                DOCTEST_REQUIRE((native.ships[0].location == SHIP_LOCATION_WORMHOLE_OFFSET + 1));
+                if (path == 4) {
+                    const auto nebulas = MOX::NUM_NEBULAS;
+                    MOX::NUM_NEBULAS = 0; // This movement fixture has no nebula artwork.
+                    SHIPMOVE::Move_All_Ships_Toward_Stars();
+                    MOX::NUM_NEBULAS = nebulas;
+                    DOCTEST_REQUIRE((native.ships[0].x == 30));
+                    DOCTEST_REQUIRE((native.ships[0].turns_left == 2));
+                }
+                DOCTEST_REQUIRE((native.ships[0].status == (path == 3 ? 2 : 1)));
+                DOCTEST_REQUIRE((native.ships[0].location == (path == 3 ? SHIP_LOCATION_WORMHOLE_OFFSET : SHIP_LOCATION_MOVING_OFFSET) + 1));
+                // Zero is a valid cached presentation value; no movement is
+                // calculated by any query or observation.
+                for (int index = 0; index < 10; ++index) native.ships[index].turns_left = 0;
+            }
             orion2re::lua::game::Restore_Legacy_Ship_Generations();
-            MOX::h_strings = {'\0'};
+            MOX::h_strings = {'\0', '%', 'u', '\0'};
             std::fill(std::begin(MOX::h_string_ix), std::end(MOX::h_string_ix), 0);
+            MOX::h_string_ix[307] = 1; // Exercise the actual map-icon ETA renderer.
             MOX::fleet_box.name_seg = &surface.picture;
             MOX::eta_star_id = MOX::fleet_ship_scanned = MAINSCR::fleet_icon_chosen = -1;
             DOCTEST_REQUIRE(rpc::Initialize_Game_Store(&store, &bridge));
@@ -792,7 +857,7 @@ namespace {
     };
 } // namespace
 
-DOCTEST_TEST_CASE_TEMPLATE("real cached producer authorizes only an initialized surviving wormhole head including zero", Fleet, std::false_type, std::true_type, std::integral_constant<int, 2>) {
+DOCTEST_TEST_CASE_TEMPLATE("real cached producer authorizes only an initialized surviving route head including zero", Fleet, std::false_type, std::true_type, std::integral_constant<int, 2>, std::integral_constant<int, 3>, std::integral_constant<int, 4>) {
     s_eta_world fixture(Fleet::value);
     game_events::s_fleet_box_view_scope owner;
     fixture.Refresh();
@@ -886,8 +951,8 @@ DOCTEST_TEST_CASE("non-own cached producer requires an independent native ambien
     DOCTEST_CHECK(fixture.Query().find("\"name\":{\"availability\":\"unaudited\"}") != std::string::npos);
 }
 
-DOCTEST_TEST_CASE("contextual destination requires an actual current same-frame selected-box route presentation") {
-    s_eta_world fixture(2);
+DOCTEST_TEST_CASE_TEMPLATE("contextual destination requires an actual current same-frame selected-box route presentation", Fleet, std::integral_constant<int, 2>, std::integral_constant<int, 3>, std::integral_constant<int, 4>) {
+    s_eta_world fixture(Fleet::value);
     game_events::s_fleet_box_view_scope owner;
     fixture.Refresh();
     owner.Initialized();
@@ -951,8 +1016,8 @@ DOCTEST_TEST_CASE("contextual destination requires an actual current same-frame 
     DOCTEST_CHECK(fixture.Query("game.listShips", ("{\"cursor\":" + rpc::Json_String(cursor) + "}").c_str()).find("\"error\"") != std::string::npos);
 }
 
-DOCTEST_TEST_CASE("contextual route revocation retains independently authorized native ambient destinations") {
-    s_eta_world fixture(2);
+DOCTEST_TEST_CASE_TEMPLATE("contextual route revocation retains independently authorized native ambient destinations", Fleet, std::integral_constant<int, 2>, std::integral_constant<int, 3>, std::integral_constant<int, 4>) {
+    s_eta_world fixture(Fleet::value);
     fixture.native.ships[10].status = 2;
     fixture.native.ships[10].location = SHIP_LOCATION_WORMHOLE_OFFSET + 2;
     fixture.native.ships[10].x = 0; // Keep the own scanner at origin 0; its ambient destination is 2.
@@ -979,6 +1044,67 @@ DOCTEST_TEST_CASE("contextual route revocation retains independently authorized 
     }
 }
 
+DOCTEST_TEST_CASE_TEMPLATE("ordinary contextual ETA comes from the later cached fleet-box producer not the map-icon print", Fleet, std::integral_constant<int, 3>, std::integral_constant<int, 4>) {
+    s_eta_world fixture(Fleet::value);
+    game_events::s_fleet_box_view_scope owner;
+    fixture.Refresh();
+    owner.Initialized();
+    game_events::s_main_view_input_scope input;
+    game_events::s_observation_scope frame(game_events::MAIN_SCREEN_FRAME_ENTERED, game_events::MAIN_SCREEN_FRAME_LEAVING);
+    SHIPS::Do_Ship_Destination_Lines();
+    DOCTEST_CHECK_FALSE(fixture.store.context_active); // Neither a line nor map ETA grants a fleet-box capture.
+    const int16_t slot = MOX::ship_node[MOX::fleet_movement_icon[0].ship_node_idx].ship_idx;
+    fixture.native.ships[slot].turns_left = 255;
+    FLEETPOP::Print_Fleet_Box_Info();
+    DOCTEST_REQUIRE(fixture.store.context_active);
+    DOCTEST_CHECK(fixture.Query().find("\"eta\":{\"availability\":\"current\",\"value\":255}") != std::string::npos);
+}
+
+DOCTEST_TEST_CASE("ordinary native departure advances to transit without inheriting its old contextual page") {
+    s_eta_world fixture(3);
+    for (int index = 0; index < 10; ++index) fixture.native.ships[index].turns_left = 3;
+    game_events::s_fleet_box_view_scope owner;
+    fixture.Refresh();
+    owner.Initialized();
+    fixture.Print();
+    DOCTEST_REQUIRE(fixture.store.context_active);
+    const auto retained = fixture.store.snapshots.back();
+    fixture.Query("game.listShips", "{\"limit\":1}");
+    const auto cursor = fixture.store.cursors.back().id;
+    game_events::Publish(game_events::RESOLUTION_BEGIN);
+    rpc::Pause_Game_Queries(&fixture.store);
+    const auto nebulas = MOX::NUM_NEBULAS;
+    MOX::NUM_NEBULAS = 0;
+    SHIPMOVE::Move_All_Ships_Toward_Stars();
+    MOX::NUM_NEBULAS = nebulas;
+    DOCTEST_CHECK((fixture.native.ships[0].status == 1));
+    DOCTEST_CHECK((fixture.native.ships[0].location == SHIP_LOCATION_MOVING_OFFSET + 1));
+    DOCTEST_CHECK_FALSE(fixture.store.context_active);
+    DOCTEST_CHECK(fixture.Query().find("\"error\"") != std::string::npos);
+    rpc::Resume_Game_Queries(&fixture.store);
+    game_events::Publish(game_events::RESOLUTION_END);
+    fixture.Refresh();
+    fixture.Print();
+    DOCTEST_REQUIRE(fixture.store.context_active);
+    DOCTEST_CHECK(fixture.Query().find("\"eta\":{\"availability\":\"current\",\"value\":2}") != std::string::npos);
+    DOCTEST_CHECK(std::count_if(retained.map.ships.begin(), retained.map.ships.end(), [](const rpc::s_ship_observation& ship) { return ship.eta_available == rpc::SHIP_CURRENT && ship.eta == 3; }) == 1);
+    DOCTEST_CHECK(fixture.Query("game.listShips", ("{\"cursor\":" + rpc::Json_String(cursor) + "}").c_str()).find("\"error\"") != std::string::npos);
+}
+
+DOCTEST_TEST_CASE_TEMPLATE("contextual admission rejects mixed native movement status and location encodings", Fleet, std::integral_constant<int, 3>, std::integral_constant<int, 4>) {
+    s_eta_world fixture(Fleet::value);
+    for (int index = 0; index < 10; ++index) {
+        fixture.native.ships[index].status = Fleet::value == 3 ? 1 : 2;
+        fixture.native.ships[index].x = 0; // Keep the malformed orbiting status safe for native drawing.
+    }
+    game_events::s_fleet_box_view_scope owner;
+    fixture.Refresh();
+    owner.Initialized();
+    fixture.Print();
+    DOCTEST_CHECK_FALSE(fixture.store.context_active);
+    DOCTEST_CHECK(fixture.Query().find("\"destination\":{\"availability\":\"current\"") == std::string::npos);
+}
+
 DOCTEST_TEST_CASE("non-own cached ETA cannot acquire ambient authority after refresh or keep a withdrawn gate") {
     s_eta_world fixture(true);
     bool withdrawn = false;
@@ -1001,7 +1127,7 @@ DOCTEST_TEST_CASE("non-own cached ETA cannot acquire ambient authority after ref
     DOCTEST_CHECK(fixture.store.context_active == !withdrawn);
 }
 
-DOCTEST_TEST_CASE_TEMPLATE("child parent draws cannot reauthorize and ordinary native redraw restores fresh ETA", Fleet, std::false_type, std::true_type, std::integral_constant<int, 2>) {
+DOCTEST_TEST_CASE_TEMPLATE("child parent draws cannot reauthorize and ordinary native redraw restores fresh ETA", Fleet, std::false_type, std::true_type, std::integral_constant<int, 2>, std::integral_constant<int, 3>, std::integral_constant<int, 4>) {
     s_eta_world fixture(Fleet::value);
     game_events::s_fleet_box_view_scope owner;
     fixture.Refresh();
@@ -1031,7 +1157,7 @@ DOCTEST_TEST_CASE_TEMPLATE("child parent draws cannot reauthorize and ordinary n
     DOCTEST_CHECK(fixture.adapter.associations.empty());
 }
 
-DOCTEST_TEST_CASE_TEMPLATE("fleet box ETA preserves unsigned bytes and cannot manufacture destination knowledge", Fleet, std::false_type, std::true_type, std::integral_constant<int, 2>) {
+DOCTEST_TEST_CASE_TEMPLATE("fleet box ETA preserves unsigned bytes and cannot manufacture destination knowledge", Fleet, std::false_type, std::true_type, std::integral_constant<int, 2>, std::integral_constant<int, 3>, std::integral_constant<int, 4>) {
     s_eta_world fixture(Fleet::value);
     bool special = false;
     bool no_selection = false;
@@ -1046,7 +1172,7 @@ DOCTEST_TEST_CASE_TEMPLATE("fleet box ETA preserves unsigned bytes and cannot ma
     }
     DOCTEST_SUBCASE("special destination has no system handle") {
         special = true;
-        for (int index = 0; index < 10; ++index) fixture.native.ships[index].location = SHIP_LOCATION_WORMHOLE_OFFSET + MOX::NUM_STARS;
+        for (int index = 0; index < 10; ++index) fixture.native.ships[index].location = (Fleet::value == 4 ? SHIP_LOCATION_MOVING_OFFSET : SHIP_LOCATION_WORMHOLE_OFFSET) + MOX::NUM_STARS;
     }
     {
         game_events::s_fleet_box_view_scope owner;
@@ -1071,7 +1197,7 @@ DOCTEST_TEST_CASE_TEMPLATE("fleet box ETA preserves unsigned bytes and cannot ma
     DOCTEST_CHECK(fixture.adapter.associations.empty());
 }
 
-DOCTEST_TEST_CASE_TEMPLATE("native stale selection node reuse and slot retirement cannot inherit cached ETA", Fleet, std::false_type, std::true_type, std::integral_constant<int, 2>) {
+DOCTEST_TEST_CASE_TEMPLATE("native stale selection node reuse and slot retirement cannot inherit cached ETA", Fleet, std::false_type, std::true_type, std::integral_constant<int, 2>, std::integral_constant<int, 3>, std::integral_constant<int, 4>) {
     s_eta_world fixture(Fleet::value);
     game_events::s_fleet_box_view_scope owner;
     fixture.Refresh();
@@ -1139,7 +1265,7 @@ DOCTEST_TEST_CASE_TEMPLATE("native stale selection node reuse and slot retiremen
     DOCTEST_CHECK(context == 0);
 }
 
-DOCTEST_TEST_CASE_TEMPLATE("native rebuild and world boundaries revoke ETA without exposing hidden identity changes", Fleet, std::false_type, std::true_type, std::integral_constant<int, 2>) {
+DOCTEST_TEST_CASE_TEMPLATE("native rebuild and world boundaries revoke ETA without exposing hidden identity changes", Fleet, std::false_type, std::true_type, std::integral_constant<int, 2>, std::integral_constant<int, 3>, std::integral_constant<int, 4>) {
     s_eta_world fixture(Fleet::value);
     game_events::s_fleet_box_view_scope owner;
     fixture.Refresh();
@@ -1193,7 +1319,7 @@ DOCTEST_TEST_CASE_TEMPLATE("native rebuild and world boundaries revoke ETA witho
     }
 }
 
-DOCTEST_TEST_CASE_TEMPLATE("actual non-own retirement revokes native ETA pages and ready late and pending bridge reads", Fleet, std::true_type, std::integral_constant<int, 2>) {
+DOCTEST_TEST_CASE_TEMPLATE("actual non-own retirement revokes native ETA pages and ready late and pending bridge reads", Fleet, std::true_type, std::integral_constant<int, 2>, std::integral_constant<int, 3>, std::integral_constant<int, 4>) {
     s_eta_world fixture(Fleet::value);
     game_events::s_fleet_box_view_scope owner;
     fixture.Refresh();

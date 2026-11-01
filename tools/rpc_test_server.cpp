@@ -142,8 +142,8 @@ int main() {
                 }
                 map.ships_captured = true;
                 rpc::Capture_Map(&store, &map);
-            } else if (command == "eta-ambient" || command == "eta-context" || command == "eta-foreign-ambient" || command == "eta-foreign-context" || command == "route-ambient" || command == "route-context") {
-                contextual_route = command.starts_with("route-");
+            } else if (command == "eta-ambient" || command == "eta-context" || command == "eta-foreign-ambient" || command == "eta-foreign-context" || command == "route-ambient" || command == "route-context" || command == "ordinary-departing-ambient" || command == "ordinary-departing-context" || command == "ordinary-transit-ambient" || command == "ordinary-transit-context") {
+                contextual_route = command.starts_with("route-") || command.starts_with("ordinary-");
                 eta_ship = contextual_route || command.find("foreign") != std::string::npos ? 1 : 0;
                 const bool contextual = command.ends_with("-context");
                 map.ships_captured = true;
@@ -151,7 +151,7 @@ int main() {
                 map.ships[eta_ship].destination_available = contextual_route && !contextual ? rpc::SHIP_CONTEXT_REQUIRED : rpc::SHIP_CURRENT;
                 map.ships[eta_ship].destination_system = 1;
                 map.ships[eta_ship].eta_available = contextual ? rpc::SHIP_CURRENT : rpc::SHIP_CONTEXT_REQUIRED;
-                map.ships[eta_ship].eta = 0;
+                map.ships[eta_ship].eta = command.starts_with("ordinary-transit-") ? 255 : 0;
                 if (contextual_route) {
                     map.ships[0].destination_available = map.ships[0].eta_available = rpc::SHIP_CURRENT;
                     map.ships[0].destination_system = 0;
