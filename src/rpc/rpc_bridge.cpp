@@ -65,12 +65,12 @@ namespace rpc {
                 Cancel(bridge, work->client);
                 return false;
             }
-            if (context_epoch != 0 && !stale) {
+            if (!stale) {
                 if (bridge->deliveries.size() >= MAX_WORK) {
                     Cancel(bridge, work->client);
                     return false;
                 }
-                bridge->deliveries.push_back({work->client, work->ticket});
+                bridge->deliveries.push_back({work->client, work->ticket, context_epoch});
             }
             bridge->ready.push_back({work->client, work->epoch, work->ticket, output, {}, stale ? 0 : context_epoch, revoked});
             bridge->ready_bytes += bridge->ready.back().json.size();
@@ -178,7 +178,7 @@ namespace rpc {
             return;
         }
         ++bridge->context_epoch;
-        bridge->deliveries.clear();
+        std::erase_if(bridge->deliveries, [](const s_context_delivery& item) { return item.context_epoch != 0; });
         for (auto item = bridge->ready.begin(); item != bridge->ready.end();) {
             if (item->context_epoch == 0) {
                 ++item;

@@ -41,6 +41,7 @@ namespace rpc {
     struct s_context_delivery {
         uint64_t client;
         uint64_t ticket;
+        uint64_t context_epoch = 0; // Zero for a response governed only by the whole-view epoch.
     };
 
     struct s_bridge {

@@ -306,7 +306,8 @@ namespace rpc {
                     connection->assembling = false;
                 }
             } else if (reason == LWS_CALLBACK_SERVER_WRITEABLE) {
-                if (!Revoke_Context_Output(&connection->output, Bridge_Context_Epoch(state->bridge), &state->output_bytes)) {
+                if (!Client_Is_Current(state->bridge, connection->client, connection->epoch) ||
+                    !Revoke_Context_Output(&connection->output, Bridge_Context_Epoch(state->bridge), &state->output_bytes)) {
                     return Close(socket, LWS_CLOSE_STATUS_POLICY_VIOLATION);
                 }
                 if (connection->output.messages.empty()) {

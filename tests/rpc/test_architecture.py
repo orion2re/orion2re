@@ -140,6 +140,7 @@ class SidecarArchitectureTests(unittest.TestCase):
         service = (ROOT / "src/rpc/rpc_service.cpp").read_text()
         write = service[service.index("reason == LWS_CALLBACK_SERVER_WRITEABLE"):service.index("void Tick(")]
         self.assertLess(write.index("Revoke_Context_Output"), write.index("lws_write("))
+        self.assertLess(write.index("Client_Is_Current"), write.index("lws_write("))
         self.assertIn("publication.context_epoch", service)
         self.assertIn("publication.revoked_json", service)
 

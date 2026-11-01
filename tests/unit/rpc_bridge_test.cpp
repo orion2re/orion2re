@@ -16,6 +16,32 @@ namespace {
     }
 } // namespace
 
+DOCTEST_TEST_CASE("ambient response delivery receipts survive context loss and remain bounded until acknowledgment or view revocation") {
+    rpc::s_bridge bridge;
+    uint64_t epoch;
+    DOCTEST_REQUIRE(rpc::Register_Client(&bridge, 1, &epoch));
+    auto request = Request();
+    const std::string result = rpc::Result_Response(&request, "{}");
+    for (int index = 0; index < 64; ++index) {
+        DOCTEST_REQUIRE(rpc::Submit_Work(&bridge, 1, epoch, &request, UINT64_MAX) == 0);
+        rpc::s_work work;
+        DOCTEST_REQUIRE(rpc::Take_Work(&bridge, 0, &work));
+        DOCTEST_REQUIRE(rpc::Complete_Work(&bridge, &work, &result));
+        rpc::s_publication publication;
+        DOCTEST_REQUIRE(rpc::Take_Publication(&bridge, &publication));
+        DOCTEST_CHECK(publication.context_epoch == 0);
+    }
+    DOCTEST_REQUIRE(bridge.deliveries.size() == 64);
+    rpc::Revoke_Bridge_Context(&bridge);
+    DOCTEST_CHECK(bridge.deliveries.size() == 64);
+    DOCTEST_CHECK(rpc::Client_Is_Current(&bridge, 1, epoch));
+    rpc::Acknowledge_Response(&bridge, 1, bridge.deliveries.front().ticket);
+    DOCTEST_CHECK(bridge.deliveries.size() == 63);
+    rpc::Revoke_Bridge(&bridge);
+    DOCTEST_CHECK(bridge.deliveries.empty());
+    DOCTEST_CHECK_FALSE(rpc::Client_Is_Current(&bridge, 1, epoch));
+}
+
 DOCTEST_TEST_CASE("context revocation reaches pending late and ready work without revoking ambient clients") {
     rpc::s_bridge bridge;
     uint64_t epoch;
@@ -150,6 +176,7 @@ DOCTEST_TEST_CASE("RPC bridge completes work across threads without native or so
         rpc::s_publication publication;
         while (rpc::Take_Publication(&bridge, &publication)) {
             DOCTEST_CHECK(publication.json == "copied result");
+            rpc::Acknowledge_Response(&bridge, publication.client, publication.ticket);
             ++completed;
         }
     }
@@ -157,6 +184,7 @@ DOCTEST_TEST_CASE("RPC bridge completes work across threads without native or so
         rpc::s_publication publication;
         if (rpc::Take_Publication(&bridge, &publication)) {
             DOCTEST_CHECK(publication.json == "copied result");
+            rpc::Acknowledge_Response(&bridge, publication.client, publication.ticket);
             ++completed;
         } else {
             std::this_thread::yield();

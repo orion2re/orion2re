@@ -50,7 +50,7 @@ class SchemaTests(unittest.TestCase):
 
     def test_visibility_units_and_nonstandard_constraints_are_preserved(self):
         definitions = self.schema["$defs"]
-        self.assertEqual(definitions["System"]["properties"]["owner"]["x-rpc-policy"], "disabled-system-owner")
+        self.assertEqual(definitions["System"]["properties"]["owner"]["x-rpc-policy"], "system-owner")
         self.assertEqual(definitions["Coord"]["x-unit"], "map")
         self.assertEqual(definitions["Id"]["x-maxUtf8Bytes"], 128)
         self.assertEqual(definitions["Key"]["x-maxUtf8Bytes"], 384)

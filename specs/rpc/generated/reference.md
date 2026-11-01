@@ -3,13 +3,13 @@
 
 **Optional runtime, disabled by default.** Only the implemented methods listed below are callable when the RPC build and settings enable it.
 
-Implemented methods: `rpc.hello`, `rpc.describe`, `rpc.subscribe`, `rpc.unsubscribe`, `game.getSession`, `game.getState`, `game.listSystems`, `game.getSystem`, `game.listNebulas`, `game.listShips`, `game.getShip`, `game.listPlayers`, `game.getPlayer`, `game.listColonies`, `game.getColony`.
+Implemented methods: `rpc.hello`, `rpc.describe`, `rpc.subscribe`, `rpc.unsubscribe`, `game.getSession`, `game.getState`, `game.listSystems`, `game.getSystem`, `game.listNebulas`, `game.listShips`, `game.getShip`, `game.listPlayers`, `game.getPlayer`, `game.listColonies`, `game.getColony`, `game.listPlanets`, `game.getPlanet`.
 
 This document is rendered from `schema.json`, not a second method catalog.
 The root schema validates acknowledged client requests; per-method success responses and server notifications have separate definitions.
 All fields are non-null unless explicitly stated. Unknown keys are rejected. UTF-8 byte limits, lexical integer tokens, duplicate keys, depth and authorization need the protocol guards in addition to standard JSON Schema validation.
 
-Source bundle SHA-256: `7f71b5aa5a60bb8639b57a54f47c0a07c9d2d7905202bdb2f34d7306db0ec408`.
+Source bundle SHA-256: `b0bbf0441e062bcee84daeee92af0372d127a5f919acb7000b289006ba744c70`.
 
 ## Methods
 
@@ -156,7 +156,7 @@ Array of `Colony`; 0..65536 items; unique: false.
 | id | Id | yes | colonies-own |
 | systemId | Id | yes | colonies-own |
 | orbit | Orbit | yes | colonies-own |
-| planetId | KnownId | yes | disabled-colony |
+| planetId | KnownId | yes | exploration-own-colony-links |
 | owner | KnownId | yes | colonies-own |
 | population | KnownCount | yes | colonies-own |
 | troops | KnownColonyTroops | yes | colony-own-troops |
@@ -361,12 +361,89 @@ Values: `current`.
 | availability | Current | yes | contract |
 | value | Credits | yes | contract |
 
+### CurrentExploredIds
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| availability | Current | yes | contract |
+| value | ExploredIds | yes | contract |
+
 ### CurrentId
 
 | Field | Type | Required | Policy |
 | --- | --- | --- | --- |
 | availability | Current | yes | contract |
 | value | Id | yes | contract |
+
+### CurrentPlanetClimate
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| availability | Current | yes | contract |
+| value | PlanetClimate | yes | contract |
+
+### CurrentPlanetFood2
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| availability | Current | yes | contract |
+| value | PlanetFood2 | yes | contract |
+
+### CurrentPlanetGravity
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| availability | Current | yes | contract |
+| value | PlanetGravity | yes | contract |
+
+### CurrentPlanetGravityPenalty
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| availability | Current | yes | contract |
+| value | PlanetGravityPenalty | yes | contract |
+
+### CurrentPlanetKind
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| availability | Current | yes | contract |
+| value | PlanetKind | yes | contract |
+
+### CurrentPlanetMinerals
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| availability | Current | yes | contract |
+| value | PlanetMinerals | yes | contract |
+
+### CurrentPlanetPopulationLimit
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| availability | Current | yes | contract |
+| value | PlanetPopulationLimit | yes | contract |
+
+### CurrentPlanetProductivity
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| availability | Current | yes | contract |
+| value | PlanetProductivity | yes | contract |
+
+### CurrentPlanetSize
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| availability | Current | yes | contract |
+| value | PlanetSize | yes | contract |
+
+### CurrentPlanetSpecial
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| availability | Current | yes | contract |
+| value | PlanetSpecial | yes | contract |
 
 ### CurrentPlayerHUD
 
@@ -455,6 +532,22 @@ Values: `game.turnAdvanced`, `game.sessionChanged`, `ui.contextChanged`, `state.
 ### Events
 
 Array of `Event`; 0..9 items; unique: true.
+
+### ExplorationBool
+
+Exactly one of: CurrentBool, EmptyKnowledge, Unavailable.
+
+### ExplorationId
+
+Exactly one of: CurrentId, EmptyKnowledge, Unavailable.
+
+### ExplorationText
+
+Exactly one of: CurrentText, EmptyKnowledge, Unavailable.
+
+### ExploredIds
+
+Array of `Id`; 0..5 items; unique: true.
 
 ### Fleet
 
@@ -601,9 +694,49 @@ Exactly one of: CurrentCredits, Unavailable.
 
 Values: `known-empty`.
 
+### KnownExploredIds
+
+Exactly one of: CurrentExploredIds, Unavailable.
+
 ### KnownId
 
 Exactly one of: CurrentId, Unavailable.
+
+### KnownPlanetClimate
+
+Exactly one of: CurrentPlanetClimate, EmptyKnowledge, Unavailable.
+
+### KnownPlanetFood2
+
+Exactly one of: CurrentPlanetFood2, EmptyKnowledge, Unavailable.
+
+### KnownPlanetGravity
+
+Exactly one of: CurrentPlanetGravity, EmptyKnowledge, Unavailable.
+
+### KnownPlanetGravityPenalty
+
+Exactly one of: CurrentPlanetGravityPenalty, EmptyKnowledge, Unavailable.
+
+### KnownPlanetMinerals
+
+Exactly one of: CurrentPlanetMinerals, EmptyKnowledge, Unavailable.
+
+### KnownPlanetPopulationLimit
+
+Exactly one of: CurrentPlanetPopulationLimit, EmptyKnowledge, Unavailable.
+
+### KnownPlanetProductivity
+
+Exactly one of: CurrentPlanetProductivity, EmptyKnowledge, Unavailable.
+
+### KnownPlanetSize
+
+Exactly one of: CurrentPlanetSize, EmptyKnowledge, Unavailable.
+
+### KnownPlanetSpecial
+
+Exactly one of: CurrentPlanetSpecial, EmptyKnowledge, Unavailable.
 
 ### KnownPlayerHUD
 
@@ -745,6 +878,13 @@ Array of `MovementVerdict`; 0..256 items; unique: false.
 | id | Id | yes | nebulas-map |
 | x | Coord | yes | nebulas-map |
 | y | Coord | yes | nebulas-map |
+| variant | NebulaVariant | yes | nebulas-map |
+
+### NebulaVariant
+
+Signed displayed native slider value or score points; the owning context supplies and enforces its current range.
+
+Constraints: `{"maximum": 11, "minimum": 0, "type": "integer", "x-integerToken": true}`.
 
 ### Nebulas
 
@@ -797,7 +937,7 @@ Array of `Option`; 0..4096 items; unique: false.
 
 ### Orbit
 
-One-based public orbital position 1..5; conversion from native indexing requires the planet display-policy audit.
+One-based physical orbital position 1..5, not the compressed occupied-slot ordinal used by native planet names.
 
 Constraints: `{"maximum": 5, "minimum": 1, "type": "integer", "x-integerToken": true}`.
 
@@ -823,11 +963,68 @@ Constraints: `{"maximum": 479, "minimum": 0, "type": "integer", "x-integerToken"
 
 | Field | Type | Required | Policy |
 | --- | --- | --- | --- |
-| id | Id | yes | disabled-planet |
-| systemId | Id | yes | disabled-planet |
-| orbit | Orbit | yes | disabled-planet |
-| name | KnownText | yes | disabled-planet |
-| kind | KnownText | yes | disabled-planet |
+| id | Id | yes | planets-explored |
+| systemId | Id | yes | planets-explored |
+| orbit | Orbit | yes | planets-explored |
+| name | ExplorationText | yes | planets-explored |
+| kind | CurrentPlanetKind | yes | planets-explored |
+| size | KnownPlanetSize | yes | planets-explored |
+| gravity | KnownPlanetGravity | yes | planets-explored |
+| climate | KnownPlanetClimate | yes | planets-explored |
+| minerals | KnownPlanetMinerals | yes | planets-explored |
+| special | KnownPlanetSpecial | yes | planets-explored |
+| foodPerFarmer2 | KnownPlanetFood2 | yes | planets-explored |
+| mineralsPerMine | KnownPlanetProductivity | yes | planets-explored |
+| gravityPenalty | KnownPlanetGravityPenalty | yes | planets-explored |
+| hostileEnvironment | ExplorationBool | yes | planets-explored |
+| maxPopulation | KnownPlanetPopulationLimit | yes | planet-suitability |
+| colony | KnownId | yes | exploration-own-colony-links |
+
+### PlanetClimate
+
+Signed displayed native slider value or score points; the owning context supplies and enforces its current range.
+
+Constraints: `{"maximum": 9, "minimum": 0, "type": "integer", "x-integerToken": true}`.
+
+### PlanetFood2
+
+Native half-food units per farmer: 5 represents the displayed 2.5 Food, not a recalculated colony yield.
+
+Constraints: `{"maximum": 255, "minimum": 0, "type": "integer", "x-integerToken": true}`.
+
+### PlanetGravity
+
+Signed displayed native slider value or score points; the owning context supplies and enforces its current range.
+
+Constraints: `{"maximum": 2, "minimum": 0, "type": "integer", "x-integerToken": true}`.
+
+### PlanetGravityPenalty
+
+Whole native gravity-productivity penalty percentage, 0, 25 or 50.
+
+Constraints: `{"maximum": 50, "minimum": 0, "type": "integer", "x-integerToken": true}`.
+
+### PlanetKind
+
+Values: `asteroid`, `gas-giant`, `planet`.
+
+### PlanetMinerals
+
+Signed displayed native slider value or score points; the owning context supplies and enforces its current range.
+
+Constraints: `{"maximum": 4, "minimum": 0, "type": "integer", "x-integerToken": true}`.
+
+### PlanetPopulationLimit
+
+Nonnegative integer count of authorized projected records only.
+
+Constraints: `{"maximum": 42, "minimum": 0, "type": "integer", "x-integerToken": true}`.
+
+### PlanetProductivity
+
+Nonnegative integer count of authorized projected records only.
+
+Constraints: `{"maximum": 255, "minimum": 0, "type": "integer", "x-integerToken": true}`.
 
 ### PlanetResult
 
@@ -835,6 +1032,18 @@ Constraints: `{"maximum": 479, "minimum": 0, "type": "integer", "x-integerToken"
 | --- | --- | --- | --- |
 | stamp | Stamp | yes | contract |
 | item | Planet | yes | contract |
+
+### PlanetSize
+
+Signed displayed native slider value or score points; the owning context supplies and enforces its current range.
+
+Constraints: `{"maximum": 4, "minimum": 0, "type": "integer", "x-integerToken": true}`.
+
+### PlanetSpecial
+
+Signed displayed native slider value or score points; the owning context supplies and enforces its current range.
+
+Constraints: `{"maximum": 10, "minimum": 1, "type": "integer", "x-integerToken": true}`.
 
 ### Planets
 
@@ -1114,6 +1323,12 @@ UTF-8 rendered text, converted from the selected local game language; no raw for
 
 Constraints: `{"maxLength": 128, "minLength": 0, "type": "string", "x-maxUtf8Bytes": 128, "x-minUtf8Bytes": 0}`.
 
+### SpectralClass
+
+Signed displayed native slider value or score points; the owning context supplies and enforces its current range.
+
+Constraints: `{"maximum": 6, "minimum": 0, "type": "integer", "x-integerToken": true}`.
+
 ### Stamp
 
 | Field | Type | Required | Policy |
@@ -1124,6 +1339,12 @@ Constraints: `{"maxLength": 128, "minLength": 0, "type": "string", "x-maxUtf8Byt
 | revision | Counter | yes | contract |
 | turn | Turn | yes | contract |
 | captureMode | CaptureMode | yes | contract |
+
+### StarSize
+
+Signed displayed native slider value or score points; the owning context supplies and enforces its current range.
+
+Constraints: `{"maximum": 2, "minimum": 0, "type": "integer", "x-integerToken": true}`.
 
 ### State
 
@@ -1167,11 +1388,11 @@ Constraints: `{"maxLength": 128, "minLength": 0, "type": "string", "x-maxUtf8Byt
 
 ### StateTopic
 
-Values: `session`, `systems`, `nebulas`, `ships`, `players`, `colonies`.
+Values: `session`, `systems`, `nebulas`, `ships`, `players`, `colonies`, `planets`.
 
 ### StateTopics
 
-Array of `StateTopic`; 0..6 items; unique: true.
+Array of `StateTopic`; 0..7 items; unique: true.
 
 ### StreamGap
 
@@ -1205,7 +1426,7 @@ Array of `SubscriptionEvent`; 1..2 items; unique: true.
 
 ### SubscriptionTopics
 
-Array of `StateTopic`; 1..6 items; unique: true.
+Array of `StateTopic`; 1..7 items; unique: true.
 
 ### System
 
@@ -1214,9 +1435,14 @@ Array of `StateTopic`; 1..6 items; unique: true.
 | id | Id | yes | systems-map |
 | x | Coord | yes | systems-map |
 | y | Coord | yes | systems-map |
-| name | KnownText | yes | system-name-visited |
+| spectralClass | SpectralClass | yes | systems-map |
+| size | StarSize | yes | systems-map |
+| name | KnownText | yes | system-name |
 | visited | Bool | yes | system-visited |
-| owner | KnownId | yes | disabled-system-owner |
+| owner | KnownId | yes | system-owner |
+| wormhole | ExplorationId | yes | system-exploration |
+| inExtendedRange | KnownBool | yes | system-exploration |
+| planetIds | KnownExploredIds | yes | system-exploration |
 
 ### SystemResult
 
@@ -1362,10 +1588,15 @@ Reviewed means static evidence, not runtime visibility approval.
 | request | contract | Caller-supplied intent only; exact typed validation, authorization and generation recheck before use. |  | T-04, T-08, T-11 |
 | session | reviewed | Only the explicitly authorized local perspective. Omit game/perspective/revision/turn before a game is loaded and after revocation; publish committed turn only, not intermediate calculation. | src/game/mox2.cpp: thunk_main2; src/game/nextturn.cpp: Next_Turn; src/game/netturn.cpp: Client_Next_Turn; src/game/multplay.cpp: Hotseat_Select_Player | T-05, T-06 |
 | systems-map | reviewed | Only systems whose native map position is drawn for this player. Coordinates are native star coordinates, before zoom/pan. ID assigned after this predicate; no slot-derived numbering. | src/game/mainscr.cpp: Print_Star_Names; src/game/mainscr.cpp: Get_Star_Draw_Coords | T-01, T-02 |
-| system-name | reviewed | Player_Is_Omniscient(viewer), or valid star owner plus Contact_With_One_Colony, or Player_Has_Visited. Reproduce rendered outpost/lore formatting; otherwise unknown. Get_Star_Name is evidence, NOT a pure query helper: it changes font/zoom state and may allocate a bitmap. | src/game/mainscr.cpp: Get_Star_Name; src/game/harold.cpp: Contact_With_One_Colony; src/game/harold.cpp: Player_Has_Visited | T-01, T-02, T-03 |
+| system-name | reviewed | Non-black-hole name only: Player_Is_Omniscient(viewer), or valid native dominant visible owner plus Contact_With_One_Colony, or Player_Has_Visited. Copy bounded CP850 and reproduce rendered outpost lowercase and unvisited foreign Lore parentheses; otherwise unknown. Temporary contact/Lore-only grants expire through existing whole-view revocation on mutation or observed authority loss. Get_Star_Name is evidence, NOT a pure query helper: it changes font/zoom state and may allocate a bitmap. | src/game/mainscr.cpp: Get_Star_Name; src/game/mainscr.cpp: Print_Star_Names; src/game/harold.cpp: Contact_With_One_Colony; src/game/harold.cpp: Player_Has_Visited | T-01, T-02, T-03, T-05 |
 | system-visited | reviewed | Only the bound player&#x27;s visited bit, never the complete bitmask. Does not grant planet/owner/special disclosure. | src/game/harold.cpp: Player_Has_Visited; src/game/mainscr.cpp: Get_Star_Name | T-01, T-02 |
 | system-name-visited | reviewed | Initial runtime subset: bound human viewer has visited and star is not a black hole. Copy bounded CP850 name, apply native ASCII outpost lowercase on the copy, then decode UTF-8. Contact/lore-only unvisited names remain explicitly unaudited; no UI/font/resource builder is called. | src/game/mainscr.cpp: Get_Star_Name; src/game/harold.cpp: Player_Has_Visited; src/game/harold.cpp: Star_Is_Outpost_Star; src/game/strings.cpp: String_To_Lower | T-01, T-02, T-03 |
-| nebulas-map | reviewed | Native map draws every existing nebula without a viewer gate. Publish only its unscaled map x/y and a perspective-scoped opaque ID; never type, hidden star membership or art/cache pointers. | src/game/mainscr.cpp: Draw_Nebulae | T-01, T-02 |
+| nebulas-map | reviewed | Native map draws every existing nebula without a viewer gate. Publish unscaled map x/y and uint8(type) modulo 12 rendered variant with perspective-scoped opaque IDs. Never raw type, hidden gameplay star membership or art/cache pointers. | src/game/mainscr.cpp: Draw_Nebulae | T-01, T-02 |
+| system-owner | reviewed | Native Star_Owner dominant visible owner: self preferred, otherwise largest contact-filtered colony count with native tie order; omniscience removes contact filtering. This is not exclusive ownership. Resolve only a same-capture known-player handle; unknown if unavailable. Do not read foreign economy or trust cached star.owner. Mixed-owner rendering and outposts do not grant live colony details. | src/game/harold.cpp: Star_Owner; src/game/harold.cpp: Colony_Owners; src/game/mainscr.cpp: Update_Star_Owners | T-01, T-02, T-05 |
+| system-exploration | reviewed | Planet roster and extended-range verdict require visited-or-native-omniscient non-black-hole system. Wormhole destination/known-empty requires visited or native omniscience, not destination-name knowledge. Use existing read-only Star_In_Extended_Range_Of_Player at coherent capture, including native odd-range rounding, blocks, visited-wormhole shortcut and alliances; no new movement math, ship-specific movement/ETA calculator or UI builder. Resolve only real same-capture systems/planets. Unknown differs from explored empty lists/known-empty wormholes. Temporary contact/Lore grants use existing whole-view revocation on mutation or observed loss, not a new cache/lease. | src/game/sys.cpp: Ok_To_View_System; src/game/mainscr.cpp: Draw_Wormhole_Links; src/game/plntsum.cpp: Planet_In_Range_Of_A_Colony; src/game/shipmove.cpp: Star_In_Extended_Range_Of_Player | T-01, T-02, T-05, T-07, T-12 |
+| planets-explored | reviewed | Filter system exploration before planet copying, validation, counts, IDs and events. Include all occupied orbits in visited-or-native-omniscient non-black-hole systems, plus independently authorized own full-colony locations. Public one-based physical orbit is distinct from compressed occupied-slot Roman name ordinal. Copy native asteroid/gas-giant/planet kind; ordinary planets expose size 0..4, gravity 0..2, base planet climate 0..9, minerals 0..4, special 1..10 (0 and Orion 11 known-empty), cached half-food units, native mineral productivity and read-only gravity penalty/hostile-environment suitability. Nonplanet ecology/name/suitability is known-empty. Copy bounded CP850 native no-Prime name without mutating shared temp buffers. No foreign colony climate/population/buildings/production, system reward or stale UI summary/hover/movement values. Native stores shared current planet data, not per-player historical ecology; do not invent last-known values. Opaque disclosed-location IDs are world/perspective scoped; retained captures immutable. | src/game/sys.cpp: Ok_To_View_System; src/game/sys.cpp: Do_Print_Planet_Info; src/game/plntsum.cpp: Filter_Explored_Planets; src/game/plntsum.cpp: Summary_Screen_Print_Data; src/game/plntsum.cpp: Productivity_Penalty; src/game/haccess.cpp: Do_Get_Planet_Name | T-01, T-02, T-03, T-05, T-07, T-12 |
+| planet-suitability | reviewed | Maximum population uses the native read-only Planet_Max_Population_For_Player only for an authorized ordinary uncolonized planet or own full colony, after validating own inputs. Foreign/outpost-dependent maximum population is unaudited and never calculated from alien live population/races/buildings. Preserve native 0..42 result, traits/mod tables and storage cap; no economic forecast or new calculator. | src/game/colcalc.cpp: Planet_Max_Population_For_Player; src/game/plntsum.cpp: Filter_Explored_Planets | T-01, T-02, T-03 |
+| exploration-own-colony-links | reviewed | Resolve reciprocal planet/own-full-colony references only through the same fresh capture&#x27;s validated system/orbit graph and actual queryable planet/colony families. Never mint phantom planet handles, link a foreign colony or use historical handle tables as authority. Unknown when no authorized same-capture counterpart; not inferred known-empty foreign intelligence. Handles and immutable pages obey world/perspective revocation and ordinary indistinguishable unavailable errors. | src/game/colxport.cpp: Build_Global_Colony_List; src/game/colony.cpp: Set_Colony_Globals; src/game/sys.cpp: Draw_System_Display_Planets | T-01, T-02, T-05, T-07 |
 | disabled-system-owner | disabled | Pending per-field review of Star_Owner, mixed owners, visited/contact/lore and outpost semantics. Raw star.owner forbidden. | src/game/harold.cpp: Star_Owner | T-01, T-02 |
 | players-known | reviewed | Bound active human viewer only. Include self and foreign empires listed by the native race screen: current contact, eliminated (even without contact), or native Player_Is_Omniscient including cached Galactic Lore. Prior contact alone is not current contact. Gate before reading bounded CP850 name/color; copy name, color, eliminated and living-foreign contact separately, not historical eliminated-contact flags, portraits/traits/government/research or hidden economy. Own name is also displayed by the self race report. Sort the authorized projection before assigning unpredictable perspective/game-scoped handles; no native slots, hidden counts or gaps in numbering are exposed. A temporarily absent empire cannot be looked up using an old handle. | src/game/bill.cpp: Get_Active_Players; src/game/bill.cpp: Get_Players_Dead_Or_Alive_Or_Omniscient; src/game/racescrn.cpp: Draw_Race_Text; src/game/racescrn.cpp: Draw_Race_Photos; src/game/racerprt.cpp: MOX::cur_plyr_ptr-&gt;name; src/game/harold.cpp: Contact_With_Player; src/game/harold.cpp: Player_Is_Omniscient; src/game/officer.cpp: One_Leader_With_Galactic_Lore | T-01, T-02, T-03, T-05 |
 | player-own-economy | reviewed | Only the bound local player&#x27;s already calculated HUD values: bc, surplus_bc, surplus_food, n_freighters, surplus_freighters, command_points and native int16 command_points-minus-used result. Preserve signed deficits/known zero. Foreign treasury/HUD are explicitly unaudited and never read, even under native omniscience. Research display branches, forecasts, totals/maintenance and calculators are not enabled by this policy. | src/game/mainscr_main.cpp: Print_Main_Screen_Data | T-01, T-02, T-03 |
@@ -1375,7 +1606,7 @@ Reviewed means static evidence, not runtime visibility approval.
 | disabled-planet | disabled | Pending read-only equivalent of native explored-planet policy; do not invoke a mutable list builder. Orbit/name/type separately gated. | src/game/plntsum.cpp: Filter_Explored_Planets | T-01, T-02 |
 | colonies-own | reviewed | This list is explicitly the bound active human viewer&#x27;s own full-colony roster, following native Colonies/transport lists: owner equals viewer and outpost_flag is zero. Foreign intelligence and outposts are not included. Filter before reading links/population, sorting, counts, handles, revisions or notifications. At the same map/roster capture, copy a validated system reference and one-based orbital position and cached n_pops resident population (0..42 whole displayed population units, not thousandths, growth or inbound settlers). Validate planet/star/colony backlinks and uniqueness. Resolve system/owner through the same capture; discard private bindings before retention. No UI list builder, Sum_Colonists, forecast or economic calculator is called. Opaque read-only observation handles are replaced on authorized collection changes, not durable colony identities/action capabilities. Known-empty refers to this own-full-colony scope, not to foreign intelligence. | src/game/colxport.cpp: Build_Global_Colony_List; src/game/colxport.cpp: N_Colonies; src/game/colsum.cpp: Draw_Colony_Scan_Info; src/game/colony.cpp: Set_Colony_Globals | T-01, T-02, T-03, T-05 |
 | colony-own-troops | reviewed | Only the bound active human viewer&#x27;s own full colonies after owner/outpost authorization and parent-link validation. Copy existing military[0] infantry and military[1] armor counts, 0..32767 native int16 units, including known zero. Print_Scanned_Military displays these exact counts; Do_Colony_Info_Military_Stuff_For draws the units or the exact compressed count. Armor covers the native tank/battloid presentation, not a newly inferred unit design. Do not add population militia, inbound troops, troop strength, growth/roundoff, future production, weapon/armor technology or foreign/outpost intelligence. No troop popup, UI builder, invasion limit or combat calculator is invoked. Same immutable map/ship/roster/colony capture as population; hidden-only counts do not affect handles, revisions or notifications. | src/game/colony.cpp: Print_Scanned_Military; src/game/colony_main.cpp: Do_Colony_Info_Military_Stuff_For; src/game/colcalc.cpp: colony-&gt;military[0]; src/game/colcalc.cpp: colony-&gt;military[1] | T-01, T-02, T-03, T-05 |
-| disabled-colony | disabled | Planet handles, production/queues, buy costs/eligibility and other colony details remain unaudited. Do not mint unqueryable planet handles or invoke mutable builders/calculators for queries. Foreign intelligence is a separate policy. | src/game/colony_main.cpp: Colony_Screen | T-01, T-02, T-03 |
+| disabled-colony | disabled | Production/queues, buy costs/eligibility and remaining colony details stay unaudited. Same-capture queryable planet links have their separate exploration-own-colony-links policy. Do not invoke mutable builders/calculators for queries. Foreign intelligence is a separate policy. | src/game/colony_main.cpp: Colony_Screen | T-01, T-02, T-03 |
 | ships-refreshed | reviewed | Capture surviving associations only synchronously post-Build_Ship_Icons for the bound active human viewer, outside world mutation/resolution. Follow fresh icon heads that are surviving stack heads and their linked nodes; never enumerate unlinked allocations or rebuild for a query. Copy map x/y and own-versus-foreign classification; names and known-player owner references require their additional field policies. Sort the authorized projection before assigning opaque read-only observation handles; no native slots or durable ship identity are published. One coherent map/ship capture, explicitly dated last-native-ship-refresh. A fresh last-native-fleet-box capture may reuse still-valid surviving associations under the reviewed ship-map-eta authority, without later node traversal or enriching any older retained capture. Handle sets are replaced when the projected ship collection changes; no action may use them. | src/game/ships.cpp: Build_Ship_Icons; src/game/shipstak.cpp: Find_Ship_Stacks; src/game/shipstak.cpp: Remove_Non_Detected_Ships; src/game/haccess.cpp: Ship_Stack_X; src/game/haccess.cpp: Ship_Stack_Y; src/game/haccess.cpp: Ship_Stack_Owner | T-01, T-02, T-05 |
 | ship-own-name | reviewed | Ship.name retains its canonical in-game ship-name semantics, never a substituted hull-class/UI label; no displayName field is introduced. Current implementation: only the bound viewer&#x27;s own ship, a bounded NUL-terminated copy of d.name decoded from CP850 to UTF-8 at the same authorized post-refresh capture. Foreign name bytes are never read; native disclosure of a hull label does not authorize their canonical name, which remains explicitly unaudited rather than a scan-knowledge claim. | src/game/fleetpop.cpp: Get_Fleetpop_Scanned_Ship_Info | T-01, T-02, T-03 |
 | ship-owner-known | reviewed | Only a surviving freshly displayed ship. Resolve own ownership or a known empire&#x27;s banner-color identity to an opaque player handle in the same coherent capture&#x27;s authorized roster. Foreign mapping requires a unique color in that public roster; ambiguous colors, unlisted owners and special/NPC owners remain explicitly unaudited. Never use an old handle table or newer roster to authorize the link. Discard private owner bindings before retaining snapshots; compare only the resolved public ID. Ownership does not authorize enemy names/designs, routes, ETA, orders, cargo or economy. | src/game/ships.cpp: Get_Ship_Icon_Pict_Seg; src/game/ships.cpp: Build_Ship_Icons; src/game/racescrn.cpp: Draw_Race_Photos | T-01, T-02, T-05 |

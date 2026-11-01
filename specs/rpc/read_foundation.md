@@ -1,5 +1,10 @@
 # P1 read sidecar and neutral game events
 
+The [completed exploration catalog](exploration_view.md) supersedes this initial
+map subset for Q-04/Q-05: audited full name/owner/map/range/wormhole knowledge,
+queryable planets, same-capture own-colony links and nebula variants. The original
+subset evidence below remains historical, not the current enablement list.
+
 The subsequent [ship-refresh increment](ship_refresh.md) adds conservative ship
 list/detail/state/subscription reads from already calculated native display state.
 The original session/map evidence below remains scoped to that foundation.

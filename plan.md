@@ -44,6 +44,9 @@
   native payloads are callback-local; no borrowed pointers escape.
 - Reuse already calculated authorized state. Queries must not invoke mutable
   builders, renderers, movement calculators or report-consuming routines.
+  Audited existing read-only range and planet-suitability predicates may run
+  during coherent capture; this does not authorize proposed ship movement/ETA
+  calculation or a new calculator.
 - Capture all requested topics, including session metadata, coherently. Never
   enrich retained snapshots in place or splice later UI values into older
   captures. During resolution, return busy or explicitly dated authorized state.
@@ -227,7 +230,7 @@ field-audited methods/topics; schemas alone grant no authority.
 #### Shared player-view policy
 
 - [x] V-01 — Bind enabled queries to local perspective; reject caller-selected/privileged views.
-- [ ] V-02 — Complete system/planet/nebula disclosure using audited native rules.
+- [x] V-02 — Complete system/planet/nebula disclosure using audited native rules.
 - [x] V-03 — Copy surviving ship-refresh observations without query-time rebuilds or stale traversal.
 - [ ] V-04 — Independently authorize design/scan details, destinations, orders, cargo and ETA.
 - [ ] V-05 — Complete player/colony/leader/research/diplomacy/intelligence/chart field policies.
@@ -244,8 +247,8 @@ field-audited methods/topics; schemas alone grant no authority.
 - [x] Q-01 — Implement hello/discovery/subscriptions for audited topics/events.
 - [x] Q-02 — Implement session and coherent selected-state reads for enabled topics.
 - [x] Q-03 — Implement player list/detail for audited known-roster and own HUD/economy fields.
-- [ ] Q-04 — Complete system list/detail with authorized map/range/wormhole data.
-- [ ] Q-05 — Complete planet list/detail and nebula reads.
+- [x] Q-04 — Complete system list/detail with authorized map/range/wormhole data.
+- [x] Q-05 — Complete planet list/detail and nebula reads.
 - [ ] Q-06 — Complete colony production/jobs/buildings/troops/events/transfers and foreign intelligence.
 - [ ] Q-07 — Complete conditional ship destination/ETA, selection/scan details and durable identity.
   - [x] Finish one bounded public cached-ETA path: authorize the surviving own wormhole-route head from canonical native presentation.

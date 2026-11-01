@@ -249,13 +249,43 @@ class TypedContractTests(unittest.TestCase):
             with self.subTest(value=value), self.assertRaises(ValueError):
                 audit.Validate_Value(value, "KnownText", self.contracts)
 
+    def test_exploration_classifications_precision_and_unavailable_payloads(self):
+        bounds = {"KnownPlanetSize":4, "KnownPlanetGravity":2, "KnownPlanetClimate":9,
+                  "KnownPlanetMinerals":4, "KnownPlanetSpecial":10, "KnownPlanetFood2":255,
+                  "KnownPlanetProductivity":255, "KnownPlanetGravityPenalty":50,
+                  "KnownPlanetPopulationLimit":42}
+        for name, maximum in bounds.items():
+            with self.subTest(name=name):
+                audit.Validate_Value({"availability":"current", "value":maximum}, name, self.contracts)
+                for reason in ("known-empty", "unknown", "context-required", "unaudited"):
+                    audit.Validate_Value({"availability":reason}, name, self.contracts)
+                    with self.assertRaises(ValueError):
+                        audit.Validate_Value({"availability":reason, "value":maximum}, name, self.contracts)
+                with self.assertRaises(ValueError):
+                    audit.Validate_Value({"availability":"current", "value":maximum + 1}, name, self.contracts)
+        for kind in ("asteroid", "gas-giant", "planet"):
+            audit.Validate_Value({"availability":"current", "value":kind}, "CurrentPlanetKind", self.contracts)
+        audit.Validate_Value({"availability":"current", "value":[]}, "KnownExploredIds", self.contracts)
+        with self.assertRaises(ValueError):
+            audit.Validate_Value({"availability":"current", "value":["same", "same"]}, "KnownExploredIds", self.contracts)
+
+    def test_exploration_reads_and_seven_topic_atomic_baselines_are_enabled(self):
+        for method in ("game.listPlanets", "game.getPlanet"):
+            self.assertIn(method, self.registry["implementedMethods"])
+        topics = ["session", "systems", "planets", "nebulas", "players", "colonies", "ships"]
+        audit.Validate_Value({"include":topics}, "StateRequest", self.contracts)
+        audit.Validate_Value({"topics":topics, "events":["state.changed"]}, "SubscribeRequest", self.contracts)
+        for topic in ("fleets", "designs", "ui"):
+            with self.assertRaises(ValueError):
+                audit.Validate_Value({"include":[topic]}, "StateRequest", self.contracts)
+
     def test_unaudited_object_and_field_fail_closed(self):
         with self.assertRaisesRegex(ValueError, "disabled object"):
             audit.Validate_Value(self.Sample("Fleet"), "Fleet", self.contracts, self.policies, public=True)
-        system = self.Sample("System")
+        colony = self.Sample("Colony")
         with self.assertRaisesRegex(ValueError, "disabled field"):
-            audit.Validate_Value(system, "System", self.contracts, self.policies, public=True)
-        system["owner"] = {"availability":"unaudited"}
+            audit.Validate_Value(colony, "Colony", self.contracts, self.policies, public=True)
+        system = self.Sample("System")
         audit.Validate_Value(system, "System", self.contracts, self.policies, public=True)
         ship = self.Sample("Ship")
         for field in ("owner", "name"):

@@ -9,6 +9,7 @@
 #include "rpc/rpc_settings.h"
 #include "rpc/players_rpc.h"
 #include "rpc/colony_rpc.h"
+#include "rpc/exploration_rpc.h"
 #include "lua/lua_game_ship_identity.h"
 
 #include <algorithm>
@@ -32,6 +33,9 @@ namespace game_rpc {
         *observation = {};
         const int32_t viewer = MOX::PLAYER_NUM;
         if (RUSS::all_ai_game != 0 || viewer < 0 || viewer >= MOX::NUM_PLAYERS || viewer >= MAX_PLAYERS ||
+            MOX::NUM_PLAYERS > MAX_PLAYERS || MOX::planet_count < 0 || MOX::planet_count > MAX_PLANETS ||
+            MOX::NUM_COLONIES < 0 || MOX::NUM_COLONIES > MAX_COLONIES ||
+            (MOX::planet_count != 0 && MOX::planet == nullptr) || (MOX::NUM_COLONIES != 0 && MOX::colony == nullptr) ||
             MOX::player == nullptr || MOX::star == nullptr || (MOX::NUM_NEBULAS != 0 && MOX::nebula == nullptr) ||
             MOX::player[viewer].objectives != PLAYER_OBJECTIVE_HUMAN || MOX::player[viewer].eliminated != 0 ||
             MOX::NUM_STARS < 0 || MOX::NUM_STARS > MAX_STARS || MOX::NUM_NEBULAS > MAX_NEBULAS) {
@@ -39,37 +43,7 @@ namespace game_rpc {
         }
         observation->viewer = viewer;
         observation->turn = MOX::stardate;
-        observation->systems.reserve(MOX::NUM_STARS);
-        for (int16_t index = 0; index < MOX::NUM_STARS; ++index) {
-            const s_star_data* star = &MOX::star[index];
-            rpc::s_system_observation item;
-            item.x = star->x;
-            item.y = star->y;
-            item.visited = HAROLD::Player_Has_Visited((int16_t)viewer, index) != 0;
-            if (item.visited && star->spectral_class != STAR_CLASS_BLACK_HOLE) {
-                if (memchr(star->name, 0, sizeof(star->name)) == nullptr) return false;
-                // Validate links before the native read-only outpost-format predicate.
-                for (int orbit = 0; orbit < 5; ++orbit) {
-                    const int16_t planet = star->planet_index[orbit];
-                    if (planet < -1 || planet >= MAX_PLANETS || (planet >= 0 && MOX::planet == nullptr)) return false;
-                    if (planet >= 0) {
-                        const int16_t colony = MOX::planet[planet].colony_index;
-                        if (colony < -1 || colony >= MAX_COLONIES || (colony >= 0 && MOX::colony == nullptr)) return false;
-                    }
-                }
-                char name[sizeof(star->name) + 1] = {};
-                memcpy(name, star->name, sizeof(star->name));
-                if (HAROLD::Star_Is_Outpost_Star(index)) strings::String_To_Lower(name);
-                config::Decode_Cp850_To_Utf8(name, strlen(name), &item.name);
-                item.name_available = true;
-            }
-            observation->systems.push_back(std::move(item));
-        }
-        observation->nebulas.reserve(MOX::NUM_NEBULAS);
-        for (int16_t index = 0; index < MOX::NUM_NEBULAS; ++index) {
-            observation->nebulas.push_back({MOX::nebula[index].x, MOX::nebula[index].y});
-        }
-        return players_rpc::Read_Players(observation) && colony_rpc::Read_Colonies(observation);
+        return exploration_rpc::Read_Exploration(observation) && players_rpc::Read_Players(observation) && colony_rpc::Read_Colonies(observation);
     }
 
     static rpc::s_bridge* Initialize() {

@@ -21,6 +21,7 @@ namespace {
         int16_t old_players_count = MOX::NUM_PLAYERS;
         int16_t old_stars_count = MOX::NUM_STARS;
         int16_t old_colonies_count = MOX::NUM_COLONIES;
+        int16_t old_planet_count = MOX::planet_count;
         uint8_t old_nebulas_count = MOX::NUM_NEBULAS;
         int32_t old_turn = MOX::stardate;
         int16_t old_active_count = MOX::active_count;
@@ -40,13 +41,20 @@ namespace {
             MOX::NUM_PLAYERS = 2;
             MOX::NUM_STARS = 3;
             MOX::NUM_COLONIES = 0;
+            MOX::planet_count = MAX_PLANETS;
             MOX::NUM_NEBULAS = 1;
             MOX::stardate = 35000;
             players[0].objectives = PLAYER_OBJECTIVE_HUMAN;
             players[1].objectives = PLAYER_OBJECTIVE_HUMAN;
             for (s_star_data& star : stars) {
                 for (int orbit = 0; orbit < 5; ++orbit) star.planet_index[orbit] = -1;
+                star.wormhole_star_id = -1;
                 memcpy(star.name, "ABC\x82", 5);
+            }
+            for (auto& planet : planets) {
+                planet.colony_index = -1;
+                planet.planet_type = PLANET_TYPE_PLANET;
+                planet.climate = PLANET_CLIMATE_TERRAN;
             }
             stars[0].visited = 1;
             stars[1].visited = 2; // The other perspective only.
@@ -63,6 +71,7 @@ namespace {
             MOX::NUM_PLAYERS = old_players_count;
             MOX::NUM_STARS = old_stars_count;
             MOX::NUM_COLONIES = old_colonies_count;
+            MOX::planet_count = old_planet_count;
             MOX::NUM_NEBULAS = old_nebulas_count;
             MOX::stardate = old_turn;
             MOX::active_count = old_active_count;
@@ -143,6 +152,7 @@ DOCTEST_TEST_CASE("native map projection uses the local visited bit and native n
     world.stars[0].planet_index[0] = 0;
     world.planets[0].colony_index = 0;
     world.colonies[0].outpost_flag = 1;
+    MOX::NUM_COLONIES = 1;
     const uint32_t seed = game_random::Get_Random_Seed();
     rpc::s_map_observation observed;
     DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&observed));
@@ -200,6 +210,297 @@ DOCTEST_TEST_CASE("maximum initial native projection fits the bridge response bo
               << " bytes=" << response.size()
               << " capture_us=" << std::chrono::duration_cast<std::chrono::microseconds>(captured - started).count()
               << " encode_us=" << std::chrono::duration_cast<std::chrono::microseconds>(encoded - captured).count() << '\n';
+    rpc::Shutdown_Game_Store(&store);
+}
+
+DOCTEST_TEST_CASE("exploration copies native planet knowledge and suitability without UI caches foreign intelligence or mutation") {
+    s_world world;
+    MOX::NUM_COLONIES = 1;
+    world.stars[0].planet_index[0] = 0;
+    world.stars[0].planet_index[2] = 1;
+    world.stars[0].planet_index[4] = 2;
+    world.stars[0].has_colony = 1;
+    world.planets[0].planet_type = PLANET_TYPE_ASTEROID;
+    world.planets[1].orbit = 2;
+    world.planets[1].size = PLANET_SIZE_LARGE;
+    world.planets[1].gravity_class = PLANET_GRAVITY_HEAVY_G;
+    world.planets[1].mineral_class = MINERAL_RESOURCE_RICH;
+    world.planets[1].planet_special = SYSTEM_SPECIAL_ANCIENT_ARTIFACTS;
+    world.planets[1].food_per_farmer = 5;
+    world.planets[2].orbit = 4;
+    world.planets[2].colony_index = 0;
+    world.colonies[0].owner = 1;
+    world.colonies[0].planet = 2;
+    world.colonies[0].n_pops = 255; // Never passed to a foreign population calculation.
+    world.colonies[0].climate = -99;
+    world.stars[1].planet_index[1] = 3;
+    world.planets[3].star_index = 1;
+    world.planets[3].orbit = 1;
+    world.planets[3].planet_type = 99; // Hidden malformed ecology is never validated.
+    memset(world.stars[1].name, 'X', sizeof(world.stars[1].name));
+    const auto stars = world.stars;
+    const auto planets = world.planets;
+    const auto colonies = world.colonies;
+    const uint32_t seed = game_random::Get_Random_Seed();
+    const auto old_screen = MOX::current_screen;
+    const auto old_look = MOX::look_at_colonies;
+    MOX::current_screen = SCREEN_PLANET_SUMMARY;
+    MOX::look_at_colonies = 1;
+    rpc::s_map_observation observed;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&observed));
+    DOCTEST_REQUIRE(observed.planets.size() == 3);
+    DOCTEST_CHECK(memcmp(stars.data(), world.stars.data(), stars.size() * sizeof(s_star_data)) == 0);
+    DOCTEST_CHECK(memcmp(planets.data(), world.planets.data(), planets.size() * sizeof(s_planet_data)) == 0);
+    DOCTEST_CHECK(memcmp(colonies.data(), world.colonies.data(), colonies.size() * sizeof(s_colony)) == 0);
+    DOCTEST_CHECK(game_random::Get_Random_Seed() == seed);
+    DOCTEST_CHECK(observed.systems[0].explored == SYS::Ok_To_View_System(0, 0));
+    DOCTEST_CHECK_FALSE(observed.systems[1].explored);
+    DOCTEST_CHECK_FALSE(PLNTSUM::Planet_Has_Been_Visited(3));
+    char name[200];
+    HACCESS::Do_Get_Planet_Name(1, name, 0);
+    DOCTEST_CHECK(observed.planets[1].name == "ABC\xc3\xa9 II");
+    DOCTEST_CHECK(std::string(name) == "ABC\x82 II");
+    DOCTEST_CHECK(observed.planets[1].orbit == 3);
+    DOCTEST_CHECK(observed.planets[1].food2 == 5);
+    DOCTEST_CHECK(observed.planets[1].gravity_penalty == PLNTSUM::Productivity_Penalty(0, PLANET_GRAVITY_HEAVY_G));
+    DOCTEST_CHECK(observed.planets[1].industry == COLCALC::minerals_per_mine[MINERAL_RESOURCE_RICH]);
+    DOCTEST_CHECK(observed.planets[1].max_population == COLCALC::Planet_Max_Population_For_Player(&world.planets[1], 0));
+    DOCTEST_CHECK_FALSE(observed.planets[2].max_population_available);
+    DOCTEST_CHECK(observed.planets[2].climate == PLANET_CLIMATE_TERRAN);
+    world.colonies[0].n_pops = 0;
+    world.colonies[0].climate = 9;
+    world.colonies[0].buildings[BUILDING_BIOSPHERES] = 1;
+    world.planets[3].climate = -127;
+    world.stars[1].system_special = -99;
+    world.stars[1].in_nebula = 255;
+    rpc::s_map_observation changed;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&changed));
+    DOCTEST_CHECK(changed.planets[2].climate == observed.planets[2].climate);
+    DOCTEST_CHECK_FALSE(changed.planets[2].max_population_available);
+    DOCTEST_CHECK(game_random::Get_Random_Seed() == seed);
+    world.planets[1].climate = PLANET_CLIMATE_GAIA;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&changed));
+    DOCTEST_CHECK(changed.planets[1].climate == PLANET_CLIMATE_GAIA);
+    DOCTEST_CHECK(observed.planets[1].climate == PLANET_CLIMATE_TERRAN);
+    MOX::current_screen = old_screen;
+    MOX::look_at_colonies = old_look;
+}
+
+DOCTEST_TEST_CASE("exploration range uses actual native rounding block wormhole and alliance predicates") {
+    s_world world;
+    world.stars[0].has_colony = 1;
+    world.stars[1].visited = 1;
+    world.stars[1].x = 14 * 30;
+    world.stars[2].spectral_class = STAR_CLASS_G;
+    world.stars[2].x = 30;
+    world.players[0].ship_range = 9;
+    rpc::s_map_observation observed;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&observed));
+    DOCTEST_CHECK_FALSE(SHIPMOVE::Star_In_Normal_Range_Of_Player(&world.stars[1], 0));
+    DOCTEST_CHECK(observed.systems[1].in_extended_range);
+    DOCTEST_CHECK(observed.systems[1].in_extended_range == SHIPMOVE::Star_In_Extended_Range_Of_Player(&world.stars[1], 0));
+    struct_::Set_Bit_Field(world.stars[0].black_hole_blocks, 1);
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&observed));
+    DOCTEST_CHECK_FALSE(observed.systems[1].in_extended_range);
+    world.stars[1].wormhole_star_id = 2;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&observed));
+    DOCTEST_CHECK(observed.systems[1].in_extended_range);
+    DOCTEST_CHECK(observed.systems[1].wormhole_system == 2);
+    world.stars[2].visited = 0;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&observed));
+    DOCTEST_CHECK_FALSE(observed.systems[1].in_extended_range);
+    world.stars[1].wormhole_star_id = -1;
+    world.stars[2].has_colony = 2;
+    world.players[0].treaty[1] = 2;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&observed));
+    DOCTEST_CHECK(observed.systems[1].in_extended_range);
+    world.players[0].treaty[1] = 0;
+    world.stars[1].wormhole_star_id = MAX_STARS;
+    DOCTEST_CHECK_FALSE(game_rpc::Read_Map_Observation(&observed));
+    world.stars[1].visited = 0;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&observed));
+    DOCTEST_CHECK(observed.systems[1].wormhole_available == rpc::EXPLORATION_UNKNOWN);
+}
+
+DOCTEST_TEST_CASE("exploration contact Lore mixed owner and special object knowledge are independently gated") {
+    s_world world;
+    MOX::NUM_COLONIES = 1;
+    world.stars[1].planet_index[0] = 0;
+    world.planets[0].star_index = 1;
+    world.planets[0].colony_index = 0;
+    world.colonies[0].planet = 0;
+    world.colonies[0].owner = 1;
+    world.colonies[0].outpost_flag = 1;
+    rpc::s_map_observation observed;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&observed));
+    DOCTEST_CHECK_FALSE(observed.systems[1].name_available);
+    DOCTEST_CHECK(observed.planets.empty());
+    world.players[0].contact[1] = 1;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&observed));
+    DOCTEST_CHECK(observed.systems[1].name == "abc\xc3\xa9");
+    DOCTEST_CHECK(observed.systems[1].owner_slot == HAROLD::Star_Owner(1, 0));
+    DOCTEST_CHECK_FALSE(observed.systems[1].explored);
+    DOCTEST_CHECK(observed.planets.empty());
+    world.players[0].contact[1] = 0;
+    world.players[0].traits[TRAIT_OMNISCIENCE] = 1;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&observed));
+    DOCTEST_CHECK(observed.systems[1].name == "(abc\xc3\xa9)");
+    DOCTEST_REQUIRE(observed.planets.size() == 1);
+    DOCTEST_CHECK_FALSE(observed.systems[2].explored); // Black hole even under omniscience.
+    world.planets[0].planet_type = PLANET_TYPE_GAS_GIANT;
+    world.planets[0].climate = -99;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&observed));
+    DOCTEST_CHECK(observed.planets[0].kind == PLANET_TYPE_GAS_GIANT);
+    DOCTEST_CHECK(observed.planets[0].name.empty());
+    world.planets[0].planet_type = PLANET_TYPE_PLANET;
+    DOCTEST_CHECK_FALSE(game_rpc::Read_Map_Observation(&observed));
+    world.planets[0].climate = PLANET_CLIMATE_GAIA;
+    world.planets[0].planet_special = SYSTEM_SPECIAL_ORION_STAR;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&observed));
+    DOCTEST_CHECK(observed.planets[0].special == 0);
+    world.planets[0].orbit = 2;
+    DOCTEST_CHECK_FALSE(game_rpc::Read_Map_Observation(&observed));
+}
+
+DOCTEST_TEST_CASE("nebula projection preserves exactly the native rendered unsigned modulo variant") {
+    s_world world;
+    const int values[] = {-128, -1, 0, 11, 12, 127};
+    for (int value : values) {
+        world.nebulas[0].type = (int8_t)value;
+        rpc::s_map_observation observed;
+        DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&observed));
+        DOCTEST_CHECK(observed.nebulas[0].variant == (uint8_t)value % 12);
+        DOCTEST_CHECK((int)world.nebulas[0].type == value);
+    }
+}
+
+DOCTEST_TEST_CASE("native mixed system ownership keeps self preference and contact filtering without foreign colony scans") {
+    s_world world;
+    MOX::NUM_COLONIES = 3;
+    for (int index = 0; index < 3; ++index) {
+        world.stars[0].planet_index[index * 2] = (int16_t)index;
+        world.planets[index].orbit = (int8_t)(index * 2);
+        world.planets[index].colony_index = (int16_t)index;
+        world.colonies[index].planet = (int16_t)index;
+        world.colonies[index].owner = index == 2 ? 0 : 1;
+        if (index != 2) world.colonies[index].n_pops = 255;
+    }
+    rpc::s_map_observation observed;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&observed));
+    DOCTEST_CHECK(observed.systems[0].owner_slot == HAROLD::Star_Owner(0, 0));
+    DOCTEST_CHECK(observed.systems[0].owner_slot == 0);
+    DOCTEST_CHECK(observed.colonies.size() == 1);
+    world.colonies[2].owner = 1;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&observed));
+    DOCTEST_CHECK(observed.systems[0].owner_slot == -1);
+    DOCTEST_CHECK(observed.colonies.empty());
+    world.players[0].contact[1] = 1;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&observed));
+    DOCTEST_CHECK(observed.systems[0].owner_slot == HAROLD::Star_Owner(0, 0));
+    DOCTEST_CHECK(observed.systems[0].owner_slot == 1);
+    for (const auto& planet : observed.planets) DOCTEST_CHECK_FALSE(planet.max_population_available);
+    MOX::NUM_PLAYERS = 3;
+    world.players[0].contact[2] = 1;
+    world.players[2].color = 2;
+    world.colonies[1].owner = 2;
+    world.colonies[2].owner = -1;
+    world.colonies[2].planet = -1;
+    world.planets[2].colony_index = -1;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&observed));
+    DOCTEST_CHECK(observed.systems[0].owner_slot == HAROLD::Star_Owner(0, 0));
+    DOCTEST_CHECK(observed.systems[0].owner_slot == 1); // Native tie order, not exclusive ownership.
+}
+
+DOCTEST_TEST_CASE("actual native exploration grants expire through copied store and bridge lifecycle boundaries") {
+    s_world world;
+    world.stars[0].planet_index[0] = 0;
+    world.stars[1].planet_index[0] = 1;
+    world.planets[1].star_index = 1;
+    world.players[0].traits[TRAIT_OMNISCIENCE] = 1;
+    rpc::s_map_observation observed;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&observed));
+    rpc::s_bridge bridge;
+    rpc::s_game_store store;
+    DOCTEST_REQUIRE(rpc::Initialize_Game_Store(&store, &bridge));
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&store));
+    DOCTEST_REQUIRE(rpc::Capture_Map(&store, &observed));
+    const auto retained = store.snapshots.back();
+    uint64_t epoch;
+    DOCTEST_REQUIRE(rpc::Register_Client(&bridge, 1, &epoch));
+    DOCTEST_REQUIRE(rpc::Authorize_Client(&bridge, 1, epoch));
+    rpc::s_request request;
+    request.method = "game.listPlanets";
+    request.id_json = "1";
+    request.params_json = "{\"limit\":1}";
+    rpc::Game_Query(&store, &request);
+    DOCTEST_REQUIRE(store.cursors.size() == 1);
+    const auto cursor = store.cursors[0].id;
+    DOCTEST_REQUIRE(rpc::Submit_Work(&bridge, 1, epoch, &request, UINT64_MAX) == 0);
+    rpc::s_work late;
+    DOCTEST_REQUIRE(rpc::Take_Work(&bridge, 0, &late));
+    const auto copied_response = rpc::Game_Query(&store, &late.request);
+    DOCTEST_SUBCASE("resolution or world update begins before native mutation") {
+        rpc::Pause_Game_Queries(&store);
+        DOCTEST_CHECK(store.snapshots.empty());
+        rpc::Resume_Game_Queries(&store);
+    }
+    DOCTEST_SUBCASE("native omniscience is withdrawn at fresh capture") {
+        world.players[0].traits[TRAIT_OMNISCIENCE] = 0;
+        DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&observed));
+        DOCTEST_REQUIRE(rpc::Capture_Map(&store, &observed));
+    }
+    DOCTEST_SUBCASE("perspective boundary") {
+        rpc::Revoke_Game_View(&store);
+    }
+    DOCTEST_SUBCASE("world replacement boundary") {
+        rpc::Begin_Game_Reset(&store);
+        DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&store));
+    }
+    DOCTEST_CHECK_FALSE(rpc::Client_Is_Current(&bridge, 1, epoch));
+    DOCTEST_CHECK_FALSE(rpc::Complete_Work(&bridge, &late, &copied_response));
+    DOCTEST_CHECK(store.cursors.empty());
+    world.players[0].traits[TRAIT_OMNISCIENCE] = 0;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&observed));
+    DOCTEST_REQUIRE(rpc::Capture_Map(&store, &observed));
+    request.params_json = "{\"cursor\":" + rpc::Json_String(cursor) + "}";
+    DOCTEST_CHECK(rpc::Game_Query(&store, &request).find("-32004") != std::string::npos);
+    DOCTEST_CHECK(retained.map.planets.size() == 2);
+    DOCTEST_CHECK(store.snapshots.back().map.planets.size() == 1);
+    rpc::Shutdown_Game_Store(&store);
+}
+
+DOCTEST_TEST_CASE("only active own colony links authorize partially known planet locations") {
+    s_world world;
+    MOX::planet_count = 2;
+    MOX::NUM_COLONIES = 1;
+    world.colonies[0].owner = -1;
+    world.stars[1].planet_index[0] = 1;
+    world.planets[1].star_index = 1;
+    world.planets[1].colony_index = 1;
+    world.colonies[1].planet = 1;
+    rpc::s_map_observation observed;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&observed));
+    DOCTEST_CHECK(observed.planets.empty()); // Stale inactive bytes do not grant ownership.
+    MOX::NUM_COLONIES = 2;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&observed));
+    DOCTEST_REQUIRE(observed.planets.size() == 1);
+    DOCTEST_CHECK_FALSE(observed.systems[1].explored);
+    DOCTEST_CHECK(observed.planets[0].system == 1);
+    rpc::s_bridge bridge;
+    rpc::s_game_store store;
+    DOCTEST_REQUIRE(rpc::Initialize_Game_Store(&store, &bridge));
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&store));
+    DOCTEST_REQUIRE(rpc::Capture_Map(&store, &observed));
+    const auto& snapshot = store.snapshots.back();
+    DOCTEST_CHECK(snapshot.map.systems[1].planet_ids.empty());
+    DOCTEST_CHECK(snapshot.map.colonies[0].planet_id == snapshot.planet_ids[0]);
+    DOCTEST_CHECK(snapshot.map.planets[0].colony_id == snapshot.colony_ids[0]);
+    DOCTEST_CHECK(snapshot.map.exploration_sensitive);
+    MOX::planet_count = 1;
+    DOCTEST_CHECK_FALSE(game_rpc::Read_Map_Observation(&observed)); // Malformed authorized own link.
+    world.colonies[1].owner = 1;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&observed)); // Hidden invalid foreign link.
+    DOCTEST_CHECK(observed.planets.empty());
     rpc::Shutdown_Game_Store(&store);
 }
 
@@ -470,6 +771,7 @@ DOCTEST_TEST_CASE("fresh map routes reuse native ambient disclosure and only the
         fixture.world.stars[0].has_colony = 1;
     }
     DOCTEST_SUBCASE("native outpost predicate ignores its viewer argument") {
+        MOX::NUM_COLONIES = 1;
         fixture.world.stars[0].planet_index[0] = 0;
         fixture.world.planets[0].colony_index = 0;
         fixture.world.colonies[0].outpost_flag = 1;
@@ -916,7 +1218,9 @@ DOCTEST_TEST_CASE("non-own cached producer requires an independent native ambien
         allowed = true;
     }
     DOCTEST_SUBCASE("native outpost gate includes a foreign outpost") {
+        MOX::NUM_COLONIES = 1;
         fixture.native.world.stars[1].planet_index[0] = 0;
+        fixture.native.world.planets[0].star_index = 1;
         fixture.native.world.planets[0].colony_index = 0;
         fixture.native.world.colonies[0].outpost_flag = 1;
         fixture.native.world.colonies[0].owner = 1;
@@ -1522,6 +1826,7 @@ DOCTEST_TEST_CASE("maximum own colony capture is bounded and oversized complete 
     rpc::s_map_observation observation;
     DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&observation));
     DOCTEST_REQUIRE(observation.colonies.size() == MAX_COLONIES);
+    DOCTEST_REQUIRE(observation.planets.size() == MAX_PLANETS);
     rpc::s_bridge bridge;
     rpc::s_game_store store;
     DOCTEST_REQUIRE(rpc::Initialize_Game_Store(&store, &bridge));
@@ -1535,8 +1840,15 @@ DOCTEST_TEST_CASE("maximum own colony capture is bounded and oversized complete 
     DOCTEST_CHECK(page.size() < 1048576);
     DOCTEST_CHECK(page.find("\"error\"") == std::string::npos);
     DOCTEST_CHECK(page.find("nextCursor") != std::string::npos);
+    request.method = "game.listPlanets";
+    const auto planets_page = rpc::Game_Query(&store, &request);
+    DOCTEST_CHECK(planets_page.size() < 1048576);
+    DOCTEST_CHECK(planets_page.find("\"error\"") == std::string::npos);
+    DOCTEST_CHECK(planets_page.find("nextCursor") != std::string::npos);
     request.method = "game.getState";
     request.params_json = "{\"include\":[\"colonies\"]}";
+    DOCTEST_CHECK(rpc::Game_Query(&store, &request).find("-32005") != std::string::npos);
+    request.params_json = "{\"include\":[\"systems\",\"planets\",\"colonies\"]}";
     DOCTEST_CHECK(rpc::Game_Query(&store, &request).find("-32005") != std::string::npos);
     rpc::Shutdown_Game_Store(&store);
 }

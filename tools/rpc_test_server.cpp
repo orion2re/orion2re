@@ -170,6 +170,91 @@ int main() {
                 map.colonies[0].armor = 32767;
                 map.colonies[1].infantry = 32767;
                 rpc::Capture_Map(&store, &map);
+            } else if (command == "exploration" || command == "exploration-large") {
+                map.planets_captured = true;
+                map.planets.clear();
+                const size_t systems = command == "exploration-large" ? 400 : map.systems.size();
+                if (systems != map.systems.size()) map.systems.resize(systems, {100, 100, true, true, "Known"});
+                for (size_t system = 0; system < systems; ++system) {
+                    if (system == 1 && command == "exploration") continue;
+                    map.systems[system].explored = true;
+                    map.systems[system].wormhole_available = rpc::EXPLORATION_EMPTY;
+                    for (int orbit : {1, 5}) {
+                        rpc::s_planet_observation planet;
+                        planet.visible = true;
+                        planet.system = (int32_t)system;
+                        planet.orbit = orbit;
+                        planet.kind = 3;
+                        planet.name = "Known planet " + std::to_string(system) + "-" + std::to_string(orbit);
+                        planet.climate = 8;
+                        planet.food2 = 5;
+                        planet.max_population_available = system == 0;
+                        planet.max_population = 42;
+                        map.planets.push_back(std::move(planet));
+                    }
+                }
+                map.systems[0].owner_slot = 0;
+                map.systems[0].wormhole_available = rpc::EXPLORATION_CURRENT;
+                map.systems[0].wormhole_system = 1;
+                map.nebulas[0].variant = 11;
+                if (command == "exploration-large") {
+                    map.systems[1].visited = false;
+                    map.systems[1].name_known = true;
+                }
+                rpc::Capture_Map(&store, &map);
+            } else if (command == "exploration-change") {
+                if (!map.planets.empty()) map.planets[0].climate = 9;
+                rpc::Capture_Map(&store, &map);
+            } else if (command == "exploration-hidden") {
+                rpc::s_planet_observation hidden;
+                hidden.system = -99999;
+                hidden.climate = -99999;
+                hidden.name = "hidden planet";
+                map.planets.push_back(hidden);
+                map.systems[1].in_extended_range = true;
+                map.systems[1].name = "hidden name";
+                rpc::Capture_Map(&store, &map);
+            } else if (command == "exploration-lore") {
+                map.systems[1].explored = true;
+                map.systems[1].name_available = map.systems[1].name_known = true;
+                map.systems[1].name = "(Lore)";
+                rpc::Capture_Map(&store, &map);
+            } else if (command == "exploration-forget") {
+                map.systems[1].explored = false;
+                map.systems[1].name_available = map.systems[1].name_known = false;
+                rpc::Capture_Map(&store, &map);
+            } else if (command == "publish-exploration") {
+                rpc::s_request request;
+                request.id_json = "99";
+                request.method = "game.getState";
+                request.params_json = "{\"include\":[\"session\",\"systems\",\"planets\",\"nebulas\",\"players\",\"colonies\",\"ships\"]}";
+                std::vector<rpc::s_client_identity> clients;
+                rpc::Get_Authorized_Clients(&bridge, &clients);
+                if (clients.size() != 1)
+                    acknowledgment = "missing-exploration-client";
+                else {
+                    for (int index = 0; index < 4; ++index) {
+                        rpc::Submit_Work(&bridge, clients[0].client, clients[0].epoch, &request, UINT64_MAX);
+                    }
+                    rpc::Pump_Game_Queries(&store);
+                }
+            } else if (command == "revoke-exploration-output") {
+                const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(1);
+                bool drained = false;
+                while (std::chrono::steady_clock::now() < deadline) {
+                    {
+                        std::lock_guard lock(bridge.mutex);
+                        drained = bridge.ready.empty();
+                    }
+                    if (drained) break;
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                }
+                {
+                    std::lock_guard lock(bridge.mutex);
+                    if (!drained || bridge.deliveries.empty()) acknowledgment = "no-service-owned-exploration-output";
+                }
+                rpc::Pause_Game_Queries(&store);
+                polling = false;
             } else if (command == "war") {
                 map.players[1].at_war_available = true;
                 map.players[1].at_war = !map.players[1].at_war;

@@ -1,5 +1,10 @@
 # Q-06 own full-colony read subset
 
+The [exploration catalog](exploration_view.md) subsequently implements actual
+planet reads and reciprocal same-capture own-colony links. It supersedes the
+historical `planetId`-unaudited/method-not-found statements below; remaining Q-06
+production, buy and foreign-intelligence work is still incomplete.
+
 Prepared with AI assistance. `game.listColonies`, `game.getColony` and the
 `colonies` state/subscription topic expose the active local human's **own full
 colonies**, not foreign intelligence or outposts. This is a partial Q-06

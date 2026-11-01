@@ -375,7 +375,7 @@
         },
         "planetId": {
           "$ref": "#/$defs/KnownId",
-          "x-rpc-policy": "disabled-colony"
+          "x-rpc-policy": "exploration-own-colony-links"
         },
         "owner": {
           "$ref": "#/$defs/KnownId",
@@ -919,6 +919,25 @@
       ],
       "x-rpc-policy": "contract"
     },
+    "CurrentExploredIds": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/Current",
+          "x-rpc-policy": "contract"
+        },
+        "value": {
+          "$ref": "#/$defs/ExploredIds",
+          "x-rpc-policy": "contract"
+        }
+      },
+      "required": [
+        "availability",
+        "value"
+      ],
+      "x-rpc-policy": "contract"
+    },
     "CurrentId": {
       "type": "object",
       "additionalProperties": false,
@@ -929,6 +948,196 @@
         },
         "value": {
           "$ref": "#/$defs/Id",
+          "x-rpc-policy": "contract"
+        }
+      },
+      "required": [
+        "availability",
+        "value"
+      ],
+      "x-rpc-policy": "contract"
+    },
+    "CurrentPlanetClimate": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/Current",
+          "x-rpc-policy": "contract"
+        },
+        "value": {
+          "$ref": "#/$defs/PlanetClimate",
+          "x-rpc-policy": "contract"
+        }
+      },
+      "required": [
+        "availability",
+        "value"
+      ],
+      "x-rpc-policy": "contract"
+    },
+    "CurrentPlanetFood2": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/Current",
+          "x-rpc-policy": "contract"
+        },
+        "value": {
+          "$ref": "#/$defs/PlanetFood2",
+          "x-rpc-policy": "contract"
+        }
+      },
+      "required": [
+        "availability",
+        "value"
+      ],
+      "x-rpc-policy": "contract"
+    },
+    "CurrentPlanetGravity": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/Current",
+          "x-rpc-policy": "contract"
+        },
+        "value": {
+          "$ref": "#/$defs/PlanetGravity",
+          "x-rpc-policy": "contract"
+        }
+      },
+      "required": [
+        "availability",
+        "value"
+      ],
+      "x-rpc-policy": "contract"
+    },
+    "CurrentPlanetGravityPenalty": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/Current",
+          "x-rpc-policy": "contract"
+        },
+        "value": {
+          "$ref": "#/$defs/PlanetGravityPenalty",
+          "x-rpc-policy": "contract"
+        }
+      },
+      "required": [
+        "availability",
+        "value"
+      ],
+      "x-rpc-policy": "contract"
+    },
+    "CurrentPlanetKind": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/Current",
+          "x-rpc-policy": "contract"
+        },
+        "value": {
+          "$ref": "#/$defs/PlanetKind",
+          "x-rpc-policy": "contract"
+        }
+      },
+      "required": [
+        "availability",
+        "value"
+      ],
+      "x-rpc-policy": "contract"
+    },
+    "CurrentPlanetMinerals": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/Current",
+          "x-rpc-policy": "contract"
+        },
+        "value": {
+          "$ref": "#/$defs/PlanetMinerals",
+          "x-rpc-policy": "contract"
+        }
+      },
+      "required": [
+        "availability",
+        "value"
+      ],
+      "x-rpc-policy": "contract"
+    },
+    "CurrentPlanetPopulationLimit": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/Current",
+          "x-rpc-policy": "contract"
+        },
+        "value": {
+          "$ref": "#/$defs/PlanetPopulationLimit",
+          "x-rpc-policy": "contract"
+        }
+      },
+      "required": [
+        "availability",
+        "value"
+      ],
+      "x-rpc-policy": "contract"
+    },
+    "CurrentPlanetProductivity": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/Current",
+          "x-rpc-policy": "contract"
+        },
+        "value": {
+          "$ref": "#/$defs/PlanetProductivity",
+          "x-rpc-policy": "contract"
+        }
+      },
+      "required": [
+        "availability",
+        "value"
+      ],
+      "x-rpc-policy": "contract"
+    },
+    "CurrentPlanetSize": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/Current",
+          "x-rpc-policy": "contract"
+        },
+        "value": {
+          "$ref": "#/$defs/PlanetSize",
+          "x-rpc-policy": "contract"
+        }
+      },
+      "required": [
+        "availability",
+        "value"
+      ],
+      "x-rpc-policy": "contract"
+    },
+    "CurrentPlanetSpecial": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/Current",
+          "x-rpc-policy": "contract"
+        },
+        "value": {
+          "$ref": "#/$defs/PlanetSpecial",
           "x-rpc-policy": "contract"
         }
       },
@@ -1164,6 +1373,53 @@
         "$ref": "#/$defs/Event"
       },
       "maxItems": 9,
+      "uniqueItems": true
+    },
+    "ExplorationBool": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CurrentBool"
+        },
+        {
+          "$ref": "#/$defs/EmptyKnowledge"
+        },
+        {
+          "$ref": "#/$defs/Unavailable"
+        }
+      ]
+    },
+    "ExplorationId": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CurrentId"
+        },
+        {
+          "$ref": "#/$defs/EmptyKnowledge"
+        },
+        {
+          "$ref": "#/$defs/Unavailable"
+        }
+      ]
+    },
+    "ExplorationText": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CurrentText"
+        },
+        {
+          "$ref": "#/$defs/EmptyKnowledge"
+        },
+        {
+          "$ref": "#/$defs/Unavailable"
+        }
+      ]
+    },
+    "ExploredIds": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Id"
+      },
+      "maxItems": 5,
       "uniqueItems": true
     },
     "Fleet": {
@@ -1528,10 +1784,137 @@
         "known-empty"
       ]
     },
+    "KnownExploredIds": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CurrentExploredIds"
+        },
+        {
+          "$ref": "#/$defs/Unavailable"
+        }
+      ]
+    },
     "KnownId": {
       "oneOf": [
         {
           "$ref": "#/$defs/CurrentId"
+        },
+        {
+          "$ref": "#/$defs/Unavailable"
+        }
+      ]
+    },
+    "KnownPlanetClimate": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CurrentPlanetClimate"
+        },
+        {
+          "$ref": "#/$defs/EmptyKnowledge"
+        },
+        {
+          "$ref": "#/$defs/Unavailable"
+        }
+      ]
+    },
+    "KnownPlanetFood2": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CurrentPlanetFood2"
+        },
+        {
+          "$ref": "#/$defs/EmptyKnowledge"
+        },
+        {
+          "$ref": "#/$defs/Unavailable"
+        }
+      ]
+    },
+    "KnownPlanetGravity": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CurrentPlanetGravity"
+        },
+        {
+          "$ref": "#/$defs/EmptyKnowledge"
+        },
+        {
+          "$ref": "#/$defs/Unavailable"
+        }
+      ]
+    },
+    "KnownPlanetGravityPenalty": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CurrentPlanetGravityPenalty"
+        },
+        {
+          "$ref": "#/$defs/EmptyKnowledge"
+        },
+        {
+          "$ref": "#/$defs/Unavailable"
+        }
+      ]
+    },
+    "KnownPlanetMinerals": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CurrentPlanetMinerals"
+        },
+        {
+          "$ref": "#/$defs/EmptyKnowledge"
+        },
+        {
+          "$ref": "#/$defs/Unavailable"
+        }
+      ]
+    },
+    "KnownPlanetPopulationLimit": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CurrentPlanetPopulationLimit"
+        },
+        {
+          "$ref": "#/$defs/EmptyKnowledge"
+        },
+        {
+          "$ref": "#/$defs/Unavailable"
+        }
+      ]
+    },
+    "KnownPlanetProductivity": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CurrentPlanetProductivity"
+        },
+        {
+          "$ref": "#/$defs/EmptyKnowledge"
+        },
+        {
+          "$ref": "#/$defs/Unavailable"
+        }
+      ]
+    },
+    "KnownPlanetSize": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CurrentPlanetSize"
+        },
+        {
+          "$ref": "#/$defs/EmptyKnowledge"
+        },
+        {
+          "$ref": "#/$defs/Unavailable"
+        }
+      ]
+    },
+    "KnownPlanetSpecial": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CurrentPlanetSpecial"
+        },
+        {
+          "$ref": "#/$defs/EmptyKnowledge"
         },
         {
           "$ref": "#/$defs/Unavailable"
@@ -1918,14 +2301,27 @@
         "y": {
           "$ref": "#/$defs/Coord",
           "x-rpc-policy": "nebulas-map"
+        },
+        "variant": {
+          "$ref": "#/$defs/NebulaVariant",
+          "x-rpc-policy": "nebulas-map"
         }
       },
       "required": [
         "id",
         "x",
-        "y"
+        "y",
+        "variant"
       ],
       "x-rpc-policy": "nebulas-map"
+    },
+    "NebulaVariant": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 11,
+      "x-integerToken": true,
+      "x-unit": "native-value",
+      "description": "Signed displayed native slider value or score points; the owning context supplies and enforces its current range."
     },
     "Nebulas": {
       "type": "array",
@@ -2065,7 +2461,7 @@
       "maximum": 5,
       "x-integerToken": true,
       "x-unit": "orbit",
-      "description": "One-based public orbital position 1..5; conversion from native indexing requires the planet display-policy audit."
+      "description": "One-based physical orbital position 1..5, not the compressed occupied-slot ordinal used by native planet names."
     },
     "PageSize": {
       "type": "integer",
@@ -2097,23 +2493,67 @@
       "properties": {
         "id": {
           "$ref": "#/$defs/Id",
-          "x-rpc-policy": "disabled-planet"
+          "x-rpc-policy": "planets-explored"
         },
         "systemId": {
           "$ref": "#/$defs/Id",
-          "x-rpc-policy": "disabled-planet"
+          "x-rpc-policy": "planets-explored"
         },
         "orbit": {
           "$ref": "#/$defs/Orbit",
-          "x-rpc-policy": "disabled-planet"
+          "x-rpc-policy": "planets-explored"
         },
         "name": {
-          "$ref": "#/$defs/KnownText",
-          "x-rpc-policy": "disabled-planet"
+          "$ref": "#/$defs/ExplorationText",
+          "x-rpc-policy": "planets-explored"
         },
         "kind": {
-          "$ref": "#/$defs/KnownText",
-          "x-rpc-policy": "disabled-planet"
+          "$ref": "#/$defs/CurrentPlanetKind",
+          "x-rpc-policy": "planets-explored"
+        },
+        "size": {
+          "$ref": "#/$defs/KnownPlanetSize",
+          "x-rpc-policy": "planets-explored"
+        },
+        "gravity": {
+          "$ref": "#/$defs/KnownPlanetGravity",
+          "x-rpc-policy": "planets-explored"
+        },
+        "climate": {
+          "$ref": "#/$defs/KnownPlanetClimate",
+          "x-rpc-policy": "planets-explored"
+        },
+        "minerals": {
+          "$ref": "#/$defs/KnownPlanetMinerals",
+          "x-rpc-policy": "planets-explored"
+        },
+        "special": {
+          "$ref": "#/$defs/KnownPlanetSpecial",
+          "x-rpc-policy": "planets-explored"
+        },
+        "foodPerFarmer2": {
+          "$ref": "#/$defs/KnownPlanetFood2",
+          "x-rpc-policy": "planets-explored"
+        },
+        "mineralsPerMine": {
+          "$ref": "#/$defs/KnownPlanetProductivity",
+          "x-rpc-policy": "planets-explored"
+        },
+        "gravityPenalty": {
+          "$ref": "#/$defs/KnownPlanetGravityPenalty",
+          "x-rpc-policy": "planets-explored"
+        },
+        "hostileEnvironment": {
+          "$ref": "#/$defs/ExplorationBool",
+          "x-rpc-policy": "planets-explored"
+        },
+        "maxPopulation": {
+          "$ref": "#/$defs/KnownPlanetPopulationLimit",
+          "x-rpc-policy": "planet-suitability"
+        },
+        "colony": {
+          "$ref": "#/$defs/KnownId",
+          "x-rpc-policy": "exploration-own-colony-links"
         }
       },
       "required": [
@@ -2121,9 +2561,84 @@
         "systemId",
         "orbit",
         "name",
-        "kind"
+        "kind",
+        "size",
+        "gravity",
+        "climate",
+        "minerals",
+        "special",
+        "foodPerFarmer2",
+        "mineralsPerMine",
+        "gravityPenalty",
+        "hostileEnvironment",
+        "maxPopulation",
+        "colony"
       ],
-      "x-rpc-policy": "disabled-planet"
+      "x-rpc-policy": "planets-explored"
+    },
+    "PlanetClimate": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9,
+      "x-integerToken": true,
+      "x-unit": "native-value",
+      "description": "Signed displayed native slider value or score points; the owning context supplies and enforces its current range."
+    },
+    "PlanetFood2": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 255,
+      "x-integerToken": true,
+      "x-unit": "half-food",
+      "description": "Native half-food units per farmer: 5 represents the displayed 2.5 Food, not a recalculated colony yield."
+    },
+    "PlanetGravity": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 2,
+      "x-integerToken": true,
+      "x-unit": "native-value",
+      "description": "Signed displayed native slider value or score points; the owning context supplies and enforces its current range."
+    },
+    "PlanetGravityPenalty": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 50,
+      "x-integerToken": true,
+      "x-unit": "percent",
+      "description": "Whole native gravity-productivity penalty percentage, 0, 25 or 50."
+    },
+    "PlanetKind": {
+      "type": "string",
+      "enum": [
+        "asteroid",
+        "gas-giant",
+        "planet"
+      ]
+    },
+    "PlanetMinerals": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4,
+      "x-integerToken": true,
+      "x-unit": "native-value",
+      "description": "Signed displayed native slider value or score points; the owning context supplies and enforces its current range."
+    },
+    "PlanetPopulationLimit": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 42,
+      "x-integerToken": true,
+      "x-unit": "count",
+      "description": "Nonnegative integer count of authorized projected records only."
+    },
+    "PlanetProductivity": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 255,
+      "x-integerToken": true,
+      "x-unit": "count",
+      "description": "Nonnegative integer count of authorized projected records only."
     },
     "PlanetResult": {
       "type": "object",
@@ -2143,6 +2658,22 @@
         "item"
       ],
       "x-rpc-policy": "contract"
+    },
+    "PlanetSize": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4,
+      "x-integerToken": true,
+      "x-unit": "native-value",
+      "description": "Signed displayed native slider value or score points; the owning context supplies and enforces its current range."
+    },
+    "PlanetSpecial": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10,
+      "x-integerToken": true,
+      "x-unit": "native-value",
+      "description": "Signed displayed native slider value or score points; the owning context supplies and enforces its current range."
     },
     "Planets": {
       "type": "array",
@@ -2941,6 +3472,14 @@
       "x-unit": "text",
       "description": "UTF-8 rendered text, converted from the selected local game language; no raw format arguments."
     },
+    "SpectralClass": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 6,
+      "x-integerToken": true,
+      "x-unit": "native-value",
+      "description": "Signed displayed native slider value or score points; the owning context supplies and enforces its current range."
+    },
     "Stamp": {
       "type": "object",
       "additionalProperties": false,
@@ -2979,6 +3518,14 @@
         "captureMode"
       ],
       "x-rpc-policy": "contract"
+    },
+    "StarSize": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 2,
+      "x-integerToken": true,
+      "x-unit": "native-value",
+      "description": "Signed displayed native slider value or score points; the owning context supplies and enforces its current range."
     },
     "State": {
       "type": "object",
@@ -3121,7 +3668,8 @@
         "nebulas",
         "ships",
         "players",
-        "colonies"
+        "colonies",
+        "planets"
       ]
     },
     "StateTopics": {
@@ -3129,7 +3677,7 @@
       "items": {
         "$ref": "#/$defs/StateTopic"
       },
-      "maxItems": 6,
+      "maxItems": 7,
       "uniqueItems": true
     },
     "StreamGap": {
@@ -3215,7 +3763,7 @@
       "items": {
         "$ref": "#/$defs/StateTopic"
       },
-      "maxItems": 6,
+      "maxItems": 7,
       "minItems": 1,
       "uniqueItems": true
     },
@@ -3235,9 +3783,17 @@
           "$ref": "#/$defs/Coord",
           "x-rpc-policy": "systems-map"
         },
+        "spectralClass": {
+          "$ref": "#/$defs/SpectralClass",
+          "x-rpc-policy": "systems-map"
+        },
+        "size": {
+          "$ref": "#/$defs/StarSize",
+          "x-rpc-policy": "systems-map"
+        },
         "name": {
           "$ref": "#/$defs/KnownText",
-          "x-rpc-policy": "system-name-visited"
+          "x-rpc-policy": "system-name"
         },
         "visited": {
           "$ref": "#/$defs/Bool",
@@ -3245,16 +3801,33 @@
         },
         "owner": {
           "$ref": "#/$defs/KnownId",
-          "x-rpc-policy": "disabled-system-owner"
+          "x-rpc-policy": "system-owner"
+        },
+        "wormhole": {
+          "$ref": "#/$defs/ExplorationId",
+          "x-rpc-policy": "system-exploration"
+        },
+        "inExtendedRange": {
+          "$ref": "#/$defs/KnownBool",
+          "x-rpc-policy": "system-exploration"
+        },
+        "planetIds": {
+          "$ref": "#/$defs/KnownExploredIds",
+          "x-rpc-policy": "system-exploration"
         }
       },
       "required": [
         "id",
         "x",
         "y",
+        "spectralClass",
+        "size",
         "name",
         "visited",
-        "owner"
+        "owner",
+        "wormhole",
+        "inExtendedRange",
+        "planetIds"
       ],
       "x-rpc-policy": "systems-map"
     },
@@ -6773,7 +7346,7 @@
       "role": "reader",
       "availability": "committed-game",
       "kind": "query",
-      "implemented": false,
+      "implemented": true,
       "requestType": "GetRequest",
       "resultType": "PlanetResult",
       "request": {
@@ -7013,7 +7586,7 @@
       "role": "reader",
       "availability": "committed-game",
       "kind": "query",
-      "implemented": false,
+      "implemented": true,
       "requestType": "ListRequest",
       "resultType": "PlanetsResult",
       "request": {
@@ -7608,11 +8181,15 @@
     },
     "system-name": {
       "status": "reviewed",
-      "predicate": "Player_Is_Omniscient(viewer), or valid star owner plus Contact_With_One_Colony, or Player_Has_Visited. Reproduce rendered outpost/lore formatting; otherwise unknown. Get_Star_Name is evidence, NOT a pure query helper: it changes font/zoom state and may allocate a bitmap.",
+      "predicate": "Non-black-hole name only: Player_Is_Omniscient(viewer), or valid native dominant visible owner plus Contact_With_One_Colony, or Player_Has_Visited. Copy bounded CP850 and reproduce rendered outpost lowercase and unvisited foreign Lore parentheses; otherwise unknown. Temporary contact/Lore-only grants expire through existing whole-view revocation on mutation or observed authority loss. Get_Star_Name is evidence, NOT a pure query helper: it changes font/zoom state and may allocate a bitmap.",
       "sources": [
         [
           "src/game/mainscr.cpp",
           "Get_Star_Name"
+        ],
+        [
+          "src/game/mainscr.cpp",
+          "Print_Star_Names"
         ],
         [
           "src/game/harold.cpp",
@@ -7626,7 +8203,8 @@
       "tests": [
         "T-01",
         "T-02",
-        "T-03"
+        "T-03",
+        "T-05"
       ]
     },
     "system-visited": {
@@ -7676,7 +8254,7 @@
     },
     "nebulas-map": {
       "status": "reviewed",
-      "predicate": "Native map draws every existing nebula without a viewer gate. Publish only its unscaled map x/y and a perspective-scoped opaque ID; never type, hidden star membership or art/cache pointers.",
+      "predicate": "Native map draws every existing nebula without a viewer gate. Publish unscaled map x/y and uint8(type) modulo 12 rendered variant with perspective-scoped opaque IDs. Never raw type, hidden gameplay star membership or art/cache pointers.",
       "sources": [
         [
           "src/game/mainscr.cpp",
@@ -7686,6 +8264,139 @@
       "tests": [
         "T-01",
         "T-02"
+      ]
+    },
+    "system-owner": {
+      "status": "reviewed",
+      "predicate": "Native Star_Owner dominant visible owner: self preferred, otherwise largest contact-filtered colony count with native tie order; omniscience removes contact filtering. This is not exclusive ownership. Resolve only a same-capture known-player handle; unknown if unavailable. Do not read foreign economy or trust cached star.owner. Mixed-owner rendering and outposts do not grant live colony details.",
+      "sources": [
+        [
+          "src/game/harold.cpp",
+          "Star_Owner"
+        ],
+        [
+          "src/game/harold.cpp",
+          "Colony_Owners"
+        ],
+        [
+          "src/game/mainscr.cpp",
+          "Update_Star_Owners"
+        ]
+      ],
+      "tests": [
+        "T-01",
+        "T-02",
+        "T-05"
+      ]
+    },
+    "system-exploration": {
+      "status": "reviewed",
+      "predicate": "Planet roster and extended-range verdict require visited-or-native-omniscient non-black-hole system. Wormhole destination/known-empty requires visited or native omniscience, not destination-name knowledge. Use existing read-only Star_In_Extended_Range_Of_Player at coherent capture, including native odd-range rounding, blocks, visited-wormhole shortcut and alliances; no new movement math, ship-specific movement/ETA calculator or UI builder. Resolve only real same-capture systems/planets. Unknown differs from explored empty lists/known-empty wormholes. Temporary contact/Lore grants use existing whole-view revocation on mutation or observed loss, not a new cache/lease.",
+      "sources": [
+        [
+          "src/game/sys.cpp",
+          "Ok_To_View_System"
+        ],
+        [
+          "src/game/mainscr.cpp",
+          "Draw_Wormhole_Links"
+        ],
+        [
+          "src/game/plntsum.cpp",
+          "Planet_In_Range_Of_A_Colony"
+        ],
+        [
+          "src/game/shipmove.cpp",
+          "Star_In_Extended_Range_Of_Player"
+        ]
+      ],
+      "tests": [
+        "T-01",
+        "T-02",
+        "T-05",
+        "T-07",
+        "T-12"
+      ]
+    },
+    "planets-explored": {
+      "status": "reviewed",
+      "predicate": "Filter system exploration before planet copying, validation, counts, IDs and events. Include all occupied orbits in visited-or-native-omniscient non-black-hole systems, plus independently authorized own full-colony locations. Public one-based physical orbit is distinct from compressed occupied-slot Roman name ordinal. Copy native asteroid/gas-giant/planet kind; ordinary planets expose size 0..4, gravity 0..2, base planet climate 0..9, minerals 0..4, special 1..10 (0 and Orion 11 known-empty), cached half-food units, native mineral productivity and read-only gravity penalty/hostile-environment suitability. Nonplanet ecology/name/suitability is known-empty. Copy bounded CP850 native no-Prime name without mutating shared temp buffers. No foreign colony climate/population/buildings/production, system reward or stale UI summary/hover/movement values. Native stores shared current planet data, not per-player historical ecology; do not invent last-known values. Opaque disclosed-location IDs are world/perspective scoped; retained captures immutable.",
+      "sources": [
+        [
+          "src/game/sys.cpp",
+          "Ok_To_View_System"
+        ],
+        [
+          "src/game/sys.cpp",
+          "Do_Print_Planet_Info"
+        ],
+        [
+          "src/game/plntsum.cpp",
+          "Filter_Explored_Planets"
+        ],
+        [
+          "src/game/plntsum.cpp",
+          "Summary_Screen_Print_Data"
+        ],
+        [
+          "src/game/plntsum.cpp",
+          "Productivity_Penalty"
+        ],
+        [
+          "src/game/haccess.cpp",
+          "Do_Get_Planet_Name"
+        ]
+      ],
+      "tests": [
+        "T-01",
+        "T-02",
+        "T-03",
+        "T-05",
+        "T-07",
+        "T-12"
+      ]
+    },
+    "planet-suitability": {
+      "status": "reviewed",
+      "predicate": "Maximum population uses the native read-only Planet_Max_Population_For_Player only for an authorized ordinary uncolonized planet or own full colony, after validating own inputs. Foreign/outpost-dependent maximum population is unaudited and never calculated from alien live population/races/buildings. Preserve native 0..42 result, traits/mod tables and storage cap; no economic forecast or new calculator.",
+      "sources": [
+        [
+          "src/game/colcalc.cpp",
+          "Planet_Max_Population_For_Player"
+        ],
+        [
+          "src/game/plntsum.cpp",
+          "Filter_Explored_Planets"
+        ]
+      ],
+      "tests": [
+        "T-01",
+        "T-02",
+        "T-03"
+      ]
+    },
+    "exploration-own-colony-links": {
+      "status": "reviewed",
+      "predicate": "Resolve reciprocal planet/own-full-colony references only through the same fresh capture's validated system/orbit graph and actual queryable planet/colony families. Never mint phantom planet handles, link a foreign colony or use historical handle tables as authority. Unknown when no authorized same-capture counterpart; not inferred known-empty foreign intelligence. Handles and immutable pages obey world/perspective revocation and ordinary indistinguishable unavailable errors.",
+      "sources": [
+        [
+          "src/game/colxport.cpp",
+          "Build_Global_Colony_List"
+        ],
+        [
+          "src/game/colony.cpp",
+          "Set_Colony_Globals"
+        ],
+        [
+          "src/game/sys.cpp",
+          "Draw_System_Display_Planets"
+        ]
+      ],
+      "tests": [
+        "T-01",
+        "T-02",
+        "T-05",
+        "T-07"
       ]
     },
     "disabled-system-owner": {
@@ -7909,7 +8620,7 @@
     },
     "disabled-colony": {
       "status": "disabled",
-      "predicate": "Planet handles, production/queues, buy costs/eligibility and other colony details remain unaudited. Do not mint unqueryable planet handles or invoke mutable builders/calculators for queries. Foreign intelligence is a separate policy.",
+      "predicate": "Production/queues, buy costs/eligibility and remaining colony details stay unaudited. Same-capture queryable planet links have their separate exploration-own-colony-links policy. Do not invoke mutable builders/calculators for queries. Foreign intelligence is a separate policy.",
       "sources": [
         [
           "src/game/colony_main.cpp",
@@ -8464,7 +9175,7 @@
     "orderedEventsPerSubscription": 4096,
     "overflow": "Reject before admission; coalesce only complete unsent state. Ordered-event overflow signals a gap or disconnect. Never rewrite partial output or silently discard operation results."
   },
-  "x-rpc-sourceHash": "7f71b5aa5a60bb8639b57a54f47c0a07c9d2d7905202bdb2f34d7306db0ec408",
+  "x-rpc-sourceHash": "b0bbf0441e062bcee84daeee92af0372d127a5f919acb7000b289006ba744c70",
   "x-rpc-runtimeEnabled": false,
   "x-rpc-implementedMethods": [
     "rpc.hello",
@@ -8481,6 +9192,8 @@
     "game.listPlayers",
     "game.getPlayer",
     "game.listColonies",
-    "game.getColony"
+    "game.getColony",
+    "game.listPlanets",
+    "game.getPlanet"
   ]
 }

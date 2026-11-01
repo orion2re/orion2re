@@ -485,6 +485,7 @@ if(ORION2RE_BUILD_GAME OR ORION2RE_BUILD_CONFIG_TOOL)
         list(APPEND ORION2RE_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/rpc/game_rpc.cpp")
         list(APPEND ORION2RE_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/rpc/players_rpc.cpp")
         list(APPEND ORION2RE_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/rpc/colony_rpc.cpp")
+        list(APPEND ORION2RE_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/rpc/exploration_rpc.cpp")
     endif()
 
     add_library(orion2re_game_objects OBJECT

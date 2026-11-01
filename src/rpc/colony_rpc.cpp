@@ -12,7 +12,7 @@ namespace colony_rpc {
             // Native Colonies/transport lists include own full colonies, not outposts.
             if (colony->owner != observation->viewer || colony->outpost_flag != 0) continue;
             const int16_t planet_index = colony->planet;
-            if (planet_index < 0 || planet_index >= MAX_PLANETS || MOX::planet == nullptr) return false;
+            if (planet_index < 0 || planet_index >= MOX::planet_count || MOX::planet == nullptr) return false;
             const s_planet_data* planet = &MOX::planet[planet_index];
             const int16_t system = planet->star_index;
             const int orbit = planet->orbit;

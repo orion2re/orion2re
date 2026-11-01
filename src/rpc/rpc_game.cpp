@@ -21,6 +21,7 @@ namespace rpc {
             store->system_ids.clear();
             store->nebula_ids.clear();
             store->player_handles.clear();
+            store->planet_handles.clear();
             store->snapshots.clear();
             store->cursors.clear();
             store->subscriptions.clear();
@@ -38,12 +39,14 @@ namespace rpc {
                 const auto& a = left->systems[index];
                 const auto& b = right->systems[index];
                 if (a.x != b.x || a.y != b.y || a.visited != b.visited ||
-                    a.name_available != b.name_available || a.name != b.name) {
+                    a.name_available != b.name_available || a.name != b.name ||
+                    std::tie(a.spectral_class, a.size, a.explored, a.owner_id, a.wormhole_available, a.wormhole_id, a.in_extended_range, a.planet_ids) !=
+                        std::tie(b.spectral_class, b.size, b.explored, b.owner_id, b.wormhole_available, b.wormhole_id, b.in_extended_range, b.planet_ids)) {
                     return false;
                 }
             }
             for (size_t index = 0; index < left->nebulas.size(); ++index) {
-                if (left->nebulas[index].x != right->nebulas[index].x || left->nebulas[index].y != right->nebulas[index].y) {
+                if (left->nebulas[index].x != right->nebulas[index].x || left->nebulas[index].y != right->nebulas[index].y || left->nebulas[index].variant != right->nebulas[index].variant) {
                     return false;
                 }
             }
@@ -77,7 +80,18 @@ namespace rpc {
             for (size_t index = 0; index < left->colonies.size(); ++index) {
                 const auto& a = left->colonies[index];
                 const auto& b = right->colonies[index];
-                if (std::tie(a.system_id, a.orbit, a.population, a.owner_id, a.infantry, a.armor) != std::tie(b.system_id, b.orbit, b.population, b.owner_id, b.infantry, b.armor)) return false;
+                if (std::tie(a.system_id, a.orbit, a.population, a.owner_id, a.infantry, a.armor, a.planet_id) != std::tie(b.system_id, b.orbit, b.population, b.owner_id, b.infantry, b.armor, b.planet_id)) return false;
+            }
+            return true;
+        }
+
+        bool Same_Planets(const s_map_observation* left, const s_map_observation* right) {
+            if (left->planets_captured != right->planets_captured || left->planets.size() != right->planets.size()) return false;
+            for (size_t index = 0; index < left->planets.size(); ++index) {
+                const auto& a = left->planets[index];
+                const auto& b = right->planets[index];
+                if (std::tie(a.system_id, a.orbit, a.kind, a.name, a.size, a.gravity, a.climate, a.minerals, a.special, a.food2, a.industry, a.gravity_penalty, a.max_population_available, a.max_population, a.colony_id) !=
+                    std::tie(b.system_id, b.orbit, b.kind, b.name, b.size, b.gravity, b.climate, b.minerals, b.special, b.food2, b.industry, b.gravity_penalty, b.max_population_available, b.max_population, b.colony_id)) return false;
             }
             return true;
         }
@@ -87,11 +101,11 @@ namespace rpc {
                 (store->context_active && snapshot->map.context_epoch == Bridge_Context_Epoch(store->bridge));
         }
 
-        const s_map_snapshot* Select_Snapshot(const s_game_store* store, bool ships, bool players = false, bool colonies = false) {
+        const s_map_snapshot* Select_Snapshot(const s_game_store* store, bool ships, bool players = false, bool colonies = false, bool planets = false) {
             for (auto snapshot = store->snapshots.rbegin(); snapshot != store->snapshots.rend(); ++snapshot) {
                 if (ships && !Authorized_Snapshot(store, &*snapshot)) continue;
                 if ((!ships || snapshot->map.ships_captured) && (!players || snapshot->map.players_captured) &&
-                    (!colonies || snapshot->map.colonies_captured)) return &*snapshot;
+                    (!colonies || snapshot->map.colonies_captured) && (!planets || snapshot->map.planets_captured)) return &*snapshot;
             }
             return nullptr;
         }
@@ -113,17 +127,53 @@ namespace rpc {
                 Json_String(snapshot->map.context_epoch != 0 ? "last-native-fleet-box" : (snapshot->map.ships_captured ? "last-native-ship-refresh" : "last-coherent-capture")) + "}";
         }
 
+        std::string Exploration_Knowledge(e_exploration_knowledge available, const std::string& value = {}) {
+            switch (available) {
+                case EXPLORATION_CURRENT: return "{\"availability\":\"current\",\"value\":" + value + "}";
+                case EXPLORATION_EMPTY: return "{\"availability\":\"known-empty\"}";
+                case EXPLORATION_UNAUDITED: return "{\"availability\":\"unaudited\"}";
+                default: return "{\"availability\":\"unknown\"}";
+            }
+        }
+
+        std::string Id_Knowledge(const std::string& id) {
+            return Exploration_Knowledge(id.empty() ? EXPLORATION_UNKNOWN : EXPLORATION_CURRENT, Json_String(id));
+        }
+
         std::string System(const s_game_store* store, const s_map_snapshot* snapshot, size_t index) {
             const s_system_observation& item = snapshot->map.systems[index];
             std::string result = "{\"id\":" + Json_String(store->system_ids[index]) + ",\"x\":" + std::to_string(item.x) +
                 ",\"y\":" + std::to_string(item.y) + ",\"visited\":" + (item.visited ? "true" : "false") + ",\"name\":";
-            result += item.name_available ? "{\"availability\":\"current\",\"value\":" + Json_String(item.name) + "}" : "{\"availability\":\"unaudited\"}";
-            return result + ",\"owner\":{\"availability\":\"unaudited\"}}";
+            result += item.name_available ? "{\"availability\":\"current\",\"value\":" + Json_String(item.name) + "}" : "{\"availability\":\"unknown\"}";
+            result += ",\"spectralClass\":" + std::to_string(item.spectral_class) + ",\"size\":" + std::to_string(item.size) +
+                ",\"owner\":" + Id_Knowledge(item.owner_id) + ",\"wormhole\":" + Exploration_Knowledge(item.wormhole_available, Json_String(item.wormhole_id)) +
+                ",\"inExtendedRange\":" + Exploration_Knowledge(item.explored ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, item.in_extended_range ? "true" : "false");
+            std::string planets = "[";
+            for (const auto& id : item.planet_ids) {
+                if (planets.size() != 1) planets += ',';
+                planets += Json_String(id);
+            }
+            return result + ",\"planetIds\":" + Exploration_Knowledge(item.explored ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, planets + "]") + "}";
         }
 
         std::string Nebula(const s_game_store* store, const s_map_snapshot* snapshot, size_t index) {
             const s_nebula_observation& item = snapshot->map.nebulas[index];
-            return "{\"id\":" + Json_String(store->nebula_ids[index]) + ",\"x\":" + std::to_string(item.x) + ",\"y\":" + std::to_string(item.y) + "}";
+            return "{\"id\":" + Json_String(store->nebula_ids[index]) + ",\"x\":" + std::to_string(item.x) + ",\"y\":" + std::to_string(item.y) + ",\"variant\":" + std::to_string(item.variant) + "}";
+        }
+
+        std::string Planet(const s_map_snapshot* snapshot, size_t index) {
+            const auto& item = snapshot->map.planets[index];
+            const auto details = item.kind == 3 ? EXPLORATION_CURRENT : EXPLORATION_EMPTY;
+            const char* kind = item.kind == 1 ? "asteroid" : (item.kind == 2 ? "gas-giant" : "planet");
+            std::string result = "{\"id\":" + Json_String(snapshot->planet_ids[index]) + ",\"systemId\":" + Json_String(item.system_id) +
+                ",\"orbit\":" + std::to_string(item.orbit) + ",\"kind\":" + Exploration_Knowledge(EXPLORATION_CURRENT, Json_String(kind)) +
+                ",\"name\":" + Exploration_Knowledge(details, Json_String(item.name));
+            const std::pair<const char*, int32_t> fields[] = {{"size", item.size}, {"gravity", item.gravity}, {"climate", item.climate}, {"minerals", item.minerals}, {"foodPerFarmer2", item.food2}, {"mineralsPerMine", item.industry}, {"gravityPenalty", item.gravity_penalty}};
+            for (const auto& field : fields) result += ',' + Json_String(field.first) + ':' + Exploration_Knowledge(details, std::to_string(field.second));
+            return result + ",\"special\":" + Exploration_Knowledge(item.kind == 3 && item.special != 0 ? EXPLORATION_CURRENT : EXPLORATION_EMPTY, std::to_string(item.special)) +
+                ",\"hostileEnvironment\":" + Exploration_Knowledge(details, item.food2 == 0 ? "true" : "false") +
+                ",\"maxPopulation\":" + Exploration_Knowledge(item.kind != 3 ? EXPLORATION_EMPTY : (item.max_population_available ? EXPLORATION_CURRENT : EXPLORATION_UNAUDITED), std::to_string(item.max_population)) +
+                ",\"colony\":" + Id_Knowledge(item.colony_id) + "}";
         }
 
         std::string Ship_Knowledge(e_ship_knowledge available, const std::string& value) {
@@ -168,13 +218,14 @@ namespace rpc {
         std::string Colony(const s_map_snapshot* snapshot, size_t index) {
             const auto& item = snapshot->map.colonies[index];
             return "{\"id\":" + Json_String(snapshot->colony_ids[index]) + ",\"systemId\":" + Json_String(item.system_id) +
-                ",\"orbit\":" + std::to_string(item.orbit) + ",\"planetId\":{\"availability\":\"unaudited\"},\"owner\":{\"availability\":\"current\",\"value\":" +
+                ",\"orbit\":" + std::to_string(item.orbit) + ",\"planetId\":" + Id_Knowledge(item.planet_id) + ",\"owner\":{\"availability\":\"current\",\"value\":" +
                 Json_String(item.owner_id) + "},\"population\":{\"availability\":\"current\",\"value\":" + std::to_string(item.population) +
                 "},\"troops\":{\"availability\":\"current\",\"value\":{\"infantry\":" + std::to_string(item.infantry) +
                 ",\"armor\":" + std::to_string(item.armor) + "}},\"production\":{\"availability\":\"unaudited\"},\"buyCost\":{\"availability\":\"unaudited\"}}";
         }
 
         size_t Collection_Size(const s_map_snapshot* snapshot, const std::string& topic) {
+            if (topic == "planets") return snapshot->map.planets.size();
             if (topic == "colonies") return snapshot->map.colonies.size();
             if (topic == "ships") return snapshot->map.ships.size();
             if (topic == "players") return snapshot->map.players.size();
@@ -186,7 +237,9 @@ namespace rpc {
             std::string result = "[";
             for (size_t index = offset; index < count && index - offset < limit; ++index) {
                 if (index != offset) result += ',';
-                if (topic == "colonies")
+                if (topic == "planets")
+                    result += Planet(snapshot, index);
+                else if (topic == "colonies")
                     result += Colony(snapshot, index);
                 else if (topic == "ships")
                     result += Ship(snapshot, index);
@@ -263,7 +316,8 @@ namespace rpc {
             const bool ships = std::find(subscription.topics.begin(), subscription.topics.end(), "ships") != subscription.topics.end();
             const bool players = std::find(subscription.topics.begin(), subscription.topics.end(), "players") != subscription.topics.end();
             const bool colonies = std::find(subscription.topics.begin(), subscription.topics.end(), "colonies") != subscription.topics.end();
-            const auto* snapshot = Select_Snapshot(store, ships, players, colonies);
+            const bool planets = std::find(subscription.topics.begin(), subscription.topics.end(), "planets") != subscription.topics.end();
+            const auto* snapshot = Select_Snapshot(store, ships, players, colonies, planets);
             if (snapshot == nullptr) return Error_Response(request, RPC_BUSY);
             if (ships) *context_epoch = snapshot->map.context_epoch;
             if (*context_epoch != 0) subscription.baseline_ticket = work->ticket;
@@ -291,7 +345,8 @@ namespace rpc {
                 const bool ships = std::find(subscription.topics.begin(), subscription.topics.end(), "ships") != subscription.topics.end();
                 const bool players = std::find(subscription.topics.begin(), subscription.topics.end(), "players") != subscription.topics.end();
                 const bool colonies = std::find(subscription.topics.begin(), subscription.topics.end(), "colonies") != subscription.topics.end();
-                const auto* snapshot = Select_Snapshot(store, ships, players, colonies);
+                const bool planets = std::find(subscription.topics.begin(), subscription.topics.end(), "planets") != subscription.topics.end();
+                const auto* snapshot = Select_Snapshot(store, ships, players, colonies, planets);
                 if (snapshot == nullptr) {
                     Cancel_Client(store->bridge, subscription.client);
                     continue;
@@ -357,6 +412,7 @@ namespace rpc {
             bool ships = request->method == "game.listShips" || request->method == "game.getShip";
             bool players = request->method == "game.listPlayers" || request->method == "game.getPlayer";
             bool colonies = request->method == "game.listColonies" || request->method == "game.getColony";
+            bool planets = request->method == "game.listPlanets" || request->method == "game.getPlanet";
             if (request->method == "game.getState") {
                 size_t index, count;
                 yyjson_val* topic;
@@ -364,9 +420,10 @@ namespace rpc {
                     ships |= std::string(yyjson_get_str(topic), yyjson_get_len(topic)) == "ships";
                     players |= std::string(yyjson_get_str(topic), yyjson_get_len(topic)) == "players";
                     colonies |= std::string(yyjson_get_str(topic), yyjson_get_len(topic)) == "colonies";
+                    planets |= std::string(yyjson_get_str(topic), yyjson_get_len(topic)) == "planets";
                 }
             }
-            const s_map_snapshot* snapshot = Select_Snapshot(store, ships, players, colonies);
+            const s_map_snapshot* snapshot = Select_Snapshot(store, ships, players, colonies, planets);
             if (snapshot == nullptr) {
                 *error = Text(params, "cursor").empty() ? RPC_BUSY : RPC_OBJECT_UNAVAILABLE;
                 return {};
@@ -391,6 +448,8 @@ namespace rpc {
                         result += ",\"players\":" + Collection(store, snapshot, name, 0, 8);
                     else if (name == "colonies")
                         result += ",\"colonies\":" + Collection(store, snapshot, name, 0, 5120);
+                    else if (name == "planets")
+                        result += ",\"planets\":" + Collection(store, snapshot, name, 0, 5120);
                     else {
                         *error = RPC_INVALID_PARAMS;
                         return {};
@@ -398,22 +457,22 @@ namespace rpc {
                 }
                 return result + "}";
             }
-            if (request->method == "game.getSystem" || request->method == "game.getShip" || request->method == "game.getPlayer" || request->method == "game.getColony") {
+            if (request->method == "game.getSystem" || request->method == "game.getShip" || request->method == "game.getPlayer" || request->method == "game.getColony" || request->method == "game.getPlanet") {
                 const std::string id = Text(params, "id");
-                const auto& ids = colonies ? snapshot->colony_ids : (players ? snapshot->player_ids : (ships ? snapshot->ship_ids : store->system_ids));
+                const auto& ids = planets ? snapshot->planet_ids : (colonies ? snapshot->colony_ids : (players ? snapshot->player_ids : (ships ? snapshot->ship_ids : store->system_ids)));
                 for (size_t index = 0; index < ids.size(); ++index) {
                     if (ids[index] == id) {
-                        return "{\"stamp\":" + Stamp(store, snapshot) + ",\"item\":" + (colonies ? Colony(snapshot, index) : (players ? Player(snapshot, index) : (ships ? Ship(snapshot, index) : System(store, snapshot, index)))) + "}";
+                        return "{\"stamp\":" + Stamp(store, snapshot) + ",\"item\":" + (planets ? Planet(snapshot, index) : (colonies ? Colony(snapshot, index) : (players ? Player(snapshot, index) : (ships ? Ship(snapshot, index) : System(store, snapshot, index))))) + "}";
                     }
                 }
                 *error = RPC_OBJECT_UNAVAILABLE;
                 return {};
             }
-            if (request->method != "game.listSystems" && request->method != "game.listNebulas" && request->method != "game.listShips" && request->method != "game.listPlayers" && request->method != "game.listColonies") {
+            if (request->method != "game.listSystems" && request->method != "game.listNebulas" && request->method != "game.listShips" && request->method != "game.listPlayers" && request->method != "game.listColonies" && request->method != "game.listPlanets") {
                 *error = RPC_METHOD_NOT_FOUND;
                 return {};
             }
-            const std::string topic = colonies ? "colonies" : (players ? "players" : (ships ? "ships" : (request->method == "game.listSystems" ? "systems" : "nebulas")));
+            const std::string topic = planets ? "planets" : (colonies ? "colonies" : (players ? "players" : (ships ? "ships" : (request->method == "game.listSystems" ? "systems" : "nebulas"))));
             size_t offset = 0;
             yyjson_val* requested_limit = yyjson_obj_get(params, "limit");
             size_t limit = requested_limit != nullptr ? (size_t)yyjson_get_uint(requested_limit) : 64;
@@ -522,6 +581,7 @@ namespace rpc {
     }
 
     void Pause_Game_Queries(s_game_store* store) {
+        if (std::any_of(store->snapshots.begin(), store->snapshots.end(), [](const s_map_snapshot& snapshot) { return snapshot.map.exploration_sensitive; })) Revoke_Game_View(store);
         Revoke_Game_Context(store);
         ++store->busy_depth;
     }
@@ -538,10 +598,22 @@ namespace rpc {
         // Bind newly authorized default observers to the old coherent turn before replacing it.
         Sync_Turn_Observers(store);
         s_map_observation projected = *observation;
+        projected.exploration_sensitive = false;
         for (s_system_observation& system : projected.systems) {
-            system.name_available &= system.visited;
+            system.name_available &= system.visited || system.name_known;
             if (!system.name_available) system.name.clear();
-            if (system.name.size() > 4096) return false;
+            if (system.name.size() > 4096 || system.spectral_class < 0 || system.spectral_class > 6 || system.size < 0 || system.size > 2) return false;
+            if (system.spectral_class == 6) system.size = 0;
+            system.owner_id.clear();
+            system.wormhole_id.clear();
+            system.planet_ids.clear();
+            if (system.wormhole_available != EXPLORATION_CURRENT)
+                system.wormhole_system = -1;
+            else if (system.wormhole_system < 0 || (size_t)system.wormhole_system >= projected.systems.size())
+                return false;
+            if (system.wormhole_available < EXPLORATION_UNKNOWN || system.wormhole_available > EXPLORATION_EMPTY) return false;
+            if (!system.explored) system.in_extended_range = false;
+            projected.exploration_sensitive |= (!system.visited && (system.explored || system.name_available || system.wormhole_available != EXPLORATION_UNKNOWN));
         }
         if (!projected.players_captured) projected.players.clear();
         std::erase_if(projected.players, [](const s_player_observation& player) { return !player.visible; });
@@ -582,6 +654,41 @@ namespace rpc {
             occupied[colony.system][colony.orbit - 1] = true;
             colony.system_id.clear();
             colony.owner_id.clear();
+            colony.planet_id.clear();
+        }
+        if (!projected.planets_captured) projected.planets.clear();
+        std::erase_if(projected.planets, [](const s_planet_observation& planet) { return !planet.visible; });
+        bool planet_locations[1024][5] = {};
+        for (auto& planet : projected.planets) {
+            if (planet.system < 0 || (size_t)planet.system >= projected.systems.size() || planet.orbit < 1 || planet.orbit > 5) return false;
+            if (!projected.systems[planet.system].explored && !occupied[planet.system][planet.orbit - 1]) {
+                planet.visible = false;
+                continue;
+            }
+            if (planet_locations[planet.system][planet.orbit - 1] || planet.kind < 1 || planet.kind > 3) return false;
+            planet_locations[planet.system][planet.orbit - 1] = true;
+            projected.exploration_sensitive |= !projected.systems[planet.system].explored;
+            planet.system_id.clear();
+            planet.colony_id.clear();
+            if (planet.kind != 3) {
+                planet.name.clear();
+                planet.size = planet.gravity = planet.climate = planet.minerals = planet.special = planet.food2 = planet.industry = planet.gravity_penalty = 0;
+                planet.max_population_available = false;
+            } else if (planet.name.size() > 90 || planet.size < 0 || planet.size > 4 || planet.gravity < 0 || planet.gravity > 2 ||
+                planet.climate < 0 || planet.climate > 9 || planet.minerals < 0 || planet.minerals > 4 || planet.special < 0 || planet.special > 11 ||
+                planet.food2 < 0 || planet.food2 > 255 || planet.industry < 0 || planet.industry > 255 ||
+                (planet.gravity_penalty != 0 && planet.gravity_penalty != 25 && planet.gravity_penalty != 50))
+                return false;
+            if (planet.special == 11) planet.special = 0;
+            if (!planet.max_population_available)
+                planet.max_population = 0;
+            else if (planet.max_population < 0 || planet.max_population > 42)
+                return false;
+        }
+        std::erase_if(projected.planets, [](const s_planet_observation& planet) { return !planet.visible; });
+        if (projected.planets.size() > 5120) return false;
+        for (const auto& nebula : projected.nebulas) {
+            if (nebula.variant < 0 || nebula.variant >= 12) return false;
         }
         std::sort(projected.players.begin(), projected.players.end(), [](const s_player_observation& left, const s_player_observation& right) {
             if (left.local != right.local) return left.local;
@@ -607,6 +714,27 @@ namespace rpc {
                 return false;
         }
         store->capture_requested = false;
+        if (!store->snapshots.empty()) {
+            const auto& previous = store->snapshots.back().map;
+            bool lost = false;
+            for (size_t index = 0; index < std::min(previous.systems.size(), projected.systems.size()); ++index) {
+                const auto& a = previous.systems[index];
+                const auto& b = projected.systems[index];
+                const auto owner = std::find_if(projected.players.begin(), projected.players.end(), [&b](const s_player_observation& player) { return player.slot == b.owner_slot; });
+                const bool owner_known = owner != projected.players.end() && (owner->local || std::count_if(projected.players.begin(), projected.players.end(), [&owner](const s_player_observation& player) { return player.color == owner->color; }) == 1);
+                lost |= (a.explored && !b.explored) || (a.name_available && !b.name_available) ||
+                    (a.wormhole_available != EXPLORATION_UNKNOWN && b.wormhole_available == EXPLORATION_UNKNOWN) ||
+                    (!a.owner_id.empty() && !owner_known);
+            }
+            if (projected.planets_captured) {
+                for (const auto& planet : previous.planets) {
+                    lost |= std::none_of(projected.planets.begin(), projected.planets.end(), [&planet, store](const s_planet_observation& current) {
+                        return (size_t)current.system < store->system_ids.size() && store->system_ids[current.system] == planet.system_id && current.orbit == planet.orbit;
+                    });
+                }
+            }
+            if (lost) Revoke_Game_View(store);
+        }
         if (!store->snapshots.empty() && (projected.systems.size() != store->snapshots.back().map.systems.size() || projected.nebulas.size() != store->snapshots.back().map.nebulas.size())) {
             Revoke_Game_View(store);
         }
@@ -615,6 +743,7 @@ namespace rpc {
             if (!store->new_id(&store->perspective_id, store->id_context)) return false;
             store->viewer = projected.viewer;
         }
+        if (projected.context_epoch != 0 && projected.context_epoch != Bridge_Context_Epoch(store->bridge)) return false;
         auto Extend = [store](std::vector<std::string>* ids, size_t count) {
             while (ids->size() < count) {
                 std::string id;
@@ -624,6 +753,22 @@ namespace rpc {
             return true;
         };
         if (!Extend(&store->system_ids, projected.systems.size()) || !Extend(&store->nebula_ids, projected.nebulas.size())) return false;
+        for (auto& planet : projected.planets) planet.system_id = store->system_ids[planet.system];
+        std::sort(projected.planets.begin(), projected.planets.end(), [](const s_planet_observation& a, const s_planet_observation& b) {
+            return std::tie(a.system_id, a.orbit) < std::tie(b.system_id, b.orbit);
+        });
+        std::vector<std::string> planet_ids;
+        for (auto& planet : projected.planets) {
+            auto handle = std::find_if(store->planet_handles.begin(), store->planet_handles.end(), [&planet](const s_planet_handle& item) { return item.system_id == planet.system_id && item.orbit == planet.orbit; });
+            if (handle == store->planet_handles.end()) {
+                std::string id;
+                if (!store->new_id(&id, store->id_context)) return false;
+                store->planet_handles.push_back({planet.system_id, planet.orbit, std::move(id)});
+                handle = std::prev(store->planet_handles.end());
+            }
+            planet_ids.push_back(handle->id);
+            if (projected.systems[planet.system].explored) projected.systems[planet.system].planet_ids.push_back(handle->id);
+        }
         std::vector<std::string> player_ids;
         for (const auto& player : projected.players) {
             auto handle = std::find_if(store->player_handles.begin(), store->player_handles.end(), [&player](const s_player_handle& item) { return item.slot == player.slot; });
@@ -649,9 +794,20 @@ namespace rpc {
         }
         for (auto& colony : projected.colonies) {
             colony.system_id = store->system_ids[(size_t)colony.system];
+            const auto planet = std::find_if(projected.planets.begin(), projected.planets.end(), [&colony](const s_planet_observation& item) { return item.system_id == colony.system_id && item.orbit == colony.orbit; });
+            if (planet != projected.planets.end()) colony.planet_id = planet_ids[(size_t)(planet - projected.planets.begin())];
             const auto local = std::find_if(projected.players.begin(), projected.players.end(), [](const s_player_observation& player) { return player.local; });
             colony.owner_id = player_ids[(size_t)(local - projected.players.begin())];
             colony.system = colony.owner_slot = -1;
+        }
+        for (auto& system : projected.systems) {
+            const auto owner = std::find_if(projected.players.begin(), projected.players.end(), [&system](const s_player_observation& player) { return player.slot == system.owner_slot; });
+            if (owner != projected.players.end() && (owner->local || std::count_if(projected.players.begin(), projected.players.end(), [&owner](const s_player_observation& player) { return player.color == owner->color; }) == 1)) {
+                system.owner_id = player_ids[(size_t)(owner - projected.players.begin())];
+                projected.exploration_sensitive |= !owner->local;
+            }
+            if (system.wormhole_available == EXPLORATION_CURRENT) system.wormhole_id = store->system_ids[system.wormhole_system];
+            system.owner_slot = system.wormhole_system = -1;
         }
         std::sort(projected.colonies.begin(), projected.colonies.end(), [](const s_colony_observation& left, const s_colony_observation& right) {
             return std::tie(left.system_id, left.orbit, left.population, left.owner_id, left.infantry, left.armor) < std::tie(right.system_id, right.orbit, right.population, right.owner_id, right.infantry, right.armor);
@@ -660,16 +816,26 @@ namespace rpc {
             return std::tie(left.x, left.y, left.owned, left.name, left.owner_id, left.destination_available, left.destination_id, left.eta_available, left.eta) <
                 std::tie(right.x, right.y, right.owned, right.name, right.owner_id, right.destination_available, right.destination_id, right.eta_available, right.eta);
         });
+        std::vector<std::string> colony_ids;
+        const auto* previous_colonies = Select_Snapshot(store, false, false, true);
+        if (projected.colonies_captured && previous_colonies != nullptr && Same_Colonies(&projected, &previous_colonies->map)) colony_ids = previous_colonies->colony_ids;
+        if (!Extend(&colony_ids, projected.colonies.size())) return false;
+        for (auto& planet : projected.planets) {
+            const auto colony = std::find_if(projected.colonies.begin(), projected.colonies.end(), [&planet](const s_colony_observation& item) { return item.system_id == planet.system_id && item.orbit == planet.orbit; });
+            if (colony != projected.colonies.end()) planet.colony_id = colony_ids[(size_t)(colony - projected.colonies.begin())];
+            planet.system = -1;
+        }
         if (projected.context_epoch == 0 && projected.ships_captured && !store->snapshots.empty() && !Authorized_Snapshot(store, &store->snapshots.back())) {
             const auto* ambient = Select_Snapshot(store, true, projected.players_captured, projected.colonies_captured);
             if (ambient != nullptr && Same_Map(&projected, &ambient->map) && Same_Ships(&projected, &ambient->map) &&
                 (!projected.players_captured || (Same_Players(&projected, &ambient->map) && player_ids == ambient->player_ids)) &&
-                (!projected.colonies_captured || Same_Colonies(&projected, &ambient->map))) return true;
+                (!projected.colonies_captured || Same_Colonies(&projected, &ambient->map)) && (!projected.planets_captured || Same_Planets(&projected, &ambient->map))) return true;
         }
         const bool equal = !store->snapshots.empty() && Same_Map(&projected, &store->snapshots.back().map) &&
             (!projected.ships_captured || Same_Ships(&projected, &store->snapshots.back().map)) &&
             (!projected.players_captured || (Same_Players(&projected, &store->snapshots.back().map) && player_ids == store->snapshots.back().player_ids)) &&
-            (!projected.colonies_captured || Same_Colonies(&projected, &store->snapshots.back().map));
+            (!projected.colonies_captured || Same_Colonies(&projected, &store->snapshots.back().map)) &&
+            (!projected.planets_captured || Same_Planets(&projected, &store->snapshots.back().map));
         if (projected.context_epoch != 0) store->context_active = true;
         if (equal && (projected.context_epoch == store->snapshots.back().map.context_epoch || !projected.ships_captured)) return true;
         if (store->revision == std::numeric_limits<uint64_t>::max()) return false;
@@ -677,6 +843,8 @@ namespace rpc {
         if (!store->new_id(&snapshot.id, store->id_context)) return false;
         snapshot.map = std::move(projected);
         snapshot.player_ids = std::move(player_ids);
+        snapshot.planet_ids = std::move(planet_ids);
+        snapshot.colony_ids = std::move(colony_ids);
         const s_map_snapshot* previous_ships = nullptr;
         for (auto item = store->snapshots.rbegin(); item != store->snapshots.rend(); ++item) {
             if (item->map.ships_captured) {
@@ -696,11 +864,6 @@ namespace rpc {
             snapshot.ship_ids = previous_ships->ship_ids;
         }
         if (!Extend(&snapshot.ship_ids, snapshot.map.ships.size())) return false;
-        const auto* previous_colonies = Select_Snapshot(store, false, false, true);
-        if (snapshot.map.colonies_captured && previous_colonies != nullptr && Same_Colonies(&snapshot.map, &previous_colonies->map)) {
-            snapshot.colony_ids = previous_colonies->colony_ids;
-        }
-        if (!Extend(&snapshot.colony_ids, snapshot.map.colonies.size())) return false;
         snapshot.revision = equal ? store->revision : ++store->revision;
         store->snapshots.push_back(std::move(snapshot));
         for (auto& subscription : store->subscriptions) subscription.revision = 0;

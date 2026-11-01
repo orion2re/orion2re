@@ -8,17 +8,56 @@
 #include "rpc_bridge.h"
 
 namespace rpc {
+    enum e_exploration_knowledge {
+        EXPLORATION_UNKNOWN,
+        EXPLORATION_CURRENT,
+        EXPLORATION_EMPTY,
+        EXPLORATION_UNAUDITED,
+    };
+
     struct s_system_observation {
         int16_t x = 0;
         int16_t y = 0;
         bool visited = false;
         bool name_available = false;
         std::string name;
+        bool name_known = false; // Also permits independently audited contact/Lore names.
+        int32_t spectral_class = 0;
+        int32_t size = 0;
+        bool explored = false;
+        int32_t owner_slot = -1;
+        std::string owner_id;
+        e_exploration_knowledge wormhole_available = EXPLORATION_UNKNOWN;
+        int32_t wormhole_system = -1;
+        std::string wormhole_id;
+        bool in_extended_range = false;
+        std::vector<std::string> planet_ids;
     };
 
     struct s_nebula_observation {
         int16_t x = 0;
         int16_t y = 0;
+        int32_t variant = 0;
+    };
+
+    struct s_planet_observation {
+        bool visible = false;
+        int32_t system = -1;
+        int32_t orbit = 0;
+        int32_t kind = 0; // Native asteroid/gas-giant/planet classification 1..3.
+        std::string name;
+        int32_t size = 0;
+        int32_t gravity = 0;
+        int32_t climate = 0;
+        int32_t minerals = 0;
+        int32_t special = 0;
+        int32_t food2 = 0;
+        int32_t industry = 0;
+        int32_t gravity_penalty = 0;
+        bool max_population_available = false;
+        int32_t max_population = 0;
+        std::string system_id;
+        std::string colony_id;
     };
 
     enum e_ship_knowledge {
@@ -82,6 +121,7 @@ namespace rpc {
         std::string owner_id;
         int32_t infantry = 0;
         int32_t armor = 0;
+        std::string planet_id;
     };
 
     struct s_map_observation {
@@ -96,6 +136,9 @@ namespace rpc {
         bool colonies_captured = false;
         std::vector<s_colony_observation> colonies;
         uint64_t context_epoch = 0; // Private authorization lease, never encoded or compared as data.
+        bool planets_captured = false;
+        std::vector<s_planet_observation> planets;
+        bool exploration_sensitive = false;
     };
 
     struct s_map_snapshot {
@@ -105,6 +148,13 @@ namespace rpc {
         std::vector<std::string> ship_ids; // Read handles scoped to this immutable capture.
         std::vector<std::string> player_ids;
         std::vector<std::string> colony_ids; // Read-only observation handles, not action capabilities.
+        std::vector<std::string> planet_ids;
+    };
+
+    struct s_planet_handle {
+        std::string system_id;
+        int32_t orbit;
+        std::string id;
     };
 
     struct s_player_handle {
@@ -156,6 +206,7 @@ namespace rpc {
         std::vector<std::string> system_ids;
         std::vector<std::string> nebula_ids;
         std::vector<s_player_handle> player_handles;
+        std::vector<s_planet_handle> planet_handles;
         std::deque<s_map_snapshot> snapshots;
         std::vector<s_map_cursor> cursors;
         std::vector<s_state_subscription> subscriptions;

@@ -171,7 +171,7 @@ class TransportTests(unittest.TestCase):
         described = client.Read()
         self.assertEqual(described["id"], "d")
         self.assertEqual({item["name"] for item in described["result"]["methods"]},
-                         {"rpc.hello","rpc.describe","rpc.subscribe","rpc.unsubscribe","game.getSession","game.getState","game.listSystems","game.getSystem","game.listNebulas","game.listShips","game.getShip","game.listPlayers","game.getPlayer","game.listColonies","game.getColony"})
+                         {"rpc.hello","rpc.describe","rpc.subscribe","rpc.unsubscribe","game.getSession","game.getState","game.listSystems","game.getSystem","game.listNebulas","game.listShips","game.getShip","game.listPlayers","game.getPlayer","game.listColonies","game.getColony","game.listPlanets","game.getPlanet"})
 
     def test_wrong_key_is_rejected_and_connection_closed(self):
         client = self.Client()
@@ -184,7 +184,7 @@ class TransportTests(unittest.TestCase):
         client.Send({"jsonrpc":"2.0", "id":4, "method":"game.readMemory", "params":None})
         self.assertEqual(client.Read()["error"]["code"], -32001)
         self.assertIn("result", client.Hello())
-        client.Send({"jsonrpc":"2.0", "id":5, "method":"game.getPlanet", "params":{"id":"unknown"}})
+        client.Send({"jsonrpc":"2.0", "id":5, "method":"game.getFleet", "params":{"id":"unknown"}})
         self.assertEqual(client.Read()["error"]["code"], -32601)
 
     def test_fragmented_websocket_message_and_split_tcp_header(self):
@@ -332,7 +332,7 @@ class TransportTests(unittest.TestCase):
         baseline = self.Query(client, "game.getState", {"include":["session","systems","nebulas"]})
         self.assertEqual(baseline["result"]["stamp"]["captureMode"], "last-coherent-capture")
         self.assertNotIn("hidden", json.dumps(baseline))
-        self.assertEqual(baseline["result"]["systems"][1]["name"], {"availability":"unaudited"})
+        self.assertEqual(baseline["result"]["systems"][1]["name"], {"availability":"unknown"})
         self.Fixture("hidden")
         self.assertEqual(self.Query(client, "game.getState", {"include":["session","systems","nebulas"]}), baseline)
         self.Fixture("busy")
@@ -342,6 +342,102 @@ class TransportTests(unittest.TestCase):
         system = baseline["result"]["systems"][0]
         self.assertEqual(self.Query(client, "game.getSystem", {"id":system["id"]})["result"]["item"], system)
         self.assertEqual(self.Query(client, "game.getSystem", {"id":"unknown"})["error"]["code"], -32004)
+
+    def Exploration(self, large=False):
+        self.Fixture("world")
+        self.Fixture("colonies")
+        self.Fixture("ships")
+        self.Fixture("exploration-large" if large else "exploration")
+
+    def test_exploration_catalog_coherent_graph_baseline_pages_and_hidden_noninterference(self):
+        self.Exploration()
+        client = self.Client()
+        client.Hello()
+        topics = ["session", "systems", "planets", "nebulas", "players", "colonies", "ships"]
+        subscription = self.Query(client, "rpc.subscribe", {"topics":topics, "events":["state.changed"]})["result"]
+        baseline = subscription["baseline"]
+        self.assertEqual(self.Query(client, "game.getState", {"include":topics})["result"], baseline)
+        self.assertEqual(baseline["session"]["revision"], baseline["stamp"]["revision"])
+        self.assertEqual(baseline["nebulas"][0]["variant"], 11)
+        systems = {system["id"]:system for system in baseline["systems"]}
+        planets = {planet["id"]:planet for planet in baseline["planets"]}
+        for colony in baseline["colonies"]:
+            planet = planets[colony["planetId"]["value"]]
+            self.assertEqual(planet["colony"]["value"], colony["id"])
+            self.assertEqual(planet["systemId"], colony["systemId"])
+            self.assertEqual(planet["orbit"], colony["orbit"])
+        for planet in planets.values():
+            self.assertIn(planet["id"], systems[planet["systemId"]]["planetIds"]["value"])
+            self.assertEqual(self.Query(client, "game.getPlanet", {"id":planet["id"]})["result"]["item"], planet)
+        first = self.Query(client, "game.listPlanets", {"limit":1})["result"]
+        self.Fixture("exploration-hidden")
+        self.assertEqual(self.Query(client, "game.getState", {"include":topics})["result"], baseline)
+        self.Fixture("exploration-change")
+        self.assertEqual(client.Read()["method"], "state.changed")
+        second = self.Query(client, "game.listPlanets", {"cursor":first["nextCursor"]})["result"]
+        self.assertEqual(second["stamp"], first["stamp"])
+        self.assertEqual(second["items"][0], baseline["planets"][1])
+        changed = self.Query(client, "game.getState", {"include":topics})["result"]
+        self.assertEqual({p["id"] for p in changed["planets"]}, set(planets))
+        self.assertNotEqual(changed["stamp"], baseline["stamp"])
+
+    def test_exploration_temporary_knowledge_loss_revokes_pages_subscriptions_and_connection(self):
+        self.Exploration()
+        self.Fixture("exploration-lore")
+        client = self.Client()
+        client.Hello()
+        baseline = self.Query(client, "rpc.subscribe", {"topics":["session","systems","planets"], "events":["state.changed"]})["result"]
+        first = self.Query(client, "game.listPlanets", {"limit":1})["result"]
+        stale = first["items"][0]["id"]
+        self.Fixture("exploration-forget")
+        with self.assertRaises((EOFError, ConnectionError)): client.Read()
+        fresh = self.Client()
+        fresh.Hello()
+        self.assertEqual(self.Query(fresh, "game.listPlanets", {"cursor":first["nextCursor"]})["error"]["code"], -32004)
+        unknown = self.Query(fresh, "game.getPlanet", {"id":"unknown"})
+        self.assertEqual(self.Query(fresh, "game.getPlanet", {"id":stale}), unknown)
+        current = self.Query(fresh, "game.getState", {"include":["session","systems","planets"]})["result"]
+        self.assertNotEqual(current["stamp"]["perspectiveId"], baseline["baseline"]["stamp"]["perspectiveId"])
+        self.assertEqual(current["systems"][1]["planetIds"], {"availability":"unknown"})
+
+    def test_exploration_service_owned_output_is_closed_on_authority_boundary_without_another_poll(self):
+        self.Exploration(large=True)
+        client = self.Client(receive_buffer=1024)
+        client.Hello()
+        self.Fixture("publish-exploration")
+        opcode, final, payload = client.Read_Frame()
+        self.assertEqual(opcode, 1)
+        self.assertFalse(final)
+        self.assertTrue(payload)
+        self.Fixture("revoke-exploration-output")
+        completed = 0
+        try:
+            while True:
+                opcode, final, _ = client.Read_Frame()
+                if opcode == 8: break
+                if opcode == 9: continue
+                if opcode in (0, 1) and final:
+                    completed += 1
+        except (EOFError, ConnectionError):
+            pass
+        # Some bytes/results may already have reached the socket before revocation.
+        # The fixture positively requires pending final-fragment receipts after
+        # bridge drain; at least one service-owned response must not complete.
+        self.assertLess(completed, 4, "all queued exploration responses completed after revocation")
+
+    def test_exploration_unavailable_before_capture_and_world_reset_requires_fresh_handles(self):
+        self.Fixture("world")
+        client = self.Client()
+        client.Hello()
+        self.assertEqual(self.Query(client, "game.listPlanets")["error"]["code"], -32002)
+        self.Fixture("exploration")
+        planet = self.Query(client, "game.listPlanets")["result"]["items"][0]
+        self.Fixture("world")
+        with self.assertRaises((EOFError, ConnectionError)): client.Read()
+        fresh = self.Client()
+        fresh.Hello()
+        self.assertEqual(self.Query(fresh, "game.getPlanet", {"id":planet["id"]}),
+                         self.Query(fresh, "game.getPlanet", {"id":"unknown"}))
 
     def test_world_and_perspective_changes_require_a_fresh_key_handshake(self):
         self.Fixture("world")
@@ -402,7 +498,7 @@ class TransportTests(unittest.TestCase):
         self.Fixture("world")
         client = self.Client()
         client.Hello()
-        for params in ({"topics":["planets"],"events":["state.changed"]},
+        for params in ({"topics":["fleets"],"events":["state.changed"]},
                        {"topics":["systems"],"events":["ui.contextChanged"]},
                        {"topics":[],"events":["state.changed"]},
                        {"topics":["systems"],"events":[]}):
@@ -554,7 +650,7 @@ class TransportTests(unittest.TestCase):
             destination = state["ships"][index]["destination"]["value"]
             system = next(item for item in state["systems"] if item["id"] == destination)
             self.assertFalse(system["visited"])
-            self.assertEqual(system["name"], {"availability":"unaudited"})
+            self.assertEqual(system["name"], {"availability":"unknown"})
         self.assertEqual(ambient["session"]["revision"], ambient["stamp"]["revision"])
         stale = self.Query(client, "game.getShip", {"id":state["ships"][index]["id"]})
         self.assertEqual(stale, self.Query(client, "game.getShip", {"id":"unknown"}))
@@ -719,7 +815,8 @@ class TransportTests(unittest.TestCase):
         self.assertEqual(first["orbit"], 1)
         self.assertEqual(first["population"], {"availability":"current","value":0})
         self.assertEqual(second["population"], {"availability":"current","value":42})
-        for field in ("planetId", "production", "buyCost"):
+        self.assertEqual(first["planetId"], {"availability":"unknown"})
+        for field in ("production", "buyCost"):
             self.assertEqual(first[field], {"availability":"unaudited"})
         self.assertEqual(self.Query(client, "game.getColony", {"id":first["id"]})["result"]["item"], first)
         page = self.Query(client, "game.listColonies", {"limit":1})["result"]

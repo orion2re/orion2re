@@ -70,6 +70,43 @@ namespace {
         map.colonies = {{0, 0, 1, 0}, {0, 0, 5, 42}, {2, 99999, -1, 99999}};
         return map;
     }
+    rpc::s_map_observation Exploration() {
+        auto map = Colonies();
+        map.planets_captured = true;
+        map.ships_captured = true;
+        map.ships = Ships().ships;
+        map.systems[0].explored = true;
+        map.systems[0].owner_slot = 0;
+        map.systems[0].wormhole_available = rpc::EXPLORATION_CURRENT;
+        map.systems[0].wormhole_system = 1;
+        map.systems[0].in_extended_range = true;
+        map.systems[2].explored = true;
+        map.systems[2].wormhole_available = rpc::EXPLORATION_EMPTY;
+        rpc::s_planet_observation own;
+        own.visible = true;
+        own.system = 0;
+        own.orbit = 1;
+        own.kind = 3;
+        own.name = "Home I";
+        own.climate = 8;
+        own.food2 = 5;
+        own.max_population_available = true;
+        own.max_population = 42;
+        auto other = own;
+        other.orbit = 5;
+        other.name = "Home II";
+        auto gas = own;
+        gas.orbit = 3;
+        gas.kind = 2;
+        gas.climate = -999;
+        auto hidden = own;
+        hidden.visible = false;
+        hidden.system = -99999;
+        hidden.orbit = -1;
+        hidden.name = "hidden planet";
+        map.planets = {other, hidden, gas, own};
+        return map;
+    }
     std::string Dispatch(s_fixture* fixture, uint64_t client, uint64_t epoch, const rpc::s_request* request) {
         DOCTEST_REQUIRE(rpc::Submit_Work(&fixture->bridge, client, epoch, request, UINT64_MAX) == 0);
         rpc::Pump_Game_Queries(&fixture->store);
@@ -79,6 +116,179 @@ namespace {
         return result.json;
     }
 } // namespace
+
+DOCTEST_TEST_CASE("exploration graph has reciprocal same-capture references and immutable publicly sorted pages") {
+    s_fixture fixture;
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&fixture.store));
+    auto map = Exploration();
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    const auto retained = fixture.store.snapshots.back();
+    DOCTEST_REQUIRE(retained.map.planets.size() == 3);
+    DOCTEST_CHECK(retained.map.planets[0].orbit == 1);
+    DOCTEST_CHECK(retained.map.planets[1].orbit == 3);
+    DOCTEST_CHECK(retained.map.planets[2].orbit == 5);
+    DOCTEST_CHECK(retained.map.systems[0].planet_ids == retained.planet_ids);
+    DOCTEST_CHECK(retained.map.systems[0].wormhole_id == fixture.store.system_ids[1]);
+    for (size_t index = 0; index < retained.map.colonies.size(); ++index) {
+        const auto& colony = retained.map.colonies[index];
+        const size_t planet = colony.orbit == 1 ? 0 : 2;
+        DOCTEST_CHECK(colony.planet_id == retained.planet_ids[planet]);
+        DOCTEST_CHECK(retained.map.planets[planet].colony_id == retained.colony_ids[index]);
+        DOCTEST_CHECK(colony.system == -1);
+    }
+    DOCTEST_CHECK(retained.map.planets[0].system == -1);
+    auto list = Request("game.listPlanets", "{\"limit\":1}");
+    const auto first = rpc::Game_Query(&fixture.store, &list);
+    DOCTEST_REQUIRE(!fixture.store.cursors.empty());
+    const auto cursor = fixture.store.cursors.back().id;
+    map.planets[0].climate = 9;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    DOCTEST_CHECK(fixture.store.snapshots.back().planet_ids == retained.planet_ids);
+    DOCTEST_CHECK(retained.map.planets[2].climate == 8);
+    list.params_json = "{\"cursor\":" + rpc::Json_String(cursor) + "}";
+    const auto pinned = rpc::Game_Query(&fixture.store, &list);
+    DOCTEST_CHECK(pinned.find(retained.id) != std::string::npos);
+    DOCTEST_CHECK(pinned.find("known-empty") != std::string::npos);
+    auto get = Request("game.getPlanet");
+    get.params_json = "{\"id\":" + rpc::Json_String(retained.planet_ids[2]) + "}";
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &get).find("\"climate\":{\"availability\":\"current\",\"value\":9}") != std::string::npos);
+    auto state = Request("game.getState", "{\"include\":[\"session\",\"systems\",\"planets\",\"nebulas\",\"players\",\"colonies\",\"ships\"]}");
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &state).find(fixture.store.snapshots.back().id) != std::string::npos);
+    DOCTEST_CHECK(first.find("hidden") == std::string::npos);
+}
+
+DOCTEST_TEST_CASE("exploration filters and sanitizes before IDs validation revisions and notifications") {
+    s_fixture fixture;
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&fixture.store));
+    auto map = Exploration();
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    uint64_t epoch;
+    DOCTEST_REQUIRE(rpc::Register_Client(&fixture.bridge, 1, &epoch));
+    DOCTEST_REQUIRE(rpc::Authorize_Client(&fixture.bridge, 1, epoch));
+    auto subscribe = Request("rpc.subscribe", "{\"topics\":[\"session\",\"systems\",\"planets\",\"nebulas\",\"players\",\"colonies\",\"ships\"],\"events\":[\"state.changed\"]}");
+    const auto baseline = Dispatch(&fixture, 1, epoch, &subscribe);
+    const auto retained = fixture.store.snapshots.back();
+    const auto serial = fixture.serial;
+    map.planets[1].name.assign(100000, 'X');
+    map.planets[2].name = "not a gas giant name";
+    map.planets[2].max_population = -999;
+    map.systems[1].name = "secret";
+    map.systems[1].in_extended_range = true;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    DOCTEST_CHECK(fixture.serial == serial);
+    DOCTEST_CHECK(fixture.store.snapshots.back().id == retained.id);
+    rpc::Pump_Game_Queries(&fixture.store);
+    rpc::s_publication publication;
+    DOCTEST_CHECK_FALSE(rpc::Take_Publication(&fixture.bridge, &publication));
+    DOCTEST_CHECK(baseline.find(retained.id) != std::string::npos);
+    map.planets[0].gravity = 3;
+    DOCTEST_CHECK_FALSE(rpc::Capture_Map(&fixture.store, &map));
+    DOCTEST_CHECK(fixture.serial == serial);
+    map.planets[0].gravity = 0;
+    map.planets[0].climate = 9;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    rpc::Pump_Game_Queries(&fixture.store);
+    DOCTEST_REQUIRE(rpc::Take_Publication(&fixture.bridge, &publication));
+    DOCTEST_CHECK(publication.json.find("state.changed") != std::string::npos);
+}
+
+DOCTEST_TEST_CASE("exploration conditional grants revoke pending ready late baseline and pinned output via existing view epoch") {
+    s_fixture fixture;
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&fixture.store));
+    auto map = Exploration();
+    map.systems[1].name_known = map.systems[1].name_available = true;
+    map.systems[1].name = "(Lore)";
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    DOCTEST_CHECK(fixture.store.snapshots.back().map.exploration_sensitive);
+    uint64_t epoch;
+    DOCTEST_REQUIRE(rpc::Register_Client(&fixture.bridge, 1, &epoch));
+    DOCTEST_REQUIRE(rpc::Authorize_Client(&fixture.bridge, 1, epoch));
+    auto read = Request("game.listPlanets", "{\"limit\":1}");
+    const auto page = rpc::Game_Query(&fixture.store, &read);
+    const auto cursor = fixture.store.cursors.back().id;
+    const auto old_id = fixture.store.snapshots.back().planet_ids[0];
+    DOCTEST_REQUIRE(rpc::Submit_Work(&fixture.bridge, 1, epoch, &read, UINT64_MAX) == 0);
+    rpc::s_work late;
+    DOCTEST_REQUIRE(rpc::Take_Work(&fixture.bridge, 0, &late));
+    const auto response = rpc::Game_Query(&fixture.store, &late.request);
+    DOCTEST_REQUIRE(rpc::Submit_Work(&fixture.bridge, 1, epoch, &read, UINT64_MAX) == 0);
+    // Leave both ready and pending reads across the boundary.
+    rpc::Pump_Game_Queries(&fixture.store);
+    DOCTEST_REQUIRE(rpc::Submit_Work(&fixture.bridge, 1, epoch, &read, UINT64_MAX) == 0);
+    auto subscribe = Request("rpc.subscribe", "{\"topics\":[\"systems\",\"planets\"],\"events\":[\"state.changed\"]}");
+    DOCTEST_REQUIRE(rpc::Submit_Work(&fixture.bridge, 1, epoch, &subscribe, UINT64_MAX) == 0);
+    rpc::Pump_Game_Queries(&fixture.store);
+    DOCTEST_REQUIRE(fixture.store.subscriptions.size() == 1);
+    DOCTEST_REQUIRE(rpc::Submit_Work(&fixture.bridge, 1, epoch, &read, UINT64_MAX) == 0);
+    rpc::Pause_Game_Queries(&fixture.store);
+    DOCTEST_CHECK(fixture.store.snapshots.empty());
+    DOCTEST_CHECK(fixture.store.cursors.empty());
+    DOCTEST_CHECK(fixture.store.subscriptions.empty());
+    DOCTEST_CHECK_FALSE(rpc::Client_Is_Current(&fixture.bridge, 1, epoch));
+    DOCTEST_CHECK_FALSE(rpc::Complete_Work(&fixture.bridge, &late, &response));
+    rpc::s_publication publication;
+    while (rpc::Take_Publication(&fixture.bridge, &publication)) DOCTEST_CHECK(publication.json.find(old_id) == std::string::npos);
+    rpc::Resume_Game_Queries(&fixture.store);
+    map.systems[1].name_known = map.systems[1].name_available = false;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    read.params_json = "{\"cursor\":" + rpc::Json_String(cursor) + "}";
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &read).find("-32004") != std::string::npos);
+    auto get = Request("game.getPlanet");
+    get.params_json = "{\"id\":" + rpc::Json_String(old_id) + "}";
+    const auto unavailable = rpc::Game_Query(&fixture.store, &get);
+    get.params_json = "{\"id\":\"unknown\"}";
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &get) == unavailable);
+    DOCTEST_CHECK(page.find("Home I") != std::string::npos); // Earlier copied bytes remain immutable.
+}
+
+DOCTEST_TEST_CASE("exploration observed authorization loss revokes handles and perspective while stable captures remain dated") {
+    s_fixture fixture;
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&fixture.store));
+    auto map = Exploration();
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    const auto stable = fixture.store.snapshots.back();
+    rpc::Pause_Game_Queries(&fixture.store);
+    rpc::Resume_Game_Queries(&fixture.store);
+    DOCTEST_CHECK(fixture.store.snapshots.back().id == stable.id);
+    map.systems[1].explored = true;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    const auto perspective = fixture.store.perspective_id;
+    map.systems[1].explored = false;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    DOCTEST_CHECK(fixture.store.perspective_id != perspective);
+    DOCTEST_CHECK(fixture.store.snapshots.size() == 1);
+    const auto before_reset = fixture.store.snapshots.back().planet_ids;
+    rpc::Begin_Game_Reset(&fixture.store);
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&fixture.store));
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    DOCTEST_CHECK(fixture.store.snapshots.back().planet_ids != before_reset);
+}
+
+DOCTEST_TEST_CASE("exploration combined state and subscription baseline never splice newer partial metadata into old planets") {
+    s_fixture fixture;
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&fixture.store));
+    auto map = Exploration();
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    const auto complete = fixture.store.snapshots.back();
+    map.planets_captured = false;
+    map.ships_captured = false;
+    ++map.turn;
+    map.players[2].treasury = 777;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    const auto partial = fixture.store.snapshots.back();
+    DOCTEST_CHECK(partial.id != complete.id);
+    auto state = Request("game.getState", "{\"include\":[\"session\",\"planets\",\"systems\",\"players\",\"colonies\",\"nebulas\",\"ships\"]}");
+    const auto combined = rpc::Game_Query(&fixture.store, &state);
+    DOCTEST_CHECK(combined.find(complete.id) != std::string::npos);
+    DOCTEST_CHECK(combined.find("777") == std::string::npos);
+    uint64_t epoch;
+    DOCTEST_REQUIRE(rpc::Register_Client(&fixture.bridge, 1, &epoch));
+    DOCTEST_REQUIRE(rpc::Authorize_Client(&fixture.bridge, 1, epoch));
+    auto subscription = Request("rpc.subscribe", "{\"topics\":[\"session\",\"planets\",\"systems\",\"players\",\"colonies\",\"nebulas\",\"ships\"],\"events\":[\"state.changed\"]}");
+    const auto baseline = Dispatch(&fixture, 1, epoch, &subscription);
+    DOCTEST_CHECK(baseline.find(complete.id) != std::string::npos);
+    DOCTEST_CHECK(baseline.find("777") == std::string::npos);
+}
 
 DOCTEST_TEST_CASE_TEMPLATE("context ETA captures revoke pages and queued baselines but preserve coherent ambient reads", Fleet, std::false_type, std::true_type, std::integral_constant<int, 2>, std::integral_constant<int, 3>, std::integral_constant<int, 4>) {
     s_fixture fixture;
@@ -885,7 +1095,7 @@ DOCTEST_TEST_CASE("own colonies filter foreign payloads before validation handle
     auto state = Request("game.getState", "{\"include\":[\"session\",\"systems\",\"players\",\"colonies\"]}");
     const auto baseline = rpc::Game_Query(&fixture.store, &state);
     DOCTEST_CHECK(baseline.find("\"population\":{\"availability\":\"current\",\"value\":0}") != std::string::npos);
-    DOCTEST_CHECK(baseline.find("\"planetId\":{\"availability\":\"unaudited\"}") != std::string::npos);
+    DOCTEST_CHECK(baseline.find("\"planetId\":{\"availability\":\"unknown\"}") != std::string::npos);
     const auto ids = snapshot.colony_ids;
     uint64_t epoch;
     DOCTEST_REQUIRE(rpc::Register_Client(&fixture.bridge, 1, &epoch));
