@@ -503,10 +503,18 @@ class TransportTests(unittest.TestCase):
             client.Read()
 
     def test_context_eta_has_coherent_baselines_and_revokes_pages_without_losing_ambient_reads(self):
+        self.Check_Context_Eta(False)
+
+    def test_non_own_context_eta_uses_the_same_coherent_capture_and_revocation_path(self):
+        self.Check_Context_Eta(True)
+
+    def Check_Context_Eta(self, foreign):
+        prefix = "eta-foreign" if foreign else "eta"
+        index = 1 if foreign else 0
         self.Fixture("world")
         self.Fixture("colonies")
-        self.Fixture("eta-ambient")
-        self.Fixture("eta-context")
+        self.Fixture(prefix + "-ambient")
+        self.Fixture(prefix + "-context")
         client = self.Client()
         client.Hello()
         topics = ["session", "systems", "nebulas", "players", "colonies", "ships"]
@@ -515,8 +523,11 @@ class TransportTests(unittest.TestCase):
         self.assertEqual(state, baseline["baseline"])
         self.assertEqual(state["stamp"]["captureMode"], "last-native-fleet-box")
         self.assertEqual(state["session"]["revision"], state["stamp"]["revision"])
-        self.assertEqual(state["ships"][0]["eta"], {"availability":"current", "value":0})
-        self.assertIn(state["ships"][0]["destination"]["value"], {item["id"] for item in state["systems"]})
+        self.assertEqual(state["ships"][index]["eta"], {"availability":"current", "value":0})
+        self.assertIn(state["ships"][index]["destination"]["value"], {item["id"] for item in state["systems"]})
+        if foreign:
+            self.assertFalse(state["ships"][index]["owned"])
+            self.assertEqual(state["ships"][index]["name"], {"availability":"unaudited"})
         first = self.Query(client, "game.listShips", {"limit":1})["result"]
         self.Fixture("hidden")
         self.assertEqual(self.Query(client, "game.getState", {"include":topics})["result"], state)
@@ -526,24 +537,34 @@ class TransportTests(unittest.TestCase):
         self.assertEqual(changed["params"]["subscriptionId"], baseline["subscriptionId"])
         self.assertEqual(self.Query(client, "game.listShips", {"cursor":first["nextCursor"]})["error"]["code"], -32004)
         ambient = self.Query(client, "game.getState", {"include":topics})["result"]
-        self.assertEqual(ambient["ships"][0]["eta"], {"availability":"context-required"})
+        self.assertEqual(ambient["ships"][index]["eta"], {"availability":"context-required"})
         self.assertEqual(ambient["session"]["revision"], ambient["stamp"]["revision"])
-        stale = self.Query(client, "game.getShip", {"id":state["ships"][0]["id"]})
+        stale = self.Query(client, "game.getShip", {"id":state["ships"][index]["id"]})
         self.assertEqual(stale, self.Query(client, "game.getShip", {"id":"unknown"}))
-        self.Fixture("eta-context")
+        self.Fixture(prefix + "-context")
         self.assertEqual(client.Read()["method"], "state.changed")
         restored = self.Query(client, "game.listShips")["result"]
         self.assertEqual(restored["items"], state["ships"])
         self.Fixture("busy")
         self.Fixture("resume")
         self.assertEqual(client.Read()["method"], "state.changed")
-        self.assertEqual(self.Query(client, "game.listShips")["result"]["items"][0]["eta"], {"availability":"context-required"})
+        self.assertEqual(self.Query(client, "game.listShips")["result"]["items"][index]["eta"], {"availability":"context-required"})
 
     def test_context_revocation_closes_started_service_output_without_a_game_poll(self):
+        self.Check_Context_Output("publish-context-large")
+
+    def test_non_own_eta_revocation_closes_service_owned_state_output(self):
+        self.Fixture("world")
+        self.Fixture("colonies")
+        self.Fixture("eta-foreign-ambient")
+        self.Fixture("eta-foreign-context")
+        self.Check_Context_Output("publish-foreign-context-large")
+
+    def Check_Context_Output(self, command):
         client = self.Client(receive_buffer=4096)
         client.Hello()
         for _ in range(3):
-            self.Fixture("publish-context-large")
+            self.Fixture(command)
         opcode, final, payload = client.Read_Frame()
         self.assertEqual(opcode, 1)
         self.assertFalse(final)

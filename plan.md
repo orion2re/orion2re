@@ -254,6 +254,7 @@ field-audited methods/topics; schemas alone grant no authority.
   - [x] Publish fresh coherent immutable captures for all requested topics, including session; never enrich older snapshots.
   - [x] Revoke bounded ETA context data through retained/pinned captures, subscriptions, bridge work/publications and service output on close/replacement/rebuild, owner exit, world updates, resolution and perspective changes; preserve authorized ambient reads.
   - [x] Test the bounded path's initialization, revocation, reuse, copied lifetimes, hidden-only noninterference, coherent state/baselines, pinned pages and indistinguishable unavailable handles before disclosure.
+  - [x] Extend the completed cached fleet-box ETA path to surviving non-own wormhole heads with independently current ambient destinations, safe private association and end-to-end revocation.
   - [ ] Extend conditional destination/ETA and selection/scan disclosure to remaining native contexts; audit each additional field and establish durable identity separately.
 - [ ] Q-08 — Implement fleet list/detail without rebuilt-stack identifiers.
 - [ ] Q-09 — Implement movement options with audited scratch state and no hidden-data oracle.

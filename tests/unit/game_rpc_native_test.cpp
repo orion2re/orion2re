@@ -7,6 +7,7 @@
 
 #include <chrono>
 #include <iostream>
+#include <type_traits>
 #include <vector>
 
 namespace {
@@ -653,7 +654,8 @@ namespace {
         std::vector<s_fleet_movement_icon> icons = {std::begin(MOX::fleet_movement_icon), std::end(MOX::fleet_movement_icon)};
         std::vector<char> strings = MOX::h_strings;
         std::vector<size_t> offsets = {std::begin(MOX::h_string_ix), std::end(MOX::h_string_ix)};
-        s_eta_world() {
+        bool foreign = false;
+        s_eta_world(bool non_own = false) : foreign(non_own) {
             MOX::leaders = leaders.data();
             DOCTEST_REQUIRE(orion2re::lua::game::Capture_Ship_Generation_State(generations.data(), MAX_SHIPS));
             native.world.stars[1].x = 100;
@@ -662,14 +664,16 @@ namespace {
             MOX::NUM_SHIPS = 11;
             for (int index = 0; index < 10; ++index) {
                 native.ships[index] = {};
-                native.ships[index].owner = 0;
+                native.ships[index].owner = foreign ? 1 : 0;
                 native.ships[index].status = 2;
                 native.ships[index].location = SHIP_LOCATION_WORMHOLE_OFFSET + 1;
                 native.ships[index].turns_left = 0;
                 snprintf(native.ships[index].d.name, sizeof(native.ships[index].d.name), "Own-%d", index);
+                if (foreign) memset(native.ships[index].d.name, 0xff, sizeof(native.ships[index].d.name));
             }
+            if (foreign) MOX::settings.enemy_moves = 1;
             native.ships[10] = {};
-            native.ships[10].owner = 1;
+            native.ships[10].owner = foreign ? 0 : 1;
             native.ships[10].x = 30;
             orion2re::lua::game::Restore_Legacy_Ship_Generations();
             MOX::h_strings = {'\0'};
@@ -697,7 +701,7 @@ namespace {
         void Refresh() {
             SHIPS::Build_Ship_Icons();
             DOCTEST_REQUIRE(!adapter.associations.empty());
-            const auto head = std::find_if(adapter.associations.begin(), adapter.associations.end(), [](const game_rpc::s_ship_association& item) { return item.ship.owned && item.head == item.node; });
+            const auto head = std::find_if(adapter.associations.begin(), adapter.associations.end(), [](const game_rpc::s_ship_association& item) { return item.slot < 10 && item.head == item.node; });
             DOCTEST_REQUIRE(head != adapter.associations.end());
             MOX::fleet_box_ship_stack = HACCESS::Ship_Stack_From_Ship_Id(head->slot);
             MOX::moveable_box[2].id = MOX::box_off_flag[2] + 1;
@@ -707,7 +711,7 @@ namespace {
                 MOX::fleet_movement_icon[index++].ship_node_idx = node;
             }
             DOCTEST_REQUIRE(index == 10);
-            MOX::ship_node[head->head].selected = 1;
+            MOX::ship_node[head->head].selected = foreign ? 0 : 1;
         }
         void Print() {
             game_events::s_observation_scope draw(game_events::MAIN_VIEW_DRAW_ENTERED, game_events::MAIN_VIEW_DRAW_LEAVING);
@@ -727,8 +731,8 @@ namespace {
     };
 } // namespace
 
-DOCTEST_TEST_CASE("real cached producer authorizes only an initialized surviving own wormhole head including zero") {
-    s_eta_world fixture;
+DOCTEST_TEST_CASE_TEMPLATE("real cached producer authorizes only an initialized surviving wormhole head including zero", Fleet, std::false_type, std::true_type) {
+    s_eta_world fixture(Fleet::value);
     game_events::s_fleet_box_view_scope owner;
     fixture.Refresh();
     const auto ambient = fixture.Query();
@@ -759,8 +763,78 @@ DOCTEST_TEST_CASE("real cached producer authorizes only an initialized surviving
     DOCTEST_CHECK(fixture.Query() == repeated); // Ordinary redraw is usable, not epoch churn.
 }
 
-DOCTEST_TEST_CASE("child parent draws cannot reauthorize and ordinary native redraw restores fresh ETA") {
-    s_eta_world fixture;
+DOCTEST_TEST_CASE("non-own cached producer requires an independent native ambient route gate and never a foreign name") {
+    s_eta_world fixture(true);
+    MOX::settings.enemy_moves = 0;
+    bool allowed = false;
+    DOCTEST_SUBCASE("enemy moves") {
+        MOX::settings.enemy_moves = 1;
+        allowed = true;
+    }
+    DOCTEST_SUBCASE("incoming to own full colony without war") {
+        fixture.native.world.stars[1].has_colony = 1;
+        allowed = true;
+    }
+    DOCTEST_SUBCASE("native outpost gate includes a foreign outpost") {
+        fixture.native.world.stars[1].planet_index[0] = 0;
+        fixture.native.world.planets[0].colony_index = 0;
+        fixture.native.world.colonies[0].outpost_flag = 1;
+        fixture.native.world.colonies[0].owner = 1;
+        allowed = true;
+    }
+    DOCTEST_SUBCASE("detection alone") {}
+    DOCTEST_SUBCASE("known contact and ownership alone") {
+        fixture.native.world.players[0].contact[1] = 1;
+        fixture.native.world.players[1].color = 1;
+    }
+    DOCTEST_SUBCASE("native omniscience alone") {
+        fixture.native.world.players[0].traits[TRAIT_OMNISCIENCE] = 1;
+    }
+    DOCTEST_SUBCASE("malformed incoming links") {
+        fixture.native.world.stars[1].visited = 0;
+        fixture.native.world.stars[1].planet_index[0] = MAX_PLANETS;
+    }
+    game_events::s_fleet_box_view_scope owner;
+    fixture.Refresh();
+    const int16_t node = MOX::fleet_movement_icon[0].ship_node_idx;
+    if (fixture.native.world.stars[1].planet_index[0] != MAX_PLANETS) {
+        DOCTEST_CHECK((MOX::settings.enemy_moves != 0 || SHIPS::Enemy_Ship_Heading_Toward_Our_Colony(node)) == allowed);
+    }
+    owner.Initialized();
+    fixture.Print();
+    DOCTEST_CHECK(fixture.store.context_active == allowed);
+    DOCTEST_CHECK(fixture.Current_Etas() == (allowed ? 1 : 0));
+    for (const auto& ship : fixture.store.snapshots.back().map.ships) {
+        DOCTEST_CHECK(ship.name.empty());
+        if (ship.eta_available == rpc::SHIP_CURRENT) DOCTEST_CHECK_FALSE(ship.owned);
+    }
+    DOCTEST_CHECK(fixture.Query().find("\"name\":{\"availability\":\"unaudited\"}") != std::string::npos);
+}
+
+DOCTEST_TEST_CASE("non-own cached ETA cannot acquire ambient authority after refresh or keep a withdrawn gate") {
+    s_eta_world fixture(true);
+    bool withdrawn = false;
+    DOCTEST_SUBCASE("withdrawn enemy moves") {
+        withdrawn = true;
+    }
+    DOCTEST_SUBCASE("newly enabled enemy moves needs a fresh association") {
+        MOX::settings.enemy_moves = 0;
+    }
+    game_events::s_fleet_box_view_scope owner;
+    fixture.Refresh();
+    owner.Initialized();
+    fixture.Print();
+    DOCTEST_CHECK(fixture.store.context_active == withdrawn);
+    MOX::settings.enemy_moves = withdrawn ? 0 : 1;
+    fixture.Print();
+    DOCTEST_CHECK_FALSE(fixture.store.context_active);
+    fixture.Refresh();
+    fixture.Print();
+    DOCTEST_CHECK(fixture.store.context_active == !withdrawn);
+}
+
+DOCTEST_TEST_CASE_TEMPLATE("child parent draws cannot reauthorize and ordinary native redraw restores fresh ETA", Fleet, std::false_type, std::true_type) {
+    s_eta_world fixture(Fleet::value);
     game_events::s_fleet_box_view_scope owner;
     fixture.Refresh();
     owner.Initialized();
@@ -787,8 +861,8 @@ DOCTEST_TEST_CASE("child parent draws cannot reauthorize and ordinary native red
     DOCTEST_CHECK(fixture.adapter.associations.empty());
 }
 
-DOCTEST_TEST_CASE("fleet box ETA preserves unsigned bytes and cannot manufacture destination knowledge") {
-    s_eta_world fixture;
+DOCTEST_TEST_CASE_TEMPLATE("fleet box ETA preserves unsigned bytes and cannot manufacture destination knowledge", Fleet, std::false_type, std::true_type) {
+    s_eta_world fixture(Fleet::value);
     bool special = false;
     bool no_selection = false;
     DOCTEST_SUBCASE("unsigned 255") {
@@ -827,8 +901,8 @@ DOCTEST_TEST_CASE("fleet box ETA preserves unsigned bytes and cannot manufacture
     DOCTEST_CHECK(fixture.adapter.associations.empty());
 }
 
-DOCTEST_TEST_CASE("native stale selection node reuse and slot retirement cannot inherit cached ETA") {
-    s_eta_world fixture;
+DOCTEST_TEST_CASE_TEMPLATE("native stale selection node reuse and slot retirement cannot inherit cached ETA", Fleet, std::false_type, std::true_type) {
+    s_eta_world fixture(Fleet::value);
     game_events::s_fleet_box_view_scope owner;
     fixture.Refresh();
     owner.Initialized();
@@ -843,6 +917,29 @@ DOCTEST_TEST_CASE("native stale selection node reuse and slot retirement cannot 
     DOCTEST_SUBCASE("stale movement node points at same slot") {
         MOX::ship_node[MAX_SHIPS - 1] = {first_ship, -1, 0};
         MOX::fleet_movement_icon[0].ship_node_idx = MAX_SHIPS - 1;
+        fixture.Print();
+    }
+    DOCTEST_SUBCASE("current box member no longer matches refresh") {
+        const int16_t member = MOX::ship_node[first_node].next_node;
+        DOCTEST_REQUIRE(member >= 0);
+        fixture.native.ships[MOX::ship_node[member].ship_idx].location = SHIP_LOCATION_WORMHOLE_OFFSET + 2;
+        fixture.Print();
+    }
+    DOCTEST_SUBCASE("current head ownership changed") {
+        fixture.native.ships[first_ship].owner = 7;
+        fixture.Print();
+    }
+    DOCTEST_SUBCASE("duplicate box member") {
+        MOX::fleet_movement_icon[1].ship_node_idx = first_node;
+        fixture.Print();
+    }
+    DOCTEST_SUBCASE("movement preview is not cached state") {
+        for (auto& node : MOX::ship_node) node.selected = 0;
+        MOX::eta_star_id = 1;
+        fixture.Print();
+    }
+    DOCTEST_SUBCASE("missing generation") {
+        orion2re::lua::game::Reset_Ship_Generations();
         fixture.Print();
     }
     DOCTEST_SUBCASE("slot retired and reused with byte-identical public data") {
@@ -868,8 +965,8 @@ DOCTEST_TEST_CASE("native stale selection node reuse and slot retirement cannot 
     DOCTEST_CHECK(context == 0);
 }
 
-DOCTEST_TEST_CASE("native rebuild and world boundaries revoke ETA without exposing hidden identity changes") {
-    s_eta_world fixture;
+DOCTEST_TEST_CASE_TEMPLATE("native rebuild and world boundaries revoke ETA without exposing hidden identity changes", Fleet, std::false_type, std::true_type) {
+    s_eta_world fixture(Fleet::value);
     game_events::s_fleet_box_view_scope owner;
     fixture.Refresh();
     owner.Initialized();
@@ -881,6 +978,11 @@ DOCTEST_TEST_CASE("native rebuild and world boundaries revoke ETA without exposi
     DOCTEST_REQUIRE(orion2re::lua::game::Advance_Ship_Generation(MAX_SHIPS - 1));
     fixture.native.ships[MAX_SHIPS - 1].owner = 7;
     fixture.native.ships[MAX_SHIPS - 1].turns_left = 99;
+    if (fixture.foreign) {
+        for (int index = 0; index < 10; ++index) {
+            memset(fixture.native.ships[index].d.name, 'x', sizeof(fixture.native.ships[index].d.name));
+        }
+    }
     fixture.Print();
     DOCTEST_CHECK(fixture.Query() == before);
     DOCTEST_CHECK(rpc::Bridge_Context_Epoch(&fixture.bridge) == context_epoch);
@@ -912,6 +1014,51 @@ DOCTEST_TEST_CASE("native rebuild and world boundaries revoke ETA without exposi
         fixture.Print();
         DOCTEST_CHECK_FALSE(fixture.store.context_active);
     }
+}
+
+DOCTEST_TEST_CASE("actual non-own retirement revokes native ETA pages and ready late and pending bridge reads") {
+    s_eta_world fixture(true);
+    game_events::s_fleet_box_view_scope owner;
+    fixture.Refresh();
+    owner.Initialized();
+    fixture.Print();
+    uint64_t context = 0;
+    const auto result = fixture.Query("game.listShips", "{}", &context);
+    DOCTEST_REQUIRE(context != 0);
+    fixture.Query("game.listShips", "{\"limit\":1}");
+    DOCTEST_REQUIRE(!fixture.store.cursors.empty());
+    const auto cursor = fixture.store.cursors.back().id;
+    uint64_t epoch;
+    DOCTEST_REQUIRE(rpc::Register_Client(&fixture.bridge, 1, &epoch));
+    DOCTEST_REQUIRE(rpc::Authorize_Client(&fixture.bridge, 1, epoch));
+    rpc::s_request request;
+    request.method = "game.listShips";
+    request.id_json = "1";
+    request.params_json = "{}";
+    DOCTEST_REQUIRE(rpc::Submit_Work(&fixture.bridge, 1, epoch, &request, UINT64_MAX) == 0);
+    rpc::s_work late;
+    DOCTEST_REQUIRE(rpc::Take_Work(&fixture.bridge, 0, &late));
+    DOCTEST_REQUIRE(rpc::Submit_Work(&fixture.bridge, 1, epoch, &request, UINT64_MAX) == 0);
+    rpc::Pump_Game_Queries(&fixture.store); // Ready, but not delivered.
+    request.params_json = "{\"cursor\":" + rpc::Json_String(cursor) + "}";
+    DOCTEST_REQUIRE(rpc::Submit_Work(&fixture.bridge, 1, epoch, &request, UINT64_MAX) == 0);
+    const int16_t slot = MOX::ship_node[MOX::fleet_movement_icon[0].ship_node_idx].ship_idx;
+    SHIPS::Kill_Ship(slot);
+    DOCTEST_CHECK_FALSE(fixture.store.context_active);
+    DOCTEST_CHECK(rpc::Bridge_Context_Epoch(&fixture.bridge) != context);
+    rpc::s_publication publication;
+    DOCTEST_REQUIRE(rpc::Take_Publication(&fixture.bridge, &publication));
+    DOCTEST_CHECK(publication.json == rpc::Error_Response(&request, rpc::RPC_OBJECT_UNAVAILABLE));
+    DOCTEST_REQUIRE(rpc::Complete_Work(&fixture.bridge, &late, &result, context));
+    DOCTEST_REQUIRE(rpc::Take_Publication(&fixture.bridge, &publication));
+    DOCTEST_CHECK(publication.json == rpc::Error_Response(&request, rpc::RPC_OBJECT_UNAVAILABLE));
+    rpc::Pump_Game_Queries(&fixture.store);
+    DOCTEST_REQUIRE(rpc::Take_Publication(&fixture.bridge, &publication));
+    DOCTEST_CHECK(publication.json == rpc::Error_Response(&request, rpc::RPC_OBJECT_UNAVAILABLE));
+    uint64_t ambient = 99;
+    fixture.Query("game.listShips", "{}", &ambient);
+    DOCTEST_CHECK(ambient == 0);
+    DOCTEST_CHECK(rpc::Client_Is_Current(&fixture.bridge, 1, epoch));
 }
 
 DOCTEST_TEST_CASE("ship icon rebuild invalidates transient node associations before reusing nodes") {

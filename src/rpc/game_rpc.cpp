@@ -83,6 +83,22 @@ namespace game_rpc {
         return active ? &bridge : nullptr;
     }
 
+    static bool Ambient_Foreign_Route(int16_t destination) {
+        if (destination < 0 || destination >= MOX::NUM_STARS) return false;
+        if (MOX::settings.enemy_moves != 0 || HAROLD::Player_Has_Colony(MOX::PLAYER_NUM, destination)) return true;
+        // The incoming predicate's remaining branch. Validate links before the
+        // native outpost read; its unused player argument intentionally stays so.
+        for (int orbit = 0; orbit < 5; ++orbit) {
+            const int16_t planet = MOX::star[destination].planet_index[orbit];
+            if (planet < -1 || planet >= MAX_PLANETS || (planet >= 0 && MOX::planet == nullptr)) return false;
+            if (planet >= 0) {
+                const int16_t colony = MOX::planet[planet].colony_index;
+                if (colony < -1 || colony >= MAX_COLONIES || (colony >= 0 && MOX::colony == nullptr)) return false;
+            }
+        }
+        return HAROLD::Player_Has_Outpost(MOX::PLAYER_NUM, destination);
+    }
+
     static void Read_Map_Route(int16_t node, rpc::s_ship_observation* route) {
         const s_ship_data* ship = &MOX::ship[MOX::ship_node[node].ship_idx];
         const bool owned = ship->owner == MOX::PLAYER_NUM;
@@ -100,20 +116,7 @@ namespace game_rpc {
             if (owned) route->destination_available = route->eta_available = rpc::SHIP_UNAUDITED;
             return; // Includes the special Antares destination, not a map system.
         }
-        if (!owned && MOX::settings.enemy_moves == 0) {
-            // Validate only links the existing read-only predicate may follow.
-            if (!HAROLD::Player_Has_Colony(MOX::PLAYER_NUM, destination)) {
-                for (int orbit = 0; orbit < 5; ++orbit) {
-                    const int16_t planet = MOX::star[destination].planet_index[orbit];
-                    if (planet < -1 || planet >= MAX_PLANETS || (planet >= 0 && MOX::planet == nullptr)) return;
-                    if (planet >= 0) {
-                        const int16_t colony = MOX::planet[planet].colony_index;
-                        if (colony < -1 || colony >= MAX_COLONIES || (colony >= 0 && MOX::colony == nullptr)) return;
-                    }
-                }
-            }
-            if (!SHIPS::Enemy_Ship_Heading_Toward_Our_Colony(node)) return;
-        }
+        if (!owned && !Ambient_Foreign_Route(destination)) return;
         route->destination_available = rpc::SHIP_CURRENT;
         route->destination_system = destination;
         route->eta_available = rpc::SHIP_CONTEXT_REQUIRED;
@@ -182,11 +185,10 @@ namespace game_rpc {
                     association.head = head;
                     association.slot = slot;
                     association.ship = captured.ships.back();
-                    if (association.ship.owned) {
-                        association.location = ship->location;
-                        association.status = ship->status;
-                        association.generation = orion2re::lua::game::Ship_Generation(slot);
-                    }
+                    association.owner = ship->owner;
+                    association.location = ship->location;
+                    association.status = ship->status;
+                    association.generation = orion2re::lua::game::Ship_Generation(slot);
                     associations->push_back(std::move(association));
                 }
                 node = link->next_node;
@@ -223,11 +225,12 @@ namespace game_rpc {
             const auto head = std::find_if(adapter->associations.begin(), adapter->associations.end(), [info](const s_ship_association& item) {
                 return item.node == info->node && item.slot == info->ship && item.head == info->box_head;
             });
-            if (head == adapter->associations.end() || head->node != head->head || !head->ship.owned ||
+            if (head == adapter->associations.end() || head->node != head->head ||
                 head->location < SHIP_LOCATION_WORMHOLE_OFFSET || head->location >= SHIP_LOCATION_LIMIT ||
                 head->ship.destination_available != rpc::SHIP_CURRENT || head->ship.eta_available != rpc::SHIP_CONTEXT_REQUIRED ||
                 (info->star != -1 && info->star != head->ship.destination_system) ||
                 info->members[0].node != head->node || info->members[0].ship != head->slot) return;
+            if (!head->ship.owned && !Ambient_Foreign_Route(head->ship.destination_system)) return;
             std::vector<bool> members(MAX_SHIPS);
             std::vector<int32_t> associations(MAX_SHIPS, -1);
             for (size_t index = 0; index < adapter->associations.size(); ++index) associations[adapter->associations[index].node] = (int32_t)index;
@@ -249,12 +252,15 @@ namespace game_rpc {
             if (!Read_Map_Observation(&captured) || captured.viewer != adapter->store->viewer) return;
             for (const auto& item : adapter->associations) {
                 if (!item.valid) return;
-                if (item.ship.owned) {
+                if (item.ship.owned || members[item.node]) {
                     if (item.slot < 0 || item.slot >= MOX::NUM_SHIPS || MOX::ship == nullptr) return;
                     const auto& ship = MOX::ship[item.slot];
                     if (item.generation == 0 || item.generation != orion2re::lua::game::Ship_Generation(item.slot) ||
-                        ship.owner != captured.viewer || ship.status != item.status || ship.location != item.location ||
+                        ship.owner != item.owner || ship.status != item.status || ship.location != item.location ||
                         ship.x != item.ship.x || ship.y != item.ship.y) return;
+                }
+                if (item.ship.owned) {
+                    const auto& ship = MOX::ship[item.slot];
                     const char* end = (const char*)memchr(ship.d.name, 0, sizeof(ship.d.name));
                     std::string name;
                     if (end == nullptr) return;

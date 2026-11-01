@@ -54,6 +54,7 @@ int main() {
         hidden.color = 2;
         map.players = {own, contact, hidden};
         bool polling = true;
+        size_t eta_ship = 0;
         while (running) {
             std::string command;
             std::string acknowledgment = "done";
@@ -140,19 +141,21 @@ int main() {
                 }
                 map.ships_captured = true;
                 rpc::Capture_Map(&store, &map);
-            } else if (command == "eta-ambient" || command == "eta-context") {
+            } else if (command == "eta-ambient" || command == "eta-context" || command == "eta-foreign-ambient" || command == "eta-foreign-context") {
+                eta_ship = command.find("foreign") != std::string::npos ? 1 : 0;
+                const bool contextual = command == "eta-context" || command == "eta-foreign-context";
                 map.ships_captured = true;
                 if (map.ships.empty()) map.ships = {{0, 0, true, "Own"}, {30, 0, false, ""}, {60, 0, false, ""}};
-                map.ships[0].destination_available = rpc::SHIP_CURRENT;
-                map.ships[0].destination_system = 1;
-                map.ships[0].eta_available = command == "eta-context" ? rpc::SHIP_CURRENT : rpc::SHIP_CONTEXT_REQUIRED;
-                map.ships[0].eta = 0;
-                map.context_epoch = command == "eta-context" ? rpc::Bridge_Context_Epoch(&bridge) : 0;
+                map.ships[eta_ship].destination_available = rpc::SHIP_CURRENT;
+                map.ships[eta_ship].destination_system = 1;
+                map.ships[eta_ship].eta_available = contextual ? rpc::SHIP_CURRENT : rpc::SHIP_CONTEXT_REQUIRED;
+                map.ships[eta_ship].eta = 0;
+                map.context_epoch = contextual ? rpc::Bridge_Context_Epoch(&bridge) : 0;
                 rpc::Capture_Map(&store, &map);
             } else if (command == "eta-revoke") {
                 rpc::Revoke_Game_Context(&store);
                 map.context_epoch = 0;
-                if (!map.ships.empty()) map.ships[0].eta_available = rpc::SHIP_CONTEXT_REQUIRED;
+                if (map.ships.size() > eta_ship) map.ships[eta_ship].eta_available = rpc::SHIP_CONTEXT_REQUIRED;
             } else if (command == "colonies") {
                 map.colonies_captured = true;
                 map.colonies = {{0, 0, 1, 0}, {0, 0, 5, 42}, {1, 99999, -1, 99999}};
@@ -207,7 +210,39 @@ int main() {
                 }
             } else if (command == "revoke")
                 rpc::Revoke_Bridge(&bridge);
-            else if (command == "revoke-context-output") {
+            else if (command == "publish-foreign-context-large") {
+                if (map.ships.size() == 3) {
+                    const auto foreign = map.ships[1];
+                    map.ships.assign(3500, foreign);
+                    rpc::Capture_Map(&store, &map);
+                }
+                rpc::s_request request;
+                request.id_json = "99";
+                request.method = "game.getState";
+                request.params_json = "{\"include\":[\"session\",\"systems\",\"nebulas\",\"players\",\"colonies\",\"ships\"]}";
+                std::vector<rpc::s_client_identity> clients;
+                rpc::Get_Authorized_Clients(&bridge, &clients);
+                if (clients.size() == 1 && rpc::Submit_Work(&bridge, clients[0].client, clients[0].epoch, &request, UINT64_MAX) == 0) {
+                    rpc::s_work work;
+                    if (rpc::Take_Work(&bridge, 0, &work)) {
+                        uint64_t context = 0;
+                        const auto result = rpc::Game_Query(&store, &request, &context);
+                        if (context == 0 || result.size() < 900000 || result.size() >= 1048576) acknowledgment = "invalid-large-context-state";
+                        rpc::Complete_Work(&bridge, &work, &result, context);
+                    }
+                } else
+                    acknowledgment = "missing-context-client";
+            } else if (command == "revoke-context-output") {
+                const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(1);
+                while (std::chrono::steady_clock::now() < deadline) {
+                    bool drained;
+                    {
+                        std::lock_guard lock(bridge.mutex);
+                        drained = bridge.ready.empty();
+                    }
+                    if (drained) break;
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                }
                 {
                     std::lock_guard lock(bridge.mutex);
                     if (!bridge.ready.empty() || bridge.deliveries.empty()) acknowledgment = "no-service-owned-pending-output";

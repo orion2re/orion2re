@@ -7,6 +7,7 @@ namespace game_rpc {
         int16_t node = -1;
         int16_t head = -1;
         int16_t slot = -1;
+        int16_t owner = -1;
         int16_t location = -1;
         int8_t status = -1;
         uint64_t generation = 0;

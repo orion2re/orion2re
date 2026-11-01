@@ -8028,7 +8028,7 @@
     },
     "ship-map-eta": {
       "status": "reviewed",
-      "predicate": "Preserve cached uint8 turns_left including zero; never calculate ETA. Ambient ordinary-route ETA belongs only to its surviving displayed head. Additionally, accept the actual non-preview fleet-box producer for a surviving own wormhole head with an independently current same-capture ambient destination, initialized active main owner/presentation, a current complete open-box member association and no stale selected references. Capture associations only at refresh; reject slot-generation reuse and never traverse nodes later. Copy borrowed values and capture every topic afresh, stamped last-native-fleet-box; do not enrich older captures. Producer star -1 withholds its name, not the independently authorized ambient destination and not known-empty; special destinations receive no handle. Revoke context captures, pages, subscriptions' context baselines and pending/queued output on authority loss, owner/box replacement, child interruption, rebuild, world/perspective changes and resolution. Preserve ambient offscreen reads. Rebuild is an authorization boundary; equal fresh presentation does not churn IDs/revisions merely for private epochs. Other wormhole/non-head ETA remains context-required, stationary own ships known-empty, special destinations unaudited. Grants no extra names, routes, orders, cargo or designs.",
+      "predicate": "Preserve cached uint8 turns_left including zero; never calculate ETA. Ambient ordinary-route ETA belongs only to its surviving displayed head. Additionally, accept the actual non-preview fleet-box producer for a surviving own or non-own wormhole head with an independently current same-capture ambient destination, initialized active main owner/presentation, a current complete open-box member association and no stale selected references. Empty selection is valid for both. Non-own routes additionally retain the native enemy_moves or incoming-colony/outpost gate at production; detection, contact, known ownership and omniscience alone never grant ETA. Capture associations only at refresh; validate the exact box members' private owner/location/status/generation and public position, reject retirement/slot reuse, and never traverse nodes later. Foreign canonical names are never read or used for association. Private checks are not public identity or sorting keys. Copy borrowed values and capture every topic afresh, stamped last-native-fleet-box; do not enrich older captures. Producer star -1 withholds its name, not the independently authorized ambient destination and not known-empty; special destinations receive no handle. Revoke context captures, pages, subscriptions' context baselines and pending/queued output on authority loss, owner/box replacement, child interruption, rebuild, world/perspective changes and resolution. Preserve ambient offscreen reads. Rebuild is an authorization boundary; equal fresh presentation does not churn IDs/revisions merely for private epochs. Other wormhole/non-head ETA remains context-required, stationary own ships known-empty, special destinations unaudited. Grants no extra names, routes, orders, cargo, designs or hostility classification.",
       "sources": [
         [
           "src/game/ships.cpp",
@@ -8036,7 +8036,19 @@
         ],
         [
           "src/game/ships.cpp",
+          "Enemy_Ship_Heading_Toward_Our_Colony"
+        ],
+        [
+          "src/game/harold.cpp",
+          "Player_Has_Outpost"
+        ],
+        [
+          "src/game/ships.cpp",
           "Print_Eta_On_Ship_Icon"
+        ],
+        [
+          "src/game/fleetpop.cpp",
+          "Draw_Fleet_Movement_Box"
         ],
         [
           "src/game/fleetpop.cpp",
@@ -8422,7 +8434,7 @@
     "orderedEventsPerSubscription": 4096,
     "overflow": "Reject before admission; coalesce only complete unsent state. Ordered-event overflow signals a gap or disconnect. Never rewrite partial output or silently discard operation results."
   },
-  "x-rpc-sourceHash": "a199ad58add1c7d258e97fc57089040b2b1d5c5deb930d4413fce243d2da70ba",
+  "x-rpc-sourceHash": "319bfcf2bd316dec801340f2d37bff461db6bca4f94a0a811f8e9da0bb8eaa3e",
   "x-rpc-runtimeEnabled": false,
   "x-rpc-implementedMethods": [
     "rpc.hello",

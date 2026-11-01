@@ -51,8 +51,9 @@ applicable; this follow-up changes only RPC code/contracts/tests and documentati
 ### Non-selection map destinations and cached ETA (Q-07 follow-up)
 
 The same synchronous post-refresh copy now follows the non-selection branches of
-`SHIPS::Do_Ship_Destination_Lines`. It reuses the existing read-only
-`Enemy_Ship_Heading_Toward_Our_Colony` and `HAROLD::Absolute_Location` predicates;
+`SHIPS::Do_Ship_Destination_Lines`. It follows the existing read-only
+`Enemy_Ship_Heading_Toward_Our_Colony` predicate (now via its colony/outpost
+constituents, avoiding later node traversal) and `HAROLD::Absolute_Location`;
 there is no native API addition, policy extraction, UI builder or movement
 calculator. This is an explicitly dated subset of native disclosure, not a claim
 of initialized selection/scan/fleet-box state or an extra rendering pass.
@@ -475,6 +476,137 @@ Interactive saved-game/multiplayer parity and other-platform checks remain
 unverified; missing assets/save fixtures do not block this implementation. Q-06,
 Q-07, Q-13 and V-04 remain unchecked. This is the completed bounded ETA slice,
 not completion of all conditional ship knowledge or a move to P2.
+
+### Completed additional Q-07 non-own fleet-box ETA path
+
+Prepared with AI assistance. This extends the completed slice above to a
+**surviving non-own wormhole-route head whose destination is independently current
+in the ambient projection**. It does not enable any other route or query family.
+Q-06, Q-07, Q-13 and V-04 remain incomplete; the public surface is still 15
+implemented methods and six topics.
+
+#### Native authorization audit
+
+- `Draw_Fleet_Movement_Box` constructs icons for foreign stacks as well as own
+  stacks. Its ownership tests govern auto-selection and damage bars, not the
+  final `Print_Fleet_Box_Info` call (when not drawing the expanding box).
+- `Print_Fleet_Box_Info` uses the first movement icon's ship. With no preview
+  target or scanned ship, a nonzero status takes `Get_Absolute_Location_Scan_Info`
+  for either owner. This happens with an empty selection too. That helper returns
+  cached `uint8_t(turns_left)` as info type 2 or 3, including zero/255. Its visited
+  test controls the destination **name**, not whether ETA is printed. No enemy
+  canonical name is needed to select or associate this result.
+- `Do_Ship_Destination_Lines` independently permits non-own moving routes only
+  with `settings.enemy_moves` or `Enemy_Ship_Heading_Toward_Our_Colony` (apart from
+  the separately excluded selection branch). The incoming predicate is non-own,
+  not necessarily hostile. Its colony branch uses the viewer's colony bit; its
+  `Player_Has_Outpost` branch ignores the player argument and permits a foreign
+  outpost. Detection, contact, known owner and omniscience do not grant this route.
+- `Ambient_Foreign_Route` in the RPC adapter uses those same existing read-only
+  colony/outpost predicates, bounds-checking followed links, both at refresh and
+  before admitting a producer result. Owner/nonzero status and real destination
+  have already been checked by its callers. This permits a print-time gate
+  recheck without following a display node later. It is not a new native API or
+  native shared-policy extraction; no native source or gameplay changes.
+
+#### Association and capture
+
+Refresh associations now record private generation, owner, status and location
+for surviving foreign records too. The exact current box members must match those
+records and their copied public positions before admission. Generation and
+retirement observations reject even byte-identical slot replacement; node/slot
+references and complete membership must still match the surviving refresh.
+Names are revalidated only for owned records. Foreign names are neither copied
+nor used as hidden fingerprints. These private checks never enter public handle
+assignment, sorting or projection equality; other foreign records do not acquire
+new live-field validation merely because this box is printed. Unassociated slot
+activity does not revoke the lease or change public responses.
+
+The ownership restriction is replaced only inside the existing bounded producer
+path. Its other requirements remain: initialized main owner, active input/ordinary
+redraw, actual non-preview producer, open box, exact current head and complete
+membership, no stale selections, and independently current same-capture ambient
+destination. A newly enabled ambient gate cannot retroactively promote an old
+association. A withdrawn gate rejects a new print. Producer `star == -1` remains
+withheld name knowledge, never known-empty. Special/`NUM_STARS` encodings have no
+system handles. Only this head's cached byte ETA is added, not names, destinations,
+routes, orders, cargo, designs or hostility classification.
+
+Accepted results use the same fresh immutable six-topic capture and private lease
+as own-head results, with no parallel cache. All existing cursor, subscription,
+bridge, delivery-receipt and service-fragment revocation behavior therefore
+applies unchanged. Equal fresh presentation after rebuild may have a new capture
+ID but preserves public ship handles/revision; revoked pages never revive.
+
+#### Additional regression evidence
+
+The actual native builder/producer tests now run the own-head lifetime matrix
+also for a detected foreign status-2 departing wormhole fleet at an origin distinct
+from its destination, with a real native scanner source and empty selection.
+Foreign names are deliberately non-NUL-terminated. Cases cover initialization and
+non-promotion, zero/255, visited/unvisited name withholding, special destinations,
+child/background draws, ordinary redraw, owner replacement/exit, stale selections,
+duplicate/mismatched membership, head ownership mismatch, missing generations,
+preview exclusion, retirement/byte-equal slot reuse, rebuild, load/update/resolution/
+perspective events, immutable copied values, fresh HUD capture, hidden foreign
+name changes, unassociated identity activity and native-record/RNG preservation.
+Separate native cases exercise every ambient gate, rejection without each gate,
+contact/omniscience non-authorization and gate changes across refresh/production.
+An actual foreign `Kill_Ship` additionally revokes pinned pages and ready, late and
+pending bridge responses, while ordinary ambient queries remain available.
+
+Store tests run own/foreign variants for coherent six-topic state/baselines,
+retained immutable captures, stale-handle error equivalence, pinned-page expiry,
+resolution/reset and in-flight baseline cancellation. Live WebSocket tests retain
+the own regression and add foreign six-topic baseline/equality/restoration tests.
+A second live test queues actual large six-topic `game.getState` results containing
+foreign cached ETA, confirms delivery receipts remain after the bridge drains,
+then revokes without a game poll. Started messages close rather than complete.
+Those fixtures are projected transport evidence, not native authorization; the
+separate actual native-function tests establish that authorization. Neither is
+interactive saved-game/multiplayer or other-platform parity.
+
+Additional-path verification on macOS ARM64: all eight requested game/RPC/native
+build targets and the additional Lua mod-runtime target build normally and under
+ASAN/UBSAN. All seven designated CTest targets plus Lua mod-runtime pass in both
+configurations. All 109 Python tests pass with the live server, including 43 live
+WebSocket cases. The RPC-disabled suite passes all 106 targets. Canonical schema,
+reference and C++ metadata regeneration/drift checks pass (C++ metadata is
+byte-identical); affected-range C++ formatting and whitespace checks pass.
+
+Test development caught two fixture issues, not native authority exceptions: the
+foreign fleet needed a real own scanner source to survive the actual builder, and
+world-reset transport fixtures must use the authenticated client's current epoch.
+The service-output checkpoint also waits boundedly for bridge drain before
+asserting outstanding delivery receipts; sanitizer scheduling exposed the earlier
+race at that checkpoint. The final test still fails if no output is service-owned
+and pending; it does not weaken the revocation assertion or change production
+output handling. The new foreign successes were observed failing under the old
+ownership guard before enablement.
+
+Reproduce the complete gate with:
+
+```sh
+cmake --build out/build/rpc-debug --target orion2re test_rpc test_game_rpc_native rpc-test-server test_game_events test_fields test_fleetpop test_mainscr_reload test_lua_mod_runtime --parallel 4
+ctest --test-dir out/build/rpc-debug -R '^test_(rpc|rpc_transport|game_rpc_native|game_events|fields|fleetpop|mainscr_reload|lua_mod_runtime)$' --output-on-failure
+cmake --build out/build/rpc-asan --target orion2re test_rpc test_game_rpc_native rpc-test-server test_game_events test_fields test_fleetpop test_mainscr_reload test_lua_mod_runtime --parallel 4
+ASAN_OPTIONS=detect_leaks=0:halt_on_error=1 \
+  UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 \
+  ctest --test-dir out/build/rpc-asan -R '^test_(rpc|rpc_transport|game_rpc_native|game_events|fields|fleetpop|mainscr_reload|lua_mod_runtime)$' --output-on-failure
+ORION2RE_RPC_TEST_SERVER=out/build/rpc-debug/rpc-test-server \
+  python3 -m unittest discover -s tests/rpc -p 'test_*.py'
+python3 tools/generate_rpc_schema.py --check
+bash tools/run-tests.sh
+git-clang-format --diff HEAD -- src/rpc/game_rpc.cpp src/rpc/game_rpc.h tests/unit/game_rpc_native_test.cpp tests/unit/rpc_game_test.cpp tools/rpc_test_server.cpp
+git diff --check
+```
+
+Only leak detection is disabled because local LeakSanitizer is unsupported;
+ASAN/UBSAN retain halt-on-error. No leak verification, interactive saved-game/
+multiplayer parity or other-platform verification is claimed. No gameplay, save,
+multiplayer-authority, mod or deterministic-RNG changes are made. Untracked `.voc/`
+is untouched. This is one additional complete bounded P1/Q-07 path, not P2 or
+completion of Q-06/Q-07/Q-13/V-04.
 
 ## Queries, identities and dating
 
