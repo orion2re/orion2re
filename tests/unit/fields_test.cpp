@@ -5,6 +5,7 @@
 #include <cstring>
 
 #include "fakes/fake_test_support.h"
+#include "game/game_events.h"
 
 // Game records are packed, so their members may be misaligned. Assertions
 // on them use double parentheses so doctest compares the values directly
@@ -345,6 +346,56 @@ DOCTEST_TEST_CASE("check help list invokes textbox entry when pointer overlaps h
 
     DOCTEST_CHECK(fields::Check_Help_List() == 0);
     DOCTEST_CHECK(test::fakes::g_last_help_id == 77);
+}
+
+DOCTEST_TEST_CASE("help dispatch interrupts main input before the child can draw or poll") {
+    Fields_Test_Reset reset;
+    struct s_observer {
+        int interruptions = 0;
+        int help_at_interrupt = 0;
+        uint64_t token = game_events::Subscribe([](game_events::e_event event, void* context) {
+            if (event != game_events::MAIN_VIEW_INPUT_INTERRUPTED) return;
+            auto* observer = (s_observer*)context;
+            ++observer->interruptions;
+            observer->help_at_interrupt = test::fakes::g_last_help_id;
+        },
+            this);
+        ~s_observer() {
+            game_events::Unsubscribe(token);
+        }
+    } observer;
+    DOCTEST_REQUIRE(observer.token != 0);
+    const int previous_help = test::fakes::g_last_help_id;
+    s_help_box help_boxes[1]{};
+    help_boxes[0].x1 = 10;
+    help_boxes[0].y1 = 20;
+    help_boxes[0].x2 = 30;
+    help_boxes[0].y2 = 40;
+    help_boxes[0].help_id = 77;
+    test::fakes::g_mouse_pointer_x = 15;
+    test::fakes::g_mouse_pointer_y = 25;
+    fields::Set_Help_List(help_boxes, 0);
+    DOCTEST_CHECK(fields::Check_Help_List() == 1);
+    fields::Set_Help_List(help_boxes, 1);
+    DOCTEST_SUBCASE("matched help") {
+        game_events::s_main_view_input_scope input;
+        DOCTEST_CHECK(fields::Check_Help_List() == 0);
+        DOCTEST_CHECK(observer.interruptions == 1);
+        DOCTEST_CHECK(observer.help_at_interrupt == previous_help);
+        DOCTEST_CHECK(test::fakes::g_last_help_id == 77);
+    }
+    DOCTEST_SUBCASE("disabled entry") {
+        help_boxes[0].help_id = -1;
+        DOCTEST_CHECK(fields::Check_Help_List() == 1);
+        DOCTEST_CHECK(observer.interruptions == 0);
+        DOCTEST_CHECK(test::fakes::g_last_help_id == previous_help);
+    }
+    DOCTEST_SUBCASE("pointer misses entry") {
+        test::fakes::g_mouse_pointer_x = 31;
+        DOCTEST_CHECK(fields::Check_Help_List() == 1);
+        DOCTEST_CHECK(observer.interruptions == 0);
+        DOCTEST_CHECK(test::fakes::g_last_help_id == previous_help);
+    }
 }
 
 DOCTEST_TEST_CASE("add radio button field stores payload and lowercase hotkey") {

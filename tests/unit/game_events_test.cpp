@@ -1,4 +1,5 @@
 #include "doctest/doctest.h"
+#include <type_traits>
 #include <vector>
 #include "game/game_events.h"
 
@@ -168,5 +169,69 @@ DOCTEST_TEST_CASE("replacement fleet view starts uninitialized without restoring
         DOCTEST_CHECK(events == std::vector<game_events::e_event>{game_events::FLEET_BOX_VIEW_ENTERED, game_events::FLEET_BOX_INFO_CLEARED, game_events::FLEET_BOX_VIEW_LEAVING, game_events::FLEET_BOX_INFO_CLEARED});
     }
     DOCTEST_CHECK(events == std::vector<game_events::e_event>{game_events::FLEET_BOX_VIEW_ENTERED, game_events::FLEET_BOX_INFO_CLEARED, game_events::FLEET_BOX_VIEW_LEAVING, game_events::FLEET_BOX_INFO_CLEARED, game_events::FLEET_BOX_VIEW_LEAVING, game_events::FLEET_BOX_INFO_CLEARED});
+    game_events::Unsubscribe(token);
+}
+
+DOCTEST_TEST_CASE("main input lifetime ends before child dispatch while the initialized view survives") {
+    static_assert(!std::is_copy_constructible_v<game_events::s_main_view_input_scope>);
+    static_assert(!std::is_copy_assignable_v<game_events::s_main_view_input_scope>);
+    std::vector<game_events::e_event> events;
+    const uint64_t token = game_events::Subscribe(Record, &events);
+    DOCTEST_REQUIRE(token != 0);
+    {
+        game_events::s_fleet_box_view_scope owner;
+        owner.Initialized();
+        events.clear();
+        {
+            game_events::s_main_view_input_scope input;
+            game_events::Publish(game_events::MAP_OBSERVATION_POINT);
+            game_events::Publish(game_events::IDLE_OBSERVATION_POINT);
+        }
+        // A child may draw or poll while the main-view owner is still alive.
+        game_events::Publish(game_events::FLEET_BOX_INFO_READY);
+        game_events::Publish(game_events::IDLE_OBSERVATION_POINT);
+        DOCTEST_CHECK(events == std::vector<game_events::e_event>{game_events::MAIN_VIEW_INPUT_ENTERED, game_events::MAP_OBSERVATION_POINT, game_events::IDLE_OBSERVATION_POINT, game_events::MAIN_VIEW_INPUT_LEAVING, game_events::FLEET_BOX_INFO_READY, game_events::IDLE_OBSERVATION_POINT});
+    }
+    DOCTEST_CHECK(events[events.size() - 2] == game_events::FLEET_BOX_VIEW_LEAVING);
+    game_events::Unsubscribe(token);
+}
+
+DOCTEST_TEST_CASE("help interruption keeps earlier and child results distinct from main input entry") {
+    std::vector<game_events::e_event> events;
+    const uint64_t token = game_events::Subscribe(Record, &events);
+    DOCTEST_REQUIRE(token != 0);
+    {
+        game_events::s_fleet_box_view_scope owner;
+        game_events::Publish(game_events::FLEET_BOX_INFO_READY);
+        owner.Initialized();
+        {
+            game_events::s_main_view_input_scope input;
+            game_events::Publish(game_events::MAIN_VIEW_INPUT_INTERRUPTED);
+            game_events::Publish(game_events::FLEET_BOX_INFO_READY);
+            game_events::Publish(game_events::IDLE_OBSERVATION_POINT);
+            // Returning from help is not a new main input lifetime.
+            game_events::Publish(game_events::FLEET_BOX_INFO_READY);
+        }
+        { game_events::s_main_view_input_scope next_input; }
+    }
+    DOCTEST_CHECK(events == std::vector<game_events::e_event>{game_events::FLEET_BOX_VIEW_ENTERED, game_events::FLEET_BOX_INFO_CLEARED, game_events::FLEET_BOX_INFO_READY, game_events::FLEET_BOX_VIEW_INITIALIZED, game_events::MAIN_VIEW_INPUT_ENTERED, game_events::MAIN_VIEW_INPUT_INTERRUPTED, game_events::FLEET_BOX_INFO_READY, game_events::IDLE_OBSERVATION_POINT, game_events::FLEET_BOX_INFO_READY, game_events::MAIN_VIEW_INPUT_LEAVING, game_events::MAIN_VIEW_INPUT_ENTERED, game_events::MAIN_VIEW_INPUT_LEAVING, game_events::FLEET_BOX_VIEW_LEAVING, game_events::FLEET_BOX_INFO_CLEARED});
+    game_events::Unsubscribe(token);
+}
+
+DOCTEST_TEST_CASE("main input scope pairs leaving on early return and interrupted exception unwinding") {
+    std::vector<game_events::e_event> events;
+    const uint64_t token = game_events::Subscribe(Record, &events);
+    DOCTEST_REQUIRE(token != 0);
+    const auto return_early = [] { game_events::s_main_view_input_scope input; };
+    return_early();
+    DOCTEST_CHECK(events == std::vector<game_events::e_event>{game_events::MAIN_VIEW_INPUT_ENTERED, game_events::MAIN_VIEW_INPUT_LEAVING});
+    events.clear();
+    try {
+        game_events::s_main_view_input_scope input;
+        game_events::Publish(game_events::MAIN_VIEW_INPUT_INTERRUPTED);
+        throw 1;
+    } catch (int) {
+    }
+    DOCTEST_CHECK(events == std::vector<game_events::e_event>{game_events::MAIN_VIEW_INPUT_ENTERED, game_events::MAIN_VIEW_INPUT_INTERRUPTED, game_events::MAIN_VIEW_INPUT_LEAVING});
     game_events::Unsubscribe(token);
 }

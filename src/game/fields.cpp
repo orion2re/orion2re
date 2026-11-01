@@ -2857,6 +2857,7 @@ namespace fields {
             if (entry.help_id != -1 &&
                 entry.x1 <= mouse_x && mouse_x <= entry.x2 &&
                 entry.y1 <= mouse_y && mouse_y <= entry.y2) {
+                game_events::Publish(game_events::MAIN_VIEW_INPUT_INTERRUPTED);
                 TEXTBOX::Draw_Help_Entry(entry.help_id);
                 return 0;
             }

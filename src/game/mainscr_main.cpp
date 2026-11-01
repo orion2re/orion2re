@@ -419,9 +419,12 @@ namespace MAINSCR {
             fleet_ship_selection_status = -1;
             timer::Mark_Time();
 
-            game_events::Publish(game_events::MAP_OBSERVATION_POINT);
-
-            int16_t input = fields::Get_Input();
+            int16_t input;
+            {
+                game_events::s_main_view_input_scope main_view_input;
+                game_events::Publish(game_events::MAP_OBSERVATION_POINT);
+                input = fields::Get_Input();
+            }
             if (input < 0) {
                 if (merging_relocations != 0) {
                     merging_relocations = 0;

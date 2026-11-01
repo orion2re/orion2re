@@ -91,6 +91,14 @@ namespace game_events {
         Publish(FLEET_BOX_VIEW_INITIALIZED);
     }
 
+    s_main_view_input_scope::s_main_view_input_scope() {
+        Publish(MAIN_VIEW_INPUT_ENTERED);
+    }
+
+    s_main_view_input_scope::~s_main_view_input_scope() {
+        Publish(MAIN_VIEW_INPUT_LEAVING);
+    }
+
     s_world_update_scope::s_world_update_scope(bool new_world) : replacement(new_world) {
         Publish(replacement ? WORLD_REPLACE_BEGIN : WORLD_UPDATE_BEGIN);
     }

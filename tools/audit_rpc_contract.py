@@ -92,7 +92,8 @@ def Validate_Target_Drift(paths):
                          "src/game/filedef.cpp", "src/game/initgame.cpp", "src/game/multplay.cpp",
                          "src/game/nextturn.cpp", "src/game/netturn.cpp", "src/game/netmox.cpp", "src/game/ships.cpp",
                          "src/game/fleetpop.cpp", "src/game/movebox.cpp",
-                         "src/game/rpc_config.cpp", "tests/unit/config_bindings_test.cpp", "tests/unit/netmox_test.cpp")
+                         "src/game/rpc_config.cpp", "tests/unit/config_bindings_test.cpp", "tests/unit/netmox_test.cpp",
+                         "tests/unit/fields_test.cpp")
                 and not path.startswith(("specs/rpc/", "tests/rpc/", "src/rpc/", "src/config/generated/", "tests/unit/rpc_", "tests/unit/game_events", "tests/unit/game_rpc_"))):
             raise ValueError(f"target drift requires review before updating baseline: {path}")
 

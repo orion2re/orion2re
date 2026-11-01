@@ -25,6 +25,9 @@ namespace game_events {
         FLEET_BOX_VIEW_ENTERED,
         FLEET_BOX_VIEW_INITIALIZED,
         FLEET_BOX_VIEW_LEAVING,
+        MAIN_VIEW_INPUT_ENTERED,
+        MAIN_VIEW_INPUT_LEAVING,
+        MAIN_VIEW_INPUT_INTERRUPTED,
     };
 
     // Native fleet-box presentation result, borrowed only during publication.
@@ -57,6 +60,15 @@ namespace game_events {
 
       private:
         bool initialized = false;
+    };
+
+    // One top-level main-view input poll, not the enclosing owner's lifetime.
+    // An interruption does not restore authority when a child returns.
+    struct s_main_view_input_scope {
+        s_main_view_input_scope();
+        ~s_main_view_input_scope();
+        s_main_view_input_scope(const s_main_view_input_scope&) = delete;
+        s_main_view_input_scope& operator=(const s_main_view_input_scope&) = delete;
     };
 
     struct s_world_update_scope {

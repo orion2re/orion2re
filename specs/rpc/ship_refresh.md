@@ -252,6 +252,79 @@ locally. Interactive saved-game/multiplayer and other-platform checks remain
 unperformed. These hooks do not change gameplay, saves, multiplayer authority,
 mods or deterministic RNG.
 
+### Q-07 top-level input and help-interruption prerequisite
+
+Further source inspection found a specific additional missing authority boundary,
+not another initialization problem. `Main_Screen` retains its initialized
+`s_fleet_box_view_scope` across child calls, including `Tax_Rate_Popup` and
+`Check_For_Diplomacy_Request`. More subtly, `fields::Interpret_Mouse_Input` can
+dispatch help **inside** the main `Get_Input`. `Check_Help_List` calls
+`TEXTBOX::Draw_Help_Entry`; `Text_Box_Startup` executes the saved parent auto
+function before the child's first input poll. That callback can be
+`Draw_Main_Screen`, whose fleet-box draw calls `Print_Fleet_Box_Info`. Waiting for
+nested `Get_Input` would therefore reject the child too late. Main-owner lifetime,
+screen numbers, and producer readiness cannot distinguish that background result.
+
+The bounded neutral change adds `s_main_view_input_scope` around the existing map
+observation point and top-level `Get_Input` only. It publishes
+`MAIN_VIEW_INPUT_ENTERED` and paired `MAIN_VIEW_INPUT_LEAVING`, including exception
+unwinding, after main setup/initialization and before input-result dispatch. The
+scope has no copy operations or implicit parent restoration. Explicit child
+dispatch, movement/order handling, load handling, redraw and cleanup occur outside
+this input lifetime. Matching help dispatch publishes `MAIN_VIEW_INPUT_INTERRUPTED`
+**before** calling the child, including before its saved-parent draw. Empty,
+disabled and missed help entries do not interrupt. Help return does not emit a
+new entry: a consumer must stay invalidated until a subsequent explicit main input
+entry and must never promote a result produced before initialization, outside the
+input lifetime, or after interruption. These hooks neither change native control
+flow nor establish a general P2 context registry.
+
+This boundary is necessary but not sufficient for the candidate ETA path.
+`Moveable_Box_Selected(2)` tests the native open-box ID relation;
+`Some_Icon_Selected` instead calls `Get_Fleet_Box_Selected_Ship_Ids`, which scans
+all `MAX_SHIPS` nodes, not just the open box's surviving reachable nodes. Neither
+alone proves a current selection or native ship identity. A future consumer still
+needs the current surviving refresh association, open-box/selection validation,
+slot/node-reuse rejection, a fresh coherent immutable capture, and revocation
+through retained/pinned data, subscriptions, bridge work/publications and
+service-owned output. No borrowed payload may escape or enrich an older capture.
+The destination, unsigned-byte/zero ETA and hidden-only noninterference constraints
+above are unchanged.
+
+RPC deliberately consumes neither the new input events nor the fleet-box payload.
+No context ETA is enabled, no contract or generated surface changes, and the
+15-method/six-topic allowlists and ambient offscreen reads remain unchanged.
+Q-07/V-04 and all incomplete Q-07 subitems remain unchecked; `plan.md` and the
+historical planning baseline are unchanged.
+
+New neutral scope tests exercise initialized-owner versus input lifetime, child
+results and help interruption without implicit reentry, early return and exception
+pairing. The real `Check_Help_List` test uses a fake text-box child to verify the
+interruption precedes child dispatch and absent/disabled/missed help emits none.
+Architecture tests pin the native main-input scope and the help-before-parent-draw
+ordering. These are synthetic scope/native-function and source-order tests, not
+RPC selection authorization or interactive saved-game/multiplayer parity.
+
+Input-boundary verification on macOS ARM64: `orion2re`, `test_rpc`,
+`test_game_rpc_native`, `rpc-test-server`, `test_game_events`, `test_fields`,
+`test_fleetpop` and `test_mainscr_reload` build normally and under ASAN/UBSAN.
+The seven corresponding CTest targets (including `test_rpc_transport`) pass in
+both configurations. All 104 Python tests pass, including the unchanged 39 live
+WebSocket cases; those live tests verify the existing surface, not context ETA.
+The RPC-disabled suite passes all 106 targets. Canonical generation/drift,
+C++ formatting (changed ranges only in restored main/fields source and fields
+tests), and whitespace checks pass. Existing unrelated self-comparison and
+duplicate-library build warnings remain unchanged. Local LeakSanitizer remains
+unsupported; only leak detection is disabled. Interactive saved-game/multiplayer
+and other-platform checks remain unperformed.
+
+Reproduce this increment with the existing verification commands below, adding
+`rpc-test-server test_game_events test_fields test_fleetpop test_mainscr_reload`
+to both builds and `game_events|fields|fleetpop|mainscr_reload` to the CTest
+selection. Repeat in `out/build/rpc-asan` with
+`ASAN_OPTIONS=detect_leaks=0:halt_on_error=1` and
+`UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1`.
+
 ## Queries, identities and dating
 
 Enabled methods now include `game.listShips` and `game.getShip`; `ships` is also

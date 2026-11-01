@@ -98,5 +98,33 @@ class SidecarArchitectureTests(unittest.TestCase):
             self.assertLess(setup.index(marker), initialized)
         self.assertLess(loop, native.index("game_events::MAP_OBSERVATION_POINT", loop))
 
+    def test_main_input_lifetime_excludes_dispatch_and_interrupts_before_help_background_draw(self):
+        native = (ROOT / "src/game/mainscr_main.cpp").read_text()
+        initialized = native.index("fleet_box_view.Initialized();")
+        poll = native.index("game_events::s_main_view_input_scope main_view_input;")
+        self.assertLess(initialized, poll)
+        self.assertEqual(native.count("s_main_view_input_scope"), 1)
+        self.assertRegex(native[poll:], r"^game_events::s_main_view_input_scope main_view_input;\s*"
+                         r"game_events::Publish\(game_events::MAP_OBSERVATION_POINT\);\s*"
+                         r"input = fields::Get_Input\(\);\s*\}\s*if \(input < 0\)")
+        for child in ("MAINSCR::Tax_Rate_Popup();", "SHIPMOVE::Ships_Try_To_Move_To(",
+                      "LOADSAVE::Auto_Load_Last_Saved_Game("):
+            self.assertLess(poll, native.index(child, poll))
+        fields = (ROOT / "src/game/fields.cpp").read_text()
+        dispatch = fields[fields.index("int16_t __cdecl Check_Help_List()"):
+                          fields.index("void __cdecl Input_String(")]
+        self.assertRegex(dispatch, r"game_events::Publish\(game_events::MAIN_VIEW_INPUT_INTERRUPTED\);\s*"
+                         r"TEXTBOX::Draw_Help_Entry\(entry.help_id\);")
+        self.assertNotIn("MAIN_VIEW_INPUT_ENTERED", dispatch)
+        # Help startup draws through the saved parent callback before child input;
+        # merely counting nested Get_Input calls would invalidate too late.
+        textbox = (ROOT / "src/game/textbox.cpp").read_text()
+        startup = textbox[textbox.index("void __cdecl Text_Box_Startup("):
+                          textbox.index("void __cdecl Text_Box_Get_Input(")]
+        self.assertIn("MOX2::Execute_Auto_Function(&textbox_af);", startup)
+        adapter = (ROOT / "src/rpc/game_rpc.cpp").read_text()
+        self.assertNotIn("MAIN_VIEW_INPUT_", adapter)
+        self.assertNotIn("Subscribe_Fleet_Box_Info", adapter)
+
 if __name__ == "__main__":
     unittest.main()
