@@ -65,8 +65,8 @@ python3 -m unittest discover -s tests/rpc -p 'test_*.py'
 ```
 
 The ledger command emits deterministic JSON, expanding Appendices F-H of
-`plan.md` to one entry per full commit SHA and changed path. It checks exact sets,
-duplicates, documentation/runtime classification, and diff totals against Git;
+`planning_baseline.md` to one entry per full commit SHA and changed path. It checks
+exact sets, duplicates, documentation/runtime classification, and diff totals against Git;
 matching counts alone are insufficient. `coverage.json` persists all 119 commit
 identities and 61 paths, ownership and minimum planned test obligations. Each
 expanded entry keeps its precise Appendix F-H feature disposition/acceptance.
@@ -113,8 +113,9 @@ No SCREEN enum or fork feature inventory was changed by this target diff.
 Appendix source line numbers remain historical leads, not current hook locations.
 The audit rechecks exact SCREEN values, actual fork tag writes, message names,
 TPOP constructor kinds, multiplayer phases and combat enum inventories against
-Appendices A-E, and commits/files against F-H. Target drift does not change these
-inventories. Semantic runtime equivalence remains a later implementation gate.
+Appendices A-E of `planning_baseline.md`, and commits/files against F-H. Target
+drift does not change these inventories. Semantic runtime equivalence remains a
+later implementation gate.
 
 P1 turn-notification test drift: `tests/unit/netmox_test.cpp` now subscribes to the
 neutral world-update events during its existing differential snapshot round-trip.
@@ -128,6 +129,30 @@ The approved post-refresh ship increment adds only a neutral publication after
 or gameplay API are extracted or changed. `game_rpc_native_test.cpp` observes the
 actual native filter/builder and verifies the sidecar's copied allowlist. This one
 additional native hook path is explicitly permitted by the drift audit.
+
+## Plan and evidence ownership
+
+`plan.md` contains only working rules, high-level decisions and TODOs. Historical
+source inventories, coverage dispositions and progress notes are preserved in
+`planning_baseline.md`; it is not the current plan and must not receive new
+increment narratives. Current implementation evidence belongs in the relevant
+owner-specific document (`read_foundation.md`, `ship_refresh.md`,
+`player_view.md`, `colony_view.md` or `incoming_threats.md`). The audit reads
+coverage from the baseline document and method/test obligations from the plan.
+
+Plan/evidence separation verification (macOS ARM64, AI-assisted cleanup): all
+308 existing task IDs, ordering and completion states were compared with the
+pre-cleanup plan and preserved. The archived body is unchanged after its new
+historical header. Regression tests check stable task IDs without freezing
+future completion, unchanged catalog coverage and TODO-only tracking sections.
+All 103 Python tests pass, including the unchanged 39 live WebSocket cases.
+Required game/RPC/native-projection/server targets build normally and with
+ASAN/UBSAN; `test_rpc`, `test_game_rpc_native` and `test_rpc_transport` pass in
+both configurations. All 106 RPC-disabled CTest targets pass. Generator drift
+and whitespace checks pass; no C++ files changed, so C++ formatting is not
+applicable. Leak detection alone is disabled for the unsupported local runtime.
+This is documentation/audit-tool maintenance, not Q-07 disclosure or interactive
+saved-game/multiplayer/other-platform parity evidence.
 
 ## Static method descriptor source
 

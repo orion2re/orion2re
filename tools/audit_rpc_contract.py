@@ -11,6 +11,7 @@ import sys
 
 
 ROOT = Path(__file__).resolve().parents[1]
+COVERAGE_SOURCE = "specs/rpc/planning_baseline.md"
 
 
 def Unique_Object(pairs):
@@ -482,7 +483,7 @@ def Commit_Ledger(plan, commits):
                     "category": category,
                     "change": cells[1],
                     "acceptance": cells[-1],
-                    "source": "plan.md", "appendix": appendix,
+                    "source": COVERAGE_SOURCE, "appendix": appendix,
                     "status": "planned", "implementation": None, "tests": [],
                 }
     if set(ledger) != set(commits):
@@ -498,7 +499,7 @@ def File_Ledger(plan, changed_files):
         for path in re.findall(r"`([^`]+)`", cells[0]):
             if path in ledger:
                 raise ValueError(f"duplicate changed file: {path}")
-            ledger[path] = {"acceptance": cells[-1], "source": "plan.md", "appendix": "H",
+            ledger[path] = {"acceptance": cells[-1], "source": COVERAGE_SOURCE, "appendix": "H",
                             "status": "planned", "implementation": None, "tests": []}
     if set(ledger) != set(changed_files):
         raise ValueError(f"changed-file coverage mismatch: missing={sorted(set(changed_files) - set(ledger))}, "
@@ -513,6 +514,7 @@ def Audit(root):
     policies = Load_Json(root / "specs/rpc/field_policies.json")
     coverage = Load_Json(root / "specs/rpc/coverage.json")
     plan = (root / "plan.md").read_text(encoding="utf-8")
+    coverage_source = (root / COVERAGE_SOURCE).read_text(encoding="utf-8")
     if baseline["formatVersion"] != 1:
         raise ValueError("unsupported baseline version")
     for key in ("originalTarget", "reviewedTarget", "fork", "ancestor"):
@@ -525,8 +527,8 @@ def Audit(root):
         raise ValueError("common ancestor changed")
     Validate_Target_Drift(Git(root, "diff", "--name-only", target).splitlines())
     for sha in (baseline["originalTarget"], fork, ancestor):
-        if sha not in plan:
-            raise ValueError("plan and baseline revisions disagree")
+        if sha not in coverage_source:
+            raise ValueError("coverage source and baseline revisions disagree")
     commits = Git(root, "rev-list", f"{ancestor}..{fork}").splitlines()
     changes = Git(root, "diff", "--numstat", ancestor, fork).splitlines()
     files, insertions, deletions = [], 0, 0
@@ -535,8 +537,8 @@ def Audit(root):
         files.append(path)
         insertions += int(added)
         deletions += int(removed)
-    commit_ledger = Commit_Ledger(plan, commits)
-    file_ledger = File_Ledger(plan, files)
+    commit_ledger = Commit_Ledger(coverage_source, commits)
+    file_ledger = File_Ledger(coverage_source, files)
     runtime = 0
     for commit, entry in commit_ledger.items():
         paths = Git(root, "diff-tree", "--no-commit-id", "--name-only", "-r", commit).splitlines()
@@ -554,7 +556,7 @@ def Audit(root):
     types = Validate_Contracts(root, registry, contracts, policies)
     test_ids = set(re.findall(r"\bT-\d{2}\b", Section(plan, "Final validation and release gates")))
     Apply_Coverage(coverage, commit_ledger, file_ledger, test_ids)
-    inventories = Validate_Inventories(root, plan, fork, files)
+    inventories = Validate_Inventories(root, coverage_source, fork, files)
     return {"baseline": baseline, "methodCount": count, "implementedCount": len(registry["implementedMethods"]),
             "typeCount": types, "inventories": inventories,
             "commits": commit_ledger, "files": file_ledger}

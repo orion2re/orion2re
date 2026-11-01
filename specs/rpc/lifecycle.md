@@ -2,9 +2,10 @@
 
 Static audit at the reviewed target, not runtime hook certification. All sites
 default to **no RPC work** until an owner registers initialized state. The
-Appendix B input-owner checklist is the adapter inventory; this audit specifies
-the common integration boundaries for all those owners. P2/P4 route tests remain
-mandatory and do not become complete because a function name was audited.
+Appendix B input-owner checklist in `planning_baseline.md` is the adapter inventory;
+this audit specifies the common integration boundaries for all those owners.
+P2/P4 route tests remain mandatory and do not become complete because a function
+name was audited.
 
 ## Pump classes
 

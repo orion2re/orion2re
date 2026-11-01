@@ -1,6 +1,6 @@
 {
   "formatVersion": 1,
-  "dispositions": "Exact feature/owner/acceptance text remains canonical in plan.md Appendices F-H. Groups below persist every identity and its minimum release-test obligations; evidence is recorded per full commit SHA or path.",
+  "dispositions": "Exact feature/owner/acceptance text remains canonical in specs/rpc/planning_baseline.md Appendices F-H. Groups below persist every identity and its minimum release-test obligations; evidence is recorded per full commit SHA or path.",
   "commitGroups": [
     {
       "category": "runtime",

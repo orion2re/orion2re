@@ -3,6 +3,7 @@ import hashlib
 import importlib.util
 import json
 from pathlib import Path
+import re
 import tempfile
 import unittest
 
@@ -111,6 +112,7 @@ class LedgerTests(unittest.TestCase):
         files = audit.File_Ledger(self.plan, ["src/game/example.cpp"])
         self.assertEqual(commits[self.commit]["acceptance"], "Native parity")
         for entry in (commits[self.commit], files["src/game/example.cpp"]):
+            self.assertEqual(entry["source"], audit.COVERAGE_SOURCE)
             self.assertEqual(entry["status"], "planned")
             self.assertIsNone(entry["implementation"])
             self.assertEqual(entry["tests"], [])
@@ -165,6 +167,31 @@ class LedgerTests(unittest.TestCase):
         self.assertEqual(sum(entry["category"] == "runtime"
                              for entry in report["commits"].values()), 92)
         self.assertEqual(report, json.loads(json.dumps(report)))
+
+
+class PlanningTests(unittest.TestCase):
+    def setUp(self):
+        self.plan = (ROOT / "plan.md").read_text(encoding="utf-8")
+        self.baseline = (ROOT / audit.COVERAGE_SOURCE).read_text(encoding="utf-8")
+
+    def test_plan_preserves_task_ids_without_freezing_future_progress(self):
+        pattern = r"^- \[[ x]\] ([A-Z][A-Z0-9]*-\d{2})\b"
+        original = re.findall(pattern, self.baseline, re.MULTILINE)
+        current = re.findall(pattern, self.plan, re.MULTILINE)
+        self.assertEqual(len(current), len(set(current)))
+        self.assertTrue(set(original) <= set(current))
+
+    def test_plan_retains_catalog_but_not_source_inventories(self):
+        self.assertEqual(audit.Catalog_Methods(self.plan), audit.Catalog_Methods(self.baseline))
+        self.assertNotIn("## Appendix ", self.plan)
+        self.assertNotIn("prerequisite verification", self.plan)
+        self.assertNotIn("increment verification", self.plan)
+
+    def test_tracking_contains_only_headings_and_todos(self):
+        tracking = audit.Section(self.plan, "Implementation tracking TODOs")
+        for line in tracking.splitlines():
+            with self.subTest(line=line):
+                self.assertTrue(not line or line.startswith(("###", "- [", "  - [")))
 
 
 class TypedContractTests(unittest.TestCase):
