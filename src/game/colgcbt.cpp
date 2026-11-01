@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game_events.h"
 
 namespace COLGCBT {
 
@@ -161,6 +162,7 @@ namespace COLGCBT {
     }
 
     void __cdecl Colony_Combat_Screen(s_invasion_side_info* attacker, s_invasion_side_info* defender, uint32_t seed, int16_t colony_idx) {
+        game_events::s_leader_view_scope leader_view(leader_read::GROUND_SUMMARY);
         bool is_exit = false;
         MOX2::action_func_t auto_function_ptr;
 
@@ -209,6 +211,7 @@ namespace COLGCBT {
         Set_Help_List();
 
         graphics::Fill(0, 0, 639, 479, 0);
+        game_events::Ready_Leader_View(leader_read::GROUND_SUMMARY);
         Draw_Colony_Combat_Screen();
 
         palstore::Darken_Palette(100);
@@ -230,6 +233,7 @@ namespace COLGCBT {
             timer::Mark_Time();
             JIM::Play_Streaming_Music(10, -1, 1);
             Add_Global_Fields();
+            game_events::Ready_Leader_View(leader_read::GROUND_SUMMARY);
             Draw_Colony_Combat_Screen();
             RUSS::Mox_Sync_Update();
 
@@ -255,6 +259,7 @@ namespace COLGCBT {
             timer::Release_Time(1);
         } while (!is_exit);
 
+        leader_view.Close();
         JIM::Play_Background_Music();
         sound::Stop_All_Sounds();
         COLONY::Reset_Field_Mode();
@@ -824,6 +829,11 @@ namespace COLGCBT {
         }
 
         if (side_info->combat_modifiers.officer_idx > 0) {
+            leader_read::s_leader leader;
+            if (leader_read::Read_Ground(MOX::PLAYER_NUM, side_info, leader_read::GROUND_SUMMARY, &leader)) {
+                Print_Data(leader.name, leader.bonus, y_pos, side_info);
+                return;
+            }
             OFFICER::Officer_Name(officer_name, sizeof(officer_name), side_info->player_id, side_info->combat_modifiers.officer_idx);
             Print_Data(officer_name, side_info->combat_modifiers.officer_bonus, y_pos, side_info);
         }
@@ -877,6 +887,14 @@ namespace COLGCBT {
 
         COLONY::Set_Colony_Font_To(1);
         Draw_Summary_Boxes();
+        if (COLONY::full_draw != 0) {
+            leader_read::s_leader leaders[2];
+            int16_t count = 0;
+            for (const auto* side : {g_attack_ptr, g_defend_ptr}) {
+                if (leader_read::Read_Ground(MOX::PLAYER_NUM, side, leader_read::GROUND_SUMMARY, &leaders[count])) ++count;
+            }
+            game_events::Publish_Leader_View(leader_read::GROUND_SUMMARY, leaders, count);
+        }
         COLONY::Set_Colony_Font_To(1);
         COLONY::Draw_Colony_Bldgs();
 

@@ -49,6 +49,29 @@ namespace game_rpc {
             colony_rpc::Read_Colonies(observation) && tech_rpc::Read_Research(observation) && officer_rpc::Read_Leaders(observation);
     }
 
+    bool Capture_Leader_View(rpc::s_game_store* target, const rpc::s_map_observation* ambient, const game_events::s_leader_view* view) {
+        if (target == nullptr || !target->loaded || target->viewer < 0 || target->snapshots.empty() || view == nullptr) return false;
+        if (view->count < 0 || view->count > 2 || (view->count != 0 && view->leaders == nullptr)) return false;
+        bool disclosed = false;
+        for (int16_t index = 0; index < view->count; ++index) disclosed |= view->leaders[index].viewer == target->viewer;
+        if (!disclosed) {
+            rpc::Revoke_Game_Context(target);
+            return view->count >= 0 && view->count <= 2;
+        }
+        rpc::s_map_observation observation;
+        if (target->busy_depth == 0 && ambient != nullptr)
+            observation = *ambient;
+        else {
+            observation.viewer = target->viewer;
+            observation.turn = target->snapshots.back().map.turn;
+            observation.leaders_only = true;
+        }
+        if (!officer_rpc::Read_Disclosures(view, &observation)) return false;
+        observation.leader_presentation = true;
+        observation.context_epoch = rpc::Bridge_Context_Epoch(target->bridge);
+        return rpc::Capture_Map(target, &observation);
+    }
+
     static rpc::s_bridge* Initialize() {
         if (!active) {
             active = rpc::Initialize_Game_Store(&store, &bridge);
@@ -458,6 +481,15 @@ namespace game_rpc {
         }
         if (!active) return;
         switch (event) {
+            case game_events::LEADER_VIEW_CLEARED:
+                rpc::Revoke_Game_Context(&store);
+                break;
+            case game_events::LEADER_VIEW_READY: {
+                rpc::s_map_observation observation;
+                const bool ambient = store.busy_depth == 0 && Read_Map_Observation(&observation);
+                if (!Capture_Leader_View(&store, ambient ? &observation : nullptr, game_events::Published_Leader_View())) rpc::Revoke_Game_Context(&store);
+                break;
+            }
             case game_events::MENU_ENTERED: Menu(); break;
             case game_events::PERSPECTIVE_SELECTION_BEGIN: Revoke_Perspective(); break;
             case game_events::WORLD_REPLACE_BEGIN:

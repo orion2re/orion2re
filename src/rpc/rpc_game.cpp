@@ -180,7 +180,7 @@ namespace rpc {
         }
 
         auto Leader_Data(const s_leader_observation& item) {
-            return std::tie(item.disclosure, item.role, item.name, item.title, item.rank, item.xp_available, item.xp, item.status, item.assignment_available, item.assignment_kind, item.assignment_name, item.assignment_id, item.eta_available, item.eta, item.hire_cost_available, item.hire_cost, item.upkeep, item.offer_turns_available, item.offer_turns, item.benefits_available, item.benefits);
+            return std::tie(item.disclosure, item.role, item.name, item.title, item.rank, item.xp_available, item.xp, item.status, item.assignment_available, item.assignment_kind, item.assignment_name, item.assignment_id, item.eta_available, item.eta, item.hire_cost_available, item.hire_cost, item.upkeep, item.offer_turns_available, item.offer_turns, item.benefits_available, item.benefits, item.partial, item.skills_available, item.bonus_available, item.bonus);
         }
 
         bool Same_Leaders(const s_map_observation* left, const s_map_observation* right) {
@@ -203,6 +203,8 @@ namespace rpc {
 
         const s_map_snapshot* Select_Snapshot(const s_game_store* store, uint32_t topics) {
             for (auto snapshot = store->snapshots.rbegin(); snapshot != store->snapshots.rend(); ++snapshot) {
+                if (snapshot->map.leaders_only && (topics & ~(TOPIC_SESSION | TOPIC_LEADERS))) continue;
+                if (store->busy_depth != 0 && (!snapshot->map.leaders_only || !snapshot->map.leader_presentation)) continue;
                 if ((topics & (TOPIC_SHIPS | TOPIC_LEADERS)) && !Authorized_Snapshot(store, &*snapshot)) continue;
                 if ((!(topics & TOPIC_SHIPS) || snapshot->map.ships_captured) &&
                     (!(topics & TOPIC_PLAYERS) || snapshot->map.players_captured) &&
@@ -228,7 +230,7 @@ namespace rpc {
             return "{\"gameId\":" + Json_String(store->game_id) + ",\"perspectiveId\":" + Json_String(store->perspective_id) +
                 ",\"snapshotId\":" + Json_String(snapshot->id) + ",\"revision\":" + Json_String(std::to_string(snapshot->revision)) +
                 ",\"turn\":" + std::to_string(snapshot->map.turn) + ",\"captureMode\":" +
-                Json_String(snapshot->map.context_epoch != 0 ? "last-native-fleet-box" : (snapshot->map.ships_captured ? "last-native-ship-refresh" : "last-coherent-capture")) + "}";
+                Json_String(snapshot->map.leader_presentation ? "native-leader-presentation" : (snapshot->map.context_epoch != 0 ? "last-native-fleet-box" : (snapshot->map.ships_captured ? "last-native-ship-refresh" : "last-coherent-capture"))) + "}";
         }
 
         std::string Exploration_Knowledge(e_exploration_knowledge available, const std::string& value = {}) {
@@ -381,6 +383,18 @@ namespace rpc {
                 if (skills.size() != 1) skills += ',';
                 skills += "{\"name\":" + Json_String(skill.name) + ",\"displayValue\":" + Json_String(skill.value) + "}";
             }
+            if (item.partial) {
+                const std::string unknown = "{\"availability\":\"unknown\"}";
+                return "{\"id\":" + Json_String(snapshot->leader_ids[index]) + ",\"disclosure\":" + Json_String(item.disclosure) +
+                    ",\"name\":" + Json_String(item.name) + ",\"role\":" + (item.role.empty() ? unknown : Exploration_Knowledge(EXPLORATION_CURRENT, Json_String(item.role))) +
+                    ",\"title\":" + (item.disclosure != "leader-result" ? unknown : Exploration_Knowledge(EXPLORATION_CURRENT, Json_String(item.title))) +
+                    ",\"rank\":" + (item.disclosure != "leader-result" ? unknown : Exploration_Knowledge(EXPLORATION_CURRENT, Json_String(item.rank))) +
+                    ",\"experience\":" + unknown + ",\"abilities\":" + (item.skills_available ? Exploration_Knowledge(EXPLORATION_CURRENT, skills + "]") : unknown) +
+                    ",\"status\":" + unknown + ",\"assignment\":" + unknown + ",\"eta\":" + Exploration_Knowledge(item.eta_available, std::to_string(item.eta)) + ",\"hireCost\":" + unknown +
+                    ",\"upkeep\":" + unknown + ",\"offerRemainingTurns\":" + unknown + ",\"offerBenefits\":" + unknown +
+                    ",\"contextBonus\":" + Exploration_Knowledge(item.bonus_available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, std::to_string(item.bonus)) +
+                    ",\"description\":{\"availability\":\"unaudited\"}}";
+            }
             return "{\"id\":" + Json_String(snapshot->leader_ids[index]) + ",\"disclosure\":" + Json_String(item.disclosure) +
                 ",\"role\":" + Json_String(item.role) + ",\"name\":" + Json_String(item.name) + ",\"title\":" + Json_String(item.title) +
                 ",\"rank\":" + Json_String(item.rank) + ",\"experience\":" + Exploration_Knowledge(item.xp_available ? EXPLORATION_CURRENT : EXPLORATION_UNAUDITED, std::to_string(item.xp)) +
@@ -390,6 +404,7 @@ namespace rpc {
                 ",\"upkeep\":" + std::to_string(item.upkeep) +
                 ",\"offerRemainingTurns\":" + Exploration_Knowledge(item.offer_turns_available ? EXPLORATION_CURRENT : EXPLORATION_UNAUDITED, std::to_string(item.offer_turns)) +
                 ",\"offerBenefits\":" + Exploration_Knowledge(item.benefits_available ? EXPLORATION_CURRENT : EXPLORATION_UNAUDITED, Json_String(item.benefits)) +
+                (item.bonus_available ? ",\"contextBonus\":" + Exploration_Knowledge(EXPLORATION_CURRENT, std::to_string(item.bonus)) : "") +
                 ",\"description\":{\"availability\":\"unaudited\"}}";
         }
 
@@ -492,7 +507,7 @@ namespace rpc {
                 subscription.state_changes |= event == "state.changed";
             }
             yyjson_doc_free(doc);
-            if (store->busy_depth != 0 || !store->loaded || store->snapshots.empty()) return Error_Response(request, RPC_BUSY);
+            if (!store->loaded || store->snapshots.empty()) return Error_Response(request, RPC_BUSY);
             const uint32_t topics = Topic_Mask(&subscription.topics);
             const auto* snapshot = Select_Snapshot(store, topics);
             if (snapshot == nullptr) return Error_Response(request, RPC_BUSY);
@@ -514,7 +529,7 @@ namespace rpc {
         }
 
         void Publish_State_Changes(s_game_store* store) {
-            if (store->busy_depth != 0 || !store->loaded || store->snapshots.empty()) return;
+            if (!store->loaded || store->snapshots.empty()) return;
             for (s_state_subscription& subscription : store->subscriptions) {
                 if (subscription.revision == store->revision) continue;
                 subscription.revision = store->revision;
@@ -522,6 +537,10 @@ namespace rpc {
                 const uint32_t topics = Topic_Mask(&subscription.topics);
                 const auto* snapshot = Select_Snapshot(store, topics);
                 if (snapshot == nullptr) {
+                    if (store->busy_depth != 0) {
+                        subscription.revision = 0;
+                        continue;
+                    }
                     Cancel_Client(store->bridge, subscription.client);
                     continue;
                 }
@@ -579,7 +598,7 @@ namespace rpc {
             if (request->method == "game.getSession") {
                 return Session(store);
             }
-            if (store->busy_depth != 0 || store->snapshots.empty() || !store->loaded) {
+            if (store->snapshots.empty() || !store->loaded) {
                 *error = RPC_BUSY;
                 return {};
             }
@@ -738,10 +757,12 @@ namespace rpc {
     }
 
     bool Capture_Map(s_game_store* store, const s_map_observation* observation) {
-        if (store == nullptr || observation == nullptr || !store->loaded || store->busy_depth != 0 ||
+        if (store == nullptr || observation == nullptr || !store->loaded || (store->busy_depth != 0 && !observation->leaders_only) ||
             observation->viewer < 0 || observation->viewer >= 8 || observation->turn < 0 ||
             observation->systems.size() > 1024 || observation->nebulas.size() > 57 || observation->ships.size() > 10000 || observation->players.size() > 8 || observation->colonies.size() > 5120) return false;
-        if (observation->context_epoch != 0 && (!observation->ships_captured || observation->context_epoch != Bridge_Context_Epoch(store->bridge))) return false;
+        if (observation->leaders_only && (!observation->leader_presentation || observation->viewer != store->viewer || !observation->systems.empty() || !observation->nebulas.empty() || observation->ships_captured || observation->players_captured || observation->colonies_captured || observation->planets_captured || observation->research_captured)) return false;
+        if (observation->leader_presentation && (observation->context_epoch == 0 || !observation->leaders_captured)) return false;
+        if (observation->context_epoch != 0 && ((!observation->ships_captured && !observation->leader_presentation) || observation->context_epoch != Bridge_Context_Epoch(store->bridge))) return false;
         // Bind newly authorized default observers to the old coherent turn before replacing it.
         Sync_Turn_Observers(store);
         s_map_observation projected;
@@ -756,6 +777,8 @@ namespace rpc {
         projected.colonies_captured = observation->colonies_captured;
         projected.colonies = observation->colonies;
         projected.context_epoch = observation->context_epoch;
+        projected.leader_presentation = observation->leader_presentation;
+        projected.leaders_only = observation->leaders_only;
         projected.planets_captured = observation->planets_captured;
         projected.planets = observation->planets;
         projected.research_captured = observation->research_captured;
@@ -771,9 +794,28 @@ namespace rpc {
         if (projected.leaders.size() > 67) return false;
         bool leader_slots[67] = {};
         for (auto& leader : projected.leaders) {
+            if (leader.partial) {
+                const bool result = leader.disclosure == "leader-result";
+                const bool ground = leader.disclosure == "ground-summary" || leader.disclosure == "troop-summary";
+                if (!projected.leader_presentation || (!result && !ground && leader.disclosure != "message-name")) return false;
+                leader.xp_available = leader.hire_cost_available = leader.offer_turns_available = leader.benefits_available = false;
+                leader.upkeep = 0;
+                leader.assignment_available = EXPLORATION_UNKNOWN;
+                if (!result || leader.eta_available != EXPLORATION_CURRENT || leader.eta <= 0) leader.eta_available = EXPLORATION_UNKNOWN;
+                leader.status = "unavailable";
+                if (!result) {
+                    leader.role.clear();
+                    leader.title.clear();
+                    leader.rank.clear();
+                    leader.skills_available = false;
+                }
+                if (!leader.skills_available) leader.skills.clear();
+                leader.bonus_available &= ground;
+            }
+            if (!leader.bonus_available) leader.bonus = 0;
             if (leader.slot < 0 || leader.slot >= 67 || leader_slots[leader.slot] ||
-                (leader.disclosure != "owned" && leader.disclosure != "pending-offer" && leader.disclosure != "hiring-pool") ||
-                (leader.role != "ship-officer" && leader.role != "colony-leader")) return false;
+                (!leader.partial && leader.disclosure != "owned" && leader.disclosure != "pending-offer" && leader.disclosure != "hiring-pool") ||
+                ((!leader.partial || leader.disclosure == "leader-result") && leader.role != "ship-officer" && leader.role != "colony-leader")) return false;
             leader_slots[leader.slot] = true;
             if (!leader.xp_available) leader.xp = 0;
             if (!leader.hire_cost_available) leader.hire_cost = 0;
@@ -786,7 +828,7 @@ namespace rpc {
                 leader.assignment_slot = -1;
             }
             leader.assignment_id.clear();
-            if (leader.name.size() > 42 || leader.title.size() > 57 || leader.rank.size() > 384 || leader.benefits.size() > 3072 ||
+            if (leader.name.size() > (leader.partial ? 1536 : 42) || leader.title.size() > 57 || leader.rank.size() > 384 || leader.benefits.size() > 3072 ||
                 leader.xp < 0 || leader.xp > 32767 || leader.skills.size() > 54 || leader.upkeep < 0 || leader.upkeep > 32767 ||
                 leader.hire_cost < 0 || leader.offer_turns < 0 || leader.offer_turns > 30 || leader.eta < 0 || leader.eta > 127 ||
                 leader.assignment_name.size() > 80 || leader.assignment_available < EXPLORATION_UNKNOWN || leader.assignment_available > EXPLORATION_EMPTY ||
@@ -932,11 +974,12 @@ namespace rpc {
         }
         store->capture_requested = false;
         if (!store->snapshots.empty()) {
-            const auto& previous = store->snapshots.back().map;
+            const auto previous_full = std::find_if(store->snapshots.rbegin(), store->snapshots.rend(), [](const s_map_snapshot& item) { return !item.map.leaders_only; });
+            const auto& previous = previous_full != store->snapshots.rend() ? previous_full->map : projected;
             bool lost = false;
-            if (projected.leaders_captured) {
-                const auto* old = Select_Snapshot(store, TOPIC_LEADERS);
-                if (old != nullptr) {
+            if (projected.leaders_captured && !projected.leaders_only) {
+                const auto old = std::find_if(store->snapshots.rbegin(), store->snapshots.rend(), [](const s_map_snapshot& item) { return item.map.leaders_captured && item.map.context_epoch == 0; });
+                if (old != store->snapshots.rend()) {
                     for (const auto& leader : old->map.leaders) {
                         lost |= std::none_of(projected.leaders.begin(), projected.leaders.end(), [&leader](const s_leader_observation& current) {
                             return current.slot == leader.slot && current.name == leader.name && current.role == leader.role;
@@ -962,7 +1005,8 @@ namespace rpc {
             }
             if (lost) Revoke_Game_View(store);
         }
-        if (!store->snapshots.empty() && (projected.systems.size() != store->snapshots.back().map.systems.size() || projected.nebulas.size() != store->snapshots.back().map.nebulas.size())) {
+        const auto* ambient_map = Select_Snapshot(store, TOPIC_SYSTEMS);
+        if (!projected.leaders_only && ambient_map != nullptr && (projected.systems.size() != ambient_map->map.systems.size() || projected.nebulas.size() != ambient_map->map.nebulas.size())) {
             Revoke_Game_View(store);
         }
         if (store->viewer != projected.viewer) {
@@ -1084,6 +1128,11 @@ namespace rpc {
                 return std::tie(x.name, x.value) < std::tie(y.name, y.value);
             });
         });
+        const auto* old_presentation = Select_Snapshot(store, TOPIC_LEADERS);
+        if (projected.leader_presentation && old_presentation != nullptr && old_presentation->map.leader_presentation && !Same_Leaders(&projected, &old_presentation->map)) {
+            Revoke_Game_Context(store);
+            projected.context_epoch = Bridge_Context_Epoch(store->bridge);
+        }
         if (projected.context_epoch == 0 && projected.ships_captured && !store->snapshots.empty() && !Authorized_Snapshot(store, &store->snapshots.back())) {
             const auto* ambient = Select_Snapshot(store, TOPIC_SHIPS | (projected.players_captured ? TOPIC_PLAYERS : TOPIC_NONE) | (projected.colonies_captured ? TOPIC_COLONIES : TOPIC_NONE));
             if (ambient != nullptr && Same_Map(&projected, &ambient->map) && Same_Ships(&projected, &ambient->map) &&
@@ -1092,7 +1141,7 @@ namespace rpc {
                 (!projected.research_captured || Same_Research(&projected, &ambient->map)) &&
                 (!projected.leaders_captured || Same_Leaders(&projected, &ambient->map))) return true;
         }
-        const bool equal = !store->snapshots.empty() && Same_Map(&projected, &store->snapshots.back().map) &&
+        const bool equal = !store->snapshots.empty() && projected.leaders_only == store->snapshots.back().map.leaders_only && Same_Map(&projected, &store->snapshots.back().map) &&
             (!projected.ships_captured || Same_Ships(&projected, &store->snapshots.back().map)) &&
             (!projected.players_captured || (Same_Players(&projected, &store->snapshots.back().map) && player_ids == store->snapshots.back().player_ids)) &&
             (!projected.colonies_captured || Same_Colonies(&projected, &store->snapshots.back().map)) &&
@@ -1100,7 +1149,7 @@ namespace rpc {
             (!projected.research_captured || Same_Research(&projected, &store->snapshots.back().map)) &&
             (!projected.leaders_captured || Same_Leaders(&projected, &store->snapshots.back().map));
         if (projected.context_epoch != 0) store->context_active = true;
-        if (equal && (projected.context_epoch == store->snapshots.back().map.context_epoch || !projected.ships_captured)) return true;
+        if (equal && (projected.context_epoch == store->snapshots.back().map.context_epoch || (!projected.ships_captured && !projected.leader_presentation))) return true;
         if (store->revision == std::numeric_limits<uint64_t>::max()) return false;
         s_map_snapshot snapshot;
         if (!store->new_id(&snapshot.id, store->id_context)) return false;
@@ -1125,6 +1174,7 @@ namespace rpc {
         if (store->snapshots.size() > 4) {
             const bool has_context = std::any_of(store->snapshots.begin(), store->snapshots.end(), [](const s_map_snapshot& item) { return item.map.context_epoch != 0; });
             auto ambient = has_context ? std::find_if(store->snapshots.rbegin(), store->snapshots.rend(), [](const s_map_snapshot& item) { return item.map.ships_captured && item.map.context_epoch == 0; }) : store->snapshots.rend();
+            if (has_context && ambient == store->snapshots.rend()) ambient = std::find_if(store->snapshots.rbegin(), store->snapshots.rend(), [](const s_map_snapshot& item) { return !item.map.leaders_only && item.map.context_epoch == 0; });
             const std::string protected_id = ambient != store->snapshots.rend() ? ambient->id : std::string();
             auto expired = std::find_if(store->snapshots.begin(), store->snapshots.end(), [&protected_id](const s_map_snapshot& item) { return item.id != protected_id; });
             store->snapshots.erase(expired);

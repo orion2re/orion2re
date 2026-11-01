@@ -235,7 +235,92 @@ class TransportTests(unittest.TestCase):
         replacement = self.Query(client, "game.listLeaders")["result"]
         self.assertTrue(any(leader["name"] == "Replacement candidate" for leader in replacement["items"]))
         self.assertEqual(self.Query(client, "game.getLeader", {"id":withdrawn_id})["error"], unavailable)
+
+        # Native-function result producers feed the same store and live transport.
+        notices = []
+        def query(method, params=None):
+            client.Send({"jsonrpc":"2.0", "id":7, "method":method, "params":params or {}})
+            while True:
+                response = client.Read()
+                if "id" in response:
+                    return response
+                self.assertEqual(response["method"], "state.changed")
+                notices.append(response)
+
+        subscription = query("rpc.subscribe", {"topics":["leaders"], "events":["state.changed"]})["result"]
+        self.Fixture("leader-ground")
+        combined = query("game.getState", {"include":topics})["result"]
+        ground = [leader for leader in combined["leaders"] if leader["disclosure"] == "ground-summary"]
+        self.assertEqual(len(ground), 2)
+        self.assertTrue(notices)
+        self.assertEqual(notices[-1]["params"]["stamp"], combined["stamp"])
+        self.assertEqual(combined["stamp"]["captureMode"], "native-leader-presentation")
+        for leader in ground:
+            self.assertTrue(leader["name"].startswith("Commander Ground"))
+            self.assertEqual(leader["contextBonus"]["availability"], "current")
+            for field in ("role", "title", "rank", "abilities", "experience", "assignment", "status", "eta", "hireCost", "upkeep"):
+                self.assertEqual(leader[field], {"availability":"unknown"}, field)
+            self.assertEqual(query("game.getLeader", {"id":leader["id"]})["result"]["item"], leader)
+        page = query("game.listLeaders", {"limit":1})["result"]
+        notices.clear()
+        self.Fixture("leader-result-hidden")
+        self.assertEqual(query("game.getState", {"include":topics})["result"], combined)
+        self.assertEqual(notices, [])
+        self.Fixture("leader-result-change")
+        changed = query("game.listLeaders")["result"]
+        self.assertTrue(notices)
+        self.assertEqual(query("game.getLeader", {"id":ground[0]["id"]})["error"], unavailable)
+        self.assertEqual(query("game.listLeaders", {"cursor":page["nextCursor"]})["error"], unavailable)
+        self.Fixture("leader-child")
+        interrupted = query("game.listLeaders")["result"]
+        self.assertFalse(any(leader["disclosure"] == "ground-summary" for leader in interrupted["items"]))
+        self.assertTrue(any(leader["disclosure"] == "owned" for leader in interrupted["items"]))
+        self.Fixture("leader-restore")
+        restored = query("game.listLeaders")["result"]
+        restored_ground = [leader for leader in restored["items"] if leader["disclosure"] == "ground-summary"]
+        self.assertEqual(len(restored_ground), 2)
+        self.assertNotEqual(restored["stamp"]["snapshotId"], changed["stamp"]["snapshotId"])
+        self.Fixture("leader-slot-reuse")
+        reused = query("game.listLeaders")["result"]
+        self.assertTrue(any("Replacement" in leader["name"] for leader in reused["items"]))
+        self.assertEqual(query("game.getLeader", {"id":restored_ground[0]["id"]})["error"], unavailable)
+        self.Fixture("leader-result-withdraw")
+        self.assertFalse(any(leader["disclosure"] == "ground-summary" for leader in query("game.listLeaders")["result"]["items"]))
+        for command, disclosure in (("leader-troops", "troop-summary"), ("leader-rescue", "leader-result"), ("leader-message", "message-name")):
+            self.Fixture(command)
+            rows = query("game.listLeaders")["result"]["items"]
+            partial = next(leader for leader in rows if leader["disclosure"] == disclosure)
+            self.assertEqual(query("game.getLeader", {"id":partial["id"]})["result"]["item"], partial)
+            self.assertEqual(partial["experience"], {"availability":"unknown"})
+            if disclosure == "leader-result":
+                self.assertEqual(partial["abilities"]["availability"], "current")
+                self.assertTrue(partial["abilities"]["value"])
+            else:
+                self.assertEqual(partial["abilities"], {"availability":"unknown"})
+            self.Fixture("leader-result-exit")
+            self.assertEqual(query("game.getLeader", {"id":partial["id"]})["error"], unavailable)
+        self.Fixture("busy")
+        for command in ("leader-promotion", "leader-rescue-success"):
+            self.Fixture(command)
+            presented = query("game.listLeaders")["result"]["items"]
+            self.assertEqual(len(presented), 1)
+            self.assertEqual(presented[0]["disclosure"], "leader-result")
+            self.assertEqual(presented[0]["experience"], {"availability":"unknown"})
+            self.assertEqual(presented[0]["abilities"]["availability"], "current")
+            self.assertEqual(presented[0]["eta"], {"availability":"current", "value":2} if command == "leader-promotion" else {"availability":"unknown"})
+            self.Fixture("leader-result-exit")
+        self.Fixture("leader-ground")
+        resolving = query("game.getState", {"include":["session", "leaders"]})["result"]
+        self.assertEqual(resolving["session"]["phase"], "resolving")
+        self.assertTrue(resolving["leaders"])
+        self.assertTrue(all(leader["disclosure"] == "ground-summary" for leader in resolving["leaders"]))
+        self.assertEqual(query("game.getState", {"include":topics})["error"]["code"], -32002)
+        self.Fixture("leader-result-exit")
+        self.assertEqual(query("game.listLeaders")["error"]["code"], -32002)
+        self.Fixture("resume")
+        query("rpc.unsubscribe", {"subscriptionId":subscription["subscriptionId"]})
         for boundary in ("world", "switch"):
+            self.Fixture("leader-ground")
             old = self.Query(client, "game.listLeaders")["result"]["items"][0]["id"]
             self.Fixture(boundary)
             with self.assertRaises((EOFError, ConnectionError)):
@@ -243,6 +328,8 @@ class TransportTests(unittest.TestCase):
             client = self.Client()
             self.assertIn("result", client.Hello())
             self.assertEqual(self.Query(client, "game.getLeader", {"id":old})["error"], unavailable, boundary)
+            self.Fixture("leader-restore")
+            self.assertFalse(any(leader["disclosure"] == "ground-summary" for leader in self.Query(client, "game.listLeaders")["result"]["items"]))
         self.assertEqual(self.Query(client, "game.listLeaders")["result"]["items"], [])
 
     def test_own_research_client_workflow_and_revocation(self):

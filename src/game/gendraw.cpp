@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game_events.h"
 
 namespace GENDRAW {
     s_colors message_text_colors = {{0xA0, 0xA3, 0xA3, 0xA5, 0xAB, 0xAB, 0xAB, 0xAB}};
@@ -88,6 +89,7 @@ namespace GENDRAW {
     }
 
     void __cdecl Message_Box_Exploding(const char* str) {
+        game_events::s_leader_interruption_scope leader_interruption;
         Message_Box_Startup();
 
         fonts::Set_Font_Style(4, &message_text_colors);
@@ -151,6 +153,7 @@ namespace GENDRAW {
     }
 
     int16_t __cdecl Confirmation_Box(const char* text) {
+        game_events::s_leader_interruption_scope leader_interruption;
         uint8_t color_1;
         uint8_t color_2;
         s_colors font_colors;

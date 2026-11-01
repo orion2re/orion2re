@@ -9,7 +9,7 @@ This document is rendered from `schema.json`, not a second method catalog.
 The root schema validates acknowledged client requests; per-method success responses and server notifications have separate definitions.
 All fields are non-null unless explicitly stated. Unknown keys are rejected. UTF-8 byte limits, lexical integer tokens, duplicate keys, depth and authorization need the protocol guards in addition to standard JSON Schema validation.
 
-Source bundle SHA-256: `df607a089f54a3b8896790d52d3822920454daf60aba0bb8446d3f53db0e0c68`.
+Source bundle SHA-256: `9e1bf43eca99c162c33931199a5885b750095f742cbc0a6a531aebe3e961e9f4`.
 
 ## Methods
 
@@ -25,7 +25,7 @@ Source bundle SHA-256: `df607a089f54a3b8896790d52d3822920454daf60aba0bb8446d3f53
 | game.getFleet | game.shipstak_rpc | reader | committed-game | GetRequest | FleetResult |
 | game.getHistory | game.info_rpc | reader | committed-game | Empty | History |
 | game.getIntelligence | game.spy_rpc | reader | committed-game | Empty | Intelligence |
-| game.getLeader | game.officer_rpc | reader | committed-game | GetRequest | LeaderResult |
+| game.getLeader | game.officer_rpc | reader | authorized | GetRequest | LeaderResult |
 | game.getMessage | game.report_rpc | reader | committed-game | GetRequest | MessageResult |
 | game.getMovementOptions | game.shipmove_rpc | reader | committed-game | MovementRequest | MovementResult |
 | game.getPlanet | game.plntsum_rpc | reader | committed-game | GetRequest | PlanetResult |
@@ -34,13 +34,13 @@ Source bundle SHA-256: `df607a089f54a3b8896790d52d3822920454daf60aba0bb8446d3f53
 | game.getResearch | game.tech_rpc | reader | committed-game | Empty | Research |
 | game.getSession | game.game_rpc | reader | authorized | Empty | Session |
 | game.getShip | game.ships_rpc | reader | committed-game | GetRequest | ShipResult |
-| game.getState | game.game_rpc | reader | committed-game | StateRequest | State |
+| game.getState | game.game_rpc | reader | authorized | StateRequest | State |
 | game.getSystem | game.harold_rpc | reader | committed-game | GetRequest | SystemResult |
 | game.getTechnology | game.tech_rpc | reader | committed-game | GetRequest | Technology |
 | game.listColonies | game.colony_rpc | reader | committed-game | ListRequest | ColoniesResult |
 | game.listDesigns | game.design_rpc | reader | committed-game | ListRequest | DesignsResult |
 | game.listFleets | game.shipstak_rpc | reader | committed-game | ListRequest | FleetsResult |
-| game.listLeaders | game.officer_rpc | reader | committed-game | ListRequest | LeadersResult |
+| game.listLeaders | game.officer_rpc | reader | authorized | ListRequest | LeadersResult |
 | game.listMessages | game.report_rpc | reader | committed-game | ListRequest | MessagesResult |
 | game.listNebulas | game.harold_rpc | reader | committed-game | ListRequest | NebulasResult |
 | game.listPlanets | game.plntsum_rpc | reader | committed-game | ListRequest | PlanetsResult |
@@ -127,7 +127,7 @@ Constraints: `{"maximum": 255, "minimum": 0, "type": "integer", "x-integerToken"
 
 ### CaptureMode
 
-Values: `last-coherent-capture`, `last-native-ship-refresh`, `last-native-fleet-box`.
+Values: `last-coherent-capture`, `last-native-ship-refresh`, `last-native-fleet-box`, `native-leader-presentation`.
 
 ### Chat
 
@@ -375,12 +375,26 @@ Values: `current`.
 | availability | Current | yes | contract |
 | value | Id | yes | contract |
 
+### CurrentLeaderAbilities
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| availability | Current | yes | leaders-disclosed |
+| value | LeaderAbilities | yes | leaders-disclosed |
+
 ### CurrentLeaderAssignment
 
 | Field | Type | Required | Policy |
 | --- | --- | --- | --- |
 | availability | Current | yes | contract |
 | value | LeaderAssignmentValue | yes | contract |
+
+### CurrentLeaderRole
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| availability | Current | yes | contract |
+| value | LeaderRole | yes | contract |
 
 ### CurrentPlanetClimate
 
@@ -486,6 +500,13 @@ Values: `current`.
 | --- | --- | --- | --- |
 | availability | Current | yes | contract |
 | value | Turns | yes | contract |
+
+### CurrentValue
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| availability | Current | yes | contract |
+| value | Value | yes | contract |
 
 ### DescribeRequest
 
@@ -716,6 +737,14 @@ Exactly one of: CurrentExploredIds, Unavailable.
 
 Exactly one of: CurrentId, Unavailable.
 
+### KnownLeaderAbilities
+
+Exactly one of: CurrentLeaderAbilities, Unavailable.
+
+### KnownLeaderRole
+
+Exactly one of: CurrentLeaderRole, Unavailable.
+
 ### KnownPlanetClimate
 
 Exactly one of: CurrentPlanetClimate, EmptyKnowledge, Unavailable.
@@ -768,26 +797,13 @@ Exactly one of: CurrentText, Unavailable.
 
 Exactly one of: CurrentTurns, Unavailable.
 
+### KnownValue
+
+Exactly one of: CurrentValue, Unavailable.
+
 ### Leader
 
-| Field | Type | Required | Policy |
-| --- | --- | --- | --- |
-| id | Id | yes | leaders-roster |
-| disclosure | LeaderDisclosure | yes | leaders-roster |
-| role | LeaderRole | yes | leaders-roster |
-| name | Text | yes | leaders-roster |
-| title | Text | yes | leaders-roster |
-| rank | Text | yes | leaders-roster |
-| experience | KnownCount | yes | leaders-roster |
-| abilities | LeaderAbilities | yes | leader-abilities |
-| status | LeaderStatus | yes | leaders-roster |
-| assignment | LeaderAssignment | yes | leader-assignment |
-| hireCost | KnownCredits | yes | leader-costs |
-| upkeep | LeaderUpkeep | yes | leader-costs |
-| eta | LeaderTurns | yes | leader-assignment |
-| offerRemainingTurns | KnownTurns | yes | leader-offer |
-| offerBenefits | KnownText | yes | leader-offer |
-| description | KnownText | yes | disabled-leader-description |
+Exactly one of: RosterLeader, PartialLeader.
 
 ### LeaderAbilities
 
@@ -1024,6 +1040,32 @@ Constraints: `{"maximum": 5, "minimum": 1, "type": "integer", "x-integerToken": 
 Nonnegative integer count of authorized projected records only.
 
 Constraints: `{"maximum": 256, "minimum": 1, "type": "integer", "x-integerToken": true}`.
+
+### PartialLeader
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| id | Id | yes | leaders-disclosed |
+| disclosure | PartialLeaderDisclosure | yes | leaders-disclosed |
+| name | Text | yes | leaders-disclosed |
+| role | KnownLeaderRole | yes | leaders-disclosed |
+| title | KnownText | yes | leaders-disclosed |
+| rank | KnownText | yes | leaders-disclosed |
+| experience | KnownCount | yes | leaders-disclosed |
+| abilities | KnownLeaderAbilities | yes | leaders-disclosed |
+| status | Unavailable | yes | leaders-disclosed |
+| assignment | Unavailable | yes | leaders-disclosed |
+| eta | KnownTurns | yes | leaders-disclosed |
+| hireCost | Unavailable | yes | leaders-disclosed |
+| upkeep | Unavailable | yes | leaders-disclosed |
+| offerRemainingTurns | Unavailable | yes | leaders-disclosed |
+| offerBenefits | Unavailable | yes | leaders-disclosed |
+| contextBonus | KnownValue | yes | leaders-disclosed |
+| description | KnownText | yes | disabled-leader-description |
+
+### PartialLeaderDisclosure
+
+Values: `leader-result`, `troop-summary`, `ground-summary`, `message-name`.
 
 ### PixelX
 
@@ -1309,6 +1351,28 @@ Constraints: `{"maxLength": 2097152, "minLength": 0, "pattern": "^(?:(?:[A-Za-z0
 ### Role
 
 Values: `reader`, `controller`.
+
+### RosterLeader
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| id | Id | yes | leaders-roster |
+| disclosure | LeaderDisclosure | yes | leaders-roster |
+| role | LeaderRole | yes | leaders-roster |
+| name | Text | yes | leaders-roster |
+| title | Text | yes | leaders-roster |
+| rank | Text | yes | leaders-roster |
+| experience | KnownCount | yes | leaders-roster |
+| abilities | LeaderAbilities | yes | leader-abilities |
+| status | LeaderStatus | yes | leaders-roster |
+| assignment | LeaderAssignment | yes | leader-assignment |
+| hireCost | KnownCredits | yes | leader-costs |
+| upkeep | LeaderUpkeep | yes | leader-costs |
+| eta | LeaderTurns | yes | leader-assignment |
+| offerRemainingTurns | KnownTurns | yes | leader-offer |
+| offerBenefits | KnownText | yes | leader-offer |
+| description | KnownText | yes | disabled-leader-description |
+| contextBonus | KnownValue | no | leaders-disclosed |
 
 ### SaveSlot
 
@@ -1735,7 +1799,8 @@ Reviewed means static evidence, not runtime visibility approval.
 | disabled-fleet | disabled | Group only already authorized ships; stable IDs must not be rebuilt stack indices. Destination/ETA separately filtered. | src/game/shipstak.cpp: Find_Ship_Stacks | T-01, T-02 |
 | disabled-design | disabled | Own templates or actual active scan-authorized details; calculators must be audited for mutation before sharing. | src/game/design_main.cpp: Design_Screen; src/game/cmbtdrw1.cpp: Detailed_View_Ship | T-01, T-02, T-03 |
 | leaders-roster | reviewed | Bound local human perspective only. Shared Officer_Roster_Disclosure gates before copying: own nonnegative-status roster, distinguishing status 4 hiring pool from hired service, plus the actual pending officer_for_hire with matching owner/status -1. Never enumerate generated candidates, undiscovered marooned leaders or foreign records. Native ship/colony roles, bounded names/titles, computed localized rank; XP only for roster entries, not pending popup-only offers. Unclassified nonnegative native states are unavailable, not invented assignments. Capacity 67 includes leaders_no_limit. Publicly sort after projection; read handles are capture-scoped, not durable slot identities. Withdrawal/replacement revokes retained pages/output through existing perspective revocation. Transient rescue/ground-summary disclosures have no ambient roster grant. | src/game/officer.cpp: Officer_Roster_Disclosure; src/game/officer.cpp: Leader_Is_Displayed; src/game/officer.cpp: Leader_Name; src/game/officer.cpp: Owned_Officer_Level; src/game/officer.cpp: Print_Officer_Data; src/game/report.cpp: Has_Officer_For_Hire; src/game/allocate.cpp: MAX_LEADERS | T-01, T-02, T-03, T-05, T-07 |
-| leader-abilities | reviewed | Only authorized roster/offer entries. Share native Officer_Displays_Skill and Copy_Officer_Skill_Value with Print_Officer_Data: role-specific skills first then general skills, retaining native order, localized names and formatted displayed values from Officer_Skill_Bonus. No raw masks, cost score, effectiveness inference or reinterpretation of value units. At most 54 native skill rows. | src/game/officer.cpp: Officer_Displays_Skill; src/game/officer.cpp: Copy_Officer_Skill_Value; src/game/officer.cpp: Print_Officer_Data; src/game/officer.cpp: Officer_Skill_Bonus | T-01, T-02, T-03 |
+| leader-abilities | reviewed | Only authorized roster/offer entries or an initialized promotion/rescue result ability presentation. Share native Officer_Displays_Skill and Copy_Officer_Skill_Value with Print_Officer_Data: role-specific skills first then general skills, retaining native order, localized names and formatted displayed values from Officer_Skill_Bonus. Ground summaries and message names do not grant ability rows. No raw masks, cost score, effectiveness inference or reinterpretation of value units. At most 54 native skill rows. | src/game/officer.cpp: Officer_Displays_Skill; src/game/officer.cpp: Copy_Officer_Skill_Value; src/game/officer.cpp: Print_Officer_Data; src/game/officer.cpp: Officer_Skill_Bonus | T-01, T-02, T-03 |
+| leaders-disclosed | reviewed | Bound human recipient and initialized native result owner only, never an ambient foreign record grant. Shared leader_read projections are consumed by native presentations and copied synchronously by RPC. Promotion/rescue results disclose ranked name/title, role and displayed abilities, not roster XP/assignment/costs/upkeep. Only status 1 with positive cached eta draws the portrait arrival-ETA overlay; an absent overlay is unknown, not known-empty. NEWPUP and COLGCBT disclose only the native 52-byte ranked-name presentation and contextual officer_bonus when officer_idx &gt; 0; preserve that producer gate including slot zero exclusion. The contextual bonus is a displayed ground-summary value, not a leader effectiveness API. The leader-bearing Freak Accident event variant requires an actual complete name substitution in the recipient&#x27;s selected message and its matching initialized GNN/text-box presentation; private arguments and formatting calls alone confer no authority. Unknown partial fields remain explicit; no foreign masks, XP or assignment are copied. Owner exit, replacement and interruption revoke context leases, handles, pinned pages and queued output before native cleanup; parent return needs fresh presentation. During resolution only an explicitly stamped leader-only projection is readable, anchored to the committed turn; no new turn publication or enrichment of older combined state. Fresh nonbusy captures may combine independently authorized ambient topics with disclosures; assignment references remain same-capture only. No persistent dossier or help descriptions. | src/game/officer.cpp: namespace leader_read; src/game/officer.cpp: Print_ETA_On_Officer_Picture; src/game/mainpups.cpp: Officer_Gains_Level_Popup; src/game/newpup.cpp: Troop_Popup; src/game/colgcbt.cpp: Colony_Combat_Screen; src/game/events.cpp: Setup_Next_Event; src/game/events.cpp: Get_Event_Message; src/game/events.cpp: Draw_Event_Screen; src/game/textbox.cpp: Present_Leader_Text; src/game/game_events.cpp: s_leader_view_scope | T-01, T-02, T-03, T-04, T-05, T-07, T-12 |
 | leader-assignment | reviewed | Native status 0 unassigned and 2 limbo have known-empty assignment/ETA. Status 1 displays a ship name or system name; positive cached eta is travel turns, zero is known-empty travel ETA. Other states have unknown assignment/ETA. Never calculate transfer options or ETA. Link system/own ship only through the same capture; an authorized displayed assignment can have unknown target reference if the ship was not captured. No colony assignment. Context-derived ship handles inherit existing snapshot leases. | src/game/officer.cpp: Assign_Leader_To_Star; src/game/officer.cpp: Assign_Leader_To_Ship; src/game/officer.cpp: Print_Officer_Data; src/game/officer.cpp: Print_ETA_On_Officer_Picture; src/game/officer.cpp: Move_From_Limbo_To_Pool | T-01, T-02, T-05, T-07 |
 | leader-costs | reviewed | Native Calculate_Officer_Cost in whole BC only for actual pending offers and personal hiring pool, not hired leaders. Officer_Maintenance supplies displayed BC per turn for authorized hired/offer entries, including zero-maintenance skills and Loknar. Reuse native read-only cost functions, never Officer_Skill_Value recalculation or hiring operations. | src/game/officer.cpp: Calculate_Officer_Cost; src/game/officer.cpp: Officer_Maintenance; src/game/officer.cpp: Get_Officer_Costs; src/game/mainpups.cpp: Draw_Random_New_Officer_Popup | T-01, T-02, T-03 |
 | leader-offer | reviewed | Status 4 personal hiring-pool remaining availability is 30 minus native eta, as displayed; not an arrival ETA. Pending offers have no audited expiry. Native Leader_Technology_String prose is available only for actual offers/pool entries and initialized persistent language tables, not a grant of hidden research references or predicted outcomes. Do not generate offers or consume reports. Decline retains a pool entry; expiry/dismissal/death/removal/replacement revoke old authorization. | src/game/officer.cpp: Decrement_Officer_ETA; src/game/officer.cpp: Set_Officer_To_Player; src/game/officer.cpp: Print_Officer_Data; src/game/mainpups.cpp: Leader_Technology_String; src/game/report.cpp: Has_Officer_For_Hire | T-01, T-02, T-05 |

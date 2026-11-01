@@ -292,7 +292,7 @@ class TypedContractTests(unittest.TestCase):
         topics = self.contracts["types"]["StateTopic"]["values"]
         self.assertEqual(len(topics), 9)
         audit.Validate_Value({"topics":topics, "events":["state.changed"]}, "SubscribeRequest", self.contracts)
-        leader = self.Sample("Leader")
+        leader = self.Sample("RosterLeader")
         leader["description"] = {"availability":"unaudited"}
         for disclosure in ("owned", "pending-offer", "hiring-pool"):
             leader["disclosure"] = disclosure
@@ -306,7 +306,20 @@ class TypedContractTests(unittest.TestCase):
             audit.Validate_Value([leader] * 68, "Leaders", self.contracts)
         leader["description"] = {"availability":"current","value":"not authorized"}
         with self.assertRaisesRegex(ValueError, "disabled field"):
+            audit.Validate_Value(leader, "RosterLeader", self.contracts, self.policies, public=True)
+        with self.assertRaises(ValueError):
             audit.Validate_Value(leader, "Leader", self.contracts, self.policies, public=True)
+
+        partial = self.Sample("PartialLeader")
+        partial["description"] = {"availability":"unaudited"}
+        for disclosure in ("leader-result", "troop-summary", "ground-summary", "message-name"):
+            partial["disclosure"] = disclosure
+            for field in ("role", "title", "rank", "experience", "abilities", "status", "assignment", "eta", "hireCost", "upkeep", "offerRemainingTurns", "offerBenefits", "contextBonus"):
+                partial[field] = {"availability":"unknown"}
+            audit.Validate_Value(partial, "Leader", self.contracts, self.policies, public=True)
+        partial["abilities"] = []
+        with self.assertRaises(ValueError):
+            audit.Validate_Value(partial, "Leader", self.contracts, self.policies, public=True)
 
     def test_research_contract_preserves_native_modes_bounds_and_unaudited_fields(self):
         for mode in ("no-selection", "researching", "hyper", "completed"):

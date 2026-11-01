@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "leader_read.h"
 #include "string_overrides.h"
 
 #include "lua/lua_game_ship_identity.h"
@@ -123,6 +124,11 @@ namespace OFFICER {
         if (output == nullptr || size == 0 || skill_idx < 0 || skill_idx >= 54) return false;
         const int count = snprintf(output, size, MOX::skill_data[skill_idx].format_str, static_cast<int>(bonus));
         return count >= 0 && static_cast<uint32_t>(count) < size;
+    }
+
+    static int16_t Officer_Portrait_ETA(int16_t leader_idx) {
+        const auto& leader = MOX::leaders[leader_idx];
+        return leader.status == 1 && leader.eta > 0 ? leader.eta : -1;
     }
 
     int16_t __cdecl Get_Officer_Level(int16_t leader_idx) {
@@ -3234,8 +3240,8 @@ namespace OFFICER {
         line::Line(text_x, text_y + font_height + 1, text_end_x, text_y + font_height + 1, 129);
     }
 
-    char* __cdecl Leader_Name(int16_t leader_idx, char include_title, void* star_ptr) {
-        (void)star_ptr;
+    void Copy_Leader_Name(int16_t leader_idx, bool include_title, char* output, uint32_t size) {
+        if (output == nullptr || size == 0) return;
         char title_prefix[200];
         int16_t level;
 
@@ -3245,23 +3251,23 @@ namespace OFFICER {
             level = Owned_Officer_Level(leader_idx);
         }
 
-        MOX::temp_string[0] = '\0';
+        output[0] = '\0';
 
         if (MOX::leaders[leader_idx].type == LEADER_TYPE_SHIP) {
-            strlcpy(MOX::temp_string, MOX::officer_level_names[level], sizeof(MOX::temp_string));
+            strlcpy(output, MOX::officer_level_names[level], size);
         } else {
-            strlcpy(MOX::temp_string, MOX::star_officer_level_names[level], sizeof(MOX::temp_string));
+            strlcpy(output, MOX::star_officer_level_names[level], size);
         }
 
-        strlcat(MOX::temp_string, " ", sizeof(MOX::temp_string));
-        strlcat(MOX::temp_string, MOX::leaders[leader_idx].name, sizeof(MOX::temp_string));
+        strlcat(output, " ", size);
+        strlcat(output, MOX::leaders[leader_idx].name, size);
 
         if (include_title == '\0') {
-            return MOX::temp_string;
+            return;
         }
 
         if (MOX::leaders[leader_idx].title[0] == '\0') {
-            return MOX::temp_string;
+            return;
         }
 
         if (MOX::settings.language == 4) {
@@ -3278,9 +3284,13 @@ namespace OFFICER {
             }
         }
 
-        strlcat(MOX::temp_string, title_prefix, sizeof(MOX::temp_string));
-        strlcat(MOX::temp_string, MOX::leaders[leader_idx].title, sizeof(MOX::temp_string));
+        strlcat(output, title_prefix, size);
+        strlcat(output, MOX::leaders[leader_idx].title, size);
+    }
 
+    char* __cdecl Leader_Name(int16_t leader_idx, char include_title, void* star_ptr) {
+        (void)star_ptr;
+        Copy_Leader_Name(leader_idx, include_title != 0, MOX::temp_string, sizeof(MOX::temp_string));
         return MOX::temp_string;
     }
 
@@ -3291,7 +3301,7 @@ namespace OFFICER {
             return;
         }
 
-        strlcpy(dst, Leader_Name(officer_idx, 0), dst_size);
+        Copy_Leader_Name(officer_idx, false, dst, dst_size);
     }
 
     void __cdecl Find_Selected_Leader(int16_t leader_idx) {
@@ -3738,7 +3748,7 @@ namespace OFFICER {
         const int16_t leader_location = leader.location;
         const int16_t officer_status = static_cast<int16_t>(leader.status);
         const uint16_t officer_type = leader.type;
-        const int16_t officer_eta = static_cast<int16_t>(leader.eta);
+        const int16_t officer_eta = Officer_Portrait_ETA(officer_id);
 
         int32_t status4_cost = 0;
         int16_t other_cost = 0;
@@ -4137,3 +4147,75 @@ namespace OFFICER {
     }
 
 } // namespace OFFICER
+
+namespace leader_read {
+    static bool Valid_Recipient(int16_t viewer) {
+        return MOX::player != nullptr && MOX::leaders != nullptr && viewer == MOX::PLAYER_NUM &&
+            viewer >= 0 && viewer < MOX::NUM_PLAYERS && viewer < MAX_PLAYERS && RUSS::all_ai_game == 0 &&
+            MOX::player[viewer].objectives == PLAYER_OBJECTIVE_HUMAN && MOX::player[viewer].eliminated == 0;
+    }
+
+    bool Read_Message_Name(int16_t viewer, int16_t leader, s_leader* output) {
+        if (output == nullptr) return false;
+        *output = {};
+        if (!Valid_Recipient(viewer) || leader < 0 || leader >= MAX_LEADERS) return false;
+        return Read_Message_Name(viewer, leader, MOX::leaders[leader].name, sizeof(MOX::leaders[leader].name), output);
+    }
+
+    bool Read_Ground(int16_t viewer, const s_invasion_side_info* side, e_kind kind, s_leader* output) {
+        if (output == nullptr) return false;
+        *output = {};
+        if (side == nullptr || (kind != TROOP_SUMMARY && kind != GROUND_SUMMARY) ||
+            side->combat_modifiers.officer_idx <= 0 || !Valid_Recipient(viewer)) return false;
+        const int16_t id = side->combat_modifiers.officer_idx;
+        if (id >= MAX_LEADERS) return false;
+        if (MOX::leaders[id].player_index < -1 || MOX::leaders[id].player_index >= MOX::NUM_PLAYERS || MOX::leaders[id].player_index >= MAX_PLAYERS) return false;
+        const int16_t level = MOX::leaders[id].player_index == -1 ? OFFICER::Get_Officer_Level(id) : OFFICER::Owned_Officer_Level(id);
+        if (level < 0 || level >= 6 || (MOX::leaders[id].type != LEADER_TYPE_SHIP && MOX::leaders[id].type != LEADER_TYPE_COLONY)) return false;
+        const char* rank = MOX::leaders[id].type == LEADER_TYPE_SHIP ? MOX::officer_level_names[level] : MOX::star_officer_level_names[level];
+        if (rank == nullptr || strnlen(rank, 128) == 128 || strnlen(MOX::leaders[id].name, sizeof(MOX::leaders[id].name)) == sizeof(MOX::leaders[id].name)) return false;
+        output->viewer = viewer;
+        output->slot = id;
+        output->kind = kind;
+        // Match the native summary's 52-byte ranked-name buffer, including truncation.
+        OFFICER::Officer_Name(output->name, 52, side->player_id, id);
+        output->bonus = side->combat_modifiers.officer_bonus;
+        return true;
+    }
+
+    bool Read_Result(int16_t viewer, int16_t id, s_leader* output) {
+        if (!Read_Message_Name(viewer, id, output)) return false;
+        const auto& native = MOX::leaders[id];
+        if (native.type != LEADER_TYPE_SHIP && native.type != LEADER_TYPE_COLONY) return false;
+        if (native.player_index < -1 || native.player_index >= MOX::NUM_PLAYERS || native.player_index >= MAX_PLAYERS) return false;
+        const int16_t level = native.player_index == -1 ? OFFICER::Get_Officer_Level(id) : OFFICER::Owned_Officer_Level(id);
+        if (level < 0 || level >= 6 || strnlen(native.title, sizeof(native.title)) == sizeof(native.title)) return false;
+        const char* rank = native.type == LEADER_TYPE_SHIP ? MOX::officer_level_names[level] : MOX::star_officer_level_names[level];
+        if (rank == nullptr || strnlen(rank, sizeof(output->rank)) == sizeof(output->rank)) return false;
+        output->kind = RESULT;
+        output->role = native.type;
+        output->eta = OFFICER::Officer_Portrait_ETA(id);
+        strlcpy(output->title, native.title, sizeof(output->title));
+        strlcpy(output->rank, rank, sizeof(output->rank));
+        if (native.title[0] != '\0') {
+            const bool vowel = MISC::Is_Vowel(native.title[0]);
+            const bool italian_literal = MOX::settings.language == 4 && !vowel && (id == 0x1a || id == 0x2b || id == 0x34);
+            if (!italian_literal) {
+                const int16_t prefix_id = ((MOX::settings.language == 2 || MOX::settings.language == 4) && vowel) ? 0x186 : (OFFICER::Officer_Is_Female(id) ? 0x182 : 0x110);
+                const char* prefix = HAROLD::H_Message(prefix_id);
+                if (prefix == nullptr || strnlen(prefix, 200) == 200) return false;
+            }
+        }
+        OFFICER::Copy_Leader_Name(id, true, output->name, sizeof(output->name));
+        for (bool general : {false, true}) {
+            for (int16_t skill = 0; skill < 54; ++skill) {
+                if (!OFFICER::Officer_Displays_Skill(id, skill, general)) continue;
+                if (MOX::skill_data[skill].name == nullptr || strnlen(MOX::skill_data[skill].name, 128) == 128 || MOX::skill_data[skill].level_up == 0) return false;
+                auto& row = output->skills[output->skill_count++];
+                strlcpy(row.name, MOX::skill_data[skill].name, sizeof(row.name));
+                if (!OFFICER::Copy_Officer_Skill_Value(skill, (int16_t)OFFICER::Officer_Skill_Bonus(viewer, id, skill), row.value, sizeof(row.value))) return false;
+            }
+        }
+        return true;
+    }
+} // namespace leader_read

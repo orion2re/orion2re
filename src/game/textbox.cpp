@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game_events.h"
 
 namespace TEXTBOX {
     int16_t bottom_y;
@@ -172,6 +173,7 @@ namespace TEXTBOX {
     }
 
     void __cdecl Do_Text_Box(const char* title, const char* text, uint16_t input_ticks) {
+        game_events::s_leader_interruption_scope leader_interruption(text);
         s_colors primary_colors;
         s_animation_header* anim;
         s_colors secondary_colors;
@@ -247,7 +249,9 @@ namespace TEXTBOX {
         /* "\x1B" is fmtpara's color-attribute control byte; used here as a non-printing field label. */
         fields::Add_Hidden_Field(0, 0, 639, 479, "\x1B", 41);
 
+        game_events::Present_Leader_Text(text);
         Text_Box_Get_Input(input_ticks);
+        game_events::Close_Leader_Text(text);
 
         animate::Set_Animation_Frame(anim, 1);
         animate::Remap_Draw(x + 158, bottom_y - 27, anim);
@@ -301,6 +305,7 @@ namespace TEXTBOX {
     }
 
     void __cdecl Draw_Help_Entry(int16_t help_id) {
+        game_events::s_leader_interruption_scope leader_interruption;
         box_x = 0;
         box_y = 0;
 

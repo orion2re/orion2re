@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game_events.h"
 #include "string_overrides.h"
 
 namespace EVENTS {
@@ -2363,7 +2364,9 @@ namespace EVENTS {
                 Load_Event_Picture(event_id);
             }
 
-            Get_Event_Message(event_id + 2, event_subtype, p3, planet_idx, p4, p5, player_idx, p7, p8, p9, p10, p11, p12, p13, event_message, sizeof(event_message));
+            leader_read::s_leader disclosed_leader;
+            Get_Event_Message(event_id + 2, event_subtype, p3, planet_idx, p4, p5, player_idx, p7, p8, p9, p10, p11, p12, p13, event_message, sizeof(event_message), &disclosed_leader);
+            game_events::s_leader_view_scope leader_view(leader_read::MESSAGE_NAME, event_message, disclosed_leader.slot >= 0 ? &disclosed_leader : nullptr);
             event_status_flag = 0;
 
             if (MOX::settings.show_gnn_report == 1) {
@@ -2392,7 +2395,9 @@ namespace EVENTS {
         int16_t tech_app_idx1,
         int16_t tech_app_idx2,
         char* out_str,
-        uint32_t out_str_size) {
+        uint32_t out_str_size,
+        leader_read::s_leader* disclosed_leader) {
+        if (disclosed_leader != nullptr) *disclosed_leader = {};
         if (out_str_size == 0) {
             return;
         }
@@ -2479,6 +2484,13 @@ namespace EVENTS {
             } else if (c == '\x88') {
                 append_str = MOX::player[player_idx2].name;
             } else if (c == '\x89') {
+                leader_read::s_leader name;
+                if (leader_idx >= 0 && leader_idx < MAX_LEADERS && leader_read::Read_Message_Name(MOX::PLAYER_NUM, leader_idx, MOX::leaders[leader_idx].name, sizeof(MOX::leaders[leader_idx].name), &name)) {
+                    const int16_t before = out_len;
+                    append_text(name.name);
+                    if (disclosed_leader != nullptr && event_type == EVENT_FREAK_ACCIDENT + 2 && event_subtype == 1 && name.name[0] != '\0' && out_len - before == (int16_t)strlen(name.name)) *disclosed_leader = name;
+                    continue;
+                }
                 append_str = MOX::leaders[leader_idx].name;
             } else if (c == '\x8A') {
                 fetch_player = player_idx3;
@@ -2635,6 +2647,7 @@ namespace EVENTS {
             RUSS::Mox_Sync_Update();
             timer::Release_Time(2);
         }
+        game_events::Close_Leader_Text(event_message);
     }
 
     int32_t __cdecl Event_Get_Fleet_Strength(int16_t player_idx) {
@@ -2698,6 +2711,7 @@ namespace EVENTS {
 
             int16_t y = 0x1BD - (height / 2);
             FMTPARA::Print_Formatted_Paragraph(0x37, y, 0x226, event_message, 2);
+            game_events::Present_Leader_Text(event_message);
         } else {
             event_status_flag = 1;
             if (event_display_seg != nullptr) {

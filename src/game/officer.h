@@ -87,6 +87,7 @@ namespace OFFICER {
     e_roster_disclosure Officer_Roster_Disclosure(int16_t player_idx, int16_t leader_idx);
     bool Officer_Displays_Skill(int16_t leader_idx, int16_t skill_idx, bool general);
     bool Copy_Officer_Skill_Value(int16_t skill_idx, int16_t bonus, char* output, uint32_t size);
+    void Copy_Leader_Name(int16_t leader_idx, bool include_title, char* output, uint32_t size);
 
     int16_t __cdecl Get_Officer_Level(int16_t leader_idx);
 

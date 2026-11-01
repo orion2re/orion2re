@@ -121,6 +121,27 @@ DOCTEST_TEST_CASE("planet event reports preserve vanilla and v150 location token
     MOX::mineral_class_string[MINERAL_RESOURCE_ULTRA_RICH] = nullptr;
 }
 
+DOCTEST_TEST_CASE("event leader arguments grant a name only when its complete substitution is presented") {
+    TEST_EVENTS::Reset_();
+    MOX::PLAYER_NUM = 0;
+    strlcpy(MOX::leaders[1].name, "Named officer", sizeof(MOX::leaders[1].name));
+    char message[300];
+    leader_read::s_leader disclosed;
+    TEST_EVENTS::Set_Event_Message_("A report without an identity");
+    EVENTS::Get_Event_Message(EVENT_FREAK_ACCIDENT + 2, 1, 0, -1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, message, sizeof(message), &disclosed);
+    DOCTEST_CHECK(disclosed.slot == -1);
+    TEST_EVENTS::Set_Event_Message_("Lost \x89");
+    EVENTS::Get_Event_Message(EVENT_FREAK_ACCIDENT + 2, 1, 0, -1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, message, sizeof(message), &disclosed);
+    DOCTEST_CHECK(strcmp(message, "Lost Named officer") == 0);
+    DOCTEST_CHECK(disclosed.slot == 1);
+    DOCTEST_CHECK(disclosed.role == -1);
+    DOCTEST_CHECK(disclosed.skill_count == 0);
+    EVENTS::Get_Event_Message(EVENT_FREAK_ACCIDENT + 2, 0, 0, -1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, message, sizeof(message), &disclosed);
+    DOCTEST_CHECK(disclosed.slot == -1); // No leader-bearing producer for this variant.
+    EVENTS::Get_Event_Message(EVENT_FREAK_ACCIDENT + 2, 1, 0, -1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, message, 8, &disclosed);
+    DOCTEST_CHECK(disclosed.slot == -1);
+}
+
 DOCTEST_TEST_CASE("Donation uses the 1.50 base plus completed growth steps") {
     TEST_EVENTS::Reset_();
 

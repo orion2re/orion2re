@@ -15,6 +15,9 @@ namespace game_events {
         s_listener listeners[8];
         uint64_t next_id = 0;
         uint32_t count = 0;
+        s_leader_view_scope* leader_owner = nullptr;
+        const s_leader_view* leader_view = nullptr;
+        uint32_t leader_interruptions = 0;
     } // namespace
 
     uint64_t Subscribe(t_callback callback, void* context) {
@@ -96,6 +99,12 @@ namespace game_events {
     }
 
     void Publish(e_event event) {
+        if (event == WORLD_REPLACE_BEGIN || event == WORLD_UPDATE_BEGIN || event == RESOLUTION_BEGIN || event == PERSPECTIVE_SELECTION_BEGIN || event == MENU_ENTERED || event == THREAD_STOPPING) {
+            for (auto* owner = leader_owner; owner != nullptr; owner = owner->parent) {
+                owner->ready = false;
+                owner->revoked = true;
+            }
+        }
         Deliver(event, nullptr);
     }
 
@@ -113,6 +122,63 @@ namespace game_events {
 
     s_observation_scope::s_observation_scope(e_event entered, e_event exit) : leaving(exit) {
         Publish(entered);
+    }
+
+    const s_leader_view* Published_Leader_View() {
+        return leader_view;
+    }
+
+    s_leader_view_scope::s_leader_view_scope(leader_read::e_kind type, const char* message, const leader_read::s_leader* disclosed_name)
+        : kind(type), text(message), name(disclosed_name), parent(leader_owner) {
+        if (parent != nullptr) parent->ready = false;
+        leader_owner = this;
+        Publish(LEADER_VIEW_CLEARED);
+    }
+
+    void s_leader_view_scope::Close() {
+        if (closed) return;
+        closed = true;
+        ready = false;
+        Publish(LEADER_VIEW_CLEARED);
+        leader_owner = parent;
+    }
+
+    s_leader_view_scope::~s_leader_view_scope() {
+        Close();
+    }
+
+    void Ready_Leader_View(leader_read::e_kind kind) {
+        if (leader_owner != nullptr && !leader_owner->revoked && leader_owner->kind == kind && leader_interruptions == 0) leader_owner->ready = true;
+    }
+
+    void Publish_Leader_View(leader_read::e_kind kind, const leader_read::s_leader* leaders, int16_t count) {
+        if (leader_owner == nullptr || !leader_owner->ready || leader_owner->kind != kind || leader_interruptions != 0 || count < 0 || count > 2) return;
+        const s_leader_view view{leaders, count};
+        leader_view = &view;
+        Publish(LEADER_VIEW_READY);
+        leader_view = nullptr;
+    }
+
+    void Present_Leader_Text(const char* text) {
+        if (leader_owner == nullptr || leader_owner->kind != leader_read::MESSAGE_NAME || leader_owner->text != text || leader_owner->name == nullptr) return;
+        Ready_Leader_View(leader_read::MESSAGE_NAME);
+        Publish_Leader_View(leader_read::MESSAGE_NAME, leader_owner->name, 1);
+    }
+
+    void Close_Leader_Text(const char* text) {
+        if (leader_owner != nullptr && leader_owner->kind == leader_read::MESSAGE_NAME && leader_owner->text == text) leader_owner->Close();
+    }
+
+    s_leader_interruption_scope::s_leader_interruption_scope(const char* own_text) {
+        if (leader_owner == nullptr || (own_text != nullptr && own_text == leader_owner->text && !leader_owner->ready)) return;
+        interrupted = true;
+        ++leader_interruptions;
+        leader_owner->ready = false;
+        Publish(LEADER_VIEW_CLEARED);
+    }
+
+    s_leader_interruption_scope::~s_leader_interruption_scope() {
+        if (interrupted) --leader_interruptions;
     }
 
     s_observation_scope::~s_observation_scope() {

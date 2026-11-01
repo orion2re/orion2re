@@ -279,6 +279,81 @@ DOCTEST_TEST_CASE("leader availability bounds and snapshot selection never splic
     DOCTEST_CHECK(Result_Field(rpc::Game_Query(&fixture.store, &list), "items") == "[]");
 }
 
+DOCTEST_TEST_CASE("partial leader knowledge filters unavailable fields before validation equality and leases") {
+    s_fixture fixture;
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&fixture.store));
+    auto map = Leaders();
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    const auto ambient_id = fixture.store.snapshots.back().id;
+    auto partial = map.leaders[0];
+    partial.partial = true;
+    partial.disclosure = "ground-summary";
+    partial.slot = 4;
+    partial.name = "Ranked foreign name";
+    partial.bonus_available = true;
+    partial.bonus = 7;
+    partial.skills.assign(100, {"private", "private"});
+    partial.xp = -99999;
+    partial.upkeep = -99999;
+    partial.assignment_slot = -99999;
+    partial.role = "private invalid role";
+    map.leaders.push_back(partial);
+    map.leader_presentation = true;
+    map.context_epoch = rpc::Bridge_Context_Epoch(&fixture.bridge);
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    auto request = Request("game.listLeaders", "{\"limit\":1}");
+    const auto page = rpc::Game_Query(&fixture.store, &request);
+    DOCTEST_CHECK(page.find("nextCursor") != std::string::npos);
+    const auto first_snapshot = fixture.store.snapshots.back().id;
+    map.leaders.back().xp = 99999;
+    map.leaders.back().skills.assign(200, {"other private", "invalid"});
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    DOCTEST_CHECK(fixture.store.snapshots.back().id == first_snapshot);
+    auto full = Request("game.listLeaders");
+    const auto output = rpc::Game_Query(&fixture.store, &full);
+    DOCTEST_CHECK(output.find("private") == std::string::npos);
+    DOCTEST_CHECK(output.find("\"abilities\":{\"availability\":\"unknown\"}") != std::string::npos);
+    DOCTEST_CHECK(output.find("\"contextBonus\":{\"availability\":\"current\",\"value\":7}") != std::string::npos);
+    rpc::Revoke_Game_Context(&fixture.store);
+    DOCTEST_CHECK(fixture.store.cursors.empty());
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &full).find("Ranked foreign name") == std::string::npos);
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &full).find(ambient_id) != std::string::npos);
+}
+
+DOCTEST_TEST_CASE("resolving leader captures preserve ambient retention and subsequent withdrawal revocation") {
+    s_fixture fixture;
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&fixture.store));
+    auto ambient = Leaders();
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &ambient));
+    uint64_t epoch;
+    DOCTEST_REQUIRE(rpc::Register_Client(&fixture.bridge, 1, &epoch));
+    auto list = Request("game.listLeaders");
+    const auto baseline = rpc::Game_Query(&fixture.store, &list);
+    rpc::Pause_Game_Queries(&fixture.store);
+    rpc::s_map_observation result;
+    result.viewer = ambient.viewer;
+    result.turn = ambient.turn;
+    result.leaders_captured = result.leader_presentation = result.leaders_only = true;
+    rpc::s_leader_observation partial;
+    partial.visible = partial.partial = partial.bonus_available = true;
+    partial.slot = 4;
+    partial.disclosure = "ground-summary";
+    partial.name = "Ranked name";
+    result.leaders = {partial};
+    for (int bonus = 1; bonus <= 6; ++bonus) {
+        result.leaders[0].bonus = bonus;
+        result.context_epoch = rpc::Bridge_Context_Epoch(&fixture.bridge);
+        DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &result));
+    }
+    rpc::Resume_Game_Queries(&fixture.store);
+    rpc::Revoke_Game_Context(&fixture.store);
+    DOCTEST_CHECK(rpc::Game_Query(&fixture.store, &list) == baseline);
+    DOCTEST_CHECK(rpc::Client_Is_Current(&fixture.bridge, 1, epoch));
+    ambient.leaders[0].visible = false;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &ambient));
+    DOCTEST_CHECK_FALSE(rpc::Client_Is_Current(&fixture.bridge, 1, epoch));
+}
+
 DOCTEST_TEST_CASE("leader-only reads and pages inherit the lease of same-capture contextual ship references") {
     s_fixture fixture;
     DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&fixture.store));

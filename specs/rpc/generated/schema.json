@@ -300,7 +300,8 @@
       "enum": [
         "last-coherent-capture",
         "last-native-ship-refresh",
-        "last-native-fleet-box"
+        "last-native-fleet-box",
+        "native-leader-presentation"
       ]
     },
     "Chat": {
@@ -957,6 +958,25 @@
       ],
       "x-rpc-policy": "contract"
     },
+    "CurrentLeaderAbilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/Current",
+          "x-rpc-policy": "leaders-disclosed"
+        },
+        "value": {
+          "$ref": "#/$defs/LeaderAbilities",
+          "x-rpc-policy": "leaders-disclosed"
+        }
+      },
+      "required": [
+        "availability",
+        "value"
+      ],
+      "x-rpc-policy": "leaders-disclosed"
+    },
     "CurrentLeaderAssignment": {
       "type": "object",
       "additionalProperties": false,
@@ -967,6 +987,25 @@
         },
         "value": {
           "$ref": "#/$defs/LeaderAssignmentValue",
+          "x-rpc-policy": "contract"
+        }
+      },
+      "required": [
+        "availability",
+        "value"
+      ],
+      "x-rpc-policy": "contract"
+    },
+    "CurrentLeaderRole": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/Current",
+          "x-rpc-policy": "contract"
+        },
+        "value": {
+          "$ref": "#/$defs/LeaderRole",
           "x-rpc-policy": "contract"
         }
       },
@@ -1252,6 +1291,25 @@
         },
         "value": {
           "$ref": "#/$defs/Turns",
+          "x-rpc-policy": "contract"
+        }
+      },
+      "required": [
+        "availability",
+        "value"
+      ],
+      "x-rpc-policy": "contract"
+    },
+    "CurrentValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/Current",
+          "x-rpc-policy": "contract"
+        },
+        "value": {
+          "$ref": "#/$defs/Value",
           "x-rpc-policy": "contract"
         }
       },
@@ -1842,6 +1900,26 @@
         }
       ]
     },
+    "KnownLeaderAbilities": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CurrentLeaderAbilities"
+        },
+        {
+          "$ref": "#/$defs/Unavailable"
+        }
+      ]
+    },
+    "KnownLeaderRole": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CurrentLeaderRole"
+        },
+        {
+          "$ref": "#/$defs/Unavailable"
+        }
+      ]
+    },
     "KnownPlanetClimate": {
       "oneOf": [
         {
@@ -2002,94 +2080,25 @@
         }
       ]
     },
-    "Leader": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "id": {
-          "$ref": "#/$defs/Id",
-          "x-rpc-policy": "leaders-roster"
+    "KnownValue": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CurrentValue"
         },
-        "disclosure": {
-          "$ref": "#/$defs/LeaderDisclosure",
-          "x-rpc-policy": "leaders-roster"
-        },
-        "role": {
-          "$ref": "#/$defs/LeaderRole",
-          "x-rpc-policy": "leaders-roster"
-        },
-        "name": {
-          "$ref": "#/$defs/Text",
-          "x-rpc-policy": "leaders-roster"
-        },
-        "title": {
-          "$ref": "#/$defs/Text",
-          "x-rpc-policy": "leaders-roster"
-        },
-        "rank": {
-          "$ref": "#/$defs/Text",
-          "x-rpc-policy": "leaders-roster"
-        },
-        "experience": {
-          "$ref": "#/$defs/KnownCount",
-          "x-rpc-policy": "leaders-roster"
-        },
-        "abilities": {
-          "$ref": "#/$defs/LeaderAbilities",
-          "x-rpc-policy": "leader-abilities"
-        },
-        "status": {
-          "$ref": "#/$defs/LeaderStatus",
-          "x-rpc-policy": "leaders-roster"
-        },
-        "assignment": {
-          "$ref": "#/$defs/LeaderAssignment",
-          "x-rpc-policy": "leader-assignment"
-        },
-        "hireCost": {
-          "$ref": "#/$defs/KnownCredits",
-          "x-rpc-policy": "leader-costs"
-        },
-        "upkeep": {
-          "$ref": "#/$defs/LeaderUpkeep",
-          "x-rpc-policy": "leader-costs"
-        },
-        "eta": {
-          "$ref": "#/$defs/LeaderTurns",
-          "x-rpc-policy": "leader-assignment"
-        },
-        "offerRemainingTurns": {
-          "$ref": "#/$defs/KnownTurns",
-          "x-rpc-policy": "leader-offer"
-        },
-        "offerBenefits": {
-          "$ref": "#/$defs/KnownText",
-          "x-rpc-policy": "leader-offer"
-        },
-        "description": {
-          "$ref": "#/$defs/KnownText",
-          "x-rpc-policy": "disabled-leader-description"
+        {
+          "$ref": "#/$defs/Unavailable"
         }
-      },
-      "required": [
-        "id",
-        "disclosure",
-        "role",
-        "name",
-        "title",
-        "rank",
-        "experience",
-        "abilities",
-        "status",
-        "assignment",
-        "hireCost",
-        "upkeep",
-        "eta",
-        "offerRemainingTurns",
-        "offerBenefits",
-        "description"
-      ],
-      "x-rpc-policy": "leaders-roster"
+      ]
+    },
+    "Leader": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/RosterLeader"
+        },
+        {
+          "$ref": "#/$defs/PartialLeader"
+        }
+      ]
     },
     "LeaderAbilities": {
       "type": "array",
@@ -2693,6 +2702,109 @@
       "x-integerToken": true,
       "x-unit": "count",
       "description": "Nonnegative integer count of authorized projected records only."
+    },
+    "PartialLeader": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Id",
+          "x-rpc-policy": "leaders-disclosed"
+        },
+        "disclosure": {
+          "$ref": "#/$defs/PartialLeaderDisclosure",
+          "x-rpc-policy": "leaders-disclosed"
+        },
+        "name": {
+          "$ref": "#/$defs/Text",
+          "x-rpc-policy": "leaders-disclosed"
+        },
+        "role": {
+          "$ref": "#/$defs/KnownLeaderRole",
+          "x-rpc-policy": "leaders-disclosed"
+        },
+        "title": {
+          "$ref": "#/$defs/KnownText",
+          "x-rpc-policy": "leaders-disclosed"
+        },
+        "rank": {
+          "$ref": "#/$defs/KnownText",
+          "x-rpc-policy": "leaders-disclosed"
+        },
+        "experience": {
+          "$ref": "#/$defs/KnownCount",
+          "x-rpc-policy": "leaders-disclosed"
+        },
+        "abilities": {
+          "$ref": "#/$defs/KnownLeaderAbilities",
+          "x-rpc-policy": "leaders-disclosed"
+        },
+        "status": {
+          "$ref": "#/$defs/Unavailable",
+          "x-rpc-policy": "leaders-disclosed"
+        },
+        "assignment": {
+          "$ref": "#/$defs/Unavailable",
+          "x-rpc-policy": "leaders-disclosed"
+        },
+        "eta": {
+          "$ref": "#/$defs/KnownTurns",
+          "x-rpc-policy": "leaders-disclosed"
+        },
+        "hireCost": {
+          "$ref": "#/$defs/Unavailable",
+          "x-rpc-policy": "leaders-disclosed"
+        },
+        "upkeep": {
+          "$ref": "#/$defs/Unavailable",
+          "x-rpc-policy": "leaders-disclosed"
+        },
+        "offerRemainingTurns": {
+          "$ref": "#/$defs/Unavailable",
+          "x-rpc-policy": "leaders-disclosed"
+        },
+        "offerBenefits": {
+          "$ref": "#/$defs/Unavailable",
+          "x-rpc-policy": "leaders-disclosed"
+        },
+        "contextBonus": {
+          "$ref": "#/$defs/KnownValue",
+          "x-rpc-policy": "leaders-disclosed"
+        },
+        "description": {
+          "$ref": "#/$defs/KnownText",
+          "x-rpc-policy": "disabled-leader-description"
+        }
+      },
+      "required": [
+        "id",
+        "disclosure",
+        "name",
+        "role",
+        "title",
+        "rank",
+        "experience",
+        "abilities",
+        "status",
+        "assignment",
+        "eta",
+        "hireCost",
+        "upkeep",
+        "offerRemainingTurns",
+        "offerBenefits",
+        "contextBonus",
+        "description"
+      ],
+      "x-rpc-policy": "leaders-disclosed"
+    },
+    "PartialLeaderDisclosure": {
+      "type": "string",
+      "enum": [
+        "leader-result",
+        "troop-summary",
+        "ground-summary",
+        "message-name"
+      ]
     },
     "PixelX": {
       "type": "integer",
@@ -3434,6 +3546,99 @@
         "reader",
         "controller"
       ]
+    },
+    "RosterLeader": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Id",
+          "x-rpc-policy": "leaders-roster"
+        },
+        "disclosure": {
+          "$ref": "#/$defs/LeaderDisclosure",
+          "x-rpc-policy": "leaders-roster"
+        },
+        "role": {
+          "$ref": "#/$defs/LeaderRole",
+          "x-rpc-policy": "leaders-roster"
+        },
+        "name": {
+          "$ref": "#/$defs/Text",
+          "x-rpc-policy": "leaders-roster"
+        },
+        "title": {
+          "$ref": "#/$defs/Text",
+          "x-rpc-policy": "leaders-roster"
+        },
+        "rank": {
+          "$ref": "#/$defs/Text",
+          "x-rpc-policy": "leaders-roster"
+        },
+        "experience": {
+          "$ref": "#/$defs/KnownCount",
+          "x-rpc-policy": "leaders-roster"
+        },
+        "abilities": {
+          "$ref": "#/$defs/LeaderAbilities",
+          "x-rpc-policy": "leader-abilities"
+        },
+        "status": {
+          "$ref": "#/$defs/LeaderStatus",
+          "x-rpc-policy": "leaders-roster"
+        },
+        "assignment": {
+          "$ref": "#/$defs/LeaderAssignment",
+          "x-rpc-policy": "leader-assignment"
+        },
+        "hireCost": {
+          "$ref": "#/$defs/KnownCredits",
+          "x-rpc-policy": "leader-costs"
+        },
+        "upkeep": {
+          "$ref": "#/$defs/LeaderUpkeep",
+          "x-rpc-policy": "leader-costs"
+        },
+        "eta": {
+          "$ref": "#/$defs/LeaderTurns",
+          "x-rpc-policy": "leader-assignment"
+        },
+        "offerRemainingTurns": {
+          "$ref": "#/$defs/KnownTurns",
+          "x-rpc-policy": "leader-offer"
+        },
+        "offerBenefits": {
+          "$ref": "#/$defs/KnownText",
+          "x-rpc-policy": "leader-offer"
+        },
+        "description": {
+          "$ref": "#/$defs/KnownText",
+          "x-rpc-policy": "disabled-leader-description"
+        },
+        "contextBonus": {
+          "$ref": "#/$defs/KnownValue",
+          "x-rpc-policy": "leaders-disclosed"
+        }
+      },
+      "required": [
+        "id",
+        "disclosure",
+        "role",
+        "name",
+        "title",
+        "rank",
+        "experience",
+        "abilities",
+        "status",
+        "assignment",
+        "hireCost",
+        "upkeep",
+        "eta",
+        "offerRemainingTurns",
+        "offerBenefits",
+        "description"
+      ],
+      "x-rpc-policy": "leaders-roster"
     },
     "SaveSlot": {
       "type": "object",
@@ -7634,7 +7839,7 @@
       "name": "game.getLeader",
       "owner": "game.officer_rpc",
       "role": "reader",
-      "availability": "committed-game",
+      "availability": "authorized",
       "kind": "query",
       "implemented": true,
       "requestType": "GetRequest",
@@ -7778,7 +7983,7 @@
       "name": "game.getState",
       "owner": "game.game_rpc",
       "role": "reader",
-      "availability": "committed-game",
+      "availability": "authorized",
       "kind": "query",
       "implemented": true,
       "requestType": "StateRequest",
@@ -7874,7 +8079,7 @@
       "name": "game.listLeaders",
       "owner": "game.officer_rpc",
       "role": "reader",
-      "availability": "committed-game",
+      "availability": "authorized",
       "kind": "query",
       "implemented": true,
       "requestType": "ListRequest",
@@ -9248,7 +9453,7 @@
     },
     "leader-abilities": {
       "status": "reviewed",
-      "predicate": "Only authorized roster/offer entries. Share native Officer_Displays_Skill and Copy_Officer_Skill_Value with Print_Officer_Data: role-specific skills first then general skills, retaining native order, localized names and formatted displayed values from Officer_Skill_Bonus. No raw masks, cost score, effectiveness inference or reinterpretation of value units. At most 54 native skill rows.",
+      "predicate": "Only authorized roster/offer entries or an initialized promotion/rescue result ability presentation. Share native Officer_Displays_Skill and Copy_Officer_Skill_Value with Print_Officer_Data: role-specific skills first then general skills, retaining native order, localized names and formatted displayed values from Officer_Skill_Bonus. Ground summaries and message names do not grant ability rows. No raw masks, cost score, effectiveness inference or reinterpretation of value units. At most 54 native skill rows.",
       "sources": [
         [
           "src/game/officer.cpp",
@@ -9271,6 +9476,61 @@
         "T-01",
         "T-02",
         "T-03"
+      ]
+    },
+    "leaders-disclosed": {
+      "status": "reviewed",
+      "predicate": "Bound human recipient and initialized native result owner only, never an ambient foreign record grant. Shared leader_read projections are consumed by native presentations and copied synchronously by RPC. Promotion/rescue results disclose ranked name/title, role and displayed abilities, not roster XP/assignment/costs/upkeep. Only status 1 with positive cached eta draws the portrait arrival-ETA overlay; an absent overlay is unknown, not known-empty. NEWPUP and COLGCBT disclose only the native 52-byte ranked-name presentation and contextual officer_bonus when officer_idx > 0; preserve that producer gate including slot zero exclusion. The contextual bonus is a displayed ground-summary value, not a leader effectiveness API. The leader-bearing Freak Accident event variant requires an actual complete name substitution in the recipient's selected message and its matching initialized GNN/text-box presentation; private arguments and formatting calls alone confer no authority. Unknown partial fields remain explicit; no foreign masks, XP or assignment are copied. Owner exit, replacement and interruption revoke context leases, handles, pinned pages and queued output before native cleanup; parent return needs fresh presentation. During resolution only an explicitly stamped leader-only projection is readable, anchored to the committed turn; no new turn publication or enrichment of older combined state. Fresh nonbusy captures may combine independently authorized ambient topics with disclosures; assignment references remain same-capture only. No persistent dossier or help descriptions.",
+      "sources": [
+        [
+          "src/game/officer.cpp",
+          "namespace leader_read"
+        ],
+        [
+          "src/game/officer.cpp",
+          "Print_ETA_On_Officer_Picture"
+        ],
+        [
+          "src/game/mainpups.cpp",
+          "Officer_Gains_Level_Popup"
+        ],
+        [
+          "src/game/newpup.cpp",
+          "Troop_Popup"
+        ],
+        [
+          "src/game/colgcbt.cpp",
+          "Colony_Combat_Screen"
+        ],
+        [
+          "src/game/events.cpp",
+          "Setup_Next_Event"
+        ],
+        [
+          "src/game/events.cpp",
+          "Get_Event_Message"
+        ],
+        [
+          "src/game/events.cpp",
+          "Draw_Event_Screen"
+        ],
+        [
+          "src/game/textbox.cpp",
+          "Present_Leader_Text"
+        ],
+        [
+          "src/game/game_events.cpp",
+          "s_leader_view_scope"
+        ]
+      ],
+      "tests": [
+        "T-01",
+        "T-02",
+        "T-03",
+        "T-04",
+        "T-05",
+        "T-07",
+        "T-12"
       ]
     },
     "leader-assignment": {
@@ -9726,7 +9986,7 @@
     "orderedEventsPerSubscription": 4096,
     "overflow": "Reject before admission; coalesce only complete unsent state. Ordered-event overflow signals a gap or disconnect. Never rewrite partial output or silently discard operation results."
   },
-  "x-rpc-sourceHash": "df607a089f54a3b8896790d52d3822920454daf60aba0bb8446d3f53db0e0c68",
+  "x-rpc-sourceHash": "9e1bf43eca99c162c33931199a5885b750095f742cbc0a6a531aebe3e961e9f4",
   "x-rpc-runtimeEnabled": false,
   "x-rpc-implementedMethods": [
     "rpc.hello",

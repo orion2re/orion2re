@@ -1,4 +1,5 @@
 #pragma once
+#include "leader_read.h"
 #include <cstdint>
 
 struct s_colors;
@@ -197,7 +198,8 @@ namespace EVENTS {
         int16_t tech_app_idx1,
         int16_t tech_app_idx2,
         char* out_str,
-        uint32_t out_str_size);
+        uint32_t out_str_size,
+        leader_read::s_leader* disclosed_leader = nullptr);
 
     /** Runs the event-report input loop until the player dismisses the screen. */
     void __cdecl Drive_Event_Screen();

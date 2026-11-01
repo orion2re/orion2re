@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "string_overrides.h"
+#include "game_events.h"
 
 namespace MAINPUPS {
     char* g_msg_ptr;
@@ -1078,6 +1079,7 @@ namespace MAINPUPS {
     }
 
     void __cdecl Officer_Gains_Level_Popup(int16_t star_handle, int16_t officer_idx) {
+        game_events::s_leader_view_scope leader_view(leader_read::RESULT);
         s_colors colors;
         int16_t input;
 
@@ -1105,16 +1107,19 @@ namespace MAINPUPS {
         last_scanned_field = mp_fields[1];
 
         video::Set_Page_Off();
+        game_events::Ready_Leader_View(leader_read::RESULT);
         Draw_Officer_Gains_Level_Popup();
         RUSS::Mox_Sync_Update();
 
         do {
             input = fields::Get_Input();
             fields::Scan_Input();
+            game_events::Ready_Leader_View(leader_read::RESULT);
             Draw_Officer_Gains_Level_Popup();
             RUSS::Mox_Sync_Update();
         } while (input == 0);
 
+        leader_view.Close();
         Do_Popup_Cleanup();
     }
 
@@ -2120,10 +2125,13 @@ namespace MAINPUPS {
 
         ERIC::Print_Paragraph_Centered(g_x + 14, g_y + 149, 281, 62, message_buffer);
 
-        char* leader_full_name = OFFICER::Leader_Name(g_officer, 1);
+        leader_read::s_leader disclosed;
+        const bool leader_readable = leader_read::Read_Result(MOX::PLAYER_NUM, g_officer, &disclosed);
+        const char* leader_full_name = leader_readable ? disclosed.name : OFFICER::Leader_Name(g_officer, 1);
         ERIC::Print_Paragraph_Centered(g_x + 11, g_y + 12, 285, 33, leader_full_name);
 
         video::Copy_Off_To_Back();
+        game_events::Publish_Leader_View(leader_read::RESULT, &disclosed, leader_readable ? 1 : 0);
         COLONY::full_draw = 0;
     }
 

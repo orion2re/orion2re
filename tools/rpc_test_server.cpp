@@ -9,6 +9,9 @@
 
 #include "rpc/rpc_service.h"
 #include "rpc/rpc_game.h"
+#ifdef ORION2RE_RPC_NATIVE_TESTS
+#include "rpc_native_leaders.h"
+#endif
 
 int main() {
     rpc::s_service service;
@@ -56,6 +59,9 @@ int main() {
         bool polling = true;
         size_t eta_ship = 0;
         bool contextual_route = false;
+#ifdef ORION2RE_RPC_NATIVE_TESTS
+        test_native_leaders::Initialize(&store, &map);
+#endif
         while (running) {
             std::string command;
             std::string acknowledgment = "done";
@@ -66,7 +72,12 @@ int main() {
                     commands.pop_front();
                 }
             }
-            if (command == "world") {
+            bool native_command = false;
+#ifdef ORION2RE_RPC_NATIVE_TESTS
+            native_command = test_native_leaders::Command(command);
+#endif
+            if (native_command) {
+            } else if (command == "world") {
                 rpc::Begin_Game_Reset(&store);
                 rpc::Commit_Game_Reset(&store);
                 rpc::Capture_Map(&store, &map);
@@ -450,6 +461,9 @@ int main() {
             if (polling) rpc::Pump_Game_Queries(&store);
             std::this_thread::sleep_for(std::chrono::milliseconds(2));
         }
+#ifdef ORION2RE_RPC_NATIVE_TESTS
+        test_native_leaders::Shutdown();
+#endif
         rpc::Shutdown_Game_Store(&store);
     });
     std::string command;

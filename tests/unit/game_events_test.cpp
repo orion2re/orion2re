@@ -9,6 +9,74 @@ namespace {
     }
 } // namespace
 
+DOCTEST_TEST_CASE("leader owners require initialization and fresh presentation after nested interruption") {
+    std::vector<leader_read::s_leader> copied;
+    const auto token = game_events::Subscribe([](game_events::e_event event, void* context) {
+        if (event != game_events::LEADER_VIEW_READY) return;
+        const auto* view = game_events::Published_Leader_View();
+        for (int16_t index = 0; index < view->count; ++index) ((std::vector<leader_read::s_leader>*)context)->push_back(view->leaders[index]);
+    },
+        &copied);
+    DOCTEST_REQUIRE(token != 0);
+    leader_read::s_leader leader;
+    leader.slot = 4;
+    {
+        game_events::s_leader_view_scope parent(leader_read::GROUND_SUMMARY);
+        game_events::Publish_Leader_View(leader_read::GROUND_SUMMARY, &leader, 1);
+        DOCTEST_CHECK(copied.empty());
+        game_events::Ready_Leader_View(leader_read::GROUND_SUMMARY);
+        game_events::Publish_Leader_View(leader_read::GROUND_SUMMARY, &leader, 1);
+        DOCTEST_REQUIRE(copied.size() == 1);
+        {
+            game_events::s_leader_view_scope child(leader_read::RESULT);
+            game_events::Ready_Leader_View(leader_read::GROUND_SUMMARY);
+            game_events::Publish_Leader_View(leader_read::GROUND_SUMMARY, &leader, 1);
+        }
+        game_events::Publish_Leader_View(leader_read::GROUND_SUMMARY, &leader, 1);
+        DOCTEST_CHECK(copied.size() == 1);
+        {
+            game_events::s_leader_interruption_scope help;
+            game_events::Ready_Leader_View(leader_read::GROUND_SUMMARY);
+            game_events::Publish_Leader_View(leader_read::GROUND_SUMMARY, &leader, 1);
+        }
+        game_events::Ready_Leader_View(leader_read::GROUND_SUMMARY);
+        game_events::Publish_Leader_View(leader_read::GROUND_SUMMARY, &leader, 1);
+        DOCTEST_CHECK(copied.size() == 2);
+        game_events::Publish(game_events::WORLD_REPLACE_BEGIN);
+        game_events::Ready_Leader_View(leader_read::GROUND_SUMMARY);
+        game_events::Publish_Leader_View(leader_read::GROUND_SUMMARY, &leader, 1);
+        DOCTEST_CHECK(copied.size() == 2);
+    }
+    leader.slot = 5;
+    DOCTEST_CHECK(copied.front().slot == 4);
+    DOCTEST_CHECK(game_events::Published_Leader_View() == nullptr);
+    game_events::Unsubscribe(token);
+}
+
+DOCTEST_TEST_CASE("message names require the matching initialized text owner and end before cleanup") {
+    std::vector<game_events::e_event> events;
+    const auto token = game_events::Subscribe(Record, &events);
+    leader_read::s_leader name;
+    char text[] = "Name";
+    char other[] = "Name";
+    {
+        game_events::s_leader_view_scope owner(leader_read::MESSAGE_NAME, text, &name);
+        game_events::Present_Leader_Text(other);
+        DOCTEST_CHECK(events.size() == 1);
+        {
+            game_events::s_leader_interruption_scope own_text(text);
+            game_events::Present_Leader_Text(text);
+            DOCTEST_CHECK(events.back() == game_events::LEADER_VIEW_READY);
+            game_events::Close_Leader_Text(text);
+            DOCTEST_CHECK(events.back() == game_events::LEADER_VIEW_CLEARED);
+            const auto count = events.size();
+            game_events::Present_Leader_Text(text);
+            DOCTEST_CHECK(events.size() == count);
+        }
+    }
+    game_events::Unsubscribe(token);
+}
+
 DOCTEST_TEST_CASE("identity observations are callback-local and share the neutral listener bound") {
     std::vector<int16_t> slots;
     const auto capture = [](int16_t ship, void* context) { ((std::vector<int16_t>*)context)->push_back(ship); };

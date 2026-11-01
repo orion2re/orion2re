@@ -47,6 +47,12 @@
   native payloads are callback-local; no borrowed pointers escape.
 - Reuse already calculated authorized state. Queries must not invoke mutable
   builders, renderers, movement calculators or report-consuming routines.
+  Default to extracting shared read-only disclosure/presentation helpers used by
+  both native UI and RPC before proposing observation hooks or alternative
+  architectures. Give helpers the actual player/result context, not blanket
+  access to a record. Add only the owner-lifetime publications that cannot be
+  supplied safely by existing state; do not infer authorization from screen
+  globals or build a UI framework to recover shared read semantics.
   Audited existing read-only range and planet-suitability predicates may run
   during coherent capture; this does not authorize proposed ship movement/ETA
   calculation or a new calculator.
@@ -293,7 +299,7 @@ field-audited methods/topics; schemas alone grant no authority.
 - [ ] Q-09 — Implement movement options with audited scratch state and no hidden-data oracle.
 - [ ] Q-10 — Implement authorized design list/detail/options.
 - [x] Q-11 — Implement own research/choices and authorized technology references.
-- [ ] Q-12 — Implement owned/offered/discovered leader reads.
+- [x] Q-12 — Implement owned/offered/discovered leader reads.
 - [ ] Q-13 — Implement full relations/intelligence with individually audited fields.
 - [ ] Q-14 — Implement native-precision history and non-consuming message reads.
 - [x] Q-15 — Implement bounded pinned pagination and complete captures for enabled lists.

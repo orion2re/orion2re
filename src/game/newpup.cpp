@@ -1,12 +1,15 @@
 #include "pch.h"
+#include "game_events.h"
 
 namespace NEWPUP {
     MOX2::action_func_t saved_autofunction;
 
     s_animation_header* anims;
     uint8_t rebel_display;
+    static bool Draw_Troop_Popup_With_Read(leader_read::s_leader* leader);
 
     void __cdecl Troop_Popup() {
+        game_events::s_leader_view_scope leader_view(leader_read::TROOP_SUMMARY);
         COLONY::full_draw = 1;
         fonts::Set_Font_Style_Shadow_Down(1, &COLONY::font_color_array);
 
@@ -16,19 +19,25 @@ namespace NEWPUP {
 
         ERICHELP::Set_Transport_Popup_Help_List();
 
-        NEWPUP::Draw_Troop_Popup();
+        leader_read::s_leader leader;
+        bool redrawn = Draw_Troop_Popup_With_Read(&leader);
         video::Set_Refresh_Stencil();
         NEWPUP::Reset_Fields();
+        game_events::Ready_Leader_View(leader_read::TROOP_SUMMARY);
+        if (redrawn) game_events::Publish_Leader_View(leader_read::TROOP_SUMMARY, &leader, leader.slot >= 0 ? 1 : 0);
         RUSS::Mox_Sync_Update();
 
         int16_t input;
         do {
             input = fields::Get_Input();
-            NEWPUP::Draw_Troop_Popup();
+            redrawn = Draw_Troop_Popup_With_Read(&leader);
             NEWPUP::Reset_Fields();
+            game_events::Ready_Leader_View(leader_read::TROOP_SUMMARY);
+            if (redrawn) game_events::Publish_Leader_View(leader_read::TROOP_SUMMARY, &leader, leader.slot >= 0 ? 1 : 0);
             RUSS::Mox_Sync_Update();
         } while (input == 0);
 
+        leader_view.Close();
         fields::Clear_Fields();
         fields::Deactivate_Help_List();
         fields::Deactivate_Auto_Function();
@@ -36,6 +45,11 @@ namespace NEWPUP {
     }
 
     void __cdecl Draw_Troop_Popup() {
+        leader_read::s_leader leader;
+        if (Draw_Troop_Popup_With_Read(&leader)) game_events::Publish_Leader_View(leader_read::TROOP_SUMMARY, &leader, leader.slot >= 0 ? 1 : 0);
+    }
+
+    static bool Draw_Troop_Popup_With_Read(leader_read::s_leader* leader) {
         int16_t summary_row;
         s_invasion_side_info invasion_info;
         int16_t planet_index;
@@ -67,8 +81,11 @@ namespace NEWPUP {
             Print_Troop_Totals(2, summary_row * 11 + 0x153, &invasion_info);
 
             video::Copy_Off_To_Back();
+            leader_read::Read_Ground(MOX::PLAYER_NUM, &invasion_info, leader_read::TROOP_SUMMARY, leader);
             COLONY::full_draw = 0;
+            return true;
         }
+        return false;
     }
 
     void __cdecl Print_Data(char* label, int16_t value, int16_t* row, s_invasion_side_info* unused_side_info) {
@@ -176,6 +193,11 @@ namespace NEWPUP {
         }
 
         if (side_info->combat_modifiers.officer_idx > 0) {
+            leader_read::s_leader leader;
+            if (leader_read::Read_Ground(MOX::PLAYER_NUM, side_info, leader_read::TROOP_SUMMARY, &leader)) {
+                Print_Data(leader.name, leader.bonus, row, side_info);
+                return;
+            }
             OFFICER::Officer_Name(
                 officer_name,
                 sizeof(officer_name),

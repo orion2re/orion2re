@@ -339,6 +339,164 @@ DOCTEST_TEST_CASE("leader projection uses native disclosure skill formatting and
     DOCTEST_CHECK(fixture.world.ships.world.players[0].officer_for_hire == 2);
 }
 
+DOCTEST_TEST_CASE("shared leader result projections preserve native rescue and ground disclosure limits") {
+    s_leader_world fixture;
+    OFFICER::leaders_no_limit = 0;
+    for (int16_t id = 10; id < 14; ++id) fixture.Own(id, LEADER_TYPE_SHIP, 0);
+    fixture.leaders[6].status = 5;
+    fixture.leaders[6].location = 0;
+    fixture.leaders[6].special_skills = 1;
+    int16_t rescued = -1;
+    DOCTEST_CHECK_FALSE(OFFICER::Marooned_Hero_At_Star_Can_Join(0, &rescued, 0));
+    DOCTEST_REQUIRE(rescued == 6);
+    DOCTEST_CHECK(OFFICER::Officer_Roster_Disclosure(0, rescued) == OFFICER::ROSTER_HIDDEN);
+    leader_read::s_leader rescue;
+    DOCTEST_REQUIRE(leader_read::Read_Result(0, rescued, &rescue));
+    DOCTEST_CHECK(rescue.skill_count == 1);
+    fixture.leaders[13].player_index = -1;
+    fixture.leaders[13].status = -1;
+    fixture.leaders[6].status = 5;
+    fixture.leaders[6].location = 0;
+    DOCTEST_REQUIRE(OFFICER::Marooned_Hero_At_Star_Can_Join(0, &rescued, 0));
+    DOCTEST_CHECK(OFFICER::Officer_Roster_Disclosure(0, rescued) == OFFICER::ROSTER_OWNED);
+    OFFICER::Give_Officer_XP(0, rescued, 150);
+    DOCTEST_CHECK(OFFICER::Officer_Made_Level_Report(0, 0) == 1);
+    DOCTEST_REQUIRE(leader_read::Read_Result(0, rescued, &rescue));
+    DOCTEST_CHECK(fixture.leaders[6].display_level_popup == 1);
+    DOCTEST_CHECK(rescue.eta == -1);
+    fixture.leaders[6].status = 1;
+    fixture.leaders[6].eta = 3;
+    DOCTEST_REQUIRE(leader_read::Read_Result(0, rescued, &rescue));
+    DOCTEST_CHECK(rescue.eta == 3);
+    fixture.Own(4, LEADER_TYPE_SHIP, 1);
+    fixture.leaders[4].player_index = 1;
+    fixture.leaders[4].general_skills = LEADER_GENERAL_SKILL_COMMANDO;
+    MOX::ship[1].officer_index = 4;
+    const int16_t ship = 1;
+    s_invasion_side_info side{};
+    side.player_id = 1;
+    int16_t ships[] = {ship};
+    invasion::Compute_Attacker_Officer_Bonus(ships, 1, &side.combat_modifiers);
+    DOCTEST_REQUIRE(side.combat_modifiers.officer_idx == 4);
+    leader_read::s_leader ground;
+    DOCTEST_REQUIRE(leader_read::Read_Ground(0, &side, leader_read::GROUND_SUMMARY, &ground));
+    char ranked[52];
+    OFFICER::Officer_Name(ranked, sizeof(ranked), 1, 4);
+    DOCTEST_CHECK(strcmp(ground.name, ranked) == 0);
+    DOCTEST_CHECK(ground.bonus == side.combat_modifiers.officer_bonus);
+    DOCTEST_CHECK(ground.role == -1);
+    DOCTEST_CHECK(ground.rank[0] == '\0');
+    DOCTEST_CHECK(ground.skill_count == 0);
+    const auto seed = game_random::Get_Random_Seed();
+    const auto screen = MOX::current_screen;
+    const auto fields_before = fields::Get_Field_Counter();
+    fixture.leaders[4].special_skills = UINT32_MAX;
+    fixture.leaders[4].location = 30000;
+    strlcpy(fixture.leaders[4].title, "Private", sizeof(fixture.leaders[4].title));
+    leader_read::s_leader paired;
+    DOCTEST_REQUIRE(leader_read::Read_Ground(0, &side, leader_read::GROUND_SUMMARY, &paired));
+    DOCTEST_CHECK(strcmp(ground.name, paired.name) == 0);
+    DOCTEST_CHECK(ground.bonus == paired.bonus);
+    DOCTEST_CHECK(paired.title[0] == '\0');
+    DOCTEST_CHECK(paired.skill_count == 0);
+    DOCTEST_CHECK_FALSE(leader_read::Read_Ground(1, &side, leader_read::GROUND_SUMMARY, &paired));
+    side.combat_modifiers.officer_idx = 0;
+    DOCTEST_CHECK_FALSE(leader_read::Read_Ground(0, &side, leader_read::GROUND_SUMMARY, &paired));
+    DOCTEST_CHECK(game_random::Get_Random_Seed() == seed);
+    DOCTEST_CHECK(MOX::current_screen == screen);
+    DOCTEST_CHECK(fields::Get_Field_Counter() == fields_before);
+}
+
+DOCTEST_TEST_CASE("native leader owner leases publish copied result captures without splicing busy state") {
+    s_leader_world fixture;
+    fixture.Own(4, LEADER_TYPE_SHIP, 1);
+    fixture.leaders[4].player_index = 1;
+    fixture.leaders[4].general_skills = LEADER_GENERAL_SKILL_COMMANDO;
+    MOX::ship[1].officer_index = 4;
+    int16_t ships[] = {1};
+    s_invasion_side_info side{};
+    side.player_id = 1;
+    invasion::Compute_Attacker_Officer_Bonus(ships, 1, &side.combat_modifiers);
+    leader_read::s_leader disclosed;
+    DOCTEST_REQUIRE(leader_read::Read_Ground(0, &side, leader_read::GROUND_SUMMARY, &disclosed));
+    rpc::s_bridge bridge;
+    rpc::s_game_store store;
+    DOCTEST_REQUIRE(rpc::Initialize_Game_Store(&store, &bridge));
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&store));
+    rpc::s_map_observation ambient;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&ambient));
+    DOCTEST_REQUIRE(rpc::Capture_Map(&store, &ambient));
+    struct s_observer {
+        rpc::s_game_store* store;
+        const rpc::s_map_observation* ambient;
+        int count = 0;
+    } observer{&store, &ambient};
+    const auto subscription = game_events::Subscribe([](game_events::e_event event, void* context) {
+        auto* observer = (s_observer*)context;
+        if (event == game_events::LEADER_VIEW_CLEARED) rpc::Revoke_Game_Context(observer->store);
+        if (event == game_events::LEADER_VIEW_READY) {
+            ++observer->count;
+            DOCTEST_REQUIRE(game_rpc::Capture_Leader_View(observer->store, observer->ambient, game_events::Published_Leader_View()));
+        }
+    },
+        &observer);
+    DOCTEST_REQUIRE(subscription != 0);
+    rpc::s_request request;
+    request.method = "game.listLeaders";
+    request.id_json = "1";
+    request.params_json = "{}";
+    {
+        game_events::s_leader_view_scope owner(leader_read::GROUND_SUMMARY);
+        game_events::Publish_Leader_View(leader_read::GROUND_SUMMARY, &disclosed, 1);
+        DOCTEST_CHECK(observer.count == 0);
+        game_events::Ready_Leader_View(leader_read::GROUND_SUMMARY);
+        game_events::Publish_Leader_View(leader_read::GROUND_SUMMARY, &disclosed, 1);
+        DOCTEST_CHECK(observer.count == 1);
+        const auto first = rpc::Game_Query(&store, &request);
+        DOCTEST_CHECK(first.find("ground-summary") != std::string::npos);
+        DOCTEST_CHECK(first.find("\"abilities\":{\"availability\":\"unknown\"}") != std::string::npos);
+        const auto first_id = store.snapshots.back().leader_ids.front();
+        {
+            game_events::s_leader_interruption_scope child;
+            game_events::Ready_Leader_View(leader_read::GROUND_SUMMARY);
+            game_events::Publish_Leader_View(leader_read::GROUND_SUMMARY, &disclosed, 1);
+            DOCTEST_CHECK(observer.count == 1);
+            DOCTEST_CHECK(rpc::Game_Query(&store, &request).find("ground-summary") == std::string::npos);
+        }
+        game_events::Publish_Leader_View(leader_read::GROUND_SUMMARY, &disclosed, 1);
+        DOCTEST_CHECK(observer.count == 1);
+        rpc::Pause_Game_Queries(&store);
+        game_events::Ready_Leader_View(leader_read::GROUND_SUMMARY);
+        game_events::Publish_Leader_View(leader_read::GROUND_SUMMARY, &disclosed, 1);
+        DOCTEST_CHECK(observer.count == 2);
+        DOCTEST_CHECK(store.snapshots.back().map.leaders_only);
+        DOCTEST_CHECK(store.snapshots.back().leader_ids.front() != first_id);
+        DOCTEST_CHECK(rpc::Game_Query(&store, &request).find("ground-summary") != std::string::npos);
+        request.method = "game.getState";
+        request.params_json = "{\"include\":[\"leaders\",\"systems\"]}";
+        DOCTEST_CHECK(rpc::Game_Query(&store, &request).find("Busy") != std::string::npos);
+        uint64_t epoch;
+        DOCTEST_REQUIRE(rpc::Register_Client(&bridge, 1, &epoch));
+        request.method = "game.listLeaders";
+        request.params_json = "{}";
+        DOCTEST_REQUIRE(rpc::Submit_Work(&bridge, 1, epoch, &request, UINT64_MAX) == 0);
+        rpc::Pump_Game_Queries(&store);
+        DOCTEST_REQUIRE(!bridge.ready.empty());
+        DOCTEST_CHECK(bridge.ready.front().context_epoch != 0);
+        DOCTEST_CHECK(bridge.ready.front().json.find("ground-summary") != std::string::npos);
+        rpc::Resume_Game_Queries(&store);
+        owner.Close();
+        rpc::s_publication publication;
+        DOCTEST_REQUIRE(rpc::Take_Publication(&bridge, &publication));
+        DOCTEST_CHECK(publication.context_epoch == 0);
+        DOCTEST_CHECK(publication.json == rpc::Error_Response(&request, rpc::RPC_OBJECT_UNAVAILABLE));
+        DOCTEST_CHECK(publication.json.find("ground-summary") == std::string::npos);
+    }
+    game_events::Unsubscribe(subscription);
+    DOCTEST_CHECK(game_events::Published_Leader_View() == nullptr);
+    rpc::Shutdown_Game_Store(&store);
+}
+
 DOCTEST_TEST_CASE("native leader offers expire without disclosing candidate pools and support every modded slot") {
     s_leader_world fixture;
     rpc::s_map_observation map;

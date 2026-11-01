@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include "leader_read.h"
 
 namespace game_events {
     enum e_event {
@@ -37,6 +38,8 @@ namespace game_events {
         MAIN_SCREEN_FRAME_ENTERED,
         MAIN_SCREEN_FRAME_LEAVING,
         SHIP_DESTINATION_LINE_DRAWN,
+        LEADER_VIEW_CLEARED,
+        LEADER_VIEW_READY,
     };
 
     struct s_fleet_box_node {
@@ -82,6 +85,40 @@ namespace game_events {
     void Publish_Fleet_Box_Info(const s_fleet_box_info* info);
     void Publish_Ship_Identity_Changing(int16_t ship);
     void Publish_Ship_Destination(const s_ship_destination_line* line);
+
+    struct s_leader_view {
+        const leader_read::s_leader* leaders;
+        int16_t count;
+    };
+    // Callback-local payload only; no live UI pointers may escape publication.
+    const s_leader_view* Published_Leader_View();
+    void Publish_Leader_View(leader_read::e_kind kind, const leader_read::s_leader* leaders, int16_t count);
+    void Present_Leader_Text(const char* text);
+    void Close_Leader_Text(const char* text);
+    void Ready_Leader_View(leader_read::e_kind kind);
+
+    struct s_leader_view_scope {
+        leader_read::e_kind kind;
+        const char* text;
+        const leader_read::s_leader* name;
+        s_leader_view_scope* parent;
+        bool ready = false;
+        bool closed = false;
+        bool revoked = false;
+        explicit s_leader_view_scope(leader_read::e_kind kind, const char* text = nullptr, const leader_read::s_leader* name = nullptr);
+        ~s_leader_view_scope();
+        void Close();
+        s_leader_view_scope(const s_leader_view_scope&) = delete;
+        s_leader_view_scope& operator=(const s_leader_view_scope&) = delete;
+    };
+
+    struct s_leader_interruption_scope {
+        bool interrupted = false;
+        explicit s_leader_interruption_scope(const char* own_text = nullptr);
+        ~s_leader_interruption_scope();
+        s_leader_interruption_scope(const s_leader_interruption_scope&) = delete;
+        s_leader_interruption_scope& operator=(const s_leader_interruption_scope&) = delete;
+    };
 
     struct s_observation_scope {
         e_event leaving;

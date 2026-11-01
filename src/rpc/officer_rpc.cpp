@@ -3,6 +3,7 @@
 #include "config/text_encoding.h"
 #include "rpc/officer_rpc.h"
 #include "rpc/rpc_game.h"
+#include "game/game_events.h"
 
 namespace officer_rpc {
     namespace {
@@ -14,6 +15,56 @@ namespace officer_rpc {
             return true;
         }
     } // namespace
+
+    bool Read_Disclosures(const game_events::s_leader_view* view, rpc::s_map_observation* observation) {
+        if (view == nullptr || observation == nullptr || view->count < 0 || view->count > 2 || (view->count != 0 && view->leaders == nullptr)) return false;
+        if (MOX::player == nullptr || observation->viewer != MOX::PLAYER_NUM || observation->viewer < 0 || observation->viewer >= MOX::NUM_PLAYERS || observation->viewer >= MAX_PLAYERS ||
+            RUSS::all_ai_game != 0 || MOX::player[observation->viewer].objectives != PLAYER_OBJECTIVE_HUMAN || MOX::player[observation->viewer].eliminated != 0) return false;
+        for (int16_t index = 0; index < view->count; ++index) {
+            const auto& native = view->leaders[index];
+            if (native.viewer != observation->viewer) continue;
+            if (native.slot < 0 || native.slot >= MAX_LEADERS) return false;
+            const bool result = native.kind == leader_read::RESULT;
+            const bool ground = native.kind == leader_read::GROUND_SUMMARY || native.kind == leader_read::TROOP_SUMMARY;
+            if (!result && !ground && native.kind != leader_read::MESSAGE_NAME) return false;
+            auto own = std::find_if(observation->leaders.begin(), observation->leaders.end(), [&native](const rpc::s_leader_observation& item) { return item.slot == native.slot; });
+            if (own != observation->leaders.end()) {
+                if (ground) {
+                    own->bonus_available = true;
+                    own->bonus = native.bonus;
+                }
+                continue;
+            }
+            rpc::s_leader_observation item;
+            item.slot = native.slot;
+            item.visible = item.partial = true;
+            item.disclosure = result ? "leader-result" : (ground ? (native.kind == leader_read::TROOP_SUMMARY ? "troop-summary" : "ground-summary") : "message-name");
+            if (!Copy_Text(native.name, sizeof(native.name), &item.name)) return false;
+            item.status = "unavailable";
+            if (result) {
+                if (native.role != LEADER_TYPE_SHIP && native.role != LEADER_TYPE_COLONY) return false;
+                item.role = native.role == LEADER_TYPE_SHIP ? "ship-officer" : "colony-leader";
+                if (!Copy_Text(native.title, sizeof(native.title), &item.title) || !Copy_Text(native.rank, sizeof(native.rank), &item.rank) || native.skill_count < 0 || native.skill_count > 54) return false;
+                item.skills_available = true;
+                if (native.eta > 0) {
+                    item.eta_available = rpc::EXPLORATION_CURRENT;
+                    item.eta = native.eta;
+                }
+                for (int16_t skill = 0; skill < native.skill_count; ++skill) {
+                    rpc::s_leader_skill row;
+                    if (!Copy_Text(native.skills[skill].name, sizeof(native.skills[skill].name), &row.name) || !Copy_Text(native.skills[skill].value, sizeof(native.skills[skill].value), &row.value)) return false;
+                    item.skills.push_back(std::move(row));
+                }
+            }
+            if (ground) {
+                item.bonus_available = true;
+                item.bonus = native.bonus;
+            }
+            observation->leaders.push_back(std::move(item));
+        }
+        observation->leaders_captured = true;
+        return true;
+    }
 
     bool Read_Leaders(rpc::s_map_observation* observation) {
         if (observation == nullptr || MOX::player == nullptr || observation->viewer != MOX::PLAYER_NUM ||

@@ -2,7 +2,7 @@
 
 Experimental optional runtime; AI-assisted documentation. The canonical enabled
 surface is `methods.json.implementedMethods`, discoverable with `rpc.describe`.
-Current reads cover session, exploration, players, own colonies, own research and visible ships;
+Current reads cover session, exploration, players, own colonies, own research, leaders and visible ships;
 all actions and unaudited fields remain unavailable. See
 [read-sidecar ownership](read_foundation.md) and the owner-specific field audits.
 
@@ -134,6 +134,11 @@ caller-buffer application-name formatting between the native UI and read sidecar
 The drift audit permits `tech.cpp`, `tech.h` and `tech_choices.cpp` for that scope;
 it does not authorize research-changing RPC or a general UI-action framework.
 
+Leader reads share native roster, name, ability and result projections. The
+focused native-owner publications cover rescue results, troop/ground summaries
+and name-bearing event presentations, including interruption and teardown. These
+hooks grant no general UI context, navigation or persistent foreign knowledge.
+
 ## Own research reads
 
 `game.getResearch` reports the current field (`project`), selected `application`,
@@ -191,10 +196,45 @@ changes also revoke handles. Missing initialized storage is unavailable, not an
 empty roster. The complete ambient client flow is exercised by
 `tests/rpc/test_transport.py::test_leader_client_workflow_assignments_coherence_and_revocation`.
 
-Q-12 is not complete: failed-rescue popups and ground-summary disclosures require
-concrete initialized-owner observations and field-limited lifetimes. They do not
-authorize ambient access to the corresponding live pool/foreign leader records;
-the shared leader-read helper approval alone does not enable those observations.
+Additional native disclosures use partial records, distinguished by `disclosure`:
+
+| Disclosure | Known fields beyond the opaque handle |
+| --- | --- |
+| `leader-result` | Promotion/rescue presentation's ranked name/title, role, rank, displayed abilities and any positive portrait arrival ETA, including a failed rescue after deassignment |
+| `troop-summary`, `ground-summary` | Displayed ranked-name string and `contextBonus` from that summary |
+| `message-name` | Name actually substituted into the presented recipient message |
+
+For partial records, `name` is the native displayed string rather than a separate
+unranked roster name. Abilities use a knowledge tag: unknown is not an empty
+ability list. XP, status, assignment, costs and upkeep remain explicitly
+unknown unless independently authorized by an ambient roster entry. An absent
+portrait ETA overlay is unknown, not known-empty. A summary
+bonus is contextual, not a new ability/effectiveness score. When an entry is
+already ambient, its full roster fields remain available and a displayed summary
+bonus may accompany them. A private event argument or a formatter call without
+the corresponding initialized presentation never grants a leader handle. The
+audited name-bearing event is the leader-bearing Freak Accident report variant.
+
+Presentation authority ends before native owner cleanup, on withdrawal or
+replacement, or when interrupted by a child. Parent return requires fresh native
+presentation. Dependent handles, pages and queued output expire through the same
+context leases as other native observations; ambient reads remain independent.
+No presentation knowledge is retained as a foreign-leader dossier.
+
+`native-leader-presentation` stamps distinguish these captures. During resolution,
+only the initialized owner's leader projection (optionally with session metadata)
+is readable, anchored to the last committed turn; it cannot announce a new turn.
+Other combined requests remain busy. Outside resolution, disclosures can accompany
+a fresh coherent ambient capture. A request including ships may instead select an
+older complete, explicitly stamped capture: newer leader observations are never
+spliced into it. Use a leader/session subscription to observe current transient
+disclosures independently of a retained combined baseline.
+
+The leader workflow test above covers the full roster and partial-disclosure
+client flow. Its native result producers are in `tests/support/rpc_native_leaders.cpp`;
+native-function and formatter fixtures also live in `game_rpc_native_test.cpp`
+and `events_test.cpp`. This is synthetic native-function/live-transport evidence,
+not interactive saved-game or multiplayer parity.
 
 ## Documentation ownership
 
@@ -240,7 +280,8 @@ For research changes, also build and select `test_tech_selection`, `test_techini
 and `test_techdata` in both normal and sanitizer trees.
 
 For leader changes, also build and select `test_ground_commando`,
-`test_mainpups_leader_technology` and `test_report` in both trees.
+`test_mainpups_leader_technology`, `test_report`, `test_colgcbt` and `test_events`
+in both trees.
 
 Documentation-only changes need contract/schema/audit tests, local link checks
 and whitespace checks, not the game-build/transport gate above.

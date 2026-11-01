@@ -2128,6 +2128,16 @@ if(ORION2RE_RPC_BUILT)
     target_link_libraries(test_game_rpc_native PRIVATE orion2re_rpc SDL3::SDL3-static uv_a orion2re_lz4 orion2re_lua orion2re_scalers miniz orion2re_imgui)
     orion2re_enable_sanitizers(test_game_rpc_native)
     add_test(NAME test_game_rpc_native COMMAND test_game_rpc_native)
+    target_sources(rpc-test-server PRIVATE
+        tests/support/rpc_native_leaders.cpp
+        $<TARGET_OBJECTS:orion2re_game_objects>
+        "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smacker.c"
+        "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smk_bitstream.c"
+        "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smk_hufftree.c"
+        "${ORION2RE_VENDORED_YYJSON_DIR}/src/yyjson.c")
+    target_compile_definitions(rpc-test-server PRIVATE ORION2RE_RPC_NATIVE_TESTS)
+    target_include_directories(rpc-test-server PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src" "${CMAKE_CURRENT_SOURCE_DIR}/tests/support" "${ORION2RE_VENDORED_LIBSMACKER_DIR}")
+    target_link_libraries(rpc-test-server PRIVATE SDL3::SDL3-static orion2re_lz4 orion2re_lua orion2re_scalers miniz orion2re_imgui)
     if(Python3_Interpreter_FOUND AND NOT CMAKE_CROSSCOMPILING)
         add_test(NAME test_rpc_transport
             COMMAND "${CMAKE_COMMAND}" -E env "ORION2RE_RPC_TEST_SERVER=$<TARGET_FILE:rpc-test-server>"

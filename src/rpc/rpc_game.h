@@ -177,6 +177,10 @@ namespace rpc {
         int32_t offer_turns = 0;
         bool benefits_available = false;
         std::string benefits;
+        bool partial = false;
+        bool skills_available = false;
+        bool bonus_available = false;
+        int32_t bonus = 0;
     };
 
     struct s_map_observation {
@@ -198,6 +202,8 @@ namespace rpc {
         s_research_observation research;
         bool leaders_captured = false;
         std::vector<s_leader_observation> leaders;
+        bool leader_presentation = false;
+        bool leaders_only = false;
     };
 
     struct s_map_snapshot {
