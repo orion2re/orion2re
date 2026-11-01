@@ -16,6 +16,43 @@ namespace {
     }
 } // namespace
 
+DOCTEST_TEST_CASE("context revocation reaches pending late and ready work without revoking ambient clients") {
+    rpc::s_bridge bridge;
+    uint64_t epoch;
+    DOCTEST_REQUIRE(rpc::Register_Client(&bridge, 1, &epoch));
+    DOCTEST_REQUIRE(rpc::Authorize_Client(&bridge, 1, epoch));
+    const auto context = rpc::Bridge_Context_Epoch(&bridge);
+    auto request = Request();
+    request.method = "game.listShips";
+    const std::string result = rpc::Result_Response(&request, "{\"eta\":0}");
+    rpc::s_work late;
+    DOCTEST_REQUIRE(rpc::Submit_Work(&bridge, 1, epoch, &request, UINT64_MAX) == 0);
+    DOCTEST_REQUIRE(rpc::Take_Work(&bridge, 0, &late));
+    rpc::s_work ready;
+    DOCTEST_REQUIRE(rpc::Submit_Work(&bridge, 1, epoch, &request, UINT64_MAX) == 0);
+    DOCTEST_REQUIRE(rpc::Take_Work(&bridge, 0, &ready));
+    DOCTEST_REQUIRE(rpc::Complete_Work(&bridge, &ready, &result, context));
+    const std::string key = "ships";
+    DOCTEST_REQUIRE(rpc::Publish_Event(&bridge, 1, epoch, &result, &key, context));
+    DOCTEST_REQUIRE(rpc::Submit_Work(&bridge, 1, epoch, &request, UINT64_MAX) == 0);
+    rpc::Revoke_Bridge_Context(&bridge);
+    DOCTEST_CHECK(rpc::Client_Is_Current(&bridge, 1, epoch));
+    rpc::s_publication publication;
+    DOCTEST_REQUIRE(rpc::Take_Publication(&bridge, &publication));
+    DOCTEST_CHECK(publication.json == rpc::Error_Response(&request, rpc::RPC_OBJECT_UNAVAILABLE));
+    DOCTEST_CHECK(publication.context_epoch == 0);
+    DOCTEST_CHECK_FALSE(rpc::Take_Publication(&bridge, &publication));
+    DOCTEST_REQUIRE(rpc::Complete_Work(&bridge, &late, &result, context));
+    DOCTEST_REQUIRE(rpc::Take_Publication(&bridge, &publication));
+    DOCTEST_CHECK(publication.json == rpc::Error_Response(&request, rpc::RPC_OBJECT_UNAVAILABLE));
+    rpc::s_work pending;
+    DOCTEST_REQUIRE(rpc::Take_Work(&bridge, 0, &pending));
+    DOCTEST_REQUIRE(rpc::Complete_Work(&bridge, &pending, &result));
+    DOCTEST_REQUIRE(rpc::Take_Publication(&bridge, &publication));
+    DOCTEST_CHECK(publication.json == result);
+    DOCTEST_CHECK(bridge.ready_bytes == 0);
+}
+
 DOCTEST_TEST_CASE("RPC bridge owns bounded copies and immutable completions") {
     rpc::s_bridge bridge;
     uint64_t epoch;

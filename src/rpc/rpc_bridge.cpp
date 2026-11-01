@@ -26,6 +26,7 @@ namespace rpc {
                 }
             }
             std::erase_if(bridge->tickets, [client](const s_bridge_ticket& ticket) { return ticket.client == client; });
+            std::erase_if(bridge->deliveries, [client](const s_context_delivery& item) { return item.client == client; });
             std::erase_if(bridge->pending, [client](const s_work& work) { return work.client == client; });
             std::erase_if(bridge->ready, [bridge, client](const s_publication& result) {
                 if (result.client != client) {
@@ -43,9 +44,10 @@ namespace rpc {
             bridge->pending.clear();
             bridge->ready.clear();
             bridge->ready_bytes = 0;
+            bridge->deliveries.clear();
         }
 
-        bool Complete(s_bridge* bridge, const s_work* work, const std::string* json) {
+        bool Complete(s_bridge* bridge, const s_work* work, const std::string* json, uint64_t context_epoch = 0) {
             if (!Current(bridge, work->client, work->epoch)) {
                 return false;
             }
@@ -55,13 +57,23 @@ namespace rpc {
             if (ticket == bridge->tickets.end()) {
                 return false;
             }
-            if (json->size() > MAX_RESULT_BYTES || json->size() > MAX_READY_BYTES - bridge->ready_bytes) {
+            const std::string revoked = context_epoch != 0 ? Error_Response(&work->request, RPC_OBJECT_UNAVAILABLE) : std::string();
+            const bool stale = context_epoch != 0 && context_epoch != bridge->context_epoch;
+            const std::string& output = stale ? revoked : *json;
+            if (output.size() > MAX_RESULT_BYTES || output.size() > MAX_READY_BYTES - bridge->ready_bytes) {
                 // A result cannot be silently lost: the service observes revocation and closes this client.
                 Cancel(bridge, work->client);
                 return false;
             }
-            bridge->ready.push_back({work->client, work->epoch, work->ticket, *json});
-            bridge->ready_bytes += json->size();
+            if (context_epoch != 0 && !stale) {
+                if (bridge->deliveries.size() >= MAX_WORK) {
+                    Cancel(bridge, work->client);
+                    return false;
+                }
+                bridge->deliveries.push_back({work->client, work->ticket});
+            }
+            bridge->ready.push_back({work->client, work->epoch, work->ticket, output, {}, stale ? 0 : context_epoch, revoked});
+            bridge->ready_bytes += bridge->ready.back().json.size();
             bridge->tickets.erase(ticket);
             return true;
         }
@@ -139,16 +151,64 @@ namespace rpc {
         }
     }
 
+    uint64_t Bridge_Context_Epoch(s_bridge* bridge) {
+        if (bridge == nullptr) return 0;
+        std::lock_guard lock(bridge->mutex);
+        return bridge->context_epoch;
+    }
+
+    bool Context_Response_Pending(s_bridge* bridge, uint64_t client, uint64_t ticket) {
+        if (bridge == nullptr || ticket == 0) return false;
+        std::lock_guard lock(bridge->mutex);
+        return std::any_of(bridge->deliveries.begin(), bridge->deliveries.end(), [=](const s_context_delivery& item) { return item.client == client && item.ticket == ticket; });
+    }
+
+    void Acknowledge_Response(s_bridge* bridge, uint64_t client, uint64_t ticket) {
+        if (bridge == nullptr || ticket == 0) return;
+        std::lock_guard lock(bridge->mutex);
+        std::erase_if(bridge->deliveries, [=](const s_context_delivery& item) { return item.client == client && item.ticket == ticket; });
+    }
+
+    void Revoke_Bridge_Context(s_bridge* bridge) {
+        if (bridge == nullptr) return;
+        std::lock_guard lock(bridge->mutex);
+        if (bridge->context_epoch == std::numeric_limits<uint64_t>::max()) {
+            bridge->stopped = true;
+            Clear(bridge);
+            return;
+        }
+        ++bridge->context_epoch;
+        bridge->deliveries.clear();
+        for (auto item = bridge->ready.begin(); item != bridge->ready.end();) {
+            if (item->context_epoch == 0) {
+                ++item;
+                continue;
+            }
+            bridge->ready_bytes -= item->json.size();
+            if (item->revoked_json.empty()) {
+                item = bridge->ready.erase(item);
+            } else {
+                item->json = std::move(item->revoked_json);
+                item->context_epoch = 0;
+                item->state_key.clear();
+                bridge->ready_bytes += item->json.size();
+                ++item;
+            }
+        }
+        if (bridge->ready_bytes > MAX_READY_BYTES) Clear(bridge);
+    }
+
     bool Has_Pending_Work(s_bridge* bridge) {
         if (bridge == nullptr) return false;
         std::lock_guard lock(bridge->mutex);
         return !bridge->stopped && !bridge->pending.empty();
     }
 
-    bool Publish_Event(s_bridge* bridge, uint64_t client, uint64_t epoch, const std::string* json, const std::string* state_key) {
+    bool Publish_Event(s_bridge* bridge, uint64_t client, uint64_t epoch, const std::string* json, const std::string* state_key, uint64_t context_epoch) {
         if (bridge == nullptr || json == nullptr) return false;
         std::lock_guard lock(bridge->mutex);
         if (!Current(bridge, client, epoch)) return false;
+        if (context_epoch != 0 && context_epoch != bridge->context_epoch) return false;
         if (state_key != nullptr && !state_key->empty()) {
             std::erase_if(bridge->ready, [&](const s_publication& item) {
                 if (item.client != client || item.epoch != epoch || item.state_key != *state_key) return false;
@@ -164,7 +224,7 @@ namespace rpc {
             Cancel(bridge, client);
             return false;
         }
-        bridge->ready.push_back({client, epoch, 0, *json, state_key != nullptr ? *state_key : std::string()});
+        bridge->ready.push_back({client, epoch, 0, *json, state_key != nullptr ? *state_key : std::string(), context_epoch});
         bridge->ready_bytes += json->size();
         return true;
     }
@@ -227,12 +287,12 @@ namespace rpc {
         return false;
     }
 
-    bool Complete_Work(s_bridge* bridge, const s_work* work, const std::string* json) {
+    bool Complete_Work(s_bridge* bridge, const s_work* work, const std::string* json, uint64_t context_epoch) {
         if (bridge == nullptr || work == nullptr || json == nullptr) {
             return false;
         }
         std::lock_guard lock(bridge->mutex);
-        return Complete(bridge, work, json);
+        return Complete(bridge, work, json, context_epoch);
     }
 
     void Expire_Work(s_bridge* bridge, uint64_t now_ms) {

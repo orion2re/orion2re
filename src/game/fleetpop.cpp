@@ -971,6 +971,7 @@ namespace FLEETPOP {
     }
 
     void __cdecl Print_Fleet_Box_Info() {
+        game_events::s_observation_scope print_scope(game_events::FLEET_BOX_PRINT_ENTERED, game_events::FLEET_BOX_PRINT_LEAVING);
         game_events::Publish(game_events::FLEET_BOX_INFO_CLEARED);
         int16_t info_value = -1;
         int16_t destination_star = -1;
@@ -1073,7 +1074,21 @@ namespace FLEETPOP {
         }
 
         if (MOX::eta_star_id == -1 && (info_type == 2 || info_type == 3)) {
-            const game_events::s_fleet_box_info observation = {ship_idx, static_cast<uint8_t>(info_value), destination_star, MOX::fleet_movement_icon[0].ship_node_idx};
+            game_events::s_fleet_box_node members[MAX_SHIPS];
+            game_events::s_fleet_box_node selected[MAX_SHIPS];
+            int16_t member_count = 0;
+            int16_t selected_count = 0;
+            if (MOX::fleet_box.count > 0 && MOX::fleet_box.count <= MAX_SHIPS) {
+                for (int16_t i = 0; i < MOX::fleet_box.count; ++i) {
+                    const int16_t node = MOX::fleet_movement_icon[i].ship_node_idx;
+                    if (node >= 0 && node < MAX_SHIPS) members[member_count++] = {node, MOX::ship_node[node].ship_idx};
+                }
+            }
+            for (int16_t node = 0; node < MAX_SHIPS; ++node) {
+                if (MOX::ship_node[node].selected != 0) selected[selected_count++] = {node, MOX::ship_node[node].ship_idx};
+            }
+            const game_events::s_fleet_box_info observation = {
+                ship_idx, static_cast<uint8_t>(info_value), destination_star, MOX::fleet_movement_icon[0].ship_node_idx, static_cast<int16_t>(MOX::fleet_box_ship_stack >= 0 && MOX::fleet_box_ship_stack < MOX::ship_stack_count ? MOX::ship_stack_start[MOX::fleet_box_ship_stack] : -1), MOVEBOX::Moveable_Box_Selected(2) != 0, members, static_cast<int16_t>(member_count == MOX::fleet_box.count ? member_count : 0), selected, selected_count};
             game_events::Publish_Fleet_Box_Info(&observation);
         }
 

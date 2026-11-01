@@ -26,6 +26,7 @@ namespace rpc {
             store->subscriptions.clear();
             store->turn_observers.clear();
             store->capture_requested = false;
+            store->context_active = false;
         }
 
         bool Same_Map(const s_map_observation* left, const s_map_observation* right) {
@@ -81,8 +82,14 @@ namespace rpc {
             return true;
         }
 
+        bool Authorized_Snapshot(const s_game_store* store, const s_map_snapshot* snapshot) {
+            return snapshot->map.context_epoch == 0 ||
+                (store->context_active && snapshot->map.context_epoch == Bridge_Context_Epoch(store->bridge));
+        }
+
         const s_map_snapshot* Select_Snapshot(const s_game_store* store, bool ships, bool players = false, bool colonies = false) {
             for (auto snapshot = store->snapshots.rbegin(); snapshot != store->snapshots.rend(); ++snapshot) {
+                if (ships && !Authorized_Snapshot(store, &*snapshot)) continue;
                 if ((!ships || snapshot->map.ships_captured) && (!players || snapshot->map.players_captured) &&
                     (!colonies || snapshot->map.colonies_captured)) return &*snapshot;
             }
@@ -103,7 +110,7 @@ namespace rpc {
             return "{\"gameId\":" + Json_String(store->game_id) + ",\"perspectiveId\":" + Json_String(store->perspective_id) +
                 ",\"snapshotId\":" + Json_String(snapshot->id) + ",\"revision\":" + Json_String(std::to_string(snapshot->revision)) +
                 ",\"turn\":" + std::to_string(snapshot->map.turn) + ",\"captureMode\":" +
-                Json_String(snapshot->map.ships_captured ? "last-native-ship-refresh" : "last-coherent-capture") + "}";
+                Json_String(snapshot->map.context_epoch != 0 ? "last-native-fleet-box" : (snapshot->map.ships_captured ? "last-native-ship-refresh" : "last-coherent-capture")) + "}";
         }
 
         std::string System(const s_game_store* store, const s_map_snapshot* snapshot, size_t index) {
@@ -225,7 +232,7 @@ namespace rpc {
             });
         }
 
-        std::string Subscription_Query(s_game_store* store, const s_work* work) {
+        std::string Subscription_Query(s_game_store* store, const s_work* work, uint64_t* context_epoch) {
             const s_request* request = &work->request;
             if (!Validate_Params(&store->protocol, request)) return Error_Response(request, RPC_INVALID_PARAMS);
             yyjson_doc* doc = yyjson_read(request->params_json.data(), request->params_json.size(), YYJSON_READ_NOFLAG);
@@ -258,6 +265,8 @@ namespace rpc {
             const bool colonies = std::find(subscription.topics.begin(), subscription.topics.end(), "colonies") != subscription.topics.end();
             const auto* snapshot = Select_Snapshot(store, ships, players, colonies);
             if (snapshot == nullptr) return Error_Response(request, RPC_BUSY);
+            if (ships) *context_epoch = snapshot->map.context_epoch;
+            if (*context_epoch != 0) subscription.baseline_ticket = work->ticket;
             const size_t client_count = std::count_if(store->subscriptions.begin(), store->subscriptions.end(), [work](const s_state_subscription& item) { return item.client == work->client; });
             if (store->subscriptions.size() >= 64 || client_count >= 16) {
                 return Error_Response(request, RPC_LIMIT_EXCEEDED);
@@ -300,7 +309,7 @@ namespace rpc {
                 const std::string json = "{\"jsonrpc\":\"2.0\",\"method\":\"state.changed\",\"params\":{\"subscriptionId\":" +
                     Json_String(subscription.id) + ",\"cursor\":" + Json_String(std::to_string(++subscription.cursor)) +
                     ",\"topics\":" + Topics_Json(&subscription.topics) + ",\"stamp\":" + Stamp(store, snapshot) + "}}";
-                if (Publish_Event(store->bridge, subscription.client, subscription.epoch, &json, &subscription.id)) subscription.projection = std::move(projection);
+                if (Publish_Event(store->bridge, subscription.client, subscription.epoch, &json, &subscription.id, ships ? snapshot->map.context_epoch : 0)) subscription.projection = std::move(projection);
             }
         }
 
@@ -337,7 +346,7 @@ namespace rpc {
             }
         }
 
-        std::string Query(s_game_store* store, const s_request* request, yyjson_val* params, int32_t* error) {
+        std::string Query(s_game_store* store, const s_request* request, yyjson_val* params, int32_t* error, uint64_t* context_epoch) {
             if (request->method == "game.getSession") {
                 return Session(store);
             }
@@ -362,6 +371,7 @@ namespace rpc {
                 *error = Text(params, "cursor").empty() ? RPC_BUSY : RPC_OBJECT_UNAVAILABLE;
                 return {};
             }
+            if (ships) *context_epoch = snapshot->map.context_epoch;
             if (request->method == "game.getState") {
                 std::string result = "{\"stamp\":" + Stamp(store, snapshot);
                 yyjson_val* include = yyjson_obj_get(params, "include");
@@ -416,11 +426,12 @@ namespace rpc {
                     return {};
                 }
                 const auto pinned = std::find_if(store->snapshots.begin(), store->snapshots.end(), [&cursor](const s_map_snapshot& item) { return item.id == cursor->snapshot; });
-                if (pinned == store->snapshots.end()) {
+                if (pinned == store->snapshots.end() || (ships && !Authorized_Snapshot(store, &*pinned))) {
                     *error = RPC_OBJECT_UNAVAILABLE;
                     return {};
                 }
                 snapshot = &*pinned;
+                if (ships) *context_epoch = snapshot->map.context_epoch;
                 offset = cursor->offset;
                 limit = cursor->limit;
             }
@@ -468,8 +479,25 @@ namespace rpc {
     }
 
     void Revoke_Game_View(s_game_store* store) {
+        Revoke_Game_Context(store);
         Clear_View(store);
         if (store->bridge != nullptr) Revoke_Bridge(store->bridge);
+    }
+
+    void Revoke_Game_Context(s_game_store* store) {
+        if (store == nullptr || !store->context_active) return;
+        store->context_active = false;
+        for (const auto& subscription : store->subscriptions) {
+            if (Context_Response_Pending(store->bridge, subscription.client, subscription.baseline_ticket)) Cancel_Client(store->bridge, subscription.client);
+        }
+        Revoke_Bridge_Context(store->bridge);
+        Prune_Subscriptions(store);
+        std::erase_if(store->cursors, [store](const s_map_cursor& cursor) {
+            const auto snapshot = std::find_if(store->snapshots.begin(), store->snapshots.end(), [&cursor](const s_map_snapshot& item) { return item.id == cursor.snapshot; });
+            return snapshot == store->snapshots.end() || (cursor.method == "game.listShips" && !Authorized_Snapshot(store, &*snapshot));
+        });
+        for (auto& subscription : store->subscriptions) subscription.revision = 0;
+        Publish_State_Changes(store);
     }
 
     void Begin_Game_Reset(s_game_store* store) {
@@ -494,6 +522,7 @@ namespace rpc {
     }
 
     void Pause_Game_Queries(s_game_store* store) {
+        Revoke_Game_Context(store);
         ++store->busy_depth;
     }
 
@@ -505,6 +534,7 @@ namespace rpc {
         if (store == nullptr || observation == nullptr || !store->loaded || store->busy_depth != 0 ||
             observation->viewer < 0 || observation->viewer >= 8 || observation->turn < 0 ||
             observation->systems.size() > 1024 || observation->nebulas.size() > 57 || observation->ships.size() > 10000 || observation->players.size() > 8 || observation->colonies.size() > 5120) return false;
+        if (observation->context_epoch != 0 && (!observation->ships_captured || observation->context_epoch != Bridge_Context_Epoch(store->bridge))) return false;
         // Bind newly authorized default observers to the old coherent turn before replacing it.
         Sync_Turn_Observers(store);
         s_map_observation projected = *observation;
@@ -630,16 +660,38 @@ namespace rpc {
             return std::tie(left.x, left.y, left.owned, left.name, left.owner_id, left.destination_available, left.destination_id, left.eta_available, left.eta) <
                 std::tie(right.x, right.y, right.owned, right.name, right.owner_id, right.destination_available, right.destination_id, right.eta_available, right.eta);
         });
-        if (!store->snapshots.empty() && Same_Map(&projected, &store->snapshots.back().map) &&
+        if (projected.context_epoch == 0 && projected.ships_captured && !store->snapshots.empty() && !Authorized_Snapshot(store, &store->snapshots.back())) {
+            const auto* ambient = Select_Snapshot(store, true, projected.players_captured, projected.colonies_captured);
+            if (ambient != nullptr && Same_Map(&projected, &ambient->map) && Same_Ships(&projected, &ambient->map) &&
+                (!projected.players_captured || (Same_Players(&projected, &ambient->map) && player_ids == ambient->player_ids)) &&
+                (!projected.colonies_captured || Same_Colonies(&projected, &ambient->map))) return true;
+        }
+        const bool equal = !store->snapshots.empty() && Same_Map(&projected, &store->snapshots.back().map) &&
             (!projected.ships_captured || Same_Ships(&projected, &store->snapshots.back().map)) &&
             (!projected.players_captured || (Same_Players(&projected, &store->snapshots.back().map) && player_ids == store->snapshots.back().player_ids)) &&
-            (!projected.colonies_captured || Same_Colonies(&projected, &store->snapshots.back().map))) return true;
+            (!projected.colonies_captured || Same_Colonies(&projected, &store->snapshots.back().map));
+        if (projected.context_epoch != 0) store->context_active = true;
+        if (equal && (projected.context_epoch == store->snapshots.back().map.context_epoch || !projected.ships_captured)) return true;
         if (store->revision == std::numeric_limits<uint64_t>::max()) return false;
         s_map_snapshot snapshot;
         if (!store->new_id(&snapshot.id, store->id_context)) return false;
         snapshot.map = std::move(projected);
         snapshot.player_ids = std::move(player_ids);
-        const auto* previous_ships = Select_Snapshot(store, true);
+        const s_map_snapshot* previous_ships = nullptr;
+        for (auto item = store->snapshots.rbegin(); item != store->snapshots.rend(); ++item) {
+            if (item->map.ships_captured) {
+                previous_ships = &*item;
+                break;
+            }
+        }
+        if (snapshot.map.context_epoch != 0) {
+            for (auto item = store->snapshots.rbegin(); item != store->snapshots.rend(); ++item) {
+                if (item->map.context_epoch != 0 && Same_Ships(&snapshot.map, &item->map)) {
+                    previous_ships = &*item;
+                    break;
+                }
+            }
+        }
         if (snapshot.map.ships_captured && previous_ships != nullptr && Same_Ships(&snapshot.map, &previous_ships->map)) {
             snapshot.ship_ids = previous_ships->ship_ids;
         }
@@ -649,24 +701,34 @@ namespace rpc {
             snapshot.colony_ids = previous_colonies->colony_ids;
         }
         if (!Extend(&snapshot.colony_ids, snapshot.map.colonies.size())) return false;
-        snapshot.revision = ++store->revision;
+        snapshot.revision = equal ? store->revision : ++store->revision;
         store->snapshots.push_back(std::move(snapshot));
-        if (store->snapshots.size() > 4) store->snapshots.pop_front();
+        for (auto& subscription : store->subscriptions) subscription.revision = 0;
+        if (store->snapshots.size() > 4) {
+            const bool has_context = std::any_of(store->snapshots.begin(), store->snapshots.end(), [](const s_map_snapshot& item) { return item.map.context_epoch != 0; });
+            auto ambient = has_context ? std::find_if(store->snapshots.rbegin(), store->snapshots.rend(), [](const s_map_snapshot& item) { return item.map.ships_captured && item.map.context_epoch == 0; }) : store->snapshots.rend();
+            const std::string protected_id = ambient != store->snapshots.rend() ? ambient->id : std::string();
+            auto expired = std::find_if(store->snapshots.begin(), store->snapshots.end(), [&protected_id](const s_map_snapshot& item) { return item.id != protected_id; });
+            store->snapshots.erase(expired);
+        }
         std::erase_if(store->cursors, [store](const s_map_cursor& cursor) {
             return std::none_of(store->snapshots.begin(), store->snapshots.end(), [&cursor](const s_map_snapshot& item) { return item.id == cursor.snapshot; });
         });
         return true;
     }
 
-    std::string Game_Query(s_game_store* store, const s_request* request) {
+    std::string Game_Query(s_game_store* store, const s_request* request, uint64_t* context_epoch) {
+        uint64_t captured_context = 0;
+        if (context_epoch != nullptr) *context_epoch = 0;
         if (!Validate_Params(&store->protocol, request)) return Error_Response(request, RPC_INVALID_PARAMS);
         yyjson_doc* params = yyjson_read(request->params_json.data(), request->params_json.size(), YYJSON_READ_NOFLAG);
         if (params == nullptr) return Error_Response(request, RPC_INVALID_PARAMS);
         int32_t error = 0;
-        const std::string result = Query(store, request, yyjson_doc_get_root(params), &error);
+        const std::string result = Query(store, request, yyjson_doc_get_root(params), &error, &captured_context);
         yyjson_doc_free(params);
         if (error != 0) return Error_Response(request, error);
         const std::string response = Result_Response(request, result);
+        if (context_epoch != nullptr && response.size() <= 1048576) *context_epoch = captured_context;
         return response.size() > 1048576 ? Error_Response(request, RPC_LIMIT_EXCEEDED) : response;
     }
 
@@ -680,10 +742,14 @@ namespace rpc {
             if (!Take_Work(store->bridge, Monotonic_Ms(), &work)) break;
             if (work.request.method != "rpc.unsubscribe") store->capture_requested = true;
             const size_t previous_subscriptions = store->subscriptions.size();
-            std::string response = work.request.method == "rpc.subscribe" || work.request.method == "rpc.unsubscribe" ? Subscription_Query(store, &work) : Game_Query(store, &work.request);
+            uint64_t context_epoch = 0;
+            std::string response = work.request.method == "rpc.subscribe" || work.request.method == "rpc.unsubscribe" ? Subscription_Query(store, &work, &context_epoch) : Game_Query(store, &work.request, &context_epoch);
             const bool expired = Monotonic_Ms() >= work.deadline_ms;
-            if (expired) response = Error_Response(&work.request, RPC_REQUEST_EXPIRED);
-            const bool completed = Complete_Work(store->bridge, &work, &response);
+            if (expired) {
+                response = Error_Response(&work.request, RPC_REQUEST_EXPIRED);
+                context_epoch = 0;
+            }
+            const bool completed = Complete_Work(store->bridge, &work, &response, context_epoch);
             if ((expired || !completed) && store->subscriptions.size() > previous_subscriptions) store->subscriptions.pop_back();
         }
         Publish_Turn_Changes(store);

@@ -155,6 +155,7 @@ class LedgerTests(unittest.TestCase):
                                      "specs/rpc/methods.json", "tests/rpc/test_contract.py",
                                      "src/game/fleetpop.cpp", "src/game/movebox.cpp",
                                      "tools/rpc_incoming_threats.py", "tests/unit/fields_test.cpp"])
+        audit.Validate_Target_Drift(["src/game/mainscr.cpp", "src/lua/lua_game_ship_identity.cpp"])
         for path in ("src/game/harold.cpp", "specs/rpc_other/file", "src/game/combat1.cpp",
                      "src/game/fleetpop_other.cpp", "tools/rpc_incoming_threats_other.py",
                      "tests/unit/fields_other_test.cpp"):

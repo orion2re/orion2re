@@ -19,7 +19,7 @@ frames; it is not another WebSocket implementation or a protocol validator.
    `Derive_Incoming(response, event)`. It returns `ready: false` for busy, limit,
    unavailable or incomplete state. It also rejects a different game, older or
    newer turn, a revision older than the event, mixed session/stamp metadata, or a
-   capture not stamped `last-native-ship-refresh`.
+   capture not stamped `last-native-ship-refresh` or `last-native-fleet-box`.
 4. A turn event can precede a suitable native ship refresh. On busy or
    `capture-not-ready`, retry that ordinary state request with bounded backoff
    (at least the native capture interval, currently 100 ms), without navigating

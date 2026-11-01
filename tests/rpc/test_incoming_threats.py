@@ -51,6 +51,8 @@ class IncomingThreatTests(unittest.TestCase):
         self.assertEqual(result["alerts"], [{"shipId":"ship", "playerId":"contact", "systemId":"home",
                                              "colonyIds":["colony"], "cachedEtaTurns":0}])
         self.assertEqual(response, before)
+        response["result"]["stamp"]["captureMode"] = "last-native-fleet-box"
+        self.assertTrue(incoming.Derive_Incoming(response, event)["ready"])
 
     def test_nonwar_unknown_contact_owner_and_destination_are_not_inferred_hostile(self):
         for change in ("peace", "unknown-war", "uncontacted", "eliminated", "owner", "destination"):

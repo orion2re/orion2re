@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <deque>
 #include <string>
 
@@ -7,6 +8,9 @@ namespace rpc {
     struct s_output_message {
         std::string json;
         std::string state_key;
+        uint64_t context_epoch = 0;
+        std::string revoked_json;
+        uint64_t ticket = 0;
     };
 
     // Service-thread-owned. The front message is immutable once offset is nonzero.
@@ -16,6 +20,8 @@ namespace rpc {
         size_t offset = 0;
     };
 
-    bool Queue_Output(s_output_queue* queue, std::string json, const std::string* state_key, size_t* global_bytes);
+    bool Queue_Output(s_output_queue* queue, std::string json, const std::string* state_key, size_t* global_bytes, uint64_t context_epoch = 0, std::string revoked_json = {}, uint64_t ticket = 0);
+    // False means a revoked message was already started: close instead of completing it.
+    bool Revoke_Context_Output(s_output_queue* queue, uint64_t current_epoch, size_t* global_bytes);
     bool Advance_Output(s_output_queue* queue, size_t count, size_t* global_bytes);
 } // namespace rpc

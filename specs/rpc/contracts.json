@@ -117,7 +117,7 @@
     "ListRequest": {"kind":"object","policy":"request","fields":{"limit":"PageSize","cursor":"Id"},"optional":["limit","cursor"]},
     "Session": {"kind":"object","policy":"session","fields":{"gameId":"Id","perspectiveId":"Id","revision":"Counter","turn":"Turn","phase":"SessionPhase"},"optional":["gameId","perspectiveId","revision","turn"]},
     "SessionPhase": {"kind":"enum","values":["menu","committed","resolving","revoked","ending","unavailable"]},
-    "CaptureMode": {"kind":"enum","values":["last-coherent-capture","last-native-ship-refresh"]},
+    "CaptureMode": {"kind":"enum","values":["last-coherent-capture","last-native-ship-refresh","last-native-fleet-box"]},
     "Stamp": {"kind":"object","policy":"contract","fields":{"gameId":"Id","perspectiveId":"Id","snapshotId":"Id","revision":"Counter","turn":"Turn","captureMode":"CaptureMode"}},
     "System": {"kind":"object","policy":"systems-map","fields":{"id":"Id","x":"Coord","y":"Coord","name":"KnownText","visited":"Bool","owner":"KnownId"},"fieldPolicies":{"name":"system-name-visited","visited":"system-visited","owner":"disabled-system-owner"}},
     "Nebula": {"kind":"object","policy":"nebulas-map","fields":{"id":"Id","x":"Coord","y":"Coord"}},

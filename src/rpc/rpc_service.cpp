@@ -91,8 +91,8 @@ namespace rpc {
             *connection = {};
         }
 
-        bool Queue_Output(s_service_state* state, s_connection* connection, std::string json, const std::string* state_key = nullptr) {
-            if (!Queue_Output(&connection->output, std::move(json), state_key, &state->output_bytes)) return false;
+        bool Queue_Output(s_service_state* state, s_connection* connection, std::string json, const std::string* state_key = nullptr, uint64_t context_epoch = 0, std::string revoked_json = {}, uint64_t ticket = 0) {
+            if (!Queue_Output(&connection->output, std::move(json), state_key, &state->output_bytes, context_epoch, std::move(revoked_json), ticket)) return false;
             lws_callback_on_writable(connection->socket);
             return true;
         }
@@ -306,6 +306,9 @@ namespace rpc {
                     connection->assembling = false;
                 }
             } else if (reason == LWS_CALLBACK_SERVER_WRITEABLE) {
+                if (!Revoke_Context_Output(&connection->output, Bridge_Context_Epoch(state->bridge), &state->output_bytes)) {
+                    return Close(socket, LWS_CLOSE_STATUS_POLICY_VIOLATION);
+                }
                 if (connection->output.messages.empty()) {
                     return connection->close_after_output ? Close(socket, LWS_CLOSE_STATUS_POLICY_VIOLATION) : 0;
                 }
@@ -318,6 +321,7 @@ namespace rpc {
                 if (written < 0 || (size_t)written < count) {
                     return -1;
                 }
+                if (final) Acknowledge_Response(state->bridge, connection->client, connection->output.messages.front().ticket);
                 if (!Advance_Output(&connection->output, count, &state->output_bytes)) return -1;
                 if (!connection->output.messages.empty() || connection->close_after_output) {
                     lws_callback_on_writable(socket);
@@ -335,7 +339,8 @@ namespace rpc {
             for (s_connection& connection : state->connections) {
                 if (connection.socket != nullptr &&
                     ((!connection.authenticated && now - connection.opened_ms >= Protocol_Limits()->authentication_deadline_ms) ||
-                        !Client_Is_Current(state->bridge, connection.client, connection.epoch))) {
+                        !Client_Is_Current(state->bridge, connection.client, connection.epoch) ||
+                        !Revoke_Context_Output(&connection.output, Bridge_Context_Epoch(state->bridge), &state->output_bytes))) {
                     lws_set_timeout(connection.socket, PENDING_TIMEOUT_USER_OK, LWS_TO_KILL_SYNC);
                 }
             }
@@ -344,7 +349,7 @@ namespace rpc {
                 for (s_connection& connection : state->connections) {
                     if (connection.socket != nullptr && connection.authenticated && connection.client == publication.client &&
                         connection.epoch == publication.epoch) {
-                        if (!Queue_Output(state, &connection, std::move(publication.json), &publication.state_key)) {
+                        if (!Queue_Output(state, &connection, std::move(publication.json), &publication.state_key, publication.context_epoch, std::move(publication.revoked_json), publication.ticket)) {
                             lws_set_timeout(connection.socket, PENDING_TIMEOUT_USER_OK, LWS_TO_KILL_SYNC);
                         }
                         break;

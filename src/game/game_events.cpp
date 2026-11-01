@@ -9,6 +9,7 @@ namespace game_events {
             t_callback callback = nullptr;
             void* context = nullptr;
             t_fleet_box_callback fleet_box_callback = nullptr;
+            t_ship_identity_callback ship_identity_callback = nullptr;
         };
         s_listener listeners[8];
         uint64_t next_id = 0;
@@ -50,7 +51,19 @@ namespace game_events {
         return 0;
     }
 
-    static void Deliver(e_event event, const s_fleet_box_info* info) {
+    uint64_t Subscribe_Ship_Identity(t_ship_identity_callback callback, void* context) {
+        if (callback == nullptr || next_id == std::numeric_limits<uint64_t>::max()) return 0;
+        for (s_listener& listener : listeners) {
+            if (listener.id == 0) {
+                listener = {++next_id, nullptr, context, nullptr, callback};
+                ++count;
+                return listener.id;
+            }
+        }
+        return 0;
+    }
+
+    static void Deliver(e_event event, const s_fleet_box_info* info, int16_t ship = -1) {
         if (count == 0) return;
         uint64_t selected[8];
         for (uint32_t index = 0; index < 8; ++index) selected[index] = listeners[index].id;
@@ -61,6 +74,7 @@ namespace game_events {
                     const s_listener call = listener;
                     if (call.callback != nullptr) call.callback(event, call.context);
                     if (call.fleet_box_callback != nullptr && info != nullptr) call.fleet_box_callback(info, call.context);
+                    if (call.ship_identity_callback != nullptr && ship >= 0) call.ship_identity_callback(ship, call.context);
                     break;
                 }
             }
@@ -73,6 +87,18 @@ namespace game_events {
 
     void Publish_Fleet_Box_Info(const s_fleet_box_info* info) {
         if (info != nullptr) Deliver(FLEET_BOX_INFO_READY, info);
+    }
+
+    void Publish_Ship_Identity_Changing(int16_t ship) {
+        Deliver(SHIP_IDENTITIES_CHANGING, nullptr, ship);
+    }
+
+    s_observation_scope::s_observation_scope(e_event entered, e_event exit) : leaving(exit) {
+        Publish(entered);
+    }
+
+    s_observation_scope::~s_observation_scope() {
+        Publish(leaving);
     }
 
     s_fleet_box_view_scope::s_fleet_box_view_scope() {

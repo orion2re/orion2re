@@ -79,6 +79,173 @@ namespace {
     }
 } // namespace
 
+DOCTEST_TEST_CASE("context ETA captures revoke pages and queued baselines but preserve coherent ambient reads") {
+    s_fixture fixture;
+    auto& store = fixture.store;
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&store));
+    auto map = Players();
+    map.ships_captured = true;
+    map.ships = Ships().ships;
+    map.ships[0].destination_available = rpc::SHIP_CURRENT;
+    map.ships[0].destination_system = 1;
+    map.ships[0].eta_available = rpc::SHIP_CONTEXT_REQUIRED;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&store, &map));
+    const auto ambient = store.snapshots.back();
+    uint64_t client_epoch;
+    DOCTEST_REQUIRE(rpc::Register_Client(&fixture.bridge, 1, &client_epoch));
+    DOCTEST_REQUIRE(rpc::Authorize_Client(&fixture.bridge, 1, client_epoch));
+    map.context_epoch = rpc::Bridge_Context_Epoch(&fixture.bridge);
+    map.ships[0].eta_available = rpc::SHIP_CURRENT;
+    map.ships[0].eta = 0;
+    map.players[0].treasury = 999; // Self is the third unsorted input row.
+    map.players[2].treasury = 123;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&store, &map));
+    const auto retained = store.snapshots.back();
+    auto map_only = map;
+    map_only.context_epoch = 0;
+    map_only.ships_captured = false;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&store, &map_only));
+    DOCTEST_CHECK(store.snapshots.back().id == retained.id);
+    auto list = Request("game.listShips", "{\"limit\":1}");
+    uint64_t context = 0;
+    const auto page = rpc::Game_Query(&store, &list, &context);
+    DOCTEST_CHECK(context == map.context_epoch);
+    DOCTEST_REQUIRE(!store.cursors.empty());
+    const auto cursor = store.cursors.back().id;
+    auto state = Request("game.getState", "{\"include\":[\"session\",\"ships\",\"players\",\"systems\",\"nebulas\"]}");
+    const auto combined = rpc::Game_Query(&store, &state);
+    DOCTEST_CHECK(combined.find("\"value\":123") != std::string::npos);
+    DOCTEST_CHECK(combined.find(retained.id) != std::string::npos);
+    auto subscribe = Request("rpc.subscribe", "{\"topics\":[\"session\",\"ships\",\"players\",\"systems\",\"nebulas\"],\"events\":[\"state.changed\"]}");
+    DOCTEST_REQUIRE(rpc::Submit_Work(&fixture.bridge, 1, client_epoch, &subscribe, UINT64_MAX) == 0);
+    rpc::Pump_Game_Queries(&store);
+    DOCTEST_REQUIRE(store.subscriptions.size() == 1);
+    rpc::s_publication publication;
+    DOCTEST_REQUIRE(rpc::Take_Publication(&fixture.bridge, &publication));
+    DOCTEST_CHECK(publication.context_epoch == context);
+    DOCTEST_CHECK(publication.json.find(retained.id) != std::string::npos);
+    rpc::Acknowledge_Response(&fixture.bridge, 1, publication.ticket);
+    rpc::Revoke_Game_Context(&store);
+    DOCTEST_CHECK(rpc::Client_Is_Current(&fixture.bridge, 1, client_epoch));
+    DOCTEST_REQUIRE(rpc::Take_Publication(&fixture.bridge, &publication));
+    DOCTEST_CHECK(publication.ticket == 0);
+    DOCTEST_CHECK(publication.context_epoch == 0);
+    DOCTEST_CHECK(publication.json.find("state.changed") != std::string::npos);
+    auto players = Request("game.listPlayers");
+    DOCTEST_CHECK(rpc::Game_Query(&store, &players).find("\"value\":123") != std::string::npos);
+    DOCTEST_CHECK(store.snapshots.back().map.ships[0].eta == retained.map.ships[0].eta);
+    list.params_json = "{\"cursor\":" + rpc::Json_String(cursor) + "}";
+    DOCTEST_CHECK(rpc::Game_Query(&store, &list).find("\"error\"") != std::string::npos);
+    list.params_json = "{}";
+    context = 999;
+    const auto fallback = rpc::Game_Query(&store, &list, &context);
+    DOCTEST_CHECK(context == 0);
+    DOCTEST_CHECK(fallback.find(ambient.id) != std::string::npos);
+    DOCTEST_CHECK(fallback.find("context-required") != std::string::npos);
+    auto unknown = Request("game.getShip");
+    unknown.params_json = "{\"id\":" + rpc::Json_String(retained.ship_ids[0]) + "}";
+    const auto stale = rpc::Game_Query(&store, &unknown);
+    unknown.params_json = "{\"id\":\"not-a-ship\"}";
+    DOCTEST_CHECK(rpc::Game_Query(&store, &unknown) == stale);
+    // Re-presentation with equal public data has new capture ownership, not an epoch revision/identity change.
+    map.context_epoch = rpc::Bridge_Context_Epoch(&fixture.bridge);
+    DOCTEST_REQUIRE(rpc::Capture_Map(&store, &map));
+    DOCTEST_CHECK(store.snapshots.back().revision == retained.revision);
+    DOCTEST_CHECK(store.snapshots.back().ship_ids == retained.ship_ids);
+    DOCTEST_CHECK(store.snapshots.back().id != retained.id);
+    rpc::Pause_Game_Queries(&store);
+    DOCTEST_CHECK_FALSE(store.context_active);
+    DOCTEST_CHECK(rpc::Game_Query(&store, &state).find("\"error\"") != std::string::npos);
+    rpc::Resume_Game_Queries(&store);
+    context = 999;
+    rpc::Game_Query(&store, &list, &context);
+    DOCTEST_CHECK(context == 0);
+    rpc::Begin_Game_Reset(&store);
+    DOCTEST_CHECK(store.snapshots.empty());
+    DOCTEST_CHECK(store.subscriptions.empty());
+    DOCTEST_CHECK_FALSE(rpc::Client_Is_Current(&fixture.bridge, 1, client_epoch));
+}
+
+DOCTEST_TEST_CASE("revoked in-flight context subscription baseline cannot leave an inaccessible subscription") {
+    s_fixture fixture;
+    auto& store = fixture.store;
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&store));
+    auto map = Ships();
+    DOCTEST_REQUIRE(rpc::Capture_Map(&store, &map));
+    uint64_t epoch;
+    DOCTEST_REQUIRE(rpc::Register_Client(&fixture.bridge, 1, &epoch));
+    uint64_t ambient_epoch;
+    DOCTEST_REQUIRE(rpc::Register_Client(&fixture.bridge, 2, &ambient_epoch));
+    map.context_epoch = rpc::Bridge_Context_Epoch(&fixture.bridge);
+    map.ships[0].destination_available = map.ships[0].eta_available = rpc::SHIP_CURRENT;
+    map.ships[0].destination_system = 0;
+    map.ships[0].eta = 0;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&store, &map));
+    auto subscribe = Request("rpc.subscribe", "{\"topics\":[\"session\",\"ships\"],\"events\":[\"state.changed\"]}");
+    DOCTEST_REQUIRE(rpc::Submit_Work(&fixture.bridge, 1, epoch, &subscribe, UINT64_MAX) == 0);
+    rpc::Pump_Game_Queries(&store);
+    DOCTEST_REQUIRE(store.subscriptions.size() == 1);
+    rpc::s_publication publication;
+    DOCTEST_REQUIRE(rpc::Take_Publication(&fixture.bridge, &publication));
+    // Taking a publication is not delivery: it can already be service-owned.
+    DOCTEST_CHECK(rpc::Context_Response_Pending(&fixture.bridge, 1, publication.ticket));
+    rpc::Revoke_Game_Context(&store);
+    DOCTEST_CHECK(store.subscriptions.empty());
+    DOCTEST_CHECK_FALSE(rpc::Client_Is_Current(&fixture.bridge, 1, epoch));
+    DOCTEST_CHECK(rpc::Client_Is_Current(&fixture.bridge, 2, ambient_epoch));
+}
+
+DOCTEST_TEST_CASE("bounded fleet box capture retention preserves an authorized ambient offscreen fallback") {
+    s_fixture fixture;
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&fixture.store));
+    auto map = Ships();
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    const auto ambient = fixture.store.snapshots.back().id;
+    map.context_epoch = rpc::Bridge_Context_Epoch(&fixture.bridge);
+    map.ships[0].destination_available = map.ships[0].eta_available = rpc::SHIP_CURRENT;
+    map.ships[0].destination_system = 0;
+    for (int index = 0; index < 10; ++index) {
+        map.ships[0].eta = index;
+        DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    }
+    DOCTEST_CHECK(fixture.store.snapshots.size() == 4);
+    rpc::Revoke_Game_Context(&fixture.store);
+    const auto list = Request("game.listShips");
+    const auto response = rpc::Game_Query(&fixture.store, &list);
+    DOCTEST_CHECK(response.find(ambient) != std::string::npos);
+}
+
+DOCTEST_TEST_CASE("revocation cannot silently lose a queued ship invalidation on equal re-presentation") {
+    s_fixture fixture;
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&fixture.store));
+    auto map = Ships();
+    map.ships[0].destination_available = rpc::SHIP_CURRENT;
+    map.ships[0].destination_system = 0;
+    map.ships[0].eta_available = rpc::SHIP_CONTEXT_REQUIRED;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    map.context_epoch = rpc::Bridge_Context_Epoch(&fixture.bridge);
+    map.ships[0].eta_available = rpc::SHIP_CURRENT;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    uint64_t epoch;
+    DOCTEST_REQUIRE(rpc::Register_Client(&fixture.bridge, 1, &epoch));
+    auto subscribe = Request("rpc.subscribe", "{\"topics\":[\"ships\"],\"events\":[\"state.changed\"]}");
+    Dispatch(&fixture, 1, epoch, &subscribe);
+    rpc::Acknowledge_Response(&fixture.bridge, 1, fixture.store.subscriptions[0].baseline_ticket);
+    map.ships[0].eta = 1;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    rpc::Pump_Game_Queries(&fixture.store);
+    DOCTEST_REQUIRE(fixture.bridge.ready.size() == 1);
+    rpc::Revoke_Game_Context(&fixture.store);
+    map.context_epoch = rpc::Bridge_Context_Epoch(&fixture.bridge);
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    rpc::Pump_Game_Queries(&fixture.store);
+    rpc::s_publication event;
+    DOCTEST_REQUIRE(rpc::Take_Publication(&fixture.bridge, &event));
+    DOCTEST_CHECK(event.context_epoch == map.context_epoch);
+    DOCTEST_CHECK(event.json.find(fixture.store.snapshots.back().id) != std::string::npos);
+    DOCTEST_CHECK_FALSE(rpc::Take_Publication(&fixture.bridge, &event));
+}
+
 DOCTEST_TEST_CASE("game queries expose an authorized coherent capture rather than live raw world state") {
     s_fixture fixture;
     auto session = Request("game.getSession");

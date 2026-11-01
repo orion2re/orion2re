@@ -46,7 +46,7 @@ def Derive_Incoming(response, event):
         return unavailable
     revision = stamp.get("revision")
     if (stamp.get("gameId") != params["gameId"] or stamp.get("turn") != params["turn"]
-            or stamp.get("captureMode") != "last-native-ship-refresh"
+            or stamp.get("captureMode") not in ("last-native-ship-refresh", "last-native-fleet-box")
             or not isinstance(revision, str) or not revision.isascii() or not revision.isdigit()
             or int(revision) < int(params["revision"])):
         unavailable["reason"] = "capture-not-ready"

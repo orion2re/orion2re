@@ -24,8 +24,12 @@ spec.loader.exec_module(incoming_client)
 
 
 class WebSocket:
-    def __init__(self, port, origin="http://localhost:3000", host=None, path="/rpc"):
-        self.socket = socket.create_connection(("127.0.0.1", port), timeout=2)
+    def __init__(self, port, origin="http://localhost:3000", host=None, path="/rpc", receive_buffer=None):
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.socket.settimeout(2)
+        if receive_buffer is not None:
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, receive_buffer)
+        self.socket.connect(("127.0.0.1", port))
         key = base64.b64encode(os.urandom(16)).decode()
         request = (f"GET {path} HTTP/1.1\r\nHost: {host or f'127.0.0.1:{port}'}\r\n"
                    f"Upgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: {key}\r\n"
@@ -497,6 +501,67 @@ class TransportTests(unittest.TestCase):
         self.Fixture("switch")
         with self.assertRaises((EOFError, ConnectionError)):
             client.Read()
+
+    def test_context_eta_has_coherent_baselines_and_revokes_pages_without_losing_ambient_reads(self):
+        self.Fixture("world")
+        self.Fixture("colonies")
+        self.Fixture("eta-ambient")
+        self.Fixture("eta-context")
+        client = self.Client()
+        client.Hello()
+        topics = ["session", "systems", "nebulas", "players", "colonies", "ships"]
+        baseline = self.Query(client, "rpc.subscribe", {"topics":topics, "events":["state.changed"]})["result"]
+        state = self.Query(client, "game.getState", {"include":topics})["result"]
+        self.assertEqual(state, baseline["baseline"])
+        self.assertEqual(state["stamp"]["captureMode"], "last-native-fleet-box")
+        self.assertEqual(state["session"]["revision"], state["stamp"]["revision"])
+        self.assertEqual(state["ships"][0]["eta"], {"availability":"current", "value":0})
+        self.assertIn(state["ships"][0]["destination"]["value"], {item["id"] for item in state["systems"]})
+        first = self.Query(client, "game.listShips", {"limit":1})["result"]
+        self.Fixture("hidden")
+        self.assertEqual(self.Query(client, "game.getState", {"include":topics})["result"], state)
+        self.Fixture("eta-revoke")
+        changed = client.Read()
+        self.assertEqual(changed["method"], "state.changed")
+        self.assertEqual(changed["params"]["subscriptionId"], baseline["subscriptionId"])
+        self.assertEqual(self.Query(client, "game.listShips", {"cursor":first["nextCursor"]})["error"]["code"], -32004)
+        ambient = self.Query(client, "game.getState", {"include":topics})["result"]
+        self.assertEqual(ambient["ships"][0]["eta"], {"availability":"context-required"})
+        self.assertEqual(ambient["session"]["revision"], ambient["stamp"]["revision"])
+        stale = self.Query(client, "game.getShip", {"id":state["ships"][0]["id"]})
+        self.assertEqual(stale, self.Query(client, "game.getShip", {"id":"unknown"}))
+        self.Fixture("eta-context")
+        self.assertEqual(client.Read()["method"], "state.changed")
+        restored = self.Query(client, "game.listShips")["result"]
+        self.assertEqual(restored["items"], state["ships"])
+        self.Fixture("busy")
+        self.Fixture("resume")
+        self.assertEqual(client.Read()["method"], "state.changed")
+        self.assertEqual(self.Query(client, "game.listShips")["result"]["items"][0]["eta"], {"availability":"context-required"})
+
+    def test_context_revocation_closes_started_service_output_without_a_game_poll(self):
+        client = self.Client(receive_buffer=4096)
+        client.Hello()
+        for _ in range(3):
+            self.Fixture("publish-context-large")
+        opcode, final, payload = client.Read_Frame()
+        self.assertEqual(opcode, 1)
+        self.assertFalse(final)
+        # The fixture checks that the bridge is drained but final-fragment
+        # receipts remain outstanding: the stale output is now service-owned.
+        self.Fixture("revoke-context-output")
+        completed = 0
+        client.socket.settimeout(5)
+        try:
+            while True:
+                opcode, final, payload = client.Read_Frame()
+                if opcode == 8:
+                    break
+                if opcode in (0, 1) and final:
+                    completed += 1
+        except (EOFError, ConnectionError):
+            pass
+        self.assertLess(completed, 3)
 
     def test_player_queries_filter_hidden_records_and_foreign_economy_before_ids_and_revisions(self):
         self.Fixture("world")

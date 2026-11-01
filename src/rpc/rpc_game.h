@@ -95,6 +95,7 @@ namespace rpc {
         std::vector<s_player_observation> players;
         bool colonies_captured = false;
         std::vector<s_colony_observation> colonies;
+        uint64_t context_epoch = 0; // Private authorization lease, never encoded or compared as data.
     };
 
     struct s_map_snapshot {
@@ -130,6 +131,7 @@ namespace rpc {
         std::vector<std::string> topics;
         std::string projection;
         bool state_changes = false;
+        uint64_t baseline_ticket = 0;
     };
 
     struct s_turn_observer {
@@ -158,6 +160,7 @@ namespace rpc {
         std::vector<s_map_cursor> cursors;
         std::vector<s_state_subscription> subscriptions;
         std::vector<s_turn_observer> turn_observers;
+        bool context_active = false;
     };
 
     bool Initialize_Game_Store(s_game_store* store, s_bridge* bridge, t_new_id new_id = nullptr, void* context = nullptr);
@@ -166,10 +169,11 @@ namespace rpc {
     bool Commit_Game_Reset(s_game_store* store);
     void End_Game(s_game_store* store);
     void Revoke_Game_View(s_game_store* store);
+    void Revoke_Game_Context(s_game_store* store);
     void Pause_Game_Queries(s_game_store* store);
     void Resume_Game_Queries(s_game_store* store);
     bool Capture_Map(s_game_store* store, const s_map_observation* observation);
-    std::string Game_Query(s_game_store* store, const s_request* request);
+    std::string Game_Query(s_game_store* store, const s_request* request, uint64_t* context_epoch = nullptr);
     void Pump_Game_Queries(s_game_store* store);
     bool Needs_Game_Capture(s_game_store* store);
 } // namespace rpc

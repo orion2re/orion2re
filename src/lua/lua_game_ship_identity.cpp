@@ -1,6 +1,7 @@
 #include "pch.h"
 
 #include "lua/lua_game_ship_identity.h"
+#include "game/game_events.h"
 
 namespace orion2re::lua::game {
     namespace {
@@ -26,6 +27,7 @@ namespace orion2re::lua::game {
     }
 
     void Reset_Ship_Generations() {
+        if (scoped_ship_generations_ == nullptr) game_events::Publish(game_events::SHIP_IDENTITIES_RESETTING);
         memset(Ship_Generations(), 0, sizeof(ship_generations_));
     }
 
@@ -34,6 +36,7 @@ namespace orion2re::lua::game {
             Ship_Generations()[ship_id] == UINT64_MAX) {
             return false;
         }
+        if (scoped_ship_generations_ == nullptr) game_events::Publish_Ship_Identity_Changing(ship_id);
         ++Ship_Generations()[ship_id];
         return true;
     }
@@ -90,6 +93,7 @@ namespace orion2re::lua::game {
         if (generations == nullptr || count != MAX_SHIPS) {
             return false;
         }
+        if (scoped_ship_generations_ == nullptr) game_events::Publish(game_events::SHIP_IDENTITIES_RESETTING);
         memcpy(Ship_Generations(), generations, sizeof(ship_generations_));
         return true;
     }

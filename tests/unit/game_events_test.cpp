@@ -9,6 +9,24 @@ namespace {
     }
 } // namespace
 
+DOCTEST_TEST_CASE("identity observations are callback-local and share the neutral listener bound") {
+    std::vector<int16_t> slots;
+    const auto capture = [](int16_t ship, void* context) { ((std::vector<int16_t>*)context)->push_back(ship); };
+    const uint64_t token = game_events::Subscribe_Ship_Identity(capture, &slots);
+    DOCTEST_REQUIRE(token != 0);
+    game_events::Publish_Ship_Identity_Changing(7);
+    game_events::Publish(game_events::SHIP_IDENTITIES_RESETTING);
+    DOCTEST_CHECK(slots == std::vector<int16_t>{7});
+    std::vector<uint64_t> extra;
+    for (int index = 0; index < 7; ++index) extra.push_back(game_events::Subscribe_Ship_Identity(capture, &slots));
+    DOCTEST_CHECK(game_events::Subscribe_Ship_Identity(capture, &slots) == 0);
+    DOCTEST_CHECK(game_events::Subscribe_Ship_Identity(nullptr, nullptr) == 0);
+    for (const auto id : extra) game_events::Unsubscribe(id);
+    game_events::Unsubscribe(token);
+    game_events::Publish_Ship_Identity_Changing(8);
+    DOCTEST_CHECK(slots == std::vector<int16_t>{7});
+}
+
 DOCTEST_TEST_CASE("neutral game events publish committed failed and nested resolution boundaries") {
     std::vector<game_events::e_event> events;
     const uint64_t id = game_events::Subscribe(Record, &events);

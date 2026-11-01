@@ -325,6 +325,157 @@ selection. Repeat in `out/build/rpc-asan` with
 `ASAN_OPTIONS=detect_leaks=0:halt_on_error=1` and
 `UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1`.
 
+### Completed bounded Q-07 fleet-box ETA slice
+
+This section supersedes the prerequisite sections' disabled status **only** for
+the own surviving wormhole-route-head candidate. Q-07/V-04 remain incomplete;
+there is no selection/scan, foreign-name, fleet, design, cargo or orders API.
+The method/topic allowlists remain 15 methods and six topics.
+
+#### Canonical UI authority and native evidence
+
+The canonical native UI governs disclosure. `Print_Fleet_Box_Info` actually prints
+the first movement icon's cached ETA for this route, including when the open box
+has no selected members. Thus selection may be empty; requiring the head to be
+selected would invent a stricter RPC policy. A nonempty selection must nevertheless
+refer exclusively to the current box's surviving refresh associations. The broad
+`Some_Icon_Selected` scan alone is not authority. The producer now borrows bounded
+raw box-member and selected-node/ship references plus its open-box/head state;
+the adapter validates them without any later display-node traversal. These are
+neutral observations, not a new native policy or callable operation.
+
+An initialized main owner authorizes production only during its explicit top-level
+input or ordinary loop redraw. The latter has paired draw observations, separate
+from input. Leaving either production interval does not itself close the still
+visible box. A nonzero main input interrupts before dispatch; pending network
+diplomacy interrupts only when the native requester branch actually takes a child.
+Matching help still interrupts before the child's saved-parent draw. Those child
+draws cannot restore authority. Subsequent genuine main input/redraw can accept
+only a newly produced result, never promote a setup/child result. Owner entry,
+replacement and exit discard associations without implicit parent restoration.
+
+`Read_Ship_Refresh` copies associations only at `SHIP_ICONS_REFRESHED`. It binds
+surviving heads/reachable nodes to transient slots and copies only the authorized
+projection. Existing native/Lua ship generations are a private safety check, not
+durable RPC identity. Native creation (`Create_Nonplayer_Ship`,
+`Create_Ship_From_Design`, Loknar assignment), Lua delete/copy and editor replacement
+already advance those generations. The existing advance/reset/restore operations
+now publish neutral observations before active-world identity mutation, and
+`Kill_Ship` observes retirement before its mutations. Staged thread-local Lua
+generation work does not revoke the active world. Hidden/unassociated slot
+generation changes neither revoke this candidate nor enter public comparisons.
+Own surviving records are checked against their copied public/name/location
+association before a fresh fleet-box capture is admitted. Mismatched/reused records,
+stale member/selection references and missing generations fail closed.
+
+The accepted payload grants only head ETA, narrowed by the native producer to an
+unsigned byte (0..255). Destination must already be current in the ambient route
+projection and resolve in this capture. A producer `star == -1` withholds its name;
+it does not erase independently authorized ambient destination knowledge or mean
+known-empty. Special/`NUM_STARS` destinations cannot acquire fabricated handles.
+
+#### Immutable capture and end-to-end revocation
+
+The callback copies all borrowed data immediately. Completion of the actual print
+atomically accepts or withdraws its observation, avoiding a false close/open cycle
+on every equal redraw. Acceptance reads map/player/colony/session inputs afresh and
+copies the still-valid surviving ship projection into a new coherent capture,
+stamped `last-native-fleet-box`. No older retained capture is enriched. Queries use
+only copied observations and never call builders, renderers or movement calculators.
+The incoming-threat example accepts this additional coherent dating mode without
+adding a query family or server analysis.
+
+Context leases remain private. Revocation covers close/replacement, stale producer
+results, owner exit/replacement, child interruption, rebuild, identity retirement/
+reuse, load/reset, network updates, resolution and perspective changes. Selection
+and pinned-cursor lookup reject captures under an expired lease, even if an old
+capture remains internally retained for public-projection identity comparison.
+Their contents remain immutable and cannot be read through an expired ship cursor.
+Independent non-ship projections of the same capture remain authorized; ETA
+revocation must not unnecessarily roll back own HUD, map or session metadata.
+Ambient ship captures remain independently readable offscreen where authorized.
+
+The approved rebuild rule is an explicit authorization-lifetime exception to
+noninterference: a context page may expire even when the rebuilt public projection
+will be equal. Hidden-only comparisons hold lifecycle boundaries equal. Fresh equal
+presentation preserves ship observation handles and the public revision; it owns
+a new immutable capture ID rather than reviving a revoked capture/page. No native
+fingerprint, node index or generation contributes to public sorting or identity.
+
+The bridge tags contextual results/publications and converts unsent revoked
+responses to the ordinary object-unavailable error; obsolete invalidations are
+removed. Pending read requests execute against currently authorized captures, not
+an earlier lease; old pinned references fail normally. Service output carries the
+same lease through its own queue and rechecks before every fragment and on its
+independent timer. An unsent response can become an error. An already-started
+revoked message closes the connection rather than finishing a stale message or
+rewriting its fragments. Bytes handed to the socket before revocation cannot be
+recalled.
+
+Fully delivered subscriptions continue from an authorized ambient projection and
+receive ordinary invalidations when their selected public projection changes.
+Revocation immediately replaces the contextual invalidation with that authorized
+projection, so dropping an unsent context event cannot silently lose a later equal
+re-presentation update. Independent ambient-only subscriptions do not change.
+Revocation of an in-flight contextual subscription baseline instead explicitly
+cancels that client and removes its subscriptions: it must not leave an inaccessible
+subscription after a revoked baseline. Bounded delivery receipts distinguish
+service-owned queued baselines from completed delivery. Ambient-only clients and
+unrelated ordered output are not blanket-disconnected. Whole-world/perspective
+revocation retains the existing fresh-hello boundary.
+
+#### Regression evidence and scope
+
+Native-array tests combine the actual `Build_Ship_Icons`, `Print_Fleet_Box_Info`,
+and retirement/generation functions with synthetic owner lifetimes and empty local
+format strings, not proprietary assets. The candidate uses the status-2 departing
+route encoding written by `Make_Ships_Move_To`, with distinct origin/destination
+systems; no movement calculator is called for capture. Tests cover initialization/non-promotion,
+zero/255, independently current but producer-name-withheld destinations, special
+destinations, empty native selection, stale selections/node references, byte-equal
+slot reuse, child parent draws, ordinary redraw, owner replacement/exit, rebuild,
+world/resolution/perspective boundaries, copied lifetimes, coherent own HUD updates,
+hidden identity activity and unchanged native records/RNG. Source-order checks pin
+those observations to actual main dispatch/redraw and pre-child help/diplomacy.
+These are not scope-order tests alone, but they are still synthetic native-function
+evidence rather than interactive full-screen parity.
+
+Store/bridge/output tests cover fresh immutable captures, all-topic dating including
+session, equal re-presentation identity/revision stability, expired pinned pages,
+unknown/stale-handle error equivalence, resolution/reset, late completions, pending
+reads, ready publications, in-flight baselines and service-queue accounting including
+partial-message refusal. Live WebSocket tests exercise coherent six-topic baselines,
+zero ETA, same-capture destinations, hidden equality, revocation/restoration,
+retained pages, ambient continuation and an actually service-owned backpressured
+context output revoked before its remaining fragments. Live projected fixtures
+test transport, not native authorization; the native-function tests provide the
+independent authorization evidence.
+
+Completed-slice verification on macOS ARM64: all requested game/RPC/native-owner
+targets build normally and under ASAN/UBSAN. All seven selected CTest targets pass
+in both configurations, including the 41-case live WebSocket suite. All 107 Python
+tests pass with the live test server; the RPC-disabled suite passes all 106 targets.
+The affected Lua mod-runtime target additionally builds and passes under ASAN/UBSAN.
+Canonical schema/reference/C++ metadata were regenerated from inputs; drift,
+affected-range C++ formatting and whitespace checks pass. Only leak detection is
+disabled (`detect_leaks=0`) because local LeakSanitizer is unsupported; ASAN and
+UBSAN remain enabled with halt-on-error. No leak verification is claimed.
+
+The native tests caught a missing synthetic leader-array fixture when invoking
+actual retirement; the fixture now supplies that required state. Regression review
+also caught map-only capture displacement causing redraw revision churn, dropped
+queued invalidations at revocation, and overly broad ambient retention. The final
+implementation/tests cover these: equal map-only observations do not displace a
+coherent complete capture, revoked invalidations are replaced from an authorized
+projection, and retention protection is scoped to views retaining fleet-box
+captures. An equal surviving rebuild/re-presentation preserves ship handles and
+revision while owning a fresh capture and revoking old pages.
+
+Interactive saved-game/multiplayer parity and other-platform checks remain
+unverified; missing assets/save fixtures do not block this implementation. Q-06,
+Q-07, Q-13 and V-04 remain unchecked. This is the completed bounded ETA slice,
+not completion of all conditional ship knowledge or a move to P2.
+
 ## Queries, identities and dating
 
 Enabled methods now include `game.listShips` and `game.getShip`; `ships` is also
@@ -332,13 +483,18 @@ an allowed `getState.include` and subscription topic. Before a valid refresh,
 ship reads/subscription baselines return busy, not a falsely known-empty list.
 A successful empty refresh returns an empty collection.
 
-Ship reads select the newest retained complete post-refresh snapshot, explicitly
-stamped `captureMode: last-native-ship-refresh`. A combined state request containing
+Ship reads select the newest retained authorized complete snapshot, explicitly
+stamped `last-native-ship-refresh` or `last-native-fleet-box`. A combined state request containing
 ships selects **all** its topics, including session metadata, from that same
 snapshot. It does not splice older ships into a newer map. Other screens can read
 the cached copy without navigating or rebuilding display state. During resolution
-reads are busy. If newer map-only captures evict the last complete ship capture,
-ship reads become busy; an affected subscription disconnects explicitly.
+reads are busy. If no authorized complete capture exists, ship reads become busy;
+an affected subscription disconnects explicitly. While fleet-box captures remain
+retained, retention protects the newest ambient complete ship capture within the
+same four-snapshot budget, so context captures do not evict that authorized offscreen fallback. Ordinary
+non-context retention keeps its existing eviction/busy behavior. An equal
+map-only observation also does not displace a still-authorized complete capture
+merely because it omits ships.
 
 Ship IDs are opaque **read-only observation handles**, not durable native entity
 identities. They remain unchanged while the authorized ship projection is equal,

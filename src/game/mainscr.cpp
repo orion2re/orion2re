@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game/game_events.h"
 
 #include "config/config_loader.h"
 #include "config/config_snapshot.h"
@@ -2649,6 +2650,7 @@ namespace MAINSCR {
         int16_t requester_id = (int16_t)NETMOX::Human_Requesting_Diplomacy();
 
         if (requester_id != -1) {
+            game_events::Publish(game_events::MAIN_VIEW_INPUT_INTERRUPTED);
             processed_any = 1;
             do {
                 if (processed_count > 0) {

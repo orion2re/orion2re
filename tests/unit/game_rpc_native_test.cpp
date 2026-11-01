@@ -3,6 +3,7 @@
 #include "rpc/game_rpc.h"
 #include "rpc/rpc_game.h"
 #include "game/game_events.h"
+#include "lua/lua_game_ship_identity.h"
 
 #include <chrono>
 #include <iostream>
@@ -550,6 +551,8 @@ DOCTEST_TEST_CASE("native fleet info publishes only produced cached ETA and neve
         int clears = 0;
         uint64_t info_token = game_events::Subscribe_Fleet_Box_Info([](const game_events::s_fleet_box_info* info, void* context) {
             ((s_info_state*)context)->copied.push_back(*info);
+            ((s_info_state*)context)->copied.back().members = nullptr;
+            ((s_info_state*)context)->copied.back().selected = nullptr;
         },
             this);
         uint64_t event_token = game_events::Subscribe([](game_events::e_event event, void* context) {
@@ -630,6 +633,285 @@ DOCTEST_TEST_CASE("native fleet info publishes only produced cached ETA and neve
     SHIPS::Build_Ship_Icons();
     DOCTEST_CHECK(state.clears == 6); // A rebuilt node/slot mapping cannot inherit the result.
     DOCTEST_CHECK(game_random::Get_Random_Seed() == seed);
+}
+
+namespace {
+    struct s_eta_world {
+        s_ship_world native;
+        rpc::s_bridge bridge;
+        rpc::s_game_store store;
+        game_rpc::s_fleet_eta_adapter adapter;
+        s_leader_data* old_leaders = MOX::leaders;
+        std::vector<s_leader_data> leaders = std::vector<s_leader_data>(MAX_LEADERS);
+        std::vector<uint64_t> generations = std::vector<uint64_t>(MAX_SHIPS);
+        s_fleet_box old_box = MOX::fleet_box;
+        s_movable_box old_moveable = MOX::moveable_box[2];
+        int16_t old_stack = MOX::fleet_box_ship_stack;
+        int16_t old_eta = MOX::eta_star_id;
+        int16_t old_scanned = MOX::fleet_ship_scanned;
+        int16_t old_chosen = MAINSCR::fleet_icon_chosen;
+        std::vector<s_fleet_movement_icon> icons = {std::begin(MOX::fleet_movement_icon), std::end(MOX::fleet_movement_icon)};
+        std::vector<char> strings = MOX::h_strings;
+        std::vector<size_t> offsets = {std::begin(MOX::h_string_ix), std::end(MOX::h_string_ix)};
+        s_eta_world() {
+            MOX::leaders = leaders.data();
+            DOCTEST_REQUIRE(orion2re::lua::game::Capture_Ship_Generation_State(generations.data(), MAX_SHIPS));
+            native.world.stars[1].x = 100;
+            native.world.stars[1].visited = 1;
+            native.world.stars[2].x = 200;
+            MOX::NUM_SHIPS = 11;
+            for (int index = 0; index < 10; ++index) {
+                native.ships[index] = {};
+                native.ships[index].owner = 0;
+                native.ships[index].status = 2;
+                native.ships[index].location = SHIP_LOCATION_WORMHOLE_OFFSET + 1;
+                native.ships[index].turns_left = 0;
+                snprintf(native.ships[index].d.name, sizeof(native.ships[index].d.name), "Own-%d", index);
+            }
+            native.ships[10] = {};
+            native.ships[10].owner = 1;
+            native.ships[10].x = 30;
+            orion2re::lua::game::Restore_Legacy_Ship_Generations();
+            MOX::h_strings = {'\0'};
+            std::fill(std::begin(MOX::h_string_ix), std::end(MOX::h_string_ix), 0);
+            MOX::eta_star_id = MOX::fleet_ship_scanned = MAINSCR::fleet_icon_chosen = -1;
+            DOCTEST_REQUIRE(rpc::Initialize_Game_Store(&store, &bridge));
+            DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&store));
+            DOCTEST_REQUIRE(game_rpc::Initialize_Fleet_Eta_Adapter(&adapter, &store));
+        }
+        ~s_eta_world() {
+            game_rpc::Shutdown_Fleet_Eta_Adapter(&adapter);
+            rpc::Shutdown_Game_Store(&store);
+            orion2re::lua::game::Restore_Ship_Generation_State(generations.data(), MAX_SHIPS);
+            MOX::fleet_box = old_box;
+            MOX::moveable_box[2] = old_moveable;
+            MOX::fleet_box_ship_stack = old_stack;
+            MOX::eta_star_id = old_eta;
+            MOX::fleet_ship_scanned = old_scanned;
+            MAINSCR::fleet_icon_chosen = old_chosen;
+            std::copy(icons.begin(), icons.end(), MOX::fleet_movement_icon);
+            MOX::h_strings = std::move(strings);
+            std::copy(offsets.begin(), offsets.end(), MOX::h_string_ix);
+            MOX::leaders = old_leaders;
+        }
+        void Refresh() {
+            SHIPS::Build_Ship_Icons();
+            DOCTEST_REQUIRE(!adapter.associations.empty());
+            const auto head = std::find_if(adapter.associations.begin(), adapter.associations.end(), [](const game_rpc::s_ship_association& item) { return item.ship.owned && item.head == item.node; });
+            DOCTEST_REQUIRE(head != adapter.associations.end());
+            MOX::fleet_box_ship_stack = HACCESS::Ship_Stack_From_Ship_Id(head->slot);
+            MOX::moveable_box[2].id = MOX::box_off_flag[2] + 1;
+            MOX::fleet_box.count = 10; // Synthetic empty formats avoid asset-dependent drawing.
+            int index = 0;
+            for (int16_t node = head->head; node != -1; node = MOX::ship_node[node].next_node) {
+                MOX::fleet_movement_icon[index++].ship_node_idx = node;
+            }
+            DOCTEST_REQUIRE(index == 10);
+            MOX::ship_node[head->head].selected = 1;
+        }
+        void Print() {
+            game_events::s_observation_scope draw(game_events::MAIN_VIEW_DRAW_ENTERED, game_events::MAIN_VIEW_DRAW_LEAVING);
+            FLEETPOP::Print_Fleet_Box_Info();
+        }
+        std::string Query(const char* method = "game.listShips", const char* params = "{}", uint64_t* context = nullptr) {
+            rpc::s_request request;
+            request.id_json = "1";
+            request.method = method;
+            request.params_json = params;
+            return rpc::Game_Query(&store, &request, context);
+        }
+        size_t Current_Etas() {
+            const auto& map = store.snapshots.back().map;
+            return std::count_if(map.ships.begin(), map.ships.end(), [](const rpc::s_ship_observation& ship) { return ship.eta_available == rpc::SHIP_CURRENT; });
+        }
+    };
+} // namespace
+
+DOCTEST_TEST_CASE("real cached producer authorizes only an initialized surviving own wormhole head including zero") {
+    s_eta_world fixture;
+    game_events::s_fleet_box_view_scope owner;
+    fixture.Refresh();
+    const auto ambient = fixture.Query();
+    fixture.Print();
+    DOCTEST_CHECK(fixture.Query() == ambient);
+    owner.Initialized();
+    DOCTEST_CHECK(fixture.Query() == ambient); // Never promote the pre-initialization result.
+    const auto records = fixture.native.ships;
+    const uint32_t seed = game_random::Get_Random_Seed();
+    fixture.native.world.players[0].bc = 123;
+    fixture.Print();
+    uint64_t context = 0;
+    const auto disclosed = fixture.Query("game.listShips", "{}", &context);
+    DOCTEST_REQUIRE(context != 0);
+    DOCTEST_CHECK(fixture.Current_Etas() == 1);
+    DOCTEST_CHECK(disclosed.find("\"eta\":{\"availability\":\"current\",\"value\":0}") != std::string::npos);
+    const auto retained = fixture.store.snapshots.back();
+    DOCTEST_CHECK(retained.map.players[0].treasury == 123);
+    fixture.native.world.players[0].bc = 456;
+    fixture.Print();
+    DOCTEST_CHECK(retained.map.players[0].treasury == 123);
+    DOCTEST_CHECK(fixture.store.snapshots.back().map.players[0].treasury == 456);
+    DOCTEST_CHECK(fixture.store.snapshots.back().ship_ids == retained.ship_ids);
+    DOCTEST_CHECK(memcmp(records.data(), fixture.native.ships.data(), records.size() * sizeof(s_ship_data)) == 0);
+    DOCTEST_CHECK(game_random::Get_Random_Seed() == seed);
+    const auto repeated = fixture.Query();
+    fixture.Print();
+    DOCTEST_CHECK(fixture.Query() == repeated); // Ordinary redraw is usable, not epoch churn.
+}
+
+DOCTEST_TEST_CASE("child parent draws cannot reauthorize and ordinary native redraw restores fresh ETA") {
+    s_eta_world fixture;
+    game_events::s_fleet_box_view_scope owner;
+    fixture.Refresh();
+    owner.Initialized();
+    fixture.Print();
+    const auto ids = fixture.store.snapshots.back().ship_ids;
+    const auto old_capture = fixture.store.snapshots.back();
+    {
+        game_events::s_main_view_input_scope input;
+        game_events::Publish(game_events::MAIN_VIEW_INPUT_INTERRUPTED);
+        FLEETPOP::Print_Fleet_Box_Info(); // The child's saved parent draw, before child Get_Input.
+        uint64_t context = 99;
+        fixture.Query("game.listShips", "{}", &context);
+        DOCTEST_CHECK(context == 0);
+    }
+    DOCTEST_CHECK(fixture.store.snapshots.back().id == old_capture.id);
+    fixture.Print();
+    DOCTEST_CHECK(fixture.Current_Etas() == 1);
+    DOCTEST_CHECK(fixture.store.snapshots.back().ship_ids == ids);
+    DOCTEST_CHECK(fixture.store.snapshots.back().revision == old_capture.revision);
+    DOCTEST_CHECK(fixture.store.snapshots.back().id != old_capture.id);
+    game_events::Publish(game_events::FLEET_BOX_VIEW_ENTERED); // Replacement does not restore its parent.
+    fixture.Print();
+    DOCTEST_CHECK_FALSE(fixture.store.context_active);
+    DOCTEST_CHECK(fixture.adapter.associations.empty());
+}
+
+DOCTEST_TEST_CASE("fleet box ETA preserves unsigned bytes and cannot manufacture destination knowledge") {
+    s_eta_world fixture;
+    bool special = false;
+    bool no_selection = false;
+    DOCTEST_SUBCASE("unsigned 255") {
+        for (int index = 0; index < 10; ++index) fixture.native.ships[index].turns_left = -1;
+    }
+    DOCTEST_SUBCASE("withheld producer name but independently current ambient destination") {
+        fixture.native.world.stars[1].visited = 0;
+    }
+    DOCTEST_SUBCASE("native open-box presentation also permits an empty selection") {
+        no_selection = true;
+    }
+    DOCTEST_SUBCASE("special destination has no system handle") {
+        special = true;
+        for (int index = 0; index < 10; ++index) fixture.native.ships[index].location = SHIP_LOCATION_WORMHOLE_OFFSET + MOX::NUM_STARS;
+    }
+    {
+        game_events::s_fleet_box_view_scope owner;
+        fixture.Refresh();
+        if (no_selection) {
+            for (auto& node : MOX::ship_node) node.selected = 0;
+        }
+        owner.Initialized();
+        fixture.Print();
+        DOCTEST_CHECK(fixture.store.context_active == !special);
+        if (!special) {
+            const auto copied = fixture.Query();
+            DOCTEST_CHECK(fixture.Current_Etas() == 1);
+            if (fixture.native.ships[0].turns_left == 255) DOCTEST_CHECK(copied.find("\"availability\":\"current\",\"value\":255") != std::string::npos);
+            if (fixture.native.world.stars[1].visited == 0) DOCTEST_CHECK_FALSE(fixture.store.snapshots.back().map.systems[1].name_available);
+            MOX::ship_node[MOX::fleet_movement_icon[0].ship_node_idx].ship_idx = MAX_SHIPS - 1;
+            fixture.native.ships[0].turns_left = 17;
+            DOCTEST_CHECK(fixture.Query() == copied); // Retained values own their lifetimes; reads never traverse nodes.
+        }
+    }
+    DOCTEST_CHECK_FALSE(fixture.store.context_active);
+    DOCTEST_CHECK(fixture.adapter.associations.empty());
+}
+
+DOCTEST_TEST_CASE("native stale selection node reuse and slot retirement cannot inherit cached ETA") {
+    s_eta_world fixture;
+    game_events::s_fleet_box_view_scope owner;
+    fixture.Refresh();
+    owner.Initialized();
+    fixture.Print();
+    DOCTEST_REQUIRE(fixture.store.context_active);
+    const int16_t first_node = MOX::fleet_movement_icon[0].ship_node_idx;
+    const int16_t first_ship = MOX::ship_node[first_node].ship_idx;
+    DOCTEST_SUBCASE("unreachable stale selection") {
+        MOX::ship_node[MAX_SHIPS - 1] = {first_ship, -1, 1};
+        fixture.Print();
+    }
+    DOCTEST_SUBCASE("stale movement node points at same slot") {
+        MOX::ship_node[MAX_SHIPS - 1] = {first_ship, -1, 0};
+        MOX::fleet_movement_icon[0].ship_node_idx = MAX_SHIPS - 1;
+        fixture.Print();
+    }
+    DOCTEST_SUBCASE("slot retired and reused with byte-identical public data") {
+        const auto original = fixture.native.ships[first_ship];
+        SHIPS::Kill_Ship(first_ship);
+        DOCTEST_CHECK_FALSE(fixture.store.context_active);
+        DOCTEST_REQUIRE(orion2re::lua::game::Advance_Ship_Generation(first_ship));
+        fixture.native.ships[first_ship] = original;
+        fixture.Print();
+    }
+    DOCTEST_SUBCASE("box closed") {
+        MOVEBOX::Vanish_Fleet_Movement_Box();
+        fixture.Print();
+    }
+    DOCTEST_SUBCASE("box replacement clear") {
+        game_events::Publish(game_events::FLEET_BOX_INFO_CLEARED);
+        DOCTEST_CHECK_FALSE(fixture.store.context_active);
+        return;
+    }
+    DOCTEST_CHECK_FALSE(fixture.store.context_active);
+    uint64_t context = 99;
+    fixture.Query("game.listShips", "{}", &context);
+    DOCTEST_CHECK(context == 0);
+}
+
+DOCTEST_TEST_CASE("native rebuild and world boundaries revoke ETA without exposing hidden identity changes") {
+    s_eta_world fixture;
+    game_events::s_fleet_box_view_scope owner;
+    fixture.Refresh();
+    owner.Initialized();
+    fixture.Print();
+    const auto before = fixture.Query();
+    const auto before_ids = fixture.store.snapshots.back().ship_ids;
+    const auto before_revision = fixture.store.snapshots.back().revision;
+    const auto context_epoch = rpc::Bridge_Context_Epoch(&fixture.bridge);
+    DOCTEST_REQUIRE(orion2re::lua::game::Advance_Ship_Generation(MAX_SHIPS - 1));
+    fixture.native.ships[MAX_SHIPS - 1].owner = 7;
+    fixture.native.ships[MAX_SHIPS - 1].turns_left = 99;
+    fixture.Print();
+    DOCTEST_CHECK(fixture.Query() == before);
+    DOCTEST_CHECK(rpc::Bridge_Context_Epoch(&fixture.bridge) == context_epoch);
+    DOCTEST_SUBCASE("icon rebuild") {
+        fixture.Refresh();
+        DOCTEST_CHECK_FALSE(fixture.store.context_active);
+        fixture.Print();
+        DOCTEST_CHECK(fixture.Current_Etas() == 1);
+        DOCTEST_CHECK(fixture.store.snapshots.back().ship_ids == before_ids);
+        DOCTEST_CHECK(fixture.store.snapshots.back().revision == before_revision);
+    }
+    DOCTEST_SUBCASE("resolution") {
+        game_events::Publish(game_events::RESOLUTION_BEGIN);
+        fixture.Print();
+        DOCTEST_CHECK_FALSE(fixture.store.context_active);
+    }
+    DOCTEST_SUBCASE("network update") {
+        game_events::Publish(game_events::WORLD_UPDATE_BEGIN);
+        fixture.Print();
+        DOCTEST_CHECK_FALSE(fixture.store.context_active);
+    }
+    DOCTEST_SUBCASE("load reset") {
+        game_events::Publish(game_events::WORLD_REPLACE_BEGIN);
+        fixture.Print();
+        DOCTEST_CHECK_FALSE(fixture.store.context_active);
+    }
+    DOCTEST_SUBCASE("perspective") {
+        game_events::Publish(game_events::PERSPECTIVE_SELECTION_BEGIN);
+        fixture.Print();
+        DOCTEST_CHECK_FALSE(fixture.store.context_active);
+    }
 }
 
 DOCTEST_TEST_CASE("ship icon rebuild invalidates transient node associations before reusing nodes") {

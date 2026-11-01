@@ -53,8 +53,10 @@ int main() {
         hidden.name = "Hidden empire";
         hidden.color = 2;
         map.players = {own, contact, hidden};
+        bool polling = true;
         while (running) {
             std::string command;
+            std::string acknowledgment = "done";
             {
                 std::lock_guard lock(commands_mutex);
                 if (!commands.empty()) {
@@ -138,6 +140,19 @@ int main() {
                 }
                 map.ships_captured = true;
                 rpc::Capture_Map(&store, &map);
+            } else if (command == "eta-ambient" || command == "eta-context") {
+                map.ships_captured = true;
+                if (map.ships.empty()) map.ships = {{0, 0, true, "Own"}, {30, 0, false, ""}, {60, 0, false, ""}};
+                map.ships[0].destination_available = rpc::SHIP_CURRENT;
+                map.ships[0].destination_system = 1;
+                map.ships[0].eta_available = command == "eta-context" ? rpc::SHIP_CURRENT : rpc::SHIP_CONTEXT_REQUIRED;
+                map.ships[0].eta = 0;
+                map.context_epoch = command == "eta-context" ? rpc::Bridge_Context_Epoch(&bridge) : 0;
+                rpc::Capture_Map(&store, &map);
+            } else if (command == "eta-revoke") {
+                rpc::Revoke_Game_Context(&store);
+                map.context_epoch = 0;
+                if (!map.ships.empty()) map.ships[0].eta_available = rpc::SHIP_CONTEXT_REQUIRED;
             } else if (command == "colonies") {
                 map.colonies_captured = true;
                 map.colonies = {{0, 0, 1, 0}, {0, 0, 5, 42}, {1, 99999, -1, 99999}};
@@ -192,7 +207,14 @@ int main() {
                 }
             } else if (command == "revoke")
                 rpc::Revoke_Bridge(&bridge);
-            else if (command == "publish" || command == "publish-large" || command == "overflow") {
+            else if (command == "revoke-context-output") {
+                {
+                    std::lock_guard lock(bridge.mutex);
+                    if (!bridge.ready.empty() || bridge.deliveries.empty()) acknowledgment = "no-service-owned-pending-output";
+                }
+                rpc::Revoke_Bridge_Context(&bridge);
+                polling = false;
+            } else if (command == "publish" || command == "publish-large" || command == "publish-context-large" || command == "overflow") {
                 rpc::s_request request;
                 request.id_json = "99";
                 request.method = "fixture";
@@ -200,14 +222,14 @@ int main() {
                 if (rpc::Submit_Work(&bridge, 1, 1, &request, std::numeric_limits<uint64_t>::max()) == 0) {
                     rpc::s_work work;
                     if (rpc::Take_Work(&bridge, 0, &work)) {
-                        const size_t size = command == "publish-large" ? 524288 : 32768;
+                        const size_t size = command == "publish-context-large" ? 1048000 : (command == "publish-large" ? 524288 : 32768);
                         const std::string result = command != "overflow" ? rpc::Result_Response(&request, "{\"fixture\":" + rpc::Json_String(std::string(size, 'x')) + "}") : std::string(1048577, 'x');
-                        rpc::Complete_Work(&bridge, &work, &result);
+                        rpc::Complete_Work(&bridge, &work, &result, command == "publish-context-large" ? rpc::Bridge_Context_Epoch(&bridge) : 0);
                     }
                 }
             }
-            if (!command.empty()) std::cout << "done" << std::endl;
-            rpc::Pump_Game_Queries(&store);
+            if (!command.empty()) std::cout << acknowledgment << std::endl;
+            if (polling) rpc::Pump_Game_Queries(&store);
             std::this_thread::sleep_for(std::chrono::milliseconds(2));
         }
         rpc::Shutdown_Game_Store(&store);

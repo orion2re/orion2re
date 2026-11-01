@@ -28,6 +28,17 @@ namespace game_events {
         MAIN_VIEW_INPUT_ENTERED,
         MAIN_VIEW_INPUT_LEAVING,
         MAIN_VIEW_INPUT_INTERRUPTED,
+        MAIN_VIEW_DRAW_ENTERED,
+        MAIN_VIEW_DRAW_LEAVING,
+        FLEET_BOX_PRINT_ENTERED,
+        FLEET_BOX_PRINT_LEAVING,
+        SHIP_IDENTITIES_CHANGING,
+        SHIP_IDENTITIES_RESETTING,
+    };
+
+    struct s_fleet_box_node {
+        int16_t node;
+        int16_t ship;
     };
 
     // Native fleet-box presentation result, borrowed only during publication.
@@ -38,17 +49,34 @@ namespace game_events {
         int16_t star;
         // Transient producer reference, not an identity across node rebuilds.
         int16_t node;
+        int16_t box_head = -1;
+        bool box_open = false;
+        const s_fleet_box_node* members = nullptr;
+        int16_t member_count = 0;
+        const s_fleet_box_node* selected = nullptr;
+        int16_t selected_count = 0;
     };
 
     using t_callback = void (*)(e_event event, void* context);
     using t_fleet_box_callback = void (*)(const s_fleet_box_info* info, void* context);
+    using t_ship_identity_callback = void (*)(int16_t ship, void* context);
     // Synchronous observation only. Register while quiescent or on the publishing
     // thread; callbacks must not throw or recursively mutate the game.
     uint64_t Subscribe(t_callback callback, void* context);
     uint64_t Subscribe_Fleet_Box_Info(t_fleet_box_callback callback, void* context);
+    uint64_t Subscribe_Ship_Identity(t_ship_identity_callback callback, void* context);
     void Unsubscribe(uint64_t subscription);
     void Publish(e_event event);
     void Publish_Fleet_Box_Info(const s_fleet_box_info* info);
+    void Publish_Ship_Identity_Changing(int16_t ship);
+
+    struct s_observation_scope {
+        e_event leaving;
+        s_observation_scope(e_event entered, e_event leaving);
+        ~s_observation_scope();
+        s_observation_scope(const s_observation_scope&) = delete;
+        s_observation_scope& operator=(const s_observation_scope&) = delete;
+    };
 
     // Main-view owner lifetime, not proof of an open box or a valid selection.
     struct s_fleet_box_view_scope {

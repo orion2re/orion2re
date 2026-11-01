@@ -13,6 +13,7 @@ namespace SHIPS {
     }
 
     void __cdecl Kill_Ship(int16_t ship_idx) {
+        game_events::Publish_Ship_Identity_Changing(ship_idx);
         HACCESS::Ship_Owner(ship_idx);
 
         bool officer_relocated = false;

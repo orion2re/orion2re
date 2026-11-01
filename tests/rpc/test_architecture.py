@@ -36,7 +36,8 @@ class SidecarArchitectureTests(unittest.TestCase):
         self.assertLess(builder.index("qsort("), builder.index("SHIP_ICONS_REFRESHED"))
         self.assertLess(builder.index("SHIP_ICONS_REBUILD_BEGIN"), builder.index("SHIPSTAK::Find_Ship_Stacks()"))
         adapter = (ROOT / "src/rpc/game_rpc.cpp").read_text()
-        self.assertIn("case game_events::SHIP_ICONS_REFRESHED: Capture_Refreshed_Ships();", adapter)
+        self.assertIn("case game_events::SHIP_ICONS_REFRESHED:", adapter)
+        self.assertEqual(adapter.count("Read_Ship_Refresh(&observation, &adapter->associations)"), 1)
         for name in ("game_rpc.cpp", "rpc_game.cpp"):
             self.assertNotRegex((ROOT / "src/rpc" / name).read_text(),
                                 r"(?:Find_Ship_Stacks|Build_Ship_Icons|Remove_Non_Detected_Ships)\s*\(")
@@ -71,7 +72,12 @@ class SidecarArchitectureTests(unittest.TestCase):
         # Producer hooks alone do not authorize merging later UI results into
         # a retained coherent ship capture or querying stale selection globals.
         adapter = (ROOT / "src/rpc/game_rpc.cpp").read_text()
-        self.assertNotIn("Subscribe_Fleet_Box_Info", adapter)
+        self.assertIn("Subscribe_Fleet_Box_Info", adapter)
+        callback = adapter[adapter.index("static void Observe_Fleet_Info("):
+                           adapter.index("static void Observe_Ship_Identity(")]
+        self.assertNotIn("MOX::ship_node", callback)
+        self.assertIn("Read_Map_Observation(&captured)", callback)
+        self.assertIn("Ship_Generation(item.slot)", callback)
         self.assertNotRegex(adapter, r"MOX::(?:fleet_ship_scanned|fleet_box_ship_stack|eta_star_id|g_ship_move_info)")
 
     def test_colony_capture_does_not_build_lists_or_recalculate_population_economy(self):
@@ -123,8 +129,19 @@ class SidecarArchitectureTests(unittest.TestCase):
                           textbox.index("void __cdecl Text_Box_Get_Input(")]
         self.assertIn("MOX2::Execute_Auto_Function(&textbox_af);", startup)
         adapter = (ROOT / "src/rpc/game_rpc.cpp").read_text()
-        self.assertNotIn("MAIN_VIEW_INPUT_", adapter)
-        self.assertNotIn("Subscribe_Fleet_Box_Info", adapter)
+        self.assertIn("MAIN_VIEW_INPUT_INTERRUPTED", adapter)
+        self.assertIn("Subscribe_Fleet_Box_Info", adapter)
+        redraw = native[native.index("// Redraw cycle"):native.index("// Mouse click logic")]
+        self.assertLess(redraw.index("MAIN_VIEW_DRAW_ENTERED"), redraw.index("MAINSCR::Draw_Main_Screen();"))
+        self.assertLess(native.index("if (input != 0) game_events::Publish(game_events::MAIN_VIEW_INPUT_INTERRUPTED);"),
+                        native.index("MAINSCR::Tax_Rate_Popup();"))
+
+    def test_context_lease_reaches_bridge_and_every_service_owned_output_fragment(self):
+        service = (ROOT / "src/rpc/rpc_service.cpp").read_text()
+        write = service[service.index("reason == LWS_CALLBACK_SERVER_WRITEABLE"):service.index("void Tick(")]
+        self.assertLess(write.index("Revoke_Context_Output"), write.index("lws_write("))
+        self.assertIn("publication.context_epoch", service)
+        self.assertIn("publication.revoked_json", service)
 
 if __name__ == "__main__":
     unittest.main()

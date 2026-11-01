@@ -449,6 +449,8 @@ namespace MAINSCR {
                 input = next_button;
             }
 
+            if (input != 0) game_events::Publish(game_events::MAIN_VIEW_INPUT_INTERRUPTED);
+
             int16_t mouse_input = fields::Scan_Input();
             if (MOX::main_screen_grid_field == input || (-MOX::main_screen_grid_field == input)) {
                 int mx = mouse::Pointer_X();
@@ -887,6 +889,7 @@ namespace MAINSCR {
 
             // Redraw cycle
             if (exit_flag == 0 && MOX::global_esc == 0) {
+                game_events::s_observation_scope main_draw(game_events::MAIN_VIEW_DRAW_ENTERED, game_events::MAIN_VIEW_DRAW_LEAVING);
                 if (MOX::skip_fields == 0) {
                     fields::Clear_Fields_Above(last_field);
                     fields::Enable_Draw_All_Fields();

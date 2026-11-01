@@ -6,6 +6,10 @@
   agents. Keep client policies, briefings and threat classification client-local.
 - Preserve gameplay, saves, multiplayer authority, mods and deterministic RNG.
   Do not change compatibility-sensitive native behavior as part of RPC work.
+- Always prefer canonical game behavior. The canonical game UI is the source of
+  truth for RPC disclosure and semantics: expose what it shows and withhold what
+  it hides for the same player, field and active context. Audit and test that
+  authority before enabling a field; do not invent a divergent RPC policy.
 - Read repository instructions and relevant source/tests before editing. Make
   small, tested increments; commit completed increments separately, never push
   without a request, and preserve unrelated work, including untracked `.voc/`.
@@ -56,6 +60,11 @@
 - Revoke authorization-dependent snapshots, pinned pages, queued work,
   subscriptions, bridge publications and service-owned output at their lifecycle
   boundaries. Preserve ambient offscreen reads where still authorized.
+- Icon rebuild revokes context-dependent authority; only fresh authorized native
+  presentation may restore it. A revoked context page may expire even if the new
+  public projection is equal. Compare hidden-only noninterference with lifecycle
+  boundaries held equal; private node/epoch changes alone must not churn public
+  handles, ordering, revisions or notifications.
 - Thread stopping precedes native teardown and wakes/joins sidecar work without
   another native poll, including exceptions.
 - Follow C-oriented C++ style: plain structs, free functions and explicit
@@ -239,12 +248,13 @@ field-audited methods/topics; schemas alone grant no authority.
 - [ ] Q-05 — Complete planet list/detail and nebula reads.
 - [ ] Q-06 — Complete colony production/jobs/buildings/troops/events/transfers and foreign intelligence.
 - [ ] Q-07 — Complete conditional ship destination/ETA, selection/scan details and durable identity.
-  - [ ] Audit and finish one bounded public cached-ETA path before moving to another family; evaluate the own wormhole-route-head candidate without assuming authorization.
-  - [ ] Prove initialized owner plus current open-box/selection authority through child dialogs and replacement; never promote pre-initialization results.
-  - [ ] Bind only current surviving refresh associations; reject stale selections and slot/node reuse without later node traversal or hidden-fingerprint effects.
-  - [ ] Publish fresh coherent immutable captures for all requested topics, including session; never enrich older snapshots.
-  - [ ] Revoke context data through retained/pinned captures, subscriptions, bridge work/publications and service output on close/replacement/rebuild, owner exit, world updates, resolution and perspective changes; preserve authorized ambient reads.
-  - [ ] Test initialization, revocation, reuse, copied lifetimes, hidden-only noninterference, coherent state/baselines, pinned pages and indistinguishable unavailable handles before disclosure.
+  - [x] Finish one bounded public cached-ETA path: authorize the surviving own wormhole-route head from canonical native presentation.
+  - [x] Prove initialized owner plus current open-box/selection authority for that path through child interruption and replacement; never promote pre-initialization results.
+  - [x] Bind that path only to current surviving refresh associations; reject stale selections and slot/node reuse without later node traversal or hidden-fingerprint effects.
+  - [x] Publish fresh coherent immutable captures for all requested topics, including session; never enrich older snapshots.
+  - [x] Revoke bounded ETA context data through retained/pinned captures, subscriptions, bridge work/publications and service output on close/replacement/rebuild, owner exit, world updates, resolution and perspective changes; preserve authorized ambient reads.
+  - [x] Test the bounded path's initialization, revocation, reuse, copied lifetimes, hidden-only noninterference, coherent state/baselines, pinned pages and indistinguishable unavailable handles before disclosure.
+  - [ ] Extend conditional destination/ETA and selection/scan disclosure to remaining native contexts; audit each additional field and establish durable identity separately.
 - [ ] Q-08 — Implement fleet list/detail without rebuilt-stack identifiers.
 - [ ] Q-09 — Implement movement options with audited scratch state and no hidden-data oracle.
 - [ ] Q-10 — Implement authorized design list/detail/options.

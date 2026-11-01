@@ -299,7 +299,8 @@
       "type": "string",
       "enum": [
         "last-coherent-capture",
-        "last-native-ship-refresh"
+        "last-native-ship-refresh",
+        "last-native-fleet-box"
       ]
     },
     "Chat": {
@@ -7923,7 +7924,7 @@
     },
     "ships-refreshed": {
       "status": "reviewed",
-      "predicate": "Only synchronous post-Build_Ship_Icons capture for the bound active human viewer, outside world mutation/resolution. Follow fresh icon heads that are surviving stack heads and their linked nodes; never enumerate unlinked allocations or rebuild for a query. Copy map x/y and own-versus-foreign classification; names and known-player owner references require their additional field policies. Sort the authorized projection before assigning opaque read-only observation handles; no native slots or durable ship identity are published. One coherent map/ship capture, explicitly dated last-native-ship-refresh. Handle sets are replaced when the projected ship collection changes; no action may use them.",
+      "predicate": "Capture surviving associations only synchronously post-Build_Ship_Icons for the bound active human viewer, outside world mutation/resolution. Follow fresh icon heads that are surviving stack heads and their linked nodes; never enumerate unlinked allocations or rebuild for a query. Copy map x/y and own-versus-foreign classification; names and known-player owner references require their additional field policies. Sort the authorized projection before assigning opaque read-only observation handles; no native slots or durable ship identity are published. One coherent map/ship capture, explicitly dated last-native-ship-refresh. A fresh last-native-fleet-box capture may reuse still-valid surviving associations under the reviewed ship-map-eta authority, without later node traversal or enriching any older retained capture. Handle sets are replaced when the projected ship collection changes; no action may use them.",
       "sources": [
         [
           "src/game/ships.cpp",
@@ -8027,7 +8028,7 @@
     },
     "ship-map-eta": {
       "status": "reviewed",
-      "predicate": "Only the surviving displayed head's cached uint8 turns_left when the non-selection map route is authorized and uses ordinary moving encoding. Preserve displayed zero and unsigned byte narrowing. Never calculate an ETA or expose another member's cached value. Wormhole and non-head ETA remain context-required pending initialized fleet-box capture; stationary own ships are known-empty. Special destinations remain unaudited. Same coherent explicitly dated capture as the ship and its destination.",
+      "predicate": "Preserve cached uint8 turns_left including zero; never calculate ETA. Ambient ordinary-route ETA belongs only to its surviving displayed head. Additionally, accept the actual non-preview fleet-box producer for a surviving own wormhole head with an independently current same-capture ambient destination, initialized active main owner/presentation, a current complete open-box member association and no stale selected references. Capture associations only at refresh; reject slot-generation reuse and never traverse nodes later. Copy borrowed values and capture every topic afresh, stamped last-native-fleet-box; do not enrich older captures. Producer star -1 withholds its name, not the independently authorized ambient destination and not known-empty; special destinations receive no handle. Revoke context captures, pages, subscriptions' context baselines and pending/queued output on authority loss, owner/box replacement, child interruption, rebuild, world/perspective changes and resolution. Preserve ambient offscreen reads. Rebuild is an authorization boundary; equal fresh presentation does not churn IDs/revisions merely for private epochs. Other wormhole/non-head ETA remains context-required, stationary own ships known-empty, special destinations unaudited. Grants no extra names, routes, orders, cargo or designs.",
       "sources": [
         [
           "src/game/ships.cpp",
@@ -8044,12 +8045,26 @@
         [
           "src/game/fleetpop.cpp",
           "Get_Absolute_Location_Scan_Info"
+        ],
+        [
+          "src/game/mainscr_main.cpp",
+          "Main_Screen"
+        ],
+        [
+          "src/game/fields.cpp",
+          "Check_Help_List"
+        ],
+        [
+          "src/game/shipmove.cpp",
+          "Advance_Ship_Generation"
         ]
       ],
       "tests": [
         "T-01",
         "T-02",
-        "T-05"
+        "T-05",
+        "T-07",
+        "T-12"
       ]
     },
     "disabled-ship": {
@@ -8407,7 +8422,7 @@
     "orderedEventsPerSubscription": 4096,
     "overflow": "Reject before admission; coalesce only complete unsent state. Ordered-event overflow signals a gap or disconnect. Never rewrite partial output or silently discard operation results."
   },
-  "x-rpc-sourceHash": "edc3e56f204109c6611ef0e03eb92a7da9bd6760fbf920e18bea1951c5cdd908",
+  "x-rpc-sourceHash": "a199ad58add1c7d258e97fc57089040b2b1d5c5deb930d4413fce243d2da70ba",
   "x-rpc-runtimeEnabled": false,
   "x-rpc-implementedMethods": [
     "rpc.hello",

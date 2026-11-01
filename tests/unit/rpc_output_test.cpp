@@ -3,6 +3,30 @@
 #include "rpc/rpc_output.h"
 #include "rpc/rpc_protocol.h"
 
+DOCTEST_TEST_CASE("context loss replaces unsent responses removes invalidations and preserves ambient output") {
+    rpc::s_output_queue queue;
+    size_t bytes = 0;
+    const std::string key = "ships";
+    DOCTEST_REQUIRE(rpc::Queue_Output(&queue, "ambient", nullptr, &bytes));
+    DOCTEST_REQUIRE(rpc::Queue_Output(&queue, "context-result", nullptr, &bytes, 1, "unavailable"));
+    DOCTEST_REQUIRE(rpc::Queue_Output(&queue, "context-state", &key, &bytes, 1));
+    DOCTEST_REQUIRE(rpc::Queue_Output(&queue, "fresh-context", nullptr, &bytes, 2, "unavailable"));
+    DOCTEST_REQUIRE(rpc::Revoke_Context_Output(&queue, 2, &bytes));
+    DOCTEST_REQUIRE(queue.messages.size() == 3);
+    DOCTEST_CHECK(queue.messages[0].json == "ambient");
+    DOCTEST_CHECK(queue.messages[1].json == "unavailable");
+    DOCTEST_CHECK(queue.messages[2].json == "fresh-context");
+    DOCTEST_CHECK(bytes == queue.bytes);
+    DOCTEST_CHECK(bytes == 7 + 11 + 13);
+    DOCTEST_REQUIRE(rpc::Revoke_Context_Output(&queue, 2, &bytes));
+    DOCTEST_REQUIRE(rpc::Advance_Output(&queue, 7, &bytes));
+    DOCTEST_REQUIRE(rpc::Advance_Output(&queue, 11, &bytes));
+    DOCTEST_REQUIRE(rpc::Advance_Output(&queue, 1, &bytes));
+    DOCTEST_CHECK_FALSE(rpc::Revoke_Context_Output(&queue, 3, &bytes));
+    DOCTEST_CHECK(queue.offset == 1);
+    DOCTEST_CHECK(queue.messages.front().json == "fresh-context");
+}
+
 DOCTEST_TEST_CASE("unsent state coalesces to the latest invalidation without discarding ordered results") {
     rpc::s_output_queue queue;
     size_t global_bytes = 0;
