@@ -16,6 +16,7 @@ Special systems can change targeting, movement, damage, boarding, and strategic 
 
 - Works against beams, missiles, torpedoes and Energy Absorber fire.
 - There is no effect against fighters, bombs or special weapons.
+- Optional exception: `combat bonus displacement_device_affects_stellar_converter = true;` applies the configured beam miss chance to Stellar Converter shots, without changing the weapon type. The flag defaults to `false`.
 
 
 ## Energy Absorber

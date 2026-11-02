@@ -376,7 +376,7 @@ namespace CMBTAI {
 
 namespace CMBTFIR2 {
     s_combat_bonus combat_bonus = {
-        50, 20, 0, 10, 20, 50, 100, 0, 80, 80, 10, 30, 15,
+        50, 20, 0, 10, 20, 50, 100, 0, 80, 80, 10, 30, 0, 15,
     };
 
     int16_t __cdecl Damage_From_Ship_Exploding(int16_t ship_idx) {

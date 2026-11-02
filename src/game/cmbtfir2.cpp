@@ -76,6 +76,7 @@ namespace CMBTFIR2 {
         .phasing_cloak_beam_defense = 80,
         .phasing_cloak_effective_turns = 10,
         .displacement_device_beam_miss_percent = 30,
+        .displacement_device_affects_stellar_converter = 0,
         .reflection_field_strength = 15,
     };
     s_ship_explosion ship_explosion = {5, 3};

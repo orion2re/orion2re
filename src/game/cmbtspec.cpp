@@ -1051,9 +1051,19 @@ namespace CMBTSPEC {
         int16_t total_struct_damage = 0;
         int16_t bonus = MOX::ordnance_bonus[MOX::combat_data[attacker_idx].owner];
         int16_t base_damage = TECHDATA::weapons[WEAPON_STELLAR_CONVERTER].max_damage;
-        int16_t damage_per_hit = (bonus * num_shots * base_damage) / 100;
+        int16_t shots_hit = num_shots;
+        if (CMBTFIR2::combat_bonus.displacement_device_affects_stellar_converter != 0 &&
+            COMBINIT::Does_Combat_Ship_Have_Special(target_idx, SPECIAL_DISPLACEMENT_DEVICE)) {
+            for (int16_t shot = 0; shot < num_shots; ++shot) {
+                if (game_random::Random(100) <=
+                    CMBTFIR2::combat_bonus.displacement_device_beam_miss_percent) {
+                    --shots_hit;
+                }
+            }
+        }
+        int16_t damage_per_hit = (bonus * shots_hit * base_damage) / 100;
 
-        for (int16_t i = 0; i < 4; ++i) {
+        for (int16_t i = 0; i < 4 && shots_hit > 0; ++i) {
             int16_t current_damage = damage_per_hit;
             int16_t current_struct_damage = 0;
             int16_t has_analyzer = COMBINIT::Does_Combat_Ship_Have_Special(attacker_idx, 1);

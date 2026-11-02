@@ -6147,6 +6147,7 @@ DOCTEST_TEST_CASE("combat bonus settings preserve 1.50 defaults") {
     DOCTEST_CHECK(CMBTFIR2::combat_bonus.phasing_cloak_beam_defense == 80);
     DOCTEST_CHECK(CMBTFIR2::combat_bonus.phasing_cloak_effective_turns == 10);
     DOCTEST_CHECK(CMBTFIR2::combat_bonus.displacement_device_beam_miss_percent == 30);
+    DOCTEST_CHECK(CMBTFIR2::combat_bonus.displacement_device_affects_stellar_converter == 0);
     DOCTEST_CHECK(CMBTFIR2::combat_bonus.reflection_field_strength == 15);
 
     config::s_config_write_set writes;
@@ -6164,6 +6165,7 @@ DOCTEST_TEST_CASE("combat bonus settings preserve 1.50 defaults") {
         "combat bonus phasing_cloak_beam_defense = 82;"
         "combat bonus phasing_cloak_effective_turns = 12;"
         "combat bonus displacement_device_beam_miss_percent = 14;"
+        "combat bonus displacement_device_affects_stellar_converter = true;"
         "combat bonus reflection_field_strength = 16;",
         &writes,
         &diagnostic));
@@ -6181,6 +6183,7 @@ DOCTEST_TEST_CASE("combat bonus settings preserve 1.50 defaults") {
     DOCTEST_CHECK(CMBTFIR2::combat_bonus.phasing_cloak_beam_defense == 82);
     DOCTEST_CHECK(CMBTFIR2::combat_bonus.phasing_cloak_effective_turns == 12);
     DOCTEST_CHECK(CMBTFIR2::combat_bonus.displacement_device_beam_miss_percent == 14);
+    DOCTEST_CHECK(CMBTFIR2::combat_bonus.displacement_device_affects_stellar_converter == 1);
     DOCTEST_CHECK(CMBTFIR2::combat_bonus.reflection_field_strength == 16);
 
     writes.writes.clear();
@@ -6487,6 +6490,7 @@ DOCTEST_TEST_CASE("combat namespace settings resolve bidirectionally and commit 
         "combat.bonus.starbase_fleet_beam_offense",
         "combat.bonus.phasing_cloak_effective_turns",
         "combat.bonus.displacement_device_beam_miss_percent",
+        "combat.bonus.displacement_device_affects_stellar_converter",
         "combat.ship_explosion.drive_damage_multiplier",
         "combat.quantum_detonator.explode_chance",
         "combat.satellite_racial_defense_bonus",

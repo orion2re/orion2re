@@ -7,6 +7,7 @@ namespace TEST_CMBTSPEC {
     void Reset_();
     int32_t Random_Call_Count_();
     int32_t Apply_Ship_Damage_Call_Count_();
+    int32_t Applied_Ship_Damage_();
     int32_t Cloak_Frame_Count_();
     int16_t Damage_Indicator_Total_();
     int32_t Missile_Move_Call_Count_();
@@ -50,6 +51,57 @@ DOCTEST_TEST_CASE("tractor beam keeps emitter-to-target direction after clipping
         DOCTEST_CHECK(TEST_CMBTSPEC::Bitmap_Line_Y1_() == 100);
         DOCTEST_CHECK(TEST_CMBTSPEC::Bitmap_Line_X2_() == target.x);
         DOCTEST_CHECK(TEST_CMBTSPEC::Bitmap_Line_Y2_() == target.y);
+    }
+}
+
+DOCTEST_TEST_CASE("Stellar Converter optionally uses Displacement Device beam miss chance") {
+    struct s_case {
+        uint8_t enabled;
+        bool has_device;
+        bool damaged_device;
+        uint8_t miss_percent;
+        uint32_t roll;
+        bool hits;
+    };
+    const s_case cases[] = {
+        {0, true, false, 100, 100, true},
+        {1, true, false, 100, 100, false},
+        {1, false, false, 100, 100, true},
+        {1, true, true, 100, 100, true},
+        {1, true, false, 0, 1, true},
+        {1, true, false, 30, 30, false},
+        {1, true, false, 30, 31, true},
+    };
+
+    for (const s_case& value : cases) {
+        DOCTEST_CAPTURE(value.enabled);
+        DOCTEST_CAPTURE(value.has_device);
+        DOCTEST_CAPTURE(value.damaged_device);
+        DOCTEST_CAPTURE(value.miss_percent);
+        DOCTEST_CAPTURE(value.roll);
+        TEST_CMBTSPEC::Reset_();
+        TEST_CMBTSPEC::Set_Random_Result_(value.roll);
+        CMBTFIR2::combat_bonus.displacement_device_affects_stellar_converter = value.enabled;
+        CMBTFIR2::combat_bonus.displacement_device_beam_miss_percent = value.miss_percent;
+        if (value.has_device) {
+            MOX::combat_data[1].special_device_flags[SPECIAL_DISPLACEMENT_DEVICE / 8] |=
+                (uint8_t)(1u << (SPECIAL_DISPLACEMENT_DEVICE % 8));
+        }
+        if (value.damaged_device) {
+            MOX::combat_data[1].special_device_damage_flags[SPECIAL_DISPLACEMENT_DEVICE / 8] |=
+                (uint8_t)(1u << (SPECIAL_DISPLACEMENT_DEVICE % 8));
+        }
+        MOX::combat_data[1].tac_val_defense = 30000;
+        TECHDATA::weapons[WEAPON_STELLAR_CONVERTER].type = WEAPON_TYPE_SPECIAL;
+        TECHDATA::weapons[WEAPON_STELLAR_CONVERTER].max_damage = 100;
+
+        CMBTSPEC::Stellar_Converter(0, 1, 2);
+
+        DOCTEST_CHECK(TEST_CMBTSPEC::Applied_Ship_Damage_() == (value.hits ? 800 : 0));
+        DOCTEST_CHECK(TEST_CMBTSPEC::Apply_Ship_Damage_Call_Count_() == (value.hits ? 4 : 0));
+        DOCTEST_CHECK(TEST_CMBTSPEC::Random_Call_Count_() ==
+            (value.enabled && value.has_device && !value.damaged_device ? 2 : 0));
+        DOCTEST_CHECK(TECHDATA::weapons[WEAPON_STELLAR_CONVERTER].type == WEAPON_TYPE_SPECIAL);
     }
 }
 

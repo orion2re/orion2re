@@ -99,7 +99,7 @@ In simplified mode, the third check uses the fixed threshold of 40 rather than t
 Thus, if the random number is greater than 95 (a 5% lucky shot, no matter the odds), or `BA + CO - AF - BD` is larger than 98, the beam strikes the target. Otherwise, `BA + CO - AF - BD` minus the range penalty, plus any PD bonus, must be 39 or higher to ensure a hit.
 
 - Mauler Device and Energy Absorber always hit unless the target ship has a Displacement Device.
-- Stellar Converter always hits regardless of the presence of a Displacement Device.
+- Stellar Converter always hits regardless of the presence of a Displacement Device by default. Setting `combat bonus displacement_device_affects_stellar_converter = true;` lets a working Displacement Device evade each shot using `combat bonus displacement_device_beam_miss_percent` (default 30%). This does not turn Stellar Converter into a beam weapon or apply ordinary beam attack/defense checks.
 
 The value 40 in `hit_threshold` can be changed with `combat hit_threshold_fixed_value = 40;`.
 

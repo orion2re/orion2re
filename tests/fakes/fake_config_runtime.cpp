@@ -346,6 +346,7 @@ namespace CMBTFIR2 {
         80,
         10,
         30,
+        0,
         15,
     };
     s_ship_explosion ship_explosion = {5, 3};

@@ -16,6 +16,7 @@ namespace CMBTFIR2 {
         uint8_t phasing_cloak_beam_defense;
         uint8_t phasing_cloak_effective_turns;
         uint8_t displacement_device_beam_miss_percent;
+        uint8_t displacement_device_affects_stellar_converter;
         uint8_t reflection_field_strength;
     };
 

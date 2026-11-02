@@ -9,6 +9,7 @@ namespace {
     s_animation_header animation;
     int32_t random_call_count;
     int32_t apply_ship_damage_call_count;
+    int32_t applied_ship_damage;
     int32_t cloak_frame_count;
     int16_t damage_indicator_total;
     int32_t missile_move_call_count;
@@ -29,6 +30,9 @@ namespace TEST_CMBTSPEC {
         memset(&animation, 0, sizeof(animation));
         random_call_count = 0;
         apply_ship_damage_call_count = 0;
+        applied_ship_damage = 0;
+        CMBTFIR2::combat_bonus = {};
+        CMBTFIR2::combat_bonus.displacement_device_beam_miss_percent = 30;
         cloak_frame_count = 0;
         damage_indicator_total = 0;
         missile_move_call_count = 0;
@@ -59,6 +63,10 @@ namespace TEST_CMBTSPEC {
 
     int32_t Apply_Ship_Damage_Call_Count_() {
         return apply_ship_damage_call_count;
+    }
+
+    int32_t Applied_Ship_Damage_() {
+        return applied_ship_damage;
     }
 
     int32_t Cloak_Frame_Count_() {
@@ -116,12 +124,17 @@ namespace MOX {
     void* pulsar_remap_colors;
     void* warp_core_remap_colors;
     void* shield_remap_colors;
+    void* stellar_converter_remap_colors;
     s_animation_header* combat_bitmap;
     s_animation_header* draw_ship_bitmap;
 }
 
 namespace TECHDATA {
     s_tech_weapon_data weapons[WEAPON_COUNT];
+}
+
+namespace CMBTFIR2 {
+    s_combat_bonus combat_bonus = {};
 }
 
 namespace COLONY {
@@ -133,6 +146,10 @@ namespace COLONY {
 }
 
 namespace allocate {
+    void* __cdecl Allocate_Next_Block(void*, uint32_t) {
+        return &animation;
+    }
+
     void __cdecl Push_Block(void*) {
     }
 
@@ -147,6 +164,9 @@ namespace buffer {
 }
 
 namespace animate {
+    void __cdecl Draw_Palette(s_animation_header*) {
+    }
+
     int16_t __cdecl Get_Width(s_animation_header*) {
         return 100;
     }
@@ -169,6 +189,12 @@ namespace ERICNET {
 }
 
 namespace COMBINIT {
+    int16_t __cdecl Does_Combat_Ship_Have_Special(int16_t ship_idx, int16_t special_id) {
+        const uint8_t mask = (uint8_t)(1u << (special_id % 8));
+        return (MOX::combat_data[ship_idx].special_device_flags[special_id / 8] & mask) != 0 &&
+            (MOX::combat_data[ship_idx].special_device_damage_flags[special_id / 8] & mask) == 0;
+    }
+
     void __cdecl Ship_Center_Offsets(int16_t, int16_t* x, int16_t* y) {
         *x = 0;
         *y = 0;
@@ -216,6 +242,9 @@ namespace CMBTDRW1 {
 }
 
 namespace bitmap {
+    void __cdecl Draw_Picture_To_Bitmap(s_animation_header*, s_animation_header*) {
+    }
+
     void __cdecl Create_Blank_Bitmap(int16_t, int16_t, void*) {
     }
 
@@ -282,9 +311,10 @@ namespace CMBTFIRE {
     }
 
     uint16_t __cdecl Apply_Ship_Damage(
-        int16_t, int16_t*, int16_t*, int16_t, uint16_t, uint16_t,
+        int16_t, int16_t* damage, int16_t*, int16_t, uint16_t, uint16_t,
         int16_t, int16_t, int16_t) {
         ++apply_ship_damage_call_count;
+        applied_ship_damage += *damage;
         return 0;
     }
 
@@ -347,6 +377,9 @@ namespace BEAMS {
 }
 
 namespace palette {
+    void __cdecl Refresh_Palette() {
+    }
+
     void __cdecl Restore_Glass_Remap_Block(void*) {
     }
 }
