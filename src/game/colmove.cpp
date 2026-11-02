@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game_events.h"
 
 namespace COLMOVE {
     int16_t cluster_colony_n = -1;
@@ -50,6 +51,7 @@ namespace COLMOVE {
         }
 
         cluster_colony_n = -1;
+        game_events::Set_Colony_Population_Staged(false);
         COLONY::Reset_Mouse_Picture();
     }
 
@@ -64,6 +66,7 @@ namespace COLMOVE {
         }
 
         cluster_colony_n = colony_idx;
+        game_events::Set_Colony_Population_Staged(true);
 
         for (int16_t i = start_pop_idx; i < (int16_t)(uint8_t)colony->n_pops; ++i) {
             if (Pops_Identical(colony_idx, start_pop_idx, colony_idx, i)) {
@@ -152,6 +155,7 @@ namespace COLMOVE {
                 COLONY::Reset_Mouse_Picture();
                 COLONY::Reset_Field_Mode();
                 COLMOVE::cluster_colony_n = -1;
+                game_events::Set_Colony_Population_Staged(false);
             }
             return;
         }
@@ -513,6 +517,7 @@ namespace COLMOVE {
             COLONY::Reset_Mouse_Picture();
             COLONY::Reset_Field_Mode();
             COLMOVE::cluster_colony_n = -1;
+            game_events::Set_Colony_Population_Staged(false);
         }
     }
 

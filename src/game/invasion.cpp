@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game_events.h"
 
 namespace invasion {
 
@@ -625,6 +626,7 @@ namespace invasion {
 
     void __cdecl Change_Pop_Ownership(int16_t colony_idx, uint32_t new_owner_idx) {
         s_colony* colony = &MOX::colony[colony_idx];
+        game_events::Publish_Colony_Replacing(colony->owner);
         int8_t old_owner = colony->owner;
 
         BOMB::Handle_Leader_At_Lost_Colony(colony);

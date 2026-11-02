@@ -74,6 +74,12 @@ refusal/partial result), T-10 (delay/animation/timed box/film), T-16 (thread han
 
 ## Committed state / turn publication
 
+Owned-colony operations remain ambient, not a screen-context grant. Settled
+colony decision points join coherent publication; native edit and temporary
+player-override validity boundaries are specified in
+[owned-colony publication and lifetime](colony_view.md#publication-and-lifetime).
+These guards add no remote navigation, controls or staged-edit preview.
+
 `NEXTTURN::Next_Turn_Calc` records history and increments `MOX::stardate` near its
 end. `Next_Turn` then handles end-game presentation, clears player done flags and
 resets old-system state. Reports/research choices can run independently afterward.

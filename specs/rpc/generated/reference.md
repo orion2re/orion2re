@@ -9,7 +9,7 @@ This document is rendered from `schema.json`, not a second method catalog.
 The root schema validates acknowledged client requests; per-method success responses and server notifications have separate definitions.
 All fields are non-null unless explicitly stated. Unknown keys are rejected. UTF-8 byte limits, lexical integer tokens, duplicate keys, depth and authorization need the protocol guards in addition to standard JSON Schema validation.
 
-Source bundle SHA-256: `c989fb184d73257a1dfb3ee71573ed47810f59c722a3190042a0bdbae2a375c0`.
+Source bundle SHA-256: `cb7e451e618fd8ba927604356aa2d896cfa6e568b5ca1821b7cb5a5eba083ac9`.
 
 ## Methods
 
@@ -177,8 +177,115 @@ Array of `Colony`; 0..65536 items; unique: false.
 | owner | KnownId | yes | colonies-own |
 | population | KnownCount | yes | colonies-own |
 | troops | KnownColonyTroops | yes | colony-own-troops |
-| production | KnownText | yes | disabled-colony |
-| buyCost | KnownCredits | yes | disabled-colony |
+| production | KnownText | yes | colony-operations |
+| buyCost | KnownCredits | yes | colony-operations |
+| operations | KnownColonyOperations | yes | colony-operations |
+
+### ColonyEvent
+
+Exactly one of: CurrentText, EmptyKnowledge, Unavailable.
+
+### ColonyFarmCapacity
+
+Exactly one of: CurrentCount, EmptyKnowledge, Unavailable.
+
+### ColonyGarrison
+
+Array of `ColonyGarrisonUnit`; 3..3 items; unique: false.
+
+### ColonyGarrisonUnit
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| label | Text | yes | colony-garrison |
+| count | ColonyTroopCount | yes | colony-garrison |
+| strength | ColonyTroopStrength | yes | colony-garrison |
+| hp | ColonyTroopHP | yes | colony-garrison |
+
+### ColonyJob
+
+Values: `farmer`, `worker`, `scientist`.
+
+### ColonyMorale
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| suppressed | Bool | yes | colony-operations |
+| icons | MoraleIcons | yes | colony-operations |
+
+### ColonyOperations
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| populationText | Text | yes | colony-operations |
+| heading | KnownText | yes | colony-heading |
+| autobuild | Text | yes | colony-operations |
+| autobuildActive | Bool | yes | colony-operations |
+| farmCapacity | ColonyFarmCapacity | yes | colony-operations |
+| blockaded | Bool | yes | colony-operations |
+| event | ColonyEvent | yes | colony-operations |
+| status | ColonyEvent | yes | colony-operations |
+| inboundPopulation | Count | yes | colony-operations |
+| infantryLabel | Text | yes | colony-operations |
+| armorLabel | Text | yes | colony-operations |
+| morale | ColonyMorale | yes | colony-operations |
+| queue | ColonyQueue | yes | colony-operations |
+| workforce | ColonyWorkforce | yes | colony-operations |
+| structures | ColonyStructures | yes | colony-operations |
+| resources | ColonyResources | yes | colony-operations |
+| garrison | KnownColonyGarrison | yes | colony-operations |
+| currentProduction | KnownColonyProduction | yes | colony-operations |
+
+### ColonyProduct
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| kind | ColonyProductKind | yes | colony-operations |
+| label | Text | yes | colony-operations |
+
+### ColonyProductKind
+
+Values: `none`, `repeat`, `building`, `ship`, `design`, `refit`, `housing`, `trade-goods`, `freighters`, `colony-ship`, `outpost-ship`, `transport-ship`, `spy`, `android-farmer`, `android-worker`, `android-scientist`, `doom-star`, `custom-design`, `separator`.
+
+### ColonyProduction
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| cost | ProductionPoints | yes | colony-operations |
+| stored | ProductionPoints | yes | colony-operations |
+| bought | ProductionPoints | yes | colony-operations |
+| turns | KnownTurns | yes | colony-operations |
+| buyCost | Credits | yes | colony-operations |
+| canBuy | Bool | yes | colony-operations |
+
+### ColonyQueue
+
+Array of `KnownColonyProduct`; 7..7 items; unique: false.
+
+### ColonyResource
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| resource | ColonyResourceKind | yes | colony-operations |
+| local | ColonyResourceValue | yes | colony-operations |
+| exchanged | ColonyResourceValue | yes | colony-operations |
+| secondary | ColonyResourceValue | yes | colony-operations |
+| shortage | ColonyResourceValue | yes | colony-operations |
+| exporting | Bool | yes | colony-operations |
+
+### ColonyResourceKind
+
+Values: `food`, `industry`, `research`, `bc`.
+
+### ColonyResourceValue
+
+Value represented by a native colony resource icon group: each tens icon represents 10 and each unit icon 1. Preserves the renderer&#x27;s signed-byte import branch and suppression; not a newly calculated economic total.
+
+Constraints: `{"maximum": 65535, "minimum": 0, "type": "integer", "x-integerToken": true}`.
+
+### ColonyResources
+
+Array of `ColonyResource`; 4..4 items; unique: false.
 
 ### ColonyResult
 
@@ -187,11 +294,34 @@ Array of `Colony`; 0..65536 items; unique: false.
 | stamp | Stamp | yes | contract |
 | item | Colony | yes | contract |
 
+### ColonyStructure
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| label | Text | yes | colony-operations |
+| satellite | Bool | yes | colony-operations |
+
+### ColonyStructures
+
+Array of `ColonyStructure`; 0..48 items; unique: false.
+
 ### ColonyTroopCount
 
 Nonnegative integer count of authorized projected records only.
 
 Constraints: `{"maximum": 32767, "minimum": 0, "type": "integer", "x-integerToken": true}`.
+
+### ColonyTroopHP
+
+Unsigned-byte HP value displayed by the native troop popup, including its native byte conversion; not an entity health record.
+
+Constraints: `{"maximum": 255, "minimum": 0, "type": "integer", "x-integerToken": true}`.
+
+### ColonyTroopStrength
+
+Signed strength in the normal own-colony troop popup, from its native defensive summary producer; not a combat forecast or an enemy statistic.
+
+Constraints: `{"maximum": 32767, "minimum": -32768, "type": "integer", "x-integerToken": true}`.
 
 ### ColonyTroops
 
@@ -199,6 +329,26 @@ Constraints: `{"maximum": 32767, "minimum": 0, "type": "integer", "x-integerToke
 | --- | --- | --- | --- |
 | infantry | ColonyTroopCount | yes | colony-own-troops |
 | armor | ColonyTroopCount | yes | colony-own-troops |
+
+### ColonyWorker
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| label | Text | yes | colony-operations |
+| species | Text | yes | colony-operations |
+| job | ColonyJob | yes | colony-operations |
+| state | ColonyWorkerState | yes | colony-operations |
+| assigned | Bool | yes | colony-operations |
+| conquered | Bool | yes | colony-operations |
+| player | KnownId | yes | colony-operations |
+
+### ColonyWorkerState
+
+Values: `colonist`, `native`, `android`.
+
+### ColonyWorkforce
+
+Array of `ColonyWorker`; 0..42 items; unique: false.
 
 ### CombatOptionsRequest
 
@@ -363,6 +513,34 @@ Values: `current`.
 | --- | --- | --- | --- |
 | availability | Current | yes | contract |
 | value | Bool | yes | contract |
+
+### CurrentColonyGarrison
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| availability | Current | yes | contract |
+| value | ColonyGarrison | yes | contract |
+
+### CurrentColonyOperations
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| availability | Current | yes | contract |
+| value | ColonyOperations | yes | contract |
+
+### CurrentColonyProduct
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| availability | Current | yes | contract |
+| value | ColonyProduct | yes | contract |
+
+### CurrentColonyProduction
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| availability | Current | yes | contract |
+| value | ColonyProduction | yes | contract |
 
 ### CurrentColonyTroops
 
@@ -840,6 +1018,22 @@ Exactly one of: CurrentAgreement, EmptyKnowledge, Unavailable.
 
 Exactly one of: CurrentBool, Unavailable.
 
+### KnownColonyGarrison
+
+Exactly one of: CurrentColonyGarrison, Unavailable.
+
+### KnownColonyOperations
+
+Exactly one of: CurrentColonyOperations, Unavailable.
+
+### KnownColonyProduct
+
+Exactly one of: CurrentColonyProduct, Unavailable.
+
+### KnownColonyProduction
+
+Exactly one of: CurrentColonyProduction, Unavailable.
+
 ### KnownColonyTroops
 
 Exactly one of: CurrentColonyTroops, Unavailable.
@@ -1080,6 +1274,12 @@ Array of `MethodDescription`; 0..128 items; unique: false.
 ### MethodRole
 
 Values: `unauthenticated`, `reader`, `controller`.
+
+### MoraleIcons
+
+Signed displayed happy/unhappy icon count, native morale divided by two toward zero and capped at 20 icons; suppressed governments disclose no raw morale or inferred percentage.
+
+Constraints: `{"maximum": 20, "minimum": -20, "type": "integer", "x-integerToken": true}`.
 
 ### MovementRequest
 
@@ -1404,6 +1604,12 @@ Array of `Player`; 0..256 items; unique: false.
 ### PresentationMode
 
 Values: `local`, `external`.
+
+### ProductionPoints
+
+Native displayed production points: current product cost, stored and purchased production. Not BC or an RPC completion forecast.
+
+Constraints: `{"maximum": 2147483647, "minimum": -2147483648, "type": "integer", "x-integerToken": true}`.
 
 ### Reference
 
@@ -2010,6 +2216,8 @@ Reviewed means static evidence, not runtime visibility approval.
 
 | Policy | Status | Predicate | Native sources | Planned tests |
 | --- | --- | --- | --- | --- |
+| colony-heading | reviewed | Only the same capture&#x27;s authorized own full colony. Share the native colony heading&#x27;s localized specialty/annihilation formatter and 104-byte final buffer, with caller-owned 31-byte native planet-name output instead of the selected-colony/global temp-string buffer. Missing initialized format/name resources is unknown. This heading grants no foreign colony or extra entity record, and carries no invented occupation recommendation, action or forecast. | src/game/colony_main.cpp: Draw_Info_Name_And_Pop; src/game/colony_read.cpp: Heading; src/game/haccess.cpp: Do_Get_Planet_Name; src/game/colony.cpp: Colony_Type | T-01, T-02, T-03, T-05 |
+| colony-garrison | reviewed | Bound viewer&#x27;s own full colony only, after parent-link/population validation and authorized own leader inputs. Share the normal troop popup&#x27;s pure Compute_Colony_Ground_Combat_Info with include_rebels=false, using caller-owned output. Its helpers read own technology/traits and present armor, infantry and population militia counts, signed native strength and the popup&#x27;s uint8 HP conversion. Player_Troop_Name preserves tank/battloid and ordinary/powered infantry labels even for zero-count rows. No opponent argument, rebellion result, simulated battle, casualty/RNG path, foreign treasury, strength forecast or newly resolvable technology/leader/design record. Missing/stale leader inputs make this block unknown while cached military counts remain available. These rows describe native current presentation, not permission to produce or deploy a unit. | src/game/newpup.cpp: Draw_Troop_Popup_With_Read; src/game/newpup.cpp: Print_Troop_Totals; src/game/invasion.cpp: Compute_Colony_Ground_Combat_Info; src/game/invasion.cpp: Compute_Ground_Combat_Info; src/game/invasion.cpp: Colony_N_Militia; src/game/colony.cpp: Player_Troop_Name | T-01, T-02, T-03, T-05, T-07 |
 | contract | contract | Only copied protocol metadata or already authorized projected values; never read native memory here. |  | T-01, T-05, T-07, T-11 |
 | request | contract | Caller-supplied intent only; exact typed validation, authorization and generation recheck before use. |  | T-04, T-08, T-11 |
 | session | reviewed | Only the explicitly authorized local perspective. Omit game/perspective/revision/turn before a game is loaded and after revocation; publish committed turn only, not intermediate calculation. | src/game/mox2.cpp: thunk_main2; src/game/nextturn.cpp: Next_Turn; src/game/netturn.cpp: Client_Next_Turn; src/game/multplay.cpp: Hotseat_Select_Player | T-05, T-06 |
@@ -2032,7 +2240,7 @@ Reviewed means static evidence, not runtime visibility approval.
 | disabled-planet | disabled | Pending read-only equivalent of native explored-planet policy; do not invoke a mutable list builder. Orbit/name/type separately gated. | src/game/plntsum.cpp: Filter_Explored_Planets | T-01, T-02 |
 | colonies-own | reviewed | This list is explicitly the bound active human viewer&#x27;s own full-colony roster, following native Colonies/transport lists: owner equals viewer and outpost_flag is zero. Foreign intelligence and outposts are not included. Filter before reading links/population, sorting, counts, handles, revisions or notifications. At the same map/roster capture, copy a validated system reference and one-based orbital position and cached n_pops resident population (0..42 whole displayed population units, not thousandths, growth or inbound settlers). Validate planet/star/colony backlinks and uniqueness. Resolve system/owner through the same capture; discard private bindings before retention. No UI list builder, Sum_Colonists, forecast or economic calculator is called. Opaque read-only observation handles are replaced on authorized collection changes, not durable colony identities/action capabilities. Known-empty refers to this own-full-colony scope, not to foreign intelligence. | src/game/colxport.cpp: Build_Global_Colony_List; src/game/colxport.cpp: N_Colonies; src/game/colsum.cpp: Draw_Colony_Scan_Info; src/game/colony.cpp: Set_Colony_Globals | T-01, T-02, T-03, T-05 |
 | colony-own-troops | reviewed | Only the bound active human viewer&#x27;s own full colonies after owner/outpost authorization and parent-link validation. Copy existing military[0] infantry and military[1] armor counts, 0..32767 native int16 units, including known zero. Print_Scanned_Military displays these exact counts; Do_Colony_Info_Military_Stuff_For draws the units or the exact compressed count. Armor covers the native tank/battloid presentation, not a newly inferred unit design. Do not add population militia, inbound troops, troop strength, growth/roundoff, future production, weapon/armor technology or foreign/outpost intelligence. No troop popup, UI builder, invasion limit or combat calculator is invoked. Same immutable map/ship/roster/colony capture as population; hidden-only counts do not affect handles, revisions or notifications. | src/game/colony.cpp: Print_Scanned_Military; src/game/colony_main.cpp: Do_Colony_Info_Military_Stuff_For; src/game/colcalc.cpp: colony-&gt;military[0]; src/game/colcalc.cpp: colony-&gt;military[1] | T-01, T-02, T-03, T-05 |
-| disabled-colony | disabled | Production/queues, buy costs/eligibility and remaining colony details stay unaudited. Same-capture queryable planet links have their separate exploration-own-colony-links policy. Do not invoke mutable builders/calculators for queries. Foreign intelligence is a separate policy. | src/game/colony_main.cpp: Colony_Screen | T-01, T-02, T-03 |
+| colony-operations | reviewed | Own full colonies only through shared Own_Full_Colony, before detail reads, validation, counts or equality. Shared native population/product/autobuild labels, presence and satellite redundancy, resource icon-group arithmetic and morale icon rounding/suppression/cap; native job/species/localized unit text, event priority and labels, inbound-settler count, current product cost, stored/bought production, cached-industry turn count and own-only buy predicate. Seven committed queue slots retain none/repeat/refit variants and labels, not design/ship entity grants. Unknown variants/storage/resources are explicit unknown, not no production or empty workforce. No foreign treasury, population recalculation, economic refresh, UI list construction, staged queue/refit design, transfer verdict/ETA, RNG or report consumption. Native edit staging blocks fresh ambient capture; retained combined captures stay dated and are never enriched. Initialized settled colony decision points publish coherent ambient data. Recipient-scoped pre-replacement invalidation revokes dependent colony/planet pages, references and queued leased output before authority/storage mutation, preserving other ambient reads. Resolve species-player links only through the same capture&#x27;s existing roster; a species/product label grants no additional entity. Outposts and foreign colony intelligence remain excluded. | src/game/colony_read.cpp: namespace colony_read; src/game/coldraw.cpp: Resource_Row; src/game/coldraw.cpp: Morale_Icons; src/game/colmove.cpp: Colony_Pop_String; src/game/colcalc.cpp: Colony_Product_Cost; src/game/colcalc.cpp: Colony_N_Turns_To_Produce; src/game/colcalc_base.cpp: Production_Cost_To_Buy; src/game/events.cpp: Colony_Has_Event; src/game/colsum.cpp: Draw_Colony_Scan_Info; src/game/game_events.cpp: Colony_Edits_Active | T-01, T-02, T-03, T-04, T-05, T-06, T-07, T-12 |
 | ships-refreshed | reviewed | Capture surviving associations only synchronously post-Build_Ship_Icons for the bound active human viewer, outside world mutation/resolution. Follow fresh icon heads that are surviving stack heads and their linked nodes; never enumerate unlinked allocations or rebuild for a query. Copy map x/y and own-versus-foreign classification; names and known-player owner references require their additional field policies. Sort the authorized projection before assigning opaque read-only observation handles; no native slots or durable ship identity are published. One coherent map/ship capture, explicitly dated last-native-ship-refresh. A fresh last-native-fleet-box capture may reuse still-valid surviving associations under the reviewed ship-map-eta authority, without later node traversal or enriching any older retained capture. Handle sets are replaced when the projected ship collection changes; no action may use them. | src/game/ships.cpp: Build_Ship_Icons; src/game/shipstak.cpp: Find_Ship_Stacks; src/game/shipstak.cpp: Remove_Non_Detected_Ships; src/game/haccess.cpp: Ship_Stack_X; src/game/haccess.cpp: Ship_Stack_Y; src/game/haccess.cpp: Ship_Stack_Owner | T-01, T-02, T-05 |
 | ship-own-name | reviewed | Ship.name retains its canonical in-game ship-name semantics, never a substituted hull-class/UI label; no displayName field is introduced. Current implementation: only the bound viewer&#x27;s own ship, a bounded NUL-terminated copy of d.name decoded from CP850 to UTF-8 at the same authorized post-refresh capture. Foreign name bytes are never read; native disclosure of a hull label does not authorize their canonical name, which remains explicitly unaudited rather than a scan-knowledge claim. | src/game/fleetpop.cpp: Get_Fleetpop_Scanned_Ship_Info | T-01, T-02, T-03 |
 | ship-owner-known | reviewed | Only a surviving freshly displayed ship. Resolve own ownership or a known empire&#x27;s banner-color identity to an opaque player handle in the same coherent capture&#x27;s authorized roster. Foreign mapping requires a unique color in that public roster; ambiguous colors, unlisted owners and special/NPC owners remain explicitly unaudited. Never use an old handle table or newer roster to authorize the link. Discard private owner bindings before retaining snapshots; compare only the resolved public ID. Ownership does not authorize enemy names/designs, routes, ETA, orders, cargo or economy. | src/game/ships.cpp: Get_Ship_Icon_Pict_Seg; src/game/ships.cpp: Build_Ship_Icons; src/game/racescrn.cpp: Draw_Race_Photos | T-01, T-02, T-05 |

@@ -22,6 +22,11 @@ namespace game_events {
         const s_relations_view* relations_view = nullptr;
         uint32_t relations_interruptions = 0;
         int16_t message_recipient = -1;
+        int16_t replaced_colony_owner = -1;
+        bool population_staged = false;
+        bool queue_staged = false;
+        s_colony_queue_scope* queue_owner = nullptr;
+        s_colony_player_scope* colony_player = nullptr;
     } // namespace
 
     uint64_t Subscribe(t_callback callback, void* context) {
@@ -103,6 +108,12 @@ namespace game_events {
     }
 
     void Publish(e_event event) {
+        if (event == WORLD_REPLACE_BEGIN || event == PERSPECTIVE_SELECTION_BEGIN || event == MENU_ENTERED || event == THREAD_STOPPING) {
+            for (auto* owner = queue_owner; owner != nullptr; owner = owner->parent) owner->revoked = true;
+            for (auto* owner = colony_player; owner != nullptr; owner = owner->parent) owner->revoked = true;
+            population_staged = false;
+            queue_staged = false;
+        }
         if (event == WORLD_REPLACE_BEGIN || event == WORLD_UPDATE_BEGIN || event == RESOLUTION_BEGIN || event == PERSPECTIVE_SELECTION_BEGIN || event == MENU_ENTERED || event == THREAD_STOPPING) {
             for (auto* owner = leader_owner; owner != nullptr; owner = owner->parent) {
                 owner->ready = false;
@@ -129,6 +140,51 @@ namespace game_events {
 
     int16_t Message_Recipient() {
         return message_recipient;
+    }
+
+    void Publish_Colony_Replacing(int16_t owner) {
+        const auto previous = replaced_colony_owner;
+        replaced_colony_owner = owner;
+        Publish(COLONY_REPLACING);
+        replaced_colony_owner = previous;
+    }
+
+    int16_t Replaced_Colony_Owner() {
+        return replaced_colony_owner;
+    }
+    s_colony_player_scope::s_colony_player_scope(int16_t player) : viewer(player), parent(colony_player) {
+        colony_player = this;
+    }
+    s_colony_player_scope::~s_colony_player_scope() {
+        colony_player = parent;
+    }
+    bool Colony_Player_Context_Matches(int16_t viewer) {
+        for (auto* owner = colony_player; owner != nullptr; owner = owner->parent)
+            if (owner->revoked || owner->viewer != viewer) return false;
+        return true;
+    }
+    bool Colony_Edits_Active() {
+        return population_staged || queue_staged;
+    }
+    void Set_Colony_Population_Staged(bool staged) {
+        population_staged = staged;
+    }
+    s_colony_queue_scope::s_colony_queue_scope() : parent(queue_owner) {
+        queue_owner = this;
+        queue_staged = true;
+    }
+    void s_colony_queue_scope::Hold() {
+        held = true;
+    }
+    void s_colony_queue_scope::Commit() {
+        committed = true;
+    }
+    s_colony_queue_scope::~s_colony_queue_scope() {
+        queue_owner = parent;
+        if (revoked || parent != nullptr) return;
+        if (held) return;
+        queue_staged = false;
+        if (committed) Publish(COLONY_OBSERVATION_POINT);
     }
 
     const s_relations_view* Published_Relations_View() {

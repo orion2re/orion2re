@@ -83,10 +83,10 @@ class SidecarArchitectureTests(unittest.TestCase):
     def test_colony_capture_does_not_build_lists_or_recalculate_population_economy(self):
         adapter = (ROOT / "src/rpc/colony_rpc.cpp").read_text()
         self.assertIn("colony->n_pops", adapter)
-        self.assertIn("colony->outpost_flag", adapter)
+        self.assertIn("colony_read::Own_Full_Colony", adapter)
         self.assertIn("colony->military[0]", adapter)
         self.assertIn("colony->military[1]", adapter)
-        self.assertNotRegex(adapter, r"(?:Build_Global_Colony_List|Sum_Colonists|Draw_Colony_Scan_Info|Planet_Max_Population_For_Player|Colony_Producing_Product_Cost)\s*\(")
+        self.assertNotRegex(adapter, r"(?:Build_Global_Colony_List|Sum_Colonists|Draw_Colony_Scan_Info|Planet_Max_Population_For_Player|Colony_Calculation|Recalculate_Colony|Do_Player_Colony_Calculations)\s*\(")
         self.assertNotRegex(adapter, r"(?:Troop_Popup|Print_Scanned_Military|Colony_Infantry_Limit|Colony_Tank_Limit|Colony_Ground_Strength)\s*\(")
 
     def test_research_capture_uses_shared_native_choices_without_ui_builders_or_mutation(self):

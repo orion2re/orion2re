@@ -1,4 +1,64 @@
 #include "pch.h"
+#include "colony_read.h"
+
+namespace colony_read {
+    int16_t Population_Order(int16_t colony_idx, int16_t job, int16_t* out) {
+        const auto& colony = MOX::colony[colony_idx];
+        const int16_t order[] = {9, 0, 1, 2, 3, 4, 5, 6, 7, 8};
+        int16_t count = 0;
+        for (int16_t state = 0; state < 7; ++state)
+            for (int16_t conquered = 0; conquered < 2; ++conquered)
+                for (int16_t profession = job == -1 ? 0 : job; profession < (job == -1 ? 3 : job + 1); ++profession)
+                    for (auto race : order)
+                        for (int16_t pop = 0; pop < colony.n_pops; ++pop) {
+                            const auto value = colony.pop[pop];
+                            if (POP::Get_Race(value) == race && COLONY::Pop_To_Pop_State(colony_idx, pop) == state &&
+                                POP::Get_Prof(value) == profession && POP::Is_Assigned(value) && POP::Is_Conquered(value) == (conquered != 0)) out[count++] = pop;
+                        }
+        return count;
+    }
+
+    void Resource_Row(const s_colony* colony, int16_t prod_type, s_resource_row* out) {
+        *out = {};
+        if (prod_type != ECON_INDUSTRY) {
+            const int32_t value = abs((int32_t)colony->imports[prod_type]);
+            out->import_tens = value / 10;
+            out->import_units = value % 10;
+        }
+        if (prod_type == ECON_FOOD) {
+            const int32_t value = abs((int32_t)colony->imports[ECON_INDUSTRY]);
+            out->secondary_tens = value / 10;
+            out->secondary_units = value % 10;
+        } else if (prod_type == ECON_INDUSTRY) {
+            out->secondary_tens = colony->pollution / 10;
+            out->secondary_units = colony->pollution % 10;
+        }
+        const int16_t production = colony->production[prod_type];
+        int16_t shortage = colony->maintenance[prod_type] - colony->imports[prod_type] - production;
+        if (shortage < 1) shortage = 0;
+        out->shortage_tens = abs((int32_t)shortage) / 10;
+        out->shortage_units = abs((int32_t)shortage) % 10;
+        int32_t net = production;
+        if ((int8_t)colony->imports[prod_type] < 0) {
+            if (prod_type == ECON_INDUSTRY) {
+                net = production - colony->maintenance[prod_type];
+                if (net < 0) net = 0;
+            } else
+                net = production - abs((int32_t)colony->imports[prod_type]);
+        } else if (colony->maintenance[ECON_INDUSTRY] != 0 && prod_type == ECON_INDUSTRY) {
+            net = production - colony->maintenance[prod_type];
+            if (net < 0) net = 0;
+        }
+        out->net_tens = net / 10;
+        out->net_units = net % 10;
+    }
+
+    int16_t Morale_Icons(const s_colony* colony, bool* suppressed) {
+        *suppressed = MOX::player[colony->owner].traits[TRAIT_CURRENT_GOVERNMENT] >= GOVERNMENT_UNIFICATION;
+        const int16_t value = (int8_t)colony->morale / 2;
+        return *suppressed ? 0 : value;
+    }
+} // namespace colony_read
 
 namespace COLDRAW {
 
@@ -34,64 +94,12 @@ namespace COLDRAW {
     }
 
     void __cdecl Draw_Colony_Prod_Both(int16_t colony_idx, int16_t prod_type, int16_t x, int16_t y, int16_t width, int16_t spacing, int8_t frame) {
-        int16_t import_tens = 0;
-        int16_t import_units = 0;
-        int16_t secondary_tens = 0;
-        int16_t secondary_units = 0;
         int16_t drawn_count = 0;
 
         s_colony* colony = &MOX::colony[colony_idx];
-
-        if (prod_type != ECON_INDUSTRY) {
-            int32_t imp_val = abs((int32_t)colony->imports[prod_type]);
-            import_tens = (int16_t)(imp_val / 10);
-            import_units = (int16_t)(imp_val % 10);
-        }
-
-        if (prod_type == ECON_FOOD) {
-            int32_t imp_val_1 = abs((int32_t)colony->imports[ECON_INDUSTRY]);
-            secondary_tens = (int16_t)(imp_val_1 / 10);
-            secondary_units = (int16_t)(imp_val_1 % 10);
-        } else if (prod_type == ECON_INDUSTRY) {
-            secondary_tens = colony->pollution / 10;
-            secondary_units = colony->pollution % 10;
-        }
-
-        int16_t prod_val = colony->production[prod_type];
-        int16_t shortage = colony->maintenance[prod_type] - colony->imports[prod_type] - prod_val;
-        if (shortage < 1) {
-            shortage = 0;
-        }
-
-        int32_t abs_shortage = abs((int32_t)shortage);
-        int16_t shortage_tens = (int16_t)(abs_shortage / 10);
-        int16_t shortage_units = (int16_t)(abs_shortage % 10);
-
-        int16_t net_tens;
-        int16_t net_units;
-
-        if ((int8_t)colony->imports[prod_type] < 0) {
-            if (prod_type == ECON_INDUSTRY) {
-                int32_t adj_prod = (int32_t)prod_val - colony->maintenance[prod_type];
-                if (adj_prod < 0) adj_prod = 0;
-                net_tens = (int16_t)(adj_prod / 10);
-                net_units = (int16_t)(adj_prod % 10);
-            } else {
-                int32_t adj_prod = (int32_t)prod_val - abs((int32_t)colony->imports[prod_type]);
-                net_tens = (int16_t)(adj_prod / 10);
-                net_units = (int16_t)(adj_prod % 10);
-            }
-        } else {
-            if (colony->maintenance[ECON_INDUSTRY] == 0 || prod_type != ECON_INDUSTRY) {
-                net_tens = prod_val / 10;
-                net_units = prod_val % 10;
-            } else {
-                int32_t adj_prod = (int32_t)prod_val - colony->maintenance[prod_type];
-                if (adj_prod < 0) adj_prod = 0;
-                net_tens = (int16_t)(adj_prod / 10);
-                net_units = (int16_t)(adj_prod % 10);
-            }
-        }
+        colony_read::s_resource_row row;
+        colony_read::Resource_Row(colony, prod_type, &row);
+        const auto [net_tens, net_units, import_tens, import_units, secondary_tens, secondary_units, shortage_tens, shortage_units] = row;
 
         int16_t total_tens = import_tens + secondary_tens + net_tens + shortage_tens;
         int16_t total_units = import_units + secondary_units + net_units + shortage_units;
@@ -186,7 +194,8 @@ namespace COLDRAW {
 
     void __cdecl Draw_Info_Morale_Both(int16_t colony_idx, int16_t x, int16_t y, int32_t width, uint8_t is_mini) {
         s_colony* colony = &MOX::colony[colony_idx];
-        int16_t morale_div2 = (int16_t)((int8_t)colony->morale / 2);
+        bool suppressed;
+        int16_t morale_div2 = colony_read::Morale_Icons(colony, &suppressed);
 
         int32_t morale_count_abs = abs((int32_t)morale_div2);
         int32_t morale_count = morale_count_abs;
@@ -280,33 +289,10 @@ namespace COLDRAW {
 
     int16_t __cdecl Do_Colony_Info_Pop_Stuff_For_Pop(
         int16_t colony_idx, int16_t job_filter, int16_t mode, int16_t left_x, int16_t top_y, int16_t right_x, uint8_t show_farm_shadows, int16_t* pop_index_by_slot, int16_t* last_slot_idx_ptr, int16_t* scroll_value_ptr, int16_t* scroll_field_id_ptr) {
-        const uint8_t colony_n_pops = MOX::colony[colony_idx].n_pops;
-        int16_t pop_order[10];
-        pop_order[0] = 9;
-        pop_order[1] = 0;
-        pop_order[2] = 1;
-        pop_order[3] = 2;
-        pop_order[4] = 3;
-        pop_order[5] = 4;
-        pop_order[6] = 5;
-        pop_order[7] = 6;
-        pop_order[8] = 7;
-        pop_order[9] = 8;
-
         int16_t pop_draw_index = 0;
 
         if (mode != 2) {
             Do_Colony_Info_Pop_Stuff_For_Pop(colony_idx, job_filter, 2, left_x, top_y, right_x, show_farm_shadows, pop_index_by_slot, last_slot_idx_ptr, scroll_value_ptr, scroll_field_id_ptr);
-        }
-
-        int16_t start_idx;
-        int16_t end_idx;
-        if (job_filter == -1) {
-            start_idx = 0;
-            end_idx = 3;
-        } else {
-            start_idx = job_filter;
-            end_idx = job_filter + 1;
         }
 
         if (mode == 0 && job_filter == ECON_FOOD && MOX::colony[colony_idx].max_farms == 0) {
@@ -320,67 +306,50 @@ namespace COLDRAW {
 
         bool found_match = false;
 
-        for (int16_t state_idx = 0; state_idx < 7; state_idx++) {
-            for (int16_t race_idx = 0; race_idx < 2; race_idx++) {
-                for (int16_t job_idx = start_idx; job_idx < end_idx; job_idx++) {
-                    for (int16_t order_idx = 0; order_idx < 10; order_idx++) {
-                        int16_t current_order = pop_order[order_idx];
-                        for (int16_t pop_idx = 0; pop_idx < (int16_t)colony_n_pops; pop_idx++) {
-                            uint32_t pop_val = MOX::colony[colony_idx].pop[pop_idx];
-                            if ((pop_val & 0xf) == current_order) {
-                                if (COLONY::Pop_To_Pop_State(colony_idx, pop_idx) == state_idx) {
-                                    if (((pop_val & 0x180) >> 7) == job_idx) {
-                                        if ((pop_val & 0x200) != 0) {
-                                            if (((pop_val & 0x400) >> 10) == race_idx) {
-                                                switch (mode) {
-                                                    case 0:
-                                                        COLONY::Set_Colony_Font_To(2);
-                                                        if (pop_idx == COLONY::scanned_pop && COLONY::g_colony_n == colony_idx) {
-                                                            if (ERIC::Global_Cycler(30, 2) != 0) {
-                                                                COLONY::Draw_Pop_Dark((30 - COLONY::step_squish) * pop_draw_index + left_x, top_y, colony_idx, pop_idx);
-                                                                break;
-                                                            }
-                                                        }
-                                                        {
-                                                            s_animation_header* anim = COLONY::Colony_Pop_Anim(colony_idx, pop_idx);
-                                                            animate::Draw((30 - COLONY::step_squish) * pop_draw_index + left_x, top_y, anim);
-                                                        }
-                                                        break;
-
-                                                    case 1:
-                                                        pop_index_by_slot[pop_draw_index] = pop_idx;
-                                                        break;
-
-                                                    case 2:
-                                                        break;
-
-                                                    case 3:
-                                                        if (*scroll_value_ptr <= (30 - COLONY::step_squish) * (pop_draw_index + 1) + left_x || *last_slot_idx_ptr == pop_draw_index) {
-                                                            found_match = true;
-                                                        }
-                                                        break;
-
-                                                    case 4:
-                                                        if (mouse::Pointer_X() <= (30 - COLONY::step_squish) * (pop_draw_index + 1) + left_x || *last_slot_idx_ptr == pop_draw_index) {
-                                                            found_match = true;
-                                                        }
-                                                        break;
-                                                }
-
-                                                if (found_match) {
-                                                    goto post_loop_dispatch;
-                                                }
-
-                                                pop_draw_index++;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
+        int16_t population_order[MAX_COLONY_POPULATION];
+        const int16_t count = colony_read::Population_Order(colony_idx, job_filter, population_order);
+        for (int16_t ordered = 0; ordered < count; ++ordered) {
+            const int16_t pop_idx = population_order[ordered];
+            switch (mode) {
+                case 0:
+                    COLONY::Set_Colony_Font_To(2);
+                    if (pop_idx == COLONY::scanned_pop && COLONY::g_colony_n == colony_idx) {
+                        if (ERIC::Global_Cycler(30, 2) != 0) {
+                            COLONY::Draw_Pop_Dark((30 - COLONY::step_squish) * pop_draw_index + left_x, top_y, colony_idx, pop_idx);
+                            break;
                         }
                     }
-                }
+                    {
+                        s_animation_header* anim = COLONY::Colony_Pop_Anim(colony_idx, pop_idx);
+                        animate::Draw((30 - COLONY::step_squish) * pop_draw_index + left_x, top_y, anim);
+                    }
+                    break;
+
+                case 1:
+                    pop_index_by_slot[pop_draw_index] = pop_idx;
+                    break;
+
+                case 2:
+                    break;
+
+                case 3:
+                    if (*scroll_value_ptr <= (30 - COLONY::step_squish) * (pop_draw_index + 1) + left_x || *last_slot_idx_ptr == pop_draw_index) {
+                        found_match = true;
+                    }
+                    break;
+
+                case 4:
+                    if (mouse::Pointer_X() <= (30 - COLONY::step_squish) * (pop_draw_index + 1) + left_x || *last_slot_idx_ptr == pop_draw_index) {
+                        found_match = true;
+                    }
+                    break;
             }
+
+            if (found_match) {
+                goto post_loop_dispatch;
+            }
+
+            pop_draw_index++;
         }
 
     post_loop_dispatch:

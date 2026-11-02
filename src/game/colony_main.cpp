@@ -1,6 +1,8 @@
 #include "pch.h"
 
 #include "build_queue.h"
+#include "colony_read.h"
+#include "game_events.h"
 
 namespace COLONY {
     int16_t _shortcut_previous_colony;
@@ -234,6 +236,7 @@ namespace COLONY {
     }
 
     void __cdecl Colony_Screen() {
+        game_events::s_colony_player_scope player_scope(MOX::PLAYER_NUM);
         int16_t input_val;
         int16_t scanned_val;
         bool input_received = false;
@@ -329,6 +332,7 @@ namespace COLONY {
             }
 
             Draw_Colony_Screen();
+            game_events::Publish(game_events::COLONY_OBSERVATION_POINT);
             RUSS::Mox_Sync_Update();
 
             input_val = fields::Get_Input();
@@ -534,7 +538,7 @@ namespace COLONY {
 
         int bldg_count = 0;
         for (int16_t bldg_id = 0; bldg_id < BUILDING_COUNT; ++bldg_id) {
-            if (MOX::colony[colony_idx].buildings[bldg_id] != 0) {
+            if (colony_read::Building_Present(&MOX::colony[colony_idx], bldg_id)) {
                 if (is_ui_view == 0 || bldg_count < 18) {
                     if (TECHDATA::buildings[bldg_id].group == 7 /* Satellite */) {
                         Insert_Satellite_Into_Array(bldg_id, &satellite_count);
@@ -794,27 +798,25 @@ namespace COLONY {
             Set_Colony_Font_To(4);
         }
 
+        colony_read::Heading(handle, buffer, sizeof(buffer));
         fonts::Set_Font_Spacing(2);
         fonts::Print_Centered(320, 0, buffer);
 
         int16_t colony_planet = MOX::colony[handle].planet;
         int16_t star_idx = MOX::planet[colony_planet].star_index;
 
-        int16_t status_msg_id = -1;
+        int16_t status_msg_id = colony_read::Status_String_Id(handle, MOX::PLAYER_NUM);
         if ((MOX::star[star_idx].blockaded >> (MOX::PLAYER_NUM & 0x1F)) & 1) {
             int16_t cycle_val = ERIC::Global_Cycler(30, 2);
             Set_Colony_Font_To_Red(4, (uint8_t)cycle_val);
             fonts::Set_Font_Spacing(2);
-            status_msg_id = ESTR_BLOCKADED1;
         } else if (EVENTS::Event_Check_Plague(handle)) {
             int16_t cycle_val = ERIC::Global_Cycler(30, 2);
             Set_Colony_Font_To_Red(4, (uint8_t)cycle_val);
             fonts::Set_Font_Spacing(2);
-            status_msg_id = ESTR_PLAGUE;
         } else if (EVENTS::Event_Check_Population_Boom(handle)) {
             Set_Colony_Font_To(4);
             fonts::Set_Font_Spacing(2);
-            status_msg_id = ESTR_POP_BOOM;
         }
 
         if (status_msg_id != -1) {
@@ -825,19 +827,8 @@ namespace COLONY {
         Set_Colony_Font_To(4);
         fonts::Set_Font_Spacing(3);
 
-        int sum_roundoff = 0;
-        int sum_growth = 0;
-        for (int i = 0; i < 10; ++i) {
-            sum_roundoff += MOX::colony[handle].pop_roundoff[i];
-            sum_growth += MOX::colony[handle].pop_growth[i];
-        }
-
-        int16_t n_base_pop = static_cast<int16_t>(Sum_Colonists(handle, -1, -1, -1, -1, -1));
-        int total_pop = n_base_pop + (sum_roundoff / 1000);
-        int roundoff_rem = sum_roundoff % 1000;
-
-        char* pop_fmt = ESTRINGS::E_Strings(ESTR_POP_D03D_K_DK);
-        snprintf(buffer, sizeof(buffer), pop_fmt, total_pop, roundoff_rem, sum_growth);
+        Sum_Colonists(handle, -1, -1, -1, -1, -1);
+        colony_read::Population_Text(&MOX::colony[handle], buffer, sizeof(buffer));
 
         fonts::Set_Font_Style_Shadow_Down(2, &font_color_array);
         fonts::Print_Right(638, 3, buffer);
@@ -919,8 +910,11 @@ namespace COLONY {
 
         COLONY::Draw_Current_Production_Graph();
 
-        char* name_str = COLBLDG::Selection_Name(producing_id);
-        strlcpy(name_buffer, name_str, sizeof(name_buffer));
+        // Retain Selection_Name's native refit-description cache invalidation.
+        const char* name_str = COLBLDG::Selection_Name(producing_id);
+        colony_read::s_product product;
+        colony_read::Product(&colony, producing_id, &product);
+        strlcpy(name_buffer, product.available ? product.label : name_str, sizeof(name_buffer));
 
         fonts::Set_Font_Style_Shadow_Down(1, &COLONY::font_color_array);
         BILL::Squeeze_Print_Paragraph(0x20a /* 522 */, 0x26 /* 38 */, 0x70 /* 112 */, 0x8d /* 141 */, name_buffer, 2);
@@ -932,7 +926,7 @@ namespace COLONY {
             fonts::Set_Font_Style_Shadow_Down(1, &COLONY::bright_blue_font_color_array);
             if (autobuild_preset >= 0) {
                 char auto_msg[40];
-                snprintf(auto_msg, sizeof(auto_msg), "Auto Build Queue %d", autobuild_preset);
+                colony_read::Autobuild_Text(&colony, auto_msg, sizeof(auto_msg));
                 fonts::Print_Centered(0x242 /* 578 */, 0x1c /* 28 */, auto_msg);
             } else {
                 fonts::Print_Centered(0x242 /* 578 */, 0x1c /* 28 */, ESTRINGS::E_Strings(0xbd));

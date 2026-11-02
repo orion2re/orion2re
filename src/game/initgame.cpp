@@ -469,6 +469,7 @@ namespace INITGAME {
 
     void __cdecl Init_Colony(int16_t colony_idx, int16_t planet_idx, uint8_t player_num) {
         s_colony* colony = &MOX::colony[colony_idx];
+        game_events::Publish_Colony_Replacing(colony->owner);
 
         // Zero-initialize the entire colony structure
         memset(colony, 0, sizeof(s_colony));

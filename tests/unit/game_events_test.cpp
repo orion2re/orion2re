@@ -9,6 +9,58 @@ namespace {
     }
 } // namespace
 
+DOCTEST_TEST_CASE("colony staging survives children and cross-screen continuation without granting a presentation") {
+    std::vector<game_events::e_event> events;
+    const auto token = game_events::Subscribe(Record, &events);
+    game_events::Publish(game_events::WORLD_REPLACE_BEGIN);
+    {
+        game_events::s_colony_queue_scope queue;
+        DOCTEST_CHECK(game_events::Colony_Edits_Active());
+        {
+            game_events::s_leader_interruption_scope child;
+            DOCTEST_CHECK(game_events::Colony_Edits_Active());
+        }
+        queue.Hold();
+    }
+    DOCTEST_CHECK(game_events::Colony_Edits_Active());
+    {
+        game_events::s_colony_queue_scope restored;
+        restored.Commit();
+    }
+    DOCTEST_CHECK_FALSE(game_events::Colony_Edits_Active());
+    DOCTEST_CHECK(events.back() == game_events::COLONY_OBSERVATION_POINT);
+    const auto count = events.size();
+    { game_events::s_colony_queue_scope interrupted; }
+    DOCTEST_CHECK_FALSE(game_events::Colony_Edits_Active());
+    DOCTEST_CHECK(events.size() == count);
+    {
+        game_events::s_colony_queue_scope stale;
+        stale.Commit();
+        game_events::Publish(game_events::WORLD_REPLACE_BEGIN);
+    }
+    DOCTEST_CHECK(events.back() == game_events::WORLD_REPLACE_BEGIN);
+    game_events::Set_Colony_Population_Staged(true);
+    game_events::Publish(game_events::MENU_ENTERED);
+    DOCTEST_CHECK_FALSE(game_events::Colony_Edits_Active());
+    game_events::Unsubscribe(token);
+}
+
+DOCTEST_TEST_CASE("native colony display player override is not a perspective grant") {
+    {
+        game_events::s_colony_player_scope original(0);
+        DOCTEST_CHECK(game_events::Colony_Player_Context_Matches(0));
+        DOCTEST_CHECK_FALSE(game_events::Colony_Player_Context_Matches(1));
+        {
+            game_events::s_colony_player_scope child(1);
+            DOCTEST_CHECK_FALSE(game_events::Colony_Player_Context_Matches(1));
+        }
+        DOCTEST_CHECK(game_events::Colony_Player_Context_Matches(0));
+        game_events::Publish(game_events::WORLD_REPLACE_BEGIN);
+        DOCTEST_CHECK_FALSE(game_events::Colony_Player_Context_Matches(0));
+    }
+    DOCTEST_CHECK(game_events::Colony_Player_Context_Matches(1));
+}
+
 DOCTEST_TEST_CASE("leader owners require initialization and fresh presentation after nested interruption") {
     std::vector<leader_read::s_leader> copied;
     const auto token = game_events::Subscribe([](game_events::e_event event, void* context) {

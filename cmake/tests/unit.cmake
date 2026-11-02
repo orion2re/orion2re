@@ -897,6 +897,7 @@ orion2re_add_unit_test(test_colony_scan_info
         tests/unit/colsum_test.cpp
     PRODUCTION_SOURCES
         src/game/colsum.cpp
+        src/game/colony_read.cpp
     FAKE_SOURCES
         tests/fakes/fake_colony_scan_info_runtime.cpp
     LINK_SDL
@@ -2120,6 +2121,7 @@ if(ORION2RE_RPC_BUILT)
     set_tests_properties(test_rpc PROPERTIES TIMEOUT 30)
     add_executable(test_game_rpc_native
         tests/test_main.cpp tests/unit/game_rpc_native_test.cpp
+        tests/support/rpc_native_colonies.cpp
         tests/support/rpc_native_turn_review.cpp
         $<TARGET_OBJECTS:orion2re_game_objects>
         "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smacker.c"
@@ -2133,6 +2135,7 @@ if(ORION2RE_RPC_BUILT)
     orion2re_enable_sanitizers(test_game_rpc_native)
     add_test(NAME test_game_rpc_native COMMAND test_game_rpc_native)
     target_sources(rpc-test-server PRIVATE
+        tests/support/rpc_native_colonies.cpp
         tests/support/rpc_native_turn_review.cpp
         tests/support/rpc_native_leaders.cpp
         tests/support/rpc_native_relations.cpp
@@ -2150,7 +2153,7 @@ if(ORION2RE_RPC_BUILT)
                 "${Python3_EXECUTABLE}" -m unittest discover
                 -s "${CMAKE_CURRENT_SOURCE_DIR}/tests/rpc" -p test_transport.py -v)
         set_tests_properties(test_rpc_transport PROPERTIES
-            TIMEOUT 60 WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+            TIMEOUT 120 WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
     endif()
 endif()
 

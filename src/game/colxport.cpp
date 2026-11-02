@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "colony_read.h"
 
 namespace COLXPORT {
     uint8_t cheezy_hack_col_count_state;
@@ -73,7 +74,7 @@ namespace COLXPORT {
         for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
             s_colony* colony = &MOX::colony[i];
 
-            if ((int16_t)colony->owner == player_idx && colony->outpost_flag == 0) {
+            if (colony_read::Own_Full_Colony(colony, player_idx)) {
                 colony_count++;
             }
         }
@@ -92,7 +93,7 @@ namespace COLXPORT {
         int16_t count = 0;
 
         for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
-            if (MOX::colony[i].owner == (char)MOX::PLAYER_NUM && MOX::colony[i].outpost_flag == 0) {
+            if (colony_read::Own_Full_Colony(&MOX::colony[i], MOX::PLAYER_NUM)) {
                 g_colony_list_ptr[count] = i;
                 count++;
             }

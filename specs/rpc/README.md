@@ -139,6 +139,42 @@ focused native-owner publications cover rescue results, troop/ground summaries
 and name-bearing event presentations, including interruption and teardown. These
 hooks grant no general UI context, navigation or persistent foreign knowledge.
 
+## Owned-colony operations dashboard
+
+Authenticate with `rpc.hello`, discover the enabled existing colony methods with
+`rpc.describe`, then establish one coherent dashboard baseline:
+
+```json
+{"jsonrpc":"2.0","id":3,"method":"rpc.subscribe","params":{"topics":["session","players","planets","colonies","research","leaders","relations","intelligence","history","messages"],"events":["state.changed"]}}
+```
+
+Compare the baseline's colonies using current product/queue labels, native
+workforce/species/job presentations, structures and satellites, troop labels and
+counts, operating resource groups, morale, blockade/events, purchase information
+and inbound population. See [owned-colony semantics](colony_view.md) for units,
+precision, sentinel/unavailable states and native variant limits. Priorities,
+warnings and recommendations belong in the client; no planner/briefing API exists.
+
+Resolve colony, planet and species-player references with the existing get methods.
+A production or species label alone grants no additional entity record. Use
+`game.listColonies` with normal pinned pagination when a complete state exceeds
+the output limit; retain each page's stamp and never splice it into a different
+dashboard capture. `game.getColony` returns useful detail without native navigation.
+
+On `state.changed`, reread the same selected topics with `game.getState`.
+Same-turn committed native changes invalidate the baseline; turn resolution is
+busy until coherent publication. Native edits remain staged: queries retain the
+dated committed capture rather than exposing a dragged workforce or edited queue.
+Including ships can select an older complete ship-refresh baseline; newer colony
+details are never added to it. Loss/replacement revokes dependent pages, handles
+and queued output before mutation; reset/perspective changes require fresh hello.
+
+The `test_native_*colony*` live WebSocket workflows exercise this client flow with
+native-function fixtures and accompanying topics from the normal native capture
+adapter. They do not certify interactive saves, multiplayer, real mod/language
+assets or platform parity. Outposts, foreign intelligence and all colony-changing
+actions remain outside this bounded capability; Q-06 and all P1 are not complete.
+
 ## Own research reads
 
 `game.getResearch` reports the current field (`project`), selected `application`,
@@ -450,6 +486,13 @@ For turn-review changes, also build and select `test_bill_history`, `test_info`,
 `test_fmtpara` in both trees. Use separate existing `TMPDIR` directories for
 concurrent normal, sanitizer and RPC-disabled suites; Lua fixtures use
 process-local temporary-name counters.
+
+For colony operations, also build and select `test_colony_production_helpers`,
+`test_colony_production_draw`, `test_colony_scan_info`, `test_colony_replicators`,
+`test_build_queue`, `test_colbldg`, `test_colmove`, `test_settler`,
+`test_ground_commando`, `test_town_zero`, `test_newgame`, `test_msg_queue`,
+`test_resource_reload` and `test_text_format` in both enabled trees, in addition
+to the integration targets above. These are the actual CMake native-owner targets.
 
 Documentation-only changes need contract/schema/audit tests, local link checks
 and whitespace checks, not the game-build/transport gate above.

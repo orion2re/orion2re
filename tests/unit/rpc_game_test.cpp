@@ -735,7 +735,7 @@ DOCTEST_TEST_CASE_TEMPLATE("context ETA captures revoke pages and queued baselin
     DOCTEST_CHECK(rpc::Client_Is_Current(&fixture.bridge, 1, client_epoch));
     DOCTEST_REQUIRE(rpc::Take_Publication(&fixture.bridge, &publication));
     DOCTEST_CHECK(publication.ticket == 0);
-    DOCTEST_CHECK(publication.context_epoch == 0);
+    DOCTEST_CHECK(publication.context_epoch == rpc::Bridge_Context_Epoch(&fixture.bridge));
     DOCTEST_CHECK(publication.json.find("state.changed") != std::string::npos);
     auto players = Request("game.listPlayers");
     DOCTEST_CHECK(rpc::Game_Query(&store, &players).find("\"value\":123") != std::string::npos);

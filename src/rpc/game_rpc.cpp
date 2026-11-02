@@ -33,7 +33,7 @@ namespace game_rpc {
     } // namespace
 
     bool Read_Map_Observation(rpc::s_map_observation* observation) {
-        if (observation == nullptr) return false;
+        if (observation == nullptr || game_events::Colony_Edits_Active() || !game_events::Colony_Player_Context_Matches(MOX::PLAYER_NUM)) return false;
         *observation = {};
         const int32_t viewer = MOX::PLAYER_NUM;
         if (RUSS::all_ai_game != 0 || viewer < 0 || viewer >= MOX::NUM_PLAYERS || viewer >= MAX_PLAYERS ||
@@ -399,7 +399,7 @@ namespace game_rpc {
                     break;
                 case game_events::SHIP_ICONS_REFRESHED: {
                     adapter->associations.clear();
-                    if (!adapter->store->loaded || adapter->store->busy_depth != 0 || adapter->failed) break;
+                    if (!adapter->store->loaded || adapter->store->busy_depth != 0 || adapter->failed || game_events::Colony_Edits_Active() || !game_events::Colony_Player_Context_Matches(MOX::PLAYER_NUM)) break;
                     rpc::s_map_observation observation;
                     if (!Read_Ship_Refresh(&observation, &adapter->associations) || !rpc::Capture_Map(adapter->store, &observation)) {
                         adapter->associations.clear();
@@ -453,7 +453,7 @@ namespace game_rpc {
     }
 
     static void Capture_Main_Map() {
-        if (!active || !store.loaded || store.busy_depth != 0) return;
+        if (!active || !store.loaded || store.busy_depth != 0 || game_events::Colony_Edits_Active() || !game_events::Colony_Player_Context_Matches(MOX::PLAYER_NUM)) return;
         if (!store.snapshots.empty() && !rpc::Needs_Game_Capture(&store)) return;
         const uint64_t now = rpc::Monotonic_Ms();
         if (last_capture_ms != 0 && now - last_capture_ms < rpc::Protocol_Limits()->capture_interval_ms) return;
@@ -496,6 +496,9 @@ namespace game_rpc {
         }
         if (!active) return;
         switch (event) {
+            case game_events::COLONY_REPLACING:
+                if (game_events::Replaced_Colony_Owner() == store.viewer) rpc::Expire_Game_Colonies(&store);
+                break;
             case game_events::MESSAGES_REPLACING:
                 if (game_events::Message_Recipient() == store.viewer) rpc::Expire_Game_Messages(&store);
                 break;
@@ -540,6 +543,7 @@ namespace game_rpc {
                 store.capture_requested = true;
                 last_capture_ms = 0;
                 break;
+            case game_events::COLONY_OBSERVATION_POINT:
             case game_events::MAP_OBSERVATION_POINT: Capture_Main_Map(); break;
             case game_events::IDLE_OBSERVATION_POINT: Pump(); break;
             default: break;

@@ -152,7 +152,7 @@ namespace rpc {
             for (size_t index = 0; index < left->colonies.size(); ++index) {
                 const auto& a = left->colonies[index];
                 const auto& b = right->colonies[index];
-                if (std::tie(a.system_id, a.orbit, a.population, a.owner_id, a.infantry, a.armor, a.planet_id) != std::tie(b.system_id, b.orbit, b.population, b.owner_id, b.infantry, b.armor, b.planet_id)) return false;
+                if (std::tie(a.system_id, a.orbit, a.population, a.owner_id, a.infantry, a.armor, a.planet_id) != std::tie(b.system_id, b.orbit, b.population, b.owner_id, b.infantry, b.armor, b.planet_id) || a.operations != b.operations) return false;
             }
             return true;
         }
@@ -377,13 +377,75 @@ namespace rpc {
                 ",\"commandPointsAvailable\":" + std::to_string(item.hud.command_points_available) + "}}}";
         }
 
+        std::string Colony_Operations(const s_colony_operations& item) {
+            if (!item.available) return "{\"availability\":\"unknown\"}";
+            std::string result = "{\"availability\":\"current\",\"value\":{\"populationText\":" + Json_String(item.population_text) +
+                ",\"heading\":" + Exploration_Knowledge(item.heading_available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, Json_String(item.heading)) +
+                ",\"autobuild\":" + Json_String(item.autobuild) + ",\"autobuildActive\":" + (item.autobuild_active ? "true" : "false") +
+                ",\"farmCapacity\":" + Exploration_Knowledge(item.farm_capacity < 0 ? EXPLORATION_EMPTY : EXPLORATION_CURRENT, std::to_string(item.farm_capacity)) + ",\"blockaded\":" + (item.blockaded ? "true" : "false") +
+                ",\"event\":" + Exploration_Knowledge(item.event_present ? EXPLORATION_CURRENT : EXPLORATION_EMPTY, Json_String(item.event)) +
+                ",\"status\":" + Exploration_Knowledge(item.status_present ? EXPLORATION_CURRENT : EXPLORATION_EMPTY, Json_String(item.status)) +
+                ",\"inboundPopulation\":" + std::to_string(item.inbound) + ",\"infantryLabel\":" + Json_String(item.infantry_name) +
+                ",\"armorLabel\":" + Json_String(item.armor_name) + ",\"morale\":{\"suppressed\":" + (item.morale_suppressed ? "true" : "false") +
+                ",\"icons\":" + std::to_string(item.morale_icons) + "},\"queue\":[";
+            for (size_t i = 0; i < item.queue.size(); ++i) {
+                if (i != 0) result += ',';
+                const auto& product = item.queue[i];
+                result += product.available ? "{\"availability\":\"current\",\"value\":{\"kind\":" + Json_String(product.kind) + ",\"label\":" + Json_String(product.label) + "}}" : "{\"availability\":\"unknown\"}";
+            }
+            result += "],\"workforce\":[";
+            for (size_t i = 0; i < item.workforce.size(); ++i) {
+                if (i != 0) result += ',';
+                const auto& worker = item.workforce[i];
+                result += "{\"label\":" + Json_String(worker.label) + ",\"species\":" + Json_String(worker.species) +
+                    ",\"job\":" + Json_String(worker.job) + ",\"state\":" + Json_String(worker.state) + ",\"assigned\":" + (worker.assigned ? "true" : "false") +
+                    ",\"conquered\":" + (worker.conquered ? "true" : "false") + ",\"player\":" + Id_Knowledge(worker.player_id) + "}";
+            }
+            result += "],\"structures\":[";
+            for (size_t i = 0; i < item.structures.size(); ++i) {
+                if (i != 0) result += ',';
+                const auto& building = item.structures[i];
+                result += "{\"label\":" + Json_String(building.name) + ",\"satellite\":" + (building.satellite ? "true" : "false") + "}";
+            }
+            result += "],\"resources\":[";
+            for (size_t i = 0; i < item.resources.size(); ++i) {
+                if (i != 0) result += ',';
+                const auto& row = item.resources[i];
+                result += "{\"resource\":" + Json_String(row.resource) + ",\"local\":" + std::to_string(row.local) +
+                    ",\"exchanged\":" + std::to_string(row.exchanged) + ",\"secondary\":" + std::to_string(row.secondary) +
+                    ",\"shortage\":" + std::to_string(row.shortage) + ",\"exporting\":" + (row.exporting ? "true" : "false") + "}";
+            }
+            result += "],\"garrison\":";
+            if (!item.garrison_available)
+                result += "{\"availability\":\"unknown\"}";
+            else {
+                result += "{\"availability\":\"current\",\"value\":[";
+                for (size_t i = 0; i < item.garrison.size(); ++i) {
+                    if (i != 0) result += ',';
+                    const auto& unit = item.garrison[i];
+                    result += "{\"label\":" + Json_String(unit.label) + ",\"count\":" + std::to_string(unit.count) +
+                        ",\"strength\":" + std::to_string(unit.strength) + ",\"hp\":" + std::to_string(unit.hp) + "}";
+                }
+                result += "]}";
+            }
+            result += ",\"currentProduction\":";
+            if (!item.production_available) return result + "{\"availability\":\"unknown\"}}}";
+            return result + "{\"availability\":\"current\",\"value\":{\"cost\":" + std::to_string(item.cost) +
+                ",\"stored\":" + std::to_string(item.stored) + ",\"bought\":" + std::to_string(item.bought) +
+                ",\"turns\":" + Exploration_Knowledge(item.turns > 0 && item.turns < 10000 ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, std::to_string(item.turns)) +
+                ",\"buyCost\":" + std::to_string(item.buy_cost) + ",\"canBuy\":" + (item.can_buy ? "true" : "false") + "}}}}";
+        }
+
         std::string Colony(const s_map_snapshot* snapshot, size_t index) {
             const auto& item = snapshot->map.colonies[index];
             return "{\"id\":" + Json_String(snapshot->colony_ids[index]) + ",\"systemId\":" + Json_String(item.system_id) +
                 ",\"orbit\":" + std::to_string(item.orbit) + ",\"planetId\":" + Id_Knowledge(item.planet_id) + ",\"owner\":{\"availability\":\"current\",\"value\":" +
                 Json_String(item.owner_id) + "},\"population\":{\"availability\":\"current\",\"value\":" + std::to_string(item.population) +
                 "},\"troops\":{\"availability\":\"current\",\"value\":{\"infantry\":" + std::to_string(item.infantry) +
-                ",\"armor\":" + std::to_string(item.armor) + "}},\"production\":{\"availability\":\"unaudited\"},\"buyCost\":{\"availability\":\"unaudited\"}}";
+                ",\"armor\":" + std::to_string(item.armor) + "}},\"production\":" +
+                (item.operations.available && !item.operations.queue.empty() && item.operations.queue[0].available ? Exploration_Knowledge(EXPLORATION_CURRENT, Json_String(item.operations.queue[0].label)) : Exploration_Knowledge(EXPLORATION_UNKNOWN)) +
+                ",\"buyCost\":" + Exploration_Knowledge(item.operations.available && item.operations.production_available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, std::to_string(item.operations.buy_cost)) +
+                ",\"operations\":" + Colony_Operations(item.operations) + "}";
         }
 
         std::string Research_Id(const s_map_snapshot* snapshot, int32_t index) {
@@ -670,7 +732,7 @@ namespace rpc {
             const auto* snapshot = Select_Snapshot(store, topics);
             if (snapshot == nullptr) return Error_Response(request, RPC_BUSY);
             if (topics & (TOPIC_SHIPS | TOPIC_LEADERS | TOPIC_RELATIONS)) *context_epoch = snapshot->map.context_epoch;
-            if (topics & TOPIC_MESSAGES) {
+            if (topics & (TOPIC_MESSAGES | TOPIC_COLONIES | TOPIC_PLANETS)) {
                 *context_epoch = Bridge_Context_Epoch(store->bridge);
                 store->context_active = true;
             }
@@ -720,7 +782,7 @@ namespace rpc {
                     Json_String(subscription.id) + ",\"cursor\":" + Json_String(std::to_string(++subscription.cursor)) +
                     ",\"topics\":" + Topics_Json(&subscription.topics) + ",\"stamp\":" + Stamp(store, snapshot) + "}}";
                 uint64_t lease = (topics & (TOPIC_SHIPS | TOPIC_LEADERS | TOPIC_RELATIONS)) ? snapshot->map.context_epoch : 0;
-                if (topics & TOPIC_MESSAGES) {
+                if (topics & (TOPIC_MESSAGES | TOPIC_COLONIES | TOPIC_PLANETS)) {
                     lease = Bridge_Context_Epoch(store->bridge);
                     store->context_active = true;
                 }
@@ -779,7 +841,7 @@ namespace rpc {
                 return {};
             }
             if (topics & (TOPIC_SHIPS | TOPIC_LEADERS | TOPIC_RELATIONS)) *context_epoch = snapshot->map.context_epoch;
-            if (topics & TOPIC_MESSAGES) {
+            if (topics & (TOPIC_MESSAGES | TOPIC_COLONIES | TOPIC_PLANETS)) {
                 *context_epoch = Bridge_Context_Epoch(store->bridge);
                 store->context_active = true;
             }
@@ -825,7 +887,7 @@ namespace rpc {
                     return {};
                 }
                 const auto pinned = std::find_if(store->snapshots.begin(), store->snapshots.end(), [&cursor](const s_map_snapshot& item) { return item.id == cursor->snapshot; });
-                if (pinned == store->snapshots.end() || ((topics & TOPIC_MESSAGES) && !pinned->map.messages_captured) || ((topics & (TOPIC_SHIPS | TOPIC_LEADERS)) && !Authorized_Snapshot(store, &*pinned))) {
+                if (pinned == store->snapshots.end() || ((topics & TOPIC_MESSAGES) && !pinned->map.messages_captured) || ((topics & TOPIC_COLONIES) && !pinned->map.colonies_captured) || ((topics & (TOPIC_SHIPS | TOPIC_LEADERS)) && !Authorized_Snapshot(store, &*pinned))) {
                     *error = RPC_OBJECT_UNAVAILABLE;
                     return {};
                 }
@@ -946,6 +1008,30 @@ namespace rpc {
         for (auto& subscription : store->subscriptions) subscription.revision = 0;
     }
 
+    void Expire_Game_Colonies(s_game_store* store) {
+        if (store == nullptr || std::none_of(store->snapshots.begin(), store->snapshots.end(), [](const auto& snapshot) { return snapshot.map.colonies_captured; })) return;
+        for (const auto& subscription : store->subscriptions)
+            if (Context_Response_Pending(store->bridge, subscription.client, subscription.baseline_ticket)) Cancel_Client(store->bridge, subscription.client);
+        Revoke_Bridge_Context(store->bridge);
+        store->context_active = false;
+        for (auto& snapshot : store->snapshots) {
+            snapshot.map.colonies_captured = false;
+            snapshot.map.colonies.clear();
+            snapshot.colony_ids.clear();
+            for (auto& planet : snapshot.map.planets) {
+                if (!planet.colony_id.empty()) {
+                    planet.max_population_available = false;
+                    planet.max_population = 0;
+                }
+                planet.colony_id.clear();
+            }
+            for (auto& message : snapshot.map.messages) message.colony_id.clear();
+        }
+        std::erase_if(store->cursors, [](const auto& cursor) { return cursor.method == "game.listColonies" || cursor.method == "game.listPlanets"; });
+        store->capture_requested = true;
+        for (auto& subscription : store->subscriptions) subscription.revision = 0;
+    }
+
     void Resume_Game_Queries(s_game_store* store) {
         if (store->busy_depth != 0) --store->busy_depth;
     }
@@ -970,7 +1056,9 @@ namespace rpc {
         projected.players_captured = observation->players_captured;
         projected.players = observation->players;
         projected.colonies_captured = observation->colonies_captured;
-        projected.colonies = observation->colonies;
+        if (observation->colonies_captured)
+            for (const auto& colony : observation->colonies)
+                if (colony.owner_slot == observation->viewer) projected.colonies.push_back(colony);
         projected.context_epoch = observation->context_epoch;
         projected.leader_presentation = observation->leader_presentation;
         projected.leaders_only = observation->leaders_only;
@@ -1203,6 +1291,40 @@ namespace rpc {
             colony.system_id.clear();
             colony.owner_id.clear();
             colony.planet_id.clear();
+            auto& operations = colony.operations;
+            if (!operations.available) operations = {};
+            if (!operations.heading_available) operations.heading.clear();
+            if (!operations.event_present) operations.event.clear();
+            if (!operations.status_present) operations.status.clear();
+            if (operations.morale_suppressed) operations.morale_icons = 0;
+            if (!operations.production_available) {
+                operations.cost = operations.stored = operations.bought = operations.turns = operations.buy_cost = 0;
+                operations.can_buy = false;
+            }
+            if (operations.turns < 1 || operations.turns > 9999) operations.turns = 0;
+            if (operations.available && (operations.queue.size() != 7 || operations.resources.size() != 4)) return false;
+            if (!operations.garrison_available) operations.garrison.clear();
+            if (operations.garrison_available && operations.garrison.size() != 3) return false;
+            for (const auto& unit : operations.garrison)
+                if (unit.label.size() > 4096 || unit.count < 0 || unit.count > 32767 || unit.strength < -32768 || unit.strength > 32767 || unit.hp < 0 || unit.hp > 255) return false;
+            if (operations.workforce.size() > 42 || operations.structures.size() > 48 || operations.population_text.size() > 4096 || operations.heading.size() > 4096 ||
+                operations.autobuild.size() > 4096 || operations.event.size() > 4096 || operations.status.size() > 4096 || operations.infantry_name.size() > 4096 || operations.armor_name.size() > 4096 ||
+                operations.morale_icons < -20 || operations.morale_icons > 20 || operations.inbound < 0 || operations.farm_capacity < -1 || operations.farm_capacity > 254) return false;
+            for (auto& product : operations.queue) {
+                if (!product.available) product = {};
+                if (product.label.size() > 4096) return false;
+            }
+            for (auto& worker : operations.workforce) {
+                worker.player_id.clear();
+                if (worker.label.size() > 4096 || worker.species.size() > 4096 ||
+                    (worker.job != "farmer" && worker.job != "worker" && worker.job != "scientist") ||
+                    (worker.state != "colonist" && worker.state != "native" && worker.state != "android")) return false;
+            }
+            for (const auto& structure : operations.structures)
+                if (structure.name.size() > 4096) return false;
+            for (const auto& resource : operations.resources)
+                if (resource.local < 0 || resource.local > 65535 || resource.exchanged < 0 || resource.exchanged > 65535 ||
+                    resource.secondary < 0 || resource.secondary > 65535 || resource.shortage < 0 || resource.shortage > 65535) return false;
         }
         if (!projected.planets_captured) projected.planets.clear();
         std::erase_if(projected.planets, [](const s_planet_observation& planet) { return !planet.visible; });
@@ -1299,7 +1421,18 @@ namespace rpc {
                     });
                 }
             }
+            bool colony_lost = false;
+            if (projected.colonies_captured) {
+                for (const auto& previous_colony : previous.colonies) {
+                    colony_lost |= std::none_of(projected.colonies.begin(), projected.colonies.end(), [&previous_colony, store](const auto& current) {
+                        return current.system >= 0 && (size_t)current.system < store->system_ids.size() &&
+                            store->system_ids[current.system] == previous_colony.system_id && current.orbit == previous_colony.orbit;
+                    });
+                }
+            }
             if (lost) Revoke_Game_View(store);
+            else if (colony_lost)
+                Expire_Game_Colonies(store);
         }
         const auto* ambient_map = Select_Snapshot(store, TOPIC_SYSTEMS);
         if (!projected.leaders_only && ambient_map != nullptr && (projected.systems.size() != ambient_map->map.systems.size() || projected.nebulas.size() != ambient_map->map.nebulas.size())) {
@@ -1384,6 +1517,11 @@ namespace rpc {
             if (planet != projected.planets.end()) colony.planet_id = planet_ids[(size_t)(planet - projected.planets.begin())];
             const auto local = std::find_if(projected.players.begin(), projected.players.end(), [](const s_player_observation& player) { return player.local; });
             colony.owner_id = player_ids[(size_t)(local - projected.players.begin())];
+            for (auto& worker : colony.operations.workforce) {
+                const auto player = std::find_if(projected.players.begin(), projected.players.end(), [&worker](const auto& item) { return item.slot == worker.player_slot; });
+                if (player != projected.players.end()) worker.player_id = player_ids[(size_t)(player - projected.players.begin())];
+                worker.player_slot = -1;
+            }
             colony.system = colony.owner_slot = -1;
         }
         for (auto& system : projected.systems) {

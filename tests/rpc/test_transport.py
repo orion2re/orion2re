@@ -183,6 +183,180 @@ class TransportTests(unittest.TestCase):
         self.assertIn("result", client.Hello())
         return client
 
+    def Colonies(self):
+        self.Fixture("world")
+        self.Fixture("colony-native")
+        client = self.Client()
+        self.assertIn("result", client.Hello())
+        return client
+
+    def test_native_owned_colony_operations_dashboard(self):
+        client = self.Colonies()
+        enabled = {item["name"] for item in self.Query(client, "rpc.describe")["result"]["methods"]}
+        self.assertTrue({"game.listColonies", "game.getColony", "game.getState"} <= enabled)
+        topics = ["session", "players", "planets", "colonies", "research", "leaders", "relations", "intelligence", "history", "messages"]
+        subscribed = self.Query(client, "rpc.subscribe", {"topics":topics, "events":["state.changed"]})["result"]
+        baseline = subscribed["baseline"]
+        root = Path(__file__).resolve().parents[2] / "specs/rpc"
+        contract_audit.Validate_Value(baseline, "State", contract_audit.Load_Json(root / "contracts.json"), contract_audit.Load_Json(root / "field_policies.json"), public=True)
+        colonies = baseline["colonies"]
+        self.assertEqual(len(colonies), 3)  # Neither foreign colony nor own outpost.
+        self.assertEqual(baseline["history"]["stamp"], baseline["stamp"])
+        own = next(item for item in colonies if item["orbit"] == 1)
+        operation = own["operations"]["value"]
+        self.assertEqual(operation["populationText"], "Pop 3.250 M (-125 k/turn)")
+        self.assertEqual(operation["heading"]["value"], "Colony of Operations Prime")
+        self.assertEqual([entry["value"]["kind"] for entry in operation["queue"]],
+                         ["building", "housing", "repeat", "refit", "design", "none", "none"])
+        self.assertEqual(operation["queue"][3]["value"]["label"], "Refit Native ship")
+        self.assertEqual(operation["queue"][4]["value"]["label"], "Own design")
+        self.assertEqual([worker["job"] for worker in operation["workforce"]], ["farmer", "worker", "scientist"])
+        self.assertEqual(operation["workforce"][2]["state"], "android")
+        self.assertEqual({item["label"] for item in operation["structures"]}, {"Native building", "Star Fortress"})
+        self.assertEqual(operation["morale"], {"suppressed":False, "icons":-2})
+        self.assertEqual(own["troops"]["value"], {"infantry":2, "armor":1})
+        self.assertEqual(operation["infantryLabel"], "Marines")
+        garrison = operation["garrison"]["value"]
+        self.assertEqual([unit["label"] for unit in garrison], ["Tanks", "Marines", "Militia"])
+        self.assertEqual([unit["count"] for unit in garrison], [1, 2, 0])
+        resources = {row["resource"]:row for row in operation["resources"]}
+        self.assertEqual(resources["food"]["shortage"], 1)
+        self.assertEqual(resources["industry"]["local"], 12)
+        self.assertEqual(resources["industry"]["secondary"], 4)
+        self.assertEqual(operation["currentProduction"]["value"]["cost"], 30)
+        self.assertEqual(operation["currentProduction"]["value"]["turns"], {"availability":"current", "value":2})
+        second = next(item for item in colonies if item["orbit"] == 2)["operations"]["value"]
+        self.assertEqual(second["inboundPopulation"], 1)
+        self.assertEqual(second["event"], {"availability":"current", "value":"Population Boom"})
+        self.assertEqual(second["autobuild"], "Auto Build Queue 3")
+        self.assertEqual(second["heading"]["value"], "Industrial Colony of Operations II")
+        self.assertEqual(operation["event"], {"availability":"known-empty"})
+        third = next(item for item in colonies if item["orbit"] == 3)["operations"]["value"]
+        self.assertEqual(third["heading"]["value"], "Annihilating Operations III")
+        resident = next(worker for worker in third["workforce"] if worker["species"] == "Race 2")
+        self.assertEqual(resident["player"], {"availability":"unknown"})
+        self.assertTrue(resident["conquered"])
+        for colony in colonies:
+            self.assertEqual(self.Query(client, "game.getColony", {"id":colony["id"]})["result"]["item"], colony)
+            self.assertIn("result", self.Query(client, "game.getPlanet", {"id":colony["planetId"]["value"]}))
+            for worker in colony["operations"]["value"]["workforce"]:
+                if worker["player"]["availability"] == "current":
+                    self.assertIn("result", self.Query(client, "game.getPlayer", {"id":worker["player"]["value"]}))
+        page = self.Query(client, "game.listColonies", {"limit":1})["result"]
+        for _ in range(3):
+            self.assertEqual(self.Query(client, "game.getState", {"include":topics})["result"], baseline)
+        self.Fixture("colony-hidden")
+        self.assertEqual(self.Query(client, "game.getState", {"include":topics})["result"], baseline)
+        self.Fixture("colony-staged")
+        self.assertEqual(self.Query(client, "game.getState", {"include":topics})["result"], baseline)
+        self.Fixture("colony-restored")
+        self.assertEqual(self.Query(client, "game.getState", {"include":topics})["result"], baseline)
+        self.Fixture("colony-change")
+        event = client.Read()
+        self.assertEqual(event["method"], "state.changed")
+        changed = self.Query(client, "game.getState", {"include":topics})["result"]
+        self.assertEqual(changed["stamp"], event["params"]["stamp"])
+        pinned = self.Query(client, "game.listColonies", {"cursor":page["nextCursor"]})["result"]
+        self.assertEqual(pinned["stamp"], baseline["stamp"])
+        self.assertEqual(pinned["items"], colonies[1:2])
+        self.Query(client, "rpc.unsubscribe", {"subscriptionId":subscribed["subscriptionId"]})
+        self.Fixture("colony-lose")
+        self.assertEqual(self.Query(client, "game.getColony", {"id":own["id"]})["error"]["code"], -32004)
+        self.assertEqual(self.Query(client, "game.listColonies", {"cursor":page["nextCursor"]})["error"]["code"], -32004)
+        self.assertIn("result", self.Query(client, "game.listPlayers"))
+        self.Fixture("colony-replace")
+        self.assertEqual(len(self.Query(client, "game.listColonies")["result"]["items"]), 3)
+        self.assertEqual(self.Query(client, "game.getColony", {"id":own["id"]})["error"]["code"], -32004)
+
+    def test_native_colony_variants_coherence_turns_and_reset(self):
+        client = self.Colonies()
+        def First():
+            time.sleep(0.04)  # Respect the service's bounded request rate.
+            return next(item for item in self.Query(client, "game.listColonies")["result"]["items"] if item["orbit"] == 1)
+        self.Fixture("colony-militia")
+        self.assertEqual(First()["operations"]["value"]["garrison"]["value"][2]["count"], 1)
+        self.Fixture("colony-powered")
+        self.assertEqual([unit["label"] for unit in First()["operations"]["value"]["garrison"]["value"]][:2], ["Battloids", "Powered Infantry"])
+        kinds = ["none", "housing", "trade-goods", "freighters", "spy", "android-farmer", "android-worker", "android-scientist", "colony-ship", "outpost-ship", "transport-ship", "refit", "design"]
+        for index, kind in enumerate(kinds):
+            self.Fixture(f"colony-product-{index}")
+            self.assertEqual(First()["operations"]["value"]["queue"][0]["value"]["kind"], kind)
+        for index in (13, 14):
+            self.Fixture(f"colony-product-{index}")
+            value = First()["operations"]["value"]
+            self.assertEqual(value["queue"][0], {"availability":"unknown"})
+            self.assertEqual(value["currentProduction"], {"availability":"unknown"})
+        for index, kind in enumerate(("doom-star", "custom-design", "separator"), 15):
+            self.Fixture(f"colony-product-{index}")
+            self.assertEqual(First()["operations"]["value"]["queue"][0]["value"]["kind"], kind)
+        self.Fixture("colony-product-11")
+        self.Fixture("colony-ship")
+        self.assertEqual(First()["operations"]["value"]["queue"][0]["value"]["kind"], "ship")
+        self.Fixture("colony-stalled")
+        self.assertEqual(First()["operations"]["value"]["currentProduction"]["value"]["turns"], {"availability":"unknown"})
+        self.Fixture("colony-bought")
+        self.assertEqual(First()["operations"]["value"]["currentProduction"]["value"]["turns"]["value"], 1)
+        self.Fixture("colony-blockade")
+        self.assertFalse(First()["operations"]["value"]["currentProduction"]["value"]["canBuy"])
+        self.Fixture("colony-unification")
+        self.assertEqual(First()["operations"]["value"]["morale"], {"suppressed":True, "icons":0})
+        self.Fixture("colony-ships")
+        topics = ["session", "ships", "planets", "colonies", "history", "messages"]
+        old = self.Query(client, "game.getState", {"include":topics})["result"]
+        self.Fixture("colony-map-only")
+        self.Fixture("colony-change")
+        self.assertEqual(self.Query(client, "game.getState", {"include":topics})["result"], old)
+        self.Fixture("colony-advance")
+        self.assertEqual(self.Query(client, "game.listColonies")["error"]["code"], -32002)
+        self.assertEqual(self.Query(client, "game.getSession")["result"]["turn"], old["session"]["turn"])
+        self.Fixture("colony-commit")
+        self.assertEqual(client.Read()["method"], "game.turnAdvanced")
+        self.Fixture("colony-ships")
+        current = self.Query(client, "game.getState", {"include":topics})["result"]
+        self.assertEqual(current["session"]["turn"], old["session"]["turn"] + 1)
+        page = self.Query(client, "game.listColonies", {"limit":1})["result"]
+        self.Fixture("colony-map-only")
+        self.Fixture("colony-unobserved-loss")
+        self.assertEqual(self.Query(client, "game.listColonies", {"cursor":page["nextCursor"]})["error"]["code"], -32004)
+        self.assertEqual(self.Query(client, "game.getColony", {"id":page["items"][0]["id"]})["error"]["code"], -32004)
+        self.assertIn("result", self.Query(client, "game.listPlayers"))
+        retained = self.Query(client, "game.getState", {"include":["ships", "planets"]})["result"]
+        affected_planet = page["items"][0]["planetId"]["value"]
+        planet = next(item for item in retained["planets"] if item["id"] == affected_planet)
+        self.assertEqual(planet["colony"], {"availability":"unknown"})
+        self.assertEqual(planet["maxPopulation"], {"availability":"unaudited"})
+        for command in ("colony-reset", "colony-switch"):
+            self.Fixture(command)
+            with self.assertRaises((EOFError, OSError)):
+                client.Read()
+            client.close()
+            client = self.Client()
+            self.assertIn("result", client.Hello())
+            self.assertEqual(self.Query(client, "game.getColony", {"id":old["colonies"][0]["id"]})["error"]["code"], -32004)
+
+    def test_native_colony_replacement_revokes_started_output(self):
+        self.Colonies().close()
+        self.Fixture("colony-large")
+        client = self.Client(receive_buffer=1024)
+        self.assertIn("result", client.Hello())
+        self.Fixture("colony-output")
+        opcode, final, payload = client.Read_Frame()
+        self.assertEqual(opcode, 1)
+        self.assertFalse(final)
+        self.Fixture("colony-lose")
+        completed = 0
+        for _ in range(4096):
+            try:
+                opcode, final, payload = client.Read_Frame()
+            except (EOFError, ConnectionError):
+                break
+            if opcode == 8:
+                break
+            completed += int(final and opcode in (0, 1))
+        else:
+            self.fail("expired colony output did not close")
+        self.assertLess(completed, 12)
+
     def test_native_turn_review_dashboard_precision_text_pagination_and_noninterference(self):
         client = self.Review()
         enabled = {item["name"] for item in self.Query(client, "rpc.describe")["result"]["methods"]}
@@ -1274,8 +1448,8 @@ class TransportTests(unittest.TestCase):
         self.assertEqual(first["population"], {"availability":"current","value":0})
         self.assertEqual(second["population"], {"availability":"current","value":42})
         self.assertEqual(first["planetId"], {"availability":"unknown"})
-        for field in ("production", "buyCost"):
-            self.assertEqual(first[field], {"availability":"unaudited"})
+        for field in ("production", "buyCost", "operations"):
+            self.assertEqual(first[field], {"availability":"unknown"})
         self.assertEqual(self.Query(client, "game.getColony", {"id":first["id"]})["result"]["item"], first)
         page = self.Query(client, "game.listColonies", {"limit":1})["result"]
         self.Fixture("hidden")

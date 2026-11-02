@@ -11,6 +11,8 @@
 #include "game/history_read.h"
 #include "rpc/turn_review_rpc.h"
 #include "../support/rpc_native_turn_review.h"
+#include "../support/rpc_native_colonies.h"
+#include "game/colony_read.h"
 #include "lua/lua_game_ship_identity.h"
 #include "config/text_encoding.h"
 
@@ -2803,6 +2805,157 @@ DOCTEST_TEST_CASE("own colony capture follows the native full-colony roster and 
     world.colonies[0].n_pops = 1;
     world.planets[0].colony_index = 1;
     DOCTEST_CHECK_FALSE(game_rpc::Read_Map_Observation(&observation));
+}
+
+DOCTEST_TEST_CASE("owned operations project native producers without changing selection jobs queues messages or RNG") {
+    s_review_globals globals;
+    COLONY::colony_handle = -1;
+    rpc::s_bridge bridge;
+    rpc::s_game_store store;
+    rpc::s_map_observation observed;
+    DOCTEST_REQUIRE(rpc::Initialize_Game_Store(&store, &bridge));
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&store));
+    test_native_colonies::Initialize(&store, &observed);
+    DOCTEST_REQUIRE(test_native_colonies::Command("colony-native"));
+    DOCTEST_REQUIRE(observed.colonies.size() == 3);
+    const auto& operations = observed.colonies[0].operations;
+    DOCTEST_REQUIRE(operations.available);
+    DOCTEST_CHECK(operations.population_text == "Pop 3.250 M (-125 k/turn)");
+    DOCTEST_CHECK(operations.heading == "Colony of Operations Prime");
+    DOCTEST_CHECK(observed.colonies[2].operations.heading == "Annihilating Operations III");
+    DOCTEST_CHECK(operations.workforce.size() == 3);
+    DOCTEST_CHECK(operations.workforce[2].state == "android");
+    DOCTEST_CHECK(operations.structures.size() == 2);
+    DOCTEST_CHECK(operations.queue[3].kind == "refit");
+    DOCTEST_CHECK(operations.queue[4].label == "Own design");
+    DOCTEST_CHECK(operations.cost == COLCALC::Colony_Producing_Product_Cost(&MOX::colony[0]));
+    DOCTEST_CHECK(operations.buy_cost == COLCALC::Production_Cost_To_Buy(30, 9));
+    DOCTEST_CHECK(operations.turns == COLONY::Calculate_Current_Production_Turn_Count(0));
+    DOCTEST_CHECK(operations.resources[0].shortage == 1);
+    DOCTEST_CHECK(operations.resources[1].local == 12);
+    DOCTEST_CHECK(operations.resources[1].secondary == 4);
+    DOCTEST_CHECK(operations.morale_icons == -2);
+    s_invasion_side_info garrison;
+    invasion::Compute_Colony_Ground_Combat_Info(&MOX::colony[0], &garrison, false);
+    DOCTEST_REQUIRE(operations.garrison_available);
+    for (int i = 0; i < 3; ++i) {
+        DOCTEST_CHECK(operations.garrison[i].count == garrison.unit_counts[i]);
+        DOCTEST_CHECK(operations.garrison[i].strength == garrison.unit_strengths[i]);
+        DOCTEST_CHECK(operations.garrison[i].hp == (uint8_t)garrison.unit_hps[i]);
+    }
+    DOCTEST_CHECK(observed.colonies[1].operations.inbound == 1);
+    DOCTEST_CHECK(observed.colonies[1].operations.event == "Population Boom");
+    DOCTEST_CHECK(observed.colonies[1].operations.autobuild == "Auto Build Queue 3");
+    const std::vector<s_colony> colonies(MOX::colony, MOX::colony + MOX::NUM_COLONIES);
+    const std::vector<s_MSG> messages(std::begin(MSG_::msgs), std::end(MSG_::msgs));
+    const auto random = game_random::Get_Random_Seed();
+    const auto selection = COLONY::colony_handle;
+    const auto counted = COLONY::colonists_count;
+    const auto scratch = std::string(COLBLDG::g_msg);
+    for (int i = 0; i < 3; ++i) {
+        rpc::s_map_observation reread;
+        DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&reread));
+        DOCTEST_CHECK(reread.colonies[0].operations == operations);
+    }
+    DOCTEST_CHECK(memcmp(colonies.data(), MOX::colony, colonies.size() * sizeof(s_colony)) == 0);
+    DOCTEST_CHECK(memcmp(messages.data(), MSG_::msgs, messages.size() * sizeof(s_MSG)) == 0);
+    DOCTEST_CHECK(game_random::Get_Random_Seed() == random);
+    DOCTEST_CHECK(COLONY::colony_handle == selection);
+    DOCTEST_CHECK(COLONY::colonists_count == counted);
+    DOCTEST_CHECK(std::string(COLBLDG::g_msg) == scratch);
+    colony_read::s_product invalid_storage;
+    const auto ship_count = MOX::NUM_SHIPS;
+    MOX::NUM_SHIPS = MAX_SHIPS + 1;
+    colony_read::Product(&MOX::colony[0], COLBLDG::Colony_Production_From_Ship_Index(0), &invalid_storage);
+    DOCTEST_CHECK_FALSE(invalid_storage.available);
+    MOX::NUM_SHIPS = ship_count;
+    const auto prime_offset = MOX::h_string_ix[0xa0];
+    MOX::h_string_ix[0xa0] = (int16_t)MOX::h_strings.size();
+    char heading[104];
+    DOCTEST_CHECK_FALSE(colony_read::Heading(0, heading, sizeof(heading)));
+    MOX::h_string_ix[0xa0] = prime_offset;
+    char species_name[sizeof(MOX::player[2].race_name)];
+    memcpy(species_name, MOX::player[2].race_name, sizeof(species_name));
+    memset(MOX::player[2].race_name, 'X', sizeof(species_name));
+    rpc::s_map_observation invalid_name;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&invalid_name));
+    DOCTEST_CHECK_FALSE(invalid_name.colonies[2].operations.available);
+    memcpy(MOX::player[2].race_name, species_name, sizeof(species_name));
+    auto suppressed_estimate = observed;
+    suppressed_estimate.colonies[0].operations.turns = 10000;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&store, &suppressed_estimate));
+    const auto suppressed_revision = store.revision;
+    suppressed_estimate.colonies[0].operations.turns = 20000;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&store, &suppressed_estimate));
+    DOCTEST_CHECK(store.revision == suppressed_revision);
+    DOCTEST_CHECK(store.snapshots.back().map.colonies[0].operations.turns == 0);
+    {
+        game_events::s_colony_player_scope display(0);
+        MOX::PLAYER_NUM = 1;
+        rpc::s_map_observation foreign;
+        DOCTEST_CHECK_FALSE(game_rpc::Read_Map_Observation(&foreign));
+        MOX::PLAYER_NUM = 0;
+        DOCTEST_CHECK(game_rpc::Read_Map_Observation(&foreign));
+    }
+    MOX::colony[0].producing[0] = BUILDING_BARRIER_SHIELD;
+    TECHDATA::buildings[BUILDING_BARRIER_SHIELD].name = (char*)"Barrier Shield";
+    TECHDATA::buildings[BUILDING_BARRIER_SHIELD].cost = 150;
+    TECHDATA::buildings[BUILDING_FLUX_SHIELD].name = (char*)"Flux Shield";
+    TECHDATA::buildings[BUILDING_FLUX_SHIELD].cost = 100;
+    MOX::colony[0].buildings[BUILDING_FLUX_SHIELD] = 1;
+    rpc::s_map_observation upgrade;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&upgrade));
+    DOCTEST_CHECK(upgrade.colonies[0].operations.cost == 50);
+    MOX::colony[0].morale = -127;
+    bool suppressed = false;
+    DOCTEST_CHECK(colony_read::Morale_Icons(&MOX::colony[0], &suppressed) == -63);
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&upgrade));
+    DOCTEST_CHECK(upgrade.colonies[0].operations.morale_icons == -20);
+    const int16_t events[] = {EVENT_COMET, EVENT_PLAGUE, EVENT_POPULATION_BOOM, EVENT_TIME_SPACE_ANOMALY, EVENT_PIRATE_ACTIVITY, EVENT_SUPERNOVA};
+    for (const int16_t label : {0xf0, 0x19f, 0xce, 0xb6, 0x19e, 0x18e}) ESTRINGS::strings[label] = (char*)"Native event";
+    for (auto event : events) {
+        EVENTS::Init_Events();
+        auto& data = EVENTS::event_data[event];
+        data.target_id = 0;
+        for (int status : {2, 4, 6}) {
+            data.status = status;
+            DOCTEST_CHECK(EVENTS::Colony_Has_Event(0) == event);
+            DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&upgrade));
+            DOCTEST_CHECK(upgrade.colonies[0].operations.event_present);
+        }
+        data.status = 1;
+        DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&upgrade));
+        DOCTEST_CHECK_FALSE(upgrade.colonies[0].operations.event_present);
+    }
+    EVENTS::Init_Events();
+    for (int i = 0; i < 15; ++i) {
+        DOCTEST_REQUIRE(test_native_colonies::Command("colony-product-" + std::to_string(i)));
+        const auto& product = observed.colonies[0].operations;
+        DOCTEST_CHECK(product.queue[0].available == (i < 13));
+        if (i < 13) DOCTEST_CHECK(product.cost == COLCALC::Colony_Producing_Product_Cost(&MOX::colony[0]));
+    }
+    DOCTEST_REQUIRE(test_native_colonies::Command("colony-staged"));
+    rpc::s_map_observation blocked;
+    DOCTEST_CHECK_FALSE(game_rpc::Read_Map_Observation(&blocked));
+    DOCTEST_REQUIRE(test_native_colonies::Command("colony-restored"));
+    DOCTEST_REQUIRE(test_native_colonies::Command("colony-unification"));
+    DOCTEST_CHECK(observed.colonies[0].operations.morale_suppressed);
+    DOCTEST_CHECK(observed.colonies[0].operations.morale_icons == 0);
+    DOCTEST_REQUIRE(test_native_colonies::Command("colony-powered"));
+    for (auto trait : {TRAIT_LOW_G_WORLD, TRAIT_HEAVY_G_WORLD}) {
+        MOX::player[0].traits[TRAIT_LOW_G_WORLD] = 0;
+        MOX::player[0].traits[TRAIT_HEAVY_G_WORLD] = 0;
+        MOX::player[0].traits[trait] = 1;
+        DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&upgrade));
+        invasion::Compute_Colony_Ground_Combat_Info(&MOX::colony[0], &garrison, false);
+        DOCTEST_REQUIRE(upgrade.colonies[0].operations.garrison_available);
+        for (int i = 0; i < 3; ++i) {
+            DOCTEST_CHECK(upgrade.colonies[0].operations.garrison[i].strength == garrison.unit_strengths[i]);
+            DOCTEST_CHECK(upgrade.colonies[0].operations.garrison[i].hp == (uint8_t)garrison.unit_hps[i]);
+        }
+    }
+    test_native_colonies::Shutdown();
+    rpc::Shutdown_Game_Store(&store);
 }
 
 DOCTEST_TEST_CASE("maximum own colony capture is bounded and oversized complete views require pagination") {

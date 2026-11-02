@@ -392,9 +392,9 @@ class TypedContractTests(unittest.TestCase):
     def test_unaudited_object_and_field_fail_closed(self):
         with self.assertRaisesRegex(ValueError, "disabled object"):
             audit.Validate_Value(self.Sample("Fleet"), "Fleet", self.contracts, self.policies, public=True)
-        colony = self.Sample("Colony")
+        technology = self.Sample("Technology")
         with self.assertRaisesRegex(ValueError, "disabled field"):
-            audit.Validate_Value(colony, "Colony", self.contracts, self.policies, public=True)
+            audit.Validate_Value(technology, "Technology", self.contracts, self.policies, public=True)
         system = self.Sample("System")
         audit.Validate_Value(system, "System", self.contracts, self.policies, public=True)
         ship = self.Sample("Ship")
@@ -415,10 +415,9 @@ class TypedContractTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 audit.Validate_Value({"availability":"current","value":value}, "ShipEta", self.contracts)
 
-    def test_own_colony_contract_does_not_enable_planet_production_or_buy_details(self):
+    def test_own_colony_contract_enables_bounded_operations_with_explicit_knowledge(self):
         colony = self.Sample("Colony")
-        with self.assertRaisesRegex(ValueError, "disabled field"):
-            audit.Validate_Value(colony, "Colony", self.contracts, self.policies, public=True)
+        audit.Validate_Value(colony, "Colony", self.contracts, self.policies, public=True)
         for field in ("planetId", "production", "buyCost"):
             colony[field] = {"availability":"unaudited"}
         for value in (0, 42):
@@ -427,6 +426,16 @@ class TypedContractTests(unittest.TestCase):
         colony["planetId"] = "unqueryable-planet"
         with self.assertRaises(ValueError):
             audit.Validate_Value(colony, "Colony", self.contracts, self.policies, public=True)
+        for value in (-20, 0, 20):
+            audit.Validate_Value(value, "MoraleIcons", self.contracts)
+        for value in (-21, 21):
+            with self.assertRaises(ValueError):
+                audit.Validate_Value(value, "MoraleIcons", self.contracts)
+        queue = [self.Sample("KnownColonyProduct")] * 7
+        audit.Validate_Value(queue, "ColonyQueue", self.contracts)
+        for invalid in (queue[:6], queue + queue[:1]):
+            with self.assertRaises(ValueError):
+                audit.Validate_Value(invalid, "ColonyQueue", self.contracts)
 
     def test_known_war_boolean_is_not_coerced_or_inferred_from_unknown(self):
         for value in (True, False):

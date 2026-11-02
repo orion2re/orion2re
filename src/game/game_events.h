@@ -44,6 +44,8 @@ namespace game_events {
         RELATIONS_VIEW_CLEARED,
         RELATIONS_VIEW_READY,
         MESSAGES_REPLACING,
+        COLONY_OBSERVATION_POINT,
+        COLONY_REPLACING,
     };
 
     struct s_fleet_box_node {
@@ -88,6 +90,32 @@ namespace game_events {
     void Publish(e_event event);
     void Publish_Messages_Replacing(int16_t recipient);
     int16_t Message_Recipient();
+    void Publish_Colony_Replacing(int16_t owner);
+    int16_t Replaced_Colony_Owner();
+    bool Colony_Edits_Active();
+    void Set_Colony_Population_Staged(bool staged);
+    bool Colony_Player_Context_Matches(int16_t viewer);
+    struct s_colony_player_scope {
+        int16_t viewer;
+        bool revoked = false;
+        s_colony_player_scope* parent;
+        explicit s_colony_player_scope(int16_t viewer);
+        ~s_colony_player_scope();
+        s_colony_player_scope(const s_colony_player_scope&) = delete;
+        s_colony_player_scope& operator=(const s_colony_player_scope&) = delete;
+    };
+    struct s_colony_queue_scope {
+        bool held = false;
+        bool committed = false;
+        bool revoked = false;
+        s_colony_queue_scope* parent;
+        s_colony_queue_scope();
+        ~s_colony_queue_scope();
+        void Hold();
+        void Commit();
+        s_colony_queue_scope(const s_colony_queue_scope&) = delete;
+        s_colony_queue_scope& operator=(const s_colony_queue_scope&) = delete;
+    };
     void Publish_Fleet_Box_Info(const s_fleet_box_info* info);
     void Publish_Ship_Identity_Changing(int16_t ship);
     void Publish_Ship_Destination(const s_ship_destination_line* line);

@@ -154,6 +154,57 @@ namespace rpc {
         int32_t agent_bonus = 0;
     };
 
+    struct s_colony_product {
+        bool available = false;
+        std::string kind;
+        std::string label;
+        bool operator==(const s_colony_product&) const = default;
+    };
+
+    struct s_colony_worker {
+        std::string label, species, job, state;
+        bool assigned = false, conquered = false;
+        int32_t player_slot = -1;
+        std::string player_id;
+        bool operator==(const s_colony_worker&) const = default;
+    };
+
+    struct s_colony_structure {
+        std::string name;
+        bool satellite = false;
+        bool operator==(const s_colony_structure&) const = default;
+    };
+
+    struct s_colony_resource {
+        std::string resource;
+        int32_t local = 0, exchanged = 0, secondary = 0, shortage = 0;
+        bool exporting = false;
+        bool operator==(const s_colony_resource&) const = default;
+    };
+
+    struct s_colony_garrison {
+        std::string label;
+        int32_t count = 0, strength = 0, hp = 0;
+        bool operator==(const s_colony_garrison&) const = default;
+    };
+
+    struct s_colony_operations {
+        bool available = false;
+        std::string population_text, heading, autobuild, event, status, infantry_name, armor_name;
+        bool heading_available = false;
+        std::vector<s_colony_product> queue;
+        std::vector<s_colony_worker> workforce;
+        std::vector<s_colony_structure> structures;
+        std::vector<s_colony_resource> resources;
+        bool garrison_available = false;
+        std::vector<s_colony_garrison> garrison;
+        bool production_available = false;
+        int32_t cost = 0, stored = 0, bought = 0, turns = 0, buy_cost = 0;
+        bool can_buy = false, blockaded = false, morale_suppressed = false, event_present = false, status_present = false, autobuild_active = false;
+        int32_t morale_icons = 0, inbound = 0, farm_capacity = -1;
+        bool operator==(const s_colony_operations&) const = default;
+    };
+
     struct s_colony_observation {
         int32_t owner_slot = -1; // Private authorization binding, discarded before retention.
         int32_t system = -1;     // Private same-capture parent binding, discarded before retention.
@@ -164,6 +215,7 @@ namespace rpc {
         int32_t infantry = 0;
         int32_t armor = 0;
         std::string planet_id;
+        s_colony_operations operations;
     };
 
     struct s_technology_observation {
@@ -369,6 +421,7 @@ namespace rpc {
     void Revoke_Game_Context(s_game_store* store);
     void Pause_Game_Queries(s_game_store* store);
     void Expire_Game_Messages(s_game_store* store);
+    void Expire_Game_Colonies(s_game_store* store);
     void Resume_Game_Queries(s_game_store* store);
     bool Capture_Map(s_game_store* store, const s_map_observation* observation);
     std::string Game_Query(s_game_store* store, const s_request* request, uint64_t* context_epoch = nullptr);

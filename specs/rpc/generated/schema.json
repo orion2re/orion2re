@@ -427,11 +427,15 @@
         },
         "production": {
           "$ref": "#/$defs/KnownText",
-          "x-rpc-policy": "disabled-colony"
+          "x-rpc-policy": "colony-operations"
         },
         "buyCost": {
           "$ref": "#/$defs/KnownCredits",
-          "x-rpc-policy": "disabled-colony"
+          "x-rpc-policy": "colony-operations"
+        },
+        "operations": {
+          "$ref": "#/$defs/KnownColonyOperations",
+          "x-rpc-policy": "colony-operations"
         }
       },
       "required": [
@@ -443,9 +447,353 @@
         "population",
         "troops",
         "production",
-        "buyCost"
+        "buyCost",
+        "operations"
       ],
       "x-rpc-policy": "colonies-own"
+    },
+    "ColonyEvent": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CurrentText"
+        },
+        {
+          "$ref": "#/$defs/EmptyKnowledge"
+        },
+        {
+          "$ref": "#/$defs/Unavailable"
+        }
+      ]
+    },
+    "ColonyFarmCapacity": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CurrentCount"
+        },
+        {
+          "$ref": "#/$defs/EmptyKnowledge"
+        },
+        {
+          "$ref": "#/$defs/Unavailable"
+        }
+      ]
+    },
+    "ColonyGarrison": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ColonyGarrisonUnit"
+      },
+      "maxItems": 3,
+      "minItems": 3
+    },
+    "ColonyGarrisonUnit": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "$ref": "#/$defs/Text",
+          "x-rpc-policy": "colony-garrison"
+        },
+        "count": {
+          "$ref": "#/$defs/ColonyTroopCount",
+          "x-rpc-policy": "colony-garrison"
+        },
+        "strength": {
+          "$ref": "#/$defs/ColonyTroopStrength",
+          "x-rpc-policy": "colony-garrison"
+        },
+        "hp": {
+          "$ref": "#/$defs/ColonyTroopHP",
+          "x-rpc-policy": "colony-garrison"
+        }
+      },
+      "required": [
+        "label",
+        "count",
+        "strength",
+        "hp"
+      ],
+      "x-rpc-policy": "colony-garrison"
+    },
+    "ColonyJob": {
+      "type": "string",
+      "enum": [
+        "farmer",
+        "worker",
+        "scientist"
+      ]
+    },
+    "ColonyMorale": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "suppressed": {
+          "$ref": "#/$defs/Bool",
+          "x-rpc-policy": "colony-operations"
+        },
+        "icons": {
+          "$ref": "#/$defs/MoraleIcons",
+          "x-rpc-policy": "colony-operations"
+        }
+      },
+      "required": [
+        "suppressed",
+        "icons"
+      ],
+      "x-rpc-policy": "colony-operations"
+    },
+    "ColonyOperations": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "populationText": {
+          "$ref": "#/$defs/Text",
+          "x-rpc-policy": "colony-operations"
+        },
+        "heading": {
+          "$ref": "#/$defs/KnownText",
+          "x-rpc-policy": "colony-heading"
+        },
+        "autobuild": {
+          "$ref": "#/$defs/Text",
+          "x-rpc-policy": "colony-operations"
+        },
+        "autobuildActive": {
+          "$ref": "#/$defs/Bool",
+          "x-rpc-policy": "colony-operations"
+        },
+        "farmCapacity": {
+          "$ref": "#/$defs/ColonyFarmCapacity",
+          "x-rpc-policy": "colony-operations"
+        },
+        "blockaded": {
+          "$ref": "#/$defs/Bool",
+          "x-rpc-policy": "colony-operations"
+        },
+        "event": {
+          "$ref": "#/$defs/ColonyEvent",
+          "x-rpc-policy": "colony-operations"
+        },
+        "status": {
+          "$ref": "#/$defs/ColonyEvent",
+          "x-rpc-policy": "colony-operations"
+        },
+        "inboundPopulation": {
+          "$ref": "#/$defs/Count",
+          "x-rpc-policy": "colony-operations"
+        },
+        "infantryLabel": {
+          "$ref": "#/$defs/Text",
+          "x-rpc-policy": "colony-operations"
+        },
+        "armorLabel": {
+          "$ref": "#/$defs/Text",
+          "x-rpc-policy": "colony-operations"
+        },
+        "morale": {
+          "$ref": "#/$defs/ColonyMorale",
+          "x-rpc-policy": "colony-operations"
+        },
+        "queue": {
+          "$ref": "#/$defs/ColonyQueue",
+          "x-rpc-policy": "colony-operations"
+        },
+        "workforce": {
+          "$ref": "#/$defs/ColonyWorkforce",
+          "x-rpc-policy": "colony-operations"
+        },
+        "structures": {
+          "$ref": "#/$defs/ColonyStructures",
+          "x-rpc-policy": "colony-operations"
+        },
+        "resources": {
+          "$ref": "#/$defs/ColonyResources",
+          "x-rpc-policy": "colony-operations"
+        },
+        "garrison": {
+          "$ref": "#/$defs/KnownColonyGarrison",
+          "x-rpc-policy": "colony-operations"
+        },
+        "currentProduction": {
+          "$ref": "#/$defs/KnownColonyProduction",
+          "x-rpc-policy": "colony-operations"
+        }
+      },
+      "required": [
+        "populationText",
+        "heading",
+        "autobuild",
+        "autobuildActive",
+        "farmCapacity",
+        "blockaded",
+        "event",
+        "status",
+        "inboundPopulation",
+        "infantryLabel",
+        "armorLabel",
+        "morale",
+        "queue",
+        "workforce",
+        "structures",
+        "resources",
+        "garrison",
+        "currentProduction"
+      ],
+      "x-rpc-policy": "colony-operations"
+    },
+    "ColonyProduct": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/ColonyProductKind",
+          "x-rpc-policy": "colony-operations"
+        },
+        "label": {
+          "$ref": "#/$defs/Text",
+          "x-rpc-policy": "colony-operations"
+        }
+      },
+      "required": [
+        "kind",
+        "label"
+      ],
+      "x-rpc-policy": "colony-operations"
+    },
+    "ColonyProductKind": {
+      "type": "string",
+      "enum": [
+        "none",
+        "repeat",
+        "building",
+        "ship",
+        "design",
+        "refit",
+        "housing",
+        "trade-goods",
+        "freighters",
+        "colony-ship",
+        "outpost-ship",
+        "transport-ship",
+        "spy",
+        "android-farmer",
+        "android-worker",
+        "android-scientist",
+        "doom-star",
+        "custom-design",
+        "separator"
+      ]
+    },
+    "ColonyProduction": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cost": {
+          "$ref": "#/$defs/ProductionPoints",
+          "x-rpc-policy": "colony-operations"
+        },
+        "stored": {
+          "$ref": "#/$defs/ProductionPoints",
+          "x-rpc-policy": "colony-operations"
+        },
+        "bought": {
+          "$ref": "#/$defs/ProductionPoints",
+          "x-rpc-policy": "colony-operations"
+        },
+        "turns": {
+          "$ref": "#/$defs/KnownTurns",
+          "x-rpc-policy": "colony-operations"
+        },
+        "buyCost": {
+          "$ref": "#/$defs/Credits",
+          "x-rpc-policy": "colony-operations"
+        },
+        "canBuy": {
+          "$ref": "#/$defs/Bool",
+          "x-rpc-policy": "colony-operations"
+        }
+      },
+      "required": [
+        "cost",
+        "stored",
+        "bought",
+        "turns",
+        "buyCost",
+        "canBuy"
+      ],
+      "x-rpc-policy": "colony-operations"
+    },
+    "ColonyQueue": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/KnownColonyProduct"
+      },
+      "maxItems": 7,
+      "minItems": 7
+    },
+    "ColonyResource": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "resource": {
+          "$ref": "#/$defs/ColonyResourceKind",
+          "x-rpc-policy": "colony-operations"
+        },
+        "local": {
+          "$ref": "#/$defs/ColonyResourceValue",
+          "x-rpc-policy": "colony-operations"
+        },
+        "exchanged": {
+          "$ref": "#/$defs/ColonyResourceValue",
+          "x-rpc-policy": "colony-operations"
+        },
+        "secondary": {
+          "$ref": "#/$defs/ColonyResourceValue",
+          "x-rpc-policy": "colony-operations"
+        },
+        "shortage": {
+          "$ref": "#/$defs/ColonyResourceValue",
+          "x-rpc-policy": "colony-operations"
+        },
+        "exporting": {
+          "$ref": "#/$defs/Bool",
+          "x-rpc-policy": "colony-operations"
+        }
+      },
+      "required": [
+        "resource",
+        "local",
+        "exchanged",
+        "secondary",
+        "shortage",
+        "exporting"
+      ],
+      "x-rpc-policy": "colony-operations"
+    },
+    "ColonyResourceKind": {
+      "type": "string",
+      "enum": [
+        "food",
+        "industry",
+        "research",
+        "bc"
+      ]
+    },
+    "ColonyResourceValue": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 65535,
+      "x-integerToken": true,
+      "x-unit": "colony-resource-icons",
+      "description": "Value represented by a native colony resource icon group: each tens icon represents 10 and each unit icon 1. Preserves the renderer's signed-byte import branch and suppression; not a newly calculated economic total."
+    },
+    "ColonyResources": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ColonyResource"
+      },
+      "maxItems": 4,
+      "minItems": 4
     },
     "ColonyResult": {
       "type": "object",
@@ -466,6 +814,32 @@
       ],
       "x-rpc-policy": "contract"
     },
+    "ColonyStructure": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "$ref": "#/$defs/Text",
+          "x-rpc-policy": "colony-operations"
+        },
+        "satellite": {
+          "$ref": "#/$defs/Bool",
+          "x-rpc-policy": "colony-operations"
+        }
+      },
+      "required": [
+        "label",
+        "satellite"
+      ],
+      "x-rpc-policy": "colony-operations"
+    },
+    "ColonyStructures": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ColonyStructure"
+      },
+      "maxItems": 48
+    },
     "ColonyTroopCount": {
       "type": "integer",
       "minimum": 0,
@@ -473,6 +847,22 @@
       "x-integerToken": true,
       "x-unit": "count",
       "description": "Nonnegative integer count of authorized projected records only."
+    },
+    "ColonyTroopHP": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 255,
+      "x-integerToken": true,
+      "x-unit": "hit-points",
+      "description": "Unsigned-byte HP value displayed by the native troop popup, including its native byte conversion; not an entity health record."
+    },
+    "ColonyTroopStrength": {
+      "type": "integer",
+      "minimum": -32768,
+      "maximum": 32767,
+      "x-integerToken": true,
+      "x-unit": "ground-strength",
+      "description": "Signed strength in the normal own-colony troop popup, from its native defensive summary producer; not a combat forecast or an enemy statistic."
     },
     "ColonyTroops": {
       "type": "object",
@@ -492,6 +882,65 @@
         "armor"
       ],
       "x-rpc-policy": "colony-own-troops"
+    },
+    "ColonyWorker": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "$ref": "#/$defs/Text",
+          "x-rpc-policy": "colony-operations"
+        },
+        "species": {
+          "$ref": "#/$defs/Text",
+          "x-rpc-policy": "colony-operations"
+        },
+        "job": {
+          "$ref": "#/$defs/ColonyJob",
+          "x-rpc-policy": "colony-operations"
+        },
+        "state": {
+          "$ref": "#/$defs/ColonyWorkerState",
+          "x-rpc-policy": "colony-operations"
+        },
+        "assigned": {
+          "$ref": "#/$defs/Bool",
+          "x-rpc-policy": "colony-operations"
+        },
+        "conquered": {
+          "$ref": "#/$defs/Bool",
+          "x-rpc-policy": "colony-operations"
+        },
+        "player": {
+          "$ref": "#/$defs/KnownId",
+          "x-rpc-policy": "colony-operations"
+        }
+      },
+      "required": [
+        "label",
+        "species",
+        "job",
+        "state",
+        "assigned",
+        "conquered",
+        "player"
+      ],
+      "x-rpc-policy": "colony-operations"
+    },
+    "ColonyWorkerState": {
+      "type": "string",
+      "enum": [
+        "colonist",
+        "native",
+        "android"
+      ]
+    },
+    "ColonyWorkforce": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ColonyWorker"
+      },
+      "maxItems": 42
     },
     "CombatOptionsRequest": {
       "type": "object",
@@ -908,6 +1357,82 @@
         },
         "value": {
           "$ref": "#/$defs/Bool",
+          "x-rpc-policy": "contract"
+        }
+      },
+      "required": [
+        "availability",
+        "value"
+      ],
+      "x-rpc-policy": "contract"
+    },
+    "CurrentColonyGarrison": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/Current",
+          "x-rpc-policy": "contract"
+        },
+        "value": {
+          "$ref": "#/$defs/ColonyGarrison",
+          "x-rpc-policy": "contract"
+        }
+      },
+      "required": [
+        "availability",
+        "value"
+      ],
+      "x-rpc-policy": "contract"
+    },
+    "CurrentColonyOperations": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/Current",
+          "x-rpc-policy": "contract"
+        },
+        "value": {
+          "$ref": "#/$defs/ColonyOperations",
+          "x-rpc-policy": "contract"
+        }
+      },
+      "required": [
+        "availability",
+        "value"
+      ],
+      "x-rpc-policy": "contract"
+    },
+    "CurrentColonyProduct": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/Current",
+          "x-rpc-policy": "contract"
+        },
+        "value": {
+          "$ref": "#/$defs/ColonyProduct",
+          "x-rpc-policy": "contract"
+        }
+      },
+      "required": [
+        "availability",
+        "value"
+      ],
+      "x-rpc-policy": "contract"
+    },
+    "CurrentColonyProduction": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/Current",
+          "x-rpc-policy": "contract"
+        },
+        "value": {
+          "$ref": "#/$defs/ColonyProduction",
           "x-rpc-policy": "contract"
         }
       },
@@ -2153,6 +2678,46 @@
         }
       ]
     },
+    "KnownColonyGarrison": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CurrentColonyGarrison"
+        },
+        {
+          "$ref": "#/$defs/Unavailable"
+        }
+      ]
+    },
+    "KnownColonyOperations": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CurrentColonyOperations"
+        },
+        {
+          "$ref": "#/$defs/Unavailable"
+        }
+      ]
+    },
+    "KnownColonyProduct": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CurrentColonyProduct"
+        },
+        {
+          "$ref": "#/$defs/Unavailable"
+        }
+      ]
+    },
+    "KnownColonyProduction": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CurrentColonyProduction"
+        },
+        {
+          "$ref": "#/$defs/Unavailable"
+        }
+      ]
+    },
     "KnownColonyTroops": {
       "oneOf": [
         {
@@ -2791,6 +3356,14 @@
         "reader",
         "controller"
       ]
+    },
+    "MoraleIcons": {
+      "type": "integer",
+      "minimum": -20,
+      "maximum": 20,
+      "x-integerToken": true,
+      "x-unit": "morale-icons",
+      "description": "Signed displayed happy/unhappy icon count, native morale divided by two toward zero and capped at 20 icons; suppressed governments disclose no raw morale or inferred percentage."
     },
     "MovementRequest": {
       "type": "object",
@@ -3649,6 +4222,14 @@
         "local",
         "external"
       ]
+    },
+    "ProductionPoints": {
+      "type": "integer",
+      "minimum": -2147483648,
+      "maximum": 2147483647,
+      "x-integerToken": true,
+      "x-unit": "production",
+      "description": "Native displayed production points: current product cost, stored and purchased production. Not BC or an RPC completion forecast."
     },
     "Reference": {
       "type": "object",
@@ -9245,6 +9826,71 @@
     }
   },
   "x-rpc-policies": {
+    "colony-heading": {
+      "status": "reviewed",
+      "predicate": "Only the same capture's authorized own full colony. Share the native colony heading's localized specialty/annihilation formatter and 104-byte final buffer, with caller-owned 31-byte native planet-name output instead of the selected-colony/global temp-string buffer. Missing initialized format/name resources is unknown. This heading grants no foreign colony or extra entity record, and carries no invented occupation recommendation, action or forecast.",
+      "sources": [
+        [
+          "src/game/colony_main.cpp",
+          "Draw_Info_Name_And_Pop"
+        ],
+        [
+          "src/game/colony_read.cpp",
+          "Heading"
+        ],
+        [
+          "src/game/haccess.cpp",
+          "Do_Get_Planet_Name"
+        ],
+        [
+          "src/game/colony.cpp",
+          "Colony_Type"
+        ]
+      ],
+      "tests": [
+        "T-01",
+        "T-02",
+        "T-03",
+        "T-05"
+      ]
+    },
+    "colony-garrison": {
+      "status": "reviewed",
+      "predicate": "Bound viewer's own full colony only, after parent-link/population validation and authorized own leader inputs. Share the normal troop popup's pure Compute_Colony_Ground_Combat_Info with include_rebels=false, using caller-owned output. Its helpers read own technology/traits and present armor, infantry and population militia counts, signed native strength and the popup's uint8 HP conversion. Player_Troop_Name preserves tank/battloid and ordinary/powered infantry labels even for zero-count rows. No opponent argument, rebellion result, simulated battle, casualty/RNG path, foreign treasury, strength forecast or newly resolvable technology/leader/design record. Missing/stale leader inputs make this block unknown while cached military counts remain available. These rows describe native current presentation, not permission to produce or deploy a unit.",
+      "sources": [
+        [
+          "src/game/newpup.cpp",
+          "Draw_Troop_Popup_With_Read"
+        ],
+        [
+          "src/game/newpup.cpp",
+          "Print_Troop_Totals"
+        ],
+        [
+          "src/game/invasion.cpp",
+          "Compute_Colony_Ground_Combat_Info"
+        ],
+        [
+          "src/game/invasion.cpp",
+          "Compute_Ground_Combat_Info"
+        ],
+        [
+          "src/game/invasion.cpp",
+          "Colony_N_Militia"
+        ],
+        [
+          "src/game/colony.cpp",
+          "Player_Troop_Name"
+        ]
+      ],
+      "tests": [
+        "T-01",
+        "T-02",
+        "T-03",
+        "T-05",
+        "T-07"
+      ]
+    },
     "contract": {
       "status": "contract",
       "predicate": "Only copied protocol metadata or already authorized projected values; never read native memory here.",
@@ -9749,19 +10395,60 @@
         "T-05"
       ]
     },
-    "disabled-colony": {
-      "status": "disabled",
-      "predicate": "Production/queues, buy costs/eligibility and remaining colony details stay unaudited. Same-capture queryable planet links have their separate exploration-own-colony-links policy. Do not invoke mutable builders/calculators for queries. Foreign intelligence is a separate policy.",
+    "colony-operations": {
+      "status": "reviewed",
+      "predicate": "Own full colonies only through shared Own_Full_Colony, before detail reads, validation, counts or equality. Shared native population/product/autobuild labels, presence and satellite redundancy, resource icon-group arithmetic and morale icon rounding/suppression/cap; native job/species/localized unit text, event priority and labels, inbound-settler count, current product cost, stored/bought production, cached-industry turn count and own-only buy predicate. Seven committed queue slots retain none/repeat/refit variants and labels, not design/ship entity grants. Unknown variants/storage/resources are explicit unknown, not no production or empty workforce. No foreign treasury, population recalculation, economic refresh, UI list construction, staged queue/refit design, transfer verdict/ETA, RNG or report consumption. Native edit staging blocks fresh ambient capture; retained combined captures stay dated and are never enriched. Initialized settled colony decision points publish coherent ambient data. Recipient-scoped pre-replacement invalidation revokes dependent colony/planet pages, references and queued leased output before authority/storage mutation, preserving other ambient reads. Resolve species-player links only through the same capture's existing roster; a species/product label grants no additional entity. Outposts and foreign colony intelligence remain excluded.",
       "sources": [
         [
-          "src/game/colony_main.cpp",
-          "Colony_Screen"
+          "src/game/colony_read.cpp",
+          "namespace colony_read"
+        ],
+        [
+          "src/game/coldraw.cpp",
+          "Resource_Row"
+        ],
+        [
+          "src/game/coldraw.cpp",
+          "Morale_Icons"
+        ],
+        [
+          "src/game/colmove.cpp",
+          "Colony_Pop_String"
+        ],
+        [
+          "src/game/colcalc.cpp",
+          "Colony_Product_Cost"
+        ],
+        [
+          "src/game/colcalc.cpp",
+          "Colony_N_Turns_To_Produce"
+        ],
+        [
+          "src/game/colcalc_base.cpp",
+          "Production_Cost_To_Buy"
+        ],
+        [
+          "src/game/events.cpp",
+          "Colony_Has_Event"
+        ],
+        [
+          "src/game/colsum.cpp",
+          "Draw_Colony_Scan_Info"
+        ],
+        [
+          "src/game/game_events.cpp",
+          "Colony_Edits_Active"
         ]
       ],
       "tests": [
         "T-01",
         "T-02",
-        "T-03"
+        "T-03",
+        "T-04",
+        "T-05",
+        "T-06",
+        "T-07",
+        "T-12"
       ]
     },
     "ships-refreshed": {
@@ -10768,7 +11455,7 @@
     "orderedEventsPerSubscription": 4096,
     "overflow": "Reject before admission; coalesce only complete unsent state. Ordered-event overflow signals a gap or disconnect. Never rewrite partial output or silently discard operation results."
   },
-  "x-rpc-sourceHash": "c989fb184d73257a1dfb3ee71573ed47810f59c722a3190042a0bdbae2a375c0",
+  "x-rpc-sourceHash": "cb7e451e618fd8ba927604356aa2d896cfa6e568b5ca1821b7cb5a5eba083ac9",
   "x-rpc-runtimeEnabled": false,
   "x-rpc-implementedMethods": [
     "rpc.hello",

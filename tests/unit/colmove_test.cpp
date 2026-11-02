@@ -2,6 +2,7 @@
 
 #include "doctest/doctest.h"
 #include "game/colmove.h"
+#include "game/game_events.h"
 
 namespace TEST_COLMOVE {
     extern int16_t help_call_count;
@@ -80,4 +81,17 @@ DOCTEST_TEST_CASE("native population transfer requires the configured policy") {
 
     DOCTEST_CHECK(TEST_COLMOVE::help_call_count == 1);
     DOCTEST_CHECK(COLMOVE::cluster_colony_n == 0);
+}
+
+DOCTEST_TEST_CASE("native cluster pickup and return bracket transient assignment storage") {
+    TEST_COLMOVE::Reset_();
+    game_events::Set_Colony_Population_Staged(false);
+    MOX::colony[0].n_pops = 1;
+    POP::Set_Assigned(&MOX::colony[0].pop[0], true);
+    COLMOVE::Get_Cluster(0, 0);
+    DOCTEST_CHECK(game_events::Colony_Edits_Active());
+    DOCTEST_CHECK_FALSE(POP::Is_Assigned(MOX::colony[0].pop[0]));
+    COLMOVE::Clear_Cluster();
+    DOCTEST_CHECK_FALSE(game_events::Colony_Edits_Active());
+    DOCTEST_CHECK(POP::Is_Assigned(MOX::colony[0].pop[0]));
 }

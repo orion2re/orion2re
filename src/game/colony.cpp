@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "colony_read.h"
 
 namespace COLONY {
     bool Can_Scrap_Building(const s_colony& colony, uint16_t stardate) {
@@ -224,22 +225,7 @@ namespace COLONY {
     }
 
     bool __cdecl Sat_Should_Be_Replaced(int16_t building_id) {
-        const s_colony& colony = MOX::colony[COLONY::colony_handle];
-
-        if (building_id == BUILDING_STAR_BASE) {
-            // A Star Base is redundant if either a Battlestation or a Star Fortress exists.
-            if (colony.buildings[BUILDING_BATTLESTATION] != 0 ||
-                colony.buildings[BUILDING_STAR_FORTRESS] != 0) {
-                return true;
-            }
-        } else if (building_id == BUILDING_BATTLESTATION) {
-            // A Battlestation is redundant if a Star Fortress exists.
-            if (colony.buildings[BUILDING_STAR_FORTRESS] != 0) {
-                return true;
-            }
-        }
-
-        return false;
+        return colony_read::Satellite_Replaced(&MOX::colony[COLONY::colony_handle], building_id);
     }
 
     void __cdecl Insert_Satellite_Into_Array(int16_t satellite_id, int16_t* count) {
@@ -567,6 +553,8 @@ namespace COLONY {
     }
 
     bool __cdecl Colony_Can_Buy_Product_0(int16_t colony_idx) {
+        if (MOX::colony[colony_idx].owner == MOX::PLAYER_NUM)
+            return colony_read::Can_Buy(colony_idx, MOX::PLAYER_NUM);
         if (COLCALC::Colony_Can_Afford_To_Buy_Product(colony_idx)) {
             s_colony& colony = MOX::colony[colony_idx];
 

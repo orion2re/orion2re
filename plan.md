@@ -284,6 +284,8 @@ field-audited methods/topics; schemas alone grant no authority.
 - [x] Q-04 — Complete system list/detail with authorized map/range/wormhole data.
 - [x] Q-05 — Complete planet list/detail and nebula reads.
 - [ ] Q-06 — Complete colony production/jobs/buildings/troops/events/transfers and foreign intelligence.
+  - [x] Deliver committed own-full-colony operations inspection: production/queue, workforce, native operating presentations, structures/satellites, normal garrison, events, purchase display and current inbound logistics, with coherent subscriptions and revocation; see [the client workflow](specs/rpc/README.md#owned-colony-operations-dashboard).
+  - [ ] Complete separately audited foreign-colony intelligence. Own outposts remain outside this full-colony projection; colony-changing actions remain P3 work, not parity implied by the finished inspection subset.
 - [ ] Q-07 — Complete conditional ship destination/ETA, selection/scan details and durable identity.
   - [x] Finish one bounded public cached-ETA path: authorize the surviving own wormhole-route head from canonical native presentation.
   - [x] Prove initialized owner plus current open-box/selection authority for that path through child interruption and replacement; never promote pre-initialization results.

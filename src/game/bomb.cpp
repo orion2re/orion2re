@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game_events.h"
 #include "bomb.h"
 #include "mox.h"
 #include "events.h"
@@ -46,6 +47,7 @@ namespace BOMB {
     }
 
     void __cdecl Destroy_Colony(s_colony* colony, int32_t capturing_player) {
+        game_events::Publish_Colony_Replacing(colony->owner);
         s_star_data* star;
         int16_t star_idx;
         int16_t colony_idx;

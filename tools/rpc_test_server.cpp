@@ -13,6 +13,7 @@
 #include "rpc_native_leaders.h"
 #include "rpc_native_relations.h"
 #include "rpc_native_turn_review.h"
+#include "rpc_native_colonies.h"
 #endif
 
 int main() {
@@ -65,6 +66,7 @@ int main() {
         test_native_leaders::Initialize(&store, &map);
         test_native_relations::Initialize(&store, &map);
         test_native_turn_review::Initialize(&store, &map);
+        test_native_colonies::Initialize(&store, &map);
 #endif
         while (running) {
             std::string command;
@@ -81,6 +83,7 @@ int main() {
             native_command = test_native_leaders::Command(command);
             native_command |= test_native_relations::Command(command);
             native_command |= test_native_turn_review::Command(command);
+            native_command |= test_native_colonies::Command(command);
 #endif
             if (native_command) {
             } else if (command == "world") {
@@ -471,6 +474,7 @@ int main() {
         test_native_leaders::Shutdown();
         test_native_relations::Shutdown();
         test_native_turn_review::Shutdown();
+        test_native_colonies::Shutdown();
 #endif
         rpc::Shutdown_Game_Store(&store);
     });

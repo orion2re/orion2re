@@ -1,6 +1,8 @@
 #include "pch.h"
 
 #include "build_queue.h"
+#include "colony_read.h"
+#include "game_events.h"
 
 namespace COLSUM {
     int16_t x_fields[14];
@@ -248,6 +250,7 @@ namespace COLSUM {
 
         while (true) {
             timer::Mark_Time();
+            game_events::Publish(game_events::COLONY_OBSERVATION_POINT);
             input_val = fields::Get_Input();
             scan_val = fields::Scan_Input();
 
@@ -719,7 +722,7 @@ namespace COLSUM {
                                                              : "\x1B"
                                                                "2";
             snprintf(sub_buffer1, sizeof(sub_buffer1), ESTRINGS::E_Strings(0x46), event_prefix);
-            snprintf(buffer, sizeof(buffer), ESTRINGS::E_Strings(0x55), HACCESS::Get_Planet_Name_No_Prime(planet_idx), sub_buffer1, wee_event_strings[event_id]);
+            snprintf(buffer, sizeof(buffer), ESTRINGS::E_Strings(0x55), HACCESS::Get_Planet_Name_No_Prime(planet_idx), sub_buffer1, colony_read::Event_Label(event_id));
             paragraph_type = 0x57;
         }
 
@@ -1353,13 +1356,7 @@ namespace COLSUM {
                 total_growth += colony->pop_growth[i];
             }
 
-            int32_t inbound_population = 0;
-            s_player* owner = &MOX::player[colony->owner];
-            for (int16_t i = 0; i < owner->settlers_freighted; ++i) {
-                if (SETTLER::Get_Dest_Planet(owner->settlers[i].val) == colony->planet) {
-                    inbound_population++;
-                }
-            }
+            int32_t inbound_population = colony_read::Inbound_Population(colony);
 
             int32_t population_change = (total_roundoff + total_growth) / 1000;
             if (total_roundoff + total_growth < 0) {

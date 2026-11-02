@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game_events.h"
 
 #include "build_queue.h"
 #include "config/config_loader.h"
@@ -551,6 +552,7 @@ namespace COLBLDG {
     }
 
     void __cdecl Build_Queue_Popup() {
+        game_events::s_colony_queue_scope edit_scope;
         uint32_t original_seed = game_random::Get_Random_Seed();
         game_random::Set_Random_Seed(COLONY::colony_handle);
 
@@ -656,6 +658,10 @@ namespace COLBLDG {
         }
 
         game_random::Set_Random_Seed(original_seed);
+        if (COLBLDG::return_to_build_popup_from_custom_design != 0)
+            edit_scope.Hold();
+        else
+            edit_scope.Commit();
     }
 
     int16_t __cdecl Star_N_Uncolonized_Worlds(int16_t star_index) {
@@ -906,7 +912,7 @@ namespace COLBLDG {
         } else {
             const auto& ship = MOX::ship[Colony_Production_Ship_Index(id)];
             if (ship.status == 4)
-                snprintf(out, size, ESTRINGS::E_Strings(45), Option_String(COLONY_PRODUCTION_REFIT), ship.d.name);
+                snprintf(out, size, ESTRINGS::E_Strings(45), Read_Option_String(COLONY_PRODUCTION_REFIT, owner), ship.d.name);
             else
                 strlcpy(out, ship.d.name, size);
         }
