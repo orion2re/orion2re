@@ -9,6 +9,7 @@
 #endif
 
 #include "config/config_loader.h"
+#include "game/user_paths.h"
 #include "lua/lua_mod_runtime.h"
 #include "startup_options.h"
 
@@ -58,9 +59,15 @@ static void SDLCALL Game_Log_Output_(void* userdata, int category, SDL_LogPriori
 }
 #endif
 
+#if defined(ORION2RE_DEBUG_BUILD) || defined(ORION2RE_ASAN_BUILD)
+static const char* Logs_Parent_Path_() {
+    return user_paths::Is_Enabled() ? user_paths::Get_Directory(user_paths::USER_DIRECTORY_STATE) : SDL_GetBasePath();
+}
+#endif
+
 static void Configure_Game_Log_() {
 #if defined(ORION2RE_DEBUG_BUILD)
-    const char* base_path = SDL_GetBasePath();
+    const char* base_path = Logs_Parent_Path_();
     char logs_path[1024];
     char log_file_path[1024];
 
@@ -109,7 +116,7 @@ extern "C" const char* __lsan_default_suppressions() {
 #endif
 
 static void Configure_Sanitizer_Runtime_() {
-    const char* base_path = SDL_GetBasePath();
+    const char* base_path = Logs_Parent_Path_();
     if (base_path == nullptr) {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "ASAN: unable to resolve game directory: %s", SDL_GetError());
         return;
@@ -168,6 +175,7 @@ static void Configure_Sanitizer_Runtime_() {
 #endif
 
 int main(int argc, char** argv) {
+    user_paths::Init(SDL_GetBasePath(), user_paths::PLATFORM_USES_XDG);
     Configure_Game_Log_();
 
 #if defined(ORION2RE_ASAN_BUILD)
@@ -208,6 +216,15 @@ int main(int argc, char** argv) {
         return -1;
     }
 #endif
+    // In XDG mode the installation is found next to the executable,
+    // not wherever a desktop launcher happened to start the process.
+#if !defined(_WIN32) && !defined(__APPLE__)
+    if (user_paths::Is_Enabled() && base_path != nullptr && chdir(base_path) != 0) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "main: unable to set working directory to '%s': %s", base_path, strerror(errno));
+        Shutdown_Game_Log_();
+        return -1;
+    }
+#endif
 
     char* current_directory = SDL_GetCurrentDirectory();
     const char* vfs_base_path = current_directory != nullptr ? current_directory : base_path;
@@ -219,6 +236,15 @@ int main(int argc, char** argv) {
         }
         Shutdown_Game_Log_();
         return -1;
+    }
+
+    if (user_paths::Is_Enabled()) {
+        const std::string user_mods_path = std::string(user_paths::Get_Directory(user_paths::USER_DIRECTORY_DATA)) + "mods/";
+        vfs::Set_User_Config_Path(user_paths::Get_Directory(user_paths::USER_DIRECTORY_CONFIG));
+        vfs::Set_User_Mods_Path(user_mods_path.c_str());
+        for (const std::string& directory : user_paths::Get_Game_Asset_Directories()) {
+            vfs::Add_Raw_Search_Path(directory.c_str());
+        }
     }
 
     config::s_effective_config effective_config;
