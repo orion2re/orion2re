@@ -6,6 +6,7 @@
 #include "rpc/officer_rpc.h"
 #include "rpc/relations_rpc.h"
 #include "rpc/players_rpc.h"
+#include "rpc/ships_rpc.h"
 #include "game/relations_read.h"
 #include "game/game_events.h"
 #include "game/history_read.h"
@@ -19,6 +20,8 @@
 #include "config/text_encoding.h"
 
 #include <chrono>
+#include <cstring>
+#include <string>
 #include <iostream>
 #include <type_traits>
 #include <vector>
@@ -2422,6 +2425,107 @@ namespace {
     };
 } // namespace
 
+DOCTEST_TEST_CASE("strategic fleet labels separate canonical names hulls and native special variants") {
+    s_eta_world fixture(1);
+    char shared[80], native[80];
+    MOX::fleet_ship_scanned = 0;
+    MOX::fleet_movement_icon[0].ship_node_idx = 0;
+    MOX::ship_node[0].ship_idx = 0;
+    auto* ship = &fixture.native.ships[0];
+    for (int16_t owner = 0; owner <= 14; ++owner) {
+        for (int16_t type : {SHIP_TYPE_COMBAT, SHIP_TYPE_COLONY, SHIP_TYPE_TRANSPORT, SHIP_TYPE_OUTPOST}) {
+            ship->owner = owner;
+            ship->d.ship_type = type;
+            strlcpy(ship->d.name, "Canonical", sizeof(ship->d.name));
+            const auto kind = ship_read::Scanned_Label(0, ship, shared, sizeof(shared));
+            FLEETPOP::Get_Fleetpop_Scanned_Ship_Info(native, sizeof(native));
+            DOCTEST_CHECK(std::string(native) == shared);
+            const bool hull = owner != 0 && owner <= 8 && type == SHIP_TYPE_COMBAT;
+            DOCTEST_CHECK(kind == (hull ? ship_read::HULL_LABEL : ship_read::CANONICAL_NAME));
+            if (hull) {
+                memset(ship->d.name, 0xff, sizeof(ship->d.name));
+                DOCTEST_CHECK(ship_read::Scanned_Label(0, ship, shared, sizeof(shared)) == ship_read::HULL_LABEL);
+            } else
+                DOCTEST_CHECK(std::string(shared) == "Canonical");
+        }
+    }
+    s_saved_native_bytes saved;
+    saved.Save(&TECHDATA::hull_data[0].name, sizeof(TECHDATA::hull_data[0].name));
+    std::string long_label(400, 'L');
+    TECHDATA::hull_data[0].name = long_label.data();
+    ship->owner = 1;
+    ship->d.ship_type = SHIP_TYPE_COMBAT;
+    ship->d.size = 0;
+    rpc::s_ship_observation observation;
+    ships_rpc::Read_Strategic_Ship(0, ship, &observation);
+    FLEETPOP::Get_Fleetpop_Scanned_Ship_Info(native, sizeof(native));
+    DOCTEST_CHECK(observation.type == native);
+    DOCTEST_CHECK(observation.type.size() == 79);
+}
+
+DOCTEST_TEST_CASE("actual strategic scanned names require initialized current owner and fresh presentation") {
+    s_eta_world fixture(1);
+    fixture.native.ships[0].d.ship_type = SHIP_TYPE_TRANSPORT;
+    strlcpy(fixture.native.ships[0].d.name, "Convoy", sizeof(fixture.native.ships[0].d.name));
+    game_events::s_fleet_box_view_scope owner;
+    fixture.Refresh();
+    const auto ambient = fixture.Query();
+    int row = 0;
+    for (; row < MOX::fleet_box.count; ++row)
+        if (MOX::ship_node[MOX::fleet_movement_icon[row].ship_node_idx].ship_idx == 0) break;
+    DOCTEST_REQUIRE(row < MOX::fleet_box.count);
+    MOX::fleet_ship_scanned = row;
+    fixture.Print();
+    DOCTEST_CHECK(fixture.Query() == ambient);
+    owner.Initialized();
+    fixture.Print();
+    DOCTEST_CHECK(fixture.Query().find("Convoy") != std::string::npos);
+    DOCTEST_CHECK(fixture.Query("game.listFleets").find("\"owned\":false") != std::string::npos);
+    const uint32_t seed = game_random::Get_Random_Seed();
+    s_saved_native_bytes saved;
+    saved.Save(MOX::ship, MOX::NUM_SHIPS * sizeof(s_ship_data));
+    saved.Save(MOX::player, MAX_PLAYERS * sizeof(s_player));
+    saved.Save(MOX::ship_node, sizeof(MOX::ship_node));
+    saved.Save(MOX::ship_icon, sizeof(MOX::ship_icon));
+    saved.Save(&MOX::fleet_box, sizeof(MOX::fleet_box));
+    saved.Save(MOX::fleet_movement_icon, sizeof(MOX::fleet_movement_icon));
+    saved.Save(MSG_::msgs, sizeof(MSG_::msgs));
+    for (int i = 0; i < 10; ++i) {
+        rpc::s_map_observation fresh;
+        DOCTEST_REQUIRE(game_rpc::Read_Refreshed_Ship_Observation(&fresh));
+        DOCTEST_CHECK(fixture.Query().find("Convoy") != std::string::npos);
+    }
+    DOCTEST_CHECK(saved.Unchanged());
+    DOCTEST_CHECK(game_random::Get_Random_Seed() == seed);
+    game_events::Publish(game_events::MAIN_VIEW_INPUT_INTERRUPTED);
+    DOCTEST_CHECK(fixture.Query().find("Convoy") == std::string::npos);
+    FLEETPOP::Print_Fleet_Box_Info(); // A child's saved-parent draw is not restoration.
+    DOCTEST_CHECK(fixture.Query().find("Convoy") == std::string::npos);
+    fixture.Print();
+    DOCTEST_CHECK(fixture.Query().find("Convoy") != std::string::npos);
+    game_events::Publish(game_events::STRATEGIC_LABELS_REPLACING);
+    DOCTEST_CHECK(fixture.Query().find("\"code\":-32002") != std::string::npos);
+    DOCTEST_CHECK(fixture.Query("game.listPlayers").find("\"result\"") != std::string::npos);
+}
+
+DOCTEST_TEST_CASE("strategic authority loss preserves owned reads under a new partial stamp") {
+    s_eta_world fixture(1);
+    fixture.Refresh();
+    const auto before_id = fixture.store.snapshots.back().id;
+    const auto before_revision = fixture.store.snapshots.back().revision;
+    const auto& snapshot = fixture.store.snapshots.back();
+    const auto own = std::find_if(snapshot.map.ships.begin(), snapshot.map.ships.end(), [](const auto& ship) { return ship.owned; });
+    DOCTEST_REQUIRE(own != snapshot.map.ships.end());
+    const auto own_id = snapshot.ship_ids[(size_t)(own - snapshot.map.ships.begin())];
+    game_events::Publish_Ship_Identity_Changing(0);
+    DOCTEST_CHECK(fixture.store.snapshots.back().id != before_id);
+    DOCTEST_CHECK(fixture.store.snapshots.back().revision > before_revision);
+    DOCTEST_CHECK(fixture.store.snapshots.back().map.owned_ambient);
+    DOCTEST_CHECK(fixture.Query().find("\"fleetCoverage\":\"owned-only\"") != std::string::npos);
+    DOCTEST_CHECK(fixture.Query("game.getShip", ("{\"id\":" + rpc::Json_String(own_id) + "}").c_str()).find("\"result\"") != std::string::npos);
+    DOCTEST_CHECK(std::all_of(fixture.store.snapshots.back().map.ships.begin(), fixture.store.snapshots.back().map.ships.end(), [](const auto& ship) { return ship.owned; }));
+}
+
 DOCTEST_TEST_CASE_TEMPLATE("real cached producer authorizes only an initialized surviving route head including zero", Fleet, std::false_type, std::true_type, std::integral_constant<int, 2>, std::integral_constant<int, 3>, std::integral_constant<int, 4>) {
     s_eta_world fixture(Fleet::value);
     game_events::s_fleet_box_view_scope owner;
@@ -2515,7 +2619,7 @@ DOCTEST_TEST_CASE("non-own cached producer requires an independent native ambien
         DOCTEST_CHECK(ship.name.empty());
         if (ship.eta_available == rpc::SHIP_CURRENT) DOCTEST_CHECK_FALSE(ship.owned);
     }
-    DOCTEST_CHECK(fixture.Query().find("\"name\":{\"availability\":\"unaudited\"}") != std::string::npos);
+    DOCTEST_CHECK(fixture.Query().find("\"name\":{\"availability\":\"unknown\"}") != std::string::npos);
 }
 
 DOCTEST_TEST_CASE_TEMPLATE("contextual destination requires an actual current same-frame selected-box route presentation", Fleet, std::integral_constant<int, 2>, std::integral_constant<int, 3>, std::integral_constant<int, 4>) {

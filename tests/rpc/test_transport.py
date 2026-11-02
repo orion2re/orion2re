@@ -183,6 +183,190 @@ class TransportTests(unittest.TestCase):
         self.assertIn("result", client.Hello())
         return client
 
+    def Fleet_Awareness(self):
+        self.Fixture("world")
+        self.Fixture("fleet-native")
+        client = self.Client()
+        self.assertIn("result", client.Hello())
+        return client
+
+    def test_native_strategic_fleet_awareness_dashboard(self):
+        client = self.Fleet_Awareness()
+        enabled = {method["name"] for method in self.Query(client, "rpc.describe")["result"]["methods"]}
+        self.assertTrue({"game.listShips", "game.getShip", "game.listFleets", "game.getFleet"} <= enabled)
+        self.assertFalse({"game.getMovementOptions", "game.getDesignOptions"} & enabled)
+        topics = ["session", "players", "systems", "planets", "colonies", "ships", "fleets", "designs", "research", "leaders", "relations", "intelligence", "history", "messages"]
+        subscription = self.Query(client, "rpc.subscribe", {"topics":topics, "events":["state.changed"]})["result"]
+        baseline = subscription["baseline"]
+        root = Path(__file__).resolve().parents[2] / "specs/rpc"
+        contract_audit.Validate_Value(baseline, "State", contract_audit.Load_Json(root / "contracts.json"), contract_audit.Load_Json(root / "field_policies.json"), public=True)
+        self.assertEqual(baseline["stamp"]["fleetCoverage"], "complete")
+        self.assertEqual(len(baseline["ships"]), 23)
+        self.assertEqual(len(baseline["fleets"]), 15)
+        self.assertEqual(len(baseline["designs"]), 10)
+        by_id = {ship["id"]:ship for ship in baseline["ships"]}
+        self.assertEqual(len([ship for ship in by_id.values() if ship["owned"]]), 7)
+        foreign = [fleet for fleet in baseline["fleets"] if not fleet["owned"]]
+        contact = next(fleet for fleet in foreign if fleet["heading"].get("value") == "Contact Fleet")
+        self.assertEqual(contact["composition"]["value"], [
+            {"label":" 2 Cruisers", "count":2}, {"label":"1 Colony Ship", "count":1},
+            {"label":"1 Outpost Ship", "count":1}, {"label":"1 Transport", "count":1}])
+        members = [by_id[member] for member in contact["members"]]
+        self.assertEqual([ship["role"]["value"] for ship in members], ["combat", "combat", "colony", "transport", "outpost"])
+        self.assertTrue(all(ship["inspection"] == {"availability":"unknown"} for ship in members))
+        self.assertTrue(all(ship["name"]["availability"] != "current" for ship in members))
+        self.assertEqual(self.Query(client, "game.getPlayer", {"id":contact["owner"]["value"]})["result"]["item"]["treasury"], {"availability":"unaudited"})
+        unidentified = [ship for ship in by_id.values() if ship["banner"].get("value") == 2]
+        self.assertEqual(len(unidentified), 3)
+        self.assertTrue(all(ship["owner"] == {"availability":"unknown"} for ship in unidentified))
+        moving = next(fleet for fleet in foreign if fleet["x"] == 45)
+        self.assertEqual(moving["eta"], {"availability":"current", "value":255})
+        self.assertEqual(moving["location"], {"availability":"unknown"})
+        self.assertEqual(sum(by_id[member]["eta"]["availability"] == "current" for member in moving["members"]), 1)
+        specials = [fleet for fleet in foreign if fleet["x"] == 60]
+        self.assertEqual({fleet["heading"]["value"] for fleet in specials}, {"GUARDIAN", "AMOEBA", "CRYSTAL", "DRAGON", "EEL", "HYDRA"})
+        self.assertTrue(all(fleet["composition"] == {"availability":"unknown"} for fleet in specials))
+        for fleet in baseline["fleets"]:
+            self.assertEqual(self.Query(client, "game.getFleet", {"id":fleet["id"]})["result"]["item"], fleet)
+            for member in fleet["members"]:
+                self.assertEqual(self.Query(client, "game.getShip", {"id":member})["result"]["item"], by_id[member])
+            for field in ("location", "destination"):
+                if fleet[field]["availability"] == "current":
+                    self.assertIn(fleet[field]["value"], {system["id"] for system in baseline["systems"]})
+        self.assertEqual(baseline["history"]["stamp"], baseline["stamp"])
+        self.assertEqual(baseline["research"]["stamp"], baseline["stamp"])
+        self.assertEqual(len(baseline["colonies"]), 3)
+        pages = {family:self.Query(client, "game.list" + family.title(), {"limit":1})["result"] for family in ("ships", "fleets")}
+        self.Fixture("fleet-hidden")
+        self.assertEqual(self.Query(client, "game.getState", {"include":topics})["result"], baseline)
+        # Fresh owned details must not silently enrich a retained mixed baseline.
+        for _ in range(6):
+            self.Fixture("fleet-partial")
+            self.assertEqual(self.Query(client, "game.getState", {"include":topics})["result"], baseline)
+        self.Fixture("fleet-change")
+        event = client.Read()
+        self.assertEqual(event["method"], "state.changed")
+        current = self.Query(client, "game.getState", {"include":topics})["result"]
+        self.assertEqual(current["stamp"], event["params"]["stamp"])
+        self.assertEqual(current["stamp"]["turn"], baseline["stamp"]["turn"])
+        composition = next(fleet for fleet in current["fleets"] if fleet["heading"].get("value") == "Contact Fleet")["composition"]["value"]
+        self.assertEqual(composition[:2], [{"label":" 1 Cruiser", "count":1}, {"label":" 1 Battleship", "count":1}])
+        for family, page in pages.items():
+            self.assertEqual(self.Query(client, "game.list" + family.title(), {"cursor":page["nextCursor"]})["error"]["code"], -32004)
+        for ship in baseline["ships"]:
+            self.assertEqual(self.Query(client, "game.getShip", {"id":ship["id"]})["error"]["code"], -32004)
+        self.Fixture("fleet-eta-zero")
+        self.assertEqual(client.Read()["method"], "state.changed")
+        zero = next(fleet for fleet in self.Query(client, "game.listFleets")["result"]["items"] if fleet["x"] == 45)
+        self.assertEqual(zero["eta"], {"availability":"current", "value":0})
+
+    def test_native_strategic_fleet_context_names_coverage_and_lifetimes(self):
+        client = self.Fleet_Awareness()
+        topics = ["session", "ships", "fleets", "designs", "players", "colonies", "messages"]
+        baseline = self.Query(client, "game.getState", {"include":topics})["result"]
+        self.Fixture("fleet-unframed-label")
+        self.assertEqual(self.Query(client, "game.getState", {"include":topics})["result"], baseline)
+        self.Fixture("fleet-label")
+        labelled = self.Query(client, "game.getState", {"include":topics})["result"]
+        convoy = next(ship for ship in labelled["ships"] if ship["name"].get("value") == "Convoy")
+        self.assertEqual(convoy["type"]["value"], "Transport")
+        page = self.Query(client, "game.listFleets", {"limit":1})["result"]
+        self.assertEqual(labelled["stamp"]["captureMode"], "last-native-fleet-box")
+        self.Fixture("fleet-interrupt")
+        self.assertEqual(self.Query(client, "game.getShip", {"id":convoy["id"]})["error"]["code"], -32004)
+        self.assertEqual(self.Query(client, "game.listFleets", {"cursor":page["nextCursor"]})["error"]["code"], -32004)
+        self.assertEqual(self.Query(client, "game.getState", {"include":topics})["result"]["ships"], baseline["ships"])
+        self.Fixture("fleet-label")
+        restored = self.Query(client, "game.listShips")["result"]
+        self.assertTrue(any(ship["name"].get("value") == "Convoy" for ship in restored["items"]))
+        self.Fixture("fleet-special-label")
+        special = next(ship for ship in self.Query(client, "game.listShips")["result"]["items"] if ship["name"].get("value") == "Amoeba")
+        self.assertEqual(special["type"], {"availability":"unknown"})
+        self.Fixture("fleet-exit")
+        self.assertEqual(self.Query(client, "game.getShip", {"id":special["id"]})["error"]["code"], -32004)
+        self.Fixture("fleet-label")
+        self.assertFalse(any(ship["name"].get("value") == "Convoy" for ship in self.Query(client, "game.listShips")["result"]["items"]))
+        self.Fixture("fleet-enter")
+        self.Fixture("fleet-label")
+        self.assertTrue(any(ship["name"].get("value") == "Convoy" for ship in self.Query(client, "game.listShips")["result"]["items"]))
+        self.Fixture("fleet-depart")
+        departing = next(fleet for fleet in self.Query(client, "game.listFleets")["result"]["items"] if not fleet["owned"] and fleet["x"] == 30 and fleet["destination"]["availability"] == "current")
+        self.assertEqual(departing["eta"], {"availability":"context-required"})
+        self.Fixture("fleet-cached")
+        cached = self.Query(client, "game.listFleets")["result"]
+        self.assertEqual(cached["stamp"]["captureMode"], "last-native-fleet-box")
+        self.assertTrue(any(fleet["eta"] == {"availability":"current", "value":3} for fleet in cached["items"]))
+        self.Fixture("fleet-interrupt")
+        self.assertFalse(any(fleet["eta"] == {"availability":"current", "value":3} for fleet in self.Query(client, "game.listFleets")["result"]["items"]))
+        self.Fixture("fleet-special-destination")
+        special_route = next(fleet for fleet in self.Query(client, "game.listFleets")["result"]["items"] if fleet["x"] == 45)
+        self.assertEqual(special_route["destination"], {"availability":"context-required"})
+        self.assertEqual(special_route["eta"], {"availability":"context-required"})
+        self.Fixture("fleet-resources")
+        self.assertEqual(self.Query(client, "game.listShips")["error"]["code"], -32002)
+        self.assertIn("result", self.Query(client, "game.listPlayers"))
+        self.Fixture("fleet-partial")
+        partial = self.Query(client, "game.getState", {"include":topics})["result"]
+        self.assertEqual(partial["stamp"]["fleetCoverage"], "owned-only")
+        self.assertTrue(all(ship["owned"] for ship in partial["ships"]))
+        self.Fixture("fleet-refresh")
+        self.Fixture("fleet-retire")
+        self.Fixture("fleet-reuse")
+        self.Fixture("fleet-owner")
+        self.assertTrue(any(ship["owned"] and ship["name"].get("value") == "Prize Two" for ship in self.Query(client, "game.listShips")["result"]["items"]))
+        self.Fixture("fleet-advance")
+        self.assertEqual(self.Query(client, "game.getState", {"include":topics})["error"]["code"], -32002)
+        self.Fixture("fleet-commit")
+        self.assertEqual(client.Read()["method"], "game.turnAdvanced")
+        self.assertEqual(self.Query(client, "game.getState", {"include":topics})["result"]["stamp"]["turn"], baseline["stamp"]["turn"] + 1)
+        self.Fixture("fleet-unavailable")
+        self.assertEqual(self.Query(client, "game.listFleets")["error"]["code"], -32002)
+        self.Fixture("fleet-storage")
+        self.Fixture("fleet-empty")
+        empty = self.Query(client, "game.getState", {"include":["ships", "fleets"]})["result"]
+        self.assertEqual((empty["ships"], empty["fleets"], empty["stamp"]["fleetCoverage"]), ([], [], "complete"))
+        self.Fixture("fleet-partial")
+        self.assertEqual(self.Query(client, "game.getState", {"include":["ships", "fleets"]})["result"], empty)
+        self.Fixture("fleet-reset")
+        with self.assertRaises((EOFError, ConnectionError)):
+            self.Query(client, "game.listShips")
+        reader = self.Client()
+        self.assertIn("result", reader.Hello())
+        self.Fixture("fleet-switch")
+        with self.assertRaises((EOFError, ConnectionError)):
+            self.Query(reader, "game.listFleets")
+
+    def Fleet_Output_Revocation(self, boundary, contextual=False):
+        self.Fleet_Awareness().close()
+        self.Fixture("fleet-large")
+        if contextual:
+            self.Fixture("fleet-label")
+        client = self.Client(receive_buffer=4096)
+        self.assertIn("result", client.Hello())
+        self.Fixture("fleet-output")
+        opcode, final, payload = client.Read_Frame()
+        self.assertEqual(opcode, 1)
+        self.assertFalse(final)
+        self.Fixture(boundary)
+        completed = 0
+        for _ in range(4096):
+            try:
+                opcode, final, payload = client.Read_Frame()
+            except (EOFError, ConnectionError):
+                break
+            if opcode == 8:
+                break
+            completed += int(final and opcode in (0, 1))
+        else:
+            self.fail("revoked strategic output did not close")
+        self.assertLess(completed, 4)
+
+    def test_native_strategic_fleet_retirement_revokes_service_owned_and_started_output(self):
+        self.Fleet_Output_Revocation("fleet-retire")
+
+    def test_native_strategic_fleet_label_interruption_revokes_service_owned_and_started_output(self):
+        self.Fleet_Output_Revocation("fleet-interrupt", contextual=True)
+
     def test_native_owned_fleet_ship_design_dashboard(self):
         client = self.Inspection()
         enabled = {method["name"] for method in self.Query(client, "rpc.describe")["result"]["methods"]}
@@ -1362,7 +1546,8 @@ class TransportTests(unittest.TestCase):
         self.assertEqual(len(baseline["ships"]), 3)
         self.assertEqual(baseline["ships"][0]["name"], {"availability":"current","value":"Own ship"})
         self.assertNotIn("secret", json.dumps(baseline))
-        for field in ("owner", "name", "destination", "eta"):
+        self.assertEqual(baseline["ships"][1]["owner"], {"availability":"unknown"})
+        for field in ("name", "destination", "eta"):
             self.assertEqual(baseline["ships"][1][field], {"availability":"unaudited"})
         known = baseline["ships"][0]
         self.assertEqual(self.Query(client, "game.getShip", {"id":known["id"]})["result"]["item"], known)
@@ -1569,12 +1754,12 @@ class TransportTests(unittest.TestCase):
         players = state["players"]
         self.assertEqual(state["ships"][0]["owner"], {"availability":"current","value":players[0]["id"]})
         self.assertEqual(state["ships"][1]["owner"], {"availability":"current","value":players[1]["id"]})
-        self.assertEqual(state["ships"][2]["owner"], {"availability":"unaudited"})
+        self.assertEqual(state["ships"][2]["owner"], {"availability":"unknown"})
         self.assertEqual(state["ships"][1]["name"], {"availability":"unaudited"})
         self.assertEqual(state["ships"][1]["destination"], {"availability":"unaudited"})
         self.Fixture("player-forget")
         current = self.Query(client, "game.getState", {"include":["players","ships"]})["result"]
-        self.assertEqual(current["ships"][1]["owner"], {"availability":"unaudited"})
+        self.assertEqual(current["ships"][1]["owner"], {"availability":"unknown"})
 
     def test_ship_routes_use_same_capture_system_handles_and_explicit_knowledge(self):
         self.Fixture("world")

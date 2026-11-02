@@ -3,6 +3,7 @@
 #include <cstdint>
 #include "leader_read.h"
 #include "relations_read.h"
+#include "ship_read.h"
 
 namespace game_events {
     enum e_event {
@@ -48,6 +49,7 @@ namespace game_events {
         COLONY_REPLACING,
         SHIP_OBSERVATION_POINT,
         DESIGNS_REPLACING,
+        STRATEGIC_LABELS_REPLACING,
     };
 
     struct s_fleet_box_node {
@@ -56,7 +58,8 @@ namespace game_events {
     };
 
     // Native fleet-box presentation result, borrowed only during publication.
-    // Only the cached-route branch; star is -1 when its name is not disclosed.
+    // Actual cached-route or scanned-label branch, never a movement preview.
+    // Star is -1 when its name is not disclosed; label is callback-local.
     struct s_fleet_box_info {
         int16_t ship;
         uint8_t turns_left;
@@ -69,6 +72,8 @@ namespace game_events {
         int16_t member_count = 0;
         const s_fleet_box_node* selected = nullptr;
         int16_t selected_count = 0;
+        ship_read::e_label label_kind = ship_read::NO_LABEL;
+        const char* label = nullptr;
     };
 
     using t_callback = void (*)(e_event event, void* context);

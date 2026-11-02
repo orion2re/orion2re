@@ -2,6 +2,9 @@
 #include "ship_read.h"
 #include "game_events.h"
 
+#include <cstdio>
+#include <cstring>
+
 namespace ship_read {
     bool Flag_Present(const void* flags, uint16_t bit) {
         return struct_::Test_Bit_Field(const_cast<void*>(flags), bit) != 0;
@@ -20,6 +23,66 @@ namespace ship_read {
             return offset < MOX::h_strings.size() && memchr(MOX::h_strings.data() + offset, 0, MOX::h_strings.size() - offset) != nullptr;
         }
     } // namespace
+
+    void Count_Member(const s_ship_design* design, s_composition* out) {
+        ++out->total;
+        switch (design->ship_type) {
+            case SHIP_TYPE_COMBAT: ++out->counts[design->size > SHIP_SIZE_DOOM_STAR ? SHIP_SIZE_DOOM_STAR : design->size]; break;
+            case SHIP_TYPE_COLONY: ++out->counts[6]; break;
+            case SHIP_TYPE_OUTPOST: ++out->counts[7]; break;
+            case SHIP_TYPE_TRANSPORT: ++out->counts[8]; break;
+            default: break;
+        }
+    }
+
+    bool Composition_Line(int16_t category, int16_t count, char* out, uint32_t size) {
+        if (size == 0) return false;
+        out[0] = '\0';
+        if (category < 0 || category >= 9 || count <= 0) return false;
+        char line[200];
+        if (category < 6) {
+            const char* label = Hull_Name(category, count != 1);
+            if (label == nullptr) return false;
+            snprintf(line, sizeof(line), "%2d %s", (int)count, label);
+        } else {
+            const int16_t id = 0x164 + (category - 6) * 2 + (count == 1 ? 0 : 1);
+            if (!H_String_Ready(id)) return false;
+            snprintf(line, sizeof(line), HAROLD::H_Message(id), (int)count);
+        }
+        strlcpy(out, line, size);
+        return true;
+    }
+
+    bool Fleet_Title(int16_t owner, const s_ship_data* head, char* out, uint32_t size) {
+        if (size == 0) return false;
+        out[0] = '\0';
+        char title[120];
+        if (owner >= 0 && owner < 9) {
+            if (!H_String_Ready(0x66) || MOX::player == nullptr || (owner == 8 && MOX::race_names[13] == nullptr)) return false;
+            char race[80];
+            HACCESS::Race_Name(owner, race, sizeof(race));
+            snprintf(title, sizeof(title), HAROLD::H_Message(0x66), race);
+        } else {
+            if (head == nullptr || memchr(head->d.name, 0, sizeof(head->d.name)) == nullptr) return false;
+            strlcpy(title, head->d.name, sizeof(title));
+            strings::String_To_Upper(title);
+        }
+        strlcpy(out, title, size);
+        return true;
+    }
+
+    e_label Scanned_Label(int16_t viewer, const s_ship_data* ship, char* out, uint32_t size) {
+        if (size == 0) return NO_LABEL;
+        out[0] = '\0';
+        if (ship->owner != viewer && ship->owner <= 8 && ship->d.ship_type == SHIP_TYPE_COMBAT) {
+            if (ship->d.size < 0 || ship->d.size >= HULL_CLASS_COUNT || Hull_Name(ship->d.size, false) == nullptr) return NO_LABEL;
+            strlcpy(out, Hull_Name(ship->d.size, false), size);
+            return HULL_LABEL;
+        }
+        if (memchr(ship->d.name, 0, sizeof(ship->d.name)) == nullptr) return NO_LABEL;
+        strlcpy(out, ship->d.name, size);
+        return CANONICAL_NAME;
+    }
 
     void Load_Strings() {
         game_events::Publish_Designs_Replacing(MOX::PLAYER_NUM);

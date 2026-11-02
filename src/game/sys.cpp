@@ -1,4 +1,5 @@
 #include "pch.h"
+#include <cstring>
 #include "ship_read.h"
 
 namespace SYS {
@@ -900,41 +901,17 @@ namespace SYS {
     }
 
     void __cdecl N_Ships_By_Type_In_Stack(int16_t ship_node_idx, int16_t* total_count, int16_t* colony_ships_count, int16_t* outposts_count, int16_t* transports_count, int16_t* ship_sizes) {
-        *total_count = 0;
-        *colony_ships_count = 0;
-        *outposts_count = 0;
-        *transports_count = 0;
-        memset(ship_sizes, 0, (SHIP_SIZE_DOOM_STAR + 1) * sizeof(int16_t));
-
+        ship_read::s_composition composition;
         while (ship_node_idx != -1) {
             const int16_t ship_idx = MOX::ship_node[ship_node_idx].ship_idx;
-            s_ship_data* const ship = &MOX::ship[ship_idx];
-
-            int16_t size = (int16_t)ship->d.size;
-            if (size > SHIP_SIZE_DOOM_STAR) {
-                size = SHIP_SIZE_DOOM_STAR;
-            }
-
-            switch (ship->d.ship_type) {
-                case SHIP_TYPE_COMBAT:
-                    ship_sizes[size]++;
-                    break;
-                case SHIP_TYPE_COLONY:
-                    (*colony_ships_count)++;
-                    break;
-                case SHIP_TYPE_TRANSPORT:
-                    (*transports_count)++;
-                    break;
-                case SHIP_TYPE_OUTPOST:
-                    (*outposts_count)++;
-                    break;
-                default:
-                    break;
-            }
-
-            (*total_count)++;
+            ship_read::Count_Member(&MOX::ship[ship_idx].d, &composition);
             ship_node_idx = MOX::ship_node[ship_node_idx].next_node;
         }
+        *total_count = composition.total;
+        *colony_ships_count = composition.counts[6];
+        *outposts_count = composition.counts[7];
+        *transports_count = composition.counts[8];
+        memcpy(ship_sizes, composition.counts, (SHIP_SIZE_DOOM_STAR + 1) * sizeof(int16_t));
     }
 
     void __cdecl Get_Gate_Icon_XY(int16_t x, int16_t y, int16_t off_x, int16_t off_y, int16_t unused_arg, int16_t* out_x, int16_t* out_y) {
@@ -1275,9 +1252,7 @@ namespace SYS {
             for (int16_t hull_idx = 0; hull_idx < SHIP_SIZE_DOOM_STAR + 1; ++hull_idx) {
                 const int16_t hull_count = hull_counts[hull_idx];
                 if (hull_count > 0) {
-                    const char* hull_name = ship_read::Hull_Name(hull_idx, hull_count != 1);
-
-                    snprintf(line_buffer, sizeof(line_buffer), "%2d %s", static_cast<int32_t>(hull_count), hull_name);
+                    ship_read::Composition_Line(hull_idx, hull_count, line_buffer, sizeof(line_buffer));
                     print_y = static_cast<int16_t>(print_y + static_cast<int16_t>(line_step));
 
                     if (draw_text) {
@@ -1293,11 +1268,7 @@ namespace SYS {
             }
 
             if (group_a_count > 0) {
-                snprintf(
-                    line_buffer,
-                    sizeof(line_buffer),
-                    HAROLD::H_Message(group_a_count == 1 ? 0x164 : 0x165),
-                    static_cast<int32_t>(group_a_count));
+                ship_read::Composition_Line(6, group_a_count, line_buffer, sizeof(line_buffer));
 
                 print_y = static_cast<int16_t>(print_y + static_cast<int16_t>(line_step));
 
@@ -1313,11 +1284,7 @@ namespace SYS {
             }
 
             if (group_b_count > 0) {
-                snprintf(
-                    line_buffer,
-                    sizeof(line_buffer),
-                    HAROLD::H_Message(group_b_count == 1 ? 0x166 : 0x167),
-                    static_cast<int32_t>(group_b_count));
+                ship_read::Composition_Line(7, group_b_count, line_buffer, sizeof(line_buffer));
 
                 print_y = static_cast<int16_t>(print_y + static_cast<int16_t>(line_step));
 
@@ -1333,11 +1300,7 @@ namespace SYS {
             }
 
             if (group_c_count > 0) {
-                snprintf(
-                    line_buffer,
-                    sizeof(line_buffer),
-                    HAROLD::H_Message(group_c_count == 1 ? 0x168 : 0x169),
-                    static_cast<int32_t>(group_c_count));
+                ship_read::Composition_Line(8, group_c_count, line_buffer, sizeof(line_buffer));
 
                 print_y = static_cast<int16_t>(print_y + static_cast<int16_t>(line_step));
 

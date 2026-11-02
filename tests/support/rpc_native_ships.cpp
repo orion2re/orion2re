@@ -9,9 +9,15 @@
 #include "game/string_overrides.h"
 
 #include <chrono>
+#include <algorithm>
+#include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <memory>
+#include <iterator>
+#include <mutex>
+#include <string>
 #include <thread>
 
 namespace test_native_ships {
@@ -25,6 +31,12 @@ namespace test_native_ships {
         std::unique_ptr<game_events::s_colony_queue_scope> staged;
         s_ship_data saved;
         std::filesystem::path resource_root;
+        game_rpc::s_fleet_eta_adapter fleet_adapter;
+        std::unique_ptr<game_events::s_fleet_box_view_scope> fleet_owner;
+        void* fleet_pool = nullptr;
+        void* old_pool = nullptr;
+        bool fleet_active = false;
+        s_star_data fleet_stars[4];
 
         void Load_Resources() {
             resource_root = std::filesystem::temp_directory_path() / ("orion-owned-ships-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
@@ -55,7 +67,7 @@ namespace test_native_ships {
         }
         void Observe(game_events::e_event event, void*) {
             if (!active) return;
-            if ((event == game_events::DESIGNS_REPLACING && game_events::Replaced_Design_Owner() == store->viewer) || event == game_events::SHIP_IDENTITIES_RESETTING) rpc::Expire_Game_Inspection(store);
+            if ((event == game_events::DESIGNS_REPLACING && game_events::Replaced_Design_Owner() == store->viewer) || event == game_events::SHIP_IDENTITIES_RESETTING || event == game_events::STRATEGIC_LABELS_REPLACING) rpc::Expire_Game_Inspection(store);
         }
         bool Read() {
             if (game_events::Colony_Edits_Active() || store->busy_depth != 0) return true;
@@ -67,6 +79,309 @@ namespace test_native_ships {
             if (!game_rpc::Read_Inspection_Observation(&fresh)) return false;
             *map = std::move(fresh);
             return rpc::Capture_Map(store, map);
+        }
+
+        void Message(int16_t id, const char* text) {
+            MOX::h_string_ix[id] = MOX::h_strings.size();
+            MOX::h_strings.insert(MOX::h_strings.end(), text, text + strlen(text) + 1);
+        }
+
+        bool Refresh_Fleets() {
+            if (store->busy_depth != 0) return true;
+            if (MOX::ship == nullptr) {
+                rpc::Expire_Game_Inspection(store);
+                return true;
+            }
+            SHIPS::Build_Ship_Icons();
+            return !fleet_adapter.failed && !store->snapshots.empty() && store->snapshots.back().map.ships_captured;
+        }
+
+        bool Present_Label(int16_t slot, bool frame = true, bool name = true) {
+            struct s_surface {
+                s_font old_font = fonts::font_header;
+                uint8_t* old_data = fonts::font_data;
+                uint8_t* old_page = video::current_video_page;
+                int32_t old_render = platform::g_render_buffer;
+                s_animation_header picture = {};
+                uint8_t glyph[2] = {1, 0x80};
+                std::vector<uint8_t> pixels = std::vector<uint8_t>(640 * 480);
+                s_surface() {
+                    fonts::font_header = {};
+                    for (size_t style = 0; style < std::size(fonts::font_header.font_glyph_widths); ++style) {
+                        fonts::font_header.font_heights[style] = 1;
+                        std::fill(std::begin(fonts::font_header.font_glyph_widths[style]), std::end(fonts::font_header.font_glyph_widths[style]), 1);
+                    }
+                    fonts::font_data = glyph;
+                    video::current_video_page = pixels.data();
+                    platform::g_render_buffer = 1;
+                    MOX::fleet_box.name_seg = &picture;
+                }
+                ~s_surface() {
+                    fonts::font_header = old_font;
+                    fonts::font_data = old_data;
+                    video::current_video_page = old_page;
+                    platform::g_render_buffer = old_render;
+                    MOX::fleet_box.name_seg = nullptr;
+                }
+            } surface;
+            for (int stack = 0; stack < MOX::ship_stack_count; ++stack) {
+                int node = MOX::ship_stack_start[stack];
+                int index = 0;
+                MOX::fleet_ship_scanned = -1;
+                while (node != -1) {
+                    MOX::fleet_movement_icon[index].ship_node_idx = node;
+                    if (MOX::ship_node[node].ship_idx == slot) MOX::fleet_ship_scanned = index;
+                    ++index;
+                    node = MOX::ship_node[node].next_node;
+                }
+                if (MOX::fleet_ship_scanned == -1) continue;
+                if (!name) MOX::fleet_ship_scanned = -1;
+                MOX::fleet_box_ship_stack = stack;
+                MOX::fleet_box.count = index;
+                MOX::moveable_box[2].id = MOX::box_off_flag[2] + 1;
+                MOX::eta_star_id = -1;
+                game_events::s_main_view_input_scope input;
+                if (frame) {
+                    game_events::s_observation_scope draw(game_events::MAIN_SCREEN_FRAME_ENTERED, game_events::MAIN_SCREEN_FRAME_LEAVING);
+                    FLEETPOP::Print_Fleet_Box_Info();
+                } else
+                    FLEETPOP::Print_Fleet_Box_Info();
+                return true;
+            }
+            return false;
+        }
+
+        void Seed_Fleets() {
+            Seed();
+            // Native XY lookup includes the Antares sentinel at NUM_STARS.
+            memcpy(fleet_stars, MOX::star, 3 * sizeof(s_star_data));
+            fleet_stars[3] = {};
+            fleet_stars[3].x = fleet_stars[3].y = 32767;
+            MOX::star = fleet_stars;
+            MOX::NUM_SHIPS = 27;
+            MOX::settings.enemy_moves = 1;
+            MAINSCR::fleet_icon_chosen = -1;
+            MOX::player[0].contact[1] = 1;
+            MOX::player[0].contact[2] = 0;
+            strlcpy(MOX::player[1].race_name, "Contact", sizeof(MOX::player[1].race_name));
+            strlcpy(MOX::player[2].race_name, "Unidentified", sizeof(MOX::player[2].race_name));
+            MOX::player[2].color = 2;
+            for (int i = 0; i < 3; ++i) MOX::star[i].x = i * 30;
+            const char* singular[] = {"Frigate", "Destroyer", "Cruiser", "Battleship", "Titan", "Doom Star"};
+            const char* plural[] = {"Frigates", "Destroyers", "Cruisers", "Battleships", "Titans", "Doom Stars"};
+            for (int i = 0; i < 6; ++i) {
+                TECHDATA::hull_data[i].name = const_cast<char*>(singular[i]);
+                TECHDATA::hull_data[i].size_name = const_cast<char*>(plural[i]);
+            }
+            MOX::race_names[13] = (char*)"Antaran";
+            Message(0x66, "%s Fleet");
+            Message(0x69, "%d turn to %s");
+            Message(0x6a, "%d turns to %s");
+            Message(0x6b, "%d turn");
+            Message(0x6c, "%d turns");
+            Message(0x164, "%d Colony Ship");
+            Message(0x165, "%d Colony Ships");
+            Message(0x166, "%d Outpost Ship");
+            Message(0x167, "%d Outpost Ships");
+            Message(0x168, "%d Transport");
+            Message(0x169, "%d Transports");
+            for (int16_t slot = 10; slot < 27; ++slot) {
+                ships[slot] = ships[0];
+                ships[slot].owner = 1;
+                ships[slot].status = 0;
+                ships[slot].location = 0;
+                ships[slot].x = ships[slot].y = 0;
+                orion2re::lua::game::Advance_Ship_Generation(slot);
+                strlcpy(ships[slot].d.name, "Suppressed", sizeof(ships[slot].d.name));
+            }
+            ships[12].d.ship_type = SHIP_TYPE_TRANSPORT;
+            ships[13].d.ship_type = SHIP_TYPE_COLONY;
+            ships[14].d.ship_type = SHIP_TYPE_OUTPOST;
+            strlcpy(ships[12].d.name, "Convoy", sizeof(ships[12].d.name));
+            ships[15].owner = ships[16].owner = ships[26].owner = 2;
+            ships[15].x = 30;
+            ships[15].location = 1;
+            for (int slot : {16, 26}) {
+                ships[slot].x = 45;
+                ships[slot].location = SHIP_LOCATION_MOVING_OFFSET + 2;
+                ships[slot].status = 1;
+                ships[slot].turns_left = -1;
+            }
+            ships[26].d.ship_type = SHIP_TYPE_TRANSPORT;
+            for (int slot : {17, 18}) {
+                ships[slot].owner = 8;
+                ships[slot].x = 30;
+                ships[slot].location = 1;
+                ships[slot].d.size = slot == 17 ? 1 : 3;
+            }
+            const char* special[] = {"Guardian", "Amoeba", "Crystal", "Dragon", "Eel", "Hydra"};
+            for (int slot = 19; slot < 25; ++slot) {
+                ships[slot].owner = slot - 10;
+                ships[slot].x = 60;
+                ships[slot].location = 2;
+                ships[slot].d.speed = 0;
+                strlcpy(ships[slot].d.name, special[slot - 19], sizeof(ships[slot].d.name));
+            }
+            ships[25].owner = 2;
+            ships[25].status = 1;
+            ships[25].x = 30000;
+            ships[25].location = SHIP_LOCATION_MOVING_OFFSET + 2;
+            ships[8].status = 5;
+        }
+
+        void Wait_For_Output() {
+            if (!output_pending) return;
+            const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(1);
+            while (std::chrono::steady_clock::now() < deadline) {
+                bool drained;
+                {
+                    std::lock_guard lock(store->bridge->mutex);
+                    drained = store->bridge->ready.empty();
+                }
+                if (drained) break;
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
+            {
+                std::lock_guard lock(store->bridge->mutex);
+                if (!store->bridge->ready.empty() || store->bridge->deliveries.empty()) std::abort();
+            }
+            output_pending = false;
+        }
+
+        bool Fleet_Command(const std::string& command) {
+            if (!command.starts_with("fleet-")) return false;
+            if (command == "fleet-native") {
+                active = fleet_active = true;
+                Seed_Fleets();
+                game_events::Unsubscribe(subscription);
+                game_events::Unsubscribe(identities);
+                subscription = identities = 0;
+                old_pool = MOX::global_data_seg;
+                fleet_pool = MOX::global_data_seg = allocate::Allocate_Space(2 << 20);
+                if (!game_rpc::Initialize_Fleet_Eta_Adapter(&fleet_adapter, store)) std::abort();
+                fleet_owner = std::make_unique<game_events::s_fleet_box_view_scope>();
+                fleet_owner->Initialized();
+            } else if (!fleet_active)
+                return false;
+            else if (command == "fleet-large") {
+                for (int16_t slot = 27; slot < 3000; ++slot) {
+                    ships[slot] = ships[10];
+                    orion2re::lua::game::Advance_Ship_Generation(slot);
+                }
+                rpc::s_request request;
+                request.id_json = "99";
+                request.method = "game.getState";
+                request.params_json = "{\"include\":[\"ships\"]}";
+                int low = 300, high = 3000;
+                bool sized = false;
+                while (low <= high) {
+                    MOX::NUM_SHIPS = low + (high - low) / 2;
+                    if (!Refresh_Fleets()) std::abort();
+                    const auto response = rpc::Game_Query(store, &request);
+                    if (response.find("\"result\":") != std::string::npos && response.size() >= 900000 && response.size() < 1048576) {
+                        sized = true;
+                        break;
+                    }
+                    if (response.find("\"result\":") != std::string::npos && response.size() < 900000)
+                        low = MOX::NUM_SHIPS + 1;
+                    else
+                        high = MOX::NUM_SHIPS - 1;
+                }
+                if (!sized) std::abort();
+                return true;
+            } else if (command == "fleet-output")
+                return Command("inspection-output");
+            else if (command == "fleet-label")
+                return Present_Label(12);
+            else if (command == "fleet-special-label")
+                return Present_Label(20);
+            else if (command == "fleet-unframed-label")
+                return Present_Label(12, false);
+            else if (command == "fleet-cached")
+                return Present_Label(16, true, false);
+            else if (command == "fleet-interrupt") {
+                Wait_For_Output();
+                game_events::Publish(game_events::MAIN_VIEW_INPUT_INTERRUPTED);
+                return true;
+            } else if (command == "fleet-exit") {
+                fleet_owner.reset();
+                return true;
+            } else if (command == "fleet-enter") {
+                fleet_owner = std::make_unique<game_events::s_fleet_box_view_scope>();
+                fleet_owner->Initialized();
+            } else if (command == "fleet-partial") {
+                ++MOX::player[0].bc;
+                return Read();
+            } else if (command == "fleet-hidden") {
+                memset(ships[10].d.name, 'X', sizeof(ships[10].d.name));
+                ships[10].crew_experience++;
+                ships[10].d.cost++;
+                ships[10].d.shield_type = -1;
+                ships[25].d.size = -1;
+                MOX::player[1].bc = -999999;
+                // Read at the same native observation point, without rebuilding.
+                rpc::s_map_observation fresh;
+                if (!game_rpc::Read_Refreshed_Ship_Observation(&fresh) || !rpc::Capture_Map(store, &fresh)) std::abort();
+                return true;
+            } else if (command == "fleet-change")
+                ships[11].d.size = 3;
+            else if (command == "fleet-eta-zero")
+                ships[16].turns_left = 0;
+            else if (command == "fleet-depart") {
+                int16_t list[] = {16, 26, -1};
+                for (int slot : {16, 26}) {
+                    ships[slot].status = 0;
+                    ships[slot].location = 1;
+                    ships[slot].x = 30;
+                }
+                s_ship_move_info movement = {};
+                movement.turns_left = 3;
+                movement.traveling_speed = 1;
+                SHIPMOVE::Make_Ships_Move_To(list, 2, &movement);
+            } else if (command == "fleet-special-destination") {
+                for (int slot : {16, 26}) {
+                    ships[slot].status = 1;
+                    ships[slot].location = SHIP_LOCATION_MOVING_OFFSET + MOX::NUM_STARS;
+                    ships[slot].x = 45;
+                }
+            } else if (command == "fleet-retire") {
+                Wait_For_Output();
+                game_events::Publish_Ship_Identity_Changing(10);
+                ships[10].status = 5;
+            } else if (command == "fleet-reuse") {
+                orion2re::lua::game::Advance_Ship_Generation(10);
+                ships[10].status = 0;
+            } else if (command == "fleet-owner") {
+                game_events::Publish_Ship_Identity_Changing(11);
+                ships[11].owner = 0;
+                strlcpy(ships[11].d.name, "Prize Two", sizeof(ships[11].d.name));
+            } else if (command == "fleet-resources") {
+                game_events::Publish(game_events::STRATEGIC_LABELS_REPLACING);
+                return true;
+            } else if (command == "fleet-unavailable") {
+                MOX::ship = nullptr;
+                return Read();
+            } else if (command == "fleet-storage")
+                MOX::ship = ships;
+            else if (command == "fleet-empty") {
+                rpc::Expire_Game_Inspection(store);
+                for (auto& ship : ships) ship.status = 5;
+            } else if (command == "fleet-advance") {
+                rpc::Pause_Game_Queries(store);
+                ++MOX::stardate;
+                return true;
+            } else if (command == "fleet-commit")
+                rpc::Resume_Game_Queries(store);
+            else if (command == "fleet-reset") {
+                rpc::Begin_Game_Reset(store);
+                rpc::Commit_Game_Reset(store);
+            } else if (command == "fleet-switch") {
+                rpc::Revoke_Game_View(store);
+                MOX::PLAYER_NUM = 1;
+            } else if (command != "fleet-refresh")
+                return false;
+            if (!Refresh_Fleets()) std::abort();
+            return true;
         }
     } // namespace
 
@@ -187,6 +502,7 @@ namespace test_native_ships {
     }
 
     bool Command(const std::string& command) {
+        if (command.starts_with("fleet-")) return Fleet_Command(command);
         if (!command.starts_with("inspection-")) return false;
         if (command == "inspection-native") {
             active = true;
@@ -319,6 +635,14 @@ namespace test_native_ships {
     }
 
     void Shutdown() {
+        fleet_owner.reset();
+        if (fleet_adapter.store != nullptr) game_rpc::Shutdown_Fleet_Eta_Adapter(&fleet_adapter);
+        fleet_active = false;
+        if (fleet_pool != nullptr) {
+            free((allocate::s_alloc_header*)fleet_pool - 1);
+            MOX::global_data_seg = old_pool;
+            fleet_pool = nullptr;
+        }
         staged.reset();
         game_events::Unsubscribe(subscription);
         game_events::Unsubscribe(identities);

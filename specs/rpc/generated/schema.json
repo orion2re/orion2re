@@ -1557,6 +1557,25 @@
       ],
       "x-rpc-policy": "contract"
     },
+    "CurrentFleetComposition": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/Current",
+          "x-rpc-policy": "contract"
+        },
+        "value": {
+          "$ref": "#/$defs/FleetComposition",
+          "x-rpc-policy": "contract"
+        }
+      },
+      "required": [
+        "availability",
+        "value"
+      ],
+      "x-rpc-policy": "contract"
+    },
     "CurrentId": {
       "type": "object",
       "additionalProperties": false,
@@ -1823,6 +1842,25 @@
       ],
       "x-rpc-policy": "contract"
     },
+    "CurrentPlayerColor": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/Current",
+          "x-rpc-policy": "contract"
+        },
+        "value": {
+          "$ref": "#/$defs/PlayerColor",
+          "x-rpc-policy": "contract"
+        }
+      },
+      "required": [
+        "availability",
+        "value"
+      ],
+      "x-rpc-policy": "contract"
+    },
     "CurrentPlayerHUD": {
       "type": "object",
       "additionalProperties": false,
@@ -2080,6 +2118,25 @@
         },
         "value": {
           "$ref": "#/$defs/SpyPercent",
+          "x-rpc-policy": "contract"
+        }
+      },
+      "required": [
+        "availability",
+        "value"
+      ],
+      "x-rpc-policy": "contract"
+    },
+    "CurrentStrategicShipRole": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/Current",
+          "x-rpc-policy": "contract"
+        },
+        "value": {
+          "$ref": "#/$defs/StrategicShipRole",
           "x-rpc-policy": "contract"
         }
       },
@@ -2535,43 +2592,97 @@
       "properties": {
         "id": {
           "$ref": "#/$defs/Id",
-          "x-rpc-policy": "owned-fleet-inspection"
+          "x-rpc-policy": "strategic-fleet-presentation"
         },
         "members": {
           "$ref": "#/$defs/FleetMemberIds",
-          "x-rpc-policy": "owned-fleet-inspection"
+          "x-rpc-policy": "strategic-fleet-presentation"
+        },
+        "owned": {
+          "$ref": "#/$defs/Bool",
+          "x-rpc-policy": "strategic-fleet-presentation"
+        },
+        "owner": {
+          "$ref": "#/$defs/KnownId",
+          "x-rpc-policy": "ship-owner-known"
+        },
+        "heading": {
+          "$ref": "#/$defs/KnownText",
+          "x-rpc-policy": "strategic-fleet-presentation"
+        },
+        "composition": {
+          "$ref": "#/$defs/KnownFleetComposition",
+          "x-rpc-policy": "strategic-fleet-presentation"
         },
         "x": {
           "$ref": "#/$defs/Coord",
-          "x-rpc-policy": "owned-fleet-inspection"
+          "x-rpc-policy": "strategic-fleet-presentation"
         },
         "y": {
           "$ref": "#/$defs/Coord",
-          "x-rpc-policy": "owned-fleet-inspection"
+          "x-rpc-policy": "strategic-fleet-presentation"
         },
         "location": {
           "$ref": "#/$defs/KnownId",
-          "x-rpc-policy": "owned-fleet-inspection"
+          "x-rpc-policy": "strategic-fleet-presentation"
         },
         "destination": {
           "$ref": "#/$defs/ShipDestination",
-          "x-rpc-policy": "owned-fleet-inspection"
+          "x-rpc-policy": "ship-map-route"
         },
         "eta": {
           "$ref": "#/$defs/ShipEta",
-          "x-rpc-policy": "owned-fleet-inspection"
+          "x-rpc-policy": "ship-map-eta"
         }
       },
       "required": [
         "id",
         "members",
+        "owned",
+        "owner",
+        "heading",
+        "composition",
         "x",
         "y",
         "location",
         "destination",
         "eta"
       ],
-      "x-rpc-policy": "owned-fleet-inspection"
+      "x-rpc-policy": "strategic-fleet-presentation"
+    },
+    "FleetComposition": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/FleetCompositionRow"
+      },
+      "maxItems": 9
+    },
+    "FleetCompositionRow": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "$ref": "#/$defs/Text",
+          "x-rpc-policy": "strategic-fleet-presentation"
+        },
+        "count": {
+          "$ref": "#/$defs/Count",
+          "x-rpc-policy": "strategic-fleet-presentation"
+        }
+      },
+      "required": [
+        "label",
+        "count"
+      ],
+      "x-rpc-policy": "strategic-fleet-presentation"
+    },
+    "FleetCoverage": {
+      "type": "string",
+      "enum": [
+        "complete",
+        "owned-only",
+        "unavailable"
+      ]
     },
     "FleetMemberIds": {
       "type": "array",
@@ -3134,6 +3245,16 @@
         }
       ]
     },
+    "KnownFleetComposition": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CurrentFleetComposition"
+        },
+        {
+          "$ref": "#/$defs/Unavailable"
+        }
+      ]
+    },
     "KnownId": {
       "oneOf": [
         {
@@ -3281,6 +3402,16 @@
         }
       ]
     },
+    "KnownPlayerColor": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CurrentPlayerColor"
+        },
+        {
+          "$ref": "#/$defs/Unavailable"
+        }
+      ]
+    },
     "KnownPlayerHUD": {
       "oneOf": [
         {
@@ -3408,6 +3539,16 @@
       "oneOf": [
         {
           "$ref": "#/$defs/CurrentSpyPercent"
+        },
+        {
+          "$ref": "#/$defs/Unavailable"
+        }
+      ]
+    },
+    "KnownStrategicShipRole": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CurrentStrategicShipRole"
         },
         {
           "$ref": "#/$defs/Unavailable"
@@ -5387,7 +5528,23 @@
         },
         "name": {
           "$ref": "#/$defs/KnownText",
-          "x-rpc-policy": "ship-own-name"
+          "x-rpc-policy": "strategic-ship-name"
+        },
+        "role": {
+          "$ref": "#/$defs/KnownStrategicShipRole",
+          "x-rpc-policy": "strategic-fleet-presentation"
+        },
+        "type": {
+          "$ref": "#/$defs/KnownText",
+          "x-rpc-policy": "strategic-fleet-presentation"
+        },
+        "banner": {
+          "$ref": "#/$defs/KnownPlayerColor",
+          "x-rpc-policy": "strategic-fleet-presentation"
+        },
+        "location": {
+          "$ref": "#/$defs/KnownId",
+          "x-rpc-policy": "strategic-fleet-presentation"
         },
         "destination": {
           "$ref": "#/$defs/ShipDestination",
@@ -5409,6 +5566,10 @@
         "owned",
         "owner",
         "name",
+        "role",
+        "type",
+        "banner",
+        "location",
         "destination",
         "eta",
         "inspection"
@@ -5826,6 +5987,10 @@
         "captureMode": {
           "$ref": "#/$defs/CaptureMode",
           "x-rpc-policy": "contract"
+        },
+        "fleetCoverage": {
+          "$ref": "#/$defs/FleetCoverage",
+          "x-rpc-policy": "contract"
         }
       },
       "required": [
@@ -5834,7 +5999,8 @@
         "snapshotId",
         "revision",
         "turn",
-        "captureMode"
+        "captureMode",
+        "fleetCoverage"
       ],
       "x-rpc-policy": "contract"
     },
@@ -6006,6 +6172,16 @@
       },
       "maxItems": 15,
       "uniqueItems": true
+    },
+    "StrategicShipRole": {
+      "type": "string",
+      "enum": [
+        "combat",
+        "colony",
+        "transport",
+        "outpost",
+        "special"
+      ]
     },
     "StreamGap": {
       "type": "object",
@@ -10510,6 +10686,83 @@
     }
   },
   "x-rpc-policies": {
+    "strategic-fleet-presentation": {
+      "status": "reviewed",
+      "predicate": "Owned active groups or synchronous surviving native-refresh groups only. Shared Count_Member and Composition_Line preserve SYS hull buckets (upper sizes capped at Doom Star), nonzero rows, singular/plural text, 200-byte buffer, and hull/colony/outpost/transport order. Special owners above 8 retain their native named heading, not an invented histogram or hull. Shared Fleet_Title preserves the fleet-box 80-byte race input, 120-byte title and special uppercase conversion. Per-ship hull labels follow the ordinary/Antaran scanned-label branch; support types are separate localized category labels. Banner is the displayed player color, never an owner slot or a player-record grant. Stationary location resolves only to an independently projected system; moving encodings do not become current locations. Native ordered membership comes only from included ships, never rebuilt IDs. Combat/support UI filters and selection do not restrict ambient collections. Missing resources/coverage are unavailable, not zero or known-empty. No foreign condition/equipment/design/cargo scan or mutable native builder/calculator. Resolve references only within the capture; revoke dependent pages and leased output at refresh, identity, resource/storage and authority boundaries, preserving independent ambient reads.",
+      "sources": [
+        [
+          "src/game/ship_read.cpp",
+          "Count_Member"
+        ],
+        [
+          "src/game/ship_read.cpp",
+          "Composition_Line"
+        ],
+        [
+          "src/game/ship_read.cpp",
+          "Fleet_Title"
+        ],
+        [
+          "src/game/ship_read.cpp",
+          "Scanned_Label"
+        ],
+        [
+          "src/game/sys.cpp",
+          "N_Ships_By_Type_In_Stack"
+        ],
+        [
+          "src/game/sys.cpp",
+          "Do_Print_System_Ship_Data"
+        ],
+        [
+          "src/game/fleetpop.cpp",
+          "Draw_Fleet_Movement_Box"
+        ],
+        [
+          "src/game/flt2.cpp",
+          "Get_Filter_Button_Status"
+        ]
+      ],
+      "tests": [
+        "T-01",
+        "T-02",
+        "T-03",
+        "T-05",
+        "T-07",
+        "T-12",
+        "T-14"
+      ]
+    },
+    "strategic-ship-name": {
+      "status": "reviewed",
+      "predicate": "Ship.name is canonical, never a hull/type/uppercase heading substitute. Owned active names remain ambient. Foreign canonical names require the actual non-preview Print_Fleet_Box_Info scanned-label branch, shared Scanned_Label returning CANONICAL_NAME, initialized active main owner/frame, current exact surviving membership and actual producer result. Ordinary foreign combat/Antaran combat labels are hull labels, not canonical names; their name bytes are not read. Non-owned support/NPC canonical names expire on producer replacement/suppression, box/owner exit, interruption, rebuild, identity/resource/storage loss and world/perspective changes. Restoration requires fresh presentation. Formatter calls and stale globals alone grant nothing. No persistent foreign dossier or tactical scan expansion; no partial label is promoted into a resolvable player/design record.",
+      "sources": [
+        [
+          "src/game/fleetpop.cpp",
+          "Print_Fleet_Box_Info"
+        ],
+        [
+          "src/game/fleetpop.cpp",
+          "Get_Fleetpop_Scanned_Ship_Info"
+        ],
+        [
+          "src/game/ship_read.cpp",
+          "Scanned_Label"
+        ],
+        [
+          "src/game/flt1.cpp",
+          "Fleet_Screen"
+        ]
+      ],
+      "tests": [
+        "T-01",
+        "T-02",
+        "T-03",
+        "T-05",
+        "T-07",
+        "T-12"
+      ]
+    },
     "colony-heading": {
       "status": "reviewed",
       "predicate": "Only the same capture's authorized own full colony. Share the native colony heading's localized specialty/annihilation formatter and 104-byte final buffer, with caller-owned 31-byte native planet-name output instead of the selected-colony/global temp-string buffer. Missing initialized format/name resources is unknown. This heading grants no foreign colony or extra entity record, and carries no invented occupation recommendation, action or forecast.",
@@ -11137,7 +11390,7 @@
     },
     "ships-refreshed": {
       "status": "reviewed",
-      "predicate": "Two independently authorized capture paths for the bound active human outside mutation/resolution/staged colony edits or temporary-player overrides. Ambient owned inspection enumerates only own active status 0..2 records, as the Fleets presentation with both type filters enabled, without invoking its mutable builders. Other ships still require synchronous surviving associations post-Build_Ship_Icons: fresh displayed icon/stack heads and reachable members, never unlinked allocations or later node traversal. An ambient owned capture does not retain or enlarge foreign observations. Copy only authorized position/classification, with separate name/owner/detail/route policies. Fresh contextual fleet-box captures reuse validated surviving associations under ship-map-eta. All selected topics belong to one immutable capture; never enrich older snapshots. Publicly sort before opaque observation handles; no slots, rebuilt stack IDs, durable identity or action capability. Changed public collections replace handle sets; retirement, replacement and storage/authority loss revoke dependent pages and output.",
+      "predicate": "Bound active human outside mutation/resolution/staged colony edits or temporary-player overrides. Ambient owned inspection enumerates only own active status 0..2 records, independent of UI filters. Non-owned ships require synchronous surviving post-Build_Ship_Icons heads and reachable members, never unlinked allocations or later node traversal. Stamp.fleetCoverage is complete for a native mixed refresh/context capture, owned-only for partial owned inspection and unavailable without ship coverage. Empty owned-only is not known-empty non-owned. Prefer one retained authorized complete capture for combined fleet/ship requests; never enrich it with newer owned/empire topics. Contextual capture validates every surviving association and freshly projects all topics and authorized ship fields, never copies old ship DTOs into a newer world. Publicly order authorized projections before opaque observation handles; native slots/nodes/generations are private reuse checks only. Refresh revokes dependent pages/output but equal public projections can retain handles. Retirement/replacement and authority/storage/resource loss revoke dependent observations; no persistent foreign dossier.",
       "sources": [
         [
           "src/game/flt1.cpp",
@@ -11200,7 +11453,7 @@
     },
     "ship-owner-known": {
       "status": "reviewed",
-      "predicate": "Only an independently included own active ship or surviving refresh observation. Own ownership resolves to the bound player's same-capture roster handle. Foreign banner-color mapping requires a unique color in that authorized roster; ambiguous, unlisted and NPC owners remain unaudited. No old handle table/newer roster linking. Discard private owner bindings before retention; compare only public IDs. Ownership grants no foreign names/designs/routes/ETA/cargo/orders/economy.",
+      "predicate": "Only an independently included own active ship or surviving refresh observation. Own ownership resolves to the bound player's same-capture roster handle. Foreign banner-color mapping requires a unique color in that authorized roster; ambiguous, unlisted and NPC references are unknown even when a native heading/banner label is disclosed. No old handle table/newer roster linking. Discard private owner bindings before retention; compare only public IDs. Ownership grants no foreign names/designs/routes/ETA/cargo/orders/economy.",
       "sources": [
         [
           "src/game/ships.cpp",
@@ -12271,7 +12524,7 @@
     "orderedEventsPerSubscription": 4096,
     "overflow": "Reject before admission; coalesce only complete unsent state. Ordered-event overflow signals a gap or disconnect. Never rewrite partial output or silently discard operation results."
   },
-  "x-rpc-sourceHash": "b3ab39191bf4af3176e1ed3a04ab3ad906524e01a7704208ea20023b8d386c0f",
+  "x-rpc-sourceHash": "ce205b465516387444d6a600bb47ba46d64da46e657c8e2c190603f81556d73c",
   "x-rpc-runtimeEnabled": false,
   "x-rpc-implementedMethods": [
     "rpc.hello",

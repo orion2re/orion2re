@@ -214,6 +214,34 @@ come from normal native capture, not older fixture DTOs. Evidence is synthetic;
 interactive saved-game/multiplayer, real mod/language assets and platform parity
 remain separate gates.
 
+## Unified strategic fleet-awareness dashboard
+
+Use the owned fleet dashboard's authentication, discovery and subscription flow
+above. The existing ship/fleet methods also return surviving authorized non-owned
+groups: contacted empires, unidentified observations, support ships and native
+special/NPC cases. Native composition rows, separate hull/type labels and banners,
+membership, authorized location/owner references and cached movement information
+support one client-local fleet overview. Non-owned does not mean hostile.
+
+Check `stamp.fleetCoverage`: `complete`, partial `owned-only`, or `unavailable`.
+A mixed dashboard selects one coherent retained capture across all requested
+topics; newer owned/empire data is never spliced into it. A partial empty list is
+not a known-empty non-owned observation collection. Preserve each pinned page's
+stamp and reread the same topics after `state.changed`.
+
+`Ship.name` stays canonical. Foreign combat hull labels do not authorize names;
+support/NPC canonical names require actual initialized fleet-box presentation and
+expire on replacement/exit/interruption. Ambient composition needs no navigation.
+See [strategic fleet semantics](strategic_fleet_view.md) for native variants,
+precision, coverage, grouping/reference lifetime and unavailable states.
+
+The `test_native_strategic_fleet_*` live WebSocket workflows use native adapters
+and accompanying empire topics, including backpressured output revocation.
+Evidence is synthetic native-function/live-transport, not interactive saves,
+multiplayer, real mod/language assets or platform parity. Foreign design/scan
+expansion, options, actions and durable identity remain excluded; broader
+Q-06/Q-07/Q-08/Q-10 and P1 remain partial.
+
 ## Own research reads
 
 `game.getResearch` reports the current field (`project`), selected `application`,
@@ -481,6 +509,7 @@ constraints, not per-increment narratives or repeated test counts:
 - [Exploration](exploration_view.md), [players](player_view.md),
   [own colonies](colony_view.md), [ship observations](ship_refresh.md),
   [owned fleet/ship/design inspection](owned_fleet_view.md).
+- [Unified strategic fleet awareness](strategic_fleet_view.md).
 - [Read ownership](read_foundation.md), [backend constraints](p1.md),
   [native lifecycle audit](lifecycle.md), [remaining gates](evidence.md).
 - [Client-side incoming-threat example](incoming_threats.md).
@@ -581,7 +610,7 @@ The canonical source bundle is `methods.json`, `contracts.json` and
   errors, ownership/permission/lifecycle metadata, field policies and units.
 - `generated/reference.md`: human-readable reference rendered **only from the
   serialized schema**, not another list of methods or source DTOs.
-- `src/rpc/generated/rpc_contract_data.inc`: C++ descriptors, limits, fixed errors
+- `src/rpc/generated/rpc_contract_data.cpp` and `.h`: C++ descriptors, limits, fixed errors
   and parameter type data used by the optional runtime.
 
 The outputs are versioned, carry their canonical source notice and source-bundle

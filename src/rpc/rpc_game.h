@@ -126,6 +126,12 @@ namespace rpc {
         bool operator==(const s_ship_inspection&) const = default;
     };
 
+    struct s_fleet_composition {
+        std::string label;
+        int32_t count = 0;
+        bool operator==(const s_fleet_composition&) const = default;
+    };
+
     struct s_fleet_observation {
         int16_t x = 0, y = 0;
         std::vector<int32_t> slots; // Private ordered member bindings, discarded before retention.
@@ -135,6 +141,12 @@ namespace rpc {
         std::string destination_id;
         e_ship_knowledge eta_available = SHIP_UNKNOWN;
         int32_t eta = 0;
+        bool owned = false;
+        std::string owner_id;
+        bool heading_available = false;
+        std::string heading;
+        bool composition_available = false;
+        std::vector<s_fleet_composition> composition;
         bool operator==(const s_fleet_observation&) const = default;
     };
 
@@ -142,7 +154,7 @@ namespace rpc {
         int16_t x = 0;
         int16_t y = 0;
         bool owned = false;
-        // Own name only; foreign names are not read.
+        // Foreign canonical names require an actual scoped native name producer.
         std::string name;
         // Private authorized-parent binding, discarded before retention.
         int32_t owner_slot = -1;
@@ -155,6 +167,13 @@ namespace rpc {
         int32_t eta = 0;
         int32_t slot = -1; // Private same-capture leader binding, discarded before retention.
         s_ship_inspection inspection;
+        e_ship_knowledge name_available = SHIP_UNAUDITED;
+        std::string role;
+        std::string type;
+        bool type_available = false;
+        int32_t banner = -1;
+        int32_t system = -1;
+        std::string system_id;
     };
 
     struct s_player_hud {
@@ -387,6 +406,7 @@ namespace rpc {
         std::vector<s_fleet_observation> fleets;
         std::vector<s_design_observation> designs;
         std::vector<std::pair<int32_t, uint64_t>> owned_authority; // Private retirement/reuse checks, never public equality or ordering.
+        std::vector<std::pair<int32_t, uint64_t>> observed_authority;
         bool players_captured = false;
         std::vector<s_player_observation> players;
         bool colonies_captured = false;
@@ -501,6 +521,7 @@ namespace rpc {
     void Expire_Game_Messages(s_game_store* store);
     void Expire_Game_Colonies(s_game_store* store);
     void Expire_Game_Inspection(s_game_store* store);
+    void Expire_Game_Observations(s_game_store* store, bool retire = true);
     void Resume_Game_Queries(s_game_store* store);
     bool Capture_Map(s_game_store* store, const s_map_observation* observation);
     std::string Game_Query(s_game_store* store, const s_request* request, uint64_t* context_epoch = nullptr);

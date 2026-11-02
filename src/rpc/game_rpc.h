@@ -41,6 +41,8 @@ namespace game_rpc {
         int16_t route_destination = -1;
         int16_t authorized_head = -1;
         int16_t pending_head = -1;
+        int16_t authorized_label = -1;
+        int16_t pending_label = -1;
         std::vector<s_ship_association> associations;
         rpc::s_map_observation pending;
     };

@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "string_overrides.h"
+#include "game_events.h"
 
 #include "config/config_runtime.h"
 #include "game/config_refresh.h"
@@ -52,6 +53,7 @@ namespace TECHINIT {
     }
 
     void __cdecl Load_Tech_Names() {
+        game_events::Publish(game_events::STRATEGIC_LABELS_REPLACING);
         LOADER::Load_Player_Special_Names();
         RUSS::Mox_Update();
 

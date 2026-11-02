@@ -67,7 +67,10 @@ class SidecarArchitectureTests(unittest.TestCase):
         self.assertIn("game_events::FLEET_BOX_INFO_CLEARED", producer)
         self.assertIn("MOX::eta_star_id == -1 && (info_type == 2 || info_type == 3)", producer)
         self.assertLess(producer.index("Get_Absolute_Location_Scan_Info("),
-                        producer.index("Publish_Fleet_Box_Info("))
+                        producer.index("Publish_Box_Result("))
+        publication = native[native.index("static void Publish_Box_Result("):start]
+        self.assertIn("game_events::Publish_Fleet_Box_Info(&observation)", publication)
+        self.assertIn("member_count == MOX::fleet_box.count", publication)
         self.assertIn("MOX::fleet_movement_icon[0].ship_node_idx", producer)
         self.assertIn("game_events::s_fleet_box_view_scope", (ROOT / "src/game/mainscr_main.cpp").read_text())
         for path, function in (("fleetpop.cpp", "Fleet_Box_Data(int16_t ship_count)"),
@@ -82,12 +85,18 @@ class SidecarArchitectureTests(unittest.TestCase):
         callback = adapter[adapter.index("static void Observe_Fleet_Info("):
                            adapter.index("static void Observe_Ship_Identity(")]
         self.assertNotIn("MOX::ship_node", callback)
-        self.assertIn("Read_Inspection_Observation(&captured)", callback)
+        self.assertIn("Read_Associated_Observation(adapter, &captured)", callback)
+        associated = adapter[adapter.index("static bool Read_Associated_Observation("):
+                             adapter.index("static void Observe_Fleet_Info(")]
+        self.assertNotIn("MOX::ship_node", associated)
+        self.assertIn("Read_Inspection_Observation(captured)", associated)
+        self.assertIn("ships_rpc::Read_Strategic_Ship(captured->viewer", associated)
+        self.assertNotIn("push_back(item.ship)", associated)
         capture = adapter[adapter.index("bool Read_Inspection_Observation("):
                           adapter.index("bool Capture_Leader_View(")]
         self.assertIn("Read_Map_Observation(observation)", capture)
         self.assertIn("ships_rpc::Read_Owned_Inspection(observation)", capture)
-        self.assertIn("Ship_Generation(item.slot)", callback)
+        self.assertIn("Ship_Generation(item.slot)", associated)
         self.assertNotRegex(adapter, r"MOX::(?:fleet_ship_scanned|fleet_box_ship_stack|eta_star_id|g_ship_move_info)")
 
     def test_colony_capture_does_not_build_lists_or_recalculate_population_economy(self):

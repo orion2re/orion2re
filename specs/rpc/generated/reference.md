@@ -9,7 +9,7 @@ This document is rendered from `schema.json`, not a second method catalog.
 The root schema validates acknowledged client requests; per-method success responses and server notifications have separate definitions.
 All fields are non-null unless explicitly stated. Unknown keys are rejected. UTF-8 byte limits, lexical integer tokens, duplicate keys, depth and authorization need the protocol guards in addition to standard JSON Schema validation.
 
-Source bundle SHA-256: `b3ab39191bf4af3176e1ed3a04ab3ad906524e01a7704208ea20023b8d386c0f`.
+Source bundle SHA-256: `ce205b465516387444d6a600bb47ba46d64da46e657c8e2c190603f81556d73c`.
 
 ## Methods
 
@@ -584,6 +584,13 @@ Values: `current`.
 | availability | Current | yes | contract |
 | value | ExploredIds | yes | contract |
 
+### CurrentFleetComposition
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| availability | Current | yes | contract |
+| value | FleetComposition | yes | contract |
+
 ### CurrentId
 
 | Field | Type | Required | Policy |
@@ -682,6 +689,13 @@ Values: `current`.
 | availability | Current | yes | contract |
 | value | PlanetSpecial | yes | contract |
 
+### CurrentPlayerColor
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| availability | Current | yes | contract |
+| value | PlayerColor | yes | contract |
+
 ### CurrentPlayerHUD
 
 | Field | Type | Required | Policy |
@@ -779,6 +793,13 @@ Values: `current`.
 | --- | --- | --- | --- |
 | availability | Current | yes | contract |
 | value | SpyPercent | yes | contract |
+
+### CurrentStrategicShipRole
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| availability | Current | yes | contract |
+| value | StrategicShipRole | yes | contract |
 
 ### CurrentText
 
@@ -950,13 +971,32 @@ Array of `Id`; 0..5 items; unique: true.
 
 | Field | Type | Required | Policy |
 | --- | --- | --- | --- |
-| id | Id | yes | owned-fleet-inspection |
-| members | FleetMemberIds | yes | owned-fleet-inspection |
-| x | Coord | yes | owned-fleet-inspection |
-| y | Coord | yes | owned-fleet-inspection |
-| location | KnownId | yes | owned-fleet-inspection |
-| destination | ShipDestination | yes | owned-fleet-inspection |
-| eta | ShipEta | yes | owned-fleet-inspection |
+| id | Id | yes | strategic-fleet-presentation |
+| members | FleetMemberIds | yes | strategic-fleet-presentation |
+| owned | Bool | yes | strategic-fleet-presentation |
+| owner | KnownId | yes | ship-owner-known |
+| heading | KnownText | yes | strategic-fleet-presentation |
+| composition | KnownFleetComposition | yes | strategic-fleet-presentation |
+| x | Coord | yes | strategic-fleet-presentation |
+| y | Coord | yes | strategic-fleet-presentation |
+| location | KnownId | yes | strategic-fleet-presentation |
+| destination | ShipDestination | yes | ship-map-route |
+| eta | ShipEta | yes | ship-map-eta |
+
+### FleetComposition
+
+Array of `FleetCompositionRow`; 0..9 items; unique: false.
+
+### FleetCompositionRow
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| label | Text | yes | strategic-fleet-presentation |
+| count | Count | yes | strategic-fleet-presentation |
+
+### FleetCoverage
+
+Values: `complete`, `owned-only`, `unavailable`.
 
 ### FleetMemberIds
 
@@ -1193,6 +1233,10 @@ Values: `known-empty`.
 
 Exactly one of: CurrentExploredIds, Unavailable.
 
+### KnownFleetComposition
+
+Exactly one of: CurrentFleetComposition, Unavailable.
+
 ### KnownId
 
 Exactly one of: CurrentId, Unavailable.
@@ -1240,6 +1284,10 @@ Exactly one of: CurrentPlanetSize, EmptyKnowledge, Unavailable.
 ### KnownPlanetSpecial
 
 Exactly one of: CurrentPlanetSpecial, EmptyKnowledge, Unavailable.
+
+### KnownPlayerColor
+
+Exactly one of: CurrentPlayerColor, Unavailable.
 
 ### KnownPlayerHUD
 
@@ -1292,6 +1340,10 @@ Exactly one of: CurrentSpyMission, Unavailable.
 ### KnownSpyPercent
 
 Exactly one of: CurrentSpyPercent, Unavailable.
+
+### KnownStrategicShipRole
+
+Exactly one of: CurrentStrategicShipRole, Unavailable.
 
 ### KnownText
 
@@ -2024,7 +2076,11 @@ Values: `menu`, `committed`, `resolving`, `revoked`, `ending`, `unavailable`.
 | y | Coord | yes | ships-refreshed |
 | owned | Bool | yes | ships-refreshed |
 | owner | KnownId | yes | ship-owner-known |
-| name | KnownText | yes | ship-own-name |
+| name | KnownText | yes | strategic-ship-name |
+| role | KnownStrategicShipRole | yes | strategic-fleet-presentation |
+| type | KnownText | yes | strategic-fleet-presentation |
+| banner | KnownPlayerColor | yes | strategic-fleet-presentation |
+| location | KnownId | yes | strategic-fleet-presentation |
 | destination | ShipDestination | yes | ship-map-route |
 | eta | ShipEta | yes | ship-map-eta |
 | inspection | KnownShipInspection | yes | owned-ship-inspection |
@@ -2202,6 +2258,7 @@ Constraints: `{"maximum": 32767, "minimum": -32768, "type": "integer", "x-intege
 | revision | Counter | yes | contract |
 | turn | Turn | yes | contract |
 | captureMode | CaptureMode | yes | contract |
+| fleetCoverage | FleetCoverage | yes | contract |
 
 ### StarSize
 
@@ -2256,6 +2313,10 @@ Values: `session`, `systems`, `nebulas`, `ships`, `fleets`, `designs`, `players`
 ### StateTopics
 
 Array of `StateTopic`; 0..15 items; unique: true.
+
+### StrategicShipRole
+
+Values: `combat`, `colony`, `transport`, `outpost`, `special`.
 
 ### StreamGap
 
@@ -2480,6 +2541,8 @@ Reviewed means static evidence, not runtime visibility approval.
 
 | Policy | Status | Predicate | Native sources | Planned tests |
 | --- | --- | --- | --- | --- |
+| strategic-fleet-presentation | reviewed | Owned active groups or synchronous surviving native-refresh groups only. Shared Count_Member and Composition_Line preserve SYS hull buckets (upper sizes capped at Doom Star), nonzero rows, singular/plural text, 200-byte buffer, and hull/colony/outpost/transport order. Special owners above 8 retain their native named heading, not an invented histogram or hull. Shared Fleet_Title preserves the fleet-box 80-byte race input, 120-byte title and special uppercase conversion. Per-ship hull labels follow the ordinary/Antaran scanned-label branch; support types are separate localized category labels. Banner is the displayed player color, never an owner slot or a player-record grant. Stationary location resolves only to an independently projected system; moving encodings do not become current locations. Native ordered membership comes only from included ships, never rebuilt IDs. Combat/support UI filters and selection do not restrict ambient collections. Missing resources/coverage are unavailable, not zero or known-empty. No foreign condition/equipment/design/cargo scan or mutable native builder/calculator. Resolve references only within the capture; revoke dependent pages and leased output at refresh, identity, resource/storage and authority boundaries, preserving independent ambient reads. | src/game/ship_read.cpp: Count_Member; src/game/ship_read.cpp: Composition_Line; src/game/ship_read.cpp: Fleet_Title; src/game/ship_read.cpp: Scanned_Label; src/game/sys.cpp: N_Ships_By_Type_In_Stack; src/game/sys.cpp: Do_Print_System_Ship_Data; src/game/fleetpop.cpp: Draw_Fleet_Movement_Box; src/game/flt2.cpp: Get_Filter_Button_Status | T-01, T-02, T-03, T-05, T-07, T-12, T-14 |
+| strategic-ship-name | reviewed | Ship.name is canonical, never a hull/type/uppercase heading substitute. Owned active names remain ambient. Foreign canonical names require the actual non-preview Print_Fleet_Box_Info scanned-label branch, shared Scanned_Label returning CANONICAL_NAME, initialized active main owner/frame, current exact surviving membership and actual producer result. Ordinary foreign combat/Antaran combat labels are hull labels, not canonical names; their name bytes are not read. Non-owned support/NPC canonical names expire on producer replacement/suppression, box/owner exit, interruption, rebuild, identity/resource/storage loss and world/perspective changes. Restoration requires fresh presentation. Formatter calls and stale globals alone grant nothing. No persistent foreign dossier or tactical scan expansion; no partial label is promoted into a resolvable player/design record. | src/game/fleetpop.cpp: Print_Fleet_Box_Info; src/game/fleetpop.cpp: Get_Fleetpop_Scanned_Ship_Info; src/game/ship_read.cpp: Scanned_Label; src/game/flt1.cpp: Fleet_Screen | T-01, T-02, T-03, T-05, T-07, T-12 |
 | colony-heading | reviewed | Only the same capture&#x27;s authorized own full colony. Share the native colony heading&#x27;s localized specialty/annihilation formatter and 104-byte final buffer, with caller-owned 31-byte native planet-name output instead of the selected-colony/global temp-string buffer. Missing initialized format/name resources is unknown. This heading grants no foreign colony or extra entity record, and carries no invented occupation recommendation, action or forecast. | src/game/colony_main.cpp: Draw_Info_Name_And_Pop; src/game/colony_read.cpp: Heading; src/game/haccess.cpp: Do_Get_Planet_Name; src/game/colony.cpp: Colony_Type | T-01, T-02, T-03, T-05 |
 | colony-garrison | reviewed | Bound viewer&#x27;s own full colony only, after parent-link/population validation and authorized own leader inputs. Share the normal troop popup&#x27;s pure Compute_Colony_Ground_Combat_Info with include_rebels=false, using caller-owned output. Its helpers read own technology/traits and present armor, infantry and population militia counts, signed native strength and the popup&#x27;s uint8 HP conversion. Player_Troop_Name preserves tank/battloid and ordinary/powered infantry labels even for zero-count rows. No opponent argument, rebellion result, simulated battle, casualty/RNG path, foreign treasury, strength forecast or newly resolvable technology/leader/design record. Missing/stale leader inputs make this block unknown while cached military counts remain available. These rows describe native current presentation, not permission to produce or deploy a unit. | src/game/newpup.cpp: Draw_Troop_Popup_With_Read; src/game/newpup.cpp: Print_Troop_Totals; src/game/invasion.cpp: Compute_Colony_Ground_Combat_Info; src/game/invasion.cpp: Compute_Ground_Combat_Info; src/game/invasion.cpp: Colony_N_Militia; src/game/colony.cpp: Player_Troop_Name | T-01, T-02, T-03, T-05, T-07 |
 | contract | contract | Only copied protocol metadata or already authorized projected values; never read native memory here. |  | T-01, T-05, T-07, T-11 |
@@ -2505,9 +2568,9 @@ Reviewed means static evidence, not runtime visibility approval.
 | colonies-own | reviewed | This list is explicitly the bound active human viewer&#x27;s own full-colony roster, following native Colonies/transport lists: owner equals viewer and outpost_flag is zero. Foreign intelligence and outposts are not included. Filter before reading links/population, sorting, counts, handles, revisions or notifications. At the same map/roster capture, copy a validated system reference and one-based orbital position and cached n_pops resident population (0..42 whole displayed population units, not thousandths, growth or inbound settlers). Validate planet/star/colony backlinks and uniqueness. Resolve system/owner through the same capture; discard private bindings before retention. No UI list builder, Sum_Colonists, forecast or economic calculator is called. Opaque read-only observation handles are replaced on authorized collection changes, not durable colony identities/action capabilities. Known-empty refers to this own-full-colony scope, not to foreign intelligence. | src/game/colxport.cpp: Build_Global_Colony_List; src/game/colxport.cpp: N_Colonies; src/game/colsum.cpp: Draw_Colony_Scan_Info; src/game/colony.cpp: Set_Colony_Globals | T-01, T-02, T-03, T-05 |
 | colony-own-troops | reviewed | Only the bound active human viewer&#x27;s own full colonies after owner/outpost authorization and parent-link validation. Copy existing military[0] infantry and military[1] armor counts, 0..32767 native int16 units, including known zero. Print_Scanned_Military displays these exact counts; Do_Colony_Info_Military_Stuff_For draws the units or the exact compressed count. Armor covers the native tank/battloid presentation, not a newly inferred unit design. Do not add population militia, inbound troops, troop strength, growth/roundoff, future production, weapon/armor technology or foreign/outpost intelligence. No troop popup, UI builder, invasion limit or combat calculator is invoked. Same immutable map/ship/roster/colony capture as population; hidden-only counts do not affect handles, revisions or notifications. | src/game/colony.cpp: Print_Scanned_Military; src/game/colony_main.cpp: Do_Colony_Info_Military_Stuff_For; src/game/colcalc.cpp: colony-&gt;military[0]; src/game/colcalc.cpp: colony-&gt;military[1] | T-01, T-02, T-03, T-05 |
 | colony-operations | reviewed | Own full colonies only through shared Own_Full_Colony, before detail reads, validation, counts or equality. Shared native population/product/autobuild labels, presence and satellite redundancy, resource icon-group arithmetic and morale icon rounding/suppression/cap; native job/species/localized unit text, event priority and labels, inbound-settler count, current product cost, stored/bought production, cached-industry turn count and own-only buy predicate. Seven committed queue slots retain none/repeat/refit variants and labels, not design/ship entity grants. Unknown variants/storage/resources are explicit unknown, not no production or empty workforce. No foreign treasury, population recalculation, economic refresh, UI list construction, staged queue/refit design, transfer verdict/ETA, RNG or report consumption. Native edit staging blocks fresh ambient capture; retained combined captures stay dated and are never enriched. Initialized settled colony decision points publish coherent ambient data. Recipient-scoped pre-replacement invalidation revokes dependent colony/planet pages, references and queued leased output before authority/storage mutation, preserving other ambient reads. Resolve species-player links only through the same capture&#x27;s existing roster; a species/product label grants no additional entity. Outposts and foreign colony intelligence remain excluded. | src/game/colony_read.cpp: namespace colony_read; src/game/coldraw.cpp: Resource_Row; src/game/coldraw.cpp: Morale_Icons; src/game/colmove.cpp: Colony_Pop_String; src/game/colcalc.cpp: Colony_Product_Cost; src/game/colcalc.cpp: Colony_N_Turns_To_Produce; src/game/colcalc_base.cpp: Production_Cost_To_Buy; src/game/events.cpp: Colony_Has_Event; src/game/colsum.cpp: Draw_Colony_Scan_Info; src/game/game_events.cpp: Colony_Edits_Active | T-01, T-02, T-03, T-04, T-05, T-06, T-07, T-12 |
-| ships-refreshed | reviewed | Two independently authorized capture paths for the bound active human outside mutation/resolution/staged colony edits or temporary-player overrides. Ambient owned inspection enumerates only own active status 0..2 records, as the Fleets presentation with both type filters enabled, without invoking its mutable builders. Other ships still require synchronous surviving associations post-Build_Ship_Icons: fresh displayed icon/stack heads and reachable members, never unlinked allocations or later node traversal. An ambient owned capture does not retain or enlarge foreign observations. Copy only authorized position/classification, with separate name/owner/detail/route policies. Fresh contextual fleet-box captures reuse validated surviving associations under ship-map-eta. All selected topics belong to one immutable capture; never enrich older snapshots. Publicly sort before opaque observation handles; no slots, rebuilt stack IDs, durable identity or action capability. Changed public collections replace handle sets; retirement, replacement and storage/authority loss revoke dependent pages and output. | src/game/flt1.cpp: Fleet_Screen; src/game/flt2.cpp: Build_Fltscrn_Big_Icon_Fields; src/game/ships.cpp: Build_Ship_Icons; src/game/shipstak.cpp: Find_Ship_Stacks; src/game/shipstak.cpp: Remove_Non_Detected_Ships; src/game/haccess.cpp: Ship_Stack_X; src/game/haccess.cpp: Ship_Stack_Y; src/game/haccess.cpp: Ship_Stack_Owner | T-01, T-02, T-05, T-07 |
+| ships-refreshed | reviewed | Bound active human outside mutation/resolution/staged colony edits or temporary-player overrides. Ambient owned inspection enumerates only own active status 0..2 records, independent of UI filters. Non-owned ships require synchronous surviving post-Build_Ship_Icons heads and reachable members, never unlinked allocations or later node traversal. Stamp.fleetCoverage is complete for a native mixed refresh/context capture, owned-only for partial owned inspection and unavailable without ship coverage. Empty owned-only is not known-empty non-owned. Prefer one retained authorized complete capture for combined fleet/ship requests; never enrich it with newer owned/empire topics. Contextual capture validates every surviving association and freshly projects all topics and authorized ship fields, never copies old ship DTOs into a newer world. Publicly order authorized projections before opaque observation handles; native slots/nodes/generations are private reuse checks only. Refresh revokes dependent pages/output but equal public projections can retain handles. Retirement/replacement and authority/storage/resource loss revoke dependent observations; no persistent foreign dossier. | src/game/flt1.cpp: Fleet_Screen; src/game/flt2.cpp: Build_Fltscrn_Big_Icon_Fields; src/game/ships.cpp: Build_Ship_Icons; src/game/shipstak.cpp: Find_Ship_Stacks; src/game/shipstak.cpp: Remove_Non_Detected_Ships; src/game/haccess.cpp: Ship_Stack_X; src/game/haccess.cpp: Ship_Stack_Y; src/game/haccess.cpp: Ship_Stack_Owner | T-01, T-02, T-05, T-07 |
 | ship-own-name | reviewed | Ship.name is the canonical in-game name, never a hull/type label or a new displayName. Only an independently included active owned ship: bounded NUL-terminated d.name decoded from CP850 in the same ambient/refresh/context capture. Foreign name bytes are never read; a disclosed hull label does not authorize a canonical foreign name. Queue/refit labels have their independent Design projection, not phantom map-positioned Ship records. | src/game/fleetpop.cpp: Get_Fleetpop_Scanned_Ship_Info; src/game/flt2.cpp: Print_Scanned_Ship_Data | T-01, T-02, T-03 |
-| ship-owner-known | reviewed | Only an independently included own active ship or surviving refresh observation. Own ownership resolves to the bound player&#x27;s same-capture roster handle. Foreign banner-color mapping requires a unique color in that authorized roster; ambiguous, unlisted and NPC owners remain unaudited. No old handle table/newer roster linking. Discard private owner bindings before retention; compare only public IDs. Ownership grants no foreign names/designs/routes/ETA/cargo/orders/economy. | src/game/ships.cpp: Get_Ship_Icon_Pict_Seg; src/game/ships.cpp: Build_Ship_Icons; src/game/racescrn.cpp: Draw_Race_Photos; src/game/flt1.cpp: Fleet_Screen | T-01, T-02, T-05 |
+| ship-owner-known | reviewed | Only an independently included own active ship or surviving refresh observation. Own ownership resolves to the bound player&#x27;s same-capture roster handle. Foreign banner-color mapping requires a unique color in that authorized roster; ambiguous, unlisted and NPC references are unknown even when a native heading/banner label is disclosed. No old handle table/newer roster linking. Discard private owner bindings before retention; compare only public IDs. Ownership grants no foreign names/designs/routes/ETA/cargo/orders/economy. | src/game/ships.cpp: Get_Ship_Icon_Pict_Seg; src/game/ships.cpp: Build_Ship_Icons; src/game/racescrn.cpp: Draw_Race_Photos; src/game/flt1.cpp: Fleet_Screen | T-01, T-02, T-05 |
 | ship-map-route | reviewed | Owned active groups use the unconditional own-route branch of Do_Ship_Destination_Lines in coherent ambient inspection or refresh captures. Other ambient routes still require surviving refresh associations and a non-own moving head with enemy_moves or Enemy_Ship_Heading_Toward_Our_Colony; preserve its non-own (not hostile) meaning and the outpost predicate&#x27;s ignored player argument. Members share only validated grouping location/owner/position. Contextual non-own destination requires an actual selected/open-box route line in the same initialized main-owner frame before its actual non-preview fleet-box cached producer. Require status-2 upper-offset departure or status-1 lower-offset transit; reject mixed encodings. Open box, selection, copied destination and map-icon ETA alone are not grants. Validate exact head and complete membership under ship-map-eta. Resolve only real same-capture systems, not unvisited names or special/Antares destinations. Producer star -1 withholds the name, not drawn position and not known-empty. Stationary own routes are known-empty. Revoke contextual route and ETA together through pages, subscriptions, bridge and every output fragment; preserve independent ambient data. Detection, contact and omniscience alone never authorize routes. No query invokes builders, renderers or movement calculation. | src/game/ships.cpp: Do_Ship_Destination_Lines; src/game/ships.cpp: Enemy_Ship_Heading_Toward_Our_Colony; src/game/harold.cpp: Absolute_Location; src/game/harold.cpp: Player_Has_Outpost; src/game/shipstak.cpp: Find_Ship_Stacks; src/game/mainscr_main.cpp: Draw_Main_Screen; src/game/fleetpop.cpp: Print_Fleet_Box_Info; src/game/shipmove.cpp: Make_Ships_Move_To; src/game/shipmove.cpp: Move_All_Ships_Toward_Stars | T-01, T-02, T-05, T-07, T-12 |
 | ship-map-eta | reviewed | Preserve cached uint8 turns_left, including zero/255, only with a current same-capture destination; never calculate ETA. Ambient lower-encoding ETA belongs to the native ordered group head: shared Member_Order for owned inspection, surviving displayed head for other refresh observations. Members do not inherit it. Upper-encoding ETA remains contextual: actual non-preview fleet-box producer for a surviving own/non-own head with independent ambient destination, or the contextual departing/transit head authorized by ship-map-route. Require initialized active main owner/presentation, exact complete current open-box membership and no stale selected references; empty selection is valid. Recheck foreign enemy_moves/incoming-colony/outpost gates; a newly enabled gate cannot promote an old association. Contextual destination needs actual same-frame route drawing, not map-icon ETA. Associations are captured only at refresh; private generation/owner/location/status/position checks reject retirement and slot/node reuse without later node traversal or foreign-name fingerprints. Publish a fresh immutable capture of all selected topics including session, never enrich older captures. Revoke route/ETA together on owner/box exit or replacement, interruption, rebuild, storage/identity/world/perspective loss and resolution, through retained/pinned captures, pending baselines, bridge and every output fragment. Started revoked output closes; independently authorized ambient reads remain. Equal re-presentation may retain public handles/revision but never revive expired pages. Other moving non-head/upper ETA is context-required, stationary own ETA known-empty, special destinations get no fabricated handles. No extra foreign names/designs/cargo/orders or hostility inference. | src/game/ships.cpp: Do_Ship_Destination_Lines; src/game/ships.cpp: Enemy_Ship_Heading_Toward_Our_Colony; src/game/harold.cpp: Player_Has_Outpost; src/game/ships.cpp: Print_Eta_On_Ship_Icon; src/game/fleetpop.cpp: Draw_Fleet_Movement_Box; src/game/fleetpop.cpp: Print_Fleet_Box_Info; src/game/fleetpop.cpp: Get_Absolute_Location_Scan_Info; src/game/mainscr_main.cpp: Main_Screen; src/game/mainscr_main.cpp: Draw_Main_Screen; src/game/fields.cpp: Check_Help_List; src/game/shipmove.cpp: Advance_Ship_Generation; src/game/shipmove.cpp: Make_Ships_Move_To; src/game/shipmove.cpp: Move_All_Ships_Toward_Stars; src/game/ship_read.cpp: Member_Order | T-01, T-02, T-05, T-07, T-12 |
 | disabled-ship | disabled | Unmapped/special owner identities and enemy canonical names/scan details require independent native authorization and initialized-context visibility tests. A hull-class label is not the canonical ship name. Surviving detection or known ownership does not authorize raw location, cargo, orders or enemy design data. No scanner-policy extraction is needed for the post-refresh projection. | src/game/fleetpop.cpp: Get_Fleetpop_Scanned_Ship_Info | T-01, T-02 |

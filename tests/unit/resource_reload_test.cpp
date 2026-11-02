@@ -6,8 +6,10 @@
 #include "config/config_loader.h"
 #include "game/savegame.h"
 #include "game/ship_read.h"
+#include "game/game_events.h"
 
 #include <chrono>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <vector>
@@ -277,6 +279,31 @@ DOCTEST_TEST_CASE("persistent packed string tables grow beyond disk size and reb
         DOCTEST_CHECK(std::string(RUSS::russ_strings.data()) == replacement);
         DOCTEST_CHECK(std::string(RUSS::russ_strings.data() + length + 1) == "B1");
     }
+}
+
+DOCTEST_TEST_CASE("strategic label revocation precedes native string replacement and unload") {
+    Fixture fixture;
+    strings::Load_Strings();
+    fixture.Mount(true);
+    struct s_observer {
+        int calls = 0;
+        uint64_t token = game_events::Subscribe([](game_events::e_event event, void* context) {
+            if (event != game_events::STRATEGIC_LABELS_REPLACING) return;
+            auto* self = (s_observer*)context;
+            DOCTEST_CHECK(MOX::h_strings[0] == (self->calls == 0 ? 'B' : 'M'));
+            ++self->calls;
+        },
+            this);
+        ~s_observer() {
+            game_events::Unsubscribe(token);
+        }
+    } observer;
+    DOCTEST_REQUIRE(observer.token != 0);
+    strings::Load_Strings();
+    DOCTEST_CHECK(observer.calls == 1);
+    DOCTEST_CHECK(MOX::h_strings[0] == 'M');
+    CONFIG_REFRESH::Resources_Unloaded();
+    DOCTEST_CHECK(observer.calls == 2);
 }
 
 DOCTEST_TEST_CASE("all mod mount and priority transitions reload strings and artwork") {

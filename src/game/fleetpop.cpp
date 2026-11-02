@@ -1,7 +1,25 @@
 #include "pch.h"
+#include "ship_read.h"
+#include <cstdint>
 #include "game/game_events.h"
 
 namespace FLEETPOP {
+    static void Publish_Box_Result(int16_t ship, int16_t node, uint8_t turns, int16_t star, ship_read::e_label kind = ship_read::NO_LABEL, const char* label = nullptr) {
+        game_events::s_fleet_box_node members[MAX_SHIPS];
+        game_events::s_fleet_box_node selected[MAX_SHIPS];
+        int16_t member_count = 0, selected_count = 0;
+        if (MOX::fleet_box.count > 0 && MOX::fleet_box.count <= MAX_SHIPS) {
+            for (int16_t i = 0; i < MOX::fleet_box.count; ++i) {
+                const int16_t member = MOX::fleet_movement_icon[i].ship_node_idx;
+                if (member >= 0 && member < MAX_SHIPS) members[member_count++] = {member, MOX::ship_node[member].ship_idx};
+            }
+        }
+        for (int16_t member = 0; member < MAX_SHIPS; ++member)
+            if (MOX::ship_node[member].selected != 0) selected[selected_count++] = {member, MOX::ship_node[member].ship_idx};
+        const game_events::s_fleet_box_info observation = {
+            ship, turns, star, node, static_cast<int16_t>(MOX::fleet_box_ship_stack >= 0 && MOX::fleet_box_ship_stack < MOX::ship_stack_count ? MOX::ship_stack_start[MOX::fleet_box_ship_stack] : -1), MOVEBOX::Moveable_Box_Selected(2) != 0, members, static_cast<int16_t>(member_count == MOX::fleet_box.count ? member_count : 0), selected, selected_count, kind, label};
+        game_events::Publish_Fleet_Box_Info(&observation);
+    }
     uint8_t n_added_buttons;
 
     void __cdecl Fleet_Movement_Scroll_Callback() {
@@ -525,7 +543,6 @@ namespace FLEETPOP {
     void __cdecl Draw_Fleet_Movement_Box() {
         s_colors font_colors;
         char title[120];
-        char race_or_ship_name[80];
         int16_t frame_out_value;
         int16_t icon_button_x;
         int16_t icon_button_y;
@@ -601,15 +618,13 @@ namespace FLEETPOP {
             if (stack_owner < 9) {
                 MOX::mox_font_colors_offset = 0x71;
                 MISC::Get_Mox_Font_Colors(4, 'o', 's', &font_colors);
-                HACCESS::Race_Name(stack_owner, race_or_ship_name, sizeof(race_or_ship_name));
-                snprintf(title, sizeof(title), HAROLD::H_Message(0x66), race_or_ship_name);
+                ship_read::Fleet_Title(stack_owner, &MOX::ship[MOX::ship_node[head_node_ptr].ship_idx], title, sizeof(title));
                 fonts::Set_Font_Style_Outline(4, &font_colors);
                 fonts::Set_Outline_Color(2, 1);
                 fonts::Set_Font_Spacing(1);
             } else {
                 MISC::Get_Mox_Font_Colors(4, 'K', 'N', &font_colors);
-                strlcpy(title, MOX::ship[MOX::ship_node[head_node_ptr].ship_idx].d.name, sizeof(title));
-                strings::String_To_Upper(title);
+                ship_read::Fleet_Title(stack_owner, &MOX::ship[MOX::ship_node[head_node_ptr].ship_idx], title, sizeof(title));
                 fonts::Set_Font_Style_Outline(4, &font_colors);
                 fonts::Set_Outline_Color(2, 1);
             }
@@ -1074,28 +1089,16 @@ namespace FLEETPOP {
         }
 
         if (MOX::eta_star_id == -1 && (info_type == 2 || info_type == 3)) {
-            game_events::s_fleet_box_node members[MAX_SHIPS];
-            game_events::s_fleet_box_node selected[MAX_SHIPS];
-            int16_t member_count = 0;
-            int16_t selected_count = 0;
-            if (MOX::fleet_box.count > 0 && MOX::fleet_box.count <= MAX_SHIPS) {
-                for (int16_t i = 0; i < MOX::fleet_box.count; ++i) {
-                    const int16_t node = MOX::fleet_movement_icon[i].ship_node_idx;
-                    if (node >= 0 && node < MAX_SHIPS) members[member_count++] = {node, MOX::ship_node[node].ship_idx};
-                }
-            }
-            for (int16_t node = 0; node < MAX_SHIPS; ++node) {
-                if (MOX::ship_node[node].selected != 0) selected[selected_count++] = {node, MOX::ship_node[node].ship_idx};
-            }
-            const game_events::s_fleet_box_info observation = {
-                ship_idx, static_cast<uint8_t>(info_value), destination_star, MOX::fleet_movement_icon[0].ship_node_idx, static_cast<int16_t>(MOX::fleet_box_ship_stack >= 0 && MOX::fleet_box_ship_stack < MOX::ship_stack_count ? MOX::ship_stack_start[MOX::fleet_box_ship_stack] : -1), MOVEBOX::Moveable_Box_Selected(2) != 0, members, static_cast<int16_t>(member_count == MOX::fleet_box.count ? member_count : 0), selected, selected_count};
-            game_events::Publish_Fleet_Box_Info(&observation);
+            Publish_Box_Result(ship_idx, MOX::fleet_movement_icon[0].ship_node_idx, static_cast<uint8_t>(info_value), destination_star);
         }
 
         switch (info_type) {
-            case 0:
-                FLEETPOP::Get_Fleetpop_Scanned_Ship_Info(text, sizeof(text));
+            case 0: {
+                const int16_t scanned = HACCESS::Fleet_Movement_Ship_Id(MOX::fleet_ship_scanned);
+                const auto kind = ship_read::Scanned_Label(MOX::PLAYER_NUM, &MOX::ship[scanned], text, sizeof(text));
+                if (kind != ship_read::NO_LABEL && text[0] != '\0') Publish_Box_Result(scanned, MOX::fleet_movement_icon[MOX::fleet_ship_scanned].ship_node_idx, 0, -1, kind, text);
                 break;
+            }
 
             case 1:
                 snprintf(text, sizeof(text), HAROLD::H_Message(0x67), MOX::star[info_value].name);
@@ -1373,23 +1376,7 @@ namespace FLEETPOP {
         }
 
         const int16_t ship_idx = HACCESS::Fleet_Movement_Ship_Id(MOX::fleet_ship_scanned);
-        const int16_t ship_owner = HACCESS::Ship_Owner(ship_idx);
-        s_ship_data* const ship = &MOX::ship[ship_idx];
-        const int16_t hull_size = static_cast<int8_t>(ship->d.size);
-
-        if (MOX::PLAYER_NUM == ship_owner) {
-            strlcpy(out_text, ship->d.name, out_text_size);
-            return;
-        }
-
-        if (ship_owner <= 8) {
-            if (HACCESS::Is_Combat_Ship(ship_idx)) {
-                strlcpy(out_text, TECHDATA::hull_data[hull_size].name, out_text_size);
-                return;
-            }
-        }
-
-        strlcpy(out_text, ship->d.name, out_text_size);
+        ship_read::Scanned_Label(MOX::PLAYER_NUM, &MOX::ship[ship_idx], out_text, out_text_size);
     }
 
     bool __cdecl Check_For_Colonization_Button() {

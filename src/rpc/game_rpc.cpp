@@ -18,7 +18,11 @@
 #include "lua/lua_game_ship_identity.h"
 
 #include <algorithm>
+#include <cstring>
+#include <iterator>
+#include <string>
 #include <tuple>
+#include <vector>
 
 namespace game_rpc {
     namespace {
@@ -120,8 +124,7 @@ namespace game_rpc {
         return HAROLD::Player_Has_Outpost(MOX::PLAYER_NUM, destination);
     }
 
-    static void Read_Map_Route(int16_t node, rpc::s_ship_observation* route) {
-        const s_ship_data* ship = &MOX::ship[MOX::ship_node[node].ship_idx];
+    static void Read_Map_Route(const s_ship_data* ship, rpc::s_ship_observation* route) {
         const bool owned = ship->owner == MOX::PLAYER_NUM;
         route->destination_available = route->eta_available = owned ? rpc::SHIP_UNAUDITED : rpc::SHIP_CONTEXT_REQUIRED;
         if (owned && ship->location >= 0 && ship->location < MOX::NUM_STARS) {
@@ -170,6 +173,7 @@ namespace game_rpc {
             if (node < 0 || node >= MAX_SHIPS || !heads[node]) return false;
             const int16_t head = node;
             rpc::s_ship_observation route;
+            rpc::s_fleet_observation fleet;
             while (node != -1) {
                 if (node < 0 || node >= MAX_SHIPS || nodes[node]) return false;
                 nodes[node] = true;
@@ -180,7 +184,7 @@ namespace game_rpc {
                 const s_ship_data* ship = &MOX::ship[slot];
                 if (ship->status < 0 || ship->status >= 3) return false;
                 if (node == head)
-                    Read_Map_Route(head, &route);
+                    Read_Map_Route(ship, &route);
                 else {
                     const s_ship_data* first = &MOX::ship[MOX::ship_node[head].ship_idx];
                     if (ship->x != first->x || ship->y != first->y || ship->owner != first->owner || ship->location != first->location) return false;
@@ -199,6 +203,7 @@ namespace game_rpc {
                 item.x = ship->x;
                 item.y = ship->y;
                 item.owned = ship->owner == captured.viewer;
+                ships_rpc::Read_Strategic_Ship(captured.viewer, ship, &item);
                 if (std::any_of(captured.players.begin(), captured.players.end(), [ship](const rpc::s_player_observation& player) { return player.slot == ship->owner; })) {
                     item.owner_slot = ship->owner;
                 }
@@ -208,6 +213,12 @@ namespace game_rpc {
                     config::Decode_Cp850_To_Utf8(ship->d.name, (size_t)(end - ship->d.name), &item.name);
                 }
                 captured.ships.push_back(std::move(item));
+                if (!captured.ships.back().owned) {
+                    fleet.x = ship->x;
+                    fleet.y = ship->y;
+                    fleet.slots.push_back(slot);
+                    captured.observed_authority.emplace_back(slot, orion2re::lua::game::Ship_Generation(slot));
+                }
                 if (associations != nullptr) {
                     s_ship_association association;
                     association.node = node;
@@ -222,6 +233,10 @@ namespace game_rpc {
                 }
                 node = link->next_node;
             }
+            if (!fleet.slots.empty()) {
+                if (!ships_rpc::Read_Composition(&fleet)) return false;
+                captured.fleets.push_back(std::move(fleet));
+            }
         }
         for (auto& item : owned)
             if (!ships[item.slot]) captured.ships.push_back(std::move(item));
@@ -230,6 +245,7 @@ namespace game_rpc {
             return std::tie(left.x, left.y, left.owned, left.name) < std::tie(right.x, right.y, right.owned, right.name);
         });
         captured.ships_captured = true;
+        std::sort(captured.observed_authority.begin(), captured.observed_authority.end());
         *observation = std::move(captured);
         return true;
     }
@@ -242,6 +258,7 @@ namespace game_rpc {
         rpc::Revoke_Game_Context(adapter->store);
         adapter->authorized_head = -1;
         adapter->pending_head = -1;
+        adapter->authorized_label = adapter->pending_label = -1;
         adapter->pending = {};
         adapter->contextual_destination = false;
         adapter->route_node = adapter->route_ship = adapter->route_destination = -1;
@@ -255,6 +272,55 @@ namespace game_rpc {
         adapter->route_destination = line->destination;
     }
 
+    static bool Read_Associated_Observation(s_fleet_eta_adapter* adapter, rpc::s_map_observation* captured) {
+        if (!Read_Inspection_Observation(captured) || captured->viewer != adapter->store->viewer) return false;
+        std::vector<rpc::s_fleet_observation> groups;
+        std::vector<int16_t> heads;
+        for (const auto& item : adapter->associations) {
+            if (!item.valid || item.slot < 0 || item.slot >= MOX::NUM_SHIPS) return false;
+            const auto* ship = &MOX::ship[item.slot];
+            if (item.generation == 0 || item.generation != orion2re::lua::game::Ship_Generation(item.slot) ||
+                ship->owner != item.owner || ship->status != item.status || ship->location != item.location ||
+                ship->x != item.ship.x || ship->y != item.ship.y) return false;
+            if (item.ship.owned) continue;
+            rpc::s_ship_observation fresh;
+            fresh.slot = item.slot;
+            fresh.x = ship->x;
+            fresh.y = ship->y;
+            fresh.owner_slot = ship->owner;
+            ships_rpc::Read_Strategic_Ship(captured->viewer, ship, &fresh);
+            Read_Map_Route(ship, &fresh);
+            // A later setting/contact change cannot promote an old refresh grant.
+            if (item.ship.destination_available != rpc::SHIP_CURRENT) {
+                fresh.destination_available = fresh.eta_available = rpc::SHIP_CONTEXT_REQUIRED;
+                fresh.destination_system = -1;
+                fresh.eta = 0;
+            }
+            if (item.node != item.head && fresh.eta_available == rpc::SHIP_CURRENT) {
+                fresh.eta_available = rpc::SHIP_CONTEXT_REQUIRED;
+                fresh.eta = 0;
+            }
+            captured->ships.push_back(std::move(fresh));
+            captured->observed_authority.emplace_back(item.slot, item.generation);
+            const auto head = std::find(heads.begin(), heads.end(), item.head);
+            const size_t ordinal = (size_t)(head - heads.begin());
+            if (head == heads.end()) {
+                heads.push_back(item.head);
+                groups.emplace_back();
+                groups.back().x = ship->x;
+                groups.back().y = ship->y;
+            }
+            groups[ordinal].slots.push_back(item.slot);
+        }
+        for (auto& group : groups) {
+            if (!ships_rpc::Read_Composition(&group)) return false;
+            captured->fleets.push_back(std::move(group));
+        }
+        std::sort(captured->observed_authority.begin(), captured->observed_authority.end());
+        captured->owned_ambient = false;
+        return true;
+    }
+
     static void Observe_Fleet_Info(const game_events::s_fleet_box_info* info, void* context) {
         auto* adapter = (s_fleet_eta_adapter*)context;
         try {
@@ -263,17 +329,17 @@ namespace game_rpc {
                 info->member_count <= 0 || info->member_count > MAX_SHIPS || info->members == nullptr ||
                 info->selected_count < 0 || info->selected_count > MAX_SHIPS ||
                 (info->selected_count != 0 && info->selected == nullptr)) return;
-            const auto head = std::find_if(adapter->associations.begin(), adapter->associations.end(), [info](const s_ship_association& item) {
+            const auto observed = std::find_if(adapter->associations.begin(), adapter->associations.end(), [info](const s_ship_association& item) {
                 return item.node == info->node && item.slot == info->ship && item.head == info->box_head;
             });
-            if (head == adapter->associations.end() || head->node != head->head ||
-                head->location < SHIP_LOCATION_MOVING_OFFSET || head->location >= SHIP_LOCATION_LIMIT ||
-                head->ship.eta_available != rpc::SHIP_CONTEXT_REQUIRED ||
-                info->members[0].node != head->node || info->members[0].ship != head->slot) return;
-            const bool contextual = head->ship.destination_available != rpc::SHIP_CURRENT;
+            if (observed == adapter->associations.end()) return;
+            const auto head = std::find_if(adapter->associations.begin(), adapter->associations.end(), [&observed](const auto& item) { return item.node == observed->head; });
+            if (head == adapter->associations.end() || info->members[0].node != head->node || info->members[0].ship != head->slot) return;
+            const bool label = info->label_kind != ship_read::NO_LABEL;
+            const bool contextual = !label && head->ship.destination_available != rpc::SHIP_CURRENT;
             const int16_t destination = contextual ? adapter->route_destination : head->ship.destination_system;
-            if (destination < 0 || destination >= MOX::NUM_STARS ||
-                (info->star != -1 && info->star != destination)) return;
+            if (!label && (observed != head || head->location < SHIP_LOCATION_MOVING_OFFSET || head->location >= SHIP_LOCATION_LIMIT || head->ship.eta_available != rpc::SHIP_CONTEXT_REQUIRED || destination < 0 || destination >= MOX::NUM_STARS || (info->star != -1 && info->star != destination))) return;
+            if (label && (!adapter->frame || observed->ship.owned || info->label == nullptr || info->label_kind != ship_read::CANONICAL_NAME)) return;
             if (contextual) {
                 // Native departure uses the upper encoding; ordinary transit uses
                 // the lower encoding and status 1. Do not admit mixed states.
@@ -281,8 +347,7 @@ namespace game_rpc {
                 if (head->ship.owned || head->status != status || !adapter->frame ||
                     adapter->route_node != head->node || adapter->route_ship != head->slot ||
                     HAROLD::Absolute_Location(head->location) != destination) return;
-            } else if (head->location < SHIP_LOCATION_WORMHOLE_OFFSET ||
-                (!head->ship.owned && !Ambient_Foreign_Route(destination)))
+            } else if (!label && (head->location < SHIP_LOCATION_WORMHOLE_OFFSET || (!head->ship.owned && !Ambient_Foreign_Route(destination))))
                 return;
             std::vector<bool> members(MAX_SHIPS);
             std::vector<int32_t> associations(MAX_SHIPS, -1);
@@ -302,40 +367,25 @@ namespace game_rpc {
                     adapter->associations[associations[ref.node]].slot != ref.ship) return;
             }
             rpc::s_map_observation captured;
-            if (!Read_Inspection_Observation(&captured) || captured.viewer != adapter->store->viewer) return;
-            for (const auto& item : adapter->associations) {
-                if (!item.valid) return;
-                if (item.ship.owned || members[item.node]) {
-                    if (item.slot < 0 || item.slot >= MOX::NUM_SHIPS || MOX::ship == nullptr) return;
-                    const auto& ship = MOX::ship[item.slot];
-                    if (item.generation == 0 || item.generation != orion2re::lua::game::Ship_Generation(item.slot) ||
-                        ship.owner != item.owner || ship.status != item.status || ship.location != item.location ||
-                        ship.x != item.ship.x || ship.y != item.ship.y) return;
-                }
-                if (item.ship.owned) {
-                    const auto& ship = MOX::ship[item.slot];
-                    const char* end = (const char*)memchr(ship.d.name, 0, sizeof(ship.d.name));
-                    std::string name;
-                    if (end == nullptr) return;
-                    config::Decode_Cp850_To_Utf8(ship.d.name, (size_t)(end - ship.d.name), &name);
-                    if (name != item.ship.name) return;
-                }
-                auto current = std::find_if(captured.ships.begin(), captured.ships.end(), [&item](const auto& ship) { return ship.slot == item.slot; });
-                if (current == captured.ships.end()) {
-                    captured.ships.push_back(item.ship);
-                    current = std::prev(captured.ships.end());
-                }
-                if (item.node == head->node) {
-                    current->destination_available = rpc::SHIP_CURRENT;
-                    current->destination_system = destination;
-                    current->eta_available = rpc::SHIP_CURRENT;
-                    current->eta = info->turns_left;
-                }
+            if (!Read_Associated_Observation(adapter, &captured)) return;
+            auto current = std::find_if(captured.ships.begin(), captured.ships.end(), [info](const auto& ship) { return ship.slot == info->ship; });
+            if (current == captured.ships.end()) return;
+            if (label) {
+                char canonical[80];
+                if (ship_read::Scanned_Label(captured.viewer, &MOX::ship[info->ship], canonical, sizeof(canonical)) != ship_read::CANONICAL_NAME || strcmp(canonical, info->label) != 0) return;
+                config::Decode_Cp850_To_Utf8(canonical, strlen(canonical), &current->name);
+                current->name_available = rpc::SHIP_CURRENT;
+            } else {
+                current->destination_available = rpc::SHIP_CURRENT;
+                current->destination_system = destination;
+                current->eta_available = rpc::SHIP_CURRENT;
+                current->eta = info->turns_left;
             }
             captured.ships_captured = true;
             captured.owned_ambient = false;
             adapter->pending = std::move(captured);
             adapter->pending_head = head->head;
+            adapter->pending_label = label ? info->ship : -1;
             adapter->pending_contextual_destination = contextual;
         } catch (...) {
             adapter->failed = true;
@@ -347,6 +397,9 @@ namespace game_rpc {
         auto* adapter = (s_fleet_eta_adapter*)context;
         if (slot >= 0 && slot < MOX::NUM_SHIPS && MOX::ship != nullptr && MOX::ship[slot].owner == adapter->store->viewer &&
             MOX::ship[slot].status != 5) rpc::Expire_Game_Inspection(adapter->store);
+        if (std::any_of(adapter->store->snapshots.begin(), adapter->store->snapshots.end(), [slot](const auto& snapshot) {
+                return std::any_of(snapshot.map.observed_authority.begin(), snapshot.map.observed_authority.end(), [slot](const auto& item) { return item.first == slot; });
+            })) rpc::Expire_Game_Observations(adapter->store);
         for (auto& item : adapter->associations) {
             if (item.slot != slot) continue;
             item.valid = false;
@@ -388,6 +441,7 @@ namespace game_rpc {
                     adapter->printing = true;
                     adapter->pending = {};
                     adapter->pending_head = -1;
+                    adapter->pending_label = -1;
                     break;
                 case game_events::FLEET_BOX_PRINT_LEAVING:
                     adapter->printing = false;
@@ -395,13 +449,14 @@ namespace game_rpc {
                         Revoke_Fleet_Eta(adapter);
                         break;
                     }
-                    if (adapter->authorized_head != -1 && adapter->authorized_head != adapter->pending_head) rpc::Revoke_Game_Context(adapter->store);
+                    if (adapter->authorized_head != -1 && (adapter->authorized_head != adapter->pending_head || adapter->authorized_label != adapter->pending_label)) rpc::Revoke_Game_Context(adapter->store);
                     adapter->pending.context_epoch = rpc::Bridge_Context_Epoch(adapter->store->bridge);
                     if (!rpc::Capture_Map(adapter->store, &adapter->pending)) {
                         Revoke_Fleet_Eta(adapter);
                         break;
                     }
                     adapter->authorized_head = adapter->pending_head;
+                    adapter->authorized_label = adapter->pending_label;
                     adapter->contextual_destination = adapter->pending_contextual_destination;
                     adapter->frame_accepted = true;
                     adapter->pending = {};
@@ -411,12 +466,14 @@ namespace game_rpc {
                     break;
                 case game_events::SHIP_ICONS_REBUILD_BEGIN:
                 case game_events::SHIP_IDENTITIES_RESETTING:
+                case game_events::STRATEGIC_LABELS_REPLACING:
                 case game_events::WORLD_REPLACE_BEGIN:
                 case game_events::WORLD_UPDATE_BEGIN:
                 case game_events::RESOLUTION_BEGIN:
                 case game_events::PERSPECTIVE_SELECTION_BEGIN:
                 case game_events::MENU_ENTERED:
-                    if (event == game_events::SHIP_IDENTITIES_RESETTING) rpc::Expire_Game_Inspection(adapter->store);
+                    if (event == game_events::SHIP_IDENTITIES_RESETTING || event == game_events::STRATEGIC_LABELS_REPLACING) rpc::Expire_Game_Inspection(adapter->store);
+                    if (event == game_events::SHIP_ICONS_REBUILD_BEGIN) rpc::Expire_Game_Observations(adapter->store, false);
                     adapter->associations.clear();
                     Revoke_Fleet_Eta(adapter);
                     break;

@@ -288,6 +288,7 @@ field-audited methods/topics; schemas alone grant no authority.
   - [ ] Complete separately audited foreign-colony intelligence. Own outposts remain outside this full-colony projection; colony-changing actions remain P3 work, not parity implied by the finished inspection subset.
 - [ ] Q-07 — Complete conditional ship destination/ETA, selection/scan details and durable identity.
   - [x] Deliver ambient owned ship condition/capability/configuration inspection alongside fleets, committed designs and empire topics; see [owned inspection](specs/rpc/owned_fleet_view.md). This is not foreign scan, action or durable-identity parity.
+  - [x] Deliver native strategic hull/type/banner disclosures and actual fleet-box support/NPC canonical names in Q-08's coherent mixed dashboard, with explicit coverage and scoped resource/presentation lifetimes; see [strategic fleet awareness](specs/rpc/strategic_fleet_view.md).
   - [x] Finish one bounded public cached-ETA path: authorize the surviving own wormhole-route head from canonical native presentation.
   - [x] Prove initialized owner plus current open-box/selection authority for that path through child interruption and replacement; never promote pre-initialization results.
   - [x] Bind that path only to current surviving refresh associations; reject stale selections and slot/node reuse without later node traversal or hidden-fingerprint effects.
@@ -300,7 +301,8 @@ field-audited methods/topics; schemas alone grant no authority.
   - [ ] Extend conditional destination/ETA and selection/scan disclosure to remaining native contexts; audit each additional field and establish durable identity separately.
 - [ ] Q-08 — Implement fleet list/detail without rebuilt-stack identifiers.
   - [x] Deliver owned active fleet groups and native ordered membership through existing list/get, coherent captures, pagination and revocation; groups are observation handles, not rebuilt-stack IDs.
-  - [ ] Complete separately authorized non-owned fleet grouping and remaining full-catalog parity.
+  - [x] Deliver unified owned plus authorized non-owned strategic fleet awareness: native composition/labels, surviving refresh membership, separately scoped support/NPC canonical names, existing cached movement disclosures, explicit coverage and coherent subscriptions; see [the strategic boundary](specs/rpc/strategic_fleet_view.md).
+  - [ ] Complete remaining full-catalog parity, additional scan contexts and durable identity separately. The strategic subset grants no foreign design dossier, tactical authority, options or actions.
 - [ ] Q-09 — Implement movement options with audited scratch state and no hidden-data oracle.
 - [ ] Q-10 — Implement authorized design list/detail/options.
   - [x] Deliver owned committed slots, active configurations and independently authorized committed queue/refit configurations through existing list/get and subscriptions. Preserve source distinctions and native suppression; staged/generated designs are excluded.

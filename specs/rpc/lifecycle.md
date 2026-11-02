@@ -74,6 +74,15 @@ refusal/partial result), T-10 (delay/animation/timed box/film), T-16 (thread han
 
 ## Committed state / turn publication
 
+Strategic fleet labels use the existing initialized main owner and frame/print
+scopes. Only the actual fleet-box scanned-label branch publishes canonical-name
+evidence; native support/NPC name branches differ from combat hull labels.
+Exit, interruption, suppressed/replaced producer and rebuild revoke that evidence;
+restoration requires fresh native presentation. Ambient composition is independent.
+The neutral `STRATEGIC_LABELS_REPLACING` event precedes string/technology-name
+replacement and resource unload, revoking dependent inspection and queued output
+before label storage changes. It does not open a context or load resources.
+
 Owned fleet/ship/design inspection joins settled map, colony and Fleets points.
 Completed native name/design commits publish only after the full write; pending
 refits and designer state are not captured. Existing queue/population staging and

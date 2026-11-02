@@ -90,9 +90,11 @@ never loads resources or pumps UI.
 Use one state/subscription baseline for fleets, ships, designs and empire topics.
 All selected topics and nested stamps belong to one immutable capture. A later
 map-only or presentation-only capture never enriches an older combined baseline.
-Ambient owned captures do not retain foreign observations; surviving foreign
-reads remain limited to the existing native refresh/context paths in
-[ship_refresh.md](ship_refresh.md). No persistent foreign dossier is created.
+Ambient owned captures have explicitly partial `owned-only` fleet coverage.
+Combined ship/fleet requests prefer a retained complete
+[strategic fleet-awareness capture](strategic_fleet_view.md); they never splice
+newer owned detail into it. Non-owned reads remain surviving refresh/context
+observations, not a persistent foreign dossier.
 
 Route and ETA authority remains independent of equipment inspection. Lower-route
 cached ETA belongs only to the native ordered head, including unsigned-byte

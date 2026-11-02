@@ -7,7 +7,10 @@
 
 #include <algorithm>
 #include <map>
+#include <cstring>
+#include <string>
 #include <tuple>
+#include <vector>
 
 namespace ships_rpc {
     namespace {
@@ -85,6 +88,52 @@ namespace ships_rpc {
         }
     } // namespace
 
+    void Read_Strategic_Ship(int16_t viewer, const s_ship_data* ship, rpc::s_ship_observation* out) {
+        const int16_t owner = ship->owner;
+        const int16_t type = ship->d.ship_type;
+        out->role = type == SHIP_TYPE_COMBAT ? "combat" : (type == SHIP_TYPE_COLONY ? "colony" : (type == SHIP_TYPE_TRANSPORT ? "transport" : (type == SHIP_TYPE_OUTPOST ? "outpost" : "")));
+        if (owner > 8 && type == SHIP_TYPE_COMBAT) out->role = "special";
+        if (owner >= 0 && owner < MAX_PLAYERS) out->banner = (uint8_t)MOX::player[owner].color;
+        if (ship->location >= 0 && ship->location < MOX::NUM_STARS &&
+            (out->owned || (ship->status == 0 && ship->x == MOX::star[ship->location].x && ship->y == MOX::star[ship->location].y))) out->system = ship->location;
+        const bool hull = type == SHIP_TYPE_COMBAT && owner <= 8 && ship->d.size >= 0 && ship->d.size < HULL_CLASS_COUNT;
+        const bool support = type == SHIP_TYPE_COLONY || type == SHIP_TYPE_TRANSPORT || type == SHIP_TYPE_OUTPOST;
+        if (!out->owned) out->name_available = owner > 8 || support ? rpc::SHIP_CONTEXT_REQUIRED : rpc::SHIP_UNKNOWN;
+        char scanned[80];
+        const char* label = hull ? ship_read::Hull_Name(ship->d.size, false) : (support && (uint8_t)MOX::settings.language < 6 ? ship_read::Type_Name(&ship->d) : nullptr);
+        if (hull && !out->owned) label = ship_read::Scanned_Label(viewer, ship, scanned, sizeof(scanned)) == ship_read::HULL_LABEL ? scanned : nullptr;
+        out->type_available = label != nullptr && strnlen(label, 1366) <= 1365;
+        if (out->type_available) out->type = Text(label);
+    }
+
+    bool Read_Composition(rpc::s_fleet_observation* out) {
+        if (out->slots.empty()) return false;
+        const auto* head = &MOX::ship[out->slots[0]];
+        char title[120];
+        out->heading_available = ship_read::Fleet_Title(head->owner, head, title, sizeof(title));
+        if (out->heading_available) out->heading = Text(title, sizeof(title));
+        // Special native summaries present a name, not an invented hull histogram.
+        if (head->owner > 8) return true;
+        ship_read::s_composition counts;
+        for (int32_t slot : out->slots) {
+            const auto* design = &MOX::ship[slot].d;
+            if (design->ship_type != SHIP_TYPE_COMBAT && design->ship_type != SHIP_TYPE_COLONY && design->ship_type != SHIP_TYPE_OUTPOST && design->ship_type != SHIP_TYPE_TRANSPORT) return true;
+            if (design->ship_type == SHIP_TYPE_COMBAT && design->size < 0) return false;
+            ship_read::Count_Member(design, &counts);
+        }
+        for (int category = 0; category < 9; ++category) {
+            if (counts.counts[category] == 0) continue;
+            char line[200];
+            if (!ship_read::Composition_Line(category, counts.counts[category], line, sizeof(line))) {
+                out->composition.clear();
+                return true;
+            }
+            out->composition.push_back({Text(line, sizeof(line)), counts.counts[category]});
+        }
+        out->composition_available = true;
+        return true;
+    }
+
     bool Read_Owned_Inspection(rpc::s_map_observation* out) {
         if (MOX::ship == nullptr || MOX::NUM_SHIPS < 0 || MOX::NUM_SHIPS > MAX_SHIPS) {
             return false;
@@ -127,6 +176,7 @@ namespace ships_rpc {
             ship_read::Order_Member_Entries(entries.data(), (int16_t)fleet.slots.size());
             for (size_t row = 0; row < fleet.slots.size(); ++row) fleet.slots[row] = entries[row * 2];
             heads[fleet.slots[0]] = true;
+            if (!Read_Composition(&fleet)) return false;
         }
         for (int slot = 0; slot < 6; ++slot) {
             const auto* design = &MOX::player[out->viewer].ship_designs[slot];
@@ -160,6 +210,7 @@ namespace ships_rpc {
             item.name = Text(ship->d.name, sizeof(ship->d.name));
             item.x = ship->x;
             item.y = ship->y;
+            Read_Strategic_Ship(out->viewer, ship, &item);
             auto& detail = item.inspection;
             detail.status = "active";
             if (ship->location >= 0 && ship->location < MOX::NUM_STARS) detail.system = ship->location;

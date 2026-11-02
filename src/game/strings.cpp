@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "string_overrides.h"
 #include "ship_read.h"
+#include "game_events.h"
 
 namespace strings {
     const char s__00551100[1] = "";
@@ -34,6 +35,7 @@ namespace strings {
                                             "T0,5,124.";
 
     void Load_Strings() {
+        game_events::Publish(game_events::STRATEGIC_LABELS_REPLACING);
         string_overrides::Reset_Cache();
         HAROLD::Load_H_Strings();
         RUSS::Load_Russ_Strings();

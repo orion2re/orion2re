@@ -131,13 +131,15 @@ namespace rpc {
         }
 
         bool Same_Ships(const s_map_observation* left, const s_map_observation* right) {
-            if (left->ships_captured != right->ships_captured || left->ships.size() != right->ships.size()) return false;
+            if (left->ships_captured != right->ships_captured || left->owned_ambient != right->owned_ambient || left->ships.size() != right->ships.size()) return false;
             for (size_t index = 0; index < left->ships.size(); ++index) {
                 const auto& a = left->ships[index];
                 const auto& b = right->ships[index];
                 if (std::tie(a.x, a.y, a.owned, a.name, a.owner_id, a.destination_available, a.destination_id, a.eta_available, a.eta) !=
                         std::tie(b.x, b.y, b.owned, b.name, b.owner_id, b.destination_available, b.destination_id, b.eta_available, b.eta) ||
-                    a.inspection != b.inspection) return false;
+                    a.inspection != b.inspection ||
+                    std::tie(a.name_available, a.role, a.type, a.type_available, a.banner, a.system_id) !=
+                        std::tie(b.name_available, b.role, b.type, b.type_available, b.banner, b.system_id)) return false;
             }
             return true;
         }
@@ -265,20 +267,26 @@ namespace rpc {
         }
 
         const s_map_snapshot* Select_Snapshot(const s_game_store* store, uint32_t topics) {
-            for (auto snapshot = store->snapshots.rbegin(); snapshot != store->snapshots.rend(); ++snapshot) {
-                if (snapshot->map.leaders_only && (topics & ~(TOPIC_SESSION | TOPIC_LEADERS))) continue;
-                if (store->busy_depth != 0 && (!snapshot->map.leaders_only || !snapshot->map.leader_presentation)) continue;
-                if ((topics & (TOPIC_SHIPS | TOPIC_FLEETS | TOPIC_DESIGNS | TOPIC_LEADERS | TOPIC_RELATIONS)) && !Authorized_Snapshot(store, &*snapshot)) continue;
-                if ((!(topics & TOPIC_SHIPS) || snapshot->map.ships_captured) &&
-                    (!(topics & (TOPIC_FLEETS | TOPIC_DESIGNS)) || snapshot->map.inspection_captured) &&
-                    (!(topics & TOPIC_PLAYERS) || snapshot->map.players_captured) &&
-                    (!(topics & TOPIC_COLONIES) || snapshot->map.colonies_captured) &&
-                    (!(topics & TOPIC_PLANETS) || snapshot->map.planets_captured) &&
-                    (!(topics & TOPIC_RESEARCH) || snapshot->map.research_captured) &&
-                    (!(topics & TOPIC_LEADERS) || snapshot->map.leaders_captured) &&
-                    (!(topics & (TOPIC_RELATIONS | TOPIC_INTELLIGENCE)) || snapshot->map.relations_captured) &&
-                    (!(topics & TOPIC_HISTORY) || snapshot->map.history_captured) &&
-                    (!(topics & TOPIC_MESSAGES) || snapshot->map.messages_captured)) return &*snapshot;
+            // Prefer one dated mixed capture over silently replacing observations
+            // with a newer owned-only collection. Never splice topics across them.
+            for (int pass = 0; pass < 2; ++pass) {
+                for (auto snapshot = store->snapshots.rbegin(); snapshot != store->snapshots.rend(); ++snapshot) {
+                    if (pass == 0 && (topics & (TOPIC_SHIPS | TOPIC_FLEETS)) && snapshot->map.owned_ambient) continue;
+                    if (snapshot->map.leaders_only && (topics & ~(TOPIC_SESSION | TOPIC_LEADERS))) continue;
+                    if (store->busy_depth != 0 && (!snapshot->map.leaders_only || !snapshot->map.leader_presentation)) continue;
+                    if ((topics & (TOPIC_SHIPS | TOPIC_FLEETS | TOPIC_DESIGNS | TOPIC_LEADERS | TOPIC_RELATIONS)) && !Authorized_Snapshot(store, &*snapshot)) continue;
+                    if ((!(topics & TOPIC_SHIPS) || snapshot->map.ships_captured) &&
+                        (!(topics & TOPIC_FLEETS) || snapshot->map.ships_captured) &&
+                        (!(topics & (TOPIC_FLEETS | TOPIC_DESIGNS)) || snapshot->map.inspection_captured) &&
+                        (!(topics & TOPIC_PLAYERS) || snapshot->map.players_captured) &&
+                        (!(topics & TOPIC_COLONIES) || snapshot->map.colonies_captured) &&
+                        (!(topics & TOPIC_PLANETS) || snapshot->map.planets_captured) &&
+                        (!(topics & TOPIC_RESEARCH) || snapshot->map.research_captured) &&
+                        (!(topics & TOPIC_LEADERS) || snapshot->map.leaders_captured) &&
+                        (!(topics & (TOPIC_RELATIONS | TOPIC_INTELLIGENCE)) || snapshot->map.relations_captured) &&
+                        (!(topics & TOPIC_HISTORY) || snapshot->map.history_captured) &&
+                        (!(topics & TOPIC_MESSAGES) || snapshot->map.messages_captured)) return &*snapshot;
+                }
             }
             return nullptr;
         }
@@ -305,6 +313,7 @@ namespace rpc {
                                          {"revision", Json_String_Value(json, std::to_string(snapshot->revision))},
                                          {"turn", Json_Integer(json, snapshot->map.turn)},
                                          {"captureMode", Json_String_Value(json, snapshot->map.relations_presentation ? "native-relations-presentation" : (snapshot->map.leader_presentation ? "native-leader-presentation" : (snapshot->map.context_epoch != 0 ? "last-native-fleet-box" : (snapshot->map.owned_ambient ? "owned-inspection" : (snapshot->map.ships_captured ? "last-native-ship-refresh" : "last-coherent-capture")))))},
+                                         {"fleetCoverage", Json_String_Value(json, !snapshot->map.ships_captured ? "unavailable" : (snapshot->map.owned_ambient ? "owned-only" : "complete"))},
                                      });
         }
 
@@ -432,8 +441,12 @@ namespace rpc {
                                          {"x", Json_Integer(json, item.x)},
                                          {"y", Json_Integer(json, item.y)},
                                          {"owned", Json_Boolean(json, item.owned)},
-                                         {"name", Exploration_Knowledge(json, item.owned ? EXPLORATION_CURRENT : EXPLORATION_UNAUDITED, Json_String_Value(json, item.name))},
-                                         {"owner", Exploration_Knowledge(json, item.owner_id.empty() ? EXPLORATION_UNAUDITED : EXPLORATION_CURRENT, Json_String_Value(json, item.owner_id))},
+                                         {"name", Ship_Knowledge(json, item.owned ? SHIP_CURRENT : item.name_available, Json_String_Value(json, item.name))},
+                                         {"owner", Id_Knowledge(json, item.owner_id)},
+                                         {"role", Exploration_Knowledge(json, item.role.empty() ? EXPLORATION_UNKNOWN : EXPLORATION_CURRENT, Json_String_Value(json, item.role))},
+                                         {"type", Exploration_Knowledge(json, item.type_available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, Json_String_Value(json, item.type))},
+                                         {"banner", Exploration_Knowledge(json, item.banner < 0 ? EXPLORATION_UNKNOWN : EXPLORATION_CURRENT, Json_Integer(json, item.banner))},
+                                         {"location", Id_Knowledge(json, item.system_id)},
                                          {"destination", Ship_Knowledge(json, item.destination_available, Json_String_Value(json, item.destination_id))},
                                          {"eta", Ship_Knowledge(json, item.eta_available, Json_Integer(json, item.eta))},
                                          {"inspection", Exploration_Knowledge(json, detail.available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, inspection)},
@@ -478,9 +491,15 @@ namespace rpc {
             const auto& item = snapshot->map.fleets[index];
             auto* members = Json_Array(json);
             for (const auto& member : item.members) Json_Append(json, members, Json_String_Value(json, member));
+            auto* composition = Json_Array(json);
+            for (const auto& row : item.composition) Json_Append(json, composition, Json_Object(json, {{"label", Json_String_Value(json, row.label)}, {"count", Json_Integer(json, row.count)}}));
             return Json_Object(json, {
                                          {"id", Json_String_Value(json, snapshot->fleet_ids[index])},
                                          {"members", members},
+                                         {"owned", Json_Boolean(json, item.owned)},
+                                         {"owner", Id_Knowledge(json, item.owner_id)},
+                                         {"heading", Exploration_Knowledge(json, item.heading_available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, Json_String_Value(json, item.heading))},
+                                         {"composition", Exploration_Knowledge(json, item.composition_available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, composition)},
                                          {"x", Json_Integer(json, item.x)},
                                          {"y", Json_Integer(json, item.y)},
                                          {"location", Id_Knowledge(json, item.system_id)},
@@ -1256,7 +1275,7 @@ namespace rpc {
         Prune_Subscriptions(store);
         std::erase_if(store->cursors, [store](const s_map_cursor& cursor) {
             const auto snapshot = std::find_if(store->snapshots.begin(), store->snapshots.end(), [&cursor](const s_map_snapshot& item) { return item.id == cursor.snapshot; });
-            return snapshot == store->snapshots.end() || ((cursor.method == "game.listShips" || cursor.method == "game.listLeaders") && !Authorized_Snapshot(store, &*snapshot));
+            return snapshot == store->snapshots.end() || ((cursor.method == "game.listShips" || cursor.method == "game.listFleets" || cursor.method == "game.listLeaders") && !Authorized_Snapshot(store, &*snapshot));
         });
         for (auto& subscription : store->subscriptions) subscription.revision = 0;
         Publish_State_Changes(store);
@@ -1346,6 +1365,7 @@ namespace rpc {
             snapshot.map.designs.clear();
             snapshot.map.ships.clear();
             snapshot.map.owned_authority.clear();
+            snapshot.map.observed_authority.clear();
             snapshot.fleet_ids.clear();
             snapshot.design_ids.clear();
             snapshot.ship_ids.clear();
@@ -1353,6 +1373,52 @@ namespace rpc {
                 if (leader.assignment_kind == "ship") leader.assignment_id.clear();
         }
         std::erase_if(store->cursors, [](const auto& cursor) { return cursor.method == "game.listShips" || cursor.method == "game.listFleets" || cursor.method == "game.listDesigns" || cursor.method == "game.listLeaders"; });
+        store->capture_requested = true;
+        for (auto& subscription : store->subscriptions) subscription.revision = 0;
+    }
+
+    void Expire_Game_Observations(s_game_store* store, bool retire) {
+        if (store == nullptr || std::none_of(store->snapshots.begin(), store->snapshots.end(), [](const auto& snapshot) { return snapshot.map.ships_captured && !snapshot.map.owned_ambient; })) return;
+        for (const auto& subscription : store->subscriptions)
+            if (Context_Response_Pending(store->bridge, subscription.client, subscription.baseline_ticket)) Cancel_Client(store->bridge, subscription.client);
+        Revoke_Bridge_Context(store->bridge);
+        store->context_active = false;
+        s_map_snapshot owned;
+        const auto ambient = std::find_if(store->snapshots.rbegin(), store->snapshots.rend(), [](const auto& snapshot) {
+            return snapshot.map.ships_captured && snapshot.map.inspection_captured && snapshot.map.context_epoch == 0;
+        });
+        const bool preserve_owned = retire && ambient != store->snapshots.rend();
+        if (preserve_owned) owned = *ambient;
+        for (auto& snapshot : store->snapshots) {
+            if (!retire) continue;
+            if (!snapshot.map.ships_captured || snapshot.map.owned_ambient) continue;
+            snapshot.map.ships_captured = false;
+            snapshot.map.ships.clear();
+            snapshot.ship_ids.clear();
+            snapshot.map.fleets.clear();
+            snapshot.fleet_ids.clear();
+            snapshot.map.observed_authority.clear();
+        }
+        if (preserve_owned && store->revision != std::numeric_limits<uint64_t>::max() && store->new_id(&owned.id, store->id_context)) {
+            // A reduced authorized projection needs its own stamp, not changed
+            // collection data served under an earlier coherent baseline's ID.
+            for (size_t i = owned.map.ships.size(); i-- > 0;) {
+                if (owned.map.ships[i].owned) continue;
+                owned.map.ships.erase(owned.map.ships.begin() + i);
+                owned.ship_ids.erase(owned.ship_ids.begin() + i);
+            }
+            for (size_t i = owned.map.fleets.size(); i-- > 0;) {
+                if (owned.map.fleets[i].owned) continue;
+                owned.map.fleets.erase(owned.map.fleets.begin() + i);
+                owned.fleet_ids.erase(owned.fleet_ids.begin() + i);
+            }
+            owned.map.observed_authority.clear();
+            owned.map.owned_ambient = true;
+            owned.revision = ++store->revision;
+            store->snapshots.push_back(std::move(owned));
+            if (store->snapshots.size() > 4) store->snapshots.pop_front();
+        }
+        std::erase_if(store->cursors, [](const auto& cursor) { return cursor.method == "game.listShips" || cursor.method == "game.listFleets"; });
         store->capture_requested = true;
         for (auto& subscription : store->subscriptions) subscription.revision = 0;
     }
@@ -1384,6 +1450,7 @@ namespace rpc {
             projected.fleets = observation->fleets;
             projected.designs = observation->designs;
             projected.owned_authority = observation->owned_authority;
+            projected.observed_authority = observation->observed_authority;
             if (!std::is_sorted(projected.owned_authority.begin(), projected.owned_authority.end())) return false;
             if (!projected.ships_captured || projected.fleets.size() > 10000 || projected.designs.size() > 10006) return false;
         }
@@ -1700,11 +1767,21 @@ namespace rpc {
         });
         if (!projected.ships_captured) projected.ships.clear();
         for (s_ship_observation& ship : projected.ships) {
+            if (ship.owned) ship.name_available = SHIP_CURRENT;
             if (!ship.owned) {
-                ship.name.clear();
+                if (projected.context_epoch == 0 || ship.name_available != SHIP_CURRENT) {
+                    ship.name.clear();
+                    if (ship.name_available == SHIP_CURRENT) ship.name_available = SHIP_CONTEXT_REQUIRED;
+                }
                 ship.inspection = {};
             }
+            if (!ship.type_available) ship.type.clear();
+            ship.system_id.clear();
+            if (ship.type.size() > 4096 || ship.banner < -1 || ship.banner > 7 || ship.system < -1 ||
+                (ship.system >= 0 && (size_t)ship.system >= projected.systems.size()) ||
+                (!ship.role.empty() && ship.role != "combat" && ship.role != "colony" && ship.role != "transport" && ship.role != "outpost" && ship.role != "special")) return false;
             if (ship.name.size() > 48) return false;
+            if (ship.name_available < SHIP_UNAUDITED || ship.name_available > SHIP_CONTEXT_REQUIRED || ship.name_available == SHIP_KNOWN_EMPTY) return false;
             for (e_ship_knowledge available : {ship.destination_available, ship.eta_available}) {
                 if (available < SHIP_UNAUDITED || available > SHIP_CONTEXT_REQUIRED) return false;
             }
@@ -1874,6 +1951,8 @@ namespace rpc {
                 ship.owner_id = player_ids[(size_t)(owner - projected.players.begin())];
             }
             ship.owner_slot = -1;
+            if (ship.system >= 0) ship.system_id = store->system_ids[ship.system];
+            ship.system = -1;
             if (ship.destination_available == SHIP_CURRENT) ship.destination_id = store->system_ids[(size_t)ship.destination_system];
             ship.destination_system = -1;
             if (ship.inspection.available) {
@@ -1908,8 +1987,8 @@ namespace rpc {
             return std::tie(left.system_id, left.orbit, left.population, left.owner_id, left.infantry, left.armor) < std::tie(right.system_id, right.orbit, right.population, right.owner_id, right.infantry, right.armor);
         });
         std::sort(projected.ships.begin(), projected.ships.end(), [](const s_ship_observation& left, const s_ship_observation& right) {
-            return std::tie(left.x, left.y, left.owned, left.name, left.owner_id, left.destination_available, left.destination_id, left.eta_available, left.eta) <
-                std::tie(right.x, right.y, right.owned, right.name, right.owner_id, right.destination_available, right.destination_id, right.eta_available, right.eta);
+            return std::tie(left.x, left.y, left.owned, left.name, left.owner_id, left.destination_available, left.destination_id, left.eta_available, left.eta, left.name_available, left.role, left.type_available, left.type, left.banner, left.system_id) <
+                std::tie(right.x, right.y, right.owned, right.name, right.owner_id, right.destination_available, right.destination_id, right.eta_available, right.eta, right.name_available, right.role, right.type_available, right.type, right.banner, right.system_id);
         });
         std::vector<std::string> colony_ids;
         const auto* previous_colonies = Select_Snapshot(store, TOPIC_COLONIES);
@@ -1928,9 +2007,13 @@ namespace rpc {
             if (colony != projected.colonies.end()) planet.colony_id = colony_ids[(size_t)(colony - projected.colonies.begin())];
             planet.system = -1;
         }
-        std::vector<int32_t> own_slots(10000, -1), design_for_slot(10000, -1);
+        std::vector<int32_t> own_slots(10000, -1), member_slots(10000, -1), design_for_slot(10000, -1);
         for (size_t row = 0; row < projected.ships.size(); ++row) {
             const auto& ship = projected.ships[row];
+            if (ship.slot >= 0 && ship.slot < 10000) {
+                if (member_slots[ship.slot] != -1) return false;
+                member_slots[ship.slot] = (int32_t)row;
+            }
             if (ship.owned && ship.slot >= 0 && ship.slot < 10000) {
                 if (own_slots[ship.slot] != -1) return false;
                 own_slots[ship.slot] = (int32_t)row;
@@ -1998,20 +2081,28 @@ namespace rpc {
         std::vector<bool> grouped(projected.ships.size());
         for (auto& fleet : projected.fleets) {
             fleet.members.clear();
+            if (!fleet.heading_available) fleet.heading.clear();
+            if (!fleet.composition_available) fleet.composition.clear();
+            if (fleet.heading.size() > 360 || fleet.composition.size() > 9) return false;
+            for (const auto& row : fleet.composition)
+                if (row.label.size() > 600 || row.count <= 0 || row.count > 10000) return false;
             if (fleet.slots.empty() || fleet.slots.size() > 10000) return false;
             for (int32_t slot : fleet.slots) {
-                if (slot < 0 || slot >= 10000 || own_slots[slot] < 0) return false;
-                const size_t ordinal = own_slots[slot];
+                if (slot < 0 || slot >= 10000 || member_slots[slot] < 0) return false;
+                const size_t ordinal = member_slots[slot];
                 const auto* ship = &projected.ships[ordinal];
                 if (grouped[ordinal] || ship->x != fleet.x || ship->y != fleet.y) return false;
                 grouped[ordinal] = true;
                 if (fleet.members.empty()) {
-                    fleet.system_id = ship->inspection.system_id;
+                    fleet.owned = ship->owned;
+                    fleet.owner_id = ship->owner_id;
+                    fleet.system_id = ship->system_id.empty() ? ship->inspection.system_id : ship->system_id;
                     fleet.destination_available = ship->destination_available;
                     fleet.destination_id = ship->destination_id;
                     fleet.eta_available = ship->eta_available;
                     fleet.eta = ship->eta;
-                }
+                } else if (fleet.owned != ship->owned || fleet.owner_id != ship->owner_id)
+                    return false;
                 fleet.members.push_back(ship_ids[ordinal]);
             }
             fleet.slots.clear();
@@ -2105,7 +2196,8 @@ namespace rpc {
         for (auto& subscription : store->subscriptions) subscription.revision = 0;
         if (store->snapshots.size() > 4) {
             const bool has_context = std::any_of(store->snapshots.begin(), store->snapshots.end(), [](const s_map_snapshot& item) { return item.map.context_epoch != 0; });
-            auto ambient = has_context ? std::find_if(store->snapshots.rbegin(), store->snapshots.rend(), [](const s_map_snapshot& item) { return item.map.ships_captured && item.map.context_epoch == 0; }) : store->snapshots.rend();
+            auto ambient = std::find_if(store->snapshots.rbegin(), store->snapshots.rend(), [](const s_map_snapshot& item) { return item.map.ships_captured && item.map.inspection_captured && !item.map.owned_ambient && item.map.context_epoch == 0; });
+            if (has_context && ambient == store->snapshots.rend()) ambient = std::find_if(store->snapshots.rbegin(), store->snapshots.rend(), [](const s_map_snapshot& item) { return item.map.ships_captured && item.map.context_epoch == 0; });
             if (has_context && ambient == store->snapshots.rend()) ambient = std::find_if(store->snapshots.rbegin(), store->snapshots.rend(), [](const s_map_snapshot& item) { return !item.map.leaders_only && item.map.context_epoch == 0; });
             const std::string protected_id = ambient != store->snapshots.rend() ? ambient->id : std::string();
             auto expired = std::find_if(store->snapshots.begin(), store->snapshots.end(), [&protected_id](const s_map_snapshot& item) { return item.id != protected_id; });

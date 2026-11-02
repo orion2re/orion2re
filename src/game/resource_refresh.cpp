@@ -2,6 +2,7 @@
 
 #include "game/config_refresh.h"
 #include "ship_read.h"
+#include "game_events.h"
 
 namespace CONFIG_REFRESH {
     namespace {
@@ -15,6 +16,7 @@ namespace CONFIG_REFRESH {
     }
 
     void Resources_Unloaded() {
+        game_events::Publish(game_events::STRATEGIC_LABELS_REPLACING);
         ship_read::Clear_Strings();
         resources_ready = false;
         reload_pending = false;

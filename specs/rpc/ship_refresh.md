@@ -2,8 +2,10 @@
 
 AI-assisted summary of the implemented boundaries. Canonical field predicates
 and native source anchors are in `field_policies.json`; remaining scope is in
-`plan.md`. Foreign canonical names, scan/design/cargo/orders and durable ship
-identity remain outside the enabled projection.
+`plan.md`. Strategic composition and the narrower actual fleet-box support/NPC
+canonical-name path are documented in [strategic fleet awareness](strategic_fleet_view.md).
+Foreign combat names, scan/design/cargo/orders and durable ship identity remain
+outside the enabled projection.
 
 Owned active ships now also have ambient inspection independent of icon refresh;
 see [owned fleet/ship/design semantics](owned_fleet_view.md). Its coherent capture
@@ -17,9 +19,9 @@ and sorting. The sidecar copies only surviving icon heads and reachable members
 synchronously, rejecting invalid links, cycles, duplicate nodes/ships and inactive
 records. Queries never rebuild icons or traverse retained native nodes.
 
-Copy public position, ownership and own CP850 name. Resolve owner identity only
+Copy public position, independently disclosed strategic labels and own CP850 name. Resolve owner identity only
 through the same capture's authorized roster and unambiguous public banner color.
-Never read foreign name bytes or substitute hull labels for `Ship.name`.
+Never read suppressed foreign name bytes or substitute hull labels for `Ship.name`.
 
 Ambient routes follow the non-selection branches of
 `SHIPS::Do_Ship_Destination_Lines`: own routes, or non-own moving heads authorized

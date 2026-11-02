@@ -42,6 +42,13 @@ default 64). Unknown/wrong-kind/expired handles share object-unavailable.
 Oversized complete results fail rather than truncate. Ship context leases add
 the narrower rules in [ship_refresh.md](ship_refresh.md).
 
+Unified strategic captures explicitly stamp `fleetCoverage`; owned-only captures
+are partial, not empty non-owned observations. The newest authorized ambient
+complete fleet/ship/design capture is protected within the same four-snapshot
+budget. Ship/fleet requests select that one coherent capture when it covers all
+selected topics, never newer empire details stitched into it. See
+[strategic fleet awareness](strategic_fleet_view.md) for group and label lifetimes.
+
 Subscription baseline, ID and cursor are established atomically on the game
 thread. Reconnect needs a new baseline; there is no replay log. IDs are
 connection-owned, bounded to 16/client and 64 globally. Hidden-only or unselected

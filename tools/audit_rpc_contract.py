@@ -99,7 +99,7 @@ def Validate_Target_Drift(paths):
                          "src/game/resource_refresh.cpp",
                          "src/game/sys.cpp",
                          "tests/support/rpc_native_ships.cpp", "tests/support/rpc_native_ships.h",
-                         "src/game/tech.cpp", "src/game/tech.h", "src/game/tech_choices.cpp",
+                         "src/game/tech.cpp", "src/game/tech.h", "src/game/tech_choices.cpp", "src/game/techinit.cpp",
                          "src/game/officer.cpp", "src/game/officer.h",
                          "src/game/relations_read.cpp", "src/game/relations_read.h", "src/game/racescrn.cpp", "src/game/racescrn.h",
                          "src/game/racerprt.cpp", "src/game/strings.cpp", "src/game/info.cpp",

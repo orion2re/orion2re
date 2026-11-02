@@ -6,6 +6,17 @@ struct s_ship_data;
 struct s_ship_design;
 
 namespace ship_read {
+    struct s_composition {
+        int16_t total = 0;
+        int16_t counts[9] = {}; // Six hull buckets, colony, outpost, transport.
+    };
+    enum e_label { NO_LABEL,
+        CANONICAL_NAME,
+        HULL_LABEL };
+    void Count_Member(const s_ship_design* design, s_composition* out);
+    bool Composition_Line(int16_t category, int16_t count, char* out, uint32_t size);
+    bool Fleet_Title(int16_t owner, const s_ship_data* head, char* out, uint32_t size);
+    e_label Scanned_Label(int16_t viewer, const s_ship_data* ship, char* out, uint32_t size);
     struct s_fleet_key {
         int16_t owner, location, x, y;
         bool operator==(const s_fleet_key&) const = default;
