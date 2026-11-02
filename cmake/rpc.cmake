@@ -32,6 +32,7 @@ configure_file("${ORION2RE_RPC_BACKEND_DIR}/LICENSE"
 find_package(Threads REQUIRED)
 
 add_library(orion2re_rpc STATIC
+    src/rpc/rpc_json.cpp
     src/rpc/rpc_protocol.cpp
     src/rpc/rpc_bridge.cpp
     src/rpc/rpc_output.cpp
@@ -67,5 +68,6 @@ if(NOT CMAKE_CROSSCOMPILING)
 endif()
 
 add_executable(rpc-test-server EXCLUDE_FROM_ALL tools/rpc_test_server.cpp)
+target_include_directories(rpc-test-server PRIVATE "${ORION2RE_VENDORED_YYJSON_DIR}/src")
 target_link_libraries(rpc-test-server PRIVATE orion2re_rpc)
 orion2re_enable_sanitizers(rpc-test-server)

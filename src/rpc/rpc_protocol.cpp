@@ -1,4 +1,5 @@
 #include "rpc_protocol.h"
+#include "rpc_json.h"
 
 #include <cstdlib>
 #include <cstring>
@@ -317,44 +318,52 @@ namespace rpc {
     }
 
     std::string Json_String(std::string_view text) {
-        yyjson_mut_doc* document = yyjson_mut_doc_new(nullptr);
-        if (document == nullptr) {
-            return {};
-        }
-        yyjson_mut_doc_set_root(document, yyjson_mut_strncpy(document, text.empty() ? "" : text.data(), text.size()));
-        size_t size = 0;
-        char* encoded = yyjson_mut_write(document, YYJSON_WRITE_NOFLAG, &size);
-        std::string result = encoded != nullptr ? std::string(encoded, size) : std::string();
-        std::free(encoded);
-        yyjson_mut_doc_free(document);
+        s_json_builder json;
+        Initialize_Json(&json);
+        std::string result;
+        Write_Json(&json, Json_String_Value(&json, text), &result);
+        Shutdown_Json(&json);
         return result;
     }
 
-    std::string Describe_Methods(const s_request* request) {
+    yyjson_mut_val* Describe_Methods(s_json_builder* json, const s_request* request) {
         if (request == nullptr) {
-            return {};
+            json->failed = true;
+            return nullptr;
         }
         yyjson_doc* document = yyjson_read(request->params_json.data(), request->params_json.size(), YYJSON_READ_NOFLAG);
         if (document == nullptr) {
-            return {};
+            json->failed = true;
+            return nullptr;
         }
         yyjson_val* selected = yyjson_obj_get(yyjson_doc_get_root(document), "methods");
-        std::string result = "{\"contractVersion\":\"orion2.rpc/0\",\"methods\":[";
-        bool first = true;
+        auto* methods = Json_Array(json);
         for (const s_method_descriptor& method : rpc_methods) {
             if (!method.implemented || (selected != nullptr && !In_Array(selected, method.name, std::strlen(method.name)))) {
                 continue;
             }
-            if (!first) {
-                result += ',';
-            }
-            first = false;
-            result += "{\"name\":" + Json_String(method.name) + ",\"role\":" + Json_String(method.role) +
-                ",\"availability\":" + Json_String(method.availability) + ",\"requestType\":" + Json_String(method.request_type) +
-                ",\"resultType\":" + Json_String(method.result_type) + "}";
+            Json_Append(json, methods, Json_Object(json, {
+                {"name", Json_String_Value(json, method.name)},
+                {"role", Json_String_Value(json, method.role)},
+                {"availability", Json_String_Value(json, method.availability)},
+                {"requestType", Json_String_Value(json, method.request_type)},
+                {"resultType", Json_String_Value(json, method.result_type)},
+            }));
         }
         yyjson_doc_free(document);
-        return result + "]}";
+        return Json_Object(json, {
+            {"contractVersion", Json_String_Value(json, "orion2.rpc/0")},
+            {"methods", methods},
+        });
+    }
+
+    std::string Describe_Methods(const s_request* request) {
+        s_json_builder json;
+        Initialize_Json(&json);
+        std::string result;
+        Write_Json(&json, Describe_Methods(&json, request), &result);
+        Shutdown_Json(&json);
+        return result;
     }
 
     std::string Error_Response(const s_request* request, int32_t code) {
@@ -365,14 +374,39 @@ namespace rpc {
                 break;
             }
         }
-        return "{\"jsonrpc\":\"2.0\",\"id\":" + (request != nullptr && !request->id_json.empty() ? request->id_json : "null") +
-            ",\"error\":{\"code\":" + std::to_string(code) + ",\"message\":" + Json_String(message) + "}}";
+        s_json_builder json;
+        Initialize_Json(&json);
+        auto* root = Json_Object(&json, {
+            {"jsonrpc", Json_String_Value(&json, "2.0")},
+            {"id", request != nullptr && !request->id_json.empty() ? Json_Parse(&json, request->id_json) : Json_Null(&json)},
+            {"error", Json_Object(&json, {
+                {"code", Json_Integer(&json, code)},
+                {"message", Json_String_Value(&json, message)},
+            })},
+        });
+        std::string response;
+        Write_Json(&json, root, &response);
+        Shutdown_Json(&json);
+        return response;
+    }
+
+    std::string Result_Response(s_json_builder* json, const s_request* request, yyjson_mut_val* result) {
+        auto* root = Json_Object(json, {
+            {"jsonrpc", Json_String_Value(json, "2.0")},
+            {"id", Json_Parse(json, request->id_json)},
+            {"result", result},
+        });
+        std::string response;
+        const bool written = Write_Json(json, root, &response);
+        return written ? response : Error_Response(request, RPC_INTERNAL_ERROR);
     }
 
     std::string Result_Response(const s_request* request, std::string_view result_json) {
-        std::string response = "{\"jsonrpc\":\"2.0\",\"id\":" + request->id_json + ",\"result\":";
-        response.append(result_json);
-        return response + "}";
+        s_json_builder json;
+        Initialize_Json(&json);
+        const std::string response = Result_Response(&json, request, Json_Parse(&json, result_json));
+        Shutdown_Json(&json);
+        return response;
     }
 
     bool Keys_Match(std::string_view configured, std::string_view supplied) {

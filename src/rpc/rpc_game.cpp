@@ -1,4 +1,5 @@
 #include "rpc_game.h"
+#include "rpc_json.h"
 
 #include <algorithm>
 #include <limits>
@@ -272,352 +273,490 @@ namespace rpc {
             return nullptr;
         }
 
-        std::string Session(const s_game_store* store, const s_map_snapshot* selected = nullptr) {
+        yyjson_mut_val* Session(s_json_builder* json, const s_game_store* store, const s_map_snapshot* selected = nullptr) {
             if (store->snapshots.empty()) {
-                return store->loaded || store->unavailable ? "{\"phase\":\"unavailable\"}" : "{\"phase\":\"menu\"}";
+                return Json_Object(json, {{"phase", Json_String_Value(json, store->loaded || store->unavailable ? "unavailable" : "menu")}});
             }
             const s_map_snapshot& snapshot = selected != nullptr ? *selected : store->snapshots.back();
-            return "{\"gameId\":" + Json_String(store->game_id) + ",\"perspectiveId\":" + Json_String(store->perspective_id) +
-                ",\"revision\":" + Json_String(std::to_string(snapshot.revision)) + ",\"turn\":" + std::to_string(snapshot.map.turn) +
-                ",\"phase\":" + Json_String(store->busy_depth != 0 ? "resolving" : "committed") + "}";
+            return Json_Object(json, {
+                {"gameId", Json_String_Value(json, store->game_id)},
+                {"perspectiveId", Json_String_Value(json, store->perspective_id)},
+                {"revision", Json_String_Value(json, std::to_string(snapshot.revision))},
+                {"turn", Json_Integer(json, snapshot.map.turn)},
+                {"phase", Json_String_Value(json, store->busy_depth != 0 ? "resolving" : "committed")},
+            });
         }
 
-        std::string Stamp(const s_game_store* store, const s_map_snapshot* snapshot) {
-            return "{\"gameId\":" + Json_String(store->game_id) + ",\"perspectiveId\":" + Json_String(store->perspective_id) +
-                ",\"snapshotId\":" + Json_String(snapshot->id) + ",\"revision\":" + Json_String(std::to_string(snapshot->revision)) +
-                ",\"turn\":" + std::to_string(snapshot->map.turn) + ",\"captureMode\":" +
-                Json_String(snapshot->map.relations_presentation ? "native-relations-presentation" : (snapshot->map.leader_presentation ? "native-leader-presentation" : (snapshot->map.context_epoch != 0 ? "last-native-fleet-box" : (snapshot->map.ships_captured ? "last-native-ship-refresh" : "last-coherent-capture")))) + "}";
+        yyjson_mut_val* Stamp(s_json_builder* json, const s_game_store* store, const s_map_snapshot* snapshot) {
+            return Json_Object(json, {
+                {"gameId", Json_String_Value(json, store->game_id)},
+                {"perspectiveId", Json_String_Value(json, store->perspective_id)},
+                {"snapshotId", Json_String_Value(json, snapshot->id)},
+                {"revision", Json_String_Value(json, std::to_string(snapshot->revision))},
+                {"turn", Json_Integer(json, snapshot->map.turn)},
+                {"captureMode", Json_String_Value(json, snapshot->map.relations_presentation ? "native-relations-presentation" : (snapshot->map.leader_presentation ? "native-leader-presentation" : (snapshot->map.context_epoch != 0 ? "last-native-fleet-box" : (snapshot->map.ships_captured ? "last-native-ship-refresh" : "last-coherent-capture"))))},
+            });
         }
 
-        std::string Exploration_Knowledge(e_exploration_knowledge available, const std::string& value = {}) {
+        yyjson_mut_val* Exploration_Knowledge(s_json_builder* json, e_exploration_knowledge available, yyjson_mut_val* value = nullptr) {
+            const char* availability;
             switch (available) {
-                case EXPLORATION_CURRENT: return "{\"availability\":\"current\",\"value\":" + value + "}";
-                case EXPLORATION_EMPTY: return "{\"availability\":\"known-empty\"}";
-                case EXPLORATION_UNAUDITED: return "{\"availability\":\"unaudited\"}";
-                default: return "{\"availability\":\"unknown\"}";
+                case EXPLORATION_CURRENT: availability = "current"; break;
+                case EXPLORATION_EMPTY: availability = "known-empty"; break;
+                case EXPLORATION_UNAUDITED: availability = "unaudited"; break;
+                default: availability = "unknown"; break;
             }
+            auto* result = Json_Object(json, {{"availability", Json_String_Value(json, availability)}});
+            if (available == EXPLORATION_CURRENT) Json_Add(json, result, "value", value);
+            return result;
         }
 
-        std::string Id_Knowledge(const std::string& id) {
-            return Exploration_Knowledge(id.empty() ? EXPLORATION_UNKNOWN : EXPLORATION_CURRENT, Json_String(id));
+        yyjson_mut_val* Id_Knowledge(s_json_builder* json, const std::string& id) {
+            return Exploration_Knowledge(json, id.empty() ? EXPLORATION_UNKNOWN : EXPLORATION_CURRENT, Json_String_Value(json, id));
         }
 
-        std::string System(const s_game_store* store, const s_map_snapshot* snapshot, size_t index) {
+        yyjson_mut_val* System(s_json_builder* json, const s_game_store* store, const s_map_snapshot* snapshot, size_t index) {
             const s_system_observation& item = snapshot->map.systems[index];
-            std::string result = "{\"id\":" + Json_String(store->system_ids[index]) + ",\"x\":" + std::to_string(item.x) +
-                ",\"y\":" + std::to_string(item.y) + ",\"visited\":" + (item.visited ? "true" : "false") + ",\"name\":";
-            result += item.name_available ? "{\"availability\":\"current\",\"value\":" + Json_String(item.name) + "}" : "{\"availability\":\"unknown\"}";
-            result += ",\"spectralClass\":" + std::to_string(item.spectral_class) + ",\"size\":" + std::to_string(item.size) +
-                ",\"owner\":" + Id_Knowledge(item.owner_id) + ",\"wormhole\":" + Exploration_Knowledge(item.wormhole_available, Json_String(item.wormhole_id)) +
-                ",\"inExtendedRange\":" + Exploration_Knowledge(item.explored ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, item.in_extended_range ? "true" : "false");
-            std::string planets = "[";
-            for (const auto& id : item.planet_ids) {
-                if (planets.size() != 1) planets += ',';
-                planets += Json_String(id);
-            }
-            return result + ",\"planetIds\":" + Exploration_Knowledge(item.explored ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, planets + "]") + "}";
+            auto* planets = Json_Array(json);
+            for (const auto& id : item.planet_ids) Json_Append(json, planets, Json_String_Value(json, id));
+            return Json_Object(json, {
+                {"id", Json_String_Value(json, store->system_ids[index])},
+                {"x", Json_Integer(json, item.x)},
+                {"y", Json_Integer(json, item.y)},
+                {"visited", Json_Boolean(json, item.visited)},
+                {"name", Exploration_Knowledge(json, item.name_available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, Json_String_Value(json, item.name))},
+                {"spectralClass", Json_Integer(json, item.spectral_class)},
+                {"size", Json_Integer(json, item.size)},
+                {"owner", Id_Knowledge(json, item.owner_id)},
+                {"wormhole", Exploration_Knowledge(json, item.wormhole_available, Json_String_Value(json, item.wormhole_id))},
+                {"inExtendedRange", Exploration_Knowledge(json, item.explored ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, Json_Boolean(json, item.in_extended_range))},
+                {"planetIds", Exploration_Knowledge(json, item.explored ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, planets)},
+            });
         }
 
-        std::string Nebula(const s_game_store* store, const s_map_snapshot* snapshot, size_t index) {
+        yyjson_mut_val* Nebula(s_json_builder* json, const s_game_store* store, const s_map_snapshot* snapshot, size_t index) {
             const s_nebula_observation& item = snapshot->map.nebulas[index];
-            return "{\"id\":" + Json_String(store->nebula_ids[index]) + ",\"x\":" + std::to_string(item.x) + ",\"y\":" + std::to_string(item.y) + ",\"variant\":" + std::to_string(item.variant) + "}";
+            return Json_Object(json, {
+                {"id", Json_String_Value(json, store->nebula_ids[index])},
+                {"x", Json_Integer(json, item.x)},
+                {"y", Json_Integer(json, item.y)},
+                {"variant", Json_Integer(json, item.variant)},
+            });
         }
 
-        std::string Planet(const s_map_snapshot* snapshot, size_t index) {
+        yyjson_mut_val* Planet(s_json_builder* json, const s_map_snapshot* snapshot, size_t index) {
             const auto& item = snapshot->map.planets[index];
             const auto details = item.kind == 3 ? EXPLORATION_CURRENT : EXPLORATION_EMPTY;
             const char* kind = item.kind == 1 ? "asteroid" : (item.kind == 2 ? "gas-giant" : "planet");
-            std::string result = "{\"id\":" + Json_String(snapshot->planet_ids[index]) + ",\"systemId\":" + Json_String(item.system_id) +
-                ",\"orbit\":" + std::to_string(item.orbit) + ",\"kind\":" + Exploration_Knowledge(EXPLORATION_CURRENT, Json_String(kind)) +
-                ",\"name\":" + Exploration_Knowledge(details, Json_String(item.name));
+            auto* result = Json_Object(json, {
+                {"id", Json_String_Value(json, snapshot->planet_ids[index])},
+                {"systemId", Json_String_Value(json, item.system_id)},
+                {"orbit", Json_Integer(json, item.orbit)},
+                {"kind", Exploration_Knowledge(json, EXPLORATION_CURRENT, Json_String_Value(json, kind))},
+                {"name", Exploration_Knowledge(json, details, Json_String_Value(json, item.name))},
+            });
             const std::pair<const char*, int32_t> fields[] = {{"size", item.size}, {"gravity", item.gravity}, {"climate", item.climate}, {"minerals", item.minerals}, {"foodPerFarmer2", item.food2}, {"mineralsPerMine", item.industry}, {"gravityPenalty", item.gravity_penalty}};
-            for (const auto& field : fields) result += ',' + Json_String(field.first) + ':' + Exploration_Knowledge(details, std::to_string(field.second));
-            return result + ",\"special\":" + Exploration_Knowledge(item.kind == 3 && item.special != 0 ? EXPLORATION_CURRENT : EXPLORATION_EMPTY, std::to_string(item.special)) +
-                ",\"hostileEnvironment\":" + Exploration_Knowledge(details, item.food2 == 0 ? "true" : "false") +
-                ",\"maxPopulation\":" + Exploration_Knowledge(item.kind != 3 ? EXPLORATION_EMPTY : (item.max_population_available ? EXPLORATION_CURRENT : EXPLORATION_UNAUDITED), std::to_string(item.max_population)) +
-                ",\"colony\":" + Id_Knowledge(item.colony_id) + "}";
+            for (const auto& field : fields) Json_Add(json, result, field.first, Exploration_Knowledge(json, details, Json_Integer(json, field.second)));
+            Json_Add(json, result, "special", Exploration_Knowledge(json, item.kind == 3 && item.special != 0 ? EXPLORATION_CURRENT : EXPLORATION_EMPTY, Json_Integer(json, item.special)));
+            Json_Add(json, result, "hostileEnvironment", Exploration_Knowledge(json, details, Json_Boolean(json, item.food2 == 0)));
+            Json_Add(json, result, "maxPopulation", Exploration_Knowledge(json, item.kind != 3 ? EXPLORATION_EMPTY : (item.max_population_available ? EXPLORATION_CURRENT : EXPLORATION_UNAUDITED), Json_Integer(json, item.max_population)));
+            Json_Add(json, result, "colony", Id_Knowledge(json, item.colony_id));
+            return result;
         }
 
-        std::string Ship_Knowledge(e_ship_knowledge available, const std::string& value) {
+        yyjson_mut_val* Ship_Knowledge(s_json_builder* json, e_ship_knowledge available, yyjson_mut_val* value) {
+            const char* availability;
             switch (available) {
-                case SHIP_CURRENT: return "{\"availability\":\"current\",\"value\":" + value + "}";
-                case SHIP_KNOWN_EMPTY: return "{\"availability\":\"known-empty\"}";
-                case SHIP_UNKNOWN: return "{\"availability\":\"unknown\"}";
-                case SHIP_CONTEXT_REQUIRED: return "{\"availability\":\"context-required\"}";
-                default: return "{\"availability\":\"unaudited\"}";
+                case SHIP_CURRENT: availability = "current"; break;
+                case SHIP_KNOWN_EMPTY: availability = "known-empty"; break;
+                case SHIP_UNKNOWN: availability = "unknown"; break;
+                case SHIP_CONTEXT_REQUIRED: availability = "context-required"; break;
+                default: availability = "unaudited"; break;
             }
+            auto* result = Json_Object(json, {{"availability", Json_String_Value(json, availability)}});
+            if (available == SHIP_CURRENT) Json_Add(json, result, "value", value);
+            return result;
         }
 
-        std::string Ship(const s_map_snapshot* snapshot, size_t index) {
+        yyjson_mut_val* Ship(s_json_builder* json, const s_map_snapshot* snapshot, size_t index) {
             const s_ship_observation& item = snapshot->map.ships[index];
-            const std::string name = item.owned ? "{\"availability\":\"current\",\"value\":" + Json_String(item.name) + "}" : "{\"availability\":\"unaudited\"}";
-            const std::string owner = item.owner_id.empty() ? "{\"availability\":\"unaudited\"}" : "{\"availability\":\"current\",\"value\":" + Json_String(item.owner_id) + "}";
-            return "{\"id\":" + Json_String(snapshot->ship_ids[index]) + ",\"x\":" + std::to_string(item.x) +
-                ",\"y\":" + std::to_string(item.y) + ",\"owned\":" + (item.owned ? "true" : "false") + ",\"name\":" + name +
-                ",\"owner\":" + owner + ",\"destination\":" + Ship_Knowledge(item.destination_available, Json_String(item.destination_id)) +
-                ",\"eta\":" + Ship_Knowledge(item.eta_available, std::to_string(item.eta)) + "}";
+            return Json_Object(json, {
+                {"id", Json_String_Value(json, snapshot->ship_ids[index])},
+                {"x", Json_Integer(json, item.x)},
+                {"y", Json_Integer(json, item.y)},
+                {"owned", Json_Boolean(json, item.owned)},
+                {"name", Exploration_Knowledge(json, item.owned ? EXPLORATION_CURRENT : EXPLORATION_UNAUDITED, Json_String_Value(json, item.name))},
+                {"owner", Exploration_Knowledge(json, item.owner_id.empty() ? EXPLORATION_UNAUDITED : EXPLORATION_CURRENT, Json_String_Value(json, item.owner_id))},
+                {"destination", Ship_Knowledge(json, item.destination_available, Json_String_Value(json, item.destination_id))},
+                {"eta", Ship_Knowledge(json, item.eta_available, Json_Integer(json, item.eta))},
+            });
         }
 
-        std::string Player(const s_map_snapshot* snapshot, size_t index) {
+        yyjson_mut_val* Player(s_json_builder* json, const s_map_snapshot* snapshot, size_t index) {
             const auto& item = snapshot->map.players[index];
-            std::string result = "{\"id\":" + Json_String(snapshot->player_ids[index]) + ",\"local\":" + (item.local ? "true" : "false") +
-                ",\"contacted\":" + (item.contacted ? "true" : "false") + ",\"eliminated\":" + (item.eliminated ? "true" : "false") +
-                ",\"color\":" + std::to_string(item.color) + ",\"name\":{\"availability\":\"current\",\"value\":" + Json_String(item.name) + "},\"atWar\":";
-            result += item.at_war_available ? std::string("{\"availability\":\"current\",\"value\":") + (item.at_war ? "true}" : "false}") : "{\"availability\":\"unknown\"}";
-            result += ",\"researchTreaty\":";
-            result += item.research_treaty_available ? std::string("{\"availability\":\"current\",\"value\":") + (item.research_treaty ? "true}" : "false}") : "{\"availability\":\"unknown\"}";
-            result += ",\"tradeTreaty\":";
-            result += item.trade_treaty_available ? std::string("{\"availability\":\"current\",\"value\":") + (item.trade_treaty ? "true}" : "false}") : "{\"availability\":\"unknown\"}";
-            result += ",\"treasury\":";
-            if (!item.local) return result + "{\"availability\":\"unaudited\"},\"hud\":{\"availability\":\"unaudited\"}}";
-            return result + "{\"availability\":\"current\",\"value\":" + std::to_string(item.treasury) +
-                "},\"hud\":{\"availability\":\"current\",\"value\":{\"income\":" + std::to_string(item.hud.income) +
-                ",\"foodSurplus\":" + std::to_string(item.hud.food_surplus) + ",\"freighters\":" + std::to_string(item.hud.freighters) +
-                ",\"freightersAvailable\":" + std::to_string(item.hud.freighters_available) + ",\"commandPoints\":" + std::to_string(item.hud.command_points) +
-                ",\"commandPointsAvailable\":" + std::to_string(item.hud.command_points_available) + "}}}";
+            auto* result = Json_Object(json, {
+                {"id", Json_String_Value(json, snapshot->player_ids[index])},
+                {"local", Json_Boolean(json, item.local)},
+                {"contacted", Json_Boolean(json, item.contacted)},
+                {"eliminated", Json_Boolean(json, item.eliminated)},
+                {"color", Json_Integer(json, item.color)},
+                {"name", Exploration_Knowledge(json, EXPLORATION_CURRENT, Json_String_Value(json, item.name))},
+                {"atWar", Exploration_Knowledge(json, item.at_war_available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, Json_Boolean(json, item.at_war))},
+                {"researchTreaty", Exploration_Knowledge(json, item.research_treaty_available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, Json_Boolean(json, item.research_treaty))},
+                {"tradeTreaty", Exploration_Knowledge(json, item.trade_treaty_available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, Json_Boolean(json, item.trade_treaty))},
+            });
+            const auto private_data = item.local ? EXPLORATION_CURRENT : EXPLORATION_UNAUDITED;
+            Json_Add(json, result, "treasury", Exploration_Knowledge(json, private_data, Json_Integer(json, item.treasury)));
+            yyjson_mut_val* hud = nullptr;
+            if (item.local) {
+                hud = Json_Object(json, {
+                    {"income", Json_Integer(json, item.hud.income)},
+                    {"foodSurplus", Json_Integer(json, item.hud.food_surplus)},
+                    {"freighters", Json_Integer(json, item.hud.freighters)},
+                    {"freightersAvailable", Json_Integer(json, item.hud.freighters_available)},
+                    {"commandPoints", Json_Integer(json, item.hud.command_points)},
+                    {"commandPointsAvailable", Json_Integer(json, item.hud.command_points_available)},
+                });
+            }
+            Json_Add(json, result, "hud", Exploration_Knowledge(json, private_data, hud));
+            return result;
         }
 
-        std::string Colony_Operations(const s_colony_operations& item) {
-            if (!item.available) return "{\"availability\":\"unknown\"}";
-            std::string result = "{\"availability\":\"current\",\"value\":{\"populationText\":" + Json_String(item.population_text) +
-                ",\"heading\":" + Exploration_Knowledge(item.heading_available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, Json_String(item.heading)) +
-                ",\"autobuild\":" + Json_String(item.autobuild) + ",\"autobuildActive\":" + (item.autobuild_active ? "true" : "false") +
-                ",\"farmCapacity\":" + Exploration_Knowledge(item.farm_capacity < 0 ? EXPLORATION_EMPTY : EXPLORATION_CURRENT, std::to_string(item.farm_capacity)) + ",\"blockaded\":" + (item.blockaded ? "true" : "false") +
-                ",\"event\":" + Exploration_Knowledge(item.event_present ? EXPLORATION_CURRENT : EXPLORATION_EMPTY, Json_String(item.event)) +
-                ",\"status\":" + Exploration_Knowledge(item.status_present ? EXPLORATION_CURRENT : EXPLORATION_EMPTY, Json_String(item.status)) +
-                ",\"inboundPopulation\":" + std::to_string(item.inbound) + ",\"infantryLabel\":" + Json_String(item.infantry_name) +
-                ",\"armorLabel\":" + Json_String(item.armor_name) + ",\"morale\":{\"suppressed\":" + (item.morale_suppressed ? "true" : "false") +
-                ",\"icons\":" + std::to_string(item.morale_icons) + "},\"queue\":[";
-            for (size_t i = 0; i < item.queue.size(); ++i) {
-                if (i != 0) result += ',';
-                const auto& product = item.queue[i];
-                result += product.available ? "{\"availability\":\"current\",\"value\":{\"kind\":" + Json_String(product.kind) + ",\"label\":" + Json_String(product.label) + "}}" : "{\"availability\":\"unknown\"}";
+        yyjson_mut_val* Colony_Operations(s_json_builder* json, const s_colony_operations& item) {
+            if (!item.available) return Exploration_Knowledge(json, EXPLORATION_UNKNOWN);
+            auto* result = Json_Object(json, {
+                {"populationText", Json_String_Value(json, item.population_text)},
+                {"heading", Exploration_Knowledge(json, item.heading_available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, Json_String_Value(json, item.heading))},
+                {"autobuild", Json_String_Value(json, item.autobuild)},
+                {"autobuildActive", Json_Boolean(json, item.autobuild_active)},
+                {"farmCapacity", Exploration_Knowledge(json, item.farm_capacity < 0 ? EXPLORATION_EMPTY : EXPLORATION_CURRENT, Json_Integer(json, item.farm_capacity))},
+                {"blockaded", Json_Boolean(json, item.blockaded)},
+                {"event", Exploration_Knowledge(json, item.event_present ? EXPLORATION_CURRENT : EXPLORATION_EMPTY, Json_String_Value(json, item.event))},
+                {"status", Exploration_Knowledge(json, item.status_present ? EXPLORATION_CURRENT : EXPLORATION_EMPTY, Json_String_Value(json, item.status))},
+                {"inboundPopulation", Json_Integer(json, item.inbound)},
+                {"infantryLabel", Json_String_Value(json, item.infantry_name)},
+                {"armorLabel", Json_String_Value(json, item.armor_name)},
+                {"morale", Json_Object(json, {
+                    {"suppressed", Json_Boolean(json, item.morale_suppressed)},
+                    {"icons", Json_Integer(json, item.morale_icons)},
+                })},
+            });
+            auto* queue = Json_Array(json);
+            for (const auto& product : item.queue) {
+                auto* value = product.available ? Json_Object(json, {
+                    {"kind", Json_String_Value(json, product.kind)},
+                    {"label", Json_String_Value(json, product.label)},
+                }) : nullptr;
+                Json_Append(json, queue, Exploration_Knowledge(json, product.available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, value));
             }
-            result += "],\"workforce\":[";
-            for (size_t i = 0; i < item.workforce.size(); ++i) {
-                if (i != 0) result += ',';
-                const auto& worker = item.workforce[i];
-                result += "{\"label\":" + Json_String(worker.label) + ",\"species\":" + Json_String(worker.species) +
-                    ",\"job\":" + Json_String(worker.job) + ",\"state\":" + Json_String(worker.state) + ",\"assigned\":" + (worker.assigned ? "true" : "false") +
-                    ",\"conquered\":" + (worker.conquered ? "true" : "false") + ",\"player\":" + Id_Knowledge(worker.player_id) + "}";
+            Json_Add(json, result, "queue", queue);
+            auto* workforce = Json_Array(json);
+            for (const auto& worker : item.workforce) {
+                Json_Append(json, workforce, Json_Object(json, {
+                    {"label", Json_String_Value(json, worker.label)},
+                    {"species", Json_String_Value(json, worker.species)},
+                    {"job", Json_String_Value(json, worker.job)},
+                    {"state", Json_String_Value(json, worker.state)},
+                    {"assigned", Json_Boolean(json, worker.assigned)},
+                    {"conquered", Json_Boolean(json, worker.conquered)},
+                    {"player", Id_Knowledge(json, worker.player_id)},
+                }));
             }
-            result += "],\"structures\":[";
-            for (size_t i = 0; i < item.structures.size(); ++i) {
-                if (i != 0) result += ',';
-                const auto& building = item.structures[i];
-                result += "{\"label\":" + Json_String(building.name) + ",\"satellite\":" + (building.satellite ? "true" : "false") + "}";
+            Json_Add(json, result, "workforce", workforce);
+            auto* structures = Json_Array(json);
+            for (const auto& building : item.structures) {
+                Json_Append(json, structures, Json_Object(json, {
+                    {"label", Json_String_Value(json, building.name)},
+                    {"satellite", Json_Boolean(json, building.satellite)},
+                }));
             }
-            result += "],\"resources\":[";
-            for (size_t i = 0; i < item.resources.size(); ++i) {
-                if (i != 0) result += ',';
-                const auto& row = item.resources[i];
-                result += "{\"resource\":" + Json_String(row.resource) + ",\"local\":" + std::to_string(row.local) +
-                    ",\"exchanged\":" + std::to_string(row.exchanged) + ",\"secondary\":" + std::to_string(row.secondary) +
-                    ",\"shortage\":" + std::to_string(row.shortage) + ",\"exporting\":" + (row.exporting ? "true" : "false") + "}";
+            Json_Add(json, result, "structures", structures);
+            auto* resources = Json_Array(json);
+            for (const auto& row : item.resources) {
+                Json_Append(json, resources, Json_Object(json, {
+                    {"resource", Json_String_Value(json, row.resource)},
+                    {"local", Json_Integer(json, row.local)},
+                    {"exchanged", Json_Integer(json, row.exchanged)},
+                    {"secondary", Json_Integer(json, row.secondary)},
+                    {"shortage", Json_Integer(json, row.shortage)},
+                    {"exporting", Json_Boolean(json, row.exporting)},
+                }));
             }
-            result += "],\"garrison\":";
-            if (!item.garrison_available)
-                result += "{\"availability\":\"unknown\"}";
-            else {
-                result += "{\"availability\":\"current\",\"value\":[";
-                for (size_t i = 0; i < item.garrison.size(); ++i) {
-                    if (i != 0) result += ',';
-                    const auto& unit = item.garrison[i];
-                    result += "{\"label\":" + Json_String(unit.label) + ",\"count\":" + std::to_string(unit.count) +
-                        ",\"strength\":" + std::to_string(unit.strength) + ",\"hp\":" + std::to_string(unit.hp) + "}";
+            Json_Add(json, result, "resources", resources);
+            yyjson_mut_val* garrison = nullptr;
+            if (item.garrison_available) {
+                garrison = Json_Array(json);
+                for (const auto& unit : item.garrison) {
+                    Json_Append(json, garrison, Json_Object(json, {
+                        {"label", Json_String_Value(json, unit.label)},
+                        {"count", Json_Integer(json, unit.count)},
+                        {"strength", Json_Integer(json, unit.strength)},
+                        {"hp", Json_Integer(json, unit.hp)},
+                    }));
                 }
-                result += "]}";
             }
-            result += ",\"currentProduction\":";
-            if (!item.production_available) return result + "{\"availability\":\"unknown\"}}}";
-            return result + "{\"availability\":\"current\",\"value\":{\"cost\":" + std::to_string(item.cost) +
-                ",\"stored\":" + std::to_string(item.stored) + ",\"bought\":" + std::to_string(item.bought) +
-                ",\"turns\":" + Exploration_Knowledge(item.turns > 0 && item.turns < 10000 ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, std::to_string(item.turns)) +
-                ",\"buyCost\":" + std::to_string(item.buy_cost) + ",\"canBuy\":" + (item.can_buy ? "true" : "false") + "}}}}";
+            Json_Add(json, result, "garrison", Exploration_Knowledge(json, item.garrison_available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, garrison));
+            yyjson_mut_val* production = nullptr;
+            if (item.production_available) {
+                production = Json_Object(json, {
+                    {"cost", Json_Integer(json, item.cost)},
+                    {"stored", Json_Integer(json, item.stored)},
+                    {"bought", Json_Integer(json, item.bought)},
+                    {"turns", Exploration_Knowledge(json, item.turns > 0 && item.turns < 10000 ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, Json_Integer(json, item.turns))},
+                    {"buyCost", Json_Integer(json, item.buy_cost)},
+                    {"canBuy", Json_Boolean(json, item.can_buy)},
+                });
+            }
+            Json_Add(json, result, "currentProduction", Exploration_Knowledge(json, item.production_available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, production));
+            return Exploration_Knowledge(json, EXPLORATION_CURRENT, result);
         }
 
-        std::string Colony(const s_map_snapshot* snapshot, size_t index) {
+        yyjson_mut_val* Colony(s_json_builder* json, const s_map_snapshot* snapshot, size_t index) {
             const auto& item = snapshot->map.colonies[index];
-            return "{\"id\":" + Json_String(snapshot->colony_ids[index]) + ",\"systemId\":" + Json_String(item.system_id) +
-                ",\"orbit\":" + std::to_string(item.orbit) + ",\"planetId\":" + Id_Knowledge(item.planet_id) + ",\"owner\":{\"availability\":\"current\",\"value\":" +
-                Json_String(item.owner_id) + "},\"population\":{\"availability\":\"current\",\"value\":" + std::to_string(item.population) +
-                "},\"troops\":{\"availability\":\"current\",\"value\":{\"infantry\":" + std::to_string(item.infantry) +
-                ",\"armor\":" + std::to_string(item.armor) + "}},\"production\":" +
-                (item.operations.available && !item.operations.queue.empty() && item.operations.queue[0].available ? Exploration_Knowledge(EXPLORATION_CURRENT, Json_String(item.operations.queue[0].label)) : Exploration_Knowledge(EXPLORATION_UNKNOWN)) +
-                ",\"buyCost\":" + Exploration_Knowledge(item.operations.available && item.operations.production_available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, std::to_string(item.operations.buy_cost)) +
-                ",\"operations\":" + Colony_Operations(item.operations) + "}";
+            const bool production = item.operations.available && !item.operations.queue.empty() && item.operations.queue[0].available;
+            return Json_Object(json, {
+                {"id", Json_String_Value(json, snapshot->colony_ids[index])},
+                {"systemId", Json_String_Value(json, item.system_id)},
+                {"orbit", Json_Integer(json, item.orbit)},
+                {"planetId", Id_Knowledge(json, item.planet_id)},
+                {"owner", Exploration_Knowledge(json, EXPLORATION_CURRENT, Json_String_Value(json, item.owner_id))},
+                {"population", Exploration_Knowledge(json, EXPLORATION_CURRENT, Json_Integer(json, item.population))},
+                {"troops", Exploration_Knowledge(json, EXPLORATION_CURRENT, Json_Object(json, {
+                    {"infantry", Json_Integer(json, item.infantry)},
+                    {"armor", Json_Integer(json, item.armor)},
+                }))},
+                {"production", Exploration_Knowledge(json, production ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN,
+                    production ? Json_String_Value(json, item.operations.queue[0].label) : nullptr)},
+                {"buyCost", Exploration_Knowledge(json, item.operations.available && item.operations.production_available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, Json_Integer(json, item.operations.buy_cost))},
+                {"operations", Colony_Operations(json, item.operations)},
+            });
         }
 
-        std::string Research_Id(const s_map_snapshot* snapshot, int32_t index) {
-            return index < 0 ? Exploration_Knowledge(EXPLORATION_EMPTY) : Exploration_Knowledge(EXPLORATION_CURRENT, Json_String(snapshot->technology_ids[(size_t)index]));
+        yyjson_mut_val* Research_Id(s_json_builder* json, const s_map_snapshot* snapshot, int32_t index) {
+            return index < 0 ? Exploration_Knowledge(json, EXPLORATION_EMPTY) : Exploration_Knowledge(json, EXPLORATION_CURRENT, Json_String_Value(json, snapshot->technology_ids[(size_t)index]));
         }
 
-        std::string Research_Cost(const s_technology_observation* technology) {
-            return Exploration_Knowledge(technology == nullptr ? EXPLORATION_EMPTY : (technology->cost_available ? EXPLORATION_CURRENT : EXPLORATION_UNAUDITED),
-                technology != nullptr ? std::to_string(technology->cost) : std::string());
+        yyjson_mut_val* Research_Cost(s_json_builder* json, const s_technology_observation* technology) {
+            return Exploration_Knowledge(json, technology == nullptr ? EXPLORATION_EMPTY : (technology->cost_available ? EXPLORATION_CURRENT : EXPLORATION_UNAUDITED),
+                technology != nullptr ? Json_Integer(json, technology->cost) : nullptr);
         }
 
-        std::string Research_Option(const s_map_snapshot* snapshot, size_t index) {
+        yyjson_mut_val* Research_Option(s_json_builder* json, const s_map_snapshot* snapshot, size_t index) {
             const auto& option = snapshot->map.research.options[index];
             const auto& technology = snapshot->map.research.technologies[(size_t)(option.application >= 0 ? option.application : option.field)];
-            return "{\"id\":" + Json_String(snapshot->research_option_ids[index]) +
-                ",\"field\":" + Json_String(snapshot->technology_ids[(size_t)option.field]) +
-                ",\"application\":" + Research_Id(snapshot, option.application) +
-                ",\"label\":" + Json_String(technology.name) + ",\"remainingCost\":" + std::to_string(option.remaining) + "}";
+            return Json_Object(json, {
+                {"id", Json_String_Value(json, snapshot->research_option_ids[index])},
+                {"field", Json_String_Value(json, snapshot->technology_ids[(size_t)option.field])},
+                {"application", Research_Id(json, snapshot, option.application)},
+                {"label", Json_String_Value(json, technology.name)},
+                {"remainingCost", Json_Integer(json, option.remaining)},
+            });
         }
 
-        std::string Research(const s_game_store* store, const s_map_snapshot* snapshot, bool stamped = true) {
+        yyjson_mut_val* Research(s_json_builder* json, const s_game_store* store, const s_map_snapshot* snapshot, bool stamped = true) {
             const auto& research = snapshot->map.research;
-            std::string result = stamped ? "{\"stamp\":" + Stamp(store, snapshot) + ',' : "{";
-            result += "\"mode\":" + Json_String(research.mode) + ",\"project\":" + Research_Id(snapshot, research.project) +
-                ",\"application\":" + Research_Id(snapshot, research.application) +
-                ",\"progress\":{\"availability\":\"unaudited\"},\"cost\":" + Research_Cost(research.project >= 0 ? &research.technologies[(size_t)research.project] : nullptr) +
-                ",\"options\":[";
+            auto* result = Json_Object(json);
+            if (stamped) Json_Add(json, result, "stamp", Stamp(json, store, snapshot));
+            Json_Add(json, result, "mode", Json_String_Value(json, research.mode));
+            Json_Add(json, result, "project", Research_Id(json, snapshot, research.project));
+            Json_Add(json, result, "application", Research_Id(json, snapshot, research.application));
+            Json_Add(json, result, "progress", Exploration_Knowledge(json, EXPLORATION_UNAUDITED));
+            Json_Add(json, result, "cost", Research_Cost(json, research.project >= 0 ? &research.technologies[(size_t)research.project] : nullptr));
+            auto* options = Json_Array(json);
             for (size_t index = 0; index < research.options.size(); ++index) {
-                if (index != 0) result += ',';
-                result += Research_Option(snapshot, index);
+                Json_Append(json, options, Research_Option(json, snapshot, index));
             }
-            return result + "]}";
+            Json_Add(json, result, "options", options);
+            return result;
         }
 
-        std::string Technology(const s_game_store* store, const s_map_snapshot* snapshot, size_t index) {
+        yyjson_mut_val* Technology(s_json_builder* json, const s_game_store* store, const s_map_snapshot* snapshot, size_t index) {
             const auto& technology = snapshot->map.research.technologies[index];
-            return "{\"stamp\":" + Stamp(store, snapshot) + ",\"id\":" + Json_String(snapshot->technology_ids[index]) +
-                ",\"kind\":" + Json_String(technology.application ? "application" : "field") +
-                ",\"name\":" + Exploration_Knowledge(EXPLORATION_CURRENT, Json_String(technology.name)) +
-                ",\"description\":{\"availability\":\"unaudited\"},\"cost\":" + Research_Cost(&technology) + "}";
+            return Json_Object(json, {
+                {"stamp", Stamp(json, store, snapshot)},
+                {"id", Json_String_Value(json, snapshot->technology_ids[index])},
+                {"kind", Json_String_Value(json, technology.application ? "application" : "field")},
+                {"name", Exploration_Knowledge(json, EXPLORATION_CURRENT, Json_String_Value(json, technology.name))},
+                {"description", Exploration_Knowledge(json, EXPLORATION_UNAUDITED)},
+                {"cost", Research_Cost(json, &technology)},
+            });
         }
 
-        std::string Leader(const s_map_snapshot* snapshot, size_t index) {
+        yyjson_mut_val* Leader(s_json_builder* json, const s_map_snapshot* snapshot, size_t index) {
             const auto& item = snapshot->map.leaders[index];
-            std::string assignment;
-            if (item.assignment_available == EXPLORATION_CURRENT) {
-                assignment = Exploration_Knowledge(EXPLORATION_CURRENT, "{\"kind\":" + Json_String(item.assignment_kind) + ",\"name\":" + Json_String(item.assignment_name) + ",\"target\":" + Id_Knowledge(item.assignment_id) + "}");
-            } else {
-                assignment = Exploration_Knowledge(item.assignment_available);
-            }
-            std::string skills = "[";
+            auto* skills = Json_Array(json);
             for (const auto& skill : item.skills) {
-                if (skills.size() != 1) skills += ',';
-                skills += "{\"name\":" + Json_String(skill.name) + ",\"displayValue\":" + Json_String(skill.value) + "}";
+                Json_Append(json, skills, Json_Object(json, {
+                    {"name", Json_String_Value(json, skill.name)},
+                    {"displayValue", Json_String_Value(json, skill.value)},
+                }));
             }
             if (item.partial) {
-                const std::string unknown = "{\"availability\":\"unknown\"}";
-                return "{\"id\":" + Json_String(snapshot->leader_ids[index]) + ",\"disclosure\":" + Json_String(item.disclosure) +
-                    ",\"name\":" + Json_String(item.name) + ",\"role\":" + (item.role.empty() ? unknown : Exploration_Knowledge(EXPLORATION_CURRENT, Json_String(item.role))) +
-                    ",\"title\":" + (item.disclosure != "leader-result" ? unknown : Exploration_Knowledge(EXPLORATION_CURRENT, Json_String(item.title))) +
-                    ",\"rank\":" + (item.disclosure != "leader-result" ? unknown : Exploration_Knowledge(EXPLORATION_CURRENT, Json_String(item.rank))) +
-                    ",\"experience\":" + unknown + ",\"abilities\":" + (item.skills_available ? Exploration_Knowledge(EXPLORATION_CURRENT, skills + "]") : unknown) +
-                    ",\"status\":" + unknown + ",\"assignment\":" + unknown + ",\"eta\":" + Exploration_Knowledge(item.eta_available, std::to_string(item.eta)) + ",\"hireCost\":" + unknown +
-                    ",\"upkeep\":" + unknown + ",\"offerRemainingTurns\":" + unknown + ",\"offerBenefits\":" + unknown +
-                    ",\"contextBonus\":" + Exploration_Knowledge(item.bonus_available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, std::to_string(item.bonus)) +
-                    ",\"description\":{\"availability\":\"unaudited\"}}";
+                return Json_Object(json, {
+                    {"id", Json_String_Value(json, snapshot->leader_ids[index])},
+                    {"disclosure", Json_String_Value(json, item.disclosure)},
+                    {"name", Json_String_Value(json, item.name)},
+                    {"role", Exploration_Knowledge(json, item.role.empty() ? EXPLORATION_UNKNOWN : EXPLORATION_CURRENT, Json_String_Value(json, item.role))},
+                    {"title", Exploration_Knowledge(json, item.disclosure != "leader-result" ? EXPLORATION_UNKNOWN : EXPLORATION_CURRENT, Json_String_Value(json, item.title))},
+                    {"rank", Exploration_Knowledge(json, item.disclosure != "leader-result" ? EXPLORATION_UNKNOWN : EXPLORATION_CURRENT, Json_String_Value(json, item.rank))},
+                    {"experience", Exploration_Knowledge(json, EXPLORATION_UNKNOWN)},
+                    {"abilities", Exploration_Knowledge(json, item.skills_available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, skills)},
+                    {"status", Exploration_Knowledge(json, EXPLORATION_UNKNOWN)},
+                    {"assignment", Exploration_Knowledge(json, EXPLORATION_UNKNOWN)},
+                    {"eta", Exploration_Knowledge(json, item.eta_available, Json_Integer(json, item.eta))},
+                    {"hireCost", Exploration_Knowledge(json, EXPLORATION_UNKNOWN)},
+                    {"upkeep", Exploration_Knowledge(json, EXPLORATION_UNKNOWN)},
+                    {"offerRemainingTurns", Exploration_Knowledge(json, EXPLORATION_UNKNOWN)},
+                    {"offerBenefits", Exploration_Knowledge(json, EXPLORATION_UNKNOWN)},
+                    {"contextBonus", Exploration_Knowledge(json, item.bonus_available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, Json_Integer(json, item.bonus))},
+                    {"description", Exploration_Knowledge(json, EXPLORATION_UNAUDITED)},
+                });
             }
-            return "{\"id\":" + Json_String(snapshot->leader_ids[index]) + ",\"disclosure\":" + Json_String(item.disclosure) +
-                ",\"role\":" + Json_String(item.role) + ",\"name\":" + Json_String(item.name) + ",\"title\":" + Json_String(item.title) +
-                ",\"rank\":" + Json_String(item.rank) + ",\"experience\":" + Exploration_Knowledge(item.xp_available ? EXPLORATION_CURRENT : EXPLORATION_UNAUDITED, std::to_string(item.xp)) +
-                ",\"abilities\":" + skills + "],\"status\":" + Json_String(item.status) + ",\"assignment\":" + assignment +
-                ",\"eta\":" + Exploration_Knowledge(item.eta_available, std::to_string(item.eta)) +
-                ",\"hireCost\":" + Exploration_Knowledge(item.hire_cost_available ? EXPLORATION_CURRENT : EXPLORATION_UNAUDITED, std::to_string(item.hire_cost)) +
-                ",\"upkeep\":" + std::to_string(item.upkeep) +
-                ",\"offerRemainingTurns\":" + Exploration_Knowledge(item.offer_turns_available ? EXPLORATION_CURRENT : EXPLORATION_UNAUDITED, std::to_string(item.offer_turns)) +
-                ",\"offerBenefits\":" + Exploration_Knowledge(item.benefits_available ? EXPLORATION_CURRENT : EXPLORATION_UNAUDITED, Json_String(item.benefits)) +
-                (item.bonus_available ? ",\"contextBonus\":" + Exploration_Knowledge(EXPLORATION_CURRENT, std::to_string(item.bonus)) : "") +
-                ",\"description\":{\"availability\":\"unaudited\"}}";
+            yyjson_mut_val* assignment = nullptr;
+            if (item.assignment_available == EXPLORATION_CURRENT) {
+                assignment = Json_Object(json, {
+                    {"kind", Json_String_Value(json, item.assignment_kind)},
+                    {"name", Json_String_Value(json, item.assignment_name)},
+                    {"target", Id_Knowledge(json, item.assignment_id)},
+                });
+            }
+            auto* result = Json_Object(json, {
+                {"id", Json_String_Value(json, snapshot->leader_ids[index])},
+                {"disclosure", Json_String_Value(json, item.disclosure)},
+                {"role", Json_String_Value(json, item.role)},
+                {"name", Json_String_Value(json, item.name)},
+                {"title", Json_String_Value(json, item.title)},
+                {"rank", Json_String_Value(json, item.rank)},
+                {"experience", Exploration_Knowledge(json, item.xp_available ? EXPLORATION_CURRENT : EXPLORATION_UNAUDITED, Json_Integer(json, item.xp))},
+                {"abilities", skills},
+                {"status", Json_String_Value(json, item.status)},
+                {"assignment", Exploration_Knowledge(json, item.assignment_available, assignment)},
+                {"eta", Exploration_Knowledge(json, item.eta_available, Json_Integer(json, item.eta))},
+                {"hireCost", Exploration_Knowledge(json, item.hire_cost_available ? EXPLORATION_CURRENT : EXPLORATION_UNAUDITED, Json_Integer(json, item.hire_cost))},
+                {"upkeep", Json_Integer(json, item.upkeep)},
+                {"offerRemainingTurns", Exploration_Knowledge(json, item.offer_turns_available ? EXPLORATION_CURRENT : EXPLORATION_UNAUDITED, Json_Integer(json, item.offer_turns))},
+                {"offerBenefits", Exploration_Knowledge(json, item.benefits_available ? EXPLORATION_CURRENT : EXPLORATION_UNAUDITED, Json_String_Value(json, item.benefits))},
+            });
+            if (item.bonus_available) Json_Add(json, result, "contextBonus", Exploration_Knowledge(json, EXPLORATION_CURRENT, Json_Integer(json, item.bonus)));
+            Json_Add(json, result, "description", Exploration_Knowledge(json, EXPLORATION_UNAUDITED));
+            return result;
         }
 
-        std::string Relations(const s_map_snapshot* snapshot) {
-            std::string result = "[";
+        yyjson_mut_val* Relations(s_json_builder* json, const s_map_snapshot* snapshot) {
+            auto* result = Json_Array(json);
             for (const auto& item : snapshot->map.relations) {
-                if (result.size() != 1) result += ',';
                 const auto known = item.available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN;
                 auto Agreement = [&](bool present, int32_t level, bool research) {
-                    return Exploration_Knowledge(!item.available ? EXPLORATION_UNKNOWN : (present ? EXPLORATION_CURRENT : EXPLORATION_EMPTY),
-                        "{\"level\":" + std::to_string(level) + ",\"unit\":" + Json_String(research && level >= 0 ? "rp-per-turn" : "bc-per-turn") + "}");
+                    return Exploration_Knowledge(json, !item.available ? EXPLORATION_UNKNOWN : (present ? EXPLORATION_CURRENT : EXPLORATION_EMPTY),
+                        Json_Object(json, {
+                            {"level", Json_Integer(json, level)},
+                            {"unit", Json_String_Value(json, research && level >= 0 ? "rp-per-turn" : "bc-per-turn")},
+                        }));
                 };
-                std::string tribute = "{\"direction\":" + Json_String(item.giving ? "giving" : "receiving") + ",\"percent\":" + std::to_string(item.tribute_percent) + "}";
-                result += "{\"player\":" + Json_String(item.player_id) +
-                    ",\"relationship\":" + Exploration_Knowledge(item.available && !item.relationship.empty() ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, Json_String(item.relationship)) +
-                    ",\"relationshipIndicatorOffset\":" + Exploration_Knowledge(known, std::to_string(item.relationship_offset)) +
-                    ",\"treaty\":" + Exploration_Knowledge(item.available && !item.treaty.empty() ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, Json_String(item.treaty)) +
-                    ",\"ignoring\":" + Exploration_Knowledge(known, item.ignoring ? "true" : "false") +
-                    ",\"researchAgreement\":" + Agreement(item.research, item.research_level, true) +
-                    ",\"tradeAgreement\":" + Agreement(item.trade, item.trade_level, false) +
-                    ",\"tribute\":" + Exploration_Knowledge(!item.available ? EXPLORATION_UNKNOWN : (item.tribute_percent != 0 ? EXPLORATION_CURRENT : EXPLORATION_EMPTY), tribute) +
-                    ",\"incomingSpies\":" + Exploration_Knowledge(item.incoming_available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, std::to_string(item.incoming)) +
-                    ",\"report\":";
-                std::string entries = "[";
+                auto* tribute = Json_Object(json, {
+                    {"direction", Json_String_Value(json, item.giving ? "giving" : "receiving")},
+                    {"percent", Json_Integer(json, item.tribute_percent)},
+                });
+                auto* entries = Json_Array(json);
                 for (const auto& entry : item.report) {
-                    if (entries.size() != 1) entries += ',';
-                    entries += "{\"player\":" + Id_Knowledge(entry.player_id) + ",\"name\":" + Json_String(entry.name) + ",\"kind\":" + Json_String(entry.alliance ? "alliance" : "war") + "}";
+                    Json_Append(json, entries, Json_Object(json, {
+                        {"player", Id_Knowledge(json, entry.player_id)},
+                        {"name", Json_String_Value(json, entry.name)},
+                        {"kind", Json_String_Value(json, entry.alliance ? "alliance" : "war")},
+                    }));
                 }
-                result += Exploration_Knowledge(item.report_available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN,
-                              "{\"personality\":" + Exploration_Knowledge(item.personality.empty() ? EXPLORATION_UNKNOWN : EXPLORATION_CURRENT, Json_String(item.personality)) + ",\"objective\":" + Exploration_Knowledge(item.objective_empty ? EXPLORATION_EMPTY : (item.objective.empty() ? EXPLORATION_UNKNOWN : EXPLORATION_CURRENT), Json_String(item.objective)) + ",\"treaties\":" + entries + "]}") +
-                    "}";
+                Json_Append(json, result, Json_Object(json, {
+                    {"player", Json_String_Value(json, item.player_id)},
+                    {"relationship", Exploration_Knowledge(json, item.available && !item.relationship.empty() ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, Json_String_Value(json, item.relationship))},
+                    {"relationshipIndicatorOffset", Exploration_Knowledge(json, known, Json_Integer(json, item.relationship_offset))},
+                    {"treaty", Exploration_Knowledge(json, item.available && !item.treaty.empty() ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, Json_String_Value(json, item.treaty))},
+                    {"ignoring", Exploration_Knowledge(json, known, Json_Boolean(json, item.ignoring))},
+                    {"researchAgreement", Agreement(item.research, item.research_level, true)},
+                    {"tradeAgreement", Agreement(item.trade, item.trade_level, false)},
+                    {"tribute", Exploration_Knowledge(json, !item.available ? EXPLORATION_UNKNOWN : (item.tribute_percent != 0 ? EXPLORATION_CURRENT : EXPLORATION_EMPTY), tribute)},
+                    {"incomingSpies", Exploration_Knowledge(json, item.incoming_available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, Json_Integer(json, item.incoming))},
+                    {"report", Exploration_Knowledge(json, item.report_available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN,
+                        Json_Object(json, {
+                            {"personality", Exploration_Knowledge(json, item.personality.empty() ? EXPLORATION_UNKNOWN : EXPLORATION_CURRENT, Json_String_Value(json, item.personality))},
+                            {"objective", Exploration_Knowledge(json, item.objective_empty ? EXPLORATION_EMPTY : (item.objective.empty() ? EXPLORATION_UNKNOWN : EXPLORATION_CURRENT), Json_String_Value(json, item.objective))},
+                            {"treaties", entries},
+                        }))},
+                }));
             }
-            return result + ']';
+            return result;
         }
 
-        std::string Intelligence(const s_game_store* store, const s_map_snapshot* snapshot, bool stamped = true) {
+        yyjson_mut_val* Intelligence(s_json_builder* json, const s_game_store* store, const s_map_snapshot* snapshot, bool stamped = true) {
             const auto& item = snapshot->map.intelligence;
-            std::string result = stamped ? "{\"stamp\":" + Stamp(store, snapshot) + ',' : "{";
-            result += "\"agents\":" + Exploration_Knowledge(item.available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, std::to_string(item.agents)) +
-                ",\"spyBonusPercent\":" + Exploration_Knowledge(item.bonuses_available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, std::to_string(item.spy_bonus)) +
-                ",\"agentBonusPercent\":" + Exploration_Knowledge(item.bonuses_available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, std::to_string(item.agent_bonus)) + ",\"allocations\":[";
-            bool first = true;
+            auto* result = Json_Object(json);
+            if (stamped) Json_Add(json, result, "stamp", Stamp(json, store, snapshot));
+            Json_Add(json, result, "agents", Exploration_Knowledge(json, item.available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, Json_Integer(json, item.agents)));
+            Json_Add(json, result, "spyBonusPercent", Exploration_Knowledge(json, item.bonuses_available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, Json_Integer(json, item.spy_bonus)));
+            Json_Add(json, result, "agentBonusPercent", Exploration_Knowledge(json, item.bonuses_available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, Json_Integer(json, item.agent_bonus)));
+            auto* allocations = Json_Array(json);
             for (const auto& assignment : snapshot->map.relations) {
-                if (!first) result += ',';
-                first = false;
                 const char* mission = assignment.mission == 0 ? "espionage" : (assignment.mission == 1 ? "sabotage" : "hide");
-                result += "{\"player\":" + Json_String(assignment.player_id) +
-                    ",\"spies\":" + Exploration_Knowledge(assignment.assignment_available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, std::to_string(assignment.spies)) +
-                    ",\"mission\":" + Exploration_Knowledge(assignment.assignment_available && assignment.mission >= 0 ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, Json_String(mission)) + "}";
+                Json_Append(json, allocations, Json_Object(json, {
+                    {"player", Json_String_Value(json, assignment.player_id)},
+                    {"spies", Exploration_Knowledge(json, assignment.assignment_available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, Json_Integer(json, assignment.spies))},
+                    {"mission", Exploration_Knowledge(json, assignment.assignment_available && assignment.mission >= 0 ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, Json_String_Value(json, mission))},
+                }));
             }
-            return result + "]}";
+            Json_Add(json, result, "allocations", allocations);
+            return result;
         }
 
-        std::string History(const s_game_store* store, const s_map_snapshot* snapshot, bool stamped = true) {
+        yyjson_mut_val* History(s_json_builder* json, const s_game_store* store, const s_map_snapshot* snapshot, bool stamped = true) {
             const auto& history = snapshot->map.history;
-            std::string result = stamped ? "{\"stamp\":" + Stamp(store, snapshot) + ',' : "{";
-            result += "\"smoothing\":" + std::string(history.smoothing ? "true" : "false") + ",\"xStep\":" + std::to_string(history.x_step) + ",\"dateLabels\":[";
-            for (size_t index = 0; index < history.labels.size(); ++index) {
-                if (index != 0) result += ',';
-                result += Json_String(history.labels[index]);
-            }
-            result += "],\"charts\":[";
+            auto* result = Json_Object(json);
+            if (stamped) Json_Add(json, result, "stamp", Stamp(json, store, snapshot));
+            Json_Add(json, result, "smoothing", Json_Boolean(json, history.smoothing));
+            Json_Add(json, result, "xStep", Json_Integer(json, history.x_step));
+            auto* labels = Json_Array(json);
+            for (const auto& label : history.labels) Json_Append(json, labels, Json_String_Value(json, label));
+            Json_Add(json, result, "dateLabels", labels);
+            auto* charts = Json_Array(json);
             for (size_t index = 0; index < history.charts.size(); ++index) {
-                if (index != 0) result += ',';
                 const auto& chart = history.charts[index];
-                result += "{\"selection\":" + std::string(index == 4 ? "true" : "false") + ",\"series\":[";
+                auto* series = Json_Array(json);
                 const char* names[] = {"population", "production", "fleet", "technology"};
-                bool first = true;
                 for (int bit = 0; bit < 4; ++bit) {
                     if (!(chart.series & (1 << bit))) continue;
-                    if (!first) result += ',';
-                    first = false;
-                    result += Json_String(names[bit]);
+                    Json_Append(json, series, Json_String_Value(json, names[bit]));
                 }
-                result += "],\"topScale\":" + std::to_string(chart.top_scale) + ",\"curves\":[";
-                for (size_t row = 0; row < chart.curves.size(); ++row) {
-                    if (row != 0) result += ',';
-                    const auto& curve = chart.curves[row];
-                    result += "{\"player\":" + Json_String(curve.player_id) + ",\"points\":[";
+                auto* curves = Json_Array(json);
+                for (const auto& curve : chart.curves) {
+                    auto* points = Json_Array(json);
                     for (size_t point = 0; point < curve.y.size(); ++point) {
-                        if (point != 0) result += ',';
-                        result += "{\"x\":" + std::to_string(238 + point * history.x_step) + ",\"y\":" + std::to_string(curve.y[point]) + "}";
+                        Json_Append(json, points, Json_Object(json, {
+                            {"x", Json_Unsigned(json, 238 + point * history.x_step)},
+                            {"y", Json_Integer(json, curve.y[point])},
+                        }));
                     }
-                    result += "]}";
+                    Json_Append(json, curves, Json_Object(json, {
+                        {"player", Json_String_Value(json, curve.player_id)},
+                        {"points", points},
+                    }));
                 }
-                result += "]}";
+                Json_Append(json, charts, Json_Object(json, {
+                    {"selection", Json_Boolean(json, index == 4)},
+                    {"series", series},
+                    {"topScale", Json_Integer(json, chart.top_scale)},
+                    {"curves", curves},
+                }));
             }
-            return result + "]}";
+            Json_Add(json, result, "charts", charts);
+            return result;
         }
 
-        std::string Message(const s_map_snapshot* snapshot, size_t index) {
+        yyjson_mut_val* Message(s_json_builder* json, const s_map_snapshot* snapshot, size_t index) {
             const auto& message = snapshot->map.messages[index];
-            return "{\"id\":" + Json_String(snapshot->message_ids[index]) + ",\"text\":" +
-                Exploration_Knowledge(message.text_available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, Json_String(message.text)) +
-                ",\"serious\":" + (message.serious ? "true" : "false") + ",\"colony\":" + Id_Knowledge(message.colony_id) + "}";
+            return Json_Object(json, {
+                {"id", Json_String_Value(json, snapshot->message_ids[index])},
+                {"text", Exploration_Knowledge(json, message.text_available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, Json_String_Value(json, message.text))},
+                {"serious", Json_Boolean(json, message.serious)},
+                {"colony", Id_Knowledge(json, message.colony_id)},
+            });
         }
 
         const std::vector<std::string>* Collection_Ids(const s_game_store* store, const s_map_snapshot* snapshot, e_topic topic) {
@@ -635,30 +774,29 @@ namespace rpc {
             }
         }
 
-        std::string Collection_Item(const s_game_store* store, const s_map_snapshot* snapshot, e_topic topic, size_t index) {
+        yyjson_mut_val* Collection_Item(s_json_builder* json, const s_game_store* store, const s_map_snapshot* snapshot, e_topic topic, size_t index) {
             switch (topic) {
-                case TOPIC_SYSTEMS: return System(store, snapshot, index);
-                case TOPIC_NEBULAS: return Nebula(store, snapshot, index);
-                case TOPIC_SHIPS: return Ship(snapshot, index);
-                case TOPIC_PLAYERS: return Player(snapshot, index);
-                case TOPIC_COLONIES: return Colony(snapshot, index);
-                case TOPIC_PLANETS: return Planet(snapshot, index);
-                case TOPIC_RESEARCH: return Research_Option(snapshot, index);
-                case TOPIC_LEADERS: return Leader(snapshot, index);
-                case TOPIC_MESSAGES: return Message(snapshot, index);
-                default: return {};
+                case TOPIC_SYSTEMS: return System(json, store, snapshot, index);
+                case TOPIC_NEBULAS: return Nebula(json, store, snapshot, index);
+                case TOPIC_SHIPS: return Ship(json, snapshot, index);
+                case TOPIC_PLAYERS: return Player(json, snapshot, index);
+                case TOPIC_COLONIES: return Colony(json, snapshot, index);
+                case TOPIC_PLANETS: return Planet(json, snapshot, index);
+                case TOPIC_RESEARCH: return Research_Option(json, snapshot, index);
+                case TOPIC_LEADERS: return Leader(json, snapshot, index);
+                case TOPIC_MESSAGES: return Message(json, snapshot, index);
+                default: json->failed = true; return nullptr;
             }
         }
 
-        std::string Collection(const s_game_store* store, const s_map_snapshot* snapshot, e_topic topic, size_t offset, size_t limit) {
+        yyjson_mut_val* Collection(s_json_builder* json, const s_game_store* store, const s_map_snapshot* snapshot, e_topic topic, size_t offset, size_t limit) {
             const auto* ids = Collection_Ids(store, snapshot, topic);
             const size_t count = ids != nullptr ? ids->size() : 0;
-            std::string result = "[";
+            auto* result = Json_Array(json);
             for (size_t index = offset; index < count && index - offset < limit; ++index) {
-                if (index != offset) result += ',';
-                result += Collection_Item(store, snapshot, topic, index);
+                Json_Append(json, result, Collection_Item(json, store, snapshot, topic, index));
             }
-            return result + "]";
+            return result;
         }
 
         std::string Text(yyjson_val* object, const char* key) {
@@ -666,34 +804,43 @@ namespace rpc {
             return yyjson_is_str(value) ? std::string(yyjson_get_str(value), yyjson_get_len(value)) : std::string();
         }
 
-        std::string Topic_Projection(const s_game_store* store, const s_map_snapshot* snapshot, const std::vector<std::string>* topics, bool stamped = false) {
-            std::string result;
+        void Topic_Projection(s_json_builder* json, yyjson_mut_val* result, const s_game_store* store, const s_map_snapshot* snapshot, const std::vector<std::string>* topics, bool stamped = false) {
             for (const std::string& topic : *topics) {
-                result += ',' + Json_String(topic) + ':';
                 const e_topic selected = Find_Topic(topic);
+                yyjson_mut_val* value;
                 if (selected == TOPIC_SESSION)
-                    result += Session(store, snapshot);
+                    value = Session(json, store, snapshot);
                 else if (selected == TOPIC_RESEARCH)
-                    result += Research(store, snapshot, stamped);
+                    value = Research(json, store, snapshot, stamped);
                 else if (selected == TOPIC_RELATIONS)
-                    result += Relations(snapshot);
+                    value = Relations(json, snapshot);
                 else if (selected == TOPIC_INTELLIGENCE)
-                    result += Intelligence(store, snapshot, stamped);
+                    value = Intelligence(json, store, snapshot, stamped);
                 else if (selected == TOPIC_HISTORY)
-                    result += History(store, snapshot, stamped);
+                    value = History(json, store, snapshot, stamped);
                 else
-                    result += Collection(store, snapshot, selected, 0, 10000);
+                    value = Collection(json, store, snapshot, selected, 0, 10000);
+                Json_Add(json, result, topic, value);
             }
+        }
+
+        std::string State_Projection(const s_game_store* store, const s_map_snapshot* snapshot, const std::vector<std::string>* topics) {
+            s_json_builder json;
+            Initialize_Json(&json);
+            auto* root = Json_Object(&json);
+            Topic_Projection(&json, root, store, snapshot, topics);
+            std::string result;
+            Write_Json(&json, root, &result);
+            Shutdown_Json(&json);
             return result;
         }
 
-        std::string Topics_Json(const std::vector<std::string>* topics) {
-            std::string result = "[";
+        yyjson_mut_val* Topics_Json(s_json_builder* json, const std::vector<std::string>* topics) {
+            auto* result = Json_Array(json);
             for (const std::string& topic : *topics) {
-                if (result.size() != 1) result += ',';
-                result += Json_String(topic);
+                Json_Append(json, result, Json_String_Value(json, topic));
             }
-            return result + ']';
+            return result;
         }
 
         void Prune_Subscriptions(s_game_store* store) {
@@ -714,7 +861,11 @@ namespace rpc {
                     return item.client == work->client && item.epoch == work->epoch && item.id == id;
                 });
                 yyjson_doc_free(doc);
-                return Result_Response(request, removed != 0 ? "{\"removed\":true}" : "{\"removed\":false}");
+                s_json_builder json;
+                Initialize_Json(&json);
+                const std::string response = Result_Response(&json, request, Json_Object(&json, {{"removed", Json_Boolean(&json, removed != 0)}}));
+                Shutdown_Json(&json);
+                return response;
             }
             s_state_subscription subscription;
             subscription.client = work->client;
@@ -742,11 +893,24 @@ namespace rpc {
                 return Error_Response(request, RPC_LIMIT_EXCEEDED);
             }
             if (!store->new_id(&subscription.id, store->id_context)) return Error_Response(request, RPC_INTERNAL_ERROR);
-            subscription.projection = Topic_Projection(store, snapshot, &subscription.topics);
+            subscription.projection = State_Projection(store, snapshot, &subscription.topics);
+            if (subscription.projection.empty()) return Error_Response(request, RPC_INTERNAL_ERROR);
             subscription.revision = store->revision;
-            const std::string result = "{\"subscriptionId\":" + Json_String(subscription.id) +
-                ",\"cursor\":\"0\",\"baseline\":{\"stamp\":" + Stamp(store, snapshot) + Topic_Projection(store, snapshot, &subscription.topics, true) + "}}";
-            const std::string response = Result_Response(request, result);
+            s_json_builder json;
+            Initialize_Json(&json);
+            auto* baseline = Json_Object(&json, {{"stamp", Stamp(&json, store, snapshot)}});
+            Topic_Projection(&json, baseline, store, snapshot, &subscription.topics, true);
+            const std::string response = Result_Response(&json, request, Json_Object(&json, {
+                {"subscriptionId", Json_String_Value(&json, subscription.id)},
+                {"cursor", Json_String_Value(&json, "0")},
+                {"baseline", baseline},
+            }));
+            const bool failed = json.failed;
+            Shutdown_Json(&json);
+            if (failed) {
+                *context_epoch = 0;
+                return response;
+            }
             if (response.size() > 1048576) return Error_Response(request, RPC_LIMIT_EXCEEDED);
             store->subscriptions.push_back(std::move(subscription));
             return response;
@@ -768,8 +932,8 @@ namespace rpc {
                     Cancel_Client(store->bridge, subscription.client);
                     continue;
                 }
-                std::string projection = Topic_Projection(store, snapshot, &subscription.topics);
-                if (projection.size() > 1048576) {
+                std::string projection = State_Projection(store, snapshot, &subscription.topics);
+                if (projection.empty() || projection.size() > 1048576) {
                     Cancel_Client(store->bridge, subscription.client);
                     continue;
                 }
@@ -778,15 +942,27 @@ namespace rpc {
                     Cancel_Client(store->bridge, subscription.client);
                     continue;
                 }
-                const std::string json = "{\"jsonrpc\":\"2.0\",\"method\":\"state.changed\",\"params\":{\"subscriptionId\":" +
-                    Json_String(subscription.id) + ",\"cursor\":" + Json_String(std::to_string(++subscription.cursor)) +
-                    ",\"topics\":" + Topics_Json(&subscription.topics) + ",\"stamp\":" + Stamp(store, snapshot) + "}}";
+                s_json_builder json;
+                Initialize_Json(&json);
+                auto* event = Json_Notification(&json, "state.changed", Json_Object(&json, {
+                    {"subscriptionId", Json_String_Value(&json, subscription.id)},
+                    {"cursor", Json_String_Value(&json, std::to_string(++subscription.cursor))},
+                    {"topics", Topics_Json(&json, &subscription.topics)},
+                    {"stamp", Stamp(&json, store, snapshot)},
+                }));
+                std::string encoded;
+                const bool written = Write_Json(&json, event, &encoded);
+                Shutdown_Json(&json);
+                if (!written) {
+                    Cancel_Client(store->bridge, subscription.client);
+                    continue;
+                }
                 uint64_t lease = (topics & (TOPIC_SHIPS | TOPIC_LEADERS | TOPIC_RELATIONS)) ? snapshot->map.context_epoch : 0;
                 if (topics & (TOPIC_MESSAGES | TOPIC_COLONIES | TOPIC_PLANETS)) {
                     lease = Bridge_Context_Epoch(store->bridge);
                     store->context_active = true;
                 }
-                if (Publish_Event(store->bridge, subscription.client, subscription.epoch, &json, &subscription.id, lease)) subscription.projection = std::move(projection);
+                if (Publish_Event(store->bridge, subscription.client, subscription.epoch, &encoded, &subscription.id, lease)) subscription.projection = std::move(projection);
             }
         }
 
@@ -816,16 +992,27 @@ namespace rpc {
             const int32_t turn = store->snapshots.back().map.turn;
             for (s_turn_observer& observer : store->turn_observers) {
                 if (turn <= observer.turn) continue;
-                const std::string json = "{\"jsonrpc\":\"2.0\",\"method\":\"game.turnAdvanced\",\"params\":{\"gameId\":" +
-                    Json_String(store->game_id) + ",\"turn\":" + std::to_string(turn) + ",\"revision\":" +
-                    Json_String(std::to_string(store->revision)) + "}}";
-                if (Publish_Event(store->bridge, observer.identity.client, observer.identity.epoch, &json)) observer.turn = turn;
+                s_json_builder json;
+                Initialize_Json(&json);
+                auto* event = Json_Notification(&json, "game.turnAdvanced", Json_Object(&json, {
+                    {"gameId", Json_String_Value(&json, store->game_id)},
+                    {"turn", Json_Integer(&json, turn)},
+                    {"revision", Json_String_Value(&json, std::to_string(store->revision))},
+                }));
+                std::string encoded;
+                const bool written = Write_Json(&json, event, &encoded);
+                Shutdown_Json(&json);
+                if (!written) {
+                    Cancel_Client(store->bridge, observer.identity.client);
+                    continue;
+                }
+                if (Publish_Event(store->bridge, observer.identity.client, observer.identity.epoch, &encoded)) observer.turn = turn;
             }
         }
 
-        std::string Query(s_game_store* store, const s_request* request, yyjson_val* params, int32_t* error, uint64_t* context_epoch) {
+        yyjson_mut_val* Query(s_json_builder* json, s_game_store* store, const s_request* request, yyjson_val* params, int32_t* error, uint64_t* context_epoch) {
             if (request->method == "game.getSession") {
-                return Session(store);
+                return Session(json, store);
             }
             if (store->snapshots.empty() || !store->loaded) {
                 *error = RPC_BUSY;
@@ -846,16 +1033,21 @@ namespace rpc {
                 store->context_active = true;
             }
             if (state) {
-                return "{\"stamp\":" + Stamp(store, snapshot) + Topic_Projection(store, snapshot, &selected, true) + "}";
+                auto* result = Json_Object(json, {{"stamp", Stamp(json, store, snapshot)}});
+                Topic_Projection(json, result, store, snapshot, &selected, true);
+                return result;
             }
-            if (request->method == "game.getResearch") return Research(store, snapshot);
-            if (request->method == "game.getRelations") return "{\"stamp\":" + Stamp(store, snapshot) + ",\"items\":" + Relations(snapshot) + "}";
-            if (request->method == "game.getIntelligence") return Intelligence(store, snapshot);
-            if (request->method == "game.getHistory") return History(store, snapshot);
+            if (request->method == "game.getResearch") return Research(json, store, snapshot);
+            if (request->method == "game.getRelations") return Json_Object(json, {
+                {"stamp", Stamp(json, store, snapshot)},
+                {"items", Relations(json, snapshot)},
+            });
+            if (request->method == "game.getIntelligence") return Intelligence(json, store, snapshot);
+            if (request->method == "game.getHistory") return History(json, store, snapshot);
             if (request->method == "game.getTechnology") {
                 const std::string id = Text(params, "id");
                 for (size_t index = 0; index < snapshot->technology_ids.size(); ++index) {
-                    if (snapshot->technology_ids[index] == id) return Technology(store, snapshot, index);
+                    if (snapshot->technology_ids[index] == id) return Technology(json, store, snapshot, index);
                 }
                 *error = RPC_OBJECT_UNAVAILABLE;
                 return {};
@@ -869,7 +1061,10 @@ namespace rpc {
                 const std::string id = Text(params, "id");
                 for (size_t index = 0; index < ids->size(); ++index) {
                     if ((*ids)[index] == id) {
-                        return "{\"stamp\":" + Stamp(store, snapshot) + ",\"item\":" + Collection_Item(store, snapshot, method->topic, index) + "}";
+                        return Json_Object(json, {
+                            {"stamp", Stamp(json, store, snapshot)},
+                            {"item", Collection_Item(json, store, snapshot, method->topic, index)},
+                        });
                     }
                 }
                 *error = RPC_OBJECT_UNAVAILABLE;
@@ -897,7 +1092,10 @@ namespace rpc {
                 limit = cursor->limit;
             }
             const size_t total = Collection_Ids(store, snapshot, method->topic)->size();
-            std::string result = "{\"stamp\":" + Stamp(store, snapshot) + ",\"items\":" + Collection(store, snapshot, method->topic, offset, limit);
+            auto* result = Json_Object(json, {
+                {"stamp", Stamp(json, store, snapshot)},
+                {"items", Collection(json, store, snapshot, method->topic, offset, limit)},
+            });
             if (offset + limit < total) {
                 auto next = std::find_if(store->cursors.begin(), store->cursors.end(), [&](const s_map_cursor& item) {
                     return item.snapshot == snapshot->id && item.method == request->method && item.offset == offset + limit && item.limit == limit;
@@ -915,9 +1113,9 @@ namespace rpc {
                     store->cursors.push_back({std::move(id), snapshot->id, request->method, offset + limit, limit});
                     next = std::prev(store->cursors.end());
                 }
-                result += ",\"nextCursor\":" + Json_String(next->id);
+                Json_Add(json, result, "nextCursor", Json_String_Value(json, next->id));
             }
-            return result + "}";
+            return result;
         }
     } // namespace
 
@@ -1670,11 +1868,14 @@ namespace rpc {
         yyjson_doc* params = yyjson_read(request->params_json.data(), request->params_json.size(), YYJSON_READ_NOFLAG);
         if (params == nullptr) return Error_Response(request, RPC_INVALID_PARAMS);
         int32_t error = 0;
-        const std::string result = Query(store, request, yyjson_doc_get_root(params), &error, &captured_context);
+        s_json_builder json;
+        Initialize_Json(&json);
+        auto* result = Query(&json, store, request, yyjson_doc_get_root(params), &error, &captured_context);
         yyjson_doc_free(params);
-        if (error != 0) return Error_Response(request, error);
-        const std::string response = Result_Response(request, result);
-        if (context_epoch != nullptr && response.size() <= 1048576) *context_epoch = captured_context;
+        const std::string response = error != 0 ? Error_Response(request, error) : Result_Response(&json, request, result);
+        const bool failed = json.failed;
+        Shutdown_Json(&json);
+        if (context_epoch != nullptr && error == 0 && !failed && response.size() <= 1048576) *context_epoch = captured_context;
         return response.size() > 1048576 ? Error_Response(request, RPC_LIMIT_EXCEEDED) : response;
     }
 

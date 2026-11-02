@@ -9,6 +9,7 @@
 
 #include "rpc/rpc_service.h"
 #include "rpc/rpc_game.h"
+#include "rpc/rpc_json.h"
 #ifdef ORION2RE_RPC_NATIVE_TESTS
 #include "rpc_native_leaders.h"
 #include "rpc_native_relations.h"
@@ -461,7 +462,17 @@ int main() {
                     rpc::s_work work;
                     if (rpc::Take_Work(&bridge, 0, &work)) {
                         const size_t size = command == "publish-context-large" ? 1048000 : (command == "publish-large" ? 524288 : 32768);
-                        const std::string result = command != "overflow" ? rpc::Result_Response(&request, "{\"fixture\":" + rpc::Json_String(std::string(size, 'x')) + "}") : std::string(1048577, 'x');
+                        std::string result;
+                        if (command == "overflow") {
+                            result.assign(1048577, 'x');
+                        } else {
+                            rpc::s_json_builder json;
+                            rpc::Initialize_Json(&json);
+                            result = rpc::Result_Response(&json, &request, rpc::Json_Object(&json, {
+                                {"fixture", rpc::Json_String_Value(&json, std::string(size, 'x'))},
+                            }));
+                            rpc::Shutdown_Json(&json);
+                        }
                         rpc::Complete_Work(&bridge, &work, &result, command == "publish-context-large" ? rpc::Bridge_Context_Epoch(&bridge) : 0);
                     }
                 }

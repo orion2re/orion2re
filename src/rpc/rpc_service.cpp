@@ -1,4 +1,5 @@
 #include "rpc_service.h"
+#include "rpc_json.h"
 #include "rpc_output.h"
 
 #include <algorithm>
@@ -217,13 +218,24 @@ namespace rpc {
                 if (!Authorize_Client(state->bridge, connection->client, connection->epoch)) return false;
                 connection->authenticated = true;
                 connection->controller = controller;
-                std::string result = "{\"connectionId\":" + Json_String(connection->public_id);
-                result += ",\"contractVersion\":\"orion2.rpc/0\",\"build\":\"orion2re\",\"authorization\":\"authorized\",\"role\":";
-                result += Json_String(controller ? "controller" : "reader") + "}";
-                return Queue_Output(state, connection, Result_Response(&request, result));
+                s_json_builder json;
+                Initialize_Json(&json);
+                const std::string response = Result_Response(&json, &request, Json_Object(&json, {
+                    {"connectionId", Json_String_Value(&json, connection->public_id)},
+                    {"contractVersion", Json_String_Value(&json, "orion2.rpc/0")},
+                    {"build", Json_String_Value(&json, "orion2re")},
+                    {"authorization", Json_String_Value(&json, "authorized")},
+                    {"role", Json_String_Value(&json, controller ? "controller" : "reader")},
+                }));
+                Shutdown_Json(&json);
+                return Queue_Output(state, connection, response);
             }
             if (request.method == "rpc.describe") {
-                return Queue_Output(state, connection, Result_Response(&request, Describe_Methods(&request)));
+                s_json_builder json;
+                Initialize_Json(&json);
+                const std::string response = Result_Response(&json, &request, Describe_Methods(&json, &request));
+                Shutdown_Json(&json);
+                return Queue_Output(state, connection, response);
             }
             const int32_t queued = Submit_Work(state->bridge, connection->client, connection->epoch, &request, Monotonic_Ms() + Protocol_Limits()->request_timeout_ms);
             return queued == 0 || Queue_Output(state, connection, Error_Response(&request, queued));

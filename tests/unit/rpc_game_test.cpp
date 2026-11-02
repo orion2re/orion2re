@@ -186,6 +186,59 @@ namespace {
     }
 } // namespace
 
+DOCTEST_TEST_CASE("game JSON preserves escaped names typed knowledge and decimal string revisions") {
+    s_fixture fixture;
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&fixture.store));
+    auto map = Exploration();
+    map.systems[0].name = "Quote\" slash\\ line\n\xc3\xa9";
+    map.systems[0].name.push_back('\0');
+    map.systems[0].name += "tail";
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    fixture.store.revision = 9007199254740991ULL;
+    ++map.systems[0].x;
+    DOCTEST_REQUIRE(rpc::Capture_Map(&fixture.store, &map));
+    auto request = Request("game.getState", "{\"include\":[\"systems\",\"players\",\"planets\"]}");
+    request.id_json = "\"correlation\\\"id\"";
+    const auto response = rpc::Game_Query(&fixture.store, &request);
+    auto* document = yyjson_read(response.data(), response.size(), YYJSON_READ_NOFLAG);
+    DOCTEST_REQUIRE(document != nullptr);
+    auto* root = yyjson_doc_get_root(document);
+    DOCTEST_CHECK(std::string(yyjson_get_str(yyjson_obj_get(root, "id"))) == "correlation\"id");
+    auto* result = yyjson_obj_get(root, "result");
+    auto* revision = yyjson_obj_get(yyjson_obj_get(result, "stamp"), "revision");
+    DOCTEST_CHECK(yyjson_is_str(revision));
+    DOCTEST_CHECK(std::string(yyjson_get_str(revision)) == "9007199254740992");
+    auto* systems = yyjson_obj_get(result, "systems");
+    auto* own = yyjson_arr_get(systems, 0);
+    auto* name = yyjson_obj_get(yyjson_obj_get(own, "name"), "value");
+    DOCTEST_CHECK(std::string(yyjson_get_str(name), yyjson_get_len(name)) == map.systems[0].name);
+    DOCTEST_CHECK(yyjson_is_bool(yyjson_obj_get(own, "visited")));
+    DOCTEST_CHECK(yyjson_is_bool(yyjson_obj_get(yyjson_obj_get(own, "inExtendedRange"), "value")));
+    DOCTEST_CHECK(yyjson_is_arr(yyjson_obj_get(yyjson_obj_get(own, "planetIds"), "value")));
+    auto* unknown = yyjson_obj_get(yyjson_arr_get(systems, 1), "name");
+    DOCTEST_CHECK(std::string(yyjson_get_str(yyjson_obj_get(unknown, "availability"))) == "unknown");
+    DOCTEST_CHECK(yyjson_obj_get(unknown, "value") == nullptr);
+    auto* empty = yyjson_obj_get(yyjson_arr_get(systems, 2), "wormhole");
+    DOCTEST_CHECK(std::string(yyjson_get_str(yyjson_obj_get(empty, "availability"))) == "known-empty");
+    DOCTEST_CHECK(yyjson_obj_get(empty, "value") == nullptr);
+    auto* players = yyjson_obj_get(result, "players");
+    bool found_local = false;
+    size_t index, count;
+    yyjson_val* player;
+    yyjson_arr_foreach(players, index, count, player) {
+        auto* treasury = yyjson_obj_get(player, "treasury");
+        if (yyjson_get_bool(yyjson_obj_get(player, "local"))) {
+            found_local = true;
+            DOCTEST_CHECK(yyjson_is_int(yyjson_obj_get(treasury, "value")));
+            DOCTEST_CHECK(yyjson_get_sint(yyjson_obj_get(treasury, "value")) == -50);
+        } else {
+            DOCTEST_CHECK(yyjson_obj_get(treasury, "value") == nullptr);
+        }
+    }
+    DOCTEST_CHECK(found_local);
+    yyjson_doc_free(document);
+}
+
 DOCTEST_TEST_CASE("leader list details linked assignments and subscription baseline share one capture") {
     s_fixture fixture;
     DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&fixture.store));

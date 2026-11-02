@@ -2106,6 +2106,7 @@ orion2re_add_unit_test(test_router_client
 if(ORION2RE_RPC_BUILT)
     add_executable(test_rpc
         tests/test_main.cpp
+        tests/unit/rpc_json_test.cpp
         tests/unit/rpc_protocol_test.cpp
         tests/unit/rpc_bridge_test.cpp
         tests/unit/rpc_output_test.cpp
