@@ -5,6 +5,8 @@
 #include "doctest/doctest.h"
 #include "fakes/fake_coldraw_runtime.h"
 
+#include <algorithm>
+
 namespace {
     // Arithmetic and packed-bit ordering from coldraw.cpp before bdbfc0b.
     colony_read::s_resource_row Baseline_Resource_Row(const s_colony* colony, int16_t type) {

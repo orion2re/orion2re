@@ -27,6 +27,10 @@ endforeach()
 set(LWS_LIBUV_INCLUDE_DIRS "${ORION2RE_VENDORED_LIBUV_DIR}/include" CACHE PATH "" FORCE)
 set(LWS_LIBUV_LIBRARIES uv_a CACHE STRING "Use the project's pinned libuv target" FORCE)
 add_subdirectory("${ORION2RE_RPC_BACKEND_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/rpc-backend" EXCLUDE_FROM_ALL)
+if(MSVC)
+    # libwebsockets' ssize_t macro makes libuv repeat the Windows SSIZE_T typedef.
+    target_compile_options(websockets PRIVATE /wd4142)
+endif()
 configure_file("${ORION2RE_RPC_BACKEND_DIR}/LICENSE"
     "${CMAKE_CURRENT_BINARY_DIR}/data/licenses/libwebsockets.txt" COPYONLY)
 find_package(Threads REQUIRED)
