@@ -1,6 +1,8 @@
 #include "pch.h"
 #include <cstring>
 #include "ship_read.h"
+#include "colony_read.h"
+#include "game_events.h"
 
 namespace SYS {
     constexpr int PLANET_CLIMATE_EXTENT = PLANET_CLIMATE_COUNT;
@@ -733,7 +735,7 @@ namespace SYS {
         MOX::system_display_base_x = base_x;
         MOX::system_display_base_y = base_y;
 
-        if ((MOX::look_at_colonies == '\0') && !Ok_To_View_System(star_idx, MOX::PLAYER_NUM)) {
+        if ((MOX::look_at_colonies == '\0') && !colony_read::System_Settlements_Visible(star_idx, MOX::PLAYER_NUM)) {
             if (!HAROLD::Player_Sighted_Monster(MOX::PLAYER_NUM, star_idx)) {
                 Hide_System_Display(base_x, base_y, content_w, content_h, x_offset, y_offset, '\0');
                 if (draw_border == '\0') {
@@ -1082,20 +1084,11 @@ namespace SYS {
         int16_t line_spacing,
         bool draw) {
         int16_t visible_count = 0;
-        const int16_t special_building_ids[7] = {
-            BUILDING_STAR_FORTRESS,
-            BUILDING_STAR_BASE,
-            BUILDING_BATTLESTATION,
-            BUILDING_MISSILE_BASE,
-            BUILDING_GROUND_BATTERIES,
-            BUILDING_STELLAR_CONVERTER,
-            BUILDING_FIGHTER_GARRISON,
-        };
-
         s_colony* colony = &MOX::colony[colony_idx];
 
         for (int16_t i = 0; i < 7; ++i) {
-            const int16_t building_id = special_building_ids[i];
+            const int16_t building_id = colony_read::Strategic_Defense(colony, i);
+            if (building_id < 0) break;
 
             if (colony->buildings[building_id] != 0) {
                 if (visible_count == 0) {
@@ -1338,12 +1331,8 @@ namespace SYS {
         char detail_buffer[80];
 
         s_planet_data* planet = &MOX::planet[planet_idx];
-        const bool can_show_special_buildings =
-            (MOX::player_has_ship_in_system != 0) ||
-            HAROLD::Player_Has_Colony(
-                MOX::PLAYER_NUM,
-                planet->star_index) ||
-            MOX::player[MOX::PLAYER_NUM].traits[TRAIT_OMNISCIENCE] != 0;
+        const bool can_show_special_buildings = colony_read::Strategic_Defenses_Visible(
+            planet->star_index, MOX::PLAYER_NUM, MOX::player_has_ship_in_system != 0);
 
         *max_width = 0;
         *total_height = 12;
@@ -1393,9 +1382,6 @@ namespace SYS {
                 }
             }
         } else {
-            const uint8_t climate_idx =
-                static_cast<uint8_t>(colony != nullptr ? colony->climate : planet->climate);
-
             snprintf(title_buffer, sizeof(title_buffer), "%s ", HACCESS::Get_Planet_Name_No_Prime(planet_idx));
 
             if (colony != nullptr) {
@@ -1420,12 +1406,7 @@ namespace SYS {
                 }
             }
 
-            snprintf(
-                detail_buffer,
-                sizeof(detail_buffer),
-                "%s, %s",
-                MOX::planet_size_string[static_cast<int8_t>(planet->size)],
-                MOX::planet_climate_string[climate_idx]);
+            colony_read::Strategic_Climate(colony, planet_idx, detail_buffer, sizeof(detail_buffer));
 
             if (draw) {
                 current_y = static_cast<int16_t>(current_y + line_advance);
@@ -1441,24 +1422,13 @@ namespace SYS {
             const int16_t max_population =
                 COLCALC::Planet_Max_Population_For_Player(planet, MOX::PLAYER_NUM);
 
-            if (colony != nullptr) {
-                snprintf(
-                    detail_buffer,
-                    sizeof(detail_buffer),
-                    HAROLD::H_Message(0x181),
-                    static_cast<uint32_t>(static_cast<uint8_t>(colony->n_pops)),
-                    static_cast<int32_t>(max_population));
-            } else {
-                snprintf(
-                    detail_buffer,
-                    sizeof(detail_buffer),
-                    HAROLD::H_Message(0x162),
-                    static_cast<int32_t>(max_population));
-            }
+            colony_read::Strategic_Population_Text(colony, max_population, detail_buffer, sizeof(detail_buffer));
 
             if (draw) {
                 current_y = static_cast<int16_t>(current_y + line_advance);
                 fonts::Print(text_x, current_y, detail_buffer);
+                if (colony != nullptr)
+                    game_events::Observe_Settlement_Text(planet_idx, "system-detail", colony->outpost_flag == 0 ? detail_buffer : "", can_show_special_buildings);
             } else {
                 *total_height = static_cast<int16_t>(*total_height + line_advance);
                 const int16_t width = fonts::Get_String_Width(detail_buffer);
@@ -2169,7 +2139,7 @@ namespace SYS {
                     const int16_t owner_idx = ship->owner;
                     MOX::system_display_ships[owner_idx].ship_idx = node_idx;
 
-                    if (owner_idx == MOX::PLAYER_NUM) {
+                    if (colony_read::Strategic_Local_Ship(ship, system_idx, MOX::PLAYER_NUM)) {
                         MOX::player_has_ship_in_system = 1;
                     }
 

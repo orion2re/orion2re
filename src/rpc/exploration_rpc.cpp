@@ -21,6 +21,7 @@ namespace exploration_rpc {
             item.orbit = orbit + 1;
             item.kind = planet->planet_type;
             if (item.kind < PLANET_TYPE_ASTEROID || item.kind > PLANET_TYPE_PLANET) return false;
+            item.settlement_empty = observation->viewer >= 0 && SYS::Ok_To_View_System((int16_t)system, (int16_t)observation->viewer) && planet->colony_index == -1;
             if (item.kind == PLANET_TYPE_PLANET) {
                 const auto* star = &MOX::star[system];
                 if (memchr(star->name, 0, sizeof(star->name)) == nullptr) return false;

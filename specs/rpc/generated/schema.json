@@ -337,6 +337,7 @@
         "last-native-fleet-box",
         "native-leader-presentation",
         "native-relations-presentation",
+        "native-settlement-presentation",
         "owned-inspection"
       ]
     },
@@ -400,27 +401,51 @@
       "properties": {
         "id": {
           "$ref": "#/$defs/Id",
-          "x-rpc-policy": "colonies-own"
+          "x-rpc-policy": "strategic-settlements"
         },
         "systemId": {
           "$ref": "#/$defs/Id",
-          "x-rpc-policy": "colonies-own"
+          "x-rpc-policy": "strategic-settlements"
         },
         "orbit": {
           "$ref": "#/$defs/Orbit",
-          "x-rpc-policy": "colonies-own"
+          "x-rpc-policy": "strategic-settlements"
         },
         "planetId": {
           "$ref": "#/$defs/KnownId",
-          "x-rpc-policy": "exploration-own-colony-links"
+          "x-rpc-policy": "strategic-settlements"
         },
         "owner": {
           "$ref": "#/$defs/KnownId",
-          "x-rpc-policy": "colonies-own"
+          "x-rpc-policy": "strategic-settlements"
+        },
+        "owned": {
+          "$ref": "#/$defs/Bool",
+          "x-rpc-policy": "strategic-settlements"
+        },
+        "kind": {
+          "$ref": "#/$defs/SettlementKind",
+          "x-rpc-policy": "settlement-kind"
+        },
+        "ownerLabel": {
+          "$ref": "#/$defs/KnownText",
+          "x-rpc-policy": "strategic-settlements"
+        },
+        "environment": {
+          "$ref": "#/$defs/KnownText",
+          "x-rpc-policy": "strategic-settlements"
+        },
+        "defenses": {
+          "$ref": "#/$defs/KnownSettlementDefenses",
+          "x-rpc-policy": "strategic-settlements"
+        },
+        "presentation": {
+          "$ref": "#/$defs/KnownSettlementPresentations",
+          "x-rpc-policy": "settlement-presentation"
         },
         "population": {
           "$ref": "#/$defs/KnownCount",
-          "x-rpc-policy": "colonies-own"
+          "x-rpc-policy": "settlement-population"
         },
         "troops": {
           "$ref": "#/$defs/KnownColonyTroops",
@@ -445,13 +470,19 @@
         "orbit",
         "planetId",
         "owner",
+        "owned",
+        "kind",
+        "ownerLabel",
+        "environment",
+        "defenses",
+        "presentation",
         "population",
         "troops",
         "production",
         "buyCost",
         "operations"
       ],
-      "x-rpc-policy": "colonies-own"
+      "x-rpc-policy": "strategic-settlements"
     },
     "ColonyEvent": {
       "oneOf": [
@@ -1928,6 +1959,44 @@
         },
         "value": {
           "$ref": "#/$defs/ResearchPoints",
+          "x-rpc-policy": "contract"
+        }
+      },
+      "required": [
+        "availability",
+        "value"
+      ],
+      "x-rpc-policy": "contract"
+    },
+    "CurrentSettlementDefenses": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/Current",
+          "x-rpc-policy": "contract"
+        },
+        "value": {
+          "$ref": "#/$defs/SettlementDefenses",
+          "x-rpc-policy": "contract"
+        }
+      },
+      "required": [
+        "availability",
+        "value"
+      ],
+      "x-rpc-policy": "contract"
+    },
+    "CurrentSettlementPresentations": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/Current",
+          "x-rpc-policy": "contract"
+        },
+        "value": {
+          "$ref": "#/$defs/SettlementPresentations",
           "x-rpc-policy": "contract"
         }
       },
@@ -3455,6 +3524,26 @@
         }
       ]
     },
+    "KnownSettlementDefenses": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CurrentSettlementDefenses"
+        },
+        {
+          "$ref": "#/$defs/Unavailable"
+        }
+      ]
+    },
+    "KnownSettlementPresentations": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CurrentSettlementPresentations"
+        },
+        {
+          "$ref": "#/$defs/Unavailable"
+        }
+      ]
+    },
     "KnownShipCapabilities": {
       "oneOf": [
         {
@@ -4413,8 +4502,8 @@
           "x-rpc-policy": "planet-suitability"
         },
         "colony": {
-          "$ref": "#/$defs/KnownId",
-          "x-rpc-policy": "exploration-own-colony-links"
+          "$ref": "#/$defs/ExplorationId",
+          "x-rpc-policy": "strategic-settlements"
         }
       },
       "required": [
@@ -5502,6 +5591,73 @@
       ],
       "x-rpc-policy": "contract"
     },
+    "SettlementCoverage": {
+      "type": "string",
+      "enum": [
+        "complete",
+        "owned-only",
+        "unavailable"
+      ]
+    },
+    "SettlementDefenses": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Text"
+      },
+      "maxItems": 7
+    },
+    "SettlementKind": {
+      "type": "string",
+      "enum": [
+        "colony",
+        "outpost",
+        "unclassified"
+      ]
+    },
+    "SettlementPresentation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "$ref": "#/$defs/SettlementSource",
+          "x-rpc-policy": "settlement-presentation"
+        },
+        "text": {
+          "$ref": "#/$defs/SettlementText",
+          "x-rpc-policy": "settlement-presentation"
+        }
+      },
+      "required": [
+        "source",
+        "text"
+      ],
+      "x-rpc-policy": "settlement-presentation"
+    },
+    "SettlementPresentations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/SettlementPresentation"
+      },
+      "maxItems": 8
+    },
+    "SettlementSource": {
+      "type": "string",
+      "enum": [
+        "system-detail",
+        "planets-summary",
+        "colony-summary",
+        "colony-system-summary"
+      ]
+    },
+    "SettlementText": {
+      "type": "string",
+      "minLength": 0,
+      "maxLength": 6000,
+      "x-minUtf8Bytes": 0,
+      "x-maxUtf8Bytes": 6000,
+      "x-unit": "text",
+      "description": "UTF-8 rendered text, converted from the selected local game language; no raw format arguments."
+    },
     "Ship": {
       "type": "object",
       "additionalProperties": false,
@@ -5991,6 +6147,10 @@
         "fleetCoverage": {
           "$ref": "#/$defs/FleetCoverage",
           "x-rpc-policy": "contract"
+        },
+        "settlementCoverage": {
+          "$ref": "#/$defs/SettlementCoverage",
+          "x-rpc-policy": "contract"
         }
       },
       "required": [
@@ -6000,7 +6160,8 @@
         "revision",
         "turn",
         "captureMode",
-        "fleetCoverage"
+        "fleetCoverage",
+        "settlementCoverage"
       ],
       "x-rpc-policy": "contract"
     },
@@ -10686,6 +10847,131 @@
     }
   },
   "x-rpc-policies": {
+    "settlement-kind": {
+      "status": "reviewed",
+      "predicate": "SYS's independently authorized colony/outpost marker classifies the native variant. An actual colony-screen occupied-row owner substitution can establish a context-only settlement outside that system gate, but its generic colony wording does not distinguish outposts: report unclassified, without reading population, outpost flag, environment, defenses or operations to enrich it. Require the bounded native string-header substitution to survive its formatter buffer; literal or unfamiliar forms fail closed. Context-only records expire with their initialized producer and grant no planet or roster expansion.",
+      "sources": [
+        [
+          "src/game/sys.cpp",
+          "Draw_System_Display_Popup"
+        ],
+        [
+          "src/game/colsysdi.cpp",
+          "Planet_Summary_String"
+        ],
+        [
+          "src/game/colony_read.cpp",
+          "Strategic_Owner_Disclosed"
+        ]
+      ],
+      "tests": [
+        "T-01",
+        "T-02",
+        "T-03",
+        "T-05",
+        "T-07"
+      ]
+    },
+    "settlement-population": {
+      "status": "reviewed",
+      "predicate": "Owned full-colony resident counts keep their completed authority. Foreign ordinary full colonies require the independent SYS inclusion/variant gate and an initialized population format whose first native integer substitution discloses the complete resident count within the 80-byte buffer. Raw native count is not copied or validated when that presentation is literal, suppressed, clipped or unfamiliar. Preserve 0..42 whole resident units, not fractional growth, workforce or maximum population. Outposts and unclassified context-only records have unknown population. Calculated maxima require actual scoped native text and are never recomputed by queries.",
+      "sources": [
+        [
+          "src/game/sys.cpp",
+          "Do_Print_Planet_Info"
+        ],
+        [
+          "src/game/colony_read.cpp",
+          "Strategic_Population_Disclosed"
+        ],
+        [
+          "src/game/colony_read.cpp",
+          "Strategic_Population_Text"
+        ]
+      ],
+      "tests": [
+        "T-01",
+        "T-02",
+        "T-03",
+        "T-05",
+        "T-14"
+      ]
+    },
+    "strategic-settlements": {
+      "status": "reviewed",
+      "predicate": "Own full colonies retain their operational authorization. Other settlement records require the SYS visited/native-omniscient non-black-hole system presentation, or an actual initialized strategic presentation. Ownership/contact or a ship role/route alone is not inclusion. Full-colony resident population is the displayed whole n_pops, not fractional growth; outposts never acquire population, troops, queues or operations. Share native effective-climate/size text and the seven SYS defense candidates in their native order without owned satellite suppression. Defense disclosure separately requires viewer full-colony presence, native omniscience trait, or the shared native local-active-owned-ship predicate. Actual SYS presentation can also supply its context. Race labels do not expand the roster: owner/planet/system references resolve only same-capture authorized projections. Missing resources and absent coverage are unknown/unavailable, not empty. Settlement coverage is separate from fleet coverage; selected topics use one coherent dated capture. Filter before copying hidden fields, validation, handles, counts, equality and notifications. Foreign treasury, operating totals, jobs, queues, ordinary buildings, troops, freight and technologies are never inspected. No historical dossier, durable native-slot identity, recalculation, navigation or actions.",
+      "sources": [
+        [
+          "src/game/sys.cpp",
+          "Draw_System_Display_Popup"
+        ],
+        [
+          "src/game/sys.cpp",
+          "Do_Print_Planet_Info"
+        ],
+        [
+          "src/game/sys.cpp",
+          "Print_Special_Building_Data"
+        ],
+        [
+          "src/game/colony_read.cpp",
+          "Strategic_Defenses_Visible"
+        ],
+        [
+          "src/game/colony_read.cpp",
+          "Strategic_Local_Ship"
+        ]
+      ],
+      "tests": [
+        "T-01",
+        "T-02",
+        "T-03",
+        "T-05",
+        "T-07",
+        "T-12",
+        "T-14"
+      ]
+    },
+    "settlement-presentation": {
+      "status": "reviewed",
+      "predicate": "Only copied actual native strategic presentation text in initialized SYS, Planets, Colony/Colonies summary or matching help owners. Preserve native buffers, labels, units, rounding and source context. Calculated population limits are observed native results, never recalculated by RPC from foreign traits/buildings/population. Native per-worker text is not an operating-total/effectiveness model. Outposts do not inherit full-colony summaries. Formatter calls, screen/selection globals and temporary owner-as-player overrides grant nothing. Caller-owned frame results publish synchronously; interruption, suppression, owner exit, producer/resource/storage replacement and world boundaries revoke dependent handles/pages/queued output before mutation, through the existing lease. Parent return needs fresh presentation. Ambient settlement inspection remains independent; combined fleet/empire reads never splice newer results into an older retained capture. No retained foreign intelligence or tactical authority.",
+      "sources": [
+        [
+          "src/game/game_events.cpp",
+          "Observe_Settlement_Text"
+        ],
+        [
+          "src/game/sys.cpp",
+          "Do_Print_Planet_Info"
+        ],
+        [
+          "src/game/plntsum.cpp",
+          "Summary_Screen_Print_Data"
+        ],
+        [
+          "src/game/colsysdi.cpp",
+          "Draw_Col_Sys_Disp"
+        ],
+        [
+          "src/game/colony_main.cpp",
+          "Draw_Planet_Summary"
+        ],
+        [
+          "src/game/textbox.cpp",
+          "Present_Settlement_Help"
+        ]
+      ],
+      "tests": [
+        "T-01",
+        "T-02",
+        "T-03",
+        "T-04",
+        "T-05",
+        "T-07",
+        "T-12",
+        "T-14"
+      ]
+    },
     "strategic-fleet-presentation": {
       "status": "reviewed",
       "predicate": "Owned active groups or synchronous surviving native-refresh groups only. Shared Count_Member and Composition_Line preserve SYS hull buckets (upper sizes capped at Doom Star), nonzero rows, singular/plural text, 200-byte buffer, and hull/colony/outpost/transport order. Special owners above 8 retain their native named heading, not an invented histogram or hull. Shared Fleet_Title preserves the fleet-box 80-byte race input, 120-byte title and special uppercase conversion. Per-ship hull labels follow the ordinary/Antaran scanned-label branch; support types are separate localized category labels. Banner is the displayed player color, never an owner slot or a player-record grant. Stationary location resolves only to an independently projected system; moving encodings do not become current locations. Native ordered membership comes only from included ships, never rebuilt IDs. Combat/support UI filters and selection do not restrict ambient collections. Missing resources/coverage are unavailable, not zero or known-empty. No foreign condition/equipment/design/cargo scan or mutable native builder/calculator. Resolve references only within the capture; revoke dependent pages and leased output at refresh, identity, resource/storage and authority boundaries, preserving independent ambient reads.",
@@ -12524,7 +12810,7 @@
     "orderedEventsPerSubscription": 4096,
     "overflow": "Reject before admission; coalesce only complete unsent state. Ordered-event overflow signals a gap or disconnect. Never rewrite partial output or silently discard operation results."
   },
-  "x-rpc-sourceHash": "ce205b465516387444d6a600bb47ba46d64da46e657c8e2c190603f81556d73c",
+  "x-rpc-sourceHash": "63c66c87febac1efc7626cf78ddaeb83647a537c184b15499e400941af3201ad",
   "x-rpc-runtimeEnabled": false,
   "x-rpc-implementedMethods": [
     "rpc.hello",

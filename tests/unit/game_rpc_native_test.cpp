@@ -20,6 +20,7 @@
 #include "config/text_encoding.h"
 
 #include <chrono>
+#include <algorithm>
 #include <cstring>
 #include <string>
 #include <iostream>
@@ -1250,7 +1251,7 @@ DOCTEST_TEST_CASE("exploration copies native planet knowledge and suitability wi
     world.planets[2].colony_index = 0;
     world.colonies[0].owner = 1;
     world.colonies[0].planet = 2;
-    world.colonies[0].n_pops = 255; // Never passed to a foreign population calculation.
+    world.colonies[0].n_pops = 7; // Disclosed resident count; never a population-limit calculation input.
     world.colonies[0].climate = -99;
     world.stars[1].planet_index[1] = 3;
     world.planets[3].star_index = 1;
@@ -1402,17 +1403,17 @@ DOCTEST_TEST_CASE("native mixed system ownership keeps self preference and conta
         world.planets[index].colony_index = (int16_t)index;
         world.colonies[index].planet = (int16_t)index;
         world.colonies[index].owner = index == 2 ? 0 : 1;
-        if (index != 2) world.colonies[index].n_pops = 255;
+        if (index != 2) world.colonies[index].n_pops = 7;
     }
     rpc::s_map_observation observed;
     DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&observed));
     DOCTEST_CHECK(observed.systems[0].owner_slot == HAROLD::Star_Owner(0, 0));
     DOCTEST_CHECK(observed.systems[0].owner_slot == 0);
-    DOCTEST_CHECK(observed.colonies.size() == 1);
+    DOCTEST_CHECK(observed.colonies.size() == 3);
     world.colonies[2].owner = 1;
     DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&observed));
     DOCTEST_CHECK(observed.systems[0].owner_slot == -1);
-    DOCTEST_CHECK(observed.colonies.empty());
+    DOCTEST_CHECK(observed.colonies.size() == 3);
     world.players[0].contact[1] = 1;
     DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&observed));
     DOCTEST_CHECK(observed.systems[0].owner_slot == HAROLD::Star_Owner(0, 0));
@@ -3124,6 +3125,120 @@ DOCTEST_TEST_CASE("fresh ship reads ignore stale fleet selection scan and moveme
     rpc::Shutdown_Game_Store(&store);
 }
 
+DOCTEST_TEST_CASE("strategic settlement native capture is useful coherent and read-only") {
+    s_review_globals globals;
+    rpc::s_bridge bridge;
+    rpc::s_game_store store;
+    rpc::s_map_observation observed;
+    DOCTEST_REQUIRE(rpc::Initialize_Game_Store(&store, &bridge));
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&store));
+    test_native_ships::Initialize(&store, &observed);
+    test_native_colonies::Initialize(&store, &observed);
+    DOCTEST_REQUIRE(test_native_colonies::Command("settlement-native"));
+    DOCTEST_REQUIRE(observed.settlements_complete);
+    DOCTEST_REQUIRE(observed.colonies.size() == 8);
+    const auto foreign = std::find_if(observed.colonies.begin(), observed.colonies.end(), [](const auto& item) { return !item.owned && item.population == 7; });
+    DOCTEST_REQUIRE(foreign != observed.colonies.end());
+    DOCTEST_CHECK(foreign->climate == "Medium, Terran");
+    DOCTEST_CHECK_FALSE(foreign->operations.available);
+    DOCTEST_CHECK_FALSE(foreign->defenses_available);
+    MOX::planet[6].planet_type = PLANET_TYPE_ASTEROID;
+    rpc::s_map_observation nonplanet;
+    DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&nonplanet));
+    const auto asteroid = std::find_if(nonplanet.colonies.begin(), nonplanet.colonies.end(), [](const auto& item) { return item.system == 1 && item.orbit == 2; });
+    DOCTEST_REQUIRE(asteroid != nonplanet.colonies.end());
+    DOCTEST_CHECK(asteroid->outpost);
+    DOCTEST_CHECK(asteroid->owner_label.empty());
+    DOCTEST_CHECK_FALSE(asteroid->population_available);
+    DOCTEST_CHECK_FALSE(asteroid->climate_available);
+    DOCTEST_CHECK_FALSE(asteroid->defenses_available);
+    MOX::planet[6].planet_type = PLANET_TYPE_PLANET;
+    for (const auto& item : observed.colonies) {
+        if (item.outpost) {
+            DOCTEST_CHECK_FALSE(item.population_available);
+            DOCTEST_CHECK_FALSE(item.operations.available);
+        }
+    }
+    s_saved_native_bytes state;
+    state.Save(MOX::player, MAX_PLAYERS * sizeof(s_player));
+    state.Save(MOX::colony, MOX::NUM_COLONIES * sizeof(s_colony));
+    state.Save(MOX::ship, MOX::NUM_SHIPS * sizeof(s_ship_data));
+    state.Save(MSG_::msgs, sizeof(MSG_::msgs));
+    state.Save(REPORT::reports, sizeof(REPORT::reports));
+    state.Save(&REPORT::n_reports, sizeof(REPORT::n_reports));
+    state.Save(&REPORT::done_player_reports, sizeof(REPORT::done_player_reports));
+    state.Save(&COLONY::colony_handle, sizeof(COLONY::colony_handle));
+    state.Save(&COLONY::colonists_count, sizeof(COLONY::colonists_count));
+    state.Save(&MOX::current_screen, sizeof(MOX::current_screen));
+    state.Save(&MOX::fleet_box, sizeof(MOX::fleet_box));
+    state.Save(&MOX::design, sizeof(MOX::design));
+    if (MOX::design != nullptr) state.Save(MOX::design, sizeof(*MOX::design));
+    state.Save(MOX::temp_string, sizeof(MOX::temp_string));
+    state.Save(MOX::ship_node, sizeof(MOX::ship_node));
+    const uint32_t random = game_random::Get_Random_Seed();
+    rpc::s_request request;
+    request.id_json = "1";
+    request.method = "game.getState";
+    request.params_json = "{\"include\":[\"colonies\",\"planets\",\"systems\",\"players\",\"ships\",\"fleets\",\"designs\",\"research\",\"leaders\",\"relations\",\"intelligence\",\"history\",\"messages\"]}";
+    const auto baseline = rpc::Game_Query(&store, &request);
+    DOCTEST_REQUIRE(baseline.find("\"result\":") != std::string::npos);
+    for (int i = 0; i < 3; ++i) {
+        rpc::s_map_observation fresh;
+        DOCTEST_REQUIRE(game_rpc::Read_Refreshed_Ship_Observation(&fresh));
+        DOCTEST_REQUIRE(rpc::Capture_Map(&store, &fresh));
+        DOCTEST_CHECK(rpc::Game_Query(&store, &request) == baseline);
+    }
+    DOCTEST_CHECK(state.Unchanged());
+    DOCTEST_CHECK(game_random::Get_Random_Seed() == random);
+    const auto population_format = MOX::h_string_ix[0x181];
+    const uint8_t resident = MOX::colony[5].n_pops;
+    for (const auto& format : {std::string("Classified"), std::string(79, 'X') + "%u / %d"}) {
+        MOX::h_string_ix[0x181] = MOX::h_strings.size();
+        MOX::h_strings.insert(MOX::h_strings.end(), format.begin(), format.end());
+        MOX::h_strings.push_back(0);
+        MOX::colony[5].n_pops = 255;
+        rpc::s_map_observation suppressed;
+        DOCTEST_REQUIRE(game_rpc::Read_Map_Observation(&suppressed));
+        const auto target = std::find_if(suppressed.colonies.begin(), suppressed.colonies.end(), [](const auto& item) { return item.system == 1 && item.orbit == 1; });
+        DOCTEST_REQUIRE(target != suppressed.colonies.end());
+        DOCTEST_CHECK_FALSE(target->population_available);
+        DOCTEST_CHECK(suppressed.colonies[0].population_available);
+    }
+    MOX::h_string_ix[0x181] = population_format;
+    MOX::colony[5].n_pops = resident;
+    DOCTEST_CHECK(colony_read::Strategic_Owner_Disclosed("%s - %s\n%s%s", 1, 500));
+    DOCTEST_CHECK(colony_read::Strategic_Owner_Disclosed("%s%s - %s colony", 3, 256));
+    DOCTEST_CHECK_FALSE(colony_read::Strategic_Owner_Disclosed("Classified", 1, 500));
+    DOCTEST_CHECK_FALSE(colony_read::Strategic_Owner_Disclosed((std::string(490, 'X') + "%s").c_str(), 1, 500));
+    auto poisoned = observed;
+    for (auto& item : poisoned.colonies) {
+        if (item.owned && !item.outpost) continue;
+        item.operations.available = true;
+        item.operations.population_text.assign(5000, 'X');
+        item.infantry = item.armor = -1;
+        if (item.outpost) item.population = 10000;
+        if (!item.defenses_available) item.defenses.assign(8, "Undisclosed");
+    }
+    DOCTEST_REQUIRE(rpc::Capture_Map(&store, &poisoned));
+    DOCTEST_CHECK(rpc::Game_Query(&store, &request) == baseline);
+    DOCTEST_REQUIRE(test_native_colonies::Command("settlement-hidden"));
+    DOCTEST_REQUIRE(test_native_colonies::Command("settlement-hidden-replace"));
+    DOCTEST_REQUIRE(test_native_colonies::Command("settlement-hidden-init"));
+    DOCTEST_CHECK(rpc::Game_Query(&store, &request) == baseline);
+    {
+        game_events::s_colony_player_scope original(0);
+        MOX::PLAYER_NUM = 1;
+        rpc::s_map_observation forbidden;
+        DOCTEST_CHECK_FALSE(game_rpc::Read_Map_Observation(&forbidden));
+        MOX::PLAYER_NUM = 0;
+    }
+    DOCTEST_REQUIRE(test_native_colonies::Command("settlement-change"));
+    DOCTEST_CHECK(rpc::Game_Query(&store, &request) != baseline);
+    test_native_colonies::Shutdown();
+    test_native_ships::Shutdown();
+    rpc::Shutdown_Game_Store(&store);
+}
+
 DOCTEST_TEST_CASE("own colony capture follows the native full-colony roster and copies only cached resident population") {
     s_world world;
     MOX::NUM_COLONIES = 4;
@@ -3188,7 +3303,7 @@ DOCTEST_TEST_CASE("owned operations project native producers without changing se
     DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&store));
     test_native_colonies::Initialize(&store, &observed);
     DOCTEST_REQUIRE(test_native_colonies::Command("colony-native"));
-    DOCTEST_REQUIRE(observed.colonies.size() == 3);
+    DOCTEST_REQUIRE(observed.colonies.size() == 5);
     const auto& operations = observed.colonies[0].operations;
     DOCTEST_REQUIRE(operations.available);
     DOCTEST_CHECK(operations.population_text == "Pop 3.250 M (-125 k/turn)");

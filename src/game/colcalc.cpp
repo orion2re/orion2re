@@ -2527,7 +2527,7 @@ namespace COLCALC {
     }
 
     void __cdecl Do_Surrender_Colony(s_colony* colony, int16_t new_owner) {
-        game_events::Publish_Colony_Replacing(colony->owner);
+        game_events::Publish_Colony_Replacing(colony->owner, colony->planet);
         int8_t old_owner = colony->owner;
 
         // Check for Capitol building and remove it upon surrender

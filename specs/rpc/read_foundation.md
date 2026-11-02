@@ -49,6 +49,13 @@ budget. Ship/fleet requests select that one coherent capture when it covers all
 selected topics, never newer empire details stitched into it. See
 [strategic fleet awareness](strategic_fleet_view.md) for group and label lifetimes.
 
+Settlement coverage is separately stamped as complete, owned-only or unavailable.
+Its contextual strategic text uses the same lease and immutable capture store,
+not a second observation cache. Targeted pre-replacement locations revoke observed
+settlements without invalidating hidden settlements belonging to the same owner.
+Dependent references and queued output expire before mutation; reduced independent
+projections receive new stamps. See [settlement awareness](strategic_settlement_view.md).
+
 Subscription baseline, ID and cursor are established atomically on the game
 thread. Reconnect needs a new baseline; there is no replay log. IDs are
 connection-owned, bounded to 16/client and 64 globally. Hidden-only or unselected

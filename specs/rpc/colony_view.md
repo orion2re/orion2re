@@ -2,8 +2,9 @@
 
 AI-assisted current contract. `game.listColonies`, `game.getColony` and the
 `colonies` state/subscription topic expose committed own-full-colony operations
-without opening a native screen. Foreign intelligence and actions remain outside
-this capability; broader Q-06 is partial.
+without opening a native screen. The same methods also carry narrower
+[strategic settlement observations](strategic_settlement_view.md); they do not
+expand this owned operational schema. Actions and broader Q-06 remain partial.
 
 ## Authorization and fields
 
@@ -110,8 +111,9 @@ the formerly authorized owner, dependent colony handles/pages, planet pages and
 queued output expire through the existing bridge lease. Retained planet/message
 colony links and colony-dependent maximum-population knowledge are removed;
 independently authorized ambient data remains readable.
-Started revoked output closes. Foreign-only replacements do not invalidate this
-family. The next complete capture supplies new observation handles; an identical
+Started revoked output closes. Unobserved foreign replacements do not invalidate
+this family; observed strategic replacements revoke settlement-dependent data
+without granting foreign operations. The next complete capture supplies new observation handles; an identical
 replacement cannot revive expired ones.
 Capture-time own-roster loss also expires dependent data, covering the existing
 world/decode paths without relying exclusively on a later UI observation.
@@ -119,10 +121,11 @@ world/decode paths without relying exclusively on a later UI observation.
 ## Identity and verification
 
 Colony IDs are observation handles, not durable identities/action capabilities.
-Equal collections retain them; changed projections replace the set. Discard
+Publicly equal records may retain them; changed projections replace affected handles. Discard
 private parent/owner bindings before retention. Unknown and stale IDs share
-object-unavailable. An empty collection means no own full colonies, not known
-foreign intelligence. Combined reads/baselines select one immutable capture;
+object-unavailable. The owned subset is distinct from narrower strategic records;
+check `settlementCoverage` before interpreting an empty collection.
+Combined reads/baselines select one immutable capture;
 world/perspective revocation clears data and requires fresh hello.
 
 Native-function fixtures in `game_rpc_native_test.cpp` and

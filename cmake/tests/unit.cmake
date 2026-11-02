@@ -714,6 +714,7 @@ orion2re_add_unit_test(test_orbital_defense
         src/game/production_rules.cpp
         src/game/special.cpp
         src/game/sys.cpp
+        src/game/colony_read.cpp
     FAKE_SOURCES
         tests/fakes/fake_ericnet_runtime.cpp
         tests/fakes/fake_orbital_defense_runtime.cpp

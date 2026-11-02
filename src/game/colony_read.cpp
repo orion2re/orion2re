@@ -2,7 +2,96 @@
 #include "colony_read.h"
 #include "build_queue.h"
 
+#include <cstdio>
+#include <cstring>
+
 namespace colony_read {
+    bool Strategic_Population_Disclosed() {
+        const size_t offset = MOX::h_string_ix[0x181];
+        if (offset >= MOX::h_strings.size() || memchr(MOX::h_strings.data() + offset, 0, MOX::h_strings.size() - offset) == nullptr) return false;
+        const char* format = HAROLD::H_Message(0x181);
+        if (format == nullptr) return false;
+        uint32_t prefix = 0;
+        for (const char* p = format; *p != 0; ++p) {
+            if (*p != '%') {
+                ++prefix;
+                continue;
+            }
+            if (p[1] == '%') {
+                ++prefix;
+                ++p;
+                continue;
+            }
+            return (p[1] == 'u' || p[1] == 'd') && prefix + 2 < 80;
+        }
+        return false;
+    }
+
+    bool Strategic_Owner_Disclosed(const char* format, int16_t argument, uint32_t capacity) {
+        if (format == nullptr || (argument != 1 && argument != 3)) return false;
+        uint32_t prefix = 0;
+        int16_t current = 1;
+        for (const char* p = format; *p != 0; ++p) {
+            if (*p != '%') {
+                ++prefix;
+                continue;
+            }
+            if (p[1] == '%') {
+                ++prefix;
+                ++p;
+                continue;
+            }
+            if (p[1] != 's') return false;
+            if (current == argument) return prefix + 14 < capacity;
+            prefix += current == 1 ? 2 : 30;
+            ++current;
+            ++p;
+        }
+        return false;
+    }
+
+    bool Strategic_Population_Text(const s_colony* colony, int16_t maximum, char* out, uint32_t size) {
+        if (out == nullptr || size == 0) return false;
+        out[0] = 0;
+        const char* format = HAROLD::H_Message(colony != nullptr ? 0x181 : 0x162);
+        if (format == nullptr) return false;
+        if (colony != nullptr)
+            snprintf(out, size, format, (uint32_t)(uint8_t)colony->n_pops, (int32_t)maximum);
+        else
+            snprintf(out, size, format, (int32_t)maximum);
+        return colony == nullptr || Strategic_Population_Disclosed();
+    }
+
+    bool System_Settlements_Visible(int16_t system, int16_t viewer) {
+        return SYS::Ok_To_View_System(system, viewer);
+    }
+
+    bool Strategic_Defenses_Visible(int16_t system, int16_t viewer, bool local_ship) {
+        return local_ship || HAROLD::Player_Has_Colony(viewer, system) || MOX::player[viewer].traits[TRAIT_OMNISCIENCE] != 0;
+    }
+
+    bool Strategic_Local_Ship(const s_ship_data* ship, int16_t system, int16_t viewer) {
+        return ship->owner == viewer && ship->status >= 0 && ship->status < 3 && ship->location == system;
+    }
+
+    int16_t Strategic_Defense(const s_colony* colony, int16_t ordinal) {
+        const int16_t candidates[] = {BUILDING_STAR_FORTRESS, BUILDING_STAR_BASE, BUILDING_BATTLESTATION, BUILDING_MISSILE_BASE, BUILDING_GROUND_BATTERIES, BUILDING_STELLAR_CONVERTER, BUILDING_FIGHTER_GARRISON};
+        for (int16_t building : candidates)
+            if (colony->buildings[building] != 0 && ordinal-- == 0) return building;
+        return -1;
+    }
+
+    bool Strategic_Climate(const s_colony* colony, int16_t planet, char* out, uint32_t size) {
+        if (out == nullptr || size == 0) return false;
+        out[0] = 0;
+        const auto* location = &MOX::planet[planet];
+        const auto climate = colony != nullptr ? colony->climate : location->climate;
+        if (location->size < 0 || location->size >= PLANET_SIZE_COUNT || climate >= PLANET_CLIMATE_COUNT ||
+            MOX::planet_size_string[location->size] == nullptr || MOX::planet_climate_string[climate] == nullptr) return false;
+        snprintf(out, size, "%s, %s", MOX::planet_size_string[location->size], MOX::planet_climate_string[climate]);
+        return true;
+    }
+
     int16_t Status_String_Id(int16_t index, int16_t viewer) {
         const int16_t star = MOX::planet[MOX::colony[index].planet].star_index;
         if ((MOX::star[star].blockaded >> (viewer & 0x1f)) & 1) return ESTR_BLOCKADED1;

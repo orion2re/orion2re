@@ -2,7 +2,7 @@
 
 Experimental optional runtime; AI-assisted documentation. The canonical enabled
 surface is `methods.json.implementedMethods`, discoverable with `rpc.describe`.
-Current reads cover session, exploration, players, own colonies, owned fleets/ships/committed designs, own research, leaders, relations, own intelligence, history, retained turn summaries and surviving visible-ship observations;
+Current reads cover session, exploration, players, owned colony operations and strategic settlements, owned fleets/ships/committed designs, own research, leaders, relations, own intelligence, history, retained turn summaries and surviving visible-ship observations;
 all actions and unaudited fields remain unavailable. See
 [read-sidecar ownership](read_foundation.md) and the owner-specific field audits.
 
@@ -148,7 +148,7 @@ Authenticate with `rpc.hello`, discover the enabled existing colony methods with
 {"jsonrpc":"2.0","id":3,"method":"rpc.subscribe","params":{"topics":["session","players","planets","colonies","research","leaders","relations","intelligence","history","messages"],"events":["state.changed"]}}
 ```
 
-Compare the baseline's colonies using current product/queue labels, native
+Compare the baseline's owned full-colony subset using current product/queue labels, native
 workforce/species/job presentations, structures and satellites, troop labels and
 counts, operating resource groups, morale, blockade/events, purchase information
 and inbound population. See [owned-colony semantics](colony_view.md) for units,
@@ -172,8 +172,40 @@ and queued output before mutation; reset/perspective changes require fresh hello
 The `test_native_*colony*` live WebSocket workflows exercise this client flow with
 native-function fixtures and accompanying topics from the normal native capture
 adapter. They do not certify interactive saves, multiplayer, real mod/language
-assets or platform parity. Outposts, foreign intelligence and all colony-changing
-actions remain outside this bounded capability; Q-06 and all P1 are not complete.
+assets or platform parity. Outposts and foreign observations use the narrower
+strategic view below, never this operational schema. Colony-changing actions
+remain excluded; Q-06 and all P1 are not complete.
+
+## Unified strategic settlement-awareness dashboard
+
+Authenticate and discover the existing enabled colony/system/planet methods.
+Use the fleet dashboard's combined subscription below with `colonies`, `planets`
+and `systems` selected alongside all relevant fleet and empire topics. The one
+baseline includes owned full-colony operations, authorized non-owned colonies
+and separately classified outposts. Native resident population, effective-climate
+text, separately authorized defense labels and scoped strategic summaries provide
+useful intelligence without a foreign operational dossier.
+
+Check `stamp.settlementCoverage` independently of `fleetCoverage`. Missing
+coverage is not known-empty. Resolve references only within the same capture;
+race labels alone grant no player record. Foreign/outpost operational fields stay
+unavailable. Native calculated summary results require actual initialized
+presentation; ambient reads never require navigation or rerun calculators.
+See [settlement semantics](strategic_settlement_view.md) for source contexts,
+precision, suppression, knowledge states, coverage and lifetime.
+
+On `state.changed`, reread the same topic selection. Preserve pinned page stamps;
+never enrich an older complete fleet baseline with newer settlement data.
+Owner/storage/resource loss revokes dependent output before mutation, including
+started messages. Independent ambient reads remain available; existing
+world/perspective and conditional exploration-grant boundaries can require fresh
+authentication. All comparisons, alerts and recommendations remain client-local.
+
+The `test_native_*settlement*` workflows use native adapters with accompanying
+fleet and empire topics. Evidence is synthetic native-function/live WebSocket,
+not interactive saves, multiplayer, real mod/language assets or platform parity.
+The strategic settlement-awareness subset is implemented; broader Q-06 and P1
+remain partial, with no tactical authority, actions or durable settlement identity.
 
 ## Owned fleet and committed-design dashboard
 
@@ -510,6 +542,7 @@ constraints, not per-increment narratives or repeated test counts:
   [own colonies](colony_view.md), [ship observations](ship_refresh.md),
   [owned fleet/ship/design inspection](owned_fleet_view.md).
 - [Unified strategic fleet awareness](strategic_fleet_view.md).
+- [Unified strategic settlement awareness](strategic_settlement_view.md).
 - [Read ownership](read_foundation.md), [backend constraints](p1.md),
   [native lifecycle audit](lifecycle.md), [remaining gates](evidence.md).
 - [Client-side incoming-threat example](incoming_threats.md).
@@ -562,6 +595,9 @@ For colony operations, also build and select `test_colony_production_helpers`,
 `test_ground_commando`, `test_town_zero`, `test_newgame`, `test_msg_queue`,
 `test_resource_reload` and `test_text_format` in both enabled trees, in addition
 to the integration targets above. These are the actual CMake native-owner targets.
+
+Strategic settlement changes additionally affect `test_orbital_defense` and
+`test_info`; run them in both enabled trees alongside the colony and base gates.
 
 Documentation-only changes need contract/schema/audit tests, local link checks
 and whitespace checks, not the game-build/transport gate above.

@@ -175,6 +175,8 @@ namespace TEXTBOX {
     void __cdecl Do_Text_Box(const char* title, const char* text, uint16_t input_ticks) {
         game_events::s_leader_interruption_scope leader_interruption(text);
         game_events::s_relations_interruption_scope relations_interruption;
+        game_events::s_settlement_interruption_scope settlement_interruption;
+        game_events::s_settlement_view_scope settlement_help(game_events::Settlement_Help_Viewer(text));
         s_colors primary_colors;
         s_animation_header* anim;
         s_colors secondary_colors;
@@ -251,7 +253,10 @@ namespace TEXTBOX {
         fields::Add_Hidden_Field(0, 0, 639, 479, "\x1B", 41);
 
         game_events::Present_Leader_Text(text);
+        settlement_help.Initialized();
+        game_events::Present_Settlement_Help(text);
         Text_Box_Get_Input(input_ticks);
+        settlement_help.Close();
         game_events::Close_Leader_Text(text);
 
         animate::Set_Animation_Frame(anim, 1);
@@ -308,6 +313,7 @@ namespace TEXTBOX {
     void __cdecl Draw_Help_Entry(int16_t help_id) {
         game_events::s_leader_interruption_scope leader_interruption;
         game_events::s_relations_interruption_scope relations_interruption;
+        game_events::s_settlement_interruption_scope settlement_interruption;
         box_x = 0;
         box_y = 0;
 

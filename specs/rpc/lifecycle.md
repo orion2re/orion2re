@@ -74,6 +74,16 @@ refusal/partial result), T-10 (delay/animation/timed box/film), T-16 (thread han
 
 ## Committed state / turn publication
 
+Strategic settlement owners publish caller-owned frame results only after native
+initialization. SYS, Planets, Colony/Colonies summaries and matching help provide
+their actual text, not permission to rerun calculators. Child entry, suppression,
+exit, replacement and resource/world revocation end that authority; return needs
+fresh presentation. Ambient inclusion and pure shared defense/climate predicates
+remain screen-independent. Existing staging and original-player guards apply.
+The colony replacement event now carries a callback-local affected planet as well
+as the old owner; no native location identifier becomes a durable public identity.
+See [the settlement lifetime contract](strategic_settlement_view.md).
+
 Strategic fleet labels use the existing initialized main owner and frame/print
 scopes. Only the actual fleet-box scanned-label branch publishes canonical-name
 evidence; native support/NPC name branches differ from combat hull labels.

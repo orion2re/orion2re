@@ -183,6 +183,7 @@ namespace COLSUM {
     }
 
     void __cdecl Colony_Summary_Screen() {
+        game_events::s_settlement_view_scope settlement_view(MOX::PLAYER_NUM);
         MOX2::action_func_t saved_auto_fn = nullptr;
         int16_t input_val = 0;
         int16_t scan_val = 0;
@@ -237,6 +238,7 @@ namespace COLSUM {
 
         ERICHELP::Set_Colony_Summary_Screen_Help_List();
         fields::Assign_Auto_Function(COLSUM::Draw_Colony_Summary_Screen, 1);
+        settlement_view.Initialized();
         COLSUM::Draw_Colony_Summary_Screen();
         palette::Clear_Palette_Changes(0, 255);
         video::Set_Refresh_Stencil();
@@ -255,6 +257,7 @@ namespace COLSUM {
             scan_val = fields::Scan_Input();
 
             if (!COLSUM::Evaluate_Input(&input_val, &scan_val)) {
+                settlement_view.Close();
                 FAKEBUTS::Clear_Fake_Buttons();
                 COLONY::Clear_Galaxy_Map_Fields();
                 fields::Clear_Fields();
@@ -263,6 +266,7 @@ namespace COLSUM {
                 return;
             }
 
+            settlement_view.Initialized();
             COLSUM::Draw_Colony_Summary_Screen();
             if (COLONY::full_draw != 0) {
                 COLSUM::Update_Col_List();
@@ -276,6 +280,7 @@ namespace COLSUM {
             }
         }
 
+        settlement_view.Close();
         FAKEBUTS::Clear_Fake_Buttons();
         COLONY::Clear_Galaxy_Map_Fields();
         fields::Clear_Fields();
@@ -593,6 +598,7 @@ namespace COLSUM {
     }
 
     void __cdecl Draw_Colony_Summary_Screen() {
+        game_events::s_settlement_frame settlements;
         COLONY::g_count++;
         video::Set_Page_Off();
         graphics::Set_Window(0, 0, 639, 479);
@@ -934,6 +940,7 @@ namespace COLSUM {
     }
 
     bool __cdecl Evaluate_Input(int16_t* field_ptr, int16_t* scan_val) {
+        if (*field_ptr != 0) game_events::Invalidate_Settlement_View();
         int16_t field = *field_ptr;
 
         for (int preset = 0; preset < BUILD_QUEUE::PRESET_COUNT; ++preset) {

@@ -9,6 +9,62 @@ namespace {
     }
 } // namespace
 
+DOCTEST_TEST_CASE("settlement frames require initialized owners and fresh restoration") {
+    std::vector<game_events::s_settlement_text> copied;
+    const auto token = game_events::Subscribe([](game_events::e_event event, void* context) {
+        if (event != game_events::SETTLEMENT_VIEW_READY) return;
+        const auto* view = game_events::Published_Settlement_View();
+        auto* output = (std::vector<game_events::s_settlement_text>*)context;
+        output->assign(view->items, view->items + view->count);
+    },
+        &copied);
+    DOCTEST_REQUIRE(token != 0);
+    {
+        game_events::s_settlement_view_scope owner(0);
+        {
+            game_events::s_settlement_frame frame;
+            game_events::Observe_Settlement_Text(4, "system-detail", "Population 7 / 12");
+        }
+        DOCTEST_CHECK(copied.empty());
+        owner.Initialized();
+        {
+            game_events::s_settlement_frame frame;
+            game_events::Observe_Settlement_Text(4, "system-detail", "Population 7 / 12");
+        }
+        DOCTEST_REQUIRE(copied.size() == 1);
+        DOCTEST_CHECK(copied[0].planet == 4);
+        {
+            game_events::s_settlement_interruption_scope child;
+            owner.Initialized();
+            game_events::s_settlement_frame frame;
+            game_events::Observe_Settlement_Text(5, "system-detail", "Not displayed");
+        }
+        DOCTEST_CHECK(copied[0].planet == 4);
+        owner.Initialized();
+        {
+            game_events::s_settlement_frame frame;
+            game_events::Observe_Settlement_Text(5, "system-detail", "Fresh display");
+        }
+        DOCTEST_CHECK(copied[0].planet == 5);
+        {
+            game_events::s_settlement_frame frame;
+            game_events::Observe_Settlement_Text(6, "system-detail", "Before replacement");
+            game_events::Publish_Colony_Replacing(1, 6);
+        }
+        DOCTEST_CHECK(copied[0].planet == 5);
+        owner.Initialized();
+        game_events::Publish(game_events::WORLD_REPLACE_BEGIN);
+        owner.Initialized();
+        {
+            game_events::s_settlement_frame frame;
+            game_events::Observe_Settlement_Text(6, "system-detail", "Stale display");
+        }
+        DOCTEST_CHECK(copied[0].planet == 5);
+    }
+    DOCTEST_CHECK(game_events::Published_Settlement_View() == nullptr);
+    game_events::Unsubscribe(token);
+}
+
 DOCTEST_TEST_CASE("colony staging survives children and cross-screen continuation without granting a presentation") {
     std::vector<game_events::e_event> events;
     const auto token = game_events::Subscribe(Record, &events);

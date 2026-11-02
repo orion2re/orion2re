@@ -1,4 +1,6 @@
 #include "pch.h"
+#include "game_events.h"
+#include "colony_read.h"
 
 namespace COLSYSDI {
     s_animation_header* __cdecl Planet_Anims(int16_t climate, int16_t planet_size) {
@@ -39,6 +41,7 @@ namespace COLSYSDI {
                 Planet_Summary_String(summary_text, sizeof(summary_text), planet_idx, 1);
 
                 BILL::_Print_Paragraph(x + 28, text_y, 89 - x, summary_text, 0);
+                game_events::Observe_Settlement_Text(planet_idx, "colony-system-summary", summary_text, false, planet->planet_type == PLANET_TYPE_PLANET && planet->colony_index >= 0 && colony_read::Strategic_Owner_Disclosed(ESTRINGS::E_Strings(0x29), 1, sizeof(summary_text)));
             }
 
             s_animation_header* anim = (s_animation_header*)buffer::Buffer_Reload(COLONY::COLSYSDI_LBX, 0x41, MOX::global_cache_seg);

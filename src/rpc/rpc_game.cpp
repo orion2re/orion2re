@@ -159,12 +159,16 @@ namespace rpc {
             return true;
         }
 
+        bool Same_Colony(const s_colony_observation& a, const s_colony_observation& b) {
+            return std::tie(a.system_id, a.orbit, a.population, a.owner_id, a.infantry, a.armor, a.planet_id) == std::tie(b.system_id, b.orbit, b.population, b.owner_id, b.infantry, b.armor, b.planet_id) && a.operations == b.operations &&
+                std::tie(a.owned, a.outpost, a.unclassified, a.population_available, a.owner_label, a.climate_available, a.climate, a.defenses_available, a.defenses, a.presentations) ==
+                std::tie(b.owned, b.outpost, b.unclassified, b.population_available, b.owner_label, b.climate_available, b.climate, b.defenses_available, b.defenses, b.presentations);
+        }
+
         bool Same_Colonies(const s_map_observation* left, const s_map_observation* right) {
-            if (left->colonies_captured != right->colonies_captured || left->colonies.size() != right->colonies.size()) return false;
+            if (left->colonies_captured != right->colonies_captured || left->settlements_complete != right->settlements_complete || left->colonies.size() != right->colonies.size()) return false;
             for (size_t index = 0; index < left->colonies.size(); ++index) {
-                const auto& a = left->colonies[index];
-                const auto& b = right->colonies[index];
-                if (std::tie(a.system_id, a.orbit, a.population, a.owner_id, a.infantry, a.armor, a.planet_id) != std::tie(b.system_id, b.orbit, b.population, b.owner_id, b.infantry, b.armor, b.planet_id) || a.operations != b.operations) return false;
+                if (!Same_Colony(left->colonies[index], right->colonies[index])) return false;
             }
             return true;
         }
@@ -176,6 +180,7 @@ namespace rpc {
                 const auto& b = right->planets[index];
                 if (std::tie(a.system_id, a.orbit, a.kind, a.name, a.size, a.gravity, a.climate, a.minerals, a.special, a.food2, a.industry, a.gravity_penalty, a.max_population_available, a.max_population, a.colony_id) !=
                     std::tie(b.system_id, b.orbit, b.kind, b.name, b.size, b.gravity, b.climate, b.minerals, b.special, b.food2, b.industry, b.gravity_penalty, b.max_population_available, b.max_population, b.colony_id)) return false;
+                if (a.settlement_empty != b.settlement_empty) return false;
             }
             return true;
         }
@@ -269,12 +274,16 @@ namespace rpc {
         const s_map_snapshot* Select_Snapshot(const s_game_store* store, uint32_t topics) {
             // Prefer one dated mixed capture over silently replacing observations
             // with a newer owned-only collection. Never splice topics across them.
-            for (int pass = 0; pass < 2; ++pass) {
+            const bool presentation = (topics & (TOPIC_COLONIES | TOPIC_PLANETS)) && std::any_of(store->snapshots.begin(), store->snapshots.end(), [store](const auto& snapshot) {
+                return snapshot.map.colonies_captured && snapshot.map.settlement_presentation && snapshot.map.context_epoch != 0 && Authorized_Snapshot(store, &snapshot);
+            });
+            for (int pass = 0; pass < 4; ++pass) {
                 for (auto snapshot = store->snapshots.rbegin(); snapshot != store->snapshots.rend(); ++snapshot) {
-                    if (pass == 0 && (topics & (TOPIC_SHIPS | TOPIC_FLEETS)) && snapshot->map.owned_ambient) continue;
+                    if (pass < 2 && (topics & (TOPIC_SHIPS | TOPIC_FLEETS)) && snapshot->map.owned_ambient) continue;
+                    if (pass % 2 == 0 && presentation && !snapshot->map.settlement_presentation) continue;
                     if (snapshot->map.leaders_only && (topics & ~(TOPIC_SESSION | TOPIC_LEADERS))) continue;
                     if (store->busy_depth != 0 && (!snapshot->map.leaders_only || !snapshot->map.leader_presentation)) continue;
-                    if ((topics & (TOPIC_SHIPS | TOPIC_FLEETS | TOPIC_DESIGNS | TOPIC_LEADERS | TOPIC_RELATIONS)) && !Authorized_Snapshot(store, &*snapshot)) continue;
+                    if ((topics & (TOPIC_SHIPS | TOPIC_FLEETS | TOPIC_DESIGNS | TOPIC_LEADERS | TOPIC_RELATIONS | TOPIC_COLONIES | TOPIC_PLANETS)) && !Authorized_Snapshot(store, &*snapshot)) continue;
                     if ((!(topics & TOPIC_SHIPS) || snapshot->map.ships_captured) &&
                         (!(topics & TOPIC_FLEETS) || snapshot->map.ships_captured) &&
                         (!(topics & (TOPIC_FLEETS | TOPIC_DESIGNS)) || snapshot->map.inspection_captured) &&
@@ -288,6 +297,12 @@ namespace rpc {
                         (!(topics & TOPIC_MESSAGES) || snapshot->map.messages_captured)) return &*snapshot;
                 }
             }
+            return nullptr;
+        }
+
+        const s_map_snapshot* Previous_Settlements(const s_game_store* store, bool presentation) {
+            for (auto snapshot = store->snapshots.rbegin(); snapshot != store->snapshots.rend(); ++snapshot)
+                if (snapshot->map.colonies_captured && snapshot->map.settlement_presentation == presentation && Authorized_Snapshot(store, &*snapshot)) return &*snapshot;
             return nullptr;
         }
 
@@ -305,6 +320,15 @@ namespace rpc {
             });
         }
 
+        const char* Capture_Mode(const s_map_observation* map) {
+            if (map->settlement_presentation) return "native-settlement-presentation";
+            if (map->relations_presentation) return "native-relations-presentation";
+            if (map->leader_presentation) return "native-leader-presentation";
+            if (map->context_epoch != 0) return "last-native-fleet-box";
+            if (map->owned_ambient) return "owned-inspection";
+            return map->ships_captured ? "last-native-ship-refresh" : "last-coherent-capture";
+        }
+
         yyjson_mut_val* Stamp(s_json_builder* json, const s_game_store* store, const s_map_snapshot* snapshot) {
             return Json_Object(json, {
                                          {"gameId", Json_String_Value(json, store->game_id)},
@@ -312,8 +336,9 @@ namespace rpc {
                                          {"snapshotId", Json_String_Value(json, snapshot->id)},
                                          {"revision", Json_String_Value(json, std::to_string(snapshot->revision))},
                                          {"turn", Json_Integer(json, snapshot->map.turn)},
-                                         {"captureMode", Json_String_Value(json, snapshot->map.relations_presentation ? "native-relations-presentation" : (snapshot->map.leader_presentation ? "native-leader-presentation" : (snapshot->map.context_epoch != 0 ? "last-native-fleet-box" : (snapshot->map.owned_ambient ? "owned-inspection" : (snapshot->map.ships_captured ? "last-native-ship-refresh" : "last-coherent-capture")))))},
+                                         {"captureMode", Json_String_Value(json, Capture_Mode(&snapshot->map))},
                                          {"fleetCoverage", Json_String_Value(json, !snapshot->map.ships_captured ? "unavailable" : (snapshot->map.owned_ambient ? "owned-only" : "complete"))},
+                                         {"settlementCoverage", Json_String_Value(json, !snapshot->map.colonies_captured ? "unavailable" : (snapshot->map.settlements_complete ? "complete" : "owned-only"))},
                                      });
         }
 
@@ -379,7 +404,7 @@ namespace rpc {
             Json_Add(json, result, "special", Exploration_Knowledge(json, item.kind == 3 && item.special != 0 ? EXPLORATION_CURRENT : EXPLORATION_EMPTY, Json_Integer(json, item.special)));
             Json_Add(json, result, "hostileEnvironment", Exploration_Knowledge(json, details, Json_Boolean(json, item.food2 == 0)));
             Json_Add(json, result, "maxPopulation", Exploration_Knowledge(json, item.kind != 3 ? EXPLORATION_EMPTY : (item.max_population_available ? EXPLORATION_CURRENT : EXPLORATION_UNAUDITED), Json_Integer(json, item.max_population)));
-            Json_Add(json, result, "colony", Id_Knowledge(json, item.colony_id));
+            Json_Add(json, result, "colony", item.settlement_empty ? Exploration_Knowledge(json, EXPLORATION_EMPTY) : Id_Knowledge(json, item.colony_id));
             return result;
         }
 
@@ -630,22 +655,30 @@ namespace rpc {
         yyjson_mut_val* Colony(s_json_builder* json, const s_map_snapshot* snapshot, size_t index) {
             const auto& item = snapshot->map.colonies[index];
             const bool production = item.operations.available && !item.operations.queue.empty() && item.operations.queue[0].available;
+            auto* defenses = Json_Array(json);
+            for (const auto& label : item.defenses) Json_Append(json, defenses, Json_String_Value(json, label));
+            auto* presentations = Json_Array(json);
+            for (const auto& entry : item.presentations)
+                Json_Append(json, presentations, Json_Object(json, {{"source", Json_String_Value(json, entry.first)}, {"text", Json_String_Value(json, entry.second)}}));
+            auto* troops = Json_Object(json, {{"infantry", Json_Integer(json, item.infantry)}, {"armor", Json_Integer(json, item.armor)}});
             return Json_Object(json, {
-                {"id", Json_String_Value(json, snapshot->colony_ids[index])},
-                {"systemId", Json_String_Value(json, item.system_id)},
-                {"orbit", Json_Integer(json, item.orbit)},
-                {"planetId", Id_Knowledge(json, item.planet_id)},
-                {"owner", Exploration_Knowledge(json, EXPLORATION_CURRENT, Json_String_Value(json, item.owner_id))},
-                {"population", Exploration_Knowledge(json, EXPLORATION_CURRENT, Json_Integer(json, item.population))},
-                {"troops", Exploration_Knowledge(json, EXPLORATION_CURRENT, Json_Object(json, {
-                    {"infantry", Json_Integer(json, item.infantry)},
-                    {"armor", Json_Integer(json, item.armor)},
-                }))},
-                {"production", Exploration_Knowledge(json, production ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN,
-                    production ? Json_String_Value(json, item.operations.queue[0].label) : nullptr)},
-                {"buyCost", Exploration_Knowledge(json, item.operations.available && item.operations.production_available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, Json_Integer(json, item.operations.buy_cost))},
-                {"operations", Colony_Operations(json, item.operations)},
-            });
+                                         {"id", Json_String_Value(json, snapshot->colony_ids[index])},
+                                         {"systemId", Json_String_Value(json, item.system_id)},
+                                         {"orbit", Json_Integer(json, item.orbit)},
+                                         {"planetId", Id_Knowledge(json, item.planet_id)},
+                                         {"kind", Json_String_Value(json, item.unclassified ? "unclassified" : (item.outpost ? "outpost" : "colony"))},
+                                         {"owned", Json_Boolean(json, item.owned)},
+                                         {"owner", Id_Knowledge(json, item.owner_id)},
+                                         {"ownerLabel", Exploration_Knowledge(json, item.owner_label.empty() ? EXPLORATION_UNKNOWN : EXPLORATION_CURRENT, Json_String_Value(json, item.owner_label))},
+                                         {"environment", Exploration_Knowledge(json, item.climate_available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, Json_String_Value(json, item.climate))},
+                                         {"defenses", Exploration_Knowledge(json, item.defenses_available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, defenses)},
+                                         {"presentation", Ship_Knowledge(json, item.owned || item.outpost || item.unclassified ? SHIP_UNKNOWN : (item.presentations.empty() ? SHIP_CONTEXT_REQUIRED : SHIP_CURRENT), presentations)},
+                                         {"population", Exploration_Knowledge(json, item.population_available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, Json_Integer(json, item.population))},
+                                         {"troops", Exploration_Knowledge(json, item.owned && !item.outpost && !item.unclassified ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, troops)},
+                                         {"production", Exploration_Knowledge(json, production ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, production ? Json_String_Value(json, item.operations.queue[0].label) : nullptr)},
+                                         {"buyCost", Exploration_Knowledge(json, item.operations.available && item.operations.production_available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, Json_Integer(json, item.operations.buy_cost))},
+                                         {"operations", Colony_Operations(json, item.operations)},
+                                     });
         }
 
         yyjson_mut_val* Research_Id(s_json_builder* json, const s_map_snapshot* snapshot, int32_t index) {
@@ -1204,7 +1237,7 @@ namespace rpc {
                 const auto pinned = std::find_if(store->snapshots.begin(), store->snapshots.end(), [&cursor](const s_map_snapshot& item) { return item.id == cursor->snapshot; });
                 if (pinned == store->snapshots.end() || ((topics & TOPIC_MESSAGES) && !pinned->map.messages_captured) || ((topics & TOPIC_COLONIES) && !pinned->map.colonies_captured) ||
                     ((topics & TOPIC_SHIPS) && !pinned->map.ships_captured) || ((topics & (TOPIC_FLEETS | TOPIC_DESIGNS)) && !pinned->map.inspection_captured) ||
-                    ((topics & (TOPIC_SHIPS | TOPIC_FLEETS | TOPIC_DESIGNS | TOPIC_LEADERS)) && !Authorized_Snapshot(store, &*pinned))) {
+                    ((topics & (TOPIC_SHIPS | TOPIC_FLEETS | TOPIC_DESIGNS | TOPIC_LEADERS | TOPIC_COLONIES | TOPIC_PLANETS)) && !Authorized_Snapshot(store, &*pinned))) {
                     *error = RPC_OBJECT_UNAVAILABLE;
                     return {};
                 }
@@ -1275,7 +1308,7 @@ namespace rpc {
         Prune_Subscriptions(store);
         std::erase_if(store->cursors, [store](const s_map_cursor& cursor) {
             const auto snapshot = std::find_if(store->snapshots.begin(), store->snapshots.end(), [&cursor](const s_map_snapshot& item) { return item.id == cursor.snapshot; });
-            return snapshot == store->snapshots.end() || ((cursor.method == "game.listShips" || cursor.method == "game.listFleets" || cursor.method == "game.listLeaders") && !Authorized_Snapshot(store, &*snapshot));
+            return snapshot == store->snapshots.end() || ((cursor.method == "game.listShips" || cursor.method == "game.listFleets" || cursor.method == "game.listLeaders" || cursor.method == "game.listColonies" || cursor.method == "game.listPlanets") && !Authorized_Snapshot(store, &*snapshot));
         });
         for (auto& subscription : store->subscriptions) subscription.revision = 0;
         Publish_State_Changes(store);
@@ -1306,6 +1339,7 @@ namespace rpc {
         if (std::any_of(store->snapshots.begin(), store->snapshots.end(), [](const s_map_snapshot& snapshot) { return snapshot.map.exploration_sensitive; })) Revoke_Game_View(store);
         Revoke_Game_Context(store);
         ++store->busy_depth;
+        if (std::any_of(store->snapshots.begin(), store->snapshots.end(), [](const auto& snapshot) { return snapshot.map.settlements_complete; })) Expire_Game_Colonies(store);
         Expire_Game_Messages(store);
         Expire_Game_Inspection(store);
     }
@@ -1329,7 +1363,7 @@ namespace rpc {
         for (auto& subscription : store->subscriptions) subscription.revision = 0;
     }
 
-    void Expire_Game_Colonies(s_game_store* store) {
+    void Expire_Game_Colonies(s_game_store* store, bool revoke_queued) {
         if (store == nullptr || std::none_of(store->snapshots.begin(), store->snapshots.end(), [](const auto& snapshot) { return snapshot.map.colonies_captured; })) return;
         for (const auto& subscription : store->subscriptions)
             if (Context_Response_Pending(store->bridge, subscription.client, subscription.baseline_ticket)) Cancel_Client(store->bridge, subscription.client);
@@ -1337,9 +1371,11 @@ namespace rpc {
         store->context_active = false;
         for (auto& snapshot : store->snapshots) {
             snapshot.map.colonies_captured = false;
+            snapshot.map.settlements_complete = false;
             snapshot.map.colonies.clear();
             snapshot.colony_ids.clear();
             for (auto& planet : snapshot.map.planets) {
+                planet.settlement_empty = false;
                 if (!planet.colony_id.empty()) {
                     planet.max_population_available = false;
                     planet.max_population = 0;
@@ -1347,10 +1383,40 @@ namespace rpc {
                 planet.colony_id.clear();
             }
             for (auto& message : snapshot.map.messages) message.colony_id.clear();
+            for (size_t row = snapshot.map.designs.size(); row-- > 0;) {
+                auto& design = snapshot.map.designs[row];
+                const bool linked = !design.colony_id.empty();
+                design.colony_id.clear();
+                if (design.source != "queued" && design.source != "refit") continue;
+                if (!revoke_queued) {
+                    if (linked && !store->new_id(&snapshot.design_ids[row], store->id_context)) {
+                        Revoke_Game_View(store);
+                        return;
+                    }
+                    continue;
+                }
+                snapshot.map.designs.erase(snapshot.map.designs.begin() + row);
+                snapshot.design_ids.erase(snapshot.design_ids.begin() + row);
+            }
+            if (store->revision == std::numeric_limits<uint64_t>::max() || !store->new_id(&snapshot.id, store->id_context)) {
+                Revoke_Game_View(store);
+                return;
+            }
+            snapshot.revision = ++store->revision;
         }
-        std::erase_if(store->cursors, [](const auto& cursor) { return cursor.method == "game.listColonies" || cursor.method == "game.listPlanets"; });
+        store->cursors.clear(); // Every retained capture above received a new stamp.
         store->capture_requested = true;
         for (auto& subscription : store->subscriptions) subscription.revision = 0;
+    }
+
+    void Expire_Game_Settlement(s_game_store* store, int32_t system, int32_t orbit) {
+        if (store == nullptr || system < 0 || (size_t)system >= store->system_ids.size()) return;
+        const auto& id = store->system_ids[system];
+        if (std::any_of(store->snapshots.begin(), store->snapshots.end(), [&id, orbit](const auto& snapshot) {
+                return std::any_of(snapshot.map.colonies.begin(), snapshot.map.colonies.end(), [&id, orbit](const auto& colony) {
+                    return colony.system_id == id && colony.orbit == orbit;
+                });
+            })) Expire_Game_Colonies(store, false);
     }
 
     void Expire_Game_Inspection(s_game_store* store) {
@@ -1433,7 +1499,7 @@ namespace rpc {
             observation->systems.size() > 1024 || observation->nebulas.size() > 57 || observation->ships.size() > 10000 || observation->players.size() > 8 || observation->colonies.size() > 5120) return false;
         if (observation->leaders_only && (!observation->leader_presentation || observation->viewer != store->viewer || !observation->systems.empty() || !observation->nebulas.empty() || observation->ships_captured || observation->players_captured || observation->colonies_captured || observation->planets_captured || observation->research_captured)) return false;
         if (observation->leader_presentation && (observation->context_epoch == 0 || !observation->leaders_captured)) return false;
-        if (observation->context_epoch != 0 && ((!observation->ships_captured && !observation->leader_presentation && !observation->relations_presentation) || observation->context_epoch != Bridge_Context_Epoch(store->bridge))) return false;
+        if (observation->context_epoch != 0 && ((!observation->ships_captured && !observation->leader_presentation && !observation->relations_presentation && !observation->settlement_presentation) || observation->context_epoch != Bridge_Context_Epoch(store->bridge))) return false;
         if (observation->relations_presentation && (!observation->relations_captured || observation->context_epoch == 0 || observation->leaders_only)) return false;
         // Bind newly authorized default observers to the old coherent turn before replacing it.
         Sync_Turn_Observers(store);
@@ -1457,9 +1523,36 @@ namespace rpc {
         projected.players_captured = observation->players_captured;
         projected.players = observation->players;
         projected.colonies_captured = observation->colonies_captured;
-        if (observation->colonies_captured)
-            for (const auto& colony : observation->colonies)
-                if (colony.owner_slot == observation->viewer) projected.colonies.push_back(colony);
+        projected.settlements_complete = observation->settlements_complete;
+        projected.settlement_presentation = observation->settlement_presentation;
+        if (observation->colonies_captured) {
+            for (const auto& colony : observation->colonies) {
+                const bool owned = colony.owner_slot == observation->viewer;
+                if (!owned && !observation->settlements_complete && !observation->settlement_presentation) continue;
+                if (!owned && !(colony.strategic && colony.system >= 0 && (size_t)colony.system < observation->systems.size() && (observation->systems[colony.system].explored || (observation->settlement_presentation && observation->context_epoch != 0)))) continue;
+                if (owned && !colony.outpost && !colony.unclassified) {
+                    projected.colonies.push_back(colony);
+                    continue;
+                }
+                auto& item = projected.colonies.emplace_back();
+                item.owner_slot = colony.owner_slot;
+                item.system = colony.system;
+                item.orbit = colony.orbit;
+                item.owned = owned;
+                item.outpost = colony.outpost;
+                item.unclassified = colony.unclassified;
+                item.owner_resolvable = colony.owner_resolvable;
+                item.strategic = colony.strategic;
+                item.population_available = !item.outpost && !item.unclassified && colony.population_available;
+                if (item.population_available) item.population = colony.population;
+                item.owner_label = colony.owner_label;
+                item.climate_available = colony.climate_available;
+                if (item.climate_available) item.climate = colony.climate;
+                item.defenses_available = colony.defenses_available;
+                if (item.defenses_available) item.defenses = colony.defenses;
+                if (!item.outpost && !item.unclassified && projected.settlement_presentation && observation->context_epoch != 0) item.presentations = colony.presentations;
+            }
+        }
         projected.context_epoch = observation->context_epoch;
         projected.leader_presentation = observation->leader_presentation;
         projected.leaders_only = observation->leaders_only;
@@ -1682,13 +1775,29 @@ namespace rpc {
         if (intelligence.agents < 0 || intelligence.agents > 63 || intelligence.spy_bonus < -32768 || intelligence.spy_bonus > 32767 || intelligence.agent_bonus < -32768 || intelligence.agent_bonus > 32767) return false;
         if (!projected.colonies_captured) projected.colonies.clear();
         if (projected.colonies_captured && (!projected.players_captured || !has_local)) return false;
-        std::erase_if(projected.colonies, [&projected](const s_colony_observation& colony) { return colony.owner_slot != projected.viewer; });
         bool occupied[1024][5] = {};
+        bool settlement_locations[1024][5] = {};
         for (auto& colony : projected.colonies) {
+            colony.owned = colony.owner_slot == projected.viewer;
+            if (!colony.owned || colony.outpost || colony.unclassified) {
+                colony.operations = {};
+                colony.infantry = colony.armor = 0;
+            }
+            if (colony.outpost || colony.unclassified) colony.population_available = false;
+            if (!colony.population_available) colony.population = 0;
+            if (!colony.climate_available) colony.climate.clear();
+            if (!colony.defenses_available) colony.defenses.clear();
+            if (colony.owned || colony.outpost || colony.unclassified || !projected.settlement_presentation || projected.context_epoch == 0) colony.presentations.clear();
+            if (colony.owner_label.size() > 4096 || colony.climate.size() > 4096 || colony.defenses.size() > 7 || colony.presentations.size() > 8) return false;
+            for (const auto& text : colony.defenses)
+                if (text.size() > 4096) return false;
+            for (const auto& entry : colony.presentations)
+                if (entry.second.size() > 6000 || (entry.first != "system-detail" && entry.first != "planets-summary" && entry.first != "colony-summary" && entry.first != "colony-system-summary")) return false;
             if (colony.system < 0 || (size_t)colony.system >= projected.systems.size() || colony.orbit < 1 || colony.orbit > 5 ||
                 colony.population < 0 || colony.population > 42 || colony.infantry < 0 || colony.infantry > 32767 ||
-                colony.armor < 0 || colony.armor > 32767 || occupied[colony.system][colony.orbit - 1]) return false;
-            occupied[colony.system][colony.orbit - 1] = true;
+                colony.armor < 0 || colony.armor > 32767 || settlement_locations[colony.system][colony.orbit - 1]) return false;
+            settlement_locations[colony.system][colony.orbit - 1] = true;
+            occupied[colony.system][colony.orbit - 1] = colony.owned && !colony.outpost && !colony.unclassified;
             colony.system_id.clear();
             colony.owner_id.clear();
             colony.planet_id.clear();
@@ -1741,6 +1850,7 @@ namespace rpc {
             projected.exploration_sensitive |= !projected.systems[planet.system].explored;
             planet.system_id.clear();
             planet.colony_id.clear();
+            if (!projected.colonies_captured || !projected.settlements_complete) planet.settlement_empty = false;
             if (planet.kind != 3) {
                 planet.name.clear();
                 planet.size = planet.gravity = planet.climate = planet.minerals = planet.special = planet.food2 = planet.industry = planet.gravity_penalty = 0;
@@ -1859,12 +1969,17 @@ namespace rpc {
                 }
             }
             bool colony_lost = false;
-            if (projected.colonies_captured) {
-                for (const auto& previous_colony : previous.colonies) {
-                    colony_lost |= std::none_of(projected.colonies.begin(), projected.colonies.end(), [&previous_colony, store](const auto& current) {
+            bool owned_colony_lost = false;
+            const auto* previous_settlements = Previous_Settlements(store, false);
+            if (projected.colonies_captured && previous_settlements != nullptr) {
+                for (const auto& previous_colony : previous_settlements->map.colonies) {
+                    const bool missing = std::none_of(projected.colonies.begin(), projected.colonies.end(), [&previous_colony, store](const auto& current) {
                         return current.system >= 0 && (size_t)current.system < store->system_ids.size() &&
-                            store->system_ids[current.system] == previous_colony.system_id && current.orbit == previous_colony.orbit;
+                            store->system_ids[current.system] == previous_colony.system_id && current.orbit == previous_colony.orbit &&
+                            current.owned == previous_colony.owned && current.outpost == previous_colony.outpost;
                     });
+                    colony_lost |= missing;
+                    owned_colony_lost |= missing && previous_colony.owned && !previous_colony.outpost && !previous_colony.unclassified;
                 }
             }
             bool ship_lost = false;
@@ -1873,8 +1988,9 @@ namespace rpc {
                     ship_lost |= !std::binary_search(projected.owned_authority.begin(), projected.owned_authority.end(), authority);
             }
             if (lost) Revoke_Game_View(store);
-            else if (colony_lost)
-                Expire_Game_Colonies(store);
+            else if (colony_lost) {
+                Expire_Game_Colonies(store, owned_colony_lost);
+            }
             if (!lost && ship_lost) Expire_Game_Inspection(store);
         }
         const auto* ambient_map = Select_Snapshot(store, TOPIC_SYSTEMS);
@@ -1965,8 +2081,9 @@ namespace rpc {
             colony.system_id = store->system_ids[(size_t)colony.system];
             const auto planet = std::find_if(projected.planets.begin(), projected.planets.end(), [&colony](const s_planet_observation& item) { return item.system_id == colony.system_id && item.orbit == colony.orbit; });
             if (planet != projected.planets.end()) colony.planet_id = planet_ids[(size_t)(planet - projected.planets.begin())];
-            const auto local = std::find_if(projected.players.begin(), projected.players.end(), [](const s_player_observation& player) { return player.local; });
-            colony.owner_id = player_ids[(size_t)(local - projected.players.begin())];
+            const auto owner = std::find_if(projected.players.begin(), projected.players.end(), [&colony](const auto& player) { return player.slot == colony.owner_slot; });
+            if (colony.owner_resolvable && owner != projected.players.end() && (owner->local || std::count_if(projected.players.begin(), projected.players.end(), [&owner](const auto& player) { return player.color == owner->color; }) == 1))
+                colony.owner_id = player_ids[(size_t)(owner - projected.players.begin())];
             for (auto& worker : colony.operations.workforce) {
                 const auto player = std::find_if(projected.players.begin(), projected.players.end(), [&worker](const auto& item) { return item.slot == worker.player_slot; });
                 if (player != projected.players.end()) worker.player_id = player_ids[(size_t)(player - projected.players.begin())];
@@ -1991,12 +2108,23 @@ namespace rpc {
                 std::tie(right.x, right.y, right.owned, right.name, right.owner_id, right.destination_available, right.destination_id, right.eta_available, right.eta, right.name_available, right.role, right.type_available, right.type, right.banner, right.system_id);
         });
         std::vector<std::string> colony_ids;
-        const auto* previous_colonies = Select_Snapshot(store, TOPIC_COLONIES);
-        if (projected.colonies_captured && previous_colonies != nullptr && Same_Colonies(&projected, &previous_colonies->map)) colony_ids = previous_colonies->colony_ids;
-        if (!Extend(&colony_ids, projected.colonies.size())) return false;
+        const auto* previous_colonies = Previous_Settlements(store, projected.settlement_presentation);
+        if (previous_colonies == nullptr && projected.settlement_presentation) previous_colonies = Previous_Settlements(store, false);
+        for (const auto& colony : projected.colonies) {
+            std::string id;
+            if (previous_colonies != nullptr) {
+                const auto& previous = previous_colonies->map.colonies;
+                const auto found = std::lower_bound(previous.begin(), previous.end(), colony, [](const auto& a, const auto& b) {
+                    return std::tie(a.system_id, a.orbit) < std::tie(b.system_id, b.orbit);
+                });
+                if (found != previous.end() && Same_Colony(colony, *found)) id = previous_colonies->colony_ids[(size_t)(found - previous.begin())];
+            }
+            if (id.empty() && !store->new_id(&id, store->id_context)) return false;
+            colony_ids.push_back(std::move(id));
+        }
         for (auto& message : projected.messages) {
             const auto colony = std::find_if(projected.colonies.begin(), projected.colonies.end(), [&message, store](const auto& item) {
-                return message.colony_system >= 0 && (size_t)message.colony_system < store->system_ids.size() && item.system_id == store->system_ids[message.colony_system] && item.orbit == message.colony_orbit;
+                return item.owned && !item.outpost && !item.unclassified && message.colony_system >= 0 && (size_t)message.colony_system < store->system_ids.size() && item.system_id == store->system_ids[message.colony_system] && item.orbit == message.colony_orbit;
             });
             if (colony != projected.colonies.end()) message.colony_id = colony_ids[(size_t)(colony - projected.colonies.begin())];
             message.colony_system = -1;
@@ -2004,7 +2132,10 @@ namespace rpc {
         }
         for (auto& planet : projected.planets) {
             const auto colony = std::find_if(projected.colonies.begin(), projected.colonies.end(), [&planet](const s_colony_observation& item) { return item.system_id == planet.system_id && item.orbit == planet.orbit; });
-            if (colony != projected.colonies.end()) planet.colony_id = colony_ids[(size_t)(colony - projected.colonies.begin())];
+            if (colony != projected.colonies.end()) {
+                planet.colony_id = colony_ids[(size_t)(colony - projected.colonies.begin())];
+                planet.settlement_empty = false;
+            }
             planet.system = -1;
         }
         std::vector<int32_t> own_slots(10000, -1), member_slots(10000, -1), design_for_slot(10000, -1);
@@ -2142,6 +2273,11 @@ namespace rpc {
             Revoke_Game_Context(store);
             projected.context_epoch = Bridge_Context_Epoch(store->bridge);
         }
+        const auto* old_settlements = Previous_Settlements(store, true);
+        if (projected.settlement_presentation && old_settlements != nullptr && old_settlements->map.settlement_presentation && !Same_Colonies(&projected, &old_settlements->map)) {
+            Revoke_Game_Context(store);
+            projected.context_epoch = Bridge_Context_Epoch(store->bridge);
+        }
         if (projected.context_epoch == 0 && !store->snapshots.empty() && store->snapshots.back().map.context_epoch != 0) {
             const auto ambient = std::find_if(store->snapshots.rbegin(), store->snapshots.rend(), [&projected](const s_map_snapshot& item) {
                 return item.map.context_epoch == 0 && !item.map.leaders_only &&
@@ -2167,7 +2303,7 @@ namespace rpc {
             (!projected.leaders_captured || Same_Leaders(&projected, &store->snapshots.back().map)) && Same_Relations(&projected, &store->snapshots.back().map) &&
             Same_History(&projected, &store->snapshots.back().map) && Same_Messages(&projected, &store->snapshots.back().map) && Same_Inspection(&projected, &store->snapshots.back().map);
         if (projected.context_epoch != 0) store->context_active = true;
-        if (equal && (projected.context_epoch == store->snapshots.back().map.context_epoch || (!projected.ships_captured && !projected.leader_presentation && !projected.relations_presentation))) return true;
+        if (equal && (projected.context_epoch == store->snapshots.back().map.context_epoch || (!projected.ships_captured && !projected.leader_presentation && !projected.relations_presentation && !projected.settlement_presentation))) return true;
         if (store->revision == std::numeric_limits<uint64_t>::max()) return false;
         s_map_snapshot snapshot;
         if (!store->new_id(&snapshot.id, store->id_context)) return false;

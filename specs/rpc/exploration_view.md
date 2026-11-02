@@ -1,7 +1,9 @@
 # Q-04 / Q-05 exploration catalog
 
 AI-assisted current field audit. This does not grant ship scan intelligence,
-foreign colony intelligence, movement options or actions.
+foreign operational dossiers, movement options or actions. Separately authorized
+[settlement observations](strategic_settlement_view.md) now provide reciprocal
+planet links without widening the base-planet or population-limit fields here.
 
 ## Field matrix and authority
 

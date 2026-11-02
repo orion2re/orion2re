@@ -47,7 +47,7 @@ namespace BOMB {
     }
 
     void __cdecl Destroy_Colony(s_colony* colony, int32_t capturing_player) {
-        game_events::Publish_Colony_Replacing(colony->owner);
+        game_events::Publish_Colony_Replacing(colony->owner, colony->planet);
         s_star_data* star;
         int16_t star_idx;
         int16_t colony_idx;

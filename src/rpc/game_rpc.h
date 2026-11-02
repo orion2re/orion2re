@@ -2,11 +2,14 @@
 
 #include "rpc/rpc_game.h"
 namespace game_events {
+    struct s_settlement_view;
     struct s_relations_view;
     struct s_leader_view;
 }
 
 namespace game_rpc {
+    bool Revoke_Settlement_View(rpc::s_game_store* target);
+    bool Capture_Settlement_View(rpc::s_game_store* target, const rpc::s_map_observation* ambient, const game_events::s_settlement_view* view);
     bool Capture_Relations_View(rpc::s_game_store* target, const rpc::s_map_observation* ambient, const game_events::s_relations_view* view);
     struct s_ship_association {
         int16_t node = -1;
@@ -29,6 +32,7 @@ namespace game_rpc {
         uint64_t destination = 0;
         bool owner_present = false;
         bool initialized = false;
+        bool refreshed = false;
         bool presenting = false;
         bool printing = false;
         bool failed = false;

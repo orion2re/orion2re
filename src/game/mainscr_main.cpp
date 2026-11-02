@@ -273,6 +273,7 @@ namespace MAINSCR {
      */
     void __cdecl Main_Screen() {
         game_events::s_fleet_box_view_scope fleet_box_view;
+        game_events::s_settlement_view_scope settlement_view(MOX::PLAYER_NUM);
         int16_t exit_flag = 0;
         int16_t hovered_target_id = 0;
         int16_t boxes_saved_flag = 0;
@@ -395,6 +396,7 @@ namespace MAINSCR {
         }
 
         fleet_box_view.Initialized();
+        settlement_view.Initialized();
         while (exit_flag == 0 && MOX::global_esc == 0 &&
             !CONFIG_REFRESH::Resource_Reload_Pending()) {
             if (MOX::game_type == 2 || MOX::game_type == 3) {
@@ -889,6 +891,7 @@ namespace MAINSCR {
 
             // Redraw cycle
             if (exit_flag == 0 && MOX::global_esc == 0) {
+                settlement_view.Initialized();
                 game_events::s_observation_scope main_draw(game_events::MAIN_VIEW_DRAW_ENTERED, game_events::MAIN_VIEW_DRAW_LEAVING);
                 if (MOX::skip_fields == 0) {
                     fields::Clear_Fields_Above(last_field);
@@ -931,6 +934,7 @@ namespace MAINSCR {
         }
 
         // Cleanup
+        settlement_view.Close();
         MAINSCR::Set_Reload_Fleet_Box_Palette_Flag();
         fields::Deactivate_Auto_Function();
         MOX::first_fleet_movement_icon = 0;
@@ -953,6 +957,7 @@ namespace MAINSCR {
      * Draws one main-screen frame, including map contents, overlays, and movable boxes.
      */
     void __cdecl Draw_Main_Screen() {
+        game_events::s_settlement_frame settlements;
         game_events::s_observation_scope frame(game_events::MAIN_SCREEN_FRAME_ENTERED, game_events::MAIN_SCREEN_FRAME_LEAVING);
         if (MOX::stencil_box_id >= 0 && MOX::stencil_box_id <= 4) {
             Draw_Main_Screen_While_Moving_Boxes();

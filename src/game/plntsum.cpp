@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game_events.h"
 #include <cstring>
 #include <cstdio>
 
@@ -195,6 +196,7 @@ namespace PLNTSUM {
                 fonts::Set_Font_Style(1, &font_colors);
                 snprintf(work_buf, sizeof(work_buf), HAROLD::H_Message(0x143), (int)summary->max_pop);
                 fonts::Print_Centered(0x182, y_climate + size_h + 4, work_buf);
+                game_events::Observe_Settlement_Text(summary->explored, "planets-summary", work_buf, false, true);
 
                 if (summary->colony_eta >= 0) {
                     PLNTSUM::Draw_Colony_ETA(summary_idx, scroll_row);
@@ -974,6 +976,7 @@ namespace PLNTSUM {
     }
 
     void __cdecl Filter_Explored_Planets(int16_t* summary_count) {
+        game_events::Invalidate_Settlement_View();
         int16_t original_count = *summary_count;
         allocate::Push_Block(MOX::screen_seg);
 
@@ -1770,6 +1773,7 @@ namespace PLNTSUM {
     }
 
     void __cdecl Draw_Mini_Planet_Summary_Screen() {
+        game_events::s_settlement_frame settlements;
         if (MOX::FULL_DRAW_SCREEN_FLAG != 0) {
             video::Set_Page_Back();
             graphics::Fill(0, 0, 639, 479, 0);
@@ -1928,6 +1932,7 @@ namespace PLNTSUM {
     }
 
     void Planet_Summary_Screen() {
+        game_events::s_settlement_view_scope settlement_view(MOX::PLAYER_NUM);
         int16_t exit_flag = 0;
         int16_t last_scanned_status = -1;
         char warning_msg[100];
@@ -1994,6 +1999,7 @@ namespace PLNTSUM {
         Determine_Button_Status();
 
         do {
+            settlement_view.Initialized();
             int16_t prev_sort_choice = sort_choice;
             int16_t input_id = fields::Get_Input();
             int16_t scanned_id = fields::Scan_Input();
@@ -2107,6 +2113,7 @@ namespace PLNTSUM {
             }
 
             if (exit_flag == 0) {
+                settlement_view.Initialized();
                 if (fade_flag != 0) {
                     video::Set_Page_Off();
                     Draw_Mini_Planet_Summary_Screen();
@@ -2122,6 +2129,7 @@ namespace PLNTSUM {
 
         } while (exit_flag == 0);
 
+        settlement_view.Close();
         fields::Clear_Fields();
         fields::Disable_Draw_All_Fields();
         video::Set_Refresh_Stencil();

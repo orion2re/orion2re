@@ -1503,6 +1503,7 @@ namespace fields {
     int16_t __cdecl Get_List_Field(
         int16_t x, int16_t y, int16_t width, const char* help, const char* list_ptr, int32_t item_size, int8_t* selected_index, uint8_t* item_flags, int16_t gradient_mode, uint8_t* gradient_palette, int32_t gradient_extra, s_animation_header* gradient_pic, int32_t unused_param_13, const char* unused_param_14) {
         game_events::s_relations_interruption_scope relations_interruption;
+        game_events::s_settlement_interruption_scope settlement_interruption;
         list_field_on = 1;
         Set_Input_Delay(1);
         Clear_Fields();
@@ -2859,6 +2860,7 @@ namespace fields {
                 entry.x1 <= mouse_x && mouse_x <= entry.x2 &&
                 entry.y1 <= mouse_y && mouse_y <= entry.y2) {
                 game_events::s_relations_interruption_scope relations_interruption;
+                game_events::s_settlement_interruption_scope settlement_interruption;
                 game_events::Publish(game_events::MAIN_VIEW_INPUT_INTERRUPTED);
                 TEXTBOX::Draw_Help_Entry(entry.help_id);
                 return 0;

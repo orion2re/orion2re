@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game_events.h"
 #include "leader_read.h"
 #include "string_overrides.h"
 
@@ -875,6 +876,7 @@ namespace OFFICER {
     }
 
     void Draw_Officer_Screen() {
+        game_events::s_settlement_frame settlements;
         char buffer[100];
         int32_t hire_cost;
         int16_t maint_cost;
@@ -1003,6 +1005,7 @@ namespace OFFICER {
     }
 
     void Officers_Screen() {
+        game_events::s_settlement_view_scope settlement_view(MOX::PLAYER_NUM);
         uint16_t saved_map_scale = (uint16_t)MOX::cur_map_scale;
         int8_t needs_help_reset = 0;
         int16_t hire_btn, cancel_btn, fleet_view_btn, colony_view_btn, ok_btn, scroll_up_btn, scroll_down_btn, prev_btn, next_btn, dummy_field;
@@ -1113,6 +1116,7 @@ namespace OFFICER {
             bool is_fleet = Is_Fleet_Officer_Screen();
             timer::Mark_Time();
             int16_t input = fields::Get_Input();
+            if (input != 0) game_events::Invalidate_Settlement_View();
             int16_t scanned_id = fields::Scan_Input();
 
             if (leaders_no_limit != 0 && input == leader_page_up_btn) {
@@ -1340,6 +1344,7 @@ namespace OFFICER {
 
             if (exit_screen == 0) {
                 video::Set_Page_Off();
+                settlement_view.Initialized();
                 Draw_Officer_Screen();
                 RUSS::Mox_Sync_Update();
             }
@@ -1348,6 +1353,7 @@ namespace OFFICER {
 
         } while (exit_screen == 0);
 
+        settlement_view.Close();
         fields::Clear_Fields();
         fields::Deactivate_Auto_Function();
         mouse::Set_Mouse_List(&MOX::mouse_list_arrow, 1);

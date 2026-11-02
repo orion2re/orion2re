@@ -469,7 +469,9 @@ namespace INITGAME {
 
     void __cdecl Init_Colony(int16_t colony_idx, int16_t planet_idx, uint8_t player_num) {
         s_colony* colony = &MOX::colony[colony_idx];
-        game_events::Publish_Colony_Replacing(colony->owner);
+        const int16_t old_planet = colony->planet;
+        const bool replacing = colony->owner >= 0 && old_planet >= 0 && old_planet < MOX::planet_count && MOX::planet[old_planet].colony_index == colony_idx;
+        game_events::Publish_Colony_Replacing(replacing ? colony->owner : -1, replacing ? old_planet : -1);
 
         // Zero-initialize the entire colony structure
         memset(colony, 0, sizeof(s_colony));

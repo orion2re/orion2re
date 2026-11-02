@@ -2,6 +2,7 @@
 
 #include "rpc/game_rpc.h"
 #include "game/game_events.h"
+#include "game/colony_read.h"
 
 #include "config/text_encoding.h"
 #include "rpc/rpc_game.h"
@@ -22,6 +23,7 @@
 #include <iterator>
 #include <string>
 #include <tuple>
+#include <utility>
 #include <vector>
 
 namespace game_rpc {
@@ -59,6 +61,60 @@ namespace game_rpc {
     bool Read_Inspection_Observation(rpc::s_map_observation* observation) {
         if (MOX::ship == nullptr || MOX::NUM_SHIPS < 0 || MOX::NUM_SHIPS > MAX_SHIPS) return false;
         return Read_Map_Observation(observation) && ships_rpc::Read_Owned_Inspection(observation);
+    }
+
+    bool Revoke_Settlement_View(rpc::s_game_store* target) {
+        if (target == nullptr || !target->context_active) return false;
+        const auto epoch = rpc::Bridge_Context_Epoch(target->bridge);
+        const bool active_view = std::any_of(target->snapshots.begin(), target->snapshots.end(), [epoch](const auto& snapshot) {
+            return snapshot.map.settlement_presentation && snapshot.map.context_epoch == epoch;
+        });
+        if (active_view) rpc::Revoke_Game_Context(target);
+        return active_view;
+    }
+
+    bool Capture_Settlement_View(rpc::s_game_store* target, const rpc::s_map_observation* ambient, const game_events::s_settlement_view* view) {
+        if (target == nullptr || ambient == nullptr || view == nullptr || target->busy_depth != 0 || !target->loaded ||
+            view->viewer != target->viewer || MOX::PLAYER_NUM != view->viewer || ambient->viewer != target->viewer || view->count < 0 || view->count > 8 ||
+            (view->count != 0 && view->items == nullptr) || game_events::Colony_Edits_Active() || !game_events::Colony_Player_Context_Matches(view->viewer)) return false;
+        auto observation = *ambient;
+        bool disclosed = false;
+        for (int16_t row = 0; row < view->count; ++row) {
+            const auto& entry = view->items[row];
+            if (entry.planet < 0 || entry.planet >= MOX::planet_count || entry.source == nullptr || memchr(entry.text, 0, sizeof(entry.text)) == nullptr) return false;
+            const auto* planet = &MOX::planet[entry.planet];
+            const int16_t slot = planet->colony_index;
+            if (slot < 0 || slot >= MOX::NUM_COLONIES || MOX::colony[slot].owner < 0) continue;
+            if (MOX::colony[slot].owner == view->viewer && MOX::colony[slot].outpost_flag == 0) continue;
+            if (planet->star_index < 0 || planet->star_index >= MOX::NUM_STARS) return false;
+            if (!colony_read::System_Settlements_Visible(planet->star_index, view->viewer)) {
+                if (!entry.owner_disclosed) continue;
+                if (!colony_rpc::Read_Settlement(entry.planet, &observation, true)) return false;
+                for (auto& item : observation.colonies)
+                    if (item.system == planet->star_index && item.orbit == planet->orbit + 1)
+                        item.owner_resolvable = item.owned || strcmp(entry.source, "colony-system-summary") == 0 || strcmp(entry.source, "planets-summary") == 0;
+                disclosed = true;
+                continue;
+            }
+            if (MOX::colony[slot].outpost_flag != 0 && !entry.defenses) continue;
+            if (!colony_rpc::Read_Settlement(entry.planet, &observation, true, entry.defenses)) return false;
+            const auto found = std::find_if(observation.colonies.begin(), observation.colonies.end(), [planet](const auto& item) {
+                return item.system == planet->star_index && item.orbit == planet->orbit + 1;
+            });
+            if (found == observation.colonies.end()) return false;
+            std::string text;
+            config::Decode_Cp850_To_Utf8(entry.text, strlen(entry.text), &text);
+            if (!found->outpost) found->presentations.emplace_back(entry.source, std::move(text));
+            disclosed = true;
+        }
+        if (!disclosed) {
+            if (!Revoke_Settlement_View(target)) return true;
+            return rpc::Capture_Map(target, ambient);
+        }
+        if (!rpc::Capture_Map(target, ambient)) return false;
+        observation.settlement_presentation = true;
+        observation.context_epoch = rpc::Bridge_Context_Epoch(target->bridge);
+        return rpc::Capture_Map(target, &observation);
     }
 
     bool Capture_Leader_View(rpc::s_game_store* target, const rpc::s_map_observation* ambient, const game_events::s_leader_view* view) {
@@ -273,6 +329,7 @@ namespace game_rpc {
     }
 
     static bool Read_Associated_Observation(s_fleet_eta_adapter* adapter, rpc::s_map_observation* captured) {
+        if (!adapter->refreshed) return false;
         if (!Read_Inspection_Observation(captured) || captured->viewer != adapter->store->viewer) return false;
         std::vector<rpc::s_fleet_observation> groups;
         std::vector<int16_t> heads;
@@ -395,8 +452,10 @@ namespace game_rpc {
 
     static void Observe_Ship_Identity(int16_t slot, void* context) {
         auto* adapter = (s_fleet_eta_adapter*)context;
-        if (slot >= 0 && slot < MOX::NUM_SHIPS && MOX::ship != nullptr && MOX::ship[slot].owner == adapter->store->viewer &&
-            MOX::ship[slot].status != 5) rpc::Expire_Game_Inspection(adapter->store);
+        if (slot >= 0 && slot < MOX::NUM_SHIPS && MOX::ship != nullptr && MOX::ship[slot].owner == adapter->store->viewer && MOX::ship[slot].status != 5) {
+            rpc::Expire_Game_Inspection(adapter->store);
+            rpc::Expire_Game_Colonies(adapter->store);
+        }
         if (std::any_of(adapter->store->snapshots.begin(), adapter->store->snapshots.end(), [slot](const auto& snapshot) {
                 return std::any_of(snapshot.map.observed_authority.begin(), snapshot.map.observed_authority.end(), [slot](const auto& item) { return item.first == slot; });
             })) rpc::Expire_Game_Observations(adapter->store);
@@ -415,6 +474,7 @@ namespace game_rpc {
                 case game_events::FLEET_BOX_VIEW_LEAVING:
                     adapter->owner_present = event == game_events::FLEET_BOX_VIEW_ENTERED;
                     adapter->initialized = adapter->presenting = false;
+                    adapter->refreshed = false;
                     adapter->associations.clear();
                     Revoke_Fleet_Eta(adapter);
                     break;
@@ -475,16 +535,19 @@ namespace game_rpc {
                     if (event == game_events::SHIP_IDENTITIES_RESETTING || event == game_events::STRATEGIC_LABELS_REPLACING) rpc::Expire_Game_Inspection(adapter->store);
                     if (event == game_events::SHIP_ICONS_REBUILD_BEGIN) rpc::Expire_Game_Observations(adapter->store, false);
                     adapter->associations.clear();
+                    adapter->refreshed = false;
                     Revoke_Fleet_Eta(adapter);
                     break;
                 case game_events::SHIP_ICONS_REFRESHED: {
                     adapter->associations.clear();
+                    adapter->refreshed = false;
                     if (!adapter->store->loaded || adapter->store->busy_depth != 0 || adapter->failed || game_events::Colony_Edits_Active() || !game_events::Colony_Player_Context_Matches(MOX::PLAYER_NUM)) break;
                     rpc::s_map_observation observation;
                     if (!Read_Ship_Refresh(&observation, &adapter->associations) || !rpc::Capture_Map(adapter->store, &observation)) {
                         adapter->associations.clear();
                         rpc::Begin_Game_Reset(adapter->store);
-                    }
+                    } else
+                        adapter->refreshed = true;
                     break;
                 }
                 default: break;
@@ -492,6 +555,7 @@ namespace game_rpc {
         } catch (...) {
             adapter->failed = true;
             adapter->associations.clear();
+            adapter->refreshed = false;
             Revoke_Fleet_Eta(adapter);
         }
     }
@@ -534,6 +598,10 @@ namespace game_rpc {
 
     static void Capture_Main_Map() {
         if (!active || !store.loaded || store.busy_depth != 0 || game_events::Colony_Edits_Active() || !game_events::Colony_Player_Context_Matches(MOX::PLAYER_NUM)) return;
+        if (MOX::NUM_COLONIES < 0 || MOX::NUM_COLONIES > MAX_COLONIES || (MOX::NUM_COLONIES != 0 && MOX::colony == nullptr)) {
+            rpc::Expire_Game_Colonies(&store);
+            return;
+        }
         if (MOX::ship == nullptr || MOX::NUM_SHIPS < 0 || MOX::NUM_SHIPS > MAX_SHIPS) {
             rpc::Expire_Game_Inspection(&store);
             return;
@@ -543,7 +611,11 @@ namespace game_rpc {
         if (last_capture_ms != 0 && now - last_capture_ms < rpc::Protocol_Limits()->capture_interval_ms) return;
         last_capture_ms = now;
         rpc::s_map_observation observation;
-        if (!Read_Inspection_Observation(&observation) || !rpc::Capture_Map(&store, &observation)) {
+        const auto epoch = rpc::Bridge_Context_Epoch(store.bridge);
+        const bool presentation = store.context_active && std::any_of(store.snapshots.begin(), store.snapshots.end(), [epoch](const auto& snapshot) {
+            return snapshot.map.context_epoch != 0 && snapshot.map.context_epoch == epoch;
+        });
+        if (!((!presentation && fleet_eta.initialized && Read_Associated_Observation(&fleet_eta, &observation)) || Read_Inspection_Observation(&observation)) || !rpc::Capture_Map(&store, &observation)) {
             rpc::Begin_Game_Reset(&store);
         }
     }
@@ -584,8 +656,30 @@ namespace game_rpc {
                 if (game_events::Replaced_Colony_Owner() == store.viewer) {
                     rpc::Expire_Game_Colonies(&store);
                     rpc::Expire_Game_Inspection(&store);
+                } else {
+                    const int16_t planet = game_events::Replaced_Colony_Planet();
+                    if (planet >= 0 && planet < MOX::planet_count && MOX::planet != nullptr)
+                        rpc::Expire_Game_Settlement(&store, MOX::planet[planet].star_index, MOX::planet[planet].orbit + 1);
                 }
                 break;
+            case game_events::SETTLEMENT_VIEW_CLEARED:
+                Revoke_Settlement_View(&store);
+                break;
+            case game_events::STRATEGIC_LABELS_REPLACING:
+                rpc::Expire_Game_Colonies(&store);
+                break;
+            case game_events::SETTLEMENT_VIEW_READY: {
+                const auto* view = game_events::Published_Settlement_View();
+                if (view == nullptr || view->count == 0) {
+                    Revoke_Settlement_View(&store);
+                    break;
+                }
+                rpc::s_map_observation observation;
+                const bool captured = store.busy_depth == 0 && ((fleet_eta.initialized && Read_Associated_Observation(&fleet_eta, &observation)) || Read_Inspection_Observation(&observation)) &&
+                    Capture_Settlement_View(&store, &observation, view);
+                if (!captured) rpc::Revoke_Game_Context(&store);
+                break;
+            }
             case game_events::SHIP_IDENTITIES_RESETTING:
                 rpc::Expire_Game_Inspection(&store);
                 break;

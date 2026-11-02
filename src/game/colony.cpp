@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game_events.h"
 #include "colony_read.h"
 
 namespace COLONY {
@@ -1294,6 +1295,7 @@ namespace COLONY {
     }
 
     int8_t __cdecl Evaluate_Input(int16_t* input_field, int16_t* scan_field) {
+        if (*input_field != 0) game_events::Invalidate_Settlement_View();
         uint32_t system_fields = Check_System_Display_Fields(input_field, scan_field);
 
         // Mask: 0xFFFF00FF clears bits 8-15 (AH register)
@@ -1818,8 +1820,10 @@ namespace COLONY {
             }
         } else if (COLONY::drawing_display == 2) {
             MAINPUPS::Build_Generic_Planet_Or_Colony_Description_String_Formatted(COLONY::planet_display_handle, description, sizeof(description));
+            const int16_t presented_planet = COLONY::planet_display_handle;
             COLONY::drawing_display = 0;
             COLONY::planet_display_handle = -1;
+            game_events::s_settlement_help_scope settlement_help(MOX::PLAYER_NUM, presented_planet, description, colony_read::Strategic_Owner_Disclosed(ESTRINGS::E_Strings(0x49), 3, 256));
             GENDRAW::Help(description);
             COLONY::Restore_Control();
         }

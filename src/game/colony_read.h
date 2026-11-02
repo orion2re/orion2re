@@ -3,6 +3,7 @@
 #include <cstdint>
 
 struct s_colony;
+struct s_ship_data;
 
 namespace colony_read {
     struct s_resource_row {
@@ -19,6 +20,14 @@ namespace colony_read {
     };
 
     bool Own_Full_Colony(const s_colony* colony, int16_t viewer);
+    bool System_Settlements_Visible(int16_t system, int16_t viewer);
+    bool Strategic_Defenses_Visible(int16_t system, int16_t viewer, bool local_ship);
+    bool Strategic_Local_Ship(const s_ship_data* ship, int16_t system, int16_t viewer);
+    int16_t Strategic_Defense(const s_colony* colony, int16_t ordinal);
+    bool Strategic_Climate(const s_colony* colony, int16_t planet, char* out, uint32_t size);
+    bool Strategic_Population_Text(const s_colony* colony, int16_t maximum, char* out, uint32_t size);
+    bool Strategic_Population_Disclosed();
+    bool Strategic_Owner_Disclosed(const char* format, int16_t argument, uint32_t capacity);
     void Resource_Row(const s_colony* colony, int16_t resource, s_resource_row* out);
     int16_t Population_Order(int16_t colony, int16_t job, int16_t* out);
     int16_t Morale_Icons(const s_colony* colony, bool* suppressed);

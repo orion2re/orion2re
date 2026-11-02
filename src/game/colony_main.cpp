@@ -102,6 +102,7 @@ namespace COLONY {
     }
 
     void __cdecl Draw_Colony_Screen() {
+        game_events::s_settlement_frame settlements;
         video::Set_Page_Off();
 
         if (MOX::FULL_DRAW_SCREEN_FLAG != 0) {
@@ -225,6 +226,7 @@ namespace COLONY {
         MAINPUPS::Build_Generic_Planet_Or_Colony_Description_String_Formatted(planet_idx, buffer, sizeof(buffer));
 
         BILL::Squeeze_Print_Formatted_Paragraph(x + 14, y + 45, 154, 140, buffer, 0);
+        game_events::Observe_Settlement_Text(planet_idx, "colony-summary", buffer, false, colony_read::Strategic_Owner_Disclosed(ESTRINGS::E_Strings(0x49), 3, 256));
     }
 
     int16_t __cdecl Bldg_Coords_To_Effective_Frame(int16_t x, int32_t y) {
@@ -237,6 +239,7 @@ namespace COLONY {
 
     void __cdecl Colony_Screen() {
         game_events::s_colony_player_scope player_scope(MOX::PLAYER_NUM);
+        game_events::s_settlement_view_scope settlement_view(MOX::PLAYER_NUM);
         int16_t input_val;
         int16_t scanned_val;
         bool input_received = false;
@@ -316,6 +319,7 @@ namespace COLONY {
 
         fields::Assign_Auto_Function(Draw_Colony_Screen, 1);
         graphics::Fill(0, 0, 0x27F, 0x1DF, 0);
+        settlement_view.Initialized();
         Draw_Colony_Screen();
         ERIC::Fast_Fade_In();
         video::Set_Refresh_Stencil();
@@ -331,6 +335,7 @@ namespace COLONY {
                 input_val = 0;
             }
 
+            settlement_view.Initialized();
             Draw_Colony_Screen();
             game_events::Publish(game_events::COLONY_OBSERVATION_POINT);
             RUSS::Mox_Sync_Update();
@@ -354,6 +359,7 @@ namespace COLONY {
             }
         }
 
+        settlement_view.Close();
         Reset_Field_Mode();
         fields::Clear_Fields();
         FAKEBUTS::Clear_Fake_Buttons();

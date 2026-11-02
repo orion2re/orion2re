@@ -235,7 +235,7 @@ class TransportTests(unittest.TestCase):
                     self.assertIn(fleet[field]["value"], {system["id"] for system in baseline["systems"]})
         self.assertEqual(baseline["history"]["stamp"], baseline["stamp"])
         self.assertEqual(baseline["research"]["stamp"], baseline["stamp"])
-        self.assertEqual(len(baseline["colonies"]), 3)
+        self.assertEqual(len(baseline["colonies"]), 5)
         pages = {family:self.Query(client, "game.list" + family.title(), {"limit":1})["result"] for family in ("ships", "fleets")}
         self.Fixture("fleet-hidden")
         self.assertEqual(self.Query(client, "game.getState", {"include":topics})["result"], baseline)
@@ -381,7 +381,7 @@ class TransportTests(unittest.TestCase):
         self.assertEqual(len(ships), 7)
         self.assertEqual(len(baseline["fleets"]), 5)
         self.assertEqual(len(baseline["designs"]), 10)
-        self.assertEqual(len(baseline["colonies"]), 3)
+        self.assertEqual(len(baseline["colonies"]), 5)
         self.assertNotIn("Secret enemy", json.dumps(baseline))
         self.assertEqual(baseline["history"]["stamp"], baseline["stamp"])
         self.assertEqual(baseline["research"]["stamp"], baseline["stamp"])
@@ -537,6 +537,193 @@ class TransportTests(unittest.TestCase):
         self.assertIn("result", client.Hello())
         return client
 
+    def Settlements(self):
+        self.Fixture("world")
+        self.Fixture("settlement-native")
+        client = self.Client()
+        self.assertIn("result", client.Hello())
+        return client
+
+    def test_native_strategic_settlement_dashboard(self):
+        client = self.Settlements()
+        enabled = {item["name"] for item in self.Query(client, "rpc.describe")["result"]["methods"]}
+        self.assertTrue({"game.listColonies", "game.getColony", "game.getState"} <= enabled)
+        topics = ["session", "players", "systems", "planets", "colonies", "ships", "fleets", "designs", "research", "leaders", "relations", "intelligence", "history", "messages"]
+        subscription = self.Query(client, "rpc.subscribe", {"topics":topics, "events":["state.changed"]})["result"]
+        baseline = subscription["baseline"]
+        root = Path(__file__).resolve().parents[2] / "specs/rpc"
+        contract_audit.Validate_Value(baseline, "State", contract_audit.Load_Json(root / "contracts.json"), contract_audit.Load_Json(root / "field_policies.json"), public=True)
+        self.assertEqual(baseline["stamp"]["settlementCoverage"], "complete")
+        self.assertEqual(baseline["stamp"]["fleetCoverage"], "complete")
+        self.assertEqual(baseline["history"]["stamp"], baseline["stamp"])
+        self.assertTrue(baseline["ships"] and baseline["fleets"] and baseline["designs"])
+        colonies = baseline["colonies"]
+        self.assertEqual(len(colonies), 8)  # Hidden ninth settlement is not included.
+        own = [item for item in colonies if item["owned"] and item["kind"] == "colony"]
+        self.assertEqual(len(own), 3)
+        self.assertEqual(own[0]["operations"]["value"]["populationText"], "Pop 3.250 M (-125 k/turn)")
+        foreign = next(item for item in colonies if not item["owned"] and item["population"].get("value") == 7)
+        self.assertEqual(foreign["environment"], {"availability":"current", "value":"Medium, Terran"})
+        self.assertEqual(foreign["ownerLabel"], {"availability":"current", "value":"Contact"})
+        self.assertEqual(foreign["defenses"], {"availability":"unknown"})
+        self.assertEqual(foreign["troops"], {"availability":"unknown"})
+        self.assertEqual(foreign["operations"], {"availability":"unknown"})
+        self.assertTrue(any(item["ownerLabel"].get("value") == "Unidentified" and item["owner"]["availability"] == "unknown" for item in colonies))
+        for item in colonies:
+            self.assertEqual(self.Query(client, "game.getColony", {"id":item["id"]})["result"]["item"], item)
+            self.assertIn("result", self.Query(client, "game.getSystem", {"id":item["systemId"]}))
+            planet = self.Query(client, "game.getPlanet", {"id":item["planetId"]["value"]})["result"]["item"]
+            self.assertEqual(planet["colony"], {"availability":"current", "value":item["id"]})
+            if item["owner"]["availability"] == "current":
+                self.assertIn("result", self.Query(client, "game.getPlayer", {"id":item["owner"]["value"]}))
+            if item["kind"] == "outpost":
+                self.assertEqual(item["population"], {"availability":"unknown"})
+                self.assertEqual(item["operations"], {"availability":"unknown"})
+                self.assertEqual(item["troops"], {"availability":"unknown"})
+        page = self.Query(client, "game.listColonies", {"limit":1})["result"]
+        for command in ("settlement-hidden", "settlement-hidden-replace", "settlement-hidden-init", "settlement-refresh"):
+            self.Fixture(command)
+            self.assertEqual(self.Query(client, "game.getState", {"include":topics})["result"], baseline)
+        self.Fixture("settlement-change")
+        event = client.Read()
+        self.assertEqual(event["method"], "state.changed")
+        changed = self.Query(client, "game.getState", {"include":topics})["result"]
+        self.assertEqual(changed["stamp"], event["params"]["stamp"])
+        self.assertNotEqual(changed["stamp"], baseline["stamp"])
+        self.assertEqual(self.Query(client, "game.listColonies", {"cursor":page["nextCursor"]})["result"]["stamp"], baseline["stamp"])
+        self.Query(client, "rpc.unsubscribe", {"subscriptionId":subscription["subscriptionId"]})
+        self.Fixture("settlement-present")
+        presented = self.Query(client, "game.getState", {"include":topics})["result"]
+        target = next(item for item in presented["colonies"] if item["population"].get("value") == 8 and not item["owned"])
+        self.assertEqual(target["defenses"], {"availability":"current", "value":["Star Fortress", "Star Base", "Missile Base"]})
+        self.assertIn("Population 8 /", target["presentation"]["value"][0]["text"])
+        self.Fixture("settlement-present")
+        self.assertEqual(self.Query(client, "game.getState", {"include":topics})["result"], presented)
+        context_page = self.Query(client, "game.listColonies", {"limit":1})["result"]
+        self.Fixture("settlement-interrupt")
+        self.assertEqual(self.Query(client, "game.listColonies", {"cursor":context_page["nextCursor"]})["error"]["code"], -32004)
+        ambient = self.Query(client, "game.getState", {"include":topics})["result"]
+        self.assertTrue(all(item["presentation"]["availability"] != "current" for item in ambient["colonies"]))
+        self.Fixture("settlement-present")
+        restored = self.Query(client, "game.getState", {"include":topics})["result"]
+        self.assertTrue(any(item["presentation"]["availability"] == "current" for item in restored["colonies"]))
+        replacement_page = self.Query(client, "game.listColonies", {"limit":1})["result"]
+        self.Fixture("settlement-other")
+        self.assertEqual(self.Query(client, "game.listColonies", {"cursor":replacement_page["nextCursor"]})["error"]["code"], -32004)
+        replaced = self.Query(client, "game.getState", {"include":topics})["result"]
+        self.assertTrue(any(item["ownerLabel"].get("value") == "Unidentified" and item["presentation"]["availability"] == "current" for item in replaced["colonies"]))
+        self.Fixture("settlement-suppress")
+        self.assertTrue(all(item["presentation"]["availability"] != "current" for item in self.Query(client, "game.getState", {"include":topics})["result"]["colonies"]))
+        self.Fixture("settlement-exit")
+        self.Fixture("settlement-destroy")
+        self.assertEqual(self.Query(client, "game.getColony", {"id":target["id"]})["error"]["code"], -32004)
+        self.assertIn("result", self.Query(client, "game.listPlayers"))
+        self.Fixture("settlement-reuse")
+        self.assertEqual(self.Query(client, "game.getColony", {"id":target["id"]})["error"]["code"], -32004)
+
+    def test_native_settlement_coverage_is_not_known_empty(self):
+        client = self.Settlements()
+        self.Fixture("settlement-unavailable")
+        self.assertEqual(self.Query(client, "game.listColonies")["error"]["code"], -32002)
+        independent = self.Query(client, "game.getState", {"include":["ships", "players"]})["result"]
+        self.assertEqual(independent["stamp"]["settlementCoverage"], "unavailable")
+        self.Fixture("settlement-empty")
+        client.close()
+        client = self.Client()
+        self.assertIn("result", client.Hello())
+        empty = self.Query(client, "game.listColonies")["result"]
+        self.assertEqual(empty["items"], [])
+        self.assertEqual(empty["stamp"]["settlementCoverage"], "complete")
+
+    def test_native_settlement_foreign_loss_revokes_started_output(self):
+        self.Settlements().close()
+        self.Fixture("settlement-large")
+        client = self.Client(receive_buffer=1024)
+        self.assertIn("result", client.Hello())
+        self.Fixture("settlement-output")
+        opcode, final, payload = client.Read_Frame()
+        self.assertEqual(opcode, 1)
+        self.assertFalse(final)
+        self.Fixture("settlement-destroy")
+        completed = 0
+        for _ in range(4096):
+            try:
+                opcode, final, payload = client.Read_Frame()
+            except (EOFError, ConnectionError):
+                break
+            if opcode == 8:
+                break
+            completed += int(final and opcode in (0, 1))
+        else:
+            self.fail("expired foreign settlement output did not close")
+        self.assertLess(completed, 4)
+
+    def test_native_settlement_empty_frame_preserves_fleet_presentation(self):
+        client = self.Settlements()
+        self.Fixture("fleet-label")
+        topics = ["session", "players", "colonies", "ships", "fleets", "designs", "history", "messages"]
+        presented = self.Query(client, "game.getState", {"include":topics})["result"]
+        self.assertTrue(any(not item["owned"] and item["name"].get("value") == "Convoy" for item in presented["ships"]))
+        self.Fixture("settlement-suppress")
+        self.assertEqual(self.Query(client, "game.getState", {"include":topics})["result"], presented)
+        self.Fixture("settlement-exit")
+        self.assertEqual(self.Query(client, "game.getState", {"include":topics})["result"], presented)
+
+    def test_native_settlement_context_only_rows_do_not_import_sys_fields(self):
+        client = self.Settlements()
+        self.Fixture("settlement-loss")
+        client.close()
+        client = self.Client()
+        self.assertIn("result", client.Hello())
+        self.Fixture("settlement-unclassified")
+        result = self.Query(client, "game.listColonies")["result"]
+        partial = [item for item in result["items"] if item["kind"] == "unclassified"]
+        self.assertEqual(len(partial), 3)
+        for item in partial:
+            self.assertEqual(item["planetId"], {"availability":"unknown"})
+            for field in ("population", "environment", "defenses", "troops", "operations", "presentation"):
+                self.assertEqual(item[field], {"availability":"unknown"})
+        self.assertTrue(any(item["ownerLabel"].get("value") == "Contact" for item in partial))
+        page = self.Query(client, "game.listColonies", {"limit":1})["result"]
+        self.Fixture("settlement-exit")
+        self.assertEqual(self.Query(client, "game.listColonies", {"cursor":page["nextCursor"]})["error"]["code"], -32004)
+        self.assertEqual(self.Query(client, "game.getColony", {"id":partial[0]["id"]})["error"]["code"], -32004)
+        self.assertEqual(len(self.Query(client, "game.listColonies")["result"]["items"]), 5)
+
+    def test_native_foreign_settlement_revocation_preserves_owned_configurations(self):
+        client = self.Settlements()
+        before = self.Query(client, "game.getState", {"include":["colonies", "ships", "fleets", "designs"]})["result"]
+        self.Fixture("settlement-revoke-only")
+        after = self.Query(client, "game.getState", {"include":["ships", "fleets", "designs"]})["result"]
+        self.assertEqual(after["ships"], before["ships"])
+        self.assertEqual(after["fleets"], before["fleets"])
+        self.assertEqual(len(after["designs"]), len(before["designs"]))
+        self.assertNotEqual(after["stamp"], before["stamp"])
+        for old, current in zip(before["designs"], after["designs"]):
+            self.assertEqual(current["equipment"], old["equipment"])
+            if old["source"] in ("queued", "refit"):
+                self.assertEqual(current["constructionColony"], {"availability":"unknown"})
+                self.assertNotEqual(current["id"], old["id"])
+        self.assertEqual(self.Query(client, "game.listColonies")["error"]["code"], -32002)
+
+    def test_native_settlement_knowledge_reset_and_perspective_revoke(self):
+        client = self.Settlements()
+        previous = self.Query(client, "game.listColonies")["result"]
+        for command in ("settlement-loss", "settlement-known", "settlement-reset", "settlement-switch"):
+            self.Fixture(command)
+            client.close()
+            client = self.Client()
+            self.assertIn("result", client.Hello())
+            current = self.Query(client, "game.listColonies")["result"]
+            if command == "settlement-loss":
+                self.assertEqual(len(current["items"]), 5)
+            old = self.Query(client, "game.getColony", {"id":previous["items"][0]["id"]})
+            if command == "settlement-known":
+                self.assertEqual(old["result"]["item"], previous["items"][0])
+            else:
+                self.assertEqual(old["error"]["code"], -32004)
+            previous = current
+
     def test_native_owned_colony_operations_dashboard(self):
         client = self.Colonies()
         enabled = {item["name"] for item in self.Query(client, "rpc.describe")["result"]["methods"]}
@@ -547,7 +734,7 @@ class TransportTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[2] / "specs/rpc"
         contract_audit.Validate_Value(baseline, "State", contract_audit.Load_Json(root / "contracts.json"), contract_audit.Load_Json(root / "field_policies.json"), public=True)
         colonies = baseline["colonies"]
-        self.assertEqual(len(colonies), 3)  # Neither foreign colony nor own outpost.
+        self.assertEqual(len(colonies), 5)  # Operations stay own-full-colony-only.
         self.assertEqual(baseline["history"]["stamp"], baseline["stamp"])
         own = next(item for item in colonies if item["orbit"] == 1)
         operation = own["operations"]["value"]
@@ -586,7 +773,7 @@ class TransportTests(unittest.TestCase):
         for colony in colonies:
             self.assertEqual(self.Query(client, "game.getColony", {"id":colony["id"]})["result"]["item"], colony)
             self.assertIn("result", self.Query(client, "game.getPlanet", {"id":colony["planetId"]["value"]}))
-            for worker in colony["operations"]["value"]["workforce"]:
+            for worker in colony["operations"].get("value", {}).get("workforce", []):
                 if worker["player"]["availability"] == "current":
                     self.assertIn("result", self.Query(client, "game.getPlayer", {"id":worker["player"]["value"]}))
         page = self.Query(client, "game.listColonies", {"limit":1})["result"]
@@ -612,7 +799,7 @@ class TransportTests(unittest.TestCase):
         self.assertEqual(self.Query(client, "game.listColonies", {"cursor":page["nextCursor"]})["error"]["code"], -32004)
         self.assertIn("result", self.Query(client, "game.listPlayers"))
         self.Fixture("colony-replace")
-        self.assertEqual(len(self.Query(client, "game.listColonies")["result"]["items"]), 3)
+        self.assertEqual(len(self.Query(client, "game.listColonies")["result"]["items"]), 5)
         self.assertEqual(self.Query(client, "game.getColony", {"id":own["id"]})["error"]["code"], -32004)
 
     def test_native_colony_variants_coherence_turns_and_reset(self):
@@ -702,7 +889,7 @@ class TransportTests(unittest.TestCase):
             completed += int(final and opcode in (0, 1))
         else:
             self.fail("expired colony output did not close")
-        self.assertLess(completed, 12)
+        self.assertLess(completed, 4)
 
     def test_native_turn_review_dashboard_precision_text_pagination_and_noninterference(self):
         client = self.Review()

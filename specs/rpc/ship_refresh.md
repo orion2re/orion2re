@@ -23,6 +23,12 @@ Copy public position, independently disclosed strategic labels and own CP850 nam
 through the same capture's authorized roster and unambiguous public banner color.
 Never read suppressed foreign name bytes or substitute hull labels for `Ship.name`.
 
+Settled strategic points can freshly project one complete mixed capture from
+still-valid surviving associations, including current settlement and empire
+topics. Require an actual successful refresh even for an empty collection; no
+later node traversal or old DTO reuse is permitted. While a presentation remains
+active, retain its coherent dated baseline rather than enriching it in place.
+
 Ambient routes follow the non-selection branches of
 `SHIPS::Do_Ship_Destination_Lines`: own routes, or non-own moving heads authorized
 by `enemy_moves` or `Enemy_Ship_Heading_Toward_Our_Colony`. The latter means

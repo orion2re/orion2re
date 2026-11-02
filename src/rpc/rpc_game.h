@@ -59,6 +59,7 @@ namespace rpc {
         int32_t max_population = 0;
         std::string system_id;
         std::string colony_id;
+        bool settlement_empty = false;
     };
 
     enum e_ship_knowledge {
@@ -306,6 +307,18 @@ namespace rpc {
         int32_t armor = 0;
         std::string planet_id;
         s_colony_operations operations;
+        bool owned = true;
+        bool outpost = false;
+        bool unclassified = false;
+        bool owner_resolvable = true;
+        bool strategic = false;
+        bool population_available = true;
+        std::string owner_label;
+        std::string climate;
+        bool climate_available = false;
+        bool defenses_available = false;
+        std::vector<std::string> defenses;
+        std::vector<std::pair<std::string, std::string>> presentations;
     };
 
     struct s_technology_observation {
@@ -410,6 +423,8 @@ namespace rpc {
         bool players_captured = false;
         std::vector<s_player_observation> players;
         bool colonies_captured = false;
+        bool settlements_complete = false;
+        bool settlement_presentation = false;
         std::vector<s_colony_observation> colonies;
         uint64_t context_epoch = 0; // Private authorization lease, never encoded or compared as data.
         bool planets_captured = false;
@@ -519,7 +534,8 @@ namespace rpc {
     void Revoke_Game_Context(s_game_store* store);
     void Pause_Game_Queries(s_game_store* store);
     void Expire_Game_Messages(s_game_store* store);
-    void Expire_Game_Colonies(s_game_store* store);
+    void Expire_Game_Colonies(s_game_store* store, bool revoke_queued = true);
+    void Expire_Game_Settlement(s_game_store* store, int32_t system, int32_t orbit);
     void Expire_Game_Inspection(s_game_store* store);
     void Expire_Game_Observations(s_game_store* store, bool retire = true);
     void Resume_Game_Queries(s_game_store* store);

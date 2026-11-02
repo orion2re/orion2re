@@ -9,7 +9,7 @@ This document is rendered from `schema.json`, not a second method catalog.
 The root schema validates acknowledged client requests; per-method success responses and server notifications have separate definitions.
 All fields are non-null unless explicitly stated. Unknown keys are rejected. UTF-8 byte limits, lexical integer tokens, duplicate keys, depth and authorization need the protocol guards in addition to standard JSON Schema validation.
 
-Source bundle SHA-256: `ce205b465516387444d6a600bb47ba46d64da46e657c8e2c190603f81556d73c`.
+Source bundle SHA-256: `63c66c87febac1efc7626cf78ddaeb83647a537c184b15499e400941af3201ad`.
 
 ## Methods
 
@@ -144,7 +144,7 @@ Constraints: `{"maximum": 255, "minimum": 0, "type": "integer", "x-integerToken"
 
 ### CaptureMode
 
-Values: `last-coherent-capture`, `last-native-ship-refresh`, `last-native-fleet-box`, `native-leader-presentation`, `native-relations-presentation`, `owned-inspection`.
+Values: `last-coherent-capture`, `last-native-ship-refresh`, `last-native-fleet-box`, `native-leader-presentation`, `native-relations-presentation`, `native-settlement-presentation`, `owned-inspection`.
 
 ### Chat
 
@@ -170,12 +170,18 @@ Array of `Colony`; 0..65536 items; unique: false.
 
 | Field | Type | Required | Policy |
 | --- | --- | --- | --- |
-| id | Id | yes | colonies-own |
-| systemId | Id | yes | colonies-own |
-| orbit | Orbit | yes | colonies-own |
-| planetId | KnownId | yes | exploration-own-colony-links |
-| owner | KnownId | yes | colonies-own |
-| population | KnownCount | yes | colonies-own |
+| id | Id | yes | strategic-settlements |
+| systemId | Id | yes | strategic-settlements |
+| orbit | Orbit | yes | strategic-settlements |
+| planetId | KnownId | yes | strategic-settlements |
+| owner | KnownId | yes | strategic-settlements |
+| owned | Bool | yes | strategic-settlements |
+| kind | SettlementKind | yes | settlement-kind |
+| ownerLabel | KnownText | yes | strategic-settlements |
+| environment | KnownText | yes | strategic-settlements |
+| defenses | KnownSettlementDefenses | yes | strategic-settlements |
+| presentation | KnownSettlementPresentations | yes | settlement-presentation |
+| population | KnownCount | yes | settlement-population |
 | troops | KnownColonyTroops | yes | colony-own-troops |
 | production | KnownText | yes | colony-operations |
 | buyCost | KnownCredits | yes | colony-operations |
@@ -723,6 +729,20 @@ Values: `current`.
 | --- | --- | --- | --- |
 | availability | Current | yes | contract |
 | value | ResearchPoints | yes | contract |
+
+### CurrentSettlementDefenses
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| availability | Current | yes | contract |
+| value | SettlementDefenses | yes | contract |
+
+### CurrentSettlementPresentations
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| availability | Current | yes | contract |
+| value | SettlementPresentations | yes | contract |
 
 ### CurrentShipCapabilities
 
@@ -1305,6 +1325,14 @@ Exactly one of: CurrentRelationReport, Unavailable.
 
 Exactly one of: CurrentResearchPoints, EmptyKnowledge, Unavailable.
 
+### KnownSettlementDefenses
+
+Exactly one of: CurrentSettlementDefenses, Unavailable.
+
+### KnownSettlementPresentations
+
+Exactly one of: CurrentSettlementPresentations, Unavailable.
+
 ### KnownShipCapabilities
 
 Exactly one of: CurrentShipCapabilities, Unavailable.
@@ -1668,7 +1696,7 @@ Constraints: `{"maximum": 479, "minimum": 0, "type": "integer", "x-integerToken"
 | gravityPenalty | KnownPlanetGravityPenalty | yes | planets-explored |
 | hostileEnvironment | ExplorationBool | yes | planets-explored |
 | maxPopulation | KnownPlanetPopulationLimit | yes | planet-suitability |
-| colony | KnownId | yes | exploration-own-colony-links |
+| colony | ExplorationId | yes | strategic-settlements |
 
 ### PlanetClimate
 
@@ -2067,6 +2095,39 @@ Values: `menu`, `committed`, `resolving`, `revoked`, `ending`, `unavailable`.
 | context | Context | yes | contract |
 | items | AdvertisedSessions | yes | contract |
 
+### SettlementCoverage
+
+Values: `complete`, `owned-only`, `unavailable`.
+
+### SettlementDefenses
+
+Array of `Text`; 0..7 items; unique: false.
+
+### SettlementKind
+
+Values: `colony`, `outpost`, `unclassified`.
+
+### SettlementPresentation
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| source | SettlementSource | yes | settlement-presentation |
+| text | SettlementText | yes | settlement-presentation |
+
+### SettlementPresentations
+
+Array of `SettlementPresentation`; 0..8 items; unique: false.
+
+### SettlementSource
+
+Values: `system-detail`, `planets-summary`, `colony-summary`, `colony-system-summary`.
+
+### SettlementText
+
+UTF-8 rendered text, converted from the selected local game language; no raw format arguments.
+
+Constraints: `{"maxLength": 6000, "minLength": 0, "type": "string", "x-maxUtf8Bytes": 6000, "x-minUtf8Bytes": 0}`.
+
 ### Ship
 
 | Field | Type | Required | Policy |
@@ -2259,6 +2320,7 @@ Constraints: `{"maximum": 32767, "minimum": -32768, "type": "integer", "x-intege
 | turn | Turn | yes | contract |
 | captureMode | CaptureMode | yes | contract |
 | fleetCoverage | FleetCoverage | yes | contract |
+| settlementCoverage | SettlementCoverage | yes | contract |
 
 ### StarSize
 
@@ -2541,6 +2603,10 @@ Reviewed means static evidence, not runtime visibility approval.
 
 | Policy | Status | Predicate | Native sources | Planned tests |
 | --- | --- | --- | --- | --- |
+| settlement-kind | reviewed | SYS&#x27;s independently authorized colony/outpost marker classifies the native variant. An actual colony-screen occupied-row owner substitution can establish a context-only settlement outside that system gate, but its generic colony wording does not distinguish outposts: report unclassified, without reading population, outpost flag, environment, defenses or operations to enrich it. Require the bounded native string-header substitution to survive its formatter buffer; literal or unfamiliar forms fail closed. Context-only records expire with their initialized producer and grant no planet or roster expansion. | src/game/sys.cpp: Draw_System_Display_Popup; src/game/colsysdi.cpp: Planet_Summary_String; src/game/colony_read.cpp: Strategic_Owner_Disclosed | T-01, T-02, T-03, T-05, T-07 |
+| settlement-population | reviewed | Owned full-colony resident counts keep their completed authority. Foreign ordinary full colonies require the independent SYS inclusion/variant gate and an initialized population format whose first native integer substitution discloses the complete resident count within the 80-byte buffer. Raw native count is not copied or validated when that presentation is literal, suppressed, clipped or unfamiliar. Preserve 0..42 whole resident units, not fractional growth, workforce or maximum population. Outposts and unclassified context-only records have unknown population. Calculated maxima require actual scoped native text and are never recomputed by queries. | src/game/sys.cpp: Do_Print_Planet_Info; src/game/colony_read.cpp: Strategic_Population_Disclosed; src/game/colony_read.cpp: Strategic_Population_Text | T-01, T-02, T-03, T-05, T-14 |
+| strategic-settlements | reviewed | Own full colonies retain their operational authorization. Other settlement records require the SYS visited/native-omniscient non-black-hole system presentation, or an actual initialized strategic presentation. Ownership/contact or a ship role/route alone is not inclusion. Full-colony resident population is the displayed whole n_pops, not fractional growth; outposts never acquire population, troops, queues or operations. Share native effective-climate/size text and the seven SYS defense candidates in their native order without owned satellite suppression. Defense disclosure separately requires viewer full-colony presence, native omniscience trait, or the shared native local-active-owned-ship predicate. Actual SYS presentation can also supply its context. Race labels do not expand the roster: owner/planet/system references resolve only same-capture authorized projections. Missing resources and absent coverage are unknown/unavailable, not empty. Settlement coverage is separate from fleet coverage; selected topics use one coherent dated capture. Filter before copying hidden fields, validation, handles, counts, equality and notifications. Foreign treasury, operating totals, jobs, queues, ordinary buildings, troops, freight and technologies are never inspected. No historical dossier, durable native-slot identity, recalculation, navigation or actions. | src/game/sys.cpp: Draw_System_Display_Popup; src/game/sys.cpp: Do_Print_Planet_Info; src/game/sys.cpp: Print_Special_Building_Data; src/game/colony_read.cpp: Strategic_Defenses_Visible; src/game/colony_read.cpp: Strategic_Local_Ship | T-01, T-02, T-03, T-05, T-07, T-12, T-14 |
+| settlement-presentation | reviewed | Only copied actual native strategic presentation text in initialized SYS, Planets, Colony/Colonies summary or matching help owners. Preserve native buffers, labels, units, rounding and source context. Calculated population limits are observed native results, never recalculated by RPC from foreign traits/buildings/population. Native per-worker text is not an operating-total/effectiveness model. Outposts do not inherit full-colony summaries. Formatter calls, screen/selection globals and temporary owner-as-player overrides grant nothing. Caller-owned frame results publish synchronously; interruption, suppression, owner exit, producer/resource/storage replacement and world boundaries revoke dependent handles/pages/queued output before mutation, through the existing lease. Parent return needs fresh presentation. Ambient settlement inspection remains independent; combined fleet/empire reads never splice newer results into an older retained capture. No retained foreign intelligence or tactical authority. | src/game/game_events.cpp: Observe_Settlement_Text; src/game/sys.cpp: Do_Print_Planet_Info; src/game/plntsum.cpp: Summary_Screen_Print_Data; src/game/colsysdi.cpp: Draw_Col_Sys_Disp; src/game/colony_main.cpp: Draw_Planet_Summary; src/game/textbox.cpp: Present_Settlement_Help | T-01, T-02, T-03, T-04, T-05, T-07, T-12, T-14 |
 | strategic-fleet-presentation | reviewed | Owned active groups or synchronous surviving native-refresh groups only. Shared Count_Member and Composition_Line preserve SYS hull buckets (upper sizes capped at Doom Star), nonzero rows, singular/plural text, 200-byte buffer, and hull/colony/outpost/transport order. Special owners above 8 retain their native named heading, not an invented histogram or hull. Shared Fleet_Title preserves the fleet-box 80-byte race input, 120-byte title and special uppercase conversion. Per-ship hull labels follow the ordinary/Antaran scanned-label branch; support types are separate localized category labels. Banner is the displayed player color, never an owner slot or a player-record grant. Stationary location resolves only to an independently projected system; moving encodings do not become current locations. Native ordered membership comes only from included ships, never rebuilt IDs. Combat/support UI filters and selection do not restrict ambient collections. Missing resources/coverage are unavailable, not zero or known-empty. No foreign condition/equipment/design/cargo scan or mutable native builder/calculator. Resolve references only within the capture; revoke dependent pages and leased output at refresh, identity, resource/storage and authority boundaries, preserving independent ambient reads. | src/game/ship_read.cpp: Count_Member; src/game/ship_read.cpp: Composition_Line; src/game/ship_read.cpp: Fleet_Title; src/game/ship_read.cpp: Scanned_Label; src/game/sys.cpp: N_Ships_By_Type_In_Stack; src/game/sys.cpp: Do_Print_System_Ship_Data; src/game/fleetpop.cpp: Draw_Fleet_Movement_Box; src/game/flt2.cpp: Get_Filter_Button_Status | T-01, T-02, T-03, T-05, T-07, T-12, T-14 |
 | strategic-ship-name | reviewed | Ship.name is canonical, never a hull/type/uppercase heading substitute. Owned active names remain ambient. Foreign canonical names require the actual non-preview Print_Fleet_Box_Info scanned-label branch, shared Scanned_Label returning CANONICAL_NAME, initialized active main owner/frame, current exact surviving membership and actual producer result. Ordinary foreign combat/Antaran combat labels are hull labels, not canonical names; their name bytes are not read. Non-owned support/NPC canonical names expire on producer replacement/suppression, box/owner exit, interruption, rebuild, identity/resource/storage loss and world/perspective changes. Restoration requires fresh presentation. Formatter calls and stale globals alone grant nothing. No persistent foreign dossier or tactical scan expansion; no partial label is promoted into a resolvable player/design record. | src/game/fleetpop.cpp: Print_Fleet_Box_Info; src/game/fleetpop.cpp: Get_Fleetpop_Scanned_Ship_Info; src/game/ship_read.cpp: Scanned_Label; src/game/flt1.cpp: Fleet_Screen | T-01, T-02, T-03, T-05, T-07, T-12 |
 | colony-heading | reviewed | Only the same capture&#x27;s authorized own full colony. Share the native colony heading&#x27;s localized specialty/annihilation formatter and 104-byte final buffer, with caller-owned 31-byte native planet-name output instead of the selected-colony/global temp-string buffer. Missing initialized format/name resources is unknown. This heading grants no foreign colony or extra entity record, and carries no invented occupation recommendation, action or forecast. | src/game/colony_main.cpp: Draw_Info_Name_And_Pop; src/game/colony_read.cpp: Heading; src/game/haccess.cpp: Do_Get_Planet_Name; src/game/colony.cpp: Colony_Type | T-01, T-02, T-03, T-05 |

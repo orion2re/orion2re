@@ -5,6 +5,10 @@
 #include "config/text_encoding.h"
 
 #include <algorithm>
+#include <cstring>
+#include <iterator>
+#include <string>
+#include <utility>
 
 namespace colony_rpc {
     namespace {
@@ -131,6 +135,81 @@ namespace colony_rpc {
         }
     } // namespace
 
+    bool Read_Settlement(int16_t index, rpc::s_map_observation* observation, bool contextual, bool local_ship) {
+        if (observation == nullptr || index < 0 || index >= MOX::planet_count || MOX::planet == nullptr) return false;
+        const auto* planet = &MOX::planet[index];
+        const int16_t system = planet->star_index;
+        if (system < 0 || (size_t)system >= observation->systems.size()) return false;
+        if (!contextual && !colony_read::System_Settlements_Visible(system, observation->viewer)) return true;
+        const int16_t slot = planet->colony_index;
+        if (slot == -1) return true;
+        if (slot < 0 || slot >= MOX::NUM_COLONIES || MOX::colony == nullptr) return false;
+        const auto* colony = &MOX::colony[slot];
+        if (colony->owner < 0) return true;
+        if (colony->owner >= MOX::NUM_PLAYERS || planet->orbit < 0 || planet->orbit >= 5 ||
+            MOX::star[system].planet_index[planet->orbit] != index || colony->planet != index) return false;
+        auto found = std::find_if(observation->colonies.begin(), observation->colonies.end(), [system, planet](const auto& item) {
+            return item.system == system && item.orbit == planet->orbit + 1;
+        });
+        if (found == observation->colonies.end()) {
+            observation->colonies.emplace_back();
+            found = observation->colonies.end() - 1;
+        }
+        auto& item = *found;
+        item.owned = colony->owner == observation->viewer;
+        item.unclassified = contextual && !colony_read::System_Settlements_Visible(system, observation->viewer);
+        if (item.unclassified) {
+            item.strategic = true;
+            item.owner_slot = colony->owner;
+            item.system = system;
+            item.orbit = planet->orbit + 1;
+            item.population_available = false;
+            const char* race = MOX::player[colony->owner].race_name;
+            if (memchr(race, 0, sizeof(MOX::player[colony->owner].race_name)) != nullptr) item.owner_label = Text(race, sizeof(MOX::player[colony->owner].race_name));
+            return true;
+        }
+        item.outpost = colony->outpost_flag != 0;
+        item.strategic = true;
+        item.owner_slot = colony->owner;
+        item.system = system;
+        item.orbit = planet->orbit + 1;
+        item.population_available = !item.outpost && planet->planet_type == PLANET_TYPE_PLANET && (item.owned || colony_read::Strategic_Population_Disclosed());
+        if (item.population_available) {
+            if (colony->n_pops > MAX_COLONY_POPULATION) return false;
+            item.population = colony->n_pops;
+        } else
+            item.population = 0;
+        const char* race = MOX::player[colony->owner].race_name;
+        if (planet->planet_type == PLANET_TYPE_PLANET && memchr(race, 0, sizeof(MOX::player[colony->owner].race_name)) != nullptr) item.owner_label = Text(race, sizeof(MOX::player[colony->owner].race_name));
+        char climate[80];
+        item.climate_available = planet->planet_type == PLANET_TYPE_PLANET && colony_read::Strategic_Climate(colony, index, climate, sizeof(climate));
+        if (item.climate_available) item.climate = Text(climate, sizeof(climate));
+        item.defenses_available = planet->planet_type == PLANET_TYPE_PLANET && colony_read::Strategic_Defenses_Visible(system, observation->viewer, local_ship);
+        if (!item.defenses_available && planet->planet_type == PLANET_TYPE_PLANET && MOX::ship != nullptr && MOX::NUM_SHIPS >= 0 && MOX::NUM_SHIPS <= MAX_SHIPS) {
+            for (int16_t ship = 0; ship < MOX::NUM_SHIPS; ++ship) {
+                if (MOX::ship[ship].owner != observation->viewer) continue;
+                if (colony_read::Strategic_Local_Ship(&MOX::ship[ship], system, observation->viewer)) {
+                    item.defenses_available = true;
+                    break;
+                }
+            }
+        }
+        item.defenses.clear();
+        if (item.defenses_available) {
+            for (int16_t ordinal = 0; ordinal < 7; ++ordinal) {
+                const int16_t building = colony_read::Strategic_Defense(colony, ordinal);
+                if (building < 0) break;
+                if (TECHDATA::buildings[building].name == nullptr) {
+                    item.defenses_available = false;
+                    item.defenses.clear();
+                    break;
+                }
+                item.defenses.push_back(Text(TECHDATA::buildings[building].name, 4096));
+            }
+        }
+        return true;
+    }
+
     bool Read_Colonies(rpc::s_map_observation* observation) {
         if (observation == nullptr || observation->viewer != MOX::PLAYER_NUM || !observation->players_captured ||
             MOX::NUM_COLONIES < 0 || MOX::NUM_COLONIES > MAX_COLONIES ||
@@ -157,6 +236,14 @@ namespace colony_rpc {
             Read_Operations(index, observation->viewer, &item.operations);
             observation->colonies.push_back(std::move(item));
         }
+        for (int16_t system = 0; system < MOX::NUM_STARS; ++system) {
+            if (!colony_read::System_Settlements_Visible(system, observation->viewer)) continue;
+            for (int orbit = 0; orbit < 5; ++orbit) {
+                const int16_t planet = MOX::star[system].planet_index[orbit];
+                if (planet != -1 && !Read_Settlement(planet, observation)) return false;
+            }
+        }
+        observation->settlements_complete = true;
         observation->colonies_captured = true;
         return true;
     }

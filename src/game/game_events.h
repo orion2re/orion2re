@@ -50,6 +50,8 @@ namespace game_events {
         SHIP_OBSERVATION_POINT,
         DESIGNS_REPLACING,
         STRATEGIC_LABELS_REPLACING,
+        SETTLEMENT_VIEW_READY,
+        SETTLEMENT_VIEW_CLEARED,
     };
 
     struct s_fleet_box_node {
@@ -97,8 +99,9 @@ namespace game_events {
     void Publish(e_event event);
     void Publish_Messages_Replacing(int16_t recipient);
     int16_t Message_Recipient();
-    void Publish_Colony_Replacing(int16_t owner);
+    void Publish_Colony_Replacing(int16_t owner, int16_t planet = -1);
     int16_t Replaced_Colony_Owner();
+    int16_t Replaced_Colony_Planet();
     void Publish_Designs_Replacing(int16_t owner);
     int16_t Replaced_Design_Owner();
     bool Colony_Edits_Active();
@@ -200,6 +203,62 @@ namespace game_events {
         s_observation_scope(const s_observation_scope&) = delete;
         s_observation_scope& operator=(const s_observation_scope&) = delete;
     };
+
+    struct s_settlement_text {
+        int16_t planet = -1;
+        const char* source = nullptr;
+        char text[2000] = {};
+        bool defenses = false;
+        bool owner_disclosed = false;
+    };
+    struct s_settlement_view {
+        int16_t viewer;
+        const s_settlement_text* items;
+        int16_t count;
+    };
+    const s_settlement_view* Published_Settlement_View();
+    void Invalidate_Settlement_View();
+    void Observe_Settlement_Text(int16_t planet, const char* source, const char* text, bool defenses = false, bool owner_disclosed = false);
+    struct s_settlement_view_scope {
+        int16_t viewer;
+        uint32_t interruption_level;
+        bool ready = false, closed = false, revoked = false;
+        s_settlement_view_scope* parent;
+        explicit s_settlement_view_scope(int16_t viewer);
+        ~s_settlement_view_scope();
+        void Initialized();
+        void Close();
+        s_settlement_view_scope(const s_settlement_view_scope&) = delete;
+        s_settlement_view_scope& operator=(const s_settlement_view_scope&) = delete;
+    };
+    struct s_settlement_frame {
+        s_settlement_text items[8];
+        int16_t count = 0;
+        s_settlement_frame* parent;
+        s_settlement_view_scope* owner;
+        s_settlement_frame();
+        ~s_settlement_frame();
+        s_settlement_frame(const s_settlement_frame&) = delete;
+        s_settlement_frame& operator=(const s_settlement_frame&) = delete;
+    };
+    struct s_settlement_interruption_scope {
+        s_settlement_interruption_scope();
+        ~s_settlement_interruption_scope();
+        s_settlement_interruption_scope(const s_settlement_interruption_scope&) = delete;
+        s_settlement_interruption_scope& operator=(const s_settlement_interruption_scope&) = delete;
+    };
+    struct s_settlement_help_scope {
+        int16_t viewer, planet;
+        const char* text;
+        bool owner_disclosed;
+        s_settlement_help_scope* parent;
+        s_settlement_help_scope(int16_t viewer, int16_t planet, const char* text, bool owner_disclosed);
+        ~s_settlement_help_scope();
+        s_settlement_help_scope(const s_settlement_help_scope&) = delete;
+        s_settlement_help_scope& operator=(const s_settlement_help_scope&) = delete;
+    };
+    int16_t Settlement_Help_Viewer(const char* text);
+    void Present_Settlement_Help(const char* text);
 
     // Main-view owner lifetime, not proof of an open box or a valid selection.
     struct s_fleet_box_view_scope {

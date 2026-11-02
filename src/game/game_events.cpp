@@ -1,6 +1,8 @@
 #include "game_events.h"
 
 #include <limits>
+#include <cstring>
+#include <cstdio>
 
 namespace game_events {
     namespace {
@@ -23,6 +25,12 @@ namespace game_events {
         uint32_t relations_interruptions = 0;
         int16_t message_recipient = -1;
         int16_t replaced_colony_owner = -1;
+        int16_t replaced_colony_planet = -1;
+        s_settlement_view_scope* settlement_owner = nullptr;
+        s_settlement_frame* settlement_frame = nullptr;
+        const s_settlement_view* settlement_view = nullptr;
+        uint32_t settlement_interruptions = 0;
+        s_settlement_help_scope* settlement_help = nullptr;
         bool population_staged = false;
         bool queue_staged = false;
         s_colony_queue_scope* queue_owner = nullptr;
@@ -108,11 +116,18 @@ namespace game_events {
     }
 
     void Publish(e_event event) {
+        if (event == MAIN_VIEW_INPUT_INTERRUPTED) Invalidate_Settlement_View();
         if (event == WORLD_REPLACE_BEGIN || event == PERSPECTIVE_SELECTION_BEGIN || event == MENU_ENTERED || event == THREAD_STOPPING) {
             for (auto* owner = queue_owner; owner != nullptr; owner = owner->parent) owner->revoked = true;
             for (auto* owner = colony_player; owner != nullptr; owner = owner->parent) owner->revoked = true;
             population_staged = false;
             queue_staged = false;
+        }
+        if (event == WORLD_REPLACE_BEGIN || event == WORLD_UPDATE_BEGIN || event == RESOLUTION_BEGIN || event == PERSPECTIVE_SELECTION_BEGIN || event == MENU_ENTERED || event == THREAD_STOPPING || event == STRATEGIC_LABELS_REPLACING) {
+            for (auto* owner = settlement_owner; owner != nullptr; owner = owner->parent) {
+                owner->ready = false;
+                if (event != WORLD_UPDATE_BEGIN && event != RESOLUTION_BEGIN) owner->revoked = true;
+            }
         }
         if (event == WORLD_REPLACE_BEGIN || event == WORLD_UPDATE_BEGIN || event == RESOLUTION_BEGIN || event == PERSPECTIVE_SELECTION_BEGIN || event == MENU_ENTERED || event == THREAD_STOPPING) {
             for (auto* owner = leader_owner; owner != nullptr; owner = owner->parent) {
@@ -142,11 +157,99 @@ namespace game_events {
         return message_recipient;
     }
 
-    void Publish_Colony_Replacing(int16_t owner) {
+    void Publish_Colony_Replacing(int16_t owner, int16_t planet) {
+        for (auto* frame = settlement_frame; frame != nullptr; frame = frame->parent)
+            for (int16_t row = 0; row < frame->count; ++row)
+                if (frame->items[row].planet == planet && frame->owner != nullptr) frame->owner->ready = false;
         const auto previous = replaced_colony_owner;
+        const auto previous_planet = replaced_colony_planet;
         replaced_colony_owner = owner;
+        replaced_colony_planet = planet;
         Publish(COLONY_REPLACING);
         replaced_colony_owner = previous;
+        replaced_colony_planet = previous_planet;
+    }
+
+    int16_t Replaced_Colony_Planet() {
+        return replaced_colony_planet;
+    }
+
+    const s_settlement_view* Published_Settlement_View() {
+        return settlement_view;
+    }
+    void Invalidate_Settlement_View() {
+        if (settlement_owner == nullptr) return;
+        settlement_owner->ready = false;
+        Publish(SETTLEMENT_VIEW_CLEARED);
+    }
+
+    s_settlement_view_scope::s_settlement_view_scope(int16_t player) : viewer(player), interruption_level(settlement_interruptions), parent(settlement_owner) {
+        if (parent != nullptr) parent->ready = false;
+        settlement_owner = this;
+        if (parent != nullptr) Publish(SETTLEMENT_VIEW_CLEARED);
+    }
+    void s_settlement_view_scope::Initialized() {
+        if (viewer >= 0 && !closed && !revoked && settlement_interruptions == interruption_level) ready = true;
+    }
+    void s_settlement_view_scope::Close() {
+        if (closed) return;
+        closed = true;
+        ready = false;
+        Publish(SETTLEMENT_VIEW_CLEARED);
+        settlement_owner = parent;
+    }
+    s_settlement_view_scope::~s_settlement_view_scope() {
+        Close();
+    }
+    s_settlement_frame::s_settlement_frame() : parent(settlement_frame), owner(settlement_owner) {
+        settlement_frame = this;
+    }
+    s_settlement_frame::~s_settlement_frame() {
+        settlement_frame = parent;
+        if (owner == nullptr || owner != settlement_owner || !owner->ready || owner->revoked || settlement_interruptions != owner->interruption_level) return;
+        const s_settlement_view view{owner->viewer, items, count};
+        const auto* previous = settlement_view;
+        settlement_view = &view;
+        Publish(SETTLEMENT_VIEW_READY);
+        settlement_view = previous;
+    }
+    void Observe_Settlement_Text(int16_t planet, const char* source, const char* text, bool defenses, bool owner_disclosed) {
+        auto* frame = settlement_frame;
+        if (frame == nullptr || frame->owner == nullptr || frame->owner != settlement_owner || !frame->owner->ready ||
+            frame->owner->revoked || settlement_interruptions != frame->owner->interruption_level || text == nullptr || source == nullptr) return;
+        int16_t row = 0;
+        while (row < frame->count && (frame->items[row].planet != planet || strcmp(frame->items[row].source, source) != 0)) ++row;
+        if (row == 8) return;
+        if (row == frame->count) ++frame->count;
+        auto& item = frame->items[row];
+        item.planet = planet;
+        item.source = source;
+        snprintf(item.text, sizeof(item.text), "%s", text);
+        item.defenses = defenses;
+        item.owner_disclosed = owner_disclosed;
+    }
+    s_settlement_interruption_scope::s_settlement_interruption_scope() {
+        ++settlement_interruptions;
+        if (settlement_owner != nullptr) settlement_owner->ready = false;
+        Publish(SETTLEMENT_VIEW_CLEARED);
+    }
+    s_settlement_interruption_scope::~s_settlement_interruption_scope() {
+        --settlement_interruptions;
+    }
+    s_settlement_help_scope::s_settlement_help_scope(int16_t player, int16_t location, const char* presented, bool identified)
+        : viewer(player), planet(location), text(presented), owner_disclosed(identified), parent(settlement_help) {
+        settlement_help = this;
+    }
+    s_settlement_help_scope::~s_settlement_help_scope() {
+        settlement_help = parent;
+    }
+    int16_t Settlement_Help_Viewer(const char* text) {
+        return settlement_help != nullptr && settlement_help->text == text ? settlement_help->viewer : -1;
+    }
+    void Present_Settlement_Help(const char* text) {
+        if (Settlement_Help_Viewer(text) < 0) return;
+        s_settlement_frame frame;
+        Observe_Settlement_Text(settlement_help->planet, "colony-summary", text, false, settlement_help->owner_disclosed);
     }
 
     int16_t Replaced_Colony_Owner() {

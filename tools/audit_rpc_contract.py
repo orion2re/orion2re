@@ -97,7 +97,7 @@ def Validate_Target_Drift(paths):
                          "src/game/flt1.cpp", "src/game/flt2.cpp", "src/game/cmbtdrw1.cpp", "src/game/cmbtfir2.cpp", "src/game/combinit.cpp",
                          "src/game/design.cpp", "src/game/initship.cpp", "src/game/initship.h", "src/game/loadsave.cpp",
                          "src/game/resource_refresh.cpp",
-                         "src/game/sys.cpp",
+                         "src/game/sys.cpp", "src/game/colsysdi.cpp", "src/game/plntsum.cpp",
                          "tests/support/rpc_native_ships.cpp", "tests/support/rpc_native_ships.h",
                          "src/game/tech.cpp", "src/game/tech.h", "src/game/tech_choices.cpp", "src/game/techinit.cpp",
                          "src/game/officer.cpp", "src/game/officer.h",
