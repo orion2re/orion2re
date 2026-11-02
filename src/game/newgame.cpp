@@ -226,6 +226,11 @@ namespace NEWGAME {
         opp_button_variable = random_player_count
             ? NEW_GAME_PLAYER_COUNT_RANDOM
             : (int16_t)((int8_t)MOX::settings.number_of_players - 2);
+        // A player count inherited from a save can be invalid (0, 1, ...): the Players box is then empty and the
+        // game would start with 0 players (divide by zero in SHIPMOVE::Allocate_New_Ship_Slots). Default: 4 players.
+        if (!random_player_count && (opp_button_variable < 0 || opp_button_variable > MAX_PLAYERS - 2)) {
+            opp_button_variable = 2;
+        }
         combat_button_variable = (uint16_t)(MOX::settings.strategic_combat_flag == 0);
         civ_button_variable = Civilization_Button_From_Setting(
             MOX::settings.starting_civilization_level);

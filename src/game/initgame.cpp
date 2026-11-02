@@ -143,6 +143,11 @@ namespace INITGAME {
         const bool random_player_count =
             num_players == NEW_GAME_RANDOM_PLAYER_COUNT;
         num_players = Resolve_New_Game_Player_Count(num_players, MOX::player);
+        if (num_players < 2 || num_players > MAX_PLAYERS) {
+            // Safety net: NUM_PLAYERS == 0 crashes SHIPMOVE::Allocate_New_Ship_Slots (stardate % NUM_PLAYERS).
+            SDL_Log("initgame: invalid player count (%d), using 4", (int)num_players);
+            num_players = 4;
+        }
         if (random_player_count) {
             MOX::settings.number_of_players = NEW_GAME_RANDOM_PLAYER_COUNT;
         }
