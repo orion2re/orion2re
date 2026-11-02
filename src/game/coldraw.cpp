@@ -4,17 +4,26 @@
 namespace colony_read {
     int16_t Population_Order(int16_t colony_idx, int16_t job, int16_t* out) {
         const auto& colony = MOX::colony[colony_idx];
+        const uint8_t population_count = colony.n_pops;
         const int16_t order[] = {9, 0, 1, 2, 3, 4, 5, 6, 7, 8};
+        const int16_t first_job = job == -1 ? 0 : job;
+        const int16_t end_job = job == -1 ? 3 : job + 1;
         int16_t count = 0;
-        for (int16_t state = 0; state < 7; ++state)
-            for (int16_t conquered = 0; conquered < 2; ++conquered)
-                for (int16_t profession = job == -1 ? 0 : job; profession < (job == -1 ? 3 : job + 1); ++profession)
-                    for (auto race : order)
-                        for (int16_t pop = 0; pop < colony.n_pops; ++pop) {
+        for (int16_t state = 0; state < 7; ++state) {
+            for (int16_t conquered = 0; conquered < 2; ++conquered) {
+                for (int16_t profession = first_job; profession < end_job; ++profession) {
+                    for (int16_t race : order) {
+                        for (int16_t pop = 0; pop < population_count; ++pop) {
                             const auto value = colony.pop[pop];
                             if (POP::Get_Race(value) == race && COLONY::Pop_To_Pop_State(colony_idx, pop) == state &&
-                                POP::Get_Prof(value) == profession && POP::Is_Assigned(value) && POP::Is_Conquered(value) == (conquered != 0)) out[count++] = pop;
+                                POP::Get_Prof(value) == profession && POP::Is_Assigned(value) && POP::Is_Conquered(value) == (conquered != 0)) {
+                                out[count++] = pop;
+                            }
                         }
+                    }
+                }
+            }
+        }
         return count;
     }
 
@@ -43,8 +52,9 @@ namespace colony_read {
             if (prod_type == ECON_INDUSTRY) {
                 net = production - colony->maintenance[prod_type];
                 if (net < 0) net = 0;
-            } else
+            } else {
                 net = production - abs((int32_t)colony->imports[prod_type]);
+            }
         } else if (colony->maintenance[ECON_INDUSTRY] != 0 && prod_type == ECON_INDUSTRY) {
             net = production - colony->maintenance[prod_type];
             if (net < 0) net = 0;
@@ -99,7 +109,14 @@ namespace COLDRAW {
         s_colony* colony = &MOX::colony[colony_idx];
         colony_read::s_resource_row row;
         colony_read::Resource_Row(colony, prod_type, &row);
-        const auto [net_tens, net_units, import_tens, import_units, secondary_tens, secondary_units, shortage_tens, shortage_units] = row;
+        const int16_t net_tens = row.net_tens;
+        const int16_t net_units = row.net_units;
+        const int16_t import_tens = row.import_tens;
+        const int16_t import_units = row.import_units;
+        const int16_t secondary_tens = row.secondary_tens;
+        const int16_t secondary_units = row.secondary_units;
+        const int16_t shortage_tens = row.shortage_tens;
+        const int16_t shortage_units = row.shortage_units;
 
         int16_t total_tens = import_tens + secondary_tens + net_tens + shortage_tens;
         int16_t total_units = import_units + secondary_units + net_units + shortage_units;
@@ -203,7 +220,7 @@ namespace COLDRAW {
         s_player* player = &MOX::player[(int8_t)colony->owner];
         int8_t govt_trait = player->traits[TRAIT_CURRENT_GOVERNMENT];
 
-        if (govt_trait >= GOVERNMENT_UNIFICATION) {
+        if (suppressed) {
             morale_count = 0;
         }
 
@@ -215,7 +232,7 @@ namespace COLDRAW {
 
         Calculate_Squish_Step(x, (int16_t)width, (int16_t)morale_count, 30);
 
-        if (govt_trait < GOVERNMENT_UNIFICATION) {
+        if (!suppressed) {
             int32_t loop_limit = morale_count_abs;
             if (loop_limit > 20) {
                 loop_limit = 20;
@@ -346,13 +363,12 @@ namespace COLDRAW {
             }
 
             if (found_match) {
-                goto post_loop_dispatch;
+                break;
             }
 
             pop_draw_index++;
         }
 
-    post_loop_dispatch:
         switch (mode) {
             case 0:
                 if (show_farm_shadows != 0 && job_filter == ECON_FOOD) {
@@ -368,12 +384,12 @@ namespace COLDRAW {
                         }
                     }
                 }
-                goto reset_step_squish_and_return;
+                break;
 
             case 1:
                 *last_slot_idx_ptr = pop_draw_index - 1;
                 *scroll_field_id_ptr = fields::Add_Scroll_Field(left_x, top_y, left_x, right_x + 8, left_x, right_x, right_x - left_x + 8, 30, scroll_value_ptr, ESTRINGS::E_Strings(12 /* ESTR_SCROLL_BAR_EMPTY */), 0);
-                goto reset_step_squish_and_return;
+                break;
 
             case 2: {
                 int16_t squish_count = pop_draw_index;
@@ -382,7 +398,8 @@ namespace COLDRAW {
                     squish_count = (int16_t)max_farms;
                 }
                 COLDRAW::Calculate_Squish_Step(left_x, right_x, squish_count, 30);
-            } break;
+                return -1;
+            }
 
             case 3:
                 if (found_match) {
@@ -391,18 +408,18 @@ namespace COLDRAW {
                     }
                     return pop_index_by_slot[pop_draw_index];
                 }
-                goto reset_step_squish_and_return;
+                break;
 
             case 4:
                 if (found_match) {
                     return pop_index_by_slot[pop_draw_index];
                 }
-                goto reset_step_squish_and_return;
+                break;
+
+            default:
+                return -1;
         }
 
-        return -1;
-
-    reset_step_squish_and_return:
         COLONY::Reset_Step_Squish();
         return -1;
     }
