@@ -1,3 +1,4 @@
+import json
 import re
 from pathlib import Path
 import unittest
@@ -5,6 +6,11 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 
 class SidecarArchitectureTests(unittest.TestCase):
+    def test_backend_profile_enables_file_ops_required_by_windows(self):
+        profile = json.loads((ROOT / "specs/rpc/backend.json").read_text())
+        self.assertEqual(profile["cmake"]["LWS_WITH_FILE_OPS"], "ON",
+                         "Pinned libwebsockets unconditionally compiles windows-file.c, which requires file-op types")
+
     def test_native_game_has_no_rpc_dependency(self):
         pattern = re.compile(r"\brpc\b|game_rpc|ORION2RE_ENABLE_RPC", re.IGNORECASE)
         for path in (ROOT / "src/game").glob("*"):

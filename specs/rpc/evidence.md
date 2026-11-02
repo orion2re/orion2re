@@ -9,8 +9,10 @@ dependency/profiling/compatibility evidence, not an increment diary.
 `c56adc3c62ee2545c77e0ba4cce67441be6955db`. The optional build uses project libuv
 `840404ce8ba7cc0204be52389a6cfff9f2c90fb6`; default/router-only builds do not link
 RPC/backend dependencies. The selected profile excludes TLS, compression, clients,
-examples, file operations and backend JSON-RPC; it needs libc/platform networking
-and libuv, not OpenSSL, zlib, mbedTLS, Brotli, SQLite or display dependencies.
+examples and backend JSON-RPC; it needs libc/platform networking and libuv, not
+OpenSSL, zlib, mbedTLS, Brotli, SQLite or display dependencies. File operations
+remain enabled because the pinned backend unconditionally compiles Windows file
+operations that require the corresponding types.
 
 Primary evidence:
 

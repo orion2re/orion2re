@@ -5,6 +5,8 @@
 #include "game/game_events.h"
 #include "config/text_encoding.h"
 
+#include <algorithm>
+
 namespace relations_rpc {
     static std::string Decode(const char* text) {
         std::string result;

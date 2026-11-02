@@ -5,6 +5,8 @@
 #include "rpc/rpc_game.h"
 #include "game/game_events.h"
 
+#include <algorithm>
+
 namespace officer_rpc {
     namespace {
         bool Copy_Text(const char* text, size_t capacity, std::string* output) {
