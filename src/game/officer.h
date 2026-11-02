@@ -12,7 +12,7 @@ struct s_officer_picture_slot {
 namespace OFFICER {
     extern char s_OFFICER_LBX_00556980[16];
     extern uint8_t leader_warlord_bonus;
-    extern uint8_t reject_declined_offers;
+    extern uint8_t rejected_offer_keeps_timer;
     extern uint8_t leaders_no_limit;
     extern uint8_t loknar_gives_no_tech;
 

@@ -54,7 +54,7 @@ DOCTEST_TEST_CASE("leader offers preserve classic decline behavior by default") 
 
 DOCTEST_TEST_CASE("declining a leader offer keeps it hireable without resetting the timer") {
     TEST_REPORT::Reset_();
-    OFFICER::reject_declined_offers = 1;
+    OFFICER::rejected_offer_keeps_timer = 1;
     MOX::player[0].officer_for_hire = 3;
     MOX::player[0].stardate_last_offered_hero = 35001;
     MOX::leaders[3].player_index = 0;
@@ -71,7 +71,7 @@ DOCTEST_TEST_CASE("declining a leader offer keeps it hireable without resetting 
 
 DOCTEST_TEST_CASE("accepting a leader into the pool records its offer date") {
     TEST_REPORT::Reset_();
-    OFFICER::reject_declined_offers = 1;
+    OFFICER::rejected_offer_keeps_timer = 1;
     TEST_REPORT::accept_officer_offer = true;
     MOX::stardate = 35006;
     MOX::player[0].officer_for_hire = 3;

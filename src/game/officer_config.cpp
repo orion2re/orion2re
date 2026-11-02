@@ -3,7 +3,7 @@
 
 namespace OFFICER {
     uint8_t loknar_gives_no_tech = 0;
-    uint8_t reject_declined_offers = 0;
+    uint8_t rejected_offer_keeps_timer = 0;
     s_leader_progression progression = {
         {60, 150, 300, 500, 1000},
         {10, 5, 10},
