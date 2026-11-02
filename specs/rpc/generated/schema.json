@@ -336,7 +336,8 @@
         "last-native-ship-refresh",
         "last-native-fleet-box",
         "native-leader-presentation",
-        "native-relations-presentation"
+        "native-relations-presentation",
+        "owned-inspection"
       ]
     },
     "Chat": {
@@ -1499,6 +1500,44 @@
       ],
       "x-rpc-policy": "contract"
     },
+    "CurrentDesignCost": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/Current",
+          "x-rpc-policy": "contract"
+        },
+        "value": {
+          "$ref": "#/$defs/DesignCost",
+          "x-rpc-policy": "contract"
+        }
+      },
+      "required": [
+        "availability",
+        "value"
+      ],
+      "x-rpc-policy": "contract"
+    },
+    "CurrentDesignEquipment": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/Current",
+          "x-rpc-policy": "contract"
+        },
+        "value": {
+          "$ref": "#/$defs/DesignEquipment",
+          "x-rpc-policy": "contract"
+        }
+      },
+      "required": [
+        "availability",
+        "value"
+      ],
+      "x-rpc-policy": "contract"
+    },
     "CurrentExploredIds": {
       "type": "object",
       "additionalProperties": false,
@@ -1860,6 +1899,44 @@
       ],
       "x-rpc-policy": "contract"
     },
+    "CurrentShipCapabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/Current",
+          "x-rpc-policy": "contract"
+        },
+        "value": {
+          "$ref": "#/$defs/ShipCapabilities",
+          "x-rpc-policy": "contract"
+        }
+      },
+      "required": [
+        "availability",
+        "value"
+      ],
+      "x-rpc-policy": "contract"
+    },
+    "CurrentShipCondition": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/Current",
+          "x-rpc-policy": "contract"
+        },
+        "value": {
+          "$ref": "#/$defs/ShipCondition",
+          "x-rpc-policy": "contract"
+        }
+      },
+      "required": [
+        "availability",
+        "value"
+      ],
+      "x-rpc-policy": "contract"
+    },
     "CurrentShipEta": {
       "type": "object",
       "additionalProperties": false,
@@ -1870,6 +1947,82 @@
         },
         "value": {
           "$ref": "#/$defs/CachedShipTurns",
+          "x-rpc-policy": "contract"
+        }
+      },
+      "required": [
+        "availability",
+        "value"
+      ],
+      "x-rpc-policy": "contract"
+    },
+    "CurrentShipExperience": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/Current",
+          "x-rpc-policy": "contract"
+        },
+        "value": {
+          "$ref": "#/$defs/ShipExperience",
+          "x-rpc-policy": "contract"
+        }
+      },
+      "required": [
+        "availability",
+        "value"
+      ],
+      "x-rpc-policy": "contract"
+    },
+    "CurrentShipHitPair": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/Current",
+          "x-rpc-policy": "contract"
+        },
+        "value": {
+          "$ref": "#/$defs/ShipHitPair",
+          "x-rpc-policy": "contract"
+        }
+      },
+      "required": [
+        "availability",
+        "value"
+      ],
+      "x-rpc-policy": "contract"
+    },
+    "CurrentShipHits": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/Current",
+          "x-rpc-policy": "contract"
+        },
+        "value": {
+          "$ref": "#/$defs/ShipShieldStrength",
+          "x-rpc-policy": "contract"
+        }
+      },
+      "required": [
+        "availability",
+        "value"
+      ],
+      "x-rpc-policy": "contract"
+    },
+    "CurrentShipInspection": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/Current",
+          "x-rpc-policy": "contract"
+        },
+        "value": {
+          "$ref": "#/$defs/ShipInspection",
           "x-rpc-policy": "contract"
         }
       },
@@ -2012,6 +2165,25 @@
       ],
       "x-rpc-policy": "contract"
     },
+    "CurrentWeaponCount": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "$ref": "#/$defs/Current",
+          "x-rpc-policy": "contract"
+        },
+        "value": {
+          "$ref": "#/$defs/DisplayedWeaponCount",
+          "x-rpc-policy": "contract"
+        }
+      },
+      "required": [
+        "availability",
+        "value"
+      ],
+      "x-rpc-policy": "contract"
+    },
     "DescribeRequest": {
       "type": "object",
       "additionalProperties": false,
@@ -2049,28 +2221,90 @@
       "properties": {
         "id": {
           "$ref": "#/$defs/Id",
-          "x-rpc-policy": "disabled-design"
+          "x-rpc-policy": "owned-design-inspection"
+        },
+        "source": {
+          "$ref": "#/$defs/DesignSource",
+          "x-rpc-policy": "owned-design-inspection"
         },
         "name": {
           "$ref": "#/$defs/KnownText",
-          "x-rpc-policy": "disabled-design"
+          "x-rpc-policy": "owned-design-inspection"
         },
         "hull": {
           "$ref": "#/$defs/KnownText",
-          "x-rpc-policy": "disabled-design"
+          "x-rpc-policy": "owned-design-inspection"
         },
         "cost": {
-          "$ref": "#/$defs/KnownCredits",
-          "x-rpc-policy": "disabled-design"
+          "$ref": "#/$defs/KnownDesignCost",
+          "x-rpc-policy": "owned-design-inspection"
+        },
+        "equipment": {
+          "$ref": "#/$defs/KnownDesignEquipment",
+          "x-rpc-policy": "owned-design-inspection"
+        },
+        "constructionColony": {
+          "$ref": "#/$defs/KnownId",
+          "x-rpc-policy": "owned-design-inspection"
         }
       },
       "required": [
         "id",
+        "source",
         "name",
         "hull",
-        "cost"
+        "cost",
+        "equipment",
+        "constructionColony"
       ],
-      "x-rpc-policy": "disabled-design"
+      "x-rpc-policy": "owned-design-inspection"
+    },
+    "DesignCost": {
+      "type": "integer",
+      "minimum": -32768,
+      "maximum": 32767,
+      "x-integerToken": true,
+      "x-unit": "production-point",
+      "description": "Stored integer design/instance production cost; a committed refit record stores its refit cost. Not BC, a purchase price, or a recalculated current build cost."
+    },
+    "DesignEquipment": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "shield": {
+          "$ref": "#/$defs/Text",
+          "x-rpc-policy": "owned-design-inspection"
+        },
+        "computer": {
+          "$ref": "#/$defs/Text",
+          "x-rpc-policy": "owned-design-inspection"
+        },
+        "armor": {
+          "$ref": "#/$defs/Text",
+          "x-rpc-policy": "owned-design-inspection"
+        },
+        "drive": {
+          "$ref": "#/$defs/Text",
+          "x-rpc-policy": "owned-design-inspection"
+        },
+        "weapons": {
+          "$ref": "#/$defs/DesignWeapons",
+          "x-rpc-policy": "owned-design-inspection"
+        },
+        "systems": {
+          "$ref": "#/$defs/DesignSystems",
+          "x-rpc-policy": "owned-design-inspection"
+        }
+      },
+      "required": [
+        "shield",
+        "computer",
+        "armor",
+        "drive",
+        "weapons",
+        "systems"
+      ],
+      "x-rpc-policy": "owned-design-inspection"
     },
     "DesignResult": {
       "type": "object",
@@ -2091,12 +2325,88 @@
       ],
       "x-rpc-policy": "contract"
     },
+    "DesignSource": {
+      "type": "string",
+      "enum": [
+        "slot",
+        "ship",
+        "queued",
+        "refit"
+      ]
+    },
+    "DesignSystem": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "$ref": "#/$defs/Text",
+          "x-rpc-policy": "owned-design-inspection"
+        },
+        "damaged": {
+          "$ref": "#/$defs/KnownBool",
+          "x-rpc-policy": "owned-design-inspection"
+        }
+      },
+      "required": [
+        "label",
+        "damaged"
+      ],
+      "x-rpc-policy": "owned-design-inspection"
+    },
+    "DesignSystems": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/DesignSystem"
+      },
+      "maxItems": 40
+    },
+    "DesignWeapon": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "$ref": "#/$defs/Text",
+          "x-rpc-policy": "owned-design-inspection"
+        },
+        "arc": {
+          "$ref": "#/$defs/KnownText",
+          "x-rpc-policy": "owned-design-inspection"
+        },
+        "modifications": {
+          "$ref": "#/$defs/KnownText",
+          "x-rpc-policy": "owned-design-inspection"
+        },
+        "count": {
+          "$ref": "#/$defs/InstalledWeaponCount",
+          "x-rpc-policy": "owned-design-inspection"
+        },
+        "currentCount": {
+          "$ref": "#/$defs/KnownWeaponCount",
+          "x-rpc-policy": "owned-design-inspection"
+        }
+      },
+      "required": [
+        "label",
+        "arc",
+        "modifications",
+        "count",
+        "currentCount"
+      ],
+      "x-rpc-policy": "owned-design-inspection"
+    },
+    "DesignWeapons": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/DesignWeapon"
+      },
+      "maxItems": 8
+    },
     "Designs": {
       "type": "array",
       "items": {
         "$ref": "#/$defs/Design"
       },
-      "maxItems": 4096
+      "maxItems": 10006
     },
     "DesignsResult": {
       "type": "object",
@@ -2120,6 +2430,14 @@
         "items"
       ],
       "x-rpc-policy": "contract"
+    },
+    "DisplayedWeaponCount": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 255,
+      "x-integerToken": true,
+      "x-unit": "count",
+      "description": "Nonnegative integer count of authorized projected records only."
     },
     "Empty": {
       "type": "object",
@@ -2217,28 +2535,52 @@
       "properties": {
         "id": {
           "$ref": "#/$defs/Id",
-          "x-rpc-policy": "disabled-fleet"
+          "x-rpc-policy": "owned-fleet-inspection"
         },
         "members": {
-          "$ref": "#/$defs/Ids",
-          "x-rpc-policy": "disabled-fleet"
+          "$ref": "#/$defs/FleetMemberIds",
+          "x-rpc-policy": "owned-fleet-inspection"
+        },
+        "x": {
+          "$ref": "#/$defs/Coord",
+          "x-rpc-policy": "owned-fleet-inspection"
+        },
+        "y": {
+          "$ref": "#/$defs/Coord",
+          "x-rpc-policy": "owned-fleet-inspection"
+        },
+        "location": {
+          "$ref": "#/$defs/KnownId",
+          "x-rpc-policy": "owned-fleet-inspection"
         },
         "destination": {
-          "$ref": "#/$defs/KnownId",
-          "x-rpc-policy": "disabled-fleet"
+          "$ref": "#/$defs/ShipDestination",
+          "x-rpc-policy": "owned-fleet-inspection"
         },
         "eta": {
-          "$ref": "#/$defs/KnownTurns",
-          "x-rpc-policy": "disabled-fleet"
+          "$ref": "#/$defs/ShipEta",
+          "x-rpc-policy": "owned-fleet-inspection"
         }
       },
       "required": [
         "id",
         "members",
+        "x",
+        "y",
+        "location",
         "destination",
         "eta"
       ],
-      "x-rpc-policy": "disabled-fleet"
+      "x-rpc-policy": "owned-fleet-inspection"
+    },
+    "FleetMemberIds": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Id"
+      },
+      "maxItems": 10000,
+      "minItems": 1,
+      "uniqueItems": true
     },
     "FleetResult": {
       "type": "object",
@@ -2612,6 +2954,14 @@
       "x-unit": "bc-per-turn",
       "description": "Signed displayed BC per turn, including native HUD net income or an individual agreement level; not gross production."
     },
+    "InstalledWeaponCount": {
+      "type": "integer",
+      "minimum": -128,
+      "maximum": 127,
+      "x-integerToken": true,
+      "x-unit": "count",
+      "description": "Nonnegative integer count of authorized projected records only."
+    },
     "Intelligence": {
       "type": "object",
       "additionalProperties": false,
@@ -2742,6 +3092,26 @@
       "oneOf": [
         {
           "$ref": "#/$defs/CurrentCredits"
+        },
+        {
+          "$ref": "#/$defs/Unavailable"
+        }
+      ]
+    },
+    "KnownDesignCost": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CurrentDesignCost"
+        },
+        {
+          "$ref": "#/$defs/Unavailable"
+        }
+      ]
+    },
+    "KnownDesignEquipment": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CurrentDesignEquipment"
         },
         {
           "$ref": "#/$defs/Unavailable"
@@ -2954,6 +3324,66 @@
         }
       ]
     },
+    "KnownShipCapabilities": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CurrentShipCapabilities"
+        },
+        {
+          "$ref": "#/$defs/Unavailable"
+        }
+      ]
+    },
+    "KnownShipCondition": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CurrentShipCondition"
+        },
+        {
+          "$ref": "#/$defs/Unavailable"
+        }
+      ]
+    },
+    "KnownShipExperience": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CurrentShipExperience"
+        },
+        {
+          "$ref": "#/$defs/Unavailable"
+        }
+      ]
+    },
+    "KnownShipHitPair": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CurrentShipHitPair"
+        },
+        {
+          "$ref": "#/$defs/Unavailable"
+        }
+      ]
+    },
+    "KnownShipHits": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CurrentShipHits"
+        },
+        {
+          "$ref": "#/$defs/Unavailable"
+        }
+      ]
+    },
+    "KnownShipInspection": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CurrentShipInspection"
+        },
+        {
+          "$ref": "#/$defs/Unavailable"
+        }
+      ]
+    },
     "KnownSpyCount": {
       "oneOf": [
         {
@@ -3021,6 +3451,16 @@
       "oneOf": [
         {
           "$ref": "#/$defs/CurrentValue"
+        },
+        {
+          "$ref": "#/$defs/Unavailable"
+        }
+      ]
+    },
+    "KnownWeaponCount": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CurrentWeaponCount"
         },
         {
           "$ref": "#/$defs/Unavailable"
@@ -4956,6 +5396,10 @@
         "eta": {
           "$ref": "#/$defs/ShipEta",
           "x-rpc-policy": "ship-map-eta"
+        },
+        "inspection": {
+          "$ref": "#/$defs/KnownShipInspection",
+          "x-rpc-policy": "owned-ship-inspection"
         }
       },
       "required": [
@@ -4966,9 +5410,106 @@
         "owner",
         "name",
         "destination",
-        "eta"
+        "eta",
+        "inspection"
       ],
       "x-rpc-policy": "ships-refreshed"
+    },
+    "ShipCapabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "beamAttack": {
+          "$ref": "#/$defs/ShipRating",
+          "x-rpc-policy": "owned-ship-inspection"
+        },
+        "beamDefense": {
+          "$ref": "#/$defs/ShipRating",
+          "x-rpc-policy": "owned-ship-inspection"
+        },
+        "missileEvasion": {
+          "$ref": "#/$defs/ShipEvasion",
+          "x-rpc-policy": "owned-ship-inspection"
+        }
+      },
+      "required": [
+        "beamAttack",
+        "beamDefense",
+        "missileEvasion"
+      ],
+      "x-rpc-policy": "owned-ship-inspection"
+    },
+    "ShipCombatSpeed": {
+      "type": "integer",
+      "minimum": -32768,
+      "maximum": 32767,
+      "x-integerToken": true,
+      "x-unit": "combat-speed",
+      "description": "Whole native displayed combat movement units, after native damage rounding and trait bonuses; no movement options or forecast."
+    },
+    "ShipCondition": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "structure": {
+          "$ref": "#/$defs/ShipHits",
+          "x-rpc-policy": "owned-ship-inspection"
+        },
+        "structureMax": {
+          "$ref": "#/$defs/ShipHits",
+          "x-rpc-policy": "owned-ship-inspection"
+        },
+        "armor": {
+          "$ref": "#/$defs/ShipHits",
+          "x-rpc-policy": "owned-ship-inspection"
+        },
+        "armorMax": {
+          "$ref": "#/$defs/ShipHits",
+          "x-rpc-policy": "owned-ship-inspection"
+        },
+        "drive": {
+          "$ref": "#/$defs/KnownShipHitPair",
+          "x-rpc-policy": "owned-ship-inspection"
+        },
+        "computer": {
+          "$ref": "#/$defs/KnownShipHitPair",
+          "x-rpc-policy": "owned-ship-inspection"
+        },
+        "shield": {
+          "$ref": "#/$defs/KnownShipHitPair",
+          "x-rpc-policy": "owned-ship-inspection"
+        },
+        "combatSpeed": {
+          "$ref": "#/$defs/ShipCombatSpeed",
+          "x-rpc-policy": "owned-ship-inspection"
+        },
+        "warpSpeed": {
+          "$ref": "#/$defs/ShipWarpSpeed",
+          "x-rpc-policy": "owned-ship-inspection"
+        },
+        "shieldStrength": {
+          "$ref": "#/$defs/ShipHits",
+          "x-rpc-policy": "owned-ship-inspection"
+        },
+        "shieldStrengthMax": {
+          "$ref": "#/$defs/KnownShipHits",
+          "x-rpc-policy": "owned-ship-inspection"
+        }
+      },
+      "required": [
+        "structure",
+        "structureMax",
+        "armor",
+        "armorMax",
+        "drive",
+        "computer",
+        "shield",
+        "combatSpeed",
+        "warpSpeed",
+        "shieldStrength",
+        "shieldStrengthMax"
+      ],
+      "x-rpc-policy": "owned-ship-inspection"
     },
     "ShipDestination": {
       "oneOf": [
@@ -4996,6 +5537,122 @@
         }
       ]
     },
+    "ShipEvasion": {
+      "type": "integer",
+      "minimum": -32768,
+      "maximum": 32767,
+      "x-integerToken": true,
+      "x-unit": "percent",
+      "description": "Whole native percentage; field-specific bounds distinguish gravity penalties, tribute and signed intelligence bonuses."
+    },
+    "ShipExperience": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 65535,
+      "x-integerToken": true,
+      "x-unit": "experience-point",
+      "description": "Whole owned combat-ship crew experience points displayed as EP in Fleets; noncombat experience is not inferred."
+    },
+    "ShipHitPair": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "current": {
+          "$ref": "#/$defs/ShipHits",
+          "x-rpc-policy": "owned-ship-inspection"
+        },
+        "maximum": {
+          "$ref": "#/$defs/ShipHits",
+          "x-rpc-policy": "owned-ship-inspection"
+        }
+      },
+      "required": [
+        "current",
+        "maximum"
+      ],
+      "x-rpc-policy": "owned-ship-inspection"
+    },
+    "ShipHits": {
+      "type": "integer",
+      "minimum": -65535,
+      "maximum": 65535,
+      "x-integerToken": true,
+      "x-unit": "hit-point",
+      "description": "Exact integer current/maximum structure or armor hits displayed in owned ship detail; preserves signed native exceptional values without clamping or predicting repair."
+    },
+    "ShipInspection": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "role": {
+          "$ref": "#/$defs/ShipRole",
+          "x-rpc-policy": "owned-ship-inspection"
+        },
+        "type": {
+          "$ref": "#/$defs/Text",
+          "x-rpc-policy": "owned-ship-inspection"
+        },
+        "status": {
+          "$ref": "#/$defs/ShipInspectionStatus",
+          "x-rpc-policy": "owned-ship-inspection"
+        },
+        "crew": {
+          "$ref": "#/$defs/KnownText",
+          "x-rpc-policy": "owned-ship-inspection"
+        },
+        "experience": {
+          "$ref": "#/$defs/KnownShipExperience",
+          "x-rpc-policy": "owned-ship-inspection"
+        },
+        "condition": {
+          "$ref": "#/$defs/KnownShipCondition",
+          "x-rpc-policy": "owned-ship-inspection"
+        },
+        "capabilities": {
+          "$ref": "#/$defs/KnownShipCapabilities",
+          "x-rpc-policy": "owned-ship-inspection"
+        },
+        "configuration": {
+          "$ref": "#/$defs/KnownId",
+          "x-rpc-policy": "owned-ship-inspection"
+        },
+        "location": {
+          "$ref": "#/$defs/KnownId",
+          "x-rpc-policy": "owned-ship-inspection"
+        },
+        "cargo": {
+          "$ref": "#/$defs/Unavailable",
+          "x-rpc-policy": "owned-ship-inspection"
+        }
+      },
+      "required": [
+        "role",
+        "type",
+        "status",
+        "crew",
+        "experience",
+        "condition",
+        "capabilities",
+        "configuration",
+        "location",
+        "cargo"
+      ],
+      "x-rpc-policy": "owned-ship-inspection"
+    },
+    "ShipInspectionStatus": {
+      "type": "string",
+      "enum": [
+        "active"
+      ]
+    },
+    "ShipRating": {
+      "type": "integer",
+      "minimum": -32768,
+      "maximum": 32767,
+      "x-integerToken": true,
+      "x-unit": "native-displayed-rating",
+      "description": "Signed whole beam attack/defense rating displayed in owned ship detail, not a probability or combat forecast."
+    },
     "ShipResult": {
       "type": "object",
       "additionalProperties": false,
@@ -5014,6 +5671,31 @@
         "item"
       ],
       "x-rpc-policy": "contract"
+    },
+    "ShipRole": {
+      "type": "string",
+      "enum": [
+        "combat",
+        "colony",
+        "transport",
+        "outpost"
+      ]
+    },
+    "ShipShieldStrength": {
+      "type": "integer",
+      "minimum": -2147483648,
+      "maximum": 2147483647,
+      "x-integerToken": true,
+      "x-unit": "hit-point",
+      "description": "Exact integer current/maximum structure or armor hits displayed in owned ship detail; preserves signed native exceptional values without clamping or predicting repair."
+    },
+    "ShipWarpSpeed": {
+      "type": "integer",
+      "minimum": -32768,
+      "maximum": 32767,
+      "x-integerToken": true,
+      "x-unit": "warp-speed",
+      "description": "Whole native displayed drive speed, including the owner's native trans-dimensional bonus where displayed; suppressed drive presentations retain their native displayed zero, not a calculated ETA."
     },
     "Ships": {
       "type": "array",
@@ -5304,6 +5986,8 @@
         "systems",
         "nebulas",
         "ships",
+        "fleets",
+        "designs",
         "players",
         "colonies",
         "planets",
@@ -5320,7 +6004,7 @@
       "items": {
         "$ref": "#/$defs/StateTopic"
       },
-      "maxItems": 13,
+      "maxItems": 15,
       "uniqueItems": true
     },
     "StreamGap": {
@@ -5406,7 +6090,7 @@
       "items": {
         "$ref": "#/$defs/StateTopic"
       },
-      "maxItems": 13,
+      "maxItems": 15,
       "minItems": 1,
       "uniqueItems": true
     },
@@ -8930,7 +9614,7 @@
       "role": "reader",
       "availability": "committed-game",
       "kind": "query",
-      "implemented": false,
+      "implemented": true,
       "requestType": "GetRequest",
       "resultType": "DesignResult",
       "request": {
@@ -8962,7 +9646,7 @@
       "role": "reader",
       "availability": "committed-game",
       "kind": "query",
-      "implemented": false,
+      "implemented": true,
       "requestType": "GetRequest",
       "resultType": "FleetResult",
       "request": {
@@ -9218,7 +9902,7 @@
       "role": "reader",
       "availability": "committed-game",
       "kind": "query",
-      "implemented": false,
+      "implemented": true,
       "requestType": "ListRequest",
       "resultType": "DesignsResult",
       "request": {
@@ -9234,7 +9918,7 @@
       "role": "reader",
       "availability": "committed-game",
       "kind": "query",
-      "implemented": false,
+      "implemented": true,
       "requestType": "ListRequest",
       "resultType": "FleetsResult",
       "request": {
@@ -10453,8 +11137,16 @@
     },
     "ships-refreshed": {
       "status": "reviewed",
-      "predicate": "Capture surviving associations only synchronously post-Build_Ship_Icons for the bound active human viewer, outside world mutation/resolution. Follow fresh icon heads that are surviving stack heads and their linked nodes; never enumerate unlinked allocations or rebuild for a query. Copy map x/y and own-versus-foreign classification; names and known-player owner references require their additional field policies. Sort the authorized projection before assigning opaque read-only observation handles; no native slots or durable ship identity are published. One coherent map/ship capture, explicitly dated last-native-ship-refresh. A fresh last-native-fleet-box capture may reuse still-valid surviving associations under the reviewed ship-map-eta authority, without later node traversal or enriching any older retained capture. Handle sets are replaced when the projected ship collection changes; no action may use them.",
+      "predicate": "Two independently authorized capture paths for the bound active human outside mutation/resolution/staged colony edits or temporary-player overrides. Ambient owned inspection enumerates only own active status 0..2 records, as the Fleets presentation with both type filters enabled, without invoking its mutable builders. Other ships still require synchronous surviving associations post-Build_Ship_Icons: fresh displayed icon/stack heads and reachable members, never unlinked allocations or later node traversal. An ambient owned capture does not retain or enlarge foreign observations. Copy only authorized position/classification, with separate name/owner/detail/route policies. Fresh contextual fleet-box captures reuse validated surviving associations under ship-map-eta. All selected topics belong to one immutable capture; never enrich older snapshots. Publicly sort before opaque observation handles; no slots, rebuilt stack IDs, durable identity or action capability. Changed public collections replace handle sets; retirement, replacement and storage/authority loss revoke dependent pages and output.",
       "sources": [
+        [
+          "src/game/flt1.cpp",
+          "Fleet_Screen"
+        ],
+        [
+          "src/game/flt2.cpp",
+          "Build_Fltscrn_Big_Icon_Fields"
+        ],
         [
           "src/game/ships.cpp",
           "Build_Ship_Icons"
@@ -10483,16 +11175,21 @@
       "tests": [
         "T-01",
         "T-02",
-        "T-05"
+        "T-05",
+        "T-07"
       ]
     },
     "ship-own-name": {
       "status": "reviewed",
-      "predicate": "Ship.name retains its canonical in-game ship-name semantics, never a substituted hull-class/UI label; no displayName field is introduced. Current implementation: only the bound viewer's own ship, a bounded NUL-terminated copy of d.name decoded from CP850 to UTF-8 at the same authorized post-refresh capture. Foreign name bytes are never read; native disclosure of a hull label does not authorize their canonical name, which remains explicitly unaudited rather than a scan-knowledge claim.",
+      "predicate": "Ship.name is the canonical in-game name, never a hull/type label or a new displayName. Only an independently included active owned ship: bounded NUL-terminated d.name decoded from CP850 in the same ambient/refresh/context capture. Foreign name bytes are never read; a disclosed hull label does not authorize a canonical foreign name. Queue/refit labels have their independent Design projection, not phantom map-positioned Ship records.",
       "sources": [
         [
           "src/game/fleetpop.cpp",
           "Get_Fleetpop_Scanned_Ship_Info"
+        ],
+        [
+          "src/game/flt2.cpp",
+          "Print_Scanned_Ship_Data"
         ]
       ],
       "tests": [
@@ -10503,7 +11200,7 @@
     },
     "ship-owner-known": {
       "status": "reviewed",
-      "predicate": "Only a surviving freshly displayed ship. Resolve own ownership or a known empire's banner-color identity to an opaque player handle in the same coherent capture's authorized roster. Foreign mapping requires a unique color in that public roster; ambiguous colors, unlisted owners and special/NPC owners remain explicitly unaudited. Never use an old handle table or newer roster to authorize the link. Discard private owner bindings before retaining snapshots; compare only the resolved public ID. Ownership does not authorize enemy names/designs, routes, ETA, orders, cargo or economy.",
+      "predicate": "Only an independently included own active ship or surviving refresh observation. Own ownership resolves to the bound player's same-capture roster handle. Foreign banner-color mapping requires a unique color in that authorized roster; ambiguous, unlisted and NPC owners remain unaudited. No old handle table/newer roster linking. Discard private owner bindings before retention; compare only public IDs. Ownership grants no foreign names/designs/routes/ETA/cargo/orders/economy.",
       "sources": [
         [
           "src/game/ships.cpp",
@@ -10516,6 +11213,10 @@
         [
           "src/game/racescrn.cpp",
           "Draw_Race_Photos"
+        ],
+        [
+          "src/game/flt1.cpp",
+          "Fleet_Screen"
         ]
       ],
       "tests": [
@@ -10526,7 +11227,7 @@
     },
     "ship-map-route": {
       "status": "reviewed",
-      "predicate": "Ambient subset at fresh surviving-icon capture: own route, or non-own moving head with enemy_moves presentation or the existing Enemy_Ship_Heading_Toward_Our_Colony predicate. Preserve the native outpost predicate's ignored player argument and non-own, not necessarily hostile, semantics. Validated ambient stack members share only the displayed head's location/owner/position route. Additional contextual subset: only a surviving non-own head with canonical movement encoding (status-2 upper-offset departure, including ordinary departure, or status-1 ordinary moving-offset transit) whose actual selected/open-box destination line was drawn during current initialized main-owner presentation, in the same native frame before its actual non-preview cached fleet-box ETA producer. Reject mixed status/location encodings. Ordinary map-icon ETA printing follows the line observation but is not the fleet-box producer or an independent context grant. An open box or copied destination alone never authorizes it. Validate exact surviving head and complete current membership under ship-map-eta; grant only this head's route and ETA under one revocable capture lease. Resolve only real same-capture systems to opaque handles and discard private bindings. Line presentation grants map-position knowledge, not an unvisited system name; producer star -1 is withheld name knowledge, not known-empty. Revoke contextual destination and ETA together through pages, subscriptions, bridge work/publications, delivery receipts and service output; preserve independent ambient reads. Stationary own location is known-empty; remaining selection data is context-required and special destinations get no fabricated handles. Detection, contact, ownership and omniscience alone never authorize routes. No query invokes UI builders, renderers or movement calculators.",
+      "predicate": "Owned active groups use the unconditional own-route branch of Do_Ship_Destination_Lines in coherent ambient inspection or refresh captures. Other ambient routes still require surviving refresh associations and a non-own moving head with enemy_moves or Enemy_Ship_Heading_Toward_Our_Colony; preserve its non-own (not hostile) meaning and the outpost predicate's ignored player argument. Members share only validated grouping location/owner/position. Contextual non-own destination requires an actual selected/open-box route line in the same initialized main-owner frame before its actual non-preview fleet-box cached producer. Require status-2 upper-offset departure or status-1 lower-offset transit; reject mixed encodings. Open box, selection, copied destination and map-icon ETA alone are not grants. Validate exact head and complete membership under ship-map-eta. Resolve only real same-capture systems, not unvisited names or special/Antares destinations. Producer star -1 withholds the name, not drawn position and not known-empty. Stationary own routes are known-empty. Revoke contextual route and ETA together through pages, subscriptions, bridge and every output fragment; preserve independent ambient data. Detection, contact and omniscience alone never authorize routes. No query invokes builders, renderers or movement calculation.",
       "sources": [
         [
           "src/game/ships.cpp",
@@ -10575,7 +11276,7 @@
     },
     "ship-map-eta": {
       "status": "reviewed",
-      "predicate": "Preserve cached uint8 turns_left including zero/255; never calculate ETA. Ambient ordinary-route ETA belongs only to its surviving displayed head. Fleet-box subset: actual non-preview cached producer for a surviving own/non-own upper-offset head with independently current ambient destination, or the canonical departing/ordinary-transit contextual head audited in ship-map-route. Require initialized active main owner/presentation, exact complete current open-box membership and no stale selected references; empty selection is valid. Foreign ambient enemy_moves or native incoming-colony/outpost gates are rechecked at production; they are not relaxed for ordinary contextual disclosure. Contextual destination instead requires actual same-frame line presentation followed by the fleet-box producer, not arbitrary cached or map-icon ETA. Capture associations only at refresh; validate box members' private owner/location/status/generation and public position, reject retirement/slot/node reuse without later node traversal. Never read foreign canonical names or use private checks for public identity/sorting. Copy borrowed values into a fresh immutable coherent six-topic capture including session, stamped last-native-fleet-box; never enrich retained captures. Resolve only real same-capture destinations; producer star -1 withholds its name, not map knowledge and not known-empty. Revoke both contextual fields through retained pages, subscriptions, bridge work/publications, delivery receipts and every service-output fragment on authority loss, owner/box replacement, child interruption, rebuild, world/perspective changes and resolution. Started revoked messages close rather than finish; preserve independently authorized ambient offscreen reads. Equal fresh presentation after rebuild retains public IDs/revisions but never revives expired pages. Other upper-offset/non-head ETA remains context-required, stationary own ships known-empty, special destinations get no fabricated handles. Grants no extra names, unaudited routes, orders, cargo, designs or hostility classification.",
+      "predicate": "Preserve cached uint8 turns_left, including zero/255, only with a current same-capture destination; never calculate ETA. Ambient lower-encoding ETA belongs to the native ordered group head: shared Member_Order for owned inspection, surviving displayed head for other refresh observations. Members do not inherit it. Upper-encoding ETA remains contextual: actual non-preview fleet-box producer for a surviving own/non-own head with independent ambient destination, or the contextual departing/transit head authorized by ship-map-route. Require initialized active main owner/presentation, exact complete current open-box membership and no stale selected references; empty selection is valid. Recheck foreign enemy_moves/incoming-colony/outpost gates; a newly enabled gate cannot promote an old association. Contextual destination needs actual same-frame route drawing, not map-icon ETA. Associations are captured only at refresh; private generation/owner/location/status/position checks reject retirement and slot/node reuse without later node traversal or foreign-name fingerprints. Publish a fresh immutable capture of all selected topics including session, never enrich older captures. Revoke route/ETA together on owner/box exit or replacement, interruption, rebuild, storage/identity/world/perspective loss and resolution, through retained/pinned captures, pending baselines, bridge and every output fragment. Started revoked output closes; independently authorized ambient reads remain. Equal re-presentation may retain public handles/revision but never revive expired pages. Other moving non-head/upper ETA is context-required, stationary own ETA known-empty, special destinations get no fabricated handles. No extra foreign names/designs/cargo/orders or hostility inference.",
       "sources": [
         [
           "src/game/ships.cpp",
@@ -10628,6 +11329,10 @@
         [
           "src/game/shipmove.cpp",
           "Move_All_Ships_Toward_Stars"
+        ],
+        [
+          "src/game/ship_read.cpp",
+          "Member_Order"
         ]
       ],
       "tests": [
@@ -10652,18 +11357,129 @@
         "T-02"
       ]
     },
-    "disabled-fleet": {
-      "status": "disabled",
-      "predicate": "Group only already authorized ships; stable IDs must not be rebuilt stack indices. Destination/ETA separately filtered.",
+    "owned-fleet-inspection": {
+      "status": "reviewed",
+      "predicate": "Only bound-player active ships (native status 0..2). Shared Same_Fleet uses native owner/location/x/y grouping; Member_Order preserves native type/size/picture ordering. Lists are unfiltered owned collections independent of current selection and combat/support toggles. Members resolve only through the same capture. Group IDs are read-observation handles, never rebuilt stack IDs or durable fleet identities. Location, destination and unsigned cached head ETA retain the independent ship route policies; members do not inherit head ETA. No mutable list builder or movement calculator runs. Retire, replacement, authority/storage loss revoke dependent handles, pages and leased output, preserving independent ambient topics.",
       "sources": [
         [
           "src/game/shipstak.cpp",
           "Find_Ship_Stacks"
+        ],
+        [
+          "src/game/shipstak.cpp",
+          "Build_Ship_Type_Array"
+        ],
+        [
+          "src/game/flt2.cpp",
+          "Ok_To_Add_Ship"
+        ],
+        [
+          "src/game/ship_read.cpp",
+          "Same_Fleet"
         ]
       ],
       "tests": [
         "T-01",
-        "T-02"
+        "T-02",
+        "T-03",
+        "T-05",
+        "T-07"
+      ]
+    },
+    "owned-ship-inspection": {
+      "status": "reviewed",
+      "predicate": "Only bound-player active ships independently included by owned Fleets inspection. Shared Condition, Subsystem_Maxima, damaged-drive speed and Shield_Strength preserve native integer conversions/rounding, signed exceptional structure values and the separately wider displayed shield maximum. Subsystem ratios and maximum shield strength are withheld where noncombat/strategic layouts suppress them; native displayed zero speed and strategic 0/0 armor remain displayed zero, not an ETA or inferred equipment absence. Undefined shield-zero-maximum input is unavailable, not fabricated zero. Bonuses use audited pure design/crew/officer/owner-trait producers, not combat predictions. Combat EP is displayed crew experience; noncombat EP is unknown. Captured/special structure retains previous-owner semantics without granting foreign player records. Cargo is unknown. Same-capture location/configuration links only. Canonical names remain separate from type labels. Queue/refit inspection is a Design disclosure, not a Ship dossier. Ambient reads require no navigation; contextual routes remain narrower.",
+      "sources": [
+        [
+          "src/game/flt1.cpp",
+          "Fleet_Screen"
+        ],
+        [
+          "src/game/flt2.cpp",
+          "Print_Scanned_Ship_Data"
+        ],
+        [
+          "src/game/cmbtdrw1.cpp",
+          "Detailed_View_Ship"
+        ],
+        [
+          "src/game/cmbtdrw1.cpp",
+          "Combat_Draw_View_Ship"
+        ],
+        [
+          "src/game/combinit.cpp",
+          "Load_Display_Combat_Ship"
+        ],
+        [
+          "src/game/cmbtfir2.cpp",
+          "Init_Internal_Space"
+        ],
+        [
+          "src/game/initship.cpp",
+          "Get_Ship_Combat_Bonuses"
+        ],
+        [
+          "src/game/ship_read.cpp",
+          "Condition"
+        ]
+      ],
+      "tests": [
+        "T-01",
+        "T-02",
+        "T-03",
+        "T-05",
+        "T-07",
+        "T-14"
+      ]
+    },
+    "owned-design-inspection": {
+      "status": "reviewed",
+      "predicate": "Committed owned slots and independently authorized own active configurations, plus committed owned-full-colony queued/refit configurations from Draw_Ship_Info. Sources slot/ship/queued/refit are distinct: never infer a slot match from a name, hull or equipment equality. No pending refit, staged MOX::design, generated candidate or uncommitted queued record. Current automatic strategic ship equipment uses pure Copy_Current_Ship_Configuration shared with the native updater, without invoking that updater or generating a candidate. Build_Weapon_String supplies native production/refit labels; Weapon_Mod_String and cached Weapon_Arc_String supply committed-slot/active configuration details in their native 128-byte buffers. Queued/refit hull labels, arc, postfix modifiers, current counts and damage are unknown where their presentation does not disclose them. Their constructionColony resolves only through the same authorized colony capture; no Ship record is manufactured. Type-zero slots are omitted, nonzero zero-count slots retained. Active noncombat weapon suppression follows Load_Display_Combat_Ship; active specials honor the native regeneration presentation switch. Cost is stored production points, including refit-specific stored cost, never BC or a recalculated price. Names/components come from initialized native resources; arc labels initialize/reload with native strings, not during capture. No Calculate_Design, mutable initializer, foreign scan/options/action or durable identity.",
+      "sources": [
+        [
+          "src/game/colbldg.cpp",
+          "Draw_Ship_Design_Info2"
+        ],
+        [
+          "src/game/colbldg.cpp",
+          "Draw_Ship_Info"
+        ],
+        [
+          "src/game/colbldg.cpp",
+          "Build_Weapon_String"
+        ],
+        [
+          "src/game/colrefit.cpp",
+          "Scan_Ship_Info"
+        ],
+        [
+          "src/game/design_main.cpp",
+          "Print_Current_Design"
+        ],
+        [
+          "src/game/design.cpp",
+          "Weapon_Mod_String"
+        ],
+        [
+          "src/game/design.cpp",
+          "Update_Player_Design"
+        ],
+        [
+          "src/game/initship.cpp",
+          "Copy_Current_Ship_Configuration"
+        ],
+        [
+          "src/game/ship_read.cpp",
+          "Load_Strings"
+        ]
+      ],
+      "tests": [
+        "T-01",
+        "T-02",
+        "T-03",
+        "T-05",
+        "T-07",
+        "T-14"
       ]
     },
     "disabled-design": {
@@ -11455,7 +12271,7 @@
     "orderedEventsPerSubscription": 4096,
     "overflow": "Reject before admission; coalesce only complete unsent state. Ordered-event overflow signals a gap or disconnect. Never rewrite partial output or silently discard operation results."
   },
-  "x-rpc-sourceHash": "cb7e451e618fd8ba927604356aa2d896cfa6e568b5ca1821b7cb5a5eba083ac9",
+  "x-rpc-sourceHash": "b3ab39191bf4af3176e1ed3a04ab3ad906524e01a7704208ea20023b8d386c0f",
   "x-rpc-runtimeEnabled": false,
   "x-rpc-implementedMethods": [
     "rpc.hello",
@@ -11469,6 +12285,10 @@
     "game.listNebulas",
     "game.listShips",
     "game.getShip",
+    "game.listFleets",
+    "game.getFleet",
+    "game.listDesigns",
+    "game.getDesign",
     "game.listPlayers",
     "game.getPlayer",
     "game.listColonies",

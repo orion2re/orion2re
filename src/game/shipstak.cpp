@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "ship_read.h"
 #include <cstring>
 
 namespace SHIPSTAK {
@@ -68,10 +69,7 @@ namespace SHIPSTAK {
                 int16_t first_node_idx = MOX::ship_stack_start[j];
                 int16_t first_ship_idx = MOX::ship_node[first_node_idx].ship_idx;
 
-                if (MOX::ship[first_ship_idx].location == MOX::ship[i].location &&
-                    MOX::ship[first_ship_idx].x == MOX::ship[i].x &&
-                    MOX::ship[first_ship_idx].y == MOX::ship[i].y &&
-                    MOX::ship[first_ship_idx].owner == MOX::ship[i].owner) {
+                if (ship_read::Same_Fleet(&MOX::ship[first_ship_idx], &MOX::ship[i])) {
                     int16_t node_idx = first_node_idx;
                     int16_t last_node = node_idx;
 
@@ -269,7 +267,7 @@ namespace SHIPSTAK {
         Build_Ship_Type_Array(start_node, ship_entries, &ship_count);
 
         if (ship_count > 1) {
-            qsort(ship_entries, (size_t)ship_count, sizeof(ship_entries[0]) * 2, qsort_ships_by_type);
+            ship_read::Order_Member_Entries(ship_entries, ship_count);
 
             if (ship_count > 0) {
                 int16_t entry_idx = 0;
@@ -296,16 +294,10 @@ namespace SHIPSTAK {
 
                 switch (ship.d.ship_type) {
                     case SHIP_TYPE_COMBAT:
-                        stack_array[*count_ptr * 2 + 1] = (int16_t)ship.d.size * 50 + (int16_t)ship.d.picture_num;
-                        break;
                     case SHIP_TYPE_COLONY:
-                        stack_array[*count_ptr * 2 + 1] = -1;
-                        break;
                     case SHIP_TYPE_TRANSPORT:
-                        stack_array[*count_ptr * 2 + 1] = -2;
-                        break;
                     case SHIP_TYPE_OUTPOST:
-                        stack_array[*count_ptr * 2 + 1] = -3;
+                        stack_array[*count_ptr * 2 + 1] = ship_read::Member_Order(&ship.d);
                         break;
                     default:
                         // case 3 and values > 4 skip setting the second array element

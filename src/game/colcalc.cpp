@@ -2066,6 +2066,7 @@ namespace COLCALC {
         for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
             s_ship_data* ship = &MOX::ship[i];
             if (ship->owner == (int8_t)surrender_id) {
+                game_events::Publish_Ship_Identity_Changing(i);
                 ship->owner = (int8_t)receiver_id;
                 if (ship->officer_index != -1) {
                     OFFICER::Deassign_Officer(ship->officer_index);

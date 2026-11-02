@@ -1,7 +1,8 @@
 # Read sidecar ownership and consistency
 
 AI-assisted current architecture summary. Field-specific disclosure is defined in
-`field_policies.json` and the exploration/player/colony/ship documents. Enabled
+`field_policies.json` and the exploration/player/colony/ship documents, including
+[owned inspection](owned_fleet_view.md). Enabled
 methods come from `methods.json.implementedMethods`, not historical status prose.
 
 ## Event ownership

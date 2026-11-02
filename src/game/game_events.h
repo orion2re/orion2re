@@ -46,6 +46,8 @@ namespace game_events {
         MESSAGES_REPLACING,
         COLONY_OBSERVATION_POINT,
         COLONY_REPLACING,
+        SHIP_OBSERVATION_POINT,
+        DESIGNS_REPLACING,
     };
 
     struct s_fleet_box_node {
@@ -92,6 +94,8 @@ namespace game_events {
     int16_t Message_Recipient();
     void Publish_Colony_Replacing(int16_t owner);
     int16_t Replaced_Colony_Owner();
+    void Publish_Designs_Replacing(int16_t owner);
+    int16_t Replaced_Design_Owner();
     bool Colony_Edits_Active();
     void Set_Colony_Population_Staged(bool staged);
     bool Colony_Player_Context_Matches(int16_t viewer);

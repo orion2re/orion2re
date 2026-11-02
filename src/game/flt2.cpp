@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "ship_read.h"
 
 namespace FLT2 {
     s_colors normal_colors = {{111, 116, 114, 116, 116, 116, 116, 116}};
@@ -579,7 +580,7 @@ namespace FLT2 {
 
         char* crew_desc = FLT2::Crew_Description_String(ship_idx);
         const uint16_t exp = MOX::ship[ship_idx].crew_experience;
-        snprintf(buffer, sizeof(buffer), "%s (%u EP)", crew_desc, exp);
+        ship_read::Format_Fleet_Crew_Text(crew_desc, exp, buffer, sizeof(buffer));
 
         fonts::Get_String_Width(buffer);
         fonts::Print(0x12, y_cursor + 0x11F, buffer);
@@ -738,28 +739,7 @@ namespace FLT2 {
     }
 
     char* __cdecl Crew_Description_String(int16_t ship_idx) {
-        MOX::temp_string[0] = '\0';
-
-        switch (MOX::ship[ship_idx].crew_quality) {
-            case CREW_QUALITY_GREEN:
-                strlcpy(MOX::temp_string, HAROLD::H_Message(0x8A), sizeof(MOX::temp_string));
-                break;
-            case CREW_QUALITY_REGULAR:
-                strlcpy(MOX::temp_string, HAROLD::H_Message(0x8B), sizeof(MOX::temp_string));
-                break;
-            case CREW_QUALITY_VETERAN:
-                strlcpy(MOX::temp_string, HAROLD::H_Message(0x8C), sizeof(MOX::temp_string));
-                break;
-            case CREW_QUALITY_ELITE:
-                strlcpy(MOX::temp_string, HAROLD::H_Message(0x8D), sizeof(MOX::temp_string));
-                break;
-            case CREW_QUALITY_ULTRA_ELITE:
-                strlcpy(MOX::temp_string, HAROLD::H_Message(0x8E), sizeof(MOX::temp_string));
-                break;
-            default:
-                break;
-        }
-
+        ship_read::Crew_Text(MOX::ship[ship_idx].crew_quality, MOX::temp_string, sizeof(MOX::temp_string));
         return MOX::temp_string;
     }
 

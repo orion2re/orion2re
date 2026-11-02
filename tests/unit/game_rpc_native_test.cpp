@@ -13,6 +13,8 @@
 #include "../support/rpc_native_turn_review.h"
 #include "../support/rpc_native_colonies.h"
 #include "game/colony_read.h"
+#include "game/ship_read.h"
+#include "../support/rpc_native_ships.h"
 #include "lua/lua_game_ship_identity.h"
 #include "config/text_encoding.h"
 
@@ -22,6 +24,27 @@
 #include <vector>
 
 namespace {
+    struct s_saved_native_bytes {
+        struct s_entry {
+            void* target;
+            std::vector<uint8_t> bytes;
+        };
+        std::vector<s_entry> entries;
+        void Save(void* target, size_t size) {
+            s_entry entry{target, std::vector<uint8_t>(size)};
+            memcpy(entry.bytes.data(), target, size);
+            entries.push_back(std::move(entry));
+        }
+        ~s_saved_native_bytes() {
+            for (const auto& entry : entries) memcpy(entry.target, entry.bytes.data(), entry.bytes.size());
+        }
+        bool Unchanged() const {
+            for (const auto& entry : entries)
+                if (memcmp(entry.target, entry.bytes.data(), entry.bytes.size()) != 0) return false;
+            return true;
+        }
+    };
+
     struct s_review_globals {
         s_player* players = MOX::player;
         s_ship_data* ships = MOX::ship;
@@ -1497,6 +1520,248 @@ DOCTEST_TEST_CASE("only active own colony links authorize partially known planet
     rpc::Shutdown_Game_Store(&store);
 }
 
+DOCTEST_TEST_CASE("owned inspection matches native fleet detail condition equipment and crew without navigation") {
+    DOCTEST_CHECK_FALSE(ship_read::Copy_Weapon_Arc(WEAPON_FIRING_ARC_FORWARD, nullptr, 0));
+    DOCTEST_CHECK_FALSE(ship_read::Copy_Combat_Weapon_Arc(WEAPON_FIRING_ARC_FORWARD, nullptr, 0));
+    DOCTEST_CHECK_FALSE(ship_read::Crew_Text(CREW_QUALITY_GREEN, nullptr, 0));
+    DOCTEST_CHECK_FALSE(ship_read::Detail_Crew_Text(CREW_QUALITY_GREEN, nullptr, 0));
+    DOCTEST_CHECK_FALSE(ship_read::Format_Fleet_Crew_Text("Green", 0, nullptr, 0));
+    DOCTEST_CHECK_FALSE(ship_read::Copy_Weapon_Modifications(0, nullptr, 0));
+    s_ship_world storage;
+    s_review_globals globals;
+    s_saved_native_bytes resources;
+    resources.Save(TECHDATA::hull_data, sizeof(TECHDATA::hull_data));
+    resources.Save(TECHDATA::shields, sizeof(TECHDATA::shields));
+    resources.Save(TECHDATA::shield_hull_multiplier, sizeof(TECHDATA::shield_hull_multiplier));
+    resources.Save(TECHDATA::computers, sizeof(TECHDATA::computers));
+    resources.Save(TECHDATA::armor, sizeof(TECHDATA::armor));
+    resources.Save(TECHDATA::drives, sizeof(TECHDATA::drives));
+    resources.Save(TECHDATA::weapons, sizeof(TECHDATA::weapons));
+    resources.Save(TECHDATA::specials, sizeof(TECHDATA::specials));
+    resources.Save(TECHDATA::weapon_modifications, sizeof(TECHDATA::weapon_modifications));
+    resources.Save(MOX::crew_data, sizeof(MOX::crew_data));
+    resources.Save(MOX::h_string_ix, sizeof(MOX::h_string_ix));
+    resources.Save(ESTRINGS::strings, sizeof(ESTRINGS::strings));
+    resources.Save(&MOX::global_combat_data, sizeof(MOX::global_combat_data));
+    resources.Save(&MOX::design, sizeof(MOX::design));
+    resources.Save(&MOX::current_screen, sizeof(MOX::current_screen));
+    resources.Save(&MOX::game_type, sizeof(MOX::game_type));
+    test_native_ships::Seed();
+    rpc::s_map_observation native;
+    DOCTEST_REQUIRE(game_rpc::Read_Inspection_Observation(&native));
+    DOCTEST_REQUIRE(native.inspection_captured);
+    DOCTEST_CHECK(native.ships.size() == 7);
+    DOCTEST_CHECK(native.fleets.size() == 5);
+    DOCTEST_CHECK(native.designs.size() == 10);
+    const auto& ship = native.ships[0];
+    DOCTEST_CHECK(ship.name == "Aegis");
+    DOCTEST_CHECK(ship.inspection.structure == 93);
+    DOCTEST_CHECK(ship.inspection.armor == 67);
+    DOCTEST_CHECK(ship.inspection.drive == 15);
+    DOCTEST_CHECK(ship.inspection.shield == 20);
+    DOCTEST_CHECK(ship.inspection.computer == 8);
+    DOCTEST_CHECK(ship.inspection.combat_speed == 6);
+    char fleet_crew[120];
+    DOCTEST_CHECK(ship_read::Format_Fleet_Crew_Text(FLT2::Crew_Description_String(0), MOX::ship[0].crew_experience, fleet_crew, sizeof(fleet_crew)));
+    DOCTEST_CHECK(ship.inspection.crew == fleet_crew);
+    DOCTEST_CHECK(ship.inspection.experience == 234);
+    COMBINIT::Load_Display_Combat_Ship(0);
+    DOCTEST_CHECK(ship.inspection.structure == MOX::global_combat_data.structure_max - MOX::global_combat_data.structure_damage);
+    DOCTEST_CHECK(ship.inspection.armor == (int32_t)MOX::global_combat_data.armor_remaining);
+    DOCTEST_CHECK(ship.inspection.drive == (int32_t)MOX::global_combat_data.drive_current_hits);
+    DOCTEST_CHECK(ship.inspection.shield == (int32_t)MOX::global_combat_data.shield_current_hits);
+    DOCTEST_CHECK(ship.inspection.combat_speed == (int32_t)MOX::global_combat_data.current_speed);
+    DOCTEST_CHECK(ship.inspection.shield_strength == (int32_t)MOX::global_combat_data.shield_arc_max);
+    int16_t defense, evasion, attack;
+    INITSHIP::Get_Ship_Combat_Bonuses(0, &defense, &evasion, &attack);
+    DOCTEST_CHECK(ship.inspection.attack == attack);
+    DOCTEST_CHECK(ship.inspection.defense == defense);
+    DOCTEST_CHECK(ship.inspection.evasion == evasion);
+    char weapon[500];
+    COLBLDG::Build_Weapon_String(&MOX::ship[0].d.ship_weapon[0], weapon, sizeof(weapon), 1, 2);
+    DOCTEST_CHECK(native.designs[1].weapons[0].label == weapon);
+    DOCTEST_CHECK(native.designs[1].weapons[0].current == 1);
+    DOCTEST_CHECK(native.designs[1].systems[0].damaged);
+    DOCTEST_CHECK(native.designs[2].weapons[0].arc == "360");
+    DOCTEST_CHECK(native.designs[3].weapons.empty()); // Actual noncombat detail suppresses native weapon slots.
+    DOCTEST_CHECK_FALSE(native.ships[2].inspection.experience_available);
+    DOCTEST_CHECK(native.ships[2].inspection.crew == "Support0");
+    char native_crew[256];
+    strlcpy(native_crew, CMBTDRW1::Crew_Quality_String(MOX::ship[2].crew_quality), sizeof(native_crew));
+    ship_read::Strip_Crew_Parenthetical(native_crew);
+    DOCTEST_CHECK(native.ships[2].inspection.crew == native_crew);
+    DOCTEST_CHECK_FALSE(native.ships[2].inspection.drive_visible);
+    DOCTEST_CHECK_FALSE(native.designs[7].weapons[0].current_available);
+    DOCTEST_CHECK_FALSE(native.designs[7].hull_available);
+    DOCTEST_CHECK_FALSE(native.designs[7].weapons[0].arc_available);
+    DOCTEST_CHECK(native.designs[7].source == "refit");
+    DOCTEST_CHECK(native.designs[7].cost == 55);
+    DOCTEST_CHECK(native.ships[4].eta == 255);
+    DOCTEST_CHECK(native.ships[5].eta_available == rpc::SHIP_CONTEXT_REQUIRED);
+    for (const auto& observed : native.ships) {
+        COMBINIT::Load_Display_Combat_Ship((int16_t)observed.slot);
+        DOCTEST_CHECK(observed.inspection.structure == MOX::global_combat_data.structure_max - MOX::global_combat_data.structure_damage);
+        DOCTEST_CHECK(observed.inspection.armor == (int32_t)MOX::global_combat_data.armor_remaining);
+        DOCTEST_CHECK(observed.inspection.combat_speed == (int32_t)MOX::global_combat_data.current_speed);
+        DOCTEST_CHECK(observed.inspection.shield_strength == (int32_t)MOX::global_combat_data.shield_arc_max);
+    }
+    SHIPSTAK::Find_Ship_Stacks();
+    for (const auto& fleet : native.fleets) {
+        const int32_t first = fleet.slots[0];
+        bool matched = false;
+        for (int stack = 0; stack < MOX::ship_stack_count; ++stack) {
+            int node = MOX::ship_stack_start[stack];
+            if (MOX::ship_node[node].ship_idx != first) continue;
+            for (int32_t slot : fleet.slots) {
+                DOCTEST_REQUIRE(node >= 0);
+                DOCTEST_CHECK((int32_t)MOX::ship_node[node].ship_idx == slot);
+                node = MOX::ship_node[node].next_node;
+            }
+            DOCTEST_CHECK(node == -1);
+            matched = true;
+        }
+        DOCTEST_CHECK(matched);
+    }
+    s_current_design staged_design = {};
+    strlcpy(staged_design.name, "Not committed", sizeof(staged_design.name));
+    MOX::design = &staged_design;
+    MOX::current_screen = SCREEN_DESIGN;
+    s_saved_native_bytes state;
+    state.Save(&staged_design, sizeof(staged_design));
+    state.Save(&MOX::design, sizeof(MOX::design));
+    state.Save(&MOX::current_screen, sizeof(MOX::current_screen));
+    state.Save(MOX::ship, 10 * sizeof(s_ship_data));
+    state.Save(MOX::player, MAX_PLAYERS * sizeof(s_player));
+    state.Save(MOX::colony, MOX::NUM_COLONIES * sizeof(s_colony));
+    state.Save(MOX::ship_node, sizeof(MOX::ship_node));
+    state.Save(MOX::ship_stack_start, sizeof(MOX::ship_stack_start));
+    state.Save(MOX::ship_icon, sizeof(MOX::ship_icon));
+    state.Save(MSG_::msgs, sizeof(MSG_::msgs));
+    state.Save(MOX::temp_string, sizeof(MOX::temp_string));
+    state.Save(&MOX::global_combat_data, sizeof(MOX::global_combat_data));
+    const uint32_t seed = game_random::Get_Random_Seed();
+    rpc::s_bridge bridge;
+    rpc::s_game_store store;
+    DOCTEST_REQUIRE(rpc::Initialize_Game_Store(&store, &bridge));
+    DOCTEST_REQUIRE(rpc::Commit_Game_Reset(&store));
+    DOCTEST_REQUIRE(rpc::Capture_Map(&store, &native));
+    rpc::s_request request;
+    request.method = "game.getState";
+    request.id_json = "1";
+    request.params_json = "{\"include\":[\"ships\",\"fleets\",\"designs\",\"colonies\",\"leaders\",\"history\",\"messages\"]}";
+    const auto baseline = rpc::Game_Query(&store, &request);
+    DOCTEST_CHECK(baseline.find("Secret enemy") == std::string::npos);
+    for (int i = 0; i < 3; ++i) {
+        rpc::s_map_observation fresh;
+        DOCTEST_REQUIRE(game_rpc::Read_Inspection_Observation(&fresh));
+        DOCTEST_REQUIRE(rpc::Capture_Map(&store, &fresh));
+        DOCTEST_CHECK(rpc::Game_Query(&store, &request) == baseline);
+    }
+    DOCTEST_CHECK(state.Unchanged());
+    DOCTEST_CHECK(game_random::Get_Random_Seed() == seed);
+    memset(MOX::ship[8].d.name, 'X', sizeof(MOX::ship[8].d.name));
+    MOX::ship[8].d.size = -1;
+    rpc::s_map_observation hidden;
+    DOCTEST_REQUIRE(game_rpc::Read_Inspection_Observation(&hidden));
+    DOCTEST_REQUIRE(rpc::Capture_Map(&store, &hidden));
+    DOCTEST_CHECK(rpc::Game_Query(&store, &request) == baseline);
+    {
+        game_events::s_colony_queue_scope staging;
+        rpc::s_map_observation staged;
+        DOCTEST_CHECK_FALSE(game_rpc::Read_Inspection_Observation(&staged));
+        DOCTEST_CHECK(rpc::Game_Query(&store, &request) == baseline);
+    }
+    const auto original_h_strings = MOX::h_strings;
+    const int16_t crew_index = MOX::h_string_ix[0x8A + CREW_QUALITY_VETERAN];
+    MOX::h_string_ix[0x8A + CREW_QUALITY_VETERAN] = (int16_t)MOX::h_strings.size();
+    MOX::h_strings.insert(MOX::h_strings.end(), 300, 'X');
+    MOX::h_strings.push_back('\0');
+    rpc::s_map_observation clipped;
+    DOCTEST_REQUIRE(game_rpc::Read_Inspection_Observation(&clipped));
+    DOCTEST_CHECK(clipped.ships[0].inspection.crew.size() == 119);
+    DOCTEST_CHECK_FALSE(clipped.ships[0].inspection.experience_available);
+    DOCTEST_REQUIRE(rpc::Capture_Map(&store, &clipped));
+    const auto clipped_baseline = rpc::Game_Query(&store, &request);
+    ++MOX::ship[0].crew_experience;
+    rpc::s_map_observation clipped_hidden;
+    DOCTEST_REQUIRE(game_rpc::Read_Inspection_Observation(&clipped_hidden));
+    DOCTEST_REQUIRE(rpc::Capture_Map(&store, &clipped_hidden));
+    DOCTEST_CHECK(rpc::Game_Query(&store, &request) == clipped_baseline);
+    --MOX::ship[0].crew_experience;
+    MOX::h_strings = original_h_strings;
+    MOX::h_string_ix[0x8A + CREW_QUALITY_VETERAN] = crew_index;
+    DOCTEST_REQUIRE(game_rpc::Read_Inspection_Observation(&native));
+    DOCTEST_REQUIRE(rpc::Capture_Map(&store, &native));
+    const auto old_ship = store.snapshots.back().ship_ids[0];
+    request.method = "game.listFleets";
+    request.params_json = "{\"limit\":1}";
+    DOCTEST_CHECK(rpc::Game_Query(&store, &request).find("nextCursor") != std::string::npos);
+    const auto cursor = store.cursors.back().id;
+    struct s_retirement {
+        rpc::s_game_store* store;
+        bool observed = false;
+    } retirement{&store};
+    const auto token = game_events::Subscribe_Ship_Identity([](int16_t slot, void* context) {
+        auto* retirement = (s_retirement*)context;
+        retirement->observed = slot == 6 && MOX::ship[slot].status == 4;
+        rpc::Expire_Game_Inspection(retirement->store);
+    },
+        &retirement);
+    COLBLDG::Delete_Ship(6);
+    game_events::Unsubscribe(token);
+    DOCTEST_CHECK(retirement.observed);
+    rpc::s_map_observation replaced;
+    DOCTEST_REQUIRE(game_rpc::Read_Inspection_Observation(&replaced));
+    DOCTEST_REQUIRE(rpc::Capture_Map(&store, &replaced));
+    request.params_json = "{\"cursor\":\"" + cursor + "\"}";
+    DOCTEST_CHECK(rpc::Game_Query(&store, &request).find("-32004") != std::string::npos);
+    request.method = "game.getShip";
+    request.params_json = "{\"id\":\"" + old_ship + "\"}";
+    DOCTEST_CHECK(rpc::Game_Query(&store, &request).find("-32004") != std::string::npos);
+    MOX::ship[0].d.ship_weapon[0].count = 0;
+    MOX::ship[0].d.ship_weapon[0].current_count = 0;
+    MOX::ship[0].drive_damage_percent = 100;
+    MOX::ship[0].structural_damage = 110;
+    rpc::s_map_observation exceptional;
+    DOCTEST_REQUIRE(game_rpc::Read_Inspection_Observation(&exceptional));
+    DOCTEST_CHECK(exceptional.ships[0].inspection.structure == -10);
+    DOCTEST_CHECK(exceptional.ships[0].inspection.combat_speed == 0);
+    DOCTEST_CHECK(exceptional.designs[1].weapons[0].count == 0);
+    const uint16_t multiplier = TECHDATA::shield_hull_multiplier[2];
+    TECHDATA::shield_hull_multiplier[2] = 65535;
+    ship_read::s_condition precise;
+    ship_read::Condition(0, &precise);
+    DOCTEST_CHECK(precise.shield_strength_max == TECHDATA::Shield_Strength(2, 1));
+    DOCTEST_CHECK(precise.shield_strength_max == 131070);
+    TECHDATA::shield_hull_multiplier[2] = multiplier;
+    MOX::settings.strategic_combat_flag = 1;
+    s_saved_native_bytes strategic_state;
+    strategic_state.Save(MOX::ship, 10 * sizeof(s_ship_data));
+    rpc::s_map_observation strategic;
+    DOCTEST_REQUIRE(game_rpc::Read_Inspection_Observation(&strategic));
+    DOCTEST_CHECK(strategic_state.Unchanged());
+    DOCTEST_CHECK_FALSE(strategic.ships[0].inspection.subsystems);
+    DOCTEST_CHECK(strategic.ships[0].inspection.armor == 0);
+    DOCTEST_CHECK(strategic.ships[0].inspection.combat_speed == 0);
+    COMBINIT::Load_Display_Combat_Ship(0);
+    DOCTEST_CHECK(strategic.ships[0].inspection.structure == MOX::global_combat_data.structure_max - MOX::global_combat_data.structure_damage);
+    DOCTEST_CHECK(strategic.designs[1].drive == ship_read::Drive_Name(&MOX::ship[0].d));
+    MOX::NUM_SHIPS = 0;
+    for (int i = 0; i < 6; ++i) MOX::player[0].ship_designs[i].name[0] = '\0';
+    rpc::s_map_observation empty;
+    DOCTEST_REQUIRE(game_rpc::Read_Inspection_Observation(&empty));
+    DOCTEST_CHECK(empty.inspection_captured);
+    DOCTEST_CHECK(empty.ships.empty());
+    DOCTEST_CHECK(empty.fleets.empty());
+    DOCTEST_CHECK(empty.designs.empty());
+    MOX::ship = nullptr;
+    rpc::s_map_observation unavailable;
+    DOCTEST_CHECK_FALSE(game_rpc::Read_Inspection_Observation(&unavailable));
+    DOCTEST_CHECK_FALSE(unavailable.inspection_captured);
+    test_native_ships::Shutdown();
+    rpc::Shutdown_Game_Store(&store);
+}
+
 DOCTEST_TEST_CASE("native ship refresh publishes only surviving displayed links without changing rules or RNG") {
     s_ship_world fixture;
     s_ship_listener listener;
@@ -2308,7 +2573,7 @@ DOCTEST_TEST_CASE_TEMPLATE("contextual destination requires an actual current sa
     DOCTEST_CHECK_FALSE(fixture.store.context_active);
     uint64_t context = 99;
     const auto ambient = fixture.Query("game.listShips", "{}", &context);
-    DOCTEST_CHECK(context == 0);
+    DOCTEST_CHECK(context == rpc::Bridge_Context_Epoch(&fixture.bridge));
     DOCTEST_CHECK(ambient.find("\"destination\":{\"availability\":\"current\"") == std::string::npos);
     DOCTEST_CHECK(ambient.find("\"eta\":{\"availability\":\"current\"") == std::string::npos);
     DOCTEST_CHECK(retained.map.context_epoch != 0);
@@ -2332,7 +2597,7 @@ DOCTEST_TEST_CASE_TEMPLATE("contextual route revocation retains independently au
     DOCTEST_CHECK_FALSE(fixture.store.context_active);
     uint64_t context = 99;
     fixture.Query("game.listShips", "{}", &context);
-    DOCTEST_CHECK(context == 0);
+    DOCTEST_CHECK(context == rpc::Bridge_Context_Epoch(&fixture.bridge));
     const auto& ambient = fixture.store.snapshots.front().map;
     const auto own = std::find_if(ambient.ships.begin(), ambient.ships.end(), [](const rpc::s_ship_observation& ship) { return ship.owned; });
     DOCTEST_REQUIRE(own != ambient.ships.end());
@@ -2445,7 +2710,7 @@ DOCTEST_TEST_CASE_TEMPLATE("child parent draws cannot reauthorize and ordinary n
         FLEETPOP::Print_Fleet_Box_Info(); // The child's saved parent draw, before child Get_Input.
         uint64_t context = 99;
         fixture.Query("game.listShips", "{}", &context);
-        DOCTEST_CHECK(context == 0);
+        DOCTEST_CHECK(context == rpc::Bridge_Context_Epoch(&fixture.bridge));
     }
     DOCTEST_CHECK(fixture.store.snapshots.back().id == old_capture.id);
     fixture.Print();
@@ -2563,8 +2828,10 @@ DOCTEST_TEST_CASE_TEMPLATE("native stale selection node reuse and slot retiremen
     }
     DOCTEST_CHECK_FALSE(fixture.store.context_active);
     uint64_t context = 99;
-    fixture.Query("game.listShips", "{}", &context);
-    DOCTEST_CHECK(context == 0);
+    const auto ambient_result = fixture.Query("game.listShips", "{}", &context);
+    const bool expired = !fixture.store.snapshots.back().map.inspection_captured;
+    DOCTEST_CHECK(context == (expired ? 0 : rpc::Bridge_Context_Epoch(&fixture.bridge)));
+    if (expired) DOCTEST_CHECK(ambient_result.find("-32002") != std::string::npos);
 }
 
 DOCTEST_TEST_CASE_TEMPLATE("native rebuild and world boundaries revoke ETA without exposing hidden identity changes", Fleet, std::false_type, std::true_type, std::integral_constant<int, 2>, std::integral_constant<int, 3>, std::integral_constant<int, 4>) {
@@ -2664,12 +2931,12 @@ DOCTEST_TEST_CASE_TEMPLATE("actual non-own retirement revokes native ETA pages a
     DOCTEST_CHECK(publication.json == rpc::Error_Response(&request, rpc::RPC_OBJECT_UNAVAILABLE));
     rpc::Pump_Game_Queries(&fixture.store);
     DOCTEST_REQUIRE(rpc::Take_Publication(&fixture.bridge, &publication));
-    DOCTEST_CHECK(publication.context_epoch == 0);
+    DOCTEST_CHECK(publication.context_epoch == rpc::Bridge_Context_Epoch(&fixture.bridge));
     DOCTEST_CHECK(publication.json.find("\"eta\":{\"availability\":\"current\"") == std::string::npos);
     if (fixture.contextual) DOCTEST_CHECK(publication.json.find("\"destination\":{\"availability\":\"current\"") == std::string::npos);
     uint64_t ambient = 99;
     fixture.Query("game.listShips", "{}", &ambient);
-    DOCTEST_CHECK(ambient == 0);
+    DOCTEST_CHECK(ambient == rpc::Bridge_Context_Epoch(&fixture.bridge));
     DOCTEST_CHECK(rpc::Client_Is_Current(&fixture.bridge, 1, epoch));
 }
 

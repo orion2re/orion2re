@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "ship_read.h"
 
 namespace CMBTFIR2 {
     namespace {
@@ -613,20 +614,10 @@ namespace CMBTFIR2 {
             hull_class = COMBINIT::Combat_Satellite_Hull_Class(ship);
         }
 
-        if (ship->ftl_type <= 0) {
-            ship->drive_max_hits = 0;
-        } else {
-            ship->drive_max_hits = TECHDATA::hull_data[hull_class].drive_hp;
-        }
-
-        if (struct_::Test_Bit_Field(ship->special_device_flags, 27 /* SPEC_STRUCTURAL_ANALYZER */) &&
-            !struct_::Test_Bit_Field(ship->special_device_damage_flags, 27 /* SPEC_STRUCTURAL_ANALYZER */)) {
-            ship->drive_max_hits *= 3;
-        }
-
-        ship->computer_max_hits = ship->computer_type > COMPUTER_NO_COMPUTER
-            ? TECHDATA::hull_data[hull_class].computer_hp
-            : 0;
+        uint16_t drive_max, computer_max, shield_max;
+        ship_read::Subsystem_Maxima(hull_class, ship->ftl_type, ship->computer_type, ship->shield_type, ship->special_device_flags, ship->special_device_damage_flags, &drive_max, &computer_max, &shield_max);
+        ship->drive_max_hits = drive_max;
+        ship->computer_max_hits = computer_max;
 
         for (int i = 0; i < 8; ++i) {
             if (ship->weapons[i].weapon_id < 1) {
@@ -680,11 +671,7 @@ namespace CMBTFIR2 {
             }
         }
 
-        if (ship->shield_type <= 0) {
-            ship->shield_max_hits = 0;
-        } else {
-            ship->shield_max_hits = TECHDATA::hull_data[hull_class].shield_hp;
-        }
+        ship->shield_max_hits = shield_max;
 
         CMBTFIR2::Clear_Internal_Space(ship);
     }

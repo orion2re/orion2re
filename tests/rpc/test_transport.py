@@ -174,7 +174,170 @@ class TransportTests(unittest.TestCase):
         described = client.Read()
         self.assertEqual(described["id"], "d")
         self.assertEqual({item["name"] for item in described["result"]["methods"]},
-                         {"rpc.hello","rpc.describe","rpc.subscribe","rpc.unsubscribe","game.getSession","game.getState","game.listSystems","game.getSystem","game.listNebulas","game.listShips","game.getShip","game.listPlayers","game.getPlayer","game.listColonies","game.getColony","game.listPlanets","game.getPlanet","game.getResearch","game.listResearchOptions","game.getTechnology","game.listLeaders","game.getLeader","game.getRelations","game.getIntelligence","game.getHistory","game.listMessages","game.getMessage"})
+                         {"rpc.hello","rpc.describe","rpc.subscribe","rpc.unsubscribe","game.getSession","game.getState","game.listSystems","game.getSystem","game.listNebulas","game.listShips","game.getShip","game.listFleets","game.getFleet","game.listDesigns","game.getDesign","game.listPlayers","game.getPlayer","game.listColonies","game.getColony","game.listPlanets","game.getPlanet","game.getResearch","game.listResearchOptions","game.getTechnology","game.listLeaders","game.getLeader","game.getRelations","game.getIntelligence","game.getHistory","game.listMessages","game.getMessage"})
+
+    def Inspection(self):
+        self.Fixture("world")
+        self.Fixture("inspection-native")
+        client = self.Client()
+        self.assertIn("result", client.Hello())
+        return client
+
+    def test_native_owned_fleet_ship_design_dashboard(self):
+        client = self.Inspection()
+        enabled = {method["name"] for method in self.Query(client, "rpc.describe")["result"]["methods"]}
+        self.assertTrue({"game.listShips", "game.getShip", "game.listFleets", "game.getFleet", "game.listDesigns", "game.getDesign"} <= enabled)
+        self.assertFalse({"game.getMovementOptions", "game.getDesignOptions"} & enabled)
+        topics = ["session", "players", "systems", "planets", "colonies", "ships", "fleets", "designs", "research", "leaders", "relations", "intelligence", "history", "messages"]
+        subscription = self.Query(client, "rpc.subscribe", {"topics":topics, "events":["state.changed"]})["result"]
+        baseline = subscription["baseline"]
+        root = Path(__file__).resolve().parents[2] / "specs/rpc"
+        contract_audit.Validate_Value(baseline, "State", contract_audit.Load_Json(root / "contracts.json"), contract_audit.Load_Json(root / "field_policies.json"), public=True)
+        ships = {ship["name"]["value"]:ship for ship in baseline["ships"]}
+        self.assertEqual(len(ships), 7)
+        self.assertEqual(len(baseline["fleets"]), 5)
+        self.assertEqual(len(baseline["designs"]), 10)
+        self.assertEqual(len(baseline["colonies"]), 3)
+        self.assertNotIn("Secret enemy", json.dumps(baseline))
+        self.assertEqual(baseline["history"]["stamp"], baseline["stamp"])
+        self.assertEqual(baseline["research"]["stamp"], baseline["stamp"])
+        members = [member for fleet in baseline["fleets"] for member in fleet["members"]]
+        self.assertEqual(len(members), 7)
+        self.assertEqual(len(set(members)), 7)
+        detail = ships["Aegis"]["inspection"]["value"]
+        condition = detail["condition"]["value"]
+        self.assertEqual((condition["structure"], condition["structureMax"], condition["armor"], condition["armorMax"]), (93, 100, 67, 80))
+        self.assertEqual(condition["drive"]["value"], {"current":15, "maximum":20})
+        self.assertEqual(condition["computer"]["value"], {"current":8, "maximum":10})
+        self.assertEqual(condition["shield"]["value"], {"current":20, "maximum":30})
+        self.assertEqual((condition["combatSpeed"], condition["warpSpeed"]), (6, 2))
+        self.assertEqual(detail["crew"]["value"], "Veteran (234 EP)")
+        self.assertEqual(detail["experience"]["value"], 234)
+        design = self.Query(client, "game.getDesign", {"id":detail["configuration"]["value"]})["result"]["item"]
+        equipment = design["equipment"]["value"]
+        self.assertEqual(equipment["weapons"][0], {"label":"Heavy Lasers", "arc":{"availability":"current", "value":"360"}, "modifications":{"availability":"current", "value":"Heavy"}, "count":2, "currentCount":{"availability":"current", "value":1}})
+        self.assertTrue(equipment["systems"][0]["damaged"]["value"])
+        self.assertEqual(detail["cargo"], {"availability":"unknown"})
+        for name, role in (("Settler", "colony"), ("Trooper", "transport"), ("Pioneer", "outpost")):
+            info = ships[name]["inspection"]["value"]
+            self.assertEqual(info["role"], role)
+            self.assertEqual(info["crew"]["value"], "Support0")
+            self.assertEqual(info["experience"], {"availability":"unknown"})
+            self.assertEqual(info["condition"]["value"]["drive"], {"availability":"unknown"})
+            configuration = self.Query(client, "game.getDesign", {"id":info["configuration"]["value"]})["result"]["item"]
+            self.assertEqual(configuration["equipment"]["value"]["weapons"], [])
+        self.assertEqual(ships["Pioneer"]["eta"], {"availability":"current", "value":255})
+        self.assertEqual(ships["Doom"]["eta"], {"availability":"context-required"})
+        for name, status in (("Refitting", "refit"), ("Building", "queued")):
+            info = next(item for item in baseline["designs"] if item["name"]["value"] == name)
+            self.assertEqual(info["source"], status)
+            self.assertNotIn(name, ships)
+            self.assertEqual(info["hull"], {"availability":"unknown"})
+            self.assertIn("result", self.Query(client, "game.getColony", {"id":info["constructionColony"]["value"]}))
+        for family in ("ships", "fleets", "designs"):
+            method = {"ships":"Ship", "fleets":"Fleet", "designs":"Design"}[family]
+            for item in baseline[family]:
+                result = self.Query(client, "game.get" + method, {"id":item["id"]})["result"]
+                self.assertEqual(result["stamp"], baseline["stamp"])
+                self.assertEqual(result["item"], item)
+        for ship in ships.values():
+            location = ship["inspection"]["value"]["location"]
+            if location["availability"] == "current":
+                self.assertIn("result", self.Query(client, "game.getSystem", {"id":location["value"]}))
+        pages = {family:self.Query(client, "game.list" + family.title(), {"limit":1})["result"] for family in ("ships", "fleets", "designs")}
+        for command in ("inspection-hidden", "inspection-noncombat-hidden", "inspection-staged", "inspection-restored"):
+            self.Fixture(command)
+            self.assertEqual(self.Query(client, "game.getState", {"include":topics})["result"], baseline)
+        self.Fixture("inspection-change")
+        event = client.Read()
+        self.assertEqual(event["method"], "state.changed")
+        current = self.Query(client, "game.getState", {"include":topics})["result"]
+        self.assertEqual(current["stamp"], event["params"]["stamp"])
+        self.assertEqual(current["stamp"]["turn"], baseline["stamp"]["turn"])
+        self.assertEqual(next(ship for ship in current["ships"] if ship["name"]["value"] == "Aegis")["inspection"]["value"]["condition"]["value"]["structure"], 90)
+        for family, page in pages.items():
+            pinned = self.Query(client, "game.list" + family.title(), {"cursor":page["nextCursor"]})["result"]
+            self.assertEqual(pinned["stamp"], baseline["stamp"])
+        self.Fixture("inspection-eta-zero")
+        self.assertEqual(client.Read()["method"], "state.changed")
+        zero = next(ship for ship in self.Query(client, "game.listShips")["result"]["items"] if ship["name"]["value"] == "Pioneer")
+        self.assertEqual(zero["eta"], {"availability":"current", "value":0})
+        self.Fixture("inspection-retire")
+        client.Read()
+        for family, page in pages.items():
+            self.assertEqual(self.Query(client, "game.list" + family.title(), {"cursor":page["nextCursor"]})["error"]["code"], -32004)
+        refit = next(item for item in baseline["designs"] if item["source"] == "refit")
+        self.assertEqual(self.Query(client, "game.getDesign", {"id":refit["id"]})["error"]["code"], -32004)
+        self.assertIn("result", self.Query(client, "game.listPlayers"))
+
+    def test_native_owned_inspection_replacement_revokes_started_output(self):
+        self.Inspection().close()
+        self.Fixture("inspection-large")
+        client = self.Client(receive_buffer=4096)
+        self.assertIn("result", client.Hello())
+        self.Fixture("inspection-output")
+        opcode, final, payload = client.Read_Frame()
+        self.assertEqual(opcode, 1)
+        self.assertFalse(final)
+        self.Fixture("inspection-loss")
+        completed = 0
+        for _ in range(4096):
+            try:
+                opcode, final, payload = client.Read_Frame()
+            except (EOFError, ConnectionError):
+                break
+            if opcode == 8:
+                break
+            completed += int(final and opcode in (0, 1))
+        else:
+            self.fail("expired owned-inspection output did not close")
+        self.assertLess(completed, 4)
+
+    def test_native_owned_inspection_turns_replacement_storage_and_perspective(self):
+        client = self.Inspection()
+        topics = ["session", "ships", "fleets", "designs", "colonies", "history", "messages"]
+        baseline = self.Query(client, "game.getState", {"include":topics})["result"]
+        page = self.Query(client, "game.listDesigns", {"limit":1})["result"]
+        self.Fixture("inspection-design")
+        self.assertEqual(self.Query(client, "game.listDesigns", {"cursor":page["nextCursor"]})["error"]["code"], -32004)
+        self.Fixture("inspection-loss")
+        lost = self.Query(client, "game.listShips")["result"]
+        self.assertNotIn("Aegis", [ship["name"]["value"] for ship in lost["items"]])
+        self.Fixture("inspection-reuse")
+        reused = self.Query(client, "game.listShips")["result"]
+        self.assertIn("Aegis", [ship["name"]["value"] for ship in reused["items"]])
+        for ship in baseline["ships"]:
+            self.assertEqual(self.Query(client, "game.getShip", {"id":ship["id"]})["error"]["code"], -32004)
+        self.Fixture("inspection-advance")
+        self.assertEqual(self.Query(client, "game.getState", {"include":topics})["error"]["code"], -32002)
+        self.Fixture("inspection-commit")
+        advanced = client.Read()
+        self.assertEqual(advanced["method"], "game.turnAdvanced")
+        committed = self.Query(client, "game.getState", {"include":topics})["result"]
+        self.assertEqual(committed["stamp"]["turn"], baseline["stamp"]["turn"] + 1)
+        self.Fixture("inspection-strategic")
+        strategic = self.Query(client, "game.listShips")["result"]
+        condition = strategic["items"][0]["inspection"]["value"]["condition"]["value"]
+        self.assertEqual(condition["armor"], 0)
+        self.assertEqual(condition["drive"], {"availability":"unknown"})
+        self.Fixture("inspection-empty")
+        empty = self.Query(client, "game.getState", {"include":["ships", "fleets", "designs"]})["result"]
+        self.assertEqual((empty["ships"], empty["fleets"], empty["designs"]), ([], [], []))
+        self.Fixture("inspection-unavailable")
+        self.assertIn("result", self.Query(client, "game.listPlayers"))
+        self.assertEqual(self.Query(client, "game.listFleets")["error"]["code"], -32002)
+        self.Fixture("inspection-storage")
+        self.assertEqual(self.Query(client, "game.listFleets")["result"]["items"], [])
+        self.Fixture("inspection-reset")
+        client.close()
+        client = self.Client()
+        self.assertIn("result", client.Hello())
+        self.assertEqual(self.Query(client, "game.listFleets")["result"]["items"], [])
+        self.Fixture("inspection-switch")
+        client.close()
+        client = self.Client()
+        self.assertIn("result", client.Hello())
+        self.assertNotEqual(self.Query(client, "game.getSession")["result"]["perspectiveId"], baseline["stamp"]["perspectiveId"])
 
     def Review(self):
         for command in ("world", "ships", "colonies", "research", "leaders", "relations-native", "review-native"):
@@ -816,7 +979,7 @@ class TransportTests(unittest.TestCase):
         client.Send({"jsonrpc":"2.0", "id":4, "method":"game.readMemory", "params":None})
         self.assertEqual(client.Read()["error"]["code"], -32001)
         self.assertIn("result", client.Hello())
-        client.Send({"jsonrpc":"2.0", "id":5, "method":"game.getFleet", "params":{"id":"unknown"}})
+        client.Send({"jsonrpc":"2.0", "id":5, "method":"game.getMovementOptions", "params":{"id":"unknown"}})
         self.assertEqual(client.Read()["error"]["code"], -32601)
 
     def test_fragmented_websocket_message_and_split_tcp_header(self):
@@ -1130,7 +1293,7 @@ class TransportTests(unittest.TestCase):
         self.Fixture("world")
         client = self.Client()
         client.Hello()
-        for params in ({"topics":["fleets"],"events":["state.changed"]},
+        for params in ({"topics":["combat"],"events":["state.changed"]},
                        {"topics":["systems"],"events":["ui.contextChanged"]},
                        {"topics":[],"events":["state.changed"]},
                        {"topics":["systems"],"events":[]}):

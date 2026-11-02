@@ -74,6 +74,22 @@ refusal/partial result), T-10 (delay/animation/timed box/film), T-16 (thread han
 
 ## Committed state / turn publication
 
+Owned fleet/ship/design inspection joins settled map, colony and Fleets points.
+Completed native name/design commits publish only after the full write; pending
+refits and designer state are not captured. Existing queue/population staging and
+temporary-player guards still gate every fresh capture. See
+[owned inspection](owned_fleet_view.md) for public semantics.
+
+Ship generation/retirement publications also revoke dependent owned inspection.
+Queued-ship retirement publishes before changing status; ownership transfer and
+committed design replacement publish before writes. Native string reload retires
+dependent design views before replacing inspection labels. Private generations validate
+retirement/reuse only, never public identity/equality. These boundaries use the
+existing bridge lease, including pending baselines and started output; independent
+ambient projections remain retained. Missing ship storage cannot safely run the
+normal native capture adapter: expire inspection and retain dated independent
+ambient topics until a complete coherent capture is possible.
+
 Owned-colony operations remain ambient, not a screen-context grant. Settled
 colony decision points join coherent publication; native edit and temporary
 player-override validity boundaries are specified in

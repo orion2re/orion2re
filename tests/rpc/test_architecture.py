@@ -76,7 +76,11 @@ class SidecarArchitectureTests(unittest.TestCase):
         callback = adapter[adapter.index("static void Observe_Fleet_Info("):
                            adapter.index("static void Observe_Ship_Identity(")]
         self.assertNotIn("MOX::ship_node", callback)
-        self.assertIn("Read_Map_Observation(&captured)", callback)
+        self.assertIn("Read_Inspection_Observation(&captured)", callback)
+        capture = adapter[adapter.index("bool Read_Inspection_Observation("):
+                          adapter.index("bool Capture_Leader_View(")]
+        self.assertIn("Read_Map_Observation(observation)", capture)
+        self.assertIn("ships_rpc::Read_Owned_Inspection(observation)", capture)
         self.assertIn("Ship_Generation(item.slot)", callback)
         self.assertNotRegex(adapter, r"MOX::(?:fleet_ship_scanned|fleet_box_ship_stack|eta_star_id|g_ship_move_info)")
 

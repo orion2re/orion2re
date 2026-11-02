@@ -14,6 +14,7 @@
 #include "rpc/officer_rpc.h"
 #include "rpc/relations_rpc.h"
 #include "rpc/turn_review_rpc.h"
+#include "rpc/ships_rpc.h"
 #include "lua/lua_game_ship_identity.h"
 
 #include <algorithm>
@@ -49,6 +50,11 @@ namespace game_rpc {
         observation->turn = MOX::stardate;
         return exploration_rpc::Read_Exploration(observation) && players_rpc::Read_Players(observation) &&
             colony_rpc::Read_Colonies(observation) && tech_rpc::Read_Research(observation) && officer_rpc::Read_Leaders(observation) && relations_rpc::Read_Relations(observation) && turn_review_rpc::Read_Turn_Review(observation);
+    }
+
+    bool Read_Inspection_Observation(rpc::s_map_observation* observation) {
+        if (MOX::ship == nullptr || MOX::NUM_SHIPS < 0 || MOX::NUM_SHIPS > MAX_SHIPS) return false;
+        return Read_Map_Observation(observation) && ships_rpc::Read_Owned_Inspection(observation);
     }
 
     bool Capture_Leader_View(rpc::s_game_store* target, const rpc::s_map_observation* ambient, const game_events::s_leader_view* view) {
@@ -145,12 +151,15 @@ namespace game_rpc {
         if (observation == nullptr) return false;
         *observation = {};
         rpc::s_map_observation captured;
-        if (!Read_Map_Observation(&captured) || MOX::NUM_SHIPS < 0 || MOX::NUM_SHIPS > MAX_SHIPS ||
+        if (!Read_Inspection_Observation(&captured) || MOX::NUM_SHIPS < 0 || MOX::NUM_SHIPS > MAX_SHIPS ||
             (MOX::NUM_SHIPS != 0 && MOX::ship == nullptr) || MOX::ship_stack_count < 0 || MOX::ship_stack_count > MAX_SHIPS ||
             MOX::ship_icon_count < 0 || MOX::ship_icon_count > SHIP_ICON_COUNT) return false;
         std::vector<bool> heads(MAX_SHIPS);
         std::vector<bool> nodes(MAX_SHIPS);
         std::vector<bool> ships(MAX_SHIPS);
+        auto owned = std::move(captured.ships);
+        captured.ships.clear();
+        captured.owned_ambient = false;
         for (int index = 0; index < MOX::ship_stack_count; ++index) {
             const int16_t head = MOX::ship_stack_start[index];
             if (head < 0 || head >= MAX_SHIPS || heads[head]) return false;
@@ -178,6 +187,10 @@ namespace game_rpc {
                 }
                 rpc::s_ship_observation item = route;
                 item.slot = slot;
+                if (ship->owner == captured.viewer) {
+                    const auto own = std::find_if(owned.begin(), owned.end(), [slot](const auto& entry) { return entry.slot == slot; });
+                    if (own != owned.end()) item.inspection = own->inspection;
+                }
                 // The map prints only the head ship's cached ETA, not every member's.
                 if (node != head && item.eta_available == rpc::SHIP_CURRENT) {
                     item.eta_available = rpc::SHIP_CONTEXT_REQUIRED;
@@ -210,6 +223,8 @@ namespace game_rpc {
                 node = link->next_node;
             }
         }
+        for (auto& item : owned)
+            if (!ships[item.slot]) captured.ships.push_back(std::move(item));
         // Native sorting uses fields outside this allowlist. Never expose that ordering.
         std::sort(captured.ships.begin(), captured.ships.end(), [](const rpc::s_ship_observation& left, const rpc::s_ship_observation& right) {
             return std::tie(left.x, left.y, left.owned, left.name) < std::tie(right.x, right.y, right.owned, right.name);
@@ -287,7 +302,7 @@ namespace game_rpc {
                     adapter->associations[associations[ref.node]].slot != ref.ship) return;
             }
             rpc::s_map_observation captured;
-            if (!Read_Map_Observation(&captured) || captured.viewer != adapter->store->viewer) return;
+            if (!Read_Inspection_Observation(&captured) || captured.viewer != adapter->store->viewer) return;
             for (const auto& item : adapter->associations) {
                 if (!item.valid) return;
                 if (item.ship.owned || members[item.node]) {
@@ -305,15 +320,20 @@ namespace game_rpc {
                     config::Decode_Cp850_To_Utf8(ship.d.name, (size_t)(end - ship.d.name), &name);
                     if (name != item.ship.name) return;
                 }
-                captured.ships.push_back(item.ship);
+                auto current = std::find_if(captured.ships.begin(), captured.ships.end(), [&item](const auto& ship) { return ship.slot == item.slot; });
+                if (current == captured.ships.end()) {
+                    captured.ships.push_back(item.ship);
+                    current = std::prev(captured.ships.end());
+                }
                 if (item.node == head->node) {
-                    captured.ships.back().destination_available = rpc::SHIP_CURRENT;
-                    captured.ships.back().destination_system = destination;
-                    captured.ships.back().eta_available = rpc::SHIP_CURRENT;
-                    captured.ships.back().eta = info->turns_left;
+                    current->destination_available = rpc::SHIP_CURRENT;
+                    current->destination_system = destination;
+                    current->eta_available = rpc::SHIP_CURRENT;
+                    current->eta = info->turns_left;
                 }
             }
             captured.ships_captured = true;
+            captured.owned_ambient = false;
             adapter->pending = std::move(captured);
             adapter->pending_head = head->head;
             adapter->pending_contextual_destination = contextual;
@@ -325,6 +345,8 @@ namespace game_rpc {
 
     static void Observe_Ship_Identity(int16_t slot, void* context) {
         auto* adapter = (s_fleet_eta_adapter*)context;
+        if (slot >= 0 && slot < MOX::NUM_SHIPS && MOX::ship != nullptr && MOX::ship[slot].owner == adapter->store->viewer &&
+            MOX::ship[slot].status != 5) rpc::Expire_Game_Inspection(adapter->store);
         for (auto& item : adapter->associations) {
             if (item.slot != slot) continue;
             item.valid = false;
@@ -394,6 +416,7 @@ namespace game_rpc {
                 case game_events::RESOLUTION_BEGIN:
                 case game_events::PERSPECTIVE_SELECTION_BEGIN:
                 case game_events::MENU_ENTERED:
+                    if (event == game_events::SHIP_IDENTITIES_RESETTING) rpc::Expire_Game_Inspection(adapter->store);
                     adapter->associations.clear();
                     Revoke_Fleet_Eta(adapter);
                     break;
@@ -454,12 +477,16 @@ namespace game_rpc {
 
     static void Capture_Main_Map() {
         if (!active || !store.loaded || store.busy_depth != 0 || game_events::Colony_Edits_Active() || !game_events::Colony_Player_Context_Matches(MOX::PLAYER_NUM)) return;
+        if (MOX::ship == nullptr || MOX::NUM_SHIPS < 0 || MOX::NUM_SHIPS > MAX_SHIPS) {
+            rpc::Expire_Game_Inspection(&store);
+            return;
+        }
         if (!store.snapshots.empty() && !rpc::Needs_Game_Capture(&store)) return;
         const uint64_t now = rpc::Monotonic_Ms();
         if (last_capture_ms != 0 && now - last_capture_ms < rpc::Protocol_Limits()->capture_interval_ms) return;
         last_capture_ms = now;
         rpc::s_map_observation observation;
-        if (!Read_Map_Observation(&observation) || !rpc::Capture_Map(&store, &observation)) {
+        if (!Read_Inspection_Observation(&observation) || !rpc::Capture_Map(&store, &observation)) {
             rpc::Begin_Game_Reset(&store);
         }
     }
@@ -497,7 +524,16 @@ namespace game_rpc {
         if (!active) return;
         switch (event) {
             case game_events::COLONY_REPLACING:
-                if (game_events::Replaced_Colony_Owner() == store.viewer) rpc::Expire_Game_Colonies(&store);
+                if (game_events::Replaced_Colony_Owner() == store.viewer) {
+                    rpc::Expire_Game_Colonies(&store);
+                    rpc::Expire_Game_Inspection(&store);
+                }
+                break;
+            case game_events::SHIP_IDENTITIES_RESETTING:
+                rpc::Expire_Game_Inspection(&store);
+                break;
+            case game_events::DESIGNS_REPLACING:
+                if (game_events::Replaced_Design_Owner() == store.viewer) rpc::Expire_Game_Inspection(&store);
                 break;
             case game_events::MESSAGES_REPLACING:
                 if (game_events::Message_Recipient() == store.viewer) rpc::Expire_Game_Messages(&store);
@@ -544,6 +580,7 @@ namespace game_rpc {
                 last_capture_ms = 0;
                 break;
             case game_events::COLONY_OBSERVATION_POINT:
+            case game_events::SHIP_OBSERVATION_POINT:
             case game_events::MAP_OBSERVATION_POINT: Capture_Main_Map(); break;
             case game_events::IDLE_OBSERVATION_POINT: Pump(); break;
             default: break;

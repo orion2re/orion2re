@@ -2,7 +2,7 @@
 
 Experimental optional runtime; AI-assisted documentation. The canonical enabled
 surface is `methods.json.implementedMethods`, discoverable with `rpc.describe`.
-Current reads cover session, exploration, players, own colonies, own research, leaders, relations, own intelligence, history, retained turn summaries and visible ships;
+Current reads cover session, exploration, players, own colonies, owned fleets/ships/committed designs, own research, leaders, relations, own intelligence, history, retained turn summaries and surviving visible-ship observations;
 all actions and unaudited fields remain unavailable. See
 [read-sidecar ownership](read_foundation.md) and the owner-specific field audits.
 
@@ -174,6 +174,45 @@ native-function fixtures and accompanying topics from the normal native capture
 adapter. They do not certify interactive saves, multiplayer, real mod/language
 assets or platform parity. Outposts, foreign intelligence and all colony-changing
 actions remain outside this bounded capability; Q-06 and all P1 are not complete.
+
+## Owned fleet and committed-design dashboard
+
+After `rpc.hello`, use `rpc.describe` to discover the enabled existing ship,
+fleet and design list/get methods. Establish one dashboard capture:
+
+```json
+{"jsonrpc":"2.0","id":3,"method":"rpc.subscribe","params":{"topics":["session","players","systems","planets","colonies","ships","fleets","designs","research","leaders","relations","intelligence","history","messages"],"events":["state.changed"]}}
+```
+
+Compare fleets by membership/location and ships by native condition, crew/EP,
+displayed ratings, equipment and damaged systems. Resolve fleet member IDs with
+`game.getShip`, then its configuration with `game.getDesign`. Inspect committed
+slots separately from active configurations and queued/refit designs; resolve
+their construction colonies only when a same-capture reference is current.
+Queued/refit labels do not grant map-positioned ship dossiers. See
+[owned inspection semantics](owned_fleet_view.md) for units, precision,
+suppression, noncombat/special/strategic variants and unavailable states.
+
+On `state.changed`, reread the same topic selection with `game.getState`. Use the
+existing pinned pagination on `game.listShips`, `game.listFleets` and
+`game.listDesigns` when complete output exceeds the limit; never combine pages
+with a different stamp. Handles are dated observations, not stack IDs, durable
+identities or action capabilities. Authority/storage loss expires dependent pages
+and queued output while preserving independent ambient topics.
+
+Ambient owned detail does not require opening Fleets, a ship popup or the
+designer. Existing contextual destination/ETA paths retain their owner and
+revocation requirements; automatic current equipment is not permission to
+generate hypothetical designs. All comparisons, priorities and recommendations
+remain client-local. Movement/design options and every gameplay action remain
+disabled. Q-07/Q-08/Q-10 and P1 are not complete.
+
+`tests/support/rpc_native_ships.cpp` feeds the native adapter, native-function
+assertions in `game_rpc_native_test.cpp`, and the owned-inspection live
+WebSocket workflows in `tests/rpc/test_transport.py`. Accompanying empire topics
+come from normal native capture, not older fixture DTOs. Evidence is synthetic;
+interactive saved-game/multiplayer, real mod/language assets and platform parity
+remain separate gates.
 
 ## Own research reads
 
@@ -440,7 +479,8 @@ behavioral evidence. Owner documents retain only unique current audit/architectu
 constraints, not per-increment narratives or repeated test counts:
 
 - [Exploration](exploration_view.md), [players](player_view.md),
-  [own colonies](colony_view.md), [ships](ship_refresh.md).
+  [own colonies](colony_view.md), [ship observations](ship_refresh.md),
+  [owned fleet/ship/design inspection](owned_fleet_view.md).
 - [Read ownership](read_foundation.md), [backend constraints](p1.md),
   [native lifecycle audit](lifecycle.md), [remaining gates](evidence.md).
 - [Client-side incoming-threat example](incoming_threats.md).
@@ -496,6 +536,17 @@ to the integration targets above. These are the actual CMake native-owner target
 
 Documentation-only changes need contract/schema/audit tests, local link checks
 and whitespace checks, not the game-build/transport gate above.
+
+For owned fleet/ship/design changes, also build and select `test_fleet_summary`,
+`test_refit_cost`, `test_design_weapon_damage`, `test_colony_replicators`,
+`test_colbldg`, `test_combat_stats`, `test_combat_repair`, `test_shield_table`,
+`test_initship`, `test_absorber_cleanup`, `test_boarding`,
+`test_stasis_area_effects`, `test_techinit`, `test_resource_reload` and
+`test_text_format` in both enabled trees. These are the affected native-owner
+targets discovered from CMake. Message/identity/staging/storage regressions also
+remain covered by the base native RPC/live and disabled gates.
+The expanded transport suite has a 300-second aggregate CTest budget; individual
+authentication, socket and fixture/request deadlines are unchanged.
 
 ## Static method descriptor source
 

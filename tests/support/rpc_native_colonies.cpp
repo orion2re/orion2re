@@ -22,9 +22,17 @@ namespace test_native_colonies {
         bool Read() {
             if (game_events::Colony_Edits_Active() || store->busy_depth != 0) return true;
             rpc::s_map_observation fresh;
-            if (!game_rpc::Read_Map_Observation(&fresh)) return false;
+            if (!(ships_captured ? game_rpc::Read_Inspection_Observation(&fresh) : game_rpc::Read_Map_Observation(&fresh))) return false;
             // No ship-derived DTOs from a previous fixture/world are carried forward.
             fresh.ships_captured = ships_captured;
+            if (!ships_captured) {
+                fresh.ships.clear();
+                fresh.inspection_captured = false;
+                fresh.owned_ambient = false;
+                fresh.fleets.clear();
+                fresh.designs.clear();
+                fresh.owned_authority.clear();
+            }
             *map = std::move(fresh);
             return rpc::Capture_Map(store, map);
         }
@@ -163,6 +171,10 @@ namespace test_native_colonies {
             test_native_turn_review::Add_Variants();
         }
     } // namespace
+
+    void Seed_World() {
+        Seed();
+    }
 
     void Initialize(rpc::s_game_store* target, rpc::s_map_observation* observation) {
         store = target;

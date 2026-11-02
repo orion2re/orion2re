@@ -26,22 +26,13 @@ namespace test_native_turn_review {
 
         bool Read() {
             rpc::s_map_observation fresh;
-            if (!game_rpc::Read_Map_Observation(&fresh)) return false;
-            // Simulate an explicit same-capture own-ship refresh; native ship
-            // filtering is exercised separately by the ship-owner fixtures.
-            if (map->ships_captured) {
-                fresh.ships_captured = true;
-                for (int16_t slot = 0; slot < MOX::NUM_SHIPS; ++slot) {
-                    const auto& ship = MOX::ship[slot];
-                    if (ship.owner != fresh.viewer) continue;
-                    rpc::s_ship_observation item;
-                    item.x = ship.x;
-                    item.y = ship.y;
-                    item.owned = true;
-                    item.name = ship.d.name;
-                    item.slot = slot;
-                    fresh.ships.push_back(std::move(item));
-                }
+            if (!(map->ships_captured ? game_rpc::Read_Inspection_Observation(&fresh) : game_rpc::Read_Map_Observation(&fresh))) return false;
+            if (!map->ships_captured) {
+                fresh.ships_captured = fresh.inspection_captured = fresh.owned_ambient = false;
+                fresh.ships.clear();
+                fresh.fleets.clear();
+                fresh.designs.clear();
+                fresh.owned_authority.clear();
             }
             *map = std::move(fresh);
             return rpc::Capture_Map(store, map);

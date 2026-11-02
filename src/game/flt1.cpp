@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game_events.h"
 
 namespace FLT1 {
 
@@ -597,6 +598,7 @@ namespace FLT1 {
             timer::Mark_Time();
             MOX::fix_palette = 0;
 
+            game_events::Publish(game_events::SHIP_OBSERVATION_POINT);
             int16_t input = fields::Get_Input();
             scan_val.words[0] = fields::Scan_Input();
 

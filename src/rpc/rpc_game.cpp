@@ -25,6 +25,8 @@ namespace rpc {
             TOPIC_INTELLIGENCE = 1 << 10,
             TOPIC_HISTORY = 1 << 11,
             TOPIC_MESSAGES = 1 << 12,
+            TOPIC_FLEETS = 1 << 13,
+            TOPIC_DESIGNS = 1 << 14,
         };
 
         struct s_topic_methods {
@@ -39,6 +41,8 @@ namespace rpc {
             {TOPIC_SYSTEMS, "systems", "game.listSystems", "game.getSystem"},
             {TOPIC_NEBULAS, "nebulas", "game.listNebulas", nullptr},
             {TOPIC_SHIPS, "ships", "game.listShips", "game.getShip"},
+            {TOPIC_FLEETS, "fleets", "game.listFleets", "game.getFleet"},
+            {TOPIC_DESIGNS, "designs", "game.listDesigns", "game.getDesign"},
             {TOPIC_PLAYERS, "players", "game.listPlayers", "game.getPlayer"},
             {TOPIC_COLONIES, "colonies", "game.listColonies", "game.getColony"},
             {TOPIC_PLANETS, "planets", "game.listPlanets", "game.getPlanet"},
@@ -132,9 +136,14 @@ namespace rpc {
                 const auto& a = left->ships[index];
                 const auto& b = right->ships[index];
                 if (std::tie(a.x, a.y, a.owned, a.name, a.owner_id, a.destination_available, a.destination_id, a.eta_available, a.eta) !=
-                    std::tie(b.x, b.y, b.owned, b.name, b.owner_id, b.destination_available, b.destination_id, b.eta_available, b.eta)) return false;
+                        std::tie(b.x, b.y, b.owned, b.name, b.owner_id, b.destination_available, b.destination_id, b.eta_available, b.eta) ||
+                    a.inspection != b.inspection) return false;
             }
             return true;
+        }
+
+        bool Same_Inspection(const s_map_observation* a, const s_map_observation* b) {
+            return a->inspection_captured == b->inspection_captured && a->designs == b->designs && a->fleets == b->fleets;
         }
 
         bool Same_Players(const s_map_observation* left, const s_map_observation* right) {
@@ -259,8 +268,9 @@ namespace rpc {
             for (auto snapshot = store->snapshots.rbegin(); snapshot != store->snapshots.rend(); ++snapshot) {
                 if (snapshot->map.leaders_only && (topics & ~(TOPIC_SESSION | TOPIC_LEADERS))) continue;
                 if (store->busy_depth != 0 && (!snapshot->map.leaders_only || !snapshot->map.leader_presentation)) continue;
-                if ((topics & (TOPIC_SHIPS | TOPIC_LEADERS | TOPIC_RELATIONS)) && !Authorized_Snapshot(store, &*snapshot)) continue;
+                if ((topics & (TOPIC_SHIPS | TOPIC_FLEETS | TOPIC_DESIGNS | TOPIC_LEADERS | TOPIC_RELATIONS)) && !Authorized_Snapshot(store, &*snapshot)) continue;
                 if ((!(topics & TOPIC_SHIPS) || snapshot->map.ships_captured) &&
+                    (!(topics & (TOPIC_FLEETS | TOPIC_DESIGNS)) || snapshot->map.inspection_captured) &&
                     (!(topics & TOPIC_PLAYERS) || snapshot->map.players_captured) &&
                     (!(topics & TOPIC_COLONIES) || snapshot->map.colonies_captured) &&
                     (!(topics & TOPIC_PLANETS) || snapshot->map.planets_captured) &&
@@ -289,13 +299,13 @@ namespace rpc {
 
         yyjson_mut_val* Stamp(s_json_builder* json, const s_game_store* store, const s_map_snapshot* snapshot) {
             return Json_Object(json, {
-                {"gameId", Json_String_Value(json, store->game_id)},
-                {"perspectiveId", Json_String_Value(json, store->perspective_id)},
-                {"snapshotId", Json_String_Value(json, snapshot->id)},
-                {"revision", Json_String_Value(json, std::to_string(snapshot->revision))},
-                {"turn", Json_Integer(json, snapshot->map.turn)},
-                {"captureMode", Json_String_Value(json, snapshot->map.relations_presentation ? "native-relations-presentation" : (snapshot->map.leader_presentation ? "native-leader-presentation" : (snapshot->map.context_epoch != 0 ? "last-native-fleet-box" : (snapshot->map.ships_captured ? "last-native-ship-refresh" : "last-coherent-capture"))))},
-            });
+                                         {"gameId", Json_String_Value(json, store->game_id)},
+                                         {"perspectiveId", Json_String_Value(json, store->perspective_id)},
+                                         {"snapshotId", Json_String_Value(json, snapshot->id)},
+                                         {"revision", Json_String_Value(json, std::to_string(snapshot->revision))},
+                                         {"turn", Json_Integer(json, snapshot->map.turn)},
+                                         {"captureMode", Json_String_Value(json, snapshot->map.relations_presentation ? "native-relations-presentation" : (snapshot->map.leader_presentation ? "native-leader-presentation" : (snapshot->map.context_epoch != 0 ? "last-native-fleet-box" : (snapshot->map.owned_ambient ? "owned-inspection" : (snapshot->map.ships_captured ? "last-native-ship-refresh" : "last-coherent-capture")))))},
+                                     });
         }
 
         yyjson_mut_val* Exploration_Knowledge(s_json_builder* json, e_exploration_knowledge available, yyjson_mut_val* value = nullptr) {
@@ -380,16 +390,103 @@ namespace rpc {
 
         yyjson_mut_val* Ship(s_json_builder* json, const s_map_snapshot* snapshot, size_t index) {
             const s_ship_observation& item = snapshot->map.ships[index];
+            const auto& detail = item.inspection;
+            auto Hits = [json](bool available, int32_t current, int32_t maximum) {
+                return Exploration_Knowledge(json, available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, Json_Object(json, {
+                                                                                                                                {"current", Json_Integer(json, current)},
+                                                                                                                                {"maximum", Json_Integer(json, maximum)},
+                                                                                                                            }));
+            };
+            auto* condition = Json_Object(json, {
+                                                    {"structure", Json_Integer(json, detail.structure)},
+                                                    {"structureMax", Json_Integer(json, detail.structure_max)},
+                                                    {"armor", Json_Integer(json, detail.armor)},
+                                                    {"armorMax", Json_Integer(json, detail.armor_max)},
+                                                    {"drive", Hits(detail.drive_visible, detail.drive, detail.drive_max)},
+                                                    {"computer", Hits(detail.subsystems, detail.computer, detail.computer_max)},
+                                                    {"shield", Hits(detail.shield_visible, detail.shield, detail.shield_max)},
+                                                    {"combatSpeed", Json_Integer(json, detail.combat_speed)},
+                                                    {"warpSpeed", Json_Integer(json, detail.warp_speed)},
+                                                    {"shieldStrength", Json_Integer(json, detail.shield_strength)},
+                                                    {"shieldStrengthMax", Exploration_Knowledge(json, detail.subsystems ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, Json_Integer(json, detail.shield_strength_max))},
+                                                });
+            auto* capabilities = Json_Object(json, {
+                                                       {"beamAttack", Json_Integer(json, detail.attack)},
+                                                       {"beamDefense", Json_Integer(json, detail.defense)},
+                                                       {"missileEvasion", Json_Integer(json, detail.evasion)},
+                                                   });
+            auto* inspection = Json_Object(json, {
+                                                     {"role", Json_String_Value(json, detail.role)},
+                                                     {"type", Json_String_Value(json, detail.type)},
+                                                     {"status", Json_String_Value(json, detail.status)},
+                                                     {"crew", Exploration_Knowledge(json, detail.crew_available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, Json_String_Value(json, detail.crew))},
+                                                     {"experience", Exploration_Knowledge(json, detail.experience_available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, Json_Integer(json, detail.experience))},
+                                                     {"condition", Exploration_Knowledge(json, detail.condition_available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, condition)},
+                                                     {"capabilities", Exploration_Knowledge(json, detail.capabilities_available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, capabilities)},
+                                                     {"configuration", Id_Knowledge(json, detail.design_id)},
+                                                     {"location", Id_Knowledge(json, detail.system_id)},
+                                                     {"cargo", Exploration_Knowledge(json, EXPLORATION_UNKNOWN, nullptr)},
+                                                 });
             return Json_Object(json, {
-                {"id", Json_String_Value(json, snapshot->ship_ids[index])},
-                {"x", Json_Integer(json, item.x)},
-                {"y", Json_Integer(json, item.y)},
-                {"owned", Json_Boolean(json, item.owned)},
-                {"name", Exploration_Knowledge(json, item.owned ? EXPLORATION_CURRENT : EXPLORATION_UNAUDITED, Json_String_Value(json, item.name))},
-                {"owner", Exploration_Knowledge(json, item.owner_id.empty() ? EXPLORATION_UNAUDITED : EXPLORATION_CURRENT, Json_String_Value(json, item.owner_id))},
-                {"destination", Ship_Knowledge(json, item.destination_available, Json_String_Value(json, item.destination_id))},
-                {"eta", Ship_Knowledge(json, item.eta_available, Json_Integer(json, item.eta))},
-            });
+                                         {"id", Json_String_Value(json, snapshot->ship_ids[index])},
+                                         {"x", Json_Integer(json, item.x)},
+                                         {"y", Json_Integer(json, item.y)},
+                                         {"owned", Json_Boolean(json, item.owned)},
+                                         {"name", Exploration_Knowledge(json, item.owned ? EXPLORATION_CURRENT : EXPLORATION_UNAUDITED, Json_String_Value(json, item.name))},
+                                         {"owner", Exploration_Knowledge(json, item.owner_id.empty() ? EXPLORATION_UNAUDITED : EXPLORATION_CURRENT, Json_String_Value(json, item.owner_id))},
+                                         {"destination", Ship_Knowledge(json, item.destination_available, Json_String_Value(json, item.destination_id))},
+                                         {"eta", Ship_Knowledge(json, item.eta_available, Json_Integer(json, item.eta))},
+                                         {"inspection", Exploration_Knowledge(json, detail.available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, inspection)},
+                                     });
+        }
+
+        yyjson_mut_val* Design(s_json_builder* json, const s_map_snapshot* snapshot, size_t index) {
+            const auto& item = snapshot->map.designs[index];
+            auto* weapons = Json_Array(json);
+            for (const auto& weapon : item.weapons) Json_Append(json, weapons, Json_Object(json, {
+                                                                                                     {"label", Json_String_Value(json, weapon.label)},
+                                                                                                     {"arc", Exploration_Knowledge(json, weapon.arc_available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, Json_String_Value(json, weapon.arc))},
+                                                                                                     {"modifications", Exploration_Knowledge(json, weapon.modifications_available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, Json_String_Value(json, weapon.modifications))},
+                                                                                                     {"count", Json_Integer(json, weapon.count)},
+                                                                                                     {"currentCount", Exploration_Knowledge(json, weapon.current_available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, Json_Integer(json, weapon.current))},
+                                                                                                 }));
+            auto* systems = Json_Array(json);
+            for (const auto& system : item.systems) Json_Append(json, systems, Json_Object(json, {
+                                                                                                     {"label", Json_String_Value(json, system.label)},
+                                                                                                     {"damaged", Exploration_Knowledge(json, system.damage_available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, Json_Boolean(json, system.damaged))},
+                                                                                                 }));
+            auto* equipment = Json_Object(json, {
+                                                    {"shield", Json_String_Value(json, item.shield)},
+                                                    {"computer", Json_String_Value(json, item.computer)},
+                                                    {"armor", Json_String_Value(json, item.armor)},
+                                                    {"drive", Json_String_Value(json, item.drive)},
+                                                    {"weapons", weapons},
+                                                    {"systems", systems},
+                                                });
+            return Json_Object(json, {
+                                         {"id", Json_String_Value(json, snapshot->design_ids[index])},
+                                         {"source", Json_String_Value(json, item.source)},
+                                         {"name", Exploration_Knowledge(json, EXPLORATION_CURRENT, Json_String_Value(json, item.name))},
+                                         {"hull", Exploration_Knowledge(json, item.available && item.hull_available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, Json_String_Value(json, item.hull))},
+                                         {"cost", Exploration_Knowledge(json, item.available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, Json_Integer(json, item.cost))},
+                                         {"equipment", Exploration_Knowledge(json, item.available ? EXPLORATION_CURRENT : EXPLORATION_UNKNOWN, equipment)},
+                                         {"constructionColony", Id_Knowledge(json, item.colony_id)},
+                                     });
+        }
+
+        yyjson_mut_val* Fleet(s_json_builder* json, const s_map_snapshot* snapshot, size_t index) {
+            const auto& item = snapshot->map.fleets[index];
+            auto* members = Json_Array(json);
+            for (const auto& member : item.members) Json_Append(json, members, Json_String_Value(json, member));
+            return Json_Object(json, {
+                                         {"id", Json_String_Value(json, snapshot->fleet_ids[index])},
+                                         {"members", members},
+                                         {"x", Json_Integer(json, item.x)},
+                                         {"y", Json_Integer(json, item.y)},
+                                         {"location", Id_Knowledge(json, item.system_id)},
+                                         {"destination", Ship_Knowledge(json, item.destination_available, Json_String_Value(json, item.destination_id))},
+                                         {"eta", Ship_Knowledge(json, item.eta_available, Json_Integer(json, item.eta))},
+                                     });
         }
 
         yyjson_mut_val* Player(s_json_builder* json, const s_map_snapshot* snapshot, size_t index) {
@@ -764,6 +861,8 @@ namespace rpc {
                 case TOPIC_SYSTEMS: return &store->system_ids;
                 case TOPIC_NEBULAS: return &store->nebula_ids;
                 case TOPIC_SHIPS: return &snapshot->ship_ids;
+                case TOPIC_FLEETS: return &snapshot->fleet_ids;
+                case TOPIC_DESIGNS: return &snapshot->design_ids;
                 case TOPIC_PLAYERS: return &snapshot->player_ids;
                 case TOPIC_COLONIES: return &snapshot->colony_ids;
                 case TOPIC_PLANETS: return &snapshot->planet_ids;
@@ -779,6 +878,8 @@ namespace rpc {
                 case TOPIC_SYSTEMS: return System(json, store, snapshot, index);
                 case TOPIC_NEBULAS: return Nebula(json, store, snapshot, index);
                 case TOPIC_SHIPS: return Ship(json, snapshot, index);
+                case TOPIC_FLEETS: return Fleet(json, snapshot, index);
+                case TOPIC_DESIGNS: return Design(json, snapshot, index);
                 case TOPIC_PLAYERS: return Player(json, snapshot, index);
                 case TOPIC_COLONIES: return Colony(json, snapshot, index);
                 case TOPIC_PLANETS: return Planet(json, snapshot, index);
@@ -819,7 +920,7 @@ namespace rpc {
                 else if (selected == TOPIC_HISTORY)
                     value = History(json, store, snapshot, stamped);
                 else
-                    value = Collection(json, store, snapshot, selected, 0, 10000);
+                    value = Collection(json, store, snapshot, selected, 0, 10006);
                 Json_Add(json, result, topic, value);
             }
         }
@@ -883,7 +984,7 @@ namespace rpc {
             const auto* snapshot = Select_Snapshot(store, topics);
             if (snapshot == nullptr) return Error_Response(request, RPC_BUSY);
             if (topics & (TOPIC_SHIPS | TOPIC_LEADERS | TOPIC_RELATIONS)) *context_epoch = snapshot->map.context_epoch;
-            if (topics & (TOPIC_MESSAGES | TOPIC_COLONIES | TOPIC_PLANETS)) {
+            if ((topics & (TOPIC_MESSAGES | TOPIC_COLONIES | TOPIC_PLANETS | TOPIC_FLEETS | TOPIC_DESIGNS)) || ((topics & TOPIC_SHIPS) && snapshot->map.inspection_captured)) {
                 *context_epoch = Bridge_Context_Epoch(store->bridge);
                 store->context_active = true;
             }
@@ -958,7 +1059,7 @@ namespace rpc {
                     continue;
                 }
                 uint64_t lease = (topics & (TOPIC_SHIPS | TOPIC_LEADERS | TOPIC_RELATIONS)) ? snapshot->map.context_epoch : 0;
-                if (topics & (TOPIC_MESSAGES | TOPIC_COLONIES | TOPIC_PLANETS)) {
+                if ((topics & (TOPIC_MESSAGES | TOPIC_COLONIES | TOPIC_PLANETS | TOPIC_FLEETS | TOPIC_DESIGNS)) || ((topics & TOPIC_SHIPS) && snapshot->map.inspection_captured)) {
                     lease = Bridge_Context_Epoch(store->bridge);
                     store->context_active = true;
                 }
@@ -1028,7 +1129,7 @@ namespace rpc {
                 return {};
             }
             if (topics & (TOPIC_SHIPS | TOPIC_LEADERS | TOPIC_RELATIONS)) *context_epoch = snapshot->map.context_epoch;
-            if (topics & (TOPIC_MESSAGES | TOPIC_COLONIES | TOPIC_PLANETS)) {
+            if ((topics & (TOPIC_MESSAGES | TOPIC_COLONIES | TOPIC_PLANETS | TOPIC_FLEETS | TOPIC_DESIGNS)) || ((topics & TOPIC_SHIPS) && snapshot->map.inspection_captured)) {
                 *context_epoch = Bridge_Context_Epoch(store->bridge);
                 store->context_active = true;
             }
@@ -1082,7 +1183,9 @@ namespace rpc {
                     return {};
                 }
                 const auto pinned = std::find_if(store->snapshots.begin(), store->snapshots.end(), [&cursor](const s_map_snapshot& item) { return item.id == cursor->snapshot; });
-                if (pinned == store->snapshots.end() || ((topics & TOPIC_MESSAGES) && !pinned->map.messages_captured) || ((topics & TOPIC_COLONIES) && !pinned->map.colonies_captured) || ((topics & (TOPIC_SHIPS | TOPIC_LEADERS)) && !Authorized_Snapshot(store, &*pinned))) {
+                if (pinned == store->snapshots.end() || ((topics & TOPIC_MESSAGES) && !pinned->map.messages_captured) || ((topics & TOPIC_COLONIES) && !pinned->map.colonies_captured) ||
+                    ((topics & TOPIC_SHIPS) && !pinned->map.ships_captured) || ((topics & (TOPIC_FLEETS | TOPIC_DESIGNS)) && !pinned->map.inspection_captured) ||
+                    ((topics & (TOPIC_SHIPS | TOPIC_FLEETS | TOPIC_DESIGNS | TOPIC_LEADERS)) && !Authorized_Snapshot(store, &*pinned))) {
                     *error = RPC_OBJECT_UNAVAILABLE;
                     return {};
                 }
@@ -1185,6 +1288,7 @@ namespace rpc {
         Revoke_Game_Context(store);
         ++store->busy_depth;
         Expire_Game_Messages(store);
+        Expire_Game_Inspection(store);
     }
 
     void Expire_Game_Messages(s_game_store* store) {
@@ -1230,6 +1334,29 @@ namespace rpc {
         for (auto& subscription : store->subscriptions) subscription.revision = 0;
     }
 
+    void Expire_Game_Inspection(s_game_store* store) {
+        if (store == nullptr || std::none_of(store->snapshots.begin(), store->snapshots.end(), [](const auto& snapshot) { return snapshot.map.inspection_captured; })) return;
+        for (const auto& subscription : store->subscriptions)
+            if (Context_Response_Pending(store->bridge, subscription.client, subscription.baseline_ticket)) Cancel_Client(store->bridge, subscription.client);
+        Revoke_Bridge_Context(store->bridge);
+        store->context_active = false;
+        for (auto& snapshot : store->snapshots) {
+            snapshot.map.inspection_captured = snapshot.map.ships_captured = false;
+            snapshot.map.fleets.clear();
+            snapshot.map.designs.clear();
+            snapshot.map.ships.clear();
+            snapshot.map.owned_authority.clear();
+            snapshot.fleet_ids.clear();
+            snapshot.design_ids.clear();
+            snapshot.ship_ids.clear();
+            for (auto& leader : snapshot.map.leaders)
+                if (leader.assignment_kind == "ship") leader.assignment_id.clear();
+        }
+        std::erase_if(store->cursors, [](const auto& cursor) { return cursor.method == "game.listShips" || cursor.method == "game.listFleets" || cursor.method == "game.listDesigns" || cursor.method == "game.listLeaders"; });
+        store->capture_requested = true;
+        for (auto& subscription : store->subscriptions) subscription.revision = 0;
+    }
+
     void Resume_Game_Queries(s_game_store* store) {
         if (store->busy_depth != 0) --store->busy_depth;
     }
@@ -1251,6 +1378,15 @@ namespace rpc {
         projected.nebulas = observation->nebulas;
         projected.ships_captured = observation->ships_captured;
         projected.ships = observation->ships;
+        projected.inspection_captured = observation->inspection_captured;
+        projected.owned_ambient = observation->owned_ambient;
+        if (projected.inspection_captured) {
+            projected.fleets = observation->fleets;
+            projected.designs = observation->designs;
+            projected.owned_authority = observation->owned_authority;
+            if (!std::is_sorted(projected.owned_authority.begin(), projected.owned_authority.end())) return false;
+            if (!projected.ships_captured || projected.fleets.size() > 10000 || projected.designs.size() > 10006) return false;
+        }
         projected.players_captured = observation->players_captured;
         projected.players = observation->players;
         projected.colonies_captured = observation->colonies_captured;
@@ -1564,7 +1700,10 @@ namespace rpc {
         });
         if (!projected.ships_captured) projected.ships.clear();
         for (s_ship_observation& ship : projected.ships) {
-            if (!ship.owned) ship.name.clear();
+            if (!ship.owned) {
+                ship.name.clear();
+                ship.inspection = {};
+            }
             if (ship.name.size() > 48) return false;
             for (e_ship_knowledge available : {ship.destination_available, ship.eta_available}) {
                 if (available < SHIP_UNAUDITED || available > SHIP_CONTEXT_REQUIRED) return false;
@@ -1580,6 +1719,29 @@ namespace rpc {
                 ship.eta = 0;
             else if (ship.eta < 0 || ship.eta > 255 || ship.destination_available != SHIP_CURRENT)
                 return false;
+            if (!ship.inspection.available)
+                ship.inspection = {};
+            else {
+                auto& detail = ship.inspection;
+                if (detail.role != "combat" && detail.role != "colony" && detail.role != "transport" && detail.role != "outpost") return false;
+                if (detail.status != "active") return false;
+                if (detail.type.size() > 4096 || detail.crew.size() > 1500 || detail.system < -1 || (detail.system >= 0 && (size_t)detail.system >= projected.systems.size())) return false;
+                if (!detail.crew_available) detail.crew.clear();
+                if (!detail.experience_available) detail.experience = 0;
+                if (!detail.condition_available) {
+                    detail.structure = detail.structure_max = detail.armor = detail.armor_max = 0;
+                    detail.subsystems = detail.drive_visible = detail.shield_visible = false;
+                    detail.combat_speed = detail.warp_speed = detail.shield_strength = detail.shield_strength_max = 0;
+                }
+                if (!detail.subsystems) {
+                    detail.computer = detail.computer_max = detail.shield_strength_max = 0;
+                }
+                if (!detail.drive_visible) detail.drive = detail.drive_max = 0;
+                if (!detail.shield_visible) detail.shield = detail.shield_max = 0;
+                if (!detail.capabilities_available) detail.attack = detail.defense = detail.evasion = 0;
+                detail.system_id.clear();
+                detail.design_id.clear();
+            }
         }
         store->capture_requested = false;
         if (!store->snapshots.empty()) {
@@ -1628,9 +1790,15 @@ namespace rpc {
                     });
                 }
             }
+            bool ship_lost = false;
+            if (projected.inspection_captured && previous.inspection_captured) {
+                for (const auto& authority : previous.owned_authority)
+                    ship_lost |= !std::binary_search(projected.owned_authority.begin(), projected.owned_authority.end(), authority);
+            }
             if (lost) Revoke_Game_View(store);
             else if (colony_lost)
                 Expire_Game_Colonies(store);
+            if (!lost && ship_lost) Expire_Game_Inspection(store);
         }
         const auto* ambient_map = Select_Snapshot(store, TOPIC_SYSTEMS);
         if (!projected.leaders_only && ambient_map != nullptr && (projected.systems.size() != ambient_map->map.systems.size() || projected.nebulas.size() != ambient_map->map.nebulas.size())) {
@@ -1708,6 +1876,11 @@ namespace rpc {
             ship.owner_slot = -1;
             if (ship.destination_available == SHIP_CURRENT) ship.destination_id = store->system_ids[(size_t)ship.destination_system];
             ship.destination_system = -1;
+            if (ship.inspection.available) {
+                const int32_t system = ship.inspection.system;
+                if (system >= 0) ship.inspection.system_id = store->system_ids[system];
+                ship.inspection.system = -1;
+            }
         }
         for (auto& colony : projected.colonies) {
             colony.system_id = store->system_ids[(size_t)colony.system];
@@ -1755,6 +1928,61 @@ namespace rpc {
             if (colony != projected.colonies.end()) planet.colony_id = colony_ids[(size_t)(colony - projected.colonies.begin())];
             planet.system = -1;
         }
+        std::vector<int32_t> own_slots(10000, -1), design_for_slot(10000, -1);
+        for (size_t row = 0; row < projected.ships.size(); ++row) {
+            const auto& ship = projected.ships[row];
+            if (ship.owned && ship.slot >= 0 && ship.slot < 10000) {
+                if (own_slots[ship.slot] != -1) return false;
+                own_slots[ship.slot] = (int32_t)row;
+            }
+        }
+        for (size_t row = 0; row < projected.designs.size(); ++row) {
+            auto& design = projected.designs[row];
+            if (design.source != "slot" && design.source != "ship" && design.source != "queued" && design.source != "refit") return false;
+            if (design.ship_slot >= 0) {
+                if (design.ship_slot >= 10000 || own_slots[design.ship_slot] == -1 || design_for_slot[design.ship_slot] != -1) return false;
+                design_for_slot[design.ship_slot] = (int32_t)row;
+            }
+            if (design.name.size() > 48 || design.weapons.size() > 8 || design.systems.size() > 40) return false;
+            design.ship_slot = -1;
+            design.colony_id.clear();
+            if (design.colony_system >= 0 && (size_t)design.colony_system < store->system_ids.size()) {
+                const auto colony = std::find_if(projected.colonies.begin(), projected.colonies.end(), [&design, store](const auto& entry) {
+                    return entry.system_id == store->system_ids[design.colony_system] && entry.orbit == design.colony_orbit;
+                });
+                if (colony != projected.colonies.end()) design.colony_id = colony_ids[(size_t)(colony - projected.colonies.begin())];
+            }
+            design.colony_system = -1;
+            design.colony_orbit = 0;
+            if (!design.hull_available) design.hull.clear();
+            if (!design.available) {
+                design.hull_available = false;
+                design.hull.clear();
+                design.shield.clear();
+                design.computer.clear();
+                design.armor.clear();
+                design.drive.clear();
+                design.cost = 0;
+                design.weapons.clear();
+                design.systems.clear();
+            }
+            for (auto& weapon : design.weapons) {
+                if (!weapon.arc_available) weapon.arc.clear();
+                if (!weapon.modifications_available) weapon.modifications.clear();
+                if (!weapon.current_available) weapon.current = 0;
+            }
+            for (auto& system : design.systems)
+                if (!system.damage_available) system.damaged = false;
+        }
+        std::vector<std::string> design_ids;
+        const auto* previous_designs = Select_Snapshot(store, TOPIC_DESIGNS);
+        if (previous_designs != nullptr && projected.designs == previous_designs->map.designs) design_ids = previous_designs->design_ids;
+        if (!Extend(&design_ids, projected.designs.size())) return false;
+        for (auto& ship : projected.ships) {
+            if (!ship.owned || !ship.inspection.available) continue;
+            auto& detail = ship.inspection;
+            if (ship.slot >= 0 && ship.slot < 10000 && design_for_slot[ship.slot] >= 0) detail.design_id = design_ids[design_for_slot[ship.slot]];
+        }
         std::vector<std::string> ship_ids;
         const s_map_snapshot* previous_ships = Select_Snapshot(store, TOPIC_SHIPS);
         if (projected.context_epoch != 0) {
@@ -1767,6 +1995,32 @@ namespace rpc {
         }
         if (projected.ships_captured && previous_ships != nullptr && Same_Ships(&projected, &previous_ships->map)) ship_ids = previous_ships->ship_ids;
         if (!Extend(&ship_ids, projected.ships.size())) return false;
+        std::vector<bool> grouped(projected.ships.size());
+        for (auto& fleet : projected.fleets) {
+            fleet.members.clear();
+            if (fleet.slots.empty() || fleet.slots.size() > 10000) return false;
+            for (int32_t slot : fleet.slots) {
+                if (slot < 0 || slot >= 10000 || own_slots[slot] < 0) return false;
+                const size_t ordinal = own_slots[slot];
+                const auto* ship = &projected.ships[ordinal];
+                if (grouped[ordinal] || ship->x != fleet.x || ship->y != fleet.y) return false;
+                grouped[ordinal] = true;
+                if (fleet.members.empty()) {
+                    fleet.system_id = ship->inspection.system_id;
+                    fleet.destination_available = ship->destination_available;
+                    fleet.destination_id = ship->destination_id;
+                    fleet.eta_available = ship->eta_available;
+                    fleet.eta = ship->eta;
+                }
+                fleet.members.push_back(ship_ids[ordinal]);
+            }
+            fleet.slots.clear();
+        }
+        std::sort(projected.fleets.begin(), projected.fleets.end(), [](const auto& a, const auto& b) { return std::tie(a.x, a.y, a.system_id, a.members) < std::tie(b.x, b.y, b.system_id, b.members); });
+        std::vector<std::string> fleet_ids;
+        const auto* previous_fleets = Select_Snapshot(store, TOPIC_FLEETS);
+        if (previous_fleets != nullptr && projected.fleets == previous_fleets->map.fleets) fleet_ids = previous_fleets->fleet_ids;
+        if (!Extend(&fleet_ids, projected.fleets.size())) return false;
         for (auto& leader : projected.leaders) {
             if (leader.assignment_available == EXPLORATION_CURRENT) {
                 if (leader.assignment_kind == "system") {
@@ -1811,7 +2065,7 @@ namespace rpc {
                 (!projected.colonies_captured || Same_Colonies(&projected, &ambient->map)) && (!projected.planets_captured || Same_Planets(&projected, &ambient->map)) &&
                 (!projected.research_captured || Same_Research(&projected, &ambient->map)) &&
                 (!projected.leaders_captured || Same_Leaders(&projected, &ambient->map)) && Same_Relations(&projected, &ambient->map) &&
-                Same_History(&projected, &ambient->map) && Same_Messages(&projected, &ambient->map)) return true;
+                Same_History(&projected, &ambient->map) && Same_Messages(&projected, &ambient->map) && Same_Inspection(&projected, &ambient->map)) return true;
         }
         const bool equal = !store->snapshots.empty() && projected.leaders_only == store->snapshots.back().map.leaders_only && Same_Map(&projected, &store->snapshots.back().map) &&
             (!projected.ships_captured || Same_Ships(&projected, &store->snapshots.back().map)) &&
@@ -1820,7 +2074,7 @@ namespace rpc {
             (!projected.planets_captured || Same_Planets(&projected, &store->snapshots.back().map)) &&
             (!projected.research_captured || Same_Research(&projected, &store->snapshots.back().map)) &&
             (!projected.leaders_captured || Same_Leaders(&projected, &store->snapshots.back().map)) && Same_Relations(&projected, &store->snapshots.back().map) &&
-            Same_History(&projected, &store->snapshots.back().map) && Same_Messages(&projected, &store->snapshots.back().map);
+            Same_History(&projected, &store->snapshots.back().map) && Same_Messages(&projected, &store->snapshots.back().map) && Same_Inspection(&projected, &store->snapshots.back().map);
         if (projected.context_epoch != 0) store->context_active = true;
         if (equal && (projected.context_epoch == store->snapshots.back().map.context_epoch || (!projected.ships_captured && !projected.leader_presentation && !projected.relations_presentation))) return true;
         if (store->revision == std::numeric_limits<uint64_t>::max()) return false;
@@ -1831,6 +2085,8 @@ namespace rpc {
         snapshot.planet_ids = std::move(planet_ids);
         snapshot.colony_ids = std::move(colony_ids);
         snapshot.ship_ids = std::move(ship_ids);
+        snapshot.fleet_ids = std::move(fleet_ids);
+        snapshot.design_ids = std::move(design_ids);
         const auto* previous_messages = Select_Snapshot(store, TOPIC_MESSAGES);
         if (snapshot.map.messages_captured && previous_messages != nullptr && Same_Messages(&snapshot.map, &previous_messages->map)) snapshot.message_ids = previous_messages->message_ids;
         if (!Extend(&snapshot.message_ids, snapshot.map.messages.size())) return false;

@@ -5,6 +5,11 @@ and native source anchors are in `field_policies.json`; remaining scope is in
 `plan.md`. Foreign canonical names, scan/design/cargo/orders and durable ship
 identity remain outside the enabled projection.
 
+Owned active ships now also have ambient inspection independent of icon refresh;
+see [owned fleet/ship/design semantics](owned_fleet_view.md). Its coherent capture
+does not retain foreign observations. The refresh/context rules below continue
+to own every non-owned observation and the narrower contextual route/ETA fields.
+
 ## Refresh and ambient disclosure
 
 `SHIPS::Build_Ship_Icons` publishes `SHIP_ICONS_REFRESHED` after native filtering

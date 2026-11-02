@@ -1,4 +1,6 @@
 #include "pch.h"
+#include "game_events.h"
+#include "ship_read.h"
 #include "string_overrides.h"
 
 namespace DESIGN {
@@ -789,6 +791,8 @@ namespace DESIGN {
             return;
         }
 
+        if (MOX::refit_ship == 0) game_events::Publish_Designs_Replacing(player_idx);
+
         strlcpy(target_design->name, MOX::design->name, sizeof(target_design->name));
 
         target_design->size = (int8_t)MOX::design->ship_size;
@@ -824,6 +828,7 @@ namespace DESIGN {
         target_design->combat_speed = Current_Design_Combat_Speed(MOX::design);
         target_design->speed = static_cast<uint8_t>(
             INITSHIP::Get_FTL_Speed(player_idx, MOX::design->ftl_type));
+        if (MOX::refit_ship == 0) game_events::Publish(game_events::SHIP_OBSERVATION_POINT);
     }
 
     /**
@@ -1440,6 +1445,7 @@ namespace DESIGN {
     }
 
     void __cdecl Weapon_Arc_String(uint16_t arc_flags, char* dest_str, int32_t dest_str_size) {
+        if (dest_str_size > 0 && ship_read::Copy_Weapon_Arc(arc_flags, dest_str, (uint32_t)dest_str_size)) return;
         if (dest_str_size <= 0) {
             return;
         }

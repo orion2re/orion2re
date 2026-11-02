@@ -1,4 +1,6 @@
 #include "pch.h"
+#include "ship_read.h"
+#include "game_events.h"
 
 namespace {
     constexpr int kPlayerRemapPaletteStart = 144;
@@ -269,14 +271,10 @@ namespace COMBINIT {
             if (MOX::ship[ship_idx].d.ship_type == SHIP_TYPE_COMBAT) {
                 MOX::global_combat_data.weapons[i].weapon_id = MOX::ship[ship_idx].d.ship_weapon[i].type;
                 MOX::global_combat_data.weapons[i].count = MOX::ship[ship_idx].d.ship_weapon[i].current_count;
-                MOX::global_combat_data.weapons[i].arc = MOX::ship[ship_idx].d.ship_weapon[i].firing_arc;
+                MOX::global_combat_data.weapons[i].arc = (int8_t)ship_read::Combat_Arc(MOX::ship[ship_idx].d.ship_weapon[i].firing_arc);
                 MOX::global_combat_data.weapons[i].specials = MOX::ship[ship_idx].d.ship_weapon[i].specials;
                 MOX::global_combat_data.weapons[i].ammo =
                     (uint8_t)MOX::ship[ship_idx].d.ship_weapon[i].ammo;
-
-                if (MOX::global_combat_data.weapons[i].arc == WEAPON_FIRING_ARC_360) {
-                    MOX::global_combat_data.weapons[i].arc = WEAPON_FIRING_ARC_ALL_SECTORS;
-                }
 
                 MOX::global_combat_data.weapons[i].active = 1;
                 MOX::global_combat_data.weapons[i].shots_left = MOX::global_combat_data.weapons[i].count;
@@ -320,17 +318,10 @@ namespace COMBINIT {
             MOX::global_combat_data.marine_count = -1;
         }
 
-        if (strategic_combat) {
-            MOX::global_combat_data.structure_max =
-                AIPOWER::Max_Ship_Hits(ship_idx);
-            MOX::global_combat_data.armor_remaining = 0;
-        } else {
-            MOX::global_combat_data.structure_max =
-                INITSHIP::Get_Ship_Structure(ship_idx);
-            MOX::global_combat_data.armor_remaining =
-                INITSHIP::Get_Ship_Armor_Hits(ship_idx) -
-                MOX::ship[ship_idx].armor_damage;
-        }
+        ship_read::s_condition condition;
+        ship_read::Condition(ship_idx, &condition);
+        MOX::global_combat_data.structure_max = condition.structure_max;
+        MOX::global_combat_data.armor_remaining = condition.armor;
         MOX::global_combat_data.armor_type = MOX::ship[ship_idx].d.armor_type;
 
         if (MOX::global_combat_data.size_class == SHIP_SIZE_DOOM_STAR) {
@@ -354,66 +345,13 @@ namespace COMBINIT {
         MOX::global_combat_data.computer_current_hits = (uint16_t)(MOX::global_combat_data.computer_max_hits -
             MOX::ship[ship_idx].computer_damage);
 
-        if (MOX::global_combat_data.shield_type <= 0) {
-            MOX::global_combat_data.shield_arc_max = 0;
-        } else {
-            if (strategic_combat) {
-                MOX::global_combat_data.shield_arc_max =
-                    TECHDATA::shields[MOX::global_combat_data.shield_type].shield_class;
-                if (SHIPSTAK::Ship_Has_Special(
-                        ship_idx, SPECIAL_HARD_SHIELDS) != 0) {
-                    MOX::global_combat_data.shield_arc_max +=
-                        TECHDATA::hard_shields_damage_reduction;
-                }
-            } else {
-                MOX::global_combat_data.shield_arc_max =
-                    (int16_t)TECHDATA::Shield_Strength(
-                        MOX::global_combat_data.size_class,
-                        MOX::global_combat_data.shield_type);
-            }
-
-            if (struct_::Test_Bit_Field(MOX::global_combat_data.special_device_flags, SPECIAL_MULTI_PHASED_SHIELDS)) {
-                if (!struct_::Test_Bit_Field(MOX::global_combat_data.special_device_damage_flags, SPECIAL_MULTI_PHASED_SHIELDS)) {
-                    MOX::global_combat_data.shield_arc_max = (int16_t)
-                        TECHDATA::Apply_Multi_Phased_Shields_Bonus(
-                            MOX::global_combat_data.shield_arc_max);
-                }
-            }
-
-            MOX::global_combat_data.shield_arc_max =
-                (MOX::global_combat_data.shield_arc_max * MOX::global_combat_data.shield_current_hits + MOX::global_combat_data.shield_max_hits - 1) / MOX::global_combat_data.shield_max_hits;
-        }
+        MOX::global_combat_data.shield_arc_max = condition.available ? condition.shield_strength : ship_read::Shield_Strength(MOX::global_combat_data.size_class, MOX::global_combat_data.shield_type, MOX::global_combat_data.special_device_flags, MOX::global_combat_data.special_device_damage_flags, MOX::global_combat_data.shield_current_hits, MOX::global_combat_data.shield_max_hits);
 
         for (int i = 0; i < 4; ++i) {
             MOX::global_combat_data.shield_arc_current[i] = MOX::global_combat_data.shield_arc_max;
         }
 
-        const bool real_tactical_ship =
-            !strategic_combat &&
-            MOX::ship[ship_idx].d.ship_type == SHIP_TYPE_COMBAT;
-        if (!real_tactical_ship) {
-            MOX::global_combat_data.current_speed = 0;
-        } else {
-            MOX::global_combat_data.current_speed =
-                MOX::ship[ship_idx].d.combat_speed;
-
-            if (struct_::Test_Bit_Field(MOX::ship[ship_idx].d.special_device_flags, SPECIAL_AUGMENTED_ENGINES)) {
-                if (!struct_::Test_Bit_Field(MOX::ship[ship_idx].special_device_damage_flags, SPECIAL_AUGMENTED_ENGINES)) {
-                    MOX::global_combat_data.current_speed += DESIGN::augmented_engines_speed_bonus;
-                }
-            }
-
-            MOX::global_combat_data.current_speed = Damaged_Drive_Combat_Speed(
-                MOX::global_combat_data.current_speed,
-                MOX::global_combat_data.drive_current_hits,
-                MOX::global_combat_data.drive_max_hits);
-        }
-
-        if (real_tactical_ship && MOX::global_combat_data.owner < MAX_PLAYERS) {
-            if (MOX::player[MOX::global_combat_data.owner].traits[TRAIT_TRANS_DIMENSIONAL] != 0) {
-                MOX::global_combat_data.current_speed += COMBAT1::td_combat_speed_bonus;
-            }
-        }
+        MOX::global_combat_data.current_speed = condition.combat_speed;
     }
 
     int16_t __cdecl Ship_Size_Offset(int16_t size) {
@@ -3184,6 +3122,7 @@ namespace COMBINIT {
                 MOX::combat_data[combat_ship_idx].drive_current_hits = MOX::combat_data[combat_ship_idx].drive_max_hits;
             }
 
+            if (MOX::ship[ship_idx].owner != MOX::combat_data[combat_ship_idx].owner) game_events::Publish_Ship_Identity_Changing(ship_idx);
             MOX::ship[ship_idx].owner = MOX::combat_data[combat_ship_idx].owner;
 
             for (int16_t i = 0; i < 8; i++) {

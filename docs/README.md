@@ -52,7 +52,7 @@ These restrictions are **not a sandbox for arbitrary repository code**: MkDocs a
 
 ### Dependencies and maintenance
 
-The PDF exporter is [mkdocs-to-pdf 0.12.1](https://github.com/domWalters/mkdocs-to-pdf), maintained by Dom Walters and Hideyuki Kato (MIT), using [WeasyPrint 70.0](https://github.com/Kozea/WeasyPrint), maintained by CourtBouillon (BSD-3-Clause). [pypdf 6.21.2](https://github.com/py-pdf/pypdf) (BSD-3-Clause) validates the artifact. These are build tools, not game runtime dependencies. Installed wheels retain their upstream license notices.
+The PDF exporter is [mkdocs-to-pdf 0.12.1](https://github.com/domWalters/mkdocs-to-pdf), maintained by Dom Walters and Hideyuki Kato (MIT), using [WeasyPrint 70.0](https://github.com/Kozea/WeasyPrint), maintained by CourtBouillon (BSD-3-Clause). [pypdf 6.21.4](https://github.com/py-pdf/pypdf) (BSD-3-Clause) validates the artifact. These are build tools, not game runtime dependencies. Installed wheels retain their upstream license notices.
 
 The exporter still requires the native MIT-licensed LibSass compiler, which [reached end-of-life](https://sass-lang.com/blog/libsass-is-end-of-life/). Its use is confined to the PDF environment; do not install the exporter's `dev`, `samples`, or `all` extras. JavaScript rendering is disabled, so Chrome and Node.js are not required.
 

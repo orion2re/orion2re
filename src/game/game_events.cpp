@@ -152,6 +152,16 @@ namespace game_events {
     int16_t Replaced_Colony_Owner() {
         return replaced_colony_owner;
     }
+    static int16_t replaced_design_owner = -1;
+    void Publish_Designs_Replacing(int16_t owner) {
+        const int16_t previous = replaced_design_owner;
+        replaced_design_owner = owner;
+        Publish(DESIGNS_REPLACING);
+        replaced_design_owner = previous;
+    }
+    int16_t Replaced_Design_Owner() {
+        return replaced_design_owner;
+    }
     s_colony_player_scope::s_colony_player_scope(int16_t player) : viewer(player), parent(colony_player) {
         colony_player = this;
     }

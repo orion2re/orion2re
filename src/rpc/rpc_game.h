@@ -4,6 +4,7 @@
 #include <deque>
 #include <string>
 #include <vector>
+#include <utility>
 
 #include "rpc_bridge.h"
 
@@ -68,6 +69,75 @@ namespace rpc {
         SHIP_CONTEXT_REQUIRED,
     };
 
+    struct s_design_weapon {
+        std::string label;
+        std::string arc;
+        bool arc_available = false;
+        bool modifications_available = false;
+        std::string modifications;
+        int32_t count = 0;
+        bool current_available = false;
+        int32_t current = 0;
+        bool operator==(const s_design_weapon&) const = default;
+    };
+
+    struct s_design_system {
+        std::string label;
+        bool damage_available = false;
+        bool damaged = false;
+        bool operator==(const s_design_system&) const = default;
+    };
+
+    struct s_design_observation {
+        std::string source;
+        std::string name;
+        std::string hull;
+        std::string shield, computer, armor, drive;
+        int32_t cost = 0;
+        bool available = false;
+        bool hull_available = false;
+        std::vector<s_design_weapon> weapons;
+        std::vector<s_design_system> systems;
+        int32_t ship_slot = -1; // Private same-capture configuration binding.
+        int32_t colony_system = -1, colony_orbit = 0;
+        std::string colony_id;
+        bool operator==(const s_design_observation&) const = default;
+    };
+
+    struct s_ship_inspection {
+        bool available = false;
+        std::string role;
+        std::string type;
+        std::string status;
+        bool crew_available = false;
+        std::string crew;
+        bool experience_available = false;
+        int32_t experience = 0;
+        bool condition_available = false;
+        int32_t structure = 0, structure_max = 0, armor = 0, armor_max = 0;
+        bool subsystems = false, drive_visible = false, shield_visible = false;
+        int32_t drive = 0, drive_max = 0, computer = 0, computer_max = 0, shield = 0, shield_max = 0;
+        int32_t combat_speed = 0, warp_speed = 0, shield_strength = 0, shield_strength_max = 0;
+        bool capabilities_available = false;
+        int32_t attack = 0, defense = 0, evasion = 0;
+        int32_t system = -1;
+        std::string system_id;
+        std::string design_id;
+        bool operator==(const s_ship_inspection&) const = default;
+    };
+
+    struct s_fleet_observation {
+        int16_t x = 0, y = 0;
+        std::vector<int32_t> slots; // Private ordered member bindings, discarded before retention.
+        std::vector<std::string> members;
+        std::string system_id;
+        e_ship_knowledge destination_available = SHIP_UNKNOWN;
+        std::string destination_id;
+        e_ship_knowledge eta_available = SHIP_UNKNOWN;
+        int32_t eta = 0;
+        bool operator==(const s_fleet_observation&) const = default;
+    };
+
     struct s_ship_observation {
         int16_t x = 0;
         int16_t y = 0;
@@ -84,6 +154,7 @@ namespace rpc {
         e_ship_knowledge eta_available = SHIP_UNAUDITED;
         int32_t eta = 0;
         int32_t slot = -1; // Private same-capture leader binding, discarded before retention.
+        s_ship_inspection inspection;
     };
 
     struct s_player_hud {
@@ -311,6 +382,11 @@ namespace rpc {
         std::vector<s_nebula_observation> nebulas;
         bool ships_captured = false;
         std::vector<s_ship_observation> ships;
+        bool inspection_captured = false;
+        bool owned_ambient = false;
+        std::vector<s_fleet_observation> fleets;
+        std::vector<s_design_observation> designs;
+        std::vector<std::pair<int32_t, uint64_t>> owned_authority; // Private retirement/reuse checks, never public equality or ordering.
         bool players_captured = false;
         std::vector<s_player_observation> players;
         bool colonies_captured = false;
@@ -340,6 +416,8 @@ namespace rpc {
         std::string id;
         uint64_t revision = 0;
         std::vector<std::string> ship_ids; // Read handles scoped to this immutable capture.
+        std::vector<std::string> fleet_ids;
+        std::vector<std::string> design_ids;
         std::vector<std::string> player_ids;
         std::vector<std::string> colony_ids; // Read-only observation handles, not action capabilities.
         std::vector<std::string> planet_ids;
@@ -422,6 +500,7 @@ namespace rpc {
     void Pause_Game_Queries(s_game_store* store);
     void Expire_Game_Messages(s_game_store* store);
     void Expire_Game_Colonies(s_game_store* store);
+    void Expire_Game_Inspection(s_game_store* store);
     void Resume_Game_Queries(s_game_store* store);
     bool Capture_Map(s_game_store* store, const s_map_observation* observation);
     std::string Game_Query(s_game_store* store, const s_request* request, uint64_t* context_epoch = nullptr);

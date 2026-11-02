@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "ship_read.h"
 #include "game_events.h"
 
 #include "build_queue.h"
@@ -1320,10 +1321,10 @@ namespace COLBLDG {
         }
 
         STRBUILD::Sprintf(builder, ESTRINGS::E_Strings(99), strings::s_0_0055110c, strings::s__0055ac34, design->cost);
-        STRBUILD::Sprintf(builder, ESTRINGS::E_Strings(119), strings::s_0_0055110c, strings::s__0055ac34, TECHDATA::shields[design->shield_type].name);
-        STRBUILD::Sprintf(builder, ESTRINGS::E_Strings(98), strings::s_0_0055110c, strings::s__0055ac34, TECHDATA::computers[design->computer_type].name);
-        STRBUILD::Sprintf(builder, ESTRINGS::E_Strings(91), strings::s_0_0055110c, strings::s__0055ac34, TECHDATA::armor[design->armor_type].name);
-        STRBUILD::Sprintf(builder, ESTRINGS::E_Strings(104), strings::s_0_0055110c, strings::s__0055ac34, TECHDATA::drives[design->ftl_type].name);
+        STRBUILD::Sprintf(builder, ESTRINGS::E_Strings(119), strings::s_0_0055110c, strings::s__0055ac34, ship_read::Shield_Name(design));
+        STRBUILD::Sprintf(builder, ESTRINGS::E_Strings(98), strings::s_0_0055110c, strings::s__0055ac34, ship_read::Computer_Name(design));
+        STRBUILD::Sprintf(builder, ESTRINGS::E_Strings(91), strings::s_0_0055110c, strings::s__0055ac34, ship_read::Armor_Name(design));
+        STRBUILD::Sprintf(builder, ESTRINGS::E_Strings(104), strings::s_0_0055110c, strings::s__0055ac34, ship_read::Drive_Name(design));
         STRBUILD::Sprintf(builder, ESTRINGS::E_Strings(130), strings::s_0_0055110c);
 
         int weapons_added = 0;
@@ -2035,6 +2036,7 @@ namespace COLBLDG {
     }
 
     void __cdecl Delete_Ship(int16_t ship_index) {
+        game_events::Publish_Ship_Identity_Changing(ship_index);
         MOX::ship[ship_index].status = 5;
         MOX::ship[ship_index].location = -1;
     }
@@ -2123,6 +2125,7 @@ namespace COLBLDG {
         new_design.cost = DESIGN::Cost_Of_Design(owner, &new_design);
         int16_t refit_cost = AIBUILD::Refit_Cost(owner, &old_design, &new_design);
 
+        game_events::Publish_Ship_Identity_Changing(ship_n);
         struct_::Copy_Structure(
             &MOX::ship[ship_n].d, &new_design, sizeof(MOX::ship[ship_n].d));
         MOX::ship[ship_n].status = 4;
@@ -2498,7 +2501,7 @@ namespace COLBLDG {
                 if (bit == 1 || bit == 2) {
                     strlcat(buf1, TECHDATA::weapon_modifications[bit].name_plural, sizeof(buf1));
                     strlcat(buf1, " ", sizeof(buf1));
-                } else {
+                } else if (include_postfix_modifiers != 0) {
                     strlcat(buf3, TECHDATA::weapon_modifications[bit].name_plural, sizeof(buf3));
                 }
             }

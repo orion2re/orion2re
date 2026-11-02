@@ -15,6 +15,7 @@
 #include "rpc_native_relations.h"
 #include "rpc_native_turn_review.h"
 #include "rpc_native_colonies.h"
+#include "rpc_native_ships.h"
 #endif
 
 int main() {
@@ -68,6 +69,7 @@ int main() {
         test_native_relations::Initialize(&store, &map);
         test_native_turn_review::Initialize(&store, &map);
         test_native_colonies::Initialize(&store, &map);
+        test_native_ships::Initialize(&store, &map);
 #endif
         while (running) {
             std::string command;
@@ -85,6 +87,7 @@ int main() {
             native_command |= test_native_relations::Command(command);
             native_command |= test_native_turn_review::Command(command);
             native_command |= test_native_colonies::Command(command);
+            native_command |= test_native_ships::Command(command);
 #endif
             if (native_command) {
             } else if (command == "world") {
@@ -415,15 +418,28 @@ int main() {
             } else if (command == "revoke")
                 rpc::Revoke_Bridge(&bridge);
             else if (command == "publish-foreign-context-large") {
-                if (map.ships.size() == 3) {
-                    const auto foreign = map.ships[1];
-                    map.ships.assign(3500, foreign);
-                    rpc::Capture_Map(&store, &map);
-                }
                 rpc::s_request request;
                 request.id_json = "99";
                 request.method = "game.getState";
                 request.params_json = "{\"include\":[\"session\",\"systems\",\"nebulas\",\"players\",\"colonies\",\"ships\"]}";
+                if (map.ships.size() == 3) {
+                    const auto foreign = map.ships[1];
+                    size_t low = 1, high = 10000;
+                    while (low <= high) {
+                        const size_t count = low + (high - low) / 2;
+                        map.ships.assign(count, foreign);
+                        if (!rpc::Capture_Map(&store, &map)) break;
+                        const auto result = rpc::Game_Query(&store, &request);
+                        auto* document = yyjson_read(result.data(), result.size(), YYJSON_READ_NOFLAG);
+                        const bool complete = document != nullptr && yyjson_obj_get(yyjson_doc_get_root(document), "result") != nullptr;
+                        yyjson_doc_free(document);
+                        if (complete && result.size() >= 900000 && result.size() < 1048576) break;
+                        if (complete && result.size() < 900000)
+                            low = count + 1;
+                        else
+                            high = count - 1;
+                    }
+                }
                 std::vector<rpc::s_client_identity> clients;
                 rpc::Get_Authorized_Clients(&bridge, &clients);
                 if (clients.size() == 1 && rpc::Submit_Work(&bridge, clients[0].client, clients[0].epoch, &request, UINT64_MAX) == 0) {
@@ -486,6 +502,7 @@ int main() {
         test_native_relations::Shutdown();
         test_native_turn_review::Shutdown();
         test_native_colonies::Shutdown();
+        test_native_ships::Shutdown();
 #endif
         rpc::Shutdown_Game_Store(&store);
     });

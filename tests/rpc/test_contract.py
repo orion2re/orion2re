@@ -301,7 +301,9 @@ class TypedContractTests(unittest.TestCase):
         topics = ["session", "systems", "planets", "nebulas", "players", "colonies", "ships", "research"]
         audit.Validate_Value({"include":topics}, "StateRequest", self.contracts)
         audit.Validate_Value({"topics":topics, "events":["state.changed"]}, "SubscribeRequest", self.contracts)
-        for topic in ("fleets", "designs", "ui"):
+        for topic in ("fleets", "designs"):
+            audit.Validate_Value({"include":[topic]}, "StateRequest", self.contracts)
+        for topic in ("ui", "combat", "invasion"):
             with self.assertRaises(ValueError):
                 audit.Validate_Value({"include":[topic]}, "StateRequest", self.contracts)
 
@@ -309,7 +311,7 @@ class TypedContractTests(unittest.TestCase):
         for method in ("game.listLeaders", "game.getLeader"):
             self.assertIn(method, self.registry["implementedMethods"])
         topics = self.contracts["types"]["StateTopic"]["values"]
-        self.assertEqual(len(topics), 13)
+        self.assertEqual(len(topics), 15)
         audit.Validate_Value({"topics":topics, "events":["state.changed"]}, "SubscribeRequest", self.contracts)
         leader = self.Sample("RosterLeader")
         leader["description"] = {"availability":"unaudited"}
@@ -391,7 +393,8 @@ class TypedContractTests(unittest.TestCase):
 
     def test_unaudited_object_and_field_fail_closed(self):
         with self.assertRaisesRegex(ValueError, "disabled object"):
-            audit.Validate_Value(self.Sample("Fleet"), "Fleet", self.contracts, self.policies, public=True)
+            audit.Validate_Value(self.Sample("Option"), "Option", self.contracts, self.policies, public=True)
+        audit.Validate_Value(self.Sample("Fleet"), "Fleet", self.contracts, self.policies, public=True)
         technology = self.Sample("Technology")
         with self.assertRaisesRegex(ValueError, "disabled field"):
             audit.Validate_Value(technology, "Technology", self.contracts, self.policies, public=True)

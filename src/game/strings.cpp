@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "string_overrides.h"
+#include "ship_read.h"
 
 namespace strings {
     const char s__00551100[1] = "";
@@ -38,6 +39,7 @@ namespace strings {
         RUSS::Load_Russ_Strings();
         ESTRINGS::Load_E_Strings();
         RACESCRN::Load_Relations_Strings();
+        ship_read::Load_Strings();
         COLSUM::colsum_strings_been_loaded = 0;
     }
 

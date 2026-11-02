@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "ship_read.h"
 
 namespace LOADSAVE {
     char months[12][6];
@@ -1675,6 +1676,7 @@ namespace LOADSAVE {
         HAROLD::Load_H_Strings();
         RUSS::Load_Russ_Strings();
         ESTRINGS::Load_E_Strings();
+        ship_read::Load_Strings();
         HAROLD::Load_Language_Fonts();
         HAROLD::Load_Leader_Titles();
         HAROLD::Set_Language_Race_Names();

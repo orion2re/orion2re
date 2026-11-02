@@ -136,6 +136,8 @@ namespace INITSHIP {
     void __cdecl Update_Strategic_Design_Weapons_Specials(s_ship_design* design, int16_t player_idx, int16_t design_idx);
 
     void __cdecl Update_Strategic_Ship(int16_t ship_idx);
+    void Copy_Current_Ship_Configuration(int16_t owner, const s_ship_design* stored, s_ship_design* out);
+    void Read_Ship_Combat_Bonuses(const s_ship_data* ship, const s_ship_design* design, int16_t* ship_defense, int16_t* ship_missile_defense, int16_t* ship_attack);
 
     int16_t __cdecl Strat_Missile_Weapon_Count(int16_t hull_idx);
 

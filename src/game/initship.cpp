@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "game/ship_config.h"
 #include "game/shipstak.h"
+#include "game_events.h"
 
 namespace INITSHIP {
     namespace {
@@ -255,6 +256,7 @@ namespace INITSHIP {
     } // namespace
 
     void __cdecl Init_Ship_Designs(int16_t player_idx) {
+        game_events::Publish_Designs_Replacing(player_idx);
         s_player* plr = &MOX::player[player_idx];
         int16_t design_flag = 0;
 
@@ -294,6 +296,7 @@ namespace INITSHIP {
     }
 
     void __cdecl Update_Player_Strategic_Ship_Designs(int16_t player_idx) {
+        game_events::Publish_Designs_Replacing(player_idx);
         s_player* player = &MOX::player[player_idx];
 
         for (int16_t i = 0; i < SHIP_SIZE_COUNT; ++i) {
@@ -474,6 +477,7 @@ namespace INITSHIP {
     }
 
     void __cdecl Update_Automatic_Design_Equipment(int16_t player_idx) {
+        game_events::Publish_Designs_Replacing(player_idx);
         int16_t best_armor_type = Best_Armor(player_idx);
         int16_t best_ftl_type = Best_Warp_Drive(player_idx);
 
@@ -820,13 +824,16 @@ namespace INITSHIP {
     }
 
     void __cdecl Get_Ship_Combat_Bonuses(int16_t ship_idx, int16_t* ship_defense, int16_t* ship_missile_defense, int16_t* ship_attack) {
+        Read_Ship_Combat_Bonuses(&MOX::ship[ship_idx], &MOX::ship[ship_idx].d, ship_defense, ship_missile_defense, ship_attack);
+    }
+
+    void Read_Ship_Combat_Bonuses(const s_ship_data* ship, const s_ship_design* design, int16_t* ship_defense, int16_t* ship_missile_defense, int16_t* ship_attack) {
         int16_t defense_bonus = 0;
         int16_t missile_defense_bonus = 0;
         int16_t attack_bonus = 0;
 
-        s_ship_data* ship = &MOX::ship[ship_idx];
         s_ship_design design_copy;
-        memcpy(&design_copy, &ship->d, sizeof(s_ship_design));
+        memcpy(&design_copy, design, sizeof(s_ship_design));
 
         Get_Design_Combat_Bonuses(design_copy, &attack_bonus, &defense_bonus, &missile_defense_bonus);
 
@@ -1072,7 +1079,8 @@ namespace INITSHIP {
         return best_weapon;
     }
 
-    void __cdecl Update_Strategic_Design_Weapons_Specials(s_ship_design* design, int16_t player_idx, int16_t design_idx) {
+    static void Copy_Strategic_Weapons_Specials(const s_ship_design* stored, int16_t player_idx, int16_t design_idx, s_ship_design* design) {
+        *design = *stored;
         int16_t weapon_count = 0;
         int16_t best_weapon;
         int16_t count;
@@ -1157,18 +1165,32 @@ namespace INITSHIP {
         }
     }
 
+    void __cdecl Update_Strategic_Design_Weapons_Specials(s_ship_design* design, int16_t player_idx, int16_t design_idx) {
+        s_ship_design equipment;
+        Copy_Strategic_Weapons_Specials(design, player_idx, design_idx, &equipment);
+        *design = equipment;
+    }
+
+    void Copy_Current_Ship_Configuration(int16_t owner, const s_ship_design* stored, s_ship_design* out) {
+        *out = *stored;
+        if (owner >= 0 && owner < MAX_PLAYERS && MOX::settings.strategic_combat_flag != 0) {
+            Copy_Strategic_Weapons_Specials(stored, owner, stored->size, out);
+            out->ftl_type = static_cast<int8_t>(Best_Warp_Drive(owner));
+            out->speed = static_cast<uint8_t>(Get_FTL_Speed(owner, out->ftl_type));
+            out->shield_type = static_cast<int8_t>(Best_Ship_Shield(owner));
+            out->computer_type = static_cast<int8_t>(Best_Computer(owner));
+            out->armor_type = static_cast<int8_t>(Best_Armor(owner));
+        }
+    }
+
     void __cdecl Update_Strategic_Ship(int16_t ship_idx) {
         s_ship_data* ship = &MOX::ship[ship_idx];
         int16_t owner = (int16_t)ship->owner;
 
         if (owner < MAX_PLAYERS && MOX::settings.strategic_combat_flag != 0) {
-            ship->d.ftl_type = static_cast<int8_t>(Best_Warp_Drive(owner));
-            ship->d.speed = static_cast<uint8_t>(Get_FTL_Speed(owner, static_cast<int16_t>(ship->d.ftl_type)));
-            ship->d.shield_type = static_cast<int8_t>(Best_Ship_Shield(owner));
-            ship->d.computer_type = static_cast<int8_t>(Best_Computer(owner));
-            ship->d.armor_type = static_cast<int8_t>(Best_Armor(owner));
-
-            Update_Strategic_Design_Weapons_Specials(&ship->d, owner, static_cast<int16_t>(ship->d.size));
+            s_ship_design equipment;
+            Copy_Current_Ship_Configuration(owner, &ship->d, &equipment);
+            ship->d = equipment;
         }
     }
 

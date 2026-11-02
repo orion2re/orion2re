@@ -287,6 +287,7 @@ field-audited methods/topics; schemas alone grant no authority.
   - [x] Deliver committed own-full-colony operations inspection: production/queue, workforce, native operating presentations, structures/satellites, normal garrison, events, purchase display and current inbound logistics, with coherent subscriptions and revocation; see [the client workflow](specs/rpc/README.md#owned-colony-operations-dashboard).
   - [ ] Complete separately audited foreign-colony intelligence. Own outposts remain outside this full-colony projection; colony-changing actions remain P3 work, not parity implied by the finished inspection subset.
 - [ ] Q-07 — Complete conditional ship destination/ETA, selection/scan details and durable identity.
+  - [x] Deliver ambient owned ship condition/capability/configuration inspection alongside fleets, committed designs and empire topics; see [owned inspection](specs/rpc/owned_fleet_view.md). This is not foreign scan, action or durable-identity parity.
   - [x] Finish one bounded public cached-ETA path: authorize the surviving own wormhole-route head from canonical native presentation.
   - [x] Prove initialized owner plus current open-box/selection authority for that path through child interruption and replacement; never promote pre-initialization results.
   - [x] Bind that path only to current surviving refresh associations; reject stale selections and slot/node reuse without later node traversal or hidden-fingerprint effects.
@@ -298,8 +299,12 @@ field-audited methods/topics; schemas alone grant no authority.
   - [x] Extend contextual destination and cached fleet-box ETA to ordinary departure/transit using audited native movement encodings and the same complete capture/revocation pipeline.
   - [ ] Extend conditional destination/ETA and selection/scan disclosure to remaining native contexts; audit each additional field and establish durable identity separately.
 - [ ] Q-08 — Implement fleet list/detail without rebuilt-stack identifiers.
+  - [x] Deliver owned active fleet groups and native ordered membership through existing list/get, coherent captures, pagination and revocation; groups are observation handles, not rebuilt-stack IDs.
+  - [ ] Complete separately authorized non-owned fleet grouping and remaining full-catalog parity.
 - [ ] Q-09 — Implement movement options with audited scratch state and no hidden-data oracle.
 - [ ] Q-10 — Implement authorized design list/detail/options.
+  - [x] Deliver owned committed slots, active configurations and independently authorized committed queue/refit configurations through existing list/get and subscriptions. Preserve source distinctions and native suppression; staged/generated designs are excluded.
+  - [ ] Complete separately audited options, foreign scan designs and remaining full-catalog parity.
 - [x] Q-11 — Implement own research/choices and authorized technology references.
 - [x] Q-12 — Implement owned/offered/discovered leader reads.
 - [x] Q-13 — Implement relations/own-intelligence dashboard reads with individually audited fields and scoped native disclosures; see [the client workflow](specs/rpc/README.md#relations-and-own-intelligence).

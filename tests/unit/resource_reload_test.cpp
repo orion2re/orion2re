@@ -5,6 +5,7 @@
 #include "game/loader.h"
 #include "config/config_loader.h"
 #include "game/savegame.h"
+#include "game/ship_read.h"
 
 #include <chrono>
 #include <filesystem>
@@ -93,6 +94,15 @@ namespace {
             Write(prefix + "ESTRINGS.LBX/000", Table(21000, 812, label));
             Write(prefix + "HESTRNGS.LBX/000", Table(0x34D1, 397, label));
             Write(prefix + "RSTRING0.LBX/000", Table(6500, 182, label));
+            for (int message : {3, 4, 5, 6, 31, 32, 33, 34, 35}) {
+                for (int language = 0; language < 6; ++language) {
+                    char entry[4];
+                    snprintf(entry, sizeof(entry), "%03d", message * 6 + language);
+                    std::string text = std::string(1, label) + std::to_string(message);
+                    text.resize(100, '\0');
+                    Write(prefix + "KENTEXT.LBX/" + entry, Record(text));
+                }
+            }
             for (int language = 0; language < 6; ++language) {
                 char entry[4];
                 snprintf(entry, sizeof(entry), "%03d", 24 * 6 + language);

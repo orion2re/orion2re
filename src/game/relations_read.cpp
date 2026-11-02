@@ -1,6 +1,8 @@
 #include "pch.h"
 #include "relations_read.h"
 
+#include <algorithm>
+
 namespace relations_read {
     static bool Is_Viewer(int16_t viewer) {
         return MOX::player != nullptr && MOX::NUM_PLAYERS > 0 && MOX::NUM_PLAYERS <= MAX_PLAYERS &&

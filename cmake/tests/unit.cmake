@@ -54,8 +54,10 @@ set(ORION2RE_DEFAULT_CONFIG_SOURCES
 )
 
 orion2re_test_shared_sources(ORION2RE_DEFAULT_CONFIG_OBJECTS ${ORION2RE_DEFAULT_CONFIG_SOURCES})
+orion2re_test_shared_sources(ORION2RE_SHIP_READ_OBJECTS src/game/ship_read.cpp)
 add_library(orion2re_test_config_defaults STATIC
     ${ORION2RE_DEFAULT_CONFIG_OBJECTS}
+    ${ORION2RE_SHIP_READ_OBJECTS}
     src/game/game_events.cpp
 )
 target_compile_features(orion2re_test_config_defaults PRIVATE cxx_std_20)
@@ -2122,6 +2124,7 @@ if(ORION2RE_RPC_BUILT)
     set_tests_properties(test_rpc PROPERTIES TIMEOUT 30)
     add_executable(test_game_rpc_native
         tests/test_main.cpp tests/unit/game_rpc_native_test.cpp
+        tests/support/rpc_native_ships.cpp
         tests/support/rpc_native_colonies.cpp
         tests/support/rpc_native_turn_review.cpp
         $<TARGET_OBJECTS:orion2re_game_objects>
@@ -2136,6 +2139,7 @@ if(ORION2RE_RPC_BUILT)
     orion2re_enable_sanitizers(test_game_rpc_native)
     add_test(NAME test_game_rpc_native COMMAND test_game_rpc_native)
     target_sources(rpc-test-server PRIVATE
+        tests/support/rpc_native_ships.cpp
         tests/support/rpc_native_colonies.cpp
         tests/support/rpc_native_turn_review.cpp
         tests/support/rpc_native_leaders.cpp
@@ -2154,7 +2158,7 @@ if(ORION2RE_RPC_BUILT)
                 "${Python3_EXECUTABLE}" -m unittest discover
                 -s "${CMAKE_CURRENT_SOURCE_DIR}/tests/rpc" -p test_transport.py -v)
         set_tests_properties(test_rpc_transport PROPERTIES
-            TIMEOUT 120 WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+            TIMEOUT 300 WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
     endif()
 endif()
 

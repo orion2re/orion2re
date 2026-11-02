@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "ship_read.h"
 
 namespace SYS {
     constexpr int PLANET_CLIMATE_EXTENT = PLANET_CLIMATE_COUNT;
@@ -1274,10 +1275,7 @@ namespace SYS {
             for (int16_t hull_idx = 0; hull_idx < SHIP_SIZE_DOOM_STAR + 1; ++hull_idx) {
                 const int16_t hull_count = hull_counts[hull_idx];
                 if (hull_count > 0) {
-                    const char* hull_name =
-                        (hull_count == 1)
-                        ? TECHDATA::hull_data[hull_idx].name
-                        : TECHDATA::hull_data[hull_idx].size_name;
+                    const char* hull_name = ship_read::Hull_Name(hull_idx, hull_count != 1);
 
                     snprintf(line_buffer, sizeof(line_buffer), "%2d %s", static_cast<int32_t>(hull_count), hull_name);
                     print_y = static_cast<int16_t>(print_y + static_cast<int16_t>(line_step));

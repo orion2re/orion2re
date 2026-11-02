@@ -1,4 +1,6 @@
 #include "pch.h"
+#include "game_events.h"
+#include "ship_read.h"
 
 namespace CMBTDRW1 {
     enum class Combat_View_Subject {
@@ -309,6 +311,7 @@ namespace CMBTDRW1 {
             if (ship_name[0] != '\0') {
                 strlcpy(MOX::ship[ship_idx].d.name, ship_name, sizeof(MOX::ship[ship_idx].d.name));
             }
+            game_events::Publish(game_events::SHIP_OBSERVATION_POINT);
         }
 
         fields::Release_Fields();
@@ -3184,10 +3187,7 @@ namespace CMBTDRW1 {
 
     static void Copy_Crew_Quality_Without_Parenthetical(char* out_text, size_t out_text_size, int32_t crew_quality) {
         strlcpy(out_text, CMBTDRW1::Crew_Quality_String(crew_quality), out_text_size);
-        char* paren = strchr(out_text, '(');
-        if (paren != nullptr) {
-            *paren = '\0';
-        }
+        ship_read::Strip_Crew_Parenthetical(out_text);
     }
 
     static int16_t Weakest_Shield_Arc() {
@@ -3824,29 +3824,12 @@ namespace CMBTDRW1 {
                 snprintf(quantity_text, sizeof(quantity_text), "%d%s%s", static_cast<int32_t>(slot.count), " ", weapon_name);
 
                 strlcpy(arc_text, " (", sizeof(arc_text));
-                switch (weapon_arc) {
-                    case WEAPON_FIRING_ARC_FORWARD:
-                        KEN::Ken_Get_Text_Message(3, message_text, 0x50);
-                        strlcat(arc_text, message_text, sizeof(arc_text));
-                        break;
-                    case WEAPON_FIRING_ARC_FORWARD_EXTENDED:
-                        KEN::Ken_Get_Text_Message(4, message_text, 0x50);
-                        strlcat(arc_text, message_text, sizeof(arc_text));
-                        break;
-                    case WEAPON_FIRING_ARC_BACK_EXTENDED:
-                        KEN::Ken_Get_Text_Message(6, message_text, 0x50);
-                        strlcat(arc_text, message_text, sizeof(arc_text));
-                        break;
-                    case WEAPON_FIRING_ARC_REAR:
-                        KEN::Ken_Get_Text_Message(5, message_text, 0x50);
-                        strlcat(arc_text, message_text, sizeof(arc_text));
-                        break;
-                    case WEAPON_FIRING_ARC_ALL_SECTORS:
-                        strlcat(arc_text, "360", sizeof(arc_text));
-                        break;
-                    default:
-                        break;
-                }
+                const int16_t arc_label = ship_read::Combat_Arc_Label_Id(weapon_arc);
+                if (arc_label > 0) {
+                    KEN::Ken_Get_Text_Message(arc_label, message_text, 0x50);
+                    strlcat(arc_text, message_text, sizeof(arc_text));
+                } else if (arc_label == 0)
+                    strlcat(arc_text, "360", sizeof(arc_text));
                 strlcat(arc_text, ")", sizeof(arc_text));
 
                 if (weapon_arc != WEAPON_FIRING_ARC_FORWARD) {
@@ -3941,8 +3924,7 @@ namespace CMBTDRW1 {
         int16_t special_row_y = row_y;
         int16_t displayed_specials = 0;
 
-        const int32_t special_count =
-            COMBINIT::amoeba_regeneration != 0 ? SPECIAL_COUNT : SPECIAL_REGENERATION;
+        const int32_t special_count = ship_read::Special_Count(true);
         for (int32_t special_index = 0; special_index < special_count; ++special_index) {
             if (struct_::Test_Bit_Field(MOX::global_combat_data.special_device_flags, special_index) != 0) {
                 const s_colors* active_colors =

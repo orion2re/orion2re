@@ -3,13 +3,13 @@
 
 **Optional runtime, disabled by default.** Only the implemented methods listed below are callable when the RPC build and settings enable it.
 
-Implemented methods: `rpc.hello`, `rpc.describe`, `rpc.subscribe`, `rpc.unsubscribe`, `game.getSession`, `game.getState`, `game.listSystems`, `game.getSystem`, `game.listNebulas`, `game.listShips`, `game.getShip`, `game.listPlayers`, `game.getPlayer`, `game.listColonies`, `game.getColony`, `game.listPlanets`, `game.getPlanet`, `game.getResearch`, `game.listResearchOptions`, `game.getTechnology`, `game.listLeaders`, `game.getLeader`, `game.getRelations`, `game.getIntelligence`, `game.getHistory`, `game.listMessages`, `game.getMessage`.
+Implemented methods: `rpc.hello`, `rpc.describe`, `rpc.subscribe`, `rpc.unsubscribe`, `game.getSession`, `game.getState`, `game.listSystems`, `game.getSystem`, `game.listNebulas`, `game.listShips`, `game.getShip`, `game.listFleets`, `game.getFleet`, `game.listDesigns`, `game.getDesign`, `game.listPlayers`, `game.getPlayer`, `game.listColonies`, `game.getColony`, `game.listPlanets`, `game.getPlanet`, `game.getResearch`, `game.listResearchOptions`, `game.getTechnology`, `game.listLeaders`, `game.getLeader`, `game.getRelations`, `game.getIntelligence`, `game.getHistory`, `game.listMessages`, `game.getMessage`.
 
 This document is rendered from `schema.json`, not a second method catalog.
 The root schema validates acknowledged client requests; per-method success responses and server notifications have separate definitions.
 All fields are non-null unless explicitly stated. Unknown keys are rejected. UTF-8 byte limits, lexical integer tokens, duplicate keys, depth and authorization need the protocol guards in addition to standard JSON Schema validation.
 
-Source bundle SHA-256: `cb7e451e618fd8ba927604356aa2d896cfa6e568b5ca1821b7cb5a5eba083ac9`.
+Source bundle SHA-256: `b3ab39191bf4af3176e1ed3a04ab3ad906524e01a7704208ea20023b8d386c0f`.
 
 ## Methods
 
@@ -144,7 +144,7 @@ Constraints: `{"maximum": 255, "minimum": 0, "type": "integer", "x-integerToken"
 
 ### CaptureMode
 
-Values: `last-coherent-capture`, `last-native-ship-refresh`, `last-native-fleet-box`, `native-leader-presentation`, `native-relations-presentation`.
+Values: `last-coherent-capture`, `last-native-ship-refresh`, `last-native-fleet-box`, `native-leader-presentation`, `native-relations-presentation`, `owned-inspection`.
 
 ### Chat
 
@@ -563,6 +563,20 @@ Values: `current`.
 | availability | Current | yes | contract |
 | value | Credits | yes | contract |
 
+### CurrentDesignCost
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| availability | Current | yes | contract |
+| value | DesignCost | yes | contract |
+
+### CurrentDesignEquipment
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| availability | Current | yes | contract |
+| value | DesignEquipment | yes | contract |
+
 ### CurrentExploredIds
 
 | Field | Type | Required | Policy |
@@ -696,12 +710,54 @@ Values: `current`.
 | availability | Current | yes | contract |
 | value | ResearchPoints | yes | contract |
 
+### CurrentShipCapabilities
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| availability | Current | yes | contract |
+| value | ShipCapabilities | yes | contract |
+
+### CurrentShipCondition
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| availability | Current | yes | contract |
+| value | ShipCondition | yes | contract |
+
 ### CurrentShipEta
 
 | Field | Type | Required | Policy |
 | --- | --- | --- | --- |
 | availability | Current | yes | contract |
 | value | CachedShipTurns | yes | contract |
+
+### CurrentShipExperience
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| availability | Current | yes | contract |
+| value | ShipExperience | yes | contract |
+
+### CurrentShipHitPair
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| availability | Current | yes | contract |
+| value | ShipHitPair | yes | contract |
+
+### CurrentShipHits
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| availability | Current | yes | contract |
+| value | ShipShieldStrength | yes | contract |
+
+### CurrentShipInspection
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| availability | Current | yes | contract |
+| value | ShipInspection | yes | contract |
 
 ### CurrentSpyCount
 
@@ -752,6 +808,13 @@ Values: `current`.
 | availability | Current | yes | contract |
 | value | Value | yes | contract |
 
+### CurrentWeaponCount
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| availability | Current | yes | contract |
+| value | DisplayedWeaponCount | yes | contract |
+
 ### DescribeRequest
 
 | Field | Type | Required | Policy |
@@ -769,10 +832,30 @@ Values: `current`.
 
 | Field | Type | Required | Policy |
 | --- | --- | --- | --- |
-| id | Id | yes | disabled-design |
-| name | KnownText | yes | disabled-design |
-| hull | KnownText | yes | disabled-design |
-| cost | KnownCredits | yes | disabled-design |
+| id | Id | yes | owned-design-inspection |
+| source | DesignSource | yes | owned-design-inspection |
+| name | KnownText | yes | owned-design-inspection |
+| hull | KnownText | yes | owned-design-inspection |
+| cost | KnownDesignCost | yes | owned-design-inspection |
+| equipment | KnownDesignEquipment | yes | owned-design-inspection |
+| constructionColony | KnownId | yes | owned-design-inspection |
+
+### DesignCost
+
+Stored integer design/instance production cost; a committed refit record stores its refit cost. Not BC, a purchase price, or a recalculated current build cost.
+
+Constraints: `{"maximum": 32767, "minimum": -32768, "type": "integer", "x-integerToken": true}`.
+
+### DesignEquipment
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| shield | Text | yes | owned-design-inspection |
+| computer | Text | yes | owned-design-inspection |
+| armor | Text | yes | owned-design-inspection |
+| drive | Text | yes | owned-design-inspection |
+| weapons | DesignWeapons | yes | owned-design-inspection |
+| systems | DesignSystems | yes | owned-design-inspection |
 
 ### DesignResult
 
@@ -781,9 +864,38 @@ Values: `current`.
 | stamp | Stamp | yes | contract |
 | item | Design | yes | contract |
 
+### DesignSource
+
+Values: `slot`, `ship`, `queued`, `refit`.
+
+### DesignSystem
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| label | Text | yes | owned-design-inspection |
+| damaged | KnownBool | yes | owned-design-inspection |
+
+### DesignSystems
+
+Array of `DesignSystem`; 0..40 items; unique: false.
+
+### DesignWeapon
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| label | Text | yes | owned-design-inspection |
+| arc | KnownText | yes | owned-design-inspection |
+| modifications | KnownText | yes | owned-design-inspection |
+| count | InstalledWeaponCount | yes | owned-design-inspection |
+| currentCount | KnownWeaponCount | yes | owned-design-inspection |
+
+### DesignWeapons
+
+Array of `DesignWeapon`; 0..8 items; unique: false.
+
 ### Designs
 
-Array of `Design`; 0..4096 items; unique: false.
+Array of `Design`; 0..10006 items; unique: false.
 
 ### DesignsResult
 
@@ -792,6 +904,12 @@ Array of `Design`; 0..4096 items; unique: false.
 | stamp | Stamp | yes | contract |
 | items | Designs | yes | contract |
 | nextCursor | Id | no | contract |
+
+### DisplayedWeaponCount
+
+Nonnegative integer count of authorized projected records only.
+
+Constraints: `{"maximum": 255, "minimum": 0, "type": "integer", "x-integerToken": true}`.
 
 ### Empty
 
@@ -832,10 +950,17 @@ Array of `Id`; 0..5 items; unique: true.
 
 | Field | Type | Required | Policy |
 | --- | --- | --- | --- |
-| id | Id | yes | disabled-fleet |
-| members | Ids | yes | disabled-fleet |
-| destination | KnownId | yes | disabled-fleet |
-| eta | KnownTurns | yes | disabled-fleet |
+| id | Id | yes | owned-fleet-inspection |
+| members | FleetMemberIds | yes | owned-fleet-inspection |
+| x | Coord | yes | owned-fleet-inspection |
+| y | Coord | yes | owned-fleet-inspection |
+| location | KnownId | yes | owned-fleet-inspection |
+| destination | ShipDestination | yes | owned-fleet-inspection |
+| eta | ShipEta | yes | owned-fleet-inspection |
+
+### FleetMemberIds
+
+Array of `Id`; 1..10000 items; unique: true.
 
 ### FleetResult
 
@@ -994,6 +1119,12 @@ Signed displayed BC per turn, including native HUD net income or an individual a
 
 Constraints: `{"maximum": 32767, "minimum": -32768, "type": "integer", "x-integerToken": true}`.
 
+### InstalledWeaponCount
+
+Nonnegative integer count of authorized projected records only.
+
+Constraints: `{"maximum": 127, "minimum": -128, "type": "integer", "x-integerToken": true}`.
+
 ### Intelligence
 
 | Field | Type | Required | Policy |
@@ -1045,6 +1176,14 @@ Exactly one of: CurrentCount, Unavailable.
 ### KnownCredits
 
 Exactly one of: CurrentCredits, Unavailable.
+
+### KnownDesignCost
+
+Exactly one of: CurrentDesignCost, Unavailable.
+
+### KnownDesignEquipment
+
+Exactly one of: CurrentDesignEquipment, Unavailable.
 
 ### KnownEmpty
 
@@ -1118,6 +1257,30 @@ Exactly one of: CurrentRelationReport, Unavailable.
 
 Exactly one of: CurrentResearchPoints, EmptyKnowledge, Unavailable.
 
+### KnownShipCapabilities
+
+Exactly one of: CurrentShipCapabilities, Unavailable.
+
+### KnownShipCondition
+
+Exactly one of: CurrentShipCondition, Unavailable.
+
+### KnownShipExperience
+
+Exactly one of: CurrentShipExperience, Unavailable.
+
+### KnownShipHitPair
+
+Exactly one of: CurrentShipHitPair, Unavailable.
+
+### KnownShipHits
+
+Exactly one of: CurrentShipHits, Unavailable.
+
+### KnownShipInspection
+
+Exactly one of: CurrentShipInspection, Unavailable.
+
 ### KnownSpyCount
 
 Exactly one of: CurrentSpyCount, Unavailable.
@@ -1145,6 +1308,10 @@ Exactly one of: CurrentTurns, Unavailable.
 ### KnownValue
 
 Exactly one of: CurrentValue, Unavailable.
+
+### KnownWeaponCount
+
+Exactly one of: CurrentWeaponCount, Unavailable.
 
 ### Leader
 
@@ -1860,6 +2027,37 @@ Values: `menu`, `committed`, `resolving`, `revoked`, `ending`, `unavailable`.
 | name | KnownText | yes | ship-own-name |
 | destination | ShipDestination | yes | ship-map-route |
 | eta | ShipEta | yes | ship-map-eta |
+| inspection | KnownShipInspection | yes | owned-ship-inspection |
+
+### ShipCapabilities
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| beamAttack | ShipRating | yes | owned-ship-inspection |
+| beamDefense | ShipRating | yes | owned-ship-inspection |
+| missileEvasion | ShipEvasion | yes | owned-ship-inspection |
+
+### ShipCombatSpeed
+
+Whole native displayed combat movement units, after native damage rounding and trait bonuses; no movement options or forecast.
+
+Constraints: `{"maximum": 32767, "minimum": -32768, "type": "integer", "x-integerToken": true}`.
+
+### ShipCondition
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| structure | ShipHits | yes | owned-ship-inspection |
+| structureMax | ShipHits | yes | owned-ship-inspection |
+| armor | ShipHits | yes | owned-ship-inspection |
+| armorMax | ShipHits | yes | owned-ship-inspection |
+| drive | KnownShipHitPair | yes | owned-ship-inspection |
+| computer | KnownShipHitPair | yes | owned-ship-inspection |
+| shield | KnownShipHitPair | yes | owned-ship-inspection |
+| combatSpeed | ShipCombatSpeed | yes | owned-ship-inspection |
+| warpSpeed | ShipWarpSpeed | yes | owned-ship-inspection |
+| shieldStrength | ShipHits | yes | owned-ship-inspection |
+| shieldStrengthMax | KnownShipHits | yes | owned-ship-inspection |
 
 ### ShipDestination
 
@@ -1869,12 +2067,78 @@ Exactly one of: CurrentId, EmptyKnowledge, Unavailable.
 
 Exactly one of: CurrentShipEta, EmptyKnowledge, Unavailable.
 
+### ShipEvasion
+
+Whole native percentage; field-specific bounds distinguish gravity penalties, tribute and signed intelligence bonuses.
+
+Constraints: `{"maximum": 32767, "minimum": -32768, "type": "integer", "x-integerToken": true}`.
+
+### ShipExperience
+
+Whole owned combat-ship crew experience points displayed as EP in Fleets; noncombat experience is not inferred.
+
+Constraints: `{"maximum": 65535, "minimum": 0, "type": "integer", "x-integerToken": true}`.
+
+### ShipHitPair
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| current | ShipHits | yes | owned-ship-inspection |
+| maximum | ShipHits | yes | owned-ship-inspection |
+
+### ShipHits
+
+Exact integer current/maximum structure or armor hits displayed in owned ship detail; preserves signed native exceptional values without clamping or predicting repair.
+
+Constraints: `{"maximum": 65535, "minimum": -65535, "type": "integer", "x-integerToken": true}`.
+
+### ShipInspection
+
+| Field | Type | Required | Policy |
+| --- | --- | --- | --- |
+| role | ShipRole | yes | owned-ship-inspection |
+| type | Text | yes | owned-ship-inspection |
+| status | ShipInspectionStatus | yes | owned-ship-inspection |
+| crew | KnownText | yes | owned-ship-inspection |
+| experience | KnownShipExperience | yes | owned-ship-inspection |
+| condition | KnownShipCondition | yes | owned-ship-inspection |
+| capabilities | KnownShipCapabilities | yes | owned-ship-inspection |
+| configuration | KnownId | yes | owned-ship-inspection |
+| location | KnownId | yes | owned-ship-inspection |
+| cargo | Unavailable | yes | owned-ship-inspection |
+
+### ShipInspectionStatus
+
+Values: `active`.
+
+### ShipRating
+
+Signed whole beam attack/defense rating displayed in owned ship detail, not a probability or combat forecast.
+
+Constraints: `{"maximum": 32767, "minimum": -32768, "type": "integer", "x-integerToken": true}`.
+
 ### ShipResult
 
 | Field | Type | Required | Policy |
 | --- | --- | --- | --- |
 | stamp | Stamp | yes | contract |
 | item | Ship | yes | contract |
+
+### ShipRole
+
+Values: `combat`, `colony`, `transport`, `outpost`.
+
+### ShipShieldStrength
+
+Exact integer current/maximum structure or armor hits displayed in owned ship detail; preserves signed native exceptional values without clamping or predicting repair.
+
+Constraints: `{"maximum": 2147483647, "minimum": -2147483648, "type": "integer", "x-integerToken": true}`.
+
+### ShipWarpSpeed
+
+Whole native displayed drive speed, including the owner&#x27;s native trans-dimensional bonus where displayed; suppressed drive presentations retain their native displayed zero, not a calculated ETA.
+
+Constraints: `{"maximum": 32767, "minimum": -32768, "type": "integer", "x-integerToken": true}`.
 
 ### Ships
 
@@ -1987,11 +2251,11 @@ Constraints: `{"maximum": 2, "minimum": 0, "type": "integer", "x-integerToken": 
 
 ### StateTopic
 
-Values: `session`, `systems`, `nebulas`, `ships`, `players`, `colonies`, `planets`, `research`, `leaders`, `relations`, `intelligence`, `history`, `messages`.
+Values: `session`, `systems`, `nebulas`, `ships`, `fleets`, `designs`, `players`, `colonies`, `planets`, `research`, `leaders`, `relations`, `intelligence`, `history`, `messages`.
 
 ### StateTopics
 
-Array of `StateTopic`; 0..13 items; unique: true.
+Array of `StateTopic`; 0..15 items; unique: true.
 
 ### StreamGap
 
@@ -2025,7 +2289,7 @@ Array of `SubscriptionEvent`; 1..2 items; unique: true.
 
 ### SubscriptionTopics
 
-Array of `StateTopic`; 1..13 items; unique: true.
+Array of `StateTopic`; 1..15 items; unique: true.
 
 ### System
 
@@ -2241,13 +2505,15 @@ Reviewed means static evidence, not runtime visibility approval.
 | colonies-own | reviewed | This list is explicitly the bound active human viewer&#x27;s own full-colony roster, following native Colonies/transport lists: owner equals viewer and outpost_flag is zero. Foreign intelligence and outposts are not included. Filter before reading links/population, sorting, counts, handles, revisions or notifications. At the same map/roster capture, copy a validated system reference and one-based orbital position and cached n_pops resident population (0..42 whole displayed population units, not thousandths, growth or inbound settlers). Validate planet/star/colony backlinks and uniqueness. Resolve system/owner through the same capture; discard private bindings before retention. No UI list builder, Sum_Colonists, forecast or economic calculator is called. Opaque read-only observation handles are replaced on authorized collection changes, not durable colony identities/action capabilities. Known-empty refers to this own-full-colony scope, not to foreign intelligence. | src/game/colxport.cpp: Build_Global_Colony_List; src/game/colxport.cpp: N_Colonies; src/game/colsum.cpp: Draw_Colony_Scan_Info; src/game/colony.cpp: Set_Colony_Globals | T-01, T-02, T-03, T-05 |
 | colony-own-troops | reviewed | Only the bound active human viewer&#x27;s own full colonies after owner/outpost authorization and parent-link validation. Copy existing military[0] infantry and military[1] armor counts, 0..32767 native int16 units, including known zero. Print_Scanned_Military displays these exact counts; Do_Colony_Info_Military_Stuff_For draws the units or the exact compressed count. Armor covers the native tank/battloid presentation, not a newly inferred unit design. Do not add population militia, inbound troops, troop strength, growth/roundoff, future production, weapon/armor technology or foreign/outpost intelligence. No troop popup, UI builder, invasion limit or combat calculator is invoked. Same immutable map/ship/roster/colony capture as population; hidden-only counts do not affect handles, revisions or notifications. | src/game/colony.cpp: Print_Scanned_Military; src/game/colony_main.cpp: Do_Colony_Info_Military_Stuff_For; src/game/colcalc.cpp: colony-&gt;military[0]; src/game/colcalc.cpp: colony-&gt;military[1] | T-01, T-02, T-03, T-05 |
 | colony-operations | reviewed | Own full colonies only through shared Own_Full_Colony, before detail reads, validation, counts or equality. Shared native population/product/autobuild labels, presence and satellite redundancy, resource icon-group arithmetic and morale icon rounding/suppression/cap; native job/species/localized unit text, event priority and labels, inbound-settler count, current product cost, stored/bought production, cached-industry turn count and own-only buy predicate. Seven committed queue slots retain none/repeat/refit variants and labels, not design/ship entity grants. Unknown variants/storage/resources are explicit unknown, not no production or empty workforce. No foreign treasury, population recalculation, economic refresh, UI list construction, staged queue/refit design, transfer verdict/ETA, RNG or report consumption. Native edit staging blocks fresh ambient capture; retained combined captures stay dated and are never enriched. Initialized settled colony decision points publish coherent ambient data. Recipient-scoped pre-replacement invalidation revokes dependent colony/planet pages, references and queued leased output before authority/storage mutation, preserving other ambient reads. Resolve species-player links only through the same capture&#x27;s existing roster; a species/product label grants no additional entity. Outposts and foreign colony intelligence remain excluded. | src/game/colony_read.cpp: namespace colony_read; src/game/coldraw.cpp: Resource_Row; src/game/coldraw.cpp: Morale_Icons; src/game/colmove.cpp: Colony_Pop_String; src/game/colcalc.cpp: Colony_Product_Cost; src/game/colcalc.cpp: Colony_N_Turns_To_Produce; src/game/colcalc_base.cpp: Production_Cost_To_Buy; src/game/events.cpp: Colony_Has_Event; src/game/colsum.cpp: Draw_Colony_Scan_Info; src/game/game_events.cpp: Colony_Edits_Active | T-01, T-02, T-03, T-04, T-05, T-06, T-07, T-12 |
-| ships-refreshed | reviewed | Capture surviving associations only synchronously post-Build_Ship_Icons for the bound active human viewer, outside world mutation/resolution. Follow fresh icon heads that are surviving stack heads and their linked nodes; never enumerate unlinked allocations or rebuild for a query. Copy map x/y and own-versus-foreign classification; names and known-player owner references require their additional field policies. Sort the authorized projection before assigning opaque read-only observation handles; no native slots or durable ship identity are published. One coherent map/ship capture, explicitly dated last-native-ship-refresh. A fresh last-native-fleet-box capture may reuse still-valid surviving associations under the reviewed ship-map-eta authority, without later node traversal or enriching any older retained capture. Handle sets are replaced when the projected ship collection changes; no action may use them. | src/game/ships.cpp: Build_Ship_Icons; src/game/shipstak.cpp: Find_Ship_Stacks; src/game/shipstak.cpp: Remove_Non_Detected_Ships; src/game/haccess.cpp: Ship_Stack_X; src/game/haccess.cpp: Ship_Stack_Y; src/game/haccess.cpp: Ship_Stack_Owner | T-01, T-02, T-05 |
-| ship-own-name | reviewed | Ship.name retains its canonical in-game ship-name semantics, never a substituted hull-class/UI label; no displayName field is introduced. Current implementation: only the bound viewer&#x27;s own ship, a bounded NUL-terminated copy of d.name decoded from CP850 to UTF-8 at the same authorized post-refresh capture. Foreign name bytes are never read; native disclosure of a hull label does not authorize their canonical name, which remains explicitly unaudited rather than a scan-knowledge claim. | src/game/fleetpop.cpp: Get_Fleetpop_Scanned_Ship_Info | T-01, T-02, T-03 |
-| ship-owner-known | reviewed | Only a surviving freshly displayed ship. Resolve own ownership or a known empire&#x27;s banner-color identity to an opaque player handle in the same coherent capture&#x27;s authorized roster. Foreign mapping requires a unique color in that public roster; ambiguous colors, unlisted owners and special/NPC owners remain explicitly unaudited. Never use an old handle table or newer roster to authorize the link. Discard private owner bindings before retaining snapshots; compare only the resolved public ID. Ownership does not authorize enemy names/designs, routes, ETA, orders, cargo or economy. | src/game/ships.cpp: Get_Ship_Icon_Pict_Seg; src/game/ships.cpp: Build_Ship_Icons; src/game/racescrn.cpp: Draw_Race_Photos | T-01, T-02, T-05 |
-| ship-map-route | reviewed | Ambient subset at fresh surviving-icon capture: own route, or non-own moving head with enemy_moves presentation or the existing Enemy_Ship_Heading_Toward_Our_Colony predicate. Preserve the native outpost predicate&#x27;s ignored player argument and non-own, not necessarily hostile, semantics. Validated ambient stack members share only the displayed head&#x27;s location/owner/position route. Additional contextual subset: only a surviving non-own head with canonical movement encoding (status-2 upper-offset departure, including ordinary departure, or status-1 ordinary moving-offset transit) whose actual selected/open-box destination line was drawn during current initialized main-owner presentation, in the same native frame before its actual non-preview cached fleet-box ETA producer. Reject mixed status/location encodings. Ordinary map-icon ETA printing follows the line observation but is not the fleet-box producer or an independent context grant. An open box or copied destination alone never authorizes it. Validate exact surviving head and complete current membership under ship-map-eta; grant only this head&#x27;s route and ETA under one revocable capture lease. Resolve only real same-capture systems to opaque handles and discard private bindings. Line presentation grants map-position knowledge, not an unvisited system name; producer star -1 is withheld name knowledge, not known-empty. Revoke contextual destination and ETA together through pages, subscriptions, bridge work/publications, delivery receipts and service output; preserve independent ambient reads. Stationary own location is known-empty; remaining selection data is context-required and special destinations get no fabricated handles. Detection, contact, ownership and omniscience alone never authorize routes. No query invokes UI builders, renderers or movement calculators. | src/game/ships.cpp: Do_Ship_Destination_Lines; src/game/ships.cpp: Enemy_Ship_Heading_Toward_Our_Colony; src/game/harold.cpp: Absolute_Location; src/game/harold.cpp: Player_Has_Outpost; src/game/shipstak.cpp: Find_Ship_Stacks; src/game/mainscr_main.cpp: Draw_Main_Screen; src/game/fleetpop.cpp: Print_Fleet_Box_Info; src/game/shipmove.cpp: Make_Ships_Move_To; src/game/shipmove.cpp: Move_All_Ships_Toward_Stars | T-01, T-02, T-05, T-07, T-12 |
-| ship-map-eta | reviewed | Preserve cached uint8 turns_left including zero/255; never calculate ETA. Ambient ordinary-route ETA belongs only to its surviving displayed head. Fleet-box subset: actual non-preview cached producer for a surviving own/non-own upper-offset head with independently current ambient destination, or the canonical departing/ordinary-transit contextual head audited in ship-map-route. Require initialized active main owner/presentation, exact complete current open-box membership and no stale selected references; empty selection is valid. Foreign ambient enemy_moves or native incoming-colony/outpost gates are rechecked at production; they are not relaxed for ordinary contextual disclosure. Contextual destination instead requires actual same-frame line presentation followed by the fleet-box producer, not arbitrary cached or map-icon ETA. Capture associations only at refresh; validate box members&#x27; private owner/location/status/generation and public position, reject retirement/slot/node reuse without later node traversal. Never read foreign canonical names or use private checks for public identity/sorting. Copy borrowed values into a fresh immutable coherent six-topic capture including session, stamped last-native-fleet-box; never enrich retained captures. Resolve only real same-capture destinations; producer star -1 withholds its name, not map knowledge and not known-empty. Revoke both contextual fields through retained pages, subscriptions, bridge work/publications, delivery receipts and every service-output fragment on authority loss, owner/box replacement, child interruption, rebuild, world/perspective changes and resolution. Started revoked messages close rather than finish; preserve independently authorized ambient offscreen reads. Equal fresh presentation after rebuild retains public IDs/revisions but never revives expired pages. Other upper-offset/non-head ETA remains context-required, stationary own ships known-empty, special destinations get no fabricated handles. Grants no extra names, unaudited routes, orders, cargo, designs or hostility classification. | src/game/ships.cpp: Do_Ship_Destination_Lines; src/game/ships.cpp: Enemy_Ship_Heading_Toward_Our_Colony; src/game/harold.cpp: Player_Has_Outpost; src/game/ships.cpp: Print_Eta_On_Ship_Icon; src/game/fleetpop.cpp: Draw_Fleet_Movement_Box; src/game/fleetpop.cpp: Print_Fleet_Box_Info; src/game/fleetpop.cpp: Get_Absolute_Location_Scan_Info; src/game/mainscr_main.cpp: Main_Screen; src/game/mainscr_main.cpp: Draw_Main_Screen; src/game/fields.cpp: Check_Help_List; src/game/shipmove.cpp: Advance_Ship_Generation; src/game/shipmove.cpp: Make_Ships_Move_To; src/game/shipmove.cpp: Move_All_Ships_Toward_Stars | T-01, T-02, T-05, T-07, T-12 |
+| ships-refreshed | reviewed | Two independently authorized capture paths for the bound active human outside mutation/resolution/staged colony edits or temporary-player overrides. Ambient owned inspection enumerates only own active status 0..2 records, as the Fleets presentation with both type filters enabled, without invoking its mutable builders. Other ships still require synchronous surviving associations post-Build_Ship_Icons: fresh displayed icon/stack heads and reachable members, never unlinked allocations or later node traversal. An ambient owned capture does not retain or enlarge foreign observations. Copy only authorized position/classification, with separate name/owner/detail/route policies. Fresh contextual fleet-box captures reuse validated surviving associations under ship-map-eta. All selected topics belong to one immutable capture; never enrich older snapshots. Publicly sort before opaque observation handles; no slots, rebuilt stack IDs, durable identity or action capability. Changed public collections replace handle sets; retirement, replacement and storage/authority loss revoke dependent pages and output. | src/game/flt1.cpp: Fleet_Screen; src/game/flt2.cpp: Build_Fltscrn_Big_Icon_Fields; src/game/ships.cpp: Build_Ship_Icons; src/game/shipstak.cpp: Find_Ship_Stacks; src/game/shipstak.cpp: Remove_Non_Detected_Ships; src/game/haccess.cpp: Ship_Stack_X; src/game/haccess.cpp: Ship_Stack_Y; src/game/haccess.cpp: Ship_Stack_Owner | T-01, T-02, T-05, T-07 |
+| ship-own-name | reviewed | Ship.name is the canonical in-game name, never a hull/type label or a new displayName. Only an independently included active owned ship: bounded NUL-terminated d.name decoded from CP850 in the same ambient/refresh/context capture. Foreign name bytes are never read; a disclosed hull label does not authorize a canonical foreign name. Queue/refit labels have their independent Design projection, not phantom map-positioned Ship records. | src/game/fleetpop.cpp: Get_Fleetpop_Scanned_Ship_Info; src/game/flt2.cpp: Print_Scanned_Ship_Data | T-01, T-02, T-03 |
+| ship-owner-known | reviewed | Only an independently included own active ship or surviving refresh observation. Own ownership resolves to the bound player&#x27;s same-capture roster handle. Foreign banner-color mapping requires a unique color in that authorized roster; ambiguous, unlisted and NPC owners remain unaudited. No old handle table/newer roster linking. Discard private owner bindings before retention; compare only public IDs. Ownership grants no foreign names/designs/routes/ETA/cargo/orders/economy. | src/game/ships.cpp: Get_Ship_Icon_Pict_Seg; src/game/ships.cpp: Build_Ship_Icons; src/game/racescrn.cpp: Draw_Race_Photos; src/game/flt1.cpp: Fleet_Screen | T-01, T-02, T-05 |
+| ship-map-route | reviewed | Owned active groups use the unconditional own-route branch of Do_Ship_Destination_Lines in coherent ambient inspection or refresh captures. Other ambient routes still require surviving refresh associations and a non-own moving head with enemy_moves or Enemy_Ship_Heading_Toward_Our_Colony; preserve its non-own (not hostile) meaning and the outpost predicate&#x27;s ignored player argument. Members share only validated grouping location/owner/position. Contextual non-own destination requires an actual selected/open-box route line in the same initialized main-owner frame before its actual non-preview fleet-box cached producer. Require status-2 upper-offset departure or status-1 lower-offset transit; reject mixed encodings. Open box, selection, copied destination and map-icon ETA alone are not grants. Validate exact head and complete membership under ship-map-eta. Resolve only real same-capture systems, not unvisited names or special/Antares destinations. Producer star -1 withholds the name, not drawn position and not known-empty. Stationary own routes are known-empty. Revoke contextual route and ETA together through pages, subscriptions, bridge and every output fragment; preserve independent ambient data. Detection, contact and omniscience alone never authorize routes. No query invokes builders, renderers or movement calculation. | src/game/ships.cpp: Do_Ship_Destination_Lines; src/game/ships.cpp: Enemy_Ship_Heading_Toward_Our_Colony; src/game/harold.cpp: Absolute_Location; src/game/harold.cpp: Player_Has_Outpost; src/game/shipstak.cpp: Find_Ship_Stacks; src/game/mainscr_main.cpp: Draw_Main_Screen; src/game/fleetpop.cpp: Print_Fleet_Box_Info; src/game/shipmove.cpp: Make_Ships_Move_To; src/game/shipmove.cpp: Move_All_Ships_Toward_Stars | T-01, T-02, T-05, T-07, T-12 |
+| ship-map-eta | reviewed | Preserve cached uint8 turns_left, including zero/255, only with a current same-capture destination; never calculate ETA. Ambient lower-encoding ETA belongs to the native ordered group head: shared Member_Order for owned inspection, surviving displayed head for other refresh observations. Members do not inherit it. Upper-encoding ETA remains contextual: actual non-preview fleet-box producer for a surviving own/non-own head with independent ambient destination, or the contextual departing/transit head authorized by ship-map-route. Require initialized active main owner/presentation, exact complete current open-box membership and no stale selected references; empty selection is valid. Recheck foreign enemy_moves/incoming-colony/outpost gates; a newly enabled gate cannot promote an old association. Contextual destination needs actual same-frame route drawing, not map-icon ETA. Associations are captured only at refresh; private generation/owner/location/status/position checks reject retirement and slot/node reuse without later node traversal or foreign-name fingerprints. Publish a fresh immutable capture of all selected topics including session, never enrich older captures. Revoke route/ETA together on owner/box exit or replacement, interruption, rebuild, storage/identity/world/perspective loss and resolution, through retained/pinned captures, pending baselines, bridge and every output fragment. Started revoked output closes; independently authorized ambient reads remain. Equal re-presentation may retain public handles/revision but never revive expired pages. Other moving non-head/upper ETA is context-required, stationary own ETA known-empty, special destinations get no fabricated handles. No extra foreign names/designs/cargo/orders or hostility inference. | src/game/ships.cpp: Do_Ship_Destination_Lines; src/game/ships.cpp: Enemy_Ship_Heading_Toward_Our_Colony; src/game/harold.cpp: Player_Has_Outpost; src/game/ships.cpp: Print_Eta_On_Ship_Icon; src/game/fleetpop.cpp: Draw_Fleet_Movement_Box; src/game/fleetpop.cpp: Print_Fleet_Box_Info; src/game/fleetpop.cpp: Get_Absolute_Location_Scan_Info; src/game/mainscr_main.cpp: Main_Screen; src/game/mainscr_main.cpp: Draw_Main_Screen; src/game/fields.cpp: Check_Help_List; src/game/shipmove.cpp: Advance_Ship_Generation; src/game/shipmove.cpp: Make_Ships_Move_To; src/game/shipmove.cpp: Move_All_Ships_Toward_Stars; src/game/ship_read.cpp: Member_Order | T-01, T-02, T-05, T-07, T-12 |
 | disabled-ship | disabled | Unmapped/special owner identities and enemy canonical names/scan details require independent native authorization and initialized-context visibility tests. A hull-class label is not the canonical ship name. Surviving detection or known ownership does not authorize raw location, cargo, orders or enemy design data. No scanner-policy extraction is needed for the post-refresh projection. | src/game/fleetpop.cpp: Get_Fleetpop_Scanned_Ship_Info | T-01, T-02 |
-| disabled-fleet | disabled | Group only already authorized ships; stable IDs must not be rebuilt stack indices. Destination/ETA separately filtered. | src/game/shipstak.cpp: Find_Ship_Stacks | T-01, T-02 |
+| owned-fleet-inspection | reviewed | Only bound-player active ships (native status 0..2). Shared Same_Fleet uses native owner/location/x/y grouping; Member_Order preserves native type/size/picture ordering. Lists are unfiltered owned collections independent of current selection and combat/support toggles. Members resolve only through the same capture. Group IDs are read-observation handles, never rebuilt stack IDs or durable fleet identities. Location, destination and unsigned cached head ETA retain the independent ship route policies; members do not inherit head ETA. No mutable list builder or movement calculator runs. Retire, replacement, authority/storage loss revoke dependent handles, pages and leased output, preserving independent ambient topics. | src/game/shipstak.cpp: Find_Ship_Stacks; src/game/shipstak.cpp: Build_Ship_Type_Array; src/game/flt2.cpp: Ok_To_Add_Ship; src/game/ship_read.cpp: Same_Fleet | T-01, T-02, T-03, T-05, T-07 |
+| owned-ship-inspection | reviewed | Only bound-player active ships independently included by owned Fleets inspection. Shared Condition, Subsystem_Maxima, damaged-drive speed and Shield_Strength preserve native integer conversions/rounding, signed exceptional structure values and the separately wider displayed shield maximum. Subsystem ratios and maximum shield strength are withheld where noncombat/strategic layouts suppress them; native displayed zero speed and strategic 0/0 armor remain displayed zero, not an ETA or inferred equipment absence. Undefined shield-zero-maximum input is unavailable, not fabricated zero. Bonuses use audited pure design/crew/officer/owner-trait producers, not combat predictions. Combat EP is displayed crew experience; noncombat EP is unknown. Captured/special structure retains previous-owner semantics without granting foreign player records. Cargo is unknown. Same-capture location/configuration links only. Canonical names remain separate from type labels. Queue/refit inspection is a Design disclosure, not a Ship dossier. Ambient reads require no navigation; contextual routes remain narrower. | src/game/flt1.cpp: Fleet_Screen; src/game/flt2.cpp: Print_Scanned_Ship_Data; src/game/cmbtdrw1.cpp: Detailed_View_Ship; src/game/cmbtdrw1.cpp: Combat_Draw_View_Ship; src/game/combinit.cpp: Load_Display_Combat_Ship; src/game/cmbtfir2.cpp: Init_Internal_Space; src/game/initship.cpp: Get_Ship_Combat_Bonuses; src/game/ship_read.cpp: Condition | T-01, T-02, T-03, T-05, T-07, T-14 |
+| owned-design-inspection | reviewed | Committed owned slots and independently authorized own active configurations, plus committed owned-full-colony queued/refit configurations from Draw_Ship_Info. Sources slot/ship/queued/refit are distinct: never infer a slot match from a name, hull or equipment equality. No pending refit, staged MOX::design, generated candidate or uncommitted queued record. Current automatic strategic ship equipment uses pure Copy_Current_Ship_Configuration shared with the native updater, without invoking that updater or generating a candidate. Build_Weapon_String supplies native production/refit labels; Weapon_Mod_String and cached Weapon_Arc_String supply committed-slot/active configuration details in their native 128-byte buffers. Queued/refit hull labels, arc, postfix modifiers, current counts and damage are unknown where their presentation does not disclose them. Their constructionColony resolves only through the same authorized colony capture; no Ship record is manufactured. Type-zero slots are omitted, nonzero zero-count slots retained. Active noncombat weapon suppression follows Load_Display_Combat_Ship; active specials honor the native regeneration presentation switch. Cost is stored production points, including refit-specific stored cost, never BC or a recalculated price. Names/components come from initialized native resources; arc labels initialize/reload with native strings, not during capture. No Calculate_Design, mutable initializer, foreign scan/options/action or durable identity. | src/game/colbldg.cpp: Draw_Ship_Design_Info2; src/game/colbldg.cpp: Draw_Ship_Info; src/game/colbldg.cpp: Build_Weapon_String; src/game/colrefit.cpp: Scan_Ship_Info; src/game/design_main.cpp: Print_Current_Design; src/game/design.cpp: Weapon_Mod_String; src/game/design.cpp: Update_Player_Design; src/game/initship.cpp: Copy_Current_Ship_Configuration; src/game/ship_read.cpp: Load_Strings | T-01, T-02, T-03, T-05, T-07, T-14 |
 | disabled-design | disabled | Own templates or actual active scan-authorized details; calculators must be audited for mutation before sharing. | src/game/design_main.cpp: Design_Screen; src/game/cmbtdrw1.cpp: Detailed_View_Ship | T-01, T-02, T-03 |
 | leaders-roster | reviewed | Bound local human perspective only. Shared Officer_Roster_Disclosure gates before copying: own nonnegative-status roster, distinguishing status 4 hiring pool from hired service, plus the actual pending officer_for_hire with matching owner/status -1. Never enumerate generated candidates, undiscovered marooned leaders or foreign records. Native ship/colony roles, bounded names/titles, computed localized rank; XP only for roster entries, not pending popup-only offers. Unclassified nonnegative native states are unavailable, not invented assignments. Capacity 67 includes leaders_no_limit. Publicly sort after projection; read handles are capture-scoped, not durable slot identities. Withdrawal/replacement revokes retained pages/output through existing perspective revocation. Transient rescue/ground-summary disclosures have no ambient roster grant. | src/game/officer.cpp: Officer_Roster_Disclosure; src/game/officer.cpp: Leader_Is_Displayed; src/game/officer.cpp: Leader_Name; src/game/officer.cpp: Owned_Officer_Level; src/game/officer.cpp: Print_Officer_Data; src/game/report.cpp: Has_Officer_For_Hire; src/game/allocate.cpp: MAX_LEADERS | T-01, T-02, T-03, T-05, T-07 |
 | leader-abilities | reviewed | Only authorized roster/offer entries or an initialized promotion/rescue result ability presentation. Share native Officer_Displays_Skill and Copy_Officer_Skill_Value with Print_Officer_Data: role-specific skills first then general skills, retaining native order, localized names and formatted displayed values from Officer_Skill_Bonus. Ground summaries and message names do not grant ability rows. No raw masks, cost score, effectiveness inference or reinterpretation of value units. At most 54 native skill rows. | src/game/officer.cpp: Officer_Displays_Skill; src/game/officer.cpp: Copy_Officer_Skill_Value; src/game/officer.cpp: Print_Officer_Data; src/game/officer.cpp: Officer_Skill_Bonus | T-01, T-02, T-03 |

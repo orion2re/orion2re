@@ -1,6 +1,7 @@
 #include "pch.h"
 
 #include "game/config_refresh.h"
+#include "ship_read.h"
 
 namespace CONFIG_REFRESH {
     namespace {
@@ -14,6 +15,7 @@ namespace CONFIG_REFRESH {
     }
 
     void Resources_Unloaded() {
+        ship_read::Clear_Strings();
         resources_ready = false;
         reload_pending = false;
     }

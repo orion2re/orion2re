@@ -6,6 +6,7 @@ namespace rpc {
     struct s_map_observation;
 } // namespace rpc
 namespace test_native_colonies {
+    void Seed_World();
     void Initialize(rpc::s_game_store* store, rpc::s_map_observation* map);
     bool Command(const std::string& command);
     void Shutdown();

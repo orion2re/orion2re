@@ -50,6 +50,7 @@ namespace game_rpc {
     bool Subscribe_To_Game();
     void Unsubscribe_From_Game();
     bool Read_Map_Observation(rpc::s_map_observation* observation);
+    bool Read_Inspection_Observation(rpc::s_map_observation* observation);
     bool Capture_Leader_View(rpc::s_game_store* store, const rpc::s_map_observation* ambient, const game_events::s_leader_view* view);
     // Only at SHIP_ICONS_REFRESHED, while the freshly built native links are valid.
     bool Read_Refreshed_Ship_Observation(rpc::s_map_observation* observation);
