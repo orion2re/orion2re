@@ -1,5 +1,6 @@
-#include <libwebsockets.h>
+/* libuv must declare ssize_t before libwebsockets defines it as a macro on Windows. */
 #include <uv.h>
+#include <libwebsockets.h>
 
 #include <stdio.h>
 #include <string.h>
