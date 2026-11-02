@@ -621,6 +621,7 @@ class TransportTests(unittest.TestCase):
         self.Fixture("review-message")
         completed = 0
         closed = False
+        client.socket.settimeout(5)
         for _ in range(4096):
             try:
                 opcode, final, payload = client.Read_Frame()
@@ -633,8 +634,9 @@ class TransportTests(unittest.TestCase):
             completed += int(final and opcode in (0, 1))
         self.assertTrue(closed)
         # Bytes fully written before expiry can still arrive from the socket.
-        # The service must not finish all twelve old leased publications.
-        self.assertLess(completed, 12)
+        # The fixture requires service-owned pending output at expiry; the
+        # service must not finish all four old leased publications.
+        self.assertLess(completed, 4)
 
     def test_native_relations_intelligence_dashboard_workflow_and_context_revocation(self):
         self.Fixture("world")

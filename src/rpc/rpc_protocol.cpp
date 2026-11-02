@@ -1,5 +1,6 @@
 #include "rpc_protocol.h"
 #include "rpc_json.h"
+#include "generated/rpc_contract_data.h"
 
 #include <cstdlib>
 #include <cstring>
@@ -12,13 +13,6 @@
 
 namespace rpc {
     namespace {
-        struct s_error_descriptor {
-            int32_t code;
-            const char* message;
-        };
-
-#include "generated/rpc_contract_data.inc"
-
         bool Is_Text(yyjson_val* value, const char* text) {
             return yyjson_is_str(value) && yyjson_get_len(value) == std::strlen(text) &&
                 std::memcmp(yyjson_get_str(value), text, yyjson_get_len(value)) == 0;
@@ -41,7 +35,7 @@ namespace rpc {
                 } else if (value == '"') {
                     quoted = true;
                 } else if (value == '[' || value == '{') {
-                    if (++depth > RPC_MAX_DEPTH) {
+                    if (++depth > contract_data::RPC_MAX_DEPTH) {
                         return false;
                     }
                 } else if ((value == ']' || value == '}') && depth > 0) {
@@ -86,7 +80,7 @@ namespace rpc {
 
         bool Valid_Id(yyjson_val* id) {
             if (yyjson_is_str(id)) {
-                return yyjson_get_len(id) > 0 && yyjson_get_len(id) <= RPC_MAX_REQUEST_ID_BYTES;
+                return yyjson_get_len(id) > 0 && yyjson_get_len(id) <= contract_data::RPC_MAX_REQUEST_ID_BYTES;
             }
             if (yyjson_is_uint(id)) {
                 return yyjson_get_uint(id) <= 9007199254740991ULL;
@@ -108,7 +102,7 @@ namespace rpc {
         }
 
         bool Validate_Value(yyjson_val* value, yyjson_val* definition, yyjson_val* types, uint32_t depth) {
-            if (definition == nullptr || depth > RPC_MAX_DEPTH) {
+            if (definition == nullptr || depth > contract_data::RPC_MAX_DEPTH) {
                 return false;
             }
             yyjson_val* kind = yyjson_obj_get(definition, "kind");
@@ -200,12 +194,13 @@ namespace rpc {
         if (protocol == nullptr || protocol->definitions != nullptr) {
             return false;
         }
-        protocol->definitions = yyjson_read(rpc_types_json, sizeof(rpc_types_json) - 1, YYJSON_READ_NOFLAG);
+        const std::string types = contract_data::Types_Json();
+        protocol->definitions = yyjson_read(types.data(), types.size(), YYJSON_READ_NOFLAG);
         return protocol->definitions != nullptr;
     }
 
     const s_protocol_limits* Protocol_Limits() {
-        return &rpc_limits;
+        return &contract_data::rpc_limits;
     }
 
     void Shutdown_Protocol(s_protocol* protocol) {
@@ -220,7 +215,7 @@ namespace rpc {
             return RPC_INTERNAL_ERROR;
         }
         *request = {};
-        if (size > RPC_MAX_INPUT_BYTES) {
+        if (size > contract_data::RPC_MAX_INPUT_BYTES) {
             return RPC_LIMIT_EXCEEDED;
         }
         if (bytes == nullptr || size == 0) {
@@ -270,7 +265,7 @@ namespace rpc {
     }
 
     const s_method_descriptor* Find_Method(std::string_view name) {
-        for (const s_method_descriptor& method : rpc_methods) {
+        for (const s_method_descriptor& method : contract_data::rpc_methods) {
             if (name == method.name) {
                 return &method;
             }
@@ -283,7 +278,7 @@ namespace rpc {
             return false;
         }
         const s_method_descriptor* method = Find_Method(request->method);
-        if (method == nullptr || !method->implemented || request->params_json.size() > RPC_MAX_INPUT_BYTES ||
+        if (method == nullptr || !method->implemented || request->params_json.size() > contract_data::RPC_MAX_INPUT_BYTES ||
             !Depth_Allowed(request->params_json.data(), request->params_json.size())) {
             return false;
         }
@@ -338,7 +333,7 @@ namespace rpc {
         }
         yyjson_val* selected = yyjson_obj_get(yyjson_doc_get_root(document), "methods");
         auto* methods = Json_Array(json);
-        for (const s_method_descriptor& method : rpc_methods) {
+        for (const s_method_descriptor& method : contract_data::rpc_methods) {
             if (!method.implemented || (selected != nullptr && !In_Array(selected, method.name, std::strlen(method.name)))) {
                 continue;
             }
@@ -368,7 +363,7 @@ namespace rpc {
 
     std::string Error_Response(const s_request* request, int32_t code) {
         const char* message = "Internal error";
-        for (const s_error_descriptor& error : rpc_errors) {
+        for (const contract_data::s_error_descriptor& error : contract_data::rpc_errors) {
             if (error.code == code) {
                 message = error.message;
                 break;

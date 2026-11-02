@@ -1,6 +1,7 @@
 import copy
 import importlib.util
 import json
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -74,6 +75,20 @@ class SchemaTests(unittest.TestCase):
         schema["$defs"]["Id"]["description"] = "Schema-only documentation change"
         self.assertIn("Schema-only documentation change", generator.Render_Markdown(schema))
         self.assertNotIn("Schema-only documentation change", reference)
+
+    def test_cpp_contract_uses_bounded_independent_literals_and_preserves_json(self):
+        contracts = copy.deepcopy(self.contracts)
+        contracts["types"]["LongLiteralRegression"] = {
+            "kind":"enum", "values":['quotes" backslash\\ unicode\u2603 ' * 3000]}
+        source = generator.Render_Cpp(self.registry, contracts)
+        chunks = re.findall(r'R"rpc_types\((.*?)\)rpc_types",', source, re.DOTALL)
+        self.assertTrue(chunks)
+        self.assertTrue(all(len(chunk.encode("ascii")) <= 4096 for chunk in chunks))
+        encoded = "".join(chunks)
+        self.assertGreater(len(encoded), 65535)
+        self.assertEqual(encoded, json.dumps(contracts["types"], ensure_ascii=True, separators=(",", ":")))
+        self.assertIn('rpc_contract_data.h', source)
+        self.assertNotIn('.inc', source)
 
     def test_reference_escapes_table_and_html_content(self):
         self.assertEqual(generator.Cell("<script>|\n"), "&lt;script&gt;\\|<br>")

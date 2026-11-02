@@ -38,6 +38,7 @@ find_package(Threads REQUIRED)
 add_library(orion2re_rpc STATIC
     src/rpc/rpc_json.cpp
     src/rpc/rpc_protocol.cpp
+    src/rpc/generated/rpc_contract_data.cpp
     src/rpc/rpc_bridge.cpp
     src/rpc/rpc_output.cpp
     src/rpc/rpc_service.cpp
@@ -45,6 +46,9 @@ add_library(orion2re_rpc STATIC
     "${ORION2RE_VENDORED_YYJSON_DIR}/src/yyjson.c"
 )
 target_compile_features(orion2re_rpc PUBLIC cxx_std_20)
+if(WIN32)
+    target_compile_definitions(orion2re_rpc PRIVATE NOMINMAX)
+endif()
 target_include_directories(orion2re_rpc PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_include_directories(orion2re_rpc PRIVATE
     "${ORION2RE_VENDORED_YYJSON_DIR}/src"

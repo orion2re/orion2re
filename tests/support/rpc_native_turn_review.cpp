@@ -6,6 +6,11 @@
 #include "rpc/turn_review_rpc.h"
 #include "game/game_events.h"
 
+#include <chrono>
+#include <cstdlib>
+#include <mutex>
+#include <thread>
+
 namespace test_native_turn_review {
     namespace {
         s_player players[MAX_PLAYERS];
@@ -19,6 +24,7 @@ namespace test_native_turn_review {
         rpc::s_map_observation* map;
         uint64_t subscription;
         bool active = false;
+        bool output_pending = false;
 
         void Observe(game_events::e_event event, void*) {
             if (active && event == game_events::MESSAGES_REPLACING && game_events::Message_Recipient() == map->viewer) rpc::Expire_Game_Messages(store);
@@ -40,6 +46,7 @@ namespace test_native_turn_review {
     } // namespace
 
     void Seed() {
+        output_pending = false;
         memset(players, 0, sizeof(players));
         memset(ships, 0, sizeof(ships));
         memset(leaders, 0, sizeof(leaders));
@@ -194,6 +201,23 @@ namespace test_native_turn_review {
             message.msg_type = MSG_TYPE_APRIL1;
             MSG_::Add_Msg(message, 2);
         } else if (command == "review-message") {
+            if (output_pending) {
+                const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(1);
+                while (std::chrono::steady_clock::now() < deadline) {
+                    bool drained;
+                    {
+                        std::lock_guard lock(store->bridge->mutex);
+                        drained = store->bridge->ready.empty();
+                    }
+                    if (drained) break;
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                }
+                {
+                    std::lock_guard lock(store->bridge->mutex);
+                    if (!store->bridge->ready.empty() || store->bridge->deliveries.empty()) std::abort();
+                }
+                output_pending = false;
+            }
             s_MSG message = {};
             message.msg_type = MSG_TYPE_FINANCIAL;
             message.priority = 1;
@@ -216,14 +240,17 @@ namespace test_native_turn_review {
             request.id_json = "99";
             request.method = "game.getState";
             request.params_json = "{\"include\":[\"history\",\"messages\"]}";
-            for (int index = 0; index < 12; ++index) {
+            for (int index = 0; index < 4; ++index) {
                 if (rpc::Submit_Work(store->bridge, clients[0].client, clients[0].epoch, &request, UINT64_MAX) != 0) return false;
                 rpc::s_work work;
                 if (!rpc::Take_Work(store->bridge, 0, &work)) return false;
                 uint64_t lease = 0;
-                const auto response = rpc::Game_Query(store, &request, &lease);
+                auto response = rpc::Game_Query(store, &request, &lease);
+                // Valid JSON whitespace forces backpressure without changing the native result.
+                if (response.size() < 900000) response.resize(900000, ' ');
                 if (lease == 0 || !rpc::Complete_Work(store->bridge, &work, &response, lease)) return false;
             }
+            output_pending = true;
             return true;
         } else if (command == "review-advance") {
             rpc::Pause_Game_Queries(store);
