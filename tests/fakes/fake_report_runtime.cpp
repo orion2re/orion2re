@@ -37,7 +37,7 @@ namespace TEST_REPORT {
         MOX::ship[0].d.ship_type = SHIP_TYPE_OUTPOST;
         REPORT::no_outpost_prompt = 0;
         COLONY::allow_native_annihilation = 0;
-        OFFICER::reject_declined_offers = 0;
+        OFFICER::rejected_offer_keeps_timer = 0;
         accept_officer_offer = false;
         REPORT::really_trash_colony_base_fmt = trash_colony_base_fmt;
         colonizable_planet_count = 0;

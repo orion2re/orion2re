@@ -2439,7 +2439,7 @@ namespace OFFICER {
         MOX::player[player_index].officer_for_hire = (int8_t)leader_index;
 
         if (MOX::player[player_index].officer_for_hire > -1) {
-            if (reject_declined_offers == 0 ||
+            if (rejected_offer_keeps_timer == 0 ||
                 MOX::player[player_index].objectives != PLAYER_OBJECTIVE_HUMAN) {
                 MOX::player[player_index].stardate_last_offered_hero = static_cast<uint16_t>(MOX::stardate);
             }

@@ -8103,16 +8103,16 @@
       },
     },
 
-    reject_declined_offers: {
-      title: "Keep offer timer after declining a leader",
-      description: "Declining an initial leader offer preserves the elapsed wait toward the next offer instead of restarting it.",
-      remarks: "A declined leader remains available to hire from the officer screen for 30 turns regardless of this setting. False preserves the classic timer reset. This affects human offers only; accepting a leader into the officer pool still resets the timer, and AI behavior is unchanged.",
-      examples: ["leaders reject_declined_offers = true;"],
+    rejected_offer_keeps_timer: {
+      title: "Keep offer timer after rejecting a leader",
+      description: "Rejecting an initial leader offer preserves the elapsed wait toward the next offer instead of restarting it.",
+      remarks: "False preserves the classic timer reset. True only resets the timer if a leader is hired into the officer pool. A rejected leader remains available for hire from the Leaders screen for 30 turns regardless of this setting. Affects human player offers only; AI behavior is unchanged.",
+      examples: ["leaders rejected_offer_keeps_timer = true;"],
       group: "gameplay",
       namespace: "leaders",
       type: "bool",
       default: false,
-      bind_root: { header: "game/officer.h", symbol: "OFFICER::reject_declined_offers" },
+      bind_root: { header: "game/officer.h", symbol: "OFFICER::rejected_offer_keeps_timer" },
     },
 
     leaders_no_limit: {

@@ -527,7 +527,7 @@ namespace REPORT {
                 if (accepted) {
                     MOX::player[player_idx].bc -= cost;
                     COLCALC::Do_Player_Colony_Calculations(player_idx);
-                    if (OFFICER::reject_declined_offers != 0) {
+                    if (OFFICER::rejected_offer_keeps_timer != 0) {
                         // The offer was generated on the preceding turn.
                         MOX::player[player_idx].stardate_last_offered_hero =
                             static_cast<uint16_t>(MOX::stardate - 1);

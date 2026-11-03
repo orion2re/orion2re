@@ -2315,7 +2315,7 @@ DOCTEST_TEST_CASE("leader progression settings preserve 1.50 defaults and bounds
     DOCTEST_CHECK(OFFICER::progression.availability.base_amount == 10);
     DOCTEST_CHECK(OFFICER::progression.availability.increment_step == 5);
     DOCTEST_CHECK(OFFICER::progression.hire_chance.initial_delay == 5);
-    DOCTEST_CHECK(OFFICER::reject_declined_offers == 0);
+    DOCTEST_CHECK(OFFICER::rejected_offer_keeps_timer == 0);
     DOCTEST_CHECK(
         OFFICER::progression.special_leaders.advanced_government_leader_id == 47);
     DOCTEST_CHECK(
@@ -2333,7 +2333,7 @@ DOCTEST_TEST_CASE("leader progression settings preserve 1.50 defaults and bounds
         "leaders progression hire_chance initial_delay = 7;"
         "leaders progression hire_chance charismatic_bonus = 6;"
         "leaders progression hire_chance repulsive_penalty = 9;"
-        "leaders reject_declined_offers = true;"
+        "leaders rejected_offer_keeps_timer = true;"
         "leaders progression special_leaders advanced_government_leader_id = 67;"
         "leaders progression special_leaders random_skills_colony_leader_id = 128;"
         "leaders progression special_leaders random_skills_ship_officer_id = 255;",
@@ -2348,7 +2348,7 @@ DOCTEST_TEST_CASE("leader progression settings preserve 1.50 defaults and bounds
     DOCTEST_CHECK(OFFICER::progression.hire_chance.initial_delay == 7);
     DOCTEST_CHECK(OFFICER::progression.hire_chance.charismatic_bonus == 6);
     DOCTEST_CHECK(OFFICER::progression.hire_chance.repulsive_penalty == 9);
-    DOCTEST_CHECK(OFFICER::reject_declined_offers == 1);
+    DOCTEST_CHECK(OFFICER::rejected_offer_keeps_timer == 1);
     DOCTEST_CHECK(
         OFFICER::progression.special_leaders.advanced_government_leader_id == 67);
     DOCTEST_CHECK(
