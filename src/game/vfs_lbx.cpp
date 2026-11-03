@@ -94,6 +94,8 @@ namespace vfs_detail {
         slice_file->backend_state = slice_stream;
         slice_file->data_size = data_size;
         slice_file->position = 0;
+        slice_file->source_kind = parent_file->source_kind;
+        slice_file->source_layer = parent_file->source_layer;
         return slice_file;
     }
 

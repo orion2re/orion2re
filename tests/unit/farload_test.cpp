@@ -314,6 +314,137 @@ DOCTEST_TEST_SUITE("farload buffer vfs") {
         DOCTEST_CHECK(std::string(output) == "original");
     }
 
+    DOCTEST_TEST_CASE("higher package LBX files override lower JSON5 sidecars across mount changes") {
+        using namespace test_farload_buffer_detail;
+        for (bool lbx_zip : {false, true}) {
+            for (bool json_zip : {false, true}) {
+                DOCTEST_CAPTURE(lbx_zip);
+                DOCTEST_CAPTURE(json_zip);
+                Scoped_Test_Directory test_dir;
+                test_dir.Write_Lbx_File("TECHDESC.LBX", {"", Records({"base description"}, 100)});
+                const std::string json = "{1:'+20 to marine defense'}";
+                if (json_zip) {
+                    test_dir.Write_Zip_File("data/mods/v150.zip", {{"data/techdesc.json5", json}});
+                } else {
+                    test_dir.Write_File("data/mods/v150/data/techdesc.json5", json);
+                }
+                const fs::path lbx_path = "data/mods/vdc/data/TECHDESC.LBX";
+                test_dir.Write_Lbx_File(lbx_path, {"", Records({"+30% to marine defense"}, 100)});
+                if (lbx_zip) {
+                    const std::string lbx = Read_File_Contents(test_dir.root_path() / lbx_path);
+                    fs::remove_all(test_dir.root_path() / "data/mods/vdc");
+                    test_dir.Write_Zip_File("data/mods/vdc.zip", {{"data/TECHDESC.LBX", lbx}});
+                }
+                DOCTEST_REQUIRE(vfs::Init(test_dir.root_path().string().c_str()));
+                const auto mount = [&](const std::vector<std::string>& packages) {
+                    auto* transaction = vfs::Begin_Mount_Transaction();
+                    DOCTEST_REQUIRE(transaction != nullptr);
+                    std::string diagnostic;
+                    for (const auto& package : packages) {
+                        DOCTEST_REQUIRE(vfs::Stage_Package_Mount(transaction, package.c_str(), &diagnostic));
+                    }
+                    DOCTEST_REQUIRE(vfs::Commit_Mount_Transaction(transaction));
+                };
+                const auto description = [&]() {
+                    char output[100] = {};
+                    farload::Farload_Data_Static("TECHDESC.LBX", 1, output, 0, 1, 100);
+                    string_overrides::Apply_String("TECHDESC.LBX", 1, output, sizeof(output));
+                    return std::string(output);
+                };
+                mount({"v150"});
+                DOCTEST_CHECK(description() == "+20 to marine defense");
+                mount({"vdc", "v150"});
+                DOCTEST_CHECK(description() == "+30% to marine defense");
+                mount({"v150", "vdc"});
+                DOCTEST_CHECK(description() == "+20 to marine defense");
+                for (bool rollback : {false, true}) {
+                    auto* transaction = vfs::Begin_Mount_Transaction();
+                    DOCTEST_REQUIRE(transaction != nullptr);
+                    std::string diagnostic;
+                    DOCTEST_REQUIRE(vfs::Stage_Package_Mount(transaction, "vdc", &diagnostic));
+                    DOCTEST_REQUIRE(vfs::Stage_Package_Mount(transaction, "v150", &diagnostic));
+                    DOCTEST_CHECK(description() == "+30% to marine defense");
+                    if (rollback) {
+                        DOCTEST_REQUIRE(vfs::Begin_Mount_Transaction_Commit(transaction));
+                        DOCTEST_CHECK(description() == "+30% to marine defense");
+                        vfs::Rollback_Mount_Transaction_Commit(transaction);
+                    }
+                    vfs::Discard_Mount_Transaction(transaction);
+                    DOCTEST_CHECK(description() == "+20 to marine defense");
+                }
+                mount({"vdc", "v150"});
+                DOCTEST_CHECK(description() == "+30% to marine defense");
+                mount({"v150"});
+                DOCTEST_CHECK(description() == "+20 to marine defense");
+            }
+        }
+    }
+
+    DOCTEST_TEST_CASE("whole LBX precedence applies to loose overrides base ZIPs data and raw fallback") {
+        using namespace test_farload_buffer_detail;
+        struct s_case {
+            const char* lbx_path;
+            const char* json_path;
+            bool base_zip;
+        };
+        const s_case cases[] = {
+            {"data/overrides/custom.lbx", "data/custom.json5", false},
+            {"data/custom.lbx", "custom.json5", false},
+            {"custom.lbx", "fallback/custom.json5", false},
+            {"custom.lbx", "data/custom.json5", true},
+        };
+        for (const auto& value : cases) {
+            DOCTEST_CAPTURE(value.lbx_path);
+            DOCTEST_CAPTURE(value.json_path);
+            Scoped_Test_Directory test_dir;
+            test_dir.Write_Lbx_File(value.lbx_path, {Records({"higher LBX"}, 32)});
+            test_dir.Write_File(value.json_path, "{1:'lower JSON'}");
+            if (value.base_zip) {
+                const auto lbx = Read_File_Contents(test_dir.root_path() / value.lbx_path);
+                test_dir.Write_Zip_File("data/base.zip", {{"custom.lbx", lbx}});
+            }
+            DOCTEST_REQUIRE(vfs::Init(test_dir.root_path().string().c_str()));
+            DOCTEST_REQUIRE(vfs::Set_Raw_Fallback_Path((test_dir.root_path() / "fallback").string().c_str()));
+            char output[32] = {};
+            string_overrides::Load_Message("custom.lbx", 0, 0, 32, 1, output, sizeof(output));
+            DOCTEST_CHECK(std::string(output) == "higher LBX");
+        }
+    }
+
+    DOCTEST_TEST_CASE("shadowed JSON is ignored by every string loader while same-layer JSON still applies") {
+        using namespace test_farload_buffer_detail;
+        Scoped_Test_Directory test_dir;
+        test_dir.Write_Lbx_File("data/overrides/custom.lbx",
+            {std::string("a\0b\0", 4), Records({"first", "second"}, 32)});
+        test_dir.Write_File("data/custom.json5", "{1:42}");
+        DOCTEST_REQUIRE(vfs::Init(test_dir.root_path().string().c_str()));
+        std::string diagnostic;
+        char output[32] = "first";
+        DOCTEST_REQUIRE(string_overrides::Try_Apply_String("custom.lbx", 1, output, sizeof(output), &diagnostic));
+        DOCTEST_CHECK(std::string(output) == "first");
+        std::vector<char> table = {'a', '\0', 'b', '\0'};
+        DOCTEST_REQUIRE(string_overrides::Try_Apply_Table("custom.lbx", &table, 2, 1, false, &diagnostic));
+        DOCTEST_CHECK((table == std::vector<char>{'a', '\0', 'b', '\0'}));
+        char* raw = string_overrides::Load_Raw_Table("custom.lbx", 0, nullptr, 0, 2);
+        DOCTEST_REQUIRE(raw != nullptr);
+        DOCTEST_CHECK(std::string(raw) == "a");
+        std::free(raw);
+        string_overrides::Load_Message("custom.lbx", 1, 0, 32, 1, output, sizeof(output));
+        DOCTEST_CHECK(std::string(output) == "first");
+
+        test_dir.Write_File("data/overrides/custom.json5", "{1:'same layer'}");
+        string_overrides::Load_Message("custom.lbx", 1, 0, 32, 1, output, sizeof(output));
+        DOCTEST_CHECK(std::string(output) == "same layer");
+        string_overrides::Load_Message("custom.lbx", 1, 1, 32, 2, output, sizeof(output));
+        DOCTEST_CHECK(std::string(output) == "second");
+        fs::remove(test_dir.root_path() / "data/overrides/custom.json5");
+        string_overrides::Load_Message("custom.lbx", 1, 0, 32, 1, output, sizeof(output));
+        DOCTEST_CHECK(std::string(output) == "first");
+        fs::remove(test_dir.root_path() / "data/overrides/custom.lbx");
+        DOCTEST_CHECK_FALSE(string_overrides::Try_Apply_String("custom.lbx", 1, output, sizeof(output), &diagnostic));
+        DOCTEST_CHECK(diagnostic.find("expected positive decimal string IDs and string values") != std::string::npos);
+    }
+
     DOCTEST_TEST_CASE("sidecar edits removal and recreation are detected by content") {
         using namespace test_farload_buffer_detail;
         Scoped_Test_Directory test_dir;

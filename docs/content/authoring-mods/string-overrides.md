@@ -28,6 +28,13 @@ independent of the selected language.
 ## Precedence and reloading
 
 Standard [VFS precedence](vfs-and-assets.md#resolution-order) applies, including loose overrides and mounted packages.
+A complete LBX file in a higher-priority layer suppresses the matching JSON5
+sidecar from lower-priority layers. For example, VDC's `techdesc.lbx` takes
+precedence over v150's `techdesc.json5` when VDC is above v150. A sidecar at the
+same priority as its LBX, or above it, still replaces the listed strings; omitted
+IDs retain their LBX text. This rule is rechecked when strings are loaded after
+mounting, unmounting, or reordering packages.
+
 The highest-priority sidecar wins as a whole file; sidecars are not merged across
 packages. For example, if two mods provide `estrings.json5`, only the winning
 file contributes replacements, even if the files contain different IDs.

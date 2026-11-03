@@ -35,6 +35,9 @@ namespace vfs {
     s_vfs_file* fopen(const char* path, const char* mode);
     s_vfs_file* fopen_lbx(const char* lbx_name, int32_t entry_idx);
 
+    // Compare files opened from the same current mount view. Equal layers tie.
+    bool File_Has_Higher_Priority(const s_vfs_file* file, const s_vfs_file* other);
+
     size_t fread(void* ptr, size_t size, size_t count, s_vfs_file* file);
     int32_t fsize(s_vfs_file* file);
     int32_t fseek(s_vfs_file* file, int32_t offset, int32_t origin);

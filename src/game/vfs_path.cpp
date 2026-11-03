@@ -146,10 +146,11 @@ namespace vfs_detail {
         return false;
     }
 
-    bool Resolve_Package_Asset_Path_(const char* asset_path, char* resolved_path, size_t resolved_path_size) {
+    bool Resolve_Package_Asset_Path_(const char* asset_path, char* resolved_path, size_t resolved_path_size, size_t* package_layer) {
         const auto resolve_layers = [&](const std::vector<s_vfs_package_layer>& layers) {
             const bool private_path = strncasecmp(asset_path, "mods/", 5) == 0;
-            for (const s_vfs_package_layer& layer : layers) {
+            for (size_t layer_index = 0; layer_index < layers.size(); ++layer_index) {
+                const s_vfs_package_layer& layer = layers[layer_index];
                 if (layer.is_archive) {
                     continue;
                 }
@@ -168,6 +169,9 @@ namespace vfs_detail {
                 char candidate_path[VFS_MAX_PATH];
                 if (Build_Candidate_Path_(layer.source_path.c_str(), "", relative_path.c_str(), candidate_path, sizeof(candidate_path)) &&
                     Resolve_Candidate_Path_(candidate_path, resolved_path, resolved_path_size)) {
+                    if (package_layer != nullptr) {
+                        *package_layer = layer_index;
+                    }
                     return true;
                 }
             }
@@ -187,17 +191,23 @@ namespace vfs_detail {
         return resolve_layers(g_vfs_state.package_layers);
     }
 
-    bool Resolve_Raw_Asset_Path_(const char* asset_path, char* resolved_path, size_t resolved_path_size) {
+    bool Resolve_Raw_Asset_Path_(const char* asset_path, char* resolved_path, size_t resolved_path_size, bool* used_fallback) {
         char candidate_path[VFS_MAX_PATH];
 
         if (Build_Candidate_Path_(g_vfs_state.base_path, "", asset_path, candidate_path, sizeof(candidate_path)) &&
             Resolve_Candidate_Path_(candidate_path, resolved_path, resolved_path_size)) {
+            if (used_fallback != nullptr) {
+                *used_fallback = false;
+            }
             return true;
         }
 
         if (g_vfs_state.fallback_path[0] != '\0' &&
             Build_Candidate_Path_(g_vfs_state.fallback_path, "", asset_path, candidate_path, sizeof(candidate_path)) &&
             Resolve_Candidate_Path_(candidate_path, resolved_path, resolved_path_size)) {
+            if (used_fallback != nullptr) {
+                *used_fallback = true;
+            }
             return true;
         }
 

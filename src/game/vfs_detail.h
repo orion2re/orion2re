@@ -26,6 +26,15 @@ namespace vfs_detail {
         VFS_CANDIDATE_DIRECTORY,
     };
 
+    enum e_vfs_source_kind {
+        VFS_SOURCE_OVERRIDE,
+        VFS_SOURCE_PACKAGE,
+        VFS_SOURCE_BASE_ZIP,
+        VFS_SOURCE_DATA,
+        VFS_SOURCE_RAW,
+        VFS_SOURCE_FALLBACK,
+    };
+
     struct s_vfs_zip_archive {
         mz_zip_archive archive;
         char archive_path[VFS_MAX_PATH];
@@ -98,8 +107,8 @@ namespace vfs_detail {
     bool Resolve_Candidate_Path_(const char* candidate_path, char* resolved_path, size_t resolved_path_size, e_vfs_candidate_kind candidate_kind = VFS_CANDIDATE_FILE);
     bool Resolve_Override_Asset_Path_(const char* asset_path, char* resolved_path, size_t resolved_path_size);
     bool Resolve_Data_Asset_Path_(const char* asset_path, char* resolved_path, size_t resolved_path_size);
-    bool Resolve_Package_Asset_Path_(const char* asset_path, char* resolved_path, size_t resolved_path_size);
-    bool Resolve_Raw_Asset_Path_(const char* asset_path, char* resolved_path, size_t resolved_path_size);
+    bool Resolve_Package_Asset_Path_(const char* asset_path, char* resolved_path, size_t resolved_path_size, size_t* package_layer = nullptr);
+    bool Resolve_Raw_Asset_Path_(const char* asset_path, char* resolved_path, size_t resolved_path_size, bool* used_fallback = nullptr);
     bool Resolve_Read_Path_No_Zip_(const char* path, char* resolved_path, size_t resolved_path_size);
     bool Determine_File_Size_(FILE* file, int32_t* size_out);
 
@@ -158,4 +167,6 @@ struct s_vfs_file {
     void* backend_state;
     int32_t data_size;
     int32_t position;
+    vfs_detail::e_vfs_source_kind source_kind = vfs_detail::VFS_SOURCE_RAW;
+    size_t source_layer = 0;
 };

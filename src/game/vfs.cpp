@@ -10,6 +10,16 @@ namespace vfs_detail {
     s_vfs_state g_vfs_state{};
 }
 
+namespace {
+    s_vfs_file* With_Source_(s_vfs_file* file, vfs_detail::e_vfs_source_kind kind, size_t layer = 0) {
+        if (file != nullptr) {
+            file->source_kind = kind;
+            file->source_layer = layer;
+        }
+        return file;
+    }
+} // namespace
+
 namespace vfs {
     bool Get_Package_Source_Stamp(const char* package_id, std::string* stamp) {
         if (package_id == nullptr || stamp == nullptr || !vfs_detail::g_vfs_state.initialized) return false;
@@ -337,6 +347,8 @@ namespace vfs {
         char asset_path[vfs_detail::VFS_MAX_PATH];
         char resolved_path[vfs_detail::VFS_MAX_PATH];
         vfs_detail::s_vfs_zip_entry zip_entry{};
+        size_t package_layer = 0;
+        bool used_fallback = false;
 
         if (!vfs_detail::Is_Read_Only_Mode_(mode) || !vfs_detail::g_vfs_state.initialized) {
             return nullptr;
@@ -349,40 +361,49 @@ namespace vfs {
         const bool private_package_path = strncasecmp(asset_path, "mods/", 5) == 0;
 
         if (private_package_path) {
-            if (vfs_detail::Resolve_Package_Asset_Path_(asset_path, resolved_path, sizeof(resolved_path))) {
-                return vfs_detail::Open_Raw_File_(resolved_path, mode);
+            if (vfs_detail::Resolve_Package_Asset_Path_(asset_path, resolved_path, sizeof(resolved_path), &package_layer)) {
+                return With_Source_(vfs_detail::Open_Raw_File_(resolved_path, mode), vfs_detail::VFS_SOURCE_PACKAGE, package_layer);
             }
             if (vfs_detail::Find_Package_Zip_Entry_(asset_path, &zip_entry)) {
-                return vfs_detail::Open_Zip_File_(zip_entry);
+                return With_Source_(vfs_detail::Open_Zip_File_(zip_entry), vfs_detail::VFS_SOURCE_PACKAGE, zip_entry.package_layer);
             }
             return nullptr;
         }
 
         if (vfs_detail::Resolve_Override_Asset_Path_(asset_path, resolved_path, sizeof(resolved_path))) {
-            return vfs_detail::Open_Raw_File_(resolved_path, mode);
+            return With_Source_(vfs_detail::Open_Raw_File_(resolved_path, mode), vfs_detail::VFS_SOURCE_OVERRIDE);
         }
 
-        if (vfs_detail::Resolve_Package_Asset_Path_(asset_path, resolved_path, sizeof(resolved_path))) {
-            return vfs_detail::Open_Raw_File_(resolved_path, mode);
+        if (vfs_detail::Resolve_Package_Asset_Path_(asset_path, resolved_path, sizeof(resolved_path), &package_layer)) {
+            return With_Source_(vfs_detail::Open_Raw_File_(resolved_path, mode), vfs_detail::VFS_SOURCE_PACKAGE, package_layer);
         }
 
         if (vfs_detail::Find_Package_Zip_Entry_(asset_path, &zip_entry)) {
-            return vfs_detail::Open_Zip_File_(zip_entry);
+            return With_Source_(vfs_detail::Open_Zip_File_(zip_entry), vfs_detail::VFS_SOURCE_PACKAGE, zip_entry.package_layer);
         }
 
         if (vfs_detail::Find_Zip_Entry_(asset_path, &zip_entry)) {
-            return vfs_detail::Open_Zip_File_(zip_entry);
+            return With_Source_(vfs_detail::Open_Zip_File_(zip_entry), vfs_detail::VFS_SOURCE_BASE_ZIP, zip_entry.archive_index);
         }
 
         if (vfs_detail::Resolve_Data_Asset_Path_(asset_path, resolved_path, sizeof(resolved_path))) {
-            return vfs_detail::Open_Raw_File_(resolved_path, mode);
+            return With_Source_(vfs_detail::Open_Raw_File_(resolved_path, mode), vfs_detail::VFS_SOURCE_DATA);
         }
 
-        if (vfs_detail::Resolve_Raw_Asset_Path_(asset_path, resolved_path, sizeof(resolved_path))) {
-            return vfs_detail::Open_Raw_File_(resolved_path, mode);
+        if (vfs_detail::Resolve_Raw_Asset_Path_(asset_path, resolved_path, sizeof(resolved_path), &used_fallback)) {
+            return With_Source_(vfs_detail::Open_Raw_File_(resolved_path, mode),
+                used_fallback ? vfs_detail::VFS_SOURCE_FALLBACK : vfs_detail::VFS_SOURCE_RAW);
         }
 
         return nullptr;
+    }
+
+    bool File_Has_Higher_Priority(const s_vfs_file* file, const s_vfs_file* other) {
+        if (file == nullptr || other == nullptr) return false;
+        if (file->source_kind != other->source_kind) {
+            return file->source_kind < other->source_kind;
+        }
+        return file->source_layer < other->source_layer;
     }
 
     size_t fread(void* ptr, size_t size, size_t count, s_vfs_file* file) {

@@ -97,11 +97,19 @@ namespace string_overrides {
         };
         std::map<std::string, s_cached_sidecar> cache;
 
-        bool Read(const std::string& path, std::string* source, bool* exists, std::string* diagnostic) {
+        bool Read(const char* filename, const std::string& path, std::string* source, bool* exists, std::string* diagnostic) {
             source->clear();
             s_vfs_file* file = vfs::fopen(path.c_str(), "rb");
             *exists = file != nullptr;
             if (file == nullptr) return true;
+            s_vfs_file* lbx = vfs::fopen(filename, "rb");
+            const bool shadowed = vfs::File_Has_Higher_Priority(lbx, file);
+            if (lbx != nullptr) vfs::fclose(lbx);
+            if (shadowed) {
+                vfs::fclose(file);
+                *exists = false;
+                return true;
+            }
             const int32_t size = vfs::fsize(file);
             if (size < 0 || size > 4 * 1024 * 1024) {
                 vfs::fclose(file);
@@ -159,10 +167,10 @@ namespace string_overrides {
             return name + ".json5";
         }
 
-        const t_overrides* Get(const std::string& path, std::string* diagnostic) {
+        const t_overrides* Get(const char* filename, const std::string& path, std::string* diagnostic) {
             std::string source;
             bool exists;
-            if (!Read(path, &source, &exists, diagnostic)) {
+            if (!Read(filename, path, &source, &exists, diagnostic)) {
                 cache.erase(path);
                 return nullptr;
             }
@@ -270,7 +278,7 @@ namespace string_overrides {
         const std::string path = Sidecar_Path(filename);
         if (id == 0 || dest == nullptr || capacity == 0)
             return Fail(path, "invalid string ID or destination", diagnostic);
-        const t_overrides* overrides = Get(path, diagnostic);
+        const t_overrides* overrides = Get(filename, path, diagnostic);
         return overrides != nullptr && Copy(overrides, id, dest, capacity, path, diagnostic);
     }
 
@@ -279,7 +287,7 @@ namespace string_overrides {
         const std::string path = Sidecar_Path(filename);
         if (first_id == 0 || count > SIZE_MAX - first_id || data == nullptr || data->empty())
             return Fail(path, "invalid string range or destination", diagnostic);
-        const t_overrides* overrides = Get(path, diagnostic);
+        const t_overrides* overrides = Get(filename, path, diagnostic);
         if (overrides == nullptr) return false;
         return Packed(overrides, data, count, first_id, skip_padding, path, diagnostic);
     }
@@ -301,7 +309,7 @@ namespace string_overrides {
         farload::Farload_Data_Static(filename, entry, original.data(), record, 1, record_size);
         const std::string path = Sidecar_Path(filename);
         std::string diagnostic;
-        const t_overrides* overrides = Get(path, &diagnostic);
+        const t_overrides* overrides = Get(filename, path, &diagnostic);
         if (overrides == nullptr) {
             exitm::Exit_With_Message(diagnostic.c_str());
             return;
