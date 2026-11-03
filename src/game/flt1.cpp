@@ -1,6 +1,90 @@
 #include "pch.h"
 
 namespace FLT1 {
+    namespace {
+        struct s_msg_arg {
+            const char* str;
+            int32_t num;
+        };
+
+        /**
+         * snprintf for the scrap messages of HxSTRNGS.LBX. The translations do not always use the same conversions as
+         * the English strings (French/Spanish "%d bc%s" add a plural suffix, Spanish 122-126 and Italian 126 have one
+         * more %s), and plain snprintf then reads a missing argument as a string pointer and crashes. Each conversion
+         * takes the next argument; a missing one prints as "" (or 0), and a number/string mismatch is printed as text.
+         */
+        void Format_Message_Safe(char* out, size_t out_size, const char* format, const s_msg_arg* args, int arg_count) {
+            size_t used = 0;
+            int next_arg = 0;
+            auto put = [&](const char* text) {
+                while (*text != '\0' && used + 1 < out_size) {
+                    out[used++] = *text++;
+                }
+            };
+
+            if (out_size == 0) {
+                return;
+            }
+            for (const char* p = format; *p != '\0' && used + 1 < out_size; ++p) {
+                if (*p != '%') {
+                    out[used++] = *p;
+                    continue;
+                }
+                const char* spec_start = p++;
+                if (*p == '%') {
+                    out[used++] = '%';
+                    continue;
+                }
+                while (*p != '\0' && strchr("-+ #0123456789.hlL", *p) != nullptr) {
+                    ++p;
+                }
+                if (*p == '\0') {
+                    break;
+                }
+                const s_msg_arg* arg = (next_arg < arg_count) ? &args[next_arg] : nullptr;
+                ++next_arg;
+                char piece[64];
+                if (*p == 's') {
+                    if (arg == nullptr) {
+                        piece[0] = '\0';
+                    } else if (arg->str != nullptr) {
+                        put(arg->str);
+                        continue;
+                    } else {
+                        snprintf(piece, sizeof(piece), "%d", (int)arg->num);
+                    }
+                } else if (strchr("diuxXc", *p) != nullptr) {
+                    if (arg != nullptr && arg->str != nullptr) {
+                        put(arg->str);
+                        continue;
+                    }
+                    char spec[16];
+                    const size_t len = (size_t)(p - spec_start) + 1;
+                    if (len >= sizeof(spec)) {
+                        snprintf(piece, sizeof(piece), "%d", arg != nullptr ? (int)arg->num : 0);
+                    } else {
+                        memcpy(spec, spec_start, len);
+                        spec[len] = '\0';
+                        // drop length modifiers: the value is passed as int
+                        char clean[16];
+                        size_t c = 0;
+                        for (size_t i = 0; i < len; ++i) {
+                            if (spec[i] != 'h' && spec[i] != 'l' && spec[i] != 'L') {
+                                clean[c++] = spec[i];
+                            }
+                        }
+                        clean[c] = '\0';
+                        snprintf(piece, sizeof(piece), clean, arg != nullptr ? (int)arg->num : 0);
+                    }
+                } else {
+                    piece[0] = '\0';   // unsupported conversion: print nothing rather than read a bogus argument
+                }
+                put(piece);
+            }
+            out[used] = '\0';
+        }
+    } // namespace
+
 
     int16_t fleet_screen_bad_ship_id;
     int16_t combat_filter_button;
@@ -977,8 +1061,9 @@ namespace FLT1 {
 
         if (MOX::n_fltscrn_big_icons > 0) {
             for (int16_t i = 0; i < MOX::n_fltscrn_big_icons; ++i) {
-                if (MOX::fltscrn_big_icon[i].selected != 0) {
-                    total_value += maintain::Ship_Scrap_Value(&MOX::ship[MOX::fltscrn_big_icon[i].ship_idx]);
+                const int16_t ship_idx = MOX::fltscrn_big_icon[i].ship_idx;
+                if (MOX::fltscrn_big_icon[i].selected != 0 && ship_idx > -1 && ship_idx < MAX_SHIPS) {
+                    total_value += maintain::Ship_Scrap_Value(&MOX::ship[ship_idx]);
                 }
             }
         }
@@ -1513,6 +1598,12 @@ namespace FLT1 {
         bool give_bc = true;
         bool has_officer = false;
 
+        // SCRAP with no ship selected: the list is empty and ship_indices[0] is uninitialized
+        // (reading MOX::ship[garbage] crashed the game).
+        if (num_ships <= 0 || ship_indices[0] < 0 || ship_indices[0] >= MAX_SHIPS) {
+            return 0;
+        }
+
         int16_t star_id = HAROLD::XY_To_Star_Id(MOX::ship[ship_indices[0]].x, MOX::ship[ship_indices[0]].y);
 
         if (star_id == -1 || !HAROLD::Player_Has_Colony(player_idx, star_id)) {
@@ -1526,7 +1617,8 @@ namespace FLT1 {
                 }
 
                 char msg_buf[300];
-                snprintf(msg_buf, sizeof(msg_buf), HAROLD::H_Message(msg_id), MOX::player[player_idx].race_name);
+                const s_msg_arg args[] = {{MOX::player[player_idx].race_name, 0}};
+                Format_Message_Safe(msg_buf, sizeof(msg_buf), HAROLD::H_Message(msg_id), args, 1);
 
                 if (HAROLD::User_Box(&MOX::draw_fleet_screen_to_back, msg_buf, 1) == 0) {
                     char cancel_msg_buf[200];
@@ -1546,7 +1638,8 @@ namespace FLT1 {
                         strlcpy(leader_name_buf, OFFICER::Leader_Name(MOX::ship[ship_idx].officer_index, 1), sizeof(leader_name_buf));
 
                         char msg_buf[300];
-                        snprintf(msg_buf, sizeof(msg_buf), HAROLD::H_Message(126 /* 0x7e */), MOX::ship[ship_idx].d.name, leader_name_buf);
+                        const s_msg_arg args[] = {{MOX::ship[ship_idx].d.name, 0}, {leader_name_buf, 0}};
+                        Format_Message_Safe(msg_buf, sizeof(msg_buf), HAROLD::H_Message(126 /* 0x7e */), args, 2);
 
                         if (HAROLD::User_Box(&MOX::draw_fleet_screen_to_back, msg_buf, 1) == 0) {
                             char cancel_msg_buf[200];
@@ -1574,7 +1667,9 @@ namespace FLT1 {
             int16_t msg_id = (num_ships == 1) ? 128 /* 0x80 */ : 129 /* 0x81 */;
 
             char msg_buf[300];
-            snprintf(msg_buf, sizeof(msg_buf), HAROLD::H_Message(msg_id), scrap_value);
+            // French/Spanish: "%d bc%s" (plural suffix); English: "%d bcs"
+            const s_msg_arg args[] = {{nullptr, scrap_value}, {scrap_value > 1 ? "s" : "", 0}};
+            Format_Message_Safe(msg_buf, sizeof(msg_buf), HAROLD::H_Message(msg_id), args, 2);
 
             if (HAROLD::User_Box(&MOX::draw_fleet_screen_to_back, msg_buf, 1) == 0) {
                 char cancel_msg_buf[200];
