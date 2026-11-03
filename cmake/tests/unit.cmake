@@ -513,6 +513,22 @@ orion2re_add_unit_test(test_config_lifecycle
     LINK_SDL
 )
 
+orion2re_add_unit_test(test_startup_directory
+    SOURCES
+        tests/unit/startup_directory_test.cpp
+    PRODUCTION_SOURCES
+        src/startup_directory.cpp
+        src/game/compat.cpp
+        src/game/vfs.cpp
+        src/game/vfs_file.cpp
+        src/game/vfs_lbx.cpp
+        src/game/vfs_path.cpp
+        src/game/vfs_zip.cpp
+    LIBRARIES
+        miniz
+    LINK_SDL
+)
+
 orion2re_add_unit_test(test_startup_options
     SOURCES
         tests/unit/startup_options_test.cpp

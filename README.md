@@ -60,6 +60,10 @@ updates. macOS builds are not Developer ID signed or notarized and may require
 approval in System Settings / Privacy & Security. Extract with Archive Utility or
 `ditto`, keeping the app, executable, and data together to preserve the app symlink.
 
+On all platforms, the game uses the executable's directory for data, configuration,
+and save files, regardless of the launcher's working directory. Linux desktop
+launchers do not need a `Path=` entry pointing to the installation directory.
+
 ## Vendored submodules
 
 The project uses vendored submodules for third-party dependencies.

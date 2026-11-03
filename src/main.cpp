@@ -4,12 +4,10 @@
 #if defined(ORION2RE_ASAN_BUILD)
 #include <sanitizer/common_interface_defs.h>
 #endif
-#if defined(__APPLE__)
-#include <mach-o/dyld.h>
-#endif
 
 #include "config/config_loader.h"
 #include "lua/lua_mod_runtime.h"
+#include "startup_directory.h"
 #include "startup_options.h"
 
 #if defined(_WIN32)
@@ -185,38 +183,15 @@ int main(int argc, char** argv) {
     MOX2::skip_intro = startup_options.skip_intro ? 1 : 0;
     MAINMENU::autoload_save_slot = static_cast<int16_t>(startup_options.load_save - 1);
 
-    const char* base_path = SDL_GetBasePath();
-#if defined(__APPLE__)
-    char executable_path[PATH_MAX];
-    uint32_t executable_path_size = sizeof(executable_path);
-    char resolved_path[PATH_MAX];
-    if (_NSGetExecutablePath(executable_path, &executable_path_size) != 0 || realpath(executable_path, resolved_path) == nullptr) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "main: unable to resolve executable path: %s", strerror(errno));
+    std::string game_directory;
+    if (!startup::Set_Game_Directory(&game_directory, &startup_error)) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "main: %s", startup_error.c_str());
         Shutdown_Game_Log_();
         return -1;
     }
-    char* filename = strrchr(resolved_path, '/');
-    if (filename == nullptr) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "main: executable path has no directory: '%s'", resolved_path);
-        Shutdown_Game_Log_();
-        return -1;
-    }
-    filename[1] = '\0';
-    if (chdir(resolved_path) != 0) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "main: unable to set working directory to '%s': %s", resolved_path, strerror(errno));
-        Shutdown_Game_Log_();
-        return -1;
-    }
-#endif
 
-    char* current_directory = SDL_GetCurrentDirectory();
-    const char* vfs_base_path = current_directory != nullptr ? current_directory : base_path;
-
-    if (vfs::Init(vfs_base_path) == 0) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "main: vfs::Init failed for base path '%s'", vfs_base_path != nullptr ? vfs_base_path : "");
-        if (current_directory != nullptr) {
-            SDL_free(current_directory);
-        }
+    if (vfs::Init(game_directory.c_str()) == 0) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "main: vfs::Init failed for base path '%s'", game_directory.c_str());
         Shutdown_Game_Log_();
         return -1;
     }
@@ -234,9 +209,6 @@ int main(int argc, char** argv) {
         config::Shutdown_Config_Loader();
         config::Shutdown_Runtime();
         vfs::Shutdown();
-        if (current_directory != nullptr) {
-            SDL_free(current_directory);
-        }
         Shutdown_Game_Log_();
         return -1;
     }
@@ -250,9 +222,6 @@ int main(int argc, char** argv) {
     config::Shutdown_Config_Loader();
     config::Shutdown_Runtime();
     vfs::Shutdown();
-    if (current_directory != nullptr) {
-        SDL_free(current_directory);
-    }
     Shutdown_Game_Log_();
 
     return result;
