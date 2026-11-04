@@ -30,6 +30,7 @@ namespace TEST_SHIPMOVE {
         hyperspace_flux = false;
         movement_speed = 0;
         navigator_pointer_supplied = false;
+        SHIPMOVE::phase_shifter_speed_multiplier = {1, 1};
         orion2re::lua::game::Reset_Ship_Generations();
 
         players[0].ship_range = 20;

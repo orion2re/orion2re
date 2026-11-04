@@ -8,6 +8,7 @@ namespace SHIPMOVE {
     extern uint8_t jump_gate_speed_bonus;
     extern uint16_t warp_interdictor_range;
     extern bool jump_gate_pass_nebula;
+    extern s_ratio16 phase_shifter_speed_multiplier;
 
     struct s_ship_communication_range {
         uint8_t tachyon;

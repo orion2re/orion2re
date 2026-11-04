@@ -6125,6 +6125,19 @@
       },
     },
 
+    phase_shifter_speed_multiplier: {
+      title: "Phase Shifter strategic speed multiplier",
+      description: "Multiplies strategic travel speed for ships equipped with a Phase Shifter.",
+      remarks: "The default 1/1 preserves normal speed; 1/2 halves it and 2/1 doubles it. Departing fleets use the slowest adjusted ship speed, before additive Navigator and Jump Gate bonuses. Positive ratios round down with a minimum speed of one; a zero or negative multiplier prevents normal travel. Modified travel speed is capped at 254 to avoid the instantaneous-travel sentinel. A zero base speed remains immobile. In-flight player fleets retain their stored departure speed. Combat speed is unchanged.",
+      examples: ["movement phase_shifter_speed_multiplier = 2/1;", "movement phase_shifter_speed_multiplier = 1/2;"],
+      group: "gameplay",
+      namespace: "movement",
+      type: "ratio16",
+      default: "1/1",
+      bind_root: { header: "game/shipmove.h", symbol: "SHIPMOVE::phase_shifter_speed_multiplier" },
+      bind: ["numerator", "denominator"],
+    },
+
     jump_gate_pass_nebula: {
       title: "Jump Gates bypass nebula slowdown",
       description: "Prevents nebulae from reducing the speed of fleets using Jump Gates.",

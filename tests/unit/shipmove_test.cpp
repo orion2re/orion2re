@@ -143,6 +143,176 @@ DOCTEST_TEST_CASE("movement stores the numeric navigator bonus") {
     DOCTEST_CHECK(MOX::ship[0].travelling_speed == 6);
 }
 
+DOCTEST_TEST_CASE("Phase Shifter scales departing fleet speed using an exact ratio") {
+    struct s_case {
+        s_ratio16 multiplier;
+        uint8_t base_speed;
+        bool first_has_phase_shifter;
+        bool second_has_phase_shifter;
+        int16_t expected_speed;
+    };
+    const s_case cases[] = {
+        {{1, 1}, 4, true, true, 4},
+        {{2, 1}, 4, true, true, 8},
+        {{1, 2}, 4, true, true, 2},
+        {{2, 1}, 4, false, false, 4},
+        {{2, 1}, 4, true, false, 4},
+        {{2, 1}, 4, false, true, 4},
+        {{1, 2}, 4, true, false, 2},
+        {{1, 2}, 4, false, true, 2},
+        {{1, 2}, 5, true, true, 2},
+        {{1, 2}, 1, true, true, 1},
+        {{32767, 1}, 255, true, true, 254},
+    };
+
+    for (const s_case& test_case : cases) {
+        TEST_SHIPMOVE::Reset_();
+        SHIPMOVE::phase_shifter_speed_multiplier = test_case.multiplier;
+        MOX::player[0].ship_speed = test_case.base_speed;
+        MOX::NUM_SHIPS = 2;
+        MOX::ship[1] = MOX::ship[0];
+        const bool equipped[] = {
+            test_case.first_has_phase_shifter,
+            test_case.second_has_phase_shifter,
+        };
+        for (int i = 0; i < 2; ++i) {
+            if (equipped[i]) {
+                MOX::ship[i].d.special_device_flags[SPECIAL_PHASE_SHIFTER / 8] |=
+                    1 << (SPECIAL_PHASE_SHIFTER % 8);
+            }
+        }
+        MOX::ship[0].d.combat_speed = 7;
+
+        int16_t ship_list[] = {0, 1, -1};
+        s_ship_move_info move_info;
+        SHIPMOVE::Ships_Try_To_Move_To(ship_list, 1, &move_info);
+
+        DOCTEST_CHECK_FALSE(move_info.immobile);
+        DOCTEST_CHECK(move_info.traveling_speed == test_case.expected_speed);
+        DOCTEST_CHECK(move_info.turns_left == (4 + test_case.expected_speed - 1) / test_case.expected_speed);
+        DOCTEST_CHECK(TEST_SHIPMOVE::Movement_Speed_() == test_case.expected_speed);
+        SHIPMOVE::Make_Ships_Move_To(ship_list, 1, &move_info);
+        DOCTEST_CHECK(MOX::ship[0].travelling_speed == test_case.expected_speed);
+        DOCTEST_CHECK(MOX::ship[1].travelling_speed == test_case.expected_speed);
+        DOCTEST_CHECK(MOX::ship[0].d.combat_speed == 7);
+    }
+    SHIPMOVE::phase_shifter_speed_multiplier = {1, 1};
+}
+
+DOCTEST_TEST_CASE("Phase Shifter does not create propulsion or permit nonpositive speed") {
+    struct s_case {
+        s_ratio16 multiplier;
+        uint8_t base_speed;
+    };
+    const s_case cases[] = {
+        {{2, 1}, 0},
+        {{0, 1}, 4},
+        {{-1, 2}, 4},
+    };
+    for (const s_case& test_case : cases) {
+        TEST_SHIPMOVE::Reset_();
+        SHIPMOVE::phase_shifter_speed_multiplier = test_case.multiplier;
+        MOX::player[0].ship_speed = test_case.base_speed;
+        MOX::ship[0].d.special_device_flags[SPECIAL_PHASE_SHIFTER / 8] |=
+            1 << (SPECIAL_PHASE_SHIFTER % 8);
+
+        int16_t ship_list[] = {0, -1};
+        s_ship_move_info move_info;
+        SHIPMOVE::Ships_Try_To_Move_To(ship_list, 1, &move_info);
+        DOCTEST_CHECK(move_info.immobile == 1);
+        DOCTEST_CHECK(move_info.moving == 0);
+        DOCTEST_CHECK(move_info.turns_left == UINT8_MAX);
+    }
+    SHIPMOVE::phase_shifter_speed_multiplier = {1, 1};
+}
+
+DOCTEST_TEST_CASE("Phase Shifter leaves Navigator and Jump Gate bonuses additive") {
+    TEST_SHIPMOVE::Reset_();
+    SHIPMOVE::phase_shifter_speed_multiplier = {2, 1};
+    MOX::ship[0].d.special_device_flags[SPECIAL_PHASE_SHIFTER / 8] |=
+        1 << (SPECIAL_PHASE_SHIFTER % 8);
+    MOX::leaders[0].xp = 5;
+    MOX::leaders[0].special_skills = LEADER_SHIP_SKILL_NAVIGATOR2;
+    MOX::ship[0].officer_index = 0;
+    MOX::star[0].has_jumpgate = 1;
+    MOX::star[1].has_jumpgate = 1;
+
+    int16_t ship_list[] = {0, -1};
+    s_ship_move_info move_info;
+    SHIPMOVE::Ships_Try_To_Move_To(ship_list, 1, &move_info);
+    DOCTEST_CHECK(move_info.traveling_speed == 13);
+    DOCTEST_CHECK(TEST_SHIPMOVE::Movement_Speed_() == 13);
+
+    MOX::player[0].ship_speed = 127;
+    SHIPMOVE::Ships_Try_To_Move_To(ship_list, 1, &move_info);
+    DOCTEST_CHECK(move_info.traveling_speed == 254);
+    DOCTEST_CHECK(TEST_SHIPMOVE::Movement_Speed_() == 254);
+
+    SHIPMOVE::jump_gate_speed_bonus = UINT8_MAX;
+    SHIPMOVE::Ships_Try_To_Move_To(ship_list, 1, &move_info);
+    DOCTEST_CHECK(move_info.traveling_speed == 254);
+    SHIPMOVE::Make_Ships_Move_To(ship_list, 1, &move_info);
+    MOX::ship[0].status = 1;
+    MOX::ship[0].location = SHIP_LOCATION_MOVING_OFFSET + 1;
+    MOX::ship[0].x = 30;
+    SHIPMOVE::Ships_Try_To_Move_To(ship_list, 1, &move_info);
+    DOCTEST_CHECK(move_info.traveling_speed == 254);
+    DOCTEST_CHECK(TEST_SHIPMOVE::Movement_Speed_() == 254);
+    SHIPMOVE::jump_gate_speed_bonus = 3;
+    SHIPMOVE::phase_shifter_speed_multiplier = {1, 1};
+}
+
+DOCTEST_TEST_CASE("Phase Shifter is not reapplied to in-flight departure speed") {
+    TEST_SHIPMOVE::Reset_();
+    SHIPMOVE::phase_shifter_speed_multiplier = {2, 1};
+    MOX::ship[0].d.special_device_flags[SPECIAL_PHASE_SHIFTER / 8] |=
+        1 << (SPECIAL_PHASE_SHIFTER % 8);
+    MOX::star[1].x = 600;
+    MOX::NUM_STARS = 3;
+    MOX::star[2].x = 540;
+
+    int16_t ship_list[] = {0, -1};
+    s_ship_move_info move_info;
+    SHIPMOVE::Ships_Try_To_Move_To(ship_list, 1, &move_info);
+    DOCTEST_REQUIRE(move_info.traveling_speed == 8);
+    SHIPMOVE::Make_Ships_Move_To(ship_list, 1, &move_info);
+    MOX::ship[0].status = 1;
+    MOX::ship[0].location = SHIP_LOCATION_MOVING_OFFSET + 1;
+    MOX::ship[0].x = 30;
+    MOX::player[0].ship_speed = 6;
+
+    for (int16_t target : {1, 2}) {
+        SHIPMOVE::Ships_Try_To_Move_To(ship_list, target, &move_info);
+        DOCTEST_CHECK(move_info.traveling_speed == 8);
+        DOCTEST_CHECK(TEST_SHIPMOVE::Movement_Speed_() == 8);
+    }
+    SHIPMOVE::phase_shifter_speed_multiplier = {1, 1};
+}
+
+DOCTEST_TEST_CASE("Phase Shifter does not change instantaneous travel routes") {
+    TEST_SHIPMOVE::Reset_();
+    SHIPMOVE::phase_shifter_speed_multiplier = {2, 1};
+    MOX::ship[0].d.special_device_flags[SPECIAL_PHASE_SHIFTER / 8] |=
+        1 << (SPECIAL_PHASE_SHIFTER % 8);
+    MOX::star[0].wormhole_star_id = 1;
+
+    int16_t ship_list[] = {0, -1};
+    s_ship_move_info move_info;
+    SHIPMOVE::Ships_Try_To_Move_To(ship_list, 1, &move_info);
+    DOCTEST_CHECK(move_info.uses_wormhole == 1);
+    DOCTEST_CHECK(move_info.traveling_speed == UINT8_MAX);
+    DOCTEST_CHECK(move_info.turns_left == 1);
+
+    MOX::star[0].wormhole_star_id = -1;
+    MOX::star[0].has_stargate = 1;
+    MOX::star[1].has_stargate = 1;
+    SHIPMOVE::Ships_Try_To_Move_To(ship_list, 1, &move_info);
+    DOCTEST_CHECK(move_info.has_stargate_route == 1);
+    DOCTEST_CHECK(move_info.traveling_speed == UINT8_MAX);
+    DOCTEST_CHECK(move_info.turns_left == 1);
+    SHIPMOVE::phase_shifter_speed_multiplier = {1, 1};
+}
+
 DOCTEST_TEST_CASE("jump gate speed preserves the complete unsigned byte domain") {
     struct s_speed_case {
         uint8_t bonus;

@@ -1353,6 +1353,45 @@ DOCTEST_TEST_CASE("ship communication ranges preserve and replace classic relay 
         &diagnostic));
 }
 
+DOCTEST_TEST_CASE("Phase Shifter strategic speed ratio defaults to unity and binds gameplay settings") {
+    config::s_config_state state;
+    DOCTEST_REQUIRE(config::Initialize_Defaults(&state));
+    DOCTEST_REQUIRE(config::Commit_State(&state));
+    DOCTEST_CHECK(SHIPMOVE::phase_shifter_speed_multiplier.numerator == 1);
+    DOCTEST_CHECK(SHIPMOVE::phase_shifter_speed_multiplier.denominator == 1);
+
+    const config::t_variable_id variable =
+        Variable_Id_("movement.phase_shifter_speed_multiplier");
+    DOCTEST_REQUIRE(variable != config::CONFIG_NO_VARIABLE);
+    const config::s_config_group_descriptor* group =
+        config::Get_Config_Group(config::Get_Variable_Group(variable));
+    DOCTEST_REQUIRE(group != nullptr);
+    DOCTEST_CHECK(group->save);
+    DOCTEST_CHECK(group->synchronize);
+
+    const char* sources[] = {
+        "movement phase_shifter_speed_multiplier = 1/2;",
+        "movement phase_shifter_speed_multiplier = 2/1;",
+        "movement phase_shifter_speed_multiplier = 1;",
+    };
+    const s_ratio16 expected[] = {{1, 2}, {2, 1}, {1, 1}};
+    config::s_cfg_diagnostic diagnostic;
+    for (int i = 0; i < 3; ++i) {
+        config::s_config_write_set writes;
+        DOCTEST_REQUIRE(Append_Decoded_(sources[i], &writes, &diagnostic));
+        DOCTEST_REQUIRE(config::Apply_Write_Set(&writes, &state, &diagnostic));
+        DOCTEST_REQUIRE(config::Commit_State(&state));
+        DOCTEST_CHECK(SHIPMOVE::phase_shifter_speed_multiplier.numerator == expected[i].numerator);
+        DOCTEST_CHECK(SHIPMOVE::phase_shifter_speed_multiplier.denominator == expected[i].denominator);
+    }
+
+    config::s_config_write_set writes;
+    DOCTEST_CHECK_FALSE(Append_Decoded_(
+        "movement phase_shifter_speed_multiplier = 2/0;", &writes, &diagnostic));
+    DOCTEST_CHECK_FALSE(Append_Decoded_(
+        "movement phase_shifter_speed_multiplier = 32768/1;", &writes, &diagnostic));
+}
+
 DOCTEST_TEST_CASE("Warp Interdictor range preserves the 1.50 squared-coordinate default") {
     config::s_config_state state;
     DOCTEST_REQUIRE(config::Initialize_Defaults(&state));

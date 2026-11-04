@@ -850,6 +850,8 @@ namespace SHIPMOVE {
         int32_t navigator_bonus = 0;
         int32_t min_range = 30000;
         int8_t have_start_position = 0;
+        bool any_phase_shifter = false;
+        bool all_phase_shifters = true;
         int8_t player_idx;
         int32_t ship_speed;
 
@@ -887,6 +889,9 @@ namespace SHIPMOVE {
         for (int i = 0; ship_list[i] != -1; ++i) {
             s_ship_data* ship = &MOX::ship[ship_list[i]];
             int16_t range = SHIPMOVE::Ship_Range(ship);
+            bool has_phase_shifter = struct_::Test_Bit_Field(ship->d.special_device_flags, SPECIAL_PHASE_SHIFTER) != 0;
+            any_phase_shifter |= has_phase_shifter;
+            all_phase_shifters &= has_phase_shifter;
 
             if (ship->officer_index != -1) {
                 s_leader_data* leader = &MOX::leaders[ship->officer_index];
@@ -912,6 +917,21 @@ namespace SHIPMOVE {
             if (range < min_range) {
                 min_range = range;
             }
+        }
+
+        // In-flight player fleets already include the multiplier in their departure speed.
+        bool phase_speed_modified = any_phase_shifter &&
+            phase_shifter_speed_multiplier.numerator != phase_shifter_speed_multiplier.denominator;
+        bool scale_phase_speed = phase_speed_modified &&
+            (MOX::ship[*ship_list].status != 1 || player_idx >= MAX_PLAYERS);
+        if (scale_phase_speed && ship_speed > 0) {
+            int32_t phase_speed = 0;
+            if (phase_shifter_speed_multiplier.numerator > 0) {
+                phase_speed = ship_speed * phase_shifter_speed_multiplier.numerator /
+                    phase_shifter_speed_multiplier.denominator;
+                phase_speed = std::clamp(phase_speed, 1, UINT8_MAX - 1);
+            }
+            ship_speed = all_phase_shifters ? phase_speed : std::min(ship_speed, phase_speed);
         }
 
         int16_t start_star_id = HAROLD::XY_To_Star_Id(start_x, start_y);
@@ -981,6 +1001,10 @@ namespace SHIPMOVE {
                 uint8_t turn_count = 0;
                 if (move_info->has_jumpgate_route != 0) {
                     base_speed += jump_gate_speed_bonus;
+                }
+                if (phase_speed_modified) {
+                    // UINT8_MAX is reserved for instantaneous travel routes.
+                    base_speed = std::min(base_speed, int32_t{UINT8_MAX - 1});
                 }
 
                 while (cur_x != target_star->x || cur_y != target_star->y) {
