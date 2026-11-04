@@ -838,7 +838,10 @@ namespace MAINPUPS {
     }
 
     bool __cdecl Random_New_Officer_Popup(int16_t player_idx) {
-        int16_t star_idx = MOX::planet[ERIC::Player_Capitol_World(player_idx)].star_index;
+        const int16_t capital_colony = ERIC::Player_Capitol_World(player_idx);
+        int16_t star_idx = capital_colony >= 0
+            ? MOX::planet[MOX::colony[capital_colony].planet].star_index
+            : -1;
 
         s_colors colors;
         colors.colors[0] = 0x9F;
@@ -864,8 +867,10 @@ namespace MAINPUPS {
         }
 
         if (star_idx == -1) {
-            int16_t colony_idx = ERIC::Pick_Random_Colony(player_idx);
-            star_idx = MOX::planet[MOX::colony[colony_idx].planet].star_index;
+            const int16_t colony_idx = ERIC::Pick_Random_Colony(player_idx);
+            if (colony_idx >= 0) {
+                star_idx = MOX::planet[MOX::colony[colony_idx].planet].star_index;
+            }
         }
 
         COLONY::sys_disp_star_handle = star_idx;
