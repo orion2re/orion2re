@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include "tactical_control.h"
 
 namespace COMBAT1 {
     extern int32_t end_of_turn_button;
@@ -181,6 +182,11 @@ namespace COMBAT1 {
     // Runs one tactical-combat turn pass.
     // active_player_id: side being processed; time_warp_only: nonzero limits work to the special-gated pass.
     void __cdecl Do_Combat_Turn(int16_t active_player_id, int16_t time_warp_only);
+    void Apply_Tactical_Operation(const tactical_control::s_operation* operation,
+        int16_t active_player_id,
+        int16_t* next_ship_flag,
+        bool received = false);
+    bool Consume_Tactical_Operation(int16_t active_player_id, int16_t* next_ship_flag);
     // Restores an eligible ordinary cloak after its configured firing delay.
     // ship_idx: combat ship index whose ordinary cloak state should be maintained.
     void Update_Ordinary_Cloak(int16_t ship_idx);

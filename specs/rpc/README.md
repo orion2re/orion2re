@@ -1,4 +1,4 @@
-# Optional local RPC and live tactical observer
+# Optional local RPC and tactical pilot
 
 The listener uses libwebsockets v4.5.4 with the existing pinned project libuv.
 The exact backend revision, source URL, license and build options are in
@@ -14,7 +14,7 @@ git clone --branch v4.5.4 https://github.com/warmcat/libwebsockets.git /path/to/
 cmake -S . -B out/build/rpc-debug -DCMAKE_BUILD_TYPE=Debug \
   -DORION2RE_BUILD_TESTS=ON -DORION2RE_ENABLE_RPC=ON \
   -DORION2RE_RPC_BACKEND_DIR=/path/to/libwebsockets
-cmake --build out/build/rpc-debug --target orion2re test_rpc \
+cmake --build out/build/rpc-debug --target orion2re test_rpc test_tactical_control \
   test_tactical_events test_tactical_view test_combat_stats test_combat_repair \
   test_cmbtfire test_boarding test_absorber_cleanup test_cmbtspec \
   test_stasis_area_effects test_shield_table test_config_snapshot \
@@ -57,8 +57,9 @@ Authenticate within five seconds. Never put the key in URLs or logs.
 
 Authenticated `rpc.describe` takes no parameters (or `{}`) and advertises
 `rpc.hello`, `rpc.describe`, `rpc.subscribe`, `rpc.unsubscribe`, `combat.getView`
-and `combat.getUnit`, the four tactical event names, and delivery/read limits,
-under provisional contract `orion2.rpc/0`. Controller status grants no mutations.
+and `combat.getUnit`, the basic tactical control methods, tactical event names,
+and delivery/read/dispatch limits under provisional contract `orion2.rpc/0`.
+Controller status is necessary but never sufficient for native tactical control.
 
 ## Run the observer
 
@@ -96,6 +97,16 @@ notifications while waiting; idle time never creates read demand.
 
 The [tactical observer contract](observer.md) defines fields, authorization,
 safe points, references, notifications and the interactive acceptance walkthrough.
+
+## Complete a basic ship turn
+
+Run `python3 tools/rpc_observer.py --port 17362 --controller` alongside an
+independent reader. Use `options`, `select <unitId>`, `move <x> <y>`,
+`face <x> <y>`, `fire <targetUnitId>`, `done`, and `cancel`. All new wire
+methods/events use `combat.`. See [tactical control](tactical-control.md) for
+current-selection firing, native authority, local-attention events, bounded
+single-operation dispatch, cancellation, errors and unknown-outcome recovery.
+No mutation is automatically retried.
 
 ## Tactical lifecycle events
 
@@ -172,17 +183,18 @@ or output overflow closes the connection. Fragmented input and ordered output
 are handled on the service thread.
 
 The service owns a libuv loop and attaches libwebsockets to it. Its only periodic
-application timer checks authentication/read deadlines, never game state.
+application timer checks authentication/read/pre-dispatch deadlines, never game state.
 Event/response delivery is async-woken. Application composition subscribes the forwarder
 before the worker starts, and detaches it after the worker joins and before
-stopping the service. Native input/completion points service only pending reads;
-idle hooks never build a view. There is no world cache, state watch or fingerprint.
+stopping the service. Native read hooks service only pending reads; the local
+tactical owner separately consumes pending intents. Idle hooks never build a
+view. There is no world cache, state watch or fingerprint.
 
 ## Verification
 
 ```sh
 ctest --test-dir out/build/rpc-debug --output-on-failure \
-  -R '^(test_rpc|rpc_transport|rpc_tactical_hooks|rpc_observer|test_tactical_events|test_tactical_view|test_combat_stats|test_combat_repair|test_cmbtfire|test_boarding|test_absorber_cleanup|test_cmbtspec|test_stasis_area_effects|test_config_snapshot|test_shield_table|test_savegame|test_multplay|test_fields_helpers)$'
+  -R '^(test_rpc|rpc_transport|rpc_tactical_hooks|rpc_observer|rpc_turn|test_tactical_control|test_tactical_events|test_tactical_view|test_combat_stats|test_combat_repair|test_cmbtfire|test_boarding|test_absorber_cleanup|test_cmbtspec|test_stasis_area_effects|test_config_snapshot|test_shield_table|test_savegame|test_multplay|test_fields_helpers)$'
 cmake --build out/build/rpc-debug --target config-generated-check
 ```
 
@@ -190,7 +202,10 @@ cmake --build out/build/rpc-debug --target config-generated-check
 live WebSockets, production native reads and a real native stasis operation over
 fixture-owned native memory, and runs the actual CLI. Large-payload tests separately
 synthesize response bytes for delivery/budget checks, not native parity. Native
-tests also execute real turn selection. These are not interactive tactical battle
+tests also execute real turn selection. `test_tactical_control` and `rpc_turn`
+execute full production movement/facing/firing/done and current options, including
+the actual controller CLI and a concurrent reader. The held-dispatch delivery race
+is synthetic, separately from those gameplay paths. These are not interactive tactical battle
 or multiplayer-session evidence. Repeat with `ORION2RE_ENABLE_ASAN=ON` for
 AddressSanitizer/UBSan checks. Also build with RPC disabled and router-only.
 On hosts without LeakSanitizer, use `ASAN_OPTIONS=detect_leaks=0`; this does not

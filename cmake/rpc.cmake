@@ -43,6 +43,7 @@ add_library(orion2re_rpc STATIC
     src/rpc/rpc_protocol.cpp
     src/rpc/rpc_event_queue.cpp
     src/rpc/rpc_read_queue.cpp
+    src/rpc/rpc_operation_queue.cpp
     src/rpc/rpc_service.cpp
     src/rpc/tactical_rpc.cpp
     src/rpc/tactical_reads.cpp

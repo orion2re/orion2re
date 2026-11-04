@@ -27,4 +27,6 @@ namespace rpc {
     using t_execute_read = std::string (*)(const s_read_request*, void*, bool* dependent);
     // Game thread only. Unsafe points leave observed reads queued until deadline.
     void Execute_Reads(s_service* service, bool safe, bool observed, t_execute_read execute, void* context);
+    bool Take_Operation(s_service* service, s_operation_request* request);
+    void Complete_Operation(s_service* service, const s_operation_request* request, int error = 0);
 } // namespace rpc

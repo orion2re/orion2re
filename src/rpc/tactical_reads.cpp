@@ -33,6 +33,17 @@ namespace rpc {
     }
 
     namespace {
+        std::string Random_Token() {
+            unsigned char bytes[16];
+            if (uv_random(nullptr, nullptr, bytes, sizeof(bytes), 0, nullptr) != 0) return {};
+            constexpr char hex[] = "0123456789abcdef";
+            std::string token;
+            for (auto byte : bytes) {
+                token += hex[byte >> 4];
+                token += hex[byte & 15];
+            }
+            return token;
+        }
         std::string Name_Json(const char* name) {
             std::string utf8;
             config::Decode_Cp850_To_Utf8(name, std::strlen(name), &utf8);
@@ -78,6 +89,70 @@ namespace rpc {
         if (!active) {
             if (request->method != READ_VIEW) return unavailable();
             result = "{\"battle\":null}";
+        } else if (request->method == READ_OPTIONS) {
+            tactical_control::s_options options;
+            if (forwarder->options == nullptr || !forwarder->options(&options)) return unavailable();
+            *dependent = true;
+            result = "{\"battleId\":\"" + std::string(forwarder->battle_id) + "\",\"control\":{\"available\":" + (options.available ? "true" : "false");
+            if (!options.available) {
+                result += ",\"reason\":\"noNativeControl\"}}";
+            } else {
+                const auto token = [&](int16_t slot) {
+                    tactical_view::s_unit unit;
+                    if (forwarder->reader.unit == nullptr || !forwarder->reader.unit(slot, &unit)) return std::string();
+                    return Tactical_Unit_Token(forwarder, &unit);
+                };
+                if (forwarder->decision_generation != options.generation || forwarder->decision_id.empty()) {
+                    forwarder->decision_id = Random_Token();
+                    forwarder->decision_generation = options.generation;
+                }
+                if (forwarder->decision_id.empty()) return unavailable();
+                result += ",\"actorUnitId\":\"" + token(options.actor) + "\",\"decisionId\":\"" + forwarder->decision_id + "\"},\"selectableUnitIds\":[";
+                std::vector<std::string> selections;
+                for (auto slot : options.selectable) selections.push_back(token(slot));
+                std::sort(selections.begin(), selections.end());
+                for (size_t i = 0; i < selections.size(); ++i) {
+                    if (i) result += ',';
+                    result += "\"" + selections[i] + "\"";
+                }
+                result += "],\"weapons\":[";
+                for (size_t i = 0; i < options.weapons.size(); ++i) {
+                    const auto& weapon = options.weapons[i];
+                    if (i) result += ',';
+                    result += "{\"slot\":" + std::to_string(weapon.slot) + ",\"name\":" + Name_Json(weapon.name) +
+                        ",\"type\":" + std::to_string(weapon.type) + ",\"count\":" + std::to_string(weapon.count) +
+                        ",\"selection\":" + std::to_string(weapon.selection) + ",\"shotsAvailable\":" + std::to_string(weapon.shots) +
+                        ",\"ammoOrRecharge\":" + std::to_string(weapon.ammo) + ",\"arc\":" + std::to_string(weapon.arc) +
+                        ",\"ready\":" + (weapon.ready ? "true" : "false") + "}";
+                }
+                result += "],\"preFireEffects\":{\"absorberSelected\":" + std::string(options.absorber_selected ? "true" : "false") +
+                    ",\"absorberCharge\":" + std::to_string(options.absorber_charge) + "},\"movement\":{\"cells\":[";
+                for (size_t i = 0; i < options.cells.size(); ++i) {
+                    const auto& cell = options.cells[i];
+                    if (i) result += ',';
+                    result += "{\"x\":" + std::to_string(cell.x) + ",\"y\":" + std::to_string(cell.y) + ",\"nominalCost\":" + std::to_string(cell.cost) + "}";
+                }
+                result += "]},\"facing\":{\"available\":" + std::string(options.movement > 0 ? "true" : "false") +
+                    ",\"turnCost\":" + std::to_string(options.turn_cost) + ",\"movementRemaining\":" + std::to_string(options.movement) + "},\"targets\":[";
+                std::vector<std::string> targets;
+                for (const auto& target : options.targets) {
+                    std::string row = "{\"unitId\":\"" + token(target.slot) + "\",\"eligibleWeaponSlots\":[";
+                    bool first = true;
+                    for (unsigned i = 0; i < 8; ++i)
+                        if (target.weapons & (1u << i)) {
+                            if (!first) row += ',';
+                            first = false;
+                            row += std::to_string(i);
+                        }
+                    targets.push_back(row + "],\"preFireEffectEligible\":" + (target.absorber ? "true" : "false") + "}");
+                }
+                std::sort(targets.begin(), targets.end());
+                for (size_t i = 0; i < targets.size(); ++i) {
+                    if (i) result += ',';
+                    result += targets[i];
+                }
+                result += "],\"canDone\":true}";
+            }
         } else if (request->method == READ_UNIT) {
             tactical_view::s_unit unit;
             bool found = false;

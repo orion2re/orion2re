@@ -225,6 +225,8 @@ int main(int argc, char** argv) {
     rpc::s_service rpc_service;
     rpc::s_tactical_forwarder tactical_forwarder;
     tactical_forwarder.reader = {tactical_view::Local_Observer, tactical_view::Read_View, tactical_view::Read_Unit};
+    tactical_forwarder.options = tactical_control::Read_Options;
+    tactical_forwarder.authorize = tactical_control::Authorize;
     if (rpc::enabled) {
         rpc::s_service_config rpc_config;
         rpc_config.port = rpc::port;

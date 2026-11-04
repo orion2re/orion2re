@@ -2,6 +2,7 @@
 #include "rpc_protocol.h"
 #include "rpc_event_queue.h"
 #include "rpc_read_queue.h"
+#include "rpc_operation_queue.h"
 
 #include <algorithm>
 #include <array>
@@ -57,8 +58,15 @@ namespace rpc {
             std::array<s_connection, MAX_CONNECTIONS> connections;
             s_event_queue events;
             s_read_queue reads;
+            s_operation_queue operations;
             uint64_t next_connection = 0;
         };
+
+        void Cancel_Connection_Work(s_service_state* state, const s_connection* connection) {
+            Cancel_Reads(&state->reads, connection->generation);
+            s_operation_request cancelled;
+            Cancel_Operation(&state->operations, connection->generation, 0, &cancelled);
+        }
 
         bool Queue_Output(s_connection* connection, s_output output) {
             if (connection->output.size() >= MAX_OUTPUT_MESSAGES || output.json.size() > MAX_OUTPUT_BYTES - connection->output_bytes) return false;
@@ -75,6 +83,7 @@ namespace rpc {
                 auto& session = connection.session;
                 if (Event_Delivery_Expired(&session, &batch)) connection.expired = true;
                 if (!session.authenticated || session.close_after_output || connection.expired) {
+                    Cancel_Connection_Work(state, &connection);
                     if (connection.expired) lws_callback_on_writable(connection.socket);
                     continue;
                 }
@@ -83,7 +92,7 @@ namespace rpc {
                     if (event.kind == 0) {
                         if (event.connection != connection.generation) continue;
                         if (event.selection == connection.read_selection && connection.pending_reads > 0) --connection.pending_reads;
-                        if (event.selection != connection.read_selection) {
+                        if (event.selection != 0 && event.selection != connection.read_selection) {
                             Error_Response(event.encoded_id, -32004, "Unavailable").swap(event.response);
                             event.read_epoch = 0;
                         }
@@ -97,9 +106,13 @@ namespace rpc {
                             name = "combat.closed";
                         else if (event.kind == EVENT_COMBAT_SELECTED)
                             name = "combat.unitSelected";
+                        else if (event.kind == EVENT_COMBAT_ATTENTION || event.kind == EVENT_COMBAT_ATTENTION_CLEARED)
+                            name = "combat.localAttentionChanged";
                         std::string json = "{\"jsonrpc\":\"2.0\",\"method\":\"" + std::string(name) +
                             "\",\"params\":{\"battleId\":\"" + std::string(event.battle_id.data()) + "\"";
                         if (event.kind == EVENT_COMBAT_SELECTED) json += ",\"unitId\":" + (event.unit_id[0] == '\0' ? std::string("null") : "\"" + std::string(event.unit_id.data()) + "\"");
+                        if (event.kind == EVENT_COMBAT_ATTENTION || event.kind == EVENT_COMBAT_ATTENTION_CLEARED)
+                            json += std::string(",\"required\":") + (event.kind == EVENT_COMBAT_ATTENTION ? "true" : "false");
                         json += "}}";
                         // Only an adjacent complete unsent hint can be replaced.
                         const bool coalesce = event.kind == EVENT_COMBAT_INVALIDATED && !connection.output.empty() &&
@@ -108,6 +121,7 @@ namespace rpc {
                         if (!coalesce && !Queue_Output(&connection, {std::move(json), event.read_epoch, event.kind, event.battle_id})) connection.expired = true;
                     }
                     if (connection.expired) {
+                        Cancel_Connection_Work(state, &connection);
                         lws_callback_on_writable(connection.socket);
                         break;
                     }
@@ -126,6 +140,9 @@ namespace rpc {
         const lws_retry_bo_t idle_policy = {nullptr, 0, 0, 5, 10, 0};
 
         int Close(lws* socket, lws_close_status status) {
+            auto* state = (s_service_state*)lws_context_user(lws_get_context(socket));
+            for (const auto& connection : state->connections)
+                if (connection.socket == socket) Cancel_Connection_Work(state, &connection);
             lws_close_reason(socket, status, nullptr, 0);
             return -1;
         }
@@ -183,7 +200,9 @@ namespace rpc {
             const bool control_available = std::none_of(state->connections.begin(), state->connections.end(), [](const auto& item) { return item.session.controller; });
             std::string response;
             s_read_request read;
-            if (!Process_Request(connection->input, state->config.key, control_available, &connection->session, &response, &selection_updated, &read)) return false;
+            s_operation_request operation;
+            if (!Process_Request(connection->input, state->config.key, control_available, &connection->session, &response, &selection_updated, &read, &operation)) return false;
+            if (connection->session.close_after_output) Cancel_Connection_Work(state, connection);
             const auto current = Event_Position(&state->events);
             if (!was_authenticated && connection->session.authenticated) connection->session.auth_epoch = current.epoch;
             if (selection_updated) {
@@ -196,6 +215,9 @@ namespace rpc {
                         if (!Queue_Output(connection, {Error_Response(request.encoded_id, -32004, "Unavailable")})) return false;
                     }
                     connection->pending_reads = 0;
+                    s_operation_request cancelled_operation;
+                    if (Cancel_Operation(&state->operations, connection->generation, 0, &cancelled_operation))
+                        if (!Queue_Output(connection, {Error_Response(cancelled_operation.request.encoded_id, -32013, "Cancelled before dispatch")})) return false;
                 }
             }
             if (read.method != READ_NONE) {
@@ -207,6 +229,21 @@ namespace rpc {
                     response = Error_Response(read.encoded_id, -32006, "Busy");
                 } else {
                     ++connection->pending_reads;
+                }
+            }
+            if (operation.method != OP_NONE) {
+                operation.request.connection = connection->generation;
+                operation.request.epoch = connection->session.auth_epoch;
+                operation.request.deadline_ms = Monotonic_Ms() + 2000;
+                if (operation.method == OP_CANCEL) {
+                    s_operation_request cancelled;
+                    if (Cancel_Operation(&state->operations, connection->generation, operation.sequence, &cancelled)) {
+                        if (!Queue_Output(connection, {Error_Response(cancelled.request.encoded_id, -32013, "Cancelled before dispatch")})) return false;
+                        response = "{\"jsonrpc\":\"2.0\",\"id\":" + operation.request.encoded_id + ",\"result\":{\"cancelled\":true}}";
+                    } else
+                        response = Error_Response(operation.request.encoded_id, -32014, "Not pending or already dispatched");
+                } else if (!Enqueue_Operation(&state->operations, operation)) {
+                    response = Error_Response(operation.request.encoded_id, -32006, "Not admitted: busy");
                 }
             }
             if (response.empty()) return true;
@@ -233,7 +270,7 @@ namespace rpc {
             if (found == state->connections.end()) return 0;
             auto* connection = &*found;
             if (reason == LWS_CALLBACK_CLOSED) {
-                Cancel_Reads(&state->reads, connection->generation);
+                Cancel_Connection_Work(state, connection);
                 *connection = {};
                 return 0;
             }
@@ -247,7 +284,7 @@ namespace rpc {
                 if (lws_frame_is_binary(socket)) return Close(socket, LWS_CLOSE_STATUS_UNACCEPTABLE_OPCODE);
                 if (++connection->callbacks > 128 || connection->session.close_after_output) return Close(socket, LWS_CLOSE_STATUS_POLICY_VIOLATION);
                 if (!connection->assembling) {
-                    if (!lws_is_first_fragment(socket)) return -1;
+                    if (!lws_is_first_fragment(socket)) return Close(socket, LWS_CLOSE_STATUS_POLICY_VIOLATION);
                     connection->assembling = true;
                 }
                 const size_t remaining = MAX_INPUT_BYTES - connection->input.size();
@@ -270,7 +307,7 @@ namespace rpc {
                 std::memcpy(buffer + LWS_PRE, message.data() + connection->output_offset, count);
                 const bool final = connection->output_offset + count == message.size();
                 const int written = lws_write(socket, buffer + LWS_PRE, count, lws_write_ws_flags(LWS_WRITE_TEXT, connection->output_offset == 0, final));
-                if (written < 0 || (size_t)written < count) return -1;
+                if (written < 0 || (size_t)written < count) return Close(socket, LWS_CLOSE_STATUS_POLICY_VIOLATION);
                 connection->output_offset += count;
                 if (final) {
                     connection->output_bytes -= message.size();
@@ -288,6 +325,9 @@ namespace rpc {
             while (Expire_Read(&state->reads, &expired)) {
                 Push_Response(&state->events, expired.connection, expired.epoch, 0, Error_Response(expired.encoded_id, -32006, "Busy"), expired.selection, expired.encoded_id);
             }
+            s_operation_request expired_operation;
+            if (Cancel_Operation(&state->operations, 0, 0, &expired_operation, false, true))
+                Push_Response(&state->events, expired_operation.request.connection, expired_operation.request.epoch, 0, Error_Response(expired_operation.request.encoded_id, -32015, "Expired before dispatch"), 0, expired_operation.request.encoded_id);
             Deliver(state);
             for (auto& connection : state->connections) {
                 if (connection.socket != nullptr && !connection.session.authenticated &&
@@ -401,6 +441,8 @@ namespace rpc {
         auto* state = (s_service_state*)service->state;
         Stop_Events(&state->events);
         Cancel_Reads(&state->reads, 0, true);
+        s_operation_request cancelled;
+        Cancel_Operation(&state->operations, 0, 0, &cancelled, true);
         if (state->successful) {
             state->stopping = true;
             uv_async_send(&state->wake);
@@ -427,6 +469,8 @@ namespace rpc {
         auto* state = (s_service_state*)service->state;
         Revoke_Events(&state->events);
         Cancel_Reads(&state->reads);
+        s_operation_request cancelled;
+        Cancel_Operation(&state->operations, 0, 0, &cancelled);
         uv_async_send(&state->wake);
     }
 
@@ -434,6 +478,9 @@ namespace rpc {
         if (service == nullptr || service->state == nullptr) return;
         auto* state = (s_service_state*)service->state;
         Invalidate_Read_Output(&state->events);
+        s_operation_request cancelled;
+        if (Cancel_Operation(&state->operations, 0, 0, &cancelled))
+            Push_Response(&state->events, cancelled.request.connection, cancelled.request.epoch, 0, Error_Response(cancelled.request.encoded_id, -32004, "Unavailable"), 0, cancelled.request.encoded_id);
         uv_async_send(&state->wake);
     }
 
@@ -467,5 +514,39 @@ namespace rpc {
             Push_Response(&state->events, request.connection, request.epoch, dependent ? position.read_epoch : 0, std::move(response), request.selection, request.encoded_id);
             uv_async_send(&state->wake);
         }
+    }
+
+    bool Take_Operation(s_service* service, s_operation_request* request) {
+        if (service == nullptr || service->state == nullptr) return false;
+        auto* state = (s_service_state*)service->state;
+        if (!Take_Operation(&state->operations, request)) return false;
+        const auto position = Event_Position(&state->events);
+        if (position.stopped || request->request.epoch != position.epoch) {
+            Finish_Operation(&state->operations);
+            return false;
+        }
+        return true;
+    }
+
+    void Complete_Operation(s_service* service, const s_operation_request* request, int error) {
+        auto* state = (s_service_state*)service->state;
+        std::string response;
+        if (error != 0) {
+            const char* message = "Unavailable";
+            switch (error) {
+                case -32009: message = "No native control"; break;
+                case -32010: message = "Decision conflict"; break;
+                case -32011: message = "Illegal operation"; break;
+                case -32016: message = "Local attention required"; break;
+                default: break;
+            }
+            response = Error_Response(request->request.encoded_id, error, message);
+        } else
+            response = "{\"jsonrpc\":\"2.0\",\"id\":" + request->request.encoded_id +
+                ",\"result\":{\"operationSeq\":" + std::to_string(request->sequence) + ",\"state\":\"applied\"}}";
+        // Completion is an outcome, not a read: retirement/unsubscribe cannot turn it into a false refusal.
+        Push_Response(&state->events, request->request.connection, request->request.epoch, 0, std::move(response), 0, request->request.encoded_id);
+        Finish_Operation(&state->operations);
+        uv_async_send(&state->wake);
     }
 } // namespace rpc

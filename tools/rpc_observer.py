@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read-only, event-driven local tactical observer. Python 3.10+, no packages."""
+"""Event-driven tactical observer and explicit controller. Python 3.10+, no packages."""
 
 import argparse
 import base64
@@ -19,7 +19,7 @@ import time
 
 MAX_MESSAGE = 16 * 1024 * 1024
 EVENTS = ["combat.opened", "combat.closed", "combat.viewInvalidated",
-          "combat.unitSelected"]
+          "combat.unitSelected", "combat.localAttentionChanged"]
 
 
 class WebSocket:
@@ -128,7 +128,7 @@ def safe_text(value):
 
 
 class Observer:
-    def __init__(self, wire, inbox):
+    def __init__(self, wire, inbox, controller=False):
         self.wire, self.inbox = wire, inbox
         self.next_id = 0
         self.battle = None
@@ -136,15 +136,32 @@ class Observer:
         self.retries = 0
         self.retry_at = None
         self.next_read_at = 0
+        self.controller = controller
+        self.options = None
+        self.operation_seq = 0
+        self.pending_operation = None
 
     def clear(self, message):
         self.battle = None
         self.refresh = False
         self.retry_at = None
         self.retries = 0
+        self.options = None
         print(message, flush=True)
 
     def notification(self, event):
+        if self.pending_operation and event.get("id") == self.pending_operation[0]:
+            sequence = self.pending_operation[1]
+            self.pending_operation = None
+            self.options = None
+            if "error" in event:
+                error = event["error"]
+                print(f"Operation {sequence} rejected: {safe_text(error.get('message'))} "
+                      f"({error.get('code')}). Not retried.", flush=True)
+            else:
+                print(f"Operation {sequence}: applied through native rules. Refreshing.", flush=True)
+            self.refresh = self.battle is not None
+            return
         method, params = event.get("method"), event.get("params", {})
         battle_id = params.get("battleId")
         if method == "combat.closed":
@@ -155,7 +172,12 @@ class Observer:
             self.refresh = True
         elif method in ("combat.viewInvalidated", "combat.unitSelected"):
             if self.battle is None or self.battle["battleId"] == battle_id:
+                self.options = None
                 self.refresh = True
+        elif method == "combat.localAttentionChanged":
+            self.options = None
+            print("Local game attention required; operation may still be executing."
+                  if params.get("required") else "Local attention cleared.", flush=True)
 
     def request(self, method, params):
         if method.startswith("combat."):
@@ -181,6 +203,8 @@ class Observer:
                 self.notification(item)
             elif item.get("id") == request_id:
                 return item
+            else:
+                self.notification(item)
 
     def pull(self):
         self.refresh = False
@@ -224,6 +248,77 @@ class Observer:
         selected = next((u for u in battle["units"] if u["owned"] and u["unitId"] == battle["selectedUnitId"]), None)
         if selected:
             self.detail(selected["unitId"])
+        if self.controller:
+            self.show_options()
+
+    def show_options(self):
+        self.options = None
+        if self.battle is None:
+            print("No current battle.", flush=True)
+            return
+        response = self.request("combat.getTargetOptions", {"battleId": self.battle["battleId"]})
+        if "error" in response:
+            print("Options unavailable/busy; request options again. No operation retried.", flush=True)
+            return
+        options = response["result"]
+        if not options["control"]["available"]:
+            print("Controller connected, but no native ship control (opponent/AI/phase/local mode).", flush=True)
+            return
+        self.options = options
+        print("Controllable actor: " + options["control"]["actorUnitId"], flush=True)
+        print("Selectable ships: " + " ".join(options["selectableUnitIds"]), flush=True)
+        for weapon in options["weapons"]:
+            print("Weapon: " + safe_text(json.dumps(weapon, ensure_ascii=False)), flush=True)
+        print("Pre-fire effects: " + str(options["preFireEffects"]), flush=True)
+        print("Facing: " + str(options["facing"]), flush=True)
+        print("Legal move cells (x,y:nominalCost; native warnings/effects can stop early): " +
+              " ".join(f"{c['x']},{c['y']}:{c['nominalCost']}" for c in options["movement"]["cells"]), flush=True)
+        for target in options["targets"]:
+            print("Target: " + json.dumps(target), flush=True)
+        print("Done is available. Fire uses the entire current native selection.", flush=True)
+
+    def operation(self, command):
+        if not self.controller:
+            print("Reader only; restart with --controller to request control.", flush=True)
+            return
+        parts = command.split()
+        if parts[0] == "cancel":
+            if not self.pending_operation:
+                print("No outstanding operation.", flush=True)
+                return
+            response = self.request("combat.cancelOperation", {"operationSeq": self.pending_operation[1]})
+            print("Cancellation: " + safe_text(json.dumps(response.get("result", response.get("error")))), flush=True)
+            return
+        if self.pending_operation:
+            print("An operation is outstanding; wait, cancel, or quit. Do not resend it.", flush=True)
+            return
+        if self.options is None:
+            print("No current decision; use options before issuing an operation.", flush=True)
+            return
+        methods = {"select": ("combat.selectUnit", 2), "move": ("combat.move", 3),
+                   "face": ("combat.face", 3), "fire": ("combat.fire", 2), "done": ("combat.done", 1)}
+        method, count = methods[parts[0]]
+        if len(parts) != count:
+            print("Invalid command arguments.", flush=True)
+            return
+        params = {"battleId": self.options["battleId"],
+                  "actorUnitId": self.options["control"]["actorUnitId"],
+                  "decisionId": self.options["control"]["decisionId"]}
+        try:
+            if parts[0] in ("move", "face"):
+                params["destination" if parts[0] == "move" else "toward"] = {"x": int(parts[1]), "y": int(parts[2])}
+            elif parts[0] in ("fire", "select"):
+                params["targetUnitId" if parts[0] == "fire" else "unitId"] = parts[1]
+        except ValueError:
+            print("Coordinates must be integers.", flush=True)
+            return
+        self.operation_seq += 1
+        self.next_id += 1
+        params["operationSeq"] = self.operation_seq
+        self.pending_operation = (self.next_id, self.operation_seq)
+        self.options = None
+        self.wire.send({"jsonrpc": "2.0", "id": self.next_id, "method": method, "params": params})
+        print(f"Operation {self.operation_seq} sent; awaiting final outcome (no automatic retry).", flush=True)
 
     def detail(self, unit_id):
         if self.battle is None:
@@ -252,6 +347,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--port", type=int, default=17362)
     parser.add_argument("--key-file", type=Path)
+    parser.add_argument("--controller", action="store_true", help="explicitly request the single controller role")
     args = parser.parse_args()
     wire = None
     observer = None
@@ -274,10 +370,12 @@ def main():
                     pass
 
         threading.Thread(target=receive, daemon=True).start()
-        observer = Observer(wire, inbox)
-        hello = observer.request("rpc.hello", {"key": key, "requestedRole": "reader"})
+        observer = Observer(wire, inbox, args.controller)
+        hello = observer.request("rpc.hello", {"key": key, "requestedRole": "controller" if args.controller else "reader"})
         del key
         if "error" in hello:
+            if hello["error"]["code"] == -32007:
+                print("Controller contention: another connection holds controller status.", flush=True)
             raise ConnectionError("authentication rejected")
         if hello.get("result", {}).get("contractVersion") != "orion2.rpc/0":
             raise ConnectionError("unsupported RPC contract")
@@ -293,7 +391,8 @@ def main():
                     pass
 
         threading.Thread(target=input_commands, daemon=True).start()
-        print("Commands: refresh | unit <unitId> | quit. Ctrl-C exits.", flush=True)
+        print("Commands: refresh | unit <unitId> | options | select <unitId> | move <x> <y> | "
+              "face <x> <y> | fire <targetUnitId> | done | cancel | quit. Ctrl-C exits.", flush=True)
         while True:
             try:
                 command = commands.get_nowait()
@@ -305,12 +404,17 @@ def main():
                     observer.refresh = True
                 elif command.startswith("unit "):
                     observer.detail(command[5:].strip())
+                elif command == "options":
+                    if not observer.pending_operation:
+                        observer.show_options()
+                elif command.split() and command.split()[0] in ("select", "move", "face", "fire", "done", "cancel"):
+                    observer.operation(command)
             except queue.Empty:
                 pass
             if observer.retry_at is not None and time.monotonic() >= observer.retry_at:
                 observer.retry_at = None
                 observer.refresh = True
-            if observer.refresh and observer.retry_at is None:
+            if observer.refresh and observer.retry_at is None and not observer.pending_operation:
                 observer.pull()
             try:
                 item = inbox.get(timeout=0.1)
@@ -330,6 +434,9 @@ def main():
             print("Unable to connect or read the private key.", file=sys.stderr)
         return 1
     finally:
+        if observer and observer.pending_operation:
+            print("Outstanding operation outcome UNKNOWN after disconnect/exit. Never resend automatically; "
+                  "inspect current native state after reconnecting.", flush=True)
         if wire:
             wire.close()
     return 0

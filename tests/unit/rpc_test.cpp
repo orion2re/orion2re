@@ -3,6 +3,7 @@
 #include "rpc/rpc_service.h"
 #include "rpc/rpc_event_queue.h"
 #include "rpc/rpc_read_queue.h"
+#include "rpc/rpc_operation_queue.h"
 #include "yyjson.h"
 
 #include <chrono>
@@ -30,6 +31,53 @@ namespace {
         }
     };
 } // namespace
+
+DOCTEST_TEST_CASE("tactical mutations require controller sequence and strictly typed combat parameters") {
+    rpc::s_session session;
+    session.authenticated = true;
+    session.events = 7;
+    const std::string input = R"({"jsonrpc":"2.0","id":1,"method":"combat.move","params":{"battleId":"0123456789abcdef0123456789abcdef","actorUnitId":"0123456789abcdef0123456789abcdef","decisionId":"0123456789abcdef0123456789abcdef","operationSeq":1,"destination":{"x":4,"y":5}}})";
+    std::string response;
+    rpc::s_operation_request request;
+    DOCTEST_REQUIRE(rpc::Process_Request(input, KEY, true, &session, &response, nullptr, nullptr, &request));
+    DOCTEST_CHECK(response.find("-32007") != std::string::npos);
+    session.controller = true;
+    DOCTEST_REQUIRE(rpc::Process_Request(input, KEY, true, &session, &response, nullptr, nullptr, &request));
+    DOCTEST_CHECK(response.empty());
+    DOCTEST_CHECK(request.method == rpc::OP_MOVE);
+    DOCTEST_CHECK(request.x == 4);
+    DOCTEST_REQUIRE(rpc::Process_Request(input, KEY, true, &session, &response, nullptr, nullptr, &request));
+    DOCTEST_CHECK(response.find("-32012") != std::string::npos);
+    DOCTEST_CHECK(request.method == rpc::OP_NONE);
+    DOCTEST_CHECK(Process(&session, R"({"jsonrpc":"2.0","id":2,"method":"move","params":{}})").find("-32601") != std::string::npos);
+}
+
+DOCTEST_TEST_CASE("mutation dispatch atomically defeats expiry cancellation disconnect and shutdown") {
+    rpc::s_operation_queue queue;
+    rpc::s_operation_request request;
+    request.method = rpc::OP_MOVE;
+    request.sequence = 1;
+    request.request.connection = 9;
+    request.request.deadline_ms = rpc::Monotonic_Ms() + 2000;
+    DOCTEST_REQUIRE(rpc::Enqueue_Operation(&queue, request));
+    DOCTEST_CHECK_FALSE(rpc::Enqueue_Operation(&queue, request));
+    rpc::s_operation_request taken, cancelled;
+    DOCTEST_CHECK_FALSE(rpc::Cancel_Operation(&queue, 8, 0, &cancelled));
+    DOCTEST_REQUIRE(rpc::Take_Operation(&queue, &taken));
+    queue.pending.request.deadline_ms = 0;
+    DOCTEST_CHECK_FALSE(rpc::Cancel_Operation(&queue, 9, 1, &cancelled));
+    DOCTEST_CHECK_FALSE(rpc::Cancel_Operation(&queue, 0, 0, &cancelled, true, true));
+    DOCTEST_CHECK(queue.executing);
+    rpc::Finish_Operation(&queue);
+    DOCTEST_CHECK_FALSE(rpc::Enqueue_Operation(&queue, request));
+    rpc::s_operation_queue expired;
+    request.request.deadline_ms = rpc::Monotonic_Ms();
+    DOCTEST_REQUIRE(rpc::Enqueue_Operation(&expired, request));
+    DOCTEST_CHECK_FALSE(rpc::Take_Operation(&expired, &taken));
+    DOCTEST_REQUIRE(rpc::Cancel_Operation(&expired, 0, 0, &cancelled, false, true));
+    DOCTEST_CHECK(cancelled.sequence == 1);
+    DOCTEST_CHECK_FALSE(rpc::Take_Operation(&expired, &taken));
+}
 
 DOCTEST_TEST_CASE("RPC authenticates before discovery and advertises transport methods only") {
     rpc::s_session session;

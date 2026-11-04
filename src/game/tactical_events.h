@@ -12,6 +12,8 @@ namespace tactical_events {
         UNIT_SELECTED,
         UNIT_RETIRED,
         RETIRING,
+        ATTENTION_REQUIRED,
+        ATTENTION_CLEARED,
     };
     struct s_event {
         e_kind kind;
@@ -35,6 +37,11 @@ namespace tactical_events {
     int16_t Current_Viewer() noexcept;
     int16_t Current_Unit() noexcept;
     bool Reads_Allowed() noexcept;
+    struct s_local_attention {
+        int16_t viewer;
+        s_local_attention() noexcept;
+        ~s_local_attention();
+    };
 
     struct s_battle_scope {
         int16_t viewer = -1;

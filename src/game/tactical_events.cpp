@@ -1,4 +1,5 @@
 #include "tactical_events.h"
+#include "tactical_control.h"
 
 #include <array>
 #include <limits>
@@ -42,6 +43,7 @@ namespace tactical_events {
     }
 
     void Revoke() noexcept {
+        tactical_control::Close_Decision();
         if (current != nullptr) current->retiring = true;
         Publish(REVOKED, -1);
     }
@@ -56,6 +58,13 @@ namespace tactical_events {
 
     bool Reads_Allowed() noexcept {
         return reads_allowed;
+    }
+    s_local_attention::s_local_attention() noexcept : viewer(Current_Viewer()) {
+        tactical_control::Close_Decision();
+        if (viewer >= 0) Publish(ATTENTION_REQUIRED, viewer);
+    }
+    s_local_attention::~s_local_attention() {
+        if (viewer >= 0 && Current_Viewer() == viewer) Publish(ATTENTION_CLEARED, viewer);
     }
 
     void Service_Reads(bool safe) noexcept {
@@ -80,11 +89,13 @@ namespace tactical_events {
 
     void Select_Unit(int16_t unit) noexcept {
         if (Current_Viewer() < 0 || current->selected == unit) return;
+        tactical_control::Close_Decision();
         current->selected = unit;
         current->selection_pending = true;
     }
 
     void Retire_Unit(int16_t unit) noexcept {
+        if (tactical_control::Actor() == unit) tactical_control::Close_Decision();
         if (Current_Viewer() >= 0) {
             Publish(UNIT_RETIRED, current->viewer, unit);
             if (current->selected == unit) {
@@ -95,6 +106,7 @@ namespace tactical_events {
     }
 
     void Retire_Battle() noexcept {
+        tactical_control::Close_Decision();
         if (Current_Viewer() < 0) return;
         current->retiring = true;
         Publish(RETIRING, current->viewer);

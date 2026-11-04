@@ -19,6 +19,8 @@ namespace rpc {
         EVENT_COMBAT_CLOSED = 2,
         EVENT_COMBAT_INVALIDATED = 4,
         EVENT_COMBAT_SELECTED = 8,
+        EVENT_COMBAT_ATTENTION = 16,
+        EVENT_COMBAT_ATTENTION_CLEARED = 32,
     };
     struct s_session {
         bool authenticated = false;
@@ -27,12 +29,15 @@ namespace rpc {
         uint8_t events = 0;
         uint64_t events_after = 0;
         uint64_t auth_epoch = 0;
+        uint64_t operation_sequence = 0;
     };
     enum e_read_method {
         READ_NONE,
         READ_VIEW,
         READ_UNIT,
+        READ_OPTIONS,
     };
+
     struct s_read_request {
         e_read_method method = READ_NONE;
         std::string encoded_id;
@@ -42,8 +47,24 @@ namespace rpc {
         uint64_t selection = 0;
         uint64_t deadline_ms = 0;
     };
+    enum e_operation_method {
+        OP_NONE,
+        OP_SELECT,
+        OP_MOVE,
+        OP_FACE,
+        OP_FIRE,
+        OP_DONE,
+        OP_CANCEL,
+    };
+    struct s_operation_request {
+        s_read_request request;
+        e_operation_method method = OP_NONE;
+        uint64_t sequence = 0;
+        std::string actor_id, target_id, decision_id;
+        int16_t x = 0, y = 0;
+    };
 
     std::string Error_Response(std::string_view id, int code, const char* message);
     // Validation only; typed game requests leave through read, never execute here.
-    bool Process_Request(std::string_view input, std::string_view key, bool control_available, s_session* session, std::string* response, bool* selection_updated = nullptr, s_read_request* read = nullptr);
+    bool Process_Request(std::string_view input, std::string_view key, bool control_available, s_session* session, std::string* response, bool* selection_updated = nullptr, s_read_request* read = nullptr, s_operation_request* operation = nullptr);
 } // namespace rpc

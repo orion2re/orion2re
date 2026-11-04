@@ -1,5 +1,9 @@
 # Live read-only tactical observer (`orion2.rpc/0`)
 
+This reader contract remains independently usable. Authenticated controller
+connections may additionally use the separately scoped [basic tactical pilot](tactical-control.md);
+observation references alone never grant action authority.
+
 ## Requests
 
 All examples omit the usual `jsonrpc: "2.0"` and request `id` envelope members.

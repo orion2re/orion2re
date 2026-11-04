@@ -1994,7 +1994,10 @@ namespace CMBTFIR2 {
         if (ship->reflected_damage_pool == INT16_MAX) {
             if (MOX::apply_damage_to_planet != 0) {
                 palette::Refresh_Palette();
-                GENDRAW::Warning_Box("Absorber Overloaded");
+                {
+                    tactical_events::s_local_attention attention;
+                    GENDRAW::Warning_Box("Absorber Overloaded");
+                }
                 CMBTDRW1::Refresh_Combat_Screen_Full();
             }
             damage *= 77;

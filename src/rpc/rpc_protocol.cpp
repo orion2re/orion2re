@@ -94,7 +94,7 @@ namespace rpc {
         struct s_method {
             const char* name;
         };
-        constexpr s_method methods[] = {{"rpc.hello"}, {"rpc.describe"}, {"rpc.subscribe"}, {"rpc.unsubscribe"}, {"combat.getView"}, {"combat.getUnit"}};
+        constexpr s_method methods[] = {{"rpc.hello"}, {"rpc.describe"}, {"rpc.subscribe"}, {"rpc.unsubscribe"}, {"combat.getView"}, {"combat.getUnit"}, {"combat.getTargetOptions"}, {"combat.selectUnit"}, {"combat.move"}, {"combat.face"}, {"combat.fire"}, {"combat.done"}, {"combat.cancelOperation"}};
 
         bool Reference(yyjson_val* value) {
             if (!yyjson_is_str(value) || yyjson_get_len(value) != 32) return false;
@@ -108,7 +108,7 @@ namespace rpc {
         bool Read_Events(yyjson_val* params, uint8_t* mask) {
             if (!Only_Keys(params, {"events"})) return false;
             auto* events = yyjson_obj_get(params, "events");
-            if (!yyjson_is_arr(events) || yyjson_arr_size(events) > 4) return false;
+            if (!yyjson_is_arr(events) || yyjson_arr_size(events) > 5) return false;
             *mask = 0;
             size_t index, count;
             yyjson_val* event;
@@ -122,6 +122,8 @@ namespace rpc {
                     bit = EVENT_COMBAT_INVALIDATED;
                 else if (Is_Text(event, "combat.unitSelected"))
                     bit = EVENT_COMBAT_SELECTED;
+                else if (Is_Text(event, "combat.localAttentionChanged"))
+                    bit = EVENT_COMBAT_ATTENTION | EVENT_COMBAT_ATTENTION_CLEARED;
                 if (bit == 0 || (*mask & bit) != 0) return false;
                 *mask |= bit;
             }
@@ -140,6 +142,10 @@ namespace rpc {
                 if (result.size() > 1) result += ',';
                 result += "\"" + std::string(item.second) + "\"";
             }
+            if (mask & (EVENT_COMBAT_ATTENTION | EVENT_COMBAT_ATTENTION_CLEARED)) {
+                if (result.size() > 1) result += ',';
+                result += "\"combat.localAttentionChanged\"";
+            }
             return result + "]";
         }
     } // namespace
@@ -153,7 +159,8 @@ namespace rpc {
         return Error_Response(id, code, message);
     }
 
-    bool Process_Request(std::string_view input, std::string_view key, bool control_available, s_session* session, std::string* response, bool* selection_updated, s_read_request* read) {
+    bool Process_Request(std::string_view input, std::string_view key, bool control_available, s_session* session, std::string* response, bool* selection_updated, s_read_request* read, s_operation_request* operation) {
+        if (operation != nullptr) *operation = {};
         if (read != nullptr) *read = {};
         if (selection_updated != nullptr) *selection_updated = false;
         if (session == nullptr || response == nullptr) return false;
@@ -214,9 +221,9 @@ namespace rpc {
                     list += "{\"name\":\"" + std::string(item.name) + "\"}";
                 }
                 *response = "{\"jsonrpc\":\"2.0\",\"id\":" + encoded_id +
-                    ",\"result\":{\"contractVersion\":\"orion2.rpc/0\",\"methods\":[" + list + "],\"events\":" + Events_Json(15) +
+                    ",\"result\":{\"contractVersion\":\"orion2.rpc/0\",\"methods\":[" + list + "],\"events\":" + Events_Json(63) +
                     ",\"limits\":{\"inputBytes\":" + std::to_string(MAX_INPUT_BYTES) + ",\"responseBytes\":" + std::to_string(MAX_RESPONSE_BYTES) +
-                    ",\"queuedOutputBytes\":" + std::to_string(MAX_OUTPUT_BYTES) + ",\"readDeadlineMs\":2000,\"outstandingReads\":2}}}";
+                    ",\"queuedOutputBytes\":" + std::to_string(MAX_OUTPUT_BYTES) + ",\"readDeadlineMs\":2000,\"outstandingReads\":2,\"operationDispatchDeadlineMs\":2000,\"outstandingOperations\":1}}}";
             }
         } else if (Is_Text(method, "rpc.subscribe") || Is_Text(method, "rpc.unsubscribe")) {
             uint8_t selected = 0;
@@ -229,8 +236,9 @@ namespace rpc {
                 if (selection_updated != nullptr) *selection_updated = true;
                 *response = "{\"jsonrpc\":\"2.0\",\"id\":" + encoded_id + ",\"result\":{\"events\":" + Events_Json(selected) + "}}";
             }
-        } else if (Is_Text(method, "combat.getView") || Is_Text(method, "combat.getUnit")) {
+        } else if (Is_Text(method, "combat.getView") || Is_Text(method, "combat.getUnit") || Is_Text(method, "combat.getTargetOptions")) {
             const bool unit = Is_Text(method, "combat.getUnit");
+            const bool options = Is_Text(method, "combat.getTargetOptions");
             auto* battle_id = yyjson_obj_get(params, "battleId");
             auto* unit_id = yyjson_obj_get(params, "unitId");
             const bool valid = unit ? Only_Keys(params, {"battleId", "unitId"}) && Reference(battle_id) && Reference(unit_id) : (params == nullptr || (Only_Keys(params, {"battleId"}) && (battle_id == nullptr || Reference(battle_id))));
@@ -241,10 +249,68 @@ namespace rpc {
             } else if (read == nullptr) {
                 *response = Error(encoded_id, -32004, "Unavailable");
             } else {
-                read->method = unit ? READ_UNIT : READ_VIEW;
+                read->method = options ? READ_OPTIONS : READ_VIEW;
+                if (unit) read->method = READ_UNIT;
                 read->encoded_id = encoded_id;
                 if (battle_id != nullptr) read->battle_id = yyjson_get_str(battle_id);
                 if (unit_id != nullptr) read->unit_id = yyjson_get_str(unit_id);
+            }
+        } else if (Is_Text(method, "combat.selectUnit") || Is_Text(method, "combat.move") || Is_Text(method, "combat.face") ||
+            Is_Text(method, "combat.fire") || Is_Text(method, "combat.done") || Is_Text(method, "combat.cancelOperation")) {
+            const bool cancel = Is_Text(method, "combat.cancelOperation");
+            const bool select = Is_Text(method, "combat.selectUnit");
+            const bool fire = Is_Text(method, "combat.fire");
+            const bool move = Is_Text(method, "combat.move");
+            const bool face = Is_Text(method, "combat.face");
+            auto* sequence = yyjson_obj_get(params, "operationSeq");
+            auto* battle = yyjson_obj_get(params, "battleId");
+            auto* actor = yyjson_obj_get(params, "actorUnitId");
+            auto* decision = yyjson_obj_get(params, "decisionId");
+            auto* target = yyjson_obj_get(params, select ? "unitId" : "targetUnitId");
+            auto* point = yyjson_obj_get(params, move ? "destination" : "toward");
+            auto* x = yyjson_obj_get(point, "x");
+            auto* y = yyjson_obj_get(point, "y");
+            const bool valid_sequence = yyjson_is_uint(sequence) && yyjson_get_uint(sequence) > 0 && yyjson_get_uint(sequence) <= 9007199254740991ULL;
+            bool valid = cancel ? Only_Keys(params, {"operationSeq"}) : Only_Keys(params, {"battleId", "actorUnitId", "decisionId", "operationSeq", "unitId", "targetUnitId", "destination", "toward"}) && Reference(battle) && Reference(actor) && Reference(decision);
+            if (!cancel) {
+                valid = valid && yyjson_obj_size(params) == size_t(select || fire || move || face ? 5 : 4);
+                if (select || fire)
+                    valid = valid && Reference(target);
+                else if (move || face)
+                    valid = valid && Only_Keys(point, {"x", "y"}) && yyjson_obj_size(point) == 2 &&
+                        yyjson_is_int(x) && yyjson_is_int(y) && yyjson_get_sint(x) >= 0 && yyjson_get_sint(x) <= INT16_MAX &&
+                        yyjson_get_sint(y) >= 0 && yyjson_get_sint(y) <= INT16_MAX;
+            }
+            if (!valid || !valid_sequence)
+                *response = Error(encoded_id, -32602, "Invalid params");
+            else if (!session->controller)
+                *response = Error(encoded_id, -32007, "Controller required");
+            else if ((session->events & 7) != 7)
+                *response = Error(encoded_id, -32008, "Tactical subscription required");
+            else if (!cancel && yyjson_get_uint(sequence) <= session->operation_sequence)
+                *response = Error(encoded_id, -32012, "Duplicate operation");
+            else if (operation == nullptr)
+                *response = Error(encoded_id, -32004, "Unavailable");
+            else {
+                operation->method = OP_DONE;
+                if (cancel) operation->method = OP_CANCEL;
+                if (select) operation->method = OP_SELECT;
+                if (move) operation->method = OP_MOVE;
+                if (face) operation->method = OP_FACE;
+                if (fire) operation->method = OP_FIRE;
+                operation->request.encoded_id = encoded_id;
+                operation->sequence = yyjson_get_uint(sequence);
+                if (!cancel) {
+                    session->operation_sequence = operation->sequence;
+                    operation->request.battle_id = yyjson_get_str(battle);
+                    operation->actor_id = yyjson_get_str(actor);
+                    operation->decision_id = yyjson_get_str(decision);
+                    if (select || fire) operation->target_id = yyjson_get_str(target);
+                    if (move || face) {
+                        operation->x = (int16_t)yyjson_get_sint(x);
+                        operation->y = (int16_t)yyjson_get_sint(y);
+                    }
+                }
             }
         } else {
             *response = Error(encoded_id, -32601, "Method not found");

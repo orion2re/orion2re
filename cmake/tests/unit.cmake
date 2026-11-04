@@ -173,6 +173,43 @@ if(ORION2RE_RPC_BUILT)
     endif()
 endif()
 
+if(TARGET orion2re_game_objects)
+    # Full production runtime, fixture-owned memory, no gameplay-function fakes.
+    add_executable(test_tactical_control EXCLUDE_FROM_ALL
+        tests/test_main.cpp tests/unit/tactical_control_test.cpp tests/rpc/turn_fixture.cpp
+        $<TARGET_OBJECTS:orion2re_game_objects>
+        "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smacker.c"
+        "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smk_bitstream.c"
+        "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smk_hufftree.c"
+        "${ORION2RE_VENDORED_YYJSON_DIR}/src/yyjson.c")
+    target_compile_features(test_tactical_control PRIVATE cxx_std_20)
+    target_include_directories(test_tactical_control PRIVATE src tests "${ORION2RE_VENDORED_DOCTEST_DIR}")
+    target_link_libraries(test_tactical_control PRIVATE SDL3::SDL3-static uv_a orion2re_lz4 orion2re_lua
+        orion2re_scalers miniz orion2re_imgui orion2re_tactical_events)
+    orion2re_enable_sanitizers(test_tactical_control)
+    add_test(NAME test_tactical_control COMMAND test_tactical_control)
+    if(ORION2RE_RPC_BUILT)
+        add_executable(rpc-turn-test-server EXCLUDE_FROM_ALL
+            tests/rpc/turn_server.cpp tests/rpc/turn_fixture.cpp
+            $<TARGET_OBJECTS:orion2re_game_objects>
+            "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smacker.c"
+            "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smk_bitstream.c"
+            "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smk_hufftree.c"
+            "${ORION2RE_VENDORED_YYJSON_DIR}/src/yyjson.c")
+        target_compile_features(rpc-turn-test-server PRIVATE cxx_std_20)
+        target_include_directories(rpc-turn-test-server PRIVATE src tests)
+        target_link_libraries(rpc-turn-test-server PRIVATE SDL3::SDL3-static uv_a orion2re_lz4 orion2re_lua
+            orion2re_scalers miniz orion2re_imgui orion2re_tactical_events orion2re_rpc)
+        orion2re_enable_sanitizers(rpc-turn-test-server)
+        add_dependencies(test_rpc rpc-turn-test-server)
+        if(Python3_Interpreter_FOUND)
+            add_test(NAME rpc_turn COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/rpc/test_turn.py"
+                --server $<TARGET_FILE:rpc-turn-test-server>)
+            set_tests_properties(rpc_turn PROPERTIES TIMEOUT 90)
+        endif()
+    endif()
+endif()
+
 orion2re_add_unit_test(test_fields_helpers
     SOURCES
         tests/unit/fields_helpers_test.cpp

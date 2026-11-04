@@ -287,7 +287,9 @@ optional actor-selection events. Native safe points execute bounded pending read
 only owned response bytes and delivery/lifetime metadata cross to libuv. See the
 [observer contract](specs/rpc/observer.md). There is no baseline, state polling,
 cache, pagination or replay. Strategic reads, actions, general contexts and
-tactical effects remain separate work; controller status grants no mutations.
+tactical effects remain separate work. The [basic tactical pilot](specs/rpc/tactical-control.md)
+adds current authorized choices and select/move/face/current-selection fire/done
+through native owners. Controller status alone never grants native authority.
 
 #### Infrastructure
 
@@ -373,8 +375,10 @@ tactical effects remain separate work; controller status grants no mutations.
 - [ ] P2-09 — Implement message/timed/warning/confirmation children with rendered text and actual choices.
 - [ ] P2-10 — Capture active help without debug controls or raw format memory.
 - [ ] P2-11 — Implement bounded operation identity/results, state transitions, deadlines and cancellation.
+  - [x] Deliver one outstanding tactical mutation, a final response, pre-dispatch expiry/cancellation and connection-local sequence duplicate protection. General operation families remain pending.
 - [ ] P2-12 — Implement duplicate protection, partial outcomes and unknown-after-disconnect behavior.
 - [ ] P2-13 — Implement nonrecursive mutations and owner-consumed nested intents.
+  - [x] Consume basic tactical intents only in the native local-human owner, outside observation callbacks; keep native informational dialogs local with explicit attention boundaries. Remote nested decisions remain excluded.
 - [ ] P2-14 — Preserve input delays; separate animation observation from decision dispatch.
 - [ ] P2-15 — Map legitimate function/Alt shortcuts semantically; block raw injection/cheats.
 - [ ] P2-16 — Share audited native operations without duplicating rules or authority.
@@ -449,20 +453,27 @@ tactical effects remain separate work; controller status grants no mutations.
 
 - [ ] P5-01 — Implement observed battle view/unit/target/result reads.
   - [x] Deliver the runnable live read-only observer: mid-battle discovery, whole filtered short map rows, separate native-name/owned-condition/movement detail, bounded game-thread execution and event-triggered refresh. No paging or bulk full-detail list flag.
-  - [ ] Complete target options, retained results and remaining tactical read-catalog/interactive parity.
+  - [x] Deliver current native legal movement/target choices and useful own-weapon/readiness information for the basic external ship turn, without query mutations, RNG or retained options.
+  - [ ] Complete retained results and remaining tactical read-catalog/interactive parity.
 - [ ] P5-02 — Add scoped battle/actor/turn/selection/viewport/weapon state and children.
   - [x] Add the game-owned tactical lifecycle scope and local-human observer guard without retaining an RPC combat model. Remaining context state and children stay separate work.
   - [x] Expose current authorized actor, native round/mode and optional selected-for-turn reference events. Viewport/weapon state and children remain pending.
+  - [x] Bind basic ship operations to native-owned actor/decision lifetimes; invalidate conflicting local input and preserve classic versus initiative selection rules. Broader contexts and children remain pending.
 - [ ] P5-03 — Authorize units/ordnance/scan/legal masks without hidden-target oracles.
 - [ ] P5-04 — Add scan/noncombat detail/name/board/marine/help/options views.
 - [ ] P5-05 — Implement CCMD_MOVE with native legal cells and viewport/range safety.
+  - [x] Move the controllable ship through the shared native operation using settled legal cells, unchanged movement/teleport costs and defensive effects. Broader command/interactive parity remains pending.
 - [ ] P5-06 — Implement CCMD_FIRE with native target/mask/phase/refusal checks.
+  - [x] Fire the current native selection at an authorized unit target, retaining slotless pre-fire effects and native slot ordering; reject local decision paths before mutation. Missile targets and broader firing/interactive parity remain pending.
 - [ ] P5-07 — Implement CCMD_FIRE_MISSILE with safe offscreen handling.
 - [ ] P5-08 — Implement CCMD_FACE with logical coordinates.
+  - [x] Face toward logical grid coordinates through native turning, preserving costs and partial rotation. Broader interactive parity remains pending.
 - [ ] P5-09 — Implement CCMD_SELECT with ownership/initiative checks.
+  - [x] Select authorized own functional ship actors only through native classic selection/reinsertion; initiative reselection stays unavailable. Broader interactive parity remains pending.
 - [ ] P5-10 — Implement CCMD_REMOVE_STASIS with eligibility/confirmation.
 - [ ] P5-11 — Implement CCMD_BOARD, native second step/refusals/marine/raid choices.
 - [ ] P5-12 — Implement done/wait/auto/retreat/options and observed opponent waits.
+  - [x] Complete the basic external ship turn with native done/next-actor progression, a runnable controller CLI and independent event-and-pull readers. Wait/auto/retreat and interactive/network-session parity remain pending.
 - [ ] P5-13 — Preserve authorized battle results in the game-owned result lifecycle before cleanup; read on demand and revoke on battle/reset/perspective changes.
 - [ ] P5-14 — Implement bounded ordered streams, baseline/sequence/time and gap handling.
   - [x] Deliver copied tactical lifecycle events through a bounded FIFO and async libuv wakeup; disconnect on event/output overflow rather than silently drop ordered events. Effect streams and their baseline/time/gap contracts remain pending.

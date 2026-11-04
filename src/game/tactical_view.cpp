@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "tactical_view.h"
 #include "tactical_events.h"
+#include "tactical_control.h"
 
 namespace tactical_view {
     int16_t Local_Observer() {
@@ -25,7 +26,10 @@ namespace tactical_view {
     void Unit_Changed(int16_t slot, bool map_change) {
         if (!Unit_Disclosed(slot)) return;
         const bool contact = MOX::combat_data[slot].owner != tactical_events::Current_Viewer() && MOX::combat_data[slot].special_status_flag == 4;
-        if (map_change || !contact) tactical_events::Invalidate_View();
+        if (map_change || !contact) {
+            tactical_control::Invalidate();
+            tactical_events::Invalidate_View();
+        }
     }
 
     static bool Read_Row(int16_t slot, s_unit* result, bool detail) {
