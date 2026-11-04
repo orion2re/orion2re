@@ -250,14 +250,11 @@ namespace fields {
     void __cdecl Quick_Call_Auto_Function() {
         platform::Check_Exit();
 
-        if (auto_active_flag == 0) {
-            platform::Toggle_Pages_Stub();
-            return;
-        }
-
         timer::Mark_Time();
-        video::Set_Page_Off();
-        Invoke_Auto_Function();
+        if (auto_active_flag != 0) {
+            video::Set_Page_Off();
+            Invoke_Auto_Function();
+        }
         platform::Toggle_Pages_Stub();
         timer::Release_Time(1);
 
@@ -797,10 +794,9 @@ namespace fields {
                     has_input = true;
                 }
 
-                ticks++;
                 Quick_Call_Auto_Function();
 
-                if (ticks == timeout) {
+                if (++ticks == timeout) {
                     has_input = true;
                 }
             } while (!has_input);

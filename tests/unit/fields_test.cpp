@@ -24,6 +24,7 @@ namespace {
     };
 
     int g_test_auto_function_calls = 0;
+    int g_test_update_function_calls = 0;
     int g_test_auto_script_mode = 0;
     int g_test_auto_script_step = 0;
     int16_t g_test_auto_script_button = 0;
@@ -42,6 +43,10 @@ namespace {
 
     void Test_Auto_Function_Increment_() {
         ++g_test_auto_function_calls;
+    }
+
+    void Test_Update_Function_Increment_() {
+        ++g_test_update_function_calls;
     }
 
     void Test_Auto_Function_Queue_Keyboard_Input_() {
@@ -82,6 +87,7 @@ namespace {
         Fields_Test_Reset() {
             test::fakes::Reset_All_();
             g_test_auto_function_calls = 0;
+            g_test_update_function_calls = 0;
             g_test_auto_script_mode = 0;
             g_test_auto_script_step = 0;
             g_test_auto_script_button = 0;
@@ -92,6 +98,7 @@ namespace {
         ~Fields_Test_Reset() {
             test::fakes::Reset_All_();
             g_test_auto_function_calls = 0;
+            g_test_update_function_calls = 0;
             g_test_auto_script_mode = 0;
             g_test_auto_script_step = 0;
             g_test_auto_script_button = 0;
@@ -106,7 +113,7 @@ namespace {
 DOCTEST_TEST_SUITE("fields cpp") {
 
 DOCTEST_TEST_CASE("timed wait supports the complete unsigned word duration domain") {
-    const uint32_t durations[] = {1, 32767, 32768, 65535};
+    const uint32_t durations[] = {1, 900, 32767, 32768, 65535};
 
     for (uint32_t duration : durations) {
         Fields_Test_Reset reset;
@@ -115,6 +122,60 @@ DOCTEST_TEST_CASE("timed wait supports the complete unsigned word duration domai
         fields::Timed_Wait_For_Input(duration);
 
         DOCTEST_CHECK(g_test_auto_function_calls == duration);
+        DOCTEST_CHECK(test::fakes::g_mark_time_calls == duration);
+        DOCTEST_REQUIRE(test::fakes::g_release_time_calls.size() == duration);
+        for (int32_t ticks : test::fakes::g_release_time_calls) {
+            DOCTEST_CHECK(ticks == 1);
+        }
+    }
+}
+
+DOCTEST_TEST_CASE("quick auto function always paces and updates regardless of callback activity") {
+    for (bool active : {false, true}) {
+        Fields_Test_Reset reset;
+        fields::Assign_Auto_Function(Test_Auto_Function_Increment_, 1);
+        fields::Assign_Update_Function(Test_Update_Function_Increment_);
+        if (!active) {
+            fields::Deactivate_Auto_Function();
+        }
+
+        fields::Quick_Call_Auto_Function();
+
+        DOCTEST_CHECK(g_test_auto_function_calls == (active ? 1 : 0));
+        DOCTEST_CHECK(g_test_update_function_calls == 1);
+        DOCTEST_CHECK(test::fakes::g_mark_time_calls == 1);
+        DOCTEST_CHECK(test::fakes::g_release_time_calls == std::vector<int32_t>{1});
+        fields::Assign_Update_Function(nullptr);
+    }
+}
+
+DOCTEST_TEST_CASE("timed wait paces every iteration with auto callback disabled") {
+    Fields_Test_Reset reset;
+    fields::Assign_Auto_Function(Test_Auto_Function_Increment_, 1);
+    fields::Deactivate_Auto_Function();
+    fields::Assign_Update_Function(nullptr);
+
+    fields::Timed_Wait_For_Input(900);
+
+    DOCTEST_CHECK(g_test_auto_function_calls == 0);
+    DOCTEST_CHECK(test::fakes::g_mark_time_calls == 900);
+    DOCTEST_REQUIRE(test::fakes::g_release_time_calls.size() == 900);
+    for (int32_t ticks : test::fakes::g_release_time_calls) {
+        DOCTEST_CHECK(ticks == 1);
+    }
+}
+
+DOCTEST_TEST_CASE("timed wait allows keyboard or mouse dismissal before timeout") {
+    for (bool keyboard : {false, true}) {
+        Fields_Test_Reset reset;
+        fields::Assign_Auto_Function(Test_Auto_Function_Increment_, 1);
+        test::fakes::g_keyboard_status = keyboard ? 1 : 0;
+        test::fakes::g_mouse_buffer_flag = keyboard ? 0 : 1;
+
+        fields::Timed_Wait_For_Input(900);
+
+        DOCTEST_CHECK(g_test_auto_function_calls == 1);
+        DOCTEST_CHECK(test::fakes::g_mark_time_calls == 1);
     }
 }
 
@@ -125,6 +186,7 @@ DOCTEST_TEST_CASE("zero timed wait retains manual input dismissal") {
     fields::Timed_Wait_For_Input(0);
 
     DOCTEST_CHECK(g_test_auto_function_calls == 2);
+    DOCTEST_CHECK(test::fakes::g_mark_time_calls == 2);
 }
 
 DOCTEST_TEST_CASE("add button field initializes semantic payload and bounds") {
