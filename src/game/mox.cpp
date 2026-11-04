@@ -907,7 +907,9 @@ namespace MOX {
     void __cdecl Apply_Save_Settings(s_settings* settings) {
         MOX::settings.xenons_exist = settings->xenons_exist;
         MOX::settings.game_difficulty = settings->game_difficulty;
-        MOX::settings.number_of_players = settings->number_of_players;
+        // The saved setup preference is separate from the loaded game's player count.
+        MOX::settings.number_of_players = (int8_t)INITGAME::Normalize_New_Game_Player_Count(
+            settings->number_of_players, MOX::NUM_PLAYERS);
         MOX::settings.galaxy_size = settings->galaxy_size;
         MOX::settings.galaxy_age = settings->galaxy_age;
         MOX::settings.strategic_combat_flag = settings->strategic_combat_flag;

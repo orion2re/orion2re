@@ -15,6 +15,8 @@ namespace FILEDEF {
             const bool loaded = fread(&loaded_settings, sizeof(loaded_settings), 1, file) == 1;
             fclose(file);
             if (loaded) {
+                loaded_settings.number_of_players = (int8_t)INITGAME::Normalize_New_Game_Player_Count(
+                    loaded_settings.number_of_players, NEW_GAME_DEFAULT_PLAYER_COUNT);
                 MOX::settings = loaded_settings;
                 RUSS::Assert_Settings();
             }

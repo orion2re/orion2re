@@ -1,5 +1,9 @@
 # Manual: Starting conditions and difficulty
 
+## Remembered player count
+
+The New Game player count can be two through eight players or Random. If a save contains an invalid remembered selection, the game uses its actual player count as the new selection when valid, otherwise the five-player default. Invalid selections in the local settings file also use the five-player default. This recovery does not change the players in the loaded game.
+
 ## Starting Buildings
 
 Starting colonies receive buildings from a configured priority list. The game checks that list in order, adds each building the colony is allowed to have, and skips buildings that are unavailable or unsuitable for the race, government, climate, or population.

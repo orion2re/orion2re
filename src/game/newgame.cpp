@@ -221,11 +221,13 @@ namespace NEWGAME {
         diff_button_variable = (int16_t)(int8_t)MOX::settings.game_difficulty;
         gal_size_button_variable = Galaxy_Size_Button_From_Setting(MOX::settings.galaxy_size);
         gal_age_button_variable = (int16_t)(int8_t)MOX::settings.galaxy_age;
+        const int16_t player_count = INITGAME::Normalize_New_Game_Player_Count(
+            MOX::settings.number_of_players, NEW_GAME_DEFAULT_PLAYER_COUNT);
         random_player_count =
-            MOX::settings.number_of_players == NEW_GAME_RANDOM_PLAYER_COUNT;
+            player_count == NEW_GAME_RANDOM_PLAYER_COUNT;
         opp_button_variable = random_player_count
             ? NEW_GAME_PLAYER_COUNT_RANDOM
-            : (int16_t)((int8_t)MOX::settings.number_of_players - 2);
+            : (int16_t)(player_count - 2);
         combat_button_variable = (uint16_t)(MOX::settings.strategic_combat_flag == 0);
         civ_button_variable = Civilization_Button_From_Setting(
             MOX::settings.starting_civilization_level);

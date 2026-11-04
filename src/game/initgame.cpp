@@ -96,7 +96,7 @@ namespace INITGAME {
         MOX::settings.galaxy_age = GALAXY_AGE_AVERAGE;
         MOX::settings.strategic_combat_flag = 0;
         MOX::settings.starting_civilization_level = STARTING_CIVILIZATION_LEVEL_AVERAGE;
-        MOX::settings.number_of_players = 5;
+        MOX::settings.number_of_players = NEW_GAME_DEFAULT_PLAYER_COUNT;
 
         // Combat Flags
         MOX::settings.combat_speedx2_flag = 0;
@@ -139,6 +139,14 @@ namespace INITGAME {
     }
 
     bool __cdecl Init_New_Game(int16_t game_difficulty, int16_t galaxy_size, int16_t galaxy_age, int16_t num_players, int16_t strategic_combat_flag, int16_t starting_civilization_level) {
+        if (num_players != NEW_GAME_RANDOM_PLAYER_COUNT &&
+            (num_players < 2 || num_players > MAX_PLAYERS)) {
+            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
+                "initgame: invalid player count %d (expected 2..%d or Random)",
+                (int)num_players,
+                (int)MAX_PLAYERS);
+            return false;
+        }
         orion2re::lua::game::Reset_Semantic_State();
         const bool random_player_count =
             num_players == NEW_GAME_RANDOM_PLAYER_COUNT;

@@ -5,6 +5,9 @@
 #include "game/loader.h"
 #include "config/config_loader.h"
 #include "game/savegame.h"
+#include "game/initgame.h"
+#include "game/newgame.h"
+#include "lua/lua_game.h"
 
 #include <chrono>
 #include <filesystem>
@@ -152,6 +155,114 @@ namespace {
         }
     };
 } // namespace
+
+DOCTEST_TEST_CASE("imported setup preferences recover without changing the loaded player count") {
+    Fixture fixture;
+    const uint32_t prior_seed = game_random::Get_Random_Seed();
+    constexpr uint32_t seed = 0x12345678;
+    game_random::Set_Random_Seed(seed);
+    const int16_t actual_counts[] = {0, 2, 6, MAX_PLAYERS, NEW_GAME_RANDOM_PLAYER_COUNT};
+    for (int16_t actual_count : actual_counts) {
+        MOX::NUM_PLAYERS = actual_count;
+        const int fallback = actual_count >= 2 && actual_count <= MAX_PLAYERS ? actual_count : 5;
+        for (int count = INT8_MIN; count <= INT8_MAX; ++count) {
+            DOCTEST_CAPTURE(actual_count);
+            DOCTEST_CAPTURE(count);
+            s_settings imported = {};
+            imported.number_of_players = (int8_t)count;
+            imported.game_difficulty = GAME_DIFFICULTY_HARD;
+            imported.start_of_game_seed = 123;
+            const s_settings original = imported;
+            MOX::Apply_Save_Settings(&imported);
+            const bool valid = (count >= 2 && count <= MAX_PLAYERS) ||
+                count == NEW_GAME_RANDOM_PLAYER_COUNT;
+            const int expected = valid ? count : fallback;
+            DOCTEST_CHECK(MOX::settings.number_of_players == expected);
+            DOCTEST_CHECK(MOX::NUM_PLAYERS == actual_count);
+            DOCTEST_CHECK(MOX::settings.game_difficulty == GAME_DIFFICULTY_HARD);
+            DOCTEST_CHECK(MOX::settings.start_of_game_seed == 123);
+            DOCTEST_CHECK(memcmp(&imported, &original, sizeof(imported)) == 0);
+            NEWGAME::Globals_To_Temps();
+            NEWGAME::Temps_To_Globals();
+            DOCTEST_CHECK(NEWGAME::Player_Count_For_Initialization() == expected);
+            DOCTEST_CHECK(game_random::Get_Random_Seed() == seed);
+        }
+    }
+    game_random::Set_Random_Seed(prior_seed);
+}
+
+DOCTEST_TEST_CASE("local settings files normalize only the remembered player count") {
+    Fixture fixture;
+    struct Restore_Directory {
+        fs::path path = fs::current_path();
+        ~Restore_Directory() {
+            fs::current_path(path);
+        }
+    } restore;
+    fs::current_path(fixture.root);
+    MOX::NUM_PLAYERS = 6;
+    for (int count = INT8_MIN; count <= INT8_MAX; ++count) {
+        DOCTEST_CAPTURE(count);
+        s_settings disk = {};
+        disk.number_of_players = (int8_t)count;
+        disk.game_difficulty = GAME_DIFFICULTY_HARD;
+        disk.music_level = 25;
+        disk.sound_fx_level = 50;
+        const std::string bytes((const char*)&disk, sizeof(disk));
+        fixture.Write(GAME_SETTINGS_FILENAME, bytes);
+        FILEDEF::Load_Game_Settings();
+        const bool valid = (count >= 2 && count <= MAX_PLAYERS) ||
+            count == NEW_GAME_RANDOM_PLAYER_COUNT;
+        s_settings expected = disk;
+        expected.number_of_players = valid ? (int8_t)count : 5;
+        DOCTEST_CHECK(memcmp(&MOX::settings, &expected, sizeof(expected)) == 0);
+        DOCTEST_CHECK(MOX::NUM_PLAYERS == 6);
+        std::ifstream input(GAME_SETTINGS_FILENAME, std::ios::binary);
+        DOCTEST_CHECK(std::string((std::istreambuf_iterator<char>(input)), {}) == bytes);
+    }
+}
+
+DOCTEST_TEST_CASE("invalid new-game requests fail before resetting game or Lua state") {
+    Fixture fixture;
+    MOX::NUM_PLAYERS = 6;
+    MOX::stardate = 35123;
+    MOX::settings.number_of_players = 6;
+    MOX::settings.start_of_game_seed = 123;
+    MOX::player[0].bc = 1234;
+    MOX::ship[0].status = 1;
+    MOX::leaders[0].xp = 42;
+    const s_settings settings = MOX::settings;
+    const s_player player = MOX::player[0];
+    const s_ship_data ship = MOX::ship[0];
+    const s_leader_data leader = MOX::leaders[0];
+    const auto semantic_state = []() {
+        orion2re::lua::game::s_semantic_state_replacement state;
+        orion2re::lua::game::Begin_Semantic_State_Replacement(&state);
+        orion2re::lua::game::Abort_Semantic_State_Replacement(&state);
+        return state;
+    };
+    const auto before = semantic_state();
+    const uint32_t prior_seed = game_random::Get_Random_Seed();
+    constexpr uint32_t seed = 0x12345678;
+    game_random::Set_Random_Seed(seed);
+    for (int count : {INT16_MIN, INT8_MIN, -1, 0, 1, MAX_PLAYERS + 2, INT8_MAX, 256, INT16_MAX}) {
+        DOCTEST_CAPTURE(count);
+        DOCTEST_CHECK_FALSE(INITGAME::Init_New_Game(
+            GAME_DIFFICULTY_HARD, GALAXY_SIZE_MEDIUM, GALAXY_AGE_AVERAGE, (int16_t)count, 0, STARTING_CIVILIZATION_LEVEL_AVERAGE));
+        DOCTEST_CHECK(MOX::NUM_PLAYERS == 6);
+        DOCTEST_CHECK(MOX::stardate == 35123);
+        DOCTEST_CHECK(MOX::NUM_SHIPS == 1);
+        DOCTEST_CHECK(memcmp(&MOX::settings, &settings, sizeof(settings)) == 0);
+        DOCTEST_CHECK(memcmp(&MOX::player[0], &player, sizeof(player)) == 0);
+        DOCTEST_CHECK(memcmp(&MOX::ship[0], &ship, sizeof(ship)) == 0);
+        DOCTEST_CHECK(memcmp(&MOX::leaders[0], &leader, sizeof(leader)) == 0);
+        DOCTEST_CHECK(game_random::Get_Random_Seed() == seed);
+        const auto after = semantic_state();
+        DOCTEST_CHECK(after.prior_event_sequence == before.prior_event_sequence);
+        DOCTEST_CHECK(after.prior_topology_generation == before.prior_topology_generation);
+    }
+    game_random::Set_Random_Seed(prior_seed);
+}
 
 DOCTEST_TEST_CASE("reload requests before resource initialization are ignored") {
     CONFIG_REFRESH::Resources_Unloaded();

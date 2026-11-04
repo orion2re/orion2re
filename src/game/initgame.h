@@ -29,6 +29,11 @@ namespace INITGAME {
     /** Initializes player records, including race traits, colors, names, and starting tech state. */
     void __cdecl Init_Players();
 
+    /** Repairs setup preferences without rolling Random; fallback counts must be fixed. */
+    int16_t Normalize_New_Game_Player_Count(
+        int16_t requested_player_count,
+        int16_t fallback_player_count);
+
     /** Resolves the Random setup marker after human player slots are known. */
     int16_t Resolve_New_Game_Player_Count(
         int16_t requested_player_count,
@@ -53,7 +58,7 @@ namespace INITGAME {
      * @param game_difficulty Difficulty used during generation.
      * @param galaxy_size Requested galaxy size.
      * @param galaxy_age Requested galaxy age.
-     * @param num_players Number of active players.
+     * @param num_players Number of active players or the Random setup marker. Invalid requests fail before state changes.
      * @param strategic_combat_flag Strategic-combat setting for the new game.
      * @param starting_civilization_level Starting civilization level for the new game.
      */
