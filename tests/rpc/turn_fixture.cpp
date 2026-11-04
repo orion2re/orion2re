@@ -1,5 +1,9 @@
 #include "turn_fixture.h"
 #include "game/tactical_view.h"
+#include "game/boarding.h"
+#include <filesystem>
+#include <fstream>
+#include <chrono>
 
 namespace TEST_TACTICAL_TURN {
     namespace {
@@ -13,6 +17,66 @@ namespace TEST_TACTICAL_TURN {
         char missile_name[] = "Nuclear Missile";
         char torpedo_name[] = "Anti-Matter Torpedo";
         char fighter_name[] = "Interceptor";
+        std::filesystem::path media_root;
+        uint8_t glyph[256];
+        std::string boarding_button;
+
+        void Write_Media(const std::string& path, const std::string& bytes) {
+            auto file = media_root / "data" / path;
+            std::filesystem::create_directories(file.parent_path());
+            std::ofstream out(file, std::ios::binary);
+            out.write(bytes.data(), std::streamsize(bytes.size()));
+        }
+        void Boarding_Media() {
+            if (!media_root.empty()) return;
+            media_root = std::filesystem::temp_directory_path() / ("orion-boarding-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+            // Synthetic media only: transparent one-pixel frames and blank glyphs.
+            std::string sprite(1024, '\0');
+            auto* header = reinterpret_cast<s_animation_header*>(sprite.data());
+            header->width = header->height = 1;
+            header->frame_count = 2;
+            header->flags = ANIMATION_FLAG_HAS_PALETTE;
+            auto* palette = Animation_Palette_Header_(header);
+            palette->count = 1;
+            for (int i = 0; i < 3; ++i) Set_Animation_Frame_Offset_(header, i, 1000);
+            unaligned::Store<uint16_t>(sprite.data() + 1002, 1); // Skip the sole row.
+            boarding_button = sprite;
+            for (int i = 0; i < 120; ++i) {
+                char entry[4];
+                snprintf(entry, sizeof(entry), "%03d", i);
+                Write_Media(std::string("COMBAT.LBX/") + entry, sprite);
+                if (i < 4) Write_Media(std::string("TEXTBOX.LBX/") + entry, sprite);
+            }
+            std::string messages(4 + 100, '\0');
+            unaligned::Store<uint16_t>(messages.data(), 1);
+            unaligned::Store<uint16_t>(messages.data() + 2, 100);
+            for (int i = 0; i < 600; ++i) {
+                char entry[4];
+                snprintf(entry, sizeof(entry), "%03d", i);
+                snprintf(messages.data() + 4, 100, "Synthetic message %d", i / 6);
+                Write_Media(std::string("KENTEXT.LBX/") + entry, messages);
+                Write_Media(std::string("KENTEXT1.LBX/") + entry, messages);
+            }
+            if (!vfs::Init(media_root.string().c_str())) std::abort();
+            MOX::screen_seg = (s_animation_header*)allocate::Allocate_Space(allocate::Global_Screen_Space());
+            MOX::global_cache_seg = buffer::Allocate_Buffer_Space(0x174508);
+            std::fill_n(glyph, sizeof(glyph), uint8_t(0x80));
+            fonts::font_data = glyph;
+            fonts::font_header = {};
+            for (int i = 0; i < 6; ++i) {
+                fonts::font_header.font_heights[i] = 1;
+                fonts::font_header.font_spacing[i] = 1;
+                std::fill_n(fonts::font_header.font_glyph_widths[i], 256, uint8_t(1));
+            }
+            video::g_screen_res_x = 640;
+            video::g_screen_res_y = 480;
+            video::screen_pixel_size = 640 * 480;
+            video::Allocate_Page_Buffers(640, 480);
+            video::Allocate_Refresh_Lists(640 * 480, 480);
+            graphics::Reset_Window();
+            video::Set_Page_Off();
+            remap::Sort_Palette_List();
+        }
     } // namespace
     void Reset() {
         tactical_control::Close_Decision();
@@ -77,6 +141,8 @@ namespace TEST_TACTICAL_TURN {
             unit.stasis_source_idx = COMBAT_SHIP_NONE;
             unit.black_hole_source_idx = COMBAT_SHIP_NONE;
             unit.special_cooldown = COMBAT_SHIP_NONE;
+            unit.officer_idx = -1;
+            ships[i].officer_index = -1;
             strlcpy(unit.name, i == 2 ? "Opponent" : "Pilot ship", sizeof(unit.name));
         }
         units[1].tac_val_attack = 100;
@@ -103,6 +169,47 @@ namespace TEST_TACTICAL_TURN {
         COMBAT1::Assign_Combat_Grids(1);
         COMBAT1::Reset_Strict_Combat_Sequence();
         game_random::Set_Random_Seed(12345);
+    }
+    void Boarding(bool reports) {
+        Boarding_Media();
+        auto* button = reinterpret_cast<s_animation_header*>(boarding_button.data());
+        MOX::weapons_button_seg = MOX::specials_button_seg = MOX::auto_button_seg = button;
+        MOX::scan_button_seg = MOX::board_button_seg = MOX::flee_button_seg = button;
+        MOX::wait_button_seg = MOX::cmbt_done_button_seg = MOX::cmbt_info_button_seg = button;
+        auto& actor = units[1];
+        auto& target = units[2];
+        actor.marine_count = 12;
+        target.marine_count = 2;
+        target.combat_speed_base = 0;
+        target.current_speed = 0;
+        actor.crew_quality = 1;
+        MOX::crew_data[1].ground = 200;
+        BOARDING::boarding = {3, 0, 50, 2};
+        BOARDING::board_range = {3, 12};
+        BOARDING::board_in_black_hole = 1;
+        BOARDING::kill_excess_marines_after_capture = 0;
+        BOARDING::telepathic_multiple_capture = 0;
+        // Native headless presentation setting; resolution/RNG and textbox owners are real.
+        MOX::apply_damage_to_planet = 0;
+        MOX::super_fast_flag = reports ? 0 : 1;
+        fields::Deactivate_Auto_Function();
+        COMBAT1::Assign_Combat_Grids(1);
+        tactical_control::Invalidate();
+    }
+    void Release_Boarding() {
+        if (media_root.empty()) return;
+        fields::Deactivate_Auto_Function();
+        buffer::Free_Buffer_Space();
+        std::free((allocate::s_alloc_header*)MOX::screen_seg - 1);
+        MOX::screen_seg = nullptr;
+        MOX::global_cache_seg = nullptr;
+        video::Free_Page_Buffers();
+        std::free((allocate::s_alloc_header*)video::refresh_scan_list - 1);
+        std::free((allocate::s_alloc_header*)video::refresh_stencil_list - 1);
+        video::refresh_scan_list = video::refresh_stencil_list = nullptr;
+        vfs::Shutdown();
+        std::filesystem::remove_all(media_root);
+        media_root.clear();
     }
     void Apply(const tactical_control::s_operation* operation) {
         int16_t next = 0;

@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "tactical_control.h"
 
 namespace CMBTDRW1 {
     enum class Combat_View_Subject {
@@ -1649,6 +1650,7 @@ namespace CMBTDRW1 {
     }
 
     int16_t __cdecl Board_Popup(int16_t min_val, int16_t max_val, char* msg, int16_t* out_val) {
+        tactical_control::Close_Decision();
         int16_t result = 1;
         int16_t done = 0;
 

@@ -21,6 +21,7 @@ namespace rpc {
         EVENT_COMBAT_SELECTED = 8,
         EVENT_COMBAT_ATTENTION = 16,
         EVENT_COMBAT_ATTENTION_CLEARED = 32,
+        EVENT_COMBAT_BOARDING = 64,
     };
     struct s_session {
         bool authenticated = false;
@@ -60,6 +61,8 @@ namespace rpc {
         OP_DONE,
         OP_CANCEL,
         OP_FIRE_SELECTION,
+        OP_BOARD,
+        OP_BOARDING_ACK,
     };
     struct s_operation_request {
         s_read_request request;
@@ -70,6 +73,9 @@ namespace rpc {
         bool missile_target = false;
         uint8_t bank_mask = 0;
         int8_t bank_states[8] = {};
+        int16_t boarding_mode = 0, marines = 0;
+        std::string report_id;
+        bool child = false;
     };
 
     std::string Error_Response(std::string_view id, int code, const char* message);

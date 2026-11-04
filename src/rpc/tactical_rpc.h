@@ -21,6 +21,9 @@ namespace rpc {
         uint64_t decision_generation = 0;
         std::string decision_id;
         s_operation_request executing;
+        s_operation_request acknowledgement;
+        std::string report_id;
+        uint64_t report_generation = 0;
         struct s_reference {
             int16_t slot = -1;
             std::array<char, 33> token = {};

@@ -41,7 +41,7 @@ namespace rpc {
         size_t reserved_response_bytes = 0; // Includes a batch being handed to connection output.
     };
 
-    bool Push_Event(s_event_queue* queue, uint8_t kind, std::string_view battle_id, std::string_view unit_id = {});
+    bool Push_Event(s_event_queue* queue, uint8_t kind, std::string_view battle_id, std::string_view unit_id = {}, std::string detail = {});
     bool Push_Response(s_event_queue* queue, uint64_t connection, uint64_t epoch, uint64_t read_epoch, std::string response, uint64_t selection = 0, std::string encoded_id = {});
     void Invalidate_Read_Output(s_event_queue* queue);
     s_event_position Event_Position(s_event_queue* queue);

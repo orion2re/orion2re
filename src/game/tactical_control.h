@@ -12,6 +12,7 @@ namespace tactical_control {
         FIRE,
         DONE,
         FIRE_SELECTION,
+        BOARD,
     };
     enum e_result {
         APPLIED,
@@ -27,6 +28,7 @@ namespace tactical_control {
         bool missile_target = false;
         uint8_t bank_mask = 0;
         int8_t bank_states[8] = {};
+        int16_t boarding_mode = 0, marines = 0;
     };
     struct s_weapon {
         int16_t slot = 0;
@@ -53,6 +55,9 @@ namespace tactical_control {
         std::vector<s_cell> cells;
         std::vector<s_target> targets;
         std::vector<s_target> missile_targets;
+        int16_t own_marines = 0, maximum_marines = 0;
+        bool already_boarded = false;
+        std::vector<int16_t> boarding_targets;
     };
     // Game-thread-only decision metadata. No gameplay projections are retained.
     void Open_Decision(int16_t actor);
@@ -70,4 +75,9 @@ namespace tactical_control {
     void Detach(void* context);
     bool Take(s_operation* operation);
     void Complete(e_result result);
+    using t_report_take = bool (*)(uint64_t, void*);
+    using t_report_complete = void (*)(void*);
+    bool Attach_Report(t_report_take take, t_report_complete complete, void* context);
+    bool Take_Report_Acknowledgement(uint64_t report);
+    void Complete_Report_Acknowledgement();
 } // namespace tactical_control

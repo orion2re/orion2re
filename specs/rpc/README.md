@@ -117,6 +117,14 @@ Acceptance for this firing boundary is automated: production native-function
 tests plus live WebSocket/standard-client tests. A real-battle walkthrough is
 out of scope, and no real multiplayer or other-platform parity is implied.
 
+For deliberate native raid/capture, marine bounds, detailed result events and
+explicit result-report acknowledgement, see [tactical boarding](tactical-boarding.md).
+The standard client adds `boarding`, `board <targetUnitId> raid|capture <marines>`,
+`boarding-cancel`, `boarding-report` and `boarding-ack <reportId>`. A parent action
+remains outstanding while its native manual report awaits dismissal; only its
+explicit boarding-report acknowledgement may coexist with it. No answer or action
+is automatically chosen or retried.
+
 ## Tactical lifecycle events
 
 After hello, select future notifications with:

@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <cstddef>
 #include <vector>
+#include "boarding_report.h"
 
 namespace tactical_events {
     enum e_kind {
@@ -17,6 +18,8 @@ namespace tactical_events {
         ATTENTION_REQUIRED,
         ATTENTION_CLEARED,
         MISSILE_RETIRED,
+        BOARDING_RESOLVED,
+        BOARDING_REPORT_CLOSED,
     };
     struct s_event {
         e_kind kind;
@@ -59,6 +62,15 @@ namespace tactical_events {
     // The tactical module owns the report, independently of observers/transports.
     void Append_Hit(const s_hit* hit);
     bool Read_Hit_History(s_hit_history* result);
+    // Produced by native resolution; input owner activation is a separate boundary.
+    void Record_Boarding_Result(const BOARDING::s_result* result);
+    void Publish_Boarding_Result() noexcept;
+    const BOARDING::s_result* Boarding_Result() noexcept;
+    uint64_t Boarding_Generation() noexcept;
+    void Open_Boarding_Report(bool timed) noexcept;
+    void Close_Boarding_Report() noexcept;
+    bool Boarding_Report_Active() noexcept;
+    bool Boarding_Report_Timed() noexcept;
     struct s_local_attention {
         int16_t viewer;
         s_local_attention() noexcept;
@@ -76,6 +88,9 @@ namespace tactical_events {
         uint64_t next_hit_sequence = 1;
         size_t hit_head = 0;
         std::vector<s_hit> hits;
+        BOARDING::s_result boarding;
+        uint64_t boarding_generation = 0;
+        bool boarding_active = false, boarding_timed = false;
         void Open(int16_t local_observer) noexcept;
         void Close(int16_t local_observer) noexcept;
         ~s_battle_scope();

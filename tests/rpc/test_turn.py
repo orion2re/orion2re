@@ -121,6 +121,110 @@ class TurnTest(unittest.TestCase):
         self.assertIsNone(final["selectedUnitId"])
         self.assertEqual(final["battleId"], view["battleId"])
 
+    def boarding_event(self, client):
+        while True:
+            event = client.read()
+            if event.get("method") == "combat.boardingResolved":
+                return event["params"]["boarding"]
+            if "id" in event:
+                self.responses[(client, event["id"])] = event
+            else:
+                self.events.append(event)
+
+    def test_native_boarding_report_ack_capture_and_independent_reader(self):
+        controller = self.client()
+        reader = self.client("reader")
+        self.trigger("open")
+        self.trigger("boarding-report")
+        options = self.options(controller)
+        self.assertEqual(options["boarding"]["maximumMarines"], 6)
+        target = options["boarding"]["targetUnitIds"][0]
+        request_id = self.submit(controller, options, "combat.board", {"targetUnitId": target, "mode": "capture", "marines": 4})
+        owner = threading.Thread(target=lambda: self.trigger("consume"))
+        owner.start()
+        report = self.boarding_event(controller)
+        observed = self.boarding_event(reader)
+        self.assertEqual(observed, report)
+        self.assertEqual(report["outcome"], "captured")
+        self.assertEqual(report["marinesCommitted"], 4)
+        self.assertEqual(report["defenderLost"], 2)
+        self.assertTrue(report["reportId"])
+        denied = self.send(reader, "combat.acknowledgeBoardingReport", {
+            "battleId": options["battleId"], "reportId": report["reportId"], "operationSeq": 1})
+        self.assertEqual(self.until(reader, denied)["error"]["code"], -32007)
+        busy = self.submit(controller, options, "combat.done")
+        self.assertEqual(self.until(controller, busy)["error"]["code"], -32006)
+        self.sequence += 1
+        wrong = self.send(controller, "combat.acknowledgeBoardingReport", {
+            "battleId": options["battleId"], "reportId": "0" * 32, "operationSeq": self.sequence})
+        self.assertEqual(self.until(controller, wrong)["error"]["code"], -32004)
+        self.sequence += 1
+        ack = self.send(controller, "combat.acknowledgeBoardingReport", {
+            "battleId": options["battleId"], "reportId": report["reportId"], "operationSeq": self.sequence})
+        self.assertEqual(self.until(controller, ack)["result"]["state"], "applied")
+        response = self.until(controller, request_id)["result"]
+        self.assertEqual(response["boarding"]["outcome"], "captured")
+        self.assertIsNone(response["boarding"]["reportId"])
+        owner.join(timeout=5)
+        self.assertFalse(owner.is_alive())
+        stale = self.read(reader, "combat.getUnit", {"battleId": options["battleId"], "unitId": target})
+        self.assertEqual(stale["error"]["code"], -32004)
+        view = self.read(reader)["result"]["battle"]
+        self.assertEqual(sum(u["owned"] for u in view["units"]), 3)
+        self.trigger("idle")
+        self.apply(controller, self.options(controller), "combat.done")
+
+    def test_boarding_refusal_cancellation_and_raid_native_details(self):
+        controller = self.client()
+        self.trigger("open")
+        self.trigger("boarding")
+        options = self.options(controller)
+        target = options["boarding"]["targetUnitIds"][0]
+        pending = self.submit(controller, options, "combat.board", {"targetUnitId": target, "mode": "raid", "marines": 3})
+        cancel = self.send(controller, "combat.cancelOperation", {"operationSeq": self.sequence})
+        self.assertTrue(self.until(controller, cancel)["result"]["cancelled"])
+        self.assertEqual(self.until(controller, pending)["error"]["code"], -32013)
+        self.trigger("consume")
+        self.assertEqual(self.options(controller)["boarding"]["ownMarines"], 12)
+        illegal = self.submit(controller, options, "combat.board", {"targetUnitId": target, "mode": "raid", "marines": 7})
+        self.trigger("consume")
+        self.assertEqual(self.until(controller, illegal)["error"]["code"], -32011)
+        response = self.apply(controller, self.options(controller), "combat.board", {
+            "targetUnitId": target, "mode": "raid", "marines": 3})["result"]["boarding"]
+        self.assertEqual(response["mode"], "raid")
+        self.assertEqual(response["marinesCommitted"], 3)
+        self.assertEqual(response["raidersReturned"], 3)
+        self.assertIn("Synthetic message", response["text"])
+        self.assertTrue(self.options(controller)["boarding"]["alreadyBoarded"])
+
+    def test_boarding_rechecks_authority_decision_and_target_lifetime_at_consumption(self):
+        controller = self.client()
+        for change, expected in (("local-bank", -32010), ("hide-target", -32004), ("reuse-target", -32004),
+                                 ("ai", -32009), ("scan", -32009), ("remote", -32004)):
+            self.trigger("open")
+            self.trigger("boarding")
+            options = self.options(controller)
+            target = options["boarding"]["targetUnitIds"][0]
+            request = self.submit(controller, options, "combat.board", {
+                "targetUnitId": target, "mode": "capture", "marines": 4})
+            self.trigger(change)
+            self.trigger("consume")
+            self.assertEqual(self.until(controller, request)["error"]["code"], expected)
+
+    def test_foreign_native_raid_event_does_not_disclose_an_enemy_marine_dossier(self):
+        reader = self.client("reader")
+        self.trigger("open")
+        self.trigger("boarding")
+        self.trigger("enemy-raid")
+        report = self.boarding_event(reader)
+        self.assertEqual(report["mode"], "raid")
+        self.assertIn("attackerLost", report)
+        self.assertIn("defenderLost", report)
+        self.assertIn("text", report)
+        for private in ("marinesCommitted", "marinesArrived", "transporterLosses", "attackerSurvived",
+                        "raidersReturned", "defenderStarted", "defenderSurvived", "capturedMarines"):
+            self.assertNotIn(private, report)
+
     def test_queued_local_conflict_cancellation_duplicate_expiry_and_readers(self):
         controller = self.client()
         self.trigger("open")
@@ -301,6 +405,79 @@ class TurnTest(unittest.TestCase):
                         self.assertTrue(any(h["kind"] == "missilesDestroyed" for h in observed_hits))
                 cli.stdin.write("quit\n")
                 cli.stdin.flush()
+                self.assertEqual(cli.wait(timeout=5), 0)
+            finally:
+                if cli.poll() is None:
+                    cli.kill()
+                    cli.wait()
+                cli.stdin.close()
+                cli.stdout.close()
+                cli.stderr.close()
+
+    def test_controller_cli_boards_acknowledges_and_continues_with_reader(self):
+        import json
+        self.trigger("open")
+        self.trigger("boarding-report")
+        reader = self.client("reader")
+        self.assertIsNotNone(self.read(reader)["result"]["battle"])
+        with tempfile.TemporaryDirectory() as directory:
+            key = Path(directory) / "key"
+            key.write_text(KEY, encoding="utf-8")
+            key.chmod(0o600)
+            cli = subprocess.Popen([sys.executable, str(ROOT / "tools/rpc_observer.py"), "--controller",
+                                    "--port", str(self.port), "--key-file", str(key)], stdin=subprocess.PIPE,
+                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            lines = queue.Queue()
+            threading.Thread(target=lambda: [lines.put(line) for line in cli.stdout], daemon=True).start()
+            owner = None
+
+            def command(text):
+                cli.stdin.write(text + "\n")
+                cli.stdin.flush()
+
+            def wait_for(text, poll=False):
+                output = ""
+                deadline = time.monotonic() + 10
+                while text not in output:
+                    if poll:
+                        self.trigger("poll")
+                    try:
+                        output += lines.get(timeout=0.03)
+                    except queue.Empty:
+                        pass
+                    if time.monotonic() >= deadline:
+                        self.fail("CLI boarding did not reach " + text + ": " + output[-2000:])
+                return output
+
+            try:
+                output = wait_for("Done is available", poll=True)
+                choices = json.loads(next(line[18:] for line in output.splitlines() if line.startswith("Boarding choices: ")))
+                target = choices["targetUnitIds"][0]
+                command("boarding-cancel")
+                wait_for("no gameplay changed")
+                command("boarding")
+                wait_for("Done is available", poll=True)
+                command("board " + target + " capture 4")
+                wait_for("Operation 1 sent")
+                owner = threading.Thread(target=lambda: self.trigger("consume-wait"))
+                owner.start()
+                output = wait_for("Parent operation is not complete")
+                result = json.loads(next(line[len("Native boarding result: "):] for line in output.splitlines()
+                                         if line.startswith("Native boarding result: ")))
+                self.assertEqual(result["marinesCommitted"], 4)
+                self.assertEqual(self.boarding_event(reader)["outcome"], "captured")
+                command("boarding-ack " + result["reportId"])
+                wait_for("Operation 1: applied")
+                owner.join(timeout=5)
+                self.assertFalse(owner.is_alive())
+                self.assertEqual(sum(u["owned"] for u in self.read(reader)["result"]["battle"]["units"]), 3)
+                wait_for("Done is available", poll=True)
+                command("done")
+                wait_for("Operation 3 sent")
+                self.trigger("consume-wait")
+                wait_for("Operation 3: applied")
+                self.assertIsNone(self.read(reader)["result"]["battle"]["selectedUnitId"])
+                command("quit")
                 self.assertEqual(cli.wait(timeout=5), 0)
             finally:
                 if cli.poll() is None:

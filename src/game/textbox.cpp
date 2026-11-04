@@ -1,4 +1,6 @@
 #include "pch.h"
+#include "tactical_events.h"
+#include "tactical_control.h"
 
 namespace TEXTBOX {
     int16_t bottom_y;
@@ -171,7 +173,7 @@ namespace TEXTBOX {
         HAROLD::Restore_Mouse_List();
     }
 
-    void __cdecl Do_Text_Box(const char* title, const char* text, uint16_t input_ticks) {
+    static void Draw_Text_Box(const char* title, const char* text, uint16_t input_ticks, bool boarding) {
         s_colors primary_colors;
         s_animation_header* anim;
         s_colors secondary_colors;
@@ -247,14 +249,58 @@ namespace TEXTBOX {
         /* "\x1B" is fmtpara's color-attribute control byte; used here as a non-printing field label. */
         fields::Add_Hidden_Field(0, 0, 639, 479, "\x1B", 41);
 
-        Text_Box_Get_Input(input_ticks);
+        bool acknowledged = false;
+        if (boarding) {
+            tactical_events::Open_Boarding_Report(input_ticks != 0);
+            const auto generation = tactical_events::Boarding_Generation();
+            if (input_ticks != 0) {
+                // Same native timed wait, with only this report's explicit intent checked.
+                uint32_t ticks = 0;
+                bool has_input = false;
+                do {
+                    platform::Check_Exit();
+                    has_input = key::Keyboard_Status() || mouse::Mouse_Buffer() == 1;
+                    if (!has_input) acknowledged = tactical_control::Take_Report_Acknowledgement(generation);
+                    ++ticks;
+                    fields::Quick_Call_Auto_Function();
+                    if (ticks == input_ticks) has_input = true;
+                } while (!has_input && !acknowledged);
+                fields::Clear_Mouse_Buffer();
+                fields::Set_Input_Delay(3);
+            } else {
+                while (mouse::Mouse_Button() != 0) {
+                    timer::Mark_Time();
+                    RUSS::Mox_Sync_Update();
+                    timer::Release_Time(1);
+                }
+                fields::Clear_Mouse_Buffer();
+                do {
+                    timer::Mark_Time();
+                    RUSS::Mox_Sync_Update();
+                    timer::Release_Time(1);
+                    if (fields::input_delay <= 0) acknowledged = tactical_control::Take_Report_Acknowledgement(generation);
+                } while (!acknowledged && fields::Get_Input() == 0);
+            }
+        } else
+            Text_Box_Get_Input(input_ticks);
 
         animate::Set_Animation_Frame(anim, 1);
         animate::Remap_Draw(x + 158, bottom_y - 27, anim);
 
         Text_Box_Cleanup();
+        if (boarding) {
+            tactical_events::Close_Boarding_Report();
+            if (acknowledged) tactical_control::Complete_Report_Acknowledgement();
+        }
 
         MOX::FULL_DRAW_SCREEN_FLAG = 1;
+    }
+
+    void __cdecl Do_Text_Box(const char* title, const char* text, uint16_t input_ticks) {
+        Draw_Text_Box(title, text, input_ticks, false);
+    }
+    void Boarding_Result_Box(const char* title, const char* text, uint16_t ticks, bool authorized) {
+        Draw_Text_Box(title, text, ticks, authorized);
     }
 
     void __cdecl Text_Box(const char* title, const char* text) {

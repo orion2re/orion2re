@@ -3,6 +3,7 @@
 
 #include <array>
 #include <limits>
+#include <utility>
 
 namespace tactical_events {
     namespace {
@@ -15,6 +16,12 @@ namespace tactical_events {
         uint64_t next_id = 0;
         s_battle_scope* current = nullptr;
         bool reads_allowed = false;
+
+        void Release_Boarding(s_battle_scope* scope) {
+            BOARDING::s_result empty;
+            std::swap(scope->boarding, empty);
+            scope->boarding_active = false;
+        }
 
         void Publish(e_kind kind, int16_t viewer, int16_t unit = -1, bool safe = false) noexcept {
             const s_event event{kind, viewer, unit, safe};
@@ -49,6 +56,7 @@ namespace tactical_events {
             std::vector<s_hit>().swap(current->hits);
             current->hit_head = 0;
             current->next_hit_sequence = 1;
+            Release_Boarding(current);
         }
         Publish(REVOKED, -1);
     }
@@ -116,6 +124,7 @@ namespace tactical_events {
         std::vector<s_hit>().swap(current->hits);
         current->hit_head = 0;
         current->next_hit_sequence = 1;
+        Release_Boarding(current);
         current->retiring = true;
         Publish(RETIRING, current->viewer);
     }
@@ -150,6 +159,41 @@ namespace tactical_events {
         return true;
     }
 
+    void Record_Boarding_Result(const BOARDING::s_result* result) {
+        if (Current_Viewer() < 0 || result == nullptr) return;
+        BOARDING::s_result replacement = *result;
+        std::swap(current->boarding, replacement);
+        ++current->boarding_generation;
+        current->boarding_active = false;
+        Invalidate_View();
+    }
+    const BOARDING::s_result* Boarding_Result() noexcept {
+        return Current_Viewer() >= 0 && current->boarding.available ? &current->boarding : nullptr;
+    }
+    uint64_t Boarding_Generation() noexcept {
+        return Current_Viewer() >= 0 ? current->boarding_generation : 0;
+    }
+    bool Boarding_Report_Active() noexcept {
+        return Current_Viewer() >= 0 && current->boarding_active;
+    }
+    bool Boarding_Report_Timed() noexcept {
+        return Boarding_Report_Active() && current->boarding_timed;
+    }
+    void Open_Boarding_Report(bool timed) noexcept {
+        if (Boarding_Result() == nullptr) return;
+        current->boarding_active = true;
+        current->boarding_timed = timed;
+        Publish_Boarding_Result();
+    }
+    void Publish_Boarding_Result() noexcept {
+        if (Boarding_Result() != nullptr) Publish(BOARDING_RESOLVED, current->viewer);
+    }
+    void Close_Boarding_Report() noexcept {
+        if (!Boarding_Report_Active()) return;
+        current->boarding_active = false;
+        Publish(BOARDING_REPORT_CLOSED, current->viewer);
+    }
+
     void s_battle_scope::Open(int16_t local_observer) noexcept {
         if (initialized) return;
         initialized = true;
@@ -162,6 +206,7 @@ namespace tactical_events {
     }
 
     void s_battle_scope::Close(int16_t local_observer) noexcept {
+        Release_Boarding(this);
         std::vector<s_hit>().swap(hits);
         hit_head = 0;
         next_hit_sequence = 1;

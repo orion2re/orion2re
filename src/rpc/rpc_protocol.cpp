@@ -94,7 +94,7 @@ namespace rpc {
         struct s_method {
             const char* name;
         };
-        constexpr s_method methods[] = {{"rpc.hello"}, {"rpc.describe"}, {"rpc.subscribe"}, {"rpc.unsubscribe"}, {"combat.getView"}, {"combat.getUnit"}, {"combat.getTargetOptions"}, {"combat.selectUnit"}, {"combat.move"}, {"combat.face"}, {"combat.fire"}, {"combat.done"}, {"combat.cancelOperation"}, {"combat.setFireSelection"}, {"combat.listMissiles"}, {"combat.getMissile"}, {"combat.getHitHistory"}};
+        constexpr s_method methods[] = {{"rpc.hello"}, {"rpc.describe"}, {"rpc.subscribe"}, {"rpc.unsubscribe"}, {"combat.getView"}, {"combat.getUnit"}, {"combat.getTargetOptions"}, {"combat.selectUnit"}, {"combat.move"}, {"combat.face"}, {"combat.fire"}, {"combat.done"}, {"combat.cancelOperation"}, {"combat.setFireSelection"}, {"combat.listMissiles"}, {"combat.getMissile"}, {"combat.getHitHistory"}, {"combat.board"}, {"combat.acknowledgeBoardingReport"}};
 
         bool Reference(yyjson_val* value) {
             if (!yyjson_is_str(value) || yyjson_get_len(value) != 32) return false;
@@ -108,7 +108,7 @@ namespace rpc {
         bool Read_Events(yyjson_val* params, uint8_t* mask) {
             if (!Only_Keys(params, {"events"})) return false;
             auto* events = yyjson_obj_get(params, "events");
-            if (!yyjson_is_arr(events) || yyjson_arr_size(events) > 5) return false;
+            if (!yyjson_is_arr(events) || yyjson_arr_size(events) > 6) return false;
             *mask = 0;
             size_t index, count;
             yyjson_val* event;
@@ -124,6 +124,8 @@ namespace rpc {
                     bit = EVENT_COMBAT_SELECTED;
                 else if (Is_Text(event, "combat.localAttentionChanged"))
                     bit = EVENT_COMBAT_ATTENTION | EVENT_COMBAT_ATTENTION_CLEARED;
+                else if (Is_Text(event, "combat.boardingResolved"))
+                    bit = EVENT_COMBAT_BOARDING;
                 if (bit == 0 || (*mask & bit) != 0) return false;
                 *mask |= bit;
             }
@@ -145,6 +147,10 @@ namespace rpc {
             if (mask & (EVENT_COMBAT_ATTENTION | EVENT_COMBAT_ATTENTION_CLEARED)) {
                 if (result.size() > 1) result += ',';
                 result += "\"combat.localAttentionChanged\"";
+            }
+            if (mask & EVENT_COMBAT_BOARDING) {
+                if (result.size() > 1) result += ',';
+                result += "\"combat.boardingResolved\"";
             }
             return result + "]";
         }
@@ -221,7 +227,7 @@ namespace rpc {
                     list += "{\"name\":\"" + std::string(item.name) + "\"}";
                 }
                 *response = "{\"jsonrpc\":\"2.0\",\"id\":" + encoded_id +
-                    ",\"result\":{\"contractVersion\":\"orion2.rpc/0\",\"methods\":[" + list + "],\"events\":" + Events_Json(63) +
+                    ",\"result\":{\"contractVersion\":\"orion2.rpc/0\",\"methods\":[" + list + "],\"events\":" + Events_Json(127) +
                     ",\"limits\":{\"inputBytes\":" + std::to_string(MAX_INPUT_BYTES) + ",\"responseBytes\":" + std::to_string(MAX_RESPONSE_BYTES) +
                     ",\"queuedOutputBytes\":" + std::to_string(MAX_OUTPUT_BYTES) + ",\"readDeadlineMs\":2000,\"outstandingReads\":2,\"operationDispatchDeadlineMs\":2000,\"outstandingOperations\":1}}}";
             }
@@ -262,6 +268,43 @@ namespace rpc {
                 if (battle_id != nullptr) read->battle_id = yyjson_get_str(battle_id);
                 if (unit_id != nullptr) read->unit_id = yyjson_get_str(unit_id);
                 if (missile_id != nullptr) read->missile_id = yyjson_get_str(missile_id);
+            }
+        } else if (Is_Text(method, "combat.board") || Is_Text(method, "combat.acknowledgeBoardingReport")) {
+            const bool ack = Is_Text(method, "combat.acknowledgeBoardingReport");
+            auto* sequence = yyjson_obj_get(params, "operationSeq");
+            auto* battle = yyjson_obj_get(params, "battleId");
+            auto* report = yyjson_obj_get(params, "reportId");
+            auto* actor = yyjson_obj_get(params, "actorUnitId");
+            auto* decision = yyjson_obj_get(params, "decisionId");
+            auto* target = yyjson_obj_get(params, "targetUnitId");
+            auto* mode = yyjson_obj_get(params, "mode");
+            auto* marines = yyjson_obj_get(params, "marines");
+            const bool valid = Reference(battle) && yyjson_is_uint(sequence) && yyjson_get_uint(sequence) > 0 && yyjson_get_uint(sequence) <= 9007199254740991ULL &&
+                (ack ? Only_Keys(params, {"battleId", "reportId", "operationSeq"}) && yyjson_obj_size(params) == 3 && Reference(report) : Only_Keys(params, {"battleId", "actorUnitId", "decisionId", "operationSeq", "targetUnitId", "mode", "marines"}) && yyjson_obj_size(params) == 7 && Reference(actor) && Reference(decision) && Reference(target) && (Is_Text(mode, "raid") || Is_Text(mode, "capture")) && yyjson_is_uint(marines) && yyjson_get_uint(marines) <= 128);
+            if (!valid)
+                *response = Error(encoded_id, -32602, "Invalid params");
+            else if (!session->controller)
+                *response = Error(encoded_id, -32007, "Controller required");
+            else if ((session->events & 7) != 7)
+                *response = Error(encoded_id, -32008, "Tactical subscription required");
+            else if (yyjson_get_uint(sequence) <= session->operation_sequence)
+                *response = Error(encoded_id, -32012, "Duplicate operation");
+            else if (operation == nullptr)
+                *response = Error(encoded_id, -32004, "Unavailable");
+            else {
+                operation->method = ack ? OP_BOARDING_ACK : OP_BOARD;
+                operation->sequence = session->operation_sequence = yyjson_get_uint(sequence);
+                operation->request.encoded_id = encoded_id;
+                operation->request.battle_id = yyjson_get_str(battle);
+                if (ack)
+                    operation->report_id = yyjson_get_str(report);
+                else {
+                    operation->actor_id = yyjson_get_str(actor);
+                    operation->decision_id = yyjson_get_str(decision);
+                    operation->target_id = yyjson_get_str(target);
+                    operation->boarding_mode = Is_Text(mode, "raid") ? 1 : 2;
+                    operation->marines = int16_t(yyjson_get_uint(marines));
+                }
             }
         } else if (Is_Text(method, "combat.selectUnit") || Is_Text(method, "combat.move") || Is_Text(method, "combat.face") ||
             Is_Text(method, "combat.fire") || Is_Text(method, "combat.done") || Is_Text(method, "combat.cancelOperation") || Is_Text(method, "combat.setFireSelection")) {

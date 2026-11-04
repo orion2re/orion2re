@@ -2,6 +2,7 @@
 #include "game/tactical_view.h"
 #include "doctest/doctest.h"
 #include <memory>
+#include "game/boarding.h"
 
 namespace {
     struct s_probe {
@@ -23,6 +24,306 @@ namespace {
         }
     };
 } // namespace
+
+namespace {
+    struct s_report_registration {
+        void* context;
+        ~s_report_registration() {
+            tactical_control::Detach(context);
+        }
+    };
+    struct s_boarding_fixture {
+        tactical_events::s_battle_scope battle;
+        int16_t previous_ground = MOX::crew_data[1].ground;
+        s_boarding_fixture(bool reports = false) {
+            TEST_TACTICAL_TURN::Reset();
+            TEST_TACTICAL_TURN::Boarding(reports);
+            battle.Open(0);
+            tactical_events::Select_Unit(1);
+            tactical_control::Open_Decision(1);
+        }
+        ~s_boarding_fixture() {
+            battle.Close(0);
+            TEST_TACTICAL_TURN::Release_Boarding();
+            MOX::crew_data[1].ground = previous_ground;
+        }
+        void Board(int16_t mode, int16_t marines) {
+            tactical_control::s_operation operation{tactical_control::BOARD, 1, 2};
+            operation.boarding_mode = mode;
+            operation.marines = marines;
+            DOCTEST_REQUIRE(tactical_control::Validate(&operation) == tactical_control::APPLIED);
+            TEST_TACTICAL_TURN::Apply(&operation);
+        }
+    };
+} // namespace
+
+DOCTEST_TEST_CASE("boarding bounds and legal reads preserve native bytes and RNG") {
+    s_boarding_fixture fixture;
+    s_probe probe;
+    for (uint8_t marines : {uint8_t(0), uint8_t(1), uint8_t(12), uint8_t(127), uint8_t(128), uint8_t(255)}) {
+        MOX::combat_data[1].marine_count = marines;
+        const auto seed = game_random::Get_Random_Seed();
+        const auto actor = MOX::combat_data[1], target = MOX::combat_data[2];
+        tactical_events::Service_Reads(true);
+        DOCTEST_CHECK(probe.options.maximum_marines == (int(marines) + 1) / 2);
+        DOCTEST_CHECK(probe.options.boarding_targets.empty() == (marines == 0));
+        DOCTEST_CHECK(game_random::Get_Random_Seed() == seed);
+        DOCTEST_CHECK(std::memcmp(&actor, &MOX::combat_data[1], sizeof(actor)) == 0);
+        DOCTEST_CHECK(std::memcmp(&target, &MOX::combat_data[2], sizeof(target)) == 0);
+    }
+}
+
+DOCTEST_TEST_CASE("boarding human checks distinguish ordinary transporters and native configuration") {
+    s_boarding_fixture fixture;
+    auto& actor = MOX::combat_data[1];
+    auto& target = MOX::combat_data[2];
+    const auto allowed = [&] { return BOARDING::Check_Human_Boarding(1, 2).allowed; };
+    DOCTEST_CHECK(allowed());
+    target.drive_current_hits = 100;
+    target.combat_speed_base = 20;
+    target.current_speed = 20;
+    DOCTEST_CHECK_FALSE(allowed());
+    struct_::Set_Bit_Field(actor.special_device_flags, SPECIAL_TRANSPORTERS);
+    DOCTEST_CHECK(allowed());
+    struct_::Set_Bit_Field(actor.special_device_damage_flags, SPECIAL_TRANSPORTERS);
+    DOCTEST_CHECK_FALSE(allowed());
+    struct_::Clear_Bit_Field(actor.special_device_damage_flags, SPECIAL_TRANSPORTERS);
+    for (int i = 0; i < 4; ++i) target.shield_arc_current[i] = 1;
+    DOCTEST_CHECK_FALSE(allowed());
+    for (int i = 0; i < 4; ++i) target.shield_arc_current[i] = 0;
+    struct_::Set_Bit_Field(target.special_device_flags, SPECIAL_HARD_SHIELDS);
+    DOCTEST_CHECK_FALSE(allowed());
+    struct_::Set_Bit_Field(target.special_device_damage_flags, SPECIAL_HARD_SHIELDS);
+    DOCTEST_CHECK(allowed());
+    struct_::Set_Bit_Field(target.special_device_flags, SPECIAL_DAMPER_FIELD);
+    BOARDING::boarding.damper_survival_divisor = 0;
+    DOCTEST_CHECK_FALSE(allowed());
+    target.drive_current_hits = target.current_speed = 0;
+    DOCTEST_CHECK(allowed());
+    target.stasis_source_idx = 1;
+    DOCTEST_CHECK_FALSE(allowed());
+    target.stasis_source_idx = COMBAT_SHIP_NONE;
+    target.special_status_flag = 4;
+    DOCTEST_CHECK_FALSE(allowed());
+    target.special_status_flag = 0;
+    target.black_hole_source_idx = 1;
+    BOARDING::board_in_black_hole = 0;
+    DOCTEST_CHECK_FALSE(allowed());
+    BOARDING::board_in_black_hole = 1;
+    DOCTEST_CHECK(allowed());
+}
+
+DOCTEST_TEST_CASE("deliberate capture commits selected marines and changes native eligibility") {
+    s_boarding_fixture fixture;
+    fixture.Board(2, 4);
+    const auto* result = tactical_events::Boarding_Result();
+    DOCTEST_REQUIRE(result != nullptr);
+    DOCTEST_CHECK(result->captured);
+    DOCTEST_CHECK(result->committed == 4);
+    DOCTEST_CHECK(result->defender_lost == 2);
+    DOCTEST_CHECK(MOX::combat_data[1].marine_count == 8);
+    DOCTEST_CHECK(MOX::combat_data[2].owner == 0);
+    DOCTEST_CHECK(CMBTFIR2::Already_Boarded(1));
+    DOCTEST_CHECK_FALSE(COMBAT1::Combat_Ship_Is_Functional(2));
+    DOCTEST_CHECK(MOX::combat_data[2].marine_count == result->attacker_survived);
+}
+
+DOCTEST_TEST_CASE("native boarding zero is a committed failed attempt not cancellation") {
+    s_boarding_fixture fixture;
+    const auto seed = game_random::Get_Random_Seed();
+    fixture.Board(2, 0);
+    DOCTEST_CHECK(CMBTFIR2::Already_Boarded(1));
+    DOCTEST_CHECK(MOX::combat_data[1].marine_count == 12);
+    DOCTEST_CHECK(MOX::combat_data[2].owner == 1);
+    DOCTEST_CHECK_FALSE(tactical_events::Boarding_Result()->captured);
+    DOCTEST_CHECK(game_random::Get_Random_Seed() == seed);
+}
+
+DOCTEST_TEST_CASE("native maximum byte commitment retains modulo marine deduction") {
+    s_boarding_fixture fixture;
+    MOX::combat_data[1].marine_count = 255;
+    fixture.Board(2, 128);
+    DOCTEST_CHECK(tactical_events::Boarding_Result()->committed == 128);
+    DOCTEST_CHECK(MOX::combat_data[1].marine_count == 127);
+}
+
+DOCTEST_TEST_CASE("native timed capture report expires without an automatic remote answer") {
+    s_boarding_fixture fixture(true);
+    BOARDING::boarding.auto_close_results = 1;
+    fixture.Board(2, 4);
+    DOCTEST_CHECK_FALSE(tactical_events::Boarding_Report_Active());
+    DOCTEST_CHECK(tactical_events::Boarding_Result()->captured);
+    DOCTEST_CHECK(TEXTBOX::field_save_ix == 0);
+}
+
+DOCTEST_TEST_CASE("assault shuttle capture reaches the actual boarding report owner") {
+    s_boarding_fixture fixture(true);
+    bool consumed = false;
+    s_report_registration registration{&consumed};
+    DOCTEST_REQUIRE(tactical_control::Attach_Report([](uint64_t, void* context) {
+        DOCTEST_CHECK(TEXTBOX::field_save_ix == 1);
+        *(bool*)context = true;
+        return true; }, [](void*) {}, &consumed));
+    TECHDATA::weapons[WEAPON_ASSAULT_SHUTTLE].type = WEAPON_TYPE_FIGHTER;
+    TEST_TACTICAL_TURN::Add_Missile(0, WEAPON_ASSAULT_SHUTTLE, 0);
+    CMBTMIS::Resolve_Missile(0, 320, 200);
+    DOCTEST_CHECK(consumed);
+    tactical_control::Detach(&consumed);
+    DOCTEST_REQUIRE(tactical_events::Boarding_Result() != nullptr);
+    DOCTEST_CHECK(tactical_events::Boarding_Result()->captured);
+    DOCTEST_CHECK(tactical_events::Boarding_Result()->committed == -1);
+    DOCTEST_CHECK(MOX::combat_data[2].owner == 0);
+}
+
+DOCTEST_TEST_CASE("native boarding popup cancellation changes no gameplay or RNG") {
+    s_boarding_fixture fixture;
+    const auto remaining = allocate::Get_Remaining_Block_Space(MOX::screen_seg);
+    const auto actor = MOX::combat_data[1], target = MOX::combat_data[2];
+    const auto seed = game_random::Get_Random_Seed();
+    key::Push_Key_Code(27, 1);
+    COMBAT1::Initiate_Boarding_Action(1, 2);
+    DOCTEST_CHECK(std::memcmp(&actor, &MOX::combat_data[1], sizeof(actor)) == 0);
+    DOCTEST_CHECK(std::memcmp(&target, &MOX::combat_data[2], sizeof(target)) == 0);
+    DOCTEST_CHECK(game_random::Get_Random_Seed() == seed);
+    DOCTEST_CHECK(allocate::Get_Remaining_Block_Space(MOX::screen_seg) == remaining);
+}
+
+DOCTEST_TEST_CASE("native capture can fail and configured garrison limits and telepathy remain native") {
+    s_boarding_fixture fixture;
+    MOX::crew_data[1].ground = -200;
+    fixture.Board(2, 1);
+    DOCTEST_CHECK_FALSE(tactical_events::Boarding_Result()->captured);
+    DOCTEST_CHECK(tactical_events::Boarding_Result()->attacker_lost == 1);
+    DOCTEST_CHECK(MOX::combat_data[1].marine_count == 11);
+    TEST_TACTICAL_TURN::Reset();
+    TEST_TACTICAL_TURN::Boarding();
+    tactical_control::Open_Decision(1);
+    MOX::player[0].traits[TRAIT_TELEPATHIC] = 1;
+    BOARDING::kill_excess_marines_after_capture = 1;
+    BOARDING::telepathic_multiple_capture = 1;
+    const auto hull = MOX::combat_data[2].size_class;
+    const auto previous_capacity = TECHDATA::hull_data[hull].marines;
+    TECHDATA::hull_data[hull].marines = 1;
+    fixture.Board(2, 6);
+    DOCTEST_CHECK(tactical_events::Boarding_Result()->captured);
+    DOCTEST_CHECK(MOX::combat_data[2].marine_count == 1);
+    DOCTEST_CHECK(COMBAT1::Combat_Ship_Is_Functional(2));
+    TECHDATA::hull_data[hull].marines = previous_capacity;
+}
+
+DOCTEST_TEST_CASE("native boarding captures satellites and preserves Quantum Detonator destruction") {
+    s_boarding_fixture fixture;
+    auto& target = MOX::combat_data[2];
+    target.ship_idx = -1;
+    target.ftl_type = DRIVE_NO_DRIVE;
+    fixture.Board(2, 4);
+    DOCTEST_CHECK(tactical_events::Boarding_Result()->captured);
+    DOCTEST_CHECK(COMBINIT::Is_Combat_Satellite(&target));
+    TEST_TACTICAL_TURN::Reset();
+    TEST_TACTICAL_TURN::Boarding();
+    tactical_control::Open_Decision(1);
+    target.marine_count = 0;
+    struct_::Set_Bit_Field(target.special_device_flags, SPECIAL_QUANTUM_DETONATOR);
+    const auto chance = CMBTFIR2::quantum_detonator.explode_chance;
+    CMBTFIR2::quantum_detonator.explode_chance = 10;
+    fixture.Board(2, 4);
+    DOCTEST_CHECK(tactical_events::Boarding_Result()->destroyed);
+    DOCTEST_CHECK(target.unit_status != 0);
+    CMBTFIR2::quantum_detonator.explode_chance = chance;
+}
+
+DOCTEST_TEST_CASE("AI native boarding and explicit equal commitment retain resolution and RNG") {
+    s_boarding_fixture fixture;
+    fixture.Board(1, 6);
+    const auto target = MOX::combat_data[2];
+    const int marines = MOX::combat_data[1].marine_count;
+    const auto seed = game_random::Get_Random_Seed();
+    TEST_TACTICAL_TURN::Reset();
+    TEST_TACTICAL_TURN::Boarding();
+    CMBTAI::Resolve_Ai_Boarding(1, 2, 1);
+    DOCTEST_CHECK(std::memcmp(&target, &MOX::combat_data[2], sizeof(target)) == 0);
+    DOCTEST_CHECK(MOX::combat_data[1].marine_count == marines);
+    DOCTEST_CHECK(game_random::Get_Random_Seed() == seed);
+}
+
+DOCTEST_TEST_CASE("local shared boarding commitment matches the controller semantic operation") {
+    s_boarding_fixture fixture;
+    COMBAT1::Commit_Boarding_Action(1, 2, 2, 4);
+    const auto actor = MOX::combat_data[1], target = MOX::combat_data[2];
+    const auto seed = game_random::Get_Random_Seed();
+    TEST_TACTICAL_TURN::Reset();
+    TEST_TACTICAL_TURN::Boarding();
+    tactical_control::Open_Decision(1);
+    fixture.Board(2, 4);
+    DOCTEST_CHECK(std::memcmp(&actor, &MOX::combat_data[1], sizeof(actor)) == 0);
+    DOCTEST_CHECK(std::memcmp(&target, &MOX::combat_data[2], sizeof(target)) == 0);
+    DOCTEST_CHECK(game_random::Get_Random_Seed() == seed);
+}
+
+DOCTEST_TEST_CASE("native raid returns survivors and reports configured internal effects") {
+    s_boarding_fixture fixture;
+    MOX::combat_data[2].computer_current_hits = 100;
+    fixture.Board(1, 3);
+    const auto* result = tactical_events::Boarding_Result();
+    DOCTEST_REQUIRE(result != nullptr);
+    DOCTEST_CHECK_FALSE(result->capture);
+    DOCTEST_CHECK(result->committed == 3);
+    DOCTEST_CHECK(result->attacker_survived == 3);
+    DOCTEST_CHECK(MOX::combat_data[1].marine_count == 12);
+    DOCTEST_CHECK(tactical_events::Boarding_Result()->raid_damage);
+    DOCTEST_CHECK((MOX::combat_data[2].computer_current_hits < 100 || MOX::combat_data[2].drive_current_hits < 100));
+    DOCTEST_CHECK(MOX::combat_data[2].marine_count == 2 - result->defender_lost);
+}
+
+DOCTEST_TEST_CASE("local shared and received boarding preserve results RNG and documented Damper deduction difference") {
+    for (int16_t mode : {int16_t(1), int16_t(2)}) {
+        s_boarding_fixture fixture;
+        auto& target = MOX::combat_data[2];
+        target.x = 19;
+        struct_::Set_Bit_Field(MOX::combat_data[1].special_device_flags, SPECIAL_TRANSPORTERS);
+        struct_::Set_Bit_Field(target.special_device_flags, SPECIAL_DAMPER_FIELD);
+        fixture.Board(mode, 6);
+        const auto expected = target;
+        const auto seed = game_random::Get_Random_Seed();
+        const int local_marines = MOX::combat_data[1].marine_count;
+        TEST_TACTICAL_TURN::Reset();
+        TEST_TACTICAL_TURN::Boarding();
+        target.x = 19;
+        struct_::Set_Bit_Field(target.special_device_flags, SPECIAL_DAMPER_FIELD);
+        COMBAT1::Apply_Received_Boarding_Action(1, 2, 2, mode);
+        DOCTEST_CHECK(std::memcmp(&expected, &target, sizeof(target)) == 0);
+        DOCTEST_CHECK(game_random::Get_Random_Seed() == seed);
+        DOCTEST_CHECK(MOX::combat_data[1].marine_count == local_marines + 4);
+    }
+}
+
+DOCTEST_TEST_CASE("native boarding report owner consumes explicit acknowledgement and releases media and report storage") {
+    for (int iteration = 0; iteration < 4; ++iteration) {
+        s_boarding_fixture fixture(true);
+        struct s_ack {
+            bool taken = false, completed = false;
+        } ack;
+        s_report_registration registration{&ack};
+        const auto remaining = allocate::Get_Remaining_Block_Space(MOX::screen_seg);
+        DOCTEST_REQUIRE(tactical_control::Attach_Report([](uint64_t generation, void* context) {
+            auto* ack = (s_ack*)context;
+            DOCTEST_CHECK(tactical_events::Boarding_Report_Active());
+            DOCTEST_CHECK(generation == tactical_events::Boarding_Generation());
+            DOCTEST_CHECK(TEXTBOX::field_save_ix == 1);
+            ack->taken = true;
+            return true; }, [](void* context) { ((s_ack*)context)->completed = true; }, &ack));
+        fixture.Board(iteration % 2 == 0 ? 2 : 1, 4);
+        DOCTEST_CHECK(ack.taken);
+        DOCTEST_CHECK(ack.completed);
+        DOCTEST_CHECK_FALSE(tactical_events::Boarding_Report_Active());
+        DOCTEST_CHECK(TEXTBOX::field_save_ix == 0);
+        DOCTEST_CHECK(allocate::Get_Remaining_Block_Space(MOX::screen_seg) == remaining);
+        tactical_control::Detach(&ack);
+        tactical_events::Retire_Battle();
+        DOCTEST_CHECK(fixture.battle.boarding.raid_text.capacity() == std::string().capacity());
+        DOCTEST_CHECK(fixture.battle.hits.capacity() == 0);
+    }
+}
 
 DOCTEST_TEST_CASE("tactical choices read production legal grid without state or RNG mutation") {
     TEST_TACTICAL_TURN::Reset();

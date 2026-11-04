@@ -1066,7 +1066,7 @@ namespace CMBTFIR2 {
 
         KEN::Ken_Get_Text_Message(41 /* 0x29 */, message_buffer, sizeof(message_buffer));
 
-        boarding_strength = (MOX::combat_data[unit_idx].marine_count + 1) / 2;
+        boarding_strength = BOARDING::Maximum_Commitment(unit_idx);
 
         return CMBTDRW1::Board_Popup(0, boarding_strength, message_buffer, boarding_choice_out);
     }
@@ -1456,6 +1456,10 @@ namespace CMBTFIR2 {
 
     void __cdecl Resolve_Raid(int16_t attacker_idx, int16_t target_idx, int16_t* raiders) {
         int16_t total_damage = 0;
+        const bool report_authorized = tactical_events::Current_Viewer() >= 0 &&
+            tactical_events::Current_Viewer() == tactical_view::Local_Observer() &&
+            tactical_view::Unit_Disclosed(target_idx) &&
+            (MOX::combat_data[target_idx].owner == tactical_events::Current_Viewer() || MOX::combat_data[target_idx].special_status_flag != 4);
 
         s_combat_data* target = &MOX::combat_data[target_idx];
         s_combat_data* attacker = &MOX::combat_data[attacker_idx];
@@ -1546,7 +1550,7 @@ namespace CMBTFIR2 {
         char title_str[80];
         std::string body_str;
         char temp_str[80];
-        const bool build_report = MOX::super_fast_flag == 0;
+        const bool build_report = MOX::super_fast_flag == 0 || report_authorized;
         const auto append = [&](const char* text) {
             if (build_report && text != nullptr) {
                 body_str += text;
@@ -1692,13 +1696,33 @@ namespace CMBTFIR2 {
             show_timed_box = false;
         }
 
-        if (MOX::super_fast_flag == 0) {
-            if (show_timed_box) {
-                TEXTBOX::Timed_Text_Box(title_str, body_str.c_str(), 54);
-            } else {
-                TEXTBOX::Text_Box(title_str, body_str.c_str());
+        BOARDING::s_result report;
+        report.available = report_authorized;
+        if (report.available) {
+            report.attacker_owned = attacker_owner == tactical_events::Current_Viewer();
+            if (report.attacker_owned) {
+                report.committed = BOARDING::Committed_Marines();
+                report.arrived = *raiders;
+                report.attacker_survived = target_raiders;
             }
+            report.attacker_lost = *raiders - target_raiders;
+            report.defender_lost = int16_t(target->marine_count) - marines;
+            report.attacker_strength = attacker_strength;
+            report.defender_strength = target_strength;
+            report.destroyed = target->unit_status != 0;
+            report.raid_damage = total_damage > 0;
+            report.now_owned = target->owner == tactical_events::Current_Viewer();
+            if (report.now_owned) report.target_captured = target->is_captured != 0;
+            strlcpy(report.target_name, target->name, sizeof(report.target_name));
+            report.content_available = body_str.size() <= BOARDING::MAX_REPORT_TEXT;
+            if (report.content_available) report.raid_text = body_str;
+            tactical_events::Record_Boarding_Result(&report);
         }
+        if (MOX::super_fast_flag == 0) {
+            tactical_events::s_local_attention attention;
+            TEXTBOX::Boarding_Result_Box(title_str, body_str.c_str(), show_timed_box ? 54 : 0, report.available);
+        } else if (report.available)
+            tactical_events::Publish_Boarding_Result();
 
         sound::Fadeout_Sound(sound_handle, 10);
 
@@ -1709,6 +1733,10 @@ namespace CMBTFIR2 {
     }
 
     void __cdecl Resolve_Capture(int16_t attacker_idx, int16_t defender_idx, int16_t attacker_marines, int16_t target_x, int16_t target_y) {
+        const bool report_authorized = tactical_events::Current_Viewer() >= 0 &&
+            tactical_events::Current_Viewer() == tactical_view::Local_Observer() &&
+            tactical_view::Unit_Disclosed(defender_idx) &&
+            (MOX::combat_data[defender_idx].owner == tactical_events::Current_Viewer() || MOX::combat_data[defender_idx].special_status_flag != 4);
         s_combat_data* attacker = &MOX::combat_data[attacker_idx];
         s_combat_data* defender = &MOX::combat_data[defender_idx];
 
@@ -1823,15 +1851,35 @@ namespace CMBTFIR2 {
 
         int32_t sound_handle = ERICNET::Mox_Play_Sound(0x43);
 
-        if (MOX::super_fast_flag == 0) {
-            if (!is_timed) {
-                tactical_events::s_local_attention attention;
-                TEXTBOX::Text_Box(header_buf, msg_buf);
-            } else {
-                tactical_events::s_local_attention attention;
-                TEXTBOX::Timed_Text_Box(header_buf, msg_buf, 54);
+        BOARDING::s_result report;
+        report.available = report_authorized;
+        if (report.available) {
+            report.capture = true;
+            report.attacker_owned = attacker->owner == tactical_events::Current_Viewer();
+            if (report.attacker_owned) report.committed = BOARDING::Committed_Marines();
+            report.arrived = attacker_marines_start;
+            report.attacker_lost = attacker_marines_lost;
+            report.attacker_survived = attacker_marines;
+            report.defender_started = defender_marines_start;
+            report.defender_lost = defender_marines_lost;
+            report.defender_survived = defender_marines_current;
+            report.attacker_strength = side1.unit_strengths[1];
+            report.defender_strength = side2.unit_strengths[1];
+            report.captured = result_msg_id == 0x32;
+            report.destroyed = result_msg_id == 0x31;
+            report.now_owned = defender->owner == tactical_events::Current_Viewer();
+            if (report.now_owned) {
+                report.target_captured = defender->is_captured != 0;
+                if (report.captured) report.captured_marines = defender->marine_count;
             }
+            strlcpy(report.target_name, defender->name, sizeof(report.target_name));
+            tactical_events::Record_Boarding_Result(&report);
         }
+        if (MOX::super_fast_flag == 0) {
+            tactical_events::s_local_attention attention;
+            TEXTBOX::Boarding_Result_Box(header_buf, msg_buf, is_timed ? 54 : 0, report.available);
+        } else if (report.available)
+            tactical_events::Publish_Boarding_Result();
 
         sound::Fadeout_Sound(sound_handle, 10);
         CMBTDRW1::Refresh_Combat_Screen_Full();

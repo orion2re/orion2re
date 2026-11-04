@@ -174,6 +174,8 @@ namespace COMBAT1 {
     // Validates and resolves a boarding attempt against the selected target.
     // attacker_idx/defender_idx: combat ship indices.
     void __cdecl Initiate_Boarding_Action(int16_t attacker_idx, int16_t defender_idx);
+    void Commit_Boarding_Action(int16_t attacker_idx, int16_t defender_idx, int16_t mode, int16_t marines);
+    void Apply_Received_Boarding_Action(int16_t attacker, int16_t target, int16_t marines, int16_t mode);
 
     // Advances and resolves seeking missiles for the current combat pass.
     // player_idx: player whose pass is being processed.

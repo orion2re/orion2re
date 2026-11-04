@@ -38,11 +38,26 @@ int main() {
             tactical_events::Select_Unit(1);
             tactical_control::Open_Decision(1);
         } else if (command == "poll") {
-            if (battle && MOX::cur_ship > 0) tactical_control::Open_Decision(MOX::cur_ship);
+            if (fields::input_delay > 0) fields::Get_Input();
+            if (battle && MOX::cur_ship > 0 && fields::input_delay <= 0)
+                tactical_control::Open_Decision(MOX::cur_ship);
+            else
+                tactical_control::Close_Decision();
             tactical_events::Service_Reads(true);
-        } else if (command == "consume") {
+        } else if (command == "boarding" || command == "boarding-report") {
+            TEST_TACTICAL_TURN::Boarding(command == "boarding-report");
+        } else if (command == "enemy-raid") {
+            MOX::cur_ship = 2;
+            MOX::combat_data[2].marine_count = 12;
+            MOX::combat_data[2].crew_quality = 1;
+            COMBAT1::Apply_Received_Boarding_Action(2, 1, 3, 1);
+        } else if (command == "consume" || command == "consume-wait") {
             int16_t next = 0;
-            COMBAT1::Consume_Tactical_Operation(0, &next);
+            const auto deadline = SDL_GetTicks() + 2000;
+            while (!COMBAT1::Consume_Tactical_Operation(0, &next) && command == "consume-wait" && SDL_GetTicks() < deadline) {
+                tactical_events::Service_Reads(true);
+                SDL_Delay(1);
+            }
         } else if (command == "begin-delivery") {
             // Synthetic delivery-race test only; normal turn tests use the native consumer.
             rpc::Take_Operation(&service, &delivery);
@@ -127,4 +142,5 @@ int main() {
     battle.reset();
     rpc::Unsubscribe_Tactical_Events(&forwarder);
     rpc::Stop_Service(&service);
+    TEST_TACTICAL_TURN::Release_Boarding();
 }

@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "boarding_report.h"
 
 #include "game/boarding.h"
 
@@ -1630,6 +1631,7 @@ namespace CMBTAI {
                 marines_to_send = 1;
             }
             attacker->marine_count -= (int8_t)marines_to_send;
+            BOARDING::s_attempt attempt(marines_to_send);
 
             if (damper_attrition) {
                 marines_to_send /=

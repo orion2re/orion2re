@@ -32,6 +32,80 @@ namespace {
     };
 } // namespace
 
+DOCTEST_TEST_CASE("boarding acknowledgement child never releases or recursively takes its executing parent") {
+    rpc::s_operation_queue queue;
+    rpc::s_operation_request parent, child, taken, cancelled;
+    parent.method = rpc::OP_BOARD;
+    parent.sequence = 1;
+    parent.request.connection = 7;
+    parent.request.deadline_ms = rpc::Monotonic_Ms() + 2000;
+    DOCTEST_REQUIRE(rpc::Enqueue_Operation(&queue, parent));
+    DOCTEST_REQUIRE(rpc::Take_Operation(&queue, &taken));
+    child = parent;
+    child.method = rpc::OP_BOARDING_ACK;
+    child.report_id = std::string(32, 'a');
+    rpc::Set_Boarding_Report(&queue, child.report_id);
+    child.sequence = 2;
+    child.request.connection = 8;
+    DOCTEST_CHECK_FALSE(rpc::Enqueue_Operation(&queue, child));
+    child.request.connection = 7;
+    DOCTEST_REQUIRE(rpc::Enqueue_Operation(&queue, child));
+    DOCTEST_CHECK_FALSE(rpc::Enqueue_Operation(&queue, child));
+    DOCTEST_CHECK_FALSE(rpc::Take_Operation(&queue, &taken));
+    DOCTEST_REQUIRE(rpc::Take_Operation(&queue, &taken, true));
+    DOCTEST_CHECK(taken.child);
+    DOCTEST_CHECK_FALSE(rpc::Cancel_Operation(&queue, 7, 2, &cancelled));
+    rpc::Finish_Operation(&queue, true);
+    DOCTEST_CHECK(queue.executing);
+    DOCTEST_CHECK_FALSE(rpc::Enqueue_Operation(&queue, parent));
+    child.request.deadline_ms = 0;
+    DOCTEST_REQUIRE(rpc::Enqueue_Operation(&queue, child));
+    DOCTEST_CHECK_FALSE(rpc::Take_Operation(&queue, &taken, true));
+    DOCTEST_REQUIRE(rpc::Cancel_Operation(&queue, 7, 2, &cancelled, false, true));
+    DOCTEST_CHECK(queue.executing);
+    rpc::Finish_Operation(&queue);
+    DOCTEST_CHECK_FALSE(queue.executing);
+}
+
+DOCTEST_TEST_CASE("boarding mode and commitment are explicit strictly typed and sequence protected") {
+    rpc::s_session session;
+    session.authenticated = session.controller = true;
+    session.events = 7;
+    const std::string common = R"("battleId":"0123456789abcdef0123456789abcdef","actorUnitId":"0123456789abcdef0123456789abcdef","decisionId":"0123456789abcdef0123456789abcdef","operationSeq":1,"targetUnitId":"fedcba9876543210fedcba9876543210")";
+    const auto input = [&](const char* mode, const char* marines) {
+        return "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"combat.board\",\"params\":{" + common + ",\"mode\":" + mode + ",\"marines\":" + marines + "}}";
+    };
+    std::string response;
+    rpc::s_operation_request request;
+    for (const char* invalid : {"-1", "129", "1.5", "true", "null", "\"4\""}) {
+        DOCTEST_REQUIRE(rpc::Process_Request(input("\"capture\"", invalid), KEY, true, &session, &response, nullptr, nullptr, &request));
+        DOCTEST_CHECK(response.find("-32602") != std::string::npos);
+        DOCTEST_CHECK(session.operation_sequence == 0);
+    }
+    DOCTEST_REQUIRE(rpc::Process_Request(input("\"best\"", "4"), KEY, true, &session, &response, nullptr, nullptr, &request));
+    DOCTEST_CHECK(response.find("-32602") != std::string::npos);
+    DOCTEST_REQUIRE(rpc::Process_Request(input("\"raid\"", "0"), KEY, true, &session, &response, nullptr, nullptr, &request));
+    DOCTEST_CHECK(response.empty());
+    DOCTEST_CHECK(request.method == rpc::OP_BOARD);
+    DOCTEST_CHECK(request.marines == 0);
+    DOCTEST_REQUIRE(rpc::Process_Request(input("\"capture\"", "4"), KEY, true, &session, &response, nullptr, nullptr, &request));
+    DOCTEST_CHECK(response.find("-32012") != std::string::npos);
+}
+
+DOCTEST_TEST_CASE("detailed boarding delivery accounts and releases its bounded payload budget") {
+    rpc::s_event_queue queue;
+    const std::string battle(32, 'a');
+    DOCTEST_REQUIRE(rpc::Push_Event(&queue, rpc::EVENT_COMBAT_BOARDING, battle, {}, std::string(20000, 'x')));
+    DOCTEST_CHECK(queue.reserved_response_bytes == 20000);
+    auto batch = rpc::Take_Events(&queue);
+    DOCTEST_CHECK(batch.response_bytes == 20000);
+    for (auto& event : batch.items) std::string().swap(event.response);
+    rpc::Release_Event_Batch(&queue, &batch);
+    DOCTEST_CHECK(queue.reserved_response_bytes == 0);
+    DOCTEST_CHECK_FALSE(rpc::Push_Event(&queue, rpc::EVENT_COMBAT_BOARDING, battle, {}, std::string(rpc::MAX_RESPONSE_BYTES + 1, 'x')));
+    DOCTEST_CHECK(rpc::Take_Events(&queue).overflow_position != 0);
+}
+
 DOCTEST_TEST_CASE("tactical mutations require controller sequence and strictly typed combat parameters") {
     rpc::s_session session;
     session.authenticated = true;

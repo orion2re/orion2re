@@ -2,6 +2,7 @@
 #include "tactical_control.h"
 #include "tactical_events.h"
 #include "tactical_view.h"
+#include "boarding.h"
 
 namespace tactical_control {
     namespace {
@@ -84,6 +85,9 @@ namespace tactical_control {
         result->available = true;
         result->actor = actor;
         result->generation = Generation();
+        result->own_marines = ship.marine_count;
+        result->maximum_marines = BOARDING::Maximum_Commitment(actor);
+        result->already_boarded = CMBTFIR2::Already_Boarded(actor) != 0;
         result->movement = ship.movement_left;
         result->turn_cost = CMBTMOV1::Turn_Cost(actor);
         result->absorber_selected = Absorber_Selected(actor);
@@ -91,6 +95,7 @@ namespace tactical_control {
         for (int16_t i = 0; i < MOX::combat_total_ship_count; ++i) {
             if (Selectable(i)) result->selectable.push_back(i);
             if (!Disclosed_Target(i)) continue;
+            if (!result->already_boarded && BOARDING::Check_Human_Boarding(actor, i).allowed) result->boarding_targets.push_back(i);
             auto target = Target(actor, i);
             if (target.weapons || target.absorber) result->targets.push_back(target);
         }
@@ -141,6 +146,14 @@ namespace tactical_control {
                 return target.weapons || target.absorber ? APPLIED : ILLEGAL;
             }
             case DONE: return APPLIED;
+            case BOARD:
+                if (!Disclosed_Target(operation->target)) return UNAVAILABLE;
+                return !CMBTFIR2::Already_Boarded(Actor()) &&
+                        BOARDING::Check_Human_Boarding(Actor(), operation->target).allowed &&
+                        (operation->boarding_mode == 1 || operation->boarding_mode == 2) &&
+                        operation->marines >= 0 && operation->marines <= BOARDING::Maximum_Commitment(Actor())
+                    ? APPLIED
+                    : ILLEGAL;
             case FIRE_SELECTION:
                 if (operation->bank_mask == 0) return ILLEGAL;
                 for (unsigned i = 0; i < 8; ++i)

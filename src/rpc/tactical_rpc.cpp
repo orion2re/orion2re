@@ -15,6 +15,7 @@ namespace rpc {
             forwarder->missile_references.clear();
             forwarder->selected.clear();
             forwarder->decision_id.clear();
+            forwarder->report_id.clear();
             Revoke_Event_Delivery(forwarder->service);
         }
 
@@ -33,7 +34,7 @@ namespace rpc {
             };
             operation->actor = resolve(request.actor_id, true);
             if (operation->actor < 0) return reject(-32004);
-            if (request.method == OP_SELECT || request.method == OP_FIRE) {
+            if (request.method == OP_SELECT || request.method == OP_FIRE || request.method == OP_BOARD) {
                 if (request.missile_target) {
                     operation->target = -1;
                     for (const auto& reference : forwarder->missile_references)
@@ -50,12 +51,15 @@ namespace rpc {
                 case OP_FIRE: operation->kind = tactical_control::FIRE; break;
                 case OP_DONE: operation->kind = tactical_control::DONE; break;
                 case OP_FIRE_SELECTION: operation->kind = tactical_control::FIRE_SELECTION; break;
+                case OP_BOARD: operation->kind = tactical_control::BOARD; break;
                 default: return reject(-32004);
             }
             operation->x = request.x;
             operation->y = request.y;
             operation->missile_target = request.missile_target;
             operation->bank_mask = request.bank_mask;
+            operation->boarding_mode = request.boarding_mode;
+            operation->marines = request.marines;
             for (unsigned i = 0; i < 8; ++i) operation->bank_states[i] = request.bank_states[i];
             forwarder->executing = std::move(request);
             return true;
@@ -63,8 +67,28 @@ namespace rpc {
         void Complete(tactical_control::e_result result, void* context) {
             auto* forwarder = (s_tactical_forwarder*)context;
             const int codes[] = {0, -32004, -32009, -32010, -32011, -32016};
-            Complete_Operation(forwarder->service, &forwarder->executing, codes[result]);
+            Complete_Operation(forwarder->service, &forwarder->executing, codes[result], result == tactical_control::APPLIED && forwarder->executing.method == OP_BOARD ? Boarding_Result_Json(tactical_events::Boarding_Result()) : std::string());
             forwarder->executing = {};
+        }
+
+        bool Take_Report(uint64_t generation, void* context) {
+            auto* f = (s_tactical_forwarder*)context;
+            s_operation_request request;
+            if (!Take_Operation(f->service, &request, true)) return false;
+            if (!tactical_events::Boarding_Report_Active() || generation != f->report_generation ||
+                f->reader.observer == nullptr || f->reader.observer() != f->viewer || f->retiring ||
+                request.request.battle_id != f->battle_id || request.report_id != f->report_id || f->report_id.empty()) {
+                Complete_Operation(f->service, &request, -32004);
+                return false;
+            }
+            f->acknowledgement = std::move(request);
+            return true;
+        }
+        void Complete_Report(void* context) {
+            auto* f = (s_tactical_forwarder*)context;
+            if (f->acknowledgement.method == OP_NONE) return;
+            Complete_Operation(f->service, &f->acknowledgement);
+            f->acknowledgement = {};
         }
 
         void Forward(const tactical_events::s_event* event, void* context) noexcept {
@@ -89,6 +113,30 @@ namespace rpc {
                     if (Take_Operation(forwarder->service, &request))
                         Complete_Operation(forwarder->service, &request, active ? -32009 : -32004);
                 }
+            } else if (event->kind == tactical_events::BOARDING_RESOLVED) {
+                if (forwarder->reader.observer == nullptr || forwarder->reader.observer() != forwarder->viewer) {
+                    Revoke(forwarder);
+                    return;
+                }
+                forwarder->report_id.clear();
+                forwarder->report_generation = tactical_events::Boarding_Generation();
+                if (tactical_events::Boarding_Report_Active()) {
+                    unsigned char bytes[16];
+                    if (uv_random(nullptr, nullptr, bytes, sizeof(bytes), 0, nullptr) != 0) {
+                        Revoke(forwarder);
+                        return;
+                    }
+                    constexpr char hex[] = "0123456789abcdef";
+                    for (auto b : bytes) {
+                        forwarder->report_id += hex[b >> 4];
+                        forwarder->report_id += hex[b & 15];
+                    }
+                }
+                Open_Boarding_Report(forwarder->service, forwarder->report_id);
+                Publish_Event(forwarder->service, EVENT_COMBAT_BOARDING, forwarder->battle_id, {}, Boarding_Result_Json(tactical_events::Boarding_Result(), forwarder->report_id));
+            } else if (event->kind == tactical_events::BOARDING_REPORT_CLOSED) {
+                forwarder->report_id.clear();
+                Close_Boarding_Report(forwarder->service);
             } else if (event->kind == tactical_events::UNIT_RETIRED || event->kind == tactical_events::MISSILE_RETIRED) {
                 auto& references = event->kind == tactical_events::UNIT_RETIRED ? forwarder->references : forwarder->missile_references;
                 const auto end = std::remove_if(references.begin(), references.end(), [event](const auto& reference) { return reference.slot == event->unit; });
@@ -98,6 +146,8 @@ namespace rpc {
                 }
             } else if (event->kind == tactical_events::RETIRING) {
                 forwarder->retiring = true;
+                forwarder->report_id.clear();
+                Close_Boarding_Report(forwarder->service);
                 forwarder->references.clear();
                 forwarder->missile_references.clear();
                 forwarder->selected.clear();
@@ -137,6 +187,8 @@ namespace rpc {
                     Publish_Event(forwarder->service, EVENT_COMBAT_SELECTED, forwarder->battle_id, selected);
                     Publish_Event(forwarder->service, EVENT_COMBAT_INVALIDATED, forwarder->battle_id);
                 } else if (event->kind == tactical_events::CLOSED) {
+                    forwarder->report_id.clear();
+                    Close_Boarding_Report(forwarder->service);
                     if (!forwarder->retiring) Invalidate_Read_Delivery(forwarder->service);
                     Publish_Event(forwarder->service, EVENT_COMBAT_CLOSED, forwarder->battle_id);
                     forwarder->battle_id[0] = '\0';
@@ -152,7 +204,9 @@ namespace rpc {
         if (forwarder == nullptr || service == nullptr || service->state == nullptr || forwarder->subscription != 0) return false;
         forwarder->service = service;
         forwarder->subscription = tactical_events::Subscribe(Forward, forwarder);
-        if (forwarder->subscription != 0 && tactical_control::Attach(Take, Complete, forwarder)) return true;
+        if (forwarder->subscription != 0 && tactical_control::Attach(Take, Complete, forwarder) &&
+            tactical_control::Attach_Report(Take_Report, Complete_Report, forwarder)) return true;
+        tactical_control::Detach(forwarder);
         if (forwarder->subscription != 0) tactical_events::Unsubscribe(forwarder->subscription);
         *forwarder = {};
         return false;

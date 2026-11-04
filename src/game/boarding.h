@@ -34,4 +34,12 @@ namespace BOARDING {
 
     e_boarding_filter __cdecl Filter_Boarding(
         int16_t attacker_idx, int16_t target_idx);
+
+    struct s_human_check {
+        bool allowed = true, shield_warning = false;
+        int16_t message = 0;
+        const char* warning = nullptr;
+    };
+    s_human_check Check_Human_Boarding(int16_t attacker, int16_t target);
+    int16_t Maximum_Commitment(int16_t actor);
 } // namespace BOARDING

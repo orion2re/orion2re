@@ -387,6 +387,7 @@ namespace FMTPARA {
 }
 
 namespace RUSS {
+    int8_t all_ai_game = 0;
     int16_t __cdecl Get_Weighted_Choice_Short(const uint16_t*, int16_t) {
         static const int16_t choices[20] = {
             2, 3, 4, 5, 6, 7, 8, 9,
@@ -510,6 +511,12 @@ namespace special {
 }
 
 namespace TEXTBOX {
+    void Boarding_Result_Box(const char* title, const char* text, uint16_t ticks, bool) {
+        if (ticks)
+            Timed_Text_Box(title, text, ticks);
+        else
+            Text_Box(title, text);
+    }
     void __cdecl Text_Box(const char*, const char* message) {
         last_result_was_timed = false;
         last_raid_message = message;

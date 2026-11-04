@@ -108,9 +108,12 @@ namespace rpc {
                             name = "combat.unitSelected";
                         else if (event.kind == EVENT_COMBAT_ATTENTION || event.kind == EVENT_COMBAT_ATTENTION_CLEARED)
                             name = "combat.localAttentionChanged";
+                        else if (event.kind == EVENT_COMBAT_BOARDING)
+                            name = "combat.boardingResolved";
                         std::string json = "{\"jsonrpc\":\"2.0\",\"method\":\"" + std::string(name) +
                             "\",\"params\":{\"battleId\":\"" + std::string(event.battle_id.data()) + "\"";
                         if (event.kind == EVENT_COMBAT_SELECTED) json += ",\"unitId\":" + (event.unit_id[0] == '\0' ? std::string("null") : "\"" + std::string(event.unit_id.data()) + "\"");
+                        if (event.kind == EVENT_COMBAT_BOARDING) json += ",\"boarding\":" + event.response;
                         if (event.kind == EVENT_COMBAT_ATTENTION || event.kind == EVENT_COMBAT_ATTENTION_CLEARED)
                             json += std::string(",\"required\":") + (event.kind == EVENT_COMBAT_ATTENTION ? "true" : "false");
                         json += "}}";
@@ -232,6 +235,7 @@ namespace rpc {
                 }
             }
             if (operation.method != OP_NONE) {
+                int admission_error = -32006;
                 operation.request.connection = connection->generation;
                 operation.request.epoch = connection->session.auth_epoch;
                 operation.request.deadline_ms = Monotonic_Ms() + 2000;
@@ -242,8 +246,8 @@ namespace rpc {
                         response = "{\"jsonrpc\":\"2.0\",\"id\":" + operation.request.encoded_id + ",\"result\":{\"cancelled\":true}}";
                     } else
                         response = Error_Response(operation.request.encoded_id, -32014, "Not pending or already dispatched");
-                } else if (!Enqueue_Operation(&state->operations, operation)) {
-                    response = Error_Response(operation.request.encoded_id, -32006, "Not admitted: busy");
+                } else if (!Enqueue_Operation(&state->operations, operation, &admission_error)) {
+                    response = Error_Response(operation.request.encoded_id, admission_error, admission_error == -32004 ? "Unavailable" : "Not admitted: busy");
                 }
             }
             if (response.empty()) return true;
@@ -456,10 +460,10 @@ namespace rpc {
         return service != nullptr && service->state != nullptr ? ((const s_service_state*)service->state)->port : 0;
     }
 
-    bool Publish_Event(s_service* service, uint8_t kind, std::string_view battle_id, std::string_view unit_id) {
+    bool Publish_Event(s_service* service, uint8_t kind, std::string_view battle_id, std::string_view unit_id, std::string detail) {
         if (service == nullptr || service->state == nullptr) return false;
         auto* state = (s_service_state*)service->state;
-        const bool queued = Push_Event(&state->events, kind, battle_id, unit_id);
+        const bool queued = Push_Event(&state->events, kind, battle_id, unit_id, std::move(detail));
         uv_async_send(&state->wake);
         return queued;
     }
@@ -467,6 +471,7 @@ namespace rpc {
     void Revoke_Event_Delivery(s_service* service) {
         if (service == nullptr || service->state == nullptr) return;
         auto* state = (s_service_state*)service->state;
+        Set_Boarding_Report(&state->operations, {});
         Revoke_Events(&state->events);
         Cancel_Reads(&state->reads);
         s_operation_request cancelled;
@@ -516,19 +521,19 @@ namespace rpc {
         }
     }
 
-    bool Take_Operation(s_service* service, s_operation_request* request) {
+    bool Take_Operation(s_service* service, s_operation_request* request, bool report_only) {
         if (service == nullptr || service->state == nullptr) return false;
         auto* state = (s_service_state*)service->state;
-        if (!Take_Operation(&state->operations, request)) return false;
+        if (!Take_Operation(&state->operations, request, report_only)) return false;
         const auto position = Event_Position(&state->events);
         if (position.stopped || request->request.epoch != position.epoch) {
-            Finish_Operation(&state->operations);
+            Finish_Operation(&state->operations, request->child);
             return false;
         }
         return true;
     }
 
-    void Complete_Operation(s_service* service, const s_operation_request* request, int error) {
+    void Complete_Operation(s_service* service, const s_operation_request* request, int error, std::string boarding) {
         auto* state = (s_service_state*)service->state;
         std::string response;
         if (error != 0) {
@@ -543,10 +548,26 @@ namespace rpc {
             response = Error_Response(request->request.encoded_id, error, message);
         } else
             response = "{\"jsonrpc\":\"2.0\",\"id\":" + request->request.encoded_id +
-                ",\"result\":{\"operationSeq\":" + std::to_string(request->sequence) + ",\"state\":\"applied\"}}";
+                ",\"result\":{\"operationSeq\":" + std::to_string(request->sequence) + ",\"state\":\"applied\"" +
+                (boarding.empty() ? "" : ",\"boarding\":" + boarding) + "}}";
         // Completion is an outcome, not a read: retirement/unsubscribe cannot turn it into a false refusal.
         Push_Response(&state->events, request->request.connection, request->request.epoch, 0, std::move(response), 0, request->request.encoded_id);
-        Finish_Operation(&state->operations);
+        Finish_Operation(&state->operations, request->child);
         uv_async_send(&state->wake);
+    }
+    void Close_Boarding_Report(s_service* service) {
+        auto* state = (s_service_state*)service->state;
+        Set_Boarding_Report(&state->operations, {});
+        s_operation_request cancelled;
+        // Only queued acknowledgement work can coexist with an executing parent.
+        if (Cancel_Operation(&state->operations, 0, 0, &cancelled)) {
+            Push_Response(&state->events, cancelled.request.connection, cancelled.request.epoch, 0, Error_Response(cancelled.request.encoded_id, -32004, "Unavailable"));
+            uv_async_send(&state->wake);
+        }
+    }
+    void Open_Boarding_Report(s_service* service, std::string report_id) {
+        auto* state = (s_service_state*)service->state;
+        Close_Boarding_Report(service);
+        Set_Boarding_Report(&state->operations, std::move(report_id));
     }
 } // namespace rpc

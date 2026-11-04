@@ -5,6 +5,11 @@ selection, missile APIs/targeting and game-owned active-battle hit history. Its
 scope supersedes the corresponding exclusions below; the mutation lifecycle is
 unchanged.
 
+The [boarding extension](tactical-boarding.md) adds deliberate raid/capture and
+detailed native results. It supersedes the boarding exclusion below and approves
+only a boarding-result acknowledgement child while its parent remains executing;
+the firing/selection completion lifecycle otherwise stays unchanged.
+
 This extends, rather than replaces, the [read-only observer](observer.md).
 All new wire methods and notifications have the `combat.` prefix. No raw native
 input, caller-selected perspective, remote loadout editing or strategic authority

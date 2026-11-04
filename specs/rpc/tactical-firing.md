@@ -162,7 +162,9 @@ Native producers mark the existing `combat.viewInvalidated` hint; settled native
 boundaries flush it. Reads do not depend on an RPC publication step. Idle redraws
 and queries create no hits or refresh traffic. Local, AI and network-applied
 resolution use the same report producers. Capture-result dialogs reached through
-normal assault-shuttle effects stay local and use `combat.localAttentionChanged`.
+normal assault-shuttle effects use `combat.localAttentionChanged`. The
+[boarding extension](tactical-boarding.md) adds their narrowly scoped explicit
+report acknowledgement, without early completion of the firing operation.
 
 ## Verification boundary
 
@@ -175,5 +177,5 @@ sessions and other platforms are not claimed by these tests. The real-battle
 walkthrough is explicitly outside this bounded delivery's acceptance scope;
 broader interactive/multiplayer/platform parity remains separate work.
 
-Strategic navigation, design editing, remote confirmations/boarding/retreat,
+Strategic navigation, design editing, remote confirmations/retreat,
 enemy dossiers, forecasts and effect/audio/frame streams remain excluded.

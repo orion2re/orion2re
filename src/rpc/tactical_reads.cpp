@@ -105,6 +105,35 @@ namespace rpc {
         }
     } // namespace
 
+    std::string Boarding_Result_Json(const BOARDING::s_result* result, std::string_view report_id) {
+        if (result == nullptr || !result->available) return "null";
+        const auto& r = *result;
+        std::string json = "{\"mode\":\"" + std::string(r.capture ? "capture" : "raid") +
+            "\",\"outcome\":\"" + (r.destroyed ? "destroyed" : r.capture ? (r.captured ? "captured" : "failed")
+                                                                         : (r.raid_damage ? "raided" : "noDamage")) +
+            "\",\"targetName\":" + Name_Json(r.target_name) + ",\"attackerLost\":" + std::to_string(r.attacker_lost) +
+            ",\"defenderLost\":" + std::to_string(r.defender_lost) +
+            ",\"attackerStrength\":" + std::to_string(r.attacker_strength) + ",\"defenderStrength\":" + std::to_string(r.defender_strength) +
+            ",\"targetOwned\":" + (r.now_owned ? "true" : "false") +
+            ",\"reportId\":" + (report_id.empty() ? "null" : "\"" + std::string(report_id) + "\"") +
+            ",\"reportTimed\":" + (!report_id.empty() && tactical_events::Boarding_Report_Timed() ? "true" : "false");
+        if (r.attacker_owned && r.committed >= 0) json += ",\"marinesCommitted\":" + std::to_string(r.committed) +
+            ",\"transporterLosses\":" + std::to_string(r.committed - r.arrived);
+        if (r.attacker_owned) json += ",\"raidersReturned\":" + std::to_string(r.capture ? 0 : r.attacker_survived);
+        if (r.capture || r.attacker_owned) json += ",\"marinesArrived\":" + std::to_string(r.arrived) + ",\"attackerSurvived\":" + std::to_string(r.attacker_survived);
+        if (r.capture) json += ",\"defenderStarted\":" + std::to_string(r.defender_started) + ",\"defenderSurvived\":" + std::to_string(r.defender_survived);
+        if (r.now_owned) json += ",\"targetCaptured\":" + std::string(r.target_captured ? "true" : "false");
+        if (r.capture && r.captured && r.now_owned) json += ",\"capturedMarines\":" + std::to_string(r.captured_marines);
+        if (!r.capture) {
+            json += ",\"contentAvailable\":" + std::string(r.content_available ? "true" : "false");
+            if (r.content_available)
+                json += ",\"text\":" + Name_Json(r.raid_text.c_str());
+            else
+                json += ",\"contentUnavailableReason\":\"limitExceeded\"";
+        }
+        return json + "}";
+    }
+
     std::string Execute_Tactical_Read(const s_read_request* request, void* context, bool* dependent) {
         auto* forwarder = (s_tactical_forwarder*)context;
         const auto unavailable = [&] { return Error_Response(request->encoded_id, -32004, "Unavailable"); };
@@ -247,7 +276,18 @@ namespace rpc {
                     if (i) result += ',';
                     result += missile_targets[i];
                 }
-                result += "],\"canDone\":true}";
+                result += "],\"boarding\":{\"ownMarines\":" + (options.own_marines == 255 ? std::string("null") : std::to_string(options.own_marines)) +
+                    ",\"alreadyBoarded\":" + (options.already_boarded ? "true" : "false") +
+                    ",\"minimumMarines\":0,\"maximumMarines\":" + std::to_string(options.maximum_marines) +
+                    ",\"modes\":[\"raid\",\"capture\"],\"targetUnitIds\":[";
+                std::vector<std::string> boarding_targets;
+                for (auto slot : options.boarding_targets) boarding_targets.push_back(token(slot));
+                std::sort(boarding_targets.begin(), boarding_targets.end());
+                for (size_t i = 0; i < boarding_targets.size(); ++i) {
+                    if (i) result += ',';
+                    result += "\"" + boarding_targets[i] + "\"";
+                }
+                result += "]},\"canDone\":true}";
             }
         } else if (request->method == READ_UNIT) {
             tactical_view::s_unit unit;

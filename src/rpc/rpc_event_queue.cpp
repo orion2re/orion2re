@@ -13,8 +13,8 @@ namespace rpc {
             batch->response_bytes = 0;
         }
     } // namespace
-    bool Push_Event(s_event_queue* queue, uint8_t kind, std::string_view battle_id, std::string_view unit_id) {
-        if (queue == nullptr || (kind != EVENT_COMBAT_OPENED && kind != EVENT_COMBAT_CLOSED && kind != EVENT_COMBAT_INVALIDATED && kind != EVENT_COMBAT_SELECTED && kind != EVENT_COMBAT_ATTENTION && kind != EVENT_COMBAT_ATTENTION_CLEARED) || battle_id.size() != 32 ||
+    bool Push_Event(s_event_queue* queue, uint8_t kind, std::string_view battle_id, std::string_view unit_id, std::string detail) {
+        if (queue == nullptr || (kind != EVENT_COMBAT_OPENED && kind != EVENT_COMBAT_CLOSED && kind != EVENT_COMBAT_INVALIDATED && kind != EVENT_COMBAT_SELECTED && kind != EVENT_COMBAT_ATTENTION && kind != EVENT_COMBAT_ATTENTION_CLEARED && kind != EVENT_COMBAT_BOARDING) || battle_id.size() != 32 ||
             (!unit_id.empty() && unit_id.size() != 32) ||
             !std::all_of(battle_id.begin(), battle_id.end(), [](char c) { return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'); })) return false;
         std::lock_guard lock(queue->mutex);
@@ -34,7 +34,7 @@ namespace rpc {
                 return true;
             }
         }
-        if (batch.count == MAX_PENDING_EVENTS) {
+        if (batch.count == MAX_PENDING_EVENTS || detail.size() > MAX_RESPONSE_BYTES || detail.size() > MAX_PENDING_RESPONSE_BYTES - queue->reserved_response_bytes) {
             batch.overflow_position = sequence;
             Clear_Pending(queue);
             return false;
@@ -43,6 +43,9 @@ namespace rpc {
         item = {};
         item.sequence = sequence;
         item.kind = kind;
+        batch.response_bytes += detail.size();
+        queue->reserved_response_bytes += detail.size();
+        item.response = std::move(detail);
         std::copy(battle_id.begin(), battle_id.end(), item.battle_id.begin());
         std::copy(unit_id.begin(), unit_id.end(), item.unit_id.begin());
         if (kind == EVENT_COMBAT_SELECTED) item.read_epoch = batch.position.read_epoch;
