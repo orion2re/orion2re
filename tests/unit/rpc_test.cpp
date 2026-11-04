@@ -1,6 +1,7 @@
 #include "doctest/doctest.h"
 #include "rpc/rpc_protocol.h"
 #include "rpc/rpc_service.h"
+#include "rpc/rpc_event_queue.h"
 #include "yyjson.h"
 
 #include <chrono>
@@ -39,7 +40,7 @@ DOCTEST_TEST_CASE("RPC authenticates before discovery and advertises transport m
     DOCTEST_CHECK(result.find("rpc.hello") != std::string::npos);
     DOCTEST_CHECK(result.find("rpc.describe") != std::string::npos);
     DOCTEST_CHECK(result.find("game.") == std::string::npos);
-    DOCTEST_CHECK(result.find("subscribe") == std::string::npos);
+    DOCTEST_CHECK(result.find("rpc.subscribe") != std::string::npos);
     DOCTEST_CHECK(Process(&session, R"({"jsonrpc":"2.0","id":2,"method":"game.getState"})").find("-32601") != std::string::npos);
 }
 
@@ -55,6 +56,79 @@ DOCTEST_TEST_CASE("RPC hello validates roles and preserves exclusive control") {
     DOCTEST_CHECK(session.controller);
     DOCTEST_CHECK(Process(&session, R"({"jsonrpc":"2.0","id":1,"method":"rpc.hello","params":{"key":"wrong"}})").find("-32001") != std::string::npos);
     DOCTEST_CHECK(session.close_after_output);
+}
+
+DOCTEST_TEST_CASE("RPC event selection is authenticated bounded replaceable and notification-free") {
+    rpc::s_session session;
+    const char* subscribe = R"({"jsonrpc":"2.0","id":1,"method":"rpc.subscribe","params":{"events":["combat.opened","combat.closed"]}})";
+    DOCTEST_CHECK(Process(&session, subscribe).find("-32001") != std::string::npos);
+    DOCTEST_CHECK(session.events == 0);
+    Process(&session, HELLO);
+    DOCTEST_CHECK(Process(&session, subscribe).find("result") != std::string::npos);
+    DOCTEST_CHECK(session.events == 3);
+    const char* invalid[] = {
+        R"({"events":["object.changed"]})",
+        R"({"events":["combat.opened","combat.opened"]})",
+        R"({"events":["combat.opened"],"topics":["ships"]})",
+        R"({"events":"combat.opened"})",
+        R"({})",
+    };
+    for (const auto* params : invalid) {
+        DOCTEST_CHECK(Process(&session, std::string(R"({"jsonrpc":"2.0","id":2,"method":"rpc.subscribe","params":)") + params + "}").find("-32602") != std::string::npos);
+        DOCTEST_CHECK(session.events == 3);
+    }
+    Process(&session, R"({"jsonrpc":"2.0","method":"rpc.unsubscribe"})");
+    DOCTEST_CHECK(session.events == 3);
+    Process(&session, R"({"jsonrpc":"2.0","id":3,"method":"rpc.subscribe","params":{"events":["combat.closed"]}})");
+    DOCTEST_CHECK(session.events == rpc::EVENT_COMBAT_CLOSED);
+    Process(&session, R"({"jsonrpc":"2.0","id":4,"method":"rpc.unsubscribe"})");
+    DOCTEST_CHECK(session.events == 0);
+}
+
+DOCTEST_TEST_CASE("RPC lifecycle queue copies tokens preserves order and records overflow explicitly") {
+    rpc::s_event_queue queue;
+    std::string token(32, 'a');
+    DOCTEST_REQUIRE(rpc::Push_Event(&queue, rpc::EVENT_COMBAT_OPENED, token));
+    token.assign(32, 'b');
+    DOCTEST_REQUIRE(rpc::Push_Event(&queue, rpc::EVENT_COMBAT_CLOSED, token));
+    auto batch = rpc::Take_Events(&queue);
+    DOCTEST_REQUIRE(batch.count == 2);
+    DOCTEST_CHECK(std::string(batch.items[0].battle_id.data()) == std::string(32, 'a'));
+    DOCTEST_CHECK(batch.items[0].sequence < batch.items[1].sequence);
+    DOCTEST_CHECK(rpc::Take_Events(&queue).count == 0);
+    for (size_t i = 0; i < rpc::MAX_PENDING_EVENTS; ++i) DOCTEST_REQUIRE(rpc::Push_Event(&queue, rpc::EVENT_COMBAT_OPENED, token));
+    DOCTEST_CHECK_FALSE(rpc::Push_Event(&queue, rpc::EVENT_COMBAT_CLOSED, token));
+    batch = rpc::Take_Events(&queue);
+    DOCTEST_CHECK(batch.count == 0);
+    DOCTEST_CHECK(batch.overflow_position == batch.position.sequence);
+    DOCTEST_CHECK(batch.overflow_position != 0);
+    rpc::s_session subscribed;
+    subscribed.authenticated = true;
+    subscribed.auth_epoch = batch.position.epoch;
+    subscribed.events = 3;
+    DOCTEST_CHECK(rpc::Event_Delivery_Expired(&subscribed, &batch));
+    subscribed.events_after = batch.position.sequence;
+    DOCTEST_CHECK_FALSE(rpc::Event_Delivery_Expired(&subscribed, &batch));
+    subscribed.events = 0;
+    subscribed.events_after = 0;
+    DOCTEST_CHECK_FALSE(rpc::Event_Delivery_Expired(&subscribed, &batch));
+}
+
+DOCTEST_TEST_CASE("RPC lifecycle revocation drops pending events and advances authorization without replay") {
+    rpc::s_event_queue queue;
+    const auto before = rpc::Event_Position(&queue);
+    DOCTEST_REQUIRE(rpc::Push_Event(&queue, rpc::EVENT_COMBAT_OPENED, std::string(32, 'a')));
+    rpc::Revoke_Events(&queue);
+    const auto after = rpc::Take_Events(&queue);
+    DOCTEST_CHECK(after.count == 0);
+    DOCTEST_CHECK(after.position.epoch != before.epoch);
+    DOCTEST_CHECK(after.position.sequence > before.sequence);
+    rpc::s_session session;
+    session.authenticated = true;
+    session.auth_epoch = before.epoch;
+    DOCTEST_CHECK(rpc::Event_Delivery_Expired(&session, &after));
+    rpc::Stop_Events(&queue);
+    DOCTEST_CHECK_FALSE(rpc::Push_Event(&queue, rpc::EVENT_COMBAT_CLOSED, std::string(32, 'a')));
 }
 
 DOCTEST_TEST_CASE("RPC rejects malformed ambiguous and oversized requests without echoing secrets") {

@@ -11,6 +11,7 @@
 #include "rpc/rpc_settings.h"
 #if defined(ORION2RE_ENABLE_RPC)
 #include "rpc/rpc_service.h"
+#include "rpc/tactical_rpc.h"
 #endif
 #include "startup_directory.h"
 #include "startup_options.h"
@@ -222,6 +223,7 @@ int main(int argc, char** argv) {
 
 #if defined(ORION2RE_ENABLE_RPC)
     rpc::s_service rpc_service;
+    rpc::s_tactical_forwarder tactical_forwarder;
     if (rpc::enabled) {
         rpc::s_service_config rpc_config;
         rpc_config.port = rpc::port;
@@ -229,6 +231,9 @@ int main(int argc, char** argv) {
         std::string diagnostic;
         if (!rpc::Start_Service(&rpc_service, &rpc_config, &diagnostic)) {
             SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "rpc: %s", diagnostic.c_str());
+        } else if (!rpc::Subscribe_Tactical_Events(&tactical_forwarder, &rpc_service)) {
+            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "rpc: unable to register tactical event observer");
+            rpc::Stop_Service(&rpc_service);
         } else {
             SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "rpc: listening on loopback port %u", (unsigned)rpc::Service_Port(&rpc_service));
         }
@@ -238,6 +243,7 @@ int main(int argc, char** argv) {
 #endif
     const int result = platform::Run_Main_Loop(nullptr);
 #if defined(ORION2RE_ENABLE_RPC)
+    rpc::Unsubscribe_Tactical_Events(&tactical_forwarder);
     rpc::Stop_Service(&rpc_service);
 #endif
 

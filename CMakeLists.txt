@@ -376,6 +376,12 @@ set(LIBUV_BUILD_BENCH OFF CACHE BOOL "" FORCE)
 add_subdirectory("${ORION2RE_VENDORED_LIBUV_DIR}" EXCLUDE_FROM_ALL)
 
 set(ORION2RE_RPC_BUILT OFF)
+if(ORION2RE_BUILD_GAME OR ORION2RE_BUILD_CONFIG_TOOL)
+    add_library(orion2re_tactical_events STATIC src/game/tactical_events.cpp)
+    target_compile_features(orion2re_tactical_events PUBLIC cxx_std_20)
+    target_include_directories(orion2re_tactical_events PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
+    orion2re_enable_sanitizers(orion2re_tactical_events)
+endif()
 if(ORION2RE_ENABLE_RPC AND ORION2RE_BUILD_GAME)
     include(cmake/rpc.cmake)
 endif()
@@ -479,6 +485,7 @@ if(ORION2RE_BUILD_GAME OR ORION2RE_BUILD_CONFIG_TOOL)
     list(REMOVE_ITEM ORION2RE_SOURCES ${ORION2RE_SCALER_SOURCES})
     list(APPEND ORION2RE_SOURCES ${ORION2RE_CONFIG_GENERATED_FILES})
     list(REMOVE_ITEM ORION2RE_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp")
+    list(REMOVE_ITEM ORION2RE_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/game/tactical_events.cpp")
     list(FILTER ORION2RE_SOURCES EXCLUDE REGEX "/src/rpc/.*\\.cpp$")
     list(APPEND ORION2RE_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/rpc/rpc_settings.cpp")
 
@@ -907,6 +914,12 @@ if(ORION2RE_RPC_BUILT)
     target_link_libraries(orion2re PRIVATE orion2re_rpc)
     target_compile_definitions(orion2re PRIVATE ORION2RE_ENABLE_RPC=1)
 endif()
+
+foreach(ORION2RE_CONSUMER IN ITEMS orion2re config-tool config-load-benchmark)
+    if(TARGET ${ORION2RE_CONSUMER})
+        target_link_libraries(${ORION2RE_CONSUMER} PRIVATE orion2re_tactical_events)
+    endif()
+endforeach()
 
 add_executable(orion2re-router
     tools/router_main.cpp

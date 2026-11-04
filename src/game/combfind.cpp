@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "tactical_events.h"
 
 namespace COMBFIND {
 
@@ -940,6 +941,7 @@ namespace COMBFIND {
 
             REPORT::something_interesting_happened[player_idx] = 1;
             MOX::star[star_idx].visited |= (1 << player_idx);
+            if (MOX::PLAYER_NUM != player_idx) tactical_events::Revoke();
             MOX::PLAYER_NUM = player_idx;
             MAINSCR::Update_Ship_Icons_In_Between_Turns();
 

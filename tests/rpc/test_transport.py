@@ -146,7 +146,7 @@ class TransportTest(unittest.TestCase):
         response = client.read()
         self.assertEqual(response["id"], 'quote"id')
         self.assertEqual([m["name"] for m in response["result"]["methods"]],
-                         ["rpc.hello", "rpc.describe"])
+                         ["rpc.hello", "rpc.describe", "rpc.subscribe", "rpc.unsubscribe"])
         client.send("game.getState")
         self.assertEqual(client.read()["error"]["code"], -32601)
 
@@ -215,6 +215,9 @@ class TransportTest(unittest.TestCase):
     def test_shutdown_with_connected_client(self):
         client = self.client()
         self.assertIn("result", client.hello())
+        self.subscribe(client)
+        self.trigger("open")
+        self.assertEqual(client.read()["method"], "combat.opened")
         self.process.stdin.write("stop\n")
         self.process.stdin.flush()
         self.assertEqual(self.process.wait(timeout=3), 0)
@@ -238,6 +241,108 @@ class TransportTest(unittest.TestCase):
         client.socket.settimeout(0.2)
         with self.assertRaises(socket.timeout):
             client.read()
+
+    def trigger(self, command):
+        self.process.stdin.write(command + "\n")
+        self.process.stdin.flush()
+        ready = queue.Queue()
+        threading.Thread(target=lambda: ready.put(self.process.stdout.readline()), daemon=True).start()
+        self.assertEqual(ready.get(timeout=3).strip(), "done")
+
+    def subscribe(self, client, events=None):
+        client.send("rpc.subscribe", {"events": events if events is not None else ["combat.opened", "combat.closed"]})
+        self.assertIn("result", client.read())
+
+    def test_tactical_open_close_are_ordered_and_only_selected_clients_receive(self):
+        selected, unselected, unauthorized = self.client(), self.client(), self.client()
+        selected.hello()
+        unselected.hello()
+        unauthorized.send("rpc.subscribe", {"events": ["combat.opened"]})
+        self.assertEqual(unauthorized.read()["error"]["code"], -32001)
+        self.subscribe(selected)
+        self.trigger("battle")
+        opened, closed = selected.read(), selected.read()
+        self.assertEqual(opened["method"], "combat.opened")
+        self.assertEqual(closed["method"], "combat.closed")
+        token = opened["params"]["battleId"]
+        self.assertRegex(token, "^[0-9a-f]{32}$")
+        self.assertEqual(closed["params"], {"battleId": token})
+        for client in (unselected, unauthorized):
+            client.send("rpc.describe")
+            self.assertIn("id", client.read())
+
+    def test_tactical_hidden_aborted_and_unsubscribed_have_no_notifications(self):
+        client = self.client()
+        client.hello()
+        self.subscribe(client)
+        self.trigger("hidden")
+        self.trigger("abort")
+        client.send("rpc.describe")
+        self.assertIn("id", client.read())
+        client.send("rpc.unsubscribe")
+        self.assertEqual(client.read()["result"]["events"], [])
+        self.trigger("battle")
+        client.send("rpc.describe")
+        self.assertIn("id", client.read())
+
+    def test_tactical_selection_does_not_replay_and_can_select_closed_only(self):
+        client = self.client()
+        client.hello()
+        self.trigger("battle")
+        self.subscribe(client, ["combat.closed"])
+        client.send("rpc.describe")
+        self.assertIn("id", client.read())
+        self.trigger("battle")
+        self.assertEqual(client.read()["method"], "combat.closed")
+        client.send("rpc.describe")
+        self.assertIn("id", client.read())
+
+    def test_tactical_revocation_requires_new_connection_and_fresh_hello(self):
+        client = self.client()
+        client.hello()
+        self.subscribe(client)
+        self.trigger("open")
+        old = client.read()["params"]["battleId"]
+        self.trigger("revoke")
+        with self.assertRaises((ConnectionError, OSError)):
+            client.read()
+        fresh = self.client()
+        fresh.hello()
+        self.subscribe(fresh)
+        self.trigger("close")
+        fresh.send("rpc.describe")
+        self.assertIn("id", fresh.read())
+        self.trigger("battle")
+        current = fresh.read()["params"]["battleId"]
+        self.assertNotEqual(current, old)
+        self.assertEqual(fresh.read()["params"]["battleId"], current)
+
+    def test_tactical_perspective_switch_does_not_follow_the_next_human(self):
+        client = self.client()
+        client.hello()
+        self.subscribe(client)
+        self.trigger("battle")
+        client.read()
+        client.read()
+        self.trigger("switch")
+        with self.assertRaises((ConnectionError, OSError)):
+            client.read()
+
+    def test_unsubscribe_acknowledgement_ends_delivery_after_prior_ordered_output(self):
+        client = self.client()
+        client.hello()
+        self.subscribe(client)
+        self.trigger("battle")
+        client.send("rpc.unsubscribe", request_id=9)
+        while True:
+            response = client.read()
+            if response.get("id") == 9:
+                self.assertEqual(response["result"]["events"], [])
+                break
+            self.assertIn(response.get("method"), ("combat.opened", "combat.closed"))
+        self.trigger("battle")
+        client.send("rpc.describe", request_id=10)
+        self.assertEqual(client.read()["id"], 10)
 
 
 if __name__ == "__main__":

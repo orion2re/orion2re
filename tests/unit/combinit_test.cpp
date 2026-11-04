@@ -71,6 +71,37 @@ DOCTEST_TEST_CASE("ordinary combat loading zero-extends strategic ammo") {
     DOCTEST_CHECK(TEST_COMBINIT::Tactical_Missile_Ammo_() == UINT8_MAX);
 }
 
+DOCTEST_TEST_CASE("tactical lifecycle observer requires the current participating local human") {
+    TEST_COMBINIT::Reset_();
+    MOX::player[0].objectives = PLAYER_OBJECTIVE_HUMAN;
+    RUSS::all_ai_game = 0;
+    const auto player = MOX::player[0];
+    const auto ship = MOX::combat_data[0];
+    DOCTEST_CHECK(COMBINIT::Local_Tactical_Observer() == 0);
+    DOCTEST_CHECK(std::memcmp(&player, &MOX::player[0], sizeof(player)) == 0);
+    DOCTEST_CHECK(std::memcmp(&ship, &MOX::combat_data[0], sizeof(ship)) == 0);
+    MOX::PLAYER_NUM = 1;
+    MOX::player[1].objectives = PLAYER_OBJECTIVE_HUMAN;
+    DOCTEST_CHECK(COMBINIT::Local_Tactical_Observer() == 1);
+    MOX::combat_attacker_player = 2;
+    MOX::combat_defender_player = 3;
+    DOCTEST_CHECK(COMBINIT::Local_Tactical_Observer() == -1);
+    MOX::PLAYER_NUM = 0;
+    MOX::combat_attacker_player = 0;
+    RUSS::all_ai_game = 1;
+    DOCTEST_CHECK(COMBINIT::Local_Tactical_Observer() == -1);
+    RUSS::all_ai_game = 0;
+    MOX::player[0].objectives = 0;
+    DOCTEST_CHECK(COMBINIT::Local_Tactical_Observer() == -1);
+    MOX::player[0] = player;
+    MOX::player[0].eliminated = 1;
+    DOCTEST_CHECK(COMBINIT::Local_Tactical_Observer() == -1);
+    MOX::player[0] = player;
+    DOCTEST_CHECK(std::memcmp(&player, &MOX::player[0], sizeof(player)) == 0);
+    DOCTEST_CHECK(std::memcmp(&ship, &MOX::combat_data[0], sizeof(ship)) == 0);
+    TEST_COMBINIT::Reset_();
+}
+
 DOCTEST_TEST_CASE("display speed scales from half to full drive integrity") {
     DOCTEST_CHECK(COMBINIT::Damaged_Drive_Combat_Speed(12, 10, 10) == 12);
     DOCTEST_CHECK(COMBINIT::Damaged_Drive_Combat_Speed(12, 8, 10) == 7);

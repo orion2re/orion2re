@@ -41,7 +41,9 @@ configure_file("${ORION2RE_RPC_BACKEND_DIR}/LICENSE"
 find_package(Threads REQUIRED)
 add_library(orion2re_rpc STATIC
     src/rpc/rpc_protocol.cpp
+    src/rpc/rpc_event_queue.cpp
     src/rpc/rpc_service.cpp
+    src/rpc/tactical_rpc.cpp
     "${ORION2RE_VENDORED_YYJSON_DIR}/src/yyjson.c"
 )
 target_compile_features(orion2re_rpc PUBLIC cxx_std_20)
@@ -54,7 +56,7 @@ target_include_directories(orion2re_rpc PRIVATE
 if(WIN32)
     target_compile_definitions(orion2re_rpc PRIVATE NOMINMAX)
 endif()
-target_link_libraries(orion2re_rpc PRIVATE websockets uv_a Threads::Threads)
+target_link_libraries(orion2re_rpc PRIVATE websockets uv_a Threads::Threads orion2re_tactical_events)
 orion2re_enable_sanitizers(orion2re_rpc)
 orion2re_enable_sanitizers(websockets)
 set(ORION2RE_RPC_BUILT ON)

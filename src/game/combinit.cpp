@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "tactical_events.h"
 
 namespace {
     constexpr int kPlayerRemapPaletteStart = 144;
@@ -707,7 +708,17 @@ namespace COMBINIT {
         return result;
     }
 
+    int16_t Local_Tactical_Observer() {
+        const int16_t viewer = MOX::PLAYER_NUM;
+        if (RUSS::all_ai_game != 0 || MOX::player == nullptr || viewer < 0 ||
+            viewer >= MOX::NUM_PLAYERS || viewer >= MAX_PLAYERS ||
+            MOX::player[viewer].objectives != PLAYER_OBJECTIVE_HUMAN || MOX::player[viewer].eliminated != 0 ||
+            (viewer != MOX::combat_attacker_player && viewer != MOX::combat_defender_player)) return -1;
+        return viewer;
+    }
+
     int16_t __cdecl Tactical_Combat(int16_t* plr1_ships, int16_t plr1_ship_count, int16_t* plr2_ships, int16_t plr2_ship_count, int16_t star_idx, int16_t colony_idx, int16_t retreat_flag) {
+        tactical_events::s_battle_scope battle_events;
         int8_t abort_tactical = 0;
         bool no_defender_ships = star_idx != MOX::NUM_STARS;
         int16_t has_tractor_beam = 0;
@@ -1261,6 +1272,7 @@ namespace COMBINIT {
                     (int)combat_winner);
             }
 
+            battle_events.Open(Local_Tactical_Observer());
             while (combat_winner == 0) {
                 Refresh_Combat_Stats(false);
                 RUSS::Mox_Update();
@@ -1391,6 +1403,7 @@ namespace COMBINIT {
 
         MOX::FULL_DRAW_SCREEN_FLAG = MOX::net_flag;
 
+        battle_events.Close(Local_Tactical_Observer());
         return combat_winner;
     }
 

@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <string>
+#include <string_view>
 
 namespace rpc {
     struct s_service_config {
@@ -18,4 +19,7 @@ namespace rpc {
     bool Start_Service(s_service* service, const s_service_config* config, std::string* diagnostic);
     void Stop_Service(s_service* service);
     uint16_t Service_Port(const s_service* service);
+    // Producer may run on the game thread. Unregister/join producers before Stop.
+    bool Publish_Event(s_service* service, uint8_t kind, std::string_view battle_id);
+    void Revoke_Event_Delivery(s_service* service);
 } // namespace rpc

@@ -98,10 +98,36 @@ namespace rpc {
         struct s_method {
             const char* name;
         };
-        constexpr s_method methods[] = {{"rpc.hello"}, {"rpc.describe"}};
+        constexpr s_method methods[] = {{"rpc.hello"}, {"rpc.describe"}, {"rpc.subscribe"}, {"rpc.unsubscribe"}};
+
+        bool Read_Events(yyjson_val* params, uint8_t* mask) {
+            if (!Only_Keys(params, {"events"})) return false;
+            auto* events = yyjson_obj_get(params, "events");
+            if (!yyjson_is_arr(events) || yyjson_arr_size(events) > 2) return false;
+            *mask = 0;
+            size_t index, count;
+            yyjson_val* event;
+            yyjson_arr_foreach(events, index, count, event) {
+                const uint8_t bit = Is_Text(event, "combat.opened") ? EVENT_COMBAT_OPENED : (Is_Text(event, "combat.closed") ? EVENT_COMBAT_CLOSED : 0);
+                if (bit == 0 || (*mask & bit) != 0) return false;
+                *mask |= bit;
+            }
+            return true;
+        }
+
+        std::string Events_Json(uint8_t mask) {
+            std::string result = "[";
+            if (mask & EVENT_COMBAT_OPENED) result += "\"combat.opened\"";
+            if (mask & EVENT_COMBAT_CLOSED) {
+                if (mask & EVENT_COMBAT_OPENED) result += ',';
+                result += "\"combat.closed\"";
+            }
+            return result + "]";
+        }
     } // namespace
 
-    bool Process_Request(std::string_view input, std::string_view key, bool control_available, s_session* session, std::string* response) {
+    bool Process_Request(std::string_view input, std::string_view key, bool control_available, s_session* session, std::string* response, bool* selection_updated) {
+        if (selection_updated != nullptr) *selection_updated = false;
         if (session == nullptr || response == nullptr) return false;
         response->clear();
         if (input.size() > MAX_INPUT_BYTES || !Depth_Allowed(input)) {
@@ -160,7 +186,18 @@ namespace rpc {
                     list += "{\"name\":\"" + std::string(item.name) + "\"}";
                 }
                 *response = "{\"jsonrpc\":\"2.0\",\"id\":" + encoded_id +
-                    ",\"result\":{\"contractVersion\":\"orion2.rpc/0\",\"methods\":[" + list + "]}}";
+                    ",\"result\":{\"contractVersion\":\"orion2.rpc/0\",\"methods\":[" + list + "],\"events\":" + Events_Json(3) + "}}";
+            }
+        } else if (Is_Text(method, "rpc.subscribe") || Is_Text(method, "rpc.unsubscribe")) {
+            uint8_t selected = 0;
+            const bool subscribe = Is_Text(method, "rpc.subscribe");
+            const bool valid = subscribe ? Read_Events(params, &selected) : (params == nullptr || (yyjson_is_obj(params) && yyjson_obj_size(params) == 0));
+            if (!valid) {
+                *response = Error(encoded_id, -32602, "Invalid params");
+            } else {
+                session->events = selected;
+                if (selection_updated != nullptr) *selection_updated = true;
+                *response = "{\"jsonrpc\":\"2.0\",\"id\":" + encoded_id + ",\"result\":{\"events\":" + Events_Json(selected) + "}}";
             }
         } else {
             *response = Error(encoded_id, -32601, "Method not found");

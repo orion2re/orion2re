@@ -97,6 +97,7 @@ function(orion2re_add_unit_test TARGET_NAME)
 
     target_link_libraries(${TARGET_NAME} PRIVATE
         orion2re_test_config_defaults
+        orion2re_tactical_events
         ${ORION2RE_TEST_LIBRARIES}
     )
     orion2re_enable_sanitizers(${TARGET_NAME})
@@ -128,8 +129,14 @@ if(ORION2RE_RPC_BUILT)
             COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/rpc/test_transport.py"
                 --server $<TARGET_FILE:rpc-test-server>)
         set_tests_properties(rpc_transport PROPERTIES TIMEOUT 60)
+        add_test(NAME rpc_tactical_hooks
+            COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/rpc/test_tactical_hooks.py")
     endif()
 endif()
+
+orion2re_add_unit_test(test_tactical_events
+    SOURCES tests/unit/tactical_events_test.cpp
+)
 
 orion2re_add_unit_test(test_fields_helpers
     SOURCES

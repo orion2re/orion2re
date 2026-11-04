@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "tactical_events.h"
 
 #include "game/savegame.h"
 
@@ -1741,6 +1742,7 @@ namespace SAVEGAME {
     }
 
     bool Read_Game(SERIAL::Reader_* reader, s_metadata* metadata, s_settings* saved_settings, uint32_t* random_seed, std::string* error_text) {
+        tactical_events::Revoke();
         pending_loaded_config_message = false;
         if (error_text != nullptr) error_text->clear();
         if (reader == nullptr || metadata == nullptr || saved_settings == nullptr || random_seed == nullptr) return false;

@@ -540,6 +540,7 @@ namespace CMBTDRW1 {
 }
 
 namespace RUSS {
+    int8_t all_ai_game;
     void __cdecl Mox_Sync_Update() {
     }
 }

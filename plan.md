@@ -280,9 +280,13 @@ field-audited methods/topics; schemas alone grant no authority.
 
 ### P1. Transport, bridge, global queries and visibility
 
-The transport foundation exposes only `rpc.hello` and `rpc.describe`. Game API
-dispatch, queries, actions and event selection remain separate work; a controller
-connection has no game authority until those operations are implemented.
+The current slice exposes `rpc.hello`, `rpc.describe`, `rpc.subscribe` and
+`rpc.unsubscribe`, with future-only `combat.opened` / `combat.closed` events for
+locally observed initialized tactical battles. Native owners publish lifecycle
+events; the RPC forwarder queues copied notifications and wakes libuv. No state
+baseline, polling or replay is involved. Game queries, actions, general context
+notifications and tactical effects remain separate work; controller status alone
+grants no game operations.
 
 #### Infrastructure
 
@@ -294,6 +298,8 @@ connection has no game authority until those operations are implemented.
 - [ ] P1-06 — Implement on-demand coherent session/map reads and minimal safe object references.
 - [ ] P1-07 — Return busy/unavailable during unsafe periods; no stale-state fallback.
 - [ ] P1-08 — Implement event selection/unsubscribe and initial pull ordering without state baselines, watches or fingerprints.
+  - [x] Deliver authenticated per-connection event selection, future-only sequence barriers, ordered acknowledgements and revocation without subscription IDs or retained baselines.
+  - [ ] Verify initial state pull ordering when game queries are introduced.
 - [ ] P1-09 — Bound/coalesce complete unsent refresh hints while preserving partial messages and ordered results.
 - [x] P1-10 — Cancel/wake/join on shutdown independently of another game poll.
 
@@ -314,7 +320,7 @@ connection has no game authority until those operations are implemented.
 
 #### Common query groups
 
-- [ ] Q-01 — Implement hello/discovery and bounded event selection, not state-watch subscriptions.
+- [x] Q-01 — Implement hello/discovery and bounded event selection, not state-watch subscriptions.
 - [ ] Q-02 — Implement session and coherent selected-state reads for enabled topics.
 - [ ] Q-03 — Implement player list/detail for audited known-roster and own HUD/economy fields.
 - [ ] Q-04 — Complete system list/detail with authorized map/range/wormhole data.
@@ -347,6 +353,7 @@ connection has no game authority until those operations are implemented.
 
 - [ ] N-01 — Emit committed queryable turns through single-player and authoritative network paths.
 - [ ] N-02 — Emit initialized active/nested context changes and parent restoration.
+  - [x] Publish observed tactical open/close at initialized entry and completed teardown; suppress aborted/hidden battles and revoke on observer loss or interrupted teardown. Other contexts and parent restoration remain pending.
 - [ ] N-03 — Emit session new/load/end/unload/revocation changes and invalidate identities.
 - [ ] N-04 — Emit coarse current-view refresh hints from relevant local/RPC operations and visible asynchronous updates; no polling, diffs or per-object watches.
 - [ ] N-05 — Validate a client-local incoming-hostile example using authorized reads; no server briefing API.
@@ -440,6 +447,7 @@ connection has no game authority until those operations are implemented.
 
 - [ ] P5-01 — Implement observed battle view/unit/target/result reads.
 - [ ] P5-02 — Add scoped battle/actor/turn/selection/viewport/weapon state and children.
+  - [x] Add the game-owned tactical lifecycle scope and local-human observer guard without retaining an RPC combat model. Actor/turn/selection/viewport/weapon views and children remain pending.
 - [ ] P5-03 — Authorize units/ordnance/scan/legal masks without hidden-target oracles.
 - [ ] P5-04 — Add scan/noncombat detail/name/board/marine/help/options views.
 - [ ] P5-05 — Implement CCMD_MOVE with native legal cells and viewport/range safety.
@@ -452,6 +460,7 @@ connection has no game authority until those operations are implemented.
 - [ ] P5-12 — Implement done/wait/auto/retreat/options and observed opponent waits.
 - [ ] P5-13 — Preserve authorized battle results in the game-owned result lifecycle before cleanup; read on demand and revoke on battle/reset/perspective changes.
 - [ ] P5-14 — Implement bounded ordered streams, baseline/sequence/time and gap handling.
+  - [x] Deliver copied tactical lifecycle events through a bounded FIFO and async libuv wakeup; disconnect on event/output overflow rather than silently drop ordered events. Effect streams and their baseline/time/gap contracts remain pending.
 - [ ] P5-15 — Implement invasion views and native bombard/invade/destroy/mind-control/cease-fire/drop-troop choices.
 - [ ] P5-16 — Capture displayed ground counts/strength/labels/sprites/beams/explosions/flics.
 - [ ] P5-17 — Audit battle/ground visibility, ordering and RNG invariance.

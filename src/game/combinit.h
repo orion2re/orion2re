@@ -1,6 +1,8 @@
 #pragma once
 
 namespace COMBINIT {
+    // Call only within the initialized tactical path, not as a general battle query.
+    int16_t Local_Tactical_Observer();
     constexpr int STARBASE_SPECIAL_SLOT_COUNT = 14;
     constexpr int STARBASE_SPECIAL_ALTERNATIVE_COUNT = 3;
 
