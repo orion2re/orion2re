@@ -180,7 +180,7 @@ DOCTEST_TEST_CASE("imported setup preferences recover without changing the loade
             DOCTEST_CHECK(MOX::settings.number_of_players == expected);
             DOCTEST_CHECK(MOX::NUM_PLAYERS == actual_count);
             DOCTEST_CHECK(MOX::settings.game_difficulty == GAME_DIFFICULTY_HARD);
-            DOCTEST_CHECK(MOX::settings.start_of_game_seed == 123);
+            DOCTEST_CHECK((MOX::settings.start_of_game_seed == 123));
             DOCTEST_CHECK(memcmp(&imported, &original, sizeof(imported)) == 0);
             NEWGAME::Globals_To_Temps();
             NEWGAME::Temps_To_Globals();
