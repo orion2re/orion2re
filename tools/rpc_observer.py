@@ -19,7 +19,7 @@ import time
 
 MAX_MESSAGE = 16 * 1024 * 1024
 EVENTS = ["combat.opened", "combat.closed", "combat.viewInvalidated",
-          "combat.unitSelected", "combat.localAttentionChanged", "combat.boardingResolved"]
+          "combat.unitSelected", "combat.localAttentionChanged", "combat.boardingResolved", "combat.retreatResolved"]
 
 
 class WebSocket:
@@ -140,6 +140,7 @@ class Observer:
         self.options = None
         self.operation_seq = 0
         self.pending_operation = None
+        self.pending_method = None
         self.pending_acknowledgement = None
         self.boarding_report = None
         self.boarding_battle = None
@@ -173,6 +174,7 @@ class Observer:
         if self.pending_operation and event.get("id") == self.pending_operation[0]:
             sequence = self.pending_operation[1]
             self.pending_operation = None
+            method, self.pending_method = self.pending_method, None
             self.options = None
             if "error" in event:
                 error = event["error"]
@@ -180,6 +182,8 @@ class Observer:
                       f"({error.get('code')}). Not retried.", flush=True)
             else:
                 print(f"Operation {sequence}: applied through native rules. Refreshing.", flush=True)
+                if method == "combat.retreat":
+                    print("Retreat command applied; withdrawal is pending, not escaped. Native future passes decide the outcome. No turns advanced by the client.", flush=True)
                 if "boarding" in event.get("result", {}):
                     self.boarding_report = event["result"]["boarding"]
                     print("Boarding result: " + safe_text(json.dumps(event["result"]["boarding"], ensure_ascii=False)), flush=True)
@@ -205,6 +209,12 @@ class Observer:
                 self.refresh = True
             print("Local game attention required; operation may still be executing."
                   if params.get("required") else "Local attention cleared.", flush=True)
+        elif method == "combat.retreatResolved":
+            if self.battle is not None and self.battle["battleId"] != battle_id:
+                return
+            self.options = None
+            self.refresh = True
+            print("Native withdrawal outcome: " + safe_text(json.dumps(params)), flush=True)
         elif method == "combat.boardingResolved":
             if self.battle is not None and self.battle["battleId"] != battle_id:
                 return
@@ -286,6 +296,8 @@ class Observer:
             print(f"{selected} {unit['unitId']} {unit['side']:8} {unit['kind']:9} "
                   f"({pos['x']},{pos['y']}) {unit.get('mapSize', 'planet')} "
                   f"facing={unit.get('facing', '?')} {'own' if unit['owned'] else ''}", flush=True)
+            if unit.get("retreatPending"):
+                print("  Withdrawal pending; escape is not guaranteed.", flush=True)
         selected = next((u for u in battle["units"] if u["owned"] and u["unitId"] == battle["selectedUnitId"]), None)
         if selected:
             self.detail(selected["unitId"])
@@ -335,6 +347,8 @@ class Observer:
             print("Missile target: " + safe_text(json.dumps(target, ensure_ascii=False)), flush=True)
         if "boarding" in options:
             print("Boarding choices: " + safe_text(json.dumps(options["boarding"])), flush=True)
+        if "retreat" in options:
+            print("Retreat: " + safe_text(json.dumps(options["retreat"])), flush=True)
         print("Done is available. Fire uses the entire current native selection.", flush=True)
 
     def inspect_missiles(self, missile_id=None):
@@ -407,7 +421,7 @@ class Observer:
             print("No current decision; use options before issuing an operation.", flush=True)
             return
         methods = {"select": ("combat.selectUnit", 2), "move": ("combat.move", 3),
-                   "face": ("combat.face", 3), "fire": ("combat.fire", 2), "done": ("combat.done", 1),
+                   "face": ("combat.face", 3), "fire": ("combat.fire", 2), "done": ("combat.done", 1), "retreat": ("combat.retreat", 1),
                    "intercept": ("combat.fire", 2), "selection": ("combat.setFireSelection", len(parts)), "board": ("combat.board", 4)}
         method, count = methods[parts[0]]
         if len(parts) != count:
@@ -448,6 +462,7 @@ class Observer:
         self.next_id += 1
         params["operationSeq"] = self.operation_seq
         self.pending_operation = (self.next_id, self.operation_seq)
+        self.pending_method = method
         self.options = None
         self.wire.send({"jsonrpc": "2.0", "id": self.next_id, "method": method, "params": params})
         print(f"Operation {self.operation_seq} sent; awaiting final outcome (no automatic retry).", flush=True)
@@ -526,7 +541,7 @@ def main():
         print("Commands: refresh | unit <unitId> | missiles | missile <missileId> | hits | options | "
               "selection <slot>=on|temporaryOff|off ... | select <unitId> | move <x> <y> | "
               "face <x> <y> | fire <targetUnitId> | intercept <missileId> | boarding | "
-              "board <targetUnitId> raid|capture <marines> | boarding-cancel | boarding-report | boarding-ack <reportId> | done | cancel | quit. Ctrl-C exits.", flush=True)
+              "board <targetUnitId> raid|capture <marines> | boarding-cancel | boarding-report | boarding-ack <reportId> | retreat | done | cancel | quit. Ctrl-C exits.", flush=True)
         while True:
             try:
                 command = commands.get_nowait()
@@ -554,7 +569,7 @@ def main():
                         observer.show_options()
                 elif command == "boarding-report":
                     print("Last received boarding result: " + safe_text(json.dumps(observer.boarding_report)), flush=True)
-                elif command.split() and command.split()[0] in ("select", "move", "face", "fire", "intercept", "selection", "done", "cancel", "board", "boarding-cancel", "boarding-ack"):
+                elif command.split() and command.split()[0] in ("select", "move", "face", "fire", "intercept", "selection", "done", "retreat", "cancel", "board", "boarding-cancel", "boarding-ack"):
                     observer.operation(command)
             except queue.Empty:
                 pass
@@ -577,6 +592,7 @@ def main():
     except (OSError, ValueError, KeyError, TypeError, ConnectionError, queue.Empty):
         if observer:
             observer.clear("Disconnected/unavailable; displayed state cleared. Re-run to authenticate again.")
+            print("Any unobserved withdrawal outcome is UNKNOWN; a missing ship is not proof of escape. Never retry automatically.", flush=True)
         else:
             print("Unable to connect or read the private key.", file=sys.stderr)
         return 1

@@ -127,6 +127,12 @@ is automatically chosen or retried.
 
 ## Tactical lifecycle events
 
+For deliberate withdrawal, see [tactical withdrawal](tactical-withdrawal.md).
+The same client adds `retreat`; `options` shows native availability/refusals,
+owned rows show pending withdrawal, and `combat.retreatResolved` reports native
+outcomes. Existing `cancel` applies only before dispatch. Applied scheduling is
+not escape; the client never advances turns or retries to force an outcome.
+
 After hello, select future notifications with:
 
 ```json

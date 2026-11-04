@@ -182,7 +182,7 @@ endif()
 if(TARGET orion2re_game_objects)
     # Full production runtime, fixture-owned memory, no gameplay-function fakes.
     add_executable(test_tactical_control EXCLUDE_FROM_ALL
-        tests/test_main.cpp tests/unit/tactical_control_test.cpp tests/rpc/turn_fixture.cpp
+        tests/test_main.cpp tests/unit/tactical_control_test.cpp tests/unit/tactical_withdrawal_test.cpp tests/rpc/turn_fixture.cpp
         $<TARGET_OBJECTS:orion2re_game_objects>
         "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smacker.c"
         "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smk_bitstream.c"

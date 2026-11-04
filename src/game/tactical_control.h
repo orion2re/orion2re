@@ -13,6 +13,7 @@ namespace tactical_control {
         DONE,
         FIRE_SELECTION,
         BOARD,
+        RETREAT,
     };
     enum e_result {
         APPLIED,
@@ -57,6 +58,7 @@ namespace tactical_control {
         std::vector<s_target> missile_targets;
         int16_t own_marines = 0, maximum_marines = 0;
         bool already_boarded = false;
+        int16_t retreat_refusal = 0;
         std::vector<int16_t> boarding_targets;
     };
     // Game-thread-only decision metadata. No gameplay projections are retained.

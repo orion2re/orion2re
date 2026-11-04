@@ -383,6 +383,7 @@ namespace CMBTFIRE {
         s_combat_data& ship = MOX::combat_data[ship_idx];
         const bool publish_destroyed = ship.unit_status == 0;
         if (publish_destroyed) {
+            tactical_view::Resolve_Retreat(ship_idx, tactical_events::DESTROYED);
             tactical_view::Unit_Changed(ship_idx, true);
             tactical_events::Retire_Unit(ship_idx);
         }

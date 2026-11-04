@@ -385,7 +385,9 @@ namespace COMBAT1 {
             }
 
             if (ship->current_speed <= 0 || Enemy_Dissipator_Exists(ship->owner) != 0) {
+                tactical_view::Resolve_Retreat(i, tactical_events::CANCELLED);
                 ship->is_retreating = 0;
+                tactical_view::Unit_Changed(i);
                 continue;
             }
 
@@ -488,6 +490,7 @@ namespace COMBAT1 {
                 arg2 = operation->missile_target ? 1 : 0;
                 break;
             case tactical_control::DONE: message = TACTICAL_NET_MSG_SHIP_DONE; break;
+            case tactical_control::RETREAT: message = TACTICAL_NET_MSG_RETREAT; break;
             default: return;
         }
         if (!received && MOX::net_flag != 0 && MOX::PLAYER_NUM != MOX::net_destination)
@@ -523,6 +526,11 @@ namespace COMBAT1 {
                 break;
             case tactical_control::DONE:
                 if (!received) CMBTFIR2::Set_Combat_Ship_Done(actor);
+                MOX::ship_turn_order[MOX::cur_ptr] = -1;
+                *next_ship_flag = Next_Ship(active_player_id);
+                break;
+            case tactical_control::RETREAT:
+                MOX::combat_data[actor].is_retreating = 1;
                 MOX::ship_turn_order[MOX::cur_ptr] = -1;
                 *next_ship_flag = Next_Ship(active_player_id);
                 break;
@@ -869,18 +877,7 @@ namespace COMBAT1 {
 
                                     if (input_val == MOX::flee_button) {
                                         if (MOX::combat_data[MOX::cur_ship].is_retreating == 0) {
-                                            int16_t msg_id = 0;
-                                            if (Enemy_Dissipator_Exists(MOX::combat_data[MOX::cur_ship].owner) == 0) {
-                                                if (MOX::cur_ship == 0 ||
-                                                    COMBINIT::Is_Combat_Satellite(
-                                                        &MOX::combat_data[MOX::cur_ship])) {
-                                                    msg_id = 59;
-                                                } else if (MOX::combat_data[MOX::cur_ship].current_speed < 1) {
-                                                    msg_id = 79;
-                                                }
-                                            } else {
-                                                msg_id = 58;
-                                            }
+                                            const int16_t msg_id = Check_Human_Retreat(MOX::cur_ship);
                                             if (msg_id != 0) {
                                                 char buf[80];
                                                 KEN::Ken_Get_Text_Message(msg_id, buf, sizeof(buf));
@@ -888,16 +885,8 @@ namespace COMBAT1 {
                                                 GENDRAW::Message_Box(buf);
                                                 CMBTDRW1::Refresh_Combat_Screen_Full();
                                             } else {
-                                                if (MOX::net_flag != 0 && MOX::PLAYER_NUM != MOX::net_destination) {
-                                                    Send_Tactical_Combat_Message(MOX::net_destination, TACTICAL_NET_MSG_RETREAT, 0, 0, 0);
-                                                }
-                                                MOX::combat_data[MOX::cur_ship].is_retreating = 1;
-                                                MOX::ship_turn_order[MOX::cur_ptr] = -1;
-                                                next_ship_flag = Next_Ship(active_player_id);
-                                                if (MOX::net_flag != 0) {
-                                                    NETMOX::Net_Debug_Log("Wait_Until_Net_Opponent_Finished: caller=%s:%d", __FILE__, __LINE__);
-                                                    CMBTMOV1::Wait_Until_Net_Opponent_Finished(1);
-                                                }
+                                                const tactical_control::s_operation operation{tactical_control::RETREAT, MOX::cur_ship};
+                                                Apply_Tactical_Operation(&operation, active_player_id, &next_ship_flag);
                                             }
                                         }
                                         input_val = 0;
@@ -1150,11 +1139,11 @@ namespace COMBAT1 {
                                                 case TACTICAL_NET_MSG_TOGGLE_WEAPON:
                                                     Cycle_Weapon_Bank(f10, true);
                                                     break;
-                                                case TACTICAL_NET_MSG_RETREAT:
-                                                    MOX::combat_data[MOX::cur_ship].is_retreating = 1;
-                                                    MOX::ship_turn_order[MOX::cur_ptr] = -1;
-                                                    next_ship_flag = Next_Ship(active_player_id);
+                                                case TACTICAL_NET_MSG_RETREAT: {
+                                                    const tactical_control::s_operation operation{tactical_control::RETREAT, MOX::cur_ship};
+                                                    Apply_Tactical_Operation(&operation, active_player_id, &next_ship_flag, true);
                                                     break;
+                                                }
                                                 case TACTICAL_NET_MSG_TURN_TO_FACE: {
                                                     const tactical_control::s_operation operation{tactical_control::FACE, MOX::cur_ship, -1, f10, f12};
                                                     Apply_Tactical_Operation(&operation, active_player_id, &next_ship_flag, true);
@@ -1243,7 +1232,7 @@ namespace COMBAT1 {
                                 i, SPECIAL_PHASING_CLOAK) != 0) {
                             CMBTSPEC::Draw_Cloak(i, 4);
                             tactical_view::Unit_Changed(i);
-                            tactical_events::Retire_Unit(i);
+                            if (MOX::combat_data[i].owner != tactical_events::Current_Viewer()) tactical_events::Retire_Unit(i);
                             MOX::combat_data[i].special_status_flag = 4;
 
                             const uint16_t tractor_target_idx = MOX::combat_data[i].special_cooldown;
@@ -2069,6 +2058,12 @@ namespace COMBAT1 {
             unused_player_idx, COMBAT_SHIP_ACTION_DONE);
     }
 
+    int16_t Check_Human_Retreat(int16_t ship_idx) {
+        if (Enemy_Dissipator_Exists(MOX::combat_data[ship_idx].owner) != 0) return 58;
+        if (ship_idx == 0 || COMBINIT::Is_Combat_Satellite(&MOX::combat_data[ship_idx])) return 59;
+        return MOX::combat_data[ship_idx].current_speed < 1 ? 79 : 0;
+    }
+
     bool Validate_Retreating_Ship(int16_t ship_idx) {
         s_combat_data* ship = &MOX::combat_data[ship_idx];
         int16_t is_dead = CMBTFIRE::Is_Combat_Ship_Dead(ship_idx);
@@ -2078,10 +2073,12 @@ namespace COMBAT1 {
         }
 
         if (is_dead != 0 || speed <= 0 || ship->is_retreating != 1) {
+            tactical_view::Resolve_Retreat(ship_idx, tactical_events::CANCELLED);
             if (is_dead != 0 || speed <= 0) {
                 ship->movement_left = 0;
             }
             ship->is_retreating = 0;
+            tactical_view::Unit_Changed(ship_idx);
             return false;
         }
         return true;
@@ -2104,6 +2101,7 @@ namespace COMBAT1 {
             }
         }
 
+        tactical_view::Resolve_Retreat(ship_idx, tactical_events::ESCAPED);
         tactical_view::Unit_Changed(ship_idx, true);
         tactical_events::Retire_Unit(ship_idx);
         ship->unit_status = 5;
@@ -2484,7 +2482,8 @@ namespace COMBAT1 {
             }
         }
 
-        if (MOX::cur_ship == active_ship_idx) {
+        if (active_ship_idx >= 0 && active_ship_idx < MOX::combat_total_ship_count &&
+            MOX::cur_ship == active_ship_idx) {
             COMBAT1::Set_Legal_Moves(active_ship_idx, MOX::combat_data[active_ship_idx].movement_left, 1);
             COMBAT1::Assign_Mouse_Images();
         }

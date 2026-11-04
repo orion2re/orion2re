@@ -90,6 +90,7 @@ namespace rpc {
                 "\",\"owned\":" + (unit->owned ? "true" : "false") + ",\"position\":{\"x\":" + std::to_string(unit->x) +
                 ",\"y\":" + std::to_string(unit->y) + "}";
             if (unit->kind != tactical_view::PLANET) json += ",\"mapSize\":\"" + std::string(sizes[unit->map_size]) + "\"";
+            if (unit->owned && unit->kind == tactical_view::SHIP) json += ",\"retreatPending\":" + std::string(unit->retreat_pending ? "true" : "false");
             if (!unit->contact) {
                 if (unit->kind != tactical_view::PLANET) json += ",\"facing\":" + std::to_string(unit->facing);
                 if (detail) json += ",\"name\":" + Name_Json(unit->name);
@@ -287,7 +288,10 @@ namespace rpc {
                     if (i) result += ',';
                     result += "\"" + boarding_targets[i] + "\"";
                 }
-                result += "]},\"canDone\":true}";
+                result += "]},\"retreat\":{\"available\":" + std::string(options.retreat_refusal == 0 ? "true" : "false") +
+                    ",\"reason\":" + (options.retreat_refusal == 0 ? "null" : options.retreat_refusal == 79 ? "\"noSpeed\""
+                                                                                                            : "\"retreatPrevented\"") +
+                    "},\"canDone\":true}";
             }
         } else if (request->method == READ_UNIT) {
             tactical_view::s_unit unit;

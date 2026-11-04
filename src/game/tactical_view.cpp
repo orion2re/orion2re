@@ -32,6 +32,19 @@ namespace tactical_view {
         }
     }
 
+    void Resolve_Retreat(int16_t slot, tactical_events::e_retreat_outcome outcome) {
+        if (tactical_events::Current_Viewer() != Local_Observer() || !Unit_Disclosed(slot)) return;
+        const auto& unit = MOX::combat_data[slot];
+        if (unit.owner == tactical_events::Current_Viewer() && unit.is_retreating == 1)
+            tactical_events::Resolve_Retreat(slot, outcome);
+    }
+
+    void End_Pending_Retreats() {
+        if (tactical_events::Current_Viewer() < 0 || MOX::combat_data == nullptr || MOX::combat_total_ship_count > MAX_COMBAT_SHIPS) return;
+        for (int16_t i = 1; i < MOX::combat_total_ship_count; ++i)
+            tactical_view::Resolve_Retreat(i, tactical_events::BATTLE_ENDED);
+    }
+
     static bool Read_Row(int16_t slot, s_unit* result, bool detail) {
         if (result == nullptr) return false;
         *result = {};
@@ -45,6 +58,7 @@ namespace tactical_view {
         if (contact && (slot == 0 || unit.size_class < 0 || unit.size_class > 5)) return false;
         result->slot = slot;
         result->owned = owned;
+        result->retreat_pending = owned && slot != 0 && unit.is_retreating == 1;
         result->contact = contact;
         result->attacker = unit.owner == MOX::combat_attacker_player;
         result->x = unit.x;

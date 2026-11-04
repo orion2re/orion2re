@@ -110,10 +110,13 @@ namespace rpc {
                             name = "combat.localAttentionChanged";
                         else if (event.kind == EVENT_COMBAT_BOARDING)
                             name = "combat.boardingResolved";
+                        else if (event.kind == EVENT_COMBAT_RETREAT)
+                            name = "combat.retreatResolved";
                         std::string json = "{\"jsonrpc\":\"2.0\",\"method\":\"" + std::string(name) +
                             "\",\"params\":{\"battleId\":\"" + std::string(event.battle_id.data()) + "\"";
                         if (event.kind == EVENT_COMBAT_SELECTED) json += ",\"unitId\":" + (event.unit_id[0] == '\0' ? std::string("null") : "\"" + std::string(event.unit_id.data()) + "\"");
                         if (event.kind == EVENT_COMBAT_BOARDING) json += ",\"boarding\":" + event.response;
+                        if (event.kind == EVENT_COMBAT_RETREAT) json += ",\"unitId\":\"" + std::string(event.unit_id.data()) + "\"," + event.response;
                         if (event.kind == EVENT_COMBAT_ATTENTION || event.kind == EVENT_COMBAT_ATTENTION_CLEARED)
                             json += std::string(",\"required\":") + (event.kind == EVENT_COMBAT_ATTENTION ? "true" : "false");
                         json += "}}";

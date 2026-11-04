@@ -94,7 +94,7 @@ namespace rpc {
         struct s_method {
             const char* name;
         };
-        constexpr s_method methods[] = {{"rpc.hello"}, {"rpc.describe"}, {"rpc.subscribe"}, {"rpc.unsubscribe"}, {"combat.getView"}, {"combat.getUnit"}, {"combat.getTargetOptions"}, {"combat.selectUnit"}, {"combat.move"}, {"combat.face"}, {"combat.fire"}, {"combat.done"}, {"combat.cancelOperation"}, {"combat.setFireSelection"}, {"combat.listMissiles"}, {"combat.getMissile"}, {"combat.getHitHistory"}, {"combat.board"}, {"combat.acknowledgeBoardingReport"}};
+        constexpr s_method methods[] = {{"rpc.hello"}, {"rpc.describe"}, {"rpc.subscribe"}, {"rpc.unsubscribe"}, {"combat.getView"}, {"combat.getUnit"}, {"combat.getTargetOptions"}, {"combat.selectUnit"}, {"combat.move"}, {"combat.face"}, {"combat.fire"}, {"combat.done"}, {"combat.cancelOperation"}, {"combat.setFireSelection"}, {"combat.listMissiles"}, {"combat.getMissile"}, {"combat.getHitHistory"}, {"combat.board"}, {"combat.acknowledgeBoardingReport"}, {"combat.retreat"}};
 
         bool Reference(yyjson_val* value) {
             if (!yyjson_is_str(value) || yyjson_get_len(value) != 32) return false;
@@ -108,7 +108,7 @@ namespace rpc {
         bool Read_Events(yyjson_val* params, uint8_t* mask) {
             if (!Only_Keys(params, {"events"})) return false;
             auto* events = yyjson_obj_get(params, "events");
-            if (!yyjson_is_arr(events) || yyjson_arr_size(events) > 6) return false;
+            if (!yyjson_is_arr(events) || yyjson_arr_size(events) > 7) return false;
             *mask = 0;
             size_t index, count;
             yyjson_val* event;
@@ -126,6 +126,8 @@ namespace rpc {
                     bit = EVENT_COMBAT_ATTENTION | EVENT_COMBAT_ATTENTION_CLEARED;
                 else if (Is_Text(event, "combat.boardingResolved"))
                     bit = EVENT_COMBAT_BOARDING;
+                else if (Is_Text(event, "combat.retreatResolved"))
+                    bit = EVENT_COMBAT_RETREAT;
                 if (bit == 0 || (*mask & bit) != 0) return false;
                 *mask |= bit;
             }
@@ -151,6 +153,10 @@ namespace rpc {
             if (mask & EVENT_COMBAT_BOARDING) {
                 if (result.size() > 1) result += ',';
                 result += "\"combat.boardingResolved\"";
+            }
+            if (mask & EVENT_COMBAT_RETREAT) {
+                if (result.size() > 1) result += ',';
+                result += "\"combat.retreatResolved\"";
             }
             return result + "]";
         }
@@ -227,7 +233,7 @@ namespace rpc {
                     list += "{\"name\":\"" + std::string(item.name) + "\"}";
                 }
                 *response = "{\"jsonrpc\":\"2.0\",\"id\":" + encoded_id +
-                    ",\"result\":{\"contractVersion\":\"orion2.rpc/0\",\"methods\":[" + list + "],\"events\":" + Events_Json(127) +
+                    ",\"result\":{\"contractVersion\":\"orion2.rpc/0\",\"methods\":[" + list + "],\"events\":" + Events_Json(255) +
                     ",\"limits\":{\"inputBytes\":" + std::to_string(MAX_INPUT_BYTES) + ",\"responseBytes\":" + std::to_string(MAX_RESPONSE_BYTES) +
                     ",\"queuedOutputBytes\":" + std::to_string(MAX_OUTPUT_BYTES) + ",\"readDeadlineMs\":2000,\"outstandingReads\":2,\"operationDispatchDeadlineMs\":2000,\"outstandingOperations\":1}}}";
             }
@@ -307,7 +313,7 @@ namespace rpc {
                 }
             }
         } else if (Is_Text(method, "combat.selectUnit") || Is_Text(method, "combat.move") || Is_Text(method, "combat.face") ||
-            Is_Text(method, "combat.fire") || Is_Text(method, "combat.done") || Is_Text(method, "combat.cancelOperation") || Is_Text(method, "combat.setFireSelection")) {
+            Is_Text(method, "combat.fire") || Is_Text(method, "combat.done") || Is_Text(method, "combat.retreat") || Is_Text(method, "combat.cancelOperation") || Is_Text(method, "combat.setFireSelection")) {
             const bool cancel = Is_Text(method, "combat.cancelOperation");
             const bool select = Is_Text(method, "combat.selectUnit");
             const bool fire = Is_Text(method, "combat.fire");
@@ -372,6 +378,7 @@ namespace rpc {
                 *response = Error(encoded_id, -32004, "Unavailable");
             else {
                 operation->method = OP_DONE;
+                if (Is_Text(method, "combat.retreat")) operation->method = OP_RETREAT;
                 if (cancel) operation->method = OP_CANCEL;
                 if (select) operation->method = OP_SELECT;
                 if (move) operation->method = OP_MOVE;

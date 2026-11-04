@@ -179,3 +179,5 @@ broader interactive/multiplayer/platform parity remains separate work.
 
 Strategic navigation, design editing, remote confirmations/retreat,
 enemy dossiers, forecasts and effect/audio/frame streams remain excluded.
+The separately scoped [withdrawal extension](tactical-withdrawal.md) supersedes
+the retreat exclusion without changing firing or hit-history lifecycles.

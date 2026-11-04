@@ -232,6 +232,8 @@ namespace TEST_FIGHTER_ORDNANCE {
 }
 
 namespace MOX {
+    int16_t PLAYER_NUM = -1;
+    int16_t NUM_PLAYERS = 0;
     s_combat_data* combat_data = ::combat_data;
     s_missile* missile = missiles;
     s_colony* colony;
@@ -251,6 +253,10 @@ namespace MOX {
     int16_t ranged_to_hit_penalty[9];
     int16_t ranged_damage_penalty[9];
     s_combat_bomb_result combat_bomb_result;
+}
+
+namespace RUSS {
+    int8_t all_ai_game = 0;
 }
 
 namespace TECHDATA {

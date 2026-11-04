@@ -52,6 +52,7 @@ namespace rpc {
                 case OP_DONE: operation->kind = tactical_control::DONE; break;
                 case OP_FIRE_SELECTION: operation->kind = tactical_control::FIRE_SELECTION; break;
                 case OP_BOARD: operation->kind = tactical_control::BOARD; break;
+                case OP_RETREAT: operation->kind = tactical_control::RETREAT; break;
                 default: return reject(-32004);
             }
             operation->x = request.x;
@@ -112,6 +113,21 @@ namespace rpc {
                     s_operation_request request;
                     if (Take_Operation(forwarder->service, &request))
                         Complete_Operation(forwarder->service, &request, active ? -32009 : -32004);
+                }
+            } else if (event->kind == tactical_events::RETREAT_RESOLVED) {
+                if (forwarder->reader.observer == nullptr || forwarder->reader.observer() != forwarder->viewer) {
+                    Revoke(forwarder);
+                    return;
+                }
+                // Outcome identity is the previously disclosed lifetime, never a new action handle.
+                for (const auto& reference : forwarder->references) {
+                    if (reference.slot != event->unit) continue;
+                    const char* outcomes[] = {"escaped", "destroyed", "cancelled", "interrupted", "interrupted"};
+                    std::string detail = "\"outcome\":\"" + std::string(outcomes[event->retreat_outcome]) + "\"";
+                    if (event->retreat_outcome == tactical_events::CAPTURED) detail += ",\"reason\":\"captured\"";
+                    if (event->retreat_outcome == tactical_events::BATTLE_ENDED) detail += ",\"reason\":\"battleEnded\"";
+                    Publish_Event(forwarder->service, EVENT_COMBAT_RETREAT, forwarder->battle_id, reference.token.data(), std::move(detail));
+                    break;
                 }
             } else if (event->kind == tactical_events::BOARDING_RESOLVED) {
                 if (forwarder->reader.observer == nullptr || forwarder->reader.observer() != forwarder->viewer) {

@@ -118,6 +118,15 @@ namespace tactical_events {
         }
     }
 
+    void Resolve_Retreat(int16_t unit, e_retreat_outcome outcome) noexcept {
+        if (Current_Viewer() < 0) return;
+        const s_event event{RETREAT_RESOLVED, current->viewer, unit, false, outcome};
+        const auto limit = next_id;
+        for (const auto& listener : listeners)
+            if (listener.id != 0 && listener.id <= limit) listener.callback(&event, listener.context);
+        Invalidate_View();
+    }
+
     void Retire_Battle() noexcept {
         tactical_control::Close_Decision();
         if (Current_Viewer() < 0) return;

@@ -20,6 +20,9 @@ namespace TEST_TACTICAL_TURN {
         std::filesystem::path media_root;
         uint8_t glyph[256];
         std::string boarding_button;
+        int16_t display_hull_armor = 0;
+        int16_t display_hull_drive = 0;
+        bool display_hull_saved = false;
 
         void Write_Media(const std::string& path, const std::string& bytes) {
             auto file = media_root / "data" / path;
@@ -196,13 +199,81 @@ namespace TEST_TACTICAL_TURN {
         COMBAT1::Assign_Combat_Grids(1);
         tactical_control::Invalidate();
     }
+    void Withdrawal() {
+        Boarding(false);
+        // A native-stasis opponent keeps the battle open without test-selected enemy actions.
+        units[2].stasis_source_idx = 2;
+        units[1].weapons[0] = {};
+        MOX::super_fast_flag = 1;
+        MOX::apply_damage_to_planet = 0;
+        COMBAT1::Add_Tactical_Combat_Fields();
+        COMBAT1::Assign_Combat_Grids(1);
+    }
+
+    void Withdrawal_Display() {
+        // Synthetic transparent media exercises the real drawing-owned rotation, not asset parity.
+        if (!display_hull_saved) {
+            display_hull_armor = TECHDATA::hull_data[0].armor_hp;
+            display_hull_drive = TECHDATA::hull_data[0].drive_hp;
+            display_hull_saved = true;
+        }
+        TECHDATA::hull_data[0].armor_hp = 2000;
+        TECHDATA::hull_data[0].drive_hp = 100;
+        for (int i = 1; i < 4; ++i) units[i].armor_type = ARMOR_TITANIUM_ARMOR;
+        const auto sprite_for = [](int16_t frames) {
+            std::string sprite(2048, '\0');
+            auto* header = reinterpret_cast<s_animation_header*>(sprite.data());
+            header->width = header->height = 1;
+            header->frame_count = frames;
+            header->flags = ANIMATION_FLAG_HAS_PALETTE;
+            Animation_Palette_Header_(header)->count = 1;
+            for (int i = 0; i <= frames; ++i) Set_Animation_Frame_Offset_(header, i, 2000);
+            unaligned::Store<uint16_t>(sprite.data() + 2002, 1);
+            return sprite;
+        };
+        const auto sprite = sprite_for(64);
+        const auto effect = sprite_for(24); // Spherical effects use native 25-entry frame tables.
+        auto sphere = effect;
+        reinterpret_cast<s_animation_header*>(sphere.data())->width = 2; // Native radius must be positive.
+        for (int i = 0; i < 120; ++i) {
+            char entry[4];
+            snprintf(entry, sizeof(entry), "%03d", i);
+            Write_Media(std::string("CMBTSFX.LBX/") + entry, effect);
+            Write_Media(std::string("CMBTSHP.LBX/") + entry, sprite);
+            Write_Media(std::string("SPHERSFX.LBX/") + entry, sphere);
+        }
+        MOX::ship_bitmap = (s_animation_header*)allocate::Allocate_Next_Block(MOX::screen_seg, bitmap::Get_Bitmap_Size(98, 98));
+        MOX::draw_ship_bitmap = (s_animation_header*)allocate::Allocate_Next_Block(MOX::screen_seg, bitmap::Get_Bitmap_Size(98, 98));
+        MOX::combat_bitmap = (s_animation_header*)allocate::Allocate_Next_Block(MOX::screen_seg, bitmap::Get_Bitmap_Size(98, 98));
+        MOX::darken_plasma_map = (s_animation_header*)buffer::Buffer_Reload("cmbtsfx.lbx", 0, MOX::global_cache_seg);
+        MOX::shield_remap_colors = palette::Allocate_Glass_Remap_Next_Block(MOX::screen_seg);
+        palette::Save_Glass_Remap_Block(MOX::shield_remap_colors);
+        MOX::warp_core_remap_colors = MOX::pulsar_remap_colors = MOX::shield_remap_colors;
+        MOX::msl_warning_on_seg = MOX::warning_missile_seg = MOX::shield_div_bitmap[0] = (s_animation_header*)boarding_button.data();
+        MOX::level_symbol_seg = MOX::warning_fighter_seg = MOX::cmbt_option_seg = boarding_button.data();
+        for (auto& cursor : MOX::ship_cursor) cursor = (s_animation_header*)boarding_button.data();
+        for (auto& missile : MOX::msl_seg) missile = (s_animation_header*)boarding_button.data();
+        MOX::dont_draw_ship = -1;
+        MOX::last_ship_status = -1;
+        MOX::super_fast_flag = 0;
+        MOX::apply_damage_to_planet = 1;
+    }
+
     void Release_Boarding() {
         if (media_root.empty()) return;
+        if (display_hull_saved) {
+            TECHDATA::hull_data[0].armor_hp = display_hull_armor;
+            TECHDATA::hull_data[0].drive_hp = display_hull_drive;
+            display_hull_saved = false;
+        }
         fields::Deactivate_Auto_Function();
         buffer::Free_Buffer_Space();
         std::free((allocate::s_alloc_header*)MOX::screen_seg - 1);
         MOX::screen_seg = nullptr;
         MOX::global_cache_seg = nullptr;
+        MOX::ship_bitmap = MOX::draw_ship_bitmap = MOX::combat_bitmap = nullptr;
+        MOX::darken_plasma_map = nullptr;
+        MOX::shield_remap_colors = MOX::warp_core_remap_colors = MOX::pulsar_remap_colors = nullptr;
         video::Free_Page_Buffers();
         std::free((allocate::s_alloc_header*)video::refresh_scan_list - 1);
         std::free((allocate::s_alloc_header*)video::refresh_stencil_list - 1);

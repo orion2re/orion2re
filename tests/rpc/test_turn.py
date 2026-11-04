@@ -121,6 +121,191 @@ class TurnTest(unittest.TestCase):
         self.assertIsNone(final["selectedUnitId"])
         self.assertEqual(final["battleId"], view["battleId"])
 
+    def test_withdrawal_cli_native_rounds_escape_continuation_and_closure_with_reader(self):
+        self.trigger("open")
+        self.trigger("withdrawal")
+        self.trigger("withdrawal-phase")
+        reader = self.client("reader")
+        initial = self.read(reader)["result"]["battle"]
+        with tempfile.TemporaryDirectory() as directory:
+            key = Path(directory) / "key"
+            key.write_text(KEY, encoding="utf-8")
+            key.chmod(0o600)
+            cli = subprocess.Popen([sys.executable, str(ROOT / "tools/rpc_observer.py"), "--controller",
+                                    "--port", str(self.port), "--key-file", str(key)], stdin=subprocess.PIPE,
+                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            lines = queue.Queue()
+            threading.Thread(target=lambda: [lines.put(line) for line in cli.stdout], daemon=True).start()
+            owner = None
+
+            def command(text):
+                cli.stdin.write(text + "\n")
+                cli.stdin.flush()
+
+            def wait_for(text, poll=False):
+                output = ""
+                deadline = time.monotonic() + 10
+                while text not in output:
+                    if poll:
+                        self.trigger("poll")
+                    try:
+                        output += lines.get(timeout=0.03)
+                    except queue.Empty:
+                        pass
+                    if time.monotonic() >= deadline:
+                        self.fail("CLI withdrawal did not reach " + text + ": " + output[-2000:])
+                return output
+
+            def current(method="combat.getView", params=None):
+                # The real native owner services these reads; no fixture poll/advance command.
+                return self.until(reader, self.send(reader, method, params))
+
+            try:
+                output = wait_for("Done is available", poll=True)
+                self.assertIn('Retreat: {"available": true, "reason": null}', output)
+                actor = next(line.split(": ", 1)[1] for line in output.splitlines() if line.startswith("Controllable actor: "))
+                # Demonstrate an undispatched request can be cancelled without gameplay change.
+                command("retreat")
+                wait_for("Operation 1 sent")
+                command("cancel")
+                wait_for("Operation 1 rejected:")
+                unchanged = self.read(reader)["result"]["battle"]
+                self.assertFalse(next(u for u in unchanged["units"] if u["unitId"] == actor)["retreatPending"])
+                wait_for("Done is available", poll=True)
+                owner = threading.Thread(target=lambda: self.trigger("withdrawal-rounds"))
+                owner.start()
+                # Owner acquisition invalidates the inspection made before the real pass.
+                command("options")
+                wait_for("Done is available")
+                command("retreat")
+                wait_for("Retreat command applied; withdrawal is pending")
+                pending = current()["result"]["battle"]
+                self.assertEqual(pending["battleId"], initial["battleId"])
+                self.assertTrue(next(u for u in pending["units"] if u["unitId"] == actor)["retreatPending"])
+                self.assertNotEqual(pending["selectedUnitId"], actor)
+                wait_for("Done is available")
+                command("done")
+                wait_for("Operation 3: applied")
+                outcome = wait_for("Native withdrawal outcome:")
+                self.assertIn('"outcome": "escaped"', outcome)
+                stale = current("combat.getUnit", {"battleId": initial["battleId"], "unitId": actor})
+                self.assertEqual(stale["error"]["code"], -32004)
+                remaining = current()["result"]["battle"]
+                self.assertEqual(sum(u["owned"] for u in remaining["units"]), 1)
+                wait_for("Done is available")
+                command("retreat")
+                wait_for("Operation 4: applied")
+                wait_for("Battle closed;")
+                owner.join(timeout=5)
+                self.assertFalse(owner.is_alive())
+                self.assertIsNone(self.read(reader)["result"]["battle"])
+                outcomes = [e["params"] for e in self.events if e.get("method") == "combat.retreatResolved"]
+                self.assertEqual([e["outcome"] for e in outcomes], ["escaped", "escaped"])
+                self.assertEqual(outcomes[0]["unitId"], actor)
+                command("quit")
+                self.assertEqual(cli.wait(timeout=5), 0)
+            finally:
+                if cli.poll() is None:
+                    cli.kill()
+                    cli.wait()
+                cli.stdin.close()
+                cli.stdout.close()
+                cli.stderr.close()
+
+    def test_retreat_refusals_conflicts_sequences_expiry_and_authorization(self):
+        controller = self.client()
+        self.trigger("open")
+        self.trigger("withdrawal")
+        options = self.options(controller)
+        pending = self.submit(controller, options, "combat.retreat")
+        busy = self.submit(controller, options, "combat.retreat")
+        self.assertEqual(self.until(controller, busy)["error"]["code"], -32006)
+        cancel = self.send(controller, "combat.cancelOperation", {"operationSeq": self.sequence - 1})
+        self.assertTrue(self.until(controller, cancel)["result"]["cancelled"])
+        self.assertEqual(self.until(controller, pending)["error"]["code"], -32013)
+        duplicate = self.submit(controller, options, "combat.retreat", sequence=self.sequence)
+        self.assertEqual(self.until(controller, duplicate)["error"]["code"], -32012)
+        pending = self.submit(controller, options, "combat.retreat")
+        time.sleep(2.1)
+        self.assertEqual(self.until(controller, pending)["error"]["code"], -32015)
+        self.trigger("consume")
+        self.trigger("retreat-no-speed")
+        options = self.options(controller)
+        self.assertEqual(options["retreat"], {"available": False, "reason": "noSpeed"})
+        pending = self.submit(controller, options, "combat.retreat")
+        self.trigger("consume")
+        self.assertEqual(self.until(controller, pending)["error"]["code"], -32011)
+        self.trigger("retreat-blocked")
+        self.assertEqual(self.options(controller)["retreat"], {"available": False, "reason": "retreatPrevented"})
+        for change, expected in (("local-bank", -32010), ("ai", -32009), ("scan", -32009), ("remote", -32004),
+                                 ("retreat-destroy", -32004), ("retreat-capture", -32004), ("reuse-actor", -32004)):
+            with self.subTest(change=change):
+                time.sleep(0.2)  # Each iteration sends four messages; respect the native transport rate limit.
+                self.trigger("open")
+                options = self.options(controller)
+                pending = self.submit(controller, options, "combat.retreat")
+                self.trigger(change)
+                self.trigger("consume")
+                self.assertEqual(self.until(controller, pending)["error"]["code"], expected)
+        reader = self.client("reader")
+        denied = self.submit(reader, options, "combat.retreat")
+        self.assertEqual(self.until(reader, denied)["error"]["code"], -32007)
+        unauthenticated = Client(self.port)
+        self.clients.append(unauthenticated)
+        denied = self.submit(unauthenticated, options, "combat.retreat")
+        self.assertEqual(self.until(unauthenticated, denied)["error"]["code"], -32001)
+
+    def test_retreat_unavailable_actor_references_and_disconnect_before_consumption(self):
+        controller = self.client()
+        self.trigger("open")
+        self.trigger("withdrawal")
+        options = self.options(controller)
+        view = self.read(controller)["result"]["battle"]
+        foreign = next(u["unitId"] for u in view["units"] if not u["owned"])
+        for actor in (foreign, "0" * 32):
+            invalid = dict(options, control=dict(options["control"], actorUnitId=actor))
+            request = self.submit(controller, invalid, "combat.retreat")
+            self.trigger("consume")
+            self.assertEqual(self.until(controller, request)["error"]["code"], -32004)
+        self.events.clear()
+        self.trigger("idle")
+        self.assertEqual(self.options(controller)["control"]["decisionId"], options["control"]["decisionId"])
+        self.assertFalse(any(e["method"] == "combat.viewInvalidated" for e in self.events))
+        self.submit(controller, options, "combat.retreat")
+        controller.close()
+        time.sleep(0.1)
+        self.trigger("consume")
+        reader = self.client("reader")
+        current = self.read(reader)["result"]["battle"]
+        self.assertFalse(any(u.get("retreatPending") for u in current["units"]))
+
+    def test_retreat_pending_native_destruction_capture_and_battle_end_events(self):
+        controller = self.client()
+        reader = self.client("reader")
+        for consequence, outcome, reason in (("retreat-destroy", "destroyed", None),
+                                             ("retreat-capture", "interrupted", "captured"),
+                                             ("close", "interrupted", "battleEnded")):
+            self.trigger("open")
+            self.trigger("withdrawal")
+            options = self.options(controller)
+            self.read(reader)
+            self.trigger("last")
+            self.apply(controller, options, "combat.retreat")
+            cancel = self.send(controller, "combat.cancelOperation", {"operationSeq": self.sequence})
+            self.assertEqual(self.until(controller, cancel)["error"]["code"], -32014)
+            pending = self.read(reader, "combat.getUnit", {
+                "battleId": options["battleId"], "unitId": options["control"]["actorUnitId"]})
+            self.assertTrue(pending["result"]["unit"]["retreatPending"])
+            self.events.clear()
+            self.trigger(consequence)
+            barrier = self.send(reader, "rpc.describe")
+            self.until(reader, barrier)
+            event = next(e["params"] for e in self.events if e.get("method") == "combat.retreatResolved")
+            self.assertEqual(event["unitId"], options["control"]["actorUnitId"])
+            self.assertEqual(event["outcome"], outcome)
+            self.assertEqual(event.get("reason"), reason)
+            self.assertNotIn("sourceUnitId", event)
+
     def boarding_event(self, client):
         while True:
             event = client.read()

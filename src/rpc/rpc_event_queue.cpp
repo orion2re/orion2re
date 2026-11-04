@@ -14,7 +14,7 @@ namespace rpc {
         }
     } // namespace
     bool Push_Event(s_event_queue* queue, uint8_t kind, std::string_view battle_id, std::string_view unit_id, std::string detail) {
-        if (queue == nullptr || (kind != EVENT_COMBAT_OPENED && kind != EVENT_COMBAT_CLOSED && kind != EVENT_COMBAT_INVALIDATED && kind != EVENT_COMBAT_SELECTED && kind != EVENT_COMBAT_ATTENTION && kind != EVENT_COMBAT_ATTENTION_CLEARED && kind != EVENT_COMBAT_BOARDING) || battle_id.size() != 32 ||
+        if (queue == nullptr || (kind != EVENT_COMBAT_OPENED && kind != EVENT_COMBAT_CLOSED && kind != EVENT_COMBAT_INVALIDATED && kind != EVENT_COMBAT_SELECTED && kind != EVENT_COMBAT_ATTENTION && kind != EVENT_COMBAT_ATTENTION_CLEARED && kind != EVENT_COMBAT_BOARDING && kind != EVENT_COMBAT_RETREAT) || battle_id.size() != 32 ||
             (!unit_id.empty() && unit_id.size() != 32) ||
             !std::all_of(battle_id.begin(), battle_id.end(), [](char c) { return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'); })) return false;
         std::lock_guard lock(queue->mutex);

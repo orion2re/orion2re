@@ -11,6 +11,9 @@ only a boarding-result acknowledgement child while its parent remains executing;
 the firing/selection completion lifecycle otherwise stays unchanged.
 
 This extends, rather than replaces, the [read-only observer](observer.md).
+The [withdrawal extension](tactical-withdrawal.md) supersedes the retreat exclusion
+below, adding one native scheduling command and later native outcomes without
+holding the mutation slot across future passes.
 All new wire methods and notifications have the `combat.` prefix. No raw native
 input, caller-selected perspective, remote loadout editing or strategic authority
 is provided.

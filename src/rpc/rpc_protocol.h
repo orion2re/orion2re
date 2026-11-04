@@ -22,6 +22,7 @@ namespace rpc {
         EVENT_COMBAT_ATTENTION = 16,
         EVENT_COMBAT_ATTENTION_CLEARED = 32,
         EVENT_COMBAT_BOARDING = 64,
+        EVENT_COMBAT_RETREAT = 128,
     };
     struct s_session {
         bool authenticated = false;
@@ -63,6 +64,7 @@ namespace rpc {
         OP_FIRE_SELECTION,
         OP_BOARD,
         OP_BOARDING_ACK,
+        OP_RETREAT,
     };
     struct s_operation_request {
         s_read_request request;

@@ -200,6 +200,7 @@ namespace COMBAT1 {
 
     bool Validate_Retreating_Ship(int16_t ship_idx);
     void __cdecl Retreat_Ship(int16_t ship_idx);
+    int16_t Check_Human_Retreat(int16_t ship_idx);
 
     void __cdecl Remove_Continuing_Effect_Specials(int16_t source_idx);
 

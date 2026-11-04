@@ -299,6 +299,8 @@ namespace COMBINIT {
     // colony_idx: Defending colony index, or -1.
     // retreat_flag: Initial retreat-control flag.
     int16_t __cdecl Tactical_Combat(int16_t* plr1_ships, int16_t plr1_ship_count, int16_t* plr2_ships, int16_t plr2_ship_count, int16_t star_idx, int16_t colony_idx, int16_t retreat_flag);
+    // Initialized native battle owner; allocation and final teardown remain caller-owned.
+    int16_t Run_Tactical_Combat_Rounds(int16_t first_player, int16_t second_player, int16_t winner);
 
     // Converts subsystem hit-point loss to a strategic damage percentage.
     inline int16_t Damage_Percent_From_Hits(uint16_t maximum_hits, uint16_t current_hits) {

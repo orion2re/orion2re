@@ -18,7 +18,10 @@ class TacticalHooksTest(unittest.TestCase):
                           "COMBAT1::Add_Tactical_Combat_Fields();",
                           "CMBTMOV1::Wait_Until_Net_Opponent_Finished(0);"):
             self.assertLess(body.index(preceding), opened)
-        self.assertLess(opened, body.index("while (combat_winner == 0)"))
+        self.assertLess(opened, body.index("Run_Tactical_Combat_Rounds(turn_plr1, turn_plr2, combat_winner)"))
+        rounds = source[source.index("int16_t Run_Tactical_Combat_Rounds("):start]
+        self.assertIn("while (winner == 0)", rounds)
+        self.assertIn("COMBAT1::Do_Combat_Turn(", rounds)
         self.assertEqual(body.count("battle_events.Open("), 1)
         self.assertLess(body.index("MAINSCR::Allocate_First_Screen_Seg(5);"),
                         body.index("battle_events.Close(Local_Tactical_Observer());"))

@@ -20,12 +20,19 @@ namespace tactical_events {
         MISSILE_RETIRED,
         BOARDING_RESOLVED,
         BOARDING_REPORT_CLOSED,
+        RETREAT_RESOLVED,
     };
+    enum e_retreat_outcome : int { ESCAPED,
+        DESTROYED,
+        CANCELLED,
+        CAPTURED,
+        BATTLE_ENDED };
     struct s_event {
         e_kind kind;
         int16_t viewer;
         int16_t unit = -1;
         bool safe = false;
+        e_retreat_outcome retreat_outcome = CANCELLED;
     };
     using t_callback = void (*)(const s_event* event, void* context) noexcept;
 
@@ -41,6 +48,7 @@ namespace tactical_events {
     void Retire_Unit(int16_t unit) noexcept;
     void Retire_Missile(int16_t missile) noexcept;
     void Retire_Battle() noexcept;
+    void Resolve_Retreat(int16_t unit, e_retreat_outcome outcome) noexcept;
     int16_t Current_Viewer() noexcept;
     int16_t Current_Unit() noexcept;
     bool Reads_Allowed() noexcept;

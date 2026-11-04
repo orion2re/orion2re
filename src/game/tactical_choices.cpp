@@ -88,6 +88,7 @@ namespace tactical_control {
         result->own_marines = ship.marine_count;
         result->maximum_marines = BOARDING::Maximum_Commitment(actor);
         result->already_boarded = CMBTFIR2::Already_Boarded(actor) != 0;
+        result->retreat_refusal = COMBAT1::Check_Human_Retreat(actor);
         result->movement = ship.movement_left;
         result->turn_cost = CMBTMOV1::Turn_Cost(actor);
         result->absorber_selected = Absorber_Selected(actor);
@@ -146,6 +147,7 @@ namespace tactical_control {
                 return target.weapons || target.absorber ? APPLIED : ILLEGAL;
             }
             case DONE: return APPLIED;
+            case RETREAT: return COMBAT1::Check_Human_Retreat(Actor()) == 0 ? APPLIED : ILLEGAL;
             case BOARD:
                 if (!Disclosed_Target(operation->target)) return UNAVAILABLE;
                 return !CMBTFIR2::Already_Boarded(Actor()) &&

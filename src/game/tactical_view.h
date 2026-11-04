@@ -3,6 +3,10 @@
 #include <cstdint>
 #include <vector>
 
+namespace tactical_events {
+    enum e_retreat_outcome : int;
+}
+
 namespace tactical_view {
     enum e_kind {
         SHIP,
@@ -17,6 +21,7 @@ namespace tactical_view {
         bool attacker = false;
         bool owned = false;
         bool contact = false;
+        bool retreat_pending = false;
         int16_t x = 0, y = 0, facing = 0, map_size = 0;
         char name[31] = {};
         bool own_details = false;
@@ -41,6 +46,9 @@ namespace tactical_view {
     int16_t Local_Observer();
     bool Unit_Disclosed(int16_t slot);
     void Unit_Changed(int16_t slot, bool map_change = false);
+    // Native semantic producers only; no retained withdrawal report or tracking state.
+    void Resolve_Retreat(int16_t slot, tactical_events::e_retreat_outcome outcome);
+    void End_Pending_Retreats();
     // Valid only inside an explicitly classified native Service_Reads(true).
     bool Read_View(s_view* result);
     bool Read_Unit(int16_t slot, s_unit* result);

@@ -710,6 +710,70 @@ namespace COMBINIT {
         return result;
     }
 
+    int16_t Run_Tactical_Combat_Rounds(int16_t first_player, int16_t second_player, int16_t winner) {
+        while (winner == 0) {
+            Refresh_Combat_Stats(false);
+            RUSS::Mox_Update();
+            Reactivate_Combat_Missiles_For_Pass(false);
+            RUSS::Mox_Update();
+            CMBTAI::fleet_target = -1;
+            if (MOX::combat_init == 0) {
+                COMBAT1::Do_Combat_Turn(first_player, 0);
+                COMBAT1::Check_For_Winner();
+                Plasma_Web_Damage(second_player);
+                if (MOX::super_fast_flag != 0) CMBTDRW1::Draw_Super_Fast_Screen();
+                winner = COMBAT1::Check_For_Winner();
+                if (winner == 0) {
+                    CMBTAI::fleet_target = -1;
+                    COMBAT1::Do_Combat_Turn(second_player, 0);
+                    COMBAT1::Check_For_Winner();
+                }
+                Plasma_Web_Damage(first_player);
+                if (MOX::super_fast_flag != 0) CMBTDRW1::Draw_Super_Fast_Screen();
+                winner = COMBAT1::Check_For_Winner();
+                if (winner == 0) {
+                    CMBTAI::fleet_target = -1;
+                    COMBAT1::Do_Combat_Turn(first_player, 1);
+                    COMBAT1::Check_For_Winner();
+                    Increment_Bhg(first_player, true);
+                }
+                if (MOX::super_fast_flag != 0) CMBTDRW1::Draw_Super_Fast_Screen();
+                winner = COMBAT1::Check_For_Winner();
+                if (winner == 0) {
+                    CMBTAI::fleet_target = -1;
+                    COMBAT1::Do_Combat_Turn(second_player, 1);
+                    COMBAT1::Check_For_Winner();
+                    Increment_Bhg(second_player, true);
+                }
+                if (MOX::super_fast_flag != 0) CMBTDRW1::Draw_Super_Fast_Screen();
+                winner = COMBAT1::Check_For_Winner();
+            } else {
+                COMBAT1::Do_Combat_Turn(0, 0);
+                Increment_Bhg(0);
+                Plasma_Web_Damage(-1);
+                winner = COMBAT1::Check_For_Winner();
+                if (winner == 0) {
+                    COMBAT1::Update_Phasing_Cloak_Timers(true);
+                    Recharge_Shields(true);
+                    Repair_All_Combat_Ships(true);
+                    Refresh_Combat_Stats(true);
+                    Reactivate_Combat_Missiles_For_Pass(true);
+                    RUSS::Mox_Update();
+                    COMBAT1::Do_Combat_Turn(0, 1);
+                    Increment_Bhg(0, true);
+                    Plasma_Web_Damage(-1, true);
+                    winner = COMBAT1::Check_For_Winner();
+                }
+                if (MOX::super_fast_flag != 0) CMBTDRW1::Draw_Super_Fast_Screen();
+            }
+            MOX::combat_turn++;
+            End_Of_Turn_Bookeeping();
+            tactical_events::Invalidate_View();
+            tactical_events::Service_Reads(true);
+        }
+        return winner;
+    }
+
     int16_t Local_Tactical_Observer() {
         return tactical_view::Local_Observer();
     }
@@ -1270,76 +1334,7 @@ namespace COMBINIT {
             }
 
             battle_events.Open(Local_Tactical_Observer());
-            while (combat_winner == 0) {
-                Refresh_Combat_Stats(false);
-                RUSS::Mox_Update();
-
-                Reactivate_Combat_Missiles_For_Pass(false);
-                RUSS::Mox_Update();
-
-                CMBTAI::fleet_target = -1;
-
-                if (MOX::combat_init == 0) {
-                    COMBAT1::Do_Combat_Turn(turn_plr1, 0);
-                    COMBAT1::Check_For_Winner();
-                    Plasma_Web_Damage(turn_plr2);
-                    if (MOX::super_fast_flag != 0) CMBTDRW1::Draw_Super_Fast_Screen();
-
-                    combat_winner = COMBAT1::Check_For_Winner();
-                    if (combat_winner == 0) {
-                        CMBTAI::fleet_target = -1;
-                        COMBAT1::Do_Combat_Turn(turn_plr2, 0);
-                        COMBAT1::Check_For_Winner();
-                    }
-
-                    Plasma_Web_Damage(turn_plr1);
-                    if (MOX::super_fast_flag != 0) CMBTDRW1::Draw_Super_Fast_Screen();
-
-                    combat_winner = COMBAT1::Check_For_Winner();
-                    if (combat_winner == 0) {
-                        CMBTAI::fleet_target = -1;
-                        COMBAT1::Do_Combat_Turn(turn_plr1, 1);
-                        COMBAT1::Check_For_Winner();
-                        Increment_Bhg(turn_plr1, true);
-                    }
-
-                    if (MOX::super_fast_flag != 0) CMBTDRW1::Draw_Super_Fast_Screen();
-
-                    combat_winner = COMBAT1::Check_For_Winner();
-                    if (combat_winner == 0) {
-                        CMBTAI::fleet_target = -1;
-                        COMBAT1::Do_Combat_Turn(turn_plr2, 1);
-                        COMBAT1::Check_For_Winner();
-                        Increment_Bhg(turn_plr2, true);
-                    }
-
-                    if (MOX::super_fast_flag != 0) CMBTDRW1::Draw_Super_Fast_Screen();
-                    combat_winner = COMBAT1::Check_For_Winner();
-                } else {
-                    COMBAT1::Do_Combat_Turn(0, 0);
-                    Increment_Bhg(0);
-                    Plasma_Web_Damage(-1);
-                    combat_winner = COMBAT1::Check_For_Winner();
-                    if (combat_winner == 0) {
-                        COMBAT1::Update_Phasing_Cloak_Timers(true);
-                        Recharge_Shields(true);
-                        Repair_All_Combat_Ships(true);
-                        Refresh_Combat_Stats(true);
-                        Reactivate_Combat_Missiles_For_Pass(true);
-                        RUSS::Mox_Update();
-                        COMBAT1::Do_Combat_Turn(0, 1);
-                        Increment_Bhg(0, true);
-                        Plasma_Web_Damage(-1, true);
-                        combat_winner = COMBAT1::Check_For_Winner();
-                    }
-                    if (MOX::super_fast_flag != 0) CMBTDRW1::Draw_Super_Fast_Screen();
-                }
-
-                MOX::combat_turn++;
-                End_Of_Turn_Bookeeping();
-                tactical_events::Invalidate_View();
-                tactical_events::Service_Reads(true);
-            }
+            combat_winner = Run_Tactical_Combat_Rounds(turn_plr1, turn_plr2, combat_winner);
 
             if (MOX::net_flag != 0) {
                 NETMOX::Net_Debug_Log(
@@ -1358,6 +1353,7 @@ namespace COMBINIT {
             }
         }
 
+        tactical_view::End_Pending_Retreats();
         tactical_events::Retire_Battle();
         End_Of_Combat(star_idx, colony_pop, combat_winner);
 

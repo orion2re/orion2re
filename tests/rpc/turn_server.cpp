@@ -46,6 +46,41 @@ int main() {
             tactical_events::Service_Reads(true);
         } else if (command == "boarding" || command == "boarding-report") {
             TEST_TACTICAL_TURN::Boarding(command == "boarding-report");
+        } else if (command == "withdrawal") {
+            TEST_TACTICAL_TURN::Withdrawal();
+        } else if (command == "withdrawal-phase") {
+            TEST_TACTICAL_TURN::Withdrawal_Display();
+            MOX::super_fast_flag = 1;
+            MOX::apply_damage_to_planet = 0;
+            COMBAT1::rephase_cloak_next_turn = 0;
+            struct_::Set_Bit_Field(MOX::combat_data[1].special_device_flags, SPECIAL_PHASING_CLOAK);
+            MOX::combat_data[1].special_status_flag = 7;
+            MOX::combat_data[1].special_status_timer = 2;
+        } else if (command == "reuse-actor") {
+            COMBINIT::Load_Combat_Ship(1, 1);
+        } else if (command == "withdrawal-rounds") {
+            // Real native rounds consume only explicit client actions; no fixture auto-done/retreat.
+            const auto winner = COMBINIT::Run_Tactical_Combat_Rounds(0, 1, 0);
+            if (winner != -1 || MOX::combat_data[1].is_retreating != 2 || MOX::combat_data[3].is_retreating != 2) return 2;
+            tactical_view::End_Pending_Retreats();
+            tactical_events::Retire_Battle();
+            battle->Close(0);
+            battle.reset();
+            fields::Deactivate_Auto_Function();
+        } else if (command == "retreat-no-speed") {
+            MOX::combat_data[1].drive_current_hits = 50;
+            COMBAT1::Recalculate_Combat_Ship(1);
+            tactical_view::Unit_Changed(1);
+        } else if (command == "retreat-blocked") {
+            CMBTFIRE::Remove_Stasis_Beam(2);
+            struct_::Set_Bit_Field(MOX::combat_data[2].special_device_flags, SPECIAL_WARP_DISSIPATOR);
+            tactical_control::Invalidate();
+        } else if (command == "retreat-destroy") {
+            CMBTFIRE::Destroy_Ship(1, 260, 200, 1);
+            tactical_events::Service_Reads(true);
+        } else if (command == "retreat-capture") {
+            CMBTFIR2::Capture_Ship(1, 260, 200);
+            tactical_events::Service_Reads(true);
         } else if (command == "enemy-raid") {
             MOX::cur_ship = 2;
             MOX::combat_data[2].marine_count = 12;
@@ -133,6 +168,7 @@ int main() {
         } else if (command == "revoke") {
             tactical_events::Revoke();
         } else if (command == "close") {
+            tactical_view::End_Pending_Retreats();
             tactical_events::Retire_Battle();
             if (battle) battle->Close(0);
             battle.reset();
