@@ -1,4 +1,6 @@
 #include "pch.h"
+#include "game/tactical_events.h"
+#include "game/tactical_view.h"
 
 #include "doctest/doctest.h"
 #include "game/aipower.h"
@@ -242,6 +244,10 @@ namespace MOX {
     int16_t fighter_beam_type[9];
     int16_t fighter_bomb_type[9];
 } // namespace MOX
+
+namespace RUSS {
+    int8_t all_ai_game = 0;
+}
 
 namespace fields {
     void __cdecl Set_Help_List(s_help_box* help_data, int16_t count) {
@@ -985,6 +991,43 @@ DOCTEST_TEST_CASE("strict combat sequencing reverses the waited ship order") {
     DOCTEST_CHECK(COMBAT1::Select_Next_Strict_Ship(COMBAT_SHIP_ACTION_DONE) == 0);
     DOCTEST_CHECK(MOX::cur_ship == 1);
     DOCTEST_CHECK(COMBAT1::Select_Next_Strict_Ship(COMBAT_SHIP_ACTION_DONE) == 1);
+}
+
+DOCTEST_TEST_CASE("native turn selection is observed only after a completed safe boundary") {
+    TEST_STRICT_COMBAT_SEQUENCE::Reset_();
+    struct s_selection_probe {
+        unsigned selected = 0, reads = 0;
+        int16_t current = -1;
+        uint64_t subscription = 0;
+        ~s_selection_probe() {
+            tactical_events::Unsubscribe(subscription);
+        }
+        static void Receive(const tactical_events::s_event* event, void* context) noexcept {
+            auto* probe = (s_selection_probe*)context;
+            if (event->kind == tactical_events::UNIT_SELECTED) ++probe->selected;
+            if (event->kind != tactical_events::SERVICE_READS || !event->safe) return;
+            tactical_view::s_view view;
+            if (tactical_view::Read_View(&view)) {
+                ++probe->reads;
+                probe->current = view.selected;
+            }
+        }
+    } probe;
+    probe.subscription = tactical_events::Subscribe(s_selection_probe::Receive, &probe);
+    tactical_events::s_battle_scope battle;
+    battle.Open(0);
+    DOCTEST_REQUIRE(COMBAT1::Select_Next_Strict_Ship(COMBAT_SHIP_ACTION_NONE) == 0);
+    DOCTEST_CHECK(probe.selected == 0);
+    tactical_events::Service_Reads(true);
+    DOCTEST_CHECK(probe.selected == 1);
+    DOCTEST_CHECK(probe.current == 1);
+    DOCTEST_REQUIRE(COMBAT1::Select_Next_Strict_Ship(COMBAT_SHIP_ACTION_DONE) == 0);
+    tactical_events::Service_Reads(true);
+    DOCTEST_CHECK(probe.selected == 2);
+    DOCTEST_CHECK(probe.current == 2);
+    tactical_events::Service_Reads(true);
+    DOCTEST_CHECK(probe.selected == 2);
+    battle.Close(0);
 }
 
 DOCTEST_TEST_CASE("ship selection clears a lingering missile warning") {

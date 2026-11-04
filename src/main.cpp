@@ -224,6 +224,7 @@ int main(int argc, char** argv) {
 #if defined(ORION2RE_ENABLE_RPC)
     rpc::s_service rpc_service;
     rpc::s_tactical_forwarder tactical_forwarder;
+    tactical_forwarder.reader = {tactical_view::Local_Observer, tactical_view::Read_View, tactical_view::Read_Unit};
     if (rpc::enabled) {
         rpc::s_service_config rpc_config;
         rpc_config.port = rpc::port;

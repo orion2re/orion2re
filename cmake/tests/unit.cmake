@@ -138,6 +138,41 @@ orion2re_add_unit_test(test_tactical_events
     SOURCES tests/unit/tactical_events_test.cpp
 )
 
+orion2re_add_unit_test(test_tactical_view
+    SOURCES tests/unit/tactical_view_test.cpp
+    PRODUCTION_SOURCES src/game/tactical_view.cpp src/game/cmbtfire.cpp
+    FAKE_SOURCES tests/fakes/fake_tactical_view_runtime.cpp
+)
+if(MSVC)
+    target_link_options(test_tactical_view PRIVATE /OPT:REF)
+elseif(APPLE)
+    target_link_options(test_tactical_view PRIVATE -Wl,-dead_strip)
+else()
+    target_link_options(test_tactical_view PRIVATE -Wl,--gc-sections)
+endif()
+
+if(ORION2RE_RPC_BUILT)
+    orion2re_test_shared_sources(RPC_NATIVE_OBJECTS src/game/tactical_view.cpp src/game/cmbtfire.cpp)
+    add_executable(rpc-native-test-server EXCLUDE_FROM_ALL
+        tests/rpc/native_server.cpp tests/fakes/fake_tactical_view_runtime.cpp ${RPC_NATIVE_OBJECTS})
+    target_include_directories(rpc-native-test-server PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/tests")
+    target_link_libraries(rpc-native-test-server PRIVATE orion2re_rpc orion2re_test_compile_settings orion2re_test_config_defaults)
+    if(MSVC)
+        target_link_options(rpc-native-test-server PRIVATE /OPT:REF)
+    elseif(APPLE)
+        target_link_options(rpc-native-test-server PRIVATE -Wl,-dead_strip)
+    else()
+        target_link_options(rpc-native-test-server PRIVATE -Wl,--gc-sections)
+    endif()
+    orion2re_enable_sanitizers(rpc-native-test-server)
+    add_dependencies(test_rpc rpc-native-test-server)
+    if(Python3_Interpreter_FOUND)
+        add_test(NAME rpc_observer COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/rpc/test_observer.py"
+            --server $<TARGET_FILE:rpc-native-test-server>)
+        set_tests_properties(rpc_observer PROPERTIES TIMEOUT 90)
+    endif()
+endif()
+
 orion2re_add_unit_test(test_fields_helpers
     SOURCES
         tests/unit/fields_helpers_test.cpp
@@ -1361,6 +1396,7 @@ orion2re_add_unit_test(test_combat_stats
         src/game/combat1.cpp
         src/game/cmbtdrw1.cpp
         src/game/cmbtmov1.cpp
+        src/game/tactical_view.cpp
     FAKE_SOURCES
         tests/fakes/fake_sdl_string.cpp
 )
@@ -1370,6 +1406,7 @@ orion2re_add_unit_test(test_combat_repair
         tests/unit/combinit_test.cpp
     PRODUCTION_SOURCES
         src/game/combinit.cpp
+        src/game/tactical_view.cpp
     FAKE_SOURCES
         tests/fakes/fake_combat_repair_runtime.cpp
     LINK_SDL
@@ -1555,6 +1592,7 @@ orion2re_add_unit_test(test_absorber_cleanup
     PRODUCTION_SOURCES
         src/game/cmbtfire.cpp
         src/game/cmbtfir2.cpp
+        src/game/tactical_view.cpp
     FAKE_SOURCES
         tests/fakes/fake_absorber_cleanup_runtime.cpp
         tests/fakes/fake_lua_game_runtime.cpp
@@ -1570,6 +1608,7 @@ orion2re_add_unit_test(test_boarding
         src/game/combat1.cpp
         src/game/strbuild.cpp
         src/game/struct.cpp
+        src/game/tactical_view.cpp
     FAKE_SOURCES
         tests/fakes/fake_boarding_runtime.cpp
     LINK_SDL
@@ -1580,6 +1619,7 @@ orion2re_add_unit_test(test_cmbtfire
         tests/unit/cmbtfire_test.cpp
     PRODUCTION_SOURCES
         src/game/cmbtfire.cpp
+        src/game/tactical_view.cpp
     FAKE_SOURCES
         tests/fakes/fake_lua_game_runtime.cpp
         tests/fakes/fake_stasis_runtime.cpp
@@ -1614,6 +1654,7 @@ orion2re_add_unit_test(test_stasis_area_effects
         src/game/cmbtfir2.cpp
         src/game/combat1.cpp
         src/game/random.cpp
+        src/game/tactical_view.cpp
     FAKE_SOURCES
         tests/fakes/fake_stasis_area_effects_runtime.cpp
 )

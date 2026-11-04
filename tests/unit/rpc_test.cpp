@@ -2,6 +2,7 @@
 #include "rpc/rpc_protocol.h"
 #include "rpc/rpc_service.h"
 #include "rpc/rpc_event_queue.h"
+#include "rpc/rpc_read_queue.h"
 #include "yyjson.h"
 
 #include <chrono>
@@ -193,4 +194,85 @@ DOCTEST_TEST_CASE("RPC bind failure cleans up and does not expose the configured
     DOCTEST_CHECK(diagnostic.find(KEY) == std::string::npos);
     rpc::Stop_Service(&first.service);
     DOCTEST_REQUIRE(rpc::Start_Service(&second.service, &config, &diagnostic));
+}
+
+DOCTEST_TEST_CASE("tactical read envelopes are typed bounded and subscription guarded") {
+    rpc::s_session session;
+    Process(&session, HELLO);
+    DOCTEST_CHECK(Process(&session, R"({"jsonrpc":"2.0","id":2,"method":"combat.getView"})").find("-32008") != std::string::npos);
+    Process(&session, R"({"jsonrpc":"2.0","id":3,"method":"rpc.subscribe","params":{"events":["combat.opened","combat.closed","combat.viewInvalidated","combat.unitSelected"]}})");
+    rpc::s_read_request read;
+    std::string response;
+    DOCTEST_REQUIRE(rpc::Process_Request(R"({"jsonrpc":"2.0","id":"current","method":"combat.getView","params":{}})", KEY, true, &session, &response, nullptr, &read));
+    DOCTEST_CHECK(response.empty());
+    DOCTEST_CHECK(read.method == rpc::READ_VIEW);
+    DOCTEST_CHECK(read.battle_id.empty());
+    const std::string unit = R"({"jsonrpc":"2.0","id":4,"method":"combat.getUnit","params":{"battleId":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","unitId":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}})";
+    DOCTEST_REQUIRE(rpc::Process_Request(unit, KEY, true, &session, &response, nullptr, &read));
+    DOCTEST_CHECK(read.method == rpc::READ_UNIT);
+    DOCTEST_CHECK(read.battle_id == std::string(32, 'a'));
+    const char* invalid[] = {R"({"offset":0})", R"({"battleId":"bad"})", R"({"battleId":null})", R"({"viewer":1})", "[]"};
+    for (const auto* params : invalid) {
+        DOCTEST_CHECK(Process(&session, std::string(R"({"jsonrpc":"2.0","id":5,"method":"combat.getView","params":)") + params + "}").find("-32602") != std::string::npos);
+    }
+    DOCTEST_CHECK(rpc::MAX_RESPONSE_BYTES == 16 * 1024 * 1024);
+    DOCTEST_CHECK(rpc::MAX_OUTPUT_BYTES == 32 * 1024 * 1024);
+}
+
+DOCTEST_TEST_CASE("game read queue is bounded FIFO cancellable and expires executing work") {
+    rpc::s_read_queue queue;
+    rpc::s_read_request request;
+    request.method = rpc::READ_VIEW;
+    request.connection = 1;
+    request.deadline_ms = rpc::Monotonic_Ms() + 10000;
+    for (unsigned i = 0; i < rpc::MAX_PENDING_READS; ++i) DOCTEST_REQUIRE(rpc::Enqueue_Read(&queue, request));
+    DOCTEST_CHECK_FALSE(rpc::Enqueue_Read(&queue, request));
+    rpc::s_read_request first, second;
+    DOCTEST_REQUIRE(rpc::Take_Read(&queue, &first));
+    DOCTEST_REQUIRE(rpc::Take_Read(&queue, &second));
+    DOCTEST_CHECK(first.ticket < second.ticket);
+    rpc::Cancel_Reads(&queue, 1);
+    DOCTEST_CHECK_FALSE(rpc::Finish_Read(&queue, first.ticket));
+    DOCTEST_CHECK_FALSE(rpc::Take_Read(&queue, &first));
+    request.deadline_ms = 0;
+    DOCTEST_REQUIRE(rpc::Enqueue_Read(&queue, request));
+    DOCTEST_REQUIRE(rpc::Take_Read(&queue, &first));
+    DOCTEST_REQUIRE(rpc::Expire_Read(&queue, &second));
+    DOCTEST_CHECK(first.ticket == second.ticket);
+    DOCTEST_CHECK_FALSE(rpc::Finish_Read(&queue, first.ticket));
+    rpc::Cancel_Reads(&queue, 0, true);
+    DOCTEST_CHECK_FALSE(rpc::Enqueue_Read(&queue, request));
+}
+
+DOCTEST_TEST_CASE("refresh coalescing does not cross responses selection or lifecycle boundaries") {
+    rpc::s_event_queue queue;
+    const std::string battle(32, 'a');
+    auto position = rpc::Event_Position(&queue);
+    DOCTEST_REQUIRE(rpc::Push_Event(&queue, rpc::EVENT_COMBAT_OPENED, battle));
+    for (int i = 0; i < 100; ++i) DOCTEST_REQUIRE(rpc::Push_Event(&queue, rpc::EVENT_COMBAT_INVALIDATED, battle));
+    DOCTEST_REQUIRE(rpc::Push_Response(&queue, 1, position.epoch, position.read_epoch, "response"));
+    DOCTEST_REQUIRE(rpc::Push_Event(&queue, rpc::EVENT_COMBAT_INVALIDATED, battle));
+    DOCTEST_REQUIRE(rpc::Push_Event(&queue, rpc::EVENT_COMBAT_SELECTED, battle, std::string(32, 'b')));
+    DOCTEST_REQUIRE(rpc::Push_Event(&queue, rpc::EVENT_COMBAT_CLOSED, battle));
+    const auto batch = rpc::Take_Events(&queue);
+    DOCTEST_REQUIRE(batch.count == 6);
+    DOCTEST_CHECK(batch.items[2].response == "response");
+    DOCTEST_CHECK(batch.items[2].connection == 1);
+    for (size_t i = 1; i < batch.count; ++i) DOCTEST_CHECK(batch.items[i - 1].sequence < batch.items[i].sequence);
+    rpc::Release_Event_Batch(&queue, &batch);
+    rpc::Invalidate_Read_Output(&queue);
+    DOCTEST_CHECK(rpc::Event_Position(&queue).read_epoch != position.read_epoch);
+    DOCTEST_CHECK(rpc::Event_Position(&queue).epoch == position.epoch);
+}
+
+DOCTEST_TEST_CASE("pending response payload budget is independent of connection output") {
+    rpc::s_event_queue queue;
+    const auto position = rpc::Event_Position(&queue);
+    const std::string response(rpc::MAX_RESPONSE_BYTES, 'x');
+    for (unsigned i = 0; i < 8; ++i) DOCTEST_REQUIRE(rpc::Push_Response(&queue, i + 1, position.epoch, 0, response));
+    DOCTEST_CHECK_FALSE(rpc::Push_Response(&queue, 1, position.epoch, 0, "x"));
+    const auto batch = rpc::Take_Events(&queue);
+    DOCTEST_CHECK(batch.count == 0);
+    DOCTEST_CHECK(batch.response_bytes == 0);
+    DOCTEST_CHECK(batch.overflow_position > 0);
 }

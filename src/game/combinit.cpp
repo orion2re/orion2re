@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "tactical_events.h"
+#include "tactical_view.h"
 
 namespace {
     constexpr int kPlayerRemapPaletteStart = 144;
@@ -483,6 +484,7 @@ namespace COMBINIT {
     }
 
     void __cdecl Load_Combat_Ship(int16_t ship_idx, int16_t combat_idx) {
+        tactical_events::Retire_Unit(combat_idx);
         s_ship_data* ship = &MOX::ship[ship_idx];
         s_combat_data* combat = &MOX::combat_data[combat_idx];
 
@@ -709,12 +711,7 @@ namespace COMBINIT {
     }
 
     int16_t Local_Tactical_Observer() {
-        const int16_t viewer = MOX::PLAYER_NUM;
-        if (RUSS::all_ai_game != 0 || MOX::player == nullptr || viewer < 0 ||
-            viewer >= MOX::NUM_PLAYERS || viewer >= MAX_PLAYERS ||
-            MOX::player[viewer].objectives != PLAYER_OBJECTIVE_HUMAN || MOX::player[viewer].eliminated != 0 ||
-            (viewer != MOX::combat_attacker_player && viewer != MOX::combat_defender_player)) return -1;
-        return viewer;
+        return tactical_view::Local_Observer();
     }
 
     int16_t __cdecl Tactical_Combat(int16_t* plr1_ships, int16_t plr1_ship_count, int16_t* plr2_ships, int16_t plr2_ship_count, int16_t star_idx, int16_t colony_idx, int16_t retreat_flag) {
@@ -1340,6 +1337,8 @@ namespace COMBINIT {
 
                 MOX::combat_turn++;
                 End_Of_Turn_Bookeeping();
+                tactical_events::Invalidate_View();
+                tactical_events::Service_Reads(true);
             }
 
             if (MOX::net_flag != 0) {
@@ -1359,6 +1358,7 @@ namespace COMBINIT {
             }
         }
 
+        tactical_events::Retire_Battle();
         End_Of_Combat(star_idx, colony_pop, combat_winner);
 
         if (combat_winner == 1 || combat_winner == 0x29A) {

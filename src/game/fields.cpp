@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "tactical_events.h"
 
 namespace fields {
     namespace {
@@ -166,6 +167,7 @@ namespace fields {
 
     int16_t __cdecl Get_Input() {
         platform::Check_Exit();
+        tactical_events::Service_Reads();
 
         if (input_delay > 0) {
             input_delay--;

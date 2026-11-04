@@ -42,8 +42,11 @@ find_package(Threads REQUIRED)
 add_library(orion2re_rpc STATIC
     src/rpc/rpc_protocol.cpp
     src/rpc/rpc_event_queue.cpp
+    src/rpc/rpc_read_queue.cpp
     src/rpc/rpc_service.cpp
     src/rpc/tactical_rpc.cpp
+    src/rpc/tactical_reads.cpp
+    src/config/text_encoding.cpp
     "${ORION2RE_VENDORED_YYJSON_DIR}/src/yyjson.c"
 )
 target_compile_features(orion2re_rpc PUBLIC cxx_std_20)

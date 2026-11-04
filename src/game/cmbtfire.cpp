@@ -1,4 +1,6 @@
 #include "pch.h"
+#include "tactical_events.h"
+#include "tactical_view.h"
 
 #include "lua/lua_game.h"
 
@@ -374,11 +376,16 @@ namespace CMBTFIRE {
 
     void __cdecl Remove_Stasis_Beam(int16_t ship_idx) {
         MOX::combat_data[ship_idx].stasis_source_idx = COMBAT_SHIP_NONE;
+        tactical_view::Unit_Changed(ship_idx);
     }
 
     void __cdecl Destroy_Ship_By(int16_t ship_idx, int16_t draw_x, int16_t draw_y, int16_t death_state, int16_t killer_ship_idx) {
         s_combat_data& ship = MOX::combat_data[ship_idx];
         const bool publish_destroyed = ship.unit_status == 0;
+        if (publish_destroyed) {
+            tactical_view::Unit_Changed(ship_idx, true);
+            tactical_events::Retire_Unit(ship_idx);
+        }
         int8_t new_owner;
 
         if (ship.owner == MOX::combat_attacker_player) {
@@ -415,6 +422,8 @@ namespace CMBTFIRE {
         if (ship.previous_owner == 11) {
             for (int16_t i = 1; i < MOX::combat_total_ship_count; ++i) {
                 if (MOX::combat_data[i].owner == 11 && i != ship_idx) {
+                    tactical_view::Unit_Changed(i, true);
+                    tactical_events::Retire_Unit(i);
                     MOX::combat_data[i].owner = new_owner;
                     MOX::combat_data[i].ship_image_seg = nullptr;
                     COMBAT1::Remove_Continuing_Effect_Specials(i);
@@ -902,6 +911,7 @@ namespace CMBTFIRE {
         int16_t has_structural_analyzer,
         int16_t force_armor_bypass,
         int16_t internal_only) {
+        if (*dmg_out > 0) tactical_view::Unit_Changed(target_ship_idx);
         int16_t internal_hit_type = 0;
         int16_t internal_hit_count = 0;
         int16_t structural_bonus_damage = 0;
@@ -1384,6 +1394,7 @@ namespace CMBTFIRE {
 
                             if (Weapon_In_Range(weapon_slot_idx, source_ship_idx, target_ship_idx, flag, 0) != 0 &&
                                 Target_Is_Legal_For_Weapon(weapon->weapon_id, weapon->specials, target_ship_idx, flag) != 0) {
+                                tactical_view::Unit_Changed(source_ship_idx);
                                 if (weapon->shots_left == 0 && weapon->status == 1) {
                                     weapon->shots_left = weapon->count;
                                     weapon->status = 0;

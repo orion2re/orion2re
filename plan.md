@@ -280,13 +280,14 @@ field-audited methods/topics; schemas alone grant no authority.
 
 ### P1. Transport, bridge, global queries and visibility
 
-The current slice exposes `rpc.hello`, `rpc.describe`, `rpc.subscribe` and
-`rpc.unsubscribe`, with future-only `combat.opened` / `combat.closed` events for
-locally observed initialized tactical battles. Native owners publish lifecycle
-events; the RPC forwarder queues copied notifications and wakes libuv. No state
-baseline, polling or replay is involved. Game queries, actions, general context
-notifications and tactical effects remain separate work; controller status alone
-grants no game operations.
+The enabled surface includes authentication/discovery/selection and the live
+read-only tactical observer: current whole short-map `combat.getView` reads,
+separate authorized `combat.getUnit` details, open/close, coarse invalidation and
+optional actor-selection events. Native safe points execute bounded pending reads;
+only owned response bytes and delivery/lifetime metadata cross to libuv. See the
+[observer contract](specs/rpc/observer.md). There is no baseline, state polling,
+cache, pagination or replay. Strategic reads, actions, general contexts and
+tactical effects remain separate work; controller status grants no mutations.
 
 #### Infrastructure
 
@@ -294,13 +295,13 @@ grants no game operations.
 - [x] P1-02 — Bound WebSocket connections/messages and diagnose bind failures.
 - [x] P1-03 — Implement configured-key hello, roles, one controller, Host/Origin and authentication deadlines.
 - [x] P1-04 — Validate envelopes/arguments with structured errors, limits and redacted diagnostics.
-- [ ] P1-05 — Dispatch copied requests to game-owned APIs and return owned response bytes without network waits or retained game projections.
+- [x] P1-05 — Dispatch copied requests to game-owned APIs and return owned response bytes without network waits or retained game projections.
 - [ ] P1-06 — Implement on-demand coherent session/map reads and minimal safe object references.
-- [ ] P1-07 — Return busy/unavailable during unsafe periods; no stale-state fallback.
-- [ ] P1-08 — Implement event selection/unsubscribe and initial pull ordering without state baselines, watches or fingerprints.
+- [x] P1-07 — Return busy/unavailable during unsafe periods; no stale-state fallback.
+- [x] P1-08 — Implement event selection/unsubscribe and initial pull ordering without state baselines, watches or fingerprints.
   - [x] Deliver authenticated per-connection event selection, future-only sequence barriers, ordered acknowledgements and revocation without subscription IDs or retained baselines.
-  - [ ] Verify initial state pull ordering when game queries are introduced.
-- [ ] P1-09 — Bound/coalesce complete unsent refresh hints while preserving partial messages and ordered results.
+  - [x] Verify initial tactical discovery/pull ordering, unsubscribe cancellation and fresh reconnect without a retained state baseline.
+- [x] P1-09 — Bound/coalesce complete unsent refresh hints while preserving partial messages and ordered results.
 - [x] P1-10 — Cancel/wake/join on shutdown independently of another game poll.
 
 #### Shared player-view policy
@@ -356,6 +357,7 @@ grants no game operations.
   - [x] Publish observed tactical open/close at initialized entry and completed teardown; suppress aborted/hidden battles and revoke on observer loss or interrupted teardown. Other contexts and parent restoration remain pending.
 - [ ] N-03 — Emit session new/load/end/unload/revocation changes and invalidate identities.
 - [ ] N-04 — Emit coarse current-view refresh hints from relevant local/RPC operations and visible asynchronous updates; no polling, diffs or per-object watches.
+  - [x] Deliver tactical hints at completed native local, AI, network-action and round boundaries; suppress idle/redraw/hidden-only traffic. Other query families remain pending.
 - [ ] N-05 — Validate a client-local incoming-hostile example using authorized reads; no server briefing API.
 
 ### P2. Shared UI and operation lifecycle
@@ -446,8 +448,11 @@ grants no game operations.
 ### P5. Combat and invasion
 
 - [ ] P5-01 — Implement observed battle view/unit/target/result reads.
+  - [x] Deliver the runnable live read-only observer: mid-battle discovery, whole filtered short map rows, separate native-name/owned-condition/movement detail, bounded game-thread execution and event-triggered refresh. No paging or bulk full-detail list flag.
+  - [ ] Complete target options, retained results and remaining tactical read-catalog/interactive parity.
 - [ ] P5-02 — Add scoped battle/actor/turn/selection/viewport/weapon state and children.
-  - [x] Add the game-owned tactical lifecycle scope and local-human observer guard without retaining an RPC combat model. Actor/turn/selection/viewport/weapon views and children remain pending.
+  - [x] Add the game-owned tactical lifecycle scope and local-human observer guard without retaining an RPC combat model. Remaining context state and children stay separate work.
+  - [x] Expose current authorized actor, native round/mode and optional selected-for-turn reference events. Viewport/weapon state and children remain pending.
 - [ ] P5-03 — Authorize units/ordnance/scan/legal masks without hidden-target oracles.
 - [ ] P5-04 — Add scan/noncombat detail/name/board/marine/help/options views.
 - [ ] P5-05 — Implement CCMD_MOVE with native legal cells and viewport/range safety.
@@ -464,6 +469,8 @@ grants no game operations.
 - [ ] P5-15 — Implement invasion views and native bombard/invade/destroy/mind-control/cease-fire/drop-troop choices.
 - [ ] P5-16 — Capture displayed ground counts/strength/labels/sprites/beams/explosions/flics.
 - [ ] P5-17 — Audit battle/ground visibility, ordering and RNG invariance.
+  - [x] Audit/test the observer's short rows, enemy phased contacts and owned details using native read/operation functions, authorization/lifetime cases and live WebSockets. No rendering, reports or gameplay RNG are consumed by reads.
+  - [ ] Complete real saved-game/multiplayer/platform and broader combat/ground parity sign-off.
 
 #### Combat events
 
@@ -651,3 +658,4 @@ grants no game operations.
 - [ ] T-19 — Exercise renderer/voice/agent clients with policies/briefings client-local.
 - [ ] T-20 — Verify agreed capability coverage, visibility blockers and evidence without hidden-data bypasses.
 - [ ] T-21 — Verify direct native changes appear on the next query without RPC publication; idle clients trigger no state scans, hashes or movement evaluation.
+  - [x] Verify enabled tactical reads against direct native mutation and native operations, with idle read counters and event-triggered CLI refresh. Broader read families remain pending.

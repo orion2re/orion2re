@@ -86,3 +86,21 @@ DOCTEST_TEST_CASE("tactical listener storage is bounded") {
     DOCTEST_CHECK(fourth.subscription != 0);
     DOCTEST_CHECK(fifth.subscription == 0);
 }
+
+DOCTEST_TEST_CASE("replaced battle owners cannot close or revoke the replacement") {
+    s_observer observer;
+    tactical_events::s_battle_scope old;
+    old.Open(0);
+    {
+        tactical_events::s_battle_scope replacement;
+        replacement.Open(0);
+        old.Close(0);
+        DOCTEST_CHECK(tactical_events::Current_Viewer() == 0);
+        replacement.Close(0);
+    }
+    DOCTEST_REQUIRE(observer.count == 4);
+    DOCTEST_CHECK(observer.events[0].kind == tactical_events::OPENED);
+    DOCTEST_CHECK(observer.events[1].kind == tactical_events::REVOKED);
+    DOCTEST_CHECK(observer.events[2].kind == tactical_events::OPENED);
+    DOCTEST_CHECK(observer.events[3].kind == tactical_events::CLOSED);
+}

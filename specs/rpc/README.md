@@ -1,4 +1,4 @@
-# Optional local RPC foundation
+# Optional local RPC and live tactical observer
 
 The listener uses libwebsockets v4.5.4 with the existing pinned project libuv.
 The exact backend revision, source URL, license and build options are in
@@ -15,7 +15,10 @@ cmake -S . -B out/build/rpc-debug -DCMAKE_BUILD_TYPE=Debug \
   -DORION2RE_BUILD_TESTS=ON -DORION2RE_ENABLE_RPC=ON \
   -DORION2RE_RPC_BACKEND_DIR=/path/to/libwebsockets
 cmake --build out/build/rpc-debug --target orion2re test_rpc \
-  test_tactical_events test_combat_repair test_config_snapshot
+  test_tactical_events test_tactical_view test_combat_stats test_combat_repair \
+  test_cmbtfire test_boarding test_absorber_cleanup test_cmbtspec \
+  test_stasis_area_effects test_shield_table test_config_snapshot \
+  test_savegame test_multplay test_fields_helpers
 ```
 
 The backend must match the pinned revision and have no tracked modifications.
@@ -53,17 +56,53 @@ authenticated connection. Invalid credentials return unauthorized and close.
 Authenticate within five seconds. Never put the key in URLs or logs.
 
 Authenticated `rpc.describe` takes no parameters (or `{}`) and advertises
-`rpc.hello`, `rpc.describe`, `rpc.subscribe` and `rpc.unsubscribe`, plus the two
-tactical lifecycle event names, under provisional contract `orion2.rpc/0`.
-Game queries, actions and state refresh notifications are not yet implemented
-or advertised. Controller status grants no game operations yet.
+`rpc.hello`, `rpc.describe`, `rpc.subscribe`, `rpc.unsubscribe`, `combat.getView`
+and `combat.getUnit`, the four tactical event names, and delivery/read limits,
+under provisional contract `orion2.rpc/0`. Controller status grants no mutations.
+
+## Run the observer
+
+Configure the game as above, build/deploy the executable and runtime data into
+your legitimate game installation, and launch that executable. This repository
+does not contain the commercial assets or battle-ready saves. For a separate
+installation use `-DORION2RE_GAME_DIR=/path/to/game` and the project's deployment
+targets; never copy commercial assets into the repository.
+
+In a terminal, run Python 3.10 or newer (no packages required):
+
+```sh
+python3 tools/rpc_observer.py --port 17362
+```
+
+Enter the configured key at the hidden prompt. For unattended use, put the key
+in an owner-only UTF-8 file (`chmod 600 /private/path/rpc-key`) and use
+`--key-file /private/path/rpc-key`. The key itself is never an argument or URL.
+
+The client authenticates as reader, subscribes **before** initial discovery,
+and shows the current battle even if it missed `combat.opened`. It prints round,
+local side, grid dimensions, opaque unit references and schematic map rows
+(side, kind, coordinates, size and disclosed facing), with owned selected-unit
+name/condition/movement detail. It does not render proprietary sprites.
+
+Commands are `unit <unitId>` to inspect a row, `refresh` for an explicit current
+read, and `quit` (or Ctrl-C). After closure it clears battle state and waits for
+the next observed opening. Disconnect/revocation clears state and exits; rerun
+to perform a fresh hello. Busy refreshes get at most three backoff retries
+(0.1/0.3/0.9 seconds), then wait for another native event or manual refresh.
+There is no fixed-interval state polling or automatic reconnect loop. Other
+authenticated/subscribed clients may poll within the advertised bounds.
+Demanded CLI reads are paced to at most eight per second, consuming/coalescing
+notifications while waiting; idle time never creates read demand.
+
+The [tactical observer contract](observer.md) defines fields, authorization,
+safe points, references, notifications and the interactive acceptance walkthrough.
 
 ## Tactical lifecycle events
 
 After hello, select future notifications with:
 
 ```json
-{"jsonrpc":"2.0","id":2,"method":"rpc.subscribe","params":{"events":["combat.opened","combat.closed"]}}
+{"jsonrpc":"2.0","id":2,"method":"rpc.subscribe","params":{"events":["combat.opened","combat.closed","combat.viewInvalidated","combat.unitSelected"]}}
 ```
 
 There is one selection per connection. Subscribe replaces that selection;
@@ -87,9 +126,17 @@ normal completion. This does not change native rules or multiplayer authority.
 
 The token is generated from OS randomness only for an observed opening and shared
 by its closing event. It is not a native slot, durable identity or action handle.
-No player, location, outcome, ship or damage data is included. There is no initial
-state, retained battle archive or event replay. Selecting during a battle can
-produce a close without a preceding open; clients may ignore unknown tokens.
+The lifecycle events contain no player, location, outcome, ship or damage data.
+There is no retained battle archive or event replay. Selecting during a battle
+can produce a close without a preceding open. Discover current state using
+`combat.getView`; clients may ignore closure of an unknown token.
+
+`combat.viewInvalidated` contains only `battleId`, and means "pull if needed",
+not an object diff. Optional `combat.unitSelected` contains `battleId` and the
+authorized `unitId` (or null when a previously disclosed actor clears). This
+means native current actor selected for its turn, not hover. Hidden-to-hidden
+selection changes disclose nothing. Reads require selection of opened, closed
+and viewInvalidated; unitSelected is optional.
 
 Selection changes apply to future queued native events. Previously queued output
 precedes the selection acknowledgement; after an unsubscribe result no further
@@ -97,7 +144,7 @@ events from that selection are sent. A new subscription cannot receive native
 events that were queued before it. WebSocket delivery preserves event order.
 
 The native publisher invokes a registered RPC forwarder synchronously on the
-game thread. The forwarder copies only a notification into a 64-entry bounded
+game thread. The forwarder queues owned delivery data in a 64-entry bounded
 queue and calls `uv_async_send`; socket handling stays on the service thread.
 Queue overflow disconnects affected subscribers, and output overflow disconnects
 the slow connection, rather than silently dropping ordered lifecycle events.
@@ -116,25 +163,36 @@ Errors never include request payloads or credentials.
 
 Limits: four connections, 64 KiB input per message, depth 32, 32 messages and
 128 receive callbacks per second per connection. Each connection has at most
-16 queued responses totaling 64 KiB. Oversize, binary, invalid UTF-8, flooding
+16 queued messages totaling 32 MiB, with a 16 MiB individual response limit.
+These ceilings are not preallocated. Pending read completions have a separate
+128 MiB byte cap; connection output plus pending completion payloads are bounded
+to 256 MiB, excluding transient encoding/backend overhead.
+Oversize input, binary, invalid UTF-8, flooding
 or output overflow closes the connection. Fragmented input and ordered output
 are handled on the service thread.
 
 The service owns a libuv loop and attaches libwebsockets to it. Its only periodic
-application timer checks authentication deadlines; event delivery is async-woken
-and never reads game state. Application composition subscribes the forwarder
+application timer checks authentication/read deadlines, never game state.
+Event/response delivery is async-woken. Application composition subscribes the forwarder
 before the worker starts, and detaches it after the worker joins and before
-stopping the service. No game-thread polling, world cache or fingerprints exist.
+stopping the service. Native input/completion points service only pending reads;
+idle hooks never build a view. There is no world cache, state watch or fingerprint.
 
 ## Verification
 
 ```sh
 ctest --test-dir out/build/rpc-debug --output-on-failure \
-  -R '^(test_rpc|rpc_transport|rpc_tactical_hooks|test_tactical_events|test_combat_repair|test_config_snapshot)$'
+  -R '^(test_rpc|rpc_transport|rpc_tactical_hooks|rpc_observer|test_tactical_events|test_tactical_view|test_combat_stats|test_combat_repair|test_cmbtfire|test_boarding|test_absorber_cleanup|test_cmbtspec|test_stasis_area_effects|test_config_snapshot|test_shield_table|test_savegame|test_multplay|test_fields_helpers)$'
 cmake --build out/build/rpc-debug --target config-generated-check
 ```
 
-`rpc_transport` uses a standalone asset-free test server and Python's standard
-library. Repeat with `ORION2RE_ENABLE_ASAN=ON` in a separate Debug build for
+`rpc_transport` uses a standalone asset-free test server. `rpc_observer` uses
+live WebSockets, production native reads and a real native stasis operation over
+fixture-owned native memory, and runs the actual CLI. Large-payload tests separately
+synthesize response bytes for delivery/budget checks, not native parity. Native
+tests also execute real turn selection. These are not interactive tactical battle
+or multiplayer-session evidence. Repeat with `ORION2RE_ENABLE_ASAN=ON` for
 AddressSanitizer/UBSan checks. Also build with RPC disabled and router-only.
+On hosts without LeakSanitizer, use `ASAN_OPTIONS=detect_leaks=0`; this does not
+verify leaks.
 Cross-platform builds and interactive game startup require separate validation.

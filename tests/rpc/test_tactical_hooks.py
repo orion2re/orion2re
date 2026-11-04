@@ -22,7 +22,7 @@ class TacticalHooksTest(unittest.TestCase):
         self.assertEqual(body.count("battle_events.Open("), 1)
         self.assertLess(body.index("MAINSCR::Allocate_First_Screen_Seg(5);"),
                         body.index("battle_events.Close(Local_Tactical_Observer());"))
-        self.assertNotIn("tactical_events", (ROOT / "src/game/combat1.cpp").read_text())
+        self.assertLess(body.index("tactical_events::Retire_Battle();"), body.index("End_Of_Combat(star_idx"))
 
     def test_revocation_precedes_perspective_and_load_changes(self):
         checks = [

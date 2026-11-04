@@ -2,6 +2,8 @@
 
 #include "config/config_loader.h"
 #include "game/boarding.h"
+#include "tactical_events.h"
+#include "tactical_view.h"
 
 namespace COMBAT1 {
     static int16_t movement_reserve[MAX_COMBAT_SHIPS] = {};
@@ -44,6 +46,7 @@ namespace COMBAT1 {
 
     static int16_t Get_Tactical_Input() {
         for (;;) {
+            tactical_events::Service_Reads(true);
             const int16_t input_value = fields::Get_Input();
             if (!Process_Interface_Reload_Input(input_value)) {
                 return input_value;
@@ -444,6 +447,7 @@ namespace COMBAT1 {
                 if (Combat_Ship_Participates_In_Pass(i, time_warp_only != 0)) {
                     if (MOX::combat_init != 0 || MOX::combat_data[i].owner == active_player_id) {
                         Init_Ship_For_Start_Of_Turn(i);
+                        tactical_view::Unit_Changed(i);
                     }
                 }
             }
@@ -512,6 +516,8 @@ namespace COMBAT1 {
 
                 while (next_ship_flag == 0 &&
                     MOX::ship_turn_order[MOX::cur_ptr] >= 0) {
+                    tactical_events::Select_Unit(MOX::cur_ship);
+                    tactical_events::Service_Reads(true);
                     timer::Mark_Time();
                     MOX::FULL_DRAW_SCREEN_FLAG = 0;
                     int16_t m_left = MOX::combat_data[MOX::cur_ship].movement_left;
@@ -522,6 +528,7 @@ namespace COMBAT1 {
                             Send_Tactical_Combat_Message(MOX::net_destination, TACTICAL_NET_MSG_AUTO_TURN, 0, 0, 0);
                         }
                         CMBTAI::Do_Auto_Ship_Turn();
+                        tactical_view::Unit_Changed(MOX::cur_ship);
                         if (MOX::FULL_DRAW_SCREEN_FLAG != 0) {
                             Add_Tactical_Combat_Fields();
                             Assign_Combat_Grids(MOX::cur_ship);
@@ -534,6 +541,7 @@ namespace COMBAT1 {
                             NETMOX::Net_Debug_Log("Wait_Until_Net_Opponent_Finished: caller=%s:%d", __FILE__, __LINE__);
                             CMBTMOV1::Wait_Until_Net_Opponent_Finished(1);
                         }
+                        tactical_events::Service_Reads(true);
                         timer::Release_Time(1);
                         continue;
                     } else {
@@ -1038,6 +1046,7 @@ namespace COMBAT1 {
                                                     break;
                                                 case TACTICAL_NET_MSG_AUTO_TURN:
                                                     CMBTAI::Do_Auto_Ship_Turn();
+                                                    tactical_view::Unit_Changed(MOX::cur_ship);
                                                     MOX::ship_turn_order[MOX::cur_ptr] = -1;
                                                     next_ship_flag = Advance_Next_Ship(
                                                         active_player_id,
@@ -1200,6 +1209,8 @@ namespace COMBAT1 {
                             CMBTDRW1::Refresh_Combat_Screen_Full();
                         }
                     }
+                    if (next_ship_flag != 0) tactical_events::Select_Unit(-1);
+                    tactical_events::Service_Reads(true);
                     timer::Release_Time(1);
                 }
             }
@@ -1236,6 +1247,8 @@ namespace COMBAT1 {
                             COMBINIT::Does_Combat_Ship_Have_Special(
                                 i, SPECIAL_PHASING_CLOAK) != 0) {
                             CMBTSPEC::Draw_Cloak(i, 4);
+                            tactical_view::Unit_Changed(i);
+                            tactical_events::Retire_Unit(i);
                             MOX::combat_data[i].special_status_flag = 4;
 
                             const uint16_t tractor_target_idx = MOX::combat_data[i].special_cooldown;
@@ -1799,6 +1812,7 @@ namespace COMBAT1 {
         }
         MOX::cur_ptr = best_idx;
         MOX::cur_ship = MOX::ship_turn_order[best_idx];
+        tactical_events::Select_Unit(MOX::cur_ship);
         return 0;
     }
 
@@ -1886,6 +1900,7 @@ namespace COMBAT1 {
     }
 
     static int16_t Finish_Next_Ship(int16_t result) {
+        tactical_events::Select_Unit(result == 0 ? MOX::cur_ship : -1);
         if (result == 0) {
             if ((MOX::combat_init != 0 && center_on_next_ship) ||
                 (CMBTDRW1::Ship_Completely_On_Screen(MOX::cur_ship) == 0 &&
@@ -2036,6 +2051,7 @@ namespace COMBAT1 {
             }
             MOX::cur_ptr = current_ptr;
             MOX::cur_ship = ship_idx;
+            tactical_events::Select_Unit(ship_idx);
             return 0;
         }
 
@@ -2093,6 +2109,8 @@ namespace COMBAT1 {
             }
         }
 
+        tactical_view::Unit_Changed(ship_idx, true);
+        tactical_events::Retire_Unit(ship_idx);
         ship->unit_status = 5;
         ship->is_retreating = 2;
         CMBTFIRE::Retarget_Missiles_Aimed_At(ship_idx);
@@ -2387,6 +2405,7 @@ namespace COMBAT1 {
 
         MOX::cur_ptr = cur_ptr_idx;
         MOX::cur_ship = ship_idx;
+        tactical_events::Select_Unit(ship_idx);
 
         CMBTDRW1::Refresh_Combat_Screen_Full();
     }

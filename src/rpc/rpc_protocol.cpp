@@ -4,6 +4,7 @@
 #include <cstring>
 #include <initializer_list>
 #include <set>
+#include <utility>
 
 #include "yyjson.h"
 
@@ -90,25 +91,37 @@ namespace rpc {
             return different == 0;
         }
 
-        std::string Error(std::string_view id, int code, const char* message) {
-            return "{\"jsonrpc\":\"2.0\",\"id\":" + std::string(id) + ",\"error\":{\"code\":" +
-                std::to_string(code) + ",\"message\":\"" + message + "\"}}";
-        }
-
         struct s_method {
             const char* name;
         };
-        constexpr s_method methods[] = {{"rpc.hello"}, {"rpc.describe"}, {"rpc.subscribe"}, {"rpc.unsubscribe"}};
+        constexpr s_method methods[] = {{"rpc.hello"}, {"rpc.describe"}, {"rpc.subscribe"}, {"rpc.unsubscribe"}, {"combat.getView"}, {"combat.getUnit"}};
+
+        bool Reference(yyjson_val* value) {
+            if (!yyjson_is_str(value) || yyjson_get_len(value) != 32) return false;
+            for (size_t i = 0; i < 32; ++i) {
+                const char c = yyjson_get_str(value)[i];
+                if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))) return false;
+            }
+            return true;
+        }
 
         bool Read_Events(yyjson_val* params, uint8_t* mask) {
             if (!Only_Keys(params, {"events"})) return false;
             auto* events = yyjson_obj_get(params, "events");
-            if (!yyjson_is_arr(events) || yyjson_arr_size(events) > 2) return false;
+            if (!yyjson_is_arr(events) || yyjson_arr_size(events) > 4) return false;
             *mask = 0;
             size_t index, count;
             yyjson_val* event;
             yyjson_arr_foreach(events, index, count, event) {
-                const uint8_t bit = Is_Text(event, "combat.opened") ? EVENT_COMBAT_OPENED : (Is_Text(event, "combat.closed") ? EVENT_COMBAT_CLOSED : 0);
+                uint8_t bit = 0;
+                if (Is_Text(event, "combat.opened"))
+                    bit = EVENT_COMBAT_OPENED;
+                else if (Is_Text(event, "combat.closed"))
+                    bit = EVENT_COMBAT_CLOSED;
+                else if (Is_Text(event, "combat.viewInvalidated"))
+                    bit = EVENT_COMBAT_INVALIDATED;
+                else if (Is_Text(event, "combat.unitSelected"))
+                    bit = EVENT_COMBAT_SELECTED;
                 if (bit == 0 || (*mask & bit) != 0) return false;
                 *mask |= bit;
             }
@@ -122,11 +135,26 @@ namespace rpc {
                 if (mask & EVENT_COMBAT_OPENED) result += ',';
                 result += "\"combat.closed\"";
             }
+            for (const auto& item : {std::pair{EVENT_COMBAT_INVALIDATED, "combat.viewInvalidated"}, std::pair{EVENT_COMBAT_SELECTED, "combat.unitSelected"}}) {
+                if (!(mask & item.first)) continue;
+                if (result.size() > 1) result += ',';
+                result += "\"" + std::string(item.second) + "\"";
+            }
             return result + "]";
         }
     } // namespace
 
-    bool Process_Request(std::string_view input, std::string_view key, bool control_available, s_session* session, std::string* response, bool* selection_updated) {
+    std::string Error_Response(std::string_view id, int code, const char* message) {
+        return "{\"jsonrpc\":\"2.0\",\"id\":" + std::string(id) + ",\"error\":{\"code\":" +
+            std::to_string(code) + ",\"message\":\"" + message + "\"}}";
+    }
+
+    static std::string Error(std::string_view id, int code, const char* message) {
+        return Error_Response(id, code, message);
+    }
+
+    bool Process_Request(std::string_view input, std::string_view key, bool control_available, s_session* session, std::string* response, bool* selection_updated, s_read_request* read) {
+        if (read != nullptr) *read = {};
         if (selection_updated != nullptr) *selection_updated = false;
         if (session == nullptr || response == nullptr) return false;
         response->clear();
@@ -186,7 +214,9 @@ namespace rpc {
                     list += "{\"name\":\"" + std::string(item.name) + "\"}";
                 }
                 *response = "{\"jsonrpc\":\"2.0\",\"id\":" + encoded_id +
-                    ",\"result\":{\"contractVersion\":\"orion2.rpc/0\",\"methods\":[" + list + "],\"events\":" + Events_Json(3) + "}}";
+                    ",\"result\":{\"contractVersion\":\"orion2.rpc/0\",\"methods\":[" + list + "],\"events\":" + Events_Json(15) +
+                    ",\"limits\":{\"inputBytes\":" + std::to_string(MAX_INPUT_BYTES) + ",\"responseBytes\":" + std::to_string(MAX_RESPONSE_BYTES) +
+                    ",\"queuedOutputBytes\":" + std::to_string(MAX_OUTPUT_BYTES) + ",\"readDeadlineMs\":2000,\"outstandingReads\":2}}}";
             }
         } else if (Is_Text(method, "rpc.subscribe") || Is_Text(method, "rpc.unsubscribe")) {
             uint8_t selected = 0;
@@ -198,6 +228,23 @@ namespace rpc {
                 session->events = selected;
                 if (selection_updated != nullptr) *selection_updated = true;
                 *response = "{\"jsonrpc\":\"2.0\",\"id\":" + encoded_id + ",\"result\":{\"events\":" + Events_Json(selected) + "}}";
+            }
+        } else if (Is_Text(method, "combat.getView") || Is_Text(method, "combat.getUnit")) {
+            const bool unit = Is_Text(method, "combat.getUnit");
+            auto* battle_id = yyjson_obj_get(params, "battleId");
+            auto* unit_id = yyjson_obj_get(params, "unitId");
+            const bool valid = unit ? Only_Keys(params, {"battleId", "unitId"}) && Reference(battle_id) && Reference(unit_id) : (params == nullptr || (Only_Keys(params, {"battleId"}) && (battle_id == nullptr || Reference(battle_id))));
+            if (!valid) {
+                *response = Error(encoded_id, -32602, "Invalid params");
+            } else if ((session->events & 7) != 7) {
+                *response = Error(encoded_id, -32008, "Tactical subscription required");
+            } else if (read == nullptr) {
+                *response = Error(encoded_id, -32004, "Unavailable");
+            } else {
+                read->method = unit ? READ_UNIT : READ_VIEW;
+                read->encoded_id = encoded_id;
+                if (battle_id != nullptr) read->battle_id = yyjson_get_str(battle_id);
+                if (unit_id != nullptr) read->unit_id = yyjson_get_str(unit_id);
             }
         } else {
             *response = Error(encoded_id, -32601, "Method not found");

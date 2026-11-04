@@ -1,6 +1,7 @@
 #include "rpc_service.h"
 #include "rpc_protocol.h"
 #include "rpc_event_queue.h"
+#include "rpc_read_queue.h"
 
 #include <algorithm>
 #include <array>
@@ -18,6 +19,12 @@
 
 namespace rpc {
     namespace {
+        struct s_output {
+            std::string json;
+            uint64_t read_epoch = 0;
+            uint8_t kind = 0;
+            std::array<char, 33> battle_id = {};
+        };
         struct s_connection {
             lws* socket = nullptr;
             s_session session;
@@ -26,8 +33,12 @@ namespace rpc {
             unsigned messages = 0, callbacks = 0;
             bool assembling = false;
             std::string input;
-            std::deque<std::string> output;
+            std::deque<s_output> output;
             size_t output_bytes = 0, output_offset = 0;
+            uint64_t generation = 0;
+            uint64_t read_selection = 1;
+            unsigned pending_reads = 0;
+            bool expired = false;
         };
 
         struct s_service_state {
@@ -45,7 +56,67 @@ namespace rpc {
             uint16_t port = 0;
             std::array<s_connection, MAX_CONNECTIONS> connections;
             s_event_queue events;
+            s_read_queue reads;
+            uint64_t next_connection = 0;
         };
+
+        bool Queue_Output(s_connection* connection, s_output output) {
+            if (connection->output.size() >= MAX_OUTPUT_MESSAGES || output.json.size() > MAX_OUTPUT_BYTES - connection->output_bytes) return false;
+            connection->output_bytes += output.json.size();
+            connection->output.push_back(std::move(output));
+            lws_callback_on_writable(connection->socket);
+            return true;
+        }
+
+        void Deliver(s_service_state* state) {
+            auto batch = Take_Events(&state->events);
+            for (auto& connection : state->connections) {
+                if (connection.socket == nullptr) continue;
+                auto& session = connection.session;
+                if (Event_Delivery_Expired(&session, &batch)) connection.expired = true;
+                if (!session.authenticated || session.close_after_output || connection.expired) {
+                    if (connection.expired) lws_callback_on_writable(connection.socket);
+                    continue;
+                }
+                for (auto& event : batch.items) {
+                    if (event.sequence == 0) continue;
+                    if (event.kind == 0) {
+                        if (event.connection != connection.generation) continue;
+                        if (event.selection == connection.read_selection && connection.pending_reads > 0) --connection.pending_reads;
+                        if (event.selection != connection.read_selection) {
+                            Error_Response(event.encoded_id, -32004, "Unavailable").swap(event.response);
+                            event.read_epoch = 0;
+                        }
+                        if ((event.read_epoch != 0 && event.read_epoch != batch.position.read_epoch) ||
+                            !Queue_Output(&connection, {std::move(event.response), event.read_epoch})) connection.expired = true;
+                    } else if (event.sequence > session.events_after && (session.events & event.kind)) {
+                        const char* name = "combat.viewInvalidated";
+                        if (event.kind == EVENT_COMBAT_OPENED)
+                            name = "combat.opened";
+                        else if (event.kind == EVENT_COMBAT_CLOSED)
+                            name = "combat.closed";
+                        else if (event.kind == EVENT_COMBAT_SELECTED)
+                            name = "combat.unitSelected";
+                        std::string json = "{\"jsonrpc\":\"2.0\",\"method\":\"" + std::string(name) +
+                            "\",\"params\":{\"battleId\":\"" + std::string(event.battle_id.data()) + "\"";
+                        if (event.kind == EVENT_COMBAT_SELECTED) json += ",\"unitId\":" + (event.unit_id[0] == '\0' ? std::string("null") : "\"" + std::string(event.unit_id.data()) + "\"");
+                        json += "}}";
+                        // Only an adjacent complete unsent hint can be replaced.
+                        const bool coalesce = event.kind == EVENT_COMBAT_INVALIDATED && !connection.output.empty() &&
+                            (connection.output.size() > 1 || connection.output_offset == 0) &&
+                            connection.output.back().kind == event.kind && connection.output.back().battle_id == event.battle_id;
+                        if (!coalesce && !Queue_Output(&connection, {std::move(json), event.read_epoch, event.kind, event.battle_id})) connection.expired = true;
+                    }
+                    if (connection.expired) {
+                        lws_callback_on_writable(connection.socket);
+                        break;
+                    }
+                }
+            }
+            // Release the separate budget only after transfer or destruction of payloads.
+            for (auto& event : batch.items) std::string().swap(event.response);
+            Release_Event_Batch(&state->events, &batch);
+        }
 
         int Callback(lws* socket, lws_callback_reasons reason, void* user, void* input, size_t size);
         const lws_protocols protocols[] = {
@@ -103,22 +174,43 @@ namespace rpc {
         }
 
         bool Handle_Message(s_service_state* state, s_connection* connection) {
+            Deliver(state);
+            if (connection->expired) return false;
             const auto position = Event_Position(&state->events);
             if (position.stopped || (connection->session.authenticated && connection->session.auth_epoch != position.epoch)) return false;
             const bool was_authenticated = connection->session.authenticated;
             bool selection_updated = false;
             const bool control_available = std::none_of(state->connections.begin(), state->connections.end(), [](const auto& item) { return item.session.controller; });
             std::string response;
-            if (!Process_Request(connection->input, state->config.key, control_available, &connection->session, &response, &selection_updated)) return false;
+            s_read_request read;
+            if (!Process_Request(connection->input, state->config.key, control_available, &connection->session, &response, &selection_updated, &read)) return false;
             const auto current = Event_Position(&state->events);
             if (!was_authenticated && connection->session.authenticated) connection->session.auth_epoch = current.epoch;
-            if (selection_updated) connection->session.events_after = current.sequence;
+            if (selection_updated) {
+                connection->session.events_after = current.sequence;
+                if ((connection->session.events & 7) != 7) {
+                    ++connection->read_selection;
+                    std::vector<s_read_request> cancelled;
+                    Cancel_Reads(&state->reads, connection->generation, false, &cancelled);
+                    for (const auto& request : cancelled) {
+                        if (!Queue_Output(connection, {Error_Response(request.encoded_id, -32004, "Unavailable")})) return false;
+                    }
+                    connection->pending_reads = 0;
+                }
+            }
+            if (read.method != READ_NONE) {
+                read.connection = connection->generation;
+                read.epoch = connection->session.auth_epoch;
+                read.selection = connection->read_selection;
+                read.deadline_ms = Monotonic_Ms() + READ_DEADLINE_MS;
+                if (connection->pending_reads >= 2 || !Enqueue_Read(&state->reads, read)) {
+                    response = Error_Response(read.encoded_id, -32006, "Busy");
+                } else {
+                    ++connection->pending_reads;
+                }
+            }
             if (response.empty()) return true;
-            if (connection->output.size() >= MAX_OUTPUT_MESSAGES || response.size() > MAX_OUTPUT_BYTES - connection->output_bytes) return false;
-            connection->output_bytes += response.size();
-            connection->output.push_back(std::move(response));
-            lws_callback_on_writable(connection->socket);
-            return true;
+            return Queue_Output(connection, {std::move(response)});
         }
 
         int Callback(lws* socket, lws_callback_reasons reason, void* user, void* input, size_t size) {
@@ -131,6 +223,7 @@ namespace rpc {
                 for (auto& connection : state->connections) {
                     if (connection.socket != nullptr) continue;
                     connection.socket = socket;
+                    connection.generation = ++state->next_connection;
                     connection.opened_ms = connection.rate_window_ms = uv_now(&state->loop);
                     return 0;
                 }
@@ -140,10 +233,12 @@ namespace rpc {
             if (found == state->connections.end()) return 0;
             auto* connection = &*found;
             if (reason == LWS_CALLBACK_CLOSED) {
+                Cancel_Reads(&state->reads, connection->generation);
                 *connection = {};
                 return 0;
             }
             if (reason == LWS_CALLBACK_RECEIVE) {
+                if (connection->expired) return Close(socket, LWS_CLOSE_STATUS_POLICY_VIOLATION);
                 const uint64_t now = uv_now(&state->loop);
                 if (now - connection->rate_window_ms >= 1000) {
                     connection->rate_window_ms = now;
@@ -165,9 +260,11 @@ namespace rpc {
                 }
             } else if (reason == LWS_CALLBACK_SERVER_WRITEABLE) {
                 const auto position = Event_Position(&state->events);
-                if (position.stopped || (connection->session.authenticated && connection->session.auth_epoch != position.epoch)) return Close(socket, LWS_CLOSE_STATUS_POLICY_VIOLATION);
+                if (connection->expired || position.stopped || (connection->session.authenticated && connection->session.auth_epoch != position.epoch)) return Close(socket, LWS_CLOSE_STATUS_POLICY_VIOLATION);
                 if (connection->output.empty()) return connection->session.close_after_output ? Close(socket, LWS_CLOSE_STATUS_POLICY_VIOLATION) : 0;
-                const auto& message = connection->output.front();
+                const auto& output = connection->output.front();
+                if (output.read_epoch != 0 && output.read_epoch != position.read_epoch) return Close(socket, LWS_CLOSE_STATUS_POLICY_VIOLATION);
+                const auto& message = output.json;
                 const size_t count = std::min(size_t(4096), message.size() - connection->output_offset);
                 unsigned char buffer[LWS_PRE + 4096];
                 std::memcpy(buffer + LWS_PRE, message.data() + connection->output_offset, count);
@@ -187,6 +284,11 @@ namespace rpc {
 
         void Check_Connections(uv_timer_t* timer) {
             auto* state = (s_service_state*)timer->data;
+            s_read_request expired;
+            while (Expire_Read(&state->reads, &expired)) {
+                Push_Response(&state->events, expired.connection, expired.epoch, 0, Error_Response(expired.encoded_id, -32006, "Busy"), expired.selection, expired.encoded_id);
+            }
+            Deliver(state);
             for (auto& connection : state->connections) {
                 if (connection.socket != nullptr && !connection.session.authenticated &&
                     uv_now(&state->loop) - connection.opened_ms >= AUTHENTICATION_DEADLINE_MS) {
@@ -202,30 +304,7 @@ namespace rpc {
                 uv_stop(&state->loop);
                 return;
             }
-            const auto batch = Take_Events(&state->events);
-            for (auto& connection : state->connections) {
-                if (connection.socket == nullptr) continue;
-                auto& session = connection.session;
-                if (Event_Delivery_Expired(&session, &batch)) {
-                    lws_set_timeout(connection.socket, PENDING_TIMEOUT_USER_OK, LWS_TO_KILL_SYNC);
-                    continue;
-                }
-                if (!session.authenticated || session.close_after_output || session.events == 0) continue;
-                for (size_t i = 0; i < batch.count; ++i) {
-                    const auto& event = batch.items[i];
-                    if (event.sequence <= session.events_after || !(session.events & event.kind)) continue;
-                    const char* name = event.kind == EVENT_COMBAT_OPENED ? "combat.opened" : "combat.closed";
-                    std::string json = "{\"jsonrpc\":\"2.0\",\"method\":\"" + std::string(name) +
-                        "\",\"params\":{\"battleId\":\"" + std::string(event.battle_id.data()) + "\"}}";
-                    if (connection.output.size() >= MAX_OUTPUT_MESSAGES || json.size() > MAX_OUTPUT_BYTES - connection.output_bytes) {
-                        lws_set_timeout(connection.socket, PENDING_TIMEOUT_USER_OK, LWS_TO_KILL_SYNC);
-                        break;
-                    }
-                    connection.output_bytes += json.size();
-                    connection.output.push_back(std::move(json));
-                    lws_callback_on_writable(connection.socket);
-                }
-            }
+            Deliver(state);
         }
 
         void Destroy_Backend(s_service_state* state) {
@@ -254,7 +333,7 @@ namespace rpc {
             if (initialized) initialized = state->timer_initialized = uv_timer_init(&state->loop, &state->timer) == 0;
             if (initialized) {
                 state->timer.data = state;
-                initialized = uv_timer_start(&state->timer, Check_Connections, 1000, 1000) == 0;
+                initialized = uv_timer_start(&state->timer, Check_Connections, 50, 50) == 0;
             }
             if (initialized) {
                 void* loops[] = {&state->loop};
@@ -321,6 +400,7 @@ namespace rpc {
         if (service == nullptr || service->state == nullptr) return;
         auto* state = (s_service_state*)service->state;
         Stop_Events(&state->events);
+        Cancel_Reads(&state->reads, 0, true);
         if (state->successful) {
             state->stopping = true;
             uv_async_send(&state->wake);
@@ -334,10 +414,10 @@ namespace rpc {
         return service != nullptr && service->state != nullptr ? ((const s_service_state*)service->state)->port : 0;
     }
 
-    bool Publish_Event(s_service* service, uint8_t kind, std::string_view battle_id) {
+    bool Publish_Event(s_service* service, uint8_t kind, std::string_view battle_id, std::string_view unit_id) {
         if (service == nullptr || service->state == nullptr) return false;
         auto* state = (s_service_state*)service->state;
-        const bool queued = Push_Event(&state->events, kind, battle_id);
+        const bool queued = Push_Event(&state->events, kind, battle_id, unit_id);
         uv_async_send(&state->wake);
         return queued;
     }
@@ -346,6 +426,46 @@ namespace rpc {
         if (service == nullptr || service->state == nullptr) return;
         auto* state = (s_service_state*)service->state;
         Revoke_Events(&state->events);
+        Cancel_Reads(&state->reads);
         uv_async_send(&state->wake);
+    }
+
+    void Invalidate_Read_Delivery(s_service* service) {
+        if (service == nullptr || service->state == nullptr) return;
+        auto* state = (s_service_state*)service->state;
+        Invalidate_Read_Output(&state->events);
+        uv_async_send(&state->wake);
+    }
+
+    void Execute_Reads(s_service* service, bool safe, bool observed, t_execute_read execute, void* context) {
+        if (service == nullptr || service->state == nullptr || execute == nullptr || (observed && !safe)) return;
+        auto* state = (s_service_state*)service->state;
+        for (unsigned count = 0; count < 2; ++count) {
+            s_read_request request;
+            if (!Take_Read(&state->reads, &request)) break;
+            const auto position = Event_Position(&state->events);
+            bool dependent = false;
+            std::string response;
+            if (request.epoch != position.epoch || position.stopped) {
+                Finish_Read(&state->reads, request.ticket);
+                continue;
+            }
+            if (Monotonic_Ms() >= request.deadline_ms) {
+                response = Error_Response(request.encoded_id, -32006, "Busy");
+            } else {
+                response = execute(&request, context, &dependent);
+            }
+            if (response.size() > MAX_RESPONSE_BYTES) {
+                Error_Response(request.encoded_id, -32005, "Limit exceeded").swap(response);
+                dependent = false;
+            }
+            if (Monotonic_Ms() >= request.deadline_ms) {
+                Error_Response(request.encoded_id, -32006, "Busy").swap(response);
+                dependent = false;
+            }
+            if (!Finish_Read(&state->reads, request.ticket)) continue;
+            Push_Response(&state->events, request.connection, request.epoch, dependent ? position.read_epoch : 0, std::move(response), request.selection, request.encoded_id);
+            uv_async_send(&state->wake);
+        }
     }
 } // namespace rpc
