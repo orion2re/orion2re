@@ -6,7 +6,12 @@
 #endif
 
 #include "config/config_loader.h"
+#include "config/text_encoding.h"
 #include "lua/lua_mod_runtime.h"
+#include "rpc/rpc_settings.h"
+#if defined(ORION2RE_ENABLE_RPC)
+#include "rpc/rpc_service.h"
+#endif
 #include "startup_directory.h"
 #include "startup_options.h"
 
@@ -215,7 +220,26 @@ int main(int argc, char** argv) {
     SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION,
         config_loaded ? "configuration: loaded %s" : "configuration: %s not found; using defaults", startup_config_path);
 
+#if defined(ORION2RE_ENABLE_RPC)
+    rpc::s_service rpc_service;
+    if (rpc::enabled) {
+        rpc::s_service_config rpc_config;
+        rpc_config.port = rpc::port;
+        config::Decode_Cp850_To_Utf8(rpc::shared_key, strlen(rpc::shared_key), &rpc_config.key);
+        std::string diagnostic;
+        if (!rpc::Start_Service(&rpc_service, &rpc_config, &diagnostic)) {
+            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "rpc: %s", diagnostic.c_str());
+        } else {
+            SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "rpc: listening on loopback port %u", (unsigned)rpc::Service_Port(&rpc_service));
+        }
+    }
+#else
+    if (rpc::enabled) SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "rpc: requested but not compiled into this build");
+#endif
     const int result = platform::Run_Main_Loop(nullptr);
+#if defined(ORION2RE_ENABLE_RPC)
+    rpc::Stop_Service(&rpc_service);
+#endif
 
     orion2re::lua::Shutdown_Lua();
     ai_state::Shutdown();

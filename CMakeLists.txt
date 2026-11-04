@@ -112,6 +112,7 @@ option(ORION2RE_ENABLE_ASAN "Enable AddressSanitizer (and UBSan with GCC/Clang) 
 option(ORION2RE_RELEASE_DEBUG_INFO "Emit debug info for non-Debug MSVC builds" OFF)
 option(ORION2RE_BUILD_GAME "Build the SDL game executable" ON)
 option(ORION2RE_BUILD_TESTS "Build tests" OFF)
+option(ORION2RE_ENABLE_RPC "Build the optional local WebSocket RPC service" OFF)
 set(ORION2RE_BUILD_CONFIG_TOOL_DEFAULT OFF)
 if(NOT CMAKE_CROSSCOMPILING AND
    EXISTS "${ORION2RE_VENDORED_YYJSON_DIR}/src/yyjson.h" AND
@@ -374,6 +375,11 @@ set(LIBUV_BUILD_BENCH OFF CACHE BOOL "" FORCE)
 
 add_subdirectory("${ORION2RE_VENDORED_LIBUV_DIR}" EXCLUDE_FROM_ALL)
 
+set(ORION2RE_RPC_BUILT OFF)
+if(ORION2RE_ENABLE_RPC AND ORION2RE_BUILD_GAME)
+    include(cmake/rpc.cmake)
+endif()
+
 add_library(orion2re_lz4 STATIC
     "${ORION2RE_VENDORED_LZ4_DIR}/lib/lz4.c"
 )
@@ -473,6 +479,8 @@ if(ORION2RE_BUILD_GAME OR ORION2RE_BUILD_CONFIG_TOOL)
     list(REMOVE_ITEM ORION2RE_SOURCES ${ORION2RE_SCALER_SOURCES})
     list(APPEND ORION2RE_SOURCES ${ORION2RE_CONFIG_GENERATED_FILES})
     list(REMOVE_ITEM ORION2RE_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp")
+    list(FILTER ORION2RE_SOURCES EXCLUDE REGEX "/src/rpc/.*\\.cpp$")
+    list(APPEND ORION2RE_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/rpc/rpc_settings.cpp")
 
     add_library(orion2re_game_objects OBJECT
         ${ORION2RE_SOURCES}
@@ -893,6 +901,11 @@ if(ORION2RE_BUILD_DOCUMENTATION)
         COMMENT "Removing generated documentation while retaining the virtual environment"
         VERBATIM
     )
+endif()
+
+if(ORION2RE_RPC_BUILT)
+    target_link_libraries(orion2re PRIVATE orion2re_rpc)
+    target_compile_definitions(orion2re PRIVATE ORION2RE_ENABLE_RPC=1)
 endif()
 
 add_executable(orion2re-router

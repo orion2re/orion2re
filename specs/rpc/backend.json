@@ -1,0 +1,24 @@
+{
+  "project": "libwebsockets",
+  "repository": "https://github.com/warmcat/libwebsockets.git",
+  "tag": "v4.5.4",
+  "revision": "c56adc3c62ee2545c77e0ba4cce67441be6955db",
+  "license": "MIT with retained permissive component licenses; preserve upstream LICENSE and included-source notices",
+  "libuvRevision": "840404ce8ba7cc0204be52389a6cfff9f2c90fb6",
+  "cmake": {
+    "LWS_IPV6": "ON",
+    "LWS_WITH_SSL": "OFF", "LWS_WITH_HTTP2": "OFF",
+    "LWS_WITH_SHARED": "OFF", "LWS_WITH_STATIC": "ON",
+    "LWS_WITH_EXPORT_LWSTARGETS": "OFF",
+    "LWS_WITHOUT_CLIENT": "ON", "LWS_WITHOUT_TESTAPPS": "ON",
+    "LWS_WITH_MINIMAL_EXAMPLES": "OFF", "LWS_WITH_SECURE_STREAMS": "OFF",
+    "LWS_WITH_LIBUV": "ON", "LWS_WITH_EVLIB_PLUGINS": "OFF",
+    "LWS_WITH_ZLIB": "OFF", "LWS_WITH_BUNDLED_ZLIB": "OFF",
+    "LWS_WITHOUT_EXTENSIONS": "ON", "LWS_WITH_PLUGINS": "OFF",
+    "LWS_WITH_FILE_OPS": "ON", "LWS_WITH_HTTP_BASIC_AUTH": "OFF",
+    "LWS_WITH_DIR": "OFF", "LWS_WITH_LEJP_CONF": "OFF",
+    "LWS_WITH_HTTP_DIGEST_AUTH": "OFF", "LWS_WITH_JSONRPC": "OFF",
+    "LWS_WITH_UPNG": "OFF", "LWS_WITH_JPEG": "OFF", "LWS_WITH_DLO": "OFF",
+    "LWS_WITH_GZINFLATE": "OFF", "LWS_WITH_LIBCAP": "OFF"
+  }
+}

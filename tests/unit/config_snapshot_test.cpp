@@ -214,6 +214,9 @@ DOCTEST_TEST_CASE("presentation settings stay out of gameplay snapshots") {
     const char* paths[] = {
         "interface.allow_future_technology_browsing",
         "interface.show_exit_message",
+        "interface.rpc_enabled",
+        "interface.rpc_port",
+        "interface.rpc_key",
     };
     const config::s_config_snapshot_descriptor* descriptors[] = {
         &config::saved_config_snapshot,
@@ -229,6 +232,16 @@ DOCTEST_TEST_CASE("presentation settings stay out of gameplay snapshots") {
             DOCTEST_CHECK_FALSE(Snapshot_Contains_(descriptor, path));
         }
     }
+}
+
+DOCTEST_TEST_CASE("local RPC settings default to disabled with no key") {
+    config::s_typed_value value;
+    DOCTEST_REQUIRE(config::generated::Get_Default_Value(Variable_("interface.rpc_enabled"), &value));
+    DOCTEST_CHECK_FALSE(value.bool_value);
+    DOCTEST_REQUIRE(config::generated::Get_Default_Value(Variable_("interface.rpc_port"), &value));
+    DOCTEST_CHECK(value.integer_value == 17362);
+    DOCTEST_REQUIRE(config::generated::Get_Default_Value(Variable_("interface.rpc_key"), &value));
+    DOCTEST_CHECK(value.string_value.empty());
 }
 
 DOCTEST_TEST_CASE("interface formats persist and synchronize") {

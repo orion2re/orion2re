@@ -1,6 +1,7 @@
 include("${CMAKE_CURRENT_LIST_DIR}/shared_objects.cmake")
 
 set(ORION2RE_DEFAULT_CONFIG_SOURCES
+    src/rpc/rpc_settings.cpp
     src/game/aibuild_config.cpp
     src/game/aidesign_config.cpp
     src/game/aimove_config.cpp
@@ -113,6 +114,22 @@ function(orion2re_add_unit_test TARGET_NAME)
 
     add_test(NAME ${TARGET_NAME} COMMAND ${TARGET_NAME})
 endfunction()
+
+if(ORION2RE_RPC_BUILT)
+    orion2re_add_unit_test(test_rpc
+        SOURCES tests/unit/rpc_test.cpp
+        LIBRARIES orion2re_rpc
+    )
+    target_include_directories(test_rpc PRIVATE "${ORION2RE_VENDORED_YYJSON_DIR}/src")
+    add_dependencies(test_rpc rpc-test-server)
+    find_package(Python3 3.10 QUIET COMPONENTS Interpreter)
+    if(Python3_Interpreter_FOUND)
+        add_test(NAME rpc_transport
+            COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/rpc/test_transport.py"
+                --server $<TARGET_FILE:rpc-test-server>)
+        set_tests_properties(rpc_transport PROPERTIES TIMEOUT 60)
+    endif()
+endif()
 
 orion2re_add_unit_test(test_fields_helpers
     SOURCES

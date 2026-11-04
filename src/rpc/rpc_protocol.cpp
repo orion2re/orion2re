@@ -1,0 +1,171 @@
+#include "rpc_protocol.h"
+
+#include <cstdlib>
+#include <cstring>
+#include <initializer_list>
+#include <set>
+
+#include "yyjson.h"
+
+namespace rpc {
+    namespace {
+        bool Is_Text(yyjson_val* value, std::string_view text) {
+            return yyjson_is_str(value) && yyjson_get_len(value) == text.size() &&
+                std::memcmp(yyjson_get_str(value), text.data(), text.size()) == 0;
+        }
+
+        bool Depth_Allowed(std::string_view input) {
+            unsigned depth = 0;
+            bool quoted = false, escaped = false;
+            for (char c : input) {
+                if (quoted) {
+                    if (escaped) {
+                        escaped = false;
+                    } else if (c == '\\') {
+                        escaped = true;
+                    } else if (c == '"') {
+                        quoted = false;
+                    }
+                } else if (c == '"') {
+                    quoted = true;
+                } else if (c == '[' || c == '{') {
+                    if (++depth > 32) return false;
+                } else if ((c == ']' || c == '}') && depth != 0) {
+                    --depth;
+                }
+            }
+            return true;
+        }
+
+        bool Unique_Keys(yyjson_val* value) {
+            if (yyjson_is_obj(value)) {
+                std::set<std::string_view> keys;
+                auto iter = yyjson_obj_iter_with(value);
+                while (auto* key = yyjson_obj_iter_next(&iter)) {
+                    if (!keys.emplace(yyjson_get_str(key), yyjson_get_len(key)).second ||
+                        !Unique_Keys(yyjson_obj_iter_get_val(key))) return false;
+                }
+            } else if (yyjson_is_arr(value)) {
+                size_t index, count;
+                yyjson_val* item;
+                yyjson_arr_foreach(value, index, count, item) {
+                    if (!Unique_Keys(item)) return false;
+                }
+            }
+            return true;
+        }
+
+        bool Only_Keys(yyjson_val* value, std::initializer_list<std::string_view> names) {
+            if (!yyjson_is_obj(value)) return false;
+            auto iter = yyjson_obj_iter_with(value);
+            while (auto* key = yyjson_obj_iter_next(&iter)) {
+                bool found = false;
+                for (auto name : names) found |= Is_Text(key, name);
+                if (!found) return false;
+            }
+            return true;
+        }
+
+        std::string Encode(yyjson_val* value) {
+            size_t size = 0;
+            char* text = yyjson_val_write(value, YYJSON_WRITE_NOFLAG, &size);
+            if (text == nullptr) return {};
+            std::string result(text, size);
+            std::free(text);
+            return result;
+        }
+
+        bool Valid_Id(yyjson_val* id) {
+            if (yyjson_is_str(id)) return yyjson_get_len(id) > 0 && yyjson_get_len(id) <= 64;
+            if (yyjson_is_uint(id)) return yyjson_get_uint(id) <= 9007199254740991ULL;
+            return yyjson_is_sint(id) && yyjson_get_sint(id) >= -9007199254740991LL &&
+                yyjson_get_sint(id) <= 9007199254740991LL;
+        }
+
+        bool Keys_Match(std::string_view configured, yyjson_val* supplied) {
+            if (configured.empty() || !yyjson_is_str(supplied) || configured.size() != yyjson_get_len(supplied)) return false;
+            unsigned char different = 0;
+            for (size_t i = 0; i < configured.size(); ++i)
+                different |= (unsigned char)configured[i] ^ (unsigned char)yyjson_get_str(supplied)[i];
+            return different == 0;
+        }
+
+        std::string Error(std::string_view id, int code, const char* message) {
+            return "{\"jsonrpc\":\"2.0\",\"id\":" + std::string(id) + ",\"error\":{\"code\":" +
+                std::to_string(code) + ",\"message\":\"" + message + "\"}}";
+        }
+
+        struct s_method {
+            const char* name;
+        };
+        constexpr s_method methods[] = {{"rpc.hello"}, {"rpc.describe"}};
+    } // namespace
+
+    bool Process_Request(std::string_view input, std::string_view key, bool control_available, s_session* session, std::string* response) {
+        if (session == nullptr || response == nullptr) return false;
+        response->clear();
+        if (input.size() > MAX_INPUT_BYTES || !Depth_Allowed(input)) {
+            *response = Error("null", -32005, "Limit exceeded");
+            return true;
+        }
+        auto* doc = yyjson_read(input.data(), input.size(), YYJSON_READ_NOFLAG);
+        if (doc == nullptr) {
+            *response = Error("null", -32700, "Parse error");
+            return true;
+        }
+        auto* root = yyjson_doc_get_root(doc);
+        auto* id = yyjson_obj_get(root, "id");
+        auto* method = yyjson_obj_get(root, "method");
+        auto* params = yyjson_obj_get(root, "params");
+        const bool notification = id == nullptr;
+        std::string encoded_id = Valid_Id(id) ? Encode(id) : "null";
+        if (!Unique_Keys(root) || !Only_Keys(root, {"jsonrpc", "id", "method", "params"}) ||
+            !Is_Text(yyjson_obj_get(root, "jsonrpc"), "2.0") || !yyjson_is_str(method) ||
+            yyjson_get_len(method) == 0 || yyjson_get_len(method) > 128 || (!notification && !Valid_Id(id)) ||
+            (params != nullptr && !yyjson_is_obj(params) && !yyjson_is_arr(params))) {
+            *response = Error("null", -32600, "Invalid Request");
+        } else if (notification) {
+            // Notifications are not an authentication or mutation channel.
+        } else if (!session->authenticated && !Is_Text(method, "rpc.hello")) {
+            *response = Error(encoded_id, -32001, "Unauthorized");
+        } else if (Is_Text(method, "rpc.hello")) {
+            auto* role = yyjson_obj_get(params, "requestedRole");
+            auto* supplied = yyjson_obj_get(params, "key");
+            const bool controller = Is_Text(role, "controller");
+            if (!Only_Keys(params, {"key", "requestedRole"}) || !yyjson_is_str(supplied) ||
+                yyjson_get_len(supplied) == 0 || yyjson_get_len(supplied) > 384 ||
+                (role != nullptr && !controller && !Is_Text(role, "reader"))) {
+                *response = Error(encoded_id, -32602, "Invalid params");
+            } else if (!Keys_Match(key, supplied)) {
+                session->close_after_output = true;
+                *response = Error(encoded_id, -32001, "Unauthorized");
+            } else if (session->authenticated && session->controller != controller) {
+                *response = Error(encoded_id, -32602, "Invalid params");
+            } else if (controller && !session->controller && !control_available) {
+                *response = Error(encoded_id, -32007, "Control required");
+            } else {
+                session->authenticated = true;
+                session->controller = controller;
+                *response = "{\"jsonrpc\":\"2.0\",\"id\":" + encoded_id +
+                    ",\"result\":{\"contractVersion\":\"orion2.rpc/0\",\"build\":\"orion2re\",\"role\":\"" +
+                    (controller ? "controller" : "reader") + "\"}}";
+            }
+        } else if (Is_Text(method, "rpc.describe")) {
+            if (params != nullptr && (!yyjson_is_obj(params) || yyjson_obj_size(params) != 0)) {
+                *response = Error(encoded_id, -32602, "Invalid params");
+            } else {
+                std::string list;
+                for (const auto& item : methods) {
+                    if (!list.empty()) list += ',';
+                    list += "{\"name\":\"" + std::string(item.name) + "\"}";
+                }
+                *response = "{\"jsonrpc\":\"2.0\",\"id\":" + encoded_id +
+                    ",\"result\":{\"contractVersion\":\"orion2.rpc/0\",\"methods\":[" + list + "]}}";
+            }
+        } else {
+            *response = Error(encoded_id, -32601, "Method not found");
+        }
+        yyjson_doc_free(doc);
+        return !encoded_id.empty();
+    }
+} // namespace rpc
