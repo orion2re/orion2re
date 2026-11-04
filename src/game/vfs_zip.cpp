@@ -2,8 +2,6 @@
 
 #include "vfs_detail.h"
 
-#include <algorithm>
-
 namespace vfs_detail {
     s_vfs_mount_transaction* g_vfs_staged_transaction = nullptr;
 

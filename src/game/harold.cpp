@@ -1,7 +1,5 @@
 #include "pch.h"
 #include "string_overrides.h"
-#include <cstring>
-#include <vector>
 
 namespace HAROLD {
     s_mouse_list saved_mouse_list[10];

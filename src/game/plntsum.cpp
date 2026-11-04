@@ -1,6 +1,4 @@
 #include "pch.h"
-#include <cstring>
-#include <cstdio>
 
 namespace PLNTSUM {
     constexpr int PLANET_CLIMATE_EXTENT = PLANET_CLIMATE_COUNT;

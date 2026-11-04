@@ -1,7 +1,5 @@
 #include "pch.h"
 
-#include <algorithm>
-
 #include "config/config_loader.h"
 #include "config/config_snapshot.h"
 #include "game/netstart_roster.h"

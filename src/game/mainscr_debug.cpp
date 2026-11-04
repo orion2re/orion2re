@@ -3,8 +3,6 @@
 #if defined(ORION2RE_ENABLE_DEBUG_OVERLAY)
 #include <imgui.h>
 
-#include <algorithm>
-
 namespace MAINSCR_DEBUG {
     namespace {
         void Race_Name_(int16_t owner, char* name, size_t name_size) {

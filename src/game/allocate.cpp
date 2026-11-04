@@ -1,5 +1,4 @@
 #include "pch.h"
-#include <algorithm>
 
 namespace {
     uint32_t Bitmap_Bytes(uint32_t bit_count) {

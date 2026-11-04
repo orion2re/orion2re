@@ -3,11 +3,6 @@
 #if defined(ORION2RE_ENABLE_DEBUG_OVERLAY)
 #include <imgui.h>
 
-#include <cstdio>
-#include <string>
-#include <unordered_map>
-#include <vector>
-
 #include "config/config_runtime.h"
 #include "config/text_encoding.h"
 

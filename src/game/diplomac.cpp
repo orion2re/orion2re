@@ -1,7 +1,5 @@
 #include "pch.h"
 
-#include <algorithm>
-
 namespace diplomac {
     namespace {
         constexpr std::intptr_t kInvalidTributePlayerMarker = -1599;

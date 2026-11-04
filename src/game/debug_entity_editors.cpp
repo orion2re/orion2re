@@ -4,8 +4,6 @@
 #if defined(ORION2RE_ENABLE_DEBUG_OVERLAY)
 #include <imgui.h>
 
-#include <algorithm>
-
 #include "lua/lua_game_ship_identity.h"
 
 namespace debug_game_editors {

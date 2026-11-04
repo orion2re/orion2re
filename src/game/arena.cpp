@@ -2,11 +2,6 @@
 
 #include "game/arena.h"
 
-#include <cstddef>
-#include <cstdlib>
-#include <cstring>
-#include <limits>
-
 namespace arena {
     namespace {
         struct s_chunk {

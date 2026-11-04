@@ -3,8 +3,6 @@
 #if defined(ORION2RE_ENABLE_DEBUG_OVERLAY)
 #include <imgui.h>
 
-#include <algorithm>
-
 namespace RUNTIME_SNOOPS_DEBUG {
     namespace {
         constexpr const char* k_message_type_names[] = {

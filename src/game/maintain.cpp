@@ -1,7 +1,5 @@
 #include "pch.h"
 
-#include <algorithm>
-
 namespace maintain {
     int32_t (*ship_worths)[MAX_SHIPS];
     uint8_t research_building_table[4] = {

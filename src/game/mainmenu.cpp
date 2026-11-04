@@ -1,8 +1,6 @@
 #include "pch.h"
 #include "string_overrides.h"
 
-#include <string>
-
 #include "config/mod_manager.h"
 
 namespace MAINMENU {

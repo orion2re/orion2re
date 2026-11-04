@@ -1,6 +1,5 @@
 #include "pch.h"
 
-#include <exception>
 #include "config/config_loader.h"
 #include "game/config_refresh.h"
 

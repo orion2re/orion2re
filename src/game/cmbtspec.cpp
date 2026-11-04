@@ -1,7 +1,5 @@
 #include "pch.h"
 
-#include <cstddef>
-
 namespace CMBTSPEC {
     namespace {
         void Play_Leader_Death_SFX(int16_t ship_idx) {

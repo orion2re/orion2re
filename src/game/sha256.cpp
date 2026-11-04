@@ -1,8 +1,6 @@
-#include "game/sha256.h"
+#include "pch.h"
 
-#include <array>
-#include <bit>
-#include <vector>
+#include "game/sha256.h"
 
 namespace orion2re::crypto {
     namespace {

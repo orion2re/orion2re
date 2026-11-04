@@ -1,7 +1,5 @@
 #include "pch.h"
 
-#include <algorithm>
-
 #include "game/netproto.h"
 #include "lua/lua_network.h"
 

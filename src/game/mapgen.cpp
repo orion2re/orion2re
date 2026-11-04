@@ -6,8 +6,6 @@
 #include "lua/lua_game_ship_identity.h"
 #include "lua/lua_mod_runtime.h"
 
-#include <array>
-
 namespace MAPGEN {
     int16_t star_count_by_galaxy_size[GALAXY_SIZE_COUNT] = {20, 36, 54, 71, 99, 71};
     int16_t& maximum_star_count = star_count_by_galaxy_size[GALAXY_SIZE_MAXIMUM];

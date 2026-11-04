@@ -3,9 +3,6 @@
 #if defined(ORION2RE_ENABLE_DEBUG_OVERLAY)
 #include <imgui.h>
 
-#include <algorithm>
-#include <limits>
-
 namespace debug_tactical_editor {
     namespace {
         int16_t g_selected_ship = 1;

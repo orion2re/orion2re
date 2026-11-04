@@ -3,8 +3,6 @@
 #if defined(ORION2RE_ENABLE_DEBUG_OVERLAY)
 #include <imgui.h>
 
-#include <algorithm>
-
 namespace debug_game_editors {
     namespace {
         constexpr const char* k_star_sizes[] = {"Small", "Medium", "Large"};

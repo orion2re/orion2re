@@ -1,5 +1,4 @@
 #include "pch.h"
-#include <cstring>
 
 namespace {
     bool Building_Forces_Combat_Reengagement(int16_t building_id) {

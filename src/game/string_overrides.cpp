@@ -3,13 +3,6 @@
 #include "string_overrides.h"
 #include "yyjson.h"
 
-#include <charconv>
-#include <map>
-#include <memory>
-#include <string>
-#include <string_view>
-#include <vector>
-
 namespace string_overrides {
     namespace {
         bool Fail(const std::string& path, const std::string& reason, std::string* diagnostic) {

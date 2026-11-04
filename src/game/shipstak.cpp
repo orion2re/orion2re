@@ -1,5 +1,4 @@
 #include "pch.h"
-#include <cstring>
 
 namespace SHIPSTAK {
     void __cdecl Delete_Ship_Node(int16_t stack_idx, int16_t prev_node_idx, int16_t node_idx) {

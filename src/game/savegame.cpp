@@ -2,8 +2,6 @@
 
 #include "game/savegame.h"
 
-#include <cstddef>
-
 #include "config/config_loader.h"
 #include "config/config_snapshot.h"
 #include "game/save_sections.h"

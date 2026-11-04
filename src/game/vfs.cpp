@@ -1,7 +1,5 @@
 #include "pch.h"
 
-#include <algorithm>
-
 #include "vfs.h"
 
 #include "vfs_detail.h"

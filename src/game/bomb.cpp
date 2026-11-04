@@ -7,7 +7,6 @@
 #include "colbldg.h"
 #include "colcalc.h"
 #include "officer.h"
-#include <cstring>
 
 namespace BOMB {
 

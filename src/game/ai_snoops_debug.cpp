@@ -3,8 +3,6 @@
 #if defined(ORION2RE_ENABLE_DEBUG_OVERLAY)
 #include <imgui.h>
 
-#include <algorithm>
-
 namespace AI_SNOOPS_DEBUG {
     namespace {
         int g_player = 0;

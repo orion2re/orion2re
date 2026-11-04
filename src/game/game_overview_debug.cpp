@@ -3,8 +3,6 @@
 #if defined(ORION2RE_ENABLE_DEBUG_OVERLAY)
 #include <imgui.h>
 
-#include <algorithm>
-
 namespace GAME_OVERVIEW_DEBUG {
     namespace {
         bool Valid_Player_(int16_t player) {

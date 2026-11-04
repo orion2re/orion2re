@@ -1,7 +1,5 @@
 #include "pch.h"
 
-#include <algorithm>
-
 #if defined(ORION2RE_ENABLE_DEBUG_OVERLAY)
 #include <imgui.h>
 #endif

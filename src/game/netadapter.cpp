@@ -1,14 +1,9 @@
+#include "pch.h"
+
 #include "game/netadapter.h"
 
 #include "network/router_service.h"
 #include "network/router_session_browser.h"
-
-#include <algorithm>
-#include <cstring>
-#include <array>
-#include <deque>
-#include <limits>
-#include <utility>
 
 namespace netadapter {
     namespace {

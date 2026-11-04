@@ -1,5 +1,4 @@
 #include "pch.h"
-#include <cstring>
 
 #include "lua/lua_game_ship_identity.h"
 

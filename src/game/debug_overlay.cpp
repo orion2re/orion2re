@@ -3,11 +3,6 @@
 #if defined(ORION2RE_ENABLE_DEBUG_OVERLAY)
 #include <imgui.h>
 #include "proggy_tiny_font.h"
-
-#include <algorithm>
-#include <cmath>
-#include <utility>
-#include <vector>
 #endif
 
 namespace debug_overlay {
