@@ -1,4 +1,6 @@
 #include "pch.h"
+#include "tactical_view.h"
+#include "tactical_events.h"
 
 namespace CMBTMIS {
     static int16_t incoming_x[MAX_COMBAT_FLYERS];
@@ -542,6 +544,7 @@ namespace CMBTMIS {
                 incoming_y[missile_idx] = start_y;
                 incoming_valid[missile_idx] = true;
             }
+            tactical_view::Missile_Changed(missile_idx);
             missile->travel_dist -= dist;
             missile->facing_dir = (int8_t)Get_Facing(missile_idx, target_x, target_y);
         }
@@ -791,6 +794,7 @@ namespace CMBTMIS {
                     sys_dmg_accum += sys_dmg;
                 }
 
+                if (!targets_missile) tactical_view::Record_Unit_Hit(target_unit_idx, dmg_accum, sys_dmg_accum);
                 if (MOX::apply_damage_to_planet == 1 && MOX::super_fast_flag == 0) {
                     Fighter_Combat_SFX(missile_idx, x, y, dmg_accum, sys_dmg_accum);
                 }
@@ -873,6 +877,7 @@ namespace CMBTMIS {
                     loop_count++;
                 } while (loop_count < missile->quantity);
             }
+            tactical_view::Record_Unit_Hit(target_unit_idx, dmg_accum, sys_dmg_accum);
             Kill_Missile(missile_idx);
         }
 
@@ -1407,6 +1412,7 @@ namespace CMBTMIS {
     }
 
     void __cdecl Kill_Missile(int16_t missile_idx) {
+        if (MOX::missile[missile_idx].type > WEAPON_NO_WEAPONS) tactical_events::Retire_Missile(missile_idx);
         incoming_valid[missile_idx] = false;
         Clear_Fighter_Slot_History(missile_idx);
         // Clear the missile data structure
@@ -1454,6 +1460,7 @@ namespace CMBTMIS {
                     continue;
                 }
                 other->quantity += missile->quantity;
+                tactical_view::Missile_Changed(i);
                 Kill_Missile(missile_idx);
                 return;
             }
@@ -1652,6 +1659,7 @@ namespace CMBTMIS {
             MOX::missile[missile_idx].travel_dist = (int16_t)((uint16_t)(uint8_t)MOX::missile[missile_idx].speed * 20);
             MOX::missile[missile_idx].is_active = 1;
             MOX::missile[missile_idx].target_is_missile = (int8_t)is_anti_rocket;
+            tactical_view::Missile_Changed(missile_idx);
 
             if (TECHDATA::weapons[MOX::missile[missile_idx].type].type == WEAPON_TYPE_FIGHTER) {
                 MOX::missile[missile_idx].quantity = (int16_t)MOX::combat_data[source_idx].weapons[weapon_slot].count << 2;

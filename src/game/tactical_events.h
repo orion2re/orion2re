@@ -1,6 +1,8 @@
 #pragma once
 
 #include <cstdint>
+#include <cstddef>
+#include <vector>
 
 namespace tactical_events {
     enum e_kind {
@@ -14,6 +16,7 @@ namespace tactical_events {
         RETIRING,
         ATTENTION_REQUIRED,
         ATTENTION_CLEARED,
+        MISSILE_RETIRED,
     };
     struct s_event {
         e_kind kind;
@@ -33,10 +36,29 @@ namespace tactical_events {
     void Invalidate_View() noexcept;
     void Select_Unit(int16_t unit) noexcept;
     void Retire_Unit(int16_t unit) noexcept;
+    void Retire_Missile(int16_t missile) noexcept;
     void Retire_Battle() noexcept;
     int16_t Current_Viewer() noexcept;
     int16_t Current_Unit() noexcept;
     bool Reads_Allowed() noexcept;
+    constexpr size_t MAX_HIT_RECORDS = 4096;
+    enum e_hit_kind { UNIT_DAMAGE,
+        MISSILES_DESTROYED,
+        BIOLOGICAL_HITS };
+    struct s_hit {
+        uint64_t sequence = 0;
+        int32_t round = 0;
+        e_hit_kind kind = UNIT_DAMAGE;
+        char target_name[80] = {};
+        int32_t amount = 0, secondary_amount = 0;
+    };
+    struct s_hit_history {
+        uint64_t first_sequence = 1, next_sequence = 1;
+        std::vector<s_hit> hits;
+    };
+    // The tactical module owns the report, independently of observers/transports.
+    void Append_Hit(const s_hit* hit);
+    bool Read_Hit_History(s_hit_history* result);
     struct s_local_attention {
         int16_t viewer;
         s_local_attention() noexcept;
@@ -51,6 +73,9 @@ namespace tactical_events {
         bool dirty = false;
         bool selection_pending = false;
         int16_t selected = -1;
+        uint64_t next_hit_sequence = 1;
+        size_t hit_head = 0;
+        std::vector<s_hit> hits;
         void Open(int16_t local_observer) noexcept;
         void Close(int16_t local_observer) noexcept;
         ~s_battle_scope();

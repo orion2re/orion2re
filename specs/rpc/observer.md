@@ -4,6 +4,9 @@ This reader contract remains independently usable. Authenticated controller
 connections may additionally use the separately scoped [basic tactical pilot](tactical-control.md);
 observation references alone never grant action authority.
 
+The [firing extension](tactical-firing.md) adds separate current missile reads
+and a non-consuming native active-battle hit report for either authenticated role.
+
 ## Requests
 
 All examples omit the usual `jsonrpc: "2.0"` and request `id` envelope members.

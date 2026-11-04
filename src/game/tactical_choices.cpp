@@ -50,20 +50,24 @@ namespace tactical_control {
                 if (struct_::Test_Bit_Field(MOX::combat_data[actor].special_device_flags, bit)) ++index;
             return index < 8 && CMBTFIRE::Special_Is_On(actor, index);
         }
-        s_target Target(int16_t actor, int16_t slot) {
+        s_target Target(int16_t actor, int16_t slot, bool missile = false) {
             s_target result{slot, 0, false};
-            if (!Disclosed_Target(slot) || CMBTMOV1::Ship_Is_In_Stasis(slot)) return result;
-            const auto arc = MOX::apply_damage_to_planet == 0 ? WEAPON_FIRING_ARC_ALL_SECTORS : CMBTDRW1::Get_Weapon_Arc(CMBTDRW1::Relative_Bearing(actor, slot));
+            if (missile) {
+                if (!tactical_view::Missile_Disclosed(slot) || MOX::missile[slot].owner == tactical_view::Local_Observer()) return result;
+            } else if (!Disclosed_Target(slot) || CMBTMOV1::Ship_Is_In_Stasis(slot))
+                return result;
+            const auto bearing = missile ? CMBTDRW1::Relative_Bearing_XY(actor, MOX::missile[slot].x, MOX::missile[slot].y) : CMBTDRW1::Relative_Bearing(actor, slot);
+            const auto arc = MOX::apply_damage_to_planet == 0 ? WEAPON_FIRING_ARC_ALL_SECTORS : CMBTDRW1::Get_Weapon_Arc(bearing);
             for (int16_t i = 0; i < 8; ++i) {
                 const auto& weapon = MOX::combat_data[actor].weapons[i];
                 if (weapon.weapon_id == 0 || !COMBAT1::Weapon_Is_On(actor, i) || !(arc & weapon.arc) ||
                     (weapon.shots_left == 0 && weapon.status != 1)) continue;
                 const auto type = TECHDATA::weapons[weapon.weapon_id].type;
                 if (type == WEAPON_TYPE_TORPEDO ? weapon.ammo != 0 : weapon.ammo == 0) continue;
-                if (CMBTFIRE::Weapon_In_Range(i, actor, slot, 0, 0) &&
-                    CMBTFIRE::Target_Is_Legal_For_Weapon(weapon.weapon_id, weapon.specials, slot, 0)) result.weapons |= uint8_t(1u << i);
+                if (CMBTFIRE::Weapon_In_Range(i, actor, slot, missile ? 1 : 0, 0) &&
+                    CMBTFIRE::Target_Is_Legal_For_Weapon(weapon.weapon_id, weapon.specials, slot, missile ? 1 : 0)) result.weapons |= uint8_t(1u << i);
             }
-            result.absorber = MOX::combat_data[actor].reflected_damage_pool > 0 &&
+            result.absorber = !missile && MOX::combat_data[actor].reflected_damage_pool > 0 &&
                 Absorber_Selected(actor) && CMBTAI::Range_To_Ship(actor, slot) <= 8;
             return result;
         }
@@ -90,6 +94,9 @@ namespace tactical_control {
             auto target = Target(actor, i);
             if (target.weapons || target.absorber) result->targets.push_back(target);
         }
+        for (int16_t i = 0; i < MAX_COMBAT_FLYERS; ++i)
+            if (tactical_view::Missile_Disclosed(i) && MOX::missile[i].owner != tactical_view::Local_Observer())
+                result->missile_targets.push_back(Target(actor, i, true));
         for (int16_t i = 0; i < 8; ++i) {
             const auto& weapon = ship.weapons[i];
             if (weapon.weapon_id == 0) continue;
@@ -102,6 +109,7 @@ namespace tactical_control {
             row.shots = weapon.shots_left == 0 && weapon.status == 1 ? weapon.count : weapon.shots_left;
             row.ammo = weapon.ammo;
             row.arc = uint8_t(weapon.arc);
+            row.modifiers = weapon.specials;
             row.ready = row.selection == 1 && row.shots > 0 &&
                 (row.type == WEAPON_TYPE_TORPEDO ? row.ammo == 0 : row.ammo != 0);
             result->weapons.push_back(row);
@@ -123,12 +131,23 @@ namespace tactical_control {
             case MOVE: return Cell(operation->x, operation->y) && MOX::combat_grid[operation->x][operation->y] == 2000 ? APPLIED : ILLEGAL;
             case FACE: return Cell(operation->x, operation->y) && MOX::combat_data[Actor()].movement_left > 0 ? APPLIED : ILLEGAL;
             case FIRE: {
+                if (operation->missile_target) {
+                    if (!tactical_view::Missile_Disclosed(operation->target) || MOX::missile[operation->target].owner == tactical_view::Local_Observer()) return UNAVAILABLE;
+                    return Target(Actor(), operation->target, true).weapons ? APPLIED : ILLEGAL;
+                }
                 if (!Disclosed_Target(operation->target)) return UNAVAILABLE;
                 if (CMBTMOV1::Ship_Is_In_Stasis(operation->target)) return LOCAL_REQUIRED;
                 const auto target = Target(Actor(), operation->target);
                 return target.weapons || target.absorber ? APPLIED : ILLEGAL;
             }
             case DONE: return APPLIED;
+            case FIRE_SELECTION:
+                if (operation->bank_mask == 0) return ILLEGAL;
+                for (unsigned i = 0; i < 8; ++i)
+                    if (operation->bank_mask & (1u << i)) {
+                        if (MOX::combat_data[Actor()].weapons[i].weapon_id == 0 || operation->bank_states[i] < -1 || operation->bank_states[i] > 1) return ILLEGAL;
+                    }
+                return APPLIED;
             default: return ILLEGAL;
         }
     }

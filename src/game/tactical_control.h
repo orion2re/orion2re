@@ -11,6 +11,7 @@ namespace tactical_control {
         FACE,
         FIRE,
         DONE,
+        FIRE_SELECTION,
     };
     enum e_result {
         APPLIED,
@@ -23,11 +24,15 @@ namespace tactical_control {
     struct s_operation {
         e_operation kind = NONE;
         int16_t actor = -1, target = -1, x = 0, y = 0;
+        bool missile_target = false;
+        uint8_t bank_mask = 0;
+        int8_t bank_states[8] = {};
     };
     struct s_weapon {
         int16_t slot = 0;
         char name[80] = {};
         int16_t type = 0, count = 0, selection = 0, shots = 0, ammo = 0, arc = 0;
+        uint16_t modifiers = 0;
         bool ready = false;
     };
     struct s_cell {
@@ -47,6 +52,7 @@ namespace tactical_control {
         std::vector<s_weapon> weapons;
         std::vector<s_cell> cells;
         std::vector<s_target> targets;
+        std::vector<s_target> missile_targets;
     };
     // Game-thread-only decision metadata. No gameplay projections are retained.
     void Open_Decision(int16_t actor);

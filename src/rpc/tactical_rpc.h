@@ -15,6 +15,9 @@ namespace rpc {
         tactical_view::s_reader reader;
         bool (*options)(tactical_control::s_options*) = nullptr;
         bool (*authorize)(int16_t, bool) = nullptr;
+        bool (*missile)(int16_t, tactical_view::s_missile*) = nullptr;
+        bool (*missiles)(std::vector<tactical_view::s_missile>*) = nullptr;
+        bool (*authorize_missile)(int16_t) = nullptr;
         uint64_t decision_generation = 0;
         std::string decision_id;
         s_operation_request executing;
@@ -23,6 +26,7 @@ namespace rpc {
             std::array<char, 33> token = {};
         };
         std::vector<s_reference> references;
+        std::vector<s_reference> missile_references;
         std::string selected;
         bool retiring = false;
     };

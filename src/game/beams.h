@@ -1,6 +1,11 @@
 #pragma once
 
 namespace BEAMS {
+    struct s_beam_target_shape {
+        int16_t facing, size;
+    };
+    s_beam_target_shape Beam_Target_Shape(int16_t target_id);
+
     struct LocalColor {
         int32_t g;
         int32_t b;

@@ -55,6 +55,9 @@
   Response bytes awaiting delivery are not a source for later queries.
 - Native last-known knowledge, retained reports and battle results remain
   game-owned data accessed through current queries, not RPC history archives.
+  The approved tactical hit report is native battle-scoped presentation history,
+  bounded with explicit retention gaps and released on retirement/closure/revocation.
+  It is not an RPC-owned combat snapshot or mutation receipt store.
 - Neutral callbacks are synchronous, observation-only and non-throwing. Borrowed
   native payloads are callback-local; no borrowed pointers escape.
 - Reuse shared native read-only disclosure/presentation helpers and operations.
@@ -460,12 +463,14 @@ through native owners. Controller status alone never grants native authority.
   - [x] Expose current authorized actor, native round/mode and optional selected-for-turn reference events. Viewport/weapon state and children remain pending.
   - [x] Bind basic ship operations to native-owned actor/decision lifetimes; invalidate conflicting local input and preserve classic versus initiative selection rules. Broader contexts and children remain pending.
 - [ ] P5-03 — Authorize units/ordnance/scan/legal masks without hidden-target oracles.
+  - [x] Deliver global current native missile list/detail/target reads, distinct lifetime references and explicit bank selection with the complete firing pilot; see [the firing contract](specs/rpc/tactical-firing.md).
 - [ ] P5-04 — Add scan/noncombat detail/name/board/marine/help/options views.
 - [ ] P5-05 — Implement CCMD_MOVE with native legal cells and viewport/range safety.
   - [x] Move the controllable ship through the shared native operation using settled legal cells, unchanged movement/teleport costs and defensive effects. Broader command/interactive parity remains pending.
 - [ ] P5-06 — Implement CCMD_FIRE with native target/mask/phase/refusal checks.
-  - [x] Fire the current native selection at an authorized unit target, retaining slotless pre-fire effects and native slot ordering; reject local decision paths before mutation. Missile targets and broader firing/interactive parity remain pending.
+  - [x] Fire the current native selection at an authorized unit target, retaining slotless pre-fire effects and native slot ordering; reject local decision paths before mutation. Broader firing/interactive parity remains pending.
 - [ ] P5-07 — Implement CCMD_FIRE_MISSILE with safe offscreen handling.
+  - [x] Fire an explicit native selection at an authorized missile reference through the shared native operation, including high-slot bounds guards and native refusal tests. Broader command/interactive parity remains pending.
 - [ ] P5-08 — Implement CCMD_FACE with logical coordinates.
   - [x] Face toward logical grid coordinates through native turning, preserving costs and partial rotation. Broader interactive parity remains pending.
 - [ ] P5-09 — Implement CCMD_SELECT with ownership/initiative checks.
@@ -475,6 +480,7 @@ through native owners. Controller status alone never grants native authority.
 - [ ] P5-12 — Implement done/wait/auto/retreat/options and observed opponent waits.
   - [x] Complete the basic external ship turn with native done/next-actor progression, a runnable controller CLI and independent event-and-pull readers. Wait/auto/retreat and interactive/network-session parity remain pending.
 - [ ] P5-13 — Preserve authorized battle results in the game-owned result lifecycle before cleanup; read on demand and revoke on battle/reset/perspective changes.
+  - [x] Deliver the approved native active-battle hit report with non-consuming RPC reads, bounded retention, and verified release between combats. After-battle results remain separate work.
 - [ ] P5-14 — Implement bounded ordered streams, baseline/sequence/time and gap handling.
   - [x] Deliver copied tactical lifecycle events through a bounded FIFO and async libuv wakeup; disconnect on event/output overflow rather than silently drop ordered events. Effect streams and their baseline/time/gap contracts remain pending.
 - [ ] P5-15 — Implement invasion views and native bombard/invade/destroy/mind-control/cease-fire/drop-troop choices.
@@ -482,6 +488,7 @@ through native owners. Controller status alone never grants native authority.
 - [ ] P5-17 — Audit battle/ground visibility, ordering and RNG invariance.
   - [x] Audit/test the observer's short rows, enemy phased contacts and owned details using native read/operation functions, authorization/lifetime cases and live WebSockets. No rendering, reports or gameplay RNG are consumed by reads.
   - [ ] Complete real saved-game/multiplayer/platform and broader combat/ground parity sign-off.
+  - [x] Verify the bounded deliberate-firing pilot through native-function and live client tests. Its real-battle walkthrough is explicitly out of scope; this does not complete broader interactive parity.
 
 #### Combat events
 

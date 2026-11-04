@@ -187,6 +187,7 @@ namespace COMBAT1 {
         int16_t* next_ship_flag,
         bool received = false);
     bool Consume_Tactical_Operation(int16_t active_player_id, int16_t* next_ship_flag);
+    void Cycle_Weapon_Bank(int16_t slot, bool received = false);
     // Restores an eligible ordinary cloak after its configured firing delay.
     // ship_idx: combat ship index whose ordinary cloak state should be maintained.
     void Update_Ordinary_Cloak(int16_t ship_idx);

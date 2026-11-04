@@ -17,6 +17,9 @@ int main() {
     forwarder.reader = {tactical_view::Local_Observer, tactical_view::Read_View, tactical_view::Read_Unit};
     forwarder.options = tactical_control::Read_Options;
     forwarder.authorize = tactical_control::Authorize;
+    forwarder.missile = tactical_view::Read_Missile;
+    forwarder.missiles = tactical_view::Read_Missiles;
+    forwarder.authorize_missile = tactical_view::Missile_Disclosed;
     if (!rpc::Subscribe_Tactical_Events(&forwarder, &service)) return 1;
     std::cout << rpc::Service_Port(&service) << std::endl;
     std::unique_ptr<tactical_events::s_battle_scope> battle;
@@ -52,6 +55,41 @@ int main() {
             tactical_events::Service_Reads();
         } else if (command == "local") {
             const tactical_control::s_operation operation{tactical_control::MOVE, MOX::cur_ship, -1, 14, 10};
+            TEST_TACTICAL_TURN::Apply(&operation);
+        } else if (command == "missiles") {
+            TEST_TACTICAL_TURN::Add_Missile(0);
+            TEST_TACTICAL_TURN::Add_Missile(1, WEAPON_ANTI_MATTER_TORP);
+            TEST_TACTICAL_TURN::Add_Missile(2, WEAPON_NUCLEAR_MISSILE, 0);
+            MOX::missile[0].target_unit_idx = 3;
+            MOX::missile[1].target_unit_idx = 3;
+            static char rocket_name[] = "Anti-Missile Rockets";
+            TECHDATA::weapons[WEAPON_ANTI_MISSILE_ROCKET].type = WEAPON_TYPE_SPECIAL;
+            TECHDATA::weapons[WEAPON_ANTI_MISSILE_ROCKET].name_plural = rocket_name;
+            MOX::combat_data[1].weapons[1] = {WEAPON_ANTI_MISSILE_ROCKET, 2, WEAPON_FIRING_ARC_ALL_SECTORS, 0, 5, -1, 2, 0};
+            MOX::combat_data[1].weapons[2] = MOX::combat_data[1].weapons[0];
+            CMBTSPEC::anti_missile_rocket_accuracy.base = 101;
+            CMBTSPEC::anti_missile_rocket_accuracy.range_multiplier = 0;
+            tactical_control::Invalidate();
+        } else if (command == "missile-move") {
+            CMBTMIS::Move_Missile(0, 320, 200, 10);
+        } else if (command == "high-missiles") {
+            TEST_TACTICAL_TURN::Add_Missile(MAX_COMBAT_SHIPS);
+            TEST_TACTICAL_TURN::Add_Missile(MAX_COMBAT_FLYERS - 1);
+            TECHDATA::weapons[WEAPON_LASER_CANNON].min_damage = 100;
+            TECHDATA::weapons[WEAPON_LASER_CANNON].max_damage = 100;
+        } else if (command == "all-missiles") {
+            for (int16_t i = 0; i < MAX_COMBAT_FLYERS; ++i) TEST_TACTICAL_TURN::Add_Missile(i);
+        } else if (command == "history-overflow") {
+            // Supplemental retention/delivery setup, not native firing evidence.
+            for (size_t i = 0; i < tactical_events::MAX_HIT_RECORDS + 10; ++i) tactical_view::Record_Unit_Hit(2, 1);
+        } else if (command == "missile-reuse") {
+            TEST_TACTICAL_TURN::Add_Missile(0);
+        } else if (command == "missile-remove") {
+            CMBTMIS::Kill_Missile(0);
+        } else if (command == "local-bank") {
+            COMBAT1::Cycle_Weapon_Bank(0);
+        } else if (command == "native-fire") {
+            const tactical_control::s_operation operation{tactical_control::FIRE, MOX::cur_ship, 2};
             TEST_TACTICAL_TURN::Apply(&operation);
         } else if (command == "initiative") {
             MOX::combat_init = 1;

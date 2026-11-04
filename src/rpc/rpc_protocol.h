@@ -36,6 +36,9 @@ namespace rpc {
         READ_VIEW,
         READ_UNIT,
         READ_OPTIONS,
+        READ_MISSILES,
+        READ_MISSILE,
+        READ_HITS,
     };
 
     struct s_read_request {
@@ -43,6 +46,7 @@ namespace rpc {
         std::string encoded_id;
         std::string battle_id;
         std::string unit_id;
+        std::string missile_id;
         uint64_t connection = 0, ticket = 0, epoch = 0;
         uint64_t selection = 0;
         uint64_t deadline_ms = 0;
@@ -55,6 +59,7 @@ namespace rpc {
         OP_FIRE,
         OP_DONE,
         OP_CANCEL,
+        OP_FIRE_SELECTION,
     };
     struct s_operation_request {
         s_read_request request;
@@ -62,6 +67,9 @@ namespace rpc {
         uint64_t sequence = 0;
         std::string actor_id, target_id, decision_id;
         int16_t x = 0, y = 0;
+        bool missile_target = false;
+        uint8_t bank_mask = 0;
+        int8_t bank_states[8] = {};
     };
 
     std::string Error_Response(std::string_view id, int code, const char* message);

@@ -64,6 +64,11 @@ target_include_directories(orion2re_test_config_defaults PRIVATE
 target_link_libraries(orion2re_test_config_defaults PRIVATE SDL3::Headers)
 orion2re_enable_sanitizers(orion2re_test_config_defaults)
 
+add_library(orion2re_test_tactical_reports STATIC tests/fakes/fake_tactical_reports_runtime.cpp)
+target_compile_features(orion2re_test_tactical_reports PRIVATE cxx_std_20)
+target_include_directories(orion2re_test_tactical_reports PRIVATE src)
+orion2re_enable_sanitizers(orion2re_test_tactical_reports)
+
 function(orion2re_add_unit_test TARGET_NAME)
     cmake_parse_arguments(ORION2RE_TEST "LINK_SDL" "" "SOURCES;PRODUCTION_SOURCES;FAKE_SOURCES;LIBRARIES" ${ARGN})
 
@@ -98,6 +103,7 @@ function(orion2re_add_unit_test TARGET_NAME)
     target_link_libraries(${TARGET_NAME} PRIVATE
         orion2re_test_config_defaults
         orion2re_tactical_events
+        orion2re_test_tactical_reports
         ${ORION2RE_TEST_LIBRARIES}
     )
     orion2re_enable_sanitizers(${TARGET_NAME})

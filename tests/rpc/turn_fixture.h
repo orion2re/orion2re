@@ -7,4 +7,5 @@
 namespace TEST_TACTICAL_TURN {
     void Reset();
     void Apply(const tactical_control::s_operation* operation);
+    void Add_Missile(int16_t slot, int16_t weapon = WEAPON_NUCLEAR_MISSILE, int16_t owner = 1);
 } // namespace TEST_TACTICAL_TURN

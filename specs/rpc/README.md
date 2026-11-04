@@ -16,7 +16,7 @@ cmake -S . -B out/build/rpc-debug -DCMAKE_BUILD_TYPE=Debug \
   -DORION2RE_RPC_BACKEND_DIR=/path/to/libwebsockets
 cmake --build out/build/rpc-debug --target orion2re test_rpc test_tactical_control \
   test_tactical_events test_tactical_view test_combat_stats test_combat_repair \
-  test_cmbtfire test_boarding test_absorber_cleanup test_cmbtspec \
+  test_cmbtfire test_boarding test_absorber_cleanup test_cmbtspec test_missile_defense \
   test_stasis_area_effects test_shield_table test_config_snapshot \
   test_savegame test_multplay test_fields_helpers
 ```
@@ -108,6 +108,15 @@ current-selection firing, native authority, local-attention events, bounded
 single-operation dispatch, cancellation, errors and unknown-outcome recovery.
 No mutation is automatically retried.
 
+For deliberate bank selection, whole-battle missile/fighter/torpedo inspection,
+normal interception and native battle-scoped hit history, see
+[tactical firing](tactical-firing.md). The client adds `selection`, `missiles`,
+`missile`, `intercept` and `hits`. History belongs to the tactical module and its
+allocated storage is released between combats; RPC retains no combat history.
+Acceptance for this firing boundary is automated: production native-function
+tests plus live WebSocket/standard-client tests. A real-battle walkthrough is
+out of scope, and no real multiplayer or other-platform parity is implied.
+
 ## Tactical lifecycle events
 
 After hello, select future notifications with:
@@ -194,7 +203,7 @@ view. There is no world cache, state watch or fingerprint.
 
 ```sh
 ctest --test-dir out/build/rpc-debug --output-on-failure \
-  -R '^(test_rpc|rpc_transport|rpc_tactical_hooks|rpc_observer|rpc_turn|test_tactical_control|test_tactical_events|test_tactical_view|test_combat_stats|test_combat_repair|test_cmbtfire|test_boarding|test_absorber_cleanup|test_cmbtspec|test_stasis_area_effects|test_config_snapshot|test_shield_table|test_savegame|test_multplay|test_fields_helpers)$'
+  -R '^(test_rpc|rpc_transport|rpc_tactical_hooks|rpc_observer|rpc_turn|test_tactical_control|test_tactical_events|test_tactical_view|test_combat_stats|test_combat_repair|test_cmbtfire|test_boarding|test_absorber_cleanup|test_cmbtspec|test_stasis_area_effects|test_missile_defense|test_config_snapshot|test_shield_table|test_savegame|test_multplay|test_fields_helpers)$'
 cmake --build out/build/rpc-debug --target config-generated-check
 ```
 

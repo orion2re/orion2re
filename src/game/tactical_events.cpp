@@ -44,7 +44,12 @@ namespace tactical_events {
 
     void Revoke() noexcept {
         tactical_control::Close_Decision();
-        if (current != nullptr) current->retiring = true;
+        if (current != nullptr) {
+            current->retiring = true;
+            std::vector<s_hit>().swap(current->hits);
+            current->hit_head = 0;
+            current->next_hit_sequence = 1;
+        }
         Publish(REVOKED, -1);
     }
 
@@ -108,8 +113,41 @@ namespace tactical_events {
     void Retire_Battle() noexcept {
         tactical_control::Close_Decision();
         if (Current_Viewer() < 0) return;
+        std::vector<s_hit>().swap(current->hits);
+        current->hit_head = 0;
+        current->next_hit_sequence = 1;
         current->retiring = true;
         Publish(RETIRING, current->viewer);
+    }
+
+    void Retire_Missile(int16_t missile) noexcept {
+        if (Current_Viewer() < 0) return;
+        tactical_control::Invalidate();
+        Invalidate_View();
+        Publish(MISSILE_RETIRED, current->viewer, missile);
+    }
+
+    void Append_Hit(const s_hit* hit) {
+        if (Current_Viewer() < 0 || hit == nullptr || (hit->amount <= 0 && hit->secondary_amount <= 0)) return;
+        s_hit record = *hit;
+        record.sequence = current->next_hit_sequence++;
+        if (current->hits.size() < MAX_HIT_RECORDS) {
+            current->hits.push_back(record);
+        } else {
+            current->hits[current->hit_head] = record;
+            current->hit_head = (current->hit_head + 1) % MAX_HIT_RECORDS;
+        }
+        Invalidate_View();
+    }
+
+    bool Read_Hit_History(s_hit_history* result) {
+        if (result == nullptr || !Reads_Allowed() || Current_Viewer() < 0) return false;
+        *result = {};
+        result->next_sequence = current->next_hit_sequence;
+        for (size_t i = 0; i < current->hits.size(); ++i)
+            result->hits.push_back(current->hits[(current->hit_head + i) % current->hits.size()]);
+        result->first_sequence = result->hits.empty() ? result->next_sequence : result->hits.front().sequence;
+        return true;
     }
 
     void s_battle_scope::Open(int16_t local_observer) noexcept {
@@ -124,6 +162,9 @@ namespace tactical_events {
     }
 
     void s_battle_scope::Close(int16_t local_observer) noexcept {
+        std::vector<s_hit>().swap(hits);
+        hit_head = 0;
+        next_hit_sequence = 1;
         if (!opened) return;
         opened = false;
         if (current != this) return;

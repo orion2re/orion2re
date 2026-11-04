@@ -800,11 +800,13 @@ namespace CMBTFIRE {
                 } else {
                     Apply_Damage_To_Missile(target_idx, &damage_done, specials, weapon_flags);
                     MOX::missile[target_idx].quantity -= damage_done;
+                    tactical_view::Missile_Changed(target_idx);
                     *total_damage += damage_done;
                 }
             }
         }
 
+        if (target_is_missile == 1) tactical_view::Record_Missile_Hit(target_idx, *total_damage);
         if (CMBTMIS::Is_Missile_Target_Alive(missile_idx) == 0) {
             if (target_is_missile == 1) {
                 CMBTMIS::Retarget_Missile(missile_idx);
@@ -1169,6 +1171,7 @@ namespace CMBTFIRE {
             }
         }
 
+        tactical_view::Record_Unit_Hit(0, total_damage, 0, (TECHDATA::weapons[weapon_id].natural_mods & WEAPON_NATURAL_FLAG_BIOLOGICAL) != 0);
         return total_damage;
     }
 
@@ -1376,6 +1379,7 @@ namespace CMBTFIRE {
                     }
 
                     total_hits_on_target = 0;
+                    int16_t target_secondary_total = 0;
                     secondary_damage_total = 0;
                     primary_damage_total = 0;
 
@@ -1492,6 +1496,7 @@ namespace CMBTFIRE {
 
                                             beam_fx_entries[beam_fx_count].is_damage_entry = 0;
                                             total_hits_on_target += beam_hit_offset_x;
+                                            target_secondary_total += beam_hit_offset_y;
                                             weapon->shots_left--;
                                             break;
                                         }
@@ -1545,6 +1550,13 @@ namespace CMBTFIRE {
                                     }
                                 }
 
+                                if (weapon_type_class == WEAPON_TYPE_BEAM) {
+                                    if (flag == 0)
+                                        tactical_view::Record_Unit_Hit(target_ship_idx, total_hits_on_target, target_secondary_total);
+                                    else
+                                        tactical_view::Record_Missile_Hit(target_ship_idx, total_hits_on_target);
+                                    tactical_view::Record_Unit_Hit(source_ship_idx, primary_damage_total, secondary_damage_total);
+                                }
                                 if (MOX::combat_data[source_ship_idx].special_status_flag == 3) {
                                     MOX::combat_data[source_ship_idx].special_status_flag = 2;
                                 }
@@ -1847,7 +1859,8 @@ namespace CMBTFIRE {
                 if (roll > 100) roll = 100;
             }
 
-            if (COMBINIT::Does_Combat_Ship_Have_Special(target, SPECIAL_DISPLACEMENT_DEVICE)) {
+            // Preserve legacy in-range missile/ship-slot aliasing, but never read past the ship allocation.
+            if (target >= 0 && target < MAX_COMBAT_SHIPS && COMBINIT::Does_Combat_Ship_Have_Special(target, SPECIAL_DISPLACEMENT_DEVICE)) {
                 if (game_random::Random(100) <=
                     CMBTFIR2::combat_bonus.displacement_device_beam_miss_percent) {
                     roll = -1000;
@@ -1958,6 +1971,7 @@ namespace CMBTFIRE {
         }
 
         int16_t is_dead = Is_Combat_Ship_Dead(target_ship_idx);
+        tactical_view::Record_Unit_Hit(target_ship_idx, damage, shield_hit_result);
 
         if (MOX::apply_damage_to_planet != 0 && MOX::super_fast_flag == 0) {
             if (CMBTDRW1::Ship_Completely_On_Screen(target_ship_idx) == 0) {

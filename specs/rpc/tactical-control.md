@@ -1,5 +1,10 @@
 # Basic external tactical ship turn (`orion2.rpc/0`)
 
+The [deliberate firing extension](tactical-firing.md) adds explicit native bank
+selection, missile APIs/targeting and game-owned active-battle hit history. Its
+scope supersedes the corresponding exclusions below; the mutation lifecycle is
+unchanged.
+
 This extends, rather than replaces, the [read-only observer](observer.md).
 All new wire methods and notifications have the `combat.` prefix. No raw native
 input, caller-selected perspective, remote loadout editing or strategic authority

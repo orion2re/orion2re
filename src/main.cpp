@@ -227,6 +227,9 @@ int main(int argc, char** argv) {
     tactical_forwarder.reader = {tactical_view::Local_Observer, tactical_view::Read_View, tactical_view::Read_Unit};
     tactical_forwarder.options = tactical_control::Read_Options;
     tactical_forwarder.authorize = tactical_control::Authorize;
+    tactical_forwarder.missile = tactical_view::Read_Missile;
+    tactical_forwarder.missiles = tactical_view::Read_Missiles;
+    tactical_forwarder.authorize_missile = tactical_view::Missile_Disclosed;
     if (rpc::enabled) {
         rpc::s_service_config rpc_config;
         rpc_config.port = rpc::port;

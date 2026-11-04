@@ -12,6 +12,7 @@ namespace rpc {
             forwarder->viewer = -1;
             forwarder->battle_id[0] = '\0';
             forwarder->references.clear();
+            forwarder->missile_references.clear();
             forwarder->selected.clear();
             forwarder->decision_id.clear();
             Revoke_Event_Delivery(forwarder->service);
@@ -33,7 +34,12 @@ namespace rpc {
             operation->actor = resolve(request.actor_id, true);
             if (operation->actor < 0) return reject(-32004);
             if (request.method == OP_SELECT || request.method == OP_FIRE) {
-                operation->target = resolve(request.target_id, request.method == OP_SELECT);
+                if (request.missile_target) {
+                    operation->target = -1;
+                    for (const auto& reference : forwarder->missile_references)
+                        if (reference.token.data() == request.target_id && forwarder->authorize_missile != nullptr && forwarder->authorize_missile(reference.slot)) operation->target = reference.slot;
+                } else
+                    operation->target = resolve(request.target_id, request.method == OP_SELECT);
                 if (operation->target < 0) return reject(-32004);
             }
             if (forwarder->decision_id != request.decision_id || forwarder->decision_generation != tactical_control::Generation()) return reject(-32010);
@@ -43,10 +49,14 @@ namespace rpc {
                 case OP_FACE: operation->kind = tactical_control::FACE; break;
                 case OP_FIRE: operation->kind = tactical_control::FIRE; break;
                 case OP_DONE: operation->kind = tactical_control::DONE; break;
+                case OP_FIRE_SELECTION: operation->kind = tactical_control::FIRE_SELECTION; break;
                 default: return reject(-32004);
             }
             operation->x = request.x;
             operation->y = request.y;
+            operation->missile_target = request.missile_target;
+            operation->bank_mask = request.bank_mask;
+            for (unsigned i = 0; i < 8; ++i) operation->bank_states[i] = request.bank_states[i];
             forwarder->executing = std::move(request);
             return true;
         }
@@ -79,8 +89,8 @@ namespace rpc {
                     if (Take_Operation(forwarder->service, &request))
                         Complete_Operation(forwarder->service, &request, active ? -32009 : -32004);
                 }
-            } else if (event->kind == tactical_events::UNIT_RETIRED) {
-                auto& references = forwarder->references;
+            } else if (event->kind == tactical_events::UNIT_RETIRED || event->kind == tactical_events::MISSILE_RETIRED) {
+                auto& references = event->kind == tactical_events::UNIT_RETIRED ? forwarder->references : forwarder->missile_references;
                 const auto end = std::remove_if(references.begin(), references.end(), [event](const auto& reference) { return reference.slot == event->unit; });
                 if (end != references.end()) {
                     references.erase(end, references.end());
@@ -89,6 +99,7 @@ namespace rpc {
             } else if (event->kind == tactical_events::RETIRING) {
                 forwarder->retiring = true;
                 forwarder->references.clear();
+                forwarder->missile_references.clear();
                 forwarder->selected.clear();
                 Invalidate_Read_Delivery(forwarder->service);
                 Execute_Reads(forwarder->service, false, false, Execute_Tactical_Read, forwarder);
@@ -130,6 +141,7 @@ namespace rpc {
                     Publish_Event(forwarder->service, EVENT_COMBAT_CLOSED, forwarder->battle_id);
                     forwarder->battle_id[0] = '\0';
                     forwarder->references.clear();
+                    forwarder->missile_references.clear();
                     forwarder->selected.clear();
                 }
             }

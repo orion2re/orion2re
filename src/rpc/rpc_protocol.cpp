@@ -94,7 +94,7 @@ namespace rpc {
         struct s_method {
             const char* name;
         };
-        constexpr s_method methods[] = {{"rpc.hello"}, {"rpc.describe"}, {"rpc.subscribe"}, {"rpc.unsubscribe"}, {"combat.getView"}, {"combat.getUnit"}, {"combat.getTargetOptions"}, {"combat.selectUnit"}, {"combat.move"}, {"combat.face"}, {"combat.fire"}, {"combat.done"}, {"combat.cancelOperation"}};
+        constexpr s_method methods[] = {{"rpc.hello"}, {"rpc.describe"}, {"rpc.subscribe"}, {"rpc.unsubscribe"}, {"combat.getView"}, {"combat.getUnit"}, {"combat.getTargetOptions"}, {"combat.selectUnit"}, {"combat.move"}, {"combat.face"}, {"combat.fire"}, {"combat.done"}, {"combat.cancelOperation"}, {"combat.setFireSelection"}, {"combat.listMissiles"}, {"combat.getMissile"}, {"combat.getHitHistory"}};
 
         bool Reference(yyjson_val* value) {
             if (!yyjson_is_str(value) || yyjson_get_len(value) != 32) return false;
@@ -236,12 +236,16 @@ namespace rpc {
                 if (selection_updated != nullptr) *selection_updated = true;
                 *response = "{\"jsonrpc\":\"2.0\",\"id\":" + encoded_id + ",\"result\":{\"events\":" + Events_Json(selected) + "}}";
             }
-        } else if (Is_Text(method, "combat.getView") || Is_Text(method, "combat.getUnit") || Is_Text(method, "combat.getTargetOptions")) {
+        } else if (Is_Text(method, "combat.getView") || Is_Text(method, "combat.getUnit") || Is_Text(method, "combat.getTargetOptions") ||
+            Is_Text(method, "combat.listMissiles") || Is_Text(method, "combat.getMissile") || Is_Text(method, "combat.getHitHistory")) {
             const bool unit = Is_Text(method, "combat.getUnit");
             const bool options = Is_Text(method, "combat.getTargetOptions");
+            const bool missile = Is_Text(method, "combat.getMissile");
             auto* battle_id = yyjson_obj_get(params, "battleId");
             auto* unit_id = yyjson_obj_get(params, "unitId");
-            const bool valid = unit ? Only_Keys(params, {"battleId", "unitId"}) && Reference(battle_id) && Reference(unit_id) : (params == nullptr || (Only_Keys(params, {"battleId"}) && (battle_id == nullptr || Reference(battle_id))));
+            auto* missile_id = yyjson_obj_get(params, "missileId");
+            const bool valid = unit ? Only_Keys(params, {"battleId", "unitId"}) && Reference(battle_id) && Reference(unit_id) : missile ? Only_Keys(params, {"battleId", "missileId"}) && Reference(battle_id) && Reference(missile_id)
+                                                                                                                                        : (params == nullptr || (Only_Keys(params, {"battleId"}) && (battle_id == nullptr || Reference(battle_id))));
             if (!valid) {
                 *response = Error(encoded_id, -32602, "Invalid params");
             } else if ((session->events & 7) != 7) {
@@ -251,30 +255,62 @@ namespace rpc {
             } else {
                 read->method = options ? READ_OPTIONS : READ_VIEW;
                 if (unit) read->method = READ_UNIT;
+                if (missile) read->method = READ_MISSILE;
+                if (Is_Text(method, "combat.listMissiles")) read->method = READ_MISSILES;
+                if (Is_Text(method, "combat.getHitHistory")) read->method = READ_HITS;
                 read->encoded_id = encoded_id;
                 if (battle_id != nullptr) read->battle_id = yyjson_get_str(battle_id);
                 if (unit_id != nullptr) read->unit_id = yyjson_get_str(unit_id);
+                if (missile_id != nullptr) read->missile_id = yyjson_get_str(missile_id);
             }
         } else if (Is_Text(method, "combat.selectUnit") || Is_Text(method, "combat.move") || Is_Text(method, "combat.face") ||
-            Is_Text(method, "combat.fire") || Is_Text(method, "combat.done") || Is_Text(method, "combat.cancelOperation")) {
+            Is_Text(method, "combat.fire") || Is_Text(method, "combat.done") || Is_Text(method, "combat.cancelOperation") || Is_Text(method, "combat.setFireSelection")) {
             const bool cancel = Is_Text(method, "combat.cancelOperation");
             const bool select = Is_Text(method, "combat.selectUnit");
             const bool fire = Is_Text(method, "combat.fire");
             const bool move = Is_Text(method, "combat.move");
             const bool face = Is_Text(method, "combat.face");
+            const bool selection = Is_Text(method, "combat.setFireSelection");
             auto* sequence = yyjson_obj_get(params, "operationSeq");
             auto* battle = yyjson_obj_get(params, "battleId");
             auto* actor = yyjson_obj_get(params, "actorUnitId");
             auto* decision = yyjson_obj_get(params, "decisionId");
             auto* target = yyjson_obj_get(params, select ? "unitId" : "targetUnitId");
+            auto* missile_target = yyjson_obj_get(params, "targetMissileId");
+            auto* banks = yyjson_obj_get(params, "banks");
+            uint8_t bank_mask = 0;
+            int8_t bank_states[8] = {};
             auto* point = yyjson_obj_get(params, move ? "destination" : "toward");
             auto* x = yyjson_obj_get(point, "x");
             auto* y = yyjson_obj_get(point, "y");
             const bool valid_sequence = yyjson_is_uint(sequence) && yyjson_get_uint(sequence) > 0 && yyjson_get_uint(sequence) <= 9007199254740991ULL;
-            bool valid = cancel ? Only_Keys(params, {"operationSeq"}) : Only_Keys(params, {"battleId", "actorUnitId", "decisionId", "operationSeq", "unitId", "targetUnitId", "destination", "toward"}) && Reference(battle) && Reference(actor) && Reference(decision);
+            bool valid = cancel ? Only_Keys(params, {"operationSeq"}) : Only_Keys(params, {"battleId", "actorUnitId", "decisionId", "operationSeq", "unitId", "targetUnitId", "targetMissileId", "destination", "toward", "banks"}) && Reference(battle) && Reference(actor) && Reference(decision);
             if (!cancel) {
-                valid = valid && yyjson_obj_size(params) == size_t(select || fire || move || face ? 5 : 4);
-                if (select || fire)
+                valid = valid && yyjson_obj_size(params) == size_t(select || fire || move || face || selection ? 5 : 4);
+                if (selection) {
+                    valid = valid && yyjson_is_arr(banks) && yyjson_arr_size(banks) > 0 && yyjson_arr_size(banks) <= 8;
+                    size_t index, count;
+                    yyjson_val* bank;
+                    yyjson_arr_foreach(banks, index, count, bank) {
+                        auto* slot = yyjson_obj_get(bank, "slot");
+                        auto* state = yyjson_obj_get(bank, "state");
+                        if (!Only_Keys(bank, {"slot", "state"}) || yyjson_obj_size(bank) != 2 || !yyjson_is_uint(slot) || yyjson_get_uint(slot) >= 8 ||
+                            !(Is_Text(state, "on") || Is_Text(state, "temporaryOff") || Is_Text(state, "off"))) {
+                            valid = false;
+                            break;
+                        }
+                        const unsigned i = unsigned(yyjson_get_uint(slot));
+                        if (bank_mask & (1u << i)) {
+                            valid = false;
+                            break;
+                        }
+                        bank_mask |= uint8_t(1u << i);
+                        bank_states[i] = Is_Text(state, "on") ? 1 : Is_Text(state, "off") ? -1
+                                                                                          : 0;
+                    }
+                } else if (fire)
+                    valid = valid && ((target != nullptr && missile_target == nullptr && Reference(target)) || (target == nullptr && Reference(missile_target)));
+                else if (select)
                     valid = valid && Reference(target);
                 else if (move || face)
                     valid = valid && Only_Keys(point, {"x", "y"}) && yyjson_obj_size(point) == 2 &&
@@ -298,6 +334,7 @@ namespace rpc {
                 if (move) operation->method = OP_MOVE;
                 if (face) operation->method = OP_FACE;
                 if (fire) operation->method = OP_FIRE;
+                if (selection) operation->method = OP_FIRE_SELECTION;
                 operation->request.encoded_id = encoded_id;
                 operation->sequence = yyjson_get_uint(sequence);
                 if (!cancel) {
@@ -305,7 +342,10 @@ namespace rpc {
                     operation->request.battle_id = yyjson_get_str(battle);
                     operation->actor_id = yyjson_get_str(actor);
                     operation->decision_id = yyjson_get_str(decision);
-                    if (select || fire) operation->target_id = yyjson_get_str(target);
+                    if (select || fire) operation->target_id = yyjson_get_str(missile_target != nullptr && fire ? missile_target : target);
+                    operation->missile_target = fire && missile_target != nullptr;
+                    operation->bank_mask = bank_mask;
+                    for (unsigned i = 0; i < 8; ++i) operation->bank_states[i] = bank_states[i];
                     if (move || face) {
                         operation->x = (int16_t)yyjson_get_sint(x);
                         operation->y = (int16_t)yyjson_get_sint(y);

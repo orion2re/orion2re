@@ -1825,8 +1825,10 @@ namespace CMBTFIR2 {
 
         if (MOX::super_fast_flag == 0) {
             if (!is_timed) {
+                tactical_events::s_local_attention attention;
                 TEXTBOX::Text_Box(header_buf, msg_buf);
             } else {
+                tactical_events::s_local_attention attention;
                 TEXTBOX::Timed_Text_Box(header_buf, msg_buf, 54);
             }
         }

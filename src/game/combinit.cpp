@@ -3289,6 +3289,7 @@ namespace COMBINIT {
                 struct_damage_total += arc_struct_damage;
             }
 
+            tactical_view::Record_Unit_Hit(i, total_damage, struct_damage_total);
             if (MOX::apply_damage_to_planet == 1 && MOX::super_fast_flag == 0) {
                 MOX::cur_ship = i;
                 if (CMBTDRW1::Ship_Completely_On_Screen(i) == 0) {

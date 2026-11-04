@@ -147,7 +147,8 @@ class TransportTest(unittest.TestCase):
         self.assertEqual(response["id"], 'quote"id')
         self.assertEqual([m["name"] for m in response["result"]["methods"]],
                          ["rpc.hello", "rpc.describe", "rpc.subscribe", "rpc.unsubscribe", "combat.getView", "combat.getUnit",
-                          "combat.getTargetOptions", "combat.selectUnit", "combat.move", "combat.face", "combat.fire", "combat.done", "combat.cancelOperation"])
+                          "combat.getTargetOptions", "combat.selectUnit", "combat.move", "combat.face", "combat.fire", "combat.done", "combat.cancelOperation",
+                          "combat.setFireSelection", "combat.listMissiles", "combat.getMissile", "combat.getHitHistory"])
         client.send("game.getState")
         self.assertEqual(client.read()["error"]["code"], -32601)
 

@@ -1,5 +1,6 @@
 #include "tactical_reads.h"
 #include "config/text_encoding.h"
+#include "game/tactical_events.h"
 
 #include <algorithm>
 #include <cstdlib>
@@ -57,6 +58,30 @@ namespace rpc {
             return result;
         }
 
+        std::string Missile_Token(s_tactical_forwarder* forwarder, int16_t slot) {
+            for (const auto& reference : forwarder->missile_references)
+                if (reference.slot == slot) return reference.token.data();
+            const auto token = Random_Token();
+            if (token.empty()) {
+                forwarder->retiring = true;
+                Revoke_Event_Delivery(forwarder->service);
+                return {};
+            }
+            s_tactical_forwarder::s_reference reference;
+            reference.slot = slot;
+            std::copy(token.begin(), token.end(), reference.token.begin());
+            forwarder->missile_references.push_back(reference);
+            return token;
+        }
+
+        std::string Missile_Row(const tactical_view::s_missile& missile, const std::string& token) {
+            const char* kind = missile.type == 2 ? "torpedo" : missile.type == 4 ? "fighter"
+                                                                                 : "missile";
+            return "{\"missileId\":\"" + token + "\",\"kind\":\"" + kind + "\",\"name\":" + Name_Json(missile.name) +
+                ",\"owned\":" + (missile.owned ? "true" : "false") + ",\"quantity\":" + std::to_string(missile.quantity) +
+                ",\"position\":{\"x\":" + std::to_string(missile.x) + ",\"y\":" + std::to_string(missile.y) + "}}";
+        }
+
         std::string Row(const tactical_view::s_unit* unit, const std::string& token, bool detail) {
             const char* kinds[] = {"ship", "planet", "satellite", "monster", "contact"};
             const char* sizes[] = {"small", "medium", "large", "huge"};
@@ -89,6 +114,52 @@ namespace rpc {
         if (!active) {
             if (request->method != READ_VIEW) return unavailable();
             result = "{\"battle\":null}";
+        } else if (request->method == READ_HITS) {
+            tactical_events::s_hit_history history;
+            if (!tactical_events::Read_Hit_History(&history)) return unavailable();
+            result = "{\"battleId\":\"" + std::string(forwarder->battle_id) + "\",\"firstSequence\":" + std::to_string(history.first_sequence) +
+                ",\"nextSequence\":" + std::to_string(history.next_sequence) + ",\"retentionGap\":" + (history.first_sequence > 1 ? "true" : "false") + ",\"hits\":[";
+            for (size_t i = 0; i < history.hits.size(); ++i) {
+                const auto& hit = history.hits[i];
+                if (i) result += ',';
+                const char* kind = hit.kind == tactical_events::MISSILES_DESTROYED ? "missilesDestroyed" : hit.kind == tactical_events::BIOLOGICAL_HITS ? "biologicalHits"
+                                                                                                                                                        : "unitDamage";
+                result += "{\"sequence\":" + std::to_string(hit.sequence) + ",\"round\":" + std::to_string(hit.round) +
+                    ",\"kind\":\"" + kind + "\",\"targetName\":" + Name_Json(hit.target_name) + ",\"amount\":" + std::to_string(hit.amount) +
+                    ",\"secondaryAmount\":" + std::to_string(hit.secondary_amount) + "}";
+            }
+            result += "]}";
+            *dependent = true;
+        } else if (request->method == READ_MISSILE || request->method == READ_MISSILES) {
+            result = "{\"battleId\":\"" + std::string(forwarder->battle_id) + "\",";
+            if (request->method == READ_MISSILE) {
+                tactical_view::s_missile missile;
+                bool found = false;
+                for (const auto& reference : forwarder->missile_references)
+                    if (request->missile_id == reference.token.data() && forwarder->missile != nullptr && forwarder->missile(reference.slot, &missile)) {
+                        found = true;
+                        break;
+                    }
+                if (!found) return unavailable();
+                result += "\"missile\":" + Missile_Row(missile, request->missile_id) + "}";
+            } else {
+                std::vector<tactical_view::s_missile> missiles;
+                if (forwarder->missiles == nullptr || !forwarder->missiles(&missiles)) return unavailable();
+                std::vector<std::string> rows;
+                for (const auto& missile : missiles) {
+                    const auto token = Missile_Token(forwarder, missile.slot);
+                    if (token.empty()) return unavailable();
+                    rows.push_back(Missile_Row(missile, token));
+                }
+                std::sort(rows.begin(), rows.end());
+                result += "\"visibleMissileCount\":" + std::to_string(rows.size()) + ",\"missiles\":[";
+                for (size_t i = 0; i < rows.size(); ++i) {
+                    if (i) result += ',';
+                    result += rows[i];
+                }
+                result += "]}";
+            }
+            *dependent = true;
         } else if (request->method == READ_OPTIONS) {
             tactical_control::s_options options;
             if (forwarder->options == nullptr || !forwarder->options(&options)) return unavailable();
@@ -123,6 +194,7 @@ namespace rpc {
                         ",\"type\":" + std::to_string(weapon.type) + ",\"count\":" + std::to_string(weapon.count) +
                         ",\"selection\":" + std::to_string(weapon.selection) + ",\"shotsAvailable\":" + std::to_string(weapon.shots) +
                         ",\"ammoOrRecharge\":" + std::to_string(weapon.ammo) + ",\"arc\":" + std::to_string(weapon.arc) +
+                        ",\"modifiers\":" + std::to_string(weapon.modifiers) +
                         ",\"ready\":" + (weapon.ready ? "true" : "false") + "}";
                 }
                 result += "],\"preFireEffects\":{\"absorberSelected\":" + std::string(options.absorber_selected ? "true" : "false") +
@@ -150,6 +222,30 @@ namespace rpc {
                 for (size_t i = 0; i < targets.size(); ++i) {
                     if (i) result += ',';
                     result += targets[i];
+                }
+                result += "],\"missileTargets\":[";
+                std::vector<std::string> missile_targets;
+                for (const auto& target : options.missile_targets) {
+                    tactical_view::s_missile missile;
+                    if (forwarder->missile == nullptr || !forwarder->missile(target.slot, &missile)) return unavailable();
+                    const auto token = Missile_Token(forwarder, target.slot);
+                    if (token.empty()) return unavailable();
+                    auto row = Missile_Row(missile, token);
+                    row.pop_back();
+                    row += ",\"canFire\":" + std::string(target.weapons ? "true" : "false") + ",\"eligibleWeaponSlots\":[";
+                    bool first = true;
+                    for (unsigned i = 0; i < 8; ++i)
+                        if (target.weapons & (1u << i)) {
+                            if (!first) row += ',';
+                            first = false;
+                            row += std::to_string(i);
+                        }
+                    missile_targets.push_back(row + "]}");
+                }
+                std::sort(missile_targets.begin(), missile_targets.end());
+                for (size_t i = 0; i < missile_targets.size(); ++i) {
+                    if (i) result += ',';
+                    result += missile_targets[i];
                 }
                 result += "],\"canDone\":true}";
             }

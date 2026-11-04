@@ -1,4 +1,5 @@
 #include "turn_fixture.h"
+#include "game/tactical_view.h"
 
 namespace TEST_TACTICAL_TURN {
     namespace {
@@ -9,6 +10,9 @@ namespace TEST_TACTICAL_TURN {
         s_mouse_list mouse_grid[COMBAT_MOUSE_COUNT];
         s_animation_header button;
         char laser_name[] = "Laser Cannons";
+        char missile_name[] = "Nuclear Missile";
+        char torpedo_name[] = "Anti-Matter Torpedo";
+        char fighter_name[] = "Interceptor";
     } // namespace
     void Reset() {
         tactical_control::Close_Decision();
@@ -83,6 +87,12 @@ namespace TEST_TACTICAL_TURN {
         TECHDATA::weapons[WEAPON_LASER_CANNON].min_damage = 2;
         TECHDATA::weapons[WEAPON_LASER_CANNON].max_damage = 5;
         TECHDATA::weapons[WEAPON_LASER_CANNON].name_plural = laser_name;
+        TECHDATA::weapons[WEAPON_NUCLEAR_MISSILE].type = WEAPON_TYPE_MISSILE;
+        TECHDATA::weapons[WEAPON_NUCLEAR_MISSILE].name = missile_name;
+        TECHDATA::weapons[WEAPON_ANTI_MATTER_TORP].type = WEAPON_TYPE_TORPEDO;
+        TECHDATA::weapons[WEAPON_ANTI_MATTER_TORP].name = torpedo_name;
+        TECHDATA::weapons[WEAPON_INTERCEPTOR].type = WEAPON_TYPE_FIGHTER;
+        TECHDATA::weapons[WEAPON_INTERCEPTOR].name = fighter_name;
         // Synthetic button geometry only; all gameplay and RNG functions are production.
         button.width = 10;
         button.height = 10;
@@ -100,5 +110,21 @@ namespace TEST_TACTICAL_TURN {
         if (operation->kind == tactical_control::DONE) MOX::super_fast_flag = 0;
         COMBAT1::Apply_Tactical_Operation(operation, 0, &next);
         if (next) tactical_events::Select_Unit(-1);
+    }
+    void Add_Missile(int16_t slot, int16_t weapon, int16_t owner) {
+        CMBTMIS::Kill_Missile(slot);
+        auto& missile = MOX::missile[slot];
+        missile = {};
+        missile.type = weapon;
+        missile.owner = int8_t(owner);
+        missile.quantity = 6;
+        missile.source_unit_idx = owner == 1 ? 2 : 1;
+        missile.target_unit_idx = owner == 1 ? 1 : 2;
+        missile.x = 280;
+        missile.y = 200;
+        missile.speed = 3;
+        missile.travel_dist = 100;
+        missile.is_active = 1;
+        tactical_view::Missile_Changed(slot);
     }
 } // namespace TEST_TACTICAL_TURN

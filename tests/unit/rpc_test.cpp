@@ -79,6 +79,40 @@ DOCTEST_TEST_CASE("mutation dispatch atomically defeats expiry cancellation disc
     DOCTEST_CHECK_FALSE(rpc::Take_Operation(&expired, &taken));
 }
 
+DOCTEST_TEST_CASE("bank selection and missile targeting validate bounded semantic parameters") {
+    rpc::s_session session;
+    session.authenticated = session.controller = true;
+    session.events = 7;
+    const std::string common = R"("battleId":"0123456789abcdef0123456789abcdef","actorUnitId":"0123456789abcdef0123456789abcdef","decisionId":"0123456789abcdef0123456789abcdef","operationSeq":1)";
+    const auto selection = [&](const char* banks) {
+        return "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"combat.setFireSelection\",\"params\":{" + common + ",\"banks\":" + banks + "}}";
+    };
+    std::string response;
+    rpc::s_operation_request operation;
+    for (const char* invalid : {"[]", "null", "{}", R"([{"slot":8,"state":"on"}])", R"([{"slot":0,"state":"best"}])", R"([{"slot":0,"state":"on"},{"slot":0,"state":"off"}])", R"([{"slot":0,"state":"on","extra":1}])"}) {
+        DOCTEST_REQUIRE(rpc::Process_Request(selection(invalid), KEY, true, &session, &response, nullptr, nullptr, &operation));
+        DOCTEST_CHECK(response.find("-32602") != std::string::npos);
+        DOCTEST_CHECK(operation.method == rpc::OP_NONE);
+        DOCTEST_CHECK(session.operation_sequence == 0);
+    }
+    DOCTEST_REQUIRE(rpc::Process_Request(selection(R"([{"slot":0,"state":"temporaryOff"},{"slot":7,"state":"off"}])"), KEY, true, &session, &response, nullptr, nullptr, &operation));
+    DOCTEST_CHECK(response.empty());
+    DOCTEST_CHECK(operation.method == rpc::OP_FIRE_SELECTION);
+    DOCTEST_CHECK(operation.bank_mask == 129);
+    DOCTEST_CHECK(operation.bank_states[0] == 0);
+    DOCTEST_CHECK(operation.bank_states[7] == -1);
+    session.operation_sequence = 0;
+    const auto fire = "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"combat.fire\",\"params\":{" + common + ",\"targetMissileId\":\"fedcba9876543210fedcba9876543210\"}}";
+    DOCTEST_REQUIRE(rpc::Process_Request(fire, KEY, true, &session, &response, nullptr, nullptr, &operation));
+    DOCTEST_CHECK(response.empty());
+    DOCTEST_CHECK(operation.method == rpc::OP_FIRE);
+    DOCTEST_CHECK(operation.missile_target);
+    DOCTEST_CHECK(operation.target_id == "fedcba9876543210fedcba9876543210");
+    session.controller = false;
+    DOCTEST_REQUIRE(rpc::Process_Request(fire, KEY, true, &session, &response, nullptr, nullptr, &operation));
+    DOCTEST_CHECK(response.find("-32007") != std::string::npos);
+}
+
 DOCTEST_TEST_CASE("RPC authenticates before discovery and advertises transport methods only") {
     rpc::s_session session;
     const std::string describe = R"({"jsonrpc":"2.0","id":"query","method":"rpc.describe"})";

@@ -140,6 +140,8 @@ class Observer:
         self.options = None
         self.operation_seq = 0
         self.pending_operation = None
+        self.show_missiles = False
+        self.show_history = False
 
     def clear(self, message):
         self.battle = None
@@ -147,6 +149,8 @@ class Observer:
         self.retry_at = None
         self.retries = 0
         self.options = None
+        self.show_missiles = False
+        self.show_history = False
         print(message, flush=True)
 
     def notification(self, event):
@@ -248,6 +252,10 @@ class Observer:
         selected = next((u for u in battle["units"] if u["owned"] and u["unitId"] == battle["selectedUnitId"]), None)
         if selected:
             self.detail(selected["unitId"])
+        if self.show_missiles:
+            self.inspect_missiles()
+        if self.show_history:
+            self.history()
         if self.controller:
             self.show_options()
 
@@ -262,20 +270,63 @@ class Observer:
             return
         options = response["result"]
         if not options["control"]["available"]:
-            print("Controller connected, but no native ship control (opponent/AI/phase/local mode).", flush=True)
+            print("No native ship control (opponent/AI/phase/local mode).", flush=True)
             return
         self.options = options
         print("Controllable actor: " + options["control"]["actorUnitId"], flush=True)
         print("Selectable ships: " + " ".join(options["selectableUnitIds"]), flush=True)
         for weapon in options["weapons"]:
             print("Weapon: " + safe_text(json.dumps(weapon, ensure_ascii=False)), flush=True)
+            state = {1: "on", 0: "temporaryOff", -1: "off"}.get(weapon["selection"], "unknown")
+            mount = "heavy mount" if weapon.get("modifiers", 0) & 2 else "point defense" if weapon.get("modifiers", 0) & 4 else "standard mount"
+            modifier_names = ("reserved", "heavy mount", "point defense", "armor piercing", "continuous",
+                              "no range dissipation", "shield piercing", "auto fire", "enveloping", "MIRV",
+                              "ECCM", "heavily armored", "fast", "emission guidance", "overloaded")
+            modifiers = ", ".join(name for bit, name in enumerate(modifier_names)
+                                  if bit and weapon.get("modifiers", 0) & (1 << bit)) or "none"
+            resource = "recharge" if weapon["type"] == 2 else "ammunition"
+            resource_value = "unlimited" if weapon["type"] != 2 and weapon["ammoOrRecharge"] < 0 else weapon["ammoOrRecharge"]
+            print(f"  Bank {weapon['slot']}: {state}, {mount}, shots={weapon['shotsAvailable']}, "
+                  f"{resource}={resource_value}, modifiers={modifiers}, ready={weapon['ready']}", flush=True)
         print("Pre-fire effects: " + str(options["preFireEffects"]), flush=True)
         print("Facing: " + str(options["facing"]), flush=True)
         print("Legal move cells (x,y:nominalCost; native warnings/effects can stop early): " +
               " ".join(f"{c['x']},{c['y']}:{c['nominalCost']}" for c in options["movement"]["cells"]), flush=True)
         for target in options["targets"]:
             print("Target: " + json.dumps(target), flush=True)
+        for target in options.get("missileTargets", []):
+            print("Missile target: " + safe_text(json.dumps(target, ensure_ascii=False)), flush=True)
         print("Done is available. Fire uses the entire current native selection.", flush=True)
+
+    def inspect_missiles(self, missile_id=None):
+        if self.battle is None:
+            print("No current battle.", flush=True)
+            return
+        params = {"battleId": self.battle["battleId"]}
+        if missile_id is not None:
+            params["missileId"] = missile_id
+        response = self.request("combat.getMissile" if missile_id is not None else "combat.listMissiles", params)
+        if "error" in response:
+            print("Missiles unavailable/busy; no stale missile data retained.", flush=True)
+            return
+        result = response["result"]
+        rows = [result["missile"]] if missile_id is not None else result["missiles"]
+        print(f"Current missiles: {len(rows)}", flush=True)
+        for row in rows:
+            print("Missile: " + safe_text(json.dumps(row, ensure_ascii=False)), flush=True)
+
+    def history(self):
+        if self.battle is None:
+            print("No current battle hit history; history is released at closure.", flush=True)
+            return
+        response = self.request("combat.getHitHistory", {"battleId": self.battle["battleId"]})
+        if "error" in response:
+            print("Hit history unavailable/busy.", flush=True)
+            return
+        history = response["result"]
+        if history["retentionGap"]:
+            print("Hit history retention gap: earlier records are no longer retained.", flush=True)
+        print("Native hit history: " + safe_text(json.dumps(history, ensure_ascii=False)), flush=True)
 
     def operation(self, command):
         if not self.controller:
@@ -296,7 +347,8 @@ class Observer:
             print("No current decision; use options before issuing an operation.", flush=True)
             return
         methods = {"select": ("combat.selectUnit", 2), "move": ("combat.move", 3),
-                   "face": ("combat.face", 3), "fire": ("combat.fire", 2), "done": ("combat.done", 1)}
+                   "face": ("combat.face", 3), "fire": ("combat.fire", 2), "done": ("combat.done", 1),
+                   "intercept": ("combat.fire", 2), "selection": ("combat.setFireSelection", len(parts))}
         method, count = methods[parts[0]]
         if len(parts) != count:
             print("Invalid command arguments.", flush=True)
@@ -305,12 +357,25 @@ class Observer:
                   "actorUnitId": self.options["control"]["actorUnitId"],
                   "decisionId": self.options["control"]["decisionId"]}
         try:
-            if parts[0] in ("move", "face"):
+            if parts[0] == "selection":
+                if not 2 <= len(parts) <= 9:
+                    raise ValueError()
+                banks = []
+                for item in parts[1:]:
+                    slot, state = item.split("=", 1)
+                    slot = int(slot)
+                    if slot not in range(8) or state not in ("on", "temporaryOff", "off") or any(b["slot"] == slot for b in banks):
+                        raise ValueError()
+                    banks.append({"slot": slot, "state": state})
+                params["banks"] = banks
+            elif parts[0] == "intercept":
+                params["targetMissileId"] = parts[1]
+            elif parts[0] in ("move", "face"):
                 params["destination" if parts[0] == "move" else "toward"] = {"x": int(parts[1]), "y": int(parts[2])}
             elif parts[0] in ("fire", "select"):
                 params["targetUnitId" if parts[0] == "fire" else "unitId"] = parts[1]
         except ValueError:
-            print("Coordinates must be integers.", flush=True)
+            print("Use integer coordinates or selection <slot>=on|temporaryOff|off (unique slots 0-7).", flush=True)
             return
         self.operation_seq += 1
         self.next_id += 1
@@ -391,8 +456,9 @@ def main():
                     pass
 
         threading.Thread(target=input_commands, daemon=True).start()
-        print("Commands: refresh | unit <unitId> | options | select <unitId> | move <x> <y> | "
-              "face <x> <y> | fire <targetUnitId> | done | cancel | quit. Ctrl-C exits.", flush=True)
+        print("Commands: refresh | unit <unitId> | missiles | missile <missileId> | hits | options | "
+              "selection <slot>=on|temporaryOff|off ... | select <unitId> | move <x> <y> | "
+              "face <x> <y> | fire <targetUnitId> | intercept <missileId> | done | cancel | quit. Ctrl-C exits.", flush=True)
         while True:
             try:
                 command = commands.get_nowait()
@@ -404,10 +470,18 @@ def main():
                     observer.refresh = True
                 elif command.startswith("unit "):
                     observer.detail(command[5:].strip())
+                elif command == "missiles":
+                    observer.show_missiles = True
+                    observer.inspect_missiles()
+                elif command.startswith("missile "):
+                    observer.inspect_missiles(command[8:].strip())
+                elif command == "hits":
+                    observer.show_history = True
+                    observer.history()
                 elif command == "options":
                     if not observer.pending_operation:
                         observer.show_options()
-                elif command.split() and command.split()[0] in ("select", "move", "face", "fire", "done", "cancel"):
+                elif command.split() and command.split()[0] in ("select", "move", "face", "fire", "intercept", "selection", "done", "cancel"):
                     observer.operation(command)
             except queue.Empty:
                 pass

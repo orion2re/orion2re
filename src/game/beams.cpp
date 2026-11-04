@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "tactical_view.h"
 
 namespace BEAMS {
     uint8_t g_pierced_shield_flag;
@@ -1214,6 +1215,13 @@ namespace BEAMS {
         }
     }
 
+    s_beam_target_shape Beam_Target_Shape(int16_t target_id) {
+        // In-range missile indices retain their legacy ship-slot presentation.
+        if (target_id >= 0 && target_id < MAX_COMBAT_SHIPS)
+            return {MOX::combat_data[target_id].facing_dir, MOX::combat_data[target_id].size_class};
+        return {0, 0};
+    }
+
     /**
      * Drive the full beam-weapon visual sequence for one attack exchange.
      * @param fx_entries Beam effect entries to play in sequence.
@@ -1235,7 +1243,8 @@ namespace BEAMS {
 
         if (fx_entries[0].weapon_id == 0x2e || TECHDATA::weapons[fx_entries[0].weapon_id].type == 0) {
             int16_t attacker_facing_dir = MOX::combat_data[attacker_ship_id].facing_dir;
-            int16_t target_facing_dir = MOX::combat_data[target_id].facing_dir;
+            const auto target_shape = Beam_Target_Shape(target_id);
+            int16_t target_facing_dir = target_shape.facing;
 
             int16_t attacker_center_x, attacker_center_y;
             COMBINIT::Ship_Center_Offsets(attacker_ship_id, &attacker_center_x, &attacker_center_y);
@@ -1369,7 +1378,7 @@ namespace BEAMS {
                                 if (attacker_ship_id > 0) {
                                     FIREPTS::Calc_FP_Offsets(&fp_x, &fp_y, weapon_id, shot_count, attacker_owner, attacker_ship_id, attacker_picture_num, (uint8_t)attacker_facing_dir, (uint8_t)target_bearing, fp_idx_val);
                                 }
-                                Fire_Weapon(attacker_center_x + fp_x, attacker_center_y + fp_y, target_center_x + rand_offsets[i + 2], target_center_y + rand_offsets[i], attacker_facing_dir, target_facing_dir, fx->weapon_id, frame_idx[i], i, MOX::combat_data[target_id].size_class, fx->result_flags, fx->special_flag, is_non_ship_target, fp_idx_val, g_reflection_state_flag, MOX::combat_data[attacker_ship_id].size_class, fx->specials, 1);
+                                Fire_Weapon(attacker_center_x + fp_x, attacker_center_y + fp_y, target_center_x + rand_offsets[i + 2], target_center_y + rand_offsets[i], attacker_facing_dir, target_facing_dir, fx->weapon_id, frame_idx[i], i, target_shape.size, fx->result_flags, fx->special_flag, is_non_ship_target, fp_idx_val, g_reflection_state_flag, MOX::combat_data[attacker_ship_id].size_class, fx->specials, 1);
                             }
                         }
                     }
@@ -1583,6 +1592,7 @@ namespace BEAMS {
                             if (fx->accum_hit_x > 0 || fx->accum_hit_y > 0) {
                                 Add_Damage_Indicator_For_Missile(target_center_x, target_center_y, 1, fx->accum_hit_x);
                                 MOX::missile[target_id].quantity -= fx->accum_hit_x;
+                                tactical_view::Missile_Changed(target_id);
                                 if (MOX::missile[target_id].quantity <= 0) {
                                     CMBTMIS::Kill_Missile(target_id);
                                 }
