@@ -73,8 +73,11 @@ limit exceeded. Errors do not echo references or request payloads.
 
 ## Native field/disclosure policy
 
-The shared game-owned `tactical_view` helpers perform reads; the WebSocket layer
-does not reproduce combat rules or call rendering/input/calculation functions.
+Shared game-owned helpers authorize native disclosure and produce semantic
+invalidation/lifetime events. Request-local unit/missile DTOs and row projection
+live in `rpc_tactical_view.cpp`, executing only on the game thread at those native
+safe points. Socket handling does not read mutable game state. Projection does not
+reproduce combat rules or call rendering/input/calculation functions.
 
 | Enabled disclosure | Native authority/presentation anchor |
 | --- | --- |

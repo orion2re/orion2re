@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "rpc/rpc_tactical_view.h"
 #include "game/tactical_events.h"
 #include "game/tactical_view.h"
 
@@ -1006,8 +1007,8 @@ DOCTEST_TEST_CASE("native turn selection is observed only after a completed safe
             auto* probe = (s_selection_probe*)context;
             if (event->kind == tactical_events::UNIT_SELECTED) ++probe->selected;
             if (event->kind != tactical_events::SERVICE_READS || !event->safe) return;
-            tactical_view::s_view view;
-            if (tactical_view::Read_View(&view)) {
+            rpc::s_view view;
+            if (rpc::Read_Tactical_View(&view)) {
                 ++probe->reads;
                 probe->current = view.selected;
             }

@@ -104,10 +104,10 @@ namespace CMBTFIR2 {
 
     int16_t __cdecl Get_Combat_Ship_Special_Id(int16_t ship_idx, int16_t occurrence);
 
-    void __cdecl Resolve_Raid(int16_t attacker_idx, int16_t target_idx, int16_t* raiders);
+    void __cdecl Resolve_Raid(int16_t attacker_idx, int16_t target_idx, int16_t* raiders, int16_t committed = -1);
 
     /** Resolves a boarding capture attempt between two combat ships. */
-    void __cdecl Resolve_Capture(int16_t attacker_idx, int16_t defender_idx, int16_t attacker_marines, int16_t target_x, int16_t target_y);
+    void __cdecl Resolve_Capture(int16_t attacker_idx, int16_t defender_idx, int16_t attacker_marines, int16_t target_x, int16_t target_y, int16_t committed = -1);
 
     void __cdecl Capture_Ship(int16_t ship_idx, int16_t x, int16_t y);
 

@@ -2,7 +2,6 @@
 
 #include "config/config_loader.h"
 #include "game/boarding.h"
-#include "game/boarding_report.h"
 #include "tactical_events.h"
 #include "tactical_view.h"
 #include "tactical_control.h"
@@ -553,11 +552,6 @@ namespace COMBAT1 {
     }
 
     void __cdecl Do_Combat_Turn(int16_t active_player_id, int16_t time_warp_only) {
-        struct s_decision_scope {
-            ~s_decision_scope() {
-                tactical_control::Close_Decision();
-            }
-        } decision_scope;
         time_warp_phase_active = time_warp_only != 0;
         MOX::player_mode[MOX::combat_attacker_player] = CMBTAI::Get_Player_Mode(MOX::combat_attacker_player);
         MOX::player_mode[MOX::combat_defender_player] = CMBTAI::Get_Player_Mode(MOX::combat_defender_player);
@@ -596,6 +590,7 @@ namespace COMBAT1 {
 
         if (order_idx == 0) {
             time_warp_phase_active = false;
+            tactical_control::Close_Decision();
             return;
         }
 
@@ -617,6 +612,7 @@ namespace COMBAT1 {
 
             if (next_ship_flag == 1) {
                 time_warp_phase_active = false;
+                tactical_control::Close_Decision();
                 return;
             }
 
@@ -970,8 +966,9 @@ namespace COMBAT1 {
                                                         palette::Refresh_Palette();
                                                         int16_t confirmed;
                                                         {
-                                                            tactical_events::s_local_attention attention;
+                                                            const int16_t attention = tactical_events::Begin_Local_Attention();
                                                             confirmed = GENDRAW::Do_Confirmation_Box(buf);
+                                                            tactical_events::End_Local_Attention(attention);
                                                         }
                                                         if (confirmed != 0) {
                                                             if (MOX::net_flag != 0 && MOX::PLAYER_NUM != MOX::net_destination) {
@@ -1274,6 +1271,7 @@ namespace COMBAT1 {
             }
         }
         time_warp_phase_active = false;
+        tactical_control::Close_Decision();
     }
 
     void Update_Ordinary_Cloak(int16_t ship_idx) {
@@ -2517,7 +2515,7 @@ namespace COMBAT1 {
         }
     }
 
-    static void Resolve_Committed_Boarding(int16_t attacker, int16_t target, int16_t marines, int16_t mode, bool received) {
+    static void Resolve_Committed_Boarding(int16_t attacker, int16_t target, int16_t marines, int16_t mode, bool received, int16_t committed) {
         auto& ship = MOX::combat_data[attacker];
         if (ship.special_status_flag == 1) {
             if (MOX::apply_damage_to_planet == 1 && MOX::super_fast_flag == 0) CMBTSPEC::Draw_Cloak(attacker, 2);
@@ -2530,24 +2528,23 @@ namespace COMBAT1 {
         CMBTFIR2::Set_Boarded_Flag(attacker);
         if (received) ship.marine_count -= (int8_t)marines;
         if (mode == 1) {
-            CMBTFIR2::Resolve_Raid(attacker, target, &marines);
+            CMBTFIR2::Resolve_Raid(attacker, target, &marines, committed);
             ship.marine_count += (int8_t)marines;
         } else
-            CMBTFIR2::Resolve_Capture(attacker, target, marines, MOX::combat_data[target].x * 20, MOX::combat_data[target].y * 20);
+            CMBTFIR2::Resolve_Capture(attacker, target, marines, MOX::combat_data[target].x * 20, MOX::combat_data[target].y * 20, committed);
         tactical_view::Unit_Changed(attacker);
         tactical_view::Unit_Changed(target, true);
     }
 
     void Apply_Received_Boarding_Action(int16_t attacker, int16_t target, int16_t marines, int16_t mode) {
-        BOARDING::s_attempt attempt(marines);
-        Resolve_Committed_Boarding(attacker, target, marines, mode, true);
+        Resolve_Committed_Boarding(attacker, target, marines, mode, true, marines);
     }
 
     void Commit_Boarding_Action(int16_t attacker_idx, int16_t defender_idx, int16_t result, int16_t marines_sent) {
-        BOARDING::s_attempt attempt(marines_sent);
         const int16_t range = CMBTAI::Range_To_Ship_Squares(attacker_idx, defender_idx);
         const int16_t has_transporters = COMBINIT::Does_Combat_Ship_Have_Special(attacker_idx, SPECIAL_TRANSPORTERS);
         if (result != 0) {
+            const int16_t committed = marines_sent;
             MOX::combat_data[MOX::cur_ship].marine_count -= (int8_t)marines_sent;
 
             if (has_transporters == 1 &&
@@ -2568,7 +2565,7 @@ namespace COMBAT1 {
                 }
             }
 
-            if (result == 1 || result == 2) Resolve_Committed_Boarding(MOX::cur_ship, defender_idx, marines_sent, result, false);
+            if (result == 1 || result == 2) Resolve_Committed_Boarding(MOX::cur_ship, defender_idx, marines_sent, result, false, committed);
 
             MOX::board_flag = 0;
             if (MOX::net_flag != 0) {

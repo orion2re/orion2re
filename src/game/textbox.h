@@ -49,7 +49,12 @@ namespace TEXTBOX {
        text: Formatted body text to render.
        input_ticks: Delay in ticks, or zero to wait for input. */
     void __cdecl Do_Text_Box(const char* title, const char* text, uint16_t input_ticks);
-    void Boarding_Result_Box(const char* title, const char* text, uint16_t ticks, bool authorized);
+    struct s_text_box {
+        s_animation_header* animation;
+        int16_t x;
+    };
+    void Open_Text_Box(const char* title, const char* text, s_text_box* box);
+    void Close_Text_Box(const s_text_box* box);
 
     /* Displays a standard textbox and waits for user input.
        title: Optional title string.

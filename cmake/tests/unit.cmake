@@ -146,7 +146,7 @@ orion2re_add_unit_test(test_tactical_events
 
 orion2re_add_unit_test(test_tactical_view
     SOURCES tests/unit/tactical_view_test.cpp
-    PRODUCTION_SOURCES src/game/tactical_view.cpp src/game/cmbtfire.cpp
+    PRODUCTION_SOURCES src/game/tactical_view.cpp src/game/cmbtfire.cpp src/rpc/rpc_tactical_view.cpp
     FAKE_SOURCES tests/fakes/fake_tactical_view_runtime.cpp
 )
 if(MSVC)
@@ -183,6 +183,7 @@ if(TARGET orion2re_game_objects)
     # Full production runtime, fixture-owned memory, no gameplay-function fakes.
     add_executable(test_tactical_control EXCLUDE_FROM_ALL
         tests/test_main.cpp tests/unit/tactical_control_test.cpp tests/unit/tactical_withdrawal_test.cpp tests/rpc/turn_fixture.cpp
+        src/rpc/rpc_tactical_view.cpp
         $<TARGET_OBJECTS:orion2re_game_objects>
         "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smacker.c"
         "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smk_bitstream.c"
@@ -1440,6 +1441,7 @@ orion2re_add_unit_test(test_combat_stats
         src/game/cmbtdrw1.cpp
         src/game/cmbtmov1.cpp
         src/game/tactical_view.cpp
+        src/rpc/rpc_tactical_view.cpp
     FAKE_SOURCES
         tests/fakes/fake_sdl_string.cpp
 )

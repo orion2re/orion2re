@@ -90,6 +90,8 @@ namespace CMBTDRW1 {
     uint8_t __cdecl Get_Weapon_Arc(int16_t bearing);
 
     int16_t __cdecl Board_Popup(int16_t min_val, int16_t max_val, char* msg, int16_t* out_val);
+    void Present_Boarding_Result(const char* title, const char* text, uint16_t ticks, bool authorized);
+    void Show_Absorber_Overload_Warning();
 
     /** Applies the animated plasma darkening mask to a ship bitmap for the requested effect mode. */
     void __cdecl Plasma_Darken(s_animation_header* bitmap, int16_t progress, int16_t mode);

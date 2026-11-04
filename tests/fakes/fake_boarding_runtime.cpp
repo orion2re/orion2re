@@ -510,13 +510,17 @@ namespace special {
     }
 }
 
-namespace TEXTBOX {
-    void Boarding_Result_Box(const char* title, const char* text, uint16_t ticks, bool) {
+namespace CMBTDRW1 {
+    void Present_Boarding_Result(const char* title, const char* text, uint16_t ticks, bool) {
+        if (MOX::super_fast_flag != 0) return;
         if (ticks)
-            Timed_Text_Box(title, text, ticks);
+            TEXTBOX::Timed_Text_Box(title, text, ticks);
         else
-            Text_Box(title, text);
+            TEXTBOX::Text_Box(title, text);
     }
+} // namespace CMBTDRW1
+
+namespace TEXTBOX {
     void __cdecl Text_Box(const char*, const char* message) {
         last_result_was_timed = false;
         last_raid_message = message;
@@ -526,7 +530,7 @@ namespace TEXTBOX {
         last_result_was_timed = true;
         last_raid_message = message;
     }
-}
+} // namespace TEXTBOX
 
 namespace string {
     const char s_Newline[] = "\n";

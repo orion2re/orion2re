@@ -1,21 +1,10 @@
 #include "pch.h"
 
 #include "game/boarding.h"
-#include "game/boarding_report.h"
+#include "game/tactical_events.h"
+#include "game/tactical_view.h"
 
 namespace BOARDING {
-    namespace {
-        s_attempt* attempt = nullptr;
-    }
-    s_attempt::s_attempt(int16_t marines) : committed(marines), previous(attempt) {
-        attempt = this;
-    }
-    s_attempt::~s_attempt() {
-        attempt = previous;
-    }
-    int16_t Committed_Marines() {
-        return attempt != nullptr ? attempt->committed : -1;
-    }
     int16_t Maximum_Commitment(int16_t actor) {
         return (MOX::combat_data[actor].marine_count + 1) / 2;
     }
@@ -63,7 +52,67 @@ namespace BOARDING {
         return result;
     }
 
-    int16_t __cdecl Captured_Marine_Count(
+    bool Result_Authorized(int16_t target) {
+        return tactical_events::Current_Viewer() >= 0 &&
+            tactical_events::Current_Viewer() == tactical_view::Local_Observer() &&
+            tactical_view::Unit_Disclosed(target) &&
+            (MOX::combat_data[target].owner == tactical_events::Current_Viewer() ||
+                MOX::combat_data[target].special_status_flag != 4);
+    }
+
+    void Record_Raid_Result(int16_t attacker_owner, int16_t target_idx, bool authorized, int16_t committed, int16_t arrived, int16_t survived, int16_t defenders_survived, int16_t attacker_strength, int16_t defender_strength, int16_t damage, const std::string* text) {
+        if (!authorized) return;
+        const auto* target = &MOX::combat_data[target_idx];
+        s_result report;
+        report.available = true;
+        report.attacker_owned = attacker_owner == tactical_events::Current_Viewer();
+        if (report.attacker_owned) {
+            report.committed = committed;
+            report.arrived = arrived;
+            report.attacker_survived = survived;
+        }
+        report.attacker_lost = arrived - survived;
+        report.defender_lost = int16_t(target->marine_count) - defenders_survived;
+        report.attacker_strength = attacker_strength;
+        report.defender_strength = defender_strength;
+        report.destroyed = target->unit_status != 0;
+        report.raid_damage = damage > 0;
+        report.now_owned = target->owner == tactical_events::Current_Viewer();
+        if (report.now_owned) report.target_captured = target->is_captured != 0;
+        strlcpy(report.target_name, target->name, sizeof(report.target_name));
+        report.content_available = text->size() <= MAX_REPORT_TEXT;
+        if (report.content_available) report.raid_text = *text;
+        tactical_events::Record_Boarding_Result(&report);
+    }
+
+    void Record_Capture_Result(int16_t attacker, int16_t target_idx, bool authorized, int16_t committed, int16_t arrived, int16_t survived, int16_t defenders_started, int16_t defenders_survived, int16_t attacker_strength, int16_t defender_strength, int16_t message) {
+        if (!authorized) return;
+        const auto* target = &MOX::combat_data[target_idx];
+        s_result report;
+        report.available = true;
+        report.capture = true;
+        report.attacker_owned = MOX::combat_data[attacker].owner == tactical_events::Current_Viewer();
+        if (report.attacker_owned) report.committed = committed;
+        report.arrived = arrived;
+        report.attacker_lost = arrived - survived;
+        report.attacker_survived = survived;
+        report.defender_started = defenders_started;
+        report.defender_lost = defenders_started - defenders_survived;
+        report.defender_survived = defenders_survived;
+        report.attacker_strength = attacker_strength;
+        report.defender_strength = defender_strength;
+        report.captured = message == 0x32;
+        report.destroyed = message == 0x31;
+        report.now_owned = target->owner == tactical_events::Current_Viewer();
+        if (report.now_owned) {
+            report.target_captured = target->is_captured != 0;
+            if (report.captured) report.captured_marines = target->marine_count;
+        }
+        strlcpy(report.target_name, target->name, sizeof(report.target_name));
+        tactical_events::Record_Boarding_Result(&report);
+    }
+
+    int16_t Captured_Marine_Count(
         int16_t target_idx, int16_t surviving_marines) {
         if (kill_excess_marines_after_capture == 0) {
             return surviving_marines;
@@ -88,7 +137,7 @@ namespace BOARDING {
             : surviving_marines;
     }
 
-    e_boarding_filter __cdecl Filter_Boarding(
+    e_boarding_filter Filter_Boarding(
         int16_t attacker_idx, int16_t target_idx) {
         const s_combat_data& attacker = MOX::combat_data[attacker_idx];
         const s_combat_data& target = MOX::combat_data[target_idx];

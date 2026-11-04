@@ -16,31 +16,6 @@ namespace tactical_view {
         tactical_events::Invalidate_View();
     }
 
-    bool Read_Missile(int16_t slot, s_missile* result) {
-        if (result == nullptr || !tactical_events::Reads_Allowed() || !Missile_Disclosed(slot)) return false;
-        *result = {};
-        const auto& missile = MOX::missile[slot];
-        result->slot = slot;
-        result->x = missile.x / 20;
-        result->y = missile.y / 20;
-        result->quantity = missile.quantity;
-        result->type = TECHDATA::weapons[missile.type].type;
-        result->owned = missile.owner == tactical_events::Current_Viewer();
-        strlcpy(result->name, TECHDATA::weapons[missile.type].name, sizeof(result->name));
-        return true;
-    }
-
-    bool Read_Missiles(std::vector<s_missile>* result) {
-        if (result == nullptr || !tactical_events::Reads_Allowed() ||
-            tactical_events::Current_Viewer() < 0 || Local_Observer() != tactical_events::Current_Viewer()) return false;
-        result->clear();
-        for (int16_t i = 0; i < MAX_COMBAT_FLYERS; ++i) {
-            s_missile missile;
-            if (Read_Missile(i, &missile)) result->push_back(missile);
-        }
-        return true;
-    }
-
     void Record_Unit_Hit(int16_t slot, int32_t amount, int32_t secondary_amount, bool biological) {
         if (Local_Observer() != tactical_events::Current_Viewer() || !Unit_Disclosed(slot)) return;
         const auto& unit = MOX::combat_data[slot];

@@ -1,5 +1,4 @@
 #include "pch.h"
-#include "boarding_report.h"
 
 #include "game/boarding.h"
 
@@ -1631,7 +1630,7 @@ namespace CMBTAI {
                 marines_to_send = 1;
             }
             attacker->marine_count -= (int8_t)marines_to_send;
-            BOARDING::s_attempt attempt(marines_to_send);
+            const int16_t committed = marines_to_send;
 
             if (damper_attrition) {
                 marines_to_send /=
@@ -1649,13 +1648,13 @@ namespace CMBTAI {
 
             if (action_type == 1 /* RAID */) {
                 CMBTFIR2::Set_Boarded_Flag(attacker_idx);
-                CMBTFIR2::Resolve_Raid(attacker_idx, target_idx, &marines_to_send);
+                CMBTFIR2::Resolve_Raid(attacker_idx, target_idx, &marines_to_send, committed);
                 attacker->marine_count += (int8_t)marines_to_send;
             } else if (action_type == 2 /* CAPTURE */) {
                 CMBTFIR2::Set_Boarded_Flag(attacker_idx);
                 CMBTFIR2::Set_Capturing_Flag(target_idx);
                 s_combat_data* target = &MOX::combat_data[target_idx];
-                CMBTFIR2::Resolve_Capture(attacker_idx, target_idx, marines_to_send, target->x * 20, target->y * 20);
+                CMBTFIR2::Resolve_Capture(attacker_idx, target_idx, marines_to_send, target->x * 20, target->y * 20, committed);
             }
 
             MOX::board_flag = 0;

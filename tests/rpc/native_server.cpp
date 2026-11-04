@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "game/tactical_events.h"
 #include "game/tactical_view.h"
-#include "rpc/tactical_rpc.h"
+#include "rpc/rpc_tactical.h"
 #include "fakes/fake_tactical_view_runtime.h"
 
 #include <iostream>
@@ -9,13 +9,13 @@
 
 namespace {
     unsigned view_reads = 0, unit_reads = 0;
-    bool View(tactical_view::s_view* view) {
+    bool View(rpc::s_view* view) {
         ++view_reads;
-        return tactical_view::Read_View(view);
+        return rpc::Read_Tactical_View(view);
     }
-    bool Unit(int16_t slot, tactical_view::s_unit* unit) {
+    bool Unit(int16_t slot, rpc::s_unit* unit) {
         ++unit_reads;
-        return tactical_view::Read_Unit(slot, unit);
+        return rpc::Read_Tactical_Unit(slot, unit);
     }
     std::string Large(const rpc::s_read_request* request, void* context, bool* dependent) {
         *dependent = true;

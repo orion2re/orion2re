@@ -1,5 +1,5 @@
 #include "rpc/rpc_service.h"
-#include "rpc/tactical_rpc.h"
+#include "rpc/rpc_tactical.h"
 #include "game/tactical_events.h"
 
 #include <iostream>

@@ -169,6 +169,9 @@ published without manufacturing a report owner.
 It requires controller status and the actual local native report owner, not ship
 control manufactured after capture or actor loss. Its final response is the usual
 `{operationSeq,state:"applied"}` after owner-consumed dismissal and textbox cleanup.
+The boarding presentation owner is `CMBTDRW1::Present_Boarding_Result`. Generic
+textbox code only opens/draws/closes a box; it has no boarding events, intent
+consumption or tactical dependencies.
 It cannot answer warnings, confirmations, the boarding slider or other textboxes.
 Manual input, mouse-release waits, input delays and timed report expiry remain
 native. A local dismissal or expiry racing a queued acknowledgement makes it
@@ -197,6 +200,9 @@ action outcome unknown; never automatically retry.
 Native marine arithmetic, RNG, cloak changes, casualties, returned raiders,
 capture-capacity/troop-pod and telepathic configuration are preserved. Local human
 boarding deducts the selected pre-Damper commitment but sends post-Damper marines.
+Known commitment is passed explicitly into native resolution and result helpers;
+there is no ambient attempt pointer or set/reset guard. An unprovided commitment
+remains unknown, including assault-shuttle resolution during other native work.
 The receiver deducts only that packet count and does not repeat attrition. AI keeps
 its own commitment policy and zero-survivor behavior. Events reflect the values
 known on the native route; no missing packet argument is invented to normalize

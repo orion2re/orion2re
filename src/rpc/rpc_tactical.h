@@ -2,6 +2,7 @@
 
 #include "rpc_service.h"
 #include "game/tactical_view.h"
+#include "rpc_tactical_view.h"
 #include "game/tactical_control.h"
 #include <array>
 #include <vector>
@@ -12,11 +13,11 @@ namespace rpc {
         uint64_t subscription = 0;
         int16_t viewer = -1;
         char battle_id[33] = {};
-        tactical_view::s_reader reader;
+        s_reader reader;
         bool (*options)(tactical_control::s_options*) = nullptr;
         bool (*authorize)(int16_t, bool) = nullptr;
-        bool (*missile)(int16_t, tactical_view::s_missile*) = nullptr;
-        bool (*missiles)(std::vector<tactical_view::s_missile>*) = nullptr;
+        bool (*missile)(int16_t, s_missile*) = nullptr;
+        bool (*missiles)(std::vector<s_missile>*) = nullptr;
         bool (*authorize_missile)(int16_t) = nullptr;
         uint64_t decision_generation = 0;
         std::string decision_id;

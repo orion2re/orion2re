@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "rpc/rpc_tactical_view.h"
 #include "doctest/doctest.h"
 #include "game/tactical_view.h"
 #include "game/tactical_events.h"
@@ -6,8 +7,8 @@
 
 namespace {
     struct s_probe {
-        tactical_view::s_view view;
-        tactical_view::s_unit unit;
+        rpc::s_view view;
+        rpc::s_unit unit;
         int16_t slot = 1;
         bool view_ok = false, unit_ok = false;
         unsigned reads = 0, invalidations = 0;
@@ -24,15 +25,15 @@ namespace {
             if (event->kind == tactical_events::VIEW_INVALIDATED) ++probe->invalidations;
             if (event->kind != tactical_events::SERVICE_READS || !event->safe) return;
             ++probe->reads;
-            probe->view_ok = tactical_view::Read_View(&probe->view);
-            probe->unit_ok = tactical_view::Read_Unit(probe->slot, &probe->unit);
+            probe->view_ok = rpc::Read_Tactical_View(&probe->view);
+            probe->unit_ok = rpc::Read_Tactical_Unit(probe->slot, &probe->unit);
         }
     };
 } // namespace
 
 DOCTEST_TEST_CASE("native tactical reads require initialized observed safe scope and current authority") {
     s_probe probe;
-    DOCTEST_CHECK_FALSE(tactical_view::Read_View(&probe.view));
+    DOCTEST_CHECK_FALSE(rpc::Read_Tactical_View(&probe.view));
     tactical_events::s_battle_scope battle;
     battle.Open(0);
     tactical_events::Service_Reads();
@@ -113,6 +114,6 @@ DOCTEST_TEST_CASE("direct native changes appear without publication and real nat
     DOCTEST_CHECK(probe.invalidations == 1);
     tactical_events::Retire_Battle();
     tactical_events::Service_Reads(true);
-    DOCTEST_CHECK_FALSE(tactical_view::Read_Unit(1, &probe.unit));
+    DOCTEST_CHECK_FALSE(rpc::Read_Tactical_Unit(1, &probe.unit));
     battle.Close(0);
 }

@@ -72,11 +72,13 @@ namespace tactical_events {
     bool Reads_Allowed() noexcept {
         return reads_allowed;
     }
-    s_local_attention::s_local_attention() noexcept : viewer(Current_Viewer()) {
+    int16_t Begin_Local_Attention() noexcept {
+        const int16_t viewer = Current_Viewer();
         tactical_control::Close_Decision();
         if (viewer >= 0) Publish(ATTENTION_REQUIRED, viewer);
+        return viewer;
     }
-    s_local_attention::~s_local_attention() {
+    void End_Local_Attention(int16_t viewer) noexcept {
         if (viewer >= 0 && Current_Viewer() == viewer) Publish(ATTENTION_CLEARED, viewer);
     }
 
@@ -202,6 +204,8 @@ namespace tactical_events {
         current->boarding_active = false;
         Publish(BOARDING_REPORT_CLOSED, current->viewer);
     }
+
+    s_battle_scope::s_battle_scope() = default;
 
     void s_battle_scope::Open(int16_t local_observer) noexcept {
         if (initialized) return;

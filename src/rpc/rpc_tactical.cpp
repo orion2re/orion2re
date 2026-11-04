@@ -1,6 +1,6 @@
-#include "tactical_rpc.h"
+#include "rpc_tactical.h"
 #include "rpc_protocol.h"
-#include "tactical_reads.h"
+#include "rpc_tactical_reads.h"
 #include "game/tactical_events.h"
 
 #include <uv.h>
@@ -195,7 +195,7 @@ namespace rpc {
                 } else if (event->kind == tactical_events::ATTENTION_REQUIRED || event->kind == tactical_events::ATTENTION_CLEARED) {
                     Publish_Event(forwarder->service, event->kind == tactical_events::ATTENTION_REQUIRED ? EVENT_COMBAT_ATTENTION : EVENT_COMBAT_ATTENTION_CLEARED, forwarder->battle_id);
                 } else if (event->kind == tactical_events::UNIT_SELECTED) {
-                    tactical_view::s_unit unit;
+                    s_unit unit;
                     std::string selected;
                     if (forwarder->reader.unit != nullptr && forwarder->reader.unit(event->unit, &unit)) selected = Tactical_Unit_Token(forwarder, &unit);
                     if (selected == forwarder->selected) return;

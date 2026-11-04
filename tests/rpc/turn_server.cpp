@@ -1,6 +1,6 @@
 #include "turn_fixture.h"
 #include "game/tactical_view.h"
-#include "rpc/tactical_rpc.h"
+#include "rpc/rpc_tactical.h"
 
 #include <iostream>
 #include <memory>
@@ -14,11 +14,11 @@ int main() {
     std::string diagnostic;
     if (!rpc::Start_Service(&service, &config, &diagnostic)) return 1;
     rpc::s_tactical_forwarder forwarder;
-    forwarder.reader = {tactical_view::Local_Observer, tactical_view::Read_View, tactical_view::Read_Unit};
+    forwarder.reader = {tactical_view::Local_Observer, rpc::Read_Tactical_View, rpc::Read_Tactical_Unit};
     forwarder.options = tactical_control::Read_Options;
     forwarder.authorize = tactical_control::Authorize;
-    forwarder.missile = tactical_view::Read_Missile;
-    forwarder.missiles = tactical_view::Read_Missiles;
+    forwarder.missile = rpc::Read_Tactical_Missile;
+    forwarder.missiles = rpc::Read_Tactical_Missiles;
     forwarder.authorize_missile = tactical_view::Missile_Disclosed;
     if (!rpc::Subscribe_Tactical_Events(&forwarder, &service)) return 1;
     std::cout << rpc::Service_Port(&service) << std::endl;
@@ -164,7 +164,8 @@ int main() {
                 tactical_events::Service_Reads(true);
             }
         } else if (command == "attention") {
-            tactical_events::s_local_attention attention;
+            const int16_t attention = tactical_events::Begin_Local_Attention();
+            tactical_events::End_Local_Attention(attention);
         } else if (command == "revoke") {
             tactical_events::Revoke();
         } else if (command == "close") {

@@ -1,4 +1,5 @@
 #include "rpc/turn_fixture.h"
+#include "rpc/rpc_tactical_view.h"
 #include "game/tactical_view.h"
 #include "doctest/doctest.h"
 #include <memory>
@@ -8,7 +9,7 @@ namespace {
     struct s_probe {
         tactical_control::s_options options;
         tactical_events::s_hit_history history;
-        std::vector<tactical_view::s_missile> missiles;
+        std::vector<rpc::s_missile> missiles;
         bool ok = false;
         uint64_t subscription;
         s_probe() : subscription(tactical_events::Subscribe(Read, this)) {}
@@ -20,7 +21,7 @@ namespace {
             auto* probe = (s_probe*)context;
             probe->ok = tactical_control::Read_Options(&probe->options);
             tactical_events::Read_Hit_History(&probe->history);
-            tactical_view::Read_Missiles(&probe->missiles);
+            rpc::Read_Tactical_Missiles(&probe->missiles);
         }
     };
 } // namespace
@@ -56,6 +57,40 @@ namespace {
         }
     };
 } // namespace
+
+DOCTEST_TEST_CASE("generic textboxes never acquire or consume boarding report authority") {
+    s_boarding_fixture fixture(true);
+    bool consumed = false;
+    s_report_registration registration{&consumed};
+    DOCTEST_REQUIRE(tactical_control::Attach_Report([](uint64_t, void* context) {
+        *(bool*)context = true;
+        return true; }, [](void*) {}, &consumed));
+    const auto remaining = allocate::Get_Remaining_Block_Space(MOX::screen_seg);
+    key::Push_Key_Code(27, 1);
+    TEXTBOX::Text_Box("Generic popup", "Synthetic generic textbox");
+    TEXTBOX::Timed_Text_Box("Generic popup", "Synthetic generic textbox", 1);
+    DOCTEST_CHECK_FALSE(consumed);
+    DOCTEST_CHECK_FALSE(tactical_events::Boarding_Report_Active());
+    DOCTEST_CHECK(TEXTBOX::field_save_ix == 0);
+    DOCTEST_CHECK(allocate::Get_Remaining_Block_Space(MOX::screen_seg) == remaining);
+}
+
+DOCTEST_TEST_CASE("boarding commitment is an explicit argument and never a prior result context") {
+    s_boarding_fixture fixture;
+    fixture.Board(2, 4);
+    DOCTEST_REQUIRE(tactical_events::Boarding_Result() != nullptr);
+    DOCTEST_CHECK(tactical_events::Boarding_Result()->committed == 4);
+    auto& target = MOX::combat_data[2];
+    target.owner = 1;
+    target.is_captured = 0;
+    target.marine_count = 0;
+    CMBTFIR2::Resolve_Capture(1, 2, 1, 320, 200);
+    DOCTEST_REQUIRE(tactical_events::Boarding_Result() != nullptr);
+    DOCTEST_CHECK(tactical_events::Boarding_Result()->committed == -1);
+    DOCTEST_CHECK(tactical_events::Boarding_Result()->arrived == 1);
+    tactical_events::Retire_Battle();
+    DOCTEST_CHECK(fixture.battle.boarding.raid_text.capacity() == std::string().capacity());
+}
 
 DOCTEST_TEST_CASE("boarding bounds and legal reads preserve native bytes and RNG") {
     s_boarding_fixture fixture;

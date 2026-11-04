@@ -114,6 +114,12 @@ namespace GENDRAW {
 }
 
 namespace CMBTDRW1 {
+    void Show_Absorber_Overload_Warning() {
+        palette::Refresh_Palette();
+        GENDRAW::Warning_Box("Absorber Overloaded");
+        Refresh_Combat_Screen_Full();
+    }
+
     void __cdecl Refresh_Combat_Screen_Full() {
         combat_refresh_count++;
     }

@@ -36,6 +36,9 @@
 - The game owns state, queries and operations. RPC is another protocol into that
   game API, not a second world model. Shared game APIs must be transport-independent;
   native code must not depend on RPC headers, wire DTOs, dispatch or settings.
+  Keep request-local protocol DTO projection in RPC adapters, on the game thread;
+  shared disclosure, legality, semantic operations and result ownership remain
+  native. Generic textbox rendering must not own tactical/boarding decisions.
 - Application composition connects the optional sidecar before the game thread
   starts and disconnects after it joins. Dependency direction is
   `game -> neutral events` and `RPC -> game APIs/events`, never `game -> RPC`.

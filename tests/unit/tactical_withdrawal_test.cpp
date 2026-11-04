@@ -1,4 +1,5 @@
 #include "rpc/turn_fixture.h"
+#include "rpc/rpc_tactical_view.h"
 #include "game/tactical_view.h"
 #include "doctest/doctest.h"
 #include <memory>
@@ -293,7 +294,7 @@ DOCTEST_TEST_CASE("withdrawal reads expose pending state without changing native
     s_withdrawal fixture;
     fixture.Begin();
     struct s_read {
-        tactical_view::s_view view;
+        rpc::s_view view;
         tactical_control::s_options options;
     } read;
     auto before = std::make_unique<s_combat_data[]>(MAX_COMBAT_SHIPS);
@@ -302,7 +303,7 @@ DOCTEST_TEST_CASE("withdrawal reads expose pending state without changing native
     const auto subscription = tactical_events::Subscribe([](const tactical_events::s_event* event, void* context) noexcept {
         if (event->kind != tactical_events::SERVICE_READS || !event->safe) return;
         auto* read = (s_read*)context;
-        DOCTEST_CHECK(tactical_view::Read_View(&read->view));
+        DOCTEST_CHECK(rpc::Read_Tactical_View(&read->view));
         DOCTEST_CHECK(tactical_control::Read_Options(&read->options));
     },
         &read);

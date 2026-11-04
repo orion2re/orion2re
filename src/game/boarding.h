@@ -1,5 +1,7 @@
 #pragma once
+#include <cstddef>
 #include <cstdint>
+#include <string>
 
 namespace BOARDING {
     struct s_board_range {
@@ -29,10 +31,10 @@ namespace BOARDING {
     extern s_boarding boarding;
     extern s_board_range board_range;
 
-    int16_t __cdecl Captured_Marine_Count(
+    int16_t Captured_Marine_Count(
         int16_t target_idx, int16_t surviving_marines);
 
-    e_boarding_filter __cdecl Filter_Boarding(
+    e_boarding_filter Filter_Boarding(
         int16_t attacker_idx, int16_t target_idx);
 
     struct s_human_check {
@@ -42,4 +44,20 @@ namespace BOARDING {
     };
     s_human_check Check_Human_Boarding(int16_t attacker, int16_t target);
     int16_t Maximum_Commitment(int16_t actor);
+
+    struct s_result {
+        bool available = false, capture = false, captured = false, destroyed = false;
+        bool content_available = true, raid_damage = false;
+        int16_t committed = -1, arrived = 0, attacker_lost = 0, attacker_survived = 0;
+        int16_t defender_started = 0, defender_lost = 0, defender_survived = 0;
+        int16_t attacker_strength = 0, defender_strength = 0;
+        int16_t captured_marines = 0;
+        bool now_owned = false, target_captured = false, attacker_owned = false;
+        char target_name[80] = {};
+        std::string raid_text;
+    };
+    constexpr size_t MAX_REPORT_TEXT = 1024 * 1024;
+    bool Result_Authorized(int16_t target);
+    void Record_Raid_Result(int16_t attacker_owner, int16_t target, bool authorized, int16_t committed, int16_t arrived, int16_t survived, int16_t defenders_survived, int16_t attacker_strength, int16_t defender_strength, int16_t damage, const std::string* text);
+    void Record_Capture_Result(int16_t attacker, int16_t target, bool authorized, int16_t committed, int16_t arrived, int16_t survived, int16_t defenders_started, int16_t defenders_survived, int16_t attacker_strength, int16_t defender_strength, int16_t message);
 } // namespace BOARDING

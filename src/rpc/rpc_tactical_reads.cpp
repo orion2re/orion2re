@@ -1,4 +1,4 @@
-#include "tactical_reads.h"
+#include "rpc_tactical_reads.h"
 #include "config/text_encoding.h"
 #include "game/tactical_events.h"
 
@@ -9,7 +9,7 @@
 #include "yyjson.h"
 
 namespace rpc {
-    std::string Tactical_Unit_Token(s_tactical_forwarder* forwarder, const tactical_view::s_unit* unit) {
+    std::string Tactical_Unit_Token(s_tactical_forwarder* forwarder, const s_unit* unit) {
         for (const auto& reference : forwarder->references)
             if (reference.slot == unit->slot) return reference.token.data();
         s_tactical_forwarder::s_reference reference;
@@ -74,7 +74,7 @@ namespace rpc {
             return token;
         }
 
-        std::string Missile_Row(const tactical_view::s_missile& missile, const std::string& token) {
+        std::string Missile_Row(const s_missile& missile, const std::string& token) {
             const char* kind = missile.type == 2 ? "torpedo" : missile.type == 4 ? "fighter"
                                                                                  : "missile";
             return "{\"missileId\":\"" + token + "\",\"kind\":\"" + kind + "\",\"name\":" + Name_Json(missile.name) +
@@ -82,17 +82,17 @@ namespace rpc {
                 ",\"position\":{\"x\":" + std::to_string(missile.x) + ",\"y\":" + std::to_string(missile.y) + "}}";
         }
 
-        std::string Row(const tactical_view::s_unit* unit, const std::string& token, bool detail) {
+        std::string Row(const s_unit* unit, const std::string& token, bool detail) {
             const char* kinds[] = {"ship", "planet", "satellite", "monster", "contact"};
             const char* sizes[] = {"small", "medium", "large", "huge"};
             std::string json = "{\"unitId\":\"" + token + "\",\"disclosure\":\"" + (unit->contact ? "contact" : "unit") +
                 "\",\"kind\":\"" + kinds[unit->kind] + "\",\"side\":\"" + (unit->attacker ? "attacker" : "defender") +
                 "\",\"owned\":" + (unit->owned ? "true" : "false") + ",\"position\":{\"x\":" + std::to_string(unit->x) +
                 ",\"y\":" + std::to_string(unit->y) + "}";
-            if (unit->kind != tactical_view::PLANET) json += ",\"mapSize\":\"" + std::string(sizes[unit->map_size]) + "\"";
-            if (unit->owned && unit->kind == tactical_view::SHIP) json += ",\"retreatPending\":" + std::string(unit->retreat_pending ? "true" : "false");
+            if (unit->kind != PLANET) json += ",\"mapSize\":\"" + std::string(sizes[unit->map_size]) + "\"";
+            if (unit->owned && unit->kind == SHIP) json += ",\"retreatPending\":" + std::string(unit->retreat_pending ? "true" : "false");
             if (!unit->contact) {
-                if (unit->kind != tactical_view::PLANET) json += ",\"facing\":" + std::to_string(unit->facing);
+                if (unit->kind != PLANET) json += ",\"facing\":" + std::to_string(unit->facing);
                 if (detail) json += ",\"name\":" + Name_Json(unit->name);
             }
             if (detail && unit->own_details) {
@@ -163,7 +163,7 @@ namespace rpc {
         } else if (request->method == READ_MISSILE || request->method == READ_MISSILES) {
             result = "{\"battleId\":\"" + std::string(forwarder->battle_id) + "\",";
             if (request->method == READ_MISSILE) {
-                tactical_view::s_missile missile;
+                s_missile missile;
                 bool found = false;
                 for (const auto& reference : forwarder->missile_references)
                     if (request->missile_id == reference.token.data() && forwarder->missile != nullptr && forwarder->missile(reference.slot, &missile)) {
@@ -173,7 +173,7 @@ namespace rpc {
                 if (!found) return unavailable();
                 result += "\"missile\":" + Missile_Row(missile, request->missile_id) + "}";
             } else {
-                std::vector<tactical_view::s_missile> missiles;
+                std::vector<s_missile> missiles;
                 if (forwarder->missiles == nullptr || !forwarder->missiles(&missiles)) return unavailable();
                 std::vector<std::string> rows;
                 for (const auto& missile : missiles) {
@@ -199,7 +199,7 @@ namespace rpc {
                 result += ",\"reason\":\"noNativeControl\"}}";
             } else {
                 const auto token = [&](int16_t slot) {
-                    tactical_view::s_unit unit;
+                    s_unit unit;
                     if (forwarder->reader.unit == nullptr || !forwarder->reader.unit(slot, &unit)) return std::string();
                     return Tactical_Unit_Token(forwarder, &unit);
                 };
@@ -256,7 +256,7 @@ namespace rpc {
                 result += "],\"missileTargets\":[";
                 std::vector<std::string> missile_targets;
                 for (const auto& target : options.missile_targets) {
-                    tactical_view::s_missile missile;
+                    s_missile missile;
                     if (forwarder->missile == nullptr || !forwarder->missile(target.slot, &missile)) return unavailable();
                     const auto token = Missile_Token(forwarder, target.slot);
                     if (token.empty()) return unavailable();
@@ -294,7 +294,7 @@ namespace rpc {
                     "},\"canDone\":true}";
             }
         } else if (request->method == READ_UNIT) {
-            tactical_view::s_unit unit;
+            s_unit unit;
             bool found = false;
             for (const auto& reference : forwarder->references) {
                 if (request->unit_id != reference.token.data()) continue;
@@ -305,7 +305,7 @@ namespace rpc {
             result = "{\"battleId\":\"" + std::string(forwarder->battle_id) + "\",\"unit\":" + Row(&unit, request->unit_id, true) + "}";
             *dependent = true;
         } else {
-            tactical_view::s_view view;
+            s_view view;
             if (forwarder->reader.view == nullptr || !forwarder->reader.view(&view)) return unavailable();
             struct s_row {
                 std::string token, json;

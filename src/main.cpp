@@ -11,7 +11,7 @@
 #include "rpc/rpc_settings.h"
 #if defined(ORION2RE_ENABLE_RPC)
 #include "rpc/rpc_service.h"
-#include "rpc/tactical_rpc.h"
+#include "rpc/rpc_tactical.h"
 #endif
 #include "startup_directory.h"
 #include "startup_options.h"
@@ -224,11 +224,11 @@ int main(int argc, char** argv) {
 #if defined(ORION2RE_ENABLE_RPC)
     rpc::s_service rpc_service;
     rpc::s_tactical_forwarder tactical_forwarder;
-    tactical_forwarder.reader = {tactical_view::Local_Observer, tactical_view::Read_View, tactical_view::Read_Unit};
+    tactical_forwarder.reader = {tactical_view::Local_Observer, rpc::Read_Tactical_View, rpc::Read_Tactical_Unit};
     tactical_forwarder.options = tactical_control::Read_Options;
     tactical_forwarder.authorize = tactical_control::Authorize;
-    tactical_forwarder.missile = tactical_view::Read_Missile;
-    tactical_forwarder.missiles = tactical_view::Read_Missiles;
+    tactical_forwarder.missile = rpc::Read_Tactical_Missile;
+    tactical_forwarder.missiles = rpc::Read_Tactical_Missiles;
     tactical_forwarder.authorize_missile = tactical_view::Missile_Disclosed;
     if (rpc::enabled) {
         rpc::s_service_config rpc_config;

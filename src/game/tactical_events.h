@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <cstddef>
 #include <vector>
-#include "boarding_report.h"
+#include "boarding.h"
 
 namespace tactical_events {
     enum e_kind {
@@ -79,11 +79,8 @@ namespace tactical_events {
     void Close_Boarding_Report() noexcept;
     bool Boarding_Report_Active() noexcept;
     bool Boarding_Report_Timed() noexcept;
-    struct s_local_attention {
-        int16_t viewer;
-        s_local_attention() noexcept;
-        ~s_local_attention();
-    };
+    int16_t Begin_Local_Attention() noexcept;
+    void End_Local_Attention(int16_t viewer) noexcept;
 
     struct s_battle_scope {
         int16_t viewer = -1;
@@ -102,7 +99,7 @@ namespace tactical_events {
         void Open(int16_t local_observer) noexcept;
         void Close(int16_t local_observer) noexcept;
         ~s_battle_scope();
-        s_battle_scope() = default;
+        s_battle_scope();
         s_battle_scope(const s_battle_scope&) = delete;
         s_battle_scope& operator=(const s_battle_scope&) = delete;
     };
