@@ -1,0 +1,4 @@
+{
+    // One-based ID; the officer prompt takes the ship name, then the officer name.
+    "127": "Smantellando %s, %s torna nella riserva degli ufficiali. Confermare?",
+}

@@ -1,0 +1,5 @@
+{
+    // One-based IDs; scrap-value prompts take one integer, not a plural suffix.
+    "129": "Le recyclage de ce vaisseau rapporte %d BC. Confirmer ?",
+    "130": "Le recyclage de ces vaisseaux rapporte %d BC. Confirmer ?",
+}

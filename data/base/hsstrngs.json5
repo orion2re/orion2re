@@ -1,0 +1,10 @@
+{
+    // One-based IDs; preserve FLT1::Scrap_Ships argument order and count.
+    "123": "Esta nave no se encuentra en una colonia de tu imperio (%s). El desguace no aporta BC ni permite recuperar avances. Continuar?",
+    "124": "Esta nave no se encuentra en una colonia de tu imperio (%s). El desguace no aporta BC ni permite recuperar avances. Continuar?",
+    "125": "Estas naves no se encuentran en una colonia de tu imperio (%s). El desguace no aporta BC ni permite recuperar avances. Continuar?",
+    "126": "Estas naves no se encuentran en una colonia de tu imperio (%s). El desguace no aporta BC ni permite recuperar avances. Continuar?",
+    "127": "Al desguazar %s, %s vuelve a la reserva de oficiales. Continuar?",
+    "129": "El desguace de esta nave aporta %d BC. Continuar?",
+    "130": "El desguace de estas naves aporta %d BC. Continuar?",
+}

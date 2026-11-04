@@ -2010,6 +2010,9 @@ orion2re_add_unit_test(test_farload_buffer_vfs
 )
 
 target_include_directories(test_farload_buffer_vfs PRIVATE "${ORION2RE_VENDORED_YYJSON_DIR}/src")
+target_compile_definitions(test_farload_buffer_vfs PRIVATE
+    STRING_OVERRIDE_BASE_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data/base"
+)
 
 foreach(TARGET_NAME IN ITEMS test_newgame test_homegen test_mapgen_planet_max
     test_lua_mod_runtime test_refit_cost test_design_weapon_damage test_shield_table

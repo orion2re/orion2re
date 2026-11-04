@@ -2,6 +2,7 @@
 
 #include "doctest/doctest.h"
 
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <filesystem>
@@ -126,6 +127,104 @@ namespace test_farload_buffer_detail {
 } // namespace test_farload_buffer_detail
 
 DOCTEST_TEST_SUITE("farload buffer vfs") {
+    DOCTEST_TEST_CASE("base translations match scrap prompt argument contracts without enabling a mod") {
+        using namespace test_farload_buffer_detail;
+        const std::vector<std::pair<std::string, std::string>> sidecars = {
+            {"hfstrngs.json5", Read_File_Contents(fs::path(STRING_OVERRIDE_BASE_DATA_DIR) / "hfstrngs.json5")},
+            {"hsstrngs.json5", Read_File_Contents(fs::path(STRING_OVERRIDE_BASE_DATA_DIR) / "hsstrngs.json5")},
+            {"histrngs.json5", Read_File_Contents(fs::path(STRING_OVERRIDE_BASE_DATA_DIR) / "histrngs.json5")},
+        };
+        for (const auto& sidecar : sidecars) {
+            DOCTEST_REQUIRE_FALSE(sidecar.second.empty());
+        }
+
+        struct s_case {
+            const char* filename;
+            std::vector<int> corrected_messages;
+        };
+        const s_case cases[] = {
+            {"HFSTRNGS.LBX", {128, 129}},
+            {"HSSTRNGS.LBX", {122, 123, 124, 125, 126, 128, 129}},
+            {"HISTRNGS.LBX", {126}},
+            {"HESTRNGS.LBX", {}},
+            {"HGSTRNGS.LBX", {}},
+        };
+        for (const s_case& test_case : cases) {
+            DOCTEST_CAPTURE(test_case.filename);
+            Scoped_Test_Directory test_dir;
+            std::vector<std::string> original;
+            std::string packed;
+            for (int index = 0; index < 397; ++index) {
+                std::string text = "unchanged message " + std::to_string(index);
+                if (std::find(test_case.corrected_messages.begin(), test_case.corrected_messages.end(), index) != test_case.corrected_messages.end()) {
+                    text = index >= 128 ? "value %d BC%s"
+                        : index == 126  ? "name %s name %s extra %s"
+                                        : "name %s extra %s";
+                }
+                original.push_back(text);
+                packed += text;
+                packed.push_back('\0');
+            }
+            test_dir.Write_Lbx_File(test_case.filename, {Records({packed}, (uint16_t)packed.size())});
+            test_dir.Write_Zip_File("data/base.zip", sidecars);
+            DOCTEST_REQUIRE(vfs::Init(test_dir.root_path().string().c_str()));
+
+            std::vector<char> table(packed.size());
+            farload::Farload_Data_Static(test_case.filename, 0, table.data(), 0, 1, (int32_t)table.size());
+            string_overrides::Apply_Table(test_case.filename, &table, 397);
+
+            size_t offset = 0;
+            for (int index = 0; index < 397; ++index) {
+                DOCTEST_CAPTURE(index);
+                const char* text = table.data() + offset;
+                offset += strlen(text) + 1;
+                if (std::find(test_case.corrected_messages.begin(), test_case.corrected_messages.end(), index) == test_case.corrected_messages.end()) {
+                    DOCTEST_CHECK(text == original[index]);
+                    continue;
+                }
+
+                std::string signature;
+                for (const char* p = text; *p != '\0'; ++p) {
+                    if (*p == '%') {
+                        ++p;
+                        DOCTEST_REQUIRE((*p == 's' || *p == 'd'));
+                        signature += *p;
+                    }
+                }
+                const char* expected = "s";
+                if (index >= 128) {
+                    expected = "d";
+                } else if (index == 126) {
+                    expected = "ss";
+                }
+                DOCTEST_REQUIRE(signature == expected);
+
+                char output[300];
+                if (index >= 128) {
+                    for (int value : {1, 25}) {
+                        int length = snprintf(output, sizeof(output), text, value);
+                        DOCTEST_REQUIRE(length > 0);
+                        DOCTEST_REQUIRE(length < (int)sizeof(output));
+                        DOCTEST_CHECK(std::string(output).find(std::to_string(value) + " BC") != std::string::npos);
+                    }
+                } else if (index == 126) {
+                    int length = snprintf(output, sizeof(output), text, "Orion", "Captain");
+                    DOCTEST_REQUIRE(length > 0);
+                    DOCTEST_REQUIRE(length < (int)sizeof(output));
+                    const std::string formatted(output);
+                    DOCTEST_REQUIRE(formatted.find("Orion") != std::string::npos);
+                    DOCTEST_REQUIRE(formatted.find("Captain") != std::string::npos);
+                    DOCTEST_CHECK(formatted.find("Orion") < formatted.find("Captain"));
+                } else {
+                    int length = snprintf(output, sizeof(output), text, "Alkari");
+                    DOCTEST_REQUIRE(length > 0);
+                    DOCTEST_REQUIRE(length < (int)sizeof(output));
+                    DOCTEST_CHECK(std::string(output).find("Alkari") != std::string::npos);
+                }
+            }
+        }
+    }
+
     DOCTEST_TEST_CASE("JSON5 overrides use caller supplied logical IDs and preserve missing strings") {
         using namespace test_farload_buffer_detail;
         Scoped_Test_Directory test_dir;
