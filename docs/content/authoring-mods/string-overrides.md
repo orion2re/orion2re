@@ -1,6 +1,6 @@
 # Authoring Mods: JSON5 String Overrides
 
-Version 2.00 supports individual string replacements in selected LBX resources. A package can supply a JSON5 text file instead of replacing a complete binary file or LBX entry. Include only the strings the mod changes; omitted IDs retain the text supplied by the underlying LBX.
+Version 2.00 supports individual string replacements in selected LBX resources. A package can supply a JSON5 text file instead of replacing a complete binary file or LBX entry. Include only the strings the mod changes; omitted IDs retain the text supplied by eligible lower-priority sidecars or the underlying LBX.
 
 ## Minimal string override
 
@@ -8,7 +8,7 @@ Create and enable a [package](packages-and-manifests.md), then put this file at 
 
 ```json5
 {
-  // String IDs start at 1; omitted strings keep their LBX value.
+  // String IDs start at 1; omitted strings keep lower-priority text.
   "2": " %s gains a level.",
 }
 ```
@@ -31,13 +31,16 @@ Standard [VFS precedence](vfs-and-assets.md#resolution-order) applies, including
 A complete LBX file in a higher-priority layer suppresses the matching JSON5
 sidecar from lower-priority layers. For example, VDC's `techdesc.lbx` takes
 precedence over v150's `techdesc.json5` when VDC is above v150. A sidecar at the
-same priority as its LBX, or above it, still replaces the listed strings; omitted
-IDs retain their LBX text. This rule is rechecked when strings are loaded after
+same priority as its LBX, or above it, still replaces the listed strings. This
+rule is rechecked when strings are loaded after
 mounting, unmounting, or reordering packages.
 
-The highest-priority sidecar wins as a whole file; sidecars are not merged across
-packages. For example, if two mods provide `estrings.json5`, only the winning
-file contributes replacements, even if the files contain different IDs.
+Eligible sidecars are merged per string ID. For example, if a higher-priority mod's
+`estrings.json5` changes ID 1 and a lower-priority mod's sidecar changes ID 2, both
+replacements apply. When several sidecars define the same ID, the highest-priority
+value wins, including an explicitly empty string where the resource permits it.
+IDs omitted by all eligible sidecars retain their LBX text. Sidecars below a
+complete-LBX replacement are not eligible, even for IDs omitted by higher sidecars.
 
 The underlying LBX remains required; a sidecar is not a standalone replacement
 for missing game data. A missing sidecar simply leaves the LBX text unchanged.
@@ -54,7 +57,8 @@ does not add archive watching or remounting.
 JSON5 comments, single quotes, and trailing commas are supported. Bare decimal
 keys are an intentional extension to JSON5, which normally requires numeric keys
 to be quoted. IDs must be positive decimal integers and values must be strings;
-duplicate IDs are errors. Unused IDs do not add strings and have no effect.
+duplicate IDs within one file are errors. The same ID in different sidecars follows
+the priority rule above. Unused IDs do not add strings and have no effect.
 Files are limited to 4 MiB and must be valid UTF-8 JSON5. String values represent game bytes, not Unicode display text: each decoded character from `U+0001` through `U+00FF` supplies the byte with the same numeric value. There is no CP850 conversion or encoding flag. Embedded NUL and characters above `U+00FF` are errors.
 
 ASCII text stays unchanged. Use `\u00XX` or JSON5's `\xXX` escapes for high bytes and control codes. For example, `\u0090` supplies byte `0x90`, and `\u0080` supplies byte `0x80`. A literal character with value `U+00E9` supplies byte `0xE9`, not CP850 byte `0x82`.
@@ -115,7 +119,7 @@ above; merely creating a matching JSON5 filename does not enable support.
 1. Confirm the package is enabled and the sidecar is below its `data/` directory.
 2. Check the resource-specific ID mapping above; an LBX entry number is not
    necessarily a string ID.
-3. Remove loose development overrides that could hide the package's sidecar.
+3. Remove loose development overrides that could override the string IDs being tested.
 4. Reload the relevant resource or restart the game, then open the affected screen.
 5. Check diagnostics for invalid IDs, encoding, or strings that exceed fixed fields.
 6. Test substitutions with real game data, including plural forms and line wrapping.

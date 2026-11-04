@@ -35,6 +35,10 @@ namespace vfs {
     s_vfs_file* fopen(const char* path, const char* mode);
     s_vfs_file* fopen_lbx(const char* lbx_name, int32_t entry_idx);
 
+    // Start cursor at zero; close each returned file. Do not change mounts while
+    // iterating matching read-only files from highest to lowest priority.
+    s_vfs_file* fopen_next_read(const char* path, size_t* cursor);
+
     // Compare files opened from the same current mount view. Equal layers tie.
     bool File_Has_Higher_Priority(const s_vfs_file* file, const s_vfs_file* other);
 

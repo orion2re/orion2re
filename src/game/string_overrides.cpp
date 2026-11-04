@@ -84,35 +84,30 @@ namespace string_overrides {
         }
 
         using t_overrides = std::map<size_t, std::string>;
+        using t_file = std::unique_ptr<s_vfs_file, decltype(&vfs::fclose)>;
         struct s_cached_sidecar {
-            std::string source;
+            std::vector<std::string> sources;
             t_overrides overrides;
         };
         std::map<std::string, s_cached_sidecar> cache;
 
-        bool Read(const char* filename, const std::string& path, std::string* source, bool* exists, std::string* diagnostic) {
-            source->clear();
-            s_vfs_file* file = vfs::fopen(path.c_str(), "rb");
-            *exists = file != nullptr;
-            if (file == nullptr) return true;
-            s_vfs_file* lbx = vfs::fopen(filename, "rb");
-            const bool shadowed = vfs::File_Has_Higher_Priority(lbx, file);
-            if (lbx != nullptr) vfs::fclose(lbx);
-            if (shadowed) {
-                vfs::fclose(file);
-                *exists = false;
-                return true;
-            }
-            const int32_t size = vfs::fsize(file);
-            if (size < 0 || size > 4 * 1024 * 1024) {
-                vfs::fclose(file);
-                return Fail(path, "invalid sidecar size (maximum 4 MiB)", diagnostic);
-            }
-            source->resize(size_t(size));
-            const bool read = vfs::fread(source->data(), 1, source->size(), file) == source->size();
-            vfs::fclose(file);
-            if (!read) {
-                return Fail(path, "could not read sidecar", diagnostic);
+        bool Read(const char* filename, const std::string& path, std::vector<std::string>* sources, std::string* diagnostic) {
+            sources->clear();
+            size_t cursor = 0;
+            t_file file(vfs::fopen_next_read(path.c_str(), &cursor), &vfs::fclose);
+            if (!file) return true;
+            t_file lbx(vfs::fopen(filename, "rb"), &vfs::fclose);
+            for (; file; file.reset(vfs::fopen_next_read(path.c_str(), &cursor))) {
+                if (vfs::File_Has_Higher_Priority(lbx.get(), file.get())) break;
+                const int32_t size = vfs::fsize(file.get());
+                if (size < 0 || size > 4 * 1024 * 1024) {
+                    return Fail(path, "invalid sidecar size (maximum 4 MiB)", diagnostic);
+                }
+                sources->emplace_back(size_t(size), '\0');
+                std::string& source = sources->back();
+                if (vfs::fread(source.data(), 1, source.size(), file.get()) != source.size()) {
+                    return Fail(path, "could not read sidecar", diagnostic);
+                }
             }
             return true;
         }
@@ -161,30 +156,34 @@ namespace string_overrides {
         }
 
         const t_overrides* Get(const char* filename, const std::string& path, std::string* diagnostic) {
-            std::string source;
-            bool exists;
-            if (!Read(filename, path, &source, &exists, diagnostic)) {
+            std::vector<std::string> sources;
+            if (!Read(filename, path, &sources, diagnostic)) {
                 cache.erase(path);
                 return nullptr;
             }
-            if (!exists) {
+            if (sources.empty()) {
                 cache.erase(path);
                 static const t_overrides empty;
                 return &empty;
             }
 
-            // Compare resolved bytes, not timestamps: VFS precedence can change
-            // and same-size edits may preserve a file's modification time.
+            // Include every contributing layer in priority order: lower-layer
+            // edits and mount changes must invalidate the merged result too.
             auto found = cache.find(path);
-            if (found != cache.end() && found->second.source == source) {
+            if (found != cache.end() && found->second.sources == sources) {
                 return &found->second.overrides;
             }
             s_cached_sidecar candidate;
-            if (!Parse(path, source, &candidate.overrides, diagnostic)) {
-                cache.erase(path);
-                return nullptr;
+            for (const std::string& source : sources) {
+                t_overrides layer;
+                if (!Parse(path, source, &layer, diagnostic)) {
+                    cache.erase(path);
+                    return nullptr;
+                }
+                // Sources are highest priority first; keep the first value per ID.
+                candidate.overrides.insert(layer.begin(), layer.end());
             }
-            candidate.source = std::move(source);
+            candidate.sources = std::move(sources);
             found = cache.insert_or_assign(path, std::move(candidate)).first;
             return &found->second.overrides;
         }
