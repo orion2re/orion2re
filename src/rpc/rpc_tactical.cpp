@@ -5,7 +5,6 @@
 #include "game/combat.h"
 
 #include <uv.h>
-#include <algorithm>
 
 namespace rpc {
     namespace {
@@ -20,31 +19,36 @@ namespace rpc {
             Revoke_Event_Delivery(forwarder->service);
         }
 
+        bool Reject_Operation(s_tactical_forwarder* forwarder, const s_operation_request* request, int error) {
+            Complete_Operation(forwarder->service, request, error);
+            return false;
+        }
+
+        int16_t Resolve_Unit(const s_tactical_forwarder* forwarder, std::string_view token, bool owned) {
+            for (const s_tactical_forwarder::s_reference& reference : forwarder->references)
+                if (reference.token.data() == token && forwarder->authorize(reference.slot, owned)) return reference.slot;
+            return -1;
+        }
+
         bool Take(COMBAT1::s_operation* operation, COMBAT1::e_result* result, void* context) {
             auto* forwarder = (s_tactical_forwarder*)context;
             s_operation_request request;
             if (!Take_Operation(forwarder->service, &request)) return false;
-            const auto reject = [&](int error) { Complete_Operation(forwarder->service, &request, error); return false; };
             if (forwarder->retiring || request.request.battle_id != forwarder->battle_id ||
                 forwarder->reader.observer == nullptr || forwarder->reader.observer() != forwarder->viewer ||
-                forwarder->authorize == nullptr) return reject(-32004);
-            const auto resolve = [&](const std::string& token, bool owned) -> int16_t {
-                for (const auto& reference : forwarder->references)
-                    if (reference.token.data() == token && forwarder->authorize(reference.slot, owned)) return reference.slot;
-                return -1;
-            };
-            operation->actor = resolve(request.actor_id, true);
-            if (operation->actor < 0) return reject(-32004);
+                forwarder->authorize == nullptr) return Reject_Operation(forwarder, &request, -32004);
+            operation->actor = Resolve_Unit(forwarder, request.actor_id, true);
+            if (operation->actor < 0) return Reject_Operation(forwarder, &request, -32004);
             if (request.method == OP_SELECT || request.method == OP_FIRE || request.method == OP_BOARD) {
                 if (request.missile_target) {
                     operation->target = -1;
                     for (const auto& reference : forwarder->missile_references)
                         if (reference.token.data() == request.target_id && forwarder->authorize_missile != nullptr && forwarder->authorize_missile(reference.slot)) operation->target = reference.slot;
                 } else
-                    operation->target = resolve(request.target_id, request.method == OP_SELECT);
-                if (operation->target < 0) return reject(-32004);
+                    operation->target = Resolve_Unit(forwarder, request.target_id, request.method == OP_SELECT);
+                if (operation->target < 0) return Reject_Operation(forwarder, &request, -32004);
             }
-            if (forwarder->decision_id != request.decision_id || forwarder->decision_generation != Control_Generation()) return reject(-32010);
+            if (forwarder->decision_id != request.decision_id || forwarder->decision_generation != Control_Generation()) return Reject_Operation(forwarder, &request, -32010);
             switch (request.method) {
                 case OP_SELECT: operation->kind = COMBAT1::SELECT; break;
                 case OP_MOVE: operation->kind = COMBAT1::MOVE; break;
@@ -54,7 +58,7 @@ namespace rpc {
                 case OP_FIRE_SELECTION: operation->kind = COMBAT1::FIRE_SELECTION; break;
                 case OP_BOARD: operation->kind = COMBAT1::BOARD; break;
                 case OP_RETREAT: operation->kind = COMBAT1::RETREAT; break;
-                default: return reject(-32004);
+                default: return Reject_Operation(forwarder, &request, -32004);
             }
             operation->x = request.x;
             operation->y = request.y;
@@ -157,11 +161,16 @@ namespace rpc {
                 Close_Boarding_Report(forwarder->service);
             } else if (event->kind == COMBAT::UNIT_RETIRED || event->kind == COMBAT::MISSILE_RETIRED) {
                 auto& references = event->kind == COMBAT::UNIT_RETIRED ? forwarder->references : forwarder->missile_references;
-                const auto end = std::remove_if(references.begin(), references.end(), [event](const auto& reference) { return reference.slot == event->unit; });
-                if (end != references.end()) {
-                    references.erase(end, references.end());
-                    Invalidate_Read_Delivery(forwarder->service);
+                bool removed = false;
+                for (size_t i = 0; i < references.size();) {
+                    if (references[i].slot == event->unit) {
+                        references.erase(references.begin() + i);
+                        removed = true;
+                    } else {
+                        ++i;
+                    }
                 }
+                if (removed) Invalidate_Read_Delivery(forwarder->service);
             } else if (event->kind == COMBAT::RETIRING) {
                 forwarder->retiring = true;
                 forwarder->report_id.clear();

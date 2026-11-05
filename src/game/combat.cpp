@@ -1512,7 +1512,7 @@ namespace COMBAT {
         };
         std::array<s_listener, 4> listeners;
         uint64_t next_id = 0;
-        s_battle_scope* current = nullptr;
+        s_battle_state* current = nullptr;
         bool reads_allowed = false;
         int16_t control_actor = -1;
         t_control_changed control_changed = nullptr;
@@ -1520,7 +1520,7 @@ namespace COMBAT {
         t_control_complete control_complete = nullptr;
         void* control_context = nullptr;
 
-        void Release_Boarding(s_battle_scope* scope) {
+        void Release_Boarding(s_battle_state* scope) {
             BOARDING::s_result empty;
             std::swap(scope->boarding, empty);
             scope->boarding_active = false;
@@ -1643,35 +1643,35 @@ namespace COMBAT {
         }
         Invalidate_View();
     }
-    s_battle_scope::s_battle_scope() = default;
-    void s_battle_scope::Open(int16_t local_observer) noexcept {
-        if (initialized) return;
-        initialized = true;
-        if (current != nullptr && current != this) Revoke();
-        current = this;
-        viewer = local_observer;
-        if (viewer < 0) return;
-        opened = true;
-        Publish(OPENED, viewer);
+    void Open_Battle(s_battle_state* battle, int16_t local_observer) noexcept {
+        if (battle->initialized) return;
+        battle->initialized = true;
+        if (current != nullptr && current != battle) Revoke();
+        current = battle;
+        battle->viewer = local_observer;
+        if (battle->viewer < 0) return;
+        battle->opened = true;
+        Publish(OPENED, battle->viewer);
     }
-    void s_battle_scope::Close(int16_t local_observer) noexcept {
-        Release_Boarding(this);
-        std::vector<s_hit>().swap(hits);
-        hit_head = 0;
-        next_hit_sequence = 1;
-        if (!opened) return;
-        opened = false;
-        if (current != this) return;
-        if (local_observer == viewer)
-            Publish(CLOSED, viewer);
+    void Close_Battle(s_battle_state* battle, int16_t local_observer) noexcept {
+        Release_Boarding(battle);
+        std::vector<s_hit>().swap(battle->hits);
+        battle->hit_head = 0;
+        battle->next_hit_sequence = 1;
+        if (!battle->opened) return;
+        battle->opened = false;
+        if (current != battle) return;
+        if (local_observer == battle->viewer)
+            Publish(CLOSED, battle->viewer);
         else
             Revoke();
     }
-    s_battle_scope::~s_battle_scope() {
-        if (current == this) {
-            if (opened) Revoke();
+    void Release_Battle(s_battle_state* battle) noexcept {
+        if (current == battle) {
+            if (battle->opened) Revoke();
             current = nullptr;
         }
+        *battle = {};
     }
     bool Attach_Control_Observer(t_control_changed callback) {
         if (control_changed != nullptr && control_changed != callback) return false;
@@ -1716,7 +1716,7 @@ namespace COMBAT {
     void Complete_Control_Operation(COMBAT1::e_result result) {
         if (control_complete != nullptr) control_complete(result, control_context);
     }
-    s_battle_scope* Current_Battle() {
+    s_battle_state* Current_Battle() {
         return Current_Viewer() >= 0 ? current : nullptr;
     }
     void Notify_Boarding_Result() {

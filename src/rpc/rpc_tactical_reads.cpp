@@ -35,6 +35,24 @@ namespace rpc {
     }
 
     namespace {
+        struct s_row {
+            std::string token, json;
+        };
+
+        bool Row_Precedes(const s_row& a, const s_row& b) {
+            return a.token < b.token;
+        }
+
+        std::string Unavailable(const s_read_request* request) {
+            return Error_Response(request->encoded_id, -32004, "Unavailable");
+        }
+
+        std::string Unit_Token(s_tactical_forwarder* forwarder, int16_t slot) {
+            s_unit unit;
+            if (forwarder->reader.unit == nullptr || !forwarder->reader.unit(slot, &unit)) return {};
+            return Tactical_Unit_Token(forwarder, &unit);
+        }
+
         std::string Random_Token() {
             unsigned char bytes[16];
             if (uv_random(nullptr, nullptr, bytes, sizeof(bytes), 0, nullptr) != 0) return {};
@@ -138,16 +156,15 @@ namespace rpc {
 
     std::string Execute_Tactical_Read(const s_read_request* request, void* context, bool* dependent) {
         auto* forwarder = (s_tactical_forwarder*)context;
-        const auto unavailable = [&] { return Error_Response(request->encoded_id, -32004, "Unavailable"); };
         const bool active = forwarder->battle_id[0] != '\0' && !forwarder->retiring;
-        if (!request->battle_id.empty() && (!active || request->battle_id != forwarder->battle_id)) return unavailable();
+        if (!request->battle_id.empty() && (!active || request->battle_id != forwarder->battle_id)) return Unavailable(request);
         std::string result;
         if (!active) {
-            if (request->method != READ_VIEW) return unavailable();
+            if (request->method != READ_VIEW) return Unavailable(request);
             result = "{\"battle\":null}";
         } else if (request->method == READ_HITS) {
             s_hit_history history;
-            if (!Read_Hit_History(&history)) return unavailable();
+            if (!Read_Hit_History(&history)) return Unavailable(request);
             result = "{\"battleId\":\"" + std::string(forwarder->battle_id) + "\",\"firstSequence\":" + std::to_string(history.first_sequence) +
                 ",\"nextSequence\":" + std::to_string(history.next_sequence) + ",\"retentionGap\":" + (history.first_sequence > 1 ? "true" : "false") + ",\"hits\":[";
             for (size_t i = 0; i < history.hits.size(); ++i) {
@@ -171,15 +188,15 @@ namespace rpc {
                         found = true;
                         break;
                     }
-                if (!found) return unavailable();
+                if (!found) return Unavailable(request);
                 result += "\"missile\":" + Missile_Row(missile, request->missile_id) + "}";
             } else {
                 std::vector<s_missile> missiles;
-                if (forwarder->missiles == nullptr || !forwarder->missiles(&missiles)) return unavailable();
+                if (forwarder->missiles == nullptr || !forwarder->missiles(&missiles)) return Unavailable(request);
                 std::vector<std::string> rows;
                 for (const auto& missile : missiles) {
                     const auto token = Missile_Token(forwarder, missile.slot);
-                    if (token.empty()) return unavailable();
+                    if (token.empty()) return Unavailable(request);
                     rows.push_back(Missile_Row(missile, token));
                 }
                 std::sort(rows.begin(), rows.end());
@@ -193,25 +210,20 @@ namespace rpc {
             *dependent = true;
         } else if (request->method == READ_OPTIONS) {
             s_options options;
-            if (forwarder->options == nullptr || !forwarder->options(&options)) return unavailable();
+            if (forwarder->options == nullptr || !forwarder->options(&options)) return Unavailable(request);
             *dependent = true;
             result = "{\"battleId\":\"" + std::string(forwarder->battle_id) + "\",\"control\":{\"available\":" + (options.available ? "true" : "false");
             if (!options.available) {
                 result += ",\"reason\":\"noNativeControl\"}}";
             } else {
-                const auto token = [&](int16_t slot) {
-                    s_unit unit;
-                    if (forwarder->reader.unit == nullptr || !forwarder->reader.unit(slot, &unit)) return std::string();
-                    return Tactical_Unit_Token(forwarder, &unit);
-                };
                 if (forwarder->decision_generation != options.generation || forwarder->decision_id.empty()) {
                     forwarder->decision_id = Random_Token();
                     forwarder->decision_generation = options.generation;
                 }
-                if (forwarder->decision_id.empty()) return unavailable();
-                result += ",\"actorUnitId\":\"" + token(options.actor) + "\",\"decisionId\":\"" + forwarder->decision_id + "\"},\"selectableUnitIds\":[";
+                if (forwarder->decision_id.empty()) return Unavailable(request);
+                result += ",\"actorUnitId\":\"" + Unit_Token(forwarder, options.actor) + "\",\"decisionId\":\"" + forwarder->decision_id + "\"},\"selectableUnitIds\":[";
                 std::vector<std::string> selections;
-                for (auto slot : options.selectable) selections.push_back(token(slot));
+                for (int16_t slot : options.selectable) selections.push_back(Unit_Token(forwarder, slot));
                 std::sort(selections.begin(), selections.end());
                 for (size_t i = 0; i < selections.size(); ++i) {
                     if (i) result += ',';
@@ -239,7 +251,7 @@ namespace rpc {
                     ",\"turnCost\":" + std::to_string(options.turn_cost) + ",\"movementRemaining\":" + std::to_string(options.movement) + "},\"targets\":[";
                 std::vector<std::string> targets;
                 for (const auto& target : options.targets) {
-                    std::string row = "{\"unitId\":\"" + token(target.slot) + "\",\"eligibleWeaponSlots\":[";
+                    std::string row = "{\"unitId\":\"" + Unit_Token(forwarder, target.slot) + "\",\"eligibleWeaponSlots\":[";
                     bool first = true;
                     for (unsigned i = 0; i < 8; ++i)
                         if (target.weapons & (1u << i)) {
@@ -258,9 +270,9 @@ namespace rpc {
                 std::vector<std::string> missile_targets;
                 for (const auto& target : options.missile_targets) {
                     s_missile missile;
-                    if (forwarder->missile == nullptr || !forwarder->missile(target.slot, &missile)) return unavailable();
+                    if (forwarder->missile == nullptr || !forwarder->missile(target.slot, &missile)) return Unavailable(request);
                     const auto token = Missile_Token(forwarder, target.slot);
-                    if (token.empty()) return unavailable();
+                    if (token.empty()) return Unavailable(request);
                     auto row = Missile_Row(missile, token);
                     row.pop_back();
                     row += ",\"canFire\":" + std::string(target.weapons ? "true" : "false") + ",\"eligibleWeaponSlots\":[";
@@ -283,7 +295,7 @@ namespace rpc {
                     ",\"minimumMarines\":0,\"maximumMarines\":" + std::to_string(options.maximum_marines) +
                     ",\"modes\":[\"raid\",\"capture\"],\"targetUnitIds\":[";
                 std::vector<std::string> boarding_targets;
-                for (auto slot : options.boarding_targets) boarding_targets.push_back(token(slot));
+                for (int16_t slot : options.boarding_targets) boarding_targets.push_back(Unit_Token(forwarder, slot));
                 std::sort(boarding_targets.begin(), boarding_targets.end());
                 for (size_t i = 0; i < boarding_targets.size(); ++i) {
                     if (i) result += ',';
@@ -302,24 +314,21 @@ namespace rpc {
                 found = forwarder->reader.unit != nullptr && forwarder->reader.unit(reference.slot, &unit);
                 break;
             }
-            if (!found) return unavailable();
+            if (!found) return Unavailable(request);
             result = "{\"battleId\":\"" + std::string(forwarder->battle_id) + "\",\"unit\":" + Row(&unit, request->unit_id, true) + "}";
             *dependent = true;
         } else {
             s_view view;
-            if (forwarder->reader.view == nullptr || !forwarder->reader.view(&view)) return unavailable();
-            struct s_row {
-                std::string token, json;
-            };
+            if (forwarder->reader.view == nullptr || !forwarder->reader.view(&view)) return Unavailable(request);
             std::vector<s_row> rows;
             std::string selected;
             for (const auto& unit : view.units) {
                 const auto token = Tactical_Unit_Token(forwarder, &unit);
-                if (token.empty()) return unavailable();
+                if (token.empty()) return Unavailable(request);
                 rows.push_back({token, Row(&unit, token, false)});
                 if (unit.slot == view.selected) selected = token;
             }
-            std::sort(rows.begin(), rows.end(), [](const auto& a, const auto& b) { return a.token < b.token; });
+            std::sort(rows.begin(), rows.end(), Row_Precedes);
             result = "{\"battle\":{\"battleId\":\"" + std::string(forwarder->battle_id) + "\",\"localSide\":\"" + (view.local_attacker ? "attacker" : "defender") +
                 "\",\"round\":" + std::to_string(view.round) + ",\"initiative\":" + (view.initiative ? "true" : "false") +
                 ",\"grid\":{\"width\":" + std::to_string(view.width) + ",\"height\":" + std::to_string(view.height) +

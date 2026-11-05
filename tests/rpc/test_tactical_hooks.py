@@ -13,7 +13,7 @@ class TacticalHooksTest(unittest.TestCase):
         start = source.index("int16_t __cdecl Tactical_Combat(")
         end = source.index("return combat_winner;", start)
         body = source[start:end]
-        opened = body.index("battle_events.Open(Local_Tactical_Observer());")
+        opened = body.index("COMBAT::Open_Battle(&battle_events, Local_Tactical_Observer());")
         for preceding in ("if (abort_tactical == 0)", "Deploy_Ships();",
                           "COMBAT1::Add_Tactical_Combat_Fields();",
                           "CMBTMOV1::Wait_Until_Net_Opponent_Finished(0);"):
@@ -22,9 +22,11 @@ class TacticalHooksTest(unittest.TestCase):
         rounds = source[source.index("int16_t Run_Tactical_Combat_Rounds("):start]
         self.assertIn("while (winner == 0)", rounds)
         self.assertIn("COMBAT1::Do_Combat_Turn(", rounds)
-        self.assertEqual(body.count("battle_events.Open("), 1)
+        self.assertEqual(body.count("COMBAT::Open_Battle("), 1)
         self.assertLess(body.index("MAINSCR::Allocate_First_Screen_Seg(5);"),
-                        body.index("battle_events.Close(Local_Tactical_Observer());"))
+                        body.index("COMBAT::Close_Battle(&battle_events, Local_Tactical_Observer());"))
+        self.assertLess(body.index("COMBAT::Close_Battle(&battle_events,"),
+                        body.index("COMBAT::Release_Battle(&battle_events);"))
         self.assertLess(body.index("COMBAT::Retire_Battle();"), body.index("End_Of_Combat(star_idx"))
 
     def test_revocation_precedes_perspective_and_load_changes(self):

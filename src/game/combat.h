@@ -244,7 +244,7 @@ namespace COMBAT {
     void Append_Hit(const s_hit* hit);
     int16_t Begin_Local_Attention() noexcept;
     void End_Local_Attention(int16_t viewer) noexcept;
-    struct s_battle_scope {
+    struct s_battle_state {
         int16_t viewer = -1;
         bool initialized = false, opened = false, retiring = false, dirty = false, selection_pending = false;
         int16_t selected = -1;
@@ -254,14 +254,12 @@ namespace COMBAT {
         BOARDING::s_result boarding;
         uint64_t boarding_generation = 0;
         bool boarding_active = false, boarding_timed = false;
-        void Open(int16_t local_observer) noexcept;
-        void Close(int16_t local_observer) noexcept;
-        ~s_battle_scope();
-        s_battle_scope();
-        s_battle_scope(const s_battle_scope&) = delete;
-        s_battle_scope& operator=(const s_battle_scope&) = delete;
     };
-    s_battle_scope* Current_Battle();
+    void Open_Battle(s_battle_state* battle, int16_t local_observer) noexcept;
+    void Close_Battle(s_battle_state* battle, int16_t local_observer) noexcept;
+    // Open state must stay at a stable address until released, including aborted battles.
+    void Release_Battle(s_battle_state* battle) noexcept;
+    s_battle_state* Current_Battle();
     void Notify_Boarding_Result();
     void Notify_Boarding_Report_Closed();
     int16_t Local_Observer();

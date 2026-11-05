@@ -72,24 +72,23 @@ DOCTEST_TEST_CASE("ordinary combat loading zero-extends strategic ammo") {
     DOCTEST_CHECK(TEST_COMBINIT::Tactical_Missile_Ammo_() == UINT8_MAX);
 }
 
+namespace {
+    void Receive_Retirement(const COMBAT::s_event* event, void* context) noexcept {
+        if (event->kind == COMBAT::UNIT_RETIRED && event->unit == 1) ++*(unsigned*)context;
+    }
+} // namespace
+
 DOCTEST_TEST_CASE("native combat slot reinitialization retires observation identity") {
     TEST_COMBINIT::Reset_();
-    struct s_probe {
-        unsigned retired = 0;
-        uint64_t subscription = 0;
-        ~s_probe() {
-            COMBAT::Unsubscribe(subscription);
-        }
-        static void Receive(const COMBAT::s_event* event, void* context) noexcept {
-            if (event->kind == COMBAT::UNIT_RETIRED && event->unit == 1) ++((s_probe*)context)->retired;
-        }
-    } probe;
-    probe.subscription = COMBAT::Subscribe(s_probe::Receive, &probe);
-    COMBAT::s_battle_scope battle;
-    battle.Open(0);
+    unsigned retired = 0;
+    const uint64_t subscription = COMBAT::Subscribe(Receive_Retirement, &retired);
+    COMBAT::s_battle_state battle;
+    COMBAT::Open_Battle(&battle, 0);
     COMBINIT::Load_Combat_Ship(0, 1);
-    DOCTEST_CHECK(probe.retired == 1);
-    battle.Close(0);
+    DOCTEST_CHECK(retired == 1);
+    COMBAT::Close_Battle(&battle, 0);
+    COMBAT::Release_Battle(&battle);
+    COMBAT::Unsubscribe(subscription);
 }
 
 DOCTEST_TEST_CASE("tactical lifecycle observer requires the current participating local human") {

@@ -12,29 +12,27 @@ namespace {
         bool view_ok = false, unit_ok = false;
         unsigned reads = 0, invalidations = 0;
         uint64_t subscription;
-        s_probe() {
-            TEST_TACTICAL_VIEW::Reset();
-            subscription = COMBAT::Subscribe(Receive, this);
-        }
-        ~s_probe() {
-            COMBAT::Unsubscribe(subscription);
-        }
-        static void Receive(const COMBAT::s_event* event, void* context) noexcept {
-            auto* probe = (s_probe*)context;
-            if (event->kind == COMBAT::VIEW_INVALIDATED) ++probe->invalidations;
-            if (event->kind != COMBAT::SERVICE_READS || !event->safe) return;
-            ++probe->reads;
-            probe->view_ok = rpc::Read_Tactical_View(&probe->view);
-            probe->unit_ok = rpc::Read_Tactical_Unit(probe->slot, &probe->unit);
-        }
     };
+    void Receive(const COMBAT::s_event* event, void* context) noexcept {
+        auto* probe = (s_probe*)context;
+        if (event->kind == COMBAT::VIEW_INVALIDATED) ++probe->invalidations;
+        if (event->kind != COMBAT::SERVICE_READS || !event->safe) return;
+        ++probe->reads;
+        probe->view_ok = rpc::Read_Tactical_View(&probe->view);
+        probe->unit_ok = rpc::Read_Tactical_Unit(probe->slot, &probe->unit);
+    }
+    void Initialize_Probe(s_probe* probe) {
+        TEST_TACTICAL_VIEW::Reset();
+        probe->subscription = COMBAT::Subscribe(Receive, probe);
+    }
 } // namespace
 
 DOCTEST_TEST_CASE("native tactical reads require initialized observed safe scope and current authority") {
     s_probe probe;
+    Initialize_Probe(&probe);
     DOCTEST_CHECK_FALSE(rpc::Read_Tactical_View(&probe.view));
-    COMBAT::s_battle_scope battle;
-    battle.Open(0);
+    COMBAT::s_battle_state battle;
+    COMBAT::Open_Battle(&battle, 0);
     COMBAT::Service_Reads();
     DOCTEST_CHECK(probe.reads == 0);
     COMBAT::Service_Reads(true);
@@ -44,13 +42,16 @@ DOCTEST_TEST_CASE("native tactical reads require initialized observed safe scope
     COMBAT::Service_Reads(true);
     DOCTEST_CHECK_FALSE(probe.view_ok);
     DOCTEST_CHECK_FALSE(probe.unit_ok);
-    battle.Close(0);
+    COMBAT::Close_Battle(&battle, 0);
+    COMBAT::Release_Battle(&battle);
+    COMBAT::Unsubscribe(probe.subscription);
 }
 
 DOCTEST_TEST_CASE("native current reads distinguish own enemy contact and hidden fields without mutating state") {
     s_probe probe;
-    COMBAT::s_battle_scope battle;
-    battle.Open(0);
+    Initialize_Probe(&probe);
+    COMBAT::s_battle_state battle;
+    COMBAT::Open_Battle(&battle, 0);
     COMBAT::Select_Unit(1);
     const auto own = MOX::combat_data[1];
     const auto enemy = MOX::combat_data[2];
@@ -83,13 +84,16 @@ DOCTEST_TEST_CASE("native current reads distinguish own enemy contact and hidden
     DOCTEST_CHECK(std::memcmp(&enemy, &MOX::combat_data[2], sizeof(enemy)) == 0);
     DOCTEST_CHECK(std::memcmp(&player, &MOX::player[0], sizeof(player)) == 0);
     // Neither the helper nor this fixture links a gameplay RNG implementation.
-    battle.Close(0);
+    COMBAT::Close_Battle(&battle, 0);
+    COMBAT::Release_Battle(&battle);
+    COMBAT::Unsubscribe(probe.subscription);
 }
 
 DOCTEST_TEST_CASE("direct native changes appear without publication and real native operations invalidate at safe boundary") {
     s_probe probe;
-    COMBAT::s_battle_scope battle;
-    battle.Open(0);
+    Initialize_Probe(&probe);
+    COMBAT::s_battle_state battle;
+    COMBAT::Open_Battle(&battle, 0);
     COMBAT::Service_Reads(true);
     MOX::combat_data[1].x = 44;
     MOX::combat_data[1].structure_damage = 30;
@@ -114,5 +118,7 @@ DOCTEST_TEST_CASE("direct native changes appear without publication and real nat
     COMBAT::Retire_Battle();
     COMBAT::Service_Reads(true);
     DOCTEST_CHECK_FALSE(rpc::Read_Tactical_Unit(1, &probe.unit));
-    battle.Close(0);
+    COMBAT::Close_Battle(&battle, 0);
+    COMBAT::Release_Battle(&battle);
+    COMBAT::Unsubscribe(probe.subscription);
 }

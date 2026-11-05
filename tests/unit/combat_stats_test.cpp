@@ -993,29 +993,29 @@ DOCTEST_TEST_CASE("strict combat sequencing reverses the waited ship order") {
     DOCTEST_CHECK(COMBAT1::Select_Next_Strict_Ship(COMBAT_SHIP_ACTION_DONE) == 1);
 }
 
-DOCTEST_TEST_CASE("native turn selection is observed only after a completed safe boundary") {
-    TEST_STRICT_COMBAT_SEQUENCE::Reset_();
+namespace {
     struct s_selection_probe {
         unsigned selected = 0, reads = 0;
         int16_t current = -1;
-        uint64_t subscription = 0;
-        ~s_selection_probe() {
-            COMBAT::Unsubscribe(subscription);
+    };
+    void Receive_Selection(const COMBAT::s_event* event, void* context) noexcept {
+        auto* probe = (s_selection_probe*)context;
+        if (event->kind == COMBAT::UNIT_SELECTED) ++probe->selected;
+        if (event->kind != COMBAT::SERVICE_READS || !event->safe) return;
+        rpc::s_view view;
+        if (rpc::Read_Tactical_View(&view)) {
+            ++probe->reads;
+            probe->current = view.selected;
         }
-        static void Receive(const COMBAT::s_event* event, void* context) noexcept {
-            auto* probe = (s_selection_probe*)context;
-            if (event->kind == COMBAT::UNIT_SELECTED) ++probe->selected;
-            if (event->kind != COMBAT::SERVICE_READS || !event->safe) return;
-            rpc::s_view view;
-            if (rpc::Read_Tactical_View(&view)) {
-                ++probe->reads;
-                probe->current = view.selected;
-            }
-        }
-    } probe;
-    probe.subscription = COMBAT::Subscribe(s_selection_probe::Receive, &probe);
-    COMBAT::s_battle_scope battle;
-    battle.Open(0);
+    }
+} // namespace
+
+DOCTEST_TEST_CASE("native turn selection is observed only after a completed safe boundary") {
+    TEST_STRICT_COMBAT_SEQUENCE::Reset_();
+    s_selection_probe probe;
+    const uint64_t subscription = COMBAT::Subscribe(Receive_Selection, &probe);
+    COMBAT::s_battle_state battle;
+    COMBAT::Open_Battle(&battle, 0);
     DOCTEST_REQUIRE(COMBAT1::Select_Next_Strict_Ship(COMBAT_SHIP_ACTION_NONE) == 0);
     DOCTEST_CHECK(probe.selected == 0);
     COMBAT::Service_Reads(true);
@@ -1027,7 +1027,9 @@ DOCTEST_TEST_CASE("native turn selection is observed only after a completed safe
     DOCTEST_CHECK(probe.current == 2);
     COMBAT::Service_Reads(true);
     DOCTEST_CHECK(probe.selected == 2);
-    battle.Close(0);
+    COMBAT::Close_Battle(&battle, 0);
+    COMBAT::Release_Battle(&battle);
+    COMBAT::Unsubscribe(subscription);
 }
 
 DOCTEST_TEST_CASE("ship selection clears a lingering missile warning") {

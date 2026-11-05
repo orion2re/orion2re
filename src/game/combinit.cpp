@@ -778,7 +778,7 @@ namespace COMBINIT {
     }
 
     int16_t __cdecl Tactical_Combat(int16_t* plr1_ships, int16_t plr1_ship_count, int16_t* plr2_ships, int16_t plr2_ship_count, int16_t star_idx, int16_t colony_idx, int16_t retreat_flag) {
-        COMBAT::s_battle_scope battle_events;
+        COMBAT::s_battle_state battle_events;
         int8_t abort_tactical = 0;
         bool no_defender_ships = star_idx != MOX::NUM_STARS;
         int16_t has_tractor_beam = 0;
@@ -1332,7 +1332,7 @@ namespace COMBINIT {
                     (int)combat_winner);
             }
 
-            battle_events.Open(Local_Tactical_Observer());
+            COMBAT::Open_Battle(&battle_events, Local_Tactical_Observer());
             combat_winner = Run_Tactical_Combat_Rounds(turn_plr1, turn_plr2, combat_winner);
 
             if (MOX::net_flag != 0) {
@@ -1398,7 +1398,8 @@ namespace COMBINIT {
 
         MOX::FULL_DRAW_SCREEN_FLAG = MOX::net_flag;
 
-        battle_events.Close(Local_Tactical_Observer());
+        COMBAT::Close_Battle(&battle_events, Local_Tactical_Observer());
+        COMBAT::Release_Battle(&battle_events);
         return combat_winner;
     }
 

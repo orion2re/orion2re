@@ -187,7 +187,11 @@ namespace rpc {
         }
 
         bool Allowed_Upgrade(s_service_state* state, lws* socket) {
-            if (state->stopping || std::none_of(state->connections.begin(), state->connections.end(), [](const auto& connection) { return connection.socket == nullptr; })) return false;
+            if (state->stopping) return false;
+            bool available = false;
+            for (const s_connection& connection : state->connections)
+                if (connection.socket == nullptr) available = true;
+            if (!available) return false;
             std::string host, origin, path;
             if (!Read_Header(socket, WSI_TOKEN_HOST, &host) || !Read_Header(socket, WSI_TOKEN_ORIGIN, &origin) ||
                 !Read_Header(socket, WSI_TOKEN_GET_URI, &path) || path != "/rpc" ||
@@ -203,7 +207,9 @@ namespace rpc {
             if (position.stopped || (connection->session.authenticated && connection->session.auth_epoch != position.epoch)) return false;
             const bool was_authenticated = connection->session.authenticated;
             bool selection_updated = false;
-            const bool control_available = std::none_of(state->connections.begin(), state->connections.end(), [](const auto& item) { return item.session.controller; });
+            bool control_available = true;
+            for (const s_connection& item : state->connections)
+                if (item.session.controller) control_available = false;
             std::string response;
             s_read_request read;
             s_operation_request operation;
@@ -273,9 +279,13 @@ namespace rpc {
                 }
                 return -1;
             }
-            auto found = std::find_if(state->connections.begin(), state->connections.end(), [socket](const auto& item) { return item.socket == socket; });
-            if (found == state->connections.end()) return 0;
-            auto* connection = &*found;
+            s_connection* connection = nullptr;
+            for (s_connection& item : state->connections)
+                if (item.socket == socket) {
+                    connection = &item;
+                    break;
+                }
+            if (connection == nullptr) return 0;
             if (reason == LWS_CALLBACK_CLOSED) {
                 Cancel_Connection_Work(state, connection);
                 *connection = {};
@@ -433,7 +443,7 @@ namespace rpc {
         state->config = *config;
         state->thread = std::thread(Run_Service, state);
         std::unique_lock lock(state->startup_mutex);
-        state->startup_condition.wait(lock, [state] { return state->ready; });
+        while (!state->ready) state->startup_condition.wait(lock);
         const bool successful = state->successful;
         lock.unlock();
         if (!successful) {

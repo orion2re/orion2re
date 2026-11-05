@@ -24,12 +24,15 @@ namespace {
         return result;
     }
 
-    struct s_service_fixture {
-        rpc::s_service service;
-        ~s_service_fixture() {
-            rpc::Stop_Service(&service);
-        }
-    };
+    std::string Retreat_Request(const std::string* common, const char* extra) {
+        return "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"combat.retreat\",\"params\":{" + *common + extra + "}}";
+    }
+    std::string Boarding_Request(const std::string* common, const char* mode, const char* marines) {
+        return "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"combat.board\",\"params\":{" + *common + ",\"mode\":" + mode + ",\"marines\":" + marines + "}}";
+    }
+    std::string Selection_Request(const std::string* common, const char* banks) {
+        return "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"combat.setFireSelection\",\"params\":{" + *common + ",\"banks\":" + banks + "}}";
+    }
 } // namespace
 
 DOCTEST_TEST_CASE("retreat is a strict context-bound mutation and its event uses the existing bounded delivery") {
@@ -37,17 +40,14 @@ DOCTEST_TEST_CASE("retreat is a strict context-bound mutation and its event uses
     session.authenticated = session.controller = true;
     session.events = 7;
     const std::string common = R"("battleId":"0123456789abcdef0123456789abcdef","actorUnitId":"0123456789abcdef0123456789abcdef","decisionId":"0123456789abcdef0123456789abcdef","operationSeq":1)";
-    const auto input = [&](const std::string& extra) {
-        return "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"combat.retreat\",\"params\":{" + common + extra + "}}";
-    };
     std::string response;
     rpc::s_operation_request request;
     for (const char* extra : {",\"destination\":{}", ",\"targetUnitId\":\"fedcba9876543210fedcba9876543210\"", ",\"force\":true"}) {
-        DOCTEST_REQUIRE(rpc::Process_Request(input(extra), KEY, true, &session, &response, nullptr, nullptr, &request));
+        DOCTEST_REQUIRE(rpc::Process_Request(Retreat_Request(&common, extra), KEY, true, &session, &response, nullptr, nullptr, &request));
         DOCTEST_CHECK(response.find("-32602") != std::string::npos);
         DOCTEST_CHECK(session.operation_sequence == 0);
     }
-    DOCTEST_REQUIRE(rpc::Process_Request(input(""), KEY, true, &session, &response, nullptr, nullptr, &request));
+    DOCTEST_REQUIRE(rpc::Process_Request(Retreat_Request(&common, ""), KEY, true, &session, &response, nullptr, nullptr, &request));
     DOCTEST_CHECK(response.empty());
     DOCTEST_CHECK(request.method == rpc::OP_RETREAT);
     DOCTEST_CHECK(Process(&session, R"({"jsonrpc":"2.0","id":2,"method":"rpc.subscribe","params":{"events":["combat.retreatResolved"]}})").find("combat.retreatResolved") != std::string::npos);
@@ -108,23 +108,20 @@ DOCTEST_TEST_CASE("boarding mode and commitment are explicit strictly typed and 
     session.authenticated = session.controller = true;
     session.events = 7;
     const std::string common = R"("battleId":"0123456789abcdef0123456789abcdef","actorUnitId":"0123456789abcdef0123456789abcdef","decisionId":"0123456789abcdef0123456789abcdef","operationSeq":1,"targetUnitId":"fedcba9876543210fedcba9876543210")";
-    const auto input = [&](const char* mode, const char* marines) {
-        return "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"combat.board\",\"params\":{" + common + ",\"mode\":" + mode + ",\"marines\":" + marines + "}}";
-    };
     std::string response;
     rpc::s_operation_request request;
     for (const char* invalid : {"-1", "129", "1.5", "true", "null", "\"4\""}) {
-        DOCTEST_REQUIRE(rpc::Process_Request(input("\"capture\"", invalid), KEY, true, &session, &response, nullptr, nullptr, &request));
+        DOCTEST_REQUIRE(rpc::Process_Request(Boarding_Request(&common, "\"capture\"", invalid), KEY, true, &session, &response, nullptr, nullptr, &request));
         DOCTEST_CHECK(response.find("-32602") != std::string::npos);
         DOCTEST_CHECK(session.operation_sequence == 0);
     }
-    DOCTEST_REQUIRE(rpc::Process_Request(input("\"best\"", "4"), KEY, true, &session, &response, nullptr, nullptr, &request));
+    DOCTEST_REQUIRE(rpc::Process_Request(Boarding_Request(&common, "\"best\"", "4"), KEY, true, &session, &response, nullptr, nullptr, &request));
     DOCTEST_CHECK(response.find("-32602") != std::string::npos);
-    DOCTEST_REQUIRE(rpc::Process_Request(input("\"raid\"", "0"), KEY, true, &session, &response, nullptr, nullptr, &request));
+    DOCTEST_REQUIRE(rpc::Process_Request(Boarding_Request(&common, "\"raid\"", "0"), KEY, true, &session, &response, nullptr, nullptr, &request));
     DOCTEST_CHECK(response.empty());
     DOCTEST_CHECK(request.method == rpc::OP_BOARD);
     DOCTEST_CHECK(request.marines == 0);
-    DOCTEST_REQUIRE(rpc::Process_Request(input("\"capture\"", "4"), KEY, true, &session, &response, nullptr, nullptr, &request));
+    DOCTEST_REQUIRE(rpc::Process_Request(Boarding_Request(&common, "\"capture\"", "4"), KEY, true, &session, &response, nullptr, nullptr, &request));
     DOCTEST_CHECK(response.find("-32012") != std::string::npos);
 }
 
@@ -194,18 +191,15 @@ DOCTEST_TEST_CASE("bank selection and missile targeting validate bounded semanti
     session.authenticated = session.controller = true;
     session.events = 7;
     const std::string common = R"("battleId":"0123456789abcdef0123456789abcdef","actorUnitId":"0123456789abcdef0123456789abcdef","decisionId":"0123456789abcdef0123456789abcdef","operationSeq":1)";
-    const auto selection = [&](const char* banks) {
-        return "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"combat.setFireSelection\",\"params\":{" + common + ",\"banks\":" + banks + "}}";
-    };
     std::string response;
     rpc::s_operation_request operation;
     for (const char* invalid : {"[]", "null", "{}", R"([{"slot":8,"state":"on"}])", R"([{"slot":0,"state":"best"}])", R"([{"slot":0,"state":"on"},{"slot":0,"state":"off"}])", R"([{"slot":0,"state":"on","extra":1}])"}) {
-        DOCTEST_REQUIRE(rpc::Process_Request(selection(invalid), KEY, true, &session, &response, nullptr, nullptr, &operation));
+        DOCTEST_REQUIRE(rpc::Process_Request(Selection_Request(&common, invalid), KEY, true, &session, &response, nullptr, nullptr, &operation));
         DOCTEST_CHECK(response.find("-32602") != std::string::npos);
         DOCTEST_CHECK(operation.method == rpc::OP_NONE);
         DOCTEST_CHECK(session.operation_sequence == 0);
     }
-    DOCTEST_REQUIRE(rpc::Process_Request(selection(R"([{"slot":0,"state":"temporaryOff"},{"slot":7,"state":"off"}])"), KEY, true, &session, &response, nullptr, nullptr, &operation));
+    DOCTEST_REQUIRE(rpc::Process_Request(Selection_Request(&common, R"([{"slot":0,"state":"temporaryOff"},{"slot":7,"state":"off"}])"), KEY, true, &session, &response, nullptr, nullptr, &operation));
     DOCTEST_CHECK(response.empty());
     DOCTEST_CHECK(operation.method == rpc::OP_FIRE_SELECTION);
     DOCTEST_CHECK(operation.bank_mask == 129);
@@ -352,40 +346,41 @@ DOCTEST_TEST_CASE("RPC preserves encoded request IDs and ignores notifications w
 }
 
 DOCTEST_TEST_CASE("RPC service requires a configured key and starts stops and restarts without game polling") {
-    s_service_fixture fixture;
+    rpc::s_service service;
     rpc::s_service_config config;
     std::string diagnostic;
-    DOCTEST_CHECK_FALSE(rpc::Start_Service(&fixture.service, &config, &diagnostic));
-    DOCTEST_CHECK(fixture.service.state == nullptr);
+    DOCTEST_CHECK_FALSE(rpc::Start_Service(&service, &config, &diagnostic));
+    DOCTEST_CHECK(service.state == nullptr);
     DOCTEST_CHECK_FALSE(diagnostic.empty());
     config.port = 0;
     config.key = KEY;
     for (int i = 0; i < 3; ++i) {
-        DOCTEST_REQUIRE(rpc::Start_Service(&fixture.service, &config, &diagnostic));
-        DOCTEST_CHECK(rpc::Service_Port(&fixture.service) != 0);
-        DOCTEST_CHECK_FALSE(rpc::Start_Service(&fixture.service, &config, &diagnostic));
+        DOCTEST_REQUIRE(rpc::Start_Service(&service, &config, &diagnostic));
+        DOCTEST_CHECK(rpc::Service_Port(&service) != 0);
+        DOCTEST_CHECK_FALSE(rpc::Start_Service(&service, &config, &diagnostic));
         const auto start = std::chrono::steady_clock::now();
-        rpc::Stop_Service(&fixture.service);
+        rpc::Stop_Service(&service);
         DOCTEST_CHECK(std::chrono::steady_clock::now() - start < std::chrono::seconds(2));
-        DOCTEST_CHECK(fixture.service.state == nullptr);
-        rpc::Stop_Service(&fixture.service);
+        DOCTEST_CHECK(service.state == nullptr);
+        rpc::Stop_Service(&service);
     }
 }
 
 DOCTEST_TEST_CASE("RPC bind failure cleans up and does not expose the configured key") {
-    s_service_fixture first, second;
+    rpc::s_service first, second;
     rpc::s_service_config config;
     config.port = 0;
     config.key = KEY;
     std::string diagnostic;
-    DOCTEST_REQUIRE(rpc::Start_Service(&first.service, &config, &diagnostic));
-    config.port = rpc::Service_Port(&first.service);
-    DOCTEST_CHECK_FALSE(rpc::Start_Service(&second.service, &config, &diagnostic));
-    DOCTEST_CHECK(second.service.state == nullptr);
+    DOCTEST_REQUIRE(rpc::Start_Service(&first, &config, &diagnostic));
+    config.port = rpc::Service_Port(&first);
+    DOCTEST_CHECK_FALSE(rpc::Start_Service(&second, &config, &diagnostic));
+    DOCTEST_CHECK(second.state == nullptr);
     DOCTEST_CHECK_FALSE(diagnostic.empty());
     DOCTEST_CHECK(diagnostic.find(KEY) == std::string::npos);
-    rpc::Stop_Service(&first.service);
-    DOCTEST_REQUIRE(rpc::Start_Service(&second.service, &config, &diagnostic));
+    rpc::Stop_Service(&first);
+    DOCTEST_REQUIRE(rpc::Start_Service(&second, &config, &diagnostic));
+    rpc::Stop_Service(&second);
 }
 
 DOCTEST_TEST_CASE("tactical read envelopes are typed bounded and subscription guarded") {

@@ -4,7 +4,6 @@
 #include "fakes/fake_tactical_view_runtime.h"
 
 #include <iostream>
-#include <memory>
 
 namespace {
     unsigned view_reads = 0, unit_reads = 0;
@@ -36,18 +35,17 @@ int main() {
     forwarder.reader = {COMBAT::Local_Observer, View, Unit};
     if (!rpc::Subscribe_Tactical_Events(&forwarder, &service)) return 1;
     std::cout << rpc::Service_Port(&service) << std::endl;
-    std::unique_ptr<COMBAT::s_battle_scope> battle;
+    COMBAT::s_battle_state battle;
     std::string command;
     while (std::getline(std::cin, command) && command != "stop") {
         if (command == "open" || command == "hidden") {
-            battle.reset();
+            COMBAT::Release_Battle(&battle);
             TEST_TACTICAL_VIEW::Reset();
-            battle = std::make_unique<COMBAT::s_battle_scope>();
-            battle->Open(command == "open" ? 0 : -1);
+            COMBAT::Open_Battle(&battle, command == "open" ? 0 : -1);
         } else if (command == "close") {
             COMBAT::Retire_Battle();
-            if (battle) battle->Close(0);
-            battle.reset();
+            COMBAT::Close_Battle(&battle, 0);
+            COMBAT::Release_Battle(&battle);
         } else if (command == "retire") {
             COMBAT::Retire_Battle();
         } else if (command == "poll") {
@@ -94,7 +92,7 @@ int main() {
         }
         std::cout << "done" << std::endl;
     }
-    battle.reset();
+    COMBAT::Release_Battle(&battle);
     rpc::Unsubscribe_Tactical_Events(&forwarder);
     rpc::Stop_Service(&service);
 }

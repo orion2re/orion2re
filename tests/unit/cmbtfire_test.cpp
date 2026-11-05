@@ -113,6 +113,12 @@ DOCTEST_TEST_CASE("destroyed Crystal releases captures and invalidates effects")
     DOCTEST_CHECK(TEST_CRYSTAL_FLEET::Cleanup_Source_(1) == 2);
 }
 
+namespace {
+    void Receive_Retirement(const COMBAT::s_event* event, void* context) noexcept {
+        if (event->kind == COMBAT::UNIT_RETIRED && event->unit == 1) ++*(unsigned*)context;
+    }
+} // namespace
+
 DOCTEST_TEST_CASE("ship destruction publishes one semantic Lua event") {
     TEST_ENGINE_EXPLOSION::Reset_();
     TEST_LUA_EVENT::Reset_();
@@ -120,19 +126,10 @@ DOCTEST_TEST_CASE("ship destruction publishes one semantic Lua event") {
     MOX::combat_data[0].unit_status = 0;
     MOX::combat_data[1].unit_status = 0;
 
-    struct s_probe {
-        unsigned retired = 0;
-        uint64_t subscription = 0;
-        ~s_probe() {
-            COMBAT::Unsubscribe(subscription);
-        }
-        static void Receive(const COMBAT::s_event* event, void* context) noexcept {
-            if (event->kind == COMBAT::UNIT_RETIRED && event->unit == 1) ++((s_probe*)context)->retired;
-        }
-    } probe;
-    probe.subscription = COMBAT::Subscribe(s_probe::Receive, &probe);
-    COMBAT::s_battle_scope battle;
-    battle.Open(0);
+    unsigned retired = 0;
+    const uint64_t subscription = COMBAT::Subscribe(Receive_Retirement, &retired);
+    COMBAT::s_battle_state battle;
+    COMBAT::Open_Battle(&battle, 0);
 
     CMBTFIRE::Destroy_Ship_By(1, 20, 20, 3, 0);
 
@@ -143,8 +140,10 @@ DOCTEST_TEST_CASE("ship destruction publishes one semantic Lua event") {
 
     CMBTFIRE::Destroy_Ship_By(1, 20, 20, 3, 0);
     DOCTEST_CHECK(TEST_LUA_EVENT::Count_() == 1);
-    DOCTEST_CHECK(probe.retired == 1);
-    battle.Close(0);
+    DOCTEST_CHECK(retired == 1);
+    COMBAT::Close_Battle(&battle, 0);
+    COMBAT::Release_Battle(&battle);
+    COMBAT::Unsubscribe(subscription);
 }
 
 DOCTEST_TEST_CASE("ship destruction invalidates target before retargeting missiles") {

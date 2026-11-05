@@ -4,7 +4,6 @@
 #include "game/combat.h"
 
 #include <iostream>
-#include <memory>
 #include <string>
 
 int main() {
@@ -24,25 +23,26 @@ int main() {
     }
     std::cout << rpc::Service_Port(&service) << std::endl;
     std::string command;
-    std::unique_ptr<COMBAT::s_battle_scope> battle;
+    COMBAT::s_battle_state battle;
     while (std::getline(std::cin, command) && command != "stop") {
         if (command == "open") {
-            battle = std::make_unique<COMBAT::s_battle_scope>();
-            battle->Open(0);
+            COMBAT::Release_Battle(&battle);
+            COMBAT::Open_Battle(&battle, 0);
         } else if (command == "close") {
-            if (battle != nullptr) battle->Close(0);
-            battle.reset();
+            COMBAT::Close_Battle(&battle, 0);
+            COMBAT::Release_Battle(&battle);
         } else if (command == "battle" || command == "hidden" || command == "switch") {
             const int16_t viewer = command == "hidden" ? -1 : (command == "switch" ? 1 : 0);
-            COMBAT::s_battle_scope completed;
-            completed.Open(viewer);
-            completed.Close(viewer);
+            COMBAT::s_battle_state completed;
+            COMBAT::Open_Battle(&completed, viewer);
+            COMBAT::Close_Battle(&completed, viewer);
+            COMBAT::Release_Battle(&completed);
         } else if (command == "revoke") {
             COMBAT::Revoke();
         }
         std::cout << "done" << std::endl;
     }
-    battle.reset();
+    COMBAT::Release_Battle(&battle);
     rpc::Unsubscribe_Tactical_Events(&forwarder);
     rpc::Stop_Service(&service);
     return 0;

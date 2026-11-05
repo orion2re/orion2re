@@ -141,10 +141,13 @@ namespace rpc {
                 if (mask & EVENT_COMBAT_OPENED) result += ',';
                 result += "\"combat.closed\"";
             }
-            for (const auto& item : {std::pair{EVENT_COMBAT_INVALIDATED, "combat.viewInvalidated"}, std::pair{EVENT_COMBAT_SELECTED, "combat.unitSelected"}}) {
-                if (!(mask & item.first)) continue;
+            if (mask & EVENT_COMBAT_INVALIDATED) {
                 if (result.size() > 1) result += ',';
-                result += "\"" + std::string(item.second) + "\"";
+                result += "\"combat.viewInvalidated\"";
+            }
+            if (mask & EVENT_COMBAT_SELECTED) {
+                if (result.size() > 1) result += ',';
+                result += "\"combat.unitSelected\"";
             }
             if (mask & (EVENT_COMBAT_ATTENTION | EVENT_COMBAT_ATTENTION_CLEARED)) {
                 if (result.size() > 1) result += ',';

@@ -3,7 +3,6 @@
 #include "rpc/rpc_tactical.h"
 
 #include <iostream>
-#include <memory>
 
 int main() {
     TEST_TACTICAL_TURN::Reset();
@@ -23,24 +22,23 @@ int main() {
     forwarder.authorize_missile = COMBAT::Missile_Disclosed;
     if (!rpc::Subscribe_Tactical_Events(&forwarder, &service)) return 1;
     std::cout << rpc::Service_Port(&service) << std::endl;
-    std::unique_ptr<COMBAT::s_battle_scope> battle;
+    COMBAT::s_battle_state battle;
     rpc::s_operation_request delivery;
     std::string command;
     while (std::getline(std::cin, command) && command != "stop") {
         if (command == "open") {
-            if (battle) {
+            if (battle.initialized) {
                 COMBAT::Retire_Battle();
-                battle->Close(0);
+                COMBAT::Close_Battle(&battle, 0);
             }
-            battle.reset();
+            COMBAT::Release_Battle(&battle);
             TEST_TACTICAL_TURN::Reset();
-            battle = std::make_unique<COMBAT::s_battle_scope>();
-            battle->Open(0);
+            COMBAT::Open_Battle(&battle, 0);
             COMBAT::Select_Unit(1);
             COMBAT::Open_Control_Decision(1);
         } else if (command == "poll") {
             if (fields::input_delay > 0) fields::Get_Input();
-            if (battle && MOX::cur_ship > 0 && fields::input_delay <= 0)
+            if (battle.initialized && MOX::cur_ship > 0 && fields::input_delay <= 0)
                 COMBAT::Open_Control_Decision(MOX::cur_ship);
             else
                 COMBAT::Close_Control_Decision();
@@ -65,8 +63,8 @@ int main() {
             if (winner != -1 || MOX::combat_data[1].is_retreating != 2 || MOX::combat_data[3].is_retreating != 2) return 2;
             COMBAT::End_Pending_Retreats();
             COMBAT::Retire_Battle();
-            battle->Close(0);
-            battle.reset();
+            COMBAT::Close_Battle(&battle, 0);
+            COMBAT::Release_Battle(&battle);
             fields::Deactivate_Auto_Function();
         } else if (command == "retreat-no-speed") {
             MOX::combat_data[1].drive_current_hits = 50;
@@ -172,12 +170,12 @@ int main() {
         } else if (command == "close") {
             COMBAT::End_Pending_Retreats();
             COMBAT::Retire_Battle();
-            if (battle) battle->Close(0);
-            battle.reset();
+            COMBAT::Close_Battle(&battle, 0);
+            COMBAT::Release_Battle(&battle);
         }
         std::cout << "done" << std::endl;
     }
-    battle.reset();
+    COMBAT::Release_Battle(&battle);
     rpc::Unsubscribe_Tactical_Events(&forwarder);
     rpc::Stop_Service(&service);
     TEST_TACTICAL_TURN::Release_Boarding();

@@ -24,6 +24,18 @@ namespace TEST_TACTICAL_TURN {
         int16_t display_hull_drive = 0;
         bool display_hull_saved = false;
 
+        std::string Sprite_For(int16_t frames) {
+            std::string sprite(2048, '\0');
+            auto* header = reinterpret_cast<s_animation_header*>(sprite.data());
+            header->width = header->height = 1;
+            header->frame_count = frames;
+            header->flags = ANIMATION_FLAG_HAS_PALETTE;
+            Animation_Palette_Header_(header)->count = 1;
+            for (int i = 0; i <= frames; ++i) Set_Animation_Frame_Offset_(header, i, 2000);
+            unaligned::Store<uint16_t>(sprite.data() + 2002, 1);
+            return sprite;
+        }
+
         void Write_Media(const std::string& path, const std::string& bytes) {
             auto file = media_root / "data" / path;
             std::filesystem::create_directories(file.parent_path());
@@ -220,19 +232,8 @@ namespace TEST_TACTICAL_TURN {
         TECHDATA::hull_data[0].armor_hp = 2000;
         TECHDATA::hull_data[0].drive_hp = 100;
         for (int i = 1; i < 4; ++i) units[i].armor_type = ARMOR_TITANIUM_ARMOR;
-        const auto sprite_for = [](int16_t frames) {
-            std::string sprite(2048, '\0');
-            auto* header = reinterpret_cast<s_animation_header*>(sprite.data());
-            header->width = header->height = 1;
-            header->frame_count = frames;
-            header->flags = ANIMATION_FLAG_HAS_PALETTE;
-            Animation_Palette_Header_(header)->count = 1;
-            for (int i = 0; i <= frames; ++i) Set_Animation_Frame_Offset_(header, i, 2000);
-            unaligned::Store<uint16_t>(sprite.data() + 2002, 1);
-            return sprite;
-        };
-        const auto sprite = sprite_for(64);
-        const auto effect = sprite_for(24); // Spherical effects use native 25-entry frame tables.
+        const auto sprite = Sprite_For(64);
+        const auto effect = Sprite_For(24); // Spherical effects use native 25-entry frame tables.
         auto sphere = effect;
         reinterpret_cast<s_animation_header*>(sphere.data())->width = 2; // Native radius must be positive.
         for (int i = 0; i < 120; ++i) {
