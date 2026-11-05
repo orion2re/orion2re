@@ -121,6 +121,166 @@ class TurnTest(unittest.TestCase):
         self.assertIsNone(final["selectedUnitId"])
         self.assertEqual(final["battleId"], view["battleId"])
 
+    def test_wait_cli_native_turn_continuation_in_all_modes_with_independent_reader(self):
+        reader = self.client("reader")
+        for mode in ("classic", "initiative", "strict", "single"):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as directory:
+                self.trigger("open")
+                self.trigger("wait-" + mode)
+                initial = self.read(reader)["result"]["battle"]
+                actor = initial["selectedUnitId"]
+                key = Path(directory) / "key"
+                key.write_text(KEY, encoding="utf-8")
+                key.chmod(0o600)
+                cli = subprocess.Popen([sys.executable, str(ROOT / "tools/rpc_observer.py"), "--controller",
+                                        "--port", str(self.port), "--key-file", str(key)], stdin=subprocess.PIPE,
+                                       stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                lines = queue.Queue()
+                threading.Thread(target=lambda: [lines.put(line) for line in cli.stdout], daemon=True).start()
+                owner = None
+
+                def command(text):
+                    cli.stdin.write(text + "\n")
+                    cli.stdin.flush()
+
+                def wait_for(text, poll=False):
+                    output = ""
+                    deadline = time.monotonic() + 10
+                    while text not in output:
+                        if self.server.poll() is not None:
+                            self.fail("Wait fixture exited: " + self.server.stderr.read())
+                        if poll:
+                            self.trigger("poll")
+                        try:
+                            output += lines.get(timeout=0.03)
+                        except queue.Empty:
+                            pass
+                        if time.monotonic() >= deadline:
+                            self.fail("CLI Wait did not reach " + text + ": " + output[-2000:])
+                    return output
+
+                def current(method="combat.getView", params=None):
+                    # Production Do_Combat_Turn services reads and actions, not fixture polling.
+                    return self.until(reader, self.send(reader, method, params))["result"]
+
+                try:
+                    self.assertIn("Wait: available", wait_for("Done is available", poll=True))
+                    owner = threading.Thread(target=lambda: self.trigger("wait-turn"))
+                    owner.start()
+                    command("options")
+                    wait_for("Done is available")
+                    before = current("combat.getUnit", {"battleId": initial["battleId"], "unitId": actor})["unit"]["ownDetails"]
+                    command("wait")
+                    wait_for("Operation 1: applied")
+                    changed = current()["battle"]
+                    self.assertEqual(changed["selectedUnitId"] == actor, mode == "single")
+                    after = current("combat.getUnit", {"battleId": initial["battleId"], "unitId": actor})["unit"]["ownDetails"]
+                    self.assertEqual(after["movementRemaining"], before["movementRemaining"] - (4 if mode == "strict" else 0))
+                    wait_for("Done is available")
+                    sequence = 2
+                    if mode != "single":
+                        command("done")
+                        wait_for("Operation 2: applied")
+                        self.assertEqual(current()["battle"]["selectedUnitId"], actor)
+                        choices = wait_for("Done is available")
+                        self.assertIn("Wait: " + ("unavailable" if mode == "strict" else "available"), choices)
+                        sequence += 1
+                    # The waiting ship still has a native movement opportunity in this same pass.
+                    command("move 14 10")
+                    wait_for(f"Operation {sequence}: applied")
+                    moved = current()["battle"]
+                    self.assertEqual(next(u for u in moved["units"] if u["unitId"] == actor)["position"], {"x": 14, "y": 10})
+                    wait_for("Done is available")
+                    command("done")
+                    wait_for(f"Operation {sequence + 1}: applied")
+                    owner.join(timeout=5)
+                    self.assertFalse(owner.is_alive())
+                    self.trigger("close")
+                    wait_for("Battle closed;")
+                    self.trigger("open")
+                    wait_for("Done is available", poll=True)
+                    subsequent = self.read(reader)["result"]["battle"]
+                    self.assertNotEqual(subsequent["battleId"], initial["battleId"])
+                    command("quit")
+                    self.assertEqual(cli.wait(timeout=5), 0)
+                finally:
+                    if cli.poll() is None:
+                        cli.kill()
+                        cli.wait()
+                    if owner is not None and owner.is_alive():
+                        self.server.kill()
+                        owner.join(timeout=3)
+                    cli.stdin.close()
+                    cli.stdout.close()
+                    cli.stderr.close()
+
+    def test_wait_reuses_cancellation_expiry_conflict_and_reference_guards(self):
+        controller = self.client()
+        self.trigger("open")
+        options = self.options(controller)
+        self.assertTrue(options["canWait"])
+        pending = self.submit(controller, options, "combat.wait")
+        busy = self.submit(controller, options, "combat.wait")
+        self.assertEqual(self.until(controller, busy)["error"]["code"], -32006)
+        cancel = self.send(controller, "combat.cancelOperation", {"operationSeq": self.sequence - 1})
+        self.assertTrue(self.until(controller, cancel)["result"]["cancelled"])
+        self.assertEqual(self.until(controller, pending)["error"]["code"], -32013)
+        duplicate = self.submit(controller, options, "combat.wait", sequence=self.sequence)
+        self.assertEqual(self.until(controller, duplicate)["error"]["code"], -32012)
+        pending = self.submit(controller, options, "combat.wait")
+        time.sleep(2.1)
+        self.assertEqual(self.until(controller, pending)["error"]["code"], -32015)
+        self.trigger("consume")
+        self.assertEqual(self.options(controller)["control"], options["control"])
+        for change, expected in (("local-bank", -32010), ("ai", -32009), ("scan", -32009),
+                                 ("remote", -32004), ("reuse-actor", -32004), ("open", -32004)):
+            with self.subTest(change=change):
+                time.sleep(0.2)
+                self.trigger("open")
+                options = self.options(controller)
+                pending = self.submit(controller, options, "combat.wait")
+                self.trigger(change)
+                self.trigger("consume")
+                self.assertEqual(self.until(controller, pending)["error"]["code"], expected)
+                if change in ("ai", "scan", "remote"):
+                    self.assertEqual(self.options(controller), {"battleId": options["battleId"],
+                                                              "control": {"available": False, "reason": "noNativeControl"}})
+        reader = self.client("reader")
+        denied = self.submit(reader, options, "combat.wait")
+        self.assertEqual(self.until(reader, denied)["error"]["code"], -32007)
+        self.trigger("open")
+        options = self.options(controller)
+        self.submit(controller, options, "combat.wait")
+        controller.close()
+        time.sleep(0.1)
+        self.trigger("consume")
+        self.assertEqual(self.read(reader)["result"]["battle"]["selectedUnitId"], options["control"]["actorUnitId"])
+
+    def test_wait_same_actor_invalidates_decision_and_strict_stage_refuses(self):
+        controller = self.client()
+        self.trigger("open")
+        self.trigger("wait-single")
+        before = self.options(controller)
+        self.apply(controller, before, "combat.wait")
+        after = self.options(controller)
+        self.assertEqual(after["control"]["actorUnitId"], before["control"]["actorUnitId"])
+        self.assertNotEqual(after["control"]["decisionId"], before["control"]["decisionId"])
+        stale = self.submit(controller, before, "combat.wait")
+        self.trigger("consume")
+        self.assertEqual(self.until(controller, stale)["error"]["code"], -32010)
+        self.trigger("open")
+        self.trigger("wait-strict")
+        self.apply(controller, self.options(controller), "combat.wait")
+        self.apply(controller, self.options(controller), "combat.done")
+        for _ in range(3):
+            self.trigger("poll")
+        options = self.options(controller)
+        self.assertFalse(options["canWait"])
+        pending = self.submit(controller, options, "combat.wait")
+        self.trigger("consume")
+        self.assertEqual(self.until(controller, pending)["error"]["code"], -32011)
+        self.assertEqual(self.options(controller), options)
+
     def test_withdrawal_cli_native_rounds_escape_continuation_and_closure_with_reader(self):
         self.trigger("open")
         self.trigger("withdrawal")

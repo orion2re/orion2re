@@ -304,7 +304,7 @@ namespace rpc {
                 result += "]},\"retreat\":{\"available\":" + std::string(options.retreat_refusal == 0 ? "true" : "false") +
                     ",\"reason\":" + (options.retreat_refusal == 0 ? "null" : options.retreat_refusal == 79 ? "\"noSpeed\""
                                                                                                             : "\"retreatPrevented\"") +
-                    "},\"canDone\":true}";
+                    "},\"canWait\":" + (options.can_wait ? "true" : "false") + ",\"canDone\":true}";
             }
         } else if (request->method == READ_UNIT) {
             s_unit unit;

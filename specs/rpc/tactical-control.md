@@ -34,7 +34,7 @@ controller connection but having no native authority over the current actor.
 Subscribe before initial discovery, including when connecting before a battle.
 
 Controller commands are `options`, `select <unitId>`, `move <x> <y>`,
-`face <x> <y>`, `fire <targetUnitId>`, `done`, and `cancel`. Existing `refresh`,
+`face <x> <y>`, `fire <targetUnitId>`, `wait`, `done`, and `cancel`. Existing `refresh`,
 `unit <unitId>` and `quit` remain available. Coordinates are logical grid cells,
 not mouse/pixel coordinates. `face` invokes native turning toward that position;
 it does not assign a facing index.
@@ -71,6 +71,8 @@ An available response contains:
 - `targets`: authorized normal unit references, `eligibleWeaponSlots`, and
   `preFireEffectEligible`. No missile references, phased-contact eligibility,
   enemy design details, hit forecasts or damage predictions.
+- `canWait`: whether the canonical native Wait control is available now. Omitted,
+  like all operational options, without native control. No next-actor prediction.
 - `canDone`.
 
 The movement source is the settled actor-bound native legal grid: the same
@@ -107,6 +109,7 @@ observer's opened/closed/viewInvalidated events. Every request includes:
 | `combat.face` | `toward: {x,y}` |
 | `combat.fire` | `targetUnitId` |
 | `combat.done` | None |
+| `combat.wait` | None |
 
 `operationSeq` is a positive JavaScript-exact integer, strictly increasing for
 mutation submissions on this connection. Its high-water mark is bounded metadata,
@@ -138,6 +141,23 @@ consequences; this does not enable remote boarding/raid commands.
 
 Done marks this ship done and follows native next-actor/pass/turn progression;
 it is not the end-side-turn command.
+
+Wait invokes one native single-ship Wait, not Done or side-wait. Classic and
+ordinary initiative retain the ship's native order entry; strict initiative
+retains its native movement charge and deferred wait-stage ordering. Wait is
+unavailable during the restricted strict-wait stage. Native pass eligibility,
+including Time Warp, stays unchanged. A legal Wait can return to the same ship;
+neither an actor change nor a future opportunity is promised.
+
+Use `options`, then deliberately enter `wait`. The existing final RPC response
+reports native handling returned, including normal barriers. Existing selection
+and invalidation events let both controller and independent reader pull the
+resulting current state. Review fresh options and explicitly choose the next
+command, including moving/firing with the waiting ship when native rules permit.
+The client never repeats Wait, selects a replacement or advances turns to force
+another opportunity. Existing conflict, illegal, cancellation, expiry, duplicate,
+disconnect and reference-lifetime rules apply without a Wait-specific lifecycle.
+Normal observed completion remains `combat.closed`, with no new result report.
 
 ## Authority, conflicts and consumption
 
@@ -232,17 +252,21 @@ until native resolution returns. No dialog is silently skipped.
 
 `test_tactical_control` and `rpc_turn` link production gameplay and RNG functions
 over fixture-owned memory. The live test runs the actual CLI and an independent
-reader. Synthetic button geometry is not original media. Fixtures are not proof
-of interactive assets, real network-session synchronization, or other platforms.
+reader, including Wait followed by deliberately chosen commands through the native
+turn owner in classic, initiative and strict modes. Function-level local/received
+Wait checks use fixture-owned native loopback players, not a real multiplayer
+session. Wait fixtures use native headless presentation with recentering disabled.
+Synthetic media is not original-asset parity. Fixtures are not proof of interactive
+assets, real network-session synchronization, or other platforms.
 Existing observer/transport tests remain independent regression coverage.
 
 For interactive acceptance, connect a reader before battle and a controller
-during battle, inspect/choose/select/move/face/fire/done, compare native costs and
+during battle, inspect/choose/select/move/face/fire/wait/done, compare native costs and
 effects, introduce local conflicts, allow opponent/AI/network turns, exercise
 local attention and closure, and verify idle silence. Repeat classic/initiative
 and network ownership cases where sessions are available.
 
 Excluded: strategic queries/actions, missile/fighter targeting, loadout editing,
-planet/satellite actors, boarding/raids, retreat/auto/wait/end-side commands,
+planet/satellite actors, boarding/raids, retreat/auto/side-wait/end-side commands,
 remote confirmations, enemy dossiers, effect/audio/frame/media streams, history,
 replay, retained combat projections and universal UI/operation frameworks.

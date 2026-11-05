@@ -68,6 +68,26 @@ DOCTEST_TEST_CASE("retreat is a strict context-bound mutation and its event uses
     DOCTEST_CHECK(rpc::Take_Events(&queue).count == 0);
 }
 
+DOCTEST_TEST_CASE("wait accepts only the existing ship mutation context and never duplicates a sequence") {
+    rpc::s_session session;
+    session.authenticated = session.controller = true;
+    session.events = 7;
+    const std::string common = R"("battleId":"0123456789abcdef0123456789abcdef","actorUnitId":"0123456789abcdef0123456789abcdef","decisionId":"0123456789abcdef0123456789abcdef","operationSeq":1)";
+    const std::string prefix = R"({"jsonrpc":"2.0","id":1,"method":"combat.wait","params":{)";
+    std::string response;
+    rpc::s_operation_request request;
+    for (const char* extra : {",\"destination\":{}", ",\"targetUnitId\":\"fedcba9876543210fedcba9876543210\"", ",\"repeat\":true"}) {
+        DOCTEST_REQUIRE(rpc::Process_Request(prefix + common + extra + "}}", KEY, true, &session, &response, nullptr, nullptr, &request));
+        DOCTEST_CHECK(response.find("-32602") != std::string::npos);
+        DOCTEST_CHECK(session.operation_sequence == 0);
+    }
+    DOCTEST_REQUIRE(rpc::Process_Request(prefix + common + "}}", KEY, true, &session, &response, nullptr, nullptr, &request));
+    DOCTEST_CHECK(response.empty());
+    DOCTEST_CHECK(request.method == rpc::OP_WAIT);
+    DOCTEST_CHECK(Process(&session, prefix + common + "}}").find("-32012") != std::string::npos);
+    DOCTEST_CHECK(Process(&session, R"({"jsonrpc":"2.0","id":2,"method":"rpc.describe"})").find("combat.wait") != std::string::npos);
+}
+
 DOCTEST_TEST_CASE("boarding acknowledgement child never releases or recursively takes its executing parent") {
     rpc::s_operation_queue queue;
     rpc::s_operation_request parent, child, taken, cancelled;

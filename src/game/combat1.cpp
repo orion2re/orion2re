@@ -148,6 +148,16 @@ namespace COMBAT1 {
         }
     }
 
+    bool Ship_Wait_Is_Available() {
+        if (MOX::combat_data == nullptr || MOX::cur_ship < 0 ||
+            MOX::cur_ship >= MOX::combat_total_ship_count) return false;
+        const int8_t owner = MOX::combat_data[MOX::cur_ship].owner;
+        const int16_t side = owner != MOX::combat_attacker_player ? 1 : 0;
+        return MOX::order_info_flag == 1 && MOX::auto_combat_flag[side] != 1 &&
+            (MOX::game_type == 1 || owner == MOX::PLAYER_NUM || MOX::take_control_flag != 0) &&
+            !(ship_initiative == 2 && strict_wait_stage);
+    }
+
     void __cdecl Add_Tactical_Combat_Fields(void) {
         reload_config_button = -100;
         reload_interface_button = -100;
@@ -223,7 +233,7 @@ namespace COMBAT1 {
                 : -100;
             MOX::board_button = fields::Add_Radio_Button_Field(273, 392, "", (s_animation_header*)MOX::board_button_seg, &MOX::board_flag, "b", 40);
             MOX::flee_button = fields::Add_Button_Field(337, 392, "", (s_animation_header*)MOX::flee_button_seg, "r", 40);
-            if (ship_initiative == 2 && strict_wait_stage) {
+            if (!Ship_Wait_Is_Available()) {
                 MOX::wait_button = -100;
             } else {
                 MOX::wait_button = fields::Add_Button_Field(273, 420, "", (s_animation_header*)MOX::wait_button_seg, "w", 40);
@@ -488,6 +498,7 @@ namespace COMBAT1 {
                 break;
             case DONE: message = TACTICAL_NET_MSG_SHIP_DONE; break;
             case RETREAT: message = TACTICAL_NET_MSG_RETREAT; break;
+            case WAIT: message = TACTICAL_NET_MSG_WAIT; break;
             default: return;
         }
         if (!received && MOX::net_flag != 0 && MOX::PLAYER_NUM != MOX::net_destination)
@@ -520,6 +531,9 @@ namespace COMBAT1 {
                 Assign_Combat_Grids(MOX::cur_ship);
                 for (int16_t i = 0; i < 8; ++i)
                     if (MOX::combat_data[MOX::cur_ship].weapons[i].active == 0) MOX::combat_data[MOX::cur_ship].weapons[i].active = 1;
+                break;
+            case WAIT:
+                *next_ship_flag = Advance_Next_Ship(active_player_id, COMBAT_SHIP_ACTION_WAIT);
                 break;
             case DONE:
                 if (!received) CMBTFIR2::Set_Combat_Ship_Done(actor);
@@ -834,16 +848,10 @@ namespace COMBAT1 {
                                     }
 
                                     if (input_val == MOX::wait_button) {
-                                        if (MOX::net_flag != 0 && MOX::PLAYER_NUM != MOX::net_destination) {
-                                            Send_Tactical_Combat_Message(MOX::net_destination, TACTICAL_NET_MSG_WAIT, 0, 0, 0);
-                                        }
-                                        next_ship_flag = Advance_Next_Ship(
-                                            active_player_id,
-                                            COMBAT_SHIP_ACTION_WAIT);
-                                        if (MOX::net_flag != 0) {
-                                            NETMOX::Net_Debug_Log("Wait_Until_Net_Opponent_Finished: caller=%s:%d", __FILE__, __LINE__);
-                                            CMBTMOV1::Wait_Until_Net_Opponent_Finished(1);
-                                        }
+                                        s_operation operation;
+                                        operation.kind = WAIT;
+                                        operation.actor = MOX::cur_ship;
+                                        Apply_Tactical_Operation(&operation, active_player_id, &next_ship_flag);
                                         input_val = 0;
                                     }
 
@@ -1122,11 +1130,13 @@ namespace COMBAT1 {
                                                         MOX::auto_combat = MOX::auto_combat_flag[1];
                                                     }
                                                     break;
-                                                case TACTICAL_NET_MSG_WAIT:
-                                                    next_ship_flag = Advance_Next_Ship(
-                                                        active_player_id,
-                                                        COMBAT_SHIP_ACTION_WAIT);
+                                                case TACTICAL_NET_MSG_WAIT: {
+                                                    s_operation operation;
+                                                    operation.kind = WAIT;
+                                                    operation.actor = MOX::cur_ship;
+                                                    Apply_Tactical_Operation(&operation, active_player_id, &next_ship_flag, true);
                                                     break;
+                                                }
                                                 case TACTICAL_NET_MSG_SIDE_WAIT:
                                                     next_ship_flag = Finish_Next_Ship(
                                                         Select_After_Combat_Side_Wait());

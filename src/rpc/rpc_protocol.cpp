@@ -94,7 +94,7 @@ namespace rpc {
         struct s_method {
             const char* name;
         };
-        constexpr s_method methods[] = {{"rpc.hello"}, {"rpc.describe"}, {"rpc.subscribe"}, {"rpc.unsubscribe"}, {"combat.getView"}, {"combat.getUnit"}, {"combat.getTargetOptions"}, {"combat.selectUnit"}, {"combat.move"}, {"combat.face"}, {"combat.fire"}, {"combat.done"}, {"combat.cancelOperation"}, {"combat.setFireSelection"}, {"combat.listMissiles"}, {"combat.getMissile"}, {"combat.getHitHistory"}, {"combat.board"}, {"combat.acknowledgeBoardingReport"}, {"combat.retreat"}};
+        constexpr s_method methods[] = {{"rpc.hello"}, {"rpc.describe"}, {"rpc.subscribe"}, {"rpc.unsubscribe"}, {"combat.getView"}, {"combat.getUnit"}, {"combat.getTargetOptions"}, {"combat.selectUnit"}, {"combat.move"}, {"combat.face"}, {"combat.fire"}, {"combat.done"}, {"combat.cancelOperation"}, {"combat.setFireSelection"}, {"combat.listMissiles"}, {"combat.getMissile"}, {"combat.getHitHistory"}, {"combat.board"}, {"combat.acknowledgeBoardingReport"}, {"combat.retreat"}, {"combat.wait"}};
 
         bool Reference(yyjson_val* value) {
             if (!yyjson_is_str(value) || yyjson_get_len(value) != 32) return false;
@@ -316,7 +316,7 @@ namespace rpc {
                 }
             }
         } else if (Is_Text(method, "combat.selectUnit") || Is_Text(method, "combat.move") || Is_Text(method, "combat.face") ||
-            Is_Text(method, "combat.fire") || Is_Text(method, "combat.done") || Is_Text(method, "combat.retreat") || Is_Text(method, "combat.cancelOperation") || Is_Text(method, "combat.setFireSelection")) {
+            Is_Text(method, "combat.fire") || Is_Text(method, "combat.done") || Is_Text(method, "combat.wait") || Is_Text(method, "combat.retreat") || Is_Text(method, "combat.cancelOperation") || Is_Text(method, "combat.setFireSelection")) {
             const bool cancel = Is_Text(method, "combat.cancelOperation");
             const bool select = Is_Text(method, "combat.selectUnit");
             const bool fire = Is_Text(method, "combat.fire");
@@ -382,6 +382,7 @@ namespace rpc {
             else {
                 operation->method = OP_DONE;
                 if (Is_Text(method, "combat.retreat")) operation->method = OP_RETREAT;
+                if (Is_Text(method, "combat.wait")) operation->method = OP_WAIT;
                 if (cancel) operation->method = OP_CANCEL;
                 if (select) operation->method = OP_SELECT;
                 if (move) operation->method = OP_MOVE;

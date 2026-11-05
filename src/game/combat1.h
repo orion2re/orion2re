@@ -10,7 +10,8 @@ namespace COMBAT1 {
         DONE,
         FIRE_SELECTION,
         BOARD,
-        RETREAT };
+        RETREAT,
+        WAIT };
     enum e_result : int { APPLIED,
         UNAVAILABLE,
         NO_CONTROL,
@@ -174,6 +175,7 @@ namespace COMBAT1 {
     int32_t Send_Combat_Side_Wait_Message(int16_t player_idx);
 
     void __cdecl Add_Tactical_Combat_Fields(void);
+    bool Ship_Wait_Is_Available();
 
     void __cdecl Add_Missile_Fields(void);
 

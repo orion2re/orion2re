@@ -102,11 +102,17 @@ safe points, references, notifications and the interactive acceptance walkthroug
 
 Run `python3 tools/rpc_observer.py --port 17362 --controller` alongside an
 independent reader. Use `options`, `select <unitId>`, `move <x> <y>`,
-`face <x> <y>`, `fire <targetUnitId>`, `done`, and `cancel`. All new wire
+`face <x> <y>`, `fire <targetUnitId>`, `wait`, `done`, and `cancel`. All new wire
 methods/events use `combat.`. See [tactical control](tactical-control.md) for
 current-selection firing, native authority, local-attention events, bounded
 single-operation dispatch, cancellation, errors and unknown-outcome recovery.
 No mutation is automatically retried.
+
+`options` displays native Wait availability. `wait` deliberately yields with
+only the current ship, without marking it Done. Native ordering may offer that
+same ship again; inspect refreshed options and choose the next command explicitly.
+Strict initiative retains its movement cost and disables Wait in its wait stage.
+The independent reader sees resulting state through the existing events and reads.
 
 For deliberate bank selection, whole-battle missile/fighter/torpedo inspection,
 normal interception and native battle-scoped hit history, see

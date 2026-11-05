@@ -12,9 +12,11 @@ namespace {
         rpc::s_hit_history history;
         std::vector<rpc::s_missile> missiles;
         bool ok = false;
+        unsigned invalidations = 0;
         uint64_t subscription;
     };
     void Read(const COMBAT::s_event* event, void* context) noexcept {
+        if (event->kind == COMBAT::VIEW_INVALIDATED) ++((s_probe*)context)->invalidations;
         if (event->kind != COMBAT::SERVICE_READS || !event->safe) return;
         auto* probe = (s_probe*)context;
         probe->ok = rpc::Read_Options(&probe->options);
@@ -583,6 +585,124 @@ DOCTEST_TEST_CASE("shared tactical operation completes real movement facing firi
     DOCTEST_CHECK(COMBAT::Current_Unit() == -1);
     COMBAT::Close_Battle(&battle, 0);
     COMBAT::Release_Battle(&battle);
+}
+
+DOCTEST_TEST_CASE("native ship wait retains resources and a later action unlike done in every initiative mode") {
+    for (int16_t mode : {0, 1, 2}) {
+        for (bool received : {false, true}) {
+            s_boarding_fixture fixture;
+            Initialize_Boarding(&fixture);
+            TEST_TACTICAL_TURN::Waiting(mode);
+            s_probe probe;
+            probe.subscription = COMBAT::Subscribe(Read, &probe);
+            COMBAT::Service_Reads(true);
+            DOCTEST_REQUIRE(probe.options.can_wait);
+            const auto before = MOX::combat_data[1];
+            const auto seed = game_random::Get_Random_Seed();
+            const auto generation = rpc::Control_Generation();
+            const auto invalidations = probe.invalidations;
+            int16_t order[MAX_COMBAT_SHIPS];
+            std::memcpy(order, MOX::ship_turn_order, sizeof(order));
+            for (int i = 0; i < 8; ++i) COMBAT::Service_Reads(true);
+            DOCTEST_CHECK(std::memcmp(&before, &MOX::combat_data[1], sizeof(before)) == 0);
+            DOCTEST_CHECK(std::memcmp(order, MOX::ship_turn_order, sizeof(order)) == 0);
+            DOCTEST_CHECK(rpc::Control_Generation() == generation);
+            DOCTEST_CHECK(probe.invalidations == invalidations);
+            DOCTEST_CHECK(game_random::Get_Random_Seed() == seed);
+            COMBAT1::s_operation operation;
+            operation.kind = COMBAT1::WAIT;
+            operation.actor = 1;
+            DOCTEST_REQUIRE(rpc::Validate(&operation) == COMBAT1::APPLIED);
+            int16_t next = 0;
+            MOX::net_flag = 1;
+            MOX::net_destination = 1;
+            MOX::combat_done_waiting = 0; // Fixture players use native loopback, not a multiplayer session.
+            MOX::new_message = {};
+            COMBAT1::Apply_Tactical_Operation(&operation, 0, &next, received);
+            DOCTEST_CHECK(MOX::combat_done_waiting == 0);
+            if (!received) {
+                DOCTEST_CHECK(int(MOX::new_message.message_code) == TACTICAL_NET_MSG_WAIT);
+                DOCTEST_CHECK(int(MOX::new_message.arg1) == 0);
+                DOCTEST_CHECK(int(MOX::new_message.arg2) == 0);
+                DOCTEST_CHECK(int(MOX::new_message.arg3) == 0);
+                DOCTEST_CHECK(uint32_t(MOX::new_message.random_seed) == seed);
+            } else {
+                DOCTEST_CHECK(int(MOX::new_message.message_code) == 0);
+            }
+            MOX::tactical_net_choice = 0;
+            MOX::net_flag = 0;
+            DOCTEST_CHECK(next == 0);
+            DOCTEST_CHECK(MOX::cur_ship == 3);
+            DOCTEST_CHECK(CMBTFIR2::Combat_Ship_Done(1) == 0);
+            DOCTEST_CHECK(int(MOX::combat_data[1].movement_left) == before.movement_left - (mode == 2 ? 4 : 0));
+            DOCTEST_CHECK(std::memcmp(before.weapons, MOX::combat_data[1].weapons, sizeof(before.weapons)) == 0);
+            DOCTEST_CHECK(MOX::ship_turn_order[0] == (mode == 2 ? -1 : 1));
+            COMBAT::Open_Control_Decision(3);
+            operation.kind = COMBAT1::DONE;
+            operation.actor = 3;
+            COMBAT1::Apply_Tactical_Operation(&operation, 0, &next);
+            DOCTEST_CHECK(next == 0);
+            DOCTEST_REQUIRE(MOX::cur_ship == 1);
+            fields::Set_Input_Delay(0); // Direct function fixture has no native input loop to elapse Done's delay.
+            COMBAT::Open_Control_Decision(1);
+            COMBAT::Service_Reads(true);
+            DOCTEST_CHECK(probe.options.available);
+            DOCTEST_CHECK(probe.options.can_wait == (mode != 2));
+            DOCTEST_CHECK((MOX::wait_button >= 0) == probe.options.can_wait);
+            operation.kind = COMBAT1::WAIT;
+            operation.actor = 1;
+            DOCTEST_CHECK(rpc::Validate(&operation) == (mode == 2 ? COMBAT1::ILLEGAL : COMBAT1::APPLIED));
+            operation.kind = COMBAT1::FACE;
+            operation.x = 13;
+            operation.y = 11;
+            DOCTEST_CHECK(rpc::Validate(&operation) == COMBAT1::APPLIED);
+            DOCTEST_CHECK(game_random::Get_Random_Seed() == seed);
+            operation.kind = COMBAT1::DONE;
+            COMBAT1::Apply_Tactical_Operation(&operation, 0, &next);
+            DOCTEST_CHECK(next == 1);
+            DOCTEST_CHECK(CMBTFIR2::Combat_Ship_Done(1) != 0);
+            COMBAT::Unsubscribe(probe.subscription);
+            Shutdown_Boarding(&fixture);
+        }
+    }
+}
+
+DOCTEST_TEST_CASE("single eligible ship wait can return to the same ship with a fresh native decision") {
+    for (int16_t mode : {0, 1, 2}) {
+        s_boarding_fixture fixture;
+        Initialize_Boarding(&fixture);
+        TEST_TACTICAL_TURN::Waiting(mode, true);
+        const auto generation = rpc::Control_Generation();
+        COMBAT1::s_operation operation;
+        operation.kind = COMBAT1::WAIT;
+        operation.actor = 1;
+        int16_t next = 0;
+        COMBAT1::Apply_Tactical_Operation(&operation, 0, &next);
+        DOCTEST_CHECK(next == 0);
+        DOCTEST_CHECK(MOX::cur_ship == 1);
+        DOCTEST_CHECK(CMBTFIR2::Combat_Ship_Done(1) == 0);
+        COMBAT::Open_Control_Decision(1);
+        DOCTEST_CHECK(rpc::Control_Generation() != generation);
+        DOCTEST_CHECK(COMBAT1::Ship_Wait_Is_Available() == (mode != 2));
+        Shutdown_Boarding(&fixture);
+    }
+}
+
+DOCTEST_TEST_CASE("native local wait button still yields before an explicit done in normal and Time Warp passes") {
+    for (bool time_warp : {false, true}) {
+        s_boarding_fixture fixture;
+        Initialize_Boarding(&fixture);
+        TEST_TACTICAL_TURN::Waiting(0, true);
+        if (time_warp) struct_::Set_Bit_Field(MOX::combat_data[1].special_device_flags, SPECIAL_TIME_WARP_FACILITATOR);
+        const auto seed = game_random::Get_Random_Seed();
+        key::Push_Key_Code('w', 1);
+        key::Push_Key_Code('d', 1);
+        COMBAT1::Do_Combat_Turn(0, time_warp ? 1 : 0);
+        DOCTEST_CHECK(CMBTFIR2::Combat_Ship_Done(1) != 0);
+        DOCTEST_CHECK((MOX::ship_turn_order[0] == -10 || MOX::ship_turn_order[0] == -1));
+        DOCTEST_CHECK(game_random::Get_Random_Seed() == seed);
+        Shutdown_Boarding(&fixture);
+    }
 }
 
 DOCTEST_TEST_CASE("shared operations match direct native move face and complete firing with controlled RNG") {

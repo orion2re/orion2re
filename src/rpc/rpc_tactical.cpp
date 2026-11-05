@@ -58,6 +58,7 @@ namespace rpc {
                 case OP_FIRE_SELECTION: operation->kind = COMBAT1::FIRE_SELECTION; break;
                 case OP_BOARD: operation->kind = COMBAT1::BOARD; break;
                 case OP_RETREAT: operation->kind = COMBAT1::RETREAT; break;
+                case OP_WAIT: operation->kind = COMBAT1::WAIT; break;
                 default: return Reject_Operation(forwarder, &request, -32004);
             }
             operation->x = request.x;

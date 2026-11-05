@@ -65,6 +65,7 @@ namespace rpc {
         OP_BOARD,
         OP_BOARDING_ACK,
         OP_RETREAT,
+        OP_WAIT,
     };
     struct s_operation_request {
         s_read_request request;

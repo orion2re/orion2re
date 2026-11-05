@@ -131,6 +131,8 @@ namespace TEST_TACTICAL_TURN {
         MOX::cur_combat_x = MOX::cur_combat_y = 0;
         RUSS::all_ai_game = 0;
         COMBAT1::ship_initiative = 0;
+        COMBAT1::wait_movement_cost = 0;
+        COMBAT1::center_on_next_ship = true;
         std::memset(MOX::side_end_of_turn, 0, sizeof(MOX::side_end_of_turn));
         std::memset(MOX::auto_combat_flag, 0, sizeof(MOX::auto_combat_flag));
         std::fill_n(MOX::ship_turn_order, MAX_COMBAT_SHIPS, int16_t(-1));
@@ -220,6 +222,19 @@ namespace TEST_TACTICAL_TURN {
         MOX::apply_damage_to_planet = 0;
         COMBAT1::Add_Tactical_Combat_Fields();
         COMBAT1::Assign_Combat_Grids(1);
+    }
+
+    void Waiting(int16_t initiative, bool single) {
+        Boarding(false);
+        COMBAT1::center_on_next_ship = false; // Native presentation setting; no original ship sprites in this fixture.
+        units[2].stasis_source_idx = 2;
+        COMBAT1::ship_initiative = int8_t(initiative);
+        COMBAT1::wait_movement_cost = 4;
+        MOX::combat_init = initiative != 0;
+        MOX::ship_turn_order[1] = single ? -10 : 3;
+        if (single) units[3].stasis_source_idx = 3;
+        COMBAT1::Reset_Strict_Combat_Sequence();
+        COMBAT1::Add_Tactical_Combat_Fields();
     }
 
     void Withdrawal_Display() {

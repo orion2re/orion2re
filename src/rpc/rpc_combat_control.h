@@ -35,6 +35,7 @@ namespace rpc {
         int16_t own_marines = 0, maximum_marines = 0;
         bool already_boarded = false;
         int16_t retreat_refusal = 0;
+        bool can_wait = false;
         std::vector<int16_t> boarding_targets;
     };
     bool Read_Options(s_options* result);

@@ -8,6 +8,17 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class TacticalHooksTest(unittest.TestCase):
+    def test_wait_keeps_native_packet_and_received_outer_barrier(self):
+        source = (ROOT / "src/game/combat1.cpp").read_text()
+        shared = source[source.index("void Apply_Tactical_Operation("):source.index("bool Consume_Tactical_Operation(")]
+        self.assertIn("case WAIT: message = TACTICAL_NET_MSG_WAIT; break;", shared)
+        self.assertLess(shared.index("Send_Tactical_Combat_Message("), shared.index("Advance_Next_Ship(active_player_id, COMBAT_SHIP_ACTION_WAIT)"))
+        self.assertIn("if (!received && MOX::net_flag != 0) CMBTMOV1::Wait_Until_Net_Opponent_Finished(1);", shared)
+        received = source[source.index("case TACTICAL_NET_MSG_WAIT:"):source.index("case TACTICAL_NET_MSG_SIDE_WAIT:")]
+        self.assertIn("Apply_Tactical_Operation(&operation, active_player_id, &next_ship_flag, true);", received)
+        tail = source[source.index("case TACTICAL_NET_MSG_WAIT:"):]
+        self.assertLess(tail.index("MOX::tactical_net_choice = 0;"), tail.index("CMBTMOV1::Wait_Until_Net_Opponent_Finished(1);"))
+
     def test_open_follows_initialization_and_sync_not_input_polling(self):
         source = (ROOT / "src/game/combinit.cpp").read_text()
         start = source.index("int16_t __cdecl Tactical_Combat(")

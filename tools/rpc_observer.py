@@ -349,6 +349,7 @@ class Observer:
             print("Boarding choices: " + safe_text(json.dumps(options["boarding"])), flush=True)
         if "retreat" in options:
             print("Retreat: " + safe_text(json.dumps(options["retreat"])), flush=True)
+        print("Wait: " + ("available" if options["canWait"] else "unavailable") + ". Native rules choose the next opportunity, possibly this same ship.", flush=True)
         print("Done is available. Fire uses the entire current native selection.", flush=True)
 
     def inspect_missiles(self, missile_id=None):
@@ -421,7 +422,7 @@ class Observer:
             print("No current decision; use options before issuing an operation.", flush=True)
             return
         methods = {"select": ("combat.selectUnit", 2), "move": ("combat.move", 3),
-                   "face": ("combat.face", 3), "fire": ("combat.fire", 2), "done": ("combat.done", 1), "retreat": ("combat.retreat", 1),
+                   "face": ("combat.face", 3), "fire": ("combat.fire", 2), "done": ("combat.done", 1), "wait": ("combat.wait", 1), "retreat": ("combat.retreat", 1),
                    "intercept": ("combat.fire", 2), "selection": ("combat.setFireSelection", len(parts)), "board": ("combat.board", 4)}
         method, count = methods[parts[0]]
         if len(parts) != count:
@@ -541,7 +542,7 @@ def main():
         print("Commands: refresh | unit <unitId> | missiles | missile <missileId> | hits | options | "
               "selection <slot>=on|temporaryOff|off ... | select <unitId> | move <x> <y> | "
               "face <x> <y> | fire <targetUnitId> | intercept <missileId> | boarding | "
-              "board <targetUnitId> raid|capture <marines> | boarding-cancel | boarding-report | boarding-ack <reportId> | retreat | done | cancel | quit. Ctrl-C exits.", flush=True)
+              "board <targetUnitId> raid|capture <marines> | boarding-cancel | boarding-report | boarding-ack <reportId> | retreat | wait | done | cancel | quit. Ctrl-C exits.", flush=True)
         while True:
             try:
                 command = commands.get_nowait()
@@ -569,7 +570,7 @@ def main():
                         observer.show_options()
                 elif command == "boarding-report":
                     print("Last received boarding result: " + safe_text(json.dumps(observer.boarding_report)), flush=True)
-                elif command.split() and command.split()[0] in ("select", "move", "face", "fire", "intercept", "selection", "done", "retreat", "cancel", "board", "boarding-cancel", "boarding-ack"):
+                elif command.split() and command.split()[0] in ("select", "move", "face", "fire", "intercept", "selection", "done", "wait", "retreat", "cancel", "board", "boarding-cancel", "boarding-ack"):
                     observer.operation(command)
             except queue.Empty:
                 pass

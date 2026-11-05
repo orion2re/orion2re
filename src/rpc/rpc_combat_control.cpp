@@ -86,6 +86,7 @@ namespace rpc {
         result->maximum_marines = BOARDING::Maximum_Commitment(actor);
         result->already_boarded = CMBTFIR2::Already_Boarded(actor) != 0;
         result->retreat_refusal = COMBAT1::Check_Human_Retreat(actor);
+        result->can_wait = COMBAT1::Ship_Wait_Is_Available();
         result->movement = ship.movement_left;
         result->turn_cost = CMBTMOV1::Turn_Cost(actor);
         result->absorber_selected = Absorber_Selected(actor);
@@ -144,6 +145,7 @@ namespace rpc {
                 return target.weapons || target.absorber ? COMBAT1::APPLIED : COMBAT1::ILLEGAL;
             }
             case COMBAT1::DONE: return COMBAT1::APPLIED;
+            case COMBAT1::WAIT: return COMBAT1::Ship_Wait_Is_Available() ? COMBAT1::APPLIED : COMBAT1::ILLEGAL;
             case COMBAT1::RETREAT: return COMBAT1::Check_Human_Retreat(Control_Actor()) == 0 ? COMBAT1::APPLIED : COMBAT1::ILLEGAL;
             case COMBAT1::BOARD:
                 if (!Disclosed_Target(operation->target)) return COMBAT1::UNAVAILABLE;

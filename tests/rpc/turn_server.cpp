@@ -47,6 +47,14 @@ int main() {
             TEST_TACTICAL_TURN::Boarding(command == "boarding-report");
         } else if (command == "withdrawal") {
             TEST_TACTICAL_TURN::Withdrawal();
+        } else if (command == "wait-classic" || command == "wait-initiative" || command == "wait-strict" || command == "wait-single") {
+            int16_t initiative = 0;
+            if (command == "wait-initiative") initiative = 1;
+            if (command == "wait-strict") initiative = 2;
+            TEST_TACTICAL_TURN::Waiting(initiative, command == "wait-single");
+        } else if (command == "wait-turn") {
+            COMBAT1::Do_Combat_Turn(0, 0);
+            fields::Deactivate_Auto_Function();
         } else if (command == "withdrawal-phase") {
             TEST_TACTICAL_TURN::Withdrawal_Display();
             MOX::super_fast_flag = 1;
