@@ -41,6 +41,9 @@ namespace rpc {
         READ_MISSILES,
         READ_MISSILE,
         READ_HITS,
+        READ_SCAN,
+        READ_HELP,
+        READ_STATUS,
     };
 
     struct s_read_request {
@@ -49,6 +52,7 @@ namespace rpc {
         std::string battle_id;
         std::string unit_id;
         std::string missile_id;
+        int16_t help_topic = 0;
         uint64_t connection = 0, ticket = 0, epoch = 0;
         uint64_t selection = 0;
         uint64_t deadline_ms = 0;
@@ -66,6 +70,17 @@ namespace rpc {
         OP_BOARDING_ACK,
         OP_RETREAT,
         OP_WAIT,
+        OP_REMOVE_STASIS,
+        OP_SELF_DESTRUCT,
+        OP_SIDE_WAIT,
+        OP_END_SIDE,
+        OP_INPUT_MODE,
+        OP_TACTICAL_OPTION,
+        OP_AUTO_COMBAT,
+        OP_CONFIRMATION,
+        OP_BOARDING_CHOICE,
+        OP_INFORMATION,
+        OP_MANUAL,
     };
     struct s_operation_request {
         s_read_request request;
@@ -77,11 +92,13 @@ namespace rpc {
         uint8_t bank_mask = 0;
         int8_t bank_states[8] = {};
         int16_t boarding_mode = 0, marines = 0;
+        int16_t value = 0, option = 0;
         std::string report_id;
         bool child = false;
     };
 
     std::string Error_Response(std::string_view id, int code, const char* message);
+    bool Is_Input_Operation(e_operation_method method);
     // Validation only; typed game requests leave through read, never execute here.
     bool Process_Request(std::string_view input, std::string_view key, bool control_available, s_session* session, std::string* response, bool* selection_updated = nullptr, s_read_request* read = nullptr, s_operation_request* operation = nullptr);
 } // namespace rpc

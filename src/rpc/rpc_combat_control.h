@@ -8,6 +8,7 @@ namespace COMBAT1 {
 } // namespace COMBAT1
 
 namespace rpc {
+    bool Bind_Control_Delivery(void (*invalidate)(uint64_t, void*), void* context);
     struct s_weapon {
         int16_t slot = 0;
         char name[80] = {};
@@ -36,7 +37,18 @@ namespace rpc {
         bool already_boarded = false;
         int16_t retreat_refusal = 0;
         bool can_wait = false;
+        bool can_side_wait = false, can_destruct = false, can_super_fast = false;
+        bool scan_enabled = false, can_auto = false;
+        int16_t mode = 0, warning = 0;
+        bool tactical_options[5] = {};
         std::vector<int16_t> boarding_targets;
+        std::vector<int16_t> stasis_targets;
+        struct s_system {
+            const char* name;
+            int16_t active = -1;
+            bool damaged = false;
+        };
+        std::vector<s_system> systems;
     };
     bool Read_Options(s_options* result);
     bool Authorize(int16_t slot, bool owned);

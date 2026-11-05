@@ -436,6 +436,9 @@ namespace sound {
 }
 
 namespace CMBTDRW1 {
+    void Present_Tactical_Warning(const char* text) {
+        GENDRAW::Warning_Box(text);
+    }
     void __cdecl Refresh_Combat_Screen_Full() {
     }
 
@@ -444,6 +447,10 @@ namespace CMBTDRW1 {
     }
 
     int16_t __cdecl Board_Popup(int16_t, int16_t, char*, int16_t*) {
+        boarding_init_count++;
+        return 0;
+    }
+    int16_t Board_Popup(const s_board_popup_input*, int16_t*) {
         boarding_init_count++;
         return 0;
     }

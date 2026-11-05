@@ -149,7 +149,10 @@ class TransportTest(unittest.TestCase):
                          ["rpc.hello", "rpc.describe", "rpc.subscribe", "rpc.unsubscribe", "combat.getView", "combat.getUnit",
                           "combat.getTargetOptions", "combat.selectUnit", "combat.move", "combat.face", "combat.fire", "combat.done", "combat.cancelOperation",
                           "combat.setFireSelection", "combat.listMissiles", "combat.getMissile", "combat.getHitHistory",
-                          "combat.board", "combat.acknowledgeBoardingReport", "combat.retreat", "combat.wait"])
+                          "combat.board", "combat.acknowledgeBoardingReport", "combat.retreat", "combat.wait",
+                          "combat.getScan", "combat.getTacticalHelp", "combat.removeStasis", "combat.selfDestruct",
+                          "combat.waitSide", "combat.endSideTurn", "combat.setInputMode", "combat.setTacticalOptions",
+                          "combat.setAutoCombat", "combat.answerConfirmation", "combat.answerBoardingChoice", "combat.acknowledgeInformation"])
         self.assertIn("combat.retreatResolved", response["result"]["events"])
         client.send("game.getState")
         self.assertEqual(client.read()["error"]["code"], -32601)

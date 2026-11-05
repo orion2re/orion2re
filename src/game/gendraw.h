@@ -6,6 +6,9 @@ namespace GENDRAW {
     void __cdecl Help(const char* message);
 
     int16_t __cdecl Confirmation_Box(const char* text);
+    void Open_Confirmation_Box(const char* text);
+    void Close_Confirmation_Box();
+    void Open_Warning_Box(const char* text);
 
     int16_t __cdecl Do_Confirmation_Box(const char* msg);
 

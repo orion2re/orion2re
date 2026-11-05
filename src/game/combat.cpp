@@ -1548,6 +1548,7 @@ namespace COMBAT {
     void Revoke() noexcept {
         Close_Control_Decision();
         if (current != nullptr) {
+            current->tactical_input = nullptr;
             current->retiring = true;
             std::vector<s_hit>().swap(current->hits);
             current->hit_head = 0;
@@ -1574,6 +1575,10 @@ namespace COMBAT {
     void End_Local_Attention(int16_t viewer) noexcept {
         if (viewer >= 0 && Current_Viewer() == viewer) Publish(ATTENTION_CLEARED, viewer);
     }
+    void Refresh_Local_Attention() noexcept {
+        Invalidate_Control();
+        if (Current_Viewer() >= 0) Publish(ATTENTION_UPDATED, Current_Viewer());
+    }
     void Service_Reads(bool safe) noexcept {
         const bool previous = reads_allowed;
         reads_allowed = safe && Current_Viewer() >= 0;
@@ -1587,6 +1592,9 @@ namespace COMBAT {
         }
         Publish(SERVICE_READS, Current_Viewer(), -1, reads_allowed);
         reads_allowed = previous;
+    }
+    void Service_Input() noexcept {
+        Publish(SERVICE_INPUT, Current_Viewer());
     }
     void Invalidate_View() noexcept {
         if (Current_Viewer() >= 0) current->dirty = true;
@@ -1623,6 +1631,7 @@ namespace COMBAT {
         current->next_hit_sequence = 1;
         Release_Boarding(current);
         current->retiring = true;
+        current->tactical_input = nullptr;
         Publish(RETIRING, current->viewer);
     }
     void Retire_Missile(int16_t missile) noexcept {
@@ -1654,6 +1663,7 @@ namespace COMBAT {
         Publish(OPENED, battle->viewer);
     }
     void Close_Battle(s_battle_state* battle, int16_t local_observer) noexcept {
+        battle->tactical_input = nullptr;
         Release_Boarding(battle);
         std::vector<s_hit>().swap(battle->hits);
         battle->hit_head = 0;

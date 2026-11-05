@@ -1,5 +1,9 @@
 # External native tactical boarding
 
+The [complete tactical workflow](tactical-workflow.md) adds active native boarding
+choice control and current owner/report discovery. It supersedes the missed-report
+local-intervention limitation below; existing commitment/results remain unchanged.
+
 This extends the [ship-turn](tactical-control.md) and [firing](tactical-firing.md)
 pilot. Build, enable and launch using [README](README.md). Authentication remains
 a hidden prompt or an owner-only key file. Keep an independent reader running:

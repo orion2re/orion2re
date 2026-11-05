@@ -232,7 +232,7 @@ class TurnTest(unittest.TestCase):
         self.assertEqual(self.until(controller, pending)["error"]["code"], -32015)
         self.trigger("consume")
         self.assertEqual(self.options(controller)["control"], options["control"])
-        for change, expected in (("local-bank", -32010), ("ai", -32009), ("scan", -32009),
+        for change, expected in (("local-bank", -32010), ("ai", -32009), ("scan", -32010),
                                  ("remote", -32004), ("reuse-actor", -32004), ("open", -32004)):
             with self.subTest(change=change):
                 time.sleep(0.2)
@@ -242,7 +242,11 @@ class TurnTest(unittest.TestCase):
                 self.trigger(change)
                 self.trigger("consume")
                 self.assertEqual(self.until(controller, pending)["error"]["code"], expected)
-                if change in ("ai", "scan", "remote"):
+                if change == "scan":
+                    current = self.options(controller)
+                    self.assertEqual(current["mode"], "scan")
+                    self.assertEqual(current["movement"]["cells"], [])
+                if change in ("ai", "remote"):
                     self.assertEqual(self.options(controller), {"battleId": options["battleId"],
                                                               "control": {"available": False, "reason": "noNativeControl"}})
         reader = self.client("reader")
@@ -397,7 +401,7 @@ class TurnTest(unittest.TestCase):
         self.assertEqual(self.until(controller, pending)["error"]["code"], -32011)
         self.trigger("retreat-blocked")
         self.assertEqual(self.options(controller)["retreat"], {"available": False, "reason": "retreatPrevented"})
-        for change, expected in (("local-bank", -32010), ("ai", -32009), ("scan", -32009), ("remote", -32004),
+        for change, expected in (("local-bank", -32010), ("ai", -32009), ("scan", -32010), ("remote", -32004),
                                  ("retreat-destroy", -32004), ("retreat-capture", -32004), ("reuse-actor", -32004)):
             with self.subTest(change=change):
                 time.sleep(0.2)  # Each iteration sends four messages; respect the native transport rate limit.
@@ -545,7 +549,7 @@ class TurnTest(unittest.TestCase):
     def test_boarding_rechecks_authority_decision_and_target_lifetime_at_consumption(self):
         controller = self.client()
         for change, expected in (("local-bank", -32010), ("hide-target", -32004), ("reuse-target", -32004),
-                                 ("ai", -32009), ("scan", -32009), ("remote", -32004)):
+                                 ("ai", -32009), ("scan", -32010), ("remote", -32004)):
             self.trigger("open")
             self.trigger("boarding")
             options = self.options(controller)
@@ -611,7 +615,12 @@ class TurnTest(unittest.TestCase):
             self.trigger("open")
             options = self.options(controller)
             self.trigger(mode)
-            self.assertFalse(self.options(controller)["control"]["available"])
+            current = self.options(controller)
+            if mode == "scan":
+                self.assertTrue(current["control"]["available"])
+                self.assertEqual(current["mode"], "scan")
+            else:
+                self.assertFalse(current["control"]["available"])
             request_id = self.submit(controller, options, "combat.done")
             self.trigger("consume")
             self.assertIn(self.until(controller, request_id)["error"]["code"], (-32004, -32009, -32010))
@@ -908,6 +917,249 @@ class TurnTest(unittest.TestCase):
         removed = self.read(controller, "combat.getMissile", {"battleId": options["battleId"], "missileId": current["missileId"]})
         self.assertEqual(removed["error"]["code"], -32004)
 
+    def test_complete_decision_cli_journeys_with_reader_and_normal_closure(self):
+        reader = self.client("reader")
+        self.assertIsNone(self.read(reader)["result"]["battle"])
+        previous_battle = None
+        for mode in ("classic", "initiative", "strict"):
+            with tempfile.TemporaryDirectory() as directory:
+                self.trigger("open")
+                self.trigger("workflow-" + mode)
+                if mode == "classic":
+                    self.trigger("hide-target")
+                initial = self.read(reader)["result"]["battle"]
+                self.assertNotEqual(initial["battleId"], previous_battle)
+                previous_battle = initial["battleId"]
+                enemy = next(u["unitId"] for u in initial["units"] if not u["owned"])
+                key = Path(directory) / "key"
+                key.write_text(KEY, encoding="utf-8")
+                key.chmod(0o600)
+                cli = subprocess.Popen([sys.executable, str(ROOT / "tools/rpc_observer.py"), "--controller",
+                                        "--port", str(self.port), "--key-file", str(key)], stdin=subprocess.PIPE,
+                                       stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                lines = queue.Queue()
+
+                def collect():
+                    for line in cli.stdout:
+                        lines.put(line)
+
+                threading.Thread(target=collect, daemon=True).start()
+
+                def command(text):
+                    cli.stdin.write(text + "\n")
+                    cli.stdin.flush()
+
+                def wait_for(text):
+                    output = ""
+                    deadline = time.monotonic() + 12
+                    while text not in output:
+                        try:
+                            output += lines.get(timeout=0.05)
+                        except queue.Empty:
+                            pass
+                        if cli.poll() is not None or self.server.poll() is not None or time.monotonic() > deadline:
+                            self.fail("Workflow did not reach " + text + ": " + output[-4000:])
+                    return output
+
+                def action(text):
+                    command(text)
+                    wait_for("applied through native rules")
+                    wait_for("Native mode:")
+
+                self.server.stdin.write("workflow-rounds\n")
+                self.server.stdin.flush()
+                try:
+                    wait_for("Native mode:")
+                    command("scan " + enemy)
+                    self.assertIn('"name": "Opponent"', wait_for("Native inspection:"))
+                    if mode == "classic":
+                        contact = self.until(reader, self.send(reader, "combat.getUnit", {
+                            "battleId": initial["battleId"], "unitId": enemy}))["result"]["unit"]
+                        self.assertEqual(contact["disclosure"], "contact")
+                        self.assertNotIn("name", contact)
+                    command("condition " + initial["selectedUnitId"])
+                    self.assertIn('"condition":', wait_for("Native inspection:"))
+                    command("help wait")
+                    self.assertIn("Synthetic tactical help", wait_for("Native inspection:"))
+                    for choice in ("no", "yes"):
+                        command("release " + enemy)
+                        wait_for("Choose confirm yes|no")
+                        active = self.until(reader, self.send(reader, "combat.getTargetOptions"))["result"]
+                        self.assertEqual(active["input"]["kind"], "stasisConfirmation")
+                        denied = self.until(reader, self.send(reader, "combat.answerConfirmation", {
+                            "battleId": initial["battleId"], "inputId": active["input"]["inputId"], "operationSeq": 1, "choice": "yes"}))
+                        self.assertEqual(denied["error"]["code"], -32007)
+                        command("confirm " + choice)
+                        wait_for("applied through native rules")
+                        wait_for("Native mode:")
+                    if mode != "classic":
+                        action("side-wait")
+                    action("end-side")
+                    current = self.until(reader, self.send(reader, "combat.getView"))["result"]["battle"]
+                    self.assertEqual(current["sequenceMode"], mode)
+                    self.assertTrue(current["round"] > 1 or mode != "classic")
+                    action("mode options")
+                    action("option impactWarning on")
+                    action("option impactWarning off")
+                    command("self-destruct")
+                    wait_for("Choose confirm yes|no")
+                    command("confirm no")
+                    wait_for("applied through native rules")
+                    wait_for("Native mode:")
+                    command("self-destruct")
+                    wait_for("Choose confirm yes|no")
+                    command("confirm yes")
+                    wait_for("applied through native rules")
+                    wait_for("Native mode:")
+                    resulting = self.until(reader, self.send(reader, "combat.getView"))["result"]["battle"]
+                    self.assertEqual(sum(u["owned"] for u in resulting["units"]), 1)
+                    action("mode options")
+                    command("self-destruct")
+                    wait_for("Choose confirm yes|no")
+                    command("confirm yes")
+                    wait_for("Battle closed; waiting for an observed battle.")
+                    self.assertEqual(self.server.stdout.readline().strip(), "done")
+                    self.assertIsNone(self.read(reader)["result"]["battle"])
+                    command("quit")
+                    self.assertEqual(cli.wait(timeout=5), 0, cli.stderr.read())
+                finally:
+                    if cli.poll() is None:
+                        cli.kill()
+                        cli.wait()
+                    cli.stdin.close()
+                    cli.stdout.close()
+                    cli.stderr.close()
+
+    def test_standard_client_answers_native_local_boarding_choice_and_information(self):
+        reader = self.client("reader")
+        self.trigger("open")
+        self.trigger("boarding")
+        initial = self.read(reader)["result"]["battle"]
+        with tempfile.TemporaryDirectory() as directory:
+            key = Path(directory) / "key"
+            key.write_text(KEY, encoding="utf-8")
+            key.chmod(0o600)
+            cli = subprocess.Popen([sys.executable, str(ROOT / "tools/rpc_observer.py"), "--controller",
+                                    "--port", str(self.port), "--key-file", str(key)], stdin=subprocess.PIPE,
+                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            lines = queue.Queue()
+
+            def collect():
+                for line in cli.stdout:
+                    lines.put(line)
+
+            threading.Thread(target=collect, daemon=True).start()
+
+            def command(text):
+                cli.stdin.write(text + "\n")
+                cli.stdin.flush()
+
+            def wait_for(text, poll=False):
+                output = ""
+                deadline = time.monotonic() + 10
+                while text not in output:
+                    if poll:
+                        self.trigger("poll")
+                    try:
+                        output += lines.get(timeout=0.04)
+                    except queue.Empty:
+                        pass
+                    if cli.poll() is not None or self.server.poll() is not None or time.monotonic() > deadline:
+                        self.fail("Nested workflow did not reach " + text + ": " + output[-2000:])
+                return output
+
+            try:
+                wait_for("Done is available", poll=True)
+                for native, kind, answer in (("native-choice", "boardingChoice", "choice cancel 0"),
+                                             ("native-information", "information", "ack")):
+                    self.server.stdin.write(native + "\n")
+                    self.server.stdin.flush()
+                    wait_for('"kind": "' + kind + '"')
+                    current = self.until(reader, self.send(reader, "combat.getTargetOptions"))["result"]
+                    self.assertEqual(current["input"]["kind"], kind)
+                    command(answer)
+                    wait_for("applied by native owner")
+                    self.assertEqual(self.server.stdout.readline().strip(), "done")
+                    wait_for("Done is available", poll=True)
+                resulting = self.read(reader)["result"]["battle"]
+                self.assertEqual(initial["units"], resulting["units"])
+                command("quit")
+                self.assertEqual(cli.wait(timeout=5), 0, cli.stderr.read())
+            finally:
+                if cli.poll() is None:
+                    cli.kill()
+                    cli.wait()
+                cli.stdin.close()
+                cli.stdout.close()
+                cli.stderr.close()
+
+    def test_standard_client_explicit_auto_manual_and_closure(self):
+        reader = self.client("reader")
+        self.trigger("open")
+        self.trigger("automation")
+        with tempfile.TemporaryDirectory() as directory:
+            key = Path(directory) / "key"
+            key.write_text(KEY, encoding="utf-8")
+            key.chmod(0o600)
+            cli = subprocess.Popen([sys.executable, str(ROOT / "tools/rpc_observer.py"), "--controller",
+                                    "--port", str(self.port), "--key-file", str(key)], stdin=subprocess.PIPE,
+                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            lines = queue.Queue()
+
+            def collect():
+                for line in cli.stdout:
+                    lines.put(line)
+
+            threading.Thread(target=collect, daemon=True).start()
+
+            def command(text):
+                cli.stdin.write(text + "\n")
+                cli.stdin.flush()
+
+            def wait_for(text):
+                output = ""
+                deadline = time.monotonic() + 12
+                while text not in output:
+                    try:
+                        output += lines.get(timeout=0.04)
+                    except queue.Empty:
+                        pass
+                    if cli.poll() is not None or self.server.poll() is not None or time.monotonic() > deadline:
+                        self.fail("Automation workflow did not reach " + text + ": " + output[-2500:])
+                return output
+
+            self.server.stdin.write("workflow-rounds\n")
+            self.server.stdin.flush()
+            try:
+                wait_for("Done is available")
+                command("auto normal")
+                wait_for("applied through native rules")
+                command("auto manual")
+                wait_for("applied by native owner")
+                wait_for("Done is available")
+                for actor in range(2):
+                    command("mode options")
+                    wait_for("applied through native rules")
+                    wait_for("Done is unavailable")
+                    command("self-destruct")
+                    wait_for("Choose confirm yes|no")
+                    command("confirm yes")
+                    if actor == 0:
+                        wait_for("applied through native rules")
+                        wait_for("Done is available")
+                wait_for("Battle closed; waiting for an observed battle.")
+                self.assertEqual(self.server.stdout.readline().strip(), "done")
+                self.assertIsNone(self.read(reader)["result"]["battle"])
+                command("quit")
+                self.assertEqual(cli.wait(timeout=5), 0, cli.stderr.read())
+            finally:
+                if cli.poll() is None:
+                    cli.kill()
+                    cli.wait()
+                cli.stdin.close()
+                cli.stdout.close()
+                cli.stderr.close()
+
     def test_native_hit_history_exists_before_client_connection_and_reads_do_not_consume(self):
         self.trigger("open")
         self.trigger("native-fire")
@@ -915,6 +1167,45 @@ class TurnTest(unittest.TestCase):
         first = self.read(reader, "combat.getHitHistory")["result"]
         self.assertTrue(first["hits"])
         self.assertEqual(first, self.read(reader, "combat.getHitHistory")["result"])
+
+    def test_planet_and_base_control_disclosure_and_native_actor_continuation(self):
+        controller = self.client()
+        reader = self.client("reader")
+        self.trigger("open")
+        self.trigger("workflow-classic")
+        self.trigger("defenses")
+        view = self.read(reader)["result"]["battle"]
+        planet = next(u for u in view["units"] if u["kind"] == "planet")
+        base = next(u for u in view["units"] if u["kind"] == "satellite")
+        options = self.options(controller)
+        self.assertEqual(options["control"]["actorUnitId"], planet["unitId"])
+        self.assertFalse(options["canSelfDestruct"])
+        scan = self.read(reader, "combat.getScan", {"battleId": view["battleId"], "unitId": planet["unitId"]})["result"]["scan"]
+        self.assertEqual(scan["name"], "Fixture planet defenses")
+        self.assertNotIn("marines", scan)
+        self.assertNotIn("driveHits", scan)
+        self.apply(controller, options, "combat.selectUnit", {"unitId": base["unitId"]})
+        self.assertEqual(self.options(controller)["control"]["actorUnitId"], base["unitId"])
+        self.assertEqual(self.read(reader)["result"]["battle"]["selectedUnitId"], base["unitId"])
+        current = self.read(reader, "combat.getScan", {"battleId": view["battleId"], "unitId": base["unitId"]})["result"]["scan"]
+        self.assertEqual(current["name"], "Fixture starbase")
+        self.assertNotIn("driveHits", current)
+        self.assertIn("computerHits", current)
+        self.apply(controller, self.options(controller), "combat.done")
+
+    def test_status_inspection_remains_native_authorized_with_scan_disabled(self):
+        reader = self.client("reader")
+        self.trigger("open")
+        self.trigger("workflow-classic")
+        view = self.read(reader)["result"]["battle"]
+        target = next(u["unitId"] for u in view["units"] if not u["owned"])
+        self.trigger("scan-disabled")
+        scan = self.read(reader, "combat.getScan", {"battleId": view["battleId"], "unitId": target})
+        self.assertEqual(scan["error"]["code"], -32004)
+        status = self.read(reader, "combat.getUnit", {"battleId": view["battleId"], "unitId": target, "detail": "status"})["result"]["unit"]
+        self.assertEqual(status["condition"]["barHalfWidth"], 44)
+        self.assertNotIn("ownDetails", status)
+        self.assertNotIn("structureMaximum", status)
 
     def test_beam_fire_accepts_high_missile_references_through_native_operation(self):
         controller = self.client()

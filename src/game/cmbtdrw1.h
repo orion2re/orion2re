@@ -1,6 +1,74 @@
 #pragma once
+#include <string>
+#include <vector>
+
+namespace COMBAT1 {
+    struct s_operation;
+}
 
 namespace CMBTDRW1 {
+    enum e_tactical_input { NO_TACTICAL_INPUT,
+        STASIS_CONFIRMATION,
+        DESTRUCT_CONFIRMATION,
+        BOARDING_CHOICE,
+        TACTICAL_INFORMATION,
+        TACTICAL_DETAIL,
+        RETURN_TO_MANUAL };
+    struct s_tactical_input {
+        e_tactical_input kind = NO_TACTICAL_INPUT;
+        const char* text = nullptr;
+        int16_t minimum = 0, maximum = 0, value = 0;
+        int16_t actor = -1, target = -1;
+        const s_tactical_input* previous = nullptr;
+    };
+    // Borrowed from the active native input owner; battle retirement revokes it.
+    const s_tactical_input* Current_Tactical_Input();
+    void Open_Tactical_Input(s_tactical_input* input);
+    void Close_Tactical_Input();
+    bool Take_Tactical_Input(COMBAT1::s_operation* answer);
+    void Complete_Tactical_Input();
+    bool Confirm_Tactical_Action(e_tactical_input kind, const char* text, int16_t target = -1);
+    void Present_Tactical_Information(const char* text);
+    void Present_Tactical_Warning(const char* text);
+    int16_t Get_Auto_Combat_Input();
+    struct s_detail_weapon {
+        int16_t slot = 0, type = 0, count = 0, ammo = 0, arc = 0;
+        uint16_t modifiers = 0;
+        const char* name = nullptr;
+    };
+    struct s_detail_system {
+        const char* name = nullptr;
+        bool damaged = false;
+    };
+    struct s_combat_detail {
+        const char* name = nullptr;
+        const char* armor_name = nullptr;
+        const char* shield_name = nullptr;
+        bool planet = false, monster = false, captured = false;
+        bool drive_hits_available = false, subsystem_hits_available = false, shield_hits_available = false;
+        int16_t attack = 0, defense = 0, evade = 0, crew = 0, marines = 0;
+        int32_t structure = 0, structure_max = 0, armor = 0, armor_max = 0;
+        int16_t speed = 0, warp_speed = 0, drive = 0, drive_max = 0;
+        int16_t computer = 0, computer_max = 0, computer_bonus = 0;
+        int16_t shield = 0, shield_max = 0, shield_strength = 0, shield_strength_max = 0;
+        std::vector<s_detail_weapon> weapons;
+        std::vector<s_detail_system> systems;
+    };
+    bool Read_Combat_Detail(int16_t subject, s_combat_detail* detail);
+    enum e_unit_effect { EFFECT_NONE,
+        EFFECT_PHASED,
+        EFFECT_STASIS,
+        EFFECT_PLASMA_WEB,
+        EFFECT_BLACK_HOLE,
+        EFFECT_ABSORBER };
+    struct s_damage_bars {
+        int16_t armor = -1, structure = -1, internals = -1;
+        bool presentation = false, darkened = false, officer = false;
+        e_unit_effect effect = EFFECT_NONE;
+    };
+    bool Read_Damage_Bars(int16_t subject, s_damage_bars* bars);
+    bool Read_Tactical_Help(int16_t topic, std::string* text);
+
     extern const char s_combat_lbx[11];
     extern uint8_t green[16];
     extern MOX2::action_func_t k_save;
@@ -89,6 +157,11 @@ namespace CMBTDRW1 {
 
     uint8_t __cdecl Get_Weapon_Arc(int16_t bearing);
 
+    struct s_board_popup_input {
+        int16_t minimum = 0, maximum = 0, target = -1;
+        char* text = nullptr;
+    };
+    int16_t Board_Popup(const s_board_popup_input* input, int16_t* out_val);
     int16_t __cdecl Board_Popup(int16_t min_val, int16_t max_val, char* msg, int16_t* out_val);
     void Present_Boarding_Result(const char* title, const char* text, uint16_t ticks, bool authorized);
     void Show_Absorber_Overload_Warning();

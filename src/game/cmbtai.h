@@ -28,6 +28,7 @@ namespace CMBTAI {
     int16_t __cdecl Get_Effective_Beam_Strength(int16_t player_idx);
 
     void __cdecl Toggle_Auto_Combat_Flags();
+    void Refresh_Auto_Control_Input();
 
     void __cdecl Do_Auto_Ship_Turn(void);
 

@@ -74,6 +74,11 @@ namespace rpc {
         result->observed = true;
         result->local_attacker = viewer == MOX::combat_attacker_player;
         result->initiative = MOX::combat_init != 0;
+        result->sequence_mode = MOX::combat_init == 0 ? 0 : COMBAT1::ship_initiative == 2 ? 2
+                                                                                          : 1;
+        result->time_warp = COMBAT1::Current_Pass_Is_Time_Warp();
+        result->strict_wait = COMBAT1::Current_Pass_Is_Strict_Wait();
+        result->nebula = MOX::in_nebula_flag != 0;
         result->round = int32_t(MOX::combat_turn) + 1;
         result->width = MOX::combat_grid_width;
         result->height = MOX::combat_grid_height;
@@ -97,6 +102,17 @@ namespace rpc {
         result->type = TECHDATA::weapons[missile.type].type;
         result->owned = missile.owner == COMBAT::Current_Viewer();
         strlcpy(result->name, TECHDATA::weapons[missile.type].name, sizeof(result->name));
+        const int16_t target = missile.target_unit_idx;
+        if (missile.target_is_missile == 0) {
+            if (COMBAT::Unit_Disclosed(target) &&
+                (MOX::combat_data[target].owner == COMBAT::Current_Viewer() || MOX::combat_data[target].special_status_flag != 4)) {
+                result->target_disclosed = true;
+                strlcpy(result->target_name, MOX::combat_data[target].name, sizeof(result->target_name));
+            }
+        } else if (COMBAT::Missile_Disclosed(target)) {
+            result->target_disclosed = true;
+            strlcpy(result->target_name, TECHDATA::weapons[MOX::missile[target].type].name, sizeof(result->target_name));
+        }
         return true;
     }
 

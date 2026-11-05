@@ -146,6 +146,8 @@ class Observer:
         self.boarding_battle = None
         self.show_missiles = False
         self.show_history = False
+        self.native_input = None
+        self.input_battle = None
 
     def clear(self, message):
         self.battle = None
@@ -157,15 +159,21 @@ class Observer:
         self.boarding_battle = None
         self.show_missiles = False
         self.show_history = False
+        self.native_input = None
+        self.input_battle = None
         print(message, flush=True)
 
     def notification(self, event):
         if self.pending_acknowledgement and event.get("id") == self.pending_acknowledgement[0]:
             sequence = self.pending_acknowledgement[1]
+            answered_input = self.pending_acknowledgement[2] if len(self.pending_acknowledgement) > 2 else None
             self.pending_acknowledgement = None
             if "error" in event:
                 print(f"Report acknowledgement {sequence} rejected: " + safe_text(json.dumps(event["error"])) + ". Not retried.", flush=True)
             else:
+                if not self.native_input or self.native_input.get("inputId") == answered_input:
+                    self.native_input = None
+                    self.input_battle = None
                 if self.boarding_report:
                     self.boarding_report["reportId"] = None
                 self.boarding_battle = None
@@ -187,7 +195,7 @@ class Observer:
                 if "boarding" in event.get("result", {}):
                     self.boarding_report = event["result"]["boarding"]
                     print("Boarding result: " + safe_text(json.dumps(event["result"]["boarding"], ensure_ascii=False)), flush=True)
-            self.refresh = self.battle is not None
+            self.refresh = self.battle is not None and self.native_input is None
             return
         method, params = event.get("method"), event.get("params", {})
         battle_id = params.get("battleId")
@@ -203,9 +211,16 @@ class Observer:
                 self.refresh = True
         elif method == "combat.localAttentionChanged":
             self.options = None
+            if params.get("input"):
+                self.show_input(params["input"], battle_id)
+                return
+            self.native_input = None
+            self.input_battle = None
             if not params.get("required") and self.boarding_report:
                 self.boarding_report["reportId"] = None
                 self.boarding_battle = None
+                self.refresh = True
+            if not params.get("required"):
                 self.refresh = True
             print("Local game attention required; operation may still be executing."
                   if params.get("required") else "Local attention cleared.", flush=True)
@@ -261,6 +276,11 @@ class Observer:
         if "error" in response:
             code = response["error"]["code"]
             if code == -32006:
+                self.show_options()
+                if self.native_input:
+                    self.refresh = False
+                    self.retry_at = None
+                    return
                 if self.boarding_report and self.boarding_report.get("reportId"):
                     print("Native boarding report active; ordinary view waits for dismissal.", flush=True)
                     return
@@ -290,6 +310,10 @@ class Observer:
         print(f"Battle {battle['battleId']} | round {battle['round']} | "
               f"local {battle['localSide']} | grid {grid['width']}x{grid['height']} | "
               f"{battle['visibleUnitCount']} visible units", flush=True)
+        print("Native sequence: " + safe_text(battle.get("sequenceMode", "initiative" if battle["initiative"] else "classic")) +
+              " | pass: " + safe_text(battle.get("pass", "normal")) +
+              (" | strict wait stage" if battle.get("strictWaitStage") else "") +
+              (" | nebula" if battle.get("inNebula") else ""), flush=True)
         for unit in battle["units"]:
             pos = unit["position"]
             selected = "*" if unit["unitId"] == battle["selectedUnitId"] else " "
@@ -310,20 +334,24 @@ class Observer:
 
     def show_options(self):
         self.options = None
-        if self.battle is None:
-            print("No current battle.", flush=True)
-            return
-        response = self.request("combat.getTargetOptions", {"battleId": self.battle["battleId"]})
+        self.native_input = None
+        self.input_battle = None
+        response = self.request("combat.getTargetOptions", {"battleId": self.battle["battleId"]} if self.battle else {})
         if "error" in response:
             print("Options unavailable/busy; request options again. No operation retried.", flush=True)
             return
         options = response["result"]
+        if options.get("input"):
+            self.show_input(options["input"], options["battleId"])
+            return
         if not options["control"]["available"]:
-            print("No native ship control (opponent/AI/phase/local mode).", flush=True)
+            print("No native tactical control (opponent/AI/phase/local mode).", flush=True)
             return
         self.options = options
+        self.native_input = None
+        self.input_battle = None
         print("Controllable actor: " + options["control"]["actorUnitId"], flush=True)
-        print("Selectable ships: " + " ".join(options["selectableUnitIds"]), flush=True)
+        print("Selectable actors: " + " ".join(options["selectableUnitIds"]), flush=True)
         for weapon in options["weapons"]:
             print("Weapon: " + safe_text(json.dumps(weapon, ensure_ascii=False)), flush=True)
             state = {1: "on", 0: "temporaryOff", -1: "off"}.get(weapon["selection"], "unknown")
@@ -350,7 +378,59 @@ class Observer:
         if "retreat" in options:
             print("Retreat: " + safe_text(json.dumps(options["retreat"])), flush=True)
         print("Wait: " + ("available" if options["canWait"] else "unavailable") + ". Native rules choose the next opportunity, possibly this same ship.", flush=True)
-        print("Done is available. Fire uses the entire current native selection.", flush=True)
+        if "mode" in options:
+            print("Native mode: " + options["mode"] + "; choose mode orders|scan|boarding|options explicitly.", flush=True)
+            for field in ("canWaitSide", "canEndSideTurn", "canSelfDestruct", "canSuperFast", "canAutoCombat", "scanEnabled", "canEnterBoarding", "missileWarning", "stasisTargetUnitIds", "tacticalOptions", "systems"):
+                print(field + ": " + safe_text(json.dumps(options[field], ensure_ascii=False)), flush=True)
+        print(("Done is available." if options["canDone"] else "Done is unavailable in this native mode.") +
+              " Fire uses the entire current native selection.", flush=True)
+
+    def show_input(self, native_input, battle_id):
+        self.native_input = native_input
+        self.input_battle = battle_id
+        self.options = None
+        self.refresh = False
+        self.retry_at = None
+        print("Native input: " + safe_text(json.dumps(native_input, ensure_ascii=False)), flush=True)
+        kind = native_input["kind"]
+        if kind == "boardingReport":
+            self.boarding_report = native_input["report"]
+            self.boarding_battle = battle_id
+            print("Use boarding-ack <reportId> to dismiss the native report.", flush=True)
+        elif kind in ("stasisConfirmation", "selfDestructConfirmation"):
+            print("Choose confirm yes|no. The parent action is not complete.", flush=True)
+        elif kind == "boardingChoice":
+            print("Choose choice raid|capture|cancel <marines> within the displayed bounds.", flush=True)
+        elif kind == "returnToManual":
+            print("Use auto manual to request native return to manual control; the current automatic turn may still finish.", flush=True)
+        else:
+            print("Use ack to dismiss this native information view.", flush=True)
+
+    def inspect(self, command):
+        parts = command.split()
+        if self.battle is None:
+            print("No settled battle view; use options for active native input.", flush=True)
+            return
+        params = {"battleId": self.battle["battleId"]}
+        if parts[0] in ("scan", "condition") and len(parts) == 2:
+            method = "combat.getScan" if parts[0] == "scan" else "combat.getUnit"
+            params["unitId"] = parts[1]
+            if parts[0] == "condition":
+                params["detail"] = "status"
+        elif parts[0] == "help" and len(parts) in (2, 3):
+            method = "combat.getTacticalHelp"
+            params["topic"] = parts[1]
+            if len(parts) == 3:
+                try:
+                    params["slot"] = int(parts[2])
+                except ValueError:
+                    print("Help slot must be an integer.", flush=True)
+                    return
+        else:
+            print("Use scan <unitId> or help <topic> [slot].", flush=True)
+            return
+        response = self.request(method, params)
+        print("Native inspection: " + safe_text(json.dumps(response.get("result", response.get("error")), ensure_ascii=False)), flush=True)
 
     def inspect_missiles(self, missile_id=None):
         if self.battle is None:
@@ -387,7 +467,38 @@ class Observer:
             print("Reader only; restart with --controller to request control.", flush=True)
             return
         parts = command.split()
-        if parts[0] == "boarding-cancel" and not self.pending_operation:
+        if parts[0] in ("confirm", "choice", "ack") or parts == ["auto", "manual"]:
+            if not self.native_input or self.pending_acknowledgement:
+                print("No current native input, or an answer is already outstanding. Use options; never resend automatically.", flush=True)
+                return
+            params = {"battleId": self.input_battle, "inputId": self.native_input.get("inputId")}
+            if parts[0] == "confirm" and len(parts) == 2 and parts[1] in ("yes", "no"):
+                method = "combat.answerConfirmation"
+                params["choice"] = parts[1]
+            elif parts[0] == "choice" and len(parts) == 3 and parts[1] in ("raid", "capture", "cancel"):
+                try:
+                    params["marines"] = int(parts[2])
+                except ValueError:
+                    print("Marine commitment must be an integer.", flush=True)
+                    return
+                params["choice"] = parts[1]
+                method = "combat.answerBoardingChoice"
+            elif parts == ["ack"]:
+                method = "combat.acknowledgeInformation"
+            elif parts == ["auto", "manual"]:
+                method = "combat.setAutoCombat"
+                params["mode"] = "manual"
+            else:
+                print("Invalid explicit native answer.", flush=True)
+                return
+            self.operation_seq += 1
+            self.next_id += 1
+            params["operationSeq"] = self.operation_seq
+            self.pending_acknowledgement = (self.next_id, self.operation_seq, params["inputId"])
+            self.wire.send({"jsonrpc": "2.0", "id": self.next_id, "method": method, "params": params})
+            print(f"Native answer {self.operation_seq} sent; awaiting its owner.", flush=True)
+            return
+        if parts[0] == "boarding-cancel" and not self.pending_operation and not self.pending_acknowledgement:
             self.options = None
             print("Unsubmitted boarding choices discarded; no gameplay changed.", flush=True)
             return
@@ -409,10 +520,11 @@ class Observer:
         if parts[0] == "boarding-cancel":
             parts = ["cancel"]
         if parts[0] == "cancel":
-            if not self.pending_operation:
+            pending = self.pending_acknowledgement or self.pending_operation
+            if not pending:
                 print("No outstanding operation.", flush=True)
                 return
-            response = self.request("combat.cancelOperation", {"operationSeq": self.pending_operation[1]})
+            response = self.request("combat.cancelOperation", {"operationSeq": pending[1]})
             print("Cancellation: " + safe_text(json.dumps(response.get("result", response.get("error")))), flush=True)
             return
         if self.pending_operation:
@@ -423,7 +535,10 @@ class Observer:
             return
         methods = {"select": ("combat.selectUnit", 2), "move": ("combat.move", 3),
                    "face": ("combat.face", 3), "fire": ("combat.fire", 2), "done": ("combat.done", 1), "wait": ("combat.wait", 1), "retreat": ("combat.retreat", 1),
-                   "intercept": ("combat.fire", 2), "selection": ("combat.setFireSelection", len(parts)), "board": ("combat.board", 4)}
+                   "intercept": ("combat.fire", 2), "selection": ("combat.setFireSelection", len(parts)), "board": ("combat.board", 4),
+                   "release": ("combat.removeStasis", 2), "self-destruct": ("combat.selfDestruct", 1),
+                   "side-wait": ("combat.waitSide", 1), "end-side": ("combat.endSideTurn", 1),
+                   "mode": ("combat.setInputMode", 2), "option": ("combat.setTacticalOptions", 3), "auto": ("combat.setAutoCombat", 2)}
         method, count = methods[parts[0]]
         if len(parts) != count:
             print("Invalid command arguments.", flush=True)
@@ -432,7 +547,15 @@ class Observer:
                   "actorUnitId": self.options["control"]["actorUnitId"],
                   "decisionId": self.options["control"]["decisionId"]}
         try:
-            if parts[0] == "board":
+            if parts[0] == "release":
+                params["targetUnitId"] = parts[1]
+            elif parts[0] in ("mode", "auto"):
+                params["mode"] = parts[1]
+            elif parts[0] == "option":
+                if parts[2] not in ("on", "off"):
+                    raise ValueError()
+                params.update(option=parts[1], value=parts[2] == "on")
+            elif parts[0] == "board":
                 if parts[2] not in ("raid", "capture"):
                     raise ValueError()
                 params.update(targetUnitId=parts[1], mode=parts[2], marines=int(parts[3]))
@@ -542,7 +665,10 @@ def main():
         print("Commands: refresh | unit <unitId> | missiles | missile <missileId> | hits | options | "
               "selection <slot>=on|temporaryOff|off ... | select <unitId> | move <x> <y> | "
               "face <x> <y> | fire <targetUnitId> | intercept <missileId> | boarding | "
-              "board <targetUnitId> raid|capture <marines> | boarding-cancel | boarding-report | boarding-ack <reportId> | retreat | wait | done | cancel | quit. Ctrl-C exits.", flush=True)
+              "board <targetUnitId> raid|capture <marines> | boarding-cancel | boarding-report | boarding-ack <reportId> | retreat | wait | done | "
+              "scan <unitId> | condition <unitId> | help <topic> [slot] | release <unitId> | self-destruct | side-wait | end-side | "
+              "mode orders|scan|boarding|options | option <name> on|off | auto normal|superFast|manual | confirm yes|no | "
+              "choice raid|capture|cancel <marines> | ack | cancel | quit. Ctrl-C exits.", flush=True)
         while True:
             try:
                 command = commands.get_nowait()
@@ -554,6 +680,8 @@ def main():
                     observer.refresh = True
                 elif command.startswith("unit "):
                     observer.detail(command[5:].strip())
+                elif command.startswith("scan ") or command.startswith("condition ") or command.startswith("help "):
+                    observer.inspect(command)
                 elif command == "missiles":
                     observer.show_missiles = True
                     observer.inspect_missiles()
@@ -563,14 +691,13 @@ def main():
                     observer.show_history = True
                     observer.history()
                 elif command == "options":
-                    if not observer.pending_operation:
-                        observer.show_options()
+                    observer.show_options()
                 elif command == "boarding":
                     if not observer.pending_operation:
                         observer.show_options()
                 elif command == "boarding-report":
                     print("Last received boarding result: " + safe_text(json.dumps(observer.boarding_report)), flush=True)
-                elif command.split() and command.split()[0] in ("select", "move", "face", "fire", "intercept", "selection", "done", "wait", "retreat", "cancel", "board", "boarding-cancel", "boarding-ack"):
+                elif command.split() and command.split()[0] in ("select", "move", "face", "fire", "intercept", "selection", "done", "wait", "retreat", "cancel", "board", "boarding-cancel", "boarding-ack", "release", "self-destruct", "side-wait", "end-side", "mode", "option", "auto", "confirm", "choice", "ack"):
                     observer.operation(command)
             except queue.Empty:
                 pass

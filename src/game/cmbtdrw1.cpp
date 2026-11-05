@@ -10,6 +10,321 @@ namespace CMBTDRW1 {
         Tactical_Planet,
         Monster,
     };
+    static Combat_View_Subject Tactical_Combat_View_Subject(int16_t combat_idx);
+    static bool tactical_answer_pending;
+
+    const s_tactical_input* Current_Tactical_Input() {
+        const auto* battle = COMBAT::Current_Battle();
+        const auto* tactical_input = battle != nullptr ? battle->tactical_input : nullptr;
+        const int16_t viewer = COMBAT::Current_Viewer();
+        if (tactical_input == nullptr || viewer < 0 || viewer != COMBAT::Local_Observer() || BOARDING::Boarding_Report_Active()) return nullptr;
+        if (tactical_input->kind == RETURN_TO_MANUAL)
+            return MOX::auto_combat_flag[viewer == MOX::combat_attacker_player ? 0 : 1] != 0 ? tactical_input : nullptr;
+        if (tactical_input->kind != TACTICAL_INFORMATION &&
+            (MOX::cur_ship < 0 || MOX::cur_ship >= MOX::combat_total_ship_count || MOX::combat_data[MOX::cur_ship].owner != viewer)) return nullptr;
+        return tactical_input;
+    }
+
+    void Open_Tactical_Input(s_tactical_input* input) {
+        auto* battle = COMBAT::Current_Battle();
+        if (battle != nullptr) {
+            input->previous = battle->tactical_input;
+            battle->tactical_input = input;
+        }
+        COMBAT::Invalidate_Control();
+        COMBAT::Begin_Local_Attention();
+    }
+
+    void Close_Tactical_Input() {
+        auto* battle = COMBAT::Current_Battle();
+        if (battle != nullptr && battle->tactical_input != nullptr) battle->tactical_input = battle->tactical_input->previous;
+        COMBAT::Invalidate_Control();
+        COMBAT::End_Local_Attention(COMBAT::Current_Viewer());
+    }
+
+    bool Take_Tactical_Input(COMBAT1::s_operation* answer) {
+        if (Current_Tactical_Input() == nullptr) return false;
+        COMBAT::Service_Input();
+        if (fields::input_delay > 0) return false;
+        COMBAT1::e_result result;
+        if (!COMBAT::Take_Control_Operation(answer, &result)) return false;
+        if (result != COMBAT1::APPLIED) {
+            COMBAT::Complete_Control_Operation(result);
+            return false;
+        }
+        tactical_answer_pending = true;
+        return true;
+    }
+
+    void Complete_Tactical_Input() {
+        if (!tactical_answer_pending) return;
+        tactical_answer_pending = false;
+        COMBAT::Complete_Control_Operation(COMBAT1::APPLIED);
+    }
+
+    bool Confirm_Tactical_Action(e_tactical_input kind, const char* text, int16_t target) {
+        GENDRAW::Open_Confirmation_Box(text);
+        s_tactical_input input;
+        input.kind = kind;
+        input.text = text;
+        input.actor = MOX::cur_ship;
+        input.target = target;
+        Open_Tactical_Input(&input);
+        bool confirmed = false;
+        for (;;) {
+            timer::Mark_Time();
+            const int16_t local = fields::Get_Input();
+            COMBAT1::s_operation answer;
+            bool done = local == GENDRAW::first_field || local == GENDRAW::first_field + 1;
+            if (done)
+                confirmed = local == GENDRAW::first_field;
+            else if (Take_Tactical_Input(&answer)) {
+                confirmed = answer.value != 0;
+                done = true;
+            }
+            if (!done) RUSS::Mox_Sync_Update();
+            timer::Release_Time(2);
+            if (done) break;
+        }
+        GENDRAW::Close_Confirmation_Box();
+        Close_Tactical_Input();
+        Complete_Tactical_Input();
+        return confirmed;
+    }
+
+    void Present_Tactical_Information(const char* text) {
+        const int16_t viewer = COMBAT::Current_Viewer();
+        if (viewer < 0) {
+            GENDRAW::Message_Box(text);
+            return;
+        }
+        TEXTBOX::s_text_box box;
+        TEXTBOX::Open_Text_Box(nullptr, text, &box);
+        s_tactical_input input;
+        input.kind = TACTICAL_INFORMATION;
+        input.text = text;
+        Open_Tactical_Input(&input);
+        while (mouse::Mouse_Button() != 0) {
+            timer::Mark_Time();
+            RUSS::Mox_Sync_Update();
+            timer::Release_Time(1);
+        }
+        fields::Clear_Mouse_Buffer();
+        for (;;) {
+            timer::Mark_Time();
+            RUSS::Mox_Sync_Update();
+            timer::Release_Time(1);
+            if (fields::Get_Input() != 0) break;
+            COMBAT1::s_operation answer;
+            if (Take_Tactical_Input(&answer)) break;
+        }
+        TEXTBOX::Close_Text_Box(&box);
+        Close_Tactical_Input();
+        Complete_Tactical_Input();
+        MOX::FULL_DRAW_SCREEN_FLAG = 1;
+    }
+
+    int16_t Get_Auto_Combat_Input() {
+        COMBAT1::s_operation answer;
+        const int16_t local = fields::Get_Input();
+        if (local == MOX::auto_button) return local;
+        if (Take_Tactical_Input(&answer)) {
+            CMBTAI::Toggle_Auto_Combat_Flags();
+            Complete_Tactical_Input();
+        }
+        return local;
+    }
+
+    bool Read_Combat_Detail(int16_t subject, s_combat_detail* detail) {
+        *detail = {};
+        if (!COMBAT::Reads_Allowed() || COMBAT::Current_Viewer() != COMBAT::Local_Observer() ||
+            !COMBAT::Unit_Disclosed(subject) || !COMBAT1::Scan_Is_Available(subject) ||
+            MOX::combat_data[MOX::cur_ship].owner != COMBAT::Current_Viewer()) return false;
+        auto* ship = &MOX::combat_data[subject];
+        const auto kind = Tactical_Combat_View_Subject(subject);
+        detail->name = ship->name;
+        detail->planet = kind == Combat_View_Subject::Tactical_Planet;
+        detail->monster = kind == Combat_View_Subject::Monster;
+        detail->captured = ship->is_captured == 1;
+        detail->attack = ship->tac_val_attack;
+        detail->defense = ship->tac_val_defense;
+        detail->evade = ship->tac_val_evade;
+        detail->crew = ship->owner <= 9 ? ship->crew_quality : -1;
+        detail->marines = !detail->planet && ship->marine_count != 255 ? ship->marine_count : -1;
+        detail->speed = ship->current_speed;
+        detail->drive_hits_available = kind == Combat_View_Subject::Tactical_Ship && ship->ship_idx >= 0 && ship->ftl_type > DRIVE_NO_DRIVE;
+        detail->subsystem_hits_available = kind == Combat_View_Subject::Tactical_Ship;
+        detail->shield_hits_available = detail->subsystem_hits_available && ship->shield_type > 0 && ship->shield_type < 10;
+        if (detail->drive_hits_available) {
+            detail->warp_speed = ship->owner >= 0 && ship->owner < MAX_PLAYERS
+                ? INITSHIP::Get_FTL_Speed(ship->owner, ship->ftl_type)
+                : TECHDATA::drives[ship->ftl_type].warp_speed;
+            detail->drive = ship->drive_current_hits;
+            detail->drive_max = ship->drive_max_hits;
+        }
+        detail->structure = int32_t(ship->structure_max) - ship->structure_damage;
+        detail->structure_max = ship->structure_max;
+        if (detail->planet) {
+            const auto best_armor = INITSHIP::Best_Armor(ship->owner);
+            detail->structure = detail->structure_max = CMBTFIRE::Ground_Defense_Structure(TECHDATA::armor[best_armor].ships_bonus);
+        }
+        if (!detail->monster) {
+            detail->armor_name = TECHDATA::armor[ship->armor_type].name;
+            if (!detail->planet) {
+                const auto hull = COMBINIT::Is_Combat_Satellite(ship) ? COMBINIT::Combat_Satellite_Hull_Class(ship) : ship->size_class;
+                detail->armor = ship->armor_remaining;
+                detail->armor_max = TECHDATA::hull_data[hull].armor_hp;
+                detail->armor_max += int32_t(TECHDATA::armor[ship->armor_type].ships_bonus) * detail->armor_max / 100;
+                if (struct_::Test_Bit_Field(ship->special_device_flags, SPECIAL_HEAVY_ARMOR)) detail->armor_max *= 3;
+            }
+            detail->computer_bonus = ship->computer_current_hits > 0 ? TECHDATA::computers[ship->computer_type].bonus : 0;
+            detail->computer = ship->computer_current_hits;
+            detail->computer_max = ship->computer_max_hits;
+            detail->shield_name = ship->shield_type >= 10 ? TECHDATA::buildings[ship->shield_type].name : TECHDATA::shields[ship->shield_type].name;
+            detail->shield = ship->shield_current_hits;
+            detail->shield_max = ship->shield_max_hits;
+            detail->shield_strength_max = ship->shield_arc_max;
+            detail->shield_strength = ship->shield_arc_max;
+            if (detail->subsystem_hits_available) {
+                detail->shield_strength = ship->shield_arc_current[0];
+                for (int i = 1; i < 4; ++i)
+                    if (ship->shield_arc_current[i] < detail->shield_strength) detail->shield_strength = ship->shield_arc_current[i];
+            } else if (detail->planet) {
+                if (ship->owner == NONPLAYER_SHIP_TYPE_ANTARAN)
+                    detail->shield_strength = 0;
+                else if (CMBTFIRE::Does_Combat_Planet_Have_Defenses() && !COMBINIT::Does_Combat_Ship_Have_Special(0, SPECIAL_DAMPER_FIELD))
+                    detail->shield_strength += TECHDATA::shields[INITSHIP::Best_Ship_Shield(ship->owner)].shield_class;
+            }
+        }
+        for (int16_t i = 0; i < 8; ++i) {
+            const auto* slot = &ship->weapons[i];
+            if (!slot->weapon_id) continue;
+            s_detail_weapon weapon;
+            weapon.slot = i;
+            weapon.name = slot->count == 1 ? TECHDATA::weapons[slot->weapon_id].name : TECHDATA::weapons[slot->weapon_id].name_plural;
+            weapon.type = TECHDATA::weapons[slot->weapon_id].type;
+            weapon.count = slot->count;
+            weapon.ammo = slot->ammo;
+            weapon.arc = slot->arc;
+            weapon.modifiers = slot->specials;
+            detail->weapons.push_back(weapon);
+        }
+        const int count = COMBINIT::amoeba_regeneration ? SPECIAL_COUNT : SPECIAL_REGENERATION;
+        for (int16_t i = 0; i < count; ++i) {
+            if (!struct_::Test_Bit_Field(ship->special_device_flags, i)) continue;
+            s_detail_system system;
+            system.name = TECHDATA::specials[i].name;
+            system.damaged = struct_::Test_Bit_Field(ship->special_device_damage_flags, i) != 0;
+            detail->systems.push_back(system);
+        }
+        return true;
+    }
+
+    bool Read_Tactical_Help(int16_t topic, std::string* text) {
+        text->clear();
+        if (!COMBAT::Reads_Allowed() || !COMBAT1::Human_Input_Is_Available(MOX::cur_ship) ||
+            COMBAT::Current_Viewer() != COMBAT::Local_Observer() ||
+            MOX::combat_data[MOX::cur_ship].owner != COMBAT::Current_Viewer()) return false;
+        int16_t help = -1;
+        if (topic >= 0 && topic < 7) help = int16_t(0x26e + topic);
+        if (topic >= 10 && topic < 16) help = int16_t(0x2b7 + topic - 10);
+        if (topic == 16) help = 0x269;
+        if (topic == 17) help = 0x275;
+        if (topic == 18) help = 0x26c;
+        if (topic == 19) help = 0x26d;
+        if (topic >= 100 && topic < 108) {
+            const auto weapon = MOX::combat_data[MOX::cur_ship].weapons[topic - 100].weapon_id;
+            if (weapon) help = TECHDATA::weapons[weapon].tech_app_id;
+        }
+        if (topic >= 200 && topic < 208) {
+            int index = 0;
+            for (int16_t bit = 0; bit < 39; ++bit)
+                if (struct_::Test_Bit_Field(MOX::combat_data[MOX::cur_ship].special_device_flags, bit) && index++ == topic - 200)
+                    help = TECHDATA::specials[bit].tech_app_id;
+        }
+        if (help <= 0) return false;
+        char name[20];
+        TEXTBOX::Get_Help_Lbx_Name(name, sizeof(name));
+        auto* file = vfs::fopen_lbx(name, 0);
+        if (file == nullptr) return false;
+        uint16_t header[2];
+        bool ok = vfs::fread(header, sizeof(header), 1, file) == 1 && header[1] == sizeof(s_help_record);
+        for (int i = 0; ok && help > 0 && i < 9; ++i) {
+            s_help_record record;
+            ok = help < header[0] && vfs::fseek(file, 4 + size_t(help) * sizeof(record), SEEK_SET) == 0 &&
+                vfs::fread(&record, sizeof(record), 1, file) == 1;
+            if (!ok) break;
+            record.title[sizeof(record.title) - 1] = 0;
+            record.body[sizeof(record.body) - 1] = 0;
+            if (!text->empty()) *text += '\n';
+            *text += record.title;
+            *text += '\n';
+            *text += record.body;
+            help = record.next_help_idx == 0xffffffff ? int16_t(help + 1) : int16_t(record.next_help_idx);
+        }
+        vfs::fclose(file);
+        if (!ok) text->clear();
+        return ok;
+    }
+
+    bool Read_Damage_Bars(int16_t subject, s_damage_bars* bars) {
+        *bars = {};
+        const int16_t viewer = COMBAT::Current_Viewer();
+        if (!COMBAT::Reads_Allowed() || viewer < 0 || viewer != COMBAT::Local_Observer() ||
+            !COMBAT1::Human_Input_Is_Available(MOX::cur_ship) || MOX::order_info_flag != 1 ||
+            MOX::combat_data[MOX::cur_ship].owner != viewer || !COMBAT::Unit_Disclosed(subject)) return false;
+        auto* ship = &MOX::combat_data[subject];
+        if (ship->owner != viewer && ship->special_status_flag == 4) return false;
+        if (subject != 0) {
+            bars->presentation = true;
+            bars->officer = ship->officer_idx >= 0;
+            bars->darkened = ship->special_status_flag == 1 || ship->special_status_flag == 5;
+            if (ship->special_status_flag == 4)
+                bars->effect = EFFECT_PHASED;
+            else if (CMBTMOV1::Ship_Is_In_Stasis(subject))
+                bars->effect = EFFECT_STASIS;
+            else if (ship->plasma_web_damage > 0)
+                bars->effect = EFFECT_PLASMA_WEB;
+            else if (CMBTMOV1::Ship_In_Black_Hole(subject))
+                bars->effect = EFFECT_BLACK_HOLE;
+            else if (ship->reflected_damage_pool > 0)
+                bars->effect = EFFECT_ABSORBER;
+        }
+        if (subject == 0) {
+            if (CMBTFIRE::Does_Combat_Planet_Have_Defenses()) {
+                const int armor = INITSHIP::Best_Armor(ship->owner);
+                const int32_t maximum = CMBTFIRE::Ground_Defense_Structure(TECHDATA::armor[armor].ships_bonus);
+                if (maximum > 0) bars->structure = int16_t(((ship->structure_damage * 88) / maximum) / 2);
+            }
+            return true;
+        }
+        const bool standard = uint8_t(ship->previous_owner) <= 9;
+        if (standard) {
+            const int hull = COMBINIT::Is_Combat_Satellite(ship) ? COMBINIT::Combat_Satellite_Hull_Class(ship) : ship->size_class;
+            const int16_t hull_armor = TECHDATA::hull_data[hull].armor_hp;
+            int32_t maximum = hull_armor + (TECHDATA::armor[ship->armor_type].ships_bonus * hull_armor) / 100;
+            if (COMBINIT::Does_Combat_Ship_Have_Special(subject, SPECIAL_HEAVY_ARMOR)) maximum *= 3;
+            if (maximum == ship->armor_remaining)
+                bars->armor = 0;
+            else if (maximum > 0)
+                bars->armor = int16_t((((maximum - ship->armor_remaining) * 88) / maximum) / 2);
+        }
+        bars->structure = 0;
+        if (ship->structure_damage > 0 && ship->structure_max > 0) {
+            bars->structure = standard ? int16_t((ship->structure_damage * 44) / ship->structure_max)
+                                       : int16_t(((ship->structure_damage * 88) / ship->structure_max) / 2);
+            if (standard && bars->structure < 2) bars->structure = 2;
+        }
+        const int32_t maximum = CMBTFIR2::Max_Total_Internal_Space(subject);
+        const int32_t damage = maximum - CMBTFIR2::Total_Internal_Space(subject);
+        if (damage == 0)
+            bars->internals = 0;
+        else if (maximum > 0) {
+            bars->internals = standard ? int16_t((damage * 44) / maximum) : int16_t(((damage * 88) / maximum) / 2);
+            if (standard && bars->internals < 2) bars->internals = 2;
+        }
+        return true;
+    }
 
     static Combat_View_Subject combat_view_subject = Combat_View_Subject::Strategic_Ship;
 
@@ -295,10 +610,22 @@ namespace CMBTDRW1 {
 
         int16_t exit_field_id = fields::Add_Hidden_Field(0, 0, 0x27F, 0x1DF, "", 0);
         bool exit_triggered = false;
+        s_tactical_input detail_input;
+        if (!is_editable) {
+            detail_input.kind = TACTICAL_DETAIL;
+            detail_input.text = MOX::global_combat_data.name;
+            detail_input.actor = MOX::cur_ship;
+            detail_input.target = MOX::ship_data_id;
+            Open_Tactical_Input(&detail_input);
+        }
         do {
             int16_t input = fields::Get_Input();
             if (input == exit_field_id) {
                 exit_triggered = true;
+            }
+            if (!is_editable && !exit_triggered) {
+                COMBAT1::s_operation answer;
+                exit_triggered = Take_Tactical_Input(&answer);
             }
             video::Set_Page_Off();
             Combat_Draw_View_Ship();
@@ -316,6 +643,10 @@ namespace CMBTDRW1 {
         EVANHELP::Restore_Help_List();
         MOX2::Put_Auto_Function(&k_save);
         allocate::Pop_Block(MOX::screen_seg);
+        if (!is_editable) {
+            Close_Tactical_Input();
+            Complete_Tactical_Input();
+        }
     }
 
     void __cdecl Draw_Legal_Boxes() {
@@ -1649,11 +1980,32 @@ namespace CMBTDRW1 {
         fields::Assign_Auto_Function(CMBTDRW1::Draw_Main_Combat_Screen, 1);
     }
 
-    void Show_Absorber_Overload_Warning() {
+    void Present_Tactical_Warning(const char* text) {
         palette::Refresh_Palette();
-        const int16_t attention = COMBAT::Begin_Local_Attention();
-        GENDRAW::Warning_Box("Absorber Overloaded");
-        COMBAT::End_Local_Attention(attention);
+        GENDRAW::warning_box = 1;
+        GENDRAW::Open_Warning_Box(text);
+        s_tactical_input input;
+        input.kind = TACTICAL_INFORMATION;
+        input.text = text;
+        Open_Tactical_Input(&input);
+        int16_t local = fields::Get_Input();
+        while (local == 0) {
+            COMBAT1::s_operation answer;
+            if (Take_Tactical_Input(&answer)) break;
+            timer::Mark_Time();
+            GENDRAW::Draw_Animating_Message_Box();
+            setvesa::Add_Square_To_Scan_List(5, 0x14, 0x24D, 0x1CB);
+            RUSS::Mox_Sync_Update();
+            timer::Release_Time(2);
+            local = fields::Get_Input();
+        }
+        GENDRAW::Message_Box_Cleanup();
+        Close_Tactical_Input();
+        Complete_Tactical_Input();
+    }
+
+    void Show_Absorber_Overload_Warning() {
+        Present_Tactical_Warning("Absorber Overloaded");
         Refresh_Combat_Screen_Full();
     }
 
@@ -1665,7 +2017,10 @@ namespace CMBTDRW1 {
             do {
                 platform::Check_Exit();
                 has_input = key::Keyboard_Status() || mouse::Mouse_Buffer() == 1;
-                if (!has_input) acknowledged = BOARDING::Take_Report_Acknowledgement(generation);
+                if (!has_input) {
+                    COMBAT::Service_Input();
+                    acknowledged = BOARDING::Take_Report_Acknowledgement(generation);
+                }
                 ++ticks;
                 fields::Quick_Call_Auto_Function();
                 if (ticks == input_ticks) has_input = true;
@@ -1683,6 +2038,7 @@ namespace CMBTDRW1 {
                 timer::Mark_Time();
                 RUSS::Mox_Sync_Update();
                 timer::Release_Time(1);
+                COMBAT::Service_Input();
                 if (fields::input_delay <= 0) acknowledged = BOARDING::Take_Report_Acknowledgement(generation);
             } while (!acknowledged && fields::Get_Input() == 0);
         }
@@ -1714,6 +2070,16 @@ namespace CMBTDRW1 {
     }
 
     int16_t __cdecl Board_Popup(int16_t min_val, int16_t max_val, char* msg, int16_t* out_val) {
+        s_board_popup_input input;
+        input.minimum = min_val;
+        input.maximum = max_val;
+        input.text = msg;
+        return Board_Popup(&input, out_val);
+    }
+
+    int16_t Board_Popup(const s_board_popup_input* popup, int16_t* out_val) {
+        const int16_t min_val = popup->minimum, max_val = popup->maximum;
+        char* msg = popup->text;
         COMBAT::Close_Control_Decision();
         int16_t result = 1;
         int16_t done = 0;
@@ -1753,9 +2119,32 @@ namespace CMBTDRW1 {
         RUSS::Mox_Sync_Update();
         mouse::Set_Mouse_List(&MOX::mouse_list_arrow, 1);
 
+        s_tactical_input choice_input;
+        choice_input.kind = BOARDING_CHOICE;
+        choice_input.text = msg;
+        choice_input.actor = MOX::cur_ship;
+        choice_input.target = popup->target;
+        choice_input.minimum = min_val;
+        choice_input.maximum = max_val;
+        choice_input.value = g_var;
+        Open_Tactical_Input(&choice_input);
         while (!done) {
             int16_t input = fields::Get_Input();
             fields::Scan_Input();
+            if (choice_input.value != g_var) {
+                choice_input.value = g_var;
+                COMBAT::Refresh_Local_Attention();
+            }
+
+            if (input == 0) {
+                choice_input.value = g_var;
+                COMBAT1::s_operation answer;
+                if (Take_Tactical_Input(&answer)) {
+                    result = answer.boarding_mode;
+                    if (result != 0) g_var = answer.marines;
+                    done = 1;
+                }
+            }
 
             if (input == btn_capture) {
                 done = 1;
@@ -1779,6 +2168,10 @@ namespace CMBTDRW1 {
                 result = 0;
                 done = 1;
             }
+            if (!done && choice_input.value != g_var) {
+                choice_input.value = g_var;
+                COMBAT::Refresh_Local_Attention();
+            }
 
             if (!done) {
                 video::Set_Page_Off();
@@ -1792,6 +2185,8 @@ namespace CMBTDRW1 {
         fields::Assign_Auto_Function(Draw_Main_Combat_Screen, 1);
         Refresh_Combat_Screen_Full();
         COMBAT1::Assign_Combat_Grids(MOX::cur_ship);
+        Close_Tactical_Input();
+        Complete_Tactical_Input();
 
         *out_val = g_var;
 

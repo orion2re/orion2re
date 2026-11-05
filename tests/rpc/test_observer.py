@@ -342,20 +342,45 @@ class NativeObserverTest(unittest.TestCase):
 
 
 class ClientUnitTest(unittest.TestCase):
+    def test_cancelling_a_native_answer_does_not_cancel_its_executing_parent(self):
+        inbox = queue.Queue()
+
+        class Wire:
+            sent = None
+            def send(self, request):
+                self.sent = request
+                inbox.put({"jsonrpc": "2.0", "id": request["id"], "result": {"cancelled": True}})
+
+        wire = Wire()
+        observer = observer_module.Observer(wire, inbox, controller=True)
+        observer.pending_operation = (10, 1)
+        observer.pending_acknowledgement = (11, 2, "a" * 32)
+        observer.operation("boarding-cancel")
+        self.assertEqual(wire.sent["method"], "combat.cancelOperation")
+        self.assertEqual(wire.sent["params"], {"operationSeq": 2})
+        observer.notification({"id": 11, "error": {"code": -32013, "message": "Cancelled before dispatch"}})
+        self.assertIsNone(observer.pending_acknowledgement)
+        self.assertEqual(observer.pending_operation, (10, 1))
+
     def test_busy_retries_and_unscoped_unavailable_are_bounded(self):
         class Wire:
+            error = -32006
             def send(self, request):
-                pass
+                if request["method"] == "combat.getTargetOptions":
+                    inbox.put({"jsonrpc": "2.0", "id": request["id"], "result": {"battleId": "a" * 32,
+                               "control": {"available": False, "reason": "noNativeControl"}}})
+                else:
+                    inbox.put({"jsonrpc": "2.0", "id": request["id"], "error": {"code": self.error}})
         inbox = queue.Queue()
-        observer = observer_module.Observer(Wire(), inbox)
-        for request_id in range(1, 5):
-            inbox.put({"jsonrpc": "2.0", "id": request_id, "error": {"code": -32006}})
+        wire = Wire()
+        observer = observer_module.Observer(wire, inbox)
+        for _ in range(4):
             observer.next_read_at = 0
             observer.pull()
         self.assertEqual(observer.retries, 3)
         self.assertIsNone(observer.retry_at)
         self.assertFalse(observer.refresh)
-        inbox.put({"jsonrpc": "2.0", "id": 5, "error": {"code": -32004}})
+        wire.error = -32004
         observer.next_read_at = 0
         observer.pull()
         self.assertFalse(observer.refresh)

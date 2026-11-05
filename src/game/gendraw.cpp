@@ -87,7 +87,7 @@ namespace GENDRAW {
         animate::Draw(0xD0, box_y, box_bitmap);
     }
 
-    void __cdecl Message_Box_Exploding(const char* str) {
+    void Open_Warning_Box(const char* str) {
         Message_Box_Startup();
 
         fonts::Set_Font_Style(4, &message_text_colors);
@@ -136,7 +136,10 @@ namespace GENDRAW {
         bitmap::Screen_Bitmap_Capture(0xD0, message_box_y + 0x25, 0x1B2, message_box_y + 0x9D, box_bitmap);
 
         fields::Assign_Auto_Function(Draw_Animating_Message_Box, 2);
+    }
 
+    void __cdecl Message_Box_Exploding(const char* str) {
+        Open_Warning_Box(str);
         int16_t input = fields::Get_Input();
         while (input == 0) {
             timer::Mark_Time();
@@ -150,7 +153,7 @@ namespace GENDRAW {
         Message_Box_Cleanup();
     }
 
-    int16_t __cdecl Confirmation_Box(const char* text) {
+    void Open_Confirmation_Box(const char* text) {
         uint8_t color_1;
         uint8_t color_2;
         s_colors font_colors;
@@ -200,7 +203,15 @@ namespace GENDRAW {
         setvesa::Add_Square_To_Scan_List(0, 0, 0x27f, 0x1df);
         RUSS::Mox_Sync_Update();
         fields::Assign_Auto_Function(Draw_Confirm_Box, 2);
+    }
 
+    void Close_Confirmation_Box() {
+        Message_Box_Cleanup();
+        MOX::FULL_DRAW_SCREEN_FLAG = 1;
+    }
+
+    int16_t __cdecl Confirmation_Box(const char* text) {
+        Open_Confirmation_Box(text);
         int16_t input;
         do {
             timer::Mark_Time();
@@ -209,10 +220,9 @@ namespace GENDRAW {
                 RUSS::Mox_Sync_Update();
             }
             timer::Release_Time(2);
-        } while (input != first_field && input != second_field);
+        } while (input != first_field && input != first_field + 1);
 
-        Message_Box_Cleanup();
-        MOX::FULL_DRAW_SCREEN_FLAG = 1;
+        Close_Confirmation_Box();
 
         return (input == first_field) ? 1 : 0;
     }

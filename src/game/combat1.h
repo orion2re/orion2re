@@ -11,7 +11,28 @@ namespace COMBAT1 {
         FIRE_SELECTION,
         BOARD,
         RETREAT,
-        WAIT };
+        WAIT,
+        REMOVE_STASIS,
+        SELF_DESTRUCT,
+        SIDE_WAIT,
+        END_SIDE,
+        INPUT_MODE,
+        TACTICAL_OPTION,
+        AUTO_COMBAT,
+        ANSWER_CONFIRMATION,
+        ANSWER_BOARDING,
+        ACK_INFORMATION,
+        MANUAL_CONTROL };
+    enum e_input_mode { ORDERS_MODE,
+        SCAN_MODE,
+        BOARDING_MODE,
+        OPTIONS_MODE };
+    enum e_tactical_option { IMPACT_WARNING,
+        DOUBLE_SPEED,
+        LEGAL_BOXES,
+        SHIELD_SECTORS,
+        GRID,
+        CYCLE_WARNING };
     enum e_result : int { APPLIED,
         UNAVAILABLE,
         NO_CONTROL,
@@ -25,6 +46,7 @@ namespace COMBAT1 {
         uint8_t bank_mask = 0;
         int8_t bank_states[8] = {};
         int16_t boarding_mode = 0, marines = 0;
+        int16_t value = 0, option = 0;
     };
     extern int32_t end_of_turn_button;
 
@@ -133,6 +155,8 @@ namespace COMBAT1 {
 
     bool Combat_Ship_Participates_In_Pass(int16_t ship_idx, bool time_warp_only);
     bool Combat_Ship_Participates_In_Current_Pass(int16_t ship_idx);
+    bool Current_Pass_Is_Time_Warp();
+    bool Current_Pass_Is_Strict_Wait();
     bool Combat_Ship_Participates_In_Turn_Order(
         int16_t ship_idx, bool time_warp_only);
 
@@ -176,6 +200,16 @@ namespace COMBAT1 {
 
     void __cdecl Add_Tactical_Combat_Fields(void);
     bool Ship_Wait_Is_Available();
+    bool Human_Input_Is_Available(int16_t actor);
+    bool Scan_Is_Available(int16_t subject);
+    bool Auto_Combat_Is_Available(bool super_fast);
+    bool Self_Destruct_Is_Available();
+    bool Stasis_Release_Is_Available(int16_t target);
+    bool Input_Mode_Is_Available(e_input_mode mode);
+    bool Tactical_Option_Is_Available(e_tactical_option option);
+    void Set_Input_Mode(e_input_mode mode);
+    void Set_Tactical_Option(e_tactical_option option, int16_t value, bool received = false);
+    void Set_Auto_Combat(bool super_fast, bool received = false);
 
     void __cdecl Add_Missile_Fields(void);
 

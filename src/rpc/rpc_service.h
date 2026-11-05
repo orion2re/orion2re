@@ -24,6 +24,7 @@ namespace rpc {
     bool Publish_Event(s_service* service, uint8_t kind, std::string_view battle_id, std::string_view unit_id = {}, std::string detail = {});
     void Revoke_Event_Delivery(s_service* service);
     void Invalidate_Read_Delivery(s_service* service);
+    void Set_Decision_Generation(s_service* service, uint64_t generation);
     using t_execute_read = std::string (*)(const s_read_request*, void*, bool* dependent);
     // Game thread only. Unsafe points leave observed reads queued until deadline.
     void Execute_Reads(s_service* service, bool safe, bool observed, t_execute_read execute, void* context);

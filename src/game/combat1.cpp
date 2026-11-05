@@ -158,6 +158,120 @@ namespace COMBAT1 {
             !(ship_initiative == 2 && strict_wait_stage);
     }
 
+    bool Human_Input_Is_Available(int16_t actor) {
+        return MOX::combat_data != nullptr && actor >= 0 && actor < MOX::combat_total_ship_count &&
+            actor == MOX::cur_ship && MOX::cur_ptr >= 0 && MOX::cur_ptr < MAX_COMBAT_SHIPS &&
+            MOX::ship_turn_order[MOX::cur_ptr] == actor &&
+            Is_Human_Combat_Owner(MOX::combat_data[actor].owner) &&
+            Combat_Ship_Is_Functional(actor) && !Ship_Controlled_By_Computer(actor) &&
+            !CMBTFIRE::Is_Combat_Ship_Dead(actor) && MOX::combat_data[actor].is_retreating == 0 &&
+            MOX::side_end_of_turn[MOX::combat_data[actor].owner] == 0 &&
+            Combat_Ship_Participates_In_Current_Pass(actor) &&
+            (MOX::net_flag == 0 || MOX::combat_data[actor].owner == MOX::PLAYER_NUM) &&
+            MOX::tactical_net_choice == 0 && fields::input_delay <= 0;
+    }
+
+    bool Scan_Is_Available(int16_t subject) {
+        return disable_scan == 0 && Human_Input_Is_Available(MOX::cur_ship) &&
+            MOX::order_info_flag == 1 && subject >= 0 && subject < MOX::combat_total_ship_count &&
+            MOX::combat_data[subject].unit_status == 0;
+    }
+
+    bool Auto_Combat_Is_Available(bool super_fast) {
+        if (!Human_Input_Is_Available(MOX::cur_ship) || MOX::order_info_flag != 1) return false;
+        return !super_fast || !(Is_Human_Combat_Owner(MOX::combat_attacker_player) && Is_Human_Combat_Owner(MOX::combat_defender_player));
+    }
+
+    bool Self_Destruct_Is_Available() {
+        return Human_Input_Is_Available(MOX::cur_ship) && MOX::cur_ship != 0 && MOX::order_info_flag == 0;
+    }
+
+    bool Stasis_Release_Is_Available(int16_t target) {
+        return Human_Input_Is_Available(MOX::cur_ship) && MOX::order_info_flag == 1 && MOX::skan_flag == 0 && MOX::board_flag == 0 &&
+            target >= 0 && target < MOX::combat_total_ship_count && MOX::combat_data[target].unit_status == 0 &&
+            MOX::combat_data[target].owner != MOX::combat_data[MOX::cur_ship].owner && CMBTMOV1::Ship_Is_In_Stasis(target);
+    }
+
+    bool Input_Mode_Is_Available(e_input_mode mode) {
+        return Human_Input_Is_Available(MOX::cur_ship) && mode >= ORDERS_MODE && mode <= OPTIONS_MODE &&
+            (mode != SCAN_MODE || disable_scan == 0) && (mode != BOARDING_MODE || !CMBTFIR2::Already_Boarded(MOX::cur_ship));
+    }
+
+    bool Tactical_Option_Is_Available(e_tactical_option option) {
+        return Human_Input_Is_Available(MOX::cur_ship) && option >= IMPACT_WARNING && option <= CYCLE_WARNING &&
+            (option == CYCLE_WARNING ? MOX::order_info_flag == 1 && MOX::missile_warning == 1 : MOX::order_info_flag == 0);
+    }
+
+    void Set_Input_Mode(e_input_mode mode) {
+        COMBAT::Close_Control_Decision();
+        const bool options = mode == OPTIONS_MODE;
+        if (!options) {
+            MOX::skan_flag = mode == SCAN_MODE ? 1 : 0;
+            MOX::board_flag = mode == BOARDING_MODE ? 1 : 0;
+        }
+        if ((MOX::order_info_flag == 0) != options) {
+            MOX::order_info_flag = options ? 0 : 1;
+            CMBTDRW1::Move_Options_Background();
+        } else {
+            Add_Tactical_Combat_Fields();
+            Assign_Combat_Grids(MOX::cur_ship);
+        }
+        COMBAT::Invalidate_View();
+    }
+
+    void Set_Tactical_Option(e_tactical_option option, int16_t value, bool received) {
+        COMBAT::Close_Control_Decision();
+        switch (option) {
+            case IMPACT_WARNING:
+                MOX::msl_impact_warning_flag = value;
+                MOX::saved_msl_warning = value;
+                if (!received && MOX::net_flag != 0)
+                    NETMOX::Mox_Send_Message(MOX::player[MOX::net_destination].network_player_id,
+                        TACTICAL_NET_PACKET_MISSILE_WARNING,
+                        &MOX::msl_impact_warning_flag,
+                        sizeof(MOX::msl_impact_warning_flag));
+                break;
+            case DOUBLE_SPEED: MOX::speedx2_flag = value; break;
+            case LEGAL_BOXES:
+                MOX::draw_legal_boxes_flag = value;
+                CMBTDRW1::Refresh_Combat_Screen_Full();
+                break;
+            case SHIELD_SECTORS: MOX::shields_flag = value; break;
+            case GRID:
+                MOX::grid_flag = value;
+                CMBTDRW1::Refresh_Combat_Screen_Full();
+                break;
+            case CYCLE_WARNING:
+                if (!received && MOX::net_flag != 0 && MOX::PLAYER_NUM != MOX::net_destination)
+                    Send_Tactical_Combat_Message(MOX::net_destination, TACTICAL_NET_MSG_CYCLE_MISSILE_WARNING, 0, 0, 0);
+                MOX::missile_warning = (MOX::missile_warning + 1) % 3;
+                if (!received && MOX::net_flag != 0) CMBTMOV1::Wait_Until_Net_Opponent_Finished(1);
+                Add_Tactical_Combat_Fields();
+                Assign_Combat_Grids(MOX::cur_ship);
+                break;
+        }
+        COMBAT::Invalidate_View();
+    }
+
+    void Set_Auto_Combat(bool super_fast, bool received) {
+        COMBAT::Close_Control_Decision();
+        if (super_fast) MOX::super_fast_flag = 1;
+        if (!super_fast && !received && MOX::net_flag != 0 && MOX::PLAYER_NUM != MOX::net_destination)
+            Send_Tactical_Combat_Message(MOX::net_destination, TACTICAL_NET_MSG_TOGGLE_AUTO_COMBAT, 0, 0, 0);
+        const int side = MOX::combat_data[MOX::cur_ship].owner == MOX::combat_attacker_player ? 0 : 1;
+        MOX::auto_combat_flag[side] = 1 - MOX::auto_combat_flag[side];
+        MOX::auto_combat = MOX::auto_combat_flag[side];
+        if (!super_fast) {
+            if (MOX::auto_combat == 0) MOX::super_fast_flag = 0;
+            fields::Clear_Fields();
+            MOX::auto_button = fields::Add_Hidden_Field(0, 0, 639, 479, "", 0);
+            if (!received && MOX::net_flag != 0) CMBTMOV1::Wait_Until_Net_Opponent_Finished(1);
+        } else
+            CMBTDRW1::Draw_Super_Fast_Screen();
+        CMBTAI::Refresh_Auto_Control_Input();
+        COMBAT::Invalidate_View();
+    }
+
     void __cdecl Add_Tactical_Combat_Fields(void) {
         reload_config_button = -100;
         reload_interface_button = -100;
@@ -367,6 +481,12 @@ namespace COMBAT1 {
         return Combat_Ship_Participates_In_Pass(
             ship_idx, time_warp_phase_active);
     }
+    bool Current_Pass_Is_Time_Warp() {
+        return time_warp_phase_active;
+    }
+    bool Current_Pass_Is_Strict_Wait() {
+        return ship_initiative == 2 && strict_wait_stage;
+    }
 
     bool Combat_Ship_Participates_In_Turn_Order(
         int16_t ship_idx, bool time_warp_only) {
@@ -463,6 +583,35 @@ namespace COMBAT1 {
         COMBAT::Close_Control_Decision();
         const int16_t actor = MOX::cur_ship;
         const int8_t owner = MOX::combat_data[actor].owner;
+        if (operation->kind == INPUT_MODE) {
+            Set_Input_Mode(e_input_mode(operation->value));
+            return;
+        }
+        if (operation->kind == TACTICAL_OPTION) {
+            Set_Tactical_Option(e_tactical_option(operation->option), operation->value, received);
+            return;
+        }
+        if (operation->kind == AUTO_COMBAT) {
+            Set_Auto_Combat(operation->value == 2, received);
+            return;
+        }
+        if (operation->kind == REMOVE_STASIS || operation->kind == SELF_DESTRUCT) {
+            char text[80];
+            const bool stasis = operation->kind == REMOVE_STASIS;
+            if (!received) {
+                KEN::Ken_Get_Text_Message(stasis ? 61 : 57, text, sizeof(text));
+                if (stasis) palette::Set_Palette_Gradient(144, 32, 0, 0, 0, 0, 0, 0);
+                palette::Refresh_Palette();
+                if (!CMBTDRW1::Confirm_Tactical_Action(stasis ? CMBTDRW1::STASIS_CONFIRMATION : CMBTDRW1::DESTRUCT_CONFIRMATION, text, stasis ? operation->target : -1)) {
+                    CMBTDRW1::Refresh_Combat_Screen_Full();
+                    return;
+                }
+            }
+            if (!stasis && !received) {
+                MOX::order_info_flag = 1 - MOX::order_info_flag;
+                CMBTDRW1::Move_Options_Background();
+            }
+        }
         if (operation->kind == FIRE_SELECTION) {
             for (unsigned i = 0; i < 8; ++i)
                 if (operation->bank_mask & (1u << i))
@@ -499,6 +648,17 @@ namespace COMBAT1 {
             case DONE: message = TACTICAL_NET_MSG_SHIP_DONE; break;
             case RETREAT: message = TACTICAL_NET_MSG_RETREAT; break;
             case WAIT: message = TACTICAL_NET_MSG_WAIT; break;
+            case SIDE_WAIT: message = TACTICAL_NET_MSG_SIDE_WAIT; break;
+            case END_SIDE:
+                message = TACTICAL_NET_MSG_END_TURN;
+                arg1 = MOX::cur_combat_x;
+                arg2 = MOX::cur_combat_y;
+                break;
+            case REMOVE_STASIS:
+                message = TACTICAL_NET_MSG_REMOVE_STASIS;
+                arg1 = operation->target;
+                break;
+            case SELF_DESTRUCT: message = TACTICAL_NET_MSG_SELF_DESTRUCT; break;
             default: return;
         }
         if (!received && MOX::net_flag != 0 && MOX::PLAYER_NUM != MOX::net_destination)
@@ -535,6 +695,29 @@ namespace COMBAT1 {
             case WAIT:
                 *next_ship_flag = Advance_Next_Ship(active_player_id, COMBAT_SHIP_ACTION_WAIT);
                 break;
+            case SIDE_WAIT:
+                *next_ship_flag = Finish_Next_Ship(Select_After_Combat_Side_Wait());
+                break;
+            case END_SIDE:
+                if (MOX::combat_init == 0)
+                    *next_ship_flag = 1;
+                else {
+                    End_Side_Turn();
+                    *next_ship_flag = Next_Ship(active_player_id);
+                }
+                break;
+            case REMOVE_STASIS: CMBTFIRE::Remove_Stasis_Beam(operation->target); break;
+            case SELF_DESTRUCT: {
+                MOX::combat_data[actor].drive_current_hits = 0;
+                const int8_t saved_ftl_type = MOX::combat_data[actor].ftl_type;
+                MOX::combat_data[actor].ftl_type = 1;
+                CMBTFIRE::Destroy_Ship(actor, MOX::combat_data[actor].x * 20, MOX::combat_data[actor].y * 20, CMBTFIRE::Is_Combat_Ship_Dead(actor));
+                MOX::combat_data[actor].ftl_type = saved_ftl_type;
+                if (received) MOX::tactical_net_choice = TACTICAL_NET_MSG_SELF_DESTRUCT;
+                MOX::ship_turn_order[MOX::cur_ptr] = -1;
+                *next_ship_flag = Next_Ship(active_player_id);
+                break;
+            }
             case DONE:
                 if (!received) CMBTFIR2::Set_Combat_Ship_Done(actor);
                 MOX::ship_turn_order[MOX::cur_ptr] = -1;
@@ -550,6 +733,7 @@ namespace COMBAT1 {
         COMBAT::Unit_Changed(actor);
         if (!received && MOX::net_flag != 0) CMBTMOV1::Wait_Until_Net_Opponent_Finished(1);
         if (!received && operation->kind == DONE) fields::Set_Input_Delay(3);
+        if (!received && (operation->kind == REMOVE_STASIS || operation->kind == SELF_DESTRUCT)) CMBTDRW1::Refresh_Combat_Screen_Full();
     }
 
     bool Consume_Tactical_Operation(int16_t active_player_id, int16_t* next_ship_flag) {
@@ -714,58 +898,38 @@ namespace COMBAT1 {
                                     }
 
                                     if (input_val == MOX::msl_impact_warning_button) {
-                                        MOX::msl_impact_warning_flag = 1 - MOX::msl_impact_warning_flag;
-                                        MOX::saved_msl_warning = MOX::msl_impact_warning_flag;
-                                        if (MOX::net_flag != 0) {
-                                            NETMOX::Mox_Send_Message(MOX::player[MOX::net_destination].network_player_id, TACTICAL_NET_PACKET_MISSILE_WARNING, &MOX::msl_impact_warning_flag, sizeof(MOX::msl_impact_warning_flag));
-                                        }
+                                        Set_Tactical_Option(IMPACT_WARNING, 1 - MOX::msl_impact_warning_flag);
                                         input_val = 0;
                                     }
 
                                     if (Consume_Combat_Side_Wait_Input(&input_val)) {
-                                        if (MOX::net_flag != 0 && MOX::PLAYER_NUM != MOX::net_destination) {
-                                            Send_Combat_Side_Wait_Message(MOX::net_destination);
-                                        }
-                                        next_ship_flag = Finish_Next_Ship(
-                                            Select_After_Combat_Side_Wait());
-                                        if (MOX::net_flag != 0) {
-                                            NETMOX::Net_Debug_Log("Wait_Until_Net_Opponent_Finished: caller=%s:%d", __FILE__, __LINE__);
-                                            CMBTMOV1::Wait_Until_Net_Opponent_Finished(1);
-                                        }
+                                        s_operation operation;
+                                        operation.kind = SIDE_WAIT;
+                                        Apply_Tactical_Operation(&operation, active_player_id, &next_ship_flag);
                                     }
 
                                     if (input_val == MOX::speedx2_button) {
-                                        MOX::speedx2_flag = 1 - MOX::speedx2_flag;
+                                        Set_Tactical_Option(DOUBLE_SPEED, 1 - MOX::speedx2_flag);
                                         input_val = 0;
                                     }
 
                                     if (input_val == MOX::grid_button) {
-                                        MOX::grid_flag = 1 - MOX::grid_flag;
-                                        CMBTDRW1::Refresh_Combat_Screen_Full();
+                                        Set_Tactical_Option(GRID, 1 - MOX::grid_flag);
                                         input_val = 0;
                                     }
 
                                     if (input_val == MOX::draw_legal_boxes_button) {
-                                        MOX::draw_legal_boxes_flag = 1 - MOX::draw_legal_boxes_flag;
-                                        CMBTDRW1::Refresh_Combat_Screen_Full();
+                                        Set_Tactical_Option(LEGAL_BOXES, 1 - MOX::draw_legal_boxes_flag);
                                         input_val = 0;
                                     }
 
                                     if (input_val == MOX::shields_button) {
-                                        MOX::shields_flag = 1 - MOX::shields_flag;
+                                        Set_Tactical_Option(SHIELD_SECTORS, 1 - MOX::shields_flag);
                                         input_val = 0;
                                     }
 
                                     if (input_val == MOX::super_fast_button) {
-                                        MOX::super_fast_flag = 1;
-                                        if (MOX::combat_data[MOX::cur_ship].owner == MOX::combat_attacker_player) {
-                                            MOX::auto_combat_flag[0] = 1 - MOX::auto_combat_flag[0];
-                                            MOX::auto_combat = MOX::auto_combat_flag[0];
-                                        } else {
-                                            MOX::auto_combat_flag[1] = 1 - MOX::auto_combat_flag[1];
-                                            MOX::auto_combat = MOX::auto_combat_flag[1];
-                                        }
-                                        CMBTDRW1::Draw_Super_Fast_Screen();
+                                        Set_Auto_Combat(true);
                                     }
 
                                     if (input_val == MOX::self_destruct_button) {
@@ -773,67 +937,23 @@ namespace COMBAT1 {
                                         if (MOX::cur_ship == 0) {
                                             KEN::Ken_Get_Text_Message(56, buf, sizeof(buf));
                                             palette::Refresh_Palette();
-                                            GENDRAW::Message_Box(buf);
+                                            CMBTDRW1::Present_Tactical_Information(buf);
+                                            CMBTDRW1::Refresh_Combat_Screen_Full();
                                         } else {
-                                            KEN::Ken_Get_Text_Message(57, buf, sizeof(buf));
-                                            palette::Refresh_Palette();
-                                            if (GENDRAW::Do_Confirmation_Box(buf) != 0) {
-                                                MOX::order_info_flag = 1 - MOX::order_info_flag;
-                                                CMBTDRW1::Move_Options_Background();
-                                                if (MOX::net_flag != 0 && MOX::PLAYER_NUM != MOX::net_destination) {
-                                                    Send_Tactical_Combat_Message(MOX::net_destination, TACTICAL_NET_MSG_SELF_DESTRUCT, 0, 0, 0);
-                                                }
-                                                MOX::combat_data[MOX::cur_ship].drive_current_hits = 0;
-                                                int8_t saved_ftl_type = MOX::combat_data[MOX::cur_ship].ftl_type;
-                                                MOX::combat_data[MOX::cur_ship].ftl_type = 1;
-                                                CMBTFIRE::Destroy_Ship(MOX::cur_ship, MOX::combat_data[MOX::cur_ship].x * 20, MOX::combat_data[MOX::cur_ship].y * 20, CMBTFIRE::Is_Combat_Ship_Dead(MOX::cur_ship));
-                                                MOX::combat_data[MOX::cur_ship].ftl_type = saved_ftl_type;
-                                                MOX::ship_turn_order[MOX::cur_ptr] = -1;
-                                                next_ship_flag = Next_Ship(active_player_id);
-                                                if (MOX::net_flag != 0) {
-                                                    NETMOX::Net_Debug_Log("Wait_Until_Net_Opponent_Finished: caller=%s:%d", __FILE__, __LINE__);
-                                                    CMBTMOV1::Wait_Until_Net_Opponent_Finished(1);
-                                                }
-                                            }
+                                            s_operation operation;
+                                            operation.kind = SELF_DESTRUCT;
+                                            Apply_Tactical_Operation(&operation, active_player_id, &next_ship_flag);
                                         }
-                                        CMBTDRW1::Refresh_Combat_Screen_Full();
                                         input_val = 0;
                                     }
 
                                     if (input_val == MOX::msl_warning_button) {
-                                        if (MOX::net_flag != 0 && MOX::PLAYER_NUM != MOX::net_destination) {
-                                            Send_Tactical_Combat_Message(MOX::net_destination, TACTICAL_NET_MSG_CYCLE_MISSILE_WARNING, 0, 0, 0);
-                                        }
-                                        MOX::missile_warning = (MOX::missile_warning + 1) % 3;
-                                        if (MOX::net_flag != 0) {
-                                            NETMOX::Net_Debug_Log("Wait_Until_Net_Opponent_Finished: caller=%s:%d", __FILE__, __LINE__);
-                                            CMBTMOV1::Wait_Until_Net_Opponent_Finished(1);
-                                        }
-                                        Add_Tactical_Combat_Fields();
-                                        Assign_Combat_Grids(MOX::cur_ship);
+                                        Set_Tactical_Option(CYCLE_WARNING, 0);
                                         input_val = 0;
                                     }
 
                                     if (input_val == MOX::auto_button) {
-                                        if (MOX::net_flag != 0 && MOX::PLAYER_NUM != MOX::net_destination) {
-                                            Send_Tactical_Combat_Message(MOX::net_destination, TACTICAL_NET_MSG_TOGGLE_AUTO_COMBAT, 0, 0, 0);
-                                        }
-                                        if (MOX::combat_data[MOX::cur_ship].owner == MOX::combat_attacker_player) {
-                                            MOX::auto_combat_flag[0] = 1 - MOX::auto_combat_flag[0];
-                                            MOX::auto_combat = MOX::auto_combat_flag[0];
-                                        } else {
-                                            MOX::auto_combat_flag[1] = 1 - MOX::auto_combat_flag[1];
-                                            MOX::auto_combat = MOX::auto_combat_flag[1];
-                                        }
-                                        if (MOX::auto_combat == 0) {
-                                            MOX::super_fast_flag = 0;
-                                        }
-                                        fields::Clear_Fields();
-                                        MOX::auto_button = fields::Add_Hidden_Field(0, 0, 639, 479, "", 0);
-                                        if (MOX::net_flag != 0) {
-                                            NETMOX::Net_Debug_Log("Wait_Until_Net_Opponent_Finished: caller=%s:%d", __FILE__, __LINE__);
-                                            CMBTMOV1::Wait_Until_Net_Opponent_Finished(1);
-                                        }
+                                        Set_Auto_Combat(false);
                                         input_val = 0;
                                     }
 
@@ -884,7 +1004,7 @@ namespace COMBAT1 {
                                                 char buf[80];
                                                 KEN::Ken_Get_Text_Message(msg_id, buf, sizeof(buf));
                                                 palette::Refresh_Palette();
-                                                GENDRAW::Message_Box(buf);
+                                                CMBTDRW1::Present_Tactical_Information(buf);
                                                 CMBTDRW1::Refresh_Combat_Screen_Full();
                                             } else {
                                                 const s_operation operation{RETREAT, MOX::cur_ship};
@@ -900,7 +1020,7 @@ namespace COMBAT1 {
                                             char buf[80];
                                             KEN::Ken_Get_Text_Message(60, buf, sizeof(buf));
                                             palette::Refresh_Palette();
-                                            GENDRAW::Message_Box(buf);
+                                            CMBTDRW1::Present_Tactical_Information(buf);
                                             CMBTDRW1::Refresh_Combat_Screen_Full();
                                             MOX::board_flag = 0;
                                         } else {
@@ -966,32 +1086,15 @@ namespace COMBAT1 {
                                                     }
                                                 } else {
                                                     if (CMBTMOV1::Ship_Is_In_Stasis(tgt_idx) != 0) {
-                                                        char buf[80];
-                                                        KEN::Ken_Get_Text_Message(61, buf, sizeof(buf));
-                                                        palette::Set_Palette_Gradient(144, 32, 0, 0, 0, 0, 0, 0);
-                                                        palette::Refresh_Palette();
-                                                        int16_t confirmed;
-                                                        {
-                                                            const int16_t attention = COMBAT::Begin_Local_Attention();
-                                                            confirmed = GENDRAW::Do_Confirmation_Box(buf);
-                                                            COMBAT::End_Local_Attention(attention);
-                                                        }
-                                                        if (confirmed != 0) {
-                                                            if (MOX::net_flag != 0 && MOX::PLAYER_NUM != MOX::net_destination) {
-                                                                Send_Tactical_Combat_Message(MOX::net_destination, TACTICAL_NET_MSG_REMOVE_STASIS, tgt_idx, 0, 0);
-                                                            }
-                                                            CMBTFIRE::Remove_Stasis_Beam(tgt_idx);
-                                                            if (MOX::net_flag != 0) {
-                                                                NETMOX::Net_Debug_Log("Wait_Until_Net_Opponent_Finished: caller=%s:%d", __FILE__, __LINE__);
-                                                                CMBTMOV1::Wait_Until_Net_Opponent_Finished(1);
-                                                            }
-                                                        }
-                                                        CMBTDRW1::Refresh_Combat_Screen_Full();
+                                                        s_operation operation;
+                                                        operation.kind = REMOVE_STASIS;
+                                                        operation.target = tgt_idx;
+                                                        Apply_Tactical_Operation(&operation, active_player_id, &next_ship_flag);
                                                     } else if (MOX::combat_data[tgt_idx].special_status_flag == 4) {
                                                         char buf[80];
                                                         KEN::Ken_Get_Text_Message(80, buf, sizeof(buf));
                                                         palette::Refresh_Palette();
-                                                        GENDRAW::Message_Box(buf);
+                                                        CMBTDRW1::Present_Tactical_Information(buf);
                                                         CMBTDRW1::Refresh_Combat_Screen_Full();
                                                     } else {
                                                         const s_operation operation{FIRE, MOX::cur_ship, tgt_idx};
@@ -1008,19 +1111,9 @@ namespace COMBAT1 {
                                     }
 
                                     if (input_val == end_of_turn_button) {
-                                        if (MOX::net_flag != 0 && MOX::PLAYER_NUM != MOX::net_destination) {
-                                            Send_Tactical_Combat_Message(MOX::net_destination, TACTICAL_NET_MSG_END_TURN, MOX::cur_combat_x, MOX::cur_combat_y, 0);
-                                        }
-                                        if (MOX::combat_init == 0) {
-                                            next_ship_flag = 1;
-                                        } else {
-                                            End_Side_Turn();
-                                            next_ship_flag = Next_Ship(active_player_id);
-                                        }
-                                        if (MOX::net_flag != 0) {
-                                            NETMOX::Net_Debug_Log("Wait_Until_Net_Opponent_Finished: caller=%s:%d", __FILE__, __LINE__);
-                                            CMBTMOV1::Wait_Until_Net_Opponent_Finished(1);
-                                        }
+                                        s_operation operation;
+                                        operation.kind = END_SIDE;
+                                        Apply_Tactical_Operation(&operation, active_player_id, &next_ship_flag);
                                         input_val = 0;
                                     }
 
@@ -1043,6 +1136,7 @@ namespace COMBAT1 {
 
                                 } else {
                                     COMBAT::Close_Control_Decision();
+                                    CMBTAI::Refresh_Auto_Control_Input();
                                     int16_t net_processed = 0;
                                     while (net_processed == 0) {
                                         if (MOX::tactical_net_choice == 0) {
@@ -1050,6 +1144,13 @@ namespace COMBAT1 {
                                             if (MOX::net_flag != 0) {
                                                 if (Get_Tactical_Input() == MOX::auto_button) {
                                                     CMBTAI::Toggle_Auto_Combat_Flags();
+                                                }
+                                                if (CMBTDRW1::Current_Tactical_Input() != nullptr) {
+                                                    s_operation answer;
+                                                    if (CMBTDRW1::Take_Tactical_Input(&answer)) {
+                                                        CMBTAI::Toggle_Auto_Combat_Flags();
+                                                        CMBTDRW1::Complete_Tactical_Input();
+                                                    }
                                                 }
                                             }
                                             video::Set_Page_Off();
@@ -1078,18 +1179,12 @@ namespace COMBAT1 {
                                                 MOX::cur_ship,
                                                 (int)MOX::cur_ptr);
                                             switch (f8) {
-                                                case TACTICAL_NET_MSG_SELF_DESTRUCT:
-                                                    MOX::combat_data[MOX::cur_ship].drive_current_hits = 0;
-                                                    {
-                                                        int8_t saved_ftl_type = MOX::combat_data[MOX::cur_ship].ftl_type;
-                                                        MOX::combat_data[MOX::cur_ship].ftl_type = 1;
-                                                        CMBTFIRE::Destroy_Ship(MOX::cur_ship, MOX::combat_data[MOX::cur_ship].x * 20, MOX::combat_data[MOX::cur_ship].y * 20, CMBTFIRE::Is_Combat_Ship_Dead(MOX::cur_ship));
-                                                        MOX::combat_data[MOX::cur_ship].ftl_type = saved_ftl_type;
-                                                    }
-                                                    MOX::tactical_net_choice = TACTICAL_NET_MSG_SELF_DESTRUCT;
-                                                    MOX::ship_turn_order[MOX::cur_ptr] = -1;
-                                                    next_ship_flag = Next_Ship(active_player_id);
+                                                case TACTICAL_NET_MSG_SELF_DESTRUCT: {
+                                                    s_operation operation;
+                                                    operation.kind = SELF_DESTRUCT;
+                                                    Apply_Tactical_Operation(&operation, active_player_id, &next_ship_flag, true);
                                                     break;
+                                                }
                                                 case TACTICAL_NET_MSG_AUTO_TURN:
                                                     CMBTAI::Do_Auto_Ship_Turn();
                                                     COMBAT::Unit_Changed(MOX::cur_ship);
@@ -1115,20 +1210,10 @@ namespace COMBAT1 {
                                                     break;
                                                 }
                                                 case TACTICAL_NET_MSG_CYCLE_MISSILE_WARNING:
-                                                    MOX::missile_warning = (MOX::missile_warning + 1) % 3;
-                                                    Add_Tactical_Combat_Fields();
-                                                    Assign_Combat_Grids(MOX::cur_ship);
+                                                    Set_Tactical_Option(CYCLE_WARNING, 0, true);
                                                     break;
                                                 case TACTICAL_NET_MSG_TOGGLE_AUTO_COMBAT:
-                                                    fields::Clear_Fields();
-                                                    MOX::auto_button = fields::Add_Hidden_Field(0, 0, 639, 479, "", 0);
-                                                    if (MOX::combat_data[MOX::cur_ship].owner == MOX::combat_attacker_player) {
-                                                        MOX::auto_combat_flag[0] = 1 - MOX::auto_combat_flag[0];
-                                                        MOX::auto_combat = MOX::auto_combat_flag[0];
-                                                    } else {
-                                                        MOX::auto_combat_flag[1] = 1 - MOX::auto_combat_flag[1];
-                                                        MOX::auto_combat = MOX::auto_combat_flag[1];
-                                                    }
+                                                    Set_Auto_Combat(false, true);
                                                     break;
                                                 case TACTICAL_NET_MSG_WAIT: {
                                                     s_operation operation;
@@ -1137,10 +1222,12 @@ namespace COMBAT1 {
                                                     Apply_Tactical_Operation(&operation, active_player_id, &next_ship_flag, true);
                                                     break;
                                                 }
-                                                case TACTICAL_NET_MSG_SIDE_WAIT:
-                                                    next_ship_flag = Finish_Next_Ship(
-                                                        Select_After_Combat_Side_Wait());
+                                                case TACTICAL_NET_MSG_SIDE_WAIT: {
+                                                    s_operation operation;
+                                                    operation.kind = SIDE_WAIT;
+                                                    Apply_Tactical_Operation(&operation, active_player_id, &next_ship_flag, true);
                                                     break;
+                                                }
                                                 case TACTICAL_NET_MSG_TOGGLE_WEAPON:
                                                     Cycle_Weapon_Bank(f10, true);
                                                     break;
@@ -1154,9 +1241,13 @@ namespace COMBAT1 {
                                                     Apply_Tactical_Operation(&operation, active_player_id, &next_ship_flag, true);
                                                     break;
                                                 }
-                                                case TACTICAL_NET_MSG_REMOVE_STASIS:
-                                                    CMBTFIRE::Remove_Stasis_Beam(f10);
+                                                case TACTICAL_NET_MSG_REMOVE_STASIS: {
+                                                    s_operation operation;
+                                                    operation.kind = REMOVE_STASIS;
+                                                    operation.target = f10;
+                                                    Apply_Tactical_Operation(&operation, active_player_id, &next_ship_flag, true);
                                                     break;
+                                                }
                                                 case TACTICAL_NET_MSG_SELECT_SHIP: {
                                                     const s_operation operation{SELECT, MOX::cur_ship, f10};
                                                     Apply_Tactical_Operation(&operation, active_player_id, &next_ship_flag, true);
@@ -1165,14 +1256,12 @@ namespace COMBAT1 {
                                                 case TACTICAL_NET_MSG_BOARDING_ACTION:
                                                     Apply_Received_Boarding_Action(MOX::cur_ship, f10, f12, f14);
                                                     break;
-                                                case TACTICAL_NET_MSG_END_TURN:
-                                                    if (MOX::combat_init == 0) {
-                                                        next_ship_flag = 1;
-                                                    } else {
-                                                        End_Side_Turn();
-                                                        next_ship_flag = Next_Ship(active_player_id);
-                                                    }
+                                                case TACTICAL_NET_MSG_END_TURN: {
+                                                    s_operation operation;
+                                                    operation.kind = END_SIDE;
+                                                    Apply_Tactical_Operation(&operation, active_player_id, &next_ship_flag, true);
                                                     break;
+                                                }
                                             }
                                             MOX::tactical_net_choice = 0;
                                             NETMOX::Net_Debug_Log("Wait_Until_Net_Opponent_Finished: caller=%s:%d", __FILE__, __LINE__);
@@ -2500,25 +2589,25 @@ namespace COMBAT1 {
         char msg_buffer[80];
         if (check.warning != nullptr) {
             palette::Refresh_Palette();
-            GENDRAW::Warning_Box(check.warning);
+            CMBTDRW1::Present_Tactical_Warning(check.warning);
             CMBTDRW1::Refresh_Combat_Screen_Full();
         }
         if (check.shield_warning) {
             KEN::Ken_Get_Text_Message(0x45, msg_buffer, sizeof(msg_buffer));
             palette::Refresh_Palette();
-            GENDRAW::Warning_Box(msg_buffer);
+            CMBTDRW1::Present_Tactical_Warning(msg_buffer);
             CMBTDRW1::Refresh_Combat_Screen_Full();
         }
         if (!check.allowed) {
             if (check.message != 0) {
                 KEN::Ken_Get_Text_Message(check.message, msg_buffer, sizeof(msg_buffer));
                 palette::Refresh_Palette();
-                GENDRAW::Warning_Box(msg_buffer);
+                CMBTDRW1::Present_Tactical_Warning(msg_buffer);
                 CMBTDRW1::Refresh_Combat_Screen_Full();
             }
         } else {
             int16_t marines_sent;
-            int16_t result = CMBTFIR2::Init_Boarding_Action(MOX::cur_ship, &marines_sent);
+            int16_t result = CMBTFIR2::Init_Boarding_Action(MOX::cur_ship, &marines_sent, defender_idx);
             Commit_Boarding_Action(attacker_idx, defender_idx, result, marines_sent);
         }
     }

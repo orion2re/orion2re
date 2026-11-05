@@ -6,13 +6,13 @@ namespace rpc {
         std::lock_guard lock(queue->mutex);
         if (error != nullptr) *error = -32006;
         if (queue->stopped) return false;
-        if (request.method == OP_BOARDING_ACK && (queue->report_id.empty() || request.report_id != queue->report_id)) {
+        if (Is_Input_Operation(request.method) && (queue->report_id.empty() || request.report_id != queue->report_id)) {
             if (error != nullptr) *error = -32004;
             return false;
         }
         if (queue->pending.method != OP_NONE) {
-            if (request.method != OP_BOARDING_ACK || !queue->executing ||
-                queue->pending.method == OP_BOARDING_ACK ||
+            if (request.method == OP_MANUAL || !Is_Input_Operation(request.method) || !queue->executing ||
+                Is_Input_Operation(queue->pending.method) ||
                 queue->pending.request.connection != request.request.connection ||
                 queue->acknowledgement.method != OP_NONE) return false;
             queue->acknowledgement = request;
@@ -35,7 +35,7 @@ namespace rpc {
             return true;
         }
         if (queue->stopped || queue->executing || queue->pending.method == OP_NONE) return false;
-        if (report_only && queue->pending.method != OP_BOARDING_ACK) return false;
+        if (report_only && !Is_Input_Operation(queue->pending.method)) return false;
         // Expiry and cancellation race this transition, never native execution.
         if (Monotonic_Ms() >= queue->pending.request.deadline_ms) return false;
         queue->executing = true;

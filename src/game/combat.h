@@ -8,6 +8,9 @@ namespace COMBAT1 {
     struct s_operation;
     enum e_result : int;
 } // namespace COMBAT1
+namespace CMBTDRW1 {
+    struct s_tactical_input;
+}
 
 namespace COMBAT {
     extern uint8_t strategic_xp_bonus;
@@ -193,12 +196,14 @@ namespace COMBAT {
         CLOSED,
         REVOKED,
         SERVICE_READS,
+        SERVICE_INPUT,
         VIEW_INVALIDATED,
         UNIT_SELECTED,
         UNIT_RETIRED,
         RETIRING,
         ATTENTION_REQUIRED,
         ATTENTION_CLEARED,
+        ATTENTION_UPDATED,
         MISSILE_RETIRED,
         BOARDING_RESOLVED,
         BOARDING_REPORT_CLOSED,
@@ -221,6 +226,7 @@ namespace COMBAT {
     void Unsubscribe(uint64_t subscription);
     void Revoke() noexcept;
     void Service_Reads(bool safe = false) noexcept;
+    void Service_Input() noexcept;
     void Invalidate_View() noexcept;
     void Select_Unit(int16_t unit) noexcept;
     void Retire_Unit(int16_t unit) noexcept;
@@ -244,6 +250,7 @@ namespace COMBAT {
     void Append_Hit(const s_hit* hit);
     int16_t Begin_Local_Attention() noexcept;
     void End_Local_Attention(int16_t viewer) noexcept;
+    void Refresh_Local_Attention() noexcept;
     struct s_battle_state {
         int16_t viewer = -1;
         bool initialized = false, opened = false, retiring = false, dirty = false, selection_pending = false;
@@ -254,6 +261,7 @@ namespace COMBAT {
         BOARDING::s_result boarding;
         uint64_t boarding_generation = 0;
         bool boarding_active = false, boarding_timed = false;
+        const CMBTDRW1::s_tactical_input* tactical_input = nullptr;
     };
     void Open_Battle(s_battle_state* battle, int16_t local_observer) noexcept;
     void Close_Battle(s_battle_state* battle, int16_t local_observer) noexcept;

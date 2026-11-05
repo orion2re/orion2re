@@ -1059,7 +1059,7 @@ namespace CMBTFIR2 {
         }
     }
 
-    int16_t __cdecl Init_Boarding_Action(int16_t unit_idx, int16_t* boarding_choice_out) {
+    int16_t __cdecl Init_Boarding_Action(int16_t unit_idx, int16_t* boarding_choice_out, int16_t target) {
         char message_buffer[80];
         int16_t boarding_strength;
 
@@ -1067,7 +1067,11 @@ namespace CMBTFIR2 {
 
         boarding_strength = BOARDING::Maximum_Commitment(unit_idx);
 
-        return CMBTDRW1::Board_Popup(0, boarding_strength, message_buffer, boarding_choice_out);
+        CMBTDRW1::s_board_popup_input input;
+        input.maximum = boarding_strength;
+        input.text = message_buffer;
+        input.target = target;
+        return CMBTDRW1::Board_Popup(&input, boarding_choice_out);
     }
 
     int16_t __cdecl Combat_Ship_Done(int16_t ship_idx) {

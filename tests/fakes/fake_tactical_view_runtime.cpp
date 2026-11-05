@@ -12,7 +12,16 @@ namespace MOX {
     int16_t combat_total_ship_count = 6, combat_attacker_player = 0, combat_defender_player = 1, combat_turn = 0;
     int16_t combat_grid_width = ORIGINAL_COMBAT_GRID_WIDTH, combat_grid_height = ORIGINAL_COMBAT_GRID_HEIGHT;
     uint16_t combat_init = 1;
+    int16_t in_nebula_flag = 0;
 } // namespace MOX
+namespace COMBAT1 {
+    bool Current_Pass_Is_Time_Warp() {
+        return false;
+    }
+    bool Current_Pass_Is_Strict_Wait() {
+        return false;
+    }
+} // namespace COMBAT1
 namespace RUSS {
     int8_t all_ai_game = 0;
 }

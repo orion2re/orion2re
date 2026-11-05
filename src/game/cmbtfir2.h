@@ -156,7 +156,7 @@ namespace CMBTFIR2 {
     void __cdecl Set_Capturing_Flag(int16_t unit_idx);
 
     /** Opens the boarding popup and returns the selected boarding action. */
-    int16_t __cdecl Init_Boarding_Action(int16_t unit_idx, int16_t* boarding_choice_out);
+    int16_t __cdecl Init_Boarding_Action(int16_t unit_idx, int16_t* boarding_choice_out, int16_t target = -1);
 
     void __cdecl Defensive_Fire_Check(int16_t target_idx, int16_t target_x, int16_t target_y, int16_t dest_x, int16_t dest_y);
 

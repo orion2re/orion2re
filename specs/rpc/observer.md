@@ -1,5 +1,10 @@
 # Live read-only tactical observer (`orion2.rpc/0`)
 
+See the [complete tactical workflow](tactical-workflow.md) for additional
+non-consuming inspection and active-input discovery, available to independent
+readers without controller status. Its separate scan authority does not broaden
+ordinary contact rows into dossiers.
+
 This reader contract remains independently usable. Authenticated controller
 connections may additionally use the separately scoped [basic tactical pilot](tactical-control.md);
 observation references alone never grant action authority.

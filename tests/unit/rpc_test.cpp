@@ -35,6 +35,81 @@ namespace {
     }
 } // namespace
 
+DOCTEST_TEST_CASE("complete tactical decision methods retain strict final-operation admission") {
+    const char* methods[] = {"combat.removeStasis", "combat.selfDestruct", "combat.waitSide", "combat.endSideTurn", "combat.setInputMode", "combat.setTacticalOptions", "combat.setAutoCombat", "combat.answerConfirmation", "combat.answerBoardingChoice", "combat.acknowledgeInformation"};
+    const char* extras[] = {",\"targetUnitId\":\"cccccccccccccccccccccccccccccccc\"", "", "", "", ",\"mode\":\"options\"", ",\"option\":\"impactWarning\",\"value\":true", ",\"mode\":\"normal\"", ",\"choice\":\"no\"", ",\"choice\":\"cancel\",\"marines\":0", ""};
+    for (size_t i = 0; i < 10; ++i) {
+        rpc::s_session session;
+        session.authenticated = true;
+        session.events = 7;
+        const bool child = i >= 7;
+        const std::string context = child ? R"("inputId":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")" : R"("actorUnitId":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","decisionId":"dddddddddddddddddddddddddddddddd")";
+        const std::string params = R"("battleId":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","operationSeq":1,)" + context + extras[i];
+        const std::string prefix = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"" + std::string(methods[i]) + "\",\"params\":{";
+        rpc::s_operation_request operation;
+        std::string response;
+        rpc::Process_Request(prefix + params + "}}", KEY, true, &session, &response, nullptr, nullptr, &operation);
+        DOCTEST_CHECK(response.find("-32007") != std::string::npos);
+        session.controller = true;
+        rpc::Process_Request(prefix + params + ",\"force\":true}}", KEY, true, &session, &response, nullptr, nullptr, &operation);
+        DOCTEST_CHECK(response.find("-32602") != std::string::npos);
+        DOCTEST_CHECK(session.operation_sequence == 0);
+        rpc::Process_Request(prefix + params + "}}", KEY, true, &session, &response, nullptr, nullptr, &operation);
+        DOCTEST_CHECK(response.empty());
+        DOCTEST_CHECK(operation.method != rpc::OP_NONE);
+        rpc::Process_Request(prefix + params + "}}", KEY, true, &session, &response, nullptr, nullptr, &operation);
+        DOCTEST_CHECK(response.find("-32012") != std::string::npos);
+    }
+}
+
+DOCTEST_TEST_CASE("concrete tactical answers reuse only the existing same-connection child slot") {
+    rpc::s_operation_queue queue;
+    rpc::s_operation_request parent;
+    parent.method = rpc::OP_SELF_DESTRUCT;
+    parent.request.connection = 7;
+    parent.request.deadline_ms = rpc::Monotonic_Ms() + 2000;
+    DOCTEST_REQUIRE(rpc::Enqueue_Operation(&queue, parent));
+    rpc::s_operation_request taken;
+    DOCTEST_REQUIRE(rpc::Take_Operation(&queue, &taken));
+    rpc::Set_Boarding_Report(&queue, std::string(32, 'a'));
+    rpc::s_operation_request answer;
+    answer.method = rpc::OP_CONFIRMATION;
+    answer.report_id = std::string(32, 'a');
+    answer.request.connection = 8;
+    answer.request.deadline_ms = rpc::Monotonic_Ms() + 2000;
+    DOCTEST_CHECK_FALSE(rpc::Enqueue_Operation(&queue, answer));
+    answer.request.connection = 7;
+    DOCTEST_REQUIRE(rpc::Enqueue_Operation(&queue, answer));
+    DOCTEST_CHECK_FALSE(rpc::Enqueue_Operation(&queue, answer));
+    DOCTEST_REQUIRE(rpc::Take_Operation(&queue, &taken, true));
+    DOCTEST_CHECK(taken.child);
+    rpc::Finish_Operation(&queue, true);
+    DOCTEST_CHECK(queue.executing);
+    DOCTEST_CHECK(queue.pending.method == rpc::OP_SELF_DESTRUCT);
+    rpc::Finish_Operation(&queue);
+    DOCTEST_CHECK_FALSE(queue.executing);
+}
+
+DOCTEST_TEST_CASE("scan output binds the existing decision generation without invalidating ordinary refreshes") {
+    rpc::s_event_queue queue;
+    rpc::Set_Decision_Generation(&queue, 7);
+    rpc::s_pending_event response;
+    response.connection = 1;
+    response.read_epoch = 1;
+    response.decision_generation = 7;
+    response.response = "native scan response";
+    DOCTEST_REQUIRE(rpc::Push_Response(&queue, &response, 1));
+    DOCTEST_REQUIRE(rpc::Push_Event(&queue, rpc::EVENT_COMBAT_SELECTED, std::string(32, 'a')));
+    rpc::Set_Decision_Generation(&queue, 8);
+    auto batch = rpc::Take_Events(&queue);
+    DOCTEST_CHECK(batch.position.read_epoch == 1);
+    DOCTEST_CHECK(batch.position.decision_generation == 8);
+    DOCTEST_CHECK(batch.items[0].decision_generation == 7);
+    DOCTEST_CHECK(batch.items[1].read_epoch == 0); // Null selection has no unit reference to retire at closure.
+    rpc::Release_Event_Batch(&queue, &batch);
+    DOCTEST_CHECK(queue.reserved_response_bytes == 0);
+}
+
 DOCTEST_TEST_CASE("retreat is a strict context-bound mutation and its event uses the existing bounded delivery") {
     rpc::s_session session;
     session.authenticated = session.controller = true;

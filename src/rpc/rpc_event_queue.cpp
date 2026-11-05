@@ -49,11 +49,21 @@ namespace rpc {
         item.response = std::move(detail);
         std::copy(battle_id.begin(), battle_id.end(), item.battle_id.begin());
         std::copy(unit_id.begin(), unit_id.end(), item.unit_id.begin());
-        if (kind == EVENT_COMBAT_SELECTED) item.read_epoch = batch.position.read_epoch;
+        if (kind == EVENT_COMBAT_SELECTED && !unit_id.empty()) item.read_epoch = batch.position.read_epoch;
         return true;
     }
 
     bool Push_Response(s_event_queue* queue, uint64_t connection, uint64_t epoch, uint64_t read_epoch, std::string response, uint64_t selection, std::string encoded_id) {
+        s_pending_event input;
+        input.connection = connection;
+        input.read_epoch = read_epoch;
+        input.response = std::move(response);
+        input.selection = selection;
+        input.encoded_id = std::move(encoded_id);
+        return Push_Response(queue, &input, epoch);
+    }
+
+    bool Push_Response(s_event_queue* queue, s_pending_event* input, uint64_t epoch) {
         std::lock_guard lock(queue->mutex);
         auto& batch = queue->pending;
         if (batch.position.stopped || batch.position.epoch != epoch) return false;
@@ -62,22 +72,22 @@ namespace rpc {
             return false;
         }
         const auto sequence = ++batch.position.sequence;
-        if (batch.count == MAX_PENDING_EVENTS || response.size() > MAX_PENDING_RESPONSE_BYTES - queue->reserved_response_bytes) {
+        if (batch.count == MAX_PENDING_EVENTS || input->response.size() > MAX_PENDING_RESPONSE_BYTES - queue->reserved_response_bytes) {
             Clear_Pending(queue);
             batch.overflow_position = sequence;
             return false;
         }
-        batch.response_bytes += response.size();
-        queue->reserved_response_bytes += response.size();
+        batch.response_bytes += input->response.size();
+        queue->reserved_response_bytes += input->response.size();
         auto& item = batch.items[batch.count++];
-        item = {};
+        item = std::move(*input);
         item.sequence = sequence;
-        item.connection = connection;
-        item.selection = selection;
-        item.encoded_id = std::move(encoded_id);
-        item.read_epoch = read_epoch;
-        item.response = std::move(response);
         return true;
+    }
+
+    void Set_Decision_Generation(s_event_queue* queue, uint64_t generation) {
+        std::lock_guard lock(queue->mutex);
+        queue->pending.position.decision_generation = generation;
     }
 
     void Invalidate_Read_Output(s_event_queue* queue) {

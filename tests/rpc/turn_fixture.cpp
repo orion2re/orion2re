@@ -61,6 +61,8 @@ namespace TEST_TACTICAL_TURN {
                 snprintf(entry, sizeof(entry), "%03d", i);
                 Write_Media(std::string("COMBAT.LBX/") + entry, sprite);
                 if (i < 4) Write_Media(std::string("TEXTBOX.LBX/") + entry, sprite);
+                if (i < 3) Write_Media(std::string("CONFIRM.LBX/") + entry, sprite);
+                if (i == 0) Write_Media(std::string("WARNING.LBX/") + entry, Sprite_For(7));
             }
             std::string messages(4 + 100, '\0');
             unaligned::Store<uint16_t>(messages.data(), 1);
@@ -235,6 +237,31 @@ namespace TEST_TACTICAL_TURN {
         if (single) units[3].stasis_source_idx = 3;
         COMBAT1::Reset_Strict_Combat_Sequence();
         COMBAT1::Add_Tactical_Combat_Fields();
+    }
+
+    void Workflow(int16_t initiative) {
+        Waiting(initiative);
+        MOX::super_fast_flag = 0;
+        players[1].objectives = PLAYER_OBJECTIVE_DIPLOMATIC;
+        units[2].ftl_type = DRIVE_NO_DRIVE;
+        MOX::ai_retreat_flag = 0;
+        CMBTAI::ships_without_ammo_stay = 1;
+        auto* button = reinterpret_cast<s_animation_header*>(boarding_button.data());
+        MOX::self_destruct_seg = MOX::cmbt_option_seg = button;
+        MOX::ship_status_display = 0;
+        MOX::speedx2_flag = MOX::grid_flag = MOX::draw_legal_boxes_flag = MOX::shields_flag = 0;
+        COMBAT1::disable_scan = 0;
+        std::string help(4 + 800 * sizeof(s_help_record), '\0');
+        unaligned::Store<uint16_t>(help.data(), 800);
+        unaligned::Store<uint16_t>(help.data() + 2, sizeof(s_help_record));
+        for (size_t i = 0; i < 800; ++i) {
+            s_help_record record = {};
+            snprintf(record.title, sizeof(record.title), "Synthetic tactical help %zu", i);
+            strlcpy(record.body, "Fixture-owned help text, not commercial media.", sizeof(record.body));
+            std::memcpy(help.data() + 4 + i * sizeof(record), &record, sizeof(record));
+        }
+        Write_Media("HELP.LBX/000", help);
+        MOX::settings.language = 0;
     }
 
     void Withdrawal_Display() {

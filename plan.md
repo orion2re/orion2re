@@ -295,9 +295,12 @@ optional actor-selection events. Native safe points execute bounded pending read
 only owned response bytes and delivery/lifetime metadata cross to libuv. See the
 [observer contract](specs/rpc/observer.md). There is no baseline, state polling,
 cache, pagination or replay. Strategic reads, actions, general contexts and
-tactical effects remain separate work. The [basic tactical pilot](specs/rpc/tactical-control.md)
-adds current authorized choices and select/move/face/current-selection fire/done
-through native owners. Controller status alone never grants native authority.
+tactical effects remain separate work. The [standard tactical workflow](specs/rpc/tactical-workflow.md)
+provides current authorized inspection and the native human decision set through
+normal completion, with an independent reader. Controller status alone never
+grants native authority. Its current provisional wire catalog is maintained in
+`rpc_protocol.cpp` and the RPC contracts; broader canonical schema generation
+remains P0-11, not a prerequisite for tactical decisions.
 
 #### Infrastructure
 
@@ -386,8 +389,8 @@ through native owners. Controller status alone never grants native authority.
   - [x] Deliver one outstanding tactical mutation, a final response, pre-dispatch expiry/cancellation and connection-local sequence duplicate protection. General operation families remain pending.
 - [ ] P2-12 — Implement duplicate protection, partial outcomes and unknown-after-disconnect behavior.
 - [ ] P2-13 — Implement nonrecursive mutations and owner-consumed nested intents.
-  - [x] Consume basic tactical intents only in the native local-human owner, outside observation callbacks; keep native informational dialogs local with explicit attention boundaries.
-  - [x] Consume explicit boarding-result acknowledgements in the initialized native report owner, allowing only one same-connection acknowledgement child while the parent mutation remains executing. Other remote nested decisions remain excluded.
+  - [x] Consume tactical intents only in their actual native input owners, outside observation callbacks, with explicit local input and disconnect-to-local behavior.
+  - [x] Support concrete tactical confirmations, boarding choices, information/detail dismissal and boarding-result acknowledgement through the existing single same-connection child slot. A parent remains executing through native resolution and barriers; no generic modal framework is implied.
 - [ ] P2-14 — Preserve input delays; separate animation observation from decision dispatch.
 - [ ] P2-15 — Map legitimate function/Alt shortcuts semantically; block raw injection/cheats.
 - [ ] P2-16 — Share audited native operations without duplicating rules or authority.
@@ -471,6 +474,7 @@ through native owners. Controller status alone never grants native authority.
 - [ ] P5-03 — Authorize units/ordnance/scan/legal masks without hidden-target oracles.
   - [x] Deliver global current native missile list/detail/target reads, distinct lifetime references and explicit bank selection with the complete firing pilot; see [the firing contract](specs/rpc/tactical-firing.md).
 - [ ] P5-04 — Add scan/noncombat detail/name/board/marine/help/options views.
+  - [x] Deliver non-consuming tactical scan, native-precision condition/status, owned system readiness, contextual help, options and active native input inspection for the standard controller and independent reader. Strategic noncombat detail/name editing and broader UI parity remain separate work.
 - [ ] P5-05 — Implement CCMD_MOVE with native legal cells and viewport/range safety.
   - [x] Move the controllable ship through the shared native operation using settled legal cells, unchanged movement/teleport costs and defensive effects. Broader command/interactive parity remains pending.
 - [ ] P5-06 — Implement CCMD_FIRE with native target/mask/phase/refusal checks.
@@ -480,14 +484,16 @@ through native owners. Controller status alone never grants native authority.
 - [ ] P5-08 — Implement CCMD_FACE with logical coordinates.
   - [x] Face toward logical grid coordinates through native turning, preserving costs and partial rotation. Broader interactive parity remains pending.
 - [ ] P5-09 — Implement CCMD_SELECT with ownership/initiative checks.
-  - [x] Select authorized own functional ship actors only through native classic selection/reinsertion; initiative reselection stays unavailable. Broader interactive parity remains pending.
-- [ ] P5-10 — Implement CCMD_REMOVE_STASIS with eligibility/confirmation.
+  - [x] Select authorized own functional native actors through classic selection/reinsertion; initiative reselection stays unavailable. Broader interactive parity remains pending.
+- [x] P5-10 — Implement CCMD_REMOVE_STASIS with eligibility/confirmation.
 - [ ] P5-11 — Implement CCMD_BOARD, native second step/refusals/marine/raid choices.
-  - [x] Deliver explicit external raid/capture and marine commitment, shared human legality/bounds/commit, detailed authorized native results/events, owner-consumed report acknowledgement and standard-client continuation with an independent reader. Remote slider editing and broader interactive/multiplayer parity remain pending; see [the boarding contract](specs/rpc/tactical-boarding.md).
-- [ ] P5-12 — Implement done/wait/auto/retreat/options and observed opponent waits.
-  - [x] Complete the basic external ship turn with native done/next-actor progression, a runnable controller CLI and independent event-and-pull readers. Auto and interactive/network-session parity remain pending.
+  - [x] Deliver explicit external raid/capture and marine commitment, active native marine/mode/cancel choices, shared human legality/bounds/commit, detailed authorized native results/events, owner-consumed report acknowledgement and standard-client continuation with an independent reader. Marine amounts are explicit values, not remote drag/step gestures; broader interactive/multiplayer parity remains pending. See [boarding](specs/rpc/tactical-boarding.md) and the [complete workflow](specs/rpc/tactical-workflow.md).
+- [x] P5-12 — Implement done/wait/auto/retreat/options and observed opponent waits.
+  - [x] Complete native human tactical turns with deliberate next-actor/pass choices, the standard controller CLI and independent event-and-pull readers. Interactive saved-game/network-session parity remains P5-17/P6 work.
   - [x] P5-12-W1 — Deliver deliberate native ship withdrawal through current options, owner-consumed retreat, pre-dispatch cancellation, pending reads, native outcomes/reference retirement, remaining-actor control and battle closure, with the standard client and independent reader; see [the withdrawal contract](specs/rpc/tactical-withdrawal.md). No started-retreat cancellation, retained withdrawal history or automatic turn advancement is added.
-  - [x] Deliver explicit single-ship Wait through current native availability and actor/decision authority, preserving classic/initiative ordering, strict-wait restrictions and network barriers, with standard-client continuation and independent readers; see [ship control](specs/rpc/tactical-control.md). No side-wait, auto-combat or automatic action selection.
+  - [x] Deliver explicit single-ship Wait through current native availability and actor/decision authority, preserving classic/initiative ordering, strict-wait restrictions and network barriers, with standard-client continuation and independent readers; see [ship control](specs/rpc/tactical-control.md). Wait remains distinct from Side Wait, Done, end-side-turn and native automation.
+  - [x] P5-12-T1 — Deliver the complete observed tactical decision workflow: native-authorized inspection, ship/planet-defense/base actors, stasis/self-destruct confirmations, side controls, explicit auto/manual control, routine native children, continuation and normal closure, with the standard controller and an independent reader; see [the workflow contract](specs/rpc/tactical-workflow.md).
+  - Return-to-manual authority follows the native own-side auto flag across actors; only existing native auto-input checks consume the intent. Tactical child authority follows the actual initialized owner. Both reuse existing handoffs and final responses, with no action-status API, additional queue, receipt store, scanner or retained projection.
 - [ ] P5-13 — Preserve authorized battle results in the game-owned result lifecycle before cleanup; read on demand and revoke on battle/reset/perspective changes.
   - Final-result reads and acknowledgement apply only to reports produced and disclosed by native gameplay/UI. Tactical completion has no native final summary/detail report; do not invent one, reconstruct statistics, or manufacture a result-report owner. Strategic-result browsing remains separate scope.
   - [x] Deliver the approved native active-battle hit report with non-consuming RPC reads, bounded retention, and verified release between combats.

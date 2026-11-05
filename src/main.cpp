@@ -231,6 +231,10 @@ int main(int argc, char** argv) {
     tactical_forwarder.missile = rpc::Read_Tactical_Missile;
     tactical_forwarder.missiles = rpc::Read_Tactical_Missiles;
     tactical_forwarder.authorize_missile = COMBAT::Missile_Disclosed;
+    tactical_forwarder.input = CMBTDRW1::Current_Tactical_Input;
+    tactical_forwarder.scan = CMBTDRW1::Read_Combat_Detail;
+    tactical_forwarder.help = CMBTDRW1::Read_Tactical_Help;
+    tactical_forwarder.condition = CMBTDRW1::Read_Damage_Bars;
     if (rpc::enabled) {
         rpc::s_service_config rpc_config;
         rpc_config.port = rpc::port;

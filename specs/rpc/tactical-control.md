@@ -1,5 +1,8 @@
 # Basic external tactical ship turn (`orion2.rpc/0`)
 
+The [complete tactical decision workflow](tactical-workflow.md) supersedes this
+pilot's remaining actor, scan/options, automation and remote-question exclusions.
+
 The [deliberate firing extension](tactical-firing.md) adds explicit native bank
 selection, missile APIs/targeting and game-owned active-battle hit history. Its
 scope supersedes the corresponding exclusions below; the mutation lifecycle is

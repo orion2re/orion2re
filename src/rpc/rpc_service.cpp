@@ -25,6 +25,7 @@ namespace rpc {
             uint64_t read_epoch = 0;
             uint8_t kind = 0;
             std::array<char, 33> battle_id = {};
+            uint64_t decision_generation = 0;
         };
         struct s_connection {
             lws* socket = nullptr;
@@ -95,9 +96,15 @@ namespace rpc {
                         if (event.selection != 0 && event.selection != connection.read_selection) {
                             Error_Response(event.encoded_id, -32004, "Unavailable").swap(event.response);
                             event.read_epoch = 0;
+                            event.decision_generation = 0;
                         }
+                        s_output output;
+                        output.json = std::move(event.response);
+                        output.read_epoch = event.read_epoch;
+                        output.decision_generation = event.decision_generation;
                         if ((event.read_epoch != 0 && event.read_epoch != batch.position.read_epoch) ||
-                            !Queue_Output(&connection, {std::move(event.response), event.read_epoch})) connection.expired = true;
+                            (event.decision_generation != 0 && event.decision_generation != batch.position.decision_generation) ||
+                            !Queue_Output(&connection, std::move(output))) connection.expired = true;
                     } else if (event.sequence > session.events_after && (session.events & event.kind)) {
                         const char* name = "combat.viewInvalidated";
                         if (event.kind == EVENT_COMBAT_OPENED)
@@ -119,6 +126,7 @@ namespace rpc {
                         if (event.kind == EVENT_COMBAT_RETREAT) json += ",\"unitId\":\"" + std::string(event.unit_id.data()) + "\"," + event.response;
                         if (event.kind == EVENT_COMBAT_ATTENTION || event.kind == EVENT_COMBAT_ATTENTION_CLEARED)
                             json += std::string(",\"required\":") + (event.kind == EVENT_COMBAT_ATTENTION ? "true" : "false");
+                        if ((event.kind == EVENT_COMBAT_ATTENTION || event.kind == EVENT_COMBAT_ATTENTION_CLEARED) && !event.response.empty()) json += ',' + event.response;
                         json += "}}";
                         // Only an adjacent complete unsent hint can be replaced.
                         const bool coalesce = event.kind == EVENT_COMBAT_INVALIDATED && !connection.output.empty() &&
@@ -318,6 +326,7 @@ namespace rpc {
                 if (connection->output.empty()) return connection->session.close_after_output ? Close(socket, LWS_CLOSE_STATUS_POLICY_VIOLATION) : 0;
                 const auto& output = connection->output.front();
                 if (output.read_epoch != 0 && output.read_epoch != position.read_epoch) return Close(socket, LWS_CLOSE_STATUS_POLICY_VIOLATION);
+                if (output.decision_generation != 0 && output.decision_generation != position.decision_generation) return Close(socket, LWS_CLOSE_STATUS_POLICY_VIOLATION);
                 const auto& message = output.json;
                 const size_t count = std::min(size_t(4096), message.size() - connection->output_offset);
                 unsigned char buffer[LWS_PRE + 4096];
@@ -492,6 +501,13 @@ namespace rpc {
         uv_async_send(&state->wake);
     }
 
+    void Set_Decision_Generation(s_service* service, uint64_t generation) {
+        if (service == nullptr || service->state == nullptr) return;
+        auto* state = (s_service_state*)service->state;
+        Set_Decision_Generation(&state->events, generation);
+        uv_async_send(&state->wake);
+    }
+
     void Invalidate_Read_Delivery(s_service* service) {
         if (service == nullptr || service->state == nullptr) return;
         auto* state = (s_service_state*)service->state;
@@ -529,7 +545,14 @@ namespace rpc {
                 dependent = false;
             }
             if (!Finish_Read(&state->reads, request.ticket)) continue;
-            Push_Response(&state->events, request.connection, request.epoch, dependent ? position.read_epoch : 0, std::move(response), request.selection, request.encoded_id);
+            s_pending_event delivery;
+            delivery.connection = request.connection;
+            delivery.read_epoch = dependent ? position.read_epoch : 0;
+            delivery.decision_generation = dependent && (request.method == READ_SCAN || request.method == READ_STATUS) ? position.decision_generation : 0;
+            delivery.response = std::move(response);
+            delivery.selection = request.selection;
+            delivery.encoded_id = request.encoded_id;
+            Push_Response(&state->events, &delivery, request.epoch);
             uv_async_send(&state->wake);
         }
     }

@@ -94,7 +94,7 @@ namespace rpc {
         struct s_method {
             const char* name;
         };
-        constexpr s_method methods[] = {{"rpc.hello"}, {"rpc.describe"}, {"rpc.subscribe"}, {"rpc.unsubscribe"}, {"combat.getView"}, {"combat.getUnit"}, {"combat.getTargetOptions"}, {"combat.selectUnit"}, {"combat.move"}, {"combat.face"}, {"combat.fire"}, {"combat.done"}, {"combat.cancelOperation"}, {"combat.setFireSelection"}, {"combat.listMissiles"}, {"combat.getMissile"}, {"combat.getHitHistory"}, {"combat.board"}, {"combat.acknowledgeBoardingReport"}, {"combat.retreat"}, {"combat.wait"}};
+        constexpr s_method methods[] = {{"rpc.hello"}, {"rpc.describe"}, {"rpc.subscribe"}, {"rpc.unsubscribe"}, {"combat.getView"}, {"combat.getUnit"}, {"combat.getTargetOptions"}, {"combat.selectUnit"}, {"combat.move"}, {"combat.face"}, {"combat.fire"}, {"combat.done"}, {"combat.cancelOperation"}, {"combat.setFireSelection"}, {"combat.listMissiles"}, {"combat.getMissile"}, {"combat.getHitHistory"}, {"combat.board"}, {"combat.acknowledgeBoardingReport"}, {"combat.retreat"}, {"combat.wait"}, {"combat.getScan"}, {"combat.getTacticalHelp"}, {"combat.removeStasis"}, {"combat.selfDestruct"}, {"combat.waitSide"}, {"combat.endSideTurn"}, {"combat.setInputMode"}, {"combat.setTacticalOptions"}, {"combat.setAutoCombat"}, {"combat.answerConfirmation"}, {"combat.answerBoardingChoice"}, {"combat.acknowledgeInformation"}};
 
         bool Reference(yyjson_val* value) {
             if (!yyjson_is_str(value) || yyjson_get_len(value) != 32) return false;
@@ -164,6 +164,11 @@ namespace rpc {
             return result + "]";
         }
     } // namespace
+
+    bool Is_Input_Operation(e_operation_method method) {
+        return method == OP_BOARDING_ACK || method == OP_CONFIRMATION || method == OP_BOARDING_CHOICE ||
+            method == OP_INFORMATION || method == OP_MANUAL;
+    }
 
     std::string Error_Response(std::string_view id, int code, const char* message) {
         return "{\"jsonrpc\":\"2.0\",\"id\":" + std::string(id) + ",\"error\":{\"code\":" +
@@ -251,16 +256,42 @@ namespace rpc {
                 if (selection_updated != nullptr) *selection_updated = true;
                 *response = "{\"jsonrpc\":\"2.0\",\"id\":" + encoded_id + ",\"result\":{\"events\":" + Events_Json(selected) + "}}";
             }
-        } else if (Is_Text(method, "combat.getView") || Is_Text(method, "combat.getUnit") || Is_Text(method, "combat.getTargetOptions") ||
+        } else if (Is_Text(method, "combat.getTacticalHelp")) {
+            auto* battle = yyjson_obj_get(params, "battleId");
+            auto* topic = yyjson_obj_get(params, "topic");
+            // Semantic topics only; never a native help/resource index.
+            const char* topics[] = {"internals", "auto", "scan", "boarding", "retreat", "wait", "done", "selfDestruct", "impactWarning", "doubleSpeed", "legalBoxes", "shieldSectors", "grid", "options", "weapons", "map", "warning"};
+            int16_t selected = -1;
+            for (int16_t i = 0; i < 17; ++i)
+                if (Is_Text(topic, topics[i])) selected = i < 7 ? i : int16_t(i + 3);
+            auto* slot = yyjson_obj_get(params, "slot");
+            if ((Is_Text(topic, "weapon") || Is_Text(topic, "system")) && yyjson_is_uint(slot) && yyjson_get_uint(slot) < 8)
+                selected = int16_t((Is_Text(topic, "weapon") ? 100 : 200) + yyjson_get_uint(slot));
+            if (!Only_Keys(params, {"battleId", "topic", "slot"}) || !Reference(battle) || selected < 0 ||
+                (selected < 100 && slot != nullptr))
+                *response = Error(encoded_id, -32602, "Invalid params");
+            else if ((session->events & 7) != 7)
+                *response = Error(encoded_id, -32008, "Tactical subscription required");
+            else if (read == nullptr)
+                *response = Error(encoded_id, -32004, "Unavailable");
+            else {
+                read->method = READ_HELP;
+                read->battle_id = yyjson_get_str(battle);
+                read->help_topic = selected;
+                read->encoded_id = encoded_id;
+            }
+        } else if (Is_Text(method, "combat.getView") || Is_Text(method, "combat.getUnit") || Is_Text(method, "combat.getScan") || Is_Text(method, "combat.getTargetOptions") ||
             Is_Text(method, "combat.listMissiles") || Is_Text(method, "combat.getMissile") || Is_Text(method, "combat.getHitHistory")) {
-            const bool unit = Is_Text(method, "combat.getUnit");
+            const bool unit = Is_Text(method, "combat.getUnit") || Is_Text(method, "combat.getScan");
+            auto* detail = yyjson_obj_get(params, "detail");
+            const bool status = Is_Text(method, "combat.getUnit") && Is_Text(detail, "status");
             const bool options = Is_Text(method, "combat.getTargetOptions");
             const bool missile = Is_Text(method, "combat.getMissile");
             auto* battle_id = yyjson_obj_get(params, "battleId");
             auto* unit_id = yyjson_obj_get(params, "unitId");
             auto* missile_id = yyjson_obj_get(params, "missileId");
-            const bool valid = unit ? Only_Keys(params, {"battleId", "unitId"}) && Reference(battle_id) && Reference(unit_id) : missile ? Only_Keys(params, {"battleId", "missileId"}) && Reference(battle_id) && Reference(missile_id)
-                                                                                                                                        : (params == nullptr || (Only_Keys(params, {"battleId"}) && (battle_id == nullptr || Reference(battle_id))));
+            const bool valid = unit ? Only_Keys(params, {"battleId", "unitId", "detail"}) && Reference(battle_id) && Reference(unit_id) && (detail == nullptr || status) : missile ? Only_Keys(params, {"battleId", "missileId"}) && Reference(battle_id) && Reference(missile_id)
+                                                                                                                                                                                   : (params == nullptr || (Only_Keys(params, {"battleId"}) && (battle_id == nullptr || Reference(battle_id))));
             if (!valid) {
                 *response = Error(encoded_id, -32602, "Invalid params");
             } else if ((session->events & 7) != 7) {
@@ -270,6 +301,8 @@ namespace rpc {
             } else {
                 read->method = options ? READ_OPTIONS : READ_VIEW;
                 if (unit) read->method = READ_UNIT;
+                if (Is_Text(method, "combat.getScan")) read->method = READ_SCAN;
+                if (status) read->method = READ_STATUS;
                 if (missile) read->method = READ_MISSILE;
                 if (Is_Text(method, "combat.listMissiles")) read->method = READ_MISSILES;
                 if (Is_Text(method, "combat.getHitHistory")) read->method = READ_HITS;
@@ -277,6 +310,68 @@ namespace rpc {
                 if (battle_id != nullptr) read->battle_id = yyjson_get_str(battle_id);
                 if (unit_id != nullptr) read->unit_id = yyjson_get_str(unit_id);
                 if (missile_id != nullptr) read->missile_id = yyjson_get_str(missile_id);
+            }
+        } else if (Is_Text(method, "combat.answerConfirmation") || Is_Text(method, "combat.answerBoardingChoice") ||
+            Is_Text(method, "combat.acknowledgeInformation") || Is_Text(method, "combat.setAutoCombat")) {
+            const bool confirm = Is_Text(method, "combat.answerConfirmation");
+            const bool boarding = Is_Text(method, "combat.answerBoardingChoice");
+            const bool automation = Is_Text(method, "combat.setAutoCombat");
+            auto* battle = yyjson_obj_get(params, "battleId");
+            auto* input_id = yyjson_obj_get(params, "inputId");
+            auto* decision = yyjson_obj_get(params, "decisionId");
+            auto* actor = yyjson_obj_get(params, "actorUnitId");
+            auto* sequence = yyjson_obj_get(params, "operationSeq");
+            auto* choice = yyjson_obj_get(params, "choice");
+            auto* mode = yyjson_obj_get(params, "mode");
+            auto* marines = yyjson_obj_get(params, "marines");
+            const bool manual = automation && Is_Text(mode, "manual");
+            bool valid = Reference(battle) && yyjson_is_uint(sequence) && yyjson_get_uint(sequence) > 0 && yyjson_get_uint(sequence) <= 9007199254740991ULL;
+            if (automation && !manual)
+                valid = valid && Only_Keys(params, {"battleId", "actorUnitId", "decisionId", "operationSeq", "mode"}) && yyjson_obj_size(params) == 5 &&
+                    Reference(actor) && Reference(decision) && (Is_Text(mode, "normal") || Is_Text(mode, "superFast"));
+            else {
+                valid = valid && Reference(input_id);
+                if (confirm)
+                    valid = valid && Only_Keys(params, {"battleId", "inputId", "operationSeq", "choice"}) && yyjson_obj_size(params) == 4 && (Is_Text(choice, "yes") || Is_Text(choice, "no"));
+                else if (boarding)
+                    valid = valid && Only_Keys(params, {"battleId", "inputId", "operationSeq", "choice", "marines"}) && yyjson_obj_size(params) == 5 &&
+                        (Is_Text(choice, "raid") || Is_Text(choice, "capture") || Is_Text(choice, "cancel")) && yyjson_is_uint(marines) && yyjson_get_uint(marines) <= 128;
+                else if (manual)
+                    valid = valid && Only_Keys(params, {"battleId", "inputId", "operationSeq", "mode"}) && yyjson_obj_size(params) == 4;
+                else
+                    valid = valid && Only_Keys(params, {"battleId", "inputId", "operationSeq"}) && yyjson_obj_size(params) == 3;
+            }
+            if (!valid)
+                *response = Error(encoded_id, -32602, "Invalid params");
+            else if (!session->controller)
+                *response = Error(encoded_id, -32007, "Controller required");
+            else if ((session->events & 7) != 7)
+                *response = Error(encoded_id, -32008, "Tactical subscription required");
+            else if (yyjson_get_uint(sequence) <= session->operation_sequence)
+                *response = Error(encoded_id, -32012, "Duplicate operation");
+            else if (operation == nullptr)
+                *response = Error(encoded_id, -32004, "Unavailable");
+            else {
+                operation->request.battle_id = yyjson_get_str(battle);
+                operation->request.encoded_id = encoded_id;
+                operation->sequence = session->operation_sequence = yyjson_get_uint(sequence);
+                if (automation && !manual) {
+                    operation->method = OP_AUTO_COMBAT;
+                    operation->actor_id = yyjson_get_str(actor);
+                    operation->decision_id = yyjson_get_str(decision);
+                    operation->value = Is_Text(mode, "superFast") ? 2 : 1;
+                } else {
+                    operation->report_id = yyjson_get_str(input_id);
+                    operation->method = confirm ? OP_CONFIRMATION : boarding ? OP_BOARDING_CHOICE
+                        : manual                                             ? OP_MANUAL
+                                                                             : OP_INFORMATION;
+                    operation->value = Is_Text(choice, "yes") ? 1 : 0;
+                    if (boarding) {
+                        operation->boarding_mode = Is_Text(choice, "raid") ? 1 : Is_Text(choice, "capture") ? 2
+                                                                                                            : 0;
+                        operation->marines = int16_t(yyjson_get_uint(marines));
+                    }
+                }
             }
         } else if (Is_Text(method, "combat.board") || Is_Text(method, "combat.acknowledgeBoardingReport")) {
             const bool ack = Is_Text(method, "combat.acknowledgeBoardingReport");
@@ -316,10 +411,14 @@ namespace rpc {
                 }
             }
         } else if (Is_Text(method, "combat.selectUnit") || Is_Text(method, "combat.move") || Is_Text(method, "combat.face") ||
-            Is_Text(method, "combat.fire") || Is_Text(method, "combat.done") || Is_Text(method, "combat.wait") || Is_Text(method, "combat.retreat") || Is_Text(method, "combat.cancelOperation") || Is_Text(method, "combat.setFireSelection")) {
+            Is_Text(method, "combat.fire") || Is_Text(method, "combat.done") || Is_Text(method, "combat.wait") || Is_Text(method, "combat.retreat") || Is_Text(method, "combat.cancelOperation") || Is_Text(method, "combat.setFireSelection") ||
+            Is_Text(method, "combat.removeStasis") || Is_Text(method, "combat.selfDestruct") || Is_Text(method, "combat.waitSide") || Is_Text(method, "combat.endSideTurn") || Is_Text(method, "combat.setInputMode") || Is_Text(method, "combat.setTacticalOptions")) {
             const bool cancel = Is_Text(method, "combat.cancelOperation");
             const bool select = Is_Text(method, "combat.selectUnit");
             const bool fire = Is_Text(method, "combat.fire");
+            const bool stasis = Is_Text(method, "combat.removeStasis");
+            const bool input_mode = Is_Text(method, "combat.setInputMode");
+            const bool tactical_option = Is_Text(method, "combat.setTacticalOptions");
             const bool move = Is_Text(method, "combat.move");
             const bool face = Is_Text(method, "combat.face");
             const bool selection = Is_Text(method, "combat.setFireSelection");
@@ -330,16 +429,33 @@ namespace rpc {
             auto* target = yyjson_obj_get(params, select ? "unitId" : "targetUnitId");
             auto* missile_target = yyjson_obj_get(params, "targetMissileId");
             auto* banks = yyjson_obj_get(params, "banks");
+            auto* mode = yyjson_obj_get(params, "mode");
+            auto* option = yyjson_obj_get(params, "option");
+            auto* value = yyjson_obj_get(params, "value");
+            int16_t mode_index = -1, option_index = -1;
+            const char* modes[] = {"orders", "scan", "boarding", "options"};
+            const char* option_names[] = {"impactWarning", "doubleSpeed", "legalBoxes", "shieldSectors", "grid", "cycleWarning"};
+            for (int16_t i = 0; i < 4; ++i)
+                if (Is_Text(mode, modes[i])) mode_index = i;
+            for (int16_t i = 0; i < 6; ++i)
+                if (Is_Text(option, option_names[i])) option_index = i;
             uint8_t bank_mask = 0;
             int8_t bank_states[8] = {};
             auto* point = yyjson_obj_get(params, move ? "destination" : "toward");
             auto* x = yyjson_obj_get(point, "x");
             auto* y = yyjson_obj_get(point, "y");
             const bool valid_sequence = yyjson_is_uint(sequence) && yyjson_get_uint(sequence) > 0 && yyjson_get_uint(sequence) <= 9007199254740991ULL;
-            bool valid = cancel ? Only_Keys(params, {"operationSeq"}) : Only_Keys(params, {"battleId", "actorUnitId", "decisionId", "operationSeq", "unitId", "targetUnitId", "targetMissileId", "destination", "toward", "banks"}) && Reference(battle) && Reference(actor) && Reference(decision);
+            bool valid = cancel ? Only_Keys(params, {"operationSeq"}) : Only_Keys(params, {"battleId", "actorUnitId", "decisionId", "operationSeq", "unitId", "targetUnitId", "targetMissileId", "destination", "toward", "banks", "mode", "option", "value"}) && Reference(battle) && Reference(actor) && Reference(decision);
             if (!cancel) {
-                valid = valid && yyjson_obj_size(params) == size_t(select || fire || move || face || selection ? 5 : 4);
-                if (selection) {
+                valid = valid && yyjson_obj_size(params) == size_t(tactical_option ? 6 : select || fire || stasis || move || face || selection || input_mode ? 5
+                                                                                                                                                             : 4);
+                if (input_mode)
+                    valid = valid && mode_index >= 0;
+                else if (tactical_option)
+                    valid = valid && option_index >= 0 && yyjson_is_bool(value) && (option_index != 5 || yyjson_get_bool(value));
+                else if (stasis)
+                    valid = valid && Reference(target);
+                else if (selection) {
                     valid = valid && yyjson_is_arr(banks) && yyjson_arr_size(banks) > 0 && yyjson_arr_size(banks) <= 8;
                     size_t index, count;
                     yyjson_val* bank;
@@ -383,6 +499,12 @@ namespace rpc {
                 operation->method = OP_DONE;
                 if (Is_Text(method, "combat.retreat")) operation->method = OP_RETREAT;
                 if (Is_Text(method, "combat.wait")) operation->method = OP_WAIT;
+                if (stasis) operation->method = OP_REMOVE_STASIS;
+                if (Is_Text(method, "combat.selfDestruct")) operation->method = OP_SELF_DESTRUCT;
+                if (Is_Text(method, "combat.waitSide")) operation->method = OP_SIDE_WAIT;
+                if (Is_Text(method, "combat.endSideTurn")) operation->method = OP_END_SIDE;
+                if (input_mode) operation->method = OP_INPUT_MODE;
+                if (tactical_option) operation->method = OP_TACTICAL_OPTION;
                 if (cancel) operation->method = OP_CANCEL;
                 if (select) operation->method = OP_SELECT;
                 if (move) operation->method = OP_MOVE;
@@ -396,7 +518,10 @@ namespace rpc {
                     operation->request.battle_id = yyjson_get_str(battle);
                     operation->actor_id = yyjson_get_str(actor);
                     operation->decision_id = yyjson_get_str(decision);
-                    if (select || fire) operation->target_id = yyjson_get_str(missile_target != nullptr && fire ? missile_target : target);
+                    if (select || fire || stasis) operation->target_id = yyjson_get_str(missile_target != nullptr && fire ? missile_target : target);
+                    operation->value = input_mode ? mode_index : yyjson_get_bool(value) ? 1
+                                                                                        : 0;
+                    operation->option = option_index;
                     operation->missile_target = fire && missile_target != nullptr;
                     operation->bank_mask = bank_mask;
                     for (unsigned i = 0; i < 8; ++i) operation->bank_states[i] = bank_states[i];

@@ -30,6 +30,8 @@ namespace rpc {
     };
     struct s_view {
         bool observed = false, local_attacker = false, initiative = false;
+        bool time_warp = false, strict_wait = false, nebula = false;
+        int16_t sequence_mode = 0;
         int32_t round = 0;
         int16_t width = 0, height = 0, selected = -1;
         std::vector<s_unit> units;
@@ -38,6 +40,8 @@ namespace rpc {
         int16_t slot = -1, x = 0, y = 0, quantity = 0, type = 0;
         bool owned = false;
         char name[80] = {};
+        char target_name[80] = {};
+        bool target_disclosed = false;
     };
     struct s_reader {
         int16_t (*observer)() = nullptr;

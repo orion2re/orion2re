@@ -946,6 +946,7 @@ namespace CMBTMOV1 {
                     int16_t player_idx = message->viewport_x;
                     if (player_idx < 0 || player_idx >= 2) break;
                     MOX::auto_combat_flag[player_idx] = 0;
+                    CMBTAI::Refresh_Auto_Control_Input();
 
                     if (MOX::cur_ship < 0 || MOX::cur_ship >= MOX::combat_total_ship_count) break;
                     if (MOX::combat_data[MOX::cur_ship].owner == MOX::combat_attacker_player) {

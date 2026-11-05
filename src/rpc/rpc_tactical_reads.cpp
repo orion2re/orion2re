@@ -66,6 +66,7 @@ namespace rpc {
         }
         std::string Name_Json(const char* name) {
             std::string utf8;
+            if (name == nullptr) return "\"\"";
             config::Decode_Cp850_To_Utf8(name, std::strlen(name), &utf8);
             auto* doc = yyjson_mut_doc_new(nullptr);
             auto* value = yyjson_mut_strn(doc, utf8.data(), utf8.size());
@@ -98,7 +99,8 @@ namespace rpc {
                                                                                  : "missile";
             return "{\"missileId\":\"" + token + "\",\"kind\":\"" + kind + "\",\"name\":" + Name_Json(missile.name) +
                 ",\"owned\":" + (missile.owned ? "true" : "false") + ",\"quantity\":" + std::to_string(missile.quantity) +
-                ",\"position\":{\"x\":" + std::to_string(missile.x) + ",\"y\":" + std::to_string(missile.y) + "}}";
+                ",\"position\":{\"x\":" + std::to_string(missile.x) + ",\"y\":" + std::to_string(missile.y) + "}" +
+                (missile.target_disclosed ? ",\"targetName\":" + Name_Json(missile.target_name) : "") + "}";
         }
 
         std::string Row(const s_unit* unit, const std::string& token, bool detail) {
@@ -124,6 +126,36 @@ namespace rpc {
             return json + "}";
         }
     } // namespace
+
+    std::string Tactical_Input_Json(s_tactical_forwarder* forwarder) {
+        const auto* input = forwarder->input != nullptr ? forwarder->input() : nullptr;
+        if (forwarder->input_retired || forwarder->viewer < 0 || forwarder->reader.observer == nullptr || forwarder->reader.observer() != forwarder->viewer) return "null";
+        if (input == nullptr) {
+            if (!BOARDING::Boarding_Report_Active() || forwarder->report_id.empty()) return "null";
+            return "{\"kind\":\"boardingReport\",\"report\":" + Boarding_Result_Json(BOARDING::Boarding_Result(), forwarder->report_id) + "}";
+        }
+        if (input->kind == CMBTDRW1::RETURN_TO_MANUAL) {
+            if (forwarder->manual_id.empty()) forwarder->manual_id = Random_Token();
+            if (forwarder->manual_id.empty()) return "null";
+            Open_Boarding_Report(forwarder->service, forwarder->manual_id);
+            return "{\"kind\":\"returnToManual\",\"inputId\":\"" + forwarder->manual_id + "\"}";
+        }
+        if (forwarder->decision_generation != Control_Generation() || forwarder->decision_id.empty()) {
+            forwarder->decision_generation = Control_Generation();
+            forwarder->decision_id = Random_Token();
+        }
+        if (forwarder->decision_id.empty()) return "null";
+        Open_Boarding_Report(forwarder->service, forwarder->decision_id);
+        const char* kinds[] = {"none", "stasisConfirmation", "selfDestructConfirmation", "boardingChoice", "information", "detail", "returnToManual"};
+        std::string result = "{\"kind\":\"" + std::string(kinds[input->kind]) + "\",\"inputId\":\"" + forwarder->decision_id + "\"";
+        if (input->text != nullptr) result += ",\"text\":" + Name_Json(input->text);
+        if (input->kind == CMBTDRW1::BOARDING_CHOICE) {
+            result += ",\"minimumMarines\":" + std::to_string(input->minimum) + ",\"maximumMarines\":" + std::to_string(input->maximum) +
+                ",\"marines\":" + std::to_string(input->value) + ",\"choices\":[\"raid\",\"capture\",\"cancel\"]";
+        } else if (input->kind == CMBTDRW1::STASIS_CONFIRMATION || input->kind == CMBTDRW1::DESTRUCT_CONFIRMATION)
+            result += ",\"choices\":[\"yes\",\"no\"]";
+        return result + "}";
+    }
 
     std::string Boarding_Result_Json(const BOARDING::s_result* result, std::string_view report_id) {
         if (result == nullptr || !result->available) return "null";
@@ -159,9 +191,60 @@ namespace rpc {
         const bool active = forwarder->battle_id[0] != '\0' && !forwarder->retiring;
         if (!request->battle_id.empty() && (!active || request->battle_id != forwarder->battle_id)) return Unavailable(request);
         std::string result;
+        if (active && !COMBAT::Reads_Allowed()) {
+            if (request->method != READ_OPTIONS) return Error_Response(request->encoded_id, -32006, "Busy");
+            *dependent = true;
+            result = "{\"battleId\":\"" + std::string(forwarder->battle_id) + "\",\"control\":{\"available\":false,\"reason\":\"noNativeControl\"},\"input\":" + Tactical_Input_Json(forwarder) + "}";
+            return "{\"jsonrpc\":\"2.0\",\"id\":" + request->encoded_id + ",\"result\":" + result + "}";
+        }
         if (!active) {
             if (request->method != READ_VIEW) return Unavailable(request);
             result = "{\"battle\":null}";
+        } else if (request->method == READ_SCAN) {
+            int16_t slot = -1;
+            for (const auto& reference : forwarder->references)
+                if (request->unit_id == reference.token.data()) slot = reference.slot;
+            CMBTDRW1::s_combat_detail detail;
+            if (forwarder->scan == nullptr || !forwarder->scan(slot, &detail)) return Unavailable(request);
+            result = "{\"battleId\":\"" + std::string(forwarder->battle_id) + "\",\"scan\":{\"name\":" + Name_Json(detail.name) +
+                ",\"attack\":" + std::to_string(detail.attack) + ",\"defense\":" + std::to_string(detail.defense) + ",\"missileEvadePercent\":" + std::to_string(detail.evade) +
+                ",\"captured\":" + (detail.captured ? "true" : "false") + ",\"speed\":" + std::to_string(detail.speed) +
+                ",\"structure\":" + std::to_string(detail.structure) + ",\"structureMaximum\":" + std::to_string(detail.structure_max);
+            if (detail.crew >= 0) result += ",\"crewQuality\":" + std::to_string(detail.crew);
+            if (detail.marines >= 0) result += ",\"marines\":" + std::to_string(detail.marines);
+            if (!detail.monster) {
+                result += ",\"armorName\":" + Name_Json(detail.armor_name) + ",\"shieldName\":" + Name_Json(detail.shield_name) +
+                    ",\"computerBonus\":" + std::to_string(detail.computer_bonus) + ",\"shieldStrength\":" + std::to_string(detail.shield_strength);
+                if (!detail.planet) result += ",\"armor\":" + std::to_string(detail.armor) + ",\"armorMaximum\":" + std::to_string(detail.armor_max);
+                if (detail.subsystem_hits_available) {
+                    result += ",\"computerHits\":" + std::to_string(detail.computer) + ",\"computerMaximum\":" + std::to_string(detail.computer_max) +
+                        ",\"shieldStrengthMaximum\":" + std::to_string(detail.shield_strength_max);
+                    if (detail.shield_hits_available)
+                        result += ",\"shieldHits\":" + std::to_string(detail.shield) + ",\"shieldMaximum\":" + std::to_string(detail.shield_max);
+                }
+                if (detail.drive_hits_available) result += ",\"warpSpeed\":" + std::to_string(detail.warp_speed) + ",\"driveHits\":" + std::to_string(detail.drive) + ",\"driveMaximum\":" + std::to_string(detail.drive_max);
+            }
+            result += ",\"weapons\":[";
+            for (size_t i = 0; i < detail.weapons.size(); ++i) {
+                const auto* weapon = &detail.weapons[i];
+                if (i) result += ',';
+                result += "{\"slot\":" + std::to_string(weapon->slot) + ",\"name\":" + Name_Json(weapon->name) +
+                    ",\"type\":" + std::to_string(weapon->type) + ",\"count\":" + std::to_string(weapon->count) +
+                    ",\"ammoOrRecharge\":" + std::to_string(weapon->ammo) + ",\"arc\":" + std::to_string(weapon->arc) + ",\"modifiers\":" + std::to_string(weapon->modifiers) + "}";
+            }
+            result += "],\"systems\":[";
+            for (size_t i = 0; i < detail.systems.size(); ++i) {
+                if (i) result += ',';
+                const auto* system = &detail.systems[i];
+                result += "{\"name\":" + Name_Json(system->name) + ",\"damaged\":" + (system->damaged ? "true" : "false") + "}";
+            }
+            result += "]}}";
+            *dependent = true;
+        } else if (request->method == READ_HELP) {
+            std::string text;
+            if (forwarder->help == nullptr || !forwarder->help(request->help_topic, &text)) return Unavailable(request);
+            result = "{\"battleId\":\"" + std::string(forwarder->battle_id) + "\",\"text\":" + Name_Json(text.c_str()) + "}";
+            *dependent = true;
         } else if (request->method == READ_HITS) {
             s_hit_history history;
             if (!Read_Hit_History(&history)) return Unavailable(request);
@@ -214,7 +297,10 @@ namespace rpc {
             *dependent = true;
             result = "{\"battleId\":\"" + std::string(forwarder->battle_id) + "\",\"control\":{\"available\":" + (options.available ? "true" : "false");
             if (!options.available) {
-                result += ",\"reason\":\"noNativeControl\"}}";
+                result += ",\"reason\":\"noNativeControl\"}";
+                const auto input = Tactical_Input_Json(forwarder);
+                if (input != "null") result += ",\"input\":" + input;
+                result += "}";
             } else {
                 if (forwarder->decision_generation != options.generation || forwarder->decision_id.empty()) {
                     forwarder->decision_id = Random_Token();
@@ -247,7 +333,7 @@ namespace rpc {
                     if (i) result += ',';
                     result += "{\"x\":" + std::to_string(cell.x) + ",\"y\":" + std::to_string(cell.y) + ",\"nominalCost\":" + std::to_string(cell.cost) + "}";
                 }
-                result += "]},\"facing\":{\"available\":" + std::string(options.movement > 0 ? "true" : "false") +
+                result += "]},\"facing\":{\"available\":" + std::string(options.movement > 0 && options.mode != 3 ? "true" : "false") +
                     ",\"turnCost\":" + std::to_string(options.turn_cost) + ",\"movementRemaining\":" + std::to_string(options.movement) + "},\"targets\":[";
                 std::vector<std::string> targets;
                 for (const auto& target : options.targets) {
@@ -301,12 +387,41 @@ namespace rpc {
                     if (i) result += ',';
                     result += "\"" + boarding_targets[i] + "\"";
                 }
-                result += "]},\"retreat\":{\"available\":" + std::string(options.retreat_refusal == 0 ? "true" : "false") +
+                result += "]},\"mode\":\"" + std::string(options.mode == 3 ? "options" : options.mode == 2 ? "boarding"
+                                                     : options.mode == 1                                   ? "scan"
+                                                                                                           : "orders") +
+                    "\",\"canWaitSide\":" + (options.can_side_wait ? "true" : "false") + ",\"canEndSideTurn\":" + (options.mode != 3 ? "true" : "false") +
+                    ",\"canSelfDestruct\":" + (options.can_destruct ? "true" : "false") + ",\"canSuperFast\":" + (options.can_super_fast ? "true" : "false") +
+                    ",\"scanEnabled\":" + (options.scan_enabled ? "true" : "false") + ",\"canAutoCombat\":" + (options.can_auto ? "true" : "false") +
+                    ",\"canEnterBoarding\":" + (options.already_boarded ? "false" : "true") +
+                    ",\"missileWarning\":" + std::to_string(options.warning) + ",\"tacticalOptions\":{";
+                const char* option_names[] = {"impactWarning", "doubleSpeed", "legalBoxes", "shieldSectors", "grid"};
+                for (size_t i = 0; i < 5; ++i) {
+                    if (i) result += ',';
+                    result += "\"" + std::string(option_names[i]) + "\":" + (options.tactical_options[i] ? "true" : "false");
+                }
+                result += "},\"systems\":[";
+                for (size_t i = 0; i < options.systems.size(); ++i) {
+                    if (i) result += ',';
+                    const auto* system = &options.systems[i];
+                    result += "{\"name\":" + Name_Json(system->name) + ",\"damaged\":" + (system->damaged ? "true" : "false");
+                    if (system->active >= 0) result += ",\"active\":" + std::string(system->active ? "true" : "false");
+                    result += "}";
+                }
+                result += "],\"stasisTargetUnitIds\":[";
+                std::vector<std::string> stasis_targets;
+                for (int16_t slot : options.stasis_targets) stasis_targets.push_back(Unit_Token(forwarder, slot));
+                std::sort(stasis_targets.begin(), stasis_targets.end());
+                for (size_t i = 0; i < stasis_targets.size(); ++i) {
+                    if (i) result += ',';
+                    result += "\"" + stasis_targets[i] + "\"";
+                }
+                result += "],\"retreat\":{\"available\":" + std::string(options.retreat_refusal == 0 && options.mode != 3 ? "true" : "false") +
                     ",\"reason\":" + (options.retreat_refusal == 0 ? "null" : options.retreat_refusal == 79 ? "\"noSpeed\""
                                                                                                             : "\"retreatPrevented\"") +
-                    "},\"canWait\":" + (options.can_wait ? "true" : "false") + ",\"canDone\":true}";
+                    "},\"canWait\":" + (options.can_wait ? "true" : "false") + ",\"canDone\":" + (options.mode != 3 ? "true" : "false") + "}";
             }
-        } else if (request->method == READ_UNIT) {
+        } else if (request->method == READ_UNIT || request->method == READ_STATUS) {
             s_unit unit;
             bool found = false;
             for (const auto& reference : forwarder->references) {
@@ -315,7 +430,23 @@ namespace rpc {
                 break;
             }
             if (!found) return Unavailable(request);
-            result = "{\"battleId\":\"" + std::string(forwarder->battle_id) + "\",\"unit\":" + Row(&unit, request->unit_id, true) + "}";
+            auto row = Row(&unit, request->unit_id, true);
+            if (request->method == READ_STATUS) {
+                CMBTDRW1::s_damage_bars bars;
+                if (forwarder->condition == nullptr || !forwarder->condition(unit.slot, &bars)) return Unavailable(request);
+                row.pop_back();
+                row += ",\"condition\":{\"barHalfWidth\":44";
+                if (bars.presentation) {
+                    const char* effects[] = {"none", "phased", "stasis", "plasmaWeb", "blackHole", "absorber"};
+                    row += ",\"darkened\":" + std::string(bars.darkened ? "true" : "false") + ",\"officerPresent\":" + (bars.officer ? "true" : "false") +
+                        ",\"visibleEffect\":\"" + effects[bars.effect] + "\"";
+                }
+                if (bars.armor >= 0) row += ",\"armorDamagePixels\":" + std::to_string(bars.armor);
+                if (bars.structure >= 0) row += ",\"structureDamagePixels\":" + std::to_string(bars.structure);
+                if (bars.internals >= 0) row += ",\"internalDamagePixels\":" + std::to_string(bars.internals);
+                row += "}}";
+            }
+            result = "{\"battleId\":\"" + std::string(forwarder->battle_id) + "\",\"unit\":" + row + "}";
             *dependent = true;
         } else {
             s_view view;
@@ -331,6 +462,10 @@ namespace rpc {
             std::sort(rows.begin(), rows.end(), Row_Precedes);
             result = "{\"battle\":{\"battleId\":\"" + std::string(forwarder->battle_id) + "\",\"localSide\":\"" + (view.local_attacker ? "attacker" : "defender") +
                 "\",\"round\":" + std::to_string(view.round) + ",\"initiative\":" + (view.initiative ? "true" : "false") +
+                ",\"sequenceMode\":\"" + (view.sequence_mode == 2 ? "strict" : view.sequence_mode == 1 ? "initiative"
+                                                                                                       : "classic") +
+                "\",\"pass\":\"" + (view.time_warp ? "timeWarp" : "normal") + "\",\"strictWaitStage\":" + (view.strict_wait ? "true" : "false") +
+                ",\"inNebula\":" + (view.nebula ? "true" : "false") +
                 ",\"grid\":{\"width\":" + std::to_string(view.width) + ",\"height\":" + std::to_string(view.height) +
                 "},\"selectedUnitId\":" + (selected.empty() ? "null" : "\"" + selected + "\"") +
                 ",\"visibleUnitCount\":" + std::to_string(rows.size()) + ",\"units\":[";

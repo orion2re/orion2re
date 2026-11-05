@@ -1,4 +1,10 @@
-# Optional local RPC and tactical pilot
+# Optional local RPC and tactical decision workflow
+
+The [complete observed tactical workflow](tactical-workflow.md) is the standard
+controller/independent-reader entry point. It covers inspection, native commands,
+explicit questions/options, native continuation and normal closure. The earlier
+contracts below remain the detailed sources for existing operations; their
+superseded pilot exclusions are not current capability restrictions.
 
 The listener uses libwebsockets v4.5.4 with the existing pinned project libuv.
 The exact backend revision, source URL, license and build options are in
@@ -15,6 +21,7 @@ cmake -S . -B out/build/rpc-debug -DCMAKE_BUILD_TYPE=Debug \
   -DORION2RE_BUILD_TESTS=ON -DORION2RE_ENABLE_RPC=ON \
   -DORION2RE_RPC_BACKEND_DIR=/path/to/libwebsockets
 cmake --build out/build/rpc-debug --target orion2re test_rpc test_tactical_control \
+  rpc-test-server rpc-native-test-server rpc-turn-test-server \
   test_tactical_events test_tactical_view test_combat_stats test_combat_repair \
   test_cmbtfire test_boarding test_absorber_cleanup test_cmbtspec test_missile_defense \
   test_stasis_area_effects test_shield_table test_config_snapshot \

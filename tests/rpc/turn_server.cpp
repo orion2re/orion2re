@@ -20,6 +20,10 @@ int main() {
     forwarder.missile = rpc::Read_Tactical_Missile;
     forwarder.missiles = rpc::Read_Tactical_Missiles;
     forwarder.authorize_missile = COMBAT::Missile_Disclosed;
+    forwarder.input = CMBTDRW1::Current_Tactical_Input;
+    forwarder.scan = CMBTDRW1::Read_Combat_Detail;
+    forwarder.help = CMBTDRW1::Read_Tactical_Help;
+    forwarder.condition = CMBTDRW1::Read_Damage_Bars;
     if (!rpc::Subscribe_Tactical_Events(&forwarder, &service)) return 1;
     std::cout << rpc::Service_Port(&service) << std::endl;
     COMBAT::s_battle_state battle;
@@ -38,7 +42,7 @@ int main() {
             COMBAT::Open_Control_Decision(1);
         } else if (command == "poll") {
             if (fields::input_delay > 0) fields::Get_Input();
-            if (battle.initialized && MOX::cur_ship > 0 && fields::input_delay <= 0)
+            if (battle.initialized && MOX::cur_ship >= 0 && fields::input_delay <= 0)
                 COMBAT::Open_Control_Decision(MOX::cur_ship);
             else
                 COMBAT::Close_Control_Decision();
@@ -55,6 +59,61 @@ int main() {
         } else if (command == "wait-turn") {
             COMBAT1::Do_Combat_Turn(0, 0);
             fields::Deactivate_Auto_Function();
+        } else if (command == "workflow-classic" || command == "workflow-initiative" || command == "workflow-strict") {
+            TEST_TACTICAL_TURN::Workflow(command == "workflow-strict" ? 2 : command == "workflow-initiative" ? 1
+                                                                                                             : 0);
+        } else if (command == "workflow-rounds") {
+            COMBINIT::Run_Tactical_Combat_Rounds(0, 1, 0);
+            COMBAT::End_Pending_Retreats();
+            COMBAT::Retire_Battle();
+            COMBAT::Close_Battle(&battle, 0);
+            COMBAT::Release_Battle(&battle);
+            fields::Deactivate_Auto_Function();
+        } else if (command == "native-information") {
+            CMBTDRW1::Show_Absorber_Overload_Warning();
+        } else if (command == "native-choice") {
+            COMBAT1::Initiate_Boarding_Action(1, 2);
+        } else if (command == "native-auto") {
+            CMBTAI::Do_Auto_Ship_Turn();
+        } else if (command == "automation") {
+            TEST_TACTICAL_TURN::Workflow();
+            // Fixture-owned passive combatants let native auto checks recur without a capture race.
+            for (int16_t i = 1; i < 4; ++i) {
+                auto* unit = &MOX::combat_data[i];
+                unit->marine_count = 0;
+                unit->ftl_type = DRIVE_NO_DRIVE;
+                unit->current_speed = unit->movement_left = unit->combat_speed_base = 0;
+                std::fill_n(unit->weapons, 8, s_combat_weapon_slot{});
+            }
+            COMBAT1::Assign_Combat_Grids(1);
+        } else if (command == "defenses") {
+            static s_colony colony;
+            static s_planet_data planet;
+            colony = {};
+            planet = {};
+            colony.buildings[BUILDING_MISSILE_BASE] = 1;
+            MOX::colony = &colony;
+            MOX::planet = &planet;
+            MOX::cmbt_colony_id = 0;
+            MOX::combat_data[0] = MOX::combat_data[1];
+            auto* defense = &MOX::combat_data[0];
+            defense->ship_idx = -1;
+            defense->ftl_type = DRIVE_NO_DRIVE;
+            defense->current_speed = defense->movement_left = defense->combat_speed_base = 0;
+            defense->x = 40;
+            defense->marine_count = 255;
+            strlcpy(defense->name, "Fixture planet defenses", sizeof(defense->name));
+            MOX::combat_data[3].ship_idx = -1;
+            MOX::combat_data[3].ftl_type = DRIVE_NO_DRIVE;
+            MOX::combat_data[3].current_speed = MOX::combat_data[3].movement_left = MOX::combat_data[3].combat_speed_base = 0;
+            strlcpy(MOX::combat_data[3].name, "Fixture starbase", sizeof(MOX::combat_data[3].name));
+            MOX::cur_ship = MOX::cur_ptr = 0;
+            MOX::ship_turn_order[0] = 0;
+            MOX::ship_turn_order[1] = 3;
+            MOX::ship_turn_order[2] = -10;
+            COMBAT1::Assign_Combat_Grids(0);
+            COMBAT::Select_Unit(0);
+            COMBAT::Open_Control_Decision(0);
         } else if (command == "withdrawal-phase") {
             TEST_TACTICAL_TURN::Withdrawal_Display();
             MOX::super_fast_flag = 1;
@@ -157,7 +216,10 @@ int main() {
         } else if (command == "ai") {
             MOX::auto_combat = 1;
         } else if (command == "scan") {
-            MOX::skan_flag = 1;
+            COMBAT1::Set_Input_Mode(COMBAT1::SCAN_MODE);
+        } else if (command == "scan-disabled") {
+            COMBAT1::disable_scan = 1;
+            COMBAT::Close_Control_Decision();
         } else if (command == "hide-target") {
             COMBAT::Retire_Unit(2);
             MOX::combat_data[2].special_status_flag = 4;

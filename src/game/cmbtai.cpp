@@ -3,6 +3,21 @@
 #include "game/boarding.h"
 
 namespace CMBTAI {
+    static CMBTDRW1::s_tactical_input manual_input;
+
+    void Refresh_Auto_Control_Input() {
+        auto* battle = COMBAT::Current_Battle();
+        if (battle == nullptr || COMBAT::Current_Viewer() != COMBAT::Local_Observer()) return;
+        const int side = COMBAT::Current_Viewer() == MOX::combat_attacker_player ? 0 : 1;
+        if (MOX::auto_combat_flag[side] != 0) {
+            if (battle->tactical_input == nullptr) {
+                manual_input = {};
+                manual_input.kind = CMBTDRW1::RETURN_TO_MANUAL;
+                CMBTDRW1::Open_Tactical_Input(&manual_input);
+            }
+        } else if (battle->tactical_input == &manual_input)
+            CMBTDRW1::Close_Tactical_Input();
+    }
 
     uint8_t ships_without_ammo_stay;
     uint8_t human_fleet_auto_retreat;
@@ -495,6 +510,8 @@ namespace CMBTAI {
     }
 
     void __cdecl Toggle_Auto_Combat_Flags() {
+        COMBAT::Invalidate_Control();
+        COMBAT::Invalidate_View();
         int16_t off_val = 0;
         int16_t on_val = 1;
         int16_t ship_owner = MOX::combat_data[MOX::cur_ship].owner;
@@ -534,6 +551,7 @@ namespace CMBTAI {
                 }
             }
         }
+        Refresh_Auto_Control_Input();
     }
 
     int8_t __cdecl Get_Player_Mode(int16_t player_idx) {
@@ -776,9 +794,10 @@ namespace CMBTAI {
         COMBAT1::Assign_Combat_Grids(MOX::cur_ship);
 
         int16_t action_result = 0;
+        Refresh_Auto_Control_Input();
         do {
             int16_t target_idx = Choose_Target(MOX::cur_ship);
-            if (fields::Get_Input() == MOX::auto_button) {
+            if (CMBTDRW1::Get_Auto_Combat_Input() == MOX::auto_button) {
                 Toggle_Auto_Combat_Flags();
             }
 
@@ -795,7 +814,7 @@ namespace CMBTAI {
                 }
             }
 
-            if (fields::Get_Input() == MOX::auto_button) {
+            if (CMBTDRW1::Get_Auto_Combat_Input() == MOX::auto_button) {
                 Toggle_Auto_Combat_Flags();
             }
 
@@ -919,7 +938,7 @@ namespace CMBTAI {
             }
         }
 
-        if (fields::Get_Input() == MOX::auto_button) {
+        if (CMBTDRW1::Get_Auto_Combat_Input() == MOX::auto_button) {
             Toggle_Auto_Combat_Flags();
         }
 

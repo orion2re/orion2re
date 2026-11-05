@@ -189,7 +189,7 @@ endif()
 if(TARGET orion2re_game_objects)
     # Full production runtime, fixture-owned memory, no gameplay-function fakes.
     add_executable(test_tactical_control EXCLUDE_FROM_ALL
-        tests/test_main.cpp tests/unit/tactical_control_test.cpp tests/unit/tactical_withdrawal_test.cpp tests/rpc/turn_fixture.cpp
+        tests/test_main.cpp tests/unit/tactical_control_test.cpp tests/unit/tactical_withdrawal_test.cpp tests/unit/tactical_workflow_test.cpp tests/rpc/turn_fixture.cpp
         src/rpc/rpc_tactical_view.cpp
         src/rpc/rpc_combat_control.cpp src/rpc/rpc_combat_context.cpp
         $<TARGET_OBJECTS:orion2re_game_objects>
@@ -220,7 +220,7 @@ if(TARGET orion2re_game_objects)
         if(Python3_Interpreter_FOUND)
             add_test(NAME rpc_turn COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/rpc/test_turn.py"
                 --server $<TARGET_FILE:rpc-turn-test-server>)
-            set_tests_properties(rpc_turn PROPERTIES TIMEOUT 90)
+            set_tests_properties(rpc_turn PROPERTIES TIMEOUT 180)
         endif()
     endif()
 endif()
