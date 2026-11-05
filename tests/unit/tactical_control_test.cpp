@@ -73,6 +73,131 @@ namespace {
     }
 } // namespace
 
+DOCTEST_TEST_CASE("capture result inputs map resolution facts and filter private commitment") {
+    s_boarding_fixture fixture;
+    Initialize_Boarding(&fixture);
+    BOARDING::s_capture_result_input input;
+    input.authorized = BOARDING::Result_Authorized(2);
+    input.attacker = 1;
+    input.target = 2;
+    input.committed = 11;
+    input.arrived = 8;
+    input.attacker_survived = 5;
+    input.defender_started = 7;
+    input.defender_survived = 2;
+    input.attacker_strength = 123;
+    input.defender_strength = 45;
+    MOX::combat_data[2].owner = 0;
+    MOX::combat_data[2].is_captured = 1;
+    MOX::combat_data[2].marine_count = 4;
+    for (bool attacker_owned : {false, true}) {
+        MOX::combat_data[1].owner = attacker_owned ? 0 : 1;
+        for (int16_t message : {int16_t(0x31), int16_t(0x32), int16_t(0x33)}) {
+            input.message_id = message;
+            BOARDING::Record_Capture_Result(&input);
+            const auto* result = BOARDING::Boarding_Result();
+            DOCTEST_REQUIRE(result != nullptr);
+            DOCTEST_CHECK(result->capture);
+            DOCTEST_CHECK(result->attacker_owned == attacker_owned);
+            DOCTEST_CHECK(result->committed == (attacker_owned ? 11 : -1));
+            DOCTEST_CHECK(result->arrived == 8);
+            DOCTEST_CHECK(result->attacker_lost == 3);
+            DOCTEST_CHECK(result->attacker_survived == 5);
+            DOCTEST_CHECK(result->defender_started == 7);
+            DOCTEST_CHECK(result->defender_lost == 5);
+            DOCTEST_CHECK(result->defender_survived == 2);
+            DOCTEST_CHECK(result->attacker_strength == 123);
+            DOCTEST_CHECK(result->defender_strength == 45);
+            DOCTEST_CHECK(result->captured == (message == 0x32));
+            DOCTEST_CHECK(result->destroyed == (message == 0x31));
+            DOCTEST_CHECK(result->now_owned);
+            DOCTEST_CHECK(result->target_captured);
+            DOCTEST_CHECK(result->captured_marines == (message == 0x32 ? 4 : 0));
+            DOCTEST_CHECK(std::strcmp(result->target_name, "Opponent") == 0);
+        }
+    }
+    Shutdown_Boarding(&fixture);
+}
+
+DOCTEST_TEST_CASE("raid result inputs preserve filtering and own bounded report text") {
+    s_boarding_fixture fixture;
+    Initialize_Boarding(&fixture);
+    BOARDING::s_raid_result_input input;
+    input.authorized = BOARDING::Result_Authorized(2);
+    input.target = 2;
+    input.committed = 11;
+    input.arrived = 8;
+    input.attacker_survived = 5;
+    input.defender_survived = 2;
+    input.attacker_strength = 123;
+    input.defender_strength = 45;
+    input.damage = 6;
+    MOX::combat_data[2].marine_count = 7;
+    for (bool attacker_owned : {false, true}) {
+        input.attacker_owner = attacker_owned ? 0 : 1;
+        std::string text = "Synthetic raid details";
+        input.text = text;
+        BOARDING::Record_Raid_Result(&input);
+        text.clear();
+        const auto* result = BOARDING::Boarding_Result();
+        DOCTEST_REQUIRE(result != nullptr);
+        DOCTEST_CHECK_FALSE(result->capture);
+        DOCTEST_CHECK(result->attacker_owned == attacker_owned);
+        DOCTEST_CHECK(result->committed == (attacker_owned ? 11 : -1));
+        DOCTEST_CHECK(result->arrived == (attacker_owned ? 8 : 0));
+        DOCTEST_CHECK(result->attacker_survived == (attacker_owned ? 5 : 0));
+        DOCTEST_CHECK(result->attacker_lost == 3);
+        DOCTEST_CHECK(result->defender_lost == 5);
+        DOCTEST_CHECK(result->attacker_strength == 123);
+        DOCTEST_CHECK(result->defender_strength == 45);
+        DOCTEST_CHECK(result->raid_damage);
+        DOCTEST_CHECK_FALSE(result->now_owned);
+        DOCTEST_CHECK(result->raid_text == "Synthetic raid details");
+        DOCTEST_CHECK(std::strcmp(result->target_name, "Opponent") == 0);
+    }
+    std::string text(BOARDING::MAX_REPORT_TEXT, 'x');
+    input.text = text;
+    BOARDING::Record_Raid_Result(&input);
+    DOCTEST_CHECK(BOARDING::Boarding_Result()->content_available);
+    DOCTEST_CHECK(BOARDING::Boarding_Result()->raid_text.size() == BOARDING::MAX_REPORT_TEXT);
+    text += 'x';
+    input.text = text;
+    BOARDING::Record_Raid_Result(&input);
+    DOCTEST_CHECK_FALSE(BOARDING::Boarding_Result()->content_available);
+    DOCTEST_CHECK(BOARDING::Boarding_Result()->raid_text.empty());
+    Shutdown_Boarding(&fixture);
+}
+
+DOCTEST_TEST_CASE("boarding result inputs retain pre-resolution authorization") {
+    s_boarding_fixture fixture;
+    Initialize_Boarding(&fixture);
+    BOARDING::s_capture_result_input capture;
+    BOARDING::s_raid_result_input raid;
+    BOARDING::Record_Capture_Result(&capture);
+    BOARDING::Record_Raid_Result(&raid);
+    DOCTEST_CHECK(BOARDING::Boarding_Result() == nullptr);
+    DOCTEST_CHECK(BOARDING::Boarding_Generation() == 0);
+    capture.authorized = raid.authorized = BOARDING::Result_Authorized(2);
+    DOCTEST_REQUIRE(capture.authorized);
+    capture.attacker = 1;
+    capture.target = raid.target = 2;
+    capture.message_id = 0x31;
+    raid.attacker_owner = 0;
+    MOX::combat_data[2].unit_status = 5;
+    DOCTEST_CHECK_FALSE(BOARDING::Result_Authorized(2));
+    BOARDING::Record_Capture_Result(&capture);
+    DOCTEST_REQUIRE(BOARDING::Boarding_Result() != nullptr);
+    DOCTEST_CHECK(BOARDING::Boarding_Result()->destroyed);
+    BOARDING::Record_Raid_Result(&raid);
+    DOCTEST_CHECK(BOARDING::Boarding_Result()->destroyed);
+    const uint64_t generation = BOARDING::Boarding_Generation();
+    capture.authorized = raid.authorized = false;
+    BOARDING::Record_Capture_Result(&capture);
+    BOARDING::Record_Raid_Result(&raid);
+    DOCTEST_CHECK(BOARDING::Boarding_Generation() == generation);
+    Shutdown_Boarding(&fixture);
+}
+
 DOCTEST_TEST_CASE("generic textboxes never acquire or consume boarding report authority") {
     s_boarding_fixture fixture;
     Initialize_Boarding(&fixture, true);
@@ -178,7 +303,12 @@ DOCTEST_TEST_CASE("deliberate capture commits selected marines and changes nativ
     DOCTEST_REQUIRE(result != nullptr);
     DOCTEST_CHECK(result->captured);
     DOCTEST_CHECK(result->committed == 4);
+    DOCTEST_CHECK(result->arrived == 4);
+    DOCTEST_CHECK(result->attacker_lost == 4 - result->attacker_survived);
+    DOCTEST_CHECK(result->defender_started == 2);
     DOCTEST_CHECK(result->defender_lost == 2);
+    DOCTEST_CHECK(result->defender_survived == 0);
+    DOCTEST_CHECK(result->now_owned);
     DOCTEST_CHECK(MOX::combat_data[1].marine_count == 8);
     DOCTEST_CHECK(MOX::combat_data[2].owner == 0);
     DOCTEST_CHECK(CMBTFIR2::Already_Boarded(1));
@@ -342,7 +472,10 @@ DOCTEST_TEST_CASE("native raid returns survivors and reports configured internal
     DOCTEST_REQUIRE(result != nullptr);
     DOCTEST_CHECK_FALSE(result->capture);
     DOCTEST_CHECK(result->committed == 3);
+    DOCTEST_CHECK(result->arrived == 3);
+    DOCTEST_CHECK(result->attacker_lost == 0);
     DOCTEST_CHECK(result->attacker_survived == 3);
+    DOCTEST_CHECK_FALSE(result->raid_text.empty());
     DOCTEST_CHECK(MOX::combat_data[1].marine_count == 12);
     DOCTEST_CHECK(BOARDING::Boarding_Result()->raid_damage);
     DOCTEST_CHECK((MOX::combat_data[2].computer_current_hits < 100 || MOX::combat_data[2].drive_current_hits < 100));

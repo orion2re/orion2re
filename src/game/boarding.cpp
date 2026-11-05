@@ -59,49 +59,49 @@ namespace BOARDING {
                 MOX::combat_data[target].special_status_flag != 4);
     }
 
-    void Record_Raid_Result(int16_t attacker_owner, int16_t target_idx, bool authorized, int16_t committed, int16_t arrived, int16_t survived, int16_t defenders_survived, int16_t attacker_strength, int16_t defender_strength, int16_t damage, const std::string* text) {
-        if (!authorized) return;
-        const auto* target = &MOX::combat_data[target_idx];
+    void Record_Raid_Result(const s_raid_result_input* input) {
+        if (input == nullptr || !input->authorized) return;
+        const auto* target = &MOX::combat_data[input->target];
         s_result report;
         report.available = true;
-        report.attacker_owned = attacker_owner == COMBAT::Current_Viewer();
+        report.attacker_owned = input->attacker_owner == COMBAT::Current_Viewer();
         if (report.attacker_owned) {
-            report.committed = committed;
-            report.arrived = arrived;
-            report.attacker_survived = survived;
+            report.committed = input->committed;
+            report.arrived = input->arrived;
+            report.attacker_survived = input->attacker_survived;
         }
-        report.attacker_lost = arrived - survived;
-        report.defender_lost = int16_t(target->marine_count) - defenders_survived;
-        report.attacker_strength = attacker_strength;
-        report.defender_strength = defender_strength;
+        report.attacker_lost = input->arrived - input->attacker_survived;
+        report.defender_lost = int16_t(target->marine_count) - input->defender_survived;
+        report.attacker_strength = input->attacker_strength;
+        report.defender_strength = input->defender_strength;
         report.destroyed = target->unit_status != 0;
-        report.raid_damage = damage > 0;
+        report.raid_damage = input->damage > 0;
         report.now_owned = target->owner == COMBAT::Current_Viewer();
         if (report.now_owned) report.target_captured = target->is_captured != 0;
         strlcpy(report.target_name, target->name, sizeof(report.target_name));
-        report.content_available = text->size() <= MAX_REPORT_TEXT;
-        if (report.content_available) report.raid_text = *text;
+        report.content_available = input->text.size() <= MAX_REPORT_TEXT;
+        if (report.content_available) report.raid_text = input->text;
         Record_Boarding_Result(&report);
     }
 
-    void Record_Capture_Result(int16_t attacker, int16_t target_idx, bool authorized, int16_t committed, int16_t arrived, int16_t survived, int16_t defenders_started, int16_t defenders_survived, int16_t attacker_strength, int16_t defender_strength, int16_t message) {
-        if (!authorized) return;
-        const auto* target = &MOX::combat_data[target_idx];
+    void Record_Capture_Result(const s_capture_result_input* input) {
+        if (input == nullptr || !input->authorized) return;
+        const auto* target = &MOX::combat_data[input->target];
         s_result report;
         report.available = true;
         report.capture = true;
-        report.attacker_owned = MOX::combat_data[attacker].owner == COMBAT::Current_Viewer();
-        if (report.attacker_owned) report.committed = committed;
-        report.arrived = arrived;
-        report.attacker_lost = arrived - survived;
-        report.attacker_survived = survived;
-        report.defender_started = defenders_started;
-        report.defender_lost = defenders_started - defenders_survived;
-        report.defender_survived = defenders_survived;
-        report.attacker_strength = attacker_strength;
-        report.defender_strength = defender_strength;
-        report.captured = message == 0x32;
-        report.destroyed = message == 0x31;
+        report.attacker_owned = MOX::combat_data[input->attacker].owner == COMBAT::Current_Viewer();
+        if (report.attacker_owned) report.committed = input->committed;
+        report.arrived = input->arrived;
+        report.attacker_lost = input->arrived - input->attacker_survived;
+        report.attacker_survived = input->attacker_survived;
+        report.defender_started = input->defender_started;
+        report.defender_lost = input->defender_started - input->defender_survived;
+        report.defender_survived = input->defender_survived;
+        report.attacker_strength = input->attacker_strength;
+        report.defender_strength = input->defender_strength;
+        report.captured = input->message_id == 0x32;
+        report.destroyed = input->message_id == 0x31;
         report.now_owned = target->owner == COMBAT::Current_Viewer();
         if (report.now_owned) {
             report.target_captured = target->is_captured != 0;

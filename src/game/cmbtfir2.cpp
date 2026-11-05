@@ -1455,7 +1455,8 @@ namespace CMBTFIR2 {
 
     void __cdecl Resolve_Raid(int16_t attacker_idx, int16_t target_idx, int16_t* raiders, int16_t committed) {
         int16_t total_damage = 0;
-        const bool report_authorized = BOARDING::Result_Authorized(target_idx);
+        BOARDING::s_raid_result_input report_input;
+        report_input.authorized = BOARDING::Result_Authorized(target_idx);
 
         s_combat_data* target = &MOX::combat_data[target_idx];
         s_combat_data* attacker = &MOX::combat_data[attacker_idx];
@@ -1546,7 +1547,7 @@ namespace CMBTFIR2 {
         char title_str[80];
         std::string body_str;
         char temp_str[80];
-        const bool build_report = MOX::super_fast_flag == 0 || report_authorized;
+        const bool build_report = MOX::super_fast_flag == 0 || report_input.authorized;
         const auto append = [&](const char* text) {
             if (build_report && text != nullptr) {
                 body_str += text;
@@ -1692,8 +1693,18 @@ namespace CMBTFIR2 {
             show_timed_box = false;
         }
 
-        BOARDING::Record_Raid_Result(attacker_owner, target_idx, report_authorized, committed, *raiders, target_raiders, marines, attacker_strength, target_strength, total_damage, &body_str);
-        CMBTDRW1::Present_Boarding_Result(title_str, body_str.c_str(), show_timed_box ? 54 : 0, report_authorized);
+        report_input.attacker_owner = attacker_owner;
+        report_input.target = target_idx;
+        report_input.committed = committed;
+        report_input.arrived = *raiders;
+        report_input.attacker_survived = target_raiders;
+        report_input.defender_survived = marines;
+        report_input.attacker_strength = attacker_strength;
+        report_input.defender_strength = target_strength;
+        report_input.damage = total_damage;
+        report_input.text = body_str;
+        BOARDING::Record_Raid_Result(&report_input);
+        CMBTDRW1::Present_Boarding_Result(title_str, body_str.c_str(), show_timed_box ? 54 : 0, report_input.authorized);
 
         sound::Fadeout_Sound(sound_handle, 10);
 
@@ -1704,7 +1715,8 @@ namespace CMBTFIR2 {
     }
 
     void __cdecl Resolve_Capture(int16_t attacker_idx, int16_t defender_idx, int16_t attacker_marines, int16_t target_x, int16_t target_y, int16_t committed) {
-        const bool report_authorized = BOARDING::Result_Authorized(defender_idx);
+        BOARDING::s_capture_result_input report_input;
+        report_input.authorized = BOARDING::Result_Authorized(defender_idx);
         s_combat_data* attacker = &MOX::combat_data[attacker_idx];
         s_combat_data* defender = &MOX::combat_data[defender_idx];
 
@@ -1819,8 +1831,18 @@ namespace CMBTFIR2 {
 
         int32_t sound_handle = ERICNET::Mox_Play_Sound(0x43);
 
-        BOARDING::Record_Capture_Result(attacker_idx, defender_idx, report_authorized, committed, attacker_marines_start, attacker_marines, defender_marines_start, defender_marines_current, side1.unit_strengths[1], side2.unit_strengths[1], result_msg_id);
-        CMBTDRW1::Present_Boarding_Result(header_buf, msg_buf, is_timed ? 54 : 0, report_authorized);
+        report_input.attacker = attacker_idx;
+        report_input.target = defender_idx;
+        report_input.committed = committed;
+        report_input.arrived = attacker_marines_start;
+        report_input.attacker_survived = attacker_marines;
+        report_input.defender_started = defender_marines_start;
+        report_input.defender_survived = defender_marines_current;
+        report_input.attacker_strength = side1.unit_strengths[1];
+        report_input.defender_strength = side2.unit_strengths[1];
+        report_input.message_id = result_msg_id;
+        BOARDING::Record_Capture_Result(&report_input);
+        CMBTDRW1::Present_Boarding_Result(header_buf, msg_buf, is_timed ? 54 : 0, report_input.authorized);
 
         sound::Fadeout_Sound(sound_handle, 10);
         CMBTDRW1::Refresh_Combat_Screen_Full();

@@ -2,6 +2,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <string_view>
 
 namespace BOARDING {
     struct s_board_range {
@@ -45,6 +46,33 @@ namespace BOARDING {
     s_human_check Check_Human_Boarding(int16_t attacker, int16_t target);
     int16_t Maximum_Commitment(int16_t actor);
 
+    // Authorization is captured before resolution can change target ownership or disclosure.
+    struct s_raid_result_input {
+        bool authorized = false;
+        int16_t attacker_owner = -1;
+        int16_t target = -1;
+        int16_t committed = -1;
+        int16_t arrived = 0;
+        int16_t attacker_survived = 0;
+        int16_t defender_survived = 0;
+        int16_t attacker_strength = 0;
+        int16_t defender_strength = 0;
+        int16_t damage = 0;
+        std::string_view text;
+    };
+    struct s_capture_result_input {
+        bool authorized = false;
+        int16_t attacker = -1;
+        int16_t target = -1;
+        int16_t committed = -1;
+        int16_t arrived = 0;
+        int16_t attacker_survived = 0;
+        int16_t defender_started = 0;
+        int16_t defender_survived = 0;
+        int16_t attacker_strength = 0;
+        int16_t defender_strength = 0;
+        int16_t message_id = 0;
+    };
     struct s_result {
         bool available = false, capture = false, captured = false, destroyed = false;
         bool content_available = true, raid_damage = false;
@@ -58,8 +86,8 @@ namespace BOARDING {
     };
     constexpr size_t MAX_REPORT_TEXT = 1024 * 1024;
     bool Result_Authorized(int16_t target);
-    void Record_Raid_Result(int16_t attacker_owner, int16_t target, bool authorized, int16_t committed, int16_t arrived, int16_t survived, int16_t defenders_survived, int16_t attacker_strength, int16_t defender_strength, int16_t damage, const std::string* text);
-    void Record_Capture_Result(int16_t attacker, int16_t target, bool authorized, int16_t committed, int16_t arrived, int16_t survived, int16_t defenders_started, int16_t defenders_survived, int16_t attacker_strength, int16_t defender_strength, int16_t message);
+    void Record_Raid_Result(const s_raid_result_input* input);
+    void Record_Capture_Result(const s_capture_result_input* input);
     void Record_Boarding_Result(const s_result* result);
     void Publish_Boarding_Result() noexcept;
     const s_result* Boarding_Result() noexcept;
