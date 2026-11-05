@@ -463,7 +463,7 @@ through native owners. Controller status alone never grants native authority.
 - [ ] P5-01 — Implement observed battle view/unit/target/result reads.
   - [x] Deliver the runnable live read-only observer: mid-battle discovery, whole filtered short map rows, separate native-name/owned-condition/movement detail, bounded game-thread execution and event-triggered refresh. No paging or bulk full-detail list flag.
   - [x] Deliver current native legal movement/target choices and useful own-weapon/readiness information for the basic external ship turn, without query mutations, RNG or retained options.
-  - [ ] Complete retained results and remaining tactical read-catalog/interactive parity.
+  - [ ] Complete remaining native-backed tactical reads and interactive parity.
 - [ ] P5-02 — Add scoped battle/actor/turn/selection/viewport/weapon state and children.
   - [x] Add the game-owned tactical lifecycle scope and local-human observer guard without retaining an RPC combat model. Remaining context state and children stay separate work.
   - [x] Expose current authorized actor, native round/mode and optional selected-for-turn reference events. Viewport/weapon state and children remain pending.
@@ -487,11 +487,14 @@ through native owners. Controller status alone never grants native authority.
 - [ ] P5-12 — Implement done/wait/auto/retreat/options and observed opponent waits.
   - [x] Complete the basic external ship turn with native done/next-actor progression, a runnable controller CLI and independent event-and-pull readers. Wait/auto and interactive/network-session parity remain pending.
   - [x] P5-12-W1 — Deliver deliberate native ship withdrawal through current options, owner-consumed retreat, pre-dispatch cancellation, pending reads, native outcomes/reference retirement, remaining-actor control and battle closure, with the standard client and independent reader; see [the withdrawal contract](specs/rpc/tactical-withdrawal.md). No started-retreat cancellation, retained withdrawal history or automatic turn advancement is added.
+  - [ ] Next boundary: explicit single-ship wait through current native availability and actor/decision authority, preserving classic/initiative ordering, strict-wait restrictions and network barriers, with standard-client continuation and independent readers. Exclude side-wait, auto-combat and automatic action selection.
 - [ ] P5-13 — Preserve authorized battle results in the game-owned result lifecycle before cleanup; read on demand and revoke on battle/reset/perspective changes.
-  - [x] Deliver the approved native active-battle hit report with non-consuming RPC reads, bounded retention, and verified release between combats. After-battle results remain separate work.
+  - Final-result reads and acknowledgement apply only to reports produced and disclosed by native gameplay/UI. Tactical completion has no native final summary/detail report; do not invent one, reconstruct statistics, or manufacture a result-report owner. Strategic-result browsing remains separate scope.
+  - [x] Deliver the approved native active-battle hit report with non-consuming RPC reads, bounded retention, and verified release between combats.
   - [x] Keep only the latest authorized native boarding result for resolution/report delivery, with explicit text overflow and release at battle retirement/closure/revocation. No RPC receipt archive or boarding history API.
 - [ ] P5-14 — Implement bounded ordered streams, baseline/sequence/time and gap handling.
   - [x] Deliver copied tactical lifecycle events through a bounded FIFO and async libuv wakeup; disconnect on event/output overflow rather than silently drop ordered events. Effect streams and their baseline/time/gap contracts remain pending.
+  - Use existing `combat.closed` for normal observed tactical completion after native writeback and teardown; it carries no outcome or final-report promise. Interrupted teardown/perspective loss revokes instead. The client clears tactical references and awaits the next observed opening; no duplicate finished event is needed.
 - [ ] P5-15 — Implement invasion views and native bombard/invade/destroy/mind-control/cease-fire/drop-troop choices.
 - [ ] P5-16 — Capture displayed ground counts/strength/labels/sprites/beams/explosions/flics.
 - [ ] P5-17 — Audit battle/ground visibility, ordering and RNG invariance.
