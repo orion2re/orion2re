@@ -218,4 +218,5 @@ namespace CMBTMIS {
 
     /** Computes the initial facing for a missile toward its current target. */
     int16_t __cdecl Missile_Facing(int16_t missile_idx, int16_t target_idx, int16_t target_is_missile);
+    void Record_Missile_Hit(int16_t slot, int32_t destroyed);
 } // namespace CMBTMIS

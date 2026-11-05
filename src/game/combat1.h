@@ -1,8 +1,30 @@
 #pragma once
 #include <cstdint>
-#include "tactical_control.h"
 
 namespace COMBAT1 {
+    enum e_operation { NONE,
+        SELECT,
+        MOVE,
+        FACE,
+        FIRE,
+        DONE,
+        FIRE_SELECTION,
+        BOARD,
+        RETREAT };
+    enum e_result : int { APPLIED,
+        UNAVAILABLE,
+        NO_CONTROL,
+        CONFLICT,
+        ILLEGAL,
+        LOCAL_REQUIRED };
+    struct s_operation {
+        e_operation kind = NONE;
+        int16_t actor = -1, target = -1, x = 0, y = 0;
+        bool missile_target = false;
+        uint8_t bank_mask = 0;
+        int8_t bank_states[8] = {};
+        int16_t boarding_mode = 0, marines = 0;
+    };
     extern int32_t end_of_turn_button;
 
     extern uint8_t interactive_combat_stats;
@@ -184,7 +206,7 @@ namespace COMBAT1 {
     // Runs one tactical-combat turn pass.
     // active_player_id: side being processed; time_warp_only: nonzero limits work to the special-gated pass.
     void __cdecl Do_Combat_Turn(int16_t active_player_id, int16_t time_warp_only);
-    void Apply_Tactical_Operation(const tactical_control::s_operation* operation,
+    void Apply_Tactical_Operation(const s_operation* operation,
         int16_t active_player_id,
         int16_t* next_ship_flag,
         bool received = false);

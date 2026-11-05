@@ -1,5 +1,13 @@
 #pragma once
 #include <cstdint>
+#include <cstddef>
+#include <vector>
+#include "boarding.h"
+
+namespace COMBAT1 {
+    struct s_operation;
+    enum e_result : int;
+} // namespace COMBAT1
 
 namespace COMBAT {
     extern uint8_t strategic_xp_bonus;
@@ -180,4 +188,99 @@ namespace COMBAT {
      * @param bomb_result Input and output bombardment result structure.
      */
     void __cdecl Bombardment(s_combat_bomb_result* bomb_result);
+    enum e_kind {
+        OPENED,
+        CLOSED,
+        REVOKED,
+        SERVICE_READS,
+        VIEW_INVALIDATED,
+        UNIT_SELECTED,
+        UNIT_RETIRED,
+        RETIRING,
+        ATTENTION_REQUIRED,
+        ATTENTION_CLEARED,
+        MISSILE_RETIRED,
+        BOARDING_RESOLVED,
+        BOARDING_REPORT_CLOSED,
+        RETREAT_RESOLVED,
+    };
+    enum e_retreat_outcome : int { ESCAPED,
+        DESTROYED,
+        CANCELLED,
+        CAPTURED,
+        BATTLE_ENDED };
+    struct s_event {
+        e_kind kind;
+        int16_t viewer;
+        int16_t unit = -1;
+        bool safe = false;
+        e_retreat_outcome retreat_outcome = CANCELLED;
+    };
+    using t_callback = void (*)(const s_event*, void*) noexcept;
+    uint64_t Subscribe(t_callback callback, void* context);
+    void Unsubscribe(uint64_t subscription);
+    void Revoke() noexcept;
+    void Service_Reads(bool safe = false) noexcept;
+    void Invalidate_View() noexcept;
+    void Select_Unit(int16_t unit) noexcept;
+    void Retire_Unit(int16_t unit) noexcept;
+    void Retire_Missile(int16_t missile) noexcept;
+    void Retire_Battle() noexcept;
+    void Publish_Retreat_Result(int16_t unit, e_retreat_outcome outcome) noexcept;
+    int16_t Current_Viewer() noexcept;
+    int16_t Current_Unit() noexcept;
+    bool Reads_Allowed() noexcept;
+    constexpr size_t MAX_HIT_RECORDS = 4096;
+    enum e_hit_kind { UNIT_DAMAGE,
+        MISSILES_DESTROYED,
+        BIOLOGICAL_HITS };
+    struct s_hit {
+        uint64_t sequence = 0;
+        int32_t round = 0;
+        e_hit_kind kind = UNIT_DAMAGE;
+        char target_name[80] = {};
+        int32_t amount = 0, secondary_amount = 0;
+    };
+    void Append_Hit(const s_hit* hit);
+    int16_t Begin_Local_Attention() noexcept;
+    void End_Local_Attention(int16_t viewer) noexcept;
+    struct s_battle_scope {
+        int16_t viewer = -1;
+        bool initialized = false, opened = false, retiring = false, dirty = false, selection_pending = false;
+        int16_t selected = -1;
+        uint64_t next_hit_sequence = 1;
+        size_t hit_head = 0;
+        std::vector<s_hit> hits;
+        BOARDING::s_result boarding;
+        uint64_t boarding_generation = 0;
+        bool boarding_active = false, boarding_timed = false;
+        void Open(int16_t local_observer) noexcept;
+        void Close(int16_t local_observer) noexcept;
+        ~s_battle_scope();
+        s_battle_scope();
+        s_battle_scope(const s_battle_scope&) = delete;
+        s_battle_scope& operator=(const s_battle_scope&) = delete;
+    };
+    s_battle_scope* Current_Battle();
+    void Notify_Boarding_Result();
+    void Notify_Boarding_Report_Closed();
+    int16_t Local_Observer();
+    bool Unit_Disclosed(int16_t slot);
+    bool Missile_Disclosed(int16_t slot);
+    void Unit_Changed(int16_t slot, bool map_change = false);
+    void Missile_Changed(int16_t slot);
+    void Resolve_Retreat(int16_t slot, e_retreat_outcome outcome);
+    void End_Pending_Retreats();
+    using t_control_changed = void (*)();
+    bool Attach_Control_Observer(t_control_changed callback);
+    void Open_Control_Decision(int16_t unit);
+    void Close_Control_Decision();
+    void Invalidate_Control();
+    int16_t Current_Control_Actor();
+    using t_control_take = bool (*)(COMBAT1::s_operation*, COMBAT1::e_result*, void*);
+    using t_control_complete = void (*)(COMBAT1::e_result, void*);
+    bool Attach_Control(t_control_take input, t_control_complete output, void* owner);
+    void Detach_Control(void* owner);
+    bool Take_Control_Operation(COMBAT1::s_operation* operation, COMBAT1::e_result* result);
+    void Complete_Control_Operation(COMBAT1::e_result result);
 } // namespace COMBAT

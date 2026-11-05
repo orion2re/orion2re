@@ -48,6 +48,8 @@ add_library(orion2re_rpc STATIC
     src/rpc/rpc_tactical.cpp
     src/rpc/rpc_tactical_reads.cpp
     src/rpc/rpc_tactical_view.cpp
+    src/rpc/rpc_combat_control.cpp
+    src/rpc/rpc_combat_context.cpp
     src/config/text_encoding.cpp
     "${ORION2RE_VENDORED_YYJSON_DIR}/src/yyjson.c"
 )
@@ -61,11 +63,21 @@ target_include_directories(orion2re_rpc PRIVATE
 if(WIN32)
     target_compile_definitions(orion2re_rpc PRIVATE NOMINMAX)
 endif()
-target_link_libraries(orion2re_rpc PRIVATE websockets uv_a Threads::Threads SDL3::Headers orion2re_tactical_events)
+target_link_libraries(orion2re_rpc PRIVATE websockets uv_a Threads::Threads SDL3::Headers orion2re_combat)
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+    target_compile_options(orion2re_rpc PRIVATE -ffunction-sections -fdata-sections)
+endif()
 orion2re_enable_sanitizers(orion2re_rpc)
 orion2re_enable_sanitizers(websockets)
 set(ORION2RE_RPC_BUILT ON)
 
 add_executable(rpc-test-server EXCLUDE_FROM_ALL tools/rpc_test_server.cpp)
-target_link_libraries(rpc-test-server PRIVATE orion2re_rpc)
+target_link_libraries(rpc-test-server PRIVATE orion2re_rpc SDL3::Headers)
+if(APPLE)
+    target_link_options(rpc-test-server PRIVATE -Wl,-dead_strip)
+elseif(MSVC)
+    target_link_options(rpc-test-server PRIVATE /OPT:REF)
+else()
+    target_link_options(rpc-test-server PRIVATE -Wl,--gc-sections)
+endif()
 orion2re_enable_sanitizers(rpc-test-server)

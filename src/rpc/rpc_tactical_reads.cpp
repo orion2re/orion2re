@@ -1,6 +1,7 @@
+#include "pch.h"
 #include "rpc_tactical_reads.h"
 #include "config/text_encoding.h"
-#include "game/tactical_events.h"
+#include "game/combat.h"
 
 #include <algorithm>
 #include <cstdlib>
@@ -117,7 +118,7 @@ namespace rpc {
             ",\"attackerStrength\":" + std::to_string(r.attacker_strength) + ",\"defenderStrength\":" + std::to_string(r.defender_strength) +
             ",\"targetOwned\":" + (r.now_owned ? "true" : "false") +
             ",\"reportId\":" + (report_id.empty() ? "null" : "\"" + std::string(report_id) + "\"") +
-            ",\"reportTimed\":" + (!report_id.empty() && tactical_events::Boarding_Report_Timed() ? "true" : "false");
+            ",\"reportTimed\":" + (!report_id.empty() && BOARDING::Boarding_Report_Timed() ? "true" : "false");
         if (r.attacker_owned && r.committed >= 0) json += ",\"marinesCommitted\":" + std::to_string(r.committed) +
             ",\"transporterLosses\":" + std::to_string(r.committed - r.arrived);
         if (r.attacker_owned) json += ",\"raidersReturned\":" + std::to_string(r.capture ? 0 : r.attacker_survived);
@@ -145,15 +146,15 @@ namespace rpc {
             if (request->method != READ_VIEW) return unavailable();
             result = "{\"battle\":null}";
         } else if (request->method == READ_HITS) {
-            tactical_events::s_hit_history history;
-            if (!tactical_events::Read_Hit_History(&history)) return unavailable();
+            s_hit_history history;
+            if (!Read_Hit_History(&history)) return unavailable();
             result = "{\"battleId\":\"" + std::string(forwarder->battle_id) + "\",\"firstSequence\":" + std::to_string(history.first_sequence) +
                 ",\"nextSequence\":" + std::to_string(history.next_sequence) + ",\"retentionGap\":" + (history.first_sequence > 1 ? "true" : "false") + ",\"hits\":[";
             for (size_t i = 0; i < history.hits.size(); ++i) {
                 const auto& hit = history.hits[i];
                 if (i) result += ',';
-                const char* kind = hit.kind == tactical_events::MISSILES_DESTROYED ? "missilesDestroyed" : hit.kind == tactical_events::BIOLOGICAL_HITS ? "biologicalHits"
-                                                                                                                                                        : "unitDamage";
+                const char* kind = hit.kind == COMBAT::MISSILES_DESTROYED ? "missilesDestroyed" : hit.kind == COMBAT::BIOLOGICAL_HITS ? "biologicalHits"
+                                                                                                                                      : "unitDamage";
                 result += "{\"sequence\":" + std::to_string(hit.sequence) + ",\"round\":" + std::to_string(hit.round) +
                     ",\"kind\":\"" + kind + "\",\"targetName\":" + Name_Json(hit.target_name) + ",\"amount\":" + std::to_string(hit.amount) +
                     ",\"secondaryAmount\":" + std::to_string(hit.secondary_amount) + "}";
@@ -191,7 +192,7 @@ namespace rpc {
             }
             *dependent = true;
         } else if (request->method == READ_OPTIONS) {
-            tactical_control::s_options options;
+            s_options options;
             if (forwarder->options == nullptr || !forwarder->options(&options)) return unavailable();
             *dependent = true;
             result = "{\"battleId\":\"" + std::string(forwarder->battle_id) + "\",\"control\":{\"available\":" + (options.available ? "true" : "false");

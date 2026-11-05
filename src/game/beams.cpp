@@ -1,5 +1,5 @@
 #include "pch.h"
-#include "tactical_view.h"
+#include "combat.h"
 
 namespace BEAMS {
     uint8_t g_pierced_shield_flag;
@@ -1592,7 +1592,7 @@ namespace BEAMS {
                             if (fx->accum_hit_x > 0 || fx->accum_hit_y > 0) {
                                 Add_Damage_Indicator_For_Missile(target_center_x, target_center_y, 1, fx->accum_hit_x);
                                 MOX::missile[target_id].quantity -= fx->accum_hit_x;
-                                tactical_view::Missile_Changed(target_id);
+                                COMBAT::Missile_Changed(target_id);
                                 if (MOX::missile[target_id].quantity <= 0) {
                                     CMBTMIS::Kill_Missile(target_id);
                                 }

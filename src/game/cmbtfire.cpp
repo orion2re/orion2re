@@ -1,6 +1,5 @@
 #include "pch.h"
-#include "tactical_events.h"
-#include "tactical_view.h"
+#include "combat.h"
 
 #include "lua/lua_game.h"
 
@@ -376,16 +375,16 @@ namespace CMBTFIRE {
 
     void __cdecl Remove_Stasis_Beam(int16_t ship_idx) {
         MOX::combat_data[ship_idx].stasis_source_idx = COMBAT_SHIP_NONE;
-        tactical_view::Unit_Changed(ship_idx);
+        COMBAT::Unit_Changed(ship_idx);
     }
 
     void __cdecl Destroy_Ship_By(int16_t ship_idx, int16_t draw_x, int16_t draw_y, int16_t death_state, int16_t killer_ship_idx) {
         s_combat_data& ship = MOX::combat_data[ship_idx];
         const bool publish_destroyed = ship.unit_status == 0;
         if (publish_destroyed) {
-            tactical_view::Resolve_Retreat(ship_idx, tactical_events::DESTROYED);
-            tactical_view::Unit_Changed(ship_idx, true);
-            tactical_events::Retire_Unit(ship_idx);
+            COMBAT::Resolve_Retreat(ship_idx, COMBAT::DESTROYED);
+            COMBAT::Unit_Changed(ship_idx, true);
+            COMBAT::Retire_Unit(ship_idx);
         }
         int8_t new_owner;
 
@@ -423,8 +422,8 @@ namespace CMBTFIRE {
         if (ship.previous_owner == 11) {
             for (int16_t i = 1; i < MOX::combat_total_ship_count; ++i) {
                 if (MOX::combat_data[i].owner == 11 && i != ship_idx) {
-                    tactical_view::Unit_Changed(i, true);
-                    tactical_events::Retire_Unit(i);
+                    COMBAT::Unit_Changed(i, true);
+                    COMBAT::Retire_Unit(i);
                     MOX::combat_data[i].owner = new_owner;
                     MOX::combat_data[i].ship_image_seg = nullptr;
                     COMBAT1::Remove_Continuing_Effect_Specials(i);
@@ -801,13 +800,13 @@ namespace CMBTFIRE {
                 } else {
                     Apply_Damage_To_Missile(target_idx, &damage_done, specials, weapon_flags);
                     MOX::missile[target_idx].quantity -= damage_done;
-                    tactical_view::Missile_Changed(target_idx);
+                    COMBAT::Missile_Changed(target_idx);
                     *total_damage += damage_done;
                 }
             }
         }
 
-        if (target_is_missile == 1) tactical_view::Record_Missile_Hit(target_idx, *total_damage);
+        if (target_is_missile == 1) CMBTMIS::Record_Missile_Hit(target_idx, *total_damage);
         if (CMBTMIS::Is_Missile_Target_Alive(missile_idx) == 0) {
             if (target_is_missile == 1) {
                 CMBTMIS::Retarget_Missile(missile_idx);
@@ -914,7 +913,7 @@ namespace CMBTFIRE {
         int16_t has_structural_analyzer,
         int16_t force_armor_bypass,
         int16_t internal_only) {
-        if (*dmg_out > 0) tactical_view::Unit_Changed(target_ship_idx);
+        if (*dmg_out > 0) COMBAT::Unit_Changed(target_ship_idx);
         int16_t internal_hit_type = 0;
         int16_t internal_hit_count = 0;
         int16_t structural_bonus_damage = 0;
@@ -1172,7 +1171,7 @@ namespace CMBTFIRE {
             }
         }
 
-        tactical_view::Record_Unit_Hit(0, total_damage, 0, (TECHDATA::weapons[weapon_id].natural_mods & WEAPON_NATURAL_FLAG_BIOLOGICAL) != 0);
+        Record_Unit_Hit(0, total_damage, 0, (TECHDATA::weapons[weapon_id].natural_mods & WEAPON_NATURAL_FLAG_BIOLOGICAL) != 0);
         return total_damage;
     }
 
@@ -1399,7 +1398,7 @@ namespace CMBTFIRE {
 
                             if (Weapon_In_Range(weapon_slot_idx, source_ship_idx, target_ship_idx, flag, 0) != 0 &&
                                 Target_Is_Legal_For_Weapon(weapon->weapon_id, weapon->specials, target_ship_idx, flag) != 0) {
-                                tactical_view::Unit_Changed(source_ship_idx);
+                                COMBAT::Unit_Changed(source_ship_idx);
                                 if (weapon->shots_left == 0 && weapon->status == 1) {
                                     weapon->shots_left = weapon->count;
                                     weapon->status = 0;
@@ -1553,10 +1552,10 @@ namespace CMBTFIRE {
 
                                 if (weapon_type_class == WEAPON_TYPE_BEAM) {
                                     if (flag == 0)
-                                        tactical_view::Record_Unit_Hit(target_ship_idx, total_hits_on_target, target_secondary_total);
+                                        Record_Unit_Hit(target_ship_idx, total_hits_on_target, target_secondary_total);
                                     else
-                                        tactical_view::Record_Missile_Hit(target_ship_idx, total_hits_on_target);
-                                    tactical_view::Record_Unit_Hit(source_ship_idx, primary_damage_total, secondary_damage_total);
+                                        CMBTMIS::Record_Missile_Hit(target_ship_idx, total_hits_on_target);
+                                    Record_Unit_Hit(source_ship_idx, primary_damage_total, secondary_damage_total);
                                 }
                                 if (MOX::combat_data[source_ship_idx].special_status_flag == 3) {
                                     MOX::combat_data[source_ship_idx].special_status_flag = 2;
@@ -1972,7 +1971,7 @@ namespace CMBTFIRE {
         }
 
         int16_t is_dead = Is_Combat_Ship_Dead(target_ship_idx);
-        tactical_view::Record_Unit_Hit(target_ship_idx, damage, shield_hit_result);
+        Record_Unit_Hit(target_ship_idx, damage, shield_hit_result);
 
         if (MOX::apply_damage_to_planet != 0 && MOX::super_fast_flag == 0) {
             if (CMBTDRW1::Ship_Completely_On_Screen(target_ship_idx) == 0) {
@@ -2140,5 +2139,18 @@ namespace CMBTFIRE {
         MOX::combat_data[target_idx].black_hole_flag = 1;
         MOX::combat_data[target_idx].black_hole_source_idx = (uint16_t)source_idx;
         COMBAT1::Recalculate_Combat_Ship(target_idx);
+    }
+    void Record_Unit_Hit(int16_t slot, int32_t amount, int32_t secondary_amount, bool biological) {
+        if (COMBAT::Local_Observer() != COMBAT::Current_Viewer() || !COMBAT::Unit_Disclosed(slot)) return;
+        const auto& unit = MOX::combat_data[slot];
+        if (unit.owner != COMBAT::Current_Viewer() && unit.special_status_flag == 4) return;
+        if (amount <= 0 && secondary_amount <= 0) return;
+        COMBAT::s_hit hit;
+        hit.round = int32_t(MOX::combat_turn) + 1;
+        hit.kind = biological ? COMBAT::BIOLOGICAL_HITS : COMBAT::UNIT_DAMAGE;
+        hit.amount = uint16_t(amount);
+        hit.secondary_amount = uint16_t(secondary_amount);
+        strlcpy(hit.target_name, unit.name, sizeof(hit.target_name));
+        COMBAT::Append_Hit(&hit);
     }
 } // namespace CMBTFIRE

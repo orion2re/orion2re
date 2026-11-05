@@ -1,5 +1,5 @@
 #include "pch.h"
-#include "tactical_view.h"
+#include "combat.h"
 
 #include <cstddef>
 
@@ -654,7 +654,7 @@ namespace CMBTSPEC {
         }
 
         MOX::combat_data[target_idx].structure_damage += applied_damage;
-        tactical_view::Record_Unit_Hit(target_idx, applied_damage);
+        CMBTFIRE::Record_Unit_Hit(target_idx, applied_damage);
 
         if (MOX::apply_damage_to_planet == 1 && MOX::super_fast_flag == 0) {
             int16_t screen_x = (MOX::combat_data[target_idx].x - MOX::cur_combat_x) * 20;
@@ -786,9 +786,9 @@ namespace CMBTSPEC {
 
                 if (hit_chance > roll) {
                     MOX::missile[missile_idx].quantity--;
-                    tactical_view::Missile_Changed(missile_idx);
+                    COMBAT::Missile_Changed(missile_idx);
                     if (MOX::missile[missile_idx].quantity <= 0) {
-                        tactical_view::Record_Missile_Hit(missile_idx, count_destroyed + 1);
+                        CMBTMIS::Record_Missile_Hit(missile_idx, count_destroyed + 1);
                         CMBTMIS::Kill_Missile(missile_idx);
                     }
                     count_destroyed++;
@@ -796,7 +796,7 @@ namespace CMBTSPEC {
             }
         }
 
-        if (MOX::missile[missile_idx].type > 0) tactical_view::Record_Missile_Hit(missile_idx, count_destroyed);
+        if (MOX::missile[missile_idx].type > 0) CMBTMIS::Record_Missile_Hit(missile_idx, count_destroyed);
         if (count_destroyed > 0 && MOX::apply_damage_to_planet == 1 && MOX::super_fast_flag == 0) {
             ERICNET::Mox_Play_Sound(0x1c);
             s_animation_header* anim_seg = (s_animation_header*)buffer::Buffer_Reload(COLONY::CMBTSFX_LBX, 7, MOX::global_cache_seg);
@@ -1079,7 +1079,7 @@ namespace CMBTSPEC {
             total_struct_damage += current_struct_damage;
         }
 
-        tactical_view::Record_Unit_Hit(target_idx, total_damage, total_struct_damage);
+        CMBTFIRE::Record_Unit_Hit(target_idx, total_damage, total_struct_damage);
         if (MOX::apply_damage_to_planet == 1 && MOX::super_fast_flag == 0) {
             palette::Restore_Glass_Remap_Block(MOX::shield_remap_colors);
             BEAMS::Add_Damage_Indicator_For_Ship(
@@ -1918,12 +1918,12 @@ namespace CMBTSPEC {
                         for (int16_t k = 0; k < qty; ++k) {
                             if ((int)game_random::Random(100) <= (int32_t)(chance * 25) / missile_hits) {
                                 MOX::missile[i].quantity--;
-                                tactical_view::Missile_Changed((int16_t)i);
+                                COMBAT::Missile_Changed((int16_t)i);
                             }
                         }
                     }
 
-                    tactical_view::Record_Missile_Hit((int16_t)i, qty - MOX::missile[i].quantity);
+                    CMBTMIS::Record_Missile_Hit((int16_t)i, qty - MOX::missile[i].quantity);
                     if (MOX::missile[i].quantity <= 0) {
                         CMBTMIS::Kill_Missile((int16_t)i);
                     }
@@ -1998,7 +1998,7 @@ namespace CMBTSPEC {
                 damage_out = applied_damage;
             }
 
-            tactical_view::Record_Unit_Hit(ship_idx, (int16_t)damage_out, struct_damage);
+            CMBTFIRE::Record_Unit_Hit(ship_idx, (int16_t)damage_out, struct_damage);
             if (MOX::apply_damage_to_planet == 1 && MOX::super_fast_flag == 0) {
                 BEAMS::Add_Damage_Indicator_For_Ship(
                     (MOX::combat_data[ship_idx].x - MOX::cur_combat_x) * 20,

@@ -224,12 +224,13 @@ int main(int argc, char** argv) {
 #if defined(ORION2RE_ENABLE_RPC)
     rpc::s_service rpc_service;
     rpc::s_tactical_forwarder tactical_forwarder;
-    tactical_forwarder.reader = {tactical_view::Local_Observer, rpc::Read_Tactical_View, rpc::Read_Tactical_Unit};
-    tactical_forwarder.options = tactical_control::Read_Options;
-    tactical_forwarder.authorize = tactical_control::Authorize;
+    tactical_forwarder.reader = {COMBAT::Local_Observer, rpc::Read_Tactical_View, rpc::Read_Tactical_Unit};
+    tactical_forwarder.options = rpc::Read_Options;
+    tactical_forwarder.authorize = rpc::Authorize;
+    tactical_forwarder.validate = rpc::Validate;
     tactical_forwarder.missile = rpc::Read_Tactical_Missile;
     tactical_forwarder.missiles = rpc::Read_Tactical_Missiles;
-    tactical_forwarder.authorize_missile = tactical_view::Missile_Disclosed;
+    tactical_forwarder.authorize_missile = COMBAT::Missile_Disclosed;
     if (rpc::enabled) {
         rpc::s_service_config rpc_config;
         rpc_config.port = rpc::port;

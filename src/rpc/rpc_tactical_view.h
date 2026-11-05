@@ -3,7 +3,16 @@
 #include <cstdint>
 #include <vector>
 
+namespace COMBAT {
+    struct s_hit;
+}
+
 namespace rpc {
+    struct s_hit_history {
+        uint64_t first_sequence = 1, next_sequence = 1;
+        std::vector<COMBAT::s_hit> hits;
+    };
+    bool Read_Hit_History(s_hit_history* result);
     enum e_tactical_kind { SHIP,
         PLANET,
         SATELLITE,

@@ -108,6 +108,11 @@ namespace TEST_CMBTSPEC {
 }
 
 namespace MOX {
+    int16_t PLAYER_NUM = -1;
+    int16_t NUM_PLAYERS = 0;
+    int16_t combat_attacker_player = 0;
+    int16_t combat_defender_player = 1;
+    s_player* player = nullptr;
     s_combat_data* combat_data = ::combat_data;
     s_missile* missile = missiles;
     int16_t combat_total_ship_count;
@@ -451,6 +456,7 @@ namespace timer {
 }
 
 namespace RUSS {
+    int8_t all_ai_game = 0;
     void __cdecl Mox_Sync_Update() {
     }
 }

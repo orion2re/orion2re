@@ -1,9 +1,8 @@
 #pragma once
 
 #include "rpc_service.h"
-#include "game/tactical_view.h"
+#include "rpc_combat_control.h"
 #include "rpc_tactical_view.h"
-#include "game/tactical_control.h"
 #include <array>
 #include <vector>
 
@@ -14,8 +13,9 @@ namespace rpc {
         int16_t viewer = -1;
         char battle_id[33] = {};
         s_reader reader;
-        bool (*options)(tactical_control::s_options*) = nullptr;
+        bool (*options)(s_options*) = nullptr;
         bool (*authorize)(int16_t, bool) = nullptr;
+        COMBAT1::e_result (*validate)(const COMBAT1::s_operation*) = nullptr;
         bool (*missile)(int16_t, s_missile*) = nullptr;
         bool (*missiles)(std::vector<s_missile>*) = nullptr;
         bool (*authorize_missile)(int16_t) = nullptr;

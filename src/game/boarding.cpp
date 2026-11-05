@@ -1,8 +1,7 @@
 #include "pch.h"
 
 #include "game/boarding.h"
-#include "game/tactical_events.h"
-#include "game/tactical_view.h"
+#include "game/combat.h"
 
 namespace BOARDING {
     int16_t Maximum_Commitment(int16_t actor) {
@@ -53,10 +52,10 @@ namespace BOARDING {
     }
 
     bool Result_Authorized(int16_t target) {
-        return tactical_events::Current_Viewer() >= 0 &&
-            tactical_events::Current_Viewer() == tactical_view::Local_Observer() &&
-            tactical_view::Unit_Disclosed(target) &&
-            (MOX::combat_data[target].owner == tactical_events::Current_Viewer() ||
+        return COMBAT::Current_Viewer() >= 0 &&
+            COMBAT::Current_Viewer() == COMBAT::Local_Observer() &&
+            COMBAT::Unit_Disclosed(target) &&
+            (MOX::combat_data[target].owner == COMBAT::Current_Viewer() ||
                 MOX::combat_data[target].special_status_flag != 4);
     }
 
@@ -65,7 +64,7 @@ namespace BOARDING {
         const auto* target = &MOX::combat_data[target_idx];
         s_result report;
         report.available = true;
-        report.attacker_owned = attacker_owner == tactical_events::Current_Viewer();
+        report.attacker_owned = attacker_owner == COMBAT::Current_Viewer();
         if (report.attacker_owned) {
             report.committed = committed;
             report.arrived = arrived;
@@ -77,12 +76,12 @@ namespace BOARDING {
         report.defender_strength = defender_strength;
         report.destroyed = target->unit_status != 0;
         report.raid_damage = damage > 0;
-        report.now_owned = target->owner == tactical_events::Current_Viewer();
+        report.now_owned = target->owner == COMBAT::Current_Viewer();
         if (report.now_owned) report.target_captured = target->is_captured != 0;
         strlcpy(report.target_name, target->name, sizeof(report.target_name));
         report.content_available = text->size() <= MAX_REPORT_TEXT;
         if (report.content_available) report.raid_text = *text;
-        tactical_events::Record_Boarding_Result(&report);
+        Record_Boarding_Result(&report);
     }
 
     void Record_Capture_Result(int16_t attacker, int16_t target_idx, bool authorized, int16_t committed, int16_t arrived, int16_t survived, int16_t defenders_started, int16_t defenders_survived, int16_t attacker_strength, int16_t defender_strength, int16_t message) {
@@ -91,7 +90,7 @@ namespace BOARDING {
         s_result report;
         report.available = true;
         report.capture = true;
-        report.attacker_owned = MOX::combat_data[attacker].owner == tactical_events::Current_Viewer();
+        report.attacker_owned = MOX::combat_data[attacker].owner == COMBAT::Current_Viewer();
         if (report.attacker_owned) report.committed = committed;
         report.arrived = arrived;
         report.attacker_lost = arrived - survived;
@@ -103,13 +102,13 @@ namespace BOARDING {
         report.defender_strength = defender_strength;
         report.captured = message == 0x32;
         report.destroyed = message == 0x31;
-        report.now_owned = target->owner == tactical_events::Current_Viewer();
+        report.now_owned = target->owner == COMBAT::Current_Viewer();
         if (report.now_owned) {
             report.target_captured = target->is_captured != 0;
             if (report.captured) report.captured_marines = target->marine_count;
         }
         strlcpy(report.target_name, target->name, sizeof(report.target_name));
-        tactical_events::Record_Boarding_Result(&report);
+        Record_Boarding_Result(&report);
     }
 
     int16_t Captured_Marine_Count(
@@ -181,5 +180,70 @@ namespace BOARDING {
             return e_boarding_filter::target_phased_out;
         }
         return e_boarding_filter::allowed;
+    }
+    namespace {
+        t_report_take report_take = nullptr;
+        t_report_complete report_complete = nullptr;
+        void* report_context = nullptr;
+    } // namespace
+    bool Attach_Report_Input(t_report_take input, t_report_complete output, void* owner) {
+        if (report_take != nullptr || input == nullptr || output == nullptr) return false;
+        report_take = input;
+        report_complete = output;
+        report_context = owner;
+        return true;
+    }
+    void Detach_Report_Input(void* owner) {
+        if (report_context != owner) return;
+        report_take = nullptr;
+        report_complete = nullptr;
+        report_context = nullptr;
+    }
+    bool Take_Report_Acknowledgement(uint64_t report) {
+        return report_take != nullptr && report_take(report, report_context);
+    }
+    void Complete_Report_Acknowledgement() {
+        if (report_complete != nullptr) report_complete(report_context);
+    }
+    void Record_Boarding_Result(const s_result* result) {
+        auto* scope = COMBAT::Current_Battle();
+        if (scope == nullptr || result == nullptr) return;
+        s_result replacement = *result;
+        std::swap(scope->boarding, replacement);
+        ++scope->boarding_generation;
+        scope->boarding_active = false;
+        COMBAT::Invalidate_View();
+    }
+    const s_result* Boarding_Result() noexcept {
+        const auto* scope = COMBAT::Current_Battle();
+        return scope != nullptr && scope->boarding.available ? &scope->boarding : nullptr;
+    }
+    uint64_t Boarding_Generation() noexcept {
+        const auto* scope = COMBAT::Current_Battle();
+        return scope != nullptr ? scope->boarding_generation : 0;
+    }
+    bool Boarding_Report_Active() noexcept {
+        const auto* scope = COMBAT::Current_Battle();
+        return scope != nullptr && scope->boarding_active;
+    }
+    bool Boarding_Report_Timed() noexcept {
+        const auto* scope = COMBAT::Current_Battle();
+        return Boarding_Report_Active() && scope->boarding_timed;
+    }
+    void Open_Boarding_Report(bool timed) noexcept {
+        auto* scope = COMBAT::Current_Battle();
+        if (Boarding_Result() == nullptr) return;
+        scope->boarding_active = true;
+        scope->boarding_timed = timed;
+        Publish_Boarding_Result();
+    }
+    void Publish_Boarding_Result() noexcept {
+        if (Boarding_Result() != nullptr) COMBAT::Notify_Boarding_Result();
+    }
+    void Close_Boarding_Report() noexcept {
+        auto* scope = COMBAT::Current_Battle();
+        if (!Boarding_Report_Active()) return;
+        scope->boarding_active = false;
+        COMBAT::Notify_Boarding_Report_Closed();
     }
 } // namespace BOARDING

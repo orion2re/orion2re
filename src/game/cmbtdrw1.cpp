@@ -1,6 +1,5 @@
 #include "pch.h"
-#include "tactical_control.h"
-#include "tactical_events.h"
+#include "combat.h"
 
 namespace CMBTDRW1 {
     enum class Combat_View_Subject {
@@ -1652,9 +1651,9 @@ namespace CMBTDRW1 {
 
     void Show_Absorber_Overload_Warning() {
         palette::Refresh_Palette();
-        const int16_t attention = tactical_events::Begin_Local_Attention();
+        const int16_t attention = COMBAT::Begin_Local_Attention();
         GENDRAW::Warning_Box("Absorber Overloaded");
-        tactical_events::End_Local_Attention(attention);
+        COMBAT::End_Local_Attention(attention);
         Refresh_Combat_Screen_Full();
     }
 
@@ -1666,7 +1665,7 @@ namespace CMBTDRW1 {
             do {
                 platform::Check_Exit();
                 has_input = key::Keyboard_Status() || mouse::Mouse_Buffer() == 1;
-                if (!has_input) acknowledged = tactical_control::Take_Report_Acknowledgement(generation);
+                if (!has_input) acknowledged = BOARDING::Take_Report_Acknowledgement(generation);
                 ++ticks;
                 fields::Quick_Call_Auto_Function();
                 if (ticks == input_ticks) has_input = true;
@@ -1684,7 +1683,7 @@ namespace CMBTDRW1 {
                 timer::Mark_Time();
                 RUSS::Mox_Sync_Update();
                 timer::Release_Time(1);
-                if (fields::input_delay <= 0) acknowledged = tactical_control::Take_Report_Acknowledgement(generation);
+                if (fields::input_delay <= 0) acknowledged = BOARDING::Take_Report_Acknowledgement(generation);
             } while (!acknowledged && fields::Get_Input() == 0);
         }
         return acknowledged;
@@ -1692,30 +1691,30 @@ namespace CMBTDRW1 {
 
     void Present_Boarding_Result(const char* title, const char* text, uint16_t ticks, bool authorized) {
         if (MOX::super_fast_flag != 0) {
-            if (authorized) tactical_events::Publish_Boarding_Result();
+            if (authorized) BOARDING::Publish_Boarding_Result();
             return;
         }
-        const int16_t attention = tactical_events::Begin_Local_Attention();
+        const int16_t attention = COMBAT::Begin_Local_Attention();
         TEXTBOX::s_text_box box;
         TEXTBOX::Open_Text_Box(title, text, &box);
         bool acknowledged = false;
         if (authorized) {
-            tactical_events::Open_Boarding_Report(ticks != 0);
-            acknowledged = Wait_For_Boarding_Result(ticks, tactical_events::Boarding_Generation());
+            BOARDING::Open_Boarding_Report(ticks != 0);
+            acknowledged = Wait_For_Boarding_Result(ticks, BOARDING::Boarding_Generation());
         } else {
             TEXTBOX::Text_Box_Get_Input(ticks);
         }
         TEXTBOX::Close_Text_Box(&box);
         if (authorized) {
-            tactical_events::Close_Boarding_Report();
-            if (acknowledged) tactical_control::Complete_Report_Acknowledgement();
+            BOARDING::Close_Boarding_Report();
+            if (acknowledged) BOARDING::Complete_Report_Acknowledgement();
         }
         MOX::FULL_DRAW_SCREEN_FLAG = 1;
-        tactical_events::End_Local_Attention(attention);
+        COMBAT::End_Local_Attention(attention);
     }
 
     int16_t __cdecl Board_Popup(int16_t min_val, int16_t max_val, char* msg, int16_t* out_val) {
-        tactical_control::Close_Decision();
+        COMBAT::Close_Control_Decision();
         int16_t result = 1;
         int16_t done = 0;
 

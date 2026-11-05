@@ -79,6 +79,16 @@ live in `rpc_tactical_view.cpp`, executing only on the game thread at those nati
 safe points. Socket handling does not read mutable game state. Projection does not
 reproduce combat rules or call rendering/input/calculation functions.
 
+Native helper ownership follows the existing modules: `COMBAT` owns the observed
+battle lifetime, disclosure and safe-point notifications; `COMBAT1` owns shared
+ship operations; `BOARDING` owns boarding results and report input; `CMBTFIRE` and
+`CMBTMIS` produce hit facts. Hit storage remains bounded and native battle-owned.
+RPC-only options, external-intent validation, decision-generation bookkeeping and
+request-local report projection live under `rpc_combat_*` / `rpc_tactical_*`.
+The native input owner takes a validated intent through transport-independent
+callbacks and executes it nonrecursively; the socket thread never validates or
+executes against mutable game state.
+
 | Enabled disclosure | Native authority/presentation anchor |
 | --- | --- |
 | Local human, initialized participating battle only | `COMBINIT::Local_Tactical_Observer`, observed `Tactical_Combat` scope after deployment/initial synchronization |

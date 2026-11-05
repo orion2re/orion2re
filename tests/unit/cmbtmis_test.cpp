@@ -68,6 +68,8 @@ namespace TEST_FIGHTER_RETARGETING {
 }
 
 namespace MOX {
+    int16_t PLAYER_NUM = -1;
+    int16_t NUM_PLAYERS = 0;
     s_combat_data* combat_data = ::combat_data;
     s_missile* missile = missiles;
     s_player* player = players;
@@ -77,6 +79,10 @@ namespace MOX {
     int16_t combat_turn;
     uint16_t apply_damage_to_planet;
     int16_t missile_hit_radius[6] = {12, 20, 26, 28, 30, 30};
+}
+
+namespace RUSS {
+    int8_t all_ai_game = 0;
 }
 
 namespace TECHDATA {

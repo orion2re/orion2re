@@ -25,7 +25,7 @@ class TacticalHooksTest(unittest.TestCase):
         self.assertEqual(body.count("battle_events.Open("), 1)
         self.assertLess(body.index("MAINSCR::Allocate_First_Screen_Seg(5);"),
                         body.index("battle_events.Close(Local_Tactical_Observer());"))
-        self.assertLess(body.index("tactical_events::Retire_Battle();"), body.index("End_Of_Combat(star_idx"))
+        self.assertLess(body.index("COMBAT::Retire_Battle();"), body.index("End_Of_Combat(star_idx"))
 
     def test_revocation_precedes_perspective_and_load_changes(self):
         checks = [
@@ -38,13 +38,13 @@ class TacticalHooksTest(unittest.TestCase):
             with self.subTest(path=path):
                 source = (ROOT / path).read_text()
                 body = source[source.index(start):]
-                self.assertLess(body.index("tactical_events::Revoke();"), body.index(boundary))
+                self.assertLess(body.index("COMBAT::Revoke();"), body.index(boundary))
         source = (ROOT / "src/game/multplay.cpp").read_text()
         assignment = source.index("MOX::PLAYER_NUM = selected_player_idx;")
-        self.assertTrue(source[:assignment].rstrip().endswith("tactical_events::Revoke();"))
+        self.assertTrue(source[:assignment].rstrip().endswith("COMBAT::Revoke();"))
 
     def test_native_owners_are_rpc_unaware_and_composition_detaches_before_stop(self):
-        for name in ("combinit", "combfind", "multplay", "mox2", "savegame", "tactical_events"):
+        for name in ("combat", "boarding", "combinit", "combfind", "multplay", "mox2", "savegame"):
             source = (ROOT / f"src/game/{name}.cpp").read_text()
             self.assertNotIn('#include "rpc/', source)
         source = (ROOT / "src/main.cpp").read_text()

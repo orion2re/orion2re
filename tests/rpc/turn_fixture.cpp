@@ -1,5 +1,5 @@
 #include "turn_fixture.h"
-#include "game/tactical_view.h"
+#include "game/combat.h"
 #include "game/boarding.h"
 #include <filesystem>
 #include <fstream>
@@ -82,7 +82,7 @@ namespace TEST_TACTICAL_TURN {
         }
     } // namespace
     void Reset() {
-        tactical_control::Close_Decision();
+        COMBAT::Close_Control_Decision();
         std::memset(units, 0, sizeof(units));
         std::memset(players, 0, sizeof(players));
         std::memset(ships, 0, sizeof(ships));
@@ -197,7 +197,7 @@ namespace TEST_TACTICAL_TURN {
         MOX::super_fast_flag = reports ? 0 : 1;
         fields::Deactivate_Auto_Function();
         COMBAT1::Assign_Combat_Grids(1);
-        tactical_control::Invalidate();
+        COMBAT::Invalidate_Control();
     }
     void Withdrawal() {
         Boarding(false);
@@ -282,12 +282,12 @@ namespace TEST_TACTICAL_TURN {
         std::filesystem::remove_all(media_root);
         media_root.clear();
     }
-    void Apply(const tactical_control::s_operation* operation) {
+    void Apply(const COMBAT1::s_operation* operation) {
         int16_t next = 0;
         // Done exhausts this fixture's pass; no assets are loaded for next-actor drawing.
-        if (operation->kind == tactical_control::DONE) MOX::super_fast_flag = 0;
+        if (operation->kind == COMBAT1::DONE) MOX::super_fast_flag = 0;
         COMBAT1::Apply_Tactical_Operation(operation, 0, &next);
-        if (next) tactical_events::Select_Unit(-1);
+        if (next) COMBAT::Select_Unit(-1);
     }
     void Add_Missile(int16_t slot, int16_t weapon, int16_t owner) {
         CMBTMIS::Kill_Missile(slot);
@@ -303,6 +303,6 @@ namespace TEST_TACTICAL_TURN {
         missile.speed = 3;
         missile.travel_dist = 100;
         missile.is_active = 1;
-        tactical_view::Missile_Changed(slot);
+        COMBAT::Missile_Changed(slot);
     }
 } // namespace TEST_TACTICAL_TURN

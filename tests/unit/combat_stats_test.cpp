@@ -1,7 +1,6 @@
 #include "pch.h"
 #include "rpc/rpc_tactical_view.h"
-#include "game/tactical_events.h"
-#include "game/tactical_view.h"
+#include "game/combat.h"
 
 #include "doctest/doctest.h"
 #include "game/aipower.h"
@@ -1001,12 +1000,12 @@ DOCTEST_TEST_CASE("native turn selection is observed only after a completed safe
         int16_t current = -1;
         uint64_t subscription = 0;
         ~s_selection_probe() {
-            tactical_events::Unsubscribe(subscription);
+            COMBAT::Unsubscribe(subscription);
         }
-        static void Receive(const tactical_events::s_event* event, void* context) noexcept {
+        static void Receive(const COMBAT::s_event* event, void* context) noexcept {
             auto* probe = (s_selection_probe*)context;
-            if (event->kind == tactical_events::UNIT_SELECTED) ++probe->selected;
-            if (event->kind != tactical_events::SERVICE_READS || !event->safe) return;
+            if (event->kind == COMBAT::UNIT_SELECTED) ++probe->selected;
+            if (event->kind != COMBAT::SERVICE_READS || !event->safe) return;
             rpc::s_view view;
             if (rpc::Read_Tactical_View(&view)) {
                 ++probe->reads;
@@ -1014,19 +1013,19 @@ DOCTEST_TEST_CASE("native turn selection is observed only after a completed safe
             }
         }
     } probe;
-    probe.subscription = tactical_events::Subscribe(s_selection_probe::Receive, &probe);
-    tactical_events::s_battle_scope battle;
+    probe.subscription = COMBAT::Subscribe(s_selection_probe::Receive, &probe);
+    COMBAT::s_battle_scope battle;
     battle.Open(0);
     DOCTEST_REQUIRE(COMBAT1::Select_Next_Strict_Ship(COMBAT_SHIP_ACTION_NONE) == 0);
     DOCTEST_CHECK(probe.selected == 0);
-    tactical_events::Service_Reads(true);
+    COMBAT::Service_Reads(true);
     DOCTEST_CHECK(probe.selected == 1);
     DOCTEST_CHECK(probe.current == 1);
     DOCTEST_REQUIRE(COMBAT1::Select_Next_Strict_Ship(COMBAT_SHIP_ACTION_DONE) == 0);
-    tactical_events::Service_Reads(true);
+    COMBAT::Service_Reads(true);
     DOCTEST_CHECK(probe.selected == 2);
     DOCTEST_CHECK(probe.current == 2);
-    tactical_events::Service_Reads(true);
+    COMBAT::Service_Reads(true);
     DOCTEST_CHECK(probe.selected == 2);
     battle.Close(0);
 }

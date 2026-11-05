@@ -39,6 +39,8 @@
   Keep request-local protocol DTO projection in RPC adapters, on the game thread;
   shared disclosure, legality, semantic operations and result ownership remain
   native. Generic textbox rendering must not own tactical/boarding decisions.
+  Place shared helpers in their existing native module, not standalone tactical
+  facade files; RPC-only options and request/control bookkeeping belong in RPC.
 - Application composition connects the optional sidecar before the game thread
   starts and disconnects after it joins. Dependency direction is
   `game -> neutral events` and `RPC -> game APIs/events`, never `game -> RPC`.

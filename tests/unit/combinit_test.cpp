@@ -2,7 +2,7 @@
 
 #include "doctest/doctest.h"
 #include "game/combinit.h"
-#include "game/tactical_events.h"
+#include "game/combat.h"
 
 namespace TEST_COMBINIT {
     void Reset_();
@@ -78,14 +78,14 @@ DOCTEST_TEST_CASE("native combat slot reinitialization retires observation ident
         unsigned retired = 0;
         uint64_t subscription = 0;
         ~s_probe() {
-            tactical_events::Unsubscribe(subscription);
+            COMBAT::Unsubscribe(subscription);
         }
-        static void Receive(const tactical_events::s_event* event, void* context) noexcept {
-            if (event->kind == tactical_events::UNIT_RETIRED && event->unit == 1) ++((s_probe*)context)->retired;
+        static void Receive(const COMBAT::s_event* event, void* context) noexcept {
+            if (event->kind == COMBAT::UNIT_RETIRED && event->unit == 1) ++((s_probe*)context)->retired;
         }
     } probe;
-    probe.subscription = tactical_events::Subscribe(s_probe::Receive, &probe);
-    tactical_events::s_battle_scope battle;
+    probe.subscription = COMBAT::Subscribe(s_probe::Receive, &probe);
+    COMBAT::s_battle_scope battle;
     battle.Open(0);
     COMBINIT::Load_Combat_Ship(0, 1);
     DOCTEST_CHECK(probe.retired == 1);

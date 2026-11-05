@@ -1,20 +1,17 @@
 #include "pch.h"
-#include "tactical_control.h"
-#include "tactical_events.h"
-#include "tactical_view.h"
-#include "boarding.h"
+#include "rpc_combat_control.h"
 
-namespace tactical_control {
+namespace rpc {
     namespace {
         bool Controlled() {
-            const int16_t actor = Actor();
-            return tactical_events::Current_Viewer() == tactical_view::Local_Observer() &&
-                tactical_events::Current_Viewer() >= 0 && MOX::combat_data != nullptr &&
+            const int16_t actor = Control_Actor();
+            return COMBAT::Current_Viewer() == COMBAT::Local_Observer() &&
+                COMBAT::Current_Viewer() >= 0 && MOX::combat_data != nullptr &&
                 MOX::combat_total_ship_count <= MAX_COMBAT_SHIPS &&
                 actor > 0 && actor < MOX::combat_total_ship_count && actor == MOX::cur_ship &&
                 MOX::cur_ptr >= 0 && MOX::cur_ptr < MAX_COMBAT_SHIPS &&
                 MOX::ship_turn_order[MOX::cur_ptr] == actor &&
-                MOX::combat_data[actor].owner == tactical_view::Local_Observer() &&
+                MOX::combat_data[actor].owner == COMBAT::Local_Observer() &&
                 !COMBINIT::Is_Combat_Satellite(&MOX::combat_data[actor]) &&
                 COMBAT1::Combat_Ship_Is_Functional(actor) && !COMBAT1::Ship_Controlled_By_Computer(actor) &&
                 !CMBTFIRE::Is_Combat_Ship_Dead(actor) && MOX::combat_data[actor].is_retreating == 0 &&
@@ -27,8 +24,8 @@ namespace tactical_control {
         }
         bool Selectable(int16_t slot) {
             if (MOX::combat_init != 0 || slot <= 0 || slot >= MOX::combat_total_ship_count ||
-                !tactical_view::Unit_Disclosed(slot) ||
-                MOX::combat_data[slot].owner != tactical_view::Local_Observer() ||
+                !COMBAT::Unit_Disclosed(slot) ||
+                MOX::combat_data[slot].owner != COMBAT::Local_Observer() ||
                 COMBINIT::Is_Combat_Satellite(&MOX::combat_data[slot]) ||
                 !COMBAT1::Combat_Ship_Is_Functional(slot) ||
                 !COMBAT1::Combat_Ship_Participates_In_Current_Pass(slot)) return false;
@@ -41,8 +38,8 @@ namespace tactical_control {
             return false;
         }
         bool Disclosed_Target(int16_t slot) {
-            return tactical_view::Unit_Disclosed(slot) &&
-                MOX::combat_data[slot].owner != tactical_view::Local_Observer() &&
+            return COMBAT::Unit_Disclosed(slot) &&
+                MOX::combat_data[slot].owner != COMBAT::Local_Observer() &&
                 MOX::combat_data[slot].special_status_flag != 4;
         }
         bool Absorber_Selected(int16_t actor) {
@@ -54,7 +51,7 @@ namespace tactical_control {
         s_target Target(int16_t actor, int16_t slot, bool missile = false) {
             s_target result{slot, 0, false};
             if (missile) {
-                if (!tactical_view::Missile_Disclosed(slot) || MOX::missile[slot].owner == tactical_view::Local_Observer()) return result;
+                if (!COMBAT::Missile_Disclosed(slot) || MOX::missile[slot].owner == COMBAT::Local_Observer()) return result;
             } else if (!Disclosed_Target(slot) || CMBTMOV1::Ship_Is_In_Stasis(slot))
                 return result;
             const auto bearing = missile ? CMBTDRW1::Relative_Bearing_XY(actor, MOX::missile[slot].x, MOX::missile[slot].y) : CMBTDRW1::Relative_Bearing(actor, slot);
@@ -78,13 +75,13 @@ namespace tactical_control {
     } // namespace
     bool Read_Options(s_options* result) {
         *result = {};
-        if (!tactical_events::Reads_Allowed()) return false;
+        if (!COMBAT::Reads_Allowed()) return false;
         if (!Controlled()) return true;
-        const int16_t actor = Actor();
+        const int16_t actor = Control_Actor();
         const auto& ship = MOX::combat_data[actor];
         result->available = true;
         result->actor = actor;
-        result->generation = Generation();
+        result->generation = Control_Generation();
         result->own_marines = ship.marine_count;
         result->maximum_marines = BOARDING::Maximum_Commitment(actor);
         result->already_boarded = CMBTFIR2::Already_Boarded(actor) != 0;
@@ -101,7 +98,7 @@ namespace tactical_control {
             if (target.weapons || target.absorber) result->targets.push_back(target);
         }
         for (int16_t i = 0; i < MAX_COMBAT_FLYERS; ++i)
-            if (tactical_view::Missile_Disclosed(i) && MOX::missile[i].owner != tactical_view::Local_Observer())
+            if (COMBAT::Missile_Disclosed(i) && MOX::missile[i].owner != COMBAT::Local_Observer())
                 result->missile_targets.push_back(Target(actor, i, true));
         for (int16_t i = 0; i < 8; ++i) {
             const auto& weapon = ship.weapons[i];
@@ -126,44 +123,44 @@ namespace tactical_control {
         return true;
     }
     bool Authorize(int16_t slot, bool owned) {
-        return tactical_events::Current_Viewer() == tactical_view::Local_Observer() &&
-            tactical_view::Unit_Disclosed(slot) && (owned ? MOX::combat_data[slot].owner == tactical_view::Local_Observer() : Disclosed_Target(slot));
+        return COMBAT::Current_Viewer() == COMBAT::Local_Observer() &&
+            COMBAT::Unit_Disclosed(slot) && (owned ? MOX::combat_data[slot].owner == COMBAT::Local_Observer() : Disclosed_Target(slot));
     }
-    e_result Validate(const s_operation* operation) {
-        if (!Controlled()) return NO_CONTROL;
-        if (operation->actor != Actor()) return CONFLICT;
+    COMBAT1::e_result Validate(const COMBAT1::s_operation* operation) {
+        if (!Controlled()) return COMBAT1::NO_CONTROL;
+        if (operation->actor != Control_Actor()) return COMBAT1::CONFLICT;
         switch (operation->kind) {
-            case SELECT: return Selectable(operation->target) ? APPLIED : ILLEGAL;
-            case MOVE: return Cell(operation->x, operation->y) && MOX::combat_grid[operation->x][operation->y] == 2000 ? APPLIED : ILLEGAL;
-            case FACE: return Cell(operation->x, operation->y) && MOX::combat_data[Actor()].movement_left > 0 ? APPLIED : ILLEGAL;
-            case FIRE: {
+            case COMBAT1::SELECT: return Selectable(operation->target) ? COMBAT1::APPLIED : COMBAT1::ILLEGAL;
+            case COMBAT1::MOVE: return Cell(operation->x, operation->y) && MOX::combat_grid[operation->x][operation->y] == 2000 ? COMBAT1::APPLIED : COMBAT1::ILLEGAL;
+            case COMBAT1::FACE: return Cell(operation->x, operation->y) && MOX::combat_data[Control_Actor()].movement_left > 0 ? COMBAT1::APPLIED : COMBAT1::ILLEGAL;
+            case COMBAT1::FIRE: {
                 if (operation->missile_target) {
-                    if (!tactical_view::Missile_Disclosed(operation->target) || MOX::missile[operation->target].owner == tactical_view::Local_Observer()) return UNAVAILABLE;
-                    return Target(Actor(), operation->target, true).weapons ? APPLIED : ILLEGAL;
+                    if (!COMBAT::Missile_Disclosed(operation->target) || MOX::missile[operation->target].owner == COMBAT::Local_Observer()) return COMBAT1::UNAVAILABLE;
+                    return Target(Control_Actor(), operation->target, true).weapons ? COMBAT1::APPLIED : COMBAT1::ILLEGAL;
                 }
-                if (!Disclosed_Target(operation->target)) return UNAVAILABLE;
-                if (CMBTMOV1::Ship_Is_In_Stasis(operation->target)) return LOCAL_REQUIRED;
-                const auto target = Target(Actor(), operation->target);
-                return target.weapons || target.absorber ? APPLIED : ILLEGAL;
+                if (!Disclosed_Target(operation->target)) return COMBAT1::UNAVAILABLE;
+                if (CMBTMOV1::Ship_Is_In_Stasis(operation->target)) return COMBAT1::LOCAL_REQUIRED;
+                const auto target = Target(Control_Actor(), operation->target);
+                return target.weapons || target.absorber ? COMBAT1::APPLIED : COMBAT1::ILLEGAL;
             }
-            case DONE: return APPLIED;
-            case RETREAT: return COMBAT1::Check_Human_Retreat(Actor()) == 0 ? APPLIED : ILLEGAL;
-            case BOARD:
-                if (!Disclosed_Target(operation->target)) return UNAVAILABLE;
-                return !CMBTFIR2::Already_Boarded(Actor()) &&
-                        BOARDING::Check_Human_Boarding(Actor(), operation->target).allowed &&
+            case COMBAT1::DONE: return COMBAT1::APPLIED;
+            case COMBAT1::RETREAT: return COMBAT1::Check_Human_Retreat(Control_Actor()) == 0 ? COMBAT1::APPLIED : COMBAT1::ILLEGAL;
+            case COMBAT1::BOARD:
+                if (!Disclosed_Target(operation->target)) return COMBAT1::UNAVAILABLE;
+                return !CMBTFIR2::Already_Boarded(Control_Actor()) &&
+                        BOARDING::Check_Human_Boarding(Control_Actor(), operation->target).allowed &&
                         (operation->boarding_mode == 1 || operation->boarding_mode == 2) &&
-                        operation->marines >= 0 && operation->marines <= BOARDING::Maximum_Commitment(Actor())
-                    ? APPLIED
-                    : ILLEGAL;
-            case FIRE_SELECTION:
-                if (operation->bank_mask == 0) return ILLEGAL;
+                        operation->marines >= 0 && operation->marines <= BOARDING::Maximum_Commitment(Control_Actor())
+                    ? COMBAT1::APPLIED
+                    : COMBAT1::ILLEGAL;
+            case COMBAT1::FIRE_SELECTION:
+                if (operation->bank_mask == 0) return COMBAT1::ILLEGAL;
                 for (unsigned i = 0; i < 8; ++i)
                     if (operation->bank_mask & (1u << i)) {
-                        if (MOX::combat_data[Actor()].weapons[i].weapon_id == 0 || operation->bank_states[i] < -1 || operation->bank_states[i] > 1) return ILLEGAL;
+                        if (MOX::combat_data[Control_Actor()].weapons[i].weapon_id == 0 || operation->bank_states[i] < -1 || operation->bank_states[i] > 1) return COMBAT1::ILLEGAL;
                     }
-                return APPLIED;
-            default: return ILLEGAL;
+                return COMBAT1::APPLIED;
+            default: return COMBAT1::ILLEGAL;
         }
     }
-} // namespace tactical_control
+} // namespace rpc

@@ -1,6 +1,5 @@
 #include "pch.h"
-#include "tactical_events.h"
-#include "tactical_view.h"
+#include "combat.h"
 
 namespace CMBTFIR2 {
     namespace {
@@ -1955,9 +1954,9 @@ namespace CMBTFIR2 {
             new_owner = MOX::combat_attacker_player;
         }
 
-        tactical_view::Resolve_Retreat(ship_idx, tactical_events::CAPTURED);
-        tactical_events::Retire_Unit(ship_idx);
-        tactical_view::Unit_Changed(ship_idx, true);
+        COMBAT::Resolve_Retreat(ship_idx, COMBAT::CAPTURED);
+        COMBAT::Retire_Unit(ship_idx);
+        COMBAT::Unit_Changed(ship_idx, true);
         combat_ship->owner = (int8_t)new_owner;
 
         CMBTFIRE::Retarget_Missiles_Aimed_At(ship_idx);

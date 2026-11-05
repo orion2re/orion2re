@@ -1,6 +1,7 @@
+#include "pch.h"
 #include "rpc/rpc_service.h"
 #include "rpc/rpc_tactical.h"
-#include "game/tactical_events.h"
+#include "game/combat.h"
 
 #include <iostream>
 #include <memory>
@@ -23,21 +24,21 @@ int main() {
     }
     std::cout << rpc::Service_Port(&service) << std::endl;
     std::string command;
-    std::unique_ptr<tactical_events::s_battle_scope> battle;
+    std::unique_ptr<COMBAT::s_battle_scope> battle;
     while (std::getline(std::cin, command) && command != "stop") {
         if (command == "open") {
-            battle = std::make_unique<tactical_events::s_battle_scope>();
+            battle = std::make_unique<COMBAT::s_battle_scope>();
             battle->Open(0);
         } else if (command == "close") {
             if (battle != nullptr) battle->Close(0);
             battle.reset();
         } else if (command == "battle" || command == "hidden" || command == "switch") {
             const int16_t viewer = command == "hidden" ? -1 : (command == "switch" ? 1 : 0);
-            tactical_events::s_battle_scope completed;
+            COMBAT::s_battle_scope completed;
             completed.Open(viewer);
             completed.Close(viewer);
         } else if (command == "revoke") {
-            tactical_events::Revoke();
+            COMBAT::Revoke();
         }
         std::cout << "done" << std::endl;
     }

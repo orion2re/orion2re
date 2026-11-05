@@ -1,29 +1,30 @@
 #include "rpc/turn_fixture.h"
+#include "rpc/rpc_combat_control.h"
 #include "rpc/rpc_tactical_view.h"
-#include "game/tactical_view.h"
+#include "game/combat.h"
 #include "doctest/doctest.h"
 #include <memory>
 
 namespace {
     struct s_withdrawal {
-        tactical_events::s_battle_scope battle;
-        std::vector<tactical_events::s_event> outcomes;
+        COMBAT::s_battle_scope battle;
+        std::vector<COMBAT::s_event> outcomes;
         uint64_t subscription;
         int16_t previous_ground = MOX::crew_data[1].ground;
         s_withdrawal() {
             TEST_TACTICAL_TURN::Reset();
             TEST_TACTICAL_TURN::Withdrawal();
             battle.Open(0);
-            tactical_events::Select_Unit(1);
-            tactical_control::Open_Decision(1);
-            subscription = tactical_events::Subscribe([](const tactical_events::s_event* event, void* context) noexcept {
-                if (event->kind == tactical_events::RETREAT_RESOLVED) ((s_withdrawal*)context)->outcomes.push_back(*event);
+            COMBAT::Select_Unit(1);
+            COMBAT::Open_Control_Decision(1);
+            subscription = COMBAT::Subscribe([](const COMBAT::s_event* event, void* context) noexcept {
+                if (event->kind == COMBAT::RETREAT_RESOLVED) ((s_withdrawal*)context)->outcomes.push_back(*event);
             },
                 this);
         }
         ~s_withdrawal() {
-            tactical_control::Detach(this);
-            tactical_events::Unsubscribe(subscription);
+            COMBAT::Detach_Control(this);
+            COMBAT::Unsubscribe(subscription);
             battle.Close(0);
             TEST_TACTICAL_TURN::Release_Boarding();
             MOX::crew_data[1].ground = previous_ground;
@@ -33,9 +34,9 @@ namespace {
             MOX::cur_ptr = 0;
             MOX::ship_turn_order[0] = actor;
             MOX::ship_turn_order[1] = -10;
-            tactical_control::Open_Decision(actor);
-            const tactical_control::s_operation operation{tactical_control::RETREAT, actor};
-            DOCTEST_REQUIRE(tactical_control::Validate(&operation) == tactical_control::APPLIED);
+            COMBAT::Open_Control_Decision(actor);
+            const COMBAT1::s_operation operation{COMBAT1::RETREAT, actor};
+            DOCTEST_REQUIRE(rpc::Validate(&operation) == COMBAT1::APPLIED);
             int16_t next = 0;
             COMBAT1::Apply_Tactical_Operation(&operation, 0, &next, received);
             DOCTEST_CHECK(next == 1);
@@ -61,7 +62,7 @@ DOCTEST_TEST_CASE("withdrawal command schedules and native next pass actually es
         DOCTEST_CHECK(MOX::combat_data[1].unit_status == 5);
         DOCTEST_CHECK(MOX::combat_data[1].is_retreating == 2);
         DOCTEST_REQUIRE(fixture.outcomes.size() == 1);
-        DOCTEST_CHECK(fixture.outcomes[0].retreat_outcome == tactical_events::ESCAPED);
+        DOCTEST_CHECK(fixture.outcomes[0].retreat_outcome == COMBAT::ESCAPED);
         DOCTEST_CHECK(COMBAT1::Check_For_Winner() == -1);
         DOCTEST_CHECK(game_random::Get_Random_Seed() == seed);
         DOCTEST_CHECK_FALSE(COMBAT1::Combat_Ship_Participates_In_Current_Pass(1));
@@ -93,17 +94,17 @@ DOCTEST_TEST_CASE("retreat advances to the remaining eligible native actor in cl
         MOX::ship_turn_order[1] = 3;
         MOX::ship_turn_order[2] = -10;
         COMBAT1::Reset_Strict_Combat_Sequence();
-        const tactical_control::s_operation retreat{tactical_control::RETREAT, 1};
-        DOCTEST_REQUIRE(tactical_control::Validate(&retreat) == tactical_control::APPLIED);
+        const COMBAT1::s_operation retreat{COMBAT1::RETREAT, 1};
+        DOCTEST_REQUIRE(rpc::Validate(&retreat) == COMBAT1::APPLIED);
         int16_t next = 0;
         COMBAT1::Apply_Tactical_Operation(&retreat, 0, &next);
         DOCTEST_CHECK(next == 0);
         DOCTEST_CHECK(MOX::cur_ship == 3);
         DOCTEST_CHECK(MOX::ship_turn_order[MOX::cur_ptr] == 3);
         DOCTEST_CHECK(MOX::combat_data[1].is_retreating == 1);
-        tactical_control::Open_Decision(3);
-        const tactical_control::s_operation done{tactical_control::DONE, 3};
-        DOCTEST_CHECK(tactical_control::Validate(&done) == tactical_control::APPLIED);
+        COMBAT::Open_Control_Decision(3);
+        const COMBAT1::s_operation done{COMBAT1::DONE, 3};
+        DOCTEST_CHECK(rpc::Validate(&done) == COMBAT1::APPLIED);
     }
 }
 
@@ -141,7 +142,7 @@ DOCTEST_TEST_CASE("pending retreat is deferred by stasis and nonparticipating Ti
     COMBAT1::Do_Combat_Turn(0, 1);
     DOCTEST_CHECK(MOX::combat_data[1].is_retreating == 2);
     DOCTEST_REQUIRE(fixture.outcomes.size() == 1);
-    DOCTEST_CHECK(fixture.outcomes[0].retreat_outcome == tactical_events::ESCAPED);
+    DOCTEST_CHECK(fixture.outcomes[0].retreat_outcome == COMBAT::ESCAPED);
 }
 
 DOCTEST_TEST_CASE("native destruction capture validation and closure have distinct withdrawal outcomes") {
@@ -155,9 +156,9 @@ DOCTEST_TEST_CASE("native destruction capture validation and closure have distin
             MOX::combat_data[1].drive_current_hits = 50;
             DOCTEST_CHECK_FALSE(COMBAT1::Validate_Retreating_Ship(1));
         }
-        if (route == 3) tactical_view::End_Pending_Retreats();
+        if (route == 3) COMBAT::End_Pending_Retreats();
         DOCTEST_REQUIRE(fixture.outcomes.size() == 1);
-        const tactical_events::e_retreat_outcome expected[] = {tactical_events::DESTROYED, tactical_events::CAPTURED, tactical_events::CANCELLED, tactical_events::BATTLE_ENDED};
+        const COMBAT::e_retreat_outcome expected[] = {COMBAT::DESTROYED, COMBAT::CAPTURED, COMBAT::CANCELLED, COMBAT::BATTLE_ENDED};
         DOCTEST_CHECK(fixture.outcomes[0].retreat_outcome == expected[route]);
         DOCTEST_CHECK(MOX::combat_data[1].is_retreating != 2);
     }
@@ -180,22 +181,22 @@ DOCTEST_TEST_CASE("withdrawal production round owner consumes explicit remaining
     struct s_script {
         int step = 0;
     } script;
-    DOCTEST_REQUIRE(tactical_control::Attach([](tactical_control::s_operation* operation, void* context) {
+    DOCTEST_REQUIRE(COMBAT::Attach_Control([](COMBAT1::s_operation* operation, COMBAT1::e_result*, void* context) {
         auto* script = (s_script*)context;
         if (script->step >= 3) return false;
         const int16_t actors[] = {1, 3, 3};
         if (MOX::cur_ship != actors[script->step]) return false;
-        *operation = {script->step == 1 ? tactical_control::DONE : tactical_control::RETREAT, MOX::cur_ship};
+        *operation = {script->step == 1 ? COMBAT1::DONE : COMBAT1::RETREAT, MOX::cur_ship};
         ++script->step;
-        return true; }, [](tactical_control::e_result result, void*) { DOCTEST_CHECK(result == tactical_control::APPLIED); }, &script));
+        return true; }, [](COMBAT1::e_result result, void*) { DOCTEST_CHECK(result == COMBAT1::APPLIED); }, &script));
     const auto winner = COMBINIT::Run_Tactical_Combat_Rounds(0, 1, 0);
-    tactical_control::Detach(&script);
+    COMBAT::Detach_Control(&script);
     DOCTEST_CHECK(winner == -1);
     DOCTEST_CHECK(script.step == 3);
     DOCTEST_CHECK(MOX::combat_data[1].is_retreating == 2);
     DOCTEST_CHECK(MOX::combat_data[3].is_retreating == 2);
     DOCTEST_CHECK(fixture.outcomes.size() == 2);
-    tactical_events::Retire_Battle();
+    COMBAT::Retire_Battle();
     DOCTEST_CHECK(fixture.battle.hits.capacity() == 0);
     DOCTEST_CHECK(fixture.battle.boarding.raid_text.capacity() == std::string().capacity());
 }
@@ -210,35 +211,35 @@ DOCTEST_TEST_CASE("native pass cancels withdrawal when speed or aggregate preven
             struct_::Set_Bit_Field(MOX::combat_data[2].special_device_flags, SPECIAL_WARP_DISSIPATOR);
         } else
             MOX::combat_data[1].drive_current_hits = 50;
-        DOCTEST_REQUIRE(tactical_control::Attach([](tactical_control::s_operation* operation, void*) {
-            *operation = {tactical_control::DONE, MOX::cur_ship};
-            return true; }, [](tactical_control::e_result result, void*) { DOCTEST_CHECK(result == tactical_control::APPLIED); }, &fixture));
+        DOCTEST_REQUIRE(COMBAT::Attach_Control([](COMBAT1::s_operation* operation, COMBAT1::e_result*, void*) {
+            *operation = {COMBAT1::DONE, MOX::cur_ship};
+            return true; }, [](COMBAT1::e_result result, void*) { DOCTEST_CHECK(result == COMBAT1::APPLIED); }, &fixture));
         COMBAT1::Do_Combat_Turn(0, 0);
         DOCTEST_CHECK(MOX::combat_data[1].is_retreating == 0);
         DOCTEST_CHECK(MOX::combat_data[1].unit_status == 0);
         DOCTEST_REQUIRE(fixture.outcomes.size() == 1);
-        DOCTEST_CHECK(fixture.outcomes[0].retreat_outcome == tactical_events::CANCELLED);
+        DOCTEST_CHECK(fixture.outcomes[0].retreat_outcome == COMBAT::CANCELLED);
     }
 }
 
 DOCTEST_TEST_CASE("retreat options preserve native speed configuration and actor authority") {
     s_withdrawal fixture;
     auto& actor = MOX::combat_data[1];
-    const tactical_control::s_operation retreat{tactical_control::RETREAT, 1};
+    const COMBAT1::s_operation retreat{COMBAT1::RETREAT, 1};
     for (bool ics : {false, true}) {
         const auto previous = COMBAT1::interactive_combat_stats;
         COMBAT1::interactive_combat_stats = ics;
         actor.black_hole_source_idx = 2;
         COMBAT1::Recalculate_Combat_Ship(1);
-        DOCTEST_CHECK(tactical_control::Validate(&retreat) == tactical_control::ILLEGAL);
+        DOCTEST_CHECK(rpc::Validate(&retreat) == COMBAT1::ILLEGAL);
         actor.black_hole_source_idx = COMBAT_SHIP_NONE;
         actor.ftl_type = DRIVE_NO_DRIVE;
         MOX::player[0].traits[TRAIT_TRANS_DIMENSIONAL] = 1;
         COMBAT1::Recalculate_Combat_Ship(1);
-        DOCTEST_CHECK(tactical_control::Validate(&retreat) == tactical_control::APPLIED);
+        DOCTEST_CHECK(rpc::Validate(&retreat) == COMBAT1::APPLIED);
         MOX::player[0].traits[TRAIT_TRANS_DIMENSIONAL] = 0;
         COMBAT1::Recalculate_Combat_Ship(1);
-        DOCTEST_CHECK(tactical_control::Validate(&retreat) == tactical_control::ILLEGAL);
+        DOCTEST_CHECK(rpc::Validate(&retreat) == COMBAT1::ILLEGAL);
         actor.ftl_type = 1;
         actor.drive_current_hits = 100;
         COMBAT1::Recalculate_Combat_Ship(1);
@@ -249,7 +250,7 @@ DOCTEST_TEST_CASE("retreat options preserve native speed configuration and actor
         actor.is_captured = kind == 1;
         MOX::auto_combat = kind == 2;
         actor.owner = kind == 3 ? 1 : 0;
-        DOCTEST_CHECK(tactical_control::Validate(&retreat) == tactical_control::NO_CONTROL);
+        DOCTEST_CHECK(rpc::Validate(&retreat) == COMBAT1::NO_CONTROL);
     }
 }
 
@@ -264,7 +265,7 @@ DOCTEST_TEST_CASE("displayed native retreat rotates before actual escape unlike 
     DOCTEST_CHECK(MOX::combat_data[1].facing_dir == 8);
     DOCTEST_CHECK(MOX::combat_data[1].is_retreating == 2);
     DOCTEST_REQUIRE(fixture.outcomes.size() == 1);
-    DOCTEST_CHECK(fixture.outcomes[0].retreat_outcome == tactical_events::ESCAPED);
+    DOCTEST_CHECK(fixture.outcomes[0].retreat_outcome == COMBAT::ESCAPED);
     DOCTEST_CHECK(game_random::Get_Random_Seed() == seed);
 }
 
@@ -286,7 +287,7 @@ DOCTEST_TEST_CASE("retreat rotation resolves actual incoming missiles and can de
     DOCTEST_CHECK(MOX::combat_data[1].is_retreating == 0);
     DOCTEST_CHECK(MOX::combat_data[1].unit_status == 5);
     DOCTEST_REQUIRE(fixture.outcomes.size() == 1);
-    DOCTEST_CHECK(fixture.outcomes[0].retreat_outcome == tactical_events::DESTROYED);
+    DOCTEST_CHECK(fixture.outcomes[0].retreat_outcome == COMBAT::DESTROYED);
     DOCTEST_CHECK(game_random::Get_Random_Seed() != seed);
 }
 
@@ -295,20 +296,20 @@ DOCTEST_TEST_CASE("withdrawal reads expose pending state without changing native
     fixture.Begin();
     struct s_read {
         rpc::s_view view;
-        tactical_control::s_options options;
+        rpc::s_options options;
     } read;
     auto before = std::make_unique<s_combat_data[]>(MAX_COMBAT_SHIPS);
     std::copy_n(MOX::combat_data, MAX_COMBAT_SHIPS, before.get());
     const auto seed = game_random::Get_Random_Seed();
-    const auto subscription = tactical_events::Subscribe([](const tactical_events::s_event* event, void* context) noexcept {
-        if (event->kind != tactical_events::SERVICE_READS || !event->safe) return;
+    const auto subscription = COMBAT::Subscribe([](const COMBAT::s_event* event, void* context) noexcept {
+        if (event->kind != COMBAT::SERVICE_READS || !event->safe) return;
         auto* read = (s_read*)context;
         DOCTEST_CHECK(rpc::Read_Tactical_View(&read->view));
-        DOCTEST_CHECK(tactical_control::Read_Options(&read->options));
+        DOCTEST_CHECK(rpc::Read_Options(&read->options));
     },
         &read);
-    tactical_events::Service_Reads(true);
-    tactical_events::Unsubscribe(subscription);
+    COMBAT::Service_Reads(true);
+    COMBAT::Unsubscribe(subscription);
     DOCTEST_CHECK_FALSE(read.options.available);
     DOCTEST_CHECK(std::find_if(read.view.units.begin(), read.view.units.end(), [](const auto& row) { return row.slot == 1 && row.retreat_pending; }) != read.view.units.end());
     DOCTEST_CHECK(std::memcmp(before.get(), MOX::combat_data, sizeof(s_combat_data) * MAX_COMBAT_SHIPS) == 0);
@@ -344,7 +345,7 @@ DOCTEST_TEST_CASE("local flee input schedules through the same native operation 
     COMBAT1::Do_Combat_Turn(0, 0);
     DOCTEST_CHECK(MOX::combat_data[1].is_retreating == 2);
     DOCTEST_REQUIRE(fixture.outcomes.size() == 1);
-    DOCTEST_CHECK(fixture.outcomes[0].retreat_outcome == tactical_events::ESCAPED);
+    DOCTEST_CHECK(fixture.outcomes[0].retreat_outcome == COMBAT::ESCAPED);
 }
 
 DOCTEST_TEST_CASE("AI native withdrawal retains its additional commitment state and later escapes") {
@@ -361,7 +362,7 @@ DOCTEST_TEST_CASE("AI native withdrawal retains its additional commitment state 
     COMBAT1::Do_Combat_Turn(0, 0);
     DOCTEST_CHECK(MOX::combat_data[1].is_retreating == 2);
     DOCTEST_REQUIRE(fixture.outcomes.size() == 1);
-    DOCTEST_CHECK(fixture.outcomes[0].retreat_outcome == tactical_events::ESCAPED);
+    DOCTEST_CHECK(fixture.outcomes[0].retreat_outcome == COMBAT::ESCAPED);
     MOX::ai_retreat_flag = allowed;
     CMBTAI::ships_without_ammo_stay = stay;
 }
@@ -373,19 +374,19 @@ DOCTEST_TEST_CASE("native turn limit ends a battle with deferred withdrawal stil
     const auto limit = COMBAT1::max_combat_turns;
     COMBAT1::max_combat_turns = 0;
     MOX::combat_turn = 1;
-    DOCTEST_REQUIRE(tactical_control::Attach([](tactical_control::s_operation* operation, void*) {
-        *operation = {tactical_control::DONE, MOX::cur_ship};
-        return true; }, [](tactical_control::e_result result, void*) { DOCTEST_CHECK(result == tactical_control::APPLIED); }, &fixture));
+    DOCTEST_REQUIRE(COMBAT::Attach_Control([](COMBAT1::s_operation* operation, COMBAT1::e_result*, void*) {
+        *operation = {COMBAT1::DONE, MOX::cur_ship};
+        return true; }, [](COMBAT1::e_result result, void*) { DOCTEST_CHECK(result == COMBAT1::APPLIED); }, &fixture));
     const auto winner = COMBINIT::Run_Tactical_Combat_Rounds(0, 1, 0);
     COMBAT1::max_combat_turns = limit;
     DOCTEST_CHECK(winner == -1);
     DOCTEST_CHECK(MOX::combat_data[1].is_retreating == 1);
     DOCTEST_CHECK(fixture.outcomes.empty());
     // Same native retirement boundary as Tactical_Combat; fixture owns the memory teardown.
-    tactical_view::End_Pending_Retreats();
-    tactical_events::Retire_Battle();
+    COMBAT::End_Pending_Retreats();
+    COMBAT::Retire_Battle();
     DOCTEST_REQUIRE(fixture.outcomes.size() == 1);
-    DOCTEST_CHECK(fixture.outcomes[0].retreat_outcome == tactical_events::BATTLE_ENDED);
+    DOCTEST_CHECK(fixture.outcomes[0].retreat_outcome == COMBAT::BATTLE_ENDED);
 }
 
 DOCTEST_TEST_CASE("repeated withdrawal contexts release fixture arenas and native report storage") {
@@ -396,7 +397,7 @@ DOCTEST_TEST_CASE("repeated withdrawal contexts release fixture arenas and nativ
             fixture.Begin();
             COMBAT1::Do_Combat_Turn(0, 0);
             DOCTEST_REQUIRE(fixture.outcomes.size() == 1);
-            tactical_events::Retire_Battle();
+            COMBAT::Retire_Battle();
             DOCTEST_CHECK(fixture.battle.hits.capacity() == 0);
             DOCTEST_CHECK(fixture.battle.boarding.raid_text.capacity() == std::string().capacity());
         }

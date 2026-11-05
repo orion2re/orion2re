@@ -234,6 +234,7 @@ namespace TEST_FIGHTER_ORDNANCE {
 namespace MOX {
     int16_t PLAYER_NUM = -1;
     int16_t NUM_PLAYERS = 0;
+    int16_t combat_turn = 0;
     s_combat_data* combat_data = ::combat_data;
     s_missile* missile = missiles;
     s_colony* colony;

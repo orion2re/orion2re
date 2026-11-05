@@ -1,14 +1,13 @@
 #include "pch.h"
 #include "rpc_tactical_view.h"
-#include "game/tactical_events.h"
-#include "game/tactical_view.h"
+#include "game/combat.h"
 
 namespace rpc {
     static bool Read_Row(int16_t slot, s_unit* result, bool detail) {
         if (result == nullptr) return false;
         *result = {};
-        const int16_t viewer = tactical_events::Current_Viewer();
-        if (!tactical_events::Reads_Allowed() || viewer != tactical_view::Local_Observer() || !tactical_view::Unit_Disclosed(slot)) return false;
+        const int16_t viewer = COMBAT::Current_Viewer();
+        if (!COMBAT::Reads_Allowed() || viewer != COMBAT::Local_Observer() || !COMBAT::Unit_Disclosed(slot)) return false;
         const auto& unit = MOX::combat_data[slot];
         if (unit.unit_status != 0) return false;
         const bool owned = unit.owner == viewer;
@@ -68,9 +67,9 @@ namespace rpc {
     bool Read_Tactical_View(s_view* result) {
         if (result == nullptr) return false;
         *result = {};
-        if (!tactical_events::Reads_Allowed()) return false;
-        const int16_t viewer = tactical_events::Current_Viewer();
-        if (viewer < 0 || tactical_view::Local_Observer() != viewer || MOX::combat_data == nullptr ||
+        if (!COMBAT::Reads_Allowed()) return false;
+        const int16_t viewer = COMBAT::Current_Viewer();
+        if (viewer < 0 || COMBAT::Local_Observer() != viewer || MOX::combat_data == nullptr ||
             MOX::combat_total_ship_count < 0 || MOX::combat_total_ship_count > MAX_COMBAT_SHIPS) return false;
         result->observed = true;
         result->local_attacker = viewer == MOX::combat_attacker_player;
@@ -82,13 +81,13 @@ namespace rpc {
             s_unit unit;
             if (!Read_Row(i, &unit, false)) continue;
             result->units.push_back(unit);
-            if (i == tactical_events::Current_Unit()) result->selected = i;
+            if (i == COMBAT::Current_Unit()) result->selected = i;
         }
         return true;
     }
 
     bool Read_Tactical_Missile(int16_t slot, s_missile* result) {
-        if (result == nullptr || !tactical_events::Reads_Allowed() || !tactical_view::Missile_Disclosed(slot)) return false;
+        if (result == nullptr || !COMBAT::Reads_Allowed() || !COMBAT::Missile_Disclosed(slot)) return false;
         *result = {};
         const auto& missile = MOX::missile[slot];
         result->slot = slot;
@@ -96,19 +95,29 @@ namespace rpc {
         result->y = missile.y / 20;
         result->quantity = missile.quantity;
         result->type = TECHDATA::weapons[missile.type].type;
-        result->owned = missile.owner == tactical_events::Current_Viewer();
+        result->owned = missile.owner == COMBAT::Current_Viewer();
         strlcpy(result->name, TECHDATA::weapons[missile.type].name, sizeof(result->name));
         return true;
     }
 
     bool Read_Tactical_Missiles(std::vector<s_missile>* result) {
-        if (result == nullptr || !tactical_events::Reads_Allowed() ||
-            tactical_events::Current_Viewer() < 0 || tactical_view::Local_Observer() != tactical_events::Current_Viewer()) return false;
+        if (result == nullptr || !COMBAT::Reads_Allowed() ||
+            COMBAT::Current_Viewer() < 0 || COMBAT::Local_Observer() != COMBAT::Current_Viewer()) return false;
         result->clear();
         for (int16_t i = 0; i < MAX_COMBAT_FLYERS; ++i) {
             s_missile missile;
             if (Read_Tactical_Missile(i, &missile)) result->push_back(missile);
         }
+        return true;
+    }
+    bool Read_Hit_History(s_hit_history* result) {
+        const auto* scope = COMBAT::Current_Battle();
+        if (result == nullptr || !COMBAT::Reads_Allowed() || scope == nullptr) return false;
+        *result = {};
+        result->next_sequence = scope->next_hit_sequence;
+        for (size_t i = 0; i < scope->hits.size(); ++i)
+            result->hits.push_back(scope->hits[(scope->hit_head + i) % scope->hits.size()]);
+        result->first_sequence = result->hits.empty() ? result->next_sequence : result->hits.front().sequence;
         return true;
     }
 } // namespace rpc

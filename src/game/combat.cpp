@@ -1,6 +1,9 @@
 #include "pch.h"
 
 #include "lua/lua_game.h"
+#include <array>
+#include <limits>
+#include <utility>
 
 namespace {
     void Apply_Strategic_Crew_Bonuses() {
@@ -1500,5 +1503,269 @@ namespace COMBAT {
         bomb_result->bio_hits_remaining = MOX::combat_bomb_result.bio_hits_remaining;
 
         allocate::Pop_Block(MOX::screen_seg);
+    }
+    namespace {
+        struct s_listener {
+            uint64_t id = 0;
+            t_callback callback = nullptr;
+            void* context = nullptr;
+        };
+        std::array<s_listener, 4> listeners;
+        uint64_t next_id = 0;
+        s_battle_scope* current = nullptr;
+        bool reads_allowed = false;
+        int16_t control_actor = -1;
+        t_control_changed control_changed = nullptr;
+        t_control_take control_take = nullptr;
+        t_control_complete control_complete = nullptr;
+        void* control_context = nullptr;
+
+        void Release_Boarding(s_battle_scope* scope) {
+            BOARDING::s_result empty;
+            std::swap(scope->boarding, empty);
+            scope->boarding_active = false;
+        }
+        void Publish(e_kind kind, int16_t viewer, int16_t unit = -1, bool safe = false) noexcept {
+            const s_event event{kind, viewer, unit, safe};
+            const auto limit = next_id;
+            for (const auto& listener : listeners)
+                if (listener.id != 0 && listener.id <= limit) listener.callback(&event, listener.context);
+        }
+    } // namespace
+    uint64_t Subscribe(t_callback callback, void* context) {
+        if (callback == nullptr || next_id == std::numeric_limits<uint64_t>::max()) return 0;
+        for (auto& listener : listeners)
+            if (listener.id == 0) {
+                listener = {++next_id, callback, context};
+                return listener.id;
+            }
+        return 0;
+    }
+    void Unsubscribe(uint64_t subscription) {
+        for (auto& listener : listeners)
+            if (listener.id == subscription) listener = {};
+    }
+    void Revoke() noexcept {
+        Close_Control_Decision();
+        if (current != nullptr) {
+            current->retiring = true;
+            std::vector<s_hit>().swap(current->hits);
+            current->hit_head = 0;
+            current->next_hit_sequence = 1;
+            Release_Boarding(current);
+        }
+        Publish(REVOKED, -1);
+    }
+    int16_t Current_Viewer() noexcept {
+        return current != nullptr && current->opened && !current->retiring ? current->viewer : -1;
+    }
+    int16_t Current_Unit() noexcept {
+        return Current_Viewer() >= 0 ? current->selected : -1;
+    }
+    bool Reads_Allowed() noexcept {
+        return reads_allowed;
+    }
+    int16_t Begin_Local_Attention() noexcept {
+        const int16_t viewer = Current_Viewer();
+        Close_Control_Decision();
+        if (viewer >= 0) Publish(ATTENTION_REQUIRED, viewer);
+        return viewer;
+    }
+    void End_Local_Attention(int16_t viewer) noexcept {
+        if (viewer >= 0 && Current_Viewer() == viewer) Publish(ATTENTION_CLEARED, viewer);
+    }
+    void Service_Reads(bool safe) noexcept {
+        const bool previous = reads_allowed;
+        reads_allowed = safe && Current_Viewer() >= 0;
+        if (reads_allowed && current->selection_pending) {
+            current->selection_pending = false;
+            Publish(UNIT_SELECTED, current->viewer, current->selected, true);
+        }
+        if (reads_allowed && current->dirty) {
+            current->dirty = false;
+            Publish(VIEW_INVALIDATED, current->viewer, -1, true);
+        }
+        Publish(SERVICE_READS, Current_Viewer(), -1, reads_allowed);
+        reads_allowed = previous;
+    }
+    void Invalidate_View() noexcept {
+        if (Current_Viewer() >= 0) current->dirty = true;
+    }
+    void Select_Unit(int16_t unit) noexcept {
+        if (Current_Viewer() < 0 || current->selected == unit) return;
+        Close_Control_Decision();
+        current->selected = unit;
+        current->selection_pending = true;
+    }
+    void Retire_Unit(int16_t unit) noexcept {
+        if (Current_Control_Actor() == unit) Close_Control_Decision();
+        if (Current_Viewer() >= 0) {
+            Publish(UNIT_RETIRED, current->viewer, unit);
+            if (current->selected == unit) {
+                current->selected = -1;
+                current->selection_pending = true;
+            }
+        }
+    }
+    void Publish_Retreat_Result(int16_t unit, e_retreat_outcome outcome) noexcept {
+        if (Current_Viewer() < 0) return;
+        const s_event event{RETREAT_RESOLVED, current->viewer, unit, false, outcome};
+        const auto limit = next_id;
+        for (const auto& listener : listeners)
+            if (listener.id != 0 && listener.id <= limit) listener.callback(&event, listener.context);
+        Invalidate_View();
+    }
+    void Retire_Battle() noexcept {
+        Close_Control_Decision();
+        if (Current_Viewer() < 0) return;
+        std::vector<s_hit>().swap(current->hits);
+        current->hit_head = 0;
+        current->next_hit_sequence = 1;
+        Release_Boarding(current);
+        current->retiring = true;
+        Publish(RETIRING, current->viewer);
+    }
+    void Retire_Missile(int16_t missile) noexcept {
+        if (Current_Viewer() < 0) return;
+        Invalidate_Control();
+        Invalidate_View();
+        Publish(MISSILE_RETIRED, current->viewer, missile);
+    }
+    void Append_Hit(const s_hit* hit) {
+        if (Current_Viewer() < 0 || hit == nullptr || (hit->amount <= 0 && hit->secondary_amount <= 0)) return;
+        s_hit record = *hit;
+        record.sequence = current->next_hit_sequence++;
+        if (current->hits.size() < MAX_HIT_RECORDS)
+            current->hits.push_back(record);
+        else {
+            current->hits[current->hit_head] = record;
+            current->hit_head = (current->hit_head + 1) % MAX_HIT_RECORDS;
+        }
+        Invalidate_View();
+    }
+    s_battle_scope::s_battle_scope() = default;
+    void s_battle_scope::Open(int16_t local_observer) noexcept {
+        if (initialized) return;
+        initialized = true;
+        if (current != nullptr && current != this) Revoke();
+        current = this;
+        viewer = local_observer;
+        if (viewer < 0) return;
+        opened = true;
+        Publish(OPENED, viewer);
+    }
+    void s_battle_scope::Close(int16_t local_observer) noexcept {
+        Release_Boarding(this);
+        std::vector<s_hit>().swap(hits);
+        hit_head = 0;
+        next_hit_sequence = 1;
+        if (!opened) return;
+        opened = false;
+        if (current != this) return;
+        if (local_observer == viewer)
+            Publish(CLOSED, viewer);
+        else
+            Revoke();
+    }
+    s_battle_scope::~s_battle_scope() {
+        if (current == this) {
+            if (opened) Revoke();
+            current = nullptr;
+        }
+    }
+    bool Attach_Control_Observer(t_control_changed callback) {
+        if (control_changed != nullptr && control_changed != callback) return false;
+        control_changed = callback;
+        return true;
+    }
+    void Invalidate_Control() {
+        if (control_changed != nullptr) control_changed();
+    }
+    void Open_Control_Decision(int16_t unit) {
+        if (control_actor == unit) return;
+        control_actor = unit;
+        Invalidate_Control();
+        Invalidate_View();
+    }
+    void Close_Control_Decision() {
+        if (control_actor < 0) return;
+        control_actor = -1;
+        Invalidate_Control();
+    }
+    int16_t Current_Control_Actor() {
+        return control_actor;
+    }
+    bool Attach_Control(t_control_take input, t_control_complete output, void* owner) {
+        if (control_take != nullptr || input == nullptr || output == nullptr) return false;
+        control_take = input;
+        control_complete = output;
+        control_context = owner;
+        return true;
+    }
+    void Detach_Control(void* owner) {
+        BOARDING::Detach_Report_Input(owner);
+        if (control_context != owner) return;
+        control_take = nullptr;
+        control_complete = nullptr;
+        control_context = nullptr;
+    }
+    bool Take_Control_Operation(COMBAT1::s_operation* operation, COMBAT1::e_result* result) {
+        *result = COMBAT1::APPLIED;
+        return control_take != nullptr && control_take(operation, result, control_context);
+    }
+    void Complete_Control_Operation(COMBAT1::e_result result) {
+        if (control_complete != nullptr) control_complete(result, control_context);
+    }
+    s_battle_scope* Current_Battle() {
+        return Current_Viewer() >= 0 ? current : nullptr;
+    }
+    void Notify_Boarding_Result() {
+        Publish(BOARDING_RESOLVED, Current_Viewer());
+    }
+    void Notify_Boarding_Report_Closed() {
+        Publish(BOARDING_REPORT_CLOSED, Current_Viewer());
+    }
+    int16_t Local_Observer() {
+        const int16_t viewer = MOX::PLAYER_NUM;
+        if (RUSS::all_ai_game != 0 || MOX::player == nullptr || viewer < 0 ||
+            viewer >= MOX::NUM_PLAYERS || viewer >= MAX_PLAYERS ||
+            MOX::player[viewer].objectives != PLAYER_OBJECTIVE_HUMAN || MOX::player[viewer].eliminated != 0 ||
+            (viewer != MOX::combat_attacker_player && viewer != MOX::combat_defender_player)) return -1;
+        return viewer;
+    }
+    bool Unit_Disclosed(int16_t slot) {
+        const int16_t viewer = Current_Viewer();
+        if (viewer < 0 || MOX::combat_data == nullptr ||
+            MOX::combat_total_ship_count < 0 || MOX::combat_total_ship_count > MAX_COMBAT_SHIPS ||
+            slot < 0 || slot >= MOX::combat_total_ship_count) return false;
+        const auto& unit = MOX::combat_data[slot];
+        if (unit.unit_status != 0) return false;
+        return unit.owner == viewer || unit.special_status_flag != 4 || (slot != 0 && unit.size_class >= 0 && unit.size_class <= 5);
+    }
+    void Unit_Changed(int16_t slot, bool map_change) {
+        if (!Unit_Disclosed(slot)) return;
+        const bool contact = MOX::combat_data[slot].owner != Current_Viewer() && MOX::combat_data[slot].special_status_flag == 4;
+        if (map_change || !contact) {
+            Invalidate_Control();
+            Invalidate_View();
+        }
+    }
+    void Resolve_Retreat(int16_t slot, e_retreat_outcome outcome) {
+        if (Current_Viewer() != Local_Observer() || !Unit_Disclosed(slot)) return;
+        const auto& unit = MOX::combat_data[slot];
+        if (unit.owner == Current_Viewer() && unit.is_retreating == 1) Publish_Retreat_Result(slot, outcome);
+    }
+    void End_Pending_Retreats() {
+        if (Current_Viewer() < 0 || MOX::combat_data == nullptr || MOX::combat_total_ship_count > MAX_COMBAT_SHIPS) return;
+        for (int16_t i = 1; i < MOX::combat_total_ship_count; ++i) Resolve_Retreat(i, BATTLE_ENDED);
+    }
+    bool Missile_Disclosed(int16_t slot) {
+        return Current_Viewer() >= 0 && Local_Observer() == Current_Viewer() && MOX::missile != nullptr &&
+            slot >= 0 && slot < MAX_COMBAT_FLYERS && MOX::missile[slot].type > WEAPON_NO_WEAPONS && MOX::missile[slot].quantity > 0;
+    }
+    void Missile_Changed(int16_t slot) {
+        if (!Missile_Disclosed(slot)) return;
+        Invalidate_Control();
+        Invalidate_View();
     }
 } // namespace COMBAT

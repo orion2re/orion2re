@@ -277,10 +277,6 @@ namespace CMBTSPEC {
     }
 } // namespace CMBTSPEC
 
-namespace COMBAT {
-    void __cdecl Apply_Damage_To_Qship(int16_t, int16_t) {}
-} // namespace COMBAT
-
 namespace CMBTMOV1 {
     int16_t __cdecl Move_Cost(int16_t, int16_t, int16_t) {
         return 6;
@@ -314,6 +310,7 @@ namespace OFFICER {
 } // namespace OFFICER
 
 namespace TECHDATA {
+    s_tech_shield_data shields[SHIELD_COUNT];
     s_tech_computer_data computers[COMPUTER_COUNT];
     s_tech_weapon_data weapons[WEAPON_COUNT];
 } // namespace TECHDATA

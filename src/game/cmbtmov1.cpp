@@ -1,5 +1,5 @@
 #include "pch.h"
-#include "tactical_view.h"
+#include "combat.h"
 
 namespace CMBTMOV1 {
     namespace {
@@ -478,7 +478,7 @@ namespace CMBTMOV1 {
         }
 
         fields::Enable_Draw_All_Fields();
-        tactical_view::Unit_Changed(ship_idx, true);
+        COMBAT::Unit_Changed(ship_idx, true);
         return move_cost;
     }
 
@@ -552,7 +552,7 @@ namespace CMBTMOV1 {
         int32_t dy = (MOX::combat_data[ship_idx].y - MOX::cur_combat_y) * 20;
 
         CMBTMOV1::Rotate_Ship(ship_idx, target_facing, (int16_t)dx, (int16_t)dy);
-        if (facing_dir != target_facing) tactical_view::Unit_Changed(ship_idx);
+        if (facing_dir != target_facing) COMBAT::Unit_Changed(ship_idx);
         COMBAT1::Assign_Combat_Grids(ship_idx);
         CMBTDRW1::Refresh_Combat_Screen_Full();
     }

@@ -1,6 +1,5 @@
 #include "pch.h"
-#include "tactical_events.h"
-#include "tactical_view.h"
+#include "combat.h"
 
 namespace {
     constexpr int kPlayerRemapPaletteStart = 144;
@@ -484,7 +483,7 @@ namespace COMBINIT {
     }
 
     void __cdecl Load_Combat_Ship(int16_t ship_idx, int16_t combat_idx) {
-        tactical_events::Retire_Unit(combat_idx);
+        COMBAT::Retire_Unit(combat_idx);
         s_ship_data* ship = &MOX::ship[ship_idx];
         s_combat_data* combat = &MOX::combat_data[combat_idx];
 
@@ -768,18 +767,18 @@ namespace COMBINIT {
             }
             MOX::combat_turn++;
             End_Of_Turn_Bookeeping();
-            tactical_events::Invalidate_View();
-            tactical_events::Service_Reads(true);
+            COMBAT::Invalidate_View();
+            COMBAT::Service_Reads(true);
         }
         return winner;
     }
 
     int16_t Local_Tactical_Observer() {
-        return tactical_view::Local_Observer();
+        return COMBAT::Local_Observer();
     }
 
     int16_t __cdecl Tactical_Combat(int16_t* plr1_ships, int16_t plr1_ship_count, int16_t* plr2_ships, int16_t plr2_ship_count, int16_t star_idx, int16_t colony_idx, int16_t retreat_flag) {
-        tactical_events::s_battle_scope battle_events;
+        COMBAT::s_battle_scope battle_events;
         int8_t abort_tactical = 0;
         bool no_defender_ships = star_idx != MOX::NUM_STARS;
         int16_t has_tractor_beam = 0;
@@ -1353,8 +1352,8 @@ namespace COMBINIT {
             }
         }
 
-        tactical_view::End_Pending_Retreats();
-        tactical_events::Retire_Battle();
+        COMBAT::End_Pending_Retreats();
+        COMBAT::Retire_Battle();
         End_Of_Combat(star_idx, colony_pop, combat_winner);
 
         if (combat_winner == 1 || combat_winner == 0x29A) {
@@ -3285,7 +3284,7 @@ namespace COMBINIT {
                 struct_damage_total += arc_struct_damage;
             }
 
-            tactical_view::Record_Unit_Hit(i, total_damage, struct_damage_total);
+            CMBTFIRE::Record_Unit_Hit(i, total_damage, struct_damage_total);
             if (MOX::apply_damage_to_planet == 1 && MOX::super_fast_flag == 0) {
                 MOX::cur_ship = i;
                 if (CMBTDRW1::Ship_Completely_On_Screen(i) == 0) {

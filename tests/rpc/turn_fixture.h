@@ -1,8 +1,7 @@
 #pragma once
 
 #include "pch.h"
-#include "game/tactical_control.h"
-#include "game/tactical_events.h"
+#include "game/combat.h"
 
 namespace TEST_TACTICAL_TURN {
     void Boarding(bool reports = false);
@@ -10,6 +9,6 @@ namespace TEST_TACTICAL_TURN {
     void Reset();
     void Withdrawal();
     void Withdrawal_Display();
-    void Apply(const tactical_control::s_operation* operation);
+    void Apply(const COMBAT1::s_operation* operation);
     void Add_Missile(int16_t slot, int16_t weapon = WEAPON_NUCLEAR_MISSILE, int16_t owner = 1);
 } // namespace TEST_TACTICAL_TURN

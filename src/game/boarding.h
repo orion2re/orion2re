@@ -60,4 +60,18 @@ namespace BOARDING {
     bool Result_Authorized(int16_t target);
     void Record_Raid_Result(int16_t attacker_owner, int16_t target, bool authorized, int16_t committed, int16_t arrived, int16_t survived, int16_t defenders_survived, int16_t attacker_strength, int16_t defender_strength, int16_t damage, const std::string* text);
     void Record_Capture_Result(int16_t attacker, int16_t target, bool authorized, int16_t committed, int16_t arrived, int16_t survived, int16_t defenders_started, int16_t defenders_survived, int16_t attacker_strength, int16_t defender_strength, int16_t message);
+    void Record_Boarding_Result(const s_result* result);
+    void Publish_Boarding_Result() noexcept;
+    const s_result* Boarding_Result() noexcept;
+    uint64_t Boarding_Generation() noexcept;
+    void Open_Boarding_Report(bool timed) noexcept;
+    void Close_Boarding_Report() noexcept;
+    bool Boarding_Report_Active() noexcept;
+    bool Boarding_Report_Timed() noexcept;
+    using t_report_take = bool (*)(uint64_t, void*);
+    using t_report_complete = void (*)(void*);
+    bool Attach_Report_Input(t_report_take input, t_report_complete output, void* owner);
+    void Detach_Report_Input(void* owner);
+    bool Take_Report_Acknowledgement(uint64_t report);
+    void Complete_Report_Acknowledgement();
 } // namespace BOARDING

@@ -1,5 +1,5 @@
 #include "pch.h"
-#include "tactical_events.h"
+#include "combat.h"
 
 namespace {
     constexpr int kPlayerRemapPaletteStart = 144;
@@ -342,7 +342,7 @@ namespace MULTPLAY {
     }
 
     void __cdecl Hotseat_Select_Player(void) {
-        tactical_events::Revoke();
+        COMBAT::Revoke();
         uint8_t fade_flag = 0;
         uint8_t exit_code = 0;
         int16_t selected_player_idx = -1;
@@ -413,7 +413,7 @@ namespace MULTPLAY {
         if (exit_code == 0) {
             Restore_Hotseat_Map_Info();
             if (selected_player_idx != -1) {
-                tactical_events::Revoke();
+                COMBAT::Revoke();
                 MOX::PLAYER_NUM = selected_player_idx;
             }
             MOX::current_screen = SCREEN_REPORTS;

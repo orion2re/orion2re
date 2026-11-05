@@ -193,4 +193,5 @@ namespace CMBTFIRE {
 
     /** Draws the Black Hole Generator overlay for the specified ship. */
     void __cdecl Draw_BHG(int16_t ship_idx, int16_t x_adj, int16_t y_adj);
+    void Record_Unit_Hit(int16_t slot, int32_t amount, int32_t secondary_amount = 0, bool biological = false);
 } // namespace CMBTFIRE

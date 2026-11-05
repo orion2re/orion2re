@@ -1,5 +1,5 @@
 #include "pch.h"
-#include "tactical_events.h"
+#include "combat.h"
 
 #include <exception>
 #include "config/config_loader.h"
@@ -38,7 +38,7 @@ namespace MOX2 {
             int16_t current_screen = MOX::current_screen;
 
             if (current_screen == SCREEN_MAIN_MENU) {
-                tactical_events::Revoke();
+                COMBAT::Revoke();
                 config::s_cfg_diagnostic diagnostic;
                 if (!config::Restore_Launch_Config(&diagnostic)) {
                     exitm::Exit_With_Message(diagnostic.message.c_str());

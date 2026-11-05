@@ -1,22 +1,23 @@
+#include "pch.h"
 #include "doctest/doctest.h"
-#include "game/tactical_events.h"
+#include "game/combat.h"
 
 #include <array>
 
 namespace {
     struct s_observer {
-        std::array<tactical_events::s_event, 16> events;
+        std::array<COMBAT::s_event, 16> events;
         size_t count = 0;
         uint64_t subscription = 0;
-        static void Receive(const tactical_events::s_event* event, void* context) noexcept {
+        static void Receive(const COMBAT::s_event* event, void* context) noexcept {
             auto* self = (s_observer*)context;
             if (self->count < self->events.size()) self->events[self->count++] = *event;
         }
         s_observer() {
-            subscription = tactical_events::Subscribe(Receive, this);
+            subscription = COMBAT::Subscribe(Receive, this);
         }
         ~s_observer() {
-            tactical_events::Unsubscribe(subscription);
+            COMBAT::Unsubscribe(subscription);
         }
     };
 } // namespace
@@ -25,7 +26,7 @@ DOCTEST_TEST_CASE("tactical scope publishes only after initialized and closes ex
     s_observer observer;
     DOCTEST_REQUIRE(observer.subscription != 0);
     {
-        tactical_events::s_battle_scope battle;
+        COMBAT::s_battle_scope battle;
         DOCTEST_CHECK(observer.count == 0);
         battle.Open(1);
         battle.Open(1);
@@ -34,8 +35,8 @@ DOCTEST_TEST_CASE("tactical scope publishes only after initialized and closes ex
         battle.Close(1);
     }
     DOCTEST_REQUIRE(observer.count == 2);
-    DOCTEST_CHECK(observer.events[0].kind == tactical_events::OPENED);
-    DOCTEST_CHECK(observer.events[1].kind == tactical_events::CLOSED);
+    DOCTEST_CHECK(observer.events[0].kind == COMBAT::OPENED);
+    DOCTEST_CHECK(observer.events[1].kind == COMBAT::CLOSED);
     DOCTEST_CHECK(observer.events[0].viewer == 1);
     DOCTEST_CHECK(observer.events[1].viewer == 1);
 }
@@ -43,11 +44,11 @@ DOCTEST_TEST_CASE("tactical scope publishes only after initialized and closes ex
 DOCTEST_TEST_CASE("hidden and aborted tactical initialization produce no events") {
     s_observer observer;
     {
-        tactical_events::s_battle_scope aborted;
+        COMBAT::s_battle_scope aborted;
         aborted.Close(0);
     }
     {
-        tactical_events::s_battle_scope hidden;
+        COMBAT::s_battle_scope hidden;
         hidden.Open(-1);
         hidden.Open(0);
         hidden.Close(-1);
@@ -59,23 +60,23 @@ DOCTEST_TEST_CASE("unfinished tactical teardown and observer loss revoke instead
     for (bool finish : {false, true}) {
         s_observer observer;
         {
-            tactical_events::s_battle_scope battle;
+            COMBAT::s_battle_scope battle;
             battle.Open(0);
             if (finish) battle.Close(1);
         }
         DOCTEST_REQUIRE(observer.count == 2);
-        DOCTEST_CHECK(observer.events[1].kind == tactical_events::REVOKED);
+        DOCTEST_CHECK(observer.events[1].kind == COMBAT::REVOKED);
     }
 }
 
 DOCTEST_TEST_CASE("tactical unsubscription detaches and old registration tokens cannot detach replacements") {
     s_observer observer;
     const auto old = observer.subscription;
-    tactical_events::Unsubscribe(old);
+    COMBAT::Unsubscribe(old);
     s_observer replacement;
     DOCTEST_REQUIRE(replacement.subscription != 0);
-    tactical_events::Unsubscribe(old);
-    tactical_events::Revoke();
+    COMBAT::Unsubscribe(old);
+    COMBAT::Revoke();
     DOCTEST_CHECK(observer.count == 0);
     DOCTEST_CHECK(replacement.count == 1);
 }
@@ -89,18 +90,18 @@ DOCTEST_TEST_CASE("tactical listener storage is bounded") {
 
 DOCTEST_TEST_CASE("replaced battle owners cannot close or revoke the replacement") {
     s_observer observer;
-    tactical_events::s_battle_scope old;
+    COMBAT::s_battle_scope old;
     old.Open(0);
     {
-        tactical_events::s_battle_scope replacement;
+        COMBAT::s_battle_scope replacement;
         replacement.Open(0);
         old.Close(0);
-        DOCTEST_CHECK(tactical_events::Current_Viewer() == 0);
+        DOCTEST_CHECK(COMBAT::Current_Viewer() == 0);
         replacement.Close(0);
     }
     DOCTEST_REQUIRE(observer.count == 4);
-    DOCTEST_CHECK(observer.events[0].kind == tactical_events::OPENED);
-    DOCTEST_CHECK(observer.events[1].kind == tactical_events::REVOKED);
-    DOCTEST_CHECK(observer.events[2].kind == tactical_events::OPENED);
-    DOCTEST_CHECK(observer.events[3].kind == tactical_events::CLOSED);
+    DOCTEST_CHECK(observer.events[0].kind == COMBAT::OPENED);
+    DOCTEST_CHECK(observer.events[1].kind == COMBAT::REVOKED);
+    DOCTEST_CHECK(observer.events[2].kind == COMBAT::OPENED);
+    DOCTEST_CHECK(observer.events[3].kind == COMBAT::CLOSED);
 }
