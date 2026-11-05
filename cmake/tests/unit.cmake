@@ -91,7 +91,7 @@ function(orion2re_add_unit_test TARGET_NAME)
     target_link_libraries(${TARGET_NAME} PRIVATE SDL3::Headers)
 
     if(ORION2RE_TEST_LINK_SDL)
-        target_link_libraries(${TARGET_NAME} PRIVATE SDL3::SDL3-static)
+        target_link_libraries(${TARGET_NAME} PRIVATE ${ORION2RE_SDL3_LIBRARY})
     endif()
 
     target_link_libraries(${TARGET_NAME} PRIVATE

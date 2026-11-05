@@ -111,6 +111,9 @@ endif()
 option(ORION2RE_ENABLE_ASAN "Enable AddressSanitizer (and UBSan with GCC/Clang) for supported debug builds" OFF)
 option(ORION2RE_RELEASE_DEBUG_INFO "Emit debug info for non-Debug MSVC builds" OFF)
 option(ORION2RE_BUILD_GAME "Build the SDL game executable" ON)
+option(ORION2RE_USE_SYSTEM_SDL3
+       "Link against a system-installed SDL3 located with find_package instead of building the vendored submodule"
+       OFF)
 option(ORION2RE_BUILD_TESTS "Build tests" OFF)
 set(ORION2RE_BUILD_CONFIG_TOOL_DEFAULT OFF)
 if(NOT CMAKE_CROSSCOMPILING AND
@@ -305,10 +308,12 @@ if(ORION2RE_BUILD_TESTS AND NOT ORION2RE_BUILD_GAME)
 endif()
 
 if((ORION2RE_BUILD_GAME OR ORION2RE_BUILD_TESTS OR ORION2RE_BUILD_CONFIG_TOOL) AND
+   NOT ORION2RE_USE_SYSTEM_SDL3 AND
    NOT EXISTS "${ORION2RE_VENDORED_SDL3_DIR}/CMakeLists.txt")
     message(FATAL_ERROR
         "This project requires the SDL3 submodule at vendors/SDL. "
-        "Run 'git submodule update --init --recursive vendors/SDL' and ensure it is pinned to ${ORION2RE_VENDORED_SDL3_COMMIT}."
+        "Run 'git submodule update --init --recursive vendors/SDL' and ensure it is pinned to ${ORION2RE_VENDORED_SDL3_COMMIT}, "
+        "or configure with -DORION2RE_USE_SYSTEM_SDL3=ON to use a system-installed SDL3."
     )
 endif()
 
@@ -350,18 +355,30 @@ if(NOT EXISTS "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smacker.c")
 endif()
 
 if(ORION2RE_BUILD_GAME OR ORION2RE_BUILD_TESTS OR ORION2RE_BUILD_CONFIG_TOOL)
-    set(SDL_SHARED OFF CACHE BOOL "" FORCE)
-    set(SDL_STATIC ON CACHE BOOL "" FORCE)
-    set(SDL_TEST_LIBRARY OFF CACHE BOOL "" FORCE)
-    set(SDL_TESTS OFF CACHE BOOL "" FORCE)
+    # ORION2RE_SDL3_LIBRARY names the SDL3 link target for every SDL-dependent
+    # target in the project. SDL3::Headers is provided by both the vendored build
+    # and the installed SDL3 CMake package.
+    if(ORION2RE_USE_SYSTEM_SDL3)
+        find_package(SDL3 3.2 REQUIRED CONFIG)
+        # SDL3::SDL3 resolves to whichever of the shared or static library the
+        # system package provides.
+        set(ORION2RE_SDL3_LIBRARY SDL3::SDL3)
+        message(STATUS "Using system SDL3 ${SDL3_VERSION} from ${SDL3_DIR}")
+    else()
+        set(SDL_SHARED OFF CACHE BOOL "" FORCE)
+        set(SDL_STATIC ON CACHE BOOL "" FORCE)
+        set(SDL_TEST_LIBRARY OFF CACHE BOOL "" FORCE)
+        set(SDL_TESTS OFF CACHE BOOL "" FORCE)
 
-    add_subdirectory("${ORION2RE_VENDORED_SDL3_DIR}" EXCLUDE_FROM_ALL)
+        add_subdirectory("${ORION2RE_VENDORED_SDL3_DIR}" EXCLUDE_FROM_ALL)
+        set(ORION2RE_SDL3_LIBRARY SDL3::SDL3-static)
 
-    if(UNIX AND NOT APPLE AND SDL_UNIX_CONSOLE_BUILD AND ORION2RE_BUILD_GAME)
-        message(WARNING
-            "SDL_UNIX_CONSOLE_BUILD is enabled, so the orion2re game target is being built without desktop video backends and is not intended for gameplay. "
-            "Use -DORION2RE_BUILD_GAME=OFF to build only orion2re-router."
-        )
+        if(UNIX AND NOT APPLE AND SDL_UNIX_CONSOLE_BUILD AND ORION2RE_BUILD_GAME)
+            message(WARNING
+                "SDL_UNIX_CONSOLE_BUILD is enabled, so the orion2re game target is being built without desktop video backends and is not intended for gameplay. "
+                "Use -DORION2RE_BUILD_GAME=OFF to build only orion2re-router."
+            )
+        endif()
     endif()
 
     add_subdirectory("${ORION2RE_VENDORED_MINIZ_DIR}" EXCLUDE_FROM_ALL)
@@ -643,7 +660,7 @@ if(ORION2RE_BUILD_GAME)
     )
 
     target_link_libraries(orion2re PRIVATE
-        SDL3::SDL3-static
+        ${ORION2RE_SDL3_LIBRARY}
         uv_a
         orion2re_lz4
         orion2re_lua
@@ -664,7 +681,7 @@ if(ORION2RE_BUILD_GAME)
         "${CMAKE_CURRENT_SOURCE_DIR}/src"
         "${ORION2RE_VENDORED_LIBSMACKER_DIR}"
         "${ORION2RE_VENDORED_YYJSON_DIR}/src")
-    target_link_libraries(config-load-benchmark PRIVATE SDL3::SDL3-static uv_a
+    target_link_libraries(config-load-benchmark PRIVATE ${ORION2RE_SDL3_LIBRARY} uv_a
         orion2re_lz4 orion2re_lua orion2re_scalers miniz orion2re_imgui)
     if(MSVC)
         target_compile_definitions(config-load-benchmark PRIVATE WIN32 _CRT_SECURE_NO_DEPRECATE _CRT_NONSTDC_NO_DEPRECATE)
@@ -733,7 +750,7 @@ if(ORION2RE_BUILD_CONFIG_TOOL)
         "${ORION2RE_VENDORED_YYJSON_DIR}/src"
     )
     target_link_libraries(config-tool PRIVATE
-        SDL3::SDL3-static
+        ${ORION2RE_SDL3_LIBRARY}
         uv_a
         orion2re_lz4
         orion2re_lua
