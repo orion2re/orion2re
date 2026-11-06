@@ -134,6 +134,9 @@ option(ORION2RE_BUILD_DOCUMENTATION
        OFF)
 option(ORION2RE_ENFORCE_ORIGINAL_STRUCT_SIZES "Require structures to retain their original game sizes" OFF)
 option(ORION2RE_EXCLUDE_RUNTIME_FROM_ALL "Exclude runtime executables from the default all target" ${ORION2RE_BUILD_TESTS})
+option(ORION2RE_USE_SYSTEM_SDL3
+       "Use the system SDL3 library instead of the vendored submodule"
+       OFF)
 
 if(ORION2RE_ENABLE_ASAN)
     if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -317,6 +320,7 @@ if(ORION2RE_BUILD_TESTS AND NOT ORION2RE_BUILD_GAME)
 endif()
 
 if((ORION2RE_BUILD_GAME OR ORION2RE_BUILD_TESTS OR ORION2RE_BUILD_CONFIG_TOOL) AND
+   NOT ORION2RE_USE_SYSTEM_SDL3 AND
    NOT EXISTS "${ORION2RE_VENDORED_SDL3_DIR}/CMakeLists.txt")
     message(FATAL_ERROR
         "This project requires the SDL3 submodule at vendors/SDL. "
@@ -362,12 +366,18 @@ if(NOT EXISTS "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smacker.c")
 endif()
 
 if(ORION2RE_BUILD_GAME OR ORION2RE_BUILD_TESTS OR ORION2RE_BUILD_CONFIG_TOOL)
-    set(SDL_SHARED OFF CACHE BOOL "" FORCE)
-    set(SDL_STATIC ON CACHE BOOL "" FORCE)
-    set(SDL_TEST_LIBRARY OFF CACHE BOOL "" FORCE)
-    set(SDL_TESTS OFF CACHE BOOL "" FORCE)
+    if(ORION2RE_USE_SYSTEM_SDL3)
+        find_package(SDL3 3.4 REQUIRED)
+        set(ORION2RE_SDL3_TARGET SDL3::SDL3)
+    else()
+        set(SDL_SHARED OFF CACHE BOOL "" FORCE)
+        set(SDL_STATIC ON CACHE BOOL "" FORCE)
+        set(SDL_TEST_LIBRARY OFF CACHE BOOL "" FORCE)
+        set(SDL_TESTS OFF CACHE BOOL "" FORCE)
 
-    add_subdirectory("${ORION2RE_VENDORED_SDL3_DIR}" EXCLUDE_FROM_ALL)
+        add_subdirectory("${ORION2RE_VENDORED_SDL3_DIR}" EXCLUDE_FROM_ALL)
+        set(ORION2RE_SDL3_TARGET SDL3::SDL3-static)
+    endif()
 
     if(UNIX AND NOT APPLE AND SDL_UNIX_CONSOLE_BUILD AND ORION2RE_BUILD_GAME)
         message(WARNING
@@ -656,7 +666,7 @@ if(ORION2RE_BUILD_GAME)
     )
 
     target_link_libraries(orion2re PRIVATE
-        SDL3::SDL3-static
+        ${ORION2RE_SDL3_TARGET}
         uv_a
         orion2re_lz4
         orion2re_lua
@@ -677,7 +687,7 @@ if(ORION2RE_BUILD_GAME)
         "${CMAKE_CURRENT_SOURCE_DIR}/src"
         "${ORION2RE_VENDORED_LIBSMACKER_DIR}"
         "${ORION2RE_VENDORED_YYJSON_DIR}/src")
-    target_link_libraries(config-load-benchmark PRIVATE SDL3::SDL3-static uv_a
+    target_link_libraries(config-load-benchmark PRIVATE ${ORION2RE_SDL3_TARGET} uv_a
         orion2re_lz4 orion2re_lua orion2re_scalers miniz orion2re_imgui)
     if(MSVC)
         target_compile_definitions(config-load-benchmark PRIVATE WIN32 _CRT_SECURE_NO_DEPRECATE _CRT_NONSTDC_NO_DEPRECATE)
@@ -755,7 +765,7 @@ if(ORION2RE_BUILD_CONFIG_TOOL)
         "${ORION2RE_VENDORED_YYJSON_DIR}/src"
     )
     target_link_libraries(config-tool PRIVATE
-        SDL3::SDL3-static
+        ${ORION2RE_SDL3_TARGET}
         uv_a
         orion2re_lz4
         orion2re_lua
