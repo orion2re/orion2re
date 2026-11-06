@@ -8,7 +8,7 @@ target_include_directories(orion2re_test_compile_settings INTERFACE
     "${ORION2RE_VENDORED_YYJSON_DIR}/src"
 )
 target_link_libraries(orion2re_test_compile_settings INTERFACE
-    SDL3::Headers uv_a orion2re_lz4 orion2re_lua miniz
+    SDL3::Headers ${ORION2RE_LIBUV_TARGET} orion2re_lz4 orion2re_lua miniz
 )
 if(ORION2RE_ENABLE_ASAN)
     target_compile_options(orion2re_test_compile_settings INTERFACE

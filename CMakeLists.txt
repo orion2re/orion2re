@@ -137,6 +137,9 @@ option(ORION2RE_EXCLUDE_RUNTIME_FROM_ALL "Exclude runtime executables from the d
 option(ORION2RE_USE_SYSTEM_SDL3
        "Use the system SDL3 library instead of the vendored submodule"
        OFF)
+option(ORION2RE_USE_SYSTEM_LIBUV
+       "Use the system libuv library instead of the vendored submodule"
+       OFF)
 
 if(ORION2RE_ENABLE_ASAN)
     if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -335,7 +338,8 @@ if(ORION2RE_BUILD_TESTS AND NOT EXISTS "${ORION2RE_VENDORED_DOCTEST_DIR}/doctest
     )
 endif()
 
-if(NOT EXISTS "${ORION2RE_VENDORED_LIBUV_DIR}/CMakeLists.txt")
+if(NOT ORION2RE_USE_SYSTEM_LIBUV AND
+   NOT EXISTS "${ORION2RE_VENDORED_LIBUV_DIR}/CMakeLists.txt")
     message(FATAL_ERROR
         "The router service requires the libuv submodule at vendors/libuv. "
         "Run 'git submodule update --init --recursive vendors/libuv' and ensure it is pinned to ${ORION2RE_VENDORED_LIBUV_COMMIT}."
@@ -390,11 +394,18 @@ if(ORION2RE_BUILD_GAME OR ORION2RE_BUILD_TESTS OR ORION2RE_BUILD_CONFIG_TOOL)
     add_subdirectory(src/game/scalers)
 endif()
 
-set(LIBUV_BUILD_SHARED OFF CACHE BOOL "" FORCE)
-set(LIBUV_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-set(LIBUV_BUILD_BENCH OFF CACHE BOOL "" FORCE)
+if(ORION2RE_USE_SYSTEM_LIBUV)
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(libuv REQUIRED IMPORTED_TARGET libuv)
+    set(ORION2RE_LIBUV_TARGET PkgConfig::libuv)
+else()
+    set(LIBUV_BUILD_SHARED OFF CACHE BOOL "" FORCE)
+    set(LIBUV_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    set(LIBUV_BUILD_BENCH OFF CACHE BOOL "" FORCE)
 
-add_subdirectory("${ORION2RE_VENDORED_LIBUV_DIR}" EXCLUDE_FROM_ALL)
+    add_subdirectory("${ORION2RE_VENDORED_LIBUV_DIR}" EXCLUDE_FROM_ALL)
+    set(ORION2RE_LIBUV_TARGET uv_a)
+endif()
 
 add_library(orion2re_lz4 STATIC
     "${ORION2RE_VENDORED_LZ4_DIR}/lib/lz4.c"
@@ -511,7 +522,7 @@ if(ORION2RE_BUILD_GAME OR ORION2RE_BUILD_CONFIG_TOOL)
     )
     target_link_libraries(orion2re_game_objects PRIVATE
         SDL3::Headers
-        uv_a
+        ${ORION2RE_LIBUV_TARGET}
         orion2re_lz4
         orion2re_lua
         miniz
@@ -667,7 +678,7 @@ if(ORION2RE_BUILD_GAME)
 
     target_link_libraries(orion2re PRIVATE
         ${ORION2RE_SDL3_TARGET}
-        uv_a
+        ${ORION2RE_LIBUV_TARGET}
         orion2re_lz4
         orion2re_lua
         orion2re_scalers
@@ -687,7 +698,7 @@ if(ORION2RE_BUILD_GAME)
         "${CMAKE_CURRENT_SOURCE_DIR}/src"
         "${ORION2RE_VENDORED_LIBSMACKER_DIR}"
         "${ORION2RE_VENDORED_YYJSON_DIR}/src")
-    target_link_libraries(config-load-benchmark PRIVATE ${ORION2RE_SDL3_TARGET} uv_a
+    target_link_libraries(config-load-benchmark PRIVATE ${ORION2RE_SDL3_TARGET} ${ORION2RE_LIBUV_TARGET}
         orion2re_lz4 orion2re_lua orion2re_scalers miniz orion2re_imgui)
     if(MSVC)
         target_compile_definitions(config-load-benchmark PRIVATE WIN32 _CRT_SECURE_NO_DEPRECATE _CRT_NONSTDC_NO_DEPRECATE)
@@ -766,7 +777,7 @@ if(ORION2RE_BUILD_CONFIG_TOOL)
     )
     target_link_libraries(config-tool PRIVATE
         ${ORION2RE_SDL3_TARGET}
-        uv_a
+        ${ORION2RE_LIBUV_TARGET}
         orion2re_lz4
         orion2re_lua
         orion2re_scalers
@@ -942,7 +953,7 @@ target_include_directories(orion2re-router PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/src"
 )
 target_link_libraries(orion2re-router PRIVATE
-    uv_a
+    ${ORION2RE_LIBUV_TARGET}
     orion2re_lz4
 )
 
