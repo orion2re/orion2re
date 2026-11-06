@@ -4,6 +4,24 @@
 
 #include <cstring>
 
+TEST_CASE("weapon firing arcs use back consistently with back_extended") {
+    const config::s_generated_enum* arcs =
+        config::Find_Generated_Enum("weapon_firing_arc");
+    REQUIRE(arcs != nullptr);
+
+    const config::s_generated_enum_symbol* back =
+        config::Find_Generated_Enum_Symbol(arcs, "back");
+    REQUIRE(back != nullptr);
+    CHECK(back->value == 0x08);
+    CHECK(config::Find_Generated_Enum_Value(arcs, 0x08) == back);
+    CHECK(config::Find_Generated_Enum_Symbol(arcs, "rear") == nullptr);
+
+    const config::s_generated_enum_symbol* extended =
+        config::Find_Generated_Enum_Symbol(arcs, "back_extended");
+    REQUIRE(extended != nullptr);
+    CHECK(extended->value == 0x04);
+}
+
 TEST_CASE("generated configuration enums provide canonical bidirectional lookup") {
     const config::s_generated_enum* applications =
         config::Find_Generated_Enum("technology_application");
