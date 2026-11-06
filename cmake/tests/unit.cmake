@@ -232,7 +232,7 @@ orion2re_add_unit_test(test_resource_reload
         vendors/libsmacker/smk_hufftree.c
         vendors/yyjson/src/yyjson.c
     LIBRARIES
-        ${ORION2RE_LIBUV_TARGET} ${ORION2RE_LZ4_TARGET} orion2re_lua orion2re_scalers miniz orion2re_imgui
+        ${ORION2RE_LIBUV_TARGET} ${ORION2RE_LZ4_TARGET} orion2re_lua orion2re_scalers ${ORION2RE_MINIZ_TARGET} orion2re_imgui
     LINK_SDL
 )
 target_include_directories(test_resource_reload PRIVATE
@@ -361,7 +361,7 @@ orion2re_add_unit_test(test_lua_mod_runtime
         tests/fakes/fake_lua_game_state.cpp
         tests/fakes/fake_lua_network_config.cpp
     LIBRARIES
-        miniz
+        ${ORION2RE_MINIZ_TARGET}
         orion2re_lua
     LINK_SDL
 )
@@ -525,7 +525,7 @@ orion2re_add_unit_test(test_startup_directory
         src/game/vfs_path.cpp
         src/game/vfs_zip.cpp
     LIBRARIES
-        miniz
+        ${ORION2RE_MINIZ_TARGET}
     LINK_SDL
 )
 
@@ -598,7 +598,7 @@ orion2re_add_unit_test(test_config_loader
         tests/fakes/fake_lua_game_storage_reference.cpp
         tests/fakes/fake_lua_game_state_api.cpp
     LIBRARIES
-        miniz
+        ${ORION2RE_MINIZ_TARGET}
         orion2re_lua
     LINK_SDL
 )
@@ -1933,7 +1933,7 @@ orion2re_add_unit_test(test_vfs
         src/game/vfs_path.cpp
         src/game/vfs_zip.cpp
     LIBRARIES
-        miniz
+        ${ORION2RE_MINIZ_TARGET}
     LINK_SDL
 )
 
@@ -2005,7 +2005,7 @@ orion2re_add_unit_test(test_farload_buffer_vfs
         tests/fakes/fake_test_state.cpp
         tests/fakes/fake_video.cpp
     LIBRARIES
-        miniz
+        ${ORION2RE_MINIZ_TARGET}
     LINK_SDL
 )
 

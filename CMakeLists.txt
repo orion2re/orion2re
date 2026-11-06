@@ -136,6 +136,9 @@ option(ORION2RE_USE_SYSTEM_LIBUV
 option(ORION2RE_USE_SYSTEM_LZ4
        "Use the system lz4 library instead of the vendored submodule"
        OFF)
+option(ORION2RE_USE_SYSTEM_MINIZ
+       "Use the system miniz library instead of the vendored submodule"
+       OFF)
 
 if(ORION2RE_ENABLE_ASAN)
     if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -346,6 +349,7 @@ if(NOT ORION2RE_USE_SYSTEM_LZ4 AND
 endif()
 
 if((ORION2RE_BUILD_GAME OR ORION2RE_BUILD_TESTS OR ORION2RE_BUILD_CONFIG_TOOL) AND
+   NOT ORION2RE_USE_SYSTEM_MINIZ AND
    (NOT EXISTS "${ORION2RE_VENDORED_MINIZ_DIR}/CMakeLists.txt" OR
     NOT EXISTS "${ORION2RE_VENDORED_MINIZ_DIR}/miniz.h" OR
     NOT EXISTS "${ORION2RE_VENDORED_MINIZ_DIR}/miniz.c"))
@@ -382,7 +386,13 @@ if(ORION2RE_BUILD_GAME OR ORION2RE_BUILD_TESTS OR ORION2RE_BUILD_CONFIG_TOOL)
         )
     endif()
 
-    add_subdirectory("${ORION2RE_VENDORED_MINIZ_DIR}" EXCLUDE_FROM_ALL)
+    if(ORION2RE_USE_SYSTEM_MINIZ)
+        find_package(miniz REQUIRED)
+        set(ORION2RE_MINIZ_TARGET miniz::miniz)
+    else()
+        add_subdirectory("${ORION2RE_VENDORED_MINIZ_DIR}" EXCLUDE_FROM_ALL)
+        set(ORION2RE_MINIZ_TARGET miniz)
+    endif()
     add_subdirectory(src/game/scalers)
 endif()
 
@@ -523,7 +533,7 @@ if(ORION2RE_BUILD_GAME OR ORION2RE_BUILD_CONFIG_TOOL)
         ${ORION2RE_LIBUV_TARGET}
         ${ORION2RE_LZ4_TARGET}
         orion2re_lua
-        miniz
+        ${ORION2RE_MINIZ_TARGET}
     )
     target_compile_definitions(orion2re_game_objects PRIVATE ORION2RE_ENABLE_DEBUG_OVERLAY=1)
     target_include_directories(orion2re_game_objects PRIVATE
@@ -679,7 +689,7 @@ if(ORION2RE_BUILD_GAME)
         ${ORION2RE_LZ4_TARGET}
         orion2re_lua
         orion2re_scalers
-        miniz
+        ${ORION2RE_MINIZ_TARGET}
     )
     target_link_libraries(orion2re PRIVATE orion2re_imgui)
     add_executable(config-load-benchmark EXCLUDE_FROM_ALL
@@ -696,7 +706,7 @@ if(ORION2RE_BUILD_GAME)
         "${ORION2RE_VENDORED_LIBSMACKER_DIR}"
         "${ORION2RE_VENDORED_YYJSON_DIR}/src")
     target_link_libraries(config-load-benchmark PRIVATE ${ORION2RE_SDL3_TARGET} ${ORION2RE_LIBUV_TARGET}
-        ${ORION2RE_LZ4_TARGET} orion2re_lua orion2re_scalers miniz orion2re_imgui)
+        ${ORION2RE_LZ4_TARGET} orion2re_lua orion2re_scalers ${ORION2RE_MINIZ_TARGET} orion2re_imgui)
     if(MSVC)
         target_compile_definitions(config-load-benchmark PRIVATE WIN32 _CRT_SECURE_NO_DEPRECATE _CRT_NONSTDC_NO_DEPRECATE)
     endif()
@@ -769,7 +779,7 @@ if(ORION2RE_BUILD_CONFIG_TOOL)
         ${ORION2RE_LZ4_TARGET}
         orion2re_lua
         orion2re_scalers
-        miniz
+        ${ORION2RE_MINIZ_TARGET}
     )
     target_link_libraries(config-tool PRIVATE orion2re_imgui)
 
