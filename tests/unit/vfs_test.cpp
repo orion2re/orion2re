@@ -647,4 +647,74 @@ DOCTEST_TEST_SUITE("vfs cpp") {
         DOCTEST_CHECK(std::string(buffer.data(), 18) == "zip-entry-override");
         DOCTEST_CHECK(vfs::fclose(file) == 0);
     }
+
+    DOCTEST_TEST_CASE("vfs resolves configuration files from the user config path first") {
+        test_vfs_detail::Scoped_Vfs_Test_Directory test_dir;
+        test_dir.Write_File(test_vfs_detail::fs::path("install") / "data" / "orion2re.cfg", "install");
+        test_dir.Write_File(test_vfs_detail::fs::path("install") / "data" / "shared.cfg", "install-shared");
+        test_dir.Write_File(test_vfs_detail::fs::path("install") / "data" / "music" / "theme.dat", "install-theme");
+        test_dir.Write_File(test_vfs_detail::fs::path("config") / "orion2re.cfg", "user");
+        test_dir.Write_File(test_vfs_detail::fs::path("config") / "music" / "theme.dat", "user-theme");
+
+        const std::string base_path = (test_dir.root_path() / "install").string();
+        const std::string config_path = (test_dir.root_path() / "config").string();
+        DOCTEST_REQUIRE(vfs::Init(base_path.c_str()) == 1);
+        DOCTEST_CHECK(test_vfs_detail::Read_Vfs_File_("orion2re.cfg") == "install");
+
+        DOCTEST_REQUIRE(vfs::Set_User_Config_Path(config_path.c_str()) == 1);
+        DOCTEST_CHECK(test_vfs_detail::Read_Vfs_File_("orion2re.cfg") == "user");
+        DOCTEST_CHECK(test_vfs_detail::Read_Vfs_File_("shared.cfg") == "install-shared");
+        DOCTEST_CHECK(test_vfs_detail::Read_Vfs_File_("music/theme.dat") == "install-theme");
+
+        char resolved_path[1024] = {};
+        DOCTEST_REQUIRE(vfs::Resolve_Read_Path_No_Zip("orion2re.cfg", resolved_path, sizeof(resolved_path)) == 1);
+        DOCTEST_CHECK(std::string(resolved_path).find("config") != std::string::npos);
+
+        DOCTEST_REQUIRE(vfs::Init(base_path.c_str()) == 1);
+        DOCTEST_CHECK(test_vfs_detail::Read_Vfs_File_("orion2re.cfg") == "install");
+    }
+
+    DOCTEST_TEST_CASE("vfs mounts a user package in place of an installed package with the same ID") {
+        test_vfs_detail::Scoped_Vfs_Test_Directory test_dir;
+        test_dir.Write_File(test_vfs_detail::fs::path("install") / "data" / "mods" / "sample" / "data" / "priority.dat", "install");
+        test_dir.Write_File(test_vfs_detail::fs::path("install") / "data" / "mods" / "other" / "data" / "other.dat", "install-other");
+        test_dir.Write_Zip_File(test_vfs_detail::fs::path("user") / "mods" / "sample.zip", {
+                                                                                               {"data/priority.dat", "user"},
+                                                                                           });
+
+        const std::string base_path = (test_dir.root_path() / "install").string();
+        const std::string mods_path = (test_dir.root_path() / "user" / "mods").string();
+        DOCTEST_REQUIRE(vfs::Init(base_path.c_str()) == 1);
+        DOCTEST_REQUIRE(vfs::Set_User_Mods_Path(mods_path.c_str()) == 1);
+        s_vfs_mount_transaction* transaction = vfs::Begin_Mount_Transaction();
+        DOCTEST_REQUIRE(transaction != nullptr);
+        std::string diagnostic;
+        DOCTEST_REQUIRE(vfs::Stage_Package_Mount(transaction, "sample", &diagnostic) == 1);
+        DOCTEST_REQUIRE(vfs::Stage_Package_Mount(transaction, "other", &diagnostic) == 1);
+        DOCTEST_REQUIRE(vfs::Commit_Mount_Transaction(transaction) == 1);
+
+        DOCTEST_CHECK(test_vfs_detail::Read_Vfs_File_("priority.dat") == "user");
+        DOCTEST_CHECK(test_vfs_detail::Read_Vfs_File_("other.dat") == "install-other");
+    }
+
+    DOCTEST_TEST_CASE("vfs searches added raw paths after the base path and before the fallback path") {
+        test_vfs_detail::Scoped_Vfs_Test_Directory test_dir;
+        test_dir.Write_File(test_vfs_detail::fs::path("install") / "local.lbx", "install");
+        test_dir.Write_File(test_vfs_detail::fs::path("game") / "local.lbx", "game-local");
+        test_dir.Write_File(test_vfs_detail::fs::path("game") / "diplomat.lbx", "game");
+        test_dir.Write_File(test_vfs_detail::fs::path("cdroot") / "diplomat.lbx", "cd");
+        test_dir.Write_File(test_vfs_detail::fs::path("cdroot") / "cd-only.lbx", "cd-only");
+
+        const std::string base_path = (test_dir.root_path() / "install").string();
+        const std::string game_path = (test_dir.root_path() / "game").string();
+        const std::string fallback_path = (test_dir.root_path() / "cdroot").string();
+        DOCTEST_REQUIRE(vfs::Init(base_path.c_str()) == 1);
+        DOCTEST_CHECK(vfs::Add_Raw_Search_Path("") == 0);
+        DOCTEST_REQUIRE(vfs::Add_Raw_Search_Path(game_path.c_str()) == 1);
+        DOCTEST_REQUIRE(vfs::Set_Raw_Fallback_Path(fallback_path.c_str()) == 1);
+
+        DOCTEST_CHECK(test_vfs_detail::Read_Vfs_File_("local.lbx") == "install");
+        DOCTEST_CHECK(test_vfs_detail::Read_Vfs_File_("DIPLOMAT.LBX") == "game");
+        DOCTEST_CHECK(test_vfs_detail::Read_Vfs_File_("cd-only.lbx") == "cd-only");
+    }
 }

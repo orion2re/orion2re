@@ -225,6 +225,15 @@ int main(int argc, char** argv) {
     }
     SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "data directory: %s", data_directory.c_str());
 
+    if (user_paths::Is_Enabled()) {
+        const std::string user_mods_path = std::string(user_paths::Get_Directory(user_paths::USER_DIRECTORY_DATA)) + "mods/";
+        vfs::Set_User_Config_Path(user_paths::Get_Directory(user_paths::USER_DIRECTORY_CONFIG));
+        vfs::Set_User_Mods_Path(user_mods_path.c_str());
+        for (const std::string& directory : user_paths::Get_Game_Asset_Directories()) {
+            vfs::Add_Raw_Search_Path(directory.c_str());
+        }
+    }
+
     config::s_effective_config effective_config;
     config::s_cfg_diagnostic config_diagnostic;
     bool config_loaded = false;
