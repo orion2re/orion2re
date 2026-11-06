@@ -81,6 +81,7 @@ function(orion2re_add_unit_test TARGET_NAME)
     target_include_directories(${TARGET_NAME} PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src"
         "${CMAKE_CURRENT_SOURCE_DIR}/tests"
+        ${ORION2RE_LIBSMACKER_INCLUDE_DIRS}
     )
     if(ORION2RE_USE_SYSTEM_DOCTEST)
         target_link_libraries(${TARGET_NAME} PRIVATE doctest::doctest)
@@ -101,6 +102,9 @@ function(orion2re_add_unit_test TARGET_NAME)
     endif()
     if(ORION2RE_USE_SYSTEM_YYJSON)
         target_link_libraries(${TARGET_NAME} PRIVATE PkgConfig::yyjson)
+    endif()
+    if(ORION2RE_USE_SYSTEM_LIBSMACKER)
+        target_link_libraries(${TARGET_NAME} PRIVATE ${ORION2RE_LIBSMACKER_LIBRARY})
     endif()
 
     target_link_libraries(${TARGET_NAME} PRIVATE
@@ -236,16 +240,14 @@ orion2re_add_unit_test(test_resource_reload
     SOURCES tests/unit/resource_reload_test.cpp
     PRODUCTION_SOURCES
         $<TARGET_OBJECTS:orion2re_game_objects>
-        vendors/libsmacker/smacker.c
-        vendors/libsmacker/smk_bitstream.c
-        vendors/libsmacker/smk_hufftree.c
+        ${ORION2RE_LIBSMACKER_SOURCES}
         ${ORION2RE_YYJSON_SOURCES}
     LIBRARIES
         ${ORION2RE_LIBUV_TARGET} ${ORION2RE_LZ4_TARGET} orion2re_lua orion2re_scalers ${ORION2RE_MINIZ_TARGET} orion2re_imgui
     LINK_SDL
 )
 target_include_directories(test_resource_reload PRIVATE
-    vendors/libsmacker ${ORION2RE_YYJSON_INCLUDE_DIRS}
+    ${ORION2RE_LIBSMACKER_INCLUDE_DIRS} ${ORION2RE_YYJSON_INCLUDE_DIRS}
 )
 
 if(MSVC)
