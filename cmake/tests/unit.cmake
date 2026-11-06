@@ -1948,6 +1948,15 @@ orion2re_add_unit_test(test_vfs
     LINK_SDL
 )
 
+orion2re_add_unit_test(test_user_paths
+    SOURCES
+        tests/unit/user_paths_test.cpp
+    PRODUCTION_SOURCES
+        src/game/compat.cpp
+        src/game/user_paths.cpp
+    LINK_SDL
+)
+
 orion2re_add_unit_test(test_smckplay
     SOURCES
         tests/unit/smckplay_test.cpp
