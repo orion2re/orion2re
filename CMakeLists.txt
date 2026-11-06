@@ -1124,6 +1124,7 @@ endif()
 if(TARGET orion2re)
     target_compile_definitions(orion2re PRIVATE
         $<$<CONFIG:Debug>:ORION2RE_DEBUG_BUILD=1>
+        ORION2RE_DATADIR="${CMAKE_INSTALL_FULL_DATADIR}/orion2re"
     )
 endif()
 

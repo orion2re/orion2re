@@ -16,6 +16,7 @@ namespace {
         fs::path executable_directory;
         fs::path game_files;
         fs::path launch_directory;
+        fs::path installed_directory;
         std::string relative_directory;
 
         s_startup_directory_fixture() {
@@ -26,8 +27,10 @@ namespace {
                 std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
             game_files = executable_directory / relative_directory;
             launch_directory = fs::temp_directory_path() / (relative_directory + "-launcher");
+            installed_directory = fs::temp_directory_path() / (relative_directory + "-installed");
             fs::create_directories(game_files);
             fs::create_directories(launch_directory / relative_directory);
+            fs::create_directories(installed_directory);
         }
 
         ~s_startup_directory_fixture() {
@@ -36,6 +39,7 @@ namespace {
             fs::current_path(original_directory, error);
             fs::remove_all(game_files, error);
             fs::remove_all(launch_directory, error);
+            fs::remove_all(installed_directory, error);
         }
     };
 
@@ -86,4 +90,37 @@ DOCTEST_TEST_CASE("startup uses the executable directory instead of the launcher
     Write_File_(fs::path(fixture.relative_directory) / "settings.ini", "saved settings");
     DOCTEST_CHECK(fs::exists(fixture.game_files / "settings.ini"));
     DOCTEST_CHECK_FALSE(fs::exists(fixture.launch_directory / fixture.relative_directory / "settings.ini"));
+}
+
+DOCTEST_TEST_CASE("data directory prefers packaged data beside the executable") {
+    s_startup_directory_fixture fixture;
+    fs::create_directories(fixture.game_files / "data");
+    fs::create_directories(fixture.installed_directory / "data");
+    Write_File_(fixture.game_files / "data" / "base.zip", "executable base data");
+    Write_File_(fixture.installed_directory / "data" / "base.zip", "installed base data");
+
+    std::string directory;
+    DOCTEST_REQUIRE(startup::Resolve_Data_Directory(fixture.game_files.string(), fixture.installed_directory.string().c_str(), &directory));
+    DOCTEST_CHECK(fs::equivalent(fs::path(directory), fixture.game_files));
+}
+
+DOCTEST_TEST_CASE("data directory falls back to the installed data directory") {
+    s_startup_directory_fixture fixture;
+    fs::create_directories(fixture.installed_directory / "data");
+    Write_File_(fixture.installed_directory / "data" / "base.zip", "installed base data");
+
+    std::string directory;
+    DOCTEST_REQUIRE(startup::Resolve_Data_Directory(fixture.game_files.string(), fixture.installed_directory.string().c_str(), &directory));
+    DOCTEST_CHECK(fs::equivalent(fs::path(directory), fixture.installed_directory));
+}
+
+DOCTEST_TEST_CASE("data directory keeps the game directory when no packaged data exists") {
+    s_startup_directory_fixture fixture;
+
+    std::string directory;
+    DOCTEST_REQUIRE(startup::Resolve_Data_Directory(fixture.game_files.string(), fixture.installed_directory.string().c_str(), &directory));
+    DOCTEST_CHECK(fs::equivalent(fs::path(directory), fixture.game_files));
+
+    DOCTEST_REQUIRE(startup::Resolve_Data_Directory(fixture.game_files.string(), nullptr, &directory));
+    DOCTEST_CHECK(fs::equivalent(fs::path(directory), fixture.game_files));
 }

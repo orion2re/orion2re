@@ -190,11 +190,24 @@ int main(int argc, char** argv) {
         return -1;
     }
 
-    if (vfs::Init(game_directory.c_str()) == 0) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "main: vfs::Init failed for base path '%s'", game_directory.c_str());
+#if defined(ORION2RE_DATADIR)
+    const char* installed_datadir = ORION2RE_DATADIR;
+#else
+    const char* installed_datadir = nullptr;
+#endif
+    std::string data_directory;
+    if (!startup::Resolve_Data_Directory(game_directory, installed_datadir, &data_directory)) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "main: unable to resolve data directory");
         Shutdown_Game_Log_();
         return -1;
     }
+
+    if (vfs::Init(data_directory.c_str()) == 0) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "main: vfs::Init failed for data directory '%s'", data_directory.c_str());
+        Shutdown_Game_Log_();
+        return -1;
+    }
+    SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "data directory: %s", data_directory.c_str());
 
     config::s_effective_config effective_config;
     config::s_cfg_diagnostic config_diagnostic;
