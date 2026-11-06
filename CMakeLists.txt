@@ -139,6 +139,7 @@ if(ORION2RE_USE_SYSTEM_PACKAGES)
     set(ORION2RE_USE_SYSTEM_YYJSON ON CACHE BOOL "" FORCE)
     set(ORION2RE_USE_SYSTEM_DOCTEST ON CACHE BOOL "" FORCE)
     set(ORION2RE_USE_SYSTEM_LIBSMACKER ON CACHE BOOL "" FORCE)
+    set(ORION2RE_USE_SYSTEM_IMGUI ON CACHE BOOL "" FORCE)
 endif()
 
 set(ORION2RE_BUILD_CONFIG_TOOL_DEFAULT OFF)
@@ -189,6 +190,9 @@ option(ORION2RE_USE_SYSTEM_DOCTEST
 option(ORION2RE_USE_SYSTEM_LIBSMACKER
        "Use the system libsmacker library instead of the in-tree sources"
        OFF)
+option(ORION2RE_USE_SYSTEM_IMGUI
+       "Use the system Dear ImGui library instead of the vendored submodule"
+       OFF)
 
 if(ORION2RE_ENABLE_ASAN)
     if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -226,22 +230,71 @@ function(orion2re_enable_sanitizers TARGET_NAME)
 endfunction()
 
 if(ORION2RE_BUILD_GAME OR ORION2RE_BUILD_CONFIG_TOOL)
-    if(NOT EXISTS "${ORION2RE_VENDORED_IMGUI_DIR}/imgui.h")
-        message(FATAL_ERROR
-            "The debug overlay requires the Dear ImGui submodule at vendors/imgui. "
-            "Run 'git submodule update --init vendors/imgui' and ensure it is pinned to ${ORION2RE_VENDORED_IMGUI_COMMIT}."
+    if(ORION2RE_USE_SYSTEM_IMGUI)
+        find_path(ORION2RE_IMGUI_INCLUDE_DIR NAMES imgui.h PATH_SUFFIXES imgui REQUIRED)
+        set(ORION2RE_IMGUI_INCLUDE_DIRS "${ORION2RE_IMGUI_INCLUDE_DIR}")
+        # The system package may ship the core sources under its include
+        # directory, or only headers plus a prebuilt library (Debian/Ubuntu).
+        # Prefer the sources when present; otherwise link the prebuilt
+        # library. A headers-only package provides neither and fails here.
+        if(EXISTS "${ORION2RE_IMGUI_INCLUDE_DIR}/imgui.cpp")
+            set(ORION2RE_IMGUI_SOURCES
+                "${ORION2RE_IMGUI_INCLUDE_DIR}/imgui.cpp"
+                "${ORION2RE_IMGUI_INCLUDE_DIR}/imgui_draw.cpp"
+                "${ORION2RE_IMGUI_INCLUDE_DIR}/imgui_tables.cpp"
+                "${ORION2RE_IMGUI_INCLUDE_DIR}/imgui_widgets.cpp"
+            )
+            set(ORION2RE_IMGUI_USE_PREBUILT OFF)
+        else()
+            find_library(ORION2RE_IMGUI_LIBRARY NAMES imgui REQUIRED)
+            set(ORION2RE_IMGUI_SOURCES "")
+            set(ORION2RE_IMGUI_USE_PREBUILT ON)
+        endif()
+        # The font ships with the sources on some systems; otherwise fall
+        # back to the vendored copy.
+        if(EXISTS "${ORION2RE_IMGUI_INCLUDE_DIR}/misc/fonts/ProggyTiny.ttf")
+            set(ORION2RE_IMGUI_FONT "${ORION2RE_IMGUI_INCLUDE_DIR}/misc/fonts/ProggyTiny.ttf")
+        elseif(EXISTS "${ORION2RE_VENDORED_IMGUI_DIR}/misc/fonts/ProggyTiny.ttf")
+            set(ORION2RE_IMGUI_FONT "${ORION2RE_VENDORED_IMGUI_DIR}/misc/fonts/ProggyTiny.ttf")
+        else()
+            message(FATAL_ERROR
+                "System ImGui does not ship ProggyTiny.ttf and the vendored copy is missing. "
+                "Run 'git submodule update --init vendors/imgui' and ensure it is pinned to ${ORION2RE_VENDORED_IMGUI_COMMIT}."
+            )
+        endif()
+    else()
+        if(NOT EXISTS "${ORION2RE_VENDORED_IMGUI_DIR}/imgui.h")
+            message(FATAL_ERROR
+                "The debug overlay requires the Dear ImGui submodule at vendors/imgui. "
+                "Run 'git submodule update --init vendors/imgui' and ensure it is pinned to ${ORION2RE_VENDORED_IMGUI_COMMIT}."
+            )
+        endif()
+
+        set(ORION2RE_IMGUI_INCLUDE_DIRS "${ORION2RE_VENDORED_IMGUI_DIR}")
+        set(ORION2RE_IMGUI_SOURCES
+            "${ORION2RE_VENDORED_IMGUI_DIR}/imgui.cpp"
+            "${ORION2RE_VENDORED_IMGUI_DIR}/imgui_draw.cpp"
+            "${ORION2RE_VENDORED_IMGUI_DIR}/imgui_tables.cpp"
+            "${ORION2RE_VENDORED_IMGUI_DIR}/imgui_widgets.cpp"
         )
+        set(ORION2RE_IMGUI_FONT "${ORION2RE_VENDORED_IMGUI_DIR}/misc/fonts/ProggyTiny.ttf")
+        set(ORION2RE_IMGUI_USE_PREBUILT OFF)
     endif()
 
-    add_library(orion2re_imgui STATIC
-        "${ORION2RE_VENDORED_IMGUI_DIR}/imgui.cpp"
-        "${ORION2RE_VENDORED_IMGUI_DIR}/imgui_draw.cpp"
-        "${ORION2RE_VENDORED_IMGUI_DIR}/imgui_tables.cpp"
-        "${ORION2RE_VENDORED_IMGUI_DIR}/imgui_widgets.cpp"
-    )
-    target_compile_features(orion2re_imgui PUBLIC cxx_std_20)
-    target_include_directories(orion2re_imgui PUBLIC
-        "${ORION2RE_VENDORED_IMGUI_DIR}"
+    if(ORION2RE_IMGUI_USE_PREBUILT)
+        add_library(orion2re_imgui INTERFACE)
+        target_link_libraries(orion2re_imgui INTERFACE ${ORION2RE_IMGUI_LIBRARY})
+        # INTERFACE targets only accept INTERFACE scope below.
+        set(ORION2RE_IMGUI_SCOPE INTERFACE)
+    else()
+        add_library(orion2re_imgui STATIC
+            ${ORION2RE_IMGUI_SOURCES}
+        )
+        set(ORION2RE_IMGUI_SCOPE PUBLIC)
+    endif()
+    target_compile_features(orion2re_imgui ${ORION2RE_IMGUI_SCOPE} cxx_std_20)
+    target_include_directories(orion2re_imgui ${ORION2RE_IMGUI_SCOPE}
+        ${ORION2RE_IMGUI_INCLUDE_DIRS}
     )
 
     set(ORION2RE_DEBUG_OVERLAY_GENERATED_DIR
@@ -251,12 +304,12 @@ if(ORION2RE_BUILD_GAME OR ORION2RE_BUILD_CONFIG_TOOL)
     add_custom_command(
         OUTPUT "${ORION2RE_PROGGY_TINY_HEADER}"
         COMMAND ${CMAKE_COMMAND}
-            "-DINPUT_FILE=${ORION2RE_VENDORED_IMGUI_DIR}/misc/fonts/ProggyTiny.ttf"
+            "-DINPUT_FILE=${ORION2RE_IMGUI_FONT}"
             "-DOUTPUT_FILE=${ORION2RE_PROGGY_TINY_HEADER}"
             "-DSYMBOL_NAME=k_proggy_tiny_font"
             -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed_binary.cmake"
         DEPENDS
-            "${ORION2RE_VENDORED_IMGUI_DIR}/misc/fonts/ProggyTiny.ttf"
+            "${ORION2RE_IMGUI_FONT}"
             "${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed_binary.cmake"
         VERBATIM
     )
