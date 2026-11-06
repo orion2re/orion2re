@@ -216,6 +216,10 @@ namespace user_paths {
         state.directories[USER_DIRECTORY_CACHE] = Base_Directory_("XDG_CACHE_HOME", home, ".cache/") + APPLICATION_DIRECTORY_NAME;
 
         state.game_asset_directories.push_back(data_home + GAME_ASSET_DIRECTORY_NAME);
+        // Loose original files are often dropped directly in the data
+        // directory instead of the game/ subdirectory, so search that too.
+        // The game/ subdirectory keeps precedence.
+        state.game_asset_directories.push_back(data_home + APPLICATION_DIRECTORY_NAME);
         const char* data_dirs = SDL_getenv("XDG_DATA_DIRS");
         if (data_dirs == nullptr || data_dirs[0] == '\0') {
             data_dirs = DEFAULT_DATA_DIRS;

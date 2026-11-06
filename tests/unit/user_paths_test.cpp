@@ -213,10 +213,11 @@ DOCTEST_TEST_SUITE("user paths") {
 
         DOCTEST_REQUIRE(environment.Init());
         const std::vector<std::string>& directories = user_paths::Get_Game_Asset_Directories();
-        DOCTEST_REQUIRE(directories.size() == 3);
+        DOCTEST_REQUIRE(directories.size() == 4);
         DOCTEST_CHECK(directories[0] == environment.Path("home/.local/share/orion2re/game/"));
-        DOCTEST_CHECK(directories[1] == environment.Path("first/orion2re/game/"));
-        DOCTEST_CHECK(directories[2] == environment.Path("second/orion2re/game/"));
+        DOCTEST_CHECK(directories[1] == environment.Path("home/.local/share/orion2re/"));
+        DOCTEST_CHECK(directories[2] == environment.Path("first/orion2re/game/"));
+        DOCTEST_CHECK(directories[3] == environment.Path("second/orion2re/game/"));
     }
 
     DOCTEST_TEST_CASE("portable mode is the default for a writable installation") {
