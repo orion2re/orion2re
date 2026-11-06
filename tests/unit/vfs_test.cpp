@@ -346,6 +346,105 @@ DOCTEST_TEST_SUITE("vfs cpp") {
         DOCTEST_CHECK(vfs::fclose(file) == 0);
     }
 
+    DOCTEST_TEST_CASE("vfs logs the searched directories when a file lookup fails") {
+        test_vfs_detail::Scoped_Vfs_Test_Directory test_dir;
+        const std::string base_path = test_dir.root_path().string();
+        const std::string search_path = (test_dir.root_path() / "game").string();
+
+        // Capture from before Init, so any registration-time log line would
+        // be caught: only the lookup-failure line may be logged.
+        SDL_LogOutputFunction previous_function = nullptr;
+        void* previous_userdata = nullptr;
+        SDL_GetLogOutputFunction(&previous_function, &previous_userdata);
+        std::string captured;
+        SDL_SetLogOutputFunction([](void* userdata, int category, SDL_LogPriority priority, const char* message) {
+            (void)category;
+            (void)priority;
+            std::string* output = static_cast<std::string*>(userdata);
+            output->append(message);
+            output->push_back('\n');
+        }, &captured);
+        const int init_result = vfs::Init(base_path.c_str());
+        const int search_result = vfs::Add_Raw_Search_Path(search_path.c_str());
+        s_vfs_file* file = nullptr;
+        if (init_result == 1 && search_result == 1) {
+            file = vfs::fopen("missing.lbx", "rb");
+        }
+        SDL_SetLogOutputFunction(previous_function, previous_userdata);
+        DOCTEST_REQUIRE(init_result == 1);
+        DOCTEST_REQUIRE(search_result == 1);
+        DOCTEST_CHECK(file == nullptr);
+        size_t line_count = 0;
+        for (char c : captured) {
+            if (c == '\n') {
+                ++line_count;
+            }
+        }
+        DOCTEST_CHECK(line_count == 1);
+        DOCTEST_CHECK(captured.find("missing.lbx") != std::string::npos);
+        DOCTEST_CHECK(captured.find(base_path) != std::string::npos);
+        DOCTEST_CHECK(captured.find(search_path) != std::string::npos);
+    }
+
+    DOCTEST_TEST_CASE("vfs logs each missing file only once and the search list only on the first miss") {
+        test_vfs_detail::Scoped_Vfs_Test_Directory test_dir;
+        const std::string base_path = test_dir.root_path().string();
+        const std::string search_path = (test_dir.root_path() / "game").string();
+
+        SDL_LogOutputFunction previous_function = nullptr;
+        void* previous_userdata = nullptr;
+        SDL_GetLogOutputFunction(&previous_function, &previous_userdata);
+        std::string captured;
+        SDL_SetLogOutputFunction([](void* userdata, int category, SDL_LogPriority priority, const char* message) {
+            (void)category;
+            (void)priority;
+            std::string* output = static_cast<std::string*>(userdata);
+            output->append(message);
+            output->push_back('\n');
+        }, &captured);
+        const int init_result = vfs::Init(base_path.c_str());
+        const int search_result = vfs::Add_Raw_Search_Path(search_path.c_str());
+        s_vfs_file* first = nullptr;
+        s_vfs_file* first_repeat = nullptr;
+        s_vfs_file* second = nullptr;
+        s_vfs_file* second_repeat = nullptr;
+        s_vfs_file* first_again = nullptr;
+        if (init_result == 1 && search_result == 1) {
+            // Each file misses repeatedly; only the first miss per file logs,
+            // and only the very first line names the search list.
+            first = vfs::fopen("missing.lbx", "rb");
+            first_repeat = vfs::fopen("missing.lbx", "rb");
+            second = vfs::fopen("other.lbx", "rb");
+            second_repeat = vfs::fopen("other.lbx", "rb");
+            first_again = vfs::fopen("missing.lbx", "rb");
+        }
+        SDL_SetLogOutputFunction(previous_function, previous_userdata);
+        DOCTEST_REQUIRE(init_result == 1);
+        DOCTEST_REQUIRE(search_result == 1);
+        DOCTEST_CHECK(first == nullptr);
+        DOCTEST_CHECK(first_repeat == nullptr);
+        DOCTEST_CHECK(second == nullptr);
+        DOCTEST_CHECK(second_repeat == nullptr);
+        DOCTEST_CHECK(first_again == nullptr);
+        std::vector<std::string> lines;
+        std::string::size_type start = 0;
+        while (true) {
+            const std::string::size_type newline = captured.find('\n', start);
+            if (newline == std::string::npos) {
+                break;
+            }
+            lines.push_back(captured.substr(start, newline - start));
+            start = newline + 1;
+        }
+        DOCTEST_REQUIRE(lines.size() == 2);
+        DOCTEST_CHECK(lines[0].find("missing.lbx") != std::string::npos);
+        DOCTEST_CHECK(lines[0].find(base_path) != std::string::npos);
+        DOCTEST_CHECK(lines[0].find(search_path) != std::string::npos);
+        DOCTEST_CHECK(lines[1].find("other.lbx") != std::string::npos);
+        DOCTEST_CHECK(lines[1].find(base_path) == std::string::npos);
+        DOCTEST_CHECK(lines[1].find(search_path) == std::string::npos);
+    }
+
     DOCTEST_TEST_CASE("vfs can fall back to a secondary raw asset path without affecting local override lookup") {
         test_vfs_detail::Scoped_Vfs_Test_Directory test_dir;
         test_dir.Write_File(test_vfs_detail::fs::path("cdroot") / "diplomat.lbx", "cd-asset");

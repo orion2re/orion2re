@@ -21,6 +21,10 @@ namespace vfs {
     // Searched for original game files after the base path and before the
     // raw fallback path.
     int8_t Add_Raw_Search_Path(const char* path);
+    // Directories searched for original game files, in search order: the
+    // installation data directory, then the user data directories. Used by
+    // startup error messages so they can tell the user where to put the files.
+    std::vector<std::string> Get_Data_Search_Paths();
 
     s_vfs_mount_transaction* Begin_Mount_Transaction();
     int8_t Stage_Package_Mount(s_vfs_mount_transaction* transaction,

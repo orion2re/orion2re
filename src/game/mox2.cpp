@@ -471,9 +471,22 @@ namespace MOX2 {
         }
     }
 
+    // Appends which file is missing and where the original game files are
+    // searched for, so a startup "file not found" error tells the user where
+    // to put them instead of just naming the file.
+    void Append_Missing_Data_File_Hint_(std::string* message, const char* missing_file) {
+        message->append("\nMissing file: ");
+        message->append(missing_file);
+        message->append("\nThese are the original Master of Orion II data files. Put them in one of these directories:");
+        for (const std::string& directory : vfs::Get_Data_Search_Paths()) {
+            message->append("\n  ");
+            message->append(directory);
+        }
+    }
+
     void __cdecl Set_Mox_Alt_Path() {
         char alternate_path[61] = {};
-        char error_message[100] = "Unable to read ORIONCD.INI.";
+        std::string error_message = "Unable to read ORIONCD.INI.";
         FILE* config_file;
         const char* error_text = nullptr;
 
@@ -493,10 +506,10 @@ namespace MOX2 {
             }
 
             if (error_text != nullptr) {
-                strlcpy(error_message, error_text, sizeof(error_message));
+                error_message = error_text;
             }
-
-            exitm::Exit_With_Message(error_message);
+            Append_Missing_Data_File_Hint_(&error_message, "ORIONCD.INI");
+            exitm::Exit_With_Message(error_message.c_str());
             return;
         }
 
@@ -506,13 +519,15 @@ namespace MOX2 {
             if (config_file != nullptr) {
                 fclose(config_file);
             }
-            exitm::Exit_With_Message(error_message);
+            Append_Missing_Data_File_Hint_(&error_message, "ORIONCD.INI");
+            exitm::Exit_With_Message(error_message.c_str());
         }
         fclose(config_file);
 
         alternate_path[strcspn(alternate_path, "\r\n")] = '\0';
         if (alternate_path[0] == '\0') {
-            exitm::Exit_With_Message(error_message);
+            Append_Missing_Data_File_Hint_(&error_message, "ORIONCD.INI");
+            exitm::Exit_With_Message(error_message.c_str());
         }
 
         farload::Set_Alternate_Path(alternate_path);
@@ -543,10 +558,12 @@ namespace MOX2 {
         }
 
         if (error_text != nullptr) {
-            strlcpy(error_message, error_text, sizeof(error_message));
+            error_message = error_text;
+        } else {
+            error_message = "Cannot locate all game files.  Please insert CD or re-install.";
         }
-
-        exitm::Exit_With_Message(error_message);
+        Append_Missing_Data_File_Hint_(&error_message, "diplomat.lbx");
+        exitm::Exit_With_Message(error_message.c_str());
     }
 
 } // namespace MOX2

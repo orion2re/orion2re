@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 #include "miniz.h"
@@ -88,6 +89,12 @@ namespace vfs_detail {
         std::vector<s_vfs_zip_archive> zip_archives;
         std::vector<s_vfs_zip_cache_entry> zip_entries;
         std::vector<s_vfs_package_layer> package_layers;
+        // Normalized asset paths already reported as missing, so a repeated
+        // lookup of the same file does not log again.
+        std::unordered_set<std::string> warned_missing;
+        // Whether the full search list has been logged once already; later
+        // first-time misses log just the filename.
+        bool warned_missing_paths = false;
     };
 
     struct s_vfs_backend_ops {

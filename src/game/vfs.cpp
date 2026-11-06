@@ -69,6 +69,8 @@ namespace vfs {
         vfs_detail::g_vfs_state.user_config_path[0] = '\0';
         vfs_detail::g_vfs_state.user_mods_path[0] = '\0';
         vfs_detail::g_vfs_state.raw_search_paths.clear();
+        vfs_detail::g_vfs_state.warned_missing.clear();
+        vfs_detail::g_vfs_state.warned_missing_paths = false;
     }
 
     int8_t Set_Raw_Fallback_Path(const char* path) {
@@ -117,6 +119,19 @@ namespace vfs {
 
         vfs_detail::g_vfs_state.raw_search_paths.push_back(clean_path);
         return 1;
+    }
+
+    std::vector<std::string> Get_Data_Search_Paths() {
+        std::vector<std::string> directories;
+        if (vfs_detail::g_vfs_state.base_path[0] != '\0') {
+            directories.emplace_back(vfs_detail::g_vfs_state.base_path);
+        }
+        for (const std::string& directory : vfs_detail::g_vfs_state.raw_search_paths) {
+            if (std::find(directories.begin(), directories.end(), directory) == directories.end()) {
+                directories.push_back(directory);
+            }
+        }
+        return directories;
     }
 
     s_vfs_mount_transaction* Begin_Mount_Transaction() {
@@ -447,6 +462,30 @@ namespace vfs {
                 used_fallback ? vfs_detail::VFS_SOURCE_FALLBACK : vfs_detail::VFS_SOURCE_RAW);
         }
 
+        // Log each missing file only once, and name the directories tried
+        // only on the first miss, so a launch to the menu does not repeat
+        // the same warning for every lookup of the same LBX sub-entry.
+        if (vfs_detail::g_vfs_state.warned_missing.insert(asset_path).second) {
+            if (!vfs_detail::g_vfs_state.warned_missing_paths) {
+                vfs_detail::g_vfs_state.warned_missing_paths = true;
+                std::string searched = "'";
+                searched += vfs_detail::g_vfs_state.base_path;
+                searched += "'";
+                for (const std::string& directory : vfs_detail::g_vfs_state.raw_search_paths) {
+                    searched += ", '";
+                    searched += directory;
+                    searched += "'";
+                }
+                if (vfs_detail::g_vfs_state.fallback_path[0] != '\0') {
+                    searched += ", '";
+                    searched += vfs_detail::g_vfs_state.fallback_path;
+                    searched += "'";
+                }
+                SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "vfs: '%s' not found; searched %s", asset_path, searched.c_str());
+            } else {
+                SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "vfs: '%s' not found", asset_path);
+            }
+        }
         return nullptr;
     }
 
