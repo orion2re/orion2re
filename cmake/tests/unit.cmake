@@ -84,9 +84,15 @@ function(orion2re_add_unit_test TARGET_NAME)
     target_compile_features(${TARGET_NAME} PRIVATE cxx_std_20)
     target_include_directories(${TARGET_NAME} PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src"
-        "${ORION2RE_VENDORED_DOCTEST_DIR}"
         "${CMAKE_CURRENT_SOURCE_DIR}/tests"
     )
+    if(ORION2RE_USE_SYSTEM_DOCTEST)
+        target_link_libraries(${TARGET_NAME} PRIVATE doctest::doctest)
+    else()
+        target_include_directories(${TARGET_NAME} PRIVATE
+            "${ORION2RE_VENDORED_DOCTEST_DIR}"
+        )
+    endif()
 
     target_precompile_headers(${TARGET_NAME} PRIVATE
         "$<$<COMPILE_LANGUAGE:CXX>:${CMAKE_CURRENT_SOURCE_DIR}/src/pch.h>"
