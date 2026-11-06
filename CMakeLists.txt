@@ -138,6 +138,7 @@ if(ORION2RE_USE_SYSTEM_PACKAGES)
     set(ORION2RE_USE_SYSTEM_MINIZ ON CACHE BOOL "" FORCE)
     set(ORION2RE_USE_SYSTEM_YYJSON ON CACHE BOOL "" FORCE)
     set(ORION2RE_USE_SYSTEM_DOCTEST ON CACHE BOOL "" FORCE)
+    set(ORION2RE_USE_SYSTEM_LIBSMACKER ON CACHE BOOL "" FORCE)
 endif()
 
 set(ORION2RE_BUILD_CONFIG_TOOL_DEFAULT OFF)
@@ -184,6 +185,9 @@ option(ORION2RE_USE_SYSTEM_YYJSON
        OFF)
 option(ORION2RE_USE_SYSTEM_DOCTEST
        "Use the system doctest library instead of the vendored submodule"
+       OFF)
+option(ORION2RE_USE_SYSTEM_LIBSMACKER
+       "Use the system libsmacker library instead of the in-tree sources"
        OFF)
 
 if(ORION2RE_ENABLE_ASAN)
@@ -416,9 +420,24 @@ if((ORION2RE_BUILD_GAME OR ORION2RE_BUILD_TESTS OR ORION2RE_BUILD_CONFIG_TOOL) A
     )
 endif()
 
-if(NOT EXISTS "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smacker.c")
+if(NOT ORION2RE_USE_SYSTEM_LIBSMACKER AND
+   NOT EXISTS "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smacker.c")
     message(FATAL_ERROR
         "This project requires libsmacker sources at vendors/libsmacker."
+    )
+endif()
+
+if(ORION2RE_USE_SYSTEM_LIBSMACKER)
+    find_library(ORION2RE_LIBSMACKER_LIBRARY NAMES smacker REQUIRED)
+    find_path(ORION2RE_LIBSMACKER_INCLUDE_DIR NAMES smacker.h REQUIRED)
+    set(ORION2RE_LIBSMACKER_INCLUDE_DIRS "${ORION2RE_LIBSMACKER_INCLUDE_DIR}")
+    set(ORION2RE_LIBSMACKER_SOURCES "")
+else()
+    set(ORION2RE_LIBSMACKER_INCLUDE_DIRS "${ORION2RE_VENDORED_LIBSMACKER_DIR}")
+    set(ORION2RE_LIBSMACKER_SOURCES
+        "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smacker.c"
+        "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smk_bitstream.c"
+        "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smk_hufftree.c"
     )
 endif()
 
@@ -582,7 +601,7 @@ if(ORION2RE_BUILD_GAME OR ORION2RE_BUILD_CONFIG_TOOL)
     target_compile_features(orion2re_game_objects PRIVATE cxx_std_20)
     target_include_directories(orion2re_game_objects PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src"
-        "${ORION2RE_VENDORED_LIBSMACKER_DIR}"
+        ${ORION2RE_LIBSMACKER_INCLUDE_DIRS}
         ${ORION2RE_YYJSON_INCLUDE_DIRS}
     )
     target_precompile_headers(orion2re_game_objects PRIVATE
@@ -718,9 +737,7 @@ if(ORION2RE_BUILD_GAME)
     add_executable(orion2re
         src/main.cpp
         $<TARGET_OBJECTS:orion2re_game_objects>
-        "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smacker.c"
-        "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smk_bitstream.c"
-        "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smk_hufftree.c"
+        ${ORION2RE_LIBSMACKER_SOURCES}
         ${ORION2RE_YYJSON_SOURCES}
     )
 
@@ -736,7 +753,7 @@ if(ORION2RE_BUILD_GAME)
     target_compile_features(orion2re PRIVATE cxx_std_20)
     target_include_directories(orion2re PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src"
-        "${ORION2RE_VENDORED_LIBSMACKER_DIR}"
+        ${ORION2RE_LIBSMACKER_INCLUDE_DIRS}
         ${ORION2RE_YYJSON_INCLUDE_DIRS}
     )
 
@@ -756,23 +773,27 @@ if(ORION2RE_BUILD_GAME)
     if(ORION2RE_USE_SYSTEM_YYJSON)
         target_link_libraries(orion2re PRIVATE PkgConfig::yyjson)
     endif()
+    if(ORION2RE_USE_SYSTEM_LIBSMACKER)
+        target_link_libraries(orion2re PRIVATE ${ORION2RE_LIBSMACKER_LIBRARY})
+    endif()
     add_executable(config-load-benchmark EXCLUDE_FROM_ALL
         tools/config/load_benchmark.cpp
         $<TARGET_OBJECTS:orion2re_game_objects>
-        "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smacker.c"
-        "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smk_bitstream.c"
-        "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smk_hufftree.c"
+        ${ORION2RE_LIBSMACKER_SOURCES}
         ${ORION2RE_YYJSON_SOURCES}
     )
     target_compile_features(config-load-benchmark PRIVATE cxx_std_20)
     target_include_directories(config-load-benchmark PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src"
-        "${ORION2RE_VENDORED_LIBSMACKER_DIR}"
+        ${ORION2RE_LIBSMACKER_INCLUDE_DIRS}
         ${ORION2RE_YYJSON_INCLUDE_DIRS})
     target_link_libraries(config-load-benchmark PRIVATE ${ORION2RE_SDL3_TARGET} ${ORION2RE_LIBUV_TARGET}
         ${ORION2RE_LZ4_TARGET} orion2re_lua orion2re_scalers ${ORION2RE_MINIZ_TARGET} orion2re_imgui)
     if(ORION2RE_USE_SYSTEM_YYJSON)
         target_link_libraries(config-load-benchmark PRIVATE PkgConfig::yyjson)
+    endif()
+    if(ORION2RE_USE_SYSTEM_LIBSMACKER)
+        target_link_libraries(config-load-benchmark PRIVATE ${ORION2RE_LIBSMACKER_LIBRARY})
     endif()
     if(MSVC)
         target_compile_definitions(config-load-benchmark PRIVATE WIN32 _CRT_SECURE_NO_DEPRECATE _CRT_NONSTDC_NO_DEPRECATE)
@@ -834,9 +855,7 @@ if(ORION2RE_BUILD_CONFIG_TOOL)
     add_executable(config-tool EXCLUDE_FROM_ALL
         ${ORION2RE_CONFIG_TOOL_SOURCES}
         $<TARGET_OBJECTS:orion2re_game_objects>
-        "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smacker.c"
-        "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smk_bitstream.c"
-        "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smk_hufftree.c"
+        ${ORION2RE_LIBSMACKER_SOURCES}
         ${ORION2RE_YYJSON_SOURCES}
     )
     target_compile_features(config-tool PRIVATE cxx_std_20)
@@ -846,7 +865,7 @@ if(ORION2RE_BUILD_CONFIG_TOOL)
     target_include_directories(config-tool PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src"
         "${CMAKE_CURRENT_SOURCE_DIR}/tools/config"
-        "${ORION2RE_VENDORED_LIBSMACKER_DIR}"
+        ${ORION2RE_LIBSMACKER_INCLUDE_DIRS}
         ${ORION2RE_YYJSON_INCLUDE_DIRS}
     )
     target_link_libraries(config-tool PRIVATE
@@ -860,6 +879,9 @@ if(ORION2RE_BUILD_CONFIG_TOOL)
     target_link_libraries(config-tool PRIVATE orion2re_imgui)
     if(ORION2RE_USE_SYSTEM_YYJSON)
         target_link_libraries(config-tool PRIVATE PkgConfig::yyjson)
+    endif()
+    if(ORION2RE_USE_SYSTEM_LIBSMACKER)
+        target_link_libraries(config-tool PRIVATE ${ORION2RE_LIBSMACKER_LIBRARY})
     endif()
 
     set(ORION2RE_DOCUMENTATION_BUILD_DIR
@@ -1162,6 +1184,7 @@ if(ORION2RE_BUILD_TESTS)
     target_compile_features(scaler-benchmark PRIVATE cxx_std_20)
     target_include_directories(scaler-benchmark PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src"
+        ${ORION2RE_LIBSMACKER_INCLUDE_DIRS}
     )
     target_precompile_headers(scaler-benchmark PRIVATE
         "$<$<COMPILE_LANGUAGE:CXX>:${CMAKE_CURRENT_SOURCE_DIR}/src/pch.h>"
