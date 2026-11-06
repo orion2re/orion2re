@@ -154,6 +154,9 @@ option(ORION2RE_USE_SYSTEM_MINIZ
 option(ORION2RE_USE_SYSTEM_YYJSON
        "Use the system yyjson library instead of the vendored submodule"
        OFF)
+option(ORION2RE_USE_SYSTEM_DOCTEST
+       "Use the system doctest library instead of the vendored submodule"
+       OFF)
 
 if(ORION2RE_ENABLE_ASAN)
     if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -341,7 +344,12 @@ if((ORION2RE_BUILD_GAME OR ORION2RE_BUILD_TESTS OR ORION2RE_BUILD_CONFIG_TOOL) A
     )
 endif()
 
-if(ORION2RE_BUILD_TESTS AND NOT EXISTS "${ORION2RE_VENDORED_DOCTEST_DIR}/doctest/doctest.h")
+if(ORION2RE_BUILD_TESTS AND ORION2RE_USE_SYSTEM_DOCTEST)
+    find_package(doctest 2.4 REQUIRED)
+endif()
+
+if(ORION2RE_BUILD_TESTS AND NOT ORION2RE_USE_SYSTEM_DOCTEST AND
+   NOT EXISTS "${ORION2RE_VENDORED_DOCTEST_DIR}/doctest/doctest.h")
     message(FATAL_ERROR
         "Tests require the doctest submodule at vendors/doctest. "
         "Run 'git submodule update --init --recursive vendors/doctest' and ensure it is pinned to ${ORION2RE_VENDORED_DOCTEST_COMMIT}."
