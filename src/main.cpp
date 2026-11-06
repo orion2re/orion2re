@@ -6,6 +6,7 @@
 #endif
 
 #include "config/config_loader.h"
+#include "game/user_paths.h"
 #include "lua/lua_mod_runtime.h"
 #include "startup_directory.h"
 #include "startup_options.h"
@@ -195,8 +196,16 @@ int main(int argc, char** argv) {
 #else
     const char* installed_datadir = nullptr;
 #endif
+    // The user's XDG data directory, when it can be resolved. It is only
+    // used when it holds packaged base data, and it wins over the installed
+    // data directory; on platforms without XDG this stays empty.
+    std::string user_datadir;
+    const char* user_datadir_path = nullptr;
+    if (user_paths::Get_Xdg_Data_Directory(&user_datadir)) {
+        user_datadir_path = user_datadir.c_str();
+    }
     std::string data_directory;
-    if (!startup::Resolve_Data_Directory(game_directory, installed_datadir, &data_directory)) {
+    if (!startup::Resolve_Data_Directory(game_directory, user_datadir_path, installed_datadir, &data_directory)) {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "main: unable to resolve data directory");
         Shutdown_Game_Log_();
         return -1;
