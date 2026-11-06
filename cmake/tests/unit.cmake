@@ -232,7 +232,7 @@ orion2re_add_unit_test(test_resource_reload
         vendors/libsmacker/smk_hufftree.c
         vendors/yyjson/src/yyjson.c
     LIBRARIES
-        uv_a orion2re_lz4 orion2re_lua orion2re_scalers miniz orion2re_imgui
+        ${ORION2RE_LIBUV_TARGET} orion2re_lz4 orion2re_lua orion2re_scalers miniz orion2re_imgui
     LINK_SDL
 )
 target_include_directories(test_resource_reload PRIVATE
@@ -2065,7 +2065,7 @@ orion2re_add_unit_test(test_router_service
         src/network/router_protocol.cpp
         src/network/router_service.cpp
     LIBRARIES
-        uv_a
+        ${ORION2RE_LIBUV_TARGET}
         orion2re_lz4
     LINK_SDL
 )
@@ -2080,7 +2080,7 @@ orion2re_add_unit_test(test_router_session_browser
         src/network/router_session_browser.cpp
         src/network/router_service.cpp
     LIBRARIES
-        uv_a
+        ${ORION2RE_LIBUV_TARGET}
         orion2re_lz4
     LINK_SDL
 )
@@ -2097,7 +2097,7 @@ orion2re_add_unit_test(test_netadapter
         src/network/router_session_browser.cpp
         src/network/router_service.cpp
     LIBRARIES
-        uv_a
+        ${ORION2RE_LIBUV_TARGET}
         orion2re_lz4
     LINK_SDL
 )
@@ -2111,7 +2111,7 @@ orion2re_add_unit_test(test_router_client
         src/network/router_protocol.cpp
         src/network/router_service.cpp
     LIBRARIES
-        uv_a
+        ${ORION2RE_LIBUV_TARGET}
         orion2re_lz4
     LINK_SDL
 )
