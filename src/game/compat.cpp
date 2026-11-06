@@ -1,5 +1,7 @@
 #include "pch.h"
 
+#include "user_paths.h"
+
 namespace {
     constexpr char k_native_path_separator =
 #if defined(_WIN32)
@@ -168,9 +170,14 @@ void Legacy_Qsort(void* base, size_t count, size_t width, legacy_qsort_compare c
 
 bool File_Exists(const char* path) {
     SDL_PathInfo path_info;
+    char user_path[512];
 
     if (path == nullptr || path[0] == '\0') {
         return false;
+    }
+
+    if (user_paths::Redirect_Legacy_Path(path, false, user_path, sizeof(user_path))) {
+        path = user_path;
     }
 
     return SDL_GetPathInfo(path, &path_info) && path_info.type == SDL_PATHTYPE_FILE;
@@ -317,6 +324,7 @@ bool Resolve_File_Path_Case(const char* path, char* resolved_path, size_t resolv
 }
 
 FILE* fopen_case(const char* path, const char* mode) {
+    char user_path[512];
     char clean_path[512];
     char upper_path[512];
     char cwd[512];
@@ -329,6 +337,10 @@ FILE* fopen_case(const char* path, const char* mode) {
         errno = EINVAL;
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "fopen_case invalid args: path=%p mode=%p", (const void*)path, (const void*)mode);
         return nullptr;
+    }
+
+    if (user_paths::Redirect_Legacy_Path(path, Mode_Creates_File(mode) || strchr(mode, '+') != nullptr, user_path, sizeof(user_path))) {
+        path = user_path;
     }
 
     if (!Cleanup_Path(path, clean_path, sizeof(clean_path), false)) {

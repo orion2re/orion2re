@@ -120,6 +120,15 @@ namespace test_user_paths_detail {
         return strcasecmp(actual.c_str(), expected.c_str()) == 0;
     }
 
+    std::string Read_File_(FILE* file) {
+        std::string contents;
+        char buffer[64];
+        size_t count;
+        while ((count = fread(buffer, 1, sizeof(buffer), file)) != 0) {
+            contents.append(buffer, count);
+        }
+        return contents;
+    }
 } // namespace test_user_paths_detail
 
 DOCTEST_TEST_SUITE("user paths") {
@@ -307,5 +316,32 @@ DOCTEST_TEST_SUITE("user paths") {
 
         environment.Write_File("home/.config/orion2re/language.ini", "2");
         DOCTEST_CHECK(test_user_paths_detail::Redirect_("language.ini", false) == config + "language.ini");
+    }
+
+    DOCTEST_TEST_CASE("legacy file helpers write and find saves in the user data directory") {
+        test_user_paths_detail::Scoped_User_Environment environment;
+        DOCTEST_REQUIRE(environment.Init());
+        const std::string data = user_paths::Get_Directory(user_paths::USER_DIRECTORY_DATA);
+
+        FILE* file = fopen_case("SAVE3.GAM", "wb");
+        DOCTEST_REQUIRE(file != nullptr);
+        fputs("save", file);
+        fclose(file);
+        DOCTEST_CHECK(test_user_paths_detail::fs::is_regular_file(data + "SAVE3.GAM"));
+
+        DOCTEST_CHECK(File_Exists("SAVE3.GAM"));
+        file = fopen_case("save3.gam", "rb");
+        DOCTEST_REQUIRE(file != nullptr);
+        DOCTEST_CHECK(test_user_paths_detail::Read_File_(file) == "save");
+        fclose(file);
+
+        char found[64] = {};
+        DOCTEST_CHECK(dos::DIR("save?.gam", found, sizeof(found)));
+        DOCTEST_CHECK(std::string(found) == "SAVE3.GAM");
+        DOCTEST_CHECK(dos::Time_Stamp("SAVE3.GAM") != nullptr);
+
+        dos::Delete_File("SAVE3.GAM");
+        DOCTEST_CHECK_FALSE(File_Exists("SAVE3.GAM"));
+        DOCTEST_CHECK_FALSE(dos::DIR("save?.gam", found, sizeof(found)));
     }
 }
