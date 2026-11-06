@@ -97,6 +97,9 @@ function(orion2re_add_unit_test TARGET_NAME)
     if(ORION2RE_TEST_LINK_SDL)
         target_link_libraries(${TARGET_NAME} PRIVATE ${ORION2RE_SDL3_TARGET})
     endif()
+    if(ORION2RE_USE_SYSTEM_YYJSON)
+        target_link_libraries(${TARGET_NAME} PRIVATE PkgConfig::yyjson)
+    endif()
 
     target_link_libraries(${TARGET_NAME} PRIVATE
         orion2re_test_config_defaults
@@ -127,13 +130,13 @@ function(orion2re_add_game_test TARGET_NAME)
             vendors/libsmacker/smacker.c
             vendors/libsmacker/smk_bitstream.c
             vendors/libsmacker/smk_hufftree.c
-            vendors/yyjson/src/yyjson.c
+            ${ORION2RE_YYJSON_SOURCES}
         LIBRARIES
             ${ORION2RE_LIBUV_TARGET} ${ORION2RE_LZ4_TARGET} orion2re_lua orion2re_scalers ${ORION2RE_MINIZ_TARGET} orion2re_imgui
         LINK_SDL
     )
     target_include_directories(${TARGET_NAME} PRIVATE
-        vendors/libsmacker vendors/yyjson/src
+        vendors/libsmacker ${ORION2RE_YYJSON_INCLUDE_DIRS}
     )
 endfunction()
 
@@ -250,11 +253,11 @@ if(ORION2RE_BUILD_CONFIG_TOOL)
             tools/config/generate_docs.cpp
             tools/config/json5_reader.cpp
             tools/config/schema_model.cpp
-            vendors/yyjson/src/yyjson.c
+            ${ORION2RE_YYJSON_SOURCES}
     )
     target_include_directories(test_config_schema PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/tools/config"
-        "${ORION2RE_VENDORED_YYJSON_DIR}/src"
+        ${ORION2RE_YYJSON_INCLUDE_DIRS}
     )
     target_compile_definitions(test_config_schema PRIVATE
         CONFIG_SCHEMA_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/data/config/schema"
@@ -495,7 +498,7 @@ orion2re_add_unit_test(test_config_loader
         src/game/vfs_lbx.cpp
         src/game/vfs_path.cpp
         src/game/vfs_zip.cpp
-        vendors/yyjson/src/yyjson.c
+        ${ORION2RE_YYJSON_SOURCES}
     FAKE_SOURCES
         tests/fakes/fake_config_netturn_runtime.cpp
         tests/fakes/fake_config_refresh.cpp
@@ -508,7 +511,7 @@ orion2re_add_unit_test(test_config_loader
     LINK_SDL
 )
 target_include_directories(test_config_loader PRIVATE
-    "${ORION2RE_VENDORED_YYJSON_DIR}/src"
+    ${ORION2RE_YYJSON_INCLUDE_DIRS}
 )
 target_compile_definitions(test_config_loader PRIVATE
     LUA_SOURCE_PACKAGE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data/mods"
@@ -1717,7 +1720,7 @@ orion2re_add_unit_test(test_farload_buffer_vfs
         src/game/farload.cpp
         src/game/string_overrides.cpp
         src/config/text_encoding.cpp
-        vendors/yyjson/src/yyjson.c
+        ${ORION2RE_YYJSON_SOURCES}
         src/game/vfs.cpp
         src/game/vfs_file.cpp
         src/game/vfs_lbx.cpp
@@ -1736,7 +1739,7 @@ orion2re_add_unit_test(test_farload_buffer_vfs
     LINK_SDL
 )
 
-target_include_directories(test_farload_buffer_vfs PRIVATE "${ORION2RE_VENDORED_YYJSON_DIR}/src")
+target_include_directories(test_farload_buffer_vfs PRIVATE ${ORION2RE_YYJSON_INCLUDE_DIRS})
 target_compile_definitions(test_farload_buffer_vfs PRIVATE
     STRING_OVERRIDE_BASE_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data/base"
 )
