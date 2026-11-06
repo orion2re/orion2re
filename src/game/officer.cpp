@@ -3388,6 +3388,9 @@ namespace OFFICER {
     }
 
     void __cdecl Give_Player_Loknar_Special(int16_t player_idx, int16_t* techs, int16_t* num_techs) {
+        // Battle-result outputs can point into packed storage.
+        int16_t granted_techs[7];
+        int16_t granted_tech_count = 0;
         int16_t loknar_techs[3];
         int16_t num_loknar_techs = 0;
         bool dont_assign = false;
@@ -3421,22 +3424,21 @@ namespace OFFICER {
             }
         }
 
-        *num_techs = 0;
-
         if (COLCALC::Player_May_Get_Tech_App(
                 &MOX::player[player_idx], orion_reward_technology.application)) {
             COLCALC::Player_Gets_Tech_App(
                 &MOX::player[player_idx], orion_reward_technology.application);
-            techs[*num_techs] = orion_reward_technology.application;
-            *num_techs += 1;
+            granted_techs[granted_tech_count++] = orion_reward_technology.application;
         }
 
-        Get_Random_Antaran_Tech(player_idx, 3, techs, num_techs);
+        Get_Random_Antaran_Tech(player_idx, 3, granted_techs, &granted_tech_count);
 
         for (int16_t i = 0; i < num_loknar_techs; ++i) {
-            techs[*num_techs] = loknar_techs[i];
-            ++(*num_techs);
+            granted_techs[granted_tech_count++] = loknar_techs[i];
         }
+
+        memcpy(techs, granted_techs, granted_tech_count * sizeof(granted_techs[0]));
+        unaligned::Store<int16_t>(num_techs, granted_tech_count);
 
         MAINSCR::Update_Ship_Icons_In_Between_Turns();
     }
