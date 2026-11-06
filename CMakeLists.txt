@@ -112,6 +112,27 @@ option(ORION2RE_ENABLE_ASAN "Enable AddressSanitizer (and UBSan with GCC/Clang) 
 option(ORION2RE_RELEASE_DEBUG_INFO "Emit debug info for non-Debug MSVC builds" OFF)
 option(ORION2RE_BUILD_GAME "Build the SDL game executable" ON)
 option(ORION2RE_BUILD_TESTS "Build tests" OFF)
+
+option(ORION2RE_USE_SYSTEM_PACKAGES
+       "Use the system library for every vendored dependency instead of the bundled copy"
+       OFF)
+
+# The master switch enables every individual ORION2RE_USE_SYSTEM_*
+# option. It is placed here, before the per-library selections below,
+# so the yyjson selection (which runs before its option is declared)
+# sees the switched values too. It takes precedence over the individual
+# options: to keep a particular library vendored, leave the master
+# switch off and enable the individual options for the libraries to
+# take from the system instead.
+if(ORION2RE_USE_SYSTEM_PACKAGES)
+    set(ORION2RE_USE_SYSTEM_SDL3 ON CACHE BOOL "" FORCE)
+    set(ORION2RE_USE_SYSTEM_LIBUV ON CACHE BOOL "" FORCE)
+    set(ORION2RE_USE_SYSTEM_LZ4 ON CACHE BOOL "" FORCE)
+    set(ORION2RE_USE_SYSTEM_MINIZ ON CACHE BOOL "" FORCE)
+    set(ORION2RE_USE_SYSTEM_YYJSON ON CACHE BOOL "" FORCE)
+    set(ORION2RE_USE_SYSTEM_DOCTEST ON CACHE BOOL "" FORCE)
+endif()
+
 set(ORION2RE_BUILD_CONFIG_TOOL_DEFAULT OFF)
 if(ORION2RE_USE_SYSTEM_YYJSON)
     find_package(PkgConfig REQUIRED)
