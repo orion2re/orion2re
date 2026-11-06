@@ -113,10 +113,22 @@ option(ORION2RE_RELEASE_DEBUG_INFO "Emit debug info for non-Debug MSVC builds" O
 option(ORION2RE_BUILD_GAME "Build the SDL game executable" ON)
 option(ORION2RE_BUILD_TESTS "Build tests" OFF)
 set(ORION2RE_BUILD_CONFIG_TOOL_DEFAULT OFF)
-if(NOT CMAKE_CROSSCOMPILING AND
-   EXISTS "${ORION2RE_VENDORED_YYJSON_DIR}/src/yyjson.h" AND
-   EXISTS "${ORION2RE_VENDORED_YYJSON_DIR}/src/yyjson.c")
-    set(ORION2RE_BUILD_CONFIG_TOOL_DEFAULT ON)
+if(ORION2RE_USE_SYSTEM_YYJSON)
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(yyjson REQUIRED IMPORTED_TARGET yyjson)
+    set(ORION2RE_YYJSON_INCLUDE_DIRS ${yyjson_INCLUDE_DIRS})
+    set(ORION2RE_YYJSON_SOURCES "")
+    if(NOT CMAKE_CROSSCOMPILING)
+        set(ORION2RE_BUILD_CONFIG_TOOL_DEFAULT ON)
+    endif()
+else()
+    if(NOT CMAKE_CROSSCOMPILING AND
+       EXISTS "${ORION2RE_VENDORED_YYJSON_DIR}/src/yyjson.h" AND
+       EXISTS "${ORION2RE_VENDORED_YYJSON_DIR}/src/yyjson.c")
+        set(ORION2RE_BUILD_CONFIG_TOOL_DEFAULT ON)
+    endif()
+    set(ORION2RE_YYJSON_INCLUDE_DIRS "${ORION2RE_VENDORED_YYJSON_DIR}/src")
+    set(ORION2RE_YYJSON_SOURCES "${ORION2RE_VENDORED_YYJSON_DIR}/src/yyjson.c")
 endif()
 
 option(ORION2RE_BUILD_CONFIG_TOOL
@@ -138,6 +150,9 @@ option(ORION2RE_USE_SYSTEM_LZ4
        OFF)
 option(ORION2RE_USE_SYSTEM_MINIZ
        "Use the system miniz library instead of the vendored submodule"
+       OFF)
+option(ORION2RE_USE_SYSTEM_YYJSON
+       "Use the system yyjson library instead of the vendored submodule"
        OFF)
 
 if(ORION2RE_ENABLE_ASAN)
@@ -225,7 +240,7 @@ if(ORION2RE_BUILD_CONFIG_TOOL AND CMAKE_CROSSCOMPILING)
     )
 endif()
 
-if(ORION2RE_BUILD_CONFIG_TOOL AND
+if(ORION2RE_BUILD_CONFIG_TOOL AND NOT ORION2RE_USE_SYSTEM_YYJSON AND
    (NOT EXISTS "${ORION2RE_VENDORED_YYJSON_DIR}/src/yyjson.h" OR
     NOT EXISTS "${ORION2RE_VENDORED_YYJSON_DIR}/src/yyjson.c"))
     message(FATAL_ERROR
@@ -235,6 +250,7 @@ if(ORION2RE_BUILD_CONFIG_TOOL AND
 endif()
 
 if((ORION2RE_BUILD_GAME OR ORION2RE_BUILD_TESTS OR ORION2RE_BUILD_CONFIG_TOOL) AND
+   NOT ORION2RE_USE_SYSTEM_YYJSON AND
    (NOT EXISTS "${ORION2RE_VENDORED_YYJSON_DIR}/src/yyjson.h" OR
     NOT EXISTS "${ORION2RE_VENDORED_YYJSON_DIR}/src/yyjson.c"))
     message(FATAL_ERROR
@@ -451,13 +467,16 @@ set(ORION2RE_CONFIG_GENERATED_FILES
 if(ORION2RE_BUILD_CONFIG_TOOL)
     add_executable(config-generator EXCLUDE_FROM_ALL
         ${ORION2RE_CONFIG_TOOL_SOURCES}
-        "${ORION2RE_VENDORED_YYJSON_DIR}/src/yyjson.c"
+        ${ORION2RE_YYJSON_SOURCES}
     )
     target_compile_features(config-generator PRIVATE cxx_std_20)
     target_include_directories(config-generator PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/tools/config"
-        "${ORION2RE_VENDORED_YYJSON_DIR}/src"
+        ${ORION2RE_YYJSON_INCLUDE_DIRS}
     )
+    if(ORION2RE_USE_SYSTEM_YYJSON)
+        target_link_libraries(config-generator PRIVATE PkgConfig::yyjson)
+    endif()
 
     add_custom_target(config-schema-validate
         COMMAND $<TARGET_FILE:config-generator> validate "${ORION2RE_CONFIG_SCHEMA}"
@@ -523,7 +542,7 @@ if(ORION2RE_BUILD_GAME OR ORION2RE_BUILD_CONFIG_TOOL)
     target_include_directories(orion2re_game_objects PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src"
         "${ORION2RE_VENDORED_LIBSMACKER_DIR}"
-        "${ORION2RE_VENDORED_YYJSON_DIR}/src"
+        ${ORION2RE_YYJSON_INCLUDE_DIRS}
     )
     target_precompile_headers(orion2re_game_objects PRIVATE
         "$<$<COMPILE_LANGUAGE:CXX>:${CMAKE_CURRENT_SOURCE_DIR}/src/pch.h>"
@@ -660,7 +679,7 @@ if(ORION2RE_BUILD_GAME)
         "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smacker.c"
         "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smk_bitstream.c"
         "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smk_hufftree.c"
-        "${ORION2RE_VENDORED_YYJSON_DIR}/src/yyjson.c"
+        ${ORION2RE_YYJSON_SOURCES}
     )
 
     if(ORION2RE_EXCLUDE_RUNTIME_FROM_ALL)
@@ -676,7 +695,7 @@ if(ORION2RE_BUILD_GAME)
     target_include_directories(orion2re PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src"
         "${ORION2RE_VENDORED_LIBSMACKER_DIR}"
-        "${ORION2RE_VENDORED_YYJSON_DIR}/src"
+        ${ORION2RE_YYJSON_INCLUDE_DIRS}
     )
 
     target_precompile_headers(orion2re PRIVATE
@@ -692,21 +711,27 @@ if(ORION2RE_BUILD_GAME)
         ${ORION2RE_MINIZ_TARGET}
     )
     target_link_libraries(orion2re PRIVATE orion2re_imgui)
+    if(ORION2RE_USE_SYSTEM_YYJSON)
+        target_link_libraries(orion2re PRIVATE PkgConfig::yyjson)
+    endif()
     add_executable(config-load-benchmark EXCLUDE_FROM_ALL
         tools/config/load_benchmark.cpp
         $<TARGET_OBJECTS:orion2re_game_objects>
         "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smacker.c"
         "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smk_bitstream.c"
         "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smk_hufftree.c"
-        "${ORION2RE_VENDORED_YYJSON_DIR}/src/yyjson.c"
+        ${ORION2RE_YYJSON_SOURCES}
     )
     target_compile_features(config-load-benchmark PRIVATE cxx_std_20)
     target_include_directories(config-load-benchmark PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src"
         "${ORION2RE_VENDORED_LIBSMACKER_DIR}"
-        "${ORION2RE_VENDORED_YYJSON_DIR}/src")
+        ${ORION2RE_YYJSON_INCLUDE_DIRS})
     target_link_libraries(config-load-benchmark PRIVATE ${ORION2RE_SDL3_TARGET} ${ORION2RE_LIBUV_TARGET}
         ${ORION2RE_LZ4_TARGET} orion2re_lua orion2re_scalers ${ORION2RE_MINIZ_TARGET} orion2re_imgui)
+    if(ORION2RE_USE_SYSTEM_YYJSON)
+        target_link_libraries(config-load-benchmark PRIVATE PkgConfig::yyjson)
+    endif()
     if(MSVC)
         target_compile_definitions(config-load-benchmark PRIVATE WIN32 _CRT_SECURE_NO_DEPRECATE _CRT_NONSTDC_NO_DEPRECATE)
     endif()
@@ -761,7 +786,7 @@ if(ORION2RE_BUILD_CONFIG_TOOL)
         "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smacker.c"
         "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smk_bitstream.c"
         "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smk_hufftree.c"
-        "${ORION2RE_VENDORED_YYJSON_DIR}/src/yyjson.c"
+        ${ORION2RE_YYJSON_SOURCES}
     )
     target_compile_features(config-tool PRIVATE cxx_std_20)
     target_compile_definitions(config-tool PRIVATE
@@ -771,7 +796,7 @@ if(ORION2RE_BUILD_CONFIG_TOOL)
         "${CMAKE_CURRENT_SOURCE_DIR}/src"
         "${CMAKE_CURRENT_SOURCE_DIR}/tools/config"
         "${ORION2RE_VENDORED_LIBSMACKER_DIR}"
-        "${ORION2RE_VENDORED_YYJSON_DIR}/src"
+        ${ORION2RE_YYJSON_INCLUDE_DIRS}
     )
     target_link_libraries(config-tool PRIVATE
         ${ORION2RE_SDL3_TARGET}
@@ -782,6 +807,9 @@ if(ORION2RE_BUILD_CONFIG_TOOL)
         ${ORION2RE_MINIZ_TARGET}
     )
     target_link_libraries(config-tool PRIVATE orion2re_imgui)
+    if(ORION2RE_USE_SYSTEM_YYJSON)
+        target_link_libraries(config-tool PRIVATE PkgConfig::yyjson)
+    endif()
 
     set(ORION2RE_DOCUMENTATION_BUILD_DIR
         "${CMAKE_CURRENT_BINARY_DIR}/docs")
