@@ -3,6 +3,34 @@
 #include "doctest/doctest.h"
 
 DOCTEST_TEST_SUITE("map scale") {
+    DOCTEST_TEST_CASE("map offsets remain at zero when the galaxy fits the viewport") {
+        for (int32_t offset : {-100, 0, 150, 1800}) {
+            DOCTEST_CHECK(MAP_SCALE::Clamp_Map_Offset_(offset, 1800, 1821) == 0);
+            DOCTEST_CHECK(MAP_SCALE::Clamp_Map_Offset_(offset, 1350, 1440) == 0);
+            DOCTEST_CHECK(MAP_SCALE::Clamp_Map_Offset_(offset, 1518, 1518) == 0);
+            DOCTEST_CHECK(MAP_SCALE::Clamp_Map_Offset_(offset, 1200, 1200) == 0);
+        }
+    }
+
+    DOCTEST_TEST_CASE("zoomed-in map offsets retain their position within actual bounds") {
+        DOCTEST_CHECK(MAP_SCALE::Clamp_Map_Offset_(-1, 1800, 1518) == 0);
+        DOCTEST_CHECK(MAP_SCALE::Clamp_Map_Offset_(141, 1800, 1518) == 141);
+        DOCTEST_CHECK(MAP_SCALE::Clamp_Map_Offset_(282, 1800, 1518) == 282);
+        DOCTEST_CHECK(MAP_SCALE::Clamp_Map_Offset_(283, 1800, 1518) == 282);
+        DOCTEST_CHECK(MAP_SCALE::Clamp_Map_Offset_(75, 1350, 1200) == 75);
+        DOCTEST_CHECK(MAP_SCALE::Clamp_Map_Offset_(151, 1350, 1200) == 150);
+    }
+
+    DOCTEST_TEST_CASE("zoom-out bounds keep the Maximum overview at the origin in both modes") {
+        for (uint8_t mode : {MAP_SCALE::MAXIMUM_GALAXY_ZOOM_CLASSIC, MAP_SCALE::MAXIMUM_GALAXY_ZOOM_HALF}) {
+            const int16_t scale = MAP_SCALE::Extended_Scale_For_Zoom_Level_(36, 3, 3, mode);
+            DOCTEST_CHECK(scale == 36);
+            for (int32_t offset : {-100, 0, 150, 1800}) {
+                DOCTEST_CHECK(MAP_SCALE::Clamp_Map_Offset_(offset, 1800, 506 * scale / 10) == 0);
+                DOCTEST_CHECK(MAP_SCALE::Clamp_Map_Offset_(offset, 1350, 400 * scale / 10) == 0);
+            }
+        }
+    }
 
 DOCTEST_TEST_CASE("extended scaling starts above the original star capacity") {
     DOCTEST_CHECK_FALSE(MAP_SCALE::Uses_Extended_Scaling_(72, 72));

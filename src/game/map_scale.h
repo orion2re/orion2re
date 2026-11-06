@@ -10,6 +10,15 @@ namespace MAP_SCALE {
 
     inline uint8_t maximum_galaxy_zoom_mode = MAXIMUM_GALAXY_ZOOM_HALF;
 
+    inline int16_t Clamp_Map_Offset_(int32_t offset, int16_t map_extent, int32_t viewport_extent) {
+        const int32_t max_offset = static_cast<int32_t>(map_extent) - viewport_extent;
+        // A viewport larger than the galaxy must not introduce a negative origin.
+        if (max_offset <= 0 || offset < 0) {
+            return 0;
+        }
+        return static_cast<int16_t>(offset > max_offset ? max_offset : offset);
+    }
+
     inline bool Uses_Extended_Scaling_(int16_t star_count, int16_t original_max_stars) {
         return star_count > original_max_stars;
     }

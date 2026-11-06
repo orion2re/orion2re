@@ -2712,28 +2712,8 @@ namespace MAINSCR {
         int16_t old_y = MOX::cur_map_y;
 
         // Calculate top-left corner based on centered target
-        MOX::cur_map_x = target_x - (int16_t)HAROLD::Get_Up_Scaled_Value(253 /* 0xfd */);
-        MOX::cur_map_y = target_y - (int16_t)HAROLD::Get_Up_Scaled_Value(200 /* 0xc8 */);
-
-        // Clamp X to bounds [0, MAX_X - view_width]
-        if (MOX::cur_map_x < 0) {
-            MOX::cur_map_x = 0;
-        }
-
-        int maxX_limit = (int)MOX::MAP_MAX_X - HAROLD::Get_Up_Scaled_Value(506 /* 0x1fa */);
-        if ((int)MOX::cur_map_x > maxX_limit) {
-            MOX::cur_map_x = (int16_t)MOX::MAP_MAX_X - (int16_t)HAROLD::Get_Up_Scaled_Value(506 /* 0x1fa */);
-        }
-
-        // Clamp Y to bounds [0, MAX_Y - view_height]
-        if (MOX::cur_map_y < 0) {
-            MOX::cur_map_y = 0;
-        }
-
-        int maxY_limit = (int)MOX::MAP_MAX_Y - HAROLD::Get_Up_Scaled_Value(400 /* 0x190 */);
-        if ((int)MOX::cur_map_y > maxY_limit) {
-            MOX::cur_map_y = (int16_t)MOX::MAP_MAX_Y - (int16_t)HAROLD::Get_Up_Scaled_Value(400 /* 0x190 */);
-        }
+        MOX::cur_map_x = MAP_SCALE::Clamp_Map_Offset_(target_x - HAROLD::Get_Up_Scaled_Value(253), MOX::MAP_MAX_X, HAROLD::Get_Up_Scaled_Value(506));
+        MOX::cur_map_y = MAP_SCALE::Clamp_Map_Offset_(target_y - HAROLD::Get_Up_Scaled_Value(200), MOX::MAP_MAX_Y, HAROLD::Get_Up_Scaled_Value(400));
 
         // If viewport position changed, update parallax offsets
         if (old_x != MOX::cur_map_x || old_y != MOX::cur_map_y) {
