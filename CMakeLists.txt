@@ -140,6 +140,7 @@ if(ORION2RE_USE_SYSTEM_PACKAGES)
     set(ORION2RE_USE_SYSTEM_DOCTEST ON CACHE BOOL "" FORCE)
     set(ORION2RE_USE_SYSTEM_LIBSMACKER ON CACHE BOOL "" FORCE)
     set(ORION2RE_USE_SYSTEM_IMGUI ON CACHE BOOL "" FORCE)
+    set(ORION2RE_USE_SYSTEM_LUA ON CACHE BOOL "" FORCE)
 endif()
 
 set(ORION2RE_BUILD_CONFIG_TOOL_DEFAULT OFF)
@@ -193,6 +194,9 @@ option(ORION2RE_USE_SYSTEM_LIBSMACKER
 option(ORION2RE_USE_SYSTEM_IMGUI
        "Use the system Dear ImGui library instead of the vendored submodule"
        OFF)
+option(ORION2RE_USE_SYSTEM_LUA
+       "Use the system Lua library instead of the vendored submodule"
+       OFF)
 
 if(ORION2RE_ENABLE_ASAN)
     if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -219,8 +223,12 @@ endif()
 
 function(orion2re_enable_sanitizers TARGET_NAME)
     if(ORION2RE_ENABLE_ASAN)
-        target_compile_options(${TARGET_NAME} PRIVATE ${ORION2RE_SANITIZER_COMPILE_OPTIONS})
         get_target_property(TARGET_TYPE ${TARGET_NAME} TYPE)
+        if(TARGET_TYPE STREQUAL "INTERFACE_LIBRARY")
+            # A system library is not ours to instrument.
+            return()
+        endif()
+        target_compile_options(${TARGET_NAME} PRIVATE ${ORION2RE_SANITIZER_COMPILE_OPTIONS})
         if(TARGET_TYPE STREQUAL "STATIC_LIBRARY")
             target_link_options(${TARGET_NAME} INTERFACE ${ORION2RE_SANITIZER_LINK_OPTIONS})
         else()
@@ -357,47 +365,56 @@ if(ORION2RE_ENFORCE_ORIGINAL_STRUCT_SIZES)
 endif()
 
 if(ORION2RE_BUILD_GAME OR ORION2RE_BUILD_TESTS OR ORION2RE_BUILD_CONFIG_TOOL)
-    if(NOT EXISTS "${ORION2RE_VENDORED_LUA_DIR}/lua.h")
+    if(NOT ORION2RE_USE_SYSTEM_LUA AND
+       NOT EXISTS "${ORION2RE_VENDORED_LUA_DIR}/lua.h")
         message(FATAL_ERROR
             "Lua integration requires the Lua submodule at vendors/lua. "
             "Run 'git submodule update --init vendors/lua' and ensure it is pinned to ${ORION2RE_VENDORED_LUA_COMMIT}."
         )
     endif()
 
-    set(ORION2RE_LUA_SOURCE_DIR "${ORION2RE_VENDORED_LUA_DIR}")
-    add_library(orion2re_lua STATIC
-        "${ORION2RE_LUA_SOURCE_DIR}/lapi.c"
-        "${ORION2RE_LUA_SOURCE_DIR}/lauxlib.c"
-        "${ORION2RE_LUA_SOURCE_DIR}/lbaselib.c"
-        "${ORION2RE_LUA_SOURCE_DIR}/lcode.c"
-        "${ORION2RE_LUA_SOURCE_DIR}/lctype.c"
-        "${ORION2RE_LUA_SOURCE_DIR}/ldebug.c"
-        "${ORION2RE_LUA_SOURCE_DIR}/ldo.c"
-        "${ORION2RE_LUA_SOURCE_DIR}/ldump.c"
-        "${ORION2RE_LUA_SOURCE_DIR}/lfunc.c"
-        "${ORION2RE_LUA_SOURCE_DIR}/lgc.c"
-        "${ORION2RE_LUA_SOURCE_DIR}/llex.c"
-        "${ORION2RE_LUA_SOURCE_DIR}/lmem.c"
-        "${ORION2RE_LUA_SOURCE_DIR}/lobject.c"
-        "${ORION2RE_LUA_SOURCE_DIR}/lopcodes.c"
-        "${ORION2RE_LUA_SOURCE_DIR}/lparser.c"
-        "${ORION2RE_LUA_SOURCE_DIR}/lstate.c"
-        "${ORION2RE_LUA_SOURCE_DIR}/lstring.c"
-        "${ORION2RE_LUA_SOURCE_DIR}/lstrlib.c"
-        "${ORION2RE_LUA_SOURCE_DIR}/ltable.c"
-        "${ORION2RE_LUA_SOURCE_DIR}/ltablib.c"
-        "${ORION2RE_LUA_SOURCE_DIR}/ltm.c"
-        "${ORION2RE_LUA_SOURCE_DIR}/lundump.c"
-        "${ORION2RE_LUA_SOURCE_DIR}/lvm.c"
-        "${ORION2RE_LUA_SOURCE_DIR}/lzio.c"
-    )
-    target_include_directories(orion2re_lua PUBLIC "${ORION2RE_LUA_SOURCE_DIR}")
-    target_compile_definitions(orion2re_lua PRIVATE LUA_NOCVTS2N=1)
-    set_target_properties(orion2re_lua PROPERTIES
-        C_STANDARD 99
-        C_STANDARD_REQUIRED YES
-        POSITION_INDEPENDENT_CODE YES
-    )
+    if(ORION2RE_USE_SYSTEM_LUA)
+        find_library(ORION2RE_LUA_LIBRARY NAMES lua5.5 lua REQUIRED)
+        find_path(ORION2RE_LUA_INCLUDE_DIR NAMES lua.h PATH_SUFFIXES lua5.5 lua-5.5 REQUIRED)
+        add_library(orion2re_lua INTERFACE)
+        target_include_directories(orion2re_lua INTERFACE "${ORION2RE_LUA_INCLUDE_DIR}")
+        target_link_libraries(orion2re_lua INTERFACE "${ORION2RE_LUA_LIBRARY}")
+    else()
+        set(ORION2RE_LUA_SOURCE_DIR "${ORION2RE_VENDORED_LUA_DIR}")
+        add_library(orion2re_lua STATIC
+            "${ORION2RE_LUA_SOURCE_DIR}/lapi.c"
+            "${ORION2RE_LUA_SOURCE_DIR}/lauxlib.c"
+            "${ORION2RE_LUA_SOURCE_DIR}/lbaselib.c"
+            "${ORION2RE_LUA_SOURCE_DIR}/lcode.c"
+            "${ORION2RE_LUA_SOURCE_DIR}/lctype.c"
+            "${ORION2RE_LUA_SOURCE_DIR}/ldebug.c"
+            "${ORION2RE_LUA_SOURCE_DIR}/ldo.c"
+            "${ORION2RE_LUA_SOURCE_DIR}/ldump.c"
+            "${ORION2RE_LUA_SOURCE_DIR}/lfunc.c"
+            "${ORION2RE_LUA_SOURCE_DIR}/lgc.c"
+            "${ORION2RE_LUA_SOURCE_DIR}/llex.c"
+            "${ORION2RE_LUA_SOURCE_DIR}/lmem.c"
+            "${ORION2RE_LUA_SOURCE_DIR}/lobject.c"
+            "${ORION2RE_LUA_SOURCE_DIR}/lopcodes.c"
+            "${ORION2RE_LUA_SOURCE_DIR}/lparser.c"
+            "${ORION2RE_LUA_SOURCE_DIR}/lstate.c"
+            "${ORION2RE_LUA_SOURCE_DIR}/lstring.c"
+            "${ORION2RE_LUA_SOURCE_DIR}/lstrlib.c"
+            "${ORION2RE_LUA_SOURCE_DIR}/ltable.c"
+            "${ORION2RE_LUA_SOURCE_DIR}/ltablib.c"
+            "${ORION2RE_LUA_SOURCE_DIR}/ltm.c"
+            "${ORION2RE_LUA_SOURCE_DIR}/lundump.c"
+            "${ORION2RE_LUA_SOURCE_DIR}/lvm.c"
+            "${ORION2RE_LUA_SOURCE_DIR}/lzio.c"
+        )
+        target_include_directories(orion2re_lua PUBLIC "${ORION2RE_LUA_SOURCE_DIR}")
+        target_compile_definitions(orion2re_lua PRIVATE LUA_NOCVTS2N=1)
+        set_target_properties(orion2re_lua PROPERTIES
+            C_STANDARD 99
+            C_STANDARD_REQUIRED YES
+            POSITION_INDEPENDENT_CODE YES
+        )
+    endif()
 endif()
 
 set(ORION2RE_TESTS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/cmake/tests")
@@ -1114,7 +1131,7 @@ if(ORION2RE_LITTLE_ENDIAN_COMPILE_FLAG)
         target_compile_options(orion2re_game_objects PRIVATE
             "${ORION2RE_LITTLE_ENDIAN_COMPILE_FLAG}")
     endif()
-    if(TARGET orion2re_lua)
+    if(TARGET orion2re_lua AND NOT ORION2RE_USE_SYSTEM_LUA)
         target_compile_options(orion2re_lua PRIVATE
             "${ORION2RE_LITTLE_ENDIAN_COMPILE_FLAG}")
     endif()
