@@ -124,10 +124,13 @@ namespace SHIPS {
             final_x_upscaled = MOX::star[system_idx].x;
             final_y_upscaled = MOX::star[system_idx].y;
         } else {
-            int16_t scaled_offset = HAROLD::Get_Scaled_Value(30);
+            // Use the full-map projection, not the player's zoom: boundary
+            // choices and offset rolls must advance the same gameplay RNG stream.
+            const int32_t map_scale = MOX::max_map_scale;
+            int16_t scaled_offset = (int16_t)(30 * 10 / map_scale);
             int16_t random_iters = (int16_t)game_random::Random(5);
-            int16_t star_x_scaled = HAROLD::Get_Scaled_Value(MOX::star[system_idx].x);
-            int16_t star_y_scaled = HAROLD::Get_Scaled_Value(MOX::star[system_idx].y);
+            int16_t star_x_scaled = (int16_t)((int32_t)MOX::star[system_idx].x * 10 / map_scale);
+            int16_t star_y_scaled = (int16_t)((int32_t)MOX::star[system_idx].y * 10 / map_scale);
 
             int16_t base_dist = (random_iters + 1) * scaled_offset + 10;
             int16_t dir_x = 0;
@@ -175,7 +178,7 @@ namespace SHIPS {
             if (final_x_scaled < star_width_half + 22) {
                 final_x_scaled = star_width_half + 22;
             } else {
-                int16_t scaled_map_max_x = HAROLD::Get_Scaled_Value(MOX::MAP_MAX_X);
+                int16_t scaled_map_max_x = (int16_t)((int32_t)MOX::MAP_MAX_X * 10 / map_scale);
                 if (final_x_scaled > (scaled_map_max_x - star_width_half)) {
                     final_x_scaled = scaled_map_max_x - star_width_half;
                 }
@@ -185,14 +188,14 @@ namespace SHIPS {
             if (final_y_scaled < star_height_half + 22) {
                 final_y_scaled = star_height_half + 22;
             } else {
-                int16_t scaled_map_max_y = HAROLD::Get_Scaled_Value(MOX::MAP_MAX_Y);
+                int16_t scaled_map_max_y = (int16_t)((int32_t)MOX::MAP_MAX_Y * 10 / map_scale);
                 if (final_y_scaled > (scaled_map_max_y - (int16_t)MOX::star_height)) {
                     final_y_scaled = scaled_map_max_y - (int16_t)MOX::star_height;
                 }
             }
 
-            final_x_upscaled = (int16_t)HAROLD::Get_Up_Scaled_Value(final_x_scaled);
-            final_y_upscaled = (int16_t)HAROLD::Get_Up_Scaled_Value(final_y_scaled);
+            final_x_upscaled = (int16_t)(final_x_scaled * map_scale / 10);
+            final_y_upscaled = (int16_t)(final_y_scaled * map_scale / 10);
         }
 
         return SHIPMOVE::Create_Nonplayer_Ship((int8_t)type, design, final_x_upscaled, final_y_upscaled);
