@@ -2819,24 +2819,11 @@ TEST_CASE("Lua mod runtime rejects invalid missing and cyclic modules") {
     Shutdown_Module_Files_(&files);
 }
 
-TEST_CASE("Lua mod modules enforce language and package limits") {
+TEST_CASE("Lua mod modules enforce module and package limits") {
     s_module_files files;
     Initialize_Module_Files_(&files);
-    Write_Module_(&files, "profile.lua", "return 1 / 2");
     Write_Module_(&files, "first.lua", "return 1");
     Write_Module_(&files, "second.lua", "return 2");
-
-    orion2re::lua::s_lua_result profile_result;
-    CHECK(Create_("require('profile')", &profile_result) == nullptr);
-    CHECK(profile_result.error == orion2re::lua::LUA_ERROR_LANGUAGE_PROFILE);
-    CHECK(profile_result.diagnostic.find("mods/example/profile.lua") !=
-        std::string::npos);
-
-    orion2re::lua::s_lua_result caught_profile_result;
-    CHECK(Create_("pcall(require, 'profile')", &caught_profile_result) ==
-        nullptr);
-    CHECK(caught_profile_result.error ==
-        orion2re::lua::LUA_ERROR_LANGUAGE_PROFILE);
 
     orion2re::lua::s_lua_mod_limits module_limits;
     module_limits.modules = 1;

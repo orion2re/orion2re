@@ -8,6 +8,7 @@ add_library(orion2re_scalers STATIC ${ORION2RE_SCALER_SOURCES})
 target_compile_features(orion2re_scalers PRIVATE cxx_std_20)
 target_include_directories(orion2re_scalers PRIVATE
     "${PROJECT_SOURCE_DIR}/src"
+    ${ORION2RE_LIBSMACKER_INCLUDE_DIRS}
 )
 target_link_libraries(orion2re_scalers PRIVATE SDL3::Headers)
 

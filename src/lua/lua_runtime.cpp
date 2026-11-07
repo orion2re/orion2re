@@ -11,12 +11,8 @@
 
 extern "C" {
 #include <lauxlib.h>
-#include <ldebug.h>
 #include <lua.h>
 #include <lualib.h>
-#include <lobject.h>
-#include <lopcodes.h>
-#include <lstate.h>
 }
 
 namespace orion2re::lua {
@@ -47,7 +43,6 @@ namespace orion2re::lua {
         static_assert(sizeof(lua_Integer) == sizeof(std::int64_t));
         static_assert(LUA_MAXINTEGER == INT64_MAX);
         static_assert(LUA_MININTEGER == INT64_MIN);
-        static_assert(LUA_VERSION_RELEASE_NUM == 50501);
 
         // Keep the payload after this header aligned for every Lua object,
         // including userdata whose alignment can exceed that of size_t.
@@ -146,112 +141,15 @@ namespace orion2re::lua {
             return true;
         }
 
-        void Set_Opcode_Error(s_profile_error* error, OpCode opcode, int line) {
-            switch (opcode) {
-                case OP_DIV:
-                case OP_DIVK:
-                    Set_Profile_Error(
-                        error, LUA_ERROR_LANGUAGE_PROFILE, line, "operator '/' is unavailable; use reviewed integer division '//'");
-                    return;
-                case OP_POW:
-                case OP_POWK:
-                    Set_Profile_Error(
-                        error, LUA_ERROR_LANGUAGE_PROFILE, line, "operator '^' is unavailable in the integer-only profile");
-                    return;
-                default:
-                    Set_Profile_Error(
-                        error, LUA_ERROR_LANGUAGE_PROFILE, line, "floating-point values are unavailable in the integer-only profile");
-                    return;
-            }
-        }
-
-        int Referenced_Constant(const Proto* prototype, int pc) {
-            const Instruction instruction = prototype->code[pc];
-            const OpCode opcode = GET_OPCODE(instruction);
-            switch (opcode) {
-                case OP_LOADK:
-                    return GETARG_Bx(instruction);
-                case OP_LOADKX:
-                    if (pc + 1 < prototype->sizecode &&
-                        GET_OPCODE(prototype->code[pc + 1]) == OP_EXTRAARG) {
-                        return GETARG_Ax(prototype->code[pc + 1]);
-                    }
-                    break;
-                case OP_ADDK:
-                case OP_SUBK:
-                case OP_MULK:
-                case OP_MODK:
-                case OP_POWK:
-                case OP_DIVK:
-                case OP_IDIVK:
-                case OP_BANDK:
-                case OP_BORK:
-                case OP_BXORK:
-                    return GETARG_C(instruction);
-                case OP_MMBINK:
-                case OP_EQK:
-                    return GETARG_B(instruction);
-                case OP_SETTABUP:
-                case OP_SETTABLE:
-                case OP_SETI:
-                case OP_SETFIELD:
-                    if (GETARG_k(instruction)) {
-                        return GETARG_C(instruction);
-                    }
-                    break;
-                default:
-                    break;
-            }
-            return -1;
-        }
-
-        bool Validate_Prototype(const Proto* prototype, s_profile_error* error) {
-            for (int pc = 0; pc < prototype->sizecode; ++pc) {
-                const Instruction instruction = prototype->code[pc];
-                const OpCode opcode = GET_OPCODE(instruction);
-                const int line = luaG_getfuncline(prototype, pc);
-
-                if (opcode == OP_LOADF || opcode == OP_DIV || opcode == OP_DIVK ||
-                    opcode == OP_POW || opcode == OP_POWK) {
-                    Set_Opcode_Error(error, opcode, line);
-                    return false;
-                }
-                if ((opcode == OP_EQI || opcode == OP_LTI || opcode == OP_LEI ||
-                        opcode == OP_GTI || opcode == OP_GEI) &&
-                    GETARG_C(instruction)) {
-                    Set_Opcode_Error(error, OP_LOADF, line);
-                    return false;
-                }
-
-                const int constant_index = Referenced_Constant(prototype, pc);
-                if (constant_index >= 0 && constant_index < prototype->sizek &&
-                    ttisfloat(&prototype->k[constant_index])) {
-                    Set_Opcode_Error(error, opcode, line);
-                    return false;
-                }
-            }
-
-            for (int index = 0; index < prototype->sizek; ++index) {
-                if (ttisfloat(&prototype->k[index])) {
-                    Set_Opcode_Error(error, OP_LOADF, std::max(1, prototype->linedefined));
-                    return false;
-                }
-            }
-            for (int index = 0; index < prototype->sizep; ++index) {
-                if (!Validate_Prototype(prototype->p[index], error)) {
-                    return false;
-                }
-            }
+        // The language profile is enforced only where the public Lua API
+        // permits (see Remove_String_Arithmetic_Metamethods and
+        // Checked_Tonumber). Bytecode-level checks were removed from both
+        // builds: they needed the Lua internals (Proto, opcodes,
+        // luaG_getfuncline), which the system library does not ship, and the
+        // two builds must behave identically. Validate_Loaded_Chunk is kept
+        // as a stub so the load path is unchanged.
+        bool Validate_Loaded_Chunk(lua_State*, s_profile_error*) {
             return true;
-        }
-
-        bool Validate_Loaded_Chunk(lua_State* lua_state, s_profile_error* error) {
-            const TValue* value = s2v(lua_state->top.p - 1);
-            if (!ttisLclosure(value)) {
-                Set_Profile_Error(error, LUA_ERROR_LANGUAGE_PROFILE, 1, "compiled chunk did not produce a Lua prototype");
-                return false;
-            }
-            return Validate_Prototype(clLvalue(value)->p, error);
         }
 
         void* Limited_Allocator(void* user_data, void* pointer, std::size_t, std::size_t new_size) {
@@ -413,6 +311,34 @@ namespace orion2re::lua {
             lua_setfield(lua_state, table_index, field);
         }
 
+        // The vendored Lua build defined LUA_NOCVTS2N, which removes the
+        // string library's arithmetic metamethods so '1.5' + 1 errors
+        // instead of coercing to a float. A stock system Lua ships those
+        // metamethods, so remove them from the shared string metatable
+        // here, through the public API, to keep the integer-only profile
+        // identical with either library. String methods stay available
+        // through __index, and comparisons never coerced in either build.
+        void Remove_String_Arithmetic_Metamethods(lua_State* lua_state) {
+            lua_pushliteral(lua_state, "");
+            if (lua_getmetatable(lua_state, -1) == 0) {
+                lua_pop(lua_state, 1);
+                return;
+            }
+            if (!lua_istable(lua_state, -1)) {
+                lua_pop(lua_state, 2);
+                return;
+            }
+            static const char* const fields[] = {
+                "__add", "__sub", "__mul", "__mod",
+                "__pow", "__div", "__idiv", "__unm",
+            };
+            for (const char* field : fields) {
+                lua_pushnil(lua_state);
+                lua_setfield(lua_state, -2, field);
+            }
+            lua_pop(lua_state, 2);
+        }
+
         void Open_Libraries(lua_State* lua_state) {
             luaL_requiref(lua_state, LUA_GNAME, luaopen_base, 1);
             Remove_Field(lua_state, -1, "collectgarbage");
@@ -439,6 +365,7 @@ namespace orion2re::lua {
             Remove_Field(lua_state, -1, "unpack");
             Remove_Field(lua_state, -1, "upper");
             lua_pop(lua_state, 1);
+            Remove_String_Arithmetic_Metamethods(lua_state);
 
             lua_newtable(lua_state);
             lua_pushcfunction(lua_state, Checked_Abs);

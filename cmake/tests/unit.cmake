@@ -80,9 +80,16 @@ function(orion2re_add_unit_test TARGET_NAME)
     target_compile_features(${TARGET_NAME} PRIVATE cxx_std_20)
     target_include_directories(${TARGET_NAME} PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src"
-        "${ORION2RE_VENDORED_DOCTEST_DIR}"
         "${CMAKE_CURRENT_SOURCE_DIR}/tests"
+        ${ORION2RE_LIBSMACKER_INCLUDE_DIRS}
     )
+    if(ORION2RE_USE_SYSTEM_DOCTEST)
+        target_link_libraries(${TARGET_NAME} PRIVATE doctest::doctest)
+    else()
+        target_include_directories(${TARGET_NAME} PRIVATE
+            "${ORION2RE_VENDORED_DOCTEST_DIR}"
+        )
+    endif()
 
     target_precompile_headers(${TARGET_NAME} PRIVATE
         "$<$<COMPILE_LANGUAGE:CXX>:${CMAKE_CURRENT_SOURCE_DIR}/src/pch.h>"
@@ -91,7 +98,13 @@ function(orion2re_add_unit_test TARGET_NAME)
     target_link_libraries(${TARGET_NAME} PRIVATE SDL3::Headers)
 
     if(ORION2RE_TEST_LINK_SDL)
-        target_link_libraries(${TARGET_NAME} PRIVATE SDL3::SDL3-static)
+        target_link_libraries(${TARGET_NAME} PRIVATE ${ORION2RE_SDL3_TARGET})
+    endif()
+    if(ORION2RE_USE_SYSTEM_YYJSON)
+        target_link_libraries(${TARGET_NAME} PRIVATE PkgConfig::yyjson)
+    endif()
+    if(ORION2RE_USE_SYSTEM_LIBSMACKER)
+        target_link_libraries(${TARGET_NAME} PRIVATE ${ORION2RE_LIBSMACKER_LIBRARY})
     endif()
 
     target_link_libraries(${TARGET_NAME} PRIVATE
@@ -227,16 +240,14 @@ orion2re_add_unit_test(test_resource_reload
     SOURCES tests/unit/resource_reload_test.cpp
     PRODUCTION_SOURCES
         $<TARGET_OBJECTS:orion2re_game_objects>
-        vendors/libsmacker/smacker.c
-        vendors/libsmacker/smk_bitstream.c
-        vendors/libsmacker/smk_hufftree.c
-        vendors/yyjson/src/yyjson.c
+        ${ORION2RE_LIBSMACKER_SOURCES}
+        ${ORION2RE_YYJSON_SOURCES}
     LIBRARIES
-        uv_a orion2re_lz4 orion2re_lua orion2re_scalers miniz orion2re_imgui
+        ${ORION2RE_LIBUV_TARGET} ${ORION2RE_LZ4_TARGET} orion2re_lua orion2re_scalers ${ORION2RE_MINIZ_TARGET} orion2re_imgui
     LINK_SDL
 )
 target_include_directories(test_resource_reload PRIVATE
-    vendors/libsmacker vendors/yyjson/src
+    ${ORION2RE_LIBSMACKER_INCLUDE_DIRS} ${ORION2RE_YYJSON_INCLUDE_DIRS}
 )
 
 if(MSVC)
@@ -285,11 +296,11 @@ if(ORION2RE_BUILD_CONFIG_TOOL)
             tools/config/generate_docs.cpp
             tools/config/json5_reader.cpp
             tools/config/schema_model.cpp
-            vendors/yyjson/src/yyjson.c
+            ${ORION2RE_YYJSON_SOURCES}
     )
     target_include_directories(test_config_schema PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/tools/config"
-        "${ORION2RE_VENDORED_YYJSON_DIR}/src"
+        ${ORION2RE_YYJSON_INCLUDE_DIRS}
     )
     target_compile_definitions(test_config_schema PRIVATE
         CONFIG_SCHEMA_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/data/config/schema"
@@ -361,7 +372,7 @@ orion2re_add_unit_test(test_lua_mod_runtime
         tests/fakes/fake_lua_game_state.cpp
         tests/fakes/fake_lua_network_config.cpp
     LIBRARIES
-        miniz
+        ${ORION2RE_MINIZ_TARGET}
         orion2re_lua
     LINK_SDL
 )
@@ -525,7 +536,7 @@ orion2re_add_unit_test(test_startup_directory
         src/game/vfs_path.cpp
         src/game/vfs_zip.cpp
     LIBRARIES
-        miniz
+        ${ORION2RE_MINIZ_TARGET}
     LINK_SDL
 )
 
@@ -590,7 +601,7 @@ orion2re_add_unit_test(test_config_loader
         src/game/vfs_lbx.cpp
         src/game/vfs_path.cpp
         src/game/vfs_zip.cpp
-        vendors/yyjson/src/yyjson.c
+        ${ORION2RE_YYJSON_SOURCES}
     FAKE_SOURCES
         tests/fakes/fake_config_netturn_runtime.cpp
         tests/fakes/fake_config_refresh.cpp
@@ -598,12 +609,12 @@ orion2re_add_unit_test(test_config_loader
         tests/fakes/fake_lua_game_storage_reference.cpp
         tests/fakes/fake_lua_game_state_api.cpp
     LIBRARIES
-        miniz
+        ${ORION2RE_MINIZ_TARGET}
         orion2re_lua
     LINK_SDL
 )
 target_include_directories(test_config_loader PRIVATE
-    "${ORION2RE_VENDORED_YYJSON_DIR}/src"
+    ${ORION2RE_YYJSON_INCLUDE_DIRS}
 )
 target_compile_definitions(test_config_loader PRIVATE
     LUA_SOURCE_PACKAGE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data/mods"
@@ -1933,7 +1944,7 @@ orion2re_add_unit_test(test_vfs
         src/game/vfs_path.cpp
         src/game/vfs_zip.cpp
     LIBRARIES
-        miniz
+        ${ORION2RE_MINIZ_TARGET}
     LINK_SDL
 )
 
@@ -1990,7 +2001,7 @@ orion2re_add_unit_test(test_farload_buffer_vfs
         src/game/farload.cpp
         src/game/string_overrides.cpp
         src/config/text_encoding.cpp
-        vendors/yyjson/src/yyjson.c
+        ${ORION2RE_YYJSON_SOURCES}
         src/game/vfs.cpp
         src/game/vfs_file.cpp
         src/game/vfs_lbx.cpp
@@ -2005,11 +2016,11 @@ orion2re_add_unit_test(test_farload_buffer_vfs
         tests/fakes/fake_test_state.cpp
         tests/fakes/fake_video.cpp
     LIBRARIES
-        miniz
+        ${ORION2RE_MINIZ_TARGET}
     LINK_SDL
 )
 
-target_include_directories(test_farload_buffer_vfs PRIVATE "${ORION2RE_VENDORED_YYJSON_DIR}/src")
+target_include_directories(test_farload_buffer_vfs PRIVATE ${ORION2RE_YYJSON_INCLUDE_DIRS})
 target_compile_definitions(test_farload_buffer_vfs PRIVATE
     STRING_OVERRIDE_BASE_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data/base"
 )
@@ -2044,7 +2055,7 @@ orion2re_add_unit_test(test_router_protocol
     PRODUCTION_SOURCES
         src/network/router_protocol.cpp
     LIBRARIES
-        orion2re_lz4
+        ${ORION2RE_LZ4_TARGET}
 )
 
 orion2re_add_unit_test(test_router_core
@@ -2054,7 +2065,7 @@ orion2re_add_unit_test(test_router_core
         src/network/router_core.cpp
         src/network/router_protocol.cpp
     LIBRARIES
-        orion2re_lz4
+        ${ORION2RE_LZ4_TARGET}
 )
 
 orion2re_add_unit_test(test_router_service
@@ -2065,8 +2076,8 @@ orion2re_add_unit_test(test_router_service
         src/network/router_protocol.cpp
         src/network/router_service.cpp
     LIBRARIES
-        uv_a
-        orion2re_lz4
+        ${ORION2RE_LIBUV_TARGET}
+        ${ORION2RE_LZ4_TARGET}
     LINK_SDL
 )
 
@@ -2080,8 +2091,8 @@ orion2re_add_unit_test(test_router_session_browser
         src/network/router_session_browser.cpp
         src/network/router_service.cpp
     LIBRARIES
-        uv_a
-        orion2re_lz4
+        ${ORION2RE_LIBUV_TARGET}
+        ${ORION2RE_LZ4_TARGET}
     LINK_SDL
 )
 
@@ -2097,8 +2108,8 @@ orion2re_add_unit_test(test_netadapter
         src/network/router_session_browser.cpp
         src/network/router_service.cpp
     LIBRARIES
-        uv_a
-        orion2re_lz4
+        ${ORION2RE_LIBUV_TARGET}
+        ${ORION2RE_LZ4_TARGET}
     LINK_SDL
 )
 
@@ -2111,7 +2122,7 @@ orion2re_add_unit_test(test_router_client
         src/network/router_protocol.cpp
         src/network/router_service.cpp
     LIBRARIES
-        uv_a
-        orion2re_lz4
+        ${ORION2RE_LIBUV_TARGET}
+        ${ORION2RE_LZ4_TARGET}
     LINK_SDL
 )
