@@ -666,9 +666,10 @@ namespace MAINSCR {
     }
 
     void __cdecl Print_Star_Names() {
-        if (Is_Extended_Max_Map_View()) {
+        // this one just doesn't print the star name if "Maximum" is chosen
+        /*if (Is_Extended_Max_Map_View()) {
             return;
-        }
+        }*/
 
         int16_t window_status;
         int8_t star_type;
