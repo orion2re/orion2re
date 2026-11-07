@@ -49,7 +49,8 @@ namespace config {
         s_effective_config* candidate,
         std::vector<std::string>* package_order,
         s_cfg_diagnostic* diagnostic,
-        t_config_document_loader load_document);
+        t_config_document_loader load_document,
+        std::vector<s_mod_requirement>* resolved_packages = nullptr);
     bool Stage_Config_With_Mods_Transaction(const s_cfg_document& base_document,
         const char* package_id,
         s_cfg_diagnostic* diagnostic,

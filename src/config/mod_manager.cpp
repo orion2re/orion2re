@@ -669,7 +669,8 @@ namespace config {
         s_effective_config* candidate,
         std::vector<std::string>* package_order,
         s_cfg_diagnostic* diagnostic,
-        t_config_document_loader load_document) {
+        t_config_document_loader load_document,
+        std::vector<s_mod_requirement>* resolved_packages) {
         if (package_id == nullptr || candidate == nullptr || package_order == nullptr ||
             diagnostic == nullptr || load_document == nullptr) {
             return false;
@@ -693,6 +694,9 @@ namespace config {
             return false;
         }
         Get_Package_Order(resolver, package_order);
+        if (resolved_packages != nullptr) {
+            Get_Resolved_Packages(resolver, resolved_packages);
+        }
         vfs::Discard_Mount_Transaction(mounts);
         return true;
     }
