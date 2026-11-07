@@ -199,13 +199,22 @@ namespace ERIC {
     void __cdecl Do_Cinematic_Popup_Cleanup() {
         mouse::Set_Mouse_List(&MOX::mouse_list_arrow, 1);
         fields::Deactivate_Auto_Function();
-        MOX2::Put_Auto_Function(&ERIC::cinematic_saved_autofunction);
         allocate::Pop_Block(MOX::screen_seg);
 
         if (ERIC::saved_sfx_l != 0 || ERIC::saved_music_l != 0) {
             MOX::settings.sound_fx_level = (int8_t)ERIC::saved_sfx_l;
             MOX::settings.music_level = (int8_t)ERIC::saved_music_l;
         }
+
+        // The movie's saved background includes the popup frame. Dismiss it
+        // before a caller can fade the published image with the game palette.
+        video::Set_Page_Off();
+        MOX::FULL_DRAW_SCREEN_FLAG = 1;
+        MOX::dont_draw_main_screen_to_back = 0;
+        MAINSCR::Draw_Mini_Main_Screen();
+        palette::Refresh_Palette();
+        video::Publish_Off_Page();
+        MOX2::Put_Auto_Function(&ERIC::cinematic_saved_autofunction);
     }
 
     bool __cdecl Sint_Is_In_List(int16_t value, int16_t* list, uint16_t count) {
