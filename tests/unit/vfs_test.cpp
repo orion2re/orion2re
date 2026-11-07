@@ -346,6 +346,105 @@ DOCTEST_TEST_SUITE("vfs cpp") {
         DOCTEST_CHECK(vfs::fclose(file) == 0);
     }
 
+    DOCTEST_TEST_CASE("vfs logs the searched directories when a file lookup fails") {
+        test_vfs_detail::Scoped_Vfs_Test_Directory test_dir;
+        const std::string base_path = test_dir.root_path().string();
+        const std::string search_path = (test_dir.root_path() / "game").string();
+
+        // Capture from before Init, so any registration-time log line would
+        // be caught: only the lookup-failure line may be logged.
+        SDL_LogOutputFunction previous_function = nullptr;
+        void* previous_userdata = nullptr;
+        SDL_GetLogOutputFunction(&previous_function, &previous_userdata);
+        std::string captured;
+        SDL_SetLogOutputFunction([](void* userdata, int category, SDL_LogPriority priority, const char* message) {
+            (void)category;
+            (void)priority;
+            std::string* output = static_cast<std::string*>(userdata);
+            output->append(message);
+            output->push_back('\n');
+        }, &captured);
+        const int init_result = vfs::Init(base_path.c_str());
+        const int search_result = vfs::Add_Raw_Search_Path(search_path.c_str());
+        s_vfs_file* file = nullptr;
+        if (init_result == 1 && search_result == 1) {
+            file = vfs::fopen("missing.lbx", "rb");
+        }
+        SDL_SetLogOutputFunction(previous_function, previous_userdata);
+        DOCTEST_REQUIRE(init_result == 1);
+        DOCTEST_REQUIRE(search_result == 1);
+        DOCTEST_CHECK(file == nullptr);
+        size_t line_count = 0;
+        for (char c : captured) {
+            if (c == '\n') {
+                ++line_count;
+            }
+        }
+        DOCTEST_CHECK(line_count == 1);
+        DOCTEST_CHECK(captured.find("missing.lbx") != std::string::npos);
+        DOCTEST_CHECK(captured.find(base_path) != std::string::npos);
+        DOCTEST_CHECK(captured.find(search_path) != std::string::npos);
+    }
+
+    DOCTEST_TEST_CASE("vfs logs each missing file only once and the search list only on the first miss") {
+        test_vfs_detail::Scoped_Vfs_Test_Directory test_dir;
+        const std::string base_path = test_dir.root_path().string();
+        const std::string search_path = (test_dir.root_path() / "game").string();
+
+        SDL_LogOutputFunction previous_function = nullptr;
+        void* previous_userdata = nullptr;
+        SDL_GetLogOutputFunction(&previous_function, &previous_userdata);
+        std::string captured;
+        SDL_SetLogOutputFunction([](void* userdata, int category, SDL_LogPriority priority, const char* message) {
+            (void)category;
+            (void)priority;
+            std::string* output = static_cast<std::string*>(userdata);
+            output->append(message);
+            output->push_back('\n');
+        }, &captured);
+        const int init_result = vfs::Init(base_path.c_str());
+        const int search_result = vfs::Add_Raw_Search_Path(search_path.c_str());
+        s_vfs_file* first = nullptr;
+        s_vfs_file* first_repeat = nullptr;
+        s_vfs_file* second = nullptr;
+        s_vfs_file* second_repeat = nullptr;
+        s_vfs_file* first_again = nullptr;
+        if (init_result == 1 && search_result == 1) {
+            // Each file misses repeatedly; only the first miss per file logs,
+            // and only the very first line names the search list.
+            first = vfs::fopen("missing.lbx", "rb");
+            first_repeat = vfs::fopen("missing.lbx", "rb");
+            second = vfs::fopen("other.lbx", "rb");
+            second_repeat = vfs::fopen("other.lbx", "rb");
+            first_again = vfs::fopen("missing.lbx", "rb");
+        }
+        SDL_SetLogOutputFunction(previous_function, previous_userdata);
+        DOCTEST_REQUIRE(init_result == 1);
+        DOCTEST_REQUIRE(search_result == 1);
+        DOCTEST_CHECK(first == nullptr);
+        DOCTEST_CHECK(first_repeat == nullptr);
+        DOCTEST_CHECK(second == nullptr);
+        DOCTEST_CHECK(second_repeat == nullptr);
+        DOCTEST_CHECK(first_again == nullptr);
+        std::vector<std::string> lines;
+        std::string::size_type start = 0;
+        while (true) {
+            const std::string::size_type newline = captured.find('\n', start);
+            if (newline == std::string::npos) {
+                break;
+            }
+            lines.push_back(captured.substr(start, newline - start));
+            start = newline + 1;
+        }
+        DOCTEST_REQUIRE(lines.size() == 2);
+        DOCTEST_CHECK(lines[0].find("missing.lbx") != std::string::npos);
+        DOCTEST_CHECK(lines[0].find(base_path) != std::string::npos);
+        DOCTEST_CHECK(lines[0].find(search_path) != std::string::npos);
+        DOCTEST_CHECK(lines[1].find("other.lbx") != std::string::npos);
+        DOCTEST_CHECK(lines[1].find(base_path) == std::string::npos);
+        DOCTEST_CHECK(lines[1].find(search_path) == std::string::npos);
+    }
+
     DOCTEST_TEST_CASE("vfs can fall back to a secondary raw asset path without affecting local override lookup") {
         test_vfs_detail::Scoped_Vfs_Test_Directory test_dir;
         test_dir.Write_File(test_vfs_detail::fs::path("cdroot") / "diplomat.lbx", "cd-asset");
@@ -646,5 +745,75 @@ DOCTEST_TEST_SUITE("vfs cpp") {
         DOCTEST_CHECK(vfs::fread(buffer.data(), 1, 18, file) == 18);
         DOCTEST_CHECK(std::string(buffer.data(), 18) == "zip-entry-override");
         DOCTEST_CHECK(vfs::fclose(file) == 0);
+    }
+
+    DOCTEST_TEST_CASE("vfs resolves configuration files from the user config path first") {
+        test_vfs_detail::Scoped_Vfs_Test_Directory test_dir;
+        test_dir.Write_File(test_vfs_detail::fs::path("install") / "data" / "orion2re.cfg", "install");
+        test_dir.Write_File(test_vfs_detail::fs::path("install") / "data" / "shared.cfg", "install-shared");
+        test_dir.Write_File(test_vfs_detail::fs::path("install") / "data" / "music" / "theme.dat", "install-theme");
+        test_dir.Write_File(test_vfs_detail::fs::path("config") / "orion2re.cfg", "user");
+        test_dir.Write_File(test_vfs_detail::fs::path("config") / "music" / "theme.dat", "user-theme");
+
+        const std::string base_path = (test_dir.root_path() / "install").string();
+        const std::string config_path = (test_dir.root_path() / "config").string();
+        DOCTEST_REQUIRE(vfs::Init(base_path.c_str()) == 1);
+        DOCTEST_CHECK(test_vfs_detail::Read_Vfs_File_("orion2re.cfg") == "install");
+
+        DOCTEST_REQUIRE(vfs::Set_User_Config_Path(config_path.c_str()) == 1);
+        DOCTEST_CHECK(test_vfs_detail::Read_Vfs_File_("orion2re.cfg") == "user");
+        DOCTEST_CHECK(test_vfs_detail::Read_Vfs_File_("shared.cfg") == "install-shared");
+        DOCTEST_CHECK(test_vfs_detail::Read_Vfs_File_("music/theme.dat") == "install-theme");
+
+        char resolved_path[1024] = {};
+        DOCTEST_REQUIRE(vfs::Resolve_Read_Path_No_Zip("orion2re.cfg", resolved_path, sizeof(resolved_path)) == 1);
+        DOCTEST_CHECK(std::string(resolved_path).find("config") != std::string::npos);
+
+        DOCTEST_REQUIRE(vfs::Init(base_path.c_str()) == 1);
+        DOCTEST_CHECK(test_vfs_detail::Read_Vfs_File_("orion2re.cfg") == "install");
+    }
+
+    DOCTEST_TEST_CASE("vfs mounts a user package in place of an installed package with the same ID") {
+        test_vfs_detail::Scoped_Vfs_Test_Directory test_dir;
+        test_dir.Write_File(test_vfs_detail::fs::path("install") / "data" / "mods" / "sample" / "data" / "priority.dat", "install");
+        test_dir.Write_File(test_vfs_detail::fs::path("install") / "data" / "mods" / "other" / "data" / "other.dat", "install-other");
+        test_dir.Write_Zip_File(test_vfs_detail::fs::path("user") / "mods" / "sample.zip", {
+                                                                                               {"data/priority.dat", "user"},
+                                                                                           });
+
+        const std::string base_path = (test_dir.root_path() / "install").string();
+        const std::string mods_path = (test_dir.root_path() / "user" / "mods").string();
+        DOCTEST_REQUIRE(vfs::Init(base_path.c_str()) == 1);
+        DOCTEST_REQUIRE(vfs::Set_User_Mods_Path(mods_path.c_str()) == 1);
+        s_vfs_mount_transaction* transaction = vfs::Begin_Mount_Transaction();
+        DOCTEST_REQUIRE(transaction != nullptr);
+        std::string diagnostic;
+        DOCTEST_REQUIRE(vfs::Stage_Package_Mount(transaction, "sample", &diagnostic) == 1);
+        DOCTEST_REQUIRE(vfs::Stage_Package_Mount(transaction, "other", &diagnostic) == 1);
+        DOCTEST_REQUIRE(vfs::Commit_Mount_Transaction(transaction) == 1);
+
+        DOCTEST_CHECK(test_vfs_detail::Read_Vfs_File_("priority.dat") == "user");
+        DOCTEST_CHECK(test_vfs_detail::Read_Vfs_File_("other.dat") == "install-other");
+    }
+
+    DOCTEST_TEST_CASE("vfs searches added raw paths after the base path and before the fallback path") {
+        test_vfs_detail::Scoped_Vfs_Test_Directory test_dir;
+        test_dir.Write_File(test_vfs_detail::fs::path("install") / "local.lbx", "install");
+        test_dir.Write_File(test_vfs_detail::fs::path("game") / "local.lbx", "game-local");
+        test_dir.Write_File(test_vfs_detail::fs::path("game") / "diplomat.lbx", "game");
+        test_dir.Write_File(test_vfs_detail::fs::path("cdroot") / "diplomat.lbx", "cd");
+        test_dir.Write_File(test_vfs_detail::fs::path("cdroot") / "cd-only.lbx", "cd-only");
+
+        const std::string base_path = (test_dir.root_path() / "install").string();
+        const std::string game_path = (test_dir.root_path() / "game").string();
+        const std::string fallback_path = (test_dir.root_path() / "cdroot").string();
+        DOCTEST_REQUIRE(vfs::Init(base_path.c_str()) == 1);
+        DOCTEST_CHECK(vfs::Add_Raw_Search_Path("") == 0);
+        DOCTEST_REQUIRE(vfs::Add_Raw_Search_Path(game_path.c_str()) == 1);
+        DOCTEST_REQUIRE(vfs::Set_Raw_Fallback_Path(fallback_path.c_str()) == 1);
+
+        DOCTEST_CHECK(test_vfs_detail::Read_Vfs_File_("local.lbx") == "install");
+        DOCTEST_CHECK(test_vfs_detail::Read_Vfs_File_("DIPLOMAT.LBX") == "game");
+        DOCTEST_CHECK(test_vfs_detail::Read_Vfs_File_("cd-only.lbx") == "cd-only");
     }
 }

@@ -94,7 +94,16 @@ TEST_CASE("Lua runtime allocates aligned userdata with and without user values")
     const auto create_userdata = [](lua_State* lua_state, void*) {
         for (int user_values : {0, 1, 3}) {
             void* payload = lua_newuserdatauv(lua_state, sizeof(std::max_align_t), user_values);
-            CHECK(reinterpret_cast<std::uintptr_t>(payload) % alignof(std::max_align_t) == 0);
+            // Lua 5.5.1 aligns userdata payloads with user values to
+            // max_align_t (LUAI_MAXALIGN gained long double); 5.5.0
+            // payloads for such userdata are only 8-byte aligned.
+            // The runtime itself only creates userdata without user
+            // values, which is max_align_t-aligned on both versions.
+            const std::size_t expected_alignment =
+                (user_values == 0 || LUA_VERSION_RELEASE_NUM >= 50501)
+                    ? alignof(std::max_align_t)
+                    : 8;
+            CHECK(reinterpret_cast<std::uintptr_t>(payload) % expected_alignment == 0);
             std::memset(payload, 0xA5, sizeof(std::max_align_t));
             CHECK(lua_rawlen(lua_state, -1) == sizeof(std::max_align_t));
             lua_pop(lua_state, 1);
@@ -119,31 +128,6 @@ TEST_CASE("Lua runtime evaluates signed 64-bit integer modules")
     CHECK(result.remaining_allocator_bytes == 0);
 }
 
-TEST_CASE("Lua runtime rejects floating language features in nested functions")
-{
-    struct s_rejected_source {
-        const char *source;
-        const char *message;
-    };
-    const s_rejected_source rejected[] = {
-        {"return function() return 1.0 end", "floating-point values"},
-        {"return function() return 1e2 end", "floating-point values"},
-        {"return function() return 0x1p2 end", "floating-point values"},
-        {"return function(left, right) return left / right end", "operator '/'"},
-        {"return function(base, exponent) return base ^ exponent end", "operator '^'"},
-        {"return function() return 9223372036854775808 end", "floating-point values"},
-    };
-
-    for (const auto &entry : rejected) {
-        CAPTURE(entry.source);
-        orion2re::lua::s_lua_result result;
-        CHECK_FALSE(Evaluate_(entry.source, "profile.lua", &result));
-        CAPTURE(result.diagnostic);
-        CHECK(result.error == orion2re::lua::LUA_ERROR_LANGUAGE_PROFILE);
-        CHECK(result.diagnostic.find(entry.message) != std::string::npos);
-    }
-}
-
 TEST_CASE("Lua compiled profile ignores operators and numbers in text and comments")
 {
     orion2re::lua::s_lua_result result;
@@ -156,51 +140,6 @@ TEST_CASE("Lua compiled profile ignores operators and numbers in text and commen
 
     CHECK(result.value_kind == orion2re::lua::LUA_VALUE_BOOLEAN);
     CHECK(result.boolean_value);
-}
-
-TEST_CASE("Lua compiled profile reports nested source lines before execution")
-{
-    orion2re::lua::s_lua_result result;
-    CHECK_FALSE(Evaluate_(
-        "error('module must not execute')\n"
-        "local function hidden()\n"
-        "    local ratio = 3 / 2\n"
-        "    return ratio\n"
-        "end\n"
-        "return hidden\n",
-        "mods/example/scripts/nested.lua", &result));
-
-    CHECK(result.error == orion2re::lua::LUA_ERROR_LANGUAGE_PROFILE);
-    CHECK(result.diagnostic.find("mods/example/scripts/nested.lua:3") !=
-          std::string::npos);
-    CHECK(result.diagnostic.find("floating-point values") != std::string::npos);
-}
-
-TEST_CASE("Lua compiled profile rejects float immediates in ordered comparisons")
-{
-    orion2re::lua::s_lua_result result;
-    CHECK_FALSE(Evaluate_(
-        "local saved\n"
-        "local value = setmetatable({}, {\n"
-        "    __lt = function(_, right) saved = right; return false end,\n"
-        "})\n"
-        "local ignored = value < 1.0\n"
-        "return saved\n",
-        "comparison.lua", &result));
-
-    CHECK(result.error == orion2re::lua::LUA_ERROR_LANGUAGE_PROFILE);
-    CHECK(result.diagnostic.find("comparison.lua:5") != std::string::npos);
-    CHECK(result.diagnostic.find("floating-point values") != std::string::npos);
-}
-
-TEST_CASE("Lua compiled profile rejects float-tagged equality immediates")
-{
-    orion2re::lua::s_lua_result result;
-    CHECK_FALSE(Evaluate_("local value = {}; return value == 1.0",
-                          "equality.lua", &result));
-
-    CHECK(result.error == orion2re::lua::LUA_ERROR_LANGUAGE_PROFILE);
-    CHECK(result.diagnostic.find("equality.lua:1") != std::string::npos);
 }
 
 TEST_CASE("Lua sequences retain standard one-based behavior")
@@ -238,6 +177,61 @@ TEST_CASE("Lua runtime cannot produce floats through string coercion")
 
     CHECK(result.error == orion2re::lua::LUA_ERROR_RUNTIME);
     CHECK(result.diagnostic.find("coercion.lua:1") != std::string::npos);
+}
+
+TEST_CASE("Lua runtime keeps string methods available")
+{
+    orion2re::lua::s_lua_result result;
+    REQUIRE(Evaluate_(
+        "return ('hello'):len() == 5 and ('hello'):sub(1, 2) == 'he'",
+        "string-methods.lua", &result));
+
+    CHECK(result.value_kind == orion2re::lua::LUA_VALUE_BOOLEAN);
+    CHECK(result.boolean_value);
+}
+
+TEST_CASE("Lua runtime evaluates integer arithmetic with loops and calls")
+{
+    orion2re::lua::s_lua_result result;
+    REQUIRE(Evaluate_(
+        "local function sum(n)\n"
+        "    local total = 0\n"
+        "    for i = 1, n do total = total + i end\n"
+        "    return total\n"
+        "end\n"
+        "return sum(10)\n",
+        "integer-arithmetic.lua", &result));
+
+    CHECK(result.value_kind == orion2re::lua::LUA_VALUE_INTEGER);
+    CHECK(result.integer_value == 55);
+}
+
+TEST_CASE("Lua runtime exposes string methods through the string table")
+{
+    orion2re::lua::s_lua_result result;
+    REQUIRE(Evaluate_(
+        "return string.len('hello') == 5 and string.sub('hello', 2, 4) == 'ell'",
+        "string-table.lua", &result));
+
+    CHECK(result.value_kind == orion2re::lua::LUA_VALUE_BOOLEAN);
+    CHECK(result.boolean_value);
+}
+
+TEST_CASE("Lua runtime loads scripts using division and float literals")
+{
+    // The unified behaviour no longer rejects '/' or float literals at
+    // load time: both builds use only the public Lua API, so there is no
+    // bytecode-level profile check in either build. This pins that such
+    // scripts load; it is not an endorsement of floats in game scripts.
+    orion2re::lua::s_lua_result result;
+    REQUIRE(Evaluate_(
+        "local ratio = 1 / 2\n"
+        "local unused = 1.5\n"
+        "return 42\n",
+        "loads-with-floats.lua", &result));
+
+    CHECK(result.value_kind == orion2re::lua::LUA_VALUE_INTEGER);
+    CHECK(result.integer_value == 42);
 }
 
 TEST_CASE("Lua runtime rejects binary chunks")

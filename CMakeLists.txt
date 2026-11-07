@@ -9,6 +9,7 @@ include_directories("${CMAKE_CURRENT_BINARY_DIR}/generated/version")
 configure_file(cmake/orion2re.Info.plist generated/orion2re.Info.plist @ONLY)
 
 include(CTest)
+include(GNUInstallDirs)
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     if(CMAKE_SIZEOF_VOID_P EQUAL 4)
@@ -118,11 +119,47 @@ option(ORION2RE_ENABLE_ASAN "Enable AddressSanitizer (and UBSan with GCC/Clang) 
 option(ORION2RE_RELEASE_DEBUG_INFO "Emit debug info for non-Debug MSVC builds" OFF)
 option(ORION2RE_BUILD_GAME "Build the SDL game executable" ON)
 option(ORION2RE_BUILD_TESTS "Build tests" OFF)
+
+option(ORION2RE_USE_SYSTEM_PACKAGES
+       "Use the system library for every vendored dependency instead of the bundled copy"
+       OFF)
+
+# The master switch enables every individual ORION2RE_USE_SYSTEM_*
+# option. It is placed here, before the per-library selections below,
+# so the yyjson selection (which runs before its option is declared)
+# sees the switched values too. It takes precedence over the individual
+# options: to keep a particular library vendored, leave the master
+# switch off and enable the individual options for the libraries to
+# take from the system instead.
+if(ORION2RE_USE_SYSTEM_PACKAGES)
+    set(ORION2RE_USE_SYSTEM_SDL3 ON CACHE BOOL "" FORCE)
+    set(ORION2RE_USE_SYSTEM_LIBUV ON CACHE BOOL "" FORCE)
+    set(ORION2RE_USE_SYSTEM_LZ4 ON CACHE BOOL "" FORCE)
+    set(ORION2RE_USE_SYSTEM_MINIZ ON CACHE BOOL "" FORCE)
+    set(ORION2RE_USE_SYSTEM_YYJSON ON CACHE BOOL "" FORCE)
+    set(ORION2RE_USE_SYSTEM_DOCTEST ON CACHE BOOL "" FORCE)
+    set(ORION2RE_USE_SYSTEM_LIBSMACKER ON CACHE BOOL "" FORCE)
+    set(ORION2RE_USE_SYSTEM_IMGUI ON CACHE BOOL "" FORCE)
+    set(ORION2RE_USE_SYSTEM_LUA ON CACHE BOOL "" FORCE)
+endif()
+
 set(ORION2RE_BUILD_CONFIG_TOOL_DEFAULT OFF)
-if(NOT CMAKE_CROSSCOMPILING AND
-   EXISTS "${ORION2RE_VENDORED_YYJSON_DIR}/src/yyjson.h" AND
-   EXISTS "${ORION2RE_VENDORED_YYJSON_DIR}/src/yyjson.c")
-    set(ORION2RE_BUILD_CONFIG_TOOL_DEFAULT ON)
+if(ORION2RE_USE_SYSTEM_YYJSON)
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(yyjson REQUIRED IMPORTED_TARGET yyjson)
+    set(ORION2RE_YYJSON_INCLUDE_DIRS ${yyjson_INCLUDE_DIRS})
+    set(ORION2RE_YYJSON_SOURCES "")
+    if(NOT CMAKE_CROSSCOMPILING)
+        set(ORION2RE_BUILD_CONFIG_TOOL_DEFAULT ON)
+    endif()
+else()
+    if(NOT CMAKE_CROSSCOMPILING AND
+       EXISTS "${ORION2RE_VENDORED_YYJSON_DIR}/src/yyjson.h" AND
+       EXISTS "${ORION2RE_VENDORED_YYJSON_DIR}/src/yyjson.c")
+        set(ORION2RE_BUILD_CONFIG_TOOL_DEFAULT ON)
+    endif()
+    set(ORION2RE_YYJSON_INCLUDE_DIRS "${ORION2RE_VENDORED_YYJSON_DIR}/src")
+    set(ORION2RE_YYJSON_SOURCES "${ORION2RE_VENDORED_YYJSON_DIR}/src/yyjson.c")
 endif()
 
 option(ORION2RE_BUILD_CONFIG_TOOL
@@ -133,6 +170,33 @@ option(ORION2RE_BUILD_DOCUMENTATION
        OFF)
 option(ORION2RE_ENFORCE_ORIGINAL_STRUCT_SIZES "Require structures to retain their original game sizes" OFF)
 option(ORION2RE_EXCLUDE_RUNTIME_FROM_ALL "Exclude runtime executables from the default all target" ${ORION2RE_BUILD_TESTS})
+option(ORION2RE_USE_SYSTEM_SDL3
+       "Use the system SDL3 library instead of the vendored submodule"
+       OFF)
+option(ORION2RE_USE_SYSTEM_LIBUV
+       "Use the system libuv library instead of the vendored submodule"
+       OFF)
+option(ORION2RE_USE_SYSTEM_LZ4
+       "Use the system lz4 library instead of the vendored submodule"
+       OFF)
+option(ORION2RE_USE_SYSTEM_MINIZ
+       "Use the system miniz library instead of the vendored submodule"
+       OFF)
+option(ORION2RE_USE_SYSTEM_YYJSON
+       "Use the system yyjson library instead of the vendored submodule"
+       OFF)
+option(ORION2RE_USE_SYSTEM_DOCTEST
+       "Use the system doctest library instead of the vendored submodule"
+       OFF)
+option(ORION2RE_USE_SYSTEM_LIBSMACKER
+       "Use the system libsmacker library instead of the in-tree sources"
+       OFF)
+option(ORION2RE_USE_SYSTEM_IMGUI
+       "Use the system Dear ImGui library instead of the vendored submodule"
+       OFF)
+option(ORION2RE_USE_SYSTEM_LUA
+       "Use the system Lua library instead of the vendored submodule"
+       OFF)
 
 if(ORION2RE_ENABLE_ASAN)
     if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -154,8 +218,12 @@ endif()
 
 function(orion2re_enable_sanitizers TARGET_NAME)
     if(ORION2RE_ENABLE_ASAN)
-        target_compile_options(${TARGET_NAME} PRIVATE ${ORION2RE_SANITIZER_COMPILE_OPTIONS})
         get_target_property(TARGET_TYPE ${TARGET_NAME} TYPE)
+        if(TARGET_TYPE STREQUAL "INTERFACE_LIBRARY")
+            # A system library is not ours to instrument.
+            return()
+        endif()
+        target_compile_options(${TARGET_NAME} PRIVATE ${ORION2RE_SANITIZER_COMPILE_OPTIONS})
         if(TARGET_TYPE STREQUAL "STATIC_LIBRARY")
             target_link_options(${TARGET_NAME} INTERFACE ${ORION2RE_SANITIZER_LINK_OPTIONS})
         else()
@@ -165,22 +233,40 @@ function(orion2re_enable_sanitizers TARGET_NAME)
 endfunction()
 
 if(ORION2RE_BUILD_GAME OR ORION2RE_BUILD_CONFIG_TOOL)
-    if(NOT EXISTS "${ORION2RE_VENDORED_IMGUI_DIR}/imgui.h")
-        message(FATAL_ERROR
-            "The debug overlay requires the Dear ImGui submodule at vendors/imgui. "
-            "Run 'git submodule update --init vendors/imgui' and ensure it is pinned to ${ORION2RE_VENDORED_IMGUI_COMMIT}."
+    if(ORION2RE_USE_SYSTEM_IMGUI)
+        find_path(ORION2RE_IMGUI_INCLUDE_DIR NAMES imgui.h PATH_SUFFIXES imgui REQUIRED)
+        set(ORION2RE_IMGUI_INCLUDE_DIRS "${ORION2RE_IMGUI_INCLUDE_DIR}")
+        set(ORION2RE_IMGUI_SOURCES
+            "${ORION2RE_IMGUI_INCLUDE_DIR}/imgui.cpp"
+            "${ORION2RE_IMGUI_INCLUDE_DIR}/imgui_draw.cpp"
+            "${ORION2RE_IMGUI_INCLUDE_DIR}/imgui_tables.cpp"
+            "${ORION2RE_IMGUI_INCLUDE_DIR}/imgui_widgets.cpp"
         )
+        set(ORION2RE_IMGUI_FONT "${ORION2RE_IMGUI_INCLUDE_DIR}/misc/fonts/ProggyTiny.ttf")
+    else()
+        if(NOT EXISTS "${ORION2RE_VENDORED_IMGUI_DIR}/imgui.h")
+            message(FATAL_ERROR
+                "The debug overlay requires the Dear ImGui submodule at vendors/imgui. "
+                "Run 'git submodule update --init vendors/imgui' and ensure it is pinned to ${ORION2RE_VENDORED_IMGUI_COMMIT}."
+            )
+        endif()
+
+        set(ORION2RE_IMGUI_INCLUDE_DIRS "${ORION2RE_VENDORED_IMGUI_DIR}")
+        set(ORION2RE_IMGUI_SOURCES
+            "${ORION2RE_VENDORED_IMGUI_DIR}/imgui.cpp"
+            "${ORION2RE_VENDORED_IMGUI_DIR}/imgui_draw.cpp"
+            "${ORION2RE_VENDORED_IMGUI_DIR}/imgui_tables.cpp"
+            "${ORION2RE_VENDORED_IMGUI_DIR}/imgui_widgets.cpp"
+        )
+        set(ORION2RE_IMGUI_FONT "${ORION2RE_VENDORED_IMGUI_DIR}/misc/fonts/ProggyTiny.ttf")
     endif()
 
     add_library(orion2re_imgui STATIC
-        "${ORION2RE_VENDORED_IMGUI_DIR}/imgui.cpp"
-        "${ORION2RE_VENDORED_IMGUI_DIR}/imgui_draw.cpp"
-        "${ORION2RE_VENDORED_IMGUI_DIR}/imgui_tables.cpp"
-        "${ORION2RE_VENDORED_IMGUI_DIR}/imgui_widgets.cpp"
+        ${ORION2RE_IMGUI_SOURCES}
     )
     target_compile_features(orion2re_imgui PUBLIC cxx_std_20)
     target_include_directories(orion2re_imgui PUBLIC
-        "${ORION2RE_VENDORED_IMGUI_DIR}"
+        ${ORION2RE_IMGUI_INCLUDE_DIRS}
     )
 
     set(ORION2RE_DEBUG_OVERLAY_GENERATED_DIR
@@ -190,12 +276,12 @@ if(ORION2RE_BUILD_GAME OR ORION2RE_BUILD_CONFIG_TOOL)
     add_custom_command(
         OUTPUT "${ORION2RE_PROGGY_TINY_HEADER}"
         COMMAND ${CMAKE_COMMAND}
-            "-DINPUT_FILE=${ORION2RE_VENDORED_IMGUI_DIR}/misc/fonts/ProggyTiny.ttf"
+            "-DINPUT_FILE=${ORION2RE_IMGUI_FONT}"
             "-DOUTPUT_FILE=${ORION2RE_PROGGY_TINY_HEADER}"
             "-DSYMBOL_NAME=k_proggy_tiny_font"
             -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed_binary.cmake"
         DEPENDS
-            "${ORION2RE_VENDORED_IMGUI_DIR}/misc/fonts/ProggyTiny.ttf"
+            "${ORION2RE_IMGUI_FONT}"
             "${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed_binary.cmake"
         VERBATIM
     )
@@ -219,7 +305,7 @@ if(ORION2RE_BUILD_CONFIG_TOOL AND CMAKE_CROSSCOMPILING)
     )
 endif()
 
-if(ORION2RE_BUILD_CONFIG_TOOL AND
+if(ORION2RE_BUILD_CONFIG_TOOL AND NOT ORION2RE_USE_SYSTEM_YYJSON AND
    (NOT EXISTS "${ORION2RE_VENDORED_YYJSON_DIR}/src/yyjson.h" OR
     NOT EXISTS "${ORION2RE_VENDORED_YYJSON_DIR}/src/yyjson.c"))
     message(FATAL_ERROR
@@ -229,6 +315,7 @@ if(ORION2RE_BUILD_CONFIG_TOOL AND
 endif()
 
 if((ORION2RE_BUILD_GAME OR ORION2RE_BUILD_TESTS OR ORION2RE_BUILD_CONFIG_TOOL) AND
+   NOT ORION2RE_USE_SYSTEM_YYJSON AND
    (NOT EXISTS "${ORION2RE_VENDORED_YYJSON_DIR}/src/yyjson.h" OR
     NOT EXISTS "${ORION2RE_VENDORED_YYJSON_DIR}/src/yyjson.c"))
     message(FATAL_ERROR
@@ -242,47 +329,56 @@ if(ORION2RE_ENFORCE_ORIGINAL_STRUCT_SIZES)
 endif()
 
 if(ORION2RE_BUILD_GAME OR ORION2RE_BUILD_TESTS OR ORION2RE_BUILD_CONFIG_TOOL)
-    if(NOT EXISTS "${ORION2RE_VENDORED_LUA_DIR}/lua.h")
+    if(NOT ORION2RE_USE_SYSTEM_LUA AND
+       NOT EXISTS "${ORION2RE_VENDORED_LUA_DIR}/lua.h")
         message(FATAL_ERROR
             "Lua integration requires the Lua submodule at vendors/lua. "
             "Run 'git submodule update --init vendors/lua' and ensure it is pinned to ${ORION2RE_VENDORED_LUA_COMMIT}."
         )
     endif()
 
-    set(ORION2RE_LUA_SOURCE_DIR "${ORION2RE_VENDORED_LUA_DIR}")
-    add_library(orion2re_lua STATIC
-        "${ORION2RE_LUA_SOURCE_DIR}/lapi.c"
-        "${ORION2RE_LUA_SOURCE_DIR}/lauxlib.c"
-        "${ORION2RE_LUA_SOURCE_DIR}/lbaselib.c"
-        "${ORION2RE_LUA_SOURCE_DIR}/lcode.c"
-        "${ORION2RE_LUA_SOURCE_DIR}/lctype.c"
-        "${ORION2RE_LUA_SOURCE_DIR}/ldebug.c"
-        "${ORION2RE_LUA_SOURCE_DIR}/ldo.c"
-        "${ORION2RE_LUA_SOURCE_DIR}/ldump.c"
-        "${ORION2RE_LUA_SOURCE_DIR}/lfunc.c"
-        "${ORION2RE_LUA_SOURCE_DIR}/lgc.c"
-        "${ORION2RE_LUA_SOURCE_DIR}/llex.c"
-        "${ORION2RE_LUA_SOURCE_DIR}/lmem.c"
-        "${ORION2RE_LUA_SOURCE_DIR}/lobject.c"
-        "${ORION2RE_LUA_SOURCE_DIR}/lopcodes.c"
-        "${ORION2RE_LUA_SOURCE_DIR}/lparser.c"
-        "${ORION2RE_LUA_SOURCE_DIR}/lstate.c"
-        "${ORION2RE_LUA_SOURCE_DIR}/lstring.c"
-        "${ORION2RE_LUA_SOURCE_DIR}/lstrlib.c"
-        "${ORION2RE_LUA_SOURCE_DIR}/ltable.c"
-        "${ORION2RE_LUA_SOURCE_DIR}/ltablib.c"
-        "${ORION2RE_LUA_SOURCE_DIR}/ltm.c"
-        "${ORION2RE_LUA_SOURCE_DIR}/lundump.c"
-        "${ORION2RE_LUA_SOURCE_DIR}/lvm.c"
-        "${ORION2RE_LUA_SOURCE_DIR}/lzio.c"
-    )
-    target_include_directories(orion2re_lua PUBLIC "${ORION2RE_LUA_SOURCE_DIR}")
-    target_compile_definitions(orion2re_lua PRIVATE LUA_NOCVTS2N=1)
-    set_target_properties(orion2re_lua PROPERTIES
-        C_STANDARD 99
-        C_STANDARD_REQUIRED YES
-        POSITION_INDEPENDENT_CODE YES
-    )
+    if(ORION2RE_USE_SYSTEM_LUA)
+        find_library(ORION2RE_LUA_LIBRARY NAMES lua5.5 lua REQUIRED)
+        find_path(ORION2RE_LUA_INCLUDE_DIR NAMES lua.h PATH_SUFFIXES lua5.5 lua-5.5 REQUIRED)
+        add_library(orion2re_lua INTERFACE)
+        target_include_directories(orion2re_lua INTERFACE "${ORION2RE_LUA_INCLUDE_DIR}")
+        target_link_libraries(orion2re_lua INTERFACE "${ORION2RE_LUA_LIBRARY}")
+    else()
+        set(ORION2RE_LUA_SOURCE_DIR "${ORION2RE_VENDORED_LUA_DIR}")
+        add_library(orion2re_lua STATIC
+            "${ORION2RE_LUA_SOURCE_DIR}/lapi.c"
+            "${ORION2RE_LUA_SOURCE_DIR}/lauxlib.c"
+            "${ORION2RE_LUA_SOURCE_DIR}/lbaselib.c"
+            "${ORION2RE_LUA_SOURCE_DIR}/lcode.c"
+            "${ORION2RE_LUA_SOURCE_DIR}/lctype.c"
+            "${ORION2RE_LUA_SOURCE_DIR}/ldebug.c"
+            "${ORION2RE_LUA_SOURCE_DIR}/ldo.c"
+            "${ORION2RE_LUA_SOURCE_DIR}/ldump.c"
+            "${ORION2RE_LUA_SOURCE_DIR}/lfunc.c"
+            "${ORION2RE_LUA_SOURCE_DIR}/lgc.c"
+            "${ORION2RE_LUA_SOURCE_DIR}/llex.c"
+            "${ORION2RE_LUA_SOURCE_DIR}/lmem.c"
+            "${ORION2RE_LUA_SOURCE_DIR}/lobject.c"
+            "${ORION2RE_LUA_SOURCE_DIR}/lopcodes.c"
+            "${ORION2RE_LUA_SOURCE_DIR}/lparser.c"
+            "${ORION2RE_LUA_SOURCE_DIR}/lstate.c"
+            "${ORION2RE_LUA_SOURCE_DIR}/lstring.c"
+            "${ORION2RE_LUA_SOURCE_DIR}/lstrlib.c"
+            "${ORION2RE_LUA_SOURCE_DIR}/ltable.c"
+            "${ORION2RE_LUA_SOURCE_DIR}/ltablib.c"
+            "${ORION2RE_LUA_SOURCE_DIR}/ltm.c"
+            "${ORION2RE_LUA_SOURCE_DIR}/lundump.c"
+            "${ORION2RE_LUA_SOURCE_DIR}/lvm.c"
+            "${ORION2RE_LUA_SOURCE_DIR}/lzio.c"
+        )
+        target_include_directories(orion2re_lua PUBLIC "${ORION2RE_LUA_SOURCE_DIR}")
+        target_compile_definitions(orion2re_lua PRIVATE LUA_NOCVTS2N=1)
+        set_target_properties(orion2re_lua PROPERTIES
+            C_STANDARD 99
+            C_STANDARD_REQUIRED YES
+            POSITION_INDEPENDENT_CODE YES
+        )
+    endif()
 endif()
 
 set(ORION2RE_TESTS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/cmake/tests")
@@ -311,6 +407,7 @@ if(ORION2RE_BUILD_TESTS AND NOT ORION2RE_BUILD_GAME)
 endif()
 
 if((ORION2RE_BUILD_GAME OR ORION2RE_BUILD_TESTS OR ORION2RE_BUILD_CONFIG_TOOL) AND
+   NOT ORION2RE_USE_SYSTEM_SDL3 AND
    NOT EXISTS "${ORION2RE_VENDORED_SDL3_DIR}/CMakeLists.txt")
     message(FATAL_ERROR
         "This project requires the SDL3 submodule at vendors/SDL. "
@@ -318,21 +415,28 @@ if((ORION2RE_BUILD_GAME OR ORION2RE_BUILD_TESTS OR ORION2RE_BUILD_CONFIG_TOOL) A
     )
 endif()
 
-if(ORION2RE_BUILD_TESTS AND NOT EXISTS "${ORION2RE_VENDORED_DOCTEST_DIR}/doctest/doctest.h")
+if(ORION2RE_BUILD_TESTS AND ORION2RE_USE_SYSTEM_DOCTEST)
+    find_package(doctest 2.4 REQUIRED)
+endif()
+
+if(ORION2RE_BUILD_TESTS AND NOT ORION2RE_USE_SYSTEM_DOCTEST AND
+   NOT EXISTS "${ORION2RE_VENDORED_DOCTEST_DIR}/doctest/doctest.h")
     message(FATAL_ERROR
         "Tests require the doctest submodule at vendors/doctest. "
         "Run 'git submodule update --init --recursive vendors/doctest' and ensure it is pinned to ${ORION2RE_VENDORED_DOCTEST_COMMIT}."
     )
 endif()
 
-if(NOT EXISTS "${ORION2RE_VENDORED_LIBUV_DIR}/CMakeLists.txt")
+if(NOT ORION2RE_USE_SYSTEM_LIBUV AND
+   NOT EXISTS "${ORION2RE_VENDORED_LIBUV_DIR}/CMakeLists.txt")
     message(FATAL_ERROR
         "The router service requires the libuv submodule at vendors/libuv. "
         "Run 'git submodule update --init --recursive vendors/libuv' and ensure it is pinned to ${ORION2RE_VENDORED_LIBUV_COMMIT}."
     )
 endif()
 
-if(NOT EXISTS "${ORION2RE_VENDORED_LZ4_DIR}/lib/lz4.h" OR NOT EXISTS "${ORION2RE_VENDORED_LZ4_DIR}/lib/lz4.c")
+if(NOT ORION2RE_USE_SYSTEM_LZ4 AND
+   (NOT EXISTS "${ORION2RE_VENDORED_LZ4_DIR}/lib/lz4.h" OR NOT EXISTS "${ORION2RE_VENDORED_LZ4_DIR}/lib/lz4.c"))
     message(FATAL_ERROR
         "The router protocol requires the lz4 submodule at vendors/lz4. "
         "Run 'git submodule update --init --recursive vendors/lz4' and ensure it is pinned to ${ORION2RE_VENDORED_LZ4_COMMIT}."
@@ -340,6 +444,7 @@ if(NOT EXISTS "${ORION2RE_VENDORED_LZ4_DIR}/lib/lz4.h" OR NOT EXISTS "${ORION2RE
 endif()
 
 if((ORION2RE_BUILD_GAME OR ORION2RE_BUILD_TESTS OR ORION2RE_BUILD_CONFIG_TOOL) AND
+   NOT ORION2RE_USE_SYSTEM_MINIZ AND
    (NOT EXISTS "${ORION2RE_VENDORED_MINIZ_DIR}/CMakeLists.txt" OR
     NOT EXISTS "${ORION2RE_VENDORED_MINIZ_DIR}/miniz.h" OR
     NOT EXISTS "${ORION2RE_VENDORED_MINIZ_DIR}/miniz.c"))
@@ -349,19 +454,40 @@ if((ORION2RE_BUILD_GAME OR ORION2RE_BUILD_TESTS OR ORION2RE_BUILD_CONFIG_TOOL) A
     )
 endif()
 
-if(NOT EXISTS "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smacker.c")
+if(NOT ORION2RE_USE_SYSTEM_LIBSMACKER AND
+   NOT EXISTS "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smacker.c")
     message(FATAL_ERROR
         "This project requires libsmacker sources at vendors/libsmacker."
     )
 endif()
 
-if(ORION2RE_BUILD_GAME OR ORION2RE_BUILD_TESTS OR ORION2RE_BUILD_CONFIG_TOOL)
-    set(SDL_SHARED OFF CACHE BOOL "" FORCE)
-    set(SDL_STATIC ON CACHE BOOL "" FORCE)
-    set(SDL_TEST_LIBRARY OFF CACHE BOOL "" FORCE)
-    set(SDL_TESTS OFF CACHE BOOL "" FORCE)
+if(ORION2RE_USE_SYSTEM_LIBSMACKER)
+    find_library(ORION2RE_LIBSMACKER_LIBRARY NAMES smacker REQUIRED)
+    find_path(ORION2RE_LIBSMACKER_INCLUDE_DIR NAMES smacker.h REQUIRED)
+    set(ORION2RE_LIBSMACKER_INCLUDE_DIRS "${ORION2RE_LIBSMACKER_INCLUDE_DIR}")
+    set(ORION2RE_LIBSMACKER_SOURCES "")
+else()
+    set(ORION2RE_LIBSMACKER_INCLUDE_DIRS "${ORION2RE_VENDORED_LIBSMACKER_DIR}")
+    set(ORION2RE_LIBSMACKER_SOURCES
+        "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smacker.c"
+        "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smk_bitstream.c"
+        "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smk_hufftree.c"
+    )
+endif()
 
-    add_subdirectory("${ORION2RE_VENDORED_SDL3_DIR}" EXCLUDE_FROM_ALL)
+if(ORION2RE_BUILD_GAME OR ORION2RE_BUILD_TESTS OR ORION2RE_BUILD_CONFIG_TOOL)
+    if(ORION2RE_USE_SYSTEM_SDL3)
+        find_package(SDL3 3.4 REQUIRED)
+        set(ORION2RE_SDL3_TARGET SDL3::SDL3)
+    else()
+        set(SDL_SHARED OFF CACHE BOOL "" FORCE)
+        set(SDL_STATIC ON CACHE BOOL "" FORCE)
+        set(SDL_TEST_LIBRARY OFF CACHE BOOL "" FORCE)
+        set(SDL_TESTS OFF CACHE BOOL "" FORCE)
+
+        add_subdirectory("${ORION2RE_VENDORED_SDL3_DIR}" EXCLUDE_FROM_ALL)
+        set(ORION2RE_SDL3_TARGET SDL3::SDL3-static)
+    endif()
 
     if(UNIX AND NOT APPLE AND SDL_UNIX_CONSOLE_BUILD AND ORION2RE_BUILD_GAME)
         message(WARNING
@@ -370,19 +496,41 @@ if(ORION2RE_BUILD_GAME OR ORION2RE_BUILD_TESTS OR ORION2RE_BUILD_CONFIG_TOOL)
         )
     endif()
 
-    add_subdirectory("${ORION2RE_VENDORED_MINIZ_DIR}" EXCLUDE_FROM_ALL)
+    if(ORION2RE_USE_SYSTEM_MINIZ)
+        find_package(miniz REQUIRED)
+        set(ORION2RE_MINIZ_TARGET miniz::miniz)
+    else()
+        add_subdirectory("${ORION2RE_VENDORED_MINIZ_DIR}" EXCLUDE_FROM_ALL)
+        set(ORION2RE_MINIZ_TARGET miniz)
+    endif()
     add_subdirectory(src/game/scalers)
 endif()
 
-set(LIBUV_BUILD_SHARED OFF CACHE BOOL "" FORCE)
-set(LIBUV_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-set(LIBUV_BUILD_BENCH OFF CACHE BOOL "" FORCE)
+if(ORION2RE_USE_SYSTEM_LIBUV)
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(libuv REQUIRED IMPORTED_TARGET libuv)
+    set(ORION2RE_LIBUV_TARGET PkgConfig::libuv)
+else()
+    set(LIBUV_BUILD_SHARED OFF CACHE BOOL "" FORCE)
+    set(LIBUV_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    set(LIBUV_BUILD_BENCH OFF CACHE BOOL "" FORCE)
 
-add_subdirectory("${ORION2RE_VENDORED_LIBUV_DIR}" EXCLUDE_FROM_ALL)
+    add_subdirectory("${ORION2RE_VENDORED_LIBUV_DIR}" EXCLUDE_FROM_ALL)
+    set(ORION2RE_LIBUV_TARGET uv_a)
+endif()
 
-add_library(orion2re_lz4 STATIC
-    "${ORION2RE_VENDORED_LZ4_DIR}/lib/lz4.c"
-)
+if(ORION2RE_USE_SYSTEM_LZ4)
+    find_package(lz4 REQUIRED)
+    set(ORION2RE_LZ4_TARGET LZ4::lz4)
+else()
+    add_library(orion2re_lz4 STATIC
+        "${ORION2RE_VENDORED_LZ4_DIR}/lib/lz4.c"
+    )
+    target_include_directories(orion2re_lz4 PUBLIC
+        "${ORION2RE_VENDORED_LZ4_DIR}/lib"
+    )
+    set(ORION2RE_LZ4_TARGET orion2re_lz4)
+endif()
 
 set(ORION2RE_CONFIG_TOOL_CORE_SOURCES
     tools/config/file_util.cpp
@@ -413,13 +561,16 @@ set(ORION2RE_CONFIG_GENERATED_FILES
 if(ORION2RE_BUILD_CONFIG_TOOL)
     add_executable(config-generator EXCLUDE_FROM_ALL
         ${ORION2RE_CONFIG_TOOL_SOURCES}
-        "${ORION2RE_VENDORED_YYJSON_DIR}/src/yyjson.c"
+        ${ORION2RE_YYJSON_SOURCES}
     )
     target_compile_features(config-generator PRIVATE cxx_std_20)
     target_include_directories(config-generator PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/tools/config"
-        "${ORION2RE_VENDORED_YYJSON_DIR}/src"
+        ${ORION2RE_YYJSON_INCLUDE_DIRS}
     )
+    if(ORION2RE_USE_SYSTEM_YYJSON)
+        target_link_libraries(config-generator PRIVATE PkgConfig::yyjson)
+    endif()
 
     add_custom_target(config-schema-validate
         COMMAND $<TARGET_FILE:config-generator> validate "${ORION2RE_CONFIG_SCHEMA}"
@@ -462,9 +613,6 @@ elseif((ORION2RE_BUILD_GAME OR ORION2RE_BUILD_TESTS) AND
         "Enable ORION2RE_BUILD_CONFIG_TOOL and use a native build to generate them."
     )
 endif()
-target_include_directories(orion2re_lz4 PUBLIC
-    "${ORION2RE_VENDORED_LZ4_DIR}/lib"
-)
 
 if(ORION2RE_BUILD_GAME OR ORION2RE_BUILD_CONFIG_TOOL)
     file(GLOB_RECURSE ORION2RE_SOURCES CONFIGURE_DEPENDS
@@ -487,18 +635,18 @@ if(ORION2RE_BUILD_GAME OR ORION2RE_BUILD_CONFIG_TOOL)
     target_compile_features(orion2re_game_objects PRIVATE cxx_std_20)
     target_include_directories(orion2re_game_objects PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src"
-        "${ORION2RE_VENDORED_LIBSMACKER_DIR}"
-        "${ORION2RE_VENDORED_YYJSON_DIR}/src"
+        ${ORION2RE_LIBSMACKER_INCLUDE_DIRS}
+        ${ORION2RE_YYJSON_INCLUDE_DIRS}
     )
     target_precompile_headers(orion2re_game_objects PRIVATE
         "$<$<COMPILE_LANGUAGE:CXX>:${CMAKE_CURRENT_SOURCE_DIR}/src/pch.h>"
     )
     target_link_libraries(orion2re_game_objects PRIVATE
         SDL3::Headers
-        uv_a
-        orion2re_lz4
+        ${ORION2RE_LIBUV_TARGET}
+        ${ORION2RE_LZ4_TARGET}
         orion2re_lua
-        miniz
+        ${ORION2RE_MINIZ_TARGET}
     )
     target_compile_definitions(orion2re_game_objects PRIVATE ORION2RE_ENABLE_DEBUG_OVERLAY=1)
     target_include_directories(orion2re_game_objects PRIVATE
@@ -533,6 +681,7 @@ add_custom_target(package-base-data
     ${ORION2RE_PACKAGE_BASE_DATA_COMMANDS}
     WORKING_DIRECTORY "${ORION2RE_BASE_DATA_DIR}"
     DEPENDS ${ORION2RE_BASE_DATA_FILES}
+    BYPRODUCTS "${ORION2RE_PACKAGED_BASE_ARCHIVE}"
     VERBATIM
 )
 
@@ -622,10 +771,8 @@ if(ORION2RE_BUILD_GAME)
     add_executable(orion2re
         src/main.cpp
         $<TARGET_OBJECTS:orion2re_game_objects>
-        "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smacker.c"
-        "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smk_bitstream.c"
-        "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smk_hufftree.c"
-        "${ORION2RE_VENDORED_YYJSON_DIR}/src/yyjson.c"
+        ${ORION2RE_LIBSMACKER_SOURCES}
+        ${ORION2RE_YYJSON_SOURCES}
     )
 
     if(ORION2RE_EXCLUDE_RUNTIME_FROM_ALL)
@@ -640,8 +787,8 @@ if(ORION2RE_BUILD_GAME)
     target_compile_features(orion2re PRIVATE cxx_std_20)
     target_include_directories(orion2re PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src"
-        "${ORION2RE_VENDORED_LIBSMACKER_DIR}"
-        "${ORION2RE_VENDORED_YYJSON_DIR}/src"
+        ${ORION2RE_LIBSMACKER_INCLUDE_DIRS}
+        ${ORION2RE_YYJSON_INCLUDE_DIRS}
     )
 
     target_precompile_headers(orion2re PRIVATE
@@ -649,29 +796,39 @@ if(ORION2RE_BUILD_GAME)
     )
 
     target_link_libraries(orion2re PRIVATE
-        SDL3::SDL3-static
-        uv_a
-        orion2re_lz4
+        ${ORION2RE_SDL3_TARGET}
+        ${ORION2RE_LIBUV_TARGET}
+        ${ORION2RE_LZ4_TARGET}
         orion2re_lua
         orion2re_scalers
-        miniz
+        ${ORION2RE_MINIZ_TARGET}
     )
     target_link_libraries(orion2re PRIVATE orion2re_imgui)
+    if(ORION2RE_USE_SYSTEM_YYJSON)
+        target_link_libraries(orion2re PRIVATE PkgConfig::yyjson)
+    endif()
+    if(ORION2RE_USE_SYSTEM_LIBSMACKER)
+        target_link_libraries(orion2re PRIVATE ${ORION2RE_LIBSMACKER_LIBRARY})
+    endif()
     add_executable(config-load-benchmark EXCLUDE_FROM_ALL
         tools/config/load_benchmark.cpp
         $<TARGET_OBJECTS:orion2re_game_objects>
-        "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smacker.c"
-        "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smk_bitstream.c"
-        "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smk_hufftree.c"
-        "${ORION2RE_VENDORED_YYJSON_DIR}/src/yyjson.c"
+        ${ORION2RE_LIBSMACKER_SOURCES}
+        ${ORION2RE_YYJSON_SOURCES}
     )
     target_compile_features(config-load-benchmark PRIVATE cxx_std_20)
     target_include_directories(config-load-benchmark PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src"
-        "${ORION2RE_VENDORED_LIBSMACKER_DIR}"
-        "${ORION2RE_VENDORED_YYJSON_DIR}/src")
-    target_link_libraries(config-load-benchmark PRIVATE SDL3::SDL3-static uv_a
-        orion2re_lz4 orion2re_lua orion2re_scalers miniz orion2re_imgui)
+        ${ORION2RE_LIBSMACKER_INCLUDE_DIRS}
+        ${ORION2RE_YYJSON_INCLUDE_DIRS})
+    target_link_libraries(config-load-benchmark PRIVATE ${ORION2RE_SDL3_TARGET} ${ORION2RE_LIBUV_TARGET}
+        ${ORION2RE_LZ4_TARGET} orion2re_lua orion2re_scalers ${ORION2RE_MINIZ_TARGET} orion2re_imgui)
+    if(ORION2RE_USE_SYSTEM_YYJSON)
+        target_link_libraries(config-load-benchmark PRIVATE PkgConfig::yyjson)
+    endif()
+    if(ORION2RE_USE_SYSTEM_LIBSMACKER)
+        target_link_libraries(config-load-benchmark PRIVATE ${ORION2RE_LIBSMACKER_LIBRARY})
+    endif()
     if(MSVC)
         target_compile_definitions(config-load-benchmark PRIVATE WIN32 _CRT_SECURE_NO_DEPRECATE _CRT_NONSTDC_NO_DEPRECATE)
     endif()
@@ -717,16 +874,33 @@ if(ORION2RE_BUILD_GAME)
             )
         endforeach()
     endif()
+
+    # Install the game alongside its runtime data. The installed data
+    # directory keeps the same layout as the game directory used by
+    # development builds, so the VFS finds it with no extra search paths:
+    #   <datadir>/orion2re/data/base.zip
+    #   <datadir>/orion2re/data/mods/<mod>.zip
+    #   <datadir>/orion2re/data/orion2re.cfg
+    install(TARGETS orion2re
+        RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
+    )
+    install(FILES "${ORION2RE_PACKAGED_BASE_ARCHIVE}"
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/orion2re/data"
+    )
+    install(FILES ${ORION2RE_SUPPORTED_MOD_ARCHIVES}
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/orion2re/data/mods"
+    )
+    install(FILES "${ORION2RE_DEFAULT_CONFIG}"
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/orion2re/data"
+    )
 endif()
 
 if(ORION2RE_BUILD_CONFIG_TOOL)
     add_executable(config-tool EXCLUDE_FROM_ALL
         ${ORION2RE_CONFIG_TOOL_SOURCES}
         $<TARGET_OBJECTS:orion2re_game_objects>
-        "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smacker.c"
-        "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smk_bitstream.c"
-        "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smk_hufftree.c"
-        "${ORION2RE_VENDORED_YYJSON_DIR}/src/yyjson.c"
+        ${ORION2RE_LIBSMACKER_SOURCES}
+        ${ORION2RE_YYJSON_SOURCES}
     )
     target_compile_features(config-tool PRIVATE cxx_std_20)
     target_compile_definitions(config-tool PRIVATE
@@ -735,18 +909,24 @@ if(ORION2RE_BUILD_CONFIG_TOOL)
     target_include_directories(config-tool PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src"
         "${CMAKE_CURRENT_SOURCE_DIR}/tools/config"
-        "${ORION2RE_VENDORED_LIBSMACKER_DIR}"
-        "${ORION2RE_VENDORED_YYJSON_DIR}/src"
+        ${ORION2RE_LIBSMACKER_INCLUDE_DIRS}
+        ${ORION2RE_YYJSON_INCLUDE_DIRS}
     )
     target_link_libraries(config-tool PRIVATE
-        SDL3::SDL3-static
-        uv_a
-        orion2re_lz4
+        ${ORION2RE_SDL3_TARGET}
+        ${ORION2RE_LIBUV_TARGET}
+        ${ORION2RE_LZ4_TARGET}
         orion2re_lua
         orion2re_scalers
-        miniz
+        ${ORION2RE_MINIZ_TARGET}
     )
     target_link_libraries(config-tool PRIVATE orion2re_imgui)
+    if(ORION2RE_USE_SYSTEM_YYJSON)
+        target_link_libraries(config-tool PRIVATE PkgConfig::yyjson)
+    endif()
+    if(ORION2RE_USE_SYSTEM_LIBSMACKER)
+        target_link_libraries(config-tool PRIVATE ${ORION2RE_LIBSMACKER_LIBRARY})
+    endif()
 
     set(ORION2RE_DOCUMENTATION_BUILD_DIR
         "${CMAKE_CURRENT_BINARY_DIR}/docs")
@@ -910,13 +1090,17 @@ if(ORION2RE_EXCLUDE_RUNTIME_FROM_ALL)
     set_target_properties(orion2re-router PROPERTIES EXCLUDE_FROM_ALL YES)
 endif()
 
+install(TARGETS orion2re-router
+    RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
+)
+
 target_compile_features(orion2re-router PRIVATE cxx_std_20)
 target_include_directories(orion2re-router PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/src"
 )
 target_link_libraries(orion2re-router PRIVATE
-    uv_a
-    orion2re_lz4
+    ${ORION2RE_LIBUV_TARGET}
+    ${ORION2RE_LZ4_TARGET}
 )
 
 if(ORION2RE_LITTLE_ENDIAN_COMPILE_FLAG)
@@ -924,7 +1108,7 @@ if(ORION2RE_LITTLE_ENDIAN_COMPILE_FLAG)
         target_compile_options(orion2re_game_objects PRIVATE
             "${ORION2RE_LITTLE_ENDIAN_COMPILE_FLAG}")
     endif()
-    if(TARGET orion2re_lua)
+    if(TARGET orion2re_lua AND NOT ORION2RE_USE_SYSTEM_LUA)
         target_compile_options(orion2re_lua PRIVATE
             "${ORION2RE_LITTLE_ENDIAN_COMPILE_FLAG}")
     endif()
@@ -946,6 +1130,7 @@ endif()
 if(TARGET orion2re)
     target_compile_definitions(orion2re PRIVATE
         $<$<CONFIG:Debug>:ORION2RE_DEBUG_BUILD=1>
+        ORION2RE_DATADIR="${CMAKE_INSTALL_FULL_DATADIR}/orion2re"
     )
 endif()
 
@@ -1047,6 +1232,7 @@ if(ORION2RE_BUILD_TESTS)
     target_compile_features(scaler-benchmark PRIVATE cxx_std_20)
     target_include_directories(scaler-benchmark PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src"
+        ${ORION2RE_LIBSMACKER_INCLUDE_DIRS}
     )
     target_precompile_headers(scaler-benchmark PRIVATE
         "$<$<COMPILE_LANGUAGE:CXX>:${CMAKE_CURRENT_SOURCE_DIR}/src/pch.h>"

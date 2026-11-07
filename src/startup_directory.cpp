@@ -8,6 +8,17 @@
 
 #include "startup_directory.h"
 
+namespace {
+    bool Has_Packaged_Base_Data_(const std::string& directory) {
+        if (directory.empty()) {
+            return false;
+        }
+        std::error_code error;
+        return std::filesystem::is_regular_file(
+            std::filesystem::path(std::u8string(directory.begin(), directory.end())) / "data" / "base.zip", error);
+    }
+} // namespace
+
 namespace startup {
     bool Set_Game_Directory(std::string* directory, std::string* error) {
         if (directory == nullptr || error == nullptr) {
@@ -52,6 +63,43 @@ namespace startup {
             return false;
         }
         *directory = base_path;
+        return true;
+    }
+
+    bool Resolve_Data_Directory(const std::string& game_directory, const char* user_datadir, const char* installed_datadir, std::string* directory) {
+        if (directory == nullptr) {
+            return false;
+        }
+        directory->clear();
+
+        // A game directory that ships its own data wins: development builds
+        // and distributable archives keep the executable and data together.
+        if (Has_Packaged_Base_Data_(game_directory)) {
+            *directory = game_directory;
+            return true;
+        }
+
+        // Otherwise the user's data directory wins over the system one, so a
+        // user can keep their own data and mods in their home directory
+        // instead of the datadir shared by all users. Like the other
+        // locations it is only used when it holds the packaged base data.
+        if (user_datadir != nullptr && user_datadir[0] != '\0' &&
+            Has_Packaged_Base_Data_(user_datadir)) {
+            *directory = user_datadir;
+            return true;
+        }
+
+        // Otherwise fall back to the installed data directory, when one was
+        // baked in at build time and actually holds the packaged base data.
+        if (installed_datadir != nullptr && installed_datadir[0] != '\0' &&
+            Has_Packaged_Base_Data_(installed_datadir)) {
+            *directory = installed_datadir;
+            return true;
+        }
+
+        // No packaged data anywhere: keep the historical behaviour and let
+        // the VFS report the missing data for the game directory.
+        *directory = game_directory;
         return true;
     }
 } // namespace startup
