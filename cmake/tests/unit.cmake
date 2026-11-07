@@ -269,6 +269,14 @@ orion2re_add_unit_test(test_cfg_parser
         src/config/cfg_parser.cpp
 )
 
+orion2re_add_unit_test(test_config_writer
+    SOURCES
+        tests/unit/config_writer_test.cpp
+    PRODUCTION_SOURCES
+        src/config/cfg_parser.cpp
+        src/config/config_writer.cpp
+)
+
 orion2re_add_unit_test(test_config_enums
     SOURCES
         tests/unit/config_enums_test.cpp
