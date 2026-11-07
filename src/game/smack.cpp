@@ -133,6 +133,12 @@ namespace SMACK {
         }
 
         smckplay::Close_Smacker_Animation();
+        if (use_fade == 0) {
+            // Palette-only fades reuse the published pixels. Replace the movie
+            // frame with its saved background now that the game palette is back.
+            video::Copy_Back_To_Off();
+            video::Publish_Off_Page();
+        }
         MOX::global_cache_seg = (void*)buffer::Allocate_Buffer_Space(MOX::global_cache_size);
         RUSS::Mox_Update();
         JIM::jim_current_stream = (uint16_t)-1;

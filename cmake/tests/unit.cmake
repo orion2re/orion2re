@@ -1937,6 +1937,13 @@ orion2re_add_unit_test(test_vfs
     LINK_SDL
 )
 
+orion2re_add_unit_test(test_smack
+    SOURCES
+        tests/unit/smack_test.cpp
+    PRODUCTION_SOURCES
+        src/game/smack.cpp
+)
+
 orion2re_add_unit_test(test_smckplay
     SOURCES
         tests/unit/smckplay_test.cpp
