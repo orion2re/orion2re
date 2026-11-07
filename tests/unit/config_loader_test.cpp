@@ -27,6 +27,7 @@
 #include "lua/lua_save.h"
 #include "game/arena.h"
 #include "miniz.h"
+#include "version.h"
 
 extern "C" {
 #include <lua.h>
@@ -315,6 +316,15 @@ namespace {
         MOX::player[MOX::PLAYER_NUM].eliminated = 1;
     }
 } // namespace
+
+DOCTEST_TEST_CASE("engine version components and menu label agree") {
+    const std::string version = std::to_string(orion2re::ENGINE_VERSION_MAJOR) + "." +
+        std::to_string(orion2re::ENGINE_VERSION_MINOR) + "." +
+        std::to_string(orion2re::ENGINE_VERSION_PATCH);
+    DOCTEST_CHECK(version == orion2re::ENGINE_VERSION);
+    DOCTEST_CHECK(version == GAME_VERSION);
+    DOCTEST_CHECK("Version " + version == GAME_VERSION_LABEL);
+}
 
 DOCTEST_TEST_CASE("all shipped mod manifests have valid version structure") {
     s_config_test_directory files;
@@ -1317,7 +1327,7 @@ DOCTEST_TEST_SUITE("configuration include loader") {
         DOCTEST_CHECK_FALSE(config::Load_Config_File(
             "main.cfg", "base_game", &effective, &diagnostic));
         DOCTEST_CHECK(diagnostic.message ==
-            "package requires engine '>=3.0.0' but this engine is 2.0.0");
+            std::string("package requires engine '>=3.0.0' but this engine is ") + orion2re::ENGINE_VERSION);
         DOCTEST_CHECK(diagnostic.location.source == "mods/future/mod.json5");
     }
 

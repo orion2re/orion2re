@@ -25,6 +25,11 @@ jobs:
           ref: ${{ github.event_name == 'release' && github.event.release.tag_name || github.sha }}
           submodules: recursive
           persist-credentials: false
+      - name: Validate release version
+        if: github.event_name == 'release'
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: cmake -DRELEASE_TAG="$RELEASE_TAG" -P cmake/version.cmake
       - name: Install native build dependencies
         run: |
           sudo apt-get update
@@ -55,6 +60,9 @@ jobs:
           ref: ${{ github.event_name == 'release' && github.event.release.tag_name || github.sha }}
           submodules: recursive
           persist-credentials: false
+      - name: Validate release version
+        if: github.event_name == 'release'
+        run: cmake -DRELEASE_TAG="$RELEASE_VERSION" -P cmake/version.cmake
       - name: Install documentation and native build dependencies
         run: |
           sudo apt-get update
@@ -129,6 +137,10 @@ jobs:
           ref: ${{ github.event_name == 'release' && github.event.release.tag_name || github.sha }}
           submodules: recursive
           persist-credentials: false
+      - name: Validate release version
+        if: github.event_name == 'release'
+        shell: bash
+        run: cmake -DRELEASE_TAG="$RELEASE_VERSION" -P cmake/version.cmake
       - name: Configure native MSVC
         if: runner.os == 'Windows'
         run: >-

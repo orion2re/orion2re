@@ -1,6 +1,12 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(orion2re LANGUAGES C CXX)
+include(cmake/version.cmake)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION")
+project(orion2re VERSION "${ORION2RE_VERSION}" LANGUAGES C CXX)
+
+configure_file(src/version.h.in generated/version/version.h @ONLY)
+include_directories("${CMAKE_CURRENT_BINARY_DIR}/generated/version")
+configure_file(cmake/orion2re.Info.plist generated/orion2re.Info.plist @ONLY)
 
 include(CTest)
 
@@ -702,7 +708,7 @@ if(ORION2RE_BUILD_GAME)
             add_custom_command(TARGET orion2re-app POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E make_directory "${ORION2RE_APP_CONTENTS}/MacOS"
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/orion2re.Info.plist"
+                    "${CMAKE_CURRENT_BINARY_DIR}/generated/orion2re.Info.plist"
                     "${ORION2RE_APP_CONTENTS}/Info.plist"
                 COMMAND ${CMAKE_COMMAND} -E create_symlink
                     "../../../$<TARGET_FILE_NAME:orion2re>"

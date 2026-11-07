@@ -64,6 +64,26 @@ On all platforms, the game uses the executable's directory for data, configurati
 and save files, regardless of the launcher's working directory. Linux desktop
 launchers do not need a `Path=` entry pointing to the installation directory.
 
+### Bumping the game version
+
+Edit only the root [`VERSION`](VERSION) file, for example from `2.0.0` to
+`2.0.1`, and commit the change. Use `major.minor.patch` without a `v` prefix,
+leading zeroes, or prerelease suffix. CMake regenerates the engine version used
+by mod `requires.engine` checks, the menu label, and macOS bundle metadata.
+An existing CMake build automatically reconfigures when this file changes.
+
+To publish an official release, tag that commit with `v` followed by `VERSION`
+(for example `v2.0.1`), push the tag, and publish its GitHub Release. Publishing
+the release triggers CI; pushing the tag alone does not. CI rejects a tag that
+does not match `VERSION`, then builds and attaches the game ZIPs, documentation
+ZIP, and PDF with that tag in their filenames. Development artifacts retain
+the `main` suffix. A version edit alone does not publish anything.
+
+Do not bump bundled mods' own versions or their `requires.engine` ranges just
+to match the game: those describe package versions and supported engine ranges.
+Save-format versions, network protocol versions, and the multiplayer build-date
+compatibility marker are separate and are not changed by a release version bump.
+
 ## Vendored submodules
 
 The project uses vendored submodules for third-party dependencies.

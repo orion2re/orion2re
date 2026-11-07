@@ -1,0 +1,13 @@
+#pragma once
+
+#include <cstdint>
+
+namespace orion2re {
+
+    inline constexpr uint32_t ENGINE_VERSION_MAJOR = @PROJECT_VERSION_MAJOR@;
+    inline constexpr uint32_t ENGINE_VERSION_MINOR = @PROJECT_VERSION_MINOR@;
+    inline constexpr uint32_t ENGINE_VERSION_PATCH = @PROJECT_VERSION_PATCH@;
+    inline constexpr char ENGINE_VERSION[] = "@PROJECT_VERSION@";
+    inline constexpr char ENGINE_VERSION_LABEL[] = "Version @PROJECT_VERSION@";
+
+} // namespace orion2re
