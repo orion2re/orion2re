@@ -1080,3 +1080,46 @@ if(ORION2RE_BUILD_TESTS)
         endforeach()
     endif()
 endif()
+
+# Linux desktop integration, kept separate from the game binary and data
+# install rules: desktop entry and icon so the game appears in the
+# application launcher (and the window icon matches). The icon is a raster
+# PNG set (data/orion2re-<size>.png) derived from a CC0 spacecraft image
+# (generative fill, brightened); the window icon is a 32x32 BMP render of
+# it (data/base/orion2re.bmp).
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/data/orion2re.desktop"
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/applications"
+        COMPONENT Runtime
+    )
+    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/data/orion2re-16.png"
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/16x16/apps"
+        RENAME orion2re.png
+        COMPONENT Runtime
+    )
+    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/data/orion2re-32.png"
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/32x32/apps"
+        RENAME orion2re.png
+        COMPONENT Runtime
+    )
+    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/data/orion2re-48.png"
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/48x48/apps"
+        RENAME orion2re.png
+        COMPONENT Runtime
+    )
+    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/data/orion2re-64.png"
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/64x64/apps"
+        RENAME orion2re.png
+        COMPONENT Runtime
+    )
+    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/data/orion2re-128.png"
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/128x128/apps"
+        RENAME orion2re.png
+        COMPONENT Runtime
+    )
+    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/data/orion2re-256.png"
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/256x256/apps"
+        RENAME orion2re.png
+        COMPONENT Runtime
+    )
+endif()

@@ -2,6 +2,7 @@
 
 #include "config/config_runtime.h"
 #include "game/scalers/scaler.h"
+#include "vfs.h"
 
 int16_t g_cached_mouse_x;
 int16_t g_cached_mouse_y;
@@ -1502,6 +1503,48 @@ namespace platform {
         video::Toggle_Pages();
     }
 
+    // Loads the bundled window icon (data/base/orion2re.bmp, a 32x32 render
+    // of the CC0 spacecraft raster icon, data/orion2re-<size>.png) through the VFS
+    // and applies it to the SDL window. Non-fatal: the game runs with the
+    // default icon if the file cannot be loaded.
+    void Set_Window_Icon(SDL_Window* window) {
+        if (window == nullptr) {
+            return;
+        }
+        s_vfs_file* file = vfs::fopen("orion2re.bmp", "rb");
+        if (file == nullptr) {
+            SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "platform: window icon 'orion2re.bmp' not found; using default icon");
+            return;
+        }
+        const int32_t size = vfs::fsize(file);
+        if (size <= 0) {
+            SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "platform: window icon 'orion2re.bmp' is empty");
+            vfs::fclose(file);
+            return;
+        }
+        std::vector<uint8_t> bytes((size_t)size);
+        if (vfs::fread(bytes.data(), 1, (size_t)size, file) != (size_t)size) {
+            SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "platform: failed to read window icon 'orion2re.bmp'");
+            vfs::fclose(file);
+            return;
+        }
+        vfs::fclose(file);
+        SDL_IOStream* stream = SDL_IOFromMem(bytes.data(), bytes.size());
+        if (stream == nullptr) {
+            SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "platform: SDL_IOFromMem failed for window icon: %s", SDL_GetError());
+            return;
+        }
+        SDL_Surface* icon = SDL_LoadBMP_IO(stream, true);
+        if (icon == nullptr) {
+            SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "platform: SDL_LoadBMP_IO failed for window icon: %s", SDL_GetError());
+            return;
+        }
+        if (!SDL_SetWindowIcon(window, icon)) {
+            SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "platform: SDL_SetWindowIcon failed: %s", SDL_GetError());
+        }
+        SDL_DestroySurface(icon);
+    }
+
     int Run_Main_Loop(const char* command_line) {
         SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "platform: Run_Main_Loop start cmd='%s'", command_line != nullptr ? command_line : "");
 
@@ -1577,6 +1620,7 @@ namespace platform {
             SDL_Quit();
             return 0;
         }
+        Set_Window_Icon(g_sdl_window);
         SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "platform: hidden window created");
 
         g_main_window = g_sdl_window;
