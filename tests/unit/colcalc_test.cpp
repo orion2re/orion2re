@@ -3,6 +3,7 @@
 #include "doctest/doctest.h"
 
 #include "game/build_queue.h"
+#include "game/colcalc.h"
 #include "lua/lua_game.h"
 
 namespace TEST_COLONY_POP_GROWTH {
@@ -1618,4 +1619,14 @@ DOCTEST_TEST_CASE("legacy autobuild Trade Goods after a building starts next tur
     COLCALC::Apply_Production(colony);
     DOCTEST_CHECK((colony->production_spent == 40));
     DOCTEST_CHECK((MOX::player[0].bc == 0));
+}
+
+DOCTEST_TEST_CASE("Format_Quotient writes the fraction without overrunning the buffer") {
+    // Regression test for the colony-screen crash: the fraction snprintf was
+    // passed one byte more than the buffer had left, tripping the fortified
+    // snprintf check. Any value with a non-zero remainder exercises it.
+    DOCTEST_CHECK(std::string(COLCALC::Format_Quotient(100, 40)) == "+2.5");
+    DOCTEST_CHECK(std::string(COLCALC::Format_Quotient(-100, 40)) == "-2.5");
+    DOCTEST_CHECK(std::string(COLCALC::Format_Quotient(1, 3)) == "+0.33333");
+    DOCTEST_CHECK(std::string(COLCALC::Format_Quotient(999999999, 40)) == "+24999999.975");
 }

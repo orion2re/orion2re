@@ -2470,7 +2470,7 @@ namespace COMBAT1 {
             }
         }
 
-        if (MOX::cur_ship == active_ship_idx) {
+        if (MOX::cur_ship == active_ship_idx && active_ship_idx >= 0) {
             COMBAT1::Set_Legal_Moves(active_ship_idx, MOX::combat_data[active_ship_idx].movement_left, 1);
             COMBAT1::Assign_Mouse_Images();
         }
