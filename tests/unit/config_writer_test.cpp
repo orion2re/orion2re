@@ -473,3 +473,339 @@ DOCTEST_TEST_CASE("enable lines after stop are left alone") {
 }
 
 } // DOCTEST_TEST_SUITE
+
+DOCTEST_TEST_SUITE("config settings writer") {
+
+    bool Rewrite_S_(const char* source, const std::vector<std::string>& setting_path,
+        const std::string& value, std::string* rewritten,
+        config::s_cfg_diagnostic* diagnostic) {
+        return config::Rewrite_Setting("fixture.cfg", source, setting_path, value,
+            rewritten, diagnostic);
+    }
+
+    bool Write_S_(const std::filesystem::path& config_path,
+        const std::vector<std::string>& setting_path, const std::string& value,
+        config::s_cfg_diagnostic* diagnostic) {
+        return config::Write_Setting(config_path.string(), setting_path, value,
+            diagnostic);
+    }
+
+DOCTEST_TEST_CASE("round-trip changes only the setting value") {
+    Temp_Dir dir;
+    const std::filesystem::path config_path = dir.path / "orion2re.cfg";
+    const std::filesystem::path included_path = dir.path / "extra.cfg";
+    Write_File(included_path, kIncludedConfig);
+    Write_File(config_path, kHandEditedConfig);
+
+    config::s_cfg_diagnostic diagnostic;
+    DOCTEST_REQUIRE(Write_S_(config_path, {"interface", "window_width"}, "1280",
+        &diagnostic));
+
+    // Only the window_width value changes; comments, the include line,
+    // the enable lines and the other settings are identical.
+    DOCTEST_CHECK(Read_File(config_path) ==
+        "# Orion2 Redone configuration. Edit this file to customize your game.\n"
+        "# Uncomment any of these examples to enable them:\n"
+        "# interface scaler = hq3x;\n"
+        "# enable v150i;\n"
+        "\n"
+        "include \"extra.cfg\";\n"
+        "\n"
+        "interface window_width = 1280;\n"
+        "interface window_height = 480;\n"
+        "\n"
+        "# Enabled mods, highest priority first.\n"
+        "enable v150;\n"
+        "enable ice;\n"
+        "\n"
+        "interface show_exit_message = false;\n");
+    DOCTEST_CHECK(Read_File(included_path) == kIncludedConfig);
+}
+
+DOCTEST_TEST_CASE("editing one setting on a shared line leaves the rest alone") {
+    std::string rewritten;
+    config::s_cfg_diagnostic diagnostic;
+    DOCTEST_REQUIRE(Rewrite_S_(
+        "interface window_width = 640; interface window_height = 480;\n",
+        {"interface", "window_width"}, "1280", &rewritten, &diagnostic));
+    DOCTEST_CHECK(rewritten ==
+        "interface window_width = 1280; interface window_height = 480;\n");
+}
+
+DOCTEST_TEST_CASE("a record leaf is edited by its full path") {
+    std::string rewritten;
+    config::s_cfg_diagnostic diagnostic;
+    DOCTEST_REQUIRE(Rewrite_S_(
+        "interface animation cloak_steps normal = 1;\n"
+        "interface animation cloak_steps fast = 2;\n",
+        {"interface", "animation", "cloak_steps", "normal"}, "2", &rewritten,
+        &diagnostic));
+    DOCTEST_CHECK(rewritten ==
+        "interface animation cloak_steps normal = 2;\n"
+        "interface animation cloak_steps fast = 2;\n");
+}
+
+DOCTEST_TEST_CASE("a setting in another namespace is edited by its full path") {
+    std::string rewritten;
+    config::s_cfg_diagnostic diagnostic;
+    DOCTEST_REQUIRE(Rewrite_S_(
+        "design missile_default_x2_rack = false;\n",
+        {"design", "missile_default_x2_rack"}, "true", &rewritten, &diagnostic));
+    DOCTEST_CHECK(rewritten == "design missile_default_x2_rack = true;\n");
+}
+
+DOCTEST_TEST_CASE("an array element is edited by its index path") {
+    std::string rewritten;
+    config::s_cfg_diagnostic diagnostic;
+    DOCTEST_REQUIRE(Rewrite_S_(
+        "interface build_list_colors default normal base = 0xCB;\n",
+        {"interface", "build_list_colors", "default", "normal", "base"}, "0xB8",
+        &rewritten, &diagnostic));
+    DOCTEST_CHECK(rewritten ==
+        "interface build_list_colors default normal base = 0xB8;\n");
+    DOCTEST_REQUIRE(Rewrite_S_(
+        "interface tech_review_achievements 2 application = doom_star_construction;\n",
+        {"interface", "tech_review_achievements", "2", "application"},
+        "gaia_transformation", &rewritten, &diagnostic));
+    DOCTEST_CHECK(rewritten ==
+        "interface tech_review_achievements 2 application = gaia_transformation;\n");
+}
+
+DOCTEST_TEST_CASE("a quoted string value keeps its quotes, and '#' inside it is data") {
+    std::string rewritten;
+    config::s_cfg_diagnostic diagnostic;
+    DOCTEST_REQUIRE(Rewrite_S_(
+        "interface router = \"209.38.39.19\";\n",
+        {"interface", "router"}, "\"example.com:47800\"", &rewritten, &diagnostic));
+    DOCTEST_CHECK(rewritten == "interface router = \"example.com:47800\";\n");
+    DOCTEST_REQUIRE(Rewrite_S_(
+        "interface router = \"a#b\";\n",
+        {"interface", "router"}, "\"c#d;e\"", &rewritten, &diagnostic));
+    DOCTEST_CHECK(rewritten == "interface router = \"c#d;e\";\n");
+}
+
+DOCTEST_TEST_CASE("appending a missing setting goes at the end") {
+    Temp_Dir dir;
+    const std::filesystem::path config_path = dir.path / "orion2re.cfg";
+    Write_File(config_path,
+        "# No settings changed yet.\n"
+        "enable ice;\n");
+    config::s_cfg_diagnostic diagnostic;
+    DOCTEST_REQUIRE(Write_S_(config_path, {"interface", "fullscreen"}, "true",
+        &diagnostic));
+    DOCTEST_CHECK(Read_File(config_path) ==
+        "# No settings changed yet.\n"
+        "enable ice;\n"
+        "interface fullscreen = true;\n");
+}
+
+DOCTEST_TEST_CASE("appending to an empty file and to a file without a trailing newline") {
+    std::string rewritten;
+    config::s_cfg_diagnostic diagnostic;
+    DOCTEST_REQUIRE(Rewrite_S_("", {"interface", "fullscreen"}, "true", &rewritten,
+        &diagnostic));
+    DOCTEST_CHECK(rewritten == "interface fullscreen = true;\n");
+    DOCTEST_REQUIRE(Rewrite_S_("interface window_width = 640;",
+        {"interface", "fullscreen"}, "true", &rewritten, &diagnostic));
+    DOCTEST_CHECK(rewritten ==
+        "interface window_width = 640;\ninterface fullscreen = true;\n");
+}
+
+DOCTEST_TEST_CASE("appended lines match the file's CRLF line endings") {
+    std::string rewritten;
+    config::s_cfg_diagnostic diagnostic;
+    DOCTEST_REQUIRE(Rewrite_S_("interface window_width = 640;\r\n",
+        {"interface", "fullscreen"}, "true", &rewritten, &diagnostic));
+    DOCTEST_CHECK(rewritten ==
+        "interface window_width = 640;\r\ninterface fullscreen = true;\r\n");
+}
+
+DOCTEST_TEST_CASE("a matching value does not rewrite the file") {
+    Temp_Dir dir;
+    const std::filesystem::path config_path = dir.path / "orion2re.cfg";
+    Write_File(config_path, "interface   window_width   =   640;\n");
+    config::s_cfg_diagnostic diagnostic;
+    DOCTEST_REQUIRE(
+        Write_S_(config_path, {"interface", "window_width"}, "640", &diagnostic));
+    // The hand-edited spacing survives: no rewrite happened at all.
+    DOCTEST_CHECK(Read_File(config_path) == "interface   window_width   =   640;\n");
+}
+
+DOCTEST_TEST_CASE("refuse: unparseable file leaves it untouched") {
+    Temp_Dir dir;
+    const std::filesystem::path config_path = dir.path / "orion2re.cfg";
+    const std::string original =
+        "interface window_width = 640;\n"
+        "interface fullscreen = maybe;\n"
+        "interface window_height = ;\n";
+    Write_File(config_path, original);
+    config::s_cfg_diagnostic diagnostic;
+    DOCTEST_CHECK_FALSE(Write_S_(config_path, {"interface", "window_width"}, "1280",
+        &diagnostic));
+    DOCTEST_CHECK(!diagnostic.message.empty());
+    DOCTEST_CHECK(Read_File(config_path) == original);
+}
+
+DOCTEST_TEST_CASE("refuse: duplicate assignment leaves the file untouched") {
+    std::string rewritten;
+    config::s_cfg_diagnostic diagnostic;
+    DOCTEST_CHECK_FALSE(Rewrite_S_(
+        "interface window_width = 640;\ninterface window_width = 800;\n",
+        {"interface", "window_width"}, "1280", &rewritten, &diagnostic));
+    DOCTEST_CHECK(!diagnostic.message.empty());
+    DOCTEST_CHECK(diagnostic.location.line == 2);
+}
+
+DOCTEST_TEST_CASE("refuse: a grouped assignment leaves the file untouched") {
+    std::string rewritten;
+    config::s_cfg_diagnostic diagnostic;
+    DOCTEST_CHECK_FALSE(Rewrite_S_("interface window_width = a: 640;\n",
+        {"interface", "window_width"}, "1280", &rewritten, &diagnostic));
+    DOCTEST_CHECK(!diagnostic.message.empty());
+    DOCTEST_CHECK(diagnostic.location.line == 1);
+}
+
+DOCTEST_TEST_CASE("refuse: a multi-value assignment leaves the file untouched") {
+    std::string rewritten;
+    config::s_cfg_diagnostic diagnostic;
+    DOCTEST_CHECK_FALSE(Rewrite_S_("interface window_width = 640 480;\n",
+        {"interface", "window_width"}, "1280", &rewritten, &diagnostic));
+    DOCTEST_CHECK(!diagnostic.message.empty());
+    DOCTEST_CHECK(diagnostic.location.line == 1);
+}
+
+DOCTEST_TEST_CASE("refuse: comment or line break inside the assignment leaves it untouched") {
+    std::string rewritten;
+    config::s_cfg_diagnostic diagnostic;
+    DOCTEST_CHECK_FALSE(Rewrite_S_(
+        "interface window_width = 640 # trailing comment\n;\n",
+        {"interface", "window_width"}, "1280", &rewritten, &diagnostic));
+    DOCTEST_CHECK(!diagnostic.message.empty());
+    DOCTEST_CHECK(diagnostic.location.line == 1);
+    DOCTEST_CHECK_FALSE(Rewrite_S_(
+        "interface window_width =\n 1280;\n",
+        {"interface", "window_width"}, "1280", &rewritten, &diagnostic));
+    DOCTEST_CHECK(!diagnostic.message.empty());
+    DOCTEST_CHECK(diagnostic.location.line == 1);
+}
+
+DOCTEST_TEST_CASE("refuse: invalid values leave the file untouched") {
+    std::string rewritten;
+    config::s_cfg_diagnostic diagnostic;
+    for (const std::string& value :
+        {"", "-", "not a value", "1 2", "\"unterminated", "640\n", "640;"}) {
+        DOCTEST_CHECK_FALSE(Rewrite_S_("interface window_width = 640;\n",
+            {"interface", "window_width"}, value, &rewritten, &diagnostic));
+        DOCTEST_CHECK(!diagnostic.message.empty());
+    }
+}
+
+DOCTEST_TEST_CASE("refuse: invalid paths leave the file untouched") {
+    std::string rewritten;
+    config::s_cfg_diagnostic diagnostic;
+    DOCTEST_CHECK_FALSE(Rewrite_S_("interface window_width = 640;\n", {},
+        "1280", &rewritten, &diagnostic));
+    DOCTEST_CHECK(!diagnostic.message.empty());
+    DOCTEST_CHECK_FALSE(Rewrite_S_("interface window_width = 640;\n",
+        {"interface", "not a name"}, "1280", &rewritten, &diagnostic));
+    DOCTEST_CHECK(!diagnostic.message.empty());
+    DOCTEST_CHECK_FALSE(Rewrite_S_("interface window_width = 640;\n",
+        {"interface", "1a"}, "1280", &rewritten, &diagnostic));
+    DOCTEST_CHECK(!diagnostic.message.empty());
+}
+
+DOCTEST_TEST_CASE("refuse: unresolvable include leaves the file untouched") {
+    Temp_Dir dir;
+    const std::filesystem::path config_path = dir.path / "orion2re.cfg";
+    const std::string original =
+        "include \"missing.cfg\";\n"
+        "interface window_width = 640;\n";
+    Write_File(config_path, original);
+    config::s_cfg_diagnostic diagnostic;
+    DOCTEST_CHECK_FALSE(Write_S_(config_path, {"interface", "window_width"}, "1280",
+        &diagnostic));
+    DOCTEST_CHECK(!diagnostic.message.empty());
+    DOCTEST_CHECK(diagnostic.location.line == 1);
+    DOCTEST_CHECK(Read_File(config_path) == original);
+}
+
+DOCTEST_TEST_CASE("refuse: included file assigning the same setting leaves it untouched") {
+    Temp_Dir dir;
+    const std::filesystem::path config_path = dir.path / "orion2re.cfg";
+    const std::filesystem::path included_path = dir.path / "extra.cfg";
+    const std::string original =
+        "include \"extra.cfg\";\n"
+        "interface window_width = 640;\n";
+    Write_File(included_path, "interface window_width = 800;\n");
+    Write_File(config_path, original);
+    config::s_cfg_diagnostic diagnostic;
+    DOCTEST_CHECK_FALSE(Write_S_(config_path, {"interface", "window_width"}, "1280",
+        &diagnostic));
+    DOCTEST_CHECK(!diagnostic.message.empty());
+    DOCTEST_CHECK(Read_File(config_path) == original);
+    DOCTEST_CHECK(Read_File(included_path) == "interface window_width = 800;\n");
+}
+
+DOCTEST_TEST_CASE("an include assigning another setting, or enabling a mod, is fine") {
+    Temp_Dir dir;
+    const std::filesystem::path config_path = dir.path / "orion2re.cfg";
+    const std::filesystem::path included_path = dir.path / "extra.cfg";
+    Write_File(included_path,
+        "interface window_height = 480;\n"
+        "enable v150;\n");
+    Write_File(config_path,
+        "include \"extra.cfg\";\n"
+        "interface window_width = 640;\n");
+    config::s_cfg_diagnostic diagnostic;
+    DOCTEST_REQUIRE(Write_S_(config_path, {"interface", "window_width"}, "1280",
+        &diagnostic));
+    DOCTEST_CHECK(Read_File(config_path) ==
+        "include \"extra.cfg\";\n"
+        "interface window_width = 1280;\n");
+    DOCTEST_CHECK(Read_File(included_path) ==
+        "interface window_height = 480;\n"
+        "enable v150;\n");
+}
+
+DOCTEST_TEST_CASE("refuse: stop with no assignment cannot take an appended line") {
+    std::string rewritten;
+    config::s_cfg_diagnostic diagnostic;
+    DOCTEST_CHECK_FALSE(Rewrite_S_("interface window_height = 480;\nstop;\n",
+        {"interface", "window_width"}, "1280", &rewritten, &diagnostic));
+    DOCTEST_CHECK(!diagnostic.message.empty());
+    DOCTEST_CHECK(diagnostic.location.line == 2);
+    // An assignment after stop is dead, so it does not count either.
+    DOCTEST_CHECK_FALSE(Rewrite_S_("stop;\ninterface window_width = 640;\n",
+        {"interface", "window_width"}, "1280", &rewritten, &diagnostic));
+    DOCTEST_CHECK(!diagnostic.message.empty());
+}
+
+DOCTEST_TEST_CASE("a live assignment before stop is still editable") {
+    std::string rewritten;
+    config::s_cfg_diagnostic diagnostic;
+    DOCTEST_REQUIRE(Rewrite_S_(
+        "interface window_width = 640;\nstop;\ninterface window_width = 800;\n",
+        {"interface", "window_width"}, "1280", &rewritten, &diagnostic));
+    DOCTEST_CHECK(rewritten ==
+        "interface window_width = 1280;\nstop;\ninterface window_width = 800;\n");
+}
+
+DOCTEST_TEST_CASE("a symlinked config is written through, keeping the link") {
+    Temp_Dir dir;
+    const std::filesystem::path target_dir = dir.path / "real";
+    std::filesystem::create_directories(target_dir);
+    const std::filesystem::path target_path = target_dir / "orion2re.cfg";
+    const std::filesystem::path link_path = dir.path / "orion2re.cfg";
+    Write_File(target_path, "interface window_width = 640;\n");
+    std::error_code error;
+    std::filesystem::create_symlink(target_path, link_path, error);
+    DOCTEST_REQUIRE(!error);
+
+    config::s_cfg_diagnostic diagnostic;
+    DOCTEST_REQUIRE(Write_S_(link_path, {"interface", "window_width"}, "1280",
+        &diagnostic));
+    DOCTEST_CHECK(std::filesystem::is_symlink(link_path));
+    DOCTEST_CHECK(Read_File(target_path) == "interface window_width = 1280;\n");
+}
+
+} // DOCTEST_TEST_SUITE

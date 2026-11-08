@@ -73,4 +73,53 @@ namespace config {
     bool Write_Enabled_Mods(const std::string& path,
         const std::vector<std::string>& enabled_mods, s_cfg_diagnostic* diagnostic);
 
+    // Settings writer (settings UI). One assignment at a time: the caller
+    // passes the setting's dotted path as tokens (for example
+    // {"interface", "window_width"}, or {"interface", "animation",
+    // "cloak_steps", "normal"} for a record leaf, or {"design",
+    // "missile_default_x2_rack"} for a setting in another namespace) and
+    // the value exactly as it should appear in the file (for example
+    // "1280", "true", "pixelart", or "\"router.example.com:47800\"").
+    // The same surgical, refuse-rather-than-corrupt contract as the
+    // enable writer applies, with the setting-specific refusals:
+    // - the path is empty, or a segment is neither an identifier nor a
+    //   decimal array index;
+    // - the value is empty, contains a line break, is the skip marker
+    //   "-", or does not parse as exactly one value token;
+    // - a live assignment to the same path already exists but is not a
+    //   plain single-line, single-value assignment (a labeled/grouped
+    //   assignment, or a comment or line break inside the statement,
+    //   would be lost by a surgical replacement, so the writer refuses
+    //   instead of dropping it);
+    // - the path is assigned more than once in the live document: editing
+    //   only one copy would leave the effective value unchanged, so the
+    //   writer refuses and the duplicate must be removed by hand;
+    // - a live `include` target assigns the same path (Write_Setting
+    //   only; the in-memory Rewrite_ API has no filesystem access and
+    //   cannot check includes): the writer only updates assignments in
+    //   the file it was given, so an included assignment would make the
+    //   written value differ from the effective value. The other include
+    //   refusals of the enable writer apply unchanged;
+    // - the path has no live assignment and the file has a `stop`
+    //   statement: a line appended at the end of the file would sit after
+    //   `stop` and never take effect, so the writer refuses.
+    //
+    // The writer does not validate the value against the setting's type,
+    // range or enum: that is the caller's job (the settings UI validates
+    // against the runtime type descriptor before calling). The writer
+    // guarantees only that the rewritten file still parses and that the
+    // written assignment holds exactly the value it was given.
+    //
+    // If the setting already holds the given value, the file is not
+    // rewritten at all. A setting with no live assignment is appended at
+    // the end of the file as `<path> = <value>;`.
+
+    bool Rewrite_Setting(const char* source_name, const std::string& source,
+        const std::vector<std::string>& setting_path, const std::string& value,
+        std::string* rewritten, s_cfg_diagnostic* diagnostic);
+
+    bool Write_Setting(const std::string& config_path,
+        const std::vector<std::string>& setting_path, const std::string& value,
+        s_cfg_diagnostic* diagnostic);
+
 } // namespace config
