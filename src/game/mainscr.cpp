@@ -666,7 +666,7 @@ namespace MAINSCR {
     }
 
     void __cdecl Print_Star_Names() {
-        if (Is_Extended_Max_Map_View()) {
+        if (Is_Extended_Max_Map_View() && !main_map_overview_star_names) {
             return;
         }
 

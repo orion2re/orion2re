@@ -30,6 +30,8 @@ Press `+` to zoom in and `-` to zoom out. In Maximum galaxies, each zoom-in step
 
 Press Alt+V to cycle known influence from off, to checkerboard fills with borders, to borders only. The optional `interface main_map_overview_markers = true;` setting replaces star artwork with compact markers in Maximum's all-stars view; it is disabled by default. Influence and overview markers are separate aids. See [Interface and display](interface.md#main-map-navigation) for marker colors and other map controls.
 
+Star names are hidden by default at maximum zoom-out in extended galaxies. Set `interface main_map_overview_star_names = true;` to show them with their normal ownership colors, including in Maximum-size galaxies. This works independently of overview markers and does not reveal unknown systems. Labels may overlap on dense maps. The setting is local and is not saved or synchronized in multiplayer.
+
 ## Scoring and saved games
 
 Galaxy size affects the time and captured-colonist parts of the final score. Maximum has its own extended values; see [Victory and scoring](../game-mechanics/victory-and-scoring.md#score-calculation). The selected size, age, generated map, and related setup are stored with the game and restored when that save is loaded.

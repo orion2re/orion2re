@@ -9763,6 +9763,21 @@
       },
     },
 
+    main_map_overview_star_names: {
+      title: "Main-map overview star names",
+      description: "Shows star names at maximum zoom-out in extended galaxies, including Maximum-size galaxies.",
+      remarks: "Disabled by default to avoid overlapping labels on dense maps. When enabled, uses the normal star-name visibility and ownership colors. Other zoom levels and classic-size galaxies are unchanged. Independent of overview markers. Local to each player, excluded from saves and synchronization.",
+      examples: ["interface main_map_overview_star_names = true;"],
+      group: "interface",
+      namespace: "interface",
+      type: "bool",
+      default: false,
+      bind_root: {
+        header: "game/mainscr.h",
+        symbol: "MAINSCR::main_map_overview_star_names",
+      },
+    },
+
     main_screen_tax_rate: {
       title: "Main-screen tax rate",
       description: "Displays a nonzero tax percentage above the treasury balance on the Main galaxy screen.",

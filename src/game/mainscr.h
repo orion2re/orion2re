@@ -31,6 +31,7 @@ namespace MAINSCR {
     extern int16_t main_screen_scanned_star;
     extern uint32_t menlo_cheat_points;
     extern bool main_map_overview_markers;
+    extern bool main_map_overview_star_names;
     extern bool main_screen_tax_rate;
     extern int8_t moving_a_stack;
     extern int8_t track_time_flag;
