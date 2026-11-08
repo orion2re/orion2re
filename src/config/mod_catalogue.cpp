@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <fstream>
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -257,6 +258,92 @@ namespace config {
             user_mods_root = std::string(data_directory) + "mods/";
         }
         return Build_Mod_Catalogue(bundled_roots, user_mods_root, enabled_ids);
+    }
+
+    std::vector<std::string> Prune_Disabled_Mod_Set(
+        const std::vector<s_mod_catalogue_entry>& catalogue,
+        const std::vector<std::string>& enabled_ids,
+        const std::string& disabled_id) {
+        if (std::find(enabled_ids.begin(), enabled_ids.end(), disabled_id) ==
+            enabled_ids.end()) {
+            return enabled_ids;
+        }
+        // Dependency edges, by id, from the catalogue.
+        std::map<std::string, std::vector<std::string>> dependencies;
+        for (const s_mod_catalogue_entry& entry : catalogue) {
+            std::vector<std::string>& edges = dependencies[entry.id];
+            for (const s_mod_dependency& dependency : entry.dependencies) {
+                if (!dependency.id.empty()) {
+                    edges.push_back(dependency.id);
+                }
+            }
+        }
+        // All ids reachable from id through dependency edges.
+        const auto transitive_dependencies = [&](const std::string& id) {
+            std::set<std::string> reached;
+            std::vector<std::string> stack;
+            const auto found = dependencies.find(id);
+            if (found != dependencies.end()) {
+                stack = found->second;
+            }
+            while (!stack.empty()) {
+                const std::string current = stack.back();
+                stack.pop_back();
+                if (!reached.insert(current).second) {
+                    continue;
+                }
+                const auto next = dependencies.find(current);
+                if (next != dependencies.end()) {
+                    stack.insert(stack.end(), next->second.begin(), next->second.end());
+                }
+            }
+            return reached;
+        };
+        // The disabled mod and every mod that (transitively) needs it.
+        std::set<std::string> removed;
+        removed.insert(disabled_id);
+        for (const s_mod_catalogue_entry& entry : catalogue) {
+            if (transitive_dependencies(entry.id).count(disabled_id) != 0) {
+                removed.insert(entry.id);
+            }
+        }
+        std::vector<std::string> remaining;
+        for (const std::string& id : enabled_ids) {
+            if (removed.count(id) == 0) {
+                remaining.push_back(id);
+            }
+        }
+        // A dependency of a removed mod stays only while a remaining mod
+        // still needs it. Repeat to a fixpoint: removing one orphan can
+        // orphan its own dependencies.
+        bool changed = true;
+        while (changed) {
+            changed = false;
+            std::set<std::string> needed;
+            for (const std::string& id : remaining) {
+                const std::set<std::string> deps = transitive_dependencies(id);
+                needed.insert(deps.begin(), deps.end());
+            }
+            std::set<std::string> orphaned;
+            for (const std::string& id : removed) {
+                for (const std::string& dep : transitive_dependencies(id)) {
+                    if (needed.count(dep) == 0) {
+                        orphaned.insert(dep);
+                    }
+                }
+            }
+            std::vector<std::string> kept;
+            for (const std::string& id : remaining) {
+                if (orphaned.count(id) == 0) {
+                    kept.push_back(id);
+                } else {
+                    removed.insert(id);
+                    changed = true;
+                }
+            }
+            remaining = std::move(kept);
+        }
+        return remaining;
     }
 
     bool Read_Enabled_Mods(const std::string& path,
