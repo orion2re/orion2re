@@ -35,15 +35,15 @@ namespace invasion {
             bonuses->has_powered_armor = 1;
         }
 
-        int armor_idx = aitech::Player_Best_Armor(player);
+        int armor_idx = aitech::Player_Best_Armor(TECHDATA::armor, player);
         bonuses->best_armor_tech_app_id = (uint8_t)TECHDATA::armor[armor_idx].tech_app_id;
         bonuses->troop_bonus = TECHDATA::armor[armor_idx].troops_bonus;
 
-        int rifle_idx = aitech::Player_Best_Rifle(player);
+        int rifle_idx = aitech::Player_Best_Rifle(TECHDATA::rifles, player);
         bonuses->rifle_tech_app_id = (uint8_t)TECHDATA::rifles[rifle_idx].tech_app_id;
         bonuses->rifle_bonus = TECHDATA::rifles[rifle_idx].bonus;
 
-        int shield_idx = aitech::Player_Best_Personal_Shield(player);
+        int shield_idx = aitech::Player_Best_Personal_Shield(TECHDATA::personal_shields, player);
         bonuses->personal_shield_tech_app_id = (uint8_t)TECHDATA::personal_shields[shield_idx].tech_app_id;
         bonuses->personal_shield_bonus = shield_idx == PERSONAL_SHIELD_PERSONAL_SHIELD
             ? troop.bonus.personal_shield

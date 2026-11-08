@@ -6,58 +6,36 @@
 #include "doctest/doctest.h"
 
 namespace {
-    s_ai_refit_player refits[MAX_PLAYERS];
-    s_ai_player_info player_info[MAX_PLAYERS];
-    s_ai_colony_info colony_info[MAX_COLONIES];
-    s_ai_star_info star_info[MAX_STARS];
-    int8_t human_ships[MAX_STARS][10];
-    uint16_t planet_values[MAX_PLAYERS * MAX_PLANETS];
+    AIDATA::s_state ai;
     int16_t preferred_station;
     bool can_build_large_ships;
 } // namespace
 
-namespace MOX {
-    s_ship_node ship_node[MAX_SHIPS];
-}
-
-namespace AIDATA {
-    s_ai_refit_player (*airefit)[MAX_PLAYERS] = &refits;
-    s_ai_player_info (*ai_player_info)[MAX_PLAYERS] = &player_info;
-    s_ai_colony_info (*ai_colony_info)[MAX_COLONIES] = &colony_info;
-    s_ai_star_info (*ai_star_info)[MAX_STARS] = &star_info;
-    int8_t (*enroute_human_ships)[MAX_STARS][10] = &human_ships;
-    uint16_t (*contextual_planet_values)[MAX_PLAYERS * MAX_PLANETS] = &planet_values;
-} // namespace AIDATA
-
 namespace AIBUILD {
-    s_player_ship_sizes player_ship_sizes[MAX_PLAYERS];
-    int32_t player_total_strength_vs_ships[MAX_PLAYERS][3];
-    uint8_t player_n_transports[MAX_PLAYERS][2];
-    uint8_t player_n_spies[MAX_PLAYERS][2];
-    uint8_t player_n_colony_ships[MAX_PLAYERS][3];
-    int8_t player_n_freighter_groups_wanted[MAX_PLAYERS];
 
-    int16_t __cdecl Player_War_Level(int16_t) {
+    int16_t __cdecl Player_War_Level(const AIDATA::s_world_view*, int16_t) {
         return 1;
     }
     int16_t __cdecl Industry_Worth(s_colony*) {
         return 100;
     }
-    bool __cdecl Colony_Is_Conquered(s_colony*) {
+    bool __cdecl Colony_Is_Conquered(const AIDATA::s_world_view*, s_colony*) {
         return false;
     }
-    int16_t __cdecl Mean_Ship_Strength(s_ship_data*) {
+    s_opponent_view Opponents(const AIDATA::s_world_view*) { return {}; }
+
+    int16_t __cdecl Mean_Ship_Strength(const s_opponent_view*, const AIDATA::s_ship_assessment*, const AIDATA::s_empire_assessment*, const s_ship_data*) {
         return 1;
     }
-    int16_t __cdecl Refit_Cost(int16_t, s_ship_design*, s_ship_design*) {
+    int16_t __cdecl Refit_Cost(const AIDATA::s_refit_rule_inputs*, const s_player*, const s_ship_design*, const s_ship_design*) {
         return 100;
     }
 
-    void Build_Production_Context(const s_colony*, int32_t, production_rules::s_context* context) {
+    void Build_Production_Context(AIDATA::s_state*, const s_colony*, int32_t, production_rules::s_context* context) {
         *context = {};
     }
 
-    void __cdecl Force_Produce(int16_t* queue, int16_t index, int32_t* count, int16_t product) {
+    void __cdecl Force_Produce(const AIDATA::s_world_view*, int16_t* queue, int16_t index, int32_t* count, int16_t product) {
         DOCTEST_REQUIRE(*count == 1);
         DOCTEST_REQUIRE(index == 0);
         MOX::colony[queue[index]].producing[0] = product;
@@ -66,6 +44,17 @@ namespace AIBUILD {
 } // namespace AIBUILD
 
 namespace TEST_ORBITAL_DEFENSE {
+    AIDATA::s_state* State_() {
+        ai.world.players = MOX::player;
+        ai.world.ships = MOX::ship;
+        ai.world.stars = MOX::star;
+        ai.world.colonies = MOX::colony;
+        ai.world.planets = MOX::planet;
+        ai.world.settings = &MOX::settings;
+        ai.world.colony_count = &MOX::NUM_COLONIES;
+        ai.world.rules.build = &AIBUILD::rules;
+        return &ai;
+    }
     std::vector<std::string> printed;
     uint16_t station_weights[3];
     int choice_calls;
@@ -77,10 +66,7 @@ namespace TEST_ORBITAL_DEFENSE {
         memset(MOX::planet, 0, sizeof(s_planet_data) * 2);
         memset(MOX::star, 0, sizeof(s_star_data));
         memset(MOX::player, 0, sizeof(s_player) * MAX_PLAYERS);
-        memset(refits, 0, sizeof(refits));
-        memset(player_info, 0, sizeof(player_info));
-        memset(colony_info, 0, sizeof(colony_info));
-        memset(star_info, 0, sizeof(star_info));
+        ai = {};
         memset(station_weights, 0, sizeof(station_weights));
         preferred_station = preferred;
         can_build_large_ships = large_ships;
@@ -97,15 +83,15 @@ namespace TEST_ORBITAL_DEFENSE {
         MOX::player[0].tech_applications[TECH_APP_STAR_BASE] = TECH_RESEARCH_STATUS_RESEARCHED;
         MOX::player[0].tech_applications[TECH_APP_BATTLESTATION] = TECH_RESEARCH_STATUS_RESEARCHED;
         MOX::player[0].tech_applications[TECH_APP_STAR_FORTRESS] = TECH_RESEARCH_STATUS_RESEARCHED;
-        AIBUILD::player_total_strength_vs_ships[0][0] = 0;
-        AIBUILD::player_total_strength_vs_ships[0][2] = 100;
-        AIBUILD::strategic_production.emergency_defense.enabled = false;
-        AIBUILD::strategic_production.expansion.enabled = false;
-        AIBUILD::strategic_production.economic_emergency.enabled = false;
-        AIBUILD::strategic_production.allocation = {};
-        AIBUILD::strategic_production.allocation.candidates[0].enabled = true;
-        AIBUILD::strategic_production.allocation.candidates[0].weight.base = 1;
-        AIBUILD::strategic_production.allocation.candidates[0].weight.clamp.maximum = INT32_MAX;
+        ai.players[0].build.combat_strength.total = 0;
+        ai.players[0].build.combat_strength.additional_wanted = 100;
+        AIBUILD::rules.strategic.emergency_defense.enabled = false;
+        AIBUILD::rules.strategic.expansion.enabled = false;
+        AIBUILD::rules.strategic.economic_emergency.enabled = false;
+        AIBUILD::rules.strategic.allocation = {};
+        AIBUILD::rules.strategic.allocation.candidates[0].enabled = true;
+        AIBUILD::rules.strategic.allocation.candidates[0].weight.base = 1;
+        AIBUILD::rules.strategic.allocation.candidates[0].weight.clamp.maximum = INT32_MAX;
         TECHDATA::buildings[BUILDING_STAR_BASE].name = const_cast<char*>("Star Base");
         TECHDATA::buildings[BUILDING_BATTLESTATION].name = const_cast<char*>("Battlestation");
         TECHDATA::buildings[BUILDING_STAR_FORTRESS].name = const_cast<char*>("Star Fortress");
@@ -114,6 +100,16 @@ namespace TEST_ORBITAL_DEFENSE {
 } // namespace TEST_ORBITAL_DEFENSE
 
 namespace RUSS {
+    std::optional<uint32_t> Get_Weighted_Choice_Int(const game_random::s_source*, const uint32_t* weights, uint32_t count) {
+        int16_t choice = Get_Weighted_Choice_Int(const_cast<uint32_t*>(weights), (int16_t)count);
+        return choice < 0 ? std::nullopt : std::optional<uint32_t>{(uint32_t)choice};
+    }
+
+    std::optional<uint32_t> Get_Weighted_Choice_Short(const game_random::s_source*, const uint16_t* weights, uint32_t count) {
+        int16_t choice = Get_Weighted_Choice_Short(weights, (int16_t)count);
+        return choice < 0 ? std::nullopt : std::optional<uint32_t>{(uint32_t)choice};
+    }
+
     void __cdecl Mox_Update() {}
 
     int16_t __cdecl Get_Weighted_Choice_Int(uint32_t* weights, int16_t count) {
@@ -150,8 +146,8 @@ namespace EVENTS {
 } // namespace EVENTS
 
 namespace AIMOVE {
-    int16_t __cdecl Best_Uncolonized_Undestined_Planet(int16_t) {
-        return -1;
+    std::optional<uint32_t> Best_Uncolonized_Undestined_Planet(AIDATA::s_state*, int16_t) {
+        return std::nullopt;
     }
 } // namespace AIMOVE
 

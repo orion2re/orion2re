@@ -194,7 +194,6 @@
 #include "antaroom.h"
 #include "aitech.h"
 #include "aidata.h"
-#include "ai_state.h"
 #include "aileader.h"
 #include "aidudes.h"
 #include "aimove.h"

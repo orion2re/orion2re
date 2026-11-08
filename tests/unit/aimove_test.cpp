@@ -4,6 +4,7 @@
 #include "game/aimove.h"
 
 namespace TEST_AIMOVE {
+    const AIDATA::s_world_view* World_();
     void Reset_();
     int16_t Spawn_Count_();
     uint16_t Spawned_Eel_Timer_();
@@ -14,17 +15,17 @@ namespace TEST_AIMOVE {
 
 DOCTEST_TEST_CASE("wandering Eels reproduce at the configured interval") {
     TEST_AIMOVE::Reset_();
-    AIMOVE::eel_spawn_frequency = 3;
+    AIMOVE::rules.eel_spawn_frequency = 3;
 
-    AIMOVE::Move_NPCs();
+    AIMOVE::Move_NPCs(TEST_AIMOVE::World_());
     DOCTEST_CHECK((MOX::ship[0].d.date_of_design == 1));
     DOCTEST_CHECK(TEST_AIMOVE::Spawn_Count_() == 0);
 
-    AIMOVE::Move_NPCs();
+    AIMOVE::Move_NPCs(TEST_AIMOVE::World_());
     DOCTEST_CHECK((MOX::ship[0].d.date_of_design == 2));
     DOCTEST_CHECK(TEST_AIMOVE::Spawn_Count_() == 0);
 
-    AIMOVE::Move_NPCs();
+    AIMOVE::Move_NPCs(TEST_AIMOVE::World_());
     DOCTEST_CHECK((MOX::ship[0].d.date_of_design == 0));
     DOCTEST_CHECK(TEST_AIMOVE::Spawn_Count_() == 1);
     DOCTEST_CHECK(TEST_AIMOVE::Spawned_Eel_Timer_() == 0);
@@ -33,14 +34,14 @@ DOCTEST_TEST_CASE("wandering Eels reproduce at the configured interval") {
 DOCTEST_TEST_CASE("wandering Eels respect the configured population cap") {
     TEST_AIMOVE::Reset_();
     TEST_AIMOVE::Set_Wandering_Eel_Count_(4);
-    AIMOVE::eel_spawn_frequency = 1;
-    AIMOVE::max_eels = 4;
+    AIMOVE::rules.eel_spawn_frequency = 1;
+    AIMOVE::rules.max_eels = 4;
 
-    AIMOVE::Move_NPCs();
+    AIMOVE::Move_NPCs(TEST_AIMOVE::World_());
     DOCTEST_CHECK(TEST_AIMOVE::Spawn_Count_() == 0);
 
-    AIMOVE::max_eels = 5;
-    AIMOVE::Move_NPCs();
+    AIMOVE::rules.max_eels = 5;
+    AIMOVE::Move_NPCs(TEST_AIMOVE::World_());
     DOCTEST_CHECK(TEST_AIMOVE::Spawn_Count_() == 1);
 }
 
@@ -48,21 +49,21 @@ DOCTEST_TEST_CASE("zero design speed excludes retained monsters from NPC movemen
     TEST_AIMOVE::Reset_();
     TEST_AIMOVE::Set_Npc_(NONPLAYER_SHIP_TYPE_CRYSTAL, 0);
 
-    AIMOVE::Move_NPCs();
+    AIMOVE::Move_NPCs(TEST_AIMOVE::World_());
 
     DOCTEST_CHECK(TEST_AIMOVE::Move_Attempt_Count_() == 0);
 
     TEST_AIMOVE::Reset_();
     TEST_AIMOVE::Set_Npc_(NONPLAYER_SHIP_TYPE_CRYSTAL, 4);
 
-    AIMOVE::Move_NPCs();
+    AIMOVE::Move_NPCs(TEST_AIMOVE::World_());
 
     DOCTEST_CHECK(TEST_AIMOVE::Move_Attempt_Count_() == 1);
 
     TEST_AIMOVE::Reset_();
     TEST_AIMOVE::Set_Npc_(NONPLAYER_SHIP_TYPE_CRYSTAL, UINT8_MAX);
 
-    AIMOVE::Move_NPCs();
+    AIMOVE::Move_NPCs(TEST_AIMOVE::World_());
 
     DOCTEST_CHECK(TEST_AIMOVE::Move_Attempt_Count_() == 1);
 }

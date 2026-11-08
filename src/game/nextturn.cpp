@@ -1,5 +1,7 @@
 #include "pch.h"
 
+#include "ai_legacy.h"
+
 #include "lua/lua_game.h"
 
 namespace NEXTTURN {
@@ -16,26 +18,25 @@ namespace NEXTTURN {
             antarans::Antaran_Invasion_Check();
         }
 
-        AIDATA::Compute_AI_Data();
+        AIDATA::s_state* ai = &AIDATA::state;
+        ai->world = AI_LEGACY::World();
+        AIDATA::Compute_AI_Data(ai);
         DIP_SCRN::Resolve_Delayed_Diplomacy_Orders();
         DIP_SCRN::Set_Opportunity_Attacks();
         diplomac::Clear_Diplomacy_Messages();
         npcdiplo::NPC_Diplomacy();
         diplomac::Diplomacy_Growth();
-        aileader::Do_AI_Leaders();
-        AIBUILD::Compute_Empire_Building_Needs();
-#if defined(ORION2RE_ENABLE_DEBUG_OVERLAY)
-        ai_state::Capture_Build_State();
-#endif
-        aidudes::All_Colony_AI();
-        AIMOVE::Move_All_AI();
+        aileader::Do_AI_Leaders(ai);
+        AIBUILD::Compute_Empire_Building_Needs(ai);
+        aidudes::All_Colony_AI(ai);
+        AIMOVE::Move_All_AI(ai);
         COLONIZE::All_AI_Colonize();
-        aitech::All_AI_Tech_Select();
+        aitech::All_AI_Tech_Select(ai);
         maintain::Make_Scrap_Ships_Dead();
         REPORT::Initialize_Reports();
         TRADE::Process_Trade_And_Research_Agreements();
         SHIPMOVE::Move_All_Ships_Toward_Stars();
-        spy::Resolve_Spies();
+        spy::Resolve_Spies(ai->players.data());
         {
             orion2re::lua::game::s_authoritative_population_growth_scope
                 population_growth_scope(
@@ -48,9 +49,9 @@ namespace NEXTTURN {
         COLCALC::Apply_All_Player_Changes();
         COLCALC::Apply_All_Colony_Changes();
         COLCALC::Do_Surrenders();
-        AIDATA::Deallocate_AI_Data();
+        AIDATA::Complete_Turn(ai);
         COMBFIND::Search_For_Battles();
-        aitech::Apply_Evolutionary_Upgrades();
+        aitech::Apply_Evolutionary_Upgrades(&ai->world);
         EVENTS::Determine_Event();
         SHIPMOVE::Unmark_Just_Built_AI_Ships();
         ERICNET::Do_All_Ships_XP_Check();

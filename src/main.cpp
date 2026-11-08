@@ -251,7 +251,7 @@ int main(int argc, char** argv) {
     const int result = platform::Run_Main_Loop(nullptr);
 
     orion2re::lua::Shutdown_Lua();
-    ai_state::Shutdown();
+    AIDATA::Reset(&AIDATA::state);
     config::Shutdown_Config_Loader();
     config::Shutdown_Runtime();
     vfs::Shutdown();

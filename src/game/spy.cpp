@@ -3,7 +3,56 @@
 namespace spy {
     int16_t spy_bonuses[MAX_PLAYERS * 2];
 
-    void __cdecl Resolve_Spies() {
+    void __cdecl Compute_Spy_Bonuses(s_player* player, int16_t* defense_bonus_out, int16_t* attack_bonus_out) {
+        int32_t telepathic_trait_bonus =
+            (int8_t)player->traits[TRAIT_TELEPATHIC] * (int8_t)telepathic_bonus;
+        int32_t tech_and_trait_bonus = Tech_Spy_Bonus(player) + player->traits[TRAIT_SPYING_BONUS];
+        int32_t base_bonus = tech_and_trait_bonus + telepathic_trait_bonus;
+
+        int32_t max_leader_def_bonus = 0;
+        int32_t max_leader_atk_bonus = 0;
+
+        int32_t player_idx = (int32_t)(player - MOX::player);
+
+        for (int32_t i = 0; i < MAX_LEADERS; ++i) {
+            s_leader_data* leader = &MOX::leaders[i];
+
+            if (leader->player_index == player_idx) {
+                if (leader->status >= 0 && leader->status <= 2) {
+                    if (!COLCALC::Leader_At_Anomaly(leader)) {
+                        int32_t current_def_skill = 0;
+                        if (leader->general_skills & LEADER_GENERAL_SKILL_SPY_MASTER2) {
+                            current_def_skill = OFFICER::Owned_Officer_Level(i) * 3 + 3;
+                        } else if (leader->general_skills & LEADER_GENERAL_SKILL_SPY_MASTER) {
+                            current_def_skill = OFFICER::Owned_Officer_Level(i) * 2 + 2;
+                        }
+
+                        if (current_def_skill > max_leader_def_bonus) {
+                            max_leader_def_bonus = current_def_skill;
+                        }
+
+                        int32_t current_atk_skill = 0;
+                        if (leader->general_skills & LEADER_GENERAL_SKILL_TELEPATH2) {
+                            current_atk_skill = (OFFICER::Owned_Officer_Level(i) + 1) * 3;
+                        } else if (leader->general_skills & LEADER_GENERAL_SKILL_TELEPATH) {
+                            current_atk_skill = (OFFICER::Owned_Officer_Level(i) + 1) * 2;
+                        }
+
+                        if (current_atk_skill > max_leader_atk_bonus) {
+                            max_leader_atk_bonus = current_atk_skill;
+                        }
+                    }
+                }
+            }
+        }
+
+        *defense_bonus_out = (int16_t)(max_leader_def_bonus + base_bonus);
+
+        int32_t gov_bonus = lookup_table[player->traits[TRAIT_CURRENT_GOVERNMENT]];
+        *attack_bonus_out = (int16_t)(gov_bonus + max_leader_atk_bonus + base_bonus);
+    }
+
+    void __cdecl Resolve_Spies(const AIDATA::s_player_assessment* players) {
         uint8_t num_active_players = 0;
         int8_t active_player_indices[MAX_PLAYERS];
 
@@ -28,7 +77,7 @@ namespace spy {
             for (int16_t j = 0; j < (int16_t)num_active_players; ++j) {
                 int8_t player_idx = active_player_indices[j];
                 if (MOX::player[player_idx].objectives != PLAYER_OBJECTIVE_HUMAN) {
-                    Allocate_AI_Spies(&MOX::player[player_idx]);
+                    Allocate_AI_Spies(&MOX::player[player_idx], players[player_idx].empire.contact_count);
                 }
             }
         }
@@ -43,7 +92,48 @@ namespace spy {
         }
     }
 
-    void __cdecl Allocate_AI_Spies(s_player* player) {
+    void __cdecl Bring_Home_Spies_Vs(int16_t player_idx, int16_t enemy_idx) {
+        int16_t spies_at_enemy = BILL::Get_Their_Spy_Number(player_idx, enemy_idx);
+
+        if (spies_at_enemy != 0) {
+            int16_t spies_at_home = BILL::Get_Their_Spy_Number(player_idx, player_idx);
+            int32_t total_spies = (int32_t)spies_at_home + (int32_t)spies_at_enemy;
+
+            if (total_spies > 0x3f /* 63 */) {
+                total_spies = 0x3f;
+            }
+
+            BILL::Set_Their_Spy_Number(player_idx, player_idx, (uint8_t)total_spies);
+            BILL::Set_Their_Spy_Number(player_idx, enemy_idx, 0);
+        }
+    }
+
+    void __cdecl Resolve_Assassins() {
+        for (int32_t leader_idx = MAX_LEADERS - 1;
+             leader_idx >= 0;
+             --leader_idx) {
+            s_leader_data* leader = &MOX::leaders[leader_idx];
+
+            // player_index != -1 and status is active (0) or assigned (1)
+            if (leader->player_index != -1 && (leader->status == 0 || leader->status == 1)) {
+                int32_t chance = 0;
+
+                if ((leader->general_skills & LEADER_GENERAL_SKILL_ASSASSIN2) != 0) {
+                    chance = OFFICER::Owned_Officer_Level(leader_idx) * 3 + 3;
+                } else if ((leader->general_skills & LEADER_GENERAL_SKILL_ASSASSIN) != 0) {
+                    chance = OFFICER::Owned_Officer_Level(leader_idx) * 2 + 2;
+                }
+
+                if (chance != 0) {
+                    if ((int16_t)game_random::Random(100) <= chance) {
+                        spy::Leader_Assassinates(leader);
+                    }
+                }
+            }
+        }
+    }
+
+    void __cdecl Allocate_AI_Spies(s_player* player, int16_t contact_count) {
         if (player->eliminated != 0) {
             return;
         }
@@ -92,7 +182,7 @@ namespace spy {
         }
 
         if (total_spies == 0) {
-            if ((*AIDATA::ai_player_info)[player_idx].n_contacts > 0 && MOX::stardate > 35030) {
+            if (contact_count > 0 && MOX::stardate > 35030) {
                 if (MOX::settings.game_difficulty == GAME_DIFFICULTY_IMPOSSIBLE) {
                     if (player->objectives != PLAYER_OBJECTIVE_DIPLOMATIC) {
                         game_random::Random(8);

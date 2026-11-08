@@ -63,6 +63,10 @@ target_include_directories(orion2re_test_config_defaults PRIVATE
 target_link_libraries(orion2re_test_config_defaults PRIVATE SDL3::Headers)
 orion2re_enable_sanitizers(orion2re_test_config_defaults)
 
+orion2re_test_shared_sources(ORION2RE_AI_STATE_OBJECTS src/game/aidata_state.cpp)
+add_library(orion2re_test_ai_state STATIC ${ORION2RE_AI_STATE_OBJECTS})
+orion2re_enable_sanitizers(orion2re_test_ai_state)
+
 function(orion2re_add_unit_test TARGET_NAME)
     cmake_parse_arguments(ORION2RE_TEST "LINK_SDL" "" "SOURCES;PRODUCTION_SOURCES;FAKE_SOURCES;LIBRARIES" ${ARGN})
 
@@ -100,6 +104,7 @@ function(orion2re_add_unit_test TARGET_NAME)
 
     target_link_libraries(${TARGET_NAME} PRIVATE
         orion2re_test_config_defaults
+        orion2re_test_ai_state
         ${ORION2RE_TEST_LIBRARIES}
     )
     orion2re_enable_sanitizers(${TARGET_NAME})
@@ -216,14 +221,51 @@ orion2re_add_game_test(test_resource_reload
 )
 
 
-orion2re_add_unit_test(test_ai_state
+orion2re_add_unit_test(test_aidata_state
     SOURCES
-        tests/unit/ai_state_test.cpp
+        tests/unit/aidata_state_test.cpp
     PRODUCTION_SOURCES
-        src/game/ai_state.cpp
-    FAKE_SOURCES
-        tests/fakes/fake_ai_state_runtime.cpp
+        src/game/aidata_state.cpp
 )
+
+orion2re_add_unit_test(test_legacy_qsort
+    SOURCES
+        tests/unit/legacy_qsort_test.cpp
+    PRODUCTION_SOURCES
+        src/game/compat.cpp
+    LINK_SDL
+)
+
+orion2re_add_unit_test(test_aidata_routes
+    SOURCES
+        tests/unit/aidata_routes_test.cpp
+    PRODUCTION_SOURCES
+        src/game/aidata.cpp
+)
+
+orion2re_add_unit_test(test_ai_inputs
+    SOURCES
+        tests/unit/ai_inputs_test.cpp
+    PRODUCTION_SOURCES
+        src/game/aibuild.cpp
+        src/game/aidata.cpp
+        src/game/aimove.cpp
+        src/game/aipower.cpp
+        src/game/aitech.cpp
+        src/game/ai_movement_boundary.cpp
+        src/game/design.cpp
+        src/game/random.cpp
+        src/game/russ.cpp
+)
+foreach(TARGET_NAME IN ITEMS test_aidata_routes test_ai_inputs)
+    if(MSVC)
+        target_link_options(${TARGET_NAME} PRIVATE /OPT:REF)
+    elseif(APPLE)
+        target_link_options(${TARGET_NAME} PRIVATE -Wl,-dead_strip)
+    else()
+        target_link_options(${TARGET_NAME} PRIVATE -Wl,--gc-sections)
+    endif()
+endforeach()
 
 orion2re_add_unit_test(test_config_arena_runtime
     SOURCES
@@ -745,6 +787,8 @@ orion2re_add_unit_test(test_colony_pop_growth
         tests/unit/colony_services_test.cpp
     PRODUCTION_SOURCES
         src/game/ai_planet_values.cpp
+        src/game/aidata.cpp
+        src/game/aidata_state.cpp
         src/game/aidata_config.cpp
         src/game/colcalc.cpp
         src/game/research_completion.cpp
@@ -854,6 +898,8 @@ orion2re_add_unit_test(test_aimove
         src/game/legacy_sort.cpp
         src/game/special.cpp
         src/game/angle.cpp
+        src/game/ai_movement_boundary.cpp
+        src/game/aimove.cpp
     FAKE_SOURCES
         tests/fakes/fake_aimove_runtime.cpp
 )

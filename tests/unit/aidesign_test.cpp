@@ -8,6 +8,31 @@ namespace {
     constexpr int16_t kPlayer = 0;
 
     s_player players[MAX_PLAYERS];
+
+    const AIDATA::s_world_view* AI_World_() {
+        static const AIDATA::s_world_view world{
+            .players = players,
+            .settings = &MOX::settings,
+            .stardate = &MOX::stardate,
+            .combat_x = &MOX::cur_combat_x,
+            .random = {.draw = [](uint32_t*, uint32_t maximum) { return game_random::Random(maximum); }},
+            .rules = {
+                .design = &aidesign::rules,
+                .technology = {
+                    .applications = TECHDATA::technology_applications,
+                    .fields = TECHDATA::technology_fields,
+                    .computers = TECHDATA::computers,
+                    .drives = TECHDATA::drives,
+                    .hulls = TECHDATA::hull_data,
+                    .specials = TECHDATA::specials,
+                    .weapons = TECHDATA::weapons,
+                    .weapon_modifications = TECHDATA::weapon_modifications,
+                },
+                .engine_design = {.missile_x3_shot = &DESIGN::missile_x3_shot},
+            },
+        };
+        return &world;
+    }
     bool ship_name_requested;
     int16_t requested_race;
     int16_t requested_design;
@@ -29,9 +54,9 @@ namespace {
         memset(TECHDATA::specials, 0, sizeof(TECHDATA::specials));
         memset(TECHDATA::weapons, 0, sizeof(TECHDATA::weapons));
         memset(TECHDATA::weapon_modifications, 0, sizeof(TECHDATA::weapon_modifications));
-        memset(&aidesign::ship_design, 0, sizeof(aidesign::ship_design));
-        aidesign::ship_design_bhg_chance = 3;
-        aidesign::ship_design_stellar_chance = 3;
+        memset(&aidesign::rules.priorities, 0, sizeof(aidesign::rules.priorities));
+        aidesign::rules.black_hole_generator_chance = 3;
+        aidesign::rules.stellar_converter_chance = 3;
 
         ship_name_requested = false;
         requested_race = -1;
@@ -58,6 +83,7 @@ namespace {
         int16_t arcs[3] = {};
 
         aidesign::Determine_Beam_Weapon_Modifications(
+            AI_World_(),
             kPlayer, SHIP_SIZE_SMALL,
             &types[0], &specials[0], &arcs[0],
             &types[1], &specials[1], &arcs[1],
@@ -192,7 +218,7 @@ namespace KEN {
 }
 
 namespace AIPOWER {
-    int16_t __cdecl Get_Best_Ship_Shield_Value(int16_t) {
+    int16_t __cdecl Get_Best_Ship_Shield_Value(const s_tech_shield_data*, int16_t) {
         return 1;
     }
 }
@@ -297,7 +323,7 @@ DOCTEST_TEST_CASE("beam autodesign compares modification levels as unsigned byte
 DOCTEST_TEST_CASE("AI special themes use source-owned priority lists") {
     Reset_Aidesign_();
     players[kPlayer].ship_special_theme = AI_SHIP_SPECIAL_THEME_BIO_WEAPON;
-    aidesign::ship_design.special_priority.bio_weapon[0] = {
+    aidesign::rules.priorities.special_priority.bio_weapon[0] = {
         SPECIAL_TRANSPORTERS,
         AI_SPECIAL_ITEM_SPECIAL,
     };
@@ -308,6 +334,7 @@ DOCTEST_TEST_CASE("AI special themes use source-owned priority lists") {
     s_ship_design design = {};
     int16_t weapon_slot = 0;
     aidesign::Add_Theme_Special_To_Design(
+        AI_World_(),
         kPlayer, &design, 100, &weapon_slot);
 
     DOCTEST_CHECK(struct_::Test_Bit_Field(
@@ -316,11 +343,11 @@ DOCTEST_TEST_CASE("AI special themes use source-owned priority lists") {
 
 DOCTEST_TEST_CASE("AI armor and shield themes use configured priority lists") {
     Reset_Aidesign_();
-    aidesign::ship_design.special_priority.armor[0] = {
+    aidesign::rules.priorities.special_priority.armor[0] = {
         SPECIAL_TRANSPORTERS,
         AI_SPECIAL_ITEM_SPECIAL,
     };
-    aidesign::ship_design.special_priority.shield[0] = {
+    aidesign::rules.priorities.special_priority.shield[0] = {
         SPECIAL_AUGMENTED_ENGINES,
         AI_SPECIAL_ITEM_SPECIAL,
     };
@@ -336,6 +363,7 @@ DOCTEST_TEST_CASE("AI armor and shield themes use configured priority lists") {
     int16_t weapon_slot = 0;
     players[kPlayer].ship_special_theme = AI_SHIP_SPECIAL_THEME_ARMOR;
     aidesign::Add_Theme_Special_To_Design(
+        AI_World_(),
         kPlayer, &design, 100, &weapon_slot);
     DOCTEST_CHECK(struct_::Test_Bit_Field(
         design.special_device_flags, SPECIAL_TRANSPORTERS) != 0);
@@ -344,6 +372,7 @@ DOCTEST_TEST_CASE("AI armor and shield themes use configured priority lists") {
     design.shield_type = 1;
     players[kPlayer].ship_special_theme = AI_SHIP_SPECIAL_THEME_SHIELD;
     aidesign::Add_Theme_Special_To_Design(
+        AI_World_(),
         kPlayer, &design, 100, &weapon_slot);
     DOCTEST_CHECK(struct_::Test_Bit_Field(
         design.special_device_flags, SPECIAL_AUGMENTED_ENGINES) != 0);
@@ -351,7 +380,7 @@ DOCTEST_TEST_CASE("AI armor and shield themes use configured priority lists") {
 
 DOCTEST_TEST_CASE("AI special-device and defense priorities use source-owned lists") {
     Reset_Aidesign_();
-    aidesign::ship_design.special_device_priority[0] = {
+    aidesign::rules.priorities.special_device_priority[0] = {
         SPECIAL_TRANSPORTERS,
         AI_SPECIAL_ITEM_SPECIAL,
     };
@@ -359,14 +388,14 @@ DOCTEST_TEST_CASE("AI special-device and defense priorities use source-owned lis
     players[kPlayer].tech_applications[TECH_APP_TRANSPORTERS] =
         TECH_RESEARCH_STATUS_RESEARCHED;
 
-    DOCTEST_CHECK(aidesign::Special_Devices_Available(kPlayer) == 1);
+    DOCTEST_CHECK(aidesign::Special_Devices_Available(&aidesign::rules.priorities, &AI_World_()->rules.technology, &players[kPlayer]) == 1);
 
-    aidesign::ship_design.special_device_priority[0] = {
+    aidesign::rules.priorities.special_device_priority[0] = {
         SPECIAL_TRANSPORTERS,
         AI_SPECIAL_ITEM_WEAPON,
     };
     TECHDATA::weapons[SPECIAL_TRANSPORTERS].tech_app_id = TECH_APP_TRANSPORTERS;
-    DOCTEST_CHECK(aidesign::Special_Devices_Available(kPlayer) == 1);
+    DOCTEST_CHECK(aidesign::Special_Devices_Available(&aidesign::rules.priorities, &AI_World_()->rules.technology, &players[kPlayer]) == 1);
 }
 
 DOCTEST_TEST_CASE("AI design legality enforces every stealth and cloak pairing") {
@@ -388,6 +417,7 @@ DOCTEST_TEST_CASE("AI design legality enforces every stealth and cloak pairing")
         TECHDATA::specials[pair.installed].exclude[0] = pair.candidate;
 
         DOCTEST_CHECK_FALSE(aidesign::Special_Legal_For_Design(
+            TECHDATA::specials,
             &design, pair.candidate));
     }
 
@@ -398,6 +428,7 @@ DOCTEST_TEST_CASE("AI design legality enforces every stealth and cloak pairing")
         design.special_device_flags, SPECIAL_CLOAKING_DEVICE);
     TECHDATA::specials[SPECIAL_CLOAKING_DEVICE].exclude[0] = -1;
     DOCTEST_CHECK(aidesign::Special_Legal_For_Design(
+        TECHDATA::specials,
         &design, SPECIAL_STEALTH_FIELD));
 }
 
@@ -451,7 +482,7 @@ DOCTEST_TEST_CASE("Doom Star autodesign uses a race-specific name") {
     TECHDATA::hull_data[SHIP_SIZE_DOOM_STAR].size = 100;
 
     s_ship_design design{};
-    aidesign::Auto_Design_Ship(kPlayer, &design, SHIP_SIZE_DOOM_STAR);
+    aidesign::Auto_Design_Ship(AI_World_(), kPlayer, &design, SHIP_SIZE_DOOM_STAR);
 
     DOCTEST_CHECK(design.picture_num == 0x2b);
     DOCTEST_CHECK(ship_name_requested);
@@ -471,14 +502,14 @@ DOCTEST_TEST_CASE("Megafluxers keeps the Auto Design budget wide through Battle 
     TECHDATA::hull_data[SHIP_SIZE_SMALL].size = 100;
     TECHDATA::specials[SPECIAL_BATTLE_PODS]
         .space_per_ship_type[SHIP_SIZE_SMALL] = 10;
-    memset(aidesign::ship_design_allocations.profiles, -1,
-           sizeof(aidesign::ship_design_allocations));
-    aidesign::ship_design_allocations.profiles[0][SHIP_SIZE_SMALL].beams = 1;
+    memset(aidesign::rules.allocations.profiles, -1,
+           sizeof(aidesign::rules.allocations));
+    aidesign::rules.allocations.profiles[0][SHIP_SIZE_SMALL].beams = 1;
     DESIGN::megafluxers_tactical_bonus = 32768;
     MOX::cur_combat_x = -1000;
 
     s_ship_design design = {};
-    aidesign::Auto_Design_Ship(kPlayer, &design, SHIP_SIZE_SMALL);
+    aidesign::Auto_Design_Ship(AI_World_(), kPlayer, &design, SHIP_SIZE_SMALL);
 
     DOCTEST_CHECK(struct_::Test_Bit_Field(
         design.special_device_flags, SPECIAL_BATTLE_PODS));
@@ -497,22 +528,22 @@ DOCTEST_TEST_CASE("Black Hole Generator chance selects the special-weapon design
     TECHDATA::hull_data[SHIP_SIZE_TITAN].size = 100;
     TECHDATA::weapons[WEAPON_BLACK_HOLE_GENERATOR].tech_app_id =
         TECH_APP_BLACK_HOLE_GENERATOR;
-    memset(aidesign::ship_design_allocations.profiles, -1,
-           sizeof(aidesign::ship_design_allocations));
-    aidesign::ship_design_allocations.profiles[6][SHIP_SIZE_TITAN].special_weapon = 100;
-    aidesign::ship_design.special_priority.special_weapon[0] = {
+    memset(aidesign::rules.allocations.profiles, -1,
+           sizeof(aidesign::rules.allocations));
+    aidesign::rules.allocations.profiles[6][SHIP_SIZE_TITAN].special_weapon = 100;
+    aidesign::rules.priorities.special_priority.special_weapon[0] = {
         WEAPON_BLACK_HOLE_GENERATOR,
         AI_SPECIAL_ITEM_WEAPON,
     };
     MOX::cur_combat_x = -1000;
 
-    aidesign::ship_design_bhg_chance = 0;
+    aidesign::rules.black_hole_generator_chance = 0;
     s_ship_design design = {};
-    aidesign::Auto_Design_Ship(kPlayer, &design, SHIP_SIZE_TITAN);
+    aidesign::Auto_Design_Ship(AI_World_(), kPlayer, &design, SHIP_SIZE_TITAN);
     DOCTEST_CHECK(design.ship_weapon[0].type == 0);
 
-    aidesign::ship_design_bhg_chance = 4;
-    aidesign::Auto_Design_Ship(kPlayer, &design, SHIP_SIZE_TITAN);
+    aidesign::rules.black_hole_generator_chance = 4;
+    aidesign::Auto_Design_Ship(AI_World_(), kPlayer, &design, SHIP_SIZE_TITAN);
     DOCTEST_CHECK(design.ship_weapon[0].type == WEAPON_BLACK_HOLE_GENERATOR);
 }
 
@@ -525,21 +556,21 @@ DOCTEST_TEST_CASE("Stellar Converter chance selects the Doom Star special-weapon
     TECHDATA::hull_data[SHIP_SIZE_DOOM_STAR].size = 100;
     TECHDATA::weapons[WEAPON_STELLAR_CONVERTER].tech_app_id =
         TECH_APP_STELLAR_CONVERTER;
-    memset(aidesign::ship_design_allocations.profiles, -1,
-           sizeof(aidesign::ship_design_allocations));
-    aidesign::ship_design_allocations.profiles[6][SHIP_SIZE_DOOM_STAR].special_weapon = 100;
-    aidesign::ship_design.special_priority.special_weapon[0] = {
+    memset(aidesign::rules.allocations.profiles, -1,
+           sizeof(aidesign::rules.allocations));
+    aidesign::rules.allocations.profiles[6][SHIP_SIZE_DOOM_STAR].special_weapon = 100;
+    aidesign::rules.priorities.special_priority.special_weapon[0] = {
         WEAPON_STELLAR_CONVERTER,
         AI_SPECIAL_ITEM_WEAPON,
     };
     MOX::cur_combat_x = -1000;
 
-    aidesign::ship_design_stellar_chance = 0;
+    aidesign::rules.stellar_converter_chance = 0;
     s_ship_design design = {};
-    aidesign::Auto_Design_Ship(kPlayer, &design, SHIP_SIZE_DOOM_STAR);
+    aidesign::Auto_Design_Ship(AI_World_(), kPlayer, &design, SHIP_SIZE_DOOM_STAR);
     DOCTEST_CHECK(design.ship_weapon[0].type == 0);
 
-    aidesign::ship_design_stellar_chance = 4;
-    aidesign::Auto_Design_Ship(kPlayer, &design, SHIP_SIZE_DOOM_STAR);
+    aidesign::rules.stellar_converter_chance = 4;
+    aidesign::Auto_Design_Ship(AI_World_(), kPlayer, &design, SHIP_SIZE_DOOM_STAR);
     DOCTEST_CHECK(design.ship_weapon[0].type == WEAPON_STELLAR_CONVERTER);
 }

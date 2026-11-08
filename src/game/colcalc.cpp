@@ -42,7 +42,7 @@ namespace COLCALC {
             (current_product == COLONY_PRODUCTION_HOUSING ||
                 current_product == COLONY_PRODUCTION_TRADE_GOODS ||
                 current_product == COLONY_PRODUCTION_NONE)) {
-            AIBUILD::Player_Colony_Autobuild(colony);
+            AIBUILD::Player_Colony_Autobuild(&AIDATA::state, colony);
         }
 
         colony->just_produced = COLONY_PRODUCTION_NONE;
@@ -3895,7 +3895,7 @@ namespace COLCALC {
 
                 if (colony->producing[0] == COLONY_PRODUCTION_NONE &&
                     BUILD_QUEUE::Is_Legacy_Autobuild(colony->auto_building)) {
-                    AIBUILD::Player_Colony_Autobuild(colony);
+                    AIBUILD::Player_Colony_Autobuild(&AIDATA::state, colony);
                     build_msg.u.colony.c.build.append_fmt = 1;
                 }
 

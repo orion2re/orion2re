@@ -2,22 +2,22 @@
 
 namespace AISTAGE {
 
-    void __cdecl Compute_Defensive_Stage_Points(int16_t player_idx) {
-        uint8_t processed_stars[MAX_STARS];
+    void __cdecl Compute_Defensive_Stage_Points(AIDATA::s_state* ai, int16_t player_idx) {
+        const auto* world = &ai->world;
+        std::vector<uint8_t> processed_stars(world->Star_Count(), 0);
         int16_t selected_stagepoint_count = 0;
         bool finished;
         uint32_t best_weight;
         int16_t best_star;
 
-        if (MOX::player[player_idx].eliminated != 0) {
+        if (world->players[player_idx].eliminated != 0) {
             return;
         }
 
-        memset(processed_stars, 0, sizeof(processed_stars));
-        MOX::player[player_idx].offensive_stagepoint = -1;
+        world->players[player_idx].offensive_stagepoint = -1;
 
-        for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
-            MOX::star[i].is_stagepoint &= ~(1 << (player_idx & 0x1F));
+        for (int16_t i = 0; i < world->Star_Count(); ++i) {
+            world->stars[i].is_stagepoint &= ~(1 << (player_idx & 0x1F));
         }
 
         do {
@@ -25,9 +25,9 @@ namespace AISTAGE {
             best_star = -1;
             best_weight = 0;
 
-            for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
+            for (int16_t i = 0; i < world->Star_Count(); ++i) {
                 if (processed_stars[i] == 0) {
-                    uint32_t weight = (*AIDATA::star_stage_weights)[i][player_idx];
+                    uint32_t weight = ai->stars[i].stage_weights[player_idx];
                     if (best_weight < weight) {
                         best_weight = weight;
                         best_star = i;
@@ -38,21 +38,22 @@ namespace AISTAGE {
             if (best_star == -1) {
                 finished = true;
             } else {
-                MOX::star[best_star].is_stagepoint |= (1 << (player_idx & 0x1F));
+                world->stars[best_star].is_stagepoint |= (1 << (player_idx & 0x1F));
 
                 if (selected_stagepoint_count == 0) {
-                    MOX::player[player_idx].offensive_stagepoint = best_star;
+                    world->players[player_idx].offensive_stagepoint = best_star;
                 }
 
                 ++selected_stagepoint_count;
                 processed_stars[best_star] = 1;
 
-                for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
+                for (int16_t i = 0; i < world->Star_Count(); ++i) {
                     if (i != best_star) {
-                        if ((*AIDATA::star_stage_weights)[i][player_idx] != 0 &&
-                            (MOX::star[i].is_stagepoint & (1 << (player_idx & 0x1F))) == 0) {
-                            if (AIDATA::N_Turns_From_To(best_star, i, player_idx) <= 1) {
-                                (*AIDATA::star_stage_weights)[i][player_idx] = 0;
+                        if (ai->stars[i].stage_weights[player_idx] != 0 &&
+                            (world->stars[i].is_stagepoint & (1 << (player_idx & 0x1F))) == 0) {
+                            auto turns = AIDATA::N_Turns_From_To(&ai->routes, best_star, i, player_idx);
+                            if (turns && *turns <= 1) {
+                                ai->stars[i].stage_weights[player_idx] = 0;
                                 processed_stars[i] = 1;
                             }
                         }
@@ -64,17 +65,17 @@ namespace AISTAGE {
         if (selected_stagepoint_count == 0) {
             uint32_t max_weight = 0;
             int16_t candidate_star = -1;
-            int32_t search_speed = (uint8_t)MOX::player[player_idx].ship_speed;
+            int32_t search_speed = (uint8_t)world->players[player_idx].ship_speed;
 
             do {
-                for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
-                    if (((MOX::star[i].has_colony >> (player_idx & 0x1F)) & 1) != 0) {
-                        uint8_t in_range_mask = (*AIDATA::star_in_range_of_player)[i];
+                for (int16_t i = 0; i < world->Star_Count(); ++i) {
+                    if (((world->stars[i].has_colony >> (player_idx & 0x1F)) & 1) != 0) {
+                        uint8_t in_range_mask = ai->stars[i].in_range;
                         if ((in_range_mask & ~(1 << (player_idx & 0x1F))) != 0) {
-                            for (int16_t other_player_idx = 0; other_player_idx < MOX::NUM_PLAYERS; ++other_player_idx) {
+                            for (int16_t other_player_idx = 0; other_player_idx < world->Player_Count(); ++other_player_idx) {
                                 if (other_player_idx != player_idx && ((in_range_mask >> (other_player_idx & 0x1F)) & 1) != 0) {
-                                    if (SHIPMOVE::Star_In_Range_Of_Player(&MOX::star[i], other_player_idx, (int16_t)search_speed)) {
-                                        uint32_t weight = (*AIDATA::base_star_stage_weights)[i][player_idx];
+                                    if (SHIPMOVE::Star_In_Range_Of_Player(&world->stars[i], other_player_idx, (int16_t)search_speed)) {
+                                        uint32_t weight = ai->stars[i].base_stage_weights[player_idx];
                                         if (max_weight < weight) {
                                             max_weight = weight;
                                             candidate_star = i;
@@ -91,13 +92,13 @@ namespace AISTAGE {
             } while (search_speed < 50);
 
             if (candidate_star == -1) {
-                int16_t ship_range = MOX::player[player_idx].ship_range;
-                for (int16_t owned_star_idx = 0; owned_star_idx < MOX::NUM_STARS; ++owned_star_idx) {
-                    if (((MOX::star[owned_star_idx].has_colony >> (player_idx & 0x1F)) & 1) != 0) {
-                        for (int16_t enemy_colony_star_idx = 0; enemy_colony_star_idx < MOX::NUM_STARS; ++enemy_colony_star_idx) {
-                            if (((MOX::star[enemy_colony_star_idx].has_colony & ~(1 << (player_idx & 0x1F))) != 0)) {
+                int16_t ship_range = world->players[player_idx].ship_range;
+                for (int16_t owned_star_idx = 0; owned_star_idx < world->Star_Count(); ++owned_star_idx) {
+                    if (((world->stars[owned_star_idx].has_colony >> (player_idx & 0x1F)) & 1) != 0) {
+                        for (int16_t enemy_colony_star_idx = 0; enemy_colony_star_idx < world->Star_Count(); ++enemy_colony_star_idx) {
+                            if (((world->stars[enemy_colony_star_idx].has_colony & ~(1 << (player_idx & 0x1F))) != 0)) {
                                 if (GEO::Parsecs_Between_Stars(owned_star_idx, enemy_colony_star_idx) <= ship_range) {
-                                    uint32_t weight = (*AIDATA::base_star_stage_weights)[owned_star_idx][player_idx];
+                                    uint32_t weight = ai->stars[owned_star_idx].base_stage_weights[player_idx];
                                     if (max_weight < weight) {
                                         max_weight = weight;
                                         candidate_star = owned_star_idx;
@@ -109,9 +110,9 @@ namespace AISTAGE {
                 }
 
                 if (candidate_star == -1) {
-                    for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
-                        if (((MOX::star[i].has_colony >> (player_idx & 0x1F)) & 1) != 0) {
-                            uint32_t weight = (*AIDATA::base_star_stage_weights)[i][player_idx];
+                    for (int16_t i = 0; i < world->Star_Count(); ++i) {
+                        if (((world->stars[i].has_colony >> (player_idx & 0x1F)) & 1) != 0) {
+                            uint32_t weight = ai->stars[i].base_stage_weights[player_idx];
                             if (max_weight <= weight) {
                                 max_weight = weight;
                                 candidate_star = i;
@@ -121,8 +122,8 @@ namespace AISTAGE {
                 }
             }
 
-            MOX::player[player_idx].offensive_stagepoint = candidate_star;
-            MOX::star[candidate_star].is_stagepoint |= (1 << (player_idx & 0x1F));
+            world->players[player_idx].offensive_stagepoint = candidate_star;
+            world->stars[candidate_star].is_stagepoint |= (1 << (player_idx & 0x1F));
         }
     }
 

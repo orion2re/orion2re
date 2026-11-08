@@ -1,5 +1,7 @@
 #include "pch.h"
 
+#include "ai_legacy.h"
+
 namespace diplomac {
     namespace {
         constexpr std::intptr_t kInvalidTributePlayerMarker = -1599;
@@ -313,7 +315,7 @@ namespace diplomac {
         }
 
         if (MOX::player[player_idx].personality == PLAYER_PERSONALITY_XENOPHOBIC) {
-            if (aitech::System_Proximity_Count(player_idx, (uint8_t)target_idx) >= (int16_t)game_random::Random(400)) {
+            if (aitech::System_Proximity_Count(&AIDATA::state.world, player_idx, (uint8_t)target_idx) >= (int16_t)game_random::Random(400)) {
                 msg_id = 121 /* 0x79 */;
                 min_mod = -150;
                 score = -150;
@@ -1753,8 +1755,8 @@ namespace diplomac {
 
         int16_t base_chance = (int16_t)time_since_attack - 9;
 
-        int32_t p1_attacks = AIMOVE::Number_Of_Attacks_Underway(player_idx, target_idx);
-        int32_t p2_attacks = AIMOVE::Number_Of_Attacks_Underway(target_idx, player_idx);
+        int32_t p1_attacks = AIMOVE::Number_Of_Attacks_Underway(&AIDATA::state.world, player_idx, target_idx);
+        int32_t p2_attacks = AIMOVE::Number_Of_Attacks_Underway(&AIDATA::state.world, target_idx, player_idx);
 
         int16_t war_count_p2_p1 = Get_War_Count(target_idx, player_idx);
         int16_t war_count_p1_p2 = Get_War_Count(player_idx, target_idx);
@@ -1772,7 +1774,7 @@ namespace diplomac {
 
         for (int16_t p = 0; p < (int16_t)MOX::NUM_PLAYERS; ++p) {
             if (p != player_idx && p != target_idx) {
-                score += (int16_t)(AIMOVE::Number_Of_Attacks_Underway(p, target_idx) * 20);
+                score += (int16_t)(AIMOVE::Number_Of_Attacks_Underway(&AIDATA::state.world, p, target_idx) * 20);
             }
         }
 
@@ -2100,17 +2102,14 @@ namespace diplomac {
         for (int p1 = 0; p1 < (int)MOX::NUM_PLAYERS; ++p1) {
             for (int p2 = 0; p2 < (int)MOX::NUM_PLAYERS; ++p2) {
                 if (MOX::player[p1].objectives == PLAYER_OBJECTIVE_HUMAN && MOX::player[p2].objectives != PLAYER_OBJECTIVE_HUMAN && MOX::player[p1].treaty[p2] != 2) {
-                    int16_t star_id = -1;
-                    int threat_val;
-                    int16_t planet_id = -1;
-                    AIMOVE::Player_Threatens_Player(p1, p2, &star_id, &threat_val, &planet_id);
-
-                    if (planet_id != -1) {
-                        int16_t col_idx = MOX::planet[planet_id].colony_index;
+                    auto threat = AIMOVE::Player_Threatens_Player(&AIDATA::state, p1, p2);
+                    if (threat) {
+                        int16_t col_idx = MOX::planet[threat->attack.planet_id].colony_index;
                         if (col_idx != -1) {
-                            if (star_id != -1 && MOX::colony[col_idx].n_pops > 4 && threat_val > 100) {
-                                int amount = -((MOX::colony[col_idx].n_pops - 4) + (threat_val / 50));
-                                Change_Relations(amount, p1, p2, 5, star_id, 0);
+                            auto star_index = AI_LEGACY::Index(threat->source_star);
+                            if (star_index && MOX::colony[col_idx].n_pops > 4 && threat->attack.strength_ratio_percent > 100) {
+                                int amount = -((MOX::colony[col_idx].n_pops - 4) + (threat->attack.strength_ratio_percent / 50));
+                                Change_Relations(amount, p1, p2, 5, *star_index, 0);
                             }
                         }
                     }
@@ -2857,7 +2856,7 @@ namespace diplomac {
             }
             case 6: {
                 uint32_t tech_val = newtech::Calc_Tech_Value(player_a, demand_value);
-                int32_t max_tech_val = aitech::Get_Max_Technology_Value(player_a);
+                int32_t max_tech_val = aitech::Get_Max_Technology_Value(&AIDATA::state.world, player_a);
                 modifier -= (int16_t)((tech_val * 100) / max_tech_val);
                 break;
             }
@@ -3262,8 +3261,8 @@ namespace diplomac {
                 break;
             }
             case 3: {
-                int attacks_out = AIMOVE::Number_Of_Attacks_Underway(player_idx, target_idx);
-                int attacks_in = AIMOVE::Number_Of_Attacks_Underway(target_idx, player_idx);
+                int attacks_out = AIMOVE::Number_Of_Attacks_Underway(&AIDATA::state.world, player_idx, target_idx);
+                int attacks_in = AIMOVE::Number_Of_Attacks_Underway(&AIDATA::state.world, target_idx, player_idx);
                 int16_t war_count_out = Get_War_Count(player_idx, target_idx);
                 int16_t war_count_in = Get_War_Count(target_idx, player_idx);
                 int fleet_cmp = Fleet_Strength_Comparison(player_idx, target_idx);
@@ -3415,16 +3414,16 @@ namespace diplomac {
     }
 
     int32_t __cdecl Tech_Comparison(int16_t player_1, int16_t player_2) {
-        int16_t initial_tech = (int16_t)aitech::Get_Max_Technology_Value(player_1);
+        int16_t initial_tech = (int16_t)aitech::Get_Max_Technology_Value(&AIDATA::state.world, player_1);
         if (initial_tech == 0) {
             return 300;
         }
 
-        int32_t tech_2 = aitech::Get_Max_Technology_Value(player_2);
-        int32_t tech_1 = aitech::Get_Max_Technology_Value(player_1);
+        int32_t tech_2 = aitech::Get_Max_Technology_Value(&AIDATA::state.world, player_2);
+        int32_t tech_1 = aitech::Get_Max_Technology_Value(&AIDATA::state.world, player_1);
         int32_t diff = tech_2 - tech_1;
 
-        int32_t tech_1_divisor = aitech::Get_Max_Technology_Value(player_1);
+        int32_t tech_1_divisor = aitech::Get_Max_Technology_Value(&AIDATA::state.world, player_1);
         int32_t result = (diff * 100) / tech_1_divisor;
 
         if (result > 300) {

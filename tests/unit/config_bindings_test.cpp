@@ -1080,16 +1080,16 @@ DOCTEST_TEST_CASE("AI production rules support labeled sparse overrides and nati
     config::s_config_state state;
     DOCTEST_REQUIRE(config::Initialize_Defaults(&state));
     DOCTEST_REQUIRE(config::Commit_State(&state));
-    DOCTEST_CHECK(AIBUILD::autobuild_rules.cutoff.mode ==
+    DOCTEST_CHECK(AIBUILD::rules.autobuild.cutoff.mode ==
         production_rules::CUTOFF_RELATIVE);
-    DOCTEST_CHECK(AIBUILD::autobuild_rules.candidates[BUILDING_COUNT].cutoff_stage ==
+    DOCTEST_CHECK(AIBUILD::rules.autobuild.candidates[BUILDING_COUNT].cutoff_stage ==
         production_rules::CUTOFF_STAGE_AFTER);
-    DOCTEST_CHECK(AIBUILD::autobuild_rules.candidates[BUILDING_FOOD_REPLICATORS]
+    DOCTEST_CHECK(AIBUILD::rules.autobuild.candidates[BUILDING_FOOD_REPLICATORS]
                       .eligibility.all.metric_conditions[0]
                       .operator_ == production_rules::COMPARISON_IGNORE);
-    DOCTEST_CHECK(AIBUILD::strategic_production.emergency_defense.order[0] ==
+    DOCTEST_CHECK(AIBUILD::rules.strategic.emergency_defense.order[0] ==
         BUILDING_MISSILE_BASE);
-    DOCTEST_CHECK(AIBUILD::strategic_production.allocation.candidates[5].weight.defer.peace == 333);
+    DOCTEST_CHECK(AIBUILD::rules.strategic.allocation.candidates[5].weight.defer.peace == 333);
 
     config::s_config_write_set writes;
     config::s_cfg_diagnostic diagnostic;
@@ -1107,28 +1107,28 @@ DOCTEST_TEST_CASE("AI production rules support labeled sparse overrides and nati
     DOCTEST_REQUIRE(config::Apply_Write_Set(&writes, &state, &diagnostic));
     DOCTEST_REQUIRE(config::Commit_State(&state));
 
-    DOCTEST_CHECK(AIBUILD::autobuild_rules.cutoff.mode ==
+    DOCTEST_CHECK(AIBUILD::rules.autobuild.cutoff.mode ==
         production_rules::CUTOFF_DISABLED);
-    DOCTEST_CHECK(AIBUILD::autobuild_rules.candidates[BUILDING_AUTOMATED_FACTORY]
+    DOCTEST_CHECK(AIBUILD::rules.autobuild.candidates[BUILDING_AUTOMATED_FACTORY]
                       .weight.base == 17);
-    DOCTEST_CHECK(AIBUILD::autobuild_rules.candidates[BUILDING_AUTOMATED_FACTORY]
+    DOCTEST_CHECK(AIBUILD::rules.autobuild.candidates[BUILDING_AUTOMATED_FACTORY]
                       .weight.metric_terms[0]
                       .factor.numerator == 3);
-    DOCTEST_CHECK(AIBUILD::autobuild_rules.candidates[BUILDING_AUTOMATED_FACTORY]
+    DOCTEST_CHECK(AIBUILD::rules.autobuild.candidates[BUILDING_AUTOMATED_FACTORY]
                       .weight.metric_terms[0]
                       .factor.denominator == 2);
-    DOCTEST_CHECK(AIBUILD::autobuild_rules.candidates[BUILDING_RESEARCH_LAB]
+    DOCTEST_CHECK(AIBUILD::rules.autobuild.candidates[BUILDING_RESEARCH_LAB]
                       .eligibility.all.flags[production_rules::FLAG_RESEARCH_ENABLED] ==
         production_rules::REQUIREMENT_REQUIRED);
-    DOCTEST_CHECK(AIBUILD::strategic_production.emergency_defense.order[0] ==
+    DOCTEST_CHECK(AIBUILD::rules.strategic.emergency_defense.order[0] ==
         BUILDING_RADIATION_SHIELD);
-    DOCTEST_CHECK(AIBUILD::strategic_production.allocation.candidates[5].weight.defer.peace == 444);
+    DOCTEST_CHECK(AIBUILD::rules.strategic.allocation.candidates[5].weight.defer.peace == 444);
 
     DOCTEST_REQUIRE(config::Initialize_Defaults(&state));
     DOCTEST_REQUIRE(config::Commit_State(&state));
-    DOCTEST_CHECK(AIBUILD::autobuild_rules.cutoff.mode ==
+    DOCTEST_CHECK(AIBUILD::rules.autobuild.cutoff.mode ==
         production_rules::CUTOFF_RELATIVE);
-    DOCTEST_CHECK(AIBUILD::strategic_production.emergency_defense.order[0] ==
+    DOCTEST_CHECK(AIBUILD::rules.strategic.emergency_defense.order[0] ==
         BUILDING_MISSILE_BASE);
 }
 
@@ -1475,7 +1475,7 @@ DOCTEST_TEST_CASE("AI stealth and race-variant settings use canonical typed stat
     config::s_config_state state;
     DOCTEST_REQUIRE(config::Initialize_Defaults(&state));
     DOCTEST_REQUIRE(config::Commit_State(&state));
-    DOCTEST_CHECK_FALSE(aidesign::allow_stealth_field);
+    DOCTEST_CHECK_FALSE(aidesign::rules.allow_stealth_field);
     const auto& customization = RACECUST::variants.customization[STOCK_RACE_ALKARI][0][0];
     const auto& evolution = RACECUST::variants.evolution[STOCK_RACE_ALKARI][0][0];
     DOCTEST_CHECK(customization.count == 2);
@@ -1504,7 +1504,7 @@ DOCTEST_TEST_CASE("AI stealth and race-variant settings use canonical typed stat
     DOCTEST_REQUIRE(config::Apply_Write_Set(&writes, &state, &diagnostic));
     DOCTEST_REQUIRE(config::Commit_State(&state));
 
-    DOCTEST_CHECK(aidesign::allow_stealth_field);
+    DOCTEST_CHECK(aidesign::rules.allow_stealth_field);
     DOCTEST_CHECK(RACECUST::variants.customization[STOCK_RACE_ALKARI][0][0]
                       .count == 2);
     DOCTEST_CHECK(RACECUST::variants.customization[STOCK_RACE_ALKARI][0][0]
@@ -1539,8 +1539,8 @@ DOCTEST_TEST_CASE("AI special-weapon design chances preserve classic defaults an
     config::s_config_state state;
     DOCTEST_REQUIRE(config::Initialize_Defaults(&state));
     DOCTEST_REQUIRE(config::Commit_State(&state));
-    DOCTEST_CHECK(aidesign::ship_design_bhg_chance == 3);
-    DOCTEST_CHECK(aidesign::ship_design_stellar_chance == 3);
+    DOCTEST_CHECK(aidesign::rules.black_hole_generator_chance == 3);
+    DOCTEST_CHECK(aidesign::rules.stellar_converter_chance == 3);
 
     config::s_config_write_set writes;
     config::s_cfg_diagnostic diagnostic;
@@ -1551,8 +1551,8 @@ DOCTEST_TEST_CASE("AI special-weapon design chances preserve classic defaults an
         &diagnostic));
     DOCTEST_REQUIRE(config::Apply_Write_Set(&writes, &state, &diagnostic));
     DOCTEST_REQUIRE(config::Commit_State(&state));
-    DOCTEST_CHECK(aidesign::ship_design_bhg_chance == 4);
-    DOCTEST_CHECK(aidesign::ship_design_stellar_chance == 0);
+    DOCTEST_CHECK(aidesign::rules.black_hole_generator_chance == 4);
+    DOCTEST_CHECK(aidesign::rules.stellar_converter_chance == 0);
 
     writes.writes.clear();
     DOCTEST_CHECK_FALSE(Append_Decoded_(
@@ -1587,27 +1587,27 @@ DOCTEST_TEST_CASE("AI ship design special priorities preserve themed order and b
     DOCTEST_REQUIRE(config::Initialize_Defaults(&state));
     DOCTEST_REQUIRE(config::Commit_State(&state));
 
-    DOCTEST_CHECK(aidesign::ship_design.special_priority.bio_weapon[0].id ==
+    DOCTEST_CHECK(aidesign::rules.priorities.special_priority.bio_weapon[0].id ==
         SPECIAL_PHASE_SHIFTER);
-    DOCTEST_CHECK(aidesign::ship_design.special_priority.bio_weapon[3].type ==
+    DOCTEST_CHECK(aidesign::rules.priorities.special_priority.bio_weapon[3].type ==
         AI_SPECIAL_ITEM_WEAPON);
-    DOCTEST_CHECK(aidesign::ship_design.special_priority.capture[0].id ==
+    DOCTEST_CHECK(aidesign::rules.priorities.special_priority.capture[0].id ==
         SPECIAL_TRANSPORTERS);
-    DOCTEST_CHECK(aidesign::ship_design.special_priority.cloaking[2].id ==
+    DOCTEST_CHECK(aidesign::rules.priorities.special_priority.cloaking[2].id ==
         SPECIAL_STEALTH_FIELD);
-    DOCTEST_CHECK(aidesign::ship_design.special_priority.beam_defense[3].id ==
+    DOCTEST_CHECK(aidesign::rules.priorities.special_priority.beam_defense[3].id ==
         SPECIAL_INERTIAL_STABILIZER);
-    DOCTEST_CHECK(aidesign::ship_design.special_priority.missile_defense[2].id ==
+    DOCTEST_CHECK(aidesign::rules.priorities.special_priority.missile_defense[2].id ==
         WEAPON_SPATIAL_COMPRESSOR);
-    DOCTEST_CHECK(aidesign::ship_design.special_priority.armor[2].id ==
+    DOCTEST_CHECK(aidesign::rules.priorities.special_priority.armor[2].id ==
         SPECIAL_REINFORCED_HULL);
-    DOCTEST_CHECK(aidesign::ship_design.special_priority.shield[1].id ==
+    DOCTEST_CHECK(aidesign::rules.priorities.special_priority.shield[1].id ==
         SPECIAL_MULTI_PHASED_SHIELDS);
-    DOCTEST_CHECK(aidesign::ship_design.special_priority.beam_offense[6].id ==
+    DOCTEST_CHECK(aidesign::rules.priorities.special_priority.beam_offense[6].id ==
         SPECIAL_BATTLE_SCANNER);
-    DOCTEST_CHECK(aidesign::ship_design.special_priority.missile_offense[1].id ==
+    DOCTEST_CHECK(aidesign::rules.priorities.special_priority.missile_offense[1].id ==
         SPECIAL_FAST_MISSILE_RACKS);
-    DOCTEST_CHECK(aidesign::ship_design.special_priority.special_weapon[0].id ==
+    DOCTEST_CHECK(aidesign::rules.priorities.special_priority.special_weapon[0].id ==
         WEAPON_STELLAR_CONVERTER);
 
     config::s_config_write_set writes;
@@ -1629,27 +1629,27 @@ DOCTEST_TEST_CASE("AI ship design special priorities preserve themed order and b
     DOCTEST_REQUIRE(config::Apply_Write_Set(&writes, &state, &diagnostic));
     DOCTEST_REQUIRE(config::Commit_State(&state));
 
-    DOCTEST_CHECK(aidesign::ship_design.special_priority.bio_weapon[0].id ==
+    DOCTEST_CHECK(aidesign::rules.priorities.special_priority.bio_weapon[0].id ==
         WEAPON_DEATH_SPORE);
-    DOCTEST_CHECK(aidesign::ship_design.special_priority.bio_weapon[0].type ==
+    DOCTEST_CHECK(aidesign::rules.priorities.special_priority.bio_weapon[0].type ==
         AI_SPECIAL_ITEM_WEAPON);
-    DOCTEST_CHECK(aidesign::ship_design.special_priority.capture[1].id ==
+    DOCTEST_CHECK(aidesign::rules.priorities.special_priority.capture[1].id ==
         SPECIAL_DISPLACEMENT_DEVICE);
-    DOCTEST_CHECK(aidesign::ship_design.special_priority.cloaking[2].type ==
+    DOCTEST_CHECK(aidesign::rules.priorities.special_priority.cloaking[2].type ==
         AI_SPECIAL_ITEM_WEAPON);
-    DOCTEST_CHECK(aidesign::ship_design.special_priority.beam_defense[3].id ==
+    DOCTEST_CHECK(aidesign::rules.priorities.special_priority.beam_defense[3].id ==
         SPECIAL_ECM_JAMMER);
-    DOCTEST_CHECK(aidesign::ship_design.special_priority.missile_defense[7].id ==
+    DOCTEST_CHECK(aidesign::rules.priorities.special_priority.missile_defense[7].id ==
         WEAPON_ANTI_MISSILE_ROCKET);
-    DOCTEST_CHECK(aidesign::ship_design.special_priority.armor[0].id ==
+    DOCTEST_CHECK(aidesign::rules.priorities.special_priority.armor[0].id ==
         WEAPON_PLASMA_WEB);
-    DOCTEST_CHECK(aidesign::ship_design.special_priority.shield[1].id ==
+    DOCTEST_CHECK(aidesign::rules.priorities.special_priority.shield[1].id ==
         SPECIAL_AUGMENTED_ENGINES);
-    DOCTEST_CHECK(aidesign::ship_design.special_priority.beam_offense[6].id ==
+    DOCTEST_CHECK(aidesign::rules.priorities.special_priority.beam_offense[6].id ==
         SPECIAL_BATTLE_SCANNER);
-    DOCTEST_CHECK(aidesign::ship_design.special_priority.missile_offense[1].id ==
+    DOCTEST_CHECK(aidesign::rules.priorities.special_priority.missile_offense[1].id ==
         SPECIAL_FAST_MISSILE_RACKS);
-    DOCTEST_CHECK(aidesign::ship_design.special_priority.special_weapon[2].type ==
+    DOCTEST_CHECK(aidesign::rules.priorities.special_priority.special_weapon[2].type ==
         AI_SPECIAL_ITEM_WEAPON);
 
     const char* paths[] = {
@@ -1799,13 +1799,13 @@ DOCTEST_TEST_CASE("AI special-device and defense priorities preserve native defa
     DOCTEST_REQUIRE(config::Initialize_Defaults(&state));
     DOCTEST_REQUIRE(config::Commit_State(&state));
 
-    DOCTEST_CHECK(aidesign::ship_design.special_device_priority[0].id ==
+    DOCTEST_CHECK(aidesign::rules.priorities.special_device_priority[0].id ==
         SPECIAL_QUANTUM_DETONATOR);
-    DOCTEST_CHECK(aidesign::ship_design.special_device_priority[1].type ==
+    DOCTEST_CHECK(aidesign::rules.priorities.special_device_priority[1].type ==
         AI_SPECIAL_ITEM_WEAPON);
-    DOCTEST_CHECK(aidesign::ship_design.defense_priority.human_non_beams[0].id ==
+    DOCTEST_CHECK(aidesign::rules.priorities.defense_priority.human_non_beams[0].id ==
         SPECIAL_SECURITY_STATIONS);
-    DOCTEST_CHECK(aidesign::ship_design.defense_priority.human_beams[18].id ==
+    DOCTEST_CHECK(aidesign::rules.priorities.defense_priority.human_beams[18].id ==
         SPECIAL_AUTOMATED_REPAIR_UNIT);
 
     config::s_config_write_set writes;
@@ -1822,17 +1822,17 @@ DOCTEST_TEST_CASE("AI special-device and defense priorities preserve native defa
     DOCTEST_REQUIRE(config::Apply_Write_Set(&writes, &state, &diagnostic));
     DOCTEST_REQUIRE(config::Commit_State(&state));
 
-    DOCTEST_CHECK(aidesign::ship_design.special_device_priority[0].id ==
+    DOCTEST_CHECK(aidesign::rules.priorities.special_device_priority[0].id ==
         SPECIAL_TRANSPORTERS);
-    DOCTEST_CHECK(aidesign::ship_design.special_device_priority[0].type ==
+    DOCTEST_CHECK(aidesign::rules.priorities.special_device_priority[0].type ==
         AI_SPECIAL_ITEM_SPECIAL);
-    DOCTEST_CHECK(aidesign::ship_design.defense_priority.human_non_beams[0].id ==
+    DOCTEST_CHECK(aidesign::rules.priorities.defense_priority.human_non_beams[0].id ==
         WEAPON_ANTI_MISSILE_ROCKET);
-    DOCTEST_CHECK(aidesign::ship_design.defense_priority.human_non_beams[0].type ==
+    DOCTEST_CHECK(aidesign::rules.priorities.defense_priority.human_non_beams[0].type ==
         AI_SPECIAL_ITEM_WEAPON);
-    DOCTEST_CHECK(aidesign::ship_design.defense_priority.human_beams[18].id ==
+    DOCTEST_CHECK(aidesign::rules.priorities.defense_priority.human_beams[18].id ==
         WEAPON_HEAVY_FIGHTER);
-    DOCTEST_CHECK(aidesign::ship_design.defense_priority.human_beams[18].type ==
+    DOCTEST_CHECK(aidesign::rules.priorities.defense_priority.human_beams[18].type ==
         AI_SPECIAL_ITEM_WEAPON);
 
     writes.writes.clear();
@@ -1855,15 +1855,15 @@ DOCTEST_TEST_CASE("AI ship design allocations bind every active profile and hull
     DOCTEST_REQUIRE(config::Initialize_Defaults(&state));
     DOCTEST_REQUIRE(config::Commit_State(&state));
 
-    DOCTEST_CHECK(aidesign::ship_design_allocations.profiles
+    DOCTEST_CHECK(aidesign::rules.allocations.profiles
                       [aidesign::SHIP_DESIGN_ALLOCATION_STANDARD_BEAM_MISSILE_X2]
                       [SHIP_SIZE_SMALL]
                           .beams == 85);
-    DOCTEST_CHECK(aidesign::ship_design_allocations.profiles
+    DOCTEST_CHECK(aidesign::rules.allocations.profiles
                       [aidesign::SHIP_DESIGN_ALLOCATION_SPECIAL_WEAPON]
                       [SHIP_SIZE_DOOM_STAR]
                           .special_weapon == 60);
-    DOCTEST_CHECK(aidesign::ship_design_allocations.profiles
+    DOCTEST_CHECK(aidesign::rules.allocations.profiles
                       [aidesign::SHIP_DESIGN_ALLOCATION_SPECIAL_WEAPON_2]
                       [SHIP_SIZE_DOOM_STAR]
                           .special_weapon == 30);
@@ -1880,19 +1880,19 @@ DOCTEST_TEST_CASE("AI ship design allocations bind every active profile and hull
     DOCTEST_REQUIRE(config::Apply_Write_Set(&writes, &state, &diagnostic));
     DOCTEST_REQUIRE(config::Commit_State(&state));
 
-    DOCTEST_CHECK(aidesign::ship_design_allocations.profiles
+    DOCTEST_CHECK(aidesign::rules.allocations.profiles
                       [aidesign::SHIP_DESIGN_ALLOCATION_STANDARD_BEAM_MISSILE_X2]
                       [SHIP_SIZE_SMALL]
                           .beams == 0);
-    DOCTEST_CHECK(aidesign::ship_design_allocations.profiles
+    DOCTEST_CHECK(aidesign::rules.allocations.profiles
                       [aidesign::SHIP_DESIGN_ALLOCATION_HYBRID_BEAM_CARRIER]
                       [SHIP_SIZE_MEDIUM]
                           .fighters == 100);
-    DOCTEST_CHECK(aidesign::ship_design_allocations.profiles
+    DOCTEST_CHECK(aidesign::rules.allocations.profiles
                       [aidesign::SHIP_DESIGN_ALLOCATION_SPECIAL_WEAPON]
                       [SHIP_SIZE_DOOM_STAR]
                           .bombs == -1);
-    DOCTEST_CHECK(aidesign::ship_design_allocations.profiles
+    DOCTEST_CHECK(aidesign::rules.allocations.profiles
                       [aidesign::SHIP_DESIGN_ALLOCATION_SPECIAL_WEAPON_2]
                       [SHIP_SIZE_DOOM_STAR]
                           .special_weapon == 55);
@@ -2008,7 +2008,7 @@ DOCTEST_TEST_CASE("AI Colony Base prewarp setting preserves the classic default"
     config::s_config_state state;
     DOCTEST_REQUIRE(config::Initialize_Defaults(&state));
     DOCTEST_REQUIRE(config::Commit_State(&state));
-    DOCTEST_CHECK_FALSE(aidudes::builds_colony_bases_prewarp);
+    DOCTEST_CHECK_FALSE(AIBUILD::rules.colony_bases_prewarp);
 
     config::s_config_write_set writes;
     config::s_cfg_diagnostic diagnostic;
@@ -2016,7 +2016,7 @@ DOCTEST_TEST_CASE("AI Colony Base prewarp setting preserves the classic default"
         "ai colony_bases_prewarp = true;", &writes, &diagnostic));
     DOCTEST_REQUIRE(config::Apply_Write_Set(&writes, &state, &diagnostic));
     DOCTEST_REQUIRE(config::Commit_State(&state));
-    DOCTEST_CHECK(aidudes::builds_colony_bases_prewarp);
+    DOCTEST_CHECK(AIBUILD::rules.colony_bases_prewarp);
 }
 
 DOCTEST_TEST_CASE("noreport preserves classic diplomacy access by default") {
@@ -4586,8 +4586,8 @@ DOCTEST_TEST_CASE("food settings preserve 1.50 half-food defaults and bind indep
     DOCTEST_CHECK(COLCALC::food_farmer_bonus.native == 4);
     DOCTEST_CHECK(COLCALC::food_farmer_bonus.android_farmer == 6);
     DOCTEST_CHECK(COLCALC::fungi_climate == COLCALC::FUNGI_CLIMATE_CLASSIC);
-    DOCTEST_CHECK(AIDATA::uncolonized_planet_food_worth.biological == 75);
-    DOCTEST_CHECK(AIDATA::uncolonized_planet_food_worth.cybernetic == 38);
+    DOCTEST_CHECK(AIDATA::planet_valuation_rules.food.biological == 75);
+    DOCTEST_CHECK(AIDATA::planet_valuation_rules.food.cybernetic == 38);
 
     config::s_config_write_set writes;
     config::s_cfg_diagnostic diagnostic;
@@ -4623,8 +4623,8 @@ DOCTEST_TEST_CASE("food settings preserve 1.50 half-food defaults and bind indep
     DOCTEST_CHECK(COLCALC::food_farmer_bonus.astro_university == 3);
     DOCTEST_CHECK(COLCALC::food_farmer_bonus.native == 5);
     DOCTEST_CHECK(COLCALC::food_farmer_bonus.android_farmer == 7);
-    DOCTEST_CHECK(AIDATA::uncolonized_planet_food_worth.biological == 80);
-    DOCTEST_CHECK(AIDATA::uncolonized_planet_food_worth.cybernetic == 40);
+    DOCTEST_CHECK(AIDATA::planet_valuation_rules.food.biological == 80);
+    DOCTEST_CHECK(AIDATA::planet_valuation_rules.food.cybernetic == 40);
 
     writes.writes.clear();
     DOCTEST_CHECK_FALSE(Append_Decoded_(
@@ -7330,8 +7330,8 @@ DOCTEST_TEST_CASE("special, cloak, and beam settings preserve 1.50 defaults") {
                       special_chances,
                       sizeof(special_chances)) == 0);
     DOCTEST_CHECK(MOX::planet_special == 64);
-    DOCTEST_CHECK(AIMOVE::eel_spawn_frequency == 30);
-    DOCTEST_CHECK(AIMOVE::max_eels == 4);
+    DOCTEST_CHECK(AIMOVE::rules.eel_spawn_frequency == 30);
+    DOCTEST_CHECK(AIMOVE::rules.max_eels == 4);
     DOCTEST_CHECK(CMBTSPEC::animation.cloak_steps.normal == 1);
     DOCTEST_CHECK(CMBTSPEC::animation.cloak_steps.fast == 2);
     DOCTEST_CHECK(CMBTFIRE::hit_threshold_fixed_value == 40);
@@ -7381,8 +7381,8 @@ DOCTEST_TEST_CASE("special, cloak, and beam settings preserve 1.50 defaults") {
                       configured_special_chances,
                       sizeof(configured_special_chances)) == 0);
     DOCTEST_CHECK(MOX::planet_special == 75);
-    DOCTEST_CHECK(AIMOVE::eel_spawn_frequency == 20);
-    DOCTEST_CHECK(AIMOVE::max_eels == 8);
+    DOCTEST_CHECK(AIMOVE::rules.eel_spawn_frequency == 20);
+    DOCTEST_CHECK(AIMOVE::rules.max_eels == 8);
     DOCTEST_CHECK(CMBTSPEC::animation.cloak_steps.normal == 13);
     DOCTEST_CHECK(CMBTSPEC::animation.cloak_steps.fast == 127);
     DOCTEST_CHECK(CMBTFIRE::hit_threshold_fixed_value == 45);

@@ -122,6 +122,8 @@ namespace AIBUILD {
         return result;
     }
 
-    s_autobuild_rules autobuild_rules = Initialize_Autobuild_Rules_();
-    s_strategic_production strategic_production = Initialize_Strategic_Production_();
+    s_rules rules{
+        .autobuild = Initialize_Autobuild_Rules_(),
+        .strategic = Initialize_Strategic_Production_(),
+    };
 } // namespace AIBUILD

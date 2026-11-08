@@ -1,5 +1,7 @@
 #include "pch.h"
 
+#include "game/ai_legacy.h"
+
 namespace {
     s_ship_data ships[MAX_SHIPS];
     s_star_data stars[MAX_STARS];
@@ -11,6 +13,23 @@ namespace {
 }
 
 namespace TEST_AIMOVE {
+    const AIDATA::s_world_view* World_() {
+        static AIDATA::s_world_view world;
+        world.players = players;
+        world.ships = ships;
+        world.stars = stars;
+        world.colonies = colonies;
+        world.planets = planets;
+        world.player_count = &MOX::NUM_PLAYERS;
+        world.ship_count = &MOX::NUM_SHIPS;
+        world.star_count = &MOX::NUM_STARS;
+        world.colony_count = &MOX::NUM_COLONIES;
+        world.rules.movement = &AIMOVE::rules;
+        world.random.draw = [](uint32_t*, uint32_t maximum) { return game_random::Random(maximum); };
+        world.movement = AI_LEGACY::Movement();
+        return &world;
+    }
+
     void Reset_() {
         memset(ships, 0, sizeof(ships));
         memset(stars, 0, sizeof(stars));
@@ -22,8 +41,8 @@ namespace TEST_AIMOVE {
         MOX::NUM_STARS = 2;
         MOX::NUM_PLAYERS = 1;
         MOX::NUM_COLONIES = 1;
-        AIMOVE::eel_spawn_frequency = 30;
-        AIMOVE::max_eels = 4;
+        AIMOVE::rules.eel_spawn_frequency = 30;
+        AIMOVE::rules.max_eels = 4;
         ships[0].owner = NONPLAYER_SHIP_TYPE_EEL;
         ships[0].status = 0;
         ships[0].location = 0;

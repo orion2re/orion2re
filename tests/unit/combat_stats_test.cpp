@@ -14,6 +14,26 @@ namespace {
     s_planet_data planets[1];
     s_player players[MAX_PLAYERS];
     s_ship_data ships[MAX_COMBAT_SHIPS];
+
+    const AIDATA::s_world_view* AI_World_() {
+        static const AIDATA::s_world_view world{
+            .players = players,
+            .ships = ships,
+            .colonies = colonies,
+            .settings = &MOX::settings,
+            .rules = {
+                .technology = {
+                    .shields = TECHDATA::shields,
+                    .weapons = TECHDATA::weapons,
+                },
+                .combat = {
+                    .ground_defense = &COMBINIT::ground_defense,
+                    .missile_base_ammo_basis = &COMBINIT::missile_base_ammo_basis,
+                },
+            },
+        };
+        return &world;
+    }
     int16_t best_armor;
     int16_t best_bomb_weapon;
     int16_t best_point_defense_weapon;
@@ -613,7 +633,7 @@ DOCTEST_TEST_CASE("fighter garrison AI strength is independent of tactical slot 
 
         for (uint8_t slot_count = 1; slot_count <= 3; ++slot_count) {
             COMBINIT::ground_defense.garrison_slots = slot_count;
-            DOCTEST_CHECK(AIPOWER::Fighter_Garrison_Strength(0, 1) ==
+            DOCTEST_CHECK(AIPOWER::Fighter_Garrison_Strength(AI_World_(), 0, 1) ==
                 test_case.expected_strength);
         }
     }
@@ -627,10 +647,10 @@ DOCTEST_TEST_CASE("Stellar Converter AI strength is independent of tactical amou
     MOX::colony[0].buildings[BUILDING_STELLAR_CONVERTER] = 1;
 
     MOX::settings.strategic_combat_flag = 1;
-    DOCTEST_CHECK(AIPOWER::Colony_Ground_Strength_Vs_Player(0, 1) == 200);
+    DOCTEST_CHECK(AIPOWER::Colony_Ground_Strength_Vs_Player(AI_World_(), 0, 1) == 200);
 
     MOX::settings.strategic_combat_flag = 0;
-    DOCTEST_CHECK(AIPOWER::Colony_Ground_Strength_Vs_Player(0, 1) == 500);
+    DOCTEST_CHECK(AIPOWER::Colony_Ground_Strength_Vs_Player(AI_World_(), 0, 1) == 500);
 
     COMBINIT::ground_defense.stellar_amount = 1;
 }
