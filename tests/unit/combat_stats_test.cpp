@@ -1607,6 +1607,42 @@ DOCTEST_TEST_CASE("retreat validation preserves rotation-time capture state") {
     DOCTEST_CHECK(ship->is_retreating == 0);
 }
 
+DOCTEST_TEST_CASE("retreat validation rejects rotation-time immobilization") {
+    TEST_TRACTOR_POWER::Reset_();
+    COMBAT1::tractors_to_stop[SHIP_SIZE_LARGE] = 4;
+    s_combat_data* ship = &MOX::combat_data[0];
+    ship->is_retreating = 1;
+    ship->movement_left = 3;
+
+    DOCTEST_REQUIRE(COMBAT1::Validate_Retreating_Ship(0));
+
+    ship->drive_current_hits = 0;
+
+    DOCTEST_CHECK_FALSE(COMBAT1::Validate_Retreating_Ship(0));
+    DOCTEST_CHECK(ship->unit_status == 0);
+    DOCTEST_CHECK(ship->is_retreating == 0);
+    DOCTEST_CHECK(ship->movement_left == 0);
+}
+
+DOCTEST_TEST_CASE("retreat validation rejects telepathic capture without a captured flag") {
+    TEST_TRACTOR_POWER::Reset_();
+    COMBAT1::tractors_to_stop[SHIP_SIZE_LARGE] = 4;
+    s_combat_data* ship = &MOX::combat_data[0];
+    ship->is_retreating = 1;
+
+    DOCTEST_REQUIRE(COMBAT1::Validate_Retreating_Ship(0));
+
+    ship->owner = 1;
+    ship->is_captured = 0;
+    ship->is_retreating = 0;
+
+    DOCTEST_CHECK_FALSE(COMBAT1::Validate_Retreating_Ship(0));
+    DOCTEST_CHECK(ship->owner == 1);
+    DOCTEST_CHECK(ship->is_captured == 0);
+    DOCTEST_CHECK(ship->unit_status == 0);
+    DOCTEST_CHECK(ship->is_retreating == 0);
+}
+
 DOCTEST_TEST_CASE("Trans-Dimensional combat speed uses the configured bonus") {
     TEST_TRACTOR_POWER::Reset_();
     MOX::combat_total_ship_count = 1;

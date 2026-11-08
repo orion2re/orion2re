@@ -2476,7 +2476,7 @@ namespace CMBTDRW1 {
             CMBTMOV1::Rotate_Ship(ship_idx, facing, MOX::cur_combat_x * -20 + base_x, MOX::cur_combat_y * -20 + base_y);
         }
 
-        if (CMBTFIRE::Is_Combat_Ship_Dead(ship_idx) != 0) {
+        if (!COMBAT1::Validate_Retreating_Ship(ship_idx)) {
             return;
         }
 
