@@ -411,7 +411,10 @@ DOCTEST_TEST_CASE("persistent arena sizing handles alignment growth and refuses 
     DOCTEST_CHECK(MOX::main_game_button_seg == old);
 }
 
-DOCTEST_TEST_CASE("saved mods and canonical launch restoration refresh resources while retaining local preferences") {
+DOCTEST_TEST_CASE("saved mods and canonical launch restoration refresh resources under absolute precedence") {
+    // Absolute precedence: reapplying the saved snapshot applies packages last,
+    // so the visual mod's percentage1 applies; restoring the launch config
+    // applies the entry last, so the local classic preference is retained.
     Fixture fixture;
     DOCTEST_SUBCASE("directory package") {}
     DOCTEST_SUBCASE("ZIP package") {
@@ -441,7 +444,7 @@ DOCTEST_TEST_CASE("saved mods and canonical launch restoration refresh resources
         DOCTEST_REQUIRE(CONFIG_REFRESH::Resource_Reload_Pending());
         DOCTEST_CHECK(ESTRINGS::E_Strings(126)[0] == 'B');
         CONFIG_REFRESH::Reload_Resources_Between_Screens();
-        DOCTEST_CHECK(COLSUM::print_research_value == COLSUM::RESEARCH_VALUE_CLASSIC);
+        DOCTEST_CHECK(COLSUM::print_research_value == COLSUM::RESEARCH_VALUE_PERCENTAGE_1);
         DOCTEST_CHECK(ESTRINGS::E_Strings(126)[0] == 'M');
         DOCTEST_CHECK(((char*)MOX::main_game_button_seg)[0] == 'M');
 

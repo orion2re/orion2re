@@ -558,9 +558,16 @@ namespace config {
             const char* package_id,
             const s_package_resolver& resolver,
             s_effective_config* candidate,
-            s_cfg_diagnostic* diagnostic) {
+            s_cfg_diagnostic* diagnostic,
+            e_config_precedence precedence) {
             s_config_profile profile("build-candidate");
             std::string key = package_id;
+            // The cache key distinguishes both the snapshot/script mode
+            // and the precedence, so a candidate built under one
+            // combination is never reused for another.
+            key += precedence == CONFIG_PRECEDENCE_ENTRY_OVERRIDES_PACKAGES
+                ? "entry-wins;"
+                : "packages-win;";
             key += resolver.restoring_packages ? ":snapshot;" : ":script;";
             Append_Document_Key(base_document, &key);
             for (const auto& package : resolver.packages) {
@@ -580,18 +587,46 @@ namespace config {
                 diagnostic->message = "unable to initialize configuration defaults";
                 return false;
             }
+            // Absolute precedence, layered onto the execution model. The
+            // entry document and the package documents apply as whole
+            // phases, in the order the precedence asks for. When the entry
+            // wins (live sessions), the packages execute first — in
+            // priority order, their nested enables evaluated in statement
+            // order — and the entry document applies last, so a value the
+            // user set there wins over a mod's assignment of the same path
+            // and enabling a mod no longer silently reverts a setting the
+            // user changed earlier in the session. A mod still provides
+            // every value the entry leaves unset, and packages still order
+            // among themselves by priority. When the packages win (a world
+            // being loaded: a save, a network peer), the entry applies
+            // first and the packages execute last, so the world's packages
+            // define the config. The entry's enable statements are not
+            // re-executed here: the packages they name were already
+            // resolved, and they execute explicitly below in priority
+            // order. Execute_Document applies the entry's assignments and
+            // skips its enables, exactly as applying the document does.
             s_config_execution execution;
             execution.resolver = &resolver;
             execution.candidate = candidate;
             execution.package_states.resize(resolver.packages.size());
-            if (resolver.restoring_packages) {
+            const auto execute_packages = [&]() {
                 s_source_location location;
-                location.source = "configuration snapshot";
+                if (resolver.restoring_packages) location.source = "configuration snapshot";
                 for (size_t index = resolver.packages.size(); index > 0; --index) {
                     if (!Execute_Package(index - 1, location, &execution)) return false;
                 }
+                return true;
+            };
+            const auto apply_entry = [&]() {
+                return Execute_Document(base_document, package_id, &execution, false);
+            };
+            if (precedence == CONFIG_PRECEDENCE_ENTRY_OVERRIDES_PACKAGES) {
+                if (!execute_packages() || !apply_entry()) {
+                    return false;
+                }
+            } else if (!apply_entry() || !execute_packages()) {
+                return false;
             }
-            if (!Execute_Document(base_document, package_id, &execution, !resolver.restoring_packages)) return false;
             // Saved or synchronized values may replace invalid local combinations.
             package_baseline_cache = {std::move(key), *candidate};
             return true;
@@ -645,7 +680,8 @@ namespace config {
         std::vector<s_mod_requirement>* resolved_packages,
         const orion2re::lua::s_lua_save_snapshot* lua_snapshot,
         const s_config_state* prior_state,
-        const s_effective_config* prepared_base) {
+        const s_effective_config* prepared_base,
+        e_config_precedence precedence) {
         if (package_id == nullptr || effective == nullptr || diagnostic == nullptr ||
             load_document == nullptr) {
             return false;
@@ -670,7 +706,7 @@ namespace config {
 
         s_effective_config candidate;
         if (prepared_base != nullptr) candidate = *prepared_base;
-        if (prepared_base == nullptr && !Build_Candidate(base_document, package_id, resolver, &candidate, diagnostic)) {
+        if (prepared_base == nullptr && !Build_Candidate(base_document, package_id, resolver, &candidate, diagnostic, precedence)) {
             vfs::Discard_Mount_Transaction(mounts);
             return false;
         }
@@ -782,7 +818,8 @@ namespace config {
         std::vector<std::string>* package_order,
         s_cfg_diagnostic* diagnostic,
         t_config_document_loader load_document,
-        std::vector<s_mod_requirement>* resolved_packages) {
+        std::vector<s_mod_requirement>* resolved_packages,
+        e_config_precedence precedence) {
         if (package_id == nullptr || candidate == nullptr || package_order == nullptr ||
             diagnostic == nullptr || load_document == nullptr) {
             return false;
@@ -797,7 +834,7 @@ namespace config {
         resolver.diagnostic = diagnostic;
         resolver.load_document = load_document;
         if (!Resolve_Enabled_Packages(base_document, nullptr, &resolver) ||
-            !Build_Candidate(base_document, package_id, resolver, candidate, diagnostic) ||
+            !Build_Candidate(base_document, package_id, resolver, candidate, diagnostic, precedence) ||
             !Validate_State(&candidate->state)) {
             if (diagnostic->message.empty()) {
                 diagnostic->message = "unable to validate configuration state";
@@ -821,7 +858,8 @@ namespace config {
         const s_config_snapshot_descriptor* snapshot_descriptor,
         const s_config_state* snapshot_state,
         s_config_with_mods_transaction** transaction,
-        const s_effective_config* prepared_base) {
+        const s_effective_config* prepared_base,
+        e_config_precedence precedence) {
         if (package_id == nullptr || diagnostic == nullptr ||
             load_document == nullptr || transaction == nullptr) {
             return false;
@@ -849,7 +887,8 @@ namespace config {
                 package_id,
                 resolver,
                 &staged->effective,
-                diagnostic)) ||
+                diagnostic,
+                precedence)) ||
             !Overlay_Snapshot(snapshot_descriptor,
                 snapshot_state,
                 &staged->effective,
