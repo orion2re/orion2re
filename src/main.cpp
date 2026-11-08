@@ -227,6 +227,21 @@ int main(int argc, char** argv) {
             user_paths::Shutdown();
             return -1;
         }
+    } else {
+        // Portable mode: the original game assets may live only in the
+        // XDG game-asset directories, so search them when the executable
+        // directory does not have them. The executable directory is the
+        // VFS base path and is searched first, so portable data still
+        // wins; user paths stay disabled, so saves and configuration
+        // stay next to the executable. Best effort: a directory that
+        // cannot be registered is skipped, not fatal. The fallback is a
+        // read-only search, so it runs on every platform; only XDG
+        // startup is gated on PLATFORM_USES_XDG.
+        for (const std::string& directory : user_paths::Get_Fallback_Game_Asset_Directories(true)) {
+            if (vfs::Add_Raw_Search_Path(directory.c_str()) == 0) {
+                SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "main: skipping unusable fallback game-asset directory '%s'", directory.c_str());
+            }
+        }
     }
 
     config::s_effective_config effective_config;
