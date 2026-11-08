@@ -2853,7 +2853,7 @@ namespace COLCALC {
 
             if (multiplier != 0 && n_chars >= 0 && static_cast<size_t>(n_chars) < sizeof(tmp_quotient) - 1) {
                 size_t remaining_size = sizeof(tmp_quotient) - 1 - static_cast<size_t>(n_chars);
-                snprintf(fraction_ptr, remaining_size + 1, ".%d", scaled_remainder / denominator);
+                snprintf(fraction_ptr, remaining_size, ".%d", scaled_remainder / denominator);
             }
         }
 

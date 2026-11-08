@@ -55,7 +55,7 @@ namespace CMBTDRW1 {
     }
 
     void __cdecl Draw_Shield_Arcs() {
-        if (MOX::cur_ship == 0) {
+        if (MOX::cur_ship <= 0) {
             return;
         }
 
