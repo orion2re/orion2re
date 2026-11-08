@@ -567,11 +567,9 @@ namespace AIBUILD {
         context->metrics[production_rules::METRIC_MINERAL_CLASS] = planet->mineral_class;
         context->metrics[production_rules::METRIC_INCOMING_HUMAN_SHIPS] =
             ai->stars[planet->star_index].enroute_human_ships[AIDATA::LAST_FORECAST_TURN];
-        // Keep the public rule metrics' legacy mapping: "enemy" was treaties 1..3,
-        // and "allied" was war states 4..6. Renaming storage must not change rules.
-        context->metrics[production_rules::METRIC_ENEMY_PRESENCE] = (uint8_t)star_info->treaty_partners_in_range;
+        context->metrics[production_rules::METRIC_ENEMY_PRESENCE] = (uint8_t)star_info->hostile_players_in_range;
         context->metrics[production_rules::METRIC_NEUTRAL_PRESENCE] = (uint8_t)star_info->neutral_players_in_range;
-        context->metrics[production_rules::METRIC_ALLIED_PRESENCE] = (uint8_t)star_info->hostile_players_in_range;
+        context->metrics[production_rules::METRIC_ALLIED_PRESENCE] = (uint8_t)star_info->treaty_partners_in_range;
         context->metrics[production_rules::METRIC_OUT_OF_RANGE_PRESENCE] = (uint8_t)star_info->players_only_in_extended_range;
         context->metrics[production_rules::METRIC_EMPIRE_FOOD_SURPLUS] = player->surplus_food;
         context->metrics[production_rules::METRIC_EMPIRE_TREASURY] = player->bc;
