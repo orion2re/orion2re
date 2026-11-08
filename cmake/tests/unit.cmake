@@ -277,6 +277,28 @@ orion2re_add_unit_test(test_config_writer
         src/config/config_writer.cpp
 )
 
+orion2re_add_unit_test(test_mod_catalogue
+    SOURCES
+        tests/unit/mod_catalogue_test.cpp
+    PRODUCTION_SOURCES
+        src/config/cfg_parser.cpp
+        src/config/mod_catalogue.cpp
+        src/config/mod_manifest.cpp
+        src/game/compat.cpp
+        src/game/vfs.cpp
+        src/game/vfs_file.cpp
+        src/game/vfs_lbx.cpp
+        src/game/vfs_path.cpp
+        src/game/vfs_zip.cpp
+        vendors/yyjson/src/yyjson.c
+    LIBRARIES
+        miniz
+    LINK_SDL
+)
+target_include_directories(test_mod_catalogue PRIVATE
+    "${ORION2RE_VENDORED_YYJSON_DIR}/src"
+)
+
 orion2re_add_unit_test(test_config_enums
     SOURCES
         tests/unit/config_enums_test.cpp

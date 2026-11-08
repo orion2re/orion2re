@@ -43,6 +43,27 @@ namespace config {
         std::string info;
     };
 
+    // The Settings screen's three categories. Game internals are
+    // engine, display, debug and infrastructure settings; gameplay
+    // settings are user-facing in-game behaviour; mods is the mod
+    // picker plus the two mod-adjacent settings (the main-menu mod
+    // list and the Lua source-hash mismatch allowance for saves).
+    // Every metadata path maps to exactly one category; a row's
+    // category is its metadata setting's category.
+    enum e_settings_category {
+        SETTINGS_CATEGORY_GAME_INTERNALS,
+        SETTINGS_CATEGORY_GAMEPLAY,
+        SETTINGS_CATEGORY_MODS,
+    };
+
+    // Category of a settings row, from its dotted path: the path
+    // equals its metadata setting's path or extends it (a leaf below
+    // it, for example "interface.animation.cloak_steps.normal"). An
+    // unrecognized path falls back to game internals; the unit test
+    // pins all 49 metadata paths so the fallback is never reached for
+    // a shipped setting.
+    e_settings_category Settings_Category_For_Path(const std::string& path);
+
     // All rows for the settings screen, in spec declaration order: one
     // row per editable leaf, plus one info row per setting that has no
     // editor (per-colony state, or an ordering table too large to edit
