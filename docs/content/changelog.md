@@ -1,7 +1,5 @@
 # Changelog
 
-Changes to Orion2 Redone by version, with the newest version first.
-
 ## 2.0.1
 
 <!-- History reviewed: v2.0.0..e08db1a. -->
