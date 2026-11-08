@@ -48,6 +48,7 @@ extra:
 
 nav:
   - Home: index.md
+  - Changelog: changelog.md
   - Manual:
       - manual/index.md
       - About version 2.00:

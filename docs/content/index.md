@@ -24,6 +24,7 @@ Build an empire in the familiar game, now with updated display support, larger g
 
 | I want to... | Start here |
 | --- | --- |
+| See what changed since the last release | [Changelog](changelog.md) |
 | Set up the game and understand version 2.00 | [Introduction](manual/overview/introduction.md) and [compatibility](manual/overview/compatibility.md) |
 | Learn the interface, rules, and game mechanics | [Player manual](manual/index.md) |
 | Look up a setting and its default value | [Configuration reference](generated/configuration/index.md) |

@@ -66,6 +66,11 @@ launchers do not need a `Path=` entry pointing to the installation directory.
 
 ### Bumping the game version
 
+Record public-facing changes in the [changelog](docs/content/changelog.md) under
+the relevant version and change category, using a short description of what
+changes for players or mod authors. Keep the newest version at the top, even
+before it is released.
+
 Edit only the root [`VERSION`](VERSION) file, for example from `2.0.0` to
 `2.0.1`, and commit the change. Use `major.minor.patch` without a `v` prefix,
 leading zeroes, or prerelease suffix. CMake regenerates the engine version used
