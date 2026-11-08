@@ -59,9 +59,9 @@ namespace aitech {
     /// Counts nearby-system proximity pressure from another player's colonies.
     /// @param player_id Player whose nearby range is evaluated.
     /// @param other_player_id Player whose colonies contribute to the score.
-    int16_t __cdecl System_Proximity_Count(const game_world::s_view* world, int16_t player_id, uint8_t other_player_id);
+    int16_t System_Proximity_Count(const game_world::s_view* world, uint32_t player_id, uint32_t other_player_id);
 
     /// Returns the scaled cost of the most advanced completed technology field for a player.
     /// @param player_idx Index of the player to inspect.
-    int32_t __cdecl Get_Max_Technology_Value(const game_world::s_view* world, int16_t player_idx);
+    int32_t Get_Max_Technology_Value(const game_world::s_view* world, uint32_t player_idx);
 } // namespace aitech

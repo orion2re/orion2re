@@ -6,6 +6,7 @@
 namespace TEST_NEXTTURN {
     extern bool invalid_inputs;
     extern int32_t turn_side_effects;
+    extern std::vector<std::string> ai_service_order;
     extern int32_t observed_event_bc;
     extern int32_t observed_event_research;
     extern bool colony_changes_saw_current_economy;
@@ -27,6 +28,14 @@ DOCTEST_TEST_CASE("invalid AI inputs reject a turn before any turn side effects"
     DOCTEST_CHECK_FALSE(NEXTTURN::Next_Turn_Calc());
     DOCTEST_CHECK(TEST_NEXTTURN::turn_side_effects == 0);
     DOCTEST_CHECK(MOX::stardate == stardate);
+    DOCTEST_CHECK(TEST_NEXTTURN::ai_service_order.empty());
+}
+
+DOCTEST_TEST_CASE("turn orchestration services the application around the AI pass") {
+    TEST_NEXTTURN::Reset_();
+    DOCTEST_REQUIRE(NEXTTURN::Next_Turn_Calc());
+    DOCTEST_CHECK(TEST_NEXTTURN::ai_service_order ==
+        std::vector<std::string>{"service", "ai_data", "ai_tech", "service"});
 }
 
 DOCTEST_TEST_CASE("network population growth is scoped to the elected host calculation") {

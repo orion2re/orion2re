@@ -206,7 +206,7 @@ namespace KEN {
 }
 
 namespace AIPOWER {
-    int16_t __cdecl Get_Best_Ship_Shield_Value(const s_tech_shield_data*, int16_t) {
+    int16_t Get_Best_Ship_Shield_Value(const s_tech_shield_data*, uint32_t) {
         return 1;
     }
 }

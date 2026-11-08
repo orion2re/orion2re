@@ -13,7 +13,7 @@ namespace SHIPMOVE {
         can_move
     };
 
-    // Planning reads a local proposed position; it never modifies world ships.
-    e_fleet_evaluation Evaluate_Fleet_Move(std::span<const uint32_t> ships, uint32_t destination, s_ship_move_info* result, std::optional<uint32_t> origin = std::nullopt);
-    bool Order_Fleet_Move(std::span<const uint32_t> ships, uint32_t destination, s_ship_move_info* result);
+    // Lists include the legacy -1 terminator. Planning never modifies world ships.
+    e_fleet_evaluation Evaluate_Fleet_Move(std::span<int16_t> ship_list, int16_t destination, s_ship_move_info* result, std::optional<int16_t> origin = std::nullopt);
+    bool Order_Fleet_Move(std::span<int16_t> ship_list, int16_t destination, s_ship_move_info* result);
 } // namespace SHIPMOVE

@@ -1,5 +1,5 @@
 #include "pch.h"
-#include "fleet_movement.h"
+#include "ai_compat.h"
 
 #include "legacy_world.h"
 
@@ -47,17 +47,20 @@ namespace AIDATA {
         return current_owner;
     }
 
-    bool __cdecl Star_In_Range_Of_Given_Star(const game_world::s_view* world, int16_t target_star_idx, int16_t source_star_idx, int32_t max_range_parsecs) {
+    bool Star_In_Range_Of_Given_Star(const game_world::s_view* world, uint32_t target_star_idx, uint32_t source_star_idx, int32_t max_range_parsecs) {
         bool in_range = false;
 
-        int32_t distance = GEO::Parsecs_Between_Stars(source_star_idx, target_star_idx);
+        const auto source = legacy_world::Index(source_star_idx);
+        const auto target = legacy_world::Index(target_star_idx);
+        if (!source || !target) return false;
+        int32_t distance = GEO::Parsecs_Between_Stars(*source, *target);
         if (distance <= max_range_parsecs) {
             return true;
         }
 
         int16_t wormhole_id = world->stars[source_star_idx].wormhole_star_id;
         if (wormhole_id != -1) {
-            distance = GEO::Parsecs_Between_Stars(wormhole_id, target_star_idx);
+            distance = GEO::Parsecs_Between_Stars(wormhole_id, *target);
             if (distance <= max_range_parsecs) {
                 in_range = true;
             }
@@ -155,8 +158,6 @@ namespace AIDATA {
         RUSS::Assert_Settings();
         Begin_Turn(ai, world->Stardate());
 
-        RUSS::Mox_Update();
-
         for (int16_t i = 0; i < world->Ship_Count(); ++i) {
             s_ship_data& ship = world->ships[i];
             if (ship.status < 3) {
@@ -194,7 +195,6 @@ namespace AIDATA {
                                 }
                                 ai->ships[i].strengths_in_nebula[p] = (uint16_t)AIPOWER::Ship_Strength_Vs_Ships_In_Nebula(world, i, p);
                                 AIPOWER::Ship_Strength_Vs_Planetary_Shield(world, i, ai->ships[i].bomb_strengths);
-                                RUSS::Mox_Update();
                                 if (player_owned && turn_idx < FORECAST_TURN_COUNT) {
                                     uint16_t cur_str = in_nebula ? ai->ships[i].strengths_in_nebula[p] : ai->ships[i].strengths[p];
                                     star_assessment.enroute_strengths[owner][p][turn_idx] += cur_str;
@@ -229,7 +229,6 @@ namespace AIDATA {
             }
         }
 
-        RUSS::Mox_Update();
         for (int16_t s = 0; s < world->Star_Count(); ++s) {
             auto& star_assessment = ai->stars[s];
             for (int p_o = 0; p_o < world->Player_Count(); ++p_o) {
@@ -247,7 +246,6 @@ namespace AIDATA {
             }
         }
 
-        RUSS::Mox_Update();
         int32_t range_sq[MAX_PLAYERS], ext_range_sq[MAX_PLAYERS];
         for (int p = 0; p < world->Player_Count(); ++p) {
             int32_t r = world->players[p].ship_range;
@@ -279,7 +277,6 @@ namespace AIDATA {
             }
         }
 
-        RUSS::Mox_Update();
         for (int16_t s1 = 0; s1 < world->Star_Count(); ++s1) {
             const auto& source_assessment = ai->stars[s1];
             for (int p = 0; p < world->Player_Count(); ++p) {
@@ -289,14 +286,12 @@ namespace AIDATA {
                             auto turns = legacy_world::Travel_Turns(
                                 SHIPMOVE::Player_N_Turns_From_Star_To_Star((int16_t)p, s1, s2));
                             if (turns) ai->routes.direct.Store(s1, s2, p, (uint8_t)*turns);
-                            RUSS::Mox_Update();
                         }
                     }
                 }
             }
         }
 
-        RUSS::Mox_Update();
         for (int16_t i = 0; i < world->Ship_Count(); ++i) {
             s_ship_data& ship = world->ships[i];
             if (ship.status < 5 && ship.status == 1) {
@@ -309,22 +304,19 @@ namespace AIDATA {
                     s_ship_move_info out_info;
                     for (int16_t s = 0; s < world->Star_Count(); ++s) {
                         if ((ai->stars[s].in_extended_range & mask) && s != dest_star) {
-                            SHIPMOVE::Evaluate_Fleet_Move(move_info, s, &out_info);
+                            ai_compat::Evaluate_Fleet_Move(move_info, s, &out_info);
                             auto turns = legacy_world::Travel_Turns(out_info.turns_left);
                             if (turns) ai->routes.ship_direct.Store(i, s, 0, (uint8_t)*turns);
-                            RUSS::Mox_Update();
                         }
                     }
                 }
             }
         }
 
-        RUSS::Mox_Update();
         for (int16_t c = 0; c < world->Colony_Count(); ++c) {
             s_colony& col = world->colonies[c];
             if (col.owner != -1) {
                 s_colony_assessment& ai_col = ai->colonies[c];
-                RUSS::Mox_Update();
                 for (int p_idx = 0; p_idx < col.n_pops; ++p_idx) {
                     if (POP::Is_Conquered(col.pop[p_idx])) {
                         ai_col.conquered_population++;
@@ -346,7 +338,6 @@ namespace AIDATA {
             if (col.owner != -1) {
                 int owner = col.owner;
                 int16_t star_idx = world->planets[col.planet].star_index;
-                RUSS::Mox_Update();
                 for (int p = world->Player_Count() - 1; p >= 0; --p) {
                     if (p != owner && ai->stars[star_idx].enroute_ships[p][LAST_FORECAST_TURN]) {
                         ai->colonies[c].other_player_arrivals = true;
@@ -356,7 +347,6 @@ namespace AIDATA {
             }
         }
 
-        RUSS::Mox_Update();
         for (int16_t s = 0; s < world->Star_Count(); ++s) {
             s_star_neighborhood& ai_star = ai->stars[s].neighborhood;
             for (int pl_i = 0; pl_i < 5; ++pl_i) {
@@ -378,9 +368,7 @@ namespace AIDATA {
 
         Compute_Star_Player_Range_Info(ai, world);
 
-        RUSS::Mox_Update();
         for (int p1 = 0; p1 < world->Player_Count(); ++p1) {
-            RUSS::Mox_Update();
             for (int16_t s = 0; s < world->Star_Count(); ++s) {
                 if ((world->stars[s].has_colony >> p1) & 1) {
                     ai->players[p1].empire.colonized_star_count++;
@@ -412,7 +400,6 @@ namespace AIDATA {
             }
         }
 
-        RUSS::Mox_Update();
         for (int16_t c = 0; c < world->Colony_Count(); ++c) {
             s_colony& col = world->colonies[c];
             if (col.owner != -1) {
@@ -423,7 +410,6 @@ namespace AIDATA {
             }
         }
 
-        RUSS::Mox_Update();
         int16_t max_colonies = 0;
         for (int p = 0; p < world->Player_Count(); ++p) {
             if (ai->players[p].empire.colony_count > max_colonies) {
@@ -434,20 +420,15 @@ namespace AIDATA {
             ai->players[p].empire.colony_deficit = max_colonies - ai->players[p].empire.colony_count;
         }
 
-        RUSS::Mox_Update();
         Compute_Base_Planet_Values(ai, world);
-        RUSS::Mox_Update();
         Compute_Contextual_Planet_Values(ai, world);
-        RUSS::Mox_Update();
         ::aitech::Compute_AI_Tech_Info(ai, world);
-        RUSS::Mox_Update();
 
         for (int16_t i = 0; i < world->Ship_Count(); ++i) {
             s_ship_data* ship = &world->ships[i];
             if (ship->d.ship_type == SHIP_TYPE_COMBAT && ship->owner >= 0 && ship->owner < world->Player_Count() && ship->status < 3 && ship->mission != 4 /* SHIP_MISSION_SCRAP */) {
                 ai->combat_ships.push_back(i);
                 if (ship->status == 0) {
-                    RUSS::Mox_Update();
                     int32_t d = Refit_Desirability(&world->players[ship->owner], &ai->players[ship->owner].technology, ship);
                     ai->ships[i].refit_desirability = d;
                     if (d != 0) {
@@ -458,12 +439,10 @@ namespace AIDATA {
         }
 
         for (int p = 0; p < world->Player_Count(); ++p) {
-            RUSS::Mox_Update();
             auto& refits = ai->players[p].refits;
             qsort(refits.data(), refits.size(), sizeof(s_refit_candidate), airefit_cmp);
         }
 
-        RUSS::Mox_Update();
         qsort(ai->combat_ships.data(), ai->combat_ships.size(), sizeof(uint32_t), sort_ships, world->ships);
 
         for (uint32_t i = 0; i < ai->combat_ships.size(); ++i) {
@@ -481,8 +460,6 @@ namespace AIDATA {
             }
         }
 
-        RUSS::Mox_Update();
-
         ai->routes.direct.Prepare_Live_Indices(world->Star_Count(), world->Player_Count());
 
         for (uint32_t i_as = 0; i_as < ai->combat_ships.size(); ++i_as) {
@@ -493,8 +470,6 @@ namespace AIDATA {
             uint32_t start_star = location->star_id;
             int owner = world->ships[i].owner;
             int initial_delay = 0;
-
-            RUSS::Mox_Update();
 
             if (world->ships[i].status == 10) { // SHIP_STATUS_ANTARAN
                 initial_delay = 0;
@@ -533,15 +508,12 @@ namespace AIDATA {
             }
         }
 
-        RUSS::Mox_Update();
         for (int16_t pl = 0; pl < world->Planet_Count(); ++pl) {
             if (world->planets[pl].colony_index != -1) {
                 int owner = world->colonies[world->planets[pl].colony_index].owner;
                 ai->planets[pl].stage_weights[owner] = ai->planets[pl].base_values[owner];
             }
         }
-
-        RUSS::Mox_Update();
 
         uint8_t player_treaty_matrix[MAX_PLAYERS][MAX_PLAYERS];
         memset(player_treaty_matrix, 0, sizeof(player_treaty_matrix));
@@ -567,7 +539,6 @@ namespace AIDATA {
             if (world->stars[s].has_colony) {
                 std::array<std::optional<uint32_t>, MAX_PLAYERS> best_planet_at_star{};
                 std::array<int16_t, MAX_PLAYERS> best_planet_val_at_star{};
-                RUSS::Mox_Update();
                 for (int pl_i = 0; pl_i < 5; ++pl_i) {
                     int16_t pl_idx = world->stars[s].planet_index[pl_i];
                     if (pl_idx != -1 && world->planets[pl_idx].colony_index != -1) {
@@ -590,7 +561,6 @@ namespace AIDATA {
                                 if (ai->players[p_v].empire.colonized_star_count * 5 < ai->players[p_o].empire.colonized_star_count) {
                                     max_eta = (ai->players[p_v].empire.colonized_star_count <= 1) ? 1 : 4;
                                 }
-                                RUSS::Mox_Update();
                                 for (int16_t other_s = 0; other_s < world->Star_Count(); ++other_s) {
                                     int32_t str = ai->stars[other_s].possible_strengths[p_v][p_o][0];
                                     if (str != 0) {
@@ -607,7 +577,6 @@ namespace AIDATA {
                             if ((uint32_t)pl != *best_planet_at_star[p_o]) {
                                 auto route = Player_N_Turns_From_Star_To_Star_With_Intermediate(ai, world, p_o, s, world->planets[pl].star_index, false);
                                 if (route && route->turns < 3) {
-                                    RUSS::Mox_Update();
                                     value_sum += ai->planets[pl].stage_weights[p_o];
                                 }
                             }
@@ -620,9 +589,8 @@ namespace AIDATA {
             }
         }
 
-        RUSS::Mox_Update();
         for (int p = 0; p < world->Player_Count(); ++p) {
-            AISTAGE::Compute_Defensive_Stage_Points(ai, world, (int16_t)p);
+            AISTAGE::Compute_Defensive_Stage_Points(ai, world, (uint32_t)p);
         }
 
         for (int p = 0; p < world->Player_Count(); ++p) {
@@ -715,7 +683,7 @@ namespace AIDATA {
         }
     }
 
-    void __cdecl Find_Players_In_Range(const game_world::s_view* world, int16_t star_idx, int8_t* in_normal_range_out, int8_t* in_extended_range_out) {
+    void Find_Players_In_Range(const game_world::s_view* world, uint32_t star_idx, int8_t* in_normal_range_out, int8_t* in_extended_range_out) {
         auto& target_star = world->stars[star_idx];
         int32_t target_x = target_star.x;
         int32_t target_y = target_star.y;
@@ -802,8 +770,6 @@ namespace AIDATA {
                 if ((system_visibility_bits >> (player_idx & 0x1F)) & 1) {
                     int16_t col_idx = planet->colony_index;
 
-                    RUSS::Mox_Update();
-
                     uint16_t value;
                     if (col_idx == -1) {
                         value = AIDATA::Uncolonized_Planet_Worth_To_Player(world, planet, &world->players[player_idx]);
@@ -839,9 +805,6 @@ namespace AIDATA {
 
                 s_planet_data* planet = &world->planets[i];
                 s_star_data* star = &world->stars[planet->star_index];
-
-                // Refresh UI/input during processing
-                RUSS::Mox_Update();
 
                 uint16_t& contextual_val = ai->planets[i].contextual_values[p];
                 contextual_val = base_val;

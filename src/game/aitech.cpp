@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "legacy_world.h"
 
 namespace aitech {
     s_rules rules;
@@ -13,8 +14,10 @@ namespace aitech {
         return true;
     }
 
-    static int16_t Choose_AI_Tech_Application(const s_rules* research_rules, int16_t player_idx, s_player* player) {
-        int16_t app_id = newtech::Choose_Tech_Application(player_idx);
+    static int16_t Choose_AI_Tech_Application(const s_rules* research_rules, uint32_t player_idx, s_player* player) {
+        const auto legacy_player = legacy_world::Index(player_idx);
+        if (!legacy_player) return -1;
+        int16_t app_id = newtech::Choose_Tech_Application(*legacy_player);
 
         while (app_id >= TECH_APP_BIOLOGY && app_id <= TECH_APP_SOCIOLOGY) {
             int32_t hypertech_idx = app_id - TECH_APP_BIOLOGY;
@@ -327,7 +330,7 @@ namespace aitech {
             // Check for Colonization status
             bool can_colonize =
                 (plr->tech_applications[TECH_APP_THORIUM_FUEL_CELLS] == TECH_RESEARCH_STATUS_RESEARCHED) ||
-                AIMOVE::Best_Uncolonized_Undestined_Planet(ai, world, (int16_t)p_idx).has_value();
+                AIMOVE::Best_Uncolonized_Undestined_Planet(ai, world, (uint32_t)p_idx).has_value();
 
             plr_info->colonization_idle = can_colonize ? 0 : 1;
         }
@@ -349,7 +352,9 @@ namespace aitech {
         }
     }
 
-    int16_t __cdecl System_Proximity_Count(const game_world::s_view* world, int16_t player_id, uint8_t other_player_id) {
+    int16_t System_Proximity_Count(const game_world::s_view* world, uint32_t player_id, uint32_t other_player_id) {
+        const auto legacy_player = legacy_world::Index(player_id);
+        if (!legacy_player) return 0;
         uint8_t player_bit = 1 << (player_id & 0x1F);
         uint8_t other_player_bit = 1 << (other_player_id & 0x1F);
         int16_t score = 0;
@@ -361,7 +366,7 @@ namespace aitech {
             if (star->has_colony & other_player_bit) {
                 if (star->has_colony & player_bit) {
                     score += 5;
-                } else if (SHIPMOVE::Star_In_Normal_Range_Of_Player(star, player_id)) {
+                } else if (SHIPMOVE::Star_In_Normal_Range_Of_Player(star, *legacy_player)) {
                     score += 1;
                 }
             }
@@ -370,7 +375,7 @@ namespace aitech {
         return score;
     }
 
-    int32_t __cdecl Get_Max_Technology_Value(const game_world::s_view* world, int16_t player_idx) {
+    int32_t Get_Max_Technology_Value(const game_world::s_view* world, uint32_t player_idx) {
         int32_t max_cost = 0;
 
         for (int i = 0; i < TECH_FIELD_COUNT; ++i) {
@@ -398,7 +403,7 @@ namespace aitech {
         player->got_new_app = 0;
 
         if (needs_new_tech) {
-            int16_t player_idx = (int16_t)(player - world->players);
+            const uint32_t player_idx = (uint32_t)(player - world->players);
             int16_t app_id = Choose_AI_Tech_Application(&rules, player_idx, player);
 
             player->current_research_application = (int8_t)app_id;

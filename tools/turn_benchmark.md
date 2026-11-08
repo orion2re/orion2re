@@ -33,7 +33,8 @@ out/build/turn-release/turn-benchmark GAME_ROOT SAVE_FILE [WARM_REPEATS] [precom
 Startup, configuration/save loading, resource initialization, result
 serialization/hashing, and output are outside the timed interval. Rendering,
 autosave, and the end-of-game wrapper in `NEXTTURN::Next_Turn` are not measured.
-The normal lightweight `RUSS::Mox_Update` calls remain enabled.
+Application servicing remains enabled at the production turn's AI boundaries;
+the AI calculation loops do not call `RUSS::Mox_Update` directly.
 
 `WARM_REPEATS` defaults to zero. With a positive count (maximum 10000), the input
 save and seed are restored before each additional sample. The first sample is
