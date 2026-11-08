@@ -110,18 +110,18 @@ The view represents the travel range known for each contacted empire. It can hel
 
 ![Influence overlay on the galaxy map](../../assets/images/manual/empire-overlay.png)
 
-At the farthest zoom level of an extended Maximum galaxy, the map draws automatic outlines to make the view readable even when the optional overlay is off. These outlines override the Alt+V views unless `interface maximum_galaxy_classic_display = true;` is enabled.
+At the farthest zoom level of an extended Maximum galaxy, the map draws automatic outlines to make the view readable even when the optional overlay is off. These outlines override the Alt+V views unless `interface maximum_galaxy_display = classic;` is selected.
 
-### Maximum Galaxy Classic Display
+### Maximum Galaxy Display
 
-Set `interface maximum_galaxy_classic_display = true;` to use the classic main-map presentation at Maximum's farthest zoom level: normal star names and ownership colors, star artwork, black-hole animation, highlight ordering, and Alt+V's off/fill/borders cycle. Visited-system dots, overview markers, and forced automatic influence outlines are disabled in that view. Normal discovery rules still apply. The setting is disabled by default, and labels may overlap on dense maps. It does not change other galaxy sizes, closer zoom levels, map dimensions, or zoom scaling. This is a local preference, excluded from saves and multiplayer synchronization.
+Set `interface maximum_galaxy_display = classic;` to use the classic main-map presentation at Maximum's farthest zoom level: normal star names and ownership colors, star artwork, black-hole animation, highlight ordering, and Alt+V's off/fill/borders cycle. Visited-system dots, overview markers, and forced automatic influence outlines are disabled in that view. Normal discovery rules still apply. The default is `overview`, which retains the large-map aids; classic labels may overlap on dense maps. The setting does not change other galaxy sizes, closer zoom levels, map dimensions, or zoom scaling. This is a local preference, excluded from saves and multiplayer synchronization.
 
 
 ### Main-map Overview Star Markers
 
 The optional `interface main_map_overview_markers = true;` setting replaces star-type pictures with compact markers when an extended Maximum galaxy is zoomed out to its all-stars view. Known owned systems use player colors, unvisited neutral systems use bluish-gray, visited or contested neutral systems use gray, and black holes keep their distinct overview marker. Other galaxy sizes and closer zoom levels retain normal star-type pictures. The setting is disabled by default.
 
-Overview markers identify map objects; they do not show influence. `maximum_galaxy_classic_display` takes precedence over this setting at Maximum's farthest zoom level.
+Overview markers identify map objects; they do not show influence. `maximum_galaxy_display = classic` takes precedence over this setting at Maximum's farthest zoom level.
 
 
 ### Title Screen

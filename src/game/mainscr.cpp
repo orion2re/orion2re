@@ -72,7 +72,7 @@ namespace MAINSCR {
         }
 
         bool Use_Classic_Maximum_Galaxy_Display() {
-            return maximum_galaxy_classic_display &&
+            return maximum_galaxy_display == MAXIMUM_GALAXY_DISPLAY_CLASSIC &&
                 MOX::settings.galaxy_size == GALAXY_SIZE_MAXIMUM &&
                 Is_Extended_Max_Map_View();
         }

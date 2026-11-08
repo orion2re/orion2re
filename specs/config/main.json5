@@ -175,6 +175,14 @@
       reject_unknown_numeric: true,
       values: { small: 0, medium: 1, large: 2, huge: 3, maximum: 4 },
     },
+    maximum_galaxy_display: {
+      title: "Maximum galaxy display",
+      description: "Selects the main-map presentation at maximum zoom-out in Maximum-size galaxies.",
+      remarks: "Overview uses the large-map aids. Classic restores normal star names, artwork, and influence controls.",
+      kind: "enum",
+      base_type: "uint8",
+      values: { overview: 0, classic: 1 },
+    },
     maximum_galaxy_zoom_mode: {
       title: "Maximum galaxy zoom mode",
       description: "Selects how visible map dimensions change between zoom levels in Maximum galaxies.",
@@ -9751,7 +9759,7 @@
     main_map_overview_markers: {
       title: "Main-map overview star markers",
       description: "Replaces star pictures with overview-map color markers in the Maximum galaxy's all-stars view.",
-      remarks: "Only applies to Maximum galaxies at maximum zoom-out. Player-owned systems use their player color. Unvisited neutral systems use bluish-gray, visited or contested neutral systems use gray, and black holes retain their overview marker. False preserves the normal star pictures. Overridden by maximum_galaxy_classic_display.",
+      remarks: "Only applies to Maximum galaxies at maximum zoom-out. Player-owned systems use their player color. Unvisited neutral systems use bluish-gray, visited or contested neutral systems use gray, and black holes retain their overview marker. False preserves the normal star pictures. Overridden by maximum_galaxy_display = classic.",
       examples: ["interface main_map_overview_markers = true;"],
       group: "interface",
       namespace: "interface",
@@ -9763,18 +9771,18 @@
       },
     },
 
-    maximum_galaxy_classic_display: {
-      title: "Maximum galaxy classic display",
-      description: "Restores the classic main-map display at maximum zoom-out in Maximum-size galaxies.",
-      remarks: "Disabled by default. When enabled, shows star names with normal visibility and ownership colors, suppresses visited-system dots and overview markers, restores normal highlight ordering and black-hole animation, and lets Alt+V cycle off, filled influence, and borders without forced automatic outlines. Overrides main_map_overview_markers at this zoom level. Labels may overlap on dense maps. Other galaxy sizes, closer zoom levels, map dimensions, and zoom scaling are unchanged. Local to each player, excluded from saves and synchronization.",
-      examples: ["interface maximum_galaxy_classic_display = true;"],
+    maximum_galaxy_display: {
+      title: "Maximum galaxy display",
+      description: "Selects overview or classic main-map display at maximum zoom-out in Maximum-size galaxies.",
+      remarks: "Overview is the default and preserves the large-map aids. Classic shows star names with normal visibility and ownership colors, suppresses visited-system dots and overview markers, restores normal highlight ordering and black-hole animation, and lets Alt+V cycle off, filled influence, and borders without forced automatic outlines. Classic overrides main_map_overview_markers at this zoom level. Labels may overlap on dense maps. Other galaxy sizes, closer zoom levels, map dimensions, and zoom scaling are unchanged. Local to each player, excluded from saves and synchronization.",
+      examples: ["interface maximum_galaxy_display = classic;"],
       group: "interface",
       namespace: "interface",
-      type: "bool",
-      default: false,
+      type: "maximum_galaxy_display",
+      default: "overview",
       bind_root: {
         header: "game/mainscr.h",
-        symbol: "MAINSCR::maximum_galaxy_classic_display",
+        symbol: "MAINSCR::maximum_galaxy_display",
       },
     },
 

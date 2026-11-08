@@ -81,38 +81,38 @@ namespace HAROLD {
 
 DOCTEST_TEST_CASE("classic Maximum display replaces overview behavior only in its all-stars view") {
     struct s_display_case {
-        bool enabled;
+        uint8_t mode;
         int8_t galaxy_size;
         int16_t stars;
         int16_t scale;
         bool overview;
     };
     const s_display_case cases[] = {
-        {false, GALAXY_SIZE_MAXIMUM, 99, 100, true},
-        {true, GALAXY_SIZE_MAXIMUM, 99, 100, false},
-        {false, GALAXY_SIZE_MAXIMUM, 99, 50, false},
-        {true, GALAXY_SIZE_MAXIMUM, 99, 50, false},
-        {true, GALAXY_SIZE_MAXIMUM, 72, 100, false},
-        {true, GALAXY_SIZE_MAXIMUM, 73, 100, false},
-        {false, GALAXY_SIZE_MAXIMUM, 1024, 100, true},
-        {true, GALAXY_SIZE_MAXIMUM, 1024, 100, false},
-        {false, GALAXY_SIZE_HUGE, 99, 100, true},
-        {true, GALAXY_SIZE_HUGE, 99, 100, true},
-        {true, GALAXY_SIZE_HUGE, 71, 100, false},
-        {true, GALAXY_SIZE_SMALL, 20, 100, false},
+        {MAINSCR::MAXIMUM_GALAXY_DISPLAY_OVERVIEW, GALAXY_SIZE_MAXIMUM, 99, 100, true},
+        {MAINSCR::MAXIMUM_GALAXY_DISPLAY_CLASSIC, GALAXY_SIZE_MAXIMUM, 99, 100, false},
+        {MAINSCR::MAXIMUM_GALAXY_DISPLAY_OVERVIEW, GALAXY_SIZE_MAXIMUM, 99, 50, false},
+        {MAINSCR::MAXIMUM_GALAXY_DISPLAY_CLASSIC, GALAXY_SIZE_MAXIMUM, 99, 50, false},
+        {MAINSCR::MAXIMUM_GALAXY_DISPLAY_CLASSIC, GALAXY_SIZE_MAXIMUM, 72, 100, false},
+        {MAINSCR::MAXIMUM_GALAXY_DISPLAY_CLASSIC, GALAXY_SIZE_MAXIMUM, 73, 100, false},
+        {MAINSCR::MAXIMUM_GALAXY_DISPLAY_OVERVIEW, GALAXY_SIZE_MAXIMUM, 1024, 100, true},
+        {MAINSCR::MAXIMUM_GALAXY_DISPLAY_CLASSIC, GALAXY_SIZE_MAXIMUM, 1024, 100, false},
+        {MAINSCR::MAXIMUM_GALAXY_DISPLAY_OVERVIEW, GALAXY_SIZE_HUGE, 99, 100, true},
+        {MAINSCR::MAXIMUM_GALAXY_DISPLAY_CLASSIC, GALAXY_SIZE_HUGE, 99, 100, true},
+        {MAINSCR::MAXIMUM_GALAXY_DISPLAY_CLASSIC, GALAXY_SIZE_HUGE, 71, 100, false},
+        {MAINSCR::MAXIMUM_GALAXY_DISPLAY_CLASSIC, GALAXY_SIZE_SMALL, 20, 100, false},
     };
-    const bool saved_setting = MAINSCR::maximum_galaxy_classic_display;
+    const uint8_t saved_setting = MAINSCR::maximum_galaxy_display;
     const bool saved_markers = MAINSCR::main_map_overview_markers;
     const int8_t saved_galaxy_size = MOX::settings.galaxy_size;
     const int16_t saved_stars = MOX::NUM_STARS;
     const int16_t saved_scale = MOX::cur_map_scale;
     const int16_t saved_max_scale = MOX::max_map_scale;
     for (const auto& test_case : cases) {
-        DOCTEST_CAPTURE(test_case.enabled);
+        DOCTEST_CAPTURE(test_case.mode);
         DOCTEST_CAPTURE(test_case.galaxy_size);
         DOCTEST_CAPTURE(test_case.stars);
         DOCTEST_CAPTURE(test_case.scale);
-        MAINSCR::maximum_galaxy_classic_display = test_case.enabled;
+        MAINSCR::maximum_galaxy_display = test_case.mode;
         MOX::settings.galaxy_size = test_case.galaxy_size;
         MOX::NUM_STARS = test_case.stars;
         MOX::cur_map_scale = test_case.scale;
@@ -122,7 +122,7 @@ DOCTEST_TEST_CASE("classic Maximum display replaces overview behavior only in it
             DOCTEST_CHECK(MAINSCR::Use_Maximum_Galaxy_Overview() == test_case.overview);
         }
     }
-    MAINSCR::maximum_galaxy_classic_display = saved_setting;
+    MAINSCR::maximum_galaxy_display = saved_setting;
     MAINSCR::main_map_overview_markers = saved_markers;
     MOX::settings.galaxy_size = saved_galaxy_size;
     MOX::NUM_STARS = saved_stars;
