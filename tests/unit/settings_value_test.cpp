@@ -397,6 +397,121 @@ DOCTEST_TEST_CASE("every metadata setting maps to exactly one category") {
         config::SETTINGS_CATEGORY_GAMEPLAY);
 }
 
+DOCTEST_TEST_CASE("every metadata setting maps to exactly one visibility") {
+    // Pinned primary/secondary split for the Settings screen's Show
+    // all: 11 game internals primary, 21 gameplay primary, 1 mods
+    // primary. The table must cover all 49 metadata paths, in
+    // metadata order, so a new spec setting with no entry fails here
+    // instead of silently showing up front.
+    const std::vector<std::pair<const char*, bool>> expected = {
+        { "interface.router", false },
+        { "interface.scroll_interval", true },
+        { "interface.scaler", true },
+        { "interface.window_width", true },
+        { "interface.window_height", true },
+        { "interface.fullscreen", true },
+        { "interface.vsync_enabled", true },
+        { "interface.net_debug_enabled", false },
+        { "interface.debugger_enabled", false },
+        { "interface.debugger_font_size", false },
+        { "interface.debugger_ui_scale", false },
+        { "interface.allow_lua_source_hash_mismatch", false },
+        { "interface.screen_fade_speed", false },
+        { "interface.animation", false },
+        { "interface.history_graph_smoothing", true },
+        { "interface.sort_serious_turn_summary_first", true },
+        { "interface.wormhole_link_color", false },
+        { "interface.tech_review_achievements", false },
+        { "interface.tech_review_colony", false },
+        { "interface.tech_review_weapons", false },
+        { "interface.tech_review_equipment", false },
+        { "colony.build_queue", false },
+        { "design.missile_default_x2_rack", true },
+        { "design.design_button_computer", true },
+        { "design.design_button_shield", true },
+        { "design.clear_button_computer", true },
+        { "design.clear_button_shield", true },
+        { "leaders.leader_dies_with_no", true },
+        { "research.finds_presented_by_scientist", true },
+        { "interface.print_research_value", true },
+        { "interface.warn_blockers", true },
+        { "interface.build_list_colors", false },
+        { "interface.build_list_format", false },
+        { "interface.no_outpost_prompt", true },
+        { "interface.initial_tech_prompt", true },
+        { "interface.rebel_display", true },
+        { "interface.loaded_config_prompt", true },
+        { "interface.main_menu_mod_list", true },
+        { "interface.keep_end_of_turn_wait_in_multiplayer", true },
+        { "interface.allow_future_technology_browsing", true },
+        { "interface.confirm_battle_message_timeout", true },
+        { "interface.center_on_next_ship", true },
+        { "interface.death_spore_list_damage", true },
+        { "interface.bio_terminator_list_damage", true },
+        { "interface.main_map_overview_markers", true },
+        { "interface.maximum_galaxy_display", true },
+        { "interface.main_screen_tax_rate", true },
+        { "interface.maximum_galaxy_zoom_mode", true },
+        { "interface.show_exit_message", true },
+    };
+    DOCTEST_REQUIRE(config::settings_metadata_count == expected.size());
+    for (size_t index = 0; index < expected.size(); ++index) {
+        DOCTEST_CHECK(std::string(config::settings_metadata[index].path) ==
+            expected[index].first);
+        DOCTEST_CHECK(config::Settings_Is_Primary_For_Path(expected[index].first) ==
+            expected[index].second);
+    }
+    // Rows inherit their metadata setting's visibility, including
+    // multi-leaf settings: the animation leaves are secondary, the
+    // build-list leaves are secondary (60 color leaves plus 100
+    // format leaves), and the Mods tab keeps one primary and one
+    // secondary setting row.
+    const std::vector<config::s_settings_row> rows = config::Build_Settings_Rows();
+    size_t internals_primary = 0;
+    size_t internals_secondary = 0;
+    size_t gameplay_primary = 0;
+    size_t gameplay_secondary = 0;
+    size_t mods_primary = 0;
+    size_t mods_secondary = 0;
+    for (const config::s_settings_row& row : rows) {
+        const bool primary = config::Settings_Is_Primary_For_Path(row.path);
+        switch (config::Settings_Category_For_Path(row.path)) {
+            case config::SETTINGS_CATEGORY_GAME_INTERNALS:
+                if (primary) {
+                    ++internals_primary;
+                } else {
+                    ++internals_secondary;
+                }
+                break;
+            case config::SETTINGS_CATEGORY_GAMEPLAY:
+                if (primary) {
+                    ++gameplay_primary;
+                } else {
+                    ++gameplay_secondary;
+                }
+                break;
+            case config::SETTINGS_CATEGORY_MODS:
+                if (primary) {
+                    ++mods_primary;
+                } else {
+                    ++mods_secondary;
+                }
+                break;
+        }
+    }
+    DOCTEST_CHECK(internals_primary == 11);
+    DOCTEST_CHECK(internals_secondary == 9);
+    DOCTEST_CHECK(gameplay_primary == 21);
+    DOCTEST_CHECK(gameplay_secondary == 165);
+    DOCTEST_CHECK(mods_primary == 1);
+    DOCTEST_CHECK(mods_secondary == 1);
+    DOCTEST_CHECK(!config::Settings_Is_Primary_For_Path(
+        "interface.animation.cloak_steps.normal"));
+    DOCTEST_CHECK(!config::Settings_Is_Primary_For_Path(
+        "interface.build_list_colors.default.normal.base"));
+    DOCTEST_CHECK(config::Settings_Is_Primary_For_Path("interface.window_width"));
+}
+
 DOCTEST_TEST_CASE("the current window width reads back from the native target") {
     const std::vector<config::s_settings_row> rows = config::Build_Settings_Rows();
     const config::s_settings_row* width = Find_Row_(rows, "interface.window_width");

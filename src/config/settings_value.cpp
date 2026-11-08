@@ -371,6 +371,85 @@ namespace config {
             { "interface.show_exit_message", SETTINGS_CATEGORY_GAME_INTERNALS },
         };
 
+        // Primary vs secondary, for the Settings screen's Show all.
+        // Primary is what a human commonly changes: toggles and
+        // frequently-changed values, shown first. Secondary is what
+        // nobody fusses over in the UI, shown only with Show all:
+        // - the Tech Review ordering tables and the colony build
+        //   queues are info rows with hundreds of entries (the build
+        //   lists alone expand to 160 rows); Tom's example is the
+        //   Tech Review Colony order, a good config item nobody
+        //   opens the UI to change.
+        // - the debugger, network debug logging and the router are
+        //   infrastructure or developer-only; the animation leaves
+        //   and screen fade speed are fine-grained presentation
+        //   pacing; the wormhole link color is a bare palette index.
+        // - the Lua source-hash mismatch allowance only matters when
+        //   a save's recorded mod Lua differs, so it sits behind
+        //   Show all while the main-menu mod list stays primary.
+        // Ambiguous calls, kept primary: history graph smoothing
+        // (a toggle with a visible effect on the history graph),
+        // the end-of-turn-wait keep in multiplayer (a toggle for a
+        // classic-dialog option, multiplayer-only), the battle
+        // confirmation timeout (a number, not a toggle, but a
+        // visible message timing a player may want longer), and the
+        // exit message (a trivial quit-time toggle).
+        struct s_settings_primary_entry {
+            const char* path;
+            bool primary;
+        };
+        inline const s_settings_primary_entry settings_primary[] = {
+            { "interface.router", false },
+            { "interface.scroll_interval", true },
+            { "interface.scaler", true },
+            { "interface.window_width", true },
+            { "interface.window_height", true },
+            { "interface.fullscreen", true },
+            { "interface.vsync_enabled", true },
+            { "interface.net_debug_enabled", false },
+            { "interface.debugger_enabled", false },
+            { "interface.debugger_font_size", false },
+            { "interface.debugger_ui_scale", false },
+            { "interface.allow_lua_source_hash_mismatch", false },
+            { "interface.screen_fade_speed", false },
+            { "interface.animation", false },
+            { "interface.history_graph_smoothing", true },
+            { "interface.sort_serious_turn_summary_first", true },
+            { "interface.wormhole_link_color", false },
+            { "interface.tech_review_achievements", false },
+            { "interface.tech_review_colony", false },
+            { "interface.tech_review_weapons", false },
+            { "interface.tech_review_equipment", false },
+            { "colony.build_queue", false },
+            { "design.missile_default_x2_rack", true },
+            { "design.design_button_computer", true },
+            { "design.design_button_shield", true },
+            { "design.clear_button_computer", true },
+            { "design.clear_button_shield", true },
+            { "leaders.leader_dies_with_no", true },
+            { "research.finds_presented_by_scientist", true },
+            { "interface.print_research_value", true },
+            { "interface.warn_blockers", true },
+            { "interface.build_list_colors", false },
+            { "interface.build_list_format", false },
+            { "interface.no_outpost_prompt", true },
+            { "interface.initial_tech_prompt", true },
+            { "interface.rebel_display", true },
+            { "interface.loaded_config_prompt", true },
+            { "interface.main_menu_mod_list", true },
+            { "interface.keep_end_of_turn_wait_in_multiplayer", true },
+            { "interface.allow_future_technology_browsing", true },
+            { "interface.confirm_battle_message_timeout", true },
+            { "interface.center_on_next_ship", true },
+            { "interface.death_spore_list_damage", true },
+            { "interface.bio_terminator_list_damage", true },
+            { "interface.main_map_overview_markers", true },
+            { "interface.maximum_galaxy_display", true },
+            { "interface.main_screen_tax_rate", true },
+            { "interface.maximum_galaxy_zoom_mode", true },
+            { "interface.show_exit_message", true },
+        };
+
     } // namespace
 
     e_settings_category Settings_Category_For_Path(const std::string& path) {
@@ -381,6 +460,16 @@ namespace config {
             }
         }
         return SETTINGS_CATEGORY_GAME_INTERNALS;
+    }
+
+    bool Settings_Is_Primary_For_Path(const std::string& path) {
+        for (const s_settings_primary_entry& entry : settings_primary) {
+            const std::string prefix = std::string(entry.path) + ".";
+            if (path == entry.path || path.compare(0, prefix.size(), prefix) == 0) {
+                return entry.primary;
+            }
+        }
+        return true;
     }
 
     std::vector<s_settings_row> Build_Settings_Rows() {
