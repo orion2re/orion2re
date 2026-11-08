@@ -894,6 +894,7 @@ orion2re_add_unit_test(test_plntsum_filters
         src/game/struct.cpp
     FAKE_SOURCES
         tests/fakes/fake_plntsum_runtime.cpp
+        tests/fakes/fake_sdl_string.cpp
 )
 
 if(MSVC)

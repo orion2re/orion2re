@@ -308,8 +308,8 @@ namespace PLNTSUM {
                     GENDRAW::Message_Box(msg_buffer);
                     PLNTSUM::screen->refresh_fields = true;
                     PLNTSUM::last_ship_moved = best_ship_idx;
-                    PLNTSUM::Update_Ship_Etas();
                     PLNTSUM::Set_Auto_Colonize_Flag(&MOX::ship[best_ship_idx], planet_idx);
+                    PLNTSUM::Update_Ship_Etas();
                 }
             }
         }
@@ -580,12 +580,11 @@ namespace PLNTSUM {
         int16_t icon_w = animate::Get_Width(ship_icon);
         int16_t icon_h = animate::Get_Height(ship_icon);
 
-        // Calculate coordinates based on hardcoded offsets and row scaling
-        int16_t x1 = 100 /* 0x64 */ - icon_w;
-        int16_t y1 = (row_index * 55 /* 0x37 */) - icon_h + 82 /* 0x52 */;
+        int16_t x1 = 102 - icon_w;
+        int16_t y1 = plntscrn_delta_y[row_index] - icon_h + 84;
 
-        int16_t x2 = x1 + icon_w;
-        int16_t y2 = y1 + icon_h;
+        int16_t x2 = x1 + icon_w - 1;
+        int16_t y2 = y1 + icon_h - 1;
 
         // Register the field and store its handle
         *field_id = fields::Add_Hidden_Field(x1, y1, x2, y2, "", 0);
@@ -596,14 +595,13 @@ namespace PLNTSUM {
         int16_t width = animate::Get_Width(pic);
         int16_t height = animate::Get_Height(pic);
 
-        // Calculate top-left Y based on row index and animation height
-        int16_t y = (row_index * 55 - height) + 84;
+        int16_t y = plntscrn_delta_y[row_index] - height + 84;
 
         *field_id = fields::Add_Hidden_Field(
-            102,
+            18,
             y,
-            width + 102,
-            y + height,
+            18 + width - 1,
+            y + height - 1,
             "",
             0);
     }
@@ -699,13 +697,13 @@ namespace PLNTSUM {
         screen->buttons[7] = fields::Add_Radio_Button_Field(441, 358, "", screen->pics[8], &filter_out_planets_out_of_range, "5", 41);
 
         if (Send_Colony_Button_Selectable()) {
-            screen->buttons[8] = fields::Add_Hidden_Field(386, 408, 609, 413, "C", 41);
+            screen->buttons[8] = fields::Add_Hidden_Field(454, 386, 609, 408, "C", 41);
         } else {
             screen->buttons[8] = -1000;
         }
 
         if (Send_Outpost_Button_Selectable()) {
-            screen->buttons[9] = fields::Add_Hidden_Field(413, 437, 610, 442, "O", 41);
+            screen->buttons[9] = fields::Add_Hidden_Field(454, 413, 610, 437, "O", 41);
         } else {
             screen->buttons[9] = -1000;
         }
@@ -717,6 +715,9 @@ namespace PLNTSUM {
 
         for (int i = 0; i < 8; ++i) {
             int row = MOX::scroll_bar->first_visible_row + i;
+            if (row >= MOX::scroll_bar->total_rows) {
+                break;
+            }
             if (planet_summary[row].colony_eta >= 0) {
                 Add_Colony_Ship_Icon_Field(&screen->colony_icons[i], i);
                 // Preserve the original byte store from the field handle into global_var.
@@ -749,6 +750,59 @@ namespace PLNTSUM {
 
         MOX::scroll_bar->up_btn = screen->up_button;
         MOX::scroll_bar->dn_btn = screen->dn_button;
+        screen->fields_first_row = MOX::scroll_bar->first_visible_row;
+        screen->fields_total_rows = MOX::scroll_bar->total_rows;
+        screen->fields_sort_choice = sort_choice;
+        screen->refresh_fields = false;
+    }
+
+    void __cdecl Refresh_Plntsum_Fields() {
+        if (screen->fields_first_row != MOX::scroll_bar->first_visible_row ||
+            screen->fields_total_rows != MOX::scroll_bar->total_rows ||
+            screen->fields_sort_choice != sort_choice) {
+            screen->refresh_fields = true;
+        }
+
+        // Rebuilding fields during a scroll-bar drag would discard its active field.
+        if (screen->refresh_fields && mouse::Mouse_Button() == 0) {
+            fields::Clear_Fields();
+            Add_Plntsum_Fields();
+        }
+    }
+
+    void __cdecl Handle_Send_Button(int16_t input_id) {
+        int16_t choice;
+        uint8_t* status;
+        uint8_t* other_status;
+        if (input_id == screen->buttons[8] && draw_colony_button_status != 0) {
+            choice = 0;
+            status = &draw_colony_button_status;
+            other_status = &draw_outpost_button_status;
+        } else if (input_id == screen->buttons[9] && draw_outpost_button_status != 0) {
+            choice = 1;
+            status = &draw_outpost_button_status;
+            other_status = &draw_colony_button_status;
+        } else {
+            return;
+        }
+
+        if (EVENTS::Event_Check_Hyperspace_Flux() != 0) {
+            GENDRAW::Warning_Box(HAROLD::H_Message(0x13f));
+            *status = 1;
+            if (*other_status != 0) {
+                *other_status = 1;
+            }
+            send_choice = -1;
+        } else if (*status == 2) {
+            *status = 1;
+            send_choice = -1;
+        } else {
+            *status = 2;
+            if (*other_status != 0) {
+                *other_status = 1;
+            }
+            send_choice = choice;
+        }
     }
 
     void __cdecl Allocate_Space_For_Summary_Screen() {
@@ -817,36 +871,25 @@ namespace PLNTSUM {
         draw_outpost_button_status = 0;
 
         if (MOX::scroll_bar->total_rows > 0 && EVENTS::Event_Check_Hyperspace_Flux() == 0) {
-            if (Send_Outpost_Button_Selectable()) {
-                if (Send_Colony_Button_Selectable()) {
-                    draw_colony_button_status = 2;
-                    send_choice = 0;
-
-                    if (!Send_Outpost_Button_Selectable()) {
-                        return;
-                    }
-
-                    draw_outpost_button_status = 1;
-                    return;
-                }
-            }
-
             if (Send_Colony_Button_Selectable()) {
-                if (!Send_Outpost_Button_Selectable()) {
-                    draw_colony_button_status = 2;
-                    send_choice = 0;
-                    return;
-                }
+                draw_colony_button_status = 1;
             }
-
-            if (!Send_Colony_Button_Selectable() && Send_Outpost_Button_Selectable()) {
-                draw_outpost_button_status = 2;
-                send_choice = 1;
+            if (Send_Outpost_Button_Selectable()) {
+                draw_outpost_button_status = 1;
             }
+        }
+        if (send_choice == 0 && draw_colony_button_status != 0) {
+            draw_colony_button_status = 2;
+        } else if (send_choice == 1 && draw_outpost_button_status != 0) {
+            draw_outpost_button_status = 2;
+        } else {
+            send_choice = -1;
         }
     }
 
     void __cdecl Check_For_Colony_And_Outpost_Ships() {
+        found_colony_ship = 0;
+        found_outpost_ship = 0;
         bool stop_searching = false;
 
         if (MOX::ship_stack_count <= 0) {
@@ -882,9 +925,7 @@ namespace PLNTSUM {
                     if (can_order && ship->status != 1) {
                         if (Ship_Is_Not_Colonizing(ship)) {
                             draw_outpost_button_status = 1;
-                            // The original binary sets the colony-found flag here as well,
-                            // and the early-exit check depends on preserving that behavior.
-                            found_colony_ship = 1;
+                            found_outpost_ship = 1;
                         }
                     }
                 }
@@ -1499,10 +1540,22 @@ namespace PLNTSUM {
         }
     }
 
+    static int16_t Ship_Sent_To_Planet(int16_t planet_idx, int16_t order_type) {
+        // Update_Ship_Etas uses the last matching ship for each planet's icon.
+        for (int16_t ship_idx = MOX::NUM_SHIPS - 1; ship_idx >= 0; --ship_idx) {
+            s_ship_data* ship = &MOX::ship[ship_idx];
+            if (ship->d.ship_type == order_type && HACCESS::Ship_Owner(ship_idx) == MOX::PLAYER_NUM &&
+                HAROLD::Absolute_Location(ship->location) > -1 &&
+                Colony_Ship_Auto_Colonization(ship) == planet_idx) {
+                return ship_idx;
+            }
+        }
+        return -1;
+    }
+
     void __cdecl Undo_Send_Order(int16_t planet_idx, int16_t order_type) {
-        int16_t ship_idx = -1;
+        int16_t ship_idx = Ship_Sent_To_Planet(planet_idx, order_type);
         int16_t ships[2];
-        bool found = false;
         char buffer1[200];
         char buffer2[200];
         char eta_str[40];
@@ -1510,26 +1563,18 @@ namespace PLNTSUM {
         ships[0] = -1;
         ships[1] = -1;
 
-        for (int16_t i = 0; i < MOX::scroll_bar->total_rows; ++i) {
-            if (found) break;
-
-            if (PLNTSUM::planet_summary[i].explored == planet_idx) {
-                if (order_type == SHIP_TYPE_COLONY) {
-                    ship_idx = PLNTSUM::planet_summary[i].best_colony_ship_idx;
-                } else {
-                    ship_idx = PLNTSUM::planet_summary[i].best_outpost_ship_idx;
-                }
-
-                if (!MAINSCR::Ship_Can_Be_Selected(ship_idx)) {
-                    int16_t msg_id = (order_type == SHIP_TYPE_COLONY) ? 0x149 /* HESTR_149_YOU_ARE_UNABLE_TO_UNDO */ : 0x14A /* HESTR_14A_YOU_ARE_UNABLE_TO_UNDO */;
-                    const char* msg = HAROLD::H_Message(msg_id);
-                    strlcpy(buffer1, msg, sizeof(buffer1));
-                    char* planet_name = HACCESS::Get_Planet_Name_No_Prime(planet_idx);
-                    snprintf(buffer2, sizeof(buffer2), buffer1, planet_name);
-                    GENDRAW::Warning_Box(buffer2);
-                }
-                found = true;
-            }
+        if (ship_idx == -1) {
+            return;
+        }
+        if (!MAINSCR::Ship_Can_Be_Selected(ship_idx)) {
+            int16_t msg_id = (order_type == SHIP_TYPE_COLONY) ? 0x149 /* HESTR_149_YOU_ARE_UNABLE_TO_UNDO */ : 0x14A /* HESTR_14A_YOU_ARE_UNABLE_TO_UNDO */;
+            const char* msg = HAROLD::H_Message(msg_id);
+            strlcpy(buffer1, msg, sizeof(buffer1));
+            char* planet_name = HACCESS::Get_Planet_Name_No_Prime(planet_idx);
+            snprintf(buffer2, sizeof(buffer2), buffer1, planet_name);
+            GENDRAW::Warning_Box(buffer2);
+            PLNTSUM::screen->refresh_fields = true;
+            return;
         }
 
         if (ship_idx != -1) {
@@ -1566,8 +1611,8 @@ namespace PLNTSUM {
 
             if (GENDRAW::Do_Confirmation_Box(buffer2)) {
                 SHIPMOVE::Make_Ships_Move_To(ships, star_id, &MOX::g_ship_move_info);
-                PLNTSUM::Update_Ship_Etas();
                 SHIPS::Clear_Auto_Colonization_Flag(&MOX::ship[ship_idx]);
+                PLNTSUM::Update_Ship_Etas();
             }
             PLNTSUM::screen->refresh_fields = true;
         }
@@ -1969,7 +2014,6 @@ namespace PLNTSUM {
 
         Allocate_Space_For_Summary_Screen();
         Load_Planet_Summary_Pictures();
-        Add_Plntsum_Fields();
 
         planet_summary->scan_highlight_pulse = 0;
         planet_summary->scan_highlight_pulse_step = 1;
@@ -1990,6 +2034,7 @@ namespace PLNTSUM {
             MOX::screen_seg, sizeof(*p_rotating_planet) * PLANET_PICTURE_COUNT, alignof(s_animation_header*));
         Load_Planet_Pictures();
         Determine_Button_Status();
+        Add_Plntsum_Fields();
 
         do {
             int16_t prev_sort_choice = sort_choice;
@@ -2019,9 +2064,8 @@ namespace PLNTSUM {
                     MOX::scroll_bar->thumb_center_y = MOX::scroll_bar->track_len_px;
                 }
 
-                if (Send_Colony_Button_Selectable() || Send_Outpost_Button_Selectable()) {
-                    Build_Ship_Summary();
-                }
+                Determine_Button_Status();
+                screen->refresh_fields = true;
             }
 
             if (input_id == screen->up_button && MOX::scroll_bar->total_rows > 8) {
@@ -2062,47 +2106,8 @@ namespace PLNTSUM {
 
             Scan_Summary_Box_Fields(current_scanned, input_id, &last_scanned_status);
 
-            if (input_id == screen->buttons[8] && draw_colony_button_status != 0) {
-                if (EVENTS::Event_Check_Hyperspace_Flux() != 0) {
-                    const char* flux_msg = HAROLD::H_Message(0x13f);
-                    GENDRAW::Warning_Box(flux_msg);
-                    draw_colony_button_status = 1;
-                    send_choice = -1;
-                } else {
-                    if (draw_colony_button_status == 2) {
-                        draw_colony_button_status = 1;
-                        send_choice = -1;
-                    } else {
-                        draw_colony_button_status = 2;
-                        draw_outpost_button_status = 1;
-                        send_choice = 0;
-                    }
-                }
-            }
-
-            if (input_id == screen->buttons[9] && draw_outpost_button_status != 0) {
-                if (EVENTS::Event_Check_Hyperspace_Flux() != 0) {
-                    const char* flux_msg = HAROLD::H_Message(0x13f);
-                    GENDRAW::Warning_Box(flux_msg);
-                    draw_outpost_button_status = 1;
-                    send_choice = -1;
-                } else {
-                    if (draw_outpost_button_status == 2) {
-                        draw_outpost_button_status = 1;
-                        send_choice = -1;
-                    } else {
-                        draw_outpost_button_status = 2;
-                        draw_colony_button_status = 1;
-                        send_choice = 1;
-                    }
-                }
-            }
-
-            if (screen->refresh_fields) {
-                fields::Clear_Fields();
-                Add_Plntsum_Fields();
-                screen->refresh_fields = false;
-            }
+            Handle_Send_Button(input_id);
+            Refresh_Plntsum_Fields();
 
             if (exit_flag == 0) {
                 if (fade_flag != 0) {

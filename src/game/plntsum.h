@@ -16,6 +16,9 @@ struct s_plntsum_screen {
     int16_t planet_icons[MAX_STARS];
     bool refresh_fields;
     int16_t scanned_input;
+    int16_t fields_first_row;
+    int16_t fields_total_rows;
+    int16_t fields_sort_choice;
 };
 
 namespace PLNTSUM {
@@ -69,6 +72,10 @@ namespace PLNTSUM {
     void __cdecl Add_PlntSum_Galaxy_Map_Fields(int16_t* fields_array);
 
     void __cdecl Add_Plntsum_Fields();
+
+    void __cdecl Refresh_Plntsum_Fields();
+
+    void __cdecl Handle_Send_Button(int16_t input_id);
 
     void __cdecl Planet_Summary_Screen();
 
