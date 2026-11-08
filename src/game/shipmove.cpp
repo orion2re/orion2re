@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "legacy_location.h"
 
 #include "lua/lua_game_ship_identity.h"
 
@@ -820,17 +821,23 @@ namespace SHIPMOVE {
         }
     }
 
-    /**
-     * Finalizes a ship's arrival at a star and updates related visibility state.
-     * @param ship Ship record to update.
-     * @param star_idx Destination star index.
-     */
+    bool Stop_Ship_Transit(s_ship_data* ship, std::optional<uint32_t> current_star) {
+        if (current_star) {
+            const game_world::s_ship_location location{game_world::e_ship_location::at_star, *current_star};
+            if (!legacy_world::Set_Ship_Location(ship, &location)) return false;
+        } else {
+            legacy_world::Clear_Ship_Location(ship);
+        }
+        ship->status = 0;
+        return true;
+    }
+
+    /** Finalizes arrival, including coordinates, visibility and mission effects. */
     void __cdecl Make_Ship_Arrive_At_Star(s_ship_data* ship, int16_t star_idx) {
+        if (star_idx < 0 || !Stop_Ship_Transit(ship, (uint32_t)star_idx)) return;
         Set_Ship_Uses_Jump_Gate(ship, false);
         ship->prior_jump_gate_destination = -1;
         ship->prior_jump_gate_stardate = 0;
-        ship->location = star_idx;
-        ship->status = 0;
         ship->x = MOX::star[star_idx].x;
         ship->y = MOX::star[star_idx].y;
         ship->mission = 0;

@@ -124,11 +124,11 @@ namespace AIMOVE {
 
     bool __cdecl Star_Has_Monster(const game_world::s_view* world, int16_t star_idx);
 
-    void Get_Best_Unescorted_Colony_Ship(s_ai_movement_context* ctx, std::vector<uint32_t>* ships, uint32_t destination);
+    void Dispatch_Unescorted_Colony_Ship(s_ai_movement_context* ctx, std::vector<uint32_t>* ships, uint32_t destination);
 
     std::optional<uint32_t> I_Soonest_Enemy_Colony_Ship(const game_world::s_view* world, std::span<const uint32_t> ships, uint32_t target_location);
 
-    bool Get_Best_Escorted_Colony_Ship(AIDATA::s_state* ai, s_ai_movement_context* ctx, std::vector<uint32_t>* colony_ships, uint32_t star_idx, int16_t max_turns);
+    bool Dispatch_Escorted_Colony_Ship(AIDATA::s_state* ai, s_ai_movement_context* ctx, std::vector<uint32_t>* colony_ships, uint32_t star_idx, int16_t max_turns);
 
     void __cdecl Move_Transports(AIDATA::s_state* ai, s_ai_movement_context* ctx);
 

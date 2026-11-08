@@ -354,7 +354,7 @@ namespace aidudes {
 
     void __cdecl Assign_Buildings(AIDATA::s_state* ai, const game_world::s_view* world, const AIDATA::s_colony_workspace* work) {
         for (const auto& colony : work->colonies) {
-            AIBUILD::Assign_Colony_Building(ai, world, &world->colonies[colony.colony_id]);
+            AIBUILD::Assign_Colony_Building(ai, world, colony.colony_id, &world->colonies[colony.colony_id]);
         }
     }
 
@@ -1065,7 +1065,7 @@ namespace aidudes {
                 defer_weight,
             };
             production_rules::s_context production_context;
-            AIBUILD::Build_Production_Context(ai, world, temp_colony, war_level, &production_context);
+            AIBUILD::Build_Production_Context(ai, world, current_colony_idx, temp_colony, war_level, &production_context);
             production_context.metrics[production_rules::METRIC_FREIGHTER_NEED] =
                 needs.freighter_groups_wanted - freighter_groups_assigned * 2;
             production_context.metrics[production_rules::METRIC_REFIT_NEED] = (int32_t)refits.size();

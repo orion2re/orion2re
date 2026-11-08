@@ -52,5 +52,4 @@ namespace game_world {
     };
     // Borrowed current-session view for legacy integration entrypoints only.
     extern s_view current;
-    bool Has_Strategic_AI_Inputs(const s_view* world);
 } // namespace game_world

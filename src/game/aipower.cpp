@@ -1,5 +1,5 @@
 #include "pch.h"
-#include "ai_legacy.h"
+#include "legacy_world.h"
 
 namespace AIPOWER {
     uint32_t __cdecl Modified_Weapon_Strength(const s_tech_weapon_mod_data* modifications, uint32_t weapon_strength, uint16_t modification_flags) {
@@ -75,7 +75,7 @@ namespace AIPOWER {
     }
 
     int16_t __cdecl Ship_Strength_Vs_Shield(const game_world::s_view* world, uint32_t ship_idx, int16_t target_idx, int16_t shield_strength) {
-        const auto legacy_ship = AI_LEGACY::Index(ship_idx);
+        const auto legacy_ship = legacy_world::Index(ship_idx);
         if (!legacy_ship) return 0;
         s_ship_data* ship = &world->ships[ship_idx];
         int32_t total_strength = 0;
@@ -202,7 +202,7 @@ namespace AIPOWER {
 
     int16_t __cdecl Max_Ship_Hits(const game_world::s_view* world, uint32_t ship_idx) {
         if (world->settings->strategic_combat_flag == 0) {
-            const auto legacy_ship = AI_LEGACY::Index(ship_idx);
+            const auto legacy_ship = legacy_world::Index(ship_idx);
             if (!legacy_ship) return 0;
             int16_t structure = INITSHIP::Get_Ship_Structure(*legacy_ship);
             int16_t armor_hits = INITSHIP::Get_Ship_Armor_Hits(*legacy_ship);

@@ -1,6 +1,6 @@
 #include "pch.h"
 
-#include "ai_legacy.h"
+#include "legacy_world.h"
 
 #if defined(ORION2RE_ENABLE_DEBUG_OVERLAY)
 #include <imgui.h>
@@ -564,7 +564,7 @@ namespace AI_SNOOPS_DEBUG {
                     ImGui::TableSetColumnIndex(0);
                     ImGui::PushID((int)index);
                     if (ImGui::Selectable(std::to_string(colony.colony_id).c_str())) {
-                        auto colony_index = AI_LEGACY::Index(colony.colony_id);
+                        auto colony_index = legacy_world::Index(colony.colony_id);
                         if (colony_index) debug_game_editors::Open_Colony(*colony_index);
                     }
                     ImGui::PopID();
@@ -612,7 +612,7 @@ namespace AI_SNOOPS_DEBUG {
                     ImGui::TableSetColumnIndex(1);
                     ImGui::PushID((int)index);
                     if (ImGui::Selectable(std::to_string(planet.planet_id).c_str())) {
-                        auto planet_index = AI_LEGACY::Index(planet.planet_id);
+                        auto planet_index = legacy_world::Index(planet.planet_id);
                         if (planet_index) debug_game_editors::Open_Planet(*planet_index);
                     }
                     ImGui::PopID();

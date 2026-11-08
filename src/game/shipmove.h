@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <optional>
 #include "types.h"
 
 struct s_wormhole_data;
@@ -60,6 +61,8 @@ namespace SHIPMOVE {
     bool __cdecl Ship_Is_Moving(const s_ship_data* ship);
 
     void __cdecl Make_Ship_Arrive_At_Star(s_ship_data* ship, int16_t star_idx);
+    // Stop at the current position, without arrival/visibility/mission effects.
+    bool Stop_Ship_Transit(s_ship_data* ship, std::optional<uint32_t> current_star);
     void __cdecl Update_Ship_ETAs(int16_t player_id);
 
     void __cdecl Do_Hyperspace_Beast(int32_t player_idx);

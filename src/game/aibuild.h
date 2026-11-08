@@ -120,24 +120,24 @@ namespace AIBUILD {
      * @param colony Colony being evaluated.
      * @param building_id Building or product id to score.
      */
-    int16_t __cdecl Colony_Building_Score(AIDATA::s_state* ai, const game_world::s_view* world, struct s_colony* colony, int16_t building_id);
+    int16_t __cdecl Colony_Building_Score(AIDATA::s_state* ai, const game_world::s_view* world, uint32_t colony_id, struct s_colony* colony, int16_t building_id);
 
     /** Builds normalized deterministic production facts for one colony.
      * @param colony Colony to inspect.
      * @param war_level Effective strategic war level, or minus one to calculate it.
      * @param context Output production context.
      */
-    void Build_Production_Context(AIDATA::s_state* ai, const game_world::s_view* world, const struct s_colony* colony, int32_t war_level, production_rules::s_context* context);
+    void Build_Production_Context(AIDATA::s_state* ai, const game_world::s_view* world, uint32_t colony_id, const struct s_colony* colony, int32_t war_level, production_rules::s_context* context);
 
     /** Reassigns colony production when the current build should be replaced.
      * @param colony Colony whose production is being checked.
      */
-    void __cdecl Assign_Colony_Building(AIDATA::s_state* ai, const game_world::s_view* world, struct s_colony* colony);
+    void __cdecl Assign_Colony_Building(AIDATA::s_state* ai, const game_world::s_view* world, uint32_t colony_id, struct s_colony* colony);
 
     /** Chooses a new production target for a colony.
      * @param colony Colony whose production is being assigned.
      */
-    void __cdecl Assign_Colony_New_Building(AIDATA::s_state* ai, const game_world::s_view* world, struct s_colony* colony);
+    void __cdecl Assign_Colony_New_Building(AIDATA::s_state* ai, const game_world::s_view* world, uint32_t colony_id, struct s_colony* colony);
 
     /** Returns whether a colony contains foreign population from a treaty partner.
      * @param colony Colony to inspect.
@@ -165,5 +165,5 @@ namespace AIBUILD {
     /** Assigns a fresh autobuild target without recalculating current-turn production.
      * @param colony Colony to update.
      */
-    void __cdecl Player_Colony_Autobuild(AIDATA::s_state* ai, const game_world::s_view* world, s_colony* colony);
+    void __cdecl Player_Colony_Autobuild(AIDATA::s_state* ai, const game_world::s_view* world, uint32_t colony_id, s_colony* colony);
 } // namespace AIBUILD

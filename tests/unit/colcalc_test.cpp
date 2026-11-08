@@ -870,7 +870,7 @@ DOCTEST_TEST_CASE("configured Growth values drive both AI planet-worth consumers
 
         MOX::player[0].traits[TRAIT_POP_GROWTH_BONUS] = original_value;
         const int16_t original_colony_worth =
-            AIDATA::Colony_Worth_To_Player(&ai, AI_World_(), colony, &MOX::player[0]);
+            AIDATA::Colony_Worth_To_Player(&ai, AI_World_(), 0, colony, &MOX::player[0]);
         const int32_t original_planet_worth =
             AIDATA::Uncolonized_Planet_Worth_To_Player(
                 AI_World_(),
@@ -878,7 +878,7 @@ DOCTEST_TEST_CASE("configured Growth values drive both AI planet-worth consumers
 
         MOX::player[0].traits[TRAIT_POP_GROWTH_BONUS] = replacement_value;
         const int16_t unmatched_colony_worth =
-            AIDATA::Colony_Worth_To_Player(&ai, AI_World_(), colony, &MOX::player[0]);
+            AIDATA::Colony_Worth_To_Player(&ai, AI_World_(), 0, colony, &MOX::player[0]);
         const int32_t unmatched_planet_worth =
             AIDATA::Uncolonized_Planet_Worth_To_Player(
                 AI_World_(),
@@ -888,7 +888,7 @@ DOCTEST_TEST_CASE("configured Growth values drive both AI planet-worth consumers
 
         configured_value = replacement_value;
         const int16_t configured_colony_worth =
-            AIDATA::Colony_Worth_To_Player(&ai, AI_World_(), colony, &MOX::player[0]);
+            AIDATA::Colony_Worth_To_Player(&ai, AI_World_(), 0, colony, &MOX::player[0]);
         const int32_t configured_planet_worth =
             AIDATA::Uncolonized_Planet_Worth_To_Player(
                 AI_World_(),
