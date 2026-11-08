@@ -9,27 +9,13 @@ namespace {
 
     s_player players[MAX_PLAYERS];
 
-    const AIDATA::s_world_view* AI_World_() {
-        static const AIDATA::s_world_view world{
+    const game_world::s_view* AI_World_() {
+        static const game_world::s_view world{
             .players = players,
             .settings = &MOX::settings,
             .stardate = &MOX::stardate,
             .combat_x = &MOX::cur_combat_x,
             .random = {.draw = [](uint32_t*, uint32_t maximum) { return game_random::Random(maximum); }},
-            .rules = {
-                .design = &aidesign::rules,
-                .technology = {
-                    .applications = TECHDATA::technology_applications,
-                    .fields = TECHDATA::technology_fields,
-                    .computers = TECHDATA::computers,
-                    .drives = TECHDATA::drives,
-                    .hulls = TECHDATA::hull_data,
-                    .specials = TECHDATA::specials,
-                    .weapons = TECHDATA::weapons,
-                    .weapon_modifications = TECHDATA::weapon_modifications,
-                },
-                .engine_design = {.missile_x3_shot = &DESIGN::missile_x3_shot},
-            },
         };
         return &world;
     }
@@ -108,6 +94,7 @@ namespace TECHDATA {
     s_tech_computer_data computers[COMPUTER_COUNT];
     s_tech_drive_data drives[DRIVE_COUNT];
     s_tech_hull_data hull_data[HULL_CLASS_COUNT];
+    s_tech_shield_data shields[SHIELD_COUNT];
     s_tech_specials_data specials[SPECIAL_COUNT];
     s_tech_weapon_data weapons[WEAPON_COUNT];
     s_tech_weapon_mod_data weapon_modifications[WEAPON_MOD_COUNT];
@@ -388,14 +375,14 @@ DOCTEST_TEST_CASE("AI special-device and defense priorities use source-owned lis
     players[kPlayer].tech_applications[TECH_APP_TRANSPORTERS] =
         TECH_RESEARCH_STATUS_RESEARCHED;
 
-    DOCTEST_CHECK(aidesign::Special_Devices_Available(&aidesign::rules.priorities, &AI_World_()->rules.technology, &players[kPlayer]) == 1);
+    DOCTEST_CHECK(aidesign::Special_Devices_Available(&aidesign::rules.priorities, &players[kPlayer]) == 1);
 
     aidesign::rules.priorities.special_device_priority[0] = {
         SPECIAL_TRANSPORTERS,
         AI_SPECIAL_ITEM_WEAPON,
     };
     TECHDATA::weapons[SPECIAL_TRANSPORTERS].tech_app_id = TECH_APP_TRANSPORTERS;
-    DOCTEST_CHECK(aidesign::Special_Devices_Available(&aidesign::rules.priorities, &AI_World_()->rules.technology, &players[kPlayer]) == 1);
+    DOCTEST_CHECK(aidesign::Special_Devices_Available(&aidesign::rules.priorities, &players[kPlayer]) == 1);
 }
 
 DOCTEST_TEST_CASE("AI design legality enforces every stealth and cloak pairing") {

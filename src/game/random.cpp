@@ -23,10 +23,10 @@ namespace game_random {
     }
 
     uint32_t __cdecl Random(uint32_t max_val) {
-        return Random(&random_seed, max_val);
+        return Random_From_Seed(&random_seed, max_val);
     }
 
-    uint32_t __cdecl Random(uint32_t* state, uint32_t max_val) {
+    uint32_t __cdecl Random_From_Seed(uint32_t* state, uint32_t max_val) {
         if (max_val == 0) {
             return 1;
         }

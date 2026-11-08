@@ -43,23 +43,10 @@ namespace {
 #include "game/ship_config.h"
 
 namespace {
-    const AIDATA::s_world_view* AI_World_() {
-        static const AIDATA::s_world_view world{
+    const game_world::s_view* AI_World_() {
+        static const game_world::s_view world{
             .players = MOX::player,
             .settings = &MOX::settings,
-            .rules = {
-                .technology = {
-                    .computers = TECHDATA::computers,
-                    .drives = TECHDATA::drives,
-                    .hulls = TECHDATA::hull_data,
-                    .shields = TECHDATA::shields,
-                    .weapons = TECHDATA::weapons,
-                },
-                .combat = {
-                    .satellite_space_allocation = &COMBINIT::satellite_space_allocation,
-                    .satellite_ammo_basis = &COMBINIT::satellite_ammo_basis,
-                },
-            },
         };
         return &world;
     }

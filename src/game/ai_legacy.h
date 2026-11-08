@@ -1,14 +1,13 @@
 #pragma once
 
-#include "ai_world.h"
+#include "world_view.h"
 
 #include <cstdint>
 #include <optional>
 #include <vector>
 
 namespace AI_LEGACY {
-    AIDATA::s_world_view World();
-    AIMOVE::s_movement_source Movement();
+    game_world::s_view World();
 
     inline std::optional<uint32_t> Object_Id(int32_t index) {
         if (index < 0) return std::nullopt;

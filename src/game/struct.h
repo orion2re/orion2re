@@ -38,8 +38,9 @@ namespace struct_ {
      * @param bit_index Zero-based bit index to test.
      */
     int16_t __cdecl Test_Bit_Field(void* bit_field, uint16_t bit_index);
-    inline int16_t Test_Bit_Field(const void* bit_field, uint16_t bit_index) {
-        return Test_Bit_Field(const_cast<void*>(bit_field), bit_index);
+    inline int16_t Read_Bit_Field(const void* bit_field, uint16_t bit_index) {
+        const auto* bytes = static_cast<const uint8_t*>(bit_field);
+        return (bytes[bit_index >> 3] >> (bit_index & 7)) & 1;
     }
 
     /**

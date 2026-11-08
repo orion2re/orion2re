@@ -10,15 +10,17 @@ namespace {
 } // namespace
 
 namespace TEST_AIBUILD_CONTEXT {
+    const game_world::s_view* World_() {
+        static const game_world::s_view world{
+            .players = players,
+            .colonies = colonies,
+            .planets = planets,
+            .player_count = &MOX::NUM_PLAYERS,
+            .stardate = &MOX::stardate,
+        };
+        return &world;
+    }
     AIDATA::s_state* State_() {
-        ai.world.players = players;
-        ai.world.colonies = colonies;
-        ai.world.planets = planets;
-        ai.world.player_count = &MOX::NUM_PLAYERS;
-        ai.world.stardate = &MOX::stardate;
-        ai.world.rules.build = &AIBUILD::rules;
-        ai.world.rules.technology.hulls = TECHDATA::hull_data;
-        ai.world.rules.refit = {TECHDATA::hull_data, COLCALC::government_bonuses, &DESIGN::alternative_refit};
         return &ai;
     }
     void Reset_() {

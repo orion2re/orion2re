@@ -149,7 +149,7 @@ namespace aitech {
         return 0;
     }
 
-    void Apply_Evolutionary_Upgrades(const AIDATA::s_world_view* world) {
+    void Apply_Evolutionary_Upgrades(const game_world::s_view* world) {
         for (int i = 0; i < world->Player_Count(); ++i) {
             s_player* plr = &world->players[i];
 
@@ -165,8 +165,7 @@ namespace aitech {
         }
     }
 
-    void __cdecl Compute_AI_Tech_Info(AIDATA::s_state* ai) {
-        const auto* world = &ai->world;
+    void __cdecl Compute_AI_Tech_Info(AIDATA::s_state* ai, const game_world::s_view* world) {
         for (auto& player : ai->players) player.technology = {};
 
         for (int p_idx = 0; p_idx < world->Player_Count(); ++p_idx) {
@@ -175,19 +174,19 @@ namespace aitech {
 
             AIDATA::s_technology_assessment* plr_info = &ai->players[p_idx].technology;
 
-            plr_info->best_shield = aitech::Player_Best_Ship_Shield(world->rules.technology.shields, plr);
-            plr_info->best_armor = aitech::Player_Best_Armor(world->rules.technology.armor, plr);
-            plr_info->best_computer = aitech::Player_Best_Computer(world->rules.technology.computers, plr);
-            plr_info->best_fuel = aitech::Player_Best_Fuel(world->rules.technology.fuel, plr);
+            plr_info->best_shield = aitech::Player_Best_Ship_Shield(TECHDATA::shields, plr);
+            plr_info->best_armor = aitech::Player_Best_Armor(TECHDATA::armor, plr);
+            plr_info->best_computer = aitech::Player_Best_Computer(TECHDATA::computers, plr);
+            plr_info->best_fuel = aitech::Player_Best_Fuel(TECHDATA::fuel, plr);
             plr_info->best_planet_shield = aitech::Player_Best_Planetary_Shield(plr);
-            plr_info->best_drive = aitech::Player_Best_Drive(world->rules.technology.drives, plr);
+            plr_info->best_drive = aitech::Player_Best_Drive(TECHDATA::drives, plr);
 
             // Calculate Best Weapon scores based on technology costs
             for (int w_idx = WEAPON_MASS_DRIVER; w_idx <= WEAPON_SPATIAL_COMPRESSOR; ++w_idx) {
-                uint16_t app_id = world->rules.technology.weapons[w_idx].tech_app_id;
+                uint16_t app_id = TECHDATA::weapons[w_idx].tech_app_id;
                 if (plr->tech_applications[app_id] == TECH_RESEARCH_STATUS_RESEARCHED) {
-                    int16_t field_id = world->rules.technology.applications[app_id].tech_field_id;
-                    uint8_t cost_score = (uint8_t)(world->rules.technology.fields[field_id].cost / 100);
+                    int16_t field_id = TECHDATA::technology_applications[app_id].tech_field_id;
+                    uint8_t cost_score = (uint8_t)(TECHDATA::technology_fields[field_id].cost / 100);
                     if (cost_score > (uint8_t)plr_info->best_beam_score) {
                         plr_info->best_beam_score = cost_score;
                     }
@@ -195,10 +194,10 @@ namespace aitech {
             }
 
             for (int w_idx = WEAPON_NUCLEAR_MISSILE; w_idx <= WEAPON_PLASMA_TORPEDO; ++w_idx) {
-                uint16_t app_id = world->rules.technology.weapons[w_idx].tech_app_id;
+                uint16_t app_id = TECHDATA::weapons[w_idx].tech_app_id;
                 if (plr->tech_applications[app_id] == TECH_RESEARCH_STATUS_RESEARCHED) {
-                    int16_t field_id = world->rules.technology.applications[app_id].tech_field_id;
-                    uint8_t cost_score = (uint8_t)(world->rules.technology.fields[field_id].cost / 100);
+                    int16_t field_id = TECHDATA::technology_applications[app_id].tech_field_id;
+                    uint8_t cost_score = (uint8_t)(TECHDATA::technology_fields[field_id].cost / 100);
                     if (cost_score > (uint8_t)plr_info->best_missile_score) {
                         plr_info->best_missile_score = cost_score;
                     }
@@ -328,15 +327,14 @@ namespace aitech {
             // Check for Colonization status
             bool can_colonize =
                 (plr->tech_applications[TECH_APP_THORIUM_FUEL_CELLS] == TECH_RESEARCH_STATUS_RESEARCHED) ||
-                AIMOVE::Best_Uncolonized_Undestined_Planet(ai, (int16_t)p_idx).has_value();
+                AIMOVE::Best_Uncolonized_Undestined_Planet(ai, world, (int16_t)p_idx).has_value();
 
             plr_info->colonization_idle = can_colonize ? 0 : 1;
         }
     }
 
-    void __cdecl All_AI_Tech_Select(AIDATA::s_state* ai) {
-        const auto* world = &ai->world;
-        aitech::Compute_AI_Tech_Info(ai);
+    void __cdecl All_AI_Tech_Select(AIDATA::s_state* ai, const game_world::s_view* world) {
+        aitech::Compute_AI_Tech_Info(ai, world);
 
         for (int i = 0; i < world->Player_Count(); ++i) {
             s_player* plr = &world->players[i];
@@ -351,7 +349,7 @@ namespace aitech {
         }
     }
 
-    int16_t __cdecl System_Proximity_Count(const AIDATA::s_world_view* world, int16_t player_id, uint8_t other_player_id) {
+    int16_t __cdecl System_Proximity_Count(const game_world::s_view* world, int16_t player_id, uint8_t other_player_id) {
         uint8_t player_bit = 1 << (player_id & 0x1F);
         uint8_t other_player_bit = 1 << (other_player_id & 0x1F);
         int16_t score = 0;
@@ -372,12 +370,12 @@ namespace aitech {
         return score;
     }
 
-    int32_t __cdecl Get_Max_Technology_Value(const AIDATA::s_world_view* world, int16_t player_idx) {
+    int32_t __cdecl Get_Max_Technology_Value(const game_world::s_view* world, int16_t player_idx) {
         int32_t max_cost = 0;
 
         for (int i = 0; i < TECH_FIELD_COUNT; ++i) {
             if (world->players[player_idx].tech_fields[i] == 3) {
-                int32_t cost = (int32_t)world->rules.technology.fields[i].cost;
+                int32_t cost = (int32_t)TECHDATA::technology_fields[i].cost;
                 if (max_cost < cost) {
                     max_cost = cost;
                 }
@@ -387,7 +385,7 @@ namespace aitech {
         return max_cost / 25;
     }
 
-    void __cdecl AI_Tech_Select(const AIDATA::s_world_view* world, s_player* player) {
+    void __cdecl AI_Tech_Select(const game_world::s_view* world, s_player* player) {
         bool needs_new_tech = false;
 
         // Check if current field research is completed or if a new app was recently acquired
@@ -401,12 +399,12 @@ namespace aitech {
 
         if (needs_new_tech) {
             int16_t player_idx = (int16_t)(player - world->players);
-            int16_t app_id = Choose_AI_Tech_Application(world->rules.research, player_idx, player);
+            int16_t app_id = Choose_AI_Tech_Application(&rules, player_idx, player);
 
             player->current_research_application = (int8_t)app_id;
 
             // Look up field ID from technology applications table
-            int8_t field_id = (int8_t)world->rules.technology.applications[app_id].tech_field_id;
+            int8_t field_id = (int8_t)TECHDATA::technology_applications[app_id].tech_field_id;
             player->current_research_field = field_id;
             player->research_breakthrough = 0;
         }

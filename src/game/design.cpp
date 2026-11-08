@@ -496,15 +496,15 @@ namespace DESIGN {
 
     void __cdecl Cost_Reduction_For_Govt_Type(int16_t player_idx, int32_t* cost) {
         int8_t government = MOX::player[player_idx].traits[TRAIT_CURRENT_GOVERNMENT];
-        Cost_Reduction_For_Govt_Type(COLCALC::government_bonuses, government, cost);
+        Apply_Government_Cost_Reduction(government, cost);
     }
 
-    void __cdecl Cost_Reduction_For_Govt_Type(const COLCALC::s_government_bonus* governments, int8_t government, int32_t* cost) {
+    void __cdecl Apply_Government_Cost_Reduction(int8_t government, int32_t* cost) {
         if ((uint8_t)government >= GOVERNMENT_COUNT) {
             return;
         }
 
-        const s_ratio16& reduction = governments[government].cost_reduction;
+        const s_ratio16& reduction = COLCALC::government_bonuses[government].cost_reduction;
         if (reduction.denominator == 0) {
             return;
         }
@@ -1088,9 +1088,7 @@ namespace DESIGN {
 
             s_ship_design* old_design = &MOX::ship[COLBLDG::refitting_ship_n].d;
 
-            const AIDATA::s_refit_rule_inputs refit_rules{
-                TECHDATA::hull_data, COLCALC::government_bonuses, &alternative_refit};
-            return AIBUILD::Refit_Cost(&refit_rules, &MOX::player[MOX::PLAYER_NUM], old_design, &new_design);
+            return AIBUILD::Refit_Cost(&MOX::player[MOX::PLAYER_NUM], old_design, &new_design);
         }
 
         return static_cast<int16_t>(printed_cost);

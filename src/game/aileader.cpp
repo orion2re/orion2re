@@ -1,8 +1,7 @@
 #include "pch.h"
 
 namespace aileader {
-    void __cdecl Do_AI_Leaders(AIDATA::s_state* ai) {
-        const auto* world = &ai->world;
+    void __cdecl Do_AI_Leaders(AIDATA::s_state* ai, const game_world::s_view* world) {
         for (int16_t i = 0; i < world->Player_Count(); ++i) {
             s_player* player = &world->players[i];
 
@@ -62,13 +61,12 @@ namespace aileader {
 
         for (int32_t i = 0; i < world->Player_Count(); ++i) {
             if (world->players[i].objectives != PLAYER_OBJECTIVE_HUMAN) {
-                Assign_Unassigned_Leaders(ai, i);
+                Assign_Unassigned_Leaders(ai, world, i);
             }
         }
     }
 
-    void __cdecl Assign_Star_Officer(AIDATA::s_state* ai, int32_t player_index, int32_t leader_index) {
-        const auto* world = &ai->world;
+    void __cdecl Assign_Star_Officer(AIDATA::s_state* ai, const game_world::s_view* world, int32_t player_index, int32_t leader_index) {
         std::vector<int32_t> star_scores(world->Star_Count(), 0);
 
         uint32_t skills = world->leaders[leader_index].special_skills;
@@ -134,7 +132,7 @@ namespace aileader {
         }
     }
 
-    void __cdecl Assign_Fleet_Officer(const AIDATA::s_world_view* world, int32_t player_index, int32_t leader_index) {
+    void __cdecl Assign_Fleet_Officer(const game_world::s_view* world, int32_t player_index, int32_t leader_index) {
         s_ship_data* best_ship = nullptr;
         s_ship_data* ship_list = world->ships;
         int32_t num_ships = world->Ship_Count();
@@ -160,7 +158,7 @@ namespace aileader {
         }
     }
 
-    void __cdecl Reassign_Fleet_Officer(const AIDATA::s_world_view* world, int32_t player_index, int32_t leader_index) {
+    void __cdecl Reassign_Fleet_Officer(const game_world::s_view* world, int32_t player_index, int32_t leader_index) {
         int16_t original_location = world->leaders[leader_index].location;
         s_ship_data* original_ship = &world->ships[original_location];
         s_ship_data* best_ship = original_ship;
@@ -186,8 +184,7 @@ namespace aileader {
         }
     }
 
-    void __cdecl Assign_Unassigned_Leaders(AIDATA::s_state* ai, int32_t player_idx) {
-        const auto* world = &ai->world;
+    void __cdecl Assign_Unassigned_Leaders(AIDATA::s_state* ai, const game_world::s_view* world, int32_t player_idx) {
         for (int32_t leader_index = 0; leader_index < MAX_LEADERS; ++leader_index) {
             s_leader_data* leader = &world->leaders[leader_index];
 
@@ -196,7 +193,7 @@ namespace aileader {
                     if (leader->type == LEADER_TYPE_SHIP) {
                         Assign_Fleet_Officer(world, player_idx, leader_index);
                     } else /* Star Officer */ {
-                        Assign_Star_Officer(ai, player_idx, leader_index);
+                        Assign_Star_Officer(ai, world, player_idx, leader_index);
                     }
                 } else if (leader->status == 1 /* Assigned */) {
                     // Only fleet officers seem to be reassigned in this manner

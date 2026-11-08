@@ -4,7 +4,7 @@
 #include "game/aimove.h"
 
 namespace TEST_AIMOVE {
-    const AIDATA::s_world_view* World_();
+    const game_world::s_view* World_();
     void Reset_();
     int16_t Spawn_Count_();
     uint16_t Spawned_Eel_Timer_();

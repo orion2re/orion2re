@@ -78,7 +78,7 @@ namespace maintain {
                 if (ship.owner == player_idx && ship.status < 5 && ship.d.ship_type == SHIP_TYPE_COMBAT) {
                     for (int32_t k = 0; k < player_count; ++k) {
                         if (eligible_players[k]) {
-                            worths[j] += AIPOWER::Ship_Strength_Vs_Ships(&AIDATA::state.world, j, (int16_t)k);
+                            worths[j] += AIPOWER::Ship_Strength_Vs_Ships(&game_world::current, j, (int16_t)k);
                         }
                     }
                     worths[j] = worths[j] / ((ship.d.size + 1) * eligible_count);
@@ -256,7 +256,7 @@ namespace maintain {
 
                 if (cheapest_ship->officer_index != -1) {
                     int16_t officer_idx = cheapest_ship->officer_index;
-                    const AIDATA::s_world_view world{
+                    const game_world::s_view world{
                         .players = MOX::player,
                         .ships = MOX::ship,
                         .leaders = MOX::leaders,

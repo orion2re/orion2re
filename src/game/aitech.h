@@ -11,18 +11,18 @@ namespace aitech {
     extern s_rules rules;
 
     /// Applies pending evolutionary trait upgrades for players that have selected one.
-    void __cdecl Apply_Evolutionary_Upgrades(const AIDATA::s_world_view* world);
+    void __cdecl Apply_Evolutionary_Upgrades(const game_world::s_view* world);
 
     /// Populates aggregate AI technology metrics for each active player.
     /// @param ai AI workspace receiving the computed technology data.
-    void __cdecl Compute_AI_Tech_Info(AIDATA::s_state* ai);
+    void __cdecl Compute_AI_Tech_Info(AIDATA::s_state* ai, const game_world::s_view* world);
 
     /// Recomputes AI technology priorities for all active AI players.
-    void __cdecl All_AI_Tech_Select(AIDATA::s_state* ai);
+    void __cdecl All_AI_Tech_Select(AIDATA::s_state* ai, const game_world::s_view* world);
 
     /// Chooses the next research application for a player when a reselection is needed.
     /// @param player Player whose research target may be updated.
-    void __cdecl AI_Tech_Select(const AIDATA::s_world_view* world, s_player* player);
+    void __cdecl AI_Tech_Select(const game_world::s_view* world, s_player* player);
 
     /// Returns the highest researched ship shield index for a player.
     /// @param player Player whose researched shield technologies are checked.
@@ -59,9 +59,9 @@ namespace aitech {
     /// Counts nearby-system proximity pressure from another player's colonies.
     /// @param player_id Player whose nearby range is evaluated.
     /// @param other_player_id Player whose colonies contribute to the score.
-    int16_t __cdecl System_Proximity_Count(const AIDATA::s_world_view* world, int16_t player_id, uint8_t other_player_id);
+    int16_t __cdecl System_Proximity_Count(const game_world::s_view* world, int16_t player_id, uint8_t other_player_id);
 
     /// Returns the scaled cost of the most advanced completed technology field for a player.
     /// @param player_idx Index of the player to inspect.
-    int32_t __cdecl Get_Max_Technology_Value(const AIDATA::s_world_view* world, int16_t player_idx);
+    int32_t __cdecl Get_Max_Technology_Value(const game_world::s_view* world, int16_t player_idx);
 } // namespace aitech

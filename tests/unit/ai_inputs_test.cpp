@@ -2,6 +2,7 @@
 
 #include "doctest/doctest.h"
 #include "game/ai_legacy.h"
+#include "game/fleet_movement.h"
 
 namespace {
     s_ship_data legacy_ships[2];
@@ -49,35 +50,71 @@ namespace struct_ {
     }
 } // namespace struct_
 
-DOCTEST_TEST_CASE("AI turn reset retains borrowed inputs, not calculated records") {
+namespace INITSHIP {
+    int16_t __cdecl Best_Armor(int16_t) {
+        DOCTEST_FAIL("Unexpected legacy combat calculation");
+        return 0;
+    }
+    int16_t __cdecl Best_Computer(int16_t) {
+        DOCTEST_FAIL("Unexpected legacy combat calculation");
+        return 0;
+    }
+    int16_t __cdecl Best_Warp_Drive(int16_t) {
+        DOCTEST_FAIL("Unexpected legacy combat calculation");
+        return 0;
+    }
+    int16_t __cdecl Best_Bomb_Weapon(int16_t) {
+        DOCTEST_FAIL("Unexpected legacy combat calculation");
+        return 0;
+    }
+    int16_t __cdecl Best_Ship_Shield(int16_t) {
+        DOCTEST_FAIL("Unexpected legacy combat calculation");
+        return 0;
+    }
+    int16_t __cdecl Best_Point_Defense_Weapon(int16_t) {
+        DOCTEST_FAIL("Unexpected legacy combat calculation");
+        return 0;
+    }
+    int16_t __cdecl Get_Ship_Structure(int16_t) {
+        DOCTEST_FAIL("Unexpected legacy combat calculation");
+        return 0;
+    }
+    int16_t __cdecl Get_Ship_Armor_Hits(int16_t) {
+        DOCTEST_FAIL("Unexpected legacy combat calculation");
+        return 0;
+    }
+    void __cdecl Update_Strategic_Ship(int16_t) {
+        DOCTEST_FAIL("Unexpected legacy combat calculation");
+    }
+    void __cdecl Get_Ship_Combat_Bonuses(int16_t, int16_t*, int16_t*, int16_t*) {
+        DOCTEST_FAIL("Unexpected legacy combat calculation");
+    }
+} // namespace INITSHIP
+
+DOCTEST_TEST_CASE("AI turn reset does not own or reset world inputs") {
     int16_t player_count = 1;
     uint32_t seed = 42;
-    AIBUILD::s_rules first_rules;
-    AIBUILD::s_rules second_rules;
+    game_world::s_view world;
     AIDATA::s_state first;
     AIDATA::s_state second;
-    first.world.player_count = &player_count;
-    first.world.random = {&seed, game_random::Random};
-    first.world.rules.build = &first_rules;
-    second.world.rules.build = &second_rules;
+    world.player_count = &player_count;
+    world.random = {&seed, game_random::Random_From_Seed};
     first.players[0].build.transports.current = 3;
     first.ships[UINT32_MAX].refit_desirability = 9;
 
     AIDATA::Begin_Turn(&first, 42);
     DOCTEST_CHECK(first.ships.empty());
     DOCTEST_CHECK(first.players[0].build.transports.current == 0);
-    DOCTEST_CHECK(first.world.random.seed == &seed);
+    DOCTEST_CHECK(world.random.seed == &seed);
     player_count = 2;
-    DOCTEST_CHECK(first.world.Player_Count() == 2);
-    first_rules.colony_bases_prewarp = true;
-    DOCTEST_CHECK(first.world.rules.build->colony_bases_prewarp);
-    DOCTEST_CHECK_FALSE(second.world.rules.build->colony_bases_prewarp);
+    DOCTEST_CHECK(world.Player_Count() == 2);
+    DOCTEST_CHECK_FALSE(second.initialized);
 }
 
 DOCTEST_TEST_CASE("AI random sources preserve classic draws without selecting a global stream") {
     game_random::random_seed = 0xdeadbeef;
     uint32_t seed = 0;
-    const game_random::s_source source{&seed, game_random::Random};
+    const game_random::s_source source{&seed, game_random::Random_From_Seed};
     const uint32_t expected[] = {1, 828, 653, 838, 54, 759};
     DOCTEST_CHECK(source.Next(0) == 1);
     DOCTEST_CHECK(seed == 0);
@@ -85,36 +122,36 @@ DOCTEST_TEST_CASE("AI random sources preserve classic draws without selecting a 
     DOCTEST_CHECK(game_random::random_seed == 0xdeadbeef);
 
     uint32_t other_seed = 0;
-    const game_random::s_source other{&other_seed, game_random::Random};
+    const game_random::s_source other{&other_seed, game_random::Random_From_Seed};
     DOCTEST_CHECK(other.Next(1000) == 1);
     DOCTEST_CHECK(seed == 3256818826u);
 }
 
 DOCTEST_TEST_CASE("source-driven weighted choices have explicit absence and fixed-width positions") {
     uint32_t seed = 0;
-    const game_random::s_source random{&seed, game_random::Random};
+    const game_random::s_source random{&seed, game_random::Random_From_Seed};
     const uint16_t zero[] = {0, 0};
-    DOCTEST_CHECK_FALSE(RUSS::Get_Weighted_Choice_Short(&random, zero, 2));
+    DOCTEST_CHECK_FALSE(RUSS::Choose_Weighted_Index_U16(&random, zero, 2));
     DOCTEST_CHECK(seed == 0);
 
     const uint16_t weights[] = {0, 5, 0, 7};
-    DOCTEST_CHECK(RUSS::Get_Weighted_Choice_Short(&random, weights, 4) == 1);
-    DOCTEST_CHECK(RUSS::Get_Weighted_Choice_Short(&random, weights, 4) == 3);
+    DOCTEST_CHECK(RUSS::Choose_Weighted_Index_U16(&random, weights, 4) == 1);
+    DOCTEST_CHECK(RUSS::Choose_Weighted_Index_U16(&random, weights, 4) == 3);
 
     std::vector<uint16_t> large(40000);
     large.back() = 1;
-    DOCTEST_CHECK(RUSS::Get_Weighted_Choice_Short(&random, large.data(), 40000) == 39999);
+    DOCTEST_CHECK(RUSS::Choose_Weighted_Index_U16(&random, large.data(), 40000) == 39999);
 }
 
 DOCTEST_TEST_CASE("32-bit ID shuffling keeps the legacy permutation and RNG consumption") {
     uint32_t first_seed = 42;
     uint32_t second_seed = 42;
-    const game_random::s_source first{&first_seed, game_random::Random};
-    const game_random::s_source second{&second_seed, game_random::Random};
+    const game_random::s_source first{&first_seed, game_random::Random_From_Seed};
+    const game_random::s_source second{&second_seed, game_random::Random_From_Seed};
     int16_t old_ids[] = {0, 1, 2, 3, 4, 5};
     uint32_t ids[] = {0, 1, 2, 3, 4, 5};
     const uint32_t expected[] = {4, 0, 1, 5, 3, 2};
-    RUSS::Shuffle_Sint(&first, old_ids, 6);
+    RUSS::Shuffle_Sint_With_Source(&first, old_ids, 6);
     RUSS::Shuffle_Uint(&second, ids, 6);
     for (uint32_t i = 0; i < 6; ++i) {
         DOCTEST_CHECK(ids[i] == expected[i]);
@@ -124,31 +161,15 @@ DOCTEST_TEST_CASE("32-bit ID shuffling keeps the legacy permutation and RNG cons
     DOCTEST_CHECK(second_seed == 2219150180u);
 }
 
-DOCTEST_TEST_CASE("refit calculations use the supplied owner, technology and government rules") {
+DOCTEST_TEST_CASE("refit desirability uses the supplied owner and assessment") {
     s_player owner{};
-    s_tech_hull_data hulls[HULL_CLASS_COUNT] = {};
-    COLCALC::s_government_bonus governments[GOVERNMENT_COUNT] = {};
-    uint8_t alternative = 0;
-    const AIDATA::s_refit_rule_inputs inputs{hulls, governments, &alternative};
-    owner.traits[TRAIT_CURRENT_GOVERNMENT] = GOVERNMENT_FEUDAL;
-    governments[GOVERNMENT_FEUDAL].cost_reduction = {1, 3};
-    hulls[SHIP_SIZE_SMALL].cost = 100;
-    s_ship_design old_design{};
-    old_design.cost = 100;
-    s_ship_design new_design = old_design;
-    new_design.cost = 105;
-    DOCTEST_CHECK(AIBUILD::Refit_Cost(&inputs, &owner, &old_design, &new_design) == 17);
-    alternative = 1;
-    DOCTEST_CHECK(AIBUILD::Refit_Cost(&inputs, &owner, &old_design, &new_design) == 22);
-
     s_ship_data ship{};
     AIDATA::s_technology_assessment assessment;
-    AIDATA::s_technology_view technology;
     assessment.best_armor = 2;
     owner.ship_designs[SHIP_SIZE_SMALL] = ship.d;
-    DOCTEST_CHECK(AIDATA::Refit_Desirability(&technology, &owner, &assessment, &ship) == 0);
+    DOCTEST_CHECK(AIDATA::Refit_Desirability(&owner, &assessment, &ship) == 0);
     owner.ship_designs[SHIP_SIZE_SMALL].cost = 1;
-    DOCTEST_CHECK(AIDATA::Refit_Desirability(&technology, &owner, &assessment, &ship) > 0);
+    DOCTEST_CHECK(AIDATA::Refit_Desirability(&owner, &assessment, &ship) > 0);
 }
 
 DOCTEST_TEST_CASE("AI strength and technology leaves read supplied records instead of world globals") {
@@ -195,14 +216,16 @@ DOCTEST_TEST_CASE("star assessments name treaty partners and hostile players by 
     players[0].treaty[1] = 1;
     players[0].treaty[2] = 4;
     AIDATA::s_state ai;
-    ai.world.players = players;
-    ai.world.stars = stars;
-    ai.world.colonies = colonies;
-    ai.world.planets = planets;
-    ai.world.player_count = &player_count;
-    ai.world.star_count = &star_count;
-    ai.world.colony_count = &colony_count;
-    AIDATA::Compute_Star_Player_Range_Info(&ai);
+    game_world::s_view world{
+        .players = players,
+        .stars = stars,
+        .colonies = colonies,
+        .planets = planets,
+        .player_count = &player_count,
+        .star_count = &star_count,
+        .colony_count = &colony_count,
+    };
+    AIDATA::Compute_Star_Player_Range_Info(&ai, &world);
     const auto& assessment = ai.stars.at(0).neighborhood.per_player[0];
     DOCTEST_CHECK(assessment.treaty_partners_in_range == 1);
     DOCTEST_CHECK(assessment.hostile_players_in_range == 1);
@@ -222,6 +245,28 @@ DOCTEST_TEST_CASE("legacy ship-list encoding accepts zero, rejects narrowing, an
     DOCTEST_CHECK(*empty == std::vector<int16_t>{-1});
 }
 
+DOCTEST_TEST_CASE("AI strength lookup does not narrow a ship identity to a legacy index") {
+    AIDATA::s_state ai;
+    constexpr uint32_t ship_id = 0x12345678u;
+    ai.ships[ship_id].strengths[1] = 123;
+    ai.ships[ship_id].strengths_in_nebula[1] = 277;
+    ai.ships[0].strengths[1] = 7;
+    s_star_data stars[1] = {};
+    int16_t player_count = 2;
+    const game_world::s_view world{.stars = stars, .player_count = &player_count};
+    DOCTEST_CHECK(AIMOVE::Ship_Min_Strength_Versus_Players_At_Star(&ai, &world, ship_id, 2, 0) == 123);
+    stars[0].in_nebula = 1;
+    DOCTEST_CHECK(AIMOVE::Ship_Min_Strength_Versus_Players_At_Star(&ai, &world, ship_id, 2, 0) == 277);
+    DOCTEST_CHECK(ai.ships.size() == 2);
+}
+
+DOCTEST_TEST_CASE("read-only bit fields have a distinct const-correct interface") {
+    const uint8_t bits[] = {1, 0x80};
+    DOCTEST_CHECK(struct_::Read_Bit_Field(bits, 0) == 1);
+    DOCTEST_CHECK(struct_::Read_Bit_Field(bits, 1) == 0);
+    DOCTEST_CHECK(struct_::Read_Bit_Field(bits, 15) == 1);
+}
+
 DOCTEST_TEST_CASE("legacy movement queries restore positions including repeated ship IDs") {
     memset(legacy_ships, 0, sizeof(legacy_ships));
     legacy_ships[0].x = legacy_ships[1].x = 10;
@@ -229,9 +274,8 @@ DOCTEST_TEST_CASE("legacy movement queries restore positions including repeated 
     legacy_stars[1].x = 100;
     legacy_stars[1].y = 200;
     const uint32_t ids[] = {0, 0, 1};
-    auto movement = AI_LEGACY::Movement();
     s_ship_move_info result{};
-    movement.Try_Move(ids, 0, &result, 1);
+    SHIPMOVE::Evaluate_Fleet_Move(ids, 0, &result, 1);
     DOCTEST_CHECK(queried_ships == std::vector<int16_t>{0, 0, 1});
     DOCTEST_CHECK(queried_locations == std::vector<int16_t>{1, 1, 1});
     DOCTEST_CHECK(queried_destination == 0);
@@ -242,30 +286,22 @@ DOCTEST_TEST_CASE("legacy movement queries restore positions including repeated 
     }
     queried = false;
     const uint32_t invalid[] = {UINT32_MAX};
-    movement.Try_Move(invalid, 0, &result);
+    SHIPMOVE::Evaluate_Fleet_Move(invalid, 0, &result);
     DOCTEST_CHECK_FALSE(queried);
     DOCTEST_CHECK(result.moving == 0);
+    queried = false;
+    SHIPMOVE::Evaluate_Fleet_Move({}, 0, &result);
+    DOCTEST_CHECK_FALSE(queried);
 }
 
-DOCTEST_TEST_CASE("movement planning passes opaque destination IDs to the supplied command source") {
-    uint32_t received = 0;
+DOCTEST_TEST_CASE("movement planning rejects destinations unsupported by the legacy engine") {
     s_ship_data ships[1] = {};
-    AIDATA::s_world_view world;
+    game_world::s_view world;
     world.ships = ships;
-    world.movement.context = &received;
-    world.movement.query = [](void* context, std::span<const uint32_t> ids, uint32_t destination, std::optional<uint32_t>, s_ship_move_info* result) {
-        DOCTEST_CHECK(ids.size() == 1);
-        DOCTEST_CHECK(ids[0] == 0);
-        *static_cast<uint32_t*>(context) = destination;
-        *result = {};
-        result->moving = 1;
-        result->turns_left = 4;
-    };
     AIMOVE::s_ai_movement_context context{0, nullptr, nullptr, &world};
     const uint32_t ids[] = {0};
+    queried = false;
     auto route = AIMOVE::Move_Ships_With_Possible_Intermediate(&context, ids, UINT32_MAX);
-    DOCTEST_REQUIRE(route);
-    DOCTEST_CHECK(received == UINT32_MAX);
-    DOCTEST_CHECK(route->next_star == UINT32_MAX);
-    DOCTEST_CHECK(route->turns == 4);
+    DOCTEST_CHECK_FALSE(route);
+    DOCTEST_CHECK_FALSE(queried);
 }

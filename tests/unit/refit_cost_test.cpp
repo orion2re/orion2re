@@ -4,6 +4,7 @@
 
 namespace TEST_AIBUILD_CONTEXT {
     AIDATA::s_state* State_();
+    const game_world::s_view* World_();
     void Reset_();
 }
 
@@ -43,13 +44,13 @@ DOCTEST_TEST_CASE_FIXTURE(s_refit_runtime, "Food Replicator defaults do not gate
 
     MOX::colony[0].production[ECON_FOOD] = 7;
     MOX::colony[0].n_food_replicated = 3;
-    AIBUILD::Build_Production_Context(TEST_AIBUILD_CONTEXT::State_(), &MOX::colony[0], 0, &context);
+    AIBUILD::Build_Production_Context(TEST_AIBUILD_CONTEXT::State_(), TEST_AIBUILD_CONTEXT::World_(), &MOX::colony[0], 0, &context);
     DOCTEST_CHECK(context.metrics[production_rules::METRIC_COLONY_FOOD] == 4);
     DOCTEST_CHECK(production_rules::Evaluate_Eligibility(
         &context, &candidate->eligibility));
 
     MOX::colony[0].production[ECON_FOOD] = 6;
-    AIBUILD::Build_Production_Context(TEST_AIBUILD_CONTEXT::State_(), &MOX::colony[0], 0, &context);
+    AIBUILD::Build_Production_Context(TEST_AIBUILD_CONTEXT::State_(), TEST_AIBUILD_CONTEXT::World_(), &MOX::colony[0], 0, &context);
     DOCTEST_CHECK(context.metrics[production_rules::METRIC_COLONY_FOOD] == 3);
     DOCTEST_CHECK(production_rules::Evaluate_Eligibility(
         &context, &candidate->eligibility));
@@ -70,7 +71,7 @@ DOCTEST_TEST_CASE("named AI production needs distinguish totals from additional 
     needs.colony_ships.enroute = 1;
 
     production_rules::s_context context{};
-    AIBUILD::Build_Production_Context(ai, &MOX::colony[0], 0, &context);
+    AIBUILD::Build_Production_Context(ai, TEST_AIBUILD_CONTEXT::World_(), &MOX::colony[0], 0, &context);
     DOCTEST_CHECK(context.metrics[production_rules::METRIC_CURRENT_STRENGTH] == 40);
     DOCTEST_CHECK(context.metrics[production_rules::METRIC_COMBAT_NEED] == 15);
     DOCTEST_CHECK(context.metrics[production_rules::METRIC_DESIRED_STRENGTH] == 55);
@@ -87,7 +88,7 @@ DOCTEST_TEST_CASE("renamed treaty assessments retain the legacy public productio
     neighborhood.neutral_players_in_range = 1;
     neighborhood.hostile_players_in_range = 3;
     production_rules::s_context context;
-    AIBUILD::Build_Production_Context(ai, &MOX::colony[0], 0, &context);
+    AIBUILD::Build_Production_Context(ai, TEST_AIBUILD_CONTEXT::World_(), &MOX::colony[0], 0, &context);
     DOCTEST_CHECK(context.metrics[production_rules::METRIC_ENEMY_PRESENCE] == 2);
     DOCTEST_CHECK(context.metrics[production_rules::METRIC_ALLIED_PRESENCE] == 3);
     DOCTEST_CHECK(context.metrics[production_rules::METRIC_LOCAL_THREAT] == 23);
@@ -201,17 +202,16 @@ DOCTEST_TEST_CASE_FIXTURE(s_refit_runtime, "refit cost uses the corrected shared
     downgrade.cost = 80;
 
     DESIGN::alternative_refit = 0;
-    const auto* refit_rules = &TEST_AIBUILD_CONTEXT::State_()->world.rules.refit;
-    DOCTEST_CHECK(AIBUILD::Refit_Cost(refit_rules, &MOX::player[0], &old_design, &small_upgrade) == 25);
-    DOCTEST_CHECK(AIBUILD::Refit_Cost(refit_rules, &MOX::player[1], &old_design, &small_upgrade) == 17);
-    DOCTEST_CHECK(AIBUILD::Refit_Cost(refit_rules, &MOX::player[0], &old_design, &large_upgrade) == 60);
-    DOCTEST_CHECK(AIBUILD::Refit_Cost(refit_rules, &MOX::player[0], &old_design, &downgrade) == 25);
+    DOCTEST_CHECK(AIBUILD::Refit_Cost(&MOX::player[0], &old_design, &small_upgrade) == 25);
+    DOCTEST_CHECK(AIBUILD::Refit_Cost(&MOX::player[1], &old_design, &small_upgrade) == 17);
+    DOCTEST_CHECK(AIBUILD::Refit_Cost(&MOX::player[0], &old_design, &large_upgrade) == 60);
+    DOCTEST_CHECK(AIBUILD::Refit_Cost(&MOX::player[0], &old_design, &downgrade) == 25);
 
     DESIGN::alternative_refit = 1;
-    DOCTEST_CHECK(AIBUILD::Refit_Cost(refit_rules, &MOX::player[0], &old_design, &small_upgrade) == 30);
-    DOCTEST_CHECK(AIBUILD::Refit_Cost(refit_rules, &MOX::player[1], &old_design, &small_upgrade) == 22);
-    DOCTEST_CHECK(AIBUILD::Refit_Cost(refit_rules, &MOX::player[0], &old_design, &large_upgrade) == 55);
-    DOCTEST_CHECK(AIBUILD::Refit_Cost(refit_rules, &MOX::player[0], &old_design, &downgrade) == 25);
+    DOCTEST_CHECK(AIBUILD::Refit_Cost(&MOX::player[0], &old_design, &small_upgrade) == 30);
+    DOCTEST_CHECK(AIBUILD::Refit_Cost(&MOX::player[1], &old_design, &small_upgrade) == 22);
+    DOCTEST_CHECK(AIBUILD::Refit_Cost(&MOX::player[0], &old_design, &large_upgrade) == 55);
+    DOCTEST_CHECK(AIBUILD::Refit_Cost(&MOX::player[0], &old_design, &downgrade) == 25);
 
     DESIGN::alternative_refit = 0;
     TECHDATA::hull_data[HULL_FRIGATE].cost = saved_hull_cost;
@@ -259,7 +259,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_refit_runtime, "refit minimum reduction is limited t
     s_ship_design new_design = old_design;
     new_design.cost = 105;
 
-    DOCTEST_CHECK(AIBUILD::Refit_Cost(&TEST_AIBUILD_CONTEXT::State_()->world.rules.refit, &MOX::player[0], &old_design, &new_design) == 30);
+    DOCTEST_CHECK(AIBUILD::Refit_Cost(&MOX::player[0], &old_design, &new_design) == 30);
 
     DESIGN::alternative_refit = 0;
     TECHDATA::hull_data[HULL_FRIGATE].cost = saved_hull_cost;

@@ -24,8 +24,8 @@ namespace TEST_COLONY_POP_GROWTH {
 }
 
 namespace {
-    const AIDATA::s_world_view* AI_World_() {
-        static const AIDATA::s_world_view world{
+    const game_world::s_view* AI_World_() {
+        static const game_world::s_view world{
             .players = MOX::player,
             .stars = MOX::star,
             .colonies = MOX::colony,
@@ -34,16 +34,6 @@ namespace {
             .player_count = &MOX::NUM_PLAYERS,
             .star_count = &MOX::NUM_STARS,
             .colony_count = &MOX::NUM_COLONIES,
-            .rules = {
-                .valuation = &AIDATA::planet_valuation_rules,
-                .colony = {
-                    .race_picks = &raceopt::pick_rules,
-                    .population_bonus = &COLCALC::population_bonus,
-                    .food_farmer_bonus = &COLCALC::food_farmer_bonus,
-                    .minerals_per_mine = COLCALC::minerals_per_mine,
-                    .climate_maintenance_modifiers = COLCALC::climate_maintenance_modifiers,
-                },
-            },
         };
         return &world;
     }
@@ -851,7 +841,6 @@ DOCTEST_TEST_CASE("configured Growth values drive both AI planet-worth consumers
     for (const s_growth_case& test_case : cases) {
         TEST_COLONY_POP_GROWTH::Reset_();
         AIDATA::s_state ai;
-        ai.world = *AI_World_();
         ai.colonies[0].dominant_race = 0;
         MOX::NUM_PLAYERS = 1;
         MOX::settings.game_difficulty = GAME_DIFFICULTY_TUTOR;
@@ -881,7 +870,7 @@ DOCTEST_TEST_CASE("configured Growth values drive both AI planet-worth consumers
 
         MOX::player[0].traits[TRAIT_POP_GROWTH_BONUS] = original_value;
         const int16_t original_colony_worth =
-            AIDATA::Colony_Worth_To_Player(&ai, colony, &MOX::player[0]);
+            AIDATA::Colony_Worth_To_Player(&ai, AI_World_(), colony, &MOX::player[0]);
         const int32_t original_planet_worth =
             AIDATA::Uncolonized_Planet_Worth_To_Player(
                 AI_World_(),
@@ -889,7 +878,7 @@ DOCTEST_TEST_CASE("configured Growth values drive both AI planet-worth consumers
 
         MOX::player[0].traits[TRAIT_POP_GROWTH_BONUS] = replacement_value;
         const int16_t unmatched_colony_worth =
-            AIDATA::Colony_Worth_To_Player(&ai, colony, &MOX::player[0]);
+            AIDATA::Colony_Worth_To_Player(&ai, AI_World_(), colony, &MOX::player[0]);
         const int32_t unmatched_planet_worth =
             AIDATA::Uncolonized_Planet_Worth_To_Player(
                 AI_World_(),
@@ -899,7 +888,7 @@ DOCTEST_TEST_CASE("configured Growth values drive both AI planet-worth consumers
 
         configured_value = replacement_value;
         const int16_t configured_colony_worth =
-            AIDATA::Colony_Worth_To_Player(&ai, colony, &MOX::player[0]);
+            AIDATA::Colony_Worth_To_Player(&ai, AI_World_(), colony, &MOX::player[0]);
         const int32_t configured_planet_worth =
             AIDATA::Uncolonized_Planet_Worth_To_Player(
                 AI_World_(),

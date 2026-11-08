@@ -17,23 +17,26 @@ namespace {
 
 namespace TEST_AIDUDES {
     bool colony_researching;
+    const game_world::s_view* World_() {
+        static game_world::s_view world;
+        world.players = players;
+        world.ships = ships;
+        world.stars = stars;
+        world.colonies = colonies;
+        world.leaders = leaders;
+        world.settings = &MOX::settings;
+        world.ship_count = &MOX::NUM_SHIPS;
+        world.stardate = &MOX::stardate;
+        world.random.draw = [](uint32_t*, uint32_t maximum) { return game_random::Random(maximum); };
+        return &world;
+    }
+
     AIDATA::s_state* State_() {
-        ai.world.players = players;
-        ai.world.ships = ships;
-        ai.world.stars = stars;
-        ai.world.colonies = colonies;
-        ai.world.leaders = leaders;
-        ai.world.settings = &MOX::settings;
-        ai.world.ship_count = &MOX::NUM_SHIPS;
-        ai.world.stardate = &MOX::stardate;
-        ai.world.rules.build = &AIBUILD::rules;
-        ai.world.random.draw = [](uint32_t*, uint32_t maximum) { return game_random::Random(maximum); };
         return &ai;
     }
 
     aidudes::s_ai_colony_context Context_() {
-        State_();
-        return {0, &players[0], &ai.players[0].colony_work, &ai.world};
+        return {0, &players[0], &ai.players[0].colony_work, World_()};
     }
 
     void Reset_() {

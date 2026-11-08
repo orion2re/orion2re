@@ -985,7 +985,7 @@ namespace DIP_SCRN {
                 }
 
                 if (valid_opportunity) {
-                    auto attack = AIMOVE::Find_Opportunity_Attack(&AIDATA::state, p_idx, target_idx, 100);
+                    auto attack = AIMOVE::Find_Opportunity_Attack(&AIDATA::state, &game_world::current, p_idx, target_idx, 100);
                     auto planet_index = attack ? AI_LEGACY::Index(attack->planet_id) : std::nullopt;
                     player.opportunity_planet_num[target_idx] = planet_index.value_or(-1);
                     player.opportunity_planet_value[target_idx] = planet_index ? attack->colony_value : 0;

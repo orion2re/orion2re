@@ -1,7 +1,9 @@
 #pragma once
 
-#include "ai_world.h"
+#include "world_view.h"
 #include <cstdint>
+
+struct s_tech_specials_data;
 
 namespace aidesign {
 
@@ -85,7 +87,7 @@ namespace aidesign {
      * @param space Available space budget for additions.
      * @param weapon_index_ptr In/out weapon slot index for added weapon entries.
      */
-    int32_t __cdecl Add_Specials_To_Design(const AIDATA::s_world_view* world, const struct s_spcl* list, int16_t count, int16_t player_idx, struct s_ship_design* design, int32_t space, int16_t* weapon_index_ptr);
+    int32_t __cdecl Add_Specials_To_Design(const game_world::s_view* world, const struct s_spcl* list, int16_t count, int16_t player_idx, struct s_ship_design* design, int32_t space, int16_t* weapon_index_ptr);
 
     /**
      * Adds specials that match the player's current ship-special theme.
@@ -94,13 +96,13 @@ namespace aidesign {
      * @param space Available space budget for additions.
      * @param weapon_index_ptr In/out weapon slot index for added weapon entries.
      */
-    int32_t __cdecl Add_Theme_Special_To_Design(const AIDATA::s_world_view* world, int16_t player_idx, struct s_ship_design* design, int32_t space, int16_t* weapon_index_ptr);
+    int32_t __cdecl Add_Theme_Special_To_Design(const game_world::s_view* world, int16_t player_idx, struct s_ship_design* design, int32_t space, int16_t* weapon_index_ptr);
 
     /**
      * Chooses an AI ship-class template for the player's next auto-designed hull.
      * @param player_idx Player requesting the design.
      */
-    int16_t __cdecl Get_Ship_Class(const AIDATA::s_world_view* world, int16_t player_idx);
+    int16_t __cdecl Get_Ship_Class(const game_world::s_view* world, int16_t player_idx);
 
     /**
      * Reports whether the player has access to any fighter-bay weapon.
@@ -117,23 +119,21 @@ namespace aidesign {
     /**
      * Reports whether the player has access to any themed special device entry.
      * @param priorities Special-device priority list.
-     * @param technology Technology definitions to inspect.
      * @param player Player to inspect.
      */
-    int16_t __cdecl Special_Devices_Available(const s_ship_design_config* priorities, const AIDATA::s_technology_view* technology, const s_player* player);
+    int16_t __cdecl Special_Devices_Available(const s_ship_design_config* priorities, const s_player* player);
 
     /**
      * Returns the best AI-group value the player has reached for a technology category.
-     * @param technology Technology definitions to inspect.
      * @param player Player whose tech is inspected.
      * @param tech_type AI-group category to compare.
      */
-    int16_t __cdecl Get_Competition_Player_Tech_Values(const AIDATA::s_technology_view* technology, const s_player* player, int16_t tech_type);
+    int16_t __cdecl Get_Competition_Player_Tech_Values(const s_player* player, int16_t tech_type);
 
     /**
      * Compares beam technology against competing weapon technology for the supplied player.
      */
-    bool __cdecl Best_Weapons_Are_Beams(const AIDATA::s_technology_view* technology, const s_player* player);
+    bool __cdecl Best_Weapons_Are_Beams(const s_player* player);
 
     /**
      * Fills weapon slots with the best available fighter-bay weapon for the allotted space.
@@ -142,7 +142,7 @@ namespace aidesign {
      * @param weapon_index_ptr In/out weapon slot index for added entries.
      * @param space Available space budget for fighters.
      */
-    int32_t __cdecl Add_Fighters_To_Design(const AIDATA::s_world_view* world, int16_t player_idx, struct s_ship_design* design, int16_t* weapon_index_ptr, int32_t space);
+    int32_t __cdecl Add_Fighters_To_Design(const game_world::s_view* world, int16_t player_idx, struct s_ship_design* design, int16_t* weapon_index_ptr, int32_t space);
 
     /**
      * Adds one class of beam weapon using the selected beam modifications for the hull.
@@ -152,7 +152,7 @@ namespace aidesign {
      * @param space Available space budget for beams.
      * @param weapon_class Beam role selector for point defense, standard, or heavy beams.
      */
-    int32_t __cdecl Add_Beam_Weapon_To_Design(const AIDATA::s_world_view* world, int16_t player_idx, struct s_ship_design* design, int16_t* weapon_index_ptr, int32_t space, int16_t weapon_class);
+    int32_t __cdecl Add_Beam_Weapon_To_Design(const game_world::s_view* world, int16_t player_idx, struct s_ship_design* design, int16_t* weapon_index_ptr, int32_t space, int16_t weapon_class);
 
     /**
      * Chooses up to three beam weapon configurations and firing arcs for the hull.
@@ -168,7 +168,7 @@ namespace aidesign {
      * @param spec2 Out heavy beam modifiers.
      * @param arc2 Out heavy beam firing arc.
      */
-    void __cdecl Determine_Beam_Weapon_Modifications(const AIDATA::s_world_view* world, int16_t player_idx, int16_t hull_size, int16_t* type0, int16_t* spec0, int16_t* arc0, int16_t* type1, int16_t* spec1, int16_t* arc1, int16_t* type2, int16_t* spec2, int16_t* arc2);
+    void __cdecl Determine_Beam_Weapon_Modifications(const game_world::s_view* world, int16_t player_idx, int16_t hull_size, int16_t* type0, int16_t* spec0, int16_t* arc0, int16_t* type1, int16_t* spec1, int16_t* arc1, int16_t* type2, int16_t* spec2, int16_t* arc2);
 
     /**
      * Chooses a missile weapon, its modifiers, and an ammo count that fit the current budget.
@@ -180,7 +180,7 @@ namespace aidesign {
      * @param out_weapon_count In/out ammo count for the selected missile.
      */
     void __cdecl Determine_Missile_Weapon_Modifications(
-        const AIDATA::s_world_view* world,
+        const game_world::s_view* world,
         int16_t player_idx,
         uint16_t* out_weapon_id,
         uint16_t* out_weapon_mods,
@@ -196,14 +196,14 @@ namespace aidesign {
      * @param space Available space budget for missiles.
      * @param ammo Requested ammo setting before budget adjustments.
      */
-    int32_t __cdecl Add_Missile_Weapon_To_Design(const AIDATA::s_world_view* world, int16_t player_idx, struct s_ship_design* design, int16_t* weapon_index_ptr, int32_t space, int16_t ammo);
+    int32_t __cdecl Add_Missile_Weapon_To_Design(const game_world::s_view* world, int16_t player_idx, struct s_ship_design* design, int16_t* weapon_index_ptr, int32_t space, int16_t ammo);
 
     /**
      * Chooses the bomb weapon that best matches the player's tech and the current opposition.
      * @param player_idx Player whose tech is used.
      * @param bomb_type Out selected bomb weapon id.
      */
-    void __cdecl Determine_Bomb_Weapon(const AIDATA::s_world_view* world, int16_t player_idx, int16_t* bomb_type);
+    void __cdecl Determine_Bomb_Weapon(const game_world::s_view* world, int16_t player_idx, int16_t* bomb_type);
 
     /**
      * Adds bomb weapons to the current design until the allotted space is consumed.
@@ -212,7 +212,7 @@ namespace aidesign {
      * @param weapon_slot_idx In/out weapon slot index for added entries.
      * @param space_available Available space budget for bombs.
      */
-    int32_t __cdecl Add_Bomb_Weapon_To_Design(const AIDATA::s_world_view* world, int16_t player_idx, struct s_ship_design* design, int16_t* weapon_slot_idx, int32_t space_available);
+    int32_t __cdecl Add_Bomb_Weapon_To_Design(const game_world::s_view* world, int16_t player_idx, struct s_ship_design* design, int16_t* weapon_slot_idx, int32_t space_available);
 
     /**
      * Builds an automated ship design for the selected player and hull.
@@ -220,7 +220,7 @@ namespace aidesign {
      * @param design Output ship design structure.
      * @param hull_idx Hull size/type index to build.
      */
-    void __cdecl Auto_Design_Ship(const AIDATA::s_world_view* world, int16_t player_idx, s_ship_design* design, int16_t hull_idx);
+    void __cdecl Auto_Design_Ship(const game_world::s_view* world, int16_t player_idx, s_ship_design* design, int16_t hull_idx);
 
     /**
      * Checks whether a special can be added without violating exclusion rules on the design.

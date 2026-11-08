@@ -31,7 +31,7 @@ namespace game_random {
      *  @param max_val Inclusive upper bound for the generated value.
      */
     uint32_t __cdecl Random(uint32_t max_val);
-    uint32_t __cdecl Random(uint32_t* state, uint32_t max_val);
+    uint32_t __cdecl Random_From_Seed(uint32_t* state, uint32_t max_val);
 
     /** Restores the previously saved random seed.
      *  @param None.

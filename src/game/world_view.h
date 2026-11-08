@@ -1,7 +1,5 @@
 #pragma once
 
-#include "ai_rules_view.h"
-#include "ai_movement_source.h"
 #include "random_source.h"
 
 #include <cstdint>
@@ -14,9 +12,9 @@ struct s_planet_data;
 struct s_leader_data;
 struct s_settings;
 
-namespace AIDATA {
+namespace game_world {
     // Borrowed session data. Counts stay live when legacy services create objects.
-    struct s_world_view {
+    struct s_view {
         s_player* players = nullptr;
         s_ship_data* ships = nullptr;
         s_star_data* stars = nullptr;
@@ -32,8 +30,6 @@ namespace AIDATA {
         const int32_t* stardate = nullptr;
         const int16_t* combat_x = nullptr;
         game_random::s_source random;
-        s_rules_view rules;
-        AIMOVE::s_movement_source movement;
 
         int32_t Player_Count() const {
             return player_count == nullptr ? 0 : *player_count;
@@ -54,4 +50,6 @@ namespace AIDATA {
             return stardate == nullptr ? 0 : *stardate;
         }
     };
-} // namespace AIDATA
+    // Borrowed current-session view for legacy integration entrypoints only.
+    extern s_view current;
+} // namespace game_world

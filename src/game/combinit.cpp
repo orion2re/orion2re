@@ -226,7 +226,7 @@ namespace COMBINIT {
 
         if (strategic_combat) {
             MOX::global_combat_data.structure_max =
-                AIPOWER::Max_Ship_Hits(&AIDATA::state.world, ship_idx);
+                AIPOWER::Max_Ship_Hits(&game_world::current, ship_idx);
             MOX::global_combat_data.armor_remaining = 0;
         } else {
             MOX::global_combat_data.structure_max =

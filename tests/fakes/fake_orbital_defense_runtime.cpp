@@ -13,29 +13,29 @@ namespace {
 
 namespace AIBUILD {
 
-    int16_t __cdecl Player_War_Level(const AIDATA::s_world_view*, int16_t) {
+    int16_t __cdecl Player_War_Level(const game_world::s_view*, int16_t) {
         return 1;
     }
     int16_t __cdecl Industry_Worth(s_colony*) {
         return 100;
     }
-    bool __cdecl Colony_Is_Conquered(const AIDATA::s_world_view*, s_colony*) {
+    bool __cdecl Colony_Is_Conquered(const game_world::s_view*, s_colony*) {
         return false;
     }
-    s_opponent_view Opponents(const AIDATA::s_world_view*) { return {}; }
+    s_opponent_view Opponents(const game_world::s_view*) { return {}; }
 
     int16_t __cdecl Mean_Ship_Strength(const s_opponent_view*, const AIDATA::s_ship_assessment*, const AIDATA::s_empire_assessment*, const s_ship_data*) {
         return 1;
     }
-    int16_t __cdecl Refit_Cost(const AIDATA::s_refit_rule_inputs*, const s_player*, const s_ship_design*, const s_ship_design*) {
+    int16_t __cdecl Refit_Cost(const s_player*, const s_ship_design*, const s_ship_design*) {
         return 100;
     }
 
-    void Build_Production_Context(AIDATA::s_state*, const s_colony*, int32_t, production_rules::s_context* context) {
+    void Build_Production_Context(AIDATA::s_state*, const game_world::s_view*, const s_colony*, int32_t, production_rules::s_context* context) {
         *context = {};
     }
 
-    void __cdecl Force_Produce(const AIDATA::s_world_view*, int16_t* queue, int16_t index, int32_t* count, int16_t product) {
+    void __cdecl Force_Produce(const game_world::s_view*, int16_t* queue, int16_t index, int32_t* count, int16_t product) {
         DOCTEST_REQUIRE(*count == 1);
         DOCTEST_REQUIRE(index == 0);
         MOX::colony[queue[index]].producing[0] = product;
@@ -44,15 +44,19 @@ namespace AIBUILD {
 } // namespace AIBUILD
 
 namespace TEST_ORBITAL_DEFENSE {
+    const game_world::s_view* World_() {
+        static const game_world::s_view world{
+            .players = MOX::player,
+            .ships = MOX::ship,
+            .stars = MOX::star,
+            .colonies = MOX::colony,
+            .planets = MOX::planet,
+            .settings = &MOX::settings,
+            .colony_count = &MOX::NUM_COLONIES,
+        };
+        return &world;
+    }
     AIDATA::s_state* State_() {
-        ai.world.players = MOX::player;
-        ai.world.ships = MOX::ship;
-        ai.world.stars = MOX::star;
-        ai.world.colonies = MOX::colony;
-        ai.world.planets = MOX::planet;
-        ai.world.settings = &MOX::settings;
-        ai.world.colony_count = &MOX::NUM_COLONIES;
-        ai.world.rules.build = &AIBUILD::rules;
         return &ai;
     }
     std::vector<std::string> printed;
@@ -100,12 +104,12 @@ namespace TEST_ORBITAL_DEFENSE {
 } // namespace TEST_ORBITAL_DEFENSE
 
 namespace RUSS {
-    std::optional<uint32_t> Get_Weighted_Choice_Int(const game_random::s_source*, const uint32_t* weights, uint32_t count) {
+    std::optional<uint32_t> Choose_Weighted_Index_U32(const game_random::s_source*, const uint32_t* weights, uint32_t count) {
         int16_t choice = Get_Weighted_Choice_Int(const_cast<uint32_t*>(weights), (int16_t)count);
         return choice < 0 ? std::nullopt : std::optional<uint32_t>{(uint32_t)choice};
     }
 
-    std::optional<uint32_t> Get_Weighted_Choice_Short(const game_random::s_source*, const uint16_t* weights, uint32_t count) {
+    std::optional<uint32_t> Choose_Weighted_Index_U16(const game_random::s_source*, const uint16_t* weights, uint32_t count) {
         int16_t choice = Get_Weighted_Choice_Short(weights, (int16_t)count);
         return choice < 0 ? std::nullopt : std::optional<uint32_t>{(uint32_t)choice};
     }
@@ -146,7 +150,7 @@ namespace EVENTS {
 } // namespace EVENTS
 
 namespace AIMOVE {
-    std::optional<uint32_t> Best_Uncolonized_Undestined_Planet(AIDATA::s_state*, int16_t) {
+    std::optional<uint32_t> Best_Uncolonized_Undestined_Planet(AIDATA::s_state*, const game_world::s_view*, int16_t) {
         return std::nullopt;
     }
 } // namespace AIMOVE

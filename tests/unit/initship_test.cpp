@@ -196,7 +196,7 @@ namespace DESIGN {
 } // namespace DESIGN
 
 namespace aidesign {
-    void __cdecl Auto_Design_Ship(const AIDATA::s_world_view*, int16_t, s_ship_design* design, int16_t hull_idx) {
+    void __cdecl Auto_Design_Ship(const game_world::s_view*, int16_t, s_ship_design* design, int16_t hull_idx) {
         memset(design, 0, sizeof(*design));
         design->size = static_cast<int8_t>(hull_idx);
         design->cost = static_cast<int16_t>(100 + hull_idx);
