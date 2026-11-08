@@ -522,6 +522,41 @@ target_compile_definitions(test_config_loader PRIVATE
     LUA_SOURCE_PACKAGE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data/mods"
 )
 
+orion2re_add_unit_test(test_settings_value
+    SOURCES
+        tests/unit/settings_value_test.cpp
+    PRODUCTION_SOURCES
+        src/config/settings_value.cpp
+        src/config/config_runtime.cpp
+        src/config/generated/config.cpp
+        src/config/generated/config_enums.cpp
+        src/config/config_identity.cpp
+        src/game/sha256.cpp
+        src/game/arena.cpp
+        src/game/aidata_config.cpp
+        src/game/colbldg_config.cpp
+        src/game/colcalc_config.cpp
+        src/game/colmove_config.cpp
+        src/game/design_config.cpp
+        src/game/ericnet_config.cpp
+        src/game/ericnet_config_validation.cpp
+        src/game/events_config.cpp
+        src/game/invasion_config.cpp
+        src/game/info_config.cpp
+        src/game/initship_config_validation.cpp
+        src/game/mapgen_config.cpp
+        src/game/raceopt_config.cpp
+        src/game/ship_config.cpp
+        src/game/spy_config_validation.cpp
+        src/game/spy_bonus.cpp
+        src/game/techdata.cpp
+    FAKE_SOURCES
+        tests/fakes/fake_config_runtime.cpp
+        tests/fakes/fake_exitm.cpp
+        tests/fakes/fake_platform_exit.cpp
+    LINK_SDL
+)
+
 orion2re_add_unit_test(test_config_snapshot
     SOURCES
         tests/unit/config_snapshot_test.cpp
