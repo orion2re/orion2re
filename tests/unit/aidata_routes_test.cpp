@@ -6,6 +6,7 @@ namespace {
     s_player players[1];
     s_star_data stars[3];
     s_ship_data ships[1];
+    int16_t player_count = 1;
 
     void Prepare(AIDATA::s_state* ai) {
         *ai = {};
@@ -13,6 +14,7 @@ namespace {
         ai->world.ships = ships;
         ai->world.stars = stars;
         ai->world.star_count = &MOX::NUM_STARS;
+        ai->world.player_count = &player_count;
         memset(players, 0, sizeof(players));
         memset(stars, 0, sizeof(stars));
         memset(ships, 0, sizeof(ships));
@@ -151,4 +153,88 @@ DOCTEST_TEST_CASE("moving ship routes retain computed-unreachable cache entries"
     DOCTEST_REQUIRE(route);
     DOCTEST_CHECK(route->next_star == 1);
     DOCTEST_CHECK(route->turns == 4);
+}
+
+DOCTEST_TEST_CASE("prepared and ID-based route searches agree for both range modes") {
+    AIDATA::s_state regular;
+    Prepare(&regular);
+    regular.stars[1].in_range = 0;
+    AIDATA::s_state prepared = regular;
+    AIDATA::s_route_search_lookup lookup;
+    lookup.Prepare(&prepared);
+    DOCTEST_REQUIRE(lookup.routes.rows.size() == 1);
+    DOCTEST_CHECK(lookup.routes.rows[0].size() == 3);
+    for (uint32_t source = 0; source < 3; ++source) {
+        for (uint32_t destination = 0; destination < 3; ++destination) {
+            for (bool extended : {false, true}) {
+                const auto expected = AIDATA::Player_N_Turns_From_Star_To_Star_With_Intermediate(
+                    &regular, 0, source, destination, extended);
+                const auto actual = AIDATA::Player_N_Turns_From_Star_To_Star_With_Intermediate(
+                    &prepared, 0, source, destination, extended, &lookup);
+                DOCTEST_REQUIRE(actual.has_value() == expected.has_value());
+                if (expected) {
+                    DOCTEST_CHECK(actual->next_star == expected->next_star);
+                    DOCTEST_CHECK(actual->turns == expected->turns);
+                }
+            }
+        }
+    }
+    DOCTEST_CHECK(prepared.routes.intermediate.size() == regular.routes.intermediate.size());
+}
+
+DOCTEST_TEST_CASE("prepared star references remain live across assessment-map rehash") {
+    AIDATA::s_state ai;
+    Prepare(&ai);
+    AIDATA::s_route_search_lookup lookup;
+    lookup.Prepare(&ai);
+    ai.stars.reserve(512);
+    ai.stars[1].in_range = 0;
+    const auto normal = AIDATA::Player_N_Turns_From_Star_To_Star_With_Intermediate(&ai, 0, 0, 2, false, &lookup);
+    const auto extended = AIDATA::Player_N_Turns_From_Star_To_Star_With_Intermediate(&ai, 0, 0, 2, true, &lookup);
+    DOCTEST_REQUIRE(normal);
+    DOCTEST_REQUIRE(extended);
+    DOCTEST_CHECK(normal->turns == 10);
+    DOCTEST_CHECK(extended->turns == 4);
+}
+
+DOCTEST_TEST_CASE("route search rejects prepared lookups from another or changed table") {
+    AIDATA::s_state first;
+    Prepare(&first);
+    AIDATA::s_route_search_lookup lookup;
+    lookup.Prepare(&first);
+    AIDATA::s_state second = first;
+    second.routes.direct.Store(0, 1, 0, 7);
+    auto route = AIDATA::Player_N_Turns_From_Star_To_Star_With_Intermediate(&second, 0, 0, 2, false, &lookup);
+    DOCTEST_REQUIRE(route);
+    DOCTEST_CHECK(route->turns == 9);
+
+    first.routes.direct.Clear();
+    DOCTEST_CHECK_FALSE(AIDATA::Player_N_Turns_From_Star_To_Star_With_Intermediate(&first, 0, 0, 2, false, &lookup));
+    lookup.Prepare(&first);
+    first.routes.intermediate.clear();
+    first.routes.direct.Store(0, 2, 0, 2);
+    route = AIDATA::Player_N_Turns_From_Star_To_Star_With_Intermediate(&first, 0, 0, 2, false, &lookup);
+    DOCTEST_REQUIRE(route);
+    DOCTEST_CHECK(route->turns == 2);
+}
+
+DOCTEST_TEST_CASE("equal-turn routes retain descending-star tie breaks in both lookup paths") {
+    for (bool prepared : {false, true}) {
+        AIDATA::s_state ai;
+        Prepare(&ai);
+        players[0].ship_speed = 0;
+        ai.stars[2].in_range = 0;
+        ai.routes.direct.Store(0, 2, 0, 4);
+        AIDATA::s_route_search_lookup lookup;
+        lookup.Prepare(&ai);
+        const auto* context = prepared ? &lookup : nullptr;
+        const auto extended = AIDATA::Player_N_Turns_From_Star_To_Star_With_Intermediate(&ai, 0, 0, 2, true, context);
+        const auto normal = AIDATA::Player_N_Turns_From_Star_To_Star_With_Intermediate(&ai, 0, 0, 2, false, context);
+        DOCTEST_REQUIRE(extended);
+        DOCTEST_REQUIRE(normal);
+        DOCTEST_CHECK(extended->turns == 4);
+        DOCTEST_CHECK(extended->next_star == 2);
+        DOCTEST_CHECK(normal->turns == 4);
+        DOCTEST_CHECK(normal->next_star == 1);
+    }
 }

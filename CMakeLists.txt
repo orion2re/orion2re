@@ -682,6 +682,24 @@ if(ORION2RE_BUILD_GAME)
     if(MSVC)
         target_compile_definitions(config-load-benchmark PRIVATE WIN32 _CRT_SECURE_NO_DEPRECATE _CRT_NONSTDC_NO_DEPRECATE)
     endif()
+    add_executable(turn-benchmark EXCLUDE_FROM_ALL
+        tools/turn_benchmark.cpp
+        $<TARGET_OBJECTS:orion2re_game_objects>
+        "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smacker.c"
+        "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smk_bitstream.c"
+        "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smk_hufftree.c"
+        "${ORION2RE_VENDORED_YYJSON_DIR}/src/yyjson.c"
+    )
+    target_compile_features(turn-benchmark PRIVATE cxx_std_20)
+    target_include_directories(turn-benchmark PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src"
+        "${ORION2RE_VENDORED_LIBSMACKER_DIR}"
+        "${ORION2RE_VENDORED_YYJSON_DIR}/src")
+    target_link_libraries(turn-benchmark PRIVATE SDL3::SDL3-static uv_a
+        orion2re_lz4 orion2re_lua orion2re_scalers miniz orion2re_imgui)
+    if(MSVC)
+        target_compile_definitions(turn-benchmark PRIVATE WIN32 _CRT_SECURE_NO_DEPRECATE _CRT_NONSTDC_NO_DEPRECATE)
+    endif()
     add_dependencies(orion2re package-runtime-data)
     if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         target_compile_definitions(orion2re PRIVATE
@@ -1048,7 +1066,7 @@ if(ORION2RE_ENABLE_ASAN)
 
     foreach(ORION2RE_SANITIZER_TARGET IN ITEMS
             orion2re_lua orion2re orion2re-router orion2re_game_objects
-            config-tool config-load-benchmark)
+            config-tool config-load-benchmark turn-benchmark)
         if(TARGET ${ORION2RE_SANITIZER_TARGET})
             orion2re_enable_sanitizers(${ORION2RE_SANITIZER_TARGET})
         endif()
