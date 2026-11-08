@@ -1,6 +1,6 @@
 #include "pch.h"
 
-#include "ai_legacy.h"
+#include "legacy_world.h"
 
 namespace AIBUILD {
 
@@ -497,7 +497,7 @@ namespace AIBUILD {
 
             chosen_colony = RUSS::Choose_Weighted_Index_U16(&world->random, weights, world->Colony_Count());
             if (chosen_colony) {
-                auto colony_index = AI_LEGACY::Index(*chosen_colony);
+                auto colony_index = legacy_world::Index(*chosen_colony);
                 if (colony_index) COLCALC::Colony_Buy_Outright(*colony_index);
             }
 
@@ -506,7 +506,7 @@ namespace AIBUILD {
         } while (chosen_colony);
     }
 
-    void __cdecl Assign_Colony_Building(AIDATA::s_state* ai, const game_world::s_view* world, s_colony* colony) {
+    void __cdecl Assign_Colony_Building(AIDATA::s_state* ai, const game_world::s_view* world, uint32_t colony_id, s_colony* colony) {
         if (colony->outpost_flag == 0 && colony->n_pops != 0) {
             int16_t current_production = colony->producing[0];
 
@@ -514,7 +514,7 @@ namespace AIBUILD {
                 current_production == COLONY_PRODUCTION_NONE ||
                 current_production == COLONY_PRODUCTION_TRADE_GOODS ||
                 current_production == COLONY_PRODUCTION_HOUSING) {
-                Assign_Colony_New_Building(ai, world, colony);
+                Assign_Colony_New_Building(ai, world, colony_id, colony);
             }
         }
     }
@@ -527,12 +527,9 @@ namespace AIBUILD {
         }
     }
 
-    void Build_Production_Context(AIDATA::s_state* ai, const game_world::s_view* world, const s_colony* colony, int32_t war_level, production_rules::s_context* context) {
+    void Build_Production_Context(AIDATA::s_state* ai, const game_world::s_view* world, uint32_t colony_idx, const s_colony* colony, int32_t war_level, production_rules::s_context* context) {
         memset(context, 0, sizeof(*context));
         int32_t owner = (uint8_t)colony->owner;
-        auto identity = legacy_world::Colony_Id(world, colony);
-        if (!identity) return;
-        uint32_t colony_idx = *identity;
         const s_player* player = &world->players[owner];
         const s_planet_data* planet = &world->planets[colony->planet];
         const AIDATA::s_colony_assessment* ai_colony = &ai->colonies[colony_idx];
@@ -648,13 +645,10 @@ namespace AIBUILD {
         context->mineral_class = planet->mineral_class;
     }
 
-    int16_t __cdecl Colony_Building_Score(AIDATA::s_state* ai, const game_world::s_view* world, s_colony* colony, int16_t building_id) {
+    int16_t __cdecl Colony_Building_Score(AIDATA::s_state* ai, const game_world::s_view* world, uint32_t colony_idx, s_colony* colony, int16_t building_id) {
         uint8_t owner_u8 = (uint8_t)colony->owner;
         int32_t owner = owner_u8;
         s_player* player = &world->players[owner];
-        auto identity = legacy_world::Colony_Id(world, colony);
-        if (!identity) return 0;
-        uint32_t colony_idx = *identity;
         AIDATA::s_colony_assessment* ai_colony = &ai->colonies[colony_idx];
 
         int32_t ecologist_objective_bonus = (player->objectives == PLAYER_OBJECTIVE_ECOLOGIST);
@@ -1076,7 +1070,7 @@ namespace AIBUILD {
         return false;
     }
 
-    void __cdecl Assign_Colony_New_Building(AIDATA::s_state* ai, const game_world::s_view* world, s_colony* colony) {
+    void __cdecl Assign_Colony_New_Building(AIDATA::s_state* ai, const game_world::s_view* world, uint32_t colony_idx, s_colony* colony) {
         uint16_t weights[52];
         int32_t evaluated_weights[AUTOBUILD_CANDIDATE_COUNT];
         production_rules::s_context context;
@@ -1085,7 +1079,7 @@ namespace AIBUILD {
         memset(evaluated_weights, 0, sizeof(evaluated_weights));
 
         Find_Buildable_Buildings(colony, weights);
-        Build_Production_Context(ai, world, colony, -1, &context);
+        Build_Production_Context(ai, world, colony_idx, colony, -1, &context);
         context.flags[production_rules::FLAG_ORBITAL_DEFENSE_APPLICABLE] =
             COLCALC::Colony_Can_Build_Product(colony, BUILDING_STAR_BASE) == 1 ||
             COLCALC::Colony_Can_Build_Product(colony, BUILDING_BATTLESTATION) == 1 ||
@@ -1100,7 +1094,7 @@ namespace AIBUILD {
             if (weights[i] > 0 && candidate->enabled &&
                 production_rules::Evaluate_Eligibility(&context, &candidate->eligibility)) {
                 evaluated_weights[i] = production_rules::Evaluate_Weight(
-                    &context, &candidate->weight, Colony_Building_Score(ai, world, colony, i));
+                    &context, &candidate->weight, Colony_Building_Score(ai, world, colony_idx, colony, i));
             }
         }
 
@@ -1123,9 +1117,6 @@ namespace AIBUILD {
             weights[i] = (uint16_t)evaluated_weights[i];
         }
 
-        auto identity = legacy_world::Colony_Id(world, colony);
-        if (!identity) return;
-        uint32_t colony_idx = *identity;
         auto choice = RUSS::Choose_Weighted_Index_U16(&world->random, weights, AUTOBUILD_CANDIDATE_COUNT);
 
         if (!choice || *choice < BUILDING_COUNT) {
@@ -1159,7 +1150,7 @@ namespace AIBUILD {
         return COLBLDG::Selection_Name(product_id);
     }
 
-    void __cdecl Player_Colony_Autobuild(AIDATA::s_state* ai, const game_world::s_view* world, s_colony* colony) {
-        AIBUILD::Assign_Colony_New_Building(ai, world, colony);
+    void __cdecl Player_Colony_Autobuild(AIDATA::s_state* ai, const game_world::s_view* world, uint32_t colony_idx, s_colony* colony) {
+        AIBUILD::Assign_Colony_New_Building(ai, world, colony_idx, colony);
     }
 } // namespace AIBUILD

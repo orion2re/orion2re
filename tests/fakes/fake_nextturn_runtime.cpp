@@ -1,6 +1,6 @@
 #include "pch.h"
 
-#include "game/ai_legacy.h"
+#include "game/legacy_world.h"
 
 namespace legacy_world {
     game_world::s_view World() { return {}; }
@@ -15,6 +15,8 @@ namespace {
 }
 
 namespace TEST_NEXTTURN {
+    bool invalid_inputs;
+    int32_t turn_side_effects;
     int32_t observed_event_bc;
     int32_t observed_event_research;
     bool colony_changes_saw_current_economy;
@@ -26,6 +28,8 @@ namespace TEST_NEXTTURN {
     bool colony_calculation_population_growth_scope[2];
 
     void Reset_() {
+        invalid_inputs = false;
+        turn_side_effects = 0;
         memset(players, 0, sizeof(players));
         MOX::settings = {};
         MOX::antarans = {};
@@ -114,7 +118,7 @@ namespace COLCALC {
 }
 
 namespace EVENTS {
-    void __cdecl Clear_Deferred_Monster_Event_Target() {}
+    void __cdecl Clear_Deferred_Monster_Event_Target() { ++TEST_NEXTTURN::turn_side_effects; }
 
     void __cdecl Determine_Event() {
         TEST_NEXTTURN::observed_event_bc = MOX::player[0].bc;
@@ -127,7 +131,7 @@ namespace EVENTS {
 }
 
 namespace fields {
-    void __cdecl Assign_Auto_Function(MOX2::action_func_t, int16_t) {}
+    void __cdecl Assign_Auto_Function(MOX2::action_func_t, int16_t) { ++TEST_NEXTTURN::turn_side_effects; }
 }
 
 namespace SCORE {
@@ -135,7 +139,7 @@ namespace SCORE {
 }
 
 namespace MSG_ {
-    void __cdecl Allocate_Msg_Slots() {}
+    void __cdecl Allocate_Msg_Slots() { ++TEST_NEXTTURN::turn_side_effects; }
     void __cdecl Add_Ongoing_Event_Msgs() {}
 }
 
@@ -145,6 +149,8 @@ namespace antarans {
 
 namespace AIDATA {
     s_state state;
+    const char* Validate_Inputs(const game_world::s_view*) { return TEST_NEXTTURN::invalid_inputs ? "test invalid input" : nullptr; }
+    void Reset(s_state* ai) { *ai = {}; }
     bool Compute_AI_Data(s_state*, const game_world::s_view*) { return true; }
     void Complete_Turn(s_state*) {}
 }

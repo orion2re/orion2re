@@ -37,6 +37,33 @@ DOCTEST_TEST_CASE("location compatibility preserves transit kind without exposin
     DOCTEST_CHECK(legacy_world::Orbit_Star(&ship) == 0);
 }
 
+DOCTEST_TEST_CASE("a shared location tag does not imply a shared physical position") {
+    s_ship_data first{};
+    s_ship_data second{};
+    first.location = second.location = SHIP_LOCATION_MOVING_OFFSET + 3;
+    first.x = 10;
+    second.x = 20;
+    DOCTEST_CHECK(legacy_world::Same_Location_Tag(&first, &second));
+    DOCTEST_CHECK_FALSE(legacy_world::Same_Ship_Position(&first, &second));
+    second.x = 10;
+    DOCTEST_CHECK(legacy_world::Same_Ship_Position(&first, &second));
+}
+
+DOCTEST_TEST_CASE("location codecs set and clear representation without changing activity") {
+    s_ship_data ship{};
+    ship.status = 4;
+    const game_world::s_ship_location orbit{game_world::e_ship_location::at_star, 0};
+    DOCTEST_REQUIRE(legacy_world::Set_Ship_Location(&ship, &orbit));
+    DOCTEST_CHECK(legacy_world::Orbit_Star(&ship) == 0);
+    DOCTEST_CHECK((int8_t)ship.status == 4);
+    const game_world::s_ship_location invalid{game_world::e_ship_location::at_star, UINT32_MAX};
+    DOCTEST_CHECK_FALSE(legacy_world::Set_Ship_Location(&ship, &invalid));
+    DOCTEST_CHECK(legacy_world::Orbit_Star(&ship) == 0);
+    legacy_world::Clear_Ship_Location(&ship);
+    DOCTEST_CHECK_FALSE(legacy_world::Read_Ship_Location(&ship));
+    DOCTEST_CHECK((int8_t)ship.status == 4);
+}
+
 DOCTEST_TEST_CASE("movement presence and flee lookups do not insert zero assessments") {
     AIDATA::s_movement_workspace work;
     DOCTEST_CHECK_FALSE(AIDATA::Nonplayer_At(&work, 0));
@@ -54,8 +81,44 @@ DOCTEST_TEST_CASE("movement presence and flee lookups do not insert zero assessm
 
 DOCTEST_TEST_CASE("strategic AI input validation rejects missing session data") {
     game_world::s_view world;
-    DOCTEST_CHECK_FALSE(game_world::Has_Strategic_AI_Inputs(nullptr));
-    DOCTEST_CHECK_FALSE(game_world::Has_Strategic_AI_Inputs(&world));
+    DOCTEST_CHECK(AIDATA::Validate_Inputs(nullptr) != nullptr);
+    DOCTEST_CHECK(AIDATA::Validate_Inputs(&world) != nullptr);
+}
+
+DOCTEST_TEST_CASE("strategic AI input diagnostics identify the failing requirement") {
+    s_player player{};
+    s_ship_data ship{};
+    s_star_data star{};
+    s_colony colony{};
+    s_planet_data planet{};
+    s_leader_data leader{};
+    s_settings settings{};
+    int16_t players = 1;
+    int16_t count = 0;
+    int32_t date = 35000;
+    uint32_t seed = 1;
+    game_world::s_view world{
+        .players = &player,
+        .ships = &ship,
+        .stars = &star,
+        .colonies = &colony,
+        .planets = &planet,
+        .leaders = &leader,
+        .settings = &settings,
+        .player_count = &players,
+        .ship_count = &count,
+        .star_count = &count,
+        .colony_count = &count,
+        .planet_count = &count,
+        .stardate = &date,
+        .random = {&seed, game_random::Random_From_Seed},
+    };
+    DOCTEST_CHECK(AIDATA::Validate_Inputs(&world) == nullptr);
+    world.ship_count = nullptr;
+    DOCTEST_CHECK(std::string(AIDATA::Validate_Inputs(&world)) == "invalid ship count");
+    world.ship_count = &count;
+    world.random.draw = nullptr;
+    DOCTEST_CHECK(std::string(AIDATA::Validate_Inputs(&world)) == "unbound random source");
 }
 
 DOCTEST_TEST_CASE("production queue removal keeps colony identities and queue positions distinct") {

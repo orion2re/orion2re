@@ -31,7 +31,7 @@ namespace AIBUILD {
         return 100;
     }
 
-    void Build_Production_Context(AIDATA::s_state*, const game_world::s_view*, const s_colony*, int32_t, production_rules::s_context* context) {
+    void Build_Production_Context(AIDATA::s_state*, const game_world::s_view*, uint32_t, const s_colony*, int32_t, production_rules::s_context* context) {
         *context = {};
     }
 

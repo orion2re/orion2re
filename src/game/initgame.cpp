@@ -1,6 +1,6 @@
 #include "pch.h"
 
-#include "ai_legacy.h"
+#include "legacy_world.h"
 #include "string_overrides.h"
 
 #include "lua/lua_game.h"
@@ -136,7 +136,7 @@ namespace INITGAME {
             return false;
         }
         AIDATA::Reset(&AIDATA::state);
-        game_world::current = AI_LEGACY::World();
+        game_world::current = legacy_world::World();
         orion2re::lua::game::Reset_Semantic_State();
         const bool random_player_count =
             num_players == NEW_GAME_RANDOM_PLAYER_COUNT;

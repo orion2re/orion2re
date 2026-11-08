@@ -1,7 +1,7 @@
 #include "pch.h"
 
 #include "doctest/doctest.h"
-#include "game/ai_legacy.h"
+#include "game/legacy_world.h"
 #include "game/fleet_movement.h"
 
 namespace {
@@ -249,12 +249,12 @@ DOCTEST_TEST_CASE("star assessments name treaty partners and hostile players by 
 
 DOCTEST_TEST_CASE("legacy ship-list encoding accepts zero, rejects narrowing, and owns its terminator") {
     const uint32_t ids[] = {0, INT16_MAX};
-    auto encoded = AI_LEGACY::Ship_List(ids);
+    auto encoded = legacy_world::Ship_List(ids);
     DOCTEST_REQUIRE(encoded);
     DOCTEST_CHECK(*encoded == std::vector<int16_t>{0, INT16_MAX, -1});
     const uint32_t invalid[] = {UINT32_MAX};
-    DOCTEST_CHECK_FALSE(AI_LEGACY::Ship_List(invalid));
-    auto empty = AI_LEGACY::Ship_List({});
+    DOCTEST_CHECK_FALSE(legacy_world::Ship_List(invalid));
+    auto empty = legacy_world::Ship_List({});
     DOCTEST_REQUIRE(empty);
     DOCTEST_CHECK(*empty == std::vector<int16_t>{-1});
 }
@@ -323,4 +323,23 @@ DOCTEST_TEST_CASE("movement planning rejects destinations unsupported by the leg
     auto route = AIMOVE::Move_Ships_With_Possible_Intermediate(&context, ids, UINT32_MAX);
     DOCTEST_CHECK_FALSE(route);
     DOCTEST_CHECK_FALSE(queried);
+}
+
+DOCTEST_TEST_CASE("fleet evaluation and ordering share native request validation") {
+    const uint32_t ships[] = {0};
+    const uint32_t missing[] = {(uint32_t)MOX::NUM_SHIPS};
+    s_ship_move_info result{};
+    queried = false;
+    DOCTEST_CHECK(SHIPMOVE::Evaluate_Fleet_Move(missing, 0, &result) == SHIPMOVE::e_fleet_evaluation::invalid_input);
+    DOCTEST_CHECK_FALSE(SHIPMOVE::Order_Fleet_Move(missing, 0, &result));
+    DOCTEST_CHECK_FALSE(queried);
+    const uint32_t outside = (uint32_t)MOX::NUM_STARS + 1;
+    DOCTEST_CHECK(SHIPMOVE::Evaluate_Fleet_Move(ships, outside, &result) == SHIPMOVE::e_fleet_evaluation::invalid_input);
+    DOCTEST_CHECK_FALSE(SHIPMOVE::Order_Fleet_Move(ships, outside, &result));
+    DOCTEST_CHECK_FALSE(queried);
+    DOCTEST_CHECK(SHIPMOVE::Evaluate_Fleet_Move(ships, 0, &result, (uint32_t)MOX::NUM_STARS) == SHIPMOVE::e_fleet_evaluation::invalid_input);
+    DOCTEST_CHECK_FALSE(queried);
+    // The portal destination is valid; unlike the destination, an origin must be an actual star.
+    DOCTEST_CHECK(SHIPMOVE::Evaluate_Fleet_Move(ships, MOX::NUM_STARS, &result) == SHIPMOVE::e_fleet_evaluation::can_move);
+    DOCTEST_CHECK(SHIPMOVE::Order_Fleet_Move(ships, MOX::NUM_STARS, &result));
 }

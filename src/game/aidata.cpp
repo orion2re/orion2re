@@ -128,8 +128,27 @@ namespace AIDATA {
         return desirability;
     }
 
+    const char* Validate_Inputs(const game_world::s_view* world) {
+        if (!world) return "missing world view";
+        if (!world->players) return "missing player records";
+        if (!world->ships) return "missing ship records";
+        if (!world->stars) return "missing star records";
+        if (!world->colonies) return "missing colony records";
+        if (!world->planets) return "missing planet records";
+        if (!world->leaders) return "missing leader records";
+        if (!world->settings) return "missing game settings";
+        if (!world->stardate) return "missing stardate";
+        if (!world->random.draw) return "unbound random source";
+        if (!world->player_count || *world->player_count <= 0 || *world->player_count > MAX_PLAYERS) return "invalid player count";
+        if (!world->ship_count || *world->ship_count < 0 || *world->ship_count > MAX_SHIPS) return "invalid ship count";
+        if (!world->star_count || *world->star_count < 0 || *world->star_count > MAX_STARS) return "invalid star count";
+        if (!world->colony_count || *world->colony_count < 0 || *world->colony_count > MAX_COLONIES) return "invalid colony count";
+        if (!world->planet_count || *world->planet_count < 0 || *world->planet_count > MAX_PLANETS) return "invalid planet count";
+        return nullptr;
+    }
+
     bool Compute_AI_Data(s_state* ai, const game_world::s_view* world) {
-        if (!game_world::Has_Strategic_AI_Inputs(world)) {
+        if (Validate_Inputs(world) != nullptr) {
             Reset(ai);
             return false;
         }
@@ -790,7 +809,7 @@ namespace AIDATA {
                     if (col_idx == -1) {
                         value = AIDATA::Uncolonized_Planet_Worth_To_Player(world, planet, &world->players[player_idx]);
                     } else {
-                        value = Colony_Worth_To_Player(ai, world, &world->colonies[col_idx], &world->players[player_idx]);
+                        value = Colony_Worth_To_Player(ai, world, (uint32_t)col_idx, &world->colonies[col_idx], &world->players[player_idx]);
                     }
 
                     ai->planets[planet_idx].base_values[player_idx] = value;
@@ -1077,12 +1096,9 @@ namespace AIDATA {
         return result;
     }
 
-    int16_t __cdecl Colony_Worth_To_Player(s_state* ai, const game_world::s_view* world, s_colony* colony, s_player* evaluating_player) {
+    int16_t __cdecl Colony_Worth_To_Player(s_state* ai, const game_world::s_view* world, uint32_t colony_idx, s_colony* colony, s_player* evaluating_player) {
         int16_t evaluating_player_idx = (int16_t)(evaluating_player - world->players);
         s_planet_data* planet = &world->planets[colony->planet];
-        auto identity = legacy_world::Colony_Id(world, colony);
-        if (!identity) return 0;
-        uint32_t colony_idx = *identity;
         int16_t colony_race = (int16_t)ai->colonies[colony_idx].dominant_race;
         s_player* race_player = &world->players[colony_race];
 

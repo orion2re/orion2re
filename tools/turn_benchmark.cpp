@@ -6,7 +6,12 @@
 #include <iterator>
 
 #include "config/config_loader.h"
-#if __has_include("game/ai_legacy.h")
+#if __has_include("game/legacy_world.h")
+#include "game/legacy_world.h"
+#define TURN_BENCHMARK_AI_STATE &AIDATA::state, &game_world::current
+#define TURN_BENCHMARK_EXPLICIT_AI 1
+#define TURN_BENCHMARK_WORLD_VIEW 1
+#elif __has_include("game/ai_legacy.h")
 #include "game/ai_legacy.h"
 #define TURN_BENCHMARK_AI_STATE &AIDATA::state
 #define TURN_BENCHMARK_EXPLICIT_AI 1
@@ -24,7 +29,9 @@ namespace {
     using t_clock = std::chrono::steady_clock;
 
     void Bind_AI_World() {
-#if TURN_BENCHMARK_EXPLICIT_AI
+#if defined(TURN_BENCHMARK_WORLD_VIEW)
+        game_world::current = legacy_world::World();
+#elif TURN_BENCHMARK_EXPLICIT_AI
         AIDATA::state.world = AI_LEGACY::World();
 #endif
     }

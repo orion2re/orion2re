@@ -922,7 +922,7 @@ namespace AIMOVE {
      * @param ships Candidate ship IDs; the selected ship is removed in-place.
      * @param destination The target destination star index.
      */
-    void Get_Best_Unescorted_Colony_Ship(s_ai_movement_context* ctx, std::vector<uint32_t>* ships, uint32_t destination) {
+    void Dispatch_Unescorted_Colony_Ship(s_ai_movement_context* ctx, std::vector<uint32_t>* ships, uint32_t destination) {
         std::optional<uint32_t> best_ship_array_idx;
         std::optional<AIDATA::s_route> best_route;
         std::array<uint32_t, 1> ship_list;
@@ -1337,7 +1337,7 @@ namespace AIMOVE {
                 if (world->settings->game_difficulty >= GAME_DIFFICULTY_AVERAGE ||
                     (world->settings->game_difficulty >= GAME_DIFFICULTY_EASY && p_ai->objectives == PLAYER_OBJECTIVE_EXPANSIONIST) ||
                     ((ai->stars[star_idx].in_range >> i_ai) & 1) != 0) {
-                    AIMOVE::Get_Best_Unescorted_Colony_Ship(ctx, &my_colony_ships, star_idx);
+                    AIMOVE::Dispatch_Unescorted_Colony_Ship(ctx, &my_colony_ships, star_idx);
                 }
             } else {
                 auto competing_ship = AIMOVE::I_Soonest_Enemy_Colony_Ship(world, competing_colony_ships, star_idx);
@@ -1347,7 +1347,7 @@ namespace AIMOVE {
                     max_eta = (uint8_t)world->ships[competing_colony_ships[*competing_ship]].turns_left;
                 }
 
-                if (!AIMOVE::Get_Best_Escorted_Colony_Ship(ai, ctx, &my_colony_ships, star_idx, max_eta)) {
+                if (!AIMOVE::Dispatch_Escorted_Colony_Ship(ai, ctx, &my_colony_ships, star_idx, max_eta)) {
                     if (competing_ship) {
                         competing_colony_ships[*competing_ship] = competing_colony_ships.front();
                         competing_colony_ships.erase(competing_colony_ships.begin());
@@ -1575,10 +1575,7 @@ namespace AIMOVE {
                                     if (world->ships[ship_id].status == 1) {
                                         issue_order = true;
                                     } else if (world->ships[ship_id].status == 2) {
-                                        std::optional<game_world::s_ship_location> place;
-                                        if (auto star = legacy_world::Object_Id(ship_loc)) place = game_world::s_ship_location{e_ship_location::at_star, *star};
-                                        legacy_world::Write_Ship_Location(&world->ships[ship_id], &place);
-                                        world->ships[ship_id].status = 0;
+                                        SHIPMOVE::Stop_Ship_Transit(&world->ships[ship_id], legacy_world::Object_Id(ship_loc));
                                     }
                                 } else {
                                     issue_order = true;
@@ -2307,7 +2304,7 @@ namespace AIMOVE {
         return min_strength;
     }
 
-    bool Get_Best_Escorted_Colony_Ship(AIDATA::s_state* ai, s_ai_movement_context* ctx, std::vector<uint32_t>* colony_ships, uint32_t star_idx, int16_t max_turns) {
+    bool Dispatch_Escorted_Colony_Ship(AIDATA::s_state* ai, s_ai_movement_context* ctx, std::vector<uint32_t>* colony_ships, uint32_t star_idx, int16_t max_turns) {
         const auto* world = ctx->world;
         const int16_t i_ai = ctx->player_idx;
         s_player* p_ai = ctx->player;
@@ -2366,7 +2363,7 @@ namespace AIMOVE {
                         uint32_t all_ship_idx = group->next;
                         while (all_ship_idx < group->end) {
                             uint32_t s_idx = ai->combat_ships[all_ship_idx];
-                            if (world->ships[s_idx].owner == i_ai && legacy_world::Same_Ship_Location(&world->ships[s_idx], &world->ships[fleet[0]])) {
+                            if (world->ships[s_idx].owner == i_ai && legacy_world::Same_Location_Tag(&world->ships[s_idx], &world->ships[fleet[0]])) {
                                 all_ship_idx++;
                                 total_escort_strength += (int16_t)AIMOVE::Ship_Rough_Strength_At_Star(ai, ctx, s_idx, star_idx);
                                 num_escorts_total++;
@@ -2379,7 +2376,7 @@ namespace AIMOVE {
                         int32_t strength = 0;
                         while (all_ship_idx < group->end) {
                             uint32_t s_idx = ai->combat_ships[all_ship_idx];
-                            if (world->ships[s_idx].owner == i_ai && legacy_world::Same_Ship_Location(&world->ships[s_idx], &world->ships[fleet[0]])) {
+                            if (world->ships[s_idx].owner == i_ai && legacy_world::Same_Location_Tag(&world->ships[s_idx], &world->ships[fleet[0]])) {
                                 all_ship_idx++;
                                 strength += (int16_t)AIMOVE::Ship_Rough_Strength_At_Star(ai, ctx, s_idx, star_idx);
                                 fleet.push_back(s_idx);
@@ -2430,8 +2427,8 @@ namespace AIMOVE {
                     int32_t strength = 0;
                     for (int16_t i = 0; i < world->Ship_Count(); ++i) {
                         s_ship_data* ship = &world->ships[i];
-                        if (ship->owner == i_ai && legacy_world::Same_Ship_Location(ship, &world->ships[fleet[0]])) {
-                            if (ship->status < 3 && ship->x == world->ships[fleet[0]].x && ship->y == world->ships[fleet[0]].y) {
+                        if (ship->owner == i_ai && legacy_world::Same_Location_Tag(ship, &world->ships[fleet[0]])) {
+                            if (ship->status < 3 && legacy_world::Same_Ship_Position(ship, &world->ships[fleet[0]])) {
                                 strength += (int16_t)AIMOVE::Ship_Rough_Strength_At_Star(ai, ctx, i, star_idx);
                                 fleet.push_back(i);
                             }
@@ -2486,8 +2483,8 @@ namespace AIMOVE {
             if (best->strategy == e_strategy::redirect_transit) {
                 for (int16_t i = 0; i < world->Ship_Count(); ++i) {
                     s_ship_data* ship = &world->ships[i];
-                    if (ship->owner == i_ai && legacy_world::Same_Ship_Location(ship, &world->ships[fleet[0]])) {
-                        if (ship->status < 3 && ship->x == world->ships[fleet[0]].x && ship->y == world->ships[fleet[0]].y) {
+                    if (ship->owner == i_ai && legacy_world::Same_Location_Tag(ship, &world->ships[fleet[0]])) {
+                        if (ship->status < 3 && legacy_world::Same_Ship_Position(ship, &world->ships[fleet[0]])) {
                             ship->mission = 4;
                             fleet.push_back(i);
                         }

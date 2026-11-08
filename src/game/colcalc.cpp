@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "legacy_world.h"
 
 #include "build_queue.h"
 #include "lua/lua_game.h"
@@ -36,13 +37,13 @@ namespace COLCALC {
             ignore_mixed_race_penalty[government] != 0;
     }
 
-    static int16_t Prepare_Production_Item(s_colony* colony) {
+    static int16_t Prepare_Production_Item(uint32_t colony_id, s_colony* colony) {
         int16_t current_product = colony->producing[0];
         if (BUILD_QUEUE::Is_Legacy_Autobuild(colony->auto_building) &&
             (current_product == COLONY_PRODUCTION_HOUSING ||
                 current_product == COLONY_PRODUCTION_TRADE_GOODS ||
                 current_product == COLONY_PRODUCTION_NONE)) {
-            AIBUILD::Player_Colony_Autobuild(&AIDATA::state, &game_world::current, colony);
+            AIBUILD::Player_Colony_Autobuild(&AIDATA::state, &game_world::current, colony_id, colony);
         }
 
         colony->just_produced = COLONY_PRODUCTION_NONE;
@@ -3610,7 +3611,10 @@ namespace COLCALC {
 
     void __cdecl Apply_Production(s_colony* colony) {
         const int32_t owner_player_idx = static_cast<int32_t>(colony->owner);
-        const int16_t colony_idx = (int16_t)(colony - MOX::colony);
+        const game_world::s_view world{.colonies = MOX::colony, .colony_count = &MOX::NUM_COLONIES};
+        const auto colony_id = legacy_world::Colony_Id(&world, colony);
+        if (!colony_id) return;
+        const int16_t colony_idx = (int16_t)*colony_id;
         s_player& player = MOX::player[owner_player_idx];
 
         if (EVENTS::Event_Check_Space_Anomaly(colony_idx) != 0) {
@@ -3621,7 +3625,7 @@ namespace COLCALC {
             colony->producing[0] == COLONY_PRODUCTION_AI_TRADE_GOODS ||
             colony->producing[0] == COLONY_PRODUCTION_NONE) {
             // Income for this turn was calculated before legacy autobuild selects a new item.
-            Prepare_Production_Item(colony);
+            Prepare_Production_Item(*colony_id, colony);
             return;
         }
 
@@ -3634,7 +3638,7 @@ namespace COLCALC {
         bool completed_product = false;
         for (;;) {
             bool removed_existing_pop = false;
-            const int16_t current_product = Prepare_Production_Item(colony);
+            const int16_t current_product = Prepare_Production_Item(*colony_id, colony);
 
             if (current_product == COLONY_PRODUCTION_HOUSING) {
                 if (disable_housing != 0) {
@@ -3895,7 +3899,7 @@ namespace COLCALC {
 
                 if (colony->producing[0] == COLONY_PRODUCTION_NONE &&
                     BUILD_QUEUE::Is_Legacy_Autobuild(colony->auto_building)) {
-                    AIBUILD::Player_Colony_Autobuild(&AIDATA::state, &game_world::current, colony);
+                    AIBUILD::Player_Colony_Autobuild(&AIDATA::state, &game_world::current, *colony_id, colony);
                     build_msg.u.colony.c.build.append_fmt = 1;
                 }
 

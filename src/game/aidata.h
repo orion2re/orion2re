@@ -38,7 +38,7 @@ namespace AIDATA {
      * @param colony Colony being evaluated.
      * @param evaluating_player Player perspective used for the estimate.
      */
-    int16_t __cdecl Colony_Worth_To_Player(s_state* ai, const game_world::s_view* world, s_colony* colony, s_player* evaluating_player);
+    int16_t __cdecl Colony_Worth_To_Player(s_state* ai, const game_world::s_view* world, uint32_t colony_id, s_colony* colony, s_player* evaluating_player);
 
     /*
      * Estimates the strategic range value of a colony to a specific player.
@@ -106,6 +106,8 @@ namespace AIDATA {
      * Builds AI caches for ships, colonies, stars, and per-player planning data.
      */
     bool Compute_AI_Data(s_state* ai, const game_world::s_view* world);
+    // Null on success; otherwise a stable diagnostic identifying the invalid input.
+    const char* Validate_Inputs(const game_world::s_view* world);
 
     /*
      * Marks which players can reach a star within normal and extended range.

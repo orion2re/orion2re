@@ -1,6 +1,6 @@
 #include "pch.h"
 
-#include "game/ai_legacy.h"
+#include "game/legacy_world.h"
 
 namespace {
     s_ship_data ships[MAX_SHIPS];

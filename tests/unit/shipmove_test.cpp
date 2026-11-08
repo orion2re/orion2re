@@ -18,6 +18,28 @@ namespace TEST_SHIPMOVE {
     bool Navigator_Pointer_Supplied_();
 } // namespace TEST_SHIPMOVE
 
+DOCTEST_TEST_CASE("stopping transit changes location and activity without arrival side effects") {
+    TEST_SHIPMOVE::Reset_();
+    auto* ship = &MOX::ship[0];
+    ship->status = 2;
+    ship->location = SHIP_LOCATION_WORMHOLE_OFFSET + 1;
+    ship->x = 37;
+    ship->y = 19;
+    ship->mission = 5;
+    DOCTEST_REQUIRE(SHIPMOVE::Stop_Ship_Transit(ship, 0));
+    DOCTEST_CHECK((int8_t)ship->status == 0);
+    DOCTEST_CHECK((int16_t)ship->location == 0);
+    DOCTEST_CHECK((int16_t)ship->x == 37);
+    DOCTEST_CHECK((int16_t)ship->y == 19);
+    DOCTEST_CHECK((int8_t)ship->mission == 5);
+    ship->status = 2;
+    DOCTEST_CHECK_FALSE(SHIPMOVE::Stop_Ship_Transit(ship, UINT32_MAX));
+    DOCTEST_CHECK((int8_t)ship->status == 2);
+    DOCTEST_REQUIRE(SHIPMOVE::Stop_Ship_Transit(ship, std::nullopt));
+    DOCTEST_CHECK((int16_t)ship->location == -1);
+    DOCTEST_CHECK((int8_t)ship->status == 0);
+}
+
 DOCTEST_TEST_CASE("hypothetical fleet origins preserve legacy evaluation without mutating ships") {
     for (int8_t status : {0, 1, 2}) {
         TEST_SHIPMOVE::Reset_();

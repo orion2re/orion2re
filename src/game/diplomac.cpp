@@ -1,6 +1,6 @@
 #include "pch.h"
 
-#include "ai_legacy.h"
+#include "legacy_world.h"
 
 namespace diplomac {
     namespace {
@@ -2106,7 +2106,7 @@ namespace diplomac {
                     if (threat) {
                         int16_t col_idx = MOX::planet[threat->attack.planet_id].colony_index;
                         if (col_idx != -1) {
-                            auto star_index = AI_LEGACY::Index(threat->source_star);
+                            auto star_index = legacy_world::Index(threat->source_star);
                             if (star_index && MOX::colony[col_idx].n_pops > 4 && threat->attack.strength_ratio_percent > 100) {
                                 int amount = -((MOX::colony[col_idx].n_pops - 4) + (threat->attack.strength_ratio_percent / 50));
                                 Change_Relations(amount, p1, p2, 5, *star_index, 0);
