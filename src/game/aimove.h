@@ -118,7 +118,7 @@ namespace AIMOVE {
 
     void __cdecl Intercept_Invaders(AIDATA::s_state* ai, s_ai_movement_context* ctx);
 
-    void __cdecl Interceptions(AIDATA::s_state* ai, s_ai_movement_context* ctx, s_interception_target* intercepts, int* count, int16_t* star_to_intercept_idx, int is_desperate);
+    void __cdecl Interceptions(AIDATA::s_state* ai, s_ai_movement_context* ctx, s_interception_target* intercepts, int* count, const std::unordered_map<uint32_t, uint32_t>* star_to_intercept_idx, int is_desperate);
 
     void Assign_New_Colony_Ship_Destinations(AIDATA::s_state* ai, s_ai_movement_context* ctx, std::vector<AIDATA::s_colonization_candidate>* planets);
 
@@ -158,9 +158,9 @@ namespace AIMOVE {
 
     void Gather_Player_Ships_At_Star(AIDATA::s_state* ai, s_ai_movement_context* ctx, int16_t player_id, uint32_t star_id, std::vector<uint32_t>* ships);
 
-    void __cdecl Gather_Intercepting_Ships(AIDATA::s_state* ai, s_ai_movement_context* ctx, uint32_t* ships_list, int32_t* ship_count, int16_t* intercept_map);
+    void __cdecl Gather_Intercepting_Ships(AIDATA::s_state* ai, s_ai_movement_context* ctx, uint32_t* ships_list, int32_t* ship_count, const std::unordered_map<uint32_t, uint32_t>* intercept_map);
 
-    void __cdecl Knock_Out_Impossible_Interceptions(AIDATA::s_state* ai, s_ai_movement_context* ctx, s_interception_target* intercepts, int* count, int16_t* temp_arr, int* temp_count, int keep_one_entry);
+    void __cdecl Knock_Out_Impossible_Interceptions(AIDATA::s_state* ai, s_ai_movement_context* ctx, s_interception_target* intercepts, int* count, int keep_one_entry);
 
     uint16_t __cdecl Ship_Min_Strength_Versus_Players_At_Star(AIDATA::s_state* ai, const game_world::s_view* world, uint32_t ship_idx, uint16_t player_mask, uint32_t star_idx);
 

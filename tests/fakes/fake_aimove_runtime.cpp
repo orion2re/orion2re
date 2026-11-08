@@ -99,6 +99,9 @@ namespace INITSHIP {
 }
 
 namespace SHIPMOVE {
+    void Evaluate_Fleet_Move_From_Star(int16_t* ships, int16_t destination, int16_t, s_ship_move_info* result) {
+        Ships_Try_To_Move_To(ships, destination, result);
+    }
     int16_t __cdecl Create_Nonplayer_Ship(int8_t, s_ship_design*, int16_t, int16_t) {
         spawn_count++;
         MOX::ship[1].d.date_of_design = 99;

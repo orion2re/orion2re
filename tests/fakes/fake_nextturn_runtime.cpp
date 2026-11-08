@@ -2,7 +2,7 @@
 
 #include "game/ai_legacy.h"
 
-namespace AI_LEGACY {
+namespace legacy_world {
     game_world::s_view World() { return {}; }
 }
 
@@ -145,7 +145,7 @@ namespace antarans {
 
 namespace AIDATA {
     s_state state;
-    void __cdecl Compute_AI_Data(s_state*, const game_world::s_view*) {}
+    bool Compute_AI_Data(s_state*, const game_world::s_view*) { return true; }
     void Complete_Turn(s_state*) {}
 }
 

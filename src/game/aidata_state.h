@@ -312,12 +312,44 @@ namespace AIDATA {
         bool complete = false;
     };
 
+    struct s_interception_assignment {
+        uint32_t target_star;
+        uint32_t next_star;
+        uint8_t arrival_turn;
+    };
+
+    struct s_interception_star_work {
+        std::array<uint32_t, FORECAST_TURN_COUNT> assigned_strength = {};
+        int16_t candidate_strength = 0;
+        int8_t surplus_turn = FORECAST_TURN_COUNT;
+        int8_t sufficient_turn = 0;
+    };
+
+    struct s_interception_workspace {
+        std::vector<uint32_t> ships;
+        std::unordered_map<uint32_t, std::optional<s_interception_assignment>> assignments;
+        std::unordered_map<uint32_t, s_interception_star_work> stars;
+    };
+
     struct s_movement_workspace {
         std::vector<s_colonization_candidate> colonizable;
         std::unordered_map<uint32_t, std::array<int8_t, FORECAST_TURN_COUNT>> flee_stars;
         std::unordered_map<uint32_t, int8_t> nonplayer_here;
+        s_interception_workspace interception;
         bool complete = false;
     };
+
+    inline bool Is_Fleeing(const s_movement_workspace* work, uint32_t star, uint32_t turn) {
+        if (turn >= FORECAST_TURN_COUNT) return false;
+        auto found = work->flee_stars.find(star);
+        return found != work->flee_stars.end() && found->second[turn] != 0;
+    }
+
+    inline std::optional<int8_t> Nonplayer_At(const s_movement_workspace* work, uint32_t star) {
+        auto found = work->nonplayer_here.find(star);
+        if (found == work->nonplayer_here.end()) return std::nullopt;
+        return found->second;
+    }
 
     struct s_combat_ship_group {
         uint32_t next;

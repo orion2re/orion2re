@@ -105,7 +105,7 @@ namespace AIDATA {
     /*
      * Builds AI caches for ships, colonies, stars, and per-player planning data.
      */
-    void __cdecl Compute_AI_Data(s_state* ai, const game_world::s_view* world);
+    bool Compute_AI_Data(s_state* ai, const game_world::s_view* world);
 
     /*
      * Marks which players can reach a star within normal and extended range.

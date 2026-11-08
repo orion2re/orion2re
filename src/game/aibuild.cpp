@@ -530,7 +530,9 @@ namespace AIBUILD {
     void Build_Production_Context(AIDATA::s_state* ai, const game_world::s_view* world, const s_colony* colony, int32_t war_level, production_rules::s_context* context) {
         memset(context, 0, sizeof(*context));
         int32_t owner = (uint8_t)colony->owner;
-        int16_t colony_idx = (int16_t)(colony - world->colonies);
+        auto identity = legacy_world::Colony_Id(world, colony);
+        if (!identity) return;
+        uint32_t colony_idx = *identity;
         const s_player* player = &world->players[owner];
         const s_planet_data* planet = &world->planets[colony->planet];
         const AIDATA::s_colony_assessment* ai_colony = &ai->colonies[colony_idx];
@@ -652,7 +654,9 @@ namespace AIBUILD {
         uint8_t owner_u8 = (uint8_t)colony->owner;
         int32_t owner = owner_u8;
         s_player* player = &world->players[owner];
-        int16_t colony_idx = (int16_t)(colony - world->colonies);
+        auto identity = legacy_world::Colony_Id(world, colony);
+        if (!identity) return 0;
+        uint32_t colony_idx = *identity;
         AIDATA::s_colony_assessment* ai_colony = &ai->colonies[colony_idx];
 
         int32_t ecologist_objective_bonus = (player->objectives == PLAYER_OBJECTIVE_ECOLOGIST);
@@ -1121,7 +1125,9 @@ namespace AIBUILD {
             weights[i] = (uint16_t)evaluated_weights[i];
         }
 
-        int16_t colony_idx = (int16_t)(colony - world->colonies);
+        auto identity = legacy_world::Colony_Id(world, colony);
+        if (!identity) return;
+        uint32_t colony_idx = *identity;
         auto choice = RUSS::Choose_Weighted_Index_U16(&world->random, weights, AUTOBUILD_CANDIDATE_COUNT);
 
         if (!choice || *choice < BUILDING_COUNT) {
@@ -1135,12 +1141,12 @@ namespace AIBUILD {
         }
     }
 
-    void __cdecl Force_Produce(const game_world::s_view* world, int16_t* id_list, int16_t list_index, int32_t* list_count, int16_t production_id) {
-        int16_t colony_idx = id_list[list_index];
+    void __cdecl Force_Produce(const game_world::s_view* world, uint32_t* id_list, uint32_t list_index, int32_t* list_count, int16_t production_id) {
+        uint32_t colony_idx = id_list[list_index];
         world->colonies[colony_idx].producing[0] = production_id;
         *list_count -= 1;
-        int32_t items_to_move = *list_count - list_index;
-        memmove(&id_list[list_index], &id_list[list_index + 1], items_to_move * sizeof(int16_t));
+        int32_t items_to_move = *list_count - (int32_t)list_index;
+        memmove(&id_list[list_index], &id_list[list_index + 1], items_to_move * sizeof(uint32_t));
     }
 
     int16_t __cdecl Industry_Worth(s_colony* colony) {

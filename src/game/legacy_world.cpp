@@ -1,8 +1,8 @@
 #include "pch.h"
 
-#include "ai_legacy.h"
+#include "legacy_world.h"
 
-namespace AI_LEGACY {
+namespace legacy_world {
     game_world::s_view World() {
         return {
             MOX::player,
@@ -22,4 +22,4 @@ namespace AI_LEGACY {
             {&game_random::random_seed, game_random::Random_From_Seed},
         };
     }
-} // namespace AI_LEGACY
+} // namespace legacy_world
