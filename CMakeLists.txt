@@ -290,10 +290,28 @@ if(ORION2RE_BUILD_GAME OR ORION2RE_BUILD_CONFIG_TOOL)
     endif()
 
     if(ORION2RE_IMGUI_USE_PREBUILT)
-        add_library(orion2re_imgui INTERFACE)
-        target_link_libraries(orion2re_imgui INTERFACE ${ORION2RE_IMGUI_LIBRARY})
-        # INTERFACE targets only accept INTERFACE scope below.
-        set(ORION2RE_IMGUI_SCOPE INTERFACE)
+        # The prebuilt system library leaves the stb_truetype and
+        # stb_rect_pack implementations undefined (Debian/Ubuntu build
+        # it with IMGUI_DISABLE_STB_TRUETYPE_IMPLEMENTATION and
+        # IMGUI_DISABLE_STB_RECT_PACK_IMPLEMENTATION), so compile them
+        # here from the imstb headers. An OBJECT library is used so the
+        # stb objects are linked directly into consumers: a STATIC
+        # library would not be pulled in, because the stb symbols only
+        # become undefined once libimgui.a is processed, which is after
+        # the static library.
+        add_library(orion2re_imgui OBJECT
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/imgui_stb.cpp"
+        )
+        target_link_libraries(orion2re_imgui PUBLIC ${ORION2RE_IMGUI_LIBRARY})
+        set(ORION2RE_IMGUI_SCOPE PUBLIC)
+        # The stb implementations come from the imstb headers. Prefer
+        # the system copy (version-matched to the prebuilt library);
+        # fall back to the vendored copy if the system package does
+        # not ship them.
+        if(NOT EXISTS "${ORION2RE_IMGUI_INCLUDE_DIR}/imstb_truetype.h" OR
+           NOT EXISTS "${ORION2RE_IMGUI_INCLUDE_DIR}/imstb_rectpack.h")
+            list(APPEND ORION2RE_IMGUI_INCLUDE_DIRS "${ORION2RE_VENDORED_IMGUI_DIR}")
+        endif()
     else()
         add_library(orion2re_imgui STATIC
             ${ORION2RE_IMGUI_SOURCES}
@@ -663,6 +681,12 @@ if(ORION2RE_BUILD_GAME OR ORION2RE_BUILD_CONFIG_TOOL)
     list(REMOVE_ITEM ORION2RE_SOURCES ${ORION2RE_SCALER_SOURCES})
     list(APPEND ORION2RE_SOURCES ${ORION2RE_CONFIG_GENERATED_FILES})
     list(REMOVE_ITEM ORION2RE_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp")
+    # imgui_stb.cpp is compiled by the orion2re_imgui OBJECT library when
+    # the prebuilt system library is used; keep it out of the game
+    # objects or the stb symbols would be defined twice. When the
+    # vendored (or sources) ImGui is used it is not compiled anywhere:
+    # the stb implementations already come from imgui_draw.cpp there.
+    list(REMOVE_ITEM ORION2RE_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/imgui_stb.cpp")
 
     add_library(orion2re_game_objects OBJECT
         ${ORION2RE_SOURCES}
