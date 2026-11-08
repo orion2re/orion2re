@@ -276,7 +276,7 @@ namespace AIBUILD {
         needs.ship_sizes.target_ship_size = highest_ship_size_idx + 1;
         if (max_strength_vs_ships < needs.combat_strength.total ||
             info.reachable_player_count == 0) {
-            int32_t rand_val = world->random.Next(2);
+            int32_t rand_val = game_random::Random_From_Seed(world->random_seed, 2);
             needs.ship_sizes.target_ship_size = highest_ship_size_idx + 1 + rand_val + (is_militarist ? 1 : 0) - 1;
         }
 
@@ -337,7 +337,7 @@ namespace AIBUILD {
         int32_t current_need = needs.combat_strength.additional_wanted;
         if (current_need == 0 || world->players[player_idx].command_points_used < world->players[player_idx].command_points) {
             if (info.reachable_player_count > 0) {
-                if (world->random.Next(10 - (is_militarist ? 1 : 0)) == 1) {
+                if (game_random::Random_From_Seed(world->random_seed, 10 - (is_militarist ? 1 : 0)) == 1) {
                     needs.combat_strength.additional_wanted += (is_militarist ? 4 : 0) + 1;
                 }
             }
@@ -377,11 +377,11 @@ namespace AIBUILD {
                 }
 
                 int32_t spy_trait = world->players[player_idx].traits[TRAIT_SPYING_BONUS];
-                if (current_spies < max_spies + 2 && (int32_t)world->random.Next(100) <= spy_trait) {
+                if (current_spies < max_spies + 2 && (int32_t)game_random::Random_From_Seed(world->random_seed, 100) <= spy_trait) {
                     needs.spies.additional_wanted++;
                 }
 
-                if (world->players[player_idx].objectives == PLAYER_OBJECTIVE_DIPLOMATIC && world->random.Next(2) == 1) {
+                if (world->players[player_idx].objectives == PLAYER_OBJECTIVE_DIPLOMATIC && game_random::Random_From_Seed(world->random_seed, 2) == 1) {
                     needs.spies.additional_wanted++;
                 }
 
@@ -390,7 +390,7 @@ namespace AIBUILD {
                     int32_t cap = info.contact_count * ((world->players[player_idx].traits[TRAIT_SPYING_BONUS] > 0 ? 1 : 0) + 1) * 2;
                     if (cap < current_spies) {
                         if (spy_need < 2) {
-                            if (world->players[player_idx].traits[TRAIT_SPYING_BONUS] < 1 && world->random.Next(4) != 1) {
+                            if (world->players[player_idx].traits[TRAIT_SPYING_BONUS] < 1 && game_random::Random_From_Seed(world->random_seed, 4) != 1) {
                                 needs.spies.additional_wanted = 0;
                             } else {
                                 needs.spies.additional_wanted = 1;
@@ -495,7 +495,7 @@ namespace AIBUILD {
                 }
             }
 
-            chosen_colony = RUSS::Choose_Weighted_Index_U16(&world->random, weights, world->Colony_Count());
+            chosen_colony = RUSS::Choose_Weighted_Index_U16(world->random_seed, weights, world->Colony_Count());
             if (chosen_colony) {
                 auto colony_index = legacy_world::Index(*chosen_colony);
                 if (colony_index) COLCALC::Colony_Buy_Outright(*colony_index);
@@ -1117,7 +1117,7 @@ namespace AIBUILD {
             weights[i] = (uint16_t)evaluated_weights[i];
         }
 
-        auto choice = RUSS::Choose_Weighted_Index_U16(&world->random, weights, AUTOBUILD_CANDIDATE_COUNT);
+        auto choice = RUSS::Choose_Weighted_Index_U16(world->random_seed, weights, AUTOBUILD_CANDIDATE_COUNT);
 
         if (!choice || *choice < BUILDING_COUNT) {
             int16_t product = choice ? (int16_t)*choice : COLONY_PRODUCTION_NONE;

@@ -1,6 +1,5 @@
 #pragma once
 #include <cstdint>
-#include "random_source.h"
 
 namespace game_random {
     extern uint32_t random_seed;

@@ -112,61 +112,66 @@ DOCTEST_TEST_CASE("AI turn reset does not own or reset world inputs") {
     AIDATA::s_state first;
     AIDATA::s_state second;
     world.player_count = &player_count;
-    world.random = {&seed, game_random::Random_From_Seed};
+    world.random_seed = &seed;
     first.players[0].build.transports.current = 3;
     first.ships[UINT32_MAX].refit_desirability = 9;
 
     AIDATA::Begin_Turn(&first, 42);
     DOCTEST_CHECK(first.ships.empty());
     DOCTEST_CHECK(first.players[0].build.transports.current == 0);
-    DOCTEST_CHECK(world.random.seed == &seed);
+    DOCTEST_CHECK(world.random_seed == &seed);
     player_count = 2;
     DOCTEST_CHECK(world.Player_Count() == 2);
     DOCTEST_CHECK_FALSE(second.initialized);
 }
 
-DOCTEST_TEST_CASE("AI random sources preserve classic draws without selecting a global stream") {
+DOCTEST_TEST_CASE("explicit seeds preserve classic draws without selecting a global stream") {
     game_random::random_seed = 0xdeadbeef;
     uint32_t seed = 0;
-    const game_random::s_source source{&seed, game_random::Random_From_Seed};
     const uint32_t expected[] = {1, 828, 653, 838, 54, 759};
-    DOCTEST_CHECK(source.Next(0) == 1);
+    DOCTEST_CHECK(game_random::Random_From_Seed(&seed, 0) == 1);
     DOCTEST_CHECK(seed == 0);
-    for (uint32_t value : expected) DOCTEST_CHECK(source.Next(1000) == value);
+    for (uint32_t value : expected) DOCTEST_CHECK(game_random::Random_From_Seed(&seed, 1000) == value);
     DOCTEST_CHECK(game_random::random_seed == 0xdeadbeef);
 
     uint32_t other_seed = 0;
-    const game_random::s_source other{&other_seed, game_random::Random_From_Seed};
-    DOCTEST_CHECK(other.Next(1000) == 1);
+    DOCTEST_CHECK(game_random::Random_From_Seed(&other_seed, 1000) == 1);
     DOCTEST_CHECK(seed == 3256818826u);
 }
 
-DOCTEST_TEST_CASE("source-driven weighted choices have explicit absence and fixed-width positions") {
+DOCTEST_TEST_CASE("a hypothetical roll only needs a local seed copy") {
+    uint32_t seed = 42;
+    uint32_t preview = seed;
+    const uint32_t roll = game_random::Random_From_Seed(&preview, 1000);
+    DOCTEST_CHECK(seed == 42);
+    DOCTEST_CHECK(preview != seed);
+    DOCTEST_CHECK(game_random::Random_From_Seed(&seed, 1000) == roll);
+    DOCTEST_CHECK(seed == preview);
+}
+
+DOCTEST_TEST_CASE("seeded weighted choices have explicit absence and fixed-width positions") {
     uint32_t seed = 0;
-    const game_random::s_source random{&seed, game_random::Random_From_Seed};
     const uint16_t zero[] = {0, 0};
-    DOCTEST_CHECK_FALSE(RUSS::Choose_Weighted_Index_U16(&random, zero, 2));
+    DOCTEST_CHECK_FALSE(RUSS::Choose_Weighted_Index_U16(&seed, zero, 2));
     DOCTEST_CHECK(seed == 0);
 
     const uint16_t weights[] = {0, 5, 0, 7};
-    DOCTEST_CHECK(RUSS::Choose_Weighted_Index_U16(&random, weights, 4) == 1);
-    DOCTEST_CHECK(RUSS::Choose_Weighted_Index_U16(&random, weights, 4) == 3);
+    DOCTEST_CHECK(RUSS::Choose_Weighted_Index_U16(&seed, weights, 4) == 1);
+    DOCTEST_CHECK(RUSS::Choose_Weighted_Index_U16(&seed, weights, 4) == 3);
 
     std::vector<uint16_t> large(40000);
     large.back() = 1;
-    DOCTEST_CHECK(RUSS::Choose_Weighted_Index_U16(&random, large.data(), 40000) == 39999);
+    DOCTEST_CHECK(RUSS::Choose_Weighted_Index_U16(&seed, large.data(), 40000) == 39999);
 }
 
 DOCTEST_TEST_CASE("32-bit ID shuffling keeps the legacy permutation and RNG consumption") {
     uint32_t first_seed = 42;
     uint32_t second_seed = 42;
-    const game_random::s_source first{&first_seed, game_random::Random_From_Seed};
-    const game_random::s_source second{&second_seed, game_random::Random_From_Seed};
     int16_t old_ids[] = {0, 1, 2, 3, 4, 5};
     uint32_t ids[] = {0, 1, 2, 3, 4, 5};
     const uint32_t expected[] = {4, 0, 1, 5, 3, 2};
-    RUSS::Shuffle_Sint_With_Source(&first, old_ids, 6);
-    RUSS::Shuffle_Uint(&second, ids, 6);
+    RUSS::Shuffle_Sint_With_Seed(&first_seed, old_ids, 6);
+    RUSS::Shuffle_Uint(&second_seed, ids, 6);
     for (uint32_t i = 0; i < 6; ++i) {
         DOCTEST_CHECK(ids[i] == expected[i]);
         DOCTEST_CHECK(ids[i] == (uint32_t)old_ids[i]);

@@ -3,6 +3,53 @@
 #include "doctest/doctest.h"
 #include "game/legacy_world.h"
 
+DOCTEST_TEST_CASE("coverage counts do not wrap at the old byte boundary") {
+    for (int16_t count : {0, 1, 255, 256, 257}) {
+        AIDATA::s_state ai;
+        s_player player{};
+        player.ship_range = 6;
+        s_settings settings{};
+        settings.game_difficulty = GAME_DIFFICULTY_AVERAGE;
+        std::vector<s_star_data> stars(52);
+        for (auto& star : stars) star.wormhole_star_id = -1;
+        std::vector<s_colony> colonies(257);
+        std::vector<s_planet_data> planets(257);
+        for (uint32_t i = 0; i < 257; ++i) {
+            colonies[i].owner = 0;
+            colonies[i].planet = (int16_t)i;
+            planets[i].star_index = (int16_t)(i / 5);
+        }
+        int16_t players = 1;
+        int16_t star_count = 52;
+        const game_world::s_view world{
+            .players = &player,
+            .stars = stars.data(),
+            .colonies = colonies.data(),
+            .planets = planets.data(),
+            .settings = &settings,
+            .player_count = &players,
+            .star_count = &star_count,
+            .colony_count = &count,
+        };
+        AIDATA::Compute_Star_Player_Range_Info(&ai, &world);
+        DOCTEST_CHECK(ai.stars.at(0).neighborhood.per_player[0].covering_colony_count == (uint32_t)count);
+        const int16_t worth = AIDATA::Proximity_Worth_To_Player(&ai, &world, &colonies[0], &player);
+        DOCTEST_CHECK(worth == (count == 1 ? 52 * 80 : 0));
+    }
+}
+
+DOCTEST_TEST_CASE("interception threat scans stay inside the forecast horizon") {
+    std::array<int32_t, AIDATA::FORECAST_TURN_COUNT> first{};
+    std::array<int32_t, AIDATA::FORECAST_TURN_COUNT> second{};
+    DOCTEST_CHECK_FALSE(AIMOVE::First_Threat_Turn(&first, &second, 0));
+    DOCTEST_CHECK_FALSE(AIMOVE::First_Threat_Turn(&first, &second, AIDATA::FORECAST_TURN_COUNT));
+    second[AIDATA::LAST_FORECAST_TURN] = 1;
+    DOCTEST_CHECK(AIMOVE::First_Threat_Turn(&first, &second, 0) == AIDATA::LAST_FORECAST_TURN);
+    first[3] = 1;
+    DOCTEST_CHECK(AIMOVE::First_Threat_Turn(&first, &second, 0) == 3);
+    DOCTEST_CHECK(AIMOVE::First_Threat_Turn(&first, &second, 4) == AIDATA::LAST_FORECAST_TURN);
+}
+
 DOCTEST_TEST_CASE("typed ship locations round-trip legacy orbit and transit encodings") {
     using game_world::e_ship_location;
     for (auto kind : {e_ship_location::at_star, e_ship_location::in_flight, e_ship_location::in_wormhole}) {
@@ -111,14 +158,14 @@ DOCTEST_TEST_CASE("strategic AI input diagnostics identify the failing requireme
         .colony_count = &count,
         .planet_count = &count,
         .stardate = &date,
-        .random = {&seed, game_random::Random_From_Seed},
+        .random_seed = &seed,
     };
     DOCTEST_CHECK(AIDATA::Validate_Inputs(&world) == nullptr);
     world.ship_count = nullptr;
     DOCTEST_CHECK(std::string(AIDATA::Validate_Inputs(&world)) == "invalid ship count");
     world.ship_count = &count;
-    world.random.draw = nullptr;
-    DOCTEST_CHECK(std::string(AIDATA::Validate_Inputs(&world)) == "unbound random source");
+    world.random_seed = nullptr;
+    DOCTEST_CHECK(std::string(AIDATA::Validate_Inputs(&world)) == "missing random seed");
 }
 
 DOCTEST_TEST_CASE("production queue removal keeps colony identities and queue positions distinct") {

@@ -41,7 +41,13 @@ DOCTEST_TEST_CASE("stopping transit changes location and activity without arriva
 }
 
 DOCTEST_TEST_CASE("hypothetical fleet origins preserve legacy evaluation without mutating ships") {
-    for (int8_t status : {0, 1, 2}) {
+    struct s_case {
+        int8_t status;
+        bool partial;
+    };
+    const s_case cases[] = {{0, false}, {1, false}, {2, false}, {0, true}, {1, true}, {2, true}};
+    for (auto test : cases) {
+        const int8_t status = test.status;
         TEST_SHIPMOVE::Reset_();
         MOX::NUM_STARS = 3;
         MOX::NUM_SHIPS = 2;
@@ -52,7 +58,8 @@ DOCTEST_TEST_CASE("hypothetical fleet origins preserve legacy evaluation without
             MOX::ship[i] = MOX::ship[0];
             MOX::ship[i].owner = 0;
             MOX::ship[i].status = status;
-            MOX::ship[i].location = 1 + (status == 1 ? SHIP_LOCATION_MOVING_OFFSET : status == 2 ? SHIP_LOCATION_WORMHOLE_OFFSET : 0);
+            MOX::ship[i].location = 1 + (status == 1 ? SHIP_LOCATION_MOVING_OFFSET : status == 2 ? SHIP_LOCATION_WORMHOLE_OFFSET
+                                                                                                 : 0);
             MOX::ship[i].x = 120;
             MOX::ship[i].travelling_speed = 6;
             MOX::ship[i].group_has_navigator = 1;
@@ -62,10 +69,15 @@ DOCTEST_TEST_CASE("hypothetical fleet origins preserve legacy evaluation without
         }
         const std::array<s_ship_data, 2> before{MOX::ship[0], MOX::ship[1]};
         int16_t ships[] = {0, 1, 0, -1};
-        for (int32_t i = 0; i < 2; ++i) {
-            MOX::ship[i].location = 0;
-            MOX::ship[i].x = MOX::star[0].x;
-            MOX::ship[i].y = MOX::star[0].y;
+        if (test.partial) {
+            ships[1] = 0;
+            ships[2] = -1;
+        }
+        for (uint32_t i = 0; ships[i] != -1; ++i) {
+            auto* ship = &MOX::ship[ships[i]];
+            ship->location = 0;
+            ship->x = MOX::star[0].x;
+            ship->y = MOX::star[0].y;
         }
         s_ship_move_info expected{};
         SHIPMOVE::Ships_Try_To_Move_To(ships, 2, &expected);

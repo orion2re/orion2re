@@ -138,7 +138,7 @@ namespace AIDATA {
         if (!world->leaders) return "missing leader records";
         if (!world->settings) return "missing game settings";
         if (!world->stardate) return "missing stardate";
-        if (!world->random.draw) return "unbound random source";
+        if (!world->random_seed) return "missing random seed";
         if (!world->player_count || *world->player_count <= 0 || *world->player_count > MAX_PLAYERS) return "invalid player count";
         if (!world->ship_count || *world->ship_count < 0 || *world->ship_count > MAX_SHIPS) return "invalid ship count";
         if (!world->star_count || *world->star_count < 0 || *world->star_count > MAX_STARS) return "invalid star count";
@@ -483,8 +483,7 @@ namespace AIDATA {
 
         RUSS::Mox_Update();
 
-        s_route_search_lookup direct_lookup;
-        direct_lookup.Prepare(ai, world->Star_Count(), world->Player_Count());
+        ai->routes.direct.Prepare_Live_Indices(world->Star_Count(), world->Player_Count());
 
         for (uint32_t i_as = 0; i_as < ai->combat_ships.size(); ++i_as) {
             uint32_t i = ai->combat_ships[i_as];
@@ -516,9 +515,9 @@ namespace AIDATA {
             for (int p = 0; p < world->Player_Count(); ++p) {
                 if (p != owner) {
                     for (int16_t s = 0; s < world->Star_Count(); ++s) {
-                        auto& star_assessment = direct_lookup.Find_Star(ai, s);
+                        auto& star_assessment = ai->stars[s];
                         if (((star_assessment.in_extended_range >> p) & 1) || s == start_star) {
-                            auto route = Player_N_Turns_From_Star_To_Star_With_Intermediate(ai, world, owner, start_star, s, stealth, &direct_lookup);
+                            auto route = Player_N_Turns_From_Star_To_Star_With_Intermediate(ai, world, owner, start_star, s, stealth);
                             if (route) {
                                 int eta = initial_delay + route->turns;
                                 if (eta < FORECAST_TURN_COUNT) {
@@ -593,9 +592,9 @@ namespace AIDATA {
                                 }
                                 RUSS::Mox_Update();
                                 for (int16_t other_s = 0; other_s < world->Star_Count(); ++other_s) {
-                                    int32_t str = direct_lookup.Find_Star(ai, other_s).possible_strengths[p_v][p_o][0];
+                                    int32_t str = ai->stars[other_s].possible_strengths[p_v][p_o][0];
                                     if (str != 0) {
-                                        auto route = Player_N_Turns_From_Star_To_Star_With_Intermediate(ai, world, p_v, other_s, s, true, &direct_lookup);
+                                        auto route = Player_N_Turns_From_Star_To_Star_With_Intermediate(ai, world, p_v, other_s, s, true);
                                         if (route && route->turns < max_eta) {
                                             threat_sum += str / (route->turns + 1);
                                         }
@@ -606,7 +605,7 @@ namespace AIDATA {
 
                         for (int16_t pl = 0; pl < world->Planet_Count(); ++pl) {
                             if ((uint32_t)pl != *best_planet_at_star[p_o]) {
-                                auto route = Player_N_Turns_From_Star_To_Star_With_Intermediate(ai, world, p_o, s, world->planets[pl].star_index, false, &direct_lookup);
+                                auto route = Player_N_Turns_From_Star_To_Star_With_Intermediate(ai, world, p_o, s, world->planets[pl].star_index, false);
                                 if (route && route->turns < 3) {
                                     RUSS::Mox_Update();
                                     value_sum += ai->planets[pl].stage_weights[p_o];
@@ -933,7 +932,10 @@ namespace AIDATA {
 
                         // Score is 120 if others are present, 80 otherwise
                         int score = other_players_present ? 120 : 80;
-                        uint8_t covering_colonies = ai->stars[i].neighborhood.per_player[owner_idx].covering_colony_count;
+                        auto assessment = ai->stars.find(i);
+                        if (assessment == ai->stars.end()) continue;
+                        uint32_t covering_colonies = assessment->second.neighborhood.per_player[owner_idx].covering_colony_count;
+                        if (covering_colonies == 0) continue;
                         total_worth += (short)(score / covering_colonies);
                     }
                 }
@@ -944,7 +946,10 @@ namespace AIDATA {
                 if (Star_In_Range_Of_Given_Star(world, i, colony_star_idx, ship_range)) {
                     // Check if target player has a colony at star i
                     if (world->stars[i].has_colony & (1 << evaluating_player_idx)) {
-                        uint8_t covering_colonies = ai->stars[i].neighborhood.per_player[owner_idx].covering_colony_count;
+                        auto assessment = ai->stars.find(i);
+                        if (assessment == ai->stars.end()) continue;
+                        uint32_t covering_colonies = assessment->second.neighborhood.per_player[owner_idx].covering_colony_count;
+                        if (covering_colonies == 0) continue;
                         total_worth += (short)(100 / covering_colonies);
                         if ((uint32_t)covering_colonies < min_eta) {
                             min_eta = covering_colonies;
@@ -965,7 +970,7 @@ namespace AIDATA {
     constexpr uint16_t MAX_CACHED_TRAVEL_TURNS = 254;
 
     std::optional<s_route> Player_N_Turns_From_Star_To_Star_With_Intermediate(
-        s_state* ai, const game_world::s_view* world, uint32_t player_id, uint32_t source_star, uint32_t destination_star, bool use_extended_range, const s_route_search_lookup* lookup) {
+        s_state* ai, const game_world::s_view* world, uint32_t player_id, uint32_t source_star, uint32_t destination_star, bool use_extended_range) {
         const s_route_key key{player_id, source_star, destination_star};
         auto cached = ai->routes.intermediate.find(key);
         if (cached != ai->routes.intermediate.end()) {
@@ -975,14 +980,9 @@ namespace AIDATA {
         s_route_choices choices;
         const s_player* player = &world->players[player_id];
         const auto& direct_routes = ai->routes.direct;
-        if (lookup != nullptr && !lookup->routes.Matches(&direct_routes)) lookup = nullptr;
-        const auto* source_row = lookup == nullptr
-            ? direct_routes.Find_Row(source_star, player_id)
-            : lookup->routes.Find_Row(source_star, player_id);
-        const auto destination_offset = lookup == nullptr
-            ? direct_routes.Find_Destination(destination_star)
-            : lookup->routes.Find_Destination(destination_star);
-        const auto direct = source_row == nullptr ? std::nullopt : source_row->Find(destination_offset);
+        const auto source_row = direct_routes.Find_Row_Index(source_star, player_id);
+        const auto destination_offset = direct_routes.Find_Destination(destination_star);
+        const auto direct = direct_routes.Find_Cell(source_row, destination_offset);
         bool direct_is_best = false;
         if (player->ship_speed != 0 &&
             player->tech_applications[TECH_APP_JUMP_GATE] != TECH_RESEARCH_STATUS_RESEARCHED &&
@@ -995,10 +995,8 @@ namespace AIDATA {
                 const int32_t distance = GEO::Parsecs_Between_Stars(*source_index, *destination_index);
                 const uint16_t turns = (uint8_t)((distance + player->ship_speed - 1) / player->ship_speed);
                 if (*direct <= (distance + player->ship_speed - 1) / player->ship_speed) {
-                    const auto& destination_assessment = lookup == nullptr
-                        ? ai->stars[destination_star]
-                        : lookup->Find_Star(ai, destination_star);
-                    if ((destination_assessment.in_range >> player_id) & 1) {
+                    const auto destination_assessment = ai->stars.find(destination_star);
+                    if (destination_assessment != ai->stars.end() && ((destination_assessment->second.in_range >> player_id) & 1)) {
                         choices.normal = s_route{destination_star, turns};
                     }
                     choices.extended = s_route{destination_star, turns};
@@ -1010,21 +1008,19 @@ namespace AIDATA {
         if (!direct_is_best) {
             for (int32_t index = world->Star_Count() - 1; index >= 0; --index) {
                 const uint32_t star_id = (uint32_t)index;
-                const auto& star_assessment = lookup == nullptr ? ai->stars[star_id] : lookup->Find_Star(ai, star_id);
+                const auto assessment = ai->stars.find(star_id);
+                if (assessment == ai->stars.end()) continue;
+                const auto& star_assessment = assessment->second;
                 if ((star_assessment.in_extended_range >> player_id) & 1) {
                     const s_star_data* star = &world->stars[star_id];
                     if (star_id == destination_star ||
                         (star->spectral_class != STAR_CLASS_BLACK_HOLE &&
                             star->system_special != SYSTEM_SPECIAL_SPACE_MONSTER &&
                             (((star->has_colony >> player_id) & 1) || star->has_colony == 0))) {
-                        const auto intermediate_offset = lookup == nullptr
-                            ? direct_routes.Find_Destination(star_id)
-                            : lookup->routes.Find_Destination(star_id);
-                        const auto* intermediate_row = lookup == nullptr
-                            ? direct_routes.Find_Row(star_id, player_id)
-                            : lookup->routes.Find_Row(star_id, player_id);
-                        const auto first_leg = source_row == nullptr ? std::nullopt : source_row->Find(intermediate_offset);
-                        const auto second_leg = intermediate_row == nullptr ? std::nullopt : intermediate_row->Find(destination_offset);
+                        const auto intermediate_offset = direct_routes.Find_Destination(star_id);
+                        const auto intermediate_row = direct_routes.Find_Row_Index(star_id, player_id);
+                        const auto first_leg = direct_routes.Find_Cell(source_row, intermediate_offset);
+                        const auto second_leg = direct_routes.Find_Cell(intermediate_row, destination_offset);
                         if (first_leg && second_leg) {
                             const uint16_t turns = *first_leg + *second_leg;
                             const uint32_t next_star = star_id == source_star ? destination_star : star_id;

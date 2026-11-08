@@ -27,7 +27,8 @@ namespace TEST_AIDUDES {
         world.settings = &MOX::settings;
         world.ship_count = &MOX::NUM_SHIPS;
         world.stardate = &MOX::stardate;
-        world.random.draw = [](uint32_t*, uint32_t maximum) { return game_random::Random(maximum); };
+        static uint32_t seed;
+        world.random_seed = &seed;
         return &world;
     }
 
@@ -177,6 +178,7 @@ namespace AIBUILD {
 }
 
 namespace game_random {
+    uint32_t __cdecl Random_From_Seed(uint32_t*, uint32_t maximum) { return Random(maximum); }
     uint32_t __cdecl Random(uint32_t maximum) {
         return maximum == 900 ? 1 : 9;
     }
