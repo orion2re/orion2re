@@ -154,9 +154,227 @@ namespace config {
             return {span.start, span.end};
         }
 
+        // Applies surgical edits (sorted, non-overlapping byte ranges) to
+        // a source document. Shared by the enable and settings rewriters.
+        std::string Apply_Edits(const std::string& source,
+            const std::vector<s_edit>& edits) {
+            std::string result;
+            size_t cursor = 0;
+            for (const s_edit& edit : edits) {
+                result.append(source, cursor, edit.start - cursor);
+                result.append(edit.text);
+                cursor = edit.end;
+            }
+            result.append(source, cursor, std::string::npos);
+            return result;
+        }
+
+        // The file's line-ending convention, taken from its first line;
+        // appended lines match it. Shared by both rewriters.
+        std::string File_Newline(const std::string& source) {
+            const size_t first_newline = source.find('\n');
+            return first_newline != std::string::npos && first_newline > 0 &&
+                    source[first_newline - 1] == '\r'
+                ? "\r\n"
+                : "\n";
+        }
+
+        bool Is_Decimal_Index(const std::string& value) {
+            if (value.empty()) {
+                return false;
+            }
+            for (char character : value) {
+                if (character < '0' || character > '9') {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        // A setting-path segment is an identifier (a name) or a decimal
+        // array index, mirroring the parser's path-token rule.
+        bool Is_Valid_Path_Segment(const std::string& value) {
+            if (value.empty()) {
+                return false;
+            }
+            if (Is_Identifier_Start(value.front())) {
+                for (char character : value) {
+                    if (!Is_Identifier_Continue(character)) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+            return Is_Decimal_Index(value);
+        }
+
+        // The value must parse as exactly one value token whose raw text
+        // is the value itself: anything else (a second token, an
+        // unterminated string, a bad escape, a stray ';') would corrupt
+        // the rewritten file. The skip marker "-" is refused outright:
+        // writing it would not set the value.
+        bool Validate_Setting_Value(const char* source_name, const std::string& value,
+            s_cfg_diagnostic* diagnostic) {
+            if (value.empty()) {
+                return Fail(diagnostic, Location_At(source_name, 0, 1),
+                    "setting value is empty; refusing to write it");
+            }
+            if (value.find('\n') != std::string::npos ||
+                value.find('\r') != std::string::npos) {
+                return Fail(diagnostic, Location_At(source_name, 0, 1),
+                    "setting value contains a line break; refusing to write it");
+            }
+            if (value == "-") {
+                return Fail(diagnostic, Location_At(source_name, 0, 1),
+                    "setting value '-' is the skip marker, not a value; refusing to write it");
+            }
+            const std::string synthetic = "__setting__ = " + value + ";";
+            s_cfg_document document;
+            s_cfg_diagnostic parse_diagnostic;
+            if (!Parse_Cfg(source_name, synthetic.data(), synthetic.size(), &document,
+                    &parse_diagnostic)) {
+                return Fail(diagnostic, Location_At(source_name, 0, 1),
+                    "setting value '" + value + "' does not parse as a single value (" +
+                        parse_diagnostic.message + "); refusing to write it");
+            }
+            if (document.statements.size() != 1 ||
+                document.statements[0].kind != CFG_STATEMENT_ASSIGNMENT ||
+                document.statements[0].values.size() != 1 ||
+                !document.statements[0].groups.empty() ||
+                document.statements[0].values[0].raw != value) {
+                return Fail(diagnostic, Location_At(source_name, 0, 1),
+                    "setting value '" + value +
+                        "' does not parse as a single value; refusing to write it");
+            }
+            return true;
+        }
+
+        struct s_setting_span {
+            size_t start = 0; // Offset of the first path token.
+            size_t value_start = 0; // Offset of the value token.
+            size_t value_end = 0; // Offset just past the value token.
+            size_t end = 0; // Offset just past the terminating `;`.
+            uint32_t line = 1;
+        };
+
+        // The byte ranges of one setting assignment. The statement must
+        // be a plain single-line `<path> = <value>;` assignment with
+        // exactly one value and no labeled groups: a comment or line
+        // break inside it would be dropped by a surgical replacement, so
+        // that form is refused instead. The scan tracks string literals,
+        // so a '#' or ';' inside a quoted value is not mistaken for a
+        // comment or the terminator.
+        bool Find_Setting_Span(const std::string& source,
+            const s_cfg_statement& statement, s_setting_span* span,
+            s_cfg_diagnostic* diagnostic) {
+            if (statement.values.size() != 1 || !statement.groups.empty()) {
+                return Fail(diagnostic, statement.location,
+                    "assignment at line " + std::to_string(statement.location.line) +
+                        " is not a plain single-value assignment; refusing to edit it");
+            }
+            const s_cfg_token& value = statement.values[0];
+            size_t offset = statement.location.offset;
+            bool in_string = false;
+            size_t semicolon = std::string::npos;
+            while (offset < source.size()) {
+                const char character = source[offset];
+                if (in_string) {
+                    if (character == '\\') {
+                        offset += 2;
+                        continue;
+                    }
+                    if (character == '"') {
+                        in_string = false;
+                    } else if (character == '\n' || character == '\r') {
+                        return Fail(diagnostic, statement.location,
+                            "assignment at line " +
+                                std::to_string(statement.location.line) +
+                                " is not a single-line assignment; refusing to edit it");
+                    }
+                    ++offset;
+                    continue;
+                }
+                if (character == '"') {
+                    in_string = true;
+                    ++offset;
+                    continue;
+                }
+                if (character == '#') {
+                    return Fail(diagnostic, statement.location,
+                        "assignment at line " + std::to_string(statement.location.line) +
+                            " has a comment inside it; refusing to edit it");
+                }
+                if (character == '\n' || character == '\r') {
+                    return Fail(diagnostic, statement.location,
+                        "assignment at line " + std::to_string(statement.location.line) +
+                            " is not a single-line assignment; refusing to edit it");
+                }
+                if (character == ';') {
+                    semicolon = offset;
+                    break;
+                }
+                ++offset;
+            }
+            if (semicolon == std::string::npos) {
+                return Fail(diagnostic, statement.location,
+                    "assignment at line " + std::to_string(statement.location.line) +
+                        " has a form the writer does not understand");
+            }
+            const size_t value_start = value.location.offset;
+            const size_t value_end = value_start + value.raw.size();
+            if (value_start < statement.location.offset || value_end > semicolon) {
+                return Fail(diagnostic, statement.location,
+                    "assignment at line " + std::to_string(statement.location.line) +
+                        " has a form the writer does not understand");
+            }
+            for (size_t index = value_end; index < semicolon; ++index) {
+                if (source[index] != ' ' && source[index] != '\t') {
+                    return Fail(diagnostic, statement.location,
+                        "assignment at line " + std::to_string(statement.location.line) +
+                            " has a form the writer does not understand");
+                }
+            }
+            span->start = statement.location.offset;
+            span->value_start = value_start;
+            span->value_end = value_end;
+            span->end = semicolon + 1;
+            span->line = statement.location.line;
+            return true;
+        }
+
+        // Same path-equality rule the loader applies to statement paths:
+        // identifiers compare by value, decimal indexes by their digits.
+        bool Paths_Equal(const std::vector<s_cfg_token>& path,
+            const std::vector<std::string>& wanted) {
+            if (path.size() != wanted.size()) {
+                return false;
+            }
+            for (size_t index = 0; index < path.size(); ++index) {
+                if (path[index].value != wanted[index]) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        std::string Join_Setting_Path(const std::vector<std::string>& setting_path) {
+            std::string joined;
+            for (size_t index = 0; index < setting_path.size(); ++index) {
+                if (index != 0) {
+                    joined += ' ';
+                }
+                joined += setting_path[index];
+            }
+            return joined;
+        }
+
+        // `setting_path` selects the include check: null means the enable
+        // writer (refuse when an include enables a mod); non-null means
+        // the settings writer (refuse when an include assigns that path).
         bool Check_Includes(const std::filesystem::path& config_directory,
             const s_cfg_document& document, const char* source_name,
             std::unordered_set<std::string>* seen, size_t depth,
+            const std::vector<std::string>* setting_path,
             s_cfg_diagnostic* diagnostic) {
             for (const s_cfg_statement& statement : document.statements) {
                 if (statement.kind == CFG_STATEMENT_STOP) {
@@ -228,13 +446,23 @@ namespace config {
                     if (included_statement.kind == CFG_STATEMENT_STOP) {
                         break;
                     }
-                    if (included_statement.kind == CFG_STATEMENT_ENABLE) {
+                    if (setting_path == nullptr) {
+                        if (included_statement.kind == CFG_STATEMENT_ENABLE) {
+                            return Fail(diagnostic, included_statement.location,
+                                "include '" + canonical.string() + "' enables mod '" +
+                                    included_statement.argument.value + "' at line " +
+                                    std::to_string(included_statement.location.line) +
+                                    "; the writer only updates enable lines in '" + source_name +
+                                    "', so the written set would not match the effective set");
+                        }
+                    } else if (included_statement.kind == CFG_STATEMENT_ASSIGNMENT &&
+                        Paths_Equal(included_statement.path, *setting_path)) {
                         return Fail(diagnostic, included_statement.location,
-                            "include '" + canonical.string() + "' enables mod '" +
-                                included_statement.argument.value + "' at line " +
+                            "include '" + canonical.string() + "' assigns '" +
+                                Join_Setting_Path(*setting_path) + "' at line " +
                                 std::to_string(included_statement.location.line) +
-                                "; the writer only updates enable lines in '" + source_name +
-                                "', so the written set would not match the effective set");
+                                "; the writer only updates assignments in '" + source_name +
+                                "', so the written value would not match the effective value");
                     }
                 }
                 seen->insert(key);
@@ -243,12 +471,148 @@ namespace config {
                 // path is only for cycle detection and reading.
                 const std::filesystem::path included_directory = resolved.parent_path();
                 if (!Check_Includes(included_directory, included_document, source_name, seen,
-                        depth + 1, diagnostic)) {
+                        depth + 1, setting_path, diagnostic)) {
                     return false;
                 }
                 seen->erase(key);
             }
             return true;
+        }
+
+    } // namespace
+
+    namespace {
+
+        // Reads a config file for a Write_ call: the file must exist and
+        // parse, and `target` is its canonical path, so a symlinked config
+        // is written through and the link itself is preserved.
+        bool Read_Config_File(const std::string& path, std::string* source,
+            std::filesystem::path* target, s_cfg_document* document,
+            s_cfg_diagnostic* diagnostic) {
+            const s_source_location file_location = Location_At(path.c_str(), 0, 1);
+            std::error_code error;
+            if (!std::filesystem::is_regular_file(path, error)) {
+                return Fail(diagnostic, file_location,
+                    "cannot read configuration file '" + path + "'");
+            }
+            const uintmax_t size = std::filesystem::file_size(path, error);
+            if (error || size > CONFIG_WRITER_MAX_FILE_SIZE) {
+                return Fail(diagnostic, file_location,
+                    "configuration file '" + path + "' is too large to edit safely");
+            }
+            std::ifstream input(path, std::ios::binary);
+            if (!input) {
+                return Fail(diagnostic, file_location,
+                    "cannot read configuration file '" + path + "'");
+            }
+            *source = std::string(
+                (std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+            if (input.bad()) {
+                return Fail(diagnostic, file_location,
+                    "cannot read configuration file '" + path + "'");
+            }
+
+            // Write through a symlink: resolve the canonical target and
+            // edit that file, so the link itself (and anything else
+            // pointing at the target) keeps working. A rename over the
+            // link would replace it with a regular file and leave the
+            // target stale.
+            error.clear();
+            *target = std::filesystem::canonical(path, error);
+            if (error) {
+                return Fail(diagnostic, file_location,
+                    "cannot resolve configuration file '" + path + "'");
+            }
+            if (!Parse_Cfg(path.c_str(), source->data(), source->size(), document,
+                    diagnostic)) {
+                return false;
+            }
+            return true;
+        }
+
+        // Replaces a config file atomically: the new content goes to a
+        // temporary file in the same directory, takes the original's
+        // permissions, and is renamed over it. Any failure leaves the
+        // original untouched. `path` is only used in diagnostics.
+        bool Write_Rewritten_File(const std::string& path,
+            const std::filesystem::path& target, const std::string& rewritten,
+            s_cfg_diagnostic* diagnostic) {
+            const s_source_location file_location = Location_At(path.c_str(), 0, 1);
+            std::string suffix;
+            {
+                std::random_device device;
+                std::ostringstream stream;
+                stream << std::hex << device() << device();
+                suffix = stream.str();
+            }
+            const std::filesystem::path temporary = target.string() + ".tmp-" + suffix;
+            {
+                std::ofstream output(temporary, std::ios::binary | std::ios::trunc);
+                if (!output) {
+                    return Fail(diagnostic, file_location,
+                        "cannot write temporary file '" + temporary.string() + "'");
+                }
+                output.write(rewritten.data(), static_cast<std::streamsize>(rewritten.size()));
+                output.flush();
+                if (!output) {
+                    std::error_code remove_error;
+                    std::filesystem::remove(temporary, remove_error);
+                    return Fail(diagnostic, file_location,
+                        "cannot write temporary file '" + temporary.string() + "'");
+                }
+                output.close();
+                if (!output) {
+                    std::error_code remove_error;
+                    std::filesystem::remove(temporary, remove_error);
+                    return Fail(diagnostic, file_location,
+                        "cannot write temporary file '" + temporary.string() + "'");
+                }
+            }
+            std::error_code status_error;
+            const std::filesystem::perms permissions =
+                std::filesystem::status(target, status_error).permissions();
+            if (status_error) {
+                std::error_code remove_error;
+                std::filesystem::remove(temporary, remove_error);
+                return Fail(diagnostic, file_location,
+                    "cannot read permissions of configuration file '" + path + "'");
+            }
+            std::error_code permissions_error;
+            std::filesystem::permissions(temporary, permissions, permissions_error);
+            if (permissions_error) {
+                std::error_code remove_error;
+                std::filesystem::remove(temporary, remove_error);
+                return Fail(diagnostic, file_location,
+                    "cannot copy permissions to temporary file '" + temporary.string() + "'");
+            }
+            std::error_code error;
+            std::filesystem::rename(temporary, target, error);
+            if (error) {
+                std::error_code remove_error;
+                std::filesystem::remove(temporary, remove_error);
+                return Fail(diagnostic, file_location,
+                    "cannot replace configuration file '" + path + "'");
+            }
+            return true;
+        }
+
+        // The include check both Write_ calls share, with the setting
+        // path selecting the mode (null for the enable writer). Includes
+        // resolve lexically beside the path as passed, mirroring the
+        // loader (which never resolves symlinks when locating includes).
+        // Only the write itself goes through the canonical target;
+        // resolving includes beside the target would check the wrong
+        // directory when the config is a symlink into another directory.
+        bool Check_Write_Includes(const std::string& path,
+            const std::filesystem::path& target, const s_cfg_document& document,
+            const std::vector<std::string>* setting_path,
+            s_cfg_diagnostic* diagnostic) {
+            std::unordered_set<std::string> seen;
+            seen.insert(target.string());
+            const std::filesystem::path lexical_directory =
+                std::filesystem::absolute(path).parent_path();
+            return Check_Includes(lexical_directory, document, path.c_str(),
+                &seen, 0, setting_path, diagnostic);
         }
 
     } // namespace
@@ -309,12 +673,7 @@ namespace config {
 
         // The first line's ending defines the file's line-ending
         // convention; appended lines match it.
-        const size_t first_newline = source.find('\n');
-        const std::string newline =
-            first_newline != std::string::npos && first_newline > 0 &&
-                    source[first_newline - 1] == '\r'
-                ? "\r\n"
-                : "\n";
+        const std::string newline = File_Newline(source);
         const size_t existing_count = spans.size();
         const size_t desired_count = enabled_mods.size();
         const size_t shared = existing_count < desired_count ? existing_count : desired_count;
@@ -377,18 +736,89 @@ namespace config {
             edits.push_back({insert_at, insert_at, std::move(inserted)});
         }
 
-        std::string result;
-        result.reserve(source.size() + 64 * (desired_count > existing_count
-                ? desired_count - existing_count
-                : 0));
-        size_t cursor = 0;
-        for (const s_edit& edit : edits) {
-            result.append(source, cursor, edit.start - cursor);
-            result.append(edit.text);
-            cursor = edit.end;
+        *rewritten = Apply_Edits(source, edits);
+        return true;
+    }
+
+    bool Rewrite_Setting(const char* source_name, const std::string& source,
+        const std::vector<std::string>& setting_path, const std::string& value,
+        std::string* rewritten, s_cfg_diagnostic* diagnostic) {
+        if (source_name == nullptr || rewritten == nullptr || diagnostic == nullptr) {
+            return false;
         }
-        result.append(source, cursor, std::string::npos);
-        *rewritten = std::move(result);
+        *diagnostic = {};
+        if (setting_path.empty()) {
+            return Fail(diagnostic, Location_At(source_name, 0, 1),
+                "setting path is empty; refusing to write it");
+        }
+        for (const std::string& segment : setting_path) {
+            if (!Is_Valid_Path_Segment(segment)) {
+                return Fail(diagnostic, Location_At(source_name, 0, 1),
+                    "setting path segment '" + segment +
+                        "' is neither an identifier nor a decimal index; refusing to write it");
+            }
+        }
+        if (!Validate_Setting_Value(source_name, value, diagnostic)) {
+            return false;
+        }
+
+        s_cfg_document document;
+        if (!Parse_Cfg(source_name, source.data(), source.size(), &document, diagnostic)) {
+            return false;
+        }
+
+        const s_cfg_statement* match = nullptr;
+        s_setting_span span;
+        bool has_stop = false;
+        s_source_location stop_location;
+        for (const s_cfg_statement& statement : document.statements) {
+            if (statement.kind == CFG_STATEMENT_STOP) {
+                has_stop = true;
+                stop_location = statement.location;
+                break;
+            }
+            if (statement.kind != CFG_STATEMENT_ASSIGNMENT ||
+                !Paths_Equal(statement.path, setting_path)) {
+                continue;
+            }
+            if (match != nullptr) {
+                return Fail(diagnostic, statement.location,
+                    "setting '" + Join_Setting_Path(setting_path) + "' is assigned twice, at line " +
+                        std::to_string(match->location.line) + " and line " +
+                        std::to_string(statement.location.line) +
+                        "; refusing to edit it until the duplicate is removed by hand");
+            }
+            match = &statement;
+            if (!Find_Setting_Span(source, statement, &span, diagnostic)) {
+                return false;
+            }
+        }
+
+        if (match == nullptr && has_stop) {
+            return Fail(diagnostic, stop_location,
+                "config has a 'stop' statement at line " +
+                    std::to_string(stop_location.line) +
+                    " and no assignment to '" + Join_Setting_Path(setting_path) +
+                    "'; a new line appended at the end of the file would sit after 'stop' and never take effect; refusing to edit it");
+        }
+
+        std::vector<s_edit> edits;
+        if (match != nullptr) {
+            const std::string current_value = source.substr(span.value_start,
+                span.value_end - span.value_start);
+            if (current_value != value) {
+                edits.push_back({span.value_start, span.value_end, value});
+            }
+        } else {
+            const std::string newline = File_Newline(source);
+            std::string inserted;
+            if (!source.empty() && source.back() != '\n') {
+                inserted += newline;
+            }
+            inserted += Join_Setting_Path(setting_path) + " = " + value + ";" + newline;
+            edits.push_back({source.size(), source.size(), std::move(inserted)});
+        }
+        *rewritten = Apply_Edits(source, edits);
         return true;
     }
 
@@ -398,56 +828,13 @@ namespace config {
             return false;
         }
         *diagnostic = {};
-        const s_source_location file_location = Location_At(path.c_str(), 0, 1);
-        std::error_code error;
-        if (!std::filesystem::is_regular_file(path, error)) {
-            return Fail(diagnostic, file_location,
-                "cannot read configuration file '" + path + "'");
-        }
-        const uintmax_t size = std::filesystem::file_size(path, error);
-        if (error || size > CONFIG_WRITER_MAX_FILE_SIZE) {
-            return Fail(diagnostic, file_location,
-                "configuration file '" + path + "' is too large to edit safely");
-        }
-        std::ifstream input(path, std::ios::binary);
-        if (!input) {
-            return Fail(diagnostic, file_location,
-                "cannot read configuration file '" + path + "'");
-        }
-        const std::string source(
-            (std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
-        if (input.bad()) {
-            return Fail(diagnostic, file_location,
-                "cannot read configuration file '" + path + "'");
-        }
-
-        // Write through a symlink: resolve the canonical target and edit
-        // that file, so the link itself (and anything else pointing at the
-        // target) keeps working. A rename over the link would replace it
-        // with a regular file and leave the target stale.
-        error.clear();
-        const std::filesystem::path target = std::filesystem::canonical(path, error);
-        if (error) {
-            return Fail(diagnostic, file_location,
-                "cannot resolve configuration file '" + path + "'");
-        }
-
+        std::string source;
+        std::filesystem::path target;
         s_cfg_document document;
-        if (!Parse_Cfg(path.c_str(), source.data(), source.size(), &document, diagnostic)) {
+        if (!Read_Config_File(path, &source, &target, &document, diagnostic)) {
             return false;
         }
-        std::unordered_set<std::string> seen;
-        seen.insert(target.string());
-        // Includes resolve lexically beside the path as passed, mirroring
-        // the loader (which never resolves symlinks when locating
-        // includes). Only the write itself goes through the canonical
-        // target; resolving includes beside the target would check the
-        // wrong directory when the config is a symlink into another
-        // directory.
-        const std::filesystem::path lexical_directory =
-            std::filesystem::absolute(path).parent_path();
-        if (!Check_Includes(lexical_directory, document, path.c_str(),
-                &seen, 0, diagnostic)) {
+        if (!Check_Write_Includes(path, target, document, nullptr, diagnostic)) {
             return false;
         }
 
@@ -458,62 +845,36 @@ namespace config {
         if (rewritten == source) {
             return true;
         }
+        return Write_Rewritten_File(path, target, rewritten, diagnostic);
+    }
 
-        std::string suffix;
-        {
-            std::random_device device;
-            std::ostringstream stream;
-            stream << std::hex << device() << device();
-            suffix = stream.str();
+    bool Write_Setting(const std::string& config_path,
+        const std::vector<std::string>& setting_path, const std::string& value,
+        s_cfg_diagnostic* diagnostic) {
+        if (config_path.empty() || diagnostic == nullptr) {
+            return false;
         }
-        const std::filesystem::path temporary = target.string() + ".tmp-" + suffix;
-        {
-            std::ofstream output(temporary, std::ios::binary | std::ios::trunc);
-            if (!output) {
-                return Fail(diagnostic, file_location,
-                    "cannot write temporary file '" + temporary.string() + "'");
-            }
-            output.write(rewritten.data(), static_cast<std::streamsize>(rewritten.size()));
-            output.flush();
-            if (!output) {
-                std::error_code remove_error;
-                std::filesystem::remove(temporary, remove_error);
-                return Fail(diagnostic, file_location,
-                    "cannot write temporary file '" + temporary.string() + "'");
-            }
-            output.close();
-            if (!output) {
-                std::error_code remove_error;
-                std::filesystem::remove(temporary, remove_error);
-                return Fail(diagnostic, file_location,
-                    "cannot write temporary file '" + temporary.string() + "'");
-            }
+        *diagnostic = {};
+        std::string source;
+        std::filesystem::path target;
+        s_cfg_document document;
+        if (!Read_Config_File(config_path, &source, &target, &document, diagnostic)) {
+            return false;
         }
-        std::error_code status_error;
-        const std::filesystem::perms permissions =
-            std::filesystem::status(target, status_error).permissions();
-        if (status_error) {
-            std::error_code remove_error;
-            std::filesystem::remove(temporary, remove_error);
-            return Fail(diagnostic, file_location,
-                "cannot read permissions of configuration file '" + path + "'");
+        if (!Check_Write_Includes(config_path, target, document, &setting_path,
+                diagnostic)) {
+            return false;
         }
-        std::error_code permissions_error;
-        std::filesystem::permissions(temporary, permissions, permissions_error);
-        if (permissions_error) {
-            std::error_code remove_error;
-            std::filesystem::remove(temporary, remove_error);
-            return Fail(diagnostic, file_location,
-                "cannot copy permissions to temporary file '" + temporary.string() + "'");
+
+        std::string rewritten;
+        if (!Rewrite_Setting(config_path.c_str(), source, setting_path, value, &rewritten,
+                diagnostic)) {
+            return false;
         }
-        std::filesystem::rename(temporary, target, error);
-        if (error) {
-            std::error_code remove_error;
-            std::filesystem::remove(temporary, remove_error);
-            return Fail(diagnostic, file_location,
-                "cannot replace configuration file '" + path + "'");
+        if (rewritten == source) {
+            return true;
         }
-        return true;
+        return Write_Rewritten_File(config_path, target, rewritten, diagnostic);
     }
 
 } // namespace config
