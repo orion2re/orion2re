@@ -71,7 +71,7 @@ namespace AIDATA {
      * @param use_extended_range Whether to use the extended-range result.
      */
     std::optional<s_route> Player_N_Turns_From_Star_To_Star_With_Intermediate(
-        s_state* ai, const game_world::s_view* world, uint32_t player_id, uint32_t source_star, uint32_t destination_star, bool use_extended_range, const s_route_search_lookup* lookup = nullptr);
+        s_state* ai, const game_world::s_view* world, uint32_t player_id, uint32_t source_star, uint32_t destination_star, bool use_extended_range);
 
     /*
      * Returns a cached ship route, or no value when the destination is unreachable.

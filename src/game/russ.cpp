@@ -10,17 +10,12 @@ namespace RUSS {
     void __cdecl Assert_Settings() {
     }
 
-    static uint32_t Legacy_Draw_(uint32_t*, uint32_t maximum) {
-        return game_random::Random(maximum);
-    }
-
     int16_t __cdecl Get_Weighted_Choice_Char(uint8_t* weights, int16_t count) {
-        const game_random::s_source random{nullptr, Legacy_Draw_};
-        auto choice = Choose_Weighted_Index_U8(&random, weights, count > 0 ? (uint32_t)count : 0);
+        auto choice = Choose_Weighted_Index_U8(&game_random::random_seed, weights, count > 0 ? (uint32_t)count : 0);
         return choice ? (int16_t)*choice : -1;
     }
 
-    std::optional<uint32_t> Choose_Weighted_Index_U8(const game_random::s_source* random, const uint8_t* weights, uint32_t count) {
+    std::optional<uint32_t> Choose_Weighted_Index_U8(uint32_t* seed, const uint8_t* weights, uint32_t count) {
         uint32_t total_weight = 0;
         for (uint32_t i = 0; i < count; ++i) {
             total_weight += weights[i];
@@ -30,7 +25,7 @@ namespace RUSS {
             return std::nullopt;
         }
 
-        uint16_t r = (uint16_t)random->Next(total_weight);
+        uint16_t r = (uint16_t)game_random::Random_From_Seed(seed, total_weight);
         uint32_t index = 0;
 
         if (weights[index] < r) {
@@ -44,12 +39,11 @@ namespace RUSS {
     }
 
     int16_t __cdecl Get_Weighted_Choice_Short(const uint16_t* weights, int16_t count) {
-        const game_random::s_source random{nullptr, Legacy_Draw_};
-        auto choice = Choose_Weighted_Index_U16(&random, weights, count > 0 ? (uint32_t)count : 0);
+        auto choice = Choose_Weighted_Index_U16(&game_random::random_seed, weights, count > 0 ? (uint32_t)count : 0);
         return choice ? (int16_t)*choice : -1;
     }
 
-    std::optional<uint32_t> Choose_Weighted_Index_U16(const game_random::s_source* random, const uint16_t* weights, uint32_t count) {
+    std::optional<uint32_t> Choose_Weighted_Index_U16(uint32_t* seed, const uint16_t* weights, uint32_t count) {
         const uint8_t* bytes = (const uint8_t*)weights;
         uint32_t total_weight = 0;
 
@@ -63,7 +57,7 @@ namespace RUSS {
             return std::nullopt;
         }
 
-        uint32_t random_val = random->Next((int32_t)total_weight);
+        uint32_t random_val = game_random::Random_From_Seed(seed, (int32_t)total_weight);
         uint32_t index = 0;
 
         if (unaligned::Load<uint16_t>(bytes + index * sizeof(uint16_t)) < random_val) {
@@ -78,12 +72,11 @@ namespace RUSS {
     }
 
     int16_t __cdecl Get_Weighted_Choice_Int(uint32_t* weights, int16_t count) {
-        const game_random::s_source random{nullptr, Legacy_Draw_};
-        auto choice = Choose_Weighted_Index_U32(&random, weights, count > 0 ? (uint32_t)count : 0);
+        auto choice = Choose_Weighted_Index_U32(&game_random::random_seed, weights, count > 0 ? (uint32_t)count : 0);
         return choice ? (int16_t)*choice : -1;
     }
 
-    std::optional<uint32_t> Choose_Weighted_Index_U32(const game_random::s_source* random, const uint32_t* weights, uint32_t count) {
+    std::optional<uint32_t> Choose_Weighted_Index_U32(uint32_t* seed, const uint32_t* weights, uint32_t count) {
         const uint8_t* bytes = (const uint8_t*)weights;
         uint32_t total_weight = 0;
         for (uint32_t i = 0; i < count; ++i) {
@@ -94,7 +87,7 @@ namespace RUSS {
             return std::nullopt;
         }
 
-        uint32_t roll = random->Next((int32_t)total_weight);
+        uint32_t roll = game_random::Random_From_Seed(seed, (int32_t)total_weight);
         uint32_t selected_index = 0;
 
         if (unaligned::Load<uint32_t>(bytes) < roll) {
@@ -184,18 +177,17 @@ namespace RUSS {
     }
 
     void __cdecl Shuffle_Sint(int16_t* data, int16_t count) {
-        const game_random::s_source random{nullptr, Legacy_Draw_};
-        Shuffle_Sint_With_Source(&random, data, count);
+        Shuffle_Sint_With_Seed(&game_random::random_seed, data, count);
     }
 
-    void __cdecl Shuffle_Sint_With_Source(const game_random::s_source* random, int16_t* data, int16_t count) {
+    void __cdecl Shuffle_Sint_With_Seed(uint32_t* seed, int16_t* data, int16_t count) {
         if (count <= 0) {
             return;
         }
 
         uint8_t* bytes = (uint8_t*)data;
         for (int16_t i = 0; i < count; ++i) {
-            int32_t random_offset = random->Next((int32_t)count - i);
+            int32_t random_offset = game_random::Random_From_Seed(seed, (int32_t)count - i);
 
             int16_t target_idx = (int16_t)(i + random_offset - 1);
 
@@ -207,9 +199,9 @@ namespace RUSS {
         }
     }
 
-    void Shuffle_Uint(const game_random::s_source* random, uint32_t* data, uint32_t count) {
+    void Shuffle_Uint(uint32_t* seed, uint32_t* data, uint32_t count) {
         for (uint32_t i = 0; i < count; ++i) {
-            const uint32_t target = i + random->Next(count - i) - 1;
+            const uint32_t target = i + game_random::Random_From_Seed(seed, count - i) - 1;
             std::swap(data[i], data[target]);
         }
     }

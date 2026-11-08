@@ -4,6 +4,12 @@
 #include "legacy_world.h"
 
 namespace AIMOVE {
+    std::optional<uint32_t> First_Threat_Turn(const std::array<int32_t, AIDATA::FORECAST_TURN_COUNT>* first, const std::array<int32_t, AIDATA::FORECAST_TURN_COUNT>* second, uint32_t from) {
+        for (uint32_t turn = from; turn < AIDATA::FORECAST_TURN_COUNT; ++turn) {
+            if ((*first)[turn] != 0 || (*second)[turn] != 0) return turn;
+        }
+        return std::nullopt;
+    }
     using game_world::e_ship_location;
     using AIDATA::FORECAST_TURN_COUNT;
     using AIDATA::LAST_FORECAST_TURN;
@@ -724,7 +730,7 @@ namespace AIMOVE {
             return;
         }
 
-        RUSS::Shuffle_Uint(&world->random, ship_indices.data(), num_ships);
+        RUSS::Shuffle_Uint(world->random_seed, ship_indices.data(), num_ships);
 
         while (num_ships > 0 && num_stage_points > 0) {
             int32_t best_sp_idx = -1;
@@ -1376,7 +1382,7 @@ namespace AIMOVE {
             }
 
             for (uint32_t i = 0; i < my_colony_ships.size(); i++) {
-                RUSS::Shuffle_Uint(&world->random, candidate_stars.data(), num_candidates);
+                RUSS::Shuffle_Uint(world->random_seed, candidate_stars.data(), num_candidates);
 
                 s_candidate_sort_context sort{&ai->stars, i_ai, (int16_t)world->Player_Count()};
                 qsort(candidate_stars.data(), num_candidates, sizeof(uint32_t), AIMOVE::Sort_candidate_stars, &sort);
@@ -1464,21 +1470,17 @@ namespace AIMOVE {
                                     update_target = true;
                                 } else if (eta == assignment->arrival_turn) {
                                     if (best_target != -1) {
-                                        int e = eta;
-                                        while (e < FORECAST_TURN_COUNT && target->strengths[e] == 0 && intercepts[best_target].strengths[e] == 0) {
-                                            e++;
-                                        }
-
-                                        if (target->strengths[e] == 0) {
+                                        auto turn = First_Threat_Turn(&target->strengths, &intercepts[best_target].strengths, eta);
+                                        if (!turn || target->strengths[*turn] == 0) {
                                             // Condition implicitly fails, update_target remains false
-                                        } else if (intercepts[best_target].strengths[e] == 0) {
+                                        } else if (intercepts[best_target].strengths[*turn] == 0) {
                                             update_target = true;
                                         } else {
                                             int cmp = RUSS::Compare_Ratios(
-                                                work.stars.at(target->star_id).assigned_strength[e],
-                                                target->strengths[e],
-                                                work.stars.at(intercepts[best_target].star_id).assigned_strength[e],
-                                                intercepts[best_target].strengths[e]);
+                                                work.stars.at(target->star_id).assigned_strength[*turn],
+                                                target->strengths[*turn],
+                                                work.stars.at(intercepts[best_target].star_id).assigned_strength[*turn],
+                                                intercepts[best_target].strengths[*turn]);
                                             if (cmp < 0) {
                                                 update_target = true;
                                             }
@@ -1853,7 +1855,7 @@ namespace AIMOVE {
                 }
             }
 
-            auto best_colony = RUSS::Choose_Weighted_Index_U16(&world->random, scores.data(), world->Colony_Count());
+            auto best_colony = RUSS::Choose_Weighted_Index_U16(world->random_seed, scores.data(), world->Colony_Count());
             if (!best_colony) {
                 return;
             }
@@ -2002,7 +2004,7 @@ namespace AIMOVE {
             }
             if (npc_dest[i].distance_parsecs != 0 && npc_dest[i].distance_parsecs < 20) {
                 valid_count++;
-                if (world->random.Next(valid_count) == 1) {
+                if (game_random::Random_From_Seed(world->random_seed, valid_count) == 1) {
                     destination = npc_dest[i].star_id;
                 }
             }

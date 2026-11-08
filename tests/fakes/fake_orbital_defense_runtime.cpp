@@ -45,6 +45,7 @@ namespace AIBUILD {
 
 namespace TEST_ORBITAL_DEFENSE {
     const game_world::s_view* World_() {
+        static uint32_t seed;
         static const game_world::s_view world{
             .players = MOX::player,
             .ships = MOX::ship,
@@ -53,6 +54,7 @@ namespace TEST_ORBITAL_DEFENSE {
             .planets = MOX::planet,
             .settings = &MOX::settings,
             .colony_count = &MOX::NUM_COLONIES,
+            .random_seed = &seed,
         };
         return &world;
     }
@@ -103,13 +105,17 @@ namespace TEST_ORBITAL_DEFENSE {
     }
 } // namespace TEST_ORBITAL_DEFENSE
 
+namespace game_random {
+    uint32_t __cdecl Random_From_Seed(uint32_t*, uint32_t maximum) { return Random(maximum); }
+}
+
 namespace RUSS {
-    std::optional<uint32_t> Choose_Weighted_Index_U32(const game_random::s_source*, const uint32_t* weights, uint32_t count) {
+    std::optional<uint32_t> Choose_Weighted_Index_U32(uint32_t*, const uint32_t* weights, uint32_t count) {
         int16_t choice = Get_Weighted_Choice_Int(const_cast<uint32_t*>(weights), (int16_t)count);
         return choice < 0 ? std::nullopt : std::optional<uint32_t>{(uint32_t)choice};
     }
 
-    std::optional<uint32_t> Choose_Weighted_Index_U16(const game_random::s_source*, const uint16_t* weights, uint32_t count) {
+    std::optional<uint32_t> Choose_Weighted_Index_U16(uint32_t*, const uint16_t* weights, uint32_t count) {
         int16_t choice = Get_Weighted_Choice_Short(weights, (int16_t)count);
         return choice < 0 ? std::nullopt : std::optional<uint32_t>{(uint32_t)choice};
     }

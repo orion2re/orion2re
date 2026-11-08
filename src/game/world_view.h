@@ -1,7 +1,5 @@
 #pragma once
 
-#include "random_source.h"
-
 #include <cstdint>
 
 struct s_player;
@@ -29,7 +27,7 @@ namespace game_world {
         const int16_t* planet_count = nullptr;
         const int32_t* stardate = nullptr;
         const int16_t* combat_x = nullptr;
-        game_random::s_source random;
+        uint32_t* random_seed = nullptr;
 
         int32_t Player_Count() const {
             return player_count == nullptr ? 0 : *player_count;

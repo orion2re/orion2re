@@ -125,7 +125,7 @@ DOCTEST_TEST_CASE("dense route rows use compact offsets for sparse IDs") {
     DOCTEST_CHECK(routes.direct.rows.size() == 32);
     DOCTEST_CHECK(routes.direct.destinations.size() == 32);
     uint32_t cells = 0;
-    for (const auto& [id, row] : routes.direct.rows) cells += (uint32_t)row.turns.size();
+    for (const auto& row : routes.direct.rows) cells += (uint32_t)row.turns.size();
     DOCTEST_CHECK(cells == 32 * 32);
     DOCTEST_CHECK(AIDATA::N_Turns_From_To(&routes, 1000001000u, 2000031000u, 7) == 31);
     DOCTEST_CHECK_FALSE(AIDATA::N_Turns_From_To(&routes, 1000001000u, 2000031000u, 6));
@@ -178,54 +178,54 @@ DOCTEST_TEST_CASE("resolved route rows retain availability and full-width sparse
     AIDATA::s_direct_route_table routes;
     routes.Store(UINT32_MAX, 0, 7, 0);
     routes.Store(UINT32_MAX, UINT32_MAX, 7, UINT8_MAX);
-    const auto* row = routes.Find_Row(UINT32_MAX, 7);
-    DOCTEST_REQUIRE(row != nullptr);
-    DOCTEST_CHECK(row->Find(routes.Find_Destination(0)) == 0);
-    DOCTEST_CHECK(row->Find(routes.Find_Destination(UINT32_MAX)) == UINT8_MAX);
-    DOCTEST_CHECK_FALSE(row->Find(routes.Find_Destination(1234)));
-    DOCTEST_CHECK(routes.Find_Row(UINT32_MAX, 6) == nullptr);
+    const auto row = routes.Find_Row_Index(UINT32_MAX, 7);
+    DOCTEST_REQUIRE(row);
+    DOCTEST_CHECK(routes.Find_Cell(row, routes.Find_Destination(0)) == 0);
+    DOCTEST_CHECK(routes.Find_Cell(row, routes.Find_Destination(UINT32_MAX)) == UINT8_MAX);
+    DOCTEST_CHECK_FALSE(routes.Find_Cell(row, routes.Find_Destination(1234)));
+    DOCTEST_CHECK_FALSE(routes.Find_Row_Index(UINT32_MAX, 6));
 
     for (uint32_t id = 1; id <= 128; ++id) routes.Store(id, id, 7, 2);
     routes.Store(UINT32_MAX, 128, 7, 3);
-    DOCTEST_CHECK(row->Find(routes.Find_Destination(0)) == 0);
-    DOCTEST_CHECK(row->Find(routes.Find_Destination(UINT32_MAX)) == UINT8_MAX);
-    DOCTEST_CHECK_FALSE(row->Find(routes.Find_Destination(64)));
-    DOCTEST_CHECK(row->Find(routes.Find_Destination(128)) == 3);
+    DOCTEST_CHECK(routes.Find_Cell(row, routes.Find_Destination(0)) == 0);
+    DOCTEST_CHECK(routes.Find_Cell(row, routes.Find_Destination(UINT32_MAX)) == UINT8_MAX);
+    DOCTEST_CHECK_FALSE(routes.Find_Cell(row, routes.Find_Destination(64)));
+    DOCTEST_CHECK(routes.Find_Cell(row, routes.Find_Destination(128)) == 3);
 }
 
-DOCTEST_TEST_CASE("prepared route lookups are bounded by live indices and detect mutation") {
+DOCTEST_TEST_CASE("owned route indices stay bounded and follow growth, copying and clearing") {
     AIDATA::s_direct_route_table routes;
     routes.Store(0, 0, 0, 0);
     routes.Store(UINT32_MAX, UINT32_MAX, 7, UINT8_MAX);
-    AIDATA::s_direct_route_lookup lookup;
-    lookup.Prepare(&routes, 3, 1);
-    DOCTEST_CHECK(lookup.Matches(&routes));
-    DOCTEST_CHECK(lookup.destinations.size() == 3);
-    DOCTEST_REQUIRE(lookup.rows.size() == 1);
-    DOCTEST_CHECK(lookup.rows[0].size() == 3);
-    DOCTEST_CHECK(lookup.Find_Row(0, 0)->Find(lookup.Find_Destination(0)) == 0);
-    DOCTEST_CHECK(lookup.Find_Row(UINT32_MAX, 7)->Find(lookup.Find_Destination(UINT32_MAX)) == UINT8_MAX);
-    DOCTEST_CHECK(lookup.Find_Row(1, 0) == nullptr);
-    DOCTEST_CHECK_FALSE(lookup.Find_Destination(1));
+    routes.Prepare_Live_Indices(3, 1);
+    DOCTEST_CHECK(routes.live_destinations.size() == 3);
+    DOCTEST_REQUIRE(routes.live_rows.size() == 1);
+    DOCTEST_CHECK(routes.live_rows[0].size() == 3);
+    DOCTEST_CHECK(routes.Find(0, 0, 0) == 0);
+    DOCTEST_CHECK(routes.Find(UINT32_MAX, UINT32_MAX, 7) == UINT8_MAX);
+    DOCTEST_CHECK_FALSE(routes.Find_Row_Index(1, 0));
+    DOCTEST_CHECK_FALSE(routes.Find_Destination(1));
     DOCTEST_CHECK(routes.rows.size() == 2);
     DOCTEST_CHECK(routes.destinations.size() == 2);
 
     auto copy = routes;
-    DOCTEST_CHECK_FALSE(lookup.Matches(&copy));
     copy.Store(0, 0, 0, 9);
     DOCTEST_CHECK(routes.Find(0, 0, 0) == 0);
     DOCTEST_CHECK(copy.Find(0, 0, 0) == 9);
     routes.Store(0, 1, 0, 2);
-    DOCTEST_CHECK_FALSE(lookup.Matches(&routes));
-    lookup.Prepare(&routes, 3, 1);
-    DOCTEST_CHECK(lookup.Find_Row(0, 0)->Find(lookup.Find_Destination(1)) == 2);
+    DOCTEST_CHECK(routes.Find(0, 1, 0) == 2);
+    DOCTEST_CHECK(copy.Find(0, 0, 0) == 9);
+    for (uint32_t id = 3; id < 128; ++id) routes.Store(id, id, 0, 4);
+    DOCTEST_CHECK(routes.Find(0, 0, 0) == 0);
+    DOCTEST_CHECK(routes.Find(0, 1, 0) == 2);
+    auto moved = std::move(copy);
+    DOCTEST_CHECK(moved.Find(0, 0, 0) == 9);
+    DOCTEST_CHECK(moved.Find(UINT32_MAX, UINT32_MAX, 7) == UINT8_MAX);
 
     routes.Clear();
-    DOCTEST_CHECK_FALSE(lookup.Matches(&routes));
     routes.Store(2, 2, 0, 3);
-    lookup.Prepare(&routes, 3, 1);
-    DOCTEST_CHECK(lookup.Matches(&routes));
-    DOCTEST_CHECK(lookup.Find_Row(0, 0) == nullptr);
-    DOCTEST_CHECK_FALSE(lookup.Find_Destination(0));
-    DOCTEST_CHECK(lookup.Find_Row(2, 0)->Find(lookup.Find_Destination(2)) == 3);
+    routes.Prepare_Live_Indices(3, 1);
+    DOCTEST_CHECK_FALSE(routes.Find_Row_Index(0, 0));
+    DOCTEST_CHECK_FALSE(routes.Find_Destination(0));
+    DOCTEST_CHECK(routes.Find(2, 2, 0) == 3);
 }

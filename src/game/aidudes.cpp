@@ -255,7 +255,7 @@ namespace aidudes {
                     }
                 }
 
-                auto choice = RUSS::Choose_Weighted_Index_U8(&world->random, weights, BUILDING_COUNT + 1);
+                auto choice = RUSS::Choose_Weighted_Index_U8(world->random_seed, weights, BUILDING_COUNT + 1);
                 if (!choice || *choice < BUILDING_COUNT) {
                     COLBLDG::Clear_Colony_Queue(colony_idx);
                     colony->producing[0] = choice ? (int16_t)*choice : COLONY_PRODUCTION_NONE;
@@ -363,7 +363,7 @@ namespace aidudes {
 
         if (plr->surplus_freighters < 0 || plr->surplus_food < 0) {
             int32_t threshold = 1 - (int32_t)world->settings->game_difficulty * (int32_t)plr->surplus_freighters;
-            int32_t roll = (int32_t)world->random.Next(50);
+            int32_t roll = (int32_t)game_random::Random_From_Seed(world->random_seed, 50);
 
             if (threshold >= roll) {
                 plr->n_freighters += 5;
@@ -393,7 +393,7 @@ namespace aidudes {
         int32_t upgrade_threshold = (difficulty_bonus + desirability) * 2;
         int upgrade_count = 0;
 
-        if ((int32_t)world->random.Next(900) <= upgrade_threshold) {
+        if ((int32_t)game_random::Random_From_Seed(world->random_seed, 900) <= upgrade_threshold) {
             upgrade_count = 1;
         }
 
@@ -402,7 +402,7 @@ namespace aidudes {
             upgrade_count = 0;
         } else {
             int32_t total_pop = ctx->p_ai->total_pop;
-            if ((int32_t)world->random.Next((uint32_t)total_pop) <= 8) {
+            if ((int32_t)game_random::Random_From_Seed(world->random_seed, (uint32_t)total_pop) <= 8) {
                 upgrade_count = 0;
             }
         }
@@ -919,7 +919,7 @@ namespace aidudes {
                     }
                     val += bonus;
 
-                    int rand_val = world->random.Next(700);
+                    int rand_val = game_random::Random_From_Seed(world->random_seed, 700);
                     int adjusted_rand = rand_val + 100 + (is_expansionist ? 0 : 100);
 
                     if (adjusted_rand < (isqrt_val + 64) * val) {
@@ -956,7 +956,7 @@ namespace aidudes {
             p->tech_applications[TECH_APP_COLONY_SHIP] == TECH_RESEARCH_STATUS_RESEARCHED) {
             int r = 0;
             if (is_expansionist) {
-                if (world->random.Next(5) == 1) {
+                if (game_random::Random_From_Seed(world->random_seed, 5) == 1) {
                     r = 1;
                 }
             }
@@ -969,7 +969,7 @@ namespace aidudes {
                     if (!COLCALC::Colony_Is_Blockaded(temp_colony) &&
                         AIBUILD::Industry_Worth(temp_colony) >=
                             AIBUILD::rules.strategic.expansion.colony_ship_minimum_industry) {
-                        if (player_info.colony_deficit + 50 < (int32_t)world->random.Next(100)) {
+                        if (player_info.colony_deficit + 50 < (int32_t)game_random::Random_From_Seed(world->random_seed, 100)) {
                             s_ship_design colony_ship_design = {};
                             INITSHIP::Load_Colony_Ship_Design(player_idx, &colony_ship_design);
                             int16_t ship_idx = COLBLDG::Create_Ship_From_Design(
@@ -1088,7 +1088,7 @@ namespace aidudes {
 
             while (true) {
                 RUSS::Mox_Update();
-                auto random_choice = RUSS::Choose_Weighted_Index_U32(&world->random, choice_weights, AIBUILD::STRATEGIC_ALLOCATION_CANDIDATE_COUNT);
+                auto random_choice = RUSS::Choose_Weighted_Index_U32(world->random_seed, choice_weights, AIBUILD::STRATEGIC_ALLOCATION_CANDIDATE_COUNT);
 
                 if (!random_choice || *random_choice == AIBUILD::ALLOCATION_DEFER) {
                     colony_queue_count--;
@@ -1196,11 +1196,11 @@ namespace aidudes {
                             }
                         }
 
-                        if (needs.combat_strength.total > 0 && world->random.Next(5) == 1) {
+                        if (needs.combat_strength.total > 0 && game_random::Random_From_Seed(world->random_seed, 5) == 1) {
                             ship_weights[SHIP_SIZE_SMALL] = 0;
                         }
 
-                        auto ship_choice = RUSS::Choose_Weighted_Index_U16(&world->random, ship_weights, HULL_CLASS_COUNT);
+                        auto ship_choice = RUSS::Choose_Weighted_Index_U16(world->random_seed, ship_weights, HULL_CLASS_COUNT);
                         if (!ship_choice) {
                             choice_weights[AIBUILD::ALLOCATION_COMBAT_SHIPS] = 0;
                             break;
@@ -1501,7 +1501,7 @@ namespace aidudes {
         }
 
         if (freighter_shortage_flag) {
-            if ((int)world->random.Next(10) <= (int)world->settings->game_difficulty) {
+            if ((int)game_random::Random_From_Seed(world->random_seed, 10) <= (int)world->settings->game_difficulty) {
                 ctx->p_ai->n_freighters += 5;
             }
         }

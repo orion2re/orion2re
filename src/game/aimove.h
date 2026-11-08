@@ -4,6 +4,7 @@
 #include "aidata_state.h"
 
 namespace AIMOVE {
+    std::optional<uint32_t> First_Threat_Turn(const std::array<int32_t, AIDATA::FORECAST_TURN_COUNT>* first, const std::array<int32_t, AIDATA::FORECAST_TURN_COUNT>* second, uint32_t from);
     inline constexpr int32_t ENEMY_STRENGTH_TURN_WINDOW = AIDATA::FORECAST_TURN_COUNT;
 
     struct s_staging_point {

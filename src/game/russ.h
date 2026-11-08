@@ -1,6 +1,5 @@
 #pragma once
 
-#include "random_source.h"
 #include <optional>
 #include <cstdint>
 #include <vector>
@@ -19,21 +18,21 @@ namespace RUSS {
      * @param count Number of entries in weights.
      */
     int16_t __cdecl Get_Weighted_Choice_Char(uint8_t* weights, int16_t count);
-    std::optional<uint32_t> Choose_Weighted_Index_U8(const game_random::s_source* random, const uint8_t* weights, uint32_t count);
+    std::optional<uint32_t> Choose_Weighted_Index_U8(uint32_t* seed, const uint8_t* weights, uint32_t count);
 
     /** Returns a weighted random index from a 16-bit weight table, or -1 when all weights are zero.
      * @param weights Pointer to count weight values.
      * @param count Number of entries in weights.
      */
     int16_t __cdecl Get_Weighted_Choice_Short(const uint16_t* weights, int16_t count);
-    std::optional<uint32_t> Choose_Weighted_Index_U16(const game_random::s_source* random, const uint16_t* weights, uint32_t count);
+    std::optional<uint32_t> Choose_Weighted_Index_U16(uint32_t* seed, const uint16_t* weights, uint32_t count);
 
     /** Returns a weighted random index from a 32-bit weight table, or -1 when all weights are zero.
      * @param weights Pointer to count weight values.
      * @param count Number of entries in weights.
      */
     int16_t __cdecl Get_Weighted_Choice_Int(uint32_t* weights, int16_t count);
-    std::optional<uint32_t> Choose_Weighted_Index_U32(const game_random::s_source* random, const uint32_t* weights, uint32_t count);
+    std::optional<uint32_t> Choose_Weighted_Index_U32(uint32_t* seed, const uint32_t* weights, uint32_t count);
 
     /** Returns the display name for a star index, or a fallback name when out of range.
      * @param star_index Star table index to resolve.
@@ -65,8 +64,8 @@ namespace RUSS {
      * @param count Number of elements in the buffer.
      */
     void __cdecl Shuffle_Sint(int16_t* data, int16_t count);
-    void __cdecl Shuffle_Sint_With_Source(const game_random::s_source* random, int16_t* data, int16_t count);
-    void Shuffle_Uint(const game_random::s_source* random, uint32_t* data, uint32_t count);
+    void Shuffle_Sint_With_Seed(uint32_t* seed, int16_t* data, int16_t count);
+    void Shuffle_Uint(uint32_t* seed, uint32_t* data, uint32_t count);
 
     /** Randomly shuffles an array of 32-bit integers in place.
      * @param array Buffer to shuffle.
