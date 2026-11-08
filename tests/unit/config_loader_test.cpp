@@ -13,6 +13,8 @@
 #include "config/config_identity.h"
 #include "config/config_loader.h"
 #include "config/config_snapshot.h"
+#include "config/config_writer.h"
+#include "config/config_runtime.h"
 #include "config/mod_manifest.h"
 #include "config/mod_manager.h"
 #include "doctest/doctest.h"
@@ -68,6 +70,10 @@ namespace {
             vfs::Shutdown();
             std::error_code error;
             fs::remove_all(root_path_, error);
+        }
+
+        fs::path Root_Path() const {
+            return root_path_;
         }
 
         void Initialize_Vfs() const {
@@ -1912,7 +1918,11 @@ DOCTEST_TEST_SUITE("configuration include loader") {
         DOCTEST_REQUIRE(config::Load_Startup_Config(
             "orion2re.cfg", "base_game", &effective, &loaded, &diagnostic));
         DOCTEST_CHECK(loaded);
-        DOCTEST_CHECK(COMBINIT::scroll_interval == 60);
+        // The entry document (user.cfg) wins over the mod package under the
+        // entry-overrides-packages precedence, so the user value 75 wins over
+        // the mod value 60. The mod battle_scanner_beam_offense still
+        // applies (the user does not set it).
+        DOCTEST_CHECK(COMBINIT::scroll_interval == 75);
         DOCTEST_CHECK(CMBTFIR2::combat_bonus.battle_scanner_beam_offense == 31);
         DOCTEST_CHECK(config::Find_Loaded_Mod("personal") != nullptr);
     }
@@ -3435,6 +3445,130 @@ DOCTEST_TEST_CASE("mod picker apply switches the active set to ice-x and survive
     DOCTEST_CHECK(config::Get_Active_Config()->package_order ==
         std::vector<std::string>{"ice-x", "ice", "v150"});
     DOCTEST_CHECK(config::Find_Loaded_Mod("ice-x") != nullptr);
+    DOCTEST_CHECK(config::Get_Active_Config()->baseline.effective.state.values.Read(bonus).integer_value == 60);
+}
+
+DOCTEST_TEST_CASE("mod picker apply keeps a first-session setting change made before any user config existed") {
+    s_config_test_directory files;
+    for (const char* package_id : {"v150", "ice", "ice-x"}) {
+        files.Copy_Tree(fs::path(LUA_SOURCE_PACKAGE_DIR) / package_id,
+            fs::path("data/mods") / package_id);
+    }
+    // Shipped entry: a live setting assignment, no enable lines, and
+    // no user config yet - the first session on a fresh install.
+    // show_exit_message is assigned by no enabled mod, so only the
+    // rebuild path itself can move it.
+    files.Write("orion2re.cfg",
+        "interface show_exit_message = false;\n"
+        "interface vsync_enabled = false;\n");
+    const fs::path user_config_dir = files.Root_Path() / "user-config";
+    fs::create_directories(user_config_dir);
+    files.Initialize_Vfs();
+    DOCTEST_REQUIRE(vfs::Set_User_Config_Path(user_config_dir.string().c_str()) == 1);
+    Set_Native_Defaults_();
+    config::s_effective_config effective;
+    config::s_cfg_diagnostic diagnostic;
+    bool loaded = false;
+    DOCTEST_REQUIRE(config::Load_Startup_Config(
+        "orion2re.cfg", "base_game", &effective, &loaded, &diagnostic));
+    DOCTEST_REQUIRE(loaded);
+    const config::t_variable_id exit_message =
+        Variable_Id_("interface.show_exit_message");
+    DOCTEST_REQUIRE(exit_message != config::CONFIG_NO_VARIABLE);
+    config::s_typed_value live;
+    DOCTEST_REQUIRE(config::generated::Get_Current_Value(exit_message, &live));
+    DOCTEST_CHECK_FALSE(live.bool_value);
+
+    // The settings screen seeds the user config from the loaded file,
+    // writes the setting there, and reloads it live.
+    const fs::path user_config = user_config_dir / "orion2re.cfg";
+    std::error_code copy_error;
+    fs::copy_file(files.Root_Path() / "orion2re.cfg", user_config, copy_error);
+    DOCTEST_REQUIRE_FALSE(copy_error);
+    DOCTEST_REQUIRE(config::Write_Setting(user_config.string(),
+        {"interface", "show_exit_message"}, "true", &diagnostic));
+    DOCTEST_REQUIRE(config::Reload_Active_Config_Groups(false, &diagnostic));
+    // The change is live before any mod toggle.
+    DOCTEST_REQUIRE(config::generated::Get_Current_Value(exit_message, &live));
+    DOCTEST_CHECK(live.bool_value);
+
+    // The mod toggle: preview, write the resolved set, apply it.
+    config::s_mod_set_preview preview;
+    DOCTEST_REQUIRE(config::Preview_Enabled_Mods({"ice-x"}, &preview, &diagnostic));
+    DOCTEST_REQUIRE(config::Write_Enabled_Mods(user_config.string(),
+        preview.package_order, &diagnostic));
+    DOCTEST_REQUIRE(config::Apply_Enabled_Mods({"ice-x"}, &diagnostic));
+    DOCTEST_CHECK(config::Get_Active_Config()->package_order ==
+        std::vector<std::string>{"ice-x", "ice", "v150"});
+    // The live setting change survives the apply, in the live state...
+    DOCTEST_REQUIRE(config::generated::Get_Current_Value(exit_message, &live));
+    DOCTEST_CHECK(live.bool_value);
+    DOCTEST_CHECK(config::Get_Active_Config()->baseline.effective.state.values.Read(exit_message).bool_value);
+    // ...and in the file.
+    std::ifstream saved(user_config, std::ios::binary);
+    const std::string saved_text((std::istreambuf_iterator<char>(saved)),
+        std::istreambuf_iterator<char>());
+    DOCTEST_CHECK(saved_text.find("show_exit_message = true") != std::string::npos);
+}
+
+DOCTEST_TEST_CASE("mod picker apply keeps a first-session setting change that an enabled mod also assigns") {
+    s_config_test_directory files;
+    for (const char* package_id : {"v150", "ice", "ice-x"}) {
+        files.Copy_Tree(fs::path(LUA_SOURCE_PACKAGE_DIR) / package_id,
+            fs::path("data/mods") / package_id);
+    }
+    // ice assigns interface scroll_interval = 2 in its own config, so
+    // a user change to that setting is the case the entry document must
+    // win: the user's file beats the mod's assignment, in the live state
+    // as well as in the file, and across a restart (the next load builds
+    // the same way).
+    files.Write("orion2re.cfg",
+        "interface scroll_interval = 2;\n"
+        "interface vsync_enabled = false;\n");
+    const fs::path user_config_dir = files.Root_Path() / "user-config";
+    fs::create_directories(user_config_dir);
+    files.Initialize_Vfs();
+    DOCTEST_REQUIRE(vfs::Set_User_Config_Path(user_config_dir.string().c_str()) == 1);
+    Set_Native_Defaults_();
+    config::s_effective_config effective;
+    config::s_cfg_diagnostic diagnostic;
+    bool loaded = false;
+    DOCTEST_REQUIRE(config::Load_Startup_Config(
+        "orion2re.cfg", "base_game", &effective, &loaded, &diagnostic));
+    DOCTEST_REQUIRE(loaded);
+    DOCTEST_CHECK(COMBINIT::scroll_interval == 2);
+
+    const fs::path user_config = user_config_dir / "orion2re.cfg";
+    std::error_code copy_error;
+    fs::copy_file(files.Root_Path() / "orion2re.cfg", user_config, copy_error);
+    DOCTEST_REQUIRE_FALSE(copy_error);
+    DOCTEST_REQUIRE(config::Write_Setting(user_config.string(),
+        {"interface", "scroll_interval"}, "5", &diagnostic));
+    DOCTEST_REQUIRE(config::Reload_Active_Config_Groups(false, &diagnostic));
+    DOCTEST_CHECK(COMBINIT::scroll_interval == 5);
+
+    config::s_mod_set_preview preview;
+    DOCTEST_REQUIRE(config::Preview_Enabled_Mods({"ice-x"}, &preview, &diagnostic));
+    DOCTEST_REQUIRE(config::Write_Enabled_Mods(user_config.string(),
+        preview.package_order, &diagnostic));
+    DOCTEST_REQUIRE(config::Apply_Enabled_Mods({"ice-x"}, &diagnostic));
+    DOCTEST_CHECK(config::Get_Active_Config()->package_order ==
+        std::vector<std::string>{"ice-x", "ice", "v150"});
+    // The user's value wins over ice's, live...
+    DOCTEST_CHECK(COMBINIT::scroll_interval == 5);
+    const config::t_variable_id scroll =
+        Variable_Id_("interface.scroll_interval");
+    DOCTEST_REQUIRE(scroll != config::CONFIG_NO_VARIABLE);
+    DOCTEST_CHECK(config::Get_Active_Config()->baseline.effective.state.values.Read(scroll).integer_value == 5);
+    // ...and in the file.
+    std::ifstream saved(user_config, std::ios::binary);
+    const std::string saved_text((std::istreambuf_iterator<char>(saved)),
+        std::istreambuf_iterator<char>());
+    DOCTEST_CHECK(saved_text.find("scroll_interval = 5") != std::string::npos);
+    // The mod's own values still apply where the entry is silent: the
+    // ice-x difficulty override is live.
+    const auto bonus = Variable_Id_("ai.productivity_bonus.4");
+    DOCTEST_REQUIRE(bonus != config::CONFIG_NO_VARIABLE);
     DOCTEST_CHECK(config::Get_Active_Config()->baseline.effective.state.values.Read(bonus).integer_value == 60);
 }
 

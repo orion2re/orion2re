@@ -484,6 +484,7 @@ orion2re_add_unit_test(test_config_loader
         src/config/config_lifecycle.cpp
         src/config/config_loader.cpp
         src/config/config_snapshot.cpp
+        src/config/config_writer.cpp
         src/config/mod_manifest.cpp
         src/config/mod_manager.cpp
         src/game/netturn.cpp
