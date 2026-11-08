@@ -35,7 +35,7 @@ namespace AIBUILD {
         *context = {};
     }
 
-    void __cdecl Force_Produce(const game_world::s_view*, int16_t* queue, int16_t index, int32_t* count, int16_t product) {
+    void __cdecl Force_Produce(const game_world::s_view*, uint32_t* queue, uint32_t index, int32_t* count, int16_t product) {
         DOCTEST_REQUIRE(*count == 1);
         DOCTEST_REQUIRE(index == 0);
         MOX::colony[queue[index]].producing[0] = product;

@@ -21,7 +21,7 @@ namespace NEXTTURN {
         AIDATA::s_state* ai = &AIDATA::state;
         game_world::current = AI_LEGACY::World();
         const auto* world = &game_world::current;
-        AIDATA::Compute_AI_Data(ai, world);
+        if (!AIDATA::Compute_AI_Data(ai, world)) return;
         DIP_SCRN::Resolve_Delayed_Diplomacy_Orders();
         DIP_SCRN::Set_Opportunity_Attacks();
         diplomac::Clear_Diplomacy_Messages();

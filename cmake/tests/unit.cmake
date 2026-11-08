@@ -63,7 +63,7 @@ target_include_directories(orion2re_test_config_defaults PRIVATE
 target_link_libraries(orion2re_test_config_defaults PRIVATE SDL3::Headers)
 orion2re_enable_sanitizers(orion2re_test_config_defaults)
 
-orion2re_test_shared_sources(ORION2RE_AI_STATE_OBJECTS src/game/aidata_state.cpp src/game/world_view.cpp)
+orion2re_test_shared_sources(ORION2RE_AI_STATE_OBJECTS src/game/aidata_state.cpp src/game/world_view.cpp src/game/legacy_location.cpp)
 add_library(orion2re_test_ai_state STATIC ${ORION2RE_AI_STATE_OBJECTS})
 orion2re_enable_sanitizers(orion2re_test_ai_state)
 
@@ -246,6 +246,7 @@ orion2re_add_unit_test(test_aidata_routes
 orion2re_add_unit_test(test_ai_inputs
     SOURCES
         tests/unit/ai_inputs_test.cpp
+        tests/unit/ai_compat_test.cpp
     PRODUCTION_SOURCES
         src/game/aibuild.cpp
         src/game/aidata.cpp

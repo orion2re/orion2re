@@ -150,7 +150,7 @@ namespace AIBUILD {
      * @param list_count Number of active ids in the list.
      * @param production_id Product id to assign.
      */
-    void __cdecl Force_Produce(const game_world::s_view* world, int16_t* id_list, int16_t list_index, int32_t* list_count, int16_t production_id);
+    void __cdecl Force_Produce(const game_world::s_view* world, uint32_t* id_list, uint32_t list_index, int32_t* list_count, int16_t production_id);
 
     /** Returns a simple industry value estimate for a colony.
      * @param colony Colony to evaluate.

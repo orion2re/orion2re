@@ -6,6 +6,7 @@ namespace {
     s_player players[MAX_PLAYERS];
     s_colony colonies[1];
     s_planet_data planets[1];
+    int16_t colony_count = 1;
     AIDATA::s_state ai;
 } // namespace
 
@@ -16,6 +17,7 @@ namespace TEST_AIBUILD_CONTEXT {
             .colonies = colonies,
             .planets = planets,
             .player_count = &MOX::NUM_PLAYERS,
+            .colony_count = &colony_count,
             .stardate = &MOX::stardate,
         };
         return &world;

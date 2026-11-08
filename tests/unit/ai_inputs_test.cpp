@@ -11,11 +11,14 @@ namespace {
     std::vector<int16_t> queried_locations;
     int16_t queried_destination;
     bool queried;
+    std::optional<int16_t> proposed_origin;
 } // namespace
 
 namespace MOX {
     s_ship_data* ship = legacy_ships;
     s_star_data* star = legacy_stars;
+    int16_t NUM_SHIPS = 2;
+    int16_t NUM_STARS = 2;
     int16_t first_field_in_group[10] = {0, 18, 55, 57, 29, 7, 22, 28, 10, 74};
 } // namespace MOX
 
@@ -35,6 +38,11 @@ namespace SHIPMOVE {
     }
 
     void __cdecl Make_Ships_Move_To(int16_t* ships, int16_t destination, s_ship_move_info* result) {
+        Ships_Try_To_Move_To(ships, destination, result);
+    }
+
+    void Evaluate_Fleet_Move_From_Star(int16_t* ships, int16_t destination, int16_t origin, s_ship_move_info* result) {
+        proposed_origin = origin;
         Ships_Try_To_Move_To(ships, destination, result);
     }
 } // namespace SHIPMOVE
@@ -273,7 +281,7 @@ DOCTEST_TEST_CASE("read-only bit fields have a distinct const-correct interface"
     DOCTEST_CHECK(struct_::Read_Bit_Field(bits, 15) == 1);
 }
 
-DOCTEST_TEST_CASE("legacy movement queries restore positions including repeated ship IDs") {
+DOCTEST_TEST_CASE("fleet evaluation passes a proposed origin without modifying repeated ship IDs") {
     memset(legacy_ships, 0, sizeof(legacy_ships));
     legacy_ships[0].x = legacy_ships[1].x = 10;
     legacy_ships[0].y = legacy_ships[1].y = 20;
@@ -281,9 +289,11 @@ DOCTEST_TEST_CASE("legacy movement queries restore positions including repeated 
     legacy_stars[1].y = 200;
     const uint32_t ids[] = {0, 0, 1};
     s_ship_move_info result{};
-    SHIPMOVE::Evaluate_Fleet_Move(ids, 0, &result, 1);
+    proposed_origin.reset();
+    DOCTEST_CHECK(SHIPMOVE::Evaluate_Fleet_Move(ids, 0, &result, 1) == SHIPMOVE::e_fleet_evaluation::can_move);
     DOCTEST_CHECK(queried_ships == std::vector<int16_t>{0, 0, 1});
-    DOCTEST_CHECK(queried_locations == std::vector<int16_t>{1, 1, 1});
+    DOCTEST_CHECK(queried_locations == std::vector<int16_t>{0, 0, 0});
+    DOCTEST_CHECK(proposed_origin == 1);
     DOCTEST_CHECK(queried_destination == 0);
     for (const auto& ship : legacy_ships) {
         DOCTEST_CHECK((int16_t)ship.location == 0);
@@ -297,6 +307,9 @@ DOCTEST_TEST_CASE("legacy movement queries restore positions including repeated 
     DOCTEST_CHECK(result.moving == 0);
     queried = false;
     SHIPMOVE::Evaluate_Fleet_Move({}, 0, &result);
+    DOCTEST_CHECK_FALSE(queried);
+    const uint32_t nonexistent[] = {2};
+    DOCTEST_CHECK(SHIPMOVE::Evaluate_Fleet_Move(nonexistent, 0, &result) == SHIPMOVE::e_fleet_evaluation::invalid_input);
     DOCTEST_CHECK_FALSE(queried);
 }
 

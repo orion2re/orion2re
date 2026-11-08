@@ -1,52 +1,37 @@
 #include "pch.h"
 
-#include "ai_legacy.h"
+#include "legacy_world.h"
 #include "fleet_movement.h"
 
 namespace SHIPMOVE {
-    namespace {
-        struct s_position {
-            int16_t location;
-            int16_t x;
-            int16_t y;
-        };
-    } // namespace
-
-    void Evaluate_Fleet_Move(std::span<const uint32_t> ships, uint32_t destination, s_ship_move_info* result, std::optional<uint32_t> origin) {
+    e_fleet_evaluation Evaluate_Fleet_Move(std::span<const uint32_t> ships, uint32_t destination, s_ship_move_info* result, std::optional<uint32_t> origin) {
         *result = {};
-        if (ships.empty()) return;
-        auto encoded = AI_LEGACY::Ship_List(ships);
-        auto target = AI_LEGACY::Index(destination);
-        auto source = origin ? AI_LEGACY::Index(*origin) : std::optional<int16_t>{};
-        if (!encoded || !target || (origin && !source)) return;
-
-        std::vector<s_position> positions;
+        if (ships.empty() || MOX::NUM_SHIPS < 0 || MOX::NUM_STARS < 0) return e_fleet_evaluation::invalid_input;
+        auto encoded = legacy_world::Ship_List(ships);
+        auto target = legacy_world::Index(destination);
+        auto source = origin ? legacy_world::Index(*origin) : std::optional<int16_t>{};
+        if (!encoded || !target || (origin && !source) || destination > (uint32_t)MOX::NUM_STARS ||
+            (origin && *origin >= (uint32_t)MOX::NUM_STARS)) return e_fleet_evaluation::invalid_input;
+        for (uint32_t id : ships) {
+            if (id >= (uint32_t)MOX::NUM_SHIPS) return e_fleet_evaluation::invalid_input;
+        }
         if (source) {
-            positions.reserve(ships.size());
-            for (uint32_t id : ships) {
-                auto& ship = MOX::ship[id];
-                positions.push_back({ship.location, ship.x, ship.y});
-                ship.location = *source;
-                ship.x = MOX::star[*source].x;
-                ship.y = MOX::star[*source].y;
-            }
+            SHIPMOVE::Evaluate_Fleet_Move_From_Star(encoded->data(), *target, *source, result);
+        } else {
+            SHIPMOVE::Ships_Try_To_Move_To(encoded->data(), *target, result);
         }
-
-        SHIPMOVE::Ships_Try_To_Move_To(encoded->data(), *target, result);
-
-        // Reverse restoration also handles repeated ship IDs in a legacy fleet.
-        for (uint32_t i = (uint32_t)positions.size(); i-- > 0;) {
-            auto& ship = MOX::ship[ships[i]];
-            ship.location = positions[i].location;
-            ship.x = positions[i].x;
-            ship.y = positions[i].y;
-        }
+        return result->moving ? e_fleet_evaluation::can_move : e_fleet_evaluation::blocked;
     }
 
-    void Order_Fleet_Move(std::span<const uint32_t> ships, uint32_t destination, s_ship_move_info* result) {
-        if (ships.empty()) return;
-        auto encoded = AI_LEGACY::Ship_List(ships);
-        auto target = AI_LEGACY::Index(destination);
-        if (encoded && target) SHIPMOVE::Make_Ships_Move_To(encoded->data(), *target, result);
+    bool Order_Fleet_Move(std::span<const uint32_t> ships, uint32_t destination, s_ship_move_info* result) {
+        if (ships.empty() || MOX::NUM_SHIPS < 0 || MOX::NUM_STARS < 0) return false;
+        auto encoded = legacy_world::Ship_List(ships);
+        auto target = legacy_world::Index(destination);
+        if (!encoded || !target || destination > (uint32_t)MOX::NUM_STARS) return false;
+        for (uint32_t id : ships) {
+            if (id >= (uint32_t)MOX::NUM_SHIPS) return false;
+        }
+        SHIPMOVE::Make_Ships_Move_To(encoded->data(), *target, result);
+        return true;
     }
 } // namespace SHIPMOVE

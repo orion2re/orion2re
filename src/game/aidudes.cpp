@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "legacy_location.h"
 
 namespace aidudes {
 
@@ -414,7 +415,9 @@ namespace aidudes {
 
             const auto* entry = &refits[i - 1];
             s_ship_data* ship = &world->ships[entry->ship_id];
-            int16_t location = ship->location;
+            auto orbit = legacy_world::Orbit_Star(ship);
+            if (!orbit) continue;
+            uint32_t location = *orbit;
 
             // Skip ships in systems with incoming human activity
             if (ai->stars[location].enroute_human_ships[3] != 0) {
@@ -769,7 +772,7 @@ namespace aidudes {
         const auto& player_info = ai->players[player_idx].empire;
 
         int war_level = AIBUILD::Player_War_Level(world, player_idx);
-        int colony_queue_count = 0;
+        int32_t colony_queue_count = 0;
 
         bool is_militarist = (p->objectives == PLAYER_OBJECTIVE_MILITARIST);
         bool low_money = (p->bc + p->surplus_bc < p->total_maintenance);
@@ -792,8 +795,8 @@ namespace aidudes {
         }
 
         bool recalculate_colony = false;
-        std::vector<int16_t> colony_queue_storage(world->Colony_Count());
-        int16_t* colony_queue = colony_queue_storage.data();
+        std::vector<uint32_t> colony_queue_storage(world->Colony_Count());
+        uint32_t* colony_queue = colony_queue_storage.data();
 
         if (world->Colony_Count() > 0) {
             for (int16_t current_colony_idx = 0; current_colony_idx < world->Colony_Count(); ++current_colony_idx) {
@@ -883,7 +886,7 @@ namespace aidudes {
                     int16_t product = AIBUILD::rules.strategic.emergency_defense.order[order_idx];
                     if (product > BUILDING_NO_BUILDING && product < BUILDING_COUNT &&
                         COLCALC::Colony_Can_Build_Product(temp_colony, product)) {
-                        AIBUILD::Force_Produce(world, colony_queue, (int16_t)i, (int32_t*)&colony_queue_count, product);
+                        AIBUILD::Force_Produce(world, colony_queue, i, &colony_queue_count, product);
                         changed = true;
                         break;
                     }
@@ -927,7 +930,7 @@ namespace aidudes {
         }
 
         RUSS::Mox_Update();
-        qsort(colony_queue, (uint32_t)colony_queue_count, sizeof(int16_t), aidudes::colony_less_industry_cmp, world->colonies);
+        qsort(colony_queue, (uint32_t)colony_queue_count, sizeof(uint32_t), aidudes::colony_less_industry_cmp, world->colonies);
 
         if (AIBUILD::rules.strategic.expansion.enabled &&
             p->tech_applications[TECH_APP_COLONY_BASE] == TECH_RESEARCH_STATUS_RESEARCHED) {
@@ -940,7 +943,7 @@ namespace aidudes {
                         AIBUILD::rules.strategic.expansion.colony_base_minimum_industry) {
                     if (world->planets[temp_colony->planet].star_index == world->planets[*best_planet].star_index) {
                         if (temp_colony->buildings[BUILDING_COLONY_BASE] != 1) {
-                            AIBUILD::Force_Produce(world, colony_queue, (int16_t)i, (int32_t*)&colony_queue_count, BUILDING_COLONY_BASE);
+                            AIBUILD::Force_Produce(world, colony_queue, i, &colony_queue_count, BUILDING_COLONY_BASE);
                         }
                         want_colony_base = false;
                     }
@@ -975,7 +978,7 @@ namespace aidudes {
                                 no_range_or_speed = true;
                             } else {
                                 world->ships[ship_idx].status = 6;
-                                AIBUILD::Force_Produce(world, colony_queue, (int16_t)i, (int32_t*)&colony_queue_count, COLBLDG::Colony_Production_From_Ship_Index(ship_idx));
+                                AIBUILD::Force_Produce(world, colony_queue, i, &colony_queue_count, COLBLDG::Colony_Production_From_Ship_Index(ship_idx));
                             }
                             want_colony_base = false;
                         }
@@ -995,14 +998,14 @@ namespace aidudes {
                 p->bc + p->surplus_bc < p->total_maintenance &&
                 p->surplus_bc < 0 &&
                 temp_colony->maintenance[1] < temp_colony->production[1]) {
-                int16_t current_colony_idx = colony_queue[i];
-                AIBUILD::Force_Produce(world, colony_queue, (int16_t)i, (int32_t*)&colony_queue_count, AIBUILD::rules.strategic.economic_emergency.product);
+                uint32_t current_colony_idx = colony_queue[i];
+                AIBUILD::Force_Produce(world, colony_queue, i, &colony_queue_count, AIBUILD::rules.strategic.economic_emergency.product);
                 COLCALC::Colony_Calculation(current_colony_idx);
                 continue;
             }
 
             int vs_ships_2 = needs.combat_strength.additional_wanted;
-            int16_t current_colony_idx = colony_queue[i];
+            uint32_t current_colony_idx = colony_queue[i];
 
             int ship_build_weight = 0;
             if (vs_ships_2 > 0 && p->ship_range != 0 && p->ship_speed != 0 && !no_range_or_speed) {
@@ -1213,7 +1216,7 @@ namespace aidudes {
                                     no_range_or_speed = true;
                                 } else {
                                     world->ships[created_idx].status = 6;
-                                    AIBUILD::Force_Produce(world, colony_queue, (int16_t)i, (int32_t*)&colony_queue_count, COLBLDG::Colony_Production_From_Ship_Index(created_idx));
+                                    AIBUILD::Force_Produce(world, colony_queue, i, &colony_queue_count, COLBLDG::Colony_Production_From_Ship_Index(created_idx));
                                     const auto opponents = AIBUILD::Opponents(world);
                                     needs.combat_strength.additional_wanted -= AIBUILD::Mean_Ship_Strength(&opponents, &ai->ships[created_idx], &player_info, &world->ships[created_idx]);
                                 }
@@ -1226,22 +1229,22 @@ namespace aidudes {
                                     no_range_or_speed = true;
                                 } else {
                                     world->ships[ds_idx].status = 6;
-                                    AIBUILD::Force_Produce(world, colony_queue, (int16_t)i, (int32_t*)&colony_queue_count, COLBLDG::Colony_Production_From_Ship_Index(ds_idx));
+                                    AIBUILD::Force_Produce(world, colony_queue, i, &colony_queue_count, COLBLDG::Colony_Production_From_Ship_Index(ds_idx));
                                     const auto opponents = AIBUILD::Opponents(world);
                                     needs.combat_strength.additional_wanted -= AIBUILD::Mean_Ship_Strength(&opponents, &ai->ships[ds_idx], &player_info, &world->ships[ds_idx]);
                                 }
                                 break;
                             }
                             case HULL_STAR_BASE:
-                                AIBUILD::Force_Produce(world, colony_queue, (int16_t)i, (int32_t*)&colony_queue_count, BUILDING_STAR_BASE);
+                                AIBUILD::Force_Produce(world, colony_queue, i, &colony_queue_count, BUILDING_STAR_BASE);
                                 needs.combat_strength.additional_wanted -= (pressure.hostile_players_in_range * 2 + pressure.neutral_players_in_range + pressure.treaty_partners_in_range);
                                 break;
                             case HULL_BATTLESTATION:
-                                AIBUILD::Force_Produce(world, colony_queue, (int16_t)i, (int32_t*)&colony_queue_count, BUILDING_BATTLESTATION);
+                                AIBUILD::Force_Produce(world, colony_queue, i, &colony_queue_count, BUILDING_BATTLESTATION);
                                 needs.combat_strength.additional_wanted -= (pressure.hostile_players_in_range * 3 + pressure.neutral_players_in_range * 2 + pressure.treaty_partners_in_range);
                                 break;
                             case HULL_STAR_FORTRESS:
-                                AIBUILD::Force_Produce(world, colony_queue, (int16_t)i, (int32_t*)&colony_queue_count, BUILDING_STAR_FORTRESS);
+                                AIBUILD::Force_Produce(world, colony_queue, i, &colony_queue_count, BUILDING_STAR_FORTRESS);
                                 needs.combat_strength.additional_wanted -= (pressure.hostile_players_in_range * 6 + pressure.neutral_players_in_range * 4 + pressure.treaty_partners_in_range);
                                 break;
                         }
@@ -1250,7 +1253,7 @@ namespace aidudes {
                     }
                     case AIBUILD::ALLOCATION_FREIGHTERS:
                         if (!COLCALC::Colony_Is_Blockaded(temp_colony) && AIBUILD::Industry_Worth(temp_colony) >= 12) {
-                            AIBUILD::Force_Produce(world, colony_queue, (int16_t)i, (int32_t*)&colony_queue_count, COLONY_PRODUCTION_FREIGHTERS);
+                            AIBUILD::Force_Produce(world, colony_queue, i, &colony_queue_count, COLONY_PRODUCTION_FREIGHTERS);
                             freighter_groups_assigned++;
                             needs.freighter_groups_wanted--;
                         }
@@ -1263,7 +1266,7 @@ namespace aidudes {
                         for (int j = n_entries; j >= 0; j--) {
                             uint32_t ship_idx = refits[j].ship_id;
                             s_ship_data* s = &world->ships[ship_idx];
-                            if (s->location == refit_planet_idx &&
+                            if (legacy_world::Orbit_Star(s) == (uint32_t)refit_planet_idx &&
                                 (s->d.size < SHIP_SIZE_LARGE || COLCALC::Colony_Can_Build_Large_Ships(temp_colony))) {
                                 s_ship_design* refit_design;
                                 if (s->d.size == SHIP_SIZE_DOOM_STAR) {
@@ -1287,7 +1290,7 @@ namespace aidudes {
                                     memcpy(&s->d, refit_design, sizeof(s_ship_design));
                                     s->d.cost = cost;
                                     s->status = 4;
-                                    AIBUILD::Force_Produce(world, colony_queue, (int16_t)i, (int32_t*)&colony_queue_count, COLBLDG::Colony_Production_From_Ship_Index(ship_idx));
+                                    AIBUILD::Force_Produce(world, colony_queue, i, &colony_queue_count, COLBLDG::Colony_Production_From_Ship_Index(ship_idx));
 
                                     refits.erase(refits.begin() + j);
                                     refitted = true;
@@ -1302,7 +1305,7 @@ namespace aidudes {
                     }
                     case AIBUILD::ALLOCATION_SPIES:
                         if (!COLCALC::Colony_Is_Blockaded(temp_colony) && AIBUILD::Industry_Worth(temp_colony) >= 15) {
-                            AIBUILD::Force_Produce(world, colony_queue, (int16_t)i, (int32_t*)&colony_queue_count, COLONY_PRODUCTION_SPY);
+                            AIBUILD::Force_Produce(world, colony_queue, i, &colony_queue_count, COLONY_PRODUCTION_SPY);
                             needs.spies.additional_wanted--;
                         }
                         choice_weights[AIBUILD::ALLOCATION_SPIES] = 0;
@@ -1310,7 +1313,7 @@ namespace aidudes {
                     case AIBUILD::ALLOCATION_TRANSPORTS:
                         if (!COLCALC::Colony_Is_Blockaded(temp_colony) && AIBUILD::Industry_Worth(temp_colony) >= 14) {
                             if (temp_colony->buildings[BUILDING_MARINE_BARRACKS] == 0) {
-                                AIBUILD::Force_Produce(world, colony_queue, (int16_t)i, (int32_t*)&colony_queue_count, BUILDING_MARINE_BARRACKS);
+                                AIBUILD::Force_Produce(world, colony_queue, i, &colony_queue_count, BUILDING_MARINE_BARRACKS);
                                 needs.transports.additional_wanted--;
                             } else {
                                 s_ship_design transport_design = {};
@@ -1321,7 +1324,7 @@ namespace aidudes {
                                     no_range_or_speed = true;
                                 } else {
                                     world->ships[tr_idx].status = 6;
-                                    AIBUILD::Force_Produce(world, colony_queue, (int16_t)i, (int32_t*)&colony_queue_count, COLBLDG::Colony_Production_From_Ship_Index(tr_idx));
+                                    AIBUILD::Force_Produce(world, colony_queue, i, &colony_queue_count, COLBLDG::Colony_Production_From_Ship_Index(tr_idx));
                                     needs.transports.additional_wanted--;
                                 }
                             }
@@ -1527,8 +1530,8 @@ namespace aidudes {
 
     int __cdecl colony_less_industry_cmp(void* context, const void* p1, const void* p2) {
         auto* colonies = static_cast<s_colony*>(context);
-        int16_t worth1 = AIBUILD::Industry_Worth(&colonies[*((const int16_t*)p1)]);
-        int16_t worth2 = AIBUILD::Industry_Worth(&colonies[*((const int16_t*)p2)]);
+        int16_t worth1 = AIBUILD::Industry_Worth(&colonies[*((const uint32_t*)p1)]);
+        int16_t worth2 = AIBUILD::Industry_Worth(&colonies[*((const uint32_t*)p2)]);
 
         return (int)worth1 - (int)worth2;
     }

@@ -74,19 +74,38 @@ namespace SHIPMOVE {
             return false;
         }
 
-        bool Moving_Fleet_List_Is_Complete(const int16_t* ship_list) {
+        struct s_move_origin {
+            const int16_t* ships;
+            int16_t star;
+        };
+
+        s_ship_data Movement_Ship(int16_t index, const s_move_origin* origin) {
+            s_ship_data ship = MOX::ship[index];
+            if (origin != nullptr && Ship_Is_In_List(index, origin->ships)) {
+                // Preserve the legacy proposed-position interpretation, including
+                // status/departure data, without changing the session's records.
+                ship.location = origin->star;
+                ship.x = MOX::star[origin->star].x;
+                ship.y = MOX::star[origin->star].y;
+            }
+            return ship;
+        }
+
+        bool Moving_Fleet_List_Is_Complete(const int16_t* ship_list, const s_move_origin* origin = nullptr) {
             if (ship_list[0] == -1) {
                 return false;
             }
 
-            const s_ship_data* first = &MOX::ship[ship_list[0]];
+            const s_ship_data first = Movement_Ship(ship_list[0], origin);
             for (int i = 0; ship_list[i] != -1; ++i) {
-                if (!Ship_Is_In_Same_Moving_Fleet(first, &MOX::ship[ship_list[i]])) {
+                const s_ship_data ship = Movement_Ship(ship_list[i], origin);
+                if (!Ship_Is_In_Same_Moving_Fleet(&first, &ship)) {
                     return false;
                 }
             }
             for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
-                if (Ship_Is_In_Same_Moving_Fleet(first, &MOX::ship[i]) &&
+                const s_ship_data ship = Movement_Ship(i, origin);
+                if (Ship_Is_In_Same_Moving_Fleet(&first, &ship) &&
                     !Ship_Is_In_List(i, ship_list)) {
                     return false;
                 }
@@ -94,10 +113,11 @@ namespace SHIPMOVE {
             return true;
         }
 
-        bool Fleet_Uses_Jump_Gate(const int16_t* ship_list, int16_t target_star_idx) {
+        bool Fleet_Uses_Jump_Gate(const int16_t* ship_list, int16_t target_star_idx, const s_move_origin* origin = nullptr) {
             bool uses_prior_destination = false;
             for (int i = 0; ship_list[i] != -1; ++i) {
-                s_ship_data* ship = &MOX::ship[ship_list[i]];
+                s_ship_data proposed = Movement_Ship(ship_list[i], origin);
+                s_ship_data* ship = &proposed;
                 if (ship->status != 1) {
                     return false;
                 }
@@ -111,7 +131,7 @@ namespace SHIPMOVE {
                 uses_prior_destination = true;
             }
             return ship_list[0] != -1 &&
-                (!uses_prior_destination || Moving_Fleet_List_Is_Complete(ship_list));
+                (!uses_prior_destination || Moving_Fleet_List_Is_Complete(ship_list, origin));
         }
 
         bool Confirm_Fleet_Change(int16_t baseline_ship_idx, const s_ship_move_info* move_info) {
@@ -854,7 +874,7 @@ namespace SHIPMOVE {
      * @param target_star_idx Destination star index.
      * @param move_info Output movement analysis record.
      */
-    void __cdecl Ships_Try_To_Move_To(int16_t* ship_list, int16_t target_star_idx, s_ship_move_info* move_info) {
+    static void Evaluate_Ship_Movement(int16_t* ship_list, int16_t target_star_idx, s_ship_move_info* move_info, const s_move_origin* origin) {
         int16_t start_x = 0;
         int16_t start_y = 0;
         int32_t navigator_bonus = 0;
@@ -866,10 +886,11 @@ namespace SHIPMOVE {
         int32_t ship_speed;
 
         s_star_data* target_star = &MOX::star[target_star_idx];
-        player_idx = MOX::ship[*ship_list].owner;
+        s_ship_data first = Movement_Ship(*ship_list, origin);
+        player_idx = first.owner;
 
         if (player_idx < MAX_PLAYERS) {
-            s_ship_data* first_ship = &MOX::ship[*ship_list];
+            const s_ship_data* first_ship = &first;
             if (first_ship->status == 1) {
                 uint8_t departure_speed = first_ship->travelling_speed;
                 departure_speed -= (uint8_t)first_ship->group_has_navigator;
@@ -889,7 +910,7 @@ namespace SHIPMOVE {
         if (MOX::NUM_STARS != target_star_idx && player_idx < MAX_PLAYERS) {
             if (MOX::player[player_idx].traits[TRAIT_TRANS_DIMENSIONAL] == 0) {
                 if (EVENTS::Event_Check_Hyperspace_Flux() != 0 &&
-                    MOX::ship[*ship_list].status != 1) {
+                    first.status != 1) {
                     move_info->hyperspace_flux = 1;
                     return;
                 }
@@ -897,7 +918,8 @@ namespace SHIPMOVE {
         }
 
         for (int i = 0; ship_list[i] != -1; ++i) {
-            s_ship_data* ship = &MOX::ship[ship_list[i]];
+            s_ship_data proposed = Movement_Ship(ship_list[i], origin);
+            s_ship_data* ship = &proposed;
             int16_t range = SHIPMOVE::Ship_Range(ship);
             bool has_phase_shifter = struct_::Test_Bit_Field(ship->d.special_device_flags, SPECIAL_PHASE_SHIFTER) != 0;
             any_phase_shifter |= has_phase_shifter;
@@ -933,7 +955,7 @@ namespace SHIPMOVE {
         bool phase_speed_modified = any_phase_shifter &&
             phase_shifter_speed_multiplier.numerator != phase_shifter_speed_multiplier.denominator;
         bool scale_phase_speed = phase_speed_modified &&
-            (MOX::ship[*ship_list].status != 1 || player_idx >= MAX_PLAYERS);
+            (first.status != 1 || player_idx >= MAX_PLAYERS);
         if (scale_phase_speed && ship_speed > 0) {
             int32_t phase_speed = 0;
             if (phase_shifter_speed_multiplier.numerator > 0) {
@@ -945,9 +967,9 @@ namespace SHIPMOVE {
         }
 
         int16_t start_star_id = HAROLD::XY_To_Star_Id(start_x, start_y);
-        bool continuing_existing_route = MOX::ship[*ship_list].status == 1 &&
-            Ship_Destination_Star(&MOX::ship[*ship_list]) == target_star_idx;
-        bool continuing_jump_gate_route = Fleet_Uses_Jump_Gate(ship_list, target_star_idx);
+        bool continuing_existing_route = first.status == 1 &&
+            Ship_Destination_Star(&first) == target_star_idx;
+        bool continuing_jump_gate_route = Fleet_Uses_Jump_Gate(ship_list, target_star_idx, origin);
 
         // Dimensional Portal logic for Antares
         if (MOX::NUM_STARS == target_star_idx && start_star_id != -1) {
@@ -1067,6 +1089,15 @@ namespace SHIPMOVE {
             move_info->traveling_speed = UINT8_MAX;
             move_info->moving = 1;
         }
+    }
+
+    void __cdecl Ships_Try_To_Move_To(int16_t* ship_list, int16_t target_star_idx, s_ship_move_info* move_info) {
+        Evaluate_Ship_Movement(ship_list, target_star_idx, move_info, nullptr);
+    }
+
+    void Evaluate_Fleet_Move_From_Star(int16_t* ship_list, int16_t target_star_idx, int16_t origin_star, s_ship_move_info* move_info) {
+        const s_move_origin origin{ship_list, origin_star};
+        Evaluate_Ship_Movement(ship_list, target_star_idx, move_info, &origin);
     }
 
     /**
