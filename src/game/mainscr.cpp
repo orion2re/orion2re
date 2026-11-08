@@ -71,8 +71,14 @@ namespace MAINSCR {
                 MOX::max_map_scale);
         }
 
+        bool Use_Classic_Maximum_Galaxy_Display() {
+            return maximum_galaxy_classic_display &&
+                MOX::settings.galaxy_size == GALAXY_SIZE_MAXIMUM &&
+                Is_Extended_Max_Map_View();
+        }
+
         bool Use_Main_Map_Overview_Markers() {
-            return MAP_SCALE::Use_Main_Map_Overview_Markers_(
+            return Use_Maximum_Galaxy_Overview() && MAP_SCALE::Use_Main_Map_Overview_Markers_(
                 main_map_overview_markers,
                 MOX::settings.galaxy_size == GALAXY_SIZE_MAXIMUM,
                 MOX::NUM_STARS,
@@ -260,6 +266,10 @@ namespace MAINSCR {
         return false;
     }
 
+    bool Use_Maximum_Galaxy_Overview() {
+        return Is_Extended_Max_Map_View() && !Use_Classic_Maximum_Galaxy_Display();
+    }
+
     void __cdecl Draw_Stars() {
         n_twinkling_stars = 0;
 
@@ -273,7 +283,7 @@ namespace MAINSCR {
     }
 
     void __cdecl Draw_Influence_Overlay() {
-        const bool draw_automatic_outline = Is_Extended_Max_Map_View();
+        const bool draw_automatic_outline = Use_Maximum_Galaxy_Overview();
         if (influence_view_mode == 0 && !draw_automatic_outline) {
             return;
         }
@@ -597,7 +607,7 @@ namespace MAINSCR {
             HAROLD::Player_Has_Visited(MOX::PLAYER_NUM, star_idx) != 0;
         const bool draw_visited_uncolonized_marker =
             MAP_SCALE::Uses_Visited_Uncolonized_Overview_Marker_(
-                Is_Extended_Max_Map_View(),
+                Use_Maximum_Galaxy_Overview(),
                 star->spectral_class == STAR_CLASS_BLACK_HOLE,
                 owner,
                 visited);
@@ -666,7 +676,7 @@ namespace MAINSCR {
     }
 
     void __cdecl Print_Star_Names() {
-        if (Is_Extended_Max_Map_View() && !main_map_overview_star_names) {
+        if (Use_Maximum_Galaxy_Overview()) {
             return;
         }
 
@@ -892,7 +902,8 @@ namespace MAINSCR {
                         MOX::star[star_idx].size);
 
                     int16_t scale_percent = HAROLD::Map_Star_Scale_Percent();
-                    if (MAP_SCALE::Advance_Black_Hole_Animation_(scale_percent)) {
+                    if (Use_Classic_Maximum_Galaxy_Display() ||
+                        MAP_SCALE::Advance_Black_Hole_Animation_(scale_percent)) {
                         int16_t slot = black_hole_slot;
                         int8_t count = MOX::black_hole_anim_count[slot];
                         int16_t frame_count = animate::Get_Animation_Frame_Count(seg);

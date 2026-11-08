@@ -11,11 +11,11 @@ DOCTEST_TEST_CASE("main-screen display settings are optional local interface set
     DOCTEST_REQUIRE(config::Initialize_Defaults(&state));
     DOCTEST_REQUIRE(config::Commit_State(&state));
     DOCTEST_CHECK_FALSE(MAINSCR::main_screen_tax_rate);
-    DOCTEST_CHECK_FALSE(MAINSCR::main_map_overview_star_names);
+    DOCTEST_CHECK_FALSE(MAINSCR::maximum_galaxy_classic_display);
 
     const char source[] =
         "interface main_screen_tax_rate = true;"
-        "interface main_map_overview_star_names = true;";
+        "interface maximum_galaxy_classic_display = true;";
     config::s_cfg_document document;
     config::s_cfg_diagnostic diagnostic;
     config::s_config_write_set writes;
@@ -28,7 +28,7 @@ DOCTEST_TEST_CASE("main-screen display settings are optional local interface set
     DOCTEST_REQUIRE(config::Apply_Write_Set(&writes, &state, &diagnostic));
     DOCTEST_REQUIRE(config::Commit_State(&state));
     DOCTEST_CHECK(MAINSCR::main_screen_tax_rate);
-    DOCTEST_CHECK(MAINSCR::main_map_overview_star_names);
+    DOCTEST_CHECK(MAINSCR::maximum_galaxy_classic_display);
     for (const auto& write : writes.writes) {
         const auto* group = config::Get_Config_Group(config::Get_Variable_Group(write.variable_id));
         DOCTEST_REQUIRE(group != nullptr);
@@ -44,5 +44,5 @@ DOCTEST_TEST_CASE("main-screen display settings are optional local interface set
     DOCTEST_REQUIRE(config::Initialize_Defaults(&state));
     DOCTEST_REQUIRE(config::Commit_State(&state));
     DOCTEST_CHECK_FALSE(MAINSCR::main_screen_tax_rate);
-    DOCTEST_CHECK_FALSE(MAINSCR::main_map_overview_star_names);
+    DOCTEST_CHECK_FALSE(MAINSCR::maximum_galaxy_classic_display);
 }

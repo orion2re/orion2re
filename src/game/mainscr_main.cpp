@@ -957,11 +957,7 @@ namespace MAINSCR {
             Draw_Gate_Icons();
             SHIPS::Do_Ship_Destination_Lines();
             const bool draw_star_highlights_after_stars =
-                MAP_SCALE::Is_Extended_Max_Map_View_(
-                    MOX::NUM_STARS,
-                    ORIGINAL_MAX_STARS,
-                    MOX::cur_map_scale,
-                    MOX::max_map_scale);
+                Use_Maximum_Galaxy_Overview();
 
             if (MOX::eta_star_id > -1 && MOX::fleet_ship_scanned == -1) {
                 Draw_ETA_Destination_Line();

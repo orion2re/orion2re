@@ -30,7 +30,7 @@ Press `+` to zoom in and `-` to zoom out. In Maximum galaxies, each zoom-in step
 
 Press Alt+V to cycle known influence from off, to checkerboard fills with borders, to borders only. The optional `interface main_map_overview_markers = true;` setting replaces star artwork with compact markers in Maximum's all-stars view; it is disabled by default. Influence and overview markers are separate aids. See [Interface and display](interface.md#main-map-navigation) for marker colors and other map controls.
 
-Star names are hidden by default at maximum zoom-out in extended galaxies. Set `interface main_map_overview_star_names = true;` to show them with their normal ownership colors, including in Maximum-size galaxies. This works independently of overview markers and does not reveal unknown systems. Labels may overlap on dense maps. The setting is local and is not saved or synchronized in multiplayer.
+Set `interface maximum_galaxy_classic_display = true;` to restore the classic main-map display at Maximum's farthest zoom level. Star names use their normal visibility rules and ownership colors, visited-system dots disappear, and normal star artwork, black-hole animation, and highlight ordering replace the overview presentation. Automatic influence outlines are disabled, so Alt+V cycles through off, filled influence with borders, and borders only as it does at closer zoom levels. This setting takes precedence over `main_map_overview_markers` in that view. It is disabled by default; labels may overlap on dense maps. Other galaxy sizes, closer zoom levels, map dimensions, and zoom scaling are unchanged. The setting is local and is not saved or synchronized in multiplayer.
 
 ## Scoring and saved games
 

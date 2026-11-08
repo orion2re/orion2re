@@ -9751,7 +9751,7 @@
     main_map_overview_markers: {
       title: "Main-map overview star markers",
       description: "Replaces star pictures with overview-map color markers in the Maximum galaxy's all-stars view.",
-      remarks: "Only applies to Maximum galaxies at maximum zoom-out. Player-owned systems use their player color. Unvisited neutral systems use bluish-gray, visited or contested neutral systems use gray, and black holes retain their overview marker. False preserves the normal star pictures.",
+      remarks: "Only applies to Maximum galaxies at maximum zoom-out. Player-owned systems use their player color. Unvisited neutral systems use bluish-gray, visited or contested neutral systems use gray, and black holes retain their overview marker. False preserves the normal star pictures. Overridden by maximum_galaxy_classic_display.",
       examples: ["interface main_map_overview_markers = true;"],
       group: "interface",
       namespace: "interface",
@@ -9763,18 +9763,18 @@
       },
     },
 
-    main_map_overview_star_names: {
-      title: "Main-map overview star names",
-      description: "Shows star names at maximum zoom-out in extended galaxies, including Maximum-size galaxies.",
-      remarks: "Disabled by default to avoid overlapping labels on dense maps. When enabled, uses the normal star-name visibility and ownership colors. Other zoom levels and classic-size galaxies are unchanged. Independent of overview markers. Local to each player, excluded from saves and synchronization.",
-      examples: ["interface main_map_overview_star_names = true;"],
+    maximum_galaxy_classic_display: {
+      title: "Maximum galaxy classic display",
+      description: "Restores the classic main-map display at maximum zoom-out in Maximum-size galaxies.",
+      remarks: "Disabled by default. When enabled, shows star names with normal visibility and ownership colors, suppresses visited-system dots and overview markers, restores normal highlight ordering and black-hole animation, and lets Alt+V cycle off, filled influence, and borders without forced automatic outlines. Overrides main_map_overview_markers at this zoom level. Labels may overlap on dense maps. Other galaxy sizes, closer zoom levels, map dimensions, and zoom scaling are unchanged. Local to each player, excluded from saves and synchronization.",
+      examples: ["interface maximum_galaxy_classic_display = true;"],
       group: "interface",
       namespace: "interface",
       type: "bool",
       default: false,
       bind_root: {
         header: "game/mainscr.h",
-        symbol: "MAINSCR::main_map_overview_star_names",
+        symbol: "MAINSCR::maximum_galaxy_classic_display",
       },
     },
 

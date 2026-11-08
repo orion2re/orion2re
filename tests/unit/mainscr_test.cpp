@@ -22,7 +22,9 @@ namespace {
 namespace MOX {
     uint8_t draw_main_screen_to_back;
     int8_t game_type;
+    int16_t NUM_STARS;
     int16_t cur_map_scale;
+    int16_t max_map_scale;
     int16_t cur_map_x;
     int16_t cur_map_y;
     int16_t MAP_MAX_X;
@@ -76,6 +78,57 @@ namespace HAROLD {
         return 0;
     }
 } // namespace HAROLD
+
+DOCTEST_TEST_CASE("classic Maximum display replaces overview behavior only in its all-stars view") {
+    struct s_display_case {
+        bool enabled;
+        int8_t galaxy_size;
+        int16_t stars;
+        int16_t scale;
+        bool overview;
+    };
+    const s_display_case cases[] = {
+        {false, GALAXY_SIZE_MAXIMUM, 99, 100, true},
+        {true, GALAXY_SIZE_MAXIMUM, 99, 100, false},
+        {false, GALAXY_SIZE_MAXIMUM, 99, 50, false},
+        {true, GALAXY_SIZE_MAXIMUM, 99, 50, false},
+        {true, GALAXY_SIZE_MAXIMUM, 72, 100, false},
+        {true, GALAXY_SIZE_MAXIMUM, 73, 100, false},
+        {false, GALAXY_SIZE_MAXIMUM, 1024, 100, true},
+        {true, GALAXY_SIZE_MAXIMUM, 1024, 100, false},
+        {false, GALAXY_SIZE_HUGE, 99, 100, true},
+        {true, GALAXY_SIZE_HUGE, 99, 100, true},
+        {true, GALAXY_SIZE_HUGE, 71, 100, false},
+        {true, GALAXY_SIZE_SMALL, 20, 100, false},
+    };
+    const bool saved_setting = MAINSCR::maximum_galaxy_classic_display;
+    const bool saved_markers = MAINSCR::main_map_overview_markers;
+    const int8_t saved_galaxy_size = MOX::settings.galaxy_size;
+    const int16_t saved_stars = MOX::NUM_STARS;
+    const int16_t saved_scale = MOX::cur_map_scale;
+    const int16_t saved_max_scale = MOX::max_map_scale;
+    for (const auto& test_case : cases) {
+        DOCTEST_CAPTURE(test_case.enabled);
+        DOCTEST_CAPTURE(test_case.galaxy_size);
+        DOCTEST_CAPTURE(test_case.stars);
+        DOCTEST_CAPTURE(test_case.scale);
+        MAINSCR::maximum_galaxy_classic_display = test_case.enabled;
+        MOX::settings.galaxy_size = test_case.galaxy_size;
+        MOX::NUM_STARS = test_case.stars;
+        MOX::cur_map_scale = test_case.scale;
+        MOX::max_map_scale = 100;
+        for (bool markers : {false, true}) {
+            MAINSCR::main_map_overview_markers = markers;
+            DOCTEST_CHECK(MAINSCR::Use_Maximum_Galaxy_Overview() == test_case.overview);
+        }
+    }
+    MAINSCR::maximum_galaxy_classic_display = saved_setting;
+    MAINSCR::main_map_overview_markers = saved_markers;
+    MOX::settings.galaxy_size = saved_galaxy_size;
+    MOX::NUM_STARS = saved_stars;
+    MOX::cur_map_scale = saved_scale;
+    MOX::max_map_scale = saved_max_scale;
+}
 
 DOCTEST_TEST_CASE("main-screen centering clamps each axis without changing zoom") {
     struct s_center_case {
