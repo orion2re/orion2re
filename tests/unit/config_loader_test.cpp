@@ -359,6 +359,10 @@ DOCTEST_TEST_CASE("all shipped mod manifests have valid version structure") {
         DOCTEST_INFO(diagnostic.message);
         DOCTEST_REQUIRE(config::Load_Mod_Manifest(
             package_id, &manifest, &diagnostic));
+        DOCTEST_CHECK(config::Semantic_Version_Matches(
+            {2, 0, 0}, manifest.engine_range));
+        DOCTEST_CHECK_FALSE(config::Semantic_Version_Matches(
+            {1, 99, 99}, manifest.engine_range));
         config::s_semantic_version version;
         DOCTEST_CHECK(config::Parse_Semantic_Version(manifest.version_text, &version));
         for (const auto& dependency : manifest.dependencies) {
