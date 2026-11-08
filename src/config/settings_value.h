@@ -64,6 +64,16 @@ namespace config {
     // a shipped setting.
     e_settings_category Settings_Category_For_Path(const std::string& path);
 
+    // Primary settings are the ones a human commonly changes: toggles
+    // and frequently-changed values. The rest are advanced or
+    // ordering-table settings, shown only with Show all. A row's
+    // visibility is its metadata setting's visibility, so multi-leaf
+    // settings (animation leaves, build-list leaves) move as one.
+    // An unrecognized path is primary; the unit test pins all 49
+    // metadata paths so the fallback is never reached for a shipped
+    // setting.
+    bool Settings_Is_Primary_For_Path(const std::string& path);
+
     // All rows for the settings screen, in spec declaration order: one
     // row per editable leaf, plus one info row per setting that has no
     // editor (per-colony state, or an ordering table too large to edit
