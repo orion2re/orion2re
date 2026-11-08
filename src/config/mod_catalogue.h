@@ -71,4 +71,22 @@ namespace config {
     bool Read_Enabled_Mods(const std::string& path,
         std::vector<std::string>* enabled_ids, s_cfg_diagnostic* diagnostic);
 
+    // The enabled set that remains after disabling one mod, applying
+    // the dependency-chain rule: the disabled mod goes, every enabled
+    // mod that (transitively) needs it goes with it, and a dependency
+    // of a removed mod goes too unless a remaining enabled mod still
+    // (transitively) needs it. A dependency chain is a unit: no
+    // partial chain is left behind. The catalogue supplies the
+    // dependency edges; an id the catalogue does not know is treated
+    // as having no edges. The input order is preserved. Disabling an
+    // id that is not enabled changes nothing.
+    // Note: the enabled set holds the resolved set only, so an
+    // explicitly enabled mod that is also a dependency of the disabled
+    // mod is removed with it when no remaining mod needs it - the file
+    // cannot tell an explicit enable from a pulled-in one.
+    std::vector<std::string> Prune_Disabled_Mod_Set(
+        const std::vector<s_mod_catalogue_entry>& catalogue,
+        const std::vector<std::string>& enabled_ids,
+        const std::string& disabled_id);
+
 } // namespace config

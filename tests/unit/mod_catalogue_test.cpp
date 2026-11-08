@@ -320,4 +320,70 @@ DOCTEST_TEST_CASE("reading enable lines fails on a missing or unparseable file")
     DOCTEST_CHECK(!diagnostic.message.empty());
 }
 
+DOCTEST_TEST_CASE("disabling a mod removes its dependents and its orphaned dependencies") {
+    s_catalogue_fixture files;
+    const auto depends = [](const std::string& id) {
+        return "  dependencies: [ { id: \"" + id + "\", version: \"1.2.3\" } ],\n";
+    };
+    // Chain alpha -> beta -> gamma, an independent delta, and a
+    // diamond arm zeta -> gamma.
+    files.Write_Mod("bundled", "alpha",
+        s_catalogue_fixture::Manifest("alpha", "\"1.2.3\"", depends("beta")));
+    files.Write_Mod("bundled", "beta",
+        s_catalogue_fixture::Manifest("beta", "\"1.2.3\"", depends("gamma")));
+    files.Write_Mod("bundled", "gamma",
+        s_catalogue_fixture::Manifest("gamma"));
+    files.Write_Mod("bundled", "delta",
+        s_catalogue_fixture::Manifest("delta"));
+    files.Write_Mod("bundled", "zeta",
+        s_catalogue_fixture::Manifest("zeta", "\"1.2.3\"", depends("gamma")));
+
+    const std::vector<std::string> full = { "alpha", "beta", "gamma", "delta" };
+    const std::vector<config::s_mod_catalogue_entry> catalogue =
+        config::Build_Mod_Catalogue(
+            { (files.root / "bundled").string() }, "", full);
+    DOCTEST_REQUIRE(catalogue.size() == 5);
+
+    // Disabling the leaf takes the whole chain with it: beta is only
+    // on because alpha needs it, gamma only because beta needs it.
+    DOCTEST_CHECK(config::Prune_Disabled_Mod_Set(catalogue, full, "alpha") ==
+        std::vector<std::string>({ "delta" }));
+    // Disabling the middle takes the dependent above and the orphan below.
+    DOCTEST_CHECK(config::Prune_Disabled_Mod_Set(catalogue, full, "beta") ==
+        std::vector<std::string>({ "delta" }));
+    // Disabling the root takes every dependent with it.
+    DOCTEST_CHECK(config::Prune_Disabled_Mod_Set(catalogue, full, "gamma") ==
+        std::vector<std::string>({ "delta" }));
+    // An independent mod goes alone.
+    DOCTEST_CHECK(config::Prune_Disabled_Mod_Set(catalogue, full, "delta") ==
+        std::vector<std::string>({ "alpha", "beta", "gamma" }));
+    // A dependency still needed by a remaining mod is kept: zeta still
+    // needs gamma after alpha goes, and beta goes with alpha.
+    DOCTEST_CHECK(config::Prune_Disabled_Mod_Set(catalogue,
+        { "alpha", "beta", "gamma", "zeta" }, "alpha") ==
+        std::vector<std::string>({ "gamma", "zeta" }));
+    // Disabling an id that is not enabled changes nothing.
+    DOCTEST_CHECK(config::Prune_Disabled_Mod_Set(catalogue, full, "zeta") == full);
+    DOCTEST_CHECK(config::Prune_Disabled_Mod_Set(catalogue, full, "no-such-mod") == full);
+}
+
+DOCTEST_TEST_CASE("disabling a mod removes an explicitly enabled dependency nothing else needs") {
+    s_catalogue_fixture files;
+    files.Write_Mod("bundled", "beta",
+        s_catalogue_fixture::Manifest("beta", "\"1.2.3\"",
+            "  dependencies: [ { id: \"gamma\", version: \"1.2.3\" } ],\n"));
+    files.Write_Mod("bundled", "gamma",
+        s_catalogue_fixture::Manifest("gamma"));
+
+    const std::vector<config::s_mod_catalogue_entry> catalogue =
+        config::Build_Mod_Catalogue(
+            { (files.root / "bundled").string() }, "", { "beta", "gamma" });
+
+    // The enabled set holds the resolved set only: it cannot tell an
+    // explicit enable of gamma from one pulled in by beta, so gamma
+    // goes with beta when nothing remaining needs it.
+    DOCTEST_CHECK(config::Prune_Disabled_Mod_Set(catalogue,
+        { "beta", "gamma" }, "beta") == std::vector<std::string>({}));
+}
+
 } // DOCTEST_TEST_SUITE
