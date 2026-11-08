@@ -2,8 +2,7 @@
 
 namespace AISTAGE {
 
-    void __cdecl Compute_Defensive_Stage_Points(AIDATA::s_state* ai, int16_t player_idx) {
-        const auto* world = &ai->world;
+    void __cdecl Compute_Defensive_Stage_Points(AIDATA::s_state* ai, const game_world::s_view* world, int16_t player_idx) {
         std::vector<uint8_t> processed_stars(world->Star_Count(), 0);
         int16_t selected_stagepoint_count = 0;
         bool finished;

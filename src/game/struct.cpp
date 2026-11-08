@@ -18,11 +18,7 @@ namespace struct_ {
     }
 
     int16_t __cdecl Test_Bit_Field(void* bit_field, uint16_t bit_index) {
-        const uint8_t* bit_field_bytes = (const uint8_t*)bit_field;
-        uint32_t byte_offset = bit_index >> 3;
-        uint32_t bit_in_byte = bit_index & 7;
-
-        return (bit_field_bytes[byte_offset] >> bit_in_byte) & 1;
+        return Read_Bit_Field(bit_field, bit_index);
     }
 
     void __cdecl Set_Bit_Field(void* bit_field, uint16_t bit_index) {

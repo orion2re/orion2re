@@ -411,7 +411,7 @@ namespace COMBAT {
         int16_t best_beam = INITSHIP::Best_Beam_Weapon(player_idx);
         int16_t best_bomb = INITSHIP::Best_Bomb_Weapon(player_idx);
         int16_t best_shield = INITSHIP::Best_Ship_Shield(player_idx);
-        int16_t base_ocv = AIPOWER::Base_Generic_Ocv(&AIDATA::state.world, player_idx);
+        int16_t base_ocv = AIPOWER::Base_Generic_Ocv(&game_world::current, player_idx);
         int16_t best_warp = INITSHIP::Best_Warp_Drive(player_idx);
 
         warp_bonus = (best_warp - 1) * 10;
@@ -634,7 +634,7 @@ namespace COMBAT {
         beam_id = INITSHIP::Best_Beam_Weapon(8);
         bomb_id = INITSHIP::Best_Bomb_Weapon(8);
         shield_id = INITSHIP::Best_Ship_Shield(8);
-        ocv = AIPOWER::Base_Generic_Ocv(&AIDATA::state.world, 8);
+        ocv = AIPOWER::Base_Generic_Ocv(&game_world::current, 8);
         armor_idx = INITSHIP::Best_Armor(8);
 
         // Explicit lookup based on struct layout and assembly
@@ -701,7 +701,7 @@ namespace COMBAT {
         qship->max_hits = (int16_t)(((int32_t)TECHDATA::hull_data[HULL_STAR_FORTRESS].strat_hits * 1000) / 100);
         qship->missile_defense_bonus = 0;
         qship->beam_defense_bonus = TECHDATA::hull_data[HULL_STAR_FORTRESS].strat_def_bonus + 45 /* 0x2d */;
-        qship->base_ocv = AIPOWER::Base_Generic_Ocv(&AIDATA::state.world, 8) + 45 /* 0x2d */;
+        qship->base_ocv = AIPOWER::Base_Generic_Ocv(&game_world::current, 8) + 45 /* 0x2d */;
         qship->missile_damage_modifier = 0;
         qship->beam_damage_modifier = 105 /* 0x69 */;
         qship->structural_damage = 0;

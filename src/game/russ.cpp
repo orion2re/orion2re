@@ -16,11 +16,11 @@ namespace RUSS {
 
     int16_t __cdecl Get_Weighted_Choice_Char(uint8_t* weights, int16_t count) {
         const game_random::s_source random{nullptr, Legacy_Draw_};
-        auto choice = Get_Weighted_Choice_Char(&random, weights, count > 0 ? (uint32_t)count : 0);
+        auto choice = Choose_Weighted_Index_U8(&random, weights, count > 0 ? (uint32_t)count : 0);
         return choice ? (int16_t)*choice : -1;
     }
 
-    std::optional<uint32_t> Get_Weighted_Choice_Char(const game_random::s_source* random, const uint8_t* weights, uint32_t count) {
+    std::optional<uint32_t> Choose_Weighted_Index_U8(const game_random::s_source* random, const uint8_t* weights, uint32_t count) {
         uint32_t total_weight = 0;
         for (uint32_t i = 0; i < count; ++i) {
             total_weight += weights[i];
@@ -45,11 +45,11 @@ namespace RUSS {
 
     int16_t __cdecl Get_Weighted_Choice_Short(const uint16_t* weights, int16_t count) {
         const game_random::s_source random{nullptr, Legacy_Draw_};
-        auto choice = Get_Weighted_Choice_Short(&random, weights, count > 0 ? (uint32_t)count : 0);
+        auto choice = Choose_Weighted_Index_U16(&random, weights, count > 0 ? (uint32_t)count : 0);
         return choice ? (int16_t)*choice : -1;
     }
 
-    std::optional<uint32_t> Get_Weighted_Choice_Short(const game_random::s_source* random, const uint16_t* weights, uint32_t count) {
+    std::optional<uint32_t> Choose_Weighted_Index_U16(const game_random::s_source* random, const uint16_t* weights, uint32_t count) {
         const uint8_t* bytes = (const uint8_t*)weights;
         uint32_t total_weight = 0;
 
@@ -79,11 +79,11 @@ namespace RUSS {
 
     int16_t __cdecl Get_Weighted_Choice_Int(uint32_t* weights, int16_t count) {
         const game_random::s_source random{nullptr, Legacy_Draw_};
-        auto choice = Get_Weighted_Choice_Int(&random, weights, count > 0 ? (uint32_t)count : 0);
+        auto choice = Choose_Weighted_Index_U32(&random, weights, count > 0 ? (uint32_t)count : 0);
         return choice ? (int16_t)*choice : -1;
     }
 
-    std::optional<uint32_t> Get_Weighted_Choice_Int(const game_random::s_source* random, const uint32_t* weights, uint32_t count) {
+    std::optional<uint32_t> Choose_Weighted_Index_U32(const game_random::s_source* random, const uint32_t* weights, uint32_t count) {
         const uint8_t* bytes = (const uint8_t*)weights;
         uint32_t total_weight = 0;
         for (uint32_t i = 0; i < count; ++i) {
@@ -185,10 +185,10 @@ namespace RUSS {
 
     void __cdecl Shuffle_Sint(int16_t* data, int16_t count) {
         const game_random::s_source random{nullptr, Legacy_Draw_};
-        Shuffle_Sint(&random, data, count);
+        Shuffle_Sint_With_Source(&random, data, count);
     }
 
-    void __cdecl Shuffle_Sint(const game_random::s_source* random, int16_t* data, int16_t count) {
+    void __cdecl Shuffle_Sint_With_Source(const game_random::s_source* random, int16_t* data, int16_t count) {
         if (count <= 0) {
             return;
         }

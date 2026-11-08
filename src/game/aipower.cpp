@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "ai_legacy.h"
 
 namespace AIPOWER {
     uint32_t __cdecl Modified_Weapon_Strength(const s_tech_weapon_mod_data* modifications, uint32_t weapon_strength, uint16_t modification_flags) {
@@ -73,7 +74,9 @@ namespace AIPOWER {
         return shields[shield_idx].shield_class;
     }
 
-    int16_t __cdecl Ship_Strength_Vs_Shield(const AIDATA::s_world_view* world, int16_t ship_idx, int16_t target_idx, int16_t shield_strength) {
+    int16_t __cdecl Ship_Strength_Vs_Shield(const game_world::s_view* world, uint32_t ship_idx, int16_t target_idx, int16_t shield_strength) {
+        const auto legacy_ship = AI_LEGACY::Index(ship_idx);
+        if (!legacy_ship) return 0;
         s_ship_data* ship = &world->ships[ship_idx];
         int32_t total_strength = 0;
         int16_t attack_bonus = 0;
@@ -83,9 +86,9 @@ namespace AIPOWER {
 
         if (world->settings->strategic_combat_flag != 0) {
             attack_bonus = AIPOWER::Base_Generic_Ocv(world, ship->owner);
-            INITSHIP::Update_Strategic_Ship(ship_idx);
+            INITSHIP::Update_Strategic_Ship(*legacy_ship);
         } else {
-            INITSHIP::Get_Ship_Combat_Bonuses(ship_idx, &temp_attack, &temp_defense, &attack_bonus);
+            INITSHIP::Get_Ship_Combat_Bonuses(*legacy_ship, &temp_attack, &temp_defense, &attack_bonus);
         }
 
         defense_bonus = Base_Generic_Dcv(world, target_idx);
@@ -112,7 +115,7 @@ namespace AIPOWER {
                     count *= 3;
                 }
 
-                int16_t damage = world->rules.technology.weapons[weapon_type].max_damage;
+                int16_t damage = TECHDATA::weapons[weapon_type].max_damage;
                 if (slot_specials & WEAPON_MOD_FLAG_HEAVY_MOUNT) {
                     damage += (int16_t)(((damage * 5 + 5) * 10) / 100);
                 } else if (slot_specials & WEAPON_MOD_FLAG_POINT_DEFENSE) {
@@ -123,11 +126,11 @@ namespace AIPOWER {
                 if (adjusted_damage < 1) adjusted_damage = 0;
                 slot_strength = adjusted_damage * count;
             } else {
-                slot_strength = (int32_t)world->rules.technology.weapons[weapon_type].max_damage * (int32_t)count;
+                slot_strength = (int32_t)TECHDATA::weapons[weapon_type].max_damage * (int32_t)count;
             }
 
             if (slot_strength != 0) {
-                int8_t weapon_type_class = world->rules.technology.weapons[weapon_type].type;
+                int8_t weapon_type_class = TECHDATA::weapons[weapon_type].type;
                 switch (weapon_type_class) {
                     case WEAPON_TYPE_BEAM: {
                         int16_t hit_chance = (attack_bonus - defense_bonus) + 50;
@@ -157,7 +160,7 @@ namespace AIPOWER {
                 }
             }
 
-            uint32_t mod_strength = Modified_Weapon_Strength(world->rules.technology.weapon_modifications, slot_strength, slot_specials);
+            uint32_t mod_strength = Modified_Weapon_Strength(TECHDATA::weapon_modifications, slot_strength, slot_specials);
             total_strength += (uint16_t)mod_strength;
         }
 
@@ -197,23 +200,25 @@ namespace AIPOWER {
         return (int16_t)scaled_strength;
     }
 
-    int16_t __cdecl Max_Ship_Hits(const AIDATA::s_world_view* world, int16_t ship_idx) {
+    int16_t __cdecl Max_Ship_Hits(const game_world::s_view* world, uint32_t ship_idx) {
         if (world->settings->strategic_combat_flag == 0) {
-            int16_t structure = INITSHIP::Get_Ship_Structure(ship_idx);
-            int16_t armor_hits = INITSHIP::Get_Ship_Armor_Hits(ship_idx);
+            const auto legacy_ship = AI_LEGACY::Index(ship_idx);
+            if (!legacy_ship) return 0;
+            int16_t structure = INITSHIP::Get_Ship_Structure(*legacy_ship);
+            int16_t armor_hits = INITSHIP::Get_Ship_Armor_Hits(*legacy_ship);
             return structure + armor_hits;
         } else {
             s_ship_data* ship = &world->ships[ship_idx];
 
             int32_t hull_type = (int32_t)ship->d.size;
-            int16_t base_hits = world->rules.technology.hulls[hull_type].strat_hits;
+            int16_t base_hits = TECHDATA::hull_data[hull_type].strat_hits;
 
             int16_t best_armor_idx = INITSHIP::Best_Armor((int16_t)ship->owner);
             if (best_armor_idx > 0) {
                 // The original code performs a second call to Best_Armor if result is positive
                 best_armor_idx = INITSHIP::Best_Armor((int16_t)ship->owner);
 
-                int32_t absorption_pct = (int32_t)world->rules.technology.armor[best_armor_idx].ships_bonus;
+                int32_t absorption_pct = (int32_t)TECHDATA::armor[best_armor_idx].ships_bonus;
 
                 // bonus = (absorption_percent * base_hits) / 100
                 int16_t bonus_hits = (int16_t)((absorption_pct * (int32_t)base_hits) / 100);
@@ -224,16 +229,16 @@ namespace AIPOWER {
         }
     }
 
-    uint16_t __cdecl Ship_Strength_Vs_Ships(const AIDATA::s_world_view* world, int16_t attacker_idx, int16_t target_idx) {
-        int16_t shield_value = Get_Best_Ship_Shield_Value(world->rules.technology.shields, target_idx);
+    uint16_t __cdecl Ship_Strength_Vs_Ships(const game_world::s_view* world, uint32_t attacker_idx, int16_t target_idx) {
+        int16_t shield_value = Get_Best_Ship_Shield_Value(TECHDATA::shields, target_idx);
         return (uint16_t)Ship_Strength_Vs_Shield(world, attacker_idx, target_idx, shield_value);
     }
 
-    uint16_t __cdecl Ship_Strength_Vs_Ships_In_Nebula(const AIDATA::s_world_view* world, int16_t attacker_idx, int16_t target_idx) {
+    uint16_t __cdecl Ship_Strength_Vs_Ships_In_Nebula(const game_world::s_view* world, uint32_t attacker_idx, int16_t target_idx) {
         return (uint16_t)AIPOWER::Ship_Strength_Vs_Shield(world, attacker_idx, target_idx, 0);
     }
 
-    int16_t __cdecl Current_Ship_Hits(const AIDATA::s_world_view* world, int16_t ship_idx) {
+    int16_t __cdecl Current_Ship_Hits(const game_world::s_view* world, uint32_t ship_idx) {
         int16_t hits;
 
         hits = AIPOWER::Max_Ship_Hits(world, ship_idx);
@@ -249,7 +254,7 @@ namespace AIPOWER {
         return hits;
     }
 
-    void __cdecl Ship_Strength_Vs_Planetary_Shield(const AIDATA::s_world_view* world, int16_t ship_idx, uint16_t* shield_strengths) {
+    void __cdecl Ship_Strength_Vs_Planetary_Shield(const game_world::s_view* world, uint32_t ship_idx, uint16_t* shield_strengths) {
         uint32_t strengths[PLANETARY_SHIELD_COUNT];
         uint16_t shield_reductions[PLANETARY_SHIELD_COUNT] = {2, 7, 12, 22};
 
@@ -270,12 +275,12 @@ namespace AIPOWER {
                 int16_t weapon_type = world->ships[ship_idx].d.ship_weapon[i].type;
                 if (weapon_type > 0) {
                     int16_t weapon_damage;
-                    uint8_t weapon_type_class = world->rules.technology.weapons[weapon_type].type;
+                    uint8_t weapon_type_class = TECHDATA::weapons[weapon_type].type;
 
                     if (weapon_type_class == WEAPON_TYPE_BEAM || weapon_type_class == WEAPON_TYPE_TORPEDO) {
-                        weapon_damage = world->rules.technology.weapons[weapon_type].max_damage / 2;
+                        weapon_damage = TECHDATA::weapons[weapon_type].max_damage / 2;
                     } else {
-                        weapon_damage = world->rules.technology.weapons[weapon_type].max_damage;
+                        weapon_damage = TECHDATA::weapons[weapon_type].max_damage;
                     }
 
                     int32_t count = world->ships[ship_idx].d.ship_weapon[i].current_count;
@@ -306,12 +311,12 @@ namespace AIPOWER {
         }
     }
 
-    int16_t __cdecl Base_Generic_Ocv(const AIDATA::s_world_view* world, int16_t player_idx) {
+    int16_t __cdecl Base_Generic_Ocv(const game_world::s_view* world, int16_t player_idx) {
         int16_t computer_idx;
         int16_t bonus;
 
         computer_idx = INITSHIP::Best_Computer(player_idx);
-        bonus = world->rules.technology.computers[computer_idx].bonus;
+        bonus = TECHDATA::computers[computer_idx].bonus;
 
         if (player_idx < MAX_PLAYERS) {
             bonus += world->players[player_idx].traits[TRAIT_SHIP_ATTACK];
@@ -320,7 +325,7 @@ namespace AIPOWER {
         return bonus;
     }
 
-    uint16_t __cdecl Colony_Space_Strength_Vs_Player(const AIDATA::s_world_view* world, int16_t colony_idx, int16_t player_idx) {
+    uint16_t __cdecl Colony_Space_Strength_Vs_Player(const game_world::s_view* world, uint32_t colony_idx, int16_t player_idx) {
         s_colony* colony = &world->colonies[colony_idx];
         int16_t building_type = -1;
 
@@ -335,11 +340,11 @@ namespace AIPOWER {
         return AIPOWER::Satelite_Strength_Vs_Ships(world, building_type, (int16_t)colony->owner, player_idx);
     }
 
-    int16_t __cdecl Base_Generic_Dcv(const AIDATA::s_world_view* world, int16_t player_idx) {
+    int16_t __cdecl Base_Generic_Dcv(const game_world::s_view* world, int16_t player_idx) {
         const int16_t best_drive_idx = INITSHIP::Best_Warp_Drive(player_idx);
 
         int16_t dcv =
-            (int16_t)world->rules.technology.drives[best_drive_idx].combat_speed_min[2];
+            (int16_t)TECHDATA::drives[best_drive_idx].combat_speed_min[2];
         dcv = (int16_t)(dcv * 5);
 
         if (player_idx < MAX_PLAYERS) {
@@ -352,7 +357,7 @@ namespace AIPOWER {
         return dcv;
     }
 
-    uint16_t __cdecl Satelite_Strength_Vs_Ships(const AIDATA::s_world_view* world, int16_t building_type, int16_t player_idx, int16_t target_player_idx) {
+    uint16_t __cdecl Satelite_Strength_Vs_Ships(const game_world::s_view* world, int16_t building_type, int16_t player_idx, int16_t target_player_idx) {
         uint32_t total_strength = 0;
 
         if (building_type != -1) {
@@ -373,7 +378,7 @@ namespace AIPOWER {
             int16_t beam_count_normal;
             int16_t beam_count_heavy;
             int16_t missile_count;
-            const s_tech_hull_data* hull = &world->rules.technology.hulls[5 + building_type];
+            const s_tech_hull_data* hull = &TECHDATA::hull_data[5 + building_type];
 
             if (world->settings->strategic_combat_flag == 0) {
                 int16_t hull_size = hull->size;
@@ -384,19 +389,19 @@ namespace AIPOWER {
                 int32_t space_normal = DESIGN::Weapon_Space(player_idx, best_beam, 1, WEAPON_FIRING_ARC_360, 0, 0);
                 beam_count_normal = (int16_t)(COMBINIT::Satellite_Allocated_Space(
                                                   size_div_2,
-                                                  world->rules.combat.satellite_space_allocation->normal) /
+                                                  COMBINIT::satellite_space_allocation.normal) /
                     space_normal);
 
                 int32_t space_heavy = DESIGN::Weapon_Space(player_idx, best_beam, 1, WEAPON_FIRING_ARC_360, 0, 2 /* MOD_HEAVY_MOUNT */);
                 beam_count_heavy = (int16_t)(COMBINIT::Satellite_Allocated_Space(
                                                  size_div_2,
-                                                 world->rules.combat.satellite_space_allocation->heavy) /
+                                                 COMBINIT::satellite_space_allocation.heavy) /
                     space_heavy);
 
-                int32_t space_missile = DESIGN::Weapon_Space(player_idx, best_missile, 1, WEAPON_FIRING_ARC_360, *world->rules.combat.satellite_ammo_basis, 0);
+                int32_t space_missile = DESIGN::Weapon_Space(player_idx, best_missile, 1, WEAPON_FIRING_ARC_360, COMBINIT::satellite_ammo_basis, 0);
                 missile_count = (int16_t)(COMBINIT::Satellite_Allocated_Space(
                                               rem_size,
-                                              world->rules.combat.satellite_space_allocation->missile_torp) /
+                                              COMBINIT::satellite_space_allocation.missile_torp) /
                     space_missile);
             } else {
                 // Strategic: Use predefined counts
@@ -405,15 +410,15 @@ namespace AIPOWER {
                 missile_count = hull->strat_missile;
             }
 
-            int16_t shield_val = AIPOWER::Get_Best_Ship_Shield_Value(world->rules.technology.shields, target_player_idx);
+            int16_t shield_val = AIPOWER::Get_Best_Ship_Shield_Value(TECHDATA::shields, target_player_idx);
 
-            int32_t adj_beam_dmg_heavy = ((world->rules.technology.weapons[best_beam].max_damage * 3) / 2) - shield_val;
+            int32_t adj_beam_dmg_heavy = ((TECHDATA::weapons[best_beam].max_damage * 3) / 2) - shield_val;
             if (adj_beam_dmg_heavy < 0) adj_beam_dmg_heavy = 0;
 
-            int32_t adj_missile_dmg = world->rules.technology.weapons[best_missile].max_damage - shield_val;
+            int32_t adj_missile_dmg = TECHDATA::weapons[best_missile].max_damage - shield_val;
             if (adj_missile_dmg < 0) adj_missile_dmg = 0;
 
-            int32_t adj_beam_dmg_normal = world->rules.technology.weapons[best_beam].max_damage - shield_val;
+            int32_t adj_beam_dmg_normal = TECHDATA::weapons[best_beam].max_damage - shield_val;
             if (adj_beam_dmg_normal < 0) adj_beam_dmg_normal = 0;
 
             total_strength = (adj_beam_dmg_heavy * beam_count_heavy * accuracy_mod) / 100;
@@ -441,7 +446,7 @@ namespace AIPOWER {
         return (uint16_t)total_strength;
     }
 
-    uint32_t __cdecl Missile_Base_Strength(const AIDATA::s_world_view* world, int16_t player_idx, int16_t target_idx) {
+    uint32_t __cdecl Missile_Base_Strength(const game_world::s_view* world, int16_t player_idx, int16_t target_idx) {
         if (world->settings->strategic_combat_flag == 1) {
             return 90 /* 0x5a */;
         }
@@ -449,14 +454,14 @@ namespace AIPOWER {
         int16_t weapon_idx = INITSHIP::Best_Missile_Weapon_NT(player_idx);
 
         // weapon_idx is used here to get space cost
-        int32_t weapon_space = DESIGN::Weapon_Space(player_idx, weapon_idx, 1, WEAPON_FIRING_ARC_360, *world->rules.combat.missile_base_ammo_basis, 0);
+        int32_t weapon_space = DESIGN::Weapon_Space(player_idx, weapon_idx, 1, WEAPON_FIRING_ARC_360, COMBINIT::missile_base_ammo_basis, 0);
 
-        int16_t capacity = (int16_t)(world->rules.combat.ground_defense->missile_base_space / weapon_space);
+        int16_t capacity = (int16_t)(COMBINIT::ground_defense.missile_base_space / weapon_space);
 
-        int16_t shield_val = AIPOWER::Get_Best_Ship_Shield_Value(world->rules.technology.shields, target_idx);
+        int16_t shield_val = AIPOWER::Get_Best_Ship_Shield_Value(TECHDATA::shields, target_idx);
 
         // Calculate base damage per weapon mount minus shield reduction
-        int32_t net_damage = (int32_t)world->rules.technology.weapons[weapon_idx].max_damage - (int32_t)shield_val;
+        int32_t net_damage = (int32_t)TECHDATA::weapons[weapon_idx].max_damage - (int32_t)shield_val;
 
         if (net_damage <= 0) {
             net_damage = 0;
@@ -471,7 +476,7 @@ namespace AIPOWER {
         return strength;
     }
 
-    uint16_t __cdecl Colony_Ground_Strength_Vs_Player(const AIDATA::s_world_view* world, int16_t colony_idx, int16_t player_idx) {
+    uint16_t __cdecl Colony_Ground_Strength_Vs_Player(const game_world::s_view* world, uint32_t colony_idx, int16_t player_idx) {
         uint16_t strength = 0;
         s_colony* colony = &world->colonies[colony_idx];
 
@@ -507,7 +512,7 @@ namespace AIPOWER {
         return strength;
     }
 
-    uint32_t __cdecl Phasor_Base_Strength(const AIDATA::s_world_view* world, int16_t player_idx, int16_t target_idx) {
+    uint32_t __cdecl Phasor_Base_Strength(const game_world::s_view* world, int16_t player_idx, int16_t target_idx) {
         if (world->settings->strategic_combat_flag == 1) {
             return 120 /* 0x78 */;
         }
@@ -516,11 +521,11 @@ namespace AIPOWER {
             player_idx, WEAPON_MOD_FLAG_HEAVY_MOUNT);
         int32_t space = DESIGN::Weapon_Space(player_idx, weapon_idx, 1, WEAPON_FIRING_ARC_360, 1, 2);
 
-        int16_t weapon_count = (int16_t)(world->rules.combat.ground_defense->battery_hv_space / space);
+        int16_t weapon_count = (int16_t)(COMBINIT::ground_defense.battery_hv_space / space);
 
-        int16_t shield_value = AIPOWER::Get_Best_Ship_Shield_Value(world->rules.technology.shields, target_idx);
+        int16_t shield_value = AIPOWER::Get_Best_Ship_Shield_Value(TECHDATA::shields, target_idx);
 
-        int32_t max_damage = world->rules.technology.weapons[weapon_idx].max_damage;
+        int32_t max_damage = TECHDATA::weapons[weapon_idx].max_damage;
         int32_t base_damage = ((max_damage * 3) / 2) - shield_value;
 
         if (base_damage < 0) {
@@ -529,7 +534,7 @@ namespace AIPOWER {
 
         uint32_t total_power = (uint32_t)base_damage * (uint32_t)weapon_count;
 
-        if ((world->rules.technology.weapons[weapon_idx].natural_mods & WEAPON_NATURAL_FLAG_IGNORES_ARMOR_STRUCTURE) != 0) {
+        if ((TECHDATA::weapons[weapon_idx].natural_mods & WEAPON_NATURAL_FLAG_IGNORES_ARMOR_STRUCTURE) != 0) {
             total_power *= 3;
         }
 
@@ -540,36 +545,36 @@ namespace AIPOWER {
         return total_power;
     }
 
-    uint16_t __cdecl Fighter_Garrison_Strength(const AIDATA::s_world_view* world, int16_t player_idx, int16_t target_player_idx) {
+    uint16_t __cdecl Fighter_Garrison_Strength(const game_world::s_view* world, int16_t player_idx, int16_t target_player_idx) {
         int16_t pd_weapon_idx = INITSHIP::Best_Point_Defense_Weapon(player_idx);
         int16_t bomb_weapon_idx = INITSHIP::Best_Bomb_Weapon(player_idx);
         int16_t bomber_count = 0;
-        int16_t shield_value = Get_Best_Ship_Shield_Value(world->rules.technology.shields, target_player_idx);
+        int16_t shield_value = Get_Best_Ship_Shield_Value(TECHDATA::shields, target_player_idx);
         int16_t heavy_fighter_count = 0;
 
         if (world->settings->strategic_combat_flag == 1) {
             return 120;
         }
 
-        int16_t pd_count = world->rules.combat.ground_defense->garrison_interceptors;
+        int16_t pd_count = COMBINIT::ground_defense.garrison_interceptors;
         s_player* player = &world->players[player_idx];
 
         if (player->tech_applications[TECH_APP_HEAVY_FIGHTER_BAYS] == TECH_RESEARCH_STATUS_RESEARCHED) {
             pd_count = 0;
             bomber_count = 0;
             heavy_fighter_count =
-                world->rules.combat.ground_defense->garrison_heavy_fighters;
+                COMBINIT::ground_defense.garrison_heavy_fighters;
         } else if (player->tech_applications[TECH_APP_BOMBER_BAYS] == TECH_RESEARCH_STATUS_RESEARCHED) {
             pd_count = 0;
-            bomber_count = world->rules.combat.ground_defense->garrison_bombers;
+            bomber_count = COMBINIT::ground_defense.garrison_bombers;
         }
 
-        int32_t bomb_dmg = (int32_t)world->rules.technology.weapons[bomb_weapon_idx].max_damage - shield_value;
+        int32_t bomb_dmg = (int32_t)TECHDATA::weapons[bomb_weapon_idx].max_damage - shield_value;
         if (bomb_dmg < 0) {
             bomb_dmg = 0;
         }
 
-        int32_t pd_dmg = (int32_t)world->rules.technology.weapons[pd_weapon_idx].max_damage - shield_value;
+        int32_t pd_dmg = (int32_t)TECHDATA::weapons[pd_weapon_idx].max_damage - shield_value;
         if (pd_dmg < 0) {
             pd_dmg = 0;
         }

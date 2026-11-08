@@ -43,8 +43,8 @@ namespace FLEETPOP {
         int16_t draw_x = x_offset + x;
         int16_t draw_y = y + y_offset - 5;
 
-        int16_t max_hits = AIPOWER::Max_Ship_Hits(&AIDATA::state.world, ship_idx);
-        int16_t current_hits = AIPOWER::Current_Ship_Hits(&AIDATA::state.world, ship_idx);
+        int16_t max_hits = AIPOWER::Max_Ship_Hits(&game_world::current, ship_idx);
+        int16_t current_hits = AIPOWER::Current_Ship_Hits(&game_world::current, ship_idx);
 
         int16_t green_width = (static_cast<int>(current_hits) * effective_width) / max_hits;
         if (green_width < 2) {

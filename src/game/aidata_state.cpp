@@ -4,7 +4,7 @@ namespace AIDATA {
     s_state state;
 
     void Begin_Turn(s_state* ai, int32_t stardate) {
-        *ai = s_state{.world = ai->world};
+        *ai = s_state{};
         ai->stardate = stardate;
         ai->initialized = true;
     }

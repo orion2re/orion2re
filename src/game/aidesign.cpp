@@ -132,7 +132,7 @@ namespace aidesign {
     s_rules rules{.priorities = DEFAULT_PRIORITIES};
 
     void __cdecl Determine_Beam_Weapon_Modifications(
-        const AIDATA::s_world_view* world,
+        const game_world::s_view* world,
         int16_t player_idx,
         int16_t hull_size,
         int16_t* type0,
@@ -144,7 +144,6 @@ namespace aidesign {
         int16_t* type2,
         int16_t* spec2,
         int16_t* arc2) {
-        const auto& technology = world->rules.technology;
         int16_t weapon_count = 0;
         int16_t weapon_id[DESIGN_WEAPON_CODE_COUNT];
         int16_t weapon_mods[DESIGN_WEAPON_CODE_COUNT];
@@ -153,12 +152,12 @@ namespace aidesign {
         int16_t spec1_mods[DESIGN_WEAPON_CODE_COUNT];
 
         for (int16_t i = 1; i <= WEAPON_TRACTOR_BEAM; ++i) {
-            if (technology.weapons[i].type == WEAPON_TYPE_BEAM && world->players[player_idx].tech_applications[technology.weapons[i].tech_app_id] == TECH_RESEARCH_STATUS_RESEARCHED) {
+            if (TECHDATA::weapons[i].type == WEAPON_TYPE_BEAM && world->players[player_idx].tech_applications[TECHDATA::weapons[i].tech_app_id] == TECH_RESEARCH_STATUS_RESEARCHED) {
                 weapon_id[weapon_count] = i;
                 spec1_mods[weapon_count] = 0;
                 spec2_mods[weapon_count] = 0;
                 weapon_mods[weapon_count] = 0;
-                ai_group[weapon_count] = technology.fields[technology.applications[technology.weapons[i].tech_app_id].tech_field_id].ai_group;
+                ai_group[weapon_count] = TECHDATA::technology_fields[TECHDATA::technology_applications[TECHDATA::weapons[i].tech_app_id].tech_field_id].ai_group;
                 weapon_count++;
             }
         }
@@ -197,7 +196,7 @@ namespace aidesign {
         }
 
         int16_t best_comp = INITSHIP::Best_Computer(player_idx);
-        int16_t comp_bonus = technology.computers[best_comp].bonus;
+        int16_t comp_bonus = TECHDATA::computers[best_comp].bonus;
         comp_bonus += world->players[player_idx].traits[TRAIT_SHIP_ATTACK];
 
         int16_t target_defense;
@@ -205,23 +204,23 @@ namespace aidesign {
 
         if (world->players[player_idx].objectives == PLAYER_OBJECTIVE_HUMAN) {
             target_shield_value = 1;
-            target_defense = technology.drives[DRIVE_FUSION_DRIVE].combat_speed_min[HULL_CRUISER] + 20;
+            target_defense = TECHDATA::drives[DRIVE_FUSION_DRIVE].combat_speed_min[HULL_CRUISER] + 20;
         } else {
-            target_shield_value = AIPOWER::Get_Best_Ship_Shield_Value(technology.shields, first_living_player);
+            target_shield_value = AIPOWER::Get_Best_Ship_Shield_Value(TECHDATA::shields, first_living_player);
             int16_t best_drive = INITSHIP::Best_Warp_Drive(first_living_player);
-            target_defense = world->players[first_living_player].traits[TRAIT_SHIP_DEFENSE] + technology.drives[best_drive].combat_speed_min[2] * 5;
+            target_defense = world->players[first_living_player].traits[TRAIT_SHIP_DEFENSE] + TECHDATA::drives[best_drive].combat_speed_min[2] * 5;
         }
 
         int16_t net_bonus = comp_bonus - target_defense;
 
         for (int16_t i = 0; i < weapon_count; ++i) {
             int16_t w_id = weapon_id[i];
-            int16_t min_lvl = DESIGN::Miniaturization_Level(player_idx, technology.weapons[w_id].tech_app_id);
+            int16_t min_lvl = DESIGN::Miniaturization_Level(player_idx, TECHDATA::weapons[w_id].tech_app_id);
             if (min_lvl > 5) min_lvl = 5;
 
             int16_t cur_bonus = net_bonus;
 
-            if (technology.weapon_modifications[WEAPON_MOD_CONTINUOUS].level <= min_lvl) {
+            if (TECHDATA::weapon_modifications[WEAPON_MOD_CONTINUOUS].level <= min_lvl) {
                 weapon_mods[i] += WEAPON_MOD_FLAG_CONTINUOUS;
                 if (net_bonus < 50) {
                     spec1_mods[i] += WEAPON_MOD_FLAG_CONTINUOUS;
@@ -230,12 +229,12 @@ namespace aidesign {
                 }
             }
 
-            if (cur_bonus > 0 && technology.weapon_modifications[WEAPON_MOD_NO_RANGE_DISSIPATION].level <= min_lvl) {
+            if (cur_bonus > 0 && TECHDATA::weapon_modifications[WEAPON_MOD_NO_RANGE_DISSIPATION].level <= min_lvl) {
                 spec1_mods[i] += WEAPON_MOD_FLAG_NO_RANGE_DISSIPATION;
                 spec2_mods[i] += WEAPON_MOD_FLAG_NO_RANGE_DISSIPATION;
             }
 
-            if (cur_bonus >= 0 && technology.weapon_modifications[WEAPON_MOD_AUTO_FIRE].level <= min_lvl) {
+            if (cur_bonus >= 0 && TECHDATA::weapon_modifications[WEAPON_MOD_AUTO_FIRE].level <= min_lvl) {
                 if (cur_bonus > 30) {
                     weapon_mods[i] += WEAPON_MOD_FLAG_AUTO_FIRE;
                 }
@@ -243,24 +242,24 @@ namespace aidesign {
                 spec2_mods[i] += WEAPON_MOD_FLAG_AUTO_FIRE;
             }
 
-            uint16_t avail = technology.weapons[w_id].available_mods;
+            uint16_t avail = TECHDATA::weapons[w_id].available_mods;
 
             weapon_mods[i] = (weapon_mods[i] + WEAPON_MOD_FLAG_POINT_DEFENSE) & avail;
             if ((weapon_mods[i] & WEAPON_MOD_FLAG_POINT_DEFENSE) == 0) {
                 weapon_mods[i] = 0;
             }
 
-            if (technology.weapon_modifications[WEAPON_MOD_ARMOR_PIERCING].level <= min_lvl) {
+            if (TECHDATA::weapon_modifications[WEAPON_MOD_ARMOR_PIERCING].level <= min_lvl) {
                 spec1_mods[i] += WEAPON_MOD_FLAG_ARMOR_PIERCING;
                 spec2_mods[i] += WEAPON_MOD_FLAG_ARMOR_PIERCING;
             }
 
-            if (technology.weapon_modifications[WEAPON_MOD_SHIELD_PIERCING].level <= min_lvl) {
+            if (TECHDATA::weapon_modifications[WEAPON_MOD_SHIELD_PIERCING].level <= min_lvl) {
                 spec1_mods[i] += WEAPON_MOD_FLAG_SHIELD_PIERCING;
                 spec2_mods[i] += WEAPON_MOD_FLAG_SHIELD_PIERCING;
             }
 
-            if (technology.weapon_modifications[WEAPON_MOD_ENVELOPING].level <= min_lvl) {
+            if (TECHDATA::weapon_modifications[WEAPON_MOD_ENVELOPING].level <= min_lvl) {
                 spec1_mods[i] += WEAPON_MOD_FLAG_ENVELOPING;
                 spec2_mods[i] += WEAPON_MOD_FLAG_ENVELOPING;
             }
@@ -276,7 +275,7 @@ namespace aidesign {
         if (world->settings->game_difficulty < GAME_DIFFICULTY_AVERAGE) {
             int16_t idx1 = weapon_count - 1;
             while (idx1 >= 0) {
-                if ((technology.weapons[weapon_id[idx1]].available_mods & WEAPON_MOD_FLAG_POINT_DEFENSE) != 0) {
+                if ((TECHDATA::weapons[weapon_id[idx1]].available_mods & WEAPON_MOD_FLAG_POINT_DEFENSE) != 0) {
                     break;
                 }
                 idx1--;
@@ -295,7 +294,7 @@ namespace aidesign {
 
             int16_t idx2 = weapon_count - 1;
             while (idx2 >= 0) {
-                if ((technology.weapons[weapon_id[idx2]].available_mods & WEAPON_MOD_FLAG_HEAVY_MOUNT) != 0) {
+                if ((TECHDATA::weapons[weapon_id[idx2]].available_mods & WEAPON_MOD_FLAG_HEAVY_MOUNT) != 0) {
                     break;
                 }
                 idx2--;
@@ -310,7 +309,7 @@ namespace aidesign {
             }
         } else {
             if (weapon_count == 1) {
-                if ((technology.weapons[weapon_id[0]].available_mods & WEAPON_MOD_FLAG_POINT_DEFENSE) == 0) {
+                if ((TECHDATA::weapons[weapon_id[0]].available_mods & WEAPON_MOD_FLAG_POINT_DEFENSE) == 0) {
                     *type0 = 0;
                 } else {
                     *type0 = weapon_id[0];
@@ -346,8 +345,8 @@ namespace aidesign {
                             int16_t w_id = weapon_id[i];
                             if (w_id != 0) {
                                 int32_t space = DESIGN::Weapon_Space(player_idx, w_id, 1, WEAPON_FIRING_ARC_FORWARD, 1, 0);
-                                uint16_t natural_mods = technology.weapons[w_id].natural_mods;
-                                int32_t damage = technology.weapons[w_id].max_damage;
+                                uint16_t natural_mods = TECHDATA::weapons[w_id].natural_mods;
+                                int32_t damage = TECHDATA::weapons[w_id].max_damage;
 
                                 if ((natural_mods & WEAPON_NATURAL_FLAG_IGNORES_SHIELDS) == 0) {
                                     damage -= target_shield_value;
@@ -387,10 +386,10 @@ namespace aidesign {
             int32_t best_val = -1;
             for (int16_t i = 0; i < weapon_count; i++) {
                 int16_t w_id = weapon_id[i];
-                if (w_id != 0 && (technology.weapons[w_id].available_mods & WEAPON_MOD_FLAG_HEAVY_MOUNT) != 0) {
+                if (w_id != 0 && (TECHDATA::weapons[w_id].available_mods & WEAPON_MOD_FLAG_HEAVY_MOUNT) != 0) {
                     int32_t space = DESIGN::Weapon_Space(player_idx, w_id, 1, WEAPON_FIRING_ARC_FORWARD, 1, 2);
-                    uint16_t natural_mods = technology.weapons[w_id].natural_mods;
-                    int32_t damage = technology.weapons[w_id].max_damage * 3;
+                    uint16_t natural_mods = TECHDATA::weapons[w_id].natural_mods;
+                    int32_t damage = TECHDATA::weapons[w_id].max_damage * 3;
 
                     if ((natural_mods & WEAPON_NATURAL_FLAG_IGNORES_SHIELDS) == 0) {
                         damage = damage / 2 - target_shield_value;
@@ -435,7 +434,7 @@ namespace aidesign {
         *arc2 = WEAPON_FIRING_ARC_FORWARD;
         *arc0 = WEAPON_FIRING_ARC_FORWARD;
 
-        int16_t comp_tech = Get_Competition_Player_Tech_Values(&world->rules.technology, &world->players[0], 0x12);
+        int16_t comp_tech = Get_Competition_Player_Tech_Values(&world->players[0], 0x12);
         int16_t r_base = (int16_t)((0x14 - comp_tech) * hull_size);
 
         int16_t spec0_mod_count = 0;
@@ -480,8 +479,7 @@ namespace aidesign {
         }
     }
 
-    int32_t __cdecl Add_Specials_To_Design(const AIDATA::s_world_view* world, const struct s_spcl* list, int16_t count, int16_t player_idx, struct s_ship_design* design, int32_t space_available, int16_t* weapon_slot_idx_ptr) {
-        const auto& technology = world->rules.technology;
+    int32_t __cdecl Add_Specials_To_Design(const game_world::s_view* world, const struct s_spcl* list, int16_t count, int16_t player_idx, struct s_ship_design* design, int32_t space_available, int16_t* weapon_slot_idx_ptr) {
         int32_t total_space_used = 0;
         int16_t already_has_anti_missile_rocket = 0;
 
@@ -489,15 +487,15 @@ namespace aidesign {
             int16_t item_id = list[i].id;
 
             if (list[i].type == AI_SPECIAL_ITEM_SPECIAL) {
-                int16_t tech_app_id = technology.specials[item_id].tech_app_id;
+                int16_t tech_app_id = TECHDATA::specials[item_id].tech_app_id;
 
                 if (world->players[player_idx].tech_applications[tech_app_id] == TECH_RESEARCH_STATUS_RESEARCHED) {
-                    if (Special_Legal_For_Design(world->rules.technology.specials, design, item_id)) {
+                    if (Special_Legal_For_Design(TECHDATA::specials, design, item_id)) {
                         // Check if player has Stealth trait, if so skip Stealth Field device
-                        if (world->rules.design->allow_stealth_field || world->players[player_idx].traits[TRAIT_STEALTHY_SHIPS] == 0 || item_id != SPECIAL_STEALTH_FIELD) {
+                        if (rules.allow_stealth_field || world->players[player_idx].traits[TRAIT_STEALTHY_SHIPS] == 0 || item_id != SPECIAL_STEALTH_FIELD) {
                             int8_t mini_cat = DESIGN::Miniaturization_Category(tech_app_id);
                             int16_t tech_lvl = DESIGN::Tech_Level(player_idx, tech_app_id);
-                            int16_t base_space = technology.specials[item_id].space_per_ship_type[design->size];
+                            int16_t base_space = TECHDATA::specials[item_id].space_per_ship_type[design->size];
                             int16_t actual_space = (int16_t)DESIGN::Space_Given_M_Level(base_space, tech_lvl, mini_cat);
 
                             if (actual_space < space_available) {
@@ -518,7 +516,7 @@ namespace aidesign {
                         }
                     }
 
-                    int16_t weapon_tech_app_id = technology.weapons[item_id].tech_app_id;
+                    int16_t weapon_tech_app_id = TECHDATA::weapons[item_id].tech_app_id;
                     if (world->players[player_idx].tech_applications[weapon_tech_app_id] == TECH_RESEARCH_STATUS_RESEARCHED && !already_has_anti_missile_rocket) {
                         int32_t weapon_unit_space = DESIGN::Weapon_Space(player_idx, item_id, 1, WEAPON_FIRING_ARC_360, 1, 0);
                         int16_t max_count = (int16_t)(space_available / weapon_unit_space);
@@ -577,7 +575,7 @@ namespace aidesign {
         return total_space_used;
     }
 
-    int32_t __cdecl Add_Beam_Weapon_To_Design(const AIDATA::s_world_view* world, int16_t player_idx, struct s_ship_design* design, int16_t* weapon_index_ptr, int32_t space, int16_t weapon_class) {
+    int32_t __cdecl Add_Beam_Weapon_To_Design(const game_world::s_view* world, int16_t player_idx, struct s_ship_design* design, int16_t* weapon_index_ptr, int32_t space, int16_t weapon_class) {
         int16_t types[4] = {0};
         int16_t specials[4] = {0};
         int16_t arcs[4] = {0};
@@ -652,12 +650,12 @@ namespace aidesign {
         return final_unit_space * total_added;
     }
 
-    int16_t __cdecl Get_Ship_Class(const AIDATA::s_world_view* world, int16_t player_idx) {
+    int16_t __cdecl Get_Ship_Class(const game_world::s_view* world, int16_t player_idx) {
         const s_player* player = &world->players[player_idx];
         int16_t fighters_avail = Fighters_Available(player);
         int16_t special_weapons_avail = Special_Weapons_Available(player);
         int16_t special_devices_avail = Special_Devices_Available(
-            &world->rules.design->priorities, &world->rules.technology, player);
+            &rules.priorities, player);
 
         if (*world->combat_x == -1000) {
             return 7;
@@ -826,17 +824,17 @@ namespace aidesign {
     }
 
     // Callers explicitly retain the legacy player-zero comparison perspective.
-    int16_t __cdecl Get_Competition_Player_Tech_Values(const AIDATA::s_technology_view* technology, const s_player* player, int16_t tech_type) {
+    int16_t __cdecl Get_Competition_Player_Tech_Values(const s_player* player, int16_t tech_type) {
         int16_t max_ai_group = 0;
         int16_t i = 0;
 
         do {
-            const auto& app = technology->applications[i];
+            const auto& app = TECHDATA::technology_applications[i];
 
             if (app.ai_group == tech_type) {
                 if (player->tech_applications[i] == TECH_RESEARCH_STATUS_RESEARCHED) {
                     int16_t field_id = app.tech_field_id;
-                    uint8_t field_group = technology->fields[field_id].ai_group;
+                    uint8_t field_group = TECHDATA::technology_fields[field_id].ai_group;
 
                     if (max_ai_group < field_group) {
                         max_ai_group = field_group;
@@ -849,15 +847,15 @@ namespace aidesign {
         return max_ai_group;
     }
 
-    bool __cdecl Best_Weapons_Are_Beams(const AIDATA::s_technology_view* technology, const s_player* player) {
-        uint16_t beam_tech_value = Get_Competition_Player_Tech_Values(technology, player, 0x15);
-        uint16_t comparison_tech_value = Get_Competition_Player_Tech_Values(technology, player, 0x1a);
+    bool __cdecl Best_Weapons_Are_Beams(const s_player* player) {
+        uint16_t beam_tech_value = Get_Competition_Player_Tech_Values(player, 0x15);
+        uint16_t comparison_tech_value = Get_Competition_Player_Tech_Values(player, 0x1a);
 
         return beam_tech_value <= comparison_tech_value;
     }
 
-    int32_t __cdecl Add_Theme_Special_To_Design(const AIDATA::s_world_view* world, int16_t player_idx, struct s_ship_design* design, int32_t space, int16_t* weapon_index_ptr) {
-        const auto& priorities = world->rules.design->priorities;
+    int32_t __cdecl Add_Theme_Special_To_Design(const game_world::s_view* world, int16_t player_idx, struct s_ship_design* design, int32_t space, int16_t* weapon_index_ptr) {
+        const auto& priorities = rules.priorities;
         int32_t result = 0;
         uint8_t theme = (uint8_t)world->players[player_idx].ship_special_theme;
 
@@ -907,16 +905,16 @@ namespace aidesign {
         return 0;
     }
 
-    int16_t __cdecl Special_Devices_Available(const s_ship_design_config* priorities, const AIDATA::s_technology_view* technology, const s_player* player) {
+    int16_t __cdecl Special_Devices_Available(const s_ship_design_config* priorities, const s_player* player) {
         for (int16_t i = 0; i < 12; ++i) {
             int16_t tech_app_id;
             int16_t id = priorities->special_device_priority[i].id;
             int16_t type = priorities->special_device_priority[i].type;
 
             if (type == AI_SPECIAL_ITEM_SPECIAL) {
-                tech_app_id = (int16_t)technology->specials[id].tech_app_id;
+                tech_app_id = (int16_t)TECHDATA::specials[id].tech_app_id;
             } else {
-                tech_app_id = (int16_t)technology->weapons[id].tech_app_id;
+                tech_app_id = (int16_t)TECHDATA::weapons[id].tech_app_id;
             }
 
             if (player->tech_applications[tech_app_id] == TECH_RESEARCH_STATUS_RESEARCHED) {
@@ -939,7 +937,7 @@ namespace aidesign {
         return 0;
     }
 
-    int32_t __cdecl Add_Fighters_To_Design(const AIDATA::s_world_view* world, int16_t player_idx, s_ship_design* design, int16_t* weapon_slot_idx, int32_t available_space) {
+    int32_t __cdecl Add_Fighters_To_Design(const game_world::s_view* world, int16_t player_idx, s_ship_design* design, int16_t* weapon_slot_idx, int32_t available_space) {
         int16_t weapon_type;
         int space_per_weapon;
         int16_t total_fighters = 0;
@@ -1012,19 +1010,18 @@ namespace aidesign {
         return total_space_used;
     }
 
-    void __cdecl Determine_Bomb_Weapon(const AIDATA::s_world_view* world, int16_t player_idx, int16_t* out_weapon_idx) {
-        const auto& technology = world->rules.technology;
+    void __cdecl Determine_Bomb_Weapon(const game_world::s_view* world, int16_t player_idx, int16_t* out_weapon_idx) {
         int16_t candidates[DESIGN_WEAPON_CODE_COUNT];
         int16_t scores[DESIGN_WEAPON_CODE_COUNT];
         int num_candidates = 0;
 
         for (int i = 1; i <= WEAPON_TRACTOR_BEAM; ++i) {
-            if (technology.weapons[i].type == WEAPON_TYPE_BOMB && (technology.weapons[i].natural_mods & WEAPON_NATURAL_FLAG_BIOLOGICAL) == 0) {
-                int16_t tech_app_id = technology.weapons[i].tech_app_id;
+            if (TECHDATA::weapons[i].type == WEAPON_TYPE_BOMB && (TECHDATA::weapons[i].natural_mods & WEAPON_NATURAL_FLAG_BIOLOGICAL) == 0) {
+                int16_t tech_app_id = TECHDATA::weapons[i].tech_app_id;
                 if (world->players[player_idx].tech_applications[tech_app_id] == TECH_RESEARCH_STATUS_RESEARCHED) {
                     candidates[num_candidates] = i;
-                    int16_t field_id = technology.applications[tech_app_id].tech_field_id;
-                    scores[num_candidates] = technology.fields[field_id].ai_group;
+                    int16_t field_id = TECHDATA::technology_applications[tech_app_id].tech_field_id;
+                    scores[num_candidates] = TECHDATA::technology_fields[field_id].ai_group;
                     num_candidates++;
                 }
             }
@@ -1052,13 +1049,13 @@ namespace aidesign {
             }
         } while (swapped);
 
-        uint16_t miniaturization_tech_value = Get_Competition_Player_Tech_Values(&world->rules.technology, &world->players[0], 0x21 /* AI_GROUP_MINIATURIZATION */);
-        uint16_t force_field_tech_value = Get_Competition_Player_Tech_Values(&world->rules.technology, &world->players[0], 10 /* AI_GROUP_FORCE_FIELDS */);
+        uint16_t miniaturization_tech_value = Get_Competition_Player_Tech_Values(&world->players[0], 0x21 /* AI_GROUP_MINIATURIZATION */);
+        uint16_t force_field_tech_value = Get_Competition_Player_Tech_Values(&world->players[0], 10 /* AI_GROUP_FORCE_FIELDS */);
         int threshold = (miniaturization_tech_value * 2 + 2) / 3 + force_field_tech_value;
 
         int i = 0;
         for (; i < num_candidates; ++i) {
-            int16_t tech_app_id = technology.weapons[candidates[i]].tech_app_id;
+            int16_t tech_app_id = TECHDATA::weapons[candidates[i]].tech_app_id;
             int16_t min_lvl = DESIGN::Miniaturization_Level(player_idx, tech_app_id);
             if (min_lvl > 5) min_lvl = 5;
 
@@ -1074,7 +1071,7 @@ namespace aidesign {
         }
     }
 
-    int32_t __cdecl Add_Bomb_Weapon_To_Design(const AIDATA::s_world_view* world, int16_t player_idx, s_ship_design* design, int16_t* weapon_slot_idx, int32_t space_available) {
+    int32_t __cdecl Add_Bomb_Weapon_To_Design(const game_world::s_view* world, int16_t player_idx, s_ship_design* design, int16_t* weapon_slot_idx, int32_t space_available) {
         int16_t bomb_type = 0;
         int16_t total_bombs_added = 0;
 
@@ -1129,28 +1126,27 @@ namespace aidesign {
     }
 
     void __cdecl Determine_Missile_Weapon_Modifications(
-        const AIDATA::s_world_view* world,
+        const game_world::s_view* world,
         int16_t player_idx,
         uint16_t* out_weapon_id,
         uint16_t* out_weapon_mods,
         int16_t weapon_count_table_idx,
         int32_t available_space,
         int16_t* out_weapon_count) {
-        const auto& technology = world->rules.technology;
         uint16_t sort_keys[DESIGN_WEAPON_CODE_COUNT];
         uint16_t weapon_indices[DESIGN_WEAPON_CODE_COUNT];
         uint16_t weapon_mods[DESIGN_WEAPON_CODE_COUNT];
         int16_t count = 0;
 
         for (int16_t i = 1; i <= WEAPON_TRACTOR_BEAM; ++i) {
-            uint8_t type = technology.weapons[i].type;
+            uint8_t type = TECHDATA::weapons[i].type;
             if (type == WEAPON_TYPE_MISSILE || type == WEAPON_TYPE_TORPEDO) {
-                uint16_t tech_app_id = technology.weapons[i].tech_app_id;
+                uint16_t tech_app_id = TECHDATA::weapons[i].tech_app_id;
                 if (world->players[player_idx].tech_applications[tech_app_id] == TECH_RESEARCH_STATUS_RESEARCHED) {
                     weapon_indices[count] = i;
                     weapon_mods[count] = 0;
-                    int16_t tech_field_id = technology.applications[tech_app_id].tech_field_id;
-                    sort_keys[count] = (uint16_t)technology.fields[tech_field_id].ai_group;
+                    int16_t tech_field_id = TECHDATA::technology_applications[tech_app_id].tech_field_id;
+                    sort_keys[count] = (uint16_t)TECHDATA::technology_fields[tech_field_id].ai_group;
                     count++;
                 }
             }
@@ -1188,18 +1184,18 @@ namespace aidesign {
             competitor_idx++;
         }
 
-        int16_t max_shield = AIPOWER::Get_Best_Ship_Shield_Value(technology.shields, competitor_idx);
-        int16_t comp_tech = (int16_t)Get_Competition_Player_Tech_Values(&world->rules.technology, &world->players[0], 0x1C);
+        int16_t max_shield = AIPOWER::Get_Best_Ship_Shield_Value(TECHDATA::shields, competitor_idx);
+        int16_t comp_tech = (int16_t)Get_Competition_Player_Tech_Values(&world->players[0], 0x1C);
 
         if (count > 0) {
             for (int16_t i = 0; i < count; ++i) {
                 uint16_t w_idx = weapon_indices[i];
-                if (technology.weapons[w_idx].max_damage < max_shield + 4) {
+                if (TECHDATA::weapons[w_idx].max_damage < max_shield + 4) {
                     weapon_indices[i] = 0;
                     sort_keys[i] = 0;
                     out_weapon_mods[i] = 0;
                 } else {
-                    int16_t mini_level = DESIGN::Miniaturization_Level(player_idx, technology.weapons[w_idx].tech_app_id);
+                    int16_t mini_level = DESIGN::Miniaturization_Level(player_idx, TECHDATA::weapons[w_idx].tech_app_id);
                     if (mini_level > 5) {
                         mini_level = 5;
                     }
@@ -1221,7 +1217,7 @@ namespace aidesign {
                         }
                     }
 
-                    weapon_mods[i] &= technology.weapons[w_idx].available_mods;
+                    weapon_mods[i] &= TECHDATA::weapons[w_idx].available_mods;
                 }
             }
         }
@@ -1244,7 +1240,7 @@ namespace aidesign {
                     uint16_t w_idx = weapon_indices[i];
                     if (w_idx != 0) {
                         int32_t space = DESIGN::Weapon_Space(player_idx, w_idx, 1, WEAPON_FIRING_ARC_FORWARD, 5, 0);
-                        int32_t score = (((int32_t)technology.weapons[w_idx].max_damage - max_shield) * 10) / space;
+                        int32_t score = (((int32_t)TECHDATA::weapons[w_idx].max_damage - max_shield) * 10) / space;
                         if (best_score < score) {
                             best_index = i;
                             best_score = score;
@@ -1263,7 +1259,7 @@ namespace aidesign {
         int32_t fitting_weapon_count = available_space / space;
 
         if (fitting_weapon_count < minimum_weapon_count ||
-            (*world->rules.engine_design.missile_x3_shot != 0 && fitting_weapon_count == minimum_weapon_count)) {
+            (DESIGN::missile_x3_shot != 0 && fitting_weapon_count == minimum_weapon_count)) {
             if (*out_weapon_count > 5) {
                 *out_weapon_count = 5;
             }
@@ -1298,7 +1294,7 @@ namespace aidesign {
         }
     }
 
-    int32_t __cdecl Add_Missile_Weapon_To_Design(const AIDATA::s_world_view* world, int16_t player_idx, s_ship_design* design, int16_t* weapon_index_ptr, int32_t space_limit, int16_t ammo) {
+    int32_t __cdecl Add_Missile_Weapon_To_Design(const game_world::s_view* world, int16_t player_idx, s_ship_design* design, int16_t* weapon_index_ptr, int32_t space_limit, int16_t ammo) {
         uint16_t weapon_type = 0;
         uint16_t specials = 0;
         int16_t total_missiles_added = 0;
@@ -1360,9 +1356,8 @@ namespace aidesign {
         return final_space_coeff * total_missiles_added;
     }
 
-    void __cdecl Auto_Design_Ship(const AIDATA::s_world_view* world, int16_t player_idx, s_ship_design* design, int16_t hull_idx) {
-        const auto& technology = world->rules.technology;
-        const auto& design_rules = *world->rules.design;
+    void __cdecl Auto_Design_Ship(const game_world::s_view* world, int16_t player_idx, s_ship_design* design, int16_t hull_idx) {
+        const auto& design_rules = rules;
         const auto& priorities = design_rules.priorities;
         int16_t ship_class;
         int32_t remaining_space;
@@ -1409,13 +1404,13 @@ namespace aidesign {
         design->computer_type = (int8_t)INITSHIP::Best_Computer(player_idx);
         design->armor_type = (int8_t)INITSHIP::Best_Armor(player_idx);
 
-        remaining_space = technology.hulls[hull_idx].size;
+        remaining_space = TECHDATA::hull_data[hull_idx].size;
         if (player->tech_applications[TECH_APP_MEGAFLUXERS] == TECH_RESEARCH_STATUS_RESEARCHED) {
             remaining_space = DESIGN::Apply_Megafluxers_Tactical_Bonus(remaining_space);
         }
 
         if (player->tech_applications[TECH_APP_BATTLE_PODS] == TECH_RESEARCH_STATUS_RESEARCHED) {
-            remaining_space -= (int16_t)technology.specials[SPECIAL_BATTLE_PODS].space_per_ship_type[hull_idx];
+            remaining_space -= (int16_t)TECHDATA::specials[SPECIAL_BATTLE_PODS].space_per_ship_type[hull_idx];
             struct_::Set_Bit_Field(design->special_device_flags, SPECIAL_BATTLE_PODS);
         }
 
@@ -1434,7 +1429,7 @@ namespace aidesign {
                 }
                 if (table->defense_special != -1) {
                     current_budget += (remaining_space * table->defense_special) / 100;
-                    const s_spcl* def_tbl = Best_Weapons_Are_Beams(&technology, &world->players[0]) ? priorities.defense_priority.human_beams : priorities.defense_priority.human_non_beams;
+                    const s_spcl* def_tbl = Best_Weapons_Are_Beams(&world->players[0]) ? priorities.defense_priority.human_beams : priorities.defense_priority.human_non_beams;
                     current_budget -= Add_Specials_To_Design(world, def_tbl, 19, player_idx, design, current_budget, &weapon_slot_idx);
                 }
                 if (table->fighters != -1) {
@@ -1458,7 +1453,7 @@ namespace aidesign {
                 }
                 if (table->defense_special != -1) {
                     current_budget += (remaining_space * table->defense_special) / 100;
-                    const s_spcl* def_tbl = Best_Weapons_Are_Beams(&technology, &world->players[0]) ? priorities.defense_priority.human_beams : priorities.defense_priority.human_non_beams;
+                    const s_spcl* def_tbl = Best_Weapons_Are_Beams(&world->players[0]) ? priorities.defense_priority.human_beams : priorities.defense_priority.human_non_beams;
                     current_budget -= Add_Specials_To_Design(world, def_tbl, 19, player_idx, design, current_budget, &weapon_slot_idx);
                 }
                 if (table->missile_weapon != -1) {
@@ -1482,7 +1477,7 @@ namespace aidesign {
                 }
                 if (table->defense_special != -1) {
                     current_budget += (remaining_space * table->defense_special) / 100;
-                    const s_spcl* def_tbl = Best_Weapons_Are_Beams(&technology, &world->players[0]) ? priorities.defense_priority.human_beams : priorities.defense_priority.human_non_beams;
+                    const s_spcl* def_tbl = Best_Weapons_Are_Beams(&world->players[0]) ? priorities.defense_priority.human_beams : priorities.defense_priority.human_non_beams;
                     current_budget -= Add_Specials_To_Design(world, def_tbl, 19, player_idx, design, current_budget, &weapon_slot_idx);
                 }
                 if (table->missile_special != -1) {
@@ -1510,7 +1505,7 @@ namespace aidesign {
                 }
                 if (table->defense_special != -1) {
                     current_budget += (remaining_space * table->defense_special) / 100;
-                    const s_spcl* def_tbl = Best_Weapons_Are_Beams(&technology, &world->players[0]) ? priorities.defense_priority.human_beams : priorities.defense_priority.human_non_beams;
+                    const s_spcl* def_tbl = Best_Weapons_Are_Beams(&world->players[0]) ? priorities.defense_priority.human_beams : priorities.defense_priority.human_non_beams;
                     current_budget -= Add_Specials_To_Design(world, def_tbl, 19, player_idx, design, current_budget, &weapon_slot_idx);
                 }
                 if (table->fighters != -1) {
@@ -1538,7 +1533,7 @@ namespace aidesign {
                 }
                 if (table->defense_special != -1) {
                     current_budget += (remaining_space * table->defense_special) / 100;
-                    const s_spcl* def_tbl = Best_Weapons_Are_Beams(&technology, &world->players[0]) ? priorities.defense_priority.human_beams : priorities.defense_priority.human_non_beams;
+                    const s_spcl* def_tbl = Best_Weapons_Are_Beams(&world->players[0]) ? priorities.defense_priority.human_beams : priorities.defense_priority.human_non_beams;
                     current_budget -= Add_Specials_To_Design(world, def_tbl, 19, player_idx, design, current_budget, &weapon_slot_idx);
                 }
                 if (table->heavy_beams != -1) {
@@ -1558,7 +1553,7 @@ namespace aidesign {
                 }
                 if (table->defense_special != -1) {
                     current_budget += (remaining_space * table->defense_special) / 100;
-                    const s_spcl* def_tbl = Best_Weapons_Are_Beams(&technology, &world->players[0]) ? priorities.defense_priority.human_beams : priorities.defense_priority.human_non_beams;
+                    const s_spcl* def_tbl = Best_Weapons_Are_Beams(&world->players[0]) ? priorities.defense_priority.human_beams : priorities.defense_priority.human_non_beams;
                     current_budget -= Add_Specials_To_Design(world, def_tbl, 19, player_idx, design, current_budget, &weapon_slot_idx);
                 }
                 if (table->special_weapon != -1) {
@@ -1584,7 +1579,7 @@ namespace aidesign {
                     struct_::Set_Bit_Field(design->special_device_flags, SPECIAL_EXTENDED_FUEL_TANKS);
                     int8_t cat = DESIGN::Miniaturization_Category(TECH_APP_EXTENDED_FUEL_TANKS);
                     int16_t m_level = DESIGN::Miniaturization_Level(player_idx, TECH_APP_EXTENDED_FUEL_TANKS);
-                    int16_t fuel_tank_base_space = (int16_t)technology.specials[SPECIAL_EXTENDED_FUEL_TANKS].space_per_ship_type[hull_idx];
+                    int16_t fuel_tank_base_space = (int16_t)TECHDATA::specials[SPECIAL_EXTENDED_FUEL_TANKS].space_per_ship_type[hull_idx];
                     remaining_space -= DESIGN::Space_Given_M_Level(fuel_tank_base_space, m_level, cat);
                 }
                 /* fallthrough */
@@ -1595,7 +1590,7 @@ namespace aidesign {
                 }
                 if (table->defense_special != -1) {
                     current_budget += (remaining_space * table->defense_special) / 100;
-                    const s_spcl* def_tbl = Best_Weapons_Are_Beams(&technology, &world->players[0]) ? priorities.defense_priority.human_beams : priorities.defense_priority.human_non_beams;
+                    const s_spcl* def_tbl = Best_Weapons_Are_Beams(&world->players[0]) ? priorities.defense_priority.human_beams : priorities.defense_priority.human_non_beams;
                     current_budget -= Add_Specials_To_Design(world, def_tbl, 19, player_idx, design, current_budget, &weapon_slot_idx);
                 }
                 if (table->beam_special != -1) {
@@ -1632,7 +1627,7 @@ namespace aidesign {
         int16_t bit = 0;
 
         while (bit < 39 && result == 1) {
-            if (struct_::Test_Bit_Field(design->special_device_flags, bit)) {
+            if (struct_::Read_Bit_Field(design->special_device_flags, bit)) {
                 for (int i = 0; i < 6; ++i) {
                     if (specials[bit].exclude[i] == tech_id) {
                         result = 0;

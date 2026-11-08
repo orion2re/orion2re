@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "fleet_movement.h"
 
 #include "ai_legacy.h"
 
@@ -45,7 +46,7 @@ namespace AIDATA {
         return current_owner;
     }
 
-    bool __cdecl Star_In_Range_Of_Given_Star(const s_world_view* world, int16_t target_star_idx, int16_t source_star_idx, int32_t max_range_parsecs) {
+    bool __cdecl Star_In_Range_Of_Given_Star(const game_world::s_view* world, int16_t target_star_idx, int16_t source_star_idx, int32_t max_range_parsecs) {
         bool in_range = false;
 
         int32_t distance = GEO::Parsecs_Between_Stars(source_star_idx, target_star_idx);
@@ -64,7 +65,7 @@ namespace AIDATA {
         return in_range;
     }
 
-    int32_t __cdecl Refit_Desirability(const s_technology_view* technology, const s_player* owner, const s_technology_assessment* ai_tech, const s_ship_data* ship) {
+    int32_t __cdecl Refit_Desirability(const s_player* owner, const s_technology_assessment* ai_tech, const s_ship_data* ship) {
         int32_t desirability = 0;
 
         if ((int8_t)ship->d.previous_owner != (int8_t)ship->owner) {
@@ -89,11 +90,11 @@ namespace AIDATA {
         for (int i = 0; i < 8; ++i) {
             int weapon_type = (int)ship->d.ship_weapon[i].type;
             if (weapon_type != WEAPON_NO_WEAPONS) {
-                uint16_t app_id = technology->weapons[weapon_type].tech_app_id;
-                uint16_t field_id = technology->applications[app_id].tech_field_id;
-                uint8_t normalized_cost = (uint8_t)(technology->fields[field_id].cost / 100);
+                uint16_t app_id = TECHDATA::weapons[weapon_type].tech_app_id;
+                uint16_t field_id = TECHDATA::technology_applications[app_id].tech_field_id;
+                uint8_t normalized_cost = (uint8_t)(TECHDATA::technology_fields[field_id].cost / 100);
 
-                int8_t weapon_type_class = technology->weapons[weapon_type].type;
+                int8_t weapon_type_class = TECHDATA::weapons[weapon_type].type;
                 if (weapon_type_class == WEAPON_TYPE_BEAM) {
                     if (normalized_cost > best_beam_cost) {
                         best_beam_cost = normalized_cost;
@@ -126,8 +127,7 @@ namespace AIDATA {
         return desirability;
     }
 
-    void Compute_AI_Data(s_state* ai) {
-        const auto* world = &ai->world;
+    void Compute_AI_Data(s_state* ai, const game_world::s_view* world) {
         RUSS::Assert_Settings();
         Begin_Turn(ai, world->Stardate());
 
@@ -282,7 +282,7 @@ namespace AIDATA {
                     s_ship_move_info out_info;
                     for (int16_t s = 0; s < world->Star_Count(); ++s) {
                         if ((ai->stars[s].in_extended_range & mask) && s != dest_star) {
-                            world->movement.Try_Move(move_info, s, &out_info);
+                            SHIPMOVE::Evaluate_Fleet_Move(move_info, s, &out_info);
                             auto turns = AI_LEGACY::Travel_Turns(out_info.turns_left);
                             if (turns) ai->routes.ship_direct.Store(i, s, 0, (uint8_t)*turns);
                             RUSS::Mox_Update();
@@ -349,7 +349,7 @@ namespace AIDATA {
             }
         }
 
-        Compute_Star_Player_Range_Info(ai);
+        Compute_Star_Player_Range_Info(ai, world);
 
         RUSS::Mox_Update();
         for (int p1 = 0; p1 < world->Player_Count(); ++p1) {
@@ -408,11 +408,11 @@ namespace AIDATA {
         }
 
         RUSS::Mox_Update();
-        Compute_Base_Planet_Values(ai);
+        Compute_Base_Planet_Values(ai, world);
         RUSS::Mox_Update();
-        Compute_Contextual_Planet_Values(ai);
+        Compute_Contextual_Planet_Values(ai, world);
         RUSS::Mox_Update();
-        ::aitech::Compute_AI_Tech_Info(ai);
+        ::aitech::Compute_AI_Tech_Info(ai, world);
         RUSS::Mox_Update();
 
         for (int16_t i = 0; i < world->Ship_Count(); ++i) {
@@ -421,7 +421,7 @@ namespace AIDATA {
                 ai->combat_ships.push_back(i);
                 if (ship->status == 0) {
                     RUSS::Mox_Update();
-                    int32_t d = Refit_Desirability(&world->rules.technology, &world->players[ship->owner], &ai->players[ship->owner].technology, ship);
+                    int32_t d = Refit_Desirability(&world->players[ship->owner], &ai->players[ship->owner].technology, ship);
                     ai->ships[i].refit_desirability = d;
                     if (d != 0) {
                         ai->players[ship->owner].refits.push_back({(uint32_t)i, d});
@@ -440,7 +440,7 @@ namespace AIDATA {
         qsort(ai->combat_ships.data(), ai->combat_ships.size(), sizeof(uint32_t), sort_ships, world->ships);
 
         for (uint32_t i = 0; i < ai->combat_ships.size(); ++i) {
-            int16_t ship_idx = ai->combat_ships[i];
+            uint32_t ship_idx = ai->combat_ships[i];
             int16_t loc = world->ships[ship_idx].location;
             int owner = world->ships[ship_idx].owner;
             if (loc < MAX_STARS) {
@@ -457,10 +457,10 @@ namespace AIDATA {
         RUSS::Mox_Update();
 
         s_route_search_lookup direct_lookup;
-        direct_lookup.Prepare(ai);
+        direct_lookup.Prepare(ai, world->Star_Count(), world->Player_Count());
 
         for (uint32_t i_as = 0; i_as < ai->combat_ships.size(); ++i_as) {
-            int16_t i = ai->combat_ships[i_as];
+            uint32_t i = ai->combat_ships[i_as];
             int8_t stealth = (int8_t)struct_::Test_Bit_Field(world->ships[i].d.special_device_flags, 11);
             int16_t start_star = world->ships[i].location;
             int owner = world->ships[i].owner;
@@ -486,7 +486,7 @@ namespace AIDATA {
                     for (int16_t s = 0; s < world->Star_Count(); ++s) {
                         auto& star_assessment = direct_lookup.Find_Star(ai, s);
                         if (((star_assessment.in_extended_range >> p) & 1) || s == start_star) {
-                            auto route = Player_N_Turns_From_Star_To_Star_With_Intermediate(ai, owner, start_star, s, stealth, &direct_lookup);
+                            auto route = Player_N_Turns_From_Star_To_Star_With_Intermediate(ai, world, owner, start_star, s, stealth, &direct_lookup);
                             if (route) {
                                 int eta = initial_delay + route->turns;
                                 if (eta < FORECAST_TURN_COUNT) {
@@ -564,7 +564,7 @@ namespace AIDATA {
                                 for (int16_t other_s = 0; other_s < world->Star_Count(); ++other_s) {
                                     int32_t str = direct_lookup.Find_Star(ai, other_s).possible_strengths[p_v][p_o][0];
                                     if (str != 0) {
-                                        auto route = Player_N_Turns_From_Star_To_Star_With_Intermediate(ai, p_v, other_s, s, true, &direct_lookup);
+                                        auto route = Player_N_Turns_From_Star_To_Star_With_Intermediate(ai, world, p_v, other_s, s, true, &direct_lookup);
                                         if (route && route->turns < max_eta) {
                                             threat_sum += str / (route->turns + 1);
                                         }
@@ -575,7 +575,7 @@ namespace AIDATA {
 
                         for (int16_t pl = 0; pl < world->Planet_Count(); ++pl) {
                             if (pl != best_planet_at_star[s][p_o]) {
-                                auto route = Player_N_Turns_From_Star_To_Star_With_Intermediate(ai, p_o, s, world->planets[pl].star_index, false, &direct_lookup);
+                                auto route = Player_N_Turns_From_Star_To_Star_With_Intermediate(ai, world, p_o, s, world->planets[pl].star_index, false, &direct_lookup);
                                 if (route && route->turns < 3) {
                                     RUSS::Mox_Update();
                                     value_sum += ai->planets[pl].stage_weights[p_o];
@@ -592,7 +592,7 @@ namespace AIDATA {
 
         RUSS::Mox_Update();
         for (int p = 0; p < world->Player_Count(); ++p) {
-            AISTAGE::Compute_Defensive_Stage_Points(ai, (int16_t)p);
+            AISTAGE::Compute_Defensive_Stage_Points(ai, world, (int16_t)p);
         }
 
         for (int p = 0; p < world->Player_Count(); ++p) {
@@ -617,8 +617,7 @@ namespace AIDATA {
         }
     }
 
-    void __cdecl Compute_Star_Player_Range_Info(s_state* ai) {
-        const auto* world = &ai->world;
+    void __cdecl Compute_Star_Player_Range_Info(s_state* ai, const game_world::s_view* world) {
         if (world->Star_Count() <= 0) {
             return;
         }
@@ -685,7 +684,7 @@ namespace AIDATA {
         }
     }
 
-    void __cdecl Find_Players_In_Range(const s_world_view* world, int16_t star_idx, int8_t* in_normal_range_out, int8_t* in_extended_range_out) {
+    void __cdecl Find_Players_In_Range(const game_world::s_view* world, int16_t star_idx, int8_t* in_normal_range_out, int8_t* in_extended_range_out) {
         auto& target_star = world->stars[star_idx];
         int32_t target_x = target_star.x;
         int32_t target_y = target_star.y;
@@ -785,8 +784,7 @@ namespace AIDATA {
         return 0;
     }
 
-    void __cdecl Compute_Base_Planet_Values(s_state* ai) {
-        const auto* world = &ai->world;
+    void __cdecl Compute_Base_Planet_Values(s_state* ai, const game_world::s_view* world) {
         for (auto& [id, planet] : ai->planets) {
             std::fill(std::begin(planet.base_values), std::end(planet.base_values), 0);
         }
@@ -810,7 +808,7 @@ namespace AIDATA {
                     if (col_idx == -1) {
                         value = AIDATA::Uncolonized_Planet_Worth_To_Player(world, planet, &world->players[player_idx]);
                     } else {
-                        value = Colony_Worth_To_Player(ai, &world->colonies[col_idx], &world->players[player_idx]);
+                        value = Colony_Worth_To_Player(ai, world, &world->colonies[col_idx], &world->players[player_idx]);
                     }
 
                     ai->planets[planet_idx].base_values[player_idx] = value;
@@ -823,8 +821,7 @@ namespace AIDATA {
      * Computes the "contextual" value of planets for each player, adjusting the base
      * values based on ownership of other planets in the same star system.
      */
-    void __cdecl Compute_Contextual_Planet_Values(s_state* ai) {
-        const auto* world = &ai->world;
+    void __cdecl Compute_Contextual_Planet_Values(s_state* ai, const game_world::s_view* world) {
         for (auto& [id, planet] : ai->planets) {
             std::fill(std::begin(planet.contextual_values), std::end(planet.contextual_values), 0);
         }
@@ -907,8 +904,7 @@ namespace AIDATA {
      * This logic accounts for difficulty settings, alien management centers,
      * and strategic range to existing colonies.
      */
-    int16_t __cdecl Proximity_Worth_To_Player(s_state* ai, s_colony* colony, s_player* evaluating_player) {
-        const auto* world = &ai->world;
+    int16_t __cdecl Proximity_Worth_To_Player(s_state* ai, const game_world::s_view* world, s_colony* colony, s_player* evaluating_player) {
         if (world->settings->game_difficulty == GAME_DIFFICULTY_TUTOR) {
             return 0;
         }
@@ -968,8 +964,7 @@ namespace AIDATA {
     constexpr uint16_t MAX_CACHED_TRAVEL_TURNS = 254;
 
     std::optional<s_route> Player_N_Turns_From_Star_To_Star_With_Intermediate(
-        s_state* ai, uint32_t player_id, uint32_t source_star, uint32_t destination_star, bool use_extended_range, const s_route_search_lookup* lookup) {
-        const auto* world = &ai->world;
+        s_state* ai, const game_world::s_view* world, uint32_t player_id, uint32_t source_star, uint32_t destination_star, bool use_extended_range, const s_route_search_lookup* lookup) {
         const s_route_key key{player_id, source_star, destination_star};
         auto cached = ai->routes.intermediate.find(key);
         if (cached != ai->routes.intermediate.end()) {
@@ -1051,8 +1046,7 @@ namespace AIDATA {
         return use_extended_range ? choices.extended : choices.normal;
     }
 
-    std::optional<s_route> Ship_N_Turns_To_Star_With_Intermediate(s_state* ai, uint32_t ship_id, uint32_t destination_star) {
-        const auto* world = &ai->world;
+    std::optional<s_route> Ship_N_Turns_To_Star_With_Intermediate(s_state* ai, const game_world::s_view* world, uint32_t ship_id, uint32_t destination_star) {
         const uint64_t key = Ship_Route_Key(ship_id, destination_star);
         auto cached = ai->routes.ship_intermediate.find(key);
         if (cached != ai->routes.ship_intermediate.end()) return cached->second;
@@ -1094,15 +1088,14 @@ namespace AIDATA {
                     : location);
             if (source) {
                 result = Player_N_Turns_From_Star_To_Star_With_Intermediate(
-                    ai, ship->owner, *source, destination_star, has_stargate);
+                    ai, world, ship->owner, *source, destination_star, has_stargate);
             }
         }
         ai->routes.ship_intermediate.emplace(key, result);
         return result;
     }
 
-    int16_t __cdecl Colony_Worth_To_Player(s_state* ai, s_colony* colony, s_player* evaluating_player) {
-        const auto* world = &ai->world;
+    int16_t __cdecl Colony_Worth_To_Player(s_state* ai, const game_world::s_view* world, s_colony* colony, s_player* evaluating_player) {
         int16_t evaluating_player_idx = (int16_t)(evaluating_player - world->players);
         s_planet_data* planet = &world->planets[colony->planet];
         int16_t colony_idx = (int16_t)(colony - world->colonies);
@@ -1115,7 +1108,7 @@ namespace AIDATA {
         int avg_max_pop = (avg_sum - (avg_sum >> 31)) >> 1;
 
         if (colony->outpost_flag != 0) {
-            return AIDATA::Proximity_Worth_To_Player(ai, colony, evaluating_player);
+            return AIDATA::Proximity_Worth_To_Player(ai, world, colony, evaluating_player);
         }
 
         int food_base = COLCALC::Colony_Empire_Base_Food2_Produced(colony, evaluating_player_idx, colony_race, nullptr);
@@ -1133,7 +1126,7 @@ namespace AIDATA {
         }
 
         int growth_trait = evaluating_player->traits[TRAIT_POP_GROWTH_BONUS];
-        const auto& growth_options = world->rules.colony.race_picks->primary[raceopt::PRIMARY_PICK_GROWTH];
+        const auto& growth_options = raceopt::pick_rules.primary[raceopt::PRIMARY_PICK_GROWTH];
         int growth_mult;
         if (growth_trait == growth_options[raceopt::PRIMARY_CHOICE_PENALTY].value) {
             growth_mult = (colony->n_pops * 19 + avg_max_pop) * 5;
@@ -1152,7 +1145,7 @@ namespace AIDATA {
 
         bool is_swamp_or_ocean = (planet->climate == PLANET_CLIMATE_OCEAN || planet->climate == PLANET_CLIMATE_SWAMP);
         if (!is_swamp_or_ocean || race_player->traits[TRAIT_AQUATIC] == 0) {
-            int climate_modifier = world->rules.colony.climate_maintenance_modifiers[(int)planet->climate] >> 2;
+            int climate_modifier = COLCALC::climate_maintenance_modifiers[(int)planet->climate] >> 2;
             worth = worth * (100 - climate_modifier) / 100;
 
             if (is_swamp_or_ocean) {
@@ -1200,7 +1193,7 @@ namespace AIDATA {
         int final_worth = (worth + ((uint32_t)worth >> 31 & 0x3F)) >> 6;
 
         if (world->settings->game_difficulty >= GAME_DIFFICULTY_AVERAGE) {
-            int16_t proximity_worth = AIDATA::Proximity_Worth_To_Player(ai, colony, evaluating_player);
+            int16_t proximity_worth = AIDATA::Proximity_Worth_To_Player(ai, world, colony, evaluating_player);
             final_worth += (proximity_worth + ((uint32_t)proximity_worth >> 31 & 7)) >> 3;
             if (final_worth < proximity_worth) {
                 final_worth = proximity_worth;
@@ -1214,7 +1207,7 @@ namespace AIDATA {
         return (int16_t)final_worth;
     }
 
-    int32_t __cdecl Uncolonized_Planet_Worth_To_Player(const s_world_view* world, s_planet_data* planet, s_player* evaluating_player) {
+    int32_t __cdecl Uncolonized_Planet_Worth_To_Player(const game_world::s_view* world, s_planet_data* planet, s_player* evaluating_player) {
         int64_t worth = 0;
 
         if (planet->planet_type == PLANET_TYPE_PLANET) {
@@ -1225,14 +1218,14 @@ namespace AIDATA {
 
             int64_t total_pop_sum = max_pop + size_bonus;
             if (evaluating_player->tech_applications[TECH_APP_ADVANCED_CITY_PLANNING] == TECH_RESEARCH_STATUS_RESEARCHED) {
-                total_pop_sum += world->rules.colony.population_bonus->advanced_city_planning;
+                total_pop_sum += COLCALC::population_bonus.advanced_city_planning;
             }
 
-            uint8_t mineral_bonus = world->rules.colony.minerals_per_mine[planet->mineral_class];
+            uint8_t mineral_bonus = COLCALC::minerals_per_mine[planet->mineral_class];
             int64_t scaled_pop = (mineral_bonus + 1) * total_pop_sum / 3;
 
             int8_t pop_growth_bonus = evaluating_player->traits[TRAIT_POP_GROWTH_BONUS];
-            const auto& growth_options = world->rules.colony.race_picks->primary[raceopt::PRIMARY_PICK_GROWTH];
+            const auto& growth_options = raceopt::pick_rules.primary[raceopt::PRIMARY_PICK_GROWTH];
             if (pop_growth_bonus == growth_options[raceopt::PRIMARY_CHOICE_PENALTY].value) {
                 worth = 80 * mineral_bonus + scaled_pop;
             } else if (pop_growth_bonus == 0) {
@@ -1247,22 +1240,22 @@ namespace AIDATA {
             bool has_grav_gen_tech = (evaluating_player->tech_applications[TECH_APP_PLANETARY_GRAVITY_GENERATOR] == TECH_RESEARCH_STATUS_RESEARCHED);
             if (evaluating_player->tech_applications[TECH_APP_BIOMORPHIC_FUNGI] == TECH_RESEARCH_STATUS_RESEARCHED &&
                 COLCALC::Biomorphic_Fungi_Applies((int16_t)food_per_farmer)) {
-                food_per_farmer += world->rules.colony.food_farmer_bonus->biomorphic_fungi;
+                food_per_farmer += COLCALC::food_farmer_bonus.biomorphic_fungi;
             }
 
             if (evaluating_player->traits[TRAIT_EATS_MINERALS] == 0) {
                 if (evaluating_player->traits[TRAIT_CYBERNETIC] == 0) {
-                    worth += food_per_farmer * world->rules.valuation->food.biological;
+                    worth += food_per_farmer * planet_valuation_rules.food.biological;
                 } else {
-                    worth += food_per_farmer * world->rules.valuation->food.cybernetic;
+                    worth += food_per_farmer * planet_valuation_rules.food.cybernetic;
                 }
             }
 
             switch (planet->planet_special) {
-                case SYSTEM_SPECIAL_GOLD_DEPOSITS: worth += world->rules.valuation->special.gold_deposits; break;
-                case SYSTEM_SPECIAL_GEM_DEPOSITS: worth += world->rules.valuation->special.gem_deposits; break;
-                case SYSTEM_SPECIAL_ANCIENT_ARTIFACTS: worth += world->rules.valuation->special.ancient_artifacts; break;
-                case SYSTEM_SPECIAL_ORION_STAR: worth += world->rules.valuation->special.orion; break;
+                case SYSTEM_SPECIAL_GOLD_DEPOSITS: worth += planet_valuation_rules.special.gold_deposits; break;
+                case SYSTEM_SPECIAL_GEM_DEPOSITS: worth += planet_valuation_rules.special.gem_deposits; break;
+                case SYSTEM_SPECIAL_ANCIENT_ARTIFACTS: worth += planet_valuation_rules.special.ancient_artifacts; break;
+                case SYSTEM_SPECIAL_ORION_STAR: worth += planet_valuation_rules.special.orion; break;
                 default: break;
             }
 
@@ -1272,7 +1265,7 @@ namespace AIDATA {
             bool is_aquatic = (evaluating_player->traits[TRAIT_AQUATIC] != 0);
 
             if (!is_swamp_ocean || !is_aquatic) {
-                int64_t maintenance_reduction = world->rules.colony.climate_maintenance_modifiers[planet->climate] >> 2;
+                int64_t maintenance_reduction = COLCALC::climate_maintenance_modifiers[planet->climate] >> 2;
                 worth = worth * (100 - maintenance_reduction) / 100;
                 if (is_swamp_ocean) {
                     worth = (worth * 3) / 4;

@@ -137,7 +137,7 @@ namespace AI_SNOOPS_DEBUG {
             const AIDATA::s_fleet_composition& ships = needs->ship_sizes;
             if (ImGui::BeginTable("build_needs", 2,
                     ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerV)) {
-                Stat_("War level", AIBUILD::Player_War_Level(&AIDATA::state.world, (int16_t)player));
+                Stat_("War level", AIBUILD::Player_War_Level(&game_world::current, (int16_t)player));
                 Stat_("Combat ships", ships.combat_ship_count);
                 Stat_("Weighted ship size", ships.weighted_ship_size);
                 Stat_("Target ship size", ships.target_ship_size);

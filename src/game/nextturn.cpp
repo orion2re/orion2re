@@ -19,19 +19,20 @@ namespace NEXTTURN {
         }
 
         AIDATA::s_state* ai = &AIDATA::state;
-        ai->world = AI_LEGACY::World();
-        AIDATA::Compute_AI_Data(ai);
+        game_world::current = AI_LEGACY::World();
+        const auto* world = &game_world::current;
+        AIDATA::Compute_AI_Data(ai, world);
         DIP_SCRN::Resolve_Delayed_Diplomacy_Orders();
         DIP_SCRN::Set_Opportunity_Attacks();
         diplomac::Clear_Diplomacy_Messages();
         npcdiplo::NPC_Diplomacy();
         diplomac::Diplomacy_Growth();
-        aileader::Do_AI_Leaders(ai);
-        AIBUILD::Compute_Empire_Building_Needs(ai);
-        aidudes::All_Colony_AI(ai);
-        AIMOVE::Move_All_AI(ai);
+        aileader::Do_AI_Leaders(ai, world);
+        AIBUILD::Compute_Empire_Building_Needs(ai, world);
+        aidudes::All_Colony_AI(ai, world);
+        AIMOVE::Move_All_AI(ai, world);
         COLONIZE::All_AI_Colonize();
-        aitech::All_AI_Tech_Select(ai);
+        aitech::All_AI_Tech_Select(ai, world);
         maintain::Make_Scrap_Ships_Dead();
         REPORT::Initialize_Reports();
         TRADE::Process_Trade_And_Research_Agreements();
@@ -51,7 +52,7 @@ namespace NEXTTURN {
         COLCALC::Do_Surrenders();
         AIDATA::Complete_Turn(ai);
         COMBFIND::Search_For_Battles();
-        aitech::Apply_Evolutionary_Upgrades(&ai->world);
+        aitech::Apply_Evolutionary_Upgrades(world);
         EVENTS::Determine_Event();
         SHIPMOVE::Unmark_Just_Built_AI_Ships();
         ERICNET::Do_All_Ships_XP_Check();

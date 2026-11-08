@@ -13,8 +13,8 @@ namespace {
 }
 
 namespace TEST_AIMOVE {
-    const AIDATA::s_world_view* World_() {
-        static AIDATA::s_world_view world;
+    const game_world::s_view* World_() {
+        static game_world::s_view world;
         world.players = players;
         world.ships = ships;
         world.stars = stars;
@@ -24,9 +24,7 @@ namespace TEST_AIMOVE {
         world.ship_count = &MOX::NUM_SHIPS;
         world.star_count = &MOX::NUM_STARS;
         world.colony_count = &MOX::NUM_COLONIES;
-        world.rules.movement = &AIMOVE::rules;
         world.random.draw = [](uint32_t*, uint32_t maximum) { return game_random::Random(maximum); };
-        world.movement = AI_LEGACY::Movement();
         return &world;
     }
 

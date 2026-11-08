@@ -3,15 +3,14 @@
 namespace aidudes {
 
 
-    void __cdecl All_Colony_AI(AIDATA::s_state* ai) {
-        const auto* world = &ai->world;
+    void __cdecl All_Colony_AI(AIDATA::s_state* ai, const game_world::s_view* world) {
         int16_t num_players = (int16_t)world->Player_Count();
         s_player* plr = world->players;
 
         for (int16_t i = 0; i < num_players; ++i, ++plr) {
             if (plr->objectives != PLAYER_OBJECTIVE_HUMAN) {
                 RUSS::Mox_Update();
-                Colony_AI(ai, i);
+                Colony_AI(ai, world, i);
             }
         }
 
@@ -57,7 +56,7 @@ namespace aidudes {
     }
 
     void __cdecl Colony_AI_Given_Tax(AIDATA::s_state* ai, s_ai_colony_context* ctx) {
-        const auto* world = &ai->world;
+        const auto* world = ctx->world;
         for (uint32_t i = 0; i < ctx->work->blockaded_count; ++i) {
             aidudes::Do_Blockaded_Colony(world, &ctx->work->colonies[i]);
         }
@@ -67,8 +66,8 @@ namespace aidudes {
         }
 
         aidudes::Assign_Additional_Research_Industry(ctx);
-        aidudes::Assign_Empire_Building(ai, ctx->i_ai);
-        aidudes::Assign_Buildings(ai, ctx->work);
+        aidudes::Assign_Empire_Building(ai, world, ctx->i_ai);
+        aidudes::Assign_Buildings(ai, world, ctx->work);
         aidudes::Industry_Sanity_Check(ctx);
 
         if (ctx->work->colonies.size() > ctx->work->blockaded_count) {
@@ -78,8 +77,7 @@ namespace aidudes {
         }
     }
 
-    void __cdecl Colony_AI(AIDATA::s_state* ai, int16_t player_idx) {
-        const auto* world = &ai->world;
+    void __cdecl Colony_AI(AIDATA::s_state* ai, const game_world::s_view* world, int16_t player_idx) {
         auto& work = ai->players[player_idx].colony_work;
         work = {};
         s_ai_colony_context context{player_idx, &world->players[player_idx], &work, world};
@@ -96,7 +94,7 @@ namespace aidudes {
         aidudes::Keep_Ship_Designs_Up_To_Date(ctx);
         aidudes::Freighter_Cheat(world, ctx->i_ai);
         aidudes::Do_Ship_Upgrade_Cheats(ai, ctx);
-        AIBUILD::Empire_Buy_Outright(ai, ctx->i_ai);
+        AIBUILD::Empire_Buy_Outright(ai, world, ctx->i_ai);
         aidudes::Colony_AI_Given_Tax(ai, ctx);
         RUSS::Mox_Update();
 
@@ -256,7 +254,7 @@ namespace aidudes {
                     }
                 }
 
-                auto choice = RUSS::Get_Weighted_Choice_Char(&world->random, weights, BUILDING_COUNT + 1);
+                auto choice = RUSS::Choose_Weighted_Index_U8(&world->random, weights, BUILDING_COUNT + 1);
                 if (!choice || *choice < BUILDING_COUNT) {
                     COLBLDG::Clear_Colony_Queue(colony_idx);
                     colony->producing[0] = choice ? (int16_t)*choice : COLONY_PRODUCTION_NONE;
@@ -334,7 +332,7 @@ namespace aidudes {
 
     }
 
-    void __cdecl Compute_Max_Min_R_I_Worthiness(const AIDATA::s_world_view* world, AIDATA::s_colony_assignment* info) {
+    void __cdecl Compute_Max_Min_R_I_Worthiness(const game_world::s_view* world, AIDATA::s_colony_assignment* info) {
         if (info->cur_pop_idx < info->pop_end_idx) {
             s_colony* colony = &world->colonies[info->colony_id];
 
@@ -353,14 +351,13 @@ namespace aidudes {
         }
     }
 
-    void __cdecl Assign_Buildings(AIDATA::s_state* ai, const AIDATA::s_colony_workspace* work) {
-        const auto* world = &ai->world;
+    void __cdecl Assign_Buildings(AIDATA::s_state* ai, const game_world::s_view* world, const AIDATA::s_colony_workspace* work) {
         for (const auto& colony : work->colonies) {
-            AIBUILD::Assign_Colony_Building(ai, &world->colonies[colony.colony_id]);
+            AIBUILD::Assign_Colony_Building(ai, world, &world->colonies[colony.colony_id]);
         }
     }
 
-    void __cdecl Freighter_Cheat(const AIDATA::s_world_view* world, int32_t player_idx) {
+    void __cdecl Freighter_Cheat(const game_world::s_view* world, int32_t player_idx) {
         s_player* plr = &world->players[player_idx];
 
         if (plr->surplus_freighters < 0 || plr->surplus_food < 0) {
@@ -376,7 +373,7 @@ namespace aidudes {
     }
 
     void __cdecl Do_Ship_Upgrade_Cheats(AIDATA::s_state* ai, s_ai_colony_context* ctx) {
-        const auto* world = &ai->world;
+        const auto* world = ctx->world;
         auto& refits = ai->players[ctx->i_ai].refits;
         const uint32_t num_entries = (uint32_t)refits.size();
 
@@ -391,7 +388,7 @@ namespace aidudes {
         // Determine if AI is eligible for an upgrade cheat based on difficulty and last refit entry desirability
         int32_t desirability = refits[num_entries - 1].desirability;
         uint8_t difficulty_idx = (uint8_t)world->settings->game_difficulty;
-        int32_t difficulty_bonus = (int32_t)world->rules.build->ship_upgrade_bonus[difficulty_idx];
+        int32_t difficulty_bonus = (int32_t)AIBUILD::rules.ship_upgrade_bonus[difficulty_idx];
         int32_t upgrade_threshold = (difficulty_bonus + desirability) * 2;
         int upgrade_count = 0;
 
@@ -505,7 +502,7 @@ namespace aidudes {
         }
     }
 
-    void __cdecl Grab_Scientist(const AIDATA::s_world_view* world, AIDATA::s_colony_assignment* colony_info) {
+    void __cdecl Grab_Scientist(const game_world::s_view* world, AIDATA::s_colony_assignment* colony_info) {
         uint32_t colony_idx = colony_info->colony_id;
         uint8_t cur_pop_idx = (uint8_t)colony_info->cur_pop_idx;
 
@@ -521,7 +518,7 @@ namespace aidudes {
         Compute_Max_Min_R_I_Worthiness(world, colony_info);
     }
 
-    void __cdecl Grab_Worker(const AIDATA::s_world_view* world, AIDATA::s_colony_assignment* info) {
+    void __cdecl Grab_Worker(const game_world::s_view* world, AIDATA::s_colony_assignment* info) {
         s_colony* colony = &world->colonies[info->colony_id];
 
         info->pop_end_idx--;
@@ -534,7 +531,7 @@ namespace aidudes {
         Compute_Max_Min_R_I_Worthiness(world, info);
     }
 
-    void __cdecl Do_Unblockaded_Colony(const AIDATA::s_world_view* world, AIDATA::s_colony_assignment* info) {
+    void __cdecl Do_Unblockaded_Colony(const game_world::s_view* world, AIDATA::s_colony_assignment* info) {
         s_colony* colony = &world->colonies[info->colony_id];
         uint8_t n_pops = (uint8_t)colony->n_pops;
 
@@ -597,7 +594,7 @@ namespace aidudes {
         }
     }
 
-    void __cdecl Do_Blockaded_Colony(const AIDATA::s_world_view* world, AIDATA::s_colony_assignment* colony_info) {
+    void __cdecl Do_Blockaded_Colony(const game_world::s_view* world, AIDATA::s_colony_assignment* colony_info) {
         s_colony* colony = &world->colonies[colony_info->colony_id];
         Assign_Required_Colonists(world, colony_info);
 
@@ -670,7 +667,7 @@ namespace aidudes {
         return (int)worth2 - (int)worth1;
     }
 
-    void __cdecl Assign_Required_Colonists(const AIDATA::s_world_view* world, AIDATA::s_colony_assignment* colony_info) {
+    void __cdecl Assign_Required_Colonists(const game_world::s_view* world, AIDATA::s_colony_assignment* colony_info) {
         s_colony* colony = &world->colonies[colony_info->colony_id];
         uint32_t* pop_ptr = colony->pop;
         char do_not_research = world->players[(int)colony->owner].do_not_research;
@@ -765,8 +762,7 @@ namespace aidudes {
         return (int)POP::Get_Race(val1) - (int)POP::Get_Race(val2);
     }
 
-    void __cdecl Assign_Empire_Building(AIDATA::s_state* ai, int16_t player_idx) {
-        const auto* world = &ai->world;
+    void __cdecl Assign_Empire_Building(AIDATA::s_state* ai, const game_world::s_view* world, int16_t player_idx) {
         s_player* p = &world->players[player_idx];
         auto& refits = ai->players[player_idx].refits;
         auto& needs = ai->players[player_idx].build;
@@ -869,7 +865,7 @@ namespace aidudes {
         }
 
         int freighter_groups_assigned = 0;
-        auto best_planet = AIMOVE::Best_Uncolonized_Undestined_Planet(ai, player_idx);
+        auto best_planet = AIMOVE::Best_Uncolonized_Undestined_Planet(ai, world, player_idx);
         bool is_expansionist = (p->objectives == PLAYER_OBJECTIVE_EXPANSIONIST);
 
         s_ship_design ship_design;
@@ -880,11 +876,11 @@ namespace aidudes {
             RUSS::Mox_Update();
             bool changed = false;
 
-            if (world->rules.build->strategic.emergency_defense.enabled &&
+            if (AIBUILD::rules.strategic.emergency_defense.enabled &&
                 ((war_level != 0 && ai->stars[world->planets[temp_colony->planet].star_index].enroute_human_ships[AIDATA::LAST_FORECAST_TURN] != 0) ||
                     AIBUILD::Colony_Is_Conquered(world, temp_colony))) {
                 for (int32_t order_idx = 0; order_idx < AIBUILD::EMERGENCY_DEFENSE_PRODUCT_COUNT; ++order_idx) {
-                    int16_t product = world->rules.build->strategic.emergency_defense.order[order_idx];
+                    int16_t product = AIBUILD::rules.strategic.emergency_defense.order[order_idx];
                     if (product > BUILDING_NO_BUILDING && product < BUILDING_COUNT &&
                         COLCALC::Colony_Can_Build_Product(temp_colony, product)) {
                         AIBUILD::Force_Produce(world, colony_queue, (int16_t)i, (int32_t*)&colony_queue_count, product);
@@ -905,7 +901,7 @@ namespace aidudes {
                 (war_level == 0 && needs.combat_strength.total > 0) ||
                 needs.combat_strength.additional_wanted < 10 ||
                 isqrt_val > 1) {
-                if (world->rules.build->colony_bases_prewarp ||
+                if (AIBUILD::rules.colony_bases_prewarp ||
                     (p->tech_applications[TECH_APP_COLONY_SHIP] == TECH_RESEARCH_STATUS_RESEARCHED &&
                         !no_range_or_speed)) {
                     int val = ai->planets[*best_planet].contextual_values[player_idx];
@@ -933,7 +929,7 @@ namespace aidudes {
         RUSS::Mox_Update();
         qsort(colony_queue, (uint32_t)colony_queue_count, sizeof(int16_t), aidudes::colony_less_industry_cmp, world->colonies);
 
-        if (world->rules.build->strategic.expansion.enabled &&
+        if (AIBUILD::rules.strategic.expansion.enabled &&
             p->tech_applications[TECH_APP_COLONY_BASE] == TECH_RESEARCH_STATUS_RESEARCHED) {
             int i = colony_queue_count;
             while (want_colony_base && i > 0) {
@@ -941,7 +937,7 @@ namespace aidudes {
                 s_colony* temp_colony = &world->colonies[colony_queue[i]];
                 if (!COLCALC::Colony_Is_Blockaded(temp_colony) &&
                     AIBUILD::Industry_Worth(temp_colony) >=
-                        world->rules.build->strategic.expansion.colony_base_minimum_industry) {
+                        AIBUILD::rules.strategic.expansion.colony_base_minimum_industry) {
                     if (world->planets[temp_colony->planet].star_index == world->planets[*best_planet].star_index) {
                         if (temp_colony->buildings[BUILDING_COLONY_BASE] != 1) {
                             AIBUILD::Force_Produce(world, colony_queue, (int16_t)i, (int32_t*)&colony_queue_count, BUILDING_COLONY_BASE);
@@ -953,7 +949,7 @@ namespace aidudes {
         }
 
         RUSS::Mox_Update();
-        if (world->rules.build->strategic.expansion.enabled && want_colony_base &&
+        if (AIBUILD::rules.strategic.expansion.enabled && want_colony_base &&
             p->tech_applications[TECH_APP_COLONY_SHIP] == TECH_RESEARCH_STATUS_RESEARCHED) {
             int r = 0;
             if (is_expansionist) {
@@ -969,7 +965,7 @@ namespace aidudes {
                     s_colony* temp_colony = &world->colonies[colony_queue[i]];
                     if (!COLCALC::Colony_Is_Blockaded(temp_colony) &&
                         AIBUILD::Industry_Worth(temp_colony) >=
-                            world->rules.build->strategic.expansion.colony_ship_minimum_industry) {
+                            AIBUILD::rules.strategic.expansion.colony_ship_minimum_industry) {
                         if (player_info.colony_deficit + 50 < (int32_t)world->random.Next(100)) {
                             s_ship_design colony_ship_design = {};
                             INITSHIP::Load_Colony_Ship_Design(player_idx, &colony_ship_design);
@@ -995,12 +991,12 @@ namespace aidudes {
 
             RUSS::Mox_Update();
 
-            if (world->rules.build->strategic.economic_emergency.enabled && colony_queue_count > 0 &&
+            if (AIBUILD::rules.strategic.economic_emergency.enabled && colony_queue_count > 0 &&
                 p->bc + p->surplus_bc < p->total_maintenance &&
                 p->surplus_bc < 0 &&
                 temp_colony->maintenance[1] < temp_colony->production[1]) {
                 int16_t current_colony_idx = colony_queue[i];
-                AIBUILD::Force_Produce(world, colony_queue, (int16_t)i, (int32_t*)&colony_queue_count, world->rules.build->strategic.economic_emergency.product);
+                AIBUILD::Force_Produce(world, colony_queue, (int16_t)i, (int32_t*)&colony_queue_count, AIBUILD::rules.strategic.economic_emergency.product);
                 COLCALC::Colony_Calculation(current_colony_idx);
                 continue;
             }
@@ -1066,12 +1062,12 @@ namespace aidudes {
                 defer_weight,
             };
             production_rules::s_context production_context;
-            AIBUILD::Build_Production_Context(ai, temp_colony, war_level, &production_context);
+            AIBUILD::Build_Production_Context(ai, world, temp_colony, war_level, &production_context);
             production_context.metrics[production_rules::METRIC_FREIGHTER_NEED] =
                 needs.freighter_groups_wanted - freighter_groups_assigned * 2;
             production_context.metrics[production_rules::METRIC_REFIT_NEED] = (int32_t)refits.size();
             const production_rules::s_candidate* allocation_candidates =
-                world->rules.build->strategic.allocation.candidates;
+                AIBUILD::rules.strategic.allocation.candidates;
             for (int32_t weight_idx = 0; weight_idx < AIBUILD::STRATEGIC_ALLOCATION_CANDIDATE_COUNT; ++weight_idx) {
                 if (!allocation_candidates[weight_idx].enabled ||
                     !production_rules::Evaluate_Eligibility(
@@ -1082,14 +1078,14 @@ namespace aidudes {
                         &production_context, &allocation_candidates[weight_idx].weight, allocation_weights[weight_idx]);
                 }
             }
-            production_rules::Apply_Cutoff(&world->rules.build->strategic.allocation.cutoff, 0, allocation_candidates, allocation_weights, AIBUILD::STRATEGIC_ALLOCATION_CANDIDATE_COUNT);
+            production_rules::Apply_Cutoff(&AIBUILD::rules.strategic.allocation.cutoff, 0, allocation_candidates, allocation_weights, AIBUILD::STRATEGIC_ALLOCATION_CANDIDATE_COUNT);
             for (int32_t weight_idx = 0; weight_idx < AIBUILD::STRATEGIC_ALLOCATION_CANDIDATE_COUNT; ++weight_idx) {
                 choice_weights[weight_idx] = (uint32_t)allocation_weights[weight_idx];
             }
 
             while (true) {
                 RUSS::Mox_Update();
-                auto random_choice = RUSS::Get_Weighted_Choice_Int(&world->random, choice_weights, AIBUILD::STRATEGIC_ALLOCATION_CANDIDATE_COUNT);
+                auto random_choice = RUSS::Choose_Weighted_Index_U32(&world->random, choice_weights, AIBUILD::STRATEGIC_ALLOCATION_CANDIDATE_COUNT);
 
                 if (!random_choice || *random_choice == AIBUILD::ALLOCATION_DEFER) {
                     colony_queue_count--;
@@ -1201,7 +1197,7 @@ namespace aidudes {
                             ship_weights[SHIP_SIZE_SMALL] = 0;
                         }
 
-                        auto ship_choice = RUSS::Get_Weighted_Choice_Short(&world->random, ship_weights, HULL_CLASS_COUNT);
+                        auto ship_choice = RUSS::Choose_Weighted_Index_U16(&world->random, ship_weights, HULL_CLASS_COUNT);
                         if (!ship_choice) {
                             choice_weights[AIBUILD::ALLOCATION_COMBAT_SHIPS] = 0;
                             break;
@@ -1265,7 +1261,7 @@ namespace aidudes {
                         int n_entries = (int)refits.size() - 1;
                         bool refitted = false;
                         for (int j = n_entries; j >= 0; j--) {
-                            int16_t ship_idx = (int16_t)refits[j].ship_id;
+                            uint32_t ship_idx = refits[j].ship_id;
                             s_ship_data* s = &world->ships[ship_idx];
                             if (s->location == refit_planet_idx &&
                                 (s->d.size < SHIP_SIZE_LARGE || COLCALC::Colony_Can_Build_Large_Ships(temp_colony))) {
@@ -1280,7 +1276,7 @@ namespace aidudes {
                                     refit_design = &p->ship_designs[s->d.size];
                                 }
 
-                                int16_t cost = AIBUILD::Refit_Cost(&world->rules.refit, p, &s->d, refit_design);
+                                int16_t cost = AIBUILD::Refit_Cost(p, &s->d, refit_design);
                                 if (cost <= refit_design->cost &&
                                     cost <= AIBUILD::Industry_Worth(temp_colony) * (war_level + 10)) {
                                     if (s->officer_index != -1) {
@@ -1389,7 +1385,7 @@ namespace aidudes {
         return (int)POP::Get_Prof(val1) - (int)POP::Get_Prof(val2);
     }
 
-    void __cdecl Make_First_Unassigned_Into_Farmer(const AIDATA::s_world_view* world, AIDATA::s_colony_assignment* info) {
+    void __cdecl Make_First_Unassigned_Into_Farmer(const game_world::s_view* world, AIDATA::s_colony_assignment* info) {
         s_colony* colony = &world->colonies[info->colony_id];
         int16_t old_pollution = colony->pollution;
 
@@ -1508,7 +1504,7 @@ namespace aidudes {
         }
     }
 
-    int __cdecl F_IR_Worthiness(const AIDATA::s_world_view* world, AIDATA::s_colony_assignment* info, uint32_t* flags) {
+    int __cdecl F_IR_Worthiness(const game_world::s_view* world, AIDATA::s_colony_assignment* info, uint32_t* flags) {
         s_colony* colony = &world->colonies[info->colony_id];
         int16_t base_production = COLCALC::Colony_Pop_Prod_Produced(colony, flags, 0);
         int worthiness;

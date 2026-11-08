@@ -15,22 +15,12 @@ namespace {
     s_player players[MAX_PLAYERS];
     s_ship_data ships[MAX_COMBAT_SHIPS];
 
-    const AIDATA::s_world_view* AI_World_() {
-        static const AIDATA::s_world_view world{
+    const game_world::s_view* AI_World_() {
+        static const game_world::s_view world{
             .players = players,
             .ships = ships,
             .colonies = colonies,
             .settings = &MOX::settings,
-            .rules = {
-                .technology = {
-                    .shields = TECHDATA::shields,
-                    .weapons = TECHDATA::weapons,
-                },
-                .combat = {
-                    .ground_defense = &COMBINIT::ground_defense,
-                    .missile_base_ammo_basis = &COMBINIT::missile_base_ammo_basis,
-                },
-            },
         };
         return &world;
     }

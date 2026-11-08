@@ -63,7 +63,7 @@ target_include_directories(orion2re_test_config_defaults PRIVATE
 target_link_libraries(orion2re_test_config_defaults PRIVATE SDL3::Headers)
 orion2re_enable_sanitizers(orion2re_test_config_defaults)
 
-orion2re_test_shared_sources(ORION2RE_AI_STATE_OBJECTS src/game/aidata_state.cpp)
+orion2re_test_shared_sources(ORION2RE_AI_STATE_OBJECTS src/game/aidata_state.cpp src/game/world_view.cpp)
 add_library(orion2re_test_ai_state STATIC ${ORION2RE_AI_STATE_OBJECTS})
 orion2re_enable_sanitizers(orion2re_test_ai_state)
 
@@ -252,10 +252,11 @@ orion2re_add_unit_test(test_ai_inputs
         src/game/aimove.cpp
         src/game/aipower.cpp
         src/game/aitech.cpp
-        src/game/ai_movement_boundary.cpp
+        src/game/fleet_movement.cpp
         src/game/design.cpp
         src/game/random.cpp
         src/game/russ.cpp
+        src/game/techdata.cpp
 )
 foreach(TARGET_NAME IN ITEMS test_aidata_routes test_ai_inputs)
     if(MSVC)
@@ -898,7 +899,7 @@ orion2re_add_unit_test(test_aimove
         src/game/legacy_sort.cpp
         src/game/special.cpp
         src/game/angle.cpp
-        src/game/ai_movement_boundary.cpp
+        src/game/fleet_movement.cpp
         src/game/aimove.cpp
     FAKE_SOURCES
         tests/fakes/fake_aimove_runtime.cpp

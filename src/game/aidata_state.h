@@ -1,7 +1,7 @@
 #pragma once
 
 #include "ai_constants.h"
-#include "ai_world.h"
+#include "world_view.h"
 #include "consts.h"
 #include "orion2_consts.h"
 
@@ -97,7 +97,7 @@ namespace AIDATA {
         }
     };
 
-    // Borrowed lookup for the dense live indices in s_world_view, not ID high-water marks.
+    // Borrowed lookup for the current world's dense live indices, not ID high-water marks.
     // Rebuild after table replacement/move; Store/Clear are detected by Matches().
     struct s_direct_route_lookup {
         const s_direct_route_table* table = nullptr;
@@ -346,7 +346,6 @@ namespace AIDATA {
     };
 
     struct s_state {
-        s_world_view world;
         std::unordered_map<uint32_t, s_ship_assessment> ships;
         std::unordered_map<uint32_t, s_planet_assessment> planets;
         std::unordered_map<uint32_t, s_star_assessment> stars;
@@ -364,9 +363,9 @@ namespace AIDATA {
         s_direct_route_lookup routes;
         std::vector<s_star_assessment*> stars;
 
-        void Prepare(s_state* ai) {
-            routes.Prepare(&ai->routes.direct, ai->world.Star_Count(), ai->world.Player_Count());
-            stars.resize(ai->world.Star_Count());
+        void Prepare(s_state* ai, uint32_t star_count, uint32_t player_count) {
+            routes.Prepare(&ai->routes.direct, star_count, player_count);
+            stars.resize(star_count);
             for (uint32_t star = 0; star < stars.size(); ++star) {
                 auto found = ai->stars.find(star);
                 stars[star] = found == ai->stars.end() ? nullptr : &found->second;

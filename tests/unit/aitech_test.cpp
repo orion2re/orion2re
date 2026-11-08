@@ -11,13 +11,9 @@ namespace TEST_AI_HYPERTECH {
 }
 
 namespace {
-    const AIDATA::s_world_view* AI_World_() {
-        static const AIDATA::s_world_view world{
+    const game_world::s_view* AI_World_() {
+        static const game_world::s_view world{
             .players = MOX::player,
-            .rules = {
-                .research = &aitech::rules,
-                .technology = {.applications = TECHDATA::technology_applications},
-            },
         };
         return &world;
     }

@@ -4,6 +4,7 @@
 
 namespace TEST_AIDUDES {
     extern bool colony_researching;
+    const game_world::s_view* World_();
     AIDATA::s_state* State_();
     aidudes::s_ai_colony_context Context_();
     void Reset_();
@@ -36,7 +37,7 @@ DOCTEST_TEST_CASE("blockaded colony stops assigning farmers when recalculation d
     AIDATA::s_colony_assignment colony_info = {};
     colony_info.colony_id = 0;
 
-    aidudes::Do_Blockaded_Colony(&TEST_AIDUDES::State_()->world, &colony_info);
+    aidudes::Do_Blockaded_Colony(TEST_AIDUDES::World_(), &colony_info);
 
     DOCTEST_CHECK(TEST_AIDUDES::Pre_Import_Calls_() == 2);
     DOCTEST_CHECK(colony_info.cur_pop_idx == 1);
