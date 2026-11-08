@@ -1,5 +1,7 @@
 #include "pch.h"
 
+#include "ai_legacy.h"
+
 namespace DIP_SCRN {
     /**
      * @brief Resolves a treaty proposal and determines whether it succeeds.
@@ -983,15 +985,11 @@ namespace DIP_SCRN {
                 }
 
                 if (valid_opportunity) {
-                    int16_t planet_num = -1;
-                    int16_t value = 0;
-                    int32_t ratio = 0;
-
-                    AIMOVE::Find_Opportunity_Attack(p_idx, target_idx, 100, &planet_num, &value, &ratio);
-
-                    player.opportunity_planet_num[target_idx] = planet_num;
-                    player.opportunity_planet_value[target_idx] = value;
-                    player.opportunity_actual_attacker_ratio[target_idx] = ratio;
+                    auto attack = AIMOVE::Find_Opportunity_Attack(&AIDATA::state, p_idx, target_idx, 100);
+                    auto planet_index = attack ? AI_LEGACY::Index(attack->planet_id) : std::nullopt;
+                    player.opportunity_planet_num[target_idx] = planet_index.value_or(-1);
+                    player.opportunity_planet_value[target_idx] = planet_index ? attack->colony_value : 0;
+                    player.opportunity_actual_attacker_ratio[target_idx] = planet_index ? attack->strength_ratio_percent : 0;
                 } else {
                     player.opportunity_planet_num[target_idx] = -1;
                     player.opportunity_planet_value[target_idx] = 0;

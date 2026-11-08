@@ -78,7 +78,7 @@ namespace maintain {
                 if (ship.owner == player_idx && ship.status < 5 && ship.d.ship_type == SHIP_TYPE_COMBAT) {
                     for (int32_t k = 0; k < player_count; ++k) {
                         if (eligible_players[k]) {
-                            worths[j] += AIPOWER::Ship_Strength_Vs_Ships(j, (int16_t)k);
+                            worths[j] += AIPOWER::Ship_Strength_Vs_Ships(&AIDATA::state.world, j, (int16_t)k);
                         }
                     }
                     worths[j] = worths[j] / ((ship.d.size + 1) * eligible_count);
@@ -190,6 +190,87 @@ namespace maintain {
         for (int16_t i = 0; i < num_ships; ++i) {
             if (ships[i].status == 7 || ships[i].status == 8) {
                 SHIPS::Kill_Ship(i);
+            }
+        }
+    }
+
+    /**
+     * Iteratively scraps the cheapest ships matching criteria until player maintenance deficit is resolved.
+     */
+    void __cdecl Kill_Ships(s_player* player, bool at_colony_only, bool restricted_mission, int16_t ship_type) {
+        int16_t player_idx = (int16_t)(player - MOX::player);
+        bool no_more_ships_found = false;
+
+        while ((player->bc + player->surplus_bc < 0) && !no_more_ships_found) {
+            s_ship_data* cheapest_ship = nullptr;
+            int16_t min_worth = 0x7FFF;
+
+            for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
+                s_ship_data* ship = &MOX::ship[i];
+
+                if (ship->owner == player_idx &&
+                    (int16_t)ship->d.ship_type == ship_type &&
+                    ship->status < 3 /* Active */) {
+                    if (at_colony_only && !Ship_Is_At_Colony(ship)) {
+                        continue;
+                    }
+
+                    if (restricted_mission) {
+                        if (!(ship->mission == 0 || ship->mission == 3 || ship->mission == 7)) {
+                            continue;
+                        }
+                    }
+
+                    int16_t worth = (*maintain::ship_worths)[i];
+                    if (worth < min_worth) {
+                        min_worth = worth;
+                        cheapest_ship = ship;
+                    }
+                }
+            }
+
+            if (cheapest_ship == nullptr) {
+                no_more_ships_found = true;
+            } else {
+                int16_t scrap_cost = maintain::Ship_Scrap_Value(cheapest_ship);
+                player->bc += scrap_cost;
+
+                if (player->objectives != PLAYER_OBJECTIVE_HUMAN) {
+                    player->bc += MOX::settings.game_difficulty;
+                }
+
+                cheapest_ship->status = 7; /* Scrapped */
+
+                COLCALC::Do_Player_Colony_Post_Production(player_idx);
+
+                int16_t ship_index = (int16_t)(cheapest_ship - MOX::ship);
+
+                s_MSG msg;
+                memset(&msg, 0, sizeof(msg));
+                msg.msg_type = MSG_TYPE_SCRAP_SHIP;
+                msg.u.scrap_ship.where = cheapest_ship->location;
+                msg.u.scrap_ship.ship_idx = ship_index;
+                msg.u.scrap_ship.bc = scrap_cost;
+
+                MSG_::Add_Msg(msg, player_idx);
+
+                if (cheapest_ship->officer_index != -1) {
+                    int16_t officer_idx = cheapest_ship->officer_index;
+                    const AIDATA::s_world_view world{
+                        .players = MOX::player,
+                        .ships = MOX::ship,
+                        .leaders = MOX::leaders,
+                        .ship_count = &MOX::NUM_SHIPS,
+                    };
+                    aileader::Reassign_Fleet_Officer(&world, player_idx, officer_idx);
+
+                    if (cheapest_ship->officer_index == officer_idx) {
+                        OFFICER::Move_Officer_To_Pool(officer_idx);
+                    }
+                    cheapest_ship->officer_index = -1;
+                }
+
+                MAINSCR::Update_Ship_Icons_In_Between_Turns();
             }
         }
     }

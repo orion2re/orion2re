@@ -1,5 +1,11 @@
 #include "pch.h"
 
+#include "game/ai_legacy.h"
+
+namespace AI_LEGACY {
+    AIDATA::s_world_view World() { return {}; }
+}
+
 #include "lua/lua_game.h"
 
 namespace {
@@ -138,8 +144,9 @@ namespace antarans {
 }
 
 namespace AIDATA {
-    void __cdecl Compute_AI_Data() {}
-    void __cdecl Deallocate_AI_Data() {}
+    s_state state;
+    void __cdecl Compute_AI_Data(s_state*) {}
+    void Complete_Turn(s_state*) {}
 }
 
 namespace DIP_SCRN {
@@ -160,19 +167,19 @@ namespace npcdiplo {
 }
 
 namespace aileader {
-    void __cdecl Do_AI_Leaders() {}
+    void __cdecl Do_AI_Leaders(AIDATA::s_state*) {}
 }
 
 namespace AIBUILD {
-    void __cdecl Compute_Empire_Building_Needs() {}
+    void __cdecl Compute_Empire_Building_Needs(AIDATA::s_state*) {}
 }
 
 namespace aidudes {
-    void __cdecl All_Colony_AI() {}
+    void __cdecl All_Colony_AI(AIDATA::s_state*) {}
 }
 
 namespace AIMOVE {
-    void __cdecl Move_All_AI() {}
+    void __cdecl Move_All_AI(AIDATA::s_state*) {}
 }
 
 namespace COLONIZE {
@@ -181,8 +188,8 @@ namespace COLONIZE {
 }
 
 namespace aitech {
-    void __cdecl All_AI_Tech_Select() {}
-    void __cdecl Apply_Evolutionary_Upgrades() {}
+    void __cdecl All_AI_Tech_Select(AIDATA::s_state*) {}
+    void __cdecl Apply_Evolutionary_Upgrades(const AIDATA::s_world_view*) {}
 }
 
 namespace maintain {
@@ -205,7 +212,7 @@ namespace SHIPMOVE {
 }
 
 namespace spy {
-    void __cdecl Resolve_Spies() {}
+    void __cdecl Resolve_Spies(const AIDATA::s_player_assessment*) {}
 }
 
 namespace COMBFIND {

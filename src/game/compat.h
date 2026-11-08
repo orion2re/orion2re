@@ -29,6 +29,9 @@
 
 using legacy_qsort_compare = int(__cdecl*)(const void*, const void*);
 void Legacy_Qsort(void* base, size_t count, size_t width, legacy_qsort_compare compare);
+using legacy_qsort_context_compare = int(__cdecl*)(void*, const void*, const void*);
+void Legacy_Qsort(void* base, size_t count, size_t width,
+    legacy_qsort_context_compare compare, void* context);
 
 #define qsort Legacy_Qsort
 

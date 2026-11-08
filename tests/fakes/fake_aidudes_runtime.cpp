@@ -10,16 +10,31 @@ namespace {
     int pre_import_calls;
     int8_t status_during_recalculation;
     int16_t pooled_officer;
-    s_aidudes_colony_info ai_colonies[MAX_COLONIES];
-    s_ai_refit_player ai_refits[MAX_PLAYERS];
-    s_ai_player_info ai_player_info[MAX_PLAYERS];
-    int8_t enroute_human_ships[MAX_STARS][10];
+    AIDATA::s_state ai;
     bool doom_star_strategic_mode;
     int doom_star_load_count;
 } // namespace
 
 namespace TEST_AIDUDES {
     bool colony_researching;
+    AIDATA::s_state* State_() {
+        ai.world.players = players;
+        ai.world.ships = ships;
+        ai.world.stars = stars;
+        ai.world.colonies = colonies;
+        ai.world.leaders = leaders;
+        ai.world.settings = &MOX::settings;
+        ai.world.ship_count = &MOX::NUM_SHIPS;
+        ai.world.stardate = &MOX::stardate;
+        ai.world.rules.build = &AIBUILD::rules;
+        ai.world.random.draw = [](uint32_t*, uint32_t maximum) { return game_random::Random(maximum); };
+        return &ai;
+    }
+
+    aidudes::s_ai_colony_context Context_() {
+        State_();
+        return {0, &players[0], &ai.players[0].colony_work, &ai.world};
+    }
 
     void Reset_() {
         memset(colonies, 0, sizeof(colonies));
@@ -96,16 +111,13 @@ namespace TEST_AIDUDES {
         memset(colonies, 0, sizeof(colonies));
         memset(players, 0, sizeof(players));
         memset(ships, 0, sizeof(ships));
-        memset(ai_colonies, 0, sizeof(ai_colonies));
+        ai = {};
         memset(&MOX::settings, 0, sizeof(MOX::settings));
         doom_star_strategic_mode = false;
         doom_star_load_count = 0;
 
-        aidudes::i_ai = 0;
-        aidudes::p_ai = &players[0];
-        aidudes::n_our_colonies = 1;
-        aidudes::our_colonies = &ai_colonies;
-        ai_colonies[0].colony_idx = 0;
+        ai.players[0].colony_work.colonies.resize(1);
+        ai.players[0].colony_work.colonies[0].colony_id = 0;
         colonies[0].producing[0] =
             COLBLDG::Colony_Production_From_Ship_Index(0);
         ships[0].d.ship_type = SHIP_TYPE_COMBAT;
@@ -116,18 +128,13 @@ namespace TEST_AIDUDES {
     void Reset_Doom_Star_Refit_() {
         Reset_Doom_Star_Update_();
         memset(stars, 0, sizeof(stars));
-        memset(ai_refits, 0, sizeof(ai_refits));
-        memset(ai_player_info, 0, sizeof(ai_player_info));
-        memset(enroute_human_ships, 0, sizeof(enroute_human_ships));
 
         MOX::stardate = 35036;
         players[0].total_pop = 9;
         ships[0].location = 0;
         stars[0].has_colony = 1;
-        ai_refits[0].n_entries = 1;
-        ai_refits[0].entry[0].ship_idx = 0;
-        ai_refits[0].entry[0].desirability = 1000;
-        ai_player_info[0].colony_count = 2;
+        ai.players[0].refits.push_back({0, 1000});
+        ai.players[0].empire.colony_count = 2;
     }
 
     int Pre_Import_Calls_() {
@@ -162,26 +169,8 @@ namespace MOX {
     s_settings settings;
 } // namespace MOX
 
-namespace aidudes {
-    int16_t i_ai;
-    int16_t n_our_colonies;
-    s_player* p_ai;
-    s_aidudes_colony_info (*our_colonies)[MAX_COLONIES];
-    s_colony* Sort_Pops_colony_data;
-}
-
-namespace maintain {
-    int32_t (*ship_worths)[MAX_SHIPS];
-}
-
-namespace AIDATA {
-    s_ai_refit_player (*airefit)[MAX_PLAYERS] = &ai_refits;
-    s_ai_player_info (*ai_player_info)[MAX_PLAYERS] = &::ai_player_info;
-    int8_t (*enroute_human_ships)[MAX_STARS][10] = &::enroute_human_ships;
-} // namespace AIDATA
-
 namespace AIBUILD {
-    uint8_t difficulty_ship_design[12] = {};
+    s_rules rules{.ship_upgrade_bonus = {}};
 }
 
 namespace game_random {
@@ -273,3 +262,9 @@ namespace OFFICER {
         leader->location = -1;
     }
 } // namespace OFFICER
+
+void Legacy_Qsort(void*, size_t, size_t, legacy_qsort_compare) {
+}
+
+void Legacy_Qsort(void*, size_t, size_t, legacy_qsort_context_compare, void*) {
+}

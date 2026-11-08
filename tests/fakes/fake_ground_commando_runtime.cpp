@@ -175,15 +175,15 @@ namespace TECHDATA {
 }
 
 namespace aitech {
-    int32_t __cdecl Player_Best_Armor(s_player*) {
+    int32_t __cdecl Player_Best_Armor(const s_tech_armor_data*, const s_player*) {
         return 0;
     }
 
-    int32_t __cdecl Player_Best_Rifle(s_player*) {
+    int32_t __cdecl Player_Best_Rifle(const s_tech_data_rifle*, const s_player*) {
         return 0;
     }
 
-    int32_t __cdecl Player_Best_Personal_Shield(s_player*) {
+    int32_t __cdecl Player_Best_Personal_Shield(const s_tech_data_personal_shield*, const s_player*) {
         return 0;
     }
 }

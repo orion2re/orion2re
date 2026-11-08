@@ -23,6 +23,10 @@ namespace game_random {
     }
 
     uint32_t __cdecl Random(uint32_t max_val) {
+        return Random(&random_seed, max_val);
+    }
+
+    uint32_t __cdecl Random(uint32_t* state, uint32_t max_val) {
         if (max_val == 0) {
             return 1;
         }
@@ -30,12 +34,12 @@ namespace game_random {
         uint32_t quotient = 0xFFFFFFFFu / max_val;
         uint32_t limit = max_val * quotient;
 
-        uint32_t seed = random_seed;
+        uint32_t seed = *state;
         do {
             seed = seed * 0x41C64E6D + 0x3039;
         } while (limit <= seed);
 
-        random_seed = seed;
+        *state = seed;
         return (seed / quotient) + 1;
     }
 

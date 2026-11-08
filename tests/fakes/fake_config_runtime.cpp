@@ -396,16 +396,11 @@ namespace diplomac {
 }
 
 namespace aitech {
-    uint8_t ai_hypertech_threshold[TECH_APP_COUNT - TECH_APP_BIOLOGY] = {};
+    s_rules rules;
 }
 
 namespace aidesign {
-    bool allow_stealth_field = false;
-    uint8_t ship_design_bhg_chance = 3;
-    uint8_t ship_design_stellar_chance = 3;
-    s_ship_design_allocations ship_design_allocations =
-        default_ship_design_allocations;
-    s_ship_design_config ship_design = {
+    static constexpr s_ship_design_config DEFAULT_PRIORITIES = {
         .special_priority = {
             .bio_weapon = {
                 {SPECIAL_PHASE_SHIFTER, AI_SPECIAL_ITEM_SPECIAL},
@@ -532,11 +527,8 @@ namespace aidesign {
             },
         },
     };
+    s_rules rules{.priorities = DEFAULT_PRIORITIES};
 } // namespace aidesign
-
-namespace aidudes {
-    bool builds_colony_bases_prewarp;
-}
 
 namespace RACECUST {
     s_variants variants = {};

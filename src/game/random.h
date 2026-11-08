@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include "random_source.h"
 
 namespace game_random {
     extern uint32_t random_seed;
@@ -30,6 +31,7 @@ namespace game_random {
      *  @param max_val Inclusive upper bound for the generated value.
      */
     uint32_t __cdecl Random(uint32_t max_val);
+    uint32_t __cdecl Random(uint32_t* state, uint32_t max_val);
 
     /** Restores the previously saved random seed.
      *  @param None.
