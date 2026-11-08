@@ -245,6 +245,8 @@ tools/run-tests.sh
 
 This uses a separate debug build in `out/build/test-debug/` and reports failures
 through CTest, CMake's test runner.
+macOS test builds require a Debug configuration with ASan and UBSan;
+explicitly disabling sanitizers is rejected.
 
 To run the sanitizer-enabled tests used by CI on Linux:
 

@@ -1587,27 +1587,27 @@ DOCTEST_TEST_CASE("AI ship design special priorities preserve themed order and b
     DOCTEST_REQUIRE(config::Initialize_Defaults(&state));
     DOCTEST_REQUIRE(config::Commit_State(&state));
 
-    DOCTEST_CHECK(aidesign::rules.priorities.special_priority.bio_weapon[0].id ==
+    DOCTEST_CHECK((int16_t)aidesign::rules.priorities.special_priority.bio_weapon[0].id ==
         SPECIAL_PHASE_SHIFTER);
-    DOCTEST_CHECK(aidesign::rules.priorities.special_priority.bio_weapon[3].type ==
+    DOCTEST_CHECK((int16_t)aidesign::rules.priorities.special_priority.bio_weapon[3].type ==
         AI_SPECIAL_ITEM_WEAPON);
-    DOCTEST_CHECK(aidesign::rules.priorities.special_priority.capture[0].id ==
+    DOCTEST_CHECK((int16_t)aidesign::rules.priorities.special_priority.capture[0].id ==
         SPECIAL_TRANSPORTERS);
-    DOCTEST_CHECK(aidesign::rules.priorities.special_priority.cloaking[2].id ==
+    DOCTEST_CHECK((int16_t)aidesign::rules.priorities.special_priority.cloaking[2].id ==
         SPECIAL_STEALTH_FIELD);
-    DOCTEST_CHECK(aidesign::rules.priorities.special_priority.beam_defense[3].id ==
+    DOCTEST_CHECK((int16_t)aidesign::rules.priorities.special_priority.beam_defense[3].id ==
         SPECIAL_INERTIAL_STABILIZER);
-    DOCTEST_CHECK(aidesign::rules.priorities.special_priority.missile_defense[2].id ==
+    DOCTEST_CHECK((int16_t)aidesign::rules.priorities.special_priority.missile_defense[2].id ==
         WEAPON_SPATIAL_COMPRESSOR);
-    DOCTEST_CHECK(aidesign::rules.priorities.special_priority.armor[2].id ==
+    DOCTEST_CHECK((int16_t)aidesign::rules.priorities.special_priority.armor[2].id ==
         SPECIAL_REINFORCED_HULL);
-    DOCTEST_CHECK(aidesign::rules.priorities.special_priority.shield[1].id ==
+    DOCTEST_CHECK((int16_t)aidesign::rules.priorities.special_priority.shield[1].id ==
         SPECIAL_MULTI_PHASED_SHIELDS);
-    DOCTEST_CHECK(aidesign::rules.priorities.special_priority.beam_offense[6].id ==
+    DOCTEST_CHECK((int16_t)aidesign::rules.priorities.special_priority.beam_offense[6].id ==
         SPECIAL_BATTLE_SCANNER);
-    DOCTEST_CHECK(aidesign::rules.priorities.special_priority.missile_offense[1].id ==
+    DOCTEST_CHECK((int16_t)aidesign::rules.priorities.special_priority.missile_offense[1].id ==
         SPECIAL_FAST_MISSILE_RACKS);
-    DOCTEST_CHECK(aidesign::rules.priorities.special_priority.special_weapon[0].id ==
+    DOCTEST_CHECK((int16_t)aidesign::rules.priorities.special_priority.special_weapon[0].id ==
         WEAPON_STELLAR_CONVERTER);
 
     config::s_config_write_set writes;
@@ -1629,27 +1629,27 @@ DOCTEST_TEST_CASE("AI ship design special priorities preserve themed order and b
     DOCTEST_REQUIRE(config::Apply_Write_Set(&writes, &state, &diagnostic));
     DOCTEST_REQUIRE(config::Commit_State(&state));
 
-    DOCTEST_CHECK(aidesign::rules.priorities.special_priority.bio_weapon[0].id ==
+    DOCTEST_CHECK((int16_t)aidesign::rules.priorities.special_priority.bio_weapon[0].id ==
         WEAPON_DEATH_SPORE);
-    DOCTEST_CHECK(aidesign::rules.priorities.special_priority.bio_weapon[0].type ==
+    DOCTEST_CHECK((int16_t)aidesign::rules.priorities.special_priority.bio_weapon[0].type ==
         AI_SPECIAL_ITEM_WEAPON);
-    DOCTEST_CHECK(aidesign::rules.priorities.special_priority.capture[1].id ==
+    DOCTEST_CHECK((int16_t)aidesign::rules.priorities.special_priority.capture[1].id ==
         SPECIAL_DISPLACEMENT_DEVICE);
-    DOCTEST_CHECK(aidesign::rules.priorities.special_priority.cloaking[2].type ==
+    DOCTEST_CHECK((int16_t)aidesign::rules.priorities.special_priority.cloaking[2].type ==
         AI_SPECIAL_ITEM_WEAPON);
-    DOCTEST_CHECK(aidesign::rules.priorities.special_priority.beam_defense[3].id ==
+    DOCTEST_CHECK((int16_t)aidesign::rules.priorities.special_priority.beam_defense[3].id ==
         SPECIAL_ECM_JAMMER);
-    DOCTEST_CHECK(aidesign::rules.priorities.special_priority.missile_defense[7].id ==
+    DOCTEST_CHECK((int16_t)aidesign::rules.priorities.special_priority.missile_defense[7].id ==
         WEAPON_ANTI_MISSILE_ROCKET);
-    DOCTEST_CHECK(aidesign::rules.priorities.special_priority.armor[0].id ==
+    DOCTEST_CHECK((int16_t)aidesign::rules.priorities.special_priority.armor[0].id ==
         WEAPON_PLASMA_WEB);
-    DOCTEST_CHECK(aidesign::rules.priorities.special_priority.shield[1].id ==
+    DOCTEST_CHECK((int16_t)aidesign::rules.priorities.special_priority.shield[1].id ==
         SPECIAL_AUGMENTED_ENGINES);
-    DOCTEST_CHECK(aidesign::rules.priorities.special_priority.beam_offense[6].id ==
+    DOCTEST_CHECK((int16_t)aidesign::rules.priorities.special_priority.beam_offense[6].id ==
         SPECIAL_BATTLE_SCANNER);
-    DOCTEST_CHECK(aidesign::rules.priorities.special_priority.missile_offense[1].id ==
+    DOCTEST_CHECK((int16_t)aidesign::rules.priorities.special_priority.missile_offense[1].id ==
         SPECIAL_FAST_MISSILE_RACKS);
-    DOCTEST_CHECK(aidesign::rules.priorities.special_priority.special_weapon[2].type ==
+    DOCTEST_CHECK((int16_t)aidesign::rules.priorities.special_priority.special_weapon[2].type ==
         AI_SPECIAL_ITEM_WEAPON);
 
     const char* paths[] = {
@@ -1799,13 +1799,13 @@ DOCTEST_TEST_CASE("AI special-device and defense priorities preserve native defa
     DOCTEST_REQUIRE(config::Initialize_Defaults(&state));
     DOCTEST_REQUIRE(config::Commit_State(&state));
 
-    DOCTEST_CHECK(aidesign::rules.priorities.special_device_priority[0].id ==
+    DOCTEST_CHECK((int16_t)aidesign::rules.priorities.special_device_priority[0].id ==
         SPECIAL_QUANTUM_DETONATOR);
-    DOCTEST_CHECK(aidesign::rules.priorities.special_device_priority[1].type ==
+    DOCTEST_CHECK((int16_t)aidesign::rules.priorities.special_device_priority[1].type ==
         AI_SPECIAL_ITEM_WEAPON);
-    DOCTEST_CHECK(aidesign::rules.priorities.defense_priority.human_non_beams[0].id ==
+    DOCTEST_CHECK((int16_t)aidesign::rules.priorities.defense_priority.human_non_beams[0].id ==
         SPECIAL_SECURITY_STATIONS);
-    DOCTEST_CHECK(aidesign::rules.priorities.defense_priority.human_beams[18].id ==
+    DOCTEST_CHECK((int16_t)aidesign::rules.priorities.defense_priority.human_beams[18].id ==
         SPECIAL_AUTOMATED_REPAIR_UNIT);
 
     config::s_config_write_set writes;
@@ -1822,17 +1822,17 @@ DOCTEST_TEST_CASE("AI special-device and defense priorities preserve native defa
     DOCTEST_REQUIRE(config::Apply_Write_Set(&writes, &state, &diagnostic));
     DOCTEST_REQUIRE(config::Commit_State(&state));
 
-    DOCTEST_CHECK(aidesign::rules.priorities.special_device_priority[0].id ==
+    DOCTEST_CHECK((int16_t)aidesign::rules.priorities.special_device_priority[0].id ==
         SPECIAL_TRANSPORTERS);
-    DOCTEST_CHECK(aidesign::rules.priorities.special_device_priority[0].type ==
+    DOCTEST_CHECK((int16_t)aidesign::rules.priorities.special_device_priority[0].type ==
         AI_SPECIAL_ITEM_SPECIAL);
-    DOCTEST_CHECK(aidesign::rules.priorities.defense_priority.human_non_beams[0].id ==
+    DOCTEST_CHECK((int16_t)aidesign::rules.priorities.defense_priority.human_non_beams[0].id ==
         WEAPON_ANTI_MISSILE_ROCKET);
-    DOCTEST_CHECK(aidesign::rules.priorities.defense_priority.human_non_beams[0].type ==
+    DOCTEST_CHECK((int16_t)aidesign::rules.priorities.defense_priority.human_non_beams[0].type ==
         AI_SPECIAL_ITEM_WEAPON);
-    DOCTEST_CHECK(aidesign::rules.priorities.defense_priority.human_beams[18].id ==
+    DOCTEST_CHECK((int16_t)aidesign::rules.priorities.defense_priority.human_beams[18].id ==
         WEAPON_HEAVY_FIGHTER);
-    DOCTEST_CHECK(aidesign::rules.priorities.defense_priority.human_beams[18].type ==
+    DOCTEST_CHECK((int16_t)aidesign::rules.priorities.defense_priority.human_beams[18].type ==
         AI_SPECIAL_ITEM_WEAPON);
 
     writes.writes.clear();
