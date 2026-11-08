@@ -80,18 +80,26 @@ DOCTEST_TEST_CASE("named AI production needs distinguish totals from additional 
     DOCTEST_CHECK(context.metrics[production_rules::METRIC_EXISTING_COLONY_SHIPS] == 4);
 }
 
-DOCTEST_TEST_CASE("renamed treaty assessments retain the legacy public production-metric mapping") {
+DOCTEST_TEST_CASE("public presence metrics distinguish hostile neutral and treaty-partner players") {
     TEST_AIBUILD_CONTEXT::Reset_();
     auto* ai = TEST_AIBUILD_CONTEXT::State_();
     auto& neighborhood = ai->stars[0].neighborhood.per_player[0];
     neighborhood.treaty_partners_in_range = 2;
     neighborhood.neutral_players_in_range = 1;
     neighborhood.hostile_players_in_range = 3;
+    neighborhood.players_only_in_extended_range = 4;
     production_rules::s_context context;
     AIBUILD::Build_Production_Context(ai, TEST_AIBUILD_CONTEXT::World_(), &MOX::colony[0], 0, &context);
-    DOCTEST_CHECK(context.metrics[production_rules::METRIC_ENEMY_PRESENCE] == 2);
-    DOCTEST_CHECK(context.metrics[production_rules::METRIC_ALLIED_PRESENCE] == 3);
-    DOCTEST_CHECK(context.metrics[production_rules::METRIC_LOCAL_THREAT] == 23);
+    DOCTEST_CHECK(context.metrics[production_rules::METRIC_ENEMY_PRESENCE] == 3);
+    DOCTEST_CHECK(context.metrics[production_rules::METRIC_NEUTRAL_PRESENCE] == 1);
+    DOCTEST_CHECK(context.metrics[production_rules::METRIC_ALLIED_PRESENCE] == 2);
+    DOCTEST_CHECK(context.metrics[production_rules::METRIC_OUT_OF_RANGE_PRESENCE] == 4);
+    DOCTEST_CHECK(context.metrics[production_rules::METRIC_LOCAL_THREAT] == 31);
+
+    production_rules::s_eligibility eligibility{};
+    eligibility.all.thresholds[production_rules::METRIC_ENEMY_PRESENCE] = {production_rules::COMPARISON_GT, 2};
+    eligibility.all.thresholds[production_rules::METRIC_ALLIED_PRESENCE] = {production_rules::COMPARISON_EQ, 2};
+    DOCTEST_CHECK(production_rules::Evaluate_Eligibility(&context, &eligibility));
 }
 
 DOCTEST_TEST_CASE("colony ship and freighter needs use current and enroute ship counts") {
