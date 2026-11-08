@@ -16,6 +16,7 @@ namespace {
 namespace MOX {
     s_ship_data* ship = legacy_ships;
     s_star_data* star = legacy_stars;
+    int16_t first_field_in_group[10] = {0, 18, 55, 57, 29, 7, 22, 28, 10, 74};
 } // namespace MOX
 
 namespace SHIPMOVE {
@@ -26,7 +27,7 @@ namespace SHIPMOVE {
         queried_destination = destination;
         for (int32_t i = 0; ships[i] != -1; ++i) {
             queried_ships.push_back(ships[i]);
-            queried_locations.push_back(MOX::ship[ships[i]].location);
+            queried_locations.push_back((int16_t)MOX::ship[ships[i]].location);
         }
         *result = {};
         result->moving = 1;
@@ -90,6 +91,11 @@ namespace INITSHIP {
         DOCTEST_FAIL("Unexpected legacy combat calculation");
     }
 } // namespace INITSHIP
+
+DOCTEST_TEST_CASE("technology defaults bind to the test-owned starting fields") {
+    DOCTEST_CHECK(&TECHDATA::starting_techfield.biology == &MOX::first_field_in_group[1]);
+    DOCTEST_CHECK(&TECHDATA::starting_techfield.xenon == &MOX::first_field_in_group[9]);
+}
 
 DOCTEST_TEST_CASE("AI turn reset does not own or reset world inputs") {
     int16_t player_count = 1;
@@ -280,9 +286,9 @@ DOCTEST_TEST_CASE("legacy movement queries restore positions including repeated 
     DOCTEST_CHECK(queried_locations == std::vector<int16_t>{1, 1, 1});
     DOCTEST_CHECK(queried_destination == 0);
     for (const auto& ship : legacy_ships) {
-        DOCTEST_CHECK(ship.location == 0);
-        DOCTEST_CHECK(ship.x == 10);
-        DOCTEST_CHECK(ship.y == 20);
+        DOCTEST_CHECK((int16_t)ship.location == 0);
+        DOCTEST_CHECK((int16_t)ship.x == 10);
+        DOCTEST_CHECK((int16_t)ship.y == 20);
     }
     queried = false;
     const uint32_t invalid[] = {UINT32_MAX};

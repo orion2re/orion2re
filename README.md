@@ -140,6 +140,17 @@ Tests are opt-in and are not built by default. To configure, build, and run the 
 tools/run-tests.sh
 ```
 
+The test runner enables AddressSanitizer and UndefinedBehaviorSanitizer with
+Clang/GCC (AddressSanitizer with MSVC). macOS test builds require a Debug
+configuration with both sanitizers; explicitly disabling sanitizers is rejected.
+To use the macOS sanitizer presets directly:
+
+```sh
+cmake --preset osx-debug-asan-tests
+cmake --build --preset osx-debug-asan-tests --parallel 4
+ctest --preset osx-debug-asan-tests
+```
+
 For the full preset list and per-platform details, see `CMakePresets.json`.
 
 Supported source-owned mods are stored under `data/mods/`. Normal game builds package `data/base/` as `data/base.zip`, package each source-owned mod as `data/mods/<package>.zip`, and deploy all archives when `ORION2RE_GAME_DIR` is configured.

@@ -115,10 +115,19 @@ if(EXISTS "${ORION2RE_LOCAL_CONFIG}")
     include("${ORION2RE_LOCAL_CONFIG}")
 endif()
 
-option(ORION2RE_ENABLE_ASAN "Enable AddressSanitizer (and UBSan with GCC/Clang) for supported debug builds" OFF)
-option(ORION2RE_RELEASE_DEBUG_INFO "Emit debug info for non-Debug MSVC builds" OFF)
 option(ORION2RE_BUILD_GAME "Build the SDL game executable" ON)
 option(ORION2RE_BUILD_TESTS "Build tests" OFF)
+set(ORION2RE_ENABLE_ASAN_DEFAULT OFF)
+if(APPLE AND ORION2RE_BUILD_TESTS)
+    set(ORION2RE_ENABLE_ASAN_DEFAULT ON)
+endif()
+option(ORION2RE_ENABLE_ASAN "Enable AddressSanitizer (and UBSan with GCC/Clang) for supported debug builds" ${ORION2RE_ENABLE_ASAN_DEFAULT})
+option(ORION2RE_RELEASE_DEBUG_INFO "Emit debug info for non-Debug MSVC builds" OFF)
+if(APPLE AND ORION2RE_BUILD_TESTS AND NOT ORION2RE_ENABLE_ASAN)
+    message(FATAL_ERROR
+        "macOS tests require ASan and UBSan. Configure a Debug build with "
+        "-DORION2RE_ENABLE_ASAN=ON, or use the osx-debug-asan-tests preset.")
+endif()
 set(ORION2RE_BUILD_CONFIG_TOOL_DEFAULT OFF)
 if(NOT CMAKE_CROSSCOMPILING AND
    EXISTS "${ORION2RE_VENDORED_YYJSON_DIR}/src/yyjson.h" AND
