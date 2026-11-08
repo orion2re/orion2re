@@ -258,6 +258,13 @@ namespace orion2re::lua {
                     failed = true;
                     return false;
                 }
+                if (count == 0) {
+                    // Nothing to copy. A zero-byte read must not call
+                    // memcpy: the destination may be a null data()
+                    // pointer from an empty vector, which UBSan flags
+                    // even when the byte count is zero.
+                    return true;
+                }
                 std::memcpy(destination, data + position, count);
                 position += count;
                 return true;
