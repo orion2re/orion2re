@@ -248,6 +248,7 @@ orion2re_add_unit_test(test_ai_inputs
         tests/unit/ai_inputs_test.cpp
         tests/unit/ai_compat_test.cpp
     PRODUCTION_SOURCES
+        src/game/ai_compat.cpp
         src/game/aibuild.cpp
         src/game/aidata.cpp
         src/game/aimove.cpp
@@ -900,6 +901,7 @@ orion2re_add_unit_test(test_aimove
         src/game/legacy_sort.cpp
         src/game/special.cpp
         src/game/angle.cpp
+        src/game/ai_compat.cpp
         src/game/fleet_movement.cpp
         src/game/aimove.cpp
     FAKE_SOURCES

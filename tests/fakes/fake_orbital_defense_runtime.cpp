@@ -13,7 +13,7 @@ namespace {
 
 namespace AIBUILD {
 
-    int16_t __cdecl Player_War_Level(const game_world::s_view*, int16_t) {
+    int16_t Player_War_Level(const game_world::s_view*, uint32_t) {
         return 1;
     }
     int16_t __cdecl Industry_Worth(s_colony*) {
@@ -156,7 +156,7 @@ namespace EVENTS {
 } // namespace EVENTS
 
 namespace AIMOVE {
-    std::optional<uint32_t> Best_Uncolonized_Undestined_Planet(AIDATA::s_state*, const game_world::s_view*, int16_t) {
+    std::optional<uint32_t> Best_Uncolonized_Undestined_Planet(AIDATA::s_state*, const game_world::s_view*, uint32_t) {
         return std::nullopt;
     }
 } // namespace AIMOVE

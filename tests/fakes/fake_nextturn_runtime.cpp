@@ -17,6 +17,7 @@ namespace {
 namespace TEST_NEXTTURN {
     bool invalid_inputs;
     int32_t turn_side_effects;
+    std::vector<std::string> ai_service_order;
     int32_t observed_event_bc;
     int32_t observed_event_research;
     bool colony_changes_saw_current_economy;
@@ -30,6 +31,7 @@ namespace TEST_NEXTTURN {
     void Reset_() {
         invalid_inputs = false;
         turn_side_effects = 0;
+        ai_service_order.clear();
         memset(players, 0, sizeof(players));
         MOX::settings = {};
         MOX::antarans = {};
@@ -86,6 +88,10 @@ namespace orion2re::lua::game {
 namespace RUSS {
     int8_t all_ai_game;
     void __cdecl Shuffle_Sint(int16_t*, int16_t) {}
+    void __cdecl Mox_Update() {
+        ++TEST_NEXTTURN::turn_side_effects;
+        TEST_NEXTTURN::ai_service_order.emplace_back("service");
+    }
 }
 
 namespace MAINSCR {
@@ -151,7 +157,10 @@ namespace AIDATA {
     s_state state;
     const char* Validate_Inputs(const game_world::s_view*) { return TEST_NEXTTURN::invalid_inputs ? "test invalid input" : nullptr; }
     void Reset(s_state* ai) { *ai = {}; }
-    bool Compute_AI_Data(s_state*, const game_world::s_view*) { return true; }
+    bool Compute_AI_Data(s_state*, const game_world::s_view*) {
+        TEST_NEXTTURN::ai_service_order.emplace_back("ai_data");
+        return true;
+    }
     void Complete_Turn(s_state*) {}
 }
 
@@ -194,7 +203,9 @@ namespace COLONIZE {
 }
 
 namespace aitech {
-    void __cdecl All_AI_Tech_Select(AIDATA::s_state*, const game_world::s_view*) {}
+    void __cdecl All_AI_Tech_Select(AIDATA::s_state*, const game_world::s_view*) {
+        TEST_NEXTTURN::ai_service_order.emplace_back("ai_tech");
+    }
     void __cdecl Apply_Evolutionary_Upgrades(const game_world::s_view*) {}
 }
 

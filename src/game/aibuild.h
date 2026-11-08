@@ -84,7 +84,7 @@ namespace AIBUILD {
     /** Computes build-related needs for one AI player.
      * @param player_idx Player index to evaluate.
      */
-    void __cdecl Compute_Needs(AIDATA::s_state* ai, const game_world::s_view* world, int16_t player_idx);
+    void Compute_Needs(AIDATA::s_state* ai, const game_world::s_view* world, uint32_t player_idx);
 
     /** Recomputes empire-wide build needs for all AI players. */
     void __cdecl Compute_Empire_Building_Needs(AIDATA::s_state* ai, const game_world::s_view* world);
@@ -92,7 +92,7 @@ namespace AIBUILD {
     /** Returns the highest hostile treaty state currently affecting a player.
      * @param player_idx Player index to inspect.
      */
-    int16_t __cdecl Player_War_Level(const game_world::s_view* world, int16_t player_idx);
+    int16_t Player_War_Level(const game_world::s_view* world, uint32_t player_idx);
 
     /** Computes whether a player currently needs more colony ships.
      * @param needs Production needs to update.
@@ -108,7 +108,7 @@ namespace AIBUILD {
     /** Buys out eligible colony production for one player while funds allow.
      * @param player_idx Player index whose colonies may buy production outright.
      */
-    void __cdecl Empire_Buy_Outright(AIDATA::s_state* ai, const game_world::s_view* world, int16_t player_idx);
+    void Empire_Buy_Outright(AIDATA::s_state* ai, const game_world::s_view* world, uint32_t player_idx);
 
     /** Marks which buildings a colony is currently allowed to construct.
      * @param colony Colony to inspect.

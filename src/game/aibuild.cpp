@@ -99,7 +99,7 @@ namespace AIBUILD {
         return (int16_t)(refit_cost < min_cost ? min_cost : refit_cost);
     }
 
-    int16_t __cdecl Player_War_Level(const game_world::s_view* world, int16_t player_idx) {
+    int16_t Player_War_Level(const game_world::s_view* world, uint32_t player_idx) {
         int16_t max_war_level = 0;
 
         for (int16_t i = 0; i < world->Player_Count(); ++i) {
@@ -126,8 +126,6 @@ namespace AIBUILD {
     }
 
     void __cdecl Compute_Empire_Building_Needs(AIDATA::s_state* ai, const game_world::s_view* world) {
-        RUSS::Mox_Update();
-
         for (auto& player : ai->players) player.build = {};
 
         for (int16_t i = 0; i < world->Ship_Count(); ++i) {
@@ -165,8 +163,6 @@ namespace AIBUILD {
             }
         }
 
-        RUSS::Mox_Update();
-
         if (world->Player_Count() > 0) {
             for (int16_t owner = 0; owner < world->Player_Count(); ++owner) {
                 for (int16_t target = 0; target < world->Player_Count(); ++target) {
@@ -176,7 +172,6 @@ namespace AIBUILD {
             }
         }
 
-        RUSS::Mox_Update();
         for (int16_t player = 0; player < world->Player_Count(); ++player) {
             Compute_Needs(ai, world, player);
         }
@@ -202,7 +197,9 @@ namespace AIBUILD {
         }
     }
 
-    void __cdecl Compute_Needs(AIDATA::s_state* ai, const game_world::s_view* world, int16_t player_idx) {
+    void Compute_Needs(AIDATA::s_state* ai, const game_world::s_view* world, uint32_t player_idx) {
+        const auto legacy_player = legacy_world::Index(player_idx);
+        if (!legacy_player) return;
         auto& needs = ai->players[player_idx].build;
         const auto& info = ai->players[player_idx].empire;
         bool is_militarist;
@@ -369,7 +366,7 @@ namespace AIBUILD {
 
         needs.spies.additional_wanted = 0;
         if (needs.combat_strength.total > 0) {
-            int32_t spy_limit = 0x3F - BILL::Get_Their_Spy_Number(player_idx, player_idx);
+            int32_t spy_limit = 0x3F - BILL::Get_Their_Spy_Number(*legacy_player, *legacy_player);
             if (info.contact_count > 0 && spy_limit > 0) {
                 int32_t current_spies = needs.spies.current;
                 if (current_spies < max_spies) {
@@ -411,7 +408,7 @@ namespace AIBUILD {
         Compute_Freighter_Need(&needs, world->players[player_idx].surplus_freighters);
     }
 
-    void __cdecl Empire_Buy_Outright(AIDATA::s_state* ai, const game_world::s_view* world, int16_t player_idx) {
+    void Empire_Buy_Outright(AIDATA::s_state* ai, const game_world::s_view* world, uint32_t player_idx) {
         s_player* player = &world->players[player_idx];
         int16_t total_maintenance = (int16_t)(uint16_t)player->total_maintenance;
 
@@ -500,8 +497,6 @@ namespace AIBUILD {
                 auto colony_index = legacy_world::Index(*chosen_colony);
                 if (colony_index) COLCALC::Colony_Buy_Outright(*colony_index);
             }
-
-            RUSS::Mox_Update();
 
         } while (chosen_colony);
     }
@@ -1071,6 +1066,8 @@ namespace AIBUILD {
     }
 
     void __cdecl Assign_Colony_New_Building(AIDATA::s_state* ai, const game_world::s_view* world, uint32_t colony_idx, s_colony* colony) {
+        const auto legacy_colony = legacy_world::Index(colony_idx);
+        if (!legacy_colony) return;
         uint16_t weights[52];
         int32_t evaluated_weights[AUTOBUILD_CANDIDATE_COUNT];
         production_rules::s_context context;
@@ -1121,7 +1118,7 @@ namespace AIBUILD {
 
         if (!choice || *choice < BUILDING_COUNT) {
             int16_t product = choice ? (int16_t)*choice : COLONY_PRODUCTION_NONE;
-            COLBLDG::Delete_Prod_From_Colony_Queue(colony_idx, product);
+            COLBLDG::Delete_Prod_From_Colony_Queue(*legacy_colony, product);
             colony->producing[0] = product;
         } else if (*choice == BUILDING_COUNT) {
             colony->producing[0] = COLONY_PRODUCTION_HOUSING;

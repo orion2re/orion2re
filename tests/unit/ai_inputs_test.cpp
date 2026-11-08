@@ -2,7 +2,7 @@
 
 #include "doctest/doctest.h"
 #include "game/legacy_world.h"
-#include "game/fleet_movement.h"
+#include "game/ai_compat.h"
 
 namespace {
     s_ship_data legacy_ships[2];
@@ -295,7 +295,7 @@ DOCTEST_TEST_CASE("fleet evaluation passes a proposed origin without modifying r
     const uint32_t ids[] = {0, 0, 1};
     s_ship_move_info result{};
     proposed_origin.reset();
-    DOCTEST_CHECK(SHIPMOVE::Evaluate_Fleet_Move(ids, 0, &result, 1) == SHIPMOVE::e_fleet_evaluation::can_move);
+    DOCTEST_CHECK(ai_compat::Evaluate_Fleet_Move(ids, 0, &result, 1) == SHIPMOVE::e_fleet_evaluation::can_move);
     DOCTEST_CHECK(queried_ships == std::vector<int16_t>{0, 0, 1});
     DOCTEST_CHECK(queried_locations == std::vector<int16_t>{0, 0, 0});
     DOCTEST_CHECK(proposed_origin == 1);
@@ -307,14 +307,14 @@ DOCTEST_TEST_CASE("fleet evaluation passes a proposed origin without modifying r
     }
     queried = false;
     const uint32_t invalid[] = {UINT32_MAX};
-    SHIPMOVE::Evaluate_Fleet_Move(invalid, 0, &result);
+    ai_compat::Evaluate_Fleet_Move(invalid, 0, &result);
     DOCTEST_CHECK_FALSE(queried);
     DOCTEST_CHECK(result.moving == 0);
     queried = false;
-    SHIPMOVE::Evaluate_Fleet_Move({}, 0, &result);
+    ai_compat::Evaluate_Fleet_Move({}, 0, &result);
     DOCTEST_CHECK_FALSE(queried);
     const uint32_t nonexistent[] = {2};
-    DOCTEST_CHECK(SHIPMOVE::Evaluate_Fleet_Move(nonexistent, 0, &result) == SHIPMOVE::e_fleet_evaluation::invalid_input);
+    DOCTEST_CHECK(ai_compat::Evaluate_Fleet_Move(nonexistent, 0, &result) == SHIPMOVE::e_fleet_evaluation::invalid_input);
     DOCTEST_CHECK_FALSE(queried);
 }
 
@@ -335,16 +335,63 @@ DOCTEST_TEST_CASE("fleet evaluation and ordering share native request validation
     const uint32_t missing[] = {(uint32_t)MOX::NUM_SHIPS};
     s_ship_move_info result{};
     queried = false;
-    DOCTEST_CHECK(SHIPMOVE::Evaluate_Fleet_Move(missing, 0, &result) == SHIPMOVE::e_fleet_evaluation::invalid_input);
-    DOCTEST_CHECK_FALSE(SHIPMOVE::Order_Fleet_Move(missing, 0, &result));
+    DOCTEST_CHECK(ai_compat::Evaluate_Fleet_Move(missing, 0, &result) == SHIPMOVE::e_fleet_evaluation::invalid_input);
+    DOCTEST_CHECK_FALSE(ai_compat::Order_Fleet_Move(missing, 0, &result));
     DOCTEST_CHECK_FALSE(queried);
     const uint32_t outside = (uint32_t)MOX::NUM_STARS + 1;
-    DOCTEST_CHECK(SHIPMOVE::Evaluate_Fleet_Move(ships, outside, &result) == SHIPMOVE::e_fleet_evaluation::invalid_input);
-    DOCTEST_CHECK_FALSE(SHIPMOVE::Order_Fleet_Move(ships, outside, &result));
+    DOCTEST_CHECK(ai_compat::Evaluate_Fleet_Move(ships, outside, &result) == SHIPMOVE::e_fleet_evaluation::invalid_input);
+    DOCTEST_CHECK_FALSE(ai_compat::Order_Fleet_Move(ships, outside, &result));
     DOCTEST_CHECK_FALSE(queried);
-    DOCTEST_CHECK(SHIPMOVE::Evaluate_Fleet_Move(ships, 0, &result, (uint32_t)MOX::NUM_STARS) == SHIPMOVE::e_fleet_evaluation::invalid_input);
+    DOCTEST_CHECK(ai_compat::Evaluate_Fleet_Move(ships, 0, &result, (uint32_t)MOX::NUM_STARS) == SHIPMOVE::e_fleet_evaluation::invalid_input);
     DOCTEST_CHECK_FALSE(queried);
     // The portal destination is valid; unlike the destination, an origin must be an actual star.
-    DOCTEST_CHECK(SHIPMOVE::Evaluate_Fleet_Move(ships, MOX::NUM_STARS, &result) == SHIPMOVE::e_fleet_evaluation::can_move);
-    DOCTEST_CHECK(SHIPMOVE::Order_Fleet_Move(ships, MOX::NUM_STARS, &result));
+    DOCTEST_CHECK(ai_compat::Evaluate_Fleet_Move(ships, MOX::NUM_STARS, &result) == SHIPMOVE::e_fleet_evaluation::can_move);
+    DOCTEST_CHECK(ai_compat::Order_Fleet_Move(ships, MOX::NUM_STARS, &result));
+}
+
+DOCTEST_TEST_CASE("AI movement rejects wide IDs rather than aliasing legacy index zero") {
+    const uint32_t valid[] = {0};
+    s_ship_move_info result{};
+    for (uint32_t id : {uint32_t{INT16_MAX} + 1, uint32_t{1} << 16, UINT32_MAX}) {
+        const uint32_t invalid[] = {id};
+        queried = false;
+        result.moving = 1;
+        DOCTEST_CHECK(ai_compat::Evaluate_Fleet_Move(invalid, 0, &result) == SHIPMOVE::e_fleet_evaluation::invalid_input);
+        DOCTEST_CHECK(result.moving == 0);
+        DOCTEST_CHECK_FALSE(ai_compat::Order_Fleet_Move(invalid, 0, &result));
+        DOCTEST_CHECK(ai_compat::Evaluate_Fleet_Move(valid, id, &result) == SHIPMOVE::e_fleet_evaluation::invalid_input);
+        DOCTEST_CHECK_FALSE(ai_compat::Order_Fleet_Move(valid, id, &result));
+        DOCTEST_CHECK(ai_compat::Evaluate_Fleet_Move(valid, 0, &result, id) == SHIPMOVE::e_fleet_evaluation::invalid_input);
+        DOCTEST_CHECK_FALSE(queried);
+
+        const game_world::s_view world{.ships = legacy_ships};
+        AIMOVE::s_ai_movement_context context{0, nullptr, nullptr, &world};
+        DOCTEST_CHECK_FALSE(AIMOVE::Move_Ships_With_Possible_Intermediate(&context, invalid, 0));
+        DOCTEST_CHECK_FALSE(queried);
+    }
+}
+
+DOCTEST_TEST_CASE("native fleet movement accepts only terminated legacy index lists") {
+    s_ship_move_info result{};
+    int16_t valid[] = {0, 0, 1, -1};
+    proposed_origin.reset();
+    DOCTEST_CHECK(SHIPMOVE::Evaluate_Fleet_Move(valid, 0, &result, 1) == SHIPMOVE::e_fleet_evaluation::can_move);
+    DOCTEST_CHECK(queried_ships == std::vector<int16_t>{0, 0, 1});
+    DOCTEST_CHECK(proposed_origin == 1);
+    DOCTEST_CHECK(valid[3] == -1);
+
+    queried = false;
+    int16_t unterminated[] = {0};
+    int16_t empty[] = {-1};
+    int16_t early_end[] = {0, -1, 1, -1};
+    int16_t negative[] = {-2, -1};
+    for (auto list : {std::span<int16_t>{unterminated}, std::span<int16_t>{empty},
+             std::span<int16_t>{early_end}, std::span<int16_t>{negative}}) {
+        DOCTEST_CHECK(SHIPMOVE::Evaluate_Fleet_Move(list, 0, &result) == SHIPMOVE::e_fleet_evaluation::invalid_input);
+        DOCTEST_CHECK_FALSE(SHIPMOVE::Order_Fleet_Move(list, 0, &result));
+    }
+    DOCTEST_CHECK(SHIPMOVE::Evaluate_Fleet_Move(valid, -1, &result) == SHIPMOVE::e_fleet_evaluation::invalid_input);
+    DOCTEST_CHECK(SHIPMOVE::Evaluate_Fleet_Move(valid, 0, &result, -1) == SHIPMOVE::e_fleet_evaluation::invalid_input);
+    DOCTEST_CHECK_FALSE(SHIPMOVE::Order_Fleet_Move(valid, -1, &result));
+    DOCTEST_CHECK_FALSE(queried);
 }

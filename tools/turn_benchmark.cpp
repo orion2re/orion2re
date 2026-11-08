@@ -62,6 +62,9 @@ namespace {
             MSG_::Allocate_Msg_Slots();
             if (MOX::settings.xenons_exist != 0 && MOX::antarans.field6_0x3c == 0) antarans::Antaran_Invasion_Check();
             Bind_AI_World();
+#if __has_include("game/ai_compat.h")
+            RUSS::Mox_Update();
+#endif
         });
         Measure(phases, "ai_data", [&] { AIDATA::Compute_AI_Data(TURN_BENCHMARK_AI_STATE); });
         Measure(phases, "diplomacy", [&] {
@@ -83,6 +86,9 @@ namespace {
         Measure(phases, "colonization_research", [&] {
             COLONIZE::All_AI_Colonize();
             aitech::All_AI_Tech_Select(TURN_BENCHMARK_AI_STATE);
+#if __has_include("game/ai_compat.h")
+            RUSS::Mox_Update();
+#endif
         });
         Measure(phases, "production_movement", [&] {
             maintain::Make_Scrap_Ships_Dead();

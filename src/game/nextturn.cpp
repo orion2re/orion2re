@@ -119,6 +119,7 @@ namespace NEXTTURN {
         }
 
         AIDATA::s_state* ai = &AIDATA::state;
+        RUSS::Mox_Update();
         if (!AIDATA::Compute_AI_Data(ai, world)) return false;
         DIP_SCRN::Resolve_Delayed_Diplomacy_Orders();
         DIP_SCRN::Set_Opportunity_Attacks();
@@ -131,6 +132,7 @@ namespace NEXTTURN {
         AIMOVE::Move_All_AI(ai, world);
         COLONIZE::All_AI_Colonize();
         aitech::All_AI_Tech_Select(ai, world);
+        RUSS::Mox_Update();
         maintain::Make_Scrap_Ships_Dead();
         REPORT::Initialize_Reports();
         TRADE::Process_Trade_And_Research_Agreements();

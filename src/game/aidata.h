@@ -100,7 +100,7 @@ namespace AIDATA {
      * @param source_star_idx Source star.
      * @param max_range_parsecs Maximum allowed distance in parsecs.
      */
-    bool __cdecl Star_In_Range_Of_Given_Star(const game_world::s_view* world, int16_t target_star_idx, int16_t source_star_idx, int32_t max_range_parsecs);
+    bool Star_In_Range_Of_Given_Star(const game_world::s_view* world, uint32_t target_star_idx, uint32_t source_star_idx, int32_t max_range_parsecs);
 
     /*
      * Builds AI caches for ships, colonies, stars, and per-player planning data.
@@ -115,7 +115,7 @@ namespace AIDATA {
      * @param in_normal_range_out Receives players within normal range.
      * @param in_extended_range_out Receives players within extended range.
      */
-    void __cdecl Find_Players_In_Range(const game_world::s_view* world, int16_t star_idx, int8_t* in_normal_range_out, int8_t* in_extended_range_out);
+    void Find_Players_In_Range(const game_world::s_view* world, uint32_t star_idx, int8_t* in_normal_range_out, int8_t* in_extended_range_out);
 
     /*
      * Estimates how valuable settling an uncolonized planet is to a player.
