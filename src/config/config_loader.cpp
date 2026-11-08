@@ -296,7 +296,9 @@ namespace config {
         if (!Load_Document(normalized_entry, &document, diagnostic)) {
             return false;
         }
-        return Apply_Config_With_Mods(document, package_id, effective, diagnostic, Load_Document);
+        return Apply_Config_With_Mods(document, package_id, effective, diagnostic, Load_Document,
+            nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+            CONFIG_PRECEDENCE_ENTRY_OVERRIDES_PACKAGES);
     }
 
     bool Load_Startup_Config(const char* entry_path, const char* package_id, s_effective_config* effective, bool* loaded, s_cfg_diagnostic* diagnostic, bool require_file) {
@@ -346,7 +348,7 @@ namespace config {
         }
         std::vector<std::string> package_order;
         std::vector<s_mod_requirement> required_mods;
-        if (!Apply_Config_With_Mods(document, package_id, effective, diagnostic, Load_Document, &package_order, nullptr, nullptr, nullptr, nullptr, &required_mods)) {
+        if (!Apply_Config_With_Mods(document, package_id, effective, diagnostic, Load_Document, &package_order, nullptr, nullptr, nullptr, nullptr, &required_mods, nullptr, nullptr, nullptr, CONFIG_PRECEDENCE_ENTRY_OVERRIDES_PACKAGES)) {
             return false;
         }
         active_config = {};
@@ -886,7 +888,7 @@ namespace config {
         }
         s_effective_config candidate;
         std::vector<std::string> package_order;
-        if (!Stage_Config_With_Mods(document, active_config.base_package.c_str(), &candidate, &package_order, diagnostic, Load_Document)) {
+        if (!Stage_Config_With_Mods(document, active_config.base_package.c_str(), &candidate, &package_order, diagnostic, Load_Document, nullptr, CONFIG_PRECEDENCE_ENTRY_OVERRIDES_PACKAGES)) {
             return false;
         }
         if (package_order != active_config.package_order) {
@@ -974,7 +976,8 @@ namespace config {
         std::vector<std::string> package_order;
         std::vector<s_mod_requirement> resolved;
         if (!Stage_Config_With_Mods(document, active_config.base_package.c_str(),
-                &candidate, &package_order, diagnostic, Load_Document, &resolved)) {
+                &candidate, &package_order, diagnostic, Load_Document, &resolved,
+                CONFIG_PRECEDENCE_ENTRY_OVERRIDES_PACKAGES)) {
             return false;
         }
         preview->resolved_mods = std::move(resolved);
@@ -1005,7 +1008,8 @@ namespace config {
         if (!Apply_Config_With_Mods(document, active_config.base_package.c_str(),
                 &effective, diagnostic, Load_Document, &package_order, nullptr,
                 nullptr, nullptr, nullptr, &resolved, nullptr,
-                &active_config.baseline.effective.state)) {
+                &active_config.baseline.effective.state, nullptr,
+                CONFIG_PRECEDENCE_ENTRY_OVERRIDES_PACKAGES)) {
             return false;
         }
         active_config.baseline.effective = std::move(effective);
