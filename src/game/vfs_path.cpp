@@ -120,6 +120,17 @@ namespace vfs_detail {
         return strlcpy(resolved_path, candidate_path, resolved_path_size) < resolved_path_size;
     }
 
+    bool Resolve_User_Config_Asset_Path_(const char* asset_path, char* resolved_path, size_t resolved_path_size) {
+        char candidate_path[VFS_MAX_PATH];
+        const size_t length = strlen(asset_path);
+        if (g_vfs_state.user_config_path[0] == '\0' || length < 4 ||
+            strcasecmp(asset_path + length - 4, ".cfg") != 0 || strncasecmp(asset_path, "mods/", 5) == 0) {
+            return false;
+        }
+        return Build_Candidate_Path_(g_vfs_state.user_config_path, "", asset_path, candidate_path, sizeof(candidate_path)) &&
+            Resolve_Candidate_Path_(candidate_path, resolved_path, resolved_path_size);
+    }
+
     bool Resolve_Override_Asset_Path_(const char* asset_path, char* resolved_path, size_t resolved_path_size) {
         char candidate_path[VFS_MAX_PATH];
 
@@ -191,8 +202,11 @@ namespace vfs_detail {
         return resolve_layers(g_vfs_state.package_layers);
     }
 
-    bool Resolve_Raw_Asset_Path_(const char* asset_path, char* resolved_path, size_t resolved_path_size, bool* used_fallback) {
+    bool Resolve_Raw_Asset_Path_(const char* asset_path, char* resolved_path, size_t resolved_path_size, bool* used_fallback, size_t* raw_layer) {
         char candidate_path[VFS_MAX_PATH];
+
+        if (used_fallback != nullptr) *used_fallback = false;
+        if (raw_layer != nullptr) *raw_layer = 0;
 
         if (Build_Candidate_Path_(g_vfs_state.base_path, "", asset_path, candidate_path, sizeof(candidate_path)) &&
             Resolve_Candidate_Path_(candidate_path, resolved_path, resolved_path_size)) {
@@ -200,6 +214,14 @@ namespace vfs_detail {
                 *used_fallback = false;
             }
             return true;
+        }
+
+        for (size_t index = 0; index < g_vfs_state.raw_search_paths.size(); ++index) {
+            if (Build_Candidate_Path_(g_vfs_state.raw_search_paths[index].c_str(), "", asset_path, candidate_path, sizeof(candidate_path)) &&
+                Resolve_Candidate_Path_(candidate_path, resolved_path, resolved_path_size)) {
+                if (raw_layer != nullptr) *raw_layer = index + 1;
+                return true;
+            }
         }
 
         if (g_vfs_state.fallback_path[0] != '\0' &&
@@ -227,6 +249,10 @@ namespace vfs_detail {
 
         if (strncasecmp(asset_path, "mods/", 5) == 0) {
             return Resolve_Package_Asset_Path_(asset_path, resolved_path, resolved_path_size);
+        }
+
+        if (Resolve_User_Config_Asset_Path_(asset_path, resolved_path, resolved_path_size)) {
+            return true;
         }
 
         if (Resolve_Override_Asset_Path_(asset_path, resolved_path, resolved_path_size)) {

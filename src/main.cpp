@@ -6,6 +6,7 @@
 #endif
 
 #include "config/config_loader.h"
+#include "game/user_paths.h"
 #include "lua/lua_mod_runtime.h"
 #include "startup_directory.h"
 #include "startup_options.h"
@@ -56,9 +57,15 @@ static void SDLCALL Game_Log_Output_(void* userdata, int category, SDL_LogPriori
 }
 #endif
 
+#if defined(ORION2RE_DEBUG_BUILD) || defined(ORION2RE_ASAN_BUILD)
+static const char* Logs_Parent_Path_() {
+    return user_paths::Is_Enabled() ? user_paths::Get_Directory(user_paths::USER_DIRECTORY_STATE) : SDL_GetBasePath();
+}
+#endif
+
 static void Configure_Game_Log_() {
 #if defined(ORION2RE_DEBUG_BUILD)
-    const char* base_path = SDL_GetBasePath();
+    const char* base_path = Logs_Parent_Path_();
     char logs_path[1024];
     char log_file_path[1024];
 
@@ -107,7 +114,7 @@ extern "C" const char* __lsan_default_suppressions() {
 #endif
 
 static void Configure_Sanitizer_Runtime_() {
-    const char* base_path = SDL_GetBasePath();
+    const char* base_path = Logs_Parent_Path_();
     if (base_path == nullptr) {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "ASAN: unable to resolve game directory: %s", SDL_GetError());
         return;
@@ -166,6 +173,12 @@ static void Configure_Sanitizer_Runtime_() {
 #endif
 
 int main(int argc, char** argv) {
+#if defined(ORION2RE_DATADIR)
+    const char* installed_datadir = ORION2RE_DATADIR;
+#else
+    const char* installed_datadir = nullptr;
+#endif
+    user_paths::Init(SDL_GetBasePath(), user_paths::PLATFORM_USES_XDG, installed_datadir);
     Configure_Game_Log_();
 
 #if defined(ORION2RE_ASAN_BUILD)
@@ -190,10 +203,30 @@ int main(int argc, char** argv) {
         return -1;
     }
 
-    if (vfs::Init(game_directory.c_str()) == 0) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "main: vfs::Init failed for base path '%s'", game_directory.c_str());
+    std::string data_directory;
+    if (!startup::Resolve_Data_Directory(game_directory, installed_datadir, &data_directory) ||
+        vfs::Init(data_directory.c_str()) == 0) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "main: unable to initialize data directory '%s'", data_directory.c_str());
         Shutdown_Game_Log_();
         return -1;
+    }
+    SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "data directory: %s", data_directory.c_str());
+
+    if (user_paths::Is_Enabled()) {
+        const std::string user_mods_path = std::string(user_paths::Get_Directory(user_paths::USER_DIRECTORY_DATA)) + "mods/";
+        bool paths_valid = vfs::Set_User_Config_Path(user_paths::Get_Directory(user_paths::USER_DIRECTORY_CONFIG)) != 0 &&
+            vfs::Set_User_Mods_Path(user_mods_path.c_str()) != 0 &&
+            vfs::Add_Raw_Search_Path(game_directory.c_str()) != 0;
+        for (const std::string& directory : user_paths::Get_Game_Asset_Directories()) {
+            paths_valid = vfs::Add_Raw_Search_Path(directory.c_str()) != 0 && paths_valid;
+        }
+        if (!paths_valid) {
+            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "main: XDG search path exceeds the supported path length");
+            vfs::Shutdown();
+            Shutdown_Game_Log_();
+            user_paths::Shutdown();
+            return -1;
+        }
     }
 
     config::s_effective_config effective_config;
@@ -223,6 +256,7 @@ int main(int argc, char** argv) {
     config::Shutdown_Runtime();
     vfs::Shutdown();
     Shutdown_Game_Log_();
+    user_paths::Shutdown();
 
     return result;
 }

@@ -1,5 +1,7 @@
 #include "pch.h"
 
+#include "user_paths.h"
+
 namespace dos {
     namespace {
         enum {
@@ -78,6 +80,14 @@ namespace dos {
             return false;
         }
 
+        char user_pattern[DOS_MAX_PATH];
+        if (user_paths::Redirect_Legacy_Path(pattern, false, user_pattern, sizeof(user_pattern))) {
+            if (user_pattern[0] == '\0') {
+                output_name[0] = '\0';
+                return false;
+            }
+            pattern = user_pattern;
+        }
         Split_Search_Pattern(pattern, directory, sizeof(directory), filename_pattern, sizeof(filename_pattern));
 
         matches = SDL_GlobDirectory(directory, filename_pattern, SDL_GLOB_CASEINSENSITIVE, &count);
@@ -95,6 +105,10 @@ namespace dos {
     }
 
     void __cdecl Delete_File(const char* path) {
+        char user_path[DOS_MAX_PATH];
+        if (user_paths::Redirect_Legacy_Path(path, true, user_path, sizeof(user_path))) {
+            path = user_path;
+        }
         remove(path);
     }
 
@@ -130,6 +144,10 @@ namespace dos {
             return nullptr;
         }
 
+        char user_path[DOS_MAX_PATH];
+        if (user_paths::Redirect_Legacy_Path(pathname, false, user_path, sizeof(user_path))) {
+            pathname = user_path;
+        }
         if (!SDL_GetPathInfo(pathname, &path_info) || path_info.type != SDL_PATHTYPE_FILE) {
             return nullptr;
         }

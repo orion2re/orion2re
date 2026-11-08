@@ -66,6 +66,10 @@ orion2re_enable_sanitizers(orion2re_test_config_defaults)
 function(orion2re_add_unit_test TARGET_NAME)
     cmake_parse_arguments(ORION2RE_TEST "LINK_SDL" "" "SOURCES;PRODUCTION_SOURCES;FAKE_SOURCES;LIBRARIES" ${ARGN})
 
+    if("src/game/compat.cpp" IN_LIST ORION2RE_TEST_PRODUCTION_SOURCES)
+        list(APPEND ORION2RE_TEST_PRODUCTION_SOURCES src/game/user_paths.cpp)
+    endif()
+
     orion2re_test_shared_sources(ORION2RE_TEST_OBJECTS
         ${ORION2RE_TEST_SOURCES}
         ${ORION2RE_TEST_PRODUCTION_SOURCES}
@@ -113,6 +117,16 @@ function(orion2re_add_unit_test TARGET_NAME)
 
     add_test(NAME ${TARGET_NAME} COMMAND ${TARGET_NAME})
 endfunction()
+
+orion2re_add_unit_test(test_user_paths
+    SOURCES
+        tests/unit/user_paths_test.cpp
+    PRODUCTION_SOURCES
+        src/game/compat.cpp
+        src/game/dos.cpp
+        src/startup_directory.cpp
+    LINK_SDL
+)
 
 orion2re_add_unit_test(test_fields_helpers
     SOURCES

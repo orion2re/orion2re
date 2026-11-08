@@ -113,6 +113,151 @@ namespace test_vfs_detail {
 } // namespace test_vfs_detail
 
 DOCTEST_TEST_SUITE("vfs cpp") {
+    DOCTEST_TEST_CASE("user configuration wins without overriding non-config or private package assets") {
+        test_vfs_detail::Scoped_Vfs_Test_Directory test_dir;
+        test_dir.Write_File("install/data/orion2re.cfg", "installed");
+        test_dir.Write_File("install/data/shared.cfg", "installed include");
+        test_dir.Write_File("install/data/theme.dat", "installed theme");
+        test_dir.Write_File("config/orion2re.cfg", "user");
+        test_dir.Write_File("config/theme.dat", "not a config");
+        test_dir.Write_File("config/mods/sample/private.cfg", "not a package");
+        const std::string base = (test_dir.root_path() / "install").string();
+        const std::string config = (test_dir.root_path() / "config").string();
+        DOCTEST_REQUIRE(vfs::Init(base.c_str()) == 1);
+        DOCTEST_CHECK(test_vfs_detail::Read_Vfs_File_("orion2re.cfg") == "installed");
+        DOCTEST_REQUIRE(vfs::Set_User_Config_Path(config.c_str()) == 1);
+        DOCTEST_CHECK(test_vfs_detail::Read_Vfs_File_("orion2re.cfg") == "user");
+        DOCTEST_CHECK(test_vfs_detail::Read_Vfs_File_("shared.cfg") == "installed include");
+        DOCTEST_CHECK(test_vfs_detail::Read_Vfs_File_("theme.dat") == "installed theme");
+        DOCTEST_CHECK(vfs::File_Exists("mods/sample/private.cfg") == 0);
+        DOCTEST_CHECK(vfs::File_Exists("orion2re.cfg") == 1);
+        char resolved[1024] = {};
+        DOCTEST_REQUIRE(vfs::Resolve_Read_Path_No_Zip("orion2re.cfg", resolved, sizeof(resolved)) == 1);
+        DOCTEST_CHECK(std::string(resolved).find(config) == 0);
+        DOCTEST_REQUIRE(vfs::Init(base.c_str()) == 1);
+        DOCTEST_CHECK(test_vfs_detail::Read_Vfs_File_("orion2re.cfg") == "installed");
+    }
+
+    DOCTEST_TEST_CASE("user packages replace installed IDs with installed fallback for other IDs") {
+        test_vfs_detail::Scoped_Vfs_Test_Directory test_dir;
+        test_dir.Write_File("install/data/mods/sample/data/priority.dat", "installed");
+        test_dir.Write_File("install/data/mods/other/data/other.dat", "other");
+        test_dir.Write_Zip_File("user/mods/sample.zip", {{"data/priority.dat", "user"}});
+        const std::string base = (test_dir.root_path() / "install").string();
+        const std::string mods = (test_dir.root_path() / "user/mods").string();
+        DOCTEST_REQUIRE(vfs::Init(base.c_str()) == 1);
+        DOCTEST_REQUIRE(vfs::Set_User_Mods_Path(mods.c_str()) == 1);
+        s_vfs_mount_transaction* transaction = vfs::Begin_Mount_Transaction();
+        DOCTEST_REQUIRE(transaction != nullptr);
+        std::string diagnostic;
+        DOCTEST_REQUIRE(vfs::Stage_Package_Mount(transaction, "sample", &diagnostic) == 1);
+        DOCTEST_REQUIRE(vfs::Stage_Package_Mount(transaction, "other", &diagnostic) == 1);
+        DOCTEST_REQUIRE(vfs::Commit_Mount_Transaction(transaction) == 1);
+        DOCTEST_CHECK(test_vfs_detail::Read_Vfs_File_("priority.dat") == "user");
+        DOCTEST_CHECK(test_vfs_detail::Read_Vfs_File_("other.dat") == "other");
+        test_dir.Write_File("user/mods/sample/data/priority.dat", "ambiguous");
+        transaction = vfs::Begin_Mount_Transaction();
+        DOCTEST_REQUIRE(transaction != nullptr);
+        DOCTEST_CHECK(vfs::Stage_Package_Mount(transaction, "sample", &diagnostic) == 0);
+        DOCTEST_CHECK(diagnostic.find("both directory and ZIP") != std::string::npos);
+        vfs::Discard_Mount_Transaction(transaction);
+    }
+
+    DOCTEST_TEST_CASE("user config and raw search layers participate in priority iteration") {
+        test_vfs_detail::Scoped_Vfs_Test_Directory test_dir;
+        test_dir.Write_File("config/sample.cfg", "user");
+        test_dir.Write_File("install/data/overrides/sample.cfg", "override");
+        test_dir.Write_File("install/data/sample.cfg", "data");
+        test_dir.Write_File("install/sample.cfg", "raw");
+        test_dir.Write_File("game/sample.cfg", "game");
+        test_dir.Write_File("cd/sample.cfg", "cd");
+        const std::string base = (test_dir.root_path() / "install").string();
+        const std::string config = (test_dir.root_path() / "config").string();
+        const std::string game = (test_dir.root_path() / "game").string();
+        const std::string cd = (test_dir.root_path() / "cd").string();
+        DOCTEST_REQUIRE(vfs::Init(base.c_str()) == 1);
+        DOCTEST_REQUIRE(vfs::Set_User_Config_Path(config.c_str()) == 1);
+        DOCTEST_REQUIRE(vfs::Add_Raw_Search_Path(game.c_str()) == 1);
+        DOCTEST_REQUIRE(vfs::Set_Raw_Fallback_Path(cd.c_str()) == 1);
+        size_t cursor = 0;
+        const char* expected[] = {"user", "override", "data", "raw", "game", "cd"};
+        std::vector<s_vfs_file*> files;
+        for (const char* contents : expected) {
+            s_vfs_file* file = vfs::fopen_next_read("sample.cfg", &cursor);
+            DOCTEST_REQUIRE(file != nullptr);
+            char buffer[32] = {};
+            vfs::fread(buffer, 1, sizeof(buffer) - 1, file);
+            DOCTEST_CHECK(std::string(buffer) == contents);
+            if (!files.empty()) DOCTEST_CHECK(vfs::File_Has_Higher_Priority(files.back(), file));
+            files.push_back(file);
+        }
+        DOCTEST_CHECK(vfs::fopen_next_read("sample.cfg", &cursor) == nullptr);
+        for (s_vfs_file* file : files) vfs::fclose(file);
+    }
+
+    DOCTEST_TEST_CASE("raw search order is base then ordered extra paths then CD and resets on init") {
+        test_vfs_detail::Scoped_Vfs_Test_Directory test_dir;
+        test_dir.Write_File("install/local.lbx", "installed");
+        test_dir.Write_File("game/local.lbx", "game local");
+        test_dir.Write_File("game/diplomat.lbx", "game");
+        test_dir.Write_File("root/diplomat.lbx", "root");
+        test_dir.Write_File("root/root-only.lbx", "root only");
+        test_dir.Write_File("cd/diplomat.lbx", "cd");
+        test_dir.Write_File("cd/cd-only.lbx", "cd only");
+        const std::string base = (test_dir.root_path() / "install").string();
+        const std::string game = (test_dir.root_path() / "game").string();
+        const std::string root = (test_dir.root_path() / "root").string();
+        const std::string cd = (test_dir.root_path() / "cd").string();
+        DOCTEST_REQUIRE(vfs::Init(base.c_str()) == 1);
+        DOCTEST_CHECK(vfs::Add_Raw_Search_Path("") == 0);
+        DOCTEST_REQUIRE(vfs::Add_Raw_Search_Path(game.c_str()) == 1);
+        DOCTEST_REQUIRE(vfs::Add_Raw_Search_Path(root.c_str()) == 1);
+        DOCTEST_REQUIRE(vfs::Add_Raw_Search_Path(game.c_str()) == 1);
+        DOCTEST_REQUIRE(vfs::Set_Raw_Fallback_Path(cd.c_str()) == 1);
+        DOCTEST_CHECK(vfs::Get_Data_Search_Paths().size() == 4);
+        DOCTEST_CHECK(test_vfs_detail::Read_Vfs_File_("local.lbx") == "installed");
+        DOCTEST_CHECK(test_vfs_detail::Read_Vfs_File_("DIPLOMAT.LBX") == "game");
+        DOCTEST_CHECK(test_vfs_detail::Read_Vfs_File_("root-only.lbx") == "root only");
+        DOCTEST_CHECK(test_vfs_detail::Read_Vfs_File_("cd-only.lbx") == "cd only");
+        DOCTEST_REQUIRE(vfs::Init(base.c_str()) == 1);
+        DOCTEST_CHECK(vfs::Get_Data_Search_Paths().size() == 1);
+        DOCTEST_CHECK(vfs::File_Exists("diplomat.lbx") == 0);
+    }
+
+    DOCTEST_TEST_CASE("missing files log once case insensitively and include search paths only on first miss") {
+        test_vfs_detail::Scoped_Vfs_Test_Directory test_dir;
+        const std::string base = test_dir.root_path().string();
+        const std::string game = (test_dir.root_path() / "game").string();
+        const std::string cd = (test_dir.root_path() / "cd").string();
+        DOCTEST_REQUIRE(vfs::Init(base.c_str()) == 1);
+        DOCTEST_REQUIRE(vfs::Add_Raw_Search_Path(game.c_str()) == 1);
+        DOCTEST_REQUIRE(vfs::Set_Raw_Fallback_Path(cd.c_str()) == 1);
+        SDL_LogOutputFunction previous = nullptr;
+        void* previous_userdata = nullptr;
+        SDL_GetLogOutputFunction(&previous, &previous_userdata);
+        std::string captured;
+        SDL_SetLogOutputFunction([](void* userdata, int, SDL_LogPriority, const char* message) {
+            static_cast<std::string*>(userdata)->append(std::string(message) + "\n");
+        },
+            &captured);
+        vfs::fopen("missing.lbx", "rb");
+        vfs::fopen("MISSING.LBX", "rb");
+        vfs::fopen("other.lbx", "rb");
+        vfs::fopen("other.lbx", "rb");
+        SDL_SetLogOutputFunction(previous, previous_userdata);
+        DOCTEST_CHECK(std::count(captured.begin(), captured.end(), '\n') == 2);
+        const size_t newline = captured.find('\n');
+        DOCTEST_REQUIRE(newline != std::string::npos);
+        const std::string first = captured.substr(0, newline);
+        const std::string second = captured.substr(newline + 1);
+        DOCTEST_CHECK(first.find("missing.lbx") != std::string::npos);
+        DOCTEST_CHECK(first.find(base) != std::string::npos);
+        DOCTEST_CHECK(first.find(game) != std::string::npos);
+        DOCTEST_CHECK(first.find(cd) != std::string::npos);
+        DOCTEST_CHECK(second.find("other.lbx") != std::string::npos);
+        DOCTEST_CHECK(second.find(base) == std::string::npos);
+    }
+
     DOCTEST_TEST_CASE("vfs requires initialization before assets can be opened") {
         vfs::Shutdown();
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 #include "miniz.h"
@@ -27,6 +28,7 @@ namespace vfs_detail {
     };
 
     enum e_vfs_source_kind {
+        VFS_SOURCE_USER_CONFIG,
         VFS_SOURCE_OVERRIDE,
         VFS_SOURCE_PACKAGE,
         VFS_SOURCE_BASE_ZIP,
@@ -82,6 +84,11 @@ namespace vfs_detail {
         bool initialized;
         char base_path[VFS_MAX_PATH];
         char fallback_path[VFS_MAX_PATH];
+        char user_config_path[VFS_MAX_PATH];
+        char user_mods_path[VFS_MAX_PATH];
+        std::vector<std::string> raw_search_paths;
+        std::unordered_set<std::string> warned_missing;
+        bool warned_missing_paths = false;
         std::vector<s_vfs_zip_archive> zip_archives;
         std::vector<s_vfs_zip_cache_entry> zip_entries;
         std::vector<s_vfs_package_layer> package_layers;
@@ -106,9 +113,10 @@ namespace vfs_detail {
     bool Build_Candidate_Path_(const char* base_path, const char* prefix, const char* asset_path, char* output_path, size_t output_path_size);
     bool Resolve_Candidate_Path_(const char* candidate_path, char* resolved_path, size_t resolved_path_size, e_vfs_candidate_kind candidate_kind = VFS_CANDIDATE_FILE);
     bool Resolve_Override_Asset_Path_(const char* asset_path, char* resolved_path, size_t resolved_path_size);
+    bool Resolve_User_Config_Asset_Path_(const char* asset_path, char* resolved_path, size_t resolved_path_size);
     bool Resolve_Data_Asset_Path_(const char* asset_path, char* resolved_path, size_t resolved_path_size);
     bool Resolve_Package_Asset_Path_(const char* asset_path, char* resolved_path, size_t resolved_path_size, size_t* package_layer = nullptr);
-    bool Resolve_Raw_Asset_Path_(const char* asset_path, char* resolved_path, size_t resolved_path_size, bool* used_fallback = nullptr);
+    bool Resolve_Raw_Asset_Path_(const char* asset_path, char* resolved_path, size_t resolved_path_size, bool* used_fallback = nullptr, size_t* raw_layer = nullptr);
     bool Resolve_Read_Path_No_Zip_(const char* path, char* resolved_path, size_t resolved_path_size);
     bool Determine_File_Size_(FILE* file, int32_t* size_out);
 

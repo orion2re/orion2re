@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.20)
 include(cmake/version.cmake)
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION")
 project(orion2re VERSION "${ORION2RE_VERSION}" LANGUAGES C CXX)
+include(GNUInstallDirs)
 
 configure_file(src/version.h.in generated/version/version.h @ONLY)
 include_directories("${CMAKE_CURRENT_BINARY_DIR}/generated/version")
@@ -531,6 +532,7 @@ if(ORION2RE_GAME_DIR)
 endif()
 add_custom_target(package-base-data
     ${ORION2RE_PACKAGE_BASE_DATA_COMMANDS}
+    BYPRODUCTS "${ORION2RE_PACKAGED_BASE_ARCHIVE}"
     WORKING_DIRECTORY "${ORION2RE_BASE_DATA_DIR}"
     DEPENDS ${ORION2RE_BASE_DATA_FILES}
     VERBATIM
@@ -676,6 +678,15 @@ if(ORION2RE_BUILD_GAME)
         target_compile_definitions(config-load-benchmark PRIVATE WIN32 _CRT_SECURE_NO_DEPRECATE _CRT_NONSTDC_NO_DEPRECATE)
     endif()
     add_dependencies(orion2re package-runtime-data)
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        target_compile_definitions(orion2re PRIVATE
+            ORION2RE_DATADIR="${CMAKE_INSTALL_FULL_DATADIR}/orion2re")
+    endif()
+    install(TARGETS orion2re RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT Runtime)
+    install(FILES "${ORION2RE_PACKAGED_BASE_ARCHIVE}" "${ORION2RE_DEFAULT_CONFIG}"
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/orion2re/data" COMPONENT Runtime)
+    install(FILES ${ORION2RE_SUPPORTED_MOD_ARCHIVES}
+        DESTINATION "${CMAKE_INSTALL_DATADIR}/orion2re/data/mods" COMPONENT Runtime)
     if(ORION2RE_BUILD_CONFIG_TOOL)
         add_dependencies(orion2re config-regenerate)
     endif()
@@ -905,6 +916,7 @@ add_executable(orion2re-router
     tools/router_main.cpp
     ${ORION2RE_ROUTER_SOURCES}
 )
+install(TARGETS orion2re-router RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" COMPONENT Runtime)
 
 if(ORION2RE_EXCLUDE_RUNTIME_FROM_ALL)
     set_target_properties(orion2re-router PROPERTIES EXCLUDE_FROM_ALL YES)

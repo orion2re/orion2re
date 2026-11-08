@@ -87,3 +87,29 @@ DOCTEST_TEST_CASE("startup uses the executable directory instead of the launcher
     DOCTEST_CHECK(fs::exists(fixture.game_files / "settings.ini"));
     DOCTEST_CHECK_FALSE(fs::exists(fixture.launch_directory / fixture.relative_directory / "settings.ini"));
 }
+
+DOCTEST_TEST_CASE("runtime data prefers executable assets then installed assets without changing cwd") {
+    s_startup_directory_fixture fixture;
+    const fs::path portable = fixture.game_files / "portable";
+    const fs::path installed = fixture.game_files / "installed";
+    fs::create_directories(portable / "data");
+    fs::create_directories(installed / "data");
+    Write_File_(installed / "data" / "base.zip", "installed marker");
+    fs::current_path(fixture.launch_directory);
+    std::string directory;
+    const std::string installed_path = installed.string();
+    DOCTEST_REQUIRE(startup::Resolve_Data_Directory(portable.string(), installed_path.c_str(), &directory));
+    DOCTEST_CHECK(directory == installed_path);
+    DOCTEST_CHECK(fs::equivalent(fs::current_path(), fixture.launch_directory));
+
+    Write_File_(portable / "data" / "base.zip", "portable marker");
+    DOCTEST_REQUIRE(startup::Resolve_Data_Directory(portable.string(), installed_path.c_str(), &directory));
+    DOCTEST_CHECK(directory == portable.string());
+    fs::remove(portable / "data" / "base.zip");
+    fs::remove(installed / "data" / "base.zip");
+    DOCTEST_REQUIRE(startup::Resolve_Data_Directory(portable.string(), installed_path.c_str(), &directory));
+    DOCTEST_CHECK(directory == portable.string());
+    DOCTEST_REQUIRE(startup::Resolve_Data_Directory(portable.string(), nullptr, &directory));
+    DOCTEST_CHECK(directory == portable.string());
+    DOCTEST_CHECK_FALSE(startup::Resolve_Data_Directory(portable.string(), nullptr, nullptr));
+}

@@ -20,6 +20,8 @@ Save-game versions are backward compatible across the 2.x branch: a newer 2.x re
 
 ## Configuration
 
+Linux XDG installations can keep user configuration outside the installation; see [File locations](file-locations.md).
+
 Version 2.00 uses `data/orion2re.cfg`. Historical 1.50 configuration files and command-line configuration switches are not a supported replacement for this file. Recreate the settings you need using the [current configuration reference](../../generated/configuration/index.md); do not copy a complete 1.50 configuration and assume that names, values, and defaults are unchanged.
 
 ## Mods

@@ -8,4 +8,6 @@ Version 2.00 keeps the rules and character of the original game while bringing t
 
 Orion2 Redone does not include the original game, so you will need your own copy before you begin.
 
+See [File locations and native installation](file-locations.md) for portable setups, Linux system installations, and per-user XDG configuration, saves, and mods.
+
 Read the [Version 2.00 highlights](highlights.md) to see what is new. Returning players should also review [Compatibility](compatibility.md) before continuing an older game or bringing over custom content.

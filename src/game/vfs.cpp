@@ -66,6 +66,11 @@ namespace vfs {
         vfs_detail::g_vfs_state.initialized = false;
         vfs_detail::g_vfs_state.base_path[0] = '\0';
         vfs_detail::g_vfs_state.fallback_path[0] = '\0';
+        vfs_detail::g_vfs_state.user_config_path[0] = '\0';
+        vfs_detail::g_vfs_state.user_mods_path[0] = '\0';
+        vfs_detail::g_vfs_state.raw_search_paths.clear();
+        vfs_detail::g_vfs_state.warned_missing.clear();
+        vfs_detail::g_vfs_state.warned_missing_paths = false;
     }
 
     int8_t Set_Raw_Fallback_Path(const char* path) {
@@ -77,6 +82,42 @@ namespace vfs {
 
         strlcpy(vfs_detail::g_vfs_state.fallback_path, clean_fallback_path, sizeof(vfs_detail::g_vfs_state.fallback_path));
         return 1;
+    }
+
+    int8_t Set_User_Config_Path(const char* path) {
+        return vfs_detail::Build_Base_Path_(path, vfs_detail::g_vfs_state.user_config_path, sizeof(vfs_detail::g_vfs_state.user_config_path)) ? 1 : 0;
+    }
+
+    int8_t Set_User_Mods_Path(const char* path) {
+        return vfs_detail::Build_Base_Path_(path, vfs_detail::g_vfs_state.user_mods_path, sizeof(vfs_detail::g_vfs_state.user_mods_path)) ? 1 : 0;
+    }
+
+    int8_t Add_Raw_Search_Path(const char* path) {
+        char clean_path[vfs_detail::VFS_MAX_PATH];
+        if (!vfs_detail::Build_Base_Path_(path, clean_path, sizeof(clean_path)) || clean_path[0] == '\0') {
+            return 0;
+        }
+        auto& paths = vfs_detail::g_vfs_state.raw_search_paths;
+        if (strcmp(clean_path, vfs_detail::g_vfs_state.base_path) != 0 &&
+            std::find(paths.begin(), paths.end(), clean_path) == paths.end()) {
+            paths.emplace_back(clean_path);
+        }
+        return 1;
+    }
+
+    std::vector<std::string> Get_Data_Search_Paths() {
+        std::vector<std::string> paths;
+        if (vfs_detail::g_vfs_state.base_path[0] != '\0') {
+            paths.emplace_back(vfs_detail::g_vfs_state.base_path);
+        }
+        for (const std::string& path : vfs_detail::g_vfs_state.raw_search_paths) {
+            if (std::find(paths.begin(), paths.end(), path) == paths.end()) paths.push_back(path);
+        }
+        const char* fallback = vfs_detail::g_vfs_state.fallback_path;
+        if (fallback[0] != '\0' && std::find(paths.begin(), paths.end(), fallback) == paths.end()) {
+            paths.emplace_back(fallback);
+        }
+        return paths;
     }
 
     s_vfs_mount_transaction* Begin_Mount_Transaction() {
@@ -118,14 +159,22 @@ namespace vfs {
         char archive_candidate[vfs_detail::VFS_MAX_PATH];
         char directory_path[vfs_detail::VFS_MAX_PATH];
         char archive_path[vfs_detail::VFS_MAX_PATH];
-        const std::string directory_relative = std::string(vfs_detail::VFS_MODS_PATH) + package_id;
-        const std::string archive_relative = directory_relative + ".zip";
-        const bool have_directory =
-            vfs_detail::Build_Candidate_Path_(vfs_detail::g_vfs_state.base_path, "", directory_relative.c_str(), directory_candidate, sizeof(directory_candidate)) &&
-            vfs_detail::Resolve_Candidate_Path_(directory_candidate, directory_path, sizeof(directory_path), vfs_detail::VFS_CANDIDATE_DIRECTORY);
-        const bool have_archive =
-            vfs_detail::Build_Candidate_Path_(vfs_detail::g_vfs_state.base_path, "", archive_relative.c_str(), archive_candidate, sizeof(archive_candidate)) &&
-            vfs_detail::Resolve_Candidate_Path_(archive_candidate, archive_path, sizeof(archive_path));
+        bool have_directory = false;
+        bool have_archive = false;
+        const auto find_package = [&](const char* root, const char* prefix) {
+            const std::string directory_relative = std::string(prefix) + package_id;
+            const std::string archive_relative = directory_relative + ".zip";
+            have_directory =
+                vfs_detail::Build_Candidate_Path_(root, "", directory_relative.c_str(), directory_candidate, sizeof(directory_candidate)) &&
+                vfs_detail::Resolve_Candidate_Path_(directory_candidate, directory_path, sizeof(directory_path), vfs_detail::VFS_CANDIDATE_DIRECTORY);
+            have_archive =
+                vfs_detail::Build_Candidate_Path_(root, "", archive_relative.c_str(), archive_candidate, sizeof(archive_candidate)) &&
+                vfs_detail::Resolve_Candidate_Path_(archive_candidate, archive_path, sizeof(archive_path));
+            return have_directory || have_archive;
+        };
+        if (vfs_detail::g_vfs_state.user_mods_path[0] == '\0' || !find_package(vfs_detail::g_vfs_state.user_mods_path, "")) {
+            find_package(vfs_detail::g_vfs_state.base_path, vfs_detail::VFS_MODS_PATH);
+        }
         if (have_directory == have_archive) {
             *diagnostic = have_directory ? "package '" + std::string(package_id) + "' has both directory and ZIP forms" : "package not found: '" + std::string(package_id) + "'";
             return 0;
@@ -346,6 +395,7 @@ namespace vfs {
         char resolved_path[vfs_detail::VFS_MAX_PATH];
         vfs_detail::s_vfs_zip_entry zip_entry{};
         size_t package_layer = 0;
+        size_t raw_layer = 0;
         bool used_fallback = false;
 
         if (!vfs_detail::Is_Read_Only_Mode_(mode) || !vfs_detail::g_vfs_state.initialized) {
@@ -368,6 +418,10 @@ namespace vfs {
             return nullptr;
         }
 
+        if (vfs_detail::Resolve_User_Config_Asset_Path_(asset_path, resolved_path, sizeof(resolved_path))) {
+            return With_Source_(vfs_detail::Open_Raw_File_(resolved_path, mode), vfs_detail::VFS_SOURCE_USER_CONFIG);
+        }
+
         if (vfs_detail::Resolve_Override_Asset_Path_(asset_path, resolved_path, sizeof(resolved_path))) {
             return With_Source_(vfs_detail::Open_Raw_File_(resolved_path, mode), vfs_detail::VFS_SOURCE_OVERRIDE);
         }
@@ -388,11 +442,25 @@ namespace vfs {
             return With_Source_(vfs_detail::Open_Raw_File_(resolved_path, mode), vfs_detail::VFS_SOURCE_DATA);
         }
 
-        if (vfs_detail::Resolve_Raw_Asset_Path_(asset_path, resolved_path, sizeof(resolved_path), &used_fallback)) {
+        if (vfs_detail::Resolve_Raw_Asset_Path_(asset_path, resolved_path, sizeof(resolved_path), &used_fallback, &raw_layer)) {
             return With_Source_(vfs_detail::Open_Raw_File_(resolved_path, mode),
-                used_fallback ? vfs_detail::VFS_SOURCE_FALLBACK : vfs_detail::VFS_SOURCE_RAW);
+                used_fallback ? vfs_detail::VFS_SOURCE_FALLBACK : vfs_detail::VFS_SOURCE_RAW,
+                raw_layer);
         }
 
+        char asset_key[vfs_detail::VFS_MAX_PATH];
+        if (vfs_detail::Build_Asset_Key_(asset_path, asset_key, sizeof(asset_key)) &&
+            vfs_detail::g_vfs_state.warned_missing.insert(asset_key).second) {
+            std::string searched;
+            if (!vfs_detail::g_vfs_state.warned_missing_paths) {
+                vfs_detail::g_vfs_state.warned_missing_paths = true;
+                searched = "; original-file directories:";
+                for (const std::string& directory : Get_Data_Search_Paths()) {
+                    searched += " '" + directory + "'";
+                }
+            }
+            SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "vfs: '%s' not found%s", asset_path, searched.c_str());
+        }
         return nullptr;
     }
 
@@ -414,35 +482,42 @@ namespace vfs {
         const auto& layers = transaction != nullptr && !transaction->commit_in_progress
             ? transaction->layers
             : vfs_detail::g_vfs_state.package_layers;
-        while (*cursor < layers.size() + 5) {
+        const auto& raw_paths = vfs_detail::g_vfs_state.raw_search_paths;
+        while (*cursor < layers.size() + raw_paths.size() + 6) {
             const size_t source = (*cursor)++;
             s_vfs_file* file = nullptr;
             vfs_detail::s_vfs_zip_entry zip_entry{};
             if (source == 0) {
+                if (vfs_detail::Resolve_User_Config_Asset_Path_(asset_path, resolved_path, sizeof(resolved_path))) {
+                    file = With_Source_(vfs_detail::Open_Raw_File_(resolved_path, "rb"), vfs_detail::VFS_SOURCE_USER_CONFIG);
+                }
+            } else if (source == 1) {
                 if (vfs_detail::Resolve_Override_Asset_Path_(asset_path, resolved_path, sizeof(resolved_path))) {
                     file = With_Source_(vfs_detail::Open_Raw_File_(resolved_path, "rb"), vfs_detail::VFS_SOURCE_OVERRIDE);
                 }
-            } else if (source <= layers.size()) {
-                const std::string private_path = "mods/" + layers[source - 1].package_id + "/data/" + asset_path;
+            } else if (source <= layers.size() + 1) {
+                const std::string private_path = "mods/" + layers[source - 2].package_id + "/data/" + asset_path;
                 file = fopen(private_path.c_str(), "rb");
-            } else if (source == layers.size() + 1) {
+            } else if (source == layers.size() + 2) {
                 if (vfs_detail::Find_Zip_Entry_(asset_path, &zip_entry)) {
                     file = With_Source_(vfs_detail::Open_Zip_File_(zip_entry), vfs_detail::VFS_SOURCE_BASE_ZIP, zip_entry.archive_index);
                 }
-            } else if (source == layers.size() + 2) {
+            } else if (source == layers.size() + 3) {
                 if (vfs_detail::Resolve_Data_Asset_Path_(asset_path, resolved_path, sizeof(resolved_path))) {
                     file = With_Source_(vfs_detail::Open_Raw_File_(resolved_path, "rb"), vfs_detail::VFS_SOURCE_DATA);
                 }
             } else {
-                const bool fallback = source == layers.size() + 4;
+                const size_t raw_layer = source - layers.size() - 4;
+                const bool fallback = raw_layer == raw_paths.size() + 1;
                 const char* base_path = fallback
                     ? vfs_detail::g_vfs_state.fallback_path
-                    : vfs_detail::g_vfs_state.base_path;
+                    : (raw_layer == 0 ? vfs_detail::g_vfs_state.base_path : raw_paths[raw_layer - 1].c_str());
                 if ((!fallback || base_path[0] != '\0') &&
                     vfs_detail::Build_Candidate_Path_(base_path, "", asset_path, candidate_path, sizeof(candidate_path)) &&
                     vfs_detail::Resolve_Candidate_Path_(candidate_path, resolved_path, sizeof(resolved_path))) {
                     file = With_Source_(vfs_detail::Open_Raw_File_(resolved_path, "rb"),
-                        fallback ? vfs_detail::VFS_SOURCE_FALLBACK : vfs_detail::VFS_SOURCE_RAW);
+                        fallback ? vfs_detail::VFS_SOURCE_FALLBACK : vfs_detail::VFS_SOURCE_RAW,
+                        fallback ? 0 : raw_layer);
                 }
             }
             if (file != nullptr) return file;
@@ -563,6 +638,10 @@ namespace vfs {
                     vfs_detail::Find_Package_Zip_Entry_(asset_path, nullptr)
                 ? 1
                 : 0;
+        }
+
+        if (vfs_detail::Resolve_User_Config_Asset_Path_(asset_path, resolved_path, sizeof(resolved_path))) {
+            return 1;
         }
 
         if (vfs_detail::Resolve_Override_Asset_Path_(asset_path, resolved_path, sizeof(resolved_path))) {

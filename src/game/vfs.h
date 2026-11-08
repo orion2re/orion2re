@@ -13,6 +13,11 @@ namespace vfs {
     int8_t Init(const char* base_path);
     void Shutdown();
     int8_t Set_Raw_Fallback_Path(const char* path);
+    int8_t Set_User_Config_Path(const char* path);
+    int8_t Set_User_Mods_Path(const char* path);
+    // Original-file search directories, after the base and before the CD path.
+    int8_t Add_Raw_Search_Path(const char* path);
+    std::vector<std::string> Get_Data_Search_Paths();
 
     s_vfs_mount_transaction* Begin_Mount_Transaction();
     int8_t Stage_Package_Mount(s_vfs_mount_transaction* transaction,

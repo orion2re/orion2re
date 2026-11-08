@@ -54,4 +54,23 @@ namespace startup {
         *directory = base_path;
         return true;
     }
+    bool Resolve_Data_Directory(const std::string& game_directory, const char* installed_datadir, std::string* directory) {
+        if (directory == nullptr) {
+            return false;
+        }
+        const auto has_packaged_data = [](const std::string& root) {
+            if (root.empty()) return false;
+            std::error_code error;
+            return std::filesystem::is_regular_file(
+                std::filesystem::path(std::u8string(root.begin(), root.end())) / "data" / "base.zip", error);
+        };
+
+        // Never discover a runtime tree through HOME or XDG: user config and
+        // mods have their own layers, and portable mode must remain isolated.
+        *directory = game_directory;
+        if (!has_packaged_data(game_directory) && installed_datadir != nullptr && has_packaged_data(installed_datadir)) {
+            *directory = installed_datadir;
+        }
+        return true;
+    }
 } // namespace startup
