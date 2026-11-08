@@ -1,6 +1,7 @@
 #include "pch.h"
 
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "config/settings_value.h"
@@ -300,6 +301,100 @@ DOCTEST_TEST_CASE("splitting a dotted path gives the writer tokens") {
         "interface.build_list_colors.default.normal.base") ==
         std::vector<std::string>({"interface", "build_list_colors", "default",
             "normal", "base"}));
+}
+
+DOCTEST_TEST_CASE("every metadata setting maps to exactly one category") {
+    // Pinned categorization for the Settings screen tabs: 19 game
+    // internals, 28 gameplay, 2 mods. The table must cover all 49
+    // metadata paths, in metadata order, so a new spec setting with
+    // no entry fails here instead of silently landing in internals.
+    const std::vector<std::pair<const char*, config::e_settings_category>> expected = {
+        { "interface.router", config::SETTINGS_CATEGORY_GAME_INTERNALS },
+        { "interface.scroll_interval", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "interface.scaler", config::SETTINGS_CATEGORY_GAME_INTERNALS },
+        { "interface.window_width", config::SETTINGS_CATEGORY_GAME_INTERNALS },
+        { "interface.window_height", config::SETTINGS_CATEGORY_GAME_INTERNALS },
+        { "interface.fullscreen", config::SETTINGS_CATEGORY_GAME_INTERNALS },
+        { "interface.vsync_enabled", config::SETTINGS_CATEGORY_GAME_INTERNALS },
+        { "interface.net_debug_enabled", config::SETTINGS_CATEGORY_GAME_INTERNALS },
+        { "interface.debugger_enabled", config::SETTINGS_CATEGORY_GAME_INTERNALS },
+        { "interface.debugger_font_size", config::SETTINGS_CATEGORY_GAME_INTERNALS },
+        { "interface.debugger_ui_scale", config::SETTINGS_CATEGORY_GAME_INTERNALS },
+        { "interface.allow_lua_source_hash_mismatch", config::SETTINGS_CATEGORY_MODS },
+        { "interface.screen_fade_speed", config::SETTINGS_CATEGORY_GAME_INTERNALS },
+        { "interface.animation", config::SETTINGS_CATEGORY_GAME_INTERNALS },
+        { "interface.history_graph_smoothing", config::SETTINGS_CATEGORY_GAME_INTERNALS },
+        { "interface.sort_serious_turn_summary_first", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "interface.wormhole_link_color", config::SETTINGS_CATEGORY_GAME_INTERNALS },
+        { "interface.tech_review_achievements", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "interface.tech_review_colony", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "interface.tech_review_weapons", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "interface.tech_review_equipment", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "colony.build_queue", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "design.missile_default_x2_rack", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "design.design_button_computer", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "design.design_button_shield", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "design.clear_button_computer", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "design.clear_button_shield", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "leaders.leader_dies_with_no", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "research.finds_presented_by_scientist", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "interface.print_research_value", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "interface.warn_blockers", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "interface.build_list_colors", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "interface.build_list_format", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "interface.no_outpost_prompt", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "interface.initial_tech_prompt", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "interface.rebel_display", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "interface.loaded_config_prompt", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "interface.main_menu_mod_list", config::SETTINGS_CATEGORY_MODS },
+        { "interface.keep_end_of_turn_wait_in_multiplayer", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "interface.allow_future_technology_browsing", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "interface.confirm_battle_message_timeout", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "interface.center_on_next_ship", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "interface.death_spore_list_damage", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "interface.bio_terminator_list_damage", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "interface.main_map_overview_markers", config::SETTINGS_CATEGORY_GAME_INTERNALS },
+        { "interface.maximum_galaxy_display", config::SETTINGS_CATEGORY_GAME_INTERNALS },
+        { "interface.main_screen_tax_rate", config::SETTINGS_CATEGORY_GAME_INTERNALS },
+        { "interface.maximum_galaxy_zoom_mode", config::SETTINGS_CATEGORY_GAME_INTERNALS },
+        { "interface.show_exit_message", config::SETTINGS_CATEGORY_GAME_INTERNALS },
+    };
+    DOCTEST_REQUIRE(config::settings_metadata_count == expected.size());
+    for (size_t index = 0; index < expected.size(); ++index) {
+        DOCTEST_CHECK(std::string(config::settings_metadata[index].path) ==
+            expected[index].first);
+        DOCTEST_CHECK(config::Settings_Category_For_Path(expected[index].first) ==
+            expected[index].second);
+    }
+    // Rows inherit their metadata setting's category, including
+    // multi-leaf settings (animation leaves, build-list leaves).
+    const std::vector<config::s_settings_row> rows = config::Build_Settings_Rows();
+    size_t internals = 0;
+    size_t gameplay = 0;
+    size_t mods = 0;
+    for (const config::s_settings_row& row : rows) {
+        switch (config::Settings_Category_For_Path(row.path)) {
+            case config::SETTINGS_CATEGORY_GAME_INTERNALS:
+                ++internals;
+                break;
+            case config::SETTINGS_CATEGORY_GAMEPLAY:
+                ++gameplay;
+                break;
+            case config::SETTINGS_CATEGORY_MODS:
+                ++mods;
+                break;
+        }
+    }
+    DOCTEST_CHECK(internals + gameplay + mods == rows.size());
+    DOCTEST_CHECK(internals > 0);
+    DOCTEST_CHECK(gameplay > 0);
+    DOCTEST_CHECK(mods > 0);
+    DOCTEST_CHECK(config::Settings_Category_For_Path(
+        "interface.animation.cloak_steps.normal") ==
+        config::SETTINGS_CATEGORY_GAME_INTERNALS);
+    DOCTEST_CHECK(config::Settings_Category_For_Path(
+        "interface.build_list_colors.default.normal.base") ==
+        config::SETTINGS_CATEGORY_GAMEPLAY);
 }
 
 DOCTEST_TEST_CASE("the current window width reads back from the native target") {

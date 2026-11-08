@@ -285,6 +285,104 @@ namespace config {
         return generated::Get_Current_Value(row.variable_id, value);
     }
 
+    namespace {
+
+        struct s_settings_category_entry {
+            const char* path;
+            e_settings_category category;
+        };
+
+        // One entry per metadata setting (49), in metadata order.
+        // Game internals: engine, display, debug and infrastructure.
+        // Gameplay: user-facing in-game behaviour. Mods: the
+        // mod-adjacent settings; the picker itself is not a setting.
+        // Ambiguous calls, with reasons:
+        // - interface.scroll_interval is combat camera pacing the
+        //   player feels while fighting, so gameplay, not internals.
+        // - interface.animation is presentation-only pacing (not the
+        //   original dialog's Animations toggle, which lives in
+        //   MOX::settings and is not a config setting), so internals.
+        // - interface.print_research_value, build_list_colors and
+        //   build_list_format are in-game displays, but colony and
+        //   empire screens the player reads while playing, so gameplay.
+        // - interface.loaded_config_prompt is a prompt shown when a
+        //   save is loaded, so gameplay, not internals.
+        // - interface.show_exit_message is a quit-time presentation
+        //   toggle, so internals.
+        // - interface.allow_lua_source_hash_mismatch only matters
+        //   when mods are loaded, so mods.
+        // - interface.main_menu_mod_list shows loaded mods, so mods.
+        // - The Tech Review ordering tables and the colony build
+        //   queues are info rows with no editor, but they configure
+        //   in-game ordering, so gameplay.
+        // - The original GAME SETTINGS dialog's options (End Of Turn
+        //   Summary, Auto Save, Animations, ...) are not config
+        //   settings at all: they live in MOX::settings
+        //   (ORION2RE.SET / saves), so no row here covers them.
+        inline const s_settings_category_entry settings_categories[] = {
+            { "interface.router", SETTINGS_CATEGORY_GAME_INTERNALS },
+            { "interface.scroll_interval", SETTINGS_CATEGORY_GAMEPLAY },
+            { "interface.scaler", SETTINGS_CATEGORY_GAME_INTERNALS },
+            { "interface.window_width", SETTINGS_CATEGORY_GAME_INTERNALS },
+            { "interface.window_height", SETTINGS_CATEGORY_GAME_INTERNALS },
+            { "interface.fullscreen", SETTINGS_CATEGORY_GAME_INTERNALS },
+            { "interface.vsync_enabled", SETTINGS_CATEGORY_GAME_INTERNALS },
+            { "interface.net_debug_enabled", SETTINGS_CATEGORY_GAME_INTERNALS },
+            { "interface.debugger_enabled", SETTINGS_CATEGORY_GAME_INTERNALS },
+            { "interface.debugger_font_size", SETTINGS_CATEGORY_GAME_INTERNALS },
+            { "interface.debugger_ui_scale", SETTINGS_CATEGORY_GAME_INTERNALS },
+            { "interface.allow_lua_source_hash_mismatch", SETTINGS_CATEGORY_MODS },
+            { "interface.screen_fade_speed", SETTINGS_CATEGORY_GAME_INTERNALS },
+            { "interface.animation", SETTINGS_CATEGORY_GAME_INTERNALS },
+            { "interface.history_graph_smoothing", SETTINGS_CATEGORY_GAME_INTERNALS },
+            { "interface.sort_serious_turn_summary_first", SETTINGS_CATEGORY_GAMEPLAY },
+            { "interface.wormhole_link_color", SETTINGS_CATEGORY_GAME_INTERNALS },
+            { "interface.tech_review_achievements", SETTINGS_CATEGORY_GAMEPLAY },
+            { "interface.tech_review_colony", SETTINGS_CATEGORY_GAMEPLAY },
+            { "interface.tech_review_weapons", SETTINGS_CATEGORY_GAMEPLAY },
+            { "interface.tech_review_equipment", SETTINGS_CATEGORY_GAMEPLAY },
+            { "colony.build_queue", SETTINGS_CATEGORY_GAMEPLAY },
+            { "design.missile_default_x2_rack", SETTINGS_CATEGORY_GAMEPLAY },
+            { "design.design_button_computer", SETTINGS_CATEGORY_GAMEPLAY },
+            { "design.design_button_shield", SETTINGS_CATEGORY_GAMEPLAY },
+            { "design.clear_button_computer", SETTINGS_CATEGORY_GAMEPLAY },
+            { "design.clear_button_shield", SETTINGS_CATEGORY_GAMEPLAY },
+            { "leaders.leader_dies_with_no", SETTINGS_CATEGORY_GAMEPLAY },
+            { "research.finds_presented_by_scientist", SETTINGS_CATEGORY_GAMEPLAY },
+            { "interface.print_research_value", SETTINGS_CATEGORY_GAMEPLAY },
+            { "interface.warn_blockers", SETTINGS_CATEGORY_GAMEPLAY },
+            { "interface.build_list_colors", SETTINGS_CATEGORY_GAMEPLAY },
+            { "interface.build_list_format", SETTINGS_CATEGORY_GAMEPLAY },
+            { "interface.no_outpost_prompt", SETTINGS_CATEGORY_GAMEPLAY },
+            { "interface.initial_tech_prompt", SETTINGS_CATEGORY_GAMEPLAY },
+            { "interface.rebel_display", SETTINGS_CATEGORY_GAMEPLAY },
+            { "interface.loaded_config_prompt", SETTINGS_CATEGORY_GAMEPLAY },
+            { "interface.main_menu_mod_list", SETTINGS_CATEGORY_MODS },
+            { "interface.keep_end_of_turn_wait_in_multiplayer", SETTINGS_CATEGORY_GAMEPLAY },
+            { "interface.allow_future_technology_browsing", SETTINGS_CATEGORY_GAMEPLAY },
+            { "interface.confirm_battle_message_timeout", SETTINGS_CATEGORY_GAMEPLAY },
+            { "interface.center_on_next_ship", SETTINGS_CATEGORY_GAMEPLAY },
+            { "interface.death_spore_list_damage", SETTINGS_CATEGORY_GAMEPLAY },
+            { "interface.bio_terminator_list_damage", SETTINGS_CATEGORY_GAMEPLAY },
+            { "interface.main_map_overview_markers", SETTINGS_CATEGORY_GAME_INTERNALS },
+            { "interface.maximum_galaxy_display", SETTINGS_CATEGORY_GAME_INTERNALS },
+            { "interface.main_screen_tax_rate", SETTINGS_CATEGORY_GAME_INTERNALS },
+            { "interface.maximum_galaxy_zoom_mode", SETTINGS_CATEGORY_GAME_INTERNALS },
+            { "interface.show_exit_message", SETTINGS_CATEGORY_GAME_INTERNALS },
+        };
+
+    } // namespace
+
+    e_settings_category Settings_Category_For_Path(const std::string& path) {
+        for (const s_settings_category_entry& entry : settings_categories) {
+            const std::string prefix = std::string(entry.path) + ".";
+            if (path == entry.path || path.compare(0, prefix.size(), prefix) == 0) {
+                return entry.category;
+            }
+        }
+        return SETTINGS_CATEGORY_GAME_INTERNALS;
+    }
+
     std::vector<s_settings_row> Build_Settings_Rows() {
         std::vector<s_settings_row> rows;
         for (size_t metadata_index = 0; metadata_index < settings_metadata_count;
