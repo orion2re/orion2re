@@ -1621,7 +1621,7 @@ DOCTEST_TEST_CASE("retreat validation rejects rotation-time immobilization") {
     DOCTEST_CHECK_FALSE(COMBAT1::Validate_Retreating_Ship(0));
     DOCTEST_CHECK(ship->unit_status == 0);
     DOCTEST_CHECK(ship->is_retreating == 0);
-    DOCTEST_CHECK(ship->movement_left == 0);
+    DOCTEST_CHECK((ship->movement_left == 0));
 }
 
 DOCTEST_TEST_CASE("retreat validation rejects telepathic capture without a captured flag") {
