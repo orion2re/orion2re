@@ -44,14 +44,25 @@ namespace AIDATA {
     struct s_direct_route_row {
         std::vector<uint8_t> turns;
         std::vector<uint64_t> available;
+
+        std::optional<uint16_t> Find(std::optional<uint32_t> offset) const {
+            if (!offset || *offset >= turns.size()) return std::nullopt;
+            const uint32_t word = *offset / 64;
+            if (word >= available.size() || (available[word] & (UINT64_C(1) << (*offset % 64))) == 0) {
+                return std::nullopt;
+            }
+            return turns[*offset];
+        }
     };
 
     // Dense byte rows, indexed through live IDs rather than ID high-water marks.
     struct s_direct_route_table {
         std::unordered_map<uint32_t, uint32_t> destinations;
         std::unordered_map<uint64_t, s_direct_route_row> rows;
+        uint64_t revision = 0;
 
         void Store(uint32_t source, uint32_t destination, uint32_t player, uint8_t turns) {
+            ++revision;
             const uint32_t offset = destinations.try_emplace(destination, (uint32_t)destinations.size()).first->second;
             auto& row = rows[(uint64_t{player} << 32) | source];
             if (row.turns.size() < destinations.size()) row.turns.resize(destinations.size());
@@ -61,22 +72,63 @@ namespace AIDATA {
             row.available[word] |= UINT64_C(1) << (offset % 64);
         }
 
-        std::optional<uint16_t> Find(uint32_t source, uint32_t destination, uint32_t player) const {
+        std::optional<uint32_t> Find_Destination(uint32_t destination) const {
             auto offset = destinations.find(destination);
             if (offset == destinations.end()) return std::nullopt;
+            return offset->second;
+        }
+
+        const s_direct_route_row* Find_Row(uint32_t source, uint32_t player) const {
             auto row = rows.find((uint64_t{player} << 32) | source);
-            if (row == rows.end() || offset->second >= row->second.turns.size()) return std::nullopt;
-            const uint32_t word = offset->second / 64;
-            if (word >= row->second.available.size() ||
-                (row->second.available[word] & (UINT64_C(1) << (offset->second % 64))) == 0) {
-                return std::nullopt;
-            }
-            return row->second.turns[offset->second];
+            return row == rows.end() ? nullptr : &row->second;
+        }
+
+        std::optional<uint16_t> Find(uint32_t source, uint32_t destination, uint32_t player) const {
+            const auto offset = Find_Destination(destination);
+            if (!offset) return std::nullopt;
+            const auto* row = Find_Row(source, player);
+            return row == nullptr ? std::nullopt : row->Find(offset);
         }
 
         void Clear() {
+            ++revision;
             destinations.clear();
             rows.clear();
+        }
+    };
+
+    // Borrowed lookup for the dense live indices in s_world_view, not ID high-water marks.
+    // Rebuild after table replacement/move; Store/Clear are detected by Matches().
+    struct s_direct_route_lookup {
+        const s_direct_route_table* table = nullptr;
+        uint64_t revision = 0;
+        std::vector<std::optional<uint32_t>> destinations;
+        std::vector<std::vector<const s_direct_route_row*>> rows;
+
+        void Prepare(const s_direct_route_table* source, uint32_t star_count, uint32_t player_count) {
+            table = source;
+            revision = source->revision;
+            destinations.resize(star_count);
+            rows.assign(player_count, std::vector<const s_direct_route_row*>(star_count));
+            for (uint32_t star = 0; star < star_count; ++star) {
+                destinations[star] = source->Find_Destination(star);
+                for (uint32_t player = 0; player < player_count; ++player) {
+                    rows[player][star] = source->Find_Row(star, player);
+                }
+            }
+        }
+
+        bool Matches(const s_direct_route_table* source) const {
+            return table != nullptr && table == source && revision == source->revision;
+        }
+
+        std::optional<uint32_t> Find_Destination(uint32_t destination) const {
+            return destination < destinations.size() ? destinations[destination] : table->Find_Destination(destination);
+        }
+
+        const s_direct_route_row* Find_Row(uint32_t source, uint32_t player) const {
+            if (player < rows.size() && source < rows[player].size()) return rows[player][source];
+            return table->Find_Row(source, player);
         }
     };
 
@@ -305,6 +357,26 @@ namespace AIDATA {
         int32_t stardate = 0;
         bool initialized = false;
         bool complete = false;
+    };
+
+    // Local to route calculation; discard before replacing state or erasing assessments.
+    struct s_route_search_lookup {
+        s_direct_route_lookup routes;
+        std::vector<s_star_assessment*> stars;
+
+        void Prepare(s_state* ai) {
+            routes.Prepare(&ai->routes.direct, ai->world.Star_Count(), ai->world.Player_Count());
+            stars.resize(ai->world.Star_Count());
+            for (uint32_t star = 0; star < stars.size(); ++star) {
+                auto found = ai->stars.find(star);
+                stars[star] = found == ai->stars.end() ? nullptr : &found->second;
+            }
+        }
+
+        s_star_assessment& Find_Star(s_state* ai, uint32_t star) const {
+            if (star < stars.size() && stars[star] != nullptr) return *stars[star];
+            return ai->stars[star];
+        }
     };
 
     // Temporary session owner. Only integration boundaries may access this object.
