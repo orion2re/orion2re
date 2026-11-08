@@ -1625,6 +1625,12 @@ namespace platform {
             SDL_Quit();
             return 0;
         }
+        // Lock the window to the 4:3 aspect ratio of the internal 640x480
+        // image: the window stays resizable, but the window manager
+        // constrains resizes to that scale.
+        if (!SDL_SetWindowAspectRatio(g_sdl_window, 4.0f / 3.0f, 4.0f / 3.0f)) {
+            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "platform: SDL_SetWindowAspectRatio failed: %s", SDL_GetError());
+        }
         SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "platform: hidden window created");
 
         g_main_window = g_sdl_window;
