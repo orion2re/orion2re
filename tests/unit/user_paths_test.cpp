@@ -107,6 +107,43 @@ DOCTEST_TEST_SUITE("user paths") {
         DOCTEST_CHECK(user_paths::Get_Game_Asset_Directories().empty());
     }
 
+    DOCTEST_TEST_CASE("portable mode falls back to XDG game-asset directories for reading") {
+        s_user_environment environment;
+        Unset_Variable_("ORION2RE_XDG");
+        DOCTEST_CHECK_FALSE(environment.Init());
+        DOCTEST_CHECK_FALSE(user_paths::Is_Enabled());
+        DOCTEST_CHECK(user_paths::Get_Game_Asset_Directories().empty());
+        DOCTEST_CHECK_FALSE(fs::exists(environment.Path("home/.local/share/orion2re")));
+
+        Set_Variable_("XDG_DATA_HOME", environment.Path("data") + "/");
+        Set_Variable_("XDG_DATA_DIRS", environment.Path("first") + ":relative::" + environment.Path("second") + "/");
+        const std::vector<std::string> paths = user_paths::Get_Fallback_Game_Asset_Directories(true);
+        DOCTEST_REQUIRE(paths.size() == 4);
+        DOCTEST_CHECK(paths[0] == environment.Path("data/orion2re/game/"));
+        DOCTEST_CHECK(paths[1] == environment.Path("data/orion2re/"));
+        DOCTEST_CHECK(paths[2] == environment.Path("first/orion2re/game/"));
+        DOCTEST_CHECK(paths[3] == environment.Path("second/orion2re/game/"));
+        // The fallback only reads: it creates no XDG directories and
+        // redirects no legacy paths.
+        DOCTEST_CHECK_FALSE(fs::exists(environment.Path("home/.local/share/orion2re")));
+        DOCTEST_CHECK_FALSE(fs::exists(environment.Path("data/orion2re")));
+        DOCTEST_CHECK(Redirect_("SAVE1.GAM", true).empty());
+        DOCTEST_CHECK(user_paths::Get_Fallback_Game_Asset_Directories(false).empty());
+    }
+
+    DOCTEST_TEST_CASE("portable mode redirects read-only install files from the fallback directories") {
+        s_user_environment environment;
+        Unset_Variable_("ORION2RE_XDG");
+        DOCTEST_CHECK_FALSE(environment.Init());
+        DOCTEST_CHECK_FALSE(user_paths::Is_Enabled());
+        environment.Write_File("home/.local/share/orion2re/game/orioncd.ini", "alternate path");
+        DOCTEST_CHECK(Redirect_("ORIONCD.INI") == environment.Path("home/.local/share/orion2re/game/orioncd.ini"));
+        // Writes and user files never take the fallback.
+        DOCTEST_CHECK(Redirect_("ORIONCD.INI", true).empty());
+        DOCTEST_CHECK(Redirect_("SAVE1.GAM").empty());
+        DOCTEST_CHECK(Redirect_("SAVE1.GAM", true).empty());
+    }
+
 #if !defined(_WIN32)
     DOCTEST_TEST_CASE("XDG mode uses home defaults and private directories") {
         s_user_environment environment;
