@@ -149,7 +149,11 @@ namespace MAINMENU {
     void __cdecl Init_Credits(char* filename, uint32_t filename_size);
 
     /**
-     * Loads the scrolling credits text and scratch bitmap.
+     * Loads the scrolling credits text and scratch bitmap. The text and
+     * bitmap are cached on the heap across menu entries and re-read only
+     * when the language or the resource generation changes (a resource
+     * reload may change the language or the string overrides); the
+     * scroll state restarts on every call.
      */
     void __cdecl Load_Credits();
 } // namespace MAINMENU
