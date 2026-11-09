@@ -13,16 +13,16 @@ namespace {
 
 namespace AIBUILD {
 
-    int16_t Player_War_Level(const game_world::s_view*, game_world::t_player_id) {
+    int16_t Player_War_Level(const game::s_view*, game::t_player_id) {
         return 1;
     }
     int16_t __cdecl Industry_Worth(s_colony*) {
         return 100;
     }
-    bool __cdecl Colony_Is_Conquered(const game_world::s_view*, s_colony*) {
+    bool __cdecl Colony_Is_Conquered(const game::s_view*, s_colony*) {
         return false;
     }
-    s_opponent_view Opponents(const game_world::s_view*) { return {}; }
+    s_opponent_view Opponents(const game::s_view*) { return {}; }
 
     int16_t __cdecl Mean_Ship_Strength(const s_opponent_view*, const AIDATA::s_ship_assessment*, const AIDATA::s_empire_assessment*, const s_ship_data*) {
         return 1;
@@ -31,11 +31,11 @@ namespace AIBUILD {
         return 100;
     }
 
-    void Build_Production_Context(AIDATA::s_state*, const game_world::s_view*, game_world::t_colony_id, const s_colony*, int32_t, production_rules::s_context* context) {
+    void Build_Production_Context(AIDATA::s_state*, const game::s_view*, game::t_colony_id, const s_colony*, int32_t, production_rules::s_context* context) {
         *context = {};
     }
 
-    void __cdecl Force_Produce(const game_world::s_view*, game_world::t_colony_id* queue, uint32_t index, int32_t* count, int16_t product) {
+    void __cdecl Force_Produce(const game::s_view*, game::t_colony_id* queue, uint32_t index, int32_t* count, int16_t product) {
         DOCTEST_REQUIRE(*count == 1);
         DOCTEST_REQUIRE(index == 0);
         MOX::colony[legacy_world::Slot(queue[index])].producing[0] = product;
@@ -44,9 +44,9 @@ namespace AIBUILD {
 } // namespace AIBUILD
 
 namespace TEST_ORBITAL_DEFENSE {
-    const game_world::s_view* World_() {
+    const game::s_view* World_() {
         static uint32_t seed;
-        static const game_world::s_view world{
+        static const game::s_view world{
             .players = MOX::player,
             .ships = MOX::ship,
             .stars = MOX::star,
@@ -156,7 +156,7 @@ namespace EVENTS {
 } // namespace EVENTS
 
 namespace AIMOVE {
-    std::optional<game_world::t_planet_id> Best_Uncolonized_Undestined_Planet(AIDATA::s_state*, const game_world::s_view*, game_world::t_player_id) {
+    std::optional<game::t_planet_id> Best_Uncolonized_Undestined_Planet(AIDATA::s_state*, const game::s_view*, game::t_player_id) {
         return std::nullopt;
     }
 } // namespace AIMOVE

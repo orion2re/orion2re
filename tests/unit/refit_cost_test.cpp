@@ -6,7 +6,7 @@ using legacy_world::Colony_Id;
 
 namespace TEST_AIBUILD_CONTEXT {
     AIDATA::s_state* State_();
-    const game_world::s_view* World_();
+    const game::s_view* World_();
     void Reset_();
 }
 

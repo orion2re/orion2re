@@ -2,7 +2,7 @@
 
 #include "world_view.h"
 
-namespace game_world {
+namespace game {
     s_view current;
 
-} // namespace game_world
+} // namespace game

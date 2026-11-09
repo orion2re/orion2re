@@ -3,7 +3,7 @@
 #include "legacy_world.h"
 
 namespace legacy_world {
-    game_world::s_view World() {
+    game::s_view World() {
         return {
             MOX::player,
             MOX::ship,

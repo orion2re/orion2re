@@ -11,8 +11,8 @@ namespace {
 } // namespace
 
 namespace TEST_AIBUILD_CONTEXT {
-    const game_world::s_view* World_() {
-        static const game_world::s_view world{
+    const game::s_view* World_() {
+        static const game::s_view world{
             .players = players,
             .colonies = colonies,
             .planets = planets,

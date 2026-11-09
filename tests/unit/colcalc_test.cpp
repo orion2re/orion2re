@@ -24,8 +24,8 @@ namespace TEST_COLONY_POP_GROWTH {
 }
 
 namespace {
-    const game_world::s_view* AI_World_() {
-        static const game_world::s_view world{
+    const game::s_view* AI_World_() {
+        static const game::s_view world{
             .players = MOX::player,
             .stars = MOX::star,
             .colonies = MOX::colony,

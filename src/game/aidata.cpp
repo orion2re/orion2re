@@ -4,7 +4,7 @@
 #include "legacy_world.h"
 
 namespace AIDATA {
-    using game_world::e_ship_location;
+    using game::e_ship_location;
 
     t_player_id Colony_Dominant_Player(int32_t player_count, const s_colony* colony) {
         uint8_t player_counts[MAX_PLAYERS] = {0};
@@ -47,7 +47,7 @@ namespace AIDATA {
         return legacy_world::Player_Id(current_owner);
     }
 
-    bool Star_In_Range_Of_Given_Star(const game_world::s_view* world, t_star_id target_star_idx, t_star_id source_star_idx, int32_t max_range_parsecs) {
+    bool Star_In_Range_Of_Given_Star(const game::s_view* world, t_star_id target_star_idx, t_star_id source_star_idx, int32_t max_range_parsecs) {
         bool in_range = false;
 
         const auto source = legacy_world::Index(source_star_idx);
@@ -131,7 +131,7 @@ namespace AIDATA {
         return desirability;
     }
 
-    const char* Validate_Inputs(const game_world::s_view* world) {
+    const char* Validate_Inputs(const game::s_view* world) {
         if (!world) return "missing world view";
         if (!world->players) return "missing player records";
         if (!world->ships) return "missing ship records";
@@ -150,7 +150,7 @@ namespace AIDATA {
         return nullptr;
     }
 
-    bool Compute_AI_Data(s_state* ai, const game_world::s_view* world) {
+    bool Compute_AI_Data(s_state* ai, const game::s_view* world) {
         if (Validate_Inputs(world) != nullptr) {
             Reset(ai);
             return false;
@@ -618,7 +618,7 @@ namespace AIDATA {
         return true;
     }
 
-    void __cdecl Compute_Star_Player_Range_Info(s_state* ai, const game_world::s_view* world) {
+    void __cdecl Compute_Star_Player_Range_Info(s_state* ai, const game::s_view* world) {
         if (world->Star_Count() <= 0) {
             return;
         }
@@ -685,7 +685,7 @@ namespace AIDATA {
         }
     }
 
-    void Find_Players_In_Range(const game_world::s_view* world, t_star_id star_idx, int8_t* in_normal_range_out, int8_t* in_extended_range_out) {
+    void Find_Players_In_Range(const game::s_view* world, t_star_id star_idx, int8_t* in_normal_range_out, int8_t* in_extended_range_out) {
         auto& target_star = world->stars[legacy_world::Slot(star_idx)];
         int32_t target_x = target_star.x;
         int32_t target_y = target_star.y;
@@ -754,7 +754,7 @@ namespace AIDATA {
         return legacy_world::Compare_Ship_Locations(&ship1, &ship2);
     }
 
-    void __cdecl Compute_Base_Planet_Values(s_state* ai, const game_world::s_view* world) {
+    void __cdecl Compute_Base_Planet_Values(s_state* ai, const game::s_view* world) {
         for (auto& [id, planet] : ai->planets) {
             std::fill(std::begin(planet.base_values), std::end(planet.base_values), 0);
         }
@@ -789,7 +789,7 @@ namespace AIDATA {
      * Computes the "contextual" value of planets for each player, adjusting the base
      * values based on ownership of other planets in the same star system.
      */
-    void __cdecl Compute_Contextual_Planet_Values(s_state* ai, const game_world::s_view* world) {
+    void __cdecl Compute_Contextual_Planet_Values(s_state* ai, const game::s_view* world) {
         for (auto& [id, planet] : ai->planets) {
             std::fill(std::begin(planet.contextual_values), std::end(planet.contextual_values), 0);
         }
@@ -869,7 +869,7 @@ namespace AIDATA {
      * This logic accounts for difficulty settings, alien management centers,
      * and strategic range to existing colonies.
      */
-    int16_t __cdecl Proximity_Worth_To_Player(s_state* ai, const game_world::s_view* world, s_colony* colony, s_player* evaluating_player) {
+    int16_t __cdecl Proximity_Worth_To_Player(s_state* ai, const game::s_view* world, s_colony* colony, s_player* evaluating_player) {
         if (world->settings->game_difficulty == GAME_DIFFICULTY_TUTOR) {
             return 0;
         }
@@ -935,7 +935,7 @@ namespace AIDATA {
     constexpr uint16_t MAX_CACHED_TRAVEL_TURNS = 254;
 
     std::optional<s_route> Player_N_Turns_From_Star_To_Star_With_Intermediate(
-        s_state* ai, const game_world::s_view* world, t_player_id player_id, t_star_id source_star, t_star_id destination_star, bool use_extended_range) {
+        s_state* ai, const game::s_view* world, t_player_id player_id, t_star_id source_star, t_star_id destination_star, bool use_extended_range) {
         const uint32_t player_index = legacy_world::Slot(player_id);
         const s_route_key key{player_id, source_star, destination_star};
         auto cached = ai->routes.intermediate.find(key);
@@ -1009,7 +1009,7 @@ namespace AIDATA {
         return use_extended_range ? choices.extended : choices.normal;
     }
 
-    std::optional<s_route> Ship_N_Turns_To_Star_With_Intermediate(s_state* ai, const game_world::s_view* world, t_ship_id ship_id, t_star_id destination_star) {
+    std::optional<s_route> Ship_N_Turns_To_Star_With_Intermediate(s_state* ai, const game::s_view* world, t_ship_id ship_id, t_star_id destination_star) {
         const uint64_t key = Ship_Route_Key(ship_id, destination_star);
         auto cached = ai->routes.ship_intermediate.find(key);
         if (cached != ai->routes.ship_intermediate.end()) return cached->second;
@@ -1058,7 +1058,7 @@ namespace AIDATA {
         return result;
     }
 
-    int16_t __cdecl Colony_Worth_To_Player(s_state* ai, const game_world::s_view* world, t_colony_id colony_idx, s_colony* colony, s_player* evaluating_player) {
+    int16_t __cdecl Colony_Worth_To_Player(s_state* ai, const game::s_view* world, t_colony_id colony_idx, s_colony* colony, s_player* evaluating_player) {
         int16_t evaluating_player_idx = (int16_t)(evaluating_player - world->players);
         s_planet_data* planet = &world->planets[colony->planet];
         const auto race_index = legacy_world::Index(ai->colonies[colony_idx].dominant_race);
@@ -1171,7 +1171,7 @@ namespace AIDATA {
         return (int16_t)final_worth;
     }
 
-    int32_t __cdecl Uncolonized_Planet_Worth_To_Player(const game_world::s_view* world, s_planet_data* planet, s_player* evaluating_player) {
+    int32_t __cdecl Uncolonized_Planet_Worth_To_Player(const game::s_view* world, s_planet_data* planet, s_player* evaluating_player) {
         int64_t worth = 0;
 
         if (planet->planet_type == PLANET_TYPE_PLANET) {

@@ -79,7 +79,7 @@ namespace maintain {
                 if (ship.owner == player_idx && ship.status < 5 && ship.d.ship_type == SHIP_TYPE_COMBAT) {
                     for (int32_t k = 0; k < player_count; ++k) {
                         if (eligible_players[k]) {
-                            worths[j] += AIPOWER::Ship_Strength_Vs_Ships(&game_world::current, legacy_world::Ship_Id(j), legacy_world::Player_Id(k));
+                            worths[j] += AIPOWER::Ship_Strength_Vs_Ships(&game::current, legacy_world::Ship_Id(j), legacy_world::Player_Id(k));
                         }
                     }
                     worths[j] = worths[j] / ((ship.d.size + 1) * eligible_count);
@@ -257,7 +257,7 @@ namespace maintain {
 
                 if (cheapest_ship->officer_index != -1) {
                     int16_t officer_idx = cheapest_ship->officer_index;
-                    const game_world::s_view world{
+                    const game::s_view world{
                         .players = MOX::player,
                         .ships = MOX::ship,
                         .leaders = MOX::leaders,

@@ -5,31 +5,31 @@
 #include "game/ai_compat.h"
 #include <type_traits>
 
-using game_world::t_ship_id;
+using game::t_ship_id;
 using legacy_world::Ship_Id;
 using legacy_world::Star_Id;
 using legacy_world::Player_Id;
 
-static_assert(std::is_aggregate_v<game_world::t_ship_id>);
-static_assert(std::is_aggregate_v<game_world::t_colony_id>);
-static_assert(std::is_aggregate_v<game_world::t_planet_id>);
-static_assert(std::is_aggregate_v<game_world::t_star_id>);
-static_assert(std::is_aggregate_v<game_world::t_player_id>);
-static_assert(std::is_aggregate_v<game_world::t_leader_id>);
+static_assert(std::is_aggregate_v<game::t_ship_id>);
+static_assert(std::is_aggregate_v<game::t_colony_id>);
+static_assert(std::is_aggregate_v<game::t_planet_id>);
+static_assert(std::is_aggregate_v<game::t_star_id>);
+static_assert(std::is_aggregate_v<game::t_player_id>);
+static_assert(std::is_aggregate_v<game::t_leader_id>);
 static_assert(!std::is_convertible_v<uint32_t, t_ship_id>);
 static_assert(!std::is_convertible_v<t_ship_id, uint32_t>);
-static_assert(!std::is_convertible_v<t_ship_id, game_world::t_colony_id>);
-static_assert(!std::is_convertible_v<game_world::t_planet_id, game_world::t_star_id>);
-static_assert(!std::is_convertible_v<game_world::t_player_id, game_world::t_leader_id>);
+static_assert(!std::is_convertible_v<t_ship_id, game::t_colony_id>);
+static_assert(!std::is_convertible_v<game::t_planet_id, game::t_star_id>);
+static_assert(!std::is_convertible_v<game::t_player_id, game::t_leader_id>);
 static_assert(!std::is_invocable_v<decltype(&AIPOWER::Max_Ship_Hits),
-    const game_world::s_view*, game_world::t_colony_id>);
-using t_star_routes = AIDATA::s_direct_route_table<game_world::t_star_id>;
+    const game::s_view*, game::t_colony_id>);
+using t_star_routes = AIDATA::s_direct_route_table<game::t_star_id>;
 static_assert(!std::is_invocable_v<decltype(&t_star_routes::Store), t_star_routes*,
-    t_ship_id, game_world::t_star_id, game_world::t_player_id, uint8_t>);
+    t_ship_id, game::t_star_id, game::t_player_id, uint8_t>);
 
 DOCTEST_TEST_CASE_TEMPLATE("ID structs provide value equality and preserve integer hashing", t_id,
-    game_world::t_ship_id, game_world::t_colony_id, game_world::t_planet_id,
-    game_world::t_star_id, game_world::t_player_id, game_world::t_leader_id) {
+    game::t_ship_id, game::t_colony_id, game::t_planet_id,
+    game::t_star_id, game::t_player_id, game::t_leader_id) {
     constexpr t_id zero{};
     static_assert(zero.id == 0);
     static_assert(t_id{7} == t_id{7});
@@ -156,7 +156,7 @@ DOCTEST_TEST_CASE("technology defaults bind to the test-owned starting fields") 
 DOCTEST_TEST_CASE("AI turn reset does not own or reset world inputs") {
     int16_t player_count = 1;
     uint32_t seed = 42;
-    game_world::s_view world;
+    game::s_view world;
     AIDATA::s_state first;
     AIDATA::s_state second;
     world.player_count = &player_count;
@@ -232,7 +232,7 @@ DOCTEST_TEST_CASE("typed star ID shuffling keeps the legacy permutation and RNG 
     uint32_t legacy_seed = 42;
     uint32_t seed = legacy_seed;
     int16_t indices[] = {0, 1, 2, 3, 4, 5};
-    game_world::t_star_id ids[] = {Star_Id(0), Star_Id(1), Star_Id(2), Star_Id(3), Star_Id(4), Star_Id(5)};
+    game::t_star_id ids[] = {Star_Id(0), Star_Id(1), Star_Id(2), Star_Id(3), Star_Id(4), Star_Id(5)};
     RUSS::Shuffle_Sint_With_Seed(&legacy_seed, indices, 6);
     ai_compat::Shuffle_Stars(&seed, ids);
     for (size_t i = 0; i < std::size(ids); ++i) DOCTEST_CHECK(ids[i] == Star_Id(indices[i]));
@@ -328,7 +328,7 @@ DOCTEST_TEST_CASE("star assessments name treaty partners and hostile players by 
     players[0].treaty[1] = 1;
     players[0].treaty[2] = 4;
     AIDATA::s_state ai;
-    game_world::s_view world{
+    game::s_view world{
         .players = players,
         .stars = stars,
         .colonies = colonies,
@@ -365,7 +365,7 @@ DOCTEST_TEST_CASE("AI strength lookup does not narrow a ship identity to a legac
     ai.ships[Ship_Id(0)].strengths[1] = 7;
     s_star_data stars[1] = {};
     int16_t player_count = 2;
-    const game_world::s_view world{.stars = stars, .player_count = &player_count};
+    const game::s_view world{.stars = stars, .player_count = &player_count};
     DOCTEST_CHECK(AIMOVE::Ship_Min_Strength_Versus_Players_At_Star(&ai, &world, ship_id, 2, Star_Id(0)) == 123);
     stars[0].in_nebula = 1;
     DOCTEST_CHECK(AIMOVE::Ship_Min_Strength_Versus_Players_At_Star(&ai, &world, ship_id, 2, Star_Id(0)) == 277);
@@ -413,7 +413,7 @@ DOCTEST_TEST_CASE("fleet evaluation passes a proposed origin without modifying r
 
 DOCTEST_TEST_CASE("movement planning rejects destinations unsupported by the legacy engine") {
     s_ship_data ships[1] = {};
-    game_world::s_view world;
+    game::s_view world;
     world.ships = ships;
     AIMOVE::s_ai_movement_context context{Player_Id(0), nullptr, nullptr, &world};
     const t_ship_id ids[] = {Ship_Id(0)};
@@ -457,7 +457,7 @@ DOCTEST_TEST_CASE("AI movement rejects wide IDs rather than aliasing legacy inde
         DOCTEST_CHECK(ai_compat::Evaluate_Fleet_Move(valid, Star_Id(0), &result, Star_Id(id)) == SHIPMOVE::e_fleet_evaluation::invalid_input);
         DOCTEST_CHECK_FALSE(queried);
 
-        const game_world::s_view world{.ships = legacy_ships};
+        const game::s_view world{.ships = legacy_ships};
         AIMOVE::s_ai_movement_context context{Player_Id(0), nullptr, nullptr, &world};
         DOCTEST_CHECK_FALSE(AIMOVE::Move_Ships_With_Possible_Intermediate(&context, invalid, Star_Id(0)));
         DOCTEST_CHECK_FALSE(queried);

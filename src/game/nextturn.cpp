@@ -6,7 +6,7 @@
 
 namespace NEXTTURN {
 
-    static bool Validate_Turn_Inputs(const game_world::s_view* world) {
+    static bool Validate_Turn_Inputs(const game::s_view* world) {
         if (const char* reason = AIDATA::Validate_Inputs(world)) {
             fprintf(stderr, "Cannot calculate next turn: %s\n", reason);
             AIDATA::Reset(&AIDATA::state);
@@ -104,8 +104,8 @@ namespace NEXTTURN {
     }
 
     bool Next_Turn_Calc() {
-        game_world::current = legacy_world::World();
-        const auto* world = &game_world::current;
+        game::current = legacy_world::World();
+        const auto* world = &game::current;
         if (!Validate_Turn_Inputs(world)) return false;
         if (MOX::game_type >= 0 && MOX::game_type <= 1) {
             EVENTS::Clear_Deferred_Monster_Event_Target();

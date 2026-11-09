@@ -833,7 +833,7 @@ namespace SHIPMOVE {
 
     bool Stop_Ship_Transit(s_ship_data* ship, std::optional<uint32_t> current_star) {
         if (current_star) {
-            const game_world::s_ship_location location{game_world::e_ship_location::at_star, legacy_world::Star_Id(*current_star)};
+            const game::s_ship_location location{game::e_ship_location::at_star, legacy_world::Star_Id(*current_star)};
             if (!legacy_world::Set_Ship_Location(ship, &location)) return false;
         } else {
             legacy_world::Clear_Ship_Location(ship);

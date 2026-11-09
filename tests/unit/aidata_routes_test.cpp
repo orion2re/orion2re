@@ -12,8 +12,8 @@ namespace {
     s_ship_data ships[1];
     int16_t player_count = 1;
 
-    const game_world::s_view* World_() {
-        static const game_world::s_view world{
+    const game::s_view* World_() {
+        static const game::s_view world{
             .players = players,
             .ships = ships,
             .stars = stars,

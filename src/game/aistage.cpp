@@ -2,7 +2,7 @@
 
 namespace AISTAGE {
 
-    void Compute_Defensive_Stage_Points(AIDATA::s_state* ai, const game_world::s_view* world, game_world::t_player_id player_id) {
+    void Compute_Defensive_Stage_Points(AIDATA::s_state* ai, const game::s_view* world, game::t_player_id player_id) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
         std::vector<uint8_t> processed_stars(world->Star_Count(), 0);
         int16_t selected_stagepoint_count = 0;

@@ -6,7 +6,7 @@
 #include "doctest/doctest.h"
 
 namespace TEST_ORBITAL_DEFENSE {
-    const game_world::s_view* World_();
+    const game::s_view* World_();
     AIDATA::s_state* State_();
     void Reset_(int16_t preferred, bool large_ships);
     extern std::vector<std::string> printed;

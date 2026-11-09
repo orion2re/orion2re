@@ -136,7 +136,7 @@ namespace INITGAME {
             return false;
         }
         AIDATA::Reset(&AIDATA::state);
-        game_world::current = legacy_world::World();
+        game::current = legacy_world::World();
         orion2re::lua::game::Reset_Semantic_State();
         const bool random_player_count =
             num_players == NEW_GAME_RANDOM_PLAYER_COUNT;

@@ -14,7 +14,7 @@ namespace aitech {
         return true;
     }
 
-    static int16_t Choose_AI_Tech_Application(const s_rules* research_rules, game_world::t_player_id player_id, s_player* player) {
+    static int16_t Choose_AI_Tech_Application(const s_rules* research_rules, game::t_player_id player_id, s_player* player) {
         const auto legacy_player = legacy_world::Index(player_id);
         if (!legacy_player) return -1;
         int16_t app_id = newtech::Choose_Tech_Application(*legacy_player);
@@ -152,7 +152,7 @@ namespace aitech {
         return 0;
     }
 
-    void Apply_Evolutionary_Upgrades(const game_world::s_view* world) {
+    void Apply_Evolutionary_Upgrades(const game::s_view* world) {
         for (int i = 0; i < world->Player_Count(); ++i) {
             s_player* plr = &world->players[i];
 
@@ -168,7 +168,7 @@ namespace aitech {
         }
     }
 
-    void __cdecl Compute_AI_Tech_Info(AIDATA::s_state* ai, const game_world::s_view* world) {
+    void __cdecl Compute_AI_Tech_Info(AIDATA::s_state* ai, const game::s_view* world) {
         for (auto& player : ai->players) player.technology = {};
 
         for (int p_idx = 0; p_idx < world->Player_Count(); ++p_idx) {
@@ -336,7 +336,7 @@ namespace aitech {
         }
     }
 
-    void __cdecl All_AI_Tech_Select(AIDATA::s_state* ai, const game_world::s_view* world) {
+    void __cdecl All_AI_Tech_Select(AIDATA::s_state* ai, const game::s_view* world) {
         aitech::Compute_AI_Tech_Info(ai, world);
 
         for (int i = 0; i < world->Player_Count(); ++i) {
@@ -352,7 +352,7 @@ namespace aitech {
         }
     }
 
-    int16_t System_Proximity_Count(const game_world::s_view* world, game_world::t_player_id player, game_world::t_player_id other_player) {
+    int16_t System_Proximity_Count(const game::s_view* world, game::t_player_id player, game::t_player_id other_player) {
         const uint32_t player_id = legacy_world::Slot(player);
         const uint32_t other_player_id = legacy_world::Slot(other_player);
         const auto legacy_player = legacy_world::Index(player);
@@ -377,7 +377,7 @@ namespace aitech {
         return score;
     }
 
-    int32_t Get_Max_Technology_Value(const game_world::s_view* world, game_world::t_player_id player_id) {
+    int32_t Get_Max_Technology_Value(const game::s_view* world, game::t_player_id player_id) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
         int32_t max_cost = 0;
 
@@ -393,7 +393,7 @@ namespace aitech {
         return max_cost / 25;
     }
 
-    void __cdecl AI_Tech_Select(const game_world::s_view* world, s_player* player) {
+    void __cdecl AI_Tech_Select(const game::s_view* world, s_player* player) {
         bool needs_new_tech = false;
 
         // Check if current field research is completed or if a new app was recently acquired
