@@ -1,5 +1,7 @@
 #include "pch.h"
 
+#include <stdexcept>
+
 #include "doctest/doctest.h"
 
 #include "lua/lua_game.h"

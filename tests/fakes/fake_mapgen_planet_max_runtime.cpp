@@ -1,5 +1,7 @@
 #include "pch.h"
 
+#include <stdexcept>
+
 #include "lua/lua_game.h"
 #include "lua/lua_game_internal.h"
 #include "lua/lua_game_ship_identity.h"
