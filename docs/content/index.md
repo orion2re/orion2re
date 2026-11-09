@@ -2,7 +2,9 @@
 
 **A community-built native restoration of Master of Orion II engine.**
 
-Orion2 Redone, aka 2.00, restores the classic turn-based strategy game as a native application for Windows, macOS, and Linux. It preserves the original game rules while incorporating audited fixes and useful extensions from the unofficial 1.50 patch.
+Orion2 Redone restores the classic turn-based strategy game as a native application for Windows, macOS, and Linux. It preserves the original game rules while incorporating audited fixes and useful extensions from the unofficial 1.50 patch.
+
+This documentation accompanies engine version **{{ engine_version }}**.
 
 Build an empire in the familiar game, now with updated display support, larger galaxies, cross-platform multiplayer, extensive configuration, and packaged mods. Whether you want to play, customize the rules, create a mod, or understand the restored engine, this documentation is the place to start.
 
@@ -10,7 +12,7 @@ Build an empire in the familiar game, now with updated display support, larger g
 
     Orion2 Redone does not include the original Master of Orion II assets. You must own a supported copy of version 1.31 from GOG, Steam, or an updated CD installation. See the [introduction](manual/overview/introduction.md) for details.
 
-## What version 2.00 offers
+## What Orion2 Redone offers
 
 - **Cross-platform play:** Native, resizable-window and fullscreen support on Windows, macOS, and Linux, with selectable presentation scalers and display options.
 - **Restored and corrected gameplay:** Original rules plus fixes for crashes, stalls, interface errors, tactical combat, and network synchronization. Behavior has been [oracle-tested](https://en.wikipedia.org/wiki/Test_oracle) against the original `orion95.exe` over many thousands of turns.
@@ -18,14 +20,14 @@ Build an empire in the familiar game, now with updated display support, larger g
 - **Modern multiplayer:** Local network, Internet, and Hotseat play, with compatibility checks for builds, configuration, mods, and scripts.
 - **Configuration and modding:** Plain-text settings and versioned packages that can change rules, replace assets, and add Lua behavior.
 
-[See the version 2.00 highlights](manual/overview/highlights.md)
+[See the Orion2 Redone highlights](manual/overview/highlights.md)
 
 ## Choose your path
 
 | I want to... | Start here |
 | --- | --- |
 | See what changed since the last release | [Changelog](changelog.md) |
-| Set up the game and understand version 2.00 | [Introduction](manual/overview/introduction.md) and [compatibility](manual/overview/compatibility.md) |
+| Set up the game and understand Orion2 Redone | [Introduction](manual/overview/introduction.md) and [compatibility](manual/overview/compatibility.md) |
 | Learn the interface, rules, and game mechanics | [Player manual](manual/index.md) |
 | Look up a setting and its default value | [Configuration reference](generated/configuration/index.md) |
 | Install, enable, or troubleshoot a mod | [Using mods](manual/legacy-modding/index.md) |
@@ -37,7 +39,7 @@ Build an empire in the familiar game, now with updated display support, larger g
 
 ### Player manual
 
-Start with the [manual](manual/index.md) for setup, player-visible changes, game mechanics, keyboard shortcuts, and reference material. The manual builds on the historical 1.50.26 manual, with current information checked against version 2.00.
+Start with the [manual](manual/index.md) for setup, player-visible changes, game mechanics, keyboard shortcuts, and reference material. The manual builds on the historical 1.50.26 manual, with current information maintained for Orion2 Redone.
 
 ### Configuration reference
 

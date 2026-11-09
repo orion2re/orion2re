@@ -1,6 +1,6 @@
 # Authoring Mods: Persistence, Saves, and Multiplayer
 
-Lua source, globals, closures, and virtual-machine internals are not saved. Version 2.00 recreates each Lua state from verified package source, reruns `main.lua` to rebuild code and registrations, restores engine-owned persistent state, and then resumes the game.
+Lua source, globals, closures, and virtual-machine internals are not saved. Orion2 Redone recreates each Lua state from verified package source, reruns `main.lua` to rebuild code and registrations, restores engine-owned persistent state, and then resumes the game.
 
 ## What persists
 

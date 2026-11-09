@@ -2,7 +2,7 @@
 
 The `data/orion2re.cfg` file contains player settings and the list of enabled mods. It is a plain text file and can be edited with a text editor while the game is closed.
 
-If the file does not exist, version 2.00 uses its built-in defaults. The game does not rewrite the file. To restore all defaults, close the game and temporarily rename or remove `data/orion2re.cfg`.
+If the file does not exist, Orion2 Redone uses its built-in defaults. The game does not rewrite the file. To restore all defaults, close the game and temporarily rename or remove `data/orion2re.cfg`.
 
 ## Startup options
 

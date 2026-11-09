@@ -1,6 +1,7 @@
 INHERIT: mkdocs.yml
 
 hooks:
+  - hooks/version.py
   - hooks/pdf.py
 
 plugins:

@@ -44,7 +44,7 @@ macOS builds use the native host architecture.
 ## Downloads and CI packages
 
 Download stable builds from [GitHub Releases](https://github.com/orion2re/orion2re/releases).
-New release ZIPs include the tag, for example `orion2re-win-win32-v2.0.0.zip`;
+New release ZIPs include the tag: `orion2re-win-win32-<tag>.zip`;
 older assets keep their original names. Windows x86/x64 and macOS ARM64 are available.
 
 For development builds, select a successful **main** run under
@@ -71,14 +71,15 @@ the relevant version and change category, using a short description of what
 changes for players or mod authors. Keep the newest version at the top, even
 before it is released.
 
-Edit only the root [`VERSION`](VERSION) file, for example from `2.0.0` to
-`2.0.1`, and commit the change. Use `major.minor.patch` without a `v` prefix,
+Edit only the root [`VERSION`](VERSION) file and commit the change. Use
+`major.minor.patch` without a `v` prefix,
 leading zeroes, or prerelease suffix. CMake regenerates the engine version used
 by mod `requires.engine` checks, the menu label, and macOS bundle metadata.
 An existing CMake build automatically reconfigures when this file changes.
+Documentation builds also read this file for the displayed engine version.
 
-To publish an official release, tag that commit with `v` followed by `VERSION`
-(for example `v2.0.1`), push the tag, and publish its GitHub Release. Publishing
+To publish an official release, tag that commit with `v` followed by the contents
+of `VERSION`, push the tag, and publish its GitHub Release. Publishing
 the release triggers CI; pushing the tag alone does not. CI rejects a tag that
 does not match `VERSION`, then builds and attaches the game ZIPs, documentation
 ZIP, and PDF with that tag in their filenames. Development artifacts retain

@@ -6,7 +6,7 @@ Lua is for deterministic simulation behavior. It is not a UI scripting system, a
 
 ## Current scope
 
-API version 1 is the minimal foundation of the version 2.00 modding API. It provides isolated package runtimes, deterministic registration, semantic game objects, saved mod storage, migrations, multiplayer identity, and enough specific events and subsystem operations to migrate the Lua scripts shipped with the audited 1.50 patch.
+API version 1 is the minimal foundation of the Orion2 Redone modding API. It provides isolated package runtimes, deterministic registration, semantic game objects, saved mod storage, migrations, multiplayer identity, and enough specific events and subsystem operations to migrate the Lua scripts shipped with the audited 1.50 patch.
 
 It is not a complete scripting surface for the game. Only a small number of prototype categories, event points, rule hooks, services, and game subsystems are exposed today. More events, rules, prototype families, and subsystem APIs are expected in later revisions. Until a capability appears in the current [events and API reference](events-and-api.md), a mod must not assume that a similarly named object or hook exists.
 

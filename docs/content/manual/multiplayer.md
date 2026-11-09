@@ -1,8 +1,8 @@
 # Multiplayer
 
-Version 2.00 supports Network, Online, and Hotseat games.
+Orion2 Redone supports Network, Online, and Hotseat games.
 
-Network games need a shared meeting point where players can see open games and connect to one another. Version 2.00 calls this meeting point a multiplayer router. It is a small service that keeps the session list and passes game traffic between connected players. It does not run the game, provide mods, or store saved games.
+Network games need a shared meeting point where players can see open games and connect to one another. Orion2 Redone calls this meeting point a multiplayer router. It is a small service that keeps the session list and passes game traffic between connected players. It does not run the game, provide mods, or store saved games.
 
 For a local-network game, the host's game starts this service automatically. For an Internet game, a separate copy of the router service must be running on a computer that every player can reach. The person operating that service and the player hosting the game session can be different people.
 
@@ -20,15 +20,15 @@ Network and Online games use the same game rules. The difference is whether the 
 
 The original version 1.31 multiplayer system came from the IPX and DirectPlay era and also included modem, null-modem or serial, and Hotseat paths. Version 1.50 retained that connectivity model while adding synchronization and save handling work, multiplayer configuration, and fixes for specific network-game problems.
 
-Version 2.00 removes the obsolete DirectPlay, IPX, modem, and serial networking paths. Network and Online games instead use a new project-owned TCP protocol and the multiplayer router. This provides one cross-platform networking system for LAN and Internet games.
+Orion2 Redone removes the obsolete DirectPlay, IPX, modem, and serial networking paths. Network and Online games instead use a new project-owned TCP protocol and the multiplayer router. This provides one cross-platform networking system for LAN and Internet games.
 
 A router lists only games created through that particular service; it is not a global matchmaking directory.
 
-Version 2.00 also checks the game build, synchronized configuration, required mod versions, and script state during multiplayer setup. When loading a game, the host sends the saved game state to the other players rather than requiring each player to select a separate local copy.
+Orion2 Redone also checks the game build, synchronized configuration, required mod versions, and script state during multiplayer setup. When loading a game, the host sends the saved game state to the other players rather than requiring each player to select a separate local copy.
 
 ## Before starting
 
-Every network participant should use the same version 2.00 build and compatible versions of the required mods. The host distributes the gameplay configuration and checks the required mod versions during setup. Local presentation settings that do not affect the game may differ.
+Every network participant should use the same Orion2 Redone build and compatible versions of the required mods. The host distributes the gameplay configuration and checks the required mod versions during setup. Local presentation settings that do not affect the game may differ.
 
 If you use mods, agree on the enabled mods and their versions before opening the session. A mod can depend on another mod or require matching script content even when its visible settings appear identical.
 

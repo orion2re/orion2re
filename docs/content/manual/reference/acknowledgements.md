@@ -12,7 +12,7 @@ intellectual property belong to their corresponding owners.
 ## Imported 1.50 manual and patch work
 
 This manual was originally developed for the MOO2 1.50 patch. Its historical
-material provided a detailed compatibility reference for the version 2.00
+material provided a detailed compatibility reference for the Orion2 Redone
 manual, but it does not by itself describe current behavior.
 
 The following credits are retained from that work:
@@ -33,9 +33,9 @@ The following credits are retained from that work:
 - The MOO2 1.50 Project team, for the patch and the manual from which this
   documentation developed.
 
-## Version 2.00 restoration
+## Orion2 Redone restoration
 
-Version 2.00 is the work of the contributors to the orion2re restoration effort.
+Orion2 Redone is the work of the contributors to the orion2re restoration effort.
 Thanks go to everyone who contributed implementation, documentation, testing,
 bug reports, and compatibility research. Individual code contributions are
 recorded in the project's commit history.

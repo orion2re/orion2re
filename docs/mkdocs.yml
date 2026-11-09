@@ -8,6 +8,7 @@ use_directory_urls: false
 watch:
   - content
   - hooks
+  - ../VERSION
   - ../specs/config
   - ../tools/config
 
@@ -24,6 +25,9 @@ theme:
     - navigation.sections
     - navigation.indexes
     - navigation.top
+
+hooks:
+  - hooks/version.py
 
 plugins:
   - offline
@@ -51,9 +55,9 @@ nav:
   - Changelog: changelog.md
   - Manual:
       - manual/index.md
-      - About version 2.00:
+      - About Orion2 Redone:
           - Introduction: manual/overview/introduction.md
-          - Version 2.00 highlights: manual/overview/highlights.md
+          - Orion2 Redone highlights: manual/overview/highlights.md
           - Compatibility: manual/overview/compatibility.md
           - File locations and native installation: manual/overview/file-locations.md
           - Critical bug fixes: manual/overview/critical-bug-fixes.md

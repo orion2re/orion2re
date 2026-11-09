@@ -1,6 +1,6 @@
 # Manual: AI production rules
 
-Version 2.00 exposes the rules used to choose production for computer-controlled empires. These settings are intended for mods that want to adjust AI priorities without replacing the production code.
+Orion2 Redone exposes the rules used to choose production for computer-controlled empires. These settings are intended for mods that want to adjust AI priorities without replacing the production code.
 
 ## Two production systems
 

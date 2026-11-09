@@ -1,6 +1,6 @@
 # Manual: Critical bug fixes
 
-Version 2.00 includes fixes backported from the 1.50 patch. This page lists fixes that have been verified in the restored project; it is not the complete historical 1.50 fix list.
+Orion2 Redone includes fixes backported from the 1.50 patch. This page lists fixes that have been verified in the restored project; it is not the complete historical 1.50 fix list.
 
 ## General
 

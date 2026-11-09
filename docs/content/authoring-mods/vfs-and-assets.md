@@ -50,7 +50,7 @@ providing active streamed assets until stream ownership/reopening is implemented
 
 ## Resolution order
 
-For each virtual asset, version 2.00 searches:
+For each virtual asset, Orion2 Redone searches:
 
 1. loose `data/overrides/`;
 2. enabled package `data/` projections, highest-priority package first;

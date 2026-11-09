@@ -182,7 +182,7 @@ The stored production value (including bought production) and total production c
 
 ### Automatics (Design Dock)
 
-In the Ship Design screen, the Automatics are the two boxes that list the ship's essentials - engine, armor, shield and computer. In version 2.00, the beam attack value includes the Battle Scanner bonus if present in the design, in the same way that Augmented Engines, Reinforced Hull, Heavy Armor and Hard Shields are shown. In addition, Augmented Engines are no longer counted twice in the Beam Defense value.
+In the Ship Design screen, the Automatics are the two boxes that list the ship's essentials - engine, armor, shield and computer. In Orion2 Redone, the beam attack value includes the Battle Scanner bonus if present in the design, in the same way that Augmented Engines, Reinforced Hull, Heavy Armor and Hard Shields are shown. In addition, Augmented Engines are no longer counted twice in the Beam Defense value.
 
 ![Revised interface layout](../../assets/images/manual/image55.png)
 
@@ -376,7 +376,7 @@ Fixed the bug that erroneously led to displaying a turned off weapon slot as ye
 
 Planet shields work in a slightly confusing way in tactical combat. Depending on the presence of defensive buildings on a planet, regular ship class shields can be added or not, while game info misleadingly claims they are always added. This is now fixed, the ordinary shield bonus is no longer displayed when there are no ground defenses.
 
-For example a planet has a Radiation shield, no defensive buildings, and its owner possesses the Class X shield tech. The old display showed 15 damage blocked, while only 5 was actually blocked. Version 2.00 displays 5 damage blocked in this case.
+For example a planet has a Radiation shield, no defensive buildings, and its owner possesses the Class X shield tech. The old display showed 15 damage blocked, while only 5 was actually blocked. Orion2 Redone displays 5 damage blocked in this case.
 
 ---
 

@@ -82,4 +82,4 @@ These changes apply when the named mod is enabled, not to every game profile.
 
 ## 2.0.0
 
-- Initial official release and the starting point for this changelog. See [Version 2.00 highlights](manual/overview/highlights.md) for its features.
+- Initial official release and the starting point for this changelog. See [Orion2 Redone highlights](manual/overview/highlights.md) for a general overview of the project.

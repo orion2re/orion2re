@@ -1,6 +1,6 @@
 # Authoring Mods: Configuration Overrides
 
-CFG is the hand-authored language for changing fields exposed by version 2.00. It is schema-aware: paths, types, accepted names, ranges, defaults, array indexes, and record order come from the engine's generated configuration schema.
+CFG is the hand-authored language for changing fields exposed by Orion2 Redone. It is schema-aware: paths, types, accepted names, ranges, defaults, array indexes, and record order come from the engine's generated configuration schema.
 
 Use the [configuration reference](../generated/configuration/index.md) that matches the game release. Do not copy a 1.50 name or infer a field from native source layout.
 

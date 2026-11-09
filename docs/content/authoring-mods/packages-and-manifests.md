@@ -1,6 +1,6 @@
 # Authoring Mods: Packages and Manifests
 
-Every version 2.00 mod is a directory or ZIP package with a strict `mod.json5` manifest. Package metadata is resolved before CFG files, assets, or Lua are committed, so an invalid package fails instead of being partially activated.
+Every Orion2 Redone mod is a directory or ZIP package with a strict `mod.json5` manifest. Package metadata is resolved before CFG files, assets, or Lua are committed, so an invalid package fails instead of being partially activated.
 
 The manifest uses [JSON5](https://json5.org/), a JSON-compatible format that permits conveniences such as comments, unquoted property names, and trailing commas. JSON5 syntax does not relax the manifest schema: properties and values must still follow the requirements below.
 

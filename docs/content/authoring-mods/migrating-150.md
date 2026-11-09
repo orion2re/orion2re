@@ -1,10 +1,10 @@
 # Authoring Mods: Migrating a 1.50 Mod
 
-Version 2.00 preserves important 1.50 gameplay use cases, but it does not reproduce the 1.50 loader or raw Lua API. Migration requires a package manifest and source changes. Loose CFG, LBX, and Lua files from 1.50 are not automatically compatible.
+Orion2 Redone preserves important 1.50 gameplay use cases, but it does not reproduce the 1.50 loader or raw Lua API. Migration requires a package manifest and source changes. Loose CFG, LBX, and Lua files from 1.50 are not automatically compatible.
 
 ## Structural comparison
 
-| Area | Version 1.50 | Version 2.00 |
+| Area | Version 1.50 | Orion2 Redone |
 | --- | --- | --- |
 | Mod identity | Configuration metadata and paths without one enforced package boundary | Stable package ID, version, engine range, and strict `mod.json5` |
 | Installation | Loose profiles, scripts, and replacement files | `data/mods/<id>/` or `data/mods/<id>.zip` |
@@ -35,7 +35,7 @@ Do not retain absolute DOS paths. Package CFG, Lua modules, migrations, and publ
 
 ## Convert 1.50 configuration
 
-Do not mechanically rename every old variable. Search the current [configuration reference](../generated/configuration/index.md) for the player-visible rule or data concept. Version 2.00 uses hierarchical names, records, arrays, enums, and masks rather than preserving flattened 1.50 spellings.
+Do not mechanically rename every old variable. Search the current [configuration reference](../generated/configuration/index.md) for the player-visible rule or data concept. Orion2 Redone uses hierarchical names, records, arrays, enums, and masks rather than preserving flattened 1.50 spellings.
 
 Examples of intentional structural replacements include:
 
@@ -48,7 +48,7 @@ If no current configuration path represents a legacy behavior, do not invent an 
 
 ## Convert Lua entry points
 
-| 1.50 mechanism | Version 2.00 direction |
+| 1.50 mechanism | Orion2 Redone direction |
 | --- | --- |
 | `pregame_script` | Setup-time prototype work or a supported semantic new-game event. |
 | `newgame_postprocessor_script` | Supported generated-object events or `galaxy_generator`. |
@@ -70,7 +70,7 @@ Do not choose an event merely because its timing looks close to the old hook. Ch
 
 ## Convert raw APIs
 
-| 1.50 API pattern | Version 2.00 direction |
+| 1.50 API pattern | Orion2 Redone direction |
 | --- | --- |
 | `get_conf` | Generated CFG reference, `defines`, or a domain-owned semantic object; no arbitrary Lua CFG path access |
 | `get_game` | `game` roots and immutable callback payloads |
@@ -82,7 +82,7 @@ Do not choose an event merely because its timing looks close to the old hook. Ch
 | `print` | Use structured diagnostics where available rather than player UI |
 | `random`, `set_seed`, and `get_seed` | Use `game.rng:integer`, `game.rng:set_seed`, and `game.rng:get_seed`. The unsigned 32-bit seed belongs to the shared native stream. Preserve intentional checkpoint/restore behavior used by legacy mods such as VDC, including restoring the seed after errors, rather than replacing it with a mod-private stream. |
 
-Legacy tables often use sparse, zero-based native IDs. Review every `pairs`, `ipairs`, `rawlen`, length operator, and numeric index. Version 2.00 collections return deterministic one-based sequences from `all()` and use semantic IDs for `get(id)`.
+Legacy tables often use sparse, zero-based native IDs. Review every `pairs`, `ipairs`, `rawlen`, length operator, and numeric index. Orion2 Redone collections return deterministic one-based sequences from `all()` and use semantic IDs for `get(id)`.
 
 Legacy mutation:
 

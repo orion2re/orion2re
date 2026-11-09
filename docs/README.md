@@ -20,6 +20,20 @@ Generated Markdown and the rendered site remain under the CMake build tree. The 
 
 The historical 1.50.26 manual is committed as categorized Markdown with local images and source provenance. Portal builds do not contact the original manual website.
 
+## Engine version references
+
+Use **Orion2 Redone** for the restoration project and general descriptions of
+current behavior, rather than a release number. When a page needs to identify the
+engine version being documented, use `{{ engine_version }}` in portal Markdown.
+The shared HTML/PDF hook reads the root `VERSION` file at build time; local serving
+also watches that file. Repository Markdown outside the portal should link to
+`VERSION` rather than duplicate its value.
+
+Keep literal versions when they identify release history, the release that added
+a feature, compatibility requirements, API or save-format versions, or illustrative
+version-range examples. Do not substitute the current engine version into these
+references or mod manifests.
+
 ## Single-file PDF
 
 The opt-in `docs-pdf` target exports the entire portal, including the generated configuration reference, in navigation order. It uses a separate environment at `<build>/docs/pdf-venv`; normal HTML builds do not install PDF dependencies or require rendering libraries.

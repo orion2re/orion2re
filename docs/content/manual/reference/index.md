@@ -15,6 +15,6 @@ or find instructions for a particular way of playing.
   testing and experimentation tool and its risks.
 - [Acknowledgements](acknowledgements.md) records the manual's provenance and
   credits the people who contributed to the original game, the 1.50 project,
-  and the version 2.00 restoration.
+  and the Orion2 Redone restoration.
 - [Third-party software](third-party-software.md) credits the libraries and
-  scaler implementations used by version 2.00.
+  scaler implementations used by Orion2 Redone.

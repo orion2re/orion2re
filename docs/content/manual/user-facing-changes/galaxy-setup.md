@@ -16,7 +16,7 @@ The defaults are Medium size, Average age, and five players.
 
 The values above are the native defaults. Maximum uses 99 stars by default, but the engine supports up to 1,024 total stars. The `map star_count` setting accepts up to 1,023 regular stars because Orion can occupy the remaining slot.
 
-Version 2.00 offers these five size choices. Cluster is a legacy galaxy type retained for compatibility with existing saved games, but it is not available when starting a new game.
+Orion2 Redone offers these five size choices. Cluster is a legacy galaxy type retained for compatibility with existing saved games, but it is not available when starting a new game.
 
 Larger maps provide more systems to explore and can increase travel time, the number of colonies and fleets to manage, game length, turn processing, and display work. Actual travel also depends on star placement, fuel range, wormholes, and the empires in the game. Use a smaller choice if a long game or a large empire would be uncomfortable to manage.
 

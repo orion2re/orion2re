@@ -1,6 +1,6 @@
 # Authoring Mods: Events and API Reference
 
-This page lists the Lua API version 1 behavior implemented by version 2.00. Unknown event, rule, and service names fail during package activation. Event payloads and rule contexts are immutable even when the current lifecycle permits mutation through ordinary `game` objects.
+This page lists the Lua API version 1 behavior implemented by Orion2 Redone. Unknown event, rule, and service names fail during package activation. Event payloads and rule contexts are immutable even when the current lifecycle permits mutation through ordinary `game` objects.
 
 ## Registration and ordering
 

@@ -1,6 +1,6 @@
 # Manual: Included game mods
 
-Version 2.00 includes the optional packages below. They are installed with the game but are not enabled automatically. Enable a package by adding its line to `data/orion2re.cfg`, then restart the game.
+Orion2 Redone includes the optional packages below. They are installed with the game but are not enabled automatically. Enable a package by adding its line to `data/orion2re.cfg`, then restart the game.
 
 Dependencies must also be installed. The game reports missing dependencies and conflicts during startup. See [Using mods](index.md) for installation and troubleshooting.
 

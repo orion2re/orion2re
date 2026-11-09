@@ -1,6 +1,6 @@
 # Authoring Mods: Introduction
 
-Version 2.00 mods are explicit packages. A package can change exposed configuration values, replace read-only game assets, run Lua code through the versioned modding API, or combine all three. This section documents the package format and the author-facing interfaces implemented by the current version 2.00 engine.
+Orion2 Redone mods are explicit packages. A package can change exposed configuration values, replace read-only game assets, run Lua code through the versioned modding API, or combine all three. This section documents the package format and the author-facing interfaces implemented by the current engine.
 
 This is separate from [Using mods](../manual/legacy-modding/index.md), which explains installation and activation for players. The pages here assume that you can edit plain-text files, inspect a ZIP archive, and read short CFG or Lua examples. They do not require knowledge of the restored C++ source or the original executable.
 
@@ -47,7 +47,7 @@ Put this manifest in `data/mods/example_mod/mod.json5`:
 }
 ```
 
-Put at least an empty file at `data/mods/example_mod/config/main.cfg`. The current version 2.00 loader requires the manifest to name a non-empty configuration entry point, including for a package that otherwise contains only assets or Lua.
+Put at least an empty file at `data/mods/example_mod/config/main.cfg`. The current loader requires the manifest to name a non-empty configuration entry point, including for a package that otherwise contains only assets or Lua.
 
 Enable the package in `data/orion2re.cfg`:
 
@@ -97,6 +97,6 @@ The package ID, version, enabled order, synchronized configuration, Lua source, 
 
 ## Current boundaries
 
-Version 2.00 does not provide a 1.50 compatibility mode for loose mods. It does not execute `MAIN0.LUA` through `MAIN9.LUA`, import `pregame_script` or `newgame_postprocessor_script` paths, expose the 1.50 raw global API, or treat old per-file LBX substitution settings as packages. Use the [1.50 migration guide](migrating-150.md) to classify and convert each part of an older mod.
+Orion2 Redone does not provide a 1.50 compatibility mode for loose mods. It does not execute `MAIN0.LUA` through `MAIN9.LUA`, import `pregame_script` or `newgame_postprocessor_script` paths, expose the 1.50 raw global API, or treat old per-file LBX substitution settings as packages. Use the [1.50 migration guide](migrating-150.md) to classify and convert each part of an older mod.
 
 Lua API version 1 is intentionally a minimal semantic foundation rather than complete coverage of the game. It is sufficient to recreate the behavior of the Lua scripts shipped with the audited 1.50 patch, but it currently exposes only a small set of prototypes, lifecycle events, rule hooks, services, and game subsystems. Broader modding coverage is expected as more semantic extension points are designed and implemented. The [events and API reference](events-and-api.md) lists the current surface; an event, prototype family, rule, service, or object operation not listed there is not currently available.

@@ -1,6 +1,6 @@
-# Manual: Version 2.00 highlights
+# Manual: Orion2 Redone highlights
 
-Version 2.00 restores Master of Orion II as a native application and retains supported player-visible corrections and extensions. The following sections summarize confirmed features rather than every restored rule or fix.
+Orion2 Redone restores Master of Orion II as a native application and retains supported player-visible corrections and extensions. The following sections summarize confirmed features rather than every restored rule or fix.
 
 ## Platform and presentation support
 
@@ -10,17 +10,17 @@ The interface includes optional map overview markers and influence views, additi
 
 ## Larger galaxies
 
-Version 2.00 supports galaxies larger than those available in the original game. Larger maps provide more room for exploration and expansion, but may make turns and games take longer.
+Orion2 Redone supports galaxies larger than those available in the original game. Larger maps provide more room for exploration and expansion, but may make turns and games take longer.
 
 ## Configuration and mods
 
 The `data/orion2re.cfg` configuration file contains settings that change how the game looks, responds, and plays. For example, players can select display and interface behavior, adjust new-game and galaxy rules, and change rules for colonies, research, ships, combat, diplomacy, espionage, leaders, and events. The file can be edited with a text editor. The [configuration reference](../../generated/configuration/index.md) explains each setting, its accepted values, and its default.
 
-Mods provide a prepared collection of changes instead of requiring players to configure each rule separately. A mod may change game rules, replace game data, or add scripts. Mods are installed in `data/mods` and enabled by name in `data/orion2re.cfg`. Version 2.00 includes optional packages for restored 1.50 behavior and related rule sets. Installed mods are not active until they are enabled, and some mods require other mods or cannot be used together.
+Mods provide a prepared collection of changes instead of requiring players to configure each rule separately. A mod may change game rules, replace game data, or add scripts. Mods are installed in `data/mods` and enabled by name in `data/orion2re.cfg`. Orion2 Redone includes optional packages for restored 1.50 behavior and related rule sets. Installed mods are not active until they are enabled, and some mods require other mods or cannot be used together.
 
 ## Multiplayer
 
-Version 2.00 supports Network, Online, and Hotseat games. Network players must use matching game builds and compatible configuration, mod packages, and scripts. The game checks this information before play to avoid known sources of differing game state.
+Orion2 Redone supports Network, Online, and Hotseat games. Network players must use matching game builds and compatible configuration, mod packages, and scripts. The game checks this information before play to avoid known sources of differing game state.
 
 ## Random Number of Opponents
 

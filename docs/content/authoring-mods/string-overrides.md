@@ -1,6 +1,6 @@
 # Authoring Mods: JSON5 String Overrides
 
-Version 2.00 supports individual string replacements in selected LBX resources. A package can supply a JSON5 text file instead of replacing a complete binary file or LBX entry. Include only the strings the mod changes; omitted IDs retain the text supplied by eligible lower-priority sidecars or the underlying LBX.
+Orion2 Redone supports individual string replacements in selected LBX resources. A package can supply a JSON5 text file instead of replacing a complete binary file or LBX entry. Include only the strings the mod changes; omitted IDs retain the text supplied by eligible lower-priority sidecars or the underlying LBX.
 
 ## Minimal string override
 

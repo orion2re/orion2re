@@ -27,4 +27,4 @@ difference = new design cost - old design cost
 refit cost = greater of difference or 0, plus minimum cost
 ```
 
-This charges the full minimum in addition to any increase in design cost. The standard formula is the version 2.00 default; a mod can change it for that game.
+This charges the full minimum in addition to any increase in design cost. The standard formula is the Orion2 Redone default; a mod can change it for that game.

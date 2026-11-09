@@ -1,6 +1,6 @@
 # Third-party software
 
-Version 2.00 uses the following third-party software. Their full copyright and
+Orion2 Redone uses the following third-party software. Their full copyright and
 license notices are distributed with the project.
 
 ## Libraries

@@ -53,7 +53,7 @@ These gameplay settings are saved and synchronized with the game's configuration
 
 ## Empire ship limit
 
-Version 2.00 expands the game-wide ship roster from version 1.50's limit of 500 to 10,000 entries. Hull size does not matter: a Frigate and a Doom Star each occupy one entry.
+Orion2 Redone expands the game-wide ship roster from version 1.50's limit of 500 to 10,000 entries. Hull size does not matter: a Frigate and a Doom Star each occupy one entry.
 
 The following count toward the limit:
 
@@ -73,4 +73,4 @@ Not counting towards the limit:
 - Freighter fleets;
 - The defensive Antaran fleet;
 
-The broader version 2.00 roster prevents the original 500-ship ceiling from constraining large galaxies while preserving the default command-point and tactical-combat rules.
+The broader Orion2 Redone roster prevents the original 500-ship ceiling from constraining large galaxies while preserving the default command-point and tactical-combat rules.
