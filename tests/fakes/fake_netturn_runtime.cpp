@@ -94,10 +94,20 @@ namespace RUSS {
     void __cdecl Make_Player_Into_AI(int) {}
 } // namespace RUSS
 
+namespace TEST_NETMOX_UI {
+    int ship_icon_refresh_count;
+    int32_t last_refresh_sync_state;
+}
+
 namespace MAINSCR {
 #ifndef TEST_REAL_MAIN_RECEIVE
     void __cdecl Main_Receive_Message(
         uint32_t, int16_t, uint16_t, uint32_t, void*) {}
+
+    void __cdecl Update_Ship_Icons_In_Between_Turns() {
+        ++TEST_NETMOX_UI::ship_icon_refresh_count;
+        TEST_NETMOX_UI::last_refresh_sync_state = NETMOX::net.sync_state;
+    }
 #endif
 } // namespace MAINSCR
 

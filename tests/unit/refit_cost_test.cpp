@@ -6,7 +6,35 @@ namespace TEST_AIBUILD_CONTEXT {
     void Reset_();
 }
 
-DOCTEST_TEST_CASE("Food Replicator defaults do not gate eligibility on local food") {
+namespace {
+    struct s_refit_runtime {
+        s_player* saved_players = MOX::player;
+        s_colony* saved_colonies = MOX::colony;
+        s_planet_data* saved_planets = MOX::planet;
+        s_current_design* saved_design = MOX::design;
+        int16_t saved_num_players = MOX::NUM_PLAYERS;
+        int32_t saved_stardate = MOX::stardate;
+        decltype(AIDATA::ai_colony_info) saved_ai_colonies = AIDATA::ai_colony_info;
+        decltype(AIDATA::ai_star_info) saved_ai_stars = AIDATA::ai_star_info;
+        decltype(AIDATA::enroute_human_ships) saved_enroute = AIDATA::enroute_human_ships;
+
+        s_refit_runtime() { TEST_AIBUILD_CONTEXT::Reset_(); }
+
+        ~s_refit_runtime() {
+            MOX::player = saved_players;
+            MOX::colony = saved_colonies;
+            MOX::planet = saved_planets;
+            MOX::design = saved_design;
+            MOX::NUM_PLAYERS = saved_num_players;
+            MOX::stardate = saved_stardate;
+            AIDATA::ai_colony_info = saved_ai_colonies;
+            AIDATA::ai_star_info = saved_ai_stars;
+            AIDATA::enroute_human_ships = saved_enroute;
+        }
+    };
+}
+
+DOCTEST_TEST_CASE_FIXTURE(s_refit_runtime, "Food Replicator defaults do not gate eligibility on local food") {
     TEST_AIBUILD_CONTEXT::Reset_();
     production_rules::s_context context;
     production_rules::s_candidate* candidate =
@@ -26,7 +54,7 @@ DOCTEST_TEST_CASE("Food Replicator defaults do not gate eligibility on local foo
         &context, &candidate->eligibility));
 }
 
-DOCTEST_TEST_CASE("Battle Pods combat speed uses the configured overload rules") {
+DOCTEST_TEST_CASE_FIXTURE(s_refit_runtime, "Battle Pods combat speed uses the configured overload rules") {
     s_tech_drive_data saved_drive = TECHDATA::drives[DRIVE_NUCLEAR_DRIVE];
     s_tech_specials_data saved_battle_pods = TECHDATA::specials[SPECIAL_BATTLE_PODS];
     bool saved_speed_bonus = DESIGN::battle_pods_speed_bonus;
@@ -68,7 +96,7 @@ DOCTEST_TEST_CASE("Battle Pods combat speed uses the configured overload rules")
     DESIGN::minimum_combat_speed = saved_minimum_speed;
 }
 
-DOCTEST_TEST_CASE("design templates store base speed before Augmented Engines") {
+DOCTEST_TEST_CASE_FIXTURE(s_refit_runtime, "design templates store base speed before Augmented Engines") {
     s_tech_drive_data saved_drive = TECHDATA::drives[DRIVE_NUCLEAR_DRIVE];
     uint8_t saved_use_augmented_engines = DESIGN::use_augmented_engines;
     uint8_t saved_augmented_bonus = DESIGN::augmented_engines_speed_bonus;
@@ -99,7 +127,7 @@ DOCTEST_TEST_CASE("design templates store base speed before Augmented Engines") 
     DESIGN::augmented_engines_speed_bonus = saved_augmented_bonus;
 }
 
-DOCTEST_TEST_CASE("refit cost uses the corrected shared formulas") {
+DOCTEST_TEST_CASE_FIXTURE(s_refit_runtime, "refit cost uses the corrected shared formulas") {
     int16_t saved_hull_cost = TECHDATA::hull_data[HULL_FRIGATE].cost;
     int8_t saved_player_0_government =
         MOX::player[0].traits[TRAIT_CURRENT_GOVERNMENT];
@@ -138,7 +166,7 @@ DOCTEST_TEST_CASE("refit cost uses the corrected shared formulas") {
     MOX::player[1].traits[TRAIT_CURRENT_GOVERNMENT] = saved_player_1_government;
 }
 
-DOCTEST_TEST_CASE("government cost reductions apply to normally neutral governments") {
+DOCTEST_TEST_CASE_FIXTURE(s_refit_runtime, "government cost reductions apply to normally neutral governments") {
     int8_t saved_government =
         MOX::player[0].traits[TRAIT_CURRENT_GOVERNMENT];
     s_ratio16 saved_reduction =
@@ -160,7 +188,7 @@ DOCTEST_TEST_CASE("government cost reductions apply to normally neutral governme
         saved_reduction;
 }
 
-DOCTEST_TEST_CASE("refit minimum reduction is limited to Feudal governments") {
+DOCTEST_TEST_CASE_FIXTURE(s_refit_runtime, "refit minimum reduction is limited to Feudal governments") {
     int16_t saved_hull_cost = TECHDATA::hull_data[HULL_FRIGATE].cost;
     int8_t saved_government =
         MOX::player[0].traits[TRAIT_CURRENT_GOVERNMENT];

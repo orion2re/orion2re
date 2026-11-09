@@ -2,6 +2,40 @@
 
 #include "build_queue.h"
 
+namespace COLMOVE {
+    void __cdecl Draw_Cluster(int16_t x, int16_t y) {
+        if (cluster_colony_n != -1 && !COLONY::full_draw) {
+            if (Get_First_Unemployed(cluster_colony_n) != -1) {
+                if (!HAROLD::Was_Mouse_List_Saved() && g_hacky_dont_draw_cluster_flag != 1) {
+                    fields::Enable_Draw_All_Fields();
+                    fields::Draw_Visible_Fields();
+                    fields::Disable_Draw_All_Fields();
+
+                    graphics::Set_Window(0, 0, 639 /* 0x27f */, 479 /* 0x1df */);
+                    video::Clip_On();
+
+                    s_animation_header* anim = COLONY::C_Anims(15 /* 0xf */);
+                    animate::Draw(x, y, anim);
+
+                    s_colony& col = MOX::colony[cluster_colony_n];
+                    if (col.n_pops > 0) {
+                        int16_t current_x = x + 5;
+                        for (int16_t i = 0; i < col.n_pops; ++i) {
+                            if (!POP::Is_Assigned(col.pop[i])) {
+                                s_animation_header* pop_anim = COLONY::Colony_Pop_Anim(cluster_colony_n, i);
+                                animate::Draw(current_x, y - 10, pop_anim);
+                                current_x += 20; // 0x14
+                            }
+                        }
+                    }
+
+                    video::Clip_Off();
+                }
+            }
+        }
+    }
+} // namespace COLMOVE
+
 namespace COLONY {
     int16_t _shortcut_previous_colony;
     int16_t _shortcut_next_colony;

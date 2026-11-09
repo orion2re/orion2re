@@ -118,6 +118,25 @@ function(orion2re_add_unit_test TARGET_NAME)
     add_test(NAME ${TARGET_NAME} COMMAND ${TARGET_NAME})
 endfunction()
 
+# Reuse the real runtime for integration tests and game-data assertions.
+function(orion2re_add_game_test TARGET_NAME)
+    orion2re_add_unit_test(${TARGET_NAME}
+        SOURCES ${ARGN}
+        PRODUCTION_SOURCES
+            $<TARGET_OBJECTS:orion2re_game_objects>
+            vendors/libsmacker/smacker.c
+            vendors/libsmacker/smk_bitstream.c
+            vendors/libsmacker/smk_hufftree.c
+            vendors/yyjson/src/yyjson.c
+        LIBRARIES
+            uv_a orion2re_lz4 orion2re_lua orion2re_scalers miniz orion2re_imgui
+        LINK_SDL
+    )
+    target_include_directories(${TARGET_NAME} PRIVATE
+        vendors/libsmacker vendors/yyjson/src
+    )
+endfunction()
+
 orion2re_add_unit_test(test_user_paths
     SOURCES
         tests/unit/user_paths_test.cpp
@@ -187,49 +206,15 @@ orion2re_add_unit_test(test_allocate
 orion2re_add_unit_test(test_score
     SOURCES tests/unit/score_test.cpp
     PRODUCTION_SOURCES
-        src/game/score.cpp
+        src/game/score_calculation.cpp
         src/game/allocate.cpp
     LINK_SDL
 )
-if(MSVC)
-    target_compile_options(test_score PRIVATE /Gy)
-    target_link_options(test_score PRIVATE /OPT:REF)
-elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-    target_compile_options(test_score PRIVATE -ffunction-sections -fdata-sections)
-    if(APPLE)
-        target_link_options(test_score PRIVATE -Wl,-dead_strip)
-    else()
-        target_link_options(test_score PRIVATE -Wl,--gc-sections)
-    endif()
-endif()
 
-orion2re_add_unit_test(test_resource_reload
-    SOURCES tests/unit/resource_reload_test.cpp
-    PRODUCTION_SOURCES
-        $<TARGET_OBJECTS:orion2re_game_objects>
-        vendors/libsmacker/smacker.c
-        vendors/libsmacker/smk_bitstream.c
-        vendors/libsmacker/smk_hufftree.c
-        vendors/yyjson/src/yyjson.c
-    LIBRARIES
-        uv_a orion2re_lz4 orion2re_lua orion2re_scalers miniz orion2re_imgui
-    LINK_SDL
-)
-target_include_directories(test_resource_reload PRIVATE
-    vendors/libsmacker vendors/yyjson/src
+orion2re_add_game_test(test_resource_reload
+    tests/unit/resource_reload_test.cpp
 )
 
-if(MSVC)
-    target_compile_options(test_allocate PRIVATE /Gy)
-    target_link_options(test_allocate PRIVATE /OPT:REF)
-elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-    target_compile_options(test_allocate PRIVATE -ffunction-sections -fdata-sections)
-    if(APPLE)
-        target_link_options(test_allocate PRIVATE -Wl,-dead_strip)
-    else()
-        target_link_options(test_allocate PRIVATE -Wl,--gc-sections)
-    endif()
-endif()
 
 orion2re_add_unit_test(test_ai_state
     SOURCES
@@ -308,7 +293,7 @@ orion2re_add_unit_test(test_lua_mod_runtime
     PRODUCTION_SOURCES
         src/game/sha256.cpp
         src/game/random.cpp
-        src/game/mapgen.cpp
+        src/game/mapgen_names.cpp
         src/config/generated/config_enums.cpp
         src/lua/lua_game_dispatch.cpp
         src/lua/lua_game_leader_nebula.cpp
@@ -340,6 +325,7 @@ orion2re_add_unit_test(test_lua_mod_runtime
     FAKE_SOURCES
         tests/fakes/fake_lua_game_state.cpp
         tests/fakes/fake_lua_network_config.cpp
+        tests/fakes/fake_string_table_loader.cpp
     LIBRARIES
         miniz
         orion2re_lua
@@ -349,18 +335,6 @@ target_compile_definitions(test_lua_mod_runtime PRIVATE
     LUA_MIGRATION_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/lua"
     LUA_SOURCE_PACKAGE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data/mods"
 )
-if(MSVC)
-    target_compile_options(test_lua_mod_runtime PRIVATE /Gy)
-    target_link_options(test_lua_mod_runtime PRIVATE /OPT:REF)
-elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-    target_compile_options(test_lua_mod_runtime PRIVATE
-        -ffunction-sections -fdata-sections)
-    if(APPLE)
-        target_link_options(test_lua_mod_runtime PRIVATE -Wl,-dead_strip)
-    else()
-        target_link_options(test_lua_mod_runtime PRIVATE -Wl,--gc-sections)
-    endif()
-endif()
 
 orion2re_add_unit_test(test_sha256
     SOURCES
@@ -405,59 +379,10 @@ orion2re_add_unit_test(test_config_decode
     LINK_SDL
 )
 
-orion2re_add_unit_test(test_config_bindings
-    SOURCES
-        tests/unit/config_bindings_test.cpp
-        tests/unit/main_screen_config_test.cpp
-    PRODUCTION_SOURCES
-        src/config/cfg_parser.cpp
-        src/config/config_decode.cpp
-        src/config/text_encoding.cpp
-        src/config/config_runtime.cpp
-        src/config/generated/config.cpp
-        src/game/arena.cpp
-        src/game/aidesign_config_validation.cpp
-        src/game/aidata_config.cpp
-        src/game/colbldg_config.cpp
-        src/game/colcalc_config.cpp
-        src/game/colmove_config.cpp
-        src/game/combat1_config.cpp
-        src/game/design_config.cpp
-        src/game/ericnet_config.cpp
-        src/game/ericnet_config_validation.cpp
-        src/game/events_config.cpp
-        src/game/invasion_config.cpp
-        src/game/info_config.cpp
-        src/game/initship_config_validation.cpp
-        src/game/ken.cpp
-        src/game/mapgen_config.cpp
-        src/game/maintain_config.cpp
-        src/game/newtech_config.cpp
-        src/game/raceopt_config.cpp
-        src/game/random.cpp
-        src/game/ship_config.cpp
-        src/game/spy_config_validation.cpp
-        src/game/spy_bonus.cpp
-        src/game/techdata.cpp
-    FAKE_SOURCES
-        tests/fakes/fake_arena_runtime.cpp
-        tests/fakes/fake_config_runtime.cpp
-    LINK_SDL
+orion2re_add_game_test(test_config_bindings
+    tests/unit/config_bindings_test.cpp
+    tests/unit/main_screen_config_test.cpp
 )
-target_compile_definitions(test_config_bindings PRIVATE
-    TEST_CONFIG_RUNTIME_EXTERNAL_KEN
-)
-if(MSVC)
-    target_compile_options(test_config_bindings PRIVATE /Gy)
-    target_link_options(test_config_bindings PRIVATE /OPT:REF)
-elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-    target_compile_options(test_config_bindings PRIVATE -ffunction-sections -fdata-sections)
-    if(APPLE)
-        target_link_options(test_config_bindings PRIVATE -Wl,-dead_strip)
-    else()
-        target_link_options(test_config_bindings PRIVATE -Wl,--gc-sections)
-    endif()
-endif()
 
 orion2re_add_unit_test(test_config_lifecycle
     SOURCES
@@ -720,15 +645,8 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
     endif()
 endif()
 
-orion2re_add_unit_test(test_antarans
-    SOURCES
-        tests/unit/antarans_test.cpp
-    PRODUCTION_SOURCES
-        src/game/antarans.cpp
-        src/game/random.cpp
-    FAKE_SOURCES
-        tests/fakes/fake_antarans_runtime.cpp
-    LINK_SDL
+orion2re_add_game_test(test_antarans
+    tests/unit/antarans_test.cpp
 )
 
 orion2re_add_unit_test(test_ai_hypertech
@@ -749,31 +667,9 @@ orion2re_add_unit_test(test_newtech_choose
         tests/fakes/fake_newtech_choose_runtime.cpp
 )
 
-if(MSVC)
-    target_compile_options(test_antarans PRIVATE /Gy)
-    target_link_options(test_antarans PRIVATE /OPT:REF)
-elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-    target_compile_options(test_antarans PRIVATE -ffunction-sections -fdata-sections)
-    if(APPLE)
-        target_link_options(test_antarans PRIVATE -Wl,-dead_strip)
-    else()
-        target_link_options(test_antarans PRIVATE -Wl,--gc-sections)
-    endif()
-endif()
-
-orion2re_add_unit_test(test_refit_cost
-    SOURCES
-        tests/unit/refit_cost_test.cpp
-    PRODUCTION_SOURCES
-        src/game/aibuild.cpp
-        src/game/production_rules.cpp
-        src/game/colcalc_config.cpp
-        src/game/design.cpp
-        src/game/design_config.cpp
-        src/game/special.cpp
-    FAKE_SOURCES
-        tests/fakes/fake_refit_cost_runtime.cpp
-        tests/fakes/fake_sdl_string.cpp
+orion2re_add_game_test(test_refit_cost
+    tests/unit/refit_cost_test.cpp
+    tests/fakes/fake_refit_cost_runtime.cpp
 )
 
 orion2re_add_unit_test(test_production_rules
@@ -825,18 +721,6 @@ orion2re_add_unit_test(test_colmove
         tests/fakes/fake_colmove_runtime.cpp
     LINK_SDL
 )
-
-if(MSVC)
-    target_compile_options(test_colmove PRIVATE /Gy)
-    target_link_options(test_colmove PRIVATE /OPT:REF)
-elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-    target_compile_options(test_colmove PRIVATE -ffunction-sections -fdata-sections)
-    if(APPLE)
-        target_link_options(test_colmove PRIVATE -Wl,-dead_strip)
-    else()
-        target_link_options(test_colmove PRIVATE -Wl,--gc-sections)
-    endif()
-endif()
 
 orion2re_add_unit_test(test_colony_production_helpers
     SOURCES
@@ -1000,30 +884,11 @@ orion2re_add_unit_test(test_combfind_rules
     SOURCES
         tests/unit/combfind_rules_test.cpp
     PRODUCTION_SOURCES
-        src/game/combfind.cpp
         src/game/combfind_rules.cpp
 )
 
-if(MSVC)
-    target_compile_options(test_combfind_rules PRIVATE /Gy)
-    target_link_options(test_combfind_rules PRIVATE /OPT:REF)
-elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-    target_compile_options(test_combfind_rules PRIVATE -ffunction-sections -fdata-sections)
-    if(APPLE)
-        target_link_options(test_combfind_rules PRIVATE -Wl,-dead_strip)
-    else()
-        target_link_options(test_combfind_rules PRIVATE -Wl,--gc-sections)
-    endif()
-endif()
-
-orion2re_add_unit_test(test_mainpups_leader_technology
-    SOURCES
-        tests/unit/mainpups_test.cpp
-    PRODUCTION_SOURCES
-        src/game/mainpups.cpp
-    FAKE_SOURCES
-        tests/fakes/fake_mainpups_leader_technology_runtime.cpp
-        tests/fakes/fake_sdl_string.cpp
+orion2re_add_game_test(test_mainpups_leader_technology
+    tests/unit/mainpups_test.cpp
 )
 
 orion2re_add_unit_test(test_nextturn_order
@@ -1039,21 +904,16 @@ orion2re_add_unit_test(test_nextturn_order
 if(MSVC)
     target_compile_options(test_events PRIVATE /Gy)
     target_link_options(test_events PRIVATE /OPT:REF)
-    target_compile_options(test_mainpups_leader_technology PRIVATE /Gy)
-    target_link_options(test_mainpups_leader_technology PRIVATE /OPT:REF)
     target_compile_options(test_nextturn_order PRIVATE /Gy)
     target_link_options(test_nextturn_order PRIVATE /OPT:REF)
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
     target_compile_options(test_events PRIVATE -ffunction-sections -fdata-sections)
-    target_compile_options(test_mainpups_leader_technology PRIVATE -ffunction-sections -fdata-sections)
     target_compile_options(test_nextturn_order PRIVATE -ffunction-sections -fdata-sections)
     if(APPLE)
         target_link_options(test_events PRIVATE -Wl,-dead_strip)
-        target_link_options(test_mainpups_leader_technology PRIVATE -Wl,-dead_strip)
         target_link_options(test_nextturn_order PRIVATE -Wl,-dead_strip)
     else()
         target_link_options(test_events PRIVATE -Wl,--gc-sections)
-        target_link_options(test_mainpups_leader_technology PRIVATE -Wl,--gc-sections)
         target_link_options(test_nextturn_order PRIVATE -Wl,--gc-sections)
     endif()
 endif()
@@ -1162,13 +1022,9 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
     endif()
 endif()
 
-orion2re_add_unit_test(test_geo
-    SOURCES
-        tests/unit/geo_test.cpp
-    PRODUCTION_SOURCES
-        src/game/geo.cpp
-    FAKE_SOURCES
-        tests/fakes/fake_geo_runtime.cpp
+orion2re_add_game_test(test_geo
+    tests/unit/geo_test.cpp
+    tests/fakes/fake_geo_runtime.cpp
 )
 
 orion2re_add_unit_test(test_homegen
@@ -1192,45 +1048,25 @@ orion2re_add_unit_test(test_mapgen_planet_max
 )
 
 if(MSVC)
-    target_compile_options(test_geo PRIVATE /Gy)
-    target_link_options(test_geo PRIVATE /OPT:REF)
     target_compile_options(test_homegen PRIVATE /Gy)
     target_link_options(test_homegen PRIVATE /OPT:REF)
     target_compile_options(test_mapgen_planet_max PRIVATE /Gy)
     target_link_options(test_mapgen_planet_max PRIVATE /OPT:REF)
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-    target_compile_options(test_geo PRIVATE -ffunction-sections -fdata-sections)
     target_compile_options(test_homegen PRIVATE -ffunction-sections -fdata-sections)
     target_compile_options(test_mapgen_planet_max PRIVATE -ffunction-sections -fdata-sections)
     if(APPLE)
-        target_link_options(test_geo PRIVATE -Wl,-dead_strip)
         target_link_options(test_homegen PRIVATE -Wl,-dead_strip)
         target_link_options(test_mapgen_planet_max PRIVATE -Wl,-dead_strip)
     else()
-        target_link_options(test_geo PRIVATE -Wl,--gc-sections)
         target_link_options(test_homegen PRIVATE -Wl,--gc-sections)
         target_link_options(test_mapgen_planet_max PRIVATE -Wl,--gc-sections)
     endif()
 endif()
 
-orion2re_add_unit_test(test_colgcbt
-    SOURCES
-        tests/unit/colgcbt_test.cpp
-    PRODUCTION_SOURCES
-        src/game/colgcbt.cpp
+orion2re_add_game_test(test_colgcbt
+    tests/unit/colgcbt_test.cpp
 )
-
-if(MSVC)
-    target_compile_options(test_colgcbt PRIVATE /Gy)
-    target_link_options(test_colgcbt PRIVATE /OPT:REF)
-elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-    target_compile_options(test_colgcbt PRIVATE -ffunction-sections -fdata-sections)
-    if(APPLE)
-        target_link_options(test_colgcbt PRIVATE -Wl,-dead_strip)
-    else()
-        target_link_options(test_colgcbt PRIVATE -Wl,--gc-sections)
-    endif()
-endif()
 
 orion2re_add_unit_test(test_ground_commando
     SOURCES
@@ -1382,12 +1218,8 @@ orion2re_add_unit_test(test_tech_selection
         src/game/tech_selection.cpp
 )
 
-orion2re_add_unit_test(test_info
-    SOURCES
-        tests/unit/raceopt_test.cpp
-    PRODUCTION_SOURCES
-        src/game/info_config.cpp
-        src/game/raceopt.cpp
+orion2re_add_game_test(test_info
+    tests/unit/raceopt_test.cpp
 )
 
 orion2re_add_unit_test(test_racesel_digest
@@ -1414,39 +1246,9 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
     endif()
 endif()
 
-orion2re_add_unit_test(test_bill_history
-    SOURCES
-        tests/unit/bill_test.cpp
-    PRODUCTION_SOURCES
-        src/game/bill.cpp
-    FAKE_SOURCES
-        tests/fakes/fake_bill_history_runtime.cpp
+orion2re_add_game_test(test_bill_history
+    tests/unit/bill_test.cpp
 )
-
-if(MSVC)
-    target_compile_options(test_bill_history PRIVATE /Gy /Gw)
-    target_link_options(test_bill_history PRIVATE /OPT:REF)
-elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-    target_compile_options(test_bill_history PRIVATE
-        -ffunction-sections -fdata-sections)
-    if(APPLE)
-        target_link_options(test_bill_history PRIVATE -Wl,-dead_strip)
-    else()
-        target_link_options(test_bill_history PRIVATE -Wl,--gc-sections)
-    endif()
-endif()
-
-if(MSVC)
-    target_compile_options(test_info PRIVATE /Gy /Gw)
-    target_link_options(test_info PRIVATE /OPT:REF)
-elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-    target_compile_options(test_info PRIVATE -ffunction-sections -fdata-sections)
-    if(APPLE)
-        target_link_options(test_info PRIVATE -Wl,-dead_strip)
-    else()
-        target_link_options(test_info PRIVATE -Wl,--gc-sections)
-    endif()
-endif()
 
 orion2re_add_unit_test(test_bombardment_ammo
     SOURCES
@@ -1490,19 +1292,6 @@ orion2re_add_unit_test(test_initship
     LINK_SDL
 )
 
-if(MSVC)
-    target_compile_options(test_initship PRIVATE /Gy)
-    target_link_options(test_initship PRIVATE /OPT:REF)
-elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-    target_compile_options(test_initship PRIVATE
-        -ffunction-sections -fdata-sections)
-    if(APPLE)
-        target_link_options(test_initship PRIVATE -Wl,-dead_strip)
-    else()
-        target_link_options(test_initship PRIVATE -Wl,--gc-sections)
-    endif()
-endif()
-
 orion2re_add_unit_test(test_town_zero
     SOURCES
         tests/unit/bomb_test.cpp
@@ -1516,7 +1305,7 @@ orion2re_add_unit_test(test_animation_frame
     SOURCES
         tests/unit/animate_test.cpp
     PRODUCTION_SOURCES
-        src/game/animate.cpp
+        src/game/animation_frames.cpp
 )
 
 orion2re_add_unit_test(test_animation_speed
@@ -1605,8 +1394,6 @@ if(MSVC)
     target_link_options(test_aidudes PRIVATE /OPT:REF)
     target_compile_options(test_ai_hypertech PRIVATE /Gy)
     target_link_options(test_ai_hypertech PRIVATE /OPT:REF)
-    target_compile_options(test_refit_cost PRIVATE /Gy)
-    target_link_options(test_refit_cost PRIVATE /OPT:REF)
     target_compile_options(test_colony_production_helpers PRIVATE /Gy)
     target_link_options(test_colony_production_helpers PRIVATE /OPT:REF)
     target_compile_options(test_colony_production_draw PRIVATE /Gy)
@@ -1617,10 +1404,6 @@ if(MSVC)
     target_link_options(test_bombardment_ammo PRIVATE /OPT:REF)
     target_compile_options(test_town_zero PRIVATE /Gy)
     target_link_options(test_town_zero PRIVATE /OPT:REF)
-    target_compile_options(test_animation_frame PRIVATE /Gy)
-    target_compile_options(test_ericnet PRIVATE /Gy)
-    target_link_options(test_animation_frame PRIVATE /OPT:REF)
-    target_link_options(test_ericnet PRIVATE /OPT:REF)
     target_compile_options(test_missile_defense PRIVATE /Gy)
     target_link_options(test_missile_defense PRIVATE /OPT:REF)
     target_compile_options(test_absorber_cleanup PRIVATE /Gy)
@@ -1646,14 +1429,11 @@ if(MSVC)
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
     target_compile_options(test_aidudes PRIVATE -ffunction-sections -fdata-sections)
     target_compile_options(test_ai_hypertech PRIVATE -ffunction-sections -fdata-sections)
-    target_compile_options(test_refit_cost PRIVATE -ffunction-sections -fdata-sections)
     target_compile_options(test_colony_production_helpers PRIVATE -ffunction-sections -fdata-sections)
     target_compile_options(test_colony_production_draw PRIVATE -ffunction-sections -fdata-sections)
     target_compile_options(test_colony_scan_info PRIVATE -ffunction-sections -fdata-sections)
     target_compile_options(test_bombardment_ammo PRIVATE -ffunction-sections -fdata-sections)
     target_compile_options(test_town_zero PRIVATE -ffunction-sections -fdata-sections)
-    target_compile_options(test_animation_frame PRIVATE -ffunction-sections -fdata-sections)
-    target_compile_options(test_ericnet PRIVATE -ffunction-sections -fdata-sections)
     target_compile_options(test_missile_defense PRIVATE -ffunction-sections -fdata-sections)
     target_compile_options(test_absorber_cleanup PRIVATE -ffunction-sections -fdata-sections)
     target_compile_options(test_boarding PRIVATE -ffunction-sections -fdata-sections)
@@ -1668,14 +1448,11 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
     if(APPLE)
         target_link_options(test_aidudes PRIVATE -Wl,-dead_strip)
         target_link_options(test_ai_hypertech PRIVATE -Wl,-dead_strip)
-        target_link_options(test_refit_cost PRIVATE -Wl,-dead_strip)
         target_link_options(test_colony_production_helpers PRIVATE -Wl,-dead_strip)
         target_link_options(test_colony_production_draw PRIVATE -Wl,-dead_strip)
         target_link_options(test_colony_scan_info PRIVATE -Wl,-dead_strip)
         target_link_options(test_bombardment_ammo PRIVATE -Wl,-dead_strip)
         target_link_options(test_town_zero PRIVATE -Wl,-dead_strip)
-        target_link_options(test_animation_frame PRIVATE -Wl,-dead_strip)
-        target_link_options(test_ericnet PRIVATE -Wl,-dead_strip)
         target_link_options(test_missile_defense PRIVATE -Wl,-dead_strip)
         target_link_options(test_absorber_cleanup PRIVATE -Wl,-dead_strip)
         target_link_options(test_boarding PRIVATE -Wl,-dead_strip)
@@ -1690,14 +1467,11 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
     else()
         target_link_options(test_aidudes PRIVATE -Wl,--gc-sections)
         target_link_options(test_ai_hypertech PRIVATE -Wl,--gc-sections)
-        target_link_options(test_refit_cost PRIVATE -Wl,--gc-sections)
         target_link_options(test_colony_production_helpers PRIVATE -Wl,--gc-sections)
         target_link_options(test_colony_production_draw PRIVATE -Wl,--gc-sections)
         target_link_options(test_colony_scan_info PRIVATE -Wl,--gc-sections)
         target_link_options(test_bombardment_ammo PRIVATE -Wl,--gc-sections)
         target_link_options(test_town_zero PRIVATE -Wl,--gc-sections)
-        target_link_options(test_animation_frame PRIVATE -Wl,--gc-sections)
-        target_link_options(test_ericnet PRIVATE -Wl,--gc-sections)
         target_link_options(test_missile_defense PRIVATE -Wl,--gc-sections)
         target_link_options(test_absorber_cleanup PRIVATE -Wl,--gc-sections)
         target_link_options(test_boarding PRIVATE -Wl,--gc-sections)
@@ -1740,27 +1514,9 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
     endif()
 endif()
 
-orion2re_add_unit_test(test_map_scale
-    SOURCES
-        tests/unit/map_scale_test.cpp
-    PRODUCTION_SOURCES
-        src/game/harold.cpp
-    FAKE_SOURCES
-        tests/fakes/fake_config_runtime.cpp
-        tests/fakes/fake_map_scale_runtime.cpp
+orion2re_add_game_test(test_map_scale
+    tests/unit/map_scale_test.cpp
 )
-
-if(MSVC)
-    target_compile_options(test_map_scale PRIVATE /Gy)
-    target_link_options(test_map_scale PRIVATE /OPT:REF)
-elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-    target_compile_options(test_map_scale PRIVATE -ffunction-sections -fdata-sections)
-    if(APPLE)
-        target_link_options(test_map_scale PRIVATE -Wl,-dead_strip)
-    else()
-        target_link_options(test_map_scale PRIVATE -Wl,--gc-sections)
-    endif()
-endif()
 
 orion2re_add_unit_test(test_erichelp
     SOURCES
@@ -1898,16 +1654,6 @@ orion2re_add_unit_test(test_netmox_packet_limits
     LINK_SDL
 )
 
-if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-    target_compile_options(test_netmox_packet_limits PRIVATE -ffunction-sections -fdata-sections)
-endif()
-
-if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU" AND NOT APPLE)
-    target_link_options(test_netmox_packet_limits PRIVATE -Wl,--gc-sections)
-elseif(APPLE)
-    target_link_options(test_netmox_packet_limits PRIVATE -Wl,-dead_strip)
-endif()
-
 orion2re_add_unit_test(test_video_scan_bounds
     SOURCES
         tests/unit/setvesa_test.cpp
@@ -1951,44 +1697,16 @@ orion2re_add_unit_test(test_smckplay
         tests/unit/smckplay_test.cpp
     PRODUCTION_SOURCES
         src/game/smckplay.cpp
+        src/game/setvesa.cpp
     FAKE_SOURCES
         tests/fakes/fake_smckplay_runtime.cpp
+        tests/fakes/fake_video.cpp
     LINK_SDL
 )
 
-if(MSVC)
-    target_compile_options(test_smckplay PRIVATE /Gy)
-    target_link_options(test_smckplay PRIVATE /OPT:REF)
-elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-    target_compile_options(test_smckplay PRIVATE -ffunction-sections -fdata-sections)
-    if(APPLE)
-        target_link_options(test_smckplay PRIVATE -Wl,-dead_strip)
-    else()
-        target_link_options(test_smckplay PRIVATE -Wl,--gc-sections)
-    endif()
-endif()
-
-orion2re_add_unit_test(test_sound
-    SOURCES
-        tests/unit/sound_test.cpp
-    PRODUCTION_SOURCES
-        src/game/sound.cpp
-    FAKE_SOURCES
-        tests/fakes/fake_sound_runtime.cpp
-    LINK_SDL
+orion2re_add_game_test(test_sound
+    tests/unit/sound_test.cpp
 )
-
-if(MSVC)
-    target_compile_options(test_sound PRIVATE /Gy)
-    target_link_options(test_sound PRIVATE /OPT:REF)
-elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-    target_compile_options(test_sound PRIVATE -ffunction-sections -fdata-sections)
-    if(APPLE)
-        target_link_options(test_sound PRIVATE -Wl,-dead_strip)
-    else()
-        target_link_options(test_sound PRIVATE -Wl,--gc-sections)
-    endif()
-endif()
 
 orion2re_add_unit_test(test_farload_buffer_vfs
     SOURCES
@@ -2024,8 +1742,8 @@ target_compile_definitions(test_farload_buffer_vfs PRIVATE
 )
 
 foreach(TARGET_NAME IN ITEMS test_newgame test_homegen test_mapgen_planet_max
-    test_lua_mod_runtime test_refit_cost test_design_weapon_damage test_shield_table
-    test_ground_commando test_mainpups_leader_technology test_racesel_digest)
+    test_lua_mod_runtime test_design_weapon_damage test_shield_table
+    test_ground_commando test_racesel_digest)
     target_sources(${TARGET_NAME} PRIVATE tests/fakes/fake_string_overrides.cpp)
 endforeach()
 

@@ -1,5 +1,11 @@
 #include "pch.h"
 
+namespace {
+    unsigned long current_frame;
+    unsigned char pixels[1];
+    unsigned char colors[256 * 3];
+}
+
 namespace test::fakes {
     int playback_stream_open_count;
     int32_t last_playback_stream_volume;
@@ -7,12 +13,22 @@ namespace test::fakes {
     void Reset_Smacker_Audio_Fake_() {
         playback_stream_open_count = 0;
         last_playback_stream_volume = -1;
+        current_frame = 0;
+        memset(colors, 0, sizeof(colors));
+        colors[10 * 3] = 120;
+        colors[10 * 3 + 1] = 80;
+        colors[10 * 3 + 2] = 40;
         memset(&MOX::settings, 0, sizeof(MOX::settings));
     }
 }
 
 namespace MOX {
     s_settings settings;
+}
+
+namespace SMACK {
+    int16_t smack_x;
+    int16_t smack_y;
 }
 
 namespace vfs {
@@ -66,8 +82,8 @@ extern "C" {
     }
 
     char smk_info_all(const smk, unsigned long* frame, unsigned long* frame_count, double* usf) {
-        *frame = 0;
-        *frame_count = 1;
+        *frame = current_frame;
+        *frame_count = 2;
         *usf = 1000.0;
         return 0;
     }
@@ -107,6 +123,21 @@ extern "C" {
     }
 
     char smk_first(smk) {
+        current_frame = 0;
+        return SMK_MORE;
+    }
+
+    char smk_next(smk) {
+        current_frame = 1;
         return SMK_LAST;
+    }
+
+    const unsigned char* smk_get_video(const smk) {
+        pixels[0] = static_cast<unsigned char>(40 + current_frame);
+        return pixels;
+    }
+
+    const unsigned char* smk_get_palette(const smk) {
+        return colors;
     }
 }

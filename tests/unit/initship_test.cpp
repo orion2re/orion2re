@@ -21,7 +21,12 @@ namespace {
 
     s_player players[MAX_PLAYERS];
     s_ship_data ships[1];
+    s_star_data stars[1];
     s_combat_data combat_data[1];
+    int weapon_space_calls;
+    int design_cost_calls;
+    int32_t weapon_space_result = 25;
+    int16_t design_cost_result = 137;
     char guardian_name[] = "Guardian";
     char amoeba_name[] = "Amoeba";
     char crystal_name[] = "Crystal";
@@ -33,6 +38,13 @@ namespace {
     void Reset_Initship_() {
         memset(players, 0, sizeof(players));
         memset(ships, 0, sizeof(ships));
+        memset(stars, 0, sizeof(stars));
+        memset(TECHDATA::fuel, 0, sizeof(TECHDATA::fuel));
+        MOX::NUM_SHIPS = 0;
+        weapon_space_calls = 0;
+        design_cost_calls = 0;
+        weapon_space_result = 25;
+        design_cost_result = 137;
         memset(combat_data, 0, sizeof(combat_data));
         memset(MOX::crew_data, 0, sizeof(MOX::crew_data));
         memset(TECHDATA::computers, 0, sizeof(TECHDATA::computers));
@@ -90,6 +102,8 @@ namespace {
 namespace MOX {
     s_player* player = players;
     s_ship_data* ship = ships;
+    s_star_data* star = stars;
+    int16_t NUM_SHIPS;
     s_combat_data* combat_data = ::combat_data;
     char* race_names[20] = {};
     int16_t cur_combat_x;
@@ -104,6 +118,7 @@ namespace global {
 }
 
 namespace TECHDATA {
+    s_tech_fuel_data fuel[FUEL_COUNT];
     s_tech_armor_data armor[ARMOR_COUNT];
     s_tech_computer_data computers[COMPUTER_COUNT];
     s_tech_drive_data drives[DRIVE_COUNT];
@@ -150,6 +165,25 @@ namespace COMBINIT {
 } // namespace COMBINIT
 
 namespace DESIGN {
+    int32_t __cdecl Weapon_Space(int16_t player_idx, int16_t weapon_idx,
+        int16_t quantity, int16_t firing_arc, int16_t ammo, int16_t specials) {
+        ++weapon_space_calls;
+        DOCTEST_CHECK(player_idx == kPlayer);
+        DOCTEST_CHECK(weapon_idx == kTacticalBeamWeapon);
+        DOCTEST_CHECK(quantity == 1);
+        DOCTEST_CHECK(firing_arc == 1);
+        DOCTEST_CHECK(ammo == 1);
+        DOCTEST_CHECK(specials == 4);
+        return weapon_space_result;
+    }
+
+    int16_t __cdecl Cost_Of_Design(int16_t player_idx, s_ship_design* design) {
+        ++design_cost_calls;
+        DOCTEST_CHECK(player_idx == kPlayer);
+        DOCTEST_CHECK((design->ftl_type == kDrive));
+        return design_cost_result;
+    }
+
     int16_t __cdecl Miniaturization_Level(int16_t, int16_t) {
         return 0;
     }
@@ -174,6 +208,54 @@ namespace COLCALC {
         return 100;
     }
 } // namespace COLCALC
+
+DOCTEST_TEST_CASE("point-defense damage per space uses the requested design space") {
+    Reset_Initship_();
+    TECHDATA::weapons[kTacticalBeamWeapon].max_damage = 10;
+    DOCTEST_CHECK(INITSHIP::Point_Defense_Damage_Per_Space(kTacticalBeamWeapon, kPlayer) == 50);
+    DOCTEST_CHECK(weapon_space_calls == 1);
+}
+
+DOCTEST_TEST_CASE("automatic equipment changes recalculate each design cost") {
+    Reset_Initship_();
+    INITSHIP::Update_Automatic_Design_Equipment(kPlayer);
+    DOCTEST_CHECK(design_cost_calls == SHIP_SIZE_COUNT);
+    for (const auto& design : players[kPlayer].ship_designs) {
+        DOCTEST_CHECK((design.cost == design_cost_result));
+        DOCTEST_CHECK((design.ftl_type == kDrive));
+    }
+}
+
+DOCTEST_TEST_CASE("fuel selection ignores unresearched longer-range cells") {
+    Reset_Initship_();
+    TECHDATA::fuel[FUEL_STANDARD_FUEL_CELLS].tech_app_id = TECH_APP_STANDARD_FUEL_CELLS;
+    TECHDATA::fuel[FUEL_STANDARD_FUEL_CELLS].ship_range = 4;
+    TECHDATA::fuel[FUEL_DEUTERIUM_FUEL_CELLS].tech_app_id = TECH_APP_DEUTERIUM_FUEL_CELLS;
+    TECHDATA::fuel[FUEL_DEUTERIUM_FUEL_CELLS].ship_range = 6;
+    players[kPlayer].tech_applications[TECH_APP_STANDARD_FUEL_CELLS] = TECH_RESEARCH_STATUS_RESEARCHED;
+    DOCTEST_CHECK(INITSHIP::Best_Ship_Fuel(kPlayer) == FUEL_STANDARD_FUEL_CELLS);
+    players[kPlayer].tech_applications[TECH_APP_DEUTERIUM_FUEL_CELLS] = TECH_RESEARCH_STATUS_RESEARCHED;
+    DOCTEST_CHECK(INITSHIP::Best_Ship_Fuel(kPlayer) == FUEL_DEUTERIUM_FUEL_CELLS);
+    DOCTEST_CHECK(INITSHIP::Best_Ship_Fuel(MAX_PLAYERS) == FUEL_THORIUM_FUEL_CELLS);
+}
+
+DOCTEST_TEST_CASE("ships repair at an owned colony but not an empty star") {
+    Reset_Initship_();
+    MOX::NUM_SHIPS = 1;
+    ships[0].owner = kPlayer;
+    ships[0].location = 0;
+    ships[0].status = 0;
+    ships[0].d.ship_type = SHIP_TYPE_COMBAT;
+    ships[0].structural_damage = 12;
+    ships[0].d.ship_weapon[0].count = 4;
+    ships[0].d.ship_weapon[0].current_count = 1;
+    INITSHIP::Repair_Ships_At_Colonies();
+    DOCTEST_CHECK((ships[0].structural_damage == 12));
+    stars[0].has_colony = 1;
+    INITSHIP::Repair_Ships_At_Colonies();
+    DOCTEST_CHECK((ships[0].structural_damage == 0));
+    DOCTEST_CHECK((ships[0].d.ship_weapon[0].current_count == 4));
+}
 
 DOCTEST_TEST_CASE("tactical initialization fills all six persistent designs") {
     Reset_Initship_();

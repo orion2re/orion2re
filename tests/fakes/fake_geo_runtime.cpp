@@ -6,13 +6,9 @@ namespace {
     s_nebula nebulas[MAX_NEBULAS];
 }
 
-namespace MOX {
-    s_nebula* nebula = nebulas;
-    s_animation_header* nebula_pict_seg[12][4];
-}
-
 namespace test_geo_runtime {
     void Reset_() {
+        MOX::nebula = nebulas;
         std::memset(nebulas, 0, sizeof(nebulas));
         std::memset(MOX::nebula_pict_seg, 0, sizeof(MOX::nebula_pict_seg));
     }

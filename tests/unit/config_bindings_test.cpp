@@ -1476,8 +1476,18 @@ DOCTEST_TEST_CASE("AI stealth and race-variant settings use canonical typed stat
     DOCTEST_REQUIRE(config::Initialize_Defaults(&state));
     DOCTEST_REQUIRE(config::Commit_State(&state));
     DOCTEST_CHECK_FALSE(aidesign::allow_stealth_field);
-    DOCTEST_CHECK(RACECUST::variants.customization[STOCK_RACE_ALKARI][0][0].count == 0);
-    DOCTEST_CHECK(RACECUST::variants.evolution[STOCK_RACE_ALKARI][0][0].count == 0);
+    const auto& customization = RACECUST::variants.customization[STOCK_RACE_ALKARI][0][0];
+    const auto& evolution = RACECUST::variants.evolution[STOCK_RACE_ALKARI][0][0];
+    DOCTEST_CHECK(customization.count == 2);
+    DOCTEST_CHECK(customization.items[0].trait_idx == TRAIT_SHIP_ATTACK);
+    DOCTEST_CHECK(customization.items[0].trait_val == 2);
+    DOCTEST_CHECK(customization.items[1].trait_idx == TRAIT_GROUND_COMBAT_BONUS);
+    DOCTEST_CHECK(customization.items[1].trait_val == 2);
+    DOCTEST_CHECK(evolution.count == 2);
+    DOCTEST_CHECK(evolution.items[0].trait_idx == TRAIT_SHIP_ATTACK);
+    DOCTEST_CHECK(evolution.items[0].trait_val == 3);
+    DOCTEST_CHECK(evolution.items[1].trait_idx == TRAIT_GROUND_COMBAT_BONUS);
+    DOCTEST_CHECK(evolution.items[1].trait_val == 3);
 
     config::s_config_write_set writes;
     config::s_cfg_diagnostic diagnostic;
@@ -2119,6 +2129,25 @@ DOCTEST_TEST_CASE("race pick rules bind through named nested choices") {
 }
 
 DOCTEST_TEST_CASE("configured primary trait values drive all NPC theme weights") {
+    struct s_player_scope {
+        s_player player = {};
+        s_player* saved_players = MOX::player;
+        int16_t saved_count = MOX::NUM_PLAYERS;
+        s_settings saved_settings = MOX::settings;
+        uint32_t saved_seed = game_random::Get_Random_Seed();
+
+        s_player_scope() {
+            MOX::player = &player;
+            MOX::NUM_PLAYERS = 1;
+        }
+
+        ~s_player_scope() {
+            MOX::player = saved_players;
+            MOX::NUM_PLAYERS = saved_count;
+            MOX::settings = saved_settings;
+            game_random::Set_Random_Seed(saved_seed);
+        }
+    } player_scope;
     config::s_config_state state;
     DOCTEST_REQUIRE(config::Initialize_Defaults(&state));
     DOCTEST_REQUIRE(config::Commit_State(&state));

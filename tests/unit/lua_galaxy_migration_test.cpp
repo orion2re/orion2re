@@ -522,6 +522,20 @@ TEST_CASE("full mirror package rebuilds destination home systems") {
     Shutdown_Package_Files_(&files);
 }
 
+TEST_CASE("resetting generated star names prevents reuse of the previous galaxy cache") {
+    TEST_LUA_GAME::Reset_();
+    char name[15] = {};
+    REQUIRE(MAPGEN::Copy_Generated_Star_Name(0, name, sizeof(name)));
+    CHECK(std::string(name) == "Star 0");
+
+    MAPGEN::Reset_Generated_Star_Names();
+    CHECK_FALSE(MAPGEN::Copy_Generated_Star_Name(0, name, sizeof(name)));
+    CHECK(std::string(name) == "Star 0");
+
+    TEST_LUA_GAME::Reset_();
+    CHECK(MAPGEN::Copy_Generated_Star_Name(0, name, sizeof(name)));
+}
+
 TEST_CASE("full mirror package preserves native home systems") {
     s_package_files files;
     Initialize_Package_Files_(&files, "mirror_exhw");

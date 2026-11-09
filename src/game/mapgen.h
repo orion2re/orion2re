@@ -4,6 +4,7 @@
 #include <string>
 
 namespace MAPGEN {
+    constexpr int32_t STAR_NAME_COUNT = 829;
     struct s_map_layout {
         uint8_t automatic;
         uint16_t width;
@@ -147,6 +148,7 @@ namespace MAPGEN {
     void __cdecl Randomize_Star_Names(uint16_t* star_name_indices);
     /** Saves the shuffled vocabulary before screen allocations are reused. */
     void Prepare_Generated_Star_Names();
+    void Reset_Generated_Star_Names();
 
     /** Initializes map bounds and zoom settings for the current galaxy size. */
     void __cdecl Init_Main_Screen(uint8_t gal_size);

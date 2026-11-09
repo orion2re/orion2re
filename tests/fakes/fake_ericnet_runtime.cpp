@@ -4,11 +4,13 @@ namespace {
     s_colony colonies[2];
     s_planet_data planets[2];
     s_star_data stars[1];
-    s_ship_data ships[8];
+    s_ship_data ships[MAX_SHIPS];
+    s_leader_data leaders[MAX_LEADERS];
     s_player players[MAX_PLAYERS];
 }
 
 namespace test::fakes {
+    int16_t instructor_bonuses[MAX_LEADERS][2];
     int32_t last_played_sound = -1;
     int32_t environmental_refresh_count = 0;
     int32_t colony_can_build_product_count = 0;
@@ -22,6 +24,7 @@ namespace MOX {
     s_planet_data* planet = planets;
     s_star_data* star = stars;
     s_ship_data* ship = ships;
+    s_leader_data* leaders = ::leaders;
     s_player* player = players;
     int16_t super_fast_flag;
     s_settings settings = {};
@@ -31,6 +34,25 @@ namespace MOX {
     };
     uint8_t food_per_farmer_table[PLANET_CLIMATE_COUNT];
     uint8_t planet_max_farms[PLANET_SIZE_COUNT];
+}
+
+namespace OFFICER {
+    bool __cdecl Officer_Has_Special_Skill(int16_t, int16_t leader_idx, int16_t skill_idx) {
+        return leader_idx >= 0 && leader_idx < MAX_LEADERS &&
+            skill_idx >= 0x16 && skill_idx <= 0x17 &&
+            test::fakes::instructor_bonuses[leader_idx][skill_idx - 0x16] != 0;
+    }
+
+    int32_t __cdecl Officer_Skill_Bonus(uint32_t, int16_t leader_idx, int16_t skill_idx) {
+        return Officer_Has_Special_Skill(0, leader_idx, skill_idx)
+            ? test::fakes::instructor_bonuses[leader_idx][skill_idx - 0x16] : 0;
+    }
+}
+
+namespace HACCESS {
+    int16_t __cdecl Ship_Owner(int16_t ship_idx) {
+        return MOX::ship[ship_idx].owner;
+    }
 }
 
 namespace sound {

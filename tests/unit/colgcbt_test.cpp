@@ -3,15 +3,16 @@
 #include "doctest/doctest.h"
 #include "game/colgcbt.h"
 
-namespace COLONY {
-    uint8_t full_draw;
-}
-
 namespace {
     struct Ground_Combat_Fixture {
         s_invasion_side_info sides[2] = {};
+        s_invasion_side_info* saved_attack = COLGCBT::g_attack_ptr;
+        s_invasion_side_info* saved_defend = COLGCBT::g_defend_ptr;
+        uint8_t saved_full_draw = COLONY::full_draw;
+        std::array<uint8_t, sizeof(COLGCBT::g_units)> saved_units;
 
         Ground_Combat_Fixture() {
+            memcpy(saved_units.data(), COLGCBT::g_units, sizeof(COLGCBT::g_units));
             memset(COLGCBT::g_units, 0, sizeof(COLGCBT::g_units));
             COLGCBT::g_attack_ptr = &sides[0];
             COLGCBT::g_defend_ptr = &sides[1];
@@ -24,8 +25,10 @@ namespace {
         }
 
         ~Ground_Combat_Fixture() {
-            COLGCBT::g_attack_ptr = nullptr;
-            COLGCBT::g_defend_ptr = nullptr;
+            COLGCBT::g_attack_ptr = saved_attack;
+            COLGCBT::g_defend_ptr = saved_defend;
+            COLONY::full_draw = saved_full_draw;
+            memcpy(COLGCBT::g_units, saved_units.data(), sizeof(COLGCBT::g_units));
         }
 
         void Add_Units(int side, int type, int count) {

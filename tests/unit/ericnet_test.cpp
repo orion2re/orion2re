@@ -4,6 +4,7 @@
 #include "game/ericnet.h"
 
 namespace test::fakes {
+    extern int16_t instructor_bonuses[MAX_LEADERS][2];
     extern int32_t last_played_sound;
     extern int32_t environmental_refresh_count;
     extern int32_t colony_can_build_product_count;
@@ -203,6 +204,68 @@ DOCTEST_TEST_CASE("Advanced civilization derives population independently of con
     }
 
     INITGAME::start = saved;
+}
+
+DOCTEST_TEST_CASE("crew turn updates use the best active colony instructor for each owner") {
+    struct s_crew_scope {
+        std::vector<s_ship_data> saved_ships{MAX_SHIPS};
+        std::vector<s_leader_data> saved_leaders{MAX_LEADERS};
+        decltype(test::fakes::instructor_bonuses) saved_bonuses;
+        uint8_t saved_turn_xp = ERICNET::crew_gains_turn_xp;
+        uint16_t saved_cap = MOX::crew_data[CREW_QUALITY_ELITE].experience;
+
+        s_crew_scope() {
+            memcpy(saved_ships.data(), MOX::ship, sizeof(s_ship_data) * MAX_SHIPS);
+            memcpy(saved_leaders.data(), MOX::leaders, sizeof(s_leader_data) * MAX_LEADERS);
+            memcpy(saved_bonuses, test::fakes::instructor_bonuses, sizeof(saved_bonuses));
+        }
+
+        ~s_crew_scope() {
+            memcpy(MOX::ship, saved_ships.data(), sizeof(s_ship_data) * MAX_SHIPS);
+            memcpy(MOX::leaders, saved_leaders.data(), sizeof(s_leader_data) * MAX_LEADERS);
+            memcpy(test::fakes::instructor_bonuses, saved_bonuses, sizeof(saved_bonuses));
+            ERICNET::crew_gains_turn_xp = saved_turn_xp;
+            MOX::crew_data[CREW_QUALITY_ELITE].experience = saved_cap;
+        }
+    } crew_scope;
+    Reset_Colony_();
+    memset(MOX::leaders, 0, sizeof(s_leader_data) * MAX_LEADERS);
+    memset(test::fakes::instructor_bonuses, 0, sizeof(test::fakes::instructor_bonuses));
+    for (int i = 0; i < MAX_LEADERS; ++i) MOX::leaders[i].player_index = -1;
+    for (int i = 0; i < 6; ++i) {
+        MOX::leaders[i].player_index = i < 2 || i == 5 ? 0 : 1;
+        MOX::leaders[i].type = LEADER_TYPE_COLONY;
+    }
+    test::fakes::instructor_bonuses[0][0] = 3;
+    test::fakes::instructor_bonuses[1][1] = 5;
+    test::fakes::instructor_bonuses[2][0] = 7;
+    MOX::leaders[2].eta = 1;
+    test::fakes::instructor_bonuses[3][0] = 9;
+    MOX::leaders[3].type = LEADER_TYPE_SHIP;
+    test::fakes::instructor_bonuses[4][0] = 2;
+    test::fakes::instructor_bonuses[5][0] = 99;
+    MOX::leaders[5].status = -1;
+    int16_t bonuses[MAX_PLAYERS] = {};
+    ERICNET::Best_Instructor_Bonus(bonuses);
+    DOCTEST_CHECK(bonuses[0] == 5);
+    DOCTEST_CHECK(bonuses[1] == 2);
+
+    for (int i = 0; i < MAX_SHIPS; ++i) MOX::ship[i].status = 5;
+    for (int i = 0; i < 4; ++i) MOX::ship[i].crew_experience = 10;
+    MOX::ship[0].status = 0;
+    MOX::ship[0].owner = 0;
+    MOX::ship[1].status = 0;
+    MOX::ship[1].owner = 1;
+    MOX::ship[2].owner = 0;
+    MOX::ship[3].status = 0;
+    MOX::ship[3].owner = MAX_PLAYERS;
+    ERICNET::crew_gains_turn_xp = 1;
+    MOX::crew_data[CREW_QUALITY_ELITE].experience = 1000;
+    ERICNET::Do_All_Ships_XP_Check();
+    DOCTEST_CHECK((MOX::ship[0].crew_experience == 16));
+    DOCTEST_CHECK((MOX::ship[1].crew_experience == 13));
+    DOCTEST_CHECK((MOX::ship[2].crew_experience == 10));
+    DOCTEST_CHECK((MOX::ship[3].crew_experience == 10));
 }
 
 DOCTEST_TEST_CASE("crew turn experience can be disabled without suppressing other gains") {

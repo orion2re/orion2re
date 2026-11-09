@@ -82,6 +82,8 @@ jobs:
           echo 'CXX=/usr/bin/clang++' >> "$GITHUB_ENV"
       - name: Packaging regression tests
         run: python3 -m unittest discover -s tests/packaging -v
+      - name: Build-tool regression tests
+        run: python3 -m unittest discover -s tests/build_tools -v
       - run: cmake --preset ${{ matrix.preset }}
       # All test presets use Ninja. Report every build failure, not just the first one.
       - run: cmake --build --preset ${{ matrix.preset }} --parallel 3 -- -k 0

@@ -13,6 +13,20 @@ namespace test_geo_runtime {
 }
 
 namespace {
+    struct s_nebula_runtime_scope {
+        s_nebula* saved_nebula = MOX::nebula;
+        std::array<uint8_t, sizeof(MOX::nebula_pict_seg)> saved_pictures;
+
+        s_nebula_runtime_scope() {
+            memcpy(saved_pictures.data(), MOX::nebula_pict_seg, sizeof(MOX::nebula_pict_seg));
+        }
+
+        ~s_nebula_runtime_scope() {
+            MOX::nebula = saved_nebula;
+            memcpy(MOX::nebula_pict_seg, saved_pictures.data(), sizeof(MOX::nebula_pict_seg));
+        }
+    };
+
     struct s_nebula_animation {
         s_animation_header header;
         uint32_t frame_offsets[1];
@@ -39,6 +53,7 @@ namespace {
 }
 
 DOCTEST_TEST_CASE("nebula check rejects coordinates truncated onto the first pixel") {
+    s_nebula_runtime_scope runtime_scope;
     s_nebula_animation animation = {};
     Prepare_Nebula_(&animation);
     animation.padding[0] = 6;
@@ -52,6 +67,7 @@ DOCTEST_TEST_CASE("nebula check rejects coordinates truncated onto the first pix
 }
 
 DOCTEST_TEST_CASE("nebula check uses the first animation frame offset") {
+    s_nebula_runtime_scope runtime_scope;
     s_nebula_animation animation = {};
     Prepare_Nebula_(&animation);
     animation.pixels[0] = 6;
@@ -60,6 +76,7 @@ DOCTEST_TEST_CASE("nebula check uses the first animation frame offset") {
 }
 
 DOCTEST_TEST_CASE("nebula check rejects pixels beyond the image dimensions") {
+    s_nebula_runtime_scope runtime_scope;
     s_nebula_animation animation = {};
     Prepare_Nebula_(&animation);
     std::memset(animation.pixels, 6, sizeof(animation.pixels));

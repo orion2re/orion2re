@@ -17,6 +17,11 @@ namespace TEST_LUA_NETWORK {
     int Prepared_Payload_Count_();
 }
 
+namespace TEST_NETMOX_UI {
+    extern int ship_icon_refresh_count;
+    extern int32_t last_refresh_sync_state;
+}
+
 namespace {
     int g_net_update_hook_invocations = 0;
     std::vector<uint8_t> g_game_orders_payload;
@@ -341,6 +346,24 @@ namespace {
 }
 
 DOCTEST_TEST_SUITE("netmox packet limits") {
+
+DOCTEST_TEST_CASE("host target selection refreshes ship icons before entering combat selection") {
+    Scoped_Netmox_Roundtrip_State_ state;
+    NETMOX::net = {};
+    NETMOX::net.local_net_id = 17;
+    NETMOX::net.net_host_id = 17;
+    NETMOX::net.sync_state = NET_SYNC_STATE_READY;
+    MOX::PLAYER_NUM = 0;
+    std::array<uint8_t, sizeof(int16_t) + sizeof(s_combfind_target)> packet = {};
+    const int previous_refreshes = TEST_NETMOX_UI::ship_icon_refresh_count;
+
+    NETMOX::Decode_Pick_Target_Info(packet.data(), static_cast<uint32_t>(packet.size()));
+
+    DOCTEST_CHECK(TEST_NETMOX_UI::ship_icon_refresh_count == previous_refreshes + 1);
+    DOCTEST_CHECK(TEST_NETMOX_UI::last_refresh_sync_state == NET_SYNC_STATE_READY);
+    DOCTEST_CHECK(NETMOX::net.sync_state == NET_SYNC_STATE_PICKING_COMBAT_TARGET);
+    DOCTEST_CHECK((NETMOX::net.player_net_info[0].player_state == NET_PLAYER_STATE_PICK_TARGET_INFO));
+}
 
 DOCTEST_TEST_CASE("large combat payload allocations stay within the shared limit") {
     constexpr uint32_t max_network_payload_bytes = NETMOX::NETMOX_MAX_GAME_DATA_PAYLOAD_BYTES;

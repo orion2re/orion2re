@@ -102,6 +102,32 @@ The Windows preset requires an x64 Visual Studio developer environment with
 the MSVC AddressSanitizer component, CMake, Ninja, and Python installed.
 All three test jobs must pass before CI builds release packages.
 
+When changing unit-test production dependencies, audit the built Ninja targets on
+Linux or macOS without dead-code stripping:
+
+```sh
+python3 tools/audit_test_links.py out/build/Darwin/osx-debug-asan-tests
+```
+
+Use the corresponding `out/build/Linux/linux-debug-asan-tests` directory on Linux.
+The audit preserves sanitizer options and the normal test executables, writes a
+`test-link-audit.json` report in the build directory, and returns failure for any
+incomplete link. `--target test_name` can be repeated to audit a specific batch.
+MSVC already rejects these incomplete links during the normal Windows build.
+Fix missing test dependencies or use cohesive production units; do not suppress
+undefined symbols or add unrelated no-op stubs to make the audit pass.
+Prefer existing subsystem boundaries over one-function production files.
+Tests of real game data or configuration bindings can use `orion2re_add_game_test`
+with scoped state fixtures rather than duplicate globals. Tests that observe
+mocked calls should retain their deliberate seams and cover newly supplied
+fixture behavior with assertions.
+
+Build-tool regression tests run with:
+
+```sh
+python3 -m unittest discover -s tests/build_tools -v
+```
+
 ## Pull requests
 
 Include:
