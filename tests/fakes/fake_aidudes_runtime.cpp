@@ -37,7 +37,7 @@ namespace TEST_AIDUDES {
     }
 
     aidudes::s_ai_colony_context Context_() {
-        return {0, &players[0], &ai.players[0].colony_work, World_()};
+        return {legacy_world::Player_Id(0), &players[0], &ai.players[0].colony_work, World_()};
     }
 
     void Reset_() {
@@ -121,7 +121,7 @@ namespace TEST_AIDUDES {
         doom_star_load_count = 0;
 
         ai.players[0].colony_work.colonies.resize(1);
-        ai.players[0].colony_work.colonies[0].colony_id = 0;
+        ai.players[0].colony_work.colonies[0].colony_id = legacy_world::Colony_Id(0);
         colonies[0].producing[0] =
             COLBLDG::Colony_Production_From_Ship_Index(0);
         ships[0].d.ship_type = SHIP_TYPE_COMBAT;
@@ -137,7 +137,7 @@ namespace TEST_AIDUDES {
         players[0].total_pop = 9;
         ships[0].location = 0;
         stars[0].has_colony = 1;
-        ai.players[0].refits.push_back({0, 1000});
+        ai.players[0].refits.push_back({legacy_world::Ship_Id(0), 1000});
         ai.players[0].empire.colony_count = 2;
     }
 

@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "legacy_ids.h"
 
 namespace maintain {
     int32_t (*ship_worths)[MAX_SHIPS];
@@ -78,7 +79,7 @@ namespace maintain {
                 if (ship.owner == player_idx && ship.status < 5 && ship.d.ship_type == SHIP_TYPE_COMBAT) {
                     for (int32_t k = 0; k < player_count; ++k) {
                         if (eligible_players[k]) {
-                            worths[j] += AIPOWER::Ship_Strength_Vs_Ships(&game_world::current, j, (int16_t)k);
+                            worths[j] += AIPOWER::Ship_Strength_Vs_Ships(&game_world::current, legacy_world::Ship_Id(j), legacy_world::Player_Id(k));
                         }
                     }
                     worths[j] = worths[j] / ((ship.d.size + 1) * eligible_count);
@@ -262,7 +263,7 @@ namespace maintain {
                         .leaders = MOX::leaders,
                         .ship_count = &MOX::NUM_SHIPS,
                     };
-                    aileader::Reassign_Fleet_Officer(&world, player_idx, officer_idx);
+                    aileader::Reassign_Fleet_Officer(&world, legacy_world::Player_Id(player_idx), legacy_world::Leader_Id(officer_idx));
 
                     if (cheapest_ship->officer_index == officer_idx) {
                         OFFICER::Move_Officer_To_Pool(officer_idx);

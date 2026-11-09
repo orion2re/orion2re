@@ -2,6 +2,7 @@
 
 #include "world_view.h"
 #include "legacy_location.h"
+#include "legacy_ids.h"
 
 #include <cstdint>
 #include <optional>
@@ -10,23 +11,18 @@
 
 namespace legacy_world {
     game_world::s_view World();
-    std::optional<uint32_t> Colony_Id(const game_world::s_view* world, const s_colony* colony);
+    std::optional<game_world::t_colony_id> Colony_Id(const game_world::s_view* world, const s_colony* colony);
 
-    inline std::optional<uint32_t> Object_Id(int32_t index) {
+    inline std::optional<uint32_t> Nonnegative_Slot(int32_t index) {
         if (index < 0) return std::nullopt;
         return (uint32_t)index;
     }
 
-    inline std::optional<int16_t> Index(uint32_t id) {
-        if (id > INT16_MAX) return std::nullopt;
-        return (int16_t)id;
-    }
-
-    inline std::optional<std::vector<int16_t>> Ship_List(std::span<const uint32_t> ids) {
+    inline std::optional<std::vector<int16_t>> Ship_List(std::span<const game_world::t_ship_id> ids) {
         if (ids.size() > INT16_MAX) return std::nullopt;
         std::vector<int16_t> encoded;
         encoded.reserve(ids.size() + 1);
-        for (uint32_t id : ids) {
+        for (game_world::t_ship_id id : ids) {
             auto index = Index(id);
             if (!index) return std::nullopt;
             encoded.push_back(*index);

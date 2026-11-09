@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include "object_ids.h"
 
 namespace game_world {
     enum class e_ship_location : uint8_t {
@@ -12,6 +13,6 @@ namespace game_world {
     struct s_ship_location {
         e_ship_location kind;
         // Current star in orbit; destination star while travelling.
-        uint32_t star_id;
+        t_star_id star_id;
     };
 } // namespace game_world

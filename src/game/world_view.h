@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include "object_ids.h"
 
 struct s_player;
 struct s_ship_data;

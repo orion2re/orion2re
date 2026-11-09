@@ -6,7 +6,7 @@
 namespace AIDATA {
     using game_world::e_ship_location;
 
-    int16_t __cdecl Colony_Dominant_Player(int32_t player_count, const s_colony* colony) {
+    t_player_id Colony_Dominant_Player(int32_t player_count, const s_colony* colony) {
         uint8_t player_counts[MAX_PLAYERS] = {0};
         int total_pops = 0;
 
@@ -34,20 +34,20 @@ namespace AIDATA {
         uint8_t max_count = player_counts[max_player];
 
         if (max_count * 2 > total_pops) {
-            return (int16_t)max_player;
+            return legacy_world::Player_Id(max_player);
         }
 
         int16_t current_owner = (int16_t)colony->owner;
         uint8_t owner_count = player_counts[current_owner];
 
         if (owner_count * 3 <= total_pops && max_count != 0 && owner_count != max_count) {
-            return (int16_t)max_player;
+            return legacy_world::Player_Id(max_player);
         }
 
-        return current_owner;
+        return legacy_world::Player_Id(current_owner);
     }
 
-    bool Star_In_Range_Of_Given_Star(const game_world::s_view* world, uint32_t target_star_idx, uint32_t source_star_idx, int32_t max_range_parsecs) {
+    bool Star_In_Range_Of_Given_Star(const game_world::s_view* world, t_star_id target_star_idx, t_star_id source_star_idx, int32_t max_range_parsecs) {
         bool in_range = false;
 
         const auto source = legacy_world::Index(source_star_idx);
@@ -58,7 +58,7 @@ namespace AIDATA {
             return true;
         }
 
-        int16_t wormhole_id = world->stars[source_star_idx].wormhole_star_id;
+        int16_t wormhole_id = world->stars[legacy_world::Slot(source_star_idx)].wormhole_star_id;
         if (wormhole_id != -1) {
             distance = GEO::Parsecs_Between_Stars(wormhole_id, *target);
             if (distance <= max_range_parsecs) {
@@ -165,7 +165,7 @@ namespace AIDATA {
                 bool player_owned = owner >= 0 && owner < MAX_PLAYERS;
                 const auto location = legacy_world::Read_Ship_Location(&ship);
                 if (!location) continue;
-                std::optional<uint32_t> star_id;
+                std::optional<t_star_id> star_id;
                 int turn_idx = -1;
                 if (ship.status == 0) {
                     star_id = location->star_id;
@@ -174,13 +174,13 @@ namespace AIDATA {
                     star_id = location->star_id;
                     turn_idx = (int)ship.turns_left;
                 } else if (ship.status == 2) {
-                    star_id = legacy_world::Object_Id(HAROLD::XY_To_Star_Id(ship.x, ship.y));
+                    star_id = legacy_world::Try_Star_Id(HAROLD::XY_To_Star_Id(ship.x, ship.y));
                     turn_idx = 0;
                 }
 
-                if (star_id && *star_id < (uint32_t)world->Star_Count()) {
-                    const uint32_t star_idx = *star_id;
-                    auto& star_assessment = ai->stars[star_idx];
+                if (star_id && legacy_world::Slot(*star_id) < (uint32_t)world->Star_Count()) {
+                    const uint32_t star_idx = legacy_world::Slot(*star_id);
+                    auto& star_assessment = ai->stars[*star_id];
                     bool in_nebula = world->stars[star_idx].in_nebula != 0;
                     if (player_owned && turn_idx < FORECAST_TURN_COUNT && world->players[owner].objectives == PLAYER_OBJECTIVE_HUMAN) {
                         star_assessment.enroute_human_ships[turn_idx] = 1;
@@ -188,15 +188,15 @@ namespace AIDATA {
                     for (int p = 0; p < world->Player_Count(); ++p) {
                         if (owner != p && world->players[p].eliminated == 0) {
                             if (ship.d.ship_type == SHIP_TYPE_COMBAT) {
-                                uint16_t str = (uint16_t)AIPOWER::Ship_Strength_Vs_Ships(world, i, p);
-                                ai->ships[i].strengths[p] = str;
+                                uint16_t str = (uint16_t)AIPOWER::Ship_Strength_Vs_Ships(world, legacy_world::Ship_Id(i), legacy_world::Player_Id(p));
+                                ai->ships[legacy_world::Ship_Id(i)].strengths[p] = str;
                                 if (player_owned) {
                                     ai->players[owner].empire.strength_vs_player[p] += str;
                                 }
-                                ai->ships[i].strengths_in_nebula[p] = (uint16_t)AIPOWER::Ship_Strength_Vs_Ships_In_Nebula(world, i, p);
-                                AIPOWER::Ship_Strength_Vs_Planetary_Shield(world, i, ai->ships[i].bomb_strengths);
+                                ai->ships[legacy_world::Ship_Id(i)].strengths_in_nebula[p] = (uint16_t)AIPOWER::Ship_Strength_Vs_Ships_In_Nebula(world, legacy_world::Ship_Id(i), legacy_world::Player_Id(p));
+                                AIPOWER::Ship_Strength_Vs_Planetary_Shield(world, legacy_world::Ship_Id(i), ai->ships[legacy_world::Ship_Id(i)].bomb_strengths);
                                 if (player_owned && turn_idx < FORECAST_TURN_COUNT) {
-                                    uint16_t cur_str = in_nebula ? ai->ships[i].strengths_in_nebula[p] : ai->ships[i].strengths[p];
+                                    uint16_t cur_str = in_nebula ? ai->ships[legacy_world::Ship_Id(i)].strengths_in_nebula[p] : ai->ships[legacy_world::Ship_Id(i)].strengths[p];
                                     star_assessment.enroute_strengths[owner][p][turn_idx] += cur_str;
                                 }
                             }
@@ -224,13 +224,13 @@ namespace AIDATA {
             int owner = world->ships[i].owner;
             if (owner >= 0 && owner < MAX_PLAYERS) {
                 for (int p = 0; p < world->Player_Count(); ++p) {
-                    world->players[owner].total_ship_strength[p] += ai->ships[i].strengths[p];
+                    world->players[owner].total_ship_strength[p] += ai->ships[legacy_world::Ship_Id(i)].strengths[p];
                 }
             }
         }
 
         for (int16_t s = 0; s < world->Star_Count(); ++s) {
-            auto& star_assessment = ai->stars[s];
+            auto& star_assessment = ai->stars[legacy_world::Star_Id(s)];
             for (int p_o = 0; p_o < world->Player_Count(); ++p_o) {
                 for (int t = 0; t < LAST_FORECAST_TURN; ++t) {
                     for (int p_v = 0; p_v < world->Player_Count(); ++p_v) {
@@ -266,7 +266,7 @@ namespace AIDATA {
                     int32_t d2 = dx * dx + dy * dy;
                     if (d2 <= ext_range_sq[col.owner]) {
                         if (!struct_::Test_Bit_Field(world->stars[star_idx].black_hole_blocks, s)) {
-                            auto& star_assessment = ai->stars[s];
+                            auto& star_assessment = ai->stars[legacy_world::Star_Id(s)];
                             star_assessment.in_extended_range |= (1 << col.owner);
                             if (d2 <= range_sq[(int)col.owner] && !struct_::Test_Bit_Field(world->stars[star_idx].black_hole_blocks, s)) {
                                 star_assessment.in_range |= (1 << col.owner);
@@ -278,14 +278,14 @@ namespace AIDATA {
         }
 
         for (int16_t s1 = 0; s1 < world->Star_Count(); ++s1) {
-            const auto& source_assessment = ai->stars[s1];
+            const auto& source_assessment = ai->stars[legacy_world::Star_Id(s1)];
             for (int p = 0; p < world->Player_Count(); ++p) {
                 if ((source_assessment.in_extended_range >> p) & 1) {
                     for (int16_t s2 = 0; s2 < world->Star_Count(); ++s2) {
-                        if ((ai->stars[s2].in_extended_range >> p) & 1) {
+                        if ((ai->stars[legacy_world::Star_Id(s2)].in_extended_range >> p) & 1) {
                             auto turns = legacy_world::Travel_Turns(
                                 SHIPMOVE::Player_N_Turns_From_Star_To_Star((int16_t)p, s1, s2));
-                            if (turns) ai->routes.direct.Store(s1, s2, p, (uint8_t)*turns);
+                            if (turns) ai->routes.direct.Store(legacy_world::Star_Id(s1), legacy_world::Star_Id(s2), legacy_world::Player_Id(p), (uint8_t)*turns);
                         }
                     }
                 }
@@ -297,16 +297,16 @@ namespace AIDATA {
             if (ship.status < 5 && ship.status == 1) {
                 int16_t dest_star = SHIPMOVE::Ship_Destination_Star(&ship);
                 auto turns = legacy_world::Travel_Turns(ship.turns_left);
-                if (turns) ai->routes.ship_direct.Store(i, dest_star, 0, (uint8_t)*turns);
+                if (turns) ai->routes.ship_direct.Store(legacy_world::Ship_Id(i), legacy_world::Star_Id(dest_star), legacy_world::Player_Id(0), (uint8_t)*turns);
                 if (SHIPMOVE::Can_Order_Ship(&ship)) {
                     uint8_t mask = (1 << ship.owner);
-                    const std::array<uint32_t, 1> move_info{(uint32_t)i};
+                    const std::array<t_ship_id, 1> move_info{legacy_world::Ship_Id(i)};
                     s_ship_move_info out_info;
                     for (int16_t s = 0; s < world->Star_Count(); ++s) {
-                        if ((ai->stars[s].in_extended_range & mask) && s != dest_star) {
-                            ai_compat::Evaluate_Fleet_Move(move_info, s, &out_info);
+                        if ((ai->stars[legacy_world::Star_Id(s)].in_extended_range & mask) && s != dest_star) {
+                            ai_compat::Evaluate_Fleet_Move(move_info, legacy_world::Star_Id(s), &out_info);
                             auto turns = legacy_world::Travel_Turns(out_info.turns_left);
-                            if (turns) ai->routes.ship_direct.Store(i, s, 0, (uint8_t)*turns);
+                            if (turns) ai->routes.ship_direct.Store(legacy_world::Ship_Id(i), legacy_world::Star_Id(s), legacy_world::Player_Id(0), (uint8_t)*turns);
                         }
                     }
                 }
@@ -316,18 +316,20 @@ namespace AIDATA {
         for (int16_t c = 0; c < world->Colony_Count(); ++c) {
             s_colony& col = world->colonies[c];
             if (col.owner != -1) {
-                s_colony_assessment& ai_col = ai->colonies[c];
+                s_colony_assessment& ai_col = ai->colonies[legacy_world::Colony_Id(c)];
                 for (int p_idx = 0; p_idx < col.n_pops; ++p_idx) {
                     if (POP::Is_Conquered(col.pop[p_idx])) {
                         ai_col.conquered_population++;
                     }
                 }
-                ai_col.dominant_race = (int8_t)Colony_Dominant_Player(world->Player_Count(), &col);
-                ai_col.population_limit = (int8_t)COLCALC::Colony_Race_Pop_Limit(&col, (int16_t)ai_col.dominant_race);
-                if (world->players[ai_col.dominant_race].traits[TRAIT_EATS_MINERALS] == 0 || world->players[col.owner].traits[TRAIT_EATS_MINERALS] == 0) {
+                ai_col.dominant_race = Colony_Dominant_Player(world->Player_Count(), &col);
+                const auto dominant_index = legacy_world::Index(ai_col.dominant_race);
+                if (!dominant_index) continue;
+                ai_col.population_limit = (int8_t)COLCALC::Colony_Race_Pop_Limit(&col, *dominant_index);
+                if (world->players[*dominant_index].traits[TRAIT_EATS_MINERALS] == 0 || world->players[col.owner].traits[TRAIT_EATS_MINERALS] == 0) {
                     ai_col.food_buildings_relevant = true;
                 }
-                if (world->players[(int)ai_col.dominant_race].traits[TRAIT_ENVIRONMENT_IMMUNE] == 0) {
+                if (world->players[*dominant_index].traits[TRAIT_ENVIRONMENT_IMMUNE] == 0) {
                     ai_col.pollution_controls_relevant = true;
                 }
             }
@@ -339,8 +341,8 @@ namespace AIDATA {
                 int owner = col.owner;
                 int16_t star_idx = world->planets[col.planet].star_index;
                 for (int p = world->Player_Count() - 1; p >= 0; --p) {
-                    if (p != owner && ai->stars[star_idx].enroute_ships[p][LAST_FORECAST_TURN]) {
-                        ai->colonies[c].other_player_arrivals = true;
+                    if (p != owner && ai->stars[legacy_world::Star_Id(star_idx)].enroute_ships[p][LAST_FORECAST_TURN]) {
+                        ai->colonies[legacy_world::Colony_Id(c)].other_player_arrivals = true;
                         break;
                     }
                 }
@@ -348,16 +350,16 @@ namespace AIDATA {
         }
 
         for (int16_t s = 0; s < world->Star_Count(); ++s) {
-            s_star_neighborhood& ai_star = ai->stars[s].neighborhood;
+            s_star_neighborhood& ai_star = ai->stars[legacy_world::Star_Id(s)].neighborhood;
             for (int pl_i = 0; pl_i < 5; ++pl_i) {
                 if (world->stars[s].planet_index[pl_i] != -1) {
                     ai_star.planet_count++;
                 }
             }
             for (int p = 0; p < world->Player_Count(); ++p) {
-                if (world->players[p].objectives != PLAYER_OBJECTIVE_HUMAN && world->players[p].eliminated == 0 && ((ai->stars[s].in_extended_range >> p) & 1)) {
+                if (world->players[p].objectives != PLAYER_OBJECTIVE_HUMAN && world->players[p].eliminated == 0 && ((ai->stars[legacy_world::Star_Id(s)].in_extended_range >> p) & 1)) {
                     for (int other_p = world->Player_Count() - 1; other_p >= 0; --other_p) {
-                        if (other_p != p && ai->stars[s].enroute_ships[other_p][LAST_FORECAST_TURN]) {
+                        if (other_p != p && ai->stars[legacy_world::Star_Id(s)].enroute_ships[other_p][LAST_FORECAST_TURN]) {
                             ai_star.per_player[p].other_player_arrivals = true;
                             break;
                         }
@@ -387,7 +389,7 @@ namespace AIDATA {
                     bool reachable = false;
                     uint8_t mask = (1 << p1) | (1 << p2);
                     for (int16_t s = 0; s < world->Star_Count(); ++s) {
-                        if (ai->stars[s].neighborhood.planet_count != 0 && ((ai->stars[s].in_extended_range & mask) == mask)) {
+                        if (ai->stars[legacy_world::Star_Id(s)].neighborhood.planet_count != 0 && ((ai->stars[legacy_world::Star_Id(s)].in_extended_range & mask) == mask)) {
                             reachable = true;
                             break;
                         }
@@ -427,12 +429,12 @@ namespace AIDATA {
         for (int16_t i = 0; i < world->Ship_Count(); ++i) {
             s_ship_data* ship = &world->ships[i];
             if (ship->d.ship_type == SHIP_TYPE_COMBAT && ship->owner >= 0 && ship->owner < world->Player_Count() && ship->status < 3 && ship->mission != 4 /* SHIP_MISSION_SCRAP */) {
-                ai->combat_ships.push_back(i);
+                ai->combat_ships.push_back(legacy_world::Ship_Id(i));
                 if (ship->status == 0) {
                     int32_t d = Refit_Desirability(&world->players[ship->owner], &ai->players[ship->owner].technology, ship);
-                    ai->ships[i].refit_desirability = d;
+                    ai->ships[legacy_world::Ship_Id(i)].refit_desirability = d;
                     if (d != 0) {
-                        ai->players[ship->owner].refits.push_back({(uint32_t)i, d});
+                        ai->players[ship->owner].refits.push_back({legacy_world::Ship_Id(i), d});
                     }
                 }
             }
@@ -443,10 +445,10 @@ namespace AIDATA {
             qsort(refits.data(), refits.size(), sizeof(s_refit_candidate), airefit_cmp);
         }
 
-        qsort(ai->combat_ships.data(), ai->combat_ships.size(), sizeof(uint32_t), sort_ships, world->ships);
+        qsort(ai->combat_ships.data(), ai->combat_ships.size(), sizeof(t_ship_id), sort_ships, world->ships);
 
         for (uint32_t i = 0; i < ai->combat_ships.size(); ++i) {
-            uint32_t ship_idx = ai->combat_ships[i];
+            const uint32_t ship_idx = legacy_world::Slot(ai->combat_ships[i]);
             auto orbit = legacy_world::Orbit_Star(&world->ships[ship_idx]);
             int owner = world->ships[ship_idx].owner;
             if (orbit) {
@@ -463,11 +465,11 @@ namespace AIDATA {
         ai->routes.direct.Prepare_Live_Indices(world->Star_Count(), world->Player_Count());
 
         for (uint32_t i_as = 0; i_as < ai->combat_ships.size(); ++i_as) {
-            uint32_t i = ai->combat_ships[i_as];
+            const uint32_t i = legacy_world::Slot(ai->combat_ships[i_as]);
             int8_t stealth = (int8_t)struct_::Test_Bit_Field(world->ships[i].d.special_device_flags, 11);
             const auto location = legacy_world::Read_Ship_Location(&world->ships[i]);
             if (!location) continue;
-            uint32_t start_star = location->star_id;
+            uint32_t start_star = legacy_world::Slot(location->star_id);
             int owner = world->ships[i].owner;
             int initial_delay = 0;
 
@@ -478,9 +480,9 @@ namespace AIDATA {
             } else if (location->kind == e_ship_location::in_flight) {
                 initial_delay = (int)world->ships[i].turns_left;
             } else {
-                auto source = legacy_world::Object_Id(HAROLD::XY_To_Star_Id(world->ships[i].x, world->ships[i].y));
+                auto source = legacy_world::Try_Star_Id(HAROLD::XY_To_Star_Id(world->ships[i].x, world->ships[i].y));
                 if (!source) continue;
-                start_star = *source;
+                start_star = legacy_world::Slot(*source);
             }
 
             if (start_star >= (uint32_t)world->Star_Count()) continue;
@@ -490,13 +492,13 @@ namespace AIDATA {
             for (int p = 0; p < world->Player_Count(); ++p) {
                 if (p != owner) {
                     for (int16_t s = 0; s < world->Star_Count(); ++s) {
-                        auto& star_assessment = ai->stars[s];
+                        auto& star_assessment = ai->stars[legacy_world::Star_Id(s)];
                         if (((star_assessment.in_extended_range >> p) & 1) || s == start_star) {
-                            auto route = Player_N_Turns_From_Star_To_Star_With_Intermediate(ai, world, owner, start_star, s, stealth);
+                            auto route = Player_N_Turns_From_Star_To_Star_With_Intermediate(ai, world, legacy_world::Player_Id(owner), legacy_world::Star_Id(start_star), legacy_world::Star_Id(s), stealth);
                             if (route) {
                                 int eta = initial_delay + route->turns;
                                 if (eta < FORECAST_TURN_COUNT) {
-                                    uint16_t str = in_nebula ? ai->ships[i].strengths_in_nebula[p] : ai->ships[i].strengths[p];
+                                    uint16_t str = in_nebula ? ai->ships[legacy_world::Ship_Id(i)].strengths_in_nebula[p] : ai->ships[legacy_world::Ship_Id(i)].strengths[p];
                                     for (int t = eta; t < FORECAST_TURN_COUNT; ++t) {
                                         star_assessment.possible_strengths[owner][p][t] += str;
                                     }
@@ -511,7 +513,7 @@ namespace AIDATA {
         for (int16_t pl = 0; pl < world->Planet_Count(); ++pl) {
             if (world->planets[pl].colony_index != -1) {
                 int owner = world->colonies[world->planets[pl].colony_index].owner;
-                ai->planets[pl].stage_weights[owner] = ai->planets[pl].base_values[owner];
+                ai->planets[legacy_world::Planet_Id(pl)].stage_weights[owner] = ai->planets[legacy_world::Planet_Id(pl)].base_values[owner];
             }
         }
 
@@ -537,15 +539,15 @@ namespace AIDATA {
 
         for (int16_t s = 0; s < world->Star_Count(); ++s) {
             if (world->stars[s].has_colony) {
-                std::array<std::optional<uint32_t>, MAX_PLAYERS> best_planet_at_star{};
+                std::array<std::optional<t_planet_id>, MAX_PLAYERS> best_planet_at_star{};
                 std::array<int16_t, MAX_PLAYERS> best_planet_val_at_star{};
                 for (int pl_i = 0; pl_i < 5; ++pl_i) {
                     int16_t pl_idx = world->stars[s].planet_index[pl_i];
                     if (pl_idx != -1 && world->planets[pl_idx].colony_index != -1) {
                         int owner = world->colonies[world->planets[pl_idx].colony_index].owner;
-                        int16_t val = ai->planets[pl_idx].stage_weights[owner];
+                        int16_t val = ai->planets[legacy_world::Planet_Id(pl_idx)].stage_weights[owner];
                         if (val > best_planet_val_at_star[owner]) {
-                            best_planet_at_star[owner] = pl_idx;
+                            best_planet_at_star[owner] = legacy_world::Planet_Id(pl_idx);
                             best_planet_val_at_star[owner] = val;
                         }
                     }
@@ -562,9 +564,9 @@ namespace AIDATA {
                                     max_eta = (ai->players[p_v].empire.colonized_star_count <= 1) ? 1 : 4;
                                 }
                                 for (int16_t other_s = 0; other_s < world->Star_Count(); ++other_s) {
-                                    int32_t str = ai->stars[other_s].possible_strengths[p_v][p_o][0];
+                                    int32_t str = ai->stars[legacy_world::Star_Id(other_s)].possible_strengths[p_v][p_o][0];
                                     if (str != 0) {
-                                        auto route = Player_N_Turns_From_Star_To_Star_With_Intermediate(ai, world, p_v, other_s, s, true);
+                                        auto route = Player_N_Turns_From_Star_To_Star_With_Intermediate(ai, world, legacy_world::Player_Id(p_v), legacy_world::Star_Id(other_s), legacy_world::Star_Id(s), true);
                                         if (route && route->turns < max_eta) {
                                             threat_sum += str / (route->turns + 1);
                                         }
@@ -574,23 +576,23 @@ namespace AIDATA {
                         }
 
                         for (int16_t pl = 0; pl < world->Planet_Count(); ++pl) {
-                            if ((uint32_t)pl != *best_planet_at_star[p_o]) {
-                                auto route = Player_N_Turns_From_Star_To_Star_With_Intermediate(ai, world, p_o, s, world->planets[pl].star_index, false);
+                            if (legacy_world::Planet_Id(pl) != *best_planet_at_star[p_o]) {
+                                auto route = Player_N_Turns_From_Star_To_Star_With_Intermediate(ai, world, legacy_world::Player_Id(p_o), legacy_world::Star_Id(s), legacy_world::Star_Id(world->planets[pl].star_index), false);
                                 if (route && route->turns < 3) {
-                                    value_sum += ai->planets[pl].stage_weights[p_o];
+                                    value_sum += ai->planets[legacy_world::Planet_Id(pl)].stage_weights[p_o];
                                 }
                             }
                         }
                         int32_t base_weight = best_planet_val_at_star[p_o] + (value_sum >> 4);
-                        ai->stars[s].base_stage_weights[p_o] = base_weight;
-                        ai->stars[s].stage_weights[p_o] = ((base_weight + 7) >> 3) * ((threat_sum + 7) >> 3);
+                        ai->stars[legacy_world::Star_Id(s)].base_stage_weights[p_o] = base_weight;
+                        ai->stars[legacy_world::Star_Id(s)].stage_weights[p_o] = ((base_weight + 7) >> 3) * ((threat_sum + 7) >> 3);
                     }
                 }
             }
         }
 
         for (int p = 0; p < world->Player_Count(); ++p) {
-            AISTAGE::Compute_Defensive_Stage_Points(ai, world, (uint32_t)p);
+            AISTAGE::Compute_Defensive_Stage_Points(ai, world, legacy_world::Player_Id(p));
         }
 
         for (int p = 0; p < world->Player_Count(); ++p) {
@@ -622,7 +624,7 @@ namespace AIDATA {
         }
 
         for (int16_t star_idx = 0; star_idx < world->Star_Count(); ++star_idx) {
-            s_star_neighborhood& ai_info = ai->stars[star_idx].neighborhood;
+            s_star_neighborhood& ai_info = ai->stars[legacy_world::Star_Id(star_idx)].neighborhood;
 
             for (int16_t colony_idx = 0; colony_idx < world->Colony_Count(); ++colony_idx) {
                 s_colony& col = world->colonies[colony_idx];
@@ -632,7 +634,7 @@ namespace AIDATA {
                     int16_t col_star_idx = world->planets[col.planet].star_index;
                     int ship_range = (int)world->players[owner].ship_range;
 
-                    if (Star_In_Range_Of_Given_Star(world, star_idx, col_star_idx, ship_range)) {
+                    if (Star_In_Range_Of_Given_Star(world, legacy_world::Star_Id(star_idx), legacy_world::Star_Id(col_star_idx), ship_range)) {
                         ai_info.per_player[owner].covering_colony_count++;
                     }
                 }
@@ -640,7 +642,7 @@ namespace AIDATA {
 
             int8_t in_normal_range[MAX_PLAYERS];
             int8_t in_extended_range[MAX_PLAYERS];
-            Find_Players_In_Range(world, star_idx, in_normal_range, in_extended_range);
+            Find_Players_In_Range(world, legacy_world::Star_Id(star_idx), in_normal_range, in_extended_range);
 
             for (int player_idx = 0; player_idx < (int)world->Player_Count(); ++player_idx) {
                 if ((world->stars[star_idx].has_colony >> player_idx) & 1) {
@@ -683,8 +685,8 @@ namespace AIDATA {
         }
     }
 
-    void Find_Players_In_Range(const game_world::s_view* world, uint32_t star_idx, int8_t* in_normal_range_out, int8_t* in_extended_range_out) {
-        auto& target_star = world->stars[star_idx];
+    void Find_Players_In_Range(const game_world::s_view* world, t_star_id star_idx, int8_t* in_normal_range_out, int8_t* in_extended_range_out) {
+        auto& target_star = world->stars[legacy_world::Slot(star_idx)];
         int32_t target_x = target_star.x;
         int32_t target_y = target_star.y;
 
@@ -735,8 +737,8 @@ namespace AIDATA {
     }
 
     int __cdecl sort_ships(void* context, const void* lhs, const void* rhs) {
-        uint32_t idx1 = *(const uint32_t*)lhs;
-        uint32_t idx2 = *(const uint32_t*)rhs;
+        const uint32_t idx1 = legacy_world::Slot(legacy_world::Read_Ship_Id(lhs));
+        const uint32_t idx2 = legacy_world::Slot(legacy_world::Read_Ship_Id(rhs));
         const auto* ships = static_cast<const s_ship_data*>(context);
 
         const s_ship_data& ship1 = ships[idx1];
@@ -765,7 +767,7 @@ namespace AIDATA {
             for (int16_t planet_idx = 0; planet_idx < world->Planet_Count(); ++planet_idx) {
                 s_planet_data* planet = &world->planets[planet_idx];
 
-                uint8_t system_visibility_bits = ai->stars[planet->star_index].in_extended_range;
+                uint8_t system_visibility_bits = ai->stars[legacy_world::Star_Id(planet->star_index)].in_extended_range;
 
                 if ((system_visibility_bits >> (player_idx & 0x1F)) & 1) {
                     int16_t col_idx = planet->colony_index;
@@ -774,10 +776,10 @@ namespace AIDATA {
                     if (col_idx == -1) {
                         value = AIDATA::Uncolonized_Planet_Worth_To_Player(world, planet, &world->players[player_idx]);
                     } else {
-                        value = Colony_Worth_To_Player(ai, world, (uint32_t)col_idx, &world->colonies[col_idx], &world->players[player_idx]);
+                        value = Colony_Worth_To_Player(ai, world, legacy_world::Colony_Id(col_idx), &world->colonies[col_idx], &world->players[player_idx]);
                     }
 
-                    ai->planets[planet_idx].base_values[player_idx] = value;
+                    ai->planets[legacy_world::Planet_Id(planet_idx)].base_values[player_idx] = value;
                 }
             }
         }
@@ -798,7 +800,7 @@ namespace AIDATA {
 
         for (int p = 0; p < (int)world->Player_Count(); ++p) {
             for (int16_t i = 0; i < world->Planet_Count(); ++i) {
-                uint16_t base_val = ai->planets[i].base_values[p];
+                uint16_t base_val = ai->planets[legacy_world::Planet_Id(i)].base_values[p];
                 if (base_val <= 0) {
                     continue;
                 }
@@ -806,7 +808,7 @@ namespace AIDATA {
                 s_planet_data* planet = &world->planets[i];
                 s_star_data* star = &world->stars[planet->star_index];
 
-                uint16_t& contextual_val = ai->planets[i].contextual_values[p];
+                uint16_t& contextual_val = ai->planets[legacy_world::Planet_Id(i)].contextual_values[p];
                 contextual_val = base_val;
 
                 int uncolonized_system_base_sum = 0;
@@ -826,12 +828,12 @@ namespace AIDATA {
 
                     if (colony_idx == -1) {
                         // Uncolonized planet in system
-                        uncolonized_system_base_sum += ai->planets[sys_planet_idx].base_values[p];
+                        uncolonized_system_base_sum += ai->planets[legacy_world::Planet_Id(sys_planet_idx)].base_values[p];
                     } else {
                         if (world->colonies[colony_idx].owner == p) {
                             // Colony owned by the current player
                             owned_colonies_in_system++;
-                            owned_system_base_sum += ai->planets[sys_planet_idx].base_values[p];
+                            owned_system_base_sum += ai->planets[legacy_world::Planet_Id(sys_planet_idx)].base_values[p];
                         } else {
                             // Colony owned by an enemy
                             enemy_colonies_in_system++;
@@ -889,13 +891,13 @@ namespace AIDATA {
         if (evaluating_player_idx == owner_idx) {
             for (int16_t i = 0; i < world->Star_Count(); ++i) {
                 if (world->stars[i].spectral_class != STAR_CLASS_BLACK_HOLE) {
-                    if (Star_In_Range_Of_Given_Star(world, i, colony_star_idx, ship_range)) {
+                    if (Star_In_Range_Of_Given_Star(world, legacy_world::Star_Id(i), legacy_world::Star_Id(colony_star_idx), ship_range)) {
                         uint8_t has_colony_mask = world->stars[i].has_colony;
                         bool other_players_present = (has_colony_mask & ~(1 << owner_idx)) != 0;
 
                         // Score is 120 if others are present, 80 otherwise
                         int score = other_players_present ? 120 : 80;
-                        auto assessment = ai->stars.find(i);
+                        auto assessment = ai->stars.find(legacy_world::Star_Id(i));
                         if (assessment == ai->stars.end()) continue;
                         uint32_t covering_colonies = assessment->second.neighborhood.per_player[owner_idx].covering_colony_count;
                         if (covering_colonies == 0) continue;
@@ -906,10 +908,10 @@ namespace AIDATA {
         } else {
             uint32_t min_eta = 10000;
             for (int16_t i = 0; i < world->Star_Count(); ++i) {
-                if (Star_In_Range_Of_Given_Star(world, i, colony_star_idx, ship_range)) {
+                if (Star_In_Range_Of_Given_Star(world, legacy_world::Star_Id(i), legacy_world::Star_Id(colony_star_idx), ship_range)) {
                     // Check if target player has a colony at star i
                     if (world->stars[i].has_colony & (1 << evaluating_player_idx)) {
-                        auto assessment = ai->stars.find(i);
+                        auto assessment = ai->stars.find(legacy_world::Star_Id(i));
                         if (assessment == ai->stars.end()) continue;
                         uint32_t covering_colonies = assessment->second.neighborhood.per_player[owner_idx].covering_colony_count;
                         if (covering_colonies == 0) continue;
@@ -933,7 +935,8 @@ namespace AIDATA {
     constexpr uint16_t MAX_CACHED_TRAVEL_TURNS = 254;
 
     std::optional<s_route> Player_N_Turns_From_Star_To_Star_With_Intermediate(
-        s_state* ai, const game_world::s_view* world, uint32_t player_id, uint32_t source_star, uint32_t destination_star, bool use_extended_range) {
+        s_state* ai, const game_world::s_view* world, t_player_id player_id, t_star_id source_star, t_star_id destination_star, bool use_extended_range) {
+        const uint32_t player_index = legacy_world::Slot(player_id);
         const s_route_key key{player_id, source_star, destination_star};
         auto cached = ai->routes.intermediate.find(key);
         if (cached != ai->routes.intermediate.end()) {
@@ -941,7 +944,7 @@ namespace AIDATA {
         }
 
         s_route_choices choices;
-        const s_player* player = &world->players[player_id];
+        const s_player* player = &world->players[player_index];
         const auto& direct_routes = ai->routes.direct;
         const auto source_row = direct_routes.Find_Row_Index(source_star, player_id);
         const auto destination_offset = direct_routes.Find_Destination(destination_star);
@@ -950,8 +953,8 @@ namespace AIDATA {
         if (player->ship_speed != 0 &&
             player->tech_applications[TECH_APP_JUMP_GATE] != TECH_RESEARCH_STATUS_RESEARCHED &&
             player->tech_applications[TECH_APP_STAR_GATE] != TECH_RESEARCH_STATUS_RESEARCHED &&
-            world->stars[source_star].wormhole_star_id == -1 &&
-            world->stars[destination_star].wormhole_star_id == -1 && direct) {
+            world->stars[legacy_world::Slot(source_star)].wormhole_star_id == -1 &&
+            world->stars[legacy_world::Slot(destination_star)].wormhole_star_id == -1 && direct) {
             auto source_index = legacy_world::Index(source_star);
             auto destination_index = legacy_world::Index(destination_star);
             if (source_index && destination_index) {
@@ -959,7 +962,7 @@ namespace AIDATA {
                 const uint16_t turns = (uint8_t)((distance + player->ship_speed - 1) / player->ship_speed);
                 if (*direct <= (distance + player->ship_speed - 1) / player->ship_speed) {
                     const auto destination_assessment = ai->stars.find(destination_star);
-                    if (destination_assessment != ai->stars.end() && ((destination_assessment->second.in_range >> player_id) & 1)) {
+                    if (destination_assessment != ai->stars.end() && ((destination_assessment->second.in_range >> player_index) & 1)) {
                         choices.normal = s_route{destination_star, turns};
                     }
                     choices.extended = s_route{destination_star, turns};
@@ -970,25 +973,25 @@ namespace AIDATA {
 
         if (!direct_is_best) {
             for (int32_t index = world->Star_Count() - 1; index >= 0; --index) {
-                const uint32_t star_id = (uint32_t)index;
+                const t_star_id star_id = legacy_world::Star_Id(index);
                 const auto assessment = ai->stars.find(star_id);
                 if (assessment == ai->stars.end()) continue;
                 const auto& star_assessment = assessment->second;
-                if ((star_assessment.in_extended_range >> player_id) & 1) {
-                    const s_star_data* star = &world->stars[star_id];
+                if ((star_assessment.in_extended_range >> player_index) & 1) {
+                    const s_star_data* star = &world->stars[index];
                     if (star_id == destination_star ||
                         (star->spectral_class != STAR_CLASS_BLACK_HOLE &&
                             star->system_special != SYSTEM_SPECIAL_SPACE_MONSTER &&
-                            (((star->has_colony >> player_id) & 1) || star->has_colony == 0))) {
+                            (((star->has_colony >> player_index) & 1) || star->has_colony == 0))) {
                         const auto intermediate_offset = direct_routes.Find_Destination(star_id);
                         const auto intermediate_row = direct_routes.Find_Row_Index(star_id, player_id);
                         const auto first_leg = direct_routes.Find_Cell(source_row, intermediate_offset);
                         const auto second_leg = direct_routes.Find_Cell(intermediate_row, destination_offset);
                         if (first_leg && second_leg) {
                             const uint16_t turns = *first_leg + *second_leg;
-                            const uint32_t next_star = star_id == source_star ? destination_star : star_id;
+                            const t_star_id next_star = star_id == source_star ? destination_star : star_id;
                             if (turns <= MAX_CACHED_TRAVEL_TURNS) {
-                                if (((star_assessment.in_range >> player_id) & 1) &&
+                                if (((star_assessment.in_range >> player_index) & 1) &&
                                     (!choices.normal || turns < choices.normal->turns)) {
                                     choices.normal = s_route{next_star, turns};
                                 }
@@ -1006,24 +1009,24 @@ namespace AIDATA {
         return use_extended_range ? choices.extended : choices.normal;
     }
 
-    std::optional<s_route> Ship_N_Turns_To_Star_With_Intermediate(s_state* ai, const game_world::s_view* world, uint32_t ship_id, uint32_t destination_star) {
+    std::optional<s_route> Ship_N_Turns_To_Star_With_Intermediate(s_state* ai, const game_world::s_view* world, t_ship_id ship_id, t_star_id destination_star) {
         const uint64_t key = Ship_Route_Key(ship_id, destination_star);
         auto cached = ai->routes.ship_intermediate.find(key);
         if (cached != ai->routes.ship_intermediate.end()) return cached->second;
 
         std::optional<s_route> result;
-        const s_ship_data* ship = &world->ships[ship_id];
-        const bool has_stargate = struct_::Test_Bit_Field(world->ships[ship_id].d.special_device_flags, 11);
+        const s_ship_data* ship = &world->ships[legacy_world::Slot(ship_id)];
+        const bool has_stargate = struct_::Read_Bit_Field(ship->d.special_device_flags, 11);
         const auto location = legacy_world::Read_Ship_Location(ship);
         if (location && location->kind == e_ship_location::in_flight) {
-            const uint32_t destination = location->star_id;
+            const t_star_id destination = location->star_id;
             const uint32_t owner = (uint32_t)ship->owner;
             for (int32_t index = world->Star_Count() - 1; index >= 0; --index) {
-                const uint32_t star_id = (uint32_t)index;
+                const t_star_id star_id = legacy_world::Star_Id(index);
                 const auto& star_assessment = ai->stars[star_id];
                 const bool in_range = (star_assessment.in_range >> owner) & 1;
                 const bool in_extended_range = (star_assessment.in_extended_range >> owner) & 1;
-                const auto* star = &world->stars[star_id];
+                const auto* star = &world->stars[index];
                 if ((in_range || (in_extended_range && has_stargate)) &&
                     (star_id == destination_star || star_id == destination ||
                         (star->spectral_class != STAR_CLASS_BLACK_HOLE &&
@@ -1031,7 +1034,7 @@ namespace AIDATA {
                             (((star->has_colony >> owner) & 1) || star->has_colony == 0)))) {
                     if (!GEO::Black_Hole_Blocks_Points(ship->x, ship->y, star->x, star->y)) {
                         const auto first_leg = Ship_N_Turns_To(&ai->routes, ship_id, star_id);
-                        const auto second_leg = N_Turns_From_To(&ai->routes, star_id, destination_star, owner);
+                        const auto second_leg = N_Turns_From_To(&ai->routes, star_id, destination_star, legacy_world::Player_Id(owner));
                         if (first_leg && second_leg) {
                             const uint16_t turns = *first_leg + *second_leg;
                             if (turns <= MAX_CACHED_TRAVEL_TURNS && (!result || turns < result->turns)) {
@@ -1044,21 +1047,23 @@ namespace AIDATA {
             }
         } else {
             auto source = location && location->kind == e_ship_location::in_wormhole
-                ? legacy_world::Object_Id(HAROLD::XY_To_Star_Id(ship->x, ship->y))
-                : location ? std::optional<uint32_t>{location->star_id} : std::nullopt;
+                ? legacy_world::Try_Star_Id(HAROLD::XY_To_Star_Id(ship->x, ship->y))
+                : location ? std::optional<t_star_id>{location->star_id} : std::nullopt;
             if (source) {
                 result = Player_N_Turns_From_Star_To_Star_With_Intermediate(
-                    ai, world, ship->owner, *source, destination_star, has_stargate);
+                    ai, world, legacy_world::Player_Id(ship->owner), *source, destination_star, has_stargate);
             }
         }
         ai->routes.ship_intermediate.emplace(key, result);
         return result;
     }
 
-    int16_t __cdecl Colony_Worth_To_Player(s_state* ai, const game_world::s_view* world, uint32_t colony_idx, s_colony* colony, s_player* evaluating_player) {
+    int16_t __cdecl Colony_Worth_To_Player(s_state* ai, const game_world::s_view* world, t_colony_id colony_idx, s_colony* colony, s_player* evaluating_player) {
         int16_t evaluating_player_idx = (int16_t)(evaluating_player - world->players);
         s_planet_data* planet = &world->planets[colony->planet];
-        int16_t colony_race = (int16_t)ai->colonies[colony_idx].dominant_race;
+        const auto race_index = legacy_world::Index(ai->colonies[colony_idx].dominant_race);
+        if (!race_index) return 0;
+        const int16_t colony_race = *race_index;
         s_player* race_player = &world->players[colony_race];
 
         int16_t max_pop_race = COLCALC::Planet_Max_Population_For_Player(planet, colony_race);

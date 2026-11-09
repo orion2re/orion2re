@@ -26,7 +26,7 @@ namespace AIDATA {
      * Returns the player with the strongest population claim on a colony.
      * @param colony Colony to inspect.
      */
-    int16_t __cdecl Colony_Dominant_Player(int32_t player_count, const s_colony* colony);
+    t_player_id Colony_Dominant_Player(int32_t player_count, const s_colony* colony);
 
     /*
      * Updates per-star AI range summaries for each player.
@@ -38,7 +38,7 @@ namespace AIDATA {
      * @param colony Colony being evaluated.
      * @param evaluating_player Player perspective used for the estimate.
      */
-    int16_t __cdecl Colony_Worth_To_Player(s_state* ai, const game_world::s_view* world, uint32_t colony_id, s_colony* colony, s_player* evaluating_player);
+    int16_t __cdecl Colony_Worth_To_Player(s_state* ai, const game_world::s_view* world, t_colony_id colony_id, s_colony* colony, s_player* evaluating_player);
 
     /*
      * Estimates the strategic range value of a colony to a specific player.
@@ -71,14 +71,14 @@ namespace AIDATA {
      * @param use_extended_range Whether to use the extended-range result.
      */
     std::optional<s_route> Player_N_Turns_From_Star_To_Star_With_Intermediate(
-        s_state* ai, const game_world::s_view* world, uint32_t player_id, uint32_t source_star, uint32_t destination_star, bool use_extended_range);
+        s_state* ai, const game_world::s_view* world, t_player_id player_id, t_star_id source_star, t_star_id destination_star, bool use_extended_range);
 
     /*
      * Returns a cached ship route, or no value when the destination is unreachable.
      * @param ship_id Ship to evaluate.
      * @param destination_star Destination star.
      */
-    std::optional<s_route> Ship_N_Turns_To_Star_With_Intermediate(s_state* ai, const game_world::s_view* world, uint32_t ship_id, uint32_t destination_star);
+    std::optional<s_route> Ship_N_Turns_To_Star_With_Intermediate(s_state* ai, const game_world::s_view* world, t_ship_id ship_id, t_star_id destination_star);
 
     /*
      * Compares refit entries by desirability for qsort.
@@ -100,7 +100,7 @@ namespace AIDATA {
      * @param source_star_idx Source star.
      * @param max_range_parsecs Maximum allowed distance in parsecs.
      */
-    bool Star_In_Range_Of_Given_Star(const game_world::s_view* world, uint32_t target_star_idx, uint32_t source_star_idx, int32_t max_range_parsecs);
+    bool Star_In_Range_Of_Given_Star(const game_world::s_view* world, t_star_id target_star_idx, t_star_id source_star_idx, int32_t max_range_parsecs);
 
     /*
      * Builds AI caches for ships, colonies, stars, and per-player planning data.
@@ -115,7 +115,7 @@ namespace AIDATA {
      * @param in_normal_range_out Receives players within normal range.
      * @param in_extended_range_out Receives players within extended range.
      */
-    void Find_Players_In_Range(const game_world::s_view* world, uint32_t star_idx, int8_t* in_normal_range_out, int8_t* in_extended_range_out);
+    void Find_Players_In_Range(const game_world::s_view* world, t_star_id star_idx, int8_t* in_normal_range_out, int8_t* in_extended_range_out);
 
     /*
      * Estimates how valuable settling an uncolonized planet is to a player.

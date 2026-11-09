@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "legacy_ids.h"
 #include "game/ship_config.h"
 #include "game/shipstak.h"
 
@@ -273,15 +274,15 @@ namespace INITSHIP {
         }
 
         MOX::cur_combat_x = -1000;
-        aidesign::Auto_Design_Ship(&game_world::current, player_idx, &plr->ship_designs[0], 0);
+        aidesign::Auto_Design_Ship(&game_world::current, legacy_world::Player_Id(player_idx), &plr->ship_designs[0], 0);
         MOX::cur_combat_x = 0;
 
         for (int16_t i = 1; i < SHIP_SIZE_COUNT; ++i) {
-            aidesign::Auto_Design_Ship(&game_world::current, player_idx, &plr->ship_designs[i], i - design_flag);
+            aidesign::Auto_Design_Ship(&game_world::current, legacy_world::Player_Id(player_idx), &plr->ship_designs[i], i - design_flag);
         }
 
         if (plr->objectives != PLAYER_OBJECTIVE_HUMAN) {
-            aidesign::Auto_Design_Ship(&game_world::current, player_idx, &plr->ship_designs[SHIP_SIZE_DOOM_STAR], HULL_DOOM_STAR);
+            aidesign::Auto_Design_Ship(&game_world::current, legacy_world::Player_Id(player_idx), &plr->ship_designs[SHIP_SIZE_DOOM_STAR], HULL_DOOM_STAR);
 
             int16_t pic_mod_8 = (int16_t)(plr->ship_designs[SHIP_SIZE_DOOM_STAR].picture_num % 8);
             DESIGN::Get_Ship_Design_Name(
@@ -350,7 +351,7 @@ namespace INITSHIP {
         Update_Equipment_On_Ships_Being_Built(player_idx);
 
         for (int16_t i = 0; i < SHIP_SIZE_COUNT; ++i) {
-            aidesign::Auto_Design_Ship(&game_world::current, player_idx, &MOX::player[player_idx].ship_designs[i], i);
+            aidesign::Auto_Design_Ship(&game_world::current, legacy_world::Player_Id(player_idx), &MOX::player[player_idx].ship_designs[i], i);
         }
     }
 
@@ -708,7 +709,7 @@ namespace INITSHIP {
             return;
         }
 
-        aidesign::Auto_Design_Ship(&game_world::current, owner_idx, design, HULL_DOOM_STAR);
+        aidesign::Auto_Design_Ship(&game_world::current, legacy_world::Player_Id(owner_idx), design, HULL_DOOM_STAR);
         strlcpy(design->name, TECHDATA::hull_data[HULL_DOOM_STAR].name, sizeof(design->name));
     }
 

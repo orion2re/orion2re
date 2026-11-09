@@ -43,7 +43,7 @@ namespace COLCALC {
             (current_product == COLONY_PRODUCTION_HOUSING ||
                 current_product == COLONY_PRODUCTION_TRADE_GOODS ||
                 current_product == COLONY_PRODUCTION_NONE)) {
-            AIBUILD::Player_Colony_Autobuild(&AIDATA::state, &game_world::current, colony_id, colony);
+            AIBUILD::Player_Colony_Autobuild(&AIDATA::state, &game_world::current, legacy_world::Colony_Id(colony_id), colony);
         }
 
         colony->just_produced = COLONY_PRODUCTION_NONE;
@@ -3614,7 +3614,9 @@ namespace COLCALC {
         const game_world::s_view world{.colonies = MOX::colony, .colony_count = &MOX::NUM_COLONIES};
         const auto colony_id = legacy_world::Colony_Id(&world, colony);
         if (!colony_id) return;
-        const int16_t colony_idx = (int16_t)*colony_id;
+        const auto legacy_colony = legacy_world::Index(*colony_id);
+        if (!legacy_colony) return;
+        const int16_t colony_idx = *legacy_colony;
         s_player& player = MOX::player[owner_player_idx];
 
         if (EVENTS::Event_Check_Space_Anomaly(colony_idx) != 0) {
@@ -3625,7 +3627,7 @@ namespace COLCALC {
             colony->producing[0] == COLONY_PRODUCTION_AI_TRADE_GOODS ||
             colony->producing[0] == COLONY_PRODUCTION_NONE) {
             // Income for this turn was calculated before legacy autobuild selects a new item.
-            Prepare_Production_Item(*colony_id, colony);
+            Prepare_Production_Item(colony_idx, colony);
             return;
         }
 
@@ -3638,7 +3640,7 @@ namespace COLCALC {
         bool completed_product = false;
         for (;;) {
             bool removed_existing_pop = false;
-            const int16_t current_product = Prepare_Production_Item(*colony_id, colony);
+            const int16_t current_product = Prepare_Production_Item(colony_idx, colony);
 
             if (current_product == COLONY_PRODUCTION_HOUSING) {
                 if (disable_housing != 0) {
