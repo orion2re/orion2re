@@ -141,8 +141,13 @@ if(ORION2RE_ENABLE_ASAN)
     endif()
 
     if(MSVC)
+        # CMake's default /RTC1 checks are incompatible with MSVC ASan.
+        foreach(LANGUAGE IN ITEMS C CXX)
+            string(REGEX REPLACE "/RTC[1su]+" ""
+                CMAKE_${LANGUAGE}_FLAGS_DEBUG "${CMAKE_${LANGUAGE}_FLAGS_DEBUG}")
+        endforeach()
         set(ORION2RE_SANITIZER_COMPILE_OPTIONS /fsanitize=address)
-        set(ORION2RE_SANITIZER_LINK_OPTIONS /INFERASANLIBS /fsanitize=address)
+        set(ORION2RE_SANITIZER_LINK_OPTIONS /INFERASANLIBS /INCREMENTAL:NO)
     elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
         set(ORION2RE_SANITIZER_COMPILE_OPTIONS
             -fsanitize=address,undefined -fno-omit-frame-pointer
@@ -1006,7 +1011,7 @@ if(MSVC)
 
     if(TARGET orion2re)
         target_compile_options(orion2re PRIVATE
-            $<$<CONFIG:Debug>:/RTC1>
+            $<$<AND:$<CONFIG:Debug>,$<NOT:$<BOOL:${ORION2RE_ENABLE_ASAN}>>>:/RTC1>
             $<$<CONFIG:Debug>:/GS>
             $<$<CONFIG:Release>:/Gy>
             $<$<CONFIG:Release>:/Oi>

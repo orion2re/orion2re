@@ -94,6 +94,14 @@ tools/run-tests.sh
 
 Test relevant platform presets or configurations when a change affects platform-specific code. See [README.md](README.md) and `CMakePresets.json` for available presets and build instructions.
 
+CI runs the C++ tests with ASan + UBSan on Linux x64 and macOS ARM64, and with
+ASan on Windows x64 using native MSVC (which does not support UBSan).
+It uses `linux-debug-asan-tests`, `osx-debug-asan-tests`, and
+`win64-debug-asan-tests`, respectively, for configure, build, and CTest.
+The Windows preset requires an x64 Visual Studio developer environment with
+the MSVC AddressSanitizer component, CMake, Ninja, and Python installed.
+All three test jobs must pass before CI builds release packages.
+
 ## Pull requests
 
 Include:

@@ -637,6 +637,20 @@
   ],
   "testPresets": [
     {
+      "name": "win64-debug-asan-tests",
+      "configurePreset": "win64-debug-asan-tests",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "osx-debug-asan-tests",
+      "configurePreset": "osx-debug-asan-tests",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
       "name": "linux-debug-asan-tests",
       "configurePreset": "linux-debug-asan-tests",
       "output": {

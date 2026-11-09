@@ -12,8 +12,28 @@ permissions:
 
 # No concurrency cancellation: each main push keeps its own packages.
 jobs:
-  linux-tests:
-    runs-on: ubuntu-24.04
+  tests:
+    name: Tests (${{ matrix.platform }}, ${{ matrix.sanitizers }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-x64
+            runner: ubuntu-24.04
+            preset: linux-debug-asan-tests
+            sanitizers: ASan + UBSan
+          - platform: macos-arm64
+            runner: macos-15
+            preset: osx-debug-asan-tests
+            sanitizers: ASan + UBSan
+          - platform: windows-x64
+            runner: windows-2022
+            preset: win64-debug-asan-tests
+            sanitizers: ASan
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: bash
     env:
       SDL_VIDEODRIVER: dummy
       SDL_AUDIODRIVER: dummy
@@ -25,12 +45,24 @@ jobs:
           ref: ${{ github.event_name == 'release' && github.event.release.tag_name || github.sha }}
           submodules: recursive
           persist-credentials: false
+      # MSVC supports ASan, but not UBSan.
+      - name: Set up native MSVC x64
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
+        with:
+          arch: x64
+      - name: Select MSVC compiler
+        if: runner.os == 'Windows'
+        run: |
+          echo 'CC=cl' >> "$GITHUB_ENV"
+          echo 'CXX=cl' >> "$GITHUB_ENV"
       - name: Validate release version
         if: github.event_name == 'release'
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: cmake -DRELEASE_TAG="$RELEASE_TAG" -P cmake/version.cmake
       - name: Install native build dependencies
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y \
@@ -41,13 +73,20 @@ jobs:
             libwayland-dev libdecor-0-dev libdrm-dev libgbm-dev \
             libgl1-mesa-dev libegl1-mesa-dev libgles2-mesa-dev \
             libudev-dev libdbus-1-dev libibus-1.0-dev libpipewire-0.3-dev
+      - name: Set up Apple Clang ARM64
+        if: runner.os == 'macOS'
+        run: |
+          test "$(uname -m)" = arm64
+          command -v ninja >/dev/null || brew install ninja
+          echo 'CC=/usr/bin/clang' >> "$GITHUB_ENV"
+          echo 'CXX=/usr/bin/clang++' >> "$GITHUB_ENV"
       - name: Packaging regression tests
         run: python3 -m unittest discover -s tests/packaging -v
-      - run: cmake --preset linux-debug-asan-tests
-      - run: cmake --build --preset linux-debug-asan-tests --parallel "$(nproc)"
+      - run: cmake --preset ${{ matrix.preset }}
+      - run: cmake --build --preset ${{ matrix.preset }} --parallel 3
       - name: Native game build smoke test
-        run: cmake --build --preset linux-debug-asan-tests --target orion2re --parallel 4
-      - run: ctest --preset linux-debug-asan-tests
+        run: cmake --build --preset ${{ matrix.preset }} --target orion2re --parallel 3
+      - run: ctest --preset ${{ matrix.preset }} --no-tests=error
 
   documentation:
     runs-on: ubuntu-24.04
@@ -107,7 +146,7 @@ jobs:
           retention-days: 30
 
   package:
-    needs: linux-tests
+    needs: tests
     if: >-
       (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
       github.event_name == 'release'
