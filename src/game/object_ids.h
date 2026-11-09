@@ -7,91 +7,91 @@
 namespace game {
     // Do not cast IDs to integers or other ID domains. Legacy conversion and
     // temporary array-slot access belong to the named compatibility helpers.
-    struct t_ship_id {
+    struct id_ship {
         uint32_t id;
-        bool operator==(const t_ship_id&) const = default;
+        bool operator==(const id_ship&) const = default;
     };
-    struct t_colony_id {
+    struct id_colony {
         uint32_t id;
-        bool operator==(const t_colony_id&) const = default;
+        bool operator==(const id_colony&) const = default;
     };
-    struct t_planet_id {
+    struct id_planet {
         uint32_t id;
-        bool operator==(const t_planet_id&) const = default;
+        bool operator==(const id_planet&) const = default;
     };
-    struct t_star_id {
+    struct id_star {
         uint32_t id;
-        bool operator==(const t_star_id&) const = default;
+        bool operator==(const id_star&) const = default;
     };
     // Includes the legacy non-player faction slots used by combat assessments.
-    struct t_player_id {
+    struct id_player {
         uint32_t id;
-        bool operator==(const t_player_id&) const = default;
+        bool operator==(const id_player&) const = default;
     };
-    struct t_leader_id {
+    struct id_leader {
         uint32_t id;
-        bool operator==(const t_leader_id&) const = default;
+        bool operator==(const id_leader&) const = default;
     };
 
-    static_assert(sizeof(t_ship_id) == sizeof(uint32_t));
-    static_assert(alignof(t_ship_id) == alignof(uint32_t));
-    static_assert(std::is_trivially_copyable_v<t_ship_id>);
-    static_assert(std::is_standard_layout_v<t_ship_id>);
+    static_assert(sizeof(id_ship) == sizeof(uint32_t));
+    static_assert(alignof(id_ship) == alignof(uint32_t));
+    static_assert(std::is_trivially_copyable_v<id_ship>);
+    static_assert(std::is_standard_layout_v<id_ship>);
 
-    static_assert(sizeof(t_colony_id) == sizeof(uint32_t));
-    static_assert(alignof(t_colony_id) == alignof(uint32_t));
-    static_assert(std::is_trivially_copyable_v<t_colony_id>);
-    static_assert(std::is_standard_layout_v<t_colony_id>);
+    static_assert(sizeof(id_colony) == sizeof(uint32_t));
+    static_assert(alignof(id_colony) == alignof(uint32_t));
+    static_assert(std::is_trivially_copyable_v<id_colony>);
+    static_assert(std::is_standard_layout_v<id_colony>);
 
-    static_assert(sizeof(t_planet_id) == sizeof(uint32_t));
-    static_assert(alignof(t_planet_id) == alignof(uint32_t));
-    static_assert(std::is_trivially_copyable_v<t_planet_id>);
-    static_assert(std::is_standard_layout_v<t_planet_id>);
+    static_assert(sizeof(id_planet) == sizeof(uint32_t));
+    static_assert(alignof(id_planet) == alignof(uint32_t));
+    static_assert(std::is_trivially_copyable_v<id_planet>);
+    static_assert(std::is_standard_layout_v<id_planet>);
 
-    static_assert(sizeof(t_star_id) == sizeof(uint32_t));
-    static_assert(alignof(t_star_id) == alignof(uint32_t));
-    static_assert(std::is_trivially_copyable_v<t_star_id>);
-    static_assert(std::is_standard_layout_v<t_star_id>);
+    static_assert(sizeof(id_star) == sizeof(uint32_t));
+    static_assert(alignof(id_star) == alignof(uint32_t));
+    static_assert(std::is_trivially_copyable_v<id_star>);
+    static_assert(std::is_standard_layout_v<id_star>);
 
-    static_assert(sizeof(t_player_id) == sizeof(uint32_t));
-    static_assert(alignof(t_player_id) == alignof(uint32_t));
-    static_assert(std::is_trivially_copyable_v<t_player_id>);
-    static_assert(std::is_standard_layout_v<t_player_id>);
+    static_assert(sizeof(id_player) == sizeof(uint32_t));
+    static_assert(alignof(id_player) == alignof(uint32_t));
+    static_assert(std::is_trivially_copyable_v<id_player>);
+    static_assert(std::is_standard_layout_v<id_player>);
 
-    static_assert(sizeof(t_leader_id) == sizeof(uint32_t));
-    static_assert(alignof(t_leader_id) == alignof(uint32_t));
-    static_assert(std::is_trivially_copyable_v<t_leader_id>);
-    static_assert(std::is_standard_layout_v<t_leader_id>);
+    static_assert(sizeof(id_leader) == sizeof(uint32_t));
+    static_assert(alignof(id_leader) == alignof(uint32_t));
+    static_assert(std::is_trivially_copyable_v<id_leader>);
+    static_assert(std::is_standard_layout_v<id_leader>);
 } // namespace game
 
 namespace std {
-    template<> struct hash<game::t_ship_id> {
-        size_t operator()(game::t_ship_id value) const noexcept {
+    template<> struct hash<game::id_ship> {
+        size_t operator()(game::id_ship value) const noexcept {
             return hash<uint32_t>{}(value.id);
         }
     };
-    template<> struct hash<game::t_colony_id> {
-        size_t operator()(game::t_colony_id value) const noexcept {
+    template<> struct hash<game::id_colony> {
+        size_t operator()(game::id_colony value) const noexcept {
             return hash<uint32_t>{}(value.id);
         }
     };
-    template<> struct hash<game::t_planet_id> {
-        size_t operator()(game::t_planet_id value) const noexcept {
+    template<> struct hash<game::id_planet> {
+        size_t operator()(game::id_planet value) const noexcept {
             return hash<uint32_t>{}(value.id);
         }
     };
-    template<> struct hash<game::t_star_id> {
-        size_t operator()(game::t_star_id value) const noexcept {
+    template<> struct hash<game::id_star> {
+        size_t operator()(game::id_star value) const noexcept {
             return hash<uint32_t>{}(value.id);
         }
     };
-    template<> struct hash<game::t_player_id> {
-        size_t operator()(game::t_player_id value) const noexcept {
+    template<> struct hash<game::id_player> {
+        size_t operator()(game::id_player value) const noexcept {
             return hash<uint32_t>{}(value.id);
         }
     };
-    template<> struct hash<game::t_leader_id> {
-        size_t operator()(game::t_leader_id value) const noexcept {
+    template<> struct hash<game::id_leader> {
+        size_t operator()(game::id_leader value) const noexcept {
             return hash<uint32_t>{}(value.id);
         }
     };

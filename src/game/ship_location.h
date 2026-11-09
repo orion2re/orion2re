@@ -13,6 +13,6 @@ namespace game {
     struct s_ship_location {
         e_ship_location kind;
         // Current star in orbit; destination star while travelling.
-        t_star_id star_id;
+        id_star star_id;
     };
 } // namespace game

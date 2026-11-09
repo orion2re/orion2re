@@ -99,7 +99,7 @@ namespace AIBUILD {
         return (int16_t)(refit_cost < min_cost ? min_cost : refit_cost);
     }
 
-    int16_t Player_War_Level(const game::s_view* world, game::t_player_id player_id) {
+    int16_t Player_War_Level(const game::s_view* world, game::id_player player_id) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
         int16_t max_war_level = 0;
 
@@ -198,7 +198,7 @@ namespace AIBUILD {
         }
     }
 
-    void Compute_Needs(AIDATA::s_state* ai, const game::s_view* world, game::t_player_id player_id) {
+    void Compute_Needs(AIDATA::s_state* ai, const game::s_view* world, game::id_player player_id) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
         const auto legacy_player = legacy_world::Index(player_id);
         if (!legacy_player) return;
@@ -410,7 +410,7 @@ namespace AIBUILD {
         Compute_Freighter_Need(&needs, world->players[player_idx].surplus_freighters);
     }
 
-    void Empire_Buy_Outright(AIDATA::s_state* ai, const game::s_view* world, game::t_player_id player_id) {
+    void Empire_Buy_Outright(AIDATA::s_state* ai, const game::s_view* world, game::id_player player_id) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
         s_player* player = &world->players[player_idx];
         int16_t total_maintenance = (int16_t)(uint16_t)player->total_maintenance;
@@ -504,7 +504,7 @@ namespace AIBUILD {
         } while (chosen_colony);
     }
 
-    void __cdecl Assign_Colony_Building(AIDATA::s_state* ai, const game::s_view* world, game::t_colony_id colony_id, s_colony* colony) {
+    void __cdecl Assign_Colony_Building(AIDATA::s_state* ai, const game::s_view* world, game::id_colony colony_id, s_colony* colony) {
         if (colony->outpost_flag == 0 && colony->n_pops != 0) {
             int16_t current_production = colony->producing[0];
 
@@ -525,7 +525,7 @@ namespace AIBUILD {
         }
     }
 
-    void Build_Production_Context(AIDATA::s_state* ai, const game::s_view* world, game::t_colony_id colony_idx, const s_colony* colony, int32_t war_level, production_rules::s_context* context) {
+    void Build_Production_Context(AIDATA::s_state* ai, const game::s_view* world, game::id_colony colony_idx, const s_colony* colony, int32_t war_level, production_rules::s_context* context) {
         memset(context, 0, sizeof(*context));
         int32_t owner = (uint8_t)colony->owner;
         const s_player* player = &world->players[owner];
@@ -643,7 +643,7 @@ namespace AIBUILD {
         context->mineral_class = planet->mineral_class;
     }
 
-    int16_t __cdecl Colony_Building_Score(AIDATA::s_state* ai, const game::s_view* world, game::t_colony_id colony_idx, s_colony* colony, int16_t building_id) {
+    int16_t __cdecl Colony_Building_Score(AIDATA::s_state* ai, const game::s_view* world, game::id_colony colony_idx, s_colony* colony, int16_t building_id) {
         uint8_t owner_u8 = (uint8_t)colony->owner;
         int32_t owner = owner_u8;
         s_player* player = &world->players[owner];
@@ -1068,7 +1068,7 @@ namespace AIBUILD {
         return false;
     }
 
-    void __cdecl Assign_Colony_New_Building(AIDATA::s_state* ai, const game::s_view* world, game::t_colony_id colony_idx, s_colony* colony) {
+    void __cdecl Assign_Colony_New_Building(AIDATA::s_state* ai, const game::s_view* world, game::id_colony colony_idx, s_colony* colony) {
         const auto legacy_colony = legacy_world::Index(colony_idx);
         if (!legacy_colony) return;
         uint16_t weights[52];
@@ -1130,7 +1130,7 @@ namespace AIBUILD {
         }
     }
 
-    void __cdecl Force_Produce(const game::s_view* world, game::t_colony_id* id_list, uint32_t list_index, int32_t* list_count, int16_t production_id) {
+    void __cdecl Force_Produce(const game::s_view* world, game::id_colony* id_list, uint32_t list_index, int32_t* list_count, int16_t production_id) {
         const uint32_t colony_idx = legacy_world::Slot(id_list[list_index]);
         world->colonies[colony_idx].producing[0] = production_id;
         *list_count -= 1;
@@ -1150,7 +1150,7 @@ namespace AIBUILD {
         return COLBLDG::Selection_Name(product_id);
     }
 
-    void __cdecl Player_Colony_Autobuild(AIDATA::s_state* ai, const game::s_view* world, game::t_colony_id colony_idx, s_colony* colony) {
+    void __cdecl Player_Colony_Autobuild(AIDATA::s_state* ai, const game::s_view* world, game::id_colony colony_idx, s_colony* colony) {
         AIBUILD::Assign_Colony_New_Building(ai, world, colony_idx, colony);
     }
 } // namespace AIBUILD

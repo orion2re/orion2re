@@ -134,7 +134,7 @@ namespace aidesign {
 
     void Determine_Beam_Weapon_Modifications(
         const game::s_view* world,
-        game::t_player_id player_idx,
+        game::id_player player_idx,
         int16_t hull_size,
         int16_t* type0,
         int16_t* spec0,
@@ -482,7 +482,7 @@ namespace aidesign {
         }
     }
 
-    int32_t Add_Specials_To_Design(const game::s_view* world, const struct s_spcl* list, int16_t count, game::t_player_id player_idx, struct s_ship_design* design, int32_t space_available, int16_t* weapon_slot_idx_ptr) {
+    int32_t Add_Specials_To_Design(const game::s_view* world, const struct s_spcl* list, int16_t count, game::id_player player_idx, struct s_ship_design* design, int32_t space_available, int16_t* weapon_slot_idx_ptr) {
         const auto legacy_player = legacy_world::Index(player_idx);
         if (!legacy_player) return 0;
         int32_t total_space_used = 0;
@@ -580,7 +580,7 @@ namespace aidesign {
         return total_space_used;
     }
 
-    int32_t Add_Beam_Weapon_To_Design(const game::s_view* world, game::t_player_id player_idx, struct s_ship_design* design, int16_t* weapon_index_ptr, int32_t space, int16_t weapon_class) {
+    int32_t Add_Beam_Weapon_To_Design(const game::s_view* world, game::id_player player_idx, struct s_ship_design* design, int16_t* weapon_index_ptr, int32_t space, int16_t weapon_class) {
         const auto legacy_player = legacy_world::Index(player_idx);
         if (!legacy_player) return 0;
         int16_t types[4] = {0};
@@ -657,7 +657,7 @@ namespace aidesign {
         return final_unit_space * total_added;
     }
 
-    int16_t Get_Ship_Class(const game::s_view* world, game::t_player_id player_idx) {
+    int16_t Get_Ship_Class(const game::s_view* world, game::id_player player_idx) {
         const s_player* player = &world->players[legacy_world::Slot(player_idx)];
         int16_t fighters_avail = Fighters_Available(player);
         int16_t special_weapons_avail = Special_Weapons_Available(player);
@@ -861,7 +861,7 @@ namespace aidesign {
         return beam_tech_value <= comparison_tech_value;
     }
 
-    int32_t Add_Theme_Special_To_Design(const game::s_view* world, game::t_player_id player_idx, struct s_ship_design* design, int32_t space, int16_t* weapon_index_ptr) {
+    int32_t Add_Theme_Special_To_Design(const game::s_view* world, game::id_player player_idx, struct s_ship_design* design, int32_t space, int16_t* weapon_index_ptr) {
         const auto& priorities = rules.priorities;
         int32_t result = 0;
         uint8_t theme = (uint8_t)world->players[legacy_world::Slot(player_idx)].ship_special_theme;
@@ -944,7 +944,7 @@ namespace aidesign {
         return 0;
     }
 
-    int32_t Add_Fighters_To_Design(const game::s_view* world, game::t_player_id player_idx, s_ship_design* design, int16_t* weapon_slot_idx, int32_t available_space) {
+    int32_t Add_Fighters_To_Design(const game::s_view* world, game::id_player player_idx, s_ship_design* design, int16_t* weapon_slot_idx, int32_t available_space) {
         const auto legacy_player = legacy_world::Index(player_idx);
         if (!legacy_player) return 0;
         int16_t weapon_type;
@@ -1019,7 +1019,7 @@ namespace aidesign {
         return total_space_used;
     }
 
-    void Determine_Bomb_Weapon(const game::s_view* world, game::t_player_id player_idx, int16_t* out_weapon_idx) {
+    void Determine_Bomb_Weapon(const game::s_view* world, game::id_player player_idx, int16_t* out_weapon_idx) {
         const auto legacy_player = legacy_world::Index(player_idx);
         if (!legacy_player) return;
         int16_t candidates[DESIGN_WEAPON_CODE_COUNT];
@@ -1082,7 +1082,7 @@ namespace aidesign {
         }
     }
 
-    int32_t Add_Bomb_Weapon_To_Design(const game::s_view* world, game::t_player_id player_idx, s_ship_design* design, int16_t* weapon_slot_idx, int32_t space_available) {
+    int32_t Add_Bomb_Weapon_To_Design(const game::s_view* world, game::id_player player_idx, s_ship_design* design, int16_t* weapon_slot_idx, int32_t space_available) {
         const auto legacy_player = legacy_world::Index(player_idx);
         if (!legacy_player) return 0;
         int16_t bomb_type = 0;
@@ -1140,7 +1140,7 @@ namespace aidesign {
 
     void Determine_Missile_Weapon_Modifications(
         const game::s_view* world,
-        game::t_player_id player_idx,
+        game::id_player player_idx,
         uint16_t* out_weapon_id,
         uint16_t* out_weapon_mods,
         int16_t weapon_count_table_idx,
@@ -1309,7 +1309,7 @@ namespace aidesign {
         }
     }
 
-    int32_t Add_Missile_Weapon_To_Design(const game::s_view* world, game::t_player_id player_idx, s_ship_design* design, int16_t* weapon_index_ptr, int32_t space_limit, int16_t ammo) {
+    int32_t Add_Missile_Weapon_To_Design(const game::s_view* world, game::id_player player_idx, s_ship_design* design, int16_t* weapon_index_ptr, int32_t space_limit, int16_t ammo) {
         const auto legacy_player = legacy_world::Index(player_idx);
         if (!legacy_player) return 0;
         uint16_t weapon_type = 0;
@@ -1373,7 +1373,7 @@ namespace aidesign {
         return final_space_coeff * total_missiles_added;
     }
 
-    void Auto_Design_Ship(const game::s_view* world, game::t_player_id player_idx, s_ship_design* design, int16_t hull_idx) {
+    void Auto_Design_Ship(const game::s_view* world, game::id_player player_idx, s_ship_design* design, int16_t hull_idx) {
         const auto legacy_player = legacy_world::Index(player_idx);
         if (!legacy_player) return;
         const auto& design_rules = rules;

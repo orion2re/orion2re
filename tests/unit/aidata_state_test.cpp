@@ -168,7 +168,7 @@ DOCTEST_TEST_CASE("optional attack targets preserve entity ID zero") {
 }
 
 DOCTEST_TEST_CASE("direct route row availability survives growth across bitmap words") {
-    AIDATA::s_direct_route_table<game::t_star_id> routes;
+    AIDATA::s_direct_route_table<game::id_star> routes;
     routes.Store(Star_Id(0), Star_Id(0), Player_Id(0), 1);
     for (uint32_t destination = 1; destination <= 128; ++destination) {
         routes.Store(Star_Id(1), Star_Id(destination), Player_Id(0), 2);
@@ -180,7 +180,7 @@ DOCTEST_TEST_CASE("direct route row availability survives growth across bitmap w
 }
 
 DOCTEST_TEST_CASE("resolved route rows retain availability and full-width sparse IDs") {
-    AIDATA::s_direct_route_table<game::t_star_id> routes;
+    AIDATA::s_direct_route_table<game::id_star> routes;
     routes.Store(Star_Id(UINT32_MAX), Star_Id(0), Player_Id(7), 0);
     routes.Store(Star_Id(UINT32_MAX), Star_Id(UINT32_MAX), Player_Id(7), UINT8_MAX);
     const auto row = routes.Find_Row_Index(Star_Id(UINT32_MAX), Player_Id(7));
@@ -199,7 +199,7 @@ DOCTEST_TEST_CASE("resolved route rows retain availability and full-width sparse
 }
 
 DOCTEST_TEST_CASE("owned route indices stay bounded and follow growth, copying and clearing") {
-    AIDATA::s_direct_route_table<game::t_star_id> routes;
+    AIDATA::s_direct_route_table<game::id_star> routes;
     routes.Store(Star_Id(0), Star_Id(0), Player_Id(0), 0);
     routes.Store(Star_Id(UINT32_MAX), Star_Id(UINT32_MAX), Player_Id(7), UINT8_MAX);
     routes.Prepare_Live_Indices(3, 1);

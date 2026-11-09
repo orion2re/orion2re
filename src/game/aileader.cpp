@@ -67,7 +67,7 @@ namespace aileader {
         }
     }
 
-    void Assign_Star_Officer(AIDATA::s_state* ai, const game::s_view* world, game::t_player_id player_id, game::t_leader_id leader_id) {
+    void Assign_Star_Officer(AIDATA::s_state* ai, const game::s_view* world, game::id_player player_id, game::id_leader leader_id) {
         const uint32_t player_index = legacy_world::Slot(player_id);
         const uint32_t leader_index = legacy_world::Slot(leader_id);
         std::vector<int32_t> star_scores(world->Star_Count(), 0);
@@ -135,7 +135,7 @@ namespace aileader {
         }
     }
 
-    void Assign_Fleet_Officer(const game::s_view* world, game::t_player_id player_id, game::t_leader_id leader_id) {
+    void Assign_Fleet_Officer(const game::s_view* world, game::id_player player_id, game::id_leader leader_id) {
         const uint32_t player_index = legacy_world::Slot(player_id);
         const uint32_t leader_index = legacy_world::Slot(leader_id);
         s_ship_data* best_ship = nullptr;
@@ -163,7 +163,7 @@ namespace aileader {
         }
     }
 
-    void Reassign_Fleet_Officer(const game::s_view* world, game::t_player_id player_id, game::t_leader_id leader_id) {
+    void Reassign_Fleet_Officer(const game::s_view* world, game::id_player player_id, game::id_leader leader_id) {
         const uint32_t player_index = legacy_world::Slot(player_id);
         const uint32_t leader_index = legacy_world::Slot(leader_id);
         int16_t original_location = world->leaders[leader_index].location;
@@ -191,7 +191,7 @@ namespace aileader {
         }
     }
 
-    void Assign_Unassigned_Leaders(AIDATA::s_state* ai, const game::s_view* world, game::t_player_id player_id) {
+    void Assign_Unassigned_Leaders(AIDATA::s_state* ai, const game::s_view* world, game::id_player player_id) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
         for (int32_t leader_index = 0; leader_index < MAX_LEADERS; ++leader_index) {
             s_leader_data* leader = &world->leaders[leader_index];

@@ -14,7 +14,7 @@ namespace aitech {
         return true;
     }
 
-    static int16_t Choose_AI_Tech_Application(const s_rules* research_rules, game::t_player_id player_id, s_player* player) {
+    static int16_t Choose_AI_Tech_Application(const s_rules* research_rules, game::id_player player_id, s_player* player) {
         const auto legacy_player = legacy_world::Index(player_id);
         if (!legacy_player) return -1;
         int16_t app_id = newtech::Choose_Tech_Application(*legacy_player);
@@ -352,7 +352,7 @@ namespace aitech {
         }
     }
 
-    int16_t System_Proximity_Count(const game::s_view* world, game::t_player_id player, game::t_player_id other_player) {
+    int16_t System_Proximity_Count(const game::s_view* world, game::id_player player, game::id_player other_player) {
         const uint32_t player_id = legacy_world::Slot(player);
         const uint32_t other_player_id = legacy_world::Slot(other_player);
         const auto legacy_player = legacy_world::Index(player);
@@ -377,7 +377,7 @@ namespace aitech {
         return score;
     }
 
-    int32_t Get_Max_Technology_Value(const game::s_view* world, game::t_player_id player_id) {
+    int32_t Get_Max_Technology_Value(const game::s_view* world, game::id_player player_id) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
         int32_t max_cost = 0;
 

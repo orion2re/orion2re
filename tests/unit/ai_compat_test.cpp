@@ -174,7 +174,7 @@ DOCTEST_TEST_CASE("strategic AI input diagnostics identify the failing requireme
 DOCTEST_TEST_CASE("production queue removal keeps colony identities and queue positions distinct") {
     s_colony colonies[3] = {};
     const game::s_view world{.colonies = colonies};
-    game::t_colony_id queue[] = {Colony_Id(2), Colony_Id(0), Colony_Id(1)};
+    game::id_colony queue[] = {Colony_Id(2), Colony_Id(0), Colony_Id(1)};
     int32_t count = 3;
     AIBUILD::Force_Produce(&world, queue, 1, &count, COLONY_PRODUCTION_HOUSING);
     DOCTEST_CHECK(count == 2);

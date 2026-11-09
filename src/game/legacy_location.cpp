@@ -23,7 +23,7 @@ namespace legacy_world {
         return Decode_Ship_Location(ship->location);
     }
 
-    std::optional<game::t_star_id> Orbit_Star(const s_ship_data* ship) {
+    std::optional<game::id_star> Orbit_Star(const s_ship_data* ship) {
         auto location = Read_Ship_Location(ship);
         if (!location || location->kind != game::e_ship_location::at_star) return std::nullopt;
         return location->star_id;
