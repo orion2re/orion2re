@@ -49,7 +49,7 @@ namespace AIPOWER {
         return (uint32_t)result;
     }
 
-    int16_t Get_Best_Ship_Shield_Value(const s_tech_shield_data* shields, game::t_player_id player_id) {
+    int16_t Get_Best_Ship_Shield_Value(const s_tech_shield_data* shields, game::id_player player_id) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
         if (player_idx >= MAX_PLAYERS) {
             switch (player_idx) {
@@ -77,7 +77,7 @@ namespace AIPOWER {
         return shields[shield_idx].shield_class;
     }
 
-    int16_t Ship_Strength_Vs_Shield(const game::s_view* world, game::t_ship_id ship_id, game::t_player_id target_id, int16_t shield_strength) {
+    int16_t Ship_Strength_Vs_Shield(const game::s_view* world, game::id_ship ship_id, game::id_player target_id, int16_t shield_strength) {
         const auto legacy_ship = legacy_world::Index(ship_id);
         if (!legacy_ship) return 0;
         const uint32_t ship_idx = legacy_world::Slot(ship_id);
@@ -204,7 +204,7 @@ namespace AIPOWER {
         return (int16_t)scaled_strength;
     }
 
-    int16_t __cdecl Max_Ship_Hits(const game::s_view* world, game::t_ship_id ship_id) {
+    int16_t __cdecl Max_Ship_Hits(const game::s_view* world, game::id_ship ship_id) {
         const uint32_t ship_idx = legacy_world::Slot(ship_id);
         if (world->settings->strategic_combat_flag == 0) {
             const auto legacy_ship = legacy_world::Index(ship_id);
@@ -234,16 +234,16 @@ namespace AIPOWER {
         }
     }
 
-    uint16_t Ship_Strength_Vs_Ships(const game::s_view* world, game::t_ship_id attacker_idx, game::t_player_id target_idx) {
+    uint16_t Ship_Strength_Vs_Ships(const game::s_view* world, game::id_ship attacker_idx, game::id_player target_idx) {
         int16_t shield_value = Get_Best_Ship_Shield_Value(TECHDATA::shields, target_idx);
         return (uint16_t)Ship_Strength_Vs_Shield(world, attacker_idx, target_idx, shield_value);
     }
 
-    uint16_t Ship_Strength_Vs_Ships_In_Nebula(const game::s_view* world, game::t_ship_id attacker_idx, game::t_player_id target_idx) {
+    uint16_t Ship_Strength_Vs_Ships_In_Nebula(const game::s_view* world, game::id_ship attacker_idx, game::id_player target_idx) {
         return (uint16_t)AIPOWER::Ship_Strength_Vs_Shield(world, attacker_idx, target_idx, 0);
     }
 
-    int16_t __cdecl Current_Ship_Hits(const game::s_view* world, game::t_ship_id ship_id) {
+    int16_t __cdecl Current_Ship_Hits(const game::s_view* world, game::id_ship ship_id) {
         const uint32_t ship_idx = legacy_world::Slot(ship_id);
         int16_t hits;
 
@@ -260,7 +260,7 @@ namespace AIPOWER {
         return hits;
     }
 
-    void __cdecl Ship_Strength_Vs_Planetary_Shield(const game::s_view* world, game::t_ship_id ship_id, uint16_t* shield_strengths) {
+    void __cdecl Ship_Strength_Vs_Planetary_Shield(const game::s_view* world, game::id_ship ship_id, uint16_t* shield_strengths) {
         const uint32_t ship_idx = legacy_world::Slot(ship_id);
         uint32_t strengths[PLANETARY_SHIELD_COUNT];
         uint16_t shield_reductions[PLANETARY_SHIELD_COUNT] = {2, 7, 12, 22};
@@ -318,7 +318,7 @@ namespace AIPOWER {
         }
     }
 
-    int16_t Base_Generic_Ocv(const game::s_view* world, game::t_player_id player_id) {
+    int16_t Base_Generic_Ocv(const game::s_view* world, game::id_player player_id) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
         const auto legacy_player = legacy_world::Index(player_id);
         if (!legacy_player) return 0;
@@ -335,7 +335,7 @@ namespace AIPOWER {
         return bonus;
     }
 
-    uint16_t Colony_Space_Strength_Vs_Player(const game::s_view* world, game::t_colony_id colony_id, game::t_player_id player_id) {
+    uint16_t Colony_Space_Strength_Vs_Player(const game::s_view* world, game::id_colony colony_id, game::id_player player_id) {
         const s_colony* colony = &world->colonies[legacy_world::Slot(colony_id)];
         int16_t building_type = -1;
 
@@ -350,7 +350,7 @@ namespace AIPOWER {
         return AIPOWER::Satelite_Strength_Vs_Ships(world, building_type, legacy_world::Player_Id(colony->owner), player_id);
     }
 
-    int16_t Base_Generic_Dcv(const game::s_view* world, game::t_player_id player_id) {
+    int16_t Base_Generic_Dcv(const game::s_view* world, game::id_player player_id) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
         const auto legacy_player = legacy_world::Index(player_id);
         if (!legacy_player) return 0;
@@ -370,7 +370,7 @@ namespace AIPOWER {
         return dcv;
     }
 
-    uint16_t Satelite_Strength_Vs_Ships(const game::s_view* world, int16_t building_type, game::t_player_id player_id, game::t_player_id target_player_id) {
+    uint16_t Satelite_Strength_Vs_Ships(const game::s_view* world, int16_t building_type, game::id_player player_id, game::id_player target_player_id) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
         const auto legacy_player = legacy_world::Index(player_id);
         if (!legacy_player) return 0;
@@ -462,7 +462,7 @@ namespace AIPOWER {
         return (uint16_t)total_strength;
     }
 
-    uint32_t Missile_Base_Strength(const game::s_view* world, game::t_player_id player_id, game::t_player_id target_id) {
+    uint32_t Missile_Base_Strength(const game::s_view* world, game::id_player player_id, game::id_player target_id) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
         const auto legacy_player = legacy_world::Index(player_id);
         if (!legacy_player) return 0;
@@ -495,7 +495,7 @@ namespace AIPOWER {
         return strength;
     }
 
-    uint16_t Colony_Ground_Strength_Vs_Player(const game::s_view* world, game::t_colony_id colony_id, game::t_player_id player_id) {
+    uint16_t Colony_Ground_Strength_Vs_Player(const game::s_view* world, game::id_colony colony_id, game::id_player player_id) {
         const uint32_t colony_idx = legacy_world::Slot(colony_id);
         uint16_t strength = 0;
         const s_colony* colony = &world->colonies[colony_idx];
@@ -532,7 +532,7 @@ namespace AIPOWER {
         return strength;
     }
 
-    uint32_t Phasor_Base_Strength(const game::s_view* world, game::t_player_id player_id, game::t_player_id target_id) {
+    uint32_t Phasor_Base_Strength(const game::s_view* world, game::id_player player_id, game::id_player target_id) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
         const auto legacy_player = legacy_world::Index(player_id);
         if (!legacy_player) return 0;
@@ -568,7 +568,7 @@ namespace AIPOWER {
         return total_power;
     }
 
-    uint16_t Fighter_Garrison_Strength(const game::s_view* world, game::t_player_id player_id, game::t_player_id target_player_id) {
+    uint16_t Fighter_Garrison_Strength(const game::s_view* world, game::id_player player_id, game::id_player target_player_id) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
         const auto legacy_player = legacy_world::Index(player_id);
         if (!legacy_player) return 0;

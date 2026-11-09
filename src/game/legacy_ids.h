@@ -8,43 +8,43 @@ namespace legacy_world {
     // IDs remain index-preserving until the game-managed state owns their mapping.
     // Use the factories for known-present slots or full-width keys, Try_* for
     // signed fields with absence sentinels, and Index for checked legacy calls.
-    constexpr game::t_ship_id Ship_Id(uint32_t value) { return {value}; }
-    constexpr game::t_colony_id Colony_Id(uint32_t value) { return {value}; }
-    constexpr game::t_planet_id Planet_Id(uint32_t value) { return {value}; }
-    constexpr game::t_star_id Star_Id(uint32_t value) { return {value}; }
-    constexpr game::t_player_id Player_Id(uint32_t value) { return {value}; }
-    constexpr game::t_leader_id Leader_Id(uint32_t value) { return {value}; }
+    constexpr game::id_ship Ship_Id(uint32_t value) { return {value}; }
+    constexpr game::id_colony Colony_Id(uint32_t value) { return {value}; }
+    constexpr game::id_planet Planet_Id(uint32_t value) { return {value}; }
+    constexpr game::id_star Star_Id(uint32_t value) { return {value}; }
+    constexpr game::id_player Player_Id(uint32_t value) { return {value}; }
+    constexpr game::id_leader Leader_Id(uint32_t value) { return {value}; }
 
-    constexpr game::t_ship_id Ship_Id(game::t_ship_id id) { return id; }
-    constexpr game::t_colony_id Colony_Id(game::t_colony_id id) { return id; }
-    constexpr game::t_planet_id Planet_Id(game::t_planet_id id) { return id; }
-    constexpr game::t_star_id Star_Id(game::t_star_id id) { return id; }
-    constexpr game::t_player_id Player_Id(game::t_player_id id) { return id; }
-    constexpr game::t_leader_id Leader_Id(game::t_leader_id id) { return id; }
+    constexpr game::id_ship Ship_Id(game::id_ship id) { return id; }
+    constexpr game::id_colony Colony_Id(game::id_colony id) { return id; }
+    constexpr game::id_planet Planet_Id(game::id_planet id) { return id; }
+    constexpr game::id_star Star_Id(game::id_star id) { return id; }
+    constexpr game::id_player Player_Id(game::id_player id) { return id; }
+    constexpr game::id_leader Leader_Id(game::id_leader id) { return id; }
 
-    constexpr uint32_t Slot(game::t_ship_id value) { return value.id; }
-    constexpr uint32_t Slot(game::t_colony_id value) { return value.id; }
-    constexpr uint32_t Slot(game::t_planet_id value) { return value.id; }
-    constexpr uint32_t Slot(game::t_star_id value) { return value.id; }
-    constexpr uint32_t Slot(game::t_player_id value) { return value.id; }
-    constexpr uint32_t Slot(game::t_leader_id value) { return value.id; }
+    constexpr uint32_t Slot(game::id_ship value) { return value.id; }
+    constexpr uint32_t Slot(game::id_colony value) { return value.id; }
+    constexpr uint32_t Slot(game::id_planet value) { return value.id; }
+    constexpr uint32_t Slot(game::id_star value) { return value.id; }
+    constexpr uint32_t Slot(game::id_player value) { return value.id; }
+    constexpr uint32_t Slot(game::id_leader value) { return value.id; }
 
-    constexpr std::optional<game::t_ship_id> Try_Ship_Id(int32_t index) {
+    constexpr std::optional<game::id_ship> Try_Ship_Id(int32_t index) {
         return index < 0 ? std::nullopt : std::optional{Ship_Id(static_cast<uint32_t>(index))};
     }
-    constexpr std::optional<game::t_colony_id> Try_Colony_Id(int32_t index) {
+    constexpr std::optional<game::id_colony> Try_Colony_Id(int32_t index) {
         return index < 0 ? std::nullopt : std::optional{Colony_Id(static_cast<uint32_t>(index))};
     }
-    constexpr std::optional<game::t_planet_id> Try_Planet_Id(int32_t index) {
+    constexpr std::optional<game::id_planet> Try_Planet_Id(int32_t index) {
         return index < 0 ? std::nullopt : std::optional{Planet_Id(static_cast<uint32_t>(index))};
     }
-    constexpr std::optional<game::t_star_id> Try_Star_Id(int32_t index) {
+    constexpr std::optional<game::id_star> Try_Star_Id(int32_t index) {
         return index < 0 ? std::nullopt : std::optional{Star_Id(static_cast<uint32_t>(index))};
     }
-    constexpr std::optional<game::t_player_id> Try_Player_Id(int32_t index) {
+    constexpr std::optional<game::id_player> Try_Player_Id(int32_t index) {
         return index < 0 ? std::nullopt : std::optional{Player_Id(static_cast<uint32_t>(index))};
     }
-    constexpr std::optional<game::t_leader_id> Try_Leader_Id(int32_t index) {
+    constexpr std::optional<game::id_leader> Try_Leader_Id(int32_t index) {
         return index < 0 ? std::nullopt : std::optional{Leader_Id(static_cast<uint32_t>(index))};
     }
 
@@ -54,21 +54,21 @@ namespace legacy_world {
             return static_cast<int16_t>(value);
         }
     }
-    constexpr std::optional<int16_t> Index(game::t_ship_id id) { return detail::Narrow_Index(Slot(id)); }
-    constexpr std::optional<int16_t> Index(game::t_colony_id id) { return detail::Narrow_Index(Slot(id)); }
-    constexpr std::optional<int16_t> Index(game::t_planet_id id) { return detail::Narrow_Index(Slot(id)); }
-    constexpr std::optional<int16_t> Index(game::t_star_id id) { return detail::Narrow_Index(Slot(id)); }
-    constexpr std::optional<int16_t> Index(game::t_player_id id) { return detail::Narrow_Index(Slot(id)); }
-    constexpr std::optional<int16_t> Index(game::t_leader_id id) { return detail::Narrow_Index(Slot(id)); }
+    constexpr std::optional<int16_t> Index(game::id_ship id) { return detail::Narrow_Index(Slot(id)); }
+    constexpr std::optional<int16_t> Index(game::id_colony id) { return detail::Narrow_Index(Slot(id)); }
+    constexpr std::optional<int16_t> Index(game::id_planet id) { return detail::Narrow_Index(Slot(id)); }
+    constexpr std::optional<int16_t> Index(game::id_star id) { return detail::Narrow_Index(Slot(id)); }
+    constexpr std::optional<int16_t> Index(game::id_player id) { return detail::Narrow_Index(Slot(id)); }
+    constexpr std::optional<int16_t> Index(game::id_leader id) { return detail::Narrow_Index(Slot(id)); }
 
     // Legacy qsort passes erased pointers to the typed elements being compared.
-    inline game::t_ship_id Read_Ship_Id(const void* value) {
-        return *static_cast<const game::t_ship_id*>(value);
+    inline game::id_ship Read_Ship_Id(const void* value) {
+        return *static_cast<const game::id_ship*>(value);
     }
-    inline game::t_colony_id Read_Colony_Id(const void* value) {
-        return *static_cast<const game::t_colony_id*>(value);
+    inline game::id_colony Read_Colony_Id(const void* value) {
+        return *static_cast<const game::id_colony*>(value);
     }
-    inline game::t_star_id Read_Star_Id(const void* value) {
-        return *static_cast<const game::t_star_id*>(value);
+    inline game::id_star Read_Star_Id(const void* value) {
+        return *static_cast<const game::id_star*>(value);
     }
 } // namespace legacy_world

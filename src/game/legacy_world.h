@@ -11,18 +11,18 @@
 
 namespace legacy_world {
     game::s_view World();
-    std::optional<game::t_colony_id> Colony_Id(const game::s_view* world, const s_colony* colony);
+    std::optional<game::id_colony> Colony_Id(const game::s_view* world, const s_colony* colony);
 
     inline std::optional<uint32_t> Nonnegative_Slot(int32_t index) {
         if (index < 0) return std::nullopt;
         return (uint32_t)index;
     }
 
-    inline std::optional<std::vector<int16_t>> Ship_List(std::span<const game::t_ship_id> ids) {
+    inline std::optional<std::vector<int16_t>> Ship_List(std::span<const game::id_ship> ids) {
         if (ids.size() > INT16_MAX) return std::nullopt;
         std::vector<int16_t> encoded;
         encoded.reserve(ids.size() + 1);
-        for (game::t_ship_id id : ids) {
+        for (game::id_ship id : ids) {
             auto index = Index(id);
             if (!index) return std::nullopt;
             encoded.push_back(*index);

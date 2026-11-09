@@ -78,7 +78,7 @@ namespace aidudes {
         }
     }
 
-    void Colony_AI(AIDATA::s_state* ai, const game::s_view* world, game::t_player_id player_id) {
+    void Colony_AI(AIDATA::s_state* ai, const game::s_view* world, game::id_player player_id) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
         auto& work = ai->players[player_idx].colony_work;
         work = {};
@@ -362,7 +362,7 @@ namespace aidudes {
         }
     }
 
-    void Freighter_Cheat(const game::s_view* world, game::t_player_id player_id) {
+    void Freighter_Cheat(const game::s_view* world, game::id_player player_id) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
         s_player* plr = &world->players[player_idx];
 
@@ -424,7 +424,7 @@ namespace aidudes {
             s_ship_data* ship = &world->ships[legacy_world::Slot(entry->ship_id)];
             auto orbit = legacy_world::Orbit_Star(ship);
             if (!orbit) continue;
-            const game::t_star_id location = *orbit;
+            const game::id_star location = *orbit;
 
             // Skip ships in systems with incoming human activity
             if (ai->stars[location].enroute_human_ships[3] != 0) {
@@ -778,7 +778,7 @@ namespace aidudes {
         return (int)POP::Get_Race(val1) - (int)POP::Get_Race(val2);
     }
 
-    void Assign_Empire_Building(AIDATA::s_state* ai, const game::s_view* world, game::t_player_id player_id) {
+    void Assign_Empire_Building(AIDATA::s_state* ai, const game::s_view* world, game::id_player player_id) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
         const auto legacy_player = legacy_world::Index(player_id);
         if (!legacy_player) return;
@@ -809,8 +809,8 @@ namespace aidudes {
         }
 
         bool recalculate_colony = false;
-        std::vector<game::t_colony_id> colony_queue_storage(world->Colony_Count());
-        game::t_colony_id* colony_queue = colony_queue_storage.data();
+        std::vector<game::id_colony> colony_queue_storage(world->Colony_Count());
+        game::id_colony* colony_queue = colony_queue_storage.data();
 
         if (world->Colony_Count() > 0) {
             for (int16_t current_colony_idx = 0; current_colony_idx < world->Colony_Count(); ++current_colony_idx) {
@@ -940,7 +940,7 @@ namespace aidudes {
             }
         }
 
-        qsort(colony_queue, (uint32_t)colony_queue_count, sizeof(game::t_colony_id), aidudes::colony_less_industry_cmp, world->colonies);
+        qsort(colony_queue, (uint32_t)colony_queue_count, sizeof(game::id_colony), aidudes::colony_less_industry_cmp, world->colonies);
 
         if (AIBUILD::rules.strategic.expansion.enabled &&
             p->tech_applications[TECH_APP_COLONY_BASE] == TECH_RESEARCH_STATUS_RESEARCHED) {
@@ -1007,7 +1007,7 @@ namespace aidudes {
                 p->bc + p->surplus_bc < p->total_maintenance &&
                 p->surplus_bc < 0 &&
                 temp_colony->maintenance[1] < temp_colony->production[1]) {
-                const game::t_colony_id current_colony_idx = colony_queue[i];
+                const game::id_colony current_colony_idx = colony_queue[i];
                 AIBUILD::Force_Produce(world, colony_queue, i, &colony_queue_count, AIBUILD::rules.strategic.economic_emergency.product);
                 const auto legacy_colony = legacy_world::Index(current_colony_idx);
                 if (!legacy_colony) return;
@@ -1016,7 +1016,7 @@ namespace aidudes {
             }
 
             int vs_ships_2 = needs.combat_strength.additional_wanted;
-            const game::t_colony_id current_colony_idx = colony_queue[i];
+            const game::id_colony current_colony_idx = colony_queue[i];
             const auto legacy_colony = legacy_world::Index(current_colony_idx);
             if (!legacy_colony) return;
 

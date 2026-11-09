@@ -429,7 +429,7 @@ namespace AI_SNOOPS_DEBUG {
                 ImGui::TableSetupColumn("Bomb 0-3");
                 ImGui::TableSetupColumn("Refit");
                 ImGui::TableHeadersRow();
-                for (game::t_ship_id ship_id : ai->combat_ships) {
+                for (game::id_ship ship_id : ai->combat_ships) {
                     const uint32_t ship = legacy_world::Slot(ship_id);
                     if (ship < 0 || ship >= MOX::NUM_SHIPS) continue;
                     auto entry = ai->ships.find(legacy_world::Ship_Id(ship));

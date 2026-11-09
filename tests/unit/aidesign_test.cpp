@@ -206,7 +206,7 @@ namespace KEN {
 }
 
 namespace AIPOWER {
-    int16_t Get_Best_Ship_Shield_Value(const s_tech_shield_data*, game::t_player_id) {
+    int16_t Get_Best_Ship_Shield_Value(const s_tech_shield_data*, game::id_player) {
         return 1;
     }
 }

@@ -5,31 +5,31 @@
 #include "game/ai_compat.h"
 #include <type_traits>
 
-using game::t_ship_id;
+using game::id_ship;
 using legacy_world::Ship_Id;
 using legacy_world::Star_Id;
 using legacy_world::Player_Id;
 
-static_assert(std::is_aggregate_v<game::t_ship_id>);
-static_assert(std::is_aggregate_v<game::t_colony_id>);
-static_assert(std::is_aggregate_v<game::t_planet_id>);
-static_assert(std::is_aggregate_v<game::t_star_id>);
-static_assert(std::is_aggregate_v<game::t_player_id>);
-static_assert(std::is_aggregate_v<game::t_leader_id>);
-static_assert(!std::is_convertible_v<uint32_t, t_ship_id>);
-static_assert(!std::is_convertible_v<t_ship_id, uint32_t>);
-static_assert(!std::is_convertible_v<t_ship_id, game::t_colony_id>);
-static_assert(!std::is_convertible_v<game::t_planet_id, game::t_star_id>);
-static_assert(!std::is_convertible_v<game::t_player_id, game::t_leader_id>);
+static_assert(std::is_aggregate_v<game::id_ship>);
+static_assert(std::is_aggregate_v<game::id_colony>);
+static_assert(std::is_aggregate_v<game::id_planet>);
+static_assert(std::is_aggregate_v<game::id_star>);
+static_assert(std::is_aggregate_v<game::id_player>);
+static_assert(std::is_aggregate_v<game::id_leader>);
+static_assert(!std::is_convertible_v<uint32_t, id_ship>);
+static_assert(!std::is_convertible_v<id_ship, uint32_t>);
+static_assert(!std::is_convertible_v<id_ship, game::id_colony>);
+static_assert(!std::is_convertible_v<game::id_planet, game::id_star>);
+static_assert(!std::is_convertible_v<game::id_player, game::id_leader>);
 static_assert(!std::is_invocable_v<decltype(&AIPOWER::Max_Ship_Hits),
-    const game::s_view*, game::t_colony_id>);
-using t_star_routes = AIDATA::s_direct_route_table<game::t_star_id>;
+    const game::s_view*, game::id_colony>);
+using t_star_routes = AIDATA::s_direct_route_table<game::id_star>;
 static_assert(!std::is_invocable_v<decltype(&t_star_routes::Store), t_star_routes*,
-    t_ship_id, game::t_star_id, game::t_player_id, uint8_t>);
+    id_ship, game::id_star, game::id_player, uint8_t>);
 
 DOCTEST_TEST_CASE_TEMPLATE("ID structs provide value equality and preserve integer hashing", t_id,
-    game::t_ship_id, game::t_colony_id, game::t_planet_id,
-    game::t_star_id, game::t_player_id, game::t_leader_id) {
+    game::id_ship, game::id_colony, game::id_planet,
+    game::id_star, game::id_player, game::id_leader) {
     constexpr t_id zero{};
     static_assert(zero.id == 0);
     static_assert(t_id{7} == t_id{7});
@@ -216,7 +216,7 @@ DOCTEST_TEST_CASE("typed ship ID shuffling keeps the legacy permutation and RNG 
     uint32_t first_seed = 42;
     uint32_t second_seed = 42;
     int16_t old_ids[] = {0, 1, 2, 3, 4, 5};
-    t_ship_id ids[] = {Ship_Id(0), Ship_Id(1), Ship_Id(2), Ship_Id(3), Ship_Id(4), Ship_Id(5)};
+    id_ship ids[] = {Ship_Id(0), Ship_Id(1), Ship_Id(2), Ship_Id(3), Ship_Id(4), Ship_Id(5)};
     const uint32_t expected[] = {4, 0, 1, 5, 3, 2};
     RUSS::Shuffle_Sint_With_Seed(&first_seed, old_ids, 6);
     ai_compat::Shuffle_Ships(&second_seed, ids);
@@ -232,7 +232,7 @@ DOCTEST_TEST_CASE("typed star ID shuffling keeps the legacy permutation and RNG 
     uint32_t legacy_seed = 42;
     uint32_t seed = legacy_seed;
     int16_t indices[] = {0, 1, 2, 3, 4, 5};
-    game::t_star_id ids[] = {Star_Id(0), Star_Id(1), Star_Id(2), Star_Id(3), Star_Id(4), Star_Id(5)};
+    game::id_star ids[] = {Star_Id(0), Star_Id(1), Star_Id(2), Star_Id(3), Star_Id(4), Star_Id(5)};
     RUSS::Shuffle_Sint_With_Seed(&legacy_seed, indices, 6);
     ai_compat::Shuffle_Stars(&seed, ids);
     for (size_t i = 0; i < std::size(ids); ++i) DOCTEST_CHECK(ids[i] == Star_Id(indices[i]));
@@ -346,11 +346,11 @@ DOCTEST_TEST_CASE("star assessments name treaty partners and hostile players by 
 }
 
 DOCTEST_TEST_CASE("legacy ship-list encoding accepts zero, rejects narrowing, and owns its terminator") {
-    const t_ship_id ids[] = {Ship_Id(0), Ship_Id(INT16_MAX)};
+    const id_ship ids[] = {Ship_Id(0), Ship_Id(INT16_MAX)};
     auto encoded = legacy_world::Ship_List(ids);
     DOCTEST_REQUIRE(encoded);
     DOCTEST_CHECK(*encoded == std::vector<int16_t>{0, INT16_MAX, -1});
-    const t_ship_id invalid[] = {Ship_Id(UINT32_MAX)};
+    const id_ship invalid[] = {Ship_Id(UINT32_MAX)};
     DOCTEST_CHECK_FALSE(legacy_world::Ship_List(invalid));
     auto empty = legacy_world::Ship_List({});
     DOCTEST_REQUIRE(empty);
@@ -359,7 +359,7 @@ DOCTEST_TEST_CASE("legacy ship-list encoding accepts zero, rejects narrowing, an
 
 DOCTEST_TEST_CASE("AI strength lookup does not narrow a ship identity to a legacy index") {
     AIDATA::s_state ai;
-    constexpr t_ship_id ship_id = Ship_Id(0x12345678u);
+    constexpr id_ship ship_id = Ship_Id(0x12345678u);
     ai.ships[ship_id].strengths[1] = 123;
     ai.ships[ship_id].strengths_in_nebula[1] = 277;
     ai.ships[Ship_Id(0)].strengths[1] = 7;
@@ -385,7 +385,7 @@ DOCTEST_TEST_CASE("fleet evaluation passes a proposed origin without modifying r
     legacy_ships[0].y = legacy_ships[1].y = 20;
     legacy_stars[1].x = 100;
     legacy_stars[1].y = 200;
-    const t_ship_id ids[] = {Ship_Id(0), Ship_Id(0), Ship_Id(1)};
+    const id_ship ids[] = {Ship_Id(0), Ship_Id(0), Ship_Id(1)};
     s_ship_move_info result{};
     proposed_origin.reset();
     DOCTEST_CHECK(ai_compat::Evaluate_Fleet_Move(ids, Star_Id(0), &result, Star_Id(1)) == SHIPMOVE::e_fleet_evaluation::can_move);
@@ -399,14 +399,14 @@ DOCTEST_TEST_CASE("fleet evaluation passes a proposed origin without modifying r
         DOCTEST_CHECK((int16_t)ship.y == 20);
     }
     queried = false;
-    const t_ship_id invalid[] = {Ship_Id(UINT32_MAX)};
+    const id_ship invalid[] = {Ship_Id(UINT32_MAX)};
     ai_compat::Evaluate_Fleet_Move(invalid, Star_Id(0), &result);
     DOCTEST_CHECK_FALSE(queried);
     DOCTEST_CHECK(result.moving == 0);
     queried = false;
     ai_compat::Evaluate_Fleet_Move({}, Star_Id(0), &result);
     DOCTEST_CHECK_FALSE(queried);
-    const t_ship_id nonexistent[] = {Ship_Id(2)};
+    const id_ship nonexistent[] = {Ship_Id(2)};
     DOCTEST_CHECK(ai_compat::Evaluate_Fleet_Move(nonexistent, Star_Id(0), &result) == SHIPMOVE::e_fleet_evaluation::invalid_input);
     DOCTEST_CHECK_FALSE(queried);
 }
@@ -416,7 +416,7 @@ DOCTEST_TEST_CASE("movement planning rejects destinations unsupported by the leg
     game::s_view world;
     world.ships = ships;
     AIMOVE::s_ai_movement_context context{Player_Id(0), nullptr, nullptr, &world};
-    const t_ship_id ids[] = {Ship_Id(0)};
+    const id_ship ids[] = {Ship_Id(0)};
     queried = false;
     auto route = AIMOVE::Move_Ships_With_Possible_Intermediate(&context, ids, Star_Id(UINT32_MAX));
     DOCTEST_CHECK_FALSE(route);
@@ -424,8 +424,8 @@ DOCTEST_TEST_CASE("movement planning rejects destinations unsupported by the leg
 }
 
 DOCTEST_TEST_CASE("fleet evaluation and ordering share native request validation") {
-    const t_ship_id ships[] = {Ship_Id(0)};
-    const t_ship_id missing[] = {Ship_Id(MOX::NUM_SHIPS)};
+    const id_ship ships[] = {Ship_Id(0)};
+    const id_ship missing[] = {Ship_Id(MOX::NUM_SHIPS)};
     s_ship_move_info result{};
     queried = false;
     DOCTEST_CHECK(ai_compat::Evaluate_Fleet_Move(missing, Star_Id(0), &result) == SHIPMOVE::e_fleet_evaluation::invalid_input);
@@ -443,10 +443,10 @@ DOCTEST_TEST_CASE("fleet evaluation and ordering share native request validation
 }
 
 DOCTEST_TEST_CASE("AI movement rejects wide IDs rather than aliasing legacy index zero") {
-    const t_ship_id valid[] = {Ship_Id(0)};
+    const id_ship valid[] = {Ship_Id(0)};
     s_ship_move_info result{};
     for (uint32_t id : {uint32_t{INT16_MAX} + 1, uint32_t{1} << 16, UINT32_MAX}) {
-        const t_ship_id invalid[] = {Ship_Id(id)};
+        const id_ship invalid[] = {Ship_Id(id)};
         queried = false;
         result.moving = 1;
         DOCTEST_CHECK(ai_compat::Evaluate_Fleet_Move(invalid, Star_Id(0), &result) == SHIPMOVE::e_fleet_evaluation::invalid_input);

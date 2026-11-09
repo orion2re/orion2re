@@ -3,7 +3,7 @@
 #include "legacy_world.h"
 
 namespace legacy_world {
-    std::optional<game::t_colony_id> Colony_Id(const game::s_view* world, const s_colony* colony) {
+    std::optional<game::id_colony> Colony_Id(const game::s_view* world, const s_colony* colony) {
         if (world == nullptr || world->colonies == nullptr || world->colony_count == nullptr || *world->colony_count < 0) return std::nullopt;
         const uintptr_t first = reinterpret_cast<uintptr_t>(world->colonies);
         const uintptr_t address = reinterpret_cast<uintptr_t>(colony);

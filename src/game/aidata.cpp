@@ -6,7 +6,7 @@
 namespace AIDATA {
     using game::e_ship_location;
 
-    t_player_id Colony_Dominant_Player(int32_t player_count, const s_colony* colony) {
+    id_player Colony_Dominant_Player(int32_t player_count, const s_colony* colony) {
         uint8_t player_counts[MAX_PLAYERS] = {0};
         int total_pops = 0;
 
@@ -47,7 +47,7 @@ namespace AIDATA {
         return legacy_world::Player_Id(current_owner);
     }
 
-    bool Star_In_Range_Of_Given_Star(const game::s_view* world, t_star_id target_star_idx, t_star_id source_star_idx, int32_t max_range_parsecs) {
+    bool Star_In_Range_Of_Given_Star(const game::s_view* world, id_star target_star_idx, id_star source_star_idx, int32_t max_range_parsecs) {
         bool in_range = false;
 
         const auto source = legacy_world::Index(source_star_idx);
@@ -165,7 +165,7 @@ namespace AIDATA {
                 bool player_owned = owner >= 0 && owner < MAX_PLAYERS;
                 const auto location = legacy_world::Read_Ship_Location(&ship);
                 if (!location) continue;
-                std::optional<t_star_id> star_id;
+                std::optional<id_star> star_id;
                 int turn_idx = -1;
                 if (ship.status == 0) {
                     star_id = location->star_id;
@@ -300,7 +300,7 @@ namespace AIDATA {
                 if (turns) ai->routes.ship_direct.Store(legacy_world::Ship_Id(i), legacy_world::Star_Id(dest_star), legacy_world::Player_Id(0), (uint8_t)*turns);
                 if (SHIPMOVE::Can_Order_Ship(&ship)) {
                     uint8_t mask = (1 << ship.owner);
-                    const std::array<t_ship_id, 1> move_info{legacy_world::Ship_Id(i)};
+                    const std::array<id_ship, 1> move_info{legacy_world::Ship_Id(i)};
                     s_ship_move_info out_info;
                     for (int16_t s = 0; s < world->Star_Count(); ++s) {
                         if ((ai->stars[legacy_world::Star_Id(s)].in_extended_range & mask) && s != dest_star) {
@@ -445,7 +445,7 @@ namespace AIDATA {
             qsort(refits.data(), refits.size(), sizeof(s_refit_candidate), airefit_cmp);
         }
 
-        qsort(ai->combat_ships.data(), ai->combat_ships.size(), sizeof(t_ship_id), sort_ships, world->ships);
+        qsort(ai->combat_ships.data(), ai->combat_ships.size(), sizeof(id_ship), sort_ships, world->ships);
 
         for (uint32_t i = 0; i < ai->combat_ships.size(); ++i) {
             const uint32_t ship_idx = legacy_world::Slot(ai->combat_ships[i]);
@@ -539,7 +539,7 @@ namespace AIDATA {
 
         for (int16_t s = 0; s < world->Star_Count(); ++s) {
             if (world->stars[s].has_colony) {
-                std::array<std::optional<t_planet_id>, MAX_PLAYERS> best_planet_at_star{};
+                std::array<std::optional<id_planet>, MAX_PLAYERS> best_planet_at_star{};
                 std::array<int16_t, MAX_PLAYERS> best_planet_val_at_star{};
                 for (int pl_i = 0; pl_i < 5; ++pl_i) {
                     int16_t pl_idx = world->stars[s].planet_index[pl_i];
@@ -685,7 +685,7 @@ namespace AIDATA {
         }
     }
 
-    void Find_Players_In_Range(const game::s_view* world, t_star_id star_idx, int8_t* in_normal_range_out, int8_t* in_extended_range_out) {
+    void Find_Players_In_Range(const game::s_view* world, id_star star_idx, int8_t* in_normal_range_out, int8_t* in_extended_range_out) {
         auto& target_star = world->stars[legacy_world::Slot(star_idx)];
         int32_t target_x = target_star.x;
         int32_t target_y = target_star.y;
@@ -935,7 +935,7 @@ namespace AIDATA {
     constexpr uint16_t MAX_CACHED_TRAVEL_TURNS = 254;
 
     std::optional<s_route> Player_N_Turns_From_Star_To_Star_With_Intermediate(
-        s_state* ai, const game::s_view* world, t_player_id player_id, t_star_id source_star, t_star_id destination_star, bool use_extended_range) {
+        s_state* ai, const game::s_view* world, id_player player_id, id_star source_star, id_star destination_star, bool use_extended_range) {
         const uint32_t player_index = legacy_world::Slot(player_id);
         const s_route_key key{player_id, source_star, destination_star};
         auto cached = ai->routes.intermediate.find(key);
@@ -973,7 +973,7 @@ namespace AIDATA {
 
         if (!direct_is_best) {
             for (int32_t index = world->Star_Count() - 1; index >= 0; --index) {
-                const t_star_id star_id = legacy_world::Star_Id(index);
+                const id_star star_id = legacy_world::Star_Id(index);
                 const auto assessment = ai->stars.find(star_id);
                 if (assessment == ai->stars.end()) continue;
                 const auto& star_assessment = assessment->second;
@@ -989,7 +989,7 @@ namespace AIDATA {
                         const auto second_leg = direct_routes.Find_Cell(intermediate_row, destination_offset);
                         if (first_leg && second_leg) {
                             const uint16_t turns = *first_leg + *second_leg;
-                            const t_star_id next_star = star_id == source_star ? destination_star : star_id;
+                            const id_star next_star = star_id == source_star ? destination_star : star_id;
                             if (turns <= MAX_CACHED_TRAVEL_TURNS) {
                                 if (((star_assessment.in_range >> player_index) & 1) &&
                                     (!choices.normal || turns < choices.normal->turns)) {
@@ -1009,7 +1009,7 @@ namespace AIDATA {
         return use_extended_range ? choices.extended : choices.normal;
     }
 
-    std::optional<s_route> Ship_N_Turns_To_Star_With_Intermediate(s_state* ai, const game::s_view* world, t_ship_id ship_id, t_star_id destination_star) {
+    std::optional<s_route> Ship_N_Turns_To_Star_With_Intermediate(s_state* ai, const game::s_view* world, id_ship ship_id, id_star destination_star) {
         const uint64_t key = Ship_Route_Key(ship_id, destination_star);
         auto cached = ai->routes.ship_intermediate.find(key);
         if (cached != ai->routes.ship_intermediate.end()) return cached->second;
@@ -1019,10 +1019,10 @@ namespace AIDATA {
         const bool has_stargate = struct_::Read_Bit_Field(ship->d.special_device_flags, 11);
         const auto location = legacy_world::Read_Ship_Location(ship);
         if (location && location->kind == e_ship_location::in_flight) {
-            const t_star_id destination = location->star_id;
+            const id_star destination = location->star_id;
             const uint32_t owner = (uint32_t)ship->owner;
             for (int32_t index = world->Star_Count() - 1; index >= 0; --index) {
-                const t_star_id star_id = legacy_world::Star_Id(index);
+                const id_star star_id = legacy_world::Star_Id(index);
                 const auto& star_assessment = ai->stars[star_id];
                 const bool in_range = (star_assessment.in_range >> owner) & 1;
                 const bool in_extended_range = (star_assessment.in_extended_range >> owner) & 1;
@@ -1048,7 +1048,7 @@ namespace AIDATA {
         } else {
             auto source = location && location->kind == e_ship_location::in_wormhole
                 ? legacy_world::Try_Star_Id(HAROLD::XY_To_Star_Id(ship->x, ship->y))
-                : location ? std::optional<t_star_id>{location->star_id} : std::nullopt;
+                : location ? std::optional<id_star>{location->star_id} : std::nullopt;
             if (source) {
                 result = Player_N_Turns_From_Star_To_Star_With_Intermediate(
                     ai, world, legacy_world::Player_Id(ship->owner), *source, destination_star, has_stargate);
@@ -1058,7 +1058,7 @@ namespace AIDATA {
         return result;
     }
 
-    int16_t __cdecl Colony_Worth_To_Player(s_state* ai, const game::s_view* world, t_colony_id colony_idx, s_colony* colony, s_player* evaluating_player) {
+    int16_t __cdecl Colony_Worth_To_Player(s_state* ai, const game::s_view* world, id_colony colony_idx, s_colony* colony, s_player* evaluating_player) {
         int16_t evaluating_player_idx = (int16_t)(evaluating_player - world->players);
         s_planet_data* planet = &world->planets[colony->planet];
         const auto race_index = legacy_world::Index(ai->colonies[colony_idx].dominant_race);
