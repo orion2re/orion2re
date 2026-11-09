@@ -245,7 +245,8 @@ DOCTEST_TEST_CASE("invalid new-game requests fail before resetting game or Lua s
     const uint32_t prior_seed = game_random::Get_Random_Seed();
     constexpr uint32_t seed = 0x12345678;
     game_random::Set_Random_Seed(seed);
-    for (int count : {INT16_MIN, INT8_MIN, -1, 0, 1, MAX_PLAYERS + 2, INT8_MAX, 256, INT16_MAX}) {
+    const int invalid_counts[] = {INT16_MIN, INT8_MIN, -1, 0, 1, MAX_PLAYERS + 2, INT8_MAX, 256, INT16_MAX};
+    for (int count : invalid_counts) {
         DOCTEST_CAPTURE(count);
         DOCTEST_CHECK_FALSE(INITGAME::Init_New_Game(
             GAME_DIFFICULTY_HARD, GALAXY_SIZE_MEDIUM, GALAXY_AGE_AVERAGE, (int16_t)count, 0, STARTING_CIVILIZATION_LEVEL_AVERAGE));
