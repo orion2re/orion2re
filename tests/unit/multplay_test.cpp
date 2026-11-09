@@ -72,6 +72,24 @@ namespace animate {
     }
 } // namespace animate
 
+DOCTEST_TEST_CASE("hotseat player status distinguishes eligible and completed turns") {
+    memset(players, 0, sizeof(players));
+    players[0].objectives = PLAYER_OBJECTIVE_HUMAN;
+
+    DOCTEST_CHECK(MULTPLAY::Hotseat_Player_Status(0) == 2);
+
+    players[0].player_done_flags = 1;
+    DOCTEST_CHECK(MULTPLAY::Hotseat_Player_Status(0) == 1);
+
+    players[0].eliminated = 1;
+    DOCTEST_CHECK(MULTPLAY::Hotseat_Player_Status(0) == 0);
+
+    players[0].eliminated = 0;
+    players[0].player_done_flags = 0;
+    players[0].objectives = PLAYER_OBJECTIVE_MILITARIST;
+    DOCTEST_CHECK(MULTPLAY::Hotseat_Player_Status(0) == 0);
+}
+
 DOCTEST_TEST_CASE("hotseat fields use actual player digits across visible gaps") {
     memset(&mp_screen, 0, sizeof(mp_screen));
     memset(players, 0, sizeof(players));
@@ -162,4 +180,23 @@ DOCTEST_TEST_CASE("LAN and online selections do not expose the legacy setup butt
     MULTPLAY::Add_MP_Setup_Screen_Fields();
     DOCTEST_CHECK((mp_screen.field_id_setup == -1000));
     DOCTEST_CHECK(button_field_count == 4);
+}
+
+DOCTEST_TEST_CASE("hotseat setup exposes start and load but not join or legacy setup") {
+    memset(&mp_screen, 0, sizeof(mp_screen));
+    memset(&MOX::settings, 0, sizeof(MOX::settings));
+    next_field_id = 1;
+    button_field_count = 0;
+
+    MOX::settings.multi_player_game_type = 4;
+    MULTPLAY::Set_Multi_Player_Game_Type();
+    MULTPLAY::Add_MP_Setup_Screen_Fields();
+
+    DOCTEST_CHECK(MOX::game_type == 1);
+    DOCTEST_CHECK((mp_screen.flag_hotseat_disabled == 1));
+    DOCTEST_CHECK((mp_screen.field_id_start_game > 0));
+    DOCTEST_CHECK((mp_screen.field_id_load_game > 0));
+    DOCTEST_CHECK((mp_screen.field_id_join_game == -1000));
+    DOCTEST_CHECK((mp_screen.field_id_setup == -1000));
+    DOCTEST_CHECK(button_field_count == 3);
 }

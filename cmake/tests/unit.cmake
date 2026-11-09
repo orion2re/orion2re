@@ -137,11 +137,12 @@ orion2re_add_unit_test(test_fields_helpers
         tests/fakes/fake_video.cpp
 )
 
+# Link this unit without dead stripping so every production dependency must be supplied.
 orion2re_add_unit_test(test_multplay
     SOURCES
         tests/unit/multplay_test.cpp
     PRODUCTION_SOURCES
-        src/game/multplay.cpp
+        src/game/multplay_fields.cpp
 )
 
 orion2re_add_unit_test(test_netstart_pick_position
@@ -164,18 +165,6 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
         target_link_options(test_netstart_pick_position PRIVATE -Wl,-dead_strip)
     else()
         target_link_options(test_netstart_pick_position PRIVATE -Wl,--gc-sections)
-    endif()
-endif()
-
-if(MSVC)
-    target_compile_options(test_multplay PRIVATE /Gy)
-    target_link_options(test_multplay PRIVATE /OPT:REF)
-elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-    target_compile_options(test_multplay PRIVATE -ffunction-sections -fdata-sections)
-    if(APPLE)
-        target_link_options(test_multplay PRIVATE -Wl,-dead_strip)
-    else()
-        target_link_options(test_multplay PRIVATE -Wl,--gc-sections)
     endif()
 endif()
 
