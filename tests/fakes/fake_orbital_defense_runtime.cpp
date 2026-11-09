@@ -13,7 +13,7 @@ namespace {
 
 namespace AIBUILD {
 
-    int16_t Player_War_Level(const game_world::s_view*, uint32_t) {
+    int16_t Player_War_Level(const game_world::s_view*, game_world::t_player_id) {
         return 1;
     }
     int16_t __cdecl Industry_Worth(s_colony*) {
@@ -31,14 +31,14 @@ namespace AIBUILD {
         return 100;
     }
 
-    void Build_Production_Context(AIDATA::s_state*, const game_world::s_view*, uint32_t, const s_colony*, int32_t, production_rules::s_context* context) {
+    void Build_Production_Context(AIDATA::s_state*, const game_world::s_view*, game_world::t_colony_id, const s_colony*, int32_t, production_rules::s_context* context) {
         *context = {};
     }
 
-    void __cdecl Force_Produce(const game_world::s_view*, uint32_t* queue, uint32_t index, int32_t* count, int16_t product) {
+    void __cdecl Force_Produce(const game_world::s_view*, game_world::t_colony_id* queue, uint32_t index, int32_t* count, int16_t product) {
         DOCTEST_REQUIRE(*count == 1);
         DOCTEST_REQUIRE(index == 0);
-        MOX::colony[queue[index]].producing[0] = product;
+        MOX::colony[legacy_world::Slot(queue[index])].producing[0] = product;
         --*count;
     }
 } // namespace AIBUILD
@@ -156,7 +156,7 @@ namespace EVENTS {
 } // namespace EVENTS
 
 namespace AIMOVE {
-    std::optional<uint32_t> Best_Uncolonized_Undestined_Planet(AIDATA::s_state*, const game_world::s_view*, uint32_t) {
+    std::optional<game_world::t_planet_id> Best_Uncolonized_Undestined_Planet(AIDATA::s_state*, const game_world::s_view*, game_world::t_player_id) {
         return std::nullopt;
     }
 } // namespace AIMOVE

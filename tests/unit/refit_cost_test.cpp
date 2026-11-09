@@ -2,6 +2,8 @@
 
 #include "doctest/doctest.h"
 
+using legacy_world::Colony_Id;
+
 namespace TEST_AIBUILD_CONTEXT {
     AIDATA::s_state* State_();
     const game_world::s_view* World_();
@@ -39,8 +41,8 @@ namespace {
 DOCTEST_TEST_CASE("production facts use the supplied colony identity, not its address") {
     TEST_AIBUILD_CONTEXT::Reset_();
     auto* ai = TEST_AIBUILD_CONTEXT::State_();
-    constexpr uint32_t id = 0x12345678u;
-    ai->colonies[id] = ai->colonies.at(0);
+    constexpr auto id = Colony_Id(0x12345678u);
+    ai->colonies[id] = ai->colonies.at(Colony_Id(0));
     ai->colonies[id].population_limit = 21;
     s_colony detached = MOX::colony[0];
     production_rules::s_context context;
@@ -57,13 +59,13 @@ DOCTEST_TEST_CASE_FIXTURE(s_refit_runtime, "Food Replicator defaults do not gate
 
     MOX::colony[0].production[ECON_FOOD] = 7;
     MOX::colony[0].n_food_replicated = 3;
-    AIBUILD::Build_Production_Context(TEST_AIBUILD_CONTEXT::State_(), TEST_AIBUILD_CONTEXT::World_(), 0, &MOX::colony[0], 0, &context);
+    AIBUILD::Build_Production_Context(TEST_AIBUILD_CONTEXT::State_(), TEST_AIBUILD_CONTEXT::World_(), Colony_Id(0), &MOX::colony[0], 0, &context);
     DOCTEST_CHECK(context.metrics[production_rules::METRIC_COLONY_FOOD] == 4);
     DOCTEST_CHECK(production_rules::Evaluate_Eligibility(
         &context, &candidate->eligibility));
 
     MOX::colony[0].production[ECON_FOOD] = 6;
-    AIBUILD::Build_Production_Context(TEST_AIBUILD_CONTEXT::State_(), TEST_AIBUILD_CONTEXT::World_(), 0, &MOX::colony[0], 0, &context);
+    AIBUILD::Build_Production_Context(TEST_AIBUILD_CONTEXT::State_(), TEST_AIBUILD_CONTEXT::World_(), Colony_Id(0), &MOX::colony[0], 0, &context);
     DOCTEST_CHECK(context.metrics[production_rules::METRIC_COLONY_FOOD] == 3);
     DOCTEST_CHECK(production_rules::Evaluate_Eligibility(
         &context, &candidate->eligibility));
@@ -84,7 +86,7 @@ DOCTEST_TEST_CASE("named AI production needs distinguish totals from additional 
     needs.colony_ships.enroute = 1;
 
     production_rules::s_context context{};
-    AIBUILD::Build_Production_Context(ai, TEST_AIBUILD_CONTEXT::World_(), 0, &MOX::colony[0], 0, &context);
+    AIBUILD::Build_Production_Context(ai, TEST_AIBUILD_CONTEXT::World_(), Colony_Id(0), &MOX::colony[0], 0, &context);
     DOCTEST_CHECK(context.metrics[production_rules::METRIC_CURRENT_STRENGTH] == 40);
     DOCTEST_CHECK(context.metrics[production_rules::METRIC_COMBAT_NEED] == 15);
     DOCTEST_CHECK(context.metrics[production_rules::METRIC_DESIRED_STRENGTH] == 55);
@@ -96,13 +98,13 @@ DOCTEST_TEST_CASE("named AI production needs distinguish totals from additional 
 DOCTEST_TEST_CASE("public presence metrics distinguish hostile neutral and treaty-partner players") {
     TEST_AIBUILD_CONTEXT::Reset_();
     auto* ai = TEST_AIBUILD_CONTEXT::State_();
-    auto& neighborhood = ai->stars[0].neighborhood.per_player[0];
+    auto& neighborhood = ai->stars[legacy_world::Star_Id(0)].neighborhood.per_player[0];
     neighborhood.treaty_partners_in_range = 2;
     neighborhood.neutral_players_in_range = 1;
     neighborhood.hostile_players_in_range = 3;
     neighborhood.players_only_in_extended_range = 4;
     production_rules::s_context context;
-    AIBUILD::Build_Production_Context(ai, TEST_AIBUILD_CONTEXT::World_(), 0, &MOX::colony[0], 0, &context);
+    AIBUILD::Build_Production_Context(ai, TEST_AIBUILD_CONTEXT::World_(), Colony_Id(0), &MOX::colony[0], 0, &context);
     DOCTEST_CHECK(context.metrics[production_rules::METRIC_ENEMY_PRESENCE] == 3);
     DOCTEST_CHECK(context.metrics[production_rules::METRIC_NEUTRAL_PRESENCE] == 1);
     DOCTEST_CHECK(context.metrics[production_rules::METRIC_ALLIED_PRESENCE] == 2);

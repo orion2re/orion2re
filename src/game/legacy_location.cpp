@@ -1,6 +1,7 @@
 #include "pch.h"
 
 #include "legacy_location.h"
+#include "legacy_ids.h"
 
 namespace legacy_world {
     std::optional<game_world::s_ship_location> Decode_Ship_Location(int32_t encoded) {
@@ -15,14 +16,14 @@ namespace legacy_world {
         }
         // The extra destination is the legacy Antares/portal location.
         if (encoded > MAX_STARS) return std::nullopt;
-        return game_world::s_ship_location{kind, (uint32_t)encoded};
+        return game_world::s_ship_location{kind, Star_Id((uint32_t)encoded)};
     }
 
     std::optional<game_world::s_ship_location> Read_Ship_Location(const s_ship_data* ship) {
         return Decode_Ship_Location(ship->location);
     }
 
-    std::optional<uint32_t> Orbit_Star(const s_ship_data* ship) {
+    std::optional<game_world::t_star_id> Orbit_Star(const s_ship_data* ship) {
         auto location = Read_Ship_Location(ship);
         if (!location || location->kind != game_world::e_ship_location::at_star) return std::nullopt;
         return location->star_id;
@@ -64,8 +65,8 @@ namespace legacy_world {
     }
 
     std::optional<int16_t> Encode_Ship_Location(const game_world::s_ship_location* location) {
-        if (location->star_id > MAX_STARS) return std::nullopt;
-        int32_t encoded = (int32_t)location->star_id;
+        if (Slot(location->star_id) > MAX_STARS) return std::nullopt;
+        int32_t encoded = (int32_t)Slot(location->star_id);
         switch (location->kind) {
             case game_world::e_ship_location::at_star: break;
             case game_world::e_ship_location::in_flight: encoded += SHIP_LOCATION_MOVING_OFFSET; break;

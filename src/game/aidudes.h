@@ -7,7 +7,7 @@ struct s_colony;
 namespace aidudes {
 
     struct s_ai_colony_context {
-        uint32_t i_ai;
+        game_world::t_player_id i_ai;
         s_player* p_ai;
         AIDATA::s_colony_workspace* work;
         const game_world::s_view* world;
@@ -45,7 +45,7 @@ namespace aidudes {
      * Grants emergency freighters to an AI empire that is short on food logistics.
      * @param player_idx Player receiving the freighter check.
      */
-    void Freighter_Cheat(const game_world::s_view* world, uint32_t player_idx);
+    void Freighter_Cheat(const game_world::s_view* world, game_world::t_player_id player_idx);
 
     /**
      * Opportunistically upgrades eligible AI ships using the current refit tables.
@@ -106,7 +106,7 @@ namespace aidudes {
      * Selects a shared emergency build project for colonies with open queues.
      * @param player_idx Player whose colonies are being updated.
      */
-    void Assign_Empire_Building(AIDATA::s_state* ai, const game_world::s_view* world, uint32_t player_idx);
+    void Assign_Empire_Building(AIDATA::s_state* ai, const game_world::s_view* world, game_world::t_player_id player_idx);
 
     /**
      * Revalidates researching colonies after assignment changes.
@@ -122,7 +122,7 @@ namespace aidudes {
      * Runs the full colony-AI pass for one player.
      * @param player_idx AI player index to process.
      */
-    void Colony_AI(AIDATA::s_state* ai, const game_world::s_view* world, uint32_t player_idx);
+    void Colony_AI(AIDATA::s_state* ai, const game_world::s_view* world, game_world::t_player_id player_idx);
 
     /**
      * Runs colony AI for every active player.

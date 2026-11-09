@@ -99,7 +99,8 @@ namespace AIBUILD {
         return (int16_t)(refit_cost < min_cost ? min_cost : refit_cost);
     }
 
-    int16_t Player_War_Level(const game_world::s_view* world, uint32_t player_idx) {
+    int16_t Player_War_Level(const game_world::s_view* world, game_world::t_player_id player_id) {
+        const uint32_t player_idx = legacy_world::Slot(player_id);
         int16_t max_war_level = 0;
 
         for (int16_t i = 0; i < world->Player_Count(); ++i) {
@@ -137,11 +138,11 @@ namespace AIBUILD {
 
                 if (ship->d.ship_type == SHIP_TYPE_COMBAT) {
                     const auto opponents = Opponents(world);
-                    int32_t strength = (int32_t)Mean_Ship_Strength(&opponents, &ai->ships[i], &ai->players[owner].empire, ship);
+                    int32_t strength = (int32_t)Mean_Ship_Strength(&opponents, &ai->ships[legacy_world::Ship_Id(i)], &ai->players[owner].empire, ship);
                     needs.combat_strength.total += strength;
 
                     if (ship->status != 6) {
-                        needs.combat_strength.excluding_queued_builds += (int32_t)Mean_Ship_Strength(&opponents, &ai->ships[i], &ai->players[owner].empire, ship);
+                        needs.combat_strength.excluding_queued_builds += (int32_t)Mean_Ship_Strength(&opponents, &ai->ships[legacy_world::Ship_Id(i)], &ai->players[owner].empire, ship);
                     }
 
                     needs.ship_sizes.ship_counts[(int32_t)ship->d.size]++;
@@ -173,7 +174,7 @@ namespace AIBUILD {
         }
 
         for (int16_t player = 0; player < world->Player_Count(); ++player) {
-            Compute_Needs(ai, world, player);
+            Compute_Needs(ai, world, legacy_world::Player_Id(player));
         }
     }
 
@@ -197,8 +198,9 @@ namespace AIBUILD {
         }
     }
 
-    void Compute_Needs(AIDATA::s_state* ai, const game_world::s_view* world, uint32_t player_idx) {
-        const auto legacy_player = legacy_world::Index(player_idx);
+    void Compute_Needs(AIDATA::s_state* ai, const game_world::s_view* world, game_world::t_player_id player_id) {
+        const uint32_t player_idx = legacy_world::Slot(player_id);
+        const auto legacy_player = legacy_world::Index(player_id);
         if (!legacy_player) return;
         auto& needs = ai->players[player_idx].build;
         const auto& info = ai->players[player_idx].empire;
@@ -343,7 +345,7 @@ namespace AIBUILD {
         } else if (world->players[player_idx].surplus_bc < 1024) {
             int32_t scaled_need = (special::isqrt(world->players[player_idx].surplus_bc) * current_need) >> 5;
             needs.combat_strength.additional_wanted = scaled_need;
-            if (Player_War_Level(world, player_idx) == 0) {
+            if (Player_War_Level(world, player_id) == 0) {
                 needs.combat_strength.additional_wanted = special::isqrt(scaled_need) >> 4;
             }
         }
@@ -408,7 +410,8 @@ namespace AIBUILD {
         Compute_Freighter_Need(&needs, world->players[player_idx].surplus_freighters);
     }
 
-    void Empire_Buy_Outright(AIDATA::s_state* ai, const game_world::s_view* world, uint32_t player_idx) {
+    void Empire_Buy_Outright(AIDATA::s_state* ai, const game_world::s_view* world, game_world::t_player_id player_id) {
+        const uint32_t player_idx = legacy_world::Slot(player_id);
         s_player* player = &world->players[player_idx];
         int16_t total_maintenance = (int16_t)(uint16_t)player->total_maintenance;
 
@@ -447,7 +450,7 @@ namespace AIBUILD {
 
                 if ((int32_t)total_maintenance + cost >= player->bc) continue;
 
-                AIDATA::s_colony_assessment* ai_info = &ai->colonies[i];
+                AIDATA::s_colony_assessment* ai_info = &ai->colonies[legacy_world::Colony_Id(i)];
                 if (!ai_info->other_player_arrivals) {
                     if (player->bc - (int32_t)total_maintenance - cost < limit) continue;
                 }
@@ -480,7 +483,7 @@ namespace AIBUILD {
                     if (weights[i] == 0) continue;
 
                     if (has_threatened) {
-                        AIDATA::s_colony_assessment* ai_info = &ai->colonies[i];
+                        AIDATA::s_colony_assessment* ai_info = &ai->colonies[legacy_world::Colony_Id(i)];
                         if (!ai_info->other_player_arrivals || (uint32_t)weights[i] * 4 < (uint32_t)max_weight_threatened * 3) {
                             weights[i] = 0;
                         }
@@ -494,14 +497,14 @@ namespace AIBUILD {
 
             chosen_colony = RUSS::Choose_Weighted_Index_U16(world->random_seed, weights, world->Colony_Count());
             if (chosen_colony) {
-                auto colony_index = legacy_world::Index(*chosen_colony);
+                auto colony_index = legacy_world::Index(legacy_world::Colony_Id(*chosen_colony));
                 if (colony_index) COLCALC::Colony_Buy_Outright(*colony_index);
             }
 
         } while (chosen_colony);
     }
 
-    void __cdecl Assign_Colony_Building(AIDATA::s_state* ai, const game_world::s_view* world, uint32_t colony_id, s_colony* colony) {
+    void __cdecl Assign_Colony_Building(AIDATA::s_state* ai, const game_world::s_view* world, game_world::t_colony_id colony_id, s_colony* colony) {
         if (colony->outpost_flag == 0 && colony->n_pops != 0) {
             int16_t current_production = colony->producing[0];
 
@@ -522,14 +525,14 @@ namespace AIBUILD {
         }
     }
 
-    void Build_Production_Context(AIDATA::s_state* ai, const game_world::s_view* world, uint32_t colony_idx, const s_colony* colony, int32_t war_level, production_rules::s_context* context) {
+    void Build_Production_Context(AIDATA::s_state* ai, const game_world::s_view* world, game_world::t_colony_id colony_idx, const s_colony* colony, int32_t war_level, production_rules::s_context* context) {
         memset(context, 0, sizeof(*context));
         int32_t owner = (uint8_t)colony->owner;
         const s_player* player = &world->players[owner];
         const s_planet_data* planet = &world->planets[colony->planet];
         const AIDATA::s_colony_assessment* ai_colony = &ai->colonies[colony_idx];
         const AIDATA::s_star_player_assessment* star_info =
-            &ai->stars[planet->star_index].neighborhood.per_player[owner];
+            &ai->stars[legacy_world::Star_Id(planet->star_index)].neighborhood.per_player[owner];
 
         int32_t population = (uint8_t)colony->n_pops;
         int32_t population_limit = (uint8_t)ai_colony->population_limit;
@@ -538,7 +541,7 @@ namespace AIBUILD {
             (uint8_t)colony->food2_needed_for_assimilated +
             (uint8_t)colony->food2_needed_for_conquered +
             (uint8_t)colony->food2_needed_for_natives;
-        if (war_level < 0) war_level = Player_War_Level(world, owner);
+        if (war_level < 0) war_level = Player_War_Level(world, legacy_world::Player_Id(owner));
 
         context->metrics[production_rules::METRIC_POPULATION] = population;
         context->metrics[production_rules::METRIC_POPULATION_LIMIT] = population_limit;
@@ -558,7 +561,7 @@ namespace AIBUILD {
         context->metrics[production_rules::METRIC_CLIMATE] = planet->climate;
         context->metrics[production_rules::METRIC_MINERAL_CLASS] = planet->mineral_class;
         context->metrics[production_rules::METRIC_INCOMING_HUMAN_SHIPS] =
-            ai->stars[planet->star_index].enroute_human_ships[AIDATA::LAST_FORECAST_TURN];
+            ai->stars[legacy_world::Star_Id(planet->star_index)].enroute_human_ships[AIDATA::LAST_FORECAST_TURN];
         context->metrics[production_rules::METRIC_ENEMY_PRESENCE] = (uint8_t)star_info->hostile_players_in_range;
         context->metrics[production_rules::METRIC_NEUTRAL_PRESENCE] = (uint8_t)star_info->neutral_players_in_range;
         context->metrics[production_rules::METRIC_ALLIED_PRESENCE] = (uint8_t)star_info->treaty_partners_in_range;
@@ -640,7 +643,7 @@ namespace AIBUILD {
         context->mineral_class = planet->mineral_class;
     }
 
-    int16_t __cdecl Colony_Building_Score(AIDATA::s_state* ai, const game_world::s_view* world, uint32_t colony_idx, s_colony* colony, int16_t building_id) {
+    int16_t __cdecl Colony_Building_Score(AIDATA::s_state* ai, const game_world::s_view* world, game_world::t_colony_id colony_idx, s_colony* colony, int16_t building_id) {
         uint8_t owner_u8 = (uint8_t)colony->owner;
         int32_t owner = owner_u8;
         s_player* player = &world->players[owner];
@@ -660,7 +663,7 @@ namespace AIBUILD {
 
         s_planet_data* planet = &world->planets[colony->planet];
         int16_t star_idx = planet->star_index;
-        AIDATA::s_star_neighborhood* ai_star = &ai->stars[star_idx].neighborhood;
+        AIDATA::s_star_neighborhood* ai_star = &ai->stars[legacy_world::Star_Id(star_idx)].neighborhood;
         AIDATA::s_star_player_assessment* star_player_info = &ai_star->per_player[owner];
 
         uint8_t pollution_controls_applicable = (uint8_t)ai_colony->pollution_controls_relevant;
@@ -1065,7 +1068,7 @@ namespace AIBUILD {
         return false;
     }
 
-    void __cdecl Assign_Colony_New_Building(AIDATA::s_state* ai, const game_world::s_view* world, uint32_t colony_idx, s_colony* colony) {
+    void __cdecl Assign_Colony_New_Building(AIDATA::s_state* ai, const game_world::s_view* world, game_world::t_colony_id colony_idx, s_colony* colony) {
         const auto legacy_colony = legacy_world::Index(colony_idx);
         if (!legacy_colony) return;
         uint16_t weights[52];
@@ -1127,8 +1130,8 @@ namespace AIBUILD {
         }
     }
 
-    void __cdecl Force_Produce(const game_world::s_view* world, uint32_t* id_list, uint32_t list_index, int32_t* list_count, int16_t production_id) {
-        uint32_t colony_idx = id_list[list_index];
+    void __cdecl Force_Produce(const game_world::s_view* world, game_world::t_colony_id* id_list, uint32_t list_index, int32_t* list_count, int16_t production_id) {
+        const uint32_t colony_idx = legacy_world::Slot(id_list[list_index]);
         world->colonies[colony_idx].producing[0] = production_id;
         *list_count -= 1;
         int32_t items_to_move = *list_count - (int32_t)list_index;
@@ -1147,7 +1150,7 @@ namespace AIBUILD {
         return COLBLDG::Selection_Name(product_id);
     }
 
-    void __cdecl Player_Colony_Autobuild(AIDATA::s_state* ai, const game_world::s_view* world, uint32_t colony_idx, s_colony* colony) {
+    void __cdecl Player_Colony_Autobuild(AIDATA::s_state* ai, const game_world::s_view* world, game_world::t_colony_id colony_idx, s_colony* colony) {
         AIBUILD::Assign_Colony_New_Building(ai, world, colony_idx, colony);
     }
 } // namespace AIBUILD

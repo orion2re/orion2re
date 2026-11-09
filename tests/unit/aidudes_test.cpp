@@ -35,7 +35,7 @@ DOCTEST_TEST_CASE("blockaded colony stops assigning farmers when recalculation d
     TEST_AIDUDES::Reset_();
 
     AIDATA::s_colony_assignment colony_info = {};
-    colony_info.colony_id = 0;
+    colony_info.colony_id = legacy_world::Colony_Id(0);
 
     aidudes::Do_Blockaded_Colony(TEST_AIDUDES::World_(), &colony_info);
 

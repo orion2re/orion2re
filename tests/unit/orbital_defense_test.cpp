@@ -75,7 +75,7 @@ DOCTEST_TEST_CASE("AI station orders cannot create doubled defenses in the attac
                 TEST_ORBITAL_DEFENSE::Reset_(candidate + 6, large_ships);
                 if (existing >= 0) ERICNET::Add_Building(0, stations[existing]);
 
-                aidudes::Assign_Empire_Building(TEST_ORBITAL_DEFENSE::State_(), TEST_ORBITAL_DEFENSE::World_(), 0);
+                aidudes::Assign_Empire_Building(TEST_ORBITAL_DEFENSE::State_(), TEST_ORBITAL_DEFENSE::World_(), legacy_world::Player_Id(0));
 
                 DOCTEST_REQUIRE(TEST_ORBITAL_DEFENSE::choice_calls == 1);
                 const bool eligible = candidate > existing;

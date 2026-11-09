@@ -8,7 +8,7 @@ struct s_ship_data;
 namespace legacy_world {
     std::optional<game_world::s_ship_location> Decode_Ship_Location(int32_t encoded);
     std::optional<game_world::s_ship_location> Read_Ship_Location(const s_ship_data* ship);
-    std::optional<uint32_t> Orbit_Star(const s_ship_data* ship);
+    std::optional<game_world::t_star_id> Orbit_Star(const s_ship_data* ship);
     bool Same_Location_Tag(const s_ship_data* first, const s_ship_data* second);
     bool Same_Ship_Position(const s_ship_data* first, const s_ship_data* second);
     int Compare_Ship_Locations(const s_ship_data* first, const s_ship_data* second);

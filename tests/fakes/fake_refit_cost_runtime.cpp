@@ -44,8 +44,8 @@ namespace TEST_AIBUILD_CONTEXT {
         colonies[0].n_pops = 4;
         colonies[0].food2_needed_for_our_empire = 8;
         planets[0].star_index = 0;
-        ai.colonies[0].population_limit = 12;
-        ai.colonies[0].food_buildings_relevant = true;
+        ai.colonies[legacy_world::Colony_Id(0)].population_limit = 12;
+        ai.colonies[legacy_world::Colony_Id(0)].food_buildings_relevant = true;
     }
 } // namespace TEST_AIBUILD_CONTEXT
 

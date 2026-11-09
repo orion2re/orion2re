@@ -14,8 +14,8 @@ namespace aitech {
         return true;
     }
 
-    static int16_t Choose_AI_Tech_Application(const s_rules* research_rules, uint32_t player_idx, s_player* player) {
-        const auto legacy_player = legacy_world::Index(player_idx);
+    static int16_t Choose_AI_Tech_Application(const s_rules* research_rules, game_world::t_player_id player_id, s_player* player) {
+        const auto legacy_player = legacy_world::Index(player_id);
         if (!legacy_player) return -1;
         int16_t app_id = newtech::Choose_Tech_Application(*legacy_player);
 
@@ -330,7 +330,7 @@ namespace aitech {
             // Check for Colonization status
             bool can_colonize =
                 (plr->tech_applications[TECH_APP_THORIUM_FUEL_CELLS] == TECH_RESEARCH_STATUS_RESEARCHED) ||
-                AIMOVE::Best_Uncolonized_Undestined_Planet(ai, world, (uint32_t)p_idx).has_value();
+                AIMOVE::Best_Uncolonized_Undestined_Planet(ai, world, legacy_world::Player_Id(p_idx)).has_value();
 
             plr_info->colonization_idle = can_colonize ? 0 : 1;
         }
@@ -352,8 +352,10 @@ namespace aitech {
         }
     }
 
-    int16_t System_Proximity_Count(const game_world::s_view* world, uint32_t player_id, uint32_t other_player_id) {
-        const auto legacy_player = legacy_world::Index(player_id);
+    int16_t System_Proximity_Count(const game_world::s_view* world, game_world::t_player_id player, game_world::t_player_id other_player) {
+        const uint32_t player_id = legacy_world::Slot(player);
+        const uint32_t other_player_id = legacy_world::Slot(other_player);
+        const auto legacy_player = legacy_world::Index(player);
         if (!legacy_player) return 0;
         uint8_t player_bit = 1 << (player_id & 0x1F);
         uint8_t other_player_bit = 1 << (other_player_id & 0x1F);
@@ -375,7 +377,8 @@ namespace aitech {
         return score;
     }
 
-    int32_t Get_Max_Technology_Value(const game_world::s_view* world, uint32_t player_idx) {
+    int32_t Get_Max_Technology_Value(const game_world::s_view* world, game_world::t_player_id player_id) {
+        const uint32_t player_idx = legacy_world::Slot(player_id);
         int32_t max_cost = 0;
 
         for (int i = 0; i < TECH_FIELD_COUNT; ++i) {
@@ -404,7 +407,7 @@ namespace aitech {
 
         if (needs_new_tech) {
             const uint32_t player_idx = (uint32_t)(player - world->players);
-            int16_t app_id = Choose_AI_Tech_Application(&rules, player_idx, player);
+            int16_t app_id = Choose_AI_Tech_Application(&rules, legacy_world::Player_Id(player_idx), player);
 
             player->current_research_application = (int8_t)app_id;
 

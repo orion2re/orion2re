@@ -71,7 +71,7 @@ namespace {
 
         aidesign::Determine_Beam_Weapon_Modifications(
             AI_World_(),
-            kPlayer, SHIP_SIZE_SMALL,
+            legacy_world::Player_Id(kPlayer), SHIP_SIZE_SMALL,
             &types[0], &specials[0], &arcs[0],
             &types[1], &specials[1], &arcs[1],
             &types[2], &specials[2], &arcs[2]);
@@ -206,7 +206,7 @@ namespace KEN {
 }
 
 namespace AIPOWER {
-    int16_t Get_Best_Ship_Shield_Value(const s_tech_shield_data*, uint32_t) {
+    int16_t Get_Best_Ship_Shield_Value(const s_tech_shield_data*, game_world::t_player_id) {
         return 1;
     }
 }
@@ -324,7 +324,7 @@ DOCTEST_TEST_CASE("AI special themes use source-owned priority lists") {
     int16_t weapon_slot = 0;
     aidesign::Add_Theme_Special_To_Design(
         AI_World_(),
-        kPlayer, &design, 100, &weapon_slot);
+        legacy_world::Player_Id(kPlayer), &design, 100, &weapon_slot);
 
     DOCTEST_CHECK(struct_::Test_Bit_Field(
         design.special_device_flags, SPECIAL_TRANSPORTERS) != 0);
@@ -353,7 +353,7 @@ DOCTEST_TEST_CASE("AI armor and shield themes use configured priority lists") {
     players[kPlayer].ship_special_theme = AI_SHIP_SPECIAL_THEME_ARMOR;
     aidesign::Add_Theme_Special_To_Design(
         AI_World_(),
-        kPlayer, &design, 100, &weapon_slot);
+        legacy_world::Player_Id(kPlayer), &design, 100, &weapon_slot);
     DOCTEST_CHECK(struct_::Test_Bit_Field(
         design.special_device_flags, SPECIAL_TRANSPORTERS) != 0);
 
@@ -362,7 +362,7 @@ DOCTEST_TEST_CASE("AI armor and shield themes use configured priority lists") {
     players[kPlayer].ship_special_theme = AI_SHIP_SPECIAL_THEME_SHIELD;
     aidesign::Add_Theme_Special_To_Design(
         AI_World_(),
-        kPlayer, &design, 100, &weapon_slot);
+        legacy_world::Player_Id(kPlayer), &design, 100, &weapon_slot);
     DOCTEST_CHECK(struct_::Test_Bit_Field(
         design.special_device_flags, SPECIAL_AUGMENTED_ENGINES) != 0);
 }
@@ -471,7 +471,7 @@ DOCTEST_TEST_CASE("Doom Star autodesign uses a race-specific name") {
     TECHDATA::hull_data[SHIP_SIZE_DOOM_STAR].size = 100;
 
     s_ship_design design{};
-    aidesign::Auto_Design_Ship(AI_World_(), kPlayer, &design, SHIP_SIZE_DOOM_STAR);
+    aidesign::Auto_Design_Ship(AI_World_(), legacy_world::Player_Id(kPlayer), &design, SHIP_SIZE_DOOM_STAR);
 
     DOCTEST_CHECK(design.picture_num == 0x2b);
     DOCTEST_CHECK(ship_name_requested);
@@ -498,7 +498,7 @@ DOCTEST_TEST_CASE("Megafluxers keeps the Auto Design budget wide through Battle 
     MOX::cur_combat_x = -1000;
 
     s_ship_design design = {};
-    aidesign::Auto_Design_Ship(AI_World_(), kPlayer, &design, SHIP_SIZE_SMALL);
+    aidesign::Auto_Design_Ship(AI_World_(), legacy_world::Player_Id(kPlayer), &design, SHIP_SIZE_SMALL);
 
     DOCTEST_CHECK(struct_::Test_Bit_Field(
         design.special_device_flags, SPECIAL_BATTLE_PODS));
@@ -528,11 +528,11 @@ DOCTEST_TEST_CASE("Black Hole Generator chance selects the special-weapon design
 
     aidesign::rules.black_hole_generator_chance = 0;
     s_ship_design design = {};
-    aidesign::Auto_Design_Ship(AI_World_(), kPlayer, &design, SHIP_SIZE_TITAN);
+    aidesign::Auto_Design_Ship(AI_World_(), legacy_world::Player_Id(kPlayer), &design, SHIP_SIZE_TITAN);
     DOCTEST_CHECK(design.ship_weapon[0].type == 0);
 
     aidesign::rules.black_hole_generator_chance = 4;
-    aidesign::Auto_Design_Ship(AI_World_(), kPlayer, &design, SHIP_SIZE_TITAN);
+    aidesign::Auto_Design_Ship(AI_World_(), legacy_world::Player_Id(kPlayer), &design, SHIP_SIZE_TITAN);
     DOCTEST_CHECK(design.ship_weapon[0].type == WEAPON_BLACK_HOLE_GENERATOR);
 }
 
@@ -556,10 +556,10 @@ DOCTEST_TEST_CASE("Stellar Converter chance selects the Doom Star special-weapon
 
     aidesign::rules.stellar_converter_chance = 0;
     s_ship_design design = {};
-    aidesign::Auto_Design_Ship(AI_World_(), kPlayer, &design, SHIP_SIZE_DOOM_STAR);
+    aidesign::Auto_Design_Ship(AI_World_(), legacy_world::Player_Id(kPlayer), &design, SHIP_SIZE_DOOM_STAR);
     DOCTEST_CHECK(design.ship_weapon[0].type == 0);
 
     aidesign::rules.stellar_converter_chance = 4;
-    aidesign::Auto_Design_Ship(AI_World_(), kPlayer, &design, SHIP_SIZE_DOOM_STAR);
+    aidesign::Auto_Design_Ship(AI_World_(), legacy_world::Player_Id(kPlayer), &design, SHIP_SIZE_DOOM_STAR);
     DOCTEST_CHECK(design.ship_weapon[0].type == WEAPON_STELLAR_CONVERTER);
 }
