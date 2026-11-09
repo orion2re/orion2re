@@ -63,20 +63,6 @@ namespace MAINSCR {
             return MAP_SCALE::Scale_Star_Dimension_(dimension, HAROLD::Map_Star_Scale_Percent());
         }
 
-        bool Is_Extended_Max_Map_View() {
-            return MAP_SCALE::Is_Extended_Max_Map_View_(
-                MOX::NUM_STARS,
-                ORIGINAL_MAX_STARS,
-                MOX::cur_map_scale,
-                MOX::max_map_scale);
-        }
-
-        bool Use_Classic_Maximum_Galaxy_Display() {
-            return maximum_galaxy_display == MAXIMUM_GALAXY_DISPLAY_CLASSIC &&
-                MOX::settings.galaxy_size == GALAXY_SIZE_MAXIMUM &&
-                Is_Extended_Max_Map_View();
-        }
-
         bool Use_Main_Map_Overview_Markers() {
             return Use_Maximum_Galaxy_Overview() && MAP_SCALE::Use_Main_Map_Overview_Markers_(
                 main_map_overview_markers,
@@ -195,10 +181,6 @@ namespace MAINSCR {
     int8_t clear_fleet_fields;
     int8_t mouse_btn_pressed;
     int8_t merging_relocations;
-    s_mouse_list mouse_list_relocation[2] = {
-        {2, 0, 0, 0, 639, 479},
-        {18, 0, 22, 22, 526, 420},
-    };
     uint8_t warn_about_cheaters;
     uint8_t zoom_box_counter;
     uint8_t zoom_box_color_increment;
@@ -233,17 +215,9 @@ namespace MAINSCR {
     uint8_t in_auto_next_turn_mode;
 
     int16_t omniscient_hot_key = -1000;
-    int16_t all_tech_cheat = -1000;
-    int16_t leader_cheat = -1000;
-    int16_t more_money_cheat = -1000;
-    int16_t get_tech_cheat = -1000;
-    int16_t omniscience_cheat = -1000;
-    int16_t all_ai_cheat = -1000;
-    int16_t hi_score_cheat = -1000;
-    int16_t cycle_player_cheat = -1000;
-    int16_t reload_config_command = -1000;
-    int16_t reload_interface_command = -1000;
-    int16_t last_field;
+    extern int16_t cycle_player_cheat;
+    extern int16_t reload_config_command;
+    extern int16_t reload_interface_command;
 
     bool __cdecl Is_Main_Screen_Palette() {
         uint8_t screen = (uint8_t)MOX::previous_screen;
@@ -264,10 +238,6 @@ namespace MAINSCR {
         }
 
         return false;
-    }
-
-    bool Use_Maximum_Galaxy_Overview() {
-        return Is_Extended_Max_Map_View() && !Use_Classic_Maximum_Galaxy_Display();
     }
 
     void __cdecl Draw_Stars() {
@@ -1044,37 +1014,6 @@ namespace MAINSCR {
         }
     }
 
-    /**
-     * @brief Returns a 3-character unit abbreviation string for research points based on current language.
-     * 
-     * @param out Buffer of at least 3 bytes to store the result (including null terminator).
-     */
-    void __cdecl Get_Research_Unit_String(char* out_buffer) {
-        const char* src;
-
-        switch (MOX::settings.language) {
-            case 1:
-                src = "FP";
-                break;
-            case 2:
-                src = "PR";
-                break;
-            case 3:
-                src = "PI";
-                break;
-            case 4:
-                src = "PR";
-                break;
-            default:
-                src = "RP";
-                break;
-        }
-
-        out_buffer[0] = src[0];
-        out_buffer[1] = src[1];
-        out_buffer[2] = src[2];
-    }
-
     void __cdecl Draw_Diplomacy_Request_Lights() {
         int16_t drawn_count = 0;
         uint8_t requesting_mask = NETMOX::Humans_Requesting_Diplomacy();
@@ -1205,18 +1144,6 @@ namespace MAINSCR {
 
         Print_Star_Names();
         Print_Main_Screen_Data();
-    }
-
-    void __cdecl Set_Post_Fitted_Font_Style(uint8_t c1, uint8_t c2) {
-        int16_t style = MISC::Get_Font_Style();
-        int16_t spacing = MISC::Get_Font_Spacing();
-        s_colors colors;
-
-        MISC::Get_Mox_Font_Colors(style, (char)c1, (char)c2, &colors);
-
-        fonts::Set_Outline_Color(2, 1);
-        fonts::Set_Font_Style_Outline(style, &colors);
-        fonts::Set_Font_Spacing(spacing);
     }
 
     void __cdecl Set_Popup_Draw_XY(int16_t popup_type, int16_t ship_icon_idx, int16_t* out_w, int16_t* out_h) {
@@ -1631,37 +1558,6 @@ namespace MAINSCR {
         HAROLD::User_Box(&MOX::draw_main_screen_to_back, buffer, 0);
     }
 
-    bool __cdecl Check_Config_Reload_Hot_Key(int16_t key) {
-        const bool reload_all = key == reload_config_command;
-        if (!reload_all && key != reload_interface_command) {
-            return false;
-        }
-
-        config::s_cfg_diagnostic diagnostic;
-        const bool network_game = MOX::game_type == 2 || MOX::game_type == 3;
-        if (reload_all && network_game) {
-            HAROLD::User_Box(
-                &MOX::draw_main_screen_to_back,
-                "You may not reload config in a multiplayer game.",
-                0);
-        } else if (!(reload_all
-                           ? config::Reload_All_Active_Config_Groups(&diagnostic)
-                           : config::Reload_Active_Config_Groups(
-                                 network_game, &diagnostic))) {
-            HAROLD::User_Box(
-                &MOX::draw_main_screen_to_back,
-                diagnostic.message.c_str(),
-                0);
-        } else {
-            if (reload_all) {
-                HAROLD::User_Box(
-                    &MOX::draw_main_screen_to_back, "config reloaded", 0);
-            }
-            MOX::draw_main_screen_to_back = 1;
-        }
-        return true;
-    }
-
     /**
      * Handles main-screen cheat and debug hotkeys.
      *
@@ -1823,22 +1719,6 @@ namespace MAINSCR {
                 }
             }
         }
-    }
-
-    void __cdecl Add_Cheats() {
-        all_tech_cheat = fields::Add_Multi_Hot_Key_Field("EINSTEIN");
-        more_money_cheat = fields::Add_Multi_Hot_Key_Field("MOOLA");
-        get_tech_cheat = fields::Add_Multi_Hot_Key_Field("MENLO");
-        omniscience_cheat = fields::Add_Multi_Hot_Key_Field("ISEEALL");
-        reload_config_command = fields::Add_Multi_Hot_Key_Field("RE");
-        reload_interface_command = fields::Add_Multi_Hot_Key_Field("RI");
-        if (MOX::game_type < 2) {
-            cycle_player_cheat = fields::Add_Multi_Hot_Key_Field("X");
-        }
-        leader_cheat = fields::Add_Multi_Hot_Key_Field("ALE");
-        all_ai_cheat = fields::Add_Multi_Hot_Key_Field("ALLAI");
-        hi_score_cheat = fields::Add_Multi_Hot_Key_Field("SCOR");
-        last_field = fields::fields_count - 1;
     }
 
     void __cdecl Highlight_Star(int16_t star_idx) {
@@ -2242,58 +2122,6 @@ namespace MAINSCR {
      * Updates parallax background positions based on map movement.
      * Returns the vertical wrap count for the far background layer.
      */
-    int16_t __cdecl Get_New_Paralax_XYs(int16_t target_map_x, int16_t target_map_y, int16_t scale) {
-        int16_t dx = (static_cast<int32_t>(target_map_x) - MOX::cur_map_x) / scale;
-        int16_t dy = (static_cast<int32_t>(target_map_y) - MOX::cur_map_y) / scale;
-
-        int16_t near_x = MOX::near_star_x;
-        int16_t mid_x = MOX::mid_star_x;
-        int16_t far_x = MOX::far_star_x;
-
-        if (target_map_x != MOX::cur_map_x) {
-            // sign_x logic calculates -abs(dx)
-            int16_t sign_x = (dx > 0) ? -1 : (dx < 0 ? 1 : 0);
-            int16_t step_x = sign_x * dx;
-
-            far_x -= step_x;
-            mid_x -= 2 * step_x;
-            near_x -= 4 * step_x;
-        }
-
-        int16_t near_y = MOX::near_star_y;
-        int16_t mid_y = MOX::mid_star_y;
-        int16_t far_y = MOX::far_star_y;
-
-        if (target_map_y != MOX::cur_map_y) {
-            // sign_y logic calculates -abs(dy)
-            int16_t sign_y = (dy > 0) ? -1 : (dy < 0 ? 1 : 0);
-            int16_t step_y = sign_y * dy;
-
-            far_y -= step_y;
-            mid_y -= 2 * step_y;
-            near_y -= 4 * step_y;
-        }
-
-        // Apply screen wrap (640x480)
-        if (near_x < 0) near_x += 640;
-        if (near_y < 0) near_y += 480;
-        if (mid_x < 0) mid_x += 640;
-        if (mid_y < 0) mid_y += 480;
-        if (far_x < 0) far_x += 640;
-        if (far_y < 0) far_y += 480;
-
-        MOX::near_star_x = near_x % 640;
-        MOX::near_star_y = near_y % 480;
-        MOX::mid_star_x = mid_x % 640;
-        MOX::mid_star_y = mid_y % 480;
-        MOX::far_star_x = far_x % 640;
-
-        int16_t wrap_count_y = far_y / 480;
-        MOX::far_star_y = far_y % 480;
-
-        return wrap_count_y;
-    }
-
     int16_t __cdecl Scan_System_Display_Fields(int16_t mouse_input, int16_t input, int16_t* colony_btns, int16_t* m_planet_idx, int16_t* planet_idx, int16_t* m_ship_idx, int16_t* ship_idx, int16_t* selection) {
         int16_t ret_val = -1;
         int16_t gate_idx = -1;
@@ -2716,22 +2544,6 @@ namespace MAINSCR {
             box_ptr_idx++;
             icon_idx++;
         }
-    }
-
-    void __cdecl Center_Map(int16_t target_x, int16_t target_y) {
-        int16_t old_x = MOX::cur_map_x;
-        int16_t old_y = MOX::cur_map_y;
-
-        // Calculate top-left corner based on centered target
-        MOX::cur_map_x = MAP_SCALE::Clamp_Map_Offset_(target_x - HAROLD::Get_Up_Scaled_Value(253), MOX::MAP_MAX_X, HAROLD::Get_Up_Scaled_Value(506));
-        MOX::cur_map_y = MAP_SCALE::Clamp_Map_Offset_(target_y - HAROLD::Get_Up_Scaled_Value(200), MOX::MAP_MAX_Y, HAROLD::Get_Up_Scaled_Value(400));
-
-        // If viewport position changed, update parallax offsets
-        if (old_x != MOX::cur_map_x || old_y != MOX::cur_map_y) {
-            MAINSCR::Get_New_Paralax_XYs((int16_t)old_x, (int16_t)old_y, 1);
-        }
-
-        MOX::draw_main_screen_to_back = 1;
     }
 
     void __cdecl Add_Star_Fields() {

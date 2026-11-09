@@ -110,6 +110,7 @@ namespace MAINSCR {
     void __cdecl Draw_Stars();
 
     bool Use_Maximum_Galaxy_Overview();
+    bool Use_Classic_Maximum_Galaxy_Display();
 
     /** Draws territories for systems visible under the same discovery and contact rules as star labels. */
     void __cdecl Draw_Influence_Overlay();

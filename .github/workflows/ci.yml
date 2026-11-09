@@ -83,7 +83,8 @@ jobs:
       - name: Packaging regression tests
         run: python3 -m unittest discover -s tests/packaging -v
       - run: cmake --preset ${{ matrix.preset }}
-      - run: cmake --build --preset ${{ matrix.preset }} --parallel 3
+      # All test presets use Ninja. Report every build failure, not just the first one.
+      - run: cmake --build --preset ${{ matrix.preset }} --parallel 3 -- -k 0
       - name: Native game build smoke test
         run: cmake --build --preset ${{ matrix.preset }} --target orion2re --parallel 3
       - run: ctest --preset ${{ matrix.preset }} --no-tests=error

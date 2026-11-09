@@ -1,15 +1,13 @@
 #include "pch.h"
 
-#include <cstdlib>
-
-#include "lua/lua_network.h"
-
 namespace {
     s_player players_[MAX_PLAYERS];
     uint8_t game_data_;
     int32_t selected_position_ = -1;
     int32_t state_when_position_sent_ = -1;
     int32_t state_when_game_data_decoded_ = -1;
+    int16_t selection_result_;
+    int32_t messages_sent_;
 } // namespace
 
 namespace MOX {
@@ -28,6 +26,7 @@ namespace NETMOX {
         int16_t, uint16_t msg_type, void* packet, uint32_t packet_len) {
         if (msg_type == NET_PACKET_PICK_YOUR_POSITION_RESULT &&
             packet != nullptr && packet_len == sizeof(selected_position_)) {
+            ++messages_sent_;
             memcpy(&selected_position_, packet, sizeof(selected_position_));
             state_when_position_sent_ = net.sync_state;
             net.network_data_ptr = &game_data_;
@@ -51,6 +50,8 @@ namespace TEST_NETSTART {
         selected_position_ = -1;
         state_when_position_sent_ = -1;
         state_when_game_data_decoded_ = -1;
+        selection_result_ = 0;
+        messages_sent_ = 0;
         MOX::screen_seg = nullptr;
         MOX::temp_string[0] = '\0';
         MOX::PLAYER_NUM = 0;
@@ -77,13 +78,21 @@ namespace TEST_NETSTART {
         return state_when_game_data_decoded_;
     }
 
+    void Cancel_Selection_() {
+        selection_result_ = -1;
+    }
+
+    int32_t Messages_Sent_() {
+        return messages_sent_;
+    }
+
 } // namespace TEST_NETSTART
 
 namespace MULTPLAY {
     int16_t __cdecl Choose_Network_Plyrs_Screen(
         int16_t* selection, uint8_t*, int8_t, int8_t) {
         *selection = 0;
-        return 0;
+        return selection_result_;
     }
 
     void __cdecl Reload_Getting_Data_Info() {}
@@ -141,15 +150,3 @@ namespace MAINSCR2 {
 namespace NETTURN {
     char* waiting_message_fmt = const_cast<char*>("");
 }
-
-namespace orion2re::lua {
-    bool Network_Lua_Enabled() {
-        return false;
-    }
-} // namespace orion2re::lua
-
-namespace exitm {
-    [[noreturn]] void __cdecl Exit_With_Message(const char*) {
-        std::abort();
-    }
-} // namespace exitm

@@ -145,51 +145,28 @@ orion2re_add_unit_test(test_multplay
         src/game/multplay_fields.cpp
 )
 
+# Keep these focused units linkable without dead stripping on every platform.
 orion2re_add_unit_test(test_netstart_pick_position
     SOURCES
         tests/unit/netstart_test.cpp
     PRODUCTION_SOURCES
-        src/game/netstart.cpp
+        src/game/netstart_position.cpp
     FAKE_SOURCES
         tests/fakes/fake_netstart_runtime.cpp
     LINK_SDL
 )
 
-if(MSVC)
-    target_compile_options(test_netstart_pick_position PRIVATE /Gy)
-    target_link_options(test_netstart_pick_position PRIVATE /OPT:REF)
-elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-    target_compile_options(test_netstart_pick_position PRIVATE
-        -ffunction-sections -fdata-sections)
-    if(APPLE)
-        target_link_options(test_netstart_pick_position PRIVATE -Wl,-dead_strip)
-    else()
-        target_link_options(test_netstart_pick_position PRIVATE -Wl,--gc-sections)
-    endif()
-endif()
-
 orion2re_add_unit_test(test_mainscr_reload
     SOURCES
         tests/unit/mainscr_test.cpp
     PRODUCTION_SOURCES
-        src/game/mainscr.cpp
-        src/game/mainscr_main.cpp
+        src/game/mainscr_hotkeys.cpp
+        src/game/mainscr_hud.cpp
+        src/game/mainscr_view.cpp
     FAKE_SOURCES
         tests/fakes/fake_main_screen_hud_runtime.cpp
     LINK_SDL
 )
-
-if(MSVC)
-    target_compile_options(test_mainscr_reload PRIVATE /Gy)
-    target_link_options(test_mainscr_reload PRIVATE /OPT:REF)
-elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-    target_compile_options(test_mainscr_reload PRIVATE -ffunction-sections -fdata-sections)
-    if(APPLE)
-        target_link_options(test_mainscr_reload PRIVATE -Wl,-dead_strip)
-    else()
-        target_link_options(test_mainscr_reload PRIVATE -Wl,--gc-sections)
-    endif()
-endif()
 
 orion2re_add_unit_test(test_arena
     SOURCES

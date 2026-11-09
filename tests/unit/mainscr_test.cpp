@@ -168,6 +168,27 @@ DOCTEST_TEST_CASE("main-screen centering clamps each axis without changing zoom"
     }
 }
 
+DOCTEST_TEST_CASE("main-screen research unit labels follow the selected language") {
+    const auto saved_language = MOX::settings.language;
+    struct s_language_case {
+        uint8_t language;
+        const char* unit;
+    };
+    const s_language_case cases[] = {
+        {0, "RP"}, {1, "FP"}, {2, "PR"}, {3, "PI"}, {4, "PR"}, {5, "RP"},
+    };
+    for (const auto& test_case : cases) {
+        DOCTEST_CAPTURE(test_case.language);
+        MOX::settings.language = test_case.language;
+        char unit[3] = {'?', '?', '?'};
+        MAINSCR::Get_Research_Unit_String(unit);
+        DOCTEST_CHECK(unit[2] == '\0');
+        DOCTEST_CHECK(unit[0] == test_case.unit[0]);
+        DOCTEST_CHECK(unit[1] == test_case.unit[1]);
+    }
+    MOX::settings.language = saved_language;
+}
+
 DOCTEST_TEST_CASE("main-screen tax percentage matches research font and line spacing") {
     const bool saved_setting = MAINSCR::main_screen_tax_rate;
     MAINSCR::main_screen_tax_rate = true;
