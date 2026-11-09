@@ -10,7 +10,7 @@ namespace AIMOVE {
         }
         return std::nullopt;
     }
-    using game_world::e_ship_location;
+    using game::e_ship_location;
     using AIDATA::FORECAST_TURN_COUNT;
     using AIDATA::LAST_FORECAST_TURN;
     struct s_candidate_sort_context {
@@ -25,7 +25,7 @@ namespace AIMOVE {
         return p1->contextual_value - p2->contextual_value;
     }
 
-    void __cdecl Move_All_AI(AIDATA::s_state* ai, const game_world::s_view* world) {
+    void __cdecl Move_All_AI(AIDATA::s_state* ai, const game::s_view* world) {
         for (int16_t i = 0; i < world->Player_Count(); ++i) {
             s_player& plr = world->players[i];
 
@@ -83,7 +83,7 @@ namespace AIMOVE {
         }
     }
 
-    void Move_AI(AIDATA::s_state* ai, const game_world::s_view* world, t_player_id player_id) {
+    void Move_AI(AIDATA::s_state* ai, const game::s_view* world, t_player_id player_id) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
         auto& work = ai->players[player_idx].movement;
         work = {};
@@ -140,7 +140,7 @@ namespace AIMOVE {
         work.complete = true;
     }
 
-    std::optional<s_threat> Player_Threatens_Player(AIDATA::s_state* ai, const game_world::s_view* world, t_player_id player, t_player_id target) {
+    std::optional<s_threat> Player_Threatens_Player(AIDATA::s_state* ai, const game::s_view* world, t_player_id player, t_player_id target) {
         const uint32_t plr1 = legacy_world::Slot(player);
         const uint32_t plr2 = legacy_world::Slot(target);
 
@@ -168,7 +168,7 @@ namespace AIMOVE {
         return std::nullopt;
     }
 
-    std::optional<t_planet_id> Best_Uncolonized_Undestined_Planet(AIDATA::s_state* ai, const game_world::s_view* world, t_player_id player_id) {
+    std::optional<t_planet_id> Best_Uncolonized_Undestined_Planet(AIDATA::s_state* ai, const game::s_view* world, t_player_id player_id) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
         AIDATA::s_movement_workspace work;
         s_ai_movement_context context{player_id, &world->players[player_idx], &work, world};
@@ -276,7 +276,7 @@ namespace AIMOVE {
         }
     }
 
-    void Mark_Flee_Stars(const game_world::s_view* world, AIDATA::s_movement_workspace* work, t_player_id player_id) {
+    void Mark_Flee_Stars(const game::s_view* world, AIDATA::s_movement_workspace* work, t_player_id player_id) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
         // Iterate through all players to check for active blockading durations.
         for (int i = 0; i < world->Player_Count(); ++i) {
@@ -522,7 +522,7 @@ namespace AIMOVE {
         return (uint32_t)((int32_t)world->ships[ship_idx].d.size + 1);
     }
 
-    std::optional<s_attack_choice> Find_Opportunity_Attack(AIDATA::s_state* ai, const game_world::s_view* world, t_player_id player_id, t_player_id target_id, int16_t threshold) {
+    std::optional<s_attack_choice> Find_Opportunity_Attack(AIDATA::s_state* ai, const game::s_view* world, t_player_id player_id, t_player_id target_id, int16_t threshold) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
         const uint32_t target_idx = legacy_world::Slot(target_id);
         if (ai->initialized) {
@@ -590,7 +590,7 @@ namespace AIMOVE {
         return best;
     }
 
-    int Number_Of_Attacks_Underway(const game_world::s_view* world, t_player_id player_id, t_player_id target_player_id) {
+    int Number_Of_Attacks_Underway(const game::s_view* world, t_player_id player_id, t_player_id target_player_id) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
         const uint32_t target_player_idx = legacy_world::Slot(target_player_id);
         // attacked_stars tracks which stars have an active threat from the player.
@@ -808,7 +808,7 @@ namespace AIMOVE {
         }
     }
 
-    void __cdecl Move_NPCs(const game_world::s_view* world) {
+    void __cdecl Move_NPCs(const game::s_view* world) {
         std::vector<uint8_t> star_flag1(world->Star_Count(), 0);
         std::vector<uint8_t> star_flag2(world->Star_Count(), 0);
 
@@ -945,7 +945,7 @@ namespace AIMOVE {
         }
     }
 
-    bool Star_Has_Monster(const game_world::s_view* world, t_star_id star_idx) {
+    bool Star_Has_Monster(const game::s_view* world, t_star_id star_idx) {
         for (int16_t i = 0; i < world->Ship_Count(); ++i) {
             s_ship_data* ship = &world->ships[i];
 
@@ -957,7 +957,7 @@ namespace AIMOVE {
         return false;
     }
 
-    std::optional<uint32_t> I_Soonest_Enemy_Colony_Ship(const game_world::s_view* world, std::span<const t_ship_id> ships, t_star_id target_location) {
+    std::optional<uint32_t> I_Soonest_Enemy_Colony_Ship(const game::s_view* world, std::span<const t_ship_id> ships, t_star_id target_location) {
         std::optional<uint32_t> best_idx;
         uint16_t min_turns = 0x7fff;
 
@@ -983,7 +983,7 @@ namespace AIMOVE {
         return best_idx;
     }
 
-    int32_t N_Enemy_Stars_Reachable(const game_world::s_view* world, t_player_id player_id, int16_t player_bit, t_star_id source_star) {
+    int32_t N_Enemy_Stars_Reachable(const game::s_view* world, t_player_id player_id, int16_t player_bit, t_star_id source_star) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
         const uint32_t source_star_idx = legacy_world::Slot(source_star);
         const auto source = legacy_world::Index(source_star);
@@ -1006,7 +1006,7 @@ namespace AIMOVE {
         return reachable_count;
     }
 
-    int32_t Enemy_Colony_Worth_To_Player(AIDATA::s_state* ai, const game_world::s_view* world, t_colony_id colony_id, t_player_id player_id) {
+    int32_t Enemy_Colony_Worth_To_Player(AIDATA::s_state* ai, const game::s_view* world, t_colony_id colony_id, t_player_id player_id) {
         const uint32_t colony_idx = legacy_world::Slot(colony_id);
         const uint32_t player_idx = legacy_world::Slot(player_id);
         int8_t owner = world->colonies[colony_idx].owner;
@@ -1944,7 +1944,7 @@ namespace AIMOVE {
         return (int)a->distance_parsecs - (int)b->distance_parsecs;
     }
 
-    std::optional<t_star_id> Npc_Dest(const game_world::s_view* world, t_ship_id ship_id, const uint8_t* star_flags) {
+    std::optional<t_star_id> Npc_Dest(const game::s_view* world, t_ship_id ship_id, const uint8_t* star_flags) {
         const uint32_t ship_idx = legacy_world::Slot(ship_id);
         std::optional<t_star_id> destination;
         auto orbit = legacy_world::Orbit_Star(&world->ships[ship_idx]);
@@ -2008,7 +2008,7 @@ namespace AIMOVE {
         return destination;
     }
 
-    int8_t Player_Is_Hostile_To_Player(const game_world::s_view* world, t_player_id player_a, t_player_id player_b) {
+    int8_t Player_Is_Hostile_To_Player(const game::s_view* world, t_player_id player_a, t_player_id player_b) {
         const uint32_t player_idx_a = legacy_world::Slot(player_a);
         const uint32_t player_idx_b = legacy_world::Slot(player_b);
         int8_t result = 2;
@@ -2054,7 +2054,7 @@ namespace AIMOVE {
         return result;
     }
 
-    int8_t AI_May_Attack_Player(const game_world::s_view* world, t_player_id player_id, t_player_id target_id) {
+    int8_t AI_May_Attack_Player(const game::s_view* world, t_player_id player_id, t_player_id target_id) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
         const uint32_t target_idx = legacy_world::Slot(target_id);
         int8_t may_attack = 0;
@@ -2269,7 +2269,7 @@ namespace AIMOVE {
         return (uint16_t)attack_worthiness;
     }
 
-    uint16_t __cdecl Ship_Min_Strength_Versus_Players_At_Star(AIDATA::s_state* ai, const game_world::s_view* world, t_ship_id ship_id, uint16_t player_mask, t_star_id star_id) {
+    uint16_t __cdecl Ship_Min_Strength_Versus_Players_At_Star(AIDATA::s_state* ai, const game::s_view* world, t_ship_id ship_id, uint16_t player_mask, t_star_id star_id) {
         const uint32_t ship_idx = legacy_world::Slot(ship_id);
         const uint32_t star_idx = legacy_world::Slot(star_id);
         uint16_t min_strength = 0x7fff;
@@ -2532,7 +2532,7 @@ namespace AIMOVE {
     }
 
     std::optional<s_attack_choice> Find_Opportunity_Attack_Aux(
-        AIDATA::s_state* ai, const game_world::s_view* world,
+        AIDATA::s_state* ai, const game::s_view* world,
         t_player_id player,
         t_player_id target_player,
         int16_t min_value,

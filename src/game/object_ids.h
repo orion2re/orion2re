@@ -4,7 +4,7 @@
 #include <functional>
 #include <type_traits>
 
-namespace game_world {
+namespace game {
     // Do not cast IDs to integers or other ID domains. Legacy conversion and
     // temporary array-slot access belong to the named compatibility helpers.
     struct t_ship_id {
@@ -62,36 +62,36 @@ namespace game_world {
     static_assert(alignof(t_leader_id) == alignof(uint32_t));
     static_assert(std::is_trivially_copyable_v<t_leader_id>);
     static_assert(std::is_standard_layout_v<t_leader_id>);
-} // namespace game_world
+} // namespace game
 
 namespace std {
-    template<> struct hash<game_world::t_ship_id> {
-        size_t operator()(game_world::t_ship_id value) const noexcept {
+    template<> struct hash<game::t_ship_id> {
+        size_t operator()(game::t_ship_id value) const noexcept {
             return hash<uint32_t>{}(value.id);
         }
     };
-    template<> struct hash<game_world::t_colony_id> {
-        size_t operator()(game_world::t_colony_id value) const noexcept {
+    template<> struct hash<game::t_colony_id> {
+        size_t operator()(game::t_colony_id value) const noexcept {
             return hash<uint32_t>{}(value.id);
         }
     };
-    template<> struct hash<game_world::t_planet_id> {
-        size_t operator()(game_world::t_planet_id value) const noexcept {
+    template<> struct hash<game::t_planet_id> {
+        size_t operator()(game::t_planet_id value) const noexcept {
             return hash<uint32_t>{}(value.id);
         }
     };
-    template<> struct hash<game_world::t_star_id> {
-        size_t operator()(game_world::t_star_id value) const noexcept {
+    template<> struct hash<game::t_star_id> {
+        size_t operator()(game::t_star_id value) const noexcept {
             return hash<uint32_t>{}(value.id);
         }
     };
-    template<> struct hash<game_world::t_player_id> {
-        size_t operator()(game_world::t_player_id value) const noexcept {
+    template<> struct hash<game::t_player_id> {
+        size_t operator()(game::t_player_id value) const noexcept {
             return hash<uint32_t>{}(value.id);
         }
     };
-    template<> struct hash<game_world::t_leader_id> {
-        size_t operator()(game_world::t_leader_id value) const noexcept {
+    template<> struct hash<game::t_leader_id> {
+        size_t operator()(game::t_leader_id value) const noexcept {
             return hash<uint32_t>{}(value.id);
         }
     };

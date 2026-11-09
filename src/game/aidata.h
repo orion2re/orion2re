@@ -31,31 +31,31 @@ namespace AIDATA {
     /*
      * Updates per-star AI range summaries for each player.
      */
-    void __cdecl Compute_Star_Player_Range_Info(s_state* ai, const game_world::s_view* world);
+    void __cdecl Compute_Star_Player_Range_Info(s_state* ai, const game::s_view* world);
 
     /*
      * Estimates how valuable a colony is to a specific player.
      * @param colony Colony being evaluated.
      * @param evaluating_player Player perspective used for the estimate.
      */
-    int16_t __cdecl Colony_Worth_To_Player(s_state* ai, const game_world::s_view* world, t_colony_id colony_id, s_colony* colony, s_player* evaluating_player);
+    int16_t __cdecl Colony_Worth_To_Player(s_state* ai, const game::s_view* world, t_colony_id colony_id, s_colony* colony, s_player* evaluating_player);
 
     /*
      * Estimates the strategic range value of a colony to a specific player.
      * @param colony Colony being evaluated.
      * @param evaluating_player Player perspective used for the estimate.
      */
-    int16_t __cdecl Proximity_Worth_To_Player(s_state* ai, const game_world::s_view* world, s_colony* colony, s_player* evaluating_player);
+    int16_t __cdecl Proximity_Worth_To_Player(s_state* ai, const game::s_view* world, s_colony* colony, s_player* evaluating_player);
 
     /*
      * Computes the base per-player value table for all known planets.
      */
-    void __cdecl Compute_Base_Planet_Values(s_state* ai, const game_world::s_view* world);
+    void __cdecl Compute_Base_Planet_Values(s_state* ai, const game::s_view* world);
 
     /*
      * Computes per-player planet values adjusted by same-system context.
      */
-    void __cdecl Compute_Contextual_Planet_Values(s_state* ai, const game_world::s_view* world);
+    void __cdecl Compute_Contextual_Planet_Values(s_state* ai, const game::s_view* world);
 
     /*
      * Scores how worthwhile it is to refit a ship against current tech.
@@ -71,14 +71,14 @@ namespace AIDATA {
      * @param use_extended_range Whether to use the extended-range result.
      */
     std::optional<s_route> Player_N_Turns_From_Star_To_Star_With_Intermediate(
-        s_state* ai, const game_world::s_view* world, t_player_id player_id, t_star_id source_star, t_star_id destination_star, bool use_extended_range);
+        s_state* ai, const game::s_view* world, t_player_id player_id, t_star_id source_star, t_star_id destination_star, bool use_extended_range);
 
     /*
      * Returns a cached ship route, or no value when the destination is unreachable.
      * @param ship_id Ship to evaluate.
      * @param destination_star Destination star.
      */
-    std::optional<s_route> Ship_N_Turns_To_Star_With_Intermediate(s_state* ai, const game_world::s_view* world, t_ship_id ship_id, t_star_id destination_star);
+    std::optional<s_route> Ship_N_Turns_To_Star_With_Intermediate(s_state* ai, const game::s_view* world, t_ship_id ship_id, t_star_id destination_star);
 
     /*
      * Compares refit entries by desirability for qsort.
@@ -100,14 +100,14 @@ namespace AIDATA {
      * @param source_star_idx Source star.
      * @param max_range_parsecs Maximum allowed distance in parsecs.
      */
-    bool Star_In_Range_Of_Given_Star(const game_world::s_view* world, t_star_id target_star_idx, t_star_id source_star_idx, int32_t max_range_parsecs);
+    bool Star_In_Range_Of_Given_Star(const game::s_view* world, t_star_id target_star_idx, t_star_id source_star_idx, int32_t max_range_parsecs);
 
     /*
      * Builds AI caches for ships, colonies, stars, and per-player planning data.
      */
-    bool Compute_AI_Data(s_state* ai, const game_world::s_view* world);
+    bool Compute_AI_Data(s_state* ai, const game::s_view* world);
     // Null on success; otherwise a stable diagnostic identifying the invalid input.
-    const char* Validate_Inputs(const game_world::s_view* world);
+    const char* Validate_Inputs(const game::s_view* world);
 
     /*
      * Marks which players can reach a star within normal and extended range.
@@ -115,12 +115,12 @@ namespace AIDATA {
      * @param in_normal_range_out Receives players within normal range.
      * @param in_extended_range_out Receives players within extended range.
      */
-    void Find_Players_In_Range(const game_world::s_view* world, t_star_id star_idx, int8_t* in_normal_range_out, int8_t* in_extended_range_out);
+    void Find_Players_In_Range(const game::s_view* world, t_star_id star_idx, int8_t* in_normal_range_out, int8_t* in_extended_range_out);
 
     /*
      * Estimates how valuable settling an uncolonized planet is to a player.
      * @param planet Planet being evaluated.
      * @param evaluating_player Player perspective used for the estimate.
      */
-    int32_t __cdecl Uncolonized_Planet_Worth_To_Player(const game_world::s_view* world, s_planet_data* planet, s_player* evaluating_player);
+    int32_t __cdecl Uncolonized_Planet_Worth_To_Player(const game::s_view* world, s_planet_data* planet, s_player* evaluating_player);
 } // namespace AIDATA

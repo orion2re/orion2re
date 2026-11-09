@@ -13,8 +13,8 @@ namespace {
 }
 
 namespace TEST_AIMOVE {
-    const game_world::s_view* World_() {
-        static game_world::s_view world;
+    const game::s_view* World_() {
+        static game::s_view world;
         world.players = players;
         world.ships = ships;
         world.stars = stars;

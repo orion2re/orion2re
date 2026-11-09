@@ -24,7 +24,7 @@ DOCTEST_TEST_CASE("coverage counts do not wrap at the old byte boundary") {
         }
         int16_t players = 1;
         int16_t star_count = 52;
-        const game_world::s_view world{
+        const game::s_view world{
             .players = &player,
             .stars = stars.data(),
             .colonies = colonies.data(),
@@ -54,10 +54,10 @@ DOCTEST_TEST_CASE("interception threat scans stay inside the forecast horizon") 
 }
 
 DOCTEST_TEST_CASE("typed ship locations round-trip legacy orbit and transit encodings") {
-    using game_world::e_ship_location;
+    using game::e_ship_location;
     for (auto kind : {e_ship_location::at_star, e_ship_location::in_flight, e_ship_location::in_wormhole}) {
         for (uint32_t star : {0u, 1u, (uint32_t)MAX_STARS}) {
-            const game_world::s_ship_location location{kind, Star_Id(star)};
+            const game::s_ship_location location{kind, Star_Id(star)};
             auto encoded = legacy_world::Encode_Ship_Location(&location);
             DOCTEST_REQUIRE(encoded);
             auto decoded = legacy_world::Decode_Ship_Location(*encoded);
@@ -69,7 +69,7 @@ DOCTEST_TEST_CASE("typed ship locations round-trip legacy orbit and transit enco
     for (int32_t invalid : {-1, MAX_STARS + 1, SHIP_LOCATION_STEP - 1, SHIP_LOCATION_LIMIT}) {
         DOCTEST_CHECK_FALSE(legacy_world::Decode_Ship_Location(invalid));
     }
-    const game_world::s_ship_location high{e_ship_location::at_star, Star_Id(UINT32_MAX)};
+    const game::s_ship_location high{e_ship_location::at_star, Star_Id(UINT32_MAX)};
     DOCTEST_CHECK_FALSE(legacy_world::Encode_Ship_Location(&high));
 }
 
@@ -79,7 +79,7 @@ DOCTEST_TEST_CASE("location compatibility preserves transit kind without exposin
     ship.location = SHIP_LOCATION_MOVING_OFFSET + 9;
     auto location = legacy_world::Read_Ship_Location(&ship);
     DOCTEST_REQUIRE(location);
-    DOCTEST_CHECK(location->kind == game_world::e_ship_location::in_flight);
+    DOCTEST_CHECK(location->kind == game::e_ship_location::in_flight);
     DOCTEST_CHECK(location->star_id == Star_Id(9));
     DOCTEST_CHECK_FALSE(legacy_world::Orbit_Star(&ship));
     ship.status = 4;
@@ -102,11 +102,11 @@ DOCTEST_TEST_CASE("a shared location tag does not imply a shared physical positi
 DOCTEST_TEST_CASE("location codecs set and clear representation without changing activity") {
     s_ship_data ship{};
     ship.status = 4;
-    const game_world::s_ship_location orbit{game_world::e_ship_location::at_star, Star_Id(0)};
+    const game::s_ship_location orbit{game::e_ship_location::at_star, Star_Id(0)};
     DOCTEST_REQUIRE(legacy_world::Set_Ship_Location(&ship, &orbit));
     DOCTEST_CHECK(legacy_world::Orbit_Star(&ship) == Star_Id(0));
     DOCTEST_CHECK((int8_t)ship.status == 4);
-    const game_world::s_ship_location invalid{game_world::e_ship_location::at_star, Star_Id(UINT32_MAX)};
+    const game::s_ship_location invalid{game::e_ship_location::at_star, Star_Id(UINT32_MAX)};
     DOCTEST_CHECK_FALSE(legacy_world::Set_Ship_Location(&ship, &invalid));
     DOCTEST_CHECK(legacy_world::Orbit_Star(&ship) == Star_Id(0));
     legacy_world::Clear_Ship_Location(&ship);
@@ -130,7 +130,7 @@ DOCTEST_TEST_CASE("movement presence and flee lookups do not insert zero assessm
 }
 
 DOCTEST_TEST_CASE("strategic AI input validation rejects missing session data") {
-    game_world::s_view world;
+    game::s_view world;
     DOCTEST_CHECK(AIDATA::Validate_Inputs(nullptr) != nullptr);
     DOCTEST_CHECK(AIDATA::Validate_Inputs(&world) != nullptr);
 }
@@ -147,7 +147,7 @@ DOCTEST_TEST_CASE("strategic AI input diagnostics identify the failing requireme
     int16_t count = 0;
     int32_t date = 35000;
     uint32_t seed = 1;
-    game_world::s_view world{
+    game::s_view world{
         .players = &player,
         .ships = &ship,
         .stars = &star,
@@ -173,8 +173,8 @@ DOCTEST_TEST_CASE("strategic AI input diagnostics identify the failing requireme
 
 DOCTEST_TEST_CASE("production queue removal keeps colony identities and queue positions distinct") {
     s_colony colonies[3] = {};
-    const game_world::s_view world{.colonies = colonies};
-    game_world::t_colony_id queue[] = {Colony_Id(2), Colony_Id(0), Colony_Id(1)};
+    const game::s_view world{.colonies = colonies};
+    game::t_colony_id queue[] = {Colony_Id(2), Colony_Id(0), Colony_Id(1)};
     int32_t count = 3;
     AIBUILD::Force_Produce(&world, queue, 1, &count, COLONY_PRODUCTION_HOUSING);
     DOCTEST_CHECK(count == 2);

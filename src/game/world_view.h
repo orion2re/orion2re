@@ -11,7 +11,7 @@ struct s_planet_data;
 struct s_leader_data;
 struct s_settings;
 
-namespace game_world {
+namespace game {
     // Borrowed session data. Counts stay live when legacy services create objects.
     struct s_view {
         s_player* players = nullptr;
@@ -51,4 +51,4 @@ namespace game_world {
     };
     // Borrowed current-session view for legacy integration entrypoints only.
     extern s_view current;
-} // namespace game_world
+} // namespace game

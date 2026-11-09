@@ -137,7 +137,7 @@ namespace AI_SNOOPS_DEBUG {
             const AIDATA::s_fleet_composition& ships = needs->ship_sizes;
             if (ImGui::BeginTable("build_needs", 2,
                     ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerV)) {
-                Stat_("War level", AIBUILD::Player_War_Level(&game_world::current, legacy_world::Player_Id(player)));
+                Stat_("War level", AIBUILD::Player_War_Level(&game::current, legacy_world::Player_Id(player)));
                 Stat_("Combat ships", ships.combat_ship_count);
                 Stat_("Weighted ship size", ships.weighted_ship_size);
                 Stat_("Target ship size", ships.target_ship_size);
@@ -429,7 +429,7 @@ namespace AI_SNOOPS_DEBUG {
                 ImGui::TableSetupColumn("Bomb 0-3");
                 ImGui::TableSetupColumn("Refit");
                 ImGui::TableHeadersRow();
-                for (game_world::t_ship_id ship_id : ai->combat_ships) {
+                for (game::t_ship_id ship_id : ai->combat_ships) {
                     const uint32_t ship = legacy_world::Slot(ship_id);
                     if (ship < 0 || ship >= MOX::NUM_SHIPS) continue;
                     auto entry = ai->ships.find(legacy_world::Ship_Id(ship));

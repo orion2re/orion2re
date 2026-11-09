@@ -43,7 +43,7 @@ namespace COLCALC {
             (current_product == COLONY_PRODUCTION_HOUSING ||
                 current_product == COLONY_PRODUCTION_TRADE_GOODS ||
                 current_product == COLONY_PRODUCTION_NONE)) {
-            AIBUILD::Player_Colony_Autobuild(&AIDATA::state, &game_world::current, legacy_world::Colony_Id(colony_id), colony);
+            AIBUILD::Player_Colony_Autobuild(&AIDATA::state, &game::current, legacy_world::Colony_Id(colony_id), colony);
         }
 
         colony->just_produced = COLONY_PRODUCTION_NONE;
@@ -3611,7 +3611,7 @@ namespace COLCALC {
 
     void __cdecl Apply_Production(s_colony* colony) {
         const int32_t owner_player_idx = static_cast<int32_t>(colony->owner);
-        const game_world::s_view world{.colonies = MOX::colony, .colony_count = &MOX::NUM_COLONIES};
+        const game::s_view world{.colonies = MOX::colony, .colony_count = &MOX::NUM_COLONIES};
         const auto colony_id = legacy_world::Colony_Id(&world, colony);
         if (!colony_id) return;
         const auto legacy_colony = legacy_world::Index(*colony_id);
@@ -3901,7 +3901,7 @@ namespace COLCALC {
 
                 if (colony->producing[0] == COLONY_PRODUCTION_NONE &&
                     BUILD_QUEUE::Is_Legacy_Autobuild(colony->auto_building)) {
-                    AIBUILD::Player_Colony_Autobuild(&AIDATA::state, &game_world::current, *colony_id, colony);
+                    AIBUILD::Player_Colony_Autobuild(&AIDATA::state, &game::current, *colony_id, colony);
                     build_msg.u.colony.c.build.append_fmt = 1;
                 }
 

@@ -4,11 +4,11 @@
 #include "aidata_state.h"
 
 namespace AIMOVE {
-    using game_world::t_ship_id;
-    using game_world::t_colony_id;
-    using game_world::t_planet_id;
-    using game_world::t_star_id;
-    using game_world::t_player_id;
+    using game::t_ship_id;
+    using game::t_colony_id;
+    using game::t_planet_id;
+    using game::t_star_id;
+    using game::t_player_id;
     std::optional<uint32_t> First_Threat_Turn(const std::array<int32_t, AIDATA::FORECAST_TURN_COUNT>* first, const std::array<int32_t, AIDATA::FORECAST_TURN_COUNT>* second, uint32_t from);
     inline constexpr int32_t ENEMY_STRENGTH_TURN_WINDOW = AIDATA::FORECAST_TURN_COUNT;
 
@@ -62,7 +62,7 @@ namespace AIMOVE {
         t_player_id player_idx;
         s_player* player;
         AIDATA::s_movement_workspace* work;
-        const game_world::s_view* world;
+        const game::s_view* world;
     };
     struct s_rules {
         uint8_t eel_spawn_frequency = 30;
@@ -75,7 +75,7 @@ namespace AIMOVE {
      * Runs the full movement phase for one AI empire.
      * @param player_idx AI player to process.
      */
-    void Move_AI(AIDATA::s_state* ai, const game_world::s_view* world, t_player_id player_idx);
+    void Move_AI(AIDATA::s_state* ai, const game::s_view* world, t_player_id player_idx);
 
     int __cdecl Sort_colonizable(const void* a, const void* b);
 
@@ -106,7 +106,7 @@ namespace AIMOVE {
      */
     void Find_Best_Attack_From_Star(AIDATA::s_state* ai, s_ai_movement_context* ctx, t_star_id star_idx, s_attack_info* target_info, int mission_type, int min_pop);
 
-    int8_t AI_May_Attack_Player(const game_world::s_view* world, t_player_id player_idx, t_player_id target_idx);
+    int8_t AI_May_Attack_Player(const game::s_view* world, t_player_id player_idx, t_player_id target_idx);
 
     uint16_t Compute_Attack_Worthiness(
         AIDATA::s_state* ai, s_ai_movement_context* ctx,
@@ -118,9 +118,9 @@ namespace AIMOVE {
         s_attack_info* target_info,
         int32_t min_pop);
 
-    int8_t Player_Is_Hostile_To_Player(const game_world::s_view* world, t_player_id player_idx_a, t_player_id player_idx_b);
+    int8_t Player_Is_Hostile_To_Player(const game::s_view* world, t_player_id player_idx_a, t_player_id player_idx_b);
 
-    int32_t N_Enemy_Stars_Reachable(const game_world::s_view* world, t_player_id player_idx, int16_t player_bit, t_star_id source_star_idx);
+    int32_t N_Enemy_Stars_Reachable(const game::s_view* world, t_player_id player_idx, int16_t player_bit, t_star_id source_star_idx);
 
     void __cdecl Intercept_Invaders(AIDATA::s_state* ai, s_ai_movement_context* ctx);
 
@@ -128,11 +128,11 @@ namespace AIMOVE {
 
     void Assign_New_Colony_Ship_Destinations(AIDATA::s_state* ai, s_ai_movement_context* ctx, std::vector<AIDATA::s_colonization_candidate>* planets);
 
-    bool Star_Has_Monster(const game_world::s_view* world, t_star_id star_idx);
+    bool Star_Has_Monster(const game::s_view* world, t_star_id star_idx);
 
     void Dispatch_Unescorted_Colony_Ship(s_ai_movement_context* ctx, std::vector<t_ship_id>* ships, t_star_id destination);
 
-    std::optional<uint32_t> I_Soonest_Enemy_Colony_Ship(const game_world::s_view* world, std::span<const t_ship_id> ships, t_star_id target_location);
+    std::optional<uint32_t> I_Soonest_Enemy_Colony_Ship(const game::s_view* world, std::span<const t_ship_id> ships, t_star_id target_location);
 
     bool Dispatch_Escorted_Colony_Ship(AIDATA::s_state* ai, s_ai_movement_context* ctx, std::vector<t_ship_id>* colony_ships, t_star_id star_idx, int16_t max_turns);
 
@@ -142,19 +142,19 @@ namespace AIMOVE {
 
     void __cdecl Move_To_Unexplored_Stars(AIDATA::s_state* ai, s_ai_movement_context* ctx);
 
-    void __cdecl Move_NPCs(const game_world::s_view* world);
+    void __cdecl Move_NPCs(const game::s_view* world);
 
     int __cdecl Sort_npc_dests(const void* a, const void* b);
 
-    std::optional<t_star_id> Npc_Dest(const game_world::s_view* world, t_ship_id ship_idx, const uint8_t* star_flags);
+    std::optional<t_star_id> Npc_Dest(const game::s_view* world, t_ship_id ship_idx, const uint8_t* star_flags);
 
-    void __cdecl Move_All_AI(AIDATA::s_state* ai, const game_world::s_view* world);
+    void __cdecl Move_All_AI(AIDATA::s_state* ai, const game::s_view* world);
 
     /**
      * Marks stars the AI should avoid because of temporary blockade restrictions.
      * @param player_idx AI player whose flee map is being built.
      */
-    void Mark_Flee_Stars(const game_world::s_view* world, AIDATA::s_movement_workspace* work, t_player_id player_idx);
+    void Mark_Flee_Stars(const game::s_view* world, AIDATA::s_movement_workspace* work, t_player_id player_idx);
 
     /**
      * Gathers all currently colonizable planets within the AI player's extended range.
@@ -168,19 +168,19 @@ namespace AIMOVE {
 
     void __cdecl Knock_Out_Impossible_Interceptions(AIDATA::s_state* ai, s_ai_movement_context* ctx, s_interception_target* intercepts, int* count, int keep_one_entry);
 
-    uint16_t __cdecl Ship_Min_Strength_Versus_Players_At_Star(AIDATA::s_state* ai, const game_world::s_view* world, t_ship_id ship_idx, uint16_t player_mask, t_star_id star_idx);
+    uint16_t __cdecl Ship_Min_Strength_Versus_Players_At_Star(AIDATA::s_state* ai, const game::s_view* world, t_ship_id ship_idx, uint16_t player_mask, t_star_id star_idx);
 
-    std::optional<s_threat> Player_Threatens_Player(AIDATA::s_state* ai, const game_world::s_view* world, t_player_id player_id, t_player_id target_player_id);
+    std::optional<s_threat> Player_Threatens_Player(AIDATA::s_state* ai, const game::s_view* world, t_player_id player_id, t_player_id target_player_id);
 
-    std::optional<t_planet_id> Best_Uncolonized_Undestined_Planet(AIDATA::s_state* ai, const game_world::s_view* world, t_player_id player_idx);
+    std::optional<t_planet_id> Best_Uncolonized_Undestined_Planet(AIDATA::s_state* ai, const game::s_view* world, t_player_id player_idx);
 
     uint32_t __cdecl Ship_Rough_Strength_At_Star(AIDATA::s_state* ai, s_ai_movement_context* ctx, t_ship_id ship_idx, t_star_id star_idx);
 
     void __cdecl Get_Enemy_Strength_On_Turn(AIDATA::s_state* ai, s_ai_movement_context* ctx, t_star_id star_id, int* turn_strengths, int* cumulative_strengths);
 
-    int Number_Of_Attacks_Underway(const game_world::s_view* world, t_player_id player_idx, t_player_id target_idx);
+    int Number_Of_Attacks_Underway(const game::s_view* world, t_player_id player_idx, t_player_id target_idx);
 
-    std::optional<s_attack_choice> Find_Opportunity_Attack(AIDATA::s_state* ai, const game_world::s_view* world, t_player_id player_idx, t_player_id target_idx, int16_t threshold);
+    std::optional<s_attack_choice> Find_Opportunity_Attack(AIDATA::s_state* ai, const game::s_view* world, t_player_id player_idx, t_player_id target_idx, int16_t threshold);
 
     /**
      * Queries legacy movement for a direct or intermediate route.
@@ -189,7 +189,7 @@ namespace AIMOVE {
      */
     std::optional<AIDATA::s_route> Move_Ships_With_Possible_Intermediate(s_ai_movement_context* ctx, std::span<const t_ship_id> ships, t_star_id destination_star);
 
-    int32_t Enemy_Colony_Worth_To_Player(AIDATA::s_state* ai, const game_world::s_view* world, t_colony_id colony_idx, t_player_id player_idx);
+    int32_t Enemy_Colony_Worth_To_Player(AIDATA::s_state* ai, const game::s_view* world, t_colony_id colony_idx, t_player_id player_idx);
 
     /**
      * Looks for an opportunity attack from a staging star with a minimum score threshold.
@@ -199,7 +199,7 @@ namespace AIMOVE {
      * @param star_id Source staging star.
      */
     std::optional<s_attack_choice> Find_Opportunity_Attack_Aux(
-        AIDATA::s_state* ai, const game_world::s_view* world,
+        AIDATA::s_state* ai, const game::s_view* world,
         t_player_id player_id,
         t_player_id target_player_idx,
         int16_t min_value,

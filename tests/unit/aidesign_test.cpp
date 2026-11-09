@@ -9,9 +9,9 @@ namespace {
 
     s_player players[MAX_PLAYERS];
 
-    const game_world::s_view* AI_World_() {
+    const game::s_view* AI_World_() {
         static uint32_t seed;
-        static const game_world::s_view world{
+        static const game::s_view world{
             .players = players,
             .settings = &MOX::settings,
             .stardate = &MOX::stardate,
@@ -206,7 +206,7 @@ namespace KEN {
 }
 
 namespace AIPOWER {
-    int16_t Get_Best_Ship_Shield_Value(const s_tech_shield_data*, game_world::t_player_id) {
+    int16_t Get_Best_Ship_Shield_Value(const s_tech_shield_data*, game::t_player_id) {
         return 1;
     }
 }

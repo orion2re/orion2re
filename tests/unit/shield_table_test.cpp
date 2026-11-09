@@ -43,8 +43,8 @@ namespace {
 #include "game/ship_config.h"
 
 namespace {
-    const game_world::s_view* AI_World_() {
-        static const game_world::s_view world{
+    const game::s_view* AI_World_() {
+        static const game::s_view world{
             .players = MOX::player,
             .settings = &MOX::settings,
         };

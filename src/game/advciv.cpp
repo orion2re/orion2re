@@ -50,7 +50,7 @@ namespace ADVCIV {
         s_planet_data* planet = &MOX::planet[planet_idx];
         s_player* player = &MOX::player[player_idx];
 
-        int32_t raw_worth = AIDATA::Uncolonized_Planet_Worth_To_Player(&game_world::current, planet, player);
+        int32_t raw_worth = AIDATA::Uncolonized_Planet_Worth_To_Player(&game::current, planet, player);
         *worth = (int32_t)(raw_worth & 0xFFFF);
 
         int16_t base_proximity = ADVCIV::Proximity_Bonus(player_idx, planet_idx);

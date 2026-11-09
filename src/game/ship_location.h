@@ -3,7 +3,7 @@
 #include <cstdint>
 #include "object_ids.h"
 
-namespace game_world {
+namespace game {
     enum class e_ship_location : uint8_t {
         at_star,
         in_flight,
@@ -15,4 +15,4 @@ namespace game_world {
         // Current star in orbit; destination star while travelling.
         t_star_id star_id;
     };
-} // namespace game_world
+} // namespace game

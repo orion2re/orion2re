@@ -13,11 +13,11 @@
 #include <vector>
 
 namespace AIDATA {
-    using game_world::t_ship_id;
-    using game_world::t_colony_id;
-    using game_world::t_planet_id;
-    using game_world::t_star_id;
-    using game_world::t_player_id;
+    using game::t_ship_id;
+    using game::t_colony_id;
+    using game::t_planet_id;
+    using game::t_star_id;
+    using game::t_player_id;
 
     struct s_route_key {
         t_player_id player;
