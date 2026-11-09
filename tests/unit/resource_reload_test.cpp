@@ -3,6 +3,7 @@
 #include "doctest/doctest.h"
 #include "game/config_refresh.h"
 #include "game/loader.h"
+#include "game/mainmenu.h"
 #include "config/config_loader.h"
 #include "game/savegame.h"
 #include "game/initgame.h"
@@ -336,6 +337,105 @@ DOCTEST_TEST_CASE("real resources switch repeatedly without consuming screen sto
         DOCTEST_CHECK(MOX::main_game_button_seg == art);
         DOCTEST_CHECK(((uint8_t*)screen)[0] == 0xCD);
     }
+}
+
+DOCTEST_TEST_CASE("config group reloads schedule a resource reload") {
+    bool none[config::CONFIG_GROUP_COUNT] = {};
+    CONFIG_REFRESH::Resources_Unloaded();
+    CONFIG_REFRESH::Refresh_After_Config_Reload(none);
+    DOCTEST_CHECK_FALSE(CONFIG_REFRESH::Resource_Reload_Pending());
+    CONFIG_REFRESH::Resources_Loaded();
+    CONFIG_REFRESH::Refresh_After_Config_Reload(none);
+    DOCTEST_CHECK_FALSE(CONFIG_REFRESH::Resource_Reload_Pending());
+    bool one[config::CONFIG_GROUP_COUNT] = {};
+    one[config::CONFIG_GROUP_INTERFACE] = true;
+    CONFIG_REFRESH::Refresh_After_Config_Reload(one);
+    DOCTEST_CHECK(CONFIG_REFRESH::Resource_Reload_Pending());
+    CONFIG_REFRESH::Resources_Unloaded();
+    DOCTEST_CHECK_FALSE(CONFIG_REFRESH::Resource_Reload_Pending());
+}
+
+DOCTEST_TEST_CASE("discarding screen allocations releases screen storage without reloading resources") {
+    Fixture fixture;
+    CONFIG_REFRESH::Resources_Loaded();
+    CONFIG_REFRESH::Request_Resource_Reload();
+    CONFIG_REFRESH::Reload_Resources_Between_Screens();
+    DOCTEST_CHECK(ESTRINGS::E_Strings(126)[0] == 'B');
+    void* screen = MOX::screen_seg;
+    const uint32_t capacity = allocate::Get_Max_Block_Space(screen);
+    const uint32_t used_before = (uint32_t)(capacity - allocate::Get_Remaining_Block_Space(screen));
+    void* transient = allocate::Allocate_Next_Block(screen, 1024);
+    DOCTEST_CHECK(transient != nullptr);
+    DOCTEST_CHECK(allocate::Get_Remaining_Block_Space(screen) <
+        (int32_t)capacity - (int32_t)used_before);
+    // Switch the mounted mod without a reload: the discard must not
+    // pick up the new resources.
+    fixture.Mount(true);
+    CONFIG_REFRESH::Discard_Screen_Allocations();
+    DOCTEST_CHECK(ESTRINGS::E_Strings(126)[0] == 'B');
+    DOCTEST_CHECK(((char*)MOX::main_game_button_seg)[0] == 'B');
+    DOCTEST_CHECK(allocate::Get_Remaining_Block_Space(screen) ==
+        (int32_t)capacity - (int32_t)used_before);
+    DOCTEST_CHECK_FALSE(CONFIG_REFRESH::Resource_Reload_Pending());
+    CONFIG_REFRESH::Resources_Unloaded();
+}
+
+DOCTEST_TEST_CASE("credits are cached across menu entries and refresh on language or reload") {
+    Fixture fixture;
+    const auto write_credits = [&fixture](const char* filename, char label) {
+        const auto record = [](const std::string& text) {
+            std::string entry(127, '\0');
+            entry.replace(0, text.size(), text);
+            return entry;
+        };
+        std::string records;
+        records += record("2");
+        records += record(std::string("First") + label);
+        records += record(std::string("Line") + label);
+        records += record(std::string("Second") + label);
+        records += record(std::string("Line") + label);
+        fixture.Write(std::string("data/") + filename + "/000",
+            Fixture::Record(records, 5, 127));
+    };
+    write_credits("CREDITS.LBX", 'B');
+    write_credits("GERCRDTS.LBX", 'G');
+    MOX::settings.language = 0;
+    MAINMENU::Load_Credits();
+    DOCTEST_CHECK(MAINMENU::max_credits == 2);
+    DOCTEST_CHECK(MAINMENU::credits != nullptr);
+    DOCTEST_CHECK(MAINMENU::bitmap != nullptr);
+    DOCTEST_CHECK(std::string(MAINMENU::credits[0][0]) == "FirstB");
+    DOCTEST_CHECK(std::string(MAINMENU::credits[1][0]) == "SecondB");
+    DOCTEST_CHECK(MAINMENU::credit_num == 1);
+    DOCTEST_CHECK(MAINMENU::credit_y_slot.y == 422);
+    const auto cached_credits = MAINMENU::credits;
+    const auto cached_bitmap = MAINMENU::bitmap;
+    // The file on disk changes, but no reload and no language change:
+    // the cached text is reused, not re-read.
+    write_credits("CREDITS.LBX", 'X');
+    MAINMENU::Load_Credits();
+    DOCTEST_CHECK(MAINMENU::credits == cached_credits);
+    DOCTEST_CHECK(MAINMENU::bitmap == cached_bitmap);
+    DOCTEST_CHECK(std::string(MAINMENU::credits[0][0]) == "FirstB");
+    // A language change selects the other credits file.
+    MOX::settings.language = 1;
+    MAINMENU::Load_Credits();
+    // No pointer-identity check here: after delete[] + new of the same size
+    // the Release allocator may hand back the same address, so the pointer
+    // can be unchanged even though the content was freshly re-read.
+    DOCTEST_CHECK(std::string(MAINMENU::credits[0][0]) == "FirstG");
+    DOCTEST_CHECK(MAINMENU::credit_num == 1);
+    // A resource reload invalidates the cache even with the language
+    // and the file unchanged in name: the re-read picks up the new disk
+    // contents (and any changed string overrides).
+    MOX::settings.language = 0;
+    CONFIG_REFRESH::Resources_Loaded();
+    CONFIG_REFRESH::Request_Resource_Reload();
+    CONFIG_REFRESH::Reload_Resources_Between_Screens();
+    MAINMENU::Load_Credits();
+    DOCTEST_CHECK(std::string(MAINMENU::credits[0][0]) == "FirstX");
+    DOCTEST_CHECK(MAINMENU::credit_num == 1);
+    CONFIG_REFRESH::Resources_Unloaded();
 }
 
 DOCTEST_TEST_CASE("persistent packed string tables grow beyond disk size and rebuild pointers on reload") {

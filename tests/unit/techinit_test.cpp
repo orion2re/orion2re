@@ -67,7 +67,10 @@ DOCTEST_TEST_CASE("configuration refresh waits for the first technology name loa
     groups[config::CONFIG_GROUP_TECHNOLOGY] = true;
     CONFIG_REFRESH::Refresh_After_Config_Reload(groups);
     DOCTEST_CHECK(TEST_TECHINIT::Reload_Count_() == 4);
-    DOCTEST_CHECK(TEST_TECHINIT::Resource_Request_Count_() == 1);
+    // A reloaded group schedules a resource reload (the group can feed
+    // resources), so this is the second request: one from the nullptr
+    // reload above, one from this group reload.
+    DOCTEST_CHECK(TEST_TECHINIT::Resource_Request_Count_() == 2);
 }
 
 DOCTEST_TEST_CASE("technology names preserve active configuration strings across LBX reloads") {
