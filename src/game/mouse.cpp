@@ -16,6 +16,8 @@ namespace mouse {
     int16_t mouse_buttons;
     int16_t mouse_buffer_flag;
     uint16_t mouse_buffer_flag2;
+    float pending_wheel_x = 0.0f;
+    float pending_wheel_y = 0.0f;
 
     int16_t __cdecl Mouse_Buffer() {
         platform::Pump_Game_Input_Queue();
@@ -267,5 +269,49 @@ namespace mouse {
         }
 
         mouse::in_mouse_handler = 0;
+    }
+
+    void __cdecl User_Mouse_Wheel_Handler(int16_t mouse_x, int16_t mouse_y, float wheel_x, float wheel_y) {
+        if (mouse_x < 0) {
+            mouse_x = 0;
+        } else if (mouse_x >= video::g_screen_res_x) {
+            mouse_x = (int16_t)(video::g_screen_res_x - 1);
+        }
+
+        if (mouse_y < 0) {
+            mouse_y = 0;
+        } else if (mouse_y >= video::g_screen_res_y) {
+            mouse_y = (int16_t)(video::g_screen_res_y - 1);
+        }
+
+        platform::Set_Logical_Mouse_Position(mouse_x, mouse_y);
+        mouse::pending_wheel_x += wheel_x;
+        mouse::pending_wheel_y += wheel_y;
+    }
+
+    int16_t __cdecl Consume_Mouse_Wheel_Delta(int16_t* steps_x, int16_t* steps_y) {
+        if (steps_x == nullptr || steps_y == nullptr) {
+            return 0;
+        }
+
+        // Truncation toward zero keeps the fractional remainder for a
+        // high-resolution wheel: it accumulates until a whole notch forms.
+        const int16_t x_steps = (int16_t)mouse::pending_wheel_x;
+        const int16_t y_steps = (int16_t)mouse::pending_wheel_y;
+
+        if (x_steps == 0 && y_steps == 0) {
+            return 0;
+        }
+
+        mouse::pending_wheel_x -= (float)x_steps;
+        mouse::pending_wheel_y -= (float)y_steps;
+        *steps_x = x_steps;
+        *steps_y = y_steps;
+        return 1;
+    }
+
+    void __cdecl Clear_Mouse_Wheel_Delta() {
+        mouse::pending_wheel_x = 0.0f;
+        mouse::pending_wheel_y = 0.0f;
     }
 } // namespace mouse

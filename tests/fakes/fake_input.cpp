@@ -48,6 +48,8 @@ namespace mouse {
     int16_t mouse_buttons = 0;
     int16_t mouse_buffer_flag = 0;
     uint16_t mouse_buffer_flag2 = 0;
+    float pending_wheel_x = 0.0f;
+    float pending_wheel_y = 0.0f;
 
     void __cdecl Check_Mouse_Shape() {
     }
@@ -59,6 +61,37 @@ namespace mouse {
         (void)mouse_x;
         (void)mouse_y;
         (void)mouse_buttons;
+    }
+
+    void __cdecl User_Mouse_Wheel_Handler(int16_t mouse_x, int16_t mouse_y, float wheel_x, float wheel_y) {
+        test::fakes::g_mouse_pointer_x = mouse_x;
+        test::fakes::g_mouse_pointer_y = mouse_y;
+        pending_wheel_x += wheel_x;
+        pending_wheel_y += wheel_y;
+    }
+
+    int16_t __cdecl Consume_Mouse_Wheel_Delta(int16_t* steps_x, int16_t* steps_y) {
+        if (steps_x == nullptr || steps_y == nullptr) {
+            return 0;
+        }
+
+        const int16_t x_steps = (int16_t)pending_wheel_x;
+        const int16_t y_steps = (int16_t)pending_wheel_y;
+
+        if (x_steps == 0 && y_steps == 0) {
+            return 0;
+        }
+
+        pending_wheel_x -= (float)x_steps;
+        pending_wheel_y -= (float)y_steps;
+        *steps_x = x_steps;
+        *steps_y = y_steps;
+        return 1;
+    }
+
+    void __cdecl Clear_Mouse_Wheel_Delta() {
+        pending_wheel_x = 0.0f;
+        pending_wheel_y = 0.0f;
     }
 
     int16_t __cdecl Mouse_Buffer() {

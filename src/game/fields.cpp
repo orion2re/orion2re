@@ -21,6 +21,11 @@ namespace fields {
     MOX2::action_func_t update_function;
     uint16_t auto_active_flag;
     uint16_t list_field_on;
+    // Set while a wheel move holds the modal list selection against the hover
+    // scan; the hover wins again once the mouse moves to another row.
+    int16_t mouse_wheel_list_selection_held = 0;
+    // Row the cursor hovered when the wheel moved the selection.
+    int16_t mouse_wheel_list_held_row = -1;
     int16_t auto_function_delay = 2;
     uint16_t list_field_scan_flag = 1;
     int16_t down_mouse_button = -1;
@@ -201,6 +206,9 @@ namespace fields {
         input_field_active = 0;
         active_input_field_number = -1;
         multi_hotkey_active_field = 0;
+        mouse_wheel_list_selection_held = 0;
+        mouse_wheel_list_held_row = -1;
+        mouse::Clear_Mouse_Wheel_Delta();
 
         mouse::Mouse_Buffer();
         mouse::Mouse_Buffer2();
@@ -901,6 +909,14 @@ namespace fields {
         int16_t ptr_y = mouse::Pointer_Y();
         pointer_offset = mouse::Get_Pointer_Offset();
 
+        const int16_t wheel_result = Handle_Mouse_Wheel();
+        if (wheel_result > 0) {
+            return wheel_result;
+        }
+        if (wheel_result < 0) {
+            return 0;
+        }
+
         if (key::Keyboard_Status() != 0) {
             int16_t key_code = Interpret_Keyboard_Input(&field_idx);
             if (key_code == 0 || field_idx < 0 || key_code == -1) {
@@ -1594,7 +1610,13 @@ namespace fields {
             if (list_field_scan_flag != 0) {
                 int16_t scan_idx = Scan_Input();
                 if (scan_idx > 0) {
-                    *selected_index = static_cast<int8_t>(Field_Data_String_List(&fields[scan_idx])->help_start);
+                    // A wheel move holds the selection while the mouse sits
+                    // still; moving the mouse to another row hands the
+                    // selection back to the hover.
+                    if (mouse_wheel_list_selection_held == 0 || scan_idx != mouse_wheel_list_held_row) {
+                        *selected_index = static_cast<int8_t>(Field_Data_String_List(&fields[scan_idx])->help_start);
+                        mouse_wheel_list_selection_held = 0;
+                    }
                 }
             }
 
@@ -2594,6 +2616,195 @@ namespace fields {
         }
 
         *value_ptr = new_value;
+    }
+
+    void __cdecl Step_Scroll_Bar(int16_t field_idx, int16_t steps) {
+        if (steps == 0) {
+            return;
+        }
+
+        s_field_scroll* scroll = Field_Data_Scroll(&fields[field_idx]);
+        const int32_t range = (int32_t)scroll->range_max - (int32_t)scroll->range_min;
+        if (range <= 0) {
+            return;
+        }
+
+        // One notch covers a tenth of the range, so ten notches traverse it;
+        // the minimum of one unit keeps small ranges moving (the 5% percent
+        // arithmetic of Increment/Decrement_Scroll_Bar can truncate to zero).
+        int32_t step = range / 10;
+        if (step < 1) {
+            step = 1;
+        }
+
+        int32_t new_value = (int32_t)*scroll->value + (int32_t)steps * step;
+        if (new_value > scroll->set_value) {
+            new_value = scroll->set_value;
+        }
+        if (new_value < scroll->return_value) {
+            new_value = scroll->return_value;
+        }
+        *scroll->value = (int16_t)new_value;
+    }
+
+    int16_t __cdecl Move_List_Selection(int16_t hovered_field_idx, int16_t steps) {
+        if (steps == 0 || list_field_on == 0) {
+            return 0;
+        }
+        if (hovered_field_idx <= 0 || hovered_field_idx >= fields_count) {
+            return 0;
+        }
+        if (fields[hovered_field_idx].field_type != FIELD_TYPE_STRING_LIST) {
+            return 0;
+        }
+
+        int8_t* selection = Field_Data_String_List(&fields[hovered_field_idx])->value;
+        if (selection == nullptr) {
+            return 0;
+        }
+
+        // The list rows share one selection pointer; the help row added by
+        // Get_List_Field has its own placeholder, so it is excluded here.
+        int16_t items[MAX_FIELDS_COUNT];
+        int16_t count = 0;
+        for (int16_t i = 1; i < fields_count; ++i) {
+            if (fields[i].field_type == FIELD_TYPE_STRING_LIST &&
+                Field_Data_String_List(&fields[i])->value == selection) {
+                items[count++] = i;
+            }
+        }
+        if (count < 2) {
+            return 0;
+        }
+
+        int16_t pos = -1;
+        for (int16_t i = 0; i < count; ++i) {
+            if (Field_Data_String_List(&fields[items[i]])->help_start == *selection) {
+                pos = i;
+                break;
+            }
+        }
+
+        // Wheel up moves toward earlier items, wheel down toward later ones.
+        const int16_t direction = (steps > 0) ? -1 : 1;
+        int16_t remaining = (steps > 0) ? steps : (int16_t)-steps;
+        if (pos == -1) {
+            pos = (direction < 0) ? count : -1;
+        }
+
+        while (remaining > 0) {
+            int16_t next = (int16_t)(pos + direction);
+            while (next >= 0 && next < count &&
+                   Field_Data_String_List(&fields[items[next]])->is_selectable == 0) {
+                next = (int16_t)(next + direction);
+            }
+            if (next < 0 || next >= count) {
+                break;
+            }
+            pos = next;
+            --remaining;
+        }
+
+        if (pos < 0 || pos >= count) {
+            return 0;
+        }
+
+        const int8_t new_selection = (int8_t)Field_Data_String_List(&fields[items[pos]])->help_start;
+        if (new_selection == *selection) {
+            return 0;
+        }
+        *selection = new_selection;
+        return 1;
+    }
+
+    int16_t __cdecl Mouse_Wheel_List_Selection_Held() {
+        return mouse_wheel_list_selection_held;
+    }
+
+    void __cdecl Clear_Mouse_Wheel_List_Selection_Hold() {
+        mouse_wheel_list_selection_held = 0;
+        mouse_wheel_list_held_row = -1;
+    }
+
+    int16_t __cdecl Handle_Mouse_Wheel() {
+        int16_t steps_x = 0;
+        int16_t steps_y = 0;
+        if (mouse::Consume_Mouse_Wheel_Delta(&steps_x, &steps_y) == 0) {
+            return 0;
+        }
+
+        // The wheel scrolls along its own axis: a vertical wheel steps a
+        // vertical scroll field, a horizontal wheel a horizontal one. The
+        // colonies screen has both -- the list scrollbar is vertical while
+        // the per-row population sliders are horizontal scroll fields -- so
+        // a vertical wheel over a row must reach the list scrollbar, not
+        // the population slider under the cursor.
+        const int16_t abs_steps_x = steps_x < 0 ? -steps_x : steps_x;
+        const int16_t abs_steps_y = steps_y < 0 ? -steps_y : steps_y;
+        const int16_t wheel_is_vertical = (abs_steps_y >= abs_steps_x) ? 1 : 0;
+        const int16_t wheel_steps = (wheel_is_vertical != 0) ? steps_y : steps_x;
+
+        const int16_t hovered = Scan_Field();
+        if (hovered != 0) {
+            const int16_t field_type = fields[hovered].field_type;
+            if (field_type == FIELD_TYPE_SCROLL || field_type == FIELD_TYPE_SCROLL_RETURN) {
+                s_field_scroll* scroll = Field_Data_Scroll(&fields[hovered]);
+                if ((scroll->is_vertical != 0) == (wheel_is_vertical != 0)) {
+                    Step_Scroll_Bar(hovered, wheel_steps);
+                    return hovered;
+                }
+                // Axis mismatch (a vertical wheel over a horizontal
+                // population slider): fall through and look for a scroll
+                // field on the wheel's axis instead of stepping this one.
+            }
+            if (list_field_on != 0 && field_type == FIELD_TYPE_STRING_LIST) {
+                const int16_t steps = (steps_y != 0) ? steps_y : steps_x;
+                if (Move_List_Selection(hovered, steps) != 0) {
+                    mouse_wheel_list_selection_held = 1;
+                    mouse_wheel_list_held_row = hovered;
+                }
+                return -1;
+            }
+        }
+
+        // A scroll field on the wheel's axis follows the wheel even when the
+        // cursor is not over it, so hovering the list still scrolls it.
+        // (The lone-scrollbar rule below would never fire on the colonies
+        // screen: it has thirty-one scroll fields, thirty of them the
+        // horizontal population sliders.)
+        int16_t only_axis_scroll = -1;
+        int16_t axis_scroll_count = 0;
+        int16_t only_scroll = -1;
+        int16_t scroll_count = 0;
+        for (int16_t i = 1; i < fields_count; ++i) {
+            if (fields[i].field_type == FIELD_TYPE_SCROLL ||
+                fields[i].field_type == FIELD_TYPE_SCROLL_RETURN) {
+                only_scroll = i;
+                ++scroll_count;
+                s_field_scroll* scroll = Field_Data_Scroll(&fields[i]);
+                if ((scroll->is_vertical != 0) == (wheel_is_vertical != 0)) {
+                    only_axis_scroll = i;
+                    ++axis_scroll_count;
+                }
+            }
+        }
+        if (axis_scroll_count == 1) {
+            Step_Scroll_Bar(only_axis_scroll, wheel_steps);
+            return only_axis_scroll;
+        }
+
+        // No scrollbar under the cursor: a lone scrollbar on this screen
+        // follows the wheel, so hovering the list it controls still scrolls.
+        if (scroll_count == 1) {
+            s_field_scroll* scroll = Field_Data_Scroll(&fields[only_scroll]);
+            const int16_t steps = (scroll->is_vertical != 0)
+                ? (steps_y != 0 ? steps_y : steps_x)
+                : (steps_x != 0 ? steps_x : steps_y);
+            Step_Scroll_Bar(only_scroll, steps);
+            return only_scroll;
+        }
+
+        return -1;
     }
 
     void __cdecl Draw_Field(int16_t field_idx, int16_t action) {
