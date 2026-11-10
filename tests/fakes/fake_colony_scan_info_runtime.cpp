@@ -40,8 +40,11 @@ namespace TEST_COLONY_SCAN_INFO {
         capture_empire_info = false;
 
         COLONY::g_colony_n = 0;
+        COLONY::full_draw = 0;
+        COLONY::scanned_pop = -1;
         COLSUM::print_research_value = COLSUM::RESEARCH_VALUE_CLASSIC;
         MOX::PLAYER_NUM = 0;
+        MOX::NUM_COLONIES = MAX_COLONIES;
         MOX::settings.language = 0;
     }
 
@@ -68,6 +71,7 @@ namespace MOX {
     s_player* player = players;
     s_ship_data* ship;
     int16_t PLAYER_NUM;
+    int16_t NUM_COLONIES;
     s_settings settings;
 
     char* planet_size_string[PLANET_SIZE_COUNT] = {
@@ -87,6 +91,8 @@ namespace MOX {
 
 namespace COLONY {
     int16_t g_colony_n;
+    uint8_t full_draw;
+    int16_t scanned_pop;
 
     int16_t __cdecl Calculate_Current_Production_Turn_Count(int16_t) {
         return 0;
@@ -105,6 +111,21 @@ namespace COLONY {
 
 namespace COLXPORT {
     int16_t* g_colony_list_ptr;
+
+    // Test fake mirroring src/game/colxport.cpp: count the player's
+    // non-outpost colonies.
+    int16_t __cdecl N_Colonies(int16_t player_idx) {
+        int16_t colony_count = 0;
+        for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
+            s_colony* colony = &MOX::colony[i];
+
+            if ((int16_t)colony->owner == player_idx && colony->outpost_flag == 0) {
+                colony_count++;
+            }
+        }
+
+        return colony_count;
+    }
 }
 
 namespace HACCESS {

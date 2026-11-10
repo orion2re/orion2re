@@ -90,6 +90,8 @@ namespace COLSUM {
 
     void __cdecl Update_First(int16_t visible_rows, int16_t* first_visible_index, int16_t* slider_position);
 
+    void __cdecl Reset_List_Scroll();
+
     void __cdecl Decrement_First(int16_t num_items);
 
     void __cdecl Increment_First(int16_t count);
