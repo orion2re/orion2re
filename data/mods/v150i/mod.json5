@@ -13,7 +13,7 @@
     { id: "v150", version: "26.11" },
   ],
 
-  conflicts: ["v120", "ice", "vdc", "melee"],
+  conflicts: ["v120", "ice", "vdc-gm3", "melee"],
 
   config: "config/main.cfg",
 

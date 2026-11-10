@@ -8,7 +8,7 @@
     engine: ">=2.0.0 <3.0.0",
   },
 
-  conflicts: ["v150i", "ice", "vdc", "melee"],
+  conflicts: ["v150i", "ice", "vdc-gm3", "melee"],
 
   config: "config/main.cfg",
 }
