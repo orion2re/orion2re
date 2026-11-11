@@ -10,6 +10,7 @@ namespace {
     std::string tech_name_block;
     arena::s_arena* string_arena;
     int reload_count;
+    int resource_request_count;
     uint32_t random_count;
     int16_t granted_apps[TECHINIT::POSTWARP_TECH_COUNT];
     int grant_count;
@@ -31,6 +32,10 @@ namespace TEST_TECHINIT {
         return reload_count;
     }
 
+    int Resource_Request_Count_() {
+        return resource_request_count;
+    }
+
     int Grant_Count_() {
         return grant_count;
     }
@@ -46,12 +51,19 @@ namespace TEST_TECHINIT {
         }
         tech_name_block.clear();
         reload_count = 0;
+        resource_request_count = 0;
         random_count = 0;
         grant_count = 0;
         memset(granted_apps, 0, sizeof(granted_apps));
         memset(players, 0, sizeof(players));
         memset(&MOX::settings, 0, sizeof(MOX::settings));
         MOX::NUM_PLAYERS = 1;
+    }
+}
+
+namespace CONFIG_REFRESH {
+    void Request_Resource_Reload() {
+        ++resource_request_count;
     }
 }
 

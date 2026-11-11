@@ -13,6 +13,7 @@ namespace TEST_TECHINIT {
     void Set_Tech_Name_Block_(const std::string& value);
     char* Copy_Config_String_(const char* value);
     int Reload_Count_();
+    int Resource_Request_Count_();
     int Grant_Count_();
     int16_t Granted_App_(int index);
 }
@@ -59,6 +60,14 @@ DOCTEST_TEST_CASE("configuration refresh waits for the first technology name loa
     CONFIG_REFRESH::Refresh_After_Config_Group_Reload(
         config::CONFIG_GROUP_TECHNOLOGY);
     DOCTEST_CHECK(TEST_TECHINIT::Reload_Count_() == 2);
+    CONFIG_REFRESH::Refresh_After_Config_Reload(nullptr);
+    DOCTEST_CHECK(TEST_TECHINIT::Reload_Count_() == 3);
+    DOCTEST_CHECK(TEST_TECHINIT::Resource_Request_Count_() == 1);
+    bool groups[config::CONFIG_GROUP_COUNT] = {};
+    groups[config::CONFIG_GROUP_TECHNOLOGY] = true;
+    CONFIG_REFRESH::Refresh_After_Config_Reload(groups);
+    DOCTEST_CHECK(TEST_TECHINIT::Reload_Count_() == 4);
+    DOCTEST_CHECK(TEST_TECHINIT::Resource_Request_Count_() == 1);
 }
 
 DOCTEST_TEST_CASE("technology names preserve active configuration strings across LBX reloads") {

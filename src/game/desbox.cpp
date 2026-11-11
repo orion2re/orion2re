@@ -2608,39 +2608,6 @@ namespace DESBOX {
         DESBOX::replacement_box_base_y = (440 - DESBOX::replacement_box_height) / 2;
     }
 
-    int16_t __cdecl Special_System_Exclusion(int16_t special_idx, int16_t* out_conflict_id) {
-        int16_t found = 0;
-        *out_conflict_id = 0;
-
-        for (int16_t i = 0; i < 6; ++i) {
-            // Check if conflict already found in previous iterations
-            if (found != 0) {
-                break;
-            }
-
-            int16_t exclude_id = (int16_t)TECHDATA::specials[special_idx].exclude[i];
-            if (exclude_id > 0) {
-                for (int16_t j = 0; j < 8; ++j) {
-                    if (found != 0) {
-                        break;
-                    }
-
-                    int16_t current_special = MOX::design->special_devices[j];
-                    if (exclude_id == current_special) {
-                        // A conflict is only valid if the conflicting special is not the one
-                        // currently being replaced/selected in the design screen
-                        if (MOX::design->special_devices[MOX::design_screen_replacement_slot] != current_special) {
-                            found = 1;
-                            *out_conflict_id = current_special;
-                        }
-                    }
-                }
-            }
-        }
-
-        return found;
-    }
-
     int16_t __cdecl Items_Selected() {
         int16_t selected_count = 0;
         int16_t row_count = MOX::scroll_bar->total_rows;

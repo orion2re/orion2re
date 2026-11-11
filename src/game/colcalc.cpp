@@ -1775,20 +1775,6 @@ namespace COLCALC {
         } while (techs_known == 0 && field_idx < 75);
     }
 
-    bool __cdecl Field_Is_Gray_Box(int32_t field_id) {
-        switch (field_id) {
-            case 0x16:
-            case 0x17:
-            case 0x1c:
-            case 0x1d:
-            case 0x37:
-            case 0x39:
-                return true;
-            default:
-                return false;
-        }
-    }
-
     void __cdecl Compute_Potential_Colony_Info(s_player* plr, s_planet_data* planet, s_potential_colony_info* results) {
         results->pop_growth_bonus = 0;
         results->maintenance = 0;

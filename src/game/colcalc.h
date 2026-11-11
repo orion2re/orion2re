@@ -539,7 +539,19 @@ namespace COLCALC {
 
     void __cdecl Player_Gets_Tech_App(s_player* plr, int16_t tech_app_id);
 
-    bool __cdecl Field_Is_Gray_Box(int32_t field_id);
+    inline bool __cdecl Field_Is_Gray_Box(int32_t field_id) {
+        switch (field_id) {
+            case 0x16:
+            case 0x17:
+            case 0x1c:
+            case 0x1d:
+            case 0x37:
+            case 0x39:
+                return true;
+            default:
+                return false;
+        }
+    }
 
     void __cdecl Advance_Player_Field(s_player* plr, int32_t field_id, bool skip_first_advance);
 

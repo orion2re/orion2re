@@ -1,13 +1,58 @@
 #include "pch.h"
 
 #include "doctest/doctest.h"
+#include "lua/lua_game_ship_identity.h"
 
 namespace {
-    s_star_data stars[1];
-    int16_t spawned_x;
-    int16_t spawned_y;
-    int8_t spawned_owner;
-    s_ship_design* spawned_design;
+    s_star_data stars[2]; // One normal star and the runtime Antares slot.
+    constexpr int16_t spawn_slot = 17;
+
+    struct s_spawn_fixture {
+        std::vector<s_ship_data> ships{MAX_SHIPS};
+        std::vector<uint64_t> generations = std::vector<uint64_t>(MAX_SHIPS);
+        orion2re::lua::game::s_ship_generation_scope generation_scope{generations.data()};
+        s_star_data* saved_stars = MOX::star;
+        s_ship_data* saved_ships = MOX::ship;
+        int16_t saved_num_stars = MOX::NUM_STARS;
+        int16_t saved_num_ships = MOX::NUM_SHIPS;
+        int16_t saved_scale = MOX::cur_map_scale;
+        int16_t saved_x = MOX::cur_map_x;
+        int16_t saved_y = MOX::cur_map_y;
+        int16_t saved_max_scale = MOX::max_map_scale;
+        int16_t saved_width = MOX::MAP_MAX_X;
+        int16_t saved_height = MOX::MAP_MAX_Y;
+        int16_t saved_star_width = MOX::star_width;
+        int16_t saved_star_height = MOX::star_height;
+        uint32_t saved_seed = game_random::Get_Random_Seed();
+
+        s_spawn_fixture() {
+            memset(stars, 0, sizeof(stars));
+            stars[1].x = -1;
+            stars[1].y = -1;
+            MOX::star = stars;
+            MOX::ship = ships.data();
+            MOX::NUM_STARS = 1;
+            MOX::NUM_SHIPS = spawn_slot + 1;
+            MOX::star_width = 33;
+            MOX::star_height = 33;
+        }
+
+        ~s_spawn_fixture() {
+            MOX::star = saved_stars;
+            MOX::ship = saved_ships;
+            MOX::NUM_STARS = saved_num_stars;
+            MOX::NUM_SHIPS = saved_num_ships;
+            MOX::cur_map_scale = saved_scale;
+            MOX::cur_map_x = saved_x;
+            MOX::cur_map_y = saved_y;
+            MOX::max_map_scale = saved_max_scale;
+            MOX::MAP_MAX_X = saved_width;
+            MOX::MAP_MAX_Y = saved_height;
+            MOX::star_width = saved_star_width;
+            MOX::star_height = saved_star_height;
+            game_random::Set_Random_Seed(saved_seed);
+        }
+    };
 
     struct s_spawn_result {
         int16_t x;
@@ -22,41 +67,31 @@ namespace {
         MOX::cur_map_y = 456;
         game_random::Set_Random_Seed(seed);
         s_ship_design design = {};
+        design.cost = 321;
+        design.ship_type = SHIP_TYPE_COMBAT;
+        strcpy(design.name, "Spawn fixture");
+        const s_ship_design original_design = design;
+        MOX::ship[spawn_slot].owner = MAX_PLAYERS;
+        MOX::ship[spawn_slot].status = 5;
+        const uint64_t generation = orion2re::lua::game::Ship_Generation(spawn_slot);
 
-        DOCTEST_REQUIRE(SHIPS::Set_Nonplayer_Ship_XY(0, type, &design, randomize_xy) == 17);
-        DOCTEST_CHECK(spawned_owner == type);
-        DOCTEST_CHECK(spawned_design == &design);
+        DOCTEST_REQUIRE(SHIPS::Set_Nonplayer_Ship_XY(0, type, &design, randomize_xy) == spawn_slot);
+        DOCTEST_CHECK(orion2re::lua::game::Ship_Generation(spawn_slot) == generation + 1);
+        const s_ship_data& spawned = MOX::ship[spawn_slot];
+        DOCTEST_CHECK((spawned.owner == type));
+        DOCTEST_CHECK((spawned.d.cost == design.cost));
+        DOCTEST_CHECK((spawned.d.ship_type == design.ship_type));
+        DOCTEST_CHECK(strcmp(spawned.d.name, design.name) == 0);
+        DOCTEST_CHECK(memcmp(&design, &original_design, sizeof(design)) == 0);
         DOCTEST_CHECK(MOX::cur_map_scale == scale);
         DOCTEST_CHECK(MOX::cur_map_x == 123);
         DOCTEST_CHECK(MOX::cur_map_y == 456);
 
-        return {spawned_x, spawned_y, game_random::Get_Random_Seed(), game_random::Random(100)};
+        return {spawned.x, spawned.y, game_random::Get_Random_Seed(), game_random::Random(100)};
     }
 } // namespace
 
-namespace MOX {
-    s_star_data* star = stars;
-    int16_t cur_map_scale;
-    int16_t cur_map_x;
-    int16_t cur_map_y;
-    int16_t max_map_scale;
-    int16_t MAP_MAX_X;
-    int16_t MAP_MAX_Y;
-    int16_t star_width = 33;
-    int16_t star_height = 33;
-} // namespace MOX
-
-namespace SHIPMOVE {
-    int16_t __cdecl Create_Nonplayer_Ship(int8_t owner, s_ship_design* design, int16_t x, int16_t y) {
-        spawned_x = x;
-        spawned_y = y;
-        spawned_owner = owner;
-        spawned_design = design;
-        return 17;
-    }
-} // namespace SHIPMOVE
-
-DOCTEST_TEST_CASE("nonplayer spawning preserves full-map coordinates and random sequence") {
+DOCTEST_TEST_CASE_FIXTURE(s_spawn_fixture, "nonplayer spawning preserves full-map coordinates and random sequence") {
     struct s_case {
         uint32_t seed;
         int16_t x;
@@ -88,7 +123,7 @@ DOCTEST_TEST_CASE("nonplayer spawning preserves full-map coordinates and random 
     }
 }
 
-DOCTEST_TEST_CASE("nonplayer spawn coordinates and subsequent randomness are independent of zoom") {
+DOCTEST_TEST_CASE_FIXTURE(s_spawn_fixture, "nonplayer spawn coordinates and subsequent randomness are independent of zoom") {
     const int16_t map_scales[] = {30, 10, 15, 20, 36, 54, 100};
     const int16_t classic_scales[] = {10, 15, 20, 30};
     const int16_t types[] = {NONPLAYER_SHIP_TYPE_ANTARAN, NONPLAYER_SHIP_TYPE_AMOEBA};
@@ -131,7 +166,7 @@ DOCTEST_TEST_CASE("nonplayer spawn coordinates and subsequent randomness are ind
     }
 }
 
-DOCTEST_TEST_CASE("nonrandomized nonplayer spawning uses the star coordinates without consuming randomness") {
+DOCTEST_TEST_CASE_FIXTURE(s_spawn_fixture, "nonrandomized nonplayer spawning uses the star coordinates without consuming randomness") {
     stars[0].x = 731;
     stars[0].y = 509;
     MOX::max_map_scale = 30;

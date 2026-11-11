@@ -169,9 +169,6 @@ namespace COLCALC {
     void __cdecl Player_Gets_Tech_App(s_player*, int16_t) {
     }
 
-    bool __cdecl Field_Is_Gray_Box(int32_t) {
-        return false;
-    }
 } // namespace COLCALC
 
 namespace newtech {
