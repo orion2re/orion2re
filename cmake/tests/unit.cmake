@@ -744,7 +744,7 @@ orion2re_add_unit_test(test_colony_production_draw
     SOURCES
         tests/unit/coldraw_test.cpp
     PRODUCTION_SOURCES
-        src/game/coldraw.cpp
+        src/game/colony_production_display.cpp
     FAKE_SOURCES
         tests/fakes/fake_coldraw_runtime.cpp
 )
@@ -753,7 +753,7 @@ orion2re_add_unit_test(test_colony_scan_info
     SOURCES
         tests/unit/colsum_test.cpp
     PRODUCTION_SOURCES
-        src/game/colsum.cpp
+        src/game/colsum_details.cpp
     FAKE_SOURCES
         tests/fakes/fake_colony_scan_info_runtime.cpp
     LINK_SDL
@@ -1182,25 +1182,12 @@ orion2re_add_unit_test(test_racesel_digest
     SOURCES
         tests/unit/racesel_test.cpp
     PRODUCTION_SOURCES
-        src/game/raceopt.cpp
+        src/game/race_display.cpp
         src/game/raceopt_config.cpp
-        src/game/racesel.cpp
     FAKE_SOURCES
         tests/fakes/fake_racesel_digest_runtime.cpp
         tests/fakes/fake_sdl_string.cpp
 )
-
-if(MSVC)
-    target_compile_options(test_racesel_digest PRIVATE /Gy /Gw)
-    target_link_options(test_racesel_digest PRIVATE /OPT:REF)
-elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-    target_compile_options(test_racesel_digest PRIVATE -ffunction-sections -fdata-sections)
-    if(APPLE)
-        target_link_options(test_racesel_digest PRIVATE -Wl,-dead_strip)
-    else()
-        target_link_options(test_racesel_digest PRIVATE -Wl,--gc-sections)
-    endif()
-endif()
 
 orion2re_add_game_test(test_bill_history
     tests/unit/bill_test.cpp
@@ -1335,10 +1322,6 @@ endforeach()
 if(MSVC)
     target_compile_options(test_aidudes PRIVATE /Gy)
     target_link_options(test_aidudes PRIVATE /OPT:REF)
-    target_compile_options(test_colony_production_draw PRIVATE /Gy)
-    target_link_options(test_colony_production_draw PRIVATE /OPT:REF)
-    target_compile_options(test_colony_scan_info PRIVATE /Gy)
-    target_link_options(test_colony_scan_info PRIVATE /OPT:REF)
     target_compile_options(test_bombardment_ammo PRIVATE /Gy)
     target_link_options(test_bombardment_ammo PRIVATE /OPT:REF)
     target_compile_options(test_missile_defense PRIVATE /Gy)
@@ -1365,8 +1348,6 @@ if(MSVC)
     target_link_options(test_colony_replicators PRIVATE /OPT:REF)
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
     target_compile_options(test_aidudes PRIVATE -ffunction-sections -fdata-sections)
-    target_compile_options(test_colony_production_draw PRIVATE -ffunction-sections -fdata-sections)
-    target_compile_options(test_colony_scan_info PRIVATE -ffunction-sections -fdata-sections)
     target_compile_options(test_bombardment_ammo PRIVATE -ffunction-sections -fdata-sections)
     target_compile_options(test_missile_defense PRIVATE -ffunction-sections -fdata-sections)
     target_compile_options(test_absorber_cleanup PRIVATE -ffunction-sections -fdata-sections)
@@ -1381,8 +1362,6 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
     target_compile_options(test_colony_replicators PRIVATE -ffunction-sections -fdata-sections)
     if(APPLE)
         target_link_options(test_aidudes PRIVATE -Wl,-dead_strip)
-        target_link_options(test_colony_production_draw PRIVATE -Wl,-dead_strip)
-        target_link_options(test_colony_scan_info PRIVATE -Wl,-dead_strip)
         target_link_options(test_bombardment_ammo PRIVATE -Wl,-dead_strip)
         target_link_options(test_missile_defense PRIVATE -Wl,-dead_strip)
         target_link_options(test_absorber_cleanup PRIVATE -Wl,-dead_strip)
@@ -1397,8 +1376,6 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
         target_link_options(test_colony_replicators PRIVATE -Wl,-dead_strip)
     else()
         target_link_options(test_aidudes PRIVATE -Wl,--gc-sections)
-        target_link_options(test_colony_production_draw PRIVATE -Wl,--gc-sections)
-        target_link_options(test_colony_scan_info PRIVATE -Wl,--gc-sections)
         target_link_options(test_bombardment_ammo PRIVATE -Wl,--gc-sections)
         target_link_options(test_missile_defense PRIVATE -Wl,--gc-sections)
         target_link_options(test_absorber_cleanup PRIVATE -Wl,--gc-sections)
@@ -1658,7 +1635,7 @@ target_compile_definitions(test_farload_buffer_vfs PRIVATE
 
 foreach(TARGET_NAME IN ITEMS test_newgame test_homegen test_mapgen_planet_max
     test_lua_mod_runtime test_shield_table
-    test_ground_commando test_racesel_digest)
+    test_ground_commando)
     target_sources(${TARGET_NAME} PRIVATE tests/fakes/fake_string_overrides.cpp)
 endforeach()
 

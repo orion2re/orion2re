@@ -122,6 +122,37 @@ DOCTEST_TEST_CASE("colony summary preserves negative population and net producti
         "-250k -750k (-2)\n50/120 +0");
 }
 
+DOCTEST_TEST_CASE("colony detail readouts fall back to English for unsupported languages") {
+    const uint8_t languages[] = {5, UINT8_MAX};
+    for (uint8_t language : languages) {
+        Prepare_Colony_();
+        MOX::settings.language = language;
+        COLSUM::Draw_Colony_Scan_Info();
+        DOCTEST_CHECK(std::string(TEST_COLONY_SCAN_INFO::Output_()) ==
+            "Medium Terran \nNormal Gravity\nMineral Rich\n"
+            "Population (7/20)\nEnroute (2)\n250k +1500k (1)\n50/120 +13");
+
+        TEST_COLONY_SCAN_INFO::Reset_();
+        TEST_COLONY_SCAN_INFO::Capture_Empire_Info_();
+        MOX::settings.language = language;
+        MOX::player[0].total_pop = 42;
+        MOX::player[0].settlers_freighted = 3;
+        COLSUM::Draw_Empire_Info();
+        DOCTEST_CHECK(std::string(TEST_COLONY_SCAN_INFO::Output_()) ==
+            "BC: 0\nIncome: 0\nPopulation: 42+3\n"
+            "Freighters: 0\nFood: 0\nResearch: 0");
+    }
+    TEST_COLONY_SCAN_INFO::Reset_();
+}
+
+DOCTEST_TEST_CASE("colony scan details leave the output empty without an active colony") {
+    TEST_COLONY_SCAN_INFO::Reset_();
+    COLONY::g_colony_n = -1;
+    COLSUM::Draw_Colony_Scan_Info();
+    DOCTEST_CHECK(TEST_COLONY_SCAN_INFO::Output_()[0] == '\0');
+    TEST_COLONY_SCAN_INFO::Reset_();
+}
+
 DOCTEST_TEST_CASE("empire info preserves the classic population row without freighted population") {
     TEST_COLONY_SCAN_INFO::Reset_();
     TEST_COLONY_SCAN_INFO::Capture_Empire_Info_();
