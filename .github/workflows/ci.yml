@@ -86,9 +86,9 @@ jobs:
         run: python3 -m unittest discover -s tests/build_tools -v
       - run: cmake --preset ${{ matrix.preset }}
       # All test presets use Ninja. Report every build failure, not just the first one.
-      - run: cmake --build --preset ${{ matrix.preset }} --parallel 3 -- -k 0
+      - run: cmake --build --preset ${{ matrix.preset }} --parallel -- -k 0
       - name: Native game build smoke test
-        run: cmake --build --preset ${{ matrix.preset }} --target orion2re --parallel 3
+        run: cmake --build --preset ${{ matrix.preset }} --target orion2re --parallel
       - run: ctest --preset ${{ matrix.preset }} --no-tests=error
 
   documentation:
@@ -121,7 +121,7 @@ jobs:
         run: python3 tools/audit_documentation.py docs/requirements.lock docs/requirements-pdf.lock
       - run: cmake --preset docs
       - name: Build HTML and PDF documentation
-        run: cmake --build --preset docs --target docs-check docs-pdf --parallel 2
+        run: cmake --build --preset docs --target docs-check docs-pdf --parallel
       - name: Documentation regression tests
         run: out/build/Linux/docs/docs/pdf-venv/bin/python -m unittest discover -s tests/documentation -v
       - name: Package portal and stage standalone PDF
@@ -192,7 +192,7 @@ jobs:
           -DORION2RE_BUILD_TESTS=OFF -DORION2RE_BUILD_CONFIG_TOOL=ON
       - name: Build native MSVC Release
         if: runner.os == 'Windows'
-        run: cmake --build build --config Release --target orion2re --parallel 3
+        run: cmake --build build --config Release --target orion2re --parallel
       - name: Configure and build Apple Clang ARM64
         if: runner.os == 'macOS'
         env:
@@ -202,7 +202,7 @@ jobs:
           test "$(uname -m)" = arm64
           command -v ninja >/dev/null || brew install ninja
           cmake --preset osx-release
-          cmake --build --preset osx-release --target orion2re-app --parallel 2
+          cmake --build --preset osx-release --target orion2re-app --parallel
       - name: Packaging regression tests
         shell: bash
         run: python3 -m unittest discover -s tests/packaging -v
