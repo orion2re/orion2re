@@ -3,6 +3,7 @@
 #include <cstdint>
 
 namespace npcdiplo {
+    int32_t Tech_Trade_Value(int16_t player_idx, int16_t other_player_idx, int16_t tech_app_idx);
     extern s_npcdiplo_tech human_tech[TECH_APP_COUNT];
 
     extern s_npcdiplo_tech target_tech[TECH_APP_COUNT];

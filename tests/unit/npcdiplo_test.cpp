@@ -7,6 +7,7 @@ namespace TEST_NPCDIPLO {
     void Reset_();
     void Set_Player_May_Get_Tech_(bool may_get);
     void Set_Tech_Value_(int32_t value);
+    void Set_Tech_Value_For_App_(int16_t app, int32_t value);
 }
 
 namespace {
@@ -75,6 +76,10 @@ DOCTEST_TEST_CASE("human technology trade preserves nonzero valuation") {
 }
 
 DOCTEST_TEST_CASE("AI surrender delay gates surrender evaluation") {
+    struct s_delay_scope {
+        uint16_t saved = npcdiplo::ai_surrender_delay;
+        ~s_delay_scope() { npcdiplo::ai_surrender_delay = saved; }
+    } scope;
     TEST_NPCDIPLO::Reset_();
     MOX::player[0].objectives = PLAYER_OBJECTIVE_DIPLOMATIC;
     MOX::player[1].objectives = PLAYER_OBJECTIVE_DIPLOMATIC;
@@ -88,4 +93,25 @@ DOCTEST_TEST_CASE("AI surrender delay gates surrender evaluation") {
 
     npcdiplo::ai_surrender_delay = 149;
     DOCTEST_CHECK(npcdiplo::NPC_Surrender_Check(0) == 1);
+}
+
+DOCTEST_TEST_CASE("technology trade sorts multiple eligible applications by value") {
+    TEST_NPCDIPLO::Reset_();
+    const int16_t apps[] = {TECH_APP_NUCLEAR_DRIVE, TECH_APP_NUCLEAR_MISSILE, TECH_APP_NUCLEAR_BOMB};
+    const int32_t values[] = {10, 30, 20};
+    for (int i = 0; i < 3; ++i) {
+        MOX::player[1].tech_applications[apps[i]] = TECH_RESEARCH_STATUS_RESEARCHED;
+        TEST_NPCDIPLO::Set_Tech_Value_For_App_(apps[i], values[i]);
+    }
+    uint8_t indices[TECH_APP_COUNT] = {};
+    int32_t sorted_values[TECH_APP_COUNT] = {};
+    int16_t count = 0;
+    npcdiplo::Get_Differential_Tech_List(0, 1, 0, UINT32_MAX, indices, sorted_values, &count, 1);
+    DOCTEST_REQUIRE(count == 3);
+    DOCTEST_CHECK(indices[0] == apps[1]);
+    DOCTEST_CHECK(indices[1] == apps[2]);
+    DOCTEST_CHECK(indices[2] == apps[0]);
+    DOCTEST_CHECK(sorted_values[0] == 30);
+    DOCTEST_CHECK(sorted_values[1] == 20);
+    DOCTEST_CHECK(sorted_values[2] == 10);
 }

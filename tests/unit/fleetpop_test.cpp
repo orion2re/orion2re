@@ -3,19 +3,49 @@
 #include "doctest/doctest.h"
 #include "game/fleetpop.h"
 #include "game/shipstak.h"
+#include "../fixtures/game_state.h"
 
 namespace TEST_FLEETPOP {
     void Reset_();
 }
 
-DOCTEST_TEST_CASE("fleet at last active star exposes build outpost button") {
+namespace {
+    struct s_fleet_state : test::s_game_state {
+        test::s_saved_array<s_ship_node, MAX_SHIPS> nodes{MOX::ship_node};
+        test::s_saved_array<int16_t, MAX_SHIPS> starts{MOX::ship_stack_start};
+        test::s_saved_array<s_ship_icon, SHIP_ICON_COUNT> icons{MOX::ship_icon};
+        decltype(SHIPSTAK::scan_bonus) scan = SHIPSTAK::scan_bonus;
+        decltype(SHIPSTAK::stealth_bonus) stealth = SHIPSTAK::stealth_bonus;
+        decltype(SHIPSTAK::stealth_size_penalty) penalty = SHIPSTAK::stealth_size_penalty;
+        int16_t stack_count = MOX::ship_stack_count;
+        int16_t icon_count = MOX::ship_icon_count;
+        int16_t selected = MOX::small_ship_stack_ptr;
+        int16_t scanned = MOX::scanned_small_ship;
+        int16_t star = MOX::galaxy_map_scanned_star;
+        int16_t fleet = MOX::fleet_box_ship_stack;
+
+        ~s_fleet_state() {
+            SHIPSTAK::scan_bonus = scan;
+            SHIPSTAK::stealth_bonus = stealth;
+            SHIPSTAK::stealth_size_penalty = penalty;
+            MOX::ship_stack_count = stack_count;
+            MOX::ship_icon_count = icon_count;
+            MOX::small_ship_stack_ptr = selected;
+            MOX::scanned_small_ship = scanned;
+            MOX::galaxy_map_scanned_star = star;
+            MOX::fleet_box_ship_stack = fleet;
+        }
+    };
+}
+
+DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "fleet at last active star exposes build outpost button") {
     TEST_FLEETPOP::Reset_();
     MOX::ship[0].location = static_cast<int16_t>(MOX::NUM_STARS - 1);
 
     DOCTEST_CHECK(FLEETPOP::Set_Build_Outpost_Button_Flag(1) == 1);
 }
 
-DOCTEST_TEST_CASE("build outpost button rejects invalid direct-star boundaries") {
+DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "build outpost button rejects invalid direct-star boundaries") {
     TEST_FLEETPOP::Reset_();
 
     const int16_t invalid_locations[] = {
@@ -33,7 +63,7 @@ DOCTEST_TEST_CASE("build outpost button rejects invalid direct-star boundaries")
     }
 }
 
-DOCTEST_TEST_CASE("fleet en route does not expose build outpost button") {
+DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "fleet en route does not expose build outpost button") {
     TEST_FLEETPOP::Reset_();
     MOX::ship[0].location =
         static_cast<int16_t>(SHIP_LOCATION_WORMHOLE_OFFSET + 1);
@@ -41,7 +71,7 @@ DOCTEST_TEST_CASE("fleet en route does not expose build outpost button") {
     DOCTEST_CHECK(FLEETPOP::Set_Build_Outpost_Button_Flag(1) == 0);
 }
 
-DOCTEST_TEST_CASE("fleet navigation is a no-op without ship stacks") {
+DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "fleet navigation is a no-op without ship stacks") {
     TEST_FLEETPOP::Reset_();
     MOX::ship_stack_count = 0;
     MOX::small_ship_stack_ptr = -1;
@@ -53,7 +83,7 @@ DOCTEST_TEST_CASE("fleet navigation is a no-op without ship stacks") {
     DOCTEST_CHECK(MOX::small_ship_stack_ptr == -1);
 }
 
-DOCTEST_TEST_CASE("fleet summary counts only ships linked into the visible stack") {
+DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "fleet summary counts only ships linked into the visible stack") {
     TEST_FLEETPOP::Reset_();
 
     MOX::ship_node[0].next_node = 1;
@@ -86,7 +116,7 @@ DOCTEST_TEST_CASE("fleet summary counts only ships linked into the visible stack
     DOCTEST_CHECK(transports_count == 0);
 }
 
-DOCTEST_TEST_CASE("Space Scanner uses its independent strategic range") {
+DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "Space Scanner uses its independent strategic range") {
     TEST_FLEETPOP::Reset_();
     MOX::ship[0].owner = 1;
     MOX::ship[0].x = 90;
@@ -104,7 +134,7 @@ DOCTEST_TEST_CASE("Space Scanner uses its independent strategic range") {
     DOCTEST_CHECK(MOX::ship_stack_start[0] == 0);
 }
 
-DOCTEST_TEST_CASE("maximum strategic scan bonuses do not wrap negative") {
+DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "maximum strategic scan bonuses do not wrap negative") {
     TEST_FLEETPOP::Reset_();
     MOX::ship[0].owner = 1;
     MOX::ship[0].x = 90;
@@ -122,7 +152,7 @@ DOCTEST_TEST_CASE("maximum strategic scan bonuses do not wrap negative") {
     DOCTEST_CHECK(MOX::ship_stack_start[0] == 0);
 }
 
-DOCTEST_TEST_CASE("configured planet proximity determines same-location detection") {
+DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "configured planet proximity determines same-location detection") {
     TEST_FLEETPOP::Reset_();
     MOX::NUM_SHIPS = 1;
     MOX::NUM_COLONIES = 1;
@@ -160,7 +190,7 @@ DOCTEST_TEST_CASE("configured planet proximity determines same-location detectio
     DOCTEST_CHECK(MOX::ship_stack_count == 1);
 }
 
-DOCTEST_TEST_CASE("configured fleet proximity determines same-location detection") {
+DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "configured fleet proximity determines same-location detection") {
     TEST_FLEETPOP::Reset_();
     MOX::ship[0].owner = 1;
     MOX::ship[1].owner = 0;
@@ -188,7 +218,7 @@ DOCTEST_TEST_CASE("configured fleet proximity determines same-location detection
     DOCTEST_CHECK(MOX::ship_stack_count == 1);
 }
 
-DOCTEST_TEST_CASE("race_tech retains size penalty for zero-value stealth device") {
+DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "race_tech retains size penalty for zero-value stealth device") {
     TEST_FLEETPOP::Reset_();
     MOX::ship[0].owner = 1;
     MOX::ship[0].status = 1;
@@ -212,7 +242,7 @@ DOCTEST_TEST_CASE("race_tech retains size penalty for zero-value stealth device"
     DOCTEST_CHECK(MOX::ship_stack_start[0] == 0);
 }
 
-DOCTEST_TEST_CASE("race_tech retains size penalty when device bonuses cancel") {
+DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "race_tech retains size penalty when device bonuses cancel") {
     TEST_FLEETPOP::Reset_();
     MOX::ship[0].owner = 1;
     MOX::ship[0].status = 1;

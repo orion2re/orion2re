@@ -1,4 +1,49 @@
 #include "pch.h"
+#include "../fixtures/game_state.h"
+
+namespace {
+    struct s_production_state : test::s_game_state {
+        test::s_saved_array<s_tech_building_data, BUILDING_COUNT> buildings{TECHDATA::buildings};
+        test::s_saved_array<s_tech_hull_data, HULL_CLASS_COUNT> hulls{TECHDATA::hull_data};
+        test::s_saved_array<s_tech_app_data, TECH_APP_COUNT> applications{TECHDATA::technology_applications};
+        test::s_saved_array<s_tech_field_data, TECH_FIELD_COUNT> fields{TECHDATA::technology_fields};
+        test::s_saved_array<uint8_t, PLANET_CLIMATE_COUNT> food{MOX::food_per_farmer_table};
+        test::s_saved_array<s_event_data, EVENT_COUNT> events{EVENTS::event_data};
+        test::s_saved_array<uint8_t, PLANET_CLIMATE_COUNT> climate_maintenance{COLCALC::climate_maintenance_modifiers};
+        test::s_saved_array<uint8_t, SHIP_SIZE_COUNT> scout_lab{COLCALC::scout_lab_research_bonus};
+        test::s_saved_array<uint8_t, SHIP_SIZE_COUNT> command_usage{COLCALC::ship_command_points_usage};
+        decltype(COLCALC::replicator_food_pp) food_pp = COLCALC::replicator_food_pp;
+        decltype(COLCALC::replicator_food_bc) food_bc = COLCALC::replicator_food_bc;
+        decltype(COLCALC::trade_goods_ratio) trade_ratio = COLCALC::trade_goods_ratio;
+        decltype(COLCALC::planet_bc_bonus) planet_bc = COLCALC::planet_bc_bonus;
+        decltype(COLCALC::android_morale) morale = COLCALC::android_morale;
+        decltype(COLCALC::research_colony_bonus) colony_research = COLCALC::research_colony_bonus;
+        decltype(COLCALC::research_scientist_bonus) scientist_research = COLCALC::research_scientist_bonus;
+        decltype(COLCALC::command_points) command = COLCALC::command_points;
+        int16_t mineral = COLCALC::minerals_per_mine[0];
+
+        s_production_state() {
+            memset(TECHDATA::buildings, 0, sizeof(TECHDATA::buildings));
+            memset(TECHDATA::hull_data, 0, sizeof(TECHDATA::hull_data));
+            memset(TECHDATA::technology_applications, 0, sizeof(TECHDATA::technology_applications));
+            memset(TECHDATA::technology_fields, 0, sizeof(TECHDATA::technology_fields));
+            memset(MOX::food_per_farmer_table, 0, sizeof(MOX::food_per_farmer_table));
+            memset(EVENTS::event_data, 0, sizeof(EVENTS::event_data));
+        }
+
+        ~s_production_state() {
+            COLCALC::replicator_food_pp = food_pp;
+            COLCALC::replicator_food_bc = food_bc;
+            COLCALC::trade_goods_ratio = trade_ratio;
+            COLCALC::planet_bc_bonus = planet_bc;
+            COLCALC::android_morale = morale;
+            COLCALC::research_colony_bonus = colony_research;
+            COLCALC::research_scientist_bonus = scientist_research;
+            COLCALC::command_points = command;
+            COLCALC::minerals_per_mine[0] = mineral;
+        }
+    };
+}
 
 #include "doctest/doctest.h"
 #include "game/strbuild.h"
@@ -16,7 +61,7 @@ namespace TEST_GOVERNMENT_BONUS {
     void Cleanup_();
 }
 
-DOCTEST_TEST_CASE("government economy bonuses apply generically to every government") {
+DOCTEST_TEST_CASE_FIXTURE(s_production_state, "government economy bonuses apply generically to every government") {
     COLCALC::s_government_bonus saved_bonuses[GOVERNMENT_COUNT];
     memcpy(saved_bonuses, COLCALC::government_bonuses, sizeof(saved_bonuses));
 
@@ -55,7 +100,7 @@ DOCTEST_TEST_CASE("government economy bonuses apply generically to every governm
     TEST_GOVERNMENT_BONUS::Cleanup_();
 }
 
-DOCTEST_TEST_CASE("Android morale policy applies to the selected jobs") {
+DOCTEST_TEST_CASE_FIXTURE(s_production_state, "Android morale policy applies to the selected jobs") {
     struct s_policy {
         uint8_t value;
         bool applies[3];
@@ -102,7 +147,7 @@ DOCTEST_TEST_CASE("Android morale policy applies to the selected jobs") {
     TEST_GOVERNMENT_BONUS::Cleanup_();
 }
 
-DOCTEST_TEST_CASE("configured planet special BC bonuses feed colony income") {
+DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured planet special BC bonuses feed colony income") {
     TEST_GOVERNMENT_BONUS::Reset_();
 
     s_colony* colony = &MOX::colony[0];
@@ -125,7 +170,7 @@ DOCTEST_TEST_CASE("configured planet special BC bonuses feed colony income") {
     TEST_GOVERNMENT_BONUS::Cleanup_();
 }
 
-DOCTEST_TEST_CASE("configured Trade Goods ratios apply by Fantastic Traders trait") {
+DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured Trade Goods ratios apply by Fantastic Traders trait") {
     TEST_GOVERNMENT_BONUS::Reset_();
 
     s_colony* colony = &MOX::colony[0];
@@ -152,7 +197,7 @@ DOCTEST_TEST_CASE("configured Trade Goods ratios apply by Fantastic Traders trai
     TEST_GOVERNMENT_BONUS::Cleanup_();
 }
 
-DOCTEST_TEST_CASE("configured colony BC bonuses apply independently") {
+DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured colony BC bonuses apply independently") {
     TEST_GOVERNMENT_BONUS::Reset_();
     const COLCALC::s_bc_bonus saved_bonus = COLCALC::bc_bonus;
 
@@ -182,7 +227,7 @@ DOCTEST_TEST_CASE("configured colony BC bonuses apply independently") {
     TEST_GOVERNMENT_BONUS::Cleanup_();
 }
 
-DOCTEST_TEST_CASE("configured research bonuses drive production and predictions") {
+DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured research bonuses drive production and predictions") {
     TEST_GOVERNMENT_BONUS::Reset_();
 
     COLCALC::research_colony_bonus = {41, 43, 47, 53};
@@ -243,7 +288,7 @@ DOCTEST_TEST_CASE("configured research bonuses drive production and predictions"
     TEST_GOVERNMENT_BONUS::Cleanup_();
 }
 
-DOCTEST_TEST_CASE("hyper-advanced research costs use the configured increment") {
+DOCTEST_TEST_CASE_FIXTURE(s_production_state, "hyper-advanced research costs use the configured increment") {
     const uint16_t saved_increment = COLCALC::hyper_advanced_cost_increment;
     const uint32_t saved_base_cost =
         TECHDATA::technology_fields[TECH_FIELD_BIOLOGY].cost;
@@ -262,7 +307,7 @@ DOCTEST_TEST_CASE("hyper-advanced research costs use the configured increment") 
     TECHDATA::technology_fields[TECH_FIELD_BIOLOGY].cost = saved_base_cost;
 }
 
-DOCTEST_TEST_CASE("research projection counts a first-turn breakthrough once") {
+DOCTEST_TEST_CASE_FIXTURE(s_production_state, "research projection counts a first-turn breakthrough once") {
     const int field = TECH_FIELD_CHEMISTRY;
     const uint32_t saved_cost = TECHDATA::technology_fields[field].cost;
     TECHDATA::technology_fields[field].cost = 100;
@@ -283,14 +328,14 @@ DOCTEST_TEST_CASE("research projection counts a first-turn breakthrough once") {
     TECHDATA::technology_fields[field].cost = saved_cost;
 }
 
-DOCTEST_TEST_CASE("breakthrough chance uses widened arithmetic") {
+DOCTEST_TEST_CASE_FIXTURE(s_production_state, "breakthrough chance uses widened arithmetic") {
     DOCTEST_CHECK(COLCALC::Chance_For_Research_Breakthrough_Aux(
         INT32_MAX, 1, 1) == 100);
     DOCTEST_CHECK(COLCALC::Chance_For_Research_Breakthrough_Aux(
         (int64_t)INT32_MAX + 1, 1, INT32_MAX) == 1);
 }
 
-DOCTEST_TEST_CASE("configured pollution reductions preserve order and upward rounding") {
+DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured pollution reductions preserve order and upward rounding") {
     struct s_pollution_case {
         uint8_t exempt_production;
         uint8_t nano_coefficient;
@@ -348,7 +393,7 @@ DOCTEST_TEST_CASE("configured pollution reductions preserve order and upward rou
     TEST_GOVERNMENT_BONUS::Cleanup_();
 }
 
-DOCTEST_TEST_CASE("high Pollution Processor ratios preserve wide arithmetic") {
+DOCTEST_TEST_CASE_FIXTURE(s_production_state, "high Pollution Processor ratios preserve wide arithmetic") {
     struct s_ratio_case {
         uint16_t ratio;
         int16_t expected_pollution;
@@ -382,7 +427,7 @@ DOCTEST_TEST_CASE("high Pollution Processor ratios preserve wide arithmetic") {
     TEST_GOVERNMENT_BONUS::Cleanup_();
 }
 
-DOCTEST_TEST_CASE("configured worker production stays consistent across calculations") {
+DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured worker production stays consistent across calculations") {
     TEST_GOVERNMENT_BONUS::Reset_();
     uint8_t saved_worker_base[8];
     memcpy(saved_worker_base, COLCALC::minerals_per_mine,
@@ -435,7 +480,7 @@ DOCTEST_TEST_CASE("configured worker production stays consistent across calculat
     TEST_GOVERNMENT_BONUS::Cleanup_();
 }
 
-DOCTEST_TEST_CASE("worker production cache preserves the configured low byte") {
+DOCTEST_TEST_CASE_FIXTURE(s_production_state, "worker production cache preserves the configured low byte") {
     const uint8_t values[] = {0, 127, 128, 255};
 
     for (uint8_t value : values) {
@@ -457,7 +502,7 @@ DOCTEST_TEST_CASE("worker production cache preserves the configured low byte") {
     TEST_GOVERNMENT_BONUS::Cleanup_();
 }
 
-DOCTEST_TEST_CASE("configured fixed production and Recyclotron bonuses are applied") {
+DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured fixed production and Recyclotron bonuses are applied") {
     TEST_GOVERNMENT_BONUS::Reset_();
     const COLCALC::s_production_worker_bonus saved_worker_bonus =
         COLCALC::production_worker_bonus;
@@ -490,7 +535,7 @@ DOCTEST_TEST_CASE("configured fixed production and Recyclotron bonuses are appli
     TEST_GOVERNMENT_BONUS::Cleanup_();
 }
 
-DOCTEST_TEST_CASE("Scout Lab research uses the configured bonus for every ship size") {
+DOCTEST_TEST_CASE_FIXTURE(s_production_state, "Scout Lab research uses the configured bonus for every ship size") {
     for (uint8_t size_class = 0; size_class < SHIP_SIZE_COUNT; ++size_class) {
         TEST_PLAYER_STATS::Reset_();
         uint8_t expected = (uint8_t)(40 + size_class);
@@ -509,7 +554,7 @@ DOCTEST_TEST_CASE("Scout Lab research uses the configured bonus for every ship s
     }
 }
 
-DOCTEST_TEST_CASE("configured planet climate modifiers change building maintenance") {
+DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured planet climate modifiers change building maintenance") {
     TEST_COLONY_REPLICATORS::Reset_();
 
     s_colony* colony = &MOX::colony[0];
@@ -533,7 +578,7 @@ DOCTEST_TEST_CASE("configured planet climate modifiers change building maintenan
     }
 }
 
-DOCTEST_TEST_CASE("configured command-point values and ship usage drive maintenance") {
+DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured command-point values and ship usage drive maintenance") {
     TEST_PLAYER_STATS::Reset_();
     MOX::NUM_COLONIES = 3;
     MOX::NUM_SHIPS = 2;
@@ -562,7 +607,7 @@ DOCTEST_TEST_CASE("configured command-point values and ship usage drive maintena
     DOCTEST_CHECK(MOX::player[0].command_points_used == 13);
 }
 
-DOCTEST_TEST_CASE("negative command-point settings retain signed capacity and summary semantics") {
+DOCTEST_TEST_CASE_FIXTURE(s_production_state, "negative command-point settings retain signed capacity and summary semantics") {
     const int8_t values[] = {-1, -128};
     char starting_msg[] = "starting";
     char used_msg[] = "used";
@@ -599,7 +644,7 @@ DOCTEST_TEST_CASE("negative command-point settings retain signed capacity and su
     }
 }
 
-DOCTEST_TEST_CASE("configured Food Replicator PP costs cap spending without negative production") {
+DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured Food Replicator PP costs cap spending without negative production") {
     struct s_case {
         uint8_t pp_cost;
         int16_t expected_food;
@@ -630,7 +675,7 @@ DOCTEST_TEST_CASE("configured Food Replicator PP costs cap spending without nega
     }
 }
 
-DOCTEST_TEST_CASE("Food Replicator BC cost is applied after climate-adjusted building maintenance") {
+DOCTEST_TEST_CASE_FIXTURE(s_production_state, "Food Replicator BC cost is applied after climate-adjusted building maintenance") {
     struct s_case {
         uint8_t bc_cost;
         uint8_t expected_maintenance;

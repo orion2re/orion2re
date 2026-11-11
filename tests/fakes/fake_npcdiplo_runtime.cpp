@@ -1,12 +1,9 @@
 #include "pch.h"
 
-void Legacy_Qsort(void*, size_t, size_t, legacy_qsort_compare) {
-}
-
 namespace {
     s_player players[MAX_PLAYERS];
     bool player_may_get_tech;
-    int32_t tech_value;
+    int32_t tech_values[TECH_APP_COUNT];
 }
 
 namespace TEST_NPCDIPLO {
@@ -14,7 +11,7 @@ namespace TEST_NPCDIPLO {
         memset(players, 0, sizeof(players));
         MOX::NUM_PLAYERS = 2;
         player_may_get_tech = true;
-        tech_value = 0;
+        memset(tech_values, 0, sizeof(tech_values));
     }
 
     void Set_Player_May_Get_Tech_(bool may_get) {
@@ -22,7 +19,11 @@ namespace TEST_NPCDIPLO {
     }
 
     void Set_Tech_Value_(int32_t value) {
-        tech_value = value;
+        std::fill_n(tech_values, TECH_APP_COUNT, value);
+    }
+
+    void Set_Tech_Value_For_App_(int16_t app, int32_t value) {
+        tech_values[app] = value;
     }
 }
 
@@ -53,7 +54,7 @@ namespace newtech {
     void __cdecl Set_Competition_Tech_Values(int16_t) {
     }
 
-    int32_t __cdecl Calc_Tech_Value(int16_t, int16_t) {
-        return tech_value;
+    int32_t __cdecl Calc_Tech_Value(int16_t, int16_t app) {
+        return tech_values[app];
     }
 }

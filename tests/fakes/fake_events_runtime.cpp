@@ -13,6 +13,18 @@ namespace {
 }
 
 namespace TEST_EVENTS {
+    int background_music_calls;
+    int animation_reset_calls;
+    int release_calls;
+    void* released_block;
+    MOX2::action_func_t restored_auto_function;
+    void* animation_buffer;
+    int derelict_calls;
+    int wormhole_calls;
+    bool wormhole_success;
+    int population_calls;
+    int16_t max_population;
+
     void Reset_() {
         memset(stars, 0, sizeof(stars));
         memset(planets, 0, sizeof(planets));
@@ -35,6 +47,21 @@ namespace TEST_EVENTS {
         }
 
         MOX::NUM_PLAYERS = 0;
+        MOX::NUM_SHIPS = 0;
+        MOX::NUM_STARS = 0;
+        MOX::NUM_COLONIES = 0;
+        MOX::stardate = 35000;
+        EVENTS::last_event_year = 35000;
+        EVENTS::event_delay_count = 0;
+        MOX::auto_turn_exit = 0;
+        diplodef::COUNCIL_FLAG = 0;
+        EVENTS::force_event_type = 0;
+        background_music_calls = animation_reset_calls = release_calls = 0;
+        derelict_calls = wormhole_calls = population_calls = 0;
+        released_block = animation_buffer = nullptr;
+        restored_auto_function = nullptr;
+        wormhole_success = true;
+        max_population = 20;
         MOX::settings = {};
         memset(MOX::food_per_farmer_table, 0, sizeof(MOX::food_per_farmer_table));
         EVENTS::event_roll = {512, 1000};
@@ -67,6 +94,9 @@ namespace MOX {
     int16_t PLAYER_NUM;
     int16_t NUM_PLAYERS;
     int16_t NUM_SHIPS;
+    int16_t NUM_STARS;
+    int16_t NUM_COLONIES;
+    uint8_t auto_turn_exit;
     s_star_data* star = stars;
     s_planet_data* planet = planets;
     s_colony* colony = colonies;
@@ -76,6 +106,10 @@ namespace MOX {
     char* mineral_class_string[MINERAL_RESOURCE_COUNT];
     s_settings settings = {};
     uint8_t food_per_farmer_table[PLANET_CLIMATE_COUNT];
+}
+
+namespace diplodef {
+    int16_t COUNCIL_FLAG;
 }
 
 namespace farload {
@@ -116,6 +150,9 @@ namespace video {
 
 namespace MOX2 {
     void Get_Auto_Function(action_func_t*) {}
+    void Put_Auto_Function(action_func_t* slot) {
+        TEST_EVENTS::restored_auto_function = *slot;
+    }
 } // namespace MOX2
 
 namespace mouse {
@@ -124,6 +161,7 @@ namespace mouse {
 
 namespace JIM {
     void Play_Streaming_Music(int16_t, int16_t, int16_t) {}
+    void Play_Background_Music() { ++TEST_EVENTS::background_music_calls; }
 } // namespace JIM
 
 namespace ERIC {
@@ -144,6 +182,10 @@ namespace timer {
 
 namespace RUSS {
     void Mox_Sync_Update() {}
+    void Release_All_Blocks(void* block) {
+        ++TEST_EVENTS::release_calls;
+        TEST_EVENTS::released_block = block;
+    }
 } // namespace RUSS
 
 namespace FMTPARA {
@@ -161,7 +203,11 @@ namespace file_ani {
         return 0;
     }
     void Set_File_Animation_Frame(int16_t) {}
-    void Set_File_Animation_Buffer(void*) {}
+    void Set_File_Animation_Buffer(void* buffer) { TEST_EVENTS::animation_buffer = buffer; }
+    void Reset_File_Animation_Buffer() {
+        ++TEST_EVENTS::animation_reset_calls;
+        TEST_EVENTS::animation_buffer = nullptr;
+    }
     void Open_File_Animation(const char*, int16_t) {}
     void Draw_File_Animation() {}
 } // namespace file_ani
@@ -230,6 +276,11 @@ namespace string {
 namespace COLCALC {
     uint8_t keep_research_on_breakthrough;
 
+    int16_t __cdecl Planet_Max_Population_For_Player(s_planet_data*, int16_t) {
+        ++TEST_EVENTS::population_calls;
+        return TEST_EVENTS::max_population;
+    }
+
     void __cdecl Colony_Calculation(int16_t) {
     }
 
@@ -285,11 +336,24 @@ namespace SHIPS {
 }
 
 namespace SHIPMOVE {
+    void __cdecl Do_Wormhole_Event(int32_t, s_wormhole_data* result) {
+        ++TEST_EVENTS::wormhole_calls;
+        *result = {};
+        result->success = TEST_EVENTS::wormhole_success;
+        result->dest_star_idx = 1;
+        result->count = 3;
+    }
     void __cdecl Do_Hyperspace_Beast(int32_t) {
     }
 }
 
 namespace KEN {
+    void __cdecl Get_Derelict_Applications(int16_t, uint16_t* apps, int16_t* count) {
+        ++TEST_EVENTS::derelict_calls;
+        apps[0] = TECH_APP_NUCLEAR_DRIVE;
+        apps[1] = TECH_APP_NUCLEAR_BOMB;
+        *count = 2;
+    }
     uint16_t __cdecl Get_Weighted_Choice(uint16_t*, int16_t) {
         return 0;
     }

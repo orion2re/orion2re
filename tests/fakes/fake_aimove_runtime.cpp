@@ -112,15 +112,6 @@ namespace GEO {
     }
 }
 
-namespace special {
-    uint32_t __cdecl isqrt(uint32_t) {
-        return 0;
-    }
-}
-
-void Legacy_Qsort(void*, size_t, size_t, legacy_qsort_compare) {
-}
-
 namespace game_random {
     uint32_t __cdecl Random(uint32_t) {
         return 1;

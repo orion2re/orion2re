@@ -4,10 +4,108 @@
 #include "game/events.h"
 
 namespace TEST_EVENTS {
+    extern int background_music_calls;
+    extern int animation_reset_calls;
+    extern int release_calls;
+    extern void* released_block;
+    extern MOX2::action_func_t restored_auto_function;
+    extern void* animation_buffer;
+    extern int derelict_calls;
+    extern int wormhole_calls;
+    extern bool wormhole_success;
+    extern int population_calls;
+    extern int16_t max_population;
     void Reset_();
     void Set_Random_Result_(uint32_t value);
     void Set_Event_Message_(const char* message);
     uint32_t Last_Weight_(int index);
+}
+
+namespace {
+    void Saved_Event_Auto_Function_() {}
+
+    void Prepare_Forced_Event_(EVENT event) {
+        TEST_EVENTS::Reset_();
+        MOX::NUM_PLAYERS = 1;
+        MOX::NUM_STARS = 2;
+        MOX::NUM_COLONIES = 1;
+        MOX::settings.random_events = 1;
+        MOX::settings.game_difficulty = GAME_DIFFICULTY_AVERAGE;
+        MOX::stardate = 35500;
+        MOX::player[0].total_pop = 10;
+        MOX::colony[0].owner = 0;
+        MOX::colony[0].planet = 0;
+        MOX::planet[0].colony_index = 0;
+        EVENTS::last_event_year = 35000;
+        EVENTS::event_delay_count = EVENTS::between_events_delay;
+        EVENTS::force_event_type = static_cast<uint8_t>(event + 1);
+    }
+}
+
+DOCTEST_TEST_CASE("event reporting restores runtime services after a popup") {
+    TEST_EVENTS::Reset_();
+    TEST_EVENTS::Set_Event_Message_("Donation");
+    MOX::stardate = 35001;
+    EVENTS::event_data[EVENT_DONATION].status = 5;
+    s_animation_header screen = {};
+    struct s_context_scope {
+        s_animation_header* saved_screen = MOX::screen_seg;
+        MOX2::action_func_t saved_auto = EVENTS::jim_saved_autofunction;
+        ~s_context_scope() {
+            MOX::screen_seg = saved_screen;
+            EVENTS::jim_saved_autofunction = saved_auto;
+            TEST_EVENTS::Reset_();
+        }
+    } context_scope;
+    EVENTS::jim_saved_autofunction = Saved_Event_Auto_Function_;
+    MOX::screen_seg = &screen;
+    file_ani::Set_File_Animation_Buffer(&screen);
+    EVENTS::Check_For_Event();
+    DOCTEST_CHECK(TEST_EVENTS::background_music_calls == 1);
+    DOCTEST_CHECK(TEST_EVENTS::animation_reset_calls == 1);
+    DOCTEST_CHECK(TEST_EVENTS::animation_buffer == nullptr);
+    DOCTEST_CHECK(TEST_EVENTS::release_calls == 1);
+    DOCTEST_CHECK(TEST_EVENTS::released_block == &screen);
+    DOCTEST_CHECK(TEST_EVENTS::restored_auto_function == Saved_Event_Auto_Function_);
+    DOCTEST_CHECK(MOX::auto_turn_exit == 1);
+}
+
+DOCTEST_TEST_CASE("derelict selection records the supplied technology rewards") {
+    Prepare_Forced_Event_(EVENT_DERELICT);
+    EVENTS::Determine_Event();
+    DOCTEST_CHECK(TEST_EVENTS::derelict_calls == 1);
+    DOCTEST_CHECK((EVENTS::event_data[EVENT_DERELICT].status == 1));
+    DOCTEST_CHECK((EVENTS::event_data[EVENT_DERELICT].target_id == TECH_APP_NUCLEAR_DRIVE));
+    DOCTEST_CHECK((EVENTS::event_data[EVENT_DERELICT].amount == TECH_APP_NUCLEAR_BOMB));
+    TEST_EVENTS::Reset_();
+}
+
+DOCTEST_TEST_CASE("wormhole selection requires a successful movement result") {
+    Prepare_Forced_Event_(EVENT_UNSTABLE_WORMHOLE);
+    EVENTS::Determine_Event();
+    DOCTEST_CHECK(TEST_EVENTS::wormhole_calls == 1);
+    DOCTEST_CHECK((EVENTS::event_data[EVENT_UNSTABLE_WORMHOLE].target_id == 1));
+    DOCTEST_CHECK((EVENTS::event_data[EVENT_UNSTABLE_WORMHOLE].amount == 3));
+    Prepare_Forced_Event_(EVENT_UNSTABLE_WORMHOLE);
+    TEST_EVENTS::wormhole_success = false;
+    EVENTS::Determine_Event();
+    DOCTEST_CHECK(TEST_EVENTS::wormhole_calls == 5);
+    DOCTEST_CHECK((EVENTS::event_data[EVENT_UNSTABLE_WORMHOLE].status == 0));
+    TEST_EVENTS::Reset_();
+}
+
+DOCTEST_TEST_CASE("population boom selection excludes a colony at its supplied limit") {
+    Prepare_Forced_Event_(EVENT_POPULATION_BOOM);
+    MOX::colony[0].n_pops = 20;
+    EVENTS::Determine_Event();
+    DOCTEST_CHECK(TEST_EVENTS::population_calls == 5);
+    DOCTEST_CHECK((EVENTS::event_data[EVENT_POPULATION_BOOM].status == 0));
+    Prepare_Forced_Event_(EVENT_POPULATION_BOOM);
+    MOX::colony[0].n_pops = 19;
+    EVENTS::Determine_Event();
+    DOCTEST_CHECK(TEST_EVENTS::population_calls == 1);
+    DOCTEST_CHECK((EVENTS::event_data[EVENT_POPULATION_BOOM].status != 0));
+    TEST_EVENTS::Reset_();
 }
 
 DOCTEST_TEST_CASE("Lucky event selection retains the full random result") {

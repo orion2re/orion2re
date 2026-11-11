@@ -2,65 +2,32 @@
 
 namespace {
     s_player players[MAX_PLAYERS];
+    s_leader_data leaders[MAX_LEADERS];
+    s_ship_data ships[1];
+    s_star_data stars[1];
+    s_planet_data planets[1];
+    s_colony colonies[1];
 }
 
 namespace TEST_DIPLOMAC {
     void Reset_() {
         memset(players, 0, sizeof(players));
+        memset(leaders, 0, sizeof(leaders));
+        for (auto& leader : leaders) leader.player_index = -1;
+        MOX::player = players;
+        MOX::leaders = leaders;
+        MOX::ship = ships;
+        MOX::star = stars;
+        MOX::planet = planets;
+        MOX::colony = colonies;
         MOX::NUM_PLAYERS = 2;
-    }
-}
+        MOX::NUM_SHIPS = 0;
+        MOX::NUM_STARS = 0;
+        MOX::NUM_COLONIES = 0;
+        memset(diplodef::personality_relation_modifiers, 0,
+            sizeof(diplodef::personality_relation_modifiers));
 
-namespace MOX {
-    s_player* player = players;
-    int16_t NUM_PLAYERS = 2;
-}
-
-namespace diplodef {
-    int16_t next_council_meeting_turn;
-    int16_t COUNCIL_FLAG;
-    int16_t council_winner;
-    int16_t personality_relation_modifiers[MAX_PLAYERS];
-}
-
-namespace game_random {
-    uint32_t __cdecl Random(uint32_t) {
-        return 1;
-    }
-}
-
-namespace AIMOVE {
-    int __cdecl Number_Of_Attacks_Underway(int16_t, int16_t) {
-        return 0;
-    }
-}
-
-namespace COLCALC {
-    int __cdecl Best_Leader_Diplomat_Bonus(int) {
-        return 0;
-    }
-
-    int16_t __cdecl Get_Surrender_System(int16_t, int16_t, int16_t) {
-        return -1;
-    }
-
-    bool __cdecl May_Surrender_Star(int16_t, int16_t, int16_t) {
-        return false;
-    }
-}
-
-namespace TECHDATA {
-    s_tech_app_data technology_applications[TECH_APP_COUNT];
-    s_tech_field_data technology_fields[TECH_FIELD_COUNT];
-}
-
-namespace npcdiplo {
-    void __cdecl Clear_Last_Proposal_Turn(int16_t, int16_t) {
-    }
-
-    void __cdecl Get_Differential_Tech_List(
-        int16_t, int16_t, uint32_t, uint32_t, uint8_t*, int32_t*,
-        int16_t* tech_count, int16_t) {
-        *tech_count = 0;
+        // The proposal roll and its following d30/d50 modifier roll are both 1.
+        game_random::Set_Random_Seed(650);
     }
 }

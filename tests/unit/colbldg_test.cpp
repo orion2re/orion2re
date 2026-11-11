@@ -3,13 +3,51 @@
 #include "doctest/doctest.h"
 #include "game/colbldg.h"
 #include "lua/lua_game_ship_identity.h"
+#include "../fixtures/game_state.h"
+
+namespace {
+    struct s_building_state : test::s_game_state {
+        test::s_saved_array<s_tech_building_data, BUILDING_COUNT> buildings{TECHDATA::buildings};
+        test::s_saved_array<COLBLDG::s_build_list_format, COLBLDG::BUILD_LIST_PRODUCT_COUNT> formats{COLBLDG::build_list_format};
+        test::s_saved_array<char*, ESTRINGS_COUNT> strings{ESTRINGS::strings};
+        test::s_saved_array<int16_t, 54> building_indexes{COLBLDG::building_indexes};
+        test::s_saved_array<int16_t, 54> military_indexes{COLBLDG::military_indexes};
+        test::s_saved_array<int16_t, 7> items{COLBLDG::current_item};
+        test::s_saved_array<int16_t, 4> active{COLBLDG::active_prod};
+        int16_t building_count = COLBLDG::n_building_indexes;
+        int16_t military_count = COLBLDG::n_military_indexes;
+        int16_t handle = COLONY::colony_handle;
+        uint8_t cheats = COLONY::cheats;
+        uint8_t housing = COLCALC::disable_housing;
+        uint8_t mode = COLBLDG::field_mode;
+        int16_t refitting = COLBLDG::refitting_ship_n;
+        bool had_pending = COLBLDG::Pending_Refit_Design() != nullptr;
+        s_ship_design pending = {};
+
+        s_building_state() {
+            if (had_pending) pending = *COLBLDG::Pending_Refit_Design();
+        }
+
+        ~s_building_state() {
+            if (had_pending) COLBLDG::Set_Pending_Refit_Design(refitting, &pending);
+            else COLBLDG::Clear_Pending_Refit_Design();
+            COLBLDG::refitting_ship_n = refitting;
+            COLBLDG::n_building_indexes = building_count;
+            COLBLDG::n_military_indexes = military_count;
+            COLONY::colony_handle = handle;
+            COLONY::cheats = cheats;
+            COLCALC::disable_housing = housing;
+            COLBLDG::field_mode = mode;
+        }
+    };
+}
 
 namespace TEST_COLBLDG {
     void Reset_();
     void Set_Buildable_(int16_t building_id, bool value);
 }
 
-DOCTEST_TEST_CASE("build-list format defaults preserve classic ordering and colors") {
+DOCTEST_TEST_CASE_FIXTURE(s_building_state, "build-list format defaults preserve classic ordering and colors") {
     TEST_COLBLDG::Reset_();
 
     DOCTEST_CHECK(COLBLDG::build_list_format[COLBLDG::BUILD_LIST_PRODUCT_TRADE_GOODS].order == -2);
@@ -27,7 +65,7 @@ DOCTEST_TEST_CASE("build-list format defaults preserve classic ordering and colo
     DOCTEST_CHECK(queued.dark == 0xB8);
 }
 
-DOCTEST_TEST_CASE("build-list ordering includes Housing and Trade Goods") {
+DOCTEST_TEST_CASE_FIXTURE(s_building_state, "build-list ordering includes Housing and Trade Goods") {
     TEST_COLBLDG::Reset_();
 
     static char alpha[] = "Alpha";
@@ -49,7 +87,7 @@ DOCTEST_TEST_CASE("build-list ordering includes Housing and Trade Goods") {
     DOCTEST_CHECK(COLBLDG::building_indexes[3] == COLONY_PRODUCTION_TRADE_GOODS);
 }
 
-DOCTEST_TEST_CASE("disabled Housing is omitted from the build list") {
+DOCTEST_TEST_CASE_FIXTURE(s_building_state, "disabled Housing is omitted from the build list") {
     TEST_COLBLDG::Reset_();
     COLCALC::disable_housing = 1;
 
@@ -60,7 +98,7 @@ DOCTEST_TEST_CASE("disabled Housing is omitted from the build list") {
                   COLONY_PRODUCTION_TRADE_GOODS);
 }
 
-DOCTEST_TEST_CASE("enemy outpost is not a colony base target") {
+DOCTEST_TEST_CASE_FIXTURE(s_building_state, "enemy outpost is not a colony base target") {
     TEST_COLBLDG::Reset_();
 
     for (int16_t i = 0; i < 5; ++i) {
@@ -87,7 +125,7 @@ DOCTEST_TEST_CASE("enemy outpost is not a colony base target") {
     DOCTEST_CHECK(COLBLDG::Star_N_Uncolonized_Worlds(0) == 2);
 }
 
-DOCTEST_TEST_CASE("queuing the last legal Colony Base removes it from the military list") {
+DOCTEST_TEST_CASE_FIXTURE(s_building_state, "queuing the last legal Colony Base removes it from the military list") {
     TEST_COLBLDG::Reset_();
 
     MOX::colony[0].owner = 0;
@@ -112,7 +150,7 @@ DOCTEST_TEST_CASE("queuing the last legal Colony Base removes it from the milita
     DOCTEST_CHECK(COLBLDG::n_military_indexes == 0);
 }
 
-DOCTEST_TEST_CASE("pending refit design owns an independent transient copy") {
+DOCTEST_TEST_CASE_FIXTURE(s_building_state, "pending refit design owns an independent transient copy") {
     s_ship_design source = {};
     strcpy(source.name, "Refit");
     source.size = SHIP_SIZE_LARGE;
@@ -132,7 +170,7 @@ DOCTEST_TEST_CASE("pending refit design owns an independent transient copy") {
     DOCTEST_CHECK(COLBLDG::Pending_Refit_Design() == nullptr);
 }
 
-DOCTEST_TEST_CASE("ship allocation appends without a pre-seeded owner") {
+DOCTEST_TEST_CASE_FIXTURE(s_building_state, "ship allocation appends without a pre-seeded owner") {
     TEST_COLBLDG::Reset_();
     MOX::colony[0].planet = 0;
     MOX::planet[0].star_index = 0;
@@ -152,7 +190,7 @@ DOCTEST_TEST_CASE("ship allocation appends without a pre-seeded owner") {
     DOCTEST_CHECK(orion2re::lua::game::Ship_Generation(ship_idx) == 1);
 }
 
-DOCTEST_TEST_CASE("ship allocation reuses only an owner-matched destroyed slot") {
+DOCTEST_TEST_CASE_FIXTURE(s_building_state, "ship allocation reuses only an owner-matched destroyed slot") {
     TEST_COLBLDG::Reset_();
     MOX::colony[0].planet = 0;
     MOX::planet[0].star_index = 0;
@@ -172,7 +210,7 @@ DOCTEST_TEST_CASE("ship allocation reuses only an owner-matched destroyed slot")
     DOCTEST_CHECK(orion2re::lua::game::Ship_Generation(ship_idx) == 1);
 }
 
-DOCTEST_TEST_CASE("ship allocation fails when capacity has no reusable slot") {
+DOCTEST_TEST_CASE_FIXTURE(s_building_state, "ship allocation fails when capacity has no reusable slot") {
     TEST_COLBLDG::Reset_();
     MOX::colony[0].planet = 0;
     MOX::planet[0].star_index = 0;
@@ -187,7 +225,7 @@ DOCTEST_TEST_CASE("ship allocation fails when capacity has no reusable slot") {
     DOCTEST_CHECK(MOX::NUM_SHIPS == MAX_SHIPS);
 }
 
-DOCTEST_TEST_CASE("moving a Repeat pair forward preserves unrelated queue entries") {
+DOCTEST_TEST_CASE_FIXTURE(s_building_state, "moving a Repeat pair forward preserves unrelated queue entries") {
     TEST_COLBLDG::Reset_();
     const int16_t initial[7] = {
         BUILDING_AUTOMATED_FACTORY,
@@ -215,7 +253,7 @@ DOCTEST_TEST_CASE("moving a Repeat pair forward preserves unrelated queue entrie
     DOCTEST_CHECK(COLBLDG::active_prod[0] == -1);
 }
 
-DOCTEST_TEST_CASE("moving before a Repeat marker preserves its product pair") {
+DOCTEST_TEST_CASE_FIXTURE(s_building_state, "moving before a Repeat marker preserves its product pair") {
     TEST_COLBLDG::Reset_();
     const int16_t initial[7] = {
         BUILDING_AUTOMATED_FACTORY,
@@ -243,7 +281,7 @@ DOCTEST_TEST_CASE("moving before a Repeat marker preserves its product pair") {
     DOCTEST_CHECK(COLBLDG::active_prod[0] == -1);
 }
 
-DOCTEST_TEST_CASE("moving a Repeat pair backward preserves unrelated queue entries") {
+DOCTEST_TEST_CASE_FIXTURE(s_building_state, "moving a Repeat pair backward preserves unrelated queue entries") {
     TEST_COLBLDG::Reset_();
     const int16_t initial[7] = {
         BUILDING_AUTOMATED_FACTORY,

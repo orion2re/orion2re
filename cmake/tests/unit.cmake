@@ -67,7 +67,7 @@ function(orion2re_add_unit_test TARGET_NAME)
     cmake_parse_arguments(ORION2RE_TEST "LINK_SDL" "" "SOURCES;PRODUCTION_SOURCES;FAKE_SOURCES;LIBRARIES" ${ARGN})
 
     if("src/game/compat.cpp" IN_LIST ORION2RE_TEST_PRODUCTION_SOURCES)
-        list(APPEND ORION2RE_TEST_PRODUCTION_SOURCES src/game/user_paths.cpp)
+        list(APPEND ORION2RE_TEST_PRODUCTION_SOURCES src/game/user_paths.cpp src/game/legacy_sort.cpp)
     endif()
 
     orion2re_test_shared_sources(ORION2RE_TEST_OBJECTS
@@ -611,10 +611,11 @@ orion2re_add_unit_test(test_orbital_defense
     PRODUCTION_SOURCES
         src/game/aidudes.cpp
         src/game/colcalc_config.cpp
-        src/game/compat.cpp
+        src/game/legacy_sort.cpp
         src/game/ericnet.cpp
         src/game/production_rules.cpp
         src/game/special.cpp
+        src/game/angle.cpp
         src/game/sys.cpp
     FAKE_SOURCES
         tests/fakes/fake_ericnet_runtime.cpp
@@ -707,7 +708,7 @@ orion2re_add_unit_test(test_plntsum_filters
     PRODUCTION_SOURCES
         src/game/colony_lifecycle.cpp
         src/game/colcalc_base.cpp
-        src/game/compat.cpp
+        src/game/legacy_sort.cpp
         src/game/plntsum.cpp
         src/game/harold.cpp
         src/game/struct.cpp
@@ -762,17 +763,9 @@ orion2re_add_unit_test(test_colony_pop_growth
         tests/fakes/fake_colony_pop_growth_runtime.cpp
 )
 
-orion2re_add_unit_test(test_colony_replicators
-    SOURCES
-        tests/unit/colcalc_main_test.cpp
-    PRODUCTION_SOURCES
-        src/game/colcalc.cpp
-        src/game/colcalc_base.cpp
-        src/game/colcalc_config.cpp
-        src/game/colcalc_main.cpp
-        src/game/strbuild.cpp
-    FAKE_SOURCES
-        tests/fakes/fake_colony_replicators_runtime.cpp
+orion2re_add_game_test(test_colony_replicators
+    tests/unit/colcalc_main_test.cpp
+    tests/fakes/fake_colony_replicators_runtime.cpp
 )
 
 orion2re_add_unit_test(test_build_queue
@@ -784,29 +777,10 @@ orion2re_add_unit_test(test_build_queue
         tests/fakes/fake_build_queue_runtime.cpp
 )
 
-orion2re_add_unit_test(test_colbldg
-    SOURCES
-        tests/unit/colbldg_test.cpp
-    PRODUCTION_SOURCES
-        src/game/colbldg.cpp
-        src/game/colbldg_config.cpp
-        src/lua/lua_game_ship_identity.cpp
-    FAKE_SOURCES
-        tests/fakes/fake_colbldg_runtime.cpp
-        tests/fakes/fake_sdl_string.cpp
+orion2re_add_game_test(test_colbldg
+    tests/unit/colbldg_test.cpp
+    tests/fakes/fake_colbldg_runtime.cpp
 )
-
-if(MSVC)
-    target_compile_options(test_colbldg PRIVATE /Gy)
-    target_link_options(test_colbldg PRIVATE /OPT:REF)
-elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-    target_compile_options(test_colbldg PRIVATE -ffunction-sections -fdata-sections)
-    if(APPLE)
-        target_link_options(test_colbldg PRIVATE -Wl,-dead_strip)
-    else()
-        target_link_options(test_colbldg PRIVATE -Wl,--gc-sections)
-    endif()
-endif()
 
 orion2re_add_unit_test(test_colonize
     SOURCES
@@ -843,6 +817,7 @@ orion2re_add_unit_test(test_events
         tests/unit/events_test.cpp
     PRODUCTION_SOURCES
         src/game/events.cpp
+        src/game/struct.cpp
     FAKE_SOURCES
         tests/fakes/fake_events_runtime.cpp
         tests/fakes/fake_string_message_loader.cpp
@@ -870,18 +845,6 @@ orion2re_add_unit_test(test_nextturn_order
         tests/fakes/fake_nextturn_runtime.cpp
 )
 
-if(MSVC)
-    target_compile_options(test_events PRIVATE /Gy)
-    target_link_options(test_events PRIVATE /OPT:REF)
-elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-    target_compile_options(test_events PRIVATE -ffunction-sections -fdata-sections)
-    if(APPLE)
-        target_link_options(test_events PRIVATE -Wl,-dead_strip)
-    else()
-        target_link_options(test_events PRIVATE -Wl,--gc-sections)
-    endif()
-endif()
-
 orion2re_add_game_test(test_nonplayer_spawn
     tests/unit/nonplayer_spawn_test.cpp
 )
@@ -901,7 +864,10 @@ orion2re_add_unit_test(test_aimove
     SOURCES
         tests/unit/aimove_test.cpp
     PRODUCTION_SOURCES
-        src/game/aimove.cpp
+        src/game/aimove_npc.cpp
+        src/game/legacy_sort.cpp
+        src/game/special.cpp
+        src/game/angle.cpp
     FAKE_SOURCES
         tests/fakes/fake_aimove_runtime.cpp
 )
@@ -909,43 +875,19 @@ orion2re_add_unit_test(test_aimove
 if(MSVC)
     target_compile_options(test_shipmove PRIVATE /Gy)
     target_link_options(test_shipmove PRIVATE /OPT:REF)
-    target_compile_options(test_aimove PRIVATE /Gy)
-    target_link_options(test_aimove PRIVATE /OPT:REF)
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
     target_compile_options(test_shipmove PRIVATE -ffunction-sections -fdata-sections)
-    target_compile_options(test_aimove PRIVATE -ffunction-sections -fdata-sections)
     if(APPLE)
         target_link_options(test_shipmove PRIVATE -Wl,-dead_strip)
-        target_link_options(test_aimove PRIVATE -Wl,-dead_strip)
     else()
         target_link_options(test_shipmove PRIVATE -Wl,--gc-sections)
-        target_link_options(test_aimove PRIVATE -Wl,--gc-sections)
     endif()
 endif()
 
-orion2re_add_unit_test(test_fleetpop
-    SOURCES
-        tests/unit/fleetpop_test.cpp
-    PRODUCTION_SOURCES
-        src/game/flt1.cpp
-        src/game/fleetpop.cpp
-        src/game/shipstak.cpp
-        src/game/sys.cpp
-    FAKE_SOURCES
-        tests/fakes/fake_fleetpop_runtime.cpp
+orion2re_add_game_test(test_fleetpop
+    tests/unit/fleetpop_test.cpp
+    tests/fakes/fake_fleetpop_runtime.cpp
 )
-
-if(MSVC)
-    target_compile_options(test_fleetpop PRIVATE /Gy)
-    target_link_options(test_fleetpop PRIVATE /OPT:REF)
-elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-    target_compile_options(test_fleetpop PRIVATE -ffunction-sections -fdata-sections)
-    if(APPLE)
-        target_link_options(test_fleetpop PRIVATE -Wl,-dead_strip)
-    else()
-        target_link_options(test_fleetpop PRIVATE -Wl,--gc-sections)
-    endif()
-endif()
 
 orion2re_add_unit_test(test_fleet_summary
     SOURCES
@@ -1070,48 +1012,20 @@ orion2re_add_unit_test(test_missile_defense
         tests/fakes/fake_fields_helpers_runtime.cpp
 )
 
-orion2re_add_unit_test(test_diplomac
-    SOURCES
-        tests/unit/diplomac_test.cpp
-    PRODUCTION_SOURCES
-        src/game/diplomac.cpp
-    FAKE_SOURCES
-        tests/fakes/fake_diplomac_runtime.cpp
+orion2re_add_game_test(test_diplomac
+    tests/unit/diplomac_test.cpp
+    tests/fakes/fake_diplomac_runtime.cpp
 )
-
-if(MSVC)
-    target_compile_options(test_diplomac PRIVATE /Gy)
-    target_link_options(test_diplomac PRIVATE /OPT:REF)
-elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-    target_compile_options(test_diplomac PRIVATE -ffunction-sections -fdata-sections)
-    if(APPLE)
-        target_link_options(test_diplomac PRIVATE -Wl,-dead_strip)
-    else()
-        target_link_options(test_diplomac PRIVATE -Wl,--gc-sections)
-    endif()
-endif()
 
 orion2re_add_unit_test(test_npcdiplo
     SOURCES
         tests/unit/npcdiplo_test.cpp
     PRODUCTION_SOURCES
-        src/game/npcdiplo.cpp
+        src/game/npcdiplo_rules.cpp
+        src/game/legacy_sort.cpp
     FAKE_SOURCES
         tests/fakes/fake_npcdiplo_runtime.cpp
 )
-
-if(MSVC)
-    target_compile_options(test_npcdiplo PRIVATE /Gy)
-    target_link_options(test_npcdiplo PRIVATE /OPT:REF)
-elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-    target_compile_options(test_npcdiplo PRIVATE
-        -ffunction-sections -fdata-sections)
-    if(APPLE)
-        target_link_options(test_npcdiplo PRIVATE -Wl,-dead_strip)
-    else()
-        target_link_options(test_npcdiplo PRIVATE -Wl,--gc-sections)
-    endif()
-endif()
 
 orion2re_add_unit_test(test_combat_stats
     SOURCES
@@ -1332,8 +1246,6 @@ if(MSVC)
     target_link_options(test_stasis_area_effects PRIVATE /OPT:REF)
     target_compile_options(test_colony_pop_growth PRIVATE /Gy)
     target_link_options(test_colony_pop_growth PRIVATE /OPT:REF)
-    target_compile_options(test_colony_replicators PRIVATE /Gy)
-    target_link_options(test_colony_replicators PRIVATE /OPT:REF)
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
     target_compile_options(test_aidudes PRIVATE -ffunction-sections -fdata-sections)
     target_compile_options(test_bombardment_ammo PRIVATE -ffunction-sections -fdata-sections)
@@ -1347,7 +1259,6 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
     target_compile_options(test_cmbtfire PRIVATE -ffunction-sections -fdata-sections)
     target_compile_options(test_stasis_area_effects PRIVATE -ffunction-sections -fdata-sections)
     target_compile_options(test_colony_pop_growth PRIVATE -ffunction-sections -fdata-sections)
-    target_compile_options(test_colony_replicators PRIVATE -ffunction-sections -fdata-sections)
     if(APPLE)
         target_link_options(test_aidudes PRIVATE -Wl,-dead_strip)
         target_link_options(test_bombardment_ammo PRIVATE -Wl,-dead_strip)
@@ -1361,7 +1272,6 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
         target_link_options(test_cmbtfire PRIVATE -Wl,-dead_strip)
         target_link_options(test_stasis_area_effects PRIVATE -Wl,-dead_strip)
         target_link_options(test_colony_pop_growth PRIVATE -Wl,-dead_strip)
-        target_link_options(test_colony_replicators PRIVATE -Wl,-dead_strip)
     else()
         target_link_options(test_aidudes PRIVATE -Wl,--gc-sections)
         target_link_options(test_bombardment_ammo PRIVATE -Wl,--gc-sections)
@@ -1375,7 +1285,6 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
         target_link_options(test_cmbtfire PRIVATE -Wl,--gc-sections)
         target_link_options(test_stasis_area_effects PRIVATE -Wl,--gc-sections)
         target_link_options(test_colony_pop_growth PRIVATE -Wl,--gc-sections)
-        target_link_options(test_colony_replicators PRIVATE -Wl,--gc-sections)
     endif()
 endif()
 

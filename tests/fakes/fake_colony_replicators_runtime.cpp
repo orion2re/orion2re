@@ -1,17 +1,8 @@
 #include "pch.h"
 
-namespace {
-    s_colony colonies[3];
-    s_player players[MAX_PLAYERS];
-    s_ship_data ships[2];
-    s_leader_data leaders[MAX_LEADERS];
-    s_planet_data planets[1];
-    s_star_data stars[1];
-}
-
 namespace TEST_COLONY_REPLICATORS {
     void Reset_() {
-        memset(colonies, 0, sizeof(colonies));
+        memset(MOX::colony, 0, sizeof(s_colony) * MAX_COLONIES);
         memset(TECHDATA::buildings, 0, sizeof(TECHDATA::buildings));
         TECHDATA::buildings[BUILDING_AUTOMATED_FACTORY].maintenance = 2;
         COLCALC::replicator_food_pp = 2;
@@ -28,10 +19,14 @@ namespace TEST_COLONY_REPLICATORS {
 
 namespace TEST_GOVERNMENT_BONUS {
     void Reset_() {
-        memset(players, 0, sizeof(players));
-        memset(colonies, 0, sizeof(colonies));
-        memset(planets, 0, sizeof(planets));
-        memset(stars, 0, sizeof(stars));
+        s_player* players = MOX::player;
+        s_colony* colonies = MOX::colony;
+        s_planet_data* planets = MOX::planet;
+        s_star_data* stars = MOX::star;
+        memset(players, 0, sizeof(s_player) * MAX_PLAYERS);
+        memset(colonies, 0, sizeof(s_colony) * MAX_COLONIES);
+        memset(planets, 0, sizeof(s_planet_data) * MAX_PLANETS);
+        memset(stars, 0, sizeof(s_star_data) * (MAX_STARS + 1));
         for (int player = 0; player < MAX_PLAYERS; ++player) {
             stars[0].officer_index[player] = -1;
         }
@@ -57,10 +52,10 @@ namespace TEST_GOVERNMENT_BONUS {
     }
 
     void Cleanup_() {
-        memset(players, 0, sizeof(players));
-        memset(colonies, 0, sizeof(colonies));
-        memset(planets, 0, sizeof(planets));
-        memset(stars, 0, sizeof(stars));
+        memset(MOX::player, 0, sizeof(s_player) * MAX_PLAYERS);
+        memset(MOX::colony, 0, sizeof(s_colony) * MAX_COLONIES);
+        memset(MOX::planet, 0, sizeof(s_planet_data) * MAX_PLANETS);
+        memset(MOX::star, 0, sizeof(s_star_data) * (MAX_STARS + 1));
         COLCALC::minerals_per_mine[0] = 0;
         MOX::NUM_PLAYERS = 0;
         MOX::NUM_COLONIES = 0;
@@ -69,14 +64,15 @@ namespace TEST_GOVERNMENT_BONUS {
 
 namespace TEST_PLAYER_STATS {
     void Reset_() {
-        memset(players, 0, sizeof(players));
-        memset(ships, 0, sizeof(ships));
-        memset(leaders, 0, sizeof(leaders));
-        memset(planets, 0, sizeof(planets));
-        memset(stars, 0, sizeof(stars));
+        memset(MOX::player, 0, sizeof(s_player) * MAX_PLAYERS);
+        memset(MOX::ship, 0, sizeof(s_ship_data) * MAX_SHIPS);
+        memset(MOX::leaders, 0, sizeof(s_leader_data) * MAX_LEADERS);
+        memset(MOX::planet, 0, sizeof(s_planet_data) * MAX_PLANETS);
+        memset(MOX::star, 0, sizeof(s_star_data) * (MAX_STARS + 1));
         memset(&MOX::settings, 0, sizeof(MOX::settings));
-        for (s_leader_data& leader : leaders) {
-            leader.status = -1;
+        for (int i = 0; i < MAX_LEADERS; ++i) {
+            MOX::leaders[i].status = -1;
+            MOX::leaders[i].player_index = -1;
         }
         MOX::NUM_PLAYERS = 1;
         MOX::NUM_COLONIES = 0;
@@ -87,63 +83,5 @@ namespace TEST_PLAYER_STATS {
         const uint8_t command_usage[SHIP_SIZE_COUNT] = {1, 2, 3, 4, 5, 6};
         memcpy(COLCALC::ship_command_points_usage, command_usage,
                sizeof(command_usage));
-    }
-}
-
-namespace MOX {
-    s_colony* colony = colonies;
-    s_player* player = players;
-    s_ship_data* ship = ships;
-    s_leader_data* leaders = ::leaders;
-    s_planet_data* planet = planets;
-    s_star_data* star = stars;
-    s_settings settings = {};
-    int16_t NUM_PLAYERS = 0;
-    int16_t NUM_COLONIES = 0;
-    int16_t NUM_SHIPS = 0;
-    uint8_t food_per_farmer_table[PLANET_CLIMATE_COUNT] = {};
-}
-
-namespace TECHDATA {
-    s_tech_building_data buildings[BUILDING_COUNT];
-    s_tech_hull_data hull_data[HULL_CLASS_COUNT];
-    s_tech_app_data technology_applications[TECH_APP_COUNT];
-    s_tech_field_data technology_fields[TECH_FIELD_COUNT];
-}
-
-namespace EVENTS {
-    int16_t __cdecl Event_Check_Space_Anomaly(int16_t) {
-        return 0;
-    }
-
-    int16_t __cdecl Event_Check_Space_Anomaly_At_Star(int16_t) {
-        return 0;
-    }
-
-    int16_t __cdecl Event_Check_Colony_Researching(int16_t) {
-        return 0;
-    }
-}
-
-namespace struct_ {
-    int16_t __cdecl Test_Bit_Field(void* bit_field, uint16_t bit_index) {
-        uint8_t* bytes = (uint8_t*)bit_field;
-        return (bytes[bit_index >> 3] >> (bit_index & 7)) & 1;
-    }
-}
-
-namespace OFFICER {
-    int16_t __cdecl Owned_Officer_Level(int16_t) {
-        return 0;
-    }
-
-    int16_t __cdecl Officer_Maintenance(int16_t, int16_t) {
-        return 0;
-    }
-}
-
-namespace BILL {
-    int16_t __cdecl Get_Their_Spy_Number(int16_t, int16_t) {
-        return 0;
     }
 }

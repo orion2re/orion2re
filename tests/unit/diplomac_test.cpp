@@ -8,6 +8,48 @@ namespace TEST_DIPLOMAC {
 }
 
 namespace {
+    struct s_diplomacy_scope {
+        s_player* players = MOX::player;
+        s_leader_data* leaders = MOX::leaders;
+        s_ship_data* ships = MOX::ship;
+        s_star_data* stars = MOX::star;
+        s_planet_data* planets = MOX::planet;
+        s_colony* colonies = MOX::colony;
+        int16_t player_count = MOX::NUM_PLAYERS;
+        int16_t ship_count = MOX::NUM_SHIPS;
+        int16_t star_count = MOX::NUM_STARS;
+        int16_t colony_count = MOX::NUM_COLONIES;
+        int16_t council_flag = diplodef::COUNCIL_FLAG;
+        int16_t council_winner = diplodef::council_winner;
+        int16_t council_turn = diplodef::next_council_meeting_turn;
+        decltype(diplodef::personality_relation_modifiers) modifiers;
+        uint32_t seed = game_random::Get_Random_Seed();
+        decltype(diplomac::alternate_diplomacy) alternate = diplomac::alternate_diplomacy;
+
+        s_diplomacy_scope() {
+            memcpy(modifiers, diplodef::personality_relation_modifiers, sizeof(modifiers));
+        }
+
+        ~s_diplomacy_scope() {
+            MOX::player = players;
+            MOX::leaders = leaders;
+            MOX::ship = ships;
+            MOX::star = stars;
+            MOX::planet = planets;
+            MOX::colony = colonies;
+            MOX::NUM_PLAYERS = player_count;
+            MOX::NUM_SHIPS = ship_count;
+            MOX::NUM_STARS = star_count;
+            MOX::NUM_COLONIES = colony_count;
+            diplodef::COUNCIL_FLAG = council_flag;
+            diplodef::council_winner = council_winner;
+            diplodef::next_council_meeting_turn = council_turn;
+            memcpy(diplodef::personality_relation_modifiers, modifiers, sizeof(modifiers));
+            game_random::Set_Random_Seed(seed);
+            diplomac::alternate_diplomacy = alternate;
+        }
+    };
+
     void Check_Proposal_(int16_t proposal_type) {
         int16_t response = 0;
         int16_t demand_type = 0;
@@ -21,7 +63,7 @@ namespace {
     }
 }
 
-DOCTEST_TEST_CASE("Meklar and Bulrathi starting relations are symmetric") {
+DOCTEST_TEST_CASE_FIXTURE(s_diplomacy_scope, "Meklar and Bulrathi starting relations are symmetric") {
     TEST_DIPLOMAC::Reset_();
     MOX::player[0].race = STOCK_RACE_BULRATHI;
     MOX::player[1].race = STOCK_RACE_MEKLAR;
@@ -34,7 +76,16 @@ DOCTEST_TEST_CASE("Meklar and Bulrathi starting relations are symmetric") {
     DOCTEST_CHECK(MOX::player[1].base_relations[0] == -12);
 }
 
-DOCTEST_TEST_CASE("configured starting relations initialize current and base values") {
+DOCTEST_TEST_CASE_FIXTURE(s_diplomacy_scope, "diplomacy fixtures preserve deterministic proposal modifier rolls") {
+    TEST_DIPLOMAC::Reset_();
+    DOCTEST_CHECK(game_random::Random(100) == 1);
+    DOCTEST_CHECK(game_random::Random(30) == 1);
+    TEST_DIPLOMAC::Reset_();
+    DOCTEST_CHECK(game_random::Random(100) == 1);
+    DOCTEST_CHECK(game_random::Random(50) == 1);
+}
+
+DOCTEST_TEST_CASE_FIXTURE(s_diplomacy_scope, "configured starting relations initialize current and base values") {
     TEST_DIPLOMAC::Reset_();
     MOX::player[0].race = STOCK_RACE_HUMAN;
     MOX::player[1].race = STOCK_RACE_TRILARIAN;
@@ -49,7 +100,7 @@ DOCTEST_TEST_CASE("configured starting relations initialize current and base val
     diplomac::starting_relations[STOCK_RACE_HUMAN][STOCK_RACE_TRILARIAN] = original;
 }
 
-DOCTEST_TEST_CASE("alternate diplomacy selects proposal-specific modifiers") {
+DOCTEST_TEST_CASE_FIXTURE(s_diplomacy_scope, "alternate diplomacy selects proposal-specific modifiers") {
     struct s_proposal_case {
         int16_t proposal_type;
         int16_t alternate_modifier_type;
