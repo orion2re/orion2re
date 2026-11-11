@@ -588,23 +588,11 @@ orion2re_add_unit_test(test_spy
     SOURCES
         tests/unit/spy_test.cpp
     PRODUCTION_SOURCES
-        src/game/spy.cpp
+        src/game/spy_actions.cpp
         src/game/spy_bonus.cpp
     FAKE_SOURCES
         tests/fakes/fake_spy_runtime.cpp
 )
-
-if(MSVC)
-    target_compile_options(test_spy PRIVATE /Gy)
-    target_link_options(test_spy PRIVATE /OPT:REF)
-elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-    target_compile_options(test_spy PRIVATE -ffunction-sections -fdata-sections)
-    if(APPLE)
-        target_link_options(test_spy PRIVATE -Wl,-dead_strip)
-    else()
-        target_link_options(test_spy PRIVATE -Wl,--gc-sections)
-    endif()
-endif()
 
 orion2re_add_unit_test(test_aidudes
     SOURCES
@@ -1421,27 +1409,13 @@ orion2re_add_unit_test(test_newgame
     SOURCES
         tests/unit/initgame_test.cpp
     PRODUCTION_SOURCES
-        src/game/initgame.cpp
         src/game/initgame_rules.cpp
-        src/game/newgame.cpp
+        src/game/newgame_options.cpp
         src/game/random.cpp
-        src/lua/lua_game_ship_identity.cpp
     FAKE_SOURCES
         tests/fakes/fake_newgame_runtime.cpp
         tests/fakes/fake_sdl_string.cpp
 )
-
-if(MSVC)
-    target_compile_options(test_newgame PRIVATE /Gy)
-    target_link_options(test_newgame PRIVATE /OPT:REF)
-elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-    target_compile_options(test_newgame PRIVATE -ffunction-sections -fdata-sections)
-    if(APPLE)
-        target_link_options(test_newgame PRIVATE -Wl,-dead_strip)
-    else()
-        target_link_options(test_newgame PRIVATE -Wl,--gc-sections)
-    endif()
-endif()
 
 orion2re_add_unit_test(test_msg_queue
     SOURCES

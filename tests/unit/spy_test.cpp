@@ -30,6 +30,36 @@ DOCTEST_TEST_CASE("technology spy bonuses include configured Xeno Psychology") {
     spy::spy_tech_bonus = {10, 0, 5, 10, 10, 10};
 }
 
+DOCTEST_TEST_CASE("returning spies preserves the home count cap and clears the foreign assignment") {
+    TEST_SPY::Reset_();
+    BILL::Set_Their_Spy_Number(0, 0, 10);
+    BILL::Set_Their_Spy_Number(0, 1, 5);
+    spy::Bring_Home_Spies_Vs(0, 1);
+    DOCTEST_CHECK(BILL::Get_Their_Spy_Number(0, 0) == 15);
+    DOCTEST_CHECK(BILL::Get_Their_Spy_Number(0, 1) == 0);
+
+    BILL::Set_Their_Spy_Number(0, 0, 50);
+    BILL::Set_Their_Spy_Number(0, 1, 20);
+    spy::Bring_Home_Spies_Vs(0, 1);
+    DOCTEST_CHECK(BILL::Get_Their_Spy_Number(0, 0) == 63);
+    DOCTEST_CHECK(BILL::Get_Their_Spy_Number(0, 1) == 0);
+    spy::Bring_Home_Spies_Vs(0, 1);
+    DOCTEST_CHECK(BILL::Get_Their_Spy_Number(0, 0) == 63);
+    DOCTEST_CHECK(TEST_SPY::Random_Call_Count_() == 0);
+}
+
+DOCTEST_TEST_CASE("spy count bonuses retain their configured diminishing-return boundaries") {
+    struct s_count_bonus_scope {
+        spy::s_spy_count_bonus saved = spy::count_bonus;
+        ~s_count_bonus_scope() { spy::count_bonus = saved; }
+    } scope;
+    spy::count_bonus = {2, 4};
+    const int32_t expected[] = {0, 2, 4, 5, 6, 6, 7};
+    for (int32_t count = 0; count < 7; ++count) {
+        DOCTEST_CHECK(spy::N_Spies_Bonus(count) == expected[count]);
+    }
+}
+
 DOCTEST_TEST_CASE("Assassins resolve in descending leader and RNG order") {
     TEST_SPY::Reset_();
     s_leader_data* ordinary = TEST_SPY::Leader_(3);
