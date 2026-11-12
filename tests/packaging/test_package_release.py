@@ -60,8 +60,9 @@ class PackagingTests(unittest.TestCase):
         self.config.write_bytes(b"untouched build configuration")
         (self.build / "data/extra.dat").write_bytes(b"additional runtime asset")
 
-    def package(self, platform="win32"):
-        return packaging.package(platform, self.build, self.output, self.mods)
+    def package(self, platform="win32", version=None):
+        return packaging.package(platform, self.build, self.output, self.mods,
+                                 version=version)
 
     def windows_exe(self, platform="win32"):
         (self.build / "Release/orion2re.exe").write_bytes(synthetic_executable(platform))
@@ -97,15 +98,48 @@ class PackagingTests(unittest.TestCase):
                              packaging.FILENAMES[platform][:-4] + "-main.zip")
             self.assertEqual(packaging.archive_filename(platform, "v2.0.0"),
                              packaging.FILENAMES[platform][:-4] + "-v2.0.0.zip")
-        self.windows_exe()
-        archive = packaging.package("win32", self.build, self.output, self.mods,
-                                    version="v2.0.0")
-        packaging.verify_archive(archive, "win32", self.mods, version="v2.0.0")
-        with self.assertRaises(ValueError):
-            packaging.verify_archive(archive, "win32", self.mods)
+        for platform in ("win32", "win64"):
+            with self.subTest(platform=platform):
+                self.windows_exe(platform)
+                archive = self.package(platform, version="v2.0.0")
+                packaging.verify_archive(archive, platform, self.mods, version="v2.0.0")
+                with zipfile.ZipFile(archive) as result:
+                    self.assertEqual(result.read(packaging.CONFIG_PATH),
+                                     packaging.SOURCE_CONFIG.read_bytes())
+                self.assertEqual(self.config.read_bytes(), b"untouched build configuration")
+                with self.assertRaises(ValueError):
+                    packaging.verify_archive(archive, platform, self.mods)
         for version in ("", "../v2", "/v2", "v2/tag", "v2\\tag", "v2\n", "-v2"):
             with self.subTest(version=version), self.assertRaises(ValueError):
                 packaging.archive_filename("win32", version)
+
+    def test_release_requires_canonical_config(self):
+        self.windows_exe()
+        self.config.unlink()
+        archive = self.package(version="v2.0.0")
+        with zipfile.ZipFile(archive) as result:
+            entries = [(entry, result.read(entry)) for entry in result.infolist()
+                       if entry.filename != packaging.CONFIG_PATH]
+        for config in (None, b"player configuration"):
+            with zipfile.ZipFile(archive, "w") as result:
+                for entry, data in entries:
+                    result.writestr(entry, data)
+                if config is not None:
+                    result.writestr(packaging.CONFIG_PATH, config)
+            with self.subTest(config=config), self.assertRaises(ValueError):
+                packaging.verify_archive(archive, "win32", self.mods, version="v2.0.0")
+
+    def test_release_rejects_config_outside_canonical_path(self):
+        self.windows_exe()
+        archive = self.package(version="v2.0.0")
+        original = archive.read_bytes()
+        for name in ("orion2re.cfg", "data/mods/orion2re.cfg",
+                     "data/ORION2RE.CFG", "data/._orion2re.cfg"):
+            archive.write_bytes(original)
+            with zipfile.ZipFile(archive, "a") as result:
+                result.writestr(name, packaging.SOURCE_CONFIG.read_bytes())
+            with self.subTest(name=name), self.assertRaises(ValueError):
+                packaging.verify_archive(archive, "win32", self.mods, version="v2.0.0")
 
     def test_wrong_architecture_and_malformed_runtime_zip(self):
         self.windows_exe("win64")
@@ -125,8 +159,9 @@ class PackagingTests(unittest.TestCase):
         archive.unlink()
         with zipfile.ZipFile(self.build / "data/base.zip", "w") as runtime:
             runtime.writestr("orion2re.cfg", "config")
-        with self.assertRaises(ValueError):
-            self.package()
+        for version in (None, "main", "v2.0.0"):
+            with self.subTest(version=version), self.assertRaises(ValueError):
+                self.package(version=version)
 
     def test_unsafe_runtime_archives(self):
         self.windows_exe()
@@ -223,8 +258,17 @@ class PackagingTests(unittest.TestCase):
         link.symlink_to(packaging.LINK_TARGET)
         (link.parent.parent / "Info.plist").write_bytes(
             plistlib.dumps({"CFBundleExecutable": "orion2re"}))
-        archive = self.package("osx-arm64")
-        packaging.verify_archive(archive, "osx-arm64", self.mods)
+        for version in (None, "main", "v2.0.0"):
+            with self.subTest(version=version):
+                archive = self.package("osx-arm64", version=version)
+                packaging.verify_archive(archive, "osx-arm64", self.mods, version=version)
+                with zipfile.ZipFile(archive) as result:
+                    if version == "v2.0.0":
+                        self.assertEqual(result.read(packaging.CONFIG_PATH),
+                                         packaging.SOURCE_CONFIG.read_bytes())
+                    else:
+                        self.assertNotIn(packaging.CONFIG_PATH, result.namelist())
+                archive.unlink()
 
 
 if __name__ == "__main__":

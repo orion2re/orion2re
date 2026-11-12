@@ -55,8 +55,11 @@ with the executable and `data/` at its root, not inside another archive or direc
 The workflow run identifies the exact commit.
 
 Extract the ZIP over your existing game installation. Packages include runtime
-data but no commercial game files or `orion2re.cfg`, so your configuration survives
-updates. macOS builds are not Developer ID signed or notarized and may require
+data but no commercial game files. Development (`main`) packages omit
+`data/orion2re.cfg`, so your configuration survives intermediate updates.
+Release packages include the canonical `data/orion2re.cfg`; back up your existing
+configuration before extracting a release to preserve your custom settings.
+macOS builds are not Developer ID signed or notarized and may require
 approval in System Settings / Privacy & Security. Extract with Archive Utility or
 `ditto`, keeping the app, executable, and data together to preserve the app symlink.
 

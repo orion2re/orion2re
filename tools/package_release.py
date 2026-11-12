@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Stage, create, and verify game updates without shipping player configuration."""
+"""Package game builds, including canonical configuration only for releases."""
 
 import argparse
 import io
@@ -22,6 +22,8 @@ FILENAMES = {
     "osx-arm64": "orion2re-osx-arm64.zip",
 }
 SOURCE_MODS = Path(__file__).resolve().parents[1] / "data" / "mods"
+SOURCE_CONFIG = Path(__file__).resolve().parents[1] / "data" / "orion2re.cfg"
+CONFIG_PATH = "data/orion2re.cfg"
 APP = "Orion2 Redone.app"
 APP_LINK = f"{APP}/Contents/MacOS/orion2re"
 LINK_TARGET = "../../../orion2re"
@@ -70,23 +72,24 @@ def check_architecture(data, platform):
                 "Truncated PE optional header")
 
 
-def safe_name(name):
+def safe_name(name, allow_config=False):
     path = PurePosixPath(name)
     require(name and not path.is_absolute() and ".." not in path.parts
             and "\\" not in name and ":" not in name and "\0" not in name,
             f"Unsafe archive path: {name!r}")
-    require(not any(part.lower() in {"orion2re.cfg", "._orion2re.cfg"}
-                    for part in path.parts), f"Player configuration included: {name}")
+    require((allow_config and name == CONFIG_PATH)
+            or not any(part.lower() in {"orion2re.cfg", "._orion2re.cfg"}
+                       for part in path.parts), f"Player configuration included: {name}")
     require(path.suffix.lower() not in UNWANTED_SUFFIXES,
             f"Non-distributable file: {name}")
     return path.as_posix()
 
 
-def check_zip(archive, allow_app_link=False):
+def check_zip(archive, allow_app_link=False, allow_config=False):
     require(archive.infolist(), "Empty ZIP archive")
     seen = set()
     for entry in archive.infolist():
-        name = safe_name(entry.filename)
+        name = safe_name(entry.filename, allow_config=allow_config)
         require(name.casefold() not in seen, f"Duplicate archive path: {name}")
         seen.add(name.casefold())
         mode = entry.external_attr >> 16
@@ -134,11 +137,17 @@ def verify_archive(archive_path, platform, source_mods=SOURCE_MODS, staged=None,
     require(archive_path.name == archive_filename(platform, version),
             "Unexpected output filename")
     exe = executable_name(platform)
+    release = version not in (None, "main")
     with zipfile.ZipFile(archive_path) as archive:
-        check_zip(archive, allow_app_link=platform == "osx-arm64")
+        check_zip(archive, allow_app_link=platform == "osx-arm64", allow_config=release)
         names = set(archive.namelist())
         required = {exe, "data/base.zip"} | supported_mods(source_mods)
+        if release:
+            required.add(CONFIG_PATH)
         require(required <= names, f"Missing runtime assets: {sorted(required - names)}")
+        if release:
+            require(archive.read(CONFIG_PATH) == SOURCE_CONFIG.read_bytes(),
+                    "Release configuration differs from canonical source")
         for entry in archive.infolist():
             path = PurePosixPath(entry.filename)
             allowed_roots = {exe, "data"}
@@ -172,7 +181,9 @@ def verify_archive(archive_path, platform, source_mods=SOURCE_MODS, staged=None,
         sentinel = b"player configuration\x00\xff\r\n"
         config.write_bytes(sentinel)
         extract_verified(archive_path, destination, platform)
-        require(config.read_bytes() == sentinel, "Extraction overwrote player configuration")
+        expected_config = SOURCE_CONFIG.read_bytes() if release else sentinel
+        require(config.read_bytes() == expected_config,
+                "Extracted configuration differs from expected configuration")
         if platform == "osx-arm64":
             link = destination / APP_LINK
             require(link.is_symlink() and os.readlink(link) == LINK_TARGET,
@@ -183,7 +194,7 @@ def verify_archive(archive_path, platform, source_mods=SOURCE_MODS, staged=None,
                     "Extraction lost executable permissions")
 
 
-def stage_distribution(platform, build_dir, stage):
+def stage_distribution(platform, build_dir, stage, version=None):
     exe = executable_name(platform)
     source_exe = build_dir / (exe if platform == "osx-arm64" else f"Release/{exe}")
     require(source_exe.is_file() and not source_exe.is_symlink(),
@@ -208,6 +219,10 @@ def stage_distribution(platform, build_dir, stage):
             require(source.is_file(), f"Not a regular runtime file: {source}")
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source, destination)
+    if version not in (None, "main"):
+        require(SOURCE_CONFIG.is_file() and not SOURCE_CONFIG.is_symlink(),
+                f"Missing canonical configuration: {SOURCE_CONFIG}")
+        shutil.copy2(SOURCE_CONFIG, stage / CONFIG_PATH)
     if platform == "osx-arm64":
         require(sys.platform == "darwin", "macOS packaging requires Apple's ditto")
         app = build_dir / APP
@@ -228,7 +243,7 @@ def package(platform, build_dir, output_dir, source_mods=SOURCE_MODS, version=No
         temporary = Path(temporary)
         stage = temporary / "stage"
         stage.mkdir()
-        stage_distribution(platform, build_dir.resolve(), stage)
+        stage_distribution(platform, build_dir.resolve(), stage, version=version)
         archive_path = temporary / filename
         if platform == "osx-arm64":
             subprocess.run(["ditto", "-c", "-k", "--sequesterRsrc",
@@ -250,7 +265,7 @@ def main():
     parser.add_argument("build_dir", type=Path)
     parser.add_argument("output_dir", type=Path)
     parser.add_argument("--version", default="main",
-                        help="ZIP version suffix (default: main; use the tag for releases)")
+                        help="ZIP version suffix (default: main; release tags include canonical config)")
     parser.add_argument("--verify-only", action="store_true")
     args = parser.parse_args()
     try:
