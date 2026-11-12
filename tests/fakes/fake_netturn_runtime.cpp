@@ -1,4 +1,5 @@
 #include "pch.h"
+#include <stdexcept>
 
 #include "config/config_snapshot.h"
 #include "game/allocate.h"
@@ -22,6 +23,17 @@
 namespace CHAT {
     s_net_chat* chat_info = nullptr;
 }
+
+#ifdef TEST_REAL_MAIN_RECEIVE
+namespace exitm {
+    [[noreturn]] void __cdecl Exit_With_Message(const char* message) {
+        throw std::runtime_error(message);
+    }
+    [[noreturn]] void __cdecl Exit_With_message2(const char* message) {
+        Exit_With_Message(message);
+    }
+}
+#endif
 
 namespace MOX {
     int16_t return_screen = 0;

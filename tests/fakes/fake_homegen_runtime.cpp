@@ -1,22 +1,9 @@
 #include "pch.h"
 
-void Legacy_Qsort(void* base, size_t count, size_t size, int (*compare)(const void*, const void*)) {
-    if (count == 2) {
-        uint8_t* bytes = (uint8_t*)base;
-        if (compare(bytes, bytes + size) > 0) {
-            for (size_t i = 0; i < size; ++i) {
-                uint8_t value = bytes[i];
-                bytes[i] = bytes[size + i];
-                bytes[size + i] = value;
-            }
-        }
-    }
-}
-
 namespace {
-    HOMEGEN::s_star_dist star_distances[2];
+    HOMEGEN::s_star_dist star_distances[MAX_STARS];
     s_planet_data planets[MAX_PLANETS];
-    s_star_data stars[2];
+    s_star_data stars[MAX_STARS + 1];
     int32_t movement_count;
     int32_t orbit_roll_count;
     int32_t satellite_generation_count;
@@ -37,7 +24,7 @@ namespace TEST_HOMEGEN {
         memset(MAPGEN::mineral_class, 0, sizeof(MAPGEN::mineral_class));
         memset(MAPGEN::planet_gravity, 0, sizeof(MAPGEN::planet_gravity));
 
-        for (int16_t star_idx = 0; star_idx < 2; ++star_idx) {
+        for (int16_t star_idx = 0; star_idx <= MAX_STARS; ++star_idx) {
             for (int16_t orbit = 0; orbit < 5; ++orbit) {
                 stars[star_idx].planet_index[orbit] = -1;
             }

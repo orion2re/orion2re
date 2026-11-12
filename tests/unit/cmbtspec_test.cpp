@@ -4,6 +4,24 @@
 #include "game/cmbtspec.h"
 
 namespace TEST_CMBTSPEC {
+    void Set_Frames_(uint16_t count);
+    extern int draw_count, glass_count, flip_count, bounds_count;
+    extern int16_t draw_x, draw_y, flip_mode;
+    extern int16_t requested_width, requested_height;
+    extern int32_t last_resource, last_string, last_allocation;
+    extern int remaining_queries, grid_calls, recalculate_calls, full_draw_calls;
+    extern int16_t grid_ship, recalculated_ship;
+    extern bool reset_movement;
+    extern int explosion_queries;
+    extern int16_t explosion_ship;
+    extern int replace_calls;
+    extern int16_t replaced_start, replaced_count;
+    extern uint8_t replaced_colors[32];
+    extern int restore_window_calls, sound_calls, loop_calls;
+    extern int16_t last_sound;
+    extern int32_t loop_channel, faded_channel;
+    extern int8_t loop_count;
+    extern int16_t window[4];
     void Reset_();
     int32_t Random_Call_Count_();
     int32_t Apply_Ship_Damage_Call_Count_();
@@ -22,6 +40,124 @@ namespace TEST_CMBTSPEC {
 namespace CMBTSPEC {
     bool __cdecl Draw_Clipped_Tractor_Line(
         int16_t x1, int16_t y1, int16_t x2, int16_t y2, s_animation_header* bitmap);
+}
+
+DOCTEST_TEST_CASE("engine sound starts one loop and releases its handle") {
+    TEST_CMBTSPEC::Reset_();
+    CMBTSPEC::Start_Ship_Engine_SFX();
+    CMBTSPEC::Start_Ship_Engine_SFX();
+    DOCTEST_CHECK(TEST_CMBTSPEC::sound_calls == 1);
+    DOCTEST_CHECK(TEST_CMBTSPEC::last_sound == 0x1f);
+    DOCTEST_CHECK(TEST_CMBTSPEC::loop_calls == 1);
+    DOCTEST_CHECK(TEST_CMBTSPEC::loop_channel == 7);
+    DOCTEST_CHECK(TEST_CMBTSPEC::loop_count == -1);
+    CMBTSPEC::End_Ship_Engine_SFX();
+    DOCTEST_CHECK(TEST_CMBTSPEC::faded_channel == 7);
+    DOCTEST_CHECK(CMBTSPEC::g_engine_sfx_handle == 0);
+}
+
+DOCTEST_TEST_CASE("stasis ball chooses the facing asset and centers its visible bounds") {
+    TEST_CMBTSPEC::Reset_();
+    MOX::combat_data[1].x = 5;
+    MOX::combat_data[1].y = 6;
+    MOX::combat_data[1].facing_dir = 5;
+    CMBTSPEC::Draw_Stasis_Ball(1, 100, 3, 4);
+    DOCTEST_CHECK(TEST_CMBTSPEC::last_string == 224);
+    DOCTEST_CHECK(TEST_CMBTSPEC::last_resource == 56);
+    DOCTEST_CHECK(TEST_CMBTSPEC::flip_count == 1);
+    DOCTEST_CHECK(TEST_CMBTSPEC::flip_mode == 0);
+    DOCTEST_CHECK(TEST_CMBTSPEC::glass_count == 1);
+    DOCTEST_CHECK(TEST_CMBTSPEC::bounds_count == 1);
+    DOCTEST_CHECK(TEST_CMBTSPEC::draw_x == 88);
+    DOCTEST_CHECK(TEST_CMBTSPEC::draw_y == 114);
+}
+
+DOCTEST_TEST_CASE("plasma web uses bitmap sizing and real frame metadata") {
+    TEST_CMBTSPEC::Reset_();
+    TEST_CMBTSPEC::Set_Frames_(2);
+    MOX::ship_frame = 3;
+    MOX::combat_data[1].facing_dir = 5;
+    CMBTSPEC::Draw_Plasma_Web(1, 20, 30);
+    DOCTEST_CHECK(TEST_CMBTSPEC::requested_width == 80);
+    DOCTEST_CHECK(TEST_CMBTSPEC::requested_height == 80);
+    DOCTEST_CHECK(TEST_CMBTSPEC::last_allocation == 512);
+    DOCTEST_CHECK(TEST_CMBTSPEC::last_resource == 34);
+    DOCTEST_CHECK(TEST_CMBTSPEC::flip_mode == 0);
+    DOCTEST_CHECK(TEST_CMBTSPEC::glass_count == 1);
+    DOCTEST_CHECK((MOX::draw_ship_bitmap->current_frame == 1));
+    DOCTEST_CHECK(TEST_CMBTSPEC::draw_x == -30);
+    DOCTEST_CHECK(TEST_CMBTSPEC::draw_y == -20);
+}
+
+DOCTEST_TEST_CASE("tractor attachment recalculates the target before continuing its beam") {
+    TEST_CMBTSPEC::Reset_();
+    TEST_CMBTSPEC::Set_Frames_(8);
+    MOX::combat_data[0].x = 5;
+    MOX::combat_data[0].y = 6;
+    MOX::combat_data[1].x = 7;
+    MOX::combat_data[1].y = 8;
+    CMBTSPEC::Tractor_Beam(0, 1);
+    DOCTEST_CHECK((MOX::combat_data[0].special_cooldown == 1));
+    DOCTEST_CHECK(TEST_CMBTSPEC::recalculate_calls == 1);
+    DOCTEST_CHECK(TEST_CMBTSPEC::recalculated_ship == 1);
+    DOCTEST_CHECK(TEST_CMBTSPEC::reset_movement);
+    CMBTSPEC::Draw_Continuing_Tractor(0);
+    DOCTEST_CHECK(TEST_CMBTSPEC::remaining_queries == 1);
+    DOCTEST_CHECK(TEST_CMBTSPEC::last_allocation == 59900);
+    DOCTEST_CHECK(TEST_CMBTSPEC::Bitmap_Line_X1_() == 100);
+    DOCTEST_CHECK(TEST_CMBTSPEC::Bitmap_Line_Y1_() == 120);
+    DOCTEST_CHECK(TEST_CMBTSPEC::Bitmap_Line_X2_() == 140);
+    DOCTEST_CHECK(TEST_CMBTSPEC::Bitmap_Line_Y2_() == 160);
+}
+
+DOCTEST_TEST_CASE("transporter beam restores the saved drawing window") {
+    TEST_CMBTSPEC::Reset_();
+    TEST_CMBTSPEC::Set_Frames_(3);
+    const int16_t expected[] = {3, 4, 100, 120};
+    CMBTSPEC::Draw_Transporter_Bomb_Beam(0, 100, 40);
+    DOCTEST_CHECK(TEST_CMBTSPEC::glass_count == 8);
+    DOCTEST_CHECK(TEST_CMBTSPEC::restore_window_calls == 1);
+    for (int i = 0; i < 4; ++i) DOCTEST_CHECK(TEST_CMBTSPEC::window[i] == expected[i]);
+    DOCTEST_CHECK(MOX::dont_draw_ship == -1);
+}
+
+DOCTEST_TEST_CASE("ship destruction refreshes grids after the explosion animation") {
+    TEST_CMBTSPEC::Reset_();
+    TEST_CMBTSPEC::Set_Frames_(2);
+    MOX::combat_data[1].officer_idx = -1;
+    CMBTSPEC::Destroy_Ship_FX(1, 100, 120, 1);
+    DOCTEST_CHECK((MOX::combat_data[1].unit_status == 5));
+    DOCTEST_CHECK(TEST_CMBTSPEC::full_draw_calls == 1);
+    DOCTEST_CHECK(TEST_CMBTSPEC::grid_calls == 1);
+    DOCTEST_CHECK(TEST_CMBTSPEC::grid_ship == MOX::cur_ship);
+    DOCTEST_CHECK(TEST_CMBTSPEC::draw_count == 2);
+    DOCTEST_CHECK(MOX::dont_draw_ship == -1);
+}
+
+DOCTEST_TEST_CASE("drive explosions use the supplied damage for their spherical effect") {
+    TEST_CMBTSPEC::Reset_();
+    CMBTSPEC::Destroy_Ship_FX(0, 0, 0, 3);
+    DOCTEST_CHECK(TEST_CMBTSPEC::explosion_queries == 1);
+    DOCTEST_CHECK(TEST_CMBTSPEC::explosion_ship == 0);
+    DOCTEST_CHECK(TEST_CMBTSPEC::Apply_Ship_Damage_Call_Count_() == 1);
+    DOCTEST_CHECK(TEST_CMBTSPEC::Applied_Ship_Damage_() == 42);
+    DOCTEST_CHECK((MOX::combat_data[0].unit_status == 5));
+}
+
+DOCTEST_TEST_CASE("defending monster explosions remap each flipped animation frame") {
+    TEST_CMBTSPEC::Reset_();
+    TEST_CMBTSPEC::Set_Frames_(256);
+    MOX::combat_data[1].previous_owner = 10;
+    MOX::combat_data[1].owner = MOX::combat_defender_player;
+    MOX::combat_data[1].facing_dir = 5;
+    CMBTSPEC::Destroy_Ship_FX(1, 100, 120, 1);
+    DOCTEST_CHECK(TEST_CMBTSPEC::flip_count == 16);
+    DOCTEST_CHECK(TEST_CMBTSPEC::replace_calls == 16);
+    DOCTEST_CHECK(TEST_CMBTSPEC::replaced_start == 32);
+    DOCTEST_CHECK(TEST_CMBTSPEC::replaced_count == 32);
+    DOCTEST_CHECK(TEST_CMBTSPEC::replaced_colors[0] == 96);
+    DOCTEST_CHECK(TEST_CMBTSPEC::replaced_colors[31] == 127);
+    DOCTEST_CHECK(TEST_CMBTSPEC::grid_calls == 1);
 }
 
 DOCTEST_TEST_CASE("tractor beam keeps emitter-to-target direction after clipping") {

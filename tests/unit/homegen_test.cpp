@@ -13,6 +13,14 @@ namespace TEST_HOMEGEN {
     int32_t Spectral_Generation_Count_();
 }
 
+DOCTEST_TEST_CASE("home-world distances use the real sorter for more than two candidates") {
+    HOMEGEN::s_star_dist candidates[] = {{20, 1}, {4, 2}, {12, 3}};
+    Legacy_Qsort(candidates, 3, sizeof(candidates[0]), HOMEGEN::qsort_star_dist_list);
+    DOCTEST_CHECK((candidates[0].index == 2));
+    DOCTEST_CHECK((candidates[1].index == 3));
+    DOCTEST_CHECK((candidates[2].index == 1));
+}
+
 DOCTEST_TEST_CASE("minimum-distance planet generation preserves existing satellite records") {
     TEST_HOMEGEN::Reset_();
     int16_t home_stars[1] = {0};

@@ -884,7 +884,8 @@ orion2re_add_unit_test(test_homegen
     SOURCES
         tests/unit/homegen_test.cpp
     PRODUCTION_SOURCES
-        src/game/homegen.cpp
+        src/game/homegen_planets.cpp
+        src/game/legacy_sort.cpp
     FAKE_SOURCES
         tests/fakes/fake_homegen_runtime.cpp
 )
@@ -901,18 +902,13 @@ orion2re_add_unit_test(test_mapgen_planet_max
 )
 
 if(MSVC)
-    target_compile_options(test_homegen PRIVATE /Gy)
-    target_link_options(test_homegen PRIVATE /OPT:REF)
     target_compile_options(test_mapgen_planet_max PRIVATE /Gy)
     target_link_options(test_mapgen_planet_max PRIVATE /OPT:REF)
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-    target_compile_options(test_homegen PRIVATE -ffunction-sections -fdata-sections)
     target_compile_options(test_mapgen_planet_max PRIVATE -ffunction-sections -fdata-sections)
     if(APPLE)
-        target_link_options(test_homegen PRIVATE -Wl,-dead_strip)
         target_link_options(test_mapgen_planet_max PRIVATE -Wl,-dead_strip)
     else()
-        target_link_options(test_homegen PRIVATE -Wl,--gc-sections)
         target_link_options(test_mapgen_planet_max PRIVATE -Wl,--gc-sections)
     endif()
 endif()
@@ -968,7 +964,8 @@ orion2re_add_unit_test(test_missile_defense
     SOURCES
         tests/unit/cmbtmis_test.cpp
     PRODUCTION_SOURCES
-        src/game/cmbtmis.cpp
+        src/game/missile_rules.cpp
+        src/game/missile_tracking.cpp
     FAKE_SOURCES
         tests/fakes/fake_exitm.cpp
         tests/fakes/fake_fields_helpers_runtime.cpp
@@ -1051,7 +1048,8 @@ orion2re_add_unit_test(test_bombardment_ammo
     SOURCES
         tests/unit/combat_test.cpp
     PRODUCTION_SOURCES
-        src/game/combat.cpp
+        src/game/combat_attacks.cpp
+        src/game/legacy_sort.cpp
 )
 
 orion2re_add_unit_test(test_aidesign
@@ -1139,19 +1137,17 @@ orion2re_add_unit_test(test_cmbtspec
         tests/unit/cmbtspec_test.cpp
     PRODUCTION_SOURCES
         src/game/cmbtspec.cpp
+        src/game/animation_frames.cpp
+        src/game/special.cpp
+        src/game/angle.cpp
     FAKE_SOURCES
         tests/fakes/fake_cmbtspec_runtime.cpp
 )
 
 if(MSVC)
-    target_compile_options(test_cmbtspec PRIVATE /Gy)
-    target_link_options(test_cmbtspec PRIVATE /OPT:REF)
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-    target_compile_options(test_cmbtspec PRIVATE -ffunction-sections -fdata-sections)
     if(APPLE)
-        target_link_options(test_cmbtspec PRIVATE -Wl,-dead_strip)
     else()
-        target_link_options(test_cmbtspec PRIVATE -Wl,--gc-sections)
     endif()
 endif()
 
@@ -1174,10 +1170,6 @@ endforeach()
 if(MSVC)
     target_compile_options(test_aidudes PRIVATE /Gy)
     target_link_options(test_aidudes PRIVATE /OPT:REF)
-    target_compile_options(test_bombardment_ammo PRIVATE /Gy)
-    target_link_options(test_bombardment_ammo PRIVATE /OPT:REF)
-    target_compile_options(test_missile_defense PRIVATE /Gy)
-    target_link_options(test_missile_defense PRIVATE /OPT:REF)
     target_compile_options(test_boarding PRIVATE /Gy)
     target_link_options(test_boarding PRIVATE /OPT:REF)
     target_compile_options(test_combat_stats PRIVATE /Gy)
@@ -1194,8 +1186,6 @@ if(MSVC)
     target_link_options(test_colony_pop_growth PRIVATE /OPT:REF)
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
     target_compile_options(test_aidudes PRIVATE -ffunction-sections -fdata-sections)
-    target_compile_options(test_bombardment_ammo PRIVATE -ffunction-sections -fdata-sections)
-    target_compile_options(test_missile_defense PRIVATE -ffunction-sections -fdata-sections)
     target_compile_options(test_boarding PRIVATE -ffunction-sections -fdata-sections)
     target_compile_options(test_combat_stats PRIVATE -ffunction-sections -fdata-sections)
     target_compile_options(test_ground_commando PRIVATE -ffunction-sections -fdata-sections)
@@ -1205,8 +1195,6 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
     target_compile_options(test_colony_pop_growth PRIVATE -ffunction-sections -fdata-sections)
     if(APPLE)
         target_link_options(test_aidudes PRIVATE -Wl,-dead_strip)
-        target_link_options(test_bombardment_ammo PRIVATE -Wl,-dead_strip)
-        target_link_options(test_missile_defense PRIVATE -Wl,-dead_strip)
         target_link_options(test_boarding PRIVATE -Wl,-dead_strip)
         target_link_options(test_combat_stats PRIVATE -Wl,-dead_strip)
         target_link_options(test_ground_commando PRIVATE -Wl,-dead_strip)
@@ -1216,8 +1204,6 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
         target_link_options(test_colony_pop_growth PRIVATE -Wl,-dead_strip)
     else()
         target_link_options(test_aidudes PRIVATE -Wl,--gc-sections)
-        target_link_options(test_bombardment_ammo PRIVATE -Wl,--gc-sections)
-        target_link_options(test_missile_defense PRIVATE -Wl,--gc-sections)
         target_link_options(test_boarding PRIVATE -Wl,--gc-sections)
         target_link_options(test_combat_stats PRIVATE -Wl,--gc-sections)
         target_link_options(test_ground_commando PRIVATE -Wl,--gc-sections)
@@ -1320,7 +1306,7 @@ orion2re_add_unit_test(test_netturn_host_selection
     SOURCES
         tests/unit/netturn_test.cpp
     PRODUCTION_SOURCES
-        src/game/mainscr.cpp
+        src/game/mainscr_network.cpp
         src/game/netturn.cpp
         src/game/netmox.cpp
         src/game/netproto.cpp
@@ -1329,7 +1315,6 @@ orion2re_add_unit_test(test_netturn_host_selection
         src/game/sha256.cpp
     FAKE_SOURCES
         tests/fakes/fake_allocate.cpp
-        tests/fakes/fake_exitm.cpp
         tests/fakes/fake_fields_helpers_runtime.cpp
         tests/fakes/fake_lua_network.cpp
         tests/fakes/fake_netturn_runtime.cpp
@@ -1339,16 +1324,6 @@ orion2re_add_unit_test(test_netturn_host_selection
 target_compile_definitions(test_netturn_host_selection PRIVATE
     TEST_REAL_MAIN_RECEIVE
 )
-
-if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-    target_compile_options(test_netturn_host_selection PRIVATE -ffunction-sections -fdata-sections)
-endif()
-
-if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU" AND NOT APPLE)
-    target_link_options(test_netturn_host_selection PRIVATE -Wl,--gc-sections)
-elseif(APPLE)
-    target_link_options(test_netturn_host_selection PRIVATE -Wl,-dead_strip)
-endif()
 
 orion2re_add_unit_test(test_netmox_packet_limits
     SOURCES
@@ -1456,7 +1431,7 @@ target_compile_definitions(test_farload_buffer_vfs PRIVATE
     STRING_OVERRIDE_BASE_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data/base"
 )
 
-foreach(TARGET_NAME IN ITEMS test_newgame test_homegen test_mapgen_planet_max
+foreach(TARGET_NAME IN ITEMS test_newgame test_mapgen_planet_max
     test_lua_mod_runtime
     test_ground_commando)
     target_sources(${TARGET_NAME} PRIVATE tests/fakes/fake_string_overrides.cpp)

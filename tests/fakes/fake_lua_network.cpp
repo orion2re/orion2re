@@ -5,6 +5,10 @@ namespace TEST_LUA_NETWORK {
     bool network_lua_enabled;
     bool queued_load_state;
     int prepared_payload_count;
+    bool authority_allowed = true;
+    int authority_calls;
+    int32_t authority_host = -1;
+    int32_t authority_local = -1;
 
     void Set_Network_Lua_Enabled_(bool enabled) {
         network_lua_enabled = enabled;
@@ -54,6 +58,20 @@ namespace orion2re::lua {
         TEST_LUA_NETWORK::network_lua_enabled = false;
         TEST_LUA_NETWORK::queued_load_state = false;
         TEST_LUA_NETWORK::prepared_payload_count = 0;
+        TEST_LUA_NETWORK::authority_allowed = true;
+        TEST_LUA_NETWORK::authority_calls = 0;
+        TEST_LUA_NETWORK::authority_host = -1;
+        TEST_LUA_NETWORK::authority_local = -1;
+    }
+
+    bool Prepare_Lua_Gameplay_Host_Authority(int32_t host, int32_t local, std::string* diagnostic) {
+        ++TEST_LUA_NETWORK::authority_calls;
+        TEST_LUA_NETWORK::authority_host = host;
+        TEST_LUA_NETWORK::authority_local = local;
+        if (!TEST_LUA_NETWORK::authority_allowed && diagnostic != nullptr) {
+            *diagnostic = "Lua authority rejected";
+        }
+        return TEST_LUA_NETWORK::authority_allowed;
     }
 
     bool Process_Lua_Network_Setup_Offer(const void*,

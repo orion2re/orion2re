@@ -2,6 +2,7 @@
 
 #include <cstdlib>
 #include <cstring>
+#include <stdexcept>
 
 #include "doctest/doctest.h"
 
@@ -16,6 +17,9 @@ namespace MULTPLAY {
 
 namespace TEST_LUA_NETWORK {
     void Set_Network_Lua_Enabled_(bool enabled);
+    extern bool authority_allowed;
+    extern int authority_calls;
+    extern int32_t authority_host, authority_local;
 }
 
 namespace {
@@ -52,6 +56,40 @@ namespace {
             NETMOX::next_update_player_counter = saved_update_counter;
         }
     };
+
+#ifdef TEST_REAL_MAIN_RECEIVE
+    DOCTEST_TEST_CASE_FIXTURE(Network_Flags_Fixture_, "network turns reject Lua authority before host or client execution") {
+        struct s_authority_scope {
+            bool allowed = TEST_LUA_NETWORK::authority_allowed;
+            int calls = TEST_LUA_NETWORK::authority_calls;
+            int32_t host = TEST_LUA_NETWORK::authority_host;
+            int32_t local = TEST_LUA_NETWORK::authority_local;
+            s_net_chat* chat = CHAT::chat_info;
+            void (*hook)() = MULTPLAY::g_chat_box_input_loop_hook;
+            ~s_authority_scope() {
+                TEST_LUA_NETWORK::authority_allowed = allowed;
+                TEST_LUA_NETWORK::authority_calls = calls;
+                TEST_LUA_NETWORK::authority_host = host;
+                TEST_LUA_NETWORK::authority_local = local;
+                CHAT::chat_info = chat;
+                MULTPLAY::g_chat_box_input_loop_hook = hook;
+            }
+        } scope;
+        MOX::NUM_PLAYERS = 1;
+        players[0].objectives = PLAYER_OBJECTIVE_HUMAN;
+        players[0].network_player_id = 44;
+        players[0].surrender_to = -1;
+        NETMOX::net.net_host_id = 99;
+        MULTPLAY::g_chat_box_input_loop_hook = nullptr;
+        TEST_LUA_NETWORK::authority_allowed = false;
+        TEST_LUA_NETWORK::authority_calls = 0;
+        DOCTEST_CHECK_THROWS_AS(NETTURN::Net_Next_Turn(), std::runtime_error);
+        DOCTEST_CHECK(TEST_LUA_NETWORK::authority_calls == 1);
+        DOCTEST_CHECK(TEST_LUA_NETWORK::authority_host == 44);
+        DOCTEST_CHECK(TEST_LUA_NETWORK::authority_local == 99);
+        DOCTEST_CHECK(NETMOX::net.sync_state == NET_SYNC_STATE_NEXT_TURN_READY);
+    }
+#endif
 
     void Client_Next_Turn_Payload_Arrives_Before_Final_Wait_() {
         static int callback_count = 0;

@@ -210,7 +210,42 @@ namespace CMBTFIRE {
     }
 } // namespace CMBTFIRE
 
-void Legacy_Qsort(void*, size_t, size_t, legacy_qsort_compare) {
+DOCTEST_TEST_CASE("tactical bombardment orders supplied ships by descending hull size") {
+    TEST_BOMBARDMENT_AMMO::Reset_();
+    int16_t indices[] = {0, 1, 2};
+    const int8_t sizes[] = {1, 3, 2};
+    for (int i = 0; i < 3; ++i) {
+        ships[i].owner = kAttacker;
+        ships[i].d.ship_type = SHIP_TYPE_COMBAT;
+        ships[i].d.size = sizes[i];
+    }
+    s_combat_bomb_result result = {};
+    result.attacker_idx = kAttacker;
+    COMBAT::Tactical_Bombardment(indices, 3, &result);
+    DOCTEST_CHECK(indices[0] == 1);
+    DOCTEST_CHECK(indices[1] == 2);
+    DOCTEST_CHECK(indices[2] == 0);
+    DOCTEST_CHECK(MOX::combat_total_ship_count == 4);
+}
+
+DOCTEST_TEST_CASE("stellar converters choose the strongest active enemy ship without a random draw") {
+    TEST_BOMBARDMENT_AMMO::Reset_();
+    MOX::combat_total_ship_count = 5;
+    qcombat_data[1].player = kAttacker;
+    qcombat_data[0].player = qcombat_data[2].player = qcombat_data[3].player = qcombat_data[4].player = 1;
+    qcombat_data[0].max_hits = 10000;
+    qcombat_data[2].max_hits = 100;
+    qcombat_data[2].structural_damage = 10;
+    qcombat_data[3].max_hits = 150;
+    qcombat_data[3].structural_damage = 50;
+    qcombat_data[4].max_hits = 1000;
+    qcombat_data[4].status = 1;
+    DOCTEST_CHECK(COMBAT::QGet_Target_SC(1) == 3);
+    qcombat_data[3].status = 1;
+    DOCTEST_CHECK(COMBAT::QGet_Target_SC(1) == 2);
+    qcombat_data[2].player = kAttacker;
+    DOCTEST_CHECK(COMBAT::QGet_Target_SC(1) == -1);
+    DOCTEST_CHECK(random_calls == 0);
 }
 
 DOCTEST_TEST_CASE("tactical bombardment advances only torpedo cooldown") {

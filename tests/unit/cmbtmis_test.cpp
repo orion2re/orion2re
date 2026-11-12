@@ -2,6 +2,7 @@
 
 #include "doctest/doctest.h"
 #include "game/cmbtmis.h"
+#include "game/missile_tracking.h"
 
 namespace {
     s_combat_data combat_data[6];
@@ -183,6 +184,34 @@ namespace TEST_MISSILE_MERGING {
         MOX::missile[1].quantity = 4;
         MOX::missile[1].fighter_count = 0;
     }
+}
+
+DOCTEST_TEST_CASE("missile bearing uses incoming coordinates until the slot is cleared") {
+    struct s_incoming_scope {
+        int16_t x = CMBTMIS::incoming_x[0];
+        int16_t y = CMBTMIS::incoming_y[0];
+        bool valid = CMBTMIS::incoming_valid[0];
+        ~s_incoming_scope() {
+            CMBTMIS::incoming_x[0] = x;
+            CMBTMIS::incoming_y[0] = y;
+            CMBTMIS::incoming_valid[0] = valid;
+        }
+    } incoming_scope;
+    TEST_FIGHTER_RETARGETING::Reset_();
+    CMBTMIS::incoming_x[0] = 11;
+    CMBTMIS::incoming_y[0] = 22;
+    CMBTMIS::incoming_valid[0] = true;
+    CMBTMIS::Missile_Shield_Bearing(0, 2);
+    DOCTEST_CHECK(bearing_target == 2);
+    DOCTEST_CHECK(bearing_x == 11);
+    DOCTEST_CHECK(bearing_y == 22);
+    CMBTMIS::Kill_Missile(0);
+    DOCTEST_CHECK_FALSE(CMBTMIS::incoming_valid[0]);
+    missiles[0].x = 90;
+    missiles[0].y = 100;
+    CMBTMIS::Missile_Shield_Bearing(0, 2);
+    DOCTEST_CHECK(bearing_x == 90);
+    DOCTEST_CHECK(bearing_y == 100);
 }
 
 DOCTEST_TEST_CASE("flyer caps preserve the classic shared limit") {
