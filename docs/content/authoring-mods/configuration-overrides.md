@@ -97,7 +97,9 @@ The [allowed values](../generated/configuration/allowed-values.md) page lists cu
 
 ## Package order and collision behavior
 
-Package CFG files are applied from lowest to highest package priority. The first explicit `enable` therefore applies last and wins when two packages assign the same field. Package CFG values also override assignments in the base `data/orion2re.cfg`.
+The main configuration and optional `data/user.cfg` are processed in that order as one sequence of statements, including their included files. Later assignments win, and cross-field validation checks the combined final state rather than individual files.
+
+Package CFG files are applied from lowest to highest package priority. The first explicit `enable` therefore applies last and wins when two packages assign the same field. Package CFG values also override assignments in the main configuration and `data/user.cfg`.
 
 Do not rely on accidental file enumeration. Express required package relations in the manifest and required statement order through explicit includes.
 

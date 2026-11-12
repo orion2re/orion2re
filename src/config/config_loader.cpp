@@ -188,6 +188,22 @@ namespace config {
             return true;
         }
 
+        bool Load_Startup_Document(const std::string& entry_path,
+            s_cfg_document* document,
+            s_cfg_diagnostic* diagnostic) {
+            *document = {};
+            for (const std::string& path : {entry_path, std::string("user.cfg")}) {
+                if (vfs::File_Exists(path.c_str()) == 0) continue;
+                s_cfg_document part;
+                if (!Load_Document(path, &part, diagnostic)) return false;
+                for (auto& statement : part.statements) {
+                    document->statements.push_back(std::move(statement));
+                }
+                if (entry_path == "user.cfg") break;
+            }
+            return true;
+        }
+
         bool Config_Group_Changed(t_config_group group,
             const s_config_state& prior,
             const s_config_state& current) {
@@ -264,12 +280,13 @@ namespace config {
             diagnostic->message = "unable to initialize configuration defaults";
             return false;
         }
-        if (vfs::File_Exists(entry_path) == 0) {
-            if (require_file) {
-                diagnostic->location.source = entry_path;
-                diagnostic->message = "selected startup configuration not found";
-                return false;
-            }
+        if (require_file && vfs::File_Exists(normalized_entry.c_str()) == 0) {
+            diagnostic->location.source = entry_path;
+            diagnostic->message = "selected startup configuration not found";
+            return false;
+        }
+        if (vfs::File_Exists(normalized_entry.c_str()) == 0 &&
+            vfs::File_Exists("user.cfg") == 0) {
             if (!Commit_Initial_State(&effective->state)) {
                 diagnostic->message = "unable to commit configuration defaults";
                 return false;
@@ -287,7 +304,7 @@ namespace config {
             return true;
         }
         s_cfg_document document;
-        if (!Load_Document(normalized_entry, &document, diagnostic)) {
+        if (!Load_Startup_Document(normalized_entry, &document, diagnostic)) {
             return false;
         }
         std::vector<std::string> package_order;
@@ -590,8 +607,7 @@ namespace config {
         }
 
         s_cfg_document document;
-        if (vfs::File_Exists(active_config.entry_path.c_str()) != 0 &&
-            !Load_Document(active_config.entry_path, &document, diagnostic)) {
+        if (!Load_Startup_Document(active_config.entry_path, &document, diagnostic)) {
             return false;
         }
 
@@ -649,8 +665,7 @@ namespace config {
             return false;
         }
         s_cfg_document document;
-        if (vfs::File_Exists(active_config.entry_path.c_str()) != 0 &&
-            !Load_Document(active_config.entry_path, &document, diagnostic)) {
+        if (!Load_Startup_Document(active_config.entry_path, &document, diagnostic)) {
             return false;
         }
         auto* staged = new (std::nothrow) s_network_config_candidate;
@@ -768,8 +783,7 @@ namespace config {
         }
         s_cfg_document document;
         s_cfg_diagnostic config_diagnostic;
-        if (vfs::File_Exists(active_config.entry_path.c_str()) != 0 &&
-            !Load_Document(
+        if (!Load_Startup_Document(
                 active_config.entry_path, &document, &config_diagnostic)) {
             *diagnostic = config_diagnostic.message;
             return false;
@@ -830,10 +844,8 @@ namespace config {
             return false;
         }
         s_cfg_document document;
-        if (vfs::File_Exists(active_config.entry_path.c_str()) != 0) {
-            if (!Load_Document(active_config.entry_path, &document, diagnostic)) {
-                return false;
-            }
+        if (!Load_Startup_Document(active_config.entry_path, &document, diagnostic)) {
+            return false;
         }
         s_effective_config candidate;
         std::vector<std::string> package_order;

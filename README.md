@@ -157,6 +157,11 @@ The game does not enable deployed mods automatically. Add `enable <package>;` to
 `data/orion2re.cfg`, for example `enable v150;` for standard 1.50, `enable v150i;` for the
 single-player 1.50 Improved profile, or `enable v150i-mp;` for its multiplayer overrides.
 
+For personal settings, build queue presets, and enabled mods, create `data/user.cfg`.
+It is loaded automatically after the main configuration if present and uses the
+same syntax, so customizations can stay separate from the shipped file during
+upgrades. See [Configuration](docs/content/manual/legacy-modding/configuration.md).
+
 Random-sequence mismatches log every recorded original caller and captured local caller, including absolute addresses and executable-relative RVAs for symbol lookup.
 
 Example release build:

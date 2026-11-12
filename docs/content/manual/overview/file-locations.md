@@ -20,7 +20,7 @@ The environment override takes precedence over the marker and automatic detectio
 
 | Files | Location | Default |
 |---|---|---|
-| Configuration: `ORION2RE.SET`, `language.ini`, user `orion2re.cfg` | `$XDG_CONFIG_HOME/orion2re/` | `~/.config/orion2re/` |
+| Configuration: `ORION2RE.SET`, `language.ini`, `user.cfg`, user `orion2re.cfg` | `$XDG_CONFIG_HOME/orion2re/` | `~/.config/orion2re/` |
 | Saves, `HOF.M2`, last custom race `ORION2RE.RAC` | `$XDG_DATA_HOME/orion2re/` | `~/.local/share/orion2re/` |
 | User mods | `$XDG_DATA_HOME/orion2re/mods/` | `~/.local/share/orion2re/mods/` |
 | Debug and sanitizer logs | `$XDG_STATE_HOME/orion2re/logs/` | `~/.local/state/orion2re/logs/` |
@@ -30,7 +30,7 @@ Empty or relative XDG home-directory values fall back to the defaults under `$HO
 
 ### Configuration and mods
 
-Copy the installed `data/orion2re.cfg` into your configuration directory to customize it. That copy takes precedence over the installed configuration. Included `.cfg` files are also searched in the user configuration directory first; private mod configuration stays inside its package.
+Put personal settings in `user.cfg` in your configuration directory. It is loaded automatically after the main configuration if present, so you do not need to copy the installed `data/orion2re.cfg`. A user copy of `orion2re.cfg`, if present, still takes precedence over the installed main configuration. Both `user.cfg` and included `.cfg` files are searched in the user configuration directory first; private mod configuration stays inside its package.
 
 Install user mods as `mods/<id>/` or `mods/<id>.zip` under the user data directory. A user package replaces an installed package with the same ID; other installed packages remain available. Do not install both directory and ZIP forms of the same ID. Enable packages in your configuration as described in [Using mods](../legacy-modding/index.md).
 
@@ -49,7 +49,7 @@ The recommended location is `~/.local/share/orion2re/game/`. `ORIONCD.INI` and t
 
 ### Switching modes
 
-Files are not moved automatically. Before switching to XDG mode, copy `SAVE*.GAM`, `HOF.M2`, and `ORION2RE.RAC` into the user data directory, and `ORION2RE.SET`, `language.ini`, and any customized `orion2re.cfg` into the user configuration directory. Copy them back to their portable locations to switch back. Keep backups when switching.
+Files are not moved automatically. Before switching to XDG mode, copy `SAVE*.GAM`, `HOF.M2`, and `ORION2RE.RAC` into the user data directory, and `ORION2RE.SET`, `language.ini`, `user.cfg`, and any customized `orion2re.cfg` into the user configuration directory. Copy them back to their portable locations to switch back. Keep backups when switching.
 
 ## Native Linux installation
 

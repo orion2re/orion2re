@@ -2,7 +2,11 @@
 
 The `data/orion2re.cfg` file contains player settings and the list of enabled mods. It is a plain text file and can be edited with a text editor while the game is closed.
 
-If the file does not exist, Orion2 Redone uses its built-in defaults. The game does not rewrite the file. To restore all defaults, close the game and temporarily rename or remove `data/orion2re.cfg`.
+The game automatically loads `data/user.cfg` after the main configuration if it exists. Put personal settings and build queue presets there to keep them separate from the shipped `orion2re.cfg` when upgrading. You create this optional file yourself; it uses the same syntax and supports settings, `enable`, and `include` commands just like the main file.
+
+Both files are processed together: later assignments to the same field win, and cross-field validation checks the combined final state. Enabled packages retain their normal priority and can override settings from either file. You can split settings across further files using `include`; file boundaries do not change these rules.
+
+Missing optional configuration files are skipped. If neither file exists, Orion2 Redone uses its built-in defaults. The game does not rewrite either file. To restore all defaults, close the game and temporarily rename or remove both `data/orion2re.cfg` and `data/user.cfg`.
 
 ## Startup options
 
@@ -16,7 +20,7 @@ Use `/` before option names on Windows and a single `-` on Linux and macOS:
 
 Options with values also accept `=`, for example `/config=configs/test.cfg` or `-load-save=1`. Quote an entire path argument if it contains spaces. Unknown options, repeated options, missing values, and out-of-range save numbers are errors.
 
-Configuration paths use forward slashes on all platforms and are VFS paths, not absolute filesystem paths; for example, `configs/test.cfg` normally selects `data/configs/test.cfg`. An explicitly selected configuration must exist. Only the implicit `orion2re.cfg` falls back to defaults when missing. Configuration selection does not create separate saved games or `ORION2RE.SET` files. Reloading configuration uses the selected file.
+Configuration paths use forward slashes on all platforms and are VFS paths, not absolute filesystem paths; for example, `configs/test.cfg` normally selects `data/configs/test.cfg`. An explicitly selected configuration must exist. The implicit `orion2re.cfg` may be missing; `user.cfg` is still loaded if present. Configuration selection does not create separate saved games or `ORION2RE.SET` files. Reloading configuration uses the selected file followed by the optional `user.cfg` at the VFS root, not beside the selected file.
 
 Automatic save loading is attempted once and follows the normal Continue path, including its interactive error messages and multiplayer-save restrictions. A failed attempt returns to the main menu after any error is dismissed; it is not a headless test mode. Combine it with `skip-intro` to reach a saved game faster.
 
@@ -70,7 +74,7 @@ The configuration must parse and validate completely before the game starts. An 
 - a missing included file; or
 - an invalid `enable` line or mod package.
 
-If the error is unclear, close the game, rename `data/orion2re.cfg`, and start with built-in defaults. Restore the file and add its settings back in small groups until the invalid entry is found.
+If the error is unclear, close the game, rename both `data/orion2re.cfg` and `data/user.cfg`, and start with built-in defaults. Restore the files and add their settings back in small groups until the invalid entry is found. User settings are not automatically migrated between versions; update any entries that a newer version rejects.
 
 ## Reloading settings
 

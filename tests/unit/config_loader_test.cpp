@@ -1897,8 +1897,123 @@ DOCTEST_TEST_SUITE("configuration include loader") {
         DOCTEST_CHECK_FALSE(loaded);
     }
 
+    DOCTEST_TEST_CASE("optional user config loads without a main config and can enable mods") {
+        s_config_test_directory files;
+        files.Write("data/user.cfg", "interface scroll_interval = 75;\nenable personal;\n");
+        files.Write("data/mods/personal/mod.json5", Manifest_("personal"));
+        files.Write("data/mods/personal/config/main.cfg",
+            "interface scroll_interval = 60;\n"
+            "combat bonus battle_scanner_beam_offense = 31;\n");
+        files.Initialize_Vfs();
+        config::s_effective_config effective;
+        config::s_cfg_diagnostic diagnostic;
+        bool loaded = false;
+
+        DOCTEST_REQUIRE(config::Load_Startup_Config(
+            "orion2re.cfg", "base_game", &effective, &loaded, &diagnostic));
+        DOCTEST_CHECK(loaded);
+        DOCTEST_CHECK(COMBINIT::scroll_interval == 60);
+        DOCTEST_CHECK(CMBTFIR2::combat_bonus.battle_scanner_beam_offense == 31);
+        DOCTEST_CHECK(config::Find_Loaded_Mod("personal") != nullptr);
+    }
+
+    DOCTEST_TEST_CASE("main and user configs validate their combined final state") {
+        s_config_test_directory files;
+        files.Write("configs/main.cfg",
+            "interface scroll_interval = 20;\n"
+            "map star_count huge = 72;\n"
+            "stop;\n"
+            "interface scroll_interval = 256;\n");
+        files.Write("data/user.cfg", "include preferences/build.cfg;\n");
+        files.Write("data/preferences/build.cfg",
+            "colony build_queue 1 = prepend design1 end;\n"
+            "include display.cfg;\n");
+        files.Write("data/preferences/display.cfg",
+            "interface scroll_interval = 75;\nmap star_count huge = 70;\n");
+        files.Initialize_Vfs();
+        config::s_effective_config effective;
+        config::s_cfg_diagnostic diagnostic;
+        bool loaded = false;
+
+        DOCTEST_REQUIRE(config::Load_Startup_Config(
+            "configs/main.cfg", "base_game", &effective, &loaded, &diagnostic, true));
+        DOCTEST_CHECK(loaded);
+        DOCTEST_CHECK(COMBINIT::scroll_interval == 75);
+        DOCTEST_CHECK(BUILD_QUEUE::presets[1][0] == BUILD_QUEUE::INSTRUCTION_PREPEND);
+        const auto scroll_interval = Variable_Id_("interface.scroll_interval");
+        DOCTEST_CHECK(effective.provenance[scroll_interval].location.source == "preferences/display.cfg");
+
+        files.Write("data/preferences/display.cfg",
+            "interface scroll_interval = 80;\nmap star_count huge = 70;\n");
+        DOCTEST_REQUIRE(config::Reload_All_Active_Config_Groups(&diagnostic));
+        DOCTEST_CHECK(COMBINIT::scroll_interval == 80);
+    }
+
+    DOCTEST_TEST_CASE("user config changes are discovered and errors preserve active state") {
+        s_config_test_directory files;
+        files.Write("orion2re.cfg", "interface scroll_interval = 20;\n");
+        files.Initialize_Vfs();
+        config::s_effective_config effective;
+        config::s_cfg_diagnostic diagnostic;
+        bool loaded = false;
+        DOCTEST_REQUIRE(config::Load_Startup_Config(
+            "orion2re.cfg", "base_game", &effective, &loaded, &diagnostic));
+
+        files.Write("data/user.cfg", "interface scroll_interval = 75;\n");
+        DOCTEST_REQUIRE(config::Reload_All_Active_Config_Groups(&diagnostic));
+        DOCTEST_CHECK(COMBINIT::scroll_interval == 75);
+        files.Write("data/user.cfg",
+            "interface scroll_interval = 80;\ninterface scroll_interval = 256;\n");
+        DOCTEST_CHECK_FALSE(config::Reload_All_Active_Config_Groups(&diagnostic));
+        DOCTEST_CHECK(diagnostic.location.source == "user.cfg");
+        DOCTEST_CHECK(diagnostic.location.line == 2);
+        DOCTEST_CHECK(COMBINIT::scroll_interval == 75);
+        DOCTEST_CHECK_FALSE(config::Load_Startup_Config(
+            "orion2re.cfg", "base_game", &effective, &loaded, &diagnostic));
+        DOCTEST_CHECK_FALSE(loaded);
+        DOCTEST_CHECK(COMBINIT::scroll_interval == 75);
+
+        files.Write("data/user.cfg", "");
+        DOCTEST_REQUIRE(config::Reload_All_Active_Config_Groups(&diagnostic));
+        DOCTEST_CHECK(COMBINIT::scroll_interval == 20);
+    }
+
+    DOCTEST_TEST_CASE("snapshot restoration retains local user config settings") {
+        s_config_test_directory files;
+        files.Write("data/user.cfg", "interface scroll_interval = 75;\n");
+        files.Initialize_Vfs();
+        config::s_effective_config effective;
+        config::s_cfg_diagnostic diagnostic;
+        bool loaded = false;
+        DOCTEST_REQUIRE(config::Load_Startup_Config(
+            "orion2re.cfg", "base_game", &effective, &loaded, &diagnostic));
+        const auto snapshot_state = effective.state;
+        DOCTEST_REQUIRE(config::Reapply_Config_Snapshot({},
+            &config::saved_config_snapshot,
+            &snapshot_state,
+            &diagnostic));
+        DOCTEST_CHECK(COMBINIT::scroll_interval == 75);
+        DOCTEST_REQUIRE(config::Restore_Launch_Config(&diagnostic));
+        DOCTEST_CHECK(COMBINIT::scroll_interval == 75);
+
+        config::s_prepared_config_snapshot network;
+        const std::vector<config::s_mod_requirement> required_mods;
+        DOCTEST_REQUIRE(config::Prepare_Config_Snapshot(&config::synchronized_config_snapshot,
+            &snapshot_state,
+            &required_mods,
+            &network));
+        config::s_network_config_candidate* candidate = nullptr;
+        DOCTEST_REQUIRE(config::Stage_Network_Config_Snapshot(network.bytes.data(),
+            static_cast<uint32_t>(network.bytes.size()),
+            &candidate,
+            &diagnostic));
+        DOCTEST_REQUIRE(config::Commit_Network_Config_Snapshot(&candidate, &diagnostic));
+        DOCTEST_CHECK(COMBINIT::scroll_interval == 75);
+    }
+
     DOCTEST_TEST_CASE("explicit startup config must exist without changing native state") {
         s_config_test_directory files;
+        files.Write("data/user.cfg", "interface scroll_interval = 75;\n");
         files.Initialize_Vfs();
         config::s_effective_config effective;
         config::s_cfg_diagnostic diagnostic;

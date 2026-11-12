@@ -20,7 +20,7 @@ The built-in presets merge a general building priority list with `Q`, prepend sh
 
 ## Configuring presets
 
-Presets are part of `data/orion2re.cfg`; separate `BUILD.CFG` and `BUILD0.CFG` through `BUILD9.CFG` files are not used.
+Put personal presets in `data/user.cfg`, which is loaded automatically after `data/orion2re.cfg` if present. Both files use the same [configuration syntax](../legacy-modding/configuration.md), and you can use `include` to organize presets into further files. Separate `BUILD.CFG` and `BUILD0.CFG` through `BUILD9.CFG` files are not loaded automatically.
 
 A complete preset assignment contains space-separated instructions and must end with `end`:
 
@@ -111,4 +111,4 @@ If a custom preset behaves unexpectedly:
 2. Use preset 10 or a custom `clear` preset to remove unpurchased, non-refit products.
 3. Use `unbuy` before `clear` if the purchased front product must also be removed.
 4. Use `clear_refits` only when queued refits should be cancelled.
-5. Correct the preset in `data/orion2re.cfg`, keeping its final `end`, then restart or reload configuration as required.
+5. Correct the preset in its configuration file (normally `data/user.cfg` for personal presets), keeping its final `end`, then restart or reload configuration as required.
