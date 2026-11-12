@@ -120,4 +120,33 @@ namespace config {
     // Current value of a row's leaf, or false when unavailable.
     bool Get_Settings_Row_Value(const s_settings_row& row, s_typed_value* value);
 
+    // The window size is one choice, not two: the aspect ratio is
+    // pinned to 4:3, so window_width and window_height are set together
+    // from a single Resolution dropdown. The row is synthetic -- its
+    // path names no config leaf, and its variable id is
+    // CONFIG_NO_VARIABLE -- so it reads and writes through the two
+    // settings below instead of the single-leaf path.
+    inline constexpr const char* kResolutionRowPath = "interface.resolution";
+
+    struct s_resolution_option {
+        int width = 0;
+        int height = 0;
+        // "640x480".
+        std::string label;
+    };
+
+    // Known 4:3 resolutions for the Resolution dropdown, up to near-4K,
+    // plus the current pair (in size order) when it is not one of them,
+    // so the dropdown always reflects the running window instead of
+    // silently snapping an odd size to a listed one.
+    std::vector<s_resolution_option> Resolution_Options(
+        int current_width, int current_height);
+
+    // Current window size from the active config, or false when either
+    // setting is unreadable.
+    bool Get_Current_Resolution(int* width, int* height);
+
+    // "640x480" for a width/height pair.
+    std::string Format_Resolution(int width, int height);
+
 } // namespace config

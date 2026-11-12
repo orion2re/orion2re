@@ -1901,6 +1901,65 @@ DOCTEST_TEST_SUITE("configuration include loader") {
         DOCTEST_REQUIRE(config::Load_Startup_Config(
             "orion2re.cfg", "base_game", &effective, &loaded, &diagnostic));
         DOCTEST_CHECK_FALSE(loaded);
+        // No file was loaded, so there is no one config file to save to.
+        DOCTEST_REQUIRE(config::Get_Active_Config() != nullptr);
+        DOCTEST_CHECK(config::Get_Active_Config()->entry_path == "orion2re.cfg");
+        DOCTEST_CHECK(config::Get_Active_Config()->entry_filesystem_path.empty());
+    }
+
+    DOCTEST_TEST_CASE("startup config records the loaded file as the one config") {
+        s_config_test_directory files;
+        files.Write(fs::path("data") / "orion2re.cfg", "interface scroll_interval = 20;\n");
+        files.Write("configs/test.cfg", "interface scroll_interval = 75;\n");
+        files.Initialize_Vfs();
+        config::s_effective_config effective;
+        config::s_cfg_diagnostic diagnostic;
+        bool loaded = false;
+
+        // The data-layer file is the one the default entry resolves to.
+        DOCTEST_REQUIRE(config::Load_Startup_Config(
+            "orion2re.cfg", "base_game", &effective, &loaded, &diagnostic));
+        DOCTEST_CHECK(loaded);
+        DOCTEST_REQUIRE(config::Get_Active_Config() != nullptr);
+        const std::string data_path =
+            config::Get_Active_Config()->entry_filesystem_path;
+        DOCTEST_CHECK_FALSE(data_path.empty());
+        DOCTEST_CHECK(data_path.size() >= 17);
+        DOCTEST_CHECK(data_path.compare(data_path.size() - 17, 17, "data/orion2re.cfg") == 0);
+        DOCTEST_CHECK(fs::is_regular_file(data_path));
+        std::ifstream data_file(data_path, std::ios::binary);
+        DOCTEST_REQUIRE(data_file.good());
+        std::string data_line;
+        std::getline(data_file, data_line);
+        DOCTEST_CHECK(data_line == "interface scroll_interval = 20;");
+
+        // An explicitly selected file is recorded the same way.
+        DOCTEST_REQUIRE(config::Load_Startup_Config(
+            "configs/test.cfg", "base_game", &effective, &loaded, &diagnostic, true));
+        DOCTEST_CHECK(loaded);
+        const std::string selected_path =
+            config::Get_Active_Config()->entry_filesystem_path;
+        DOCTEST_CHECK_FALSE(selected_path.empty());
+        DOCTEST_CHECK(selected_path.size() >= 16);
+        DOCTEST_CHECK(selected_path.compare(selected_path.size() - 16, 16, "configs/test.cfg") == 0);
+        DOCTEST_CHECK(fs::is_regular_file(selected_path));
+    }
+
+    DOCTEST_TEST_CASE("startup config from a zip-only entry has no filesystem path") {
+        s_config_test_directory files;
+        files.Write_Zip(fs::path("data") / "base.zip",
+            {{"orion2re.cfg", "interface scroll_interval = 20;\n"}});
+        files.Initialize_Vfs();
+        config::s_effective_config effective;
+        config::s_cfg_diagnostic diagnostic;
+        bool loaded = false;
+
+        DOCTEST_REQUIRE(config::Load_Startup_Config(
+            "orion2re.cfg", "base_game", &effective, &loaded, &diagnostic));
+        DOCTEST_CHECK(loaded);
+        DOCTEST_CHECK(COMBINIT::scroll_interval == 20);
+        DOCTEST_REQUIRE(config::Get_Active_Config() != nullptr);
+        DOCTEST_CHECK(config::Get_Active_Config()->entry_filesystem_path.empty());
     }
 
     DOCTEST_TEST_CASE("optional user config loads without a main config and can enable mods") {

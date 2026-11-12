@@ -19,6 +19,15 @@ namespace config {
     struct s_active_config {
         s_config_baseline baseline;
         std::string entry_path;
+        // Filesystem path of the file the entry document was loaded from,
+        // resolved through the VFS at load time. This is the one config:
+        // the file the game loaded is the file the settings UI saves to,
+        // and the path the user is shown. Empty when the entry was not
+        // loaded from a real file (defaults, or a zip-only entry): the
+        // settings UI then falls back to a user-writable file. The entry
+        // path itself stays a VFS key: the loader reads through the VFS
+        // layers, and only this field names a real file.
+        std::string entry_filesystem_path;
         std::string base_package;
         std::vector<std::string> package_order;
         std::vector<s_mod_requirement> required_mods;

@@ -106,6 +106,18 @@ namespace {
                 }
                 ++g_test_auto_script_step;
                 break;
+            case 7:
+                // Outside-click dismiss: press the button with the
+                // pointer outside the list. The button starts
+                // released (arming); this press dismisses.
+                if (g_test_auto_script_step == 0) {
+                    test::fakes::g_mouse_button = 1;
+                } else {
+                    // Safety net: exit if the dismiss did not fire.
+                    fields::Exit_List_Field();
+                }
+                ++g_test_auto_script_step;
+                break;
             default:
                 break;
         }
@@ -2312,6 +2324,31 @@ DOCTEST_TEST_CASE("get list field sets selection to minus one when no rows are s
     DOCTEST_CHECK(result == -1);
     DOCTEST_CHECK(selected_index == 1);
     DOCTEST_CHECK(fields::list_field_on == 0);
+}
+
+DOCTEST_TEST_CASE("get list field dismisses on a click outside the list") {
+    Fields_Test_Reset reset;
+
+    struct Row {
+        char text[8];
+    } rows[3] = {{"One"}, {"Two"}, {""}};
+
+    int8_t selected_index = 0;
+    // Pointer well outside the list (list is x 10..50, y 10..~52).
+    test::fakes::g_mouse_pointer_x = 100;
+    test::fakes::g_mouse_pointer_y = 100;
+    test::fakes::g_mouse_button = 0;
+    g_test_auto_script_mode = 7;
+    fields::Assign_Auto_Function(Test_Auto_Function_List_Script_, 1);
+
+    const int16_t result = fields::Get_List_Field(10, 10, 40, "Help", reinterpret_cast<const char*>(rows), sizeof(Row), &selected_index, nullptr, 0, nullptr, 0, nullptr, 0, "");
+
+    DOCTEST_CHECK(result == -1);
+    DOCTEST_CHECK(selected_index == 0);
+    DOCTEST_CHECK(fields::list_field_on == 0);
+    // The dismiss fired on the press (one auto-function call); had it
+    // not fired, the safety net would have run a second call.
+    DOCTEST_CHECK(g_test_auto_function_calls == 1);
 }
 
 DOCTEST_TEST_CASE("draw field scroll action updates bar position from pointer geometry") {

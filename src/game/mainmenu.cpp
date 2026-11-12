@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "string_overrides.h"
 
+#include "button_art.h"
 #include "config/mod_manager.h"
 #include "game/config_refresh.h"
 
@@ -25,6 +26,8 @@ namespace MAINMENU {
     char (*credits)[2][127];
     uint8_t credits_column_one;
     int16_t credits_field = -1000;
+    int16_t settings_field = -1000;
+    button_art::s_button_frames settings_frames;
 
     namespace {
         constexpr int16_t MOD_LIST_LEFT = 70;
@@ -37,6 +40,23 @@ namespace MAINMENU {
         constexpr int16_t CREDITS_FIELD_TOP = 422;
         constexpr int16_t CREDITS_FIELD_RIGHT = 174;
         constexpr int16_t CREDITS_FIELD_BOTTOM = 443;
+        // The seven buttons are centred in the menu panel (baked
+        // background art, inner y 156-322). The stack spans y 160-317,
+        // 4 px top margin, 5 px bottom margin. Rows are 0x16 high,
+        // starting at 0xA0; the pitch follows the frame heights so the
+        // frames tile with no gap. The painted labels in the
+        // background sit at the original positions and cannot move,
+        // so Draw_Main_Menu_Screen draws each button's normal frame
+        // at its new position. An 8th button cannot fit at this
+        // size: the panel is baked art and cannot scale, and 8 frames
+        // need ~181 px against 166 px of panel. Fitting Mods later
+        // needs shorter button frames or a taller panel.
+        constexpr int16_t SETTINGS_FIELD_LEFT = 0x19F;
+        constexpr int16_t SETTINGS_FIELD_TOP = 0x111;
+        constexpr int16_t SETTINGS_FIELD_RIGHT = 0x237;
+        constexpr int16_t SETTINGS_FIELD_BOTTOM = 0x126;
+        constexpr int16_t QUIT_FIELD_TOP = 0x128;
+        constexpr int16_t QUIT_FIELD_BOTTOM = 0x13D;
         bool mod_list_active;
 
         // Heap cache for the loaded credits text and scratch bitmap.
@@ -64,6 +84,21 @@ namespace MAINMENU {
                     return "Riconoscimenti";
                 default:
                     return "Credits";
+            }
+        }
+
+        const char* Settings_Label() {
+            switch (MOX::settings.language) {
+                case 1:
+                    return "Einstellungen";
+                case 2:
+                    return "Options";
+                case 3:
+                    return "Opciones";
+                case 4:
+                    return "Opzioni";
+                default:
+                    return "Settings";
             }
         }
 
@@ -224,21 +259,28 @@ namespace MAINMENU {
         }
 
         if (can_continue) {
-            mainmenu->fields[MAIN_MENU_BTN_CONTINUE].field = fields::Add_Hidden_Field(0x19F, 0xAC, 0x237, 0xC1, "C", 0x29);
+            mainmenu->fields[MAIN_MENU_BTN_CONTINUE].field = fields::Add_Hidden_Field(0x19F, 0xA0, 0x237, 0xB5, "C", 0x29);
         } else {
             mainmenu->fields[MAIN_MENU_BTN_CONTINUE].field = -1000;
         }
 
         if (MOX::disallow_saves_code == 0 && dos::DIR("save?.gam", find_data, sizeof(find_data)) == 1) {
-            mainmenu->fields[MAIN_MENU_BTN_LOAD].field = fields::Add_Hidden_Field(0x19F, 0xC3, 0x237, 0xD7, "L", 0x29);
+            mainmenu->fields[MAIN_MENU_BTN_LOAD].field = fields::Add_Hidden_Field(0x19F, 0xB7, 0x237, 0xCC, "L", 0x29);
         } else {
             mainmenu->fields[MAIN_MENU_BTN_LOAD].field = -1000;
         }
 
-        mainmenu->fields[MAIN_MENU_BTN_NEW].field = fields::Add_Hidden_Field(0x19F, 0xD9, 0x237, 0xEE, "N", 0x29);
-        mainmenu->fields[MAIN_MENU_BTN_MULTIPLAY].field = fields::Add_Hidden_Field(0x19F, 0xF0, 0x237, 0x104, "M", 0x29);
-        mainmenu->fields[MAIN_MENU_BTN_HELP].field = fields::Add_Hidden_Field(0x19F, 0x106, 0x237, 0x11B, "H", 0x29);
-        mainmenu->fields[MAIN_MENU_BTN_QUIT].field = fields::Add_Hidden_Field(0x19F, 0x11D, 0x237, 0x132, "Q", 0x29);
+        mainmenu->fields[MAIN_MENU_BTN_NEW].field = fields::Add_Hidden_Field(0x19F, 0xCD, 0x237, 0xE2, "N", 0x29);
+        mainmenu->fields[MAIN_MENU_BTN_MULTIPLAY].field = fields::Add_Hidden_Field(0x19F, 0xE4, 0x237, 0xF9, "M", 0x29);
+        mainmenu->fields[MAIN_MENU_BTN_HELP].field = fields::Add_Hidden_Field(0x19F, 0xFA, 0x237, 0x10F, "H", 0x29);
+        // Settings uses pre-rendered orion2re-owned frames (loaded
+        // in Reload_Main_Menu_Screen); the text button in
+        // Draw_Main_Menu_Screen is only the fallback when they are
+        // missing, e.g. a base.zip predating them.
+        settings_field = fields::Add_Hidden_Field(SETTINGS_FIELD_LEFT, SETTINGS_FIELD_TOP,
+            SETTINGS_FIELD_RIGHT, SETTINGS_FIELD_BOTTOM, "S", 0x29);
+        mainmenu->fields[MAIN_MENU_BTN_QUIT].field = fields::Add_Hidden_Field(0x19F, QUIT_FIELD_TOP,
+            0x237, QUIT_FIELD_BOTTOM, "Q", 0x29);
         credits_field = mod_list_active
             ? fields::Add_Hidden_Field(
                   CREDITS_FIELD_LEFT,
@@ -269,6 +311,15 @@ namespace MAINMENU {
             entry_index += 3;
             RUSS::Mox_Update();
         }
+
+        // orion2re-owned frames for the Settings button, rendered by
+        // tools/render_button_frames.py. A missing or malformed file
+        // leaves the frames null and Draw_Main_Menu_Screen falls back
+        // to the text button.
+        button_art::Load_Button_Frames("settings",
+            (uint8_t)MOX::settings.language,
+            MOX::screen_seg,
+            &settings_frames);
     }
 
     void __cdecl Set_Main_Menu_Screen_Help_List_Aux(s_help_box* help_data, int16_t count) {
@@ -358,27 +409,54 @@ namespace MAINMENU {
             MOX::FULL_DRAW_SCREEN_FLAG = 0;
         }
 
+        // The six original buttons are painted into the background
+        // at their original positions, so a shifted stack cannot
+        // rely on the painted labels: each button's normal frame
+        // is drawn at its new position. A frame is drawn only when
+        // the button is enabled and not hovered; the hover branch
+        // below draws the hover frame over it, and the disabled
+        // branch draws the disabled frame for Continue/Load.
+        if (mainmenu->fields[MAIN_MENU_BTN_CONTINUE].field != -1000 &&
+            mainmenu->fields[MAIN_MENU_BTN_CONTINUE].field != MOX::scanned_field) {
+            animate::Draw(0x19F, 0xA0, mainmenu->fields[MAIN_MENU_BTN_CONTINUE].field0_0x0);
+        }
+        if (mainmenu->fields[MAIN_MENU_BTN_LOAD].field != -1000 &&
+            mainmenu->fields[MAIN_MENU_BTN_LOAD].field != MOX::scanned_field) {
+            animate::Draw(0x19F, 0xB7, mainmenu->fields[MAIN_MENU_BTN_LOAD].field0_0x0);
+        }
+        if (mainmenu->fields[MAIN_MENU_BTN_NEW].field != MOX::scanned_field) {
+            animate::Draw(0x19F, 0xCD, mainmenu->fields[MAIN_MENU_BTN_NEW].field0_0x0);
+        }
+        if (mainmenu->fields[MAIN_MENU_BTN_MULTIPLAY].field != MOX::scanned_field) {
+            animate::Draw(0x19F, 0xE4, mainmenu->fields[MAIN_MENU_BTN_MULTIPLAY].field0_0x0);
+        }
+        if (mainmenu->fields[MAIN_MENU_BTN_HELP].field != MOX::scanned_field) {
+            animate::Draw(0x19F, 0xFA, mainmenu->fields[MAIN_MENU_BTN_HELP].field0_0x0);
+        }
+        animate::Draw(0x19F, QUIT_FIELD_TOP,
+            mainmenu->fields[MAIN_MENU_BTN_QUIT].field0_0x0);
+
         s_animation_header* anim_to_draw = nullptr;
         int16_t draw_y = 0;
 
         if (mainmenu->fields[MAIN_MENU_BTN_CONTINUE].field == MOX::scanned_field) {
             anim_to_draw = mainmenu->fields[MAIN_MENU_BTN_CONTINUE].field1_0x4;
-            draw_y = 0xAC;
+            draw_y = 0xA0;
         } else if (mainmenu->fields[MAIN_MENU_BTN_LOAD].field == MOX::scanned_field) {
             anim_to_draw = mainmenu->fields[MAIN_MENU_BTN_LOAD].field1_0x4;
-            draw_y = 0xC3;
+            draw_y = 0xB7;
         } else if (mainmenu->fields[MAIN_MENU_BTN_NEW].field == MOX::scanned_field) {
             anim_to_draw = mainmenu->fields[MAIN_MENU_BTN_NEW].field1_0x4;
-            draw_y = 0xD9;
+            draw_y = 0xCD;
         } else if (mainmenu->fields[MAIN_MENU_BTN_MULTIPLAY].field == MOX::scanned_field) {
             anim_to_draw = mainmenu->fields[MAIN_MENU_BTN_MULTIPLAY].field1_0x4;
-            draw_y = 0xF0;
+            draw_y = 0xE4;
         } else if (mainmenu->fields[MAIN_MENU_BTN_HELP].field == MOX::scanned_field) {
             anim_to_draw = mainmenu->fields[MAIN_MENU_BTN_HELP].field1_0x4;
-            draw_y = 0x106;
+            draw_y = 0xFA;
         } else if (mainmenu->fields[MAIN_MENU_BTN_QUIT].field == MOX::scanned_field) {
             anim_to_draw = mainmenu->fields[MAIN_MENU_BTN_QUIT].field1_0x4;
-            draw_y = 0x11D;
+            draw_y = QUIT_FIELD_TOP;
         }
 
         if (anim_to_draw != nullptr) {
@@ -387,10 +465,39 @@ namespace MAINMENU {
 
         // Special handling for disabled/state-specific buttons (ID -1000)
         if (mainmenu->fields[MAIN_MENU_BTN_CONTINUE].field == -1000) { // -1000
-            animate::Draw(0x19F, 0xAC, mainmenu->fields[MAIN_MENU_BTN_CONTINUE].field2_0x8);
+            animate::Draw(0x19F, 0xA0, mainmenu->fields[MAIN_MENU_BTN_CONTINUE].field2_0x8);
         }
         if (mainmenu->fields[MAIN_MENU_BTN_LOAD].field == -1000) { // -1000
-            animate::Draw(0x19F, 0xC3, mainmenu->fields[MAIN_MENU_BTN_LOAD].field2_0x8);
+            animate::Draw(0x19F, 0xB7, mainmenu->fields[MAIN_MENU_BTN_LOAD].field2_0x8);
+        }
+
+        // The background paints the six original labels at their
+        // original positions; the drawn frames above cover them.
+        // Without frames (stale base.zip) the text button is the
+        // fallback.
+        if (settings_frames.normal != nullptr) {
+            animate::Draw(SETTINGS_FIELD_LEFT, SETTINGS_FIELD_TOP, settings_frames.normal);
+            if (settings_field == MOX::scanned_field &&
+                settings_frames.hover != nullptr) {
+                animate::Draw(SETTINGS_FIELD_LEFT, SETTINGS_FIELD_TOP, settings_frames.hover);
+            }
+        } else {
+            graphics::Fill(SETTINGS_FIELD_LEFT, SETTINGS_FIELD_TOP,
+                SETTINGS_FIELD_RIGHT, SETTINGS_FIELD_BOTTOM, 0);
+            {
+                s_colors colors = *MISC::Font_Colors2(4,
+                    settings_field == MOX::scanned_field ? 0xD5 : 0xD2,
+                    settings_field == MOX::scanned_field ? 0xDC : 0xD7);
+                fonts::Set_Outline_Color(0xFD, 0xFD);
+                fonts::Set_Font_Style_Outline(3, &colors);
+                fonts::Set_Font_Spacing(1);
+                const int16_t label_y = SETTINGS_FIELD_TOP +
+                    (SETTINGS_FIELD_BOTTOM - SETTINGS_FIELD_TOP + 1 -
+                        fonts::Get_Font_Height()) / 2;
+                fonts::Print_Centered(
+                    (SETTINGS_FIELD_LEFT + SETTINGS_FIELD_RIGHT) / 2,
+                    label_y, Settings_Label());
+            }
         }
 
         if (mod_list_active) {
@@ -776,6 +883,12 @@ namespace MAINMENU {
             // Credits
             else if (mod_list_active && input_field == credits_field) {
                 MOX::current_screen = SCREEN_CREDITS;
+                MOX::return_screen = SCREEN_MAIN_MENU;
+                screen_exit = true;
+            }
+            // Settings
+            else if (input_field == settings_field || last_input_scan == 0x53) {
+                MOX::current_screen = SCREEN_SETTINGS;
                 MOX::return_screen = SCREEN_MAIN_MENU;
                 screen_exit = true;
             }

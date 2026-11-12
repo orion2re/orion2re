@@ -1,0 +1,245 @@
+{
+ "palettes": {
+  "colony": {
+   "embedded": true,
+   "entry": 0,
+   "lbx": "COLSUM.LBX"
+  },
+  "menu": {
+   "entry": 2,
+   "lbx": "MAINMENU.LBX",
+   "offset": 24
+  }
+ },
+ "source_lbx": "COLSUM.LBX",
+ "sprites": [
+  {
+   "entry": 1,
+   "id": "return",
+   "size": [
+    85,
+    26
+   ],
+   "source_palette": "colony",
+   "states": {
+    "normal": 0,
+    "pressed": 1
+   },
+   "target_palette": "menu"
+  },
+  {
+   "grab": {
+    "tab": "Name",
+    "x": 89,
+    "y": 446
+   },
+   "id": "sort-name",
+   "size": [
+    50,
+    24
+   ],
+   "source": "screen",
+   "source_palette": "colony",
+   "states": {
+    "active": {
+     "blank": {
+      "mode": "column",
+      "src_row": 5,
+      "x0": 4,
+      "y0": 7,
+      "y1": 17
+     },
+     "frame": 1,
+     "overrides": {
+      "229": 138,
+      "50": 50,
+      "51": 103,
+      "52": 103,
+      "53": 138,
+      "54": 138,
+      "55": 138,
+      "56": 138,
+      "57": 50
+     }
+    },
+    "normal": {
+     "blank": {
+      "fill": 57,
+      "x0": 4,
+      "y0": 4,
+      "y1": 19
+     },
+     "frame": 0
+    }
+   },
+   "target_palette": "menu",
+   "tool": "derive_sort_tabs.py"
+  },
+  {
+   "grab": {
+    "tab": "Population",
+    "x": 140,
+    "y": 446
+   },
+   "id": "sort-population",
+   "size": [
+    78,
+    24
+   ],
+   "source": "screen",
+   "source_palette": "colony",
+   "states": {
+    "active": {
+     "blank": {
+      "mode": "column",
+      "src_row": 5,
+      "x0": 4,
+      "y0": 7,
+      "y1": 17
+     },
+     "frame": 1,
+     "overrides": {
+      "229": 138,
+      "50": 50,
+      "51": 103,
+      "52": 103,
+      "53": 138,
+      "54": 138,
+      "55": 138,
+      "56": 138,
+      "57": 50
+     }
+    },
+    "normal": {
+     "blank": {
+      "fill": 57,
+      "x0": 4,
+      "y0": 4,
+      "y1": 19
+     },
+     "frame": 0
+    }
+   },
+   "target_palette": "menu",
+   "tool": "derive_sort_tabs.py"
+  },
+  {
+   "grab": {
+    "tab": "Food",
+    "x": 219,
+    "y": 446
+   },
+   "id": "sort-food",
+   "size": [
+    42,
+    24
+   ],
+   "source": "screen",
+   "source_palette": "colony",
+   "states": {
+    "active": {
+     "blank": {
+      "mode": "column",
+      "src_row": 5,
+      "x0": 4,
+      "y0": 7,
+      "y1": 17
+     },
+     "frame": 1,
+     "overrides": {
+      "229": 138,
+      "50": 50,
+      "51": 103,
+      "52": 103,
+      "53": 138,
+      "54": 138,
+      "55": 138,
+      "56": 138,
+      "57": 50
+     }
+    },
+    "normal": {
+     "blank": {
+      "fill": 57,
+      "x0": 4,
+      "y0": 4,
+      "y1": 19
+     },
+     "frame": 0
+    }
+   },
+   "target_palette": "menu",
+   "tool": "derive_sort_tabs.py"
+  },
+  {
+   "entry": 0,
+   "id": "colony-background",
+   "size": [
+    640,
+    480
+   ],
+   "source_palette": "colony",
+   "states": {
+    "normal": 0
+   },
+   "target_palette": "menu",
+   "runtime": true
+  },
+  {
+   "entry": 2,
+   "id": "scroll-arrow-up",
+   "size": [
+    10,
+    20
+   ],
+   "source_palette": "colony",
+   "states": {
+    "normal": 0
+   },
+   "target_palette": "menu",
+   "runtime": true
+  },
+  {
+   "entry": 3,
+   "id": "scroll-arrow-down",
+   "size": [
+    11,
+    22
+   ],
+   "source_palette": "colony",
+   "states": {
+    "normal": 0
+   },
+   "target_palette": "menu",
+   "runtime": true
+  },
+  {
+   "entry": 11,
+   "id": "buy-button",
+   "runtime": true,
+   "size": [
+    19,
+    29
+   ],
+   "source_palette": "colony",
+   "states": {
+    "normal": 0,
+    "active": {
+     "frame": 1,
+     "overrides": {
+      "38": 138,
+      "39": 138,
+      "40": 138,
+      "50": 50,
+      "52": 103,
+      "54": 138,
+      "55": 138,
+      "56": 138,
+      "230": 138
+     }
+    }
+   },
+   "target_palette": "menu"
+  }
+ ]
+}

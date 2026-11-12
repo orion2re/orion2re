@@ -354,6 +354,14 @@ namespace config {
         active_config = {};
         active_config.baseline.effective = *effective;
         active_config.entry_path = normalized_entry;
+        // The one config: record the real file the entry was loaded from,
+        // so loading, saving and the settings UI all name the same file.
+        // A zip-only entry has no real file and leaves this empty.
+        char resolved_entry_path[CONFIG_MAX_PATH] = {};
+        if (vfs::Resolve_Read_Path_No_Zip(normalized_entry.c_str(),
+                resolved_entry_path, sizeof(resolved_entry_path)) != 0) {
+            active_config.entry_filesystem_path = resolved_entry_path;
+        }
         active_config.base_package = package_id;
         active_config.package_order = std::move(package_order);
         active_config.required_mods = std::move(required_mods);

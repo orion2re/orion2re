@@ -2,6 +2,7 @@
 
 #include "config/config_loader.h"
 #include "game/config_refresh.h"
+#include "game/settings_screen.h"
 
 namespace ALLOC = allocate;
 
@@ -100,6 +101,10 @@ namespace MOX2 {
                 case SCREEN_CREDITS:
                     MAINMENU::Credits_Screen();
                     MOX::previous_screen = SCREEN_CREDITS;
+                    break;
+                case SCREEN_SETTINGS:
+                    SETTINGS_SCREEN::Settings_Screen();
+                    MOX::previous_screen = SCREEN_SETTINGS;
                     break;
                 case SCREEN_MAIN_NEXT_TURN:
                     NEXTTURN::Next_Turn();

@@ -1617,6 +1617,11 @@ namespace fields {
             }
         }
 
+        // The list box: the help field plus one row per item.
+        // A click outside it dismisses the list, like Esc.
+        const int16_t list_bottom = (int16_t)(y + (index + 1) * y_step);
+        bool list_armed = false;
+
         int16_t input;
         bool exit_flag;
         do {
@@ -1641,6 +1646,24 @@ namespace fields {
 
             if (exit_the_list_field == 1) {
                 exit_flag = true;
+            }
+
+            // A click outside the list dismisses it, like Esc.
+            // Arm once the opening click is released, so the click
+            // that opened the list does not dismiss it. The loop
+            // samples the live button state every iteration, so a
+            // held press is seen while it is still down.
+            if (!list_armed) {
+                if (mouse::Mouse_Button() == 0) {
+                    list_armed = true;
+                }
+            } else if (mouse::Mouse_Button() != 0) {
+                const int16_t px = mouse::Pointer_X();
+                const int16_t py = mouse::Pointer_Y();
+                if (px < x || px >= x + width || py < y || py >= list_bottom) {
+                    input = -1;
+                    break;
+                }
             }
 
             video::Set_Page_Off();

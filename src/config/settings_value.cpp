@@ -285,6 +285,74 @@ namespace config {
         return generated::Get_Current_Value(row.variable_id, value);
     }
 
+    std::string Format_Resolution(int width, int height) {
+        return std::to_string(width) + "x" + std::to_string(height);
+    }
+
+    bool Get_Current_Resolution(int* width, int* height) {
+        if (width == nullptr || height == nullptr) {
+            return false;
+        }
+        t_variable_id width_id = CONFIG_NO_VARIABLE;
+        t_variable_id height_id = CONFIG_NO_VARIABLE;
+        if (!Find_Variable("interface.window_width",
+                sizeof("interface.window_width") - 1, &width_id) ||
+            !Find_Variable("interface.window_height",
+                sizeof("interface.window_height") - 1, &height_id)) {
+            return false;
+        }
+        s_typed_value width_value;
+        s_typed_value height_value;
+        if (!generated::Get_Current_Value(width_id, &width_value) ||
+            !generated::Get_Current_Value(height_id, &height_value)) {
+            return false;
+        }
+        *width = (int)width_value.integer_value;
+        *height = (int)height_value.integer_value;
+        return true;
+    }
+
+    std::vector<s_resolution_option> Resolution_Options(
+        int current_width, int current_height) {
+        static const s_resolution_option known[] = {
+            { 640, 480, "640x480" },
+            { 800, 600, "800x600" },
+            { 1024, 768, "1024x768" },
+            { 1280, 960, "1280x960" },
+            { 1600, 1200, "1600x1200" },
+            { 1920, 1440, "1920x1440" },
+            { 2560, 1920, "2560x1920" },
+            { 3840, 2880, "3840x2880" },
+        };
+        std::vector<s_resolution_option> options;
+        for (const s_resolution_option& known_option : known) {
+            options.push_back(known_option);
+        }
+        bool present = false;
+        for (const s_resolution_option& option : options) {
+            if (option.width == current_width && option.height == current_height) {
+                present = true;
+            }
+        }
+        if (!present) {
+            s_resolution_option current;
+            current.width = current_width;
+            current.height = current_height;
+            current.label = Format_Resolution(current_width, current_height);
+            size_t at = options.size();
+            for (size_t index = 0; index < options.size(); ++index) {
+                if (current_width < options[index].width ||
+                    (current_width == options[index].width &&
+                        current_height < options[index].height)) {
+                    at = index;
+                    break;
+                }
+            }
+            options.insert(options.begin() + (std::ptrdiff_t)at, current);
+        }
+        return options;
+    }
+
     namespace {
 
         struct s_settings_category_entry {
@@ -325,6 +393,10 @@ namespace config {
             { "interface.scaler", SETTINGS_CATEGORY_GAME_INTERNALS },
             { "interface.window_width", SETTINGS_CATEGORY_GAME_INTERNALS },
             { "interface.window_height", SETTINGS_CATEGORY_GAME_INTERNALS },
+            // The synthetic Resolution row, which sets both window
+            // settings together; the width/height entries above keep
+            // the metadata paths mapped for the unit test.
+            { "interface.resolution", SETTINGS_CATEGORY_GAME_INTERNALS },
             { "interface.fullscreen", SETTINGS_CATEGORY_GAME_INTERNALS },
             { "interface.vsync_enabled", SETTINGS_CATEGORY_GAME_INTERNALS },
             { "interface.net_debug_enabled", SETTINGS_CATEGORY_GAME_INTERNALS },
@@ -404,6 +476,9 @@ namespace config {
             { "interface.scaler", true },
             { "interface.window_width", true },
             { "interface.window_height", true },
+            // The synthetic Resolution row is primary, like the
+            // width/height rows it replaces.
+            { "interface.resolution", true },
             { "interface.fullscreen", true },
             { "interface.vsync_enabled", true },
             { "interface.net_debug_enabled", false },
@@ -537,6 +612,28 @@ namespace config {
                         "This setting has no editor on this screen. Edit it in orion2re.cfg.";
                 }
                 rows.push_back(std::move(info_row));
+                continue;
+            }
+
+            // The window size is one choice: the aspect ratio is
+            // pinned to 4:3, so width and height are set together
+            // from a Resolution dropdown. The width entry carries
+            // the single row; the height entry contributes none.
+            if (path == "interface.window_height") {
+                continue;
+            }
+            if (path == "interface.window_width") {
+                s_settings_row row;
+                row.variable_id = CONFIG_NO_VARIABLE;
+                row.path = kResolutionRowPath;
+                row.title = "Resolution";
+                row.description =
+                    "Sets the window size. The aspect ratio is fixed at 4:3, "
+                    "so width and height change together.";
+                row.group = metadata.group;
+                row.restart_required = true;
+                row.widget = SETTINGS_WIDGET_DROPDOWN;
+                rows.push_back(std::move(row));
                 continue;
             }
 

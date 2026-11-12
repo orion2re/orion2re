@@ -46,8 +46,9 @@ DOCTEST_TEST_CASE("every spec setting has rows, in spec order") {
     const std::vector<config::s_settings_row> rows = config::Build_Settings_Rows();
 
     // 49 spec parameters: 41 interface + 8 synchronized_interface.
+    // 207 rows: the two window width/height rows are one Resolution row.
     DOCTEST_REQUIRE(config::settings_metadata_count == 49);
-    DOCTEST_CHECK(rows.size() == 208);
+    DOCTEST_CHECK(rows.size() == 207);
 
     // Metadata order is the row order: the first row is the first spec
     // parameter and the last row belongs to the last one.
@@ -60,6 +61,15 @@ DOCTEST_TEST_CASE("every spec setting has rows, in spec order") {
     for (size_t index = 0; index < config::settings_metadata_count; ++index) {
         const config::s_settings_metadata& metadata =
             config::settings_metadata[index];
+        // The window width and height are set together from the
+        // single Resolution row, so neither has a row of its own.
+        if (std::string(metadata.path) == "interface.window_width" ||
+            std::string(metadata.path) == "interface.window_height") {
+            DOCTEST_CHECK_MESSAGE(
+                Find_Row_(rows, "interface.resolution") != nullptr,
+                "no Resolution row for ", metadata.path);
+            continue;
+        }
         bool found = false;
         for (const config::s_settings_row& row : rows) {
             if (row.path == metadata.path ||
@@ -106,6 +116,10 @@ DOCTEST_TEST_CASE("the restart-required set is the six spec settings") {
                 owned = true;
             }
         }
+        // The Resolution row sets both window settings together.
+        if (row.path == "interface.resolution") {
+            owned = true;
+        }
         DOCTEST_CHECK_MESSAGE(owned, "flagged row with no restart setting: ",
             row.path);
     }
@@ -113,7 +127,8 @@ DOCTEST_TEST_CASE("the restart-required set is the six spec settings") {
 
 DOCTEST_TEST_CASE("widget kinds come from the leaf type") {
     const std::vector<config::s_settings_row> rows = config::Build_Settings_Rows();
-    const config::s_settings_row* width = Find_Row_(rows, "interface.window_width");
+    const config::s_settings_row* resolution =
+        Find_Row_(rows, "interface.resolution");
     const config::s_settings_row* fullscreen =
         Find_Row_(rows, "interface.fullscreen");
     const config::s_settings_row* scaler = Find_Row_(rows, "interface.scaler");
@@ -126,7 +141,7 @@ DOCTEST_TEST_CASE("widget kinds come from the leaf type") {
         Find_Row_(rows, "interface.build_list_format.0.color");
     const config::s_settings_row* colors_base =
         Find_Row_(rows, "interface.build_list_colors.0.0.base");
-    DOCTEST_REQUIRE(width != nullptr);
+    DOCTEST_REQUIRE(resolution != nullptr);
     DOCTEST_REQUIRE(fullscreen != nullptr);
     DOCTEST_REQUIRE(scaler != nullptr);
     DOCTEST_REQUIRE(router != nullptr);
@@ -134,7 +149,7 @@ DOCTEST_TEST_CASE("widget kinds come from the leaf type") {
     DOCTEST_REQUIRE(cloak_fast != nullptr);
     DOCTEST_REQUIRE(format_color != nullptr);
     DOCTEST_REQUIRE(colors_base != nullptr);
-    DOCTEST_CHECK(width->widget == config::SETTINGS_WIDGET_EDIT);
+    DOCTEST_CHECK(resolution->widget == config::SETTINGS_WIDGET_DROPDOWN);
     DOCTEST_CHECK(fullscreen->widget == config::SETTINGS_WIDGET_TOGGLE);
     DOCTEST_CHECK(scaler->widget == config::SETTINGS_WIDGET_DROPDOWN);
     DOCTEST_CHECK(router->widget == config::SETTINGS_WIDGET_EDIT);
@@ -399,10 +414,12 @@ DOCTEST_TEST_CASE("every metadata setting maps to exactly one category") {
 
 DOCTEST_TEST_CASE("every metadata setting maps to exactly one visibility") {
     // Pinned primary/secondary split for the Settings screen's Show
-    // all: 11 game internals primary, 21 gameplay primary, 1 mods
+    // all: 10 game internals primary, 21 gameplay primary, 1 mods
     // primary. The table must cover all 49 metadata paths, in
     // metadata order, so a new spec setting with no entry fails here
-    // instead of silently showing up front.
+    // instead of silently showing up front. The Resolution row is the
+    // one primary internals row for the window size, replacing the
+    // two primary width/height rows.
     const std::vector<std::pair<const char*, bool>> expected = {
         { "interface.router", false },
         { "interface.scroll_interval", true },
@@ -499,7 +516,7 @@ DOCTEST_TEST_CASE("every metadata setting maps to exactly one visibility") {
                 break;
         }
     }
-    DOCTEST_CHECK(internals_primary == 11);
+    DOCTEST_CHECK(internals_primary == 10);
     DOCTEST_CHECK(internals_secondary == 9);
     DOCTEST_CHECK(gameplay_primary == 21);
     DOCTEST_CHECK(gameplay_secondary == 165);
@@ -510,15 +527,37 @@ DOCTEST_TEST_CASE("every metadata setting maps to exactly one visibility") {
     DOCTEST_CHECK(!config::Settings_Is_Primary_For_Path(
         "interface.build_list_colors.default.normal.base"));
     DOCTEST_CHECK(config::Settings_Is_Primary_For_Path("interface.window_width"));
+    DOCTEST_CHECK(config::Settings_Is_Primary_For_Path("interface.resolution"));
 }
 
-DOCTEST_TEST_CASE("the current window width reads back from the native target") {
+DOCTEST_TEST_CASE("the current window size reads back as one Resolution row") {
     const std::vector<config::s_settings_row> rows = config::Build_Settings_Rows();
-    const config::s_settings_row* width = Find_Row_(rows, "interface.window_width");
-    DOCTEST_REQUIRE(width != nullptr);
-    config::s_typed_value value;
-    DOCTEST_REQUIRE(config::Get_Settings_Row_Value(*width, &value));
-    DOCTEST_CHECK(config::Format_Leaf_Value(width->variable_id, value) == "640");
+    const config::s_settings_row* resolution =
+        Find_Row_(rows, "interface.resolution");
+    DOCTEST_REQUIRE(resolution != nullptr);
+    DOCTEST_CHECK(resolution->widget == config::SETTINGS_WIDGET_DROPDOWN);
+    DOCTEST_CHECK(resolution->restart_required);
+    int width = 0;
+    int height = 0;
+    DOCTEST_REQUIRE(config::Get_Current_Resolution(&width, &height));
+    DOCTEST_CHECK(config::Format_Resolution(width, height) == "640x480");
+    // The known resolutions, plus the current pair when it is not one.
+    const std::vector<config::s_resolution_option> options =
+        config::Resolution_Options(width, height);
+    DOCTEST_REQUIRE(options.size() == 8);
+    DOCTEST_CHECK(options.front().label == "640x480");
+    DOCTEST_CHECK(options.back().label == "3840x2880");
+    const std::vector<config::s_resolution_option> odd =
+        config::Resolution_Options(1000, 750);
+    DOCTEST_REQUIRE(odd.size() == 9);
+    bool found = false;
+    for (const config::s_resolution_option& option : odd) {
+        if (option.width == 1000 && option.height == 750) {
+            found = true;
+            DOCTEST_CHECK(option.label == "1000x750");
+        }
+    }
+    DOCTEST_CHECK(found);
 }
 
 } // DOCTEST_TEST_SUITE
