@@ -1312,3 +1312,77 @@ DOCTEST_TEST_CASE("saved and synchronized snapshots share the same codec") {
     DOCTEST_CHECK(synchronized_size != 0);
     DOCTEST_CHECK(saved_size != 0);
 }
+
+DOCTEST_TEST_CASE("truncated and corrupt snapshots are rejected without aborting") {
+    config::s_config_state state;
+    DOCTEST_REQUIRE(config::Initialize_Defaults(&state));
+    state.values[Variable_("combat.max_ships_per_side")].integer_value = 100;
+    state.values[Variable_("race.picks.starting")].integer_value = 12;
+    const std::vector<config::s_mod_requirement> required_mods = {
+        {"balance", "1"},
+        {"shared-assets", "3.4"},
+    };
+    const std::vector<uint8_t> encoded = Encode_(
+        &config::synchronized_config_snapshot, &state, &required_mods);
+    DOCTEST_REQUIRE(!encoded.empty());
+
+    // Every truncation of a valid snapshot must be rejected gracefully
+    // instead of aborting in SERIAL::Reader_::Require().
+    for (size_t size = 0; size < encoded.size(); ++size) {
+        config::s_config_state decoded;
+        SERIAL::Reader_ reader(encoded.data(), (uint32_t)size, "snapshot read failed");
+        DOCTEST_CHECK_FALSE(config::Read_Config_Snapshot(
+            &reader, &config::synchronized_config_snapshot, &decoded));
+    }
+
+    // The full snapshot still decodes.
+    {
+        config::s_config_state decoded;
+        SERIAL::Reader_ reader(
+            encoded.data(), (uint32_t)encoded.size(), "snapshot read failed");
+        DOCTEST_REQUIRE(config::Read_Config_Snapshot(
+            &reader, &config::synchronized_config_snapshot, &decoded));
+        DOCTEST_CHECK(decoded.values[Variable_("combat.max_ships_per_side")].integer_value == 100);
+        DOCTEST_CHECK(decoded.values[Variable_("race.picks.starting")].integer_value == 12);
+    }
+
+    // Garbage bytes are rejected gracefully.
+    const std::vector<uint8_t> garbage(64, 0xFF);
+    {
+        config::s_config_state decoded;
+        SERIAL::Reader_ reader(garbage.data(), (uint32_t)garbage.size(), "snapshot read failed");
+        DOCTEST_CHECK_FALSE(config::Read_Config_Snapshot(
+            &reader, &config::synchronized_config_snapshot, &decoded));
+    }
+
+    // An entry count larger than the blob holds is rejected gracefully
+    // (entry_count lives at offset 12: magic 4, version 2, header size 2,
+    // payload size 4).
+    {
+        std::vector<uint8_t> inflated = encoded;
+        DOCTEST_REQUIRE(inflated.size() > 16);
+        inflated[12] = 0xE8;
+        inflated[13] = 0x03;
+        inflated[14] = 0x00;
+        inflated[15] = 0x00;
+        config::s_config_state decoded;
+        SERIAL::Reader_ reader(inflated.data(), (uint32_t)inflated.size(), "snapshot read failed");
+        DOCTEST_CHECK_FALSE(config::Read_Config_Snapshot(
+            &reader, &config::synchronized_config_snapshot, &decoded));
+    }
+
+    // A mod count larger than the blob holds is rejected gracefully
+    // (mod_count lives at offset 16 for the 24-byte mod-version header).
+    {
+        std::vector<uint8_t> inflated = encoded;
+        DOCTEST_REQUIRE(inflated.size() > 20);
+        inflated[16] = 0x64;
+        inflated[17] = 0x00;
+        inflated[18] = 0x00;
+        inflated[19] = 0x00;
+        config::s_config_snapshot decoded;
+        SERIAL::Reader_ reader(inflated.data(), (uint32_t)inflated.size(), "snapshot read failed");
+        DOCTEST_CHECK_FALSE(config::Read_Config_Snapshot(
+            &reader, &config::synchronized_config_snapshot, &decoded));
+    }
+}

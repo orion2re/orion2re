@@ -239,44 +239,111 @@ namespace config {
             }
         }
 
+        bool Read_U8(SERIAL::Reader_* reader, uint8_t* value) {
+            if (reader->Remaining() < sizeof(uint8_t)) return false;
+            *value = reader->Read_Uint8();
+            return true;
+        }
+
+        bool Read_I8(SERIAL::Reader_* reader, int8_t* value) {
+            if (reader->Remaining() < sizeof(int8_t)) return false;
+            *value = reader->Read_Int8();
+            return true;
+        }
+
+        bool Read_U16(SERIAL::Reader_* reader, uint16_t* value) {
+            if (reader->Remaining() < sizeof(uint16_t)) return false;
+            *value = reader->Read_Uint16();
+            return true;
+        }
+
+        bool Read_I16(SERIAL::Reader_* reader, int16_t* value) {
+            if (reader->Remaining() < sizeof(int16_t)) return false;
+            *value = reader->Read_Int16();
+            return true;
+        }
+
+        bool Read_U32(SERIAL::Reader_* reader, uint32_t* value) {
+            if (reader->Remaining() < sizeof(uint32_t)) return false;
+            *value = reader->Read_Uint32();
+            return true;
+        }
+
+        bool Read_I32(SERIAL::Reader_* reader, int32_t* value) {
+            if (reader->Remaining() < sizeof(int32_t)) return false;
+            *value = reader->Read_Int32();
+            return true;
+        }
+
+        bool Read_U64(SERIAL::Reader_* reader, uint64_t* value) {
+            if (reader->Remaining() < sizeof(uint64_t)) return false;
+            *value = reader->Read_Uint64();
+            return true;
+        }
+
+        bool Read_Bytes(SERIAL::Reader_* reader, void* dest, size_t size) {
+            if (reader->Remaining() < size) return false;
+            reader->Read_Bytes(dest, size);
+            return true;
+        }
+
         bool Read_Value(SERIAL::Reader_* reader, const s_type_descriptor* type, uint32_t value_size, s_typed_value* value) {
             *value = {};
             value->type = type->value_type;
             switch (type->value_type) {
                 case CONFIG_VALUE_BOOL: {
                     if (value_size != 1) return false;
-                    const uint8_t boolean = reader->Read_Uint8();
+                    uint8_t boolean = 0;
+                    if (!Read_U8(reader, &boolean)) return false;
                     if (boolean > 1) return false;
                     value->bool_value = boolean != 0;
                     return true;
                 }
-                case CONFIG_VALUE_INT8:
+                case CONFIG_VALUE_INT8: {
                     if (value_size != 1) return false;
-                    value->integer_value = reader->Read_Int8();
+                    int8_t integer = 0;
+                    if (!Read_I8(reader, &integer)) return false;
+                    value->integer_value = integer;
                     return true;
-                case CONFIG_VALUE_UINT8:
+                }
+                case CONFIG_VALUE_UINT8: {
                     if (value_size != 1) return false;
-                    value->integer_value = reader->Read_Uint8();
+                    uint8_t integer = 0;
+                    if (!Read_U8(reader, &integer)) return false;
+                    value->integer_value = integer;
                     return true;
-                case CONFIG_VALUE_INT16:
+                }
+                case CONFIG_VALUE_INT16: {
                     if (value_size != 2) return false;
-                    value->integer_value = reader->Read_Int16();
+                    int16_t integer = 0;
+                    if (!Read_I16(reader, &integer)) return false;
+                    value->integer_value = integer;
                     return true;
-                case CONFIG_VALUE_UINT16:
+                }
+                case CONFIG_VALUE_UINT16: {
                     if (value_size != 2) return false;
-                    value->integer_value = reader->Read_Uint16();
+                    uint16_t integer = 0;
+                    if (!Read_U16(reader, &integer)) return false;
+                    value->integer_value = integer;
                     return true;
-                case CONFIG_VALUE_INT32:
+                }
+                case CONFIG_VALUE_INT32: {
                     if (value_size != 4) return false;
-                    value->integer_value = reader->Read_Int32();
+                    int32_t integer = 0;
+                    if (!Read_I32(reader, &integer)) return false;
+                    value->integer_value = integer;
                     return true;
-                case CONFIG_VALUE_UINT32:
+                }
+                case CONFIG_VALUE_UINT32: {
                     if (value_size != 4) return false;
-                    value->integer_value = reader->Read_Uint32();
+                    uint32_t integer = 0;
+                    if (!Read_U32(reader, &integer)) return false;
+                    value->integer_value = integer;
                     return true;
+                }
                 case CONFIG_VALUE_STRING:
                     if (value_size > CONFIG_MAX_SNAPSHOT_SIZE) return false;
-                    reader->Require(value_size);
+                    if (value_size > reader->Remaining()) return false;
                     value->string_value.resize(value_size);
                     reader->Read_Bytes(value->string_value.data(), value_size);
                     return Valid_String(value->string_value.data(), value_size);
@@ -285,14 +352,23 @@ namespace config {
                         static_cast<uint32_t>((type->bitmap_bit_count + 7) / 8);
                     if (value_size != bitmap_size) return false;
                     value->bitmap_value.resize(value_size);
-                    reader->Read_Bytes(value->bitmap_value.data(), value_size);
+                    if (!Read_Bytes(reader, value->bitmap_value.data(), value_size)) {
+                        return false;
+                    }
                     return true;
                 }
-                case CONFIG_VALUE_RATIO:
+                case CONFIG_VALUE_RATIO: {
                     if (value_size != 16) return false;
-                    value->ratio_numerator = static_cast<int64_t>(reader->Read_Uint64());
-                    value->ratio_denominator = static_cast<int64_t>(reader->Read_Uint64());
+                    uint64_t numerator = 0;
+                    uint64_t denominator = 0;
+                    if (!Read_U64(reader, &numerator) ||
+                        !Read_U64(reader, &denominator)) {
+                        return false;
+                    }
+                    value->ratio_numerator = static_cast<int64_t>(numerator);
+                    value->ratio_denominator = static_cast<int64_t>(denominator);
                     return true;
+                }
             }
             return false;
         }
@@ -556,11 +632,15 @@ namespace config {
             return false;
         }
         const uint32_t start = reader->Length();
-        if (reader->Read_Uint32() != CONFIG_SNAPSHOT_MAGIC) {
+        uint32_t magic = 0;
+        if (!Read_U32(reader, &magic) || magic != CONFIG_SNAPSHOT_MAGIC) {
             return false;
         }
-        const uint16_t version = reader->Read_Uint16();
-        const uint16_t header_size = reader->Read_Uint16();
+        uint16_t version = 0;
+        uint16_t header_size = 0;
+        if (!Read_U16(reader, &version) || !Read_U16(reader, &header_size)) {
+            return false;
+        }
         const bool has_required_mods =
             header_size == CONFIG_SNAPSHOT_HEADER_SIZE_WITH_MOD_IDS ||
             header_size == CONFIG_SNAPSHOT_HEADER_SIZE_WITH_MOD_VERSIONS;
@@ -571,10 +651,18 @@ namespace config {
                 header_size != CONFIG_SNAPSHOT_HEADER_SIZE_VALUES_ONLY)) {
             return false;
         }
-        const uint32_t payload_size = reader->Read_Uint32();
-        const uint32_t entry_count = reader->Read_Uint32();
-        const uint32_t mod_count = has_required_mods ? reader->Read_Uint32() : 0;
-        if (has_mod_versions && reader->Read_Uint32() != 0) return false;
+        uint32_t payload_size = 0;
+        uint32_t entry_count = 0;
+        uint32_t mod_count = 0;
+        if (!Read_U32(reader, &payload_size) ||
+            !Read_U32(reader, &entry_count) ||
+            (has_required_mods && !Read_U32(reader, &mod_count))) {
+            return false;
+        }
+        uint32_t reserved = 0;
+        if (has_mod_versions && (!Read_U32(reader, &reserved) || reserved != 0)) {
+            return false;
+        }
         s_config_state candidate;
         if (payload_size > CONFIG_MAX_SNAPSHOT_SIZE - header_size ||
             entry_count > CONFIG_MAX_SNAPSHOT_SIZE / CONFIG_SNAPSHOT_ENTRY_HEADER_SIZE ||
@@ -585,9 +673,12 @@ namespace config {
         std::vector<s_mod_requirement> required_mods;
         required_mods.reserve(mod_count);
         for (uint32_t index = 0; index < mod_count; ++index) {
-            const uint16_t mod_id_size = reader->Read_Uint16();
-            const uint16_t mod_version_size =
-                has_mod_versions ? reader->Read_Uint16() : 0;
+            uint16_t mod_id_size = 0;
+            uint16_t mod_version_size = 0;
+            if (!Read_U16(reader, &mod_id_size) ||
+                (has_mod_versions && !Read_U16(reader, &mod_version_size))) {
+                return false;
+            }
             if (mod_id_size == 0 || mod_id_size > CONFIG_MAX_SNAPSHOT_MOD_ID_SIZE) {
                 return false;
             }
@@ -598,9 +689,13 @@ namespace config {
             }
             s_mod_requirement required;
             required.id.resize(mod_id_size);
-            reader->Read_Bytes(required.id.data(), required.id.size());
+            if (!Read_Bytes(reader, required.id.data(), required.id.size())) {
+                return false;
+            }
             required.version.resize(mod_version_size);
-            reader->Read_Bytes(required.version.data(), required.version.size());
+            if (!Read_Bytes(reader, required.version.data(), required.version.size())) {
+                return false;
+            }
             if (!Valid_Mod_Id(required.id) ||
                 (has_mod_versions && !Valid_Mod_Version(required.version))) {
                 return false;
@@ -614,16 +709,24 @@ namespace config {
         t_variable_id prior_variable = CONFIG_NO_VARIABLE;
         uint32_t prior_leaf = 0;
         for (uint32_t index = 0; index < entry_count; ++index) {
-            const uint16_t path_size = reader->Read_Uint16();
-            const uint8_t value_type = reader->Read_Uint8();
-            const uint8_t flags = reader->Read_Uint8();
-            const uint32_t value_size = reader->Read_Uint32();
+            uint16_t path_size = 0;
+            uint8_t value_type = 0;
+            uint8_t flags = 0;
+            uint32_t value_size = 0;
+            if (!Read_U16(reader, &path_size) ||
+                !Read_U8(reader, &value_type) ||
+                !Read_U8(reader, &flags) ||
+                !Read_U32(reader, &value_size)) {
+                return false;
+            }
             if (path_size == 0 || path_size > CONFIG_MAX_SNAPSHOT_PATH_SIZE ||
                 flags != 0) {
                 return false;
             }
             char path[CONFIG_MAX_SNAPSHOT_PATH_SIZE + 1];
-            reader->Read_Bytes(path, path_size);
+            if (!Read_Bytes(reader, path, path_size)) {
+                return false;
+            }
             path[path_size] = '\0';
             s_variable_accessor accessor;
             std::string canonical_path;
