@@ -137,7 +137,8 @@ namespace FILEDEF {
         }
         fclose(file);
 
-        SERIAL::Reader_ reader(save_buffer, file_size, "Invalid or truncated save game");
+        SERIAL::Reader_ reader(save_buffer, file_size, "Invalid or truncated save game",
+            /*soft_fail=*/ true);
         SAVEGAME::s_metadata metadata = {};
         std::string load_error;
         if (!SAVEGAME::Read_Game(

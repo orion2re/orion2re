@@ -3,26 +3,42 @@
 #include "game/serialization.h"
 
 namespace SERIAL {
-    Reader_::Reader_(const void* data, uint32_t len, const char* error_message)
+    Reader_::Reader_(const void* data, uint32_t len, const char* error_message, bool soft_fail)
         : start(static_cast<const uint8_t*>(data)),
           ptr(static_cast<const uint8_t*>(data)),
           len(len),
-          error_message(error_message) {
+          error_message(error_message),
+          soft_fail_(soft_fail),
+          failed_(false) {
         if (start == nullptr) {
-            Fail();
+            if (soft_fail_) {
+                failed_ = true;
+            } else {
+                Fail();
+            }
         }
     }
 
-    void Reader_::Require(size_t size) const {
+    bool Reader_::Require(size_t size) const {
+        if (failed_) {
+            return false;
+        }
         if (ptr == nullptr || ptr < start ||
             static_cast<size_t>(ptr - start) > len ||
             size > len - static_cast<size_t>(ptr - start)) {
+            if (soft_fail_) {
+                failed_ = true;
+                return false;
+            }
             Fail();
         }
+        return true;
     }
 
     void Reader_::Skip(size_t size) {
-        Require(size);
+        if (!Require(size)) {
+            return;
+        }
         ptr += size;
     }
 
@@ -31,7 +47,9 @@ namespace SERIAL {
     }
 
     uint8_t Reader_::Read_Uint8() {
-        Require(sizeof(uint8_t));
+        if (!Require(sizeof(uint8_t))) {
+            return 0;
+        }
         uint8_t value = *ptr;
         ptr += sizeof(uint8_t);
         return value;
@@ -72,7 +90,15 @@ namespace SERIAL {
     }
 
     void Reader_::Read_Bytes(void* dest, size_t size) {
-        Require(size);
+        if (!Require(size)) {
+            // Leave the destination deterministic instead of untouched:
+            // callers that read into stack buffers must not observe
+            // uninitialized bytes after a truncated read.
+            if (dest != nullptr) {
+                memset(dest, 0, size);
+            }
+            return;
+        }
         memcpy(dest, ptr, size);
         ptr += size;
     }
@@ -87,6 +113,10 @@ namespace SERIAL {
 
     const uint8_t* Reader_::Ptr() const {
         return ptr;
+    }
+
+    bool Reader_::failed() const {
+        return failed_;
     }
 
     [[noreturn]] void Reader_::Fail() const {

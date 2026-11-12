@@ -3,9 +3,17 @@
 namespace SERIAL {
     class Reader_ {
       public:
-        Reader_(const void* data, uint32_t len, const char* error_message);
+        // When soft_fail is true, a read past the end of the buffer sets a
+        // sticky failure flag (see failed()) and returns zero instead of
+        // aborting the process via Fail(). Only callers that read untrusted
+        // input (save files) opt in; every other caller keeps the
+        // historical abort-on-overrun behaviour.
+        Reader_(const void* data, uint32_t len, const char* error_message, bool soft_fail = false);
 
-        void Require(size_t size) const;
+        // Returns false when the requested bytes are not available. In
+        // soft-fail mode this only records the failure; otherwise it
+        // aborts via Fail().
+        bool Require(size_t size) const;
         void Skip(size_t size);
 
         char Read_Char();
@@ -22,6 +30,10 @@ namespace SERIAL {
         uint32_t Remaining() const;
         const uint8_t* Ptr() const;
 
+        // True once any read ran past the end of the buffer. Only set in
+        // soft-fail mode; a hard-fail reader aborts instead of setting it.
+        bool failed() const;
+
       private:
         [[noreturn]] void Fail() const;
 
@@ -29,6 +41,8 @@ namespace SERIAL {
         const uint8_t* ptr;
         uint32_t len;
         const char* error_message;
+        bool soft_fail_;
+        mutable bool failed_;
     };
 
     class Writer_ {

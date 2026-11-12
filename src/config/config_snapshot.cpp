@@ -759,7 +759,7 @@ namespace config {
                 return false;
             }
         }
-        if (reader->Length() - start != header_size + payload_size) {
+        if (reader->failed() || reader->Length() - start != header_size + payload_size) {
             return false;
         }
         if (!Validate_State(&candidate)) return false;

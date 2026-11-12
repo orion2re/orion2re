@@ -1679,6 +1679,7 @@ namespace SAVEGAME {
             for (int i = colony_record_count; i < MAX_COLONIES; ++i) {
                 Initialize_Unused_Colony(&MOX::colony[i]);
             }
+            if (reader->failed()) return false;
             MOX::planet_count = reader->Read_Int16();
             if (MOX::planet_count < 0 || MOX::planet_count > MAX_PLANETS) return false;
             const int planet_record_count = version == LEGACY_VERSION ? ORIGINAL_MAX_PLANETS : MOX::planet_count;
@@ -1686,6 +1687,7 @@ namespace SAVEGAME {
             for (int i = planet_record_count; i < MAX_PLANETS; ++i) {
                 Initialize_Unused_Planet(&MOX::planet[i]);
             }
+            if (reader->failed()) return false;
             MOX::NUM_STARS = reader->Read_Int16();
             if (MOX::NUM_STARS < 0 || MOX::NUM_STARS > MAX_STARS) return false;
             const int star_record_count = version == LEGACY_VERSION ? ORIGINAL_MAX_STARS : MOX::NUM_STARS;
@@ -1693,6 +1695,7 @@ namespace SAVEGAME {
             for (int i = star_record_count; i < MAX_STARS; ++i) {
                 Initialize_Unused_Star(&MOX::star[i]);
             }
+            if (reader->failed()) return false;
             // Cross-references between live planets and stars must agree:
             // a single edited index crashes Load_Game (via
             // Confirm_Planet_And_Star_Index_Link) or the next turn.
@@ -1724,6 +1727,7 @@ namespace SAVEGAME {
                         i, &sixth_design, settings->strategic_combat_flag != 0);
                 }
             }
+            if (reader->failed()) return false;
             MOX::NUM_SHIPS = reader->Read_Int16();
             const int ship_capacity = version < EXPANDED_SHIP_CAPACITY_VERSION
                 ? PREVIOUS_MAX_SHIPS
@@ -1739,6 +1743,7 @@ namespace SAVEGAME {
             }
             for (int i = 0; i < 5; ++i) Read_Movable_Box(reader, &MOX::moveable_box[i]);
             Read_Int16_Array(reader, MOX::moveable_box_order, 5);
+            if (reader->failed()) return false;
             MOX::PLAYER_NUM = reader->Read_Int16();
             if (validate && (MOX::PLAYER_NUM < 0 || MOX::PLAYER_NUM >= MOX::NUM_PLAYERS)) return false;
             MOX::max_map_scale = reader->Read_Int16();
@@ -1763,6 +1768,7 @@ namespace SAVEGAME {
                     if (MOX::nebula[i].type < 0 || MOX::nebula[i].type >= 12) return false;
                 }
             }
+            if (reader->failed()) return false;
             Read_Int16_Array(reader, MOX::bill_savegame, 6);
             REPORT::n_reports = reader->Read_Int16();
             if (validate && (REPORT::n_reports < 0 || REPORT::n_reports > MAX_REPORTS)) return false;
@@ -1778,6 +1784,7 @@ namespace SAVEGAME {
             reader->Read_Bytes(MSG_::first_msg, sizeof(MSG_::first_msg));
             reader->Read_Bytes(MSG_::max_msgs, sizeof(MSG_::max_msgs));
             reader->Read_Bytes(MSG_::n_msgs, sizeof(MSG_::n_msgs));
+            if (reader->failed()) return false;
             if (validate) {
                 for (int i = 0; i < MAX_PLAYERS; ++i) {
                     if (MSG_::first_msg[i] + MSG_::n_msgs[i] > MAX_MESSAGES ||
@@ -1801,6 +1808,7 @@ namespace SAVEGAME {
             MOX::cur_map_x = reader->Read_Int16();
             MOX::cur_map_y = reader->Read_Int16();
             reader->Skip(1000);
+            if (reader->failed()) return false;
             if (version >= ANTARAN_RUNTIME_STATE_VERSION) {
                 MOX::antarans.offensive_titan_built = reader->Read_Uint8();
                 MOX::antarans.offensive_limit_exhausted_mask = reader->Read_Uint8();
@@ -1829,7 +1837,7 @@ namespace SAVEGAME {
                     }
                 }
             }
-            return true;
+            return !reader->failed();
         }
     } // namespace
 
@@ -2040,7 +2048,8 @@ namespace SAVEGAME {
                     }
                     continue;
                 }
-                SERIAL::Reader_ section_reader(section.data, section.size, "invalid save extension section payload");
+                SERIAL::Reader_ section_reader(section.data, section.size,
+                    "invalid save extension section payload", /*soft_fail=*/ true);
                 if (section.type == SECTION_TYPE_CONFIG) {
                     if ((section.flags & SECTION_FLAG_REQUIRED) == 0 ||
                         found_config ||

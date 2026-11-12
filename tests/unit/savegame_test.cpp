@@ -808,6 +808,60 @@ DOCTEST_TEST_CASE("version 7 saves load with zeroed extended pop slots") {
     DOCTEST_REQUIRE(config::Commit_State(&default_config));
 }
 
+DOCTEST_TEST_CASE("truncated save returns false instead of aborting") {
+    auto expected = std::make_unique<State_>();
+    auto actual = std::make_unique<State_>();
+    Bind_State_(*expected);
+    Fill_State_(*expected);
+    config::s_config_state default_config;
+    DOCTEST_REQUIRE(config::Initialize_Defaults(&default_config));
+    DOCTEST_REQUIRE(config::Commit_State(&default_config));
+    TEST_CONFIG_SNAPSHOT::active_config.baseline.effective.state = default_config;
+    TEST_CONFIG_SNAPSHOT::active_config.required_mods.clear();
+
+    MOX::NUM_SHIPS = MAX_SHIPS;
+
+    auto bytes = std::make_unique<uint8_t[]>(SAVEGAME::BUFFER_CAPACITY);
+    SERIAL::Writer_ writer(bytes.get(), SAVEGAME::BUFFER_CAPACITY, "test save overflow");
+    const char description[37] = "Truncation regression";
+    DOCTEST_REQUIRE(SAVEGAME::Write_Game(&writer, description, 0x12345678));
+    const uint32_t full_length = writer.Length();
+    DOCTEST_REQUIRE(full_length > 1024);
+
+    // A save file cut short mid-record used to abort the process inside
+    // Reader_::Fail(); with a soft-fail reader (as FILEDEF::Load_Game
+    // constructs) Read_Game must return false instead, so the existing
+    // invalid-save path runs.
+    const uint32_t mid_state_lengths[] = {100, full_length / 2};
+    for (uint32_t truncated_length : mid_state_lengths) {
+        Bind_State_(*actual);
+        Clear_State_(*actual);
+        SERIAL::Reader_ reader(bytes.get(), truncated_length, "test truncated save",
+            /*soft_fail=*/ true);
+        SAVEGAME::s_metadata metadata = {};
+        s_settings settings = {};
+        uint32_t seed = 0;
+        DOCTEST_CHECK_FALSE(SAVEGAME::Read_Game(&reader, &metadata, &settings, &seed));
+        DOCTEST_CHECK(reader.failed());
+    }
+
+    // Truncation inside the trailing save extensions: Read_Extension
+    // rejects the short payload before any reader overrun, so failed()
+    // is not set here, but Read_Game must still return false.
+    Bind_State_(*actual);
+    Clear_State_(*actual);
+    SERIAL::Reader_ tail_reader(bytes.get(), full_length - 10, "test truncated save",
+        /*soft_fail=*/ true);
+    SAVEGAME::s_metadata tail_metadata = {};
+    s_settings tail_settings = {};
+    uint32_t tail_seed = 0;
+    DOCTEST_CHECK_FALSE(
+        SAVEGAME::Read_Game(&tail_reader, &tail_metadata, &tail_settings, &tail_seed));
+
+    DOCTEST_REQUIRE(config::Commit_State(&default_config));
+}
+
+
 DOCTEST_TEST_CASE("version 5 save extension sections are independently framed") {
     constexpr uint8_t config_payload[] = {1, 2, 3};
     constexpr uint8_t lua_payload[] = {4, 5};
