@@ -23,8 +23,9 @@ DOCTEST_TEST_CASE("blockaded event-research colonies assign non-farmers to scien
     TEST_AIDUDES::Reset_();
     TEST_AIDUDES::colony_researching = true;
     MOX::colony[0].food2_per_farmer = 0;
-    s_aidudes_colony_info info = {};
-    aidudes::Do_Blockaded_Colony(&info);
+    AIDATA::s_colony_assignment info = {};
+    info.colony_id = legacy_world::Colony_Id(0);
+    aidudes::Do_Blockaded_Colony(TEST_AIDUDES::World_(), &info);
     DOCTEST_CHECK(info.cur_pop_idx == 1);
     DOCTEST_CHECK(POP::Get_Prof(MOX::colony[0].pop[0]) == POP::PROF_SCIENTIST);
     DOCTEST_CHECK(POP::Is_Assigned(MOX::colony[0].pop[0]));

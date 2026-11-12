@@ -13,11 +13,12 @@ namespace {
         }
     }
 
-    void Legacy_Qsort_Short(uint8_t* low, uint8_t* high, size_t width, legacy_qsort_compare compare) {
+    void Legacy_Qsort_Short(uint8_t* low, uint8_t* high, size_t width,
+        legacy_qsort_context_compare compare, void* context) {
         while (high > low) {
             uint8_t* maximum = low;
             for (uint8_t* current = low + width; current <= high; current += width) {
-                if (compare(current, maximum) > 0) {
+                if (compare(context, current, maximum) > 0) {
                     maximum = current;
                 }
             }
@@ -29,6 +30,14 @@ namespace {
 } // namespace
 
 void Legacy_Qsort(void* base, size_t count, size_t width, legacy_qsort_compare compare) {
+    Legacy_Qsort(base, count, width,
+        [](void* context, const void* first, const void* second) {
+            return (*static_cast<legacy_qsort_compare*>(context))(first, second);
+        }, &compare);
+}
+
+void Legacy_Qsort(void* base, size_t count, size_t width,
+    legacy_qsort_context_compare compare, void* context) {
     if (count < 2 || width == 0) {
         return;
     }
@@ -42,7 +51,7 @@ void Legacy_Qsort(void* base, size_t count, size_t width, legacy_qsort_compare c
     while (true) {
         const size_t partition_count = (size_t)(high - low) / width + 1;
         if (partition_count <= 8) {
-            Legacy_Qsort_Short(low, high, width, compare);
+            Legacy_Qsort_Short(low, high, width, compare, context);
         } else {
             Legacy_Qsort_Swap(low + (partition_count / 2) * width, low, width);
 
@@ -51,11 +60,11 @@ void Legacy_Qsort(void* base, size_t count, size_t width, legacy_qsort_compare c
             while (true) {
                 do {
                     low_scan += width;
-                } while (low_scan <= high && compare(low_scan, low) <= 0);
+                } while (low_scan <= high && compare(context, low_scan, low) <= 0);
 
                 do {
                     high_scan -= width;
-                } while (high_scan > low && compare(high_scan, low) >= 0);
+                } while (high_scan > low && compare(context, high_scan, low) >= 0);
 
                 if (high_scan < low_scan) {
                     break;

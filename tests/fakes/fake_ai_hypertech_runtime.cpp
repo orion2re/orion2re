@@ -41,6 +41,10 @@ namespace MOX {
     s_player* player = players;
 }
 
+namespace aitech {
+    s_rules rules;
+}
+
 namespace TECHDATA {
     s_tech_app_data technology_applications[TECH_APP_COUNT] = {};
 }

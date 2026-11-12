@@ -11,6 +11,10 @@ namespace {
     bool can_build_large_ships;
 } // namespace
 
+namespace MOX {
+    s_ship_node ship_node[MAX_SHIPS];
+}
+
 namespace AIBUILD {
 
     int16_t Player_War_Level(const game::s_view*, game::id_player) {
