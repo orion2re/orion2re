@@ -318,6 +318,18 @@ namespace {
         MOX::fleet_icon_button_count = 421;
         MOX::NUM_NEBULAS = MAX_NEBULAS;
         REPORT::n_reports = MAX_REPORTS;
+        // Message-queue metadata must describe slices inside the shared pool:
+        // first_msg + n_msgs and first_msg + max_msgs stay within MAX_MESSAGES.
+        // Load validation rejects anything else, so the fixture must be valid.
+        {
+            const uint8_t first[MAX_PLAYERS] = {0, 12, 25, 37, 50, 62, 75, 87};
+            const uint8_t max[MAX_PLAYERS] = {12, 13, 12, 13, 12, 13, 12, 13};
+            for (int i = 0; i < MAX_PLAYERS; ++i) {
+                MSG_::first_msg[i] = first[i];
+                MSG_::max_msgs[i] = max[i];
+                MSG_::n_msgs[i] = 0;
+            }
+        }
         REPORT::done_player_reports = 0xA5;
         REPORT::displayed_msgs = 0x5A;
         REPORT::displayed_gnn = 0xC3;
@@ -1439,4 +1451,100 @@ DOCTEST_TEST_CASE("save reader rejects invalid and unsupported headers") {
         SERIAL::Reader_ reader(buffer, writer.Length(), "test underflow");
         DOCTEST_CHECK_FALSE(SAVEGAME::Read_Game(&reader, &metadata, &settings, &random_seed));
     }
+}
+
+DOCTEST_TEST_CASE("corrupt save headers fail load validation") {
+    auto state = std::make_unique<State_>();
+    auto bytes = std::make_unique<uint8_t[]>(SAVEGAME::BUFFER_CAPACITY);
+    config::s_config_state default_config;
+    DOCTEST_REQUIRE(config::Initialize_Defaults(&default_config));
+    DOCTEST_REQUIRE(config::Commit_State(&default_config));
+    TEST_CONFIG_SNAPSHOT::active_config.baseline.effective.state = default_config;
+    TEST_CONFIG_SNAPSHOT::active_config.required_mods.clear();
+    const char description[37] = "Corrupt save validation";
+
+    // Small but valid save: one star, one planet, one colony, one ship,
+    // two players, and a valid message partition.
+    auto setup_valid_state = [&] {
+        Bind_State_(*state);
+        Clear_State_(*state);
+        MOX::NUM_PLAYERS = 2;
+        MOX::PLAYER_NUM = 1;
+        MOX::NUM_COLONIES = 1;
+        MOX::planet_count = 1;
+        MOX::NUM_STARS = 1;
+        MOX::NUM_SHIPS = 1;
+        MOX::NUM_NEBULAS = 0;
+        MOX::max_map_scale = 30;
+        MOX::cur_map_scale = 10;
+        MOX::planet[0].star_index = 0;
+        MOX::planet[0].orbit = 0;
+        MOX::planet[0].colony_index = 0;
+        MOX::star[0].planet_index[0] = 0;
+        for (int j = 1; j < 5; ++j) MOX::star[0].planet_index[j] = -1;
+        MSG_::first_msg[0] = 0;
+        MSG_::max_msgs[0] = 50;
+        MSG_::n_msgs[0] = 0;
+        MSG_::first_msg[1] = 50;
+        MSG_::max_msgs[1] = 50;
+        MSG_::n_msgs[1] = 0;
+    };
+    auto write_then_read = [&] {
+        SERIAL::Writer_ writer(bytes.get(), SAVEGAME::BUFFER_CAPACITY, "test save overflow");
+        DOCTEST_REQUIRE(SAVEGAME::Write_Game(&writer, description, 0x12345678));
+        Bind_State_(*state);
+        Clear_State_(*state);
+        SERIAL::Reader_ reader(bytes.get(), writer.Length(), "test save underflow");
+        SAVEGAME::s_metadata metadata = {};
+        s_settings settings = {};
+        uint32_t seed = 0;
+        return SAVEGAME::Read_Game(&reader, &metadata, &settings, &seed);
+    };
+
+    setup_valid_state();
+    DOCTEST_CHECK(write_then_read());
+
+    setup_valid_state();
+    MOX::NUM_PLAYERS = MAX_PLAYERS + 1;
+    DOCTEST_CHECK_FALSE(write_then_read());
+
+    setup_valid_state();
+    MOX::NUM_PLAYERS = 0;
+    DOCTEST_CHECK_FALSE(write_then_read());
+
+    setup_valid_state();
+    MOX::PLAYER_NUM = 2;
+    DOCTEST_CHECK_FALSE(write_then_read());
+
+    setup_valid_state();
+    MOX::PLAYER_NUM = -1;
+    DOCTEST_CHECK_FALSE(write_then_read());
+
+    setup_valid_state();
+    REPORT::n_reports = MAX_REPORTS + 1;
+    DOCTEST_CHECK_FALSE(write_then_read());
+
+    setup_valid_state();
+    REPORT::n_reports = -1;
+    DOCTEST_CHECK_FALSE(write_then_read());
+
+    setup_valid_state();
+    MSG_::first_msg[0] = 90;
+    MSG_::n_msgs[0] = 20;
+    DOCTEST_CHECK_FALSE(write_then_read());
+
+    setup_valid_state();
+    MSG_::first_msg[1] = 60;
+    MSG_::max_msgs[1] = 50;
+    DOCTEST_CHECK_FALSE(write_then_read());
+
+    setup_valid_state();
+    MOX::cur_map_scale = 0;
+    DOCTEST_CHECK_FALSE(write_then_read());
+
+    setup_valid_state();
+    MOX::max_map_scale = 0;
+    DOCTEST_CHECK_FALSE(write_then_read());
+
+    DOCTEST_REQUIRE(config::Commit_State(&default_config));
 }

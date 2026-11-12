@@ -476,6 +476,10 @@ DOCTEST_TEST_CASE("successful file save load requests resource reload even when 
     MOX::NUM_NEBULAS = 0;
     MOX::NUM_PLAYERS = 1;
     MOX::PLAYER_NUM = 0;
+    // A save written from this state must pass load validation: a real
+    // game always has valid map scales (set by map initialization).
+    MOX::max_map_scale = 30;
+    MOX::cur_map_scale = 10;
     MOX::game_type = 0;
     MOX::player[0].objectives = PLAYER_OBJECTIVE_HUMAN;
     MOX::player[0].surrender_to = -1;

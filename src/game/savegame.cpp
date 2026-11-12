@@ -1477,7 +1477,7 @@ namespace SAVEGAME {
             }
         }
 
-        bool Read_Game_State(SERIAL::Reader_* reader, uint16_t version, s_settings* settings, uint32_t* random_seed) {
+        bool Read_Game_State(SERIAL::Reader_* reader, uint16_t version, s_settings* settings, uint32_t* random_seed, bool validate = true) {
             Read_Settings(reader, settings);
             *random_seed = reader->Read_Uint32();
             MOX::NUM_COLONIES = reader->Read_Int16();
@@ -1508,6 +1508,7 @@ namespace SAVEGAME {
             }
             for (int i = 0; i < MAX_LEADERS; ++i) Read_Leader(reader, &MOX::leaders[i]);
             MOX::NUM_PLAYERS = reader->Read_Int16();
+            if (validate && (MOX::NUM_PLAYERS < 1 || MOX::NUM_PLAYERS > MAX_PLAYERS)) return false;
             for (int i = 0; i < MAX_PLAYERS; ++i) {
                 Read_Player(reader, &MOX::player[i], version);
                 s_ship_design& sixth_design =
@@ -1534,7 +1535,9 @@ namespace SAVEGAME {
             for (int i = 0; i < 5; ++i) Read_Movable_Box(reader, &MOX::moveable_box[i]);
             Read_Int16_Array(reader, MOX::moveable_box_order, 5);
             MOX::PLAYER_NUM = reader->Read_Int16();
+            if (validate && (MOX::PLAYER_NUM < 0 || MOX::PLAYER_NUM >= MOX::NUM_PLAYERS)) return false;
             MOX::max_map_scale = reader->Read_Int16();
+            if (validate && MOX::max_map_scale < 1) return false;
             MOX::max_zoom_count = reader->Read_Int16();
             MOX::star_bg_index = reader->Read_Uint8();
             MOX::MAP_MAX_X = reader->Read_Int16();
@@ -1557,6 +1560,7 @@ namespace SAVEGAME {
             }
             Read_Int16_Array(reader, MOX::bill_savegame, 6);
             REPORT::n_reports = reader->Read_Int16();
+            if (validate && (REPORT::n_reports < 0 || REPORT::n_reports > MAX_REPORTS)) return false;
             for (int i = 0; i < MAX_REPORTS; ++i) Read_Report(reader, &REPORT::reports[i], version);
             REPORT::done_player_reports = reader->Read_Uint8();
             reader->Read_Bytes(REPORT::something_interesting_happened, sizeof(REPORT::something_interesting_happened));
@@ -1568,6 +1572,14 @@ namespace SAVEGAME {
             reader->Read_Bytes(MSG_::first_msg, sizeof(MSG_::first_msg));
             reader->Read_Bytes(MSG_::max_msgs, sizeof(MSG_::max_msgs));
             reader->Read_Bytes(MSG_::n_msgs, sizeof(MSG_::n_msgs));
+            if (validate) {
+                for (int i = 0; i < MAX_PLAYERS; ++i) {
+                    if (MSG_::first_msg[i] + MSG_::n_msgs[i] > MAX_MESSAGES ||
+                        MSG_::first_msg[i] + MSG_::max_msgs[i] > MAX_MESSAGES) {
+                        return false;
+                    }
+                }
+            }
             REPORT::displayed_msgs = reader->Read_Uint8();
             REPORT::displayed_gnn = reader->Read_Uint8();
             diplodef::COUNCIL_FLAG = reader->Read_Int16();
@@ -1579,6 +1591,7 @@ namespace SAVEGAME {
             EVENTS::event_delay_count = reader->Read_Int16();
             Read_Antaran(reader, &MOX::antarans);
             MOX::cur_map_scale = reader->Read_Int16();
+            if (validate && MOX::cur_map_scale < 1) return false;
             MOX::cur_map_x = reader->Read_Int16();
             MOX::cur_map_y = reader->Read_Int16();
             reader->Skip(1000);
@@ -1768,7 +1781,8 @@ namespace SAVEGAME {
             Read_Game_State(&prior_reader,
                 CURRENT_VERSION,
                 &ignored_settings,
-                &ignored_seed);
+                &ignored_seed,
+                false);
         };
         const auto fail_after_native_read = [&]() {
             if (queued_network_lua_state) {
