@@ -22,8 +22,8 @@ if(MSVC)
         $<$<CONFIG:Debug>:_CRT_NONSTDC_NO_DEPRECATE>
     )
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-    # Tests with partial runtimes need the linker to discard unused functions
-    # and data. Use the same section layout for every shared production object.
+    # Keep a consistent section layout for optional dead-code elimination.
+    # Dependency closure must also pass the no-dead-stripping link audit.
     target_compile_options(orion2re_test_compile_settings INTERFACE
         -ffunction-sections -fdata-sections)
 endif()

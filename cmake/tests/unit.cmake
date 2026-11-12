@@ -600,6 +600,8 @@ orion2re_add_unit_test(test_aidudes
     PRODUCTION_SOURCES
         src/game/ai_population.cpp
         src/game/fleet_maintenance.cpp
+        src/game/aileader_reassignment.cpp
+        src/game/aidudes_ship_upgrades.cpp
         src/game/legacy_sort.cpp
     FAKE_SOURCES
         tests/fakes/fake_aidudes_runtime.cpp
@@ -695,6 +697,7 @@ orion2re_add_unit_test(test_colony_production_helpers
         src/game/research_completion.cpp
         src/game/production_rules.cpp
         src/game/planet_environment.cpp
+        src/game/plntsum_environment.cpp
         src/game/colcalc_config.cpp
     FAKE_SOURCES
         tests/fakes/fake_colcalc_base_runtime.cpp
@@ -706,6 +709,7 @@ orion2re_add_unit_test(test_plntsum_filters
     PRODUCTION_SOURCES
         src/game/colony_lifecycle.cpp
         src/game/planet_environment.cpp
+        src/game/plntsum_environment.cpp
         src/game/colcalc_config.cpp
         src/game/legacy_sort.cpp
         src/game/planet_summary.cpp
@@ -747,6 +751,7 @@ orion2re_add_unit_test(test_colony_pop_growth
         src/game/production_rules.cpp
         src/game/ground_unit_limits.cpp
         src/game/planet_environment.cpp
+        src/game/plntsum_environment.cpp
         src/game/colcalc_config.cpp
         src/game/raceopt_config.cpp
         src/game/settler.cpp
@@ -1026,6 +1031,7 @@ orion2re_add_unit_test(test_racesel_digest
         tests/unit/racesel_test.cpp
     PRODUCTION_SOURCES
         src/game/race_display.cpp
+        src/game/raceopt_display.cpp
         src/game/raceopt_config.cpp
     FAKE_SOURCES
         tests/fakes/fake_racesel_digest_runtime.cpp
@@ -1051,6 +1057,7 @@ orion2re_add_unit_test(test_aidesign
         src/game/aidesign.cpp
         src/game/aidesign_config.cpp
         src/game/design_specials.cpp
+        src/game/aidesign_specials.cpp
     FAKE_SOURCES
         tests/fakes/fake_sdl_string.cpp
 )
