@@ -975,7 +975,6 @@ namespace LOADSAVE {
 
     void __cdecl Save_Session_Related_Settings() {
         uint8_t file_buffer[sizeof(MOX::settings)];
-        bool success = false;
 
         FILE* file = fopen_case(GAME_SETTINGS_FILENAME, "rb");
         if (file != nullptr) {
@@ -990,21 +989,30 @@ namespace LOADSAVE {
                     file_buffer[i] = ((uint8_t*)&MOX::settings)[i];
                 }
 
-                success = true;
                 RUSS::Assert_Settings();
 
                 file = fopen_case(GAME_SETTINGS_FILENAME, "wb");
                 if (file != nullptr) {
-                    fwrite(file_buffer, sizeof(file_buffer), 1, file);
+                    if (fwrite(file_buffer, sizeof(file_buffer), 1, file) == 1) {
+                        fclose(file);
+                        return;
+                    }
                     fclose(file);
-                } else {
-                    success = false;
                 }
             }
         }
 
-        if (!success) {
-            exitm::Exit_With_Message("Settings file (ORION2RE.SET) is missing or invalid");
+        // The settings file is missing, short, or could not be rewritten
+        // (e.g. deleted mid-session, or left short by a crashed earlier
+        // write). Recreate it from the live in-memory settings instead of
+        // killing the game: they are the authoritative copy mid-session,
+        // and resetting them to defaults here would discard the player's
+        // current choices. If even that fails, skip the write with a
+        // warning; the game keeps running and retries on the next save.
+        if (!FILEDEF::Save_Game_Settings()) {
+            SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,
+                        "loadsave: unable to save session settings to %s",
+                        GAME_SETTINGS_FILENAME);
         }
     }
 
