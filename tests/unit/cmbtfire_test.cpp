@@ -496,6 +496,16 @@ DOCTEST_TEST_CASE("absorber and damper percentage calculations preserve classic 
     CMBTFIRE::damper_field_ratio = 25;
 }
 
+DOCTEST_TEST_CASE("full absorber charge destroys its ship") {
+    TEST_STASIS::Reset_();
+    MOX::combat_data[1].structure_max = 100;
+    MOX::combat_data[1].drive_current_hits = 1;
+    MOX::combat_data[1].ftl_type = 1;
+    MOX::combat_data[1].size_class = HULL_CRUISER;
+    MOX::combat_data[1].reflected_damage_pool = INT16_MAX;
+    DOCTEST_CHECK(CMBTFIRE::Is_Combat_Ship_Dead(1) == 4);
+}
+
 DOCTEST_TEST_CASE("absorber charge addition wraps at the signed word boundary") {
     TEST_STASIS::Reset_();
     s_combat_data& ship = MOX::combat_data[1];

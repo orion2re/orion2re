@@ -19,11 +19,7 @@ namespace TEST_ABSORBER_CLEANUP {
         combat_data[1].ftl_type = 1;
         combat_data[1].size_class = HULL_CRUISER;
         TECHDATA::hull_data[HULL_CRUISER].drive_hp = 30;
-        CMBTFIR2::combat_bonus = {
-            50, 20, 0, 10, 20, 50, 100, 0, 80, 80, 10, 30, 15,
-        };
         CMBTFIR2::ship_explosion = {5, 3};
-        CMBTFIR2::quantum_detonator = {6};
         CMBTFIR2::systems_repair_percent = 50;
         COMBINIT::satellite_size_class_plus_one = 0;
         MOX::apply_damage_to_planet = 0;

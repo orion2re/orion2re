@@ -2,17 +2,12 @@
 
 #include <cstring>
 
-namespace CMBTMIS {
-    void Reset_Fighter_Pursuit_History() {}
-} // namespace CMBTMIS
-
 namespace {
     s_combat_data combat_data[2];
     s_colony colonies[1];
     s_current_design current_design;
     s_planet_data planets[1];
     s_player players[MAX_PLAYERS];
-    char planet_name[] = "Planet";
 }
 
 namespace TEST_SHIELD_TABLE {
@@ -27,6 +22,7 @@ namespace TEST_SHIELD_TABLE {
         MOX::colony = colonies;
         MOX::design = &current_design;
         MOX::planet = planets;
+        MOX::player = players;
         MOX::combat_total_ship_count = 0;
         MOX::combat_defender_player = 0;
         MOX::PLAYER_NUM = 0;
@@ -124,129 +120,5 @@ namespace TEST_SHIELD_TABLE {
                 return;
             }
         }
-    }
-}
-
-namespace MOX {
-    int16_t first_field_in_group[10] = {
-        0, 18, 55, 57, 29, 7, 22, 28, 10, 74};
-    s_combat_data* combat_data = ::combat_data;
-    s_colony* colony = colonies;
-    s_player* player = players;
-    s_planet_data* planet = planets;
-    s_current_design* design = &current_design;
-    s_settings settings;
-    s_animation_header* screen_seg;
-    s_animation_header* combat_planet_seg;
-    s_animation_header* combat_planet_seg2;
-    void* global_cache_seg;
-    int16_t PLAYER_NUM;
-    int16_t NUM_PLAYERS = 1;
-    int16_t combat_total_ship_count;
-    int16_t combat_defender_player;
-    int16_t in_nebula_flag;
-}
-
-namespace HACCESS {
-    char* __cdecl Get_Planet_Name_No_Prime(int16_t) {
-        return planet_name;
-    }
-}
-
-namespace buffer {
-    void* __cdecl Buffer_Reload(const char*, int32_t, void*) {
-        return nullptr;
-    }
-}
-
-namespace farload {
-    void* __cdecl Far_Reload_Next(const char*, int32_t, void*) {
-        return nullptr;
-    }
-}
-
-namespace animate {
-    void __cdecl Draw_Palette(s_animation_header*) {
-    }
-}
-
-namespace palette {
-    void __cdecl Refresh_Palette() {
-    }
-}
-
-namespace INITSHIP {
-    int16_t __cdecl Best_Armor(int16_t) {
-        return ARMOR_NO_ARMOR;
-    }
-
-    int16_t __cdecl Best_Computer(int16_t) {
-        return COMPUTER_NO_COMPUTER;
-    }
-
-    int16_t __cdecl Best_Ship_Shield(int16_t) {
-        return SHIELD_NO_SHIELD;
-    }
-
-    int16_t __cdecl Best_Beam_Weapon(int16_t, uint16_t) {
-        return WEAPON_LASER_CANNON;
-    }
-
-    int16_t __cdecl Best_Point_Defense_Weapon_By_Size(int16_t) {
-        return WEAPON_LASER_CANNON;
-    }
-
-    int16_t __cdecl Best_Missile_Weapon_NT(int16_t) {
-        return WEAPON_NUCLEAR_MISSILE;
-    }
-
-    int16_t __cdecl Best_Warp_Drive(int16_t) {
-        return DRIVE_NO_DRIVE;
-    }
-}
-
-namespace CMBTFIR2 {
-    void __cdecl Init_Internal_Space(s_combat_data*) {
-    }
-}
-
-namespace MISC {
-    int16_t __cdecl Bit_Value_To_Num(int32_t value, int16_t bit_limit) {
-        for (int16_t bit = 0; bit < bit_limit; ++bit) {
-            if (value == (1 << bit)) {
-                return bit;
-            }
-        }
-        return 0;
-    }
-}
-
-namespace RUSS {
-    void __cdecl Mox_Update() {
-    }
-
-    void __cdecl PFMT(int32_t, int32_t, const char*, ...) {
-    }
-}
-
-namespace key {
-    int32_t Wait_For_Key() {
-        return 0;
-    }
-}
-
-namespace struct_ {
-    void __cdecl Clear_Structure(void* dest, uint32_t size) {
-        memset(dest, 0, size);
-    }
-
-    void __cdecl Set_Bit_Field(void* bit_field, uint16_t bit_index) {
-        uint8_t* bytes = static_cast<uint8_t*>(bit_field);
-        bytes[bit_index / 8] |= (uint8_t)(1u << (bit_index % 8));
-    }
-
-    int16_t __cdecl Test_Bit_Field(void* bit_field, uint16_t bit_index) {
-        const uint8_t* bytes = static_cast<const uint8_t*>(bit_field);
-        return (bytes[bit_index / 8] >> (bit_index % 8)) & 1;
     }
 }

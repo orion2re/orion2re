@@ -2,7 +2,6 @@
 
 #include "doctest/doctest.h"
 #include "game/cmbtfir2.h"
-#include "game/cmbtfire.h"
 
 namespace TEST_ABSORBER_CLEANUP {
     void Reset_();
@@ -10,13 +9,6 @@ namespace TEST_ABSORBER_CLEANUP {
     int Warning_Count_();
     const char* Last_Warning_();
     int Combat_Refresh_Count_();
-}
-
-DOCTEST_TEST_CASE("full absorber charge destroys its ship") {
-    TEST_ABSORBER_CLEANUP::Reset_();
-    MOX::combat_data[1].reflected_damage_pool = INT16_MAX;
-
-    DOCTEST_CHECK(CMBTFIRE::Is_Combat_Ship_Dead(1) == 4);
 }
 
 DOCTEST_TEST_CASE("absorber overload uses the overload explosion") {

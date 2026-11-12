@@ -2,15 +2,6 @@
 
 namespace SHIPS {
 
-    void __cdecl Clear_Auto_Colonization_Flag(s_ship_data* ship) {
-        uint8_t ship_type = ship->d.ship_type;
-
-        if (ship_type == SHIP_TYPE_COLONY || ship_type == SHIP_TYPE_OUTPOST) {
-            ship->d.ship_weapon[0].type = -1;
-            ship->d.ship_weapon[1].type = 0;
-        }
-    }
-
     void __cdecl Kill_Ship(int16_t ship_idx) {
         HACCESS::Ship_Owner(ship_idx);
 

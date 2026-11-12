@@ -9,9 +9,36 @@ namespace {
     s_leader_data leaders[MAX_LEADERS];
     char planet_name[] = "Planet";
     char trash_colony_base_fmt[] = "Trash colony base for %d BC?";
+    char spy_steals_fmt[] = "%s from %s";
+    char spy_destroys_fmt[] = "%s %s %s";
+    char framed_fmt[] = " Framed %s";
 }
 
 namespace TEST_REPORT {
+    bool gnn_ready;
+    int gnn_calls;
+    bool interactive_diplomacy;
+    bool diplomacy_ready;
+    int service_order, request_order, dialog_order, end_order, update_count;
+    int16_t requested_player, dialog_player;
+    int movie_calls, room_calls;
+    int16_t room_message;
+    int evolutionary_calls, discovery_calls;
+    int16_t evolutionary_player, discovery_star;
+    uint8_t discovery_special;
+    int science_calls;
+    int science_kind;
+    uint16_t science_tech;
+    int16_t science_source;
+    std::string message;
+    int8_t level_report_result;
+    int level_report_calls;
+    int16_t level_report_player;
+    int8_t level_report_show;
+    int16_t relocation_destination;
+    bool relocation_allowed;
+    int move_attempts, move_calls, recalculation_calls, autosave_calls;
+    int16_t moved_ship, moved_destination;
     int16_t colonizable_planet_count;
     int16_t confirmation_result;
     bool accept_officer_offer;
@@ -27,6 +54,38 @@ namespace TEST_REPORT {
         memset(REPORT::done_colonize_check, 0, sizeof(REPORT::done_colonize_check));
         memset(&MOX::settings, 0, sizeof(MOX::settings));
         memset(MSG_::msgs, 0, sizeof(MSG_::msgs));
+        memset(TECHDATA::technology_applications, 0, sizeof(TECHDATA::technology_applications));
+        MOX::antarans = {};
+        MOX::NUM_PLAYERS = 0;
+        MOX::NUM_COLONIES = 0;
+        MOX::PLAYER_NUM = 0;
+        MOX::stardate = 35000;
+        MOX::game_type = 0;
+        REPORT::Initialize_Reports();
+        REPORT::your_spy_steals_fmt = spy_steals_fmt;
+        REPORT::your_spy_destroys_fmt = spy_destroys_fmt;
+        REPORT::you_framed_fmt = framed_fmt;
+        REPORT::enemy_spy_steals_fmt = spy_steals_fmt;
+        REPORT::enemy_spy_destroys_fmt = spy_destroys_fmt;
+        gnn_ready = false;
+        gnn_calls = 0;
+        interactive_diplomacy = true;
+        diplomacy_ready = false;
+        service_order = request_order = dialog_order = end_order = update_count = 0;
+        requested_player = dialog_player = -1;
+        movie_calls = room_calls = evolutionary_calls = discovery_calls = science_calls = 0;
+        room_message = evolutionary_player = discovery_star = science_source = -1;
+        discovery_special = 0;
+        science_kind = science_tech = 0;
+        message.clear();
+        level_report_result = 0;
+        level_report_calls = 0;
+        level_report_player = -1;
+        level_report_show = 0;
+        relocation_destination = -1;
+        relocation_allowed = true;
+        move_attempts = move_calls = recalculation_calls = autosave_calls = 0;
+        moved_ship = moved_destination = -1;
 
         MOX::NUM_STARS = 1;
         MOX::NUM_SHIPS = 1;
@@ -75,6 +134,9 @@ namespace MSG_ {
 }
 
 namespace MOX {
+    int16_t NUM_PLAYERS;
+    int8_t game_type;
+    s_antaran antarans;
     int16_t NUM_COLONIES;
     int16_t NUM_STARS;
     int16_t NUM_SHIPS;
@@ -94,6 +156,12 @@ namespace MOX {
 }
 
 namespace OFFICER {
+    int8_t __cdecl Officer_Made_Level_Report(int16_t player, int8_t show) {
+        ++TEST_REPORT::level_report_calls;
+        TEST_REPORT::level_report_player = player;
+        TEST_REPORT::level_report_show = show;
+        return TEST_REPORT::level_report_result;
+    }
     int32_t __cdecl Calculate_Officer_Cost(int16_t, int16_t) {
         return 0;
     }
@@ -106,6 +174,7 @@ namespace OFFICER {
 
 namespace COLCALC {
     void __cdecl Do_Player_Colony_Calculations(int16_t) {
+        ++TEST_REPORT::recalculation_calls;
     }
 
     void __cdecl Update_Player_Stats(s_player*) {
@@ -151,18 +220,32 @@ namespace ERICNET {
 }
 
 namespace GENDRAW {
+    void __cdecl Message_Box(const char* text) {
+        TEST_REPORT::message = text;
+    }
     int16_t __cdecl Do_Confirmation_Box(const char*) {
         return TEST_REPORT::confirmation_result;
     }
 }
 
 namespace HACCESS {
+    bool __cdecl Star_Has_Relocation(int16_t, int16_t) {
+        return TEST_REPORT::relocation_destination >= 0;
+    }
+    int16_t __cdecl Relocation(int16_t, int16_t) {
+        return TEST_REPORT::relocation_destination;
+    }
     char* __cdecl Get_Planet_Name(int16_t) {
         return planet_name;
     }
 }
 
 namespace MAINPUPS {
+    void __cdecl New_System_Discovery_Popup(int16_t star, uint8_t special) {
+        ++TEST_REPORT::discovery_calls;
+        TEST_REPORT::discovery_star = star;
+        TEST_REPORT::discovery_special = special;
+    }
     bool __cdecl Random_New_Officer_Popup(int16_t) {
         return TEST_REPORT::accept_officer_offer;
     }
@@ -203,6 +286,7 @@ namespace SHIPS {
 
 namespace TECHDATA {
     s_tech_building_data buildings[BUILDING_COUNT];
+    s_tech_app_data technology_applications[TECH_APP_COUNT];
 }
 
 namespace TECH {
@@ -237,4 +321,85 @@ namespace struct_ {
         uint8_t* bytes = static_cast<uint8_t*>(bit_field);
         bytes[bit_index / 8] |= (uint8_t)(1u << (bit_index % 8));
     }
+}
+
+namespace EVENTS {
+    bool __cdecl Check_For_Event_Message() { return TEST_REPORT::gnn_ready; }
+    void __cdecl Check_For_Event() { ++TEST_REPORT::gnn_calls; }
+}
+
+namespace RUSS {
+    void __cdecl Mox_Update() {
+        ++TEST_REPORT::update_count;
+        TEST_REPORT::diplomacy_ready = true;
+    }
+}
+
+namespace NETMOX {
+    void __cdecl Net_Request_AI_Diplomacy(uint8_t player) {
+        TEST_REPORT::requested_player = player;
+        TEST_REPORT::request_order = ++TEST_REPORT::service_order;
+        TEST_REPORT::diplomacy_ready = false;
+    }
+    int8_t __cdecl Net_May_Begin_AI_Diplomacy() { return TEST_REPORT::diplomacy_ready; }
+    void __cdecl Net_End_AI_Diplomacy() { TEST_REPORT::end_order = ++TEST_REPORT::service_order; }
+}
+
+namespace DIP_SCRN {
+    int8_t __cdecl Diplomacy_Message_Is_Interactive(int16_t) { return TEST_REPORT::interactive_diplomacy; }
+    void __cdecl Npc_Diplomacy_Screen(int16_t player, int8_t) {
+        TEST_REPORT::dialog_player = player;
+        TEST_REPORT::dialog_order = ++TEST_REPORT::service_order;
+    }
+}
+
+namespace ERIC {
+    void __cdecl Play_Antarans_Attack_Flic() { ++TEST_REPORT::movie_calls; }
+}
+
+namespace ANTAROOM {
+    void __cdecl Main_Antaran_Room_Screen(int16_t message) {
+        ++TEST_REPORT::room_calls;
+        TEST_REPORT::room_message = message;
+    }
+}
+
+namespace raceopt {
+    void __cdecl Setup_Evolutionary_Upgrade(int16_t player) {
+        ++TEST_REPORT::evolutionary_calls;
+        TEST_REPORT::evolutionary_player = player;
+        MOX::player[player].picked_evolutionary_upgrade = 1;
+    }
+}
+
+namespace SCIENCE {
+    void __cdecl Show_Off_Stolen_Tech(uint16_t tech, int16_t player) {
+        ++TEST_REPORT::science_calls;
+        TEST_REPORT::science_kind = 1;
+        TEST_REPORT::science_tech = tech;
+        TEST_REPORT::science_source = player;
+    }
+    void __cdecl Show_Off_Artifact_Tech(uint16_t tech, int16_t planet) {
+        ++TEST_REPORT::science_calls;
+        TEST_REPORT::science_kind = 3;
+        TEST_REPORT::science_tech = tech;
+        TEST_REPORT::science_source = planet;
+    }
+}
+
+namespace SHIPMOVE {
+    void __cdecl Ships_Try_To_Move_To(int16_t*, int16_t, s_ship_move_info* result) {
+        ++TEST_REPORT::move_attempts;
+        *result = {};
+        result->moving = TEST_REPORT::relocation_allowed;
+    }
+    void __cdecl Make_Ships_Move_To(int16_t* ships, int16_t destination, s_ship_move_info*) {
+        ++TEST_REPORT::move_calls;
+        TEST_REPORT::moved_ship = ships[0];
+        TEST_REPORT::moved_destination = destination;
+    }
+}
+
+namespace NEXTTURN {
+    void Do_Autosave() { ++TEST_REPORT::autosave_calls; }
 }

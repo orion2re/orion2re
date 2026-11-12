@@ -796,21 +796,10 @@ orion2re_add_unit_test(test_report
         tests/unit/report_test.cpp
     PRODUCTION_SOURCES
         src/game/report.cpp
+        src/game/random.cpp
     FAKE_SOURCES
         tests/fakes/fake_report_runtime.cpp
 )
-
-if(MSVC)
-    target_compile_options(test_report PRIVATE /Gy)
-    target_link_options(test_report PRIVATE /OPT:REF)
-elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-    target_compile_options(test_report PRIVATE -ffunction-sections -fdata-sections)
-    if(APPLE)
-        target_link_options(test_report PRIVATE -Wl,-dead_strip)
-    else()
-        target_link_options(test_report PRIVATE -Wl,--gc-sections)
-    endif()
-endif()
 
 orion2re_add_unit_test(test_events
     SOURCES
@@ -854,7 +843,6 @@ orion2re_add_unit_test(test_shipmove
         tests/unit/shipmove_test.cpp
     PRODUCTION_SOURCES
         src/game/shipmove.cpp
-        src/game/ships.cpp
         src/lua/lua_game_ship_identity.cpp
     FAKE_SOURCES
         tests/fakes/fake_shipmove_runtime.cpp
@@ -872,18 +860,6 @@ orion2re_add_unit_test(test_aimove
         tests/fakes/fake_aimove_runtime.cpp
 )
 
-if(MSVC)
-    target_compile_options(test_shipmove PRIVATE /Gy)
-    target_link_options(test_shipmove PRIVATE /OPT:REF)
-elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-    target_compile_options(test_shipmove PRIVATE -ffunction-sections -fdata-sections)
-    if(APPLE)
-        target_link_options(test_shipmove PRIVATE -Wl,-dead_strip)
-    else()
-        target_link_options(test_shipmove PRIVATE -Wl,--gc-sections)
-    endif()
-endif()
-
 orion2re_add_game_test(test_fleetpop
     tests/unit/fleetpop_test.cpp
     tests/fakes/fake_fleetpop_runtime.cpp
@@ -893,23 +869,11 @@ orion2re_add_unit_test(test_fleet_summary
     SOURCES
         tests/unit/flt1_test.cpp
     PRODUCTION_SOURCES
-        src/game/flt1.cpp
+        src/game/fleet_summary.cpp
     FAKE_SOURCES
         tests/fakes/fake_fleet_summary_runtime.cpp
         tests/fakes/fake_sdl_string.cpp
 )
-
-if(MSVC)
-    target_compile_options(test_fleet_summary PRIVATE /Gy)
-    target_link_options(test_fleet_summary PRIVATE /OPT:REF)
-elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-    target_compile_options(test_fleet_summary PRIVATE -ffunction-sections -fdata-sections)
-    if(APPLE)
-        target_link_options(test_fleet_summary PRIVATE -Wl,-dead_strip)
-    else()
-        target_link_options(test_fleet_summary PRIVATE -Wl,--gc-sections)
-    endif()
-endif()
 
 orion2re_add_game_test(test_geo
     tests/unit/geo_test.cpp
@@ -975,19 +939,17 @@ orion2re_add_unit_test(test_eric
         tests/unit/eric_test.cpp
     PRODUCTION_SOURCES
         src/game/eric.cpp
+        src/game/animation_frames.cpp
+        src/game/random.cpp
     FAKE_SOURCES
         tests/fakes/fake_eric_runtime.cpp
+    LINK_SDL
 )
 
 if(MSVC)
-    target_compile_options(test_eric PRIVATE /Gy)
-    target_link_options(test_eric PRIVATE /OPT:REF)
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-    target_compile_options(test_eric PRIVATE -ffunction-sections -fdata-sections)
     if(APPLE)
-        target_link_options(test_eric PRIVATE -Wl,-dead_strip)
     else()
-        target_link_options(test_eric PRIVATE -Wl,--gc-sections)
     endif()
 endif()
 
@@ -1050,19 +1012,9 @@ orion2re_add_unit_test(test_combat_repair
     LINK_SDL
 )
 
-orion2re_add_unit_test(test_shield_table
-    SOURCES
-        tests/unit/shield_table_test.cpp
-    PRODUCTION_SOURCES
-        src/game/aipower.cpp
-        src/game/combinit.cpp
-        src/game/design.cpp
-        src/game/design_config.cpp
-        src/game/ship_config.cpp
-        src/game/techdata.cpp
-    FAKE_SOURCES
-        tests/fakes/fake_shield_table_runtime.cpp
-        tests/fakes/fake_sdl_string.cpp
+orion2re_add_game_test(test_shield_table
+    tests/unit/shield_table_test.cpp
+    tests/fakes/fake_shield_table_runtime.cpp
 )
 
 orion2re_add_unit_test(test_techdata
@@ -1152,11 +1104,9 @@ orion2re_add_unit_test(test_absorber_cleanup
     SOURCES
         tests/unit/absorber_cleanup_test.cpp
     PRODUCTION_SOURCES
-        src/game/cmbtfire.cpp
-        src/game/cmbtfir2.cpp
+        src/game/combat_ship_health.cpp
     FAKE_SOURCES
         tests/fakes/fake_absorber_cleanup_runtime.cpp
-        tests/fakes/fake_lua_game_runtime.cpp
 )
 
 orion2re_add_unit_test(test_boarding
@@ -1217,7 +1167,7 @@ orion2re_add_unit_test(test_stasis_area_effects
         tests/fakes/fake_stasis_area_effects_runtime.cpp
 )
 
-foreach(TARGET_NAME IN ITEMS test_combat_stats test_combat_repair test_shield_table test_boarding test_stasis_area_effects)
+foreach(TARGET_NAME IN ITEMS test_combat_stats test_combat_repair test_boarding test_stasis_area_effects)
     target_sources(${TARGET_NAME} PRIVATE tests/fakes/fake_combat_grid_runtime.cpp)
 endforeach()
 
@@ -1228,8 +1178,6 @@ if(MSVC)
     target_link_options(test_bombardment_ammo PRIVATE /OPT:REF)
     target_compile_options(test_missile_defense PRIVATE /Gy)
     target_link_options(test_missile_defense PRIVATE /OPT:REF)
-    target_compile_options(test_absorber_cleanup PRIVATE /Gy)
-    target_link_options(test_absorber_cleanup PRIVATE /OPT:REF)
     target_compile_options(test_boarding PRIVATE /Gy)
     target_link_options(test_boarding PRIVATE /OPT:REF)
     target_compile_options(test_combat_stats PRIVATE /Gy)
@@ -1238,8 +1186,6 @@ if(MSVC)
     target_link_options(test_ground_commando PRIVATE /OPT:REF)
     target_compile_options(test_combat_repair PRIVATE /Gy)
     target_link_options(test_combat_repair PRIVATE /OPT:REF)
-    target_compile_options(test_shield_table PRIVATE /Gy)
-    target_link_options(test_shield_table PRIVATE /OPT:REF)
     target_compile_options(test_cmbtfire PRIVATE /Gy)
     target_link_options(test_cmbtfire PRIVATE /OPT:REF)
     target_compile_options(test_stasis_area_effects PRIVATE /Gy)
@@ -1250,12 +1196,10 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
     target_compile_options(test_aidudes PRIVATE -ffunction-sections -fdata-sections)
     target_compile_options(test_bombardment_ammo PRIVATE -ffunction-sections -fdata-sections)
     target_compile_options(test_missile_defense PRIVATE -ffunction-sections -fdata-sections)
-    target_compile_options(test_absorber_cleanup PRIVATE -ffunction-sections -fdata-sections)
     target_compile_options(test_boarding PRIVATE -ffunction-sections -fdata-sections)
     target_compile_options(test_combat_stats PRIVATE -ffunction-sections -fdata-sections)
     target_compile_options(test_ground_commando PRIVATE -ffunction-sections -fdata-sections)
     target_compile_options(test_combat_repair PRIVATE -ffunction-sections -fdata-sections)
-    target_compile_options(test_shield_table PRIVATE -ffunction-sections -fdata-sections)
     target_compile_options(test_cmbtfire PRIVATE -ffunction-sections -fdata-sections)
     target_compile_options(test_stasis_area_effects PRIVATE -ffunction-sections -fdata-sections)
     target_compile_options(test_colony_pop_growth PRIVATE -ffunction-sections -fdata-sections)
@@ -1263,12 +1207,10 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
         target_link_options(test_aidudes PRIVATE -Wl,-dead_strip)
         target_link_options(test_bombardment_ammo PRIVATE -Wl,-dead_strip)
         target_link_options(test_missile_defense PRIVATE -Wl,-dead_strip)
-        target_link_options(test_absorber_cleanup PRIVATE -Wl,-dead_strip)
         target_link_options(test_boarding PRIVATE -Wl,-dead_strip)
         target_link_options(test_combat_stats PRIVATE -Wl,-dead_strip)
         target_link_options(test_ground_commando PRIVATE -Wl,-dead_strip)
         target_link_options(test_combat_repair PRIVATE -Wl,-dead_strip)
-        target_link_options(test_shield_table PRIVATE -Wl,-dead_strip)
         target_link_options(test_cmbtfire PRIVATE -Wl,-dead_strip)
         target_link_options(test_stasis_area_effects PRIVATE -Wl,-dead_strip)
         target_link_options(test_colony_pop_growth PRIVATE -Wl,-dead_strip)
@@ -1276,12 +1218,10 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
         target_link_options(test_aidudes PRIVATE -Wl,--gc-sections)
         target_link_options(test_bombardment_ammo PRIVATE -Wl,--gc-sections)
         target_link_options(test_missile_defense PRIVATE -Wl,--gc-sections)
-        target_link_options(test_absorber_cleanup PRIVATE -Wl,--gc-sections)
         target_link_options(test_boarding PRIVATE -Wl,--gc-sections)
         target_link_options(test_combat_stats PRIVATE -Wl,--gc-sections)
         target_link_options(test_ground_commando PRIVATE -Wl,--gc-sections)
         target_link_options(test_combat_repair PRIVATE -Wl,--gc-sections)
-        target_link_options(test_shield_table PRIVATE -Wl,--gc-sections)
         target_link_options(test_cmbtfire PRIVATE -Wl,--gc-sections)
         target_link_options(test_stasis_area_effects PRIVATE -Wl,--gc-sections)
         target_link_options(test_colony_pop_growth PRIVATE -Wl,--gc-sections)
@@ -1517,7 +1457,7 @@ target_compile_definitions(test_farload_buffer_vfs PRIVATE
 )
 
 foreach(TARGET_NAME IN ITEMS test_newgame test_homegen test_mapgen_planet_max
-    test_lua_mod_runtime test_shield_table
+    test_lua_mod_runtime
     test_ground_commando)
     target_sources(${TARGET_NAME} PRIVATE tests/fakes/fake_string_overrides.cpp)
 endforeach()

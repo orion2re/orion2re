@@ -2,6 +2,17 @@
 
 #include "lua/lua_game_ship_identity.h"
 
+namespace SHIPS {
+    void __cdecl Clear_Auto_Colonization_Flag(s_ship_data* ship) {
+        uint8_t ship_type = ship->d.ship_type;
+
+        if (ship_type == SHIP_TYPE_COLONY || ship_type == SHIP_TYPE_OUTPOST) {
+            ship->d.ship_weapon[0].type = -1;
+            ship->d.ship_weapon[1].type = 0;
+        }
+    }
+} // namespace SHIPS
+
 namespace SHIPMOVE {
     uint8_t jump_gate_speed_bonus = 3;
     uint16_t warp_interdictor_range = 8100;

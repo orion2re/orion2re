@@ -8,6 +8,7 @@ namespace {
     s_ship_data ships[MAX_SHIPS];
     s_star_data stars[MAX_STARS];
     s_leader_data leaders[MAX_LEADERS];
+    s_colony colonies[MAX_COLONIES];
 
     bool hyperspace_flux;
     int16_t movement_speed;
@@ -15,12 +16,31 @@ namespace {
 } // namespace
 
 namespace TEST_SHIPMOVE {
+    int icon_refresh_count;
+    int8_t icon_refresh_ship_status;
+    int16_t pooled_officer, killed_officer;
+    int16_t best_warp[MAX_PLAYERS], ftl_speed[MAX_PLAYERS];
+    int drive_queries, speed_queries;
+    std::vector<s_MSG> messages;
+    std::vector<int16_t> message_players;
+
     void Reset_() {
         memset(planets, 0, sizeof(planets));
         memset(players, 0, sizeof(players));
         memset(ships, 0, sizeof(ships));
         memset(stars, 0, sizeof(stars));
         memset(leaders, 0, sizeof(leaders));
+        memset(colonies, 0, sizeof(colonies));
+        memset(TECHDATA::fuel, 0, sizeof(TECHDATA::fuel));
+        memset(best_warp, 0, sizeof(best_warp));
+        memset(ftl_speed, 0, sizeof(ftl_speed));
+        MOX::NUM_COLONIES = 0;
+        MOX::antarans = {};
+        MOX::game_type = 0;
+        icon_refresh_count = drive_queries = speed_queries = 0;
+        pooled_officer = killed_officer = -1;
+        messages.clear();
+        message_players.clear();
 
         MOX::NUM_PLAYERS = 1;
         MOX::NUM_SHIPS = 1;
@@ -65,6 +85,10 @@ namespace game_random {
 } // namespace game_random
 
 namespace MOX {
+    int16_t NUM_COLONIES;
+    s_colony* colony = colonies;
+    s_antaran antarans;
+    int8_t game_type;
     int16_t NUM_PLAYERS;
     int16_t NUM_SHIPS;
     int16_t NUM_STARS;
@@ -91,7 +115,10 @@ namespace REPORT {
 }
 
 namespace MAINSCR {
-    void __cdecl Update_Ship_Icons_In_Between_Turns() {}
+    void __cdecl Update_Ship_Icons_In_Between_Turns() {
+        ++TEST_SHIPMOVE::icon_refresh_count;
+        TEST_SHIPMOVE::icon_refresh_ship_status = MOX::ship[0].status;
+    }
 } // namespace MAINSCR
 
 namespace HAROLD {
@@ -166,6 +193,16 @@ namespace COMBFIND {
 } // namespace COMBFIND
 
 namespace OFFICER {
+    void __cdecl Move_Officer_To_Pool(int16_t officer) {
+        TEST_SHIPMOVE::pooled_officer = officer;
+        MOX::leaders[officer].status = 4;
+        MOX::leaders[officer].eta = 0;
+    }
+    void __cdecl Kill_Officer(int16_t officer) {
+        TEST_SHIPMOVE::killed_officer = officer;
+        MOX::leaders[officer].player_index = -1;
+        MOX::leaders[officer].status = -1;
+    }
     int16_t __cdecl Owned_Officer_Level(int16_t leader_idx) {
         return MOX::leaders[leader_idx].xp;
     }
@@ -177,3 +214,25 @@ namespace GENDRAW {
         return 1;
     }
 } // namespace GENDRAW
+
+namespace TECHDATA {
+    s_tech_fuel_data fuel[FUEL_COUNT];
+}
+
+namespace INITSHIP {
+    int16_t __cdecl Best_Warp_Drive(int16_t player) {
+        ++TEST_SHIPMOVE::drive_queries;
+        return TEST_SHIPMOVE::best_warp[player];
+    }
+    int16_t __cdecl Calc_Player_FTL_Speed(int16_t player) {
+        ++TEST_SHIPMOVE::speed_queries;
+        return TEST_SHIPMOVE::ftl_speed[player];
+    }
+}
+
+namespace MSG_ {
+    void __cdecl Add_Msg(s_MSG message, int16_t player) {
+        TEST_SHIPMOVE::messages.push_back(message);
+        TEST_SHIPMOVE::message_players.push_back(player);
+    }
+}

@@ -4,6 +4,17 @@
 #include "lua/lua_game_ship_identity.h"
 
 namespace test {
+    template<typename T>
+    struct s_saved_value {
+        T& target;
+        T saved;
+
+        explicit s_saved_value(T& value) : target(value), saved(value) {}
+        ~s_saved_value() { target = saved; }
+        s_saved_value(const s_saved_value&) = delete;
+        s_saved_value& operator=(const s_saved_value&) = delete;
+    };
+
     template<typename T, size_t N>
     struct s_saved_array {
         T (&target)[N];

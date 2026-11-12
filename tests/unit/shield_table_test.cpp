@@ -1,4 +1,40 @@
 #include "pch.h"
+#include "../fixtures/game_state.h"
+
+namespace {
+    struct s_shield_state : test::s_game_state {
+        test::s_saved_value<decltype(MOX::combat_data)> combat{MOX::combat_data};
+        test::s_saved_value<decltype(MOX::combat_total_ship_count)> count{MOX::combat_total_ship_count};
+        test::s_saved_value<decltype(MOX::combat_defender_player)> defender{MOX::combat_defender_player};
+        test::s_saved_value<decltype(MOX::in_nebula_flag)> nebula{MOX::in_nebula_flag};
+        test::s_saved_array<s_tech_armor_data, ARMOR_COUNT> armor{TECHDATA::armor};
+        test::s_saved_array<s_tech_computer_data, COMPUTER_COUNT> computers{TECHDATA::computers};
+        test::s_saved_array<s_tech_drive_data, DRIVE_COUNT> drives{TECHDATA::drives};
+        test::s_saved_array<s_tech_fuel_data, FUEL_COUNT> fuel{TECHDATA::fuel};
+        test::s_saved_array<s_tech_hull_data, HULL_CLASS_COUNT> hulls{TECHDATA::hull_data};
+        test::s_saved_array<s_tech_shield_data, SHIELD_COUNT> shields{TECHDATA::shields};
+        test::s_saved_array<s_tech_specials_data, SPECIAL_COUNT> specials{TECHDATA::specials};
+        test::s_saved_array<s_tech_weapon_data, WEAPON_COUNT> weapons{TECHDATA::weapons};
+        test::s_saved_array<s_tech_weapon_mod_data, WEAPON_MOD_COUNT> mods{TECHDATA::weapon_modifications};
+        test::s_saved_array<s_tech_app_data, TECH_APP_COUNT> applications{TECHDATA::technology_applications};
+        test::s_saved_array<s_tech_field_data, TECH_FIELD_COUNT> fields{TECHDATA::technology_fields};
+        test::s_saved_array<uint16_t, HULL_CLASS_COUNT> hull_multipliers{TECHDATA::shield_hull_multiplier};
+        test::s_saved_value<decltype(TECHDATA::multi_phased_shields_bonus)> multi{TECHDATA::multi_phased_shields_bonus};
+        test::s_saved_value<decltype(TECHDATA::esd_bonus)> esd{TECHDATA::esd_bonus};
+        test::s_saved_value<decltype(TECHDATA::hard_shields_damage_reduction)> hard{TECHDATA::hard_shields_damage_reduction};
+        test::s_saved_value<decltype(COMBINIT::defenses_allowed_mods)> allowed{COMBINIT::defenses_allowed_mods};
+        test::s_saved_value<decltype(COMBINIT::satellite_space_allocation)> allocation{COMBINIT::satellite_space_allocation};
+        test::s_saved_value<decltype(COMBINIT::reinforced_hull_multiplier)> reinforced{COMBINIT::reinforced_hull_multiplier};
+        test::s_saved_value<decltype(COMBINIT::antaran_fortress_armor_multiplier)> fortress_armor{COMBINIT::antaran_fortress_armor_multiplier};
+        test::s_saved_value<decltype(COMBINIT::planet)> planet_options{COMBINIT::planet};
+        test::s_saved_value<decltype(COMBINIT::satellite_size_class_plus_one)> satellite_size{COMBINIT::satellite_size_class_plus_one};
+        test::s_saved_value<decltype(COMBINIT::satellite_ammo_basis)> satellite_ammo{COMBINIT::satellite_ammo_basis};
+        test::s_saved_array<DESIGN::s_weapon_arc_cost_and_space, DESIGN::WEAPON_ARC_MODIFIER_COUNT> arcs{DESIGN::arc_cost_and_space};
+        test::s_saved_value<decltype(DESIGN::miniaturization)> miniaturization{DESIGN::miniaturization};
+        test::s_saved_array<uint8_t, DESIGN::MINIATURIZATION_TECHNOLOGY_COUNT> miniaturization_categories{DESIGN::miniaturization_categories};
+        test::s_saved_value<decltype(DESIGN::megafluxers_tactical_bonus)> megafluxers{DESIGN::megafluxers_tactical_bonus};
+    };
+}
 
 #include "doctest/doctest.h"
 #include "game/aipower.h"
@@ -17,7 +53,7 @@ namespace TEST_SHIELD_TABLE {
     void Set_Design_Special_(int16_t special_id);
 }
 
-DOCTEST_TEST_CASE("Antaran Fortress loader uses configured weapon and special data") {
+DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "Antaran Fortress loader uses configured weapon and special data") {
     TEST_SHIELD_TABLE::Reset_();
     s_combat_data* fortress = TEST_SHIELD_TABLE::Combat_Ship_();
 
@@ -99,7 +135,7 @@ DOCTEST_TEST_CASE("Antaran Fortress loader uses configured weapon and special da
     DOCTEST_CHECK(fortress->armor_remaining == 25500);
 }
 
-DOCTEST_TEST_CASE("orbital Reinforced Hull multipliers remain positive above 127") {
+DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "orbital Reinforced Hull multipliers remain positive above 127") {
     TEST_SHIELD_TABLE::Reset_();
     s_player* defender = TEST_SHIELD_TABLE::Player_();
     s_combat_data* satellite = TEST_SHIELD_TABLE::Combat_Ship_(1);
@@ -127,7 +163,7 @@ DOCTEST_TEST_CASE("orbital Reinforced Hull multipliers remain positive above 127
     DOCTEST_CHECK(satellite->structure_max == 255);
 }
 
-DOCTEST_TEST_CASE("satellite priority uses grouped slot 6 and slot 14") {
+DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "satellite priority uses grouped slot 6 and slot 14") {
     TEST_SHIELD_TABLE::Reset_();
     s_combat_data* satellite = TEST_SHIELD_TABLE::Combat_Ship_(1);
 
@@ -151,7 +187,7 @@ DOCTEST_TEST_CASE("satellite priority uses grouped slot 6 and slot 14") {
         satellite->special_device_flags, SPECIAL_ENERGY_ABSORBER));
 }
 
-DOCTEST_TEST_CASE("heavy satellite beams use all-round weapon pricing") {
+DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "heavy satellite beams use all-round weapon pricing") {
     TEST_SHIELD_TABLE::Reset_();
     s_player* defender = TEST_SHIELD_TABLE::Player_();
 
@@ -209,7 +245,7 @@ DOCTEST_TEST_CASE("heavy satellite beams use all-round weapon pricing") {
          WEAPON_MOD_FLAG_EMISSION_GUIDANCE) != 0);
 }
 
-DOCTEST_TEST_CASE("normal satellite beam banks share costed allowed modifications") {
+DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "normal satellite beam banks share costed allowed modifications") {
     TEST_SHIELD_TABLE::Reset_();
     s_player* defender = TEST_SHIELD_TABLE::Player_();
 
@@ -264,7 +300,7 @@ DOCTEST_TEST_CASE("normal satellite beam banks share costed allowed modification
     DOCTEST_CHECK(normal[1].count == expected_count - 99);
 }
 
-DOCTEST_TEST_CASE("point-defense satellite banks share costed allowed modifications") {
+DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "point-defense satellite banks share costed allowed modifications") {
     TEST_SHIELD_TABLE::Reset_();
     s_player* defender = TEST_SHIELD_TABLE::Player_();
 
@@ -333,7 +369,7 @@ DOCTEST_TEST_CASE("point-defense satellite banks share costed allowed modificati
     DOCTEST_CHECK(pd[1].count == expected_count - 99);
 }
 
-DOCTEST_TEST_CASE("satellite missile banks distribute allowed mods and price ECCM as free") {
+DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "satellite missile banks distribute allowed mods and price ECCM as free") {
     TEST_SHIELD_TABLE::Reset_();
     s_player* defender = TEST_SHIELD_TABLE::Player_();
 
@@ -450,7 +486,7 @@ DOCTEST_TEST_CASE("satellite missile banks distribute allowed mods and price ECC
     DOCTEST_CHECK(missile_count == 297);
 }
 
-DOCTEST_TEST_CASE("defense missile ECCM installation is unconditional") {
+DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "defense missile ECCM installation is unconditional") {
     struct s_case {
         bool allowed;
         bool supported;
@@ -518,7 +554,7 @@ DOCTEST_TEST_CASE("defense missile ECCM installation is unconditional") {
     }
 }
 
-DOCTEST_TEST_CASE("planet extra specials follow building and technology gates") {
+DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "planet extra specials follow building and technology gates") {
     struct s_case {
         bool has_ground_batteries;
         bool has_stellar_converter;
@@ -587,7 +623,7 @@ DOCTEST_TEST_CASE("planet extra specials follow building and technology gates") 
     }
 }
 
-DOCTEST_TEST_CASE("planet defenses use configured eligible modifications") {
+DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "planet defenses use configured eligible modifications") {
     TEST_SHIELD_TABLE::Reset_();
     s_colony* colony = TEST_SHIELD_TABLE::Colony_();
     s_player* defender = TEST_SHIELD_TABLE::Player_();
@@ -716,7 +752,7 @@ DOCTEST_TEST_CASE("planet defenses use configured eligible modifications") {
     DOCTEST_CHECK(missile_count == expected_count);
 }
 
-DOCTEST_TEST_CASE("defense point-defense selection uses unsigned modification levels") {
+DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "defense point-defense selection uses unsigned modification levels") {
     struct s_case {
         uint8_t required_level;
         uint8_t miniaturization;
@@ -800,7 +836,7 @@ DOCTEST_TEST_CASE("defense point-defense selection uses unsigned modification le
     }
 }
 
-DOCTEST_TEST_CASE("satellite weapon space follows configured allocation") {
+DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "satellite weapon space follows configured allocation") {
     TEST_SHIELD_TABLE::Reset_();
 
     DOCTEST_CHECK(COMBINIT::Satellite_Allocated_Space(
@@ -824,7 +860,7 @@ DOCTEST_TEST_CASE("satellite weapon space follows configured allocation") {
     DOCTEST_CHECK(COMBINIT::Satellite_Allocated_Space(200, 1) == 0);
 }
 
-DOCTEST_TEST_CASE("odd satellite hull allocation matches tactical and AI counts") {
+DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "odd satellite hull allocation matches tactical and AI counts") {
     TEST_SHIELD_TABLE::Reset_();
     s_player* defender = TEST_SHIELD_TABLE::Player_();
 
@@ -896,7 +932,7 @@ DOCTEST_TEST_CASE("odd satellite hull allocation matches tactical and AI counts"
                   expected_strength);
 }
 
-DOCTEST_TEST_CASE("Megafluxers keeps all orbital allocation sizes wide") {
+DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "Megafluxers keeps all orbital allocation sizes wide") {
     TEST_SHIELD_TABLE::Reset_();
     s_player* defender = TEST_SHIELD_TABLE::Player_();
     defender->tech_applications[TECH_APP_MEGAFLUXERS] =
@@ -958,7 +994,7 @@ DOCTEST_TEST_CASE("Megafluxers keeps all orbital allocation sizes wide") {
     DESIGN::megafluxers_tactical_bonus = 25;
 }
 
-DOCTEST_TEST_CASE("weapon arc cost and space modifiers are independent") {
+DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "weapon arc cost and space modifiers are independent") {
     TEST_SHIELD_TABLE::Reset_();
     const int16_t weapon = WEAPON_LASER_CANNON;
     TECHDATA::weapons[weapon].type = WEAPON_TYPE_BEAM;
@@ -997,7 +1033,7 @@ DOCTEST_TEST_CASE("weapon arc cost and space modifiers are independent") {
                       weapon, extended, 0, 0) == 355);
 }
 
-DOCTEST_TEST_CASE("shield capacity uses configured hull multipliers") {
+DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "shield capacity uses configured hull multipliers") {
     TEST_SHIELD_TABLE::Reset_();
     TECHDATA::shield_hull_multiplier[HULL_CRUISER] = 23;
     TECHDATA::shields[SHIELD_CLASS_V_SHIELD].shield_class = 5;
@@ -1006,7 +1042,7 @@ DOCTEST_TEST_CASE("shield capacity uses configured hull multipliers") {
         TECHDATA::Shield_Strength(HULL_CRUISER, SHIELD_CLASS_V_SHIELD) == 115);
 }
 
-DOCTEST_TEST_CASE("combat satellites select orbital defense shield rows") {
+DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "combat satellites select orbital defense shield rows") {
     TEST_SHIELD_TABLE::Reset_();
     s_combat_data* ship = TEST_SHIELD_TABLE::Combat_Ship_(1);
     ship->ship_idx = -1;
@@ -1019,7 +1055,7 @@ DOCTEST_TEST_CASE("combat satellites select orbital defense shield rows") {
                       TECHDATA::shields[SHIELD_CLASS_V_SHIELD].shield_class);
 }
 
-DOCTEST_TEST_CASE("satellite shield rows remain stable across configured tactical sizes") {
+DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "satellite shield rows remain stable across configured tactical sizes") {
     TEST_SHIELD_TABLE::Reset_();
     s_combat_data* ship = TEST_SHIELD_TABLE::Combat_Ship_(1);
     ship->ship_idx = -1;
@@ -1039,7 +1075,7 @@ DOCTEST_TEST_CASE("satellite shield rows remain stable across configured tactica
                       TECHDATA::shields[SHIELD_CLASS_V_SHIELD].shield_class);
 }
 
-DOCTEST_TEST_CASE("combat shield capacity keeps nebula and special behavior") {
+DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "combat shield capacity keeps nebula and special behavior") {
     TEST_SHIELD_TABLE::Reset_();
     s_combat_data* ship = TEST_SHIELD_TABLE::Combat_Ship_();
     ship->ship_idx = 4;
@@ -1056,7 +1092,7 @@ DOCTEST_TEST_CASE("combat shield capacity keeps nebula and special behavior") {
     DOCTEST_CHECK(COMBINIT::Calc_Combat_Shield_Max(0) == 82);
 }
 
-DOCTEST_TEST_CASE("design shield capacity applies Multi-Phased Shields after configured base") {
+DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "design shield capacity applies Multi-Phased Shields after configured base") {
     TEST_SHIELD_TABLE::Reset_();
     s_current_design* design = TEST_SHIELD_TABLE::Design_();
     design->ship_size = SHIP_SIZE_TITAN;
@@ -1069,7 +1105,7 @@ DOCTEST_TEST_CASE("design shield capacity applies Multi-Phased Shields after con
     DOCTEST_CHECK(DESIGN::Shield_Strength() == base * 7 / 4);
 }
 
-DOCTEST_TEST_CASE("design Hard Shields use configured damage reduction") {
+DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "design Hard Shields use configured damage reduction") {
     TEST_SHIELD_TABLE::Reset_();
     TEST_SHIELD_TABLE::Design_()->shield = SHIELD_CLASS_I_SHIELD;
     TEST_SHIELD_TABLE::Set_Design_Special_(SPECIAL_HARD_SHIELDS);
@@ -1078,7 +1114,7 @@ DOCTEST_TEST_CASE("design Hard Shields use configured damage reduction") {
     DOCTEST_CHECK(DESIGN::Current_Shield_Damage_Points_Blocked() == 9);
 }
 
-DOCTEST_TEST_CASE("ESD bonus scales additional structural damage") {
+DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "ESD bonus scales additional structural damage") {
     TEST_SHIELD_TABLE::Reset_();
 
     TECHDATA::esd_bonus = 50;
