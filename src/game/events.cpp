@@ -2058,6 +2058,8 @@ namespace EVENTS {
         int16_t event_idx;
         int8_t event_status;
 
+        // Text-only reports also restore this callback during event cleanup.
+        MOX2::Get_Auto_Function(&jim_saved_autofunction);
         EVENTS::current_event = 0;
         for (event_idx = 0; event_idx < EVENT_COUNT; ++event_idx) {
             event_status = EVENTS::event_data[event_idx].status;
@@ -2666,7 +2668,6 @@ namespace EVENTS {
         fields::Set_Input_Delay(1);
         fields::Clear_Fields();
         video::Set_Refresh_Stencil();
-        MOX2::Get_Auto_Function(&jim_saved_autofunction);
         fields::Deactivate_Auto_Function();
         Event_Fade_In();
         fields::Assign_Auto_Function(Draw_Event_Screen, 2);

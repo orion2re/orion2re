@@ -27,6 +27,7 @@
 - Fixed AI colonies considering lower-tier orbital defenses when a Star Fortress is already present.
 - Prevented industrial accidents and other non-player attacks from writing into the wrong war-loss records.
 - Fixed planet names in GNN reports for industrial accidents, mineral depletion, and new mineral deposits.
+- Fixed missing galaxy-map stars and empire statistics behind scout and leader popups after a GNN event with GNN reports disabled.
 - Fixed the star system shown in leader-offer popups and safely handled empires without a capital.
 - Fixed galaxy-map positioning when zooming all the way out or centering the view near map edges.
 - Made Antaran and monster spawn positions independent of the player's map zoom, keeping subsequent random outcomes consistent too.
