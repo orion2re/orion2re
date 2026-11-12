@@ -2288,6 +2288,16 @@ namespace COLCALC {
 
                     const int16_t remove_idx = (special_count > 0) ? selected_special : selected_normal;
 
+                    if (remove_idx == -1) {
+                        // No pop of this race remains: either its growth was
+                        // stale-negative with no pops at all, or the last
+                        // pop was just removed while roundoff is still
+                        // negative. There is nothing to remove, so drop the
+                        // remaining deficit instead of indexing pop[-1].
+                        colony->pop_roundoff[race_idx] = 0;
+                        break;
+                    }
+
                     --race_counts[race_idx];
                     --colony->n_pops;
                     colony->pop[remove_idx] = colony->pop[static_cast<uint8_t>(colony->n_pops)];

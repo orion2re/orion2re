@@ -1040,6 +1040,29 @@ DOCTEST_TEST_CASE("configured extinction allows a human colony to starve out") {
     DOCTEST_CHECK(colony->n_pops == 0);
 }
 
+DOCTEST_TEST_CASE("extinction does not remove past the last pop of an unprotected race") {
+    s_colony* colony = Prepare_Starving_Colony_();
+    MOX::NUM_PLAYERS = 2;
+    colony->n_pops = 2;
+    colony->pop[0] = 0;
+    colony->pop[1] = 1;
+    colony->pop_growth[0] = 0;
+    colony->pop_growth[1] = -2000;
+    colony->specialty = 5;
+    MOX::player[0].objectives = PLAYER_OBJECTIVE_HUMAN;
+    COLCALC::planet_extinction = 1;
+
+    COLCALC::Apply_Colony_Pop_Growth(colony);
+
+    // Only the single race-1 pop is removed: the owner-race pop survives,
+    // and the out-of-bounds pop[-1] write never happens (specialty sits
+    // immediately before pop[], so it would have been clobbered).
+    DOCTEST_REQUIRE(colony->n_pops == 1);
+    DOCTEST_CHECK(colony->pop[0] == 0);
+    DOCTEST_CHECK(colony->specialty == 5);
+    DOCTEST_CHECK(colony->pop_roundoff[1] == 0);
+}
+
 DOCTEST_TEST_CASE("configured extinction preserves the final AI population") {
     s_colony* colony = Prepare_Starving_Colony_();
     COLCALC::planet_extinction = 1;
