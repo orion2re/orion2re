@@ -1692,6 +1692,9 @@ namespace COLCALC {
     }
 
     void __cdecl Ensure_Uncreative_Field_OK(s_player* player, int field_idx) {
+        if (player == nullptr || field_idx < 0 || field_idx >= TECH_FIELD_COUNT) {
+            return;
+        }
         int selected_tech_id = -1;
         int candidates_count = 0;
         int owned_count = 0;
@@ -1745,6 +1748,9 @@ namespace COLCALC {
     }
 
     void __cdecl Advance_Player_Field(s_player* player, int field_idx, bool skip_first_advance) {
+        if (player == nullptr || field_idx < 0 || field_idx >= TECH_FIELD_COUNT) {
+            return;
+        }
         if (field_idx == TECH_FIELD_STARTING_TECH) {
             return;
         }
@@ -2578,6 +2584,9 @@ namespace COLCALC {
     }
 
     void __cdecl Give_Player_Field(s_player* player, int field_id, char get_all_flag) {
+        if (player == nullptr || field_id < 0 || field_id >= TECH_FIELD_COUNT) {
+            return;
+        }
         if (field_id < 75 /* HYPER_ADVANCED_THRESHOLD */) {
             Advance_Player_Field(player, field_id, false);
 

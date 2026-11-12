@@ -343,6 +343,30 @@ namespace {
                     static_cast<int16_t>((i * 5 + j) % MOX::planet_count);
             }
         }
+        // Events must be valid: load validation resets any live event
+        // whose fields fail its per-type check, so the fixture holds
+        // only valid live events (plus one expired entry proving status
+        // 3 is left untouched). These values match the v0 fixture file.
+        {
+            auto set_event = [](int idx, int8_t player, int8_t status, int8_t turn,
+                               int16_t target, int16_t amount, int16_t max) {
+                s_event_data& event = EVENTS::event_data[idx];
+                event.player_idx = player;
+                event.status = status;
+                event.turn_count = turn;
+                event.target_id = target;
+                event.amount = amount;
+                event.max_amount = max;
+            };
+            for (int i = 0; i < EVENT_COUNT; ++i) set_event(i, -1, 0, 0, -1, -1, -1);
+            set_event(EVENT_DERELICT, 0, 2, 0, TECH_APP_ION_DRIVE, 0, 0);
+            set_event(EVENT_CLIMATIC_CHANGE, 0, 2, 0, 0, 0, 0);
+            set_event(EVENT_COMET, 0, 6, 3, 0, 50, 100);
+            set_event(EVENT_PIRATE_ACTIVITY, -1, 2, 0, 0, 10, 100);
+            set_event(EVENT_SPACE_AMOEBA, -1, 6, 0, 1, -1, -1);
+            set_event(EVENT_SUPERNOVA, -1, 2, 5, 2, 100, 100);
+            set_event(EVENT_EARTHQUAKE, 100, 3, 0, 5000, 0, 0);
+        }
         REPORT::done_player_reports = 0xA5;
         REPORT::displayed_msgs = 0x5A;
         REPORT::displayed_gnn = 0xC3;
@@ -1654,3 +1678,136 @@ DOCTEST_TEST_CASE("corrupt planet star links fail load validation") {
     DOCTEST_REQUIRE(config::Commit_State(&default_config));
 }
 
+
+DOCTEST_TEST_CASE("invalid live events reset to inactive on load") {
+    auto state = std::make_unique<State_>();
+    auto bytes = std::make_unique<uint8_t[]>(SAVEGAME::BUFFER_CAPACITY);
+    config::s_config_state default_config;
+    DOCTEST_REQUIRE(config::Initialize_Defaults(&default_config));
+    DOCTEST_REQUIRE(config::Commit_State(&default_config));
+    TEST_CONFIG_SNAPSHOT::active_config.baseline.effective.state = default_config;
+    TEST_CONFIG_SNAPSHOT::active_config.required_mods.clear();
+    const char description[37] = "Corrupt event validation";
+
+    // Small but valid save: one star, one planet, one colony, one ship,
+    // two players.
+    auto setup_valid_state = [&] {
+        Bind_State_(*state);
+        Clear_State_(*state);
+        MOX::NUM_PLAYERS = 2;
+        MOX::PLAYER_NUM = 1;
+        MOX::NUM_COLONIES = 1;
+        MOX::planet_count = 1;
+        MOX::NUM_STARS = 1;
+        MOX::NUM_SHIPS = 1;
+        MOX::NUM_NEBULAS = 0;
+        MOX::max_map_scale = 30;
+        MOX::cur_map_scale = 10;
+        MOX::planet[0].star_index = 0;
+        MOX::planet[0].orbit = 0;
+        MOX::planet[0].colony_index = 0;
+        MOX::star[0].planet_index[0] = 0;
+        for (int j = 1; j < 5; ++j) MOX::star[0].planet_index[j] = -1;
+        MSG_::first_msg[0] = 0;
+        MSG_::max_msgs[0] = 50;
+        MSG_::n_msgs[0] = 0;
+        MSG_::first_msg[1] = 50;
+        MSG_::max_msgs[1] = 50;
+        MSG_::n_msgs[1] = 0;
+    };
+    auto set_event = [](int idx, int8_t player, int8_t status, int8_t turn,
+                        int16_t target, int16_t amount, int16_t max) {
+        s_event_data& event = EVENTS::event_data[idx];
+        event.player_idx = player;
+        event.status = status;
+        event.turn_count = turn;
+        event.target_id = target;
+        event.amount = amount;
+        event.max_amount = max;
+    };
+    auto write_then_read = [&] {
+        SERIAL::Writer_ writer(bytes.get(), SAVEGAME::BUFFER_CAPACITY, "test save overflow");
+        DOCTEST_REQUIRE(SAVEGAME::Write_Game(&writer, description, 0x12345678));
+        Bind_State_(*state);
+        Clear_State_(*state);
+        SERIAL::Reader_ reader(bytes.get(), writer.Length(), "test save underflow");
+        SAVEGAME::s_metadata metadata = {};
+        s_settings settings = {};
+        uint32_t seed = 0;
+        return SAVEGAME::Read_Game(&reader, &metadata, &settings, &seed);
+    };
+    auto is_inactive = [](int idx) {
+        const s_event_data& event = EVENTS::event_data[idx];
+        return event.player_idx == -1 && event.status == 0 && event.turn_count == 0 &&
+            event.target_id == -1 && event.amount == -1 && event.max_amount == -1;
+    };
+
+    // Valid live events survive the load unchanged.
+    setup_valid_state();
+    set_event(EVENT_DERELICT, 0, 2, 0, TECH_APP_ION_DRIVE, 0, 0);
+    set_event(EVENT_PIRATE_ACTIVITY, -1, 2, 0, 0, 10, 100);
+    set_event(EVENT_COMET, 0, 6, 3, 0, 50, 100);
+    set_event(EVENT_FREAK_ACCIDENT, 0, 2, 0, 0, -1, -1);
+    set_event(EVENT_UNSTABLE_WORMHOLE, 0, 2, 0, 0, 0, -1);
+    set_event(EVENT_EMPIRE_GROWN_IN_STRENGTH, 0, 6, 0, 0, 2, -1);
+    set_event(EVENT_EMPIRES_RANKING, -1, 6, 0, -1, 3, -1);
+    set_event(EVENT_EMPIRE_SURRENDERS, 0, 1, 0, 1, -1, -1);
+    DOCTEST_CHECK(write_then_read());
+    const int16_t derelict_target = EVENTS::event_data[EVENT_DERELICT].target_id;
+    const int16_t pirate_max = EVENTS::event_data[EVENT_PIRATE_ACTIVITY].max_amount;
+    DOCTEST_CHECK(derelict_target == TECH_APP_ION_DRIVE);
+    DOCTEST_CHECK(EVENTS::event_data[EVENT_DERELICT].status == 2);
+    DOCTEST_CHECK(pirate_max == 100);
+    DOCTEST_CHECK(EVENTS::event_data[EVENT_COMET].status == 6);
+    const int16_t grown_amount = EVENTS::event_data[EVENT_EMPIRE_GROWN_IN_STRENGTH].amount;
+    const int16_t ranking_amount = EVENTS::event_data[EVENT_EMPIRES_RANKING].amount;
+    const int16_t surrenders_target = EVENTS::event_data[EVENT_EMPIRE_SURRENDERS].target_id;
+    DOCTEST_CHECK(EVENTS::event_data[EVENT_FREAK_ACCIDENT].status == 2);
+    DOCTEST_CHECK(EVENTS::event_data[EVENT_UNSTABLE_WORMHOLE].status == 2);
+    DOCTEST_CHECK(grown_amount == 2);
+    DOCTEST_CHECK(ranking_amount == 3);
+    DOCTEST_CHECK(surrenders_target == 1);
+
+    // Invalid live events are reset to inactive; the load still succeeds.
+    setup_valid_state();
+    set_event(EVENT_DERELICT, 0, 2, 0, 5000, 0, 0);
+    set_event(EVENT_PIRATE_ACTIVITY, -1, 2, 0, 0, 10, 0);
+    set_event(EVENT_COMET, 0, 6, 3, 5, 50, 100);
+    set_event(EVENT_CLIMATIC_CHANGE, 0, 2, 0, 9, 0, 0);
+    set_event(EVENT_COMPUTER_VIRUS, 7, 2, 0, -1, -1, -1);
+    set_event(EVENT_SUPERNOVA, -1, 9, 0, 0, 0, 0);
+    set_event(EVENT_PLAGUE, 100, 2, 0, 0, 0, 0);
+    set_event(EVENT_FREAK_ACCIDENT, 0, 2, 0, 0, 5000, -1);
+    set_event(EVENT_SPACE_AMOEBA, 100, 5, 0, -1, -1, -1);
+    set_event(EVENT_WARP_FUNNEL, 100, 6, 0, -1, -1, -1);
+    set_event(EVENT_UNSTABLE_WORMHOLE, 0, 2, 0, 0, 5, -1);
+    set_event(EVENT_EMPIRE_SURRENDERS, 0, 1, 0, 7, -1, -1);
+    set_event(EVENT_EMPIRE_GROWN_IN_STRENGTH, 0, 6, 0, 0, -129, -1);
+    set_event(EVENT_EMPIRES_RANKING, -1, 6, 0, -1, 20, -1);
+    DOCTEST_CHECK(write_then_read());
+    DOCTEST_CHECK(is_inactive(EVENT_DERELICT));
+    DOCTEST_CHECK(is_inactive(EVENT_PIRATE_ACTIVITY));
+    DOCTEST_CHECK(is_inactive(EVENT_COMET));
+    DOCTEST_CHECK(is_inactive(EVENT_CLIMATIC_CHANGE));
+    DOCTEST_CHECK(is_inactive(EVENT_COMPUTER_VIRUS));
+    DOCTEST_CHECK(is_inactive(EVENT_SUPERNOVA));
+    DOCTEST_CHECK(is_inactive(EVENT_PLAGUE));
+    DOCTEST_CHECK(is_inactive(EVENT_FREAK_ACCIDENT));
+    DOCTEST_CHECK(is_inactive(EVENT_SPACE_AMOEBA));
+    DOCTEST_CHECK(is_inactive(EVENT_WARP_FUNNEL));
+    DOCTEST_CHECK(is_inactive(EVENT_UNSTABLE_WORMHOLE));
+    DOCTEST_CHECK(is_inactive(EVENT_EMPIRE_SURRENDERS));
+    DOCTEST_CHECK(is_inactive(EVENT_EMPIRE_GROWN_IN_STRENGTH));
+    DOCTEST_CHECK(is_inactive(EVENT_EMPIRES_RANKING));
+
+    // Expired events are never dereferenced, so their fields are untouched.
+    setup_valid_state();
+    set_event(EVENT_EARTHQUAKE, 100, 3, 0, 5000, 0, 0);
+    DOCTEST_CHECK(write_then_read());
+    const int16_t quake_target = EVENTS::event_data[EVENT_EARTHQUAKE].target_id;
+    DOCTEST_CHECK(EVENTS::event_data[EVENT_EARTHQUAKE].player_idx == 100);
+    DOCTEST_CHECK(EVENTS::event_data[EVENT_EARTHQUAKE].status == 3);
+    DOCTEST_CHECK(quake_target == 5000);
+
+    DOCTEST_REQUIRE(config::Commit_State(&default_config));
+}

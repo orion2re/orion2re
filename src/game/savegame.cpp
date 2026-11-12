@@ -1068,6 +1068,185 @@ namespace SAVEGAME {
             event->max_amount = reader->Read_Int16();
         }
 
+        // Reset an event record to the canonical inactive state (see EVENTS::Init_Events).
+        void Reset_Loaded_Event(s_event_data* event) {
+            event->player_idx = -1;
+            event->status = 0;
+            event->turn_count = 0;
+            event->target_id = -1;
+            event->amount = -1;
+            event->max_amount = -1;
+        }
+
+        bool Loaded_Event_Player_Is_Valid(int8_t player_idx) {
+            return player_idx >= 0 && player_idx < MOX::NUM_PLAYERS;
+        }
+
+        // A live event whose owner is neither unset (-1) nor a live player
+        // reaches the report display, where Get_Event_Message feeds
+        // player_idx into the \x85/\x90 placeholders
+        // (MOX::player[fetch_player].race_name, only >= 0 checked). -1 is
+        // safe there (the placeholders skip it) and Event_Twiddle does not
+        // dereference the owner for the types that accept it, so those
+        // types allow -1; types whose Twiddle case dereferences the owner
+        // directly still require a valid player (see below).
+        bool Loaded_Event_Player_Is_Unset_Or_Valid(int8_t player_idx) {
+            return player_idx == -1 || Loaded_Event_Player_Is_Valid(player_idx);
+        }
+
+        // Event_Twiddle and Setup_Next_Event use the fields below unchecked,
+        // so a crafted save can crash the load or the next turn. Entries that
+        // fail their per-type check are reset to inactive. Inactive (0) and
+        // expired (3) entries are never dereferenced, so their fields are
+        // left untouched. This only repairs, so it also runs on the internal
+        // restore path: it can never fail a load. Setup_Next_Event feeds
+        // player_idx to Get_Event_Message for every event type, so every
+        // live type carries a player check below; the remaining per-type
+        // checks cover the other display parameters (wormhole star,
+        // surrender target, accident leader, grown/ranking subtype).
+        void Validate_Loaded_Events() {
+            for (int i = 0; i < EVENT_COUNT; ++i) {
+                s_event_data& event = EVENTS::event_data[i];
+                if (event.status < 0 || event.status > 6) {
+                    Reset_Loaded_Event(&event);
+                    continue;
+                }
+                if (event.status == 0 || event.status == 3) {
+                    continue;
+                }
+                bool valid = true;
+                switch (i) {
+                    case EVENT_DERELICT:
+                        valid = Loaded_Event_Player_Is_Valid(event.player_idx) &&
+                            event.target_id >= 0 && event.target_id < TECH_APP_COUNT &&
+                            event.amount >= 0 && event.amount < TECH_APP_COUNT;
+                        break;
+                    case EVENT_CLIMATIC_CHANGE:
+                    case EVENT_INDUSTRIAL_ACCIDENT:
+                    case EVENT_MINERAL_DEPLETION:
+                    case EVENT_MINERAL_DEPOSIT:
+                        valid = Loaded_Event_Player_Is_Unset_Or_Valid(event.player_idx) &&
+                            event.target_id >= 0 && event.target_id < MOX::planet_count;
+                        break;
+                    case EVENT_COMET:
+                        valid = Loaded_Event_Player_Is_Unset_Or_Valid(event.player_idx) &&
+                            event.target_id >= 0 && event.target_id < MOX::NUM_COLONIES &&
+                            event.max_amount != 0;
+                        break;
+                    case EVENT_COMPUTER_VIRUS:
+                    case EVENT_DONATION:
+                    case EVENT_PIRATE_RAID:
+                    case EVENT_SERENDIPITY:
+                        valid = Loaded_Event_Player_Is_Valid(event.player_idx);
+                        break;
+                    case EVENT_DIPLOMATIC_BLUNDER:
+                    case EVENT_DIPLOMATIC_MARRIAGE:
+                        valid = Loaded_Event_Player_Is_Valid(event.player_idx) &&
+                            event.target_id >= 0 && event.target_id < MOX::NUM_PLAYERS;
+                        break;
+                    case EVENT_EARTHQUAKE:
+                    case EVENT_PLAGUE:
+                    case EVENT_POPULATION_BOOM:
+                        valid = Loaded_Event_Player_Is_Unset_Or_Valid(event.player_idx) &&
+                            event.target_id >= 0 && event.target_id < MOX::NUM_COLONIES;
+                        break;
+                    case EVENT_FREAK_ACCIDENT:
+                        // Event_Twiddle rewrites amount from the ship's
+                        // officer only when the ship has one; with no
+                        // officer the loaded amount reaches Setup_Next_Event,
+                        // where it indexes MOX::leaders via the \x89
+                        // placeholder (subtype 1).
+                        valid = Loaded_Event_Player_Is_Unset_Or_Valid(event.player_idx) &&
+                            event.target_id >= 0 && event.target_id < MOX::NUM_SHIPS &&
+                            (event.amount == -1 ||
+                                (event.amount >= 0 && event.amount < MAX_LEADERS));
+                        break;
+                    case EVENT_PIRATE_ACTIVITY:
+                        valid = Loaded_Event_Player_Is_Unset_Or_Valid(event.player_idx) &&
+                            event.target_id >= 0 && event.target_id < MOX::NUM_STARS &&
+                            event.max_amount != 0;
+                        break;
+                    case EVENT_SPACE_AMOEBA:
+                    case EVENT_SPACE_CRYSTAL:
+                    case EVENT_SPACE_DRAGON:
+                    case EVENT_SPACE_EEL:
+                    case EVENT_SPACE_HYDRA:
+                        // The target is a star while the monster is spawning
+                        // and a planet once it engages one (Event_Monster_Update
+                        // flips the status to 4); a finishing event no longer
+                        // dereferences it. The owner is -1 while spawning
+                        // and the colony owner once engaged; either way it
+                        // reaches the \x90 placeholder at status 5.
+                        valid = Loaded_Event_Player_Is_Unset_Or_Valid(event.player_idx);
+                        if (event.status == 6) {
+                            valid = valid &&
+                                event.target_id >= 0 && event.target_id < MOX::NUM_STARS;
+                        } else if (event.status == 4) {
+                            valid = valid && (event.target_id == -1 ||
+                                (event.target_id >= 0 && event.target_id < MOX::planet_count));
+                        } else if (event.status == 5) {
+                            // No target dereference; the player check above stands.
+                        } else {
+                            valid = valid && (event.target_id == -1 ||
+                                (event.target_id >= 0 &&
+                                    (event.target_id < MOX::planet_count ||
+                                        event.target_id < MOX::NUM_STARS)));
+                        }
+                        break;
+                    case EVENT_SUPERNOVA:
+                    case EVENT_TIME_SPACE_ANOMALY:
+                        valid = Loaded_Event_Player_Is_Unset_Or_Valid(event.player_idx) &&
+                            event.target_id >= 0 && event.target_id < MOX::NUM_STARS;
+                        break;
+                    case EVENT_WARP_BEAST:
+                        valid = Loaded_Event_Player_Is_Unset_Or_Valid(event.player_idx);
+                        break;
+                    case EVENT_HYPERSPACE_FLUX:
+                    case EVENT_MUTINY:
+                    case EVENT_WARP_FUNNEL:
+                    case EVENT_EMPIRE_DESTROYED:
+                    case EVENT_ORION_VISITED:
+                    case EVENT_ANTARANS_DEFEATED:
+                    case EVENT_REBEL_ASSIMILATION:
+                        valid = Loaded_Event_Player_Is_Unset_Or_Valid(event.player_idx);
+                        break;
+                    case EVENT_UNSTABLE_WORMHOLE:
+                        // amount is the origin star (Do_Wormhole_Event stores
+                        // it in wormhole_data.count); Setup_Next_Event passes
+                        // it to Get_Event_Message, where the \x8B placeholder
+                        // reads MOX::star[amount]. target_id is only a ship
+                        // count printed by the message, so it is unchecked.
+                        valid = Loaded_Event_Player_Is_Unset_Or_Valid(event.player_idx) &&
+                            event.amount >= 0 && event.amount < MOX::NUM_STARS;
+                        break;
+                    case EVENT_EMPIRE_GROWN_IN_STRENGTH:
+                        // amount becomes the message subtype (Setup_Next_Event
+                        // clamps only above 3); outside [0, 3] the LBX index
+                        // subtype + event_type * 4 leaves the 152-entry table
+                        // and the display aborts in Farload_Library_Data.
+                        valid = Loaded_Event_Player_Is_Unset_Or_Valid(event.player_idx) &&
+                            event.amount >= 0 && event.amount <= 3;
+                        break;
+                    case EVENT_EMPIRES_RANKING:
+                        // amount is the message subtype and the ranking
+                        // metric; outside [0, 3] the LBX index leaves the
+                        // table and the metric read is uninitialised.
+                        valid = Loaded_Event_Player_Is_Unset_Or_Valid(event.player_idx) &&
+                            event.amount >= 0 && event.amount <= 3;
+                        break;
+                    case EVENT_EMPIRE_SURRENDERS:
+                        valid = Loaded_Event_Player_Is_Valid(event.player_idx) &&
+                            event.target_id >= 0 && event.target_id < MOX::NUM_PLAYERS;
+                        break;
+                    default:
+                        break;
+                }
+                if (!valid) {
+                    Reset_Loaded_Event(&event);
+                }
+            }
+        }
+
         void Write_Colony_Message(SERIAL::Writer_* writer, const s_MSG_colony* colony) {
             writer->Write_Int16(colony->planet_idx);
             writer->Write_Int8(colony->subtype);
@@ -1586,6 +1765,7 @@ namespace SAVEGAME {
             reader->Read_Bytes(REPORT::done_colonize_check, colonize_check_size);
             memset(REPORT::done_colonize_check + colonize_check_size, 0, sizeof(REPORT::done_colonize_check) - colonize_check_size);
             for (int i = 0; i < 36; ++i) Read_Event(reader, &EVENTS::event_data[i]);
+            Validate_Loaded_Events();
             for (int i = 0; i < MAX_MESSAGES; ++i) Read_Message(reader, &MSG_::msgs[i], version);
             reader->Read_Bytes(MSG_::first_msg, sizeof(MSG_::first_msg));
             reader->Read_Bytes(MSG_::max_msgs, sizeof(MSG_::max_msgs));

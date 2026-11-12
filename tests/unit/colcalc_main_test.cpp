@@ -1,6 +1,13 @@
 #include "pch.h"
 #include "../fixtures/game_state.h"
 
+#include <chrono>
+#include <filesystem>
+#include <fstream>
+
+#include "game/allocate.h"
+#include "game/vfs.h"
+
 namespace {
     struct s_production_state : test::s_game_state {
         test::s_saved_array<s_tech_building_data, BUILDING_COUNT> buildings{TECHDATA::buildings};
@@ -701,4 +708,101 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "Food Replicator BC cost is applie
 
         DOCTEST_CHECK((uint8_t)colony->maintenance[ECON_BC] == test_case.expected_maintenance);
     }
+}
+
+DOCTEST_TEST_CASE_FIXTURE(s_production_state, "tech app and field guards reject out-of-range ids") {
+    s_player* player = &MOX::player[0];
+    uint8_t before[TECH_APP_COUNT];
+    memcpy(before, player->tech_applications, sizeof(before));
+
+    // Out-of-range tech ids and a null player return without touching state.
+    COLCALC::Player_Gets_Tech_App(player, -1);
+    COLCALC::Player_Gets_Tech_App(player, TECH_APP_COUNT);
+    COLCALC::Player_Gets_Tech_App(player, 5000);
+    COLCALC::Player_Gets_Tech_App(nullptr, 0);
+    DOCTEST_CHECK(memcmp(before, player->tech_applications, sizeof(before)) == 0);
+
+    // Out-of-range field ids return without indexing the field tables
+    // (ASan would fail the test on the old out-of-bounds access).
+    COLCALC::Ensure_Uncreative_Field_OK(player, -1);
+    COLCALC::Ensure_Uncreative_Field_OK(player, TECH_FIELD_COUNT);
+    COLCALC::Ensure_Uncreative_Field_OK(nullptr, 0);
+    COLCALC::Advance_Player_Field(player, -1, false);
+    COLCALC::Advance_Player_Field(player, TECH_FIELD_COUNT, false);
+    COLCALC::Advance_Player_Field(nullptr, 0, false);
+    COLCALC::Give_Player_Field(player, -1, 0);
+    COLCALC::Give_Player_Field(player, TECH_FIELD_COUNT, 0);
+    COLCALC::Give_Player_Field(nullptr, 0, 0);
+    DOCTEST_CHECK(memcmp(before, player->tech_applications, sizeof(before)) == 0);
+}
+
+DOCTEST_TEST_CASE_FIXTURE(s_production_state, "Phase Shifter grant skips its missing field") {
+    namespace fs = std::filesystem;
+    s_player* player = &MOX::player[0];
+    // The fixture zeroes the tech tables, so restore the real Phase
+    // Shifter row: application 125 has no field (TECH_FIELD_INVALID).
+    TECHDATA::technology_applications[TECH_APP_PHASE_SHIFTER].tech_field_id = TECH_FIELD_INVALID;
+    player->current_research_application = 0;
+    player->current_research_field = 0;
+
+    // Player_Gets_Tech_App updates ship designs, which names them from
+    // shipname.lbx via MOX::global_data_seg; the fixture leaves it null,
+    // so Push_Block would dereference null (UBSan). Allocate it as
+    // resource_reload_test does and release it on scope exit.
+    MOX::global_data_seg = allocate::Allocate_Space(0x2800 + MAX_SHIPS - ORIGINAL_MAX_SHIPS);
+    struct Release_Global_Data_Seg {
+        ~Release_Global_Data_Seg() {
+            free((allocate::s_alloc_header*)MOX::global_data_seg - 1);
+            MOX::global_data_seg = nullptr;
+        }
+    } release_global_data_seg;
+
+    // The design-name lookup reads shipname.lbx through the VFS; give it
+    // a synthetic table in a temp dir, as resource_reload_test does for
+    // its LBX fixtures (64 records of 16 bytes cover every entry the
+    // six hulls and eight variants can address).
+    const fs::path root = fs::temp_directory_path() /
+        ("orion-phase-shifter-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+    fs::create_directories(root / "SHIPNAME.LBX");
+    {
+        std::string table(64 * sizeof(MOX::design->name), '\0');
+        for (int i = 0; i < 64; ++i) {
+            snprintf(table.data() + i * sizeof(MOX::design->name), sizeof(MOX::design->name), "Ship%d", i);
+        }
+        const uint16_t count = 64;
+        const uint16_t width = (uint16_t)sizeof(MOX::design->name);
+        std::ofstream out(root / "SHIPNAME.LBX" / "000", std::ios::binary);
+        out.write((const char*)&count, sizeof(count));
+        out.write((const char*)&width, sizeof(width));
+        out.write(table.data(), (std::streamsize)table.size());
+        DOCTEST_REQUIRE(out.good());
+    }
+    DOCTEST_REQUIRE(vfs::Init(root.string().c_str()));
+    struct Shutdown_Vfs {
+        fs::path root;
+        ~Shutdown_Vfs() {
+            vfs::Shutdown();
+            std::error_code error;
+            fs::remove_all(root, error);
+        }
+    } shutdown_vfs{root};
+
+    // The fixture zeroes the hull table, so Total_Design_Space() returns
+    // 0 and the autodesign combat-speed calculation divides by hull_space
+    // (design.cpp). Give every hull a nonzero size, as aidesign_test
+    // does; the fixture restores the table on teardown.
+    for (int i = 0; i < HULL_CLASS_COUNT; ++i) {
+        TECHDATA::hull_data[i].size = 100;
+    }
+
+    uint8_t before[TECH_APP_COUNT];
+    memcpy(before, player->tech_applications, sizeof(before));
+
+    // On the old code this indexed technology_fields[-1]; ASan would fail.
+    COLCALC::Player_Gets_Tech_App(player, TECH_APP_PHASE_SHIFTER);
+
+    DOCTEST_CHECK(player->tech_applications[TECH_APP_PHASE_SHIFTER] == TECH_RESEARCH_STATUS_RESEARCHED);
+    DOCTEST_CHECK(player->got_new_app == 1);
+    before[TECH_APP_PHASE_SHIFTER] = TECH_RESEARCH_STATUS_RESEARCHED;
+    DOCTEST_CHECK(memcmp(before, player->tech_applications, sizeof(before)) == 0);
 }
