@@ -610,6 +610,46 @@ DOCTEST_TEST_CASE("beam mount damage defaults match classic HEF combinations") {
     }
 }
 
+DOCTEST_TEST_CASE("beam modifiers clamp out-of-range targets to the last table entry") {
+    TEST_BEAM_MODIFIERS::Reset_();
+    MOX::ranged_to_hit_penalty[8] = -85;
+    MOX::ranged_damage_penalty[8] = -65;
+
+    // Ranges beyond the 9-entry tables (0..8): the AI fire loop calls
+    // with an ungated range, and a heavy mount only halves it, so the
+    // clamp must apply to the effective range, not just point defense.
+    struct s_case {
+        int16_t range;
+        uint16_t flags;
+        int32_t expected_hit_bonus;
+        int32_t expected_damage;
+    };
+    const s_case cases[] = {
+        {100, 0, -85, 35},
+        {9, 0, -85, 35},
+        {100, WEAPON_MOD_FLAG_HEAVY_MOUNT, -85, 85},
+        {100, WEAPON_MOD_FLAG_POINT_DEFENSE, -60, 0},
+    };
+
+    for (const s_case& value : cases) {
+        int32_t hit_bonus = 0;
+        int32_t damage = 0;
+        CMBTFIRE::Get_Beam_Weapon_Modifiers(
+            0, value.range, value.flags, 0, &hit_bonus, &damage);
+        DOCTEST_CHECK(hit_bonus == value.expected_hit_bonus);
+        DOCTEST_CHECK(damage == value.expected_damage);
+    }
+
+    // In-range behaviour is unchanged.
+    MOX::ranged_to_hit_penalty[2] = -10;
+    MOX::ranged_damage_penalty[2] = -10;
+    int32_t hit_bonus = 0;
+    int32_t damage = 0;
+    CMBTFIRE::Get_Beam_Weapon_Modifiers(0, 2, 0, 0, &hit_bonus, &damage);
+    DOCTEST_CHECK(hit_bonus == -10);
+    DOCTEST_CHECK(damage == 90);
+}
+
 DOCTEST_TEST_CASE("beam modifiers use configured mount damage") {
     TEST_BEAM_MODIFIERS::Reset_();
     CMBTFIRE::mount_dmg[CMBTFIRE::HIGH_ENERGY_FOCUS_PRESENT].heavy = 175;

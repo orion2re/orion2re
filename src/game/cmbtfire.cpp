@@ -1498,6 +1498,14 @@ namespace CMBTFIRE {
             effective_range = range;
         }
 
+        // The range tables have 9 entries (ranges 0..8). Clamp so a
+        // target beyond beam range cannot read past them: the AI fire
+        // loop calls this with an ungated range, and a heavy mount
+        // halves a range that can still exceed 8.
+        if (effective_range > 8) {
+            effective_range = 8;
+        }
+
         *hit_bonus_out = CMBTFIRE::Get_Beam_Range_To_Hit_Bonus(ship_idx, effective_range);
 
         const bool has_double_range_penalty =
