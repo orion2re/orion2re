@@ -88,8 +88,15 @@ namespace COLSUM {
                     if (col_idx != -1 && MOX::colony[col_idx].planet == best_planet) {
                         first = colony_list_idx;
 
-                        while (COLXPORT::g_colony_list_ptr[first + 9] == -1) {
-                            Decrement_First(10);
+                        // With fewer than 10 colonies there is no tenth
+                        // visible row to scroll to, and Decrement_First()
+                        // is a no-op below 10 colonies, so the loop below
+                        // would never terminate. Update_First() below
+                        // resets first to 0 in that case.
+                        if (COLXPORT::N_Colonies(MOX::PLAYER_NUM) >= 10) {
+                            while (COLXPORT::g_colony_list_ptr[first + 9] == -1) {
+                                Decrement_First(10);
+                            }
                         }
 
                         int16_t n_colonies = COLXPORT::N_Colonies(MOX::PLAYER_NUM);

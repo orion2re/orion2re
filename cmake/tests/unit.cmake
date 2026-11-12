@@ -739,6 +739,10 @@ orion2re_add_unit_test(test_colony_scan_info
     LINK_SDL
 )
 
+orion2re_add_game_test(test_colsum_galaxy_map
+    tests/unit/colsum_galaxy_map_test.cpp
+)
+
 orion2re_add_unit_test(test_colony_pop_growth
     SOURCES
         tests/unit/colcalc_test.cpp
