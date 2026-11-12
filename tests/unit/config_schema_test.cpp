@@ -45,6 +45,7 @@ namespace {
 
     std::string Read_File_(const std::filesystem::path& path) {
         std::ifstream file(path, std::ios::binary);
+        DOCTEST_REQUIRE(file.is_open());
         return std::string((std::istreambuf_iterator<char>(file)),
             std::istreambuf_iterator<char>());
     }
@@ -491,9 +492,7 @@ DOCTEST_TEST_SUITE("configuration schema") {
         std::filesystem::remove_all(output);
         DOCTEST_REQUIRE(config::tool::Generate_Cpp(
             &schema, output.string().c_str(), &diagnostic));
-        std::ifstream generated_file(output / "config.cpp", std::ios::binary);
-        const std::string generated((std::istreambuf_iterator<char>(generated_file)),
-            std::istreambuf_iterator<char>());
+        const std::string generated = Read_File_(output / "config.cpp");
         DOCTEST_CHECK(generated.find(
                           "{ \"combat\", CONFIG_NODE_NAMESPACE, CONFIG_NO_NODE, 0, 0, 1") !=
             std::string::npos);
@@ -578,12 +577,8 @@ DOCTEST_TEST_SUITE("configuration schema") {
         DOCTEST_REQUIRE(config::tool::Generate_Cpp(&schema, first.string().c_str(), &diagnostic));
         DOCTEST_REQUIRE(config::tool::Generate_Cpp(&schema, second.string().c_str(), &diagnostic));
 
-        std::ifstream first_file(first / "config.cpp", std::ios::binary);
-        std::ifstream second_file(second / "config.cpp", std::ios::binary);
-        const std::string first_content((std::istreambuf_iterator<char>(first_file)),
-            std::istreambuf_iterator<char>());
-        const std::string second_content((std::istreambuf_iterator<char>(second_file)),
-            std::istreambuf_iterator<char>());
+        const std::string first_content = Read_File_(first / "config.cpp");
+        const std::string second_content = Read_File_(second / "config.cpp");
         DOCTEST_CHECK(first_content == second_content);
         DOCTEST_CHECK(first_content.find("const s_variable_descriptor variables[]") ==
             std::string::npos);
@@ -609,23 +604,14 @@ DOCTEST_TEST_SUITE("configuration schema") {
                           "const s_config_snapshot_descriptor saved_config_snapshot") !=
             std::string::npos);
 
-        std::ifstream group_header_file(first / "config_groups.h", std::ios::binary);
-        const std::string group_header(
-            (std::istreambuf_iterator<char>(group_header_file)),
-            std::istreambuf_iterator<char>());
+        const std::string group_header = Read_File_(first / "config_groups.h");
         DOCTEST_CHECK(group_header.find("CONFIG_GROUP_INTERFACE") != std::string::npos);
         DOCTEST_CHECK(group_header.find("CONFIG_GROUP_COUNT") != std::string::npos);
 
-        std::ifstream enum_header_file(first / "config_enums.h", std::ios::binary);
-        const std::string enum_header(
-            (std::istreambuf_iterator<char>(enum_header_file)),
-            std::istreambuf_iterator<char>());
+        const std::string enum_header = Read_File_(first / "config_enums.h");
         DOCTEST_CHECK(enum_header.find("Find_Generated_Enum") !=
             std::string::npos);
-        std::ifstream enum_source_file(first / "config_enums.cpp", std::ios::binary);
-        const std::string enum_source(
-            (std::istreambuf_iterator<char>(enum_source_file)),
-            std::istreambuf_iterator<char>());
+        const std::string enum_source = Read_File_(first / "config_enums.cpp");
         DOCTEST_CHECK(enum_source.find("generated_enums[]") !=
             std::string::npos);
         DOCTEST_CHECK(enum_source.find("{ nullptr, nullptr, 0 }") !=
@@ -647,9 +633,7 @@ DOCTEST_TEST_SUITE("configuration schema") {
         DOCTEST_REQUIRE(config::tool::Generate_Cpp(
             &schema, root.string().c_str(), &diagnostic));
 
-        std::ifstream generated_file(root / "config.cpp", std::ios::binary);
-        const std::string generated((std::istreambuf_iterator<char>(generated_file)),
-            std::istreambuf_iterator<char>());
+        const std::string generated = Read_File_(root / "config.cpp");
         DOCTEST_CHECK(generated.find(
                           "{ 3, \"primary\", 1 }") != std::string::npos);
         DOCTEST_CHECK(generated.find(
@@ -699,9 +683,7 @@ DOCTEST_TEST_SUITE("configuration schema") {
         std::filesystem::remove_all(output);
         DOCTEST_REQUIRE(config::tool::Generate_Cpp(
             &schema, output.string().c_str(), &diagnostic));
-        std::ifstream generated_file(output / "config.cpp", std::ios::binary);
-        const std::string generated((std::istreambuf_iterator<char>(generated_file)),
-            std::istreambuf_iterator<char>());
+        const std::string generated = Read_File_(output / "config.cpp");
         DOCTEST_CHECK(generated.find(
                           "static_assert(std::is_same_v<std::remove_reference_t<"
                           "decltype((fixture.label))>, char*>);") !=
@@ -726,9 +708,7 @@ DOCTEST_TEST_SUITE("configuration schema") {
         std::filesystem::remove_all(output);
         DOCTEST_REQUIRE(config::tool::Generate_Cpp(
             &schema, output.string().c_str(), &diagnostic));
-        std::ifstream generated_file(output / "config.cpp", std::ios::binary);
-        const std::string generated((std::istreambuf_iterator<char>(generated_file)),
-            std::istreambuf_iterator<char>());
+        const std::string generated = Read_File_(output / "config.cpp");
         DOCTEST_CHECK(Count_(generated,
                           "if (!Get_Current_Value(variable_id, &current)) return false;") == 1);
 
