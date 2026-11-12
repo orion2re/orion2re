@@ -34,6 +34,51 @@ namespace TEST_MAPGEN {
     uint64_t Galaxy_Provider_Ship_Generation_();
 } // namespace TEST_MAPGEN
 
+DOCTEST_TEST_CASE("planet size thresholds and mineral climate modifiers use their data tables") {
+    TEST_MAPGEN::Reset_();
+    const uint8_t thresholds[] = {2, 4, 6, 8, 10};
+    memcpy(MOX::planet_size_table, thresholds, sizeof(thresholds));
+    TEST_MAPGEN::Set_Random_Result_(6);
+    DOCTEST_CHECK(MAPGEN::Generate_Size() == PLANET_SIZE_MEDIUM);
+    TEST_MAPGEN::Set_Random_Result_(11);
+    DOCTEST_CHECK(MAPGEN::Generate_Size() == 0xff);
+    MOX::climate_modifier_table[MINERAL_RESOURCE_ABUNDANT] = -3;
+    DOCTEST_CHECK(MAPGEN::Get_Climate_Modifier(MINERAL_RESOURCE_ABUNDANT) == -3);
+    DOCTEST_CHECK(MAPGEN::Get_Climate_Modifier(-1) == 0);
+    DOCTEST_CHECK(MAPGEN::Get_Climate_Modifier(MINERAL_RESOURCE_COUNT) == 0);
+}
+
+DOCTEST_TEST_CASE("satellite count uses the spectral column and one-based random row") {
+    TEST_MAPGEN::Reset_();
+    MOX::star[0].spectral_class = STAR_CLASS_G;
+    MOX::class_to_num_satellites[4][STAR_CLASS_G] = 3;
+    TEST_MAPGEN::Set_Random_Result_(5);
+    DOCTEST_CHECK(MAPGEN::Generate_Number_Of_Satellites(0) == 3);
+    MOX::star[0].spectral_class = STAR_CLASS_BLACK_HOLE;
+    DOCTEST_CHECK(MAPGEN::Generate_Number_Of_Satellites(0) == 0);
+    DOCTEST_CHECK(TEST_MAPGEN::Random_Calls_() == 2);
+}
+
+DOCTEST_TEST_CASE("satellite type rejects impossible inner gas giants and creates companion stars") {
+    TEST_MAPGEN::Reset_();
+    DOCTEST_CHECK(MAPGEN::Generate_Satellite_Type(0, -1) == MAPGEN_SATELLITE_ASTEROID);
+    DOCTEST_CHECK(MAPGEN::Generate_Satellite_Type(0, 5) == MAPGEN_SATELLITE_ASTEROID);
+    for (int roll = 0; roll < 10; ++roll) {
+        MOX::orbit_to_satellite_type[roll][0] = MAPGEN_SATELLITE_GAS_GIANT;
+    }
+    DOCTEST_CHECK(MAPGEN::Generate_Satellite_Type(0, 0) == MAPGEN_SATELLITE_ASTEROID);
+    DOCTEST_CHECK(TEST_MAPGEN::Random_Calls_() == 0);
+    MOX::star[0].spectral_class = STAR_CLASS_B;
+    MOX::orbit_to_satellite_type[1][0] = MAPGEN_SATELLITE_COMPANION_STAR;
+    TEST_MAPGEN::Set_Random_Result_(2);
+    DOCTEST_CHECK(MAPGEN::Generate_Satellite_Type(0, 0) == 5);
+    DOCTEST_CHECK(MAPGEN::companion_star == 1);
+    DOCTEST_CHECK(TEST_MAPGEN::Random_Calls_() == 2);
+    MOX::orbit_to_satellite_type[0][4] = MAPGEN_SATELLITE_INVALID;
+    TEST_MAPGEN::Set_Random_Result_(1);
+    DOCTEST_CHECK(MAPGEN::Generate_Satellite_Type(0, 4) == MAPGEN_SATELLITE_ASTEROID);
+}
+
 namespace {
     struct s_galaxy_snapshot {
         std::vector<s_star_data> stars;

@@ -3,9 +3,21 @@
 #include "doctest/doctest.h"
 #include "game/colony.h"
 #include "game/invasion.h"
+#include "game/officer_roster.h"
 #include "game/pop.h"
 
 namespace test_ground_commando_runtime {
+    extern std::vector<int16_t> killed_ships;
+    extern std::vector<s_MSG> messages;
+    extern std::vector<int16_t> message_players;
+    extern int stats_updates;
+    extern int16_t stats_player;
+    extern int icon_updates;
+    extern int8_t owner_at_icon_update;
+    extern int seed_queries;
+    extern uint32_t random_seed;
+    extern int rebel_choices;
+    extern uint8_t rebel_weights[MAX_PLAYERS];
     void Reset_();
     s_colony* Colony_(int index = 0);
     s_leader_data* Leader_(int index);
@@ -19,6 +31,91 @@ namespace test_ground_commando_runtime {
     int Random_Call_Count_();
     int Granted_Tech_Count_();
 } // namespace test_ground_commando_runtime
+
+DOCTEST_TEST_CASE("transport unloading consumes only enough ships to meet the infantry limit") {
+    using namespace test_ground_commando_runtime;
+    Reset_();
+    MOX::planet[0].size = PLANET_SIZE_MEDIUM;
+    Colony_()->military[0] = 3;
+    Ship_(0)->d.ship_type = Ship_(1)->d.ship_type = SHIP_TYPE_TRANSPORT;
+    int16_t ships[] = {0, 1};
+    DOCTEST_CHECK(invasion::Unload_Transports(Colony_(), ships, 2) == 1);
+    DOCTEST_CHECK((killed_ships == std::vector<int16_t>{0}));
+    DOCTEST_CHECK((Colony_()->military[0] == 7));
+    DOCTEST_CHECK((Ship_(1)->status == 0));
+    DOCTEST_CHECK(stats_updates == 1);
+    DOCTEST_CHECK(stats_player == 0);
+    DOCTEST_CHECK(invasion::Unload_Transports(Colony_(), ships + 1, 1) == 0);
+    DOCTEST_CHECK(killed_ships.size() == 1);
+    DOCTEST_CHECK(stats_updates == 2);
+}
+
+DOCTEST_TEST_CASE("unopposed invasion saves its seed and refreshes icons after capture") {
+    using namespace test_ground_commando_runtime;
+    Reset_();
+    Ship_(0)->owner = 1;
+    Ship_(0)->d.ship_type = SHIP_TYPE_TRANSPORT;
+    Ship_(0)->officer_index = -1;
+    Colony_()->n_pops = 1;
+    int16_t ships[] = {0};
+    s_battle_results_info results = {};
+    invasion::Invade(ships, 1, 0, &results);
+    DOCTEST_CHECK(seed_queries == 1);
+    DOCTEST_CHECK((results.ground_defense_strength == (int32_t)random_seed));
+    DOCTEST_CHECK((results.attacker_invasion.player_id == 1));
+    DOCTEST_CHECK((results.defender_invasion.player_id == 0));
+    DOCTEST_CHECK((Colony_()->owner == 1));
+    DOCTEST_CHECK((Colony_()->military[0] == 2));
+    DOCTEST_CHECK((killed_ships == std::vector<int16_t>{0}));
+    DOCTEST_CHECK(icon_updates == 1);
+    DOCTEST_CHECK(owner_at_icon_update == 1);
+}
+
+DOCTEST_TEST_CASE("rebellion weights and reports preserve both participants") {
+    using namespace test_ground_commando_runtime;
+    Reset_();
+    Colony_()->n_pops = 2;
+    Colony_()->pop[0] = Colony_()->pop[1] = 1 | 0x400;
+    invasion::Check_Rebellion(Colony_());
+    DOCTEST_CHECK(rebel_choices == 1);
+    DOCTEST_CHECK((rebel_weights[0] == 0));
+    DOCTEST_CHECK((rebel_weights[1] == 2));
+    DOCTEST_REQUIRE(messages.size() == 2);
+    DOCTEST_CHECK((message_players == std::vector<int16_t>{0, 1}));
+    DOCTEST_CHECK((messages[0].msg_type == MSG_TYPE_COLONY));
+    DOCTEST_CHECK((messages[0].u.colony.subtype == MSG_COLONY_SUBTYPE_REBELLION));
+    DOCTEST_CHECK((messages[0].u.colony.c.rebels.owner_player == 1));
+    DOCTEST_CHECK((messages[0].u.colony.c.rebels.rebels == 1));
+    DOCTEST_CHECK((messages[0].u.colony.c.rebels.lost == 0));
+    DOCTEST_CHECK((Colony_()->owner == 1));
+    DOCTEST_CHECK((Colony_()->just_produced == COLONY_PRODUCTION_JUST_LIBERATED));
+    Reset_();
+    Colony_()->n_pops = 1;
+    Colony_()->pop[0] = 1 | 0x400;
+    Colony_()->occupation_policy = 4;
+    invasion::Check_Rebellion(Colony_());
+    DOCTEST_CHECK(rebel_choices == 0);
+    DOCTEST_CHECK(messages.empty());
+}
+
+DOCTEST_TEST_CASE("leader roster pagination falls back when its page becomes empty") {
+    using namespace test_ground_commando_runtime;
+    Reset_();
+    OFFICER::leaders_no_limit = 1;
+    for (int i = 0; i < 5; ++i) {
+        Set_Leader_(i, 0, LEADER_TYPE_SHIP, 0);
+    }
+    OFFICER::leader_page = 1;
+    OFFICER::Build_Captain_Id_List();
+    DOCTEST_CHECK(MOX::n_fltscrn_officers == 1);
+    DOCTEST_CHECK((MOX::officer_id_list[0] == 0));
+    OFFICER::leader_page = 2;
+    OFFICER::Build_Captain_Id_List();
+    DOCTEST_CHECK(OFFICER::leader_page == 0);
+    DOCTEST_CHECK(MOX::n_fltscrn_officers == 4);
+    DOCTEST_CHECK((MOX::officer_id_list[0] == 4));
+    Reset_();
+}
 
 DOCTEST_TEST_CASE("manual building and satellite scraps share a per-colony turn limit") {
     s_colony colony = {};

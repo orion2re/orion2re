@@ -215,3 +215,25 @@ namespace production_rules {
         }
     }
 } // namespace production_rules
+
+namespace COLCALC {
+    int32_t __cdecl Production_Cost_To_Buy(int32_t product_cost, int32_t production_spent) {
+        if (production_spent >= product_cost) {
+            return 0;
+        }
+
+        const int32_t half_cost = product_cost / 2;
+        const int32_t tenth_cost = product_cost / 10;
+        if (production_spent >= half_cost) {
+            return (product_cost - production_spent) * 2;
+        }
+
+        int32_t buy_cost = (product_cost - half_cost) * 2;
+        if (production_spent >= tenth_cost) {
+            return buy_cost + (half_cost - production_spent) * 5;
+        }
+
+        buy_cost += (half_cost - tenth_cost) * 5;
+        return buy_cost + (tenth_cost - production_spent) * 10;
+    }
+} // namespace COLCALC

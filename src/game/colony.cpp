@@ -1,19 +1,6 @@
 #include "pch.h"
 
 namespace COLONY {
-    bool Can_Scrap_Building(const s_colony& colony, uint16_t stardate) {
-        return colony.last_turn_building_destroyed != stardate ||
-            colony.buildings_scrapped_this_turn < max_buildings_scrapped_per_turn;
-    }
-
-    void Record_Building_Scrap(s_colony* colony, uint16_t stardate) {
-        if (colony->last_turn_building_destroyed != stardate) {
-            colony->buildings_scrapped_this_turn = 0;
-        }
-        colony->last_turn_building_destroyed = stardate;
-        ++colony->buildings_scrapped_this_turn;
-    }
-
     int32_t building_cr[170] = {
         316, 492, 225, 461, 153, 428, 96, 401, 50, 379, 10, 361, -21, 348, 406, 461, 316, 430, 242, 404, 182, 381, 130, 363, 88, 346, 53, 333, 480, 430, 391, 403, 317, 381, 255, 362, 204, 348, 158, 334, 121, 322, 539, 403, 454, 382, 380, 363, 319, 348, 264, 335, 219, 322, 180, 312, 587, 382, 505, 363, 434, 348, 372, 334, 318, 323, 271, 312, 232, 303, 629, 364, 549, 349, 479, 335, 419, 323, 367, 314, 318, 303, 277, 295, 666, 351, 586, 336, 517, 324, 459, 313, 409, 304, 360, 295, 320, 288, 316, 430, 242, 404, 182, 381, 130, 363, 88, 346, 53, 333, 391, 403, 317, 381, 255, 362, 204, 348, 158, 334, 121, 322, 454, 382, 380, 363, 319, 348, 264, 335, 219, 322, 180, 312, 505, 363, 434, 348, 372, 334, 318, 323, 271, 312, 232, 303, 549, 349, 479, 335, 419, 323, 367, 314, 318, 323, 277, 295, 586, 336, 517, 324, 517, 313, 409, 304, 360, 295, 320, 288};
 
@@ -40,7 +27,6 @@ namespace COLONY {
     int16_t colony_satellites[10];
 
     char FIREPTS_LBX[12] = "FIREPTS.LBX";
-    const char RACEICON_LBX[13] = "RACEICON.LBX";
     const char PLANETS_LBX[12] = "PLANETS.LBX";
     const char AMEBAFIN_LBX[13] = "AMEBAFIN.LBX";
     const char COLBLDG_LBX[12] = "COLBLDG.LBX";
@@ -1254,39 +1240,6 @@ namespace COLONY {
         fonts::Print_Centered(61, 135, text);
     }
 
-    s_animation_header* __cdecl Military_Anims(int16_t animation_variant, int16_t frame) {
-        // Calculation is done in 16-bit registers in disassembly
-        int16_t entry_index = (int16_t)(frame * 13 + animation_variant + 6);
-
-        return reinterpret_cast<s_animation_header*>(buffer::Buffer_Reload(
-            COLONY::RACEICON_LBX,
-            (int)entry_index,
-            MOX::global_cache_seg));
-    }
-
-    s_animation_header* __cdecl Military_Anim(int16_t animation_type, int16_t frame) {
-        if (animation_type == MILITARY_ANIMATION_MILITIA) {
-            return COLONY::Military_Anims(0, frame);
-        }
-
-        if (animation_type == 0) {
-            if (MOX::player[MOX::PLAYER_NUM].tech_applications[TECH_APP_POWERED_ARMOR] == TECH_RESEARCH_STATUS_RESEARCHED) {
-                return COLONY::Military_Anims(2, frame);
-            }
-            return COLONY::Military_Anims(1, frame);
-        }
-
-        if (animation_type == 1) {
-            if (MOX::player[MOX::PLAYER_NUM].tech_applications[TECH_APP_BATTLEOIDS] == TECH_RESEARCH_STATUS_RESEARCHED) {
-                return COLONY::Military_Anims(4, frame);
-            }
-            return COLONY::Military_Anims(3, frame);
-        }
-
-        // Fallthrough for other animation types
-        return COLONY::Military_Anims(animation_type, frame);
-    }
-
     void __cdecl Draw_Colony_Info_Pop_For(int32_t type) {
         // Vertical offset calculation: 0x3E (62) is base Y, 0x1E (30) is row height.
         int16_t y_coord = static_cast<int16_t>(type * 30 + 62);
@@ -1342,47 +1295,6 @@ namespace COLONY {
             resource_name,
             anim_index,
             MOX::global_cache_seg));
-    }
-
-    bool __cdecl Colony_Has_Natives(int16_t colony_idx) {
-        uint8_t n_pops = MOX::colony[colony_idx].n_pops;
-
-        if (n_pops != 0) {
-            for (int16_t i = 0; i < (int16_t)n_pops; i++) {
-                if (POP::Is_Native(MOX::colony[colony_idx].pop[i])) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
-    }
-
-    bool __cdecl Colony_Needs_Occupation_Policy(int16_t colony_idx) {
-        const s_colony* colony = &MOX::colony[colony_idx];
-        if (colony->occupation_policy != 4) {
-            return false;
-        }
-
-        for (int16_t i = 0; i < colony->n_pops; ++i) {
-            if (POP::Is_Conquered(colony->pop[i]) ||
-                (allow_native_annihilation != 0 && POP::Is_Native(colony->pop[i]))) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    bool __cdecl Colony_Pop_Is_Annihilation_Target(const s_colony* colony, uint32_t pop) {
-        const uint32_t race_idx = POP::Get_Race(pop);
-        if (allow_native_annihilation != 0 && race_idx == POP::RACE_NATIVE) {
-            return true;
-        }
-
-        return race_idx < MAX_PLAYERS &&
-            static_cast<int32_t>(static_cast<int8_t>(colony->owner)) != static_cast<int32_t>(race_idx) &&
-            POP::Is_Conquered(pop);
     }
 
     void __cdecl Update_Fields() {
@@ -2271,29 +2183,6 @@ namespace COLONY {
         }
     }
 
-    s_animation_header* __cdecl Player_Troop_Anim(int16_t player_idx, int16_t anim_type, int16_t frame) {
-        switch (anim_type) {
-            case 0:
-                if (MOX::player[player_idx].tech_applications[TECH_APP_BATTLEOIDS] != TECH_RESEARCH_STATUS_RESEARCHED) {
-                    return Military_Anims(3, frame);
-                }
-                return Military_Anims(4, frame);
-            case 1:
-                if (MOX::player[player_idx].tech_applications[TECH_APP_POWERED_ARMOR] != TECH_RESEARCH_STATUS_RESEARCHED) {
-                    return Military_Anims(1, frame);
-                }
-                return Military_Anims(2, frame);
-            case 2:
-                return Military_Anims(0, frame);
-            case 3:
-                return reinterpret_cast<s_animation_header*>(buffer::Buffer_Reload(
-                    RACEICON_LBX,
-                    static_cast<int32_t>(frame) * 13,
-                    MOX::global_cache_seg));
-            default:
-                return nullptr;
-        }
-    }
 
     void __cdecl Do_Load_Colony_Anims() {
         swap_bitm = (s_animation_header*)allocate::Allocate_Next_Block(MOX::global_screen_seg, 0x3A4);

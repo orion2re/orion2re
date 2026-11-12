@@ -1,5 +1,8 @@
 #include "pch.h"
 
+#include "doctest/doctest.h"
+#include "game/officer_roster.h"
+
 namespace {
     s_leader_data leaders[MAX_LEADERS];
     s_player players[2];
@@ -17,7 +20,29 @@ namespace {
 }
 
 namespace test_ground_commando_runtime {
+    std::vector<int16_t> killed_ships;
+    std::vector<s_MSG> messages;
+    std::vector<int16_t> message_players;
+    int stats_updates;
+    int16_t stats_player;
+    int icon_updates;
+    int8_t owner_at_icon_update;
+    int seed_queries;
+    uint32_t random_seed;
+    int rebel_choices;
+    uint8_t rebel_weights[MAX_PLAYERS];
+
     void Reset_() {
+        killed_ships.clear();
+        messages.clear();
+        message_players.clear();
+        stats_updates = icon_updates = seed_queries = rebel_choices = 0;
+        stats_player = owner_at_icon_update = -1;
+        random_seed = 0x1234;
+        memset(rebel_weights, 0, sizeof(rebel_weights));
+        MOX::NUM_PLAYERS = 2;
+        MOX::NUM_SHIPS = 2;
+        OFFICER::leader_page = 0;
         memset(leaders, 0, sizeof(leaders));
         memset(players, 0, sizeof(players));
         memset(colonies, 0, sizeof(colonies));
@@ -126,6 +151,8 @@ namespace MOX {
     s_ship_data* ship = ships;
     s_settings settings = {};
     int16_t NUM_COLONIES = 1;
+    int16_t NUM_PLAYERS = 2;
+    int16_t NUM_SHIPS = 2;
     int16_t PLAYER_NUM = 0;
     int16_t n_fltscrn_officers = 0;
     int16_t* officer_id_list = officer_ids;
@@ -162,6 +189,11 @@ namespace aitech {
 }
 
 namespace COLCALC {
+    void __cdecl Update_Player_Stats(s_player* player) {
+        ++test_ground_commando_runtime::stats_updates;
+        test_ground_commando_runtime::stats_player = (int16_t)(player - MOX::player);
+    }
+
     s_population_capacity population_capacity = {
         {5, 10, 15, 20, 25},
         {25, 25, 25, 25, 25, 25, 40, 60, 80, 100},
@@ -201,6 +233,19 @@ namespace COLCALC {
 }
 
 namespace RUSS {
+    int16_t __cdecl Get_Weighted_Choice_Char(uint8_t* weights, int16_t count) {
+        DOCTEST_REQUIRE(count == MOX::NUM_PLAYERS);
+        DOCTEST_REQUIRE(count <= MAX_PLAYERS);
+        ++test_ground_commando_runtime::rebel_choices;
+        std::copy_n(weights, count, test_ground_commando_runtime::rebel_weights);
+        for (int16_t i = 0; i < count; ++i) {
+            if (weights[i] != 0) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
     void __cdecl Shuffle(void*, int16_t, int16_t) {
     }
 
@@ -216,11 +261,39 @@ namespace RUSS {
 } // namespace RUSS
 
 namespace game_random {
+    uint32_t __cdecl Get_Random_Seed() {
+        ++test_ground_commando_runtime::seed_queries;
+        return test_ground_commando_runtime::random_seed;
+    }
+
     uint32_t __cdecl Random(uint32_t) {
         ++random_call_count;
         return random_result;
     }
 } // namespace game_random
+
+namespace SHIPS {
+    void __cdecl Kill_Ship(int16_t ship_idx) {
+        DOCTEST_REQUIRE(ship_idx >= 0);
+        DOCTEST_REQUIRE(ship_idx < 2);
+        test_ground_commando_runtime::killed_ships.push_back(ship_idx);
+        MOX::ship[ship_idx].status = 5;
+    }
+}
+
+namespace MAINSCR {
+    void __cdecl Update_Ship_Icons_In_Between_Turns() {
+        ++test_ground_commando_runtime::icon_updates;
+        test_ground_commando_runtime::owner_at_icon_update = MOX::colony[0].owner;
+    }
+}
+
+namespace MSG_ {
+    void __cdecl Add_Msg(s_MSG message, int16_t player) {
+        test_ground_commando_runtime::messages.push_back(message);
+        test_ground_commando_runtime::message_players.push_back(player);
+    }
+}
 
 namespace COMBINIT {
     int16_t __cdecl Take_Captured_Satellite(int16_t) {

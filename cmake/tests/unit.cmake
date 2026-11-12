@@ -692,6 +692,8 @@ orion2re_add_unit_test(test_colony_production_helpers
         tests/unit/colcalc_base_test.cpp
     PRODUCTION_SOURCES
         src/game/colcalc_base.cpp
+        src/game/research_completion.cpp
+        src/game/production_rules.cpp
         src/game/planet_environment.cpp
         src/game/colcalc_config.cpp
     FAKE_SOURCES
@@ -736,15 +738,20 @@ orion2re_add_unit_test(test_colony_scan_info
 orion2re_add_unit_test(test_colony_pop_growth
     SOURCES
         tests/unit/colcalc_test.cpp
+        tests/unit/colony_services_test.cpp
     PRODUCTION_SOURCES
-        src/game/aidata.cpp
-        src/game/ai_state.cpp
+        src/game/ai_planet_values.cpp
         src/game/aidata_config.cpp
         src/game/colcalc.cpp
+        src/game/research_completion.cpp
+        src/game/production_rules.cpp
+        src/game/ground_unit_limits.cpp
         src/game/planet_environment.cpp
         src/game/colcalc_config.cpp
         src/game/raceopt_config.cpp
         src/game/settler.cpp
+        src/game/legacy_sort.cpp
+        src/game/strbuild.cpp
     FAKE_SOURCES
         tests/fakes/fake_colony_pop_growth_runtime.cpp
 )
@@ -887,18 +894,6 @@ orion2re_add_unit_test(test_mapgen_planet_max
         tests/fakes/fake_mapgen_planet_max_runtime.cpp
 )
 
-if(MSVC)
-    target_compile_options(test_mapgen_planet_max PRIVATE /Gy)
-    target_link_options(test_mapgen_planet_max PRIVATE /OPT:REF)
-elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-    target_compile_options(test_mapgen_planet_max PRIVATE -ffunction-sections -fdata-sections)
-    if(APPLE)
-        target_link_options(test_mapgen_planet_max PRIVATE -Wl,-dead_strip)
-    else()
-        target_link_options(test_mapgen_planet_max PRIVATE -Wl,--gc-sections)
-    endif()
-endif()
-
 orion2re_add_game_test(test_colgcbt
     tests/unit/colgcbt_test.cpp
 )
@@ -907,10 +902,12 @@ orion2re_add_unit_test(test_ground_commando
     SOURCES
         tests/unit/invasion_test.cpp
     PRODUCTION_SOURCES
-        src/game/colony.cpp
+        src/game/colony_policy.cpp
+        src/game/colony_military_display.cpp
         src/game/invasion.cpp
+        src/game/ground_unit_limits.cpp
         src/game/invasion_config.cpp
-        src/game/officer.cpp
+        src/game/officer_rules.cpp
         src/lua/lua_game_ship_identity.cpp
     FAKE_SOURCES
         tests/fakes/fake_ground_commando_runtime.cpp
@@ -1159,35 +1156,25 @@ if(MSVC)
     target_link_options(test_boarding PRIVATE /OPT:REF)
     target_compile_options(test_combat_stats PRIVATE /Gy)
     target_link_options(test_combat_stats PRIVATE /OPT:REF)
-    target_compile_options(test_ground_commando PRIVATE /Gy)
-    target_link_options(test_ground_commando PRIVATE /OPT:REF)
     target_compile_options(test_combat_repair PRIVATE /Gy)
     target_link_options(test_combat_repair PRIVATE /OPT:REF)
     target_compile_options(test_stasis_area_effects PRIVATE /Gy)
     target_link_options(test_stasis_area_effects PRIVATE /OPT:REF)
-    target_compile_options(test_colony_pop_growth PRIVATE /Gy)
-    target_link_options(test_colony_pop_growth PRIVATE /OPT:REF)
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
     target_compile_options(test_boarding PRIVATE -ffunction-sections -fdata-sections)
     target_compile_options(test_combat_stats PRIVATE -ffunction-sections -fdata-sections)
-    target_compile_options(test_ground_commando PRIVATE -ffunction-sections -fdata-sections)
     target_compile_options(test_combat_repair PRIVATE -ffunction-sections -fdata-sections)
     target_compile_options(test_stasis_area_effects PRIVATE -ffunction-sections -fdata-sections)
-    target_compile_options(test_colony_pop_growth PRIVATE -ffunction-sections -fdata-sections)
     if(APPLE)
         target_link_options(test_boarding PRIVATE -Wl,-dead_strip)
         target_link_options(test_combat_stats PRIVATE -Wl,-dead_strip)
-        target_link_options(test_ground_commando PRIVATE -Wl,-dead_strip)
         target_link_options(test_combat_repair PRIVATE -Wl,-dead_strip)
         target_link_options(test_stasis_area_effects PRIVATE -Wl,-dead_strip)
-        target_link_options(test_colony_pop_growth PRIVATE -Wl,-dead_strip)
     else()
         target_link_options(test_boarding PRIVATE -Wl,--gc-sections)
         target_link_options(test_combat_stats PRIVATE -Wl,--gc-sections)
-        target_link_options(test_ground_commando PRIVATE -Wl,--gc-sections)
         target_link_options(test_combat_repair PRIVATE -Wl,--gc-sections)
         target_link_options(test_stasis_area_effects PRIVATE -Wl,--gc-sections)
-        target_link_options(test_colony_pop_growth PRIVATE -Wl,--gc-sections)
     endif()
 endif()
 
@@ -1408,9 +1395,8 @@ target_compile_definitions(test_farload_buffer_vfs PRIVATE
     STRING_OVERRIDE_BASE_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data/base"
 )
 
-foreach(TARGET_NAME IN ITEMS test_newgame test_mapgen_planet_max
-    test_lua_mod_runtime
-    test_ground_commando)
+foreach(TARGET_NAME IN ITEMS test_newgame
+    test_lua_mod_runtime)
     target_sources(${TARGET_NAME} PRIVATE tests/fakes/fake_string_overrides.cpp)
 endforeach()
 

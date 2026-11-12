@@ -63,6 +63,11 @@ namespace TEST_MAPGEN {
         memset(leaders, 0, sizeof(leaders));
         memset(nebulas, 0, sizeof(nebulas));
         memset(MOX::food_per_farmer_table, 0, sizeof(MOX::food_per_farmer_table));
+        memset(MOX::planet_size_table, 0, sizeof(MOX::planet_size_table));
+        memset(MOX::climate_modifier_table, 0, sizeof(MOX::climate_modifier_table));
+        memset(MOX::class_to_num_satellites, 0, sizeof(MOX::class_to_num_satellites));
+        memset(MOX::orbit_to_satellite_type, MAPGEN_SATELLITE_ASTEROID, sizeof(MOX::orbit_to_satellite_type));
+        MAPGEN::companion_star = 0;
         COLCALC::food_farmer_bonus.soil_enrichment = 2;
         memset(MOX::normal_gal_climate_roll_table, 0,
                sizeof(MOX::normal_gal_climate_roll_table));
@@ -369,6 +374,10 @@ namespace MOX {
         64, 5, 3, 2, 3, 2, 9, 4, 3, 0, 5, 0,
     };
     uint8_t planet_max_farms[PLANET_SIZE_COUNT];
+    uint8_t planet_size_table[PLANET_SIZE_COUNT];
+    int8_t climate_modifier_table[MINERAL_RESOURCE_COUNT];
+    int8_t class_to_num_satellites[10][6];
+    uint8_t orbit_to_satellite_type[10][5];
     uint8_t food_per_farmer_table[PLANET_CLIMATE_COUNT];
     uint8_t normal_gal_climate_roll_table[PLANET_CLIMATE_COUNT][PLANET_GROUP_COUNT];
     uint8_t old_gal_climate_roll_table[PLANET_CLIMATE_COUNT][PLANET_GROUP_COUNT];
