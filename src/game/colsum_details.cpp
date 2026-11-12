@@ -273,7 +273,7 @@ namespace COLSUM {
             COLDRAW::Draw_Info_Wee_Morale(COLONY::g_colony_n, 106, 421, 366);
             COLONY::Set_Colony_Font_To(1);
 
-            for (int16_t i = 0; i < 10; ++i) {
+            for (int16_t i = 0; i < COLONY_POP_RACE_COUNT; ++i) {
                 total_roundoff += colony->pop_roundoff[i];
                 total_growth += colony->pop_growth[i];
             }

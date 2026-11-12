@@ -613,7 +613,7 @@ namespace debug_game_editors {
                     ImGui::TextUnformatted("Convert the outpost before editing population.");
                 }
                 if (ImGui::TreeNode("Growth by race")) {
-                    for (int32_t index = 0; index < 10; ++index) {
+                    for (int32_t index = 0; index < COLONY_POP_RACE_COUNT; ++index) {
                         ImGui::PushID(index);
                         Input_S16_("Roundoff", &colony.pop_roundoff[index]);
                         ImGui::SameLine();

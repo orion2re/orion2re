@@ -524,11 +524,24 @@ namespace {
         s_planet_data expected_planets[MAX_PLANETS] = {};
         s_star_data expected_stars[MAX_STARS] = {};
         s_nebula expected_nebulas[MAX_NEBULAS] = {};
-        constexpr size_t legacy_colony_size = offsetof(s_colony, buildings_scrapped_this_turn);
+        // Version 0 colony records store only 10 pop slots; the extra
+        // slots in the widened arrays stay zero, as the loader leaves them.
+        constexpr size_t legacy_colony_size = offsetof(s_colony, buildings_scrapped_this_turn) -
+            2 * (COLONY_POP_RACE_COUNT - 10) * sizeof(int16_t);
+        constexpr size_t legacy_roundoff_end =
+            offsetof(s_colony, pop_roundoff) + 10 * sizeof(int16_t);
+        constexpr size_t legacy_pop_mid_size = 10 * sizeof(int16_t);
         uint8_t legacy_colonies[ORIGINAL_MAX_COLONIES * legacy_colony_size];
         Fill_Bytes_(legacy_colonies, sizeof(legacy_colonies), 1);
         for (int i = 0; i < ORIGINAL_MAX_COLONIES; ++i) {
-            memcpy(&expected_colonies[i], legacy_colonies + i * legacy_colony_size, legacy_colony_size);
+            const uint8_t* source = legacy_colonies + i * legacy_colony_size;
+            uint8_t* destination = reinterpret_cast<uint8_t*>(&expected_colonies[i]);
+            memcpy(destination, source, legacy_roundoff_end);
+            memcpy(destination + offsetof(s_colony, pop_growth),
+                source + legacy_roundoff_end, legacy_pop_mid_size);
+            memcpy(destination + offsetof(s_colony, n_turns_existed),
+                source + legacy_roundoff_end + legacy_pop_mid_size,
+                legacy_colony_size - legacy_roundoff_end - legacy_pop_mid_size);
             expected_colonies[i].buildings_scrapped_this_turn =
                 expected_colonies[i].last_turn_building_destroyed != 0 ? 1 : 0;
         }
@@ -697,6 +710,101 @@ DOCTEST_TEST_CASE("save versions 5 and 6 preserve ship limits and fixed location
         DOCTEST_CHECK(error == "invalid ship count");
         DOCTEST_CHECK((invalid_writer.Length() == 0));
     }
+    DOCTEST_REQUIRE(config::Commit_State(&default_config));
+}
+
+DOCTEST_TEST_CASE("version 7 saves load with zeroed extended pop slots") {
+    auto expected = std::make_unique<State_>();
+    auto actual = std::make_unique<State_>();
+    Bind_State_(*expected);
+    Fill_State_(*expected);
+    config::s_config_state default_config;
+    DOCTEST_REQUIRE(config::Initialize_Defaults(&default_config));
+    DOCTEST_REQUIRE(config::Commit_State(&default_config));
+    TEST_CONFIG_SNAPSHOT::active_config.baseline.effective.state = default_config;
+    TEST_CONFIG_SNAPSHOT::active_config.required_mods.clear();
+
+    for (int i = 10; i < COLONY_POP_RACE_COUNT; ++i) {
+        expected->colonies[0].pop_roundoff[i] = static_cast<int16_t>(100 + i);
+        expected->colonies[0].pop_growth[i] = static_cast<int16_t>(200 + i);
+    }
+
+    auto bytes = std::make_unique<uint8_t[]>(SAVEGAME::BUFFER_CAPACITY);
+    SERIAL::Writer_ writer(bytes.get(), SAVEGAME::BUFFER_CAPACITY, "test save overflow");
+    const char description[37] = "Extended pop slots";
+    DOCTEST_REQUIRE(SAVEGAME::Write_Game(&writer, description, 0x12345678));
+    DOCTEST_CHECK((writer.Length() <= SAVEGAME::BUFFER_CAPACITY));
+
+    // A current-version round-trip preserves the extended slots.
+    Bind_State_(*actual);
+    Clear_State_(*actual);
+    SERIAL::Reader_ reader(bytes.get(), writer.Length(), "test save underflow");
+    SAVEGAME::s_metadata metadata = {};
+    s_settings settings = {};
+    uint32_t seed = 0;
+    DOCTEST_REQUIRE(SAVEGAME::Read_Game(&reader, &metadata, &settings, &seed));
+    DOCTEST_CHECK((reader.Remaining() == 0));
+    DOCTEST_CHECK((metadata.version == SAVEGAME::CURRENT_VERSION));
+    for (int i = 10; i < COLONY_POP_RACE_COUNT; ++i) {
+        DOCTEST_CHECK((actual->colonies[0].pop_roundoff[i] == 100 + i));
+        DOCTEST_CHECK((actual->colonies[0].pop_growth[i] == 200 + i));
+    }
+
+    // A version 7 stream stores only 10 pop slots per colony; loading it
+    // must keep the stored slots and zero the extended ones.
+    constexpr uint32_t versioned_game_header_size =
+        sizeof(uint32_t) + sizeof(SAVEGAME::s_metadata::description) +
+        sizeof(int32_t) + sizeof(int8_t) + sizeof(uint16_t);
+    constexpr uint32_t colonies_offset = versioned_game_header_size +
+        sizeof(s_settings) + sizeof(uint32_t) + sizeof(int16_t);
+    constexpr size_t old_roundoff_end =
+        offsetof(s_colony, pop_roundoff) + 10 * sizeof(int16_t);
+    constexpr size_t old_pop_mid_size = 10 * sizeof(int16_t);
+    constexpr size_t old_colony_size = sizeof(s_colony) -
+        2 * (COLONY_POP_RACE_COUNT - 10) * sizeof(int16_t);
+    const uint32_t old_size = writer.Length() -
+        MOX::NUM_COLONIES * (sizeof(s_colony) - old_colony_size);
+    uint8_t* old_bytes = static_cast<uint8_t*>(malloc(old_size));
+    DOCTEST_REQUIRE(old_bytes != nullptr);
+    memcpy(old_bytes, bytes.get(), colonies_offset);
+    for (int i = 0; i < MOX::NUM_COLONIES; ++i) {
+        const uint8_t* source_colony = bytes.get() + colonies_offset + i * sizeof(s_colony);
+        uint8_t* dest_colony = old_bytes + colonies_offset + i * old_colony_size;
+        memcpy(dest_colony, source_colony, old_roundoff_end);
+        memcpy(dest_colony + old_roundoff_end,
+            source_colony + offsetof(s_colony, pop_growth), old_pop_mid_size);
+        memcpy(dest_colony + old_roundoff_end + old_pop_mid_size,
+            source_colony + offsetof(s_colony, n_turns_existed),
+            old_colony_size - old_roundoff_end - old_pop_mid_size);
+    }
+    memcpy(old_bytes + colonies_offset + MOX::NUM_COLONIES * old_colony_size,
+        bytes.get() + colonies_offset + MOX::NUM_COLONIES * sizeof(s_colony),
+        writer.Length() - colonies_offset - MOX::NUM_COLONIES * sizeof(s_colony));
+    constexpr uint32_t version_offset =
+        sizeof(uint32_t) + sizeof(SAVEGAME::s_metadata::description) +
+        sizeof(int32_t) + sizeof(int8_t);
+    const uint16_t old_version = 7;
+    memcpy(old_bytes + version_offset, &old_version, sizeof(old_version));
+
+    Bind_State_(*actual);
+    Clear_State_(*actual);
+    SERIAL::Reader_ old_reader(old_bytes, old_size, "test save underflow");
+    DOCTEST_REQUIRE(SAVEGAME::Read_Game(&old_reader, &metadata, &settings, &seed));
+    DOCTEST_CHECK((old_reader.Remaining() == 0));
+    DOCTEST_CHECK((metadata.version == old_version));
+    for (int c = 0; c < MOX::NUM_COLONIES; ++c) {
+        for (int i = 0; i < 10; ++i) {
+            DOCTEST_CHECK((actual->colonies[c].pop_roundoff[i] ==
+                expected->colonies[c].pop_roundoff[i]));
+            DOCTEST_CHECK((actual->colonies[c].pop_growth[i] ==
+                expected->colonies[c].pop_growth[i]));
+        }
+        for (int i = 10; i < COLONY_POP_RACE_COUNT; ++i) {
+            DOCTEST_CHECK((actual->colonies[c].pop_roundoff[i] == 0));
+            DOCTEST_CHECK((actual->colonies[c].pop_growth[i] == 0));
+        }
+    }
+    free(old_bytes);
     DOCTEST_REQUIRE(config::Commit_State(&default_config));
 }
 
@@ -985,15 +1093,25 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
     const uint32_t extension_offset = writer.Length() - extension_size;
     constexpr uint32_t colonies_offset = versioned_game_header_size +
         sizeof(s_settings) + sizeof(uint32_t) + sizeof(int16_t);
-    constexpr size_t old_colony_size = offsetof(s_colony, buildings_scrapped_this_turn);
-    const uint32_t previous_colony_format_size = writer.Length() - MOX::NUM_COLONIES;
+    constexpr size_t old_roundoff_end =
+        offsetof(s_colony, pop_roundoff) + 10 * sizeof(int16_t);
+    constexpr size_t old_pop_mid_size = 10 * sizeof(int16_t);
+    constexpr size_t old_colony_size = offsetof(s_colony, buildings_scrapped_this_turn) -
+        2 * (COLONY_POP_RACE_COUNT - 10) * sizeof(int16_t);
+    const uint32_t previous_colony_format_size = writer.Length() -
+        MOX::NUM_COLONIES * (sizeof(s_colony) - old_colony_size);
     uint8_t* previous_colony_format = static_cast<uint8_t*>(malloc(previous_colony_format_size));
     DOCTEST_REQUIRE(previous_colony_format != nullptr);
     memcpy(previous_colony_format, versioned, colonies_offset);
     for (int i = 0; i < MOX::NUM_COLONIES; ++i) {
-        memcpy(previous_colony_format + colonies_offset + i * old_colony_size,
-            versioned + colonies_offset + i * sizeof(s_colony),
-            old_colony_size);
+        const uint8_t* source_colony = versioned + colonies_offset + i * sizeof(s_colony);
+        uint8_t* dest_colony = previous_colony_format + colonies_offset + i * old_colony_size;
+        memcpy(dest_colony, source_colony, old_roundoff_end);
+        memcpy(dest_colony + old_roundoff_end,
+            source_colony + offsetof(s_colony, pop_growth), old_pop_mid_size);
+        memcpy(dest_colony + old_roundoff_end + old_pop_mid_size,
+            source_colony + offsetof(s_colony, n_turns_existed),
+            old_colony_size - old_roundoff_end - old_pop_mid_size);
     }
     memcpy(previous_colony_format + colonies_offset + MOX::NUM_COLONIES * old_colony_size,
         versioned + colonies_offset + MOX::NUM_COLONIES * sizeof(s_colony),
@@ -1031,9 +1149,9 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
         sizeof(SETTLER::value_type);
     const uint32_t jump_gate_redirect_state_size =
         MOX::NUM_SHIPS * (sizeof(int16_t) + sizeof(int32_t));
-    const uint32_t version_one_size = writer.Length() -
+    const uint32_t version_one_size = previous_colony_format_size -
         jump_gate_redirect_state_size - freight_capacity_state_size -
-        antaran_runtime_state_size - extension_size - MOX::NUM_COLONIES;
+        antaran_runtime_state_size - extension_size;
     uint8_t* version_one = static_cast<uint8_t*>(malloc(version_one_size));
     DOCTEST_REQUIRE(version_one != nullptr);
     memcpy(version_one, previous_colony_format, version_one_size);
@@ -1369,8 +1487,8 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
     DOCTEST_CHECK(TEST_CONFIG_SNAPSHOT::commit_count == 2);
     SAVEGAME::loaded_config_prompt = true;
 
-    const uint32_t previous_version_three_size =
-        writer.Length() - jump_gate_redirect_state_size - extension_size - MOX::NUM_COLONIES;
+    const uint32_t previous_version_three_size = previous_colony_format_size -
+        jump_gate_redirect_state_size - extension_size;
     uint8_t* version_three = static_cast<uint8_t*>(malloc(previous_version_three_size));
     DOCTEST_REQUIRE(version_three != nullptr);
     memcpy(version_three, previous_colony_format, previous_version_three_size);

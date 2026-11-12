@@ -500,6 +500,14 @@ struct s_coldraw_veggie_cell {
 
 typedef struct s_colony s_colony, *Ps_colony;
 
+/* Per-race population roundoff/growth slots in s_colony. Indexed by the
+   4-bit race nibble of a colony pop word (POP::Get_Race), so this must
+   cover every nibble value: player races 0-7, android 8, native 9, and
+   the non-player stock races Sakkra 10, Silicoid 11 and Trilarian 12.
+   (10 slots used to overflow into pop_growth[0..2] when bombarding a
+   colony whose pop was one of those races.) */
+#define COLONY_POP_RACE_COUNT 16
+
 struct s_colony {
     int8_t owner;
     int8_t allocated_to;
@@ -511,8 +519,8 @@ struct s_colony {
     uint8_t n_pops;
     int8_t specialty;
     uint32_t pop[MAX_COLONY_POPULATION];
-    int16_t pop_roundoff[10];
-    int16_t pop_growth[10];
+    int16_t pop_roundoff[COLONY_POP_RACE_COUNT];
+    int16_t pop_growth[COLONY_POP_RACE_COUNT];
     int8_t n_turns_existed;
     uint8_t food2_per_farmer;
     uint8_t industry_per_worker;

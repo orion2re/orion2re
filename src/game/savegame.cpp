@@ -21,6 +21,7 @@ namespace SAVEGAME {
         constexpr uint16_t LUA_SAVE_SNAPSHOT_VERSION = 5;
         constexpr uint16_t EXPANDED_SHIP_CAPACITY_VERSION = 6;
         constexpr uint16_t BUILDING_SCRAP_COUNT_VERSION = 7;
+        constexpr uint16_t COLONY_POP_ROUNDOFF_VERSION = 8;
         constexpr int PREVIOUS_MAX_SHIPS = 9000;
         constexpr size_t SETTINGS_RESERVED_OFFSET = 0xE4;
         const uint8_t ZEROES[512] = {};
@@ -296,8 +297,8 @@ namespace SAVEGAME {
             writer->Write_Uint8(colony->n_pops);
             writer->Write_Int8(colony->specialty);
             for (int i = 0; i < 42; ++i) writer->Write_Uint32(colony->pop[i]);
-            Write_Int16_Array(writer, colony->pop_roundoff, 10);
-            Write_Int16_Array(writer, colony->pop_growth, 10);
+            Write_Int16_Array(writer, colony->pop_roundoff, COLONY_POP_RACE_COUNT);
+            Write_Int16_Array(writer, colony->pop_growth, COLONY_POP_RACE_COUNT);
             writer->Write_Int8(colony->n_turns_existed);
             writer->Write_Uint8(colony->food2_per_farmer);
             writer->Write_Uint8(colony->industry_per_worker);
@@ -351,8 +352,15 @@ namespace SAVEGAME {
             colony->n_pops = reader->Read_Uint8();
             colony->specialty = reader->Read_Int8();
             for (int i = 0; i < 42; ++i) colony->pop[i] = reader->Read_Uint32();
-            Read_Int16_Array(reader, colony->pop_roundoff, 10);
-            Read_Int16_Array(reader, colony->pop_growth, 10);
+            if (version >= COLONY_POP_ROUNDOFF_VERSION) {
+                Read_Int16_Array(reader, colony->pop_roundoff, COLONY_POP_RACE_COUNT);
+                Read_Int16_Array(reader, colony->pop_growth, COLONY_POP_RACE_COUNT);
+            } else {
+                // Saves before version 8 stored only 10 slots; the rest were
+                // zeroed by the memset above and stay zero.
+                Read_Int16_Array(reader, colony->pop_roundoff, 10);
+                Read_Int16_Array(reader, colony->pop_growth, 10);
+            }
             colony->n_turns_existed = reader->Read_Int8();
             colony->food2_per_farmer = reader->Read_Uint8();
             colony->industry_per_worker = reader->Read_Uint8();

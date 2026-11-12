@@ -111,3 +111,116 @@ DOCTEST_TEST_CASE("Capitol bombardment follows the configured vulnerability") {
 
     BOMB::capitol_can_be_bombed = false;
 }
+
+DOCTEST_TEST_CASE("bombarding a non-player race pop leaves other growth slots intact") {
+    for (int race : {STOCK_RACE_SAKKRA, STOCK_RACE_SILICOID, STOCK_RACE_TRILARIAN}) {
+        DOCTEST_CAPTURE(race);
+        TEST_TOWN_ZERO::Reset_();
+
+        s_colony* colony = &MOX::colony[0];
+        colony->n_pops = 1;
+        POP::Set_Race(&colony->pop[0], static_cast<uint32_t>(race));
+        colony->pop_roundoff[race] = 500;
+        // Sentinels in the growth slots the 10-element arrays used to
+        // alias: pop_roundoff[10..12] used to be pop_growth[0..2].
+        colony->pop_growth[0] = 111;
+        colony->pop_growth[1] = 222;
+        colony->pop_growth[2] = 333;
+
+        s_combat_bomb_result result = {};
+        result.attacker_idx = 0;
+
+        DOCTEST_REQUIRE(BOMB::Resolve_Bomb_Hit(colony, &result, 1) == 1);
+        DOCTEST_CHECK(result.damage_occurred == 1);
+        DOCTEST_CHECK(result.colony_wiped_out == 0);
+        DOCTEST_CHECK((colony->pop_roundoff[race] == 400));
+        DOCTEST_CHECK(colony->n_pops == 1);
+        DOCTEST_CHECK((colony->pop_growth[0] == 111));
+        DOCTEST_CHECK((colony->pop_growth[1] == 222));
+        DOCTEST_CHECK((colony->pop_growth[2] == 333));
+    }
+}
+
+DOCTEST_TEST_CASE("bombarding the last pop of a non-player race wipes the colony out") {
+    for (int race : {STOCK_RACE_SAKKRA, STOCK_RACE_SILICOID, STOCK_RACE_TRILARIAN}) {
+        DOCTEST_CAPTURE(race);
+        TEST_TOWN_ZERO::Reset_();
+
+        s_colony* colony = &MOX::colony[0];
+        colony->n_pops = 1;
+        POP::Set_Race(&colony->pop[0], static_cast<uint32_t>(race));
+        colony->pop_roundoff[race] = 100;
+        colony->pop_growth[0] = 111;
+        colony->pop_growth[1] = 222;
+        colony->pop_growth[2] = 333;
+
+        s_combat_bomb_result result = {};
+        result.attacker_idx = 0;
+
+        DOCTEST_REQUIRE(BOMB::Resolve_Bomb_Hit(colony, &result, 1) == 1);
+        DOCTEST_CHECK((int)result.population_killed == 1);
+        DOCTEST_CHECK(result.colony_wiped_out == 1);
+        DOCTEST_CHECK(colony->n_pops == 0);
+        DOCTEST_CHECK((colony->pop_roundoff[race] == 0));
+        DOCTEST_CHECK((colony->pop_growth[0] == 111));
+        DOCTEST_CHECK((colony->pop_growth[1] == 222));
+        DOCTEST_CHECK((colony->pop_growth[2] == 333));
+    }
+}
+
+DOCTEST_TEST_CASE("bio-bombing a non-player race pop leaves other growth slots intact") {
+    for (int race : {STOCK_RACE_SAKKRA, STOCK_RACE_SILICOID, STOCK_RACE_TRILARIAN}) {
+        DOCTEST_CAPTURE(race);
+        TEST_TOWN_ZERO::Reset_();
+
+        s_colony* colony = &MOX::colony[0];
+        colony->n_pops = 1;
+        POP::Set_Race(&colony->pop[0], static_cast<uint32_t>(race));
+        colony->pop_roundoff[race] = 500;
+        colony->pop_growth[0] = 111;
+        colony->pop_growth[1] = 222;
+        colony->pop_growth[2] = 333;
+
+        s_combat_bomb_result result = {};
+        result.attacker_idx = 0;
+
+        BOMB::Resolve_Biological_Hit(colony, &result);
+        DOCTEST_CHECK(result.damage_occurred == 1);
+        DOCTEST_CHECK((int)result.bio_pop_killed == 0);
+        DOCTEST_CHECK(result.colony_wiped_out == 0);
+        DOCTEST_CHECK((colony->pop_roundoff[race] == 400));
+        DOCTEST_CHECK(colony->n_pops == 1);
+        DOCTEST_CHECK((colony->pop_growth[0] == 111));
+        DOCTEST_CHECK((colony->pop_growth[1] == 222));
+        DOCTEST_CHECK((colony->pop_growth[2] == 333));
+    }
+}
+
+DOCTEST_TEST_CASE("bio-bombing the last pop of a non-player race kills it") {
+    for (int race : {STOCK_RACE_SAKKRA, STOCK_RACE_SILICOID, STOCK_RACE_TRILARIAN}) {
+        DOCTEST_CAPTURE(race);
+        TEST_TOWN_ZERO::Reset_();
+
+        s_colony* colony = &MOX::colony[0];
+        colony->n_pops = 1;
+        POP::Set_Race(&colony->pop[0], static_cast<uint32_t>(race));
+        colony->pop_roundoff[race] = 100;
+        colony->pop_growth[0] = 111;
+        colony->pop_growth[1] = 222;
+        colony->pop_growth[2] = 333;
+
+        s_combat_bomb_result result = {};
+        result.attacker_idx = 0;
+
+        BOMB::Resolve_Biological_Hit(colony, &result);
+        DOCTEST_CHECK(result.damage_occurred == 1);
+        DOCTEST_CHECK((int)result.population_killed == 1);
+        DOCTEST_CHECK((int)result.bio_pop_killed == 1);
+        DOCTEST_CHECK(result.colony_wiped_out == 1);
+        DOCTEST_CHECK(colony->n_pops == 0);
+        DOCTEST_CHECK((colony->pop_roundoff[race] == 0));
+        DOCTEST_CHECK((colony->pop_growth[0] == 111));
+        DOCTEST_CHECK((colony->pop_growth[1] == 222));
+        DOCTEST_CHECK((colony->pop_growth[2] == 333));
+    }
+}

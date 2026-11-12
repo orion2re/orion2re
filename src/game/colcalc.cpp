@@ -787,7 +787,7 @@ namespace COLCALC {
     void __cdecl Colony_Pop_Grows(s_colony* colony) {
         int total_pops = static_cast<uint8_t>(colony->n_pops);
         if (total_pops == 0) {
-            for (int i = 0; i < 10; ++i) {
+            for (int i = 0; i < COLONY_POP_RACE_COUNT; ++i) {
                 colony->pop_growth[i] = 0;
                 colony->pop_roundoff[i] = 0;
             }
@@ -796,7 +796,7 @@ namespace COLCALC {
 
         int16_t colony_idx = (int16_t)(colony - MOX::colony);
         if (EVENTS::Event_Check_Space_Anomaly(colony_idx)) {
-            for (int i = 0; i < 10; ++i) {
+            for (int i = 0; i < COLONY_POP_RACE_COUNT; ++i) {
                 colony->pop_growth[i] = 0;
             }
             return;
@@ -853,7 +853,7 @@ namespace COLCALC {
             ind_needs_conquered--;
         }
 
-        for (int i = 0; i < 10; ++i) colony->pop_growth[i] = 0;
+        for (int i = 0; i < COLONY_POP_RACE_COUNT; ++i) colony->pop_growth[i] = 0;
 
         int owner_penalty_sum = ind_needs_empire + food_needs_empire;
         colony->pop_growth[static_cast<uint8_t>(colony->owner)] = (owner_penalty_sum < 1) ? 0 : static_cast<int16_t>(owner_penalty_sum * -25);

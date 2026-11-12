@@ -21,7 +21,11 @@ ORION2RE_STATIC_SIZE_ASSERT(s_settings, 0x229);
 ORION2RE_STATIC_CONFIGURABLE_SIZE_ASSERT(s_player, 0xf0e, 0x2d86);
 ORION2RE_STATIC_SIZE_ASSERT(s_settler_info, 0x8);
 ORION2RE_STATIC_SIZE_ASSERT(s_planet_data, 0x12);
-ORION2RE_STATIC_SIZE_ASSERT(s_colony, 0x16a);
+// Deliberately larger than the original 0x16a: pop_roundoff/pop_growth
+// were widened from 10 to COLONY_POP_RACE_COUNT slots so the 4-bit race
+// nibble can never index past them (see orion2.h).
+ORION2RE_STATIC_CONFIGURABLE_SIZE_ASSERT(s_colony, 0x16a,
+    0x16a + 2 * (COLONY_POP_RACE_COUNT - 10) * sizeof(int16_t));
 ORION2RE_STATIC_SIZE_ASSERT_PTR(s_tech_building_data, 0x14, 0x18);
 ORION2RE_STATIC_CONFIGURABLE_SIZE_ASSERT(s_star_data, 0x73, 0x6a + BITMAP(MAX_STARS));
 ORION2RE_STATIC_SIZE_ASSERT(s_ship_data, 0x87);
