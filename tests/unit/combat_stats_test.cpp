@@ -828,6 +828,87 @@ DOCTEST_TEST_CASE("auto combat disable packet tolerates no selected ship") {
     DOCTEST_CHECK(MOX::auto_combat == 0);
 }
 
+DOCTEST_TEST_CASE("tactical action packet drops out-of-range peer indices") {
+    MOX::combat_total_ship_count = 2;
+    MOX::cur_ship = 0;
+
+    auto Send_Action_ = [](int16_t code, int16_t arg1, int16_t arg2, int16_t arg3, int32_t size) {
+        s_net_tactical_combat_message message = {};
+        message.message_code = code;
+        message.arg1 = arg1;
+        message.arg2 = arg2;
+        message.arg3 = arg3;
+        memset(&MOX::new_message, 0, sizeof(MOX::new_message));
+        MOX::tactical_net_choice = 0;
+        CMBTMOV1::Tactical_Combat_Receive_Message(0, TACTICAL_NET_PACKET_ACTION, size, &message);
+    };
+    const int32_t full_size = (int32_t)sizeof(s_net_tactical_combat_message);
+
+    // Ship indices must name a live ship; anything else is dropped before
+    // the consumer can index combat_data with it.
+    Send_Action_(TACTICAL_NET_MSG_SELECT_SHIP, 2, 0, 0, full_size);
+    DOCTEST_CHECK(MOX::tactical_net_choice == 0);
+    Send_Action_(TACTICAL_NET_MSG_SELECT_SHIP, -1, 0, 0, full_size);
+    DOCTEST_CHECK(MOX::tactical_net_choice == 0);
+    Send_Action_(TACTICAL_NET_MSG_REMOVE_STASIS, 30000, 0, 0, full_size);
+    DOCTEST_CHECK(MOX::tactical_net_choice == 0);
+    Send_Action_(TACTICAL_NET_MSG_BOARDING_ACTION, 2, 5, 1, full_size);
+    DOCTEST_CHECK(MOX::tactical_net_choice == 0);
+
+    // Weapon slots are 0..7.
+    Send_Action_(TACTICAL_NET_MSG_TOGGLE_WEAPON, 8, 0, 0, full_size);
+    DOCTEST_CHECK(MOX::tactical_net_choice == 0);
+    Send_Action_(TACTICAL_NET_MSG_TOGGLE_WEAPON, -1, 0, 0, full_size);
+    DOCTEST_CHECK(MOX::tactical_net_choice == 0);
+
+    // Fire-weapon targets are ships when arg2 is 0, missiles otherwise.
+    Send_Action_(TACTICAL_NET_MSG_FIRE_WEAPON, 2, 0, 0, full_size);
+    DOCTEST_CHECK(MOX::tactical_net_choice == 0);
+    Send_Action_(TACTICAL_NET_MSG_FIRE_WEAPON, MAX_COMBAT_FLYERS, 1, 0, full_size);
+    DOCTEST_CHECK(MOX::tactical_net_choice == 0);
+    Send_Action_(TACTICAL_NET_MSG_FIRE_WEAPON, -1, 1, 0, full_size);
+    DOCTEST_CHECK(MOX::tactical_net_choice == 0);
+
+    // Move destinations must be inside the combat grid.
+    Send_Action_(TACTICAL_NET_MSG_MOVE_SHIP, MOX::combat_grid_width, 0, 0, full_size);
+    DOCTEST_CHECK(MOX::tactical_net_choice == 0);
+    Send_Action_(TACTICAL_NET_MSG_MOVE_SHIP, 0, MOX::combat_grid_height, 0, full_size);
+    DOCTEST_CHECK(MOX::tactical_net_choice == 0);
+    Send_Action_(TACTICAL_NET_MSG_MOVE_SHIP, -1, 0, 0, full_size);
+    DOCTEST_CHECK(MOX::tactical_net_choice == 0);
+
+    // Unknown message codes and short packets are dropped as well.
+    Send_Action_(9999, 0, 0, 0, full_size);
+    DOCTEST_CHECK(MOX::tactical_net_choice == 0);
+    Send_Action_(TACTICAL_NET_MSG_SELECT_SHIP, 1, 0, 0, 2);
+    DOCTEST_CHECK(MOX::tactical_net_choice == 0);
+
+    // In-range actions are still queued, including the grid edge and the
+    // last missile slot.
+    Send_Action_(TACTICAL_NET_MSG_SELECT_SHIP, 1, 0, 0, full_size);
+    DOCTEST_CHECK(MOX::tactical_net_choice == TACTICAL_NET_MSG_SELECT_SHIP);
+    DOCTEST_CHECK(MOX::new_message.arg1 == 1);
+    Send_Action_(TACTICAL_NET_MSG_TOGGLE_WEAPON, 7, 0, 0, full_size);
+    DOCTEST_CHECK(MOX::tactical_net_choice == TACTICAL_NET_MSG_TOGGLE_WEAPON);
+    Send_Action_(TACTICAL_NET_MSG_FIRE_WEAPON, 1, 0, 0, full_size);
+    DOCTEST_CHECK(MOX::tactical_net_choice == TACTICAL_NET_MSG_FIRE_WEAPON);
+    Send_Action_(TACTICAL_NET_MSG_FIRE_WEAPON, MAX_COMBAT_FLYERS - 1, 1, 0, full_size);
+    DOCTEST_CHECK(MOX::tactical_net_choice == TACTICAL_NET_MSG_FIRE_WEAPON);
+    Send_Action_(TACTICAL_NET_MSG_MOVE_SHIP, MOX::combat_grid_width - 1, MOX::combat_grid_height - 1, 0, full_size);
+    DOCTEST_CHECK(MOX::tactical_net_choice == TACTICAL_NET_MSG_MOVE_SHIP);
+    Send_Action_(TACTICAL_NET_MSG_REMOVE_STASIS, 0, 0, 0, full_size);
+    DOCTEST_CHECK(MOX::tactical_net_choice == TACTICAL_NET_MSG_REMOVE_STASIS);
+    Send_Action_(TACTICAL_NET_MSG_BOARDING_ACTION, 1, 5, 1, full_size);
+    DOCTEST_CHECK(MOX::tactical_net_choice == TACTICAL_NET_MSG_BOARDING_ACTION);
+    Send_Action_(TACTICAL_NET_MSG_SHIP_DONE, 0, 0, 0, full_size);
+    DOCTEST_CHECK(MOX::tactical_net_choice == TACTICAL_NET_MSG_SHIP_DONE);
+
+    // Turn-to-face targets are only used in arithmetic, so they need no
+    // range check and must keep passing through.
+    Send_Action_(TACTICAL_NET_MSG_TURN_TO_FACE, 30000, 30000, 0, full_size);
+    DOCTEST_CHECK(MOX::tactical_net_choice == TACTICAL_NET_MSG_TURN_TO_FACE);
+}
+
 DOCTEST_TEST_CASE("current ship blip is skipped without a current ship") {
     MOX::combat_total_ship_count = 2;
     for (int16_t cur_ship : {-1, 2}) {
