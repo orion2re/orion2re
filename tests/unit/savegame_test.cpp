@@ -330,6 +330,19 @@ namespace {
                 MSG_::n_msgs[i] = 0;
             }
         }
+        // Planet/star links must be valid: load validation rejects a
+        // star_index outside [-1, NUM_STARS), an orbit outside [0, 5),
+        // or a planet_index outside [-1, planet_count).
+        for (int i = 0; i < MOX::planet_count; ++i) {
+            state.planets[i].star_index = static_cast<int16_t>(i % MOX::NUM_STARS);
+            state.planets[i].orbit = static_cast<int8_t>(i % 5);
+        }
+        for (int i = 0; i < MOX::NUM_STARS; ++i) {
+            for (int j = 0; j < 5; ++j) {
+                state.stars[i].planet_index[j] =
+                    static_cast<int16_t>((i * 5 + j) % MOX::planet_count);
+            }
+        }
         REPORT::done_player_reports = 0xA5;
         REPORT::displayed_msgs = 0x5A;
         REPORT::displayed_gnn = 0xC3;
@@ -412,6 +425,12 @@ namespace {
                 source + star_offset + sizeof(int8_t),
                 LEGACY_PLANET_SIZE - star_offset - sizeof(int8_t));
         }
+        // The legacy file carries the same valid links (see the .sav
+        // patcher): a live planet's star is one of the 71 legacy stars.
+        for (size_t i = 0; i < ORIGINAL_MAX_PLANETS; ++i) {
+            planets[i].star_index = static_cast<int16_t>(i % (ORIGINAL_MAX_STARS - 1));
+            planets[i].orbit = static_cast<int8_t>(i % 5);
+        }
     }
 
     void Expand_Legacy_Stars_(s_star_data* stars) {
@@ -443,6 +462,14 @@ namespace {
                     sizeof(stars[i].next_wfi_in_list),
                 source + legacy_next_wfi_offset + sizeof(uint8_t),
                 LEGACY_STAR_SIZE - legacy_next_wfi_offset - sizeof(uint8_t));
+        }
+        // The legacy file carries the same valid links (see the .sav
+        // patcher): each star's five slots name one of the 359 planets.
+        for (size_t i = 0; i < ORIGINAL_MAX_STARS; ++i) {
+            for (int j = 0; j < 5; ++j) {
+                stars[i].planet_index[j] =
+                    static_cast<int16_t>((i * 5 + j) % (ORIGINAL_MAX_PLANETS - 1));
+            }
         }
     }
 
@@ -1548,3 +1575,82 @@ DOCTEST_TEST_CASE("corrupt save headers fail load validation") {
 
     DOCTEST_REQUIRE(config::Commit_State(&default_config));
 }
+
+DOCTEST_TEST_CASE("corrupt planet star links fail load validation") {
+    auto state = std::make_unique<State_>();
+    auto bytes = std::make_unique<uint8_t[]>(SAVEGAME::BUFFER_CAPACITY);
+    config::s_config_state default_config;
+    DOCTEST_REQUIRE(config::Initialize_Defaults(&default_config));
+    DOCTEST_REQUIRE(config::Commit_State(&default_config));
+    TEST_CONFIG_SNAPSHOT::active_config.baseline.effective.state = default_config;
+    TEST_CONFIG_SNAPSHOT::active_config.required_mods.clear();
+    const char description[37] = "Corrupt link validation";
+
+    // Small but valid save: one star, one planet, one colony, one ship,
+    // two players, and a valid planet/star link.
+    auto setup_valid_state = [&] {
+        Bind_State_(*state);
+        Clear_State_(*state);
+        MOX::NUM_PLAYERS = 2;
+        MOX::PLAYER_NUM = 1;
+        MOX::NUM_COLONIES = 1;
+        MOX::planet_count = 1;
+        MOX::NUM_STARS = 1;
+        MOX::NUM_SHIPS = 1;
+        MOX::NUM_NEBULAS = 0;
+        MOX::max_map_scale = 30;
+        MOX::cur_map_scale = 10;
+        MOX::planet[0].star_index = 0;
+        MOX::planet[0].orbit = 0;
+        MOX::planet[0].colony_index = 0;
+        MOX::star[0].planet_index[0] = 0;
+        for (int j = 1; j < 5; ++j) MOX::star[0].planet_index[j] = -1;
+        MSG_::first_msg[0] = 0;
+        MSG_::max_msgs[0] = 50;
+        MSG_::n_msgs[0] = 0;
+        MSG_::first_msg[1] = 50;
+        MSG_::max_msgs[1] = 50;
+        MSG_::n_msgs[1] = 0;
+    };
+    auto write_then_read = [&] {
+        SERIAL::Writer_ writer(bytes.get(), SAVEGAME::BUFFER_CAPACITY, "test save overflow");
+        DOCTEST_REQUIRE(SAVEGAME::Write_Game(&writer, description, 0x12345678));
+        Bind_State_(*state);
+        Clear_State_(*state);
+        SERIAL::Reader_ reader(bytes.get(), writer.Length(), "test save underflow");
+        SAVEGAME::s_metadata metadata = {};
+        s_settings settings = {};
+        uint32_t seed = 0;
+        return SAVEGAME::Read_Game(&reader, &metadata, &settings, &seed);
+    };
+
+    setup_valid_state();
+    DOCTEST_CHECK(write_then_read());
+
+    setup_valid_state();
+    MOX::planet[0].star_index = 5000;
+    DOCTEST_CHECK_FALSE(write_then_read());
+
+    setup_valid_state();
+    MOX::planet[0].star_index = -2;
+    DOCTEST_CHECK_FALSE(write_then_read());
+
+    setup_valid_state();
+    MOX::planet[0].orbit = 9;
+    DOCTEST_CHECK_FALSE(write_then_read());
+
+    setup_valid_state();
+    MOX::planet[0].orbit = -1;
+    DOCTEST_CHECK_FALSE(write_then_read());
+
+    setup_valid_state();
+    MOX::star[0].planet_index[0] = 5000;
+    DOCTEST_CHECK_FALSE(write_then_read());
+
+    setup_valid_state();
+    MOX::star[0].planet_index[0] = -2;
+    DOCTEST_CHECK_FALSE(write_then_read());
+
+    DOCTEST_REQUIRE(config::Commit_State(&default_config));
+}
+

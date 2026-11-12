@@ -1506,6 +1506,24 @@ namespace SAVEGAME {
             for (int i = star_record_count; i < MAX_STARS; ++i) {
                 Initialize_Unused_Star(&MOX::star[i]);
             }
+            // Cross-references between live planets and stars must agree:
+            // a single edited index crashes Load_Game (via
+            // Confirm_Planet_And_Star_Index_Link) or the next turn.
+            // The internal restore path skips this: its snapshot may be
+            // a degenerate state (e.g. planets without stars yet).
+            if (validate) {
+                for (int i = 0; i < MOX::planet_count; ++i) {
+                    const s_planet_data& planet = MOX::planet[i];
+                    if (planet.star_index < -1 || planet.star_index >= MOX::NUM_STARS) return false;
+                    if (planet.orbit < 0 || planet.orbit >= 5) return false;
+                }
+                for (int i = 0; i < MOX::NUM_STARS; ++i) {
+                    for (int j = 0; j < 5; ++j) {
+                        const int16_t planet_idx = MOX::star[i].planet_index[j];
+                        if (planet_idx < -1 || planet_idx >= MOX::planet_count) return false;
+                    }
+                }
+            }
             for (int i = 0; i < MAX_LEADERS; ++i) Read_Leader(reader, &MOX::leaders[i]);
             MOX::NUM_PLAYERS = reader->Read_Int16();
             if (validate && (MOX::NUM_PLAYERS < 1 || MOX::NUM_PLAYERS > MAX_PLAYERS)) return false;

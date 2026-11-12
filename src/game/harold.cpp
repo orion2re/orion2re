@@ -115,7 +115,16 @@ namespace HAROLD {
     }
 
     int8_t __cdecl Planet_Number(int16_t planet_index) {
+        // A corrupt link must not index outside the planet/star arrays.
+        // Fall back to the first planet: roman_literals[0] is nullptr,
+        // so -1 is not a usable sentinel for the callers.
+        if (planet_index < 0 || planet_index >= MOX::planet_count) {
+            return 0;
+        }
         int16_t star_idx = MOX::planet[planet_index].star_index;
+        if (star_idx < 0 || star_idx >= MOX::NUM_STARS) {
+            return 0;
+        }
         s_star_data* star = &MOX::star[star_idx];
 
         int8_t relative_planet_num = 0;
@@ -600,10 +609,12 @@ namespace HAROLD {
 
             for (int16_t orbit_idx = 0; orbit_idx < 5; ++orbit_idx) {
                 int16_t planet_idx = star->planet_index[orbit_idx];
-                if (planet_idx != -1) {
-                    s_planet_data* planet = &MOX::planet[planet_idx];
-                    int8_t planet_orbit = planet->orbit;
-
+                if (planet_idx < 0 || planet_idx >= MOX::planet_count) {
+                    continue;
+                }
+                s_planet_data* planet = &MOX::planet[planet_idx];
+                int8_t planet_orbit = planet->orbit;
+                if (planet_orbit >= 0 && planet_orbit < 5) {
                     if (orbit_taken[planet_orbit] != 0) {
                         RUSS::PFMT(0, 1, "orbit %d of star %d has more than 1 planet in it", (int32_t)planet_orbit, star_idx);
                         RUSS::PFMT(0, 2, "relate game conditions EXACTLY as they just happened");

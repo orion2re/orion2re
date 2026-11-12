@@ -2,6 +2,7 @@
 
 #include "doctest/doctest.h"
 #include "game/config_refresh.h"
+#include "game/harold.h"
 #include "game/loader.h"
 #include "config/config_loader.h"
 #include "game/savegame.h"
@@ -545,4 +546,37 @@ DOCTEST_TEST_CASE("original filename placeholder is replaced by the mod percenta
         DOCTEST_CHECK(COLSUM::wee_event_strings[35] == ESTRINGS::E_Strings(0x186));
         DOCTEST_CHECK(COLSUM::wee_event_strings[0][0] == (mod ? 'M' : 'B'));
     }
+}
+
+DOCTEST_TEST_CASE("corrupt planet star links are skipped by hardening") {
+    Fixture fixture;
+    std::vector<s_planet_data> planets(MAX_PLANETS);
+    std::vector<s_star_data> stars(MAX_STARS);
+    MOX::planet = planets.data();
+    MOX::star = stars.data();
+    MOX::planet_count = 1;
+    MOX::NUM_STARS = 1;
+    MOX::planet[0].star_index = 5000;
+    MOX::planet[0].orbit = 9;
+    MOX::star[0].planet_index[0] = 5000;
+    for (int j = 1; j < 5; ++j) MOX::star[0].planet_index[j] = -1;
+
+    // Neither call may index outside the planet/star arrays (ASan would
+    // fail the test); corrupt links fall back to the first planet.
+    DOCTEST_CHECK(HAROLD::Planet_Number(0) == 0);
+    DOCTEST_CHECK(HAROLD::Planet_Number(5000) == 0);
+    DOCTEST_CHECK(HAROLD::Planet_Number(-1) == 0);
+    HAROLD::Confirm_Planet_And_Star_Index_Link("test");
+
+    // A valid link still resolves to the first planet of its star.
+    MOX::planet[0].star_index = 0;
+    MOX::planet[0].orbit = 0;
+    MOX::star[0].planet_index[0] = 0;
+    DOCTEST_CHECK(HAROLD::Planet_Number(0) == 0);
+    HAROLD::Confirm_Planet_And_Star_Index_Link("test");
+
+    MOX::planet = nullptr;
+    MOX::star = nullptr;
+    MOX::planet_count = 0;
+    MOX::NUM_STARS = 0;
 }
