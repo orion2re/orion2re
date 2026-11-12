@@ -114,9 +114,12 @@ The audit preserves sanitizer options and the normal test executables, writes a
 `test-link-audit.json` report in the build directory, and returns failure for any
 incomplete link. `--target test_name` can be repeated to audit a specific batch.
 MSVC already rejects these incomplete links during the normal Windows build.
+CI runs the audit after the Linux and macOS tests.
 Fix missing test dependencies or use cohesive production units; do not suppress
 undefined symbols or add unrelated no-op stubs to make the audit pass.
 Prefer existing subsystem boundaries over one-function production files.
+Split larger units into cohesive files within their existing namespaces rather
+than combining different namespace owners in one file.
 Tests of real game data or configuration bindings can use `orion2re_add_game_test`
 with scoped state fixtures rather than duplicate globals. Tests that observe
 mocked calls should retain their deliberate seams and cover newly supplied

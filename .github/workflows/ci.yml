@@ -90,6 +90,9 @@ jobs:
       - name: Native game build smoke test
         run: cmake --build --preset ${{ matrix.preset }} --target orion2re --parallel
       - run: ctest --preset ${{ matrix.preset }} --no-tests=error
+      - name: Audit test links without dead stripping
+        if: runner.os != 'Windows'
+        run: python3 tools/audit_test_links.py "out/build/$(uname -s)/${{ matrix.preset }}"
 
   documentation:
     runs-on: ubuntu-24.04

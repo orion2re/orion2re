@@ -973,14 +973,19 @@ orion2re_add_unit_test(test_combat_stats
     SOURCES
         tests/unit/combat_stats_test.cpp
     PRODUCTION_SOURCES
-        src/game/aipower.cpp
-        src/game/cmbtai.cpp
+        src/game/aipower_ground.cpp
+        src/game/cmbtai_targets.cpp
+        src/game/cmbtai_damage.cpp
         src/game/combat_range.cpp
-        src/game/combat1.cpp
-        src/game/combat_ship_state.cpp
+        src/game/combat1_fields.cpp
+        src/game/combat1_turn_order.cpp
+        src/game/combat_ship_queries.cpp
         src/game/combat_network.cpp
-        src/game/cmbtdrw1.cpp
-        src/game/cmbtmov1.cpp
+        src/game/cmbtdrw1_hud.cpp
+        src/game/cmbtdrw1_geometry.cpp
+        src/game/cmbtmov1_simulation.cpp
+        src/game/cmbtmov1_network.cpp
+        src/game/cmbtmov1_cost.cpp
     FAKE_SOURCES
         tests/fakes/fake_sdl_string.cpp
 )
@@ -1102,8 +1107,13 @@ orion2re_add_unit_test(test_boarding
         src/game/cmbtai_boarding.cpp
         src/game/combat1_boarding.cpp
         src/game/combat_range.cpp
+        src/game/cmbtmov1_cost.cpp
+        src/game/angle.cpp
         src/game/cmbtfir2.cpp
+        src/game/cmbtfir2_boarding.cpp
+        src/game/cmbtfir2_targeting.cpp
         src/game/combat_ship_state.cpp
+        src/game/combat_ship_queries.cpp
         src/game/combat_network.cpp
         src/game/strbuild.cpp
         src/game/struct.cpp
@@ -1148,9 +1158,10 @@ orion2re_add_unit_test(test_stasis_area_effects
         tests/unit/cmbtfir2_test.cpp
     PRODUCTION_SOURCES
         src/game/cmbtfir2.cpp
-        src/game/combat1.cpp
+        src/game/cmbtfir2_missile_defense.cpp
+        src/game/combat1_missiles.cpp
         src/game/combat_ship_state.cpp
-        src/game/combat_network.cpp
+        src/game/combat_ship_queries.cpp
         src/game/random.cpp
     FAKE_SOURCES
         tests/fakes/fake_stasis_area_effects_runtime.cpp
@@ -1159,28 +1170,6 @@ orion2re_add_unit_test(test_stasis_area_effects
 foreach(TARGET_NAME IN ITEMS test_combat_stats test_combat_repair test_boarding test_stasis_area_effects)
     target_sources(${TARGET_NAME} PRIVATE tests/fakes/fake_combat_grid_runtime.cpp)
 endforeach()
-
-if(MSVC)
-    target_compile_options(test_boarding PRIVATE /Gy)
-    target_link_options(test_boarding PRIVATE /OPT:REF)
-    target_compile_options(test_combat_stats PRIVATE /Gy)
-    target_link_options(test_combat_stats PRIVATE /OPT:REF)
-    target_compile_options(test_stasis_area_effects PRIVATE /Gy)
-    target_link_options(test_stasis_area_effects PRIVATE /OPT:REF)
-elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-    target_compile_options(test_boarding PRIVATE -ffunction-sections -fdata-sections)
-    target_compile_options(test_combat_stats PRIVATE -ffunction-sections -fdata-sections)
-    target_compile_options(test_stasis_area_effects PRIVATE -ffunction-sections -fdata-sections)
-    if(APPLE)
-        target_link_options(test_boarding PRIVATE -Wl,-dead_strip)
-        target_link_options(test_combat_stats PRIVATE -Wl,-dead_strip)
-        target_link_options(test_stasis_area_effects PRIVATE -Wl,-dead_strip)
-    else()
-        target_link_options(test_boarding PRIVATE -Wl,--gc-sections)
-        target_link_options(test_combat_stats PRIVATE -Wl,--gc-sections)
-        target_link_options(test_stasis_area_effects PRIVATE -Wl,--gc-sections)
-    endif()
-endif()
 
 orion2re_add_unit_test(test_techinit
     SOURCES

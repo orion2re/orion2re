@@ -5,6 +5,7 @@
 
 namespace {
     s_combat_data combat_data[2];
+    s_missile missiles[1];
     s_ship_data ships[2];
     s_player players[2];
     s_leader_data leaders[1];
@@ -61,6 +62,8 @@ namespace {
 namespace TEST_BOARDING {
     void Reset_() {
         memset(combat_data, 0, sizeof(combat_data));
+        memset(missiles, 0, sizeof(missiles));
+        MOX::combat_init = 0;
         memset(ships, 0, sizeof(ships));
         memset(players, 0, sizeof(players));
         memset(leaders, 0, sizeof(leaders));
@@ -262,6 +265,8 @@ namespace TEST_BOARDING {
 }
 
 namespace MOX {
+    s_missile* missile = missiles;
+    uint16_t combat_init;
     s_combat_data* combat_data = ::combat_data;
     s_ship_data* ship = ships;
     s_player* player = players;

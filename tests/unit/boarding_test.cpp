@@ -31,6 +31,43 @@ namespace TEST_BOARDING {
     int Network_Wait_Count_();
 }
 
+DOCTEST_TEST_CASE("boarding defensive range uses real movement and turning costs") {
+    TEST_BOARDING::Reset_();
+    MOX::combat_data[0].owner = 0;
+    MOX::combat_data[1].owner = 1;
+    MOX::combat_data[1].x = 3;
+    MOX::combat_data[1].y = 4;
+    MOX::combat_data[1].facing_dir = CMBTMOV1::Get_Facing(3, 4, 0, 0);
+    MOX::combat_data[0].weapons[0].weapon_id = WEAPON_LASER_CANNON;
+    MOX::combat_data[0].weapons[0].shots_left = 1;
+    TECHDATA::weapons[WEAPON_LASER_CANNON].type = WEAPON_TYPE_BEAM;
+    DOCTEST_CHECK(CMBTMOV1::Move_Cost(1, 0, 0) == 5);
+    DOCTEST_CHECK(CMBTFIR2::Max_Defensive_Fire_Range(0) == 5);
+    MOX::combat_data[1].facing_dir = (MOX::combat_data[1].facing_dir + 8) % 16;
+    DOCTEST_CHECK(CMBTMOV1::Turn_Cost(1) == 2);
+    DOCTEST_CHECK(CMBTMOV1::Move_Cost(1, 0, 0) == 21);
+    struct_::Set_Bit_Field(MOX::combat_data[1].special_device_flags, SPECIAL_INERTIAL_STABILIZER);
+    DOCTEST_CHECK(CMBTMOV1::Turn_Cost(1) == 1);
+    DOCTEST_CHECK(CMBTMOV1::Move_Cost(1, 0, 0) == 13);
+    struct_::Clear_Bit_Field(MOX::combat_data[1].special_device_flags, SPECIAL_INERTIAL_STABILIZER);
+    struct_::Set_Bit_Field(MOX::combat_data[1].special_device_flags, SPECIAL_INERTIAL_NULLIFIER);
+    DOCTEST_CHECK(CMBTMOV1::Turn_Cost(1) == 0);
+    DOCTEST_CHECK(CMBTMOV1::Move_Cost(1, 0, 0) == 5);
+}
+
+DOCTEST_TEST_CASE("boarding range helpers preserve missile coordinates and initiative stasis rules") {
+    TEST_BOARDING::Reset_();
+    MOX::missile[0].x = 60;
+    MOX::missile[0].y = 80;
+    DOCTEST_CHECK(CMBTAI::Range_To_Missile(0, 0) == 2);
+    MOX::combat_data[1].stasis_source_idx = 0;
+    DOCTEST_CHECK_FALSE(COMBAT1::Combat_Ship_Participates_In_Turn_Order(1, false));
+    MOX::combat_init = 1;
+    DOCTEST_CHECK(COMBAT1::Combat_Ship_Participates_In_Turn_Order(1, false));
+    MOX::combat_data[1].is_captured = 1;
+    DOCTEST_CHECK_FALSE(COMBAT1::Combat_Ship_Participates_In_Turn_Order(1, false));
+}
+
 DOCTEST_TEST_CASE("boarding rejects targets in stasis") {
     TEST_BOARDING::Reset_();
     MOX::combat_data[1].stasis_source_idx = 0;
