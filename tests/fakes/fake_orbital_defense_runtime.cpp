@@ -16,6 +16,10 @@ namespace {
     bool can_build_large_ships;
 } // namespace
 
+namespace MOX {
+    s_ship_node ship_node[MAX_SHIPS];
+}
+
 namespace AIDATA {
     s_ai_refit_player (*airefit)[MAX_PLAYERS] = &refits;
     s_ai_player_info (*ai_player_info)[MAX_PLAYERS] = &player_info;
@@ -67,6 +71,8 @@ namespace TEST_ORBITAL_DEFENSE {
     int choice_calls;
 
     void Reset_(int16_t preferred, bool large_ships) {
+        memset(MOX::ship, 0, sizeof(s_ship_data) * MAX_SHIPS);
+        memset(MOX::ship_node, 0xff, sizeof(MOX::ship_node));
         memset(MOX::colony, 0, sizeof(s_colony) * 2);
         memset(MOX::planet, 0, sizeof(s_planet_data) * 2);
         memset(MOX::star, 0, sizeof(s_star_data));

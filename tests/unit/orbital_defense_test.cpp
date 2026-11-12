@@ -31,6 +31,38 @@ namespace {
     }
 } // namespace
 
+DOCTEST_TEST_CASE("system summaries count linked ship roles and clamp oversized hulls") {
+    TEST_ORBITAL_DEFENSE::Reset_(7, true);
+    const uint8_t types[] = {SHIP_TYPE_COMBAT, SHIP_TYPE_COLONY, SHIP_TYPE_OUTPOST, SHIP_TYPE_TRANSPORT, SHIP_TYPE_COMBAT};
+    for (int16_t i = 0; i < 5; ++i) {
+        MOX::ship[i].d.ship_type = types[i];
+        MOX::ship_node[i].ship_idx = i;
+        MOX::ship_node[i].next_node = i == 4 ? -1 : i + 1;
+    }
+    MOX::ship[0].d.size = SHIP_SIZE_LARGE;
+    MOX::ship[4].d.size = INT8_MAX;
+    int16_t total, colonies, outposts, transports;
+    int16_t sizes[SHIP_SIZE_DOOM_STAR + 1];
+    SYS::N_Ships_By_Type_In_Stack(0, &total, &colonies, &outposts, &transports, sizes);
+    DOCTEST_CHECK(total == 5);
+    DOCTEST_CHECK(colonies == 1);
+    DOCTEST_CHECK(outposts == 1);
+    DOCTEST_CHECK(transports == 1);
+    DOCTEST_CHECK(sizes[SHIP_SIZE_LARGE] == 1);
+    DOCTEST_CHECK(sizes[SHIP_SIZE_DOOM_STAR] == 1);
+}
+
+DOCTEST_TEST_CASE("system summary display records sort by vertical position") {
+    s_sys_disp rows[3] = {};
+    rows[0].y = 20;
+    rows[1].y = 4;
+    rows[2].y = 12;
+    Legacy_Qsort(rows, 3, sizeof(rows[0]), SYS::qsort_sys_disp);
+    DOCTEST_CHECK((rows[0].y == 4));
+    DOCTEST_CHECK((rows[1].y == 12));
+    DOCTEST_CHECK((rows[2].y == 20));
+}
+
 DOCTEST_TEST_CASE("AI station orders cannot create doubled defenses in the attack popup") {
     for (int existing = -1; existing < 3; ++existing) {
         for (int candidate = 0; candidate < 3; ++candidate) {

@@ -19,10 +19,13 @@ namespace {
 } // namespace
 
 namespace TEST_AIDUDES {
+    bool colony_researching;
+
     void Reset_() {
         memset(colonies, 0, sizeof(colonies));
         memset(players, 0, sizeof(players));
         pre_import_calls = 0;
+        colony_researching = false;
 
         colonies[0].owner = 0;
         colonies[0].n_pops = 1;
@@ -159,6 +162,18 @@ namespace MOX {
     s_settings settings;
 } // namespace MOX
 
+namespace aidudes {
+    int16_t i_ai;
+    int16_t n_our_colonies;
+    s_player* p_ai;
+    s_aidudes_colony_info (*our_colonies)[MAX_COLONIES];
+    s_colony* Sort_Pops_colony_data;
+}
+
+namespace maintain {
+    int32_t (*ship_worths)[MAX_SHIPS];
+}
+
 namespace AIDATA {
     s_ai_refit_player (*airefit)[MAX_PLAYERS] = &ai_refits;
     s_ai_player_info (*ai_player_info)[MAX_PLAYERS] = &::ai_player_info;
@@ -190,7 +205,7 @@ namespace INITSHIP {
 
 namespace EVENTS {
     int16_t __cdecl Event_Check_Colony_Researching(int16_t) {
-        return 0;
+        return TEST_AIDUDES::colony_researching;
     }
 } // namespace EVENTS
 
@@ -258,6 +273,3 @@ namespace OFFICER {
         leader->location = -1;
     }
 } // namespace OFFICER
-
-void Legacy_Qsort(void*, size_t, size_t, legacy_qsort_compare) {
-}

@@ -496,6 +496,31 @@ DOCTEST_TEST_CASE("absorber and damper percentage calculations preserve classic 
     CMBTFIRE::damper_field_ratio = 25;
 }
 
+DOCTEST_TEST_CASE("fighter bombs select the source empire weapon and missile-owner ordnance bonus") {
+    TEST_FIGHTER_ORDNANCE::Reset_();
+    TEST_STASIS::Capture_Internal_Damage_();
+    MOX::combat_data[0].owner = 0;
+    MOX::combat_data[1].owner = 1;
+    MOX::combat_data[1].structure_max = 100;
+    MOX::combat_data[1].armor_remaining = 100;
+    MOX::missile[0].source_unit_idx = 0;
+    MOX::missile[0].target_unit_idx = 1;
+    MOX::missile[0].owner = 1;
+    MOX::missile[0].quantity = 2;
+    MOX::fighter_bomb_type[0] = WEAPON_NUCLEAR_BOMB;
+    MOX::ordnance_bonus[0] = 100;
+    MOX::ordnance_bonus[1] = 150;
+    TECHDATA::weapons[WEAPON_NUCLEAR_BOMB].min_damage = 10;
+    TECHDATA::weapons[WEAPON_NUCLEAR_BOMB].max_damage = 10;
+    TECHDATA::weapons[WEAPON_NUCLEAR_BOMB].natural_mods = WEAPON_NATURAL_FLAG_IGNORES_SHIELDS;
+    int16_t damage = -1, internal = -1;
+    CMBTFIRE::Fire_Fighter_Bomb(0, 0, &damage, &internal);
+    DOCTEST_CHECK(damage == 30);
+    DOCTEST_CHECK(internal == 0);
+    DOCTEST_CHECK(TEST_STASIS::Captured_Internal_Damage_() == 30);
+    TEST_FIGHTER_ORDNANCE::Reset_();
+}
+
 DOCTEST_TEST_CASE("full absorber charge destroys its ship") {
     TEST_STASIS::Reset_();
     MOX::combat_data[1].structure_max = 100;

@@ -3,6 +3,7 @@
 #include "doctest/doctest.h"
 
 namespace TEST_AIDUDES {
+    extern bool colony_researching;
     void Reset_();
     void Reset_Maintenance_Scrap_(bool add_replacement);
     void Reset_Maintenance_Scrap_With_Incomparable_Replacements_();
@@ -14,6 +15,18 @@ namespace TEST_AIDUDES {
     bool Doom_Star_Strategic_Mode_();
     int Doom_Star_Load_Count_();
 } // namespace TEST_AIDUDES
+
+DOCTEST_TEST_CASE("blockaded event-research colonies assign non-farmers to science") {
+    TEST_AIDUDES::Reset_();
+    TEST_AIDUDES::colony_researching = true;
+    MOX::colony[0].food2_per_farmer = 0;
+    s_aidudes_colony_info info = {};
+    aidudes::Do_Blockaded_Colony(&info);
+    DOCTEST_CHECK(info.cur_pop_idx == 1);
+    DOCTEST_CHECK(POP::Get_Prof(MOX::colony[0].pop[0]) == POP::PROF_SCIENTIST);
+    DOCTEST_CHECK(POP::Is_Assigned(MOX::colony[0].pop[0]));
+    TEST_AIDUDES::Reset_();
+}
 
 DOCTEST_TEST_CASE("blockaded colony stops assigning farmers when recalculation disables farming") {
     TEST_AIDUDES::Reset_();

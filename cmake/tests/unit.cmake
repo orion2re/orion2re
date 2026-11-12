@@ -598,9 +598,9 @@ orion2re_add_unit_test(test_aidudes
     SOURCES
         tests/unit/aidudes_test.cpp
     PRODUCTION_SOURCES
-        src/game/aileader.cpp
-        src/game/aidudes.cpp
-        src/game/maintain.cpp
+        src/game/ai_population.cpp
+        src/game/fleet_maintenance.cpp
+        src/game/legacy_sort.cpp
     FAKE_SOURCES
         tests/fakes/fake_aidudes_runtime.cpp
 )
@@ -609,28 +609,23 @@ orion2re_add_unit_test(test_orbital_defense
     SOURCES
         tests/unit/orbital_defense_test.cpp
     PRODUCTION_SOURCES
-        src/game/aidudes.cpp
+        src/game/ai_empire_production.cpp
         src/game/colcalc_config.cpp
         src/game/legacy_sort.cpp
         src/game/ericnet.cpp
         src/game/production_rules.cpp
         src/game/special.cpp
         src/game/angle.cpp
-        src/game/sys.cpp
+        src/game/system_summary.cpp
     FAKE_SOURCES
         tests/fakes/fake_ericnet_runtime.cpp
         tests/fakes/fake_orbital_defense_runtime.cpp
 )
 
 if(MSVC)
-    target_compile_options(test_orbital_defense PRIVATE /Gy)
-    target_link_options(test_orbital_defense PRIVATE /OPT:REF)
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-    target_compile_options(test_orbital_defense PRIVATE -ffunction-sections -fdata-sections)
     if(APPLE)
-        target_link_options(test_orbital_defense PRIVATE -Wl,-dead_strip)
     else()
-        target_link_options(test_orbital_defense PRIVATE -Wl,--gc-sections)
     endif()
 endif()
 
@@ -697,6 +692,7 @@ orion2re_add_unit_test(test_colony_production_helpers
         tests/unit/colcalc_base_test.cpp
     PRODUCTION_SOURCES
         src/game/colcalc_base.cpp
+        src/game/planet_environment.cpp
         src/game/colcalc_config.cpp
     FAKE_SOURCES
         tests/fakes/fake_colcalc_base_runtime.cpp
@@ -707,27 +703,16 @@ orion2re_add_unit_test(test_plntsum_filters
         tests/unit/plntsum_test.cpp
     PRODUCTION_SOURCES
         src/game/colony_lifecycle.cpp
-        src/game/colcalc_base.cpp
+        src/game/planet_environment.cpp
+        src/game/colcalc_config.cpp
         src/game/legacy_sort.cpp
-        src/game/plntsum.cpp
-        src/game/harold.cpp
+        src/game/planet_summary.cpp
+        src/game/harold_queries.cpp
         src/game/struct.cpp
     FAKE_SOURCES
         tests/fakes/fake_plntsum_runtime.cpp
         tests/fakes/fake_sdl_string.cpp
 )
-
-if(MSVC)
-    target_compile_options(test_plntsum_filters PRIVATE /Gy)
-    target_link_options(test_plntsum_filters PRIVATE /OPT:REF)
-elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-    target_compile_options(test_plntsum_filters PRIVATE -ffunction-sections -fdata-sections)
-    if(APPLE)
-        target_link_options(test_plntsum_filters PRIVATE -Wl,-dead_strip)
-    else()
-        target_link_options(test_plntsum_filters PRIVATE -Wl,--gc-sections)
-    endif()
-endif()
 
 orion2re_add_unit_test(test_colony_production_draw
     SOURCES
@@ -756,6 +741,7 @@ orion2re_add_unit_test(test_colony_pop_growth
         src/game/ai_state.cpp
         src/game/aidata_config.cpp
         src/game/colcalc.cpp
+        src/game/planet_environment.cpp
         src/game/colcalc_config.cpp
         src/game/raceopt_config.cpp
         src/game/settler.cpp
@@ -1127,6 +1113,7 @@ orion2re_add_unit_test(test_cmbtfire
         tests/unit/cmbtfire_test.cpp
     PRODUCTION_SOURCES
         src/game/cmbtfire.cpp
+        src/game/struct.cpp
     FAKE_SOURCES
         tests/fakes/fake_lua_game_runtime.cpp
         tests/fakes/fake_stasis_runtime.cpp
@@ -1168,8 +1155,6 @@ foreach(TARGET_NAME IN ITEMS test_combat_stats test_combat_repair test_boarding 
 endforeach()
 
 if(MSVC)
-    target_compile_options(test_aidudes PRIVATE /Gy)
-    target_link_options(test_aidudes PRIVATE /OPT:REF)
     target_compile_options(test_boarding PRIVATE /Gy)
     target_link_options(test_boarding PRIVATE /OPT:REF)
     target_compile_options(test_combat_stats PRIVATE /Gy)
@@ -1178,37 +1163,29 @@ if(MSVC)
     target_link_options(test_ground_commando PRIVATE /OPT:REF)
     target_compile_options(test_combat_repair PRIVATE /Gy)
     target_link_options(test_combat_repair PRIVATE /OPT:REF)
-    target_compile_options(test_cmbtfire PRIVATE /Gy)
-    target_link_options(test_cmbtfire PRIVATE /OPT:REF)
     target_compile_options(test_stasis_area_effects PRIVATE /Gy)
     target_link_options(test_stasis_area_effects PRIVATE /OPT:REF)
     target_compile_options(test_colony_pop_growth PRIVATE /Gy)
     target_link_options(test_colony_pop_growth PRIVATE /OPT:REF)
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-    target_compile_options(test_aidudes PRIVATE -ffunction-sections -fdata-sections)
     target_compile_options(test_boarding PRIVATE -ffunction-sections -fdata-sections)
     target_compile_options(test_combat_stats PRIVATE -ffunction-sections -fdata-sections)
     target_compile_options(test_ground_commando PRIVATE -ffunction-sections -fdata-sections)
     target_compile_options(test_combat_repair PRIVATE -ffunction-sections -fdata-sections)
-    target_compile_options(test_cmbtfire PRIVATE -ffunction-sections -fdata-sections)
     target_compile_options(test_stasis_area_effects PRIVATE -ffunction-sections -fdata-sections)
     target_compile_options(test_colony_pop_growth PRIVATE -ffunction-sections -fdata-sections)
     if(APPLE)
-        target_link_options(test_aidudes PRIVATE -Wl,-dead_strip)
         target_link_options(test_boarding PRIVATE -Wl,-dead_strip)
         target_link_options(test_combat_stats PRIVATE -Wl,-dead_strip)
         target_link_options(test_ground_commando PRIVATE -Wl,-dead_strip)
         target_link_options(test_combat_repair PRIVATE -Wl,-dead_strip)
-        target_link_options(test_cmbtfire PRIVATE -Wl,-dead_strip)
         target_link_options(test_stasis_area_effects PRIVATE -Wl,-dead_strip)
         target_link_options(test_colony_pop_growth PRIVATE -Wl,-dead_strip)
     else()
-        target_link_options(test_aidudes PRIVATE -Wl,--gc-sections)
         target_link_options(test_boarding PRIVATE -Wl,--gc-sections)
         target_link_options(test_combat_stats PRIVATE -Wl,--gc-sections)
         target_link_options(test_ground_commando PRIVATE -Wl,--gc-sections)
         target_link_options(test_combat_repair PRIVATE -Wl,--gc-sections)
-        target_link_options(test_cmbtfire PRIVATE -Wl,--gc-sections)
         target_link_options(test_stasis_area_effects PRIVATE -Wl,--gc-sections)
         target_link_options(test_colony_pop_growth PRIVATE -Wl,--gc-sections)
     endif()

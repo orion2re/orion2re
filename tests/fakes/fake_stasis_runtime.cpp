@@ -227,6 +227,7 @@ namespace TEST_FIGHTER_ORDNANCE {
         memset(MOX::ordnance_bonus, 0, sizeof(MOX::ordnance_bonus));
         memset(MOX::fighter_beam_type, 0,
                sizeof(MOX::fighter_beam_type));
+        memset(MOX::fighter_bomb_type, 0, sizeof(MOX::fighter_bomb_type));
         missile_hits = 20;
     }
 }
@@ -238,6 +239,7 @@ namespace MOX {
     s_player* player = players;
     int16_t ordnance_bonus[15];
     int16_t fighter_beam_type[9];
+    int16_t fighter_bomb_type[9];
     int16_t combat_attacker_player;
     int16_t combat_defender_player;
     int16_t combat_total_ship_count;
@@ -419,15 +421,6 @@ namespace BOMB {
 
 namespace ERICNET {
     void __cdecl Remove_Building(int16_t, int16_t) {
-    }
-}
-
-namespace struct_ {
-    void __cdecl Clear_Structure(void* dest, uint32_t size) {
-        memset(dest, 0, size);
-    }
-
-    void __cdecl Clear_Bit_Field(void*, uint16_t) {
     }
 }
 

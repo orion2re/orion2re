@@ -6,7 +6,7 @@
 namespace {
     s_player players[MAX_PLAYERS];
     s_planet_data planets[MAX_PLANETS];
-    s_star_data stars[MAX_STARS];
+    s_star_data stars[MAX_STARS + 1];
     s_colony colonies[2];
     s_ship_data ships[8];
     s_scroll_bar scroll;
@@ -203,8 +203,6 @@ namespace HACCESS {
 
 namespace COLCALC {
     void __cdecl Compute_Star_Colony_Stuff(s_star_data*) {}
-
-    uint8_t minerals_per_mine[8] = {1, 2, 3, 5, 8};
 
     int16_t __cdecl Planet_Max_Population_For_Player(s_planet_data*, int16_t) {
         return 10;
