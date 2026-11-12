@@ -5,16 +5,21 @@ namespace COLMOVE {
     uint8_t g_hacky_dont_draw_cluster_flag;
 
     void __cdecl Clear_Cluster() {
-        int16_t unemployed_idx = Get_First_Unemployed(cluster_colony_n);
+        // No cluster is active when cluster_colony_n is -1: Get_Cluster
+        // returns early for a native pop without setting it, so a
+        // Reset_Field_Mode from that path must not read MOX::colony[-1].
+        if (cluster_colony_n != -1) {
+            int16_t unemployed_idx = Get_First_Unemployed(cluster_colony_n);
 
-        while (unemployed_idx != -1) {
-            uint32_t* pop_flags = &MOX::colony[cluster_colony_n].pop[unemployed_idx];
+            while (unemployed_idx != -1) {
+                uint32_t* pop_flags = &MOX::colony[cluster_colony_n].pop[unemployed_idx];
 
-            if (!POP::Is_Assigned(POP::Load(pop_flags))) {
-                POP::Set_Assigned(pop_flags, true);
+                if (!POP::Is_Assigned(POP::Load(pop_flags))) {
+                    POP::Set_Assigned(pop_flags, true);
+                }
+
+                unemployed_idx = Get_First_Unemployed(cluster_colony_n);
             }
-
-            unemployed_idx = Get_First_Unemployed(cluster_colony_n);
         }
 
         cluster_colony_n = -1;

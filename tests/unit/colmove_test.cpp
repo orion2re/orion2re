@@ -81,3 +81,17 @@ DOCTEST_TEST_CASE("native population transfer requires the configured policy") {
     DOCTEST_CHECK(TEST_COLMOVE::help_call_count == 1);
     DOCTEST_CHECK(COLMOVE::cluster_colony_n == 0);
 }
+DOCTEST_TEST_CASE("Clear_Cluster with no active cluster is a no-op") {
+    TEST_COLMOVE::Reset_();
+    MOX::colony[0].n_pops = 1;
+    POP::Set_Assigned(&MOX::colony[0].pop[0], false);
+
+    // Regression test: Get_Cluster returns early for a native pop without
+    // setting cluster_colony_n, and Reset_Field_Mode then calls
+    // Clear_Cluster with it still -1. Clearing must not read
+    // MOX::colony[-1] or touch any colony's pops.
+    COLMOVE::Clear_Cluster();
+
+    DOCTEST_CHECK(COLMOVE::cluster_colony_n == -1);
+    DOCTEST_CHECK(!POP::Is_Assigned(MOX::colony[0].pop[0]));
+}
