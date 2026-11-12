@@ -975,7 +975,10 @@ orion2re_add_unit_test(test_combat_stats
     PRODUCTION_SOURCES
         src/game/aipower.cpp
         src/game/cmbtai.cpp
+        src/game/combat_range.cpp
         src/game/combat1.cpp
+        src/game/combat_ship_state.cpp
+        src/game/combat_network.cpp
         src/game/cmbtdrw1.cpp
         src/game/cmbtmov1.cpp
     FAKE_SOURCES
@@ -986,7 +989,8 @@ orion2re_add_unit_test(test_combat_repair
     SOURCES
         tests/unit/combinit_test.cpp
     PRODUCTION_SOURCES
-        src/game/combinit.cpp
+        src/game/combat_lifecycle.cpp
+        src/game/combat_layout.cpp
     FAKE_SOURCES
         tests/fakes/fake_combat_repair_runtime.cpp
     LINK_SDL
@@ -1095,9 +1099,12 @@ orion2re_add_unit_test(test_boarding
         tests/unit/boarding_test.cpp
     PRODUCTION_SOURCES
         src/game/boarding.cpp
-        src/game/cmbtai.cpp
+        src/game/cmbtai_boarding.cpp
+        src/game/combat1_boarding.cpp
+        src/game/combat_range.cpp
         src/game/cmbtfir2.cpp
-        src/game/combat1.cpp
+        src/game/combat_ship_state.cpp
+        src/game/combat_network.cpp
         src/game/strbuild.cpp
         src/game/struct.cpp
     FAKE_SOURCES
@@ -1142,6 +1149,8 @@ orion2re_add_unit_test(test_stasis_area_effects
     PRODUCTION_SOURCES
         src/game/cmbtfir2.cpp
         src/game/combat1.cpp
+        src/game/combat_ship_state.cpp
+        src/game/combat_network.cpp
         src/game/random.cpp
     FAKE_SOURCES
         tests/fakes/fake_stasis_area_effects_runtime.cpp
@@ -1156,24 +1165,19 @@ if(MSVC)
     target_link_options(test_boarding PRIVATE /OPT:REF)
     target_compile_options(test_combat_stats PRIVATE /Gy)
     target_link_options(test_combat_stats PRIVATE /OPT:REF)
-    target_compile_options(test_combat_repair PRIVATE /Gy)
-    target_link_options(test_combat_repair PRIVATE /OPT:REF)
     target_compile_options(test_stasis_area_effects PRIVATE /Gy)
     target_link_options(test_stasis_area_effects PRIVATE /OPT:REF)
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
     target_compile_options(test_boarding PRIVATE -ffunction-sections -fdata-sections)
     target_compile_options(test_combat_stats PRIVATE -ffunction-sections -fdata-sections)
-    target_compile_options(test_combat_repair PRIVATE -ffunction-sections -fdata-sections)
     target_compile_options(test_stasis_area_effects PRIVATE -ffunction-sections -fdata-sections)
     if(APPLE)
         target_link_options(test_boarding PRIVATE -Wl,-dead_strip)
         target_link_options(test_combat_stats PRIVATE -Wl,-dead_strip)
-        target_link_options(test_combat_repair PRIVATE -Wl,-dead_strip)
         target_link_options(test_stasis_area_effects PRIVATE -Wl,-dead_strip)
     else()
         target_link_options(test_boarding PRIVATE -Wl,--gc-sections)
         target_link_options(test_combat_stats PRIVATE -Wl,--gc-sections)
-        target_link_options(test_combat_repair PRIVATE -Wl,--gc-sections)
         target_link_options(test_stasis_area_effects PRIVATE -Wl,--gc-sections)
     endif()
 endif()
