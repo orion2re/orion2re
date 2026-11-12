@@ -241,6 +241,7 @@ orion2re_add_unit_test(test_aidata_routes
         tests/unit/aidata_routes_test.cpp
     PRODUCTION_SOURCES
         src/game/aidata.cpp
+        src/game/ai_planet_values.cpp
 )
 
 orion2re_add_unit_test(test_ai_inputs
@@ -249,11 +250,15 @@ orion2re_add_unit_test(test_ai_inputs
         tests/unit/ai_compat_test.cpp
     PRODUCTION_SOURCES
         src/game/ai_compat.cpp
+        src/game/ai_planet_values.cpp
         src/game/aibuild.cpp
         src/game/aidata.cpp
         src/game/aimove.cpp
+        src/game/aimove_npc.cpp
         src/game/aipower.cpp
+        src/game/aipower_ground.cpp
         src/game/aitech.cpp
+        src/game/tech_selection.cpp
         src/game/fleet_movement.cpp
         src/game/design.cpp
         src/game/random.cpp
@@ -790,8 +795,6 @@ orion2re_add_unit_test(test_colony_pop_growth
         tests/unit/colony_services_test.cpp
     PRODUCTION_SOURCES
         src/game/ai_planet_values.cpp
-        src/game/aidata.cpp
-        src/game/aidata_state.cpp
         src/game/aidata_config.cpp
         src/game/colcalc.cpp
         src/game/research_completion.cpp
@@ -903,7 +906,6 @@ orion2re_add_unit_test(test_aimove
         src/game/angle.cpp
         src/game/ai_compat.cpp
         src/game/fleet_movement.cpp
-        src/game/aimove.cpp
     FAKE_SOURCES
         tests/fakes/fake_aimove_runtime.cpp
 )

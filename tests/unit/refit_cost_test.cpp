@@ -12,28 +12,24 @@ namespace TEST_AIBUILD_CONTEXT {
 
 namespace {
     struct s_refit_runtime {
+        game::s_view saved_world = game::current;
         s_player* saved_players = MOX::player;
         s_colony* saved_colonies = MOX::colony;
         s_planet_data* saved_planets = MOX::planet;
         s_current_design* saved_design = MOX::design;
         int16_t saved_num_players = MOX::NUM_PLAYERS;
         int32_t saved_stardate = MOX::stardate;
-        decltype(AIDATA::ai_colony_info) saved_ai_colonies = AIDATA::ai_colony_info;
-        decltype(AIDATA::ai_star_info) saved_ai_stars = AIDATA::ai_star_info;
-        decltype(AIDATA::enroute_human_ships) saved_enroute = AIDATA::enroute_human_ships;
 
         s_refit_runtime() { TEST_AIBUILD_CONTEXT::Reset_(); }
 
         ~s_refit_runtime() {
+            game::current = saved_world;
             MOX::player = saved_players;
             MOX::colony = saved_colonies;
             MOX::planet = saved_planets;
             MOX::design = saved_design;
             MOX::NUM_PLAYERS = saved_num_players;
             MOX::stardate = saved_stardate;
-            AIDATA::ai_colony_info = saved_ai_colonies;
-            AIDATA::ai_star_info = saved_ai_stars;
-            AIDATA::enroute_human_ships = saved_enroute;
         }
     };
 }

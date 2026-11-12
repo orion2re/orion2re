@@ -3,11 +3,6 @@
 #include "fake_colony_services.h"
 #include "lua/lua_game.h"
 
-namespace AIDATA {
-    s_ai_colony_info (*ai_colony_info)[MAX_COLONIES];
-    s_ai_star_info (*ai_star_info)[MAX_STARS];
-}
-
 namespace {
     s_colony colonies[2];
     // MOX::planet points past the sentinel, leaving two usable planet records.

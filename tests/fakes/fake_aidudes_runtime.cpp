@@ -177,6 +177,10 @@ namespace AIBUILD {
     s_rules rules{.ship_upgrade_bonus = {}};
 }
 
+namespace maintain {
+    int32_t (*ship_worths)[MAX_SHIPS];
+}
+
 namespace game_random {
     uint32_t __cdecl Random_From_Seed(uint32_t*, uint32_t maximum) { return Random(maximum); }
     uint32_t __cdecl Random(uint32_t maximum) {
@@ -267,9 +271,3 @@ namespace OFFICER {
         leader->location = -1;
     }
 } // namespace OFFICER
-
-void Legacy_Qsort(void*, size_t, size_t, legacy_qsort_compare) {
-}
-
-void Legacy_Qsort(void*, size_t, size_t, legacy_qsort_context_compare, void*) {
-}

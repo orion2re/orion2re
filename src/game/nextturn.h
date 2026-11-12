@@ -1,7 +1,9 @@
 #pragma once
 #include <cstdint>
+#include "world_view.h"
 
 namespace NEXTTURN {
+    bool Validate_Turn_Inputs(const game::s_view* world);
     /** Advances the game to the next turn and handles any end-of-game transitions. */
     void __cdecl Next_Turn();
     /** Writes the periodic autosave slot when autosaving is enabled for the current game mode. */
