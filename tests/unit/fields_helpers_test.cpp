@@ -255,4 +255,41 @@ DOCTEST_TEST_CASE("field data multi hot key returns multi hot key payload pointe
     DOCTEST_REQUIRE((const_payload->help_len == 6));
 }
 
+DOCTEST_TEST_CASE("list selection step moves one item down and up") {
+    const int16_t items[] = {0, 1, 2};
+    DOCTEST_REQUIRE((fields::List_Selection_Step(items, 3, 0, 1) == 1));
+    DOCTEST_REQUIRE((fields::List_Selection_Step(items, 3, 1, 1) == 2));
+    DOCTEST_REQUIRE((fields::List_Selection_Step(items, 3, 2, -1) == 1));
+    DOCTEST_REQUIRE((fields::List_Selection_Step(items, 3, 1, -1) == 0));
+}
+
+DOCTEST_TEST_CASE("list selection step clamps at the ends") {
+    const int16_t items[] = {0, 1, 2};
+    DOCTEST_REQUIRE((fields::List_Selection_Step(items, 3, 2, 1) == 2));
+    DOCTEST_REQUIRE((fields::List_Selection_Step(items, 3, 0, -1) == 0));
+    // A single item never moves.
+    const int16_t single[] = {0};
+    DOCTEST_REQUIRE((fields::List_Selection_Step(single, 1, 0, 1) == 0));
+    DOCTEST_REQUIRE((fields::List_Selection_Step(single, 1, 0, -1) == 0));
+}
+
+DOCTEST_TEST_CASE("list selection step follows the item order, not arithmetic") {
+    // Gaps in the ids (disabled items already excluded by the
+    // caller): stepping follows the array, so Down from 0 lands
+    // on 2, not on the missing 1.
+    const int16_t items[] = {0, 2, 5};
+    DOCTEST_REQUIRE((fields::List_Selection_Step(items, 3, 0, 1) == 2));
+    DOCTEST_REQUIRE((fields::List_Selection_Step(items, 3, 2, 1) == 5));
+    DOCTEST_REQUIRE((fields::List_Selection_Step(items, 3, 5, -1) == 2));
+    DOCTEST_REQUIRE((fields::List_Selection_Step(items, 3, 2, -1) == 0));
+}
+
+DOCTEST_TEST_CASE("list selection step with no current selection does not move") {
+    const int16_t items[] = {0, 1, 2};
+    DOCTEST_REQUIRE((fields::List_Selection_Step(items, 3, -1, 1) == -1));
+    DOCTEST_REQUIRE((fields::List_Selection_Step(items, 3, -1, -1) == -1));
+    // An empty list does not move either.
+    DOCTEST_REQUIRE((fields::List_Selection_Step(items, 0, 0, 1) == 0));
+}
+
 }

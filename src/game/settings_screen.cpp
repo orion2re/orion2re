@@ -1455,6 +1455,11 @@ namespace SETTINGS_SCREEN {
             Apply_Row(row,
                 config::Format_Leaf_Value_For_Config(row.variable_id, chosen),
                 type->values[choice].name);
+            // The value changed after Pick_From_List rebuilt the
+            // fields, so rebuild again: the value button's text is
+            // captured at build time, and without this it keeps
+            // showing the old value until the next interaction.
+            Rebuild_Fields();
         }
 
         // The Resolution dropdown opens as the field system's
@@ -1491,6 +1496,10 @@ namespace SETTINGS_SCREEN {
             const config::s_resolution_option& option =
                 g_state.resolution_options[(size_t)choice];
             Apply_Resolution(option.width, option.height, option.label);
+            // As in Open_Dropdown: the value changed after
+            // Pick_From_List rebuilt the fields, so rebuild again
+            // for the button text to show the new value.
+            Rebuild_Fields();
         }
 
         void Handle_Row_Click(int visible) {
