@@ -40,11 +40,13 @@ namespace SETTINGS_LAYOUT {
     //   the interfaces are done.
     //
     // Horizontal allocation (fractions of the width): the content
-    // spans 0.020..0.980. The bottom bar holds the three category
-    // tabs on the left (dividing the bar's left width in proportion
-    // to their label lengths, plus padding, with NO gap between
-    // tabs -- one continuous band, like the colony's SORT band)
-    // and MORE and RETURN at the right end, the SAME width
+    // spans 0.020..0.980. The bottom bar holds the "Options"
+    // background label at the far left, then the three category
+    // tabs tiled adjacently right after it (the colony sort-tab
+    // frames: 78 px for Internals/Gameplay, 42 px for Mods at
+    // 640x480 -- the tab rects ARE the frame rects, with NO gap
+    // between tabs, one continuous band like the colony's SORT
+    // band), and MORE and RETURN at the right end, the SAME width
     // (0.133, sized for the longer label) with a 0.012 gap between
     // them. The button rects span the bar's full height (the hit
     // area); the drawn buttons sit below the bar's top divider, so
@@ -63,11 +65,12 @@ namespace SETTINGS_LAYOUT {
     // colony's indicator bar: 6 px wide in the colony's 13 px
     // strip, and it spans the whole track when the list fits
     // (the colony's rule -- the arrows stay visible and do
-    // nothing on a short list). The VALUE zone starts at 0.778
-    // of the width, in the header and in every row alike -- it
-    // moved left with the strip, so the value boxes keep their
-    // exact width and the strip's extra width comes out of the
-    // (wide) name zone.
+    // nothing on a short list). The VALUE zone starts at 0.820
+    // of the width, in the header and in every row alike -- the
+    // zone is 89 px at 640x480, so the 85 px colony RETURN frame
+    // the dropdown/edit values sit on nearly fills it, like the
+    // sample's wide value boxes filling their column; the freed
+    // width goes to the name zone.
     //
     // The layout is pure: it takes the screen size and the tab
     // label lengths and returns rectangles. No video, font or
@@ -108,7 +111,9 @@ namespace SETTINGS_LAYOUT {
     // Computes the layout for a screen of the given size.
     // `row_count` is the number of visible list rows (the screen's
     // ROWS_PER_PAGE); `tab_label_lengths` holds the character
-    // length of each of the 3 category labels, in tab order.
+    // length of each of the 3 category labels, in tab order
+    // (accepted for the call sites; the tab widths are the colony
+    // sort-tab frame widths, not the label lengths).
     s_settings_layout Compute_Layout(int32_t width, int32_t height,
         int row_count, const int tab_label_lengths[3]);
 
@@ -136,11 +141,19 @@ namespace SETTINGS_LAYOUT {
     s_rect Row_Value_Rect_For_Row(const s_settings_layout& layout,
         const s_rect& row);
 
+    // The row's plate: the row minus its bottom divider (the
+    // background's 8px chiseled band). The plate is the face the
+    // row's elements sit on; the elements centre on it, not on
+    // the full row slot.
+    s_rect Row_Plate_Rect_For_Row(const s_settings_layout& layout,
+        const s_rect& row);
+    s_rect Row_Plate_Rect(const s_settings_layout& layout, int index);
+
     // The value-control zone inside a row: the row's VALUE zone,
-    // vertically centred, 80% of the row height -- the sample's
-    // tall inset value boxes, filling most of the row. Dropdowns,
-    // toggles and edit fields sit in this rect (step 4 renders
-    // them; step 3 only allocates it).
+    // vertically centred on the row's plate, 80% of the plate
+    // height -- the sample's tall inset value boxes, filling most
+    // of the row. Dropdowns, toggles and edit fields sit in this
+    // rect (step 4 renders them; step 3 only allocates it).
     s_rect Row_Value_Rect(const s_settings_layout& layout, int index);
 
     // Slot arithmetic over per-setting line counts (each entry is
@@ -161,17 +174,17 @@ namespace SETTINGS_LAYOUT {
 
     // The scrollbar thumb for a list of `total_lines` lines whose
     // first visible line is `first_line` and whose page shows
-    // `visible_lines` lines. When the whole list fits, the thumb
-    // spans the whole track (the colony's rule -- there is
-    // nothing to scroll, and the arrows stay visible); otherwise
-    // a rect inside the scrollbar track, its height proportional
-    // to the visible fraction and its position proportional to
-    // the scroll offset (top of the track = first lines). Empty
-    // (w == 0) only for a degenerate (empty) list. The thumb is
-    // the colony's indicator bar: 6 px wide in the colony's
-    // 13 px strip, inset 2 px from the strip's left edge, and it
-    // travels between the arrow/track dividers (inset 2 px at
-    // each end of the track), so it never paints over one.
+    // `visible_lines` lines. When the whole list fits there is no
+    // thumb (the colony's rule -- colsum.cpp Draw_Bar_Indicator
+    // draws only when the list scrolls); otherwise a rect inside
+    // the scrollbar track, its height proportional to the visible
+    // fraction and its position proportional to the scroll offset
+    // (top of the track = first lines). Empty (w == 0) when the
+    // list fits or is empty. The thumb is the colony's indicator
+    // bar: 6 px wide in the colony's 13 px strip, inset 2 px from
+    // the strip's left edge, and it travels between the arrow/
+    // track dividers (inset 2 px at each end of the track), so it
+    // never paints over one.
     s_rect Scrollbar_Thumb_Rect(const s_settings_layout& layout,
         int total_lines, int first_line, int visible_lines);
 

@@ -28,6 +28,26 @@
    "target_palette": "menu"
   },
   {
+   "blank": {
+    "fill": 93,
+    "x0": 17,
+    "x1": 56,
+    "y0": 8,
+    "y1": 16
+   },
+   "entry": 1,
+   "id": "value-box",
+   "size": [
+    85,
+    26
+   ],
+   "source_palette": "colony",
+   "states": {
+    "normal": 0
+   },
+   "target_palette": "menu"
+  },
+  {
    "grab": {
     "tab": "Name",
     "x": 89,
@@ -240,6 +260,99 @@
     }
    },
    "target_palette": "menu"
+  },
+  {
+   "id": "sort-population-wide",
+   "size": [
+    160,
+    24
+   ],
+   "source": "screen",
+   "source_palette": "colony",
+   "target_palette": "menu",
+   "tool": "stretch_sprite.py",
+   "stretch": {
+    "from": "sort-population",
+    "column": 40,
+    "repeat": 82
+   },
+   "states": {
+    "normal": {
+     "from": "sort-population/normal"
+    },
+    "active": {
+     "from": "sort-population/active"
+    }
+   }
+  },
+  {
+   "id": "sort-population-mid",
+   "size": [
+    104,
+    24
+   ],
+   "source": "screen",
+   "source_palette": "colony",
+   "target_palette": "menu",
+   "tool": "stretch_sprite.py",
+   "stretch": {
+    "from": "sort-population",
+    "column": 40,
+    "repeat": 26
+   },
+   "states": {
+    "normal": {
+     "from": "sort-population/normal"
+    },
+    "active": {
+     "from": "sort-population/active"
+    }
+   }
+  },
+  {
+   "id": "sort-food-wide",
+   "size": [
+    80,
+    24
+   ],
+   "source": "screen",
+   "source_palette": "colony",
+   "target_palette": "menu",
+   "tool": "stretch_sprite.py",
+   "stretch": {
+    "from": "sort-food",
+    "column": 21,
+    "repeat": 38
+   },
+   "states": {
+    "normal": {
+     "from": "sort-food/normal"
+    },
+    "active": {
+     "from": "sort-food/active"
+    }
+   }
+  },
+  {
+   "id": "value-box-wide",
+   "size": [
+    104,
+    26
+   ],
+   "source": "screen",
+   "source_palette": "colony",
+   "target_palette": "menu",
+   "tool": "stretch_sprite.py",
+   "stretch": {
+    "from": "value-box",
+    "column": 32,
+    "repeat": 19
+   },
+   "states": {
+    "normal": {
+     "from": "value-box/normal"
+    }
+   }
   }
  ]
 }

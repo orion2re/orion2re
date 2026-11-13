@@ -47,12 +47,13 @@ namespace SETTINGS_SCREEN {
         // stays, and the rendering is field types, not custom
         // drawing. Row labels are STRING_LIST fields (the
         // field system draws the text and the selection
-        // highlight); values are BUTTON fields on derived
-        // sprites (the colony RETURN frame for a dropdown/edit
+        // highlight) in the sample's bright green; values are BUTTON fields on derived
+        // sprites (the widened value-box frame for a dropdown/edit
         // value, the colony buy-button toggle frames for a
         // bool/mod); the category tabs are BUTTON fields on
         // the colony sort-tab frames (active for the current
-        // category); MORE and RETURN are BUTTON fields; the
+        // category, sized to the label like the colony's
+        // switcher); MORE and RETURN are BUTTON fields; the
         // scroll arrows are BUTTON fields on the colony
         // scroll-arrow frames; the scrollbar is the field
         // system's SCROLL field; dropdowns open through the
@@ -79,6 +80,41 @@ namespace SETTINGS_SCREEN {
         // The standard UI text palette, as used by the council screen.
         s_colors g_normal_colors = {{150, 154, 155, 151, 152, 153, 154, 155}};
 
+        // The header-label white: the menu palette's near-white
+        // grey ramp, measured from MAINMENU.LBX entry 2 (the
+        // palette installed while this screen is up): 250 is
+        // (220,220,228), the brightest near-white, 249 is
+        // (204,204,212) for the outline. SETTING/VALUE draw in
+        // this, not in the teal g_normal_colors (whose face,
+        // 154, is cyan (120,180,184)). Slot 0 is the outline,
+        // the rest the face, like g_list_green_colors.
+        s_colors g_header_white_colors =
+            {{249, 250, 250, 250, 250, 250, 250, 250}};
+
+        // The dark button-label colour: the menu palette's black
+        // (index 0 is (0,0,0), and the settings screen does not
+        // remap it -- it owns only 160-223 and 253). MORE sits on
+        // the light value-box frame, like the colonies RETURN, so
+        // its label is dark like the colonies RETURN's baked label,
+        // not the teal g_normal_colors.
+        s_colors g_button_dark_colors =
+            {{0, 0, 0, 0, 0, 0, 0, 0}};
+
+        // The row-label green, as in Tom's settings sample: the
+        // setting names are bright green, while the button labels
+        // and header/description stay the council grey. The
+        // indices are the menu palette's green ramp, measured
+        // from fonts.lbx palette 0 (MOX::combat_green's 0x81/0x89
+        // are RED in this palette -- 0x81 is r=49,g=0 -- so they
+        // must not be used here): 0x79 is the darker green
+        // outline (g=45), 0x78 the bright pure-green face (g=63).
+        // Applied to the string-list colours only
+        // (list_normal_color / list_highlight_colors), so the
+        // BUTTON fields keep g_normal_colors -- they capture the
+        // current font colour at creation, and the string list
+        // reads the globals.
+        s_colors g_list_green_colors = {{0x79, 0x78, 0x78, 0x78, 0x78, 0x78, 0x78, 0x78}};
+
         enum e_apply_result {
             APPLY_LIVE,
             APPLY_SAVED,
@@ -103,17 +139,10 @@ namespace SETTINGS_SCREEN {
             "Gameplay",
             "Mods",
         };
-
-        // Short tab labels for the fields-rendered tabs: the
-        // tab sprite is a fixed-size derived frame (78 px), so
-        // the label must fit it -- the full category names do
-        // not. The full name stays the category's description;
-        // the tab shows the short name.
-        const char* CATEGORY_SHORT_LABELS[CATEGORY_COUNT] = {
-            "Internals",
-            "Gameplay",
-            "Mods",
-        };
+        // The tab labels ARE the full category names: the tabs
+        // are the widened sort-tab frames (160/104/80 px), sized
+        // to the labels, so the full names fit (Tom, 2026-11-13).
+        // The full name is also the category's description.
 
         config::e_settings_category Settings_Category_For_Tab(int category) {
             switch (category) {
@@ -192,9 +221,36 @@ namespace SETTINGS_SCREEN {
             // the element falls back to a hidden field, so the
             // screen stays usable.
             bool sprites_loaded = false;
+            // The widened sort-tab frames (the colony's sort-tab
+            // frames stretched by repeating a flat middle column,
+            // pixel-exact colonies art): 160 px for Internals
+            // (sort-population-wide), 104 px for Gameplay
+            // (sort-population-mid), 80 px for Mods
+            // (sort-food-wide). The colony's switcher sizes each
+            // tab to its label, so the tabs read as a switcher
+            // instead of three identical wide buttons.
             s_animation_header* tab_sprite_normal = nullptr;
             s_animation_header* tab_sprite_active = nullptr;
+            s_animation_header* tab_sprite_mid_normal = nullptr;
+            s_animation_header* tab_sprite_mid_active = nullptr;
+            s_animation_header* tab_sprite_small_normal = nullptr;
+            s_animation_header* tab_sprite_small_active = nullptr;
             s_animation_header* return_sprite = nullptr;
+            // The blank RETURN frame (the colony RETURN frame
+            // with its baked "RETURN" label blanked): the
+            // dropdown/edit value buttons draw on it, so the
+            // baked label cannot bleed through the value text
+            // ("Rhalf", "RETURN" for the value 1). The
+            // bottom-bar RETURN keeps the labelled frame.
+            s_animation_header* value_box_sprite = nullptr;
+            // The widened value box (the blank RETURN frame
+            // stretched to 104 px by repeating a flat middle
+            // column): the row dropdown/edit value buttons draw
+            // on it, so the widest value, "overview" (74 px),
+            // fits instead of truncating to "overvi..." (Tom,
+            // 2026-11-13). MORE keeps the 85 px frame: its zone
+            // is 99 px and the wide frame would overflow it.
+            s_animation_header* value_box_wide_sprite = nullptr;
             s_animation_header* toggle_off = nullptr;
             s_animation_header* toggle_on = nullptr;
             s_animation_header* arrow_up = nullptr;
@@ -674,23 +730,41 @@ namespace SETTINGS_SCREEN {
         // The derived sprites this screen renders with
         // (sprite_art): the colony sort-tab frames (blanked
         // labels) for the category tabs and MORE, the colony
-        // RETURN frame for RETURN and for the dropdown/edit
-        // value buttons, the colony buy-button toggle frames
-        // for bool values and mods, and the colony scroll
-        // arrows. Loaded once into MOX::screen_seg; a missing
-        // frame leaves its element on a hidden field (the
-        // screen stays usable), never a null sprite.
+        // RETURN frame for RETURN, the blank RETURN frame
+        // (value-box) for the dropdown/edit value buttons,
+        // the colony buy-button toggle frames for bool values
+        // and mods, and the colony scroll arrows. Loaded once
+        // into MOX::screen_seg; a missing frame leaves its
+        // element on a hidden field (the screen stays usable),
+        // never a null sprite.
         void Ensure_Sprites() {
             if (g_state.sprites_loaded) {
                 return;
             }
             g_state.sprites_loaded = true;
             g_state.tab_sprite_normal = sprite_art::Load_Sprite_Frame(
-                "sort-population", "normal", MOX::screen_seg);
+                "sort-population-wide", "normal", MOX::screen_seg);
             g_state.tab_sprite_active = sprite_art::Load_Sprite_Frame(
-                "sort-population", "active", MOX::screen_seg);
+                "sort-population-wide", "active", MOX::screen_seg);
+            g_state.tab_sprite_mid_normal =
+                sprite_art::Load_Sprite_Frame(
+                    "sort-population-mid", "normal", MOX::screen_seg);
+            g_state.tab_sprite_mid_active =
+                sprite_art::Load_Sprite_Frame(
+                    "sort-population-mid", "active", MOX::screen_seg);
+            g_state.tab_sprite_small_normal =
+                sprite_art::Load_Sprite_Frame(
+                    "sort-food-wide", "normal", MOX::screen_seg);
+            g_state.tab_sprite_small_active =
+                sprite_art::Load_Sprite_Frame(
+                    "sort-food-wide", "active", MOX::screen_seg);
             g_state.return_sprite = sprite_art::Load_Sprite_Frame(
                 "return", "normal", MOX::screen_seg);
+            g_state.value_box_sprite = sprite_art::Load_Sprite_Frame(
+                "value-box", "normal", MOX::screen_seg);
+            g_state.value_box_wide_sprite =
+                sprite_art::Load_Sprite_Frame(
+                    "value-box-wide", "normal", MOX::screen_seg);
             sprite_art::Buy_Button_Frames toggle =
                 sprite_art::Load_Buy_Button_Frames(MOX::screen_seg);
             g_state.toggle_off = toggle.off;
@@ -748,28 +822,53 @@ namespace SETTINGS_SCREEN {
             Ensure_Sprites();
             fields::Clear_Fields();
             fonts::Set_Font_Style(4, &g_normal_colors);
-            // The string-list colours come from the current font
-            // colours (Get_List_Field sets these globals the same
-            // way before it builds its rows).
+            // The string-list colours: the row labels are the
+            // sample's bright green (g_list_green_colors), both
+            // unselected (list_normal_color) and selected
+            // (list_highlight_colors, so the selected label stays
+            // green on the blue selection bar). The gradient
+            // colours (list_special_colors) still come from the
+            // current special colour, so the selection bar itself
+            // is unchanged. Get_List_Field sets these globals the
+            // same way before it builds its rows. The BUTTON
+            // fields keep g_normal_colors: they capture the
+            // current font colour at creation, below.
             {
-                s_colors* cur_font_color =
-                    fonts::Get_Current_Font_Color();
-                s_colors* cur_highlight =
-                    fonts::Get_Current_Highlight_Color();
                 s_colors* cur_special =
                     fonts::Get_Current_Special_Color();
                 for (int i = 0; i < 8; i++) {
                     fields::list_normal_color.colors[i] =
-                        cur_font_color->colors[i];
+                        g_list_green_colors.colors[i];
                     fields::list_special_colors.colors[i] =
                         cur_special->colors[i];
                     fields::list_highlight_colors.colors[i] =
-                        cur_highlight->colors[i];
+                        g_list_green_colors.colors[i];
                 }
             }
             const SETTINGS_LAYOUT::s_settings_layout layout = Layout();
             const int16_t pad = Text_Pad(layout.width);
             const int16_t font_height = fonts::Get_Font_Height();
+            // A button field's font colour is a pointer to the
+            // shared current-font-colour global (Add_Button_Field
+            // captures Get_Current_Font_Color()), so its text
+            // renders in whatever the previously drawn field left
+            // there -- the selected row's string list leaves the
+            // green highlight colour, and the selected row's value
+            // button would render green. Pin a button's colour to
+            // the council grey after creating it, so the button
+            // labels stay grey whatever the string list did.
+            auto pin_button_color = [](int16_t field_id) {
+                if (field_id >= 0) {
+                    fields::fields[field_id].font_color =
+                        &g_normal_colors;
+                }
+            };
+            auto pin_button_dark_color = [](int16_t field_id) {
+                if (field_id >= 0) {
+                    fields::fields[field_id].font_color =
+                        &g_button_dark_colors;
+                }
+            };
             Sync_Scroll();
             // The selection follows the selected row, clamped
             // into the visible range.
@@ -777,23 +876,54 @@ namespace SETTINGS_SCREEN {
                 g_state.selected, 0,
                 std::max(0, Visible_Count() - 1));
             // Category tabs in the bottom bar: one button per
-            // category on the sort-tab frame, the active tab on
-            // its "active" frame. The label is the short
-            // category name, centred by the field system.
+            // category on its widened sort-tab frame, the active
+            // tab on its "active" frame. The label is the full
+            // category name, centred by the field system. The
+            // frame is sized to the label, like the colony's
+            // switcher: Internals gets the 160 px
+            // sort-population-wide frame, Gameplay the 104 px
+            // sort-population-mid frame, Mods the 80 px
+            // sort-food-wide frame. A missing frame falls back
+            // to the wide one.
             for (int category = 0; category < CATEGORY_COUNT; ++category) {
                 const SETTINGS_LAYOUT::s_rect tab = layout.tabs[category];
+                s_animation_header* pic_normal = nullptr;
+                s_animation_header* pic_active = nullptr;
+                switch (category) {
+                    case CATEGORY_GAMEPLAY:
+                        pic_normal = g_state.tab_sprite_mid_normal;
+                        pic_active = g_state.tab_sprite_mid_active;
+                        break;
+                    case CATEGORY_MODS:
+                        pic_normal = g_state.tab_sprite_small_normal;
+                        pic_active = g_state.tab_sprite_small_active;
+                        break;
+                    case CATEGORY_INTERNALS:
+                    default:
+                        pic_normal = g_state.tab_sprite_normal;
+                        pic_active = g_state.tab_sprite_active;
+                        break;
+                }
+                if (pic_normal == nullptr || pic_active == nullptr) {
+                    pic_normal = g_state.tab_sprite_normal;
+                    pic_active = g_state.tab_sprite_active;
+                }
                 s_animation_header* pic =
-                    category == g_state.category
-                        ? g_state.tab_sprite_active
-                        : g_state.tab_sprite_normal;
+                    category == g_state.category ? pic_active : pic_normal;
                 if (pic != nullptr) {
                     const int16_t w = animate::Get_Width(pic);
                     const int16_t h = animate::Get_Height(pic);
+                    // The tab frames sit 4 px below the centred
+                    // position: centred, they overlap the bottom
+                    // strip's chiseled top edge (y 439-442); the
+                    // colony's bar elements sit below that edge,
+                    // on the outer frame's bottom.
                     g_state.tab_fields[category] =
                         fields::Add_Button_Field(
                             (int16_t)(tab.x + (tab.w - w) / 2),
-                            (int16_t)(tab.y + (tab.h - h) / 2),
-                            CATEGORY_SHORT_LABELS[category], pic, "", 0);
+                            (int16_t)(tab.y + (tab.h - h) / 2 + 4),
+                            CATEGORY_LABELS[category], pic, "", 0);
+                    pin_button_color(g_state.tab_fields[category]);
                 } else {
                     g_state.tab_fields[category] =
                         fields::Add_Hidden_Field(tab.x, tab.y,
@@ -820,10 +950,32 @@ namespace SETTINGS_SCREEN {
                 g_state.row_labels[(size_t)index] =
                     Truncate_To_Width(Visible_Row_Name(visible),
                         (int16_t)(name_rect.w - 2 * pad));
+                // The label's ink centres on the row's plate (the
+                // row minus its bottom divider), not on the full
+                // row slot -- the plate is what the eye reads as
+                // the row. Falls back to the font cell when the
+                // label has no ink.
+                const SETTINGS_LAYOUT::s_rect plate =
+                    SETTINGS_LAYOUT::Row_Plate_Rect_For_Row(layout, row);
+                int16_t label_ink_top = -1;
+                int16_t label_ink_bottom = -1;
+                fonts::Get_String_Ink_Rows(
+                    g_state.row_labels[(size_t)index].c_str(),
+                    &label_ink_top, &label_ink_bottom);
+                int16_t label_y = plate.y;
+                if (label_ink_top >= 0 &&
+                    label_ink_bottom >= label_ink_top) {
+                    const int16_t ink_h = (int16_t)(
+                        label_ink_bottom - label_ink_top + 1);
+                    label_y = (int16_t)(plate.y +
+                        (plate.h - ink_h) / 2 - label_ink_top);
+                } else {
+                    label_y = (int16_t)(plate.y +
+                        (plate.h - font_height) / 2);
+                }
                 g_state.row_fields[index] =
                     fields::Add_String_List_Field(
-                        (int16_t)(name_rect.x + pad),
-                        (int16_t)(row.y + (row.h - font_height) / 2),
+                        (int16_t)(name_rect.x + pad), label_y,
                         (int16_t)(name_rect.w - 2 * pad),
                         g_state.row_labels[(size_t)index].c_str(),
                         1, &g_state.list_selection, (int16_t)visible,
@@ -861,7 +1013,7 @@ namespace SETTINGS_SCREEN {
                             config::SETTINGS_WIDGET_DROPDOWN ||
                         row_data.widget ==
                             config::SETTINGS_WIDGET_EDIT) {
-                        value_pic = g_state.return_sprite;
+                        value_pic = g_state.value_box_wide_sprite;
                         value_text = Row_Value_Text(row_data);
                         show_value = true;
                     }
@@ -884,6 +1036,7 @@ namespace SETTINGS_SCREEN {
                             (int16_t)(value_rect.y +
                                 (value_rect.h - h) / 2),
                             value_help, value_pic, "", 0);
+                    pin_button_color(g_state.value_fields[index]);
                 } else if (show_value) {
                     // No sprite: the value zone stays clickable
                     // through a hidden field, like the row.
@@ -926,10 +1079,12 @@ namespace SETTINGS_SCREEN {
                 }
                 const int16_t w = animate::Get_Width(pic);
                 const int16_t h = animate::Get_Height(pic);
-                return fields::Add_Button_Field(
+                const int16_t field_id = fields::Add_Button_Field(
                     (int16_t)(zone.x + (zone.w - w) / 2),
                     (int16_t)(zone.y + (zone.h - h) / 2),
                     "", pic, "", 0);
+                pin_button_color(field_id);
+                return field_id;
             };
             g_state.scroll_up_field =
                 add_arrow(layout.scrollbar_arrow_up, g_state.arrow_up);
@@ -946,15 +1101,27 @@ namespace SETTINGS_SCREEN {
                 }
                 const int16_t w = animate::Get_Width(pic);
                 const int16_t h = animate::Get_Height(pic);
-                return fields::Add_Button_Field(
+                // The bar buttons sit 4 px below the centred
+                // position: centred, they overlap the bottom
+                // strip's chiseled top edge (y 439-442); the
+                // colony's RETURN sits below that edge, its
+                // text centred at y 457 and its bottom on the
+                // outer frame (measured from the colony screen).
+                const int16_t field_id = fields::Add_Button_Field(
                     (int16_t)(zone.x + (zone.w - w) / 2),
-                    (int16_t)(zone.y + (zone.h - h) / 2),
+                    (int16_t)(zone.y + (zone.h - h) / 2 + 4),
                     label, pic, "", 0);
+                pin_button_color(field_id);
+                return field_id;
             };
             g_state.show_all_field = add_bar_button(layout.show_more,
-                "MORE", g_state.tab_sprite_normal);
+                "MORE", g_state.value_box_sprite);
+            pin_button_dark_color(g_state.show_all_field);
+            // RETURN draws no label text: the RETURN frame's baked
+            // dark "RETURN" is the label (like the colonies button),
+            // and a drawn teal label would cover it.
             g_state.done_field = add_bar_button(layout.done,
-                "RETURN", g_state.return_sprite);
+                "", g_state.return_sprite);
         }
 
         // The field system's modal list picker for a dropdown:
@@ -1513,10 +1680,25 @@ namespace SETTINGS_SCREEN {
         void Draw_Centred_Text(const char* text,
             const SETTINGS_LAYOUT::s_rect& rect) {
             const int16_t w = fonts::Get_String_Width(text);
-            const int16_t h = fonts::Get_Font_Height();
+            // Centre the visible glyphs, not the font cell: a
+            // glyph's cell is taller than its ink (capitals sit in
+            // the top rows with empty rows below), so centring by
+            // Get_Font_Height() puts the text high in its plate.
+            // Falls back to the cell when the string has no ink.
+            int16_t ink_top = -1;
+            int16_t ink_bottom = -1;
+            fonts::Get_String_Ink_Rows(text, &ink_top, &ink_bottom);
+            int16_t y = rect.y;
+            if (ink_top >= 0 && ink_bottom >= ink_top) {
+                const int16_t ink_h =
+                    (int16_t)(ink_bottom - ink_top + 1);
+                y = (int16_t)(rect.y + (rect.h - ink_h) / 2 - ink_top);
+            } else {
+                const int16_t h = fonts::Get_Font_Height();
+                y = (int16_t)(rect.y + (rect.h - h) / 2);
+            }
             fonts::Print(
-                (int16_t)(rect.x + (rect.w - w) / 2),
-                (int16_t)(rect.y + (rect.h - h) / 2), text);
+                (int16_t)(rect.x + (rect.w - w) / 2), y, text);
         }
 
         void Draw_Description() {
@@ -1591,23 +1773,56 @@ namespace SETTINGS_SCREEN {
             if (thumb.w <= 0 || thumb.h <= 0) {
                 return;
             }
-            // The colony's indicator bar: a solid face with a
-            // light top edge, drawn with the game's own fill and
-            // line primitives (colsum.cpp draws its scroll bar
-            // the same way). The face is a mid-ramp navy, the
-            // edge the ramp's brightest index.
+            // The colony's indicator bar (colsum.cpp
+            // Draw_Bar_Indicator): a solid face with shaded edges
+            // -- light top/left, dark right/bottom -- and black
+            // corner dots at the track's ends. The colony indices
+            // are colony-palette indices (its face 229 is vivid
+            // blue (28,28,164) there); this screen runs on the
+            // menu palette, where 229 is near-black, so the
+            // indices below are the menu palette's nearest
+            // matches, keeping the colony's lightness steps
+            // (light edge 99, face 79, dark edge 36): face 138
+            // renders (52,48,136), light edge 134 renders
+            // (88,80,128), dark edge 103 renders (24,32,52).
             graphics::Fill(thumb.x, thumb.y,
                 (int16_t)(thumb.x + thumb.w - 1),
-                (int16_t)(thumb.y + thumb.h - 1), 200);
+                (int16_t)(thumb.y + thumb.h - 1), 138);
             line::Line(thumb.x, thumb.y,
-                (int16_t)(thumb.x + thumb.w - 1), thumb.y, 223);
+                (int16_t)(thumb.x + thumb.w - 1), thumb.y, 134);
+            line::Line(thumb.x, thumb.y, thumb.x,
+                (int16_t)(thumb.y + thumb.h - 1), 134);
+            line::Line((int16_t)(thumb.x + thumb.w - 1), thumb.y,
+                (int16_t)(thumb.x + thumb.w - 1),
+                (int16_t)(thumb.y + thumb.h - 1), 103);
+            line::Line(thumb.x, (int16_t)(thumb.y + thumb.h - 1),
+                (int16_t)(thumb.x + thumb.w - 1),
+                (int16_t)(thumb.y + thumb.h - 1), 103);
+            // Corner dots at the track's ends, at the thumb's
+            // left/right edges (the colony's Dot(621/626, 40/311,
+            // 80)); the colony dot colour is black, so the dots
+            // are black here too (invisible on the black track,
+            // as in the colony).
+            const SETTINGS_LAYOUT::s_rect track = layout.scrollbar_track;
+            graphics::Dot(thumb.x, track.y, 0);
+            graphics::Dot((int16_t)(thumb.x + thumb.w - 1), track.y, 0);
+            graphics::Dot(thumb.x, (int16_t)(track.y + track.h - 1), 0);
+            graphics::Dot((int16_t)(thumb.x + thumb.w - 1),
+                (int16_t)(track.y + track.h - 1), 0);
         }
 
         void Draw_Text_Elements() {
             const SETTINGS_LAYOUT::s_settings_layout layout = Layout();
-            fonts::Set_Font_Style(4, &g_normal_colors);
+            // The header labels are the colonies header font
+            // (style 3: bold, chunky, compact -- the colonies
+            // NAME/FARMERS plates are baked in that font, and
+            // style 4 is taller and more elegant). The white
+            // colour stays: the header is white on the dark
+            // plates, like the colonies.
+            fonts::Set_Font_Style(3, &g_header_white_colors);
             Draw_Centred_Text("SETTING", layout.header_setting);
             Draw_Centred_Text("VALUE", layout.header_value);
+            fonts::Set_Font_Style(4, &g_normal_colors);
             Draw_Description();
             Draw_Scroll_Thumb();
         }

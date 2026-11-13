@@ -104,33 +104,38 @@ namespace {
         CHECK(layout.bottom_bar.y == 439);
         CHECK(layout.bottom_bar.h == 31);
         CHECK(Rect_Bottom(layout.bottom_bar) == 470);
-        // Tabs tile the bottom bar's left width in proportion to
-        // their label lengths, with no gap between them (one
-        // continuous band, like the colony's SORT band) and
-        // spanning the bar's full height, so their borders are
-        // the bar's borders.
-        CHECK(layout.tab_bar.x == 13);
+        // Tabs tile adjacently right after the "Options" label
+        // (the bar's left ~55 px), with no gap between them (one
+        // continuous band, like the colony's SORT band): the tab
+        // rects ARE the widened colony sort-tab frame rects
+        // (160 px for Internals, 104 px for Gameplay, 80 px for
+        // Mods), spanning the bar's full height, so their
+        // borders are the bar's borders. The strip fills the
+        // bar to MORE, like Tom's sample.
+        CHECK(layout.tab_bar.x == 68);
         CHECK(layout.tab_bar.y == 439);
-        CHECK(layout.tab_bar.w == 400);
+        CHECK(layout.tab_bar.w == 344);
         CHECK(layout.tab_bar.h == 31);
-        CHECK(layout.tabs[0].x == 13);
-        CHECK(layout.tabs[0].w == 189);
-        CHECK(layout.tabs[1].x == 202);
-        CHECK(layout.tabs[1].w == 126);
-        CHECK(layout.tabs[2].x == 328);
-        CHECK(layout.tabs[2].w == 85);
+        CHECK(layout.tabs[0].x == 68);
+        CHECK(layout.tabs[0].w == 160);
+        CHECK(layout.tabs[1].x == 228);
+        CHECK(layout.tabs[1].w == 104);
+        CHECK(layout.tabs[2].x == 332);
+        CHECK(layout.tabs[2].w == 80);
         CHECK(Rect_Right(layout.tabs[2]) == Rect_Right(layout.tab_bar));
+        CHECK(layout.tabs[1].x == Rect_Right(layout.tabs[0]));
+        CHECK(layout.tabs[2].x == Rect_Right(layout.tabs[1]));
         CHECK(layout.tabs[0].w > layout.tabs[1].w);
         CHECK(layout.tabs[1].w > layout.tabs[2].w);
-        // VALUE zone at 77.8% of the width, in the header and rows.
-        // It moved left with the (wider) scrollbar strip, so the
-        // value boxes keep their exact width -- the strip's extra
-        // width comes out of the name zone instead. The strip now
-        // touches the list (no gap), so the value zone is 4 px
-        // wider than before.
-        CHECK(layout.header_value.x == 498);
-        CHECK(layout.header_value.w == 116);
-        CHECK(layout.header_setting.w == 479);
+        // VALUE zone at 79.1% of the width, in the header and rows.
+        // The zone is 108 px at 640x480, so the 104 px widened
+        // value-box frame the dropdown/edit values sit on nearly
+        // fills it (2 px of margin each side), like the sample's
+        // wide value boxes filling their column; the freed width
+        // goes to the name zone, so long labels truncate less.
+        CHECK(layout.header_value.x == 506);
+        CHECK(layout.header_value.w == 108);
+        CHECK(layout.header_setting.w == 487);
         // Scrollbar strip at the content's right edge: chunky, like
         // the colony's, so the arrows read as buttons. It runs the
         // header band as well as the list.
@@ -156,14 +161,17 @@ namespace {
         // Rows tile the list height exactly. The description
         // shrank to its content and the list took the freed
         // space, so the rows are taller and the bottom bar does
-        // not move. The value control is 80% of the row (the
-        // sample's tall inset boxes), vertically centred.
+        // not move. The value control is 80% of the row's plate
+        // (the row minus its 8px bottom divider -- 23px at
+        // 640x480), vertically centred on the plate.
         CHECK(Row_Rect(layout, 0).y == 36);
         CHECK(Row_Rect(layout, 0).h == 31);
         CHECK(Row_Rect(layout, 9).y == 318);
         CHECK(Rect_Bottom(Row_Rect(layout, 9)) == 350);
-        CHECK(Row_Value_Rect(layout, 0).y == 39);
-        CHECK(Row_Value_Rect(layout, 0).h == 24);
+        CHECK(Row_Plate_Rect(layout, 0).y == 36);
+        CHECK(Row_Plate_Rect(layout, 0).h == 23);
+        CHECK(Row_Value_Rect(layout, 0).y == 38);
+        CHECK(Row_Value_Rect(layout, 0).h == 18);
         Check_Bands_In_Order(layout);
     }
 
@@ -230,20 +238,26 @@ namespace {
         CHECK(Row_Rect_For_Span(layout, 3, 0).h == single.h);
         // The name and value zones follow the merged row: the
         // name spans the merged width, the value control is 80%
-        // of the merged height, vertically centred.
+        // of the merged plate height (the span minus its bottom
+        // divider), vertically centred on the plate.
         const s_rect name = Row_Name_Rect_For_Row(layout, span);
         CHECK(name.y == span.y);
         CHECK(name.h == span.h);
         CHECK(Rect_Right(name) == Rect_Right(layout.header_setting));
+        const s_rect span_plate =
+            Row_Plate_Rect_For_Row(layout, span);
+        CHECK(span_plate.y == span.y);
+        CHECK(span_plate.h == span.h - 8);
         const s_rect value = Row_Value_Rect_For_Row(layout, span);
         CHECK(value.x == layout.header_value.x);
         CHECK(value.w == layout.header_value.w);
-        CHECK(value.h == span.h * 80 / 100);
-        CHECK(value.y == span.y + (span.h - value.h) / 2);
+        CHECK(value.h == span_plate.h * 80 / 100);
+        CHECK(value.y == span_plate.y + (span_plate.h - value.h) / 2);
         CHECK(Inside(value, span));
         // The single-slot helpers agree with the span helpers.
         CHECK(Row_Name_Rect(layout, 3).h == single.h);
-        CHECK(Row_Value_Rect(layout, 3).h == single.h * 80 / 100);
+        CHECK(Row_Value_Rect(layout, 3).h ==
+            Row_Plate_Rect(layout, 3).h * 80 / 100);
     }
 
     TEST_CASE("slot arithmetic over per-setting line counts") {
@@ -277,17 +291,15 @@ namespace {
     TEST_CASE("scrollbar thumb follows the scroll offset") {
         const s_settings_layout layout =
             Compute_Layout(640, 480, 10, kLabel_Lengths);
-        // A list that fits spans the whole track (the colony's
-        // rule): the thumb is the colony's narrow indicator bar,
-        // inset from the strip's edges, travelling between the
-        // arrow/track dividers.
+        // A list that fits draws no thumb (the colony's rule:
+        // colsum.cpp Draw_Bar_Indicator draws only when the list
+        // scrolls -- no scrolling, no indicator).
         const s_rect none = Scrollbar_Thumb_Rect(layout, 10, 0, 10);
-        CHECK(none.w == 6);
-        CHECK(none.x == layout.scrollbar_track.x + 2);
-        CHECK(none.y == layout.scrollbar_track.y + 2);
-        CHECK(none.h == layout.scrollbar_track.h - 4);
+        CHECK(none.w == 0);
+        CHECK(none.h == 0);
         const s_rect none2 = Scrollbar_Thumb_Rect(layout, 5, 0, 10);
-        CHECK(none2.w == 6);
+        CHECK(none2.w == 0);
+        CHECK(none2.h == 0);
         // 186 lines, 10 visible: the thumb is ~10/186 of the
         // track, at the top when scrolled to the first lines,
         // at the bottom at the end.

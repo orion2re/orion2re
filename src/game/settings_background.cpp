@@ -6,8 +6,10 @@
 #include <cstring>
 #include <vector>
 
+#include "game/mox.h"
 #include "game/palette.h"
 #include "game/settings_background.h"
+#include "game/sprite_art.h"
 #include "game/video.h"
 
 namespace SETTINGS_BACKGROUND {
@@ -44,6 +46,19 @@ namespace SETTINGS_BACKGROUND {
         int32_t g_background_w = 0;
         int32_t g_background_h = 0;
         bool g_palette_installed = false;
+
+        // The authored 640x480 settings background
+        // (data/base/sprites/settings-background/normal.bin):
+        // the colony frame verbatim, dark interior, row
+        // dividers, blank header plates, navy description
+        // band. Loaded lazily into MOX::screen_seg on first
+        // draw; null when the file is missing or malformed.
+        // The tried flag keeps a failed load from being
+        // re-attempted every frame. Remove_Background clears
+        // both, so the pointer never dangles if screen_seg
+        // was freed while the screen was closed.
+        s_animation_header* g_background_frame = nullptr;
+        bool g_background_tried = false;
 
         uint32_t Next_Random(uint32_t* state) {
             *state = *state * 1664525u + 1013904223u;
@@ -202,6 +217,8 @@ namespace SETTINGS_BACKGROUND {
     }
 
     void __cdecl Remove_Background() {
+        g_background_frame = nullptr;
+        g_background_tried = false;
         if (!g_palette_installed) {
             return;
         }
@@ -218,6 +235,17 @@ namespace SETTINGS_BACKGROUND {
         }
         if (!g_palette_installed) {
             Install_Background();
+        }
+        if (!g_background_tried) {
+            g_background_tried = true;
+            g_background_frame = sprite_art::Load_Sprite_Frame(
+                "settings-background", "normal", MOX::screen_seg);
+        }
+        if (g_background_frame != nullptr && w == 640 && h == 480 &&
+            g_background_frame->width == 640 &&
+            g_background_frame->height == 480) {
+            sprite_art::Draw_Sprite_Frame(g_background_frame, 0, 0);
+            return;
         }
         if (g_background.empty() || g_background_w != w ||
             g_background_h != h) {

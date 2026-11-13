@@ -48,7 +48,6 @@ namespace SETTINGS_LAYOUT {
 
         // Horizontal allocation, permille of the width.
         constexpr int32_t kMargin_X = 20;
-        constexpr int32_t kTab_Gap = 0;
         constexpr int32_t kScrollbar_W = 20;
         // The scrollbar strip touches the list (no gap): its
         // left frame edge is the divider between the list and
@@ -57,7 +56,16 @@ namespace SETTINGS_LAYOUT {
         // corner with the header plates, like the colony's
         // (whose up arrow is at the header's height).
         constexpr int32_t kScrollbar_Gap = 0;
-        constexpr int32_t kValue_X = 778;
+        // The VALUE zone starts at 79.1% of the width: the zone
+        // is 108 px at 640x480, so the 104 px widened value-box
+        // frame the dropdown/edit values sit on nearly fills it
+        // (2 px of margin each side), like the sample's wide value
+        // boxes filling their column. The widest value, "overview"
+        // (74 px at the value font), fits with room to spare --
+        // the 85 px colony RETURN frame truncated it to "overvi..."
+        // (Tom, 2026-11-13). The freed width goes to the name zone,
+        // so long labels truncate less.
+        constexpr int32_t kValue_X = 791;
         constexpr int32_t kValue_Gap = 10;
         constexpr int32_t kBottom_Gap = 12;
         // MORE and RETURN are the SAME width: one button width,
@@ -77,10 +85,26 @@ namespace SETTINGS_LAYOUT {
         // Draw_Elements -- so the divider stays visible above them.
         constexpr int32_t kButton_H = 64;
 
-        // A tab's width weight is its label length plus this
-        // padding (in characters), so a long label gets a
-        // proportionally wider tab and no tab is mostly empty.
-        constexpr int32_t kTab_Padding = 4;
+        // The "Options" background label reserves the bottom
+        // bar's left ~55 px (86 permille of the width); the
+        // tabs start after it, so no tab overlaps the label.
+        constexpr int32_t kOptions_Reserve = 86;
+        // The tabs ARE the colony sort-tab frames, stretched
+        // wider by repeating a flat middle column (the frames are
+        // uniform across their middles, so the stretch is
+        // pixel-exact colonies art -- tools/stretch_sprite.py):
+        // 160 px for Internals (sort-population-wide), 104 px for
+        // Gameplay (sort-population-mid), 80 px for Mods
+        // (sort-food-wide) at 640x480, as permille of the width,
+        // so the tiling scales with the resolution. The tab rects
+        // are the frame rects, so the fields built from them match
+        // the visible frames. The widths are sized to the labels
+        // (Tom's sample: the tabs fill the bar to MORE): "Game
+        // Internals" is 85 px, "Gameplay" 55 px, "Mods" 29 px at
+        // the tab font, so the full names fit (Tom, 2026-11-13).
+        constexpr int32_t kTab_Internals_W = 250;
+        constexpr int32_t kTab_Gameplay_W = 162;
+        constexpr int32_t kTab_Mods_W = 125;
 
         // The value control's height, as a fraction of the row
         // height (percent): the control is vertically centred in
@@ -88,6 +112,15 @@ namespace SETTINGS_LAYOUT {
         // slots filling most of the row, not small centred boxes
         // (62% left empty space above and below them).
         constexpr int32_t kValue_Control_H_Percent = 80;
+
+        // The row divider's height, permille of the screen height:
+        // the background's row dividers are the colony's 8px
+        // chiseled bands (8 px at 640x480), so a row's plate --
+        // the face the elements sit on -- is the row minus this
+        // divider at its bottom. The elements centre on the plate,
+        // not on the full row slot: the slot's centre is the
+        // divider's height below the plate's centre.
+        constexpr int32_t kRow_Divider_H = 17;
 
         // The scrollbar thumb's minimum height, in pixels.
         constexpr int16_t kThumb_Min_H = 8;
@@ -150,42 +183,31 @@ namespace SETTINGS_LAYOUT {
         layout.show_more = s_rect{more_x, button_y, button_w, button_h};
         layout.done = s_rect{done_x, button_y, button_w, button_h};
 
-        // Tabs: divide the bottom bar's left width (up to the MORE
-        // button, with a gap) in proportion to the label lengths
-        // (plus padding), with NO gap between tabs: the tabs tile
-        // their strip exactly, one continuous band like the
-        // colony's SORT band, their shared borders one line.
-        // Each tab's width is its share of the available width;
-        // the last tab absorbs the rounding remainder, so the tabs
-        // tile their strip exactly.
-        const int16_t tab_gap = Scale(width, kTab_Gap);
-        const int16_t tab_area_right = (int16_t)(more_x - bottom_gap);
-        const int16_t tab_available =
-            (int16_t)(tab_area_right - content_x - 2 * tab_gap);
-        int32_t total_weight = 0;
-        int32_t weights[3] = {};
+        // Tabs: the colony sort-tab frames, tiled adjacently
+        // right after the "Options" label, with NO gap between
+        // them: one continuous band like the colony's SORT band,
+        // their shared borders one line. The tab rects ARE the
+        // frame rects (the fields built from them match the
+        // visible frames exactly); the strip fills the bar to
+        // MORE, like Tom's sample (the 78/78/42 px tabs left a
+        // bare 155 px gap, Tom, 2026-11-13).
+        // The label lengths no longer size the tabs: the frames
+        // do. (tab_label_lengths stays in the signature so the
+        // layout stays a pure function of the screen and the tab
+        // labels, and the call sites do not change.)
+        (void)tab_label_lengths;
+        const int16_t tab_x0 =
+            (int16_t)(content_x + Scale(width, kOptions_Reserve));
+        const int16_t tab_widths[3] = {Scale(width, kTab_Internals_W),
+            Scale(width, kTab_Gameplay_W), Scale(width, kTab_Mods_W)};
+        int16_t tab_x = tab_x0;
         for (int tab = 0; tab < 3; ++tab) {
-            weights[tab] = tab_label_lengths[tab] + kTab_Padding;
-            total_weight += weights[tab];
+            layout.tabs[tab] = s_rect{tab_x, button_y,
+                tab_widths[tab], button_h};
+            tab_x = (int16_t)(tab_x + tab_widths[tab]);
         }
-        int16_t tab_x = content_x;
-        int32_t used = 0;
-        for (int tab = 0; tab < 3; ++tab) {
-            int16_t tab_w;
-            if (tab + 1 < 3 && total_weight > 0) {
-                tab_w = (int16_t)(tab_available * weights[tab] / total_weight);
-                used += tab_w;
-            } else {
-                tab_w = (int16_t)(tab_available - used);
-            }
-            if (tab_w < 1) {
-                tab_w = 1;
-            }
-            layout.tabs[tab] = s_rect{tab_x, button_y, tab_w, button_h};
-            tab_x = (int16_t)(tab_x + tab_w + tab_gap);
-        }
-        layout.tab_bar = s_rect{content_x, button_y,
-            (int16_t)(tab_area_right - content_x), button_h};
+        layout.tab_bar = s_rect{tab_x0, button_y,
+            (int16_t)(tab_x - tab_x0), button_h};
 
         // The scrollbar strip sits at the content's right edge,
         // running the header band as well as the list: the list
@@ -270,6 +292,21 @@ namespace SETTINGS_LAYOUT {
             (int16_t)(Rect_Bottom(last) - first.y)};
     }
 
+    s_rect Row_Plate_Rect_For_Row(const s_settings_layout& layout,
+        const s_rect& row) {
+        // The plate is the row minus its bottom divider: the face
+        // the background draws flat dark, with the chiseled divider
+        // band below it. The divider height scales with the screen.
+        const int16_t divider_h = Scale(layout.height, kRow_Divider_H);
+        const int16_t plate_h =
+            (int16_t)std::max(1, row.h - divider_h);
+        return s_rect{row.x, row.y, row.w, plate_h};
+    }
+
+    s_rect Row_Plate_Rect(const s_settings_layout& layout, int index) {
+        return Row_Plate_Rect_For_Row(layout, Row_Rect(layout, index));
+    }
+
     s_rect Row_Name_Rect_For_Row(const s_settings_layout& layout,
         const s_rect& row) {
         // The name zone ends where the header's SETTING zone ends
@@ -285,10 +322,14 @@ namespace SETTINGS_LAYOUT {
 
     s_rect Row_Value_Rect_For_Row(const s_settings_layout& layout,
         const s_rect& row) {
+        // The value control centres on the plate (the row minus
+        // its bottom divider), not on the full row slot -- the
+        // plate is what the eye reads as the row.
+        const s_rect plate = Row_Plate_Rect_For_Row(layout, row);
         const int16_t value_h =
-            (int16_t)(row.h * kValue_Control_H_Percent / 100);
+            (int16_t)(plate.h * kValue_Control_H_Percent / 100);
         const int16_t value_y =
-            (int16_t)(row.y + (row.h - value_h) / 2);
+            (int16_t)(plate.y + (plate.h - value_h) / 2);
         return s_rect{layout.header_value.x, value_y,
             layout.header_value.w, value_h};
     }
@@ -390,11 +431,10 @@ namespace SETTINGS_LAYOUT {
         const int16_t span_h =
             (int16_t)std::max(0, track.h - 4);
         if (total_lines <= visible_lines) {
-            // The colony's rule: when the whole list fits, the
-            // thumb spans the whole track (there is nothing to
-            // scroll) -- the arrows stay visible and do nothing,
-            // like the colony's on a short list.
-            return s_rect{thumb_x, span_y, thumb_w, span_h};
+            // The colony draws no thumb when the list fits
+            // (colsum.cpp Draw_Bar_Indicator draws only when
+            // num_colonies >= 10): no scrolling, no indicator.
+            return s_rect{track.x, track.y, 0, 0};
         }
         const int max_first = total_lines - visible_lines;
         if (first_line < 0) {

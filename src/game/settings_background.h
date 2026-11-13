@@ -12,9 +12,13 @@ namespace SETTINGS_BACKGROUND {
     // Restores the palette saved by Install_Background().
     void __cdecl Remove_Background();
 
-    // Blits the generated background onto the current video page.
-    // Call after video::Set_Page_Off(). Generates the background
-    // first when it does not match the current game resolution.
+    // Blits the background onto the current video page. Call
+    // after video::Set_Page_Off(). At 640x480 draws the authored
+    // settings-background frame (data/base/sprites/
+    // settings-background/normal.bin); at any other resolution,
+    // or when that file is missing or malformed, falls back to
+    // the generated background, made first when it does not match
+    // the current game resolution.
     void __cdecl Draw_Background();
 
 } // namespace SETTINGS_BACKGROUND
