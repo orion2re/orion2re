@@ -1759,8 +1759,11 @@ namespace fields {
         // whatever is under the cursor. Wait for the release first,
         // so the cleanup below clears a flag that stays cleared.
         // (Escape takes the same path when a button happens to be held.)
+        // The wait also ends if the picker is dismissed by another
+        // path (exit_the_list_field): without that the wait could
+        // spin forever on a button that is never released.
         if (input < 0) {
-            while (mouse::Mouse_Button() != 0) {
+            while (mouse::Mouse_Button() != 0 && exit_the_list_field == 0) {
                 platform::Check_Exit();
                 timer::Mark_Time();
                 video::Set_Page_Off();

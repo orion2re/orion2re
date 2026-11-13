@@ -109,11 +109,29 @@ namespace {
             case 7:
                 // Outside-click dismiss: press the button with the
                 // pointer outside the list. The button starts
-                // released (arming); this press dismisses.
+                // released (arming); this press dismisses. The next
+                // step releases the button, so the release wait
+                // exits on the release; the safety net exits if the
+                // dismiss did not fire.
+                if (g_test_auto_script_step == 0) {
+                    test::fakes::g_mouse_button = 1;
+                } else if (g_test_auto_script_step == 1) {
+                    test::fakes::g_mouse_button = 0;
+                } else {
+                    fields::Exit_List_Field();
+                }
+                ++g_test_auto_script_step;
+                break;
+            case 8:
+                // Release-wait exit: press the button with the
+                // pointer outside the list, then dismiss the picker
+                // by another path (Exit_List_Field) while the button
+                // is still held. The release wait must exit on the
+                // picker's exit signal instead of spinning forever
+                // on the held button.
                 if (g_test_auto_script_step == 0) {
                     test::fakes::g_mouse_button = 1;
                 } else {
-                    // Safety net: exit if the dismiss did not fire.
                     fields::Exit_List_Field();
                 }
                 ++g_test_auto_script_step;
@@ -2346,9 +2364,39 @@ DOCTEST_TEST_CASE("get list field dismisses on a click outside the list") {
     DOCTEST_CHECK(result == -1);
     DOCTEST_CHECK(selected_index == 0);
     DOCTEST_CHECK(fields::list_field_on == 0);
-    // The dismiss fired on the press (one auto-function call); had it
-    // not fired, the safety net would have run a second call.
-    DOCTEST_CHECK(g_test_auto_function_calls == 1);
+    // Two auto-function calls: one in the main loop (the press that
+    // dismissed) and one in the release wait (the release). Had the
+    // dismiss not fired, the safety net would have run a third call.
+    DOCTEST_CHECK(g_test_auto_function_calls == 2);
+}
+
+DOCTEST_TEST_CASE("get list field release wait exits when the picker is dismissed by another path") {
+    Fields_Test_Reset reset;
+
+    struct Row {
+        char text[8];
+    } rows[3] = {{"One"}, {"Two"}, {""}};
+
+    int8_t selected_index = 0;
+    // Pointer well outside the list (list is x 10..50, y 10..~52).
+    // The button is pressed and never released; the picker is
+    // dismissed by Exit_List_Field while it is still held.
+    test::fakes::g_mouse_pointer_x = 100;
+    test::fakes::g_mouse_pointer_y = 100;
+    test::fakes::g_mouse_button = 0;
+    g_test_auto_script_mode = 8;
+    fields::Assign_Auto_Function(Test_Auto_Function_List_Script_, 1);
+
+    const int16_t result = fields::Get_List_Field(10, 10, 40, "Help", reinterpret_cast<const char*>(rows), sizeof(Row), &selected_index, nullptr, 0, nullptr, 0, nullptr, 0, "");
+
+    DOCTEST_CHECK(result == -1);
+    DOCTEST_CHECK(selected_index == 0);
+    DOCTEST_CHECK(fields::list_field_on == 0);
+    // Two auto-function calls: one in the main loop (the press that
+    // dismissed) and one in the release wait, which set the picker's
+    // exit signal. Had the wait ignored that signal, it would spin
+    // forever on the held button instead of returning.
+    DOCTEST_CHECK(g_test_auto_function_calls == 2);
 }
 
 DOCTEST_TEST_CASE("draw field scroll action updates bar position from pointer geometry") {
