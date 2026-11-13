@@ -353,6 +353,88 @@
      "from": "value-box/normal"
     }
    }
+  },
+  {
+   "from_scratch": true,
+   "id": "dropdown-closed",
+   "size": [
+    104,
+    26
+   ],
+   "source": "screen",
+   "source_palette": "menu",
+   "states": {
+    "normal": {}
+   },
+   "target_palette": "menu",
+   "tool": "build_dropdown_closed.py",
+   "triangle": {
+    "color": 250,
+    "h": 4,
+    "inset": 4,
+    "w": 7,
+    "zone_from_right": 14
+   }
+  },
+  {
+   "from_scratch": false,
+   "id": "dropdown-border-h",
+   "size": [
+    256,
+    10
+   ],
+   "source": "screen",
+   "source_palette": "menu",
+   "states": {
+    "normal": {}
+   },
+   "target_palette": "menu",
+   "tool": "build_dropdown_border.py",
+   "derived_from": "settings-bg-v8.png screen frame, rows 0..7 (top) and 472..479 (bottom), cols 64..319, compressed 8px to 5px",
+   "border": {
+    "thickness": 5,
+    "strip_len": 256,
+    "rows": {
+     "top": [
+      0,
+      4
+     ],
+     "bottom": [
+      5,
+      9
+     ]
+    }
+   }
+  },
+  {
+   "from_scratch": false,
+   "id": "dropdown-border-v",
+   "size": [
+    10,
+    256
+   ],
+   "source": "screen",
+   "source_palette": "menu",
+   "states": {
+    "normal": {}
+   },
+   "target_palette": "menu",
+   "tool": "build_dropdown_border.py",
+   "derived_from": "settings-bg-v8.png screen frame, cols 0..7 (left) and 632..639 (right), rows 64..319, compressed 8px to 5px",
+   "border": {
+    "thickness": 5,
+    "strip_len": 256,
+    "cols": {
+     "left": [
+      0,
+      4
+     ],
+     "right": [
+      5,
+      9
+     ]
+    }
+   }
   }
  ]
 }

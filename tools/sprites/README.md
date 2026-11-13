@@ -218,3 +218,46 @@ game data. The widened tabs and value box reproduce with
 `tools/stretch_sprite.py --in <source .bin> --column <c> --repeat
 <n> --out <out .bin>` (parameters in `sprites.json`); verify with
 the same command plus `--check`.
+
+- `dropdown-closed` — the collapsed dropdown's own button, built
+  from scratch by `build_dropdown_closed.py` (104x26, menu
+  palette), not a reuse of the value box: the value-box face and
+  border language, so it matches its sibling edit buttons, with
+  a darker triangle zone at its right end (the rightmost 14 px,
+  palette 233) holding a 7x4 header-white (palette 250)
+  down-triangle, right edge 4 px inside the frame, vertically
+  centred. White, not black: a black triangle sat on the frame's
+  dark right-edge bevel and was invisible, and the widest value
+  ("overview") leaves no room for a dark triangle on the light
+  face. It has to live in the button art -- the field system
+  redraws button fields after the screen's auto-function, so a
+  triangle drawn at runtime is covered by the button (a solid
+  blue rect over a button showed only 111 of 2704 px). Verify
+  with `build_dropdown_closed.py --check` (rebuilds and
+  byte-compares). `extract_sprite.py` skips it (source
+  "screen", like the other screen-derived sprites). The settings
+  screen uses it for dropdown rows only; edit rows keep the
+  plain wide box.
+
+- `dropdown-border-h` / `dropdown-border-v` -- the expanded dropdown
+  window's border, a BITMAP like the one drawn on the background all
+  around the screen (the outer frame: riveted, textured, chiseled),
+  just thinner (Tom, 2026-11-13). The screen frame is ~8 px thick;
+  these strips are 5 px, derived by compressing the frame's own 8 px
+  edge profile (sampling rows/cols [0, 2, 4, 5, 7] in outer-to-inner
+  order), so the border reads as the same border family, only
+  thinner -- not a code-drawn chisel. Built by
+  `build_dropdown_border.py` from the authored background
+  (`settings-background/settings-bg-v8.png`): the horizontal sprite
+  (256x10) carries the top strip (rows 0..4, frame rows 0..7) and the
+  bottom strip (rows 5..9, frame rows 472..479), the vertical sprite
+  (10x256) the left strip (cols 0..4, frame cols 0..7) and the right
+  strip (cols 5..9, frame cols 632..639), each 256 px long from the
+  middle of its edge (x/y 64..319), away from the corners, so it
+  carries the frame's natural rivet texture. RGB is remapped to
+  menu-palette indices with the png_to_bin rule (MAINMENU.LBX entry
+  2, excluding the transient navy ramp and vivid blue), so the strips
+  are pixel-identical to the frame they came from. The draw code tiles
+  the strips if a window ever exceeds 256 px. Verify with
+  `build_dropdown_border.py --check --lbx <mainmenu.lbx>` (rebuilds
+  and byte-compares).

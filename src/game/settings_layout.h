@@ -198,6 +198,59 @@ namespace SETTINGS_LAYOUT {
     s_rect Popup_Rect(const s_rect& content, int16_t anchor_right,
         int16_t anchor_y, int16_t popup_w, int16_t popup_h);
 
+    // The expanded dropdown window: the field system's list
+    // picker (Get_List_Field) draws bare text rows over the
+    // screen, with no window around them. The settings screen
+    // draws this window behind the list while the picker runs,
+    // so the open dropdown reads as a window: an opaque fill
+    // (the rows behind must not show through), a bitmap border
+    // around it (the screen frame's border, thinner), and a
+    // separator between every two rows. The window encloses the
+    // picker's list (title + items) with a margin for the border
+    // and padding, clamped inside the content rect. `rows` is the
+    // title plus the item count, `step` the row height (font
+    // height + vertical spacing).
+    //
+    // The border thickness: a BITMAP like the one drawn on the
+    // background all around the screen (the outer frame: riveted,
+    // textured, chiseled), just thinner -- 5 px against the screen
+    // frame's ~8 px (Tom, 2026-11-13). The border strips
+    // (dropdown-border-h/v, built by
+    // tools/sprites/build_dropdown_border.py) are derived from the
+    // frame's own pixels, so the border reads as the same border
+    // family, only thinner. The window's margin is this border
+    // plus 3 px of padding.
+    constexpr int16_t kDropdown_Border = 5;
+    struct s_dropdown_window {
+        s_rect window;
+        int16_t step = 0;
+        int16_t rows = 0;
+        int16_t margin = 0;
+    };
+    s_dropdown_window Dropdown_Window(const s_rect& content,
+        int16_t list_x, int16_t list_y, int16_t list_w,
+        int16_t list_h, int16_t step, int16_t rows);
+
+    // The y of the separator between row `index` - 1 and row
+    // `index` (1 <= index < rows): the row boundary, so the
+    // separator sits in the gap between the two rows' text.
+    int16_t Dropdown_Separator_Y(const s_dropdown_window& w,
+        int index);
+
+    // The collapsed dropdown's triangle: a small down-pointing
+    // triangle on the value button, at its right end, vertically
+    // centred, so the closed dropdown reads as a dropdown at a
+    // glance. 7 px wide, 4 tall (45-degree sides), its right edge
+    // 4 px inside the button's right edge.
+    s_rect Dropdown_Triangle_Rect(const s_rect& button);
+
+    // The widest value text a dropdown button of width
+    // `button_w` can show without running under its triangle
+    // zone: the centred text's right edge must clear the zone's
+    // left edge, so the text is limited to the button width
+    // minus twice the zone width and twice 1 px.
+    int16_t Dropdown_Value_Text_Width(int16_t button_w);
+
     // Exclusive right / bottom edges.
     int16_t Rect_Right(const s_rect& rect);
     int16_t Rect_Bottom(const s_rect& rect);

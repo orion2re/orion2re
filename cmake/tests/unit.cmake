@@ -587,6 +587,13 @@ orion2re_add_unit_test(test_settings_layout
         src/game/settings_layout.cpp
 )
 
+orion2re_add_unit_test(test_settings_dropdown
+    SOURCES
+        tests/unit/settings_dropdown_test.cpp
+    PRODUCTION_SOURCES
+        src/game/settings_layout.cpp
+)
+
 orion2re_add_unit_test(test_config_snapshot
     SOURCES
         tests/unit/config_snapshot_test.cpp

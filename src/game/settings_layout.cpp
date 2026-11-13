@@ -489,6 +489,105 @@ namespace SETTINGS_LAYOUT {
         return s_rect{x, y, popup_w, popup_h};
     }
 
+    // The dropdown window's margin: the bitmap border
+    // (kDropdown_Border, 5 px) plus 3 px of padding, so the text
+    // never touches the border.
+    constexpr int16_t kDropdown_Margin =
+        (int16_t)(kDropdown_Border + 3);
+    // The collapsed triangle: 7 px wide, 4 tall, its right edge
+    // 4 px inside the button's right edge.
+    constexpr int16_t kDropdown_Triangle_W = 7;
+    constexpr int16_t kDropdown_Triangle_H = 4;
+    constexpr int16_t kDropdown_Triangle_Inset = 4;
+    // The collapsed dropdown's triangle zone: the rightmost 14 px
+    // of the button is a darker panel holding the triangle (the
+    // dropdown-closed bitmap, designed as a dropdown from the
+    // start). The value text must clear the zone, not just the
+    // triangle.
+    constexpr int16_t kDropdown_Zone_From_Right = 14;
+
+    s_dropdown_window Dropdown_Window(const s_rect& content,
+        int16_t list_x, int16_t list_y, int16_t list_w,
+        int16_t list_h, int16_t step, int16_t rows) {
+        s_dropdown_window out;
+        if (list_w < 1) {
+            list_w = 1;
+        }
+        if (list_h < 1) {
+            list_h = 1;
+        }
+        if (step < 1) {
+            step = 1;
+        }
+        if (rows < 1) {
+            rows = 1;
+        }
+        out.step = step;
+        out.rows = rows;
+        out.margin = kDropdown_Margin;
+        int16_t x = (int16_t)(list_x - kDropdown_Margin);
+        int16_t y = (int16_t)(list_y - kDropdown_Margin);
+        int16_t right =
+            (int16_t)(list_x + list_w + kDropdown_Margin);
+        int16_t bottom =
+            (int16_t)(list_y + list_h + kDropdown_Margin);
+        if (x < content.x) {
+            x = content.x;
+        }
+        if (y < content.y) {
+            y = content.y;
+        }
+        if (right > Rect_Right(content)) {
+            right = Rect_Right(content);
+        }
+        if (bottom > Rect_Bottom(content)) {
+            bottom = Rect_Bottom(content);
+        }
+        if (right <= x) {
+            right = (int16_t)(x + 1);
+        }
+        if (bottom <= y) {
+            bottom = (int16_t)(y + 1);
+        }
+        out.window = s_rect{x, y, (int16_t)(right - x),
+            (int16_t)(bottom - y)};
+        return out;
+    }
+
+    int16_t Dropdown_Separator_Y(const s_dropdown_window& w,
+        int index) {
+        if (index < 1) {
+            index = 1;
+        }
+        if (index >= w.rows) {
+            index = (int16_t)(w.rows - 1);
+        }
+        // The row boundary, in window coordinates: the window's
+        // top plus the margin plus `index` row heights.
+        return (int16_t)(w.window.y + w.margin + index * w.step);
+    }
+
+    s_rect Dropdown_Triangle_Rect(const s_rect& button) {
+        const int16_t w = kDropdown_Triangle_W;
+        const int16_t h = kDropdown_Triangle_H;
+        const int16_t x = (int16_t)(button.x + button.w -
+            kDropdown_Triangle_Inset - w);
+        const int16_t y =
+            (int16_t)(button.y + (button.h - h) / 2);
+        return s_rect{x, y, w, h};
+    }
+
+    int16_t Dropdown_Value_Text_Width(int16_t button_w) {
+        // The centred text's right edge must clear the triangle
+        // zone's left edge (button_w - kDropdown_Zone_From_Right):
+        // (button_w + max_w) / 2 <= button_w -
+        // kDropdown_Zone_From_Right - 1.
+        const int16_t max_w = (int16_t)(button_w -
+            2 * kDropdown_Zone_From_Right - 2);
+        return (int16_t)(max_w < 1 ? 1 : max_w);
+    }
+
+    // Exclusive right / bottom edges.
     int16_t Rect_Right(const s_rect& rect) {
         return (int16_t)(rect.x + rect.w);
     }
