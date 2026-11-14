@@ -94,7 +94,16 @@ TEST_CASE("Lua runtime allocates aligned userdata with and without user values")
     const auto create_userdata = [](lua_State* lua_state, void*) {
         for (int user_values : {0, 1, 3}) {
             void* payload = lua_newuserdatauv(lua_state, sizeof(std::max_align_t), user_values);
-            CHECK(reinterpret_cast<std::uintptr_t>(payload) % alignof(std::max_align_t) == 0);
+            // Lua 5.5.1 aligns userdata payloads with user values to
+            // max_align_t (LUAI_MAXALIGN gained long double); 5.5.0
+            // payloads for such userdata are only 8-byte aligned.
+            // The runtime itself only creates userdata without user
+            // values, which is max_align_t-aligned on both versions.
+            const std::size_t expected_alignment =
+                (user_values == 0 || LUA_VERSION_RELEASE_NUM >= 50501)
+                    ? alignof(std::max_align_t)
+                    : 8;
+            CHECK(reinterpret_cast<std::uintptr_t>(payload) % expected_alignment == 0);
             std::memset(payload, 0xA5, sizeof(std::max_align_t));
             CHECK(lua_rawlen(lua_state, -1) == sizeof(std::max_align_t));
             lua_pop(lua_state, 1);

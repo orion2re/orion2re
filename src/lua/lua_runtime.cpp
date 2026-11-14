@@ -4,19 +4,18 @@
 #include <charconv>
 #include <climits>
 #include <cstddef>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <limits>
 #include <new>
+#include <string>
+#include <vector>
 
 extern "C" {
 #include <lauxlib.h>
-#include <ldebug.h>
 #include <lua.h>
 #include <lualib.h>
-#include <lobject.h>
-#include <lopcodes.h>
-#include <lstate.h>
 }
 
 namespace orion2re::lua {
@@ -47,7 +46,15 @@ namespace orion2re::lua {
         static_assert(sizeof(lua_Integer) == sizeof(std::int64_t));
         static_assert(LUA_MAXINTEGER == INT64_MAX);
         static_assert(LUA_MININTEGER == INT64_MIN);
-        static_assert(LUA_VERSION_RELEASE_NUM == 50501);
+        // The binary-chunk reader below is written for the Lua 5.5 chunk
+        // format, which is identical in 5.5.0 and 5.5.1 (LUAC_VERSION 0x55,
+        // LUAC_FORMAT 0). The reader also validates the chunk header at
+        // runtime and rejects anything it does not recognise, so a future
+        // format change fails closed instead of misreading the chunk.
+        static_assert(LUA_VERSION_RELEASE_NUM == 50500 ||
+                      LUA_VERSION_RELEASE_NUM == 50501);
+        static_assert(sizeof(int) == 4);
+        static_assert(sizeof(lua_Number) == 8);
 
         // Keep the payload after this header aligned for every Lua object,
         // including userdata whose alignment can exceed that of size_t.
@@ -146,15 +153,387 @@ namespace orion2re::lua {
             return true;
         }
 
-        void Set_Opcode_Error(s_profile_error* error, OpCode opcode, int line) {
+        // Opcodes of the Lua 5.5 virtual machine, in lopcodes.h enum order.
+        // Only the opcodes the profile inspects are listed; the numbers are
+        // part of the fixed Lua 5.5 binary chunk format.
+        enum : std::uint32_t {
+            kOpLoadF = 2,
+            kOpLoadK = 3,
+            kOpLoadKX = 4,
+            kOpSetTabUp = 15,
+            kOpSetTable = 16,
+            kOpSetI = 17,
+            kOpSetField = 18,
+            kOpAddK = 22,
+            kOpSubK = 23,
+            kOpMulK = 24,
+            kOpModK = 25,
+            kOpPowK = 26,
+            kOpDivK = 27,
+            kOpIdivK = 28,
+            kOpBandK = 29,
+            kOpBorK = 30,
+            kOpBxorK = 31,
+            kOpPow = 38,
+            kOpDiv = 39,
+            kOpMmbinK = 48,
+            kOpEqK = 60,
+            kOpEqI = 61,
+            kOpLtI = 62,
+            kOpLeI = 63,
+            kOpGtI = 64,
+            kOpGeI = 65,
+            kOpExtraArg = 84,
+        };
+
+        // Instruction fields of the Lua 5.5 format: the opcode occupies the
+        // low 7 bits, A the next 8, the k flag 1 bit, then B (8 bits) and
+        // C (8 bits); Bx spans the B/k/C fields, Ax spans A/k/B/C.
+        std::uint32_t Chunk_Opcode(std::uint32_t instruction) {
+            return instruction & 0x7fu;
+        }
+
+        std::uint32_t Chunk_Arg_B(std::uint32_t instruction) {
+            return (instruction >> 16) & 0xffu;
+        }
+
+        std::uint32_t Chunk_Arg_C(std::uint32_t instruction) {
+            return (instruction >> 24) & 0xffu;
+        }
+
+        std::uint32_t Chunk_Arg_Bx(std::uint32_t instruction) {
+            return (instruction >> 16) & 0x1ffffu;
+        }
+
+        std::uint32_t Chunk_Arg_Ax(std::uint32_t instruction) {
+            return (instruction >> 7) & 0x1ffffffu;
+        }
+
+        bool Chunk_Arg_K(std::uint32_t instruction) {
+            return ((instruction >> 15) & 1u) != 0;
+        }
+
+        // Constant tags as stored in a Lua 5.5 chunk (lobject.h variant tags).
+        enum : std::uint8_t {
+            kChunkTagNil = 0,
+            kChunkTagFalse = 1,
+            kChunkTagNumberInt = 3,
+            kChunkTagShortString = 4,
+            kChunkTagTrue = 17,
+            kChunkTagNumberFloat = 19,
+            kChunkTagLongString = 20,
+        };
+
+        // Absolute line entries from a chunk: the source line that holds at
+        // the given instruction, as recorded by the compiler.
+        struct s_chunk_abs_line {
+            std::int32_t pc = 0;
+            std::int32_t line = 0;
+        };
+
+        static_assert(sizeof(s_chunk_abs_line) == 8);
+
+        // One compiled function from a chunk, with the fields the profile
+        // inspects: the instruction stream, which constants are floats, the
+        // line information, and the nested functions.
+        struct s_chunk_function {
+            int linedefined = 0;
+            std::vector<std::uint32_t> code;
+            std::vector<std::uint8_t> constant_is_float;
+            std::vector<std::int8_t> lineinfo;
+            std::vector<s_chunk_abs_line> abslineinfo;
+            std::vector<s_chunk_function> subfunctions;
+        };
+
+        // Bounds-checked cursor over a binary chunk. Every read fails
+        // closed on truncation, overflow or an inconsistent count, so a
+        // malformed chunk is rejected instead of misread.
+        struct s_chunk_reader {
+            s_chunk_reader(const char* data, std::size_t size)
+                : data(data), size(size) {
+            }
+
+            bool Read_Bytes(void* destination, std::size_t count) {
+                if (failed || position > size || count > size - position) {
+                    failed = true;
+                    return false;
+                }
+                if (count == 0) {
+                    // Nothing to copy. A zero-byte read must not call
+                    // memcpy: the destination may be a null data()
+                    // pointer from an empty vector, which UBSan flags
+                    // even when the byte count is zero.
+                    return true;
+                }
+                std::memcpy(destination, data + position, count);
+                position += count;
+                return true;
+            }
+
+            bool Read_Byte(std::uint8_t* value) {
+                return Read_Bytes(value, 1);
+            }
+
+            // MSB varints, most significant group first.
+            bool Read_Varint(std::uint64_t* value) {
+                std::uint64_t result = 0;
+                for (int index = 0; index < 10; ++index) {
+                    std::uint8_t byte = 0;
+                    if (!Read_Byte(&byte)) {
+                        return false;
+                    }
+                    if (result > (std::numeric_limits<std::uint64_t>::max() >> 7)) {
+                        failed = true;
+                        return false;
+                    }
+                    result = (result << 7) | (byte & 0x7f);
+                    if ((byte & 0x80) == 0) {
+                        *value = result;
+                        return true;
+                    }
+                }
+                failed = true;
+                return false;
+            }
+
+            bool Read_Varint_As_Int(int* value) {
+                std::uint64_t result = 0;
+                if (!Read_Varint(&result) || result > (std::uint64_t)INT_MAX) {
+                    return false;
+                }
+                *value = (int)result;
+                return true;
+            }
+
+            bool Read_Align(std::size_t alignment) {
+                const std::size_t padding =
+                    (alignment - (position % alignment)) % alignment;
+                if (padding > size - position) {
+                    failed = true;
+                    return false;
+                }
+                position += padding;
+                return true;
+            }
+
+            bool Read_String() {
+                std::uint64_t string_size = 0;
+                if (!Read_Varint(&string_size)) {
+                    return false;
+                }
+                if (string_size == 0) {
+                    std::uint64_t index = 0;
+                    return Read_Varint(&index);
+                }
+                if (string_size > size - position) {
+                    failed = true;
+                    return false;
+                }
+                position += (std::size_t)string_size;
+                return true;
+            }
+
+            const char* data = nullptr;
+            std::size_t size = 0;
+            std::size_t position = 0;
+            bool failed = false;
+        };
+
+        template <typename T>
+        bool Read_Chunk_Number_Info(s_chunk_reader* reader, T expected) {
+            std::uint8_t size = 0;
+            if (!reader->Read_Byte(&size) || size != sizeof(T)) {
+                return false;
+            }
+            T value{};
+            if (!reader->Read_Bytes(&value, sizeof(value)) || value != expected) {
+                return false;
+            }
+            return true;
+        }
+
+        bool Read_Chunk_Header(s_chunk_reader* reader) {
+            static constexpr char kSignature[] = {'\x1b', 'L', 'u', 'a'};
+            static constexpr char kData[] = {'\x19', '\x93', '\r', '\n', '\x1a', '\n'};
+            char signature[sizeof(kSignature)] = {};
+            if (!reader->Read_Bytes(signature, sizeof(signature)) ||
+                std::memcmp(signature, kSignature, sizeof(signature)) != 0) {
+                return false;
+            }
+            std::uint8_t version = 0;
+            std::uint8_t format = 0;
+            if (!reader->Read_Byte(&version) || version != 0x55 ||
+                !reader->Read_Byte(&format) || format != 0) {
+                return false;
+            }
+            char data[sizeof(kData)] = {};
+            if (!reader->Read_Bytes(data, sizeof(data)) ||
+                std::memcmp(data, kData, sizeof(data)) != 0) {
+                return false;
+            }
+            return Read_Chunk_Number_Info<int>(reader, -0x5678) &&
+                   Read_Chunk_Number_Info<std::uint32_t>(reader, 0x12345678u) &&
+                   Read_Chunk_Number_Info<lua_Integer>(reader, (lua_Integer)-0x5678) &&
+                   Read_Chunk_Number_Info<lua_Number>(reader, (lua_Number)-370.5);
+        }
+
+        bool Parse_Chunk_Function(s_chunk_reader* reader, s_chunk_function* function, int depth) {
+            constexpr int kMaxChunkFunctionDepth = 1024;
+            if (depth > kMaxChunkFunctionDepth) {
+                return false;
+            }
+            int lastlinedefined = 0;
+            if (!reader->Read_Varint_As_Int(&function->linedefined) ||
+                !reader->Read_Varint_As_Int(&lastlinedefined)) {
+                return false;
+            }
+            std::uint8_t numparams = 0;
+            std::uint8_t flag = 0;
+            std::uint8_t maxstacksize = 0;
+            if (!reader->Read_Byte(&numparams) || !reader->Read_Byte(&flag) ||
+                !reader->Read_Byte(&maxstacksize)) {
+                return false;
+            }
+
+            int code_size = 0;
+            if (!reader->Read_Varint_As_Int(&code_size) || code_size < 0 ||
+                (std::uint64_t)code_size > (reader->size - reader->position) / sizeof(std::uint32_t)) {
+                return false;
+            }
+            if (!reader->Read_Align(sizeof(std::uint32_t))) {
+                return false;
+            }
+            function->code.resize((std::size_t)code_size);
+            if (!reader->Read_Bytes(function->code.data(),
+                    (std::size_t)code_size * sizeof(std::uint32_t))) {
+                return false;
+            }
+
+            int constant_count = 0;
+            if (!reader->Read_Varint_As_Int(&constant_count) || constant_count < 0 ||
+                (std::uint64_t)constant_count > reader->size - reader->position) {
+                return false;
+            }
+            function->constant_is_float.assign((std::size_t)constant_count, 0);
+            for (int index = 0; index < constant_count; ++index) {
+                std::uint8_t tag = 0;
+                if (!reader->Read_Byte(&tag)) {
+                    return false;
+                }
+                switch (tag) {
+                    case kChunkTagNumberFloat: {
+                        lua_Number value = 0;
+                        if (!reader->Read_Bytes(&value, sizeof(value))) {
+                            return false;
+                        }
+                        function->constant_is_float[(std::size_t)index] = 1;
+                        break;
+                    }
+                    case kChunkTagNumberInt: {
+                        std::uint64_t value = 0;
+                        if (!reader->Read_Varint(&value)) {
+                            return false;
+                        }
+                        break;
+                    }
+                    case kChunkTagShortString:
+                    case kChunkTagLongString:
+                        if (!reader->Read_String()) {
+                            return false;
+                        }
+                        break;
+                    case kChunkTagNil:
+                    case kChunkTagFalse:
+                    case kChunkTagTrue:
+                        break;
+                    default:
+                        return false;
+                }
+            }
+
+            int upvalue_count = 0;
+            if (!reader->Read_Varint_As_Int(&upvalue_count) || upvalue_count < 0 ||
+                (std::uint64_t)upvalue_count > (reader->size - reader->position) / 3) {
+                return false;
+            }
+            reader->position += (std::size_t)upvalue_count * 3;
+
+            int subfunction_count = 0;
+            if (!reader->Read_Varint_As_Int(&subfunction_count) || subfunction_count < 0 ||
+                (std::uint64_t)subfunction_count > reader->size - reader->position) {
+                return false;
+            }
+            function->subfunctions.resize((std::size_t)subfunction_count);
+            for (int index = 0; index < subfunction_count; ++index) {
+                if (!Parse_Chunk_Function(reader, &function->subfunctions[(std::size_t)index], depth + 1)) {
+                    return false;
+                }
+            }
+
+            if (!reader->Read_String()) {
+                return false;
+            }
+
+            int lineinfo_size = 0;
+            if (!reader->Read_Varint_As_Int(&lineinfo_size) || lineinfo_size < 0 ||
+                (std::uint64_t)lineinfo_size > reader->size - reader->position) {
+                return false;
+            }
+            function->lineinfo.resize((std::size_t)lineinfo_size);
+            if (!reader->Read_Bytes(function->lineinfo.data(), (std::size_t)lineinfo_size)) {
+                return false;
+            }
+
+            int abslineinfo_size = 0;
+            if (!reader->Read_Varint_As_Int(&abslineinfo_size) || abslineinfo_size < 0 ||
+                (std::uint64_t)abslineinfo_size > (reader->size - reader->position) / sizeof(s_chunk_abs_line)) {
+                return false;
+            }
+            if (abslineinfo_size > 0 && !reader->Read_Align(sizeof(std::int32_t))) {
+                return false;
+            }
+            function->abslineinfo.resize((std::size_t)abslineinfo_size);
+            if (!reader->Read_Bytes(function->abslineinfo.data(),
+                    (std::size_t)abslineinfo_size * sizeof(s_chunk_abs_line))) {
+                return false;
+            }
+
+            int locvar_count = 0;
+            if (!reader->Read_Varint_As_Int(&locvar_count) || locvar_count < 0 ||
+                (std::uint64_t)locvar_count > (reader->size - reader->position) / 3) {
+                return false;
+            }
+            for (int index = 0; index < locvar_count; ++index) {
+                int startpc = 0;
+                int endpc = 0;
+                if (!reader->Read_String() || !reader->Read_Varint_As_Int(&startpc) ||
+                    !reader->Read_Varint_As_Int(&endpc)) {
+                    return false;
+                }
+            }
+
+            int upvalue_name_count = 0;
+            if (!reader->Read_Varint_As_Int(&upvalue_name_count) || upvalue_name_count < 0 ||
+                (std::uint64_t)upvalue_name_count > reader->size - reader->position) {
+                return false;
+            }
+            for (int index = 0; index < upvalue_name_count; ++index) {
+                if (!reader->Read_String()) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        void Set_Opcode_Error(s_profile_error* error, std::uint32_t opcode, int line) {
             switch (opcode) {
-                case OP_DIV:
-                case OP_DIVK:
+                case kOpDiv:
+                case kOpDivK:
                     Set_Profile_Error(
                         error, LUA_ERROR_LANGUAGE_PROFILE, line, "operator '/' is unavailable; use reviewed integer division '//'");
                     return;
-                case OP_POW:
-                case OP_POWK:
+                case kOpPow:
+                case kOpPowK:
                     Set_Profile_Error(
                         error, LUA_ERROR_LANGUAGE_PROFILE, line, "operator '^' is unavailable in the integer-only profile");
                     return;
@@ -165,38 +544,37 @@ namespace orion2re::lua {
             }
         }
 
-        int Referenced_Constant(const Proto* prototype, int pc) {
-            const Instruction instruction = prototype->code[pc];
-            const OpCode opcode = GET_OPCODE(instruction);
-            switch (opcode) {
-                case OP_LOADK:
-                    return GETARG_Bx(instruction);
-                case OP_LOADKX:
-                    if (pc + 1 < prototype->sizecode &&
-                        GET_OPCODE(prototype->code[pc + 1]) == OP_EXTRAARG) {
-                        return GETARG_Ax(prototype->code[pc + 1]);
+        int Referenced_Constant(const std::vector<std::uint32_t>& code, int pc) {
+            const std::uint32_t instruction = code[(std::size_t)pc];
+            switch (Chunk_Opcode(instruction)) {
+                case kOpLoadK:
+                    return (int)Chunk_Arg_Bx(instruction);
+                case kOpLoadKX:
+                    if (pc + 1 < (int)code.size() &&
+                        Chunk_Opcode(code[(std::size_t)pc + 1]) == kOpExtraArg) {
+                        return (int)Chunk_Arg_Ax(code[(std::size_t)pc + 1]);
                     }
                     break;
-                case OP_ADDK:
-                case OP_SUBK:
-                case OP_MULK:
-                case OP_MODK:
-                case OP_POWK:
-                case OP_DIVK:
-                case OP_IDIVK:
-                case OP_BANDK:
-                case OP_BORK:
-                case OP_BXORK:
-                    return GETARG_C(instruction);
-                case OP_MMBINK:
-                case OP_EQK:
-                    return GETARG_B(instruction);
-                case OP_SETTABUP:
-                case OP_SETTABLE:
-                case OP_SETI:
-                case OP_SETFIELD:
-                    if (GETARG_k(instruction)) {
-                        return GETARG_C(instruction);
+                case kOpAddK:
+                case kOpSubK:
+                case kOpMulK:
+                case kOpModK:
+                case kOpPowK:
+                case kOpDivK:
+                case kOpIdivK:
+                case kOpBandK:
+                case kOpBorK:
+                case kOpBxorK:
+                    return (int)Chunk_Arg_C(instruction);
+                case kOpMmbinK:
+                case kOpEqK:
+                    return (int)Chunk_Arg_B(instruction);
+                case kOpSetTabUp:
+                case kOpSetTable:
+                case kOpSetI:
+                case kOpSetField:
+                    if (Chunk_Arg_K(instruction)) {
+                        return (int)Chunk_Arg_C(instruction);
                     }
                     break;
                 default:
@@ -205,53 +583,121 @@ namespace orion2re::lua {
             return -1;
         }
 
-        bool Validate_Prototype(const Proto* prototype, s_profile_error* error) {
-            for (int pc = 0; pc < prototype->sizecode; ++pc) {
-                const Instruction instruction = prototype->code[pc];
-                const OpCode opcode = GET_OPCODE(instruction);
-                const int line = luaG_getfuncline(prototype, pc);
+        // The source line of an instruction, following luaG_getfuncline:
+        // the last absolute line at or before the instruction, plus the
+        // lineinfo deltas after it. -1 when the chunk carries no line info.
+        int Chunk_Function_Line(const s_chunk_function& function, int pc) {
+            if (function.lineinfo.empty() || pc < 0 ||
+                pc >= (int)function.lineinfo.size()) {
+                return -1;
+            }
+            int basepc = -1;
+            int baseline = function.linedefined;
+            for (const auto& entry : function.abslineinfo) {
+                if (entry.pc > pc) {
+                    break;
+                }
+                basepc = entry.pc;
+                baseline = entry.line;
+            }
+            int line = baseline;
+            for (int index = basepc + 1; index <= pc; ++index) {
+                const int delta = function.lineinfo[(std::size_t)index];
+                if (delta == -128) {
+                    return -1;
+                }
+                line += delta;
+            }
+            return line;
+        }
 
-                if (opcode == OP_LOADF || opcode == OP_DIV || opcode == OP_DIVK ||
-                    opcode == OP_POW || opcode == OP_POWK) {
+        bool Validate_Chunk_Function(const s_chunk_function& function, s_profile_error* error) {
+            for (int pc = 0; pc < (int)function.code.size(); ++pc) {
+                const std::uint32_t instruction = function.code[(std::size_t)pc];
+                const std::uint32_t opcode = Chunk_Opcode(instruction);
+                const int line = Chunk_Function_Line(function, pc);
+
+                if (opcode == kOpLoadF || opcode == kOpDiv || opcode == kOpDivK ||
+                    opcode == kOpPow || opcode == kOpPowK) {
                     Set_Opcode_Error(error, opcode, line);
                     return false;
                 }
-                if ((opcode == OP_EQI || opcode == OP_LTI || opcode == OP_LEI ||
-                        opcode == OP_GTI || opcode == OP_GEI) &&
-                    GETARG_C(instruction)) {
-                    Set_Opcode_Error(error, OP_LOADF, line);
+                // The C field of an immediate comparison holds the
+                // isfloat flag: the immediate was written as a float
+                // (for example `value < 1.0`) even when it converts to
+                // an integer exactly.
+                if ((opcode == kOpEqI || opcode == kOpLtI || opcode == kOpLeI ||
+                        opcode == kOpGtI || opcode == kOpGeI) &&
+                    Chunk_Arg_C(instruction) != 0) {
+                    Set_Opcode_Error(error, kOpLoadF, line);
                     return false;
                 }
 
-                const int constant_index = Referenced_Constant(prototype, pc);
-                if (constant_index >= 0 && constant_index < prototype->sizek &&
-                    ttisfloat(&prototype->k[constant_index])) {
+                const int constant_index = Referenced_Constant(function.code, pc);
+                if (constant_index >= 0 &&
+                    constant_index < (int)function.constant_is_float.size() &&
+                    function.constant_is_float[(std::size_t)constant_index] != 0) {
                     Set_Opcode_Error(error, opcode, line);
                     return false;
                 }
             }
 
-            for (int index = 0; index < prototype->sizek; ++index) {
-                if (ttisfloat(&prototype->k[index])) {
-                    Set_Opcode_Error(error, OP_LOADF, std::max(1, prototype->linedefined));
+            for (std::size_t index = 0; index < function.constant_is_float.size(); ++index) {
+                if (function.constant_is_float[index] != 0) {
+                    Set_Opcode_Error(error, kOpLoadF, std::max(1, function.linedefined));
                     return false;
                 }
             }
-            for (int index = 0; index < prototype->sizep; ++index) {
-                if (!Validate_Prototype(prototype->p[index], error)) {
+            for (const auto& subfunction : function.subfunctions) {
+                if (!Validate_Chunk_Function(subfunction, error)) {
                     return false;
                 }
             }
             return true;
         }
 
+        constexpr std::size_t kMaxChunkBytes = 16 * 1024 * 1024;
+
+        int Dump_Chunk(lua_State*, const void* data, std::size_t size, void* user_data) {
+            auto* chunk = (std::string*)user_data;
+            if (data == nullptr || size == 0) {
+                return 0;
+            }
+            if (chunk->size() + size > kMaxChunkBytes) {
+                return 1;
+            }
+            chunk->append((const char*)data, size);
+            return 0;
+        }
+
         bool Validate_Loaded_Chunk(lua_State* lua_state, s_profile_error* error) {
-            const TValue* value = s2v(lua_state->top.p - 1);
-            if (!ttisLclosure(value)) {
+            if (!lua_isfunction(lua_state, -1)) {
                 Set_Profile_Error(error, LUA_ERROR_LANGUAGE_PROFILE, 1, "compiled chunk did not produce a Lua prototype");
                 return false;
             }
-            return Validate_Prototype(clLvalue(value)->p, error);
+            // Serialise the loaded function with the public lua_dump and
+            // walk the resulting chunk. The dump is produced by the same
+            // Lua that compiled the source, so its header is validated
+            // against the host representation and any mismatch is
+            // rejected rather than trusted.
+            std::string chunk;
+            if (lua_dump(lua_state, Dump_Chunk, &chunk, 0) != LUA_OK) {
+                Set_Profile_Error(error, LUA_ERROR_LANGUAGE_PROFILE, 1, "compiled chunk could not be inspected");
+                return false;
+            }
+            s_chunk_reader reader(chunk.data(), chunk.size());
+            s_chunk_function function;
+            std::uint8_t main_upvalue_count = 0;
+            if (!Read_Chunk_Header(&reader) ||
+                // luaU_dump writes the main function's upvalue count
+                // once, ahead of the first function.
+                !reader.Read_Byte(&main_upvalue_count) ||
+                !Parse_Chunk_Function(&reader, &function, 0) ||
+                reader.position != reader.size) {
+                Set_Profile_Error(error, LUA_ERROR_LANGUAGE_PROFILE, 1, "compiled chunk is malformed");
+                return false;
+            }
+            return Validate_Chunk_Function(function, error);
         }
 
         void* Limited_Allocator(void* user_data, void* pointer, std::size_t, std::size_t new_size) {
@@ -413,6 +859,34 @@ namespace orion2re::lua {
             lua_setfield(lua_state, table_index, field);
         }
 
+        // The vendored Lua build defined LUA_NOCVTS2N, which removes the
+        // string library's arithmetic metamethods so '1.5' + 1 errors
+        // instead of coercing to a float. A stock system Lua ships those
+        // metamethods, so remove them from the shared string metatable
+        // here, through the public API, to keep the integer-only profile
+        // identical with either library. String methods stay available
+        // through __index, and comparisons never coerced in either build.
+        void Remove_String_Arithmetic_Metamethods(lua_State* lua_state) {
+            lua_pushliteral(lua_state, "");
+            if (lua_getmetatable(lua_state, -1) == 0) {
+                lua_pop(lua_state, 1);
+                return;
+            }
+            if (!lua_istable(lua_state, -1)) {
+                lua_pop(lua_state, 2);
+                return;
+            }
+            static const char* const fields[] = {
+                "__add", "__sub", "__mul", "__mod",
+                "__pow", "__div", "__idiv", "__unm",
+            };
+            for (const char* field : fields) {
+                lua_pushnil(lua_state);
+                lua_setfield(lua_state, -2, field);
+            }
+            lua_pop(lua_state, 2);
+        }
+
         void Open_Libraries(lua_State* lua_state) {
             luaL_requiref(lua_state, LUA_GNAME, luaopen_base, 1);
             Remove_Field(lua_state, -1, "collectgarbage");
@@ -439,6 +913,7 @@ namespace orion2re::lua {
             Remove_Field(lua_state, -1, "unpack");
             Remove_Field(lua_state, -1, "upper");
             lua_pop(lua_state, 1);
+            Remove_String_Arithmetic_Metamethods(lua_state);
 
             lua_newtable(lua_state);
             lua_pushcfunction(lua_state, Checked_Abs);
