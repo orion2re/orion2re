@@ -2999,6 +2999,90 @@ DOCTEST_TEST_CASE("move list selection skips rows that are not selectable") {
     fields::list_field_on = 0;
 }
 
+DOCTEST_TEST_CASE("get input delivers a click first seen while the button is held") {
+    Fields_Test_Reset reset;
+    s_animation_header picture{};
+
+    const int16_t field_idx = fields::Add_Button_Field(10, 20, "Go", &picture, "g", 12);
+
+    // A fast click: the press is latched, but the first poll already
+    // sees the button released (sequence 1 then 0), so Get_Input
+    // takes the button-held branch and its loop never runs.
+    test::fakes::g_mouse_buffer_flag = 1;
+    test::fakes::g_mouse_buffer_flag2 = 1;
+    test::fakes::g_mouse_buffer_button = 1;
+    test::fakes::g_mouse_buffer_x = 12;
+    test::fakes::g_mouse_buffer_y = 22;
+    test::fakes::g_mouse_pointer_x = 12;
+    test::fakes::g_mouse_pointer_y = 22;
+    test::fakes::g_mouse_button_sequence = {1, 0};
+
+    const int16_t first = fields::Get_Input();
+    const int16_t second = fields::Get_Input();
+    DOCTEST_CHECK(first == 0);
+    DOCTEST_CHECK(second == field_idx);
+}
+
+DOCTEST_TEST_CASE("get input delivers a held click when dynamic refresh is off") {
+    Fields_Test_Reset reset;
+    s_animation_header picture{};
+
+    const int16_t field_idx = fields::Add_Button_Field(10, 20, "Go", &picture, "g", 12);
+    fields::Disable_Mouse_Pressed_Field_Update();
+
+    test::fakes::g_mouse_buffer_flag = 1;
+    test::fakes::g_mouse_buffer_flag2 = 1;
+    test::fakes::g_mouse_buffer_button = 1;
+    test::fakes::g_mouse_buffer_x = 12;
+    test::fakes::g_mouse_buffer_y = 22;
+    test::fakes::g_mouse_pointer_x = 12;
+    test::fakes::g_mouse_pointer_y = 22;
+    test::fakes::g_mouse_button_sequence = {1, 1, 0};
+
+    const int16_t first = fields::Get_Input();
+    const int16_t second = fields::Get_Input();
+    DOCTEST_CHECK(first == 0);
+    DOCTEST_CHECK(second == field_idx);
+}
+
+DOCTEST_TEST_CASE("get input delivers a click held across polls when dynamic refresh is off") {
+    Fields_Test_Reset reset;
+    s_animation_header picture{};
+
+    const int16_t field_idx = fields::Add_Button_Field(10, 20, "Go", &picture, "g", 12);
+    fields::Disable_Mouse_Pressed_Field_Update();
+
+    test::fakes::g_mouse_buffer_flag = 1;
+    test::fakes::g_mouse_buffer_flag2 = 1;
+    test::fakes::g_mouse_buffer_button = 1;
+    test::fakes::g_mouse_buffer_x = 12;
+    test::fakes::g_mouse_buffer_y = 22;
+    test::fakes::g_mouse_pointer_x = 12;
+    test::fakes::g_mouse_pointer_y = 22;
+    test::fakes::g_mouse_button_sequence = {1, 1, 1, 0};
+
+    DOCTEST_CHECK(fields::Get_Input() == 0);
+    DOCTEST_CHECK(fields::Get_Input() == 0);
+    DOCTEST_CHECK(fields::Get_Input() == field_idx);
+}
+
+DOCTEST_TEST_CASE("get input delivers a held click on the first poll when dynamic refresh is on") {
+    Fields_Test_Reset reset;
+    s_animation_header picture{};
+
+    const int16_t field_idx = fields::Add_Button_Field(10, 20, "Go", &picture, "g", 12);
+
+    test::fakes::g_mouse_buffer_flag = 1;
+    test::fakes::g_mouse_buffer_flag2 = 1;
+    test::fakes::g_mouse_buffer_button = 1;
+    test::fakes::g_mouse_buffer_x = 12;
+    test::fakes::g_mouse_buffer_y = 22;
+    test::fakes::g_mouse_pointer_x = 12;
+    test::fakes::g_mouse_pointer_y = 22;
+    test::fakes::g_mouse_button_sequence = {1, 1, 0};
+
+    DOCTEST_CHECK(fields::Get_Input() == field_idx);
+}
 }
 
 #undef s_animation_header

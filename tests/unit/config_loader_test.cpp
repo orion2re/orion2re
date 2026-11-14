@@ -13,6 +13,8 @@
 #include "config/config_identity.h"
 #include "config/config_loader.h"
 #include "config/config_snapshot.h"
+#include "config/config_writer.h"
+#include "config/config_runtime.h"
 #include "config/mod_manifest.h"
 #include "config/mod_manager.h"
 #include "doctest/doctest.h"
@@ -68,6 +70,10 @@ namespace {
             vfs::Shutdown();
             std::error_code error;
             fs::remove_all(root_path_, error);
+        }
+
+        fs::path Root_Path() const {
+            return root_path_;
         }
 
         void Initialize_Vfs() const {
@@ -1912,7 +1918,11 @@ DOCTEST_TEST_SUITE("configuration include loader") {
         DOCTEST_REQUIRE(config::Load_Startup_Config(
             "orion2re.cfg", "base_game", &effective, &loaded, &diagnostic));
         DOCTEST_CHECK(loaded);
-        DOCTEST_CHECK(COMBINIT::scroll_interval == 60);
+        // The entry document (user.cfg) wins over the mod package under the
+        // entry-overrides-packages precedence, so the user value 75 wins over
+        // the mod value 60. The mod battle_scanner_beam_offense still
+        // applies (the user does not set it).
+        DOCTEST_CHECK(COMBINIT::scroll_interval == 75);
         DOCTEST_CHECK(CMBTFIR2::combat_bonus.battle_scanner_beam_offense == 31);
         DOCTEST_CHECK(config::Find_Loaded_Mod("personal") != nullptr);
     }
@@ -3274,4 +3284,343 @@ DOCTEST_TEST_SUITE("configuration include loader") {
         DOCTEST_CHECK(diagnostic.message ==
             "installed package 'strict' version 2.0.0 is not compatible with required version 1.9.0");
     }
+}
+
+DOCTEST_TEST_CASE("mod picker preview resolves ice-x to ice and v150 without side effects") {
+    s_config_test_directory files;
+    for (const char* package_id : {"v150", "ice", "ice-x"}) {
+        files.Copy_Tree(fs::path(LUA_SOURCE_PACKAGE_DIR) / package_id,
+            fs::path("data/mods") / package_id);
+    }
+    files.Write("main.cfg", "enable v150;\n");
+    files.Initialize_Vfs();
+    config::s_effective_config effective;
+    config::s_cfg_diagnostic diagnostic;
+    bool loaded = false;
+    DOCTEST_REQUIRE(config::Load_Startup_Config(
+        "main.cfg", "base_game", &effective, &loaded, &diagnostic));
+    DOCTEST_REQUIRE(loaded);
+    DOCTEST_REQUIRE(config::Get_Active_Config()->package_order ==
+        std::vector<std::string>{"v150"});
+
+    config::s_mod_set_preview preview;
+    DOCTEST_REQUIRE(config::Preview_Enabled_Mods({"ice-x"}, &preview, &diagnostic));
+    DOCTEST_CHECK(preview.package_order ==
+        std::vector<std::string>{"ice-x", "ice", "v150"});
+    DOCTEST_CHECK(preview.resolved_mods ==
+        std::vector<config::s_mod_requirement>{
+            {"ice-x", "35"}, {"ice", "35"}, {"v150", "26.11"}});
+    // The dry run changed nothing: the active set is still v150-only.
+    DOCTEST_CHECK(config::Get_Active_Config()->package_order ==
+        std::vector<std::string>{"v150"});
+    DOCTEST_REQUIRE(config::Get_Loaded_Mods().size() == 1);
+    DOCTEST_CHECK(config::Get_Loaded_Mods()[0].manifest.id == "v150");
+    DOCTEST_CHECK(config::Find_Loaded_Mod("ice-x") == nullptr);
+
+    // Vanilla is a valid preview: an empty set resolves to nothing.
+    DOCTEST_REQUIRE(config::Preview_Enabled_Mods({}, &preview, &diagnostic));
+    DOCTEST_CHECK(preview.package_order.empty());
+    DOCTEST_CHECK(preview.resolved_mods.empty());
+}
+
+DOCTEST_TEST_CASE("mod picker preview reports vdc-gm3 conflicting with ice") {
+    s_config_test_directory files;
+    for (const char* package_id : {"v150", "mirror_exhw", "ice", "vdc-gm3"}) {
+        files.Copy_Tree(fs::path(LUA_SOURCE_PACKAGE_DIR) / package_id,
+            fs::path("data/mods") / package_id);
+    }
+    files.Write("main.cfg", "enable v150;\n");
+    files.Initialize_Vfs();
+    config::s_effective_config effective;
+    config::s_cfg_diagnostic diagnostic;
+    bool loaded = false;
+    DOCTEST_REQUIRE(config::Load_Startup_Config(
+        "main.cfg", "base_game", &effective, &loaded, &diagnostic));
+    DOCTEST_REQUIRE(loaded);
+
+    config::s_mod_set_preview preview;
+    DOCTEST_CHECK_FALSE(config::Preview_Enabled_Mods(
+        {"vdc-gm3", "ice"}, &preview, &diagnostic));
+    DOCTEST_CHECK(diagnostic.message ==
+        "package 'vdc-gm3' conflicts with active package 'ice'");
+    // The failed dry run changed nothing.
+    DOCTEST_CHECK(config::Get_Active_Config()->package_order ==
+        std::vector<std::string>{"v150"});
+}
+
+DOCTEST_TEST_CASE("mod picker preview reports a missing mod and a missing dependency") {
+    {
+        s_config_test_directory files;
+        files.Copy_Tree(fs::path(LUA_SOURCE_PACKAGE_DIR) / "v150",
+            fs::path("data/mods") / "v150");
+        files.Write("main.cfg", "enable v150;\n");
+        files.Initialize_Vfs();
+        config::s_effective_config effective;
+        config::s_cfg_diagnostic diagnostic;
+        bool loaded = false;
+        DOCTEST_REQUIRE(config::Load_Startup_Config(
+            "main.cfg", "base_game", &effective, &loaded, &diagnostic));
+        DOCTEST_REQUIRE(loaded);
+
+        config::s_mod_set_preview preview;
+        DOCTEST_CHECK_FALSE(config::Preview_Enabled_Mods(
+            {"no-such-mod"}, &preview, &diagnostic));
+        DOCTEST_CHECK(diagnostic.message == "package not found: 'no-such-mod'");
+    }
+    {
+        // ice-x is installed but its dependency ice is not.
+        s_config_test_directory files;
+        for (const char* package_id : {"v150", "ice-x"}) {
+            files.Copy_Tree(fs::path(LUA_SOURCE_PACKAGE_DIR) / package_id,
+                fs::path("data/mods") / package_id);
+        }
+        files.Write("main.cfg", "enable v150;\n");
+        files.Initialize_Vfs();
+        config::s_effective_config effective;
+        config::s_cfg_diagnostic diagnostic;
+        bool loaded = false;
+        DOCTEST_REQUIRE(config::Load_Startup_Config(
+            "main.cfg", "base_game", &effective, &loaded, &diagnostic));
+        DOCTEST_REQUIRE(loaded);
+
+        config::s_mod_set_preview preview;
+        DOCTEST_CHECK_FALSE(config::Preview_Enabled_Mods(
+            {"ice-x"}, &preview, &diagnostic));
+        DOCTEST_CHECK(diagnostic.message == "package not found: 'ice'");
+    }
+}
+
+DOCTEST_TEST_CASE("mod picker apply switches the active set to ice-x and survives returning to the main menu") {
+    s_config_test_directory files;
+    for (const char* package_id : {"v150", "ice", "ice-x"}) {
+        files.Copy_Tree(fs::path(LUA_SOURCE_PACKAGE_DIR) / package_id,
+            fs::path("data/mods") / package_id);
+    }
+    files.Write("main.cfg", "enable v150;\n");
+    files.Initialize_Vfs();
+    config::s_effective_config effective;
+    config::s_cfg_diagnostic diagnostic;
+    bool loaded = false;
+    DOCTEST_REQUIRE(config::Load_Startup_Config(
+        "main.cfg", "base_game", &effective, &loaded, &diagnostic));
+    DOCTEST_REQUIRE(loaded);
+    // ai.productivity_bonus is [tutor, easy, average, hard, impossible];
+    // the default impossible value is 40, ice-x raises it to 60.
+    const auto bonus = Variable_Id_("ai.productivity_bonus.4");
+    DOCTEST_REQUIRE(bonus != config::CONFIG_NO_VARIABLE);
+    DOCTEST_CHECK(config::Get_Active_Config()->baseline.effective.state.values.Read(bonus).integer_value == 40);
+
+    DOCTEST_REQUIRE(config::Apply_Enabled_Mods({"ice-x"}, &diagnostic));
+    const config::s_active_config* active = config::Get_Active_Config();
+    DOCTEST_REQUIRE(active != nullptr);
+    DOCTEST_CHECK(active->package_order ==
+        std::vector<std::string>{"ice-x", "ice", "v150"});
+    DOCTEST_CHECK(active->required_mods ==
+        std::vector<config::s_mod_requirement>{
+            {"ice-x", "35"}, {"ice", "35"}, {"v150", "26.11"}});
+    const config::t_loaded_mod_list& loaded_mods = config::Get_Loaded_Mods();
+    DOCTEST_REQUIRE(loaded_mods.size() == 3);
+    DOCTEST_CHECK(loaded_mods[0].manifest.id == "ice-x");
+    DOCTEST_CHECK(loaded_mods[1].manifest.id == "ice");
+    DOCTEST_CHECK(loaded_mods[2].manifest.id == "v150");
+    for (const config::s_loaded_mod& mod : loaded_mods) {
+        if (mod.manifest.has_lua_runtime) {
+            DOCTEST_CAPTURE(mod.manifest.id);
+            DOCTEST_CHECK(orion2re::lua::Find_Mod_Runtime(
+                              orion2re::lua::Get_Active_Mod_Runtimes(),
+                              mod.manifest.id.c_str()) != nullptr);
+        }
+    }
+    // The ice-x difficulty override is live in the effective config.
+    DOCTEST_CHECK(active->baseline.effective.state.values.Read(bonus).integer_value == 60);
+
+    // Re-applying the same set is a no-op success.
+    DOCTEST_REQUIRE(config::Apply_Enabled_Mods({"ice-x"}, &diagnostic));
+    DOCTEST_CHECK(config::Get_Active_Config()->package_order ==
+        std::vector<std::string>{"ice-x", "ice", "v150"});
+
+    // Returning to the main menu restores the launch config: the picked
+    // set must survive that instead of reverting to the v150-only set.
+    DOCTEST_REQUIRE(config::Restore_Launch_Config(&diagnostic));
+    DOCTEST_CHECK(config::Get_Active_Config()->package_order ==
+        std::vector<std::string>{"ice-x", "ice", "v150"});
+    DOCTEST_CHECK(config::Find_Loaded_Mod("ice-x") != nullptr);
+    DOCTEST_CHECK(config::Get_Active_Config()->baseline.effective.state.values.Read(bonus).integer_value == 60);
+}
+
+DOCTEST_TEST_CASE("mod picker apply keeps a first-session setting change made before any user config existed") {
+    s_config_test_directory files;
+    for (const char* package_id : {"v150", "ice", "ice-x"}) {
+        files.Copy_Tree(fs::path(LUA_SOURCE_PACKAGE_DIR) / package_id,
+            fs::path("data/mods") / package_id);
+    }
+    // Shipped entry: a live setting assignment, no enable lines, and
+    // no user config yet - the first session on a fresh install.
+    // show_exit_message is assigned by no enabled mod, so only the
+    // rebuild path itself can move it.
+    files.Write("orion2re.cfg",
+        "interface show_exit_message = false;\n"
+        "interface vsync_enabled = false;\n");
+    const fs::path user_config_dir = files.Root_Path() / "user-config";
+    fs::create_directories(user_config_dir);
+    files.Initialize_Vfs();
+    DOCTEST_REQUIRE(vfs::Set_User_Config_Path(user_config_dir.string().c_str()) == 1);
+    Set_Native_Defaults_();
+    config::s_effective_config effective;
+    config::s_cfg_diagnostic diagnostic;
+    bool loaded = false;
+    DOCTEST_REQUIRE(config::Load_Startup_Config(
+        "orion2re.cfg", "base_game", &effective, &loaded, &diagnostic));
+    DOCTEST_REQUIRE(loaded);
+    const config::t_variable_id exit_message =
+        Variable_Id_("interface.show_exit_message");
+    DOCTEST_REQUIRE(exit_message != config::CONFIG_NO_VARIABLE);
+    config::s_typed_value live;
+    DOCTEST_REQUIRE(config::generated::Get_Current_Value(exit_message, &live));
+    DOCTEST_CHECK_FALSE(live.bool_value);
+
+    // The settings screen seeds the user config from the loaded file,
+    // writes the setting there, and reloads it live.
+    const fs::path user_config = user_config_dir / "orion2re.cfg";
+    std::error_code copy_error;
+    fs::copy_file(files.Root_Path() / "orion2re.cfg", user_config, copy_error);
+    DOCTEST_REQUIRE_FALSE(copy_error);
+    DOCTEST_REQUIRE(config::Write_Setting(user_config.string(),
+        {"interface", "show_exit_message"}, "true", &diagnostic));
+    DOCTEST_REQUIRE(config::Reload_Active_Config_Groups(false, &diagnostic));
+    // The change is live before any mod toggle.
+    DOCTEST_REQUIRE(config::generated::Get_Current_Value(exit_message, &live));
+    DOCTEST_CHECK(live.bool_value);
+
+    // The mod toggle: preview, write the resolved set, apply it.
+    config::s_mod_set_preview preview;
+    DOCTEST_REQUIRE(config::Preview_Enabled_Mods({"ice-x"}, &preview, &diagnostic));
+    DOCTEST_REQUIRE(config::Write_Enabled_Mods(user_config.string(),
+        preview.package_order, &diagnostic));
+    DOCTEST_REQUIRE(config::Apply_Enabled_Mods({"ice-x"}, &diagnostic));
+    DOCTEST_CHECK(config::Get_Active_Config()->package_order ==
+        std::vector<std::string>{"ice-x", "ice", "v150"});
+    // The live setting change survives the apply, in the live state...
+    DOCTEST_REQUIRE(config::generated::Get_Current_Value(exit_message, &live));
+    DOCTEST_CHECK(live.bool_value);
+    DOCTEST_CHECK(config::Get_Active_Config()->baseline.effective.state.values.Read(exit_message).bool_value);
+    // ...and in the file.
+    std::ifstream saved(user_config, std::ios::binary);
+    const std::string saved_text((std::istreambuf_iterator<char>(saved)),
+        std::istreambuf_iterator<char>());
+    DOCTEST_CHECK(saved_text.find("show_exit_message = true") != std::string::npos);
+}
+
+DOCTEST_TEST_CASE("mod picker apply keeps a first-session setting change that an enabled mod also assigns") {
+    s_config_test_directory files;
+    for (const char* package_id : {"v150", "ice", "ice-x"}) {
+        files.Copy_Tree(fs::path(LUA_SOURCE_PACKAGE_DIR) / package_id,
+            fs::path("data/mods") / package_id);
+    }
+    // ice assigns interface scroll_interval = 2 in its own config, so
+    // a user change to that setting is the case the entry document must
+    // win: the user's file beats the mod's assignment, in the live state
+    // as well as in the file, and across a restart (the next load builds
+    // the same way).
+    files.Write("orion2re.cfg",
+        "interface scroll_interval = 2;\n"
+        "interface vsync_enabled = false;\n");
+    const fs::path user_config_dir = files.Root_Path() / "user-config";
+    fs::create_directories(user_config_dir);
+    files.Initialize_Vfs();
+    DOCTEST_REQUIRE(vfs::Set_User_Config_Path(user_config_dir.string().c_str()) == 1);
+    Set_Native_Defaults_();
+    config::s_effective_config effective;
+    config::s_cfg_diagnostic diagnostic;
+    bool loaded = false;
+    DOCTEST_REQUIRE(config::Load_Startup_Config(
+        "orion2re.cfg", "base_game", &effective, &loaded, &diagnostic));
+    DOCTEST_REQUIRE(loaded);
+    DOCTEST_CHECK(COMBINIT::scroll_interval == 2);
+
+    const fs::path user_config = user_config_dir / "orion2re.cfg";
+    std::error_code copy_error;
+    fs::copy_file(files.Root_Path() / "orion2re.cfg", user_config, copy_error);
+    DOCTEST_REQUIRE_FALSE(copy_error);
+    DOCTEST_REQUIRE(config::Write_Setting(user_config.string(),
+        {"interface", "scroll_interval"}, "5", &diagnostic));
+    DOCTEST_REQUIRE(config::Reload_Active_Config_Groups(false, &diagnostic));
+    DOCTEST_CHECK(COMBINIT::scroll_interval == 5);
+
+    config::s_mod_set_preview preview;
+    DOCTEST_REQUIRE(config::Preview_Enabled_Mods({"ice-x"}, &preview, &diagnostic));
+    DOCTEST_REQUIRE(config::Write_Enabled_Mods(user_config.string(),
+        preview.package_order, &diagnostic));
+    DOCTEST_REQUIRE(config::Apply_Enabled_Mods({"ice-x"}, &diagnostic));
+    DOCTEST_CHECK(config::Get_Active_Config()->package_order ==
+        std::vector<std::string>{"ice-x", "ice", "v150"});
+    // The user's value wins over ice's, live...
+    DOCTEST_CHECK(COMBINIT::scroll_interval == 5);
+    const config::t_variable_id scroll =
+        Variable_Id_("interface.scroll_interval");
+    DOCTEST_REQUIRE(scroll != config::CONFIG_NO_VARIABLE);
+    DOCTEST_CHECK(config::Get_Active_Config()->baseline.effective.state.values.Read(scroll).integer_value == 5);
+    // ...and in the file.
+    std::ifstream saved(user_config, std::ios::binary);
+    const std::string saved_text((std::istreambuf_iterator<char>(saved)),
+        std::istreambuf_iterator<char>());
+    DOCTEST_CHECK(saved_text.find("scroll_interval = 5") != std::string::npos);
+    // The mod's own values still apply where the entry is silent: the
+    // ice-x difficulty override is live.
+    const auto bonus = Variable_Id_("ai.productivity_bonus.4");
+    DOCTEST_REQUIRE(bonus != config::CONFIG_NO_VARIABLE);
+    DOCTEST_CHECK(config::Get_Active_Config()->baseline.effective.state.values.Read(bonus).integer_value == 60);
+}
+
+DOCTEST_TEST_CASE("mod picker preview works with no configuration file") {
+    s_config_test_directory files;
+    for (const char* package_id : {"v150", "ice", "ice-x"}) {
+        files.Copy_Tree(fs::path(LUA_SOURCE_PACKAGE_DIR) / package_id,
+            fs::path("data/mods") / package_id);
+    }
+    files.Initialize_Vfs();
+    config::s_effective_config effective;
+    config::s_cfg_diagnostic diagnostic;
+    bool loaded = false;
+    DOCTEST_REQUIRE(config::Load_Startup_Config(
+        "main.cfg", "base_game", &effective, &loaded, &diagnostic));
+    DOCTEST_CHECK_FALSE(loaded);
+    config::s_mod_set_preview preview;
+    DOCTEST_REQUIRE(config::Preview_Enabled_Mods({"ice-x"}, &preview, &diagnostic));
+    DOCTEST_CHECK(preview.package_order ==
+        std::vector<std::string>{"ice-x", "ice", "v150"});
+}
+
+DOCTEST_TEST_CASE("mod picker apply refuses while a game config is loaded") {
+    s_config_test_directory files;
+    files.Copy_Tree(fs::path(LUA_SOURCE_PACKAGE_DIR) / "v150",
+        fs::path("data/mods") / "v150");
+    files.Write("main.cfg", "enable v150;\n");
+    files.Initialize_Vfs();
+    config::s_effective_config effective;
+    config::s_cfg_diagnostic diagnostic;
+    bool loaded = false;
+    DOCTEST_REQUIRE(config::Load_Startup_Config(
+        "main.cfg", "base_game", &effective, &loaded, &diagnostic));
+    DOCTEST_REQUIRE(loaded);
+    // A save load puts a game config in effect.
+    config::s_config_state snapshot_state;
+    DOCTEST_REQUIRE(config::Initialize_Defaults(&snapshot_state));
+    const std::vector<config::s_mod_requirement> required = {
+        {"v150", "26.11"},
+    };
+    DOCTEST_REQUIRE(config::Reapply_Config_Snapshot(
+        required, &config::synchronized_config_snapshot, &snapshot_state, &diagnostic));
+
+    DOCTEST_CHECK_FALSE(config::Apply_Enabled_Mods({"ice-x"}, &diagnostic));
+    DOCTEST_CHECK(diagnostic.message ==
+        "cannot change mods while a game is loaded; return to the main menu");
+    // The refusal changed nothing.
+    DOCTEST_CHECK(config::Get_Active_Config()->package_order ==
+        std::vector<std::string>{"v150"});
+
+    // Leave a clean state for whatever runs after this case.
+    DOCTEST_REQUIRE(config::Restore_Launch_Config(&diagnostic));
+    DOCTEST_CHECK(config::Get_Active_Config()->package_order ==
+        std::vector<std::string>{"v150"});
 }

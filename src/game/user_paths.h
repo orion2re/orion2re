@@ -31,8 +31,18 @@ namespace user_paths {
     const char* Get_Directory(e_user_directory directory);
     const std::vector<std::string>& Get_Game_Asset_Directories();
 
+    // XDG game-asset directories for a read-only fallback search in
+    // portable mode, when the original game assets are not next to
+    // the executable. Never creates directories, never enables
+    // redirection, and is empty when the platform does not use XDG
+    // or no home directory resolves. The explicit platform flag lets
+    // tests exercise the computation without changing non-Linux startup.
+    std::vector<std::string> Get_Fallback_Game_Asset_Directories(bool platform_uses_xdg);
+
     // Only recognized bare legacy names and DOS save patterns are redirected.
-    // Explicit paths and all paths in portable mode are left alone.
+    // Explicit paths are left alone. In portable mode only read-only
+    // install files fall back to the XDG game-asset directories; all
+    // other paths are left alone.
     // An insufficient output buffer yields an empty path and ENAMETOOLONG, but
     // still reports redirected so callers cannot fall back to the installation.
     bool Redirect_Legacy_Path(const char* path, bool writing, char* output_path, size_t output_path_size);
