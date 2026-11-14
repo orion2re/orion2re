@@ -305,8 +305,8 @@ namespace COLSUM {
         return_hotkey = fields::Add_Hot_Key(" ");
         stored_production_hotkey = fields::Add_Hot_Key("t");
 
-        x_fields[1] = fields::Add_Button_Field(619, 15, ESTRINGS::E_Strings(12), anims[2], "-", 40);
-        x_fields[2] = fields::Add_Button_Field(619, 316, ESTRINGS::E_Strings(12), anims[3], "+", 40);
+        x_fields[1] = fields::Add_Button_Field(619, 15, ESTRINGS::E_Strings(12), anims[2], ESTRINGS::E_Strings(11), 40);
+        x_fields[2] = fields::Add_Button_Field(619, 316, ESTRINGS::E_Strings(12), anims[3], ESTRINGS::E_Strings(137), 40);
         x_fields[3] = fields::Add_Button_Field(531, 445, ESTRINGS::E_Strings(12), anims[1], ESTRINGS::E_Strings(40), 40);
         x_fields[4] = fields::Add_Hot_Key(ESTRINGS::E_Strings(135));
         x_fields[5] = fields::Add_Multi_Button_Field(89, 446, ESTRINGS::E_Strings(12), anims[4], &g_sort_index, 0, ESTRINGS::E_Strings(384), 41);

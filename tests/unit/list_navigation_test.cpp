@@ -12,6 +12,10 @@ namespace {
         int16_t* saved_list = COLXPORT::g_colony_list_ptr;
         s_field* saved_fields = fields::fields;
         decltype(COLSUM::anims) saved_anims;
+        char minus_hotkey[2] = "-";
+        char plus_hotkey[2] = "+";
+        char* saved_minus_hotkey = ESTRINGS::strings[11];
+        char* saved_plus_hotkey = ESTRINGS::strings[137];
 
         s_colony_navigation_fixture() {
             MOX::colony = colonies;
@@ -31,6 +35,8 @@ namespace {
             fields::multi_hotkey_active_field = 0;
             memcpy(saved_anims, COLSUM::anims, sizeof(saved_anims));
             std::fill_n(COLSUM::anims, 21, &animation);
+            ESTRINGS::strings[11] = minus_hotkey;
+            ESTRINGS::strings[137] = plus_hotkey;
             COLSUM::Clear_List_Col_Array();
             COLSUM::Add_Fields();
             COLSUM::first = 5;
@@ -43,6 +49,8 @@ namespace {
             COLXPORT::g_colony_list_ptr = saved_list;
             fields::fields = saved_fields;
             memcpy(COLSUM::anims, saved_anims, sizeof(saved_anims));
+            ESTRINGS::strings[11] = saved_minus_hotkey;
+            ESTRINGS::strings[137] = saved_plus_hotkey;
         }
 
         void Input(int16_t input) {
