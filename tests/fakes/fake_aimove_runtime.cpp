@@ -1,5 +1,7 @@
 #include "pch.h"
 
+#include "game/legacy_world.h"
+
 namespace {
     s_ship_data ships[MAX_SHIPS];
     s_star_data stars[MAX_STARS];
@@ -11,6 +13,20 @@ namespace {
 }
 
 namespace TEST_AIMOVE {
+    const game::s_view* World_() {
+        static game::s_view world;
+        world.players = players;
+        world.ships = ships;
+        world.stars = stars;
+        world.colonies = colonies;
+        world.planets = planets;
+        world.player_count = &MOX::NUM_PLAYERS;
+        world.ship_count = &MOX::NUM_SHIPS;
+        world.star_count = &MOX::NUM_STARS;
+        world.colony_count = &MOX::NUM_COLONIES;
+        return &world;
+    }
+
     void Reset_() {
         memset(ships, 0, sizeof(ships));
         memset(stars, 0, sizeof(stars));
@@ -22,8 +38,8 @@ namespace TEST_AIMOVE {
         MOX::NUM_STARS = 2;
         MOX::NUM_PLAYERS = 1;
         MOX::NUM_COLONIES = 1;
-        AIMOVE::eel_spawn_frequency = 30;
-        AIMOVE::max_eels = 4;
+        AIMOVE::rules.eel_spawn_frequency = 30;
+        AIMOVE::rules.max_eels = 4;
         ships[0].owner = NONPLAYER_SHIP_TYPE_EEL;
         ships[0].status = 0;
         ships[0].location = 0;
@@ -82,6 +98,9 @@ namespace INITSHIP {
 }
 
 namespace SHIPMOVE {
+    void Evaluate_Fleet_Move_From_Star(int16_t* ships, int16_t destination, int16_t, s_ship_move_info* result) {
+        Ships_Try_To_Move_To(ships, destination, result);
+    }
     int16_t __cdecl Create_Nonplayer_Ship(int8_t, s_ship_design*, int16_t, int16_t) {
         spawn_count++;
         MOX::ship[1].d.date_of_design = 99;

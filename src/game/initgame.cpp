@@ -1,4 +1,6 @@
 #include "pch.h"
+
+#include "legacy_world.h"
 #include "string_overrides.h"
 
 #include "lua/lua_game.h"
@@ -133,6 +135,8 @@ namespace INITGAME {
                 (int)MAX_PLAYERS);
             return false;
         }
+        AIDATA::Reset(&AIDATA::state);
+        game::current = legacy_world::World();
         orion2re::lua::game::Reset_Semantic_State();
         const bool random_player_count =
             num_players == NEW_GAME_RANDOM_PLAYER_COUNT;

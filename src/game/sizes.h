@@ -74,17 +74,12 @@ ORION2RE_STATIC_SIZE_ASSERT(s_net_tactical_combat_message, 0x10);
 ORION2RE_STATIC_SIZE_ASSERT_PTR(s_battle_results, 0x6d6, 0x6de);
 ORION2RE_STATIC_SIZE_ASSERT(s_load_net_screen_packet, 0x60);
 
-ORION2RE_STATIC_SIZE_ASSERT(AIDATA::s_turns_from_to_intermediate_cache_entry, 10);
-ORION2RE_STATIC_SIZE_ASSERT(AIDATA::s_ship_n_turns_to_intermediate_cache_entry, 6);
 ORION2RE_STATIC_SIZE_ASSERT(s_npcdiplo_tech, 5);
 ORION2RE_STATIC_SIZE_ASSERT(s_combat_weapon_slot, 11);
 ORION2RE_STATIC_SIZE_ASSERT(s_missile, 0x1A);
 ORION2RE_STATIC_SIZE_ASSERT(s_combfind_star_has_player, 0xb);
 ORION2RE_STATIC_SIZE_ASSERT(s_combfind_target, 0x2c);
 
-ORION2RE_STATIC_SIZE_ASSERT(s_player_ship_sizes, 0x38);
-ORION2RE_STATIC_SIZE_ASSERT(s_ai_refit_entry, 6);
-ORION2RE_STATIC_CONFIGURABLE_SIZE_ASSERT(s_ai_refit_player, 3002, 2 + MAX_SHIPS * sizeof(s_ai_refit_entry));
 ORION2RE_STATIC_SIZE_ASSERT(s_animation_header, 0x0c);
 ORION2RE_STATIC_SIZE_ASSERT(s_colony_job_production, 0x256);
 ORION2RE_STATIC_SIZE_ASSERT(s_help_record, 0x57b);

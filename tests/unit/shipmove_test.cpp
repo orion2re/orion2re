@@ -18,6 +18,78 @@ namespace TEST_SHIPMOVE {
     bool Navigator_Pointer_Supplied_();
 } // namespace TEST_SHIPMOVE
 
+DOCTEST_TEST_CASE("stopping transit changes location and activity without arrival side effects") {
+    TEST_SHIPMOVE::Reset_();
+    auto* ship = &MOX::ship[0];
+    ship->status = 2;
+    ship->location = SHIP_LOCATION_WORMHOLE_OFFSET + 1;
+    ship->x = 37;
+    ship->y = 19;
+    ship->mission = 5;
+    DOCTEST_REQUIRE(SHIPMOVE::Stop_Ship_Transit(ship, 0));
+    DOCTEST_CHECK((int8_t)ship->status == 0);
+    DOCTEST_CHECK((int16_t)ship->location == 0);
+    DOCTEST_CHECK((int16_t)ship->x == 37);
+    DOCTEST_CHECK((int16_t)ship->y == 19);
+    DOCTEST_CHECK((int8_t)ship->mission == 5);
+    ship->status = 2;
+    DOCTEST_CHECK_FALSE(SHIPMOVE::Stop_Ship_Transit(ship, UINT32_MAX));
+    DOCTEST_CHECK((int8_t)ship->status == 2);
+    DOCTEST_REQUIRE(SHIPMOVE::Stop_Ship_Transit(ship, std::nullopt));
+    DOCTEST_CHECK((int16_t)ship->location == -1);
+    DOCTEST_CHECK((int8_t)ship->status == 0);
+}
+
+DOCTEST_TEST_CASE("hypothetical fleet origins preserve legacy evaluation without mutating ships") {
+    struct s_case {
+        int8_t status;
+        bool partial;
+    };
+    const s_case cases[] = {{0, false}, {1, false}, {2, false}, {0, true}, {1, true}, {2, true}};
+    for (auto test : cases) {
+        const int8_t status = test.status;
+        TEST_SHIPMOVE::Reset_();
+        MOX::NUM_STARS = 3;
+        MOX::NUM_SHIPS = 2;
+        MOX::star[2].x = 240;
+        MOX::star[0].has_jumpgate = 1;
+        MOX::star[2].has_jumpgate = 1;
+        for (int32_t i = 0; i < 2; ++i) {
+            MOX::ship[i] = MOX::ship[0];
+            MOX::ship[i].owner = 0;
+            MOX::ship[i].status = status;
+            MOX::ship[i].location = 1 + (status == 1 ? SHIP_LOCATION_MOVING_OFFSET : status == 2 ? SHIP_LOCATION_WORMHOLE_OFFSET
+                                                                                                 : 0);
+            MOX::ship[i].x = 120;
+            MOX::ship[i].travelling_speed = 6;
+            MOX::ship[i].group_has_navigator = 1;
+            MOX::ship[i].special_device_damage_flags[0] |= 1;
+            MOX::ship[i].prior_jump_gate_stardate = MOX::stardate;
+            MOX::ship[i].prior_jump_gate_destination = 2;
+        }
+        const std::array<s_ship_data, 2> before{MOX::ship[0], MOX::ship[1]};
+        int16_t ships[] = {0, 1, 0, -1};
+        if (test.partial) {
+            ships[1] = 0;
+            ships[2] = -1;
+        }
+        for (uint32_t i = 0; ships[i] != -1; ++i) {
+            auto* ship = &MOX::ship[ships[i]];
+            ship->location = 0;
+            ship->x = MOX::star[0].x;
+            ship->y = MOX::star[0].y;
+        }
+        s_ship_move_info expected{};
+        SHIPMOVE::Ships_Try_To_Move_To(ships, 2, &expected);
+        for (int32_t i = 0; i < 2; ++i) MOX::ship[i] = before[i];
+
+        s_ship_move_info actual{};
+        SHIPMOVE::Evaluate_Fleet_Move_From_Star(ships, 2, 0, &actual);
+        DOCTEST_CHECK(memcmp(&actual, &expected, sizeof(actual)) == 0);
+        for (int32_t i = 0; i < 2; ++i) DOCTEST_CHECK(memcmp(&MOX::ship[i], &before[i], sizeof(s_ship_data)) == 0);
+    }
+}
+
 DOCTEST_TEST_CASE("movement to assigned planet star keeps auto-colonization") {
     struct s_case {
         int16_t initial_location;

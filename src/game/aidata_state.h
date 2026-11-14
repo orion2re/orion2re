@@ -1,0 +1,410 @@
+#pragma once
+
+#include "ai_constants.h"
+#include "world_view.h"
+#include "consts.h"
+#include "orion2_consts.h"
+#include "legacy_ids.h"
+
+#include <array>
+#include <cstdint>
+#include <optional>
+#include <unordered_map>
+#include <vector>
+
+namespace AIDATA {
+    using game::id_ship;
+    using game::id_colony;
+    using game::id_planet;
+    using game::id_star;
+    using game::id_player;
+
+    struct s_route_key {
+        id_player player;
+        id_star source;
+        id_star destination;
+
+        bool operator==(const s_route_key&) const = default;
+    };
+
+    struct s_route_hash {
+        uint64_t operator()(const s_route_key& key) const {
+            uint64_t hash = std::hash<id_player>{}(key.player);
+            for (id_star id : {key.source, key.destination}) {
+                hash ^= std::hash<id_star>{}(id) + 0x9e3779b9u +
+                    (hash << 6) + (hash >> 2);
+            }
+            return hash;
+        }
+    };
+
+    struct s_route {
+        id_star next_star;
+        uint16_t turns;
+    };
+
+    struct s_route_choices {
+        std::optional<s_route> normal;
+        std::optional<s_route> extended;
+    };
+
+    struct s_direct_route_row {
+        std::vector<uint8_t> turns;
+        std::vector<uint64_t> available;
+
+        std::optional<uint16_t> Find(std::optional<uint32_t> offset) const {
+            if (!offset || *offset >= turns.size()) return std::nullopt;
+            const uint32_t word = *offset / 64;
+            if (word >= available.size() || (available[word] & (UINT64_C(1) << (*offset % 64))) == 0) {
+                return std::nullopt;
+            }
+            return turns[*offset];
+        }
+    };
+
+    // Dense byte rows, indexed through live IDs rather than ID high-water marks.
+    template<typename t_source_id>
+    struct s_direct_route_table {
+        std::unordered_map<id_star, uint32_t> destinations;
+        std::unordered_map<uint64_t, uint32_t> row_indices;
+        std::vector<s_direct_route_row> rows;
+        // Optional fast indices for the current world's live, dense traversal.
+        // These are owned integer offsets into this table, never borrowed rows.
+        std::vector<std::optional<uint32_t>> live_destinations;
+        std::vector<std::vector<std::optional<uint32_t>>> live_rows;
+
+        void Store(t_source_id source_id, id_star destination_id, id_player player_id, uint8_t turns) {
+            const uint32_t source = legacy_world::Slot(source_id);
+            const uint32_t destination = legacy_world::Slot(destination_id);
+            const uint32_t player = legacy_world::Slot(player_id);
+            const uint32_t offset = destinations.try_emplace(destination_id, (uint32_t)destinations.size()).first->second;
+            auto [entry, inserted] = row_indices.try_emplace((uint64_t{player} << 32) | source, (uint32_t)rows.size());
+            if (inserted) rows.emplace_back();
+            auto& row = rows[entry->second];
+            if (row.turns.size() < destinations.size()) row.turns.resize(destinations.size());
+            const uint32_t word = offset / 64;
+            if (row.available.size() <= word) row.available.resize(word + 1);
+            row.turns[offset] = turns;
+            row.available[word] |= UINT64_C(1) << (offset % 64);
+            if (destination < live_destinations.size()) live_destinations[destination] = offset;
+            if (player < live_rows.size() && source < live_rows[player].size()) live_rows[player][source] = entry->second;
+        }
+
+        std::optional<uint32_t> Find_Destination(id_star destination_id) const {
+            const uint32_t destination = legacy_world::Slot(destination_id);
+            if (destination < live_destinations.size()) return live_destinations[destination];
+            auto offset = destinations.find(destination_id);
+            if (offset == destinations.end()) return std::nullopt;
+            return offset->second;
+        }
+
+        std::optional<uint32_t> Find_Row_Index(t_source_id source_id, id_player player_id) const {
+            const uint32_t source = legacy_world::Slot(source_id);
+            const uint32_t player = legacy_world::Slot(player_id);
+            if (player < live_rows.size() && source < live_rows[player].size()) return live_rows[player][source];
+            auto row = row_indices.find((uint64_t{player} << 32) | source);
+            if (row == row_indices.end()) return std::nullopt;
+            return row->second;
+        }
+
+        std::optional<uint16_t> Find_Cell(std::optional<uint32_t> row, std::optional<uint32_t> destination) const {
+            if (!row || *row >= rows.size()) return std::nullopt;
+            return rows[*row].Find(destination);
+        }
+
+        std::optional<uint16_t> Find(t_source_id source, id_star destination, id_player player) const {
+            const auto offset = Find_Destination(destination);
+            if (!offset) return std::nullopt;
+            return Find_Cell(Find_Row_Index(source, player), offset);
+        }
+
+        void Clear() {
+            destinations.clear();
+            row_indices.clear();
+            rows.clear();
+            live_destinations.clear();
+            live_rows.clear();
+        }
+
+        void Prepare_Live_Indices(uint32_t star_count, uint32_t player_count) {
+            if (live_destinations.size() == star_count && live_rows.size() == player_count) return;
+            live_destinations.clear();
+            live_rows.clear();
+            live_destinations.resize(star_count);
+            live_rows.assign(player_count, std::vector<std::optional<uint32_t>>(star_count));
+            for (uint32_t star = 0; star < star_count; ++star) {
+                auto destination = destinations.find(legacy_world::Star_Id(star));
+                if (destination != destinations.end()) live_destinations[star] = destination->second;
+                for (uint32_t player = 0; player < player_count; ++player) {
+                    auto row = row_indices.find((uint64_t{player} << 32) | star);
+                    if (row != row_indices.end()) live_rows[player][star] = row->second;
+                }
+            }
+        }
+    };
+
+    struct s_route_cache {
+        s_direct_route_table<id_star> direct;
+        std::unordered_map<s_route_key, s_route_choices, s_route_hash> intermediate;
+        s_direct_route_table<id_ship> ship_direct;
+        std::unordered_map<uint64_t, std::optional<s_route>> ship_intermediate;
+
+        void Clear() {
+            direct.Clear();
+            intermediate.clear();
+            ship_direct.Clear();
+            ship_intermediate.clear();
+        }
+    };
+
+    inline uint64_t Ship_Route_Key(id_ship ship, id_star destination) {
+        return (uint64_t{legacy_world::Slot(ship)} << 32) | legacy_world::Slot(destination);
+    }
+
+    inline std::optional<uint16_t> N_Turns_From_To(const s_route_cache* routes,
+        id_star source,
+        id_star destination,
+        id_player player) {
+        return routes->direct.Find(source, destination, player);
+    }
+
+    inline std::optional<uint16_t> Ship_N_Turns_To(const s_route_cache* routes,
+        id_ship ship,
+        id_star destination) {
+        return routes->ship_direct.Find(ship, destination, legacy_world::Player_Id(0));
+    }
+
+    struct s_colony_assessment {
+        id_player dominant_race{};
+        int8_t population_limit = 0;
+        bool food_buildings_relevant = false;
+        bool pollution_controls_relevant = false;
+        bool other_player_arrivals = false;
+        int8_t conquered_population = 0;
+    };
+
+    struct s_empire_assessment {
+        int16_t colony_count = 0;
+        int16_t colony_deficit = 0;
+        int16_t blockaded_colony_count = 0;
+        int16_t colonized_star_count = 0;
+        int16_t blockaded_star_count = 0;
+        int16_t contact_count = 0;
+        int16_t reachable_player_count = 0;
+        std::array<bool, MAX_PLAYERS> reachable_players = {};
+        std::array<int32_t, MAX_PLAYERS> strength_vs_player = {};
+    };
+
+    struct s_star_player_assessment {
+        int8_t treaty_partners_in_range = 0;
+        int8_t neutral_players_in_range = 0;
+        int8_t hostile_players_in_range = 0;
+        int8_t players_only_in_extended_range = 0;
+        uint32_t covering_colony_count = 0;
+        bool other_player_arrivals = false;
+    };
+
+    struct s_star_neighborhood {
+        int8_t planet_count = 0;
+        std::array<s_star_player_assessment, MAX_PLAYERS> per_player = {};
+    };
+
+    struct s_technology_assessment {
+        uint8_t best_shield = 0;
+        int8_t best_shield_delta = 0;
+        uint8_t best_armor = 0;
+        int8_t armor_delta = 0;
+        uint8_t best_computer = 0;
+        int8_t best_computer_delta = 0;
+        uint8_t best_fuel = 0;
+        uint8_t best_planet_shield = 0;
+        int8_t planet_shield_delta = 0;
+        uint8_t contact_count = 0;
+        uint8_t best_drive = 0;
+        uint8_t best_beam_score = 0;
+        int8_t beam_score_delta = 0;
+        uint8_t best_missile_score = 0;
+        int8_t missile_score_delta = 0;
+        uint8_t ground_tech_score = 0;
+        int16_t ground_bonus = 0;
+        int8_t ground_bonus_delta = 0;
+        bool colonization_idle = false;
+    };
+
+    struct s_fleet_composition {
+        std::array<int32_t, HULL_CLASS_COUNT> ship_counts = {};
+        int32_t target_ship_size = 0;
+        int32_t combat_ship_count = 0;
+        int32_t combat_command_points_used = 0;
+        int32_t active_combat_command_points_used = 0;
+        int32_t weighted_ship_size = 0;
+    };
+
+    struct s_colonization_candidate {
+        id_planet planet_id{};
+        int32_t contextual_value = 0;
+    };
+
+    struct s_colony_assignment {
+        id_colony colony_id{};
+        uint8_t n_farmers = 0;
+        uint8_t n_workers = 0;
+        uint8_t first_assignable_pop_idx = 0;
+        uint8_t cur_pop_idx = 0;
+        uint8_t pop_end_idx = 0;
+        uint8_t pop_tail_idx = 0;
+        uint8_t pollution_at_start = 0;
+        int16_t best_reassignment_score = 0;
+        int16_t worst_reassignment_score = 0;
+        bool eats_minerals = false;
+    };
+
+    struct s_ship_assessment {
+        uint16_t strengths[MAX_PLAYERS] = {};
+        uint16_t strengths_in_nebula[MAX_PLAYERS] = {};
+        uint16_t bomb_strengths[PLANETARY_SHIELD_COUNT] = {};
+        int32_t refit_desirability = 0;
+    };
+
+    struct s_planet_assessment {
+        uint16_t base_values[MAX_PLAYERS] = {};
+        uint16_t contextual_values[MAX_PLAYERS] = {};
+        int16_t stage_weights[MAX_PLAYERS] = {};
+    };
+
+    struct s_star_assessment {
+        s_star_neighborhood neighborhood;
+        uint8_t in_range = 0;
+        uint8_t in_extended_range = 0;
+        uint32_t base_stage_weights[MAX_PLAYERS] = {};
+        uint32_t stage_weights[MAX_PLAYERS] = {};
+        int32_t possible_strengths[MAX_PLAYERS][MAX_PLAYERS][FORECAST_TURN_COUNT] = {};
+        int32_t enroute_strengths[MAX_PLAYERS][MAX_PLAYERS][FORECAST_TURN_COUNT] = {};
+        int8_t enroute_ships[MAX_PLAYERS][FORECAST_TURN_COUNT] = {};
+        int8_t enroute_human_ships[FORECAST_TURN_COUNT] = {};
+        int8_t enroute_nonstealthy_ships[MAX_PLAYERS] = {};
+    };
+
+    struct s_build_quantity {
+        uint8_t current = 0;
+        uint8_t additional_wanted = 0;
+    };
+
+    struct s_colony_ship_need {
+        uint8_t current = 0;
+        uint8_t additional_wanted = 0;
+        uint8_t enroute = 0;
+    };
+
+    struct s_combat_strength_need {
+        int32_t total = 0;
+        int32_t excluding_queued_builds = 0;
+        int32_t additional_wanted = 0;
+    };
+
+    struct s_build_needs {
+        s_fleet_composition ship_sizes;
+        int32_t total_strength_vs_colonies = 0;
+        s_build_quantity transports;
+        int8_t freighter_groups_wanted = 0;
+        s_build_quantity spies;
+        s_colony_ship_need colony_ships;
+        s_combat_strength_need combat_strength;
+    };
+
+    struct s_refit_candidate {
+        id_ship ship_id;
+        int32_t desirability;
+    };
+
+    struct s_colony_workspace {
+        std::vector<s_colony_assignment> colonies;
+        uint32_t blockaded_count = 0;
+        bool complete = false;
+    };
+
+    struct s_interception_assignment {
+        id_star target_star;
+        id_star next_star;
+        uint8_t arrival_turn;
+    };
+
+    struct s_interception_star_work {
+        std::array<uint32_t, FORECAST_TURN_COUNT> assigned_strength = {};
+        int16_t candidate_strength = 0;
+        int8_t surplus_turn = FORECAST_TURN_COUNT;
+        int8_t sufficient_turn = 0;
+    };
+
+    struct s_interception_workspace {
+        std::vector<id_ship> ships;
+        std::unordered_map<id_ship, std::optional<s_interception_assignment>> assignments;
+        std::unordered_map<id_star, s_interception_star_work> stars;
+    };
+
+    struct s_movement_workspace {
+        std::vector<s_colonization_candidate> colonizable;
+        std::unordered_map<id_star, std::array<int8_t, FORECAST_TURN_COUNT>> flee_stars;
+        std::unordered_map<id_star, id_player> nonplayer_here;
+        s_interception_workspace interception;
+        bool complete = false;
+    };
+
+    inline bool Is_Fleeing(const s_movement_workspace* work, id_star star, uint32_t turn) {
+        if (turn >= FORECAST_TURN_COUNT) return false;
+        auto found = work->flee_stars.find(star);
+        return found != work->flee_stars.end() && found->second[turn] != 0;
+    }
+
+    inline std::optional<id_player> Nonplayer_At(const s_movement_workspace* work, id_star star) {
+        auto found = work->nonplayer_here.find(star);
+        if (found == work->nonplayer_here.end()) return std::nullopt;
+        return found->second;
+    }
+
+    struct s_combat_ship_group {
+        uint32_t next;
+        uint32_t end;
+    };
+
+    struct s_player_assessment {
+        s_empire_assessment empire;
+        s_technology_assessment technology;
+        s_build_needs build;
+        std::vector<s_refit_candidate> refits;
+        std::unordered_map<id_star, s_combat_ship_group> combat_ship_groups;
+        std::optional<s_combat_ship_group> in_transit_combat_ships;
+        s_colony_workspace colony_work;
+        s_movement_workspace movement;
+
+        s_combat_ship_group* Find_Combat_Ships(id_star star) {
+            auto group = combat_ship_groups.find(star);
+            return group == combat_ship_groups.end() ? nullptr : &group->second;
+        }
+
+        const s_combat_ship_group* Find_Combat_Ships(id_star star) const {
+            auto group = combat_ship_groups.find(star);
+            return group == combat_ship_groups.end() ? nullptr : &group->second;
+        }
+    };
+
+    struct s_state {
+        std::unordered_map<id_ship, s_ship_assessment> ships;
+        std::unordered_map<id_planet, s_planet_assessment> planets;
+        std::unordered_map<id_star, s_star_assessment> stars;
+        std::unordered_map<id_colony, s_colony_assessment> colonies;
+        std::array<s_player_assessment, MAX_PLAYERS> players;
+        s_route_cache routes;
+        std::vector<id_ship> combat_ships;
+        int32_t stardate = 0;
+        bool initialized = false;
+        bool complete = false;
+    };
+
+    // Temporary session owner. Only integration boundaries may access this object.
+    extern s_state state;
+
+    void Begin_Turn(s_state* ai, int32_t stardate);
+    void Complete_Turn(s_state* ai);
+    void Reset(s_state* ai);
+} // namespace AIDATA

@@ -1,365 +1,295 @@
 #include "pch.h"
+#include "ai_compat.h"
+
+#include "legacy_world.h"
 
 namespace AIMOVE {
-    s_player* p_ai;
-    s_ai_colonizable_planet* colonizable;
-    int8_t (*nonplayer_here)[MAX_STARS];
-    int8_t* flee_stars;
-    int16_t i_ai;
-    int16_t n_colonizable;
+    std::optional<uint32_t> First_Threat_Turn(const std::array<int32_t, AIDATA::FORECAST_TURN_COUNT>* first, const std::array<int32_t, AIDATA::FORECAST_TURN_COUNT>* second, uint32_t from) {
+        for (uint32_t turn = from; turn < AIDATA::FORECAST_TURN_COUNT; ++turn) {
+            if ((*first)[turn] != 0 || (*second)[turn] != 0) return turn;
+        }
+        return std::nullopt;
+    }
+    using game::e_ship_location;
+    using AIDATA::FORECAST_TURN_COUNT;
+    using AIDATA::LAST_FORECAST_TURN;
+    struct s_candidate_sort_context {
+        const std::unordered_map<id_star, AIDATA::s_star_assessment>* stars;
+        id_player player_id;
+        int16_t player_count;
+    };
 
     int __cdecl Sort_colonizable(const void* a, const void* b) {
-        auto p1 = (const s_ai_colonizable_planet*)a;
-        auto p2 = (const s_ai_colonizable_planet*)b;
+        auto p1 = (const AIDATA::s_colonization_candidate*)a;
+        auto p2 = (const AIDATA::s_colonization_candidate*)b;
         return p1->contextual_value - p2->contextual_value;
     }
 
-    void __cdecl Move_All_AI() {
-        for (int16_t i = 0; i < MOX::NUM_PLAYERS; ++i) {
-            s_player& plr = MOX::player[i];
+    void __cdecl Move_All_AI(AIDATA::s_state* ai, const game::s_view* world) {
+        for (int16_t i = 0; i < world->Player_Count(); ++i) {
+            s_player& plr = world->players[i];
 
             if (plr.objectives != PLAYER_OBJECTIVE_HUMAN && plr.ship_speed != 0) {
-                RUSS::Mox_Update();
-
                 if (plr.traits[TRAIT_TRANS_DIMENSIONAL] != 0 || EVENTS::Event_Check_Hyperspace_Flux() == 0) {
-                    Move_AI(i);
+                    Move_AI(ai, world, legacy_world::Player_Id(i));
                 }
             }
         }
 
-        Move_NPCs();
+        Move_NPCs(world);
     }
 
-    void __cdecl Launch_Sneak_Attack() {
+    void __cdecl Launch_Sneak_Attack(AIDATA::s_state* ai, s_ai_movement_context* ctx) {
+        const auto* world = ctx->world;
+        const uint32_t i_ai = legacy_world::Slot(ctx->player_idx);
+        s_player* p_ai = ctx->player;
         if (p_ai->sneak_attack_planet != -1) {
-            if (AIBUILD::Player_War_Level(i_ai) != 0) {
+            if (AIBUILD::Player_War_Level(world, legacy_world::Player_Id(i_ai)) != 0) {
                 p_ai->sneak_attack_planet = -1;
             }
         }
 
         if (p_ai->sneak_attack_planet != -1) {
             int16_t target_planet_idx = p_ai->sneak_attack_planet;
-            int16_t colony_idx = MOX::planet[target_planet_idx].colony_index;
+            int16_t colony_idx = world->planets[target_planet_idx].colony_index;
             uint8_t target_player = (uint8_t)p_ai->sneak_attack_player;
 
-            if (colony_idx != -1 && MOX::colony[colony_idx].owner == target_player) {
-                int16_t stage_point = MOX::player[i_ai].offensive_stagepoint;
+            if (colony_idx != -1 && world->colonies[colony_idx].owner == target_player) {
+                int16_t stage_point = world->players[i_ai].offensive_stagepoint;
 
-                if ((*AIDATA::i_all_combat_ships)[i_ai][stage_point] != -1) {
-                    int16_t ship_list[SHIP_LIST_CAPACITY];
+                if (ai->players[i_ai].Find_Combat_Ships(legacy_world::Star_Id(stage_point))) {
+                    std::vector<id_ship> ship_list;
                     s_ship_move_info move_info;
-                    int16_t star_idx = MOX::planet[target_planet_idx].star_index;
+                    int16_t star_idx = world->planets[target_planet_idx].star_index;
 
-                    int ship_count = Gather_Player_Ships_At_Star(i_ai, stage_point, ship_list);
-                    SHIPMOVE::Ships_Try_To_Move_To(ship_list, star_idx, &move_info);
+                    Gather_Player_Ships_At_Star(ai, ctx, legacy_world::Player_Id(i_ai), legacy_world::Star_Id(stage_point), &ship_list);
+                    ai_compat::Evaluate_Fleet_Move(ship_list, legacy_world::Star_Id(star_idx), &move_info);
 
                     if (move_info.moving != 0) {
-                        for (int i = 0; i < ship_count; ++i) {
-                            MOX::ship[ship_list[i]].mission = 6;
+                        for (id_ship id : ship_list) {
+                            world->ships[legacy_world::Slot(id)].mission = 6;
                         }
-                        SHIPMOVE::Make_Ships_Move_To(ship_list, star_idx, &move_info);
-                        (*AIDATA::i_all_combat_ships)[i_ai][stage_point] = -1;
+                        ai_compat::Order_Fleet_Move(ship_list, legacy_world::Star_Id(star_idx), &move_info);
+                        ai->players[i_ai].combat_ship_groups.erase(legacy_world::Star_Id(stage_point));
                     }
                 }
             }
 
-            int16_t star_idx = MOX::planet[p_ai->sneak_attack_planet].star_index;
-            if ((*AIDATA::enroute_ship_strengths)[star_idx][i_ai][target_player][1] != 0) {
-                diplomac::Declare_War(i_ai, target_player);
+            int16_t star_idx = world->planets[p_ai->sneak_attack_planet].star_index;
+            if (ai->stars[legacy_world::Star_Id(star_idx)].enroute_strengths[i_ai][target_player][1] != 0) {
+                const auto legacy_player = legacy_world::Index(ctx->player_idx);
+                if (legacy_player) diplomac::Declare_War(*legacy_player, target_player);
             }
         }
     }
 
-    void __cdecl Move_AI(int16_t player_idx) {
-        s_ai_colonizable_planet* colonizable_planet_storage = nullptr;
-        int8_t* flee_star_storage = nullptr;
-        int8_t* nonplayer_presence_storage = nullptr;
-        ai_state::Prepare_Movement_State(player_idx, &colonizable_planet_storage,
-            &flee_star_storage, &nonplayer_presence_storage);
-        bool free_movement_storage = false;
-        if (colonizable_planet_storage == nullptr || flee_star_storage == nullptr ||
-            nonplayer_presence_storage == nullptr) {
-            colonizable_planet_storage = (s_ai_colonizable_planet*)calloc(
-                MAX_PLANETS, sizeof(s_ai_colonizable_planet));
-            flee_star_storage = (int8_t*)calloc(
-                MAX_STARS * ENEMY_STRENGTH_TURN_WINDOW, sizeof(int8_t));
-            nonplayer_presence_storage = (int8_t*)calloc(MAX_STARS, sizeof(int8_t));
-            if (colonizable_planet_storage == nullptr || flee_star_storage == nullptr ||
-                nonplayer_presence_storage == nullptr) {
-                allocate::Allocation_Error(MAX_PLANETS * sizeof(s_ai_colonizable_planet) +
-                    MAX_STARS * (ENEMY_STRENGTH_TURN_WINDOW + 1));
-            }
-            free_movement_storage = true;
-        }
+    void Move_AI(AIDATA::s_state* ai, const game::s_view* world, id_player player_id) {
+        const uint32_t player_idx = legacy_world::Slot(player_id);
+        auto& work = ai->players[player_idx].movement;
+        work = {};
+        s_ai_movement_context context{player_id, &world->players[player_idx], &work, world};
+        s_ai_movement_context* ctx = &context;
+        const uint32_t i_ai = player_idx;
+        const s_player* p_ai = ctx->player;
 
-        RUSS::Mox_Update();
+        Get_Colonizable_Planets(ai, ctx, &work.colonizable);
+        qsort(work.colonizable.data(), work.colonizable.size(), sizeof(AIDATA::s_colonization_candidate), Sort_colonizable);
 
-        i_ai = player_idx;
-        colonizable = colonizable_planet_storage;
-        p_ai = &MOX::player[player_idx];
+        Mark_Flee_Stars(world, &work, player_id);
 
-        Get_Colonizable_Planets(colonizable_planet_storage, &n_colonizable);
-
-        qsort(colonizable, n_colonizable, 6, Sort_colonizable);
-
-        flee_stars = flee_star_storage;
-        memset(flee_stars, 0, MAX_STARS * ENEMY_STRENGTH_TURN_WINDOW);
-
-        Mark_Flee_Stars(player_idx);
-
-        nonplayer_here = (int8_t(*)[MAX_STARS])nonplayer_presence_storage;
-        memset(nonplayer_here, 0, MAX_STARS);
-
-        s_ship_data* ship = MOX::ship;
-        if (ship < MOX::ship + MOX::NUM_SHIPS) {
+        s_ship_data* ship = world->ships;
+        if (ship < world->ships + world->Ship_Count()) {
             do {
                 if (ship->owner >= MAX_PLAYERS && ship->status == 0) {
-                    (*nonplayer_here)[ship->location] = ship->owner;
+                    auto orbit = legacy_world::Orbit_Star(ship);
+                    if (orbit) work.nonplayer_here[*orbit] = legacy_world::Player_Id(ship->owner);
                 }
                 ship++;
-            } while (ship < MOX::ship + MOX::NUM_SHIPS);
+            } while (ship < world->ships + world->Ship_Count());
         }
 
-        RUSS::Mox_Update();
-        Delete_Already_Assigned_Planets(colonizable, &n_colonizable);
+        Delete_Already_Assigned_Planets(ctx, &work.colonizable);
 
-#if defined(ORION2RE_ENABLE_DEBUG_OVERLAY)
-        ai_state::Capture_Movement_State(player_idx, colonizable,
-            n_colonizable, flee_stars, *nonplayer_here);
-#endif
+        Launch_Sneak_Attack(ai, ctx);
 
-        RUSS::Mox_Update();
-        Launch_Sneak_Attack();
+        Launch_Attacks(ai, ctx, 6, 2);
 
-        RUSS::Mox_Update();
-        Launch_Attacks(6, 2);
+        Intercept_Invaders(ai, ctx);
 
-        RUSS::Mox_Update();
-        Intercept_Invaders();
+        Launch_Attacks(ai, ctx, 1, 2);
 
-        RUSS::Mox_Update();
-        Launch_Attacks(1, 2);
+        Assign_New_Colony_Ship_Destinations(ai, ctx, &work.colonizable);
 
-        RUSS::Mox_Update();
-        Assign_New_Colony_Ship_Destinations(colonizable, &n_colonizable);
+        Launch_Attacks(ai, ctx, 2, 2);
 
-        RUSS::Mox_Update();
-        Launch_Attacks(2, 2);
+        Launch_Attacks(ai, ctx, 6, 0);
 
-        RUSS::Mox_Update();
-        Launch_Attacks(6, 0);
+        Launch_Attacks(ai, ctx, 1, 0);
 
-        RUSS::Mox_Update();
-        Launch_Attacks(1, 0);
+        Launch_Attacks(ai, ctx, 2, 0);
 
-        RUSS::Mox_Update();
-        Launch_Attacks(2, 0);
+        Move_Transports(ai, ctx);
 
-        RUSS::Mox_Update();
-        Move_Transports();
+        Move_To_Stage_Points(ai, ctx);
 
-        RUSS::Mox_Update();
-        Move_To_Stage_Points();
-
-        RUSS::Mox_Update();
-        if ((*AIDATA::ai_player_info)[i_ai].prev_n_contacts ==
-                (*AIDATA::ai_player_info)[i_ai].n_contacts ||
-            MOX::settings.game_difficulty == GAME_DIFFICULTY_TUTOR) {
-            Move_To_Unexplored_Stars();
+        if (ai->players[i_ai].empire.contact_count == 0 ||
+            world->settings->game_difficulty == GAME_DIFFICULTY_TUTOR) {
+            Move_To_Unexplored_Stars(ai, ctx);
         }
 
-#if defined(ORION2RE_ENABLE_DEBUG_OVERLAY)
-        ai_state::Capture_Movement_State(player_idx, nullptr,
-            -1, flee_stars, *nonplayer_here);
-#endif
-
-        colonizable = nullptr;
-        flee_stars = nullptr;
-        nonplayer_here = nullptr;
-        p_ai = nullptr;
-        if (free_movement_storage) {
-            free(colonizable_planet_storage);
-            free(flee_star_storage);
-            free(nonplayer_presence_storage);
-        }
+        work.complete = true;
     }
 
-    void __cdecl Player_Threatens_Player(int plr1, int plr2, int16_t* star_idx, int* aux_info, int16_t* planet_idx) {
-        *planet_idx = -1;
+    std::optional<s_threat> Player_Threatens_Player(AIDATA::s_state* ai, const game::s_view* world, id_player player, id_player target) {
+        const uint32_t plr1 = legacy_world::Slot(player);
+        const uint32_t plr2 = legacy_world::Slot(target);
 
         // Check if player is Trans-Dimensional or if Hyperspace Flux is active
-        if (MOX::player[plr1].traits[TRAIT_TRANS_DIMENSIONAL] == 0) {
+        if (world->players[plr1].traits[TRAIT_TRANS_DIMENSIONAL] == 0) {
             if (EVENTS::Event_Check_Hyperspace_Flux() != 0) {
-                return;
+                return std::nullopt;
             }
         }
 
-        if (MOX::NUM_STARS < 1) {
-            return;
+        if (world->Star_Count() < 1) {
+            return std::nullopt;
         }
 
-        for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
-            uint32_t current_strength = (uint32_t)(*AIDATA::ai_player_info)[plr1].total_ship_strength[plr2];
-            uint32_t possible_strength = (uint32_t)(*AIDATA::possible_ship_strengths)[i][plr1][plr2][0];
+        for (int16_t i = 0; i < world->Star_Count(); ++i) {
+            uint32_t current_strength = (uint32_t)ai->players[plr1].empire.strength_vs_player[plr2];
+            uint32_t possible_strength = (uint32_t)ai->stars[legacy_world::Star_Id(i)].possible_strengths[plr1][plr2][0];
 
             // AI logic: check if existing strength ratio allows for a threat/attack opportunity
             if ((current_strength >> 2) <= (possible_strength / 10)) {
-                int16_t found_planet;
-                int16_t dummy_short;
-                int32_t found_aux;
-
-                AIMOVE::Find_Opportunity_Attack_Aux(plr1, plr2, 150 /* 0x96 */, i, &found_planet, &dummy_short, &found_aux);
-
-                if (found_planet != -1) {
-                    *star_idx = i;
-                    *aux_info = found_aux;
-                    *planet_idx = found_planet;
-                    return;
-                }
+                auto attack = Find_Opportunity_Attack_Aux(ai, world, player, target, 150, legacy_world::Star_Id(i));
+                if (attack) return s_threat{legacy_world::Star_Id(i), *attack};
             }
         }
+        return std::nullopt;
     }
 
-    int16_t __cdecl Best_Uncolonized_Undestined_Planet(int16_t player_idx) {
-        s_ai_colonizable_planet* colonizable_planets =
-            (s_ai_colonizable_planet*)calloc(MAX_PLANETS, sizeof(s_ai_colonizable_planet));
-        if (colonizable_planets == nullptr) {
-            allocate::Allocation_Error(MAX_PLANETS * sizeof(s_ai_colonizable_planet));
-        }
-        int16_t best_planet_idx = -1;
-        const int16_t previous_i_ai = i_ai;
-        const int16_t previous_n_colonizable = n_colonizable;
-        s_ai_colonizable_planet* previous_colonizable = colonizable;
-        s_player* previous_p_ai = p_ai;
+    std::optional<id_planet> Best_Uncolonized_Undestined_Planet(AIDATA::s_state* ai, const game::s_view* world, id_player player_id) {
+        const uint32_t player_idx = legacy_world::Slot(player_id);
+        AIDATA::s_movement_workspace work;
+        s_ai_movement_context context{player_id, &world->players[player_idx], &work, world};
+        Get_Colonizable_Planets(ai, &context, &work.colonizable);
+        qsort(work.colonizable.data(), work.colonizable.size(), sizeof(AIDATA::s_colonization_candidate), Sort_colonizable);
+        Delete_Already_Assigned_Planets(&context, &work.colonizable);
 
-        i_ai = player_idx;
-        colonizable = colonizable_planets;
-        p_ai = &MOX::player[player_idx];
-
-        Get_Colonizable_Planets(colonizable_planets, &n_colonizable);
-
-        qsort(colonizable, (uint32_t)n_colonizable, sizeof(s_ai_colonizable_planet), Sort_colonizable);
-
-        Delete_Already_Assigned_Planets(colonizable, &n_colonizable);
-
-        if (n_colonizable > 0) {
-            best_planet_idx = colonizable[n_colonizable - 1].planet_idx;
+        if (!work.colonizable.empty()) {
+            return work.colonizable.back().planet_id;
         }
 
-        i_ai = previous_i_ai;
-        n_colonizable = previous_n_colonizable;
-        colonizable = previous_colonizable;
-        p_ai = previous_p_ai;
-        free(colonizable_planets);
-        return best_planet_idx;
+        return std::nullopt;
     }
 
-    void __cdecl Move_To_Unexplored_Stars() {
-        int8_t star_flags_0[MAX_STARS];
+    void __cdecl Move_To_Unexplored_Stars(AIDATA::s_state* ai, s_ai_movement_context* ctx) {
+        const auto* world = ctx->world;
+        const uint32_t i_ai = legacy_world::Slot(ctx->player_idx);
+        std::vector<int8_t> star_flags_0(world->Star_Count(), 0);
         int32_t enemy_strength_1[ENEMY_STRENGTH_TURN_WINDOW];
         int32_t enemy_strength_2[ENEMY_STRENGTH_TURN_WINDOW];
-        int16_t ship_indices[MAX_SHIPS];
+        std::vector<id_ship> ship_indices(world->Ship_Count());
         s_ship_move_info move_info;
-        int16_t single_ship_list[2];
+        std::array<id_ship, 1> single_ship_list;
 
-        memset(star_flags_0, 0, sizeof(star_flags_0));
 
         int32_t num_ships_selected = 0;
-        if (MOX::NUM_SHIPS > 0) {
-            for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
-                if (MOX::ship[i].owner == i_ai) {
-                    int8_t status = MOX::ship[i].status;
-                    int16_t loc = MOX::ship[i].location;
+        if (world->Ship_Count() > 0) {
+            for (int16_t i = 0; i < world->Ship_Count(); ++i) {
+                if (world->ships[i].owner == i_ai) {
+                    int8_t status = world->ships[i].status;
+                    const auto location = legacy_world::Read_Ship_Location(&world->ships[i]);
+                    if (!location || legacy_world::Slot(location->star_id) >= (uint32_t)world->Star_Count()) continue;
+                    const uint32_t loc = legacy_world::Slot(location->star_id);
 
                     if (status == 0) {
-                        if ((MOX::ship[i].mission == 0 || MOX::ship[i].mission == 3) &&
-                            MOX::ship[i].d.ship_type == SHIP_TYPE_COMBAT) {
-                            ship_indices[num_ships_selected] = i;
+                        if ((world->ships[i].mission == 0 || world->ships[i].mission == 3) &&
+                            world->ships[i].d.ship_type == SHIP_TYPE_COMBAT) {
+                            ship_indices[num_ships_selected] = legacy_world::Ship_Id(i);
                             num_ships_selected++;
                         }
                         star_flags_0[loc] = 1;
                     } else if (status == 1) {
-                        star_flags_0[loc - SHIP_LOCATION_MOVING_OFFSET] = 1;
+                        star_flags_0[loc] = 1;
                     } else if (status == 2) {
-                        star_flags_0[loc - SHIP_LOCATION_WORMHOLE_OFFSET] = 1;
+                        star_flags_0[loc] = 1;
                     }
                 }
             }
         }
 
-        if (MOX::NUM_STARS > 0) {
-            for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
-                if ((((*AIDATA::star_in_extended_range_of_player)[i] >> (uint8_t)i_ai) & 1) != 0 &&
-                    ((MOX::star[i].visited >> (uint8_t)i_ai) & 1) == 0 &&
+        if (world->Star_Count() > 0) {
+            for (int16_t i = 0; i < world->Star_Count(); ++i) {
+                if (((ai->stars[legacy_world::Star_Id(i)].in_extended_range >> (uint8_t)i_ai) & 1) != 0 &&
+                    ((world->stars[i].visited >> (uint8_t)i_ai) & 1) == 0 &&
                     star_flags_0[i] == 0 &&
-                    (MOX::settings.game_difficulty != GAME_DIFFICULTY_TUTOR || MOX::star[i].has_colony == 0)) {
+                    (world->settings->game_difficulty != GAME_DIFFICULTY_TUTOR || world->stars[i].has_colony == 0)) {
                     int32_t best_ship_idx = -1;
-                    int16_t best_star = -1;
                     int32_t min_turns = 255;
 
-                    Get_Enemy_Strength_On_Turn(i, enemy_strength_1, enemy_strength_2);
+                    Get_Enemy_Strength_On_Turn(ai, ctx, legacy_world::Star_Id(i), enemy_strength_1, enemy_strength_2);
 
                     if (num_ships_selected == 0) {
                         return;
                     }
 
                     for (int32_t j = 0; j < num_ships_selected; ++j) {
-                        int16_t ship_idx = ship_indices[j];
-                        bool has_device = struct_::Test_Bit_Field(MOX::ship[ship_idx].d.special_device_flags, 11);
+                        const uint32_t ship_idx = legacy_world::Slot(ship_indices[j]);
+                        bool has_device = struct_::Test_Bit_Field(world->ships[ship_idx].d.special_device_flags, 11);
 
-                        if (has_device || (((*AIDATA::star_in_range_of_player)[i] >> (uint8_t)i_ai) & 1) != 0) {
-                            int16_t loc = MOX::ship[ship_idx].location;
-                            uint8_t turns = AIDATA::N_Turns_From_To(loc, i, i_ai);
+                        if (has_device || ((ai->stars[legacy_world::Star_Id(i)].in_range >> (uint8_t)i_ai) & 1) != 0) {
+                            auto orbit = legacy_world::Orbit_Star(&world->ships[ship_idx]);
+                            if (!orbit) continue;
+                            auto turns = AIDATA::N_Turns_From_To(&ai->routes, *orbit, legacy_world::Star_Id(i), ctx->player_idx);
 
-                            if (turns < min_turns && turns < ENEMY_STRENGTH_TURN_WINDOW && enemy_strength_2[turns] == 0) {
-                                min_turns = turns;
+                            if (turns && *turns < min_turns && *turns < ENEMY_STRENGTH_TURN_WINDOW && enemy_strength_2[*turns] == 0) {
+                                min_turns = *turns;
                                 best_ship_idx = j;
-                                best_star = i;
                             }
                         }
                     }
 
                     if (best_ship_idx != -1) {
                         single_ship_list[0] = ship_indices[best_ship_idx];
-                        single_ship_list[1] = -1;
                         num_ships_selected--;
                         ship_indices[best_ship_idx] = ship_indices[num_ships_selected];
 
-                        SHIPMOVE::Ships_Try_To_Move_To(single_ship_list, best_star, &move_info);
-                        MOX::ship[single_ship_list[0]].mission = 7;
-                        SHIPMOVE::Make_Ships_Move_To(single_ship_list, best_star, &move_info);
+                        ai_compat::Evaluate_Fleet_Move(single_ship_list, legacy_world::Star_Id(i), &move_info);
+                        world->ships[legacy_world::Slot(single_ship_list[0])].mission = 7;
+                        ai_compat::Order_Fleet_Move(single_ship_list, legacy_world::Star_Id(i), &move_info);
                     }
                 }
             }
         }
     }
 
-    void __cdecl Launch_Attacks(int mission_type, int min_pop) {
-        if (MOX::NUM_STARS > 0) {
-            for (int16_t star_idx = 0; star_idx < MOX::NUM_STARS; ++star_idx) {
-                if ((*AIDATA::i_all_combat_ships)[AIMOVE::i_ai][star_idx] != -1) {
-                    AIMOVE::Find_Best_Attack_From_Star(star_idx, nullptr, mission_type, min_pop);
+    void __cdecl Launch_Attacks(AIDATA::s_state* ai, s_ai_movement_context* ctx, int mission_type, int min_pop) {
+        const auto* world = ctx->world;
+        const uint32_t i_ai = legacy_world::Slot(ctx->player_idx);
+        if (world->Star_Count() > 0) {
+            for (int16_t star_idx = 0; star_idx < world->Star_Count(); ++star_idx) {
+                if (ai->players[i_ai].Find_Combat_Ships(legacy_world::Star_Id(star_idx))) {
+                    AIMOVE::Find_Best_Attack_From_Star(ai, ctx, legacy_world::Star_Id(star_idx), nullptr, mission_type, min_pop);
                 }
             }
         }
     }
 
-    void __cdecl Mark_Flee_Stars(int16_t player_idx) {
+    void Mark_Flee_Stars(const game::s_view* world, AIDATA::s_movement_workspace* work, id_player player_id) {
+        const uint32_t player_idx = legacy_world::Slot(player_id);
         // Iterate through all players to check for active blockading durations.
-        for (int i = 0; i < (int)MOX::NUM_PLAYERS; ++i) {
+        for (int i = 0; i < world->Player_Count(); ++i) {
             // Check if player i is currently being asked to stop blockading by player_idx.
-            if (MOX::player[player_idx].stop_blockading_duration[i] != 0) {
+            if (world->players[player_idx].stop_blockading_duration[i] != 0) {
                 // If so, iterate through stars to identify retreat/flee targets.
-                for (int16_t star_idx = 0; star_idx < MOX::NUM_STARS; ++star_idx) {
-                    // Each star entry in flee_stars is 10 bytes wide.
-                    int8_t* star_flee_ptr = &flee_stars[star_idx * ENEMY_STRENGTH_TURN_WINDOW];
-
+                for (int16_t star_idx = 0; star_idx < world->Star_Count(); ++star_idx) {
                     // Only mark the star if it hasn't been processed yet.
-                    if (star_flee_ptr[0] == 0) {
+                    if (!AIDATA::Is_Fleeing(work, legacy_world::Star_Id(star_idx), 0)) {
                         // Check if player i has a colony at this star (has_colony is a bitmask).
-                        if ((MOX::star[star_idx].has_colony >> i) & 1) {
-                            // Mark all 10 bytes for this star as fleeing locations.
-                            memset(star_flee_ptr, 1, ENEMY_STRENGTH_TURN_WINDOW);
+                        if ((world->stars[star_idx].has_colony >> i) & 1) {
+                            // Mark the entire forecast window for this star.
+                            work->flee_stars[legacy_world::Star_Id(star_idx)].fill(1);
                         }
                     }
                 }
@@ -367,41 +297,46 @@ namespace AIMOVE {
         }
     }
 
-    int __cdecl Gather_Player_Ships_At_Star(int16_t player_id, int16_t star_id, int16_t* ships_list) {
-        int index = (*AIDATA::i_all_combat_ships)[player_id][star_id];
-        int16_t ship_id = (*AIDATA::all_ships)[index];
-
-        ships_list[0] = ship_id;
-        int count = 1;
+    void Gather_Player_Ships_At_Star(AIDATA::s_state* ai, s_ai_movement_context* ctx, id_player player_id, id_star star_id, std::vector<id_ship>* ships) {
+        const auto* world = ctx->world;
+        ships->clear();
+        s_player* p_ai = ctx->player;
+        const auto* group = ai->players[legacy_world::Slot(player_id)].Find_Combat_Ships(star_id);
+        if (group == nullptr || group->next == group->end) {
+            return;
+        }
+        uint32_t index = group->next;
+        id_ship ship_id = ai->combat_ships[index];
+        ships->push_back(ship_id);
 
         while (true) {
             index++;
-            if (index >= (int)AIDATA::n_all_ships) {
+            if (index >= group->end) {
                 break;
             }
 
-            ship_id = (*AIDATA::all_ships)[index];
-            s_ship_data* ship = &MOX::ship[ship_id];
+            ship_id = ai->combat_ships[index];
+            s_ship_data* ship = &world->ships[legacy_world::Slot(ship_id)];
 
-            if (ship->owner != player_id || ship->location != star_id) {
+            if (ship->owner != legacy_world::Slot(player_id) || legacy_world::Orbit_Star(ship) != star_id) {
                 break;
             }
 
             // Skip ships on mission 5 (potentially 'In transit') unless we are at an offensive stagepoint
-            if (p_ai->offensive_stagepoint == star_id || ship->mission != 5) {
-                ships_list[count++] = ship_id;
+            if (p_ai->offensive_stagepoint == legacy_world::Slot(star_id) || ship->mission != 5) {
+                ships->push_back(ship_id);
             }
         }
 
-        ships_list[count] = -1; // End of list marker
-        return count;
     }
 
-    void __cdecl Get_Colonizable_Planets(s_ai_colonizable_planet* colonizable_planets, int16_t* count) {
-        *count = 0;
-        s_planet_data* planet = MOX::planet;
-        s_planet_data* end = planet + (int16_t)MOX::planet_count;
-        int16_t i = 0;
+    void Get_Colonizable_Planets(AIDATA::s_state* ai, s_ai_movement_context* ctx, std::vector<AIDATA::s_colonization_candidate>* candidates) {
+        const auto* world = ctx->world;
+        const uint32_t i_ai = legacy_world::Slot(ctx->player_idx);
+        candidates->clear();
+        s_planet_data* planet = world->planets;
+        s_planet_data* end = planet + world->Planet_Count();
+        uint32_t i = 0;
 
         while (planet < end) {
             // Only consider uncolonized planets.
@@ -410,20 +345,11 @@ namespace AIMOVE {
                 // Each byte in the array represents a star, with bits corresponding to players
                 // who have that star within their extended travel range.
                 int16_t star_idx = planet->star_index;
-                uint8_t star_range_mask = (*AIDATA::star_in_extended_range_of_player)[star_idx];
+                uint8_t star_range_mask = ai->stars[legacy_world::Star_Id(star_idx)].in_extended_range;
 
-                if (((1u << ((uint8_t)AIMOVE::i_ai & 0x1F)) & (uint32_t)star_range_mask) != 0) {
-                    int16_t current_count = *count;
-
-                    colonizable_planets[current_count].planet_idx = i;
-
-                    // Lookup contextual value for the planet relative to the current AI player.
-                    // The table contains MAX_PLANETS entries per player (2880 total).
-                    int contextual_idx = i + AIMOVE::i_ai * MAX_PLANETS;
-                    colonizable_planets[current_count].contextual_value =
-                        (int32_t)(uint16_t)(*AIDATA::contextual_planet_values)[contextual_idx];
-
-                    *count = current_count + 1;
+                if (((1u << ((uint8_t)i_ai & 0x1F)) & (uint32_t)star_range_mask) != 0) {
+                    candidates->push_back({legacy_world::Planet_Id(i),
+                        (int32_t)(uint16_t)ai->planets[legacy_world::Planet_Id(i)].contextual_values[i_ai]});
                 }
             }
 
@@ -432,21 +358,24 @@ namespace AIMOVE {
         }
     }
 
-    void __cdecl Delete_Already_Assigned_Planets(s_ai_colonizable_planet* colonizable_planets, int16_t* num_planets) {
+    void Delete_Already_Assigned_Planets(s_ai_movement_context* ctx, std::vector<AIDATA::s_colonization_candidate>* candidates) {
+        const auto* world = ctx->world;
+        const uint32_t i_ai = legacy_world::Slot(ctx->player_idx);
+        s_player* p_ai = ctx->player;
         if (p_ai->tech_applications[TECH_APP_HYPERSPACE_COMMUNICATIONS] != TECH_RESEARCH_STATUS_RESEARCHED) {
-            for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
-                s_ship_data* ship = &MOX::ship[i];
+            for (int16_t i = 0; i < world->Ship_Count(); ++i) {
+                s_ship_data* ship = &world->ships[i];
 
                 if (ship->owner == i_ai &&
                     ship->d.ship_type == SHIP_TYPE_COLONY &&
                     ship->status == 1 &&
                     !SHIPMOVE::Can_Order_Ship(ship)) {
-                    int16_t star_idx = ship->location - SHIP_LOCATION_MOVING_OFFSET;
-                    for (int j = *num_planets - 1; j >= 0; --j) {
-                        if (MOX::planet[colonizable_planets[j].planet_idx].star_index == star_idx) {
-                            int16_t new_count = *num_planets - 1;
-                            *num_planets = new_count;
-                            memmove(&colonizable_planets[j], &colonizable_planets[j + 1], (new_count - j) * sizeof(s_ai_colonizable_planet));
+                    auto location = legacy_world::Read_Ship_Location(ship);
+                    if (!location) continue;
+                    const uint32_t star_idx = legacy_world::Slot(location->star_id);
+                    for (uint32_t j = (uint32_t)candidates->size(); j-- > 0;) {
+                        if (world->planets[legacy_world::Slot((*candidates)[j].planet_id)].star_index == star_idx) {
+                            candidates->erase(candidates->begin() + j);
                             break;
                         }
                     }
@@ -454,19 +383,17 @@ namespace AIMOVE {
             }
         }
 
-        if (MOX::player[i_ai].objectives != PLAYER_OBJECTIVE_HUMAN) {
-            for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
-                s_colony* colony = &MOX::colony[i];
+        if (world->players[i_ai].objectives != PLAYER_OBJECTIVE_HUMAN) {
+            for (int16_t i = 0; i < world->Colony_Count(); ++i) {
+                s_colony* colony = &world->colonies[i];
 
                 if (colony->owner == i_ai && colony->producing[0] == BUILDING_COLONY_BASE) {
-                    int16_t colony_star_idx = MOX::planet[colony->planet].star_index;
+                    int16_t colony_star_idx = world->planets[colony->planet].star_index;
                     bool found = false;
 
-                    for (int j = *num_planets - 1; j >= 0; --j) {
-                        if (MOX::planet[colonizable_planets[j].planet_idx].star_index == colony_star_idx) {
-                            int16_t new_count = *num_planets - 1;
-                            *num_planets = new_count;
-                            memmove(&colonizable_planets[j], &colonizable_planets[j + 1], (new_count - j) * sizeof(s_ai_colonizable_planet));
+                    for (uint32_t j = (uint32_t)candidates->size(); j-- > 0;) {
+                        if (world->planets[legacy_world::Slot((*candidates)[j].planet_id)].star_index == colony_star_idx) {
+                            candidates->erase(candidates->begin() + j);
                             found = true;
                             break;
                         }
@@ -480,27 +407,30 @@ namespace AIMOVE {
         }
     }
 
-    void __cdecl Get_Enemy_Strength_On_Turn(int16_t star_id, int* turn_strengths, int* cumulative_strengths) {
-        int16_t star_idx = star_id;
-        uint8_t in_nebula = MOX::star[star_idx].in_nebula;
+    void __cdecl Get_Enemy_Strength_On_Turn(AIDATA::s_state* ai, s_ai_movement_context* ctx, id_star star_id, int* turn_strengths, int* cumulative_strengths) {
+        const auto* world = ctx->world;
+        const uint32_t i_ai = legacy_world::Slot(ctx->player_idx);
+        const id_star star_idx = star_id;
+        uint8_t in_nebula = world->stars[legacy_world::Slot(star_idx)].in_nebula;
 
         memset(turn_strengths, 0, sizeof(int[ENEMY_STRENGTH_TURN_WINDOW]));
 
-        s_ship_data* ship = MOX::ship;
-        s_ship_data* ship_end = MOX::ship + (int16_t)MOX::NUM_SHIPS;
+        s_ship_data* ship = world->ships;
+        s_ship_data* ship_end = world->ships + world->Ship_Count();
 
         while (ship < ship_end) {
-            int16_t ship_idx = (int16_t)(ship - MOX::ship);
+            uint32_t ship_idx = (uint32_t)(ship - world->ships);
 
             if (ship->owner != i_ai && ship->status < 3) {
-                if (ship->location == star_idx) {
-                    uint16_t(*strength_table)[MAX_SHIPS][MAX_PLAYERS] = in_nebula ? AIDATA::ship_strengths_in_nebula : AIDATA::ship_strengths;
-                    turn_strengths[0] += (*strength_table)[ship_idx][i_ai];
+                auto location = legacy_world::Read_Ship_Location(ship);
+                if (!location) { ship++; continue; }
+                if (location->kind == e_ship_location::at_star && location->star_id == star_idx) {
+                    const auto& assessment = ai->ships[legacy_world::Ship_Id(ship_idx)];
+                    turn_strengths[0] += in_nebula ? assessment.strengths_in_nebula[i_ai] : assessment.strengths[i_ai];
                 } else {
-                    int16_t location_diff = ship->location - star_idx;
-                    if ((location_diff == SHIP_LOCATION_MOVING_OFFSET || location_diff == SHIP_LOCATION_WORMHOLE_OFFSET) && ship->turns_left < ENEMY_STRENGTH_TURN_WINDOW) {
-                        uint16_t(*strength_table)[MAX_SHIPS][MAX_PLAYERS] = in_nebula ? AIDATA::ship_strengths_in_nebula : AIDATA::ship_strengths;
-                        turn_strengths[ship->turns_left] += (*strength_table)[ship_idx][i_ai];
+                    if (location->kind != e_ship_location::at_star && location->star_id == star_idx && ship->turns_left < ENEMY_STRENGTH_TURN_WINDOW) {
+                        const auto& assessment = ai->ships[legacy_world::Ship_Id(ship_idx)];
+                        turn_strengths[ship->turns_left] += in_nebula ? assessment.strengths_in_nebula[i_ai] : assessment.strengths[i_ai];
                     }
                 }
             }
@@ -514,25 +444,29 @@ namespace AIMOVE {
         }
     }
 
-    uint32_t __cdecl Ship_Rough_Strength_At_Star(int16_t ship_idx, int16_t star_idx) {
-        uint8_t in_nebula = MOX::star[star_idx].in_nebula;
+    uint32_t __cdecl Ship_Rough_Strength_At_Star(AIDATA::s_state* ai, s_ai_movement_context* ctx, id_ship ship_id, id_star star_id) {
+        const uint32_t ship_idx = legacy_world::Slot(ship_id);
+        const uint32_t star_idx = legacy_world::Slot(star_id);
+        const auto* world = ctx->world;
+        const uint32_t i_ai = legacy_world::Slot(ctx->player_idx);
+        uint8_t in_nebula = world->stars[star_idx].in_nebula;
         uint32_t min_val1 = 0xffffffff;
         uint32_t min_val2 = 0xffffffff;
         uint32_t sum1 = 0;
         uint32_t sum2 = 0;
         int32_t count1 = 0;
 
-        if (MOX::NUM_PLAYERS > 0) {
-            for (int16_t i = 0; i < MOX::NUM_PLAYERS; i++) {
+        if (world->Player_Count() > 0) {
+            for (int16_t i = 0; i < world->Player_Count(); i++) {
                 if (i_ai != i) {
-                    if (((*AIDATA::star_in_extended_range_of_player)[star_idx] >> i) & 1) {
-                        if ((((*AIDATA::star_in_range_of_player)[star_idx] >> i) & 1) ||
-                            MOX::player[i].objectives == PLAYER_OBJECTIVE_HUMAN) {
+                    if ((ai->stars[legacy_world::Star_Id(star_idx)].in_extended_range >> i) & 1) {
+                        if (((ai->stars[legacy_world::Star_Id(star_idx)].in_range >> i) & 1) ||
+                            world->players[i].objectives == PLAYER_OBJECTIVE_HUMAN) {
                             uint16_t strength;
                             if (in_nebula) {
-                                strength = (uint16_t)(*AIDATA::ship_strengths_in_nebula)[ship_idx][i];
+                                strength = (uint16_t)ai->ships[legacy_world::Ship_Id(ship_idx)].strengths_in_nebula[i];
                             } else {
-                                strength = (uint16_t)(*AIDATA::ship_strengths)[ship_idx][i];
+                                strength = (uint16_t)ai->ships[legacy_world::Ship_Id(ship_idx)].strengths[i];
                             }
 
                             count1++;
@@ -543,12 +477,12 @@ namespace AIMOVE {
                         }
                     }
 
-                    if ((*AIDATA::ai_player_info)[i_ai].reachable_players[i] != 0) {
+                    if (ai->players[i_ai].empire.reachable_players[i] != 0) {
                         uint16_t strength;
                         if (in_nebula) {
-                            strength = (uint16_t)(*AIDATA::ship_strengths_in_nebula)[ship_idx][i];
+                            strength = (uint16_t)ai->ships[legacy_world::Ship_Id(ship_idx)].strengths_in_nebula[i];
                         } else {
-                            strength = (uint16_t)(*AIDATA::ship_strengths)[ship_idx][i];
+                            strength = (uint16_t)ai->ships[legacy_world::Ship_Id(ship_idx)].strengths[i];
                         }
 
                         sum2 += strength;
@@ -560,12 +494,13 @@ namespace AIMOVE {
             }
         }
 
-        if ((*nonplayer_here)[star_idx] != 0) {
+        const auto nonplayer = AIDATA::Nonplayer_At(ctx->work, star_id);
+        if (nonplayer) {
             uint32_t strength;
             if (in_nebula) {
-                strength = AIPOWER::Ship_Strength_Vs_Ships_In_Nebula(ship_idx, (int16_t)(*nonplayer_here)[star_idx]);
+                strength = AIPOWER::Ship_Strength_Vs_Ships_In_Nebula(world, ship_id, legacy_world::Player_Id(*nonplayer));
             } else {
-                strength = AIPOWER::Ship_Strength_Vs_Ships(ship_idx, (int16_t)(*nonplayer_here)[star_idx]);
+                strength = AIPOWER::Ship_Strength_Vs_Ships(world, ship_id, legacy_world::Player_Id(*nonplayer));
             }
 
             strength &= 0xffff;
@@ -579,97 +514,69 @@ namespace AIMOVE {
             return (((min_val1 + 2) * (uint32_t)count1) + sum1 - 1) / ((uint32_t)count1 * 2);
         }
 
-        int16_t n_reachable = (*AIDATA::ai_player_info)[i_ai].n_reachable_players;
+        int16_t n_reachable = ai->players[i_ai].empire.reachable_player_count;
         if (n_reachable > 0) {
             return (((min_val2 + 2) * (uint32_t)n_reachable) + sum2 - 1) / ((uint32_t)n_reachable * 2);
         }
 
-        return (uint32_t)((int32_t)MOX::ship[ship_idx].d.size + 1);
+        return (uint32_t)((int32_t)world->ships[ship_idx].d.size + 1);
     }
 
-    void __cdecl Find_Opportunity_Attack(int16_t player_idx, int16_t target_idx, int16_t threshold, int16_t* out_planet, int16_t* out_value, int32_t* out_ratio) {
-        *out_planet = -1;
-        if (AIDATA::i_all_combat_ships != nullptr) {
-            if (MOX::player[player_idx].traits[TRAIT_TRANS_DIMENSIONAL] == 0) {
+    std::optional<s_attack_choice> Find_Opportunity_Attack(AIDATA::s_state* ai, const game::s_view* world, id_player player_id, id_player target_id, int16_t threshold) {
+        const uint32_t player_idx = legacy_world::Slot(player_id);
+        const uint32_t target_idx = legacy_world::Slot(target_id);
+        if (ai->initialized) {
+            if (world->players[player_idx].traits[TRAIT_TRANS_DIMENSIONAL] == 0) {
                 if (EVENTS::Event_Check_Hyperspace_Flux() != 0) {
-                    return;
+                    return std::nullopt;
                 }
             }
-            Find_Opportunity_Attack_Aux(
-                player_idx,
-                target_idx,
+            auto source = legacy_world::Try_Star_Id(world->players[player_idx].offensive_stagepoint);
+            if (!source) return std::nullopt;
+            return Find_Opportunity_Attack_Aux(
+                ai, world, player_id,
+                target_id,
                 threshold,
-                (int16_t)MOX::player[player_idx].offensive_stagepoint,
-                out_planet,
-                out_value,
-                out_ratio);
+                *source);
         }
+        return std::nullopt;
     }
 
-    void __cdecl Move_Ships_With_Possible_Intermediate(int16_t* ship_array, int16_t dest_star, int16_t* out_star, int16_t* out_turns) {
-        int16_t ship = *ship_array;
-        int16_t location = MOX::ship[ship].location;
-        int16_t x = MOX::ship[ship].x;
-        int16_t y = MOX::ship[ship].y;
-
-        *out_star = -1;
-        *out_turns = 0x7fff;
+    std::optional<AIDATA::s_route> Move_Ships_With_Possible_Intermediate(s_ai_movement_context* ctx, std::span<const id_ship> ships, id_star destination_star) {
+        const auto* world = ctx->world;
+        if (ships.empty()) return std::nullopt;
+        const uint32_t i_ai = legacy_world::Slot(ctx->player_idx);
 
         s_ship_move_info move_info;
-        SHIPMOVE::Ships_Try_To_Move_To(ship_array, dest_star, &move_info);
+        if (ai_compat::Evaluate_Fleet_Move(ships, destination_star, &move_info) == SHIPMOVE::e_fleet_evaluation::invalid_input) return std::nullopt;
+        auto orbit = legacy_world::Orbit_Star(&world->ships[legacy_world::Slot(ships.front())]);
 
         if (move_info.moving != 0) {
-            *out_turns = (uint8_t)move_info.turns_left;
-            *out_star = dest_star;
-            return;
+            return AIDATA::s_route{destination_star, (uint8_t)move_info.turns_left};
         }
 
-        int16_t best_eta = 0x7fff;
-        int16_t best_star_idx = -1;
+        std::optional<AIDATA::s_route> best;
 
-        s_colony* colony_ptr = MOX::colony;
-        if (colony_ptr < MOX::colony + MOX::NUM_COLONIES) {
+        s_colony* colony_ptr = world->colonies;
+        if (colony_ptr < world->colonies + world->Colony_Count()) {
             do {
                 if (colony_ptr->owner == i_ai) {
-                    int16_t current_star_idx = MOX::planet[colony_ptr->planet].star_index;
+                    int16_t current_star_idx = world->planets[colony_ptr->planet].star_index;
 
-                    if (location != current_star_idx && current_star_idx != dest_star) {
-                        SHIPMOVE::Ships_Try_To_Move_To(ship_array, current_star_idx, &move_info);
+                    if (orbit != legacy_world::Star_Id(current_star_idx) && legacy_world::Star_Id(current_star_idx) != destination_star) {
+                        ai_compat::Evaluate_Fleet_Move(ships, legacy_world::Star_Id(current_star_idx), &move_info);
 
                         if (move_info.moving != 0) {
                             // Bug in original game: compares 'moving' flag with 'best_eta' instead of using 'turns_left'
-                            if (move_info.moving < best_eta) {
-                                int i = 0;
+                            if (!best || move_info.moving < best->turns) {
                                 int16_t leg1_turns_left = (uint8_t)move_info.turns_left;
-
-                                if (ship_array[0] != -1) {
-                                    do {
-                                        int16_t ship_idx = ship_array[i];
-                                        i++;
-                                        MOX::ship[ship_idx].location = current_star_idx;
-                                        MOX::ship[ship_idx].x = MOX::star[current_star_idx].x;
-                                        MOX::ship[ship_idx].y = MOX::star[current_star_idx].y;
-                                    } while (ship_array[i] != -1);
-                                }
-
-                                SHIPMOVE::Ships_Try_To_Move_To(ship_array, dest_star, &move_info);
-
-                                if (i > 0) {
-                                    do {
-                                        i--;
-                                        int16_t ship_idx = ship_array[i];
-                                        MOX::ship[ship_idx].location = location;
-                                        MOX::ship[ship_idx].x = x;
-                                        MOX::ship[ship_idx].y = y;
-                                    } while (i != 0);
-                                }
+                                ai_compat::Evaluate_Fleet_Move(ships, destination_star, &move_info, legacy_world::Star_Id(current_star_idx));
 
                                 if (move_info.moving != 0) {
                                     leg1_turns_left += (uint8_t)move_info.turns_left;
 
-                                    if (leg1_turns_left < best_eta) {
-                                        best_eta = leg1_turns_left;
-                                        best_star_idx = current_star_idx;
+                                    if (!best || leg1_turns_left < best->turns) {
+                                        best = AIDATA::s_route{legacy_world::Star_Id(current_star_idx), (uint16_t)leg1_turns_left};
                                     }
                                 }
                             }
@@ -677,46 +584,30 @@ namespace AIMOVE {
                     }
                 }
                 colony_ptr++;
-            } while (colony_ptr < MOX::colony + MOX::NUM_COLONIES);
+            } while (colony_ptr < world->colonies + world->Colony_Count());
         }
 
-        if (best_star_idx != -1) {
-            if (best_eta < *out_turns) {
-                *out_turns = best_eta;
-                *out_star = best_star_idx;
-            }
-        }
+        return best;
     }
 
-    int __cdecl Number_Of_Attacks_Underway(int16_t player_idx, int16_t target_player_idx) {
+    int Number_Of_Attacks_Underway(const game::s_view* world, id_player player_id, id_player target_player_id) {
+        const uint32_t player_idx = legacy_world::Slot(player_id);
+        const uint32_t target_player_idx = legacy_world::Slot(target_player_id);
         // attacked_stars tracks which stars have an active threat from the player.
         // The array is sized to the game's maximum number of stars.
-        uint8_t attacked_stars[MAX_STARS];
-        memset(attacked_stars, 0, sizeof(attacked_stars));
+        std::vector<uint8_t> attacked_stars(world->Star_Count(), 0);
 
-        s_ship_data* ship = MOX::ship;
-        s_ship_data* ship_end = MOX::ship + (int16_t)MOX::NUM_SHIPS;
+        s_ship_data* ship = world->ships;
+        s_ship_data* ship_end = world->ships + world->Ship_Count();
 
         while (ship < ship_end) {
             // Only consider ships owned by the player that are combat ships (type 0)
             if (ship->owner == player_idx && ship->d.ship_type == SHIP_TYPE_COMBAT) {
-                int16_t star_idx = -1;
-
-                // Determine the current or destination star index based on ship status.
-                // Status 0: At star
-                // Status 1: Traveling (location offset by SHIP_LOCATION_MOVING_OFFSET)
-                // Status 2: Orbiting/Wormhole (location offset by SHIP_LOCATION_WORMHOLE_OFFSET)
-                if (ship->status == 0) {
-                    star_idx = ship->location;
-                } else if (ship->status == 1) {
-                    star_idx = ship->location - SHIP_LOCATION_MOVING_OFFSET;
-                } else if (ship->status == 2) {
-                    star_idx = ship->location - SHIP_LOCATION_WORMHOLE_OFFSET;
-                }
-
-                if (star_idx != -1) {
+                const auto location = legacy_world::Read_Ship_Location(ship);
+                if (ship->status >= 0 && ship->status <= 2 && location && legacy_world::Slot(location->star_id) < (uint32_t)world->Star_Count()) {
+                    const uint32_t star_idx = legacy_world::Slot(location->star_id);
                     // Check if the target player has a colony at this star via bitmask.
-                    uint8_t has_colony_mask = MOX::star[star_idx].has_colony;
+                    uint8_t has_colony_mask = world->stars[star_idx].has_colony;
                     if ((has_colony_mask >> (target_player_idx & 0x1F)) & 1) {
                         attacked_stars[star_idx] = 1;
                     }
@@ -727,7 +618,7 @@ namespace AIMOVE {
         }
 
         int total_attacks = 0;
-        int16_t num_stars = MOX::NUM_STARS;
+        int32_t num_stars = world->Star_Count();
         for (int16_t i = 0; i < num_stars; ++i) {
             total_attacks += attacked_stars[i];
         }
@@ -735,7 +626,10 @@ namespace AIMOVE {
         return total_attacks;
     }
 
-    void __cdecl Move_To_Stage_Points() {
+    void __cdecl Move_To_Stage_Points(AIDATA::s_state* ai, s_ai_movement_context* ctx) {
+        const auto* world = ctx->world;
+        const uint32_t i_ai = legacy_world::Slot(ctx->player_idx);
+        s_player* p_ai = ctx->player;
         uint8_t warp_beast_caution;
         if (EVENTS::Event_Check_Warp_Beast() != 0 && p_ai->traits[TRAIT_LUCKY] == 0) {
             warp_beast_caution = 1;
@@ -746,32 +640,28 @@ namespace AIMOVE {
         int32_t total_stage_weight = 0;
         int16_t num_stage_points = 0;
         int16_t num_ships = 0;
-        int16_t stage_point_map[MAX_STARS];
-        s_ai_stage_point stage_points[MAX_STARS];
-        int16_t ship_indices[MAX_SHIPS];
+        std::unordered_map<id_star, uint32_t> stage_point_map;
+        std::vector<s_staging_point> stage_points(world->Star_Count());
+        std::vector<id_ship> ship_indices(world->Ship_Count());
 
-        for (int16_t i = 0; i < MAX_STARS; ++i) {
-            stage_point_map[i] = -1;
-        }
-
-        for (int16_t star_idx = 0; star_idx < MOX::NUM_STARS; ++star_idx) {
-            if (flee_stars[star_idx * 10 + 9] == 0) {
-                if ((MOX::star[star_idx].is_stagepoint >> i_ai) & 1) {
-                    stage_point_map[star_idx] = num_stage_points;
-                    stage_points[num_stage_points].star_idx = star_idx;
+        for (int16_t star_idx = 0; star_idx < world->Star_Count(); ++star_idx) {
+            if (!AIDATA::Is_Fleeing(ctx->work, legacy_world::Star_Id(star_idx), LAST_FORECAST_TURN)) {
+                if ((world->stars[star_idx].is_stagepoint >> i_ai) & 1) {
+                    stage_point_map[legacy_world::Star_Id(star_idx)] = num_stage_points;
+                    stage_points[num_stage_points].star_id = legacy_world::Star_Id(star_idx);
                     stage_points[num_stage_points].strength = 0;
-                    total_stage_weight += (*AIDATA::star_stage_weights)[star_idx][i_ai];
+                    total_stage_weight += ai->stars[legacy_world::Star_Id(star_idx)].stage_weights[i_ai];
                     num_stage_points++;
                 }
             }
         }
 
         int16_t offensive_stagepoint = p_ai->offensive_stagepoint;
-        int16_t war_level = AIBUILD::Player_War_Level(i_ai);
-        (*AIDATA::star_stage_weights)[offensive_stagepoint][i_ai] += (war_level + 1) * total_stage_weight;
+        int16_t war_level = AIBUILD::Player_War_Level(world, ctx->player_idx);
+        ai->stars[legacy_world::Star_Id(offensive_stagepoint)].stage_weights[i_ai] += (war_level + 1) * total_stage_weight;
 
-        for (int16_t ship_idx = 0; ship_idx < (int16_t)MOX::NUM_SHIPS; ++ship_idx) {
-            s_ship_data* ship = &MOX::ship[ship_idx];
+        for (int16_t ship_idx = 0; ship_idx < world->Ship_Count(); ++ship_idx) {
+            s_ship_data* ship = &world->ships[ship_idx];
             if (ship->owner == i_ai &&
                 ship->status <= 2 &&
                 ship->d.ship_type == SHIP_TYPE_COMBAT) {
@@ -779,13 +669,15 @@ namespace AIMOVE {
                     ship->mission != 4 && ship->mission != 5 &&
                     ship->mission != 6 && ship->mission != 7) {
                     if (SHIPMOVE::Can_Order_Ship(ship)) {
-                        ship_indices[num_ships] = ship_idx;
+                        ship_indices[num_ships] = legacy_world::Ship_Id(ship_idx);
                         num_ships++;
                     } else {
-                        int16_t dest_star = SHIPMOVE::Ship_Destination_Star(ship);
-                        int16_t sp_idx = stage_point_map[dest_star];
-                        if (sp_idx != -1) {
-                            stage_points[sp_idx].strength += (int16_t)Ship_Rough_Strength_At_Star(ship_idx, dest_star);
+                        auto destination = legacy_world::Try_Star_Id(SHIPMOVE::Ship_Destination_Star(ship));
+                        if (destination) {
+                            auto point = stage_point_map.find(*destination);
+                            if (point != stage_point_map.end()) {
+                                stage_points[point->second].strength += (int16_t)Ship_Rough_Strength_At_Star(ai, ctx, legacy_world::Ship_Id(ship_idx), legacy_world::Star_Id(*destination));
+                            }
                         }
                     }
                 }
@@ -797,57 +689,55 @@ namespace AIMOVE {
         }
 
         if (num_stage_points == 1) {
-            int16_t ship_list[2];
-            ship_list[1] = -1;
-            int16_t target_star = stage_points[0].star_idx;
+            std::array<id_ship, 1> ship_list;
+            const id_star target_star = stage_points[0].star_id;
 
             for (int16_t i = 0; i < num_ships; ++i) {
-                int16_t ship_idx = ship_indices[i];
-                bool has_navigator = struct_::Test_Bit_Field((uint8_t*)MOX::ship[ship_idx].d.special_device_flags, 11);
-                ship_list[0] = ship_idx;
+                const uint32_t ship_idx = legacy_world::Slot(ship_indices[i]);
+                bool has_navigator = struct_::Test_Bit_Field((uint8_t*)world->ships[ship_idx].d.special_device_flags, 11);
+                ship_list[0] = ship_indices[i];
 
-                int16_t location = MOX::ship[ship_idx].location;
-                int16_t intermediate_star;
+                auto location = legacy_world::Read_Ship_Location(&world->ships[ship_idx]);
+                if (!location) continue;
+                std::optional<id_star> intermediate_star;
 
-                if (location < MAX_STARS) {
-                    AIDATA::Player_N_Turns_From_Star_To_Star_With_Intermediate(
-                        i_ai, location, target_star, &intermediate_star, has_navigator);
+                if (location->kind == e_ship_location::at_star) {
+                    auto route = AIDATA::Player_N_Turns_From_Star_To_Star_With_Intermediate(
+                        ai, world, ctx->player_idx, location->star_id, legacy_world::Star_Id(target_star), has_navigator);
+                    if (route) intermediate_star = route->next_star;
                 } else {
-                    int16_t turns;
-                    Move_Ships_With_Possible_Intermediate(
-                        ship_list, target_star, &intermediate_star, &turns);
+                    auto route = Move_Ships_With_Possible_Intermediate(ctx, ship_list, legacy_world::Star_Id(target_star));
+                    if (route) intermediate_star = route->next_star;
                 }
 
-                if (intermediate_star != -1) {
-                    MOX::ship[ship_idx].mission = 3;
+                if (intermediate_star) {
+                    world->ships[ship_idx].mission = 3;
                     s_ship_move_info move_info;
-                    SHIPMOVE::Ships_Try_To_Move_To(ship_list, intermediate_star, &move_info);
+                    ai_compat::Evaluate_Fleet_Move(ship_list, legacy_world::Star_Id(*intermediate_star), &move_info);
                     uint8_t turns_left = move_info.turns_left;
                     if (turns_left <= 1 || warp_beast_caution == 0) {
-                        SHIPMOVE::Make_Ships_Move_To(ship_list, intermediate_star, &move_info);
+                        ai_compat::Order_Fleet_Move(ship_list, legacy_world::Star_Id(*intermediate_star), &move_info);
                     }
                 }
             }
             return;
         }
 
-        RUSS::Shuffle_Sint(ship_indices, num_ships);
+        ai_compat::Shuffle_Ships({ship_indices.data(), (size_t)num_ships});
 
         while (num_ships > 0 && num_stage_points > 0) {
             int32_t best_sp_idx = -1;
             uint32_t best_strength = 0xFFFFFFFF;
             uint32_t best_weight = 1;
             int32_t best_ship_i = -1;
-            int16_t best_ship_star = -1;
+            std::optional<id_star> best_ship_star;
 
             int32_t best_turns = (warp_beast_caution == 1) ? 2 : 255;
 
-            RUSS::Mox_Update();
-
             for (int16_t i = 0; i < num_stage_points; ++i) {
                 uint32_t strength = stage_points[i].strength;
-                int16_t star_idx = stage_points[i].star_idx;
-                uint32_t weight = (*AIDATA::star_stage_weights)[star_idx][i_ai];
+                const id_star star_idx = stage_points[i].star_id;
+                uint32_t weight = ai->stars[legacy_world::Star_Id(star_idx)].stage_weights[i_ai];
 
                 bool better = false;
                 if (best_sp_idx == -1) {
@@ -867,58 +757,50 @@ namespace AIMOVE {
                 }
             }
 
-            int16_t target_star = stage_points[best_sp_idx].star_idx;
+            const id_star target_star = stage_points[best_sp_idx].star_id;
             int32_t best_ship_turns = best_turns;
 
             for (int16_t i = 0; i < num_ships; ++i) {
-                int16_t ship_idx = ship_indices[i];
-                bool has_navigator = struct_::Test_Bit_Field((uint8_t*)MOX::ship[ship_idx].d.special_device_flags, 11);
-                int16_t location = MOX::ship[ship_idx].location;
+                const uint32_t ship_idx = legacy_world::Slot(ship_indices[i]);
+                bool has_navigator = struct_::Test_Bit_Field((uint8_t*)world->ships[ship_idx].d.special_device_flags, 11);
+                auto location = legacy_world::Read_Ship_Location(&world->ships[ship_idx]);
+                if (!location) continue;
 
-                if (location == target_star) {
+                if (location->kind == e_ship_location::at_star && location->star_id == target_star) {
                     best_ship_i = i;
                     best_ship_star = target_star;
                     best_ship_turns = 0;
-                } else if (location < MAX_STARS) {
-                    int16_t intermediate_star;
-                    int16_t turns = AIDATA::Player_N_Turns_From_Star_To_Star_With_Intermediate(
-                        i_ai, location, target_star, &intermediate_star, has_navigator);
-                    if (best_ship_turns > turns) {
+                } else if (location->kind == e_ship_location::at_star) {
+                    auto route = AIDATA::Player_N_Turns_From_Star_To_Star_With_Intermediate(
+                        ai, world, ctx->player_idx, location->star_id, legacy_world::Star_Id(target_star), has_navigator);
+                    if (route && best_ship_turns > route->turns) {
                         best_ship_i = i;
-                        best_ship_star = intermediate_star;
-                        best_ship_turns = turns;
+                        best_ship_star = route->next_star;
+                        best_ship_turns = route->turns;
                     }
                 } else {
-                    int16_t ship_list[2];
-                    ship_list[0] = ship_idx;
-                    ship_list[1] = -1;
-                    int16_t intermediate_star;
-                    int16_t turns;
-                    Move_Ships_With_Possible_Intermediate(
-                        ship_list, target_star, &intermediate_star, &turns);
-                    if (best_ship_turns > turns) {
+                    const std::array<id_ship, 1> ship_list{legacy_world::Ship_Id(ship_idx)};
+                    auto route = Move_Ships_With_Possible_Intermediate(ctx, ship_list, legacy_world::Star_Id(target_star));
+                    if (route && best_ship_turns > route->turns) {
                         best_ship_i = i;
-                        best_ship_star = intermediate_star;
-                        best_ship_turns = turns;
+                        best_ship_star = route->next_star;
+                        best_ship_turns = route->turns;
                     }
                 }
             }
 
-            if (best_ship_i == -1) {
+            if (best_ship_i == -1 || !best_ship_star) {
                 num_stage_points--;
-                stage_point_map[best_sp_idx] = stage_point_map[num_stage_points];
             } else {
-                int16_t ship_idx = ship_indices[best_ship_i];
-                int16_t ship_list[2];
-                ship_list[0] = ship_idx;
-                ship_list[1] = -1;
-                MOX::ship[ship_idx].mission = 3;
+                const uint32_t ship_idx = legacy_world::Slot(ship_indices[best_ship_i]);
+                const std::array<id_ship, 1> ship_list{legacy_world::Ship_Id(ship_idx)};
+                world->ships[ship_idx].mission = 3;
                 s_ship_move_info temp_move_info;
 
-                SHIPMOVE::Ships_Try_To_Move_To(ship_list, best_ship_star, &temp_move_info);
-                SHIPMOVE::Make_Ships_Move_To(ship_list, best_ship_star, &temp_move_info);
+                ai_compat::Evaluate_Fleet_Move(ship_list, legacy_world::Star_Id(*best_ship_star), &temp_move_info);
+                ai_compat::Order_Fleet_Move(ship_list, legacy_world::Star_Id(*best_ship_star), &temp_move_info);
 
-                int16_t rough_strength = (int16_t)Ship_Rough_Strength_At_Star(ship_idx, target_star);
+                int16_t rough_strength = (int16_t)Ship_Rough_Strength_At_Star(ai, ctx, legacy_world::Ship_Id(ship_idx), legacy_world::Star_Id(target_star));
                 num_ships--;
                 stage_points[best_sp_idx].strength += rough_strength;
                 ship_indices[best_ship_i] = ship_indices[num_ships];
@@ -926,55 +808,45 @@ namespace AIMOVE {
         }
     }
 
+
     /**
      * @brief Finds the colony ship that can reach the destination in the minimum number of turns 
      * and moves it, potentially via intermediate stars.
      * 
-     * @param ship_indices Pointer to an array of ship indices to evaluate.
-     * @param ship_count Pointer to the number of ship indices in the array.
+     * @param ships Candidate ship IDs; the selected ship is removed in-place.
      * @param destination The target destination star index.
      */
-    void __cdecl Get_Best_Unescorted_Colony_Ship(int16_t* ship_indices, int16_t* ship_count, int16_t destination) {
-        int16_t best_ship_array_idx = -1;
-        int16_t min_turns = 0x7fff;
-        int16_t best_dest = -1;
-        int16_t ship_list[2];
+    void Dispatch_Unescorted_Colony_Ship(s_ai_movement_context* ctx, std::vector<id_ship>* ships, id_star destination) {
+        std::optional<uint32_t> best_ship_array_idx;
+        std::optional<AIDATA::s_route> best_route;
+        std::array<id_ship, 1> ship_list;
         s_ship_move_info move_info;
 
-        ship_list[1] = -1;
-
-        for (int16_t i = 0; i < *ship_count; ++i) {
-            ship_list[0] = ship_indices[i];
-            int16_t found_dest;
-            int16_t turns;
-
-            Move_Ships_With_Possible_Intermediate(ship_list, destination, &found_dest, &turns);
-
-            if (found_dest != -1 && turns < min_turns) {
-                min_turns = turns;
+        for (uint32_t i = 0; i < ships->size(); ++i) {
+            ship_list[0] = (*ships)[i];
+            auto route = Move_Ships_With_Possible_Intermediate(ctx, ship_list, destination);
+            if (route && (!best_route || route->turns < best_route->turns)) {
+                best_route = route;
                 best_ship_array_idx = i;
-                best_dest = found_dest;
             }
         }
 
-        if (best_ship_array_idx != -1) {
-            ship_list[0] = ship_indices[best_ship_array_idx];
-
-            SHIPMOVE::Ships_Try_To_Move_To(ship_list, best_dest, &move_info);
-            SHIPMOVE::Make_Ships_Move_To(ship_list, best_dest, &move_info);
+        if (best_ship_array_idx) {
+            ship_list[0] = (*ships)[*best_ship_array_idx];
+            ai_compat::Evaluate_Fleet_Move(ship_list, best_route->next_star, &move_info);
+            ai_compat::Order_Fleet_Move(ship_list, best_route->next_star, &move_info);
 
             // Remove the ship from the array by replacing it with the last element
-            int16_t last_idx = *ship_count - 1;
-            *ship_count = last_idx;
-            ship_indices[best_ship_array_idx] = ship_indices[last_idx];
+            (*ships)[*best_ship_array_idx] = ships->back();
+            ships->pop_back();
         }
     }
 
-    bool __cdecl Star_Has_Monster(int16_t star_idx) {
-        for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
-            s_ship_data* ship = &MOX::ship[i];
+    bool Star_Has_Monster(const game::s_view* world, id_star star_idx) {
+        for (int16_t i = 0; i < world->Ship_Count(); ++i) {
+            s_ship_data* ship = &world->ships[i];
 
-            if (ship->owner >= MAX_PLAYERS && ship->location == star_idx && ship->status == 0) {
+            if (ship->owner >= MAX_PLAYERS && legacy_world::Orbit_Star(ship) == star_idx && ship->status == 0) {
                 return true;
             }
         }
@@ -982,20 +854,21 @@ namespace AIMOVE {
         return false;
     }
 
-    int16_t __cdecl I_Soonest_Enemy_Colony_Ship(int16_t* ship_indices, int16_t count, int16_t target_location) {
-        int16_t best_idx = -1;
+    std::optional<uint32_t> I_Soonest_Enemy_Colony_Ship(const game::s_view* world, std::span<const id_ship> ships, id_star target_location) {
+        std::optional<uint32_t> best_idx;
         uint16_t min_turns = 0x7fff;
 
-        for (int16_t i = 0; i < count; ++i) {
-            int16_t ship_idx = ship_indices[i];
-            s_ship_data* ship = &MOX::ship[ship_idx];
+        for (uint32_t i = 0; i < ships.size(); ++i) {
+            const uint32_t ship_idx = legacy_world::Slot(ships[i]);
+            s_ship_data* ship = &world->ships[ship_idx];
 
-            if (ship->location == target_location) {
+            auto location = legacy_world::Read_Ship_Location(ship);
+            if (!location) continue;
+            if (location->kind == e_ship_location::at_star && location->star_id == target_location) {
                 return i;
             }
 
-            int32_t diff = (int32_t)ship->location - (int32_t)target_location;
-            if (diff == SHIP_LOCATION_MOVING_OFFSET || diff == SHIP_LOCATION_WORMHOLE_OFFSET) {
+            if (location->kind != e_ship_location::at_star && location->star_id == target_location) {
                 uint16_t turns = (uint8_t)ship->turns_left;
                 if (turns < min_turns) {
                     min_turns = turns;
@@ -1007,16 +880,20 @@ namespace AIMOVE {
         return best_idx;
     }
 
-    int32_t __cdecl N_Enemy_Stars_Reachable(int16_t player_idx, int16_t player_bit, int16_t source_star_idx) {
+    int32_t N_Enemy_Stars_Reachable(const game::s_view* world, id_player player_id, int16_t player_bit, id_star source_star) {
+        const uint32_t player_idx = legacy_world::Slot(player_id);
+        const uint32_t source_star_idx = legacy_world::Slot(source_star);
+        const auto source = legacy_world::Index(source_star);
+        if (!source) return 0;
         int32_t reachable_count = 0;
 
-        for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
-            if ((MOX::star[i].has_colony >> (player_bit & 0x1f)) & 1) {
-                int16_t ship_range = MOX::player[player_idx].ship_range;
-                int16_t distance = GEO::Parsecs_Between_Stars(i, source_star_idx);
+        for (int16_t i = 0; i < world->Star_Count(); ++i) {
+            if ((world->stars[i].has_colony >> (player_bit & 0x1f)) & 1) {
+                int16_t ship_range = world->players[player_idx].ship_range;
+                int16_t distance = GEO::Parsecs_Between_Stars(i, *source);
 
                 if (distance <= ship_range) {
-                    if (!struct_::Test_Bit_Field(MOX::star[i].black_hole_blocks, source_star_idx)) {
+                    if (!struct_::Test_Bit_Field(world->stars[i].black_hole_blocks, source_star_idx)) {
                         reachable_count++;
                     }
                 }
@@ -1026,15 +903,17 @@ namespace AIMOVE {
         return reachable_count;
     }
 
-    int32_t __cdecl Enemy_Colony_Worth_To_Player(int16_t colony_idx, int16_t player_idx) {
-        int8_t owner = MOX::colony[colony_idx].owner;
+    int32_t Enemy_Colony_Worth_To_Player(AIDATA::s_state* ai, const game::s_view* world, id_colony colony_id, id_player player_id) {
+        const uint32_t colony_idx = legacy_world::Slot(colony_id);
+        const uint32_t player_idx = legacy_world::Slot(player_id);
+        int8_t owner = world->colonies[colony_idx].owner;
         int32_t weight_player;
         int32_t weight_owner;
 
-        if (MOX::player[player_idx].treaty[owner] == 4) {
+        if (world->players[player_idx].treaty[owner] == 4) {
             weight_player = 2;
             weight_owner = 4;
-        } else if (MOX::player[player_idx].treaty[owner] == 6) {
+        } else if (world->players[player_idx].treaty[owner] == 6) {
             weight_player = 0;
             weight_owner = 6;
         } else {
@@ -1042,86 +921,87 @@ namespace AIMOVE {
             weight_owner = 5;
         }
 
-        if (MOX::player[player_idx].traits[TRAIT_TELEPATHIC] != 0 && MOX::player[owner].traits[TRAIT_TELEPATHIC] == 0) {
+        if (world->players[player_idx].traits[TRAIT_TELEPATHIC] != 0 && world->players[owner].traits[TRAIT_TELEPATHIC] == 0) {
             weight_player++;
             weight_owner--;
         }
 
-        int16_t planet_idx = MOX::colony[colony_idx].planet;
+        int16_t planet_idx = world->colonies[colony_idx].planet;
 
         return (
-                   (*AIDATA::base_planet_values)[player_idx][planet_idx] * weight_player +
-                   (*AIDATA::base_planet_values)[owner][planet_idx] * weight_owner) /
+                   ai->planets[legacy_world::Planet_Id(planet_idx)].base_values[player_idx] * weight_player +
+                   ai->planets[legacy_world::Planet_Id(planet_idx)].base_values[owner] * weight_owner) /
             6;
     }
 
-    void __cdecl Move_Transports() {
-        int16_t ai_idx = i_ai;
+    void __cdecl Move_Transports(AIDATA::s_state* ai, s_ai_movement_context* ctx) {
+        const auto* world = ctx->world;
+        const uint32_t i_ai = legacy_world::Slot(ctx->player_idx);
+        s_player* p_ai = ctx->player;
+        const uint32_t ai_idx = i_ai;
         uint8_t ai_shift = (uint8_t)i_ai;
-        uint8_t dest_turns_colony[MAX_STARS];
-        uint8_t dest_turns_outpost[MAX_STARS];
-        int16_t dest_star_arr[MAX_STARS];
+        struct s_transport_target {
+            uint8_t colony_turn = 0;
+            uint8_t outpost_turn = 0;
+            std::optional<id_star> destination;
+        };
+        std::unordered_map<id_star, s_transport_target> targets;
+        for (uint32_t i = 0; i < (uint32_t)world->Star_Count(); ++i) targets.emplace(legacy_world::Star_Id(i), s_transport_target{});
 
-        for (int16_t i = 0; i < MAX_STARS; i++) {
-            dest_turns_colony[i] = 0;
-            dest_turns_outpost[i] = 0;
-            dest_star_arr[i] = -1;
-        }
-
-        int16_t transport_ships[MAX_SHIPS];
+        std::vector<id_ship> transport_ships(world->Ship_Count());
         int16_t num_transports = 0;
 
-        for (int16_t i = 0; i < MOX::NUM_SHIPS; i++) {
-            s_ship_data* ship = &MOX::ship[i];
+        for (int16_t i = 0; i < world->Ship_Count(); i++) {
+            s_ship_data* ship = &world->ships[i];
 
             if (ship->owner == ai_idx && ship->status < 3) {
+                auto location = legacy_world::Read_Ship_Location(ship);
+                if (!location || legacy_world::Slot(location->star_id) >= (uint32_t)world->Star_Count()) continue;
+                auto& target = targets.at(location->star_id);
                 uint8_t ship_type = ship->d.ship_type;
 
                 if (ship_type == SHIP_TYPE_COMBAT) {
                     if (ship->mission == 1) {
-                        if (ship->location < MAX_STARS) {
-                            dest_turns_colony[ship->location] = 1;
-                            dest_star_arr[ship->location] = ship->location;
+                        if (location->kind == e_ship_location::at_star) {
+                            target.colony_turn = 1;
+                            target.destination = location->star_id;
                         } else {
-                            int16_t dest = SHIPMOVE::Ship_Destination_Star(ship);
                             uint8_t turns = ship->turns_left;
-                            if (dest_turns_colony[dest] == 0) {
-                                dest_turns_colony[dest] = turns + 1;
-                            } else if (turns + 1 < dest_turns_colony[dest]) {
-                                dest_turns_colony[dest] = turns + 1;
+                            if (target.colony_turn == 0) {
+                                target.colony_turn = turns + 1;
+                            } else if (turns + 1 < target.colony_turn) {
+                                target.colony_turn = turns + 1;
                             }
                         }
                     } else if (ship->mission == 6) {
-                        if (ship->location < MAX_STARS) {
-                            dest_turns_outpost[ship->location] = 1;
-                            dest_star_arr[ship->location] = ship->location;
+                        if (location->kind == e_ship_location::at_star) {
+                            target.outpost_turn = 1;
+                            target.destination = location->star_id;
                         } else {
-                            int16_t dest = SHIPMOVE::Ship_Destination_Star(ship);
                             uint8_t turns = ship->turns_left;
-                            if (dest_turns_outpost[dest] == 0) {
-                                dest_turns_outpost[dest] = turns + 1;
-                            } else if (turns + 1 < dest_turns_outpost[dest]) {
-                                dest_turns_outpost[dest] = turns + 1;
+                            if (target.outpost_turn == 0) {
+                                target.outpost_turn = turns + 1;
+                            } else if (turns + 1 < target.outpost_turn) {
+                                target.outpost_turn = turns + 1;
                             }
                         }
                     }
                 } else if (ship_type == SHIP_TYPE_TRANSPORT) {
-                    int16_t loc = ship->location;
-                    if (loc < MAX_STARS) {
-                        RUSS::Mox_Update();
-                        if (MOX::settings.game_difficulty > GAME_DIFFICULTY_TUTOR) {
-                            if (((MOX::star[loc].has_colony >> ai_shift) & 1) != 0) {
-                                if (MOX::settings.game_difficulty >= GAME_DIFFICULTY_AVERAGE || p_ai->objectives == PLAYER_OBJECTIVE_MILITARIST) {
+                    const uint32_t loc = legacy_world::Slot(location->star_id);
+                    if (location->kind == e_ship_location::at_star) {
+                        if (world->settings->game_difficulty > GAME_DIFFICULTY_TUTOR) {
+                            if (((world->stars[loc].has_colony >> ai_shift) & 1) != 0) {
+                                if (world->settings->game_difficulty >= GAME_DIFFICULTY_AVERAGE || p_ai->objectives == PLAYER_OBJECTIVE_MILITARIST) {
                                     int16_t ship_idx = i;
                                     for (int j = 4; j >= 0; j--) {
-                                        int16_t planet_idx = MOX::star[loc].planet_index[j];
+                                        int16_t planet_idx = world->stars[loc].planet_index[j];
                                         if (planet_idx != -1) {
-                                            int16_t colony_idx = MOX::planet[planet_idx].colony_index;
+                                            int16_t colony_idx = world->planets[planet_idx].colony_index;
                                             if (colony_idx != -1) {
-                                                s_colony* colony = &MOX::colony[colony_idx];
+                                                s_colony* colony = &world->colonies[colony_idx];
                                                 if (colony->owner == ai_idx && colony->outpost_flag == 0) {
-                                                    if ((*AIDATA::ai_colony_info)[colony_idx].threatened != 0 ||
-                                                        colony->military[0] < (*AIDATA::ai_colony_info)[colony_idx].n_flagged_pops * 2) {
+                                                    if (ai->colonies[legacy_world::Colony_Id(colony_idx)].other_player_arrivals ||
+                                                        colony->military[0] < ai->colonies[legacy_world::Colony_Id(colony_idx)].conquered_population * 2) {
                                                         if (invasion::Unload_Transports(colony, &ship_idx, 1) == 1) {
                                                             break;
                                                         }
@@ -1135,7 +1015,7 @@ namespace AIMOVE {
                         }
                     }
                     if (ship->status != 5) {
-                        transport_ships[num_transports] = i;
+                        transport_ships[num_transports] = legacy_world::Ship_Id(i);
                         num_transports++;
                     }
                 }
@@ -1144,33 +1024,34 @@ namespace AIMOVE {
 
         while (num_transports > 0) {
             num_transports--;
-            int16_t ship_idx = transport_ships[num_transports];
-            int16_t ship_arr[2];
-            ship_arr[0] = ship_idx;
-            ship_arr[1] = -1;
+            const uint32_t ship_idx = legacy_world::Slot(transport_ships[num_transports]);
+            std::array<id_ship, 1> ship_arr;
+            ship_arr[0] = transport_ships[num_transports];
 
-            s_ship_data* ship = &MOX::ship[ship_idx];
-            int16_t loc = ship->location;
-            RUSS::Mox_Update();
+            s_ship_data* ship = &world->ships[ship_idx];
+            auto location = legacy_world::Read_Ship_Location(ship);
+            if (!location) continue;
+            const uint32_t loc = legacy_world::Slot(location->star_id);
 
-            if (loc < MAX_STARS) {
+            if (location->kind == e_ship_location::at_star) {
                 uint8_t need_to_move = 1;
-                int16_t dest_star = dest_star_arr[loc];
+                auto dest_star = targets.at(legacy_world::Star_Id(loc)).destination;
 
-                if (dest_star != -1) {
-                    int16_t out_dest;
-                    int16_t out_eta;
-                    Move_Ships_With_Possible_Intermediate(ship_arr, dest_star, &out_dest, &out_eta);
-
-                    if (out_dest != -1) {
-                        if (out_eta >= dest_turns_outpost[dest_star] - 1) {
+                if (dest_star) {
+                    auto route = Move_Ships_With_Possible_Intermediate(ctx, ship_arr, legacy_world::Star_Id(*dest_star));
+                    if (route) {
+                        auto destination_index = legacy_world::Index(route->next_star);
+                        if (!destination_index) continue;
+                        const int16_t out_dest = *destination_index;
+                        const uint16_t out_eta = route->turns;
+                        if (out_eta >= targets.at(*dest_star).outpost_turn - 1) {
                             s_ship_move_info move_info;
-                            SHIPMOVE::Ships_Try_To_Move_To(ship_arr, out_dest, &move_info);
-                            SHIPMOVE::Make_Ships_Move_To(ship_arr, out_dest, &move_info);
-                        } else if (dest_turns_colony[dest_star] - out_eta == 1) {
+                            ai_compat::Evaluate_Fleet_Move(ship_arr, legacy_world::Star_Id(out_dest), &move_info);
+                            ai_compat::Order_Fleet_Move(ship_arr, legacy_world::Star_Id(out_dest), &move_info);
+                        } else if (targets.at(*dest_star).colony_turn - out_eta == 1) {
                             s_ship_move_info move_info;
-                            SHIPMOVE::Ships_Try_To_Move_To(ship_arr, out_dest, &move_info);
-                            SHIPMOVE::Make_Ships_Move_To(ship_arr, out_dest, &move_info);
+                            ai_compat::Evaluate_Fleet_Move(ship_arr, legacy_world::Star_Id(out_dest), &move_info);
+                            ai_compat::Order_Fleet_Move(ship_arr, legacy_world::Star_Id(out_dest), &move_info);
                         }
                         need_to_move = 0;
                     }
@@ -1178,26 +1059,28 @@ namespace AIMOVE {
 
                 if (need_to_move) {
                     bool found_better = false;
-                    int16_t best_dest = -1;
+                    std::optional<id_star> best_dest;
                     int16_t best_eta = 0x7FFF;
 
-                    for (int16_t i = 0; i < MOX::NUM_STARS; i++) {
-                        uint8_t t_colony = dest_turns_colony[i];
-                        uint8_t t_outpost = dest_turns_outpost[i];
+                    for (int16_t i = 0; i < world->Star_Count(); i++) {
+                        uint8_t t_colony = targets.at(legacy_world::Star_Id(i)).colony_turn;
+                        uint8_t t_outpost = targets.at(legacy_world::Star_Id(i)).outpost_turn;
 
                         if (t_colony == 0 && t_outpost == 0) continue;
 
-                        if (t_colony < 11 && dest_turns_colony[loc] >= 2) {
-                            if (flee_stars[i * 10 + t_colony - 1] != 0) continue;
+                        if (t_colony <= FORECAST_TURN_COUNT && targets.at(legacy_world::Star_Id(loc)).colony_turn >= 2) {
+                            if (AIDATA::Is_Fleeing(ctx->work, legacy_world::Star_Id(i), t_colony - 1)) continue;
                         }
-                        if (t_outpost < 11 && dest_turns_outpost[loc] >= 2) {
-                            if (flee_stars[i * 10 + t_outpost - 1] != 0) continue;
+                        if (t_outpost <= FORECAST_TURN_COUNT && targets.at(legacy_world::Star_Id(loc)).outpost_turn >= 2) {
+                            if (AIDATA::Is_Fleeing(ctx->work, legacy_world::Star_Id(i), t_outpost - 1)) continue;
                         }
 
-                        int16_t out_dest;
-                        int16_t out_eta;
-                        Move_Ships_With_Possible_Intermediate(ship_arr, i, &out_dest, &out_eta);
-                        if (out_dest == -1) continue;
+                        auto route = Move_Ships_With_Possible_Intermediate(ctx, ship_arr, legacy_world::Star_Id(i));
+                        if (!route) continue;
+                        auto destination_index = legacy_world::Index(route->next_star);
+                        if (!destination_index) continue;
+                        const int16_t out_dest = *destination_index;
+                        int16_t out_eta = (int16_t)route->turns;
 
                         bool better = false;
                         bool worse = false;
@@ -1211,63 +1094,63 @@ namespace AIMOVE {
                                 better = true;
                                 out_eta = (int16_t)t_colony - 1;
                             } else {
-                                if ((t_colony_minus_1 < out_eta && t_outpost == 0) || out_eta >= 10 || flee_stars[i * 10 + out_eta] != 0) {
+                                if ((t_colony_minus_1 < out_eta && t_outpost == 0) || out_eta >= FORECAST_TURN_COUNT || AIDATA::Is_Fleeing(ctx->work, legacy_world::Star_Id(i), out_eta)) {
                                     worse = true;
                                 }
                             }
                         }
 
                         if (!worse && out_eta < best_eta) {
-                            best_dest = out_dest;
+                            best_dest = legacy_world::Star_Id(out_dest);
                             best_eta = out_eta;
                             found_better = better;
                         }
                     }
 
-                    if (best_dest != -1) {
+                    if (best_dest) {
                         if (!found_better) {
                             s_ship_move_info move_info;
-                            SHIPMOVE::Ships_Try_To_Move_To(ship_arr, best_dest, &move_info);
-                            SHIPMOVE::Make_Ships_Move_To(ship_arr, best_dest, &move_info);
+                            ai_compat::Evaluate_Fleet_Move(ship_arr, legacy_world::Star_Id(*best_dest), &move_info);
+                            ai_compat::Order_Fleet_Move(ship_arr, legacy_world::Star_Id(*best_dest), &move_info);
                         }
                     } else {
                         int16_t stagepoint = p_ai->offensive_stagepoint;
                         need_to_move = 0;
-                        if (flee_stars[stagepoint * 10 + 9] == 0 &&
-                            ((MOX::star[stagepoint].blockaded >> ai_shift) & 1) == 0 &&
+                        if (!AIDATA::Is_Fleeing(ctx->work, legacy_world::Star_Id(stagepoint), LAST_FORECAST_TURN) &&
+                            ((world->stars[stagepoint].blockaded >> ai_shift) & 1) == 0 &&
                             loc != stagepoint) {
                             s_ship_move_info move_info;
-                            SHIPMOVE::Ships_Try_To_Move_To(ship_arr, stagepoint, &move_info);
+                            ai_compat::Evaluate_Fleet_Move(ship_arr, legacy_world::Star_Id(stagepoint), &move_info);
                             if (move_info.moving != 0) {
-                                SHIPMOVE::Make_Ships_Move_To(ship_arr, stagepoint, &move_info);
+                                ai_compat::Order_Fleet_Move(ship_arr, legacy_world::Star_Id(stagepoint), &move_info);
                                 need_to_move = 1;
                             }
                         }
 
-                        if (!need_to_move && flee_stars[loc * 10 + 1] != 0) {
+                        if (!need_to_move && AIDATA::Is_Fleeing(ctx->work, legacy_world::Star_Id(loc), 1)) {
                             int32_t best_eta_32 = 0x7FFF;
-                            int16_t best_dest_32 = -1;
-                            for (int16_t i = 0; i < MOX::NUM_STARS; i++) {
-                                if (flee_stars[i * 10 + 9] == 0 &&
-                                    ((MOX::star[i].has_colony >> ai_shift) & 1) != 0) {
+                            std::optional<id_star> best_dest_32;
+                            for (int16_t i = 0; i < world->Star_Count(); i++) {
+                                if (!AIDATA::Is_Fleeing(ctx->work, legacy_world::Star_Id(i), LAST_FORECAST_TURN) &&
+                                    ((world->stars[i].has_colony >> ai_shift) & 1) != 0) {
                                     s_ship_move_info move_info;
-                                    SHIPMOVE::Ships_Try_To_Move_To(ship_arr, i, &move_info);
+                                    ai_compat::Evaluate_Fleet_Move(ship_arr, legacy_world::Star_Id(i), &move_info);
                                     if (move_info.moving != 0) {
-                                        if ((*AIDATA::ai_star_info)[i].per_player[i_ai].enemy_enroute_or_threat != 0) {
+                                        if (ai->stars[legacy_world::Star_Id(i)].neighborhood.per_player[i_ai].other_player_arrivals) {
                                             move_info.turns_left -= 24;
                                         }
                                         if ((int32_t)move_info.turns_left < best_eta_32) {
                                             best_eta_32 = move_info.turns_left;
-                                            best_dest_32 = i;
+                                            best_dest_32 = legacy_world::Star_Id(i);
                                         }
                                     }
                                 }
                             }
 
-                            if (best_dest_32 != -1) {
+                            if (best_dest_32) {
                                 s_ship_move_info move_info;
-                                SHIPMOVE::Ships_Try_To_Move_To(ship_arr, best_dest_32, &move_info);
-                                SHIPMOVE::Make_Ships_Move_To(ship_arr, best_dest_32, &move_info);
+                                ai_compat::Evaluate_Fleet_Move(ship_arr, legacy_world::Star_Id(*best_dest_32), &move_info);
+                                ai_compat::Order_Fleet_Move(ship_arr, legacy_world::Star_Id(*best_dest_32), &move_info);
                             }
                         }
                     }
@@ -1276,14 +1159,16 @@ namespace AIMOVE {
         }
     }
 
-    void __cdecl Gather_Intercepting_Ships(int16_t* ships_list, int32_t* ship_count, int16_t* intercept_map) {
+    void __cdecl Gather_Intercepting_Ships(AIDATA::s_state* ai, s_ai_movement_context* ctx, id_ship* ships_list, int32_t* ship_count, const std::unordered_map<id_star, uint32_t>* intercept_map) {
+        const auto* world = ctx->world;
+        const uint32_t i_ai = legacy_world::Slot(ctx->player_idx);
         *ship_count = 0;
 
-        for (int32_t i = 0; i < (int32_t)AIDATA::n_all_ships; ++i) {
-            int16_t ship_idx = (*AIDATA::all_ships)[i];
-            s_ship_data* ship = &MOX::ship[ship_idx];
+        for (int32_t i = 0; i < (int32_t)ai->combat_ships.size(); ++i) {
+            const uint32_t ship_idx = legacy_world::Slot(ai->combat_ships[i]);
+            s_ship_data* ship = &world->ships[ship_idx];
 
-            if (ship->owner == AIMOVE::i_ai) {
+            if (ship->owner == i_ai) {
                 bool should_gather = false;
 
                 if (SHIPMOVE::Can_Order_Ship(ship)) {
@@ -1302,111 +1187,109 @@ namespace AIMOVE {
                 } else {
                     // Ship is already moving, check if it's arriving at a target star
                     int16_t dest_star = SHIPMOVE::Ship_Destination_Star(ship);
-                    if (dest_star != -1 && intercept_map[dest_star] != -1 /* 0xff */) {
+                    if (dest_star != -1 && intercept_map->find(legacy_world::Star_Id(dest_star)) != intercept_map->end()) {
                         should_gather = true;
                     }
                 }
 
                 if (should_gather) {
-                    ships_list[*ship_count] = ship_idx;
+                    ships_list[*ship_count] = ai->combat_ships[i];
                     *ship_count = *ship_count + 1;
                 }
             }
         }
     }
 
-    void __cdecl Assign_New_Colony_Ship_Destinations(s_ai_colonizable_planet* planets, int16_t* count) {
-        int16_t num_my_colony_ships = 0;
-        int16_t my_colony_ships[MAX_SHIPS];
+    void Assign_New_Colony_Ship_Destinations(AIDATA::s_state* ai, s_ai_movement_context* ctx, std::vector<AIDATA::s_colonization_candidate>* planets) {
+        const auto* world = ctx->world;
+        const uint32_t i_ai = legacy_world::Slot(ctx->player_idx);
+        s_player* p_ai = ctx->player;
+        std::vector<id_ship> my_colony_ships;
+        std::vector<id_ship> competing_colony_ships;
 
-        int16_t enemy_colony_ships_buf[MAX_SHIPS];
-        int16_t* enemy_colony_ships_ptr = &enemy_colony_ships_buf[MAX_SHIPS];
-
-        for (int16_t i = 0; i < MOX::NUM_SHIPS; i++) {
-            s_ship_data* ship = &MOX::ship[i];
+        for (int16_t i = 0; i < world->Ship_Count(); i++) {
+            s_ship_data* ship = &world->ships[i];
             if (ship->d.ship_type == SHIP_TYPE_COLONY) {
-                if (ship->owner == AIMOVE::i_ai) {
+                if (ship->owner == i_ai) {
                     if (SHIPMOVE::Can_Order_Ship(ship)) {
-                        my_colony_ships[num_my_colony_ships++] = i;
+                        my_colony_ships.push_back(legacy_world::Ship_Id(i));
                     } else if (ship->status < 3) {
-                        *(--enemy_colony_ships_ptr) = i;
+                        competing_colony_ships.push_back(legacy_world::Ship_Id(i));
                     }
                 } else if (ship->status < 3) {
-                    *(--enemy_colony_ships_ptr) = i;
+                    competing_colony_ships.push_back(legacy_world::Ship_Id(i));
                 }
             }
         }
 
-        int16_t num_enemy_colony_ships = (int16_t)(&enemy_colony_ships_buf[MAX_SHIPS] - enemy_colony_ships_ptr);
+        // The legacy buffer was filled backwards; keep that tie-breaking order.
+        std::reverse(competing_colony_ships.begin(), competing_colony_ships.end());
 
-        while (*count > 0) {
-            if (num_my_colony_ships <= 0) return;
+        while (!planets->empty()) {
+            if (my_colony_ships.empty()) return;
+            int16_t star_idx = world->planets[legacy_world::Slot(planets->back().planet_id)].star_index;
 
-            int16_t target_idx = *count;
-            int16_t star_idx = MOX::planet[planets[target_idx - 1].planet_idx].star_index;
-
-            if ((~((1 << AIMOVE::i_ai)) & (*AIDATA::star_in_extended_range_of_player)[star_idx]) == 0 &&
-                (*AIDATA::ai_star_info)[star_idx].per_player[AIMOVE::i_ai].enemy_enroute_or_threat == 0 &&
-                AIMOVE::Star_Has_Monster(star_idx) == 0) {
-                if (MOX::settings.game_difficulty >= GAME_DIFFICULTY_AVERAGE ||
-                    (MOX::settings.game_difficulty >= GAME_DIFFICULTY_EASY && AIMOVE::p_ai->objectives == PLAYER_OBJECTIVE_EXPANSIONIST) ||
-                    (((*AIDATA::star_in_range_of_player)[star_idx] >> AIMOVE::i_ai) & 1) != 0) {
-                    AIMOVE::Get_Best_Unescorted_Colony_Ship(my_colony_ships, &num_my_colony_ships, star_idx);
+            if ((~((1 << i_ai)) & ai->stars[legacy_world::Star_Id(star_idx)].in_extended_range) == 0 &&
+                !ai->stars[legacy_world::Star_Id(star_idx)].neighborhood.per_player[i_ai].other_player_arrivals &&
+                !AIMOVE::Star_Has_Monster(world, legacy_world::Star_Id(star_idx))) {
+                if (world->settings->game_difficulty >= GAME_DIFFICULTY_AVERAGE ||
+                    (world->settings->game_difficulty >= GAME_DIFFICULTY_EASY && p_ai->objectives == PLAYER_OBJECTIVE_EXPANSIONIST) ||
+                    ((ai->stars[legacy_world::Star_Id(star_idx)].in_range >> i_ai) & 1) != 0) {
+                    AIMOVE::Dispatch_Unescorted_Colony_Ship(ctx, &my_colony_ships, legacy_world::Star_Id(star_idx));
                 }
             } else {
-                int16_t enemy_ship_idx = AIMOVE::I_Soonest_Enemy_Colony_Ship(enemy_colony_ships_ptr, num_enemy_colony_ships, star_idx);
+                auto competing_ship = AIMOVE::I_Soonest_Enemy_Colony_Ship(world, competing_colony_ships, legacy_world::Star_Id(star_idx));
                 int16_t max_eta = 0x7FFF;
 
-                if (enemy_ship_idx != -1) {
-                    max_eta = (uint8_t)MOX::ship[enemy_colony_ships_ptr[enemy_ship_idx]].turns_left;
+                if (competing_ship) {
+                    max_eta = (uint8_t)world->ships[legacy_world::Slot(competing_colony_ships[*competing_ship])].turns_left;
                 }
 
-                if (AIMOVE::Get_Best_Escorted_Colony_Ship(my_colony_ships, &num_my_colony_ships, star_idx, max_eta) == 0) {
-                    if (enemy_ship_idx != -1) {
-                        enemy_colony_ships_ptr[enemy_ship_idx] = enemy_colony_ships_ptr[0];
-                        enemy_colony_ships_ptr++;
-                        num_enemy_colony_ships--;
+                if (!AIMOVE::Dispatch_Escorted_Colony_Ship(ai, ctx, &my_colony_ships, legacy_world::Star_Id(star_idx), max_eta)) {
+                    if (competing_ship) {
+                        competing_colony_ships[*competing_ship] = competing_colony_ships.front();
+                        competing_colony_ships.erase(competing_colony_ships.begin());
                     }
                 }
             }
 
-            (*count)--;
+            planets->pop_back();
         }
 
-        if (num_my_colony_ships > 0) {
-            uint8_t star_added[MAX_STARS];
-            memset(star_added, 0, sizeof(star_added));
+        if (!my_colony_ships.empty()) {
+            std::vector<uint8_t> star_added(world->Star_Count(), 0);
 
             int16_t num_candidates = 0;
-            int16_t candidate_stars[MAX_STARS];
+            std::vector<id_star> candidate_stars(world->Star_Count());
 
-            for (int16_t i = 0; i < MOX::NUM_STARS; i++) {
-                s_star_data* star = &MOX::star[i];
-                if (((star->is_stagepoint >> AIMOVE::i_ai) & 1) != 0 &&
-                    ((star->blockaded >> AIMOVE::i_ai) & 1) == 0) {
+            for (int16_t i = 0; i < world->Star_Count(); i++) {
+                s_star_data* star = &world->stars[i];
+                if (((star->is_stagepoint >> i_ai) & 1) != 0 &&
+                    ((star->blockaded >> i_ai) & 1) == 0) {
                     if (star_added[i] == 0) {
-                        candidate_stars[num_candidates++] = i;
+                        candidate_stars[num_candidates++] = legacy_world::Star_Id(i);
                         star_added[i] = 1;
                     }
                 }
             }
 
-            for (int i = 0; i < num_my_colony_ships; i++) {
-                RUSS::Shuffle_Sint(candidate_stars, num_candidates);
+            for (uint32_t i = 0; i < my_colony_ships.size(); i++) {
+                ai_compat::Shuffle_Stars({candidate_stars.data(), (size_t)num_candidates});
 
-                qsort(candidate_stars, num_candidates, sizeof(int16_t), AIMOVE::Sort_candidate_stars);
+                s_candidate_sort_context sort{&ai->stars, ctx->player_idx, (int16_t)world->Player_Count()};
+                qsort(candidate_stars.data(), num_candidates, sizeof(id_star), AIMOVE::Sort_candidate_stars, &sort);
 
                 if (num_candidates > 0) {
                     for (int j = 0; j < num_candidates; j++) {
-                        int16_t star_idx = candidate_stars[j];
-                        int16_t ship_idx_list[2] = {my_colony_ships[i], -1};
+                        const id_star star_idx = candidate_stars[j];
+                        const std::array<id_ship, 1> ship_idx_list{my_colony_ships[i]};
                         s_ship_move_info move_info{};
 
-                        SHIPMOVE::Ships_Try_To_Move_To(ship_idx_list, star_idx, &move_info);
+                        ai_compat::Evaluate_Fleet_Move(ship_idx_list, legacy_world::Star_Id(star_idx), &move_info);
 
                         if (move_info.moving != 0) {
                             num_candidates--;
-                            SHIPMOVE::Make_Ships_Move_To(ship_idx_list, star_idx, &move_info);
+                            ai_compat::Order_Fleet_Move(ship_idx_list, legacy_world::Star_Id(star_idx), &move_info);
                             candidate_stars[j] = candidate_stars[num_candidates];
                             break;
                         }
@@ -1416,96 +1299,78 @@ namespace AIMOVE {
         }
     }
 
-    void __cdecl Interceptions(s_aimove_intercept_entry* intercepts, int* count, int16_t* star_to_intercept_idx, int is_desperate) {
-        int num_intercepting_ships;
-        int16_t intercepting_ships[MAX_SHIPS];
-        int16_t knocked_out_stars[MAX_STARS];
-        int num_knocked_out;
+    void __cdecl Interceptions(AIDATA::s_state* ai, s_ai_movement_context* ctx, s_interception_target* intercepts, int* count, const std::unordered_map<id_star, uint32_t>* star_to_intercept_idx, int is_desperate) {
+        const auto* world = ctx->world;
+        const uint32_t i_ai = legacy_world::Slot(ctx->player_idx);
+        int32_t num_intercepting_ships;
+        auto& work = ctx->work->interception;
+        work.ships.resize(world->Ship_Count());
+        work.assignments.clear();
+        work.stars.clear();
 
-        Gather_Intercepting_Ships(intercepting_ships, &num_intercepting_ships, star_to_intercept_idx);
-        Knock_Out_Impossible_Interceptions(intercepts, count, knocked_out_stars, &num_knocked_out, is_desperate);
+        Gather_Intercepting_Ships(ai, ctx, work.ships.data(), &num_intercepting_ships, star_to_intercept_idx);
+        work.ships.resize(num_intercepting_ships);
+        Knock_Out_Impossible_Interceptions(ai, ctx, intercepts, count, is_desperate);
 
         while (true) {
             if (*count <= 0) {
                 return;
             }
 
-            RUSS::Mox_Update();
-
-            int16_t ship_target_star[MAX_SHIPS];
-            for (int i = 0; i < MAX_SHIPS; ++i) {
-                ship_target_star[i] = -1;
-            }
-
-            int16_t ship_intermediate_star[MAX_SHIPS];
-            for (int i = 0; i < MAX_SHIPS; ++i) {
-                ship_intermediate_star[i] = -1;
-            }
-
-            uint32_t strength_totals[MAX_STARS * 10];
-            for (int i = 0; i < MAX_STARS * 10; ++i) {
-                strength_totals[i] = 0;
-            }
-
-            int8_t target_min_eta[MAX_STARS];
-            int8_t target_best_eta[MAX_STARS];
+            for (auto& [id, assignment] : work.assignments) assignment.reset();
+            for (auto& [id, star] : work.stars) star = {};
 
             if (num_intercepting_ships > 0) {
-                uint8_t ship_min_eta[MAX_SHIPS];
-                int16_t star_min_strength[MAX_STARS];
-
                 for (int ship_list_index = 0; ship_list_index < num_intercepting_ships; ++ship_list_index) {
-                    int16_t ship_id = intercepting_ships[ship_list_index];
-                    bool has_special_bit_11 = struct_::Test_Bit_Field(MOX::ship[ship_id].d.special_device_flags, 11);
+                    const id_ship ship_id = work.ships[ship_list_index];
+                    auto& assignment = work.assignments[ship_id];
+                    bool has_special_bit_11 = struct_::Test_Bit_Field(world->ships[legacy_world::Slot(ship_id)].d.special_device_flags, 11);
                     int best_target = -1;
-                    ship_min_eta[ship_id] = 10;
 
                     if (*count > 0) {
                         for (int target_index = 0; target_index < *count; ++target_index) {
-                            s_aimove_intercept_entry* target = &intercepts[target_index];
-                            int16_t star_idx = target->star_idx;
+                            s_interception_target* target = &intercepts[target_index];
+                            const id_star star_idx = target->star_id;
 
-                            star_min_strength[star_idx] = Ship_Min_Strength_Versus_Players_At_Star(ship_id, target->player_mask, star_idx);
+                            work.stars[legacy_world::Star_Id(star_idx)].candidate_strength = Ship_Min_Strength_Versus_Players_At_Star(ai, world, legacy_world::Ship_Id(ship_id), target->player_mask, legacy_world::Star_Id(star_idx));
 
-                            int16_t ship_intermediate_star_tmp;
-                            int eta;
+                            std::optional<AIDATA::s_route> route;
 
-                            if (MOX::ship[ship_id].location < MAX_STARS) {
-                                eta = AIDATA::Player_N_Turns_From_Star_To_Star_With_Intermediate(
-                                    i_ai,
-                                    MOX::ship[ship_id].location,
-                                    star_idx,
-                                    &ship_intermediate_star_tmp,
+                            auto orbit = legacy_world::Orbit_Star(&world->ships[legacy_world::Slot(ship_id)]);
+                            if (orbit) {
+                                route = AIDATA::Player_N_Turns_From_Star_To_Star_With_Intermediate(
+                                    ai, world,
+                                    ctx->player_idx,
+                                    *orbit,
+                                    legacy_world::Star_Id(star_idx),
                                     has_special_bit_11);
                             } else {
-                                eta = AIDATA::Ship_N_Turns_To_Star_With_Intermediate(
-                                    ship_id,
-                                    star_idx,
-                                    &ship_intermediate_star_tmp);
+                                route = AIDATA::Ship_N_Turns_To_Star_With_Intermediate(
+                                    ai, world,
+                                    legacy_world::Ship_Id(ship_id),
+                                    legacy_world::Star_Id(star_idx));
                             }
 
-                            if (eta < 10) {
+                            if (!route) continue;
+                            const uint16_t eta = route->turns;
+                            if (eta < FORECAST_TURN_COUNT) {
                                 bool update_target = false;
 
-                                if (eta < ship_min_eta[ship_id]) {
+                                if (!assignment || eta < assignment->arrival_turn) {
                                     update_target = true;
-                                } else if (eta == ship_min_eta[ship_id]) {
+                                } else if (eta == assignment->arrival_turn) {
                                     if (best_target != -1) {
-                                        int e = eta;
-                                        while (e < 10 && target->strength[e] == 0 && intercepts[best_target].strength[e] == 0) {
-                                            e++;
-                                        }
-
-                                        if (target->strength[e] == 0) {
+                                        auto turn = First_Threat_Turn(&target->strengths, &intercepts[best_target].strengths, eta);
+                                        if (!turn || target->strengths[*turn] == 0) {
                                             // Condition implicitly fails, update_target remains false
-                                        } else if (intercepts[best_target].strength[e] == 0) {
+                                        } else if (intercepts[best_target].strengths[*turn] == 0) {
                                             update_target = true;
                                         } else {
                                             int cmp = RUSS::Compare_Ratios(
-                                                strength_totals[e + target->star_idx * 10],
-                                                target->strength[e],
-                                                strength_totals[e + intercepts[best_target].star_idx * 10],
-                                                intercepts[best_target].strength[e]);
+                                                work.stars.at(target->star_id).assigned_strength[*turn],
+                                                target->strengths[*turn],
+                                                work.stars.at(intercepts[best_target].star_id).assigned_strength[*turn],
+                                                intercepts[best_target].strengths[*turn]);
                                             if (cmp < 0) {
                                                 update_target = true;
                                             }
@@ -1517,20 +1382,19 @@ namespace AIMOVE {
 
                                 if (update_target) {
                                     best_target = target_index;
-                                    ship_min_eta[ship_id] = (uint8_t)eta;
-                                    ship_target_star[ship_id] = target->star_idx;
-                                    ship_intermediate_star[ship_id] = ship_intermediate_star_tmp;
+                                    assignment = AIDATA::s_interception_assignment{target->star_id, route->next_star, (uint8_t)eta};
                                 }
                             }
                         }
                     }
 
                     if (best_target != -1) {
-                        uint8_t min_eta = ship_min_eta[ship_id];
-                        if (min_eta < 10) {
-                            int rem = 10 - min_eta;
-                            uint32_t* ptr = &strength_totals[min_eta + intercepts[best_target].star_idx * 10];
-                            int16_t min_str = star_min_strength[intercepts[best_target].star_idx];
+                        uint8_t min_eta = assignment->arrival_turn;
+                        if (min_eta < FORECAST_TURN_COUNT) {
+                            int rem = FORECAST_TURN_COUNT - min_eta;
+                            auto& selected = work.stars.at(intercepts[best_target].star_id);
+                            uint32_t* ptr = &selected.assigned_strength[min_eta];
+                            int16_t min_str = selected.candidate_strength;
 
                             do {
                                 *ptr += min_str;
@@ -1545,24 +1409,25 @@ namespace AIMOVE {
             bool loop_again = false;
             if (*count > 0) {
                 for (int target_index = 0; target_index < *count; ++target_index) {
-                    s_aimove_intercept_entry* target = &intercepts[target_index];
-                    int16_t star_idx = target->star_idx;
+                    s_interception_target* target = &intercepts[target_index];
+                    const id_star star_idx = target->star_id;
+                    auto& star_work = work.stars[star_idx];
                     bool target_met = false;
 
-                    target_min_eta[star_idx] = 10;
-                    target_best_eta[star_idx] = 0;
+                    star_work.surplus_turn = FORECAST_TURN_COUNT;
+                    star_work.sufficient_turn = 0;
 
-                    for (int e = 0; e < 10; ++e) {
-                        uint32_t strength_needed = (uint32_t)target->strength[e];
+                    for (int e = 0; e < FORECAST_TURN_COUNT; ++e) {
+                        uint32_t strength_needed = (uint32_t)target->strengths[e];
 
-                        if (strength_needed != 0 || target->strength[9] == 0) {
-                            if (strength_totals[e + star_idx * 10] >= strength_needed) {
+                        if (strength_needed != 0 || target->strengths[LAST_FORECAST_TURN] == 0) {
+                            if (star_work.assigned_strength[e] >= strength_needed) {
                                 if (!target_met) {
-                                    target_best_eta[star_idx] = (char)e;
+                                    star_work.sufficient_turn = (char)e;
                                 }
                                 target_met = true;
-                                if (strength_totals[e + star_idx * 10] > strength_needed * 4 + 8) {
-                                    target_min_eta[star_idx] = (char)e;
+                                if (star_work.assigned_strength[e] > strength_needed * 4 + 8) {
+                                    star_work.surplus_turn = (char)e;
                                     break;
                                 }
                             }
@@ -1570,7 +1435,7 @@ namespace AIMOVE {
                     }
 
                     if (!target_met && is_desperate == 0) {
-                        target_best_eta[star_idx] = -1;
+                        star_work.sufficient_turn = -1;
                         loop_again = true;
                     }
                 }
@@ -1581,35 +1446,39 @@ namespace AIMOVE {
             } else {
                 if (num_intercepting_ships > 0) {
                     for (int ship_list_index = 0; ship_list_index < num_intercepting_ships; ++ship_list_index) {
-                        int16_t ship_id = intercepting_ships[ship_list_index];
+                        const id_ship ship_id = work.ships[ship_list_index];
+                        const auto& assignment = work.assignments.at(ship_id);
 
-                        if (ship_intermediate_star[ship_id] != -1 && SHIPMOVE::Can_Order_Ship(&MOX::ship[ship_id])) {
+                        if (assignment && SHIPMOVE::Can_Order_Ship(&world->ships[legacy_world::Slot(ship_id)])) {
                             s_ship_move_info move_info;
-                            int16_t ship_list[2] = {ship_id, -1};
-                            int16_t target_star = ship_intermediate_star[ship_id];
-                            SHIPMOVE::Ships_Try_To_Move_To(ship_list, target_star, &move_info);
+                            const std::array<id_ship, 1> ship_list{legacy_world::Ship_Id(ship_id)};
+                            auto destination_index = legacy_world::Index(assignment->next_star);
+                            if (!destination_index) continue;
+                            int16_t target_star = *destination_index;
+                            ai_compat::Evaluate_Fleet_Move(ship_list, legacy_world::Star_Id(target_star), &move_info);
 
-                            if (move_info.turns_left <= target_min_eta[ship_target_star[ship_id]]) {
-                                int16_t ship_loc = HAROLD::XY_To_Star_Id(MOX::ship[ship_id].x, MOX::ship[ship_id].y);
-                                MOX::ship[ship_id].mission = 5;
+                            const auto& target_work = work.stars.at(assignment->target_star);
+                            if (move_info.turns_left <= target_work.surplus_turn) {
+                                s_ship_data* ship = &world->ships[legacy_world::Slot(ship_id)];
+                                int16_t ship_loc = HAROLD::XY_To_Star_Id(ship->x, ship->y);
+                                ship->mission = 5;
 
-                                int16_t move_star = -1;
-                                if (move_info.turns_left < target_best_eta[ship_target_star[ship_id]]) {
-                                    if (MOX::ship[ship_id].status == 1) {
-                                        move_star = ship_intermediate_star[ship_id];
-                                    } else if (MOX::ship[ship_id].status == 2) {
-                                        MOX::ship[ship_id].location = ship_loc;
-                                        MOX::ship[ship_id].status = 0;
+                                bool issue_order = false;
+                                if (move_info.turns_left < target_work.sufficient_turn) {
+                                    if (ship->status == 1) {
+                                        issue_order = true;
+                                    } else if (ship->status == 2) {
+                                        SHIPMOVE::Stop_Ship_Transit(ship, legacy_world::Nonnegative_Slot(ship_loc));
                                     }
                                 } else {
-                                    move_star = ship_target_star[ship_id];
+                                    issue_order = true;
                                 }
 
-                                if (move_star != -1) {
-                                    SHIPMOVE::Make_Ships_Move_To(ship_list, target_star, &move_info);
+                                if (issue_order) {
+                                    ai_compat::Order_Fleet_Move(ship_list, legacy_world::Star_Id(target_star), &move_info);
                                     // Redirected ships in transit may not be at any star.
                                     if (ship_loc != -1) {
-                                        (*AIDATA::i_all_combat_ships)[i_ai][ship_loc] = -1;
+                                        ai->players[i_ai].combat_ship_groups.erase(legacy_world::Star_Id(ship_loc));
                                     }
                                 }
                             }
@@ -1622,70 +1491,65 @@ namespace AIMOVE {
         }
     }
 
-    void Intercept_Invaders() {
+    void Intercept_Invaders(AIDATA::s_state* ai, s_ai_movement_context* ctx) {
+        const auto* world = ctx->world;
+        const uint32_t i_ai = legacy_world::Slot(ctx->player_idx);
         int i = 0;
-        s_aimove_intercept_entry intercepts[MAX_STARS];
+        std::vector<s_interception_target> intercepts(world->Star_Count());
+        std::unordered_map<id_star, uint32_t> star_to_intercept_idx;
 
-        // Compiler artifact: initialization immediately overwritten by memset
-        intercepts[0].star_idx = -1;
-        memset(intercepts, 0, sizeof(intercepts));
-
-        int16_t star_to_intercept_idx[MAX_STARS];
-        memset(star_to_intercept_idx, -1, sizeof(star_to_intercept_idx));
-
-        if (MOX::NUM_STARS > 0) {
-            for (int16_t star_idx = 0; star_idx < MOX::NUM_STARS; star_idx++) {
-                if ((MOX::star[star_idx].has_colony >> i_ai) & 1) {
-                    for (int p = 0; p < MOX::NUM_PLAYERS; p++) {
+        if (world->Star_Count() > 0) {
+            for (int16_t star_idx = 0; star_idx < world->Star_Count(); star_idx++) {
+                if ((world->stars[star_idx].has_colony >> i_ai) & 1) {
+                    for (int p = 0; p < world->Player_Count(); p++) {
                         if (p != i_ai) {
-                            // [9] acts as an indicator/total for enroute ships
-                            if ((*AIDATA::enroute_ships)[star_idx][p][9] != 0 &&
-                                ((*AIDATA::enroute_ships)[star_idx][p][0] != 0 ||
-                                    (*AIDATA::enroute_nonstealthy_ships)[star_idx][p] != 0)) {
+                            if (ai->stars[legacy_world::Star_Id(star_idx)].enroute_ships[p][LAST_FORECAST_TURN] != 0 &&
+                                (ai->stars[legacy_world::Star_Id(star_idx)].enroute_ships[p][0] != 0 ||
+                                    ai->stars[legacy_world::Star_Id(star_idx)].enroute_nonstealthy_ships[p] != 0)) {
                                 int eta = 0;
-                                while ((*AIDATA::enroute_ships)[star_idx][p][eta] == 0) {
+                                while (ai->stars[legacy_world::Star_Id(star_idx)].enroute_ships[p][eta] == 0) {
                                     eta++;
-                                    if (eta >= 10) break;
+                                    if (eta >= FORECAST_TURN_COUNT) break;
                                 }
 
-                                if (eta < 10) {
-                                    // Keep UI responsive during heavy AI computation
-                                    RUSS::Mox_Update();
-
-                                    int idx = star_to_intercept_idx[star_idx];
-                                    if (idx == -1) {
-                                        intercepts[i].star_idx = star_idx;
-                                        intercepts[i].min_eta = 0xFF;
-                                        star_to_intercept_idx[star_idx] = i;
+                                if (eta < FORECAST_TURN_COUNT) {
+                                    auto found = star_to_intercept_idx.find(legacy_world::Star_Id(star_idx));
+                                    uint32_t idx;
+                                    if (found == star_to_intercept_idx.end()) {
+                                        intercepts[i].star_id = legacy_world::Star_Id(star_idx);
+                                        intercepts[i].earliest_arrival.reset();
+                                        star_to_intercept_idx.emplace(legacy_world::Star_Id(star_idx), i);
                                         idx = i;
                                         i++;
+                                    } else {
+                                        idx = found->second;
                                     }
 
                                     intercepts[idx].player_mask |= (1 << p);
-                                    if (eta < intercepts[idx].min_eta) {
-                                        intercepts[idx].min_eta = eta;
+                                    if (!intercepts[idx].earliest_arrival || eta < *intercepts[idx].earliest_arrival) {
+                                        intercepts[idx].earliest_arrival = eta;
                                     }
 
-                                    if (eta < 10) {
-                                        for (int j = 0; j < 10 - eta; j++) {
-                                            intercepts[idx].strength[eta + j] +=
-                                                (*AIDATA::enroute_ship_strengths)[star_idx][p][i_ai][eta + j];
+                                    if (eta < FORECAST_TURN_COUNT) {
+                                        for (int j = 0; j < FORECAST_TURN_COUNT - eta; j++) {
+                                            intercepts[idx].strengths[eta + j] +=
+                                                ai->stars[legacy_world::Star_Id(star_idx)].enroute_strengths[p][i_ai][eta + j];
                                         }
                                     }
 
-                                    intercepts[idx].players[p].present = 1;
-                                    intercepts[idx].players[p].eta = eta;
+                                    intercepts[idx].present_players[p] = true;
                                 }
                             }
                         }
                     }
 
-                    int idx = star_to_intercept_idx[star_idx];
-                    if (idx != -1) {
-                        if (intercepts[idx].min_eta < 10) {
-                            for (int j = 0; j < 10 - intercepts[idx].min_eta; j++) {
-                                if (intercepts[idx].strength[intercepts[idx].min_eta + j] == 0) {
-                                    intercepts[idx].strength[intercepts[idx].min_eta + j] = 1;
+                    auto found = star_to_intercept_idx.find(legacy_world::Star_Id(star_idx));
+                    if (found != star_to_intercept_idx.end()) {
+                        uint32_t idx = found->second;
+                        if (intercepts[idx].earliest_arrival && *intercepts[idx].earliest_arrival < FORECAST_TURN_COUNT) {
+                            for (int j = 0; j < FORECAST_TURN_COUNT - *intercepts[idx].earliest_arrival; j++) {
+                                if (intercepts[idx].strengths[*intercepts[idx].earliest_arrival + j] == 0) {
+                                    intercepts[idx].strengths[*intercepts[idx].earliest_arrival + j] = 1;
                                 }
                             }
                         }
@@ -1695,39 +1559,40 @@ namespace AIMOVE {
         }
 
         constexpr int nonplayer_owner_count = NONPLAYER_SHIP_TYPE_HYDRA - MAX_PLAYERS + 1;
-        s_aimove_alien_strength alien_str[MAX_STARS][nonplayer_owner_count];
-        memset(alien_str, 0, sizeof(alien_str));
+        std::vector<std::array<s_nonplayer_arrival, nonplayer_owner_count>> alien_str(world->Star_Count());
 
         bool aliens_present = false;
 
-        for (int16_t s = 0; s < MOX::NUM_SHIPS; s++) {
-            s_ship_data* ship = &MOX::ship[s];
+        for (int16_t s = 0; s < world->Ship_Count(); s++) {
+            s_ship_data* ship = &world->ships[s];
             if (ship->owner >= MAX_PLAYERS && ship->owner <= NONPLAYER_SHIP_TYPE_HYDRA && ship->d.speed != 0) {
+                const auto location = legacy_world::Read_Ship_Location(ship);
+                if (!location || legacy_world::Slot(location->star_id) >= (uint32_t)world->Star_Count()) continue;
                 if (ship->status == 0) // In orbit
                 {
-                    int16_t star_idx = ship->location;
-                    if ((MOX::star[star_idx].has_colony >> i_ai) & 1) {
-                        uint32_t strength = (uint16_t)AIPOWER::Ship_Strength_Vs_Ships(s, i_ai);
+                    const uint32_t star_idx = legacy_world::Slot(location->star_id);
+                    if ((world->stars[star_idx].has_colony >> i_ai) & 1) {
+                        uint32_t strength = (uint16_t)AIPOWER::Ship_Strength_Vs_Ships(world, legacy_world::Ship_Id(s), ctx->player_idx);
                         alien_str[star_idx][ship->owner - MAX_PLAYERS].strength += strength;
                         if (alien_str[star_idx][ship->owner - MAX_PLAYERS].strength == 0) {
                             alien_str[star_idx][ship->owner - MAX_PLAYERS].strength = 1;
                         }
-                        alien_str[star_idx][ship->owner - MAX_PLAYERS].eta = 0;
+                        alien_str[star_idx][ship->owner - MAX_PLAYERS].arrival_turn = 0;
                         aliens_present = true;
                     }
                 } else if (ship->status > 0 && ship->status <= 2) // En-route
                 {
-                    int16_t star_idx = ship->location - (ship->status == 1 ? SHIP_LOCATION_MOVING_OFFSET : SHIP_LOCATION_WORMHOLE_OFFSET);
-                    if ((MOX::star[star_idx].has_colony >> i_ai) & 1) {
-                        uint32_t strength = (uint16_t)AIPOWER::Ship_Strength_Vs_Ships(s, i_ai);
+                    const uint32_t star_idx = legacy_world::Slot(location->star_id);
+                    if ((world->stars[star_idx].has_colony >> i_ai) & 1) {
+                        uint32_t strength = (uint16_t)AIPOWER::Ship_Strength_Vs_Ships(world, legacy_world::Ship_Id(s), ctx->player_idx);
                         alien_str[star_idx][ship->owner - MAX_PLAYERS].strength += strength;
                         if (alien_str[star_idx][ship->owner - MAX_PLAYERS].strength == 0) {
                             alien_str[star_idx][ship->owner - MAX_PLAYERS].strength = 1;
                         }
 
-                        // Original bug: alien_str.eta is initialized to 0, so turns_left is never < eta
-                        if (ship->turns_left < alien_str[star_idx][ship->owner - MAX_PLAYERS].eta) {
-                            alien_str[star_idx][ship->owner - MAX_PLAYERS].eta = ship->turns_left;
+                        // Preserve the original zero-initialized arrival estimate.
+                        if (ship->turns_left < alien_str[star_idx][ship->owner - MAX_PLAYERS].arrival_turn) {
+                            alien_str[star_idx][ship->owner - MAX_PLAYERS].arrival_turn = ship->turns_left;
                         }
                         aliens_present = true;
                     }
@@ -1737,26 +1602,29 @@ namespace AIMOVE {
 
         if (aliens_present) {
             for (int o = 0; o < nonplayer_owner_count; o++) {
-                for (int16_t star_idx = 0; star_idx < MOX::NUM_STARS; star_idx++) {
+                for (int16_t star_idx = 0; star_idx < world->Star_Count(); star_idx++) {
                     if (alien_str[star_idx][o].strength != 0) {
-                        int idx = star_to_intercept_idx[star_idx];
-                        if (idx == -1) {
-                            intercepts[i].star_idx = star_idx;
-                            intercepts[i].min_eta = 0xFF;
-                            star_to_intercept_idx[star_idx] = i;
+                        auto found = star_to_intercept_idx.find(legacy_world::Star_Id(star_idx));
+                        uint32_t idx;
+                        if (found == star_to_intercept_idx.end()) {
+                            intercepts[i].star_id = legacy_world::Star_Id(star_idx);
+                            intercepts[i].earliest_arrival.reset();
+                            star_to_intercept_idx.emplace(legacy_world::Star_Id(star_idx), i);
                             idx = i;
                             i++;
+                        } else {
+                            idx = found->second;
                         }
 
                         intercepts[idx].player_mask |= (1 << (o + MAX_PLAYERS));
 
-                        if (alien_str[star_idx][o].eta < intercepts[idx].min_eta) {
-                            intercepts[idx].min_eta = alien_str[star_idx][o].eta;
+                        if (!intercepts[idx].earliest_arrival || alien_str[star_idx][o].arrival_turn < *intercepts[idx].earliest_arrival) {
+                            intercepts[idx].earliest_arrival = alien_str[star_idx][o].arrival_turn;
                         }
 
-                        if (intercepts[idx].min_eta < 10) {
-                            for (int j = 0; j < 10 - intercepts[idx].min_eta; j++) {
-                                intercepts[idx].strength[intercepts[idx].min_eta + j] += alien_str[star_idx][o].strength;
+                        if (intercepts[idx].earliest_arrival && *intercepts[idx].earliest_arrival < FORECAST_TURN_COUNT) {
+                            for (int j = 0; j < FORECAST_TURN_COUNT - *intercepts[idx].earliest_arrival; j++) {
+                                intercepts[idx].strengths[*intercepts[idx].earliest_arrival + j] += alien_str[star_idx][o].strength;
                             }
                         }
                     }
@@ -1765,64 +1633,59 @@ namespace AIMOVE {
         }
 
         if (i > 0) {
-            bool is_desperate = ((*AIDATA::ai_player_info)[i_ai].n_stars_with_colony <= 3);
-            AIMOVE::Interceptions(intercepts, &i, star_to_intercept_idx, is_desperate);
+            bool is_desperate = (ai->players[i_ai].empire.colonized_star_count <= 3);
+            AIMOVE::Interceptions(ai, ctx, intercepts.data(), &i, &star_to_intercept_idx, is_desperate);
         }
     }
 
-    void __cdecl Find_Best_Attack_From_Star(int16_t star_idx, s_attack_info* target_info, int mission_type, int min_pop) {
+    void Find_Best_Attack_From_Star(AIDATA::s_state* ai, s_ai_movement_context* ctx, id_star star_id, s_attack_info* target_info, int mission_type, int min_pop) {
+        const uint32_t star_idx = legacy_world::Slot(star_id);
+        const auto* world = ctx->world;
+        const uint32_t i_ai = legacy_world::Slot(ctx->player_idx);
         s_attack_info target_info_copy;
-        s_attack_info* puVar8 = nullptr;
+        s_attack_info* filtered_attack = nullptr;
         uint16_t max_score = 0;
         bool valid_target_found = false;
 
         s_ship_move_info move_info;
-        uint8_t visited_stars[MAX_STARS];
-        int8_t mission_array[252];
-        uint16_t scores[MAX_COLONIES];
-        int16_t ship_list[SHIP_LIST_CAPACITY];
+        std::vector<uint8_t> visited_stars(world->Star_Count(), 0);
+        std::vector<int8_t> mission_array(world->Colony_Count());
+        std::vector<uint16_t> scores(world->Colony_Count(), 0);
+        std::vector<id_ship> ship_list;
 
         // Initialize copy of target_info
         if (target_info != nullptr) {
-            memcpy(&target_info_copy, target_info, sizeof(target_info_copy));
+            target_info_copy = *target_info;
 
-            puVar8 = &target_info_copy;
+            filtered_attack = &target_info_copy;
         }
 
-        for (int16_t i = 0; i < MAX_STARS; i++) {
-            visited_stars[i] = 0;
-        }
+        Gather_Player_Ships_At_Star(ai, ctx, ctx->player_idx, star_id, &ship_list);
 
-        for (int16_t i = 0; i < MAX_COLONIES; i++) {
-            scores[i] = 0;
-        }
-
-        int16_t ship_count = Gather_Player_Ships_At_Star(i_ai, star_idx, ship_list);
-
-        if (MOX::NUM_COLONIES > 0) {
-            for (int16_t i = 0; i < MOX::NUM_COLONIES; i++) {
-                int8_t owner = MOX::colony[i].owner;
+        if (world->Colony_Count() > 0) {
+            for (int16_t i = 0; i < world->Colony_Count(); i++) {
+                int8_t owner = world->colonies[i].owner;
 
                 if (owner != -1) {
                     if (target_info == nullptr) {
-                        if (!AI_May_Attack_Player(i_ai, owner)) {
+                        if (!AI_May_Attack_Player(world, ctx->player_idx, legacy_world::Player_Id(owner))) {
                             continue;
                         }
                     } else {
-                        if (target_info->target_player != owner) {
+                        if (target_info->target_player != legacy_world::Player_Id(owner)) {
                             continue;
                         }
                     }
 
-                    int16_t planet_idx = MOX::colony[i].planet;
-                    int16_t target_star = MOX::planet[planet_idx].star_index;
+                    int16_t planet_idx = world->colonies[i].planet;
+                    int16_t target_star = world->planets[planet_idx].star_index;
 
                     if (visited_stars[target_star] == 0) {
-                        if ((((*AIDATA::star_in_range_of_player)[target_star] >> i_ai) & 1) != 0) {
-                            SHIPMOVE::Ships_Try_To_Move_To(ship_list, target_star, &move_info);
+                        if (((ai->stars[legacy_world::Star_Id(target_star)].in_range >> i_ai) & 1) != 0) {
+                            ai_compat::Evaluate_Fleet_Move(ship_list, legacy_world::Star_Id(target_star), &move_info);
 
-                            if (move_info.moving != 0 && (uint8_t)move_info.turns_left < 10) {
-                                uint16_t score = Compute_Attack_Worthiness(i, ship_list, (uint8_t)move_info.turns_left, &mission_array[i], &visited_stars[target_star], puVar8, min_pop);
+                            if (move_info.moving != 0 && (uint8_t)move_info.turns_left < FORECAST_TURN_COUNT) {
+                                uint16_t score = Compute_Attack_Worthiness(ai, ctx, legacy_world::Colony_Id(i), ship_list, (uint8_t)move_info.turns_left, &mission_array[i], &visited_stars[target_star], filtered_attack, min_pop);
                                 scores[i] = score;
 
                                 if (score != 0) {
@@ -1835,10 +1698,10 @@ namespace AIMOVE {
                                         }
                                         if (max_score < score) {
                                             max_score = score;
-                                            if (puVar8 != nullptr && puVar8->target_planet != -1) {
-                                                target_info->target_planet = puVar8->target_planet;
-                                                target_info->value_a = puVar8->value_a;
-                                                target_info->value_b = puVar8->value_b;
+                                            if (filtered_attack != nullptr && filtered_attack->target_planet) {
+                                                target_info->target_planet = filtered_attack->target_planet;
+                                                target_info->colony_value = filtered_attack->colony_value;
+                                                target_info->strength_ratio_percent = filtered_attack->strength_ratio_percent;
                                             }
                                         }
                                     } else if (mission == 2) {
@@ -1874,62 +1737,61 @@ namespace AIMOVE {
         }
 
         if (valid_target_found && target_info == nullptr) {
-            for (int16_t i = 0; i < MAX_COLONIES; i++) {
+            for (int16_t i = 0; i < world->Colony_Count(); i++) {
                 // Drop scores below 2/3 of maximum
                 if ((uint32_t)scores[i] * 3 < (uint32_t)max_score * 2) {
                     scores[i] = 0;
                 }
             }
 
-            int16_t best_colony_idx = RUSS::Get_Weighted_Choice_Short(scores, MAX_COLONIES);
-            if (best_colony_idx == -1) {
+            auto best_colony = RUSS::Choose_Weighted_Index_U16(scores.data(), world->Colony_Count());
+            if (!best_colony) {
                 return;
             }
+            const uint32_t best_colony_idx = *best_colony;
 
             int8_t best_mission = mission_array[best_colony_idx];
-            int16_t best_planet_idx = MOX::colony[best_colony_idx].planet;
-            int16_t best_star_idx = MOX::planet[best_planet_idx].star_index;
+            int16_t best_planet_idx = world->colonies[best_colony_idx].planet;
+            int16_t best_star_idx = world->planets[best_planet_idx].star_index;
 
-            (*AIDATA::i_all_combat_ships)[i_ai][star_idx] = -1;
+            ai->players[i_ai].combat_ship_groups.erase(star_id);
 
-            SHIPMOVE::Ships_Try_To_Move_To(ship_list, best_star_idx, &move_info);
-            SHIPMOVE::Make_Ships_Move_To(ship_list, best_star_idx, &move_info);
+            ai_compat::Evaluate_Fleet_Move(ship_list, legacy_world::Star_Id(best_star_idx), &move_info);
+            ai_compat::Order_Fleet_Move(ship_list, legacy_world::Star_Id(best_star_idx), &move_info);
 
-            while (ship_count > 0) {
-                ship_count--;
-                int16_t ship_idx = ship_list[ship_count];
-                MOX::ship[ship_idx].mission = best_mission;
+            for (auto ship = ship_list.rbegin(); ship != ship_list.rend(); ++ship) {
+                world->ships[legacy_world::Slot(*ship)].mission = best_mission;
             }
         }
     }
 
     void __cdecl Knock_Out_Impossible_Interceptions(
-        s_aimove_intercept_entry* intercept_entries,
+        AIDATA::s_state* ai, s_ai_movement_context* ctx,
+        s_interception_target* intercept_entries,
         int* num_entries,
-        int16_t* knocked_out_stars,
-        int* num_knocked_out,
         int keep_one_entry) {
-        *num_knocked_out = 0;
+        const auto* world = ctx->world;
+        const uint32_t i_ai = legacy_world::Slot(ctx->player_idx);
 
         for (int entry_idx = *num_entries - 1; entry_idx >= 0; --entry_idx) {
-            s_aimove_intercept_entry* current_entry = &intercept_entries[entry_idx];
+            s_interception_target* current_entry = &intercept_entries[entry_idx];
             bool can_intercept = false;
-            int16_t star_idx = current_entry->star_idx;
+            const id_star star_idx = current_entry->star_id;
 
-            for (int class_idx = 0; class_idx < 10; ++class_idx) {
+            for (int class_idx = 0; class_idx < FORECAST_TURN_COUNT; ++class_idx) {
                 uint32_t min_possible = 0xFFFFFFFF;
                 uint32_t total_enroute = 0;
 
-                if (MOX::NUM_PLAYERS > 0) {
-                    for (int p = 0; p < MOX::NUM_PLAYERS; ++p) {
-                        if (current_entry->players[p].present) {
-                            uint32_t possible = (uint32_t)((*AIDATA::possible_ship_strengths)[star_idx][i_ai][p][class_idx]);
+                if (world->Player_Count() > 0) {
+                    for (int p = 0; p < world->Player_Count(); ++p) {
+                        if (current_entry->present_players[p]) {
+                            uint32_t possible = (uint32_t)(ai->stars[legacy_world::Star_Id(star_idx)].possible_strengths[i_ai][p][class_idx]);
 
                             if (possible < min_possible) {
                                 min_possible = possible;
                             }
 
-                            total_enroute += (uint32_t)((*AIDATA::enroute_ship_strengths)[star_idx][p][i_ai][class_idx]);
+                            total_enroute += (uint32_t)(ai->stars[legacy_world::Star_Id(star_idx)].enroute_strengths[p][i_ai][class_idx]);
                         }
                     }
                 }
@@ -1944,19 +1806,19 @@ namespace AIMOVE {
                 (*num_entries)--;
                 int num_to_move = *num_entries - entry_idx;
 
-                memmove(current_entry, current_entry + 1, num_to_move * sizeof(s_aimove_intercept_entry));
+                std::move(current_entry + 1, current_entry + 1 + num_to_move, current_entry);
 
-                knocked_out_stars[*num_knocked_out] = star_idx;
-                (*num_knocked_out)++;
-
-                memset(&flee_stars[star_idx * ENEMY_STRENGTH_TURN_WINDOW], 1, ENEMY_STRENGTH_TURN_WINDOW);
+                ctx->work->flee_stars[star_idx].fill(1);
             }
         }
     }
 
-    int8_t __cdecl Player_Is_Hostile_To_Player(int player_idx_a, int player_idx_b) {
+
+    int8_t Player_Is_Hostile_To_Player(const game::s_view* world, id_player player_a, id_player player_b) {
+        const uint32_t player_idx_a = legacy_world::Slot(player_a);
+        const uint32_t player_idx_b = legacy_world::Slot(player_b);
         int8_t result = 2;
-        s_player* p_a = &MOX::player[player_idx_a];
+        const s_player* p_a = &world->players[player_idx_a];
 
         // Check if a specific high-level treaty exists (e.g., Non-Aggression or Alliance)
         if (p_a->treaty[player_idx_b] >= 4 && p_a->treaty[player_idx_b] <= 6) {
@@ -1998,11 +1860,13 @@ namespace AIMOVE {
         return result;
     }
 
-    int8_t __cdecl AI_May_Attack_Player(int16_t player_idx, int16_t target_idx) {
+    int8_t AI_May_Attack_Player(const game::s_view* world, id_player player_id, id_player target_id) {
+        const uint32_t player_idx = legacy_world::Slot(player_id);
+        const uint32_t target_idx = legacy_world::Slot(target_id);
         int8_t may_attack = 0;
 
         if (target_idx != player_idx) {
-            s_player* plr = &MOX::player[player_idx];
+            s_player* plr = &world->players[player_idx];
 
             if (plr->stop_blockading_duration[target_idx] == 0 &&
                 plr->trade_treaty[target_idx] == 0 &&
@@ -2016,24 +1880,29 @@ namespace AIMOVE {
         return may_attack;
     }
 
-    uint16_t __cdecl Compute_Attack_Worthiness(
-        int16_t colony_idx,
-        int16_t* ship_list,
+    uint16_t Compute_Attack_Worthiness(
+        AIDATA::s_state* ai, s_ai_movement_context* ctx,
+        id_colony colony_id,
+        std::span<const id_ship> ships,
         uint8_t eta,
         int8_t* out_attack_type,
         uint8_t* out_flee,
         s_attack_info* target_info,
         int32_t min_pop) {
-        s_colony* colony = &MOX::colony[colony_idx];
+        const uint32_t colony_idx = legacy_world::Slot(colony_id);
+        const auto* world = ctx->world;
+        const uint32_t i_ai = legacy_world::Slot(ctx->player_idx);
+        s_player* p_ai = ctx->player;
+        s_colony* colony = &world->colonies[colony_idx];
         int8_t owner = colony->owner;
         int16_t planet_idx = colony->planet;
-        int16_t star_idx = MOX::planet[planet_idx].star_index;
+        int16_t star_idx = world->planets[planet_idx].star_index;
 
         uint32_t attack_worthiness = 0;
         uint32_t total_space_strength = 0;
         uint32_t total_bomb_strength = 0;
-        bool in_nebula = MOX::star[star_idx].in_nebula != 0;
-        uint32_t hostility_bonus = (uint8_t)Player_Is_Hostile_To_Player(i_ai, owner);
+        bool in_nebula = world->stars[star_idx].in_nebula != 0;
+        uint32_t hostility_bonus = (uint8_t)Player_Is_Hostile_To_Player(world, ctx->player_idx, legacy_world::Player_Id(owner));
         uint32_t total_ship_size = 0;
 
         bool can_attack = true;
@@ -2052,21 +1921,15 @@ namespace AIMOVE {
 
         int16_t shield = COLCALC::Colony_Planetary_Shield(colony);
 
-        int ship_idx_idx = 0;
-        int16_t ship_idx = ship_list[0];
-        if (ship_idx != -1) {
-            do {
-                uint16_t space_str = in_nebula ? (*AIDATA::ship_strengths_in_nebula)[ship_idx][owner] : (*AIDATA::ship_strengths)[ship_idx][owner];
-                total_space_strength += space_str;
+        for (id_ship ship_id : ships) {
+            const uint32_t ship_idx = legacy_world::Slot(ship_id);
+            uint16_t space_str = in_nebula ? ai->ships[legacy_world::Ship_Id(ship_idx)].strengths_in_nebula[owner] : ai->ships[legacy_world::Ship_Id(ship_idx)].strengths[owner];
+            total_space_strength += space_str;
 
-                uint16_t bomb_str = (*AIDATA::ship_bomb_strengths)[ship_idx][shield];
-                total_bomb_strength += bomb_str;
+            uint16_t bomb_str = ai->ships[legacy_world::Ship_Id(ship_idx)].bomb_strengths[shield];
+            total_bomb_strength += bomb_str;
 
-                total_ship_size += (1 << (MOX::ship[ship_idx].d.size & 0x1F));
-
-                ship_idx_idx++;
-                ship_idx = ship_list[ship_idx_idx];
-            } while (ship_idx != -1);
+            total_ship_size += (1 << (world->ships[ship_idx].d.size & 0x1F));
         }
 
         if (target_info == nullptr && total_ship_size > 0x96) {
@@ -2076,10 +1939,10 @@ namespace AIMOVE {
             }
         }
 
-        uint32_t possible_space_strength = (*AIDATA::possible_ship_strengths)[star_idx][owner][i_ai][eta];
+        uint32_t possible_space_strength = ai->stars[legacy_world::Star_Id(star_idx)].possible_strengths[owner][i_ai][eta];
         uint32_t added_strength = 0;
         int producing_idx = 0;
-        int32_t current_bc = MOX::player[owner].bc;
+        int32_t current_bc = world->players[owner].bc;
         int32_t spent = colony->production_spent;
 
         for (int i = 0; i < 7; ++i) {
@@ -2088,18 +1951,18 @@ namespace AIMOVE {
             int16_t prod_id = colony->producing[i];
             if (COLBLDG::Colony_Production_Is_Queued_Ship(prod_id)) {
                 int16_t ship_design_idx = COLBLDG::Colony_Production_Ship_Index(prod_id);
-                if (MOX::ship[ship_design_idx].d.ship_type == SHIP_TYPE_COMBAT) {
-                    int32_t cost = MOX::ship[ship_design_idx].d.cost;
+                if (world->ships[ship_design_idx].d.ship_type == SHIP_TYPE_COMBAT) {
+                    int32_t cost = world->ships[ship_design_idx].d.cost;
                     if (cost > spent) {
                         int32_t buy_cost = COLCALC::Colony_Cost_To_Buy_Given_Product(colony, prod_id, spent);
                         if (buy_cost <= current_bc) {
                             spent = 0;
-                            added_strength += AIPOWER::Ship_Strength_Vs_Ships(ship_design_idx, i_ai);
+                            added_strength += AIPOWER::Ship_Strength_Vs_Ships(world, legacy_world::Ship_Id(ship_design_idx), ctx->player_idx);
                             producing_idx++;
                             current_bc -= buy_cost;
                         }
                     } else {
-                        added_strength += AIPOWER::Ship_Strength_Vs_Ships(ship_design_idx, i_ai);
+                        added_strength += AIPOWER::Ship_Strength_Vs_Ships(world, legacy_world::Ship_Id(ship_design_idx), ctx->player_idx);
                         spent -= cost;
                         producing_idx++;
                     }
@@ -2111,15 +1974,15 @@ namespace AIMOVE {
 
         if (total_bomb_strength + total_space_strength == 0 || (total_space_strength * 3 < possible_space_strength * 4)) {
             *out_flee = 1;
-            if (eta < 10) {
-                for (int i = eta; i < 10; ++i) {
-                    flee_stars[star_idx * 10 + i] = 1;
+            if (eta < FORECAST_TURN_COUNT) {
+                for (int i = eta; i < FORECAST_TURN_COUNT; ++i) {
+                    ctx->work->flee_stars[legacy_world::Star_Id(star_idx)][i] = 1;
                 }
             }
         } else {
-            uint32_t colony_worth = Enemy_Colony_Worth_To_Player(colony_idx, i_ai);
-            uint32_t defending_space = possible_space_strength + (AIPOWER::Colony_Space_Strength_Vs_Player(colony_idx, i_ai) & 0xFFFF);
-            uint32_t defending_ground = AIPOWER::Colony_Ground_Strength_Vs_Player(colony_idx, i_ai) & 0xFFFF;
+            uint32_t colony_worth = Enemy_Colony_Worth_To_Player(ai, world, colony_id, ctx->player_idx);
+            uint32_t defending_space = possible_space_strength + (AIPOWER::Colony_Space_Strength_Vs_Player(world, colony_id, ctx->player_idx) & 0xFFFF);
+            uint32_t defending_ground = AIPOWER::Colony_Ground_Strength_Vs_Player(world, colony_id, ctx->player_idx) & 0xFFFF;
 
             uint32_t attack_space = total_space_strength + hostility_bonus;
             uint32_t attack_ground = total_bomb_strength + hostility_bonus;
@@ -2160,7 +2023,7 @@ namespace AIMOVE {
                     total_bomb_strength >>= 8;
                 }
 
-                int32_t reachable = N_Enemy_Stars_Reachable(i_ai, owner, star_idx);
+                int32_t reachable = N_Enemy_Stars_Reachable(world, ctx->player_idx, owner, legacy_world::Star_Id(star_idx));
                 uint32_t reachable_sq = special::isqrt(reachable * 100);
 
                 uint32_t attack_strength = (colony_worth * total_space_strength) / defending_space;
@@ -2171,11 +2034,11 @@ namespace AIMOVE {
                 if (target_info != nullptr) {
                     uint32_t target_val = (total_space_strength * 100 / defending_space * total_bomb_strength) / defending_ground;
 
-                    target_info->value_b = (int16_t)target_val;
+                    target_info->strength_ratio_percent = (int16_t)target_val;
 
-                    if (target_info->min_value < (int16_t)target_val) {
-                        target_info->target_planet = planet_idx;
-                        target_info->value_a = (int16_t)colony_worth;
+                    if (target_info->minimum_strength_ratio_percent < (int16_t)target_val) {
+                        target_info->target_planet = legacy_world::Planet_Id(planet_idx);
+                        target_info->colony_value = (int16_t)colony_worth;
                     } else {
                         attack_worthiness = 0;
                     }
@@ -2192,8 +2055,8 @@ namespace AIMOVE {
 
                 attack_worthiness = (colony_worth * total_space_strength) / (possible_space_strength * 2);
 
-                if ((MOX::star[star_idx].blockaded >> owner) & 1) {
-                    uint8_t blocked_by = MOX::star[star_idx].blockaded_by[owner];
+                if ((world->stars[star_idx].blockaded >> owner) & 1) {
+                    uint8_t blocked_by = world->stars[star_idx].blockaded_by[owner];
                     if ((blocked_by & ~(1 << i_ai)) != 0 || ((blocked_by >> i_ai) & 1) == 0) {
                         attack_worthiness = 0;
                     }
@@ -2212,22 +2075,18 @@ namespace AIMOVE {
         return (uint16_t)attack_worthiness;
     }
 
-    uint16_t __cdecl Ship_Min_Strength_Versus_Players_At_Star(int16_t ship_idx, uint16_t player_mask, int16_t star_idx) {
+    uint16_t __cdecl Ship_Min_Strength_Versus_Players_At_Star(AIDATA::s_state* ai, const game::s_view* world, id_ship ship_id, uint16_t player_mask, id_star star_id) {
+        const uint32_t ship_idx = legacy_world::Slot(ship_id);
+        const uint32_t star_idx = legacy_world::Slot(star_id);
         uint16_t min_strength = 0x7fff;
-        bool in_nebula = MOX::star[star_idx].in_nebula != 0;
+        bool in_nebula = world->stars[star_idx].in_nebula != 0;
 
         // Check empire players (indices 0 to 7)
         if ((uint8_t)player_mask != 0) {
-            for (int32_t i = 0; i < (int32_t)MOX::NUM_PLAYERS; ++i) {
+            for (int32_t i = 0; i < world->Player_Count(); ++i) {
                 if ((player_mask >> i) & 1) {
-                    uint16_t(*strengths)[MAX_SHIPS][MAX_PLAYERS];
-                    if (in_nebula) {
-                        strengths = AIDATA::ship_strengths_in_nebula;
-                    } else {
-                        strengths = AIDATA::ship_strengths;
-                    }
-
-                    uint16_t strength = (*strengths)[ship_idx][i];
+                    const auto& assessment = ai->ships[ship_id];
+                    uint16_t strength = in_nebula ? assessment.strengths_in_nebula[i] : assessment.strengths[i];
                     if (strength < min_strength) {
                         min_strength = strength;
                     }
@@ -2241,9 +2100,9 @@ namespace AIMOVE {
                 if ((player_mask >> i) & 1) {
                     uint16_t strength;
                     if (in_nebula) {
-                        strength = AIPOWER::Ship_Strength_Vs_Ships_In_Nebula(ship_idx, (int16_t)i);
+                        strength = AIPOWER::Ship_Strength_Vs_Ships_In_Nebula(world, ship_id, legacy_world::Player_Id(i));
                     } else {
-                        strength = AIPOWER::Ship_Strength_Vs_Ships(ship_idx, (int16_t)i);
+                        strength = AIPOWER::Ship_Strength_Vs_Ships(world, ship_id, legacy_world::Player_Id(i));
                     }
 
                     if (strength < min_strength) {
@@ -2256,7 +2115,11 @@ namespace AIMOVE {
         return min_strength;
     }
 
-    int8_t __cdecl Get_Best_Escorted_Colony_Ship(int16_t* colony_ships, int16_t* num_colony_ships, int16_t star_idx, int16_t max_turns) {
+    bool Dispatch_Escorted_Colony_Ship(AIDATA::s_state* ai, s_ai_movement_context* ctx, std::vector<id_ship>* colony_ships, id_star star_id, int16_t max_turns) {
+        const uint32_t star_idx = legacy_world::Slot(star_id);
+        const auto* world = ctx->world;
+        const uint32_t i_ai = legacy_world::Slot(ctx->player_idx);
+        s_player* p_ai = ctx->player;
         int32_t enemy_strength[ENEMY_STRENGTH_TURN_WINDOW] = {0};
         int32_t enemy_strength2[ENEMY_STRENGTH_TURN_WINDOW];
         int32_t total_enemy_strength[ENEMY_STRENGTH_TURN_WINDOW];
@@ -2265,81 +2128,80 @@ namespace AIMOVE {
             total_enemy_strength[i] = 0;
         }
 
-        Get_Enemy_Strength_On_Turn(star_idx, enemy_strength, enemy_strength2);
+        Get_Enemy_Strength_On_Turn(ai, ctx, star_id, enemy_strength, enemy_strength2);
 
-        if (MOX::NUM_PLAYERS > 0) {
-            for (int p = 0; p < MOX::NUM_PLAYERS; ++p) {
-                if (p != AIMOVE::i_ai) {
-                    int8_t treaty = AIMOVE::p_ai->treaty[p];
-                    if (treaty < 1 || treaty > 3 || MOX::player[p].objectives == PLAYER_OBJECTIVE_HUMAN) {
+        if (world->Player_Count() > 0) {
+            for (int p = 0; p < world->Player_Count(); ++p) {
+                if (p != i_ai) {
+                    int8_t treaty = p_ai->treaty[p];
+                    if (treaty < 1 || treaty > 3 || world->players[p].objectives == PLAYER_OBJECTIVE_HUMAN) {
                         for (int t = 0; t < ENEMY_STRENGTH_TURN_WINDOW; ++t) {
-                            total_enemy_strength[t] += (*AIDATA::possible_ship_strengths)[star_idx][p][AIMOVE::i_ai][t];
+                            total_enemy_strength[t] += ai->stars[star_id].possible_strengths[p][i_ai][t];
                         }
                     }
                 }
             }
         }
 
-        int32_t best_max_turn = 0x7FFF;
-        int8_t success = 0;
-        int16_t best_colony_ship_idx = -1;
-        int32_t best_strategy = -1;
-        int16_t best_dest = -1;
-        int32_t best_num_escorts = -1;
-        int32_t best_num_escorts_total = -1;
-        int32_t c = 0;
+        enum class e_strategy { current_route, redirect_transit, assign_escorts };
+        struct s_escort_choice {
+            uint32_t colony_position;
+            uint16_t turns;
+            e_strategy strategy;
+            id_star destination;
+            uint32_t escort_count;
+            uint32_t available_escorts;
+        };
+        std::optional<s_escort_choice> best;
+        std::vector<id_ship> fleet;
 
-        int16_t fleet[SHIP_LIST_CAPACITY];
-
-        if (*num_colony_ships > 0) {
+        if (!colony_ships->empty()) {
+            uint32_t c = 0;
             do {
                 int32_t num_escorts_total = 0;
-                int32_t num_escorts = 1;
-                fleet[0] = colony_ships[c];
-                int16_t location = MOX::ship[fleet[0]].location;
+                fleet.assign(1, (*colony_ships)[c]);
+                const auto location = legacy_world::Read_Ship_Location(&world->ships[legacy_world::Slot(fleet[0])]);
+                if (!location) { ++c; continue; }
 
-                if (location < MAX_STARS) {
-                    int16_t first_combat_ship = (*AIDATA::i_all_combat_ships)[AIMOVE::i_ai][location];
-                    if (first_combat_ship != -1) {
+                if (location->kind == e_ship_location::at_star) {
+                    const auto* group = ai->players[i_ai].Find_Combat_Ships(location->star_id);
+                    if (group) {
                         int32_t total_escort_strength = 0;
                         bool is_valid_strength = false;
                         if (max_turns < ENEMY_STRENGTH_TURN_WINDOW || enemy_strength2[ENEMY_STRENGTH_TURN_WINDOW - 1] != 0) {
                             is_valid_strength = true;
                         }
 
-                        int16_t all_ship_idx = first_combat_ship;
-                        while (all_ship_idx < (int16_t)AIDATA::n_all_ships) {
-                            int16_t s_idx = (*AIDATA::all_ships)[all_ship_idx];
-                            if (MOX::ship[s_idx].owner == AIMOVE::i_ai && MOX::ship[s_idx].location == location) {
+                        uint32_t all_ship_idx = group->next;
+                        while (all_ship_idx < group->end) {
+                            const uint32_t s_idx = legacy_world::Slot(ai->combat_ships[all_ship_idx]);
+                            if (world->ships[s_idx].owner == i_ai && legacy_world::Same_Location_Tag(&world->ships[s_idx], &world->ships[legacy_world::Slot(fleet[0])])) {
                                 all_ship_idx++;
-                                total_escort_strength += (int16_t)AIMOVE::Ship_Rough_Strength_At_Star(s_idx, star_idx);
+                                total_escort_strength += (int16_t)AIMOVE::Ship_Rough_Strength_At_Star(ai, ctx, legacy_world::Ship_Id(s_idx), star_id);
                                 num_escorts_total++;
                             } else {
                                 break;
                             }
                         }
 
-                        all_ship_idx = first_combat_ship;
+                        all_ship_idx = group->next;
                         int32_t strength = 0;
-                        while (all_ship_idx < (int16_t)AIDATA::n_all_ships) {
-                            int16_t s_idx = (*AIDATA::all_ships)[all_ship_idx];
-                            if (MOX::ship[s_idx].owner == AIMOVE::i_ai && MOX::ship[s_idx].location == location) {
+                        while (all_ship_idx < group->end) {
+                            const uint32_t s_idx = legacy_world::Slot(ai->combat_ships[all_ship_idx]);
+                            if (world->ships[s_idx].owner == i_ai && legacy_world::Same_Location_Tag(&world->ships[s_idx], &world->ships[legacy_world::Slot(fleet[0])])) {
                                 all_ship_idx++;
-                                strength += (int16_t)AIMOVE::Ship_Rough_Strength_At_Star(s_idx, star_idx);
-                                fleet[num_escorts] = s_idx;
-                                fleet[num_escorts + 1] = -1;
-                                num_escorts++;
+                                strength += (int16_t)AIMOVE::Ship_Rough_Strength_At_Star(ai, ctx, legacy_world::Ship_Id(s_idx), star_id);
+                                fleet.push_back(legacy_world::Ship_Id(s_idx));
 
-                                int16_t dest_star;
-                                int16_t turns;
-                                AIMOVE::Move_Ships_With_Possible_Intermediate(fleet, star_idx, &dest_star, &turns);
-
-                                if (dest_star == -1 || turns > max_turns) {
+                                auto route = AIMOVE::Move_Ships_With_Possible_Intermediate(ctx, fleet, star_id);
+                                if (!route || route->turns > max_turns) {
                                     break;
                                 }
+                                const id_star dest_star = route->next_star;
+                                const uint16_t turns = route->turns;
 
                                 if (is_valid_strength || total_escort_strength <= strength * 2) {
-                                    if (turns < ENEMY_STRENGTH_TURN_WINDOW && turns < best_max_turn) {
+                                    if (turns < ENEMY_STRENGTH_TURN_WINDOW && (!best || turns < best->turns)) {
                                         int32_t t2 = turns + 2;
                                         if (t2 >= ENEMY_STRENGTH_TURN_WINDOW) {
                                             t2 = ENEMY_STRENGTH_TURN_WINDOW - 1;
@@ -2358,12 +2220,8 @@ namespace AIMOVE {
                                                 }
                                             }
                                             if (can_escort) {
-                                                best_max_turn = turns;
-                                                best_colony_ship_idx = c;
-                                                best_num_escorts = num_escorts - 1;
-                                                best_strategy = 2;
-                                                best_dest = dest_star;
-                                                best_num_escorts_total = num_escorts_total;
+                                                best = s_escort_choice{c, turns, e_strategy::assign_escorts,
+                                                    dest_star, (uint32_t)fleet.size() - 1, (uint32_t)num_escorts_total};
                                             }
                                         }
                                     }
@@ -2379,22 +2237,20 @@ namespace AIMOVE {
                     }
                 } else {
                     int32_t strength = 0;
-                    for (int16_t i = 0; i < (int16_t)MOX::NUM_SHIPS; ++i) {
-                        s_ship_data* ship = &MOX::ship[i];
-                        if (ship->owner == AIMOVE::i_ai && ship->location == MOX::ship[fleet[0]].location) {
-                            if (ship->status < 3 && ship->x == MOX::ship[fleet[0]].x && ship->y == MOX::ship[fleet[0]].y) {
-                                strength += (int16_t)AIMOVE::Ship_Rough_Strength_At_Star(i, star_idx);
-                                fleet[num_escorts] = i;
-                                num_escorts++;
+                    for (int16_t i = 0; i < world->Ship_Count(); ++i) {
+                        s_ship_data* ship = &world->ships[i];
+                        if (ship->owner == i_ai && legacy_world::Same_Location_Tag(ship, &world->ships[legacy_world::Slot(fleet[0])])) {
+                            if (ship->status < 3 && legacy_world::Same_Ship_Position(ship, &world->ships[legacy_world::Slot(fleet[0])])) {
+                                strength += (int16_t)AIMOVE::Ship_Rough_Strength_At_Star(ai, ctx, legacy_world::Ship_Id(i), star_id);
+                                fleet.push_back(legacy_world::Ship_Id(i));
                             }
                         }
                     }
-                    fleet[num_escorts] = -1;
 
-                    if (MOX::ship[fleet[0]].location - star_idx == SHIP_LOCATION_MOVING_OFFSET) {
-                        uint8_t turns = MOX::ship[fleet[0]].turns_left;
+                    if (location->kind == e_ship_location::in_flight && location->star_id == star_id) {
+                        uint8_t turns = world->ships[legacy_world::Slot(fleet[0])].turns_left;
                         if (turns < ENEMY_STRENGTH_TURN_WINDOW && turns <= max_turns) {
-                            if (turns < best_max_turn && enemy_strength2[turns] < strength) {
+                            if ((!best || turns < best->turns) && enemy_strength2[turns] < strength) {
                                 bool can_escort = true;
                                 for (int32_t t = turns + 1; t < ENEMY_STRENGTH_TURN_WINDOW; ++t) {
                                     if (enemy_strength[t] > strength) {
@@ -2403,21 +2259,17 @@ namespace AIMOVE {
                                     }
                                 }
                                 if (can_escort) {
-                                    best_max_turn = turns;
-                                    best_dest = star_idx;
-                                    best_strategy = 0;
-                                    best_colony_ship_idx = c;
-                                    best_num_escorts = num_escorts - 1;
-                                    best_num_escorts_total = num_escorts - 1;
+                                    best = s_escort_choice{c, turns, e_strategy::current_route, star_id,
+                                        (uint32_t)fleet.size() - 1, (uint32_t)fleet.size() - 1};
                                 }
                             }
                         }
                     } else {
-                        int16_t dest_star;
-                        int16_t turns;
-                        AIMOVE::Move_Ships_With_Possible_Intermediate(fleet, star_idx, &dest_star, &turns);
-                        if (dest_star != -1 && turns < ENEMY_STRENGTH_TURN_WINDOW && turns <= max_turns) {
-                            if (turns < best_max_turn && enemy_strength2[turns] < strength) {
+                        auto route = AIMOVE::Move_Ships_With_Possible_Intermediate(ctx, fleet, star_id);
+                        if (route && route->turns < ENEMY_STRENGTH_TURN_WINDOW && route->turns <= max_turns) {
+                            const id_star dest_star = route->next_star;
+                            const uint16_t turns = route->turns;
+                            if ((!best || turns < best->turns) && enemy_strength2[turns] < strength) {
                                 bool can_escort = true;
                                 for (int32_t t = turns + 1; t < ENEMY_STRENGTH_TURN_WINDOW; ++t) {
                                     if (enemy_strength[t] > strength) {
@@ -2426,136 +2278,113 @@ namespace AIMOVE {
                                     }
                                 }
                                 if (can_escort) {
-                                    best_max_turn = turns;
-                                    best_dest = dest_star;
-                                    best_strategy = 1;
-                                    best_colony_ship_idx = c;
-                                    best_num_escorts = num_escorts - 1;
-                                    best_num_escorts_total = num_escorts - 1;
+                                    best = s_escort_choice{c, turns, e_strategy::redirect_transit, dest_star,
+                                        (uint32_t)fleet.size() - 1, (uint32_t)fleet.size() - 1};
                                 }
                             }
                         }
                     }
                 }
-                c++;
-            } while (c < *num_colony_ships);
+                ++c;
+            } while (c < colony_ships->size());
         }
 
-        if (best_colony_ship_idx != -1) {
-            success = 1;
-            fleet[0] = colony_ships[best_colony_ship_idx];
+        if (best) {
+            fleet.assign(1, (*colony_ships)[best->colony_position]);
 
-            if (best_strategy == 1) {
-                int32_t ship_cnt = 1;
-                for (int16_t i = 0; i < (int16_t)MOX::NUM_SHIPS; ++i) {
-                    s_ship_data* ship = &MOX::ship[i];
-                    if (ship->owner == AIMOVE::i_ai && ship->location == MOX::ship[fleet[0]].location) {
-                        if (ship->status < 3 && ship->x == MOX::ship[fleet[0]].x && ship->y == MOX::ship[fleet[0]].y) {
+            if (best->strategy == e_strategy::redirect_transit) {
+                for (int16_t i = 0; i < world->Ship_Count(); ++i) {
+                    s_ship_data* ship = &world->ships[i];
+                    if (ship->owner == i_ai && legacy_world::Same_Location_Tag(ship, &world->ships[legacy_world::Slot(fleet[0])])) {
+                        if (ship->status < 3 && legacy_world::Same_Ship_Position(ship, &world->ships[legacy_world::Slot(fleet[0])])) {
                             ship->mission = 4;
-                            fleet[ship_cnt++] = i;
+                            fleet.push_back(legacy_world::Ship_Id(i));
                         }
                     }
                 }
-                fleet[ship_cnt] = -1;
-            } else if (best_strategy == 2) {
-                int16_t location = MOX::ship[fleet[0]].location;
-                int16_t all_ship_idx = (*AIDATA::i_all_combat_ships)[AIMOVE::i_ai][location];
-                int32_t ship_cnt = 1;
-                if (best_num_escorts > 0) {
-                    for (int32_t i = 0; i < best_num_escorts; ++i) {
-                        int16_t s_idx = (*AIDATA::all_ships)[all_ship_idx++];
-                        MOX::ship[s_idx].mission = 4;
-                        fleet[ship_cnt++] = s_idx;
+            } else if (best->strategy == e_strategy::assign_escorts) {
+                auto location = legacy_world::Orbit_Star(&world->ships[legacy_world::Slot(fleet[0])]);
+                if (!location) return true;
+                auto* group = ai->players[i_ai].Find_Combat_Ships(*location);
+                if (group == nullptr) return true;
+                uint32_t all_ship_idx = group->next;
+                if (best->escort_count > 0) {
+                    for (uint32_t i = 0; i < best->escort_count; ++i) {
+                        const uint32_t s_idx = legacy_world::Slot(ai->combat_ships[all_ship_idx++]);
+                        world->ships[s_idx].mission = 4;
+                        fleet.push_back(legacy_world::Ship_Id(s_idx));
                     }
                 }
-                fleet[ship_cnt] = -1;
-                if (best_num_escorts < best_num_escorts_total) {
-                    (*AIDATA::i_all_combat_ships)[AIMOVE::i_ai][location] += best_num_escorts;
+                if (best->escort_count < best->available_escorts) {
+                    group->next += best->escort_count;
+                    if (group->next == group->end) ai->players[i_ai].combat_ship_groups.erase(*location);
                 } else {
-                    (*AIDATA::i_all_combat_ships)[AIMOVE::i_ai][location] = -1;
+                    ai->players[i_ai].combat_ship_groups.erase(*location);
                 }
             }
 
-            if (best_strategy != 0) {
+            if (best->strategy != e_strategy::current_route) {
                 s_ship_move_info move_info;
-                SHIPMOVE::Ships_Try_To_Move_To(fleet, best_dest, &move_info);
-                SHIPMOVE::Make_Ships_Move_To(fleet, best_dest, &move_info);
+                ai_compat::Evaluate_Fleet_Move(fleet, legacy_world::Star_Id(best->destination), &move_info);
+                ai_compat::Order_Fleet_Move(fleet, legacy_world::Star_Id(best->destination), &move_info);
             }
 
-            int16_t count = *num_colony_ships;
-            *num_colony_ships = count - 1;
-            colony_ships[best_colony_ship_idx] = colony_ships[count - 1];
+            (*colony_ships)[best->colony_position] = colony_ships->back();
+            colony_ships->pop_back();
+            return true;
         }
 
-        return success;
+        return false;
     }
 
-    void __cdecl Find_Opportunity_Attack_Aux(
-        int16_t player_id,
-        int16_t target_player_idx,
+    std::optional<s_attack_choice> Find_Opportunity_Attack_Aux(
+        AIDATA::s_state* ai, const game::s_view* world,
+        id_player player,
+        id_player target_player,
         int16_t min_value,
-        int16_t star_idx,
-        int16_t* out_target_star,
-        int16_t* out_value,
-        int32_t* out_ratio) {
-        *out_target_star = -1;
+        id_star star_id) {
+        const uint32_t player_id = legacy_world::Slot(player);
+        if (ai->players[player_id].Find_Combat_Ships(star_id) &&
+            world->settings->game_difficulty > GAME_DIFFICULTY_EASY) {
+            AIDATA::s_movement_workspace work;
+            s_ai_movement_context context{player, &world->players[player_id], &work, world};
+            s_attack_info attack_info{};
 
-        if ((*AIDATA::i_all_combat_ships)[player_id][star_idx] != -1 &&
-            MOX::settings.game_difficulty > GAME_DIFFICULTY_EASY) {
-            int8_t* flee_stars = (int8_t*)calloc(
-                MAX_STARS * ENEMY_STRENGTH_TURN_WINDOW, sizeof(int8_t));
-            if (flee_stars == nullptr) {
-                allocate::Allocation_Error(MAX_STARS * ENEMY_STRENGTH_TURN_WINDOW);
+            attack_info.target_player = target_player;
+            attack_info.minimum_strength_ratio_percent = min_value;
+
+            Find_Best_Attack_From_Star(ai, &context, star_id, &attack_info, 1, 2);
+
+            if (attack_info.target_planet) {
+                return s_attack_choice{*attack_info.target_planet, attack_info.colony_value, (int32_t)attack_info.strength_ratio_percent};
             }
 
-            s_attack_info attack_info;
-            const int16_t previous_i_ai = i_ai;
-            int8_t* previous_flee_stars = AIMOVE::flee_stars;
-            s_player* previous_p_ai = p_ai;
-
-            attack_info.target_player = target_player_idx;
-            attack_info.min_value = min_value;
-            attack_info.target_planet = -1;
-
-            AIMOVE::flee_stars = flee_stars;
-            i_ai = player_id;
-            p_ai = &MOX::player[player_id];
-
-            Find_Best_Attack_From_Star(star_idx, &attack_info, 1, 2);
-
-            if (attack_info.target_planet != -1) {
-                *out_target_star = attack_info.target_planet;
-                *out_value = attack_info.value_a;
-                *out_ratio = (int32_t)attack_info.value_b;
-            }
-
-            i_ai = previous_i_ai;
-            AIMOVE::flee_stars = previous_flee_stars;
-            p_ai = previous_p_ai;
-            free(flee_stars);
         }
+        return std::nullopt;
     }
 
-    int __cdecl Sort_candidate_stars(const void* a, const void* b) {
-        const int16_t* candidate_star_a = (int16_t*)a;
-        const int16_t* candidate_star_b = (int16_t*)b;
+    int __cdecl Sort_candidate_stars(void* context, const void* a, const void* b) {
+        const auto* sort = static_cast<s_candidate_sort_context*>(context);
+        const uint32_t i_ai = legacy_world::Slot(sort->player_id);
+        const id_star candidate_star_a = legacy_world::Read_Star_Id(a);
+        const id_star candidate_star_b = legacy_world::Read_Star_Id(b);
         uint32_t weakest_strength_a = 0xffffffffu;
         uint32_t weakest_strength_b = 0xffffffffu;
 
-        if (MOX::NUM_PLAYERS > 0) {
-            for (int16_t player_idx = 0; player_idx < MOX::NUM_PLAYERS; ++player_idx) {
-                if (player_idx != AIMOVE::i_ai) {
-                    const int16_t star_a = *candidate_star_a;
-                    if (((*AIDATA::star_in_range_of_player)[star_a] >> (player_idx & 0x1f)) & 1) {
+        if (sort->player_count > 0) {
+            for (int16_t player_idx = 0; player_idx < sort->player_count; ++player_idx) {
+                if (player_idx != i_ai) {
+                    const id_star star_a = candidate_star_a;
+                    if ((sort->stars->at(star_a).in_range >> (player_idx & 0x1f)) & 1) {
                         const uint32_t strength_a =
-                            (uint32_t)(*AIDATA::possible_ship_strengths)[star_a][AIMOVE::i_ai][player_idx][0];
+                            (uint32_t)sort->stars->at(star_a).possible_strengths[i_ai][player_idx][0];
                         if (strength_a < weakest_strength_a) {
                             weakest_strength_a = strength_a;
                         }
 
-                        const int16_t star_b = *candidate_star_b;
+                        const id_star star_b = candidate_star_b;
                         const uint32_t strength_b =
-                            (uint32_t)(*AIDATA::possible_ship_strengths)[star_b][AIMOVE::i_ai][player_idx][0];
+                            (uint32_t)sort->stars->at(star_b).possible_strengths[i_ai][player_idx][0];
                         if (strength_b < weakest_strength_b) {
                             weakest_strength_b = strength_b;
                         }

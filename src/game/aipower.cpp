@@ -1,41 +1,42 @@
 #include "pch.h"
+#include "legacy_world.h"
 
 namespace AIPOWER {
-    uint32_t __cdecl Modified_Weapon_Strength(uint32_t weapon_strength, uint16_t modification_flags) {
+    uint32_t __cdecl Modified_Weapon_Strength(const s_tech_weapon_mod_data* modifications, uint32_t weapon_strength, uint16_t modification_flags) {
         int16_t total_space = 100;
 
         if ((modification_flags & WEAPON_MOD_FLAG_HEAVY_MOUNT) != 0) {
-            total_space = (int16_t)(TECHDATA::weapon_modifications[WEAPON_MOD_HEAVY_MOUNT].space + 100);
+            total_space = (int16_t)(modifications[WEAPON_MOD_HEAVY_MOUNT].space + 100);
         }
         if ((modification_flags & WEAPON_MOD_FLAG_POINT_DEFENSE) != 0) {
-            total_space = (int16_t)(total_space + TECHDATA::weapon_modifications[WEAPON_MOD_POINT_DEFENSE].space);
+            total_space = (int16_t)(total_space + modifications[WEAPON_MOD_POINT_DEFENSE].space);
         }
         if ((modification_flags & WEAPON_MOD_FLAG_NO_RANGE_DISSIPATION) != 0) {
-            total_space = (int16_t)(total_space + TECHDATA::weapon_modifications[WEAPON_MOD_NO_RANGE_DISSIPATION].space);
+            total_space = (int16_t)(total_space + modifications[WEAPON_MOD_NO_RANGE_DISSIPATION].space);
         }
         if ((modification_flags & WEAPON_MOD_FLAG_AUTO_FIRE) != 0) {
-            total_space = (int16_t)(total_space + TECHDATA::weapon_modifications[WEAPON_MOD_AUTO_FIRE].space);
+            total_space = (int16_t)(total_space + modifications[WEAPON_MOD_AUTO_FIRE].space);
         }
         if ((modification_flags & WEAPON_MOD_FLAG_ENVELOPING) != 0) {
-            total_space = (int16_t)(total_space + TECHDATA::weapon_modifications[WEAPON_MOD_ENVELOPING].space);
+            total_space = (int16_t)(total_space + modifications[WEAPON_MOD_ENVELOPING].space);
         }
         if ((modification_flags & WEAPON_MOD_FLAG_MIRV) != 0) {
-            total_space = (int16_t)(total_space + TECHDATA::weapon_modifications[WEAPON_MOD_MIRV].space);
+            total_space = (int16_t)(total_space + modifications[WEAPON_MOD_MIRV].space);
         }
         if ((modification_flags & WEAPON_MOD_FLAG_ECCM) != 0) {
-            total_space = (int16_t)(total_space + TECHDATA::weapon_modifications[WEAPON_MOD_ECCM].space);
+            total_space = (int16_t)(total_space + modifications[WEAPON_MOD_ECCM].space);
         }
         if ((modification_flags & WEAPON_MOD_FLAG_HEAVILY_ARMORED) != 0) {
-            total_space = (int16_t)(total_space + TECHDATA::weapon_modifications[WEAPON_MOD_HEAVILY_ARMORED].space);
+            total_space = (int16_t)(total_space + modifications[WEAPON_MOD_HEAVILY_ARMORED].space);
         }
         if ((modification_flags & WEAPON_MOD_FLAG_FAST) != 0) {
-            total_space = (int16_t)(total_space + TECHDATA::weapon_modifications[WEAPON_MOD_FAST].space);
+            total_space = (int16_t)(total_space + modifications[WEAPON_MOD_FAST].space);
         }
         if ((modification_flags & WEAPON_MOD_FLAG_EMISSION_GUIDANCE) != 0) {
-            total_space = (int16_t)(total_space + TECHDATA::weapon_modifications[WEAPON_MOD_EMISSIONS_GUIDANCE].space);
+            total_space = (int16_t)(total_space + modifications[WEAPON_MOD_EMISSIONS_GUIDANCE].space);
         }
         if ((modification_flags & WEAPON_MOD_FLAG_OVERLOADED) != 0) {
-            total_space = (int16_t)(total_space + TECHDATA::weapon_modifications[WEAPON_MOD_OVERLOADED].space);
+            total_space = (int16_t)(total_space + modifications[WEAPON_MOD_OVERLOADED].space);
         }
 
         int32_t result =
@@ -48,22 +49,26 @@ namespace AIPOWER {
         return (uint32_t)result;
     }
 
-    int16_t __cdecl Ship_Strength_Vs_Shield(int16_t ship_idx, int16_t target_idx, int16_t shield_strength) {
-        s_ship_data* ship = &MOX::ship[ship_idx];
+
+    int16_t Ship_Strength_Vs_Shield(const game::s_view* world, game::id_ship ship_id, game::id_player target_id, int16_t shield_strength) {
+        const auto legacy_ship = legacy_world::Index(ship_id);
+        if (!legacy_ship) return 0;
+        const uint32_t ship_idx = legacy_world::Slot(ship_id);
+        const s_ship_data* ship = &world->ships[ship_idx];
         int32_t total_strength = 0;
         int16_t attack_bonus = 0;
         int16_t defense_bonus;
         int16_t temp_attack;
         int16_t temp_defense;
 
-        if (MOX::settings.strategic_combat_flag != 0) {
-            attack_bonus = AIPOWER::Base_Generic_Ocv(ship->owner);
-            INITSHIP::Update_Strategic_Ship(ship_idx);
+        if (world->settings->strategic_combat_flag != 0) {
+            attack_bonus = AIPOWER::Base_Generic_Ocv(world, legacy_world::Player_Id(ship->owner));
+            INITSHIP::Update_Strategic_Ship(*legacy_ship);
         } else {
-            INITSHIP::Get_Ship_Combat_Bonuses(ship_idx, &temp_attack, &temp_defense, &attack_bonus);
+            INITSHIP::Get_Ship_Combat_Bonuses(*legacy_ship, &temp_attack, &temp_defense, &attack_bonus);
         }
 
-        defense_bonus = Base_Generic_Dcv(target_idx);
+        defense_bonus = Base_Generic_Dcv(world, target_id);
 
         for (int32_t i = 0; i < 8; ++i) {
             int16_t weapon_type = ship->d.ship_weapon[i].type;
@@ -132,7 +137,7 @@ namespace AIPOWER {
                 }
             }
 
-            uint32_t mod_strength = Modified_Weapon_Strength(slot_strength, slot_specials);
+            uint32_t mod_strength = Modified_Weapon_Strength(TECHDATA::weapon_modifications, slot_strength, slot_specials);
             total_strength += (uint16_t)mod_strength;
         }
 
@@ -150,8 +155,8 @@ namespace AIPOWER {
 
         uint32_t scaled_strength = ((uint32_t)shield_scale * (uint32_t)total_strength) / 100;
 
-        if (MOX::settings.strategic_combat_flag == 0) {
-            int16_t current_hits = Current_Ship_Hits(ship_idx);
+        if (world->settings->strategic_combat_flag == 0) {
+            int16_t current_hits = Current_Ship_Hits(world, ship_id);
             uint32_t exists_flag = (scaled_strength != 0) ? 1 : 0;
             int16_t hits_mod = Strength_Hits_Modifier(current_hits);
             uint32_t hit_modified_strength = ((uint32_t)hits_mod * scaled_strength) / 100;
@@ -172,13 +177,16 @@ namespace AIPOWER {
         return (int16_t)scaled_strength;
     }
 
-    int16_t __cdecl Max_Ship_Hits(int16_t ship_idx) {
-        if (MOX::settings.strategic_combat_flag == 0) {
-            int16_t structure = INITSHIP::Get_Ship_Structure(ship_idx);
-            int16_t armor_hits = INITSHIP::Get_Ship_Armor_Hits(ship_idx);
+    int16_t __cdecl Max_Ship_Hits(const game::s_view* world, game::id_ship ship_id) {
+        const uint32_t ship_idx = legacy_world::Slot(ship_id);
+        if (world->settings->strategic_combat_flag == 0) {
+            const auto legacy_ship = legacy_world::Index(ship_id);
+            if (!legacy_ship) return 0;
+            int16_t structure = INITSHIP::Get_Ship_Structure(*legacy_ship);
+            int16_t armor_hits = INITSHIP::Get_Ship_Armor_Hits(*legacy_ship);
             return structure + armor_hits;
         } else {
-            s_ship_data* ship = &MOX::ship[ship_idx];
+            const s_ship_data* ship = &world->ships[ship_idx];
 
             int32_t hull_type = (int32_t)ship->d.size;
             int16_t base_hits = TECHDATA::hull_data[hull_type].strat_hits;
@@ -199,41 +207,43 @@ namespace AIPOWER {
         }
     }
 
-    uint16_t __cdecl Ship_Strength_Vs_Ships(int16_t attacker_idx, int16_t target_idx) {
-        int16_t shield_value = Get_Best_Ship_Shield_Value(target_idx);
-        return (uint16_t)Ship_Strength_Vs_Shield(attacker_idx, target_idx, shield_value);
+    uint16_t Ship_Strength_Vs_Ships(const game::s_view* world, game::id_ship attacker_idx, game::id_player target_idx) {
+        int16_t shield_value = Get_Best_Ship_Shield_Value(TECHDATA::shields, target_idx);
+        return (uint16_t)Ship_Strength_Vs_Shield(world, attacker_idx, target_idx, shield_value);
     }
 
-    uint16_t __cdecl Ship_Strength_Vs_Ships_In_Nebula(int16_t attacker_idx, int16_t target_idx) {
-        return (uint16_t)AIPOWER::Ship_Strength_Vs_Shield(attacker_idx, target_idx, 0);
+    uint16_t Ship_Strength_Vs_Ships_In_Nebula(const game::s_view* world, game::id_ship attacker_idx, game::id_player target_idx) {
+        return (uint16_t)AIPOWER::Ship_Strength_Vs_Shield(world, attacker_idx, target_idx, 0);
     }
 
-    int16_t __cdecl Current_Ship_Hits(int16_t ship_idx) {
+    int16_t __cdecl Current_Ship_Hits(const game::s_view* world, game::id_ship ship_id) {
+        const uint32_t ship_idx = legacy_world::Slot(ship_id);
         int16_t hits;
 
-        hits = AIPOWER::Max_Ship_Hits(ship_idx);
+        hits = AIPOWER::Max_Ship_Hits(world, ship_id);
 
         // Subtract structural damage.
-        hits -= MOX::ship[ship_idx].structural_damage;
+        hits -= world->ships[ship_idx].structural_damage;
 
         // In strategic combat armor damage is not counted
-        if (MOX::settings.strategic_combat_flag == 0) {
-            hits -= MOX::ship[ship_idx].armor_damage;
+        if (world->settings->strategic_combat_flag == 0) {
+            hits -= world->ships[ship_idx].armor_damage;
         }
 
         return hits;
     }
 
-    void __cdecl Ship_Strength_Vs_Planetary_Shield(int16_t ship_idx, uint16_t* shield_strengths) {
-        uint32_t strengths[4];
-        uint16_t shield_reductions[4] = {2, 7, 12, 22};
+    void __cdecl Ship_Strength_Vs_Planetary_Shield(const game::s_view* world, game::id_ship ship_id, uint16_t* shield_strengths) {
+        const uint32_t ship_idx = legacy_world::Slot(ship_id);
+        uint32_t strengths[PLANETARY_SHIELD_COUNT];
+        uint16_t shield_reductions[PLANETARY_SHIELD_COUNT] = {2, 7, 12, 22};
 
         for (int32_t i = 0; i < 4; ++i) {
             strengths[i] = 0;
         }
 
-        if (MOX::settings.strategic_combat_flag == 1) {
-            int32_t size = MOX::ship[ship_idx].d.size;
+        if (world->settings->strategic_combat_flag == 1) {
+            int32_t size = world->ships[ship_idx].d.size;
             uint32_t base_strength = (uint32_t)(size * size * 10);
             strengths[0] = base_strength;
 
@@ -242,7 +252,7 @@ namespace AIPOWER {
             }
         } else {
             for (int32_t i = 0; i < 8; ++i) {
-                int16_t weapon_type = MOX::ship[ship_idx].d.ship_weapon[i].type;
+                int16_t weapon_type = world->ships[ship_idx].d.ship_weapon[i].type;
                 if (weapon_type > 0) {
                     int16_t weapon_damage;
                     uint8_t weapon_type_class = TECHDATA::weapons[weapon_type].type;
@@ -253,7 +263,7 @@ namespace AIPOWER {
                         weapon_damage = TECHDATA::weapons[weapon_type].max_damage;
                     }
 
-                    int32_t count = MOX::ship[ship_idx].d.ship_weapon[i].current_count;
+                    int32_t count = world->ships[ship_idx].d.ship_weapon[i].current_count;
 
                     for (int32_t j = 0; j < 4; ++j) {
                         int32_t damage_vs_shield = (int32_t)weapon_damage - (int32_t)shield_reductions[j];
@@ -268,8 +278,8 @@ namespace AIPOWER {
         }
 
         for (int32_t i = 0; i < 4; ++i) {
-            int16_t current_hits = Current_Ship_Hits(ship_idx);
-            int16_t max_hits = Max_Ship_Hits(ship_idx);
+            int16_t current_hits = Current_Ship_Hits(world, ship_id);
+            int16_t max_hits = Max_Ship_Hits(world, ship_id);
 
             // Scale strength by current ship health
             uint32_t final_power = (uint32_t)current_hits * strengths[i] / (uint32_t)max_hits;
@@ -281,22 +291,25 @@ namespace AIPOWER {
         }
     }
 
-    int16_t __cdecl Base_Generic_Ocv(int16_t player_idx) {
+    int16_t Base_Generic_Ocv(const game::s_view* world, game::id_player player_id) {
+        const uint32_t player_idx = legacy_world::Slot(player_id);
+        const auto legacy_player = legacy_world::Index(player_id);
+        if (!legacy_player) return 0;
         int16_t computer_idx;
         int16_t bonus;
 
-        computer_idx = INITSHIP::Best_Computer(player_idx);
+        computer_idx = INITSHIP::Best_Computer(*legacy_player);
         bonus = TECHDATA::computers[computer_idx].bonus;
 
         if (player_idx < MAX_PLAYERS) {
-            bonus += MOX::player[player_idx].traits[TRAIT_SHIP_ATTACK];
+            bonus += world->players[player_idx].traits[TRAIT_SHIP_ATTACK];
         }
 
         return bonus;
     }
 
-    uint16_t __cdecl Colony_Space_Strength_Vs_Player(int16_t colony_idx, int16_t player_idx) {
-        s_colony* colony = &MOX::colony[colony_idx];
+    uint16_t Colony_Space_Strength_Vs_Player(const game::s_view* world, game::id_colony colony_id, game::id_player player_id) {
+        const s_colony* colony = &world->colonies[legacy_world::Slot(colony_id)];
         int16_t building_type = -1;
 
         if (colony->buildings[BUILDING_STAR_BASE] != 0) {
@@ -307,19 +320,22 @@ namespace AIPOWER {
             building_type = 3;
         }
 
-        return AIPOWER::Satelite_Strength_Vs_Ships(building_type, (int16_t)colony->owner, player_idx);
+        return AIPOWER::Satelite_Strength_Vs_Ships(world, building_type, legacy_world::Player_Id(colony->owner), player_id);
     }
 
-    int16_t __cdecl Base_Generic_Dcv(int16_t player_idx) {
-        const int16_t best_drive_idx = INITSHIP::Best_Warp_Drive(player_idx);
+    int16_t Base_Generic_Dcv(const game::s_view* world, game::id_player player_id) {
+        const uint32_t player_idx = legacy_world::Slot(player_id);
+        const auto legacy_player = legacy_world::Index(player_id);
+        if (!legacy_player) return 0;
+        const int16_t best_drive_idx = INITSHIP::Best_Warp_Drive(*legacy_player);
 
         int16_t dcv =
             (int16_t)TECHDATA::drives[best_drive_idx].combat_speed_min[2];
         dcv = (int16_t)(dcv * 5);
 
         if (player_idx < MAX_PLAYERS) {
-            dcv = (int16_t)(dcv + MOX::player[player_idx].traits[TRAIT_SHIP_DEFENSE]);
-            if (MOX::player[player_idx].traits[TRAIT_TRANS_DIMENSIONAL] != 0) {
+            dcv = (int16_t)(dcv + world->players[player_idx].traits[TRAIT_SHIP_DEFENSE]);
+            if (world->players[player_idx].traits[TRAIT_TRANS_DIMENSIONAL] != 0) {
                 dcv = (int16_t)(dcv + 0x14);
             }
         }
@@ -327,12 +343,15 @@ namespace AIPOWER {
         return dcv;
     }
 
-    uint16_t __cdecl Satelite_Strength_Vs_Ships(int16_t building_type, int16_t player_idx, int16_t target_player_idx) {
+    uint16_t Satelite_Strength_Vs_Ships(const game::s_view* world, int16_t building_type, game::id_player player_id, game::id_player target_player_id) {
+        const uint32_t player_idx = legacy_world::Slot(player_id);
+        const auto legacy_player = legacy_world::Index(player_id);
+        if (!legacy_player) return 0;
         uint32_t total_strength = 0;
 
         if (building_type != -1) {
-            int16_t ocv = AIPOWER::Base_Generic_Ocv(player_idx);
-            int16_t dcv = (int16_t)Base_Generic_Dcv(target_player_idx);
+            int16_t ocv = AIPOWER::Base_Generic_Ocv(world, player_id);
+            int16_t dcv = (int16_t)Base_Generic_Dcv(world, target_player_id);
             int32_t accuracy_mod = (ocv - dcv) + 100;
 
             if (accuracy_mod < 10) {
@@ -342,33 +361,33 @@ namespace AIPOWER {
                 accuracy_mod = 100;
             }
 
-            int16_t best_beam = INITSHIP::Best_Beam_Weapon(player_idx);
-            int16_t best_missile = INITSHIP::Best_Missile_Weapon_NT(player_idx);
+            int16_t best_beam = INITSHIP::Best_Beam_Weapon(*legacy_player);
+            int16_t best_missile = INITSHIP::Best_Missile_Weapon_NT(*legacy_player);
 
             int16_t beam_count_normal;
             int16_t beam_count_heavy;
             int16_t missile_count;
-            s_tech_hull_data* hull = &TECHDATA::hull_data[5 + building_type];
+            const s_tech_hull_data* hull = &TECHDATA::hull_data[5 + building_type];
 
-            if (MOX::settings.strategic_combat_flag == 0) {
+            if (world->settings->strategic_combat_flag == 0) {
                 int16_t hull_size = hull->size;
                 int16_t size_div_2 = hull_size / 2;
                 int16_t rem_size = hull_size - size_div_2;
 
                 // Tactical: Calculate weapon counts based on available hull space
-                int32_t space_normal = DESIGN::Weapon_Space(player_idx, best_beam, 1, WEAPON_FIRING_ARC_360, 0, 0);
+                int32_t space_normal = DESIGN::Weapon_Space(*legacy_player, best_beam, 1, WEAPON_FIRING_ARC_360, 0, 0);
                 beam_count_normal = (int16_t)(COMBINIT::Satellite_Allocated_Space(
                                                   size_div_2,
                                                   COMBINIT::satellite_space_allocation.normal) /
                     space_normal);
 
-                int32_t space_heavy = DESIGN::Weapon_Space(player_idx, best_beam, 1, WEAPON_FIRING_ARC_360, 0, 2 /* MOD_HEAVY_MOUNT */);
+                int32_t space_heavy = DESIGN::Weapon_Space(*legacy_player, best_beam, 1, WEAPON_FIRING_ARC_360, 0, 2 /* MOD_HEAVY_MOUNT */);
                 beam_count_heavy = (int16_t)(COMBINIT::Satellite_Allocated_Space(
                                                  size_div_2,
                                                  COMBINIT::satellite_space_allocation.heavy) /
                     space_heavy);
 
-                int32_t space_missile = DESIGN::Weapon_Space(player_idx, best_missile, 1, WEAPON_FIRING_ARC_360, COMBINIT::satellite_ammo_basis, 0);
+                int32_t space_missile = DESIGN::Weapon_Space(*legacy_player, best_missile, 1, WEAPON_FIRING_ARC_360, COMBINIT::satellite_ammo_basis, 0);
                 missile_count = (int16_t)(COMBINIT::Satellite_Allocated_Space(
                                               rem_size,
                                               COMBINIT::satellite_space_allocation.missile_torp) /
@@ -380,7 +399,7 @@ namespace AIPOWER {
                 missile_count = hull->strat_missile;
             }
 
-            int16_t shield_val = AIPOWER::Get_Best_Ship_Shield_Value(target_player_idx);
+            int16_t shield_val = AIPOWER::Get_Best_Ship_Shield_Value(TECHDATA::shields, target_player_id);
 
             int32_t adj_beam_dmg_heavy = ((TECHDATA::weapons[best_beam].max_damage * 3) / 2) - shield_val;
             if (adj_beam_dmg_heavy < 0) adj_beam_dmg_heavy = 0;
@@ -395,7 +414,7 @@ namespace AIPOWER {
             total_strength += (adj_missile_dmg * missile_count);
             total_strength += (adj_beam_dmg_normal * beam_count_normal * accuracy_mod) / 100;
 
-            if (MOX::settings.strategic_combat_flag == 0) {
+            if (world->settings->strategic_combat_flag == 0) {
                 uint32_t structural_mod = Strength_Hits_Modifier(hull->structure_hp);
                 uint32_t val = (structural_mod * total_strength) / 100;
 
@@ -415,6 +434,7 @@ namespace AIPOWER {
 
         return (uint16_t)total_strength;
     }
+
 
     int16_t __cdecl Strength_Hits_Modifier(int16_t strength) {
         if (strength <= 100) {

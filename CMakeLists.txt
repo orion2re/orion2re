@@ -115,10 +115,19 @@ if(EXISTS "${ORION2RE_LOCAL_CONFIG}")
     include("${ORION2RE_LOCAL_CONFIG}")
 endif()
 
-option(ORION2RE_ENABLE_ASAN "Enable AddressSanitizer (and UBSan with GCC/Clang) for supported debug builds" OFF)
-option(ORION2RE_RELEASE_DEBUG_INFO "Emit debug info for non-Debug MSVC builds" OFF)
 option(ORION2RE_BUILD_GAME "Build the SDL game executable" ON)
 option(ORION2RE_BUILD_TESTS "Build tests" OFF)
+set(ORION2RE_ENABLE_ASAN_DEFAULT OFF)
+if(APPLE AND ORION2RE_BUILD_TESTS)
+    set(ORION2RE_ENABLE_ASAN_DEFAULT ON)
+endif()
+option(ORION2RE_ENABLE_ASAN "Enable AddressSanitizer (and UBSan with GCC/Clang) for supported debug builds" ${ORION2RE_ENABLE_ASAN_DEFAULT})
+option(ORION2RE_RELEASE_DEBUG_INFO "Emit debug info for non-Debug MSVC builds" OFF)
+if(APPLE AND ORION2RE_BUILD_TESTS AND NOT ORION2RE_ENABLE_ASAN)
+    message(FATAL_ERROR
+        "macOS tests require ASan and UBSan. Configure a Debug build with "
+        "-DORION2RE_ENABLE_ASAN=ON, or use the osx-debug-asan-tests preset.")
+endif()
 set(ORION2RE_BUILD_CONFIG_TOOL_DEFAULT OFF)
 if(NOT CMAKE_CROSSCOMPILING AND
    EXISTS "${ORION2RE_VENDORED_YYJSON_DIR}/src/yyjson.h" AND
@@ -682,6 +691,24 @@ if(ORION2RE_BUILD_GAME)
     if(MSVC)
         target_compile_definitions(config-load-benchmark PRIVATE WIN32 _CRT_SECURE_NO_DEPRECATE _CRT_NONSTDC_NO_DEPRECATE)
     endif()
+    add_executable(turn-benchmark EXCLUDE_FROM_ALL
+        tools/turn_benchmark.cpp
+        $<TARGET_OBJECTS:orion2re_game_objects>
+        "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smacker.c"
+        "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smk_bitstream.c"
+        "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smk_hufftree.c"
+        "${ORION2RE_VENDORED_YYJSON_DIR}/src/yyjson.c"
+    )
+    target_compile_features(turn-benchmark PRIVATE cxx_std_20)
+    target_include_directories(turn-benchmark PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src"
+        "${ORION2RE_VENDORED_LIBSMACKER_DIR}"
+        "${ORION2RE_VENDORED_YYJSON_DIR}/src")
+    target_link_libraries(turn-benchmark PRIVATE SDL3::SDL3-static uv_a
+        orion2re_lz4 orion2re_lua orion2re_scalers miniz orion2re_imgui)
+    if(MSVC)
+        target_compile_definitions(turn-benchmark PRIVATE WIN32 _CRT_SECURE_NO_DEPRECATE _CRT_NONSTDC_NO_DEPRECATE)
+    endif()
     add_dependencies(orion2re package-runtime-data)
     if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         target_compile_definitions(orion2re PRIVATE
@@ -1048,7 +1075,7 @@ if(ORION2RE_ENABLE_ASAN)
 
     foreach(ORION2RE_SANITIZER_TARGET IN ITEMS
             orion2re_lua orion2re orion2re-router orion2re_game_objects
-            config-tool config-load-benchmark)
+            config-tool config-load-benchmark turn-benchmark)
         if(TARGET ${ORION2RE_SANITIZER_TARGET})
             orion2re_enable_sanitizers(${ORION2RE_SANITIZER_TARGET})
         endif()

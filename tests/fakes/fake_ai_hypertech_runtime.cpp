@@ -12,7 +12,7 @@ namespace TEST_AI_HYPERTECH {
     void Reset_() {
         memset(players, 0, sizeof(players));
         memset(TECHDATA::technology_applications, 0, sizeof(TECHDATA::technology_applications));
-        memset(aitech::ai_hypertech_threshold, 0, sizeof(aitech::ai_hypertech_threshold));
+        memset(aitech::rules.hypertech_threshold, 0, sizeof(aitech::rules.hypertech_threshold));
         selected_tech_application = TECH_APP_NO_TECH;
         hypertech_choice_count = 0;
         hypertech_choice_index = 0;
@@ -39,6 +39,10 @@ namespace TEST_AI_HYPERTECH {
 
 namespace MOX {
     s_player* player = players;
+}
+
+namespace aitech {
+    s_rules rules;
 }
 
 namespace TECHDATA {

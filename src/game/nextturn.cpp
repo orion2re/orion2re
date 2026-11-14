@@ -1,10 +1,25 @@
 #include "pch.h"
 
+#include "legacy_world.h"
+
 #include "lua/lua_game.h"
 
 namespace NEXTTURN {
 
-    void __cdecl Next_Turn_Calc() {
+    bool Validate_Turn_Inputs(const game::s_view* world) {
+        if (const char* reason = AIDATA::Validate_Inputs(world)) {
+            fprintf(stderr, "Cannot calculate next turn: %s\n", reason);
+            AIDATA::Reset(&AIDATA::state);
+            return false;
+        }
+        return true;
+    }
+
+
+    bool Next_Turn_Calc() {
+        game::current = legacy_world::World();
+        const auto* world = &game::current;
+        if (!Validate_Turn_Inputs(world)) return false;
         if (MOX::game_type >= 0 && MOX::game_type <= 1) {
             EVENTS::Clear_Deferred_Monster_Event_Target();
             fields::Assign_Auto_Function(SCORE::nullsub, 1);
@@ -16,26 +31,26 @@ namespace NEXTTURN {
             antarans::Antaran_Invasion_Check();
         }
 
-        AIDATA::Compute_AI_Data();
+        AIDATA::s_state* ai = &AIDATA::state;
+        RUSS::Mox_Update();
+        if (!AIDATA::Compute_AI_Data(ai, world)) return false;
         DIP_SCRN::Resolve_Delayed_Diplomacy_Orders();
         DIP_SCRN::Set_Opportunity_Attacks();
         diplomac::Clear_Diplomacy_Messages();
         npcdiplo::NPC_Diplomacy();
         diplomac::Diplomacy_Growth();
-        aileader::Do_AI_Leaders();
-        AIBUILD::Compute_Empire_Building_Needs();
-#if defined(ORION2RE_ENABLE_DEBUG_OVERLAY)
-        ai_state::Capture_Build_State();
-#endif
-        aidudes::All_Colony_AI();
-        AIMOVE::Move_All_AI();
+        aileader::Do_AI_Leaders(ai, world);
+        AIBUILD::Compute_Empire_Building_Needs(ai, world);
+        aidudes::All_Colony_AI(ai, world);
+        AIMOVE::Move_All_AI(ai, world);
         COLONIZE::All_AI_Colonize();
-        aitech::All_AI_Tech_Select();
+        aitech::All_AI_Tech_Select(ai, world);
+        RUSS::Mox_Update();
         maintain::Make_Scrap_Ships_Dead();
         REPORT::Initialize_Reports();
         TRADE::Process_Trade_And_Research_Agreements();
         SHIPMOVE::Move_All_Ships_Toward_Stars();
-        spy::Resolve_Spies();
+        spy::Resolve_Spies(ai->players.data());
         {
             orion2re::lua::game::s_authoritative_population_growth_scope
                 population_growth_scope(
@@ -48,9 +63,9 @@ namespace NEXTTURN {
         COLCALC::Apply_All_Player_Changes();
         COLCALC::Apply_All_Colony_Changes();
         COLCALC::Do_Surrenders();
-        AIDATA::Deallocate_AI_Data();
+        AIDATA::Complete_Turn(ai);
         COMBFIND::Search_For_Battles();
-        aitech::Apply_Evolutionary_Upgrades();
+        aitech::Apply_Evolutionary_Upgrades(world);
         EVENTS::Determine_Event();
         SHIPMOVE::Unmark_Just_Built_AI_Ships();
         ERICNET::Do_All_Ships_XP_Check();
@@ -112,6 +127,7 @@ namespace NEXTTURN {
         if (MAINSCR::in_auto_next_turn_mode == 0) {
             mouse::Set_Mouse_List(&MOX::mouse_list_arrow, 1);
         }
+        return true;
     }
 
 } // namespace NEXTTURN

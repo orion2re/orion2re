@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "legacy_ids.h"
 
 namespace maintain {
     int32_t (*ship_worths)[MAX_SHIPS];
@@ -78,7 +79,7 @@ namespace maintain {
                 if (ship.owner == player_idx && ship.status < 5 && ship.d.ship_type == SHIP_TYPE_COMBAT) {
                     for (int32_t k = 0; k < player_count; ++k) {
                         if (eligible_players[k]) {
-                            worths[j] += AIPOWER::Ship_Strength_Vs_Ships(j, (int16_t)k);
+                            worths[j] += AIPOWER::Ship_Strength_Vs_Ships(&game::current, legacy_world::Ship_Id(j), legacy_world::Player_Id(k));
                         }
                     }
                     worths[j] = worths[j] / ((ship.d.size + 1) * eligible_count);
@@ -193,6 +194,7 @@ namespace maintain {
             }
         }
     }
+
 
     /**
      * Reduces the number of spies for a player if they have a negative BC balance (deficit).

@@ -2103,7 +2103,7 @@ namespace COLBLDG {
         s_ship_design old_design = MOX::ship[ship_n].d;
         s_ship_design new_design = *pending_design;
         new_design.cost = DESIGN::Cost_Of_Design(owner, &new_design);
-        int16_t refit_cost = AIBUILD::Refit_Cost(owner, &old_design, &new_design);
+        int16_t refit_cost = AIBUILD::Refit_Cost(&MOX::player[owner], &old_design, &new_design);
 
         struct_::Copy_Structure(
             &MOX::ship[ship_n].d, &new_design, sizeof(MOX::ship[ship_n].d));

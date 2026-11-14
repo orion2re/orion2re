@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "legacy_ids.h"
 
 namespace COMBFIND {
 
@@ -1811,7 +1812,7 @@ namespace COMBFIND {
                         if (player_idx != p) {
                             if ((*star_has_player)[star_idx][p].has_player != 0 ||
                                 (*star_has_player)[star_idx][p].colony_count != 0) {
-                                player_strength[p] += AIPOWER::Ship_Strength_Vs_Ships(i, p);
+                                player_strength[p] += AIPOWER::Ship_Strength_Vs_Ships(&game::current, legacy_world::Ship_Id(i), legacy_world::Player_Id(p));
                             }
                         }
                     }
@@ -1819,18 +1820,18 @@ namespace COMBFIND {
                     for (int16_t np = MAX_PLAYERS; np < 15; ++np) {
                         if ((((*star_has_nonplayer)[star_idx] >> (np - MAX_PLAYERS)) & 1) != 0 &&
                             (((*player_needs_to_attack)[star_idx] >> np) & 1) == 0) {
-                            player_strength[np] += AIPOWER::Ship_Strength_Vs_Ships(i, np);
+                            player_strength[np] += AIPOWER::Ship_Strength_Vs_Ships(&game::current, legacy_world::Ship_Id(i), legacy_world::Player_Id(np));
                         }
                     }
 
                     uint16_t shield[4];
-                    AIPOWER::Ship_Strength_Vs_Planetary_Shield(i, shield);
+                    AIPOWER::Ship_Strength_Vs_Planetary_Shield(&game::current, legacy_world::Ship_Id(i), shield);
 
                     for (int j = 0; j < 4; ++j) {
                         shield_strength[j] += shield[j];
                     }
                 } else {
-                    enemy_strength[owner] += AIPOWER::Ship_Strength_Vs_Ships(i, player_idx);
+                    enemy_strength[owner] += AIPOWER::Ship_Strength_Vs_Ships(&game::current, legacy_world::Ship_Id(i), legacy_world::Player_Id(player_idx));
                 }
             }
         }
@@ -1873,10 +1874,10 @@ namespace COMBFIND {
                 uint32_t our_space_str = our_space_str_arr[owner];
                 uint32_t our_ground_str = our_ground_str_arr[shield_val];
 
-                uint32_t enemy_space_str_vs = AIPOWER::Colony_Space_Strength_Vs_Player(colony_idx, player_idx) & 0xFFFF;
+                uint32_t enemy_space_str_vs = AIPOWER::Colony_Space_Strength_Vs_Player(&game::current, legacy_world::Colony_Id(colony_idx), legacy_world::Player_Id(player_idx)) & 0xFFFF;
                 uint32_t enemy_space_str = enemy_fleet_space_str_arr[owner] + enemy_space_str_vs;
 
-                uint32_t enemy_ground_str_vs = AIPOWER::Colony_Ground_Strength_Vs_Player(colony_idx, player_idx) & 0xFFFF;
+                uint32_t enemy_ground_str_vs = AIPOWER::Colony_Ground_Strength_Vs_Player(&game::current, legacy_world::Colony_Id(colony_idx), legacy_world::Player_Id(player_idx)) & 0xFFFF;
                 uint32_t enemy_ground_str = enemy_ground_str_vs;
 
                 bool player_is_omni = false;
@@ -1907,7 +1908,7 @@ namespace COMBFIND {
                 }
 
                 if (is_valid) {
-                    uint32_t worth = (uint32_t)AIMOVE::Enemy_Colony_Worth_To_Player(colony_idx, player_idx);
+                    uint32_t worth = (uint32_t)AIMOVE::Enemy_Colony_Worth_To_Player(&AIDATA::state, &game::current, legacy_world::Colony_Id(colony_idx), legacy_world::Player_Id(player_idx));
 
                     if (enemy_space_str * 3 < our_space_str) {
                         our_space_str = 3;

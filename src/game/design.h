@@ -1,4 +1,6 @@
 #pragma once
+
+namespace COLCALC { struct s_government_bonus; }
 #include <cstdint>
 
 namespace DESIGN {
@@ -116,6 +118,7 @@ namespace DESIGN {
     int16_t __cdecl Current_Design_Structural_Points();
 
     void __cdecl Cost_Reduction_For_Govt_Type(int16_t player_idx, int32_t* cost);
+    void __cdecl Apply_Government_Cost_Reduction(int8_t government, int32_t* cost);
 
     int16_t __cdecl Current_Design_Armor_Absorption();
 

@@ -1,5 +1,7 @@
 #include "pch.h"
 
+#include "game/legacy_world.h"
+
 namespace {
     s_player players[MAX_PLAYERS];
     s_leader_data leaders[MAX_LEADERS];
@@ -26,6 +28,7 @@ namespace TEST_DIPLOMAC {
         MOX::NUM_COLONIES = 0;
         memset(diplodef::personality_relation_modifiers, 0,
             sizeof(diplodef::personality_relation_modifiers));
+        game::current = legacy_world::World();
 
         // The proposal roll and its following d30/d50 modifier roll are both 1.
         game_random::Set_Random_Seed(650);

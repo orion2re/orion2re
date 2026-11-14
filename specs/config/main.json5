@@ -4316,7 +4316,7 @@
       namespace: "ai",
       type: "bool",
       default: false,
-      bind_root: { header: "game/aidesign.h", symbol: "aidesign::allow_stealth_field" },
+      bind_root: { header: "game/aidesign.h", symbol: "aidesign::rules.allow_stealth_field" },
     },
 
     autobuild_rules: {
@@ -4331,7 +4331,7 @@
       group: "gameplay",
       namespace: "ai",
       type: "ai_autobuild_rules",
-      bind_root: { header: "game/aibuild.h", symbol: "AIBUILD::autobuild_rules" },
+      bind_root: { header: "game/aibuild.h", symbol: "AIBUILD::rules.autobuild" },
       default_source: "native",
       include_default_configuration: false,
     },
@@ -4348,7 +4348,7 @@
       group: "gameplay",
       namespace: "ai",
       type: "ai_strategic_production",
-      bind_root: { header: "game/aibuild.h", symbol: "AIBUILD::strategic_production" },
+      bind_root: { header: "game/aibuild.h", symbol: "AIBUILD::rules.strategic" },
       default_source: "native",
       include_default_configuration: false,
     },
@@ -4391,7 +4391,7 @@
       group: "gameplay",
       namespace: "ai",
       type: "ai_ship_design",
-      bind_root: { header: "game/aidesign.h", symbol: "aidesign::ship_design" },
+      bind_root: { header: "game/aidesign.h", symbol: "aidesign::rules.priorities" },
       default_source: "native",
     },
 
@@ -4402,7 +4402,7 @@
       examples: ["ai ship_design_allocations standard_beam_missile_x2 frigate beams = 50;"],
       group: "gameplay",
       namespace: "ai",
-      bind_root: { header: "game/aidesign.h", symbol: "aidesign::ship_design_allocations.profiles" },
+      bind_root: { header: "game/aidesign.h", symbol: "aidesign::rules.allocations.profiles" },
       type: {
         kind: "array", count: 8, index_base: 0, index_type: "ai_ship_design_allocation_profile",
         element: { type: {
@@ -4423,7 +4423,7 @@
       type: "uint8",
       constraints: { max: 4 },
       default: 3,
-      bind_root: { header: "game/aidesign.h", symbol: "aidesign::ship_design_bhg_chance" },
+      bind_root: { header: "game/aidesign.h", symbol: "aidesign::rules.black_hole_generator_chance" },
     },
 
     ship_design_stellar_chance: {
@@ -4436,7 +4436,7 @@
       type: "uint8",
       constraints: { max: 4 },
       default: 3,
-      bind_root: { header: "game/aidesign.h", symbol: "aidesign::ship_design_stellar_chance" },
+      bind_root: { header: "game/aidesign.h", symbol: "aidesign::rules.stellar_converter_chance" },
     },
 
     tech_priority: {
@@ -4507,8 +4507,8 @@
       type: "bool",
       default: false,
       bind_root: {
-        header: "game/aidudes.h",
-        symbol: "aidudes::builds_colony_bases_prewarp",
+        header: "game/aibuild.h",
+        symbol: "AIBUILD::rules.colony_bases_prewarp",
       },
     },
 
@@ -4577,7 +4577,7 @@
       default: 30,
       bind_root: {
         header: "game/aimove.h",
-        symbol: "AIMOVE::eel_spawn_frequency",
+        symbol: "AIMOVE::rules.eel_spawn_frequency",
       },
     },
 
@@ -4592,7 +4592,7 @@
       default: 4,
       bind_root: {
         header: "game/aimove.h",
-        symbol: "AIMOVE::max_eels",
+        symbol: "AIMOVE::rules.max_eels",
       },
     },
 
@@ -4638,7 +4638,7 @@
       namespace: "ai",
       bind_root: {
         header: "game/aitech.h",
-        symbol: "aitech::ai_hypertech_threshold",
+        symbol: "aitech::rules.hypertech_threshold",
       },
       type: {
         kind: "array",
@@ -5044,7 +5044,7 @@
       group: "gameplay",
       namespace: "ai",
       type: "uncolonized_planet_food_worth",
-      bind_root: { header: "game/aidata.h", symbol: "AIDATA::uncolonized_planet_food_worth" },
+      bind_root: { header: "game/aidata.h", symbol: "AIDATA::planet_valuation_rules.food" },
       default: { biological: 75, cybernetic: 38 },
     },
     uncolonized_planet_special_worth: {
@@ -5058,7 +5058,7 @@
       group: "gameplay",
       namespace: "ai",
       type: "uncolonized_planet_special_worth",
-      bind_root: { header: "game/aidata.h", symbol: "AIDATA::uncolonized_planet_special_worth" },
+      bind_root: { header: "game/aidata.h", symbol: "AIDATA::planet_valuation_rules.special" },
       default: { gold_deposits: 1280, gem_deposits: 2560, ancient_artifacts: 640, orion: 1600 },
     },
     production_worker_base: {

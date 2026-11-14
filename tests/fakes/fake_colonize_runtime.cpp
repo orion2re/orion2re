@@ -38,7 +38,7 @@ namespace MOX {
 }
 
 namespace AIDATA {
-    int32_t __cdecl Uncolonized_Planet_Worth_To_Player(s_planet_data*, s_player*) {
+    int32_t __cdecl Uncolonized_Planet_Worth_To_Player(const game::s_view*, s_planet_data*, s_player*) {
         return 0;
     }
 }

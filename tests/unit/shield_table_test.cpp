@@ -42,6 +42,16 @@ namespace {
 #include "game/design.h"
 #include "game/ship_config.h"
 
+namespace {
+    const game::s_view* AI_World_() {
+        static const game::s_view world{
+            .players = MOX::player,
+            .settings = &MOX::settings,
+        };
+        return &world;
+    }
+}
+
 namespace TEST_SHIELD_TABLE {
     void Reset_();
     s_combat_data* Combat_Ship_(int16_t ship_idx = 0);
@@ -909,11 +919,11 @@ DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "odd satellite hull allocation matches
     DOCTEST_CHECK(satellite->weapons[2].count == 1);
     DOCTEST_CHECK(satellite->weapons[3].count == 2);
 
-    int accuracy = AIPOWER::Base_Generic_Ocv(0) -
-                   AIPOWER::Base_Generic_Dcv(0) + 100;
+    int accuracy = AIPOWER::Base_Generic_Ocv(AI_World_(), legacy_world::Player_Id(0)) -
+                   AIPOWER::Base_Generic_Dcv(AI_World_(), legacy_world::Player_Id(0)) + 100;
     if (accuracy < 10) accuracy = 10;
     if (accuracy > 100) accuracy = 100;
-    const int shield = AIPOWER::Get_Best_Ship_Shield_Value(0);
+    const int shield = AIPOWER::Get_Best_Ship_Shield_Value(TECHDATA::shields, legacy_world::Player_Id(0));
     const int heavy_damage = 15 - shield > 0 ? 15 - shield : 0;
     const int normal_damage = 10 - shield > 0 ? 10 - shield : 0;
     const int missile_damage = 10 - shield > 0 ? 10 - shield : 0;
@@ -928,7 +938,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "odd satellite hull allocation matches
     if (expected_strength <= 1) expected_strength = 1;
     expected_strength = expected_strength * 75 / 100;
 
-    DOCTEST_CHECK(AIPOWER::Satelite_Strength_Vs_Ships(1, 0, 0) ==
+    DOCTEST_CHECK(AIPOWER::Satelite_Strength_Vs_Ships(AI_World_(), 1, legacy_world::Player_Id(0), legacy_world::Player_Id(0)) ==
                   expected_strength);
 }
 
