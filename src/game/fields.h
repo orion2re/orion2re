@@ -154,6 +154,9 @@ struct s_field {
 #pragma pack(pop)
 
 namespace fields {
+    inline constexpr int16_t INPUT_HOME = -30001;
+    inline constexpr int16_t INPUT_END = -30002;
+
     inline constexpr int32_t NON_ENTITY_FIELDS_COUNT = 250;
     inline constexpr int32_t MAX_ENTITY_FIELDS_COUNT =
         MAX_SHIPS > MAX_COLONIES
@@ -162,6 +165,7 @@ namespace fields {
     inline constexpr int32_t MAX_FIELDS_COUNT =
         NON_ENTITY_FIELDS_COUNT + MAX_ENTITY_FIELDS_COUNT;
     static_assert(MAX_FIELDS_COUNT <= INT16_MAX, "field indices do not fit in int16_t");
+    static_assert(MAX_FIELDS_COUNT < -INPUT_HOME, "navigation commands overlap right-click field IDs");
 
     extern MOX2::action_func_t update_function;
     extern uint16_t auto_active_flag;

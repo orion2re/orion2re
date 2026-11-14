@@ -995,6 +995,34 @@ DOCTEST_TEST_CASE("interpret keyboard input resolves lowercase hotkey without ch
     DOCTEST_CHECK(resolved_field == field_idx);
 }
 
+DOCTEST_TEST_CASE("Home and End produce list navigation commands outside text input") {
+    Fields_Test_Reset reset;
+    const int16_t keys[] = {0x47E0, 0x4FE0};
+    const int16_t commands[] = {fields::INPUT_HOME, fields::INPUT_END};
+
+    for (int index = 0; index < 2; ++index) {
+        int16_t resolved_field = 0;
+        test::fakes::g_read_key_value = keys[index];
+        DOCTEST_CHECK(fields::Interpret_Keyboard_Input(&resolved_field) == keys[index]);
+        DOCTEST_CHECK(resolved_field == commands[index]);
+
+        test::fakes::g_keyboard_status = 1;
+        DOCTEST_CHECK(fields::Interpret_Mouse_Input() == commands[index]);
+
+        fields::active_input_field_number = 1;
+        resolved_field = 0;
+        DOCTEST_CHECK(fields::Interpret_Keyboard_Input(&resolved_field) == keys[index]);
+        DOCTEST_CHECK(resolved_field == 0);
+        fields::active_input_field_number = -1;
+
+        fields::input_field_active = 1;
+        resolved_field = 0;
+        DOCTEST_CHECK(fields::Interpret_Keyboard_Input(&resolved_field) == keys[index]);
+        DOCTEST_CHECK(resolved_field == 0);
+        fields::input_field_active = 0;
+    }
+}
+
 DOCTEST_TEST_CASE("interpret keyboard input suppresses hotkey search while continuous input is active") {
     Fields_Test_Reset reset;
 

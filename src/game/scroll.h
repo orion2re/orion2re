@@ -1,6 +1,9 @@
 #pragma once
 
 namespace SCROLL {
+    /** Handles Home/End commands, keeping the visible row and scroll thumb in sync. */
+    bool __cdecl Handle_List_Navigation(s_scroll_bar* scroll_bar, int16_t input);
+
     /**
      * Draws a vertical scroll bar and updates its state from mouse input.
      * @param scroll_bar Scroll bar state to update and render.

@@ -1,6 +1,23 @@
 #include "pch.h"
 
 namespace SCROLL {
+    bool __cdecl Handle_List_Navigation(s_scroll_bar* scroll_bar, int16_t input) {
+        if (input != fields::INPUT_HOME && input != fields::INPUT_END) {
+            return false;
+        }
+
+        int16_t last_page = std::max(0, scroll_bar->total_rows - scroll_bar->visible_rows);
+        scroll_bar->first_visible_row = input == fields::INPUT_HOME ? 0 : last_page;
+        scroll_bar->thumb_height_px = Get_Vertical_Scroll_Bar_Height(scroll_bar);
+        int16_t half_height = scroll_bar->thumb_height_px / 2;
+        scroll_bar->thumb_center_y = scroll_bar->first_visible_row == 0
+            ? scroll_bar->track_len_px - half_height
+            : half_height;
+        scroll_bar->last_thumb_center_y = scroll_bar->thumb_center_y;
+        scroll_bar->thumb_center_y_copy = scroll_bar->thumb_center_y;
+        return true;
+    }
+
     int8_t __cdecl Set_Vertical_Scroll_Bar_Maxima(s_scroll_bar* scroll_bar) {
         int16_t half_height = scroll_bar->thumb_height_px / 2;
 

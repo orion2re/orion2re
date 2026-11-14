@@ -305,8 +305,8 @@ namespace COLSUM {
         return_hotkey = fields::Add_Hot_Key(" ");
         stored_production_hotkey = fields::Add_Hot_Key("t");
 
-        x_fields[1] = fields::Add_Button_Field(619, 15, ESTRINGS::E_Strings(12), anims[2], ESTRINGS::E_Strings(137), 40);
-        x_fields[2] = fields::Add_Button_Field(619, 316, ESTRINGS::E_Strings(12), anims[3], ESTRINGS::E_Strings(11), 40);
+        x_fields[1] = fields::Add_Button_Field(619, 15, ESTRINGS::E_Strings(12), anims[2], "-", 40);
+        x_fields[2] = fields::Add_Button_Field(619, 316, ESTRINGS::E_Strings(12), anims[3], "+", 40);
         x_fields[3] = fields::Add_Button_Field(531, 445, ESTRINGS::E_Strings(12), anims[1], ESTRINGS::E_Strings(40), 40);
         x_fields[4] = fields::Add_Hot_Key(ESTRINGS::E_Strings(135));
         x_fields[5] = fields::Add_Multi_Button_Field(89, 446, ESTRINGS::E_Strings(12), anims[4], &g_sort_index, 0, ESTRINGS::E_Strings(384), 41);
@@ -761,6 +761,15 @@ namespace COLSUM {
 
     bool __cdecl Evaluate_Input(int16_t* field_ptr, int16_t* scan_val) {
         int16_t field = *field_ptr;
+
+        if (field == fields::INPUT_HOME || field == fields::INPUT_END) {
+            int16_t last_page = std::max(0, COLXPORT::N_Colonies(MOX::PLAYER_NUM) - 10);
+            first = field == fields::INPUT_HOME ? 0 : last_page;
+            slider_bar_position = last_page - first;
+            COLONY::scanned_pop = -1;
+            COLONY::full_draw = 1;
+            return true;
+        }
 
         for (int preset = 0; preset < BUILD_QUEUE::PRESET_COUNT; ++preset) {
             if (field == colony_build_queue_hotkeys[preset] &&

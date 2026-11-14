@@ -1567,6 +1567,10 @@ namespace DESBOX {
                 SCROLL::Scroll_Down_One_Item(MOX::scroll_bar);
             }
 
+            if (SCROLL::Handle_List_Navigation(MOX::scroll_bar, input)) {
+                wait_ctr = 0;
+            }
+
             if (input == MOX::replacement_box_accept_button) {
                 Update_Weapon_Replacement(&done_flag, field_item_chosen, replacement_slot);
             }

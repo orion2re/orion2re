@@ -2432,6 +2432,17 @@ namespace fields {
     int16_t __cdecl Interpret_Keyboard_Input(int16_t* field_idx) {
         int16_t key_val = (int16_t)key::Read_Key();
 
+        if (active_input_field_number == -1 && input_field_active == 0) {
+            if (key_val == 0x47E0) {
+                *field_idx = INPUT_HOME;
+                return key_val;
+            }
+            if (key_val == 0x4FE0) {
+                *field_idx = INPUT_END;
+                return key_val;
+            }
+        }
+
         if (fields_count <= selected_count) {
             selected_count = 0;
         }
