@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Orion2 Redone
+Comment=Restoration of the Master of Orion II game engine
+Exec=orion2re
+Icon=orion2re
+Terminal=false
+Categories=Game;StrategyGame;
+StartupWMClass=orion2re
