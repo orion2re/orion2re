@@ -120,9 +120,16 @@ namespace HOMEGEN {
 
             if (!Star_Has_Planet(target_star_idx)) {
                 s_star_data* target_star = &MOX::star[target_star_idx];
-                if (!HAROLD::Habitable_Spectral_Class(target_star_idx)) {
+                const bool generate_normal_satellites =
+                    !HAROLD::Habitable_Spectral_Class(target_star_idx);
+                if (generate_normal_satellites) {
                     target_star->spectral_class =
                         MAPGEN::Generate_Non_Black_Hole_Spectral_Class(MOX::settings.galaxy_age);
+                }
+                if (target_star->spectral_class >= STAR_CLASS_DWARF) {
+                    target_star->spectral_class = STAR_CLASS_M;
+                }
+                if (generate_normal_satellites) {
                     Generate_Normal_Satellites(target_star_idx);
                 }
 
