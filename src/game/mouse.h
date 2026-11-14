@@ -13,21 +13,18 @@ namespace mouse {
     /// @param mouse_buttons Current mouse button bitmask.
     void __cdecl User_Mouse_Handler(int16_t mouse_x, int16_t mouse_y, uint16_t mouse_buttons);
 
-    /// Records a mouse wheel event: updates the pointer position and accumulates
-    /// the wheel delta until the fields layer consumes it.
-    /// @param mouse_x Current pointer X coordinate.
-    /// @param mouse_y Current pointer Y coordinate.
-    /// @param wheel_x Horizontal wheel delta in notches (positive = right).
-    /// @param wheel_y Vertical wheel delta in notches (positive = up).
+    struct s_wheel_event {
+        int16_t mouse_x;
+        int16_t mouse_y;
+        float wheel_x;
+        float wheel_y;
+    };
+
+    /// Queues wheel input at its event position; positive deltas mean right/up.
     void __cdecl User_Mouse_Wheel_Handler(int16_t mouse_x, int16_t mouse_y, float wheel_x, float wheel_y);
 
-    /// Takes whole wheel steps out of the pending delta, keeping any fractional
-    /// remainder for the next call. Returns nonzero when a whole step is pending.
-    /// @param steps_x Receives the horizontal whole-step count.
-    /// @param steps_y Receives the vertical whole-step count.
-    int16_t __cdecl Consume_Mouse_Wheel_Delta(int16_t* steps_x, int16_t* steps_y);
+    int16_t __cdecl Consume_Mouse_Wheel_Event(s_wheel_event* event);
 
-    /// Discards any pending wheel delta (e.g. when the fields are torn down).
     void __cdecl Clear_Mouse_Wheel_Delta();
 
     /// Returns and clears the primary mouse-buffer flag.

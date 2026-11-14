@@ -223,8 +223,6 @@ DOCTEST_TEST_CASE("colonies list opens at the top when there are more colonies t
     Set_Colony_Count_(21);
     DOCTEST_CHECK(COLXPORT::N_Colonies(MOX::PLAYER_NUM) == 21);
 
-    // The zeroed statics are the buggy entry state: without the reset the
-    // first Update_First computes first = 21 - 0 - 10 = 11, the bottom.
     COLSUM::first = 0;
     COLSUM::slider_bar_position = 0;
 

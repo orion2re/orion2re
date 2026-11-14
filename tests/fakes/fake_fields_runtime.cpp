@@ -103,6 +103,7 @@ namespace test::fakes {
         video::screen_window_y2 = 479;
 
         platform::Reset_Exit();
+        fields::Reset_Mouse_Wheel_Input();
         fields::Clear_Fields();
         fields::help_list_active = 0;
         fields::help_list_count = 0;

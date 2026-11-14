@@ -1753,6 +1753,7 @@ orion2re_add_unit_test(test_fields
     PRODUCTION_SOURCES
         src/game/exitm.cpp
         src/game/fields.cpp
+        src/game/mouse_wheel.cpp
     FAKE_SOURCES
         tests/fakes/fake_animate.cpp
         tests/fakes/fake_fields_runtime.cpp
@@ -1763,6 +1764,13 @@ orion2re_add_unit_test(test_fields
         tests/fakes/fake_textbox.cpp
         tests/fakes/fake_video.cpp
     LINK_SDL
+)
+
+orion2re_add_unit_test(test_mouse_wheel
+    SOURCES
+        tests/unit/mouse_wheel_test.cpp
+    PRODUCTION_SOURCES
+        src/game/mouse_wheel.cpp
 )
 
 orion2re_add_unit_test(test_router_protocol

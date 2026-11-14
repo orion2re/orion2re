@@ -285,11 +285,7 @@ namespace COLSUM {
     }
 
     void __cdecl Reset_List_Scroll() {
-        // The list opens at the top. The slider is inverted (its maximum
-        // shows the first rows), so the top position is slider =
-        // num_colonies - visible_rows. The statics start at zero, and
-        // without this the first Update_First computes
-        // first = num_colonies - 10, opening the list at the bottom.
+        // Vertical scrollbar values increase toward the top.
         const int16_t num_colonies = COLXPORT::N_Colonies(MOX::PLAYER_NUM);
         first = 0;
         slider_bar_position = (num_colonies >= 10) ? (num_colonies - 10) : -1;

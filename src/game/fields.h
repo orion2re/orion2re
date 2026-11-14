@@ -483,30 +483,17 @@ namespace fields {
     void __cdecl Increment_Scroll_Bar(int16_t field_idx);
     void __cdecl Decrement_Scroll_Bar(int16_t field_idx);
 
-    /// Moves a scroll field's value by whole wheel notches. Positive steps raise
-    /// the value (wheel up / right), negative steps lower it. One notch moves
-    /// max(1, range / 10) units, clamped to [return_value, set_value].
+    /// Steps by max(1, range / 10), clamped to the field's limits.
     void __cdecl Step_Scroll_Bar(int16_t field_idx, int16_t steps);
 
-    /// Moves the selection of the modal list containing the given string-list
-    /// field by whole wheel notches, skipping rows that are not selectable.
-    /// Positive steps move toward earlier items (wheel up), negative steps
-    /// toward later items (wheel down). Returns nonzero when the selection moved.
+    /// Positive steps select earlier items, skipping disabled rows.
     int16_t __cdecl Move_List_Selection(int16_t hovered_field_idx, int16_t steps);
 
-    /// Consumes any pending mouse wheel delta and applies it to the field under
-    /// the cursor (a scrollbar), the lone scrollbar on this screen, or the open
-    /// modal list's selection. Returns the scrolled field index (> 0), 0 when no
-    /// wheel delta is pending, or -1 when a delta was consumed without a scroll
-    /// return (list selection moved, or no scrollable target on this screen).
+    /// Returns a scrolled field, 0 for no event, or -1 for a consumed event.
     int16_t __cdecl Handle_Mouse_Wheel();
 
-    /// Returns nonzero while a wheel move holds the modal list selection against
-    /// the hover scan (the hover wins again once the mouse moves to another row).
-    int16_t __cdecl Mouse_Wheel_List_Selection_Held();
-
-    /// Clears the wheel-held list selection (called when the fields are torn down).
-    void __cdecl Clear_Mouse_Wheel_List_Selection_Hold();
+    /// Clears queued events and fractional movement when the input context changes.
+    void __cdecl Reset_Mouse_Wheel_Input();
 
     // Type 4 is the older inline input field renderer/editor.
     // It uses detail.input, including input_mode and a cursor color ramp.

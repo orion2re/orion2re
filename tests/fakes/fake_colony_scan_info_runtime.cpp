@@ -112,8 +112,6 @@ namespace COLONY {
 namespace COLXPORT {
     int16_t* g_colony_list_ptr;
 
-    // Test fake mirroring src/game/colxport.cpp: count the player's
-    // non-outpost colonies.
     int16_t __cdecl N_Colonies(int16_t player_idx) {
         int16_t colony_count = 0;
         for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {

@@ -38,7 +38,6 @@ namespace platform {
             uint16_t mouse_buttons;
             uint32_t key_code;
             uint32_t scan_code;
-            // Wheel delta in notches, already flipped for natural scrolling.
             float wheel_x;
             float wheel_y;
         };
@@ -224,14 +223,11 @@ namespace platform {
 
             SDL_LockMutex(g_input_queue_mutex);
 
-            // Consecutive wheel notches coalesce into one event so a
-            // high-resolution wheel cannot flood the queue; the deltas add up.
             if (g_input_queue_read != g_input_queue_write) {
                 const uint16_t last_index = Previous_Input_Queue_Index(g_input_queue_write);
                 s_input_event& last_event = g_input_event_queue[last_index];
-                if (last_event.type == INPUT_EVENT_WHEEL) {
-                    last_event.mouse_x = mouse_x;
-                    last_event.mouse_y = mouse_y;
+                if (last_event.type == INPUT_EVENT_WHEEL &&
+                    last_event.mouse_x == mouse_x && last_event.mouse_y == mouse_y) {
                     last_event.wheel_x += wheel_x;
                     last_event.wheel_y += wheel_y;
                     SDL_UnlockMutex(g_input_queue_mutex);
