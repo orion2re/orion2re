@@ -28,7 +28,6 @@ namespace game {
         const int16_t* planet_count = nullptr;
         const int32_t* stardate = nullptr;
         const int16_t* combat_x = nullptr;
-        uint32_t* random_seed = nullptr;
 
         int32_t Player_Count() const {
             return player_count == nullptr ? 0 : *player_count;

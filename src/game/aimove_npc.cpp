@@ -191,7 +191,7 @@ namespace AIMOVE {
             }
             if (npc_dest[i].distance_parsecs != 0 && npc_dest[i].distance_parsecs < 20) {
                 valid_count++;
-                if (game_random::Random_From_Seed(world->random_seed, valid_count) == 1) {
+                if (game_random::Random(valid_count) == 1) {
                     destination = npc_dest[i].star_id;
                 }
             }

@@ -19,7 +19,6 @@ namespace legacy_world {
             &MOX::planet_count,
             &MOX::stardate,
             &MOX::cur_combat_x,
-            &game_random::random_seed,
         };
     }
 } // namespace legacy_world

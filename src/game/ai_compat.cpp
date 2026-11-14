@@ -22,16 +22,16 @@ namespace ai_compat {
         return ship_list && SHIPMOVE::Order_Fleet_Move(*ship_list, *target, result);
     }
 
-    void Shuffle_Ships(uint32_t* seed, std::span<game::id_ship> ships) {
+    void Shuffle_Ships(std::span<game::id_ship> ships) {
         for (uint32_t i = 0; i < ships.size(); ++i) {
-            const uint32_t target = i + game_random::Random_From_Seed(seed, (uint32_t)ships.size() - i) - 1;
+            const uint32_t target = i + game_random::Random((uint32_t)ships.size() - i) - 1;
             std::swap(ships[i], ships[target]);
         }
     }
 
-    void Shuffle_Stars(uint32_t* seed, std::span<game::id_star> stars) {
+    void Shuffle_Stars(std::span<game::id_star> stars) {
         for (uint32_t i = 0; i < stars.size(); ++i) {
-            const uint32_t target = i + game_random::Random_From_Seed(seed, (uint32_t)stars.size() - i) - 1;
+            const uint32_t target = i + game_random::Random((uint32_t)stars.size() - i) - 1;
             std::swap(stars[i], stars[target]);
         }
     }

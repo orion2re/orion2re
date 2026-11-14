@@ -146,7 +146,6 @@ DOCTEST_TEST_CASE("strategic AI input diagnostics identify the failing requireme
     int16_t players = 1;
     int16_t count = 0;
     int32_t date = 35000;
-    uint32_t seed = 1;
     game::s_view world{
         .players = &player,
         .ships = &ship,
@@ -161,14 +160,12 @@ DOCTEST_TEST_CASE("strategic AI input diagnostics identify the failing requireme
         .colony_count = &count,
         .planet_count = &count,
         .stardate = &date,
-        .random_seed = &seed,
     };
     DOCTEST_CHECK(AIDATA::Validate_Inputs(&world) == nullptr);
     world.ship_count = nullptr;
     DOCTEST_CHECK(std::string(AIDATA::Validate_Inputs(&world)) == "invalid ship count");
     world.ship_count = &count;
-    world.random_seed = nullptr;
-    DOCTEST_CHECK(std::string(AIDATA::Validate_Inputs(&world)) == "missing random seed");
+    DOCTEST_CHECK(AIDATA::Validate_Inputs(&world) == nullptr);
 }
 
 DOCTEST_TEST_CASE("production queue removal keeps colony identities and queue positions distinct") {

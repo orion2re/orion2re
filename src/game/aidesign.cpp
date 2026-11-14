@@ -462,9 +462,9 @@ namespace aidesign {
         }
 
         int32_t arc0_threshold = (int32_t)r_base + (int32_t)spec0_mod_count * 20;
-        if ((int32_t)game_random::Random_From_Seed(world->random_seed, 100) < arc0_threshold) {
+        if ((int32_t)game_random::Random(100) < arc0_threshold) {
             int32_t arc0_inner_threshold = (int32_t)(r_base / 2) + (int32_t)spec0_mod_count * 20;
-            if ((int32_t)game_random::Random_From_Seed(world->random_seed, 100) < arc0_inner_threshold) {
+            if ((int32_t)game_random::Random(100) < arc0_inner_threshold) {
                 *arc0 = WEAPON_FIRING_ARC_360;
             } else {
                 *arc0 = WEAPON_FIRING_ARC_FORWARD_EXTENDED;
@@ -472,12 +472,12 @@ namespace aidesign {
         }
 
         int32_t arc1_threshold = (int32_t)spec1_mod_count * 20 + (int32_t)(r_base / 2);
-        if ((int32_t)game_random::Random_From_Seed(world->random_seed, 100) < arc1_threshold) {
+        if ((int32_t)game_random::Random(100) < arc1_threshold) {
             *arc1 = WEAPON_FIRING_ARC_FORWARD_EXTENDED;
         }
 
         int32_t arc2_threshold = (int32_t)spec2_mod_count * 20 + (int32_t)(r_base / 4);
-        if ((int32_t)game_random::Random_From_Seed(world->random_seed, 100) < arc2_threshold) {
+        if ((int32_t)game_random::Random(100) < arc2_threshold) {
             *arc2 = WEAPON_FIRING_ARC_FORWARD_EXTENDED;
         }
     }
@@ -681,7 +681,7 @@ namespace aidesign {
         switch ((uint8_t)player->ship_design_theme) {
             case AI_SHIP_DESIGN_THEME_BALANCED:
             case AI_SHIP_DESIGN_THEME_HUMAN: {
-                switch ((int16_t)game_random::Random_From_Seed(world->random_seed, 20)) {
+                switch ((int16_t)game_random::Random(20)) {
                     case 1:
                     case 2:
                     case 3:
@@ -715,7 +715,7 @@ namespace aidesign {
             }
 
             case AI_SHIP_DESIGN_THEME_CARRIER: {
-                switch ((int16_t)game_random::Random_From_Seed(world->random_seed, 20)) {
+                switch ((int16_t)game_random::Random(20)) {
                     case 1:
                         return get_default_class();
                     case 2:
@@ -748,7 +748,7 @@ namespace aidesign {
             }
 
             case AI_SHIP_DESIGN_THEME_MISSILE:
-                switch ((int16_t)game_random::Random_From_Seed(world->random_seed, 20)) {
+                switch ((int16_t)game_random::Random(20)) {
                     case 1:
                         result = get_default_class();
                         break;
@@ -787,7 +787,7 @@ namespace aidesign {
                 [[fallthrough]];
 
             case AI_SHIP_DESIGN_THEME_SPECIAL:
-                switch ((int16_t)game_random::Random_From_Seed(world->random_seed, 20)) {
+                switch ((int16_t)game_random::Random(20)) {
                     case 1:
                         return get_default_class();
                     case 2:
@@ -1388,13 +1388,13 @@ namespace aidesign {
         ship_class = Get_Ship_Class(world, player_idx);
 
         if (hull_idx == SHIP_SIZE_DOOM_STAR && (player->tech_applications[TECH_APP_STELLAR_CONVERTER] == TECH_RESEARCH_STATUS_RESEARCHED)) {
-            if (game_random::Random_From_Seed(world->random_seed, 4) < (uint32_t)(1 + design_rules.stellar_converter_chance)) {
+            if (game_random::Random(4) < (uint32_t)(1 + design_rules.stellar_converter_chance)) {
                 ship_class = 6;
             }
         }
 
         if (player->tech_applications[TECH_APP_BLACK_HOLE_GENERATOR] == TECH_RESEARCH_STATUS_RESEARCHED && hull_idx > SHIP_SIZE_HUGE) {
-            if (game_random::Random_From_Seed(world->random_seed, 4) < (uint32_t)(1 + design_rules.black_hole_generator_chance)) {
+            if (game_random::Random(4) < (uint32_t)(1 + design_rules.black_hole_generator_chance)) {
                 ship_class = 6;
             }
         }
@@ -1404,7 +1404,7 @@ namespace aidesign {
         if (hull_idx == SHIP_SIZE_DOOM_STAR) {
             design->picture_num = 0x2b; /* '+' */
         } else {
-            design->picture_num = (int8_t)game_random::Random_From_Seed(world->random_seed, 8) + (int8_t)hull_idx * 8 - 1;
+            design->picture_num = (int8_t)game_random::Random(8) + (int8_t)hull_idx * 8 - 1;
         }
         uint8_t player_race = player->race;
         DESIGN::Get_Ship_Design_Name(player_race, hull_idx, (int16_t)(design->picture_num % 8), design->name, sizeof(design->name));

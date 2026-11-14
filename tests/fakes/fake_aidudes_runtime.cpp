@@ -27,8 +27,6 @@ namespace TEST_AIDUDES {
         world.settings = &MOX::settings;
         world.ship_count = &MOX::NUM_SHIPS;
         world.stardate = &MOX::stardate;
-        static uint32_t seed;
-        world.random_seed = &seed;
         return &world;
     }
 
@@ -182,7 +180,6 @@ namespace maintain {
 }
 
 namespace game_random {
-    uint32_t __cdecl Random_From_Seed(uint32_t*, uint32_t maximum) { return Random(maximum); }
     uint32_t __cdecl Random(uint32_t maximum) {
         return maximum == 900 ? 1 : 9;
     }

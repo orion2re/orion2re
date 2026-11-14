@@ -255,7 +255,7 @@ namespace aidudes {
                     }
                 }
 
-                auto choice = RUSS::Choose_Weighted_Index_U8(world->random_seed, weights, BUILDING_COUNT + 1);
+                auto choice = RUSS::Choose_Weighted_Index_U8(weights, BUILDING_COUNT + 1);
                 if (!choice || *choice < BUILDING_COUNT) {
                     const auto legacy_colony = legacy_world::Index(current_info->colony_id);
                     if (!legacy_colony) continue;
@@ -336,7 +336,7 @@ namespace aidudes {
 
         if (plr->surplus_freighters < 0 || plr->surplus_food < 0) {
             int32_t threshold = 1 - (int32_t)world->settings->game_difficulty * (int32_t)plr->surplus_freighters;
-            int32_t roll = (int32_t)game_random::Random_From_Seed(world->random_seed, 50);
+            int32_t roll = (int32_t)game_random::Random(50);
 
             if (threshold >= roll) {
                 plr->n_freighters += 5;
@@ -684,7 +684,7 @@ namespace aidudes {
         }
 
         if (freighter_shortage_flag) {
-            if ((int)game_random::Random_From_Seed(world->random_seed, 10) <= (int)world->settings->game_difficulty) {
+            if ((int)game_random::Random(10) <= (int)world->settings->game_difficulty) {
                 ctx->p_ai->n_freighters += 5;
             }
         }
