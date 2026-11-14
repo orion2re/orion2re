@@ -136,6 +136,17 @@ namespace fonts {
 
     int16_t __cdecl Get_Font_Height();
 
+    /* The ink rows of a string in the current font style: the first
+     * and last rows (relative to the string's top) that contain a
+     * drawn pixel, scanning the glyphs' row streams. A glyph's cell
+     * is taller than its ink -- capitals sit in the top rows with
+     * empty rows below -- so centring by Get_Font_Height() puts the
+     * visible text high. Both outputs are -1 when the string has
+     * no ink (empty string, or no font loaded).
+     */
+    void __cdecl Get_String_Ink_Rows(const char* str, int16_t* top,
+        int16_t* bottom);
+
     uint16_t __cdecl Get_Font_Vertical_Spacing();
 
     void __cdecl Set_Font_Style_Outline(int16_t style, s_colors* colors);

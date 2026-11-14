@@ -23,6 +23,7 @@ namespace test::fakes {
     std::vector<Forced_Cursor_Pos_Call> g_forced_cursor_pos_calls;
     std::vector<Line_Call> g_line_calls;
     std::vector<Fill_Call> g_fill_calls;
+    std::vector<Dithered_Fill_Call> g_dithered_fill_calls;
 
     int16_t g_anim_width = 20;
     int16_t g_anim_height = 10;
@@ -66,6 +67,7 @@ namespace test::fakes {
         g_forced_cursor_pos_calls.clear();
         g_line_calls.clear();
         g_fill_calls.clear();
+        g_dithered_fill_calls.clear();
 
         g_anim_width = 20;
         g_anim_height = 10;
@@ -426,6 +428,10 @@ namespace graphics {
 
     void __cdecl Fill(int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint8_t color) {
         test::fakes::g_fill_calls.push_back({x1, y1, x2, y2, color});
+    }
+
+    void __cdecl Dithered_Fill(int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint8_t base, uint8_t speckle, uint8_t density) {
+        test::fakes::g_dithered_fill_calls.push_back({x1, y1, x2, y2, base, speckle, density});
     }
 
     void __cdecl Darken_Fill(int16_t x1, int16_t y1, int16_t x2, int16_t y2) {

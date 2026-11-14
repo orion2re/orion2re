@@ -240,6 +240,43 @@ namespace config {
             synchronized_identity_ready = false;
         }
 
+        // Builds the document a candidate mod set would be loaded from:
+        // the active entry document with its enable lines replaced by the
+        // candidate set, in order. The file itself is untouched.
+        bool Build_Mod_Set_Document(const std::vector<std::string>& enabled_mods,
+            s_cfg_document* document,
+            s_cfg_diagnostic* diagnostic) {
+            s_cfg_document active;
+            if (vfs::File_Exists(active_config.entry_path.c_str()) != 0 &&
+                !Load_Document(active_config.entry_path, &active, diagnostic)) {
+                return false;
+            }
+            document->statements.clear();
+            document->source_revision = 0;
+            for (const s_cfg_statement& statement : active.statements) {
+                if (statement.kind != CFG_STATEMENT_ENABLE) {
+                    document->statements.push_back(statement);
+                }
+            }
+            for (const std::string& package_id : enabled_mods) {
+                if (package_id.empty()) {
+                    diagnostic->message = "mod set contains an empty package ID";
+                    return false;
+                }
+                s_cfg_statement enable;
+                enable.kind = CFG_STATEMENT_ENABLE;
+                enable.statement_number =
+                    static_cast<uint32_t>(document->statements.size() + 1);
+                enable.location.source = active_config.entry_path;
+                enable.argument.kind = CFG_TOKEN_IDENTIFIER;
+                enable.argument.location.source = active_config.entry_path;
+                enable.argument.raw = package_id;
+                enable.argument.value = package_id;
+                document->statements.push_back(std::move(enable));
+            }
+            return true;
+        }
+
     } // namespace
 
     bool Load_Config_File(const char* entry_path, const char* package_id, s_effective_config* effective, s_cfg_diagnostic* diagnostic) {
@@ -259,7 +296,9 @@ namespace config {
         if (!Load_Document(normalized_entry, &document, diagnostic)) {
             return false;
         }
-        return Apply_Config_With_Mods(document, package_id, effective, diagnostic, Load_Document);
+        return Apply_Config_With_Mods(document, package_id, effective, diagnostic, Load_Document,
+            nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+            CONFIG_PRECEDENCE_ENTRY_OVERRIDES_PACKAGES);
     }
 
     bool Load_Startup_Config(const char* entry_path, const char* package_id, s_effective_config* effective, bool* loaded, s_cfg_diagnostic* diagnostic, bool require_file) {
@@ -309,12 +348,20 @@ namespace config {
         }
         std::vector<std::string> package_order;
         std::vector<s_mod_requirement> required_mods;
-        if (!Apply_Config_With_Mods(document, package_id, effective, diagnostic, Load_Document, &package_order, nullptr, nullptr, nullptr, nullptr, &required_mods)) {
+        if (!Apply_Config_With_Mods(document, package_id, effective, diagnostic, Load_Document, &package_order, nullptr, nullptr, nullptr, nullptr, &required_mods, nullptr, nullptr, nullptr, CONFIG_PRECEDENCE_ENTRY_OVERRIDES_PACKAGES)) {
             return false;
         }
         active_config = {};
         active_config.baseline.effective = *effective;
         active_config.entry_path = normalized_entry;
+        // The one config: record the real file the entry was loaded from,
+        // so loading, saving and the settings UI all name the same file.
+        // A zip-only entry has no real file and leaves this empty.
+        char resolved_entry_path[CONFIG_MAX_PATH] = {};
+        if (vfs::Resolve_Read_Path_No_Zip(normalized_entry.c_str(),
+                resolved_entry_path, sizeof(resolved_entry_path)) != 0) {
+            active_config.entry_filesystem_path = resolved_entry_path;
+        }
         active_config.base_package = package_id;
         active_config.package_order = std::move(package_order);
         active_config.required_mods = std::move(required_mods);
@@ -849,7 +896,7 @@ namespace config {
         }
         s_effective_config candidate;
         std::vector<std::string> package_order;
-        if (!Stage_Config_With_Mods(document, active_config.base_package.c_str(), &candidate, &package_order, diagnostic, Load_Document)) {
+        if (!Stage_Config_With_Mods(document, active_config.base_package.c_str(), &candidate, &package_order, diagnostic, Load_Document, nullptr, CONFIG_PRECEDENCE_ENTRY_OVERRIDES_PACKAGES)) {
             return false;
         }
         if (package_order != active_config.package_order) {
@@ -917,6 +964,71 @@ namespace config {
     bool Reload_All_Active_Config_Groups(s_cfg_diagnostic* diagnostic) {
         return Reload_Active_Config_Groups(
             false, diagnostic, nullptr, Reload_All_Config_Groups);
+    }
+
+    bool Preview_Enabled_Mods(const std::vector<std::string>& enabled_mods,
+        s_mod_set_preview* preview,
+        s_cfg_diagnostic* diagnostic) {
+        if (preview == nullptr || diagnostic == nullptr) return false;
+        *preview = {};
+        *diagnostic = {};
+        if (!active_config_ready) {
+            diagnostic->message = "active configuration is not initialized";
+            return false;
+        }
+        s_cfg_document document;
+        if (!Build_Mod_Set_Document(enabled_mods, &document, diagnostic)) {
+            return false;
+        }
+        s_effective_config candidate;
+        std::vector<std::string> package_order;
+        std::vector<s_mod_requirement> resolved;
+        if (!Stage_Config_With_Mods(document, active_config.base_package.c_str(),
+                &candidate, &package_order, diagnostic, Load_Document, &resolved,
+                CONFIG_PRECEDENCE_ENTRY_OVERRIDES_PACKAGES)) {
+            return false;
+        }
+        preview->resolved_mods = std::move(resolved);
+        preview->package_order = std::move(package_order);
+        return true;
+    }
+
+    bool Apply_Enabled_Mods(const std::vector<std::string>& enabled_mods,
+        s_cfg_diagnostic* diagnostic) {
+        if (diagnostic == nullptr) return false;
+        *diagnostic = {};
+        if (!active_config_ready) {
+            diagnostic->message = "active configuration is not initialized";
+            return false;
+        }
+        if (loaded_game_config) {
+            diagnostic->message =
+                "cannot change mods while a game is loaded; return to the main menu";
+            return false;
+        }
+        s_cfg_document document;
+        if (!Build_Mod_Set_Document(enabled_mods, &document, diagnostic)) {
+            return false;
+        }
+        s_effective_config effective;
+        std::vector<std::string> package_order;
+        std::vector<s_mod_requirement> resolved;
+        if (!Apply_Config_With_Mods(document, active_config.base_package.c_str(),
+                &effective, diagnostic, Load_Document, &package_order, nullptr,
+                nullptr, nullptr, nullptr, &resolved, nullptr,
+                &active_config.baseline.effective.state, nullptr,
+                CONFIG_PRECEDENCE_ENTRY_OVERRIDES_PACKAGES)) {
+            return false;
+        }
+        active_config.baseline.effective = std::move(effective);
+        active_config.package_order = std::move(package_order);
+        active_config.required_mods = std::move(resolved);
+        // Returning to the main menu restores the launch config, so the
+        // launch config must follow the picked set or the apply is undone.
+        launch_config = active_config;
+        launch_document = std::move(document);
+        Invalidate_Snapshot_Cache();
+        return true;
     }
 
 } // namespace config

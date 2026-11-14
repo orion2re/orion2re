@@ -549,6 +549,36 @@ namespace fields {
 
     void __cdecl Release_Fields();
 
+    // Step a list selection one item down (delta +1) or up (delta -1)
+    // over `items` (the selectable item ids in display order),
+    // clamped at the ends. `current` is the selected item's id, or
+    // -1 when nothing is selected. Returns the new selected id, or
+    // `current` when there is nothing to move to.
+    inline int16_t List_Selection_Step(const int16_t* items, int16_t count, int16_t current, int16_t delta) {
+        int16_t current_pos = -1;
+        for (int16_t i = 0; i < count; ++i) {
+            if (items[i] == current) {
+                current_pos = i;
+                break;
+            }
+        }
+        if (current_pos < 0) {
+            return current;
+        }
+        int16_t next_pos = current_pos + delta;
+        if (next_pos < 0) {
+            next_pos = 0;
+        }
+        if (next_pos >= count) {
+            next_pos = count - 1;
+        }
+        return items[next_pos];
+    }
+
+    // Move the open list picker's selection one selectable item
+    // down (delta +1) or up (delta -1), clamped at the ends.
+    void __cdecl Move_List_Field_Selection(int16_t delta);
+
     /* Builds a temporary selectable list from fixed-size records and returns the chosen row.
      * list_ptr: Pointer to the first list record.
      * item_size: Byte stride between records.

@@ -269,6 +269,36 @@ orion2re_add_unit_test(test_cfg_parser
         src/config/cfg_parser.cpp
 )
 
+orion2re_add_unit_test(test_config_writer
+    SOURCES
+        tests/unit/config_writer_test.cpp
+    PRODUCTION_SOURCES
+        src/config/cfg_parser.cpp
+        src/config/config_writer.cpp
+)
+
+orion2re_add_unit_test(test_mod_catalogue
+    SOURCES
+        tests/unit/mod_catalogue_test.cpp
+    PRODUCTION_SOURCES
+        src/config/cfg_parser.cpp
+        src/config/mod_catalogue.cpp
+        src/config/mod_manifest.cpp
+        src/game/compat.cpp
+        src/game/vfs.cpp
+        src/game/vfs_file.cpp
+        src/game/vfs_lbx.cpp
+        src/game/vfs_path.cpp
+        src/game/vfs_zip.cpp
+        vendors/yyjson/src/yyjson.c
+    LIBRARIES
+        miniz
+    LINK_SDL
+)
+target_include_directories(test_mod_catalogue PRIVATE
+    "${ORION2RE_VENDORED_YYJSON_DIR}/src"
+)
+
 orion2re_add_unit_test(test_config_enums
     SOURCES
         tests/unit/config_enums_test.cpp
@@ -454,6 +484,7 @@ orion2re_add_unit_test(test_config_loader
         src/config/config_lifecycle.cpp
         src/config/config_loader.cpp
         src/config/config_snapshot.cpp
+        src/config/config_writer.cpp
         src/config/mod_manifest.cpp
         src/config/mod_manager.cpp
         src/game/netturn.cpp
@@ -512,6 +543,55 @@ target_include_directories(test_config_loader PRIVATE
 )
 target_compile_definitions(test_config_loader PRIVATE
     LUA_SOURCE_PACKAGE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data/mods"
+)
+
+orion2re_add_unit_test(test_settings_value
+    SOURCES
+        tests/unit/settings_value_test.cpp
+    PRODUCTION_SOURCES
+        src/config/settings_value.cpp
+        src/config/config_runtime.cpp
+        src/config/generated/config.cpp
+        src/config/generated/config_enums.cpp
+        src/config/config_identity.cpp
+        src/game/sha256.cpp
+        src/game/arena.cpp
+        src/game/aidata_config.cpp
+        src/game/colbldg_config.cpp
+        src/game/colcalc_config.cpp
+        src/game/colmove_config.cpp
+        src/game/design_config.cpp
+        src/game/ericnet_config.cpp
+        src/game/ericnet_config_validation.cpp
+        src/game/events_config.cpp
+        src/game/invasion_config.cpp
+        src/game/info_config.cpp
+        src/game/initship_config_validation.cpp
+        src/game/mapgen_config.cpp
+        src/game/raceopt_config.cpp
+        src/game/ship_config.cpp
+        src/game/spy_config_validation.cpp
+        src/game/spy_bonus.cpp
+        src/game/techdata.cpp
+    FAKE_SOURCES
+        tests/fakes/fake_config_runtime.cpp
+        tests/fakes/fake_exitm.cpp
+        tests/fakes/fake_platform_exit.cpp
+    LINK_SDL
+)
+
+orion2re_add_unit_test(test_settings_layout
+    SOURCES
+        tests/unit/settings_layout_test.cpp
+    PRODUCTION_SOURCES
+        src/game/settings_layout.cpp
+)
+
+orion2re_add_unit_test(test_settings_dropdown
+    SOURCES
+        tests/unit/settings_dropdown_test.cpp
+    PRODUCTION_SOURCES
+        src/game/settings_layout.cpp
 )
 
 orion2re_add_unit_test(test_config_snapshot
@@ -1401,6 +1481,76 @@ orion2re_add_unit_test(test_farload_buffer_vfs
 target_include_directories(test_farload_buffer_vfs PRIVATE "${ORION2RE_VENDORED_YYJSON_DIR}/src")
 target_compile_definitions(test_farload_buffer_vfs PRIVATE
     STRING_OVERRIDE_BASE_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data/base"
+)
+
+orion2re_add_unit_test(test_button_art
+    SOURCES
+        tests/unit/button_art_test.cpp
+    PRODUCTION_SOURCES
+        src/game/buffer.cpp
+        src/game/button_art.cpp
+        src/game/compat.cpp
+        src/game/farload.cpp
+        src/game/string_overrides.cpp
+        src/config/text_encoding.cpp
+        vendors/yyjson/src/yyjson.c
+        src/game/vfs.cpp
+        src/game/vfs_file.cpp
+        src/game/vfs_lbx.cpp
+        src/game/vfs_path.cpp
+        src/game/vfs_zip.cpp
+    FAKE_SOURCES
+        tests/fakes/fake_allocate.cpp
+        tests/fakes/fake_exitm.cpp
+        tests/fakes/fake_fields_helpers_runtime.cpp
+        tests/fakes/fake_memory.cpp
+        tests/fakes/fake_sound.cpp
+        tests/fakes/fake_test_state.cpp
+        tests/fakes/fake_video.cpp
+    LIBRARIES
+        miniz
+    LINK_SDL
+)
+
+target_include_directories(test_button_art PRIVATE "${ORION2RE_VENDORED_YYJSON_DIR}/src")
+target_compile_definitions(test_button_art PRIVATE
+    BUTTON_ART_BASE_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data/base"
+)
+
+orion2re_add_unit_test(test_sprite_art
+    SOURCES
+        tests/unit/sprite_art_test.cpp
+    PRODUCTION_SOURCES
+        src/game/buffer.cpp
+        src/game/button_art.cpp
+        src/game/compat.cpp
+        src/game/farload.cpp
+        src/game/sprite_art.cpp
+        src/game/string_overrides.cpp
+        src/config/text_encoding.cpp
+        vendors/yyjson/src/yyjson.c
+        src/game/vfs.cpp
+        src/game/vfs_file.cpp
+        src/game/vfs_lbx.cpp
+        src/game/vfs_path.cpp
+        src/game/vfs_zip.cpp
+    FAKE_SOURCES
+        tests/fakes/fake_allocate.cpp
+        tests/fakes/fake_animate.cpp
+        tests/fakes/fake_exitm.cpp
+        tests/fakes/fake_memory.cpp
+        tests/fakes/fake_platform_exit.cpp
+        tests/fakes/fake_sound.cpp
+        tests/fakes/fake_test_state.cpp
+        tests/fakes/fake_video.cpp
+    LIBRARIES
+        miniz
+    LINK_SDL
+)
+
+target_include_directories(test_sprite_art PRIVATE "${ORION2RE_VENDORED_YYJSON_DIR}/src")
+target_compile_definitions(test_sprite_art PRIVATE
+    SPRITE_ART_BASE_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data/base"
 )
 
 foreach(TARGET_NAME IN ITEMS test_newgame

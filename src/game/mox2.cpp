@@ -2,6 +2,7 @@
 
 #include "config/config_loader.h"
 #include "game/config_refresh.h"
+#include "game/settings_screen.h"
 
 namespace ALLOC = allocate;
 
@@ -41,7 +42,22 @@ namespace MOX2 {
                 if (!config::Restore_Launch_Config(&diagnostic)) {
                     exitm::Exit_With_Message(diagnostic.message.c_str());
                 }
-                CONFIG_REFRESH::Request_Resource_Reload();
+                // No unconditional reload request here: a reload is
+                // scheduled by the change itself. Config reloads request
+                // one through Refresh_After_Config_Reload, mod changes
+                // through the mod manager, game loads through FILEDEF,
+                // and Restore_Launch_Config through its config commit
+                // when it runs. A plain return from the settings screen
+                // changes none of those, so it used to pay the full
+                // reload (~0.85 s) for nothing.
+                //
+                // The menu rebuilds its art on every entry, so discard
+                // the previous screen's transient screen_seg allocations
+                // (cheap: no disk reads) before any pending reload runs,
+                // keeping the reset-before-loads order the reload used
+                // to have. The disk resources below are reloaded only
+                // when a change requested it.
+                CONFIG_REFRESH::Discard_Screen_Allocations();
             }
             if (current_screen != SCREEN_EXIT) {
                 CONFIG_REFRESH::Reload_Resources_Between_Screens();
@@ -85,6 +101,10 @@ namespace MOX2 {
                 case SCREEN_CREDITS:
                     MAINMENU::Credits_Screen();
                     MOX::previous_screen = SCREEN_CREDITS;
+                    break;
+                case SCREEN_SETTINGS:
+                    SETTINGS_SCREEN::Settings_Screen();
+                    MOX::previous_screen = SCREEN_SETTINGS;
                     break;
                 case SCREEN_MAIN_NEXT_TURN:
                     NEXTTURN::Next_Turn();

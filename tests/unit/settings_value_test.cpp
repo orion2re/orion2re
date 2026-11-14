@@ -1,0 +1,563 @@
+#include "pch.h"
+
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "config/settings_value.h"
+#include "doctest/doctest.h"
+
+namespace {
+
+    const config::s_settings_row* Find_Row_(
+        const std::vector<config::s_settings_row>& rows, const std::string& path) {
+        for (const config::s_settings_row& row : rows) {
+            if (row.path == path) {
+                return &row;
+            }
+        }
+        return nullptr;
+    }
+
+    bool Parse_(const std::string& path, const std::string& text,
+        std::string* config_text, std::string* error) {
+        config::t_variable_id variable_id = config::CONFIG_NO_VARIABLE;
+        if (!config::Find_Variable(path.data(), path.size(), &variable_id)) {
+            return false;
+        }
+        config::s_typed_value value;
+        return config::Parse_Leaf_Edit_Text(variable_id, text, &value, config_text,
+            error);
+    }
+
+    std::string Format_(const std::string& path, config::s_typed_value value) {
+        config::t_variable_id variable_id = config::CONFIG_NO_VARIABLE;
+        if (!config::Find_Variable(path.data(), path.size(), &variable_id)) {
+            return "<unknown>";
+        }
+        return config::Format_Leaf_Value(variable_id, value);
+    }
+
+} // namespace
+
+DOCTEST_TEST_SUITE("settings values") {
+
+DOCTEST_TEST_CASE("every spec setting has rows, in spec order") {
+    const std::vector<config::s_settings_row> rows = config::Build_Settings_Rows();
+
+    // 49 spec parameters: 41 interface + 8 synchronized_interface.
+    // 207 rows: the two window width/height rows are one Resolution row.
+    DOCTEST_REQUIRE(config::settings_metadata_count == 49);
+    DOCTEST_CHECK(rows.size() == 207);
+
+    // Metadata order is the row order: the first row is the first spec
+    // parameter and the last row belongs to the last one.
+    DOCTEST_REQUIRE(!rows.empty());
+    DOCTEST_CHECK(rows.front().path == "interface.router");
+    DOCTEST_CHECK(rows.back().path == "interface.show_exit_message");
+
+    // Every metadata path contributes at least one row, and every row
+    // carries its metadata title and group.
+    for (size_t index = 0; index < config::settings_metadata_count; ++index) {
+        const config::s_settings_metadata& metadata =
+            config::settings_metadata[index];
+        // The window width and height are set together from the
+        // single Resolution row, so neither has a row of its own.
+        if (std::string(metadata.path) == "interface.window_width" ||
+            std::string(metadata.path) == "interface.window_height") {
+            DOCTEST_CHECK_MESSAGE(
+                Find_Row_(rows, "interface.resolution") != nullptr,
+                "no Resolution row for ", metadata.path);
+            continue;
+        }
+        bool found = false;
+        for (const config::s_settings_row& row : rows) {
+            if (row.path == metadata.path ||
+                row.path.compare(0, std::string(metadata.path).size() + 1,
+                    std::string(metadata.path) + ".") == 0) {
+                found = true;
+                DOCTEST_CHECK(row.title.rfind(metadata.title, 0) == 0);
+                DOCTEST_CHECK(row.group == metadata.group);
+                DOCTEST_CHECK(row.description == metadata.description);
+            }
+        }
+        DOCTEST_CHECK_MESSAGE(found, "no rows for ", metadata.path);
+    }
+}
+
+DOCTEST_TEST_CASE("the restart-required set is the six spec settings") {
+    std::vector<std::string> settings;
+    for (size_t index = 0; index < config::settings_metadata_count; ++index) {
+        const config::s_settings_metadata& metadata =
+            config::settings_metadata[index];
+        if (metadata.restart_required) {
+            settings.push_back(metadata.path);
+        }
+    }
+    DOCTEST_CHECK(settings ==
+        std::vector<std::string>({
+            "interface.window_width",
+            "interface.window_height",
+            "interface.fullscreen",
+            "interface.debugger_enabled",
+            "interface.debugger_font_size",
+            "interface.debugger_ui_scale",
+        }));
+    // Every flagged row belongs to one of those six settings.
+    const std::vector<config::s_settings_row> rows = config::Build_Settings_Rows();
+    for (const config::s_settings_row& row : rows) {
+        if (!row.restart_required) {
+            continue;
+        }
+        bool owned = false;
+        for (const std::string& setting : settings) {
+            if (row.path == setting ||
+                row.path.compare(0, setting.size() + 1, setting + ".") == 0) {
+                owned = true;
+            }
+        }
+        // The Resolution row sets both window settings together.
+        if (row.path == "interface.resolution") {
+            owned = true;
+        }
+        DOCTEST_CHECK_MESSAGE(owned, "flagged row with no restart setting: ",
+            row.path);
+    }
+}
+
+DOCTEST_TEST_CASE("widget kinds come from the leaf type") {
+    const std::vector<config::s_settings_row> rows = config::Build_Settings_Rows();
+    const config::s_settings_row* resolution =
+        Find_Row_(rows, "interface.resolution");
+    const config::s_settings_row* fullscreen =
+        Find_Row_(rows, "interface.fullscreen");
+    const config::s_settings_row* scaler = Find_Row_(rows, "interface.scaler");
+    const config::s_settings_row* router = Find_Row_(rows, "interface.router");
+    const config::s_settings_row* cloak_normal =
+        Find_Row_(rows, "interface.animation.cloak_steps.normal");
+    const config::s_settings_row* cloak_fast =
+        Find_Row_(rows, "interface.animation.cloak_steps.fast");
+    const config::s_settings_row* format_color =
+        Find_Row_(rows, "interface.build_list_format.0.color");
+    const config::s_settings_row* colors_base =
+        Find_Row_(rows, "interface.build_list_colors.0.0.base");
+    DOCTEST_REQUIRE(resolution != nullptr);
+    DOCTEST_REQUIRE(fullscreen != nullptr);
+    DOCTEST_REQUIRE(scaler != nullptr);
+    DOCTEST_REQUIRE(router != nullptr);
+    DOCTEST_REQUIRE(cloak_normal != nullptr);
+    DOCTEST_REQUIRE(cloak_fast != nullptr);
+    DOCTEST_REQUIRE(format_color != nullptr);
+    DOCTEST_REQUIRE(colors_base != nullptr);
+    DOCTEST_CHECK(resolution->widget == config::SETTINGS_WIDGET_DROPDOWN);
+    DOCTEST_CHECK(fullscreen->widget == config::SETTINGS_WIDGET_TOGGLE);
+    DOCTEST_CHECK(scaler->widget == config::SETTINGS_WIDGET_DROPDOWN);
+    DOCTEST_CHECK(router->widget == config::SETTINGS_WIDGET_EDIT);
+    DOCTEST_CHECK(cloak_normal->widget == config::SETTINGS_WIDGET_EDIT);
+    DOCTEST_CHECK(cloak_fast->widget == config::SETTINGS_WIDGET_EDIT);
+    DOCTEST_CHECK(format_color->widget == config::SETTINGS_WIDGET_DROPDOWN);
+    DOCTEST_CHECK(colors_base->widget == config::SETTINGS_WIDGET_EDIT);
+    DOCTEST_CHECK(cloak_normal->title ==
+        "Interface animation settings - cloak_steps.normal");
+}
+
+DOCTEST_TEST_CASE("row strings stay within the game font's byte range") {
+    // The settings screen draws row strings with the game's
+    // byte-oriented font, which has no UTF-8 decoding and no em-dash
+    // glyph: a non-ASCII byte is drawn from a negative glyph index and
+    // garbles the row (and aborts the sanitizer build). Every rendered
+    // row string must be plain ASCII.
+    const std::vector<config::s_settings_row> rows = config::Build_Settings_Rows();
+    for (const config::s_settings_row& row : rows) {
+        for (const std::string* text : {&row.title, &row.description, &row.info}) {
+            for (const unsigned char character : *text) {
+                DOCTEST_CHECK_MESSAGE(character < 0x80,
+                    "non-ASCII byte in row '", row.path, "': ", row.title);
+            }
+        }
+    }
+}
+
+DOCTEST_TEST_CASE("unrenderable settings become info rows, not dropped rows") {
+    const std::vector<config::s_settings_row> rows = config::Build_Settings_Rows();
+    size_t info_rows = 0;
+    for (const config::s_settings_row& row : rows) {
+        if (row.widget == config::SETTINGS_WIDGET_INFO) {
+            ++info_rows;
+            DOCTEST_CHECK(row.variable_id == config::CONFIG_NO_VARIABLE);
+            DOCTEST_CHECK(!row.info.empty());
+            DOCTEST_CHECK(row.info.find("orion2re.cfg") != std::string::npos);
+        }
+    }
+    // Four Tech Review ordering tables plus the per-colony build queues.
+    DOCTEST_CHECK(info_rows == 5);
+    const config::s_settings_row* tech_review =
+        Find_Row_(rows, "interface.tech_review_achievements");
+    const config::s_settings_row* build_queue =
+        Find_Row_(rows, "colony.build_queue");
+    DOCTEST_REQUIRE(tech_review != nullptr);
+    DOCTEST_REQUIRE(build_queue != nullptr);
+    DOCTEST_CHECK(tech_review->widget == config::SETTINGS_WIDGET_INFO);
+    DOCTEST_CHECK(build_queue->widget == config::SETTINGS_WIDGET_INFO);
+    // No leaf rows leak out of the excluded tables.
+    for (const config::s_settings_row& row : rows) {
+        if (row.path.rfind("interface.tech_review_", 0) == 0) {
+            DOCTEST_CHECK(row.widget == config::SETTINGS_WIDGET_INFO);
+        }
+        if (row.path.rfind("colony.build_queue", 0) == 0) {
+            DOCTEST_CHECK(row.widget == config::SETTINGS_WIDGET_INFO);
+        }
+    }
+}
+
+DOCTEST_TEST_CASE("leaf counts match the spec shapes") {
+    const std::vector<config::s_settings_row> rows = config::Build_Settings_Rows();
+    auto count_prefix = [&rows](const std::string& prefix) {
+        size_t count = 0;
+        for (const config::s_settings_row& row : rows) {
+            if (row.path == prefix ||
+                row.path.compare(0, prefix.size() + 1, prefix + ".") == 0) {
+                ++count;
+            }
+        }
+        return count;
+    };
+    DOCTEST_CHECK(count_prefix("interface.animation") == 2);
+    DOCTEST_CHECK(count_prefix("interface.build_list_colors") == 60);
+    DOCTEST_CHECK(count_prefix("interface.build_list_format") == 100);
+    DOCTEST_CHECK(count_prefix("interface.tech_review_achievements") == 1);
+    DOCTEST_CHECK(count_prefix("colony.build_queue") == 1);
+}
+
+DOCTEST_TEST_CASE("formatting shows enum names, booleans and decimals") {
+    config::s_typed_value value;
+    value.type = config::CONFIG_VALUE_BOOL;
+    value.bool_value = true;
+    DOCTEST_CHECK(Format_("interface.fullscreen", value) == "true");
+    value.bool_value = false;
+    DOCTEST_CHECK(Format_("interface.fullscreen", value) == "false");
+
+    value.type = config::CONFIG_VALUE_INT32;
+    value.integer_value = 1280;
+    DOCTEST_CHECK(Format_("interface.window_width", value) == "1280");
+
+    value.type = config::CONFIG_VALUE_UINT8;
+    value.integer_value = 0;
+    DOCTEST_CHECK(Format_("interface.scaler", value) == "pixelart");
+    value.integer_value = 3;
+    DOCTEST_CHECK(Format_("interface.scaler", value) == "hq3x");
+
+    value.type = config::CONFIG_VALUE_STRING;
+    value.string_value = "example.com:47800";
+    DOCTEST_CHECK(Format_("interface.router", value) == "example.com:47800");
+    config::t_variable_id router_id = config::CONFIG_NO_VARIABLE;
+    DOCTEST_REQUIRE(config::Find_Variable("interface.router",
+        strlen("interface.router"), &router_id));
+    DOCTEST_CHECK(config::Format_Leaf_Value_For_Config(router_id, value) ==
+        "\"example.com:47800\"");
+    value.string_value = "a\"b\\c";
+    DOCTEST_CHECK(config::Format_Leaf_Value_For_Config(router_id, value) ==
+        "\"a\\\"b\\\\c\"");
+}
+
+DOCTEST_TEST_CASE("edit text is validated against the leaf type") {
+    std::string config_text;
+    std::string error;
+    DOCTEST_CHECK(Parse_("interface.window_width", "1280", &config_text, &error));
+    DOCTEST_CHECK(config_text == "1280");
+    DOCTEST_CHECK_FALSE(Parse_("interface.window_width", "0", &config_text, &error));
+    DOCTEST_CHECK(!error.empty());
+    DOCTEST_CHECK_FALSE(
+        Parse_("interface.window_width", "16385", &config_text, &error));
+    DOCTEST_CHECK_FALSE(Parse_("interface.window_width", "abc", &config_text, &error));
+    DOCTEST_CHECK_FALSE(
+        Parse_("interface.window_width", "12.5", &config_text, &error));
+    DOCTEST_CHECK_FALSE(Parse_("interface.window_width", "", &config_text, &error));
+    DOCTEST_CHECK_FALSE(Parse_("interface.window_width", "12 80", &config_text, &error));
+    // Surrounding whitespace is trimmed for numbers, enum names and
+    // booleans, but kept for strings.
+    DOCTEST_CHECK(Parse_("interface.window_width", " 1280 ", &config_text, &error));
+    DOCTEST_CHECK(config_text == "1280");
+
+    DOCTEST_CHECK(Parse_("interface.fullscreen", "true", &config_text, &error));
+    DOCTEST_CHECK_FALSE(Parse_("interface.fullscreen", "yes", &config_text, &error));
+    DOCTEST_CHECK(Parse_("interface.fullscreen", " false ", &config_text, &error));
+    DOCTEST_CHECK(config_text == "false");
+
+    DOCTEST_CHECK(Parse_("interface.scaler", "hq3x", &config_text, &error));
+    DOCTEST_CHECK(config_text == "hq3x");
+    DOCTEST_CHECK_FALSE(Parse_("interface.scaler", "hq9x", &config_text, &error));
+    DOCTEST_CHECK(Parse_("interface.scaler", " hq3x ", &config_text, &error));
+    DOCTEST_CHECK(config_text == "hq3x");
+
+    DOCTEST_CHECK(Parse_("interface.scroll_interval", "255", &config_text, &error));
+    DOCTEST_CHECK_FALSE(
+        Parse_("interface.scroll_interval", "-1", &config_text, &error));
+    DOCTEST_CHECK_FALSE(
+        Parse_("interface.scroll_interval", "256", &config_text, &error));
+
+    DOCTEST_CHECK(Parse_("interface.router", "example.com", &config_text, &error));
+    DOCTEST_CHECK(config_text == "\"example.com\"");
+    DOCTEST_CHECK(Parse_("interface.router", " example.com ", &config_text, &error));
+    DOCTEST_CHECK(config_text == "\" example.com \"");
+    DOCTEST_CHECK_FALSE(Parse_("interface.router", std::string(70, 'a'),
+        &config_text, &error));
+    DOCTEST_CHECK(!error.empty());
+}
+
+DOCTEST_TEST_CASE("splitting a dotted path gives the writer tokens") {
+    DOCTEST_CHECK(config::Split_Setting_Path("interface.window_width") ==
+        std::vector<std::string>({"interface", "window_width"}));
+    DOCTEST_CHECK(config::Split_Setting_Path(
+        "interface.animation.cloak_steps.normal") ==
+        std::vector<std::string>(
+            {"interface", "animation", "cloak_steps", "normal"}));
+    DOCTEST_CHECK(config::Split_Setting_Path(
+        "interface.build_list_colors.default.normal.base") ==
+        std::vector<std::string>({"interface", "build_list_colors", "default",
+            "normal", "base"}));
+}
+
+DOCTEST_TEST_CASE("every metadata setting maps to exactly one category") {
+    // Pinned categorization for the Settings screen tabs: 19 game
+    // internals, 28 gameplay, 2 mods. The table must cover all 49
+    // metadata paths, in metadata order, so a new spec setting with
+    // no entry fails here instead of silently landing in internals.
+    const std::vector<std::pair<const char*, config::e_settings_category>> expected = {
+        { "interface.router", config::SETTINGS_CATEGORY_GAME_INTERNALS },
+        { "interface.scroll_interval", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "interface.scaler", config::SETTINGS_CATEGORY_GAME_INTERNALS },
+        { "interface.window_width", config::SETTINGS_CATEGORY_GAME_INTERNALS },
+        { "interface.window_height", config::SETTINGS_CATEGORY_GAME_INTERNALS },
+        { "interface.fullscreen", config::SETTINGS_CATEGORY_GAME_INTERNALS },
+        { "interface.vsync_enabled", config::SETTINGS_CATEGORY_GAME_INTERNALS },
+        { "interface.net_debug_enabled", config::SETTINGS_CATEGORY_GAME_INTERNALS },
+        { "interface.debugger_enabled", config::SETTINGS_CATEGORY_GAME_INTERNALS },
+        { "interface.debugger_font_size", config::SETTINGS_CATEGORY_GAME_INTERNALS },
+        { "interface.debugger_ui_scale", config::SETTINGS_CATEGORY_GAME_INTERNALS },
+        { "interface.allow_lua_source_hash_mismatch", config::SETTINGS_CATEGORY_MODS },
+        { "interface.screen_fade_speed", config::SETTINGS_CATEGORY_GAME_INTERNALS },
+        { "interface.animation", config::SETTINGS_CATEGORY_GAME_INTERNALS },
+        { "interface.history_graph_smoothing", config::SETTINGS_CATEGORY_GAME_INTERNALS },
+        { "interface.sort_serious_turn_summary_first", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "interface.wormhole_link_color", config::SETTINGS_CATEGORY_GAME_INTERNALS },
+        { "interface.tech_review_achievements", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "interface.tech_review_colony", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "interface.tech_review_weapons", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "interface.tech_review_equipment", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "colony.build_queue", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "design.missile_default_x2_rack", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "design.design_button_computer", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "design.design_button_shield", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "design.clear_button_computer", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "design.clear_button_shield", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "leaders.leader_dies_with_no", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "research.finds_presented_by_scientist", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "interface.print_research_value", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "interface.warn_blockers", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "interface.build_list_colors", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "interface.build_list_format", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "interface.no_outpost_prompt", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "interface.initial_tech_prompt", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "interface.rebel_display", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "interface.loaded_config_prompt", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "interface.main_menu_mod_list", config::SETTINGS_CATEGORY_MODS },
+        { "interface.keep_end_of_turn_wait_in_multiplayer", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "interface.allow_future_technology_browsing", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "interface.confirm_battle_message_timeout", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "interface.center_on_next_ship", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "interface.death_spore_list_damage", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "interface.bio_terminator_list_damage", config::SETTINGS_CATEGORY_GAMEPLAY },
+        { "interface.main_map_overview_markers", config::SETTINGS_CATEGORY_GAME_INTERNALS },
+        { "interface.maximum_galaxy_display", config::SETTINGS_CATEGORY_GAME_INTERNALS },
+        { "interface.main_screen_tax_rate", config::SETTINGS_CATEGORY_GAME_INTERNALS },
+        { "interface.maximum_galaxy_zoom_mode", config::SETTINGS_CATEGORY_GAME_INTERNALS },
+        { "interface.show_exit_message", config::SETTINGS_CATEGORY_GAME_INTERNALS },
+    };
+    DOCTEST_REQUIRE(config::settings_metadata_count == expected.size());
+    for (size_t index = 0; index < expected.size(); ++index) {
+        DOCTEST_CHECK(std::string(config::settings_metadata[index].path) ==
+            expected[index].first);
+        DOCTEST_CHECK(config::Settings_Category_For_Path(expected[index].first) ==
+            expected[index].second);
+    }
+    // Rows inherit their metadata setting's category, including
+    // multi-leaf settings (animation leaves, build-list leaves).
+    const std::vector<config::s_settings_row> rows = config::Build_Settings_Rows();
+    size_t internals = 0;
+    size_t gameplay = 0;
+    size_t mods = 0;
+    for (const config::s_settings_row& row : rows) {
+        switch (config::Settings_Category_For_Path(row.path)) {
+            case config::SETTINGS_CATEGORY_GAME_INTERNALS:
+                ++internals;
+                break;
+            case config::SETTINGS_CATEGORY_GAMEPLAY:
+                ++gameplay;
+                break;
+            case config::SETTINGS_CATEGORY_MODS:
+                ++mods;
+                break;
+        }
+    }
+    DOCTEST_CHECK(internals + gameplay + mods == rows.size());
+    DOCTEST_CHECK(internals > 0);
+    DOCTEST_CHECK(gameplay > 0);
+    DOCTEST_CHECK(mods > 0);
+    DOCTEST_CHECK(config::Settings_Category_For_Path(
+        "interface.animation.cloak_steps.normal") ==
+        config::SETTINGS_CATEGORY_GAME_INTERNALS);
+    DOCTEST_CHECK(config::Settings_Category_For_Path(
+        "interface.build_list_colors.default.normal.base") ==
+        config::SETTINGS_CATEGORY_GAMEPLAY);
+}
+
+DOCTEST_TEST_CASE("every metadata setting maps to exactly one visibility") {
+    // Pinned primary/secondary split for the Settings screen's Show
+    // all: 10 game internals primary, 21 gameplay primary, 1 mods
+    // primary. The table must cover all 49 metadata paths, in
+    // metadata order, so a new spec setting with no entry fails here
+    // instead of silently showing up front. The Resolution row is the
+    // one primary internals row for the window size, replacing the
+    // two primary width/height rows.
+    const std::vector<std::pair<const char*, bool>> expected = {
+        { "interface.router", false },
+        { "interface.scroll_interval", true },
+        { "interface.scaler", true },
+        { "interface.window_width", true },
+        { "interface.window_height", true },
+        { "interface.fullscreen", true },
+        { "interface.vsync_enabled", true },
+        { "interface.net_debug_enabled", false },
+        { "interface.debugger_enabled", false },
+        { "interface.debugger_font_size", false },
+        { "interface.debugger_ui_scale", false },
+        { "interface.allow_lua_source_hash_mismatch", false },
+        { "interface.screen_fade_speed", false },
+        { "interface.animation", false },
+        { "interface.history_graph_smoothing", true },
+        { "interface.sort_serious_turn_summary_first", true },
+        { "interface.wormhole_link_color", false },
+        { "interface.tech_review_achievements", false },
+        { "interface.tech_review_colony", false },
+        { "interface.tech_review_weapons", false },
+        { "interface.tech_review_equipment", false },
+        { "colony.build_queue", false },
+        { "design.missile_default_x2_rack", true },
+        { "design.design_button_computer", true },
+        { "design.design_button_shield", true },
+        { "design.clear_button_computer", true },
+        { "design.clear_button_shield", true },
+        { "leaders.leader_dies_with_no", true },
+        { "research.finds_presented_by_scientist", true },
+        { "interface.print_research_value", true },
+        { "interface.warn_blockers", true },
+        { "interface.build_list_colors", false },
+        { "interface.build_list_format", false },
+        { "interface.no_outpost_prompt", true },
+        { "interface.initial_tech_prompt", true },
+        { "interface.rebel_display", true },
+        { "interface.loaded_config_prompt", true },
+        { "interface.main_menu_mod_list", true },
+        { "interface.keep_end_of_turn_wait_in_multiplayer", true },
+        { "interface.allow_future_technology_browsing", true },
+        { "interface.confirm_battle_message_timeout", true },
+        { "interface.center_on_next_ship", true },
+        { "interface.death_spore_list_damage", true },
+        { "interface.bio_terminator_list_damage", true },
+        { "interface.main_map_overview_markers", true },
+        { "interface.maximum_galaxy_display", true },
+        { "interface.main_screen_tax_rate", true },
+        { "interface.maximum_galaxy_zoom_mode", true },
+        { "interface.show_exit_message", true },
+    };
+    DOCTEST_REQUIRE(config::settings_metadata_count == expected.size());
+    for (size_t index = 0; index < expected.size(); ++index) {
+        DOCTEST_CHECK(std::string(config::settings_metadata[index].path) ==
+            expected[index].first);
+        DOCTEST_CHECK(config::Settings_Is_Primary_For_Path(expected[index].first) ==
+            expected[index].second);
+    }
+    // Rows inherit their metadata setting's visibility, including
+    // multi-leaf settings: the animation leaves are secondary, the
+    // build-list leaves are secondary (60 color leaves plus 100
+    // format leaves), and the Mods tab keeps one primary and one
+    // secondary setting row.
+    const std::vector<config::s_settings_row> rows = config::Build_Settings_Rows();
+    size_t internals_primary = 0;
+    size_t internals_secondary = 0;
+    size_t gameplay_primary = 0;
+    size_t gameplay_secondary = 0;
+    size_t mods_primary = 0;
+    size_t mods_secondary = 0;
+    for (const config::s_settings_row& row : rows) {
+        const bool primary = config::Settings_Is_Primary_For_Path(row.path);
+        switch (config::Settings_Category_For_Path(row.path)) {
+            case config::SETTINGS_CATEGORY_GAME_INTERNALS:
+                if (primary) {
+                    ++internals_primary;
+                } else {
+                    ++internals_secondary;
+                }
+                break;
+            case config::SETTINGS_CATEGORY_GAMEPLAY:
+                if (primary) {
+                    ++gameplay_primary;
+                } else {
+                    ++gameplay_secondary;
+                }
+                break;
+            case config::SETTINGS_CATEGORY_MODS:
+                if (primary) {
+                    ++mods_primary;
+                } else {
+                    ++mods_secondary;
+                }
+                break;
+        }
+    }
+    DOCTEST_CHECK(internals_primary == 10);
+    DOCTEST_CHECK(internals_secondary == 9);
+    DOCTEST_CHECK(gameplay_primary == 21);
+    DOCTEST_CHECK(gameplay_secondary == 165);
+    DOCTEST_CHECK(mods_primary == 1);
+    DOCTEST_CHECK(mods_secondary == 1);
+    DOCTEST_CHECK(!config::Settings_Is_Primary_For_Path(
+        "interface.animation.cloak_steps.normal"));
+    DOCTEST_CHECK(!config::Settings_Is_Primary_For_Path(
+        "interface.build_list_colors.default.normal.base"));
+    DOCTEST_CHECK(config::Settings_Is_Primary_For_Path("interface.window_width"));
+    DOCTEST_CHECK(config::Settings_Is_Primary_For_Path("interface.resolution"));
+}
+
+DOCTEST_TEST_CASE("the current window size reads back as one Resolution row") {
+    const std::vector<config::s_settings_row> rows = config::Build_Settings_Rows();
+    const config::s_settings_row* resolution =
+        Find_Row_(rows, "interface.resolution");
+    DOCTEST_REQUIRE(resolution != nullptr);
+    DOCTEST_CHECK(resolution->widget == config::SETTINGS_WIDGET_DROPDOWN);
+    DOCTEST_CHECK(resolution->restart_required);
+    int width = 0;
+    int height = 0;
+    DOCTEST_REQUIRE(config::Get_Current_Resolution(&width, &height));
+    DOCTEST_CHECK(config::Format_Resolution(width, height) == "640x480");
+    // The known resolutions, plus the current pair when it is not one.
+    const std::vector<config::s_resolution_option> options =
+        config::Resolution_Options(width, height);
+    DOCTEST_REQUIRE(options.size() == 8);
+    DOCTEST_CHECK(options.front().label == "640x480");
+    DOCTEST_CHECK(options.back().label == "3840x2880");
+    const std::vector<config::s_resolution_option> odd =
+        config::Resolution_Options(1000, 750);
+    DOCTEST_REQUIRE(odd.size() == 9);
+    bool found = false;
+    for (const config::s_resolution_option& option : odd) {
+        if (option.width == 1000 && option.height == 750) {
+            found = true;
+            DOCTEST_CHECK(option.label == "1000x750");
+        }
+    }
+    DOCTEST_CHECK(found);
+}
+
+} // DOCTEST_TEST_SUITE

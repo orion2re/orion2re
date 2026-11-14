@@ -921,6 +921,47 @@ namespace fields {
         return result;
     }
 
+    // Move the open list picker's selection one selectable item
+    // down (delta +1) or up (delta -1), clamped at the ends. The
+    // picker is the string-list fields sharing one value pointer
+    // (the selected index); the title field has its own value
+    // pointer and is not an item. The current item is the one
+    // whose help_start equals the shared value. A list with no
+    // current selection (empty, or nothing valid) does not move.
+    void __cdecl Move_List_Field_Selection(int16_t delta) {
+        if (fields_count < 2) {
+            return;
+        }
+        // The first string-list field is an item (items are built
+        // before the title); its value is the shared selection.
+        int8_t* selection = nullptr;
+        for (int16_t i = 1; i < fields_count; ++i) {
+            if (fields[i].field_type == FIELD_TYPE_STRING_LIST) {
+                selection = Field_Data_String_List(&fields[i])->value;
+                break;
+            }
+        }
+        if (selection == nullptr) {
+            return;
+        }
+        std::vector<int16_t> items;
+        for (int16_t i = 1; i < fields_count; ++i) {
+            if (fields[i].field_type != FIELD_TYPE_STRING_LIST) {
+                continue;
+            }
+            s_field_string_list* string_list = Field_Data_String_List(&fields[i]);
+            if (string_list->value != selection) {
+                continue;
+            }
+            if (string_list->is_selectable == 0) {
+                continue;
+            }
+            items.push_back(string_list->help_start);
+        }
+        const int16_t next = List_Selection_Step(items.data(), static_cast<int16_t>(items.size()), *selection, delta);
+        *selection = static_cast<int8_t>(next);
+    }
+
     int16_t __cdecl Interpret_Mouse_Input() {
         platform::Check_Exit();
 
@@ -967,6 +1008,15 @@ namespace fields {
                     if (multi_hotkey_active_field != 0) Clear_Multi_Hot_Key_Offsets();
                     return -1;
                 }
+            }
+
+            if (list_field_on != 0 && (key_code == 0x50E0 || key_code == 0x48E0)) {
+                // Down (0x50E0) / Up (0x48E0) in an open list
+                // picker: move the selection one selectable item,
+                // clamped at the ends. The picker stays open.
+                Move_List_Field_Selection(key_code == 0x50E0 ? 1 : -1);
+                down_mouse_button = -1;
+                return 0;
             }
 
             if (key_code == 0x00C0) {
@@ -1051,6 +1101,19 @@ namespace fields {
                     mouse_wheel_list_selection_held = 0;
                 }
                 if (scanned_field == 0) {
+                    // No hover: Return selects the highlighted item
+                    // (the shared selection) and closes the picker.
+                    if (list_field_on != 0) {
+                        for (int16_t i = 1; i < fields_count; ++i) {
+                            if (fields[i].field_type == FIELD_TYPE_STRING_LIST) {
+                                s_field_string_list* string_list = Field_Data_String_List(&fields[i]);
+                                if (*string_list->value == string_list->help_start && string_list->is_selectable != 0) {
+                                    down_mouse_button = -1;
+                                    return i;
+                                }
+                            }
+                        }
+                    }
                     return 0;
                 }
 
@@ -1134,17 +1197,6 @@ namespace fields {
                     return scanned_field;
                 }
 
-                if (list_field_on != 0) {
-                    for (int16_t i = 1; i < fields_count; ++i) {
-                        if (fields[i].field_type == FIELD_TYPE_STRING_LIST) {
-                            s_field_string_list* string_list = Field_Data_String_List(&fields[i]);
-                            if (*string_list->value == string_list->help_start && string_list->is_selectable != 0) {
-                                down_mouse_button = -1;
-                                return i;
-                            }
-                        }
-                    }
-                }
             } else if (key_code == 0x0D2B || key_code == 0x0C2D) {
                 int16_t scanned_field = Scan_Field();
                 if (scanned_field != 0 && fields[scanned_field].field_type == FIELD_TYPE_SCROLL) {
@@ -1617,6 +1669,18 @@ namespace fields {
             }
         }
 
+        // The list box: the help field plus one row per item.
+        // A click outside it dismisses the list, like Esc.
+        const int16_t list_bottom = (int16_t)(y + (index + 1) * y_step);
+        bool list_armed = false;
+
+        // The pointer position at the last hover update. A
+        // keyboard-moved selection must not be snapped back by a
+        // stationary mouse: the hover only retakes the selection
+        // once the pointer actually moves.
+        int16_t last_hover_x = -1;
+        int16_t last_hover_y = -1;
+
         int16_t input;
         bool exit_flag;
         do {
@@ -1643,23 +1707,72 @@ namespace fields {
                 exit_flag = true;
             }
 
+            // A click outside the list dismisses it, like Esc.
+            // Arm once the opening click is released, so the click
+            // that opened the list does not dismiss it. The loop
+            // samples the live button state every iteration, so a
+            // held press is seen while it is still down.
+            if (!list_armed) {
+                if (mouse::Mouse_Button() == 0) {
+                    list_armed = true;
+                }
+            } else if (mouse::Mouse_Button() != 0) {
+                const int16_t px = mouse::Pointer_X();
+                const int16_t py = mouse::Pointer_Y();
+                if (px < x || px >= x + width || py < y || py >= list_bottom) {
+                    input = -1;
+                    break;
+                }
+            }
+
             video::Set_Page_Off();
             Invoke_Auto_Function();
 
             if (list_field_scan_flag != 0) {
                 int16_t scan_idx = Scan_Input();
-                if (scan_idx > 0) {
+                const int16_t hover_x = mouse::Pointer_X();
+                const int16_t hover_y = mouse::Pointer_Y();
+                // Only a moved pointer retakes the selection: a
+                // keyboard Down/Up must survive the next frame
+                // while the mouse sits still over the list.
+                // A wheel-held selection is not overridden by a
+                // hover over the held row.
+                if (scan_idx > 0 && (hover_x != last_hover_x || hover_y != last_hover_y)) {
                     if (mouse_wheel_list_selection_held == 0 || scan_idx != mouse_wheel_list_held_row) {
                         *selected_index = static_cast<int8_t>(Field_Data_String_List(&fields[scan_idx])->help_start);
                         mouse_wheel_list_selection_held = 0;
                     }
                 }
+                last_hover_x = hover_x;
+                last_hover_y = hover_y;
             }
 
             palette::Refresh_Palette();
             platform::Toggle_Pages_Stub();
             timer::Release_Time(auto_function_delay);
         } while (!exit_flag);
+
+        // An outside click dismisses the picker on the press, while
+        // the button is still down. The input pump re-sets the mouse
+        // buffer flag while a button is held, so without this the
+        // click would leak into the screen underneath and activate
+        // whatever is under the cursor. Wait for the release first,
+        // so the cleanup below clears a flag that stays cleared.
+        // (Escape takes the same path when a button happens to be held.)
+        // The wait also ends if the picker is dismissed by another
+        // path (exit_the_list_field): without that the wait could
+        // spin forever on a button that is never released.
+        if (input < 0) {
+            while (mouse::Mouse_Button() != 0 && exit_the_list_field == 0) {
+                platform::Check_Exit();
+                timer::Mark_Time();
+                video::Set_Page_Off();
+                Invoke_Auto_Function();
+                palette::Refresh_Palette();
+                platform::Toggle_Pages_Stub();
+                timer::Release_Time(auto_function_delay);
+            }
+        }
 
         Clear_Fields();
         Reset_Mouse_Wheel_Input();

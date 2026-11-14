@@ -805,6 +805,48 @@ namespace fonts {
         return font_header.font_style_height;
     }
 
+    void __cdecl Get_String_Ink_Rows(const char* str, int16_t* top,
+        int16_t* bottom) {
+        int16_t ink_top = -1;
+        int16_t ink_bottom = -1;
+        if (str != nullptr && font_data != nullptr) {
+            const int16_t height = font_header.current_height;
+            for (const char* p = str; *p != '\0'; ++p) {
+                const int16_t char_idx = (int16_t)(uint8_t)*p;
+                const uint8_t* data =
+                    font_data + font_header.font_style_offsets[char_idx];
+                // A glyph is a row stream: each row is bytes until
+                // 0x80. A byte below 0x80 (and not 0, which is
+                // transparent) draws a pixel; a byte above 0x80
+                // skips pixels. This mirrors Print_Character_ASM.
+                for (int16_t row = 0; row < height; ++row) {
+                    bool row_has_ink = false;
+                    while (true) {
+                        const uint8_t cmd = *data++;
+                        if (cmd == 0x80) {
+                            break;
+                        }
+                        if (cmd != 0 && cmd < 0x80) {
+                            row_has_ink = true;
+                        }
+                    }
+                    if (row_has_ink) {
+                        if (ink_top < 0) {
+                            ink_top = row;
+                        }
+                        ink_bottom = row;
+                    }
+                }
+            }
+        }
+        if (top != nullptr) {
+            *top = ink_top;
+        }
+        if (bottom != nullptr) {
+            *bottom = ink_bottom;
+        }
+    }
+
     uint16_t __cdecl Get_Font_Vertical_Spacing() {
         return font_header.leading_offset;
     }

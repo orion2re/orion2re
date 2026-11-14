@@ -160,6 +160,34 @@ namespace graphics {
         }
     }
 
+    void __cdecl Dithered_Box(int16_t x, int16_t y, int16_t width,
+        int16_t height, int16_t thickness, uint8_t base, uint8_t speckle,
+        uint8_t density) {
+        // A border with the colony's bitmap feel: the same
+        // 1 px outline Box draws, but each side is a
+        // Dithered_Fill, so the border carries the colony's
+        // irregular speckle (~10-15% of a neighbouring shade)
+        // instead of reading as a smooth flat line. The
+        // speckle is screen-space, so the four sides share one
+        // continuous pattern.
+        if (thickness <= 0) {
+            return;
+        }
+
+        for (int32_t i = 0; i < (int32_t)thickness; ++i) {
+            int16_t offset = (int16_t)i;
+            int16_t x1 = x + offset;
+            int16_t y1 = y + offset;
+            int16_t x2 = x + width - offset - 1;
+            int16_t y2 = y + height - offset - 1;
+
+            Dithered_Fill(x1, y1, x2, y1, base, speckle, density);
+            Dithered_Fill(x1, y1, x1, y2, base, speckle, density);
+            Dithered_Fill(x2, y1, x2, y2, base, speckle, density);
+            Dithered_Fill(x1, y2, x2, y2, base, speckle, density);
+        }
+    }
+
     void __cdecl Dot(int16_t x, int16_t y, uint8_t color) {
         if (animate::clipping_flag == 1) {
             if (x < video::screen_window_x1 || y < video::screen_window_y1 ||
@@ -177,6 +205,91 @@ namespace graphics {
         uint8_t* framebuffer = video::current_video_page;
         int32_t offset = static_cast<int32_t>(y) * video::g_screen_res_x + static_cast<int32_t>(x);
         framebuffer[offset] = color;
+
+        platform::Unlock_Appropriate_Render_Buffer();
+    }
+
+    // Irregular speckle threshold: a deterministic integer hash of
+    // the absolute screen coordinates, uniform over 0..15. Used by
+    // Dithered_Fill so the speckle has no repeat distance, like the
+    // colony's baked speckle (see Dithered_Fill).
+    static uint8_t Speckle_Threshold(int16_t x, int16_t y) {
+        uint32_t h = (uint32_t)((uint32_t)(uint16_t)x * 374761393u +
+            (uint32_t)(uint16_t)y * 668265263u);
+        h = (h ^ (h >> 13)) * 1274126177u;
+        h = h ^ (h >> 16);
+        return (uint8_t)(h & 15);
+    }
+
+    void __cdecl Dithered_Fill(int16_t x1, int16_t y1, int16_t x2, int16_t y2,
+        uint8_t base, uint8_t speckle, uint8_t density) {
+        // The speckle threshold is a deterministic hash of the
+        // absolute screen coordinates, so the pattern is
+        // irregular -- no repeat distance -- like the colony's
+        // baked speckle: the 4x4 Bayer grid it replaces has
+        // autocorrelation 1.00 at lag 4, a visible repeating
+        // pattern, while the colony's panel interior has no
+        // lag-4 peak (its autocorrelation decays smoothly to
+        // ~0 by lag 8). A speckle lands where the hash is below
+        // the density, so density 5 is 5/16 speckles (~31%),
+        // 6 is 6/16 (~38%), 2 is 2/16 (~13%). Screen-space,
+        // so the pattern is continuous across adjacent rects.
+        if (density == 0) {
+            Fill(x1, y1, x2, y2, base);
+            return;
+        }
+        if (density >= 16) {
+            Fill(x1, y1, x2, y2, speckle);
+            return;
+        }
+        video::g_screen_res_x = platform::Lock_Appropriate_Render_Buffer();
+
+        if (x2 < x1) {
+            strings::Swap_Short(&x1, &x2);
+        }
+        if (y2 < y1) {
+            strings::Swap_Short(&y1, &y2);
+        }
+
+        const int16_t max_x = (int16_t)(video::g_screen_res_x - 1);
+        const int16_t max_y = (int16_t)(video::g_screen_res_y - 1);
+
+        if (x1 > max_x || x2 < 0 || y1 > max_y || y2 < 0) {
+            platform::Unlock_Appropriate_Render_Buffer();
+            return;
+        }
+
+        if (x1 < 0) x1 = 0;
+        if (y1 < 0) y1 = 0;
+        if (x2 > max_x) x2 = max_x;
+        if (y2 > max_y) y2 = max_y;
+
+        if (animate::clipping_flag == 1) {
+            if (x1 >= video::screen_window_x2 || x2 <= video::screen_window_x1 ||
+                y1 >= video::screen_window_y2 || y2 <= video::screen_window_y1) {
+                platform::Unlock_Appropriate_Render_Buffer();
+                return;
+            }
+
+            if (x1 < video::screen_window_x1) x1 = video::screen_window_x1;
+            if (y1 < video::screen_window_y1) y1 = video::screen_window_y1;
+            if (x2 > video::screen_window_x2) x2 = video::screen_window_x2;
+            if (y2 > video::screen_window_y2) y2 = video::screen_window_y2;
+        }
+
+        if (video::screen_refresh_flag >= 2) {
+            setvesa::Add_Square_To_Scan_List(x1, y1, x2, y2);
+        }
+
+        uint8_t* framebuffer = video::current_video_page;
+        const int32_t stride = video::g_screen_res_x;
+        for (int16_t y = y1; y <= y2; ++y) {
+            uint8_t* row = framebuffer + (int32_t)y * stride + x1;
+            for (int16_t x = x1; x <= x2; ++x) {
+                row[x - x1] =
+                    (Speckle_Threshold(x, y) < density) ? speckle : base;
+            }
+        }
 
         platform::Unlock_Appropriate_Render_Buffer();
     }

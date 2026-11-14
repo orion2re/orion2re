@@ -159,6 +159,52 @@ namespace user_paths {
             }
             return false;
         }
+
+        // Portable mode has no user-paths state, but a read-only install
+        // file may still live only in the XDG game-asset directories.
+        // The executable directory is checked first so portable data
+        // still wins; the installed data directory is not consulted
+        // here because portable mode never records it.
+        bool Find_Fallback_Install_File_(const char* name, std::string* path) {
+            const char* executable_directory = SDL_GetBasePath();
+            if (executable_directory != nullptr &&
+                Find_Existing_File_(executable_directory, name, path)) {
+                return true;
+            }
+            for (const std::string& directory : Get_Fallback_Game_Asset_Directories(PLATFORM_USES_XDG)) {
+                if (Find_Existing_File_(directory, name, path)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        // The XDG game-asset directories, computed from the environment
+        // without side effects: no directories are created and no state
+        // is changed. Shared by Init and the portable fallback search.
+        std::vector<std::string> Compute_Game_Asset_Directories_(const std::string& home) {
+            const std::string data_home = Base_Directory_("XDG_DATA_HOME", home, ".local/share/");
+            std::vector<std::string> directories;
+            directories.push_back(data_home + GAME_ASSET_DIRECTORY_NAME);
+            directories.push_back(data_home + APPLICATION_DIRECTORY_NAME);
+            const char* data_dirs = SDL_getenv("XDG_DATA_DIRS");
+            if (data_dirs == nullptr || data_dirs[0] == '\0') {
+                data_dirs = DEFAULT_DATA_DIRS;
+            }
+            const char* cursor = data_dirs;
+            while (*cursor != '\0') {
+                const char* end = strchr(cursor, ':');
+                const std::string entry = end != nullptr ? std::string(cursor, end) : std::string(cursor);
+                if (Is_Absolute_(entry.c_str())) {
+                    directories.push_back(With_Trailing_Separator_(entry) + GAME_ASSET_DIRECTORY_NAME);
+                }
+                if (end == nullptr) {
+                    break;
+                }
+                cursor = end + 1;
+            }
+            return directories;
+        }
+
     } // namespace
 
     bool Init(const char* executable_directory, bool platform_uses_xdg, const char* installed_data_directory) {
@@ -179,24 +225,7 @@ namespace user_paths {
         state.directories[USER_DIRECTORY_STATE] = Base_Directory_("XDG_STATE_HOME", home, ".local/state/") + APPLICATION_DIRECTORY_NAME;
         state.directories[USER_DIRECTORY_CACHE] = Base_Directory_("XDG_CACHE_HOME", home, ".cache/") + APPLICATION_DIRECTORY_NAME;
 
-        state.game_asset_directories.push_back(data_home + GAME_ASSET_DIRECTORY_NAME);
-        state.game_asset_directories.push_back(data_home + APPLICATION_DIRECTORY_NAME);
-        const char* data_dirs = SDL_getenv("XDG_DATA_DIRS");
-        if (data_dirs == nullptr || data_dirs[0] == '\0') {
-            data_dirs = DEFAULT_DATA_DIRS;
-        }
-        const char* cursor = data_dirs;
-        while (*cursor != '\0') {
-            const char* end = strchr(cursor, ':');
-            const std::string entry = end != nullptr ? std::string(cursor, end) : std::string(cursor);
-            if (Is_Absolute_(entry.c_str())) {
-                state.game_asset_directories.push_back(With_Trailing_Separator_(entry) + GAME_ASSET_DIRECTORY_NAME);
-            }
-            if (end == nullptr) {
-                break;
-            }
-            cursor = end + 1;
-        }
+        state.game_asset_directories = Compute_Game_Asset_Directories_(home);
 
         for (const std::string& directory : state.directories) {
             if (!Create_Directories_(directory)) {
@@ -231,8 +260,19 @@ namespace user_paths {
         return state.game_asset_directories;
     }
 
+    std::vector<std::string> Get_Fallback_Game_Asset_Directories(bool platform_uses_xdg) {
+        if (!platform_uses_xdg) {
+            return {};
+        }
+        std::string home;
+        if (!Find_Home_Directory_(&home)) {
+            return {};
+        }
+        return Compute_Game_Asset_Directories_(home);
+    }
+
     bool Redirect_Legacy_Path(const char* path, bool writing, char* output_path, size_t output_path_size) {
-        if (!state.enabled || path == nullptr || path[0] == '\0' || output_path == nullptr ||
+        if (path == nullptr || path[0] == '\0' || output_path == nullptr ||
             output_path_size == 0 || Has_Directory_Component_(path)) {
             return false;
         }
@@ -242,7 +282,17 @@ namespace user_paths {
         }
 
         std::string redirected;
-        if (file->kind == LEGACY_FILE_INSTALL) {
+        if (!state.enabled) {
+            // Portable mode: user files stay next to the executable, but
+            // a read-only install file may live only in the XDG
+            // game-asset directories (the original game assets are not
+            // part of the portable install). Search them when the file
+            // is not next to the executable.
+            if (file->kind != LEGACY_FILE_INSTALL || writing ||
+                !Find_Fallback_Install_File_(path, &redirected)) {
+                return false;
+            }
+        } else if (file->kind == LEGACY_FILE_INSTALL) {
             if (writing || !Find_Install_File_(path, &redirected)) {
                 return false;
             }

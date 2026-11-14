@@ -53,12 +53,14 @@ namespace EVANHELP {
     };
 
     s_help_box main_menu_screen_help_list[MAIN_MENU_BTN_QUIT + 1] = {
-        {645, 415, 172, 567, 193},
-        {646, 415, 195, 567, 215},
-        {647, 415, 217, 567, 238},
-        {648, 415, 240, 567, 260},
-        {649, 415, 262, 567, 283},
-        {650, 415, 285, 567, 306},
+        {645, 415, 160, 567, 181},
+        {646, 415, 183, 567, 204},
+        {647, 415, 205, 567, 226},
+        {648, 415, 228, 567, 249},
+        {649, 415, 250, 567, 271},
+        // Quit follows the centred 7-button stack; Settings itself
+        // has no help entry, like the Credits link.
+        {650, 415, 296, 567, 317},
     };
 
     s_help_box multi_player_setup_screen_help_list[10] = {
