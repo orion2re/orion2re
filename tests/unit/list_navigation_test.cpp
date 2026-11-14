@@ -79,6 +79,38 @@ namespace {
     };
 } // namespace
 
+DOCTEST_TEST_CASE_FIXTURE(s_colony_navigation_fixture, "Colonies list scroll resets to the top of a long list") {
+    MOX::NUM_COLONIES = 21;
+    DOCTEST_REQUIRE(COLXPORT::N_Colonies(MOX::PLAYER_NUM) == 21);
+    COLSUM::first = 11;
+    COLSUM::slider_bar_position = 0;
+
+    COLSUM::Reset_List_Scroll();
+    DOCTEST_CHECK(COLSUM::first == 0);
+    DOCTEST_CHECK(COLSUM::slider_bar_position == 11);
+
+    COLSUM::Update_First(10, &COLSUM::first, &COLSUM::slider_bar_position);
+    DOCTEST_CHECK(COLSUM::first == 0);
+}
+
+DOCTEST_TEST_CASE_FIXTURE(s_colony_navigation_fixture, "Colonies list scroll initializes short and exact-page lists") {
+    for (int16_t count : {0, 1, 5, 9, 10}) {
+        DOCTEST_CAPTURE(count);
+        MOX::NUM_COLONIES = count;
+        DOCTEST_REQUIRE(COLXPORT::N_Colonies(MOX::PLAYER_NUM) == count);
+        COLSUM::first = 11;
+        COLSUM::slider_bar_position = 0;
+
+        COLSUM::Reset_List_Scroll();
+        DOCTEST_CHECK(COLSUM::first == 0);
+        DOCTEST_CHECK(COLSUM::slider_bar_position == (count < 10 ? -1 : 0));
+
+        COLSUM::Update_First(10, &COLSUM::first, &COLSUM::slider_bar_position);
+        DOCTEST_CHECK(COLSUM::first == 0);
+        DOCTEST_CHECK(COLSUM::slider_bar_position == (count < 10 ? -1 : 0));
+    }
+}
+
 DOCTEST_TEST_CASE_FIXTURE(s_colony_navigation_fixture, "Colonies binds minus to up and plus to down") {
     DOCTEST_CHECK(fields::fields[COLSUM::x_fields[1]].hotkey == '-');
     DOCTEST_CHECK(fields::fields[COLSUM::x_fields[2]].hotkey == '+');
