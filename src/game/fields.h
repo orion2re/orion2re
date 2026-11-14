@@ -487,6 +487,18 @@ namespace fields {
     void __cdecl Increment_Scroll_Bar(int16_t field_idx);
     void __cdecl Decrement_Scroll_Bar(int16_t field_idx);
 
+    /// Steps by max(1, range / 10), clamped to the field's limits.
+    void __cdecl Step_Scroll_Bar(int16_t field_idx, int16_t steps);
+
+    /// Positive steps select earlier items, skipping disabled rows.
+    int16_t __cdecl Move_List_Selection(int16_t hovered_field_idx, int16_t steps);
+
+    /// Returns a scrolled field, 0 for no event, or -1 for a consumed event.
+    int16_t __cdecl Handle_Mouse_Wheel();
+
+    /// Clears queued events and fractional movement when the input context changes.
+    void __cdecl Reset_Mouse_Wheel_Input();
+
     // Type 4 is the older inline input field renderer/editor.
     // It uses detail.input, including input_mode and a cursor color ramp.
     void __cdecl Display_Input_Field(int16_t field_idx, char* input_buffer);

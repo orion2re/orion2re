@@ -156,6 +156,7 @@ namespace mouse {
         mouse_buttons = 0;
         mouse_buffer_flag = 0;
         mouse_buffer_flag2 = 0;
+        Clear_Mouse_Wheel_Delta();
         video::Set_Current_Mouse_List_Ptr(-1);
         video::Set_Current_Mouse_Shape(0);
     }
@@ -268,4 +269,5 @@ namespace mouse {
 
         mouse::in_mouse_handler = 0;
     }
+
 } // namespace mouse

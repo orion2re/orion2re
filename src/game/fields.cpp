@@ -4,6 +4,44 @@ namespace fields {
     namespace {
         s_field g_fields_storage[MAX_FIELDS_COUNT];
         constexpr std::uintptr_t kInvalidStringMarker = static_cast<std::uintptr_t>(-1);
+        s_field* mouse_wheel_fields;
+        void* mouse_wheel_value;
+        int16_t mouse_wheel_field_type;
+        int16_t mouse_wheel_axis;
+        float mouse_wheel_remainder;
+
+        int16_t Scan_Field_At(int16_t mouse_x, int16_t mouse_y) {
+            const int32_t adj_x = (int32_t)mouse_x + pointer_offset;
+            const int32_t adj_y = (int32_t)mouse_y + pointer_offset;
+            for (int16_t i = 1; i < fields_count; ++i) {
+                const s_field* field = &fields[i];
+                if (field->x <= adj_x && adj_x <= field->x_end &&
+                    field->y <= adj_y && adj_y <= field->y_end) {
+                    return i;
+                }
+            }
+            return 0;
+        }
+
+        int16_t Wheel_Steps_For_Field(int16_t field_idx, int16_t axis, float delta) {
+            s_field* field = &fields[field_idx];
+            void* value = field->field_type == FIELD_TYPE_STRING_LIST
+                ? (void*)Field_Data_String_List(field)->value
+                : (void*)Field_Data_Scroll(field)->value;
+            if (mouse_wheel_fields != fields || mouse_wheel_value != value ||
+                mouse_wheel_field_type != field->field_type || mouse_wheel_axis != axis) {
+                mouse_wheel_remainder = 0.0f;
+            }
+            mouse_wheel_fields = fields;
+            mouse_wheel_value = value;
+            mouse_wheel_field_type = field->field_type;
+            mouse_wheel_axis = axis;
+
+            const float total = std::clamp(mouse_wheel_remainder + delta, -32767.0f, 32767.0f);
+            const int16_t steps = (int16_t)total;
+            mouse_wheel_remainder = total - steps;
+            return steps;
+        }
 
         char Shortcut_Character(const char* shortcut) {
             if (shortcut == nullptr || shortcut[0] == '\0') {
@@ -21,6 +59,8 @@ namespace fields {
     MOX2::action_func_t update_function;
     uint16_t auto_active_flag;
     uint16_t list_field_on;
+    int16_t mouse_wheel_list_selection_held = 0;
+    int16_t mouse_wheel_list_held_row = -1;
     int16_t auto_function_delay = 2;
     uint16_t list_field_scan_flag = 1;
     int16_t down_mouse_button = -1;
@@ -162,6 +202,7 @@ namespace fields {
     void __cdecl Clear_Mouse_Buffer() {
         mouse::Mouse_Buffer();
         mouse::Mouse_Buffer2();
+        Reset_Mouse_Wheel_Input();
     }
 
     int16_t __cdecl Get_Input() {
@@ -201,6 +242,8 @@ namespace fields {
         input_field_active = 0;
         active_input_field_number = -1;
         multi_hotkey_active_field = 0;
+        mouse_wheel_list_selection_held = 0;
+        mouse_wheel_list_held_row = -1;
 
         mouse::Mouse_Buffer();
         mouse::Mouse_Buffer2();
@@ -653,21 +696,7 @@ namespace fields {
         mouse::Check_Mouse_Shape();
         pointer_offset = mouse::Get_Pointer_Offset();
 
-        if (fields_count > 1) {
-            int32_t adj_x = static_cast<int32_t>(mouse_x) + pointer_offset;
-            int32_t adj_y = static_cast<int32_t>(mouse_y) + pointer_offset;
-
-            for (int16_t i = 1; i < fields_count; ++i) {
-                s_field* field = &fields[i];
-
-                if (field->x <= adj_x && adj_x <= field->x_end &&
-                    field->y <= adj_y && adj_y <= field->y_end) {
-                    return i;
-                }
-            }
-        }
-
-        return 0;
+        return Scan_Field_At(mouse_x, mouse_y);
     }
 
     int16_t __cdecl Add_Locked_Button_Field(int16_t x, int16_t y, const char* help, s_animation_header* pic, int16_t* selection, const char* hotkey, int8_t sound) {
@@ -701,6 +730,7 @@ namespace fields {
     }
 
     void __cdecl Release_Fields() {
+        Reset_Mouse_Wheel_Input();
         fields_count = old_fields_count;
         input_delay = old_input_delay;
         down_mouse_button = old_down_mouse_button;
@@ -810,6 +840,7 @@ namespace fields {
     }
 
     void __cdecl Mark_Fields() {
+        Reset_Mouse_Wheel_Input();
         old_fields_count = fields_count;
         old_input_delay = input_delay;
         old_down_mouse_button = down_mouse_button;
@@ -900,6 +931,14 @@ namespace fields {
         int16_t ptr_x = mouse::Pointer_X();
         int16_t ptr_y = mouse::Pointer_Y();
         pointer_offset = mouse::Get_Pointer_Offset();
+
+        const int16_t wheel_result = Handle_Mouse_Wheel();
+        if (wheel_result > 0) {
+            return wheel_result;
+        }
+        if (wheel_result < 0) {
+            return 0;
+        }
 
         if (key::Keyboard_Status() != 0) {
             int16_t key_code = Interpret_Keyboard_Input(&field_idx);
@@ -996,6 +1035,21 @@ namespace fields {
                 }
 
                 int16_t scanned_field = Scan_Field();
+                if (list_field_on != 0 && mouse_wheel_list_selection_held != 0) {
+                    if (scanned_field == 0 || scanned_field == mouse_wheel_list_held_row) {
+                        const int8_t* selection = Field_Data_String_List(&fields[mouse_wheel_list_held_row])->value;
+                        for (int16_t i = 1; i < fields_count; ++i) {
+                            if (fields[i].field_type == FIELD_TYPE_STRING_LIST) {
+                                const s_field_string_list* row = Field_Data_String_List(&fields[i]);
+                                if (row->value == selection && row->help_start == *selection && row->is_selectable != 0) {
+                                    return i;
+                                }
+                            }
+                        }
+                        return 0;
+                    }
+                    mouse_wheel_list_selection_held = 0;
+                }
                 if (scanned_field == 0) {
                     return 0;
                 }
@@ -1496,6 +1550,7 @@ namespace fields {
 
     int16_t __cdecl Get_List_Field(
         int16_t x, int16_t y, int16_t width, const char* help, const char* list_ptr, int32_t item_size, int8_t* selected_index, uint8_t* item_flags, int16_t gradient_mode, uint8_t* gradient_palette, int32_t gradient_extra, s_animation_header* gradient_pic, int32_t unused_param_13, const char* unused_param_14) {
+        Reset_Mouse_Wheel_Input();
         list_field_on = 1;
         Set_Input_Delay(1);
         Clear_Fields();
@@ -1594,7 +1649,10 @@ namespace fields {
             if (list_field_scan_flag != 0) {
                 int16_t scan_idx = Scan_Input();
                 if (scan_idx > 0) {
-                    *selected_index = static_cast<int8_t>(Field_Data_String_List(&fields[scan_idx])->help_start);
+                    if (mouse_wheel_list_selection_held == 0 || scan_idx != mouse_wheel_list_held_row) {
+                        *selected_index = static_cast<int8_t>(Field_Data_String_List(&fields[scan_idx])->help_start);
+                        mouse_wheel_list_selection_held = 0;
+                    }
                 }
             }
 
@@ -1604,6 +1662,7 @@ namespace fields {
         } while (!exit_flag);
 
         Clear_Fields();
+        Reset_Mouse_Wheel_Input();
         list_field_on = 0;
         list_field_scan_flag = 1;
         mouse::Mouse_Buffer();
@@ -2605,6 +2664,175 @@ namespace fields {
         }
 
         *value_ptr = new_value;
+    }
+
+    void __cdecl Step_Scroll_Bar(int16_t field_idx, int16_t steps) {
+        if (steps == 0) {
+            return;
+        }
+
+        s_field_scroll* scroll = Field_Data_Scroll(&fields[field_idx]);
+        const int32_t range = (int32_t)scroll->range_max - (int32_t)scroll->range_min;
+        if (range <= 0) {
+            return;
+        }
+
+        int32_t step = range / 10;
+        if (step < 1) {
+            step = 1;
+        }
+
+        int32_t new_value = (int32_t)*scroll->value + (int32_t)steps * step;
+        if (new_value > scroll->set_value) {
+            new_value = scroll->set_value;
+        }
+        if (new_value < scroll->return_value) {
+            new_value = scroll->return_value;
+        }
+        *scroll->value = (int16_t)new_value;
+    }
+
+    int16_t __cdecl Move_List_Selection(int16_t hovered_field_idx, int16_t steps) {
+        if (steps == 0 || list_field_on == 0) {
+            return 0;
+        }
+        if (hovered_field_idx <= 0 || hovered_field_idx >= fields_count) {
+            return 0;
+        }
+        if (fields[hovered_field_idx].field_type != FIELD_TYPE_STRING_LIST) {
+            return 0;
+        }
+
+        int8_t* selection = Field_Data_String_List(&fields[hovered_field_idx])->value;
+        if (selection == nullptr) {
+            return 0;
+        }
+
+        // The help row has a separate selection pointer.
+        int16_t items[MAX_FIELDS_COUNT];
+        int16_t count = 0;
+        for (int16_t i = 1; i < fields_count; ++i) {
+            if (fields[i].field_type == FIELD_TYPE_STRING_LIST &&
+                Field_Data_String_List(&fields[i])->value == selection) {
+                items[count++] = i;
+            }
+        }
+        if (count < 2) {
+            return 0;
+        }
+
+        int16_t pos = -1;
+        for (int16_t i = 0; i < count; ++i) {
+            if (Field_Data_String_List(&fields[items[i]])->help_start == *selection) {
+                pos = i;
+                break;
+            }
+        }
+
+        const int16_t direction = (steps > 0) ? -1 : 1;
+        int16_t remaining = (steps > 0) ? steps : (int16_t)-steps;
+        if (pos == -1) {
+            pos = (direction < 0) ? count : -1;
+        }
+
+        while (remaining > 0) {
+            int16_t next = (int16_t)(pos + direction);
+            while (next >= 0 && next < count &&
+                   Field_Data_String_List(&fields[items[next]])->is_selectable == 0) {
+                next = (int16_t)(next + direction);
+            }
+            if (next < 0 || next >= count) {
+                break;
+            }
+            pos = next;
+            --remaining;
+        }
+
+        if (pos < 0 || pos >= count) {
+            return 0;
+        }
+
+        const int8_t new_selection = (int8_t)Field_Data_String_List(&fields[items[pos]])->help_start;
+        if (new_selection == *selection) {
+            return 0;
+        }
+        *selection = new_selection;
+        return 1;
+    }
+
+    void __cdecl Reset_Mouse_Wheel_Input() {
+        platform::Pump_Game_Input_Queue();
+        mouse::Clear_Mouse_Wheel_Delta();
+        mouse_wheel_fields = nullptr;
+        mouse_wheel_value = nullptr;
+        mouse_wheel_remainder = 0.0f;
+        mouse_wheel_list_selection_held = 0;
+        mouse_wheel_list_held_row = -1;
+    }
+
+    int16_t __cdecl Handle_Mouse_Wheel() {
+        platform::Pump_Game_Input_Queue();
+        mouse::s_wheel_event event;
+        if (mouse::Consume_Mouse_Wheel_Event(&event) == 0) {
+            return 0;
+        }
+
+        const int16_t wheel_is_vertical = (fabsf(event.wheel_y) >= fabsf(event.wheel_x)) ? 1 : 0;
+        const float wheel_delta = (wheel_is_vertical != 0) ? event.wheel_y : event.wheel_x;
+
+        pointer_offset = mouse::Get_Pointer_Offset();
+        const int16_t hovered = Scan_Field_At(event.mouse_x, event.mouse_y);
+        if (hovered != 0) {
+            const int16_t field_type = fields[hovered].field_type;
+            if (field_type == FIELD_TYPE_SCROLL || field_type == FIELD_TYPE_SCROLL_RETURN) {
+                s_field_scroll* scroll = Field_Data_Scroll(&fields[hovered]);
+                if ((scroll->is_vertical != 0) == (wheel_is_vertical != 0)) {
+                    const int16_t steps = Wheel_Steps_For_Field(hovered, wheel_is_vertical, wheel_delta);
+                    Step_Scroll_Bar(hovered, steps);
+                    return steps != 0 ? hovered : -1;
+                }
+            }
+            if (list_field_on != 0 && field_type == FIELD_TYPE_STRING_LIST) {
+                const int16_t steps = Wheel_Steps_For_Field(hovered, wheel_is_vertical, wheel_delta);
+                if (Move_List_Selection(hovered, steps) != 0) {
+                    mouse_wheel_list_selection_held = 1;
+                    mouse_wheel_list_held_row = hovered;
+                }
+                return -1;
+            }
+        }
+
+        int16_t only_axis_scroll = -1;
+        int16_t axis_scroll_count = 0;
+        int16_t only_scroll = -1;
+        int16_t scroll_count = 0;
+        for (int16_t i = 1; i < fields_count; ++i) {
+            if (fields[i].field_type == FIELD_TYPE_SCROLL ||
+                fields[i].field_type == FIELD_TYPE_SCROLL_RETURN) {
+                only_scroll = i;
+                ++scroll_count;
+                s_field_scroll* scroll = Field_Data_Scroll(&fields[i]);
+                if ((scroll->is_vertical != 0) == (wheel_is_vertical != 0)) {
+                    only_axis_scroll = i;
+                    ++axis_scroll_count;
+                }
+            }
+        }
+        if (axis_scroll_count == 1) {
+            const int16_t steps = Wheel_Steps_For_Field(only_axis_scroll, wheel_is_vertical, wheel_delta);
+            Step_Scroll_Bar(only_axis_scroll, steps);
+            return steps != 0 ? only_axis_scroll : -1;
+        }
+
+        if (scroll_count == 1) {
+            const int16_t steps = Wheel_Steps_For_Field(only_scroll, wheel_is_vertical, wheel_delta);
+            Step_Scroll_Bar(only_scroll, steps);
+            return steps != 0 ? only_scroll : -1;
+        }
+
+        mouse_wheel_fields = nullptr;
+        mouse_wheel_remainder = 0.0f;
+        return -1;
     }
 
     void __cdecl Draw_Field(int16_t field_idx, int16_t action) {

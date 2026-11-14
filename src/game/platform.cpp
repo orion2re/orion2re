@@ -28,6 +28,7 @@ namespace platform {
         enum e_input_event_type : uint8_t {
             INPUT_EVENT_MOUSE = 0,
             INPUT_EVENT_KEY = 1,
+            INPUT_EVENT_WHEEL = 2,
         };
 
         struct s_input_event {
@@ -37,6 +38,8 @@ namespace platform {
             uint16_t mouse_buttons;
             uint32_t key_code;
             uint32_t scan_code;
+            float wheel_x;
+            float wheel_y;
         };
 
         struct s_present_cursor_state {
@@ -83,6 +86,7 @@ namespace platform {
         void Blit_Cursor_On_Present_Surface();
         void Sync_Mouse_State_From_SDL();
         void Enqueue_Mouse_Input_Event(int16_t mouse_x, int16_t mouse_y, uint16_t mouse_buttons);
+        void Enqueue_Wheel_Input_Event(int16_t mouse_x, int16_t mouse_y, float wheel_x, float wheel_y);
         void Request_Present_Refresh();
 
         e_present_scaler Requested_Present_Scaler() {
@@ -207,6 +211,44 @@ namespace platform {
             event.mouse_buttons = mouse_buttons;
             event.key_code = 0;
             event.scan_code = 0;
+            g_input_queue_write = next_write;
+
+            SDL_UnlockMutex(g_input_queue_mutex);
+        }
+
+        void Enqueue_Wheel_Input_Event(int16_t mouse_x, int16_t mouse_y, float wheel_x, float wheel_y) {
+            if (g_input_queue_mutex == nullptr) {
+                return;
+            }
+
+            SDL_LockMutex(g_input_queue_mutex);
+
+            if (g_input_queue_read != g_input_queue_write) {
+                const uint16_t last_index = Previous_Input_Queue_Index(g_input_queue_write);
+                s_input_event& last_event = g_input_event_queue[last_index];
+                if (last_event.type == INPUT_EVENT_WHEEL &&
+                    last_event.mouse_x == mouse_x && last_event.mouse_y == mouse_y) {
+                    last_event.wheel_x += wheel_x;
+                    last_event.wheel_y += wheel_y;
+                    SDL_UnlockMutex(g_input_queue_mutex);
+                    return;
+                }
+            }
+
+            const uint16_t next_write = (uint16_t)((g_input_queue_write + 1) % k_input_queue_capacity);
+            if (next_write == g_input_queue_read) {
+                g_input_queue_read = (uint16_t)((g_input_queue_read + 1) % k_input_queue_capacity);
+            }
+
+            s_input_event& event = g_input_event_queue[g_input_queue_write];
+            event.type = INPUT_EVENT_WHEEL;
+            event.mouse_x = mouse_x;
+            event.mouse_y = mouse_y;
+            event.mouse_buttons = 0;
+            event.key_code = 0;
+            event.scan_code = 0;
+            event.wheel_x = wheel_x;
+            event.wheel_y = wheel_y;
             g_input_queue_write = next_write;
 
             SDL_UnlockMutex(g_input_queue_mutex);
@@ -1391,7 +1433,13 @@ namespace platform {
                     wheel_x = -wheel_x;
                     wheel_y = -wheel_y;
                 }
-                (void)debug_overlay::Handle_Mouse_Wheel(wheel_x, wheel_y);
+                const bool overlay_captures_mouse = debug_overlay::Handle_Mouse_Wheel(wheel_x, wheel_y);
+                if (!overlay_captures_mouse) {
+                    int16_t mouse_x = 0;
+                    int16_t mouse_y = 0;
+                    Map_Window_Point_To_Game_Point(event.wheel.mouse_x, event.wheel.mouse_y, &mouse_x, &mouse_y);
+                    Enqueue_Wheel_Input_Event(mouse_x, mouse_y, wheel_x, wheel_y);
+                }
                 continue;
             }
         }
@@ -1715,6 +1763,8 @@ namespace platform {
             const s_input_event& event = pending_events[i];
             if (event.type == INPUT_EVENT_MOUSE) {
                 mouse::User_Mouse_Handler(event.mouse_x, event.mouse_y, event.mouse_buttons);
+            } else if (event.type == INPUT_EVENT_WHEEL) {
+                mouse::User_Mouse_Wheel_Handler(event.mouse_x, event.mouse_y, event.wheel_x, event.wheel_y);
             } else {
                 Queue_Key_Code(event.key_code, event.scan_code);
             }

@@ -13,6 +13,20 @@ namespace mouse {
     /// @param mouse_buttons Current mouse button bitmask.
     void __cdecl User_Mouse_Handler(int16_t mouse_x, int16_t mouse_y, uint16_t mouse_buttons);
 
+    struct s_wheel_event {
+        int16_t mouse_x;
+        int16_t mouse_y;
+        float wheel_x;
+        float wheel_y;
+    };
+
+    /// Queues wheel input at its event position; positive deltas mean right/up.
+    void __cdecl User_Mouse_Wheel_Handler(int16_t mouse_x, int16_t mouse_y, float wheel_x, float wheel_y);
+
+    int16_t __cdecl Consume_Mouse_Wheel_Event(s_wheel_event* event);
+
+    void __cdecl Clear_Mouse_Wheel_Delta();
+
     /// Returns and clears the primary mouse-buffer flag.
     int16_t __cdecl Mouse_Buffer();
 

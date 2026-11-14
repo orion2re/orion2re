@@ -41,6 +41,14 @@ namespace {
         TEST_COLONY_SCAN_INFO::Set_Product_Cost_(120);
         return colony;
     }
+
+    void Set_Colony_Count_(int16_t count) {
+        TEST_COLONY_SCAN_INFO::Reset_();
+        for (int16_t i = 0; i < MAX_COLONIES; ++i) {
+            MOX::colony[i].owner = (i < count) ? 0 : 1;
+            MOX::colony[i].outpost_flag = 0;
+        }
+    }
 }
 
 DOCTEST_TEST_CASE("stored production comparison is descending and ignores purchased production") {
@@ -240,4 +248,36 @@ DOCTEST_TEST_CASE("Empire Info percentage modes preserve zero-chance fallbacks")
     COLSUM::print_research_value = COLSUM::RESEARCH_VALUE_PERCENTAGE_2;
     COLSUM::Draw_Empire_Info();
     DOCTEST_CHECK(std::string(TEST_COLONY_SCAN_INFO::Output_()) == "15");
+}
+
+DOCTEST_TEST_CASE("colonies list opens at the top when there are more colonies than visible rows") {
+    Set_Colony_Count_(21);
+    DOCTEST_CHECK(COLXPORT::N_Colonies(MOX::PLAYER_NUM) == 21);
+
+    COLSUM::first = 0;
+    COLSUM::slider_bar_position = 0;
+
+    COLSUM::Reset_List_Scroll();
+    DOCTEST_CHECK(COLSUM::first == 0);
+    DOCTEST_CHECK(COLSUM::slider_bar_position == 11);
+
+    COLSUM::Update_First(10, &COLSUM::first, &COLSUM::slider_bar_position);
+    DOCTEST_CHECK(COLSUM::first == 0);
+
+    TEST_COLONY_SCAN_INFO::Reset_();
+}
+
+DOCTEST_TEST_CASE("colonies list scroll stays disabled with fewer colonies than visible rows") {
+    Set_Colony_Count_(5);
+    DOCTEST_CHECK(COLXPORT::N_Colonies(MOX::PLAYER_NUM) == 5);
+
+    COLSUM::Reset_List_Scroll();
+    DOCTEST_CHECK(COLSUM::first == 0);
+    DOCTEST_CHECK(COLSUM::slider_bar_position == -1);
+
+    COLSUM::Update_First(10, &COLSUM::first, &COLSUM::slider_bar_position);
+    DOCTEST_CHECK(COLSUM::first == 0);
+    DOCTEST_CHECK(COLSUM::slider_bar_position == -1);
+
+    TEST_COLONY_SCAN_INFO::Reset_();
 }

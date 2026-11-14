@@ -32,6 +32,7 @@ namespace MOX2 {
 
     void __cdecl Screen_Control() {
         while (true) {
+            fields::Reset_Mouse_Wheel_Input();
             MOX::global_esc = 0;
             int16_t current_screen = MOX::current_screen;
 

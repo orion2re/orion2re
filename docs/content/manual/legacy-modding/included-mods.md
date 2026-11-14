@@ -13,8 +13,8 @@ Dependencies must also be installed. The game reports missing dependencies and c
 | Improved Multiplayer (`v150i-mp`) | Adds multiplayer race picks, map and noreport to the Improved mod. | Requires `v150i` and the script-bearing `mirror_hw` package. All players need compatible copies of the complete dependency set. | `enable v150i-mp;` |
 | ICE (`ice`) | Applies ICE 35 balance, difficulty, map, resource, and new game behavior. | Requires `v150`. | `enable ice;` |
 | ICE-X (`ice-x`) | Adds harder AI and Antaran settings to the ICE mod. | Requires and loads after `ice`. | `enable ice-x;` |
-| VDC-GM3 (`vdc`) | Applies VDC-GM3 balance changes, VDC-GM3 map, interface, resource, and lot's of technology changes. | Requires `v150`, and `mirror_exhw`. Conflicts with `ice`, `ice-x`, `mirror`, `mirror_hw`, and `v150i`. | `enable vdc;` |
-| Version 1.2 mod (`v120`) | Approximates version 1.2 rules, including its Creative cost, Psilon design, selected ship designs, and selected weapon values. | Requires `v150`. Conflicts with `ice`, `melee`, `v150i`, and `vdc`. | `enable v120;` |
+| VDC-GM3 (`vdc-gm3`) | Applies VDC-GM3 balance changes, VDC-GM3 map, interface, resource, and lot's of technology changes. | Requires `v150`, and `mirror_exhw`. Conflicts with `ice`, `ice-x`, `mirror`, `mirror_hw`, and `v150i`. | `enable vdc-gm3;` |
+| Version 1.2 mod (`v120`) | Approximates version 1.2 rules, including its Creative cost, Psilon design, selected ship designs, and selected weapon values. | Requires `v150`. Conflicts with `ice`, `melee`, `v150i`, and `vdc-gm3`. | `enable v120;` |
 | Melee (`melee`) | Provides the 1.50 two-player Melee mode and its compact tournament map. | Intended for two-player tactical competition rather than a normal campaign. | `enable melee;` |
 
 ## Galaxy and setup packages
@@ -22,8 +22,8 @@ Dependencies must also be installed. The game reports missing dependencies and c
 | Package | Purpose | Requirements and compatibility | Enable line |
 | --- | --- | --- | --- |
 | Full Mirror (`mirror`) | Splits the galaxy into identical mirrored sectors so every player receives the same start. | Do not combine with a profile that declares a conflict with it. | `enable mirror;` |
-| Full Mirror except home systems (`mirror_exhw`) | Mirrors galaxy sectors while preserving each player's generated home system. | Required by `vdc`. | `enable mirror_exhw;` |
-| Only Home Systems Mirrored (`mirror_hw`) | Copies one selected player's unoccupied home-system orbits to every other home system. | Required by `v150i-mp`; conflicts with `vdc`. | `enable mirror_hw;` |
+| Full Mirror except home systems (`mirror_exhw`) | Mirrors galaxy sectors while preserving each player's generated home system. | Required by `vdc-gm3`. | `enable mirror_exhw;` |
+| Only Home Systems Mirrored (`mirror_hw`) | Copies one selected player's unoccupied home-system orbits to every other home system. | Required by `v150i-mp`; conflicts with `vdc-gm3`. | `enable mirror_hw;` |
 | Random Technology Tree (`randtech`) | Randomizes the global technology tree before player technologies are assigned. | Uses a script; all multiplayer participants must use a compatible copy. | `enable randtech;` |
 
 ## Optional rule packages
@@ -52,7 +52,7 @@ The `ice` package changes race picks, starting conditions, map generation, AI di
 
 ### VDC-GM3
 
-The `vdc` package is also a complete game profile. It uses at least five planets in each home system, gives an outpost ship with the applicable starting fleet, removes the random part of research breakthroughs, forces ship initiative, and limits tactical combat to 25 turns. The `vdc_gm3_map` supplies its canonical galaxy-generation table.
+The `vdc-gm3` package is also a complete game profile. It uses at least five planets in each home system, gives an outpost ship with the applicable starting fleet, removes the random part of research breakthroughs, forces ship initiative, and limits tactical combat to 25 turns. The `vdc_gm3_map` supplies its canonical galaxy-generation table.
 
 ### Version 1.2 mod
 
