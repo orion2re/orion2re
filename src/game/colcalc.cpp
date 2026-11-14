@@ -787,7 +787,7 @@ namespace COLCALC {
     void __cdecl Colony_Pop_Grows(s_colony* colony) {
         int total_pops = static_cast<uint8_t>(colony->n_pops);
         if (total_pops == 0) {
-            for (int i = 0; i < 10; ++i) {
+            for (int i = 0; i < COLONY_POP_RACE_COUNT; ++i) {
                 colony->pop_growth[i] = 0;
                 colony->pop_roundoff[i] = 0;
             }
@@ -796,7 +796,7 @@ namespace COLCALC {
 
         int16_t colony_idx = (int16_t)(colony - MOX::colony);
         if (EVENTS::Event_Check_Space_Anomaly(colony_idx)) {
-            for (int i = 0; i < 10; ++i) {
+            for (int i = 0; i < COLONY_POP_RACE_COUNT; ++i) {
                 colony->pop_growth[i] = 0;
             }
             return;
@@ -853,7 +853,7 @@ namespace COLCALC {
             ind_needs_conquered--;
         }
 
-        for (int i = 0; i < 10; ++i) colony->pop_growth[i] = 0;
+        for (int i = 0; i < COLONY_POP_RACE_COUNT; ++i) colony->pop_growth[i] = 0;
 
         int owner_penalty_sum = ind_needs_empire + food_needs_empire;
         colony->pop_growth[static_cast<uint8_t>(colony->owner)] = (owner_penalty_sum < 1) ? 0 : static_cast<int16_t>(owner_penalty_sum * -25);
@@ -872,11 +872,11 @@ namespace COLCALC {
             }
         }
 
-        uint8_t race_pop_count[10] = {0};
-        uint8_t race_conquered_count[10] = {0};
+        uint8_t race_pop_count[COLONY_POP_RACE_COUNT] = {0};
+        uint8_t race_conquered_count[COLONY_POP_RACE_COUNT] = {0};
         for (int i = 0; i < total_pops; ++i) {
             int8_t r = POP::Get_Race(colony->pop[i]);
-            if (r < 10) {
+            if (r < COLONY_POP_RACE_COUNT) {
                 race_pop_count[r]++;
                 if (POP::Is_Conquered(colony->pop[i])) {
                     race_conquered_count[r]++;
@@ -991,7 +991,7 @@ namespace COLCALC {
                     return Colony_Race_Pop_Limit(colony, player_idx);
                 }
 
-                uint8_t races_present[10];
+                uint8_t races_present[COLONY_POP_RACE_COUNT];
                 memset(races_present, 0, sizeof(races_present));
 
                 for (int i = 0; i < (int)colony->n_pops; ++i) {
@@ -999,7 +999,7 @@ namespace COLCALC {
                 }
 
                 int16_t max_limit = 0;
-                for (int race = 0; race < 10; ++race) {
+                for (int race = 0; race < COLONY_POP_RACE_COUNT; ++race) {
                     if (races_present[race]) {
                         int16_t race_limit = Colony_Race_Pop_Limit(colony, (int16_t)race);
                         if (max_limit < race_limit) {
@@ -1692,6 +1692,7 @@ namespace COLCALC {
     }
 
     void __cdecl Ensure_Uncreative_Field_OK(s_player* player, int field_idx) {
+        if (player == nullptr || field_idx < 0 || field_idx >= TECH_FIELD_COUNT) return;
         int selected_tech_id = -1;
         int candidates_count = 0;
         int owned_count = 0;
@@ -1745,6 +1746,7 @@ namespace COLCALC {
     }
 
     void __cdecl Advance_Player_Field(s_player* player, int field_idx, bool skip_first_advance) {
+        if (player == nullptr || field_idx < 0 || field_idx >= TECH_FIELD_COUNT) return;
         if (field_idx == TECH_FIELD_STARTING_TECH) {
             return;
         }
@@ -2203,8 +2205,8 @@ namespace COLCALC {
         s_player* const owner_player = &MOX::player[owner_idx];
         const bool preserve_last_population =
             planet_extinction == 0 || owner_player->objectives != PLAYER_OBJECTIVE_HUMAN;
-        int16_t race_counts[10] = {};
-        uint8_t protected_race[10] = {};
+        int16_t race_counts[COLONY_POP_RACE_COUNT] = {};
+        uint8_t protected_race[COLONY_POP_RACE_COUNT] = {};
         bool had_negative_growth = false;
 
         {
@@ -2236,7 +2238,7 @@ namespace COLCALC {
             }
         }
 
-        for (int32_t race_idx = 0; race_idx < 10; ++race_idx) {
+        for (int32_t race_idx = 0; race_idx < COLONY_POP_RACE_COUNT; ++race_idx) {
             if (race_idx >= MOX::NUM_PLAYERS && race_idx != 8 && race_idx != 9) {
                 continue;
             }
@@ -2282,6 +2284,11 @@ namespace COLCALC {
 
                     const int16_t remove_idx = (special_count > 0) ? selected_special : selected_normal;
 
+                    if (remove_idx == -1) {
+                        colony->pop_roundoff[race_idx] = 0;
+                        break;
+                    }
+
                     --race_counts[race_idx];
                     --colony->n_pops;
                     colony->pop[remove_idx] = colony->pop[static_cast<uint8_t>(colony->n_pops)];
@@ -2318,7 +2325,7 @@ namespace COLCALC {
             }
         }
 
-        int16_t player_order[10] = {};
+        int16_t player_order[COLONY_POP_RACE_COUNT] = {};
 
         for (int16_t i = 0; i < MOX::NUM_PLAYERS; ++i) {
             player_order[i] = i;
@@ -2578,6 +2585,7 @@ namespace COLCALC {
     }
 
     void __cdecl Give_Player_Field(s_player* player, int field_id, char get_all_flag) {
+        if (player == nullptr || field_id < 0 || field_id >= TECH_FIELD_COUNT) return;
         if (field_id < 75 /* HYPER_ADVANCED_THRESHOLD */) {
             Advance_Player_Field(player, field_id, false);
 

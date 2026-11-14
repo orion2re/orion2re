@@ -33,12 +33,12 @@ namespace FILEDEF {
             return false;
         }
 
-        fwrite(&MOX::settings, sizeof(MOX::settings), 1, file);
-        fclose(file);
+        const bool written = fwrite(&MOX::settings, sizeof(MOX::settings), 1, file) == 1;
+        const bool closed = fclose(file) == 0;
 
         RUSS::Assert_Settings();
 
-        return true;
+        return written && closed;
     }
 
     void __cdecl Save_Game(int16_t slot_index) {
@@ -137,7 +137,7 @@ namespace FILEDEF {
         }
         fclose(file);
 
-        SERIAL::Reader_ reader(save_buffer, file_size, "Invalid or truncated save game");
+        SERIAL::Reader_ reader(save_buffer, file_size, "Invalid or truncated save game", true);
         SAVEGAME::s_metadata metadata = {};
         std::string load_error;
         if (!SAVEGAME::Read_Game(

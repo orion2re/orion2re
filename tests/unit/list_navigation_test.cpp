@@ -5,10 +5,18 @@
 namespace {
     struct s_colony_navigation_fixture {
         s_colony colonies[32] = {};
+        s_planet_data planets[32] = {};
+        s_star_data stars[1] = {};
+        s_player players[MAX_PLAYERS] = {};
         int16_t colony_list[MAX_COLONIES];
         std::vector<s_field> field_storage = std::vector<s_field>(250);
         s_animation_header animation = {};
         s_colony* saved_colonies = MOX::colony;
+        s_planet_data* saved_planets = MOX::planet;
+        s_star_data* saved_stars = MOX::star;
+        s_player* saved_players = MOX::player;
+        int16_t saved_star_count = MOX::NUM_STARS;
+        int16_t saved_star_field = MOX::galaxy_map_star_field[0];
         int16_t* saved_list = COLXPORT::g_colony_list_ptr;
         s_field* saved_fields = fields::fields;
         decltype(COLSUM::anims) saved_anims;
@@ -19,12 +27,18 @@ namespace {
 
         s_colony_navigation_fixture() {
             MOX::colony = colonies;
+            MOX::planet = planets;
+            MOX::star = stars;
+            MOX::player = players;
+            MOX::NUM_STARS = 1;
             MOX::NUM_COLONIES = 32;
             MOX::PLAYER_NUM = 0;
             COLXPORT::cheezy_hack_col_count_state = 0;
             std::fill_n(colony_list, MAX_COLONIES, static_cast<int16_t>(-1));
             for (int16_t index = 0; index < 32; ++index) {
                 colony_list[index] = index;
+                colonies[index].planet = index;
+                planets[index].colony_index = index;
             }
             COLXPORT::g_colony_list_ptr = colony_list;
             fields::fields = field_storage.data();
@@ -46,6 +60,11 @@ namespace {
 
         ~s_colony_navigation_fixture() {
             MOX::colony = saved_colonies;
+            MOX::planet = saved_planets;
+            MOX::star = saved_stars;
+            MOX::player = saved_players;
+            MOX::NUM_STARS = saved_star_count;
+            MOX::galaxy_map_star_field[0] = saved_star_field;
             COLXPORT::g_colony_list_ptr = saved_list;
             fields::fields = saved_fields;
             memcpy(COLSUM::anims, saved_anims, sizeof(saved_anims));
@@ -102,6 +121,21 @@ DOCTEST_TEST_CASE_FIXTURE(s_colony_navigation_fixture, "Colonies Home and End ke
         DOCTEST_CHECK(COLSUM::slider_bar_position == 0);
         Input(fields::INPUT_HOME);
         DOCTEST_CHECK(COLSUM::first == 0);
+    }
+}
+
+DOCTEST_TEST_CASE_FIXTURE(s_colony_navigation_fixture, "Colonies map clicks clamp short and full pages") {
+    for (int16_t count : {1, 3, 9, 10, 12, 32}) {
+        MOX::NUM_COLONIES = count;
+        for (int i = 0; i < 32; ++i) colony_list[i] = i < count ? i : -1;
+        stars[0].last_planet_selected[0] = static_cast<int8_t>(count - 1);
+        MOX::galaxy_map_star_field[0] = 7;
+        int16_t clicked = 7;
+        int16_t hovered = -1;
+        COLSUM::Check_Galaxy_Map_Fields(&clicked, &hovered);
+        DOCTEST_CHECK(COLSUM::first == std::max(0, count - 10));
+        DOCTEST_CHECK(COLSUM::slider_bar_position == (count < 10 ? -1 : 0));
+        DOCTEST_CHECK(COLSUM::list_col[std::min(9, count - 1)] == count - 1);
     }
 }
 

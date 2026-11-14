@@ -27,6 +27,7 @@ namespace TEST_CRYSTAL_FLEET {
 namespace TEST_BEAM_MODIFIERS {
     void Reset_();
     void Set_Has_HEF_(bool has_hef);
+    void Set_Has_Rangemaster_(bool value);
 } // namespace TEST_BEAM_MODIFIERS
 
 namespace TEST_FAIR_BEAMS {
@@ -608,6 +609,34 @@ DOCTEST_TEST_CASE("beam mount damage defaults match classic HEF combinations") {
         DOCTEST_CHECK(hit_bonus == value.expected_hit_bonus);
         DOCTEST_CHECK(damage == value.expected_damage);
     }
+}
+
+DOCTEST_TEST_CASE("beam modifiers cap long effective ranges at the last table entry") {
+    TEST_BEAM_MODIFIERS::Reset_();
+    MOX::ranged_to_hit_penalty[8] = -85;
+    MOX::ranged_damage_penalty[8] = -65;
+    const uint16_t mounts[] = {0, WEAPON_MOD_FLAG_HEAVY_MOUNT, WEAPON_MOD_FLAG_POINT_DEFENSE};
+    const int damages[] = {35, 85, 0};
+    const int bonuses[] = {-85, -85, -60};
+    for (int i = 0; i < 3; ++i) {
+        int32_t hit = 0;
+        int32_t damage = 0;
+        CMBTFIRE::Get_Beam_Weapon_Modifiers(0, 100, mounts[i], 0, &hit, &damage);
+        DOCTEST_CHECK(hit == bonuses[i]);
+        DOCTEST_CHECK(damage == damages[i]);
+    }
+    int32_t hit = 0;
+    int32_t damage = 0;
+    CMBTFIRE::Get_Beam_Weapon_Modifiers(0, 9, 0, 0, &hit, &damage);
+    DOCTEST_CHECK(hit == -85);
+    DOCTEST_CHECK(damage == 35);
+    TEST_BEAM_MODIFIERS::Set_Has_Rangemaster_(true);
+    MOX::ranged_to_hit_penalty[3] = -30;
+    CMBTFIRE::Get_Beam_Weapon_Modifiers(0, 9, 0, 0, &hit, &damage);
+    DOCTEST_CHECK(hit == -30);
+    DOCTEST_CHECK(damage == 35);
+    CMBTFIRE::Get_Beam_Weapon_Modifiers(0, 100, 0, 0, &hit, &damage);
+    DOCTEST_CHECK(hit == -85);
 }
 
 DOCTEST_TEST_CASE("beam modifiers use configured mount damage") {

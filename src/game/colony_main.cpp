@@ -861,7 +861,7 @@ namespace COLONY {
 
         int sum_roundoff = 0;
         int sum_growth = 0;
-        for (int i = 0; i < 10; ++i) {
+        for (int i = 0; i < COLONY_POP_RACE_COUNT; ++i) {
             sum_roundoff += MOX::colony[handle].pop_roundoff[i];
             sum_growth += MOX::colony[handle].pop_growth[i];
         }

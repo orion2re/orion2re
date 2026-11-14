@@ -13,6 +13,7 @@ namespace {
     int16_t last_retargeted_missile;
     int16_t retargeted_ship_status;
     bool has_high_energy_focus;
+    bool has_rangemaster;
     bool has_transporters;
     int16_t ship_center_offsets[4];
     int16_t destroy_fx_type;
@@ -167,6 +168,7 @@ namespace TEST_CRYSTAL_FLEET {
 namespace TEST_BEAM_MODIFIERS {
     void Reset_() {
         has_high_energy_focus = false;
+        has_rangemaster = false;
         memset(MOX::ranged_to_hit_penalty, 0,
                sizeof(MOX::ranged_to_hit_penalty));
         memset(MOX::ranged_damage_penalty, 0,
@@ -180,6 +182,10 @@ namespace TEST_BEAM_MODIFIERS {
 
     void Set_Has_HEF_(bool has_hef) {
         has_high_energy_focus = has_hef;
+    }
+
+    void Set_Has_Rangemaster_(bool value) {
+        has_rangemaster = value;
     }
 }
 
@@ -274,6 +280,7 @@ namespace COMBINIT {
         if (special_id == SPECIAL_TRANSPORTERS) {
             return has_transporters;
         }
+        if (special_id == SPECIAL_RANGEMASTER_UNIT) return has_rangemaster;
         if (special_id == SPECIAL_DISPLACEMENT_DEVICE) {
             const s_combat_data& ship = MOX::combat_data[ship_idx];
             return (ship.special_device_flags[special_id / 8] &

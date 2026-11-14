@@ -86,16 +86,12 @@ namespace COLSUM {
                     int16_t col_idx = COLXPORT::g_colony_list_ptr[colony_list_idx];
 
                     if (col_idx != -1 && MOX::colony[col_idx].planet == best_planet) {
-                        first = colony_list_idx;
-
-                        while (COLXPORT::g_colony_list_ptr[first + 9] == -1) {
-                            Decrement_First(10);
-                        }
-
+                        constexpr int16_t visible_rows = std::size(list_col);
                         int16_t n_colonies = COLXPORT::N_Colonies(MOX::PLAYER_NUM);
-                        slider_bar_position = n_colonies - first - 10;
+                        first = std::clamp<int16_t>(colony_list_idx, 0, std::max<int16_t>(0, n_colonies - visible_rows));
+                        slider_bar_position = n_colonies - first - visible_rows;
 
-                        Update_First(10, &first, &slider_bar_position);
+                        Update_First(visible_rows, &first, &slider_bar_position);
                         Update_Col_List();
                         COLONY::full_draw = 1;
                     }

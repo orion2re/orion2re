@@ -1,13 +1,49 @@
 #include "pch.h"
 
 namespace CMBTMOV1 {
+    namespace {
+        bool Tactical_Action_Is_Valid(const s_net_tactical_combat_message* message) {
+            const int16_t arg1 = message->arg1;
+            switch (message->message_code) {
+                case TACTICAL_NET_MSG_FIRE_WEAPON:
+                    return arg1 >= 0 && arg1 < (message->arg2 == 0 ? MOX::combat_total_ship_count : MAX_COMBAT_FLYERS);
+                case TACTICAL_NET_MSG_TOGGLE_WEAPON:
+                    return arg1 >= 0 && arg1 < 8;
+                case TACTICAL_NET_MSG_MOVE_SHIP:
+                    return arg1 >= 0 && arg1 < MOX::combat_grid_width &&
+                        message->arg2 >= 0 && message->arg2 < MOX::combat_grid_height;
+                case TACTICAL_NET_MSG_REMOVE_STASIS:
+                case TACTICAL_NET_MSG_SELECT_SHIP:
+                case TACTICAL_NET_MSG_BOARDING_ACTION:
+                    return arg1 >= 0 && arg1 < MOX::combat_total_ship_count;
+                case TACTICAL_NET_MSG_SELF_DESTRUCT:
+                case TACTICAL_NET_MSG_AUTO_TURN:
+                case TACTICAL_NET_MSG_SHIP_DONE:
+                case TACTICAL_NET_MSG_CYCLE_MISSILE_WARNING:
+                case TACTICAL_NET_MSG_TOGGLE_AUTO_COMBAT:
+                case TACTICAL_NET_MSG_WAIT:
+                case TACTICAL_NET_MSG_RETREAT:
+                case TACTICAL_NET_MSG_TURN_TO_FACE:
+                case TACTICAL_NET_MSG_END_TURN:
+                case TACTICAL_NET_MSG_SIDE_WAIT:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+    } // namespace
+
     void __cdecl Tactical_Combat_Receive_Message(int32_t sender_net_id, uint16_t message_id, int32_t message_size, s_net_tactical_combat_message* message) {
         (void)sender_net_id;
-        (void)message_size;
+        if (message == nullptr || message_size < static_cast<int32_t>(sizeof(message->viewport_x))) return;
 
         if (message_id >= TACTICAL_NET_PACKET_ACTION && message_id < DIP_NET_PACKET_MESSAGE) {
             switch (message_id) {
                 case TACTICAL_NET_PACKET_ACTION:
+                    if (message_size < static_cast<int32_t>(sizeof(*message)) || !Tactical_Action_Is_Valid(message)) {
+                        NETMOX::Net_Debug_Log("tactical action dropped: invalid packet or arguments");
+                        return;
+                    }
                     NETMOX::Net_Debug_Log(
                         "tactical action recv sender_net_id=%d local_player=%d action=%d args=%d,%d,%d pending=%d choice=%d turn=%d cur_ship=%d",
                         (int)sender_net_id,

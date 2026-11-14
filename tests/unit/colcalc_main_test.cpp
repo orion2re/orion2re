@@ -1,5 +1,11 @@
 #include "pch.h"
 #include "../fixtures/game_state.h"
+#include "game/allocate.h"
+#include "game/vfs.h"
+
+#include <chrono>
+#include <filesystem>
+#include <fstream>
 
 namespace {
     struct s_production_state : test::s_game_state {
@@ -59,6 +65,59 @@ namespace TEST_PLAYER_STATS {
 namespace TEST_GOVERNMENT_BONUS {
     void Reset_();
     void Cleanup_();
+}
+
+DOCTEST_TEST_CASE_FIXTURE(s_production_state, "tech grant guards leave state unchanged for invalid identifiers") {
+    const s_player before = players[0];
+    COLCALC::Player_Gets_Tech_App(&players[0], -1);
+    COLCALC::Player_Gets_Tech_App(&players[0], TECH_APP_COUNT);
+    COLCALC::Player_Gets_Tech_App(nullptr, 0);
+    const int invalid_fields[] = {-1, TECH_FIELD_COUNT};
+    for (int field : invalid_fields) {
+        COLCALC::Ensure_Uncreative_Field_OK(&players[0], field);
+        COLCALC::Advance_Player_Field(&players[0], field, false);
+        COLCALC::Give_Player_Field(&players[0], field, 0);
+    }
+    COLCALC::Ensure_Uncreative_Field_OK(nullptr, 0);
+    COLCALC::Advance_Player_Field(nullptr, 0, false);
+    COLCALC::Give_Player_Field(nullptr, 0, 0);
+    DOCTEST_CHECK(memcmp(&before, &players[0], sizeof(before)) == 0);
+}
+
+DOCTEST_TEST_CASE_FIXTURE(s_production_state, "Phase Shifter grants do not require a technology field") {
+    namespace fs = std::filesystem;
+    test::s_saved_value saved_data{MOX::global_data_seg};
+    const fs::path root = fs::temp_directory_path() /
+        ("orion-tech-grant-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+    fs::create_directories(root / "SHIPNAME.LBX");
+    MOX::global_data_seg = allocate::Allocate_Space(0x2800 + MAX_SHIPS - ORIGINAL_MAX_SHIPS);
+    struct Cleanup {
+        fs::path root;
+        ~Cleanup() {
+            vfs::Shutdown();
+            free(reinterpret_cast<allocate::s_alloc_header*>(MOX::global_data_seg) - 1);
+            std::error_code error;
+            fs::remove_all(root, error);
+        }
+    } cleanup{root};
+    {
+        const uint16_t count = 64;
+        const uint16_t width = sizeof(MOX::design->name);
+        const std::string names(count * width, '\0');
+        std::ofstream file(root / "SHIPNAME.LBX" / "000", std::ios::binary);
+        file.write(reinterpret_cast<const char*>(&count), sizeof(count));
+        file.write(reinterpret_cast<const char*>(&width), sizeof(width));
+        file.write(names.data(), names.size());
+        DOCTEST_REQUIRE(file.good());
+    }
+    DOCTEST_REQUIRE(vfs::Init(root.string().c_str()));
+    for (auto& hull : TECHDATA::hull_data) hull.size = 100;
+    TECHDATA::technology_applications[TECH_APP_PHASE_SHIFTER].tech_field_id = TECH_FIELD_INVALID;
+    players[0].current_research_application = TECH_APP_PHASE_SHIFTER;
+    players[0].current_research_field = -1;
+    COLCALC::Player_Gets_Tech_App(&players[0], TECH_APP_PHASE_SHIFTER);
+    DOCTEST_CHECK(players[0].tech_applications[TECH_APP_PHASE_SHIFTER] == TECH_RESEARCH_STATUS_RESEARCHED);
+    DOCTEST_CHECK(players[0].got_new_app == 1);
 }
 
 DOCTEST_TEST_CASE_FIXTURE(s_production_state, "government economy bonuses apply generically to every government") {

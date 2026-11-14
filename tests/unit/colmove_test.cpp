@@ -81,3 +81,12 @@ DOCTEST_TEST_CASE("native population transfer requires the configured policy") {
     DOCTEST_CHECK(TEST_COLMOVE::help_call_count == 1);
     DOCTEST_CHECK(COLMOVE::cluster_colony_n == 0);
 }
+
+DOCTEST_TEST_CASE("clearing an inactive cluster does not access a colony") {
+    TEST_COLMOVE::Reset_();
+    MOX::colony[0].n_pops = 1;
+    POP::Set_Assigned(&MOX::colony[0].pop[0], false);
+    COLMOVE::Clear_Cluster();
+    DOCTEST_CHECK(COLMOVE::cluster_colony_n == -1);
+    DOCTEST_CHECK_FALSE(POP::Is_Assigned(MOX::colony[0].pop[0]));
+}

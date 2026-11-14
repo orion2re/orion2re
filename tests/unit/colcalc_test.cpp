@@ -1049,6 +1049,26 @@ DOCTEST_TEST_CASE("configured extinction preserves the final AI population") {
     DOCTEST_CHECK(colony->n_pops == 1);
 }
 
+DOCTEST_TEST_CASE("extinction stops after removing the last pop of an unprotected race") {
+    s_colony* colony = Prepare_Starving_Colony_();
+    MOX::NUM_PLAYERS = 2;
+    colony->n_pops = 2;
+    colony->pop[0] = 0;
+    colony->pop[1] = 1;
+    colony->pop_growth[0] = 0;
+    colony->pop_growth[1] = -2000;
+    colony->specialty = 5;
+    MOX::player[0].objectives = PLAYER_OBJECTIVE_HUMAN;
+    COLCALC::planet_extinction = 1;
+
+    COLCALC::Apply_Colony_Pop_Growth(colony);
+
+    DOCTEST_REQUIRE(colony->n_pops == 1);
+    DOCTEST_CHECK(colony->pop[0] == 0);
+    DOCTEST_CHECK(colony->specialty == 5);
+    DOCTEST_CHECK(colony->pop_roundoff[1] == 0);
+}
+
 DOCTEST_TEST_CASE("classic zero colony survives while settlers are inbound") {
     s_colony* colony = Prepare_Zero_Colony_With_Inbound_Settlers_();
 

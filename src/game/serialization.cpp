@@ -3,26 +3,32 @@
 #include "game/serialization.h"
 
 namespace SERIAL {
-    Reader_::Reader_(const void* data, uint32_t len, const char* error_message)
+    Reader_::Reader_(const void* data, uint32_t len, const char* error_message, bool soft_fail)
         : start(static_cast<const uint8_t*>(data)),
           ptr(static_cast<const uint8_t*>(data)),
           len(len),
-          error_message(error_message) {
+          error_message(error_message),
+          soft_fail(soft_fail) {
         if (start == nullptr) {
-            Fail();
+            if (!soft_fail) Fail();
+            failed = true;
         }
     }
 
-    void Reader_::Require(size_t size) const {
+    bool Reader_::Require(size_t size) const {
+        if (failed) return false;
         if (ptr == nullptr || ptr < start ||
             static_cast<size_t>(ptr - start) > len ||
             size > len - static_cast<size_t>(ptr - start)) {
-            Fail();
+            if (!soft_fail) Fail();
+            failed = true;
+            return false;
         }
+        return true;
     }
 
     void Reader_::Skip(size_t size) {
-        Require(size);
+        if (!Require(size)) return;
         ptr += size;
     }
 
@@ -31,7 +37,7 @@ namespace SERIAL {
     }
 
     uint8_t Reader_::Read_Uint8() {
-        Require(sizeof(uint8_t));
+        if (!Require(sizeof(uint8_t))) return 0;
         uint8_t value = *ptr;
         ptr += sizeof(uint8_t);
         return value;
@@ -72,13 +78,17 @@ namespace SERIAL {
     }
 
     void Reader_::Read_Bytes(void* dest, size_t size) {
-        Require(size);
+        if (!Require(size)) {
+            if (size != 0) memset(dest, 0, size);
+            return;
+        }
+        if (size == 0) return;
         memcpy(dest, ptr, size);
         ptr += size;
     }
 
     uint32_t Reader_::Length() const {
-        return static_cast<uint32_t>(ptr - start);
+        return start == nullptr ? 0 : static_cast<uint32_t>(ptr - start);
     }
 
     uint32_t Reader_::Remaining() const {
@@ -87,6 +97,10 @@ namespace SERIAL {
 
     const uint8_t* Reader_::Ptr() const {
         return ptr;
+    }
+
+    bool Reader_::Failed() const {
+        return failed;
     }
 
     [[noreturn]] void Reader_::Fail() const {

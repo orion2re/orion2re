@@ -975,7 +975,6 @@ namespace LOADSAVE {
 
     void __cdecl Save_Session_Related_Settings() {
         uint8_t file_buffer[sizeof(MOX::settings)];
-        bool success = false;
 
         FILE* file = fopen_case(GAME_SETTINGS_FILENAME, "rb");
         if (file != nullptr) {
@@ -990,21 +989,19 @@ namespace LOADSAVE {
                     file_buffer[i] = ((uint8_t*)&MOX::settings)[i];
                 }
 
-                success = true;
                 RUSS::Assert_Settings();
 
                 file = fopen_case(GAME_SETTINGS_FILENAME, "wb");
                 if (file != nullptr) {
-                    fwrite(file_buffer, sizeof(file_buffer), 1, file);
-                    fclose(file);
-                } else {
-                    success = false;
+                    const bool written = fwrite(file_buffer, sizeof(file_buffer), 1, file) == 1;
+                    const bool closed = fclose(file) == 0;
+                    if (written && closed) return;
                 }
             }
         }
 
-        if (!success) {
-            exitm::Exit_With_Message("Settings file (ORION2RE.SET) is missing or invalid");
+        if (!FILEDEF::Save_Game_Settings()) {
+            SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "Unable to save session settings to %s", GAME_SETTINGS_FILENAME);
         }
     }
 

@@ -500,6 +500,9 @@ struct s_coldraw_veggie_cell {
 
 typedef struct s_colony s_colony, *Ps_colony;
 
+// Population identities are player slots, androids, and natives, not stock-race IDs.
+inline constexpr int COLONY_POP_RACE_COUNT = 10;
+
 struct s_colony {
     int8_t owner;
     int8_t allocated_to;
@@ -511,8 +514,8 @@ struct s_colony {
     uint8_t n_pops;
     int8_t specialty;
     uint32_t pop[MAX_COLONY_POPULATION];
-    int16_t pop_roundoff[10];
-    int16_t pop_growth[10];
+    int16_t pop_roundoff[COLONY_POP_RACE_COUNT];
+    int16_t pop_growth[COLONY_POP_RACE_COUNT];
     int8_t n_turns_existed;
     uint8_t food2_per_farmer;
     uint8_t industry_per_worker;

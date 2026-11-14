@@ -555,6 +555,7 @@ namespace COLCALC {
     }
 
     void __cdecl Player_Gets_Tech_App(s_player* plr, int16_t tech_app_id) {
+        if (plr == nullptr || tech_app_id < 0 || tech_app_id >= TECH_APP_COUNT) return;
         plr->tech_applications[tech_app_id] = TECH_RESEARCH_STATUS_RESEARCHED;
         plr->got_new_app = 1;
 
@@ -590,16 +591,18 @@ namespace COLCALC {
 
         Do_Player_Colony_Calculations((int16_t)(plr - MOX::player));
 
+        const int16_t research_field = plr->current_research_field;
         if (static_cast<uint8_t>(plr->current_research_application) == static_cast<uint16_t>(tech_app_id) &&
-            plr->tech_fields[static_cast<uint8_t>(plr->current_research_field)] == 2) {
+            research_field >= 0 && research_field < TECH_FIELD_COUNT &&
+            plr->tech_fields[research_field] == 2) {
             bool advance_field = true;
             bool inspect_remaining_apps =
                 plr->traits[TRAIT_CREATIVE] != 0 || keep_research_on_finds != 0;
             if (inspect_remaining_apps && plr->traits[TRAIT_UNCREATIVE] != 0) {
-                Ensure_Uncreative_Field_OK(plr, static_cast<uint8_t>(plr->current_research_field));
+                Ensure_Uncreative_Field_OK(plr, research_field);
             }
-            if (inspect_remaining_apps || Field_Is_Gray_Box(static_cast<uint8_t>(plr->current_research_field))) {
-                auto& field_data = TECHDATA::technology_fields[static_cast<uint8_t>(plr->current_research_field)];
+            if (inspect_remaining_apps || Field_Is_Gray_Box(research_field)) {
+                auto& field_data = TECHDATA::technology_fields[research_field];
                 int16_t* field_techs = field_data.tech;
 
                 for (int i = 0; i < 4; ++i) {
@@ -611,11 +614,12 @@ namespace COLCALC {
             }
 
             if (advance_field) {
-                Advance_Player_Field(plr, static_cast<uint8_t>(plr->current_research_field), 1);
+                Advance_Player_Field(plr, research_field, 1);
                 Resolve_Research_Completion(plr, keep_research_on_finds != 0, 0);
             }
         } else {
             int field_id = TECHDATA::technology_applications[tech_app_id].tech_field_id;
+            if (field_id < 0 || field_id >= TECH_FIELD_COUNT) return;
             if (plr->traits[TRAIT_UNCREATIVE] != 0) {
                 Ensure_Uncreative_Field_OK(plr, field_id);
             }

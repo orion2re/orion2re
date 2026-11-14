@@ -3,9 +3,10 @@
 namespace SERIAL {
     class Reader_ {
       public:
-        Reader_(const void* data, uint32_t len, const char* error_message);
+        // Recoverable parsers opt in and check Failed() before accepting the result.
+        Reader_(const void* data, uint32_t len, const char* error_message, bool soft_fail = false);
 
-        void Require(size_t size) const;
+        bool Require(size_t size) const;
         void Skip(size_t size);
 
         char Read_Char();
@@ -21,6 +22,7 @@ namespace SERIAL {
         uint32_t Length() const;
         uint32_t Remaining() const;
         const uint8_t* Ptr() const;
+        bool Failed() const;
 
       private:
         [[noreturn]] void Fail() const;
@@ -29,6 +31,8 @@ namespace SERIAL {
         const uint8_t* ptr;
         uint32_t len;
         const char* error_message;
+        bool soft_fail;
+        mutable bool failed = false;
     };
 
     class Writer_ {

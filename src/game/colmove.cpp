@@ -5,7 +5,7 @@ namespace COLMOVE {
     uint8_t g_hacky_dont_draw_cluster_flag;
 
     void __cdecl Clear_Cluster() {
-        int16_t unemployed_idx = Get_First_Unemployed(cluster_colony_n);
+        int16_t unemployed_idx = cluster_colony_n == -1 ? -1 : Get_First_Unemployed(cluster_colony_n);
 
         while (unemployed_idx != -1) {
             uint32_t* pop_flags = &MOX::colony[cluster_colony_n].pop[unemployed_idx];

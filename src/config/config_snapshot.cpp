@@ -240,6 +240,7 @@ namespace config {
         }
 
         bool Read_Value(SERIAL::Reader_* reader, const s_type_descriptor* type, uint32_t value_size, s_typed_value* value) {
+            if (value_size > reader->Remaining()) return false;
             *value = {};
             value->type = type->value_type;
             switch (type->value_type) {
@@ -276,7 +277,6 @@ namespace config {
                     return true;
                 case CONFIG_VALUE_STRING:
                     if (value_size > CONFIG_MAX_SNAPSHOT_SIZE) return false;
-                    reader->Require(value_size);
                     value->string_value.resize(value_size);
                     reader->Read_Bytes(value->string_value.data(), value_size);
                     return Valid_String(value->string_value.data(), value_size);
@@ -555,7 +555,7 @@ namespace config {
             !metadata->valid) {
             return false;
         }
-        const uint32_t start = reader->Length();
+        if (reader->Failed() || reader->Remaining() < 8) return false;
         if (reader->Read_Uint32() != CONFIG_SNAPSHOT_MAGIC) {
             return false;
         }
@@ -571,20 +571,26 @@ namespace config {
                 header_size != CONFIG_SNAPSHOT_HEADER_SIZE_VALUES_ONLY)) {
             return false;
         }
+        if (reader->Remaining() < header_size - 8u) return false;
         const uint32_t payload_size = reader->Read_Uint32();
         const uint32_t entry_count = reader->Read_Uint32();
         const uint32_t mod_count = has_required_mods ? reader->Read_Uint32() : 0;
         if (has_mod_versions && reader->Read_Uint32() != 0) return false;
         s_config_state candidate;
         if (payload_size > CONFIG_MAX_SNAPSHOT_SIZE - header_size ||
+            payload_size > reader->Remaining() ||
             entry_count > CONFIG_MAX_SNAPSHOT_SIZE / CONFIG_SNAPSHOT_ENTRY_HEADER_SIZE ||
             mod_count > CONFIG_MAX_SNAPSHOT_MOD_COUNT ||
             !Initialize_Tracked_Defaults(&candidate)) {
             return false;
         }
+        SERIAL::Reader_ payload_reader(reader->Ptr(), payload_size, "invalid config snapshot payload");
+        SERIAL::Reader_* outer_reader = reader;
+        reader = &payload_reader;
         std::vector<s_mod_requirement> required_mods;
         required_mods.reserve(mod_count);
         for (uint32_t index = 0; index < mod_count; ++index) {
+            if (reader->Remaining() < (has_mod_versions ? 4u : 2u)) return false;
             const uint16_t mod_id_size = reader->Read_Uint16();
             const uint16_t mod_version_size =
                 has_mod_versions ? reader->Read_Uint16() : 0;
@@ -596,6 +602,7 @@ namespace config {
                     mod_version_size > CONFIG_MAX_SNAPSHOT_MOD_VERSION_SIZE)) {
                 return false;
             }
+            if (static_cast<uint32_t>(mod_id_size) + mod_version_size > reader->Remaining()) return false;
             s_mod_requirement required;
             required.id.resize(mod_id_size);
             reader->Read_Bytes(required.id.data(), required.id.size());
@@ -614,12 +621,14 @@ namespace config {
         t_variable_id prior_variable = CONFIG_NO_VARIABLE;
         uint32_t prior_leaf = 0;
         for (uint32_t index = 0; index < entry_count; ++index) {
+            if (reader->Remaining() < CONFIG_SNAPSHOT_ENTRY_HEADER_SIZE) return false;
             const uint16_t path_size = reader->Read_Uint16();
             const uint8_t value_type = reader->Read_Uint8();
             const uint8_t flags = reader->Read_Uint8();
             const uint32_t value_size = reader->Read_Uint32();
             if (path_size == 0 || path_size > CONFIG_MAX_SNAPSHOT_PATH_SIZE ||
-                flags != 0) {
+                flags != 0 || path_size > reader->Remaining() ||
+                value_size > reader->Remaining() - path_size) {
                 return false;
             }
             char path[CONFIG_MAX_SNAPSHOT_PATH_SIZE + 1];
@@ -656,13 +665,14 @@ namespace config {
                 return false;
             }
         }
-        if (reader->Length() - start != header_size + payload_size) {
+        if (reader->Remaining() != 0) {
             return false;
         }
         if (!Validate_State(&candidate)) return false;
         snapshot->state = std::move(candidate);
         snapshot->required_mods = std::move(required_mods);
         snapshot->has_required_mods = has_required_mods;
+        outer_reader->Skip(payload_size);
         return true;
     }
 

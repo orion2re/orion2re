@@ -8,6 +8,7 @@
 #include "game/initgame.h"
 #include "game/newgame.h"
 #include "lua/lua_game.h"
+#include "../fixtures/game_state.h"
 
 #include <chrono>
 #include <filesystem>
@@ -461,6 +462,63 @@ DOCTEST_TEST_CASE("saved mod configuration and canonical launch restoration refr
     DOCTEST_CHECK(ESTRINGS::E_Strings(126)[0] == 'B');
 }
 
+DOCTEST_TEST_CASE("invalid planet links do not escape the planet and star arrays") {
+    test::s_game_state state;
+    MOX::planet_count = MOX::NUM_STARS = 1;
+    state.planets[0].star_index = 5000;
+    state.planets[0].orbit = 9;
+    state.stars[0].planet_index[0] = 5000;
+    for (int j = 1; j < 5; ++j) state.stars[0].planet_index[j] = -1;
+    DOCTEST_CHECK(HAROLD::Planet_Number(0) == 0);
+    DOCTEST_CHECK(HAROLD::Planet_Number(-1) == 0);
+    DOCTEST_CHECK(HAROLD::Planet_Number(5000) == 0);
+    HAROLD::Confirm_Planet_And_Star_Index_Link("test");
+    state.stars[0].planet_index[0] = 0;
+    HAROLD::Confirm_Planet_And_Star_Index_Link("test");
+    state.planets[0].star_index = state.planets[0].orbit = 0;
+    DOCTEST_CHECK(HAROLD::Planet_Number(0) == 0);
+}
+
+DOCTEST_TEST_CASE("session settings recover missing and short files without losing live choices") {
+    Fixture fixture;
+    struct Restore_Directory {
+        fs::path path = fs::current_path();
+        ~Restore_Directory() {
+            fs::current_path(path);
+        }
+    } restore;
+    fs::current_path(fixture.root);
+    memset(&MOX::settings, 0x5A, sizeof(MOX::settings));
+    const s_settings live = MOX::settings;
+    const auto read = [&]() {
+        s_settings result = {};
+        std::ifstream file(GAME_SETTINGS_FILENAME, std::ios::binary);
+        file.read(reinterpret_cast<char*>(&result), sizeof(result));
+        DOCTEST_REQUIRE(file.good());
+        return result;
+    };
+    LOADSAVE::Save_Session_Related_Settings();
+    auto saved = read();
+    DOCTEST_CHECK(memcmp(&live, &saved, sizeof(live)) == 0);
+    fixture.Write(GAME_SETTINGS_FILENAME, "short");
+    LOADSAVE::Save_Session_Related_Settings();
+    saved = read();
+    DOCTEST_CHECK(memcmp(&live, &saved, sizeof(live)) == 0);
+
+    fixture.Write(GAME_SETTINGS_FILENAME, std::string(sizeof(s_settings), '\x33'));
+    LOADSAVE::Save_Session_Related_Settings();
+    saved = read();
+    DOCTEST_CHECK(memcmp(&live, &saved, 211) == 0);
+    const auto* bytes = reinterpret_cast<const uint8_t*>(&saved);
+    for (size_t i = 211; i < sizeof(saved); ++i) DOCTEST_CHECK(bytes[i] == 0x33);
+
+    fs::remove(GAME_SETTINGS_FILENAME);
+    fs::create_directory(GAME_SETTINGS_FILENAME);
+    DOCTEST_CHECK_FALSE(FILEDEF::Save_Game_Settings());
+    LOADSAVE::Save_Session_Related_Settings();
+    DOCTEST_CHECK(memcmp(&live, &MOX::settings, sizeof(live)) == 0);
+}
+
 DOCTEST_TEST_CASE("successful file save load requests resource reload even when mods are unchanged") {
     Fixture fixture;
     std::vector<s_colony> colonies(MAX_COLONIES);
@@ -477,6 +535,8 @@ DOCTEST_TEST_CASE("successful file save load requests resource reload even when 
     MOX::NUM_PLAYERS = 1;
     MOX::PLAYER_NUM = 0;
     MOX::game_type = 0;
+    MOX::max_map_scale = 30;
+    MOX::cur_map_scale = 10;
     MOX::player[0].objectives = PLAYER_OBJECTIVE_HUMAN;
     MOX::player[0].surrender_to = -1;
     config::s_effective_config effective;

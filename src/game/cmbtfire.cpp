@@ -1061,10 +1061,10 @@ namespace CMBTFIRE {
 
     int16_t __cdecl Get_Beam_Range_To_Hit_Bonus(int16_t ship_idx, int16_t range) {
         if (COMBINIT::Does_Combat_Ship_Have_Special(ship_idx, SPECIAL_RANGEMASTER_UNIT) == 1) {
-            return MOX::ranged_to_hit_penalty[range / 3];
+            range /= 3;
         }
 
-        return MOX::ranged_to_hit_penalty[range];
+        return MOX::ranged_to_hit_penalty[std::clamp<int>(range, 0, std::size(MOX::ranged_to_hit_penalty) - 1)];
     }
 
     int16_t __cdecl Fire_Bomb(int16_t ship_idx, int16_t unused_target_idx, int16_t weapon_slot_idx) {
@@ -1516,7 +1516,7 @@ namespace CMBTFIRE {
 
         if (!(wpn_modifier_flags & 0x20) && !(TECHDATA::weapons[wpn_idx].natural_mods & WEAPON_NATURAL_FLAG_NO_RANGE_DISSIPATION)) {
             int32_t range_damage_penalty =
-                MOX::ranged_damage_penalty[effective_range];
+                MOX::ranged_damage_penalty[std::clamp<int>(effective_range, 0, std::size(MOX::ranged_damage_penalty) - 1)];
             if (double_range_damage_penalty != 0) {
                 range_damage_penalty *= 2;
             }

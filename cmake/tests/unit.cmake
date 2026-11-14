@@ -770,6 +770,10 @@ orion2re_add_game_test(test_colony_replicators
     tests/fakes/fake_colony_replicators_runtime.cpp
 )
 
+orion2re_add_game_test(test_colony_queue
+    tests/unit/colony_queue_test.cpp
+)
+
 orion2re_add_unit_test(test_build_queue
     SOURCES
         tests/unit/build_queue_test.cpp

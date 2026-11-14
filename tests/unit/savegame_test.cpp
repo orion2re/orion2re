@@ -70,6 +70,38 @@ namespace {
         }
     }
 
+    uint8_t* Find_Legacy_Block_(uint8_t* data, size_t size, size_t block_size, uint32_t seed) {
+        std::vector<uint8_t> pattern(block_size);
+        Fill_Bytes_(pattern.data(), pattern.size(), seed);
+        uint8_t* block = std::search(data, data + size, pattern.begin(), pattern.end());
+        DOCTEST_REQUIRE(block != data + size);
+        return block;
+    }
+
+    void Normalize_Legacy_Fixture_(uint8_t* data, size_t size) {
+        // The byte-pattern fixture predates semantic validation. Keep its binary
+        // layout coverage, but give the validated fields meaningful values.
+        uint8_t* planets = Find_Legacy_Block_(data, size, ORIGINAL_MAX_PLANETS * LEGACY_PLANET_SIZE, 2);
+        for (size_t i = 0; i < ORIGINAL_MAX_PLANETS; ++i) {
+            planets[i * LEGACY_PLANET_SIZE + offsetof(s_planet_data, star_index)] = i % (ORIGINAL_MAX_STARS - 1);
+            planets[i * LEGACY_PLANET_SIZE + offsetof(s_planet_data, orbit) - 1] = i % 5;
+        }
+        uint8_t* stars = Find_Legacy_Block_(data, size, ORIGINAL_MAX_STARS * LEGACY_STAR_SIZE, 3);
+        constexpr size_t planet_offset = offsetof(s_star_data, planet_index) -
+            (BITMAP(MAX_STARS) - BITMAP(ORIGINAL_MAX_STARS)) - 2;
+        for (size_t i = 0; i < ORIGINAL_MAX_STARS; ++i) {
+            for (size_t j = 0; j < 5; ++j) {
+                const int16_t planet = (i * 5 + j) % (ORIGINAL_MAX_PLANETS - 1);
+                memcpy(stars + i * LEGACY_STAR_SIZE + planet_offset + j * sizeof(planet), &planet, sizeof(planet));
+            }
+        }
+        uint8_t* events = Find_Legacy_Block_(data, size, sizeof(EVENTS::event_data), 15);
+        for (size_t i = 0; i < EVENT_COUNT; ++i) events[i * sizeof(s_event_data) + offsetof(s_event_data, status)] = 0;
+        for (uint32_t seed : {16u, 17u, 18u}) {
+            memset(Find_Legacy_Block_(data, size, MAX_PLAYERS, seed), 0, MAX_PLAYERS);
+        }
+    }
+
     void Bind_State_(State_& state) {
         MOX::colony = state.colonies;
         MOX::planet = state.planets;
@@ -298,15 +330,23 @@ namespace {
         Fill_Bytes_(REPORT::something_interesting_happened, sizeof(REPORT::something_interesting_happened), 13);
         Fill_Bytes_(REPORT::done_colonize_check, sizeof(REPORT::done_colonize_check), 14);
         Fill_Bytes_(EVENTS::event_data, sizeof(EVENTS::event_data), 15);
-        Fill_Bytes_(MSG_::first_msg, sizeof(MSG_::first_msg), 16);
-        Fill_Bytes_(MSG_::max_msgs, sizeof(MSG_::max_msgs), 17);
-        Fill_Bytes_(MSG_::n_msgs, sizeof(MSG_::n_msgs), 18);
+        for (s_event_data& event : EVENTS::event_data) event.status = 0;
+        memset(MSG_::first_msg, 0, sizeof(MSG_::first_msg));
+        memset(MSG_::max_msgs, 0, sizeof(MSG_::max_msgs));
+        memset(MSG_::n_msgs, 0, sizeof(MSG_::n_msgs));
         Fill_Reports_();
         Fill_Messages_();
 
         MOX::NUM_COLONIES = 700;
         MOX::planet_count = 900;
         MOX::NUM_STARS = 512;
+        for (int i = 0; i < MOX::planet_count; ++i) {
+            state.planets[i].star_index = i % MOX::NUM_STARS;
+            state.planets[i].orbit = i % 5;
+        }
+        for (int i = 0; i < MOX::NUM_STARS; ++i) {
+            for (int j = 0; j < 5; ++j) state.stars[i].planet_index[j] = (i * 5 + j) % MOX::planet_count;
+        }
         MOX::NUM_PLAYERS = 8;
         MOX::NUM_SHIPS = 1000;
         MOX::PLAYER_NUM = 7;
@@ -399,6 +439,8 @@ namespace {
             memcpy(destination + star_offset + sizeof(planets[i].star_index),
                 source + star_offset + sizeof(int8_t),
                 LEGACY_PLANET_SIZE - star_offset - sizeof(int8_t));
+            planets[i].star_index = i % (ORIGINAL_MAX_STARS - 1);
+            planets[i].orbit = i % 5;
         }
     }
 
@@ -431,6 +473,7 @@ namespace {
                     sizeof(stars[i].next_wfi_in_list),
                 source + legacy_next_wfi_offset + sizeof(uint8_t),
                 LEGACY_STAR_SIZE - legacy_next_wfi_offset - sizeof(uint8_t));
+            for (int j = 0; j < 5; ++j) stars[i].planet_index[j] = (i * 5 + j) % (ORIGINAL_MAX_PLANETS - 1);
         }
     }
 
@@ -1008,6 +1051,7 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
     DOCTEST_REQUIRE(legacy != nullptr);
     DOCTEST_REQUIRE(fread(legacy, 1, legacy_size, legacy_file) == legacy_size);
     fclose(legacy_file);
+    Normalize_Legacy_Fixture_(legacy, legacy_size);
 
     const SETTLER::legacy_value_type first_legacy_settler = 0x7C17F2EAu;
     uint8_t* first_legacy_settler_ptr = nullptr;
@@ -1413,6 +1457,125 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
     free(version_zero);
     free(legacy);
     free(versioned);
+}
+
+DOCTEST_TEST_CASE("recoverable readers report sticky failure without advancing or exposing uninitialized bytes") {
+    const uint8_t bytes[] = {1, 2, 3};
+    SERIAL::Reader_ reader(bytes, sizeof(bytes), "reader underflow", true);
+    reader.Read_Uint16();
+    DOCTEST_CHECK_FALSE(reader.Failed());
+    DOCTEST_CHECK(reader.Read_Uint32() == 0);
+    DOCTEST_CHECK(reader.Failed());
+    DOCTEST_CHECK(reader.Remaining() == 1);
+    DOCTEST_CHECK(reader.Read_Uint8() == 0);
+    uint8_t output[] = {9, 9};
+    reader.Read_Bytes(output, sizeof(output));
+    reader.Skip(1);
+    DOCTEST_CHECK(output[0] == 0);
+    DOCTEST_CHECK(output[1] == 0);
+    DOCTEST_CHECK(reader.Length() == 2);
+    SERIAL::Reader_ empty(nullptr, 0, "null reader", true);
+    DOCTEST_CHECK(empty.Failed());
+    DOCTEST_CHECK(empty.Remaining() == 0);
+}
+
+DOCTEST_TEST_CASE("save validation rejects corrupt input and restores the prior events exactly") {
+    auto state = std::make_unique<State_>();
+    Bind_State_(*state);
+    config::s_config_state defaults;
+    DOCTEST_REQUIRE(config::Initialize_Defaults(&defaults));
+    DOCTEST_REQUIRE(config::Commit_State(&defaults));
+    TEST_CONFIG_SNAPSHOT::active_config.baseline.effective.state = defaults;
+    TEST_CONFIG_SNAPSHOT::active_config.required_mods.clear();
+    std::vector<uint8_t> bytes(SAVEGAME::BUFFER_CAPACITY);
+    const char description[37] = "boundary validation";
+
+    const auto setup = [&]() {
+        Clear_State_(*state);
+        MOX::NUM_PLAYERS = 2;
+        MOX::NUM_COLONIES = MOX::planet_count = MOX::NUM_STARS = MOX::NUM_SHIPS = 1;
+        MOX::max_map_scale = MOX::cur_map_scale = 10;
+        for (int j = 1; j < 5; ++j) state->stars[0].planet_index[j] = -1;
+    };
+    const auto load = [&](uint32_t size) {
+        SERIAL::Reader_ reader(bytes.data(), size, "save underflow", true);
+        SAVEGAME::s_metadata metadata = {};
+        s_settings settings = {};
+        uint32_t seed = 0;
+        return SAVEGAME::Read_Game(&reader, &metadata, &settings, &seed);
+    };
+    const auto write = [&]() {
+        SERIAL::Writer_ writer(bytes.data(), static_cast<uint32_t>(bytes.size()), "save overflow");
+        DOCTEST_REQUIRE(SAVEGAME::Write_Game(&writer, description, 123));
+        return writer.Length();
+    };
+    setup();
+    for (int i = 0; i < EVENT_COUNT; ++i) EVENTS::event_data[i] = {0, 2, 0, 0, 0, 1};
+    const auto valid_size = write();
+    DOCTEST_REQUIRE(load(valid_size));
+    for (int i = 0; i < EVENT_COUNT; ++i) DOCTEST_CHECK(EVENTS::event_data[i].status == 2);
+
+    for (int8_t status : {1, 2, 4, 5, 6}) {
+        setup();
+        EVENTS::event_data[EVENT_SPACE_AMOEBA] = {-1, status, 0, static_cast<int16_t>(status == 1 ? 0 : -1), -1, -1};
+        DOCTEST_REQUIRE(load(write()));
+        DOCTEST_CHECK(EVENTS::event_data[EVENT_SPACE_AMOEBA].status == status);
+    }
+    setup();
+    EVENTS::event_data[EVENT_EARTHQUAKE] = {100, 3, 0, 5000, 0, 0};
+    DOCTEST_REQUIRE(load(write()));
+    DOCTEST_CHECK(EVENTS::event_data[EVENT_EARTHQUAKE].status == 3);
+
+    for (int scenario = 0; scenario < 19; ++scenario) {
+        DOCTEST_CAPTURE(scenario);
+        setup();
+        switch (scenario) {
+            case 0: MOX::NUM_PLAYERS = MAX_PLAYERS + 1; break;
+            case 1: MOX::NUM_PLAYERS = 0; break;
+            case 2: MOX::PLAYER_NUM = -1; break;
+            case 3: MOX::PLAYER_NUM = 2; break;
+            case 4: MOX::max_map_scale = 0; break;
+            case 5: MOX::cur_map_scale = 0; break;
+            case 6: REPORT::n_reports = MAX_REPORTS + 1; break;
+            case 7: REPORT::n_reports = -1; break;
+            case 8:
+                MSG_::first_msg[0] = MAX_MESSAGES;
+                MSG_::n_msgs[0] = 1;
+                break;
+            case 9:
+                MSG_::first_msg[0] = MAX_MESSAGES;
+                MSG_::max_msgs[0] = 1;
+                break;
+            case 10: state->planets[0].star_index = 5000; break;
+            case 11: state->planets[0].orbit = -1; break;
+            case 12: state->stars[0].planet_index[0] = 5000; break;
+            case 13: EVENTS::event_data[EVENT_DERELICT] = {0, 2, 0, TECH_APP_COUNT, 0, 1}; break;
+            case 14: EVENTS::event_data[EVENT_COMET] = {0, 6, 3, 0, 50, 0}; break;
+            case 15: EVENTS::event_data[EVENT_PLAGUE] = {100, 2, 0, 0, 0, 1}; break;
+            case 16: EVENTS::event_data[EVENT_EMPIRES_RANKING] = {-1, 6, 0, -1, 20, -1}; break;
+            case 17: EVENTS::event_data[EVENT_SUPERNOVA].status = 9; break;
+            case 18:
+                MOX::NUM_STARS = 2;
+                EVENTS::event_data[EVENT_SPACE_AMOEBA] = {-1, 4, 0, 1, -1, -1};
+                break;
+        }
+        const auto size = write();
+        setup();
+        const s_event_data prior_event = {100, 9, 4, 5000, -129, 0};
+        EVENTS::event_data[EVENT_COMET] = prior_event;
+        MOX::cur_map_x = 42;
+        DOCTEST_CHECK_FALSE(load(size));
+        DOCTEST_CHECK(memcmp(&EVENTS::event_data[EVENT_COMET], &prior_event, sizeof(prior_event)) == 0);
+        DOCTEST_CHECK(MOX::cur_map_x == 42);
+    }
+
+    setup();
+    const uint32_t size = write();
+    const uint32_t lengths[] = {0, 1, 4, 46, 100, size / 2, size - 10};
+    for (uint32_t length : lengths) {
+        DOCTEST_CAPTURE(length);
+        DOCTEST_CHECK_FALSE(load(length));
+    }
 }
 
 DOCTEST_TEST_CASE("save reader rejects invalid and unsupported headers") {

@@ -828,6 +828,36 @@ DOCTEST_TEST_CASE("auto combat disable packet tolerates no selected ship") {
     DOCTEST_CHECK(MOX::auto_combat == 0);
 }
 
+DOCTEST_TEST_CASE("tactical actions reject truncated and out-of-range input before queuing") {
+    MOX::combat_total_ship_count = 2;
+    const auto send = [](int16_t code, int16_t arg1, int16_t arg2, int32_t size = sizeof(s_net_tactical_combat_message)) {
+        s_net_tactical_combat_message message = {};
+        message.message_code = code;
+        message.arg1 = arg1;
+        message.arg2 = arg2;
+        MOX::new_message = {};
+        MOX::tactical_net_choice = 0;
+        CMBTMOV1::Tactical_Combat_Receive_Message(0, TACTICAL_NET_PACKET_ACTION, size, &message);
+        return MOX::tactical_net_choice;
+    };
+    DOCTEST_CHECK(send(TACTICAL_NET_MSG_SELECT_SHIP, 1, 0, 2) == 0);
+    DOCTEST_CHECK(send(TACTICAL_NET_MSG_SELECT_SHIP, -1, 0) == 0);
+    DOCTEST_CHECK(send(TACTICAL_NET_MSG_SELECT_SHIP, 2, 0) == 0);
+    DOCTEST_CHECK(send(TACTICAL_NET_MSG_REMOVE_STASIS, 30000, 0) == 0);
+    DOCTEST_CHECK(send(TACTICAL_NET_MSG_BOARDING_ACTION, 2, 5) == 0);
+    DOCTEST_CHECK(send(TACTICAL_NET_MSG_TOGGLE_WEAPON, 8, 0) == 0);
+    DOCTEST_CHECK(send(TACTICAL_NET_MSG_FIRE_WEAPON, 2, 0) == 0);
+    DOCTEST_CHECK(send(TACTICAL_NET_MSG_FIRE_WEAPON, MAX_COMBAT_FLYERS, 1) == 0);
+    DOCTEST_CHECK(send(TACTICAL_NET_MSG_MOVE_SHIP, MOX::combat_grid_width, 0) == 0);
+    DOCTEST_CHECK(send(TACTICAL_NET_MSG_MOVE_SHIP, 0, MOX::combat_grid_height) == 0);
+    DOCTEST_CHECK(send(9999, 0, 0) == 0);
+    DOCTEST_CHECK(send(TACTICAL_NET_MSG_SELECT_SHIP, 1, 0) == TACTICAL_NET_MSG_SELECT_SHIP);
+    DOCTEST_CHECK(send(TACTICAL_NET_MSG_TOGGLE_WEAPON, 7, 0) == TACTICAL_NET_MSG_TOGGLE_WEAPON);
+    DOCTEST_CHECK(send(TACTICAL_NET_MSG_FIRE_WEAPON, MAX_COMBAT_FLYERS - 1, 1) == TACTICAL_NET_MSG_FIRE_WEAPON);
+    DOCTEST_CHECK(send(TACTICAL_NET_MSG_MOVE_SHIP, MOX::combat_grid_width - 1, MOX::combat_grid_height - 1) == TACTICAL_NET_MSG_MOVE_SHIP);
+    DOCTEST_CHECK(send(TACTICAL_NET_MSG_SHIP_DONE, 0, 0) == TACTICAL_NET_MSG_SHIP_DONE);
+}
+
 DOCTEST_TEST_CASE("current ship blip is skipped without a current ship") {
     MOX::combat_total_ship_count = 2;
     for (int16_t cur_ship : {-1, 2}) {

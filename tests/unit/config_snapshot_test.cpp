@@ -1302,6 +1302,34 @@ DOCTEST_TEST_CASE("IDs-only version one snapshot retains legacy mod application"
     DOCTEST_CHECK(decoded.required_mods[0].version.empty());
 }
 
+DOCTEST_TEST_CASE("config snapshots reject every truncated prefix without aborting") {
+    config::s_config_state state;
+    DOCTEST_REQUIRE(config::Initialize_Defaults(&state));
+    state.values[Variable_("race.picks.starting")].integer_value = 12;
+    const std::vector<config::s_mod_requirement> mods = {{"balance", "1"}};
+    for (const auto* requirements : {static_cast<const std::vector<config::s_mod_requirement>*>(nullptr), &mods}) {
+        const auto encoded = Encode_(&config::synchronized_config_snapshot, &state, requirements);
+        for (size_t length = 0; length < encoded.size(); ++length) {
+            config::s_config_snapshot decoded;
+            SERIAL::Reader_ reader(encoded.data(), static_cast<uint32_t>(length), "snapshot underflow");
+            DOCTEST_CHECK_FALSE(config::Read_Config_Snapshot(&reader, &config::synchronized_config_snapshot, &decoded));
+        }
+        config::s_config_snapshot decoded;
+        SERIAL::Reader_ reader(encoded.data(), static_cast<uint32_t>(encoded.size()), "snapshot underflow");
+        DOCTEST_REQUIRE(config::Read_Config_Snapshot(&reader, &config::synchronized_config_snapshot, &decoded));
+        DOCTEST_CHECK(reader.Remaining() == 0);
+
+        // An inflated entry count must not consume bytes after the declared payload.
+        auto corrupt = encoded;
+        const uint32_t count = 1000;
+        memcpy(corrupt.data() + 12, &count, sizeof(count));
+        corrupt.resize(corrupt.size() + 32);
+        SERIAL::Reader_ corrupt_reader(corrupt.data(), static_cast<uint32_t>(corrupt.size()), "snapshot underflow");
+        DOCTEST_CHECK_FALSE(config::Read_Config_Snapshot(&corrupt_reader, &config::synchronized_config_snapshot, &decoded));
+        DOCTEST_CHECK(corrupt_reader.Remaining() >= 32);
+    }
+}
+
 DOCTEST_TEST_CASE("saved and synchronized snapshots share the same codec") {
     config::s_config_state state;
     DOCTEST_REQUIRE(config::Read_Current_State(&state));

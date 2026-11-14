@@ -203,7 +203,6 @@ namespace BOMB {
         }
 
         int32_t race_idx = (int32_t)(colony->pop[0] & 0xf);
-        // BUG: colony->pop_roundoff has 10 elements in orion2.h but 16 are possible here
         if (colony->pop_roundoff[race_idx] <= 100) {
             bomb_result->population_killed++;
             bomb_result->bio_pop_killed++;

@@ -1017,12 +1017,13 @@ namespace COLONY {
     }
 
     void __cdecl Defragment_Colony_Queue(int16_t colony_idx) {
-        for (int16_t i = 0; i < 7; ++i) {
-            // BUG: if multiple slots are COLONY_PRODUCTION_NONE, some might be skipped due to shifting
-            if (MOX::colony[colony_idx].producing[i] == COLONY_PRODUCTION_NONE) {
-                COLONY::Squish_Out_Colony_Queue_Slot(colony_idx, i);
-            }
+        s_colony* colony = &MOX::colony[colony_idx];
+        constexpr size_t queue_size = sizeof(s_colony::producing) / sizeof(int16_t);
+        size_t write = 0;
+        for (size_t read = 0; read < queue_size; ++read) {
+            if (colony->producing[read] != COLONY_PRODUCTION_NONE) colony->producing[write++] = colony->producing[read];
         }
+        while (write < queue_size) colony->producing[write++] = COLONY_PRODUCTION_NONE;
     }
 
     void __cdecl Cleanup_Colony_Queue(int16_t colony_idx) {

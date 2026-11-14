@@ -296,8 +296,8 @@ namespace SAVEGAME {
             writer->Write_Uint8(colony->n_pops);
             writer->Write_Int8(colony->specialty);
             for (int i = 0; i < 42; ++i) writer->Write_Uint32(colony->pop[i]);
-            Write_Int16_Array(writer, colony->pop_roundoff, 10);
-            Write_Int16_Array(writer, colony->pop_growth, 10);
+            Write_Int16_Array(writer, colony->pop_roundoff, COLONY_POP_RACE_COUNT);
+            Write_Int16_Array(writer, colony->pop_growth, COLONY_POP_RACE_COUNT);
             writer->Write_Int8(colony->n_turns_existed);
             writer->Write_Uint8(colony->food2_per_farmer);
             writer->Write_Uint8(colony->industry_per_worker);
@@ -351,8 +351,8 @@ namespace SAVEGAME {
             colony->n_pops = reader->Read_Uint8();
             colony->specialty = reader->Read_Int8();
             for (int i = 0; i < 42; ++i) colony->pop[i] = reader->Read_Uint32();
-            Read_Int16_Array(reader, colony->pop_roundoff, 10);
-            Read_Int16_Array(reader, colony->pop_growth, 10);
+            Read_Int16_Array(reader, colony->pop_roundoff, COLONY_POP_RACE_COUNT);
+            Read_Int16_Array(reader, colony->pop_growth, COLONY_POP_RACE_COUNT);
             colony->n_turns_existed = reader->Read_Int8();
             colony->food2_per_farmer = reader->Read_Uint8();
             colony->industry_per_worker = reader->Read_Uint8();
@@ -1068,6 +1068,96 @@ namespace SAVEGAME {
             event->max_amount = reader->Read_Int16();
         }
 
+        bool Loaded_Event_Is_Valid(int type, const s_event_data& event) {
+            if (event.status < 0 || event.status > 6) return false;
+            if (event.status == 0 || event.status == 3) return true;
+            if (event.player_idx < -1 || event.player_idx >= MOX::NUM_PLAYERS) return false;
+
+            const int target = event.target_id;
+            switch (type) {
+                case EVENT_DERELICT:
+                    return event.player_idx >= 0 && target >= 0 && target < TECH_APP_COUNT &&
+                        event.amount >= 0 && event.amount < TECH_APP_COUNT;
+                case EVENT_COMPUTER_VIRUS:
+                case EVENT_DONATION:
+                case EVENT_PIRATE_RAID:
+                case EVENT_SERENDIPITY:
+                    return event.player_idx >= 0;
+                case EVENT_DIPLOMATIC_BLUNDER:
+                case EVENT_DIPLOMATIC_MARRIAGE:
+                case EVENT_EMPIRE_SURRENDERS:
+                    return event.player_idx >= 0 && target >= 0 && target < MOX::NUM_PLAYERS;
+                case EVENT_CLIMATIC_CHANGE:
+                case EVENT_INDUSTRIAL_ACCIDENT:
+                case EVENT_MINERAL_DEPLETION:
+                case EVENT_MINERAL_DEPOSIT:
+                    return target >= 0 && target < MOX::planet_count;
+                case EVENT_COMET:
+                    return target >= 0 && target < MOX::NUM_COLONIES && event.max_amount != 0;
+                case EVENT_EARTHQUAKE:
+                case EVENT_PLAGUE:
+                case EVENT_POPULATION_BOOM:
+                    return target >= 0 && target < MOX::NUM_COLONIES;
+                case EVENT_FREAK_ACCIDENT:
+                    return target >= 0 && target < MOX::NUM_SHIPS &&
+                        event.amount >= -1 && event.amount < MAX_LEADERS;
+                case EVENT_PIRATE_ACTIVITY:
+                    return target >= 0 && target < MOX::NUM_STARS && event.max_amount != 0;
+                case EVENT_SUPERNOVA:
+                case EVENT_TIME_SPACE_ANOMALY:
+                    return target >= 0 && target < MOX::NUM_STARS;
+                case EVENT_SPACE_AMOEBA:
+                case EVENT_SPACE_CRYSTAL:
+                case EVENT_SPACE_DRAGON:
+                case EVENT_SPACE_EEL:
+                case EVENT_SPACE_HYDRA:
+                    // Status 1 carries a spawn star; displaying status 6 clears it.
+                    // Status 4 carries an attacked planet, not a star.
+                    if (event.status == 1) return target >= 0 && target < MOX::NUM_STARS;
+                    if (event.status == 5) return true;
+                    if (event.status == 4 || event.max_amount != -1) {
+                        return target == -1 || (target >= 0 && target < MOX::planet_count);
+                    }
+                    return target == -1 || (target >= 0 && target < std::max(MOX::NUM_STARS, MOX::planet_count));
+                case EVENT_UNSTABLE_WORMHOLE:
+                    return event.amount >= 0 && event.amount < MOX::NUM_STARS;
+                case EVENT_EMPIRE_GROWN_IN_STRENGTH:
+                case EVENT_EMPIRES_RANKING:
+                    return event.amount >= 0 && event.amount <= 3;
+                default:
+                    return true;
+            }
+        }
+
+        // Validate incoming state once, before gameplay or config callbacks can use it.
+        // Rollback checkpoints are decoded without applying this policy.
+        bool Loaded_State_Is_Valid() {
+            if (MOX::NUM_PLAYERS < 1 || MOX::NUM_PLAYERS > MAX_PLAYERS ||
+                MOX::PLAYER_NUM < 0 || MOX::PLAYER_NUM >= MOX::NUM_PLAYERS ||
+                MOX::max_map_scale < 1 || MOX::cur_map_scale < 1 ||
+                REPORT::n_reports < 0 || REPORT::n_reports > MAX_REPORTS) return false;
+
+            for (int i = 0; i < MAX_PLAYERS; ++i) {
+                if (MSG_::first_msg[i] + MSG_::n_msgs[i] > MAX_MESSAGES ||
+                    MSG_::first_msg[i] + MSG_::max_msgs[i] > MAX_MESSAGES) return false;
+            }
+            for (int i = 0; i < MOX::planet_count; ++i) {
+                const s_planet_data& planet = MOX::planet[i];
+                if (planet.star_index < -1 || planet.star_index >= MOX::NUM_STARS ||
+                    planet.orbit < 0 || planet.orbit >= 5) return false;
+            }
+            for (int i = 0; i < MOX::NUM_STARS; ++i) {
+                for (int j = 0; j < 5; ++j) {
+                    const int16_t planet = MOX::star[i].planet_index[j];
+                    if (planet < -1 || planet >= MOX::planet_count) return false;
+                }
+            }
+            for (int i = 0; i < EVENT_COUNT; ++i) {
+                if (!Loaded_Event_Is_Valid(i, EVENTS::event_data[i])) return false;
+            }
+            return true;
+        }
+
         void Write_Colony_Message(SERIAL::Writer_* writer, const s_MSG_colony* colony) {
             writer->Write_Int16(colony->planet_idx);
             writer->Write_Int8(colony->subtype);
@@ -1492,6 +1582,7 @@ namespace SAVEGAME {
             for (int i = colony_record_count; i < MAX_COLONIES; ++i) {
                 Initialize_Unused_Colony(&MOX::colony[i]);
             }
+            if (reader->Failed()) return false;
             MOX::planet_count = reader->Read_Int16();
             if (MOX::planet_count < 0 || MOX::planet_count > MAX_PLANETS) return false;
             const int planet_record_count = version == LEGACY_VERSION ? ORIGINAL_MAX_PLANETS : MOX::planet_count;
@@ -1499,6 +1590,7 @@ namespace SAVEGAME {
             for (int i = planet_record_count; i < MAX_PLANETS; ++i) {
                 Initialize_Unused_Planet(&MOX::planet[i]);
             }
+            if (reader->Failed()) return false;
             MOX::NUM_STARS = reader->Read_Int16();
             if (MOX::NUM_STARS < 0 || MOX::NUM_STARS > MAX_STARS) return false;
             const int star_record_count = version == LEGACY_VERSION ? ORIGINAL_MAX_STARS : MOX::NUM_STARS;
@@ -1506,6 +1598,7 @@ namespace SAVEGAME {
             for (int i = star_record_count; i < MAX_STARS; ++i) {
                 Initialize_Unused_Star(&MOX::star[i]);
             }
+            if (reader->Failed()) return false;
             for (int i = 0; i < MAX_LEADERS; ++i) Read_Leader(reader, &MOX::leaders[i]);
             MOX::NUM_PLAYERS = reader->Read_Int16();
             for (int i = 0; i < MAX_PLAYERS; ++i) {
@@ -1518,6 +1611,7 @@ namespace SAVEGAME {
                         i, &sixth_design, settings->strategic_combat_flag != 0);
                 }
             }
+            if (reader->Failed()) return false;
             MOX::NUM_SHIPS = reader->Read_Int16();
             const int ship_capacity = version < EXPANDED_SHIP_CAPACITY_VERSION
                 ? PREVIOUS_MAX_SHIPS
@@ -1531,6 +1625,7 @@ namespace SAVEGAME {
                 MOX::ship[i].location = -1;
                 MOX::ship[i].officer_index = -1;
             }
+            if (reader->Failed()) return false;
             for (int i = 0; i < 5; ++i) Read_Movable_Box(reader, &MOX::moveable_box[i]);
             Read_Int16_Array(reader, MOX::moveable_box_order, 5);
             MOX::PLAYER_NUM = reader->Read_Int16();
@@ -1582,6 +1677,7 @@ namespace SAVEGAME {
             MOX::cur_map_x = reader->Read_Int16();
             MOX::cur_map_y = reader->Read_Int16();
             reader->Skip(1000);
+            if (reader->Failed()) return false;
             if (version >= ANTARAN_RUNTIME_STATE_VERSION) {
                 MOX::antarans.offensive_titan_built = reader->Read_Uint8();
                 MOX::antarans.offensive_limit_exhausted_mask = reader->Read_Uint8();
@@ -1610,7 +1706,7 @@ namespace SAVEGAME {
                     }
                 }
             }
-            return true;
+            return !reader->Failed();
         }
     } // namespace
 
@@ -1780,7 +1876,7 @@ namespace SAVEGAME {
             free(prior_state);
             return false;
         };
-        if (!Read_Game_State(reader, metadata->version, saved_settings, random_seed)) {
+        if (!Read_Game_State(reader, metadata->version, saved_settings, random_seed) || !Loaded_State_Is_Valid()) {
             return fail_after_native_read();
         }
         orion2re::lua::game::Begin_Semantic_State_Replacement(
@@ -1820,7 +1916,7 @@ namespace SAVEGAME {
                     }
                     continue;
                 }
-                SERIAL::Reader_ section_reader(section.data, section.size, "invalid save extension section payload");
+                SERIAL::Reader_ section_reader(section.data, section.size, "invalid save extension section payload", true);
                 if (section.type == SECTION_TYPE_CONFIG) {
                     if ((section.flags & SECTION_FLAG_REQUIRED) == 0 ||
                         found_config ||
