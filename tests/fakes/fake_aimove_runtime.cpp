@@ -24,8 +24,6 @@ namespace TEST_AIMOVE {
         world.ship_count = &MOX::NUM_SHIPS;
         world.star_count = &MOX::NUM_STARS;
         world.colony_count = &MOX::NUM_COLONIES;
-        static uint32_t seed;
-        world.random_seed = &seed;
         return &world;
     }
 
@@ -134,7 +132,6 @@ namespace GEO {
 }
 
 namespace game_random {
-    uint32_t __cdecl Random_From_Seed(uint32_t*, uint32_t maximum) { return Random(maximum); }
     uint32_t __cdecl Random(uint32_t) {
         return 1;
     }

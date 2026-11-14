@@ -57,7 +57,7 @@ namespace aidudes {
         int32_t upgrade_threshold = (difficulty_bonus + desirability) * 2;
         int upgrade_count = 0;
 
-        if ((int32_t)game_random::Random_From_Seed(world->random_seed, 900) <= upgrade_threshold) {
+        if ((int32_t)game_random::Random(900) <= upgrade_threshold) {
             upgrade_count = 1;
         }
 
@@ -66,7 +66,7 @@ namespace aidudes {
             upgrade_count = 0;
         } else {
             int32_t total_pop = ctx->p_ai->total_pop;
-            if ((int32_t)game_random::Random_From_Seed(world->random_seed, (uint32_t)total_pop) <= 8) {
+            if ((int32_t)game_random::Random((uint32_t)total_pop) <= 8) {
                 upgrade_count = 0;
             }
         }

@@ -164,7 +164,7 @@ namespace aidudes {
                     }
                     val += bonus;
 
-                    int rand_val = game_random::Random_From_Seed(world->random_seed, 700);
+                    int rand_val = game_random::Random(700);
                     int adjusted_rand = rand_val + 100 + (is_expansionist ? 0 : 100);
 
                     if (adjusted_rand < (isqrt_val + 64) * val) {
@@ -199,7 +199,7 @@ namespace aidudes {
             p->tech_applications[TECH_APP_COLONY_SHIP] == TECH_RESEARCH_STATUS_RESEARCHED) {
             int r = 0;
             if (is_expansionist) {
-                if (game_random::Random_From_Seed(world->random_seed, 5) == 1) {
+                if (game_random::Random(5) == 1) {
                     r = 1;
                 }
             }
@@ -212,7 +212,7 @@ namespace aidudes {
                     if (!COLCALC::Colony_Is_Blockaded(temp_colony) &&
                         AIBUILD::Industry_Worth(temp_colony) >=
                             AIBUILD::rules.strategic.expansion.colony_ship_minimum_industry) {
-                        if (player_info.colony_deficit + 50 < (int32_t)game_random::Random_From_Seed(world->random_seed, 100)) {
+                        if (player_info.colony_deficit + 50 < (int32_t)game_random::Random(100)) {
                             s_ship_design colony_ship_design = {};
                             INITSHIP::Load_Colony_Ship_Design(*legacy_player, &colony_ship_design);
                             const auto legacy_colony = legacy_world::Index(colony_queue[i]);
@@ -334,7 +334,7 @@ namespace aidudes {
             }
 
             while (true) {
-                auto random_choice = RUSS::Choose_Weighted_Index_U32(world->random_seed, choice_weights, AIBUILD::STRATEGIC_ALLOCATION_CANDIDATE_COUNT);
+                auto random_choice = RUSS::Choose_Weighted_Index_U32(choice_weights, AIBUILD::STRATEGIC_ALLOCATION_CANDIDATE_COUNT);
 
                 if (!random_choice || *random_choice == AIBUILD::ALLOCATION_DEFER) {
                     colony_queue_count--;
@@ -442,11 +442,11 @@ namespace aidudes {
                             }
                         }
 
-                        if (needs.combat_strength.total > 0 && game_random::Random_From_Seed(world->random_seed, 5) == 1) {
+                        if (needs.combat_strength.total > 0 && game_random::Random(5) == 1) {
                             ship_weights[SHIP_SIZE_SMALL] = 0;
                         }
 
-                        auto ship_choice = RUSS::Choose_Weighted_Index_U16(world->random_seed, ship_weights, HULL_CLASS_COUNT);
+                        auto ship_choice = RUSS::Choose_Weighted_Index_U16(ship_weights, HULL_CLASS_COUNT);
                         if (!ship_choice) {
                             choice_weights[AIBUILD::ALLOCATION_COMBAT_SHIPS] = 0;
                             break;

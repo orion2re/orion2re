@@ -723,7 +723,7 @@ namespace AIMOVE {
             return;
         }
 
-        ai_compat::Shuffle_Ships(world->random_seed, {ship_indices.data(), (size_t)num_ships});
+        ai_compat::Shuffle_Ships({ship_indices.data(), (size_t)num_ships});
 
         while (num_ships > 0 && num_stage_points > 0) {
             int32_t best_sp_idx = -1;
@@ -1274,7 +1274,7 @@ namespace AIMOVE {
             }
 
             for (uint32_t i = 0; i < my_colony_ships.size(); i++) {
-                ai_compat::Shuffle_Stars(world->random_seed, {candidate_stars.data(), (size_t)num_candidates});
+                ai_compat::Shuffle_Stars({candidate_stars.data(), (size_t)num_candidates});
 
                 s_candidate_sort_context sort{&ai->stars, ctx->player_idx, (int16_t)world->Player_Count()};
                 qsort(candidate_stars.data(), num_candidates, sizeof(id_star), AIMOVE::Sort_candidate_stars, &sort);
@@ -1744,7 +1744,7 @@ namespace AIMOVE {
                 }
             }
 
-            auto best_colony = RUSS::Choose_Weighted_Index_U16(world->random_seed, scores.data(), world->Colony_Count());
+            auto best_colony = RUSS::Choose_Weighted_Index_U16(scores.data(), world->Colony_Count());
             if (!best_colony) {
                 return;
             }

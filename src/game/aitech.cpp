@@ -212,7 +212,7 @@ namespace aitech {
                         int value = has_contact ? best_shield_delta * 3 : best_shield_delta;
                         plr_info->best_shield_delta += (int8_t)value;
                     } else if (best_shield_delta == 0) {
-                        int value = game_random::Random_From_Seed(world->random_seed, 2) - 1;
+                        int value = game_random::Random(2) - 1;
                         plr_info->best_shield_delta += (int8_t)value;
                     }
 
@@ -221,7 +221,7 @@ namespace aitech {
                         int value = has_contact ? best_armor_delta * 3 : best_armor_delta;
                         plr_info->armor_delta += (int8_t)value;
                     } else if (best_armor_delta == 0) {
-                        int value = game_random::Random_From_Seed(world->random_seed, 2) - 1;
+                        int value = game_random::Random(2) - 1;
                         plr_info->armor_delta += (int8_t)value;
                     }
 
@@ -230,7 +230,7 @@ namespace aitech {
                         int value = has_contact ? best_computer_delta * 3 : best_computer_delta;
                         plr_info->best_computer_delta += (int8_t)value;
                     } else if (best_computer_delta == 0) {
-                        int value = game_random::Random_From_Seed(world->random_seed, 2) - 1;
+                        int value = game_random::Random(2) - 1;
                         plr_info->best_computer_delta += (int8_t)value;
                     }
 
@@ -244,7 +244,7 @@ namespace aitech {
                         int value = has_contact ? beam_score_delta * 3 : beam_score_delta;
                         plr_info->beam_score_delta += (int8_t)value;
                     } else if (beam_score_delta == 0) {
-                        int value = game_random::Random_From_Seed(world->random_seed, 2) - 1;
+                        int value = game_random::Random(2) - 1;
                         plr_info->beam_score_delta += (int8_t)value;
                     }
 
@@ -253,7 +253,7 @@ namespace aitech {
                         int value = has_contact ? missile_score_delta * 3 : missile_score_delta;
                         plr_info->missile_score_delta += (int8_t)value;
                     } else if (missile_score_delta == 0) {
-                        int value = game_random::Random_From_Seed(world->random_seed, 2) - 1;
+                        int value = game_random::Random(2) - 1;
                         plr_info->missile_score_delta += (int8_t)value;
                     }
 

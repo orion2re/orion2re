@@ -10,13 +10,11 @@ namespace {
     s_player players[MAX_PLAYERS];
 
     const game::s_view* AI_World_() {
-        static uint32_t seed;
         static const game::s_view world{
             .players = players,
             .settings = &MOX::settings,
             .stardate = &MOX::stardate,
             .combat_x = &MOX::cur_combat_x,
-            .random_seed = &seed,
         };
         return &world;
     }
@@ -212,7 +210,6 @@ namespace AIPOWER {
 }
 
 namespace game_random {
-    uint32_t __cdecl Random_From_Seed(uint32_t*, uint32_t maximum) { return Random(maximum); }
     uint32_t __cdecl Random(uint32_t max_val) {
         return max_val;
     }

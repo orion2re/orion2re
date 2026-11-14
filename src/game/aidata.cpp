@@ -120,7 +120,6 @@ namespace AIDATA {
         if (!world->leaders) return "missing leader records";
         if (!world->settings) return "missing game settings";
         if (!world->stardate) return "missing stardate";
-        if (!world->random_seed) return "missing random seed";
         if (!world->player_count || *world->player_count <= 0 || *world->player_count > MAX_PLAYERS) return "invalid player count";
         if (!world->ship_count || *world->ship_count < 0 || *world->ship_count > MAX_SHIPS) return "invalid ship count";
         if (!world->star_count || *world->star_count < 0 || *world->star_count > MAX_STARS) return "invalid star count";
