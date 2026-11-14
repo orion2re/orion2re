@@ -26,8 +26,9 @@ def verify_pip(data):
 
 
 def create_environment(directory, requirements=None, minimum_python=(3, 10)):
-    if sys.version_info[:2] < minimum_python:
-        raise ValueError(f"Documentation environment requires Python {minimum_python[0]}.{minimum_python[1]}+")
+    if sys.version_info[:len(minimum_python)] < minimum_python:
+        version = ".".join(str(part) for part in minimum_python)
+        raise ValueError(f"Documentation environment requires Python {version}+")
     directory = Path(directory).resolve()
     venv.EnvBuilder(with_pip=True).create(directory)
     python = directory / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
@@ -59,7 +60,7 @@ def main():
     parser.add_argument("--pdf", action="store_true")
     arguments = parser.parse_args()
     create_environment(arguments.directory, arguments.requirements,
-                       (3, 11) if arguments.pdf else (3, 10))
+                       (3, 11, 5) if arguments.pdf else (3, 10))
 
 
 if __name__ == "__main__":

@@ -870,7 +870,7 @@ if(ORION2RE_BUILD_DOCUMENTATION)
         COMMAND ${CMAKE_COMMAND} -E touch "${ORION2RE_PDF_BOOTSTRAP_STAMP}"
         DEPENDS "${ORION2RE_PDF_LOCK}"
             "${CMAKE_CURRENT_SOURCE_DIR}/tools/docs_environment.py"
-        COMMENT "Creating the pinned PDF environment (Python 3.11+ required)"
+        COMMENT "Creating the pinned PDF environment (Python 3.11.5+ required)"
         VERBATIM
     )
     add_custom_target(docs-pdf-bootstrap DEPENDS "${ORION2RE_PDF_BOOTSTRAP_STAMP}")

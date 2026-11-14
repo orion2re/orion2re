@@ -60,6 +60,31 @@ class ResourceTests(unittest.TestCase):
         with patch.object(environment, "PIP_SHA256", hashlib.sha256(data).hexdigest()):
             environment.verify_pip(data)
 
+    def test_pdf_python_minimum_includes_patch_version(self):
+        for version in ((3, 10, 16), (3, 11, 0), (3, 11, 4)):
+            with self.subTest(version=version), \
+                 patch.object(environment.sys, "version_info", version), \
+                 patch.object(environment.venv, "EnvBuilder") as builder, \
+                 self.assertRaisesRegex(ValueError, r"Python 3\.11\.5\+"):
+                environment.create_environment(self.root / "venv", minimum_python=(3, 11, 5))
+            builder.assert_not_called()
+
+        for version in ((3, 11, 5), (3, 11, 9), (3, 12, 0)):
+            with self.subTest(version=version), \
+                 patch.object(environment.sys, "version_info", version), \
+                 patch.object(environment.venv, "EnvBuilder") as builder, \
+                 patch.object(environment.urllib.request, "urlopen", return_value=io.BytesIO(b"wheel")), \
+                 patch.object(environment, "verify_pip"), \
+                 patch.object(environment.subprocess, "run"):
+                environment.create_environment(self.root / "venv", minimum_python=(3, 11, 5))
+                builder.return_value.create.assert_called_once()
+
+    def test_pdf_bootstrap_uses_secure_python_minimum(self):
+        with patch.object(environment.sys, "argv", ["docs_environment.py", "venv", "--pdf"]), \
+             patch.object(environment, "create_environment") as create:
+            environment.main()
+        create.assert_called_once_with(Path("venv"), None, (3, 11, 5))
+
 
 class PdfValidationTests(unittest.TestCase):
     def setUp(self):
@@ -172,6 +197,7 @@ class AdvisoryTests(unittest.TestCase):
         packages = audit.locked_packages([ROOT / "docs/requirements-pdf.lock"])
         self.assertIn(("mkdocs-to-pdf", "0.12.1"), packages)
         self.assertIn(("certifi", "2026.10.19"), packages)
+        self.assertEqual([version for name, version in packages if name == "soupsieve"], ["4.1"])
         self.assertNotIn(("uv", "0.12.0"), packages)
 
     def test_advisory_failures_are_not_ignored(self):
