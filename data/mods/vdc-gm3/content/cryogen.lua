@@ -79,11 +79,10 @@ local function repair_primary_choices(player)
     end
     if is_available(technologies, "bomber_bays") and
             is_available(technologies, "heavy_fighter_bays") then
-        set_available(technologies, "bomber_bays", true)
         set_available(technologies, "heavy_fighter_bays", false)
+        set_available(technologies, "ground_batteries", false)
         set_available(technologies, "powered_armor", true)
     end
-
     local anti_matter_torpedo =
         technologies:is_available("anti_matter_torpedo")
     local proton_torpedo = technologies:is_available("proton_torpedo")
@@ -263,3 +262,4 @@ return function(event)
     game.rng:set_seed(seed)
     if not succeeded then error(diagnostic, 0) end
 end
+
