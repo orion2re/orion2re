@@ -11,7 +11,7 @@ DOCTEST_TEST_CASE("main-screen display settings are optional local interface set
     DOCTEST_REQUIRE(config::Initialize_Defaults(&state));
     DOCTEST_REQUIRE(config::Commit_State(&state));
     DOCTEST_CHECK_FALSE(MAINSCR::main_screen_tax_rate);
-    DOCTEST_CHECK(MAINSCR::maximum_galaxy_display == MAINSCR::MAXIMUM_GALAXY_DISPLAY_OVERVIEW);
+    DOCTEST_CHECK(MAINSCR::maximum_galaxy_display == MAINSCR::MAXIMUM_GALAXY_DISPLAY_CLASSIC);
 
     const char source[] =
         "interface main_screen_tax_rate = true;"
@@ -53,7 +53,7 @@ DOCTEST_TEST_CASE("main-screen display settings are optional local interface set
     DOCTEST_REQUIRE(config::Initialize_Defaults(&state));
     DOCTEST_REQUIRE(config::Commit_State(&state));
     DOCTEST_CHECK_FALSE(MAINSCR::main_screen_tax_rate);
-    DOCTEST_CHECK(MAINSCR::maximum_galaxy_display == MAINSCR::MAXIMUM_GALAXY_DISPLAY_OVERVIEW);
+    DOCTEST_CHECK(MAINSCR::maximum_galaxy_display == MAINSCR::MAXIMUM_GALAXY_DISPLAY_CLASSIC);
 }
 
 DOCTEST_TEST_CASE("maximum galaxy display rejects values other than named modes") {

@@ -110,11 +110,11 @@ The view represents the travel range known for each contacted empire. It can hel
 
 ![Influence overlay on the galaxy map](../../assets/images/manual/empire-overlay.png)
 
-At the farthest zoom level of an extended Maximum galaxy, the map draws automatic outlines to make the view readable even when the optional overlay is off. These outlines override the Alt+V views unless `interface maximum_galaxy_display = classic;` is selected.
+With `interface maximum_galaxy_display = overview;`, the farthest zoom level of an extended Maximum galaxy draws automatic outlines to make the view readable even when the optional overlay is off. These outlines override the Alt+V views. The default `classic` display retains the normal Alt+V cycle instead.
 
 ### Maximum Galaxy Display
 
-Set `interface maximum_galaxy_display = classic;` to use the classic main-map presentation at Maximum's farthest zoom level: normal star names and ownership colors, star artwork, black-hole animation, highlight ordering, and Alt+V's off/fill/borders cycle. Visited-system dots, overview markers, and forced automatic influence outlines are disabled in that view. Normal discovery rules still apply. The default is `overview`, which retains the large-map aids; classic labels may overlap on dense maps. The setting does not change other galaxy sizes, closer zoom levels, map dimensions, or zoom scaling. This is a local preference, excluded from saves and multiplayer synchronization.
+The default, `interface maximum_galaxy_display = classic;`, uses the classic main-map presentation at Maximum's farthest zoom level: normal star names and ownership colors, star artwork, black-hole animation, highlight ordering, and Alt+V's off/fill/borders cycle. Visited-system dots, overview markers, and forced automatic influence outlines are disabled in that view. Normal discovery rules still apply. Set `interface maximum_galaxy_display = overview;` to enable the large-map aids instead; classic labels may overlap on dense maps. The setting does not change other galaxy sizes, closer zoom levels, map dimensions, or zoom scaling. This is a local preference, excluded from saves and multiplayer synchronization.
 
 
 ### Main-map Overview Star Markers

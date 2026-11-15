@@ -9774,12 +9774,12 @@
     maximum_galaxy_display: {
       title: "Maximum galaxy display",
       description: "Selects overview or classic main-map display at maximum zoom-out in Maximum-size galaxies.",
-      remarks: "Overview is the default and preserves the large-map aids. Classic shows star names with normal visibility and ownership colors, suppresses visited-system dots and overview markers, restores normal highlight ordering and black-hole animation, and lets Alt+V cycle off, filled influence, and borders without forced automatic outlines. Classic overrides main_map_overview_markers at this zoom level. Labels may overlap on dense maps. Other galaxy sizes, closer zoom levels, map dimensions, and zoom scaling are unchanged. Local to each player, excluded from saves and synchronization.",
-      examples: ["interface maximum_galaxy_display = classic;"],
+      remarks: "Classic is the default. It shows star names with normal visibility and ownership colors, suppresses visited-system dots and overview markers, restores normal highlight ordering and black-hole animation, and lets Alt+V cycle off, filled influence, and borders without forced automatic outlines. Overview enables the large-map aids instead. Classic overrides main_map_overview_markers at this zoom level. Labels may overlap on dense maps. Other galaxy sizes, closer zoom levels, map dimensions, and zoom scaling are unchanged. Local to each player, excluded from saves and synchronization.",
+      examples: ["interface maximum_galaxy_display = overview;"],
       group: "interface",
       namespace: "interface",
       type: "maximum_galaxy_display",
-      default: "overview",
+      default: "classic",
       bind_root: {
         header: "game/mainscr.h",
         symbol: "MAINSCR::maximum_galaxy_display",
