@@ -22,8 +22,10 @@ namespace {
         decltype(COLSUM::anims) saved_anims;
         char minus_hotkey[2] = "-";
         char plus_hotkey[2] = "+";
+        char empty_string[1] = "";
         char* saved_minus_hotkey = ESTRINGS::strings[11];
         char* saved_plus_hotkey = ESTRINGS::strings[137];
+        char* saved_empty_string = ESTRINGS::strings[12];
 
         s_colony_navigation_fixture() {
             MOX::colony = colonies;
@@ -38,6 +40,7 @@ namespace {
             for (int16_t index = 0; index < 32; ++index) {
                 colony_list[index] = index;
                 colonies[index].planet = index;
+                colonies[index].producing[0] = COLONY_PRODUCTION_NONE;
                 planets[index].colony_index = index;
             }
             COLXPORT::g_colony_list_ptr = colony_list;
@@ -51,6 +54,7 @@ namespace {
             std::fill_n(COLSUM::anims, 21, &animation);
             ESTRINGS::strings[11] = minus_hotkey;
             ESTRINGS::strings[137] = plus_hotkey;
+            ESTRINGS::strings[12] = empty_string;
             COLSUM::Clear_List_Col_Array();
             COLSUM::Add_Fields();
             COLSUM::first = 5;
@@ -70,6 +74,7 @@ namespace {
             memcpy(COLSUM::anims, saved_anims, sizeof(saved_anims));
             ESTRINGS::strings[11] = saved_minus_hotkey;
             ESTRINGS::strings[137] = saved_plus_hotkey;
+            ESTRINGS::strings[12] = saved_empty_string;
         }
 
         void Input(int16_t input) {
@@ -79,18 +84,47 @@ namespace {
     };
 } // namespace
 
-DOCTEST_TEST_CASE_FIXTURE(s_colony_navigation_fixture, "Colonies list scroll resets to the top of a long list") {
+DOCTEST_TEST_CASE_FIXTURE(s_colony_navigation_fixture, "Colonies list scroll stays at the retained row on re-entry") {
     MOX::NUM_COLONIES = 21;
     DOCTEST_REQUIRE(COLXPORT::N_Colonies(MOX::PLAYER_NUM) == 21);
-    COLSUM::first = 11;
+    for (int16_t row : {0, 5, 11}) {
+        COLSUM::first = row;
+        COLSUM::slider_bar_position = 11 - row;
+        for (int repeat = 0; repeat < 2; ++repeat) {
+            COLXPORT::Build_Global_Colony_List();
+            COLSUM::Restore_List_Scroll();
+            COLSUM::Update_Col_List();
+            COLSUM::Update_First(10, &COLSUM::first, &COLSUM::slider_bar_position);
+            DOCTEST_CHECK(COLSUM::first == row);
+            DOCTEST_CHECK(COLSUM::slider_bar_position == 11 - row);
+            DOCTEST_CHECK(COLSUM::list_col[0] == row);
+            DOCTEST_CHECK(COLSUM::list_col[9] == row + 9);
+        }
+    }
+}
+
+DOCTEST_TEST_CASE_FIXTURE(s_colony_navigation_fixture, "Colonies list initially opens at the top") {
+    COLSUM::first = 0;
     COLSUM::slider_bar_position = 0;
-
-    COLSUM::Reset_List_Scroll();
-    DOCTEST_CHECK(COLSUM::first == 0);
-    DOCTEST_CHECK(COLSUM::slider_bar_position == 11);
-
+    COLSUM::Restore_List_Scroll();
     COLSUM::Update_First(10, &COLSUM::first, &COLSUM::slider_bar_position);
     DOCTEST_CHECK(COLSUM::first == 0);
+    DOCTEST_CHECK(COLSUM::slider_bar_position == 22);
+}
+
+DOCTEST_TEST_CASE_FIXTURE(s_colony_navigation_fixture, "Colonies list retains or clamps the row when colony count changes") {
+    COLSUM::first = 11;
+    for (int16_t count : {32, 21, 15, 20}) {
+        MOX::NUM_COLONIES = count;
+        COLSUM::Restore_List_Scroll();
+        COLXPORT::Build_Global_Colony_List();
+        COLSUM::Update_Col_List();
+        COLSUM::Update_First(10, &COLSUM::first, &COLSUM::slider_bar_position);
+        const int16_t expected_row = count >= 21 ? 11 : 5;
+        DOCTEST_CHECK(COLSUM::first == expected_row);
+        DOCTEST_CHECK(COLSUM::slider_bar_position == count - expected_row - 10);
+        DOCTEST_CHECK(COLSUM::list_col[0] == expected_row);
+    }
 }
 
 DOCTEST_TEST_CASE_FIXTURE(s_colony_navigation_fixture, "Colonies list scroll initializes short and exact-page lists") {
@@ -101,7 +135,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_colony_navigation_fixture, "Colonies list scroll ini
         COLSUM::first = 11;
         COLSUM::slider_bar_position = 0;
 
-        COLSUM::Reset_List_Scroll();
+        COLSUM::Restore_List_Scroll();
         DOCTEST_CHECK(COLSUM::first == 0);
         DOCTEST_CHECK(COLSUM::slider_bar_position == (count < 10 ? -1 : 0));
 
@@ -109,6 +143,32 @@ DOCTEST_TEST_CASE_FIXTURE(s_colony_navigation_fixture, "Colonies list scroll ini
         DOCTEST_CHECK(COLSUM::first == 0);
         DOCTEST_CHECK(COLSUM::slider_bar_position == (count < 10 ? -1 : 0));
     }
+}
+
+DOCTEST_TEST_CASE_FIXTURE(s_colony_navigation_fixture, "Colonies sorting still resets the scroll to the top") {
+    const int16_t saved_sort_index = COLSUM::g_sort_index;
+    for (int16_t sort_index = 0; sort_index < 8; ++sort_index) {
+        COLSUM::first = 5;
+        COLSUM::slider_bar_position = 17;
+        COLSUM::g_sort_index = sort_index;
+        int16_t sort_field = -1;
+        if (sort_index == 7) {
+            for (int16_t index = 1; index < fields::fields_count; ++index) {
+                if (fields::fields[index].hotkey == 't') {
+                    sort_field = index;
+                    break;
+                }
+            }
+        } else {
+            sort_field = COLSUM::x_fields[5 + sort_index];
+        }
+        DOCTEST_REQUIRE(sort_field != -1);
+        Input(sort_field);
+        DOCTEST_CHECK(COLSUM::first == 0);
+        DOCTEST_CHECK(COLSUM::slider_bar_position == 22);
+        DOCTEST_CHECK(COLSUM::list_col[0] == colony_list[0]);
+    }
+    COLSUM::g_sort_index = saved_sort_index;
 }
 
 DOCTEST_TEST_CASE_FIXTURE(s_colony_navigation_fixture, "Colonies binds minus to up and plus to down") {

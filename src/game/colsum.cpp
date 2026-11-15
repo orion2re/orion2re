@@ -139,14 +139,8 @@ namespace COLSUM {
         COLONY::Allocate_Mini_Planet_Cache();
         COLXPORT::Build_Global_Colony_List();
         COLSUM::Sort_Col_List();
+        COLSUM::Restore_List_Scroll();
         COLSUM::Update_Col_List();
-
-        if (COLSUM::list_col[9] == -1) {
-            COLSUM::Reset_List_Col_Array();
-            COLSUM::Update_Col_List();
-        }
-
-        COLSUM::Reset_List_Scroll();
 
         fonts::Set_Font_Style_Shadow_Down(1, &COLONY::font_color_array);
         MOX2::Get_Auto_Function(&saved_auto_fn);
@@ -223,11 +217,11 @@ namespace COLSUM {
         COLONY::using_colony_screen_palette = 0;
     }
 
-    void __cdecl Reset_List_Scroll() {
-        // Vertical scrollbar values increase toward the top.
+    void __cdecl Restore_List_Scroll() {
         const int16_t num_colonies = COLXPORT::N_Colonies(MOX::PLAYER_NUM);
-        first = 0;
-        slider_bar_position = (num_colonies >= 10) ? (num_colonies - 10) : -1;
+        first = std::clamp<int16_t>(first, 0, std::max<int16_t>(0, num_colonies - 10));
+        // Keep the inverted scrollbar in sync with the retained row, not vice versa.
+        slider_bar_position = (num_colonies >= 10) ? (num_colonies - first - 10) : -1;
     }
 
     void __cdecl Update_First(int16_t visible_rows, int16_t* first_visible_index, int16_t* slider_position) {
