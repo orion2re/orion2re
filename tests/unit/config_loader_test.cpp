@@ -742,7 +742,7 @@ DOCTEST_TEST_CASE("persistent Lua activation is atomic and identity-bearing") {
 
 DOCTEST_TEST_CASE("persistent Lua setup follows low-to-high package priority") {
     s_config_test_directory files;
-    files.Write("main.cfg", "enable high_runtime;\nenable low_runtime;\n");
+    files.Write("main.cfg", "enable low_runtime;\nenable high_runtime;\n");
     const std::string lua_manifest =
         "  lua: { api: 1, storage_version: 1 },\n";
     for (const std::string& id :
@@ -1037,7 +1037,7 @@ DOCTEST_TEST_SUITE("configuration include loader") {
         DOCTEST_CHECK(COMBINIT::scroll_interval == 1);
     }
 
-    DOCTEST_TEST_CASE("first enable wins configuration and VFS resource precedence") {
+    DOCTEST_TEST_CASE("later enable wins configuration and VFS resource precedence") {
         const config::t_variable_id scroll_interval =
             Variable_Id_("interface.scroll_interval");
         DOCTEST_REQUIRE(scroll_interval != config::CONFIG_NO_VARIABLE);
@@ -1063,10 +1063,134 @@ DOCTEST_TEST_SUITE("configuration include loader") {
 
         DOCTEST_REQUIRE(config::Load_Config_File(
             "main.cfg", "base_game", &effective, &diagnostic));
-        DOCTEST_CHECK(effective.state.values[scroll_interval].integer_value == 81);
-        DOCTEST_CHECK(COMBINIT::scroll_interval == 81);
-        DOCTEST_CHECK(Read_Vfs_Text_("priority.dat") == "first");
-        DOCTEST_CHECK(effective.provenance[scroll_interval].package_id == "first");
+        DOCTEST_CHECK(effective.state.values[scroll_interval].integer_value == 62);
+        DOCTEST_CHECK(COMBINIT::scroll_interval == 62);
+        DOCTEST_CHECK(Read_Vfs_Text_("priority.dat") == "second");
+        DOCTEST_CHECK(effective.provenance[scroll_interval].package_id == "second");
+    }
+
+    DOCTEST_TEST_CASE("assignments and included enables execute in textual order only once") {
+        const auto scroll_interval = Variable_Id_("interface.scroll_interval");
+        const auto beam_offense = Variable_Id_("combat.bonus.battle_scanner_beam_offense");
+        s_config_test_directory files;
+        files.Write("main.cfg",
+            "interface scroll_interval = 11;\n"
+            "enable parent;\n"
+            "include preferences/override.cfg;\n"
+            "enable dependency;\n");
+        files.Write("preferences/override.cfg",
+            "interface scroll_interval = 44;\n"
+            "enable parent;\n"
+            "stop;\n"
+            "interface scroll_interval = 99;\n");
+        files.Write("data/mods/parent/mod.json5", Manifest_("parent", "dependencies: [{ id: 'dependency', version: '1.0.0' }],\n"));
+        files.Write("data/mods/parent/config/main.cfg", "interface scroll_interval = 33;\n");
+        files.Write("data/mods/dependency/mod.json5", Manifest_("dependency"));
+        files.Write("data/mods/dependency/config/main.cfg",
+            "interface scroll_interval = 22;\n"
+            "combat bonus battle_scanner_beam_offense = 42;\n");
+        files.Initialize_Vfs();
+        config::s_effective_config effective;
+        config::s_cfg_diagnostic diagnostic;
+
+        DOCTEST_REQUIRE(config::Load_Config_File("main.cfg", "base_game", &effective, &diagnostic));
+        DOCTEST_CHECK(COMBINIT::scroll_interval == 44);
+        DOCTEST_CHECK(effective.state.values[beam_offense].integer_value == 42);
+        const auto& provenance = effective.provenance[scroll_interval];
+        DOCTEST_CHECK(provenance.package_id == "base_game");
+        DOCTEST_CHECK(provenance.location.source == "preferences/override.cfg");
+        DOCTEST_CHECK(provenance.location.line == 1);
+        const auto& history = effective.prior_values[scroll_interval];
+        DOCTEST_REQUIRE(history.size() == 4);
+        DOCTEST_CHECK(history[1].value.integer_value == 11);
+        DOCTEST_CHECK(history[2].value.integer_value == 22);
+        DOCTEST_CHECK(history[3].value.integer_value == 33);
+        DOCTEST_CHECK(history[3].provenance.package_id == "parent");
+
+        // Re-evaluation must use the same execution order, including on a cache hit.
+        DOCTEST_REQUIRE(config::Load_Config_File("main.cfg", "base_game", &effective, &diagnostic));
+        DOCTEST_CHECK(COMBINIT::scroll_interval == 44);
+        DOCTEST_CHECK(effective.prior_values[scroll_interval].size() == 4);
+    }
+
+    DOCTEST_TEST_CASE("a later package does not replay an already activated shared dependency") {
+        s_config_test_directory files;
+        files.Write("main.cfg",
+            "enable first;\ninterface scroll_interval = 88;\nenable second;\n");
+        for (const auto* id : {"first", "second"}) {
+            files.Write(fs::path("data/mods") / id / "mod.json5", Manifest_(id, "dependencies: [{ id: 'shared', version: '1.0.0' }],\n"));
+            files.Write(fs::path("data/mods") / id / "config/main.cfg", "");
+        }
+        files.Write("data/mods/shared/mod.json5", Manifest_("shared"));
+        files.Write("data/mods/shared/config/main.cfg", "interface scroll_interval = 22;\n");
+        files.Initialize_Vfs();
+        config::s_effective_config effective;
+        config::s_cfg_diagnostic diagnostic;
+        DOCTEST_REQUIRE(config::Load_Config_File("main.cfg", "base_game", &effective, &diagnostic));
+        DOCTEST_CHECK(COMBINIT::scroll_interval == 88);
+        const auto& mods = config::Get_Loaded_Mods();
+        DOCTEST_REQUIRE(mods.size() == 3);
+        DOCTEST_CHECK(mods[0].manifest.id == "second");
+        DOCTEST_CHECK(mods[1].manifest.id == "first");
+        DOCTEST_CHECK(mods[2].manifest.id == "shared");
+    }
+
+    DOCTEST_TEST_CASE("nested enables apply between assignments in the parent document") {
+        s_config_test_directory files;
+        files.Write("main.cfg", "enable parent;\n");
+        files.Write("data/mods/parent/mod.json5", Manifest_("parent"));
+        files.Write("data/mods/parent/config/main.cfg",
+            "interface scroll_interval = 79;\nenable nested;\n");
+        files.Write("data/mods/nested/mod.json5", Manifest_("nested"));
+        files.Write("data/mods/nested/config/main.cfg", "interface scroll_interval = 58;\n");
+        files.Initialize_Vfs();
+        config::s_effective_config effective;
+        config::s_cfg_diagnostic diagnostic;
+        DOCTEST_REQUIRE(config::Load_Config_File("main.cfg", "base_game", &effective, &diagnostic));
+        DOCTEST_CHECK(COMBINIT::scroll_interval == 58);
+        DOCTEST_CHECK(effective.provenance[Variable_Id_("interface.scroll_interval")].package_id == "nested");
+    }
+
+    DOCTEST_TEST_CASE("manifest dependency changes invalidate sequential execution cache") {
+        s_config_test_directory files;
+        files.Write("main.cfg", "enable parent;\n");
+        files.Write("data/mods/parent/config/main.cfg",
+            "interface scroll_interval = 79;\nenable nested;\n");
+        files.Write("data/mods/nested/mod.json5", Manifest_("nested"));
+        files.Write("data/mods/nested/config/main.cfg", "interface scroll_interval = 58;\n");
+        files.Initialize_Vfs();
+        config::s_effective_config effective;
+        config::s_cfg_diagnostic diagnostic;
+        for (bool is_dependency : {false, true, false}) {
+            files.Write("data/mods/parent/mod.json5", Manifest_("parent", is_dependency ? "dependencies: [{ id: 'nested', version: '1.0.0' }],\n" : ""));
+            DOCTEST_REQUIRE(config::Load_Config_File("main.cfg", "base_game", &effective, &diagnostic));
+            DOCTEST_CHECK(COMBINIT::scroll_interval == (is_dependency ? 79 : 58));
+            const auto& mods = config::Get_Loaded_Mods();
+            DOCTEST_REQUIRE(mods.size() == 2);
+            DOCTEST_CHECK(mods[0].manifest.id == "parent");
+            DOCTEST_CHECK(mods[1].manifest.id == "nested");
+        }
+    }
+
+    DOCTEST_TEST_CASE("nested enable cycles reject activation without committing") {
+        s_config_test_directory files;
+        files.Write("main.cfg", "interface scroll_interval = 88;\nenable first;\n");
+        for (const auto* id : {"first", "second"}) {
+            files.Write(fs::path("data/mods") / id / "mod.json5", Manifest_(id));
+        }
+        files.Write("data/mods/first/config/main.cfg", "enable second;\n");
+        files.Write("data/mods/second/config/main.cfg", "enable first;\n");
+        files.Write("data/mods/first/data/cycle.dat", "cycle");
+        files.Initialize_Vfs();
+        Set_Native_Defaults_();
+        config::s_effective_config effective;
+        config::s_cfg_diagnostic diagnostic;
+        DOCTEST_CHECK_FALSE(config::Load_Config_File("main.cfg", "base_game", &effective, &diagnostic));
+        DOCTEST_CHECK(diagnostic.message == "mod activation cycle: first -> second -> first");
+        DOCTEST_CHECK(diagnostic.location.source == "mods/second/config/main.cfg");
+        DOCTEST_CHECK(COMBINIT::scroll_interval == 1);
+        DOCTEST_CHECK(vfs::File_Exists("cycle.dat") == 0);
+        DOCTEST_CHECK(config::Get_Loaded_Mods().empty());
     }
 
     DOCTEST_TEST_CASE("loaded mod API exposes resolved manifests in priority order") {
@@ -1101,23 +1225,23 @@ DOCTEST_TEST_SUITE("configuration include loader") {
             config::Get_Loaded_Mods();
         DOCTEST_REQUIRE(loaded_mods.size() == 3);
         DOCTEST_CHECK(loaded_mods[0].priority_index == 0);
-        DOCTEST_CHECK(loaded_mods[0].manifest.id == "parent");
-        DOCTEST_CHECK(loaded_mods[0].manifest.name == "Parent Mod");
-        DOCTEST_CHECK(loaded_mods[0].manifest.version_text == "2.3.4");
-        DOCTEST_CHECK(loaded_mods[0].manifest.version.major == 2);
-        DOCTEST_CHECK(loaded_mods[0].manifest.version.minor == 3);
-        DOCTEST_CHECK(loaded_mods[0].manifest.version.patch == 4);
+        DOCTEST_CHECK(loaded_mods[0].manifest.id == "second");
         DOCTEST_CHECK(loaded_mods[1].priority_index == 1);
-        DOCTEST_CHECK(loaded_mods[1].manifest.id == "second");
+        DOCTEST_CHECK(loaded_mods[1].manifest.id == "parent");
+        DOCTEST_CHECK(loaded_mods[1].manifest.name == "Parent Mod");
+        DOCTEST_CHECK(loaded_mods[1].manifest.version_text == "2.3.4");
+        DOCTEST_CHECK(loaded_mods[1].manifest.version.major == 2);
+        DOCTEST_CHECK(loaded_mods[1].manifest.version.minor == 3);
+        DOCTEST_CHECK(loaded_mods[1].manifest.version.patch == 4);
         DOCTEST_CHECK(loaded_mods[2].priority_index == 2);
         DOCTEST_CHECK(loaded_mods[2].manifest.id == "dependency");
-        DOCTEST_CHECK(config::Find_Loaded_Mod("parent") == &loaded_mods[0]);
+        DOCTEST_CHECK(config::Find_Loaded_Mod("parent") == &loaded_mods[1]);
         DOCTEST_CHECK(config::Find_Loaded_Mod("missing") == nullptr);
     }
 
     DOCTEST_TEST_CASE("short mod versions are zero-filled and preserve display text") {
         s_config_test_directory files;
-        files.Write("main.cfg", "enable major;\nenable minor;\n");
+        files.Write("main.cfg", "enable minor;\nenable major;\n");
         files.Write(fs::path("data") / "mods" / "major" / "mod.json5",
             Versioned_Manifest_("major", "2"));
         files.Write(fs::path("data") / "mods" / "major" / "config" /
@@ -1498,6 +1622,9 @@ DOCTEST_TEST_SUITE("configuration include loader") {
         config::Initialize_Effective_Config(&effective);
         config::s_cfg_diagnostic diagnostic;
 
+        DOCTEST_REQUIRE(config::Load_Config_File(
+            "main.cfg", "base_game", &effective, &diagnostic));
+        files.Write("main.cfg", "enable second;\nenable first;\n");
         DOCTEST_CHECK_FALSE(config::Load_Config_File(
             "main.cfg", "base_game", &effective, &diagnostic));
         DOCTEST_CHECK(diagnostic.message == "package 'second' must load after 'first'");
@@ -1535,6 +1662,17 @@ DOCTEST_TEST_SUITE("configuration include loader") {
         DOCTEST_CHECK(vfs::File_Exists("broken.dat") == 0);
         DOCTEST_REQUIRE(config::Get_Loaded_Mods().size() == 1);
         DOCTEST_CHECK(config::Get_Loaded_Mods()[0].manifest.id == "stable");
+        const auto committed = effective;
+        files.Write("data/mods/broken/config/main.cfg", "interface scroll_interval = 60;\n");
+        files.Write("invalid.cfg", "enable broken;\ninterface scroll_interval = 256;\n");
+        DOCTEST_CHECK_FALSE(config::Load_Config_File(
+            "invalid.cfg", "base_game", &effective, &diagnostic));
+        DOCTEST_CHECK(diagnostic.location.source == "invalid.cfg");
+        DOCTEST_CHECK(diagnostic.location.line == 2);
+        DOCTEST_CHECK(COMBINIT::scroll_interval == 74);
+        DOCTEST_CHECK(Read_Vfs_Text_("stable.dat") == "stable");
+        DOCTEST_CHECK(vfs::File_Exists("broken.dat") == 0);
+        Check_Effective_Config_Equals_(effective, committed);
     }
 
     DOCTEST_TEST_CASE("Lua fingerprints are canonical across directory and ZIP packages") {
@@ -1618,7 +1756,7 @@ DOCTEST_TEST_SUITE("configuration include loader") {
             *orion2re::lua::Get_Active_Registry();
         DOCTEST_CHECK(first.fingerprint == reordered.fingerprint);
         DOCTEST_CHECK(Lua_Fingerprint_Mismatch_(&first, &reordered) ==
-            "Lua package order differs at index 0: expected 'first', got 'second'");
+            "Lua package order differs at index 0: expected 'second', got 'first'");
 
         DOCTEST_REQUIRE(config::Load_Config_File(
             "configured.cfg", "base_game", &effective, &diagnostic));
@@ -1917,11 +2055,79 @@ DOCTEST_TEST_SUITE("configuration include loader") {
         DOCTEST_CHECK(config::Find_Loaded_Mod("personal") != nullptr);
     }
 
+    DOCTEST_TEST_CASE("overrides after enable reload and snapshots retain recorded gameplay and package order") {
+        s_config_test_directory files;
+        files.Write("orion2re.cfg",
+            "enable first;\nenable second;\n"
+            "colony android_morale = all_droids;\n"
+            "interface scroll_interval = 75;\n");
+        for (const auto* id : {"first", "second"}) {
+            files.Write(fs::path("data/mods") / id / "mod.json5", Manifest_(id));
+            files.Write(fs::path("data/mods") / id / "config/main.cfg",
+                "colony android_morale = none;\ninterface scroll_interval = 60;\n");
+            files.Write(fs::path("data/mods") / id / "data/priority.dat", id);
+        }
+        files.Initialize_Vfs();
+        config::s_effective_config effective;
+        config::s_cfg_diagnostic diagnostic;
+        bool loaded = false;
+        DOCTEST_REQUIRE(config::Load_Startup_Config(
+            "orion2re.cfg", "base_game", &effective, &loaded, &diagnostic));
+        const auto morale = Variable_Id_("colony.android_morale");
+        DOCTEST_REQUIRE(morale != config::CONFIG_NO_VARIABLE);
+        const auto saved = effective.state;
+        const auto requirements = config::Get_Active_Config()->required_mods;
+        const auto order = config::Get_Active_Config()->package_order;
+        DOCTEST_CHECK(saved.values[morale].integer_value == 6);
+        DOCTEST_CHECK(COMBINIT::scroll_interval == 75);
+
+        files.Write("orion2re.cfg",
+            "enable first;\nenable second;\n"
+            "colony android_morale = all_droids;\ninterface scroll_interval = 80;\n");
+        DOCTEST_REQUIRE(config::Reload_All_Active_Config_Groups(&diagnostic));
+        DOCTEST_CHECK(COMBINIT::scroll_interval == 80);
+        DOCTEST_CHECK(config::Get_Active_Config()->baseline.effective.state.values[morale].integer_value == 6);
+
+        // Local selection and gameplay changes cannot replace recorded save/host state.
+        files.Write("orion2re.cfg",
+            "enable second;\nenable first;\nenable not_installed;\n"
+            "colony android_morale = none;\ninterface scroll_interval = 85;\n");
+        for (int attempt = 0; attempt < 2; ++attempt) {
+            DOCTEST_REQUIRE(config::Reapply_Config_Snapshot(requirements,
+                &config::saved_config_snapshot,
+                &saved,
+                &diagnostic));
+            const auto* active = config::Get_Active_Config();
+            DOCTEST_CHECK(active->baseline.effective.state.values[morale].integer_value == 6);
+            DOCTEST_CHECK(active->package_order == order);
+            DOCTEST_CHECK(active->required_mods == requirements);
+            DOCTEST_CHECK(COMBINIT::scroll_interval == 85);
+            DOCTEST_CHECK(Read_Vfs_Text_("priority.dat") == "second");
+        }
+        config::s_prepared_config_snapshot network;
+        DOCTEST_REQUIRE(config::Prepare_Config_Snapshot(&config::synchronized_config_snapshot,
+            &saved,
+            &requirements,
+            &network));
+        config::s_network_config_candidate* candidate = nullptr;
+        DOCTEST_REQUIRE(config::Stage_Network_Config_Snapshot(network.bytes.data(),
+            static_cast<uint32_t>(network.bytes.size()),
+            &candidate,
+            &diagnostic));
+        DOCTEST_REQUIRE(config::Commit_Network_Config_Snapshot(&candidate, &diagnostic));
+        DOCTEST_CHECK(config::Get_Active_Config()->baseline.effective.state.values[morale].integer_value == 6);
+        DOCTEST_CHECK(config::Get_Active_Config()->package_order == order);
+        DOCTEST_CHECK(COMBINIT::scroll_interval == 85);
+        DOCTEST_REQUIRE(config::Restore_Launch_Config(&diagnostic));
+        DOCTEST_CHECK(COMBINIT::scroll_interval == 75);
+        DOCTEST_CHECK(config::Get_Active_Config()->baseline.effective.state.values[morale].integer_value == 6);
+    }
+
     DOCTEST_TEST_CASE("main and user configs validate their combined final state") {
         s_config_test_directory files;
         files.Write("configs/main.cfg",
             "interface scroll_interval = 20;\n"
-            "map star_count huge = 72;\n"
+            "enable personal;\n"
             "stop;\n"
             "interface scroll_interval = 256;\n");
         files.Write("data/user.cfg", "include preferences/build.cfg;\n");
@@ -1930,6 +2136,9 @@ DOCTEST_TEST_SUITE("configuration include loader") {
             "include display.cfg;\n");
         files.Write("data/preferences/display.cfg",
             "interface scroll_interval = 75;\nmap star_count huge = 70;\n");
+        files.Write("data/mods/personal/mod.json5", Manifest_("personal"));
+        files.Write("data/mods/personal/config/main.cfg",
+            "interface scroll_interval = 30;\nmap star_count huge = 72;\n");
         files.Initialize_Vfs();
         config::s_effective_config effective;
         config::s_cfg_diagnostic diagnostic;

@@ -410,7 +410,7 @@ DOCTEST_TEST_CASE("persistent arena sizing handles alignment growth and refuses 
     DOCTEST_CHECK(MOX::main_game_button_seg == old);
 }
 
-DOCTEST_TEST_CASE("saved mod configuration and canonical launch restoration refresh real resources") {
+DOCTEST_TEST_CASE("saved mods and canonical launch restoration refresh resources while retaining local preferences") {
     Fixture fixture;
     DOCTEST_SUBCASE("directory package") {}
     DOCTEST_SUBCASE("ZIP package") {
@@ -440,7 +440,7 @@ DOCTEST_TEST_CASE("saved mod configuration and canonical launch restoration refr
         DOCTEST_REQUIRE(CONFIG_REFRESH::Resource_Reload_Pending());
         DOCTEST_CHECK(ESTRINGS::E_Strings(126)[0] == 'B');
         CONFIG_REFRESH::Reload_Resources_Between_Screens();
-        DOCTEST_CHECK(COLSUM::print_research_value == COLSUM::RESEARCH_VALUE_PERCENTAGE_1);
+        DOCTEST_CHECK(COLSUM::print_research_value == COLSUM::RESEARCH_VALUE_CLASSIC);
         DOCTEST_CHECK(ESTRINGS::E_Strings(126)[0] == 'M');
         DOCTEST_CHECK(((char*)MOX::main_game_button_seg)[0] == 'M');
 

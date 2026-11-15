@@ -97,9 +97,18 @@ The [allowed values](../generated/configuration/allowed-values.md) page lists cu
 
 ## Package order and collision behavior
 
-The main configuration and optional `data/user.cfg` are processed in that order as one sequence of statements, including their included files. Later assignments win, and cross-field validation checks the combined final state rather than individual files.
+The main configuration and optional `data/user.cfg` execute in that order as one sequence of statements, including their included files. Later assignments win, and cross-field validation checks the combined final state rather than individual files.
 
-Package CFG files are applied from lowest to highest package priority. The first explicit `enable` therefore applies last and wins when two packages assign the same field. Package CFG values also override assignments in the main configuration and `data/user.cfg`.
+An `enable` executes any newly needed manifest dependencies first, then the package CFG, before continuing with the next statement. This also applies to `enable` inside a package CFG. Each package executes once per evaluation; subsequent enables are no-ops, even if the package first activated as a dependency. Dependency and nested-enable cycles are errors.
+
+An assignment after `enable` overrides that package; an assignment before it may be overwritten by it. For example, no extra package is needed for a personal override:
+
+```text
+enable v150i;
+colony android_morale = all_droids;
+```
+
+For assets and Lua, packages receive priority in reverse activation-completion order: later independent enables have higher priority, and a package has higher priority than dependencies or packages enabled within its CFG. CFG writes follow statement order, not this global package priority: a nested enable can overwrite an earlier assignment in its parent. See [package ordering](packages-and-manifests.md#priority-and-application-order).
 
 Do not rely on accidental file enumeration. Express required package relations in the manifest and required statement order through explicit includes.
 

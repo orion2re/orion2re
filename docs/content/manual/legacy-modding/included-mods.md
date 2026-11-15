@@ -72,4 +72,4 @@ For Improved Multiplayer:
 enable v150i-mp;
 ```
 
-When enabling more than one independent package, list the highest-priority package first. If the game reports a conflict or required order, correct the enabled package set as directed and restart.
+When enabling more than one independent package, list the highest-priority package last. Put personal setting overrides after the relevant `enable`. If the game reports a conflict or required order, correct the enabled package set as directed and restart.

@@ -91,6 +91,7 @@ namespace config {
             std::vector<std::string> requested_packages;
             s_cfg_diagnostic* diagnostic = nullptr;
             t_config_document_loader load_document = nullptr;
+            bool restoring_packages = false;
         };
 
         bool Reuse_Active_Packages(const std::vector<s_mod_requirement>* required,
@@ -116,6 +117,9 @@ namespace config {
                 if (old_key != new_key) return false;
             }
             resolver->packages = active_packages;
+            for (size_t index = 0; index < resolver->packages.size(); ++index) {
+                resolver->package_indexes.emplace(resolver->packages[index].manifest.id, index);
+            }
             return true;
         }
 
@@ -147,21 +151,12 @@ namespace config {
             resolver->requested_packages.push_back(package_id);
         }
 
-        void Normalize_Package_Priority(s_package_resolver* resolver) {
+        void Set_Package_Priority(s_package_resolver* resolver,
+            const std::vector<size_t>& priority) {
             std::vector<s_enabled_package> ordered;
             ordered.reserve(resolver->packages.size());
-            std::vector<bool> selected(resolver->packages.size(), false);
-            for (const std::string& requested : resolver->requested_packages) {
-                const auto found = resolver->package_indexes.find(requested);
-                if (found != resolver->package_indexes.end()) {
-                    selected[found->second] = true;
-                    ordered.push_back(std::move(resolver->packages[found->second]));
-                }
-            }
-            for (size_t index = 0; index < resolver->packages.size(); ++index) {
-                if (!selected[index]) {
-                    ordered.push_back(std::move(resolver->packages[index]));
-                }
+            for (size_t index : priority) {
+                ordered.push_back(std::move(resolver->packages[index]));
             }
             resolver->packages = std::move(ordered);
             resolver->package_indexes.clear();
@@ -289,6 +284,117 @@ namespace config {
             return true;
         }
 
+        enum e_package_execution_state {
+            CONFIG_PACKAGE_PENDING,
+            CONFIG_PACKAGE_RUNNING,
+            CONFIG_PACKAGE_COMPLETE,
+        };
+
+        struct s_config_execution {
+            const s_package_resolver* resolver = nullptr;
+            s_effective_config* candidate = nullptr;
+            std::vector<e_package_execution_state> package_states;
+            std::vector<size_t> completed_packages;
+            std::vector<std::string> stack;
+        };
+
+        bool Execute_Document(const s_cfg_document& document,
+            const char* package_id,
+            s_config_execution* execution,
+            bool execute_enables = true);
+
+        bool Execute_Package(size_t index,
+            const s_source_location& location,
+            s_config_execution* execution) {
+            const auto* resolver = execution->resolver;
+            const auto& package = resolver->packages[index];
+            if (execution->package_states[index] == CONFIG_PACKAGE_COMPLETE) return true;
+            if (execution->package_states[index] == CONFIG_PACKAGE_RUNNING) {
+                std::string chain;
+                for (const auto& id : execution->stack) {
+                    if (!chain.empty()) chain += " -> ";
+                    chain += id;
+                }
+                resolver->diagnostic->location = location;
+                resolver->diagnostic->message = "mod activation cycle: " + chain + " -> " + package.manifest.id;
+                return false;
+            }
+            execution->package_states[index] = CONFIG_PACKAGE_RUNNING;
+            execution->stack.push_back(package.manifest.id);
+            for (const auto* dependencies : {&package.manifest.dependencies, &package.manifest.optional_dependencies}) {
+                for (const auto& dependency : *dependencies) {
+                    const auto found = resolver->package_indexes.find(dependency.id);
+                    if (found != resolver->package_indexes.end() &&
+                        !Execute_Package(found->second, location, execution)) return false;
+                }
+            }
+            if (!Execute_Document(package.document, package.manifest.id.c_str(), execution)) return false;
+            execution->stack.pop_back();
+            execution->package_states[index] = CONFIG_PACKAGE_COMPLETE;
+            execution->completed_packages.push_back(index);
+            return true;
+        }
+
+        bool Execute_Document(const s_cfg_document& document,
+            const char* package_id,
+            s_config_execution* execution,
+            bool execute_enables) {
+            s_cfg_document assignments;
+            const auto flush = [&]() {
+                if (assignments.statements.empty()) return true;
+                const bool applied = Apply_Config_Document_To_Candidate(&assignments,
+                    package_id,
+                    execution->candidate,
+                    execution->resolver->diagnostic);
+                assignments.statements.clear();
+                return applied;
+            };
+            for (const auto& statement : document.statements) {
+                if (statement.kind == CFG_STATEMENT_STOP) break;
+                if (statement.kind == CFG_STATEMENT_ENABLE) {
+                    if (!flush()) return false;
+                    if (!execute_enables) continue;
+                    const auto found = execution->resolver->package_indexes.find(statement.argument.value);
+                    if (found == execution->resolver->package_indexes.end() ||
+                        !Execute_Package(found->second, statement.argument.location, execution)) return false;
+                } else if (execution->candidate != nullptr) {
+                    assignments.statements.push_back(statement);
+                }
+            }
+            return flush();
+        }
+
+        bool Normalize_Package_Priority(const s_cfg_document& base_document,
+            s_package_resolver* resolver) {
+            s_config_execution execution;
+            execution.resolver = resolver;
+            execution.package_states.resize(resolver->packages.size());
+            if (resolver->restoring_packages) {
+                // Snapshots store high-to-low priority, independently of the launch script.
+                std::vector<size_t> priority;
+                std::vector<bool> selected(resolver->packages.size(), false);
+                for (const auto& id : resolver->requested_packages) {
+                    const size_t index = resolver->package_indexes.find(id)->second;
+                    selected[index] = true;
+                    priority.push_back(index);
+                }
+                for (size_t index = 0; index < selected.size(); ++index) {
+                    if (!selected[index]) priority.push_back(index);
+                }
+                s_source_location location;
+                location.source = "configuration snapshot";
+                for (size_t index = priority.size(); index > 0; --index) {
+                    if (!Execute_Package(priority[index - 1], location, &execution)) return false;
+                }
+                Set_Package_Priority(resolver, priority);
+            } else {
+                if (!Execute_Document(base_document, "base_game", &execution)) return false;
+                const std::vector<size_t> priority(execution.completed_packages.rbegin(), execution.completed_packages.rend());
+                Set_Package_Priority(resolver, priority);
+            }
+            return true;
+        }
+
         bool Validate_Package_Set(s_package_resolver* resolver) {
             for (size_t package_index = 0; package_index < resolver->packages.size();
                  ++package_index) {
@@ -320,6 +426,7 @@ namespace config {
         bool Resolve_Enabled_Packages(const s_cfg_document& base_document,
             const std::vector<s_mod_requirement>* required_packages,
             s_package_resolver* resolver) {
+            resolver->restoring_packages = required_packages != nullptr;
             if (required_packages == nullptr) {
                 for (const s_cfg_statement& statement : base_document.statements) {
                     if (statement.kind == CFG_STATEMENT_ENABLE) {
@@ -372,7 +479,7 @@ namespace config {
                 }
             }
 
-            Normalize_Package_Priority(resolver);
+            if (!Normalize_Package_Priority(base_document, resolver)) return false;
             if (required_packages != nullptr) {
                 if (resolver->packages.size() != required_packages->size()) {
                     resolver->diagnostic->location.source = "configuration snapshot";
@@ -454,9 +561,14 @@ namespace config {
             s_cfg_diagnostic* diagnostic) {
             s_config_profile profile("build-candidate");
             std::string key = package_id;
+            key += resolver.restoring_packages ? ":snapshot;" : ":script;";
             Append_Document_Key(base_document, &key);
             for (const auto& package : resolver.packages) {
                 key += package.manifest.id + ":" + package.manifest.version_text + ";";
+                for (const auto* dependencies : {&package.manifest.dependencies, &package.manifest.optional_dependencies}) {
+                    for (const auto& dependency : *dependencies) key += "dependency:" + dependency.id + ";";
+                    key += "end-dependencies;";
+                }
                 Append_Document_Key(package.document, &key);
             }
             if (key == package_baseline_cache.key &&
@@ -468,19 +580,18 @@ namespace config {
                 diagnostic->message = "unable to initialize configuration defaults";
                 return false;
             }
-            if (!Apply_Config_Document_To_Candidate(
-                    &base_document, package_id, candidate, diagnostic)) {
-                return false;
-            }
-            for (size_t index = resolver.packages.size(); index > 0; --index) {
-                const s_enabled_package& package = resolver.packages[index - 1];
-                if (!Apply_Config_Document_To_Candidate(&package.document,
-                        package.manifest.id.c_str(),
-                        candidate,
-                        diagnostic)) {
-                    return false;
+            s_config_execution execution;
+            execution.resolver = &resolver;
+            execution.candidate = candidate;
+            execution.package_states.resize(resolver.packages.size());
+            if (resolver.restoring_packages) {
+                s_source_location location;
+                location.source = "configuration snapshot";
+                for (size_t index = resolver.packages.size(); index > 0; --index) {
+                    if (!Execute_Package(index - 1, location, &execution)) return false;
                 }
             }
+            if (!Execute_Document(base_document, package_id, &execution, !resolver.restoring_packages)) return false;
             // Saved or synchronized values may replace invalid local combinations.
             package_baseline_cache = {std::move(key), *candidate};
             return true;
@@ -543,6 +654,7 @@ namespace config {
         s_package_resolver resolver;
         resolver.diagnostic = diagnostic;
         resolver.load_document = load_document;
+        resolver.restoring_packages = required_packages != nullptr;
         const bool reuse = prior_state != nullptr && commit_mounts == nullptr && Reuse_Active_Packages(required_packages, &resolver);
         if (!reuse) *diagnostic = {};
         s_vfs_mount_transaction* mounts = reuse ? nullptr : vfs::Begin_Mount_Transaction();

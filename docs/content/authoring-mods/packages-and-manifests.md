@@ -106,25 +106,32 @@ Supported operators are `=`, `<`, `<=`, `>`, and `>=`. Caret, tilde, wildcard, l
 
 `conflicts` lists package IDs that may not be active together. Use a conflict when combining the packages would be invalid, not merely because they override the same value or asset.
 
-`load_after` is an ordering assertion, not a dependency and not an automatic sorter. If `patch` declares `load_after: ["overhaul"]`, list `patch` before `overhaul` in `orion2re.cfg`. The engine checks the required relation.
+`load_after` is an ordering assertion, not a dependency and not an automatic sorter. If `patch` declares `load_after: ["overhaul"]`, list `patch` after `overhaul` in `orion2re.cfg`. The engine checks the required relation.
 
 ## Priority and application order
 
-The first explicit `enable` has the highest priority:
+Configuration executes top to bottom. Each `enable` applies newly needed manifest dependencies, then executes the package CFG before returning to the next statement. Later assignments win, including assignments in the main configuration after an `enable`.
+
+Later independent enables have higher package priority:
 
 ```text
-enable compatibility_patch;
-enable overhaul;
 enable shared_rules;
+enable overhaul;
+enable compatibility_patch;
 ```
 
-One priority order controls all package mechanisms:
+Asset and Lua priority is the reverse of package activation-completion order:
 
-- VFS searches highest to lowest priority, so the first package supplies a colliding asset.
-- CFG files are applied lowest to highest priority, so the first package writes last and wins a colliding setting.
-- Lua `main.lua` setup runs lowest to highest priority, so the first package runs last.
+- VFS searches highest to lowest priority, so `compatibility_patch` supplies a colliding asset in this example.
+- Lua `main.lua` setup runs lowest to highest priority, so `compatibility_patch` runs last in this example.
 - Lua callbacks run in setup order, then registration order within each `main.lua`.
-- A package has higher priority than a dependency activated only for it.
+- A package has higher priority than its newly activated dependencies and packages enabled within its CFG.
+
+CFG writes instead follow their exact statement order. A nested `enable` can overwrite earlier assignments in its parent; assignments after that nested enable can overwrite them again. Lua setup remains deferred until the complete candidate configuration has been evaluated and validated.
+
+Packages activate only once per evaluation. Repeating an `enable`, explicitly or through another dependency, neither replays its CFG nor promotes its priority. Activation cycles are errors. Snapshots retain their recorded high-to-low package order rather than taking the order from the local launch file.
+
+Earlier builds gave the first explicit enable highest priority and applied all package CFG after main/user assignments. Existing configurations may need independent enable lines reversed and assignments repositioned to preserve that behavior.
 
 Use manifest dependencies for required relationships. An `enable` statement can appear in a package CFG, but it lacks the clear versioned relationship expressed by `dependencies`.
 

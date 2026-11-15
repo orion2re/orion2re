@@ -59,7 +59,7 @@ For each virtual asset, Orion2 Redone searches:
 5. original files in the game directory; and
 6. original files in the configured fallback installation path, if present.
 
-The first match wins. A loose development override hides every mod version. The first enabled package wins a collision with later packages. All enabled packages win over shared data and original assets.
+The first match wins. A loose development override hides every mod version. Later independent enables have higher priority and win asset collisions with earlier ones. A package has higher priority than dependencies or packages enabled within its CFG. Repeated enables do not change priority. All enabled packages win over shared data and original assets.
 
 `data/base.zip` is the only archive mounted automatically from `data/`. Mod archives belong under `data/mods/` and still require an `enable` statement.
 
@@ -121,6 +121,6 @@ When the wrong asset appears:
 1. Remove or inspect `data/overrides/`.
 2. Confirm the package is enabled.
 3. Confirm the asset is below the package's `data/` directory.
-4. Confirm the first enabled package is intended to win.
+4. Confirm the highest-priority package (the last independent enable) is intended to win.
 5. Check case-insensitive duplicate paths in the directory or ZIP.
 6. For an LBX entry, confirm the three-digit entry number and payload-only format.

@@ -47,7 +47,7 @@ Dependencies are activated automatically. You do not need a separate `enable` li
 
 Some packages conflict because they change the same rules in incompatible ways. The game reports the conflict and stops loading rather than combining them unpredictably.
 
-The order of `enable` lines sets package priority: the first enabled package has the highest priority when packages provide the same game resource. A package may also require another active package to appear before or after it. The game checks this order but does not reorder the lines for you; list packages in the order required by their authors.
+Configuration executes top to bottom: an `enable` applies newly needed dependencies and the package's settings before continuing with the next line. Put personal setting overrides after the relevant `enable`. Later independent enables have higher priority when packages provide the same game resource. Packages activate only once; repeated enables do not reset settings or change priority. A package may also require another active package to appear before or after it. The game checks this order but does not reorder the lines for you; list packages in the order required by their authors.
 
 ## Mods that replace game data
 
