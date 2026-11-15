@@ -70,152 +70,186 @@ licenses and copyright notices in their source files and vendor directories.
 
 This project was built with assistance from AI agents operating under human direction. Human contributors wrote code, reviewed, tested, and approved AI-assisted changes, and remain responsible for the final work.
 
-## Requirements (building from source)
+## Build
 
-- CMake 3.20 or newer
-- Ninja
-- Either:
-  - macOS build environment with an arm64-capable Clang toolchain
-  - Windows build environment with an MSVC toolchain
-  - Linux build environment with optional MinGW-w64 cross-compilers
-- Original Master of Orion II game files from GOG or Steam
+These steps build the game from source. The examples use native Linux, with
+Windows and macOS alternatives below. To play, you'll also need the original
+Master of Orion II game files from your GOG or Steam installation.
 
-Supported build paths:
+### 1. Install build dependencies
 
-- Native macOS arm64 builds
-- Native Linux builds
-- Native Windows builds with MSVC for x86 and x64
-- Linux-hosted MinGW-w64 cross-builds for Win32 and Win64
+You need Git, CMake 3.21 or newer for the presets used below, Ninja, and a C/C++
+compiler with C++20 support. These are separate tools, not included in the game
+download. Python 3 is also used for the build-tool and packaging regression tests.
 
-macOS builds use the native host architecture.
+#### Linux (Ubuntu, Xubuntu, or Debian)
 
-## Bumping the game version
-
-Record public-facing changes in the [changelog](docs/content/changelog.md) under
-the relevant version and change category, using a short description of what
-changes for players or mod authors. Keep the newest version at the top, even
-before it is released.
-
-Edit only the root [`VERSION`](VERSION) file and commit the change. Use
-`major.minor.patch` without a `v` prefix,
-leading zeroes, or prerelease suffix. CMake regenerates the engine version used
-by mod `requires.engine` checks, the menu label, and macOS bundle metadata.
-An existing CMake build automatically reconfigures when this file changes.
-Documentation builds also read this file for the displayed engine version.
-
-To publish an official release, tag that commit with `v` followed by the contents
-of `VERSION`, push the tag, and publish its GitHub Release. Publishing
-the release triggers CI; pushing the tag alone does not. CI rejects a tag that
-does not match `VERSION`, then builds and attaches the game ZIPs, documentation
-ZIP, and PDF with that tag in their filenames. Development artifacts retain
-the `main` suffix. A version edit alone does not publish anything.
-
-Do not bump bundled mods' own versions or their `requires.engine` ranges just
-to match the game: those describe package versions and supported engine ranges.
-Save-format versions, network protocol versions, and the multiplayer build-date
-compatibility marker are separate and are not changed by a release version bump.
-
-## Vendored submodules
-
-The project uses vendored submodules for third-party dependencies.
-
-Clone the repository with submodules:
+Open a terminal and install the tools and development libraries used by our Linux CI:
 
 ```sh
-git clone --recurse-submodules <repo-url>
+sudo apt update
+sudo apt install git build-essential cmake ninja-build pkg-config python3 \
+  libasound2-dev libpulse-dev libaudio-dev libjack-dev libsndio-dev \
+  libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxfixes-dev \
+  libxi-dev libxss-dev libxtst-dev libxkbcommon-dev \
+  libwayland-dev libdecor-0-dev libdrm-dev libgbm-dev \
+  libgl1-mesa-dev libegl1-mesa-dev libgles2-mesa-dev \
+  libudev-dev libdbus-1-dev libibus-1.0-dev libpipewire-0.3-dev
 ```
 
-If you already cloned the repository without submodules, initialize and update them with:
+`build-essential` includes GCC and G++. Check `cmake --version` before continuing;
+if your distribution provides an older version, install a newer one from
+[CMake](https://cmake.org/download/).
+
+#### macOS (Apple Silicon)
+
+Install Apple's command-line tools for the Clang compiler and macOS SDK:
+
+```sh
+xcode-select --install
+```
+
+Then, with [Homebrew](https://brew.sh/) installed, install the remaining tools:
+
+```sh
+brew install git cmake ninja python
+```
+
+#### Windows (Visual Studio)
+
+Install Visual Studio 2022 or its Build Tools with the Desktop development with
+C++ workload, including MSVC, a Windows SDK, and C++ CMake tools for Windows
+(CMake and Ninja). Also install [Git for Windows](https://git-scm.com/downloads/win)
+and [Python 3](https://www.python.org/downloads/windows/) and add them to `PATH`.
+For the sanitizer tests below, include the MSVC AddressSanitizer component.
+
+Run the following steps in an x64 Native Tools Command Prompt for VS 2022 when
+using `win64-*` presets. For `win32-*`, use an x86 Native Tools Command Prompt
+instead. The selected prompt sets up the compiler for the matching architecture.
+
+### 2. Clone the source and vendored submodules
+
+The project uses Git submodules for third-party libraries such as SDL. Clone
+them along with the project:
+
+```sh
+git clone --recurse-submodules https://github.com/orion2re/orion2re.git
+cd orion2re
+```
+
+If you already cloned the repository, open a terminal in its directory and run:
 
 ```sh
 git submodule update --init --recursive
 ```
 
-## Build
+Run all remaining commands from this `orion2re` directory, which contains
+`CMakeLists.txt` and `CMakePresets.json`. GitHub's source-code ZIP does not include
+the submodules, so use a Git clone for these instructions.
 
-Configure and build with a preset:
+### 3. Build release or debug
 
-```sh
-cmake --preset win32-debug
-cmake --build --preset win32-debug
-```
-
-Native macOS example:
+For a Linux release build, replace the path below with the absolute path to your
+existing Master of Orion II installation. Choose a folder you can write to.
 
 ```sh
-cmake --preset osx-debug
-cmake --build --preset osx-debug
+cmake --preset linux-release -DORION2RE_GAME_DIR="/absolute/path/to/Master of Orion II"
+cmake --build --preset linux-release --parallel
 ```
 
-Router-only Linux example:
+The first command configures the build. The second compiles the game and copies
+the executable and runtime data into your game folder. Existing
+`data/orion2re.cfg` files are preserved; a default is copied only if one is missing.
+Start the Linux game from that folder:
 
 ```sh
-cmake --preset linux-router
-cmake --build --preset linux-router
+cd "/absolute/path/to/Master of Orion II"
+./orion2re
 ```
 
-This skips the `orion2re` game target and is the preferred path when you only need `orion2re-router`, especially on a headless Linux machine. Prefer `-DORION2RE_BUILD_GAME=OFF` for router-only work.
+For a debug build, return to the source directory and use:
 
-Tests are opt-in and are not built by default. To configure, build, and run the current unit tests:
+```sh
+cmake --preset linux-debug -DORION2RE_GAME_DIR="/absolute/path/to/Master of Orion II"
+cmake --build --preset linux-debug --parallel
+```
+
+Release builds are optimized for playing; debug builds are useful for diagnosing
+problems. They have separate build directories under `out/build/Linux/`, but
+building either with the same game directory replaces the executable there.
+
+For other platforms, replace the preset in both the configure and build commands:
+
+| Platform | Release preset | Debug preset |
+| --- | --- | --- |
+| Linux | `linux-release` | `linux-debug` |
+| macOS | `osx-release` | `osx-debug` |
+| Windows x64 | `win64-release` | `win64-debug` |
+| Windows x86 | `win32-release` | `win32-debug` |
+
+Use a game directory appropriate for that platform, such as
+`-DORION2RE_GAME_DIR="C:/Games/Master of Orion II"` on Windows. Launch
+`orion2re.exe` on Windows or `Orion2 Redone.app` on macOS after a release build.
+macOS debug builds use the `orion2re` executable directly.
+
+For additional profiles, including sanitizer and router-only builds, see
+[`CMakePresets.json`](CMakePresets.json). The `linux-router` preset builds only
+`orion2re-router`, not the game.
+
+#### Runtime data and mods
+
+Normal game builds package `data/base/` as `data/base.zip` and each supported mod
+under `data/mods/` as a ZIP, then copy them into `ORION2RE_GAME_DIR` when it is set.
+Without that option, the executable and packaged data stay in the build directory,
+such as `out/build/Linux/linux-release/`.
+
+To build only the mod archives, or copy them into the configured game directory:
+
+```sh
+cmake --build --preset linux-release --target package-supported-mods
+cmake --build --preset linux-release --target deploy-supported-mods
+```
+
+The second command requires `ORION2RE_GAME_DIR` to be set. Mod archives are written
+under the build directory at `data/mods/<package>.zip`.
+
+Mods are not enabled automatically. Put personal settings and enabled mods in
+`data/user.cfg`, which is loaded after `data/orion2re.cfg`. For example, add
+`enable v150;` for standard 1.50, `enable v150i;` for the single-player 1.50
+Improved profile, or `enable v150i-mp;` for its multiplayer overrides.
+See [Configuration](docs/content/manual/legacy-modding/configuration.md).
+
+### 4. Run tests
+
+Tests are opt-in and are not built by the normal release and debug presets.
+From the source directory on Linux or macOS, configure, build, and run the unit
+tests with:
 
 ```sh
 tools/run-tests.sh
 ```
 
-For the full preset list and per-platform details, see `CMakePresets.json`.
+This uses a separate debug build in `out/build/test-debug/` and reports failures
+through CTest, CMake's test runner.
 
-Supported source-owned mods are stored under `data/mods/`. Normal game builds package `data/base/` as `data/base.zip`, package each source-owned mod as `data/mods/<package>.zip`, and deploy all archives when `ORION2RE_GAME_DIR` is configured.
-
-Build only the distributable mod ZIP archives with:
-
-```sh
-cmake --build --preset win32-debug --target package-supported-mods
-```
-
-Archives are written under the build tree at `data/mods/<package>.zip`. To deploy only the mods to a configured target game directory, use:
+To run the sanitizer-enabled tests used by CI on Linux:
 
 ```sh
-cmake --build --preset win32-debug --target deploy-supported-mods
+cmake --preset linux-debug-asan-tests
+cmake --build --preset linux-debug-asan-tests --parallel
+ctest --preset linux-debug-asan-tests
 ```
 
-The game does not enable deployed mods automatically. Add `enable <package>;` to
-`data/orion2re.cfg`, for example `enable v150;` for standard 1.50, `enable v150i;` for the
-single-player 1.50 Improved profile, or `enable v150i-mp;` for its multiplayer overrides.
+On macOS, use `osx-debug-asan-tests` in all three commands. On Windows, use
+`win64-debug-asan-tests` from the x64 Native Tools Command Prompt. Linux and
+macOS run AddressSanitizer and UndefinedBehaviorSanitizer; Windows runs
+AddressSanitizer only.
 
-For personal settings, build queue presets, and enabled mods, create `data/user.cfg`.
-It is loaded automatically after the main configuration if present and uses the
-same syntax, so customizations can stay separate from the shipped file during
-upgrades. See [Configuration](docs/content/manual/legacy-modding/configuration.md).
-
-Random-sequence mismatches log every recorded original caller and captured local caller, including absolute addresses and executable-relative RVAs for symbol lookup.
-
-Example release build:
+The Python build-tool and packaging regression tests run separately:
 
 ```sh
-cmake --preset win32-release
-cmake --build --preset win32-release
+python3 -m unittest discover -s tests/build_tools -v
+python3 -m unittest discover -s tests/packaging -v
 ```
 
-## Cross-compiling Windows builds from Linux
-
-Install MinGW-w64 cross-compilers and Ninja first. On Debian or Ubuntu, the required packages are typically:
-
-```sh
-sudo apt install gcc-mingw-w64 g++-mingw-w64 binutils-mingw-w64 ninja-build
-```
-
-Then configure and build one of the MinGW presets:
-
-```sh
-cmake --preset mingw-win32-debug
-cmake --build --preset mingw-win32-debug
-```
-
-or:
-
-```sh
-cmake --preset mingw-win64-release
-cmake --build --preset mingw-win64-release
-```
-
-See `CMakePresets.json` for the available MinGW presets.
+On Windows, use `python` instead of `python3`.
