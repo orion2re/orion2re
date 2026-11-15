@@ -686,7 +686,7 @@ namespace MAINPUPS {
             g_y + 154 /* 0x9a */,
             tooltip_generic,
             anims[34],
-            ESTRINGS::E_Strings(137 /* 0x89 */),
+            ESTRINGS::E_Strings(11 /* 0xb */),
             40 /* 0x28 */
         );
 
@@ -695,7 +695,7 @@ namespace MAINPUPS {
             g_y + 154 /* 0x9a */,
             tooltip_generic,
             anims[33],
-            ESTRINGS::E_Strings(11 /* 0xb */),
+            ESTRINGS::E_Strings(137 /* 0x89 */),
             40 /* 0x28 */
         );
 
