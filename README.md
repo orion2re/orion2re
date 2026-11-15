@@ -8,6 +8,51 @@ All rights to Master of Orion II, its assets, trademarks, and related intellectu
 
 This repository does not include the original game data. To play, you must own a legitimate copy of Master of Orion II and provide the original game files from a supported release such as GOG or Steam.
 
+## Download and play
+
+**Just want to play? Use a prebuilt ZIP. You do not need CMake, Ninja, or a compiler.**
+
+1. Install your copy of **Master of Orion II** from GOG or Steam.
+2. Open [GitHub Releases](https://github.com/orion2re/orion2re/releases) and expand
+   **Assets** for the release you want. Download the game ZIP for your platform:
+   `orion2re-win-win32-<tag>.zip` (Windows 32-bit),
+   `orion2re-win-win64-<tag>.zip` (Windows 64-bit), or
+   `orion2re-osx-arm64-<tag>.zip` (macOS on Apple Silicon).
+   Older releases may use filenames without the tag. Do **not** choose GitHub's
+   **Source code (zip)** or **Source code (tar.gz)** downloads; those are for developers.
+3. Back up any existing `data/orion2re.cfg` before updating: release ZIPs include
+   the default configuration and will replace your custom settings.
+4. Extract the ZIP's **contents into your existing Master of Orion II game folder**,
+   alongside the original game files, merging the included `data/` folder.
+   Packages include runtime data but no commercial game files.
+5. Launch **`orion2re.exe`** on Windows or **`Orion2 Redone.app`** on macOS
+   from that folder, rather than the original game's launcher.
+
+On macOS, extract with Archive Utility or `ditto`, keeping the app, executable,
+and `data/` together to preserve the app symlink. Builds are not Developer ID
+signed or notarized and may require approval in **System Settings / Privacy & Security**.
+
+**Linux:** Native Linux builds are supported, but the current release and CI
+packages do not include a Linux binary. A native Linux installation currently
+requires [building from source](#build); the ZIP instructions above apply to
+Windows and macOS only.
+
+### Development builds
+
+For development builds, select a successful **main** run under
+[Actions / CI and packages](https://github.com/orion2re/orion2re/actions/workflows/ci.yml)
+and download its platform artifact (sign-in required; retained for 30 days).
+The download is the distributable ZIP itself, such as `orion2re-win-win32-main.zip`,
+with the executable and `data/` at its root, not inside another archive or directory.
+The workflow run identifies the exact commit.
+
+Install these ZIPs in the same way as releases. Development (`main`) packages omit
+`data/orion2re.cfg`, so your configuration survives intermediate updates.
+
+On all platforms, the game uses the executable's directory for data, configuration,
+and save files, regardless of the launcher's working directory. Linux desktop
+launchers do not need a `Path=` entry pointing to the installation directory.
+
 ## License
 
 Original orion2re code and documentation are free software licensed under
@@ -22,7 +67,7 @@ licenses and copyright notices in their source files and vendor directories.
 
 This project was built with assistance from AI agents operating under human direction. Human contributors wrote code, reviewed, tested, and approved AI-assisted changes, and remain responsible for the final work.
 
-## Requirements
+## Requirements (building from source)
 
 - CMake 3.20 or newer
 - Ninja
@@ -41,33 +86,7 @@ Supported build paths:
 
 macOS builds use the native host architecture.
 
-## Downloads and CI packages
-
-Download stable builds from [GitHub Releases](https://github.com/orion2re/orion2re/releases).
-New release ZIPs include the tag: `orion2re-win-win32-<tag>.zip`;
-older assets keep their original names. Windows x86/x64 and macOS ARM64 are available.
-
-For development builds, select a successful **main** run under
-[Actions / CI and packages](https://github.com/orion2re/orion2re/actions/workflows/ci.yml)
-and download its platform artifact (sign-in required; retained for 30 days).
-The download is the distributable ZIP itself, such as `orion2re-win-win32-main.zip`,
-with the executable and `data/` at its root, not inside another archive or directory.
-The workflow run identifies the exact commit.
-
-Extract the ZIP over your existing game installation. Packages include runtime
-data but no commercial game files. Development (`main`) packages omit
-`data/orion2re.cfg`, so your configuration survives intermediate updates.
-Release packages include the canonical `data/orion2re.cfg`; back up your existing
-configuration before extracting a release to preserve your custom settings.
-macOS builds are not Developer ID signed or notarized and may require
-approval in System Settings / Privacy & Security. Extract with Archive Utility or
-`ditto`, keeping the app, executable, and data together to preserve the app symlink.
-
-On all platforms, the game uses the executable's directory for data, configuration,
-and save files, regardless of the launcher's working directory. Linux desktop
-launchers do not need a `Path=` entry pointing to the installation directory.
-
-### Bumping the game version
+## Bumping the game version
 
 Record public-facing changes in the [changelog](docs/content/changelog.md) under
 the relevant version and change category, using a short description of what
