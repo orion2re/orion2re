@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../../vendors/libsmacker/smacker.h"
+#include "smacker.h"
 
 namespace smckplay {
     extern ::smk smk;

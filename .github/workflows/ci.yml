@@ -94,6 +94,66 @@ jobs:
         if: runner.os != 'Windows'
         run: python3 tools/audit_test_links.py "out/build/$(uname -s)/${{ matrix.preset }}"
 
+  linux-system-libs:
+    # Pinned to ubuntu-26.04 (the latest LTS) rather than ubuntu-latest:
+    # only 26.04+ provides the required versions jointly (SDL3 >= 3.4
+    # and Lua 5.5), and ubuntu-latest is mid-migration from 24.04 to
+    # 26.04 (19 Oct-19 Nov 2026), so it may still land on a 24.04
+    # runner. Once the migration completes this can be relaxed to
+    # ubuntu-latest.
+    runs-on: ubuntu-26.04
+    env:
+      SDL_VIDEODRIVER: dummy
+      SDL_AUDIODRIVER: dummy
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event_name == 'release' && github.event.release.tag_name || github.sha }}
+          submodules: recursive
+          persist-credentials: false
+      - name: Validate release version
+        if: github.event_name == 'release'
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: cmake -DRELEASE_TAG="$RELEASE_TAG" -P cmake/version.cmake
+      - name: Install native build and system library dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            build-essential cmake ninja-build pkg-config python3 \
+            libasound2-dev libpulse-dev libaudio-dev libjack-dev libsndio-dev \
+            libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxfixes-dev \
+            libxi-dev libxss-dev libxtst-dev libxkbcommon-dev \
+            libwayland-dev libdecor-0-dev libdrm-dev libgbm-dev \
+            libgl1-mesa-dev libegl1-mesa-dev libgles2-mesa-dev \
+            libudev-dev libdbus-1-dev libibus-1.0-dev libpipewire-0.3-dev \
+            libsdl3-dev libuv1-dev liblz4-dev libyyjson-dev doctest-dev \
+            libsmacker-dev libimgui-dev liblua5.5-dev
+      - name: Packaging regression tests
+        run: python3 -m unittest discover -s tests/packaging -v
+      # miniz stays vendored: Debian/Ubuntu do not ship a miniz package
+      # yet, so ORION2RE_USE_SYSTEM_MINIZ is OFF explicitly (not just the
+      # default). System zlib is not a substitute: the VFS uses miniz's
+      # ZIP archive API (mz_zip_reader_*), which zlib does not provide.
+      # Flip miniz on once the distro ships it. The other eight
+      # libraries come from the system.
+      - run: >-
+          cmake --preset linux-debug -DORION2RE_BUILD_TESTS=ON
+          -DORION2RE_USE_SYSTEM_SDL3=ON
+          -DORION2RE_USE_SYSTEM_LIBUV=ON
+          -DORION2RE_USE_SYSTEM_LZ4=ON
+          -DORION2RE_USE_SYSTEM_YYJSON=ON
+          -DORION2RE_USE_SYSTEM_DOCTEST=ON
+          -DORION2RE_USE_SYSTEM_LIBSMACKER=ON
+          -DORION2RE_USE_SYSTEM_IMGUI=ON
+          -DORION2RE_USE_SYSTEM_LUA=ON
+          -DORION2RE_USE_SYSTEM_MINIZ=OFF
+      - run: cmake --build --preset linux-debug --parallel "$(nproc)"
+      - name: Native game build smoke test
+        run: cmake --build --preset linux-debug --target orion2re --parallel "$(nproc)"
+      - run: ctest --test-dir out/build/Linux/linux-debug --output-on-failure
+
+
   documentation:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -152,7 +212,7 @@ jobs:
           retention-days: 30
 
   package:
-    needs: tests
+    needs: [tests, linux-system-libs]
     if: >-
       (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
       github.event_name == 'release'

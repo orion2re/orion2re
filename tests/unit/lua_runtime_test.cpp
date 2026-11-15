@@ -94,7 +94,16 @@ TEST_CASE("Lua runtime allocates aligned userdata with and without user values")
     const auto create_userdata = [](lua_State* lua_state, void*) {
         for (int user_values : {0, 1, 3}) {
             void* payload = lua_newuserdatauv(lua_state, sizeof(std::max_align_t), user_values);
-            CHECK(reinterpret_cast<std::uintptr_t>(payload) % alignof(std::max_align_t) == 0);
+            // Lua 5.5.1 aligns userdata payloads with user values to
+            // max_align_t (LUAI_MAXALIGN gained long double); 5.5.0
+            // payloads for such userdata are only 8-byte aligned.
+            // The runtime itself only creates userdata without user
+            // values, which is max_align_t-aligned on both versions.
+            const std::size_t expected_alignment =
+                (user_values == 0 || LUA_VERSION_RELEASE_NUM >= 50501)
+                    ? alignof(std::max_align_t)
+                    : 8;
+            CHECK(reinterpret_cast<std::uintptr_t>(payload) % expected_alignment == 0);
             std::memset(payload, 0xA5, sizeof(std::max_align_t));
             CHECK(lua_rawlen(lua_state, -1) == sizeof(std::max_align_t));
             lua_pop(lua_state, 1);
@@ -129,8 +138,15 @@ TEST_CASE("Lua runtime rejects floating language features in nested functions")
         {"return function() return 1.0 end", "floating-point values"},
         {"return function() return 1e2 end", "floating-point values"},
         {"return function() return 0x1p2 end", "floating-point values"},
+        {"return function() return .5 end", "floating-point values"},
+        {"return function() return -0.0 end", "floating-point values"},
+        {"return function() return 0x1.8p1 end", "floating-point values"},
+        {"return function() return 3 / 2 end", "floating-point values"},
+        {"return function() return 2 ^ 3 end", "floating-point values"},
         {"return function(left, right) return left / right end", "operator '/'"},
         {"return function(base, exponent) return base ^ exponent end", "operator '^'"},
+        {"return function(value) return value / 2 end", "operator '/'"},
+        {"return function(value) return value ^ 2 end", "operator '^'"},
         {"return function() return 9223372036854775808 end", "floating-point values"},
     };
 
@@ -203,6 +219,191 @@ TEST_CASE("Lua compiled profile rejects float-tagged equality immediates")
     CHECK(result.diagnostic.find("equality.lua:1") != std::string::npos);
 }
 
+TEST_CASE("Lua compiled profile locates floats after mixed constants") {
+    for (int label_count : {1, 2, 3, 8}) {
+        CAPTURE(label_count);
+        std::string source =
+            "error('module must not execute')\n"
+            "return function()\n"
+            "local labels = {\n";
+        for (int index = 0; index < label_count; ++index) {
+            source += "'label_" + std::to_string(index) + "',\n";
+        }
+        source += "}\n";
+        const auto float_line = std::count(source.begin(), source.end(), '\n') + 1;
+        source +=
+            "local value = 1.25\n"
+            "return labels, value\n"
+            "end\n";
+
+        orion2re::lua::s_lua_result result;
+        CHECK_FALSE(Evaluate_(source.c_str(), "constants.lua", &result));
+        CAPTURE(result.diagnostic);
+        CHECK(result.error == orion2re::lua::LUA_ERROR_LANGUAGE_PROFILE);
+        CHECK(result.diagnostic.find("constants.lua:" + std::to_string(float_line) + ":") !=
+            std::string::npos);
+        CHECK(result.diagnostic.find("floating-point values") != std::string::npos);
+    }
+}
+
+TEST_CASE("Lua compiled profile distinguishes integer and float comparisons") {
+    struct s_number_case {
+        const char* text;
+        bool is_float;
+    };
+    const s_number_case numbers[] = {
+        {"-1", false},
+        {"0", false},
+        {"1", false},
+        {"-1.0", true},
+        {"0.0", true},
+        {"1.0", true},
+        {"1.25", true},
+    };
+    for (const char* operation : {"==", "~=", "<", "<=", ">", ">="}) {
+        for (const auto& number : numbers) {
+            for (bool literal_first : {false, true}) {
+                CAPTURE(operation);
+                CAPTURE(number.text);
+                CAPTURE(literal_first);
+                std::string source = "return function(value)\nreturn ";
+                source += literal_first ? number.text : "value";
+                source += ' ';
+                source += operation;
+                source += ' ';
+                source += literal_first ? "value" : number.text;
+                source += "\nend\n";
+
+                orion2re::lua::s_lua_result result;
+                const bool accepted = Evaluate_(source.c_str(), "comparisons.lua", &result);
+                CAPTURE(result.diagnostic);
+                if (number.is_float) {
+                    CHECK_FALSE(accepted);
+                    CHECK(result.error == orion2re::lua::LUA_ERROR_LANGUAGE_PROFILE);
+                    CHECK(result.diagnostic.find("comparisons.lua:2:") != std::string::npos);
+                } else {
+                    CHECK(accepted);
+                    CHECK(result.error == orion2re::lua::LUA_ERROR_NONE);
+                }
+            }
+        }
+    }
+}
+
+TEST_CASE("Lua compiled profile rejects floats in expressions and assignments") {
+    const char* bodies[] = {
+        "return value + 1.25",
+        "return 1.25 + value",
+        "return value - 1.25",
+        "return value * 1.25",
+        "return value % 1.25",
+        "return value // 1.25",
+        "return value & 1.25",
+        "return math.abs(1.25)",
+        "return {1.25}",
+        "return {field = 1.25}",
+        "local values = {}; values.field = 1.25; return values",
+        "local values = {}; values[1] = 1.25; return values",
+        "local values = {}; values[value] = 1.25; return values",
+        "profile_value = 1.25; return profile_value",
+        "for index = 1.25, 2 do end; return true",
+        "for index = 1, 2.25 do end; return true",
+        "for index = 1, 2, 1.25 do end; return true",
+    };
+    for (const char* body : bodies) {
+        CAPTURE(body);
+        const std::string source = std::string("return function(value)\n") + body + "\nend\n";
+        orion2re::lua::s_lua_result result;
+        CHECK_FALSE(Evaluate_(source.c_str(), "expressions.lua", &result));
+        CAPTURE(result.diagnostic);
+        CHECK(result.error == orion2re::lua::LUA_ERROR_LANGUAGE_PROFILE);
+        CHECK(result.diagnostic.find("expressions.lua:2:") != std::string::npos);
+        CHECK(result.diagnostic.find("floating-point values") != std::string::npos);
+    }
+}
+
+TEST_CASE("Lua compiled profile checks every sibling and nested function") {
+    orion2re::lua::s_lua_result result;
+    CHECK_FALSE(Evaluate_(
+        "error('module must not execute')\n"
+        "return {\n"
+        "first = function() return 1 end,\n"
+        "second = function() return function() return 2 end end,\n"
+        "last = function()\n"
+        "    return function()\n"
+        "        return function(left, right)\n"
+        "            return left / right\n"
+        "        end\n"
+        "    end\n"
+        "end,\n"
+        "}\n",
+        "siblings.lua",
+        &result));
+    CAPTURE(result.diagnostic);
+    CHECK(result.error == orion2re::lua::LUA_ERROR_LANGUAGE_PROFILE);
+    CHECK(result.diagnostic.find("siblings.lua:8:") != std::string::npos);
+    CHECK(result.diagnostic.find("operator '/'") != std::string::npos);
+}
+
+TEST_CASE("Lua compiled profile preserves locations in large functions") {
+    std::string source =
+        "error('module must not execute')\n"
+        "return function()\n"
+        "local total = 0\n";
+    for (int index = 0; index < 300; ++index) {
+        source += "total = total + 1\n";
+    }
+    source.append(200, '\n');
+    const auto float_line = std::count(source.begin(), source.end(), '\n') + 1;
+    source +=
+        "local value = 1.25\n"
+        "return total, value\n"
+        "end\n";
+
+    orion2re::lua::s_lua_result result;
+    CHECK_FALSE(Evaluate_(source.c_str(), "large_function.lua", &result));
+    CAPTURE(result.diagnostic);
+    CHECK(result.error == orion2re::lua::LUA_ERROR_LANGUAGE_PROFILE);
+    CHECK(result.diagnostic.find("large_function.lua:" + std::to_string(float_line) + ":") !=
+        std::string::npos);
+}
+
+TEST_CASE("Lua compiled profile accepts large integer chunks and repeated long strings") {
+    const std::string text = std::string(256, 'x') + " 1.5 / 2 ^ 3";
+    std::string source = "local values = {\n";
+    for (int index = 0; index < 160; ++index) {
+        source += "'" + text + std::to_string(index) + "',\n";
+    }
+    source += "}\n";
+    source += "local function first() return '" + text + "' end\n";
+    source += "local function second() return '" + text + "' end\n";
+    source +=
+        "local total = 0\n"
+        "for index = 1, #values do total = total + index end\n"
+        "return #values == 160 and total == 12880 and\n";
+    source += "values[1] == '" + text + "0' and\n";
+    source += "values[160] == '" + text + "159' and first() == second()\n";
+
+    orion2re::lua::s_lua_result result;
+    REQUIRE(Evaluate_(source.c_str(), "large_chunk.lua", &result));
+    CHECK(result.value_kind == orion2re::lua::LUA_VALUE_BOOLEAN);
+    CHECK(result.boolean_value);
+}
+
+TEST_CASE("Lua compiled profile accepts integer boundaries and negative floor division") {
+    orion2re::lua::s_lua_result result;
+    REQUIRE(Evaluate_(
+        "local minimum = -9223372036854775807 - 1\n"
+        "local maximum = 9223372036854775807\n"
+        "return minimum == math.mininteger and maximum == math.maxinteger and\n"
+        "0xffffffffffffffff == -1 and -9 // 2 == -5 and\n"
+        "(maximum & 255) == 255 and (1 << 8) == 256\n",
+        "integers.lua",
+        &result));
+    CHECK(result.value_kind == orion2re::lua::LUA_VALUE_BOOLEAN);
+    CHECK(result.boolean_value);
+}
+
 TEST_CASE("Lua sequences retain standard one-based behavior")
 {
     orion2re::lua::s_lua_result result;
@@ -231,13 +432,25 @@ TEST_CASE("Lua runtime exposes only curated libraries")
     CHECK(result.boolean_value);
 }
 
-TEST_CASE("Lua runtime cannot produce floats through string coercion")
-{
-    orion2re::lua::s_lua_result result;
-    CHECK_FALSE(Evaluate_("return '1.5' + 1", "coercion.lua", &result));
+TEST_CASE("Lua runtime cannot produce floats through string coercion") {
+    const char* sources[] = {
+        "return '1.5' + 1",
+        "return 1 + '1.5'",
+        "return '1.5' - 1",
+        "return '1.5' * 2",
+        "return '1.5' % 1",
+        "return '1.5' // 1",
+        "return -'1.5'",
+        "return '2' + 1",
+    };
+    for (const char* source : sources) {
+        CAPTURE(source);
+        orion2re::lua::s_lua_result result;
+        CHECK_FALSE(Evaluate_(source, "coercion.lua", &result));
 
-    CHECK(result.error == orion2re::lua::LUA_ERROR_RUNTIME);
-    CHECK(result.diagnostic.find("coercion.lua:1") != std::string::npos);
+        CHECK(result.error == orion2re::lua::LUA_ERROR_RUNTIME);
+        CHECK(result.diagnostic.find("coercion.lua:1") != std::string::npos);
+    }
 }
 
 TEST_CASE("Lua runtime rejects binary chunks")
