@@ -10,41 +10,44 @@ This repository does not include the original game data. To play, you must own a
 
 ## Download and play
 
-**Just want to play? Use a prebuilt ZIP. You do not need CMake, Ninja, or a compiler.**
+To play, download a prebuilt ZIP. You do not need CMake, Ninja, or a compiler.
 
-1. Install your copy of **Master of Orion II** from GOG or Steam.
+1. Install your copy of Master of Orion II from GOG or Steam.
 2. Open [GitHub Releases](https://github.com/orion2re/orion2re/releases) and expand
-   **Assets** for the release you want. Download the game ZIP for your platform:
+   Assets for the release you want. Download the game ZIP for your platform:
    `orion2re-win-win32-<tag>.zip` (Windows 32-bit),
    `orion2re-win-win64-<tag>.zip` (Windows 64-bit), or
    `orion2re-osx-arm64-<tag>.zip` (macOS on Apple Silicon).
-   Older releases may use filenames without the tag. Do **not** choose GitHub's
-   **Source code (zip)** or **Source code (tar.gz)** downloads; those are for developers.
-3. Back up any existing `data/orion2re.cfg` before updating: release ZIPs include
-   the default configuration and will replace your custom settings.
-4. Extract the ZIP's **contents into your existing Master of Orion II game folder**,
+   The Source code (zip) and Source code (tar.gz) downloads are for building the
+   game yourself, not for installing it.
+3. If you're updating, back up `data/orion2re.cfg` first. Release ZIPs include
+   the default configuration, which will replace your custom settings.
+4. Extract the ZIP's contents into your existing Master of Orion II game folder,
    alongside the original game files, merging the included `data/` folder.
    Packages include runtime data but no commercial game files.
-5. Launch **`orion2re.exe`** on Windows or **`Orion2 Redone.app`** on macOS
+5. Launch `orion2re.exe` on Windows or `Orion2 Redone.app` on macOS
    from that folder, rather than the original game's launcher.
 
-On macOS, extract with Archive Utility or `ditto`, keeping the app, executable,
-and `data/` together to preserve the app symlink. Builds are not Developer ID
-signed or notarized and may require approval in **System Settings / Privacy & Security**.
+On macOS, use Archive Utility or `ditto` to extract the ZIP, and keep the app,
+executable, and `data/` folder together so the app can find the game. The app is
+not signed or notarized by Apple, so you may need to allow it in
+System Settings / Privacy & Security.
 
-**Linux:** Native Linux builds are supported, but the current release and CI
-packages do not include a Linux binary. A native Linux installation currently
-requires [building from source](#build); the ZIP instructions above apply to
-Windows and macOS only.
+Linux is supported, but we don't currently provide prebuilt Linux packages.
+To run the game natively on Linux, you'll need to [build it from source](#build).
+The ZIP instructions above are for Windows and macOS.
 
 ### Development builds
 
-For development builds, select a successful **main** run under
+To try a development build, select a successful `main` run under
 [Actions / CI and packages](https://github.com/orion2re/orion2re/actions/workflows/ci.yml)
-and download its platform artifact (sign-in required; retained for 30 days).
-The download is the distributable ZIP itself, such as `orion2re-win-win32-main.zip`,
-with the executable and `data/` at its root, not inside another archive or directory.
-The workflow run identifies the exact commit.
+and download the artifact for your platform. GitHub requires you to sign in to
+download Actions artifacts, even from public repositories. Release downloads
+don't require sign-in. Development downloads are kept for 30 days.
+
+The artifact is a ready-to-use ZIP, such as `orion2re-win-win32-main.zip`,
+with the executable and `data/` folder directly inside it.
+The workflow run shows which commit it was built from.
 
 Install these ZIPs in the same way as releases. Development (`main`) packages omit
 `data/orion2re.cfg`, so your configuration survives intermediate updates.
