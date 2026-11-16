@@ -7,6 +7,7 @@
 
 #include "config/config_loader.h"
 #include "game/user_paths.h"
+#include "game/turn_oracle.h"
 #include "lua/lua_mod_runtime.h"
 #include "startup_directory.h"
 #include "startup_options.h"
@@ -196,6 +197,24 @@ int main(int argc, char** argv) {
     MOX2::skip_intro = startup_options.skip_intro ? 1 : 0;
     MAINMENU::autoload_save_slot = static_cast<int16_t>(startup_options.load_save - 1);
 
+    std::string original_game_directory;
+    if (!startup::Resolve_Game_Asset_Directory(startup_options.game_directory, &original_game_directory, &startup_error)) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "main: %s", startup_error.c_str());
+        printf("%s\n", startup_error.c_str());
+        Shutdown_Game_Log_();
+        return EXIT_FAILURE;
+    }
+
+#if defined(ORION2RE_DEBUG_BUILD)
+    if (!turn_oracle::Prepare(&startup_options, &startup_error)) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "main: %s", startup_error.c_str());
+        printf("%s\n", startup_error.c_str());
+        Shutdown_Game_Log_();
+        return EXIT_FAILURE;
+    }
+    if (turn_oracle::Is_Enabled()) MOX2::skip_intro = 1;
+#endif
+
     std::string game_directory;
     if (!startup::Set_Game_Directory(&game_directory, &startup_error)) {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "main: %s", startup_error.c_str());
@@ -211,6 +230,17 @@ int main(int argc, char** argv) {
         return -1;
     }
     SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "data directory: %s", data_directory.c_str());
+
+    if (!original_game_directory.empty()) {
+        if (vfs::Add_Raw_Search_Path(original_game_directory.c_str()) == 0) {
+            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "main: game-dir exceeds the supported path length");
+            vfs::Shutdown();
+            Shutdown_Game_Log_();
+            return EXIT_FAILURE;
+        }
+        MOX2::use_explicit_game_directory = true;
+        SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "original game directory: %s", original_game_directory.c_str());
+    }
 
     if (user_paths::Is_Enabled()) {
         const std::string user_mods_path = std::string(user_paths::Get_Directory(user_paths::USER_DIRECTORY_DATA)) + "mods/";
@@ -248,7 +278,13 @@ int main(int argc, char** argv) {
     SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION,
         config_loaded ? "configuration: loaded %s" : "configuration: %s not found; using defaults", startup_config_path);
 
-    const int result = platform::Run_Main_Loop(nullptr);
+    int result = platform::Run_Main_Loop(nullptr);
+#if defined(ORION2RE_DEBUG_BUILD)
+    if (turn_oracle::Is_Enabled()) {
+        if (result == 0) result = turn_oracle::Exit_Status();
+        turn_oracle::Shutdown();
+    }
+#endif
 
     orion2re::lua::Shutdown_Lua();
     ai_state::Shutdown();

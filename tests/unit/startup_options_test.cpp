@@ -23,6 +23,7 @@ DOCTEST_TEST_CASE("startup defaults do not select a config or save") {
     DOCTEST_CHECK_FALSE(options.config_selected);
     DOCTEST_CHECK_FALSE(options.skip_intro);
     DOCTEST_CHECK(options.load_save == 0);
+    DOCTEST_CHECK(options.game_directory.empty());
     DOCTEST_CHECK(error.empty());
 #if defined(_WIN32)
     DOCTEST_CHECK(command_line::OPTION_PREFIX == '/');
@@ -63,6 +64,9 @@ DOCTEST_TEST_CASE("startup rejects malformed unknown and repeated options") {
             {p + "config", p + "skip-intro"},
             {p + "load-save"},
             {p + "load-save", p + "skip-intro"},
+            {p + "game-dir"},
+            {p + "game-dir="},
+            {p + "game-dir=a", p + "game-dir=b"},
             {p + "skip-intro=true"},
             {p + "skip-intro="},
             {p + "skip-intro", p + "skip-intro"},
@@ -85,6 +89,18 @@ DOCTEST_TEST_CASE("startup rejects malformed unknown and repeated options") {
             DOCTEST_CHECK_FALSE(Parse_(arguments, prefix, &options, &error));
             DOCTEST_CHECK_FALSE(error.empty());
         }
+    }
+}
+
+DOCTEST_TEST_CASE("game-dir accepts platform prefixes and preserves directory paths") {
+    for (char prefix : {'/', '-'}) {
+        startup::s_startup_options options;
+        std::string error;
+        const std::string p(1, prefix);
+        DOCTEST_REQUIRE(Parse_({p + "game-dir", "some directory/moo2"}, prefix, &options, &error));
+        DOCTEST_CHECK(options.game_directory == "some directory/moo2");
+        DOCTEST_REQUIRE(Parse_({p + "game-dir=/absolute/path"}, prefix, &options, &error));
+        DOCTEST_CHECK(options.game_directory == "/absolute/path");
     }
 }
 
@@ -129,4 +145,28 @@ DOCTEST_TEST_CASE("generic command-line definitions are independent of startup s
     DOCTEST_CHECK_FALSE(command_line::Parse_Options(2, invalid, '/', definitions, std::size(definitions), &options, &error));
     DOCTEST_CHECK_FALSE(error.empty());
     DOCTEST_CHECK_FALSE(command_line::Parse_Options(1, nullptr, '/', definitions, std::size(definitions), &options, &error));
+}
+
+DOCTEST_TEST_CASE("oracle switches are debug-only and validate conflicting modes and turn limits") {
+    startup::s_startup_options options;
+    std::string error;
+#if defined(ORION2RE_DEBUG_BUILD)
+    DOCTEST_REQUIRE(Parse_({"-oracle-record=.oracle/baseline", "-oracle-turns=12"}, '-', &options, &error));
+    DOCTEST_CHECK(options.oracle_record == ".oracle/baseline");
+    DOCTEST_CHECK(options.oracle_turns == 12);
+    DOCTEST_REQUIRE(Parse_({"/oracle-replay=some path"}, '/', &options, &error));
+    DOCTEST_CHECK(options.oracle_replay == "some path");
+    for (const auto& arguments : std::vector<std::vector<std::string>>{
+             {"-oracle-record=a", "-oracle-replay=b"}, {"-oracle-record=a", "-load-save=1"},
+             {"-oracle-turns=1"}, {"-oracle-replay=a", "-oracle-turns=1"},
+             {"-oracle-record=a", "-oracle-turns=0"}, {"-oracle-record=a", "-oracle-turns=100001"},
+             {"-oracle-record=a", "-oracle-turns=1x"}, {"-oracle-record=a", "-oracle-turns=-1"}}) {
+        DOCTEST_CHECK_FALSE(Parse_(arguments, '-', &options, &error));
+        DOCTEST_CHECK_FALSE(error.empty());
+    }
+#else
+    DOCTEST_CHECK_FALSE(Parse_({"-oracle-record=a"}, '-', &options, &error));
+    DOCTEST_CHECK_FALSE(Parse_({"-oracle-replay=a"}, '-', &options, &error));
+    DOCTEST_CHECK_FALSE(Parse_({"-oracle-turns=1"}, '-', &options, &error));
+#endif
 }

@@ -95,6 +95,28 @@ namespace {
 } // namespace
 
 DOCTEST_TEST_SUITE("user paths") {
+    DOCTEST_TEST_CASE("session directory isolates user files in both portable and XDG modes") {
+        s_user_environment environment;
+        environment.Write_File("install/ORIONCD.INI", ".");
+        for (bool xdg : {false, true}) {
+            user_paths::Init((environment.Path("install") + "/").c_str(), xdg);
+            const auto asset_paths = user_paths::Get_Game_Asset_Directories();
+            const std::string directory = environment.Path("session");
+            user_paths::Set_Session_Directory(directory);
+            for (const char* name : {"SAVE10.GAM", GAME_SETTINGS_FILENAME, "HOF.M2", "TEMP.TMP"}) {
+                DOCTEST_CHECK(Redirect_(name, true) == directory + "/" + name);
+                DOCTEST_CHECK(Redirect_(name, false) == directory + "/" + name);
+            }
+            DOCTEST_CHECK(Redirect_("ORIONCD.INI") == (xdg ? environment.Path("install/ORIONCD.INI") : ""));
+            DOCTEST_CHECK(Redirect_("explicit/SAVE1.GAM", true).empty());
+            DOCTEST_CHECK(user_paths::Get_Game_Asset_Directories() == asset_paths);
+            user_paths::Set_Session_Directory("");
+            DOCTEST_CHECK(Redirect_("SAVE10.GAM", true) != directory + "/SAVE10.GAM");
+            user_paths::Shutdown();
+            DOCTEST_CHECK(Redirect_("SAVE10.GAM", true).empty());
+        }
+    }
+
     DOCTEST_TEST_CASE("non-XDG platforms and writable portable installations stay isolated") {
         s_user_environment environment;
         DOCTEST_CHECK_FALSE(user_paths::Init((environment.Path("install") + "/").c_str(), false));

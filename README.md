@@ -192,6 +192,20 @@ Use a game directory appropriate for that platform, such as
 `orion2re.exe` on Windows or `Orion2 Redone.app` on macOS after a release build.
 macOS debug builds use the `orion2re` executable directly.
 
+Alternatively, leave the executable and packaged `data/` in the build directory
+and point it at the original assets at runtime (debug and release builds):
+
+```sh
+out/build/Darwin/osx-debug/orion2re -game-dir="$HOME/Games/moo2"
+```
+
+Use `/game-dir="C:/Games/Master of Orion II"` on Windows. The directory is resolved
+relative to the shell's working directory before startup changes directories. This
+adds a read-only asset search path and bypasses the legacy `ORIONCD.INI` requirement;
+configuration and packaged mods still come from the build's `data/` directory, and
+saves/preferences keep their normal portable or XDG locations. Nothing is copied
+into the original game directory.
+
 For additional profiles, including sanitizer and router-only builds, see
 [`CMakePresets.json`](CMakePresets.json). The `linux-router` preset builds only
 `orion2re-router`, not the game.
@@ -253,3 +267,40 @@ python3 -m unittest discover -s tests/packaging -v
 ```
 
 On Windows, use `python` instead of `python3`.
+
+#### Turn-by-turn refactoring oracle (debug builds only)
+
+Record an all-AI game before refactoring, then replay the same history with the
+refactored executable. Run from the repository root, using an executable installed
+beside your original game assets as usual:
+
+```sh
+/path/to/orion2re -game-dir="$HOME/Games/moo2" -oracle-record=.oracle/baseline -oracle-turns=100
+/path/to/refactored/orion2re -game-dir="$HOME/Games/moo2" -oracle-replay=.oracle/baseline
+```
+
+On Windows use `/oracle-record=...`, `/oracle-turns=...`, and `/oracle-replay=...`.
+Oracle directory paths are relative to the shell's working directory, unlike
+normal game paths. `.oracle/` at the repository root is gitignored; use an absolute
+path to share the baseline between worktrees.
+
+Recording requires a **new directory** and writes `turn-000000.GAM` (the initial
+state), one normal-format save per completed turn, and `history.txt` on successful
+completion. The default is 100 turns. It uses fresh default game settings, seed 1,
+AI-controlled players, strategic combat, and the selected startup configuration
+(`-config` works normally). Normal saves and preferences are isolated in a temporary
+session directory, not overwritten.
+
+Both modes load turn zero before advancing through the normal next-turn routine;
+replay loads it **only once**, so state errors accumulate rather than being reset
+each turn. Replay uses the recorded turn count, writes actual saves to a temporary
+directory, and compares every byte without ignoring any fields. At the first
+discrepancy it stops, returns a nonzero exit status, and reports the turn, stardate,
+canonical and actual paths, file sizes, first differing byte offset (decimal and
+hex), and byte values (or EOF). Failed output is retained for inspection; successful
+temporary output is removed. An incomplete history or missing save is an error.
+
+Keep game assets, mods, configuration, and build platform consistent between runs.
+Saved configuration is restored from turn zero, but this is a behavioral regression
+check, not a cross-version save migration test. These commands still initialize
+SDL and load the normal game assets; they do not require menu interaction.

@@ -18,6 +18,7 @@ namespace MOX2 {
     extern uint8_t skip_intro;
     extern bool show_exit_message;
     extern uint8_t quick_start;
+    extern bool use_explicit_game_directory;
     extern char leave_game_message[100];
 
     /** Reads and validates the language selected in language.ini, falling back to English. */

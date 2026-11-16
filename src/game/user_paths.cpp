@@ -37,6 +37,7 @@ namespace user_paths {
 
         struct s_user_paths_state {
             bool enabled;
+            std::string session_directory;
             std::string executable_directory;
             std::string installed_data_directory;
             std::string directories[USER_DIRECTORY_COUNT];
@@ -231,8 +232,12 @@ namespace user_paths {
         return state.game_asset_directories;
     }
 
+    void Set_Session_Directory(const std::string& directory) {
+        state.session_directory = directory.empty() ? "" : With_Trailing_Separator_(directory);
+    }
+
     bool Redirect_Legacy_Path(const char* path, bool writing, char* output_path, size_t output_path_size) {
-        if (!state.enabled || path == nullptr || path[0] == '\0' || output_path == nullptr ||
+        if ((!state.enabled && state.session_directory.empty()) || path == nullptr || path[0] == '\0' || output_path == nullptr ||
             output_path_size == 0 || Has_Directory_Component_(path)) {
             return false;
         }
@@ -242,7 +247,11 @@ namespace user_paths {
         }
 
         std::string redirected;
-        if (file->kind == LEGACY_FILE_INSTALL) {
+        if (!state.session_directory.empty() && file->kind != LEGACY_FILE_INSTALL) {
+            redirected = state.session_directory + path;
+        } else if (!state.enabled) {
+            return false;
+        } else if (file->kind == LEGACY_FILE_INSTALL) {
             if (writing || !Find_Install_File_(path, &redirected)) {
                 return false;
             }

@@ -113,3 +113,26 @@ DOCTEST_TEST_CASE("runtime data prefers executable assets then installed assets 
     DOCTEST_CHECK(directory == portable.string());
     DOCTEST_CHECK_FALSE(startup::Resolve_Data_Directory(portable.string(), nullptr, nullptr));
 }
+
+DOCTEST_TEST_CASE("explicit original game directory resolves at launch and leaves runtime data separate") {
+    s_startup_directory_fixture fixture;
+    fs::current_path(fixture.launch_directory);
+    std::string assets;
+    std::string error;
+    DOCTEST_REQUIRE(startup::Resolve_Game_Asset_Directory(fixture.relative_directory, &assets, &error));
+    DOCTEST_CHECK(fs::equivalent(fs::path(assets), fixture.launch_directory / fixture.relative_directory));
+    DOCTEST_CHECK(fs::equivalent(fs::current_path(), fixture.launch_directory));
+    Write_File_(fs::path(assets) / "DIPLOMAT.LBX", "original asset");
+    Write_File_(fixture.game_files / "config.cfg", "build configuration");
+    DOCTEST_REQUIRE(vfs::Init(fixture.game_files.string().c_str()) == 1);
+    DOCTEST_REQUIRE(vfs::Add_Raw_Search_Path(assets.c_str()) == 1);
+    DOCTEST_CHECK(Read_Vfs_File_("diplomat.lbx") == "original asset");
+    DOCTEST_CHECK(Read_Vfs_File_("config.cfg") == "build configuration");
+
+    DOCTEST_CHECK_FALSE(startup::Resolve_Game_Asset_Directory("missing", &assets, &error));
+    DOCTEST_CHECK_FALSE(error.empty());
+    DOCTEST_CHECK_FALSE(startup::Resolve_Game_Asset_Directory((fixture.game_files / "config.cfg").string(), &assets, &error));
+    DOCTEST_REQUIRE(startup::Resolve_Game_Asset_Directory("", &assets, &error));
+    DOCTEST_CHECK(assets.empty());
+    DOCTEST_CHECK(error.empty());
+}

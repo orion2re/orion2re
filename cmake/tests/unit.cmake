@@ -453,6 +453,15 @@ orion2re_add_unit_test(test_startup_options
         src/startup_options.cpp
 )
 
+orion2re_add_unit_test(test_turn_oracle_history
+    SOURCES tests/unit/turn_oracle_history_test.cpp
+    PRODUCTION_SOURCES src/game/turn_oracle_history.cpp
+)
+
+# Exercise the debug-only switches against the actual game's compilation.
+orion2re_add_game_test(test_startup_options_debug tests/unit/startup_options_test.cpp)
+target_compile_definitions(test_startup_options_debug PRIVATE $<$<CONFIG:Debug>:ORION2RE_DEBUG_BUILD=1>)
+
 orion2re_add_unit_test(test_config_loader
     SOURCES
         tests/unit/config_loader_test.cpp

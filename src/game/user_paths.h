@@ -31,6 +31,10 @@ namespace user_paths {
     const char* Get_Directory(e_user_directory directory);
     const std::vector<std::string>& Get_Game_Asset_Directories();
 
+    // Isolate legacy user files for a noninteractive run; installation files
+    // and asset search paths remain unchanged. Empty restores normal routing.
+    void Set_Session_Directory(const std::string& directory);
+
     // Only recognized bare legacy names and DOS save patterns are redirected.
     // Explicit paths and all paths in portable mode are left alone.
     // An insufficient output buffer yields an empty path and ENAMETOOLONG, but

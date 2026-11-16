@@ -9,6 +9,22 @@
 #include "startup_directory.h"
 
 namespace startup {
+    bool Resolve_Game_Asset_Directory(const std::string& path, std::string* directory, std::string* error) {
+        if (directory == nullptr || error == nullptr) return false;
+        directory->clear();
+        error->clear();
+        if (path.empty()) return true;
+        std::error_code code;
+        const auto absolute = std::filesystem::absolute(std::filesystem::path(std::u8string(path.begin(), path.end())), code);
+        if (code || !std::filesystem::is_directory(absolute, code)) {
+            *error = "game-dir is not an accessible directory: " + path;
+            return false;
+        }
+        const auto utf8 = absolute.u8string();
+        directory->assign(utf8.begin(), utf8.end());
+        return true;
+    }
+
     bool Set_Game_Directory(std::string* directory, std::string* error) {
         if (directory == nullptr || error == nullptr) {
             return false;

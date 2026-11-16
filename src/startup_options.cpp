@@ -14,6 +14,12 @@ namespace startup {
             {"config", true},
             {"skip-intro", false},
             {"load-save", true},
+            {"game-dir", true},
+#if defined(ORION2RE_DEBUG_BUILD)
+            {"oracle-record", true},
+            {"oracle-replay", true},
+            {"oracle-turns", true},
+#endif
         };
         std::vector<command_line::s_option> parsed;
         if (!command_line::Parse_Options(argc, argv, prefix, definitions, std::size(definitions), &parsed, error)) {
@@ -40,6 +46,30 @@ namespace startup {
                     options->load_save = slot;
                     break;
                 }
+                case 3: options->game_directory = option.value; break;
+                case 4: options->oracle_record = option.value; break;
+                case 5: options->oracle_replay = option.value; break;
+                case 6: {
+                    const char* begin = option.value.data();
+                    const char* end = begin + option.value.size();
+                    const auto result = std::from_chars(begin, end, options->oracle_turns);
+                    if (result.ec != std::errc() || result.ptr != end || options->oracle_turns < 1 || options->oracle_turns > 100000) {
+                        *error = "oracle-turns expects a whole number from 1 to 100000";
+                        return false;
+                    }
+                    break;
+                }
+            }
+        }
+        if ((!options->oracle_record.empty() && !options->oracle_replay.empty()) ||
+            (options->load_save != 0 && (!options->oracle_record.empty() || !options->oracle_replay.empty()))) {
+            *error = "oracle-record, oracle-replay and load-save are mutually exclusive";
+            return false;
+        }
+        for (const command_line::s_option& option : parsed) {
+            if (option.definition_index == 6 && options->oracle_record.empty()) {
+                *error = "oracle-turns requires oracle-record; replay uses the recorded turn count";
+                return false;
             }
         }
         return true;
