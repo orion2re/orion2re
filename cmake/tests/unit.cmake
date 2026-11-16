@@ -251,40 +251,27 @@ orion2re_add_unit_test(test_aidata_routes
     SOURCES
         tests/unit/aidata_routes_test.cpp
     PRODUCTION_SOURCES
-        src/game/aidata.cpp
-        src/game/ai_planet_values.cpp
+        src/game/aidata_routes.cpp
 )
 
 orion2re_add_unit_test(test_ai_inputs
     SOURCES
         tests/unit/ai_inputs_test.cpp
-        tests/unit/ai_compat_test.cpp
     PRODUCTION_SOURCES
         src/game/ai_compat.cpp
-        src/game/ai_planet_values.cpp
-        src/game/aibuild.cpp
-        src/game/aidata.cpp
-        src/game/aimove.cpp
-        src/game/aimove_npc.cpp
-        src/game/aipower.cpp
-        src/game/aipower_ground.cpp
-        src/game/aitech.cpp
-        src/game/tech_selection.cpp
+        src/game/aimove_fleet.cpp
         src/game/fleet_movement.cpp
-        src/game/design.cpp
         src/game/random.cpp
-        src/game/russ.cpp
-        src/game/techdata.cpp
 )
-foreach(TARGET_NAME IN ITEMS test_aidata_routes test_ai_inputs)
-    if(MSVC)
-        target_link_options(${TARGET_NAME} PRIVATE /OPT:REF)
-    elseif(APPLE)
-        target_link_options(${TARGET_NAME} PRIVATE -Wl,-dead_strip)
-    else()
-        target_link_options(${TARGET_NAME} PRIVATE -Wl,--gc-sections)
-    endif()
-endforeach()
+
+orion2re_add_game_test(test_ai_assessments
+    tests/unit/ai_assessments_test.cpp
+    tests/unit/ai_compat_test.cpp
+)
+
+orion2re_add_game_test(test_random
+    tests/unit/random_test.cpp
+)
 
 orion2re_add_unit_test(test_config_arena_runtime
     SOURCES

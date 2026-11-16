@@ -53,14 +53,6 @@ DOCTEST_TEST_CASE_TEMPLATE("ID structs provide value equality and preserve integ
 }
 
 namespace {
-    struct s_random_seed_scope {
-        uint32_t original = game_random::Get_Random_Seed();
-
-        ~s_random_seed_scope() {
-            game_random::Set_Random_Seed(original);
-        }
-    };
-
     s_ship_data legacy_ships[2];
     s_star_data legacy_stars[2];
     std::vector<int16_t> queried_ships;
@@ -75,7 +67,6 @@ namespace MOX {
     s_star_data* star = legacy_stars;
     int16_t NUM_SHIPS = 2;
     int16_t NUM_STARS = 2;
-    int16_t first_field_in_group[10] = {0, 18, 55, 57, 29, 7, 22, 28, 10, 74};
 } // namespace MOX
 
 namespace SHIPMOVE {
@@ -103,64 +94,6 @@ namespace SHIPMOVE {
     }
 } // namespace SHIPMOVE
 
-namespace GEO {
-    int32_t __cdecl Parsecs_Between_Stars(int16_t source, int16_t destination) {
-        return source == destination ? 0 : 1;
-    }
-} // namespace GEO
-
-namespace struct_ {
-    int16_t __cdecl Test_Bit_Field(void* bits, uint16_t index) {
-        return (static_cast<const uint8_t*>(bits)[index / 8] >> (index % 8)) & 1;
-    }
-} // namespace struct_
-
-namespace INITSHIP {
-    int16_t __cdecl Best_Armor(int16_t) {
-        DOCTEST_FAIL("Unexpected legacy combat calculation");
-        return 0;
-    }
-    int16_t __cdecl Best_Computer(int16_t) {
-        DOCTEST_FAIL("Unexpected legacy combat calculation");
-        return 0;
-    }
-    int16_t __cdecl Best_Warp_Drive(int16_t) {
-        DOCTEST_FAIL("Unexpected legacy combat calculation");
-        return 0;
-    }
-    int16_t __cdecl Best_Bomb_Weapon(int16_t) {
-        DOCTEST_FAIL("Unexpected legacy combat calculation");
-        return 0;
-    }
-    int16_t __cdecl Best_Ship_Shield(int16_t) {
-        DOCTEST_FAIL("Unexpected legacy combat calculation");
-        return 0;
-    }
-    int16_t __cdecl Best_Point_Defense_Weapon(int16_t) {
-        DOCTEST_FAIL("Unexpected legacy combat calculation");
-        return 0;
-    }
-    int16_t __cdecl Get_Ship_Structure(int16_t) {
-        DOCTEST_FAIL("Unexpected legacy combat calculation");
-        return 0;
-    }
-    int16_t __cdecl Get_Ship_Armor_Hits(int16_t) {
-        DOCTEST_FAIL("Unexpected legacy combat calculation");
-        return 0;
-    }
-    void __cdecl Update_Strategic_Ship(int16_t) {
-        DOCTEST_FAIL("Unexpected legacy combat calculation");
-    }
-    void __cdecl Get_Ship_Combat_Bonuses(int16_t, int16_t*, int16_t*, int16_t*) {
-        DOCTEST_FAIL("Unexpected legacy combat calculation");
-    }
-} // namespace INITSHIP
-
-DOCTEST_TEST_CASE("technology defaults bind to the test-owned starting fields") {
-    DOCTEST_CHECK(&TECHDATA::starting_techfield.biology == &MOX::first_field_in_group[1]);
-    DOCTEST_CHECK(&TECHDATA::starting_techfield.xenon == &MOX::first_field_in_group[9]);
-}
-
 DOCTEST_TEST_CASE("AI turn reset does not own or reset world inputs") {
     int16_t player_count = 1;
     game::s_view world;
@@ -176,89 +109,6 @@ DOCTEST_TEST_CASE("AI turn reset does not own or reset world inputs") {
     player_count = 2;
     DOCTEST_CHECK(world.Player_Count() == 2);
     DOCTEST_CHECK_FALSE(second.initialized);
-}
-
-DOCTEST_TEST_CASE("global RNG preserves classic draws and seed advancement") {
-    s_random_seed_scope scope;
-    game_random::Set_Random_Seed(0);
-    const uint32_t expected[] = {1, 828, 653, 838, 54, 759};
-    DOCTEST_CHECK(game_random::Random(0) == 1);
-    DOCTEST_CHECK(game_random::Get_Random_Seed() == 0);
-    for (uint32_t value : expected) DOCTEST_CHECK(game_random::Random(1000) == value);
-    DOCTEST_CHECK(game_random::Get_Random_Seed() == 3256818826u);
-}
-
-DOCTEST_TEST_CASE("weighted choices use the global RNG with explicit absence and fixed-width positions") {
-    s_random_seed_scope scope;
-    game_random::Set_Random_Seed(0);
-    const uint16_t zero[] = {0, 0};
-    DOCTEST_CHECK_FALSE(RUSS::Choose_Weighted_Index_U16(zero, 2));
-    DOCTEST_CHECK(game_random::Get_Random_Seed() == 0);
-
-    const uint16_t weights[] = {0, 5, 0, 7};
-    DOCTEST_CHECK(RUSS::Choose_Weighted_Index_U16(weights, 4) == 1);
-    DOCTEST_CHECK(RUSS::Choose_Weighted_Index_U16(weights, 4) == 3);
-    DOCTEST_CHECK(game_random::Get_Random_Seed() == 3554416254u);
-
-    std::vector<uint16_t> large(40000);
-    large.back() = 1;
-    DOCTEST_CHECK(RUSS::Choose_Weighted_Index_U16(large.data(), 40000) == 39999);
-}
-
-DOCTEST_TEST_CASE("typed ship ID shuffling keeps the legacy permutation and RNG consumption") {
-    s_random_seed_scope scope;
-    int16_t old_ids[] = {0, 1, 2, 3, 4, 5};
-    id_ship ids[] = {Ship_Id(0), Ship_Id(1), Ship_Id(2), Ship_Id(3), Ship_Id(4), Ship_Id(5)};
-    const uint32_t expected[] = {4, 0, 1, 5, 3, 2};
-    game_random::Set_Random_Seed(42);
-    RUSS::Shuffle_Sint(old_ids, 6);
-    const uint32_t legacy_seed = game_random::Get_Random_Seed();
-    game_random::Set_Random_Seed(42);
-    ai_compat::Shuffle_Ships(ids);
-    for (uint32_t i = 0; i < 6; ++i) {
-        DOCTEST_CHECK(ids[i] == Ship_Id(expected[i]));
-        DOCTEST_CHECK(ids[i] == Ship_Id(old_ids[i]));
-    }
-    DOCTEST_CHECK(game_random::Get_Random_Seed() == legacy_seed);
-    DOCTEST_CHECK(game_random::Get_Random_Seed() == 2219150180u);
-}
-
-DOCTEST_TEST_CASE("weighted choice helpers and legacy calls share the global RNG stream") {
-    s_random_seed_scope scope;
-    game_random::Set_Random_Seed(0);
-    uint8_t bytes[] = {0, 5, 0, 7};
-    uint16_t shorts[] = {0, 5, 0, 7};
-    uint32_t ints[] = {0, 5, 0, 7};
-    DOCTEST_CHECK(RUSS::Choose_Weighted_Index_U8(bytes, 4) == 1);
-    DOCTEST_CHECK(RUSS::Choose_Weighted_Index_U32(ints, 4) == 3);
-    const uint32_t seed = game_random::Get_Random_Seed();
-
-    game_random::Set_Random_Seed(0);
-    DOCTEST_CHECK(RUSS::Get_Weighted_Choice_Char(bytes, 4) == 1);
-    DOCTEST_CHECK(RUSS::Get_Weighted_Choice_Short(shorts, 4) == 3);
-    DOCTEST_CHECK(game_random::Get_Random_Seed() == seed);
-
-    game_random::Set_Random_Seed(0);
-    DOCTEST_CHECK(RUSS::Get_Weighted_Choice_Int(ints, 4) == 1);
-    DOCTEST_CHECK(game_random::Random(12) == 10);
-    DOCTEST_CHECK(game_random::Get_Random_Seed() == seed);
-
-    DOCTEST_CHECK_FALSE(RUSS::Choose_Weighted_Index_U8(bytes, 0));
-    DOCTEST_CHECK_FALSE(RUSS::Choose_Weighted_Index_U32(ints, 0));
-    DOCTEST_CHECK(game_random::Get_Random_Seed() == seed);
-}
-
-DOCTEST_TEST_CASE("typed star ID shuffling keeps the legacy permutation and RNG consumption") {
-    s_random_seed_scope scope;
-    int16_t indices[] = {0, 1, 2, 3, 4, 5};
-    game::id_star ids[] = {Star_Id(0), Star_Id(1), Star_Id(2), Star_Id(3), Star_Id(4), Star_Id(5)};
-    game_random::Set_Random_Seed(42);
-    RUSS::Shuffle_Sint(indices, 6);
-    const uint32_t legacy_seed = game_random::Get_Random_Seed();
-    game_random::Set_Random_Seed(42);
-    ai_compat::Shuffle_Stars(ids);
-    for (size_t i = 0; i < std::size(ids); ++i) DOCTEST_CHECK(ids[i] == Star_Id(indices[i]));
-    DOCTEST_CHECK(game_random::Get_Random_Seed() == legacy_seed);
 }
 
 DOCTEST_TEST_CASE("typed ID compatibility preserves zero and rejects absent or unrepresentable indices") {
@@ -295,78 +145,6 @@ DOCTEST_TEST_CASE("typed ID compatibility preserves zero and rejects absent or u
     }
 }
 
-DOCTEST_TEST_CASE("refit desirability uses the supplied owner and assessment") {
-    s_player owner{};
-    s_ship_data ship{};
-    AIDATA::s_technology_assessment assessment;
-    assessment.best_armor = 2;
-    owner.ship_designs[SHIP_SIZE_SMALL] = ship.d;
-    DOCTEST_CHECK(AIDATA::Refit_Desirability(&owner, &assessment, &ship) == 0);
-    owner.ship_designs[SHIP_SIZE_SMALL].cost = 1;
-    DOCTEST_CHECK(AIDATA::Refit_Desirability(&owner, &assessment, &ship) > 0);
-}
-
-DOCTEST_TEST_CASE("AI strength and technology leaves read supplied records instead of world globals") {
-    s_player players[3] = {};
-    players[1].objectives = PLAYER_OBJECTIVE_HUMAN;
-    players[2].objectives = PLAYER_OBJECTIVE_MILITARIST;
-    AIDATA::s_ship_assessment ship_assessment;
-    ship_assessment.strengths[1] = 10;
-    ship_assessment.strengths[2] = 40;
-    AIDATA::s_empire_assessment empire;
-    empire.reachable_player_count = 2;
-    empire.reachable_players[1] = empire.reachable_players[2] = true;
-    s_ship_data ship{};
-    AIBUILD::s_opponent_view opponents{players, 3, 1};
-    DOCTEST_CHECK(AIBUILD::Mean_Ship_Strength(&opponents, &ship_assessment, &empire, &ship) == 25);
-    opponents.human_opponent_bias = 3;
-    DOCTEST_CHECK(AIBUILD::Mean_Ship_Strength(&opponents, &ship_assessment, &empire, &ship) == 17);
-
-    s_tech_armor_data armor[ARMOR_COUNT] = {};
-    armor[ARMOR_TRITANIUM_ARMOR].tech_app_id = TECH_APP_TRITANIUM_ARMOR;
-    players[0].tech_applications[TECH_APP_TRITANIUM_ARMOR] = TECH_RESEARCH_STATUS_RESEARCHED;
-    DOCTEST_CHECK(aitech::Player_Best_Armor(armor, &players[0]) == ARMOR_TRITANIUM_ARMOR);
-
-    s_tech_weapon_mod_data modifications[WEAPON_MOD_COUNT] = {};
-    modifications[WEAPON_MOD_HEAVY_MOUNT].space = 20;
-    DOCTEST_CHECK(AIPOWER::Modified_Weapon_Strength(modifications, 100, WEAPON_MOD_FLAG_HEAVY_MOUNT) == 120);
-}
-
-DOCTEST_TEST_CASE("star assessments name treaty partners and hostile players by actual treaty state") {
-    s_player players[3] = {};
-    s_colony colonies[3] = {};
-    s_planet_data planets[3] = {};
-    s_star_data stars[1] = {};
-    int16_t player_count = 3;
-    int16_t colony_count = 3;
-    int16_t star_count = 1;
-    stars[0].has_colony = 7;
-    stars[0].wormhole_star_id = -1;
-    for (uint32_t i = 0; i < 3; ++i) {
-        players[i].ship_range = 6;
-        colonies[i].owner = (int8_t)i;
-        colonies[i].planet = (int16_t)i;
-    }
-    players[0].treaty[1] = 1;
-    players[0].treaty[2] = 4;
-    AIDATA::s_state ai;
-    game::s_view world{
-        .players = players,
-        .stars = stars,
-        .colonies = colonies,
-        .planets = planets,
-        .player_count = &player_count,
-        .star_count = &star_count,
-        .colony_count = &colony_count,
-    };
-    AIDATA::Compute_Star_Player_Range_Info(&ai, &world);
-    const auto& assessment = ai.stars.at(Star_Id(0)).neighborhood.per_player[0];
-    DOCTEST_CHECK(assessment.treaty_partners_in_range == 1);
-    DOCTEST_CHECK(assessment.hostile_players_in_range == 1);
-    DOCTEST_CHECK(assessment.neutral_players_in_range == 0);
-    DOCTEST_CHECK(assessment.covering_colony_count == 1);
-}
-
 DOCTEST_TEST_CASE("legacy ship-list encoding accepts zero, rejects narrowing, and owns its terminator") {
     const id_ship ids[] = {Ship_Id(0), Ship_Id(INT16_MAX)};
     auto encoded = legacy_world::Ship_List(ids);
@@ -377,21 +155,6 @@ DOCTEST_TEST_CASE("legacy ship-list encoding accepts zero, rejects narrowing, an
     auto empty = legacy_world::Ship_List({});
     DOCTEST_REQUIRE(empty);
     DOCTEST_CHECK(*empty == std::vector<int16_t>{-1});
-}
-
-DOCTEST_TEST_CASE("AI strength lookup does not narrow a ship identity to a legacy index") {
-    AIDATA::s_state ai;
-    constexpr id_ship ship_id = Ship_Id(0x12345678u);
-    ai.ships[ship_id].strengths[1] = 123;
-    ai.ships[ship_id].strengths_in_nebula[1] = 277;
-    ai.ships[Ship_Id(0)].strengths[1] = 7;
-    s_star_data stars[1] = {};
-    int16_t player_count = 2;
-    const game::s_view world{.stars = stars, .player_count = &player_count};
-    DOCTEST_CHECK(AIMOVE::Ship_Min_Strength_Versus_Players_At_Star(&ai, &world, ship_id, 2, Star_Id(0)) == 123);
-    stars[0].in_nebula = 1;
-    DOCTEST_CHECK(AIMOVE::Ship_Min_Strength_Versus_Players_At_Star(&ai, &world, ship_id, 2, Star_Id(0)) == 277);
-    DOCTEST_CHECK(ai.ships.size() == 2);
 }
 
 DOCTEST_TEST_CASE("read-only bit fields have a distinct const-correct interface") {
@@ -431,6 +194,45 @@ DOCTEST_TEST_CASE("fleet evaluation passes a proposed origin without modifying r
     const id_ship nonexistent[] = {Ship_Id(2)};
     DOCTEST_CHECK(ai_compat::Evaluate_Fleet_Move(nonexistent, Star_Id(0), &result) == SHIPMOVE::e_fleet_evaluation::invalid_input);
     DOCTEST_CHECK_FALSE(queried);
+}
+
+DOCTEST_TEST_CASE("fleet collection preserves cached order and mission filtering") {
+    s_ship_data ships[2] = {};
+    ships[1].mission = 5;
+    s_player player{};
+    player.offensive_stagepoint = -1;
+    const game::s_view world{.ships = ships};
+    AIDATA::s_state ai;
+    ai.combat_ships = {Ship_Id(0), Ship_Id(1)};
+    ai.players[0].combat_ship_groups[Star_Id(0)] = {0, 2};
+    AIMOVE::s_ai_movement_context context{Player_Id(0), &player, nullptr, &world};
+    std::vector<id_ship> collected{Ship_Id(UINT32_MAX)};
+
+    AIMOVE::Gather_Player_Ships_At_Star(&ai, &context, Player_Id(0), Star_Id(0), &collected);
+    DOCTEST_CHECK(collected == std::vector<id_ship>{Ship_Id(0)});
+    player.offensive_stagepoint = 0;
+    AIMOVE::Gather_Player_Ships_At_Star(&ai, &context, Player_Id(0), Star_Id(0), &collected);
+    DOCTEST_CHECK(collected == std::vector<id_ship>{Ship_Id(0), Ship_Id(1)});
+    ships[1].owner = 1;
+    AIMOVE::Gather_Player_Ships_At_Star(&ai, &context, Player_Id(0), Star_Id(0), &collected);
+    DOCTEST_CHECK(collected == std::vector<id_ship>{Ship_Id(0)});
+    AIMOVE::Gather_Player_Ships_At_Star(&ai, &context, Player_Id(0), Star_Id(1), &collected);
+    DOCTEST_CHECK(collected.empty());
+}
+
+DOCTEST_TEST_CASE("fleet planning returns the evaluated direct route") {
+    memset(legacy_ships, 0, sizeof(legacy_ships));
+    const game::s_view world{.ships = legacy_ships};
+    AIMOVE::s_ai_movement_context context{Player_Id(0), nullptr, nullptr, &world};
+    const id_ship ids[] = {Ship_Id(0)};
+    queried = false;
+    const auto route = AIMOVE::Move_Ships_With_Possible_Intermediate(&context, ids, Star_Id(1));
+    DOCTEST_REQUIRE(route);
+    DOCTEST_CHECK(queried);
+    DOCTEST_CHECK(queried_ships == std::vector<int16_t>{0});
+    DOCTEST_CHECK(queried_destination == 1);
+    DOCTEST_CHECK(route->next_star == Star_Id(1));
+    DOCTEST_CHECK(route->turns == 3);
 }
 
 DOCTEST_TEST_CASE("movement planning rejects destinations unsupported by the legacy engine") {

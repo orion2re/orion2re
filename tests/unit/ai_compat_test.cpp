@@ -2,18 +2,21 @@
 
 #include "doctest/doctest.h"
 #include "game/legacy_world.h"
+#include "../fixtures/game_state.h"
 
 using legacy_world::Star_Id;
 using legacy_world::Colony_Id;
 
 DOCTEST_TEST_CASE("coverage counts do not wrap at the old byte boundary") {
+    test::s_game_state game_state;
+    MOX::NUM_STARS = 52;
     for (int16_t count : {0, 1, 255, 256, 257}) {
         AIDATA::s_state ai;
         s_player player{};
         player.ship_range = 6;
         s_settings settings{};
         settings.game_difficulty = GAME_DIFFICULTY_AVERAGE;
-        std::vector<s_star_data> stars(52);
+        auto& stars = game_state.stars;
         for (auto& star : stars) star.wormhole_star_id = -1;
         std::vector<s_colony> colonies(257);
         std::vector<s_planet_data> planets(257);
