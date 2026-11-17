@@ -271,7 +271,7 @@ namespace COLCALC {
     extern char* d_from_1_battlestation_msg;
     extern char* d_from_1_fortress_msg;
 
-    uint8_t __cdecl Colony_Can_Build_Product(s_colony* colony, int16_t product);
+    uint8_t __cdecl Colony_Can_Build_Product(::game::s_world_state* world_state, s_colony* colony, int16_t product);
 
     bool __cdecl Room_For_Another_Dude(s_colony* colony, int race_idx);
 
@@ -285,7 +285,7 @@ namespace COLCALC {
 
     bool __cdecl Colony_Can_Afford_To_Buy_Product(int16_t colony_idx);
 
-    int32_t __cdecl Colony_Product_Cost(s_colony* colony, int16_t product_id);
+    int32_t __cdecl Colony_Product_Cost(::game::s_world_state* world_state, s_colony* colony, int16_t product_id);
 
     int32_t __cdecl Colony_Producing_Product_Cost(s_colony* colony);
 
@@ -305,7 +305,7 @@ namespace COLCALC {
 
     void __cdecl Produce_Ground_Military(s_colony* colony);
 
-    void __cdecl Apply_Production(s_colony* colony);
+    void __cdecl Apply_Production(::game::s_world_state* world_state, s_colony* colony);
 
     void __cdecl Ghost_Colony_Stuff(s_colony* colony);
 
@@ -315,11 +315,11 @@ namespace COLCALC {
     void __cdecl Apply_All_Player_Changes();
     void __cdecl Compute_Blockades();
 
-    void __cdecl Do_Colony_Owner_Change_Star_Colony_Stuff(s_colony* colony);
+    void __cdecl Do_Colony_Owner_Change_Star_Colony_Stuff(::game::s_world_state* world_state, s_colony* colony);
 
-    void __cdecl Colony_Environmental_Stuff(s_colony* colony);
+    void __cdecl Colony_Environmental_Stuff(::game::s_world_state* world_state, s_colony* colony);
 
-    void __cdecl Compute_Star_Colony_Stuff(s_star_data* star);
+    void __cdecl Compute_Star_Colony_Stuff(::game::s_world_state* world_state, s_star_data* star);
 
     int32_t __cdecl Mixed_Race_Morale_Penalty(s_colony* colony);
 
@@ -327,12 +327,12 @@ namespace COLCALC {
 
     int __cdecl Colony_Officer(game::s_world_state* world_state, s_colony* colony);
 
-    short __cdecl Colony_Race_Pop_Limit(s_colony* colony, int16_t player_idx);
+    short __cdecl Colony_Race_Pop_Limit(::game::s_world_state* world_state, s_colony* colony, int16_t player_idx);
 
     int16_t __cdecl Get_Player_Max_Population(int16_t player_idx);
     int __cdecl Best_Leader_Diplomat_Bonus(game::s_world_state* world_state, int player_idx);
 
-    bool __cdecl Star_Has_Asteroid_Or_Gas_Giant(int16_t star_index);
+    bool __cdecl Star_Has_Asteroid_Or_Gas_Giant(::game::s_world_state* world_state, int16_t star_index);
 
     /**
      * Sums building construction costs for each player's completed colonies.
@@ -379,13 +379,13 @@ namespace COLCALC {
 
     char* __cdecl Load_Colcalc_Strings(char* strings);
 
-    int16_t __cdecl Colony_Industry_Per_Worker(const s_colony* colony, int16_t player_idx, s_colony_job_production* out);
-    int16_t __cdecl Colony_Food2_Per_Farmer(const s_colony* colony, int16_t player_idx, s_colony_job_production* out);
-    int16_t __cdecl Colony_Research_Per_Scientist(const s_colony* colony, int16_t player_idx, s_colony_job_production* out);
+    int16_t __cdecl Colony_Industry_Per_Worker(::game::s_world_state* world_state, const s_colony* colony, int16_t player_idx, s_colony_job_production* out);
+    int16_t __cdecl Colony_Food2_Per_Farmer(::game::s_world_state* world_state, const s_colony* colony, int16_t player_idx, s_colony_job_production* out);
+    int16_t __cdecl Colony_Research_Per_Scientist(::game::s_world_state* world_state, const s_colony* colony, int16_t player_idx, s_colony_job_production* out);
 
     bool __cdecl Biomorphic_Fungi_Applies(int16_t food2_per_farmer);
 
-    void __cdecl Twiddle_Initial_Homeworlds();
+    void __cdecl Twiddle_Initial_Homeworlds(::game::s_world_state* world_state);
     void __cdecl Twiddle_Initial_Homeworld(game::s_world_state* world_state, s_colony* colony);
 
     /**
@@ -409,25 +409,25 @@ namespace COLCALC {
      * Recomputes colony-derived control and infrastructure flags for every star system.
      */
     void __cdecl Compute_All_Star_Colony_Stuff();
-    void __cdecl Compute_Star_Colony_Stuff(s_star_data* star);
+    void __cdecl Compute_Star_Colony_Stuff(::game::s_world_state* world_state, s_star_data* star);
 
-    void __cdecl Star_Colony_Calculation(int16_t star_idx, int16_t player_idx);
+    void __cdecl Star_Colony_Calculation(::game::s_world_state* world_state, int16_t star_idx, int16_t player_idx);
 
     void __cdecl Init_Surrenders();
 
     void __cdecl Surrender_Empire(int16_t player_id, int16_t target_id);
 
-    bool __cdecl May_Surrender_Star(int16_t star_idx, int16_t player_idx, int16_t recipient_idx);
+    bool __cdecl May_Surrender_Star(::game::s_world_state* world_state, int16_t star_idx, int16_t player_idx, int16_t recipient_idx);
 
     void __cdecl Surrender_Star(int16_t star_idx, int16_t player_idx, int16_t to_player_idx);
 
-    void __cdecl Do_Surrender_Colony(s_colony* colony, int16_t new_owner);
+    void __cdecl Do_Surrender_Colony(::game::s_world_state* world_state, s_colony* colony, int16_t new_owner);
 
-    void __cdecl Do_Colony_Owner_Change_Star_Colony_Stuff(s_colony* colony);
+    void __cdecl Do_Colony_Owner_Change_Star_Colony_Stuff(::game::s_world_state* world_state, s_colony* colony);
 
-    void __cdecl Do_Surrender_Star(int16_t star_idx, int16_t old_owner, int16_t new_owner);
+    void __cdecl Do_Surrender_Star(::game::s_world_state* world_state, int16_t star_idx, int16_t old_owner, int16_t new_owner);
 
-    void __cdecl Do_Surrender_Empire(int16_t player_idx, int16_t target_idx);
+    void __cdecl Do_Surrender_Empire(::game::s_world_state* world_state, int16_t player_idx, int16_t target_idx);
 
     void __cdecl Eliminate_Player(game::s_world_state* world_state, s_player* player);
 
@@ -435,7 +435,7 @@ namespace COLCALC {
 
     int32_t __cdecl Sort_star_weights(const void* a, const void* b);
 
-    int16_t __cdecl Get_Surrender_System(int16_t player_idx, int16_t target_player_idx, int16_t selection_mode);
+    int16_t __cdecl Get_Surrender_System(::game::s_world_state* world_state, int16_t player_idx, int16_t target_player_idx, int16_t selection_mode);
 
     void __cdecl No_Op1();
 
@@ -451,7 +451,7 @@ namespace COLCALC {
 
     inline bool __cdecl Monster_At_Star(int16_t star_idx);
 
-    void __cdecl Delete_Obsolete_Artifical_Planets_Under_Construction(int16_t star_idx);
+    void __cdecl Delete_Obsolete_Artifical_Planets_Under_Construction(::game::s_world_state* world_state, int16_t star_idx);
 
     int32_t __cdecl Colony_N_Pops_Of_Empire(s_colony* colony, uint32_t empire_id);
 
@@ -469,7 +469,7 @@ namespace COLCALC {
 
     void __cdecl Update_Player_Stats(game::s_world_state* world_state, s_player* player);
 
-    void __cdecl Colony_Environmental_Stuff(s_colony* colony);
+    void __cdecl Colony_Environmental_Stuff(::game::s_world_state* world_state, s_colony* colony);
 
     /**
      * Computes a colony's morale and optionally writes a short breakdown string.
@@ -525,7 +525,7 @@ namespace COLCALC {
 
     void __cdecl Colony_BC_Maintenance(s_colony* colony);
 
-    bool __cdecl Colony_Is_Blockaded(s_colony* colony);
+    bool __cdecl Colony_Is_Blockaded(::game::s_world_state* world_state, s_colony* colony);
 
     int __cdecl Calc_Player_Climate(const s_player* player, int climate);
 
@@ -570,7 +570,7 @@ namespace COLCALC {
      */
     void __cdecl Compute_Player_Maintenance(game::s_world_state* world_state, s_player* plr, STRBUILD::s_builder* debug_out);
 
-    int16_t __cdecl Gravity_Player_Production_Factor(const s_colony* colony, int16_t player_idx);
+    int16_t __cdecl Gravity_Player_Production_Factor(::game::s_world_state* world_state, const s_colony* colony, int16_t player_idx);
 
     int16_t __cdecl Get_Govt_Type_Tech_App(int16_t govt_type);
 
@@ -578,9 +578,9 @@ namespace COLCALC {
 
     int16_t __cdecl Planet_Max_Population_For_Player(s_planet_data* planet, int16_t player_idx);
 
-    bool __cdecl Housing_Is_Useless(s_colony* colony);
+    bool __cdecl Housing_Is_Useless(::game::s_world_state* world_state, s_colony* colony);
 
-    int16_t __cdecl N_Colonies_And_Outposts_At_Star(int16_t star_index);
+    int16_t __cdecl N_Colonies_And_Outposts_At_Star(::game::s_world_state* world_state, int16_t star_index);
 
     int16_t N_Living_Human_Players();
 
@@ -603,7 +603,7 @@ namespace COLCALC {
     int16_t __cdecl Colony_Planetary_Shield(s_colony* colony);
 
     void __cdecl Show_Command_Points(int player_idx);
-    int16_t __cdecl Get_System_Population(int16_t player_idx, int16_t star_idx);
+    int16_t __cdecl Get_System_Population(::game::s_world_state* world_state, int16_t player_idx, int16_t star_idx);
 
-    int16_t __cdecl Get_Possible_Surrender_Systems(int16_t player_idx, int16_t target_player_idx, int16_t* star_list);
+    int16_t __cdecl Get_Possible_Surrender_Systems(::game::s_world_state* world_state, int16_t player_idx, int16_t target_player_idx, int16_t* star_list);
 } // namespace COLCALC

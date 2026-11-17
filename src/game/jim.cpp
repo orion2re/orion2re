@@ -312,7 +312,7 @@ namespace JIM {
                         src_ptr = temp_buf;
                         break;
                     case 0x8A:
-                        strlcpy(temp_buf, HACCESS::Get_Planet_Name(star_id), sizeof(temp_buf));
+                        strlcpy(temp_buf, HACCESS::Get_Planet_Name(legacy_world::Planet_Id(star_id)), sizeof(temp_buf));
                         src_ptr = temp_buf;
                         break;
                 }

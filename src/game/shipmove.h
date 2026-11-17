@@ -20,7 +20,7 @@ namespace SHIPMOVE {
 
     void __cdecl Allocate_New_Ship_Slots();
     void __cdecl Move_All_Ships_Toward_Stars();
-    void __cdecl Reset_Needless_Ignore_Combat_Ships_Flags();
+    void __cdecl Reset_Needless_Ignore_Combat_Ships_Flags(::game::s_world_state* world_state);
 
     void __cdecl Update_All_Ship_Ranges();
 
@@ -37,7 +37,7 @@ namespace SHIPMOVE {
     void __cdecl Ships_Try_To_Move_To(int16_t* ship_list, int16_t target_star_idx, s_ship_move_info* move_info);
     void Evaluate_Fleet_Move_From_Star(int16_t* ship_list, int16_t target_star_idx, int16_t origin_star, s_ship_move_info* move_info);
 
-    void __cdecl Make_Ships_Move_To(int16_t* ship_list, int16_t destination_star_idx, s_ship_move_info* move_info);
+    void __cdecl Make_Ships_Move_To(::game::s_world_state* world_state, int16_t* ship_list, int16_t destination_star_idx, s_ship_move_info* move_info);
     bool __cdecl Apply_Player_Movement_Order(int16_t* ship_list, int16_t destination_star_idx, s_ship_move_info* move_info);
 
     bool __cdecl Confirm_Officer_Change(game::s_world_state* world_state, int16_t leader_idx, int16_t target_ship_idx, int8_t target_eta);

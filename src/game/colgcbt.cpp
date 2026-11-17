@@ -180,7 +180,7 @@ namespace COLGCBT {
         Load_Combat_Anims();
 
         COLONY::using_colony_screen_palette = 1;
-        COLONY::Set_Colony_Globals(colony_idx);
+        COLONY::Set_Colony_Globals(&::game::world, colony_idx);
         COLONY::sys_disp_star_handle = COLONY::star_handle;
         COLONY::drawing_display = 0;
         COLONY::valid_colony = 1;
@@ -655,7 +655,7 @@ namespace COLGCBT {
         }
 
         char* race_name = MOX::player[g_attack_ptr->player_id].race_name;
-        char* planet_name = HACCESS::Get_Planet_Name(MOX::colony[COLONY::colony_handle].planet);
+        char* planet_name = HACCESS::Get_Planet_Name(legacy_world::Planet_Id(MOX::colony[COLONY::colony_handle].planet));
         char* format_str = ESTRINGS::E_Strings(string_id);
 
         char buffer[500];
@@ -871,8 +871,8 @@ namespace COLGCBT {
 
         if (COLONY::full_draw != 0) {
             graphics::Fill(0, 0, 0x27F, 0x1DF, 0);
-            animate::Draw(0, 0, COLONY::C_Anims(1));
-            animate::Draw(0, 0, COLONY::C_Anims(0));
+            animate::Draw(0, 0, COLONY::C_Anims(&::game::world, 1));
+            animate::Draw(0, 0, COLONY::C_Anims(&::game::world, 0));
         }
 
         COLONY::Set_Colony_Font_To(1);
@@ -892,7 +892,7 @@ namespace COLGCBT {
             (uint8_t)g_defend_ptr->current_troop_type_idx < UNIT_COUNT) {
             char buffer[500];
             char* race_name = MOX::player[g_attack_ptr->player_id].race_name;
-            char* planet_name = HACCESS::Get_Planet_Name(MOX::colony[COLONY::colony_handle].planet);
+            char* planet_name = HACCESS::Get_Planet_Name(legacy_world::Planet_Id(MOX::colony[COLONY::colony_handle].planet));
             snprintf(buffer, sizeof(buffer), ESTRINGS::E_Strings(0x2F), planet_name, race_name);
             fonts::Print_Centered(0x13F, 10, buffer);
 

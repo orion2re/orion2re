@@ -722,7 +722,7 @@ namespace council {
             }
 
             /* Favor the current Orion owner. */
-            if (HACCESS::Orion_Owner() == candidate_idx) {
+            if (HACCESS::Orion_Owner(&::game::world) == candidate_idx) {
                 vote_score += 40;
             }
 

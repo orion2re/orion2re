@@ -86,7 +86,6 @@ namespace MAPGEN {
     uint32_t satellite_stat[6];
     uint32_t nebula_stat[MAX_NEBULAS + 1];
     int16_t star_count;
-    s_planet_data* pl;
     const char s_raceopt_lbx[12] = "raceopt.lbx";
     const char s_starname_lbx[13] = "starname.lbx";
     uint8_t MAPGEN_TRACE = 1;
@@ -94,7 +93,7 @@ namespace MAPGEN {
     void __cdecl Clear_Planets_In_Star_Structure() {
         for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
             for (int j = 0; j < 5; ++j) {
-                MOX::star[i].planet_index[j] = -1;
+                MOX::star[i].planet_index[j] = ::game::NO_PLANET;
             }
         }
     }
@@ -105,7 +104,7 @@ namespace MAPGEN {
      * Planets in systems with non-habitable spectral classes produce no food
      * unless the system contains the Orion star special.
      */
-    uint8_t __cdecl Generate_Food_Per_Farmer(int16_t star_index, int16_t planet_index) {
+    uint8_t __cdecl Generate_Food_Per_Farmer(::game::s_world_state* world_state, int16_t star_index, ::game::id_planet planet_index) {
         bool habitable = HAROLD::Habitable_Spectral_Class(star_index);
 
         // Check if the system is either habitable or is the Orion system
@@ -113,19 +112,19 @@ namespace MAPGEN {
             return 0;
         }
 
-        int8_t climate_idx = MOX::planet[planet_index].climate;
+        int8_t climate_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_index))).climate;
 
         return MOX::food_per_farmer_table[climate_idx];
     }
 
-    uint8_t __cdecl Generate_Max_Farms(int16_t star_idx, int16_t planet_idx) {
+    uint8_t __cdecl Generate_Max_Farms(::game::s_world_state* world_state, int16_t star_idx, ::game::id_planet planet_idx) {
         bool is_habitable = HAROLD::Habitable_Spectral_Class(star_idx);
 
         if (!is_habitable && MOX::star[star_idx].system_special != SYSTEM_SPECIAL_ORION_STAR) {
             return 0;
         }
 
-        int8_t size_idx = MOX::planet[planet_idx].size;
+        int8_t size_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).size;
         return MOX::planet_max_farms[size_idx];
     }
 
@@ -135,7 +134,7 @@ namespace MAPGEN {
 
         for (int i = 0; i < 5; ++i) {
             weights[i] = satellite_orbit_weight[i][MOX::settings.galaxy_age];
-            if (MOX::star[star_id].planet_index[i] == -1 && weights[i] != 0) {
+            if (MOX::star[star_id].planet_index[i] == ::game::NO_PLANET && weights[i] != 0) {
                 available_orbit_has_weight = true;
             }
         }
@@ -144,12 +143,12 @@ namespace MAPGEN {
             int16_t choice;
             do {
                 choice = RUSS::Get_Weighted_Choice_Char(weights, 5);
-            } while (choice >= 0 && MOX::star[star_id].planet_index[choice] != -1);
+            } while (choice >= 0 && MOX::star[star_id].planet_index[choice] != ::game::NO_PLANET);
             if (choice >= 0) return (int8_t)choice;
         }
 
         for (int16_t orbit = 0; orbit < 5; ++orbit) {
-            if (MOX::star[star_id].planet_index[orbit] == -1) return (int8_t)orbit;
+            if (MOX::star[star_id].planet_index[orbit] == ::game::NO_PLANET) return (int8_t)orbit;
         }
         return 0;
     }
@@ -168,7 +167,7 @@ namespace MAPGEN {
         return 0xFF;
     }
 
-    int8_t __cdecl Generate_Mineral_Class(int16_t star_idx, int16_t unused_planet_idx) {
+    int8_t Generate_Mineral_Class(int16_t star_idx, game::id_planet unused_planet_idx) {
         (void)unused_planet_idx;
         int32_t random_roll = game_random::Random(10);
         int8_t spectral_class = MOX::star[star_idx].spectral_class;
@@ -238,52 +237,45 @@ namespace MAPGEN {
     /**
      * @brief Generates initial data for a satellite (moon) in a star system.
      */
-    void __cdecl Generate_Satellite(int16_t star_idx, int16_t orbit, int16_t type) {
-        s_planet_data* planet = &MOX::planet[MOX::planet_count];
-
-        planet->star_index = star_idx;
-
-        planet->size = Generate_Size();
-
-        planet->mineral_class = Generate_Mineral_Class(star_idx, MOX::planet_count);
-
-        Get_Climate_Modifier(planet->mineral_class);
-
-        planet->gravity_class = Generate_Gravity_Class(MOX::planet_count);
-
-        planet->group = (int8_t)Get_Planet_Group(MOX::planet_count);
-
-        planet->climate = Generate_Climate(planet->group);
-
-        planet->climate_bg_type = (int8_t)(game_random::Random(3) - 1);
-
-        Set_Secondary_Planet_Data(star_idx, MOX::planet_count);
+    void Generate_Satellite(game::s_world_state* world_state, game::id_planet planet_idx, int16_t star_idx, int16_t orbit, int16_t type) {
+        auto& planet = game::Planet(world_state, legacy_world::Planet_Id(planet_idx));
+        planet.star_index = star_idx;
+        planet.orbit = static_cast<int8_t>(orbit);
+        planet.planet_type = static_cast<int8_t>(type);
+        planet.size = Generate_Size();
+        planet.mineral_class = Generate_Mineral_Class(star_idx, legacy_world::Planet_Id(planet_idx));
+        Get_Climate_Modifier(world_state, planet.mineral_class);
+        planet.gravity_class = Generate_Gravity_Class(world_state, legacy_world::Planet_Id(planet_idx));
+        planet.group = static_cast<int8_t>(Get_Planet_Group(world_state, legacy_world::Planet_Id(planet_idx)));
+        planet.climate = Generate_Climate(planet.group);
+        planet.climate_bg_type = static_cast<int8_t>(game_random::Random(3) - 1);
+        Set_Secondary_Planet_Data(world_state, star_idx, legacy_world::Planet_Id(planet_idx));
     }
 
-    void __cdecl Set_Secondary_Planet_Data(int16_t star_idx, int16_t planet_idx) {
-        s_planet_data* planet = &MOX::planet[planet_idx];
+    void __cdecl Set_Secondary_Planet_Data(::game::s_world_state* world_state, int16_t star_idx, ::game::id_planet planet_idx) {
+        s_planet_data* planet = &::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx)));
 
-        planet->max_farms = Generate_Max_Farms(star_idx, planet_idx);
-        planet->food_per_farmer = Generate_Food_Per_Farmer(star_idx, planet_idx);
+        planet->max_farms = Generate_Max_Farms(world_state, star_idx, legacy_world::Planet_Id(planet_idx));
+        planet->food_per_farmer = Generate_Food_Per_Farmer(world_state, star_idx, legacy_world::Planet_Id(planet_idx));
         planet->colony_index = -1;
     }
 
-    int8_t __cdecl Get_Climate_Modifier(int8_t climate_index) {
+    int8_t __cdecl Get_Climate_Modifier(::game::s_world_state* world_state, int8_t climate_index) {
         int8_t modifier = 0;
 
         if (climate_index >= MINERAL_RESOURCE_ULTRA_POOR && climate_index < MINERAL_RESOURCE_COUNT) {
             modifier = MOX::climate_modifier_table[climate_index];
 
             if (modifier > 0) {
-                RUSS::PFMT(0, 0, "------CLIMATE modifier is %d  Planet: %d  Mineral: %d", modifier, MOX::planet_count, climate_index);
+                RUSS::PFMT(0, 0, "------CLIMATE modifier is %d  Planet: %d  Mineral: %d", modifier, ::game::Planet_Count(world_state), climate_index);
             }
         }
 
         return modifier;
     }
 
-    int8_t __cdecl Generate_Gravity_Class(int16_t planet_idx) {
-        s_planet_data& planet = MOX::planet[planet_idx];
+    int8_t __cdecl Generate_Gravity_Class(::game::s_world_state* world_state, ::game::id_planet planet_idx) {
+        s_planet_data& planet = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx)));
 
         int16_t mineral_class = planet.mineral_class;
 
@@ -301,8 +293,8 @@ namespace MAPGEN {
         return;
     }
 
-    int16_t __cdecl Get_Planet_Group(int16_t planet_index) {
-        s_planet_data& planet = MOX::planet[planet_index];
+    int16_t __cdecl Get_Planet_Group(::game::s_world_state* world_state, ::game::id_planet planet_index) {
+        s_planet_data& planet = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_index)));
         int16_t orbit = (int16_t)planet.orbit;
         int16_t star_index = planet.star_index;
         int16_t spectral_class = (int16_t)MOX::star[star_index].spectral_class;
@@ -376,89 +368,42 @@ namespace MAPGEN {
         return result >= 0 ? (int8_t)result : PLANET_CLIMATE_TERRAN;
     }
 
-    void Enforce_Configured_Planet_Max() {
+    void Enforce_Configured_Planet_Max(game::s_world_state* world_state) {
         if (MOX::NUM_STARS <= ORIGINAL_MAX_STARS) {
             if (planet_limit == 0) return;
-            Enforce_Planet_Max(planet_limit);
+            Enforce_Planet_Max(world_state, planet_limit);
         } else {
-            Enforce_Planet_Max(MAX_PLANETS);
+            Enforce_Planet_Max(world_state, MAX_PLANETS);
         }
     }
 
-    void __cdecl Enforce_Planet_Max(int16_t max_planets) {
-        int16_t original_planet_count = MOX::planet_count;
-
-        if (max_planets <= original_planet_count) {
-            uint8_t is_home_system[MAX_STARS];
-            memset(is_home_system, 0, sizeof(is_home_system));
-
-            for (int32_t i = 0; i < MAX_PLAYERS; ++i) {
-                if (i < MOX::NUM_PLAYERS) {
-                    int16_t home_pid = MOX::player[i].home_planet_id;
-                    is_home_system[MOX::planet[home_pid].star_index] = 1;
-                }
+    void Enforce_Planet_Max(game::s_world_state* world_state, int16_t max_planets) {
+        if (max_planets > game::Planet_Count(world_state)) return;
+        std::array<bool, MAX_STARS> home_systems{};
+        for (int16_t player = 0; player < MOX::NUM_PLAYERS; ++player) {
+            const auto* home = game::Find_Planet(world_state, legacy_world::Planet_Id(MOX::player[player].home_planet_id));
+            if (home != nullptr) home_systems[home->star_index] = true;
+        }
+        std::vector<game::id_planet> removable;
+        for (const auto& [id, planet] : world_state->planets) {
+            if ((!special_generation_config.generate_orion || planet.star_index != 0) &&
+                !home_systems[planet.star_index] && !HOMEGEN::Is_Added_Food_World(planet.star_index)) {
+                removable.push_back(id);
             }
-
-            if (capture::Check_Release_Version() == 0) {
-                int16_t gas_giant_count = Gas_Giants();
-                RUSS::PFMT(0, 1, "Colony Planets: %d  Max: %d  Planet Count: %d  Removing %d planets", (int32_t)(original_planet_count - gas_giant_count), (int32_t)max_planets, (int32_t)original_planet_count, (int32_t)((original_planet_count - gas_giant_count) - max_planets));
-                key::Wait_For_Key();
-            }
-
-            pl = (s_planet_data*)allocate::Allocate_First_Block(MOX::screen_seg, MAX_PLANETS * sizeof(*MOX::planet));
-            memcpy(pl, MOX::planet, MAX_PLANETS * sizeof(*MOX::planet));
-
-            s_star_data* star_backup = (s_star_data*)allocate::Allocate_Next_Block(MOX::screen_seg, MAX_STARS * sizeof(*MOX::star));
-            memcpy(star_backup, MOX::star, MAX_STARS * sizeof(*MOX::star));
-
-            int16_t* removable_planets = (int16_t*)allocate::Allocate_Next_Block(MOX::screen_seg, original_planet_count * sizeof(*removable_planets));
-            int16_t removable_planet_count = 0;
-            for (int16_t planet_idx = 0; planet_idx < original_planet_count; ++planet_idx) {
-                s_planet_data* backup_p = &pl[planet_idx];
-                if ((!special_generation_config.generate_orion ||
-                        backup_p->star_index != 0) &&
-                    is_home_system[backup_p->star_index] == 0 &&
-                    !HOMEGEN::Is_Added_Food_World(backup_p->star_index)) {
-                    removable_planets[removable_planet_count++] = planet_idx;
-                }
-            }
-
-            while (max_planets <= MOX::planet_count) {
-                if (removable_planet_count == 0) break;
-
-                int16_t choice = (int16_t)(game_random::Random(removable_planet_count) - 1);
-                int16_t planet_idx = removable_planets[choice];
-                removable_planets[choice] = removable_planets[--removable_planet_count];
-                pl[planet_idx].colony_index = -2;
-                MOX::planet_count--;
-            }
-
-            int16_t new_idx = 0;
-            Clear_Planets_In_Star_Structure();
-
-            for (int16_t old_idx = 0; old_idx < original_planet_count; ++old_idx) {
-                if (pl[old_idx].colony_index != -2) {
-                    int16_t player_home_idx = Home_Planet(old_idx);
-                    if (player_home_idx != -1) {
-                        MOX::player[player_home_idx].home_planet_id = new_idx;
-                    }
-
-                    RUSS::PFMT(0, 10, "Moving planet %d to planet %d", old_idx, new_idx);
-
-                    MOX::planet[new_idx] = pl[old_idx];
-                    int16_t colony_idx = MOX::planet[new_idx].colony_index;
-                    if (colony_idx >= 0) {
-                        MOX::colony[colony_idx].planet = new_idx;
-                    }
-                    MOX::star[MOX::planet[new_idx].star_index].planet_index[(uint8_t)MOX::planet[new_idx].orbit] = new_idx;
-
-                    new_idx++;
-                }
-            }
+        }
+        // Preserve the native threshold and random-selection order, not array compaction.
+        while (max_planets <= game::Planet_Count(world_state) && !removable.empty()) {
+            const size_t choice = static_cast<size_t>(game_random::Random(static_cast<int32_t>(removable.size())) - 1);
+            const auto id = removable[choice];
+            removable[choice] = removable.back();
+            removable.pop_back();
+            const auto planet = game::Planet(world_state, legacy_world::Planet_Id(id));
+            MOX::star[planet.star_index].planet_index[planet.orbit] = game::NO_PLANET;
+            game::Erase_Planet(world_state, legacy_world::Planet_Id(id));
         }
     }
 
-    void __cdecl Get_A_Planet_Or_Star_Special(int16_t star_idx, int16_t* wormhole_out, int8_t* special_out, uint8_t commit_changes, int32_t excluded_mask) {
+    void __cdecl Get_A_Planet_Or_Star_Special(::game::s_world_state* world_state, int16_t star_idx, int16_t* wormhole_out, int8_t* special_out, uint8_t commit_changes, int32_t excluded_mask) {
         uint16_t valid_planets[5] = {0};
         uint16_t large_planets[5] = {0};
         uint16_t habitable_planets[5] = {0};
@@ -466,9 +411,9 @@ namespace MAPGEN {
         bool has_habitable = false;
 
         for (int i = 0; i < 5; ++i) {
-            int16_t p_idx = MOX::star[star_idx].planet_index[i];
-            if (p_idx >= 0) {
-                s_planet_data* planet = &MOX::planet[p_idx];
+            ::game::id_planet p_idx = MOX::star[star_idx].planet_index[i];
+            if (p_idx != ::game::NO_PLANET) {
+                s_planet_data* planet = &::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(p_idx)));
                 if (planet->planet_type == PLANET_TYPE_PLANET && planet->planet_special == SYSTEM_SPECIAL_NO_SPECIAL) {
                     valid_planets[i] = 1;
                     int8_t climate = planet->climate;
@@ -543,11 +488,11 @@ namespace MAPGEN {
 
                     case SYSTEM_SPECIAL_GOLD_DEPOSITS:
                     case SYSTEM_SPECIAL_GEM_DEPOSITS: {
-                        int16_t p_idx = RUSS::Get_Weighted_Choice_Short(valid_planets, 5);
-                        if (p_idx >= 0) {
+                        ::game::id_planet p_idx = RUSS::Get_Weighted_Choice_Short(valid_planets, 5);
+                        if (p_idx != ::game::NO_PLANET) {
                             if (commit_changes) {
                                 int16_t actual_p_idx = MOX::star[star_idx].planet_index[p_idx];
-                                MOX::planet[actual_p_idx].planet_special = (int8_t)choice;
+                                ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(actual_p_idx))).planet_special = (int8_t)choice;
                                 MOX::star[star_idx].system_special = (int8_t)choice;
                             }
                             success = true;
@@ -557,11 +502,11 @@ namespace MAPGEN {
 
                     case SYSTEM_SPECIAL_NATIVES:
                     case SYSTEM_SPECIAL_SPLINTER_COLONY: {
-                        int16_t p_idx = RUSS::Get_Weighted_Choice_Short(large_planets, 5);
-                        if (p_idx >= 0) {
+                        ::game::id_planet p_idx = RUSS::Get_Weighted_Choice_Short(large_planets, 5);
+                        if (p_idx != ::game::NO_PLANET) {
                             if (commit_changes) {
                                 int16_t actual_p_idx = MOX::star[star_idx].planet_index[p_idx];
-                                MOX::planet[actual_p_idx].planet_special = (int8_t)choice;
+                                ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(actual_p_idx))).planet_special = (int8_t)choice;
                                 MOX::star[star_idx].system_special = (int8_t)choice;
                             }
                             success = true;
@@ -578,11 +523,11 @@ namespace MAPGEN {
                         break;
 
                     case SYSTEM_SPECIAL_ANCIENT_ARTIFACTS: {
-                        int16_t p_idx = RUSS::Get_Weighted_Choice_Short(habitable_planets, 5);
-                        if (p_idx >= 0) {
+                        ::game::id_planet p_idx = RUSS::Get_Weighted_Choice_Short(habitable_planets, 5);
+                        if (p_idx != ::game::NO_PLANET) {
                             if (commit_changes) {
                                 int16_t actual_p_idx = MOX::star[star_idx].planet_index[p_idx];
-                                MOX::planet[actual_p_idx].planet_special = (int8_t)choice;
+                                ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(actual_p_idx))).planet_special = (int8_t)choice;
                                 MOX::star[star_idx].system_special = (int8_t)choice;
                             }
                             success = true;
@@ -607,7 +552,7 @@ namespace MAPGEN {
 
         if (game_random::Random(100) > MOX::planet_special) {
             const int32_t excluded_mask = special_generation_config.generate_splinter_colonies ? 0 : 1 << SYSTEM_SPECIAL_SPLINTER_COLONY;
-            Get_A_Planet_Or_Star_Special(
+            Get_A_Planet_Or_Star_Special(&::game::world, 
                 star_idx, wormhole_out, &special_type, 1, excluded_mask);
         } else {
             special_type = SYSTEM_SPECIAL_NO_SPECIAL;
@@ -632,9 +577,9 @@ namespace MAPGEN {
         int16_t gas_giant_count = 0;
 
         for (int16_t star_idx = 0; star_idx < MOX::NUM_STARS; ++star_idx) {
-            for (int16_t planet_idx = 0; planet_idx < 5; ++planet_idx) {
-                if (MOX::star[star_idx].planet_index[planet_idx] > -1) {
-                    if (HAROLD::Planet_Type(star_idx, planet_idx) == PLANET_TYPE_GAS_GIANT) {
+            for (int16_t planet_idx_position = 0; planet_idx_position < 5; ++planet_idx_position) {
+                if (MOX::star[star_idx].planet_index[planet_idx_position] != ::game::NO_PLANET) {
+                    if (HAROLD::Planet_Type(&::game::world, star_idx, planet_idx_position) == PLANET_TYPE_GAS_GIANT) {
                         gas_giant_count++;
                     }
                 }
@@ -662,26 +607,18 @@ namespace MAPGEN {
         return result;
     }
 
-    void __cdecl Planet_Generation(int16_t star_idx) {
-        int16_t orbit_res = Generate_Orbit(star_idx);
-        int8_t orbit = (int8_t)orbit_res;
-        int16_t type = Generate_Satellite_Type(star_idx, orbit);
-
-        if (type == MAPGEN_SATELLITE_ASTEROID || type == MAPGEN_SATELLITE_GAS_GIANT || type == MAPGEN_SATELLITE_PLANET) {
-            MOX::star[star_idx].planet_index[orbit] = MOX::planet_count;
-
-            s_planet_data& planet = MOX::planet[MOX::planet_count];
-            planet.orbit = orbit;
-            planet.planet_type = (int8_t)type;
-
-            Generate_Satellite(star_idx, orbit, type);
-
-            MOX::planet_count++;
-            n_planets++;
-        }
+    void Planet_Generation(game::s_world_state* world_state, int16_t star_idx) {
+        const int16_t orbit = Generate_Orbit(star_idx);
+        const int16_t type = Generate_Satellite_Type(star_idx, orbit);
+        if (type != MAPGEN_SATELLITE_ASTEROID && type != MAPGEN_SATELLITE_GAS_GIANT && type != MAPGEN_SATELLITE_PLANET) return;
+        auto id = game::Create_Planet(world_state, s_planet_data{});
+        if (!id) return;
+        MOX::star[star_idx].planet_index[orbit] = *id;
+        Generate_Satellite(world_state, legacy_world::Planet_Id(*id), star_idx, orbit, type);
+        ++n_planets;
     }
 
-    int16_t __cdecl Home_Planet(int16_t planet_id) {
+    int16_t __cdecl Home_Planet(::game::id_planet planet_id) {
         for (int16_t i = 0; i < (int16_t)MOX::NUM_PLAYERS; ++i) {
             if (MOX::player[i].home_planet_id == planet_id) {
                 return i;
@@ -692,10 +629,10 @@ namespace MAPGEN {
 
     namespace {
 
-        bool Valid_Generated_Map() {
-            if (MOX::planet == nullptr || MOX::star == nullptr ||
-                MOX::player == nullptr || MOX::planet_count < 0 ||
-                MOX::planet_count > MAX_PLANETS || MOX::NUM_STARS < 0 ||
+        bool Valid_Generated_Map(::game::s_world_state* world_state) {
+            if (MOX::star == nullptr ||
+                MOX::player == nullptr || ::game::Planet_Count(world_state) < 0 ||
+                ::game::Planet_Count(world_state) > MAX_PLANETS || MOX::NUM_STARS < 0 ||
                 MOX::NUM_STARS > MAX_STARS || MOX::NUM_PLAYERS < 0 ||
                 MOX::NUM_PLAYERS > MAX_PLAYERS) {
                 return false;
@@ -708,18 +645,18 @@ namespace MAPGEN {
                     return false;
                 }
                 for (int16_t orbit = 0; orbit < 5; ++orbit) {
-                    const int16_t planet_idx = star.planet_index[orbit];
-                    if (planet_idx == -1) continue;
-                    if (planet_idx < 0 || planet_idx >= MOX::planet_count ||
-                        MOX::planet[planet_idx].star_index != star_idx ||
-                        MOX::planet[planet_idx].orbit != orbit) {
+                    const ::game::id_planet planet_idx = star.planet_index[orbit];
+                    if (planet_idx == ::game::NO_PLANET) continue;
+                    if (planet_idx == ::game::NO_PLANET || (::game::Find_Planet(world_state, legacy_world::Planet_Id(planet_idx)) == nullptr) ||
+                        ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index != star_idx ||
+                        ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).orbit != orbit) {
                         return false;
                     }
                 }
             }
-            for (int16_t planet_idx = 0; planet_idx < MOX::planet_count;
-                 ++planet_idx) {
-                const s_planet_data& planet = MOX::planet[planet_idx];
+            for (const auto& planet_entry : world_state->planets) {
+                const auto planet_idx = planet_entry.first;
+                const s_planet_data& planet = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx)));
                 if (planet.star_index < 0 ||
                     planet.star_index >= MOX::NUM_STARS || planet.orbit < 0 ||
                     planet.orbit >= 5 ||
@@ -750,7 +687,7 @@ namespace MAPGEN {
                 const int16_t home_planet_idx =
                     MOX::player[player_idx].home_planet_id;
                 if (home_planet_idx < 0 ||
-                    home_planet_idx >= MOX::planet_count) {
+                    home_planet_idx >= ::game::Planet_Count(world_state)) {
                     return false;
                 }
             }
@@ -758,23 +695,23 @@ namespace MAPGEN {
         }
 
         struct s_generated_map_scope {
-            s_planet_data* planets = MOX::planet;
+            game::s_world_state* world;
+            std::map<game::id_planet, s_planet_data>* planets;
             s_star_data* stars = MOX::star;
-
-            s_generated_map_scope(
-                s_planet_data* staged_planets, s_star_data* staged_stars) {
-                MOX::planet = staged_planets;
+            s_generated_map_scope(game::s_world_state* state,
+                std::map<game::id_planet, s_planet_data>* staged_planets, s_star_data* staged_stars)
+                : world(state), planets(staged_planets) {
+                world->planets.swap(*planets);
                 MOX::star = staged_stars;
             }
-
             ~s_generated_map_scope() {
-                MOX::planet = planets;
+                world->planets.swap(*planets);
                 MOX::star = stars;
             }
         };
 
         struct s_galaxy_candidate_scope {
-            s_planet_data* planets = MOX::planet;
+            std::map<game::id_planet, s_planet_data>* candidate_planets;
             s_star_data* stars = MOX::star;
             s_player* players = MOX::player;
             s_colony* colonies = MOX::colony;
@@ -783,20 +720,20 @@ namespace MAPGEN {
             std::map<game::id_leader, s_leader_data> leaders;
             s_leader_data* candidate_leaders;
             s_nebula* nebulas = MOX::nebula;
-            int16_t planet_count = MOX::planet_count;
             int16_t star_count = MOX::NUM_STARS;
             int16_t colony_count = MOX::NUM_COLONIES;
             int16_t ship_count = MOX::NUM_SHIPS;
             uint8_t nebula_count = MOX::NUM_NEBULAS;
 
-            s_galaxy_candidate_scope(game::s_world_state* state, s_planet_data* candidate_planets,
+            s_galaxy_candidate_scope(game::s_world_state* state, std::map<game::id_planet, s_planet_data>* staged_planets,
                 s_star_data* candidate_stars,
                 s_player* candidate_players,
                 s_colony* candidate_colonies,
                 s_ship_data* candidate_ships,
                 s_leader_data* candidate_leaders,
                 s_nebula* candidate_nebulas) : world_state(state), candidate_leaders(candidate_leaders) {
-                MOX::planet = candidate_planets;
+                candidate_planets = staged_planets;
+                world_state->planets.swap(*candidate_planets);
                 MOX::star = candidate_stars;
                 MOX::player = candidate_players;
                 MOX::colony = candidate_colonies;
@@ -807,7 +744,7 @@ namespace MAPGEN {
             }
 
             ~s_galaxy_candidate_scope() {
-                MOX::planet = planets;
+                world_state->planets.swap(*candidate_planets);
                 MOX::star = stars;
                 MOX::player = players;
                 MOX::colony = colonies;
@@ -816,7 +753,6 @@ namespace MAPGEN {
                 std::copy(records.begin(), records.end(), candidate_leaders);
                 leaders.swap(world_state->leaders);
                 MOX::nebula = nebulas;
-                MOX::planet_count = planet_count;
                 MOX::NUM_STARS = star_count;
                 MOX::NUM_COLONIES = colony_count;
                 MOX::NUM_SHIPS = ship_count;
@@ -825,7 +761,7 @@ namespace MAPGEN {
         };
 
         bool Valid_Galaxy_Candidate(game::s_world_state* world_state) {
-            if (!Valid_Generated_Map() || MOX::colony == nullptr ||
+            if (!Valid_Generated_Map(world_state) || MOX::colony == nullptr ||
                 MOX::ship == nullptr || world_state->leaders.size() != MAX_LEADERS ||
                 MOX::nebula == nullptr || MOX::NUM_COLONIES < 0 ||
                 MOX::NUM_COLONIES > MAX_COLONIES || MOX::NUM_SHIPS < 0 ||
@@ -853,17 +789,17 @@ namespace MAPGEN {
                  ++player_idx) {
                 const int16_t home_planet =
                     MOX::player[player_idx].home_planet_id;
-                if (home_planet < 0 || home_planet >= MOX::planet_count ||
-                    MOX::planet[home_planet].planet_type !=
+                if (home_planet < 0 || home_planet >= ::game::Planet_Count(world_state) ||
+                    ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(home_planet))).planet_type !=
                         PLANET_TYPE_PLANET ||
-                    MOX::planet[home_planet].colony_index < 0 ||
-                    MOX::planet[home_planet].colony_index >=
+                    ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(home_planet))).colony_index < 0 ||
+                    ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(home_planet))).colony_index >=
                         MOX::NUM_COLONIES ||
-                    MOX::colony[MOX::planet[home_planet].colony_index]
+                    MOX::colony[::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(home_planet))).colony_index]
                             .planet != home_planet ||
-                    MOX::colony[MOX::planet[home_planet].colony_index]
+                    MOX::colony[::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(home_planet))).colony_index]
                             .owner != player_idx ||
-                    MOX::star[MOX::planet[home_planet].star_index].owner !=
+                    MOX::star[::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(home_planet))).star_index].owner !=
                         player_idx) {
                     return false;
                 }
@@ -872,9 +808,9 @@ namespace MAPGEN {
                  colony_idx < MOX::NUM_COLONIES;
                  ++colony_idx) {
                 const s_colony& colony = MOX::colony[colony_idx];
-                if (colony.planet < 0 || colony.planet >= MOX::planet_count ||
+                if (colony.planet == ::game::NO_PLANET || (::game::Find_Planet(world_state, legacy_world::Planet_Id(colony.planet)) == nullptr) ||
                     colony.owner < 0 || colony.owner >= MOX::NUM_PLAYERS ||
-                    MOX::planet[colony.planet].colony_index != colony_idx) {
+                    ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony.planet))).colony_index != colony_idx) {
                     return false;
                 }
             }
@@ -987,9 +923,7 @@ namespace MAPGEN {
 
         bool Compact_Galaxy_Candidate(game::s_world_state* world_state) {
             int16_t star_remap[MAX_STARS];
-            int16_t planet_remap[MAX_PLANETS];
             memset(star_remap, 0xff, sizeof(star_remap));
-            memset(planet_remap, 0xff, sizeof(planet_remap));
 
             int16_t next_star = 0;
             for (int16_t star_id = 0; star_id < MOX::NUM_STARS;
@@ -1006,35 +940,20 @@ namespace MAPGEN {
                 ++next_star;
             }
 
-            int16_t next_planet = 0;
-            for (int16_t planet_id = 0; planet_id < MOX::planet_count;
-                 ++planet_id) {
-                const s_planet_data& source = MOX::planet[planet_id];
-                if (source.star_index < 0 || source.star_index >= MAX_STARS ||
-                    star_remap[source.star_index] < 0) {
-                    continue;
+            for (auto entry = world_state->planets.begin(); entry != world_state->planets.end();) {
+                auto& planet = entry->second;
+                if (planet.star_index < 0 || planet.star_index >= MAX_STARS || star_remap[planet.star_index] < 0) {
+                    entry = world_state->planets.erase(entry);
+                } else {
+                    planet.star_index = star_remap[planet.star_index];
+                    ++entry;
                 }
-                planet_remap[planet_id] = next_planet;
-                if (next_planet != planet_id) {
-                    MOX::planet[next_planet] = source;
-                }
-                MOX::planet[next_planet].star_index =
-                    star_remap[source.star_index];
-                ++next_planet;
             }
 
             for (int16_t star_id = 0; star_id < next_star; ++star_id) {
                 s_star_data& star = MOX::star[star_id];
-                for (int16_t orbit = 0; orbit < 5; ++orbit) {
-                    const int16_t planet_id = star.planet_index[orbit];
-                    if (planet_id < 0) {
-                        star.planet_index[orbit] = -1;
-                    } else if (planet_id >= MAX_PLANETS ||
-                        planet_remap[planet_id] < 0) {
-                        return false;
-                    } else {
-                        star.planet_index[orbit] = planet_remap[planet_id];
-                    }
+                for (const auto id : star.planet_index) {
+                    if (id != game::NO_PLANET && game::Find_Planet(world_state, id) == nullptr) return false;
                 }
                 if (star.wormhole_star_id >= 0) {
                     if (star.wormhole_star_id >= MAX_STARS ||
@@ -1066,32 +985,14 @@ namespace MAPGEN {
                         star_remap[relocation];
                 }
             }
-            for (int16_t player_id = 0; player_id < MOX::NUM_PLAYERS;
-                 ++player_id) {
-                const int16_t home = MOX::player[player_id].home_planet_id;
-                if (home < 0 || home >= MAX_PLANETS ||
-                    planet_remap[home] < 0) {
-                    return false;
-                }
-                MOX::player[player_id].home_planet_id =
-                    planet_remap[home];
+            for (int16_t player_id = 0; player_id < MOX::NUM_PLAYERS; ++player_id) {
+                if (game::Find_Planet(world_state, MOX::player[player_id].home_planet_id) == nullptr) return false;
             }
-            for (int16_t colony_id = 0;
-                 colony_id < MOX::NUM_COLONIES;
-                 ++colony_id) {
-                const int16_t planet = MOX::colony[colony_id].planet;
-                if (planet < 0 || planet >= MAX_PLANETS ||
-                    planet_remap[planet] < 0) {
-                    return false;
-                }
-                MOX::colony[colony_id].planet = planet_remap[planet];
+            for (int16_t colony_id = 0; colony_id < MOX::NUM_COLONIES; ++colony_id) {
+                if (game::Find_Planet(world_state, MOX::colony[colony_id].planet) == nullptr) return false;
             }
-            for (int16_t planet_id = 0; planet_id < next_planet;
-                 ++planet_id) {
-                const int16_t colony = MOX::planet[planet_id].colony_index;
-                if (colony >= MOX::NUM_COLONIES) {
-                    return false;
-                }
+            for (const auto& [id, planet] : world_state->planets) {
+                if (planet.colony_index >= MOX::NUM_COLONIES) return false;
             }
             for (int16_t ship_id = 0; ship_id < MOX::NUM_SHIPS;
                  ++ship_id) {
@@ -1126,7 +1027,6 @@ namespace MAPGEN {
                 }
             }
             MOX::NUM_STARS = next_star;
-            MOX::planet_count = next_planet;
             int16_t next_nebula = 0;
             for (int16_t nebula_id = 0;
                  nebula_id < MOX::NUM_NEBULAS;
@@ -1143,20 +1043,21 @@ namespace MAPGEN {
             return true;
         }
 
-        void Refresh_Configured_Planet(s_planet_data* planet) {
-            const int16_t planet_idx = (int16_t)(planet - MOX::planet);
-            planet->food_per_farmer = MAPGEN::Generate_Food_Per_Farmer(
-                planet->star_index, planet_idx);
+        void Refresh_Configured_Planet(game::s_world_state* world_state, game::id_planet planet_idx) {
+            auto* planet = &game::Planet(world_state, planet_idx);
+            planet->food_per_farmer = MAPGEN::Generate_Food_Per_Farmer(world_state, 
+                planet->star_index, legacy_world::Planet_Id(planet_idx));
             if ((planet->environmental_alterations & 0x2) != 0) {
                 planet->food_per_farmer += COLCALC::food_farmer_bonus.soil_enrichment;
             }
-            planet->max_farms = MAPGEN::Generate_Max_Farms(planet->star_index, planet_idx);
+            planet->max_farms = MAPGEN::Generate_Max_Farms(world_state, planet->star_index, legacy_world::Planet_Id(planet_idx));
         }
 
-        bool Transform_Generated_Planets() {
+        bool Transform_Generated_Planets(::game::s_world_state* world_state) {
             bool colony_state_changed = false;
-            for (int16_t planet_idx = 0; planet_idx < MOX::planet_count; ++planet_idx) {
-                s_planet_data* planet = &MOX::planet[planet_idx];
+            for (const auto& planet_entry : (world_state)->planets) {
+            const ::game::id_planet planet_idx = planet_entry.first;
+                s_planet_data* planet = &::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx)));
                 s_star_data* star = &MOX::star[planet->star_index];
                 const int8_t original_climate = planet->climate;
                 const int8_t original_mineral_class = planet->mineral_class;
@@ -1213,7 +1114,7 @@ namespace MAPGEN {
                     planet->gravity_class != original_gravity_class ||
                     planet->size != original_size;
                 if (planet_state_changed) {
-                    Refresh_Configured_Planet(planet);
+                    Refresh_Configured_Planet(world_state, planet_idx);
                 }
                 colony_state_changed |= planet->colony_index >= 0 &&
                     (planet_state_changed || planet->planet_special != original_special);
@@ -1247,7 +1148,7 @@ namespace MAPGEN {
             }
         }
 
-        bool Transform_Monster_Guarded_Planets() {
+        bool Transform_Monster_Guarded_Planets(::game::s_world_state* world_state) {
             bool colony_state_changed = false;
             for (int16_t ship_idx = 0; ship_idx < MOX::NUM_SHIPS; ++ship_idx) {
                 const s_ship_data* ship = &MOX::ship[ship_idx];
@@ -1258,9 +1159,9 @@ namespace MAPGEN {
                 }
                 s_star_data* star = &MOX::star[ship->location];
                 for (int orbit = 0; orbit < 5; ++orbit) {
-                    const int16_t planet_idx = star->planet_index[orbit];
-                    if (planet_idx < 0 || planet_idx >= MOX::planet_count) continue;
-                    s_planet_data* planet = &MOX::planet[planet_idx];
+                    const ::game::id_planet planet_idx = star->planet_index[orbit];
+                    if (planet_idx == ::game::NO_PLANET || (::game::Find_Planet(world_state, legacy_world::Planet_Id(planet_idx)) == nullptr)) continue;
+                    s_planet_data* planet = &::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx)));
                     const int8_t original_climate = planet->climate;
                     const int8_t original_mineral_class = planet->mineral_class;
                     const int8_t original_gravity_class = planet->gravity_class;
@@ -1293,7 +1194,7 @@ namespace MAPGEN {
                         planet->gravity_class != original_gravity_class ||
                         planet->size != original_size;
                     if (planet_state_changed) {
-                        Refresh_Configured_Planet(planet);
+                        Refresh_Configured_Planet(world_state, planet_idx);
                     }
                     colony_state_changed |= planet->colony_index >= 0 && planet_state_changed;
                 }
@@ -1301,18 +1202,18 @@ namespace MAPGEN {
             return colony_state_changed;
         }
 
-        void Transform_Home_Systems() {
+        void Transform_Home_Systems(::game::s_world_state* world_state) {
             const bool flatten = MAPGEN::home_system_config.normalize_unoccupied_planets ||
                 MAPGEN::home_system_config.use_fixed_unoccupied_planets;
             for (int16_t player_idx = 0; player_idx < MOX::NUM_PLAYERS; ++player_idx) {
                 s_player* player = &MOX::player[player_idx];
-                s_planet_data* home = &MOX::planet[player->home_planet_id];
+                s_planet_data* home = &::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(player->home_planet_id)));
                 s_star_data* star = &MOX::star[home->star_index];
                 int unoccupied_index = 0;
                 for (int orbit = 0; orbit < 5; ++orbit) {
-                    const int16_t planet_idx = star->planet_index[orbit];
-                    if (planet_idx < 0) continue;
-                    s_planet_data* planet = &MOX::planet[planet_idx];
+                    const ::game::id_planet planet_idx = star->planet_index[orbit];
+                    if (planet_idx == ::game::NO_PLANET) continue;
+                    s_planet_data* planet = &::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx)));
                     if (planet->colony_index != -1) continue;
                     const int8_t original_climate = planet->climate;
                     const int8_t original_mineral_class = planet->mineral_class;
@@ -1400,86 +1301,55 @@ namespace MAPGEN {
                         planet->gravity_class != original_gravity_class ||
                         planet->size != original_size;
                     if (planet_state_changed) {
-                        Refresh_Configured_Planet(planet);
+                        Refresh_Configured_Planet(world_state, planet_idx);
                     }
                     ++unoccupied_index;
                 }
             }
         }
 
-        bool Transform_Lua_Home_Systems(bool* succeeded) {
+        bool Transform_Lua_Home_Systems(game::s_world_state* world_state, bool* succeeded) {
             *succeeded = false;
-            if (!Valid_Generated_Map()) {
-                exitm::Exit_With_Message(
-                    "invalid map before Lua home-system setup");
-            }
-            std::vector<s_planet_data> staged_planets(
-                MOX::planet, MOX::planet + MOX::planet_count);
-            std::vector<s_star_data> staged_stars(
-                MOX::star, MOX::star + MOX::NUM_STARS);
+            if (!Valid_Generated_Map(world_state)) exitm::Exit_With_Message("invalid map before Lua home-system setup");
+            auto staged_planets = world_state->planets;
+            std::vector<s_star_data> staged_stars(MOX::star, MOX::star + MOX::NUM_STARS);
             bool colony_state_changed = false;
             {
-                s_generated_map_scope scope(
-                    staged_planets.data(), staged_stars.data());
-                for (int16_t player_idx = 0;
-                     player_idx < MOX::NUM_PLAYERS;
-                     ++player_idx) {
-                    const int16_t home_planet_idx =
-                        MOX::player[player_idx].home_planet_id;
-                    const orion2re::lua::game::s_home_system_generated_event
-                        event = {
-                            player_idx,
-                            MOX::planet[home_planet_idx].star_index,
-                        };
-                    orion2re::lua::game::Home_System_Generated(&event);
+                s_generated_map_scope scope(world_state, &staged_planets, staged_stars.data());
+                for (int16_t player_idx = 0; player_idx < MOX::NUM_PLAYERS; ++player_idx) {
+                    const auto home = MOX::player[player_idx].home_planet_id;
+                    const orion2re::lua::game::s_home_system_generated_event event = {player_idx, game::Planet(world_state, home).star_index};
+                    orion2re::lua::game::Home_System_Generated(world_state, &event);
                 }
-                for (int16_t planet_idx = 0;
-                     planet_idx < MOX::planet_count;
-                     ++planet_idx) {
-                    const orion2re::lua::game::s_planet_generated_event
-                        event = {planet_idx};
-                    orion2re::lua::game::Planet_Generated(&event);
+                for (const auto& [id, planet] : world_state->planets) {
+                    const orion2re::lua::game::s_planet_generated_event event = {id};
+                    orion2re::lua::game::Planet_Generated(world_state, &event);
                 }
-                if (!Valid_Generated_Map()) {
-                    exitm::Exit_With_Message(
-                        "Lua home-system setup produced an invalid map");
-                }
-                for (int16_t planet_idx = 0;
-                     planet_idx < MOX::planet_count;
-                     ++planet_idx) {
-                    s_planet_data& planet = MOX::planet[planet_idx];
-                    const s_planet_data& original = scope.planets[planet_idx];
-                    const bool economy_changed =
-                        planet.size != original.size ||
-                        planet.climate != original.climate ||
-                        planet.mineral_class != original.mineral_class ||
-                        planet.gravity_class != original.gravity_class ||
+                if (!Valid_Generated_Map(world_state)) exitm::Exit_With_Message("Lua home-system setup produced an invalid map");
+                for (const auto& [id, planet] : world_state->planets) {
+                    const auto& original = scope.planets->at(id);
+                    const bool economy_changed = planet.size != original.size || planet.climate != original.climate ||
+                        planet.mineral_class != original.mineral_class || planet.gravity_class != original.gravity_class ||
                         planet.planet_special != original.planet_special ||
-                        MOX::star[planet.star_index].system_special !=
-                            scope.stars[planet.star_index].system_special;
-                    Refresh_Configured_Planet(&planet);
-                    colony_state_changed |= planet.colony_index >= 0 &&
-                        economy_changed;
+                        MOX::star[planet.star_index].system_special != scope.stars[planet.star_index].system_special;
+                    Refresh_Configured_Planet(world_state, id);
+                    colony_state_changed |= planet.colony_index >= 0 && economy_changed;
                 }
-                memcpy(scope.planets,
-                    staged_planets.data(),
-                    staged_planets.size() * sizeof(s_planet_data));
-                memcpy(scope.stars,
-                    staged_stars.data(),
-                    staged_stars.size() * sizeof(s_star_data));
             }
+            world_state->planets = std::move(staged_planets);
+            std::copy(staged_stars.begin(), staged_stars.end(), MOX::star);
             *succeeded = true;
             return colony_state_changed;
         }
 
-        void Reveal_Starting_Area() {
+        void Reveal_Starting_Area(::game::s_world_state* world_state) {
             const uint32_t radius = MAPGEN::starting_reveal_radius;
             if (radius == 0) return;
 
             const uint32_t radius_sq = radius * radius * 900;
             for (int16_t player_idx = 0; player_idx < MOX::NUM_PLAYERS; ++player_idx) {
                 const int16_t home_planet_idx = MOX::player[player_idx].home_planet_id;
-                const s_star_data* home = &MOX::star[MOX::planet[home_planet_idx].star_index];
+                const s_star_data* home = &MOX::star[::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(home_planet_idx))).star_index];
                 for (int16_t star_idx = 0; star_idx < MOX::NUM_STARS; ++star_idx) {
                     s_star_data* star = &MOX::star[star_idx];
                     const int32_t dx = star->x - home->x;
@@ -1493,18 +1363,18 @@ namespace MAPGEN {
 
     } // namespace
 
-    bool __cdecl Finalize_Configured_New_Game(bool* succeeded) {
+    bool __cdecl Finalize_Configured_New_Game(game::s_world_state* world_state, bool* succeeded) {
         bool local_succeeded = false;
         if (succeeded == nullptr) succeeded = &local_succeeded;
         *succeeded = false;
-        bool colony_state_changed = Transform_Generated_Planets();
-        Transform_Marooned_Heroes(&game::world);
-        colony_state_changed |= Transform_Monster_Guarded_Planets();
-        Transform_Home_Systems();
+        bool colony_state_changed = Transform_Generated_Planets(world_state);
+        Transform_Marooned_Heroes(world_state);
+        colony_state_changed |= Transform_Monster_Guarded_Planets(world_state);
+        Transform_Home_Systems(world_state);
         bool lua_succeeded = false;
-        colony_state_changed |= Transform_Lua_Home_Systems(&lua_succeeded);
+        colony_state_changed |= Transform_Lua_Home_Systems(world_state, &lua_succeeded);
         if (!lua_succeeded) return false;
-        Reveal_Starting_Area();
+        Reveal_Starting_Area(world_state);
         *succeeded = true;
         return colony_state_changed;
     }
@@ -1518,8 +1388,7 @@ namespace MAPGEN {
             return true;
         }
 
-        std::vector<s_planet_data> planets(
-            MOX::planet, MOX::planet + MAX_PLANETS);
+        auto planets = world_state->planets;
         std::vector<s_star_data> stars(
             MOX::star, MOX::star + MAX_STARS);
         std::vector<s_player> players(
@@ -1548,7 +1417,7 @@ namespace MAPGEN {
         }
 
         bool invoked = false;
-        int16_t candidate_planet_count = MOX::planet_count;
+
         int16_t candidate_star_count = MOX::NUM_STARS;
         int16_t candidate_colony_count = MOX::NUM_COLONIES;
         int16_t candidate_ship_count = MOX::NUM_SHIPS;
@@ -1556,7 +1425,7 @@ namespace MAPGEN {
         bool valid = false;
         orion2re::lua::game::internal::Advance_Topology_Generation();
         {
-            s_galaxy_candidate_scope scope(world_state, planets.data(),
+            s_galaxy_candidate_scope scope(world_state, &planets,
                 stars.data(),
                 players.data(),
                 colonies.data(),
@@ -1574,13 +1443,12 @@ namespace MAPGEN {
             valid = invoked && Compact_Galaxy_Candidate(world_state) &&
                 Valid_Galaxy_Candidate(world_state);
             if (valid) {
-                for (int16_t planet_idx = 0;
-                     planet_idx < MOX::planet_count;
-                     ++planet_idx) {
-                    Refresh_Configured_Planet(&MOX::planet[planet_idx]);
+                for (const auto& planet_entry : world_state->planets) {
+                const auto planet_idx = planet_entry.first;
+                    Refresh_Configured_Planet(world_state, planet_idx);
                 }
                 GEO::Initialize_Star_In_Nebula_Info();
-                candidate_planet_count = MOX::planet_count;
+
                 candidate_star_count = MOX::NUM_STARS;
                 candidate_colony_count = MOX::NUM_COLONIES;
                 candidate_ship_count = MOX::NUM_SHIPS;
@@ -1604,9 +1472,7 @@ namespace MAPGEN {
             ++generation;
         }
 
-        memcpy(MOX::planet,
-            planets.data(),
-            MAX_PLANETS * sizeof(s_planet_data));
+        world_state->planets = std::move(planets);
         memcpy(MOX::star, stars.data(), MAX_STARS * sizeof(s_star_data));
         memcpy(MOX::player, players.data(), MAX_PLAYERS * sizeof(s_player));
         memcpy(MOX::colony,
@@ -1617,7 +1483,7 @@ namespace MAPGEN {
         memcpy(MOX::nebula,
             nebulas.data(),
             MAX_NEBULAS * sizeof(s_nebula));
-        MOX::planet_count = candidate_planet_count;
+
         MOX::NUM_STARS = candidate_star_count;
         MOX::NUM_COLONIES = candidate_colony_count;
         MOX::NUM_SHIPS = candidate_ship_count;

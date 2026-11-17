@@ -225,42 +225,28 @@ namespace debug_game_widgets {
 #endif
     }
 
-    bool Planet_Reference(const char* label, int16_t* planet_index, bool allow_none) {
+    bool Planet_Reference(game::s_world_state* world_state, const char* label, game::id_planet* selected, bool allow_none) {
 #if defined(ORION2RE_ENABLE_DEBUG_OVERLAY)
-        if (label == nullptr || planet_index == nullptr) {
-            return false;
-        }
-        const int16_t count = MOX::planet == nullptr
-            ? 0
-            : std::clamp<int16_t>(MOX::planet_count, 0, MAX_PLANETS);
+        if (label == nullptr || selected == nullptr) return false;
         char preview[64];
-        if (*planet_index < 0) {
-            strlcpy(preview, "None", sizeof(preview));
-        } else if (*planet_index < count) {
-            snprintf(preview, sizeof(preview), "Planet %d", (int)*planet_index);
-        } else {
-            strlcpy(preview, "Invalid", sizeof(preview));
-        }
+        if (*selected == game::NO_PLANET) strlcpy(preview, "None", sizeof(preview));
+        else if (game::Find_Planet(world_state, *selected) == nullptr) strlcpy(preview, "Invalid", sizeof(preview));
+        else snprintf(preview, sizeof(preview), "Planet %u", selected->id);
         bool changed = false;
         if (ImGui::BeginCombo(label, preview)) {
-            if (allow_none && ImGui::Selectable("None", *planet_index < 0)) {
-                *planet_index = -1;
-                changed = true;
-            }
-            for (int16_t index = 0; index < count; ++index) {
+            if (allow_none && ImGui::Selectable("None", *selected == game::NO_PLANET)) { *selected = game::NO_PLANET; changed = true; }
+            for (const auto& [id, planet] : world_state->planets) {
                 char item[64];
-                snprintf(item, sizeof(item), "Planet %d", (int)index);
-                if (ImGui::Selectable(item, *planet_index == index)) {
-                    *planet_index = index;
-                    changed = true;
-                }
+                snprintf(item, sizeof(item), "Planet %u", id.id);
+                if (ImGui::Selectable(item, *selected == id)) { *selected = id; changed = true; }
             }
             ImGui::EndCombo();
         }
         return changed;
 #else
+        (void)world_state;
         (void)label;
-        (void)planet_index;
+        (void)selected;
         (void)allow_none;
         return false;
 #endif

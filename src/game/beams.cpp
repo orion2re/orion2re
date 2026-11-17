@@ -247,7 +247,7 @@ namespace BEAMS {
         // Size class: 0=Tiny, 1=Small, 2=Medium, 3=Large, 4=Huge, 5=Titan/Starbase
         size_offset = (int16_t)MOX::combat_data[ship_idx].size_class * 8;
 
-        COMBINIT::Ship_Center_Offsets(ship_idx, &x_center, &y_center);
+        COMBINIT::Ship_Center_Offsets(&::game::world, ship_idx, &x_center, &y_center);
 
         x_center += dx;
         y_center += dy;
@@ -271,7 +271,7 @@ namespace BEAMS {
         int16_t offset_x;
         int16_t offset_y;
 
-        COMBINIT::Ship_Center_Offsets(ship_idx, &offset_x, &offset_y);
+        COMBINIT::Ship_Center_Offsets(&::game::world, ship_idx, &offset_x, &offset_y);
 
         int16_t shield_size2 = Ship_Size_To_Shield_Size(size_class);
         int16_t shield_radius = shield_diameters[shield_size2] / 2;
@@ -297,7 +297,7 @@ namespace BEAMS {
                 }
 
                 Adjust_Shield_Display_Status(&shield_status);
-                Draw_Shield_Hit(start_x, start_y, ship_idx, 0, 0, hit_rotation, shield_status);
+                Draw_Shield_Hit(&::game::world, start_x, start_y, ship_idx, 0, 0, hit_rotation, shield_status);
                 Draw_Damage_Message_Queue();
 
                 timer::Release_Time(1);
@@ -489,7 +489,7 @@ namespace BEAMS {
     }
 
     /** Draw the current shield-hit frame for the target ship or planet. */
-    void __cdecl Draw_Shield_Hit(int16_t x, int16_t y, int16_t ship_idx, int16_t is_special, int16_t is_heavy, int16_t hit_rotation, int16_t frame_index) {
+    void __cdecl Draw_Shield_Hit(::game::s_world_state* world_state, int16_t x, int16_t y, int16_t ship_idx, int16_t is_special, int16_t is_heavy, int16_t hit_rotation, int16_t frame_index) {
         int16_t base_rot = BEAMS::Rot_To_Base_Rot(hit_rotation);
         int16_t rot_method = BEAMS::Rot_To_Rot_Method(hit_rotation);
 
@@ -504,9 +504,9 @@ namespace BEAMS {
             shield_size_class = MOX::combat_data[ship_idx].size_class;
             shield_size = BEAMS::Ship_Size_To_Shield_Size(shield_size_class);
         } else {
-            int16_t planet_idx = MOX::colony[MOX::cmbt_colony_id].planet;
+            ::game::id_planet planet_idx = MOX::colony[MOX::cmbt_colony_id].planet;
             shield_size_class = MOX::combat_data[0].size_class + 6;
-            shield_size = BEAMS::Planet_Size_To_Shield_Size(MOX::planet[planet_idx].size);
+            shield_size = BEAMS::Planet_Size_To_Shield_Size(::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).size);
         }
 
         uint8_t diam = BEAMS::shield_diameters[shield_size];
@@ -585,19 +585,19 @@ namespace BEAMS {
         }
 
         if (ship_idx == 0) {
-            int16_t planet_idx = MOX::colony[MOX::cmbt_colony_id].planet;
-            int16_t current_shield_size = BEAMS::Planet_Size_To_Shield_Size(MOX::planet[planet_idx].size);
+            ::game::id_planet planet_idx = MOX::colony[MOX::cmbt_colony_id].planet;
+            int16_t current_shield_size = BEAMS::Planet_Size_To_Shield_Size(::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).size);
             uint8_t diam2 = BEAMS::shield_diameters[current_shield_size];
 
             int16_t c_cx, c_cy;
-            COMBINIT::Ship_Center_Offsets(ship_idx, &c_cx, &c_cy);
+            COMBINIT::Ship_Center_Offsets(world_state, ship_idx, &c_cx, &c_cy);
 
             int16_t half_diam2 = diam2 / 2;
             int16_t x_offset = half_diam2 - c_cx;
             int16_t y_offset = half_diam2 - c_cy;
 
             int16_t s_cx, s_cy;
-            CMBTDRW1::Get_Draw_Ship_Offsets(ship_idx, &s_cx, &s_cy);
+            CMBTDRW1::Get_Draw_Ship_Offsets(world_state, ship_idx, &s_cx, &s_cy);
 
             int16_t draw_x = x + x_offset + s_cx;
             int16_t draw_y = y + y_offset + s_cy;
@@ -625,14 +625,14 @@ namespace BEAMS {
             uint8_t diam2 = BEAMS::shield_diameters[current_shield_size];
 
             int16_t c_cx, c_cy;
-            COMBINIT::Ship_Center_Offsets(ship_idx, &c_cx, &c_cy);
+            COMBINIT::Ship_Center_Offsets(world_state, ship_idx, &c_cx, &c_cy);
 
             int16_t half_diam2 = diam2 / 2;
             int16_t x_offset = half_diam2 - c_cx;
             int16_t y_offset = half_diam2 - c_cy;
 
             int16_t s_cx, s_cy;
-            CMBTDRW1::Get_Draw_Ship_Offsets(ship_idx, &s_cx, &s_cy);
+            CMBTDRW1::Get_Draw_Ship_Offsets(world_state, ship_idx, &s_cx, &s_cy);
 
             int16_t draw_x = x + x_offset + s_cx;
             int16_t draw_y = y + y_offset + s_cy;
@@ -1218,7 +1218,7 @@ namespace BEAMS {
      * Drive the full beam-weapon visual sequence for one attack exchange.
      * @param fx_entries Beam effect entries to play in sequence.
      */
-    void __cdecl Beam_SFX(int16_t attacker_ship_id, int16_t attacker_x, int16_t attacker_y, int16_t target_id, int16_t target_x, int16_t target_y, s_beam_fx_entry* fx_entries, int16_t is_non_ship_target) {
+    void __cdecl Beam_SFX(::game::s_world_state* world_state, int16_t attacker_ship_id, int16_t attacker_x, int16_t attacker_y, int16_t target_id, int16_t target_x, int16_t target_y, s_beam_fx_entry* fx_entries, int16_t is_non_ship_target) {
         int16_t current_fx_idx[2] = {0, -1};
         int16_t frame_idx[2] = {0, 0};
         int16_t rand_offsets[6] = {0, 0, 0, 0, 0, 0};
@@ -1238,13 +1238,13 @@ namespace BEAMS {
             int16_t target_facing_dir = MOX::combat_data[target_id].facing_dir;
 
             int16_t attacker_center_x, attacker_center_y;
-            COMBINIT::Ship_Center_Offsets(attacker_ship_id, &attacker_center_x, &attacker_center_y);
+            COMBINIT::Ship_Center_Offsets(world_state, attacker_ship_id, &attacker_center_x, &attacker_center_y);
             attacker_center_x += attacker_x;
             attacker_center_y += attacker_y;
 
             int16_t target_center_x, target_center_y;
             if (is_non_ship_target == 0) {
-                COMBINIT::Ship_Center_Offsets(target_id, &target_center_x, &target_center_y);
+                COMBINIT::Ship_Center_Offsets(world_state, target_id, &target_center_x, &target_center_y);
                 target_center_x += target_x;
                 target_center_y += target_y;
             } else {
@@ -1433,7 +1433,7 @@ namespace BEAMS {
 
                                             g_firing_reflected_beam_flag = 1;
                                             g_reflection_state_flag = 2;
-                                            Beam_SFX(target_id, target_x, target_y, attacker_ship_id, attacker_x, attacker_y, reflected_fx, 0);
+                                            Beam_SFX(world_state, target_id, target_x, target_y, attacker_ship_id, attacker_x, attacker_y, reflected_fx, 0);
                                             reflection_field_display_status = 0;
                                             g_firing_reflected_beam_flag = 0;
 
@@ -1506,8 +1506,8 @@ namespace BEAMS {
 
                     if (target_id == 0) {
                         int16_t colony_id = MOX::cmbt_colony_id;
-                        int16_t planet_idx = MOX::colony[colony_id].planet;
-                        int16_t planet_size = MOX::planet[planet_idx].size;
+                        ::game::id_planet planet_idx = MOX::colony[colony_id].planet;
+                        int16_t planet_size = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).size;
                         int16_t shield_size = Planet_Size_To_Shield_Size(planet_size);
                         int16_t shield_diam = shield_diameters[shield_size];
                         int16_t draw_facing = shield_hit_draw_facing;
@@ -1515,7 +1515,7 @@ namespace BEAMS {
                         int16_t max_radius = shield_diam / 2;
                         int16_t dx = target_center_x - max_radius;
                         int16_t dy = target_center_y - max_radius;
-                        Draw_Shield_Hit(dx, dy, target_id, shield_special != 0, 0, hit_facing, (int16_t)draw_facing);
+                        Draw_Shield_Hit(world_state, dx, dy, target_id, shield_special != 0, 0, hit_facing, (int16_t)draw_facing);
                     } else {
                         int16_t shield_size = Ship_Size_To_Shield_Size(MOX::combat_data[target_id].size_class);
                         int16_t shield_diam = shield_diameters[shield_size];
@@ -1528,14 +1528,14 @@ namespace BEAMS {
                         int16_t max_radius = shield_diam / 2;
                         int16_t dx = target_center_x - max_radius;
                         int16_t dy = target_center_y - max_radius;
-                        Draw_Shield_Hit(dx, dy, target_id, shield_special != 0, specials, hit_facing, (int16_t)draw_facing);
+                        Draw_Shield_Hit(world_state, dx, dy, target_id, shield_special != 0, specials, hit_facing, (int16_t)draw_facing);
                     }
 
                     if (reflection_field_display_status != 0) {
                         if (g_reflection_state_flag == 2) {
                             Adjust_Reflection_Field_Display_Status(&reflection_field_hit_draw_facing);
                             int16_t refl_center_x, refl_center_y;
-                            COMBINIT::Ship_Center_Offsets(attacker_ship_id, &refl_center_x, &refl_center_y);
+                            COMBINIT::Ship_Center_Offsets(world_state, attacker_ship_id, &refl_center_x, &refl_center_y);
                             refl_center_x += attacker_x;
                             refl_center_y += attacker_y;
                             int16_t shield_size = Ship_Size_To_Shield_Size(MOX::combat_data[attacker_ship_id].size_class);
@@ -1549,7 +1549,7 @@ namespace BEAMS {
                             int16_t shield_size = Ship_Size_To_Shield_Size(MOX::combat_data[target_id].size_class);
                             int16_t refl_diam = reflection_field_diameters[shield_size];
                             int16_t refl_center_x, refl_center_y;
-                            COMBINIT::Ship_Center_Offsets(target_id, &refl_center_x, &refl_center_y);
+                            COMBINIT::Ship_Center_Offsets(world_state, target_id, &refl_center_x, &refl_center_y);
                             refl_center_x += target_x;
                             refl_center_y += target_y;
                             int16_t draw_facing = reflection_field_hit_draw_facing;
@@ -2087,8 +2087,8 @@ namespace BEAMS {
         int16_t p2_x_offset;
         int16_t p2_y_offset;
 
-        COMBINIT::Ship_Center_Offsets(ship1_idx, &p1_x_offset, &p1_y_offset);
-        COMBINIT::Ship_Center_Offsets(ship2_idx, &p2_x_offset, &p2_y_offset);
+        COMBINIT::Ship_Center_Offsets(&::game::world, ship1_idx, &p1_x_offset, &p1_y_offset);
+        COMBINIT::Ship_Center_Offsets(&::game::world, ship2_idx, &p2_x_offset, &p2_y_offset);
 
         int16_t x1 = MOX::combat_data[ship1_idx].x * 20 + p1_x_offset;
         int16_t y1 = MOX::combat_data[ship1_idx].y * 20 + p1_y_offset;

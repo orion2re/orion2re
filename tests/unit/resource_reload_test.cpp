@@ -1,3 +1,4 @@
+#include "../fixtures/planet_state.h"
 #include "pch.h"
 
 #include "doctest/doctest.h"
@@ -463,19 +464,19 @@ DOCTEST_TEST_CASE("saved mods and canonical launch restoration refresh resources
 
 DOCTEST_TEST_CASE("invalid planet links do not escape the planet and star arrays") {
     test::s_game_state state;
-    MOX::planet_count = MOX::NUM_STARS = 1;
+    test::Resize_Planets(&::game::world, MOX::NUM_STARS = 1);
     state.planets[0].star_index = 5000;
     state.planets[0].orbit = 9;
     state.stars[0].planet_index[0] = 5000;
-    for (int j = 1; j < 5; ++j) state.stars[0].planet_index[j] = -1;
-    DOCTEST_CHECK(HAROLD::Planet_Number(0) == 0);
-    DOCTEST_CHECK(HAROLD::Planet_Number(-1) == 0);
-    DOCTEST_CHECK(HAROLD::Planet_Number(5000) == 0);
-    HAROLD::Confirm_Planet_And_Star_Index_Link("test");
+    for (int j = 1; j < 5; ++j) state.stars[0].planet_index[j] = ::game::NO_PLANET;
+    DOCTEST_CHECK(HAROLD::Planet_Number(&::game::world, legacy_world::Planet_Id(0)) == 0);
+    DOCTEST_CHECK(HAROLD::Planet_Number(&::game::world, legacy_world::Planet_Id(-1)) == 0);
+    DOCTEST_CHECK(HAROLD::Planet_Number(&::game::world, legacy_world::Planet_Id(5000)) == 0);
+    HAROLD::Confirm_Planet_And_Star_Index_Link(&::game::world"test");
     state.stars[0].planet_index[0] = 0;
-    HAROLD::Confirm_Planet_And_Star_Index_Link("test");
+    HAROLD::Confirm_Planet_And_Star_Index_Link(&::game::world"test");
     state.planets[0].star_index = state.planets[0].orbit = 0;
-    DOCTEST_CHECK(HAROLD::Planet_Number(0) == 0);
+    DOCTEST_CHECK(HAROLD::Planet_Number(&::game::world, legacy_world::Planet_Id(0)) == 0);
 }
 
 DOCTEST_TEST_CASE("session settings recover missing and short files without losing live choices") {
@@ -529,7 +530,7 @@ DOCTEST_TEST_CASE("successful file save load requests resource reload even when 
     MOX::star = stars.data();
     MOX::nebula = nebulas.data();
     MOX::global_data_seg = allocate::Allocate_Space(0x2800 + MAX_SHIPS - ORIGINAL_MAX_SHIPS);
-    MOX::NUM_COLONIES = MOX::planet_count = MOX::NUM_STARS = MOX::NUM_SHIPS = 0;
+    MOX::NUM_COLONIES = test::Resize_Planets(&::game::world, MOX::NUM_STARS = MOX::NUM_SHIPS = 0);
     MOX::NUM_NEBULAS = 0;
     MOX::NUM_PLAYERS = 1;
     MOX::PLAYER_NUM = 0;

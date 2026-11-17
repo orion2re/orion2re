@@ -1,3 +1,4 @@
+#include "../fixtures/planet_state.h"
 #include "pch.h"
 
 #include "fake_colony_services.h"
@@ -150,7 +151,7 @@ namespace TEST_COLONY_POP_GROWTH {
             ship.officer_index = -1;
         }
         for (auto& player : players) {
-            player.home_planet_id = -1;
+            player.home_planet_id = ::game::NO_PLANET;
             player.last_attacker = -1;
         }
         for (auto& star : stars) {
@@ -164,8 +165,8 @@ namespace TEST_COLONY_POP_GROWTH {
             for (int slot = 0; slot < 7; ++slot) {
                 colonies[i].producing[slot] = COLONY_PRODUCTION_NONE;
             }
-            MOX::planet[i].colony_index = i;
-            MOX::planet[i].star_index = i;
+            test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(i))).colony_index = i;
+            test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(i))).star_index = i;
             stars[i].planet_index[0] = i;
             stars[i].has_colony = 1;
         }
@@ -239,7 +240,7 @@ namespace MOX {
     int32_t stardate = 35000;
     char* race_names[20];
     s_colony* colony = colonies;
-    s_planet_data* planet = &planet_storage[1];
+
     s_player* player = players;
     s_star_data* star = stars;
     s_ship_data* ship = ships;
@@ -268,11 +269,11 @@ namespace EVENTS {
         return TEST_COLONY_POP_GROWTH::services.anomaly_result;
     }
 
-    int16_t __cdecl Event_Check_Space_Anomaly(int16_t) {
+    int16_t __cdecl Event_Check_Space_Anomaly(::game::s_world_state* world_state, int16_t) {
         return 0;
     }
 
-    int16_t __cdecl Event_Check_Colony_Researching(int16_t) {
+    int16_t __cdecl Event_Check_Colony_Researching(::game::s_world_state* world_state, int16_t) {
         return 0;
     }
 
@@ -336,13 +337,13 @@ namespace RUSS {
 }
 
 namespace BOMB {
-    void __cdecl Destroy_Colony(s_colony*, int32_t capturing_player) {
+    void __cdecl Destroy_Colony(::game::s_world_state* world_state, s_colony*, int32_t capturing_player) {
         destroy_colony_reason = capturing_player;
     }
 }
 
 namespace ERICNET {
-    void __cdecl Add_Building(int16_t colony_idx, int16_t building_idx) {
+    void __cdecl Add_Building(::game::s_world_state* world_state, int16_t colony_idx, int16_t building_idx) {
         MOX::colony[colony_idx].buildings[building_idx] = 1;
     }
 
@@ -350,7 +351,7 @@ namespace ERICNET {
         ++calc_ship_level_calls;
     }
 
-    void __cdecl Remove_Building(int16_t, int16_t) {
+    void __cdecl Remove_Building(::game::s_world_state* world_state, int16_t, int16_t) {
     }
 }
 
@@ -573,7 +574,7 @@ namespace MAINSCR {
 }
 
 namespace CONTACT {
-    void __cdecl Compute_Contacts() {
+    void __cdecl Compute_Contacts(::game::s_world_state* world_state) {
         ++TEST_COLONY_POP_GROWTH::services.contact_updates;
     }
 }

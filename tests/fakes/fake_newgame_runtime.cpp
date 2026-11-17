@@ -117,7 +117,7 @@ namespace raceopt {
 }
 
 namespace HOMEGEN {
-    void __cdecl Assign_Home_Star_Names() {}
+    void __cdecl Assign_Home_Star_Names(::game::s_world_state* world_state) {}
 }
 
 namespace diplomac {

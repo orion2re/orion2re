@@ -168,7 +168,7 @@ namespace COMBINIT {
 
     // Loads the tactical planet graphics for the specified colony.
     // colony_idx: Colony whose planet art should be loaded.
-    void __cdecl Load_Combat_Colony_Picture(int16_t colony_idx);
+    void __cdecl Load_Combat_Colony_Picture(::game::s_world_state* world_state, int16_t colony_idx);
 
     extern const char s_cmbtmisl_lbx_00551234[13];
     extern const char s_sphersfx_lbx_00551218[13];
@@ -232,7 +232,7 @@ namespace COMBINIT {
 
     // Loads and applies the combat palette for one participant.
     // player_idx: Player or monster owner index.
-    void __cdecl Load_Combat_Ship_Palette(int16_t player_idx);
+    void __cdecl Load_Combat_Ship_Palette(::game::s_world_state* world_state, int16_t player_idx);
 
     // Loads per-ship art assets needed by one participant.
     // player_idx: Player or monster owner index.
@@ -253,7 +253,7 @@ namespace COMBINIT {
     // x: Candidate combat-grid X coordinate.
     // y: Candidate combat-grid Y coordinate.
     // ship_idx: Optional blocking ship index, or -1.
-    int8_t __cdecl Ship_Can_Deploy_At(int16_t x, int16_t y, int16_t ship_idx);
+    int8_t __cdecl Ship_Can_Deploy_At(::game::s_world_state* world_state, int16_t x, int16_t y, int16_t ship_idx);
 
     // Compares two combat-data entries by hull size for qsort, largest first.
     // a: Pointer to the first combat-data entry.
@@ -336,5 +336,5 @@ namespace COMBINIT {
     // ship_idx: Combat-data ship index, or 0 for the colony/planet object.
     // out_x: Receives the X offset.
     // out_y: Receives the Y offset.
-    void __cdecl Ship_Center_Offsets(int16_t ship_idx, int16_t* out_x, int16_t* out_y);
+    void __cdecl Ship_Center_Offsets(::game::s_world_state* world_state, int16_t ship_idx, int16_t* out_x, int16_t* out_y);
 } // namespace COMBINIT

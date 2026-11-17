@@ -256,20 +256,20 @@ namespace orion2re::lua::game {
         }
     }
 
-    void Planet_Generated(const s_planet_generated_event* event) {
+    void Planet_Generated(::game::s_world_state* world_state, const s_planet_generated_event* event) {
         const s_lua_mod_runtime_set* runtimes = Get_Active_Mod_Runtimes();
         const std::size_t runtime_count = Get_Mod_Runtime_Count(runtimes);
         if (runtime_count == 0 || !Setup_Callback_Allowed_()) {
             return;
         }
-        if (event == nullptr || MOX::planet == nullptr ||
-            MOX::star == nullptr || MOX::planet_count < 0 ||
-            MOX::planet_count > MAX_PLANETS || MOX::NUM_STARS < 0 ||
-            MOX::NUM_STARS > MAX_STARS || event->planet_id < 0 ||
-            event->planet_id >= MOX::planet_count) {
+        if (event == nullptr ||
+            MOX::star == nullptr || ::game::Planet_Count(world_state) < 0 ||
+            ::game::Planet_Count(world_state) > MAX_PLANETS || MOX::NUM_STARS < 0 ||
+            MOX::NUM_STARS > MAX_STARS || event->planet_id == ::game::NO_PLANET ||
+            (::game::Find_Planet(world_state, legacy_world::Planet_Id(event->planet_id)) == nullptr)) {
             exitm::Exit_With_Message("invalid planet.generated Lua event");
         }
-        const s_planet_data& planet = MOX::planet[event->planet_id];
+        const s_planet_data& planet = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(event->planet_id)));
         if (planet.star_index < 0 || planet.star_index >= MOX::NUM_STARS ||
             planet.orbit < 0 || planet.orbit >= 5 ||
             MOX::star[planet.star_index].planet_index[planet.orbit] !=
@@ -382,16 +382,16 @@ namespace orion2re::lua::game {
         }
     }
 
-    void Home_System_Generated(const s_home_system_generated_event* event) {
+    void Home_System_Generated(::game::s_world_state* world_state, const s_home_system_generated_event* event) {
         const s_lua_mod_runtime_set* runtimes = Get_Active_Mod_Runtimes();
         const std::size_t runtime_count = Get_Mod_Runtime_Count(runtimes);
         if (runtime_count == 0 || !Setup_Callback_Allowed_()) {
             return;
         }
         if (event == nullptr || MOX::player == nullptr ||
-            MOX::planet == nullptr || MOX::star == nullptr ||
+            MOX::star == nullptr ||
             MOX::NUM_PLAYERS < 0 || MOX::NUM_PLAYERS > MAX_PLAYERS ||
-            MOX::planet_count < 0 || MOX::planet_count > MAX_PLANETS ||
+            ::game::Planet_Count(world_state) < 0 || ::game::Planet_Count(world_state) > MAX_PLANETS ||
             MOX::NUM_STARS < 0 || MOX::NUM_STARS > MAX_STARS ||
             event->player_id < 0 ||
             event->player_id >= MOX::NUM_PLAYERS || event->system_id < 0 ||
@@ -399,10 +399,10 @@ namespace orion2re::lua::game {
             exitm::Exit_With_Message(
                 "invalid new_game.home_system_generated Lua event");
         }
-        const std::int16_t home_planet_id =
+        const ::game::id_planet home_planet_id =
             MOX::player[event->player_id].home_planet_id;
-        if (home_planet_id < 0 || home_planet_id >= MOX::planet_count ||
-            MOX::planet[home_planet_id].star_index != event->system_id) {
+        if (home_planet_id == ::game::NO_PLANET || (::game::Find_Planet(world_state, legacy_world::Planet_Id(home_planet_id)) == nullptr) ||
+            ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(home_planet_id))).star_index != event->system_id) {
             exitm::Exit_With_Message(
                 "invalid new_game.home_system_generated home system");
         }
@@ -484,8 +484,8 @@ namespace orion2re::lua::game {
             return growth;
         }
         if (context == nullptr || context->colony_id < 0 ||
-            context->colony_id >= MAX_COLONIES || context->planet_id < 0 ||
-            context->planet_id >= MAX_PLANETS || context->owner_id < 0 ||
+            context->colony_id >= MAX_COLONIES || context->planet_id == ::game::NO_PLANET ||
+            (::game::Find_Planet(&::game::world, legacy_world::Planet_Id(context->planet_id)) == nullptr) || context->owner_id < 0 ||
             context->owner_id >= MAX_PLAYERS || context->race_id < 0 ||
             context->race_id >= MAX_PLAYERS ||
             context->race_population < 0 ||

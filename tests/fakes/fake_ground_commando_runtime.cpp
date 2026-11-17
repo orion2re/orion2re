@@ -1,3 +1,4 @@
+#include "../fixtures/planet_state.h"
 #include "pch.h"
 
 #include "doctest/doctest.h"
@@ -7,7 +8,7 @@ namespace {
 
     s_player players[2];
     s_colony colonies[2];
-    s_planet_data planets[1];
+
     s_star_data stars[1];
     s_ship_data ships[2];
     int16_t officer_ids[MAX_LEADERS];
@@ -46,16 +47,17 @@ namespace test_ground_commando_runtime {
         game::Reset_Leaders(&game::world);
         memset(players, 0, sizeof(players));
         memset(colonies, 0, sizeof(colonies));
-        memset(planets, 0, sizeof(planets));
+        game::world.planets.clear();
+        game::world.next_planet_id = 0;
         memset(stars, 0, sizeof(stars));
         memset(ships, 0, sizeof(ships));
         memset(&animation, 0, sizeof(animation));
         colonies[0].planet = 0;
         MOX::NUM_COLONIES = 1;
         colonies[0].owner = 0;
-        planets[0].star_index = 0;
-        players[0].home_planet_id = -1;
-        players[1].home_planet_id = -1;
+        test::Planet(&game::world, legacy_world::Planet_Id(0)).star_index = 0;
+        players[0].home_planet_id = ::game::NO_PLANET;
+        players[1].home_planet_id = ::game::NO_PLANET;
         for (int skill_idx = 0; skill_idx < 54; ++skill_idx) {
             MOX::skill_data[skill_idx].cost = 0;
         }
@@ -152,7 +154,7 @@ namespace MOX {
     s_colony* colony = colonies;
     s_star_data* star = stars;
     void* global_cache_seg;
-    s_planet_data* planet = planets;
+
     s_ship_data* ship = ships;
     s_settings settings = {};
     int16_t NUM_COLONIES = 1;
@@ -208,11 +210,11 @@ namespace COLCALC {
         return colony_officer;
     }
 
-    int16_t __cdecl Colony_Race_Pop_Limit(s_colony*, int16_t) {
+    int16_t __cdecl Colony_Race_Pop_Limit(::game::s_world_state* world_state, s_colony*, int16_t) {
         return MAX_COLONY_POPULATION;
     }
 
-    int16_t __cdecl Colony_Food2_Per_Farmer(
+    int16_t __cdecl Colony_Food2_Per_Farmer(::game::s_world_state* world_state, 
         const s_colony*, int16_t, s_colony_job_production*) {
         return 1;
     }
@@ -227,13 +229,13 @@ namespace COLCALC {
         ++granted_tech_count;
     }
 
-    void __cdecl Do_Colony_Owner_Change_Star_Colony_Stuff(s_colony*) {
+    void __cdecl Do_Colony_Owner_Change_Star_Colony_Stuff(::game::s_world_state* world_state, s_colony*) {
     }
 
-    void __cdecl Colony_Environmental_Stuff(s_colony*) {
+    void __cdecl Colony_Environmental_Stuff(::game::s_world_state* world_state, s_colony*) {
     }
 
-    void __cdecl Compute_Star_Colony_Stuff(s_star_data*) {
+    void __cdecl Compute_Star_Colony_Stuff(::game::s_world_state* world_state, s_star_data*) {
     }
 }
 
@@ -307,10 +309,10 @@ namespace COMBINIT {
 } // namespace COMBINIT
 
 namespace ERICNET {
-    void __cdecl Add_Building(int16_t, int16_t) {
+    void __cdecl Add_Building(::game::s_world_state* world_state, int16_t, int16_t) {
     }
 
-    void __cdecl Remove_Building(int16_t colony_idx, int16_t building_idx) {
+    void __cdecl Remove_Building(::game::s_world_state* world_state, int16_t colony_idx, int16_t building_idx) {
         MOX::colony[colony_idx].buildings[building_idx] = 0;
     }
 } // namespace ERICNET

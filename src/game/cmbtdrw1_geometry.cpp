@@ -8,12 +8,12 @@ namespace CMBTDRW1 {
         int8_t facing;
 
         // Get coordinates for ship A
-        COMBINIT::Ship_Center_Offsets(ship_a_idx, &x1, &y1);
+        COMBINIT::Ship_Center_Offsets(&::game::world, ship_a_idx, &x1, &y1);
         x1 += MOX::combat_data[ship_a_idx].x * 20;
         y1 += MOX::combat_data[ship_a_idx].y * 20;
 
         // Get coordinates for ship B
-        COMBINIT::Ship_Center_Offsets(ship_b_idx, &x2, &y2);
+        COMBINIT::Ship_Center_Offsets(&::game::world, ship_b_idx, &x2, &y2);
         x2 += MOX::combat_data[ship_b_idx].x * 20;
         y2 += MOX::combat_data[ship_b_idx].y * 20;
 
@@ -41,7 +41,7 @@ namespace CMBTDRW1 {
         int16_t result_bearing;
         s_combat_data* ship;
 
-        COMBINIT::Ship_Center_Offsets(ship_idx, &off_x, &off_y);
+        COMBINIT::Ship_Center_Offsets(&::game::world, ship_idx, &off_x, &off_y);
 
         ship = &MOX::combat_data[ship_idx];
 
@@ -86,7 +86,7 @@ namespace CMBTDRW1 {
         return arc_flags;
     }
 
-    void __cdecl Get_Draw_Ship_Offsets(int16_t ship_idx, int16_t* out_x, int16_t* out_y) {
+    void __cdecl Get_Draw_Ship_Offsets(::game::s_world_state* world_state, int16_t ship_idx, int16_t* out_x, int16_t* out_y) {
         *out_x = 0;
         *out_y = 0;
 
@@ -106,7 +106,7 @@ namespace CMBTDRW1 {
             };
 
             int16_t planet_size =
-                MOX::planet[MOX::colony[MOX::cmbt_colony_id].planet].size;
+                ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(MOX::colony[MOX::cmbt_colony_id].planet))).size;
             if (planet_size < PLANET_SIZE_TINY ||
                 planet_size >= PLANET_SIZE_COUNT) {
                 return;

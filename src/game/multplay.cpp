@@ -336,7 +336,7 @@ namespace MULTPLAY {
         FILEDEF::Save_Game_Settings();
     }
 
-    void __cdecl Hotseat_Select_Player(void) {
+    void __cdecl Hotseat_Select_Player(::game::s_world_state* world_state) {
         uint8_t fade_flag = 0;
         uint8_t exit_code = 0;
         int16_t selected_player_idx = -1;
@@ -413,8 +413,8 @@ namespace MULTPLAY {
             MOX::return_screen = SCREEN_HOTSEAT_SELECT_PLAYER;
             Restore_Hotseat_Map_Info();
 
-            int16_t home_planet_id = MOX::player[MOX::PLAYER_NUM].home_planet_id;
-            int16_t star_idx = MOX::planet[home_planet_id].star_index;
+            ::game::id_planet home_planet_id = MOX::player[MOX::PLAYER_NUM].home_planet_id;
+            int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(home_planet_id))).star_index;
             s_star_data* star = &MOX::star[star_idx];
             MAINSCR::Center_Map(star->x, star->y);
         } else {

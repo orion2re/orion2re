@@ -20,7 +20,7 @@ namespace MOX {
 }
 
 namespace ERICNET {
-    void __cdecl Remove_Building(int16_t colony_idx, int16_t building_idx) {
+    void __cdecl Remove_Building(::game::s_world_state* world_state, int16_t colony_idx, int16_t building_idx) {
         MOX::colony[colony_idx].buildings[building_idx] = 0;
     }
 }

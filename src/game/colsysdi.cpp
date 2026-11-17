@@ -5,15 +5,15 @@ namespace COLSYSDI {
         return (s_animation_header*)buffer::Buffer_Reload(COLONY::COLSYSDI_LBX, climate * PLANET_SIZE_COUNT + planet_size + 11, MOX::global_cache_seg);
     }
 
-    void __cdecl Draw_Col_Sys_Disp(int16_t x, int16_t y) {
+    void __cdecl Draw_Col_Sys_Disp(::game::s_world_state* world_state, int16_t x, int16_t y) {
         int16_t text_y = y + 7;
         int16_t star_idx = COLONY::sys_disp_star_handle;
 
         for (int16_t i = 0; i < 5; i++) {
-            int16_t planet_idx = MOX::star[star_idx].planet_index[i];
+            ::game::id_planet planet_idx = MOX::star[star_idx].planet_index[i];
 
-            if (planet_idx != -1) {
-                s_planet_data* planet = &MOX::planet[planet_idx];
+            if (planet_idx != ::game::NO_PLANET) {
+                s_planet_data* planet = &::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx)));
                 uint8_t climate;
 
                 if (planet->colony_index == -1) {
@@ -36,7 +36,7 @@ namespace COLSYSDI {
                 COLONY::Set_Colony_Font_To(1);
 
                 char summary_text[500];
-                Planet_Summary_String(summary_text, sizeof(summary_text), planet_idx, 1);
+                Planet_Summary_String(world_state, summary_text, sizeof(summary_text), legacy_world::Planet_Id(planet_idx), 1);
 
                 BILL::_Print_Paragraph(x + 28, text_y, 89 - x, summary_text, 0);
             }
@@ -48,11 +48,11 @@ namespace COLSYSDI {
         }
     }
 
-    void __cdecl Draw_Col_Sys_Disp_Last_Scanned(int16_t x, int16_t y) {
+    void __cdecl Draw_Col_Sys_Disp_Last_Scanned(::game::s_world_state* world_state, int16_t x, int16_t y) {
         s_colony* colony = &MOX::colony[COLONY::colony_handle];
 
-        if (colony->planet != -1) {
-            s_planet_data* planet = &MOX::planet[colony->planet];
+        if (colony->planet != ::game::NO_PLANET) {
+            s_planet_data* planet = &::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony->planet)));
             uint8_t climate;
 
             if (planet->colony_index == -1) {
@@ -65,7 +65,7 @@ namespace COLSYSDI {
             if (planet->orbit >= 0) {
                 int16_t star_idx = planet->star_index;
                 do {
-                    volatile int16_t unused_planet_idx = MOX::star[star_idx].planet_index[display_row];
+                    volatile auto unused_planet_idx = MOX::star[star_idx].planet_index[display_row];
                     (void)unused_planet_idx;
                     display_row++;
                 } while (display_row <= planet->orbit);
@@ -85,7 +85,7 @@ namespace COLSYSDI {
         }
     }
 
-    void __cdecl Planet_Summary_String(char* summary_text, size_t summary_text_size, int16_t planet_idx, int16_t font_player_idx) {
+    void __cdecl Planet_Summary_String(::game::s_world_state* world_state, char* summary_text, size_t summary_text_size, ::game::id_planet planet_idx, int16_t font_player_idx) {
         char* gravity_str[PLANET_GRAVITY_COUNT];
         char* mineral_str[MINERAL_RESOURCE_COUNT];
         char* size_str[PLANET_SIZE_COUNT];
@@ -99,7 +99,7 @@ namespace COLSYSDI {
 
         summary_text[0] = '\0';
 
-        s_planet_data* planet = &MOX::planet[planet_idx];
+        s_planet_data* planet = &::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx)));
         int16_t colony_idx = planet->colony_index;
 
         gravity_str[PLANET_GRAVITY_LOW_G] = ESTRINGS::E_Strings(0x169);
@@ -167,8 +167,8 @@ namespace COLSYSDI {
         }
     }
 
-    void __cdecl Add_Col_Sys_Disp_Fields(int16_t x, int16_t y, int16_t end_x) {
-        int16_t planet_idx;
+    void __cdecl Add_Col_Sys_Disp_Fields(::game::s_world_state* world_state, int16_t x, int16_t y, int16_t end_x) {
+        ::game::id_planet planet_idx;
         int16_t height;
         int16_t width;
         int16_t star_handle;
@@ -186,11 +186,11 @@ namespace COLSYSDI {
         for (i = 0; i < 5; i++) {
             planet_idx = MOX::star[star_handle].planet_index[i];
 
-            if (planet_idx == -1) {
+            if (planet_idx == ::game::NO_PLANET) {
                 COLONY::sys_disp_planet_fields[i] = -1000;
                 display_idx++;
             } else {
-                anim = Planet_Anims(MOX::planet[planet_idx].climate, MOX::planet[planet_idx].size);
+                anim = Planet_Anims(::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).climate, ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).size);
 
                 height = animate::Get_Height(anim);
                 width = animate::Get_Width(anim);

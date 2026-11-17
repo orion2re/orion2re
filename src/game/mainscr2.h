@@ -35,7 +35,7 @@ namespace MAINSCR2 {
     /* Open the outpost-placement flow for an outpost ship on the main screen. */
     void __cdecl Building_Outposts_In_Main_Screen();
     /* Open the troop-unloading flow for selected transports on the main screen. */
-    void __cdecl Unloading_Transports_In_Main_Screen();
+    void __cdecl Unloading_Transports_In_Main_Screen(::game::s_world_state* world_state);
     /* Scrap a selected number of surplus freighters for the active player. */
     void __cdecl Scrap_Freighters();
     /* Run the full begin-of-turn flow, including reports and optional auto-advance. */

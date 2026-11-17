@@ -1,9 +1,9 @@
 #include "pch.h"
 
 namespace invasion {
-    int32_t __cdecl Colony_Infantry_Limit(s_colony* colony) {
+    int32_t __cdecl Colony_Infantry_Limit(::game::s_world_state* world_state, s_colony* colony) {
         int32_t limit =
-            COLCALC::population_capacity.size[MOX::planet[colony->planet].size];
+            COLCALC::population_capacity.size[::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony->planet))).size];
 
         if (MOX::player[colony->owner].traits[TRAIT_WARLORD] == 0) {
             limit /= 2;
@@ -62,9 +62,9 @@ namespace invasion {
         return limit;
     }
 
-    int32_t __cdecl Colony_Tank_Limit(s_colony* colony) {
+    int32_t __cdecl Colony_Tank_Limit(::game::s_world_state* world_state, s_colony* colony) {
         int32_t tank_limit =
-            COLCALC::population_capacity.size[MOX::planet[colony->planet].size];
+            COLCALC::population_capacity.size[::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony->planet))).size];
 
         if (MOX::player[colony->owner].traits[TRAIT_WARLORD] == 0) {
             tank_limit /= 4;

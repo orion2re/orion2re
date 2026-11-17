@@ -40,7 +40,7 @@ namespace INITGAME {
         const s_player* players);
 
     /** Converts generated system-monster markers into ship instances on the map. */
-    void __cdecl Make_System_Monsters_Into_Ships();
+    void __cdecl Make_System_Monsters_Into_Ships(::game::s_world_state* world_state);
 
     /**
      * Initializes a colony record and links it to the given planet and owner.
@@ -48,7 +48,7 @@ namespace INITGAME {
      * @param planet_idx Planet that will host the colony.
      * @param player_num Owning player ID.
      */
-    void __cdecl Init_Colony(int16_t colony_idx, int16_t planet_idx, uint8_t player_num);
+    void __cdecl Init_Colony(::game::s_world_state* world_state, int16_t colony_idx, ::game::id_planet planet_idx, uint8_t player_num);
 
     /** Resets colony auto-select history and computes the initial per-star selection state. */
     void __cdecl Set_Initial_Colony_Auto_Selects();

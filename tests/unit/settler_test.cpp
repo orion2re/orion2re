@@ -1,3 +1,4 @@
+#include "../fixtures/planet_state.h"
 #include "pch.h"
 
 #include "doctest/doctest.h"
@@ -31,8 +32,8 @@ static void Prepare_Interstar_Move_() {
     MOX::colony[0].n_pops = 2;
     MOX::colony[1].owner = 0;
     MOX::colony[1].planet = 1;
-    MOX::planet[0].star_index = 0;
-    MOX::planet[1].star_index = 1;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).star_index = 0;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).star_index = 1;
     MOX::player[0].n_freighters = 10000;
 }
 
@@ -48,8 +49,8 @@ DOCTEST_TEST_CASE("inbound settlers count only when scheduling another settler")
     Add_Resident_Pops_(colony, 0, 4);
     Add_Inbound_Settler_(&MOX::player[0], 0, colony->planet);
 
-    DOCTEST_CHECK(SETTLER::Room_For_Another(colony, 0, 0));
-    DOCTEST_CHECK_FALSE(SETTLER::Room_For_Another(colony, 0, 1));
+    DOCTEST_CHECK(SETTLER::Room_For_Another(&::game::world, colony, 0, 0));
+    DOCTEST_CHECK_FALSE(SETTLER::Room_For_Another(&::game::world, colony, 0, 1));
 }
 
 DOCTEST_TEST_CASE("settlers heading elsewhere do not consume destination capacity") {
@@ -62,7 +63,7 @@ DOCTEST_TEST_CASE("settlers heading elsewhere do not consume destination capacit
     Add_Resident_Pops_(colony, 0, 4);
     Add_Inbound_Settler_(&MOX::player[0], 0, 1);
 
-    DOCTEST_CHECK(SETTLER::Room_For_Another(colony, 0, 1));
+    DOCTEST_CHECK(SETTLER::Room_For_Another(&::game::world, colony, 0, 1));
 }
 
 DOCTEST_TEST_CASE("higher mixed-race limit blocks an additional lower-limit settler") {
@@ -76,7 +77,7 @@ DOCTEST_TEST_CASE("higher mixed-race limit blocks an additional lower-limit sett
     Add_Resident_Pops_(colony, 0, 4);
     Add_Resident_Pops_(colony, 1, 6);
 
-    DOCTEST_CHECK_FALSE(SETTLER::Room_For_Another(colony, 0, 1));
+    DOCTEST_CHECK_FALSE(SETTLER::Room_For_Another(&::game::world, colony, 0, 1));
 }
 
 DOCTEST_TEST_CASE("absolute colony population limit remains 42") {
@@ -88,7 +89,7 @@ DOCTEST_TEST_CASE("absolute colony population limit remains 42") {
     colony->planet = 0;
     Add_Resident_Pops_(colony, 0, 42);
 
-    DOCTEST_CHECK_FALSE(SETTLER::Room_For_Another(colony, 0, 0));
+    DOCTEST_CHECK_FALSE(SETTLER::Room_For_Another(&::game::world, colony, 0, 0));
 }
 
 DOCTEST_TEST_CASE("configured freight capacity may exceed the classic limit") {
@@ -98,7 +99,7 @@ DOCTEST_TEST_CASE("configured freight capacity may exceed the classic limit") {
     MOX::player[0].settlers_freighted = 25;
 
     s_settler_settle_result result = {};
-    SETTLER::Pop_Tries_To_Settle(
+    SETTLER::Pop_Tries_To_Settle(&::game::world, 
             &MOX::colony[0], 0, &MOX::colony[1], &result);
 
     DOCTEST_CHECK(result.can_settle == 1);
@@ -116,7 +117,7 @@ DOCTEST_TEST_CASE("freight limit rejects counts at or above the configured maxim
         MOX::player[0].settlers_freighted = counts[i];
 
         s_settler_settle_result result = {};
-        SETTLER::Pop_Tries_To_Settle(
+        SETTLER::Pop_Tries_To_Settle(&::game::world, 
                 &MOX::colony[0], 0, &MOX::colony[1], &result);
 
         DOCTEST_CHECK(result.can_settle == 0);
@@ -136,20 +137,20 @@ DOCTEST_TEST_CASE("last population transfer follows the configured policy") {
     s_colony* destination = &MOX::colony[1];
     destination->owner = 0;
     destination->planet = 1;
-    MOX::planet[0].star_index = 0;
-    MOX::planet[1].star_index = 0;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).star_index = 0;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).star_index = 0;
 
     s_settler_settle_result result = {};
-    SETTLER::Pop_Tries_To_Settle(source, 0, destination, &result);
+    SETTLER::Pop_Tries_To_Settle(&::game::world, source, 0, destination, &result);
     DOCTEST_CHECK(result.only_one_pop_left == 1);
     DOCTEST_CHECK(result.can_settle == 0);
 
     SETTLER::allow_last_population_transfer = true;
-    SETTLER::Pop_Tries_To_Settle(source, 0, destination, &result);
+    SETTLER::Pop_Tries_To_Settle(&::game::world, source, 0, destination, &result);
     DOCTEST_REQUIRE(result.can_settle == 1);
     DOCTEST_CHECK(result.only_one_pop_left == 0);
 
-    SETTLER::Settle_Pop(source, 0, destination);
+    SETTLER::Settle_Pop(&::game::world, source, 0, destination);
     DOCTEST_CHECK(source->n_pops == 0);
     DOCTEST_CHECK(destination->n_pops == 1);
 

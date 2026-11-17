@@ -126,14 +126,14 @@ namespace COLCALC {
 namespace EVENTS {
     void __cdecl Clear_Deferred_Monster_Event_Target() { ++TEST_NEXTTURN::turn_side_effects; }
 
-    void __cdecl Determine_Event() {
+    void __cdecl Determine_Event(::game::s_world_state* world_state) {
         TEST_NEXTTURN::observed_event_bc = MOX::player[0].bc;
         TEST_NEXTTURN::observed_event_research = MOX::player[0].research_accumulated;
         TEST_NEXTTURN::pirate_raid_was_eligible = MOX::player[0].bc >= 100;
         TEST_NEXTTURN::computer_virus_was_eligible = MOX::player[0].research_accumulated >= 10;
     }
 
-    void __cdecl Event_Twiddle() {}
+    void __cdecl Event_Twiddle(::game::s_world_state* world_state) {}
 }
 
 namespace fields {
@@ -155,9 +155,9 @@ namespace antarans {
 
 namespace AIDATA {
     s_state state;
-    const char* Validate_Inputs(const game::s_view*) { return TEST_NEXTTURN::invalid_inputs ? "test invalid input" : nullptr; }
+    const char* Validate_Inputs(::game::s_world_state* world_state, const game::s_view*) { return TEST_NEXTTURN::invalid_inputs ? "test invalid input" : nullptr; }
     void Reset(s_state* ai) { *ai = {}; }
-    bool Compute_AI_Data(s_state*, const game::s_view*) {
+    bool Compute_AI_Data(::game::s_world_state* world_state, s_state*, const game::s_view*) {
         TEST_NEXTTURN::ai_service_order.emplace_back("ai_data");
         return true;
     }
@@ -171,7 +171,7 @@ namespace DIP_SCRN {
 
 namespace diplomac {
     void Clear_Diplomacy_Messages() {}
-    void __cdecl Diplomacy_Growth() {}
+    void __cdecl Diplomacy_Growth(::game::s_world_state* world_state) {}
     void Determine_First_Contacts() {}
     void Determine_Diplomacy_Messages() {}
     void __cdecl End_Of_Turn_Diplomacy_Adjustments() {}
@@ -225,7 +225,7 @@ namespace SHIPMOVE {
     void __cdecl Move_All_Ships_Toward_Stars() {}
     void __cdecl Unmark_Just_Built_AI_Ships() {}
     void __cdecl Allocate_New_Ship_Slots() {}
-    void __cdecl Reset_Needless_Ignore_Combat_Ships_Flags() {}
+    void __cdecl Reset_Needless_Ignore_Combat_Ships_Flags(::game::s_world_state* world_state) {}
 }
 
 namespace spy {
@@ -233,7 +233,7 @@ namespace spy {
 }
 
 namespace COMBFIND {
-    void __cdecl Search_For_Battles() {}
+    void __cdecl Search_For_Battles(::game::s_world_state* world_state) {}
 }
 
 namespace ERICNET {
@@ -245,7 +245,7 @@ namespace lostship {
 }
 
 namespace SETTLER {
-    void __cdecl Move_Settlers() {}
+    void __cdecl Move_Settlers(::game::s_world_state* world_state) {}
 }
 
 namespace OFFICER {
@@ -271,7 +271,7 @@ namespace INITSHIP {
 }
 
 namespace CONTACT {
-    void __cdecl Compute_Contacts() {}
+    void __cdecl Compute_Contacts(::game::s_world_state* world_state) {}
 }
 
 namespace council {

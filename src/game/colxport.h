@@ -49,7 +49,7 @@ namespace COLXPORT {
      * @param colony_idx Colony index to display.
      * @param entry_idx Visible list entry index.
      */
-    void __cdecl Draw_Colony_Summary_For_Colony(int16_t colony_idx, int16_t entry_idx);
+    void __cdecl Draw_Colony_Summary_For_Colony(::game::s_world_state* world_state, int16_t colony_idx, int16_t entry_idx);
 
     /**
      * @brief Draws the transport-popup scroll bar indicator.

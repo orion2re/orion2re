@@ -1,3 +1,4 @@
+#include "../fixtures/planet_state.h"
 #include "pch.h"
 
 #include "doctest/doctest.h"
@@ -35,7 +36,7 @@ namespace test_ground_commando_runtime {
 DOCTEST_TEST_CASE("transport unloading consumes only enough ships to meet the infantry limit") {
     using namespace test_ground_commando_runtime;
     Reset_();
-    MOX::planet[0].size = PLANET_SIZE_MEDIUM;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).size = PLANET_SIZE_MEDIUM;
     Colony_()->military[0] = 3;
     Ship_(0)->d.ship_type = Ship_(1)->d.ship_type = SHIP_TYPE_TRANSPORT;
     int16_t ships[] = {0, 1};
@@ -208,7 +209,7 @@ DOCTEST_TEST_CASE("home planet reassignment excludes outposts") {
 
     invasion::Assign_New_Home_Planet(0, 0);
 
-    DOCTEST_CHECK((MOX::player[0].home_planet_id == -1));
+    DOCTEST_CHECK((MOX::player[0].home_planet_id == ::game::NO_PLANET));
 }
 
 DOCTEST_TEST_CASE("officer level queries use the supplied world and sparse leader identity") {
@@ -515,7 +516,7 @@ DOCTEST_TEST_CASE("ground-unit limits use configured planet-size capacity") {
     test_ground_commando_runtime::Reset_();
     s_colony* colony = test_ground_commando_runtime::Colony_();
     colony->owner = 0;
-    MOX::planet[colony->planet].size = PLANET_SIZE_HUGE;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(colony->planet))).size = PLANET_SIZE_HUGE;
     const uint8_t saved_capacity =
         COLCALC::population_capacity.size[PLANET_SIZE_HUGE];
 
@@ -524,15 +525,15 @@ DOCTEST_TEST_CASE("ground-unit limits use configured planet-size capacity") {
         COLCALC::population_capacity.size[PLANET_SIZE_HUGE] = capacity;
 
         MOX::player[0].traits[TRAIT_WARLORD] = 0;
-        DOCTEST_CHECK(invasion::Colony_Infantry_Limit(colony) ==
+        DOCTEST_CHECK(invasion::Colony_Infantry_Limit(&::game::world, colony) ==
                       (capacity / 2 == 0 ? 1 : capacity / 2));
-        DOCTEST_CHECK(invasion::Colony_Tank_Limit(colony) ==
+        DOCTEST_CHECK(invasion::Colony_Tank_Limit(&::game::world, colony) ==
                       (capacity / 4 == 0 ? 1 : capacity / 4));
 
         MOX::player[0].traits[TRAIT_WARLORD] = 1;
-        DOCTEST_CHECK(invasion::Colony_Infantry_Limit(colony) ==
+        DOCTEST_CHECK(invasion::Colony_Infantry_Limit(&::game::world, colony) ==
                       (capacity == 0 ? 1 : capacity));
-        DOCTEST_CHECK(invasion::Colony_Tank_Limit(colony) ==
+        DOCTEST_CHECK(invasion::Colony_Tank_Limit(&::game::world, colony) ==
                       (capacity / 2 == 0 ? 1 : capacity / 2));
     }
 

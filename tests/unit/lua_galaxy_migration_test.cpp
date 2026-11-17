@@ -1,3 +1,4 @@
+#include "../fixtures/planet_state.h"
 #include "pch.h"
 
 #include "doctest/doctest.h"
@@ -109,7 +110,7 @@ TEST_CASE("home-system mirror package copies the selected native orbit layout") 
     TEST_LUA_GAME::Reset_();
     MOX::NUM_PLAYERS = 2;
     MOX::NUM_STARS = 3;
-    MOX::planet_count = 5;
+    test::Resize_Planets(&::game::world, 5);
     MOX::NUM_COLONIES = 3;
     MOX::NUM_SHIPS = 1;
     MOX::NUM_NEBULAS = 1;
@@ -131,39 +132,39 @@ TEST_CASE("home-system mirror package copies the selected native orbit layout") 
     MOX::star[0].wormhole_star_id = 2;
     MOX::star[2].wormhole_star_id = 0;
 
-    MOX::planet[0].star_index = 0;
-    MOX::planet[0].orbit = 0;
-    MOX::planet[0].planet_type = PLANET_TYPE_PLANET;
-    MOX::planet[0].colony_index = 0;
-    MOX::planet[0].planet_special = SYSTEM_SPECIAL_NO_SPECIAL;
-    MOX::planet[1].star_index = 0;
-    MOX::planet[1].orbit = 2;
-    MOX::planet[1].planet_type = PLANET_TYPE_GAS_GIANT;
-    MOX::planet[1].size = PLANET_SIZE_LARGE;
-    MOX::planet[1].gravity_class = PLANET_GRAVITY_HEAVY_G;
-    MOX::planet[1].climate = PLANET_CLIMATE_BARREN;
-    MOX::planet[1].mineral_class = MINERAL_RESOURCE_RICH;
-    MOX::planet[1].colony_index = -1;
-    MOX::planet[1].planet_special = SYSTEM_SPECIAL_NO_SPECIAL;
-    MOX::planet[2].star_index = 1;
-    MOX::planet[2].orbit = 4;
-    MOX::planet[2].planet_type = PLANET_TYPE_PLANET;
-    MOX::planet[2].colony_index = 1;
-    MOX::planet[2].planet_special = SYSTEM_SPECIAL_NO_SPECIAL;
-    MOX::planet[3].star_index = 1;
-    MOX::planet[3].orbit = 1;
-    MOX::planet[3].planet_type = PLANET_TYPE_ASTEROID;
-    MOX::planet[3].size = PLANET_SIZE_SMALL;
-    MOX::planet[3].gravity_class = PLANET_GRAVITY_LOW_G;
-    MOX::planet[3].climate = PLANET_CLIMATE_TOXIC;
-    MOX::planet[3].mineral_class = MINERAL_RESOURCE_ULTRA_POOR;
-    MOX::planet[3].colony_index = -1;
-    MOX::planet[3].planet_special = SYSTEM_SPECIAL_NO_SPECIAL;
-    MOX::planet[4].star_index = 2;
-    MOX::planet[4].orbit = 3;
-    MOX::planet[4].planet_type = PLANET_TYPE_PLANET;
-    MOX::planet[4].colony_index = 2;
-    MOX::planet[4].planet_special = SYSTEM_SPECIAL_NO_SPECIAL;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).star_index = 0;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).orbit = 0;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).planet_type = PLANET_TYPE_PLANET;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).colony_index = 0;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).planet_special = SYSTEM_SPECIAL_NO_SPECIAL;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).star_index = 0;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).orbit = 2;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).planet_type = PLANET_TYPE_GAS_GIANT;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).size = PLANET_SIZE_LARGE;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).gravity_class = PLANET_GRAVITY_HEAVY_G;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).climate = PLANET_CLIMATE_BARREN;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).mineral_class = MINERAL_RESOURCE_RICH;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).colony_index = -1;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).planet_special = SYSTEM_SPECIAL_NO_SPECIAL;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(2))).star_index = 1;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(2))).orbit = 4;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(2))).planet_type = PLANET_TYPE_PLANET;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(2))).colony_index = 1;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(2))).planet_special = SYSTEM_SPECIAL_NO_SPECIAL;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(3))).star_index = 1;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(3))).orbit = 1;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(3))).planet_type = PLANET_TYPE_ASTEROID;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(3))).size = PLANET_SIZE_SMALL;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(3))).gravity_class = PLANET_GRAVITY_LOW_G;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(3))).climate = PLANET_CLIMATE_TOXIC;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(3))).mineral_class = MINERAL_RESOURCE_ULTRA_POOR;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(3))).colony_index = -1;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(3))).planet_special = SYSTEM_SPECIAL_NO_SPECIAL;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(4))).star_index = 2;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(4))).orbit = 3;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(4))).planet_type = PLANET_TYPE_PLANET;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(4))).colony_index = 2;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(4))).planet_special = SYSTEM_SPECIAL_NO_SPECIAL;
     MOX::player[0].home_planet_id = 0;
     MOX::player[1].home_planet_id = 2;
     MOX::colony[0].planet = 0;
@@ -188,11 +189,11 @@ TEST_CASE("home-system mirror package copies the selected native orbit layout") 
     const int16_t destination_home = destination_player == 0 ? 0 : 2;
     const int16_t source_system = source_player;
     const int16_t destination_system = destination_player;
-    const int16_t source_orbit = MOX::planet[source_home].orbit;
+    const int16_t source_orbit = test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(source_home))).orbit;
     const int16_t source_extra = source_player == 0 ? 1 : 3;
-    const int16_t source_extra_orbit = MOX::planet[source_extra].orbit;
-    const s_planet_data expected_extra = MOX::planet[source_extra];
-    const s_planet_data unrelated_planet = MOX::planet[4];
+    const int16_t source_extra_orbit = test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(source_extra))).orbit;
+    const s_planet_data expected_extra = test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(source_extra)));
+    const s_planet_data unrelated_planet = test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(4)));
     const s_colony unrelated_colony = MOX::colony[2];
     const s_ship_data unrelated_ship = MOX::ship[0];
     const s_leader_data unrelated_leader = game::Leader(&game::world, 0);
@@ -210,28 +211,28 @@ TEST_CASE("home-system mirror package copies the selected native orbit layout") 
     CHECK((MOX::player[source_player].home_planet_id == source_home));
     CHECK((MOX::player[destination_player].home_planet_id ==
         destination_home));
-    CHECK(MOX::planet[source_home].star_index == source_system);
-    CHECK(MOX::planet[source_home].orbit == source_orbit);
-    CHECK(MOX::planet[destination_home].star_index == destination_system);
-    CHECK(MOX::planet[destination_home].orbit == source_orbit);
-    const int16_t copied_planet =
+    CHECK(test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(source_home))).star_index == source_system);
+    CHECK(test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(source_home))).orbit == source_orbit);
+    CHECK(test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(destination_home))).star_index == destination_system);
+    CHECK(test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(destination_home))).orbit == source_orbit);
+    const auto copied_planet =
         MOX::star[destination_system].planet_index[source_extra_orbit];
     REQUIRE(copied_planet >= 0);
-    CHECK(MOX::planet[copied_planet].star_index == destination_system);
-    CHECK(MOX::planet[copied_planet].orbit == source_extra_orbit);
-    CHECK(MOX::planet[copied_planet].planet_type ==
+    CHECK(test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(copied_planet))).star_index == destination_system);
+    CHECK(test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(copied_planet))).orbit == source_extra_orbit);
+    CHECK(test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(copied_planet))).planet_type ==
         expected_extra.planet_type);
-    CHECK(MOX::planet[copied_planet].size == expected_extra.size);
-    CHECK(MOX::planet[copied_planet].gravity_class ==
+    CHECK(test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(copied_planet))).size == expected_extra.size);
+    CHECK(test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(copied_planet))).gravity_class ==
         expected_extra.gravity_class);
-    CHECK(MOX::planet[copied_planet].climate == expected_extra.climate);
-    CHECK(MOX::planet[copied_planet].mineral_class ==
+    CHECK(test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(copied_planet))).climate == expected_extra.climate);
+    CHECK(test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(copied_planet))).mineral_class ==
         expected_extra.mineral_class);
-    CHECK(MOX::planet[copied_planet].colony_index == -1);
-    CHECK(MOX::planet[source_extra].star_index == source_system);
+    CHECK(test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(copied_planet))).colony_index == -1);
+    CHECK(test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(source_extra))).star_index == source_system);
     CHECK(MOX::colony[0].planet == 0);
     CHECK(MOX::colony[1].planet == 2);
-    CHECK(memcmp(&MOX::planet[4],
+    CHECK(memcmp(&test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(4))),
               &unrelated_planet,
               sizeof(unrelated_planet)) == 0);
     CHECK(memcmp(&MOX::colony[2],
@@ -274,7 +275,7 @@ TEST_CASE("full mirror package rebuilds destination home systems") {
     TEST_LUA_GAME::Reset_();
     MOX::NUM_PLAYERS = 2;
     MOX::NUM_STARS = 8;
-    MOX::planet_count = 10;
+    test::Resize_Planets(&::game::world, 10);
     MOX::NUM_COLONIES = 4;
     MOX::NUM_SHIPS = 2;
     MOX::NUM_NEBULAS = 2;
@@ -314,9 +315,9 @@ TEST_CASE("full mirror package rebuilds destination home systems") {
 
     const int16_t planet_systems[10] = {0, 0, 4, 4, 5, 6, 1, 2, 3, 7};
     const int8_t planet_orbits[10] = {0, 2, 3, 1, 1, 4, 0, 1, 2, 3};
-    for (int16_t planet_id = 0; planet_id < MOX::planet_count;
+    for (::game::id_planet planet_id = ::game::id_planet{0}; planet_id < ::game::Planet_Count(&::game::world);
          ++planet_id) {
-        s_planet_data& planet = MOX::planet[planet_id];
+        s_planet_data& planet = test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_id)));
         planet.star_index = planet_systems[planet_id];
         planet.orbit = planet_orbits[planet_id];
         planet.planet_type = planet_id % 3;
@@ -329,10 +330,10 @@ TEST_CASE("full mirror package rebuilds destination home systems") {
         MOX::star[planet.star_index].planet_index[planet.orbit] =
             planet_id;
     }
-    MOX::planet[0].colony_index = 0;
-    MOX::planet[2].colony_index = 1;
-    MOX::planet[1].colony_index = 2;
-    MOX::planet[3].colony_index = 3;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).colony_index = 0;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(2))).colony_index = 1;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).colony_index = 2;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(3))).colony_index = 3;
     MOX::player[0].home_planet_id = 0;
     MOX::player[1].home_planet_id = 2;
     MOX::star[0].owner = 0;
@@ -388,8 +389,8 @@ TEST_CASE("full mirror package rebuilds destination home systems") {
     MOX::nebula[0] = {70, 80, 1};
     MOX::nebula[1] = {90, 100, 2};
 
-    const s_planet_data source_home_planet = MOX::planet[2];
-    const s_planet_data source_extra_planet = MOX::planet[3];
+    const s_planet_data source_home_planet = test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(2)));
+    const s_planet_data source_extra_planet = test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(3)));
     const s_colony destination_home_colony = MOX::colony[0];
     const s_colony source_home_colony = MOX::colony[1];
     const s_colony source_extra_colony = MOX::colony[3];
@@ -420,19 +421,19 @@ TEST_CASE("full mirror package rebuilds destination home systems") {
     CHECK(MOX::NUM_COLONIES == 3);
     CHECK((MOX::player[0].home_planet_id == 0));
     CHECK((MOX::player[1].home_planet_id == 2));
-    CHECK(MOX::planet[0].star_index == 0);
-    CHECK(MOX::planet[0].orbit == source_home_planet.orbit);
-    CHECK(MOX::planet[0].colony_index == 0);
+    CHECK(test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).star_index == 0);
+    CHECK(test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).orbit == source_home_planet.orbit);
+    CHECK(test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).colony_index == 0);
     CHECK(memcmp(&MOX::colony[0],
               &destination_home_colony,
               sizeof(destination_home_colony)) == 0);
-    CHECK(memcmp(&MOX::planet[2],
+    CHECK(memcmp(&test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(2))),
               &source_home_planet,
               sizeof(source_home_planet)) == 0);
     CHECK(memcmp(&MOX::colony[1],
               &source_home_colony,
               sizeof(source_home_colony)) == 0);
-    CHECK(MOX::planet[3].colony_index == 2);
+    CHECK(test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(3))).colony_index == 2);
     CHECK(memcmp(&MOX::colony[2],
               &source_extra_colony,
               sizeof(source_extra_colony)) == 0);
@@ -452,14 +453,14 @@ TEST_CASE("full mirror package rebuilds destination home systems") {
 
     const int16_t copied_home_extra = MOX::star[0].planet_index[1];
     REQUIRE(copied_home_extra >= 0);
-    CHECK((MOX::star[0].planet_index[0] == -1));
-    CHECK((MOX::star[0].planet_index[2] == -1));
+    CHECK((MOX::star[0].planet_index[0] == ::game::NO_PLANET));
+    CHECK((MOX::star[0].planet_index[2] == ::game::NO_PLANET));
     CHECK((MOX::star[0].planet_index[3] == 0));
-    CHECK((MOX::star[0].planet_index[4] == -1));
-    CHECK(MOX::planet[copied_home_extra].planet_type ==
+    CHECK((MOX::star[0].planet_index[4] == ::game::NO_PLANET));
+    CHECK(test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(copied_home_extra))).planet_type ==
         source_extra_planet.planet_type);
-    CHECK(MOX::planet[copied_home_extra].size == source_extra_planet.size);
-    CHECK(MOX::planet[copied_home_extra].colony_index == -1);
+    CHECK(test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(copied_home_extra))).size == source_extra_planet.size);
+    CHECK(test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(copied_home_extra))).colony_index == -1);
     CHECK((MOX::star[4].planet_index[1] == 3));
     CHECK((MOX::star[4].planet_index[3] == 2));
     CHECK((MOX::star[0].x == 356));
@@ -556,7 +557,7 @@ TEST_CASE("full mirror package preserves native home systems") {
     TEST_LUA_GAME::Reset_();
     MOX::NUM_PLAYERS = 2;
     MOX::NUM_STARS = 8;
-    MOX::planet_count = 10;
+    test::Resize_Planets(&::game::world, 10);
     MOX::NUM_COLONIES = 3;
     MOX::NUM_SHIPS = 2;
     MOX::NUM_NEBULAS = 2;
@@ -609,9 +610,9 @@ TEST_CASE("full mirror package preserves native home systems") {
 
     const int16_t planet_systems[10] = {0, 0, 4, 4, 5, 6, 1, 2, 3, 7};
     const int8_t planet_orbits[10] = {0, 2, 3, 1, 1, 4, 0, 1, 2, 3};
-    for (int16_t planet_id = 0; planet_id < MOX::planet_count;
+    for (::game::id_planet planet_id = ::game::id_planet{0}; planet_id < ::game::Planet_Count(&::game::world);
          ++planet_id) {
-        s_planet_data& planet = MOX::planet[planet_id];
+        s_planet_data& planet = test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_id)));
         planet.star_index = planet_systems[planet_id];
         planet.orbit = planet_orbits[planet_id];
         planet.planet_type = planet_id % 3;
@@ -624,9 +625,9 @@ TEST_CASE("full mirror package preserves native home systems") {
         MOX::star[planet.star_index].planet_index[planet.orbit] =
             planet_id;
     }
-    MOX::planet[0].colony_index = 0;
-    MOX::planet[2].colony_index = 1;
-    MOX::planet[6].colony_index = 2;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).colony_index = 0;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(2))).colony_index = 1;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(6))).colony_index = 2;
     MOX::player[0].home_planet_id = 0;
     MOX::player[1].home_planet_id = 2;
     MOX::star[0].owner = 0;
@@ -663,10 +664,10 @@ TEST_CASE("full mirror package preserves native home systems") {
     MOX::nebula[0] = {70, 80, 1};
     MOX::nebula[1] = {90, 100, 2};
 
-    const s_planet_data home_planet_0 = MOX::planet[0];
-    const s_planet_data home_extra_0 = MOX::planet[1];
-    const s_planet_data home_planet_1 = MOX::planet[2];
-    const s_planet_data home_extra_1 = MOX::planet[3];
+    const s_planet_data home_planet_0 = test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0)));
+    const s_planet_data home_extra_0 = test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1)));
+    const s_planet_data home_planet_1 = test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(2)));
+    const s_planet_data home_extra_1 = test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(3)));
     const s_colony home_colony_0 = MOX::colony[0];
     const s_colony home_colony_1 = MOX::colony[1];
     const s_ship_data advanced_start_ship = MOX::ship[1];
@@ -674,8 +675,8 @@ TEST_CASE("full mirror package preserves native home systems") {
     const int8_t home_picture_0 = MOX::star[0].pict_type;
     const int8_t home_size_1 = MOX::star[4].size;
     const int8_t home_picture_1 = MOX::star[4].pict_type;
-    const s_planet_data source_planet_0 = MOX::planet[4];
-    const s_planet_data source_planet_1 = MOX::planet[5];
+    const s_planet_data source_planet_0 = test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(4)));
+    const s_planet_data source_planet_1 = test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(5)));
 
     constexpr uint32_t RNG_SEED = 0x12345678;
     game_random::Set_Random_Seed(RNG_SEED);
@@ -700,16 +701,16 @@ TEST_CASE("full mirror package preserves native home systems") {
     CHECK(MOX::NUM_COLONIES == 2);
     CHECK((MOX::player[0].home_planet_id == 0));
     CHECK((MOX::player[1].home_planet_id == 2));
-    CHECK(memcmp(&MOX::planet[0],
+    CHECK(memcmp(&test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))),
               &home_planet_0,
               sizeof(home_planet_0)) == 0);
-    CHECK(memcmp(&MOX::planet[1],
+    CHECK(memcmp(&test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))),
               &home_extra_0,
               sizeof(home_extra_0)) == 0);
-    CHECK(memcmp(&MOX::planet[2],
+    CHECK(memcmp(&test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(2))),
               &home_planet_1,
               sizeof(home_planet_1)) == 0);
-    CHECK(memcmp(&MOX::planet[3],
+    CHECK(memcmp(&test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(3))),
               &home_extra_1,
               sizeof(home_extra_1)) == 0);
     CHECK(memcmp(&MOX::colony[0],
@@ -738,15 +739,15 @@ TEST_CASE("full mirror package preserves native home systems") {
     CHECK(MOX::star[0].system_special == SYSTEM_SPECIAL_NO_SPECIAL);
     CHECK(MOX::star[0].visited == 1);
     CHECK((MOX::star[0].planet_index[0] == 0));
-    CHECK((MOX::star[0].planet_index[1] == -1));
+    CHECK((MOX::star[0].planet_index[1] == ::game::NO_PLANET));
     CHECK((MOX::star[0].planet_index[2] == 1));
-    CHECK((MOX::star[0].planet_index[3] == -1));
-    CHECK((MOX::star[0].planet_index[4] == -1));
-    CHECK((MOX::star[4].planet_index[0] == -1));
+    CHECK((MOX::star[0].planet_index[3] == ::game::NO_PLANET));
+    CHECK((MOX::star[0].planet_index[4] == ::game::NO_PLANET));
+    CHECK((MOX::star[4].planet_index[0] == ::game::NO_PLANET));
     CHECK((MOX::star[4].planet_index[3] == 2));
     CHECK((MOX::star[4].planet_index[1] == 3));
-    CHECK((MOX::star[4].planet_index[2] == -1));
-    CHECK((MOX::star[4].planet_index[4] == -1));
+    CHECK((MOX::star[4].planet_index[2] == ::game::NO_PLANET));
+    CHECK((MOX::star[4].planet_index[4] == ::game::NO_PLANET));
 
     int16_t copied_marooned_system = -1;
     int16_t copied_monster_system = -1;
@@ -786,14 +787,14 @@ TEST_CASE("full mirror package preserves native home systems") {
         MOX::star[copied_monster_system].planet_index[4];
     REQUIRE(copied_planet_0 >= 0);
     REQUIRE(copied_planet_1 >= 0);
-    CHECK(MOX::planet[copied_planet_0].planet_type ==
+    CHECK(test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(copied_planet_0))).planet_type ==
         source_planet_0.planet_type);
-    CHECK(MOX::planet[copied_planet_0].size == source_planet_0.size);
-    CHECK(MOX::planet[copied_planet_0].colony_index == -1);
-    CHECK(MOX::planet[copied_planet_1].planet_type ==
+    CHECK(test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(copied_planet_0))).size == source_planet_0.size);
+    CHECK(test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(copied_planet_0))).colony_index == -1);
+    CHECK(test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(copied_planet_1))).planet_type ==
         source_planet_1.planet_type);
-    CHECK(MOX::planet[copied_planet_1].size == source_planet_1.size);
-    CHECK(MOX::planet[copied_planet_1].colony_index == -1);
+    CHECK(test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(copied_planet_1))).size == source_planet_1.size);
+    CHECK(test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(copied_planet_1))).colony_index == -1);
 
     int marooned_leaders = 0;
     bool copied_leader_found = false;

@@ -34,7 +34,7 @@ namespace aidudes {
      * Clears build queues after a tech change when the colony is on a rebuild-eligible project.
      * @param force_clear Nonzero to force reevaluation immediately.
      */
-    void __cdecl Clear_Build_Queues_If_New_Tech(s_ai_colony_context* ctx, bool force_clear);
+    void __cdecl Clear_Build_Queues_If_New_Tech(::game::s_world_state* world_state, s_ai_colony_context* ctx, bool force_clear);
 
     /**
      * Refreshes ships under construction so they use the current design template.
@@ -106,7 +106,7 @@ namespace aidudes {
      * Selects a shared emergency build project for colonies with open queues.
      * @param player_idx Player whose colonies are being updated.
      */
-    void Assign_Empire_Building(AIDATA::s_state* ai, const game::s_view* world, game::id_player player_idx);
+    void Assign_Empire_Building(::game::s_world_state* world_state, AIDATA::s_state* ai, const game::s_view* world, game::id_player player_idx);
 
     /**
      * Revalidates researching colonies after assignment changes.

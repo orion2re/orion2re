@@ -5,12 +5,12 @@ namespace EVENTS {
     namespace {
         int16_t deferred_monster_event_target = -1;
 
-        uint16_t System_Colony_Research(int16_t star_idx) {
+        uint16_t System_Colony_Research(::game::s_world_state* world_state, int16_t star_idx) {
             uint16_t research = 0;
             for (int16_t i = 0; i < 5; ++i) {
-                const int16_t planet_idx = MOX::star[star_idx].planet_index[i];
-                if (planet_idx != -1) {
-                    const int16_t colony_idx = MOX::planet[planet_idx].colony_index;
+                const ::game::id_planet planet_idx = MOX::star[star_idx].planet_index[i];
+                if (planet_idx != ::game::NO_PLANET) {
+                    const int16_t colony_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index;
                     if (colony_idx != -1) {
                         research = (uint16_t)(research + Colony_Research_Points(colony_idx));
                     }
@@ -70,7 +70,7 @@ namespace EVENTS {
     s_colors event_normal_colors = {{248, 254, 253, 251, 252, 253, 254, 255}};
     s_mouse_list event_blank_mouse = {0, 0, 0, 0, 639, 479};
 
-    int16_t __cdecl Get_Event_Mineral_Depletion_Colony(int16_t player_idx) {
+    int16_t __cdecl Get_Event_Mineral_Depletion_Colony(::game::s_world_state* world_state, int16_t player_idx) {
         int16_t found_colony_idx = -1;
         int16_t attempts = 0;
 
@@ -78,9 +78,9 @@ namespace EVENTS {
             int16_t pick = Pick_Random_Colony_No_Capitol(player_idx);
 
             if (pick != -1) {
-                int16_t planet_idx = MOX::colony[pick].planet;
+                ::game::id_planet planet_idx = MOX::colony[pick].planet;
                 // Mineral class richer than MINERAL_RESOURCE_RICH required for depletion event
-                if (MOX::planet[planet_idx].mineral_class > MINERAL_RESOURCE_RICH) {
+                if (::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).mineral_class > MINERAL_RESOURCE_RICH) {
                     found_colony_idx = pick;
                 }
             }
@@ -120,17 +120,18 @@ namespace EVENTS {
             event_data[i].status = 0;
             event_data[i].turn_count = 0;
             event_data[i].target_id = -1;
+            event_data[i].planet_target = game::NO_PLANET;
             event_data[i].amount = -1;
             event_data[i].max_amount = -1;
         }
     }
 
-    int16_t __cdecl Event_Check_Space_Anomaly(int16_t colony_idx) {
+    int16_t __cdecl Event_Check_Space_Anomaly(::game::s_world_state* world_state, int16_t colony_idx) {
         auto& event = event_data[EVENT_TIME_SPACE_ANOMALY];
 
         if (event.status == 2 || event.status == 4 || event.status == 6) {
-            int16_t planet_idx = MOX::colony[colony_idx].planet;
-            if (MOX::planet[planet_idx].star_index == event.target_id) {
+            ::game::id_planet planet_idx = MOX::colony[colony_idx].planet;
+            if (::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index == event.target_id) {
                 return 1;
             }
         }
@@ -164,15 +165,15 @@ namespace EVENTS {
         return 0;
     }
 
-    int16_t __cdecl Event_Check_Colony_Researching(int16_t colony_idx) {
+    int16_t __cdecl Event_Check_Colony_Researching(::game::s_world_state* world_state, int16_t colony_idx) {
         if ((event_data[EVENT_PLAGUE].status == 2 || event_data[EVENT_PLAGUE].status == 6) &&
             (event_data[EVENT_PLAGUE].target_id == colony_idx)) {
             return 1;
         }
 
         if ((event_data[EVENT_SUPERNOVA].status == 2 || event_data[EVENT_SUPERNOVA].status == 6)) {
-            int16_t planet_idx = MOX::colony[colony_idx].planet;
-            if (MOX::planet[planet_idx].star_index == event_data[EVENT_SUPERNOVA].target_id) {
+            ::game::id_planet planet_idx = MOX::colony[colony_idx].planet;
+            if (::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index == event_data[EVENT_SUPERNOVA].target_id) {
                 return 1;
             }
         }
@@ -329,11 +330,11 @@ namespace EVENTS {
     int16_t __cdecl Supernova_Research_Requirement(int16_t star_idx,
         int16_t turn_count) {
         const uint16_t research_per_turn = (uint16_t)(supernova.minimum_research_per_turn +
-            System_Colony_Research(star_idx));
+            System_Colony_Research(&::game::world, star_idx));
         return (int16_t)((int32_t)turn_count * (int16_t)research_per_turn);
     }
 
-    void __cdecl Event_Twiddle() {
+    void __cdecl Event_Twiddle(::game::s_world_state* world_state) {
         for (int16_t i = 0; i < EVENT_COUNT; ++i) {
             if (event_data[i].status == 5 /* Finishing */) {
                 event_data[i].status = 3 /* Expired */;
@@ -359,11 +360,11 @@ namespace EVENTS {
                     break;
 
                 case EVENT_CLIMATIC_CHANGE: {
-                    int16_t planet_idx = event_data[i].target_id;
-                    int8_t old_climate = MOX::planet[planet_idx].climate;
-                    MOX::planet[planet_idx].climate = PLANET_CLIMATE_TERRAN;
-                    MOX::planet[planet_idx].food_per_farmer += (MOX::food_per_farmer_table[PLANET_CLIMATE_TERRAN] - MOX::food_per_farmer_table[old_climate]);
-                    int16_t colony_idx = MOX::planet[planet_idx].colony_index;
+                    ::game::id_planet planet_idx = event_data[i].planet_target;
+                    int8_t old_climate = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).climate;
+                    ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).climate = PLANET_CLIMATE_TERRAN;
+                    ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).food_per_farmer += (MOX::food_per_farmer_table[PLANET_CLIMATE_TERRAN] - MOX::food_per_farmer_table[old_climate]);
+                    int16_t colony_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index;
                     if (colony_idx != -1) {
                         COLCALC::Colony_Calculation(colony_idx);
                         COLBLDG::Delete_Prod_From_Colony_Queue(colony_idx, BUILDING_TERRAFORMING);
@@ -374,7 +375,7 @@ namespace EVENTS {
 
                 case EVENT_COMET:
                     if (event_data[i].status != 6) {
-                        int16_t star_idx = MOX::planet[MOX::colony[event_data[i].target_id].planet].star_index;
+                        int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(MOX::colony[event_data[i].target_id].planet))).star_index;
                         event_data[i].amount -= Ship_Size_Points_At_Star(star_idx);
                         if (event_data[i].amount <= 0) {
                             event_data[i].amount = 0;
@@ -456,7 +457,7 @@ namespace EVENTS {
                     break;
 
                 case EVENT_INDUSTRIAL_ACCIDENT: {
-                    int16_t colony_idx = MOX::planet[event_data[i].target_id].colony_index;
+                    int16_t colony_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(event_data[i].planet_target))).colony_index;
                     if (colony_idx != -1) {
                         Allocate_Industrial_Accident_Hit(colony_idx);
                         COLCALC::Colony_Calculation(colony_idx);
@@ -466,10 +467,10 @@ namespace EVENTS {
                 }
 
                 case EVENT_MINERAL_DEPLETION: {
-                    int8_t mineral = MOX::planet[event_data[i].target_id].mineral_class - 1;
+                    int8_t mineral = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(event_data[i].planet_target))).mineral_class - 1;
                     if (mineral <= MINERAL_RESOURCE_ULTRA_POOR) mineral = MINERAL_RESOURCE_ULTRA_POOR;
-                    MOX::planet[event_data[i].target_id].mineral_class = mineral;
-                    int16_t colony_idx = MOX::planet[event_data[i].target_id].colony_index;
+                    ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(event_data[i].planet_target))).mineral_class = mineral;
+                    int16_t colony_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(event_data[i].planet_target))).colony_index;
                     if (colony_idx != -1) {
                         COLCALC::Colony_Calculation(colony_idx);
                     }
@@ -478,10 +479,10 @@ namespace EVENTS {
                 }
 
                 case EVENT_MINERAL_DEPOSIT: {
-                    int8_t mineral = MOX::planet[event_data[i].target_id].mineral_class + 2;
+                    int8_t mineral = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(event_data[i].planet_target))).mineral_class + 2;
                     if (mineral >= MINERAL_RESOURCE_ULTRA_RICH) mineral = MINERAL_RESOURCE_ULTRA_RICH;
-                    MOX::planet[event_data[i].target_id].mineral_class = mineral;
-                    int16_t colony_idx = MOX::planet[event_data[i].target_id].colony_index;
+                    ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(event_data[i].planet_target))).mineral_class = mineral;
+                    int16_t colony_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(event_data[i].planet_target))).colony_index;
                     if (colony_idx != -1) {
                         COLCALC::Colony_Calculation(colony_idx);
                     }
@@ -611,9 +612,9 @@ namespace EVENTS {
                 case EVENT_SUPERNOVA:
                     if (event_data[i].status != 6) {
                         for (int j = 0; j < 5; ++j) {
-                            int16_t planet_idx = MOX::star[event_data[i].target_id].planet_index[j];
-                            if (planet_idx != -1) {
-                                int16_t colony_idx = MOX::planet[planet_idx].colony_index;
+                            ::game::id_planet planet_idx = MOX::star[event_data[i].target_id].planet_index[j];
+                            if (planet_idx != ::game::NO_PLANET) {
+                                int16_t colony_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index;
                                 if (colony_idx != -1) {
                                     const int16_t research = Colony_Research_Points(colony_idx);
                                     event_data[i].amount -= research;
@@ -627,15 +628,15 @@ namespace EVENTS {
                             event_data[i].turn_count--;
                             if (event_data[i].turn_count <= 0) {
                                 for (int j = 0; j < 5; ++j) {
-                                    int16_t planet_idx = MOX::star[event_data[i].target_id].planet_index[j];
-                                    if (planet_idx != -1) {
-                                        MOX::planet[planet_idx].climate = PLANET_CLIMATE_RADIATED;
-                                        MOX::planet[planet_idx].environmental_alterations = 0;
-                                        MOX::planet[planet_idx].food_per_farmer =
+                                    ::game::id_planet planet_idx = MOX::star[event_data[i].target_id].planet_index[j];
+                                    if (planet_idx != ::game::NO_PLANET) {
+                                        ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).climate = PLANET_CLIMATE_RADIATED;
+                                        ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).environmental_alterations = 0;
+                                        ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).food_per_farmer =
                                             MOX::food_per_farmer_table[PLANET_CLIMATE_RADIATED];
-                                        int16_t colony_idx = MOX::planet[planet_idx].colony_index;
+                                        int16_t colony_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index;
                                         if (colony_idx != -1) {
-                                            BOMB::Destroy_Colony(&MOX::colony[colony_idx], -1);
+                                            BOMB::Destroy_Colony(world_state, &MOX::colony[colony_idx], -1);
                                         }
                                     }
                                 }
@@ -651,9 +652,9 @@ namespace EVENTS {
                 case EVENT_TIME_SPACE_ANOMALY:
                     if (event_data[i].status == 2) {
                         for (int j = 0; j < 5; ++j) {
-                            int16_t planet_idx = MOX::star[event_data[i].target_id].planet_index[j];
-                            if (planet_idx != -1) {
-                                int16_t colony_idx = MOX::planet[planet_idx].colony_index;
+                            ::game::id_planet planet_idx = MOX::star[event_data[i].target_id].planet_index[j];
+                            if (planet_idx != ::game::NO_PLANET) {
+                                int16_t colony_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index;
                                 if (colony_idx != -1) {
                                     COLCALC::Colony_Calculation(colony_idx);
                                 }
@@ -716,7 +717,7 @@ namespace EVENTS {
         }
     }
 
-    int16_t __cdecl Colony_Has_Event(int16_t colony_idx) {
+    int16_t __cdecl Colony_Has_Event(::game::s_world_state* world_state, int16_t colony_idx) {
         if (Event_Check_Comet(colony_idx) == 1) {
             return EVENT_COMET;
         }
@@ -729,22 +730,22 @@ namespace EVENTS {
             return EVENT_POPULATION_BOOM;
         }
 
-        if (Event_Check_Space_Anomaly(colony_idx) == 1) {
+        if (Event_Check_Space_Anomaly(world_state, colony_idx) == 1) {
             return EVENT_TIME_SPACE_ANOMALY;
         }
 
         int8_t status14 = event_data[EVENT_PIRATE_ACTIVITY].status;
         if (status14 == 2 || status14 == 4 || status14 == 6) {
-            int16_t planet_idx = MOX::colony[colony_idx].planet;
-            if (MOX::planet[planet_idx].star_index == event_data[EVENT_PIRATE_ACTIVITY].target_id) {
+            ::game::id_planet planet_idx = MOX::colony[colony_idx].planet;
+            if (::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index == event_data[EVENT_PIRATE_ACTIVITY].target_id) {
                 return EVENT_PIRATE_ACTIVITY;
             }
         }
 
         int8_t status24 = event_data[EVENT_SUPERNOVA].status;
         if (status24 == 2 || status24 == 4 || status24 == 6) {
-            int16_t planet_idx = MOX::colony[colony_idx].planet;
-            if (MOX::planet[planet_idx].star_index == event_data[EVENT_SUPERNOVA].target_id) {
+            ::game::id_planet planet_idx = MOX::colony[colony_idx].planet;
+            if (::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index == event_data[EVENT_SUPERNOVA].target_id) {
                 return EVENT_SUPERNOVA;
             }
         }
@@ -770,7 +771,7 @@ namespace EVENTS {
         }
     }
 
-    void __cdecl Determine_Event() {
+    void __cdecl Determine_Event(::game::s_world_state* world_state) {
         bool is_random_event_due = false;
 
         EVENTS::Update_Lucky_Players_Events();
@@ -878,7 +879,7 @@ namespace EVENTS {
             }
 
             if (event_type == EVENT_CLIMATIC_CHANGE) {
-                target_id = EVENTS::Get_Event_Climate_Change_Colony((int8_t)player_idx);
+                target_id = EVENTS::Get_Event_Climate_Change_Colony(world_state, (int8_t)player_idx);
                 if (target_id == -1) {
                     event_type = -1;
                 }
@@ -902,7 +903,7 @@ namespace EVENTS {
                 if (MOX::player[player_idx].traits[23] == 1) {
                     event_type = -1;
                 } else {
-                    target_id = EVENTS::Get_Event_Industrial_Accident_Colony((int8_t)player_idx);
+                    target_id = EVENTS::Get_Event_Industrial_Accident_Colony(world_state, (int8_t)player_idx);
                     if (target_id == -1) {
                         event_type = -1;
                     }
@@ -910,14 +911,14 @@ namespace EVENTS {
             }
 
             if (event_type == EVENT_MINERAL_DEPLETION) {
-                target_id = EVENTS::Get_Event_Mineral_Depletion_Colony((int8_t)player_idx);
+                target_id = EVENTS::Get_Event_Mineral_Depletion_Colony(world_state, (int8_t)player_idx);
                 if (target_id == -1) {
                     event_type = -1;
                 }
             }
 
             if (event_type == EVENT_MINERAL_DEPOSIT) {
-                target_id = EVENTS::Get_Event_Mineral_Deposit_Colony((int8_t)player_idx);
+                target_id = EVENTS::Get_Event_Mineral_Deposit_Colony(world_state, (int8_t)player_idx);
                 if (target_id == -1) {
                     event_type = -1;
                 }
@@ -940,7 +941,7 @@ namespace EVENTS {
                         EVENTS::event_data[EVENT_POPULATION_BOOM].target_id == target_id) {
                         event_type = -1;
                     }
-                    if (EVENTS::Colony_Has_Event(target_id) != -1) {
+                    if (EVENTS::Colony_Has_Event(world_state, target_id) != -1) {
                         event_type = -1;
                     }
                 } else {
@@ -955,10 +956,10 @@ namespace EVENTS {
                         EVENTS::event_data[EVENT_PLAGUE].target_id == target_id) {
                         event_type = -1;
                     }
-                    if (EVENTS::Colony_Has_Event(target_id) != -1) {
+                    if (EVENTS::Colony_Has_Event(world_state, target_id) != -1) {
                         event_type = -1;
                     }
-                    if (COLCALC::Planet_Max_Population_For_Player(&MOX::planet[MOX::colony[target_id].planet], (int8_t)player_idx) == MOX::colony[target_id].n_pops) {
+                    if (COLCALC::Planet_Max_Population_For_Player(&::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(MOX::colony[target_id].planet))), (int8_t)player_idx) == MOX::colony[target_id].n_pops) {
                         event_type = -1;
                     }
                 } else {
@@ -989,6 +990,7 @@ namespace EVENTS {
             EVENTS::event_data[event_type].status = 1;
             EVENTS::event_data[event_type].turn_count = -1;
             EVENTS::event_data[event_type].target_id = -1;
+            EVENTS::event_data[event_type].planet_target = game::NO_PLANET;
             EVENTS::event_data[event_type].amount = -1;
             EVENTS::event_data[event_type].max_amount = -1;
 
@@ -1001,12 +1003,12 @@ namespace EVENTS {
                     }
                     break;
                 case EVENT_CLIMATIC_CHANGE:
-                    EVENTS::event_data[event_type].target_id = MOX::colony[target_id].planet;
+                    EVENTS::event_data[event_type].planet_target = MOX::colony[target_id].planet;
                     break;
                 case EVENT_COMET:
                     target_id = EVENTS::Pick_Random_Colony_No_Capitol(player_idx);
                     EVENTS::event_data[event_type].target_id = target_id;
-                    if (target_id == -1 || EVENTS::Colony_Has_Event(target_id) != -1) {
+                    if (target_id == -1 || EVENTS::Colony_Has_Event(world_state, target_id) != -1) {
                         EVENTS::event_data[event_type].status = 0;
                         EVENTS::event_data[event_type].player_idx = -1;
                     } else {
@@ -1047,16 +1049,16 @@ namespace EVENTS {
                 case EVENT_INDUSTRIAL_ACCIDENT:
                 case EVENT_MINERAL_DEPLETION:
                 case EVENT_MINERAL_DEPOSIT:
-                    EVENTS::event_data[event_type].target_id = MOX::colony[target_id].planet;
+                    EVENTS::event_data[event_type].planet_target = MOX::colony[target_id].planet;
                     break;
                 case EVENT_MUTINY:
                     EVENTS::event_data[event_type].target_id = ship_idx;
                     EVENTS::event_data[event_type].amount = contact_player_idx;
                     break;
                 case EVENT_PIRATE_ACTIVITY:
-                    target_id = EVENTS::Pick_Random_Star((int8_t)player_idx);
+                    target_id = EVENTS::Pick_Random_Star(world_state, (int8_t)player_idx);
                     EVENTS::event_data[event_type].target_id = target_id;
-                    if (target_id == -1 || EVENTS::Star_Has_Event(target_id) != -1) {
+                    if (target_id == -1 || EVENTS::Star_Has_Event(world_state, target_id) != -1) {
                         EVENTS::event_data[event_type].status = 0;
                         EVENTS::event_data[event_type].player_idx = -1;
                     } else {
@@ -1070,7 +1072,7 @@ namespace EVENTS {
                     }
                     break;
                 case EVENT_PIRATE_RAID:
-                    target_id = EVENTS::Pick_Random_Star((int8_t)player_idx);
+                    target_id = EVENTS::Pick_Random_Star(world_state, (int8_t)player_idx);
                     EVENTS::event_data[event_type].target_id = target_id;
                     if (target_id == -1) {
                         EVENTS::event_data[event_type].status = 0;
@@ -1101,7 +1103,7 @@ namespace EVENTS {
                 case EVENT_SPACE_DRAGON:
                 case EVENT_SPACE_EEL:
                 case EVENT_SPACE_HYDRA:
-                    target_id = EVENTS::Pick_Random_Star((int8_t)player_idx);
+                    target_id = EVENTS::Pick_Random_Star(world_state, (int8_t)player_idx);
                     EVENTS::event_data[event_type].target_id = target_id;
                     if (target_id == -1) {
                         EVENTS::event_data[event_type].status = 0;
@@ -1109,9 +1111,9 @@ namespace EVENTS {
                     EVENTS::event_data[event_type].player_idx = -1;
                     break;
                 case EVENT_SUPERNOVA: {
-                    target_id = EVENTS::Pick_Completely_Random_Star();
+                    target_id = EVENTS::Pick_Completely_Random_Star(world_state);
                     EVENTS::event_data[event_type].target_id = target_id;
-                    if (target_id == -1 || EVENTS::Star_Has_Event(target_id) != -1) {
+                    if (target_id == -1 || EVENTS::Star_Has_Event(world_state, target_id) != -1) {
                         EVENTS::event_data[event_type].status = 0;
                         EVENTS::event_data[event_type].player_idx = -1;
                     } else {
@@ -1124,10 +1126,10 @@ namespace EVENTS {
                     break;
                 }
                 case EVENT_TIME_SPACE_ANOMALY:
-                    target_id = EVENTS::Pick_Random_Star((int8_t)player_idx);
+                    target_id = EVENTS::Pick_Random_Star(world_state, (int8_t)player_idx);
                     EVENTS::event_data[event_type].target_id = target_id;
                     EVENTS::event_data[event_type].turn_count = 0;
-                    if (target_id == -1 || EVENTS::Star_Has_Event(target_id) != -1) {
+                    if (target_id == -1 || EVENTS::Star_Has_Event(world_state, target_id) != -1) {
                         EVENTS::event_data[event_type].status = 0;
                         EVENTS::event_data[event_type].player_idx = -1;
                     }
@@ -1149,7 +1151,7 @@ namespace EVENTS {
             break;
         }
 
-        EVENTS::Event_Check_Planet_Warning();
+        EVENTS::Event_Check_Planet_Warning(world_state);
         EVENTS::Event_Check_General_Status();
     }
 
@@ -1241,7 +1243,7 @@ namespace EVENTS {
      * Terminate events associated with a colony that is no longer valid (e.g. destroyed or abandoned).
      * Specifically handles Comets, Plagues, Population Booms, and Space Anomalies.
      */
-    void __cdecl Kill_All_Events_At_Colony(int16_t colony_idx) {
+    void __cdecl Kill_All_Events_At_Colony(::game::s_world_state* world_state, int16_t colony_idx) {
         if (EVENTS::Event_Check_Comet(colony_idx) == 1) {
             event_data[EVENT_COMET].status = 3 /* Expired */;
             event_data[EVENT_COMET].player_idx = -1;
@@ -1257,9 +1259,9 @@ namespace EVENTS {
             event_data[EVENT_POPULATION_BOOM].player_idx = -1;
         }
 
-        if (EVENTS::Event_Check_Space_Anomaly(colony_idx) == 1) {
-            int16_t planet_idx = MOX::colony[colony_idx].planet;
-            int16_t star_idx = MOX::planet[planet_idx].star_index;
+        if (EVENTS::Event_Check_Space_Anomaly(world_state, colony_idx) == 1) {
+            ::game::id_planet planet_idx = MOX::colony[colony_idx].planet;
+            int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index;
             int16_t presence_count = 0;
             uint8_t has_colony_mask = MOX::star[star_idx].has_colony;
 
@@ -1277,8 +1279,8 @@ namespace EVENTS {
 
         int8_t status14 = event_data[EVENT_PIRATE_ACTIVITY].status;
         if (status14 == 2 || status14 == 4 || status14 == 6) {
-            int16_t planet_idx = MOX::colony[colony_idx].planet;
-            int16_t star_idx = MOX::planet[planet_idx].star_index;
+            ::game::id_planet planet_idx = MOX::colony[colony_idx].planet;
+            int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index;
 
             if (event_data[EVENT_PIRATE_ACTIVITY].target_id == star_idx) {
                 int16_t presence_count = 0;
@@ -1299,8 +1301,8 @@ namespace EVENTS {
 
         int8_t status24 = event_data[EVENT_SUPERNOVA].status;
         if (status24 == 2 || status24 == 4 || status24 == 6) {
-            int16_t planet_idx = MOX::colony[colony_idx].planet;
-            int16_t star_idx = MOX::planet[planet_idx].star_index;
+            ::game::id_planet planet_idx = MOX::colony[colony_idx].planet;
+            int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index;
 
             if (event_data[EVENT_SUPERNOVA].target_id == star_idx) {
                 int16_t presence_count = 0;
@@ -1334,15 +1336,15 @@ namespace EVENTS {
      * It first tries to pick a colony randomly up to 200 times. If that fails, it performs a 
      * sequential search through all colonies.
      */
-    int16_t __cdecl Get_Event_Climate_Change_Colony(int16_t player_idx) {
+    int16_t __cdecl Get_Event_Climate_Change_Colony(::game::s_world_state* world_state, int16_t player_idx) {
         int16_t colony_idx = -1;
 
         // Attempt to pick a random colony that satisfies the climate condition
         for (int i = 0; i < 200; ++i) {
             int16_t picked = Pick_Random_Colony_No_Outpost((int8_t)player_idx);
             if (picked != -1) {
-                int16_t planet_idx = MOX::colony[picked].planet;
-                if (MOX::planet[planet_idx].climate < PLANET_CLIMATE_TERRAN) {
+                ::game::id_planet planet_idx = MOX::colony[picked].planet;
+                if (::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).climate < PLANET_CLIMATE_TERRAN) {
                     colony_idx = picked;
                     break;
                 }
@@ -1361,8 +1363,8 @@ namespace EVENTS {
                 }
 
                 if (MOX::colony[i].owner == player_idx) {
-                    int16_t planet_idx = MOX::colony[i].planet;
-                    if (MOX::planet[planet_idx].climate < PLANET_CLIMATE_TERRAN) {
+                    ::game::id_planet planet_idx = MOX::colony[i].planet;
+                    if (::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).climate < PLANET_CLIMATE_TERRAN) {
                         colony_idx = i;
                     }
                 }
@@ -1425,7 +1427,7 @@ namespace EVENTS {
      * Searches randomly first, then falls back to a linear scan of player colonies.
      * Only selects colonies on planets with climate > 1.
      */
-    int16_t __cdecl Get_Event_Industrial_Accident_Colony(int16_t player_idx) {
+    int16_t __cdecl Get_Event_Industrial_Accident_Colony(::game::s_world_state* world_state, int16_t player_idx) {
         int16_t result_colony_idx = -1;
         int16_t attempts = 0;
 
@@ -1434,8 +1436,8 @@ namespace EVENTS {
             int16_t random_idx = Pick_Random_Colony_No_Capitol(player_idx);
 
             if (random_idx != -1) {
-                int16_t planet_idx = MOX::colony[random_idx].planet;
-                if (MOX::planet[planet_idx].climate > PLANET_CLIMATE_RADIATED) {
+                ::game::id_planet planet_idx = MOX::colony[random_idx].planet;
+                if (::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).climate > PLANET_CLIMATE_RADIATED) {
                     result_colony_idx = random_idx;
                 }
             }
@@ -1454,8 +1456,8 @@ namespace EVENTS {
                 }
 
                 if (MOX::colony[i].owner == player_idx) {
-                    int16_t planet_idx = MOX::colony[i].planet;
-                    if (MOX::planet[planet_idx].climate > PLANET_CLIMATE_RADIATED) {
+                    ::game::id_planet planet_idx = MOX::colony[i].planet;
+                    if (::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).climate > PLANET_CLIMATE_RADIATED) {
                         result_colony_idx = i;
                     }
                 }
@@ -1465,7 +1467,7 @@ namespace EVENTS {
         return result_colony_idx;
     }
 
-    int16_t __cdecl Get_Event_Mineral_Deposit_Colony(int16_t player_idx) {
+    int16_t __cdecl Get_Event_Mineral_Deposit_Colony(::game::s_world_state* world_state, int16_t player_idx) {
         int16_t colony_idx = -1;
         int16_t attempts = 0;
 
@@ -1473,11 +1475,11 @@ namespace EVENTS {
             int16_t random_idx = Pick_Random_Colony_No_Outpost((int8_t)player_idx);
 
             if (random_idx != -1) {
-                int16_t planet_idx = MOX::colony[random_idx].planet;
+                ::game::id_planet planet_idx = MOX::colony[random_idx].planet;
 
                 // Mineral classes: 0=Ultra Poor, 1=Poor, 2=Abundant, 3=Rich, 4=Ultra Rich
                 // The check is for mineral_class < 4.
-                if (MOX::planet[planet_idx].mineral_class < MINERAL_RESOURCE_ULTRA_RICH) {
+                if (::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).mineral_class < MINERAL_RESOURCE_ULTRA_RICH) {
                     colony_idx = random_idx;
                 }
             }
@@ -1533,7 +1535,7 @@ namespace EVENTS {
         return selected_colony_idx;
     }
 
-    int16_t __cdecl Pick_Random_Star(int16_t player_idx) {
+    int16_t __cdecl Pick_Random_Star(::game::s_world_state* world_state, int16_t player_idx) {
         int16_t result_star_idx = -1;
         int16_t star_idx = 0;
         int16_t count = 0;
@@ -1543,9 +1545,9 @@ namespace EVENTS {
                 // Check if the player owns the star system
                 if (MOX::star[star_idx].owner == (int8_t)player_idx) {
                     for (int16_t p = 0; p < 5; ++p) {
-                        int16_t planet_idx = MOX::star[star_idx].planet_index[p];
-                        if (planet_idx != -1) {
-                            int16_t colony_idx = MOX::planet[planet_idx].colony_index;
+                        ::game::id_planet planet_idx = MOX::star[star_idx].planet_index[p];
+                        if (planet_idx != ::game::NO_PLANET) {
+                            int16_t colony_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index;
                             if (colony_idx != -1) {
                                 s_colony* colony = &MOX::colony[colony_idx];
                                 // Only consider colonies (not outposts) belonging to the player
@@ -1568,12 +1570,12 @@ namespace EVENTS {
         return result_star_idx;
     }
 
-    int16_t __cdecl Star_Has_Event(int16_t star_idx) {
+    int16_t __cdecl Star_Has_Event(::game::s_world_state* world_state, int16_t star_idx) {
         if ((event_data[EVENT_COMET].status == 2 || event_data[EVENT_COMET].status == 4 ||
                 event_data[EVENT_COMET].status == 6)) {
             int16_t colony_idx = event_data[EVENT_COMET].target_id;
-            int16_t planet_idx = MOX::colony[colony_idx].planet;
-            if (MOX::planet[planet_idx].star_index == star_idx) {
+            ::game::id_planet planet_idx = MOX::colony[colony_idx].planet;
+            if (::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index == star_idx) {
                 return EVENT_COMET;
             }
         }
@@ -1581,8 +1583,8 @@ namespace EVENTS {
         if ((event_data[EVENT_PLAGUE].status == 2 || event_data[EVENT_PLAGUE].status == 4 ||
                 event_data[EVENT_PLAGUE].status == 6)) {
             int16_t colony_idx = event_data[EVENT_PLAGUE].target_id;
-            int16_t planet_idx = MOX::colony[colony_idx].planet;
-            if (MOX::planet[planet_idx].star_index == star_idx) {
+            ::game::id_planet planet_idx = MOX::colony[colony_idx].planet;
+            if (::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index == star_idx) {
                 return EVENT_PLAGUE;
             }
         }
@@ -1591,8 +1593,8 @@ namespace EVENTS {
                 event_data[EVENT_POPULATION_BOOM].status == 4 ||
                 event_data[EVENT_POPULATION_BOOM].status == 6)) {
             int16_t colony_idx = event_data[EVENT_POPULATION_BOOM].target_id;
-            int16_t planet_idx = MOX::colony[colony_idx].planet;
-            if (MOX::planet[planet_idx].star_index == star_idx) {
+            ::game::id_planet planet_idx = MOX::colony[colony_idx].planet;
+            if (::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index == star_idx) {
                 return EVENT_POPULATION_BOOM;
             }
         }
@@ -1662,7 +1664,7 @@ namespace EVENTS {
         return (int16_t)scaled_cp;
     }
 
-    int16_t __cdecl Pick_Completely_Random_Star() {
+    int16_t __cdecl Pick_Completely_Random_Star(::game::s_world_state* world_state) {
         int16_t found = 0;
         int16_t counter = 0;
         int16_t star_idx;
@@ -1674,9 +1676,9 @@ namespace EVENTS {
             if (MOX::star[star_idx].has_colony != 0) {
                 // If the star has a colony, check if any colony on its planets meets the criteria
                 for (int i = 0; i < 5; ++i) {
-                    int16_t planet_ptr_idx = MOX::star[star_idx].planet_index[i];
-                    if (planet_ptr_idx != -1) {
-                        int16_t colony_idx = MOX::planet[planet_ptr_idx].colony_index;
+                    auto planet_ptr_idx = MOX::star[star_idx].planet_index[i];
+                    if (planet_ptr_idx != ::game::NO_PLANET) {
+                        int16_t colony_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_ptr_idx))).colony_index;
                         if (colony_idx != -1) {
                             // Check if colony is not an outpost and does not have building index 9
                             if (MOX::colony[colony_idx].outpost_flag == 0 && MOX::colony[colony_idx].buildings[BUILDING_CAPITOL] == 0) {
@@ -1899,7 +1901,7 @@ namespace EVENTS {
         return selected_player;
     }
 
-    void __cdecl Event_Check_Planet_Warning() {
+    void __cdecl Event_Check_Planet_Warning(::game::s_world_state* world_state) {
         if (event_data[EVENT_EMPIRE_GROWN_IN_STRENGTH].amount <= 2) {
             int16_t half_stars = MOX::NUM_STARS / 2;
             int16_t colony_counts[MAX_PLAYERS];
@@ -1926,9 +1928,9 @@ namespace EVENTS {
                 if (player_idx != -1) {
                     bool has_real_colony = false;
                     for (int p = 0; p < 5; ++p) {
-                        int16_t planet_idx = MOX::star[i].planet_index[p];
-                        if (planet_idx != -1) {
-                            int16_t colony_idx = MOX::planet[planet_idx].colony_index;
+                        ::game::id_planet planet_idx = MOX::star[i].planet_index[p];
+                        if (planet_idx != ::game::NO_PLANET) {
+                            int16_t colony_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index;
                             if (colony_idx != -1) {
                                 if (MOX::colony[colony_idx].outpost_flag == 0) {
                                     has_real_colony = true;
@@ -1997,7 +1999,7 @@ namespace EVENTS {
         return false;
     }
 
-    void __cdecl Event_Monster_Update(int16_t monster_type, int16_t target_id, int16_t player_idx_or_amount) {
+    void __cdecl Event_Monster_Update(::game::s_world_state* world_state, int16_t monster_type, game::id_planet target_id, int16_t player_idx_or_amount) {
         int16_t event_index;
 
         switch (monster_type) {
@@ -2021,9 +2023,10 @@ namespace EVENTS {
         }
 
         s_event_data& event = event_data[event_index];
-        if (target_id != -1) {
-            const int16_t colony_idx = MOX::planet[target_id].colony_index;
-            event.target_id = target_id;
+        if (target_id != game::NO_PLANET) {
+            const int16_t colony_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(target_id))).colony_index;
+            event.planet_target = target_id;
+            event.target_id = -1;
             event.max_amount = colony_idx;
             event.turn_count = 0;
             if (colony_idx != -1) {
@@ -2033,6 +2036,7 @@ namespace EVENTS {
             return;
         }
 
+        event.planet_target = game::NO_PLANET;
         event.player_idx = (uint8_t)player_idx_or_amount;
         event.amount = player_idx_or_amount;
         if (player_idx_or_amount == -1) {
@@ -2044,6 +2048,7 @@ namespace EVENTS {
     void __cdecl Clear_Deferred_Monster_Event_Target() {
         if (deferred_monster_event_target != -1) {
             event_data[deferred_monster_event_target].target_id = -1;
+            event_data[deferred_monster_event_target].planet_target = game::NO_PLANET;
             deferred_monster_event_target = -1;
         }
     }
@@ -2064,7 +2069,7 @@ namespace EVENTS {
         for (event_idx = 0; event_idx < EVENT_COUNT; ++event_idx) {
             event_status = EVENTS::event_data[event_idx].status;
             if ((event_status == 4) || (event_status == 6) || (event_status == 5)) {
-                EVENTS::Setup_Next_Event(event_idx);
+                EVENTS::Setup_Next_Event(&::game::world, event_idx);
             }
         }
 
@@ -2098,10 +2103,10 @@ namespace EVENTS {
         }
     }
 
-    void __cdecl Setup_Next_Event(int16_t event_id) {
+    void __cdecl Setup_Next_Event(::game::s_world_state* world_state, int16_t event_id) {
         int16_t event_subtype = -1;
         int16_t p3 = 0;
-        int16_t planet_idx = -1;
+        ::game::id_planet planet_idx = ::game::NO_PLANET;
         int16_t p4 = 0;
         int16_t p5 = 0;
         int16_t player_idx = (int16_t)(int8_t)event_data[event_id].player_idx;
@@ -2126,7 +2131,7 @@ namespace EVENTS {
                 break;
             case EVENT_CLIMATIC_CHANGE:
                 event_subtype = 0;
-                p3 = MOX::planet[event_data[event_id].target_id].colony_index;
+                p3 = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(event_data[event_id].planet_target))).colony_index;
                 break;
             case EVENT_COMET:
                 p3 = event_data[event_id].target_id;
@@ -2192,21 +2197,21 @@ namespace EVENTS {
                 break;
             case EVENT_INDUSTRIAL_ACCIDENT:
                 event_subtype = 0;
-                planet_idx = event_data[event_id].target_id;
-                p11 = MOX::planet[event_data[event_id].target_id].star_index;
+                planet_idx = event_data[event_id].planet_target;
+                p11 = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(event_data[event_id].planet_target))).star_index;
                 break;
             case EVENT_MINERAL_DEPLETION:
                 p8 = player_idx;
                 event_subtype = 0;
-                planet_idx = event_data[event_id].target_id;
-                p11 = MOX::planet[event_data[event_id].target_id].star_index;
-                p4 = MOX::planet[event_data[event_id].target_id].mineral_class;
+                planet_idx = event_data[event_id].planet_target;
+                p11 = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(event_data[event_id].planet_target))).star_index;
+                p4 = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(event_data[event_id].planet_target))).mineral_class;
                 break;
             case EVENT_MINERAL_DEPOSIT:
                 event_subtype = 0;
-                planet_idx = event_data[event_id].target_id;
-                p11 = MOX::planet[event_data[event_id].target_id].star_index;
-                p4 = MOX::planet[event_data[event_id].target_id].mineral_class;
+                planet_idx = event_data[event_id].planet_target;
+                p11 = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(event_data[event_id].planet_target))).star_index;
+                p4 = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(event_data[event_id].planet_target))).mineral_class;
                 break;
             case EVENT_MUTINY:
                 break;
@@ -2252,16 +2257,16 @@ namespace EVENTS {
             case EVENT_SPACE_EEL:
             case EVENT_SPACE_HYDRA:
                 if (event_data[event_id].status == 4) {
-                    if (event_data[event_id].target_id != -1) {
+                    if (event_data[event_id].planet_target != game::NO_PLANET) {
                         event_subtype = 3;
                         p3 = event_data[event_id].max_amount;
-                        planet_idx = event_data[event_id].target_id;
-                        p11 = MOX::planet[planet_idx].star_index;
+                        planet_idx = event_data[event_id].planet_target;
+                        p11 = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index;
 
                         if (MOX::game_type == 1) {
                             deferred_monster_event_target = event_id;
                         } else {
-                            event_data[event_id].target_id = -1;
+                            event_data[event_id].planet_target = game::NO_PLANET;
                         }
                     }
                 } else if (event_data[event_id].status == 5) {
@@ -2271,7 +2276,7 @@ namespace EVENTS {
                         event_subtype = 1;
                     }
                 } else if (event_data[event_id].status == 6) {
-                    event_data[event_id].target_id = -1;
+                    event_data[event_id].planet_target = game::NO_PLANET;
                     event_subtype = 0;
                 }
                 break;
@@ -2350,10 +2355,10 @@ namespace EVENTS {
                 if (current_event == 0) {
                     Start_Main_Event();
                     event_display_seg = 0;
-                    Get_Event_Message(&game::world, 0, (int16_t)(game_random::Random(4) - 1), 0, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, event_message, sizeof(event_message));
+                    Get_Event_Message(&game::world, 0, (int16_t)(game_random::Random(4) - 1), 0, legacy_world::Planet_Id(-1), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, event_message, sizeof(event_message));
                 } else {
                     event_display_seg = 0;
-                    Get_Event_Message(&game::world, 1, (int16_t)(game_random::Random(4) - 1), 0, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, event_message, sizeof(event_message));
+                    Get_Event_Message(&game::world, 1, (int16_t)(game_random::Random(4) - 1), 0, legacy_world::Planet_Id(-1), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, event_message, sizeof(event_message));
                     event_status_flag = 0;
                 }
                 Drive_Event_Screen();
@@ -2365,7 +2370,7 @@ namespace EVENTS {
                 Load_Event_Picture(event_id);
             }
 
-            Get_Event_Message(&game::world, event_id + 2, event_subtype, p3, planet_idx, p4, p5, player_idx, p7, p8, p9, p10, p11, p12, p13, event_message, sizeof(event_message));
+            Get_Event_Message(&game::world, event_id + 2, event_subtype, p3, legacy_world::Planet_Id(planet_idx), p4, p5, player_idx, p7, p8, p9, p10, p11, p12, p13, event_message, sizeof(event_message));
             event_status_flag = 0;
 
             if (MOX::settings.show_gnn_report == 1) {
@@ -2382,7 +2387,7 @@ namespace EVENTS {
         int16_t event_type,
         int16_t event_subtype,
         int16_t colony_idx,
-        int16_t planet_idx,
+        ::game::id_planet planet_idx,
         int16_t val1,
         int16_t val2,
         int16_t player_idx1,
@@ -2446,13 +2451,13 @@ namespace EVENTS {
             int16_t fetch_player = -1;
 
             if (c == '\x80') {
-                int16_t name_planet_idx = planet_idx;
+                auto name_planet_idx = planet_idx;
                 if (name_planet_idx == -1 && colony_idx >= 0 &&
                     colony_idx < MAX_COLONIES) {
                     name_planet_idx = MOX::colony[colony_idx].planet;
                 }
                 if (name_planet_idx >= 0 && name_planet_idx < MAX_PLANETS) {
-                    append_str = HACCESS::Get_Planet_Name(name_planet_idx);
+                    append_str = HACCESS::Get_Planet_Name(legacy_world::Planet_Id(name_planet_idx));
                 }
             } else if (c == '\x81') {
                 snprintf(temp_str, sizeof(temp_str), "%i", val1);

@@ -38,7 +38,7 @@ namespace aidudes {
             bool is_colony_producing_trade_goods = (col->producing[0] == COLONY_PRODUCTION_TRADE_GOODS);
 
             if ((is_colony_producing_trade_goods && ctx->p_ai->do_not_research == 0) ||
-                EVENTS::Event_Check_Colony_Researching(*legacy_colony) != 0) {
+                EVENTS::Event_Check_Colony_Researching(&::game::world, *legacy_colony) != 0) {
                 for (int j = (int)info->pop_tail_idx - 1; j >= (int)info->first_assignable_pop_idx; --j) {
                     uint32_t* pop_entry = &col->pop[j];
 
@@ -67,7 +67,7 @@ namespace aidudes {
         }
 
         aidudes::Assign_Additional_Research_Industry(ctx);
-        aidudes::Assign_Empire_Building(ai, world, ctx->i_ai);
+        aidudes::Assign_Empire_Building(&::game::world, ai, world, ctx->i_ai);
         aidudes::Assign_Buildings(ai, world, ctx->work);
         aidudes::Industry_Sanity_Check(ctx);
 
@@ -89,20 +89,20 @@ namespace aidudes {
 
         if (world->settings->game_difficulty > GAME_DIFFICULTY_TUTOR) {
             if (AIBUILD::Player_War_Level(world, ctx->i_ai) < 3) {
-                aidudes::Clear_Build_Queues_If_New_Tech(ctx, ctx->p_ai->got_new_app);
+                aidudes::Clear_Build_Queues_If_New_Tech(world->state, ctx, ctx->p_ai->got_new_app);
             }
         }
 
         aidudes::Keep_Ship_Designs_Up_To_Date(ctx);
         aidudes::Freighter_Cheat(world, ctx->i_ai);
         aidudes::Do_Ship_Upgrade_Cheats(ai, ctx);
-        AIBUILD::Empire_Buy_Outright(ai, world, ctx->i_ai);
+        AIBUILD::Empire_Buy_Outright(world->state, ai, world, ctx->i_ai);
         aidudes::Colony_AI_Given_Tax(ai, ctx);
 
         work.complete = true;
     }
 
-    void __cdecl Clear_Build_Queues_If_New_Tech(s_ai_colony_context* ctx, bool force_clear) {
+    void __cdecl Clear_Build_Queues_If_New_Tech(::game::s_world_state* world_state, s_ai_colony_context* ctx, bool force_clear) {
         const auto* world = ctx->world;
         s_player* p_ai = ctx->p_ai;
         AIDATA::s_colony_assignment* current_info = ctx->work->colonies.data();
@@ -239,7 +239,7 @@ namespace aidudes {
 
                 // TECH_APP_PLANETARY_GRAVITY_GENERATOR (131), BUILDING_GRAVITY_GENERATOR (25)
                 if (p_ai->tech_applications[TECH_APP_PLANETARY_GRAVITY_GENERATOR] == TECH_RESEARCH_STATUS_RESEARCHED && colony->buildings[BUILDING_GRAVITY_GENERATOR] == 0) {
-                    int8_t gravity = world->planets[colony->planet].gravity_class;
+                    int8_t gravity = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony->planet))).gravity_class;
                     if (gravity == PLANET_GRAVITY_LOW_G) {
                         if (p_ai->traits[TRAIT_LOW_G_WORLD] == 0) {
                             weights[BUILDING_GRAVITY_GENERATOR] = 10;
@@ -274,8 +274,8 @@ namespace aidudes {
         s_colony* colony1 = &colonies[legacy_world::Slot(info1->colony_id)];
         s_colony* colony2 = &colonies[legacy_world::Slot(info2->colony_id)];
 
-        bool blockaded2 = COLCALC::Colony_Is_Blockaded(colony2);
-        bool blockaded1 = COLCALC::Colony_Is_Blockaded(colony1);
+        bool blockaded2 = COLCALC::Colony_Is_Blockaded(&::game::world, colony2);
+        bool blockaded1 = COLCALC::Colony_Is_Blockaded(&::game::world, colony1);
 
         return (int)blockaded2 - (int)blockaded1;
     }
@@ -289,12 +289,12 @@ namespace aidudes {
             s_colony* colony_ptr = &world->colonies[i];
 
             if (colony_ptr->owner == legacy_world::Slot(ctx->i_ai)) {
-                if (EVENTS::Event_Check_Space_Anomaly(i) == 0 && colony_ptr->outpost_flag == 0) {
+                if (EVENTS::Event_Check_Space_Anomaly(&::game::world, i) == 0 && colony_ptr->outpost_flag == 0) {
                     AIDATA::s_colony_assignment info = {};
                     info.colony_id = legacy_world::Colony_Id(i);
                     ctx->work->colonies.push_back(info);
 
-                    if (COLCALC::Colony_Is_Blockaded(colony_ptr)) {
+                    if (COLCALC::Colony_Is_Blockaded(&::game::world, colony_ptr)) {
                         ctx->work->blockaded_count++;
                     }
                 }
@@ -453,7 +453,7 @@ namespace aidudes {
             Sort_Pops_FR_I, colony);
 
         const auto legacy_colony = legacy_world::Index(info->colony_id);
-        if (legacy_colony && EVENTS::Event_Check_Colony_Researching(*legacy_colony)) {
+        if (legacy_colony && EVENTS::Event_Check_Colony_Researching(world->state, *legacy_colony)) {
             n_required_workers = 0;
         }
 

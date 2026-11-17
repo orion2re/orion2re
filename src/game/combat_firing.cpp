@@ -18,7 +18,7 @@ namespace CMBTFIRE {
 
         seg = (s_animation_header*)buffer::Buffer_Reload("cmbtsfx.lbx", (int)lbx_entry, MOX::global_cache_seg);
         frame_count = animate::Get_Animation_Frame_Count(seg);
-        COMBINIT::Ship_Center_Offsets(ship_idx, &off_x, &off_y);
+        COMBINIT::Ship_Center_Offsets(&::game::world, ship_idx, &off_x, &off_y);
 
         if (ship_idx == MOX::dont_draw_ship) {
             frame = 1;
@@ -41,7 +41,7 @@ namespace CMBTFIRE {
         int16_t w;
         int16_t h;
 
-        COMBINIT::Ship_Center_Offsets(ship_idx, &off_x, &off_y);
+        COMBINIT::Ship_Center_Offsets(&::game::world, ship_idx, &off_x, &off_y);
 
         s_combat_data* ship = &MOX::combat_data[ship_idx];
 
@@ -98,7 +98,7 @@ namespace CMBTFIRE {
         if (flag == 0) {
             int16_t bearing = CMBTDRW1::Relative_Bearing(source_ship_idx, target_ship_idx);
             target_arc_mask = CMBTDRW1::Get_Weapon_Arc(bearing);
-            COMBINIT::Ship_Center_Offsets(target_ship_idx, &target_center_offset_x, &target_center_offset_y);
+            COMBINIT::Ship_Center_Offsets(&::game::world, target_ship_idx, &target_center_offset_x, &target_center_offset_y);
         } else {
             int16_t bearing = CMBTDRW1::Relative_Bearing_XY(
                 source_ship_idx,
@@ -174,7 +174,7 @@ namespace CMBTFIRE {
                                 if (MOX::apply_damage_to_planet == 1 && MOX::super_fast_flag == 0) {
                                     bool needs_snap = false;
                                     if (flag == 0) {
-                                        if (CMBTDRW1::Ship_Completely_On_Screen(target_ship_idx) == 0) {
+                                        if (CMBTDRW1::Ship_Completely_On_Screen(&::game::world, target_ship_idx) == 0) {
                                             needs_snap = true;
                                         }
                                     } else {
@@ -196,7 +196,7 @@ namespace CMBTFIRE {
                                     }
 
                                     if (beam_fx_entries[0].weapon_id != 0 && weapon_type_class != WEAPON_TYPE_BEAM) {
-                                        BEAMS::Beam_SFX(
+                                        BEAMS::Beam_SFX(&::game::world, 
                                             source_ship_idx,
                                             sx + MOX::cur_combat_x * -20,
                                             sy + MOX::cur_combat_y * -20,
@@ -341,7 +341,7 @@ namespace CMBTFIRE {
         }
 
         if (beam_fx_entries[0].weapon_id != 0) {
-            BEAMS::Beam_SFX(
+            BEAMS::Beam_SFX(&::game::world, 
                 source_ship_idx,
                 sx + MOX::cur_combat_x * -20,
                 sy + MOX::cur_combat_y * -20,
@@ -403,7 +403,7 @@ namespace CMBTFIRE {
         int16_t dy;
         int16_t range;
 
-        COMBINIT::Ship_Center_Offsets(ship_idx, &dx, &dy);
+        COMBINIT::Ship_Center_Offsets(&::game::world, ship_idx, &dx, &dy);
 
         if (target_type == 0) {
             range = CMBTAI::Range_To_Ship(ship_idx, target_idx);
@@ -518,11 +518,11 @@ namespace CMBTFIRE {
             animate::Draw_Palette(anim_seg);
             frame_count = animate::Get_Animation_Frame_Count(anim_seg);
 
-            COMBINIT::Ship_Center_Offsets(source_idx, &x1, &y1);
+            COMBINIT::Ship_Center_Offsets(&::game::world, source_idx, &x1, &y1);
             x1 += (MOX::combat_data[source_idx].x - MOX::cur_combat_x) * 20;
             y1 += (MOX::combat_data[source_idx].y - MOX::cur_combat_y) * 20;
 
-            COMBINIT::Ship_Center_Offsets(target_idx, &x2, &y2);
+            COMBINIT::Ship_Center_Offsets(&::game::world, target_idx, &x2, &y2);
             x2 += (MOX::combat_data[target_idx].x - MOX::cur_combat_x) * 20;
             y2 += (MOX::combat_data[target_idx].y - MOX::cur_combat_y) * 20;
 

@@ -1,3 +1,4 @@
+#include "../fixtures/planet_state.h"
 #include "pch.h"
 
 #include "doctest/doctest.h"
@@ -96,7 +97,7 @@ namespace {
         int16_t saved_player_num = MOX::PLAYER_NUM;
         int16_t saved_num_players = MOX::NUM_PLAYERS;
         int16_t saved_num_stars = MOX::NUM_STARS;
-        int16_t saved_planet_count = MOX::planet_count;
+        int16_t saved_planet_count = ::game::Planet_Count(&::game::world);
         int16_t saved_num_colonies = MOX::NUM_COLONIES;
         int16_t saved_num_ships = MOX::NUM_SHIPS;
         uint8_t saved_num_nebulas = MOX::NUM_NEBULAS;
@@ -171,7 +172,7 @@ namespace {
             MOX::PLAYER_NUM = saved_player_num;
             MOX::NUM_PLAYERS = saved_num_players;
             MOX::NUM_STARS = saved_num_stars;
-            MOX::planet_count = saved_planet_count;
+            test::Resize_Planets(&::game::world, saved_planet_count);
             MOX::NUM_COLONIES = saved_num_colonies;
             MOX::NUM_SHIPS = saved_num_ships;
             MOX::NUM_NEBULAS = saved_num_nebulas;
@@ -202,7 +203,7 @@ namespace {
         MOX::PLAYER_NUM = 1;
         MOX::NUM_PLAYERS = 3;
         MOX::NUM_STARS = 4;
-        MOX::planet_count = 6;
+        test::Resize_Planets(&::game::world, 6);
         MOX::NUM_COLONIES = 5;
         MOX::NUM_SHIPS = 7;
         MOX::NUM_NEBULAS = 2;
@@ -262,12 +263,12 @@ namespace {
             MOX::star[i].officer_index[0] = (int8_t)(30 + i);
         }
 
-        for (int i = 0; i < MOX::planet_count; ++i) {
-            MOX::planet[i].star_index = (int8_t)(i % MOX::NUM_STARS);
-            MOX::planet[i].orbit = (int8_t)(i % 5);
-            MOX::planet[i].colony_index = (int16_t)((i < MOX::NUM_COLONIES) ? i : -1);
-            MOX::planet[i].planet_type = (int8_t)(i + 1);
-            MOX::planet[i].climate = (char)(i + 2);
+        for (int i = 0; i < ::game::Planet_Count(&::game::world); ++i) {
+            test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(i))).star_index = (int8_t)(i % MOX::NUM_STARS);
+            test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(i))).orbit = (int8_t)(i % 5);
+            test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(i))).colony_index = (int16_t)((i < MOX::NUM_COLONIES) ? i : -1);
+            test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(i))).planet_type = (int8_t)(i + 1);
+            test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(i))).climate = (char)(i + 2);
         }
 
         for (int i = 0; i < MOX::NUM_COLONIES; ++i) {
@@ -553,7 +554,7 @@ DOCTEST_TEST_CASE("broadcast snapshot encode and decode round trip serialized ga
     const uint32_t expected_random_seed = game_random::Get_Random_Seed();
     const int16_t expected_num_players = MOX::NUM_PLAYERS;
     const int16_t expected_num_stars = MOX::NUM_STARS;
-    const int16_t expected_planet_count = MOX::planet_count;
+    const int16_t expected_planet_count = ::game::Planet_Count(&::game::world);
     const int16_t expected_num_colonies = MOX::NUM_COLONIES;
     const int16_t expected_num_ships = MOX::NUM_SHIPS;
     const uint8_t expected_num_nebulas = MOX::NUM_NEBULAS;
@@ -590,7 +591,7 @@ DOCTEST_TEST_CASE("broadcast snapshot encode and decode round trip serialized ga
     std::memset(&MOX::settings, 0, sizeof(MOX::settings));
     MOX::NUM_PLAYERS = 0;
     MOX::NUM_STARS = 0;
-    MOX::planet_count = 0;
+    test::Resize_Planets(&::game::world, 0);
     MOX::NUM_COLONIES = 0;
     MOX::NUM_SHIPS = 0;
     MOX::NUM_NEBULAS = 0;
@@ -620,7 +621,7 @@ DOCTEST_TEST_CASE("broadcast snapshot encode and decode round trip serialized ga
     DOCTEST_CHECK(game_random::Get_Random_Seed() == expected_random_seed);
     DOCTEST_CHECK(MOX::NUM_PLAYERS == expected_num_players);
     DOCTEST_CHECK(MOX::NUM_STARS == expected_num_stars);
-    DOCTEST_CHECK(MOX::planet_count == expected_planet_count);
+    DOCTEST_CHECK(test::Resize_Planets(&::game::world, = expected_planet_count));
     DOCTEST_CHECK(MOX::NUM_COLONIES == expected_num_colonies);
     DOCTEST_CHECK(MOX::NUM_SHIPS == expected_num_ships);
     DOCTEST_CHECK(MOX::NUM_NEBULAS == expected_num_nebulas);
@@ -724,7 +725,7 @@ DOCTEST_TEST_CASE("broadcast differential decode round trips against cached prio
     MOX::player[1].tech_applications[3] ^= 0x5a;
     MOX::star[2].owner = 2;
     MOX::star[2].surrender_to[1] = 7;
-    MOX::planet[3].planet_type = 9;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(3))).planet_type = 9;
     MOX::colony[1].morale = 88;
     MOX::ship[3].turns_left = 12;
     game::Leader(&game::world, 4).eta = 21;
@@ -756,7 +757,7 @@ DOCTEST_TEST_CASE("broadcast differential decode round trips against cached prio
     const uint32_t expected_random_seed = game_random::Get_Random_Seed();
     const int16_t expected_num_players = MOX::NUM_PLAYERS;
     const int16_t expected_num_stars = MOX::NUM_STARS;
-    const int16_t expected_planet_count = MOX::planet_count;
+    const int16_t expected_planet_count = ::game::Planet_Count(&::game::world);
     const int16_t expected_num_colonies = MOX::NUM_COLONIES;
     const int16_t expected_num_ships = MOX::NUM_SHIPS;
     const uint8_t expected_num_nebulas = MOX::NUM_NEBULAS;
@@ -801,7 +802,7 @@ DOCTEST_TEST_CASE("broadcast differential decode round trips against cached prio
     std::memset(&MOX::settings, 0, sizeof(MOX::settings));
     MOX::NUM_PLAYERS = 0;
     MOX::NUM_STARS = 0;
-    MOX::planet_count = 0;
+    test::Resize_Planets(&::game::world, 0);
     MOX::NUM_COLONIES = 0;
     MOX::NUM_SHIPS = 0;
     MOX::NUM_NEBULAS = 0;
@@ -831,7 +832,7 @@ DOCTEST_TEST_CASE("broadcast differential decode round trips against cached prio
     DOCTEST_CHECK(game_random::Get_Random_Seed() == expected_random_seed);
     DOCTEST_CHECK(MOX::NUM_PLAYERS == expected_num_players);
     DOCTEST_CHECK(MOX::NUM_STARS == expected_num_stars);
-    DOCTEST_CHECK(MOX::planet_count == expected_planet_count);
+    DOCTEST_CHECK(test::Resize_Planets(&::game::world, = expected_planet_count));
     DOCTEST_CHECK(MOX::NUM_COLONIES == expected_num_colonies);
     DOCTEST_CHECK(MOX::NUM_SHIPS == expected_num_ships);
     DOCTEST_CHECK(MOX::NUM_NEBULAS == expected_num_nebulas);

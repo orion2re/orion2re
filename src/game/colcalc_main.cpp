@@ -40,10 +40,10 @@ namespace COLCALC {
             int8_t owner_trait0 = MOX::player[owner].traits[TRAIT_CURRENT_GOVERNMENT];
             int8_t owner_gov = owner_trait0 / 2;
             if (owner_gov != GOVERNMENT_UNIFICATION / 2) {
-                int16_t home_id = player->home_planet_id;
+                auto home_id = player->home_planet_id;
                 bool has_capitol = false;
-                if (home_id != -1) {
-                    int16_t cap_col_idx = MOX::planet[home_id].colony_index;
+                if (home_id != ::game::NO_PLANET) {
+                    int16_t cap_col_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(home_id))).colony_index;
                     if (MOX::colony[cap_col_idx].buildings[BUILDING_CAPITOL]) has_capitol = true;
                 }
                 if (!has_capitol) no_capital_penalty = non_capital_morale_lookup[owner_gov];
@@ -127,7 +127,7 @@ namespace COLCALC {
             POP::Set_Prof(p, POP::PROF_SCIENTIST);
         }
 
-        int16_t star_idx = MOX::planet[colony->planet].star_index;
+        int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony->planet))).star_index;
         MOX::star[star_idx].ignore_colony_ships |= (1 << (colony->owner & 0x1F));
 
         Recalculate_Colony(colony);
@@ -175,9 +175,9 @@ namespace COLCALC {
             case SYSTEM_SPECIAL_SPLINTER_COLONY:
                 MOX::star[star_idx].system_special = SYSTEM_SPECIAL_NO_SPECIAL;
                 for (int i = 0; i < 5; ++i) {
-                    int16_t p_idx = MOX::star[star_idx].planet_index[i];
-                    if (p_idx != -1) {
-                        MOX::planet[p_idx].planet_special = SYSTEM_SPECIAL_NO_SPECIAL;
+                    ::game::id_planet p_idx = MOX::star[star_idx].planet_index[i];
+                    if (p_idx != ::game::NO_PLANET) {
+                        ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(p_idx))).planet_special = SYSTEM_SPECIAL_NO_SPECIAL;
                     }
                 }
                 break;
@@ -208,17 +208,17 @@ namespace COLCALC {
         for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
             s_colony* c = &MOX::colony[i];
             if (c->owner == player_idx && c->outpost_flag == 0) {
-                if (EVENTS::Event_Check_Space_Anomaly(i) == 0) {
+                if (EVENTS::Event_Check_Space_Anomaly(&::game::world, i) == 0) {
                     int16_t balance = c->production[ECON_FOOD] - (uint8_t)c->maintenance[ECON_FOOD];
                     if (balance < 0) {
                         c->imports[ECON_FOOD] = 0;
-                        if (!Colony_Is_Blockaded(c)) {
+                        if (!Colony_Is_Blockaded(&::game::world, c)) {
                             needy_colony_indices[num_needy++] = i;
                             total_deficit -= balance; // Make positive
                         }
                     } else {
                         c->imports[ECON_FOOD] = -balance; // Negative means exporting
-                        if (!Colony_Is_Blockaded(c)) {
+                        if (!Colony_Is_Blockaded(&::game::world, c)) {
                             total_surplus += balance;
                         }
                     }
@@ -448,14 +448,14 @@ namespace COLCALC {
                 total_pop += static_cast<uint8_t>(colony->n_pops);
                 total_food += colony->production[ECON_FOOD];
 
-                if (!Colony_Is_Blockaded(colony)) {
+                if (!Colony_Is_Blockaded(world_state, colony)) {
                     total_surplus_food += colony->production[ECON_FOOD];
                     total_food_maintenance += static_cast<uint8_t>(colony->maintenance[ECON_FOOD]);
                 }
 
                 total_industry += colony->production[ECON_INDUSTRY];
 
-                if (EVENTS::Event_Check_Colony_Researching(i) == 0) {
+                if (EVENTS::Event_Check_Colony_Researching(world_state, i) == 0) {
                     total_research += colony->production[2];
                 }
                 total_bc += colony->production[ECON_BC];
@@ -635,7 +635,7 @@ namespace COLCALC {
         s_colony_job_production final;
         s_colony_job_production cur_stat;
 
-        bool is_blockaded = Colony_Is_Blockaded(colony);
+        bool is_blockaded = Colony_Is_Blockaded(world_state, colony);
         int leader_idx = Colony_Officer(world_state, colony);
         int8_t owner = colony->owner;
         int8_t govt_trait = MOX::player[owner].traits[TRAIT_CURRENT_GOVERNMENT];
@@ -673,7 +673,7 @@ namespace COLCALC {
             uint32_t pop_val = colony->pop[i];
             if (POP::Is_Assigned(pop_val) && POP::Get_Prof(pop_val) == (uint32_t)econ_type) {
                 uint16_t race = POP::Get_Race(pop_val);
-                short gravity_factor = Gravity_Player_Production_Factor(colony, race);
+                short gravity_factor = Gravity_Player_Production_Factor(world_state, colony, race);
 
                 memset(&cur_stat, 0, sizeof(s_colony_job_production));
                 short pop_base_prod = Colony_Pop_Base_Prod_Produced(colony, &colony->pop[i], econ_type, out ? &cur_stat : nullptr);
@@ -1002,7 +1002,7 @@ namespace COLCALC {
         }
 
         int16_t colony_idx = (int16_t)(colony - MOX::colony);
-        if (EVENTS::Event_Check_Space_Anomaly(colony_idx) != 0) {
+        if (EVENTS::Event_Check_Space_Anomaly(world_state, colony_idx) != 0) {
             colony->production[ECON_BC] = 0;
             if (debug_buf) {
                 STRBUILD::Copy(debug_buf, anomaly_msg);
@@ -1051,7 +1051,7 @@ namespace COLCALC {
         }
 
         int special_planet_bc = 0;
-        int8_t planet_special = MOX::planet[colony->planet].planet_special;
+        int8_t planet_special = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony->planet))).planet_special;
         if (planet_special == SYSTEM_SPECIAL_GOLD_DEPOSITS) {
             special_planet_bc = planet_bc_bonus.gold_deposits;
         } else if (planet_special == SYSTEM_SPECIAL_GEM_DEPOSITS) {
@@ -1168,7 +1168,7 @@ namespace COLCALC {
         }
 
         int16_t colony_idx = (int16_t)(colony - MOX::colony);
-        if (EVENTS::Event_Check_Space_Anomaly(colony_idx) != 0) {
+        if (EVENTS::Event_Check_Space_Anomaly(&::game::world, colony_idx) != 0) {
             colony->production[ECON_RESEARCH] = 0;
             if (debug_out != nullptr) {
                 STRBUILD::Copy(debug_out, anomaly_msg);
@@ -1283,7 +1283,7 @@ namespace COLCALC {
         }
 
         int16_t colony_idx = (int16_t)(colony - MOX::colony);
-        if (EVENTS::Event_Check_Space_Anomaly(colony_idx)) {
+        if (EVENTS::Event_Check_Space_Anomaly(&::game::world, colony_idx)) {
             colony->production[ECON_FOOD] = 0;
             if (debug_out) {
                 STRBUILD::Copy(debug_out, anomaly_msg);
@@ -1412,7 +1412,7 @@ namespace COLCALC {
         }
 
         int16_t colony_idx = (int16_t)(colony - MOX::colony);
-        if (EVENTS::Event_Check_Space_Anomaly(colony_idx)) {
+        if (EVENTS::Event_Check_Space_Anomaly(world_state, colony_idx)) {
             colony->production[ECON_INDUSTRY] = 0;
             colony->pollution = 0;
             colony->imports[ECON_FOOD] = 0;
@@ -1436,7 +1436,7 @@ namespace COLCALC {
             : 0;
 
         if (colony->buildings[BUILDING_ROBOTIC_FACTORY]) {
-            bonus_robotic_factory = production_colony_bonus.robotic_factory[MOX::planet[colony->planet].mineral_class];
+            bonus_robotic_factory = production_colony_bonus.robotic_factory[::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony->planet))).mineral_class];
         }
 
         if (colony->buildings[BUILDING_RECYCLOTRON]) {
@@ -1458,7 +1458,7 @@ namespace COLCALC {
         } else {
             int16_t officer_idx = Colony_Officer(world_state, colony);
             int64_t base_pollution = base_worker_prod + bonus_robotic_factory;
-            int64_t reduction_size = planet_no_pollution_prod[MOX::planet[colony->planet].size];
+            int64_t reduction_size = planet_no_pollution_prod[::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony->planet))).size];
 
             if (MOX::player[colony->owner].tech_applications[TECH_APP_NANO_DISASSEMBLERS] == TECH_RESEARCH_STATUS_RESEARCHED) {
                 reduction_size *= nano_disassemblers_coeff;

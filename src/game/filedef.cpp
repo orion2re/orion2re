@@ -197,7 +197,7 @@ namespace FILEDEF {
 
         COLCALC::No_Op1();
         MOX::Apply_Save_Settings(&saved_settings);
-        HAROLD::Confirm_Planet_And_Star_Index_Link("loading a game");
+        HAROLD::Confirm_Planet_And_Star_Index_Link(&::game::world"loading a game");
         RUSS::Assert_Settings();
         MAINSCR::Update_Star_Owners();
         RUSS::Assert_Settings();

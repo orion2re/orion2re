@@ -14,7 +14,7 @@ namespace COLMOVE {
                     graphics::Set_Window(0, 0, 639 /* 0x27f */, 479 /* 0x1df */);
                     video::Clip_On();
 
-                    s_animation_header* anim = COLONY::C_Anims(15 /* 0xf */);
+                    s_animation_header* anim = COLONY::C_Anims(&::game::world, 15 /* 0xf */);
                     animate::Draw(x, y, anim);
 
                     s_colony& col = MOX::colony[cluster_colony_n];
@@ -144,10 +144,10 @@ namespace COLONY {
         if (full_draw != 0) {
             graphics::Fill(0, 0, 639 /* 0x27f */, 479 /* 0x1df */, 0);
 
-            s_animation_header* background_anim = C_Anims(1);
+            s_animation_header* background_anim = C_Anims(&::game::world, 1);
             animate::Draw(0, 0, background_anim);
 
-            s_animation_header* base_anim = C_Anims(0);
+            s_animation_header* base_anim = C_Anims(&::game::world, 0);
             animate::Draw(0, 0, base_anim);
 
             COLDRAW::Draw_Road_List();
@@ -162,7 +162,7 @@ namespace COLONY {
                     fonts::PSTRS(0, 0, msg);
                 }
                 Set_Colony_Font();
-                COLSYSDI::Draw_Col_Sys_Disp(7, 24 /* 0x18 */);
+                COLSYSDI::Draw_Col_Sys_Disp(&::game::world, 7, 24 /* 0x18 */);
             } else if (drawing_display == 1) {
                 if (debug_flag != 0) {
                     char* msg = ESTRINGS::E_Strings(273 /* ESTR_DRAW_GALAXY */);
@@ -171,8 +171,8 @@ namespace COLONY {
 
                 int16_t width = MOX::galaxy_map_width;
                 int16_t height = MOX::galaxy_map_height;
-                s_animation_header* anim_c = C_Anims(12 /* 0xc */);
-                s_animation_header* anim_b = C_Anims(11 /* 0xb */);
+                s_animation_header* anim_c = C_Anims(&::game::world, 12 /* 0xc */);
+                s_animation_header* anim_b = C_Anims(&::game::world, 11 /* 0xb */);
 
                 MOVEBOX::Draw_Galaxy_Map_Box(anim_b, anim_c, 7, 24 /* 0x18 */, height, width, 11 /* 0xb */, 31 /* 0x1f */, 0, 0, 3, 0);
             }
@@ -235,26 +235,26 @@ namespace COLONY {
         Draw_Colony_Info_Production();
         Draw_Colony_Info_Pop();
         Draw_Colony_Info_Morale();
-        Draw_Info_Name_And_Pop();
+        Draw_Info_Name_And_Pop(&::game::world);
         Draw_Info_Build();
         Draw_Sys_Disp_Scanned();
         Draw_Colony_Info_Scanned();
     }
 
-    void __cdecl Draw_Planet_Summary(int16_t x, int16_t y, int16_t planet_idx) {
+    void __cdecl Draw_Planet_Summary(int16_t x, int16_t y, ::game::id_planet planet_idx) {
         char buffer[2000];
 
         fonts::Set_Font_Style_Shadow_Down(1, &font_color_array);
 
         graphics::Fill(x + 5, y + 2, x + 0xb0, y + 0xc3, 0xe9);
 
-        s_animation_header* planet_anim = Mini_Planet_Anim(planet_idx);
+        s_animation_header* planet_anim = Mini_Planet_Anim(&::game::world, legacy_world::Planet_Id(planet_idx));
         remap::Calculate_Picture_Remap_Colors(planet_anim);
 
-        s_animation_header* ui_anim = C_Anims(0xe);
+        s_animation_header* ui_anim = C_Anims(&::game::world, 0xe);
         animate::Draw(x, y, ui_anim);
 
-        MAINPUPS::Build_Generic_Planet_Or_Colony_Description_String_Formatted(planet_idx, buffer, sizeof(buffer));
+        MAINPUPS::Build_Generic_Planet_Or_Colony_Description_String_Formatted(&::game::world, legacy_world::Planet_Id(planet_idx), buffer, sizeof(buffer));
 
         BILL::Squeeze_Print_Formatted_Paragraph(x + 14, y + 45, 154, 140, buffer, 0);
     }
@@ -267,7 +267,7 @@ namespace COLONY {
         }
     }
 
-    void __cdecl Colony_Screen() {
+    void __cdecl Colony_Screen(::game::s_world_state* world_state) {
         int16_t input_val;
         int16_t scanned_val;
         bool input_received = false;
@@ -280,12 +280,12 @@ namespace COLONY {
 
         star_handle = MOX::screen_data;
         orbit_n = (int32_t)orbit_temp;
-        int16_t planet_idx = HAROLD::Planet_Index(MOX::screen_data, orbit_temp);
+        ::game::id_planet planet_idx = HAROLD::Planet_Index(MOX::screen_data, legacy_world::Planet_Id(orbit_temp));
         planet_handle = planet_idx;
 
-        colony_handle = MOX::planet[planet_handle].colony_index;
+        colony_handle = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_handle))).colony_index;
         g_scanned_star = -1;
-        g_scanned_planet = -1;
+        g_scanned_planet = ::game::NO_PLANET;
         sys_disp_star_handle = star_handle;
 
         if (colony_handle == -1) {
@@ -295,7 +295,7 @@ namespace COLONY {
         } else {
             valid_colony = 1;
             drawing_display = 0;
-            g_scanned_planet = -1;
+            g_scanned_planet = ::game::NO_PLANET;
         }
 
         fields::Clear_Mouse_Buffer();
@@ -369,7 +369,7 @@ namespace COLONY {
             scanned_val = fields::Scan_Input();
             input_received = (input_val != 0);
 
-            if (!Evaluate_Input(&input_val, &scanned_val)) {
+            if (!Evaluate_Input(world_state, &input_val, &scanned_val)) {
                 quit_flag = true;
             }
 
@@ -495,14 +495,14 @@ namespace COLONY {
         return Buffer_Reload_Colony(pic_index);
     }
 
-    s_animation_header* __cdecl C_Anims(int16_t anim_id) {
+    s_animation_header* __cdecl C_Anims(::game::s_world_state* world_state, int16_t anim_id) {
         RUSS::Mox_Update();
 
         switch (anim_id) {
             case 0:
                 return Cache_Load_Planet(
-                    static_cast<int16_t>(static_cast<int8_t>(MOX::planet[MOX::colony[colony_handle].planet].climate_bg_type) +
-                        static_cast<uint8_t>(MOX::colony[colony_handle].climate) * 3));
+                    legacy_world::Planet_Id(static_cast<int16_t>(static_cast<int8_t>(::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(MOX::colony[colony_handle].planet))).climate_bg_type) +
+                        static_cast<uint8_t>(MOX::colony[colony_handle].climate) * 3)));
             case 1:
                 return (s_animation_header*)buffer::Buffer_Reload(COLONY2_LBX, 0x31, MOX::global_cache_seg);
             case 2:
@@ -642,7 +642,7 @@ namespace COLONY {
         COLDRAW::Build_Road_List_Based_On_Bldg_List();
 
         if (is_ui_view == 0) {
-            COLDRAW::Build_Veggie_List_Based_On_Bldg_List();
+            COLDRAW::Build_Veggie_List_Based_On_Bldg_List(&::game::world);
         } else {
             COLDRAW::Clear_Veggie_Draw_Flags();
         }
@@ -750,7 +750,7 @@ namespace COLONY {
         } while (swapped_flag != 0 && ++iteration < 6);
     }
 
-    void __cdecl Tested_Colony_Buys_Outright(int16_t colony_idx) {
+    void __cdecl Tested_Colony_Buys_Outright(::game::s_world_state* world_state, int16_t colony_idx) {
         s_colony* col = &MOX::colony[colony_idx];
         char buf[500];
 
@@ -762,7 +762,7 @@ namespace COLONY {
             return;
         }
 
-        int16_t star_idx = MOX::planet[col->planet].star_index;
+        int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(col->planet))).star_index;
         if ((MOX::star[star_idx].blockaded >> (MOX::PLAYER_NUM & 0x1f)) & 1) {
             GENDRAW::Help(ESTRINGS::E_Strings(ESTR_YOU_CANNOT_BUY_WHILE_THIS_STAR_IS_BLOCKADED));
             COLONY::Show_Colony_Screen();
@@ -787,7 +787,7 @@ namespace COLONY {
         }
 
         if (COLCALC::Colony_Can_Afford_To_Buy_Product(colony_idx)) {
-            if (COLONY::Colony_Can_Buy_Product_0(colony_idx)) {
+            if (COLONY::Colony_Can_Buy_Product_0(world_state, colony_idx)) {
                 int prod_remaining = (int)(int16_t)COLCALC::Colony_Producing_Product_Cost(col) - (int)col->production_spent;
                 int actual_buy_cost = COLCALC::Colony_Cost_To_Buy_Producing_Product(col);
 
@@ -810,18 +810,18 @@ namespace COLONY {
         }
     }
 
-    void Draw_Info_Name_And_Pop() {
+    void Draw_Info_Name_And_Pop(::game::s_world_state* world_state) {
         char buffer[104];
         int16_t handle = colony_handle;
 
         if (MOX::colony[handle].occupation_policy == 0) {
-            char* planet_name = HACCESS::Get_Planet_Name(planet_handle);
+            char* planet_name = HACCESS::Get_Planet_Name(legacy_world::Planet_Id(planet_handle));
             char* fmt = ESTRINGS::E_Strings(ESTR_ANNIHILATING_S);
             snprintf(buffer, sizeof(buffer), fmt, planet_name);
             int16_t cycle_val = ERIC::Global_Cycler(30, 2);
             Set_Colony_Font_To_Red(4, (uint8_t)cycle_val);
         } else {
-            char* planet_name = HACCESS::Get_Planet_Name(planet_handle);
+            char* planet_name = HACCESS::Get_Planet_Name(legacy_world::Planet_Id(planet_handle));
             char* colony_type = Colony_Type(handle);
             char* fmt = ESTRINGS::E_Strings(ESTR_SCOLONY_OF_S);
             snprintf(buffer, sizeof(buffer), fmt, colony_type, planet_name);
@@ -831,8 +831,8 @@ namespace COLONY {
         fonts::Set_Font_Spacing(2);
         fonts::Print_Centered(320, 0, buffer);
 
-        int16_t colony_planet = MOX::colony[handle].planet;
-        int16_t star_idx = MOX::planet[colony_planet].star_index;
+        auto colony_planet = MOX::colony[handle].planet;
+        int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony_planet))).star_index;
 
         int16_t status_msg_id = -1;
         if ((MOX::star[star_idx].blockaded >> (MOX::PLAYER_NUM & 0x1F)) & 1) {
@@ -987,14 +987,14 @@ namespace COLONY {
         colony_fields[19] = fields::Add_Multi_Hot_Key_Field(ESTRINGS::E_Strings(0xf5));
         colony_fields[20] = fields::Add_Multi_Hot_Key_Field(ESTRINGS::E_Strings(0x218));
 
-        colony_fields[1] = fields::Add_Button_Field(0x22c, 0x1cb, ESTRINGS::E_Strings(0xc), COLONY::C_Anims(0x15), ESTRINGS::E_Strings(0xc), 0x28);
+        colony_fields[1] = fields::Add_Button_Field(0x22c, 0x1cb, ESTRINGS::E_Strings(0xc), COLONY::C_Anims(&::game::world, 0x15), ESTRINGS::E_Strings(0xc), 0x28);
         colony_fields[5] = fields::Add_Hot_Key("'");
         _shortcut_previous_colony = fields::Add_Hot_Key(",");
         _shortcut_next_colony = fields::Add_Hot_Key(".");
         _shortcut_return = fields::Add_Hot_Key(" ");
 
         if (MOX::star[star_handle].officer_index[MOX::PLAYER_NUM] == -1) {
-            colony_fields[17] = fields::Add_Button_Field(0x22c, 0x1ab, ESTRINGS::E_Strings(0xc), COLONY::C_Anims(0x20), ESTRINGS::E_Strings(0x158), 0x28);
+            colony_fields[17] = fields::Add_Button_Field(0x22c, 0x1ab, ESTRINGS::E_Strings(0xc), COLONY::C_Anims(&::game::world, 0x20), ESTRINGS::E_Strings(0x158), 0x28);
         } else {
             colony_fields[17] = fields::Add_Hidden_Field(0x226, 0x165, 0x26f, 0x1bd, ESTRINGS::E_Strings(0x158), 0);
         }
@@ -1006,15 +1006,15 @@ namespace COLONY {
         colony_fields[16] = fields::Add_Hidden_Field(0x80, 0x7a, 0x12d, 0x97, ESTRINGS::E_Strings(0xc), 0);
 
         if (valid_colony != 0) {
-            colony_fields[4] = fields::Add_Button_Field(0x207, 0x7b, ESTRINGS::E_Strings(0xc), COLONY::C_Anims(0x13), ESTRINGS::E_Strings(0xd5), 0x28);
+            colony_fields[4] = fields::Add_Button_Field(0x207, 0x7b, ESTRINGS::E_Strings(0xc), COLONY::C_Anims(&::game::world, 0x13), ESTRINGS::E_Strings(0xd5), 0x28);
             colony_fields[18] = fields::Add_Hidden_Field(0x20d, 0x1a, 0x276, 0x25, ESTRINGS::E_Strings(0xa6), 0x29);
 
-            if (Colony_Can_Buy_Product_0(colony_handle)) {
-                colony_fields[3] = fields::Add_Button_Field(0x24e, 0x7b, ESTRINGS::E_Strings(0xc), COLONY::C_Anims(0x14), ESTRINGS::E_Strings(0xc1), 0x28);
+            if (Colony_Can_Buy_Product_0(&::game::world, colony_handle)) {
+                colony_fields[3] = fields::Add_Button_Field(0x24e, 0x7b, ESTRINGS::E_Strings(0xc), COLONY::C_Anims(&::game::world, 0x14), ESTRINGS::E_Strings(0xc1), 0x28);
             } else {
-                s_animation_header* buy_anim = COLONY::C_Anims(0x14);
+                s_animation_header* buy_anim = COLONY::C_Anims(&::game::world, 0x14);
                 int16_t h = animate::Get_Height(buy_anim);
-                int16_t w = animate::Get_Width(COLONY::C_Anims(0x14));
+                int16_t w = animate::Get_Width(COLONY::C_Anims(&::game::world, 0x14));
                 colony_fields[3] = fields::Add_Hidden_Field(0x24e, 0x7b, 0x24e + w, 0x7b + h, ESTRINGS::E_Strings(0xc1), 0x28);
             }
         } else {
@@ -1033,7 +1033,7 @@ namespace COLONY {
         int16_t field_val = *input_field;
 
         if (colony_fields[8] == field_val) {
-            OCPOLPUP::Occupation_Policy_Popup();
+            OCPOLPUP::Occupation_Policy_Popup(&::game::world);
             Show_Colony_Screen();
             Col_Calc_Wrapper(colony_handle);
             return 1;
@@ -1059,7 +1059,7 @@ namespace COLONY {
             if (drawing_display == 1) {
                 drawing_display = 0;
                 full_draw = 1;
-                g_scanned_planet = -1;
+                g_scanned_planet = ::game::NO_PLANET;
                 return 1;
             }
         }
@@ -1093,7 +1093,7 @@ namespace COLONY {
         }
 
         if (colony_fields[3] == field_val) {
-            Tested_Colony_Buys_Outright(colony_handle);
+            Tested_Colony_Buys_Outright(&::game::world, colony_handle);
             Update_Fields();
             Show_Colony_Screen();
             *input_field = 0;
@@ -1151,7 +1151,7 @@ namespace COLONY {
         if (colony_fields[6] == field_val || _shortcut_previous_colony == field_val) {
             int16_t new_colony = Get_Next_Colony(colony_handle, 0);
             if (new_colony != colony_handle) {
-                Set_Colony_Screen_To_New_Colony(new_colony);
+                Set_Colony_Screen_To_New_Colony(&::game::world, new_colony);
                 return 0;
             }
         } else if (colony_fields[20] == field_val) {
@@ -1170,7 +1170,7 @@ namespace COLONY {
         } else if (colony_fields[7] == field_val || _shortcut_next_colony == field_val) {
             int16_t new_colony = Get_Next_Colony(colony_handle, 1);
             if (new_colony != colony_handle) {
-                Set_Colony_Screen_To_New_Colony(new_colony);
+                Set_Colony_Screen_To_New_Colony(&::game::world, new_colony);
                 return 0;
             }
         } else if (colony_fields[2] == field_val || _shortcut_return == field_val) {

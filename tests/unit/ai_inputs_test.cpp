@@ -84,7 +84,7 @@ namespace SHIPMOVE {
         result->turns_left = 3;
     }
 
-    void __cdecl Make_Ships_Move_To(int16_t* ships, int16_t destination, s_ship_move_info* result) {
+    void __cdecl Make_Ships_Move_To(::game::s_world_state* world_state, int16_t* ships, int16_t destination, s_ship_move_info* result) {
         Ships_Try_To_Move_To(ships, destination, result);
     }
 
@@ -132,13 +132,13 @@ DOCTEST_TEST_CASE("typed ID compatibility preserves zero and rejects absent or u
     for (uint32_t value : {uint32_t{INT16_MAX} + 1, UINT32_MAX}) {
         DOCTEST_CHECK_FALSE(Index(Ship_Id(value)));
         DOCTEST_CHECK_FALSE(Index(Colony_Id(value)));
-        DOCTEST_CHECK_FALSE(Index(Planet_Id(value)));
+        DOCTEST_CHECK_FALSE(Index(legacy_world::Planet_Id(Planet_Id(legacy_world::Planet_Id(value)))));
         DOCTEST_CHECK_FALSE(Index(Star_Id(value)));
         DOCTEST_CHECK_FALSE(Index(Player_Id(value)));
         DOCTEST_CHECK_FALSE(Index(Leader_Id(value)));
         DOCTEST_CHECK(Slot(Ship_Id(value)) == value);
         DOCTEST_CHECK(Slot(Colony_Id(value)) == value);
-        DOCTEST_CHECK(Slot(Planet_Id(value)) == value);
+        DOCTEST_CHECK(Slot(legacy_world::Planet_Id(Planet_Id(legacy_world::Planet_Id(value)))) == value);
         DOCTEST_CHECK(Slot(Star_Id(value)) == value);
         DOCTEST_CHECK(Slot(Player_Id(value)) == value);
         DOCTEST_CHECK(Slot(Leader_Id(value)) == value);
@@ -226,7 +226,7 @@ DOCTEST_TEST_CASE("fleet planning returns the evaluated direct route") {
     AIMOVE::s_ai_movement_context context{Player_Id(0), nullptr, nullptr, &world};
     const id_ship ids[] = {Ship_Id(0)};
     queried = false;
-    const auto route = AIMOVE::Move_Ships_With_Possible_Intermediate(&context, ids, Star_Id(1));
+    const auto route = AIMOVE::Move_Ships_With_Possible_Intermediate(&::game::world, &context, ids, Star_Id(1));
     DOCTEST_REQUIRE(route);
     DOCTEST_CHECK(queried);
     DOCTEST_CHECK(queried_ships == std::vector<int16_t>{0});
@@ -242,7 +242,7 @@ DOCTEST_TEST_CASE("movement planning rejects destinations unsupported by the leg
     AIMOVE::s_ai_movement_context context{Player_Id(0), nullptr, nullptr, &world};
     const id_ship ids[] = {Ship_Id(0)};
     queried = false;
-    auto route = AIMOVE::Move_Ships_With_Possible_Intermediate(&context, ids, Star_Id(UINT32_MAX));
+    auto route = AIMOVE::Move_Ships_With_Possible_Intermediate(&::game::world, &context, ids, Star_Id(UINT32_MAX));
     DOCTEST_CHECK_FALSE(route);
     DOCTEST_CHECK_FALSE(queried);
 }
@@ -283,7 +283,7 @@ DOCTEST_TEST_CASE("AI movement rejects wide IDs rather than aliasing legacy inde
 
         const game::s_view world{.ships = legacy_ships};
         AIMOVE::s_ai_movement_context context{Player_Id(0), nullptr, nullptr, &world};
-        DOCTEST_CHECK_FALSE(AIMOVE::Move_Ships_With_Possible_Intermediate(&context, invalid, Star_Id(0)));
+        DOCTEST_CHECK_FALSE(AIMOVE::Move_Ships_With_Possible_Intermediate(&::game::world, &context, invalid, Star_Id(0)));
         DOCTEST_CHECK_FALSE(queried);
     }
 }

@@ -33,7 +33,7 @@ namespace MAINSCR {
 
         bool Valid_Setup_Version(const char* version, size_t capacity) {
             const void* terminator = memchr(version, '\0', capacity);
-            return terminator != nullptr && strcmp(version, GAME_BUILD_DATE) == 0;
+            return terminator != nullptr && strcmp(version, GAME_PROTOCOL_IDENTIFIER) == 0;
         }
 
         void Apply_Setup_Config(const void* payload, uint32_t payload_len, uint32_t prefix_size) {
@@ -461,7 +461,7 @@ namespace MAINSCR {
             }
             case NET_PACKET_DRAGON_INFO: {
                 NETMOX::net.sync_state = NET_SYNC_STATE_DRAGON_BRIBE_PROMPT;
-                NETMOX::Decode_Dragon_Info((int16_t*)payload, (uint16_t)payload_len);
+                NETMOX::Decode_Dragon_Info(&::game::world, (int16_t*)payload, (uint16_t)payload_len);
                 break;
             }
             case NET_PACKET_DRAGON_NO_BRIBE: {
@@ -592,7 +592,7 @@ namespace MAINSCR {
                 }
                 s_net_pack_monster_update monster_update;
                 memcpy(&monster_update, payload, sizeof(monster_update));
-                EVENTS::Event_Monster_Update((int16_t)monster_update.monster_type, monster_update.target_planet_id, (int16_t)monster_update.player_idx_or_amount);
+                EVENTS::Event_Monster_Update(&::game::world, (int16_t)monster_update.monster_type, monster_update.target_planet_id, (int16_t)monster_update.player_idx_or_amount);
                 break;
             }
             case NET_PACKET_PLAYER_RACE_DESELECTED: {

@@ -146,7 +146,7 @@ namespace COLMOVE {
                 s_colony* const source_colony = &MOX::colony[COLMOVE::cluster_colony_n];
                 s_colony* const destination_colony = &MOX::colony[colony_idx];
 
-                SETTLER::Pop_Tries_To_Settle(
+                SETTLER::Pop_Tries_To_Settle(&::game::world, 
                     source_colony,
                     unemployed_pop_idx,
                     destination_colony,
@@ -240,7 +240,7 @@ namespace COLMOVE {
                             POP::Set_Assigned(pop_flags, false);
                         }
 
-                        SETTLER::Settle_Pop(source_colony, unemployed_pop_idx, destination_colony);
+                        SETTLER::Settle_Pop(&::game::world, source_colony, unemployed_pop_idx, destination_colony);
                         ++moved_count;
                     } else {
                         int16_t line_count = 0;
@@ -435,11 +435,11 @@ namespace COLMOVE {
         if (moved_count > 0) {
             strlcpy(
                 source_planet_name,
-                HACCESS::Get_Planet_Name(MOX::colony[COLMOVE::cluster_colony_n].planet),
+                HACCESS::Get_Planet_Name(legacy_world::Planet_Id(MOX::colony[COLMOVE::cluster_colony_n].planet)),
                 sizeof(source_planet_name));
             strlcpy(
                 destination_planet_name,
-                HACCESS::Get_Planet_Name(MOX::colony[colony_idx].planet),
+                HACCESS::Get_Planet_Name(legacy_world::Planet_Id(MOX::colony[colony_idx].planet)),
                 sizeof(destination_planet_name));
 
             ERIC::String_Builder2(

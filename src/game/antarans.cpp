@@ -304,7 +304,7 @@ namespace antarans {
         *star_count = 0;
 
         for (int16_t star_idx = 0; star_idx < MOX::NUM_STARS; ++star_idx) {
-            if (HACCESS::N_Colonies_At_Star(star_idx, player_idx)) {
+            if (HACCESS::N_Colonies_At_Star(&::game::world, star_idx, player_idx)) {
                 star_list[*star_count] = star_idx;
                 *star_count += 1;
             }
@@ -431,7 +431,7 @@ namespace antarans {
                 SHIPMOVE::Ships_Try_To_Move_To(ship_list, target_star, &move_info);
 
                 if (move_info.moving != 0) {
-                    SHIPMOVE::Make_Ships_Move_To(ship_list, target_star, &move_info);
+                    SHIPMOVE::Make_Ships_Move_To(&::game::world, ship_list, target_star, &move_info);
                     s_ship_data* ship = &MOX::ship[ship_idx];
                     ship->status = 1;
                     ship->location = target_star + SHIP_LOCATION_MOVING_OFFSET;

@@ -1,3 +1,4 @@
+#include "../fixtures/planet_state.h"
 #include "pch.h"
 
 #include "doctest/doctest.h"
@@ -25,12 +26,12 @@ DOCTEST_TEST_CASE("minimum-distance planet generation preserves existing satelli
     TEST_HOMEGEN::Reset_();
     int16_t home_stars[1] = {0};
 
-    HOMEGEN::Guarantee_A_Planet_At_Min_Dist(0, 4, home_stars);
+    HOMEGEN::Guarantee_A_Planet_At_Min_Dist(&::game::world, 0, 4, home_stars);
 
-    DOCTEST_CHECK(MOX::planet_count == 2);
+    DOCTEST_CHECK(test::Resize_Planets(&::game::world, = 2));
     DOCTEST_CHECK((MOX::star[1].planet_index[2] == 0));
-    DOCTEST_CHECK(MOX::planet[0].star_index == 1);
-    DOCTEST_CHECK(MOX::planet[0].planet_type == PLANET_TYPE_PLANET);
+    DOCTEST_CHECK(test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).star_index == 1);
+    DOCTEST_CHECK(test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).planet_type == PLANET_TYPE_PLANET);
     DOCTEST_CHECK(TEST_HOMEGEN::Satellite_Generation_Count_() == 2);
     DOCTEST_CHECK(TEST_HOMEGEN::Non_Black_Hole_Generation_Count_() == 0);
 }
@@ -41,10 +42,10 @@ DOCTEST_TEST_CASE("minimum-distance generation converts black holes through gala
     MOX::star[1].spectral_class = STAR_CLASS_BLACK_HOLE;
     int16_t home_stars[1] = {0};
 
-    HOMEGEN::Guarantee_A_Planet_At_Min_Dist(0, 4, home_stars);
+    HOMEGEN::Guarantee_A_Planet_At_Min_Dist(&::game::world, 0, 4, home_stars);
 
     DOCTEST_CHECK(MOX::star[1].spectral_class == STAR_CLASS_G);
-    DOCTEST_CHECK(MOX::planet_count == 2);
+    DOCTEST_CHECK(test::Resize_Planets(&::game::world, = 2));
     DOCTEST_CHECK(TEST_HOMEGEN::Satellite_Generation_Count_() == 2);
     DOCTEST_CHECK(TEST_HOMEGEN::Non_Black_Hole_Generation_Count_() == 1);
 }
@@ -55,14 +56,14 @@ DOCTEST_TEST_CASE("minimum-distance conversion runs configured generation before
     MOX::star[1].spectral_class = STAR_CLASS_BLACK_HOLE;
     int16_t home_stars[1] = {0};
 
-    HOMEGEN::Guarantee_A_Planet_At_Min_Dist(0, 4, home_stars);
+    HOMEGEN::Guarantee_A_Planet_At_Min_Dist(&::game::world, 0, 4, home_stars);
 
     DOCTEST_CHECK(TEST_HOMEGEN::Normal_Planet_Generation_Count_() == 1);
     DOCTEST_CHECK(TEST_HOMEGEN::Satellite_Generation_Count_() == 3);
-    DOCTEST_CHECK(MOX::planet_count == 3);
+    DOCTEST_CHECK(test::Resize_Planets(&::game::world, = 3));
     DOCTEST_CHECK((MOX::star[1].planet_index[2] == 0));
-    DOCTEST_CHECK(MOX::planet[0].planet_type == PLANET_TYPE_PLANET);
-    DOCTEST_CHECK(HAROLD::N_Planets_In_System(1) == 2);
+    DOCTEST_CHECK(test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).planet_type == PLANET_TYPE_PLANET);
+    DOCTEST_CHECK(HAROLD::N_Planets_In_System(&::game::world, 1) == 2);
 }
 
 DOCTEST_TEST_CASE("minimum-distance planet guarantee promotes brown dwarfs to red stars") {
@@ -78,10 +79,10 @@ DOCTEST_TEST_CASE("minimum-distance planet guarantee promotes brown dwarfs to re
         TEST_HOMEGEN::Set_Satellite_Count_(1);
     }
 
-    HOMEGEN::Guarantee_A_Planet_At_Min_Dist(0, 4, home_stars);
+    HOMEGEN::Guarantee_A_Planet_At_Min_Dist(&::game::world, 0, 4, home_stars);
 
     DOCTEST_CHECK(MOX::star[1].spectral_class == STAR_CLASS_M);
-    DOCTEST_CHECK(HAROLD::N_Planets_In_System(1) == 2);
+    DOCTEST_CHECK(HAROLD::N_Planets_In_System(&::game::world, 1) == 2);
 }
 
 DOCTEST_TEST_CASE("minimum-distance planet guarantee preserves normal star classes") {
@@ -90,10 +91,10 @@ DOCTEST_TEST_CASE("minimum-distance planet guarantee preserves normal star class
         MOX::star[1].spectral_class = spectral_class;
         int16_t home_stars[1] = {0};
 
-        HOMEGEN::Guarantee_A_Planet_At_Min_Dist(0, 4, home_stars);
+        HOMEGEN::Guarantee_A_Planet_At_Min_Dist(&::game::world, 0, 4, home_stars);
 
         DOCTEST_CHECK(MOX::star[1].spectral_class == spectral_class);
-        DOCTEST_CHECK(HAROLD::N_Planets_In_System(1) == 2);
+        DOCTEST_CHECK(HAROLD::N_Planets_In_System(&::game::world, 1) == 2);
     }
 }
 
@@ -102,7 +103,7 @@ DOCTEST_TEST_CASE("food-world generation rerolls unsuitable stars without allowi
     TEST_HOMEGEN::Set_Generated_Spectral_Class_(STAR_CLASS_K);
     MOX::star[0].spectral_class = STAR_CLASS_DWARF;
 
-    HOMEGEN::Make_One_Planet(0, 1, 0, 1);
+    HOMEGEN::Make_One_Planet(&::game::world, 0, legacy_world::Planet_Id(1), 0, 1);
 
     DOCTEST_CHECK(MOX::star[0].spectral_class == STAR_CLASS_K);
     DOCTEST_CHECK((MOX::star[0].planet_index[0] == 1));
@@ -114,12 +115,12 @@ DOCTEST_TEST_CASE("home-system minimum follows map configuration") {
     MAPGEN::home_system_config.minimum_planets = 5;
     MOX::star[0].spectral_class = STAR_CLASS_G;
     MOX::star[0].planet_index[0] = 0;
-    MOX::planet_count = 1;
+    test::Resize_Planets(&::game::world, 1);
     const int32_t generation_count = TEST_HOMEGEN::Satellite_Generation_Count_();
 
-    HOMEGEN::Enforce_3_Planet_Minimum(0);
+    HOMEGEN::Enforce_3_Planet_Minimum(&::game::world, 0);
 
-    DOCTEST_CHECK(MOX::planet_count == 5);
+    DOCTEST_CHECK(test::Resize_Planets(&::game::world, = 5));
     DOCTEST_CHECK(TEST_HOMEGEN::Satellite_Generation_Count_() - generation_count == 5);
     MAPGEN::home_system_config.minimum_planets = 3;
 }
@@ -130,14 +131,14 @@ DOCTEST_TEST_CASE("habitable home-system minimum skips ordinary generation") {
     MAPGEN::home_system_config.minimum_planets = 3;
     MOX::star[0].spectral_class = STAR_CLASS_G;
 
-    HOMEGEN::Enforce_3_Planet_Minimum(0);
+    HOMEGEN::Enforce_3_Planet_Minimum(&::game::world, 0);
 
     DOCTEST_CHECK(TEST_HOMEGEN::Normal_Planet_Generation_Count_() == 0);
     DOCTEST_CHECK(TEST_HOMEGEN::Satellite_Generation_Count_() == 3);
-    DOCTEST_CHECK(HAROLD::N_Planets_In_System(0) == 3);
-    DOCTEST_CHECK(MOX::planet_count == 4);
+    DOCTEST_CHECK(HAROLD::N_Planets_In_System(&::game::world, 0) == 3);
+    DOCTEST_CHECK(test::Resize_Planets(&::game::world, = 4));
     DOCTEST_CHECK((MOX::star[1].planet_index[2] == 0));
-    DOCTEST_CHECK(MOX::planet[0].planet_type == PLANET_TYPE_ASTEROID);
+    DOCTEST_CHECK(test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).planet_type == PLANET_TYPE_ASTEROID);
 }
 
 DOCTEST_TEST_CASE("converted home systems run configured ordinary generation") {
@@ -146,17 +147,17 @@ DOCTEST_TEST_CASE("converted home systems run configured ordinary generation") {
     MAPGEN::home_system_config.minimum_planets = 3;
     MOX::star[0].spectral_class = STAR_CLASS_BLACK_HOLE;
 
-    HOMEGEN::Enforce_3_Planet_Minimum(0);
+    HOMEGEN::Enforce_3_Planet_Minimum(&::game::world, 0);
 
     DOCTEST_CHECK(TEST_HOMEGEN::Normal_Planet_Generation_Count_() == 1);
     DOCTEST_CHECK(TEST_HOMEGEN::Satellite_Generation_Count_() == 4);
-    DOCTEST_CHECK(HAROLD::N_Planets_In_System(0) == 3);
+    DOCTEST_CHECK(HAROLD::N_Planets_In_System(&::game::world, 0) == 3);
 }
 
 DOCTEST_TEST_CASE("guarded systems stop when configured specials have no valid choice") {
     TEST_HOMEGEN::Reset_();
 
-    HOMEGEN::Set_Special_For_Star_Guarded_By_Monster(&MOX::star[0], 10);
+    HOMEGEN::Set_Special_For_Star_Guarded_By_Monster(&::game::world, &MOX::star[0], 10);
 
     DOCTEST_CHECK(TEST_HOMEGEN::Special_Generation_Count_() == 1);
     DOCTEST_CHECK(MOX::star[0].system_special == SYSTEM_SPECIAL_NO_SPECIAL);
@@ -171,13 +172,13 @@ DOCTEST_TEST_CASE("mineral richness exhaustion selects a compatible configured c
     MAPGEN::planet_gravity[MINERAL_RESOURCE_RICH][PLANET_SIZE_MEDIUM] =
         PLANET_GRAVITY_HEAVY_G;
     MOX::star[0].spectral_class = STAR_CLASS_DWARF;
-    MOX::planet[0].star_index = 0;
-    MOX::planet[0].size = PLANET_SIZE_MEDIUM;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).star_index = 0;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).size = PLANET_SIZE_MEDIUM;
 
-    HOMEGEN::Enforce_Mineral_Richness(0, MINERAL_RESOURCE_RICH);
+    HOMEGEN::Enforce_Mineral_Richness(&::game::world, legacy_world::Planet_Id(0), MINERAL_RESOURCE_RICH);
 
     DOCTEST_CHECK(TEST_HOMEGEN::Spectral_Generation_Count_() == 200);
     DOCTEST_CHECK(MOX::star[0].spectral_class == STAR_CLASS_B);
-    DOCTEST_CHECK(MOX::planet[0].mineral_class == MINERAL_RESOURCE_RICH);
-    DOCTEST_CHECK(MOX::planet[0].gravity_class == PLANET_GRAVITY_HEAVY_G);
+    DOCTEST_CHECK(test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).mineral_class == MINERAL_RESOURCE_RICH);
+    DOCTEST_CHECK(test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).gravity_class == PLANET_GRAVITY_HEAVY_G);
 }

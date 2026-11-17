@@ -56,7 +56,7 @@ DOCTEST_TEST_CASE("one-shot discovery cleanup preserves Ancient Artifacts") {
     for (int marker = 50; marker < 90; ++marker) {
         star.system_special = static_cast<int8_t>(marker);
         planets[0].planet_special = SYSTEM_SPECIAL_ANCIENT_ARTIFACTS;
-        COMBFIND::Reset_One_Shot_System_Special(&star);
+        COMBFIND::Reset_One_Shot_System_Special(&::game::world, &star);
         DOCTEST_CHECK(star.system_special == SYSTEM_SPECIAL_NO_SPECIAL);
         DOCTEST_CHECK(
             planets[0].planet_special == SYSTEM_SPECIAL_NO_SPECIAL);
@@ -65,7 +65,7 @@ DOCTEST_TEST_CASE("one-shot discovery cleanup preserves Ancient Artifacts") {
     for (int marker = 90; marker < 100; ++marker) {
         star.system_special = static_cast<int8_t>(marker);
         planets[0].planet_special = SYSTEM_SPECIAL_ANCIENT_ARTIFACTS;
-        COMBFIND::Reset_One_Shot_System_Special(&star);
+        COMBFIND::Reset_One_Shot_System_Special(&::game::world, &star);
         DOCTEST_CHECK(star.system_special == SYSTEM_SPECIAL_NO_SPECIAL);
         DOCTEST_CHECK(
             planets[0].planet_special == SYSTEM_SPECIAL_ANCIENT_ARTIFACTS);

@@ -12,11 +12,11 @@ namespace NEWPUP {
 
         MOX2::Get_Auto_Function(&NEWPUP::saved_autofunction);
         fields::Deactivate_Auto_Function();
-        fields::Assign_Auto_Function(NEWPUP::Draw_Troop_Popup, 1);
+        fields::Assign_Auto_Function([]() { return NEWPUP::Draw_Troop_Popup(&::game::world); }, 1);
 
         ERICHELP::Set_Transport_Popup_Help_List();
 
-        NEWPUP::Draw_Troop_Popup();
+        NEWPUP::Draw_Troop_Popup(&::game::world);
         video::Set_Refresh_Stencil();
         NEWPUP::Reset_Fields();
         RUSS::Mox_Sync_Update();
@@ -24,7 +24,7 @@ namespace NEWPUP {
         int16_t input;
         do {
             input = fields::Get_Input();
-            NEWPUP::Draw_Troop_Popup();
+            NEWPUP::Draw_Troop_Popup(&::game::world);
             NEWPUP::Reset_Fields();
             RUSS::Mox_Sync_Update();
         } while (input == 0);
@@ -35,10 +35,10 @@ namespace NEWPUP {
         MOX2::Put_Auto_Function(&NEWPUP::saved_autofunction);
     }
 
-    void __cdecl Draw_Troop_Popup() {
+    void __cdecl Draw_Troop_Popup(::game::s_world_state* world_state) {
         int16_t summary_row;
         s_invasion_side_info invasion_info;
-        int16_t planet_index;
+        ::game::id_planet planet_index;
 
         COLONY::Set_Colony_Font();
 
@@ -53,10 +53,10 @@ namespace NEWPUP {
             animate::Draw(2, 0x149, NEWPUP::anims);
 
             summary_row = 0;
-            planet_index = HAROLD::Planet_Index(MOX::screen_data, COLONY::orbit_temp);
+            planet_index = HAROLD::Planet_Index(MOX::screen_data, legacy_world::Planet_Id(COLONY::orbit_temp));
 
             invasion::Compute_Colony_Ground_Combat_Info(
-                &MOX::colony[MOX::planet[planet_index].colony_index],
+                &MOX::colony[::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_index))).colony_index],
                 &invasion_info,
                 rebel_display != 0);
 

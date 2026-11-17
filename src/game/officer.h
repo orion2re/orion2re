@@ -99,7 +99,7 @@ namespace OFFICER {
 
     void __cdecl Increase_Officer_Level_By_One(game::s_world_state* world_state, int16_t leader_idx);
 
-    void __cdecl Officers_Screen();
+    void __cdecl Officers_Screen(::game::s_world_state* world_state);
 
     void __cdecl Deassign_Officer(game::s_world_state* world_state, int16_t leader_idx);
 

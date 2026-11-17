@@ -29,7 +29,7 @@ namespace SCIENCE {
     void __cdecl Show_Off_Stolen_Tech(uint16_t tech_idx, int16_t other_player_idx);
 
     /* Presents a technology found on an Ancient Artifacts planet. */
-    void __cdecl Show_Off_Artifact_Tech(uint16_t tech_idx, int16_t planet_idx);
+    void __cdecl Show_Off_Artifact_Tech(uint16_t tech_idx, ::game::id_planet planet_idx);
 
     /* Draws the current science-room animation layers for the active frame.
      * unused_arg: Unused legacy callback-style argument.

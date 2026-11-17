@@ -437,11 +437,11 @@ namespace CMBTMIS {
         if (sys_dmg_accum + dmg_accum > 0) {
             if (target_is_missile == 0) {
                 if (MOX::apply_damage_to_planet == 1 && MOX::super_fast_flag == 0) {
-                    if (!CMBTDRW1::Ship_Completely_On_Screen(target_unit_idx)) {
+                    if (!CMBTDRW1::Ship_Completely_On_Screen(&::game::world, target_unit_idx)) {
                         COMBINIT::Snap_Center_Combat_Screen(x / 20, y / 20);
                     }
                     int16_t offset_x, offset_y;
-                    COMBINIT::Ship_Center_Offsets(target_unit_idx, &offset_x, &offset_y);
+                    COMBINIT::Ship_Center_Offsets(&::game::world, target_unit_idx, &offset_x, &offset_y);
 
                     BEAMS::Add_Damage_Indicator_For_Ship(
                         (MOX::cur_combat_x * -20) - offset_x + x,
@@ -461,7 +461,7 @@ namespace CMBTMIS {
 
                             if (target_unit_idx == MOX::dont_draw_ship) {
                                 int16_t d_x, d_y;
-                                COMBINIT::Ship_Center_Offsets(target_unit_idx, &d_x, &d_y);
+                                COMBINIT::Ship_Center_Offsets(&::game::world, target_unit_idx, &d_x, &d_y);
                                 CMBTDRW1::Draw_Ship(target_unit_idx,
                                     (MOX::cur_combat_x * -20) - d_x + x,
                                     (MOX::cur_combat_y * -20) - d_y + y);
@@ -484,7 +484,7 @@ namespace CMBTMIS {
             int16_t death_type = CMBTFIRE::Is_Combat_Ship_Dead(target_unit_idx);
             if (death_type != 0) {
                 int16_t off_x, off_y;
-                COMBINIT::Ship_Center_Offsets(target_unit_idx, &off_x, &off_y);
+                COMBINIT::Ship_Center_Offsets(&::game::world, target_unit_idx, &off_x, &off_y);
                 CMBTFIRE::Destroy_Ship(target_unit_idx, x - off_x, y - off_y, death_type);
             }
         }
@@ -521,7 +521,7 @@ namespace CMBTMIS {
         int16_t off_y;
 
         if (target_is_missile == 0) {
-            COMBINIT::Ship_Center_Offsets(target_idx, &off_x, &off_y);
+            COMBINIT::Ship_Center_Offsets(&::game::world, target_idx, &off_x, &off_y);
 
             target_x = (int16_t)MOX::combat_data[target_idx].x * 20 + off_x;
             target_y = (int16_t)MOX::combat_data[target_idx].y * 20 + off_y;
@@ -738,7 +738,7 @@ namespace CMBTMIS {
             target_x_scr = MOX::missile[target_unit_idx].x - MOX::cur_combat_x * 20;
             target_y_scr = MOX::missile[target_unit_idx].y - MOX::cur_combat_y * 20;
         } else {
-            if (!CMBTDRW1::Ship_Completely_On_Screen(target_unit_idx)) {
+            if (!CMBTDRW1::Ship_Completely_On_Screen(&::game::world, target_unit_idx)) {
                 COMBINIT::Snap_Center_Combat_Screen(MOX::combat_data[target_unit_idx].x, MOX::combat_data[target_unit_idx].y);
             }
             target_x_scr = x - MOX::cur_combat_x * 20;
@@ -763,7 +763,7 @@ namespace CMBTMIS {
             missile->type = missile_type;
 
             if (!missile->target_is_missile && missile->target_unit_idx == MOX::dont_draw_ship) {
-                COMBINIT::Ship_Center_Offsets(missile->target_unit_idx, &off_x, &off_y);
+                COMBINIT::Ship_Center_Offsets(&::game::world, missile->target_unit_idx, &off_x, &off_y);
                 graphics::Set_Window(0, 0, 639, 350);
                 video::Clip_On();
                 CMBTDRW1::Draw_Ship(missile->target_unit_idx, target_x_scr - off_x, target_y_scr - off_y);
@@ -789,7 +789,7 @@ namespace CMBTMIS {
             BEAMS::Add_Damage_Indicator_For_Missile(target_x_scr, target_y_scr, 1, dmg);
             BEAMS::Draw_Damage_Message_Queue_Until_Done();
         } else {
-            COMBINIT::Ship_Center_Offsets(target_unit_idx, &off_x, &off_y);
+            COMBINIT::Ship_Center_Offsets(&::game::world, target_unit_idx, &off_x, &off_y);
             BEAMS::Add_Damage_Indicator_For_Ship(target_x_scr - off_x, target_y_scr - off_y, target_unit_idx, 1, dmg, sys_dmg);
 
             while (!BEAMS::Done_Drawing_Damage_Message_Queue()) {
@@ -799,7 +799,7 @@ namespace CMBTMIS {
                 graphics::Set_Window(0, 0, 639, 350);
                 video::Clip_On();
                 if (target_unit_idx == MOX::dont_draw_ship) {
-                    COMBINIT::Ship_Center_Offsets(target_unit_idx, &off_x, &off_y);
+                    COMBINIT::Ship_Center_Offsets(&::game::world, target_unit_idx, &off_x, &off_y);
                     CMBTDRW1::Draw_Ship(target_unit_idx, target_x_scr - off_x, target_y_scr - off_y);
                 }
                 BEAMS::Draw_Damage_Message_Queue();
@@ -1013,7 +1013,7 @@ namespace CMBTMIS {
             MOX::missile[missile_idx].specials = MOX::combat_data[source_idx].weapons[weapon_slot].specials;
             MOX::missile[missile_idx].target_unit_idx = target_idx;
 
-            COMBINIT::Ship_Center_Offsets(source_idx, &source_offset_x, &source_offset_y);
+            COMBINIT::Ship_Center_Offsets(&::game::world, source_idx, &source_offset_x, &source_offset_y);
             MOX::missile[missile_idx].x = (MOX::combat_data[source_idx].x * 20) + source_offset_x;
             MOX::missile[missile_idx].y = (MOX::combat_data[source_idx].y * 20) + source_offset_y;
 
@@ -1053,7 +1053,7 @@ namespace CMBTMIS {
 
             if (is_anti_rocket == 0) {
                 int16_t target_offset_x, target_offset_y;
-                COMBINIT::Ship_Center_Offsets(target_idx, &target_offset_x, &target_offset_y);
+                COMBINIT::Ship_Center_Offsets(&::game::world, target_idx, &target_offset_x, &target_offset_y);
                 target_coords_x = (MOX::combat_data[target_idx].x * 20) + target_offset_x;
                 target_coords_y = (MOX::combat_data[target_idx].y * 20) + target_offset_y;
             } else {

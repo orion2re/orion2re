@@ -103,7 +103,7 @@ namespace SHIPSTAK {
         }
 
         if (MOX::player[MOX::PLAYER_NUM].traits[TRAIT_OMNISCIENCE] == 0) {
-            Remove_Non_Detected_Ships();
+            Remove_Non_Detected_Ships(&::game::world);
         }
 
         for (int16_t j = 0; j < MOX::ship_stack_count; ++j) {
@@ -111,7 +111,7 @@ namespace SHIPSTAK {
         }
     }
 
-    void __cdecl Remove_Non_Detected_Ships() {
+    void __cdecl Remove_Non_Detected_Ships(::game::s_world_state* world_state) {
         const int16_t player_num = MOX::PLAYER_NUM;
         int32_t scan_range = scan_bonus.no_scanner;
 
@@ -139,7 +139,7 @@ namespace SHIPSTAK {
                 for (int16_t colony_idx = 0; colony_idx < MOX::NUM_COLONIES; ++colony_idx) {
                     const s_colony& colony = MOX::colony[colony_idx];
                     if ((int16_t)(int8_t)colony.owner == player_num) {
-                        const int16_t colony_star_idx = MOX::planet[colony.planet].star_index;
+                        const int16_t colony_star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony.planet))).star_index;
                         const s_star_data& colony_star = MOX::star[colony_star_idx];
 
                         int32_t range_steps = (special::Range(

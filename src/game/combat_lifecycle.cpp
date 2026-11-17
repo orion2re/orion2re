@@ -485,7 +485,7 @@ namespace COMBINIT {
                                 ship->owner, victor_player, MOX::combat_attacker_player)) {
                             Record_Captured_Satellite(MOX::cmbt_colony_id, satellite_building);
                         }
-                        ERICNET::Remove_Building(MOX::cmbt_colony_id, satellite_building);
+                        ERICNET::Remove_Building(world_state, MOX::cmbt_colony_id, satellite_building);
                     }
                 }
                 continue;
@@ -669,7 +669,7 @@ namespace COMBINIT {
                     has_buildings += col->buildings[i];
                 }
                 if (has_buildings == 0) {
-                    BOMB::Destroy_Colony(col, 1);
+                    BOMB::Destroy_Colony(world_state, col, 1);
                 }
             }
         }

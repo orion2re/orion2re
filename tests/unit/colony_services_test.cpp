@@ -25,7 +25,7 @@ DOCTEST_TEST_CASE("advanced homeworld initialization updates contacts ranges and
     MOX::player[0].home_planet_id = 0;
     MOX::player[0].command_points = 2;
     MOX::settings.starting_civilization_level = STARTING_CIVILIZATION_LEVEL_ADVANCED;
-    COLCALC::Twiddle_Initial_Homeworlds();
+    COLCALC::Twiddle_Initial_Homeworlds(&::game::world);
     DOCTEST_CHECK(services.contact_updates == 1);
     DOCTEST_CHECK(services.range_updates == 1);
     DOCTEST_CHECK(services.settings_checks == 2);
@@ -124,7 +124,7 @@ DOCTEST_TEST_CASE("empire surrender transfers assets caps spies and recalculates
     services.spies[1][1] = 50;
     services.spies[0][0] = 10;
     services.spies[0][1] = 20;
-    COLCALC::Do_Surrender_Empire(0, 1);
+    COLCALC::Do_Surrender_Empire(&::game::world, 0, 1);
     DOCTEST_CHECK((MOX::ship[0].owner == 1));
     DOCTEST_CHECK((MOX::ship[0].officer_index == -1));
     DOCTEST_CHECK((services.deassigned == std::vector<int16_t>{0}));
@@ -150,7 +150,7 @@ DOCTEST_TEST_CASE("star surrender returns the old colony leader to the pool") {
     game::Leader(&game::world, 1).player_index = 0;
     game::Leader(&game::world, 1).type = LEADER_TYPE_COLONY;
     game::Leader(&game::world, 1).location = 0;
-    COLCALC::Do_Surrender_Star(0, 0, 1);
+    COLCALC::Do_Surrender_Star(&::game::world, 0, 0, 1);
     DOCTEST_CHECK((services.pooled == std::vector<int16_t>{1}));
     DOCTEST_CHECK((MOX::star[0].officer_index[0] == -1));
     DOCTEST_CHECK((MOX::star[0].surrender_to[0] == -1));
@@ -166,16 +166,16 @@ DOCTEST_TEST_CASE("surrender eligibility uses recipient range and excludes the c
     MOX::player[0].home_planet_id = 1;
     MOX::player[1].ship_range = 9;
     services.in_normal_range = false;
-    DOCTEST_CHECK_FALSE(COLCALC::May_Surrender_Star(0, 0, 1));
+    DOCTEST_CHECK_FALSE(COLCALC::May_Surrender_Star(&::game::world, 0, 0, 1));
     services.in_normal_range = true;
-    DOCTEST_CHECK(COLCALC::May_Surrender_Star(0, 0, 1));
+    DOCTEST_CHECK(COLCALC::May_Surrender_Star(&::game::world, 0, 0, 1));
     DOCTEST_CHECK((services.normal_ranges == std::vector<std::array<int16_t, 2>>{{0, 1}, {0, 1}}));
     int16_t stars[2] = {-1, -1};
-    DOCTEST_CHECK(COLCALC::Get_Possible_Surrender_Systems(0, 1, stars) == 1);
+    DOCTEST_CHECK(COLCALC::Get_Possible_Surrender_Systems(&::game::world, 0, 1, stars) == 1);
     DOCTEST_CHECK(stars[0] == 0);
     DOCTEST_CHECK((services.ranges == std::vector<std::array<int16_t, 3>>{{0, 1, 9}, {1, 1, 9}}));
     services.in_range = false;
-    DOCTEST_CHECK(COLCALC::Get_Possible_Surrender_Systems(0, 1, stars) == 0);
+    DOCTEST_CHECK(COLCALC::Get_Possible_Surrender_Systems(&::game::world, 0, 1, stars) == 0);
 }
 
 DOCTEST_TEST_CASE("only arrived colony leaders query their star anomaly") {

@@ -179,5 +179,5 @@ namespace COMBAT {
      * Collect eligible attacker ships at the target colony and dispatch bombardment resolution.
      * @param bomb_result Input and output bombardment result structure.
      */
-    void __cdecl Bombardment(s_combat_bomb_result* bomb_result);
+    void __cdecl Bombardment(::game::s_world_state* world_state, s_combat_bomb_result* bomb_result);
 } // namespace COMBAT

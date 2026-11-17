@@ -5,9 +5,21 @@
 #include "game/serialization.h"
 
 namespace SAVEGAME {
+    void Write_Ship_Record(SERIAL::Writer_* writer, const s_ship_data* ship);
+    bool Read_Ship_Record(SERIAL::Reader_* reader, s_ship_data* ship);
+    void Write_Player_Record(game::s_world_state* world, SERIAL::Writer_* writer, const s_player* player, game::id_player id);
+    bool Read_Player_Record(game::s_world_state* world, SERIAL::Reader_* reader, s_player* player, game::id_player id);
+    void Write_Colony_Record(SERIAL::Writer_* writer, const s_colony* record);
+    bool Read_Colony_Record(SERIAL::Reader_* reader, s_colony* record);
+    void Write_Star_Record(SERIAL::Writer_* writer, const s_star_data* record);
+    bool Read_Star_Record(SERIAL::Reader_* reader, s_star_data* record);
+    void Write_Report_Record(SERIAL::Writer_* writer, const s_report* record);
+    bool Read_Report_Record(SERIAL::Reader_* reader, s_report* record);
+    void Write_Message_Record(SERIAL::Writer_* writer, const s_MSG* record);
+    bool Read_Message_Record(SERIAL::Reader_* reader, s_MSG* record);
     inline constexpr uint32_t LEGACY_HEADER = 0xE0;
     inline constexpr uint32_t VERSIONED_HEADER = 0xE1;
-    inline constexpr uint16_t CURRENT_VERSION = 7;
+    inline constexpr uint16_t CURRENT_VERSION = 8;
     inline constexpr uint32_t BUFFER_CAPACITY = 4 * 1024 * 1024;
     extern bool loaded_config_prompt;
 

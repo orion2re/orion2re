@@ -21,7 +21,7 @@ namespace HOMEGEN {
     bool __cdecl Is_Added_Food_World(int16_t world_id);
 
     /** Generates player home worlds and Orion, returning nonzero on success. */
-    uint16_t __cdecl Generate_Home_Worlds();
+    uint16_t __cdecl Generate_Home_Worlds(game::s_world_state* world_state);
 
 #pragma pack(push, 1)
     struct CandidateList {
@@ -65,74 +65,74 @@ namespace HOMEGEN {
     void __cdecl Randomize_Home_Worlds(int16_t* home_star_ids);
 
     /** Applies homeworld guarantees and trait-based adjustments to player starts. */
-    void __cdecl Modify_Home_Worlds();
+    void __cdecl Modify_Home_Worlds(::game::s_world_state* world_state);
 
     /** Creates the Orion system and returns the relocated star index. */
-    int16_t __cdecl Generate_Orion();
+    int16_t __cdecl Generate_Orion(::game::s_world_state* world_state);
 
     /** Chooses a star to receive the Orion system. */
-    int16_t __cdecl Get_Orion_Star_Id();
+    int16_t __cdecl Get_Orion_Star_Id(game::s_world_state* world_state);
 
     /** Places space monsters on eligible systems. */
-    void __cdecl Make_System_Monsters();
+    void __cdecl Make_System_Monsters(game::s_world_state* world_state);
 
     /** Assigns race-specific names to home stars. */
-    void __cdecl Assign_Home_Star_Names();
+    void __cdecl Assign_Home_Star_Names(::game::s_world_state* world_state);
 
     /** Ensures a home system contains a planet with the requested climate. */
-    void __cdecl Enforce_Climate(int16_t star_idx, int16_t climate_id, int16_t* out_planet_idx);
+    void Enforce_Climate(game::s_world_state* world_state, int16_t star_idx, int16_t climate_id, game::id_planet* out_planet_idx);
 
     /** Clears system and planet specials from the given star system. */
-    void __cdecl Remove_Specials(int16_t star_idx);
+    void __cdecl Remove_Specials(::game::s_world_state* world_state, int16_t star_idx);
 
     /** Sets a planet's size field. */
-    void __cdecl Set_Planet_Size(int16_t planet_index, int8_t size);
+    void __cdecl Set_Planet_Size(::game::s_world_state* world_state, ::game::id_planet planet_index, int8_t size);
 
     /** Forces a planet to medium size and refreshes dependent farm data. */
-    void __cdecl Enforce_Medium_Planet_Size(int16_t planet_idx);
+    void __cdecl Enforce_Medium_Planet_Size(::game::s_world_state* world_state, ::game::id_planet planet_idx);
 
     /** Forces the specified body to be a normal planet. */
-    void __cdecl Enforce_Planet_Type(int16_t star_idx, int16_t planet_idx);
+    void __cdecl Enforce_Planet_Type(::game::s_world_state* world_state, int16_t star_idx, ::game::id_planet planet_idx);
 
     /** Forces a planet to at least abundant mineral richness. */
-    void __cdecl Enforce_Planet_Abundant_Mineral_Class(int16_t planet_idx);
+    void __cdecl Enforce_Planet_Abundant_Mineral_Class(::game::s_world_state* world_state, ::game::id_planet planet_idx);
 
     /** Forces a planet to the requested mineral richness and adjusts gravity data. */
-    void __cdecl Enforce_Mineral_Richness(int16_t planet_index, int16_t mineral_class);
+    void __cdecl Enforce_Mineral_Richness(::game::s_world_state* world_state, ::game::id_planet planet_index, int16_t mineral_class);
 
     /** Marks a planet and its star with the artifacts special. */
-    void __cdecl Set_System_Planet_Artifact_Special(int16_t planet_idx, int16_t star_idx);
+    void __cdecl Set_System_Planet_Artifact_Special(::game::s_world_state* world_state, ::game::id_planet planet_idx, int16_t star_idx);
 
     /** Sets homeworld gravity and downgrades invalid ultra-rich starts when needed. */
-    void __cdecl Enforce_Gravity(int16_t planet_idx, int8_t gravity_class, int16_t player_idx);
+    void __cdecl Enforce_Gravity(::game::s_world_state* world_state, ::game::id_planet planet_idx, int8_t gravity_class, int16_t player_idx);
 
     /** Guarantees a nearby planet-bearing system within min_dist of a home star. */
-    void __cdecl Guarantee_A_Planet_At_Min_Dist(int16_t star_idx, int16_t min_dist, int16_t* home_star_ids);
+    void __cdecl Guarantee_A_Planet_At_Min_Dist(game::s_world_state* world_state, int16_t star_idx, int16_t min_dist, int16_t* home_star_ids);
 
     /** Ensures each non-lithovore colony has at least one nearby food planet. */
-    uint8_t __cdecl Ensure_At_Least_1_Food_Planet();
+    uint8_t __cdecl Ensure_At_Least_1_Food_Planet(::game::s_world_state* world_state);
 
     /** Appends planets from a non-food system to planet_list and updates count_in_out. */
-    void __cdecl Add_Non_Food_Planets_To_List(int16_t star_idx, int16_t* planet_list, int16_t* count_in_out);
+    void Add_Non_Food_Planets_To_List(int16_t star_idx, game::id_planet* planet_list, int16_t* count_in_out);
 
     /** Chooses a usable orbit slot in a star system. */
-    int16_t __cdecl Usable_Orbit(int16_t star_idx);
+    int16_t __cdecl Usable_Orbit(::game::s_world_state* world_state, int16_t star_idx);
 
     /** Creates or rewrites a planet record in the given system orbit. */
-    void __cdecl Make_One_Planet(int16_t star_idx, int16_t planet_idx, int16_t orbit_idx, int8_t is_food_planet);
+    void __cdecl Make_One_Planet(::game::s_world_state* world_state, int16_t star_idx, ::game::id_planet planet_idx, int16_t orbit_idx, int8_t is_food_planet);
 
     /** Ensures a system contains at least three planetary bodies. */
-    void __cdecl Enforce_3_Planet_Minimum(int16_t star_idx);
+    void __cdecl Enforce_3_Planet_Minimum(game::s_world_state* world_state, int16_t star_idx);
 
     /** Chooses a random existing planet in the system. */
-    int16_t __cdecl Random_Planet(int16_t star_idx);
+    game::id_planet Random_Planet(game::s_world_state* world_state, int16_t star_idx);
 
     /** Assigns a compatible special to a monster-guarded star system. */
-    void __cdecl Set_Special_For_Star_Guarded_By_Monster(s_star_data* star, int16_t monster_type);
+    void __cdecl Set_Special_For_Star_Guarded_By_Monster(::game::s_world_state* world_state, s_star_data* star, int16_t monster_type);
 
     /** Upgrades a monster-guarded planet and refreshes its parent star special. */
-    void __cdecl Upgrade_Planet_Guarded_By_Monster(s_planet_data* planet, int16_t monster_type);
+    void Upgrade_Planet_Guarded_By_Monster(game::s_world_state* world_state, game::id_planet planet_index, int16_t monster_type);
 
     /** Returns whether the supplied star currently has a real planet. */
-    bool __cdecl Star_Has_Planet(int16_t star_index);
+    bool __cdecl Star_Has_Planet(::game::s_world_state* world_state, int16_t star_index);
 } // namespace HOMEGEN

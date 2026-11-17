@@ -56,7 +56,9 @@ namespace legacy_world {
     }
     constexpr std::optional<int16_t> Index(game::id_ship id) { return detail::Narrow_Index(Slot(id)); }
     constexpr std::optional<int16_t> Index(game::id_colony id) { return detail::Narrow_Index(Slot(id)); }
-    constexpr std::optional<int16_t> Index(game::id_planet id) { return detail::Narrow_Index(Slot(id)); }
+    constexpr std::optional<game::id_planet> Index(game::id_planet id) {
+        return id == game::NO_PLANET ? std::nullopt : std::optional{id};
+    }
     constexpr std::optional<int16_t> Index(game::id_star id) { return detail::Narrow_Index(Slot(id)); }
     constexpr std::optional<int16_t> Index(game::id_player id) { return detail::Narrow_Index(Slot(id)); }
     constexpr std::optional<int16_t> Index(game::id_leader id) { return detail::Narrow_Index(Slot(id)); }

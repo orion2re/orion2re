@@ -24,7 +24,7 @@ namespace SYS {
 
     void __cdecl Set_System_Display_Loaded_Flag(int16_t star_idx);
 
-    void __cdecl Load_New_System_Display(int16_t star_idx);
+    void __cdecl Load_New_System_Display(::game::s_world_state* world_state, int16_t star_idx);
 
     void __cdecl Init_System_Display(int16_t star_id);
 
@@ -32,7 +32,7 @@ namespace SYS {
      * Builds and shows the colony-potential summary popup for a planet.
      * @param planet_idx Planet index to summarize.
      */
-    void __cdecl Potential_Colony_Info_Popup(int16_t planet_idx);
+    void __cdecl Potential_Colony_Info_Popup(::game::s_world_state* world_state, ::game::id_planet planet_idx);
 
     /**
      * Loads the rotating animation segment for the given planet.
@@ -41,7 +41,7 @@ namespace SYS {
      * @param unused_arg Unused legacy argument kept for call compatibility.
      * @return The buffered animation header.
      */
-    s_animation_header* __cdecl Get_Rotating_Planet_Segment(int16_t planet_idx, int16_t unused_star_idx, int32_t unused_arg);
+    s_animation_header* __cdecl Get_Rotating_Planet_Segment(::game::s_world_state* world_state, ::game::id_planet planet_idx, int16_t unused_star_idx, int32_t unused_arg);
 
     extern int8_t remap_gray_percentages[10];
 
@@ -71,9 +71,9 @@ namespace SYS {
 
     void __cdecl Draw_Sun_Seg(int16_t star_idx, int16_t base_x, int16_t base_y, int16_t content_w, int16_t content_h, int16_t y_offset, int16_t x_offset);
 
-    void __cdecl Draw_System_Display_Planets(int16_t base_x, int16_t base_y, int16_t content_w, int16_t content_h, int16_t y_offset, int16_t x_offset);
+    void __cdecl Draw_System_Display_Planets(::game::s_world_state* world_state, int16_t base_x, int16_t base_y, int16_t content_w, int16_t content_h, int16_t y_offset, int16_t x_offset);
 
-    void __cdecl Draw_Planet_With_Pierced_Ring(int16_t planet_idx, int16_t sys_disp_idx, int16_t x_offset_1, int16_t y_offset_1, int16_t x_offset_2, int16_t y_offset_2, int16_t y_offset_3, int16_t x_offset_3);
+    void __cdecl Draw_Planet_With_Pierced_Ring(::game::s_world_state* world_state, ::game::id_planet planet_idx, int16_t sys_disp_idx, int16_t x_offset_1, int16_t y_offset_1, int16_t x_offset_2, int16_t y_offset_2, int16_t y_offset_3, int16_t x_offset_3);
 
     void __cdecl Remap_Draw_With_Mask(int16_t x, int16_t y, s_animation_header* anim_hdr, s_animation_header* mask_hdr);
 
@@ -91,9 +91,9 @@ namespace SYS {
 
     void __cdecl Draw_Outpost_Marker(int16_t x, int16_t y, int16_t owner);
 
-    void __cdecl Draw_System_Highlight(int16_t planet_idx, int16_t rect_w, int16_t rect_h, int16_t x_offset, int16_t y_offset);
+    void __cdecl Draw_System_Highlight(::game::s_world_state* world_state, ::game::id_planet planet_idx, int16_t rect_w, int16_t rect_h, int16_t x_offset, int16_t y_offset);
 
-    void __cdecl Print_Planet_Info_Short(int16_t planet_idx, int16_t* box_width, int16_t* box_height);
+    void __cdecl Print_Planet_Info_Short(::game::id_planet planet_idx, int16_t* box_width, int16_t* box_height);
 
     int16_t __cdecl Print_Special_Building_Data(
         int16_t colony_idx,
@@ -104,12 +104,12 @@ namespace SYS {
         int16_t line_spacing,
         bool draw);
 
-    void __cdecl Do_Print_Planet_Info(
+    void __cdecl Do_Print_Planet_Info(::game::s_world_state* world_state, 
         int16_t left,
         int16_t top,
         int16_t inner_left,
         int16_t inner_top,
-        int16_t planet_idx,
+        ::game::id_planet planet_idx,
         int16_t text_left,
         int16_t text_top,
         int16_t* max_width,
@@ -126,7 +126,7 @@ namespace SYS {
      * @param x_offset Additional popup X offset.
      * @param y_offset Additional popup Y offset.
      */
-    void __cdecl Print_Planet_Info(int16_t base_x, int16_t base_y, int16_t content_w, int16_t content_h, int16_t planet_idx, int16_t x_offset, int16_t y_offset);
+    void __cdecl Print_Planet_Info(int16_t base_x, int16_t base_y, int16_t content_w, int16_t content_h, ::game::id_planet planet_idx, int16_t x_offset, int16_t y_offset);
 
     void __cdecl Draw_System_Ship_Icons(int16_t base_x, int16_t base_y, int16_t content_w, int16_t content_h, int16_t y_offset, int16_t x_offset);
 
@@ -187,11 +187,11 @@ namespace SYS {
 
     extern char star_description_string[STAR_DESCRIPTION_STRING_CAPACITY];
 
-    void __cdecl Draw_System_Display_Popup(int16_t star_idx, int8_t draw_border, const char* title_text, int16_t base_x, int16_t base_y, int16_t content_w, int16_t content_h, int16_t x_offset, int16_t y_offset);
+    void __cdecl Draw_System_Display_Popup(::game::s_world_state* world_state, int16_t star_idx, int8_t draw_border, const char* title_text, int16_t base_x, int16_t base_y, int16_t content_w, int16_t content_h, int16_t x_offset, int16_t y_offset);
 
     void __cdecl Wrapper_For_Normal_System_Popup();
 
-    void __cdecl Add_System_Display_Popup_Fields(
+    void __cdecl Add_System_Display_Popup_Fields(::game::s_world_state* world_state, 
         int16_t star_idx,
         int16_t base_x,
         int16_t base_y,

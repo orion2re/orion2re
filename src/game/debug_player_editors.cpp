@@ -25,6 +25,8 @@ namespace debug_game_editors {
         };
 
         s_editor_state<s_player> g_player_editor = {};
+        std::vector<SETTLER::s_settler> g_settlers_baseline;
+        std::vector<SETTLER::s_settler> g_settlers_draft;
         s_editor_state<s_antaran> g_antaran_editor = {};
         int32_t g_settler_slot = 0;
         int32_t g_tech_field = 0;
@@ -74,6 +76,11 @@ namespace debug_game_editors {
             return memcmp(&editor.draft, &editor.baseline, sizeof(T)) != 0;
         }
 
+        bool Dirty_(const s_editor_state<s_player>& editor) {
+            return memcmp(&editor.draft, &editor.baseline, sizeof(s_player)) != 0 || g_settlers_draft != g_settlers_baseline;
+        }
+
+
         template <typename T>
         bool Merge_Field_(const T& baseline, const T& draft, const T& live, T* merged) {
             if (memcmp(&draft, &baseline, sizeof(T)) == 0) {
@@ -117,7 +124,6 @@ namespace debug_game_editors {
             MERGE_PLAYER_FIELD(command_points_used);
             MERGE_PLAYER_FIELD(food_freighted);
             MERGE_PLAYER_FIELD(settlers_freighted);
-            MERGE_PLAYER_FIELD(settlers);
             MERGE_PLAYER_FIELD(total_pop);
             MERGE_PLAYER_FIELD(food_produced);
             MERGE_PLAYER_FIELD(industry_produced);
@@ -324,14 +330,14 @@ namespace debug_game_editors {
             return true;
         }
 
-        bool Validate_Player_(const s_player& player) {
+        bool Validate_Player_(::game::s_world_state* world_state, const s_player& player) {
             if (player.name[sizeof(player.name) - 1] != '\0' ||
                 player.race_name[sizeof(player.race_name) - 1] != '\0' ||
                 player.race > 14 || player.color >= MAX_PLAYERS ||
                 player.personality >= PLAYER_PERSONALITY_COUNT ||
                 !((player.objectives <= PLAYER_OBJECTIVE_ECOLOGIST) ||
                     player.objectives == PLAYER_OBJECTIVE_HUMAN) ||
-                player.home_planet_id < -1 || player.home_planet_id >= MOX::planet_count ||
+                player.home_planet_id < -1 || (::game::Find_Planet(world_state, legacy_world::Planet_Id(player.home_planet_id)) == nullptr) ||
                 player.officer_for_hire < -1 || player.officer_for_hire >= MAX_LEADERS ||
                 player.settlers_freighted < 0 ||
                 player.settlers_freighted > MAX_FREIGHTED_SETTLERS ||
@@ -350,17 +356,11 @@ namespace debug_game_editors {
                     return false;
                 }
             }
-            for (int32_t index = 0; index < player.settlers_freighted; ++index) {
-                const SETTLER::value_type value = player.settlers[index].val;
-                const int16_t source = SETTLER::Get_Source_Colony(value);
-                const int16_t destination = SETTLER::Get_Dest_Planet(value);
-                if ((source != SETTLER::SOURCE_COLONY_IN_TRANSIT &&
-                        (source < 0 || source >= MOX::NUM_COLONIES)) ||
-                    destination < 0 || destination >= MOX::planet_count ||
-                    SETTLER::Get_Race(value) > POP::RACE_NATIVE ||
-                    SETTLER::Get_Prof(value) > POP::PROF_SCIENTIST) {
-                    return false;
-                }
+            if (g_settlers_draft.size() > MAX_FREIGHTED_SETTLERS) return false;
+            for (const auto& settler : g_settlers_draft) {
+                if ((settler.source_colony && settler.source_colony->id >= static_cast<uint32_t>(MOX::NUM_COLONIES)) ||
+                    game::Find_Planet(world_state, settler.destination_planet) == nullptr ||
+                    settler.race > POP::RACE_NATIVE || settler.eta > 15 || settler.profession > POP::PROF_SCIENTIST) return false;
             }
             return true;
         }
@@ -431,7 +431,7 @@ namespace debug_game_editors {
             Input_U8_("color", &player.color);
             Input_U8_("personality", &player.personality);
             Input_U8_("objectives", &player.objectives);
-            debug_game_widgets::Planet_Reference(
+            debug_game_widgets::Planet_Reference(&::game::world, 
                 "home_planet_id", &player.home_planet_id);
             Input_S16_("network_player_id", &player.network_player_id);
             Input_S8_("player_done_flags", &player.player_done_flags);
@@ -439,35 +439,32 @@ namespace debug_game_editors {
         }
 
         void Draw_Settler_(s_player& player) {
-            ImGui::SliderInt(
-                "Settler slot", &g_settler_slot, 0, MAX_FREIGHTED_SETTLERS - 1);
-            s_settler_info& settler = player.settlers[g_settler_slot];
-            int16_t source = SETTLER::Get_Source_Colony(settler.val);
-            int16_t destination = SETTLER::Get_Dest_Planet(settler.val);
-            uint8_t race = (uint8_t)SETTLER::Get_Race(settler.val);
-            uint8_t eta = (uint8_t)SETTLER::Get_Eta(settler.val);
-            int8_t job = (int8_t)SETTLER::Get_Prof(settler.val);
-            if (Input_S16_("source_colony", &source)) {
-                SETTLER::Set_Source_Colony(&settler.val, source);
+            const auto& planets = game::world.planets;
+            ImGui::BeginDisabled(planets.empty() || g_settlers_draft.size() >= MAX_FREIGHTED_SETTLERS);
+            if (ImGui::Button("Add settler") && !planets.empty()) {
+                SETTLER::s_settler settler{};
+                settler.destination_planet = planets.begin()->first;
+                settler.eta = 1;
+                settler.race = static_cast<uint8_t>(g_player_editor.index);
+                g_settlers_draft.push_back(settler);
             }
-            if (debug_game_widgets::Planet_Reference(
-                    "dest_planet", &destination, false)) {
-                SETTLER::Set_Dest_Planet(&settler.val, destination);
+            ImGui::EndDisabled();
+            if (!g_settlers_draft.empty()) {
+                g_settler_slot = std::clamp(g_settler_slot, 0, static_cast<int>(g_settlers_draft.size()) - 1);
+                ImGui::SliderInt("Settler", &g_settler_slot, 0, static_cast<int>(g_settlers_draft.size()) - 1);
+                auto& settler = g_settlers_draft[g_settler_slot];
+                int16_t source = settler.source_colony && settler.source_colony->id <= INT16_MAX ? static_cast<int16_t>(settler.source_colony->id) : -1;
+                if (debug_game_widgets::Colony_Reference("source_colony", &source)) {
+                    settler.source_colony = source < 0 ? std::nullopt : std::optional{game::id_colony{static_cast<uint32_t>(source)}};
+                }
+                debug_game_widgets::Planet_Reference(&game::world, "dest_planet", &settler.destination_planet, false);
+                Input_U8_("race", &settler.race);
+                ImGui::InputScalar("eta", ImGuiDataType_U16, &settler.eta);
+                int8_t job = static_cast<int8_t>(settler.profession);
+                if (debug_game_widgets::Enum("job", &job, k_population_jobs, 3)) settler.profession = static_cast<POP::e_prof>(job);
+                if (ImGui::Button("Remove settler")) g_settlers_draft.erase(g_settlers_draft.begin() + g_settler_slot);
             }
-            if (Input_U8_("race", &race)) {
-                SETTLER::Set_Race(&settler.val, race);
-            }
-            if (Input_U8_("eta", &eta)) {
-                SETTLER::Set_Eta(&settler.val, eta);
-            }
-            if (debug_game_widgets::Enum(
-                    "job", &job, k_population_jobs, 3)) {
-                SETTLER::Set_Prof(&settler.val, (POP::e_prof)job);
-            }
-            ImGui::Text(
-                "Packed: 0x%016llX | %s",
-                (unsigned long long)settler.val,
-                g_settler_slot < player.settlers_freighted ? "active" : "inactive");
+            player.settlers_freighted = static_cast<int16_t>(g_settlers_draft.size());
         }
 
         void Draw_Economy_(s_player& player) {
@@ -479,7 +476,7 @@ namespace debug_game_editors {
             Read_Only_S16_("command_points", &player.command_points);
             Read_Only_S16_("command_points_used", &player.command_points_used);
             Read_Only_S16_("food_freighted", &player.food_freighted);
-            Input_S16_("settlers_freighted", &player.settlers_freighted);
+            ImGui::Text("settlers_freighted: %zu", g_settlers_draft.size());
             if (ImGui::CollapsingHeader("settlers")) {
                 Draw_Settler_(player);
             }
@@ -852,6 +849,9 @@ namespace debug_game_editors {
             g_player_editor.pending_index = -1;
             g_player_editor.baseline = MOX::player[player];
             g_player_editor.draft = g_player_editor.baseline;
+            const auto found = game::world.settlers.find(legacy_world::Player_Id(player));
+            g_settlers_baseline = found == game::world.settlers.end() ? std::vector<SETTLER::s_settler>{} : found->second;
+            g_settlers_draft = g_settlers_baseline;
             g_player_editor.open = true;
             g_player_editor.focus_requested = true;
             g_counterparty = std::clamp<int32_t>(g_counterparty, 0, MAX_PLAYERS - 1);
@@ -924,16 +924,21 @@ namespace debug_game_editors {
                 Draw_Player_Form_(g_player_editor.draft);
                 ImGui::Separator();
                 const bool dirty = Dirty_(g_player_editor);
-                const bool valid = Validate_Player_(g_player_editor.draft);
+                const bool valid = Validate_Player_(&::game::world, g_player_editor.draft);
                 s_player merged;
                 const bool mergeable = Merge_Player_(
                     g_player_editor.baseline,
                     g_player_editor.draft,
                     MOX::player[g_player_editor.index],
-                    &merged);
+                    &merged) && (g_settlers_draft == g_settlers_baseline ||
+                        game::world.settlers[legacy_world::Player_Id(g_player_editor.index)] == g_settlers_baseline ||
+                        game::world.settlers[legacy_world::Player_Id(g_player_editor.index)] == g_settlers_draft);
                 ImGui::BeginDisabled(
                     !dirty || !valid || !mergeable || Network_Game_());
                 if (ImGui::Button("Save")) {
+                    const auto id = legacy_world::Player_Id(g_player_editor.index);
+                    if (g_settlers_draft != g_settlers_baseline) game::world.settlers[id] = g_settlers_draft;
+                    merged.settlers_freighted = static_cast<int16_t>(game::world.settlers[id].size());
                     MOX::player[g_player_editor.index] = merged;
                     Recalculate_Player_(g_player_editor.index);
                     Load_Player_(g_player_editor.index);

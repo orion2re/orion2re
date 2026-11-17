@@ -31,31 +31,31 @@ namespace AIDATA {
     /*
      * Updates per-star AI range summaries for each player.
      */
-    void __cdecl Compute_Star_Player_Range_Info(s_state* ai, const game::s_view* world);
+    void __cdecl Compute_Star_Player_Range_Info(::game::s_world_state* world_state, s_state* ai, const game::s_view* world);
 
     /*
      * Estimates how valuable a colony is to a specific player.
      * @param colony Colony being evaluated.
      * @param evaluating_player Player perspective used for the estimate.
      */
-    int16_t __cdecl Colony_Worth_To_Player(s_state* ai, const game::s_view* world, id_colony colony_id, s_colony* colony, s_player* evaluating_player);
+    int16_t __cdecl Colony_Worth_To_Player(::game::s_world_state* world_state, s_state* ai, const game::s_view* world, id_colony colony_id, s_colony* colony, s_player* evaluating_player);
 
     /*
      * Estimates the strategic range value of a colony to a specific player.
      * @param colony Colony being evaluated.
      * @param evaluating_player Player perspective used for the estimate.
      */
-    int16_t __cdecl Proximity_Worth_To_Player(s_state* ai, const game::s_view* world, s_colony* colony, s_player* evaluating_player);
+    int16_t __cdecl Proximity_Worth_To_Player(::game::s_world_state* world_state, s_state* ai, const game::s_view* world, s_colony* colony, s_player* evaluating_player);
 
     /*
      * Computes the base per-player value table for all known planets.
      */
-    void __cdecl Compute_Base_Planet_Values(s_state* ai, const game::s_view* world);
+    void __cdecl Compute_Base_Planet_Values(::game::s_world_state* world_state, s_state* ai, const game::s_view* world);
 
     /*
      * Computes per-player planet values adjusted by same-system context.
      */
-    void __cdecl Compute_Contextual_Planet_Values(s_state* ai, const game::s_view* world);
+    void __cdecl Compute_Contextual_Planet_Values(::game::s_world_state* world_state, s_state* ai, const game::s_view* world);
 
     /*
      * Scores how worthwhile it is to refit a ship against current tech.
@@ -105,9 +105,9 @@ namespace AIDATA {
     /*
      * Builds AI caches for ships, colonies, stars, and per-player planning data.
      */
-    bool Compute_AI_Data(s_state* ai, const game::s_view* world);
+    bool Compute_AI_Data(::game::s_world_state* world_state, s_state* ai, const game::s_view* world);
     // Null on success; otherwise a stable diagnostic identifying the invalid input.
-    const char* Validate_Inputs(const game::s_view* world);
+    const char* Validate_Inputs(::game::s_world_state* world_state, const game::s_view* world);
 
     /*
      * Marks which players can reach a star within normal and extended range.
@@ -115,7 +115,7 @@ namespace AIDATA {
      * @param in_normal_range_out Receives players within normal range.
      * @param in_extended_range_out Receives players within extended range.
      */
-    void Find_Players_In_Range(const game::s_view* world, id_star star_idx, int8_t* in_normal_range_out, int8_t* in_extended_range_out);
+    void Find_Players_In_Range(::game::s_world_state* world_state, const game::s_view* world, id_star star_idx, int8_t* in_normal_range_out, int8_t* in_extended_range_out);
 
     /*
      * Estimates how valuable settling an uncolonized planet is to a player.

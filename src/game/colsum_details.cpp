@@ -178,10 +178,10 @@ namespace COLSUM {
         char name2[52];
         char* planet_name_ptr;
 
-        planet_name_ptr = HACCESS::Get_Planet_Name_No_Prime(MOX::colony[colony_idx_1].planet);
+        planet_name_ptr = HACCESS::Get_Planet_Name_No_Prime(legacy_world::Planet_Id(MOX::colony[colony_idx_1].planet));
         strlcpy(name1, planet_name_ptr, sizeof(name1));
 
-        planet_name_ptr = HACCESS::Get_Planet_Name_No_Prime(MOX::colony[colony_idx_2].planet);
+        planet_name_ptr = HACCESS::Get_Planet_Name_No_Prime(legacy_world::Planet_Id(MOX::colony[colony_idx_2].planet));
         strlcpy(name2, planet_name_ptr, sizeof(name2));
 
         return (int16_t)strcasecmp(name1, name2);
@@ -249,10 +249,10 @@ namespace COLSUM {
         return cmp(turns1, turns2);
     }
 
-    void __cdecl Draw_Colony_Scan_Info(void) {
+    void __cdecl Draw_Colony_Scan_Info(::game::s_world_state* world_state) {
         int16_t total_roundoff;
         int16_t total_growth;
-        int16_t planet_idx;
+        ::game::id_planet planet_idx;
         uint8_t climate_idx;
         char buffer[1000];
 
@@ -279,11 +279,9 @@ namespace COLSUM {
             }
 
             int32_t inbound_population = 0;
-            s_player* owner = &MOX::player[colony->owner];
-            for (int16_t i = 0; i < owner->settlers_freighted; ++i) {
-                if (SETTLER::Get_Dest_Planet(owner->settlers[i].val) == colony->planet) {
-                    inbound_population++;
-                }
+            const auto found = game::world.settlers.find(legacy_world::Player_Id(static_cast<uint32_t>(colony->owner)));
+            if (found != game::world.settlers.end()) {
+                for (const auto& settler : found->second) if (settler.destination_planet == colony->planet) ++inbound_population;
             }
 
             int32_t population_change = (total_roundoff + total_growth) / 1000;
@@ -305,7 +303,7 @@ namespace COLSUM {
                            "2";
             }
 
-            s_planet_data* planet = &MOX::planet[planet_idx];
+            s_planet_data* planet = &::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx)));
             int16_t max_pop = COLCALC::Planet_Max_Population_For_Player(planet, MOX::PLAYER_NUM);
             const char* format = ESTRINGS::E_Strings(74 /* 0x4a */);
             if (strstr(format, "%s%d") == nullptr) {

@@ -47,7 +47,7 @@ namespace invasion {
     int __cdecl Unload_Transports(s_colony* colony, int16_t* transport_ship_ids, int num_transports);
 
     /// Returns the maximum infantry garrison the colony can support.
-    int32_t __cdecl Colony_Infantry_Limit(s_colony* colony);
+    int32_t __cdecl Colony_Infantry_Limit(::game::s_world_state* world_state, s_colony* colony);
 
     /// Computes player-wide ground combat modifiers for either the attacker or defender role.
     void __cdecl Compute_Player_Ground_Combat_Bonuses(int player_idx, s_invasion_player_bonuses* bonuses, int8_t is_defender);
@@ -71,10 +71,10 @@ namespace invasion {
     void __cdecl Change_Colony_Ownership(s_colony* colony, uint32_t new_owner_idx, s_battle_results_info* results);
 
     /// Updates colony population ownership flags after a capture.
-    void __cdecl Change_Pop_Ownership(int16_t colony_idx, uint32_t new_owner_idx);
+    void __cdecl Change_Pop_Ownership(::game::s_world_state* world_state, int16_t colony_idx, uint32_t new_owner_idx);
 
     /// Restores surviving rebel troops to the captured colony.
-    void __cdecl Resolve_Rebellion_Troops(s_invasion_side_info info);
+    void __cdecl Resolve_Rebellion_Troops(::game::s_world_state* world_state, s_invasion_side_info info);
 
     /// Removes excess population entries until the colony satisfies race limits.
     void __cdecl Enforce_Population_Limits_At_Colony(s_colony* colony);
@@ -104,7 +104,7 @@ namespace invasion {
     int __cdecl Colony_Tank_Barracks_Limit(s_colony* colony);
 
     /// Returns the maximum tank garrison the colony can support.
-    int32_t __cdecl Colony_Tank_Limit(s_colony* colony);
+    int32_t __cdecl Colony_Tank_Limit(::game::s_world_state* world_state, s_colony* colony);
 
     /// Returns the infantry cap imposed by infantry-barracks-style colony limits.
     int16_t __cdecl Colony_Infantry_Barracks_Limit(s_colony* colony);
@@ -116,7 +116,7 @@ namespace invasion {
     void __cdecl Invade(int16_t* ship_list, int16_t n_ships, int16_t colony_idx, s_battle_results_info* results);
 
     /// Restores surviving invasion troops to a captured colony.
-    void __cdecl Resolve_Invasion_Troops(s_invasion_side_info info);
+    void __cdecl Resolve_Invasion_Troops(::game::s_world_state* world_state, s_invasion_side_info info);
 
     /// Returns whether the invasion setup yields any defending troops.
     bool __cdecl Has_Defending_Troops(int8_t unused_attacker_id, int16_t* ship_list, int n_ships, int16_t colony_idx);

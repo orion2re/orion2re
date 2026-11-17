@@ -1,3 +1,4 @@
+#include "../fixtures/planet_state.h"
 #include "pch.h"
 
 #include "lua/lua_game_ship_identity.h"
@@ -7,7 +8,7 @@ namespace {
     s_combat_data combat_ships[4];
     s_ship_data ships[MAX_SHIPS];
     s_star_data systems[MAX_STARS];
-    s_planet_data planets[MAX_PLANETS];
+
     s_colony colonies[MAX_PLAYERS];
 
     s_nebula nebulas[MAX_NEBULAS];
@@ -22,7 +23,8 @@ namespace TEST_LUA_GAME {
         memset(combat_ships, 0, sizeof(combat_ships));
         memset(ships, 0, sizeof(ships));
         memset(systems, 0, sizeof(systems));
-        memset(planets, 0, sizeof(planets));
+        game::world.planets.clear();
+        game::world.next_planet_id = 0;
         memset(colonies, 0, sizeof(colonies));
         game::Reset_Leaders(&game::world);
         memset(nebulas, 0, sizeof(nebulas));
@@ -39,7 +41,7 @@ namespace TEST_LUA_GAME {
         MOX::NUM_PLAYERS = 2;
         MOX::NUM_SHIPS = 2;
         MOX::NUM_STARS = 2;
-        MOX::planet_count = 3;
+        test::Resize_Planets(&::game::world, 3);
         MOX::NUM_COLONIES = 0;
         MOX::NUM_NEBULAS = 0;
         MOX::combat_total_ship_count = 2;
@@ -51,39 +53,39 @@ namespace TEST_LUA_GAME {
         players[1].objectives = PLAYER_OBJECTIVE_EXPANSIONIST;
         players[1].traits[TRAIT_CURRENT_GOVERNMENT] =
             GOVERNMENT_UNIFICATION;
-        players[1].home_planet_id = -1;
+        players[1].home_planet_id = ::game::NO_PLANET;
         for (s_star_data& system : systems) {
             for (int index = 0; index < 5; ++index) {
-                system.planet_index[index] = -1;
+                system.planet_index[index] = ::game::NO_PLANET;
             }
         }
         for (s_planet_data& planet : planets) {
             planet.colony_index = -1;
         }
-        planets[0].star_index = 0;
-        planets[0].orbit = 0;
-        planets[0].planet_type = PLANET_TYPE_PLANET;
-        planets[0].size = PLANET_SIZE_MEDIUM;
-        planets[0].gravity_class = PLANET_GRAVITY_NORMAL_G;
-        planets[0].climate = PLANET_CLIMATE_TERRAN;
-        planets[0].mineral_class = MINERAL_RESOURCE_ABUNDANT;
-        planets[0].planet_special = SYSTEM_SPECIAL_NO_SPECIAL;
-        planets[1].star_index = 1;
-        planets[1].orbit = 3;
-        planets[1].planet_type = PLANET_TYPE_GAS_GIANT;
-        planets[1].size = PLANET_SIZE_LARGE;
-        planets[1].gravity_class = PLANET_GRAVITY_HEAVY_G;
-        planets[1].climate = PLANET_CLIMATE_BARREN;
-        planets[1].mineral_class = MINERAL_RESOURCE_RICH;
-        planets[1].planet_special = SYSTEM_SPECIAL_GOLD_DEPOSITS;
-        planets[2].star_index = 0;
-        planets[2].orbit = 2;
-        planets[2].planet_type = PLANET_TYPE_ASTEROID;
-        planets[2].size = PLANET_SIZE_SMALL;
-        planets[2].gravity_class = PLANET_GRAVITY_LOW_G;
-        planets[2].climate = PLANET_CLIMATE_TOXIC;
-        planets[2].mineral_class = MINERAL_RESOURCE_ULTRA_POOR;
-        planets[2].planet_special = SYSTEM_SPECIAL_SPACE_DEBRIS;
+        test::Planet(&game::world, legacy_world::Planet_Id(0)).star_index = 0;
+        test::Planet(&game::world, legacy_world::Planet_Id(0)).orbit = 0;
+        test::Planet(&game::world, legacy_world::Planet_Id(0)).planet_type = PLANET_TYPE_PLANET;
+        test::Planet(&game::world, legacy_world::Planet_Id(0)).size = PLANET_SIZE_MEDIUM;
+        test::Planet(&game::world, legacy_world::Planet_Id(0)).gravity_class = PLANET_GRAVITY_NORMAL_G;
+        test::Planet(&game::world, legacy_world::Planet_Id(0)).climate = PLANET_CLIMATE_TERRAN;
+        test::Planet(&game::world, legacy_world::Planet_Id(0)).mineral_class = MINERAL_RESOURCE_ABUNDANT;
+        test::Planet(&game::world, legacy_world::Planet_Id(0)).planet_special = SYSTEM_SPECIAL_NO_SPECIAL;
+        test::Planet(&game::world, legacy_world::Planet_Id(1)).star_index = 1;
+        test::Planet(&game::world, legacy_world::Planet_Id(1)).orbit = 3;
+        test::Planet(&game::world, legacy_world::Planet_Id(1)).planet_type = PLANET_TYPE_GAS_GIANT;
+        test::Planet(&game::world, legacy_world::Planet_Id(1)).size = PLANET_SIZE_LARGE;
+        test::Planet(&game::world, legacy_world::Planet_Id(1)).gravity_class = PLANET_GRAVITY_HEAVY_G;
+        test::Planet(&game::world, legacy_world::Planet_Id(1)).climate = PLANET_CLIMATE_BARREN;
+        test::Planet(&game::world, legacy_world::Planet_Id(1)).mineral_class = MINERAL_RESOURCE_RICH;
+        test::Planet(&game::world, legacy_world::Planet_Id(1)).planet_special = SYSTEM_SPECIAL_GOLD_DEPOSITS;
+        test::Planet(&game::world, legacy_world::Planet_Id(2)).star_index = 0;
+        test::Planet(&game::world, legacy_world::Planet_Id(2)).orbit = 2;
+        test::Planet(&game::world, legacy_world::Planet_Id(2)).planet_type = PLANET_TYPE_ASTEROID;
+        test::Planet(&game::world, legacy_world::Planet_Id(2)).size = PLANET_SIZE_SMALL;
+        test::Planet(&game::world, legacy_world::Planet_Id(2)).gravity_class = PLANET_GRAVITY_LOW_G;
+        test::Planet(&game::world, legacy_world::Planet_Id(2)).climate = PLANET_CLIMATE_TOXIC;
+        test::Planet(&game::world, legacy_world::Planet_Id(2)).mineral_class = MINERAL_RESOURCE_ULTRA_POOR;
+        test::Planet(&game::world, legacy_world::Planet_Id(2)).planet_special = SYSTEM_SPECIAL_SPACE_DEBRIS;
         systems[0].planet_index[0] = 0;
         systems[0].planet_index[2] = 2;
         systems[0].x = 10;
@@ -119,14 +121,14 @@ namespace MOX {
     int16_t NUM_PLAYERS;
     int16_t NUM_SHIPS;
     int16_t NUM_STARS;
-    int16_t planet_count;
+
     int16_t NUM_COLONIES;
     int16_t combat_total_ship_count;
     s_player* player = players;
     s_combat_data* combat_data = combat_ships;
     s_ship_data* ship = ships;
     s_star_data* star = systems;
-    s_planet_data* planet = planets;
+
     s_colony* colony = colonies;
     s_nebula* nebula = nebulas;
     uint8_t NUM_NEBULAS;

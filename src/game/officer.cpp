@@ -462,7 +462,7 @@ namespace OFFICER {
                 int16_t original_star_id = MOX::officers_original_star_id[i];
 
                 if (leader.location != original_star_id && leader.status == 0) {
-                    COLCALC::Star_Colony_Calculation(original_star_id, MOX::PLAYER_NUM);
+                    COLCALC::Star_Colony_Calculation(world_state, original_star_id, MOX::PLAYER_NUM);
                 }
             }
         }
@@ -735,7 +735,7 @@ namespace OFFICER {
             (int16_t)(((((next_idx ^ sign) - sign) & 7) ^ sign) - sign);
     }
 
-    void Officers_Screen() {
+    void Officers_Screen(::game::s_world_state* world_state) {
         uint16_t saved_map_scale = (uint16_t)MOX::cur_map_scale;
         int8_t needs_help_reset = 0;
         int16_t hire_btn, cancel_btn, fleet_view_btn, colony_view_btn, ok_btn, scroll_up_btn, scroll_down_btn, prev_btn, next_btn, dummy_field;
@@ -804,7 +804,7 @@ namespace OFFICER {
         } else {
             int16_t star_idx = MOX::temp_star_handle;
             if (star_idx == -1) {
-                star_idx = MOX::planet[MOX::player[MOX::PLAYER_NUM].home_planet_id].star_index;
+                star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(MOX::player[MOX::PLAYER_NUM].home_planet_id))).star_index;
             }
             officer_star_displayed = star_idx;
             officer_star_chosen = star_idx;
@@ -965,14 +965,14 @@ namespace OFFICER {
 
             if (officer_button_mode == -1 && !is_fleet) {
                 int16_t hovered_planet_idx, clicked_planet_idx, hovered_ship_idx, clicked_ship_idx, hovered_system_icon;
-                int16_t sys_res = MAINSCR::Scan_System_Display_Fields(scanned_id, input, MOX::planet_buttons, &hovered_planet_idx, &clicked_planet_idx, &hovered_ship_idx, &clicked_ship_idx, &hovered_system_icon);
+                int16_t sys_res = MAINSCR::Scan_System_Display_Fields(world_state, scanned_id, input, MOX::planet_buttons, &hovered_planet_idx, &clicked_planet_idx, &hovered_ship_idx, &clicked_ship_idx, &hovered_system_icon);
                 MOX::system_display_ship_scanned = hovered_ship_idx;
                 if (hovered_system_icon > -1) {
                     MOX::system_icon_scanned = hovered_system_icon;
                 }
                 if (sys_res == 0 && clicked_planet_idx > -1) {
-                    int16_t planet_idx = HAROLD::Planet_Index(officer_star_displayed, clicked_planet_idx);
-                    if (MOX::planet[planet_idx].colony_index > -1 && MOX::planet[planet_idx].colony_index < MOX::NUM_COLONIES && MAINSCR::officer_screen_return_screen == 0x27) {
+                    ::game::id_planet planet_idx = HAROLD::Planet_Index(officer_star_displayed, legacy_world::Planet_Id(clicked_planet_idx));
+                    if (::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index > -1 && ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index < MOX::NUM_COLONIES && MAINSCR::officer_screen_return_screen == 0x27) {
                         Officer_Screen_User_Box(HAROLD::H_Message(0x12E), 0);
                     }
                 }
@@ -1453,7 +1453,7 @@ namespace OFFICER {
             leader_loc = prev_leaders[leader_idx].location;
         }
 
-        int16_t home_star_id = MOX::planet[MOX::player[player_idx].home_planet_id].star_index;
+        int16_t home_star_id = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(MOX::player[player_idx].home_planet_id))).star_index;
         bool at_same_place = false;
 
         if (leader_loc != -1) {
@@ -1485,7 +1485,7 @@ namespace OFFICER {
     }
 
     int8_t __cdecl Get_Star_Leader_ETA(game::s_world_state* world_state, int16_t player_index, int16_t leader_index, int16_t target_star_index) {
-        int16_t home_star_index = MOX::planet[MOX::player[player_index].home_planet_id].star_index;
+        int16_t home_star_index = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(MOX::player[player_index].home_planet_id))).star_index;
 
         if (OFFICER::prev_leaders == nullptr) {
             if (target_star_index == home_star_index && game::Leader(world_state, leader_index).status == 0) {
@@ -1640,7 +1640,7 @@ namespace OFFICER {
                     leader.eta--;
                     if (leader.eta == 0 && leader.type == LEADER_TYPE_COLONY) {
                         // Recalculate colony effects once the leader arrives
-                        COLCALC::Star_Colony_Calculation(leader.location, (int16_t)leader.player_index);
+                        COLCALC::Star_Colony_Calculation(world_state, leader.location, (int16_t)leader.player_index);
                     }
                 }
             }
@@ -1750,7 +1750,7 @@ namespace OFFICER {
                     MOX::officer_selected = -1;
                     OFFICER::officer_star_displayed = MOX::temp_star_handle;
                 } else {
-                    OFFICER::officer_star_displayed = MAINSCR::Get_Star_Id_For_Officers_Screen();
+                    OFFICER::officer_star_displayed = MAINSCR::Get_Star_Id_For_Officers_Screen(&::game::world);
                     MOX::officer_selected = -1;
                 }
             }
@@ -1824,7 +1824,7 @@ namespace OFFICER {
             }
         }
 
-        SYS::Draw_System_Display_Popup(
+        SYS::Draw_System_Display_Popup(&::game::world, 
             system_id,
             0,
             s__00551100,
@@ -2117,7 +2117,7 @@ namespace OFFICER {
         bitmap::Get_Bitmap_Size(100, 100);
 
         auto& player = MOX::player[MOX::PLAYER_NUM];
-        int16_t home_star_idx = MOX::planet[player.home_planet_id].star_index;
+        int16_t home_star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(player.home_planet_id))).star_index;
 
         RUSS::Mox_Update();
         MAINSCR::Allocate_First_Screen_Seg(5);
@@ -2848,7 +2848,7 @@ namespace OFFICER {
 
         if (new_level != current_level) {
             if (game::Leader(world_state, leader_idx).type == LEADER_TYPE_COLONY && game::Leader(world_state, leader_idx).location != -1) {
-                COLCALC::Star_Colony_Calculation(game::Leader(world_state, leader_idx).location, player_idx);
+                COLCALC::Star_Colony_Calculation(world_state, game::Leader(world_state, leader_idx).location, player_idx);
             }
             game::Leader(world_state, leader_idx).display_level_popup = 1;
         }
@@ -2871,7 +2871,7 @@ namespace OFFICER {
         int16_t popup_close_field;
         int16_t popup_name_field;
 
-        SYS::Add_System_Display_Popup_Fields(system_id, 0x132, 0x11, 0, 0, 0, 0, &popup_close_field, nullptr, &popup_name_field);
+        SYS::Add_System_Display_Popup_Fields(&::game::world, system_id, 0x132, 0x11, 0, 0, 0, 0, &popup_close_field, nullptr, &popup_name_field);
     }
 
     void __cdecl Print_ETA_On_Officer_Picture(game::s_world_state* world_state, int16_t leader_idx, int16_t x, int16_t y, int16_t w) {

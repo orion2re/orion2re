@@ -95,7 +95,7 @@ namespace SHIPS {
                 RUSS::PFMT(0, 1, "Monster (ship id: %d) cannot move to %s (%d)!", ship_idx, MOX::star[star_idx].name, star_idx);
                 key::Wait_For_Key();
             } else {
-                SHIPMOVE::Make_Ships_Move_To(ship_list, star_idx, &move_info);
+                SHIPMOVE::Make_Ships_Move_To(&::game::world, ship_list, star_idx, &move_info);
             }
 
             MOX::ship[ship_idx].status = 1;
@@ -405,7 +405,7 @@ namespace SHIPS {
 
                 if (HAROLD::Player_Has_Colony(MOX::PLAYER_NUM, star_idx)) {
                     result = true;
-                } else if (HAROLD::Player_Has_Outpost(MOX::PLAYER_NUM, star_idx)) {
+                } else if (HAROLD::Player_Has_Outpost(&::game::world, MOX::PLAYER_NUM, star_idx)) {
                     result = true;
                 }
             }
@@ -758,7 +758,7 @@ namespace SHIPS {
         }
 
         SHIPMOVE::Ships_Try_To_Move_To(selected_ship_indices, MOX::NUM_STARS, &move_info);
-        SHIPMOVE::Make_Ships_Move_To(selected_ship_indices, MOX::NUM_STARS, &move_info);
+        SHIPMOVE::Make_Ships_Move_To(&::game::world, selected_ship_indices, MOX::NUM_STARS, &move_info);
         return selected_ship_count;
     }
 

@@ -1,3 +1,4 @@
+#include "../fixtures/planet_state.h"
 #include "pch.h"
 
 namespace CMBTMIS {
@@ -28,7 +29,7 @@ namespace {
     s_ship_data ships[MAX_COMBAT_SHIPS];
     s_player players[MAX_PLAYERS];
     s_colony colonies[1];
-    s_planet_data planets[1];
+
     int16_t engineer_bonus[MAX_PLAYERS];
     int16_t repair_amount[4];
     int repair_count[4];
@@ -50,7 +51,8 @@ namespace TEST_COMBAT_REPAIR {
         memset(ships, 0, sizeof(ships));
         memset(players, 0, sizeof(players));
         memset(colonies, 0, sizeof(colonies));
-        memset(planets, 0, sizeof(planets));
+        game::world.planets.clear();
+        game::world.next_planet_id = 0;
         memset(engineer_bonus, 0, sizeof(engineer_bonus));
         memset(repair_amount, 0, sizeof(repair_amount));
         memset(repair_count, 0, sizeof(repair_count));
@@ -392,7 +394,7 @@ namespace TEST_COMBINIT {
             ++combat_idx;
             MOX::cmbt_colony_id = 0;
             colonies[0].planet = 0;
-            planets[0].size = PLANET_SIZE_MEDIUM;
+            test::Planet(&game::world, legacy_world::Planet_Id(0)).size = PLANET_SIZE_MEDIUM;
         }
 
         for (int16_t i = 0; i < attacker_count; ++i) {
@@ -445,7 +447,7 @@ namespace TEST_COMBINIT {
             const s_combat_data* ship = &combat_data[i];
             if (!COMBINIT::Is_Combat_Satellite(ship) &&
                 ship->owner != MOX::combat_attacker_player &&
-                COMBINIT::Ship_Can_Deploy_At(
+                COMBINIT::Ship_Can_Deploy_At(&::game::world, 
                     ship->x, ship->y, stationary_ship_idx) == 0) {
                 return false;
             }
@@ -482,7 +484,7 @@ namespace MOX {
     int16_t last_ship_status;
     int16_t in_nebula_flag;
     s_colony* colony = colonies;
-    s_planet_data* planet = planets;
+
 }
 
 namespace TECHDATA {
@@ -507,7 +509,7 @@ namespace COMBAT1 {
     void __cdecl Update_Phasing_Cloak_Timers(bool) {
     }
 
-    void __cdecl Assign_Combat_Grids(int16_t) {
+    void __cdecl Assign_Combat_Grids(::game::s_world_state* world_state, int16_t) {
     }
 
     void __cdecl Add_Tactical_Combat_Fields() {
@@ -610,7 +612,7 @@ namespace CMBTFIR2 {
 }
 
 namespace ERICNET {
-    void __cdecl Remove_Building(int16_t colony_idx, int16_t building_idx) {
+    void __cdecl Remove_Building(::game::s_world_state* world_state, int16_t colony_idx, int16_t building_idx) {
         satellite_building_removed = true;
         removed_colony_idx = colony_idx;
         removed_building_idx = building_idx;
@@ -652,7 +654,7 @@ namespace SHIPS {
 }
 
 namespace BOMB {
-    void __cdecl Destroy_Colony(s_colony*, int32_t) {
+    void __cdecl Destroy_Colony(::game::s_world_state* world_state, s_colony*, int32_t) {
     }
 }
 

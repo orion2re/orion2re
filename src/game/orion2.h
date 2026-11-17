@@ -1,6 +1,8 @@
 #pragma once
 
 #include <cstddef>
+#include <optional>
+#include "object_ids.h"
 #include "unaligned.h"
 
 #pragma pack(push, 1)
@@ -11,42 +13,49 @@ typedef struct s_adv_civ_player_star s_adv_civ_player_star, *Ps_adv_civ_player_s
 
 typedef struct s_adv_civ_player_planet s_adv_civ_player_planet, *Ps_adv_civ_player_planet;
 
+#pragma pack(push, 4)
 struct s_adv_civ_player_planet {
     int8_t is_homeworld;
     int16_t proximity_bonus;
     int32_t worth;
-    int16_t planet_idx;
+    ::game::id_planet planet_idx;
     int8_t is_settled;
 };
+#pragma pack(pop)
 
 struct s_adv_civ_player_star {
     int16_t star_idx;
     int16_t min_dist_to_colony;
 };
 
+#pragma pack(push, 4)
 struct s_adv_civ_player {
     int16_t candidate_star_count;
     int16_t candidate_planet_count;
     int16_t settled_planet_count;
     int16_t furthest_star_dist_from_home;
-    int8_t has_planet[MAX_PLANETS];
     struct s_adv_civ_player_star stars[MAX_STARS];
     struct s_adv_civ_player_planet planets[MAX_PLANETS];
 };
+#pragma pack(pop)
 
 typedef struct s_adv_planet_worth s_adv_planet_worth, *Ps_adv_planet_worth;
 
 typedef struct s_adv_planet_worth_s1 s_adv_planet_worth_s1, *Ps_adv_planet_worth_s1;
 
+#pragma pack(push, 4)
 struct s_adv_planet_worth_s1 {
-    int16_t planet_idx;
+    ::game::id_planet planet_idx;
     int32_t worth;
 };
+#pragma pack(pop)
 
+#pragma pack(push, 4)
 struct s_adv_planet_worth {
     int8_t num_planets;
     struct s_adv_planet_worth_s1 planets[20];
 };
+#pragma pack(pop)
 
 typedef struct s_alloc_header s_alloc_header, *Ps_alloc_header;
 
@@ -161,13 +170,14 @@ struct s_invasion_side_info {
     struct s_invasion_player_bonuses combat_modifiers;
 };
 
+#pragma pack(push, 4)
 struct s_battle_results_info {
     struct s_invasion_side_info attacker_invasion;
     struct s_invasion_side_info defender_invasion;
     int32_t ground_defense_strength;
     int16_t captured_techs_data[TECH_APP_COUNT];
     int16_t captured_tech_id;
-    int16_t captured_tech_planet_id;
+    ::game::id_planet captured_tech_planet_id;
     int8_t planet_destroyed_flag;
     int16_t orion_techs[7];
     int16_t rescued_hero_id;
@@ -175,6 +185,7 @@ struct s_battle_results_info {
     char details[1000];
     int8_t is_mind_controlled;
 };
+#pragma pack(pop)
 
 struct s_combat_bomb_result {
     int8_t attacker_idx;
@@ -194,25 +205,29 @@ struct s_combat_bomb_result {
     int32_t total_hits_processed;
 };
 
+#pragma pack(push, 4)
 struct s_net_player_info {
     int8_t player_state;
     int16_t combat_star_id;
     int16_t combat_defender_id;
-    int16_t combat_planet_id;
+    ::game::id_planet combat_planet_id;
     int16_t combat_target_player_id;
     uint8_t combat_type;
     int8_t combat_attacker_id;
     int8_t combat_result;
     int8_t diplomacy_target_id;
 };
+#pragma pack(pop)
 
+#pragma pack(push, 4)
 struct s_battle_results {
     struct s_net_player_info player_info;
     int8_t outpost_destroyed_flag;
-    int16_t planet_id;
+    ::game::id_planet planet_id;
     struct s_combat_bomb_result bomb;
     struct s_battle_results_info info;
 };
+#pragma pack(pop)
 
 typedef struct s_beam_dmg_msg s_beam_dmg_msg, *Ps_beam_dmg_msg;
 
@@ -326,10 +341,11 @@ typedef struct s_colony s_colony, *Ps_colony;
 // Population identities are player slots, androids, and natives, not stock-race IDs.
 inline constexpr int COLONY_POP_RACE_COUNT = 10;
 
+#pragma pack(push, 4)
 struct s_colony {
     int8_t owner;
     int8_t allocated_to;
-    int16_t planet;
+    ::game::id_planet planet;
     int16_t officer;
     uint8_t outpost_flag;
     int8_t morale;
@@ -379,6 +395,7 @@ struct s_colony {
     uint16_t last_turn_building_destroyed;
     uint8_t buildings_scrapped_this_turn;
 };
+#pragma pack(pop)
 
 typedef struct s_colony_bldg s_colony_bldg, *Ps_colony_bldg;
 
@@ -609,6 +626,7 @@ struct s_drop_area {
 
 typedef struct s_event_data s_event_data, *Ps_event_data;
 
+#pragma pack(push, 4)
 struct s_event_data {
     int8_t player_idx;
     int8_t status;
@@ -616,7 +634,9 @@ struct s_event_data {
     int16_t target_id;
     int16_t amount;
     int16_t max_amount;
+    game::id_planet planet_target = game::NO_PLANET;
 };
+#pragma pack(pop)
 
 typedef struct s_file_buffer_entry s_file_buffer_entry, *Ps_file_buffer_entry;
 
@@ -1429,18 +1449,22 @@ union s_MSG_colony_union {
     struct s_MSG_colony_android_killed android_killed;
 };
 
+#pragma pack(push, 4)
 struct s_MSG_colony {
-    int16_t planet_idx;
+    ::game::id_planet planet_idx;
     MSG_COLONY_SUBTYPE subtype;
     union s_MSG_colony_union c;
 };
+#pragma pack(pop)
 
+#pragma pack(push, 4)
 struct s_MSG_lost_colony {
-    int16_t planet_idx;
+    ::game::id_planet planet_idx;
     int16_t reason;
     int16_t leader_idx;
     int8_t colony_or_outpost;
 };
+#pragma pack(pop)
 
 struct s_MSG_diplomacy {
     int8_t diplomacy_idx;
@@ -1463,6 +1487,7 @@ struct s_MSG_anomaly {
     int16_t star_idx;
 };
 
+#pragma pack(push, 4)
 union s_MSG_union {
     struct s_MSG_colony colony;
     struct s_MSG_players players;
@@ -1483,13 +1508,16 @@ union s_MSG_union {
     struct s_MSG_artifacts artifacts;
     struct s_MSG_scrap_leader scrap_leader;
 };
+#pragma pack(pop)
 
+#pragma pack(push, 4)
 struct s_MSG {
     int8_t msg_type;
     uint8_t priority;
     union s_MSG_union u;
     uint8_t reserved[8];
 };
+#pragma pack(pop)
 
 typedef struct s_nebula s_nebula, *Ps_nebula;
 
@@ -1557,7 +1585,6 @@ typedef struct s_net_pack_drop_out_info s_net_pack_drop_out_info, *Ps_net_pack_d
 
 typedef struct s_player s_player, *Ps_player;
 
-typedef struct s_settler_info s_settler_info, *Ps_settler_info;
 
 typedef struct s_ship_design s_ship_design, *Ps_ship_design;
 
@@ -1590,11 +1617,7 @@ struct s_ship_design {
     uint16_t date_of_design;
 };
 
-struct s_settler_info {
-    // bits 0-15 source_colony, 16-31 dest_planet, 32-35 race, 36-39 eta, 40-41 job.
-    SETTLER::value_type val;
-};
-
+#pragma pack(push, 4)
 struct s_player {
     int8_t picture;
     char name[20];
@@ -1604,7 +1627,7 @@ struct s_player {
     uint8_t color;
     uint8_t personality;
     uint8_t objectives;
-    int16_t home_planet_id;
+    ::game::id_planet home_planet_id;
     int16_t network_player_id;
     int8_t player_done_flags;
     int16_t dead_field;
@@ -1617,7 +1640,6 @@ struct s_player {
     int16_t command_points_used;
     int16_t food_freighted;
     int16_t settlers_freighted;
-    struct s_settler_info settlers[MAX_FREIGHTED_SETTLERS];
     int16_t total_pop;
     int16_t food_produced;
     int16_t industry_produced;
@@ -1712,7 +1734,7 @@ struct s_player {
     int32_t diplomacy_proposal_exchange_max_value[MAX_PLAYERS];
     uint8_t diplomacy_proposal_exchange_tech[MAX_PLAYERS];
     int16_t diplomacy_proposal_system_bribe[MAX_PLAYERS];
-    int16_t sneak_attack_planet;
+    ::game::id_planet sneak_attack_planet;
     int8_t sneak_attack_message;
     int8_t sneak_attack_player;
     int8_t council_threat;
@@ -1728,7 +1750,7 @@ struct s_player {
     int8_t war_buildup_duration;
     int16_t last_diplomacy_proposal_turn[MAX_PLAYERS];
     int16_t diplomacy_proposal_rejection[MAX_PLAYERS];
-    int16_t opportunity_planet_num[MAX_PLAYERS];
+    ::game::id_planet opportunity_planet_num[MAX_PLAYERS];
     int16_t opportunity_planet_value[MAX_PLAYERS];
     int32_t opportunity_actual_attacker_ratio[MAX_PLAYERS];
     int16_t temp_diplomacy_dummy1[MAX_PLAYERS];
@@ -1761,6 +1783,7 @@ struct s_player {
     int32_t tribute_income;
     int8_t filler[45];
 };
+#pragma pack(pop)
 
 // Reads a player's research status for a technology field. Application 125
 // has field TECH_FIELD_INVALID (-1), and the original game indexed
@@ -1771,15 +1794,18 @@ inline uint8_t Player_Tech_Field_Status_(const s_player* player, int16_t tech_fi
     return reinterpret_cast<const uint8_t*>(player)[offsetof(s_player, tech_fields) + tech_field_id];
 }
 
+#pragma pack(push, 4)
 struct s_net_pack_drop_out_info {
     struct s_player player_data;
     int8_t star_surrender_to[MAX_STARS];
 };
+#pragma pack(pop)
 
 typedef struct s_net_pack_end_ai_diplomacy s_net_pack_end_ai_diplomacy, *Ps_net_pack_end_ai_diplomacy;
 
 /* WARNING! conflicting data type names: /stdint.h/uint8_t - /orion2.h/uint8_t */
 
+#pragma pack(push, 4)
 struct s_net_pack_end_ai_diplomacy {
     int32_t target_player_id;
     struct s_player target_player;
@@ -1787,35 +1813,44 @@ struct s_net_pack_end_ai_diplomacy {
     int32_t player_num;
     struct s_player player;
 };
+#pragma pack(pop)
 
 typedef struct s_net_pack_monster_update s_net_pack_monster_update, *Ps_net_pack_monster_update;
 
+#pragma pack(push, 4)
 struct s_net_pack_monster_update {
     int32_t monster_type;
-    int16_t target_planet_id;
+    ::game::id_planet target_planet_id;
     // Used only when target_planet_id is -1; updates both event player and amount.
     int32_t player_idx_or_amount;
 };
+#pragma pack(pop)
 
 typedef struct s_net_pack_pick_your_position s_net_pack_pick_your_position, *Ps_net_pack_pick_your_position;
 
+#pragma pack(push, 4)
 struct s_net_pack_pick_your_position {
     int16_t num_players;
     struct s_player players[MAX_PLAYERS];
 };
+#pragma pack(pop)
 
+#pragma pack(push, 4)
 struct s_net_pack_combat_target_chosen {
     int16_t combat_defender_id;
-    int16_t combat_planet_id;
+    ::game::id_planet combat_planet_id;
     int16_t combat_target_player_id;
 };
+#pragma pack(pop)
 
 typedef struct s_net_pack_req_human_diplomacy s_net_pack_req_human_diplomacy, *Ps_net_pack_req_human_diplomacy;
 
+#pragma pack(push, 4)
 struct s_net_pack_req_human_diplomacy {
     struct s_player player;
     int8_t surrender_to[MAX_STARS];
 };
+#pragma pack(pop)
 
 typedef struct s_net_pack_star_order s_net_pack_star_order, *Ps_net_pack_star_order;
 
@@ -1854,6 +1889,7 @@ struct s_net_player {
 
 typedef struct s_network s_network, *Ps_network;
 
+#pragma pack(push, 4)
 struct s_network {
     struct s_online_settings online_settings;
     char online_init_str[11];
@@ -1884,7 +1920,7 @@ struct s_network {
     uint8_t sync_state;
     int16_t combat_star_id;
     int16_t combat_defender_id;
-    int16_t combat_planet_id;
+    ::game::id_planet combat_planet_id;
     int16_t combat_target_player_id;
     uint8_t combat_type;
     int8_t combat_attacker_id;
@@ -1934,6 +1970,7 @@ struct s_network {
     int16_t dragon_bribe_destination_star_id;
     uint32_t cur_session_id;
 };
+#pragma pack(pop)
 
 typedef struct s_npcdiplo_tech s_npcdiplo_tech, *Ps_npcdiplo_tech;
 
@@ -2065,13 +2102,14 @@ struct s_player_info {
 
 typedef struct s_plntsum_planet s_plntsum_planet, *Ps_plntsum_planet;
 
+#pragma pack(push, 4)
 struct s_plntsum_planet {
     int16_t max_pop;
     int16_t food_per_farmer;
     int16_t minerals;
     int16_t mineral_class;
     int16_t climate;
-    int16_t explored;
+    game::id_planet planet_id;
     int16_t best_colony_eta;
     int16_t best_outpost_eta;
     int16_t best_colony_ship_idx;
@@ -2083,6 +2121,7 @@ struct s_plntsum_planet {
     int8_t colony_eta;
     int8_t outpost_eta;
 };
+#pragma pack(pop)
 
 typedef struct s_plntsum_ship s_plntsum_ship, *Ps_plntsum_ship;
 
@@ -2172,23 +2211,29 @@ typedef struct s_report_enemy_sabotage s_report_enemy_sabotage, *Ps_report_enemy
 
 typedef struct s_report_artifacts s_report_artifacts, *Ps_report_artifacts;
 
+#pragma pack(push, 4)
 struct s_report_artifacts {
-    int16_t planet_idx;
+    ::game::id_planet planet_idx;
     int16_t tech_app_id;
 };
+#pragma pack(pop)
 
+#pragma pack(push, 4)
 struct s_report_enemy_sabotage {
     int16_t enemy_player_idx;
-    int16_t planet_idx;
+    ::game::id_planet planet_idx;
     uint8_t building_id;
 };
+#pragma pack(pop)
 
+#pragma pack(push, 4)
 struct s_report_sabotage {
     int8_t framed_player_idx;
     uint8_t victim_player_idx;
-    int16_t planet_idx;
+    ::game::id_planet planet_idx;
     uint8_t building_id;
 };
+#pragma pack(pop)
 
 struct s_report_enemy_steal {
     int16_t enemy_player_idx;
@@ -2201,6 +2246,7 @@ struct s_report_steal {
     int16_t tech_app_id;
 };
 
+#pragma pack(push, 4)
 union s_report_data {
     struct s_report_steal steal;
     struct s_report_sabotage sabotage;
@@ -2208,7 +2254,9 @@ union s_report_data {
     struct s_report_enemy_sabotage enemy_sabotage;
     struct s_report_artifacts artifacts;
 };
+#pragma pack(pop)
 
+#pragma pack(push, 4)
 struct s_report {
     uint8_t type;
     int16_t player_idx;
@@ -2216,6 +2264,7 @@ struct s_report {
     union s_report_data d;
     uint8_t reserved[11];
 };
+#pragma pack(pop)
 
 typedef struct s_retreat_report s_retreat_report, *Ps_retreat_report;
 
@@ -2688,6 +2737,7 @@ struct s_settler_settle_result {
 
 typedef struct s_ship_data s_ship_data, *Ps_ship_data;
 
+#pragma pack(push, 4)
 struct s_ship_data {
     struct s_ship_design d;
     int8_t owner;
@@ -2711,7 +2761,9 @@ struct s_ship_data {
     int8_t just_built;
     int16_t prior_jump_gate_destination;
     int32_t prior_jump_gate_stardate;
+    std::optional<game::id_planet> auto_colonize_target;
 };
+#pragma pack(pop)
 
 typedef struct s_ship_drive_data s_ship_drive_data, *Ps_ship_drive_data;
 
@@ -2819,6 +2871,7 @@ struct s_spcl {
 
 typedef struct s_star_data s_star_data, *Ps_star_data;
 
+#pragma pack(push, 4)
 struct s_star_data {
     char name[15];
     int16_t x;
@@ -2827,7 +2880,7 @@ struct s_star_data {
     int8_t owner;
     int8_t pict_type;
     int8_t spectral_class;
-    int8_t last_planet_selected[MAX_PLAYERS];
+    int8_t last_orbit_selected[MAX_PLAYERS];
     int8_t black_hole_blocks[BITMAP(MAX_STARS)];
     int8_t system_special;
     int16_t wormhole_star_id;
@@ -2849,7 +2902,7 @@ struct s_star_data {
     uint8_t has_dimensional_portal;
     uint8_t is_stagepoint;
     int8_t officer_index[MAX_PLAYERS];
-    int16_t planet_index[5];
+    ::game::id_planet planet_index[5];
     int16_t relocate_ship_to[MAX_PLAYERS];
     int8_t twinkling1;
     int8_t twinkling2;
@@ -2858,6 +2911,7 @@ struct s_star_data {
     uint8_t in_nebula;
     uint8_t artifacts_gave_app;
 };
+#pragma pack(pop)
 
 typedef struct s_star_weight s_star_weight, *Ps_star_weight;
 
@@ -2868,8 +2922,9 @@ struct s_star_weight {
 
 typedef struct s_sys_disp s_sys_disp, *Ps_sys_disp;
 
+#pragma pack(push, 4)
 struct s_sys_disp {
-    int16_t orbit;
+    game::id_planet planet_id;
     int16_t x;
     int16_t y;
     int8_t oribit_pos;
@@ -2877,6 +2932,7 @@ struct s_sys_disp {
     int16_t current_frame;
     struct s_animation_header* pic;
 };
+#pragma pack(pop)
 
 typedef struct s_system_display_ships s_system_display_ships, *Ps_system_display_ships;
 

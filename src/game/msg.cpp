@@ -162,8 +162,8 @@ namespace MSG_ {
         switch (msg->msg_type) {
             case MSG_TYPE_COLONY: {
                 const auto& colony_msg = msg->u.colony;
-                const int16_t planet_idx = colony_msg.planet_idx;
-                const char* planet_name = HACCESS::Get_Planet_Name(planet_idx);
+                const ::game::id_planet planet_idx = colony_msg.planet_idx;
+                const char* planet_name = HACCESS::Get_Planet_Name(legacy_world::Planet_Id(planet_idx));
 
                 switch (colony_msg.subtype) {
                     case MSG_COLONY_SUBTYPE_BUILDING_SCRAPPED: {
@@ -355,7 +355,7 @@ namespace MSG_ {
             case MSG_TYPE_LOST_COLONY: {
                 const auto& lost_colony_msg = msg->u.lost_colony;
                 const char* reason_text = lost_colony_reason_strings[lost_colony_msg.reason];
-                const char* planet_name = HACCESS::Get_Planet_Name(lost_colony_msg.planet_idx);
+                const char* planet_name = HACCESS::Get_Planet_Name(legacy_world::Planet_Id(lost_colony_msg.planet_idx));
                 snprintf(out_text, out_text_size, msg_lost_colony_fmt, msg_colony_or_outpost[(uint8_t)lost_colony_msg.colony_or_outpost], planet_name, reason_text);
                 int16_t leader_idx = lost_colony_msg.leader_idx;
                 if (leader_idx != -1) {
@@ -617,10 +617,10 @@ namespace MSG_ {
      * If the message is of type MSG_TYPE_COLONY and the player owns the colony,
      * this function updates the screen state to navigate to that colony's management view.
      */
-    int8_t __cdecl Goto_Msg_Colony(s_MSG* msg) {
+    int8_t __cdecl Goto_Msg_Colony(::game::s_world_state* world_state, s_MSG* msg) {
         if (msg->msg_type == MSG_TYPE_COLONY) {
-            int16_t planet_idx = msg->u.colony.planet_idx;
-            int16_t colony_idx = MOX::planet[planet_idx].colony_index;
+            ::game::id_planet planet_idx = msg->u.colony.planet_idx;
+            int16_t colony_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index;
 
             if (colony_idx != -1) {
                 s_colony* colony = &MOX::colony[colony_idx];
@@ -629,7 +629,7 @@ namespace MSG_ {
                     MOX::return_screen = SCREEN_INFO;
                     MOX::current_screen = SCREEN_COLONY;
 
-                    s_planet_data* planet = &MOX::planet[colony->planet];
+                    s_planet_data* planet = &::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony->planet)));
                     MOX::screen_data = planet->star_index;
                     COLONY::orbit_temp = (int16_t)planet->orbit;
 

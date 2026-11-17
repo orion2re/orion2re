@@ -246,7 +246,7 @@ namespace MOVEBOX {
             char buffer[40];
             bool can_see_info = HAROLD::Player_Has_Visited(MOX::PLAYER_NUM, scanned_star_idx) ||
                 HAROLD::Player_Is_Omniscient(MOX::PLAYER_NUM) ||
-                HAROLD::Contact_With_One_Colony(scanned_star_idx);
+                HAROLD::Contact_With_One_Colony(world_state, scanned_star_idx);
 
             if (can_see_info) {
                 int8_t off_idx = star.officer_index[MOX::PLAYER_NUM];

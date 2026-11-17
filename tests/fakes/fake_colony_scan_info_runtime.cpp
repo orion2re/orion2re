@@ -4,7 +4,7 @@
 
 namespace {
     s_colony colonies[MAX_COLONIES];
-    s_planet_data planets[MAX_PLANETS];
+
     s_player players[MAX_PLAYERS];
     char output[1000];
     int32_t product_cost;
@@ -32,7 +32,8 @@ namespace {
 namespace TEST_COLONY_SCAN_INFO {
     void Reset_() {
         memset(colonies, 0, sizeof(colonies));
-        memset(planets, 0, sizeof(planets));
+        game::world.planets.clear();
+        game::world.next_planet_id = 0;
         memset(players, 0, sizeof(players));
         memset(output, 0, sizeof(output));
         product_cost = 0;
@@ -64,7 +65,7 @@ namespace TEST_COLONY_SCAN_INFO {
 
 namespace MOX {
     s_colony* colony = colonies;
-    s_planet_data* planet = planets;
+
     s_player* player = players;
     s_ship_data* ship;
     int16_t PLAYER_NUM;

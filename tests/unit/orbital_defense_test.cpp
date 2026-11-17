@@ -73,9 +73,9 @@ DOCTEST_TEST_CASE("AI station orders cannot create doubled defenses in the attac
                 DOCTEST_CAPTURE(candidate);
                 DOCTEST_CAPTURE(large_ships);
                 TEST_ORBITAL_DEFENSE::Reset_(candidate + 6, large_ships);
-                if (existing >= 0) ERICNET::Add_Building(0, stations[existing]);
+                if (existing >= 0) ERICNET::Add_Building(&::game::world, 0, stations[existing]);
 
-                aidudes::Assign_Empire_Building(TEST_ORBITAL_DEFENSE::State_(), TEST_ORBITAL_DEFENSE::World_(), legacy_world::Player_Id(0));
+                aidudes::Assign_Empire_Building(&::game::world, TEST_ORBITAL_DEFENSE::State_(), TEST_ORBITAL_DEFENSE::World_(), legacy_world::Player_Id(0));
 
                 DOCTEST_REQUIRE(TEST_ORBITAL_DEFENSE::choice_calls == 1);
                 const bool eligible = candidate > existing;
@@ -88,7 +88,7 @@ DOCTEST_TEST_CASE("AI station orders cannot create doubled defenses in the attac
                 }
                 // Complete the selected station using the same addition routine as production.
                 for (int16_t station : stations) {
-                    if (ordered == station) ERICNET::Add_Building(0, ordered);
+                    if (ordered == station) ERICNET::Add_Building(&::game::world, 0, ordered);
                 }
                 const int expected_tier = eligible ? candidate : existing;
                 for (int tier = 0; tier < 3; ++tier) {
@@ -102,9 +102,9 @@ DOCTEST_TEST_CASE("AI station orders cannot create doubled defenses in the attac
 
 DOCTEST_TEST_CASE("attack popup text follows the selected colony without duplicating measurement output") {
     TEST_ORBITAL_DEFENSE::Reset_(7, true);
-    ERICNET::Add_Building(0, BUILDING_STAR_FORTRESS);
-    ERICNET::Add_Building(0, BUILDING_MISSILE_BASE);
-    ERICNET::Add_Building(1, BUILDING_BATTLESTATION);
+    ERICNET::Add_Building(&::game::world, 0, BUILDING_STAR_FORTRESS);
+    ERICNET::Add_Building(&::game::world, 0, BUILDING_MISSILE_BASE);
+    ERICNET::Add_Building(&::game::world, 1, BUILDING_BATTLESTATION);
     Check_Popup(0, {"Star Fortress", "Missile Base"});
     Check_Popup(1, {"Battlestation"});
     Check_Popup(0, {"Star Fortress", "Missile Base"});

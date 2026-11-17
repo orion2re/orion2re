@@ -353,7 +353,7 @@ namespace COMBAT1 {
                         CMBTAI::Do_Auto_Ship_Turn();
                         if (MOX::FULL_DRAW_SCREEN_FLAG != 0) {
                             Add_Tactical_Combat_Fields();
-                            Assign_Combat_Grids(MOX::cur_ship);
+                            Assign_Combat_Grids(&::game::world, MOX::cur_ship);
                             CMBTDRW1::Refresh_Combat_Screen_Full();
                         }
                         MOX::ship_turn_order[MOX::cur_ptr] = -1;
@@ -385,7 +385,7 @@ namespace COMBAT1 {
                                                 }
                                                 CMBTFIRE::Fire_Ship(MOX::cur_ship, MOX::combat_data[MOX::cur_ship].x * 20, MOX::combat_data[MOX::cur_ship].y * 20, m_idx, MOX::missile[m_idx].x, MOX::missile[m_idx].y, 1);
                                                 Add_Tactical_Combat_Fields();
-                                                Assign_Combat_Grids(MOX::cur_ship);
+                                                Assign_Combat_Grids(&::game::world, MOX::cur_ship);
                                                 for (int16_t i = 0; i < 8; ++i) {
                                                     if (MOX::combat_data[MOX::cur_ship].weapons[i].active == 0) {
                                                         MOX::combat_data[MOX::cur_ship].weapons[i].active = 1;
@@ -498,7 +498,7 @@ namespace COMBAT1 {
                                             CMBTMOV1::Wait_Until_Net_Opponent_Finished(1);
                                         }
                                         Add_Tactical_Combat_Fields();
-                                        Assign_Combat_Grids(MOX::cur_ship);
+                                        Assign_Combat_Grids(&::game::world, MOX::cur_ship);
                                         input_val = 0;
                                     }
 
@@ -578,7 +578,7 @@ namespace COMBAT1 {
 
                                     if (input_val == MOX::scan_button) {
                                         MOX::board_flag = 0;
-                                        Assign_Combat_Grids(MOX::cur_ship);
+                                        Assign_Combat_Grids(&::game::world, MOX::cur_ship);
                                         input_val = 0;
                                     }
 
@@ -629,7 +629,7 @@ namespace COMBAT1 {
                                             MOX::board_flag = 0;
                                         } else {
                                             Add_Tactical_Combat_Fields();
-                                            Assign_Combat_Grids(MOX::cur_ship);
+                                            Assign_Combat_Grids(&::game::world, MOX::cur_ship);
                                         }
                                         input_val = 0;
                                     }
@@ -705,7 +705,7 @@ namespace COMBAT1 {
                                                         MOX::combat_data[MOX::cur_ship].movement_left = 0;
                                                     }
                                                 }
-                                                Assign_Combat_Grids(MOX::cur_ship);
+                                                Assign_Combat_Grids(&::game::world, MOX::cur_ship);
                                                 CMBTDRW1::Refresh_Combat_Screen_Full();
                                                 Advance_After_Ship_Owner_Change(orig_owner, active_player_id, &next_ship_flag);
                                                 if (MOX::net_flag != 0) {
@@ -753,7 +753,7 @@ namespace COMBAT1 {
                                                         }
                                                         CMBTFIRE::Fire_Ship(MOX::cur_ship, MOX::combat_data[MOX::cur_ship].x * 20, MOX::combat_data[MOX::cur_ship].y * 20, tgt_idx, MOX::combat_data[tgt_idx].x * 20, MOX::combat_data[tgt_idx].y * 20, 0);
                                                         Add_Tactical_Combat_Fields();
-                                                        Assign_Combat_Grids(MOX::cur_ship);
+                                                        Assign_Combat_Grids(&::game::world, MOX::cur_ship);
                                                         for (int16_t w = 0; w < 8; ++w) {
                                                             if (MOX::combat_data[MOX::cur_ship].weapons[w].active == 0) {
                                                                 MOX::combat_data[MOX::cur_ship].weapons[w].active = 1;
@@ -812,7 +812,7 @@ namespace COMBAT1 {
                                             RUSS::Mox_Sync_Update();
                                         } else {
                                             Add_Tactical_Combat_Fields();
-                                            Assign_Combat_Grids(MOX::cur_ship);
+                                            Assign_Combat_Grids(&::game::world, MOX::cur_ship);
                                             CMBTDRW1::Refresh_Combat_Screen_Full();
                                         }
                                     }
@@ -891,7 +891,7 @@ namespace COMBAT1 {
                                                             MOX::combat_data[MOX::cur_ship].movement_left = 0;
                                                         }
                                                     }
-                                                    Assign_Combat_Grids(MOX::cur_ship);
+                                                    Assign_Combat_Grids(&::game::world, MOX::cur_ship);
                                                     CMBTDRW1::Refresh_Combat_Screen_Full();
                                                     Advance_After_Ship_Owner_Change(orig_owner, active_player_id, &next_ship_flag);
                                                     break;
@@ -903,7 +903,7 @@ namespace COMBAT1 {
                                                         CMBTFIRE::Fire_Ship(MOX::cur_ship, MOX::combat_data[MOX::cur_ship].x * 20, MOX::combat_data[MOX::cur_ship].y * 20, f10, MOX::missile[f10].x, MOX::missile[f10].y, f12);
                                                     }
                                                     Add_Tactical_Combat_Fields();
-                                                    Assign_Combat_Grids(MOX::cur_ship);
+                                                    Assign_Combat_Grids(&::game::world, MOX::cur_ship);
                                                     for (int16_t i = 0; i < 8; ++i) {
                                                         if (MOX::combat_data[MOX::cur_ship].weapons[i].active == 0) {
                                                             MOX::combat_data[MOX::cur_ship].weapons[i].active = 1;
@@ -913,7 +913,7 @@ namespace COMBAT1 {
                                                 case TACTICAL_NET_MSG_CYCLE_MISSILE_WARNING:
                                                     MOX::missile_warning = (MOX::missile_warning + 1) % 3;
                                                     Add_Tactical_Combat_Fields();
-                                                    Assign_Combat_Grids(MOX::cur_ship);
+                                                    Assign_Combat_Grids(&::game::world, MOX::cur_ship);
                                                     break;
                                                 case TACTICAL_NET_MSG_TOGGLE_AUTO_COMBAT:
                                                     fields::Clear_Fields();
@@ -1025,7 +1025,7 @@ namespace COMBAT1 {
                             RUSS::Mox_Sync_Update();
                         } else {
                             Add_Tactical_Combat_Fields();
-                            Assign_Combat_Grids(MOX::cur_ship);
+                            Assign_Combat_Grids(&::game::world, MOX::cur_ship);
                             CMBTDRW1::Refresh_Combat_Screen_Full();
                         }
                     }
@@ -1111,13 +1111,13 @@ namespace COMBAT1 {
     static int16_t Finish_Next_Ship(int16_t result) {
         if (result == 0) {
             if ((MOX::combat_init != 0 && center_on_next_ship) ||
-                (CMBTDRW1::Ship_Completely_On_Screen(MOX::cur_ship) == 0 &&
+                (CMBTDRW1::Ship_Completely_On_Screen(&::game::world, MOX::cur_ship) == 0 &&
                     COMBAT1::start_of_turn != 0)) {
                 COMBINIT::Snap_Center_Combat_Screen(MOX::combat_data[MOX::cur_ship].x, MOX::combat_data[MOX::cur_ship].y);
             }
 
             COMBAT1::Add_Tactical_Combat_Fields();
-            COMBAT1::Assign_Combat_Grids(MOX::cur_ship);
+            COMBAT1::Assign_Combat_Grids(&::game::world, MOX::cur_ship);
             CMBTDRW1::Refresh_Combat_Screen_Full();
 
             int8_t owner = MOX::combat_data[MOX::cur_ship].owner;
@@ -1171,7 +1171,7 @@ namespace COMBAT1 {
         s_combat_data* ship = &MOX::combat_data[ship_idx];
 
         if (MOX::apply_damage_to_planet == 1 && MOX::super_fast_flag == 0) {
-            if (CMBTDRW1::Ship_On_Screen(ship_idx) == 0) {
+            if (CMBTDRW1::Ship_On_Screen(&::game::world, ship_idx) == 0) {
                 COMBINIT::Snap_Center_Combat_Screen(ship->x, ship->y);
             }
             CMBTDRW1::Draw_Retreating_Ship(ship_idx);
@@ -1432,7 +1432,7 @@ namespace COMBAT1 {
         CMBTDRW1::Refresh_Combat_Screen_Full();
     }
 
-    void __cdecl Assign_Combat_Grids(int16_t active_ship_idx) {
+    void __cdecl Assign_Combat_Grids(::game::s_world_state* world_state, int16_t active_ship_idx) {
         s_combat_data* ship;
         int16_t dim;
         int16_t i;
@@ -1456,7 +1456,7 @@ namespace COMBAT1 {
                             if (MOX::cmbt_colony_id == -1) {
                                 dim = 6;
                             } else {
-                                int8_t planet_size = MOX::planet[MOX::colony[MOX::cmbt_colony_id].planet].size;
+                                int8_t planet_size = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(MOX::colony[MOX::cmbt_colony_id].planet))).size;
                                 switch (planet_size) {
                                     case PLANET_SIZE_TINY: dim = 3; break;
                                     case PLANET_SIZE_SMALL: dim = 4; break;

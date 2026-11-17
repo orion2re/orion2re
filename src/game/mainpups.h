@@ -92,9 +92,9 @@ namespace MAINPUPS {
      * @param mouse_y Current Y-side field scan input.
      * @param selection_confirmed Set to 1 when a valid target is chosen.
      */
-    int16_t __cdecl Check_System_Display_Fields_Selection(int16_t* mouse_x, int16_t* mouse_y, int16_t* selection_confirmed);
+    game::id_planet Check_System_Display_Fields_Selection(::game::s_world_state* world_state, int16_t* mouse_x, int16_t* mouse_y, int16_t* selection_confirmed);
 
-    int8_t __cdecl New_Colony_Confirmation_Box(int16_t planet_idx);
+    int8_t __cdecl New_Colony_Confirmation_Box(::game::s_world_state* world_state, ::game::id_planet planet_idx);
 
     void __cdecl Load_SLIDER_Popup();
     void __cdecl Load_Slider_Fields();
@@ -105,7 +105,7 @@ namespace MAINPUPS {
      * @param star_idx Star to focus in the system display, or -1 to use the current player's home star.
      * @param popup_anim Popup art used to compute the centered draw position.
      */
-    void __cdecl Do_Popup_Setup(int16_t star_idx, s_animation_header* popup_anim);
+    void __cdecl Do_Popup_Setup(::game::s_world_state* world_state, int16_t star_idx, s_animation_header* popup_anim);
 
     void __cdecl Add_Tax_Rate_Fields();
     void __cdecl Eric_Pop_Fields();
@@ -162,7 +162,7 @@ namespace MAINPUPS {
 
     int16_t __cdecl Evaluate_Colony_Combat_Input(int16_t* field_id_ptr, int16_t* unused_input, int16_t* close_popup_flag, int16_t* selection_idx_ptr);
 
-    void __cdecl Load_Combat_Colony_Picture_To_Screen_Seg(int16_t colony_idx);
+    void __cdecl Load_Combat_Colony_Picture_To_Screen_Seg(::game::s_world_state* world_state, int16_t colony_idx);
 
     void __cdecl Load_System_Discovery_Popup();
 
@@ -180,7 +180,7 @@ namespace MAINPUPS {
 
     void __cdecl Marooned_Officer_Joins_Popup(int16_t star_idx, int16_t officer_idx);
 
-    void __cdecl Build_Generic_Planet_Or_Colony_Description_String_Formatted(int16_t planet_idx, char* buffer, uint32_t buffer_size);
+    void __cdecl Build_Generic_Planet_Or_Colony_Description_String_Formatted(::game::s_world_state* world_state, ::game::id_planet planet_idx, char* buffer, uint32_t buffer_size);
 
     int16_t __cdecl Dragon_New_Star_Popup(int16_t player_idx, int16_t star_idx);
 
@@ -208,7 +208,7 @@ namespace MAINPUPS {
      * @param mouse_y Current Y-side field scan input.
      * @param selection_made Set to 1 when a valid defense target is chosen.
      */
-    int16_t __cdecl Check_System_Display_Fields_Defense_Selection(int16_t* mouse_x, int16_t* mouse_y, int16_t* selection_made);
+    int16_t __cdecl Check_System_Display_Fields_Defense_Selection(::game::s_world_state* world_state, int16_t* mouse_x, int16_t* mouse_y, int16_t* selection_made);
 
     void __cdecl Player_Attacked_Popup(int16_t attacker_idx, int16_t defender_idx, int16_t star_idx, int16_t colony_idx);
 
@@ -283,7 +283,7 @@ namespace MAINPUPS {
      * @param popup_data Display state used by the popup while it is active.
      * @param popup_mode Combat mode selector used to choose invasion or bombing behavior.
      */
-    int16_t __cdecl Colony_Combat_Popup(s_colony_combat_popup_data* popup_data, int16_t popup_mode);
+    int16_t __cdecl Colony_Combat_Popup(::game::s_world_state* world_state, s_colony_combat_popup_data* popup_data, int16_t popup_mode);
 
     int16_t __cdecl Colony_Bombing_Popup(
         s_combat_bomb_result* bomb,
@@ -294,5 +294,5 @@ namespace MAINPUPS {
         int16_t bombing_result,
         int8_t has_stellar_converter);
 
-    int8_t __cdecl Player_Has_Colony_Or_Outpost_At_Star(int16_t player_idx, int16_t star_idx);
+    int8_t __cdecl Player_Has_Colony_Or_Outpost_At_Star(::game::s_world_state* world_state, int16_t player_idx, int16_t star_idx);
 } // namespace MAINPUPS

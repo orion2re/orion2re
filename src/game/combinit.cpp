@@ -707,9 +707,9 @@ namespace COMBINIT {
             }
 
             RUSS::Mox_Update();
-            Load_Combat_Ship_Palette(MOX::combat_attacker_player);
+            Load_Combat_Ship_Palette(&::game::world, MOX::combat_attacker_player);
             RUSS::Mox_Update();
-            Load_Combat_Ship_Palette(MOX::combat_defender_player);
+            Load_Combat_Ship_Palette(&::game::world, MOX::combat_defender_player);
             RUSS::Mox_Update();
 
             bool needs_plasma_darkening = false;
@@ -1012,13 +1012,13 @@ namespace COMBINIT {
 
         if (combat_winner == 1 || combat_winner == 0x29A) {
             if (MOX::combat_attacker_player < MAX_PLAYERS && MOX::combat_defender_player >= 10 && MOX::ship[plr2_ships[0]].d.speed > 0) {
-                NETMOX::Russ_Event_Monster_Update(MOX::combat_defender_player, -1, MOX::combat_attacker_player);
+                NETMOX::Russ_Event_Monster_Update(MOX::combat_defender_player, legacy_world::Planet_Id(-1), MOX::combat_attacker_player);
             }
         }
 
         if (combat_winner == -1 || combat_winner == 0x29A) {
             if (MOX::combat_defender_player < MAX_PLAYERS && MOX::combat_attacker_player >= 10 && MOX::ship[plr1_ships[0]].d.speed > 0) {
-                NETMOX::Russ_Event_Monster_Update(MOX::combat_attacker_player, -1, MOX::combat_defender_player);
+                NETMOX::Russ_Event_Monster_Update(MOX::combat_attacker_player, legacy_world::Planet_Id(-1), MOX::combat_defender_player);
             }
         }
 
@@ -1305,7 +1305,7 @@ namespace COMBINIT {
         RUSS::Mox_Update();
     }
 
-    void __cdecl Load_Combat_Ship_Palette(int16_t player_idx) {
+    void __cdecl Load_Combat_Ship_Palette(::game::s_world_state* world_state, int16_t player_idx) {
         s_animation_header* ship_anim;
         int lbx_index;
         int16_t planet_size;
@@ -1334,7 +1334,7 @@ namespace COMBINIT {
                 player_color = 2;
             } else {
                 player_color = (int16_t)MOX::player[player_idx].color;
-                planet_size = (int16_t)MOX::planet[MOX::colony[MOX::cmbt_colony_id].planet].size;
+                planet_size = (int16_t)::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(MOX::colony[MOX::cmbt_colony_id].planet))).size;
             }
 
             if (planet_size > 0) {
@@ -1361,9 +1361,9 @@ namespace COMBINIT {
         }
     }
 
-    void __cdecl Load_Combat_Colony_Picture(int16_t colony_idx) {
-        int16_t planet_idx = MOX::colony[colony_idx].planet;
-        s_planet_data* planet = &MOX::planet[planet_idx];
+    void __cdecl Load_Combat_Colony_Picture(::game::s_world_state* world_state, int16_t colony_idx) {
+        ::game::id_planet planet_idx = MOX::colony[colony_idx].planet;
+        s_planet_data* planet = &::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx)));
 
         int8_t climate = planet->climate;
         int8_t size = planet->size;
@@ -1400,7 +1400,7 @@ namespace COMBINIT {
     }
 
     void __cdecl Load_Tactical_Colony(int16_t colony_idx, int16_t load_picture) {
-        char* planet_name = HACCESS::Get_Planet_Name_No_Prime(MOX::colony[colony_idx].planet);
+        char* planet_name = HACCESS::Get_Planet_Name_No_Prime(legacy_world::Planet_Id(MOX::colony[colony_idx].planet));
         strlcpy(MOX::combat_data->name, planet_name, sizeof(MOX::combat_data->name));
 
         MOX::combat_data->owner = MOX::colony[colony_idx].owner;
@@ -1647,7 +1647,7 @@ namespace COMBINIT {
         MOX::combat_data->shield_current_hits = 0;
 
         if (load_picture != 0) {
-            COMBINIT::Load_Combat_Colony_Picture(colony_idx);
+            COMBINIT::Load_Combat_Colony_Picture(&::game::world, colony_idx);
         }
     }
 
@@ -2096,7 +2096,7 @@ namespace COMBINIT {
 
             if (MOX::apply_damage_to_planet == 1 && MOX::super_fast_flag == 0) {
                 MOX::cur_ship = i;
-                if (CMBTDRW1::Ship_Completely_On_Screen(i) == 0) {
+                if (CMBTDRW1::Ship_Completely_On_Screen(&::game::world, i) == 0) {
                     COMBINIT::Snap_Center_Combat_Screen(ship->x, ship->y);
                 }
 
@@ -2128,15 +2128,15 @@ namespace COMBINIT {
     }
 
 
-    void __cdecl Ship_Center_Offsets(int16_t ship_idx, int16_t* out_x, int16_t* out_y) {
+    void __cdecl Ship_Center_Offsets(::game::s_world_state* world_state, int16_t ship_idx, int16_t* out_x, int16_t* out_y) {
         int16_t result_offset = 0;
 
         if (ship_idx == 0) {
             if (MOX::cmbt_colony_id == -1) {
                 result_offset = 60;
             } else {
-                int16_t planet_idx = MOX::colony[MOX::cmbt_colony_id].planet;
-                int8_t planet_size = MOX::planet[planet_idx].size;
+                ::game::id_planet planet_idx = MOX::colony[MOX::cmbt_colony_id].planet;
+                int8_t planet_size = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).size;
 
                 switch (planet_size) {
                     case PLANET_SIZE_TINY:

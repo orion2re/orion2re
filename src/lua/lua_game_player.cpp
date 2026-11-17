@@ -347,17 +347,17 @@ namespace orion2re::lua::game {
             return 0;
         }
 
-        int Player_Set_Home_Planet_Method_(lua_State* lua_state) {
+        int Player_Set_Home_Planet_Method_(::game::s_world_state* world_state, lua_State* lua_state) {
             const s_player_proxy* proxy = Check_Player_(lua_state, 1);
             if (!Galaxy_State_Mutation_Allowed()) {
                 return luaL_error(lua_state,
                     "player home assignment is available only during galaxy generation");
             }
-            std::int16_t planet_id = -1;
+            ::game::id_planet planet_id = ::game::NO_PLANET;
             if (!internal::Read_Planet(lua_state, 2, &planet_id)) {
                 return luaL_error(lua_state, "invalid home planet reference");
             }
-            s_planet_data& planet = MOX::planet[planet_id];
+            s_planet_data& planet = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_id)));
             if (planet.planet_type != PLANET_TYPE_PLANET) {
                 return luaL_error(lua_state,
                     "player home must be a colonizable planet");
@@ -591,12 +591,12 @@ namespace orion2re::lua::game {
                 return 1;
             }
             if (strcmp(key, "home_planet") == 0) {
-                if (player.home_planet_id == -1) {
+                if (player.home_planet_id == ::game::NO_PLANET) {
                     lua_pushnil(lua_state);
                     return 1;
                 }
-                if (!internal::Push_Planet(
-                        lua_state, player.home_planet_id)) {
+                if (!internal::Push_Planet(&::game::world, 
+                        lua_state, legacy_world::Planet_Id(player.home_planet_id))) {
                     return luaL_error(lua_state,
                         "player %d has invalid home planet %d",
                         proxy->player_id,
@@ -605,13 +605,13 @@ namespace orion2re::lua::game {
                 return 1;
             }
             if (strcmp(key, "home_system") == 0) {
-                if (player.home_planet_id == -1) {
+                if (player.home_planet_id == ::game::NO_PLANET) {
                     lua_pushnil(lua_state);
                     return 1;
                 }
                 std::int16_t system_id = -1;
-                if (!internal::Resolve_Planet_System(
-                        player.home_planet_id, &system_id) ||
+                if (!internal::Resolve_Planet_System(&::game::world, 
+                        legacy_world::Planet_Id(player.home_planet_id), &system_id) ||
                     !internal::Push_System(lua_state, system_id)) {
                     return luaL_error(lua_state,
                         "player %d has invalid home planet %d",
@@ -640,7 +640,7 @@ namespace orion2re::lua::game {
                 return 1;
             }
             if (strcmp(key, "set_home_planet") == 0) {
-                lua_pushcfunction(lua_state, Player_Set_Home_Planet_Method_);
+                lua_pushcfunction(lua_state, [](lua_State* lua_state) { return Player_Set_Home_Planet_Method_(&::game::world, lua_state); });
                 return 1;
             }
             lua_pushnil(lua_state);

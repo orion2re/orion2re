@@ -17,7 +17,7 @@ namespace MULTPLAY {
     /* Runs the main multiplayer setup screen loop. */
     void __cdecl Multi_Player_Screen();
     /* Runs the hotseat next-player selection screen. */
-    void __cdecl Hotseat_Select_Player();
+    void __cdecl Hotseat_Select_Player(::game::s_world_state* world_state);
 
     /* Shows the opponent-ready warning box and returns the user's response. */
     int16_t __cdecl Warning_Box_Has_Opponent_Pressed();

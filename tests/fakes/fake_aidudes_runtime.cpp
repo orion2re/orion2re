@@ -198,7 +198,7 @@ namespace INITSHIP {
 } // namespace INITSHIP
 
 namespace EVENTS {
-    int16_t __cdecl Event_Check_Colony_Researching(int16_t) {
+    int16_t __cdecl Event_Check_Colony_Researching(::game::s_world_state* world_state, int16_t) {
         return TEST_AIDUDES::colony_researching;
     }
 } // namespace EVENTS

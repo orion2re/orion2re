@@ -371,7 +371,7 @@ namespace FLT2 {
             if (visited == 0 &&
                 MOX::player[MOX::PLAYER_NUM].traits[TRAIT_OMNISCIENCE] == 0 &&
                 OFFICER::One_Leader_With_Galactic_Lore(MOX::PLAYER_NUM) == 0) {
-                if (HAROLD::Contact_With_One_Colony(MOX::galaxy_map_scanned_star) == 0) {
+                if (HAROLD::Contact_With_One_Colony(world_state, MOX::galaxy_map_scanned_star) == 0) {
                     status = 8;
                 } else {
                     status = 7;
@@ -648,7 +648,7 @@ namespace FLT2 {
             if (visited || MOX::player[MOX::PLAYER_NUM].traits[TRAIT_OMNISCIENCE] != 0 || OFFICER::One_Leader_With_Galactic_Lore(MOX::PLAYER_NUM)) {
                 has_info = true;
             } else {
-                has_info = HAROLD::Contact_With_One_Colony(star_idx);
+                has_info = HAROLD::Contact_With_One_Colony(&::game::world, star_idx);
             }
 
             const char* loc_str;

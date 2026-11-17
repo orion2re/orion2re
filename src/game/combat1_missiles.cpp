@@ -61,7 +61,7 @@ namespace COMBAT1 {
                     }
 
                     if (!target_is_missile) {
-                        COMBINIT::Ship_Center_Offsets(target_idx, &target_x, &target_y);
+                        COMBINIT::Ship_Center_Offsets(&::game::world, target_idx, &target_x, &target_y);
                         target_x += MOX::combat_data[target_idx].x * 20;
                         target_y += MOX::combat_data[target_idx].y * 20;
                     } else {
@@ -112,7 +112,7 @@ namespace COMBAT1 {
                         if (target_ship->unit_status == 0) {
                             int16_t owner = CMBTMIS::Missile_Owner(m_idx);
                             if (owner != target_ship->owner || missile->source_unit_idx == t_idx) {
-                                COMBINIT::Ship_Center_Offsets(t_idx, &target_x, &target_y);
+                                COMBINIT::Ship_Center_Offsets(&::game::world, t_idx, &target_x, &target_y);
                                 target_x += target_ship->x * 20;
                                 target_y += target_ship->y * 20;
                                 MOX::cur_ship = t_idx;

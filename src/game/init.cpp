@@ -62,8 +62,8 @@ namespace allocate {
         MOX::techname_seg = Allocate_Space(30000);
         MOX::special_names_seg = Allocate_Space(1000);
 
-        MOX::planet = (s_planet_data*)Allocate_Space(MAX_PLANETS * sizeof(s_planet_data));
-        struct_::Clear_Structure(MOX::planet, MAX_PLANETS * sizeof(s_planet_data));
+        game::world.planets.clear();
+        game::world.next_planet_id = 0;
 
         MOX::player = (s_player*)Allocate_Space(MAX_PLAYERS * sizeof(s_player));
         struct_::Clear_Structure(MOX::player, MAX_PLAYERS * sizeof(s_player));

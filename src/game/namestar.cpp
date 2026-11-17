@@ -269,7 +269,7 @@ namespace namestar {
         return result;
     }
 
-    int8_t __cdecl Can_Change_Star_Name(int16_t star_idx) {
+    int8_t __cdecl Can_Change_Star_Name(::game::s_world_state* world_state, int16_t star_idx) {
         int8_t can_change = 1;
         bool found = false;
         int16_t i = 0;
@@ -279,9 +279,9 @@ namespace namestar {
                 break;
             }
 
-            int16_t planet_idx = MOX::star[star_idx].planet_index[i];
-            if (planet_idx > -1) {
-                if (MOX::planet[planet_idx].colony_index > -1) {
+            ::game::id_planet planet_idx = MOX::star[star_idx].planet_index[i];
+            if (planet_idx != ::game::NO_PLANET) {
+                if (::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index > -1) {
                     can_change = 0;
                     found = true;
                 }

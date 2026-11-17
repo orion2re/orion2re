@@ -42,7 +42,7 @@ namespace NEXTTURN {
             Do_Autosave();
         }
 
-        HAROLD::Confirm_Planet_And_Star_Index_Link(HAROLD::s_in_next_turn);
+        HAROLD::Confirm_Planet_And_Star_Index_Link(&::game::world, HAROLD::s_in_next_turn);
         if (!Next_Turn_Calc()) return;
 
         MOX::current_screen = MOX::return_screen;

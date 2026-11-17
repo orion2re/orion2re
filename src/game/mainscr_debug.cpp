@@ -23,17 +23,17 @@ namespace MAINSCR_DEBUG {
             return -1;
         }
 
-        void Draw_Planet_(int16_t planet_index) {
-            const int16_t planet_count = std::clamp<int16_t>(MOX::planet_count, 0, MAX_PLANETS);
-            if (MOX::planet == nullptr || planet_index < 0 || planet_index >= planet_count) {
+        void Draw_Planet_(::game::s_world_state* world_state, ::game::id_planet planet_index) {
+            const int16_t planet_count = std::clamp<int16_t>(::game::Planet_Count(world_state), 0, MAX_PLANETS);
+            if (planet_index == ::game::NO_PLANET || planet_index >= planet_count) {
                 return;
             }
 
-            const s_planet_data& planet = MOX::planet[planet_index];
+            const s_planet_data& planet = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_index)));
             char name[64];
             const int16_t star_count = std::min<int16_t>(MOX::NUM_STARS, MAX_STARS);
             if (MOX::star != nullptr && planet.star_index >= 0 && planet.star_index < star_count) {
-                HACCESS::Do_Get_Planet_Name(planet_index, name, 1);
+                HACCESS::Do_Get_Planet_Name(world_state, legacy_world::Planet_Id(planet_index), name, 1);
             } else {
                 snprintf(name, sizeof(name), "Planet %d", (int)planet_index);
             }
@@ -48,7 +48,7 @@ namespace MAINSCR_DEBUG {
             }
             ImGui::PushID((int32_t)planet_index);
             if (ImGui::Selectable(label)) {
-                debug_game_editors::Open_Planet(planet_index);
+                debug_game_editors::Open_Planet(legacy_world::Planet_Id(planet_index));
             }
             ImGui::PopID();
         }
@@ -86,7 +86,7 @@ namespace MAINSCR_DEBUG {
             }
 
             for (int32_t orbit = 0; orbit < 5; ++orbit) {
-                Draw_Planet_(star.planet_index[orbit]);
+                Draw_Planet_(&::game::world, legacy_world::Planet_Id(star.planet_index[orbit]));
             }
             ImGui::TreePop();
         }

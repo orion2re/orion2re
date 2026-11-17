@@ -37,7 +37,7 @@ namespace NEWPUP {
     void __cdecl Print_Troop_Totals(int16_t x_base, int16_t unused_y_base, s_invasion_side_info* invasion_side);
 
     /* Redraws the troop popup when a full refresh is pending. */
-    void __cdecl Draw_Troop_Popup();
+    void __cdecl Draw_Troop_Popup(::game::s_world_state* world_state);
 
     /* Rebuilds the popup input fields after a frame update. */
     void __cdecl Reset_Fields();

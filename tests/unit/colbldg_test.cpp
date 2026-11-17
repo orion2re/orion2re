@@ -1,3 +1,4 @@
+#include "../fixtures/planet_state.h"
 #include "pch.h"
 
 #include "doctest/doctest.h"
@@ -103,26 +104,26 @@ DOCTEST_TEST_CASE_FIXTURE(s_building_state, "enemy outpost is not a colony base 
 
     for (int16_t i = 0; i < 5; ++i) {
         MOX::star[0].planet_index[i] = i;
-        MOX::planet[i].planet_type = PLANET_TYPE_PLANET;
+        test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(i))).planet_type = PLANET_TYPE_PLANET;
     }
 
-    MOX::planet[0].colony_index = 0;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).colony_index = 0;
     MOX::colony[0].owner = 0;
 
-    MOX::planet[1].colony_index = -1;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).colony_index = -1;
 
-    MOX::planet[2].colony_index = 1;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(2))).colony_index = 1;
     MOX::colony[1].owner = 0;
     MOX::colony[1].outpost_flag = 1;
 
-    MOX::planet[3].colony_index = 2;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(3))).colony_index = 2;
     MOX::colony[2].owner = 1;
     MOX::colony[2].outpost_flag = 1;
 
-    MOX::planet[4].colony_index = -1;
-    MOX::planet[4].planet_type = PLANET_TYPE_ASTEROID;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(4))).colony_index = -1;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(4))).planet_type = PLANET_TYPE_ASTEROID;
 
-    DOCTEST_CHECK(COLBLDG::Star_N_Uncolonized_Worlds(0) == 2);
+    DOCTEST_CHECK(COLBLDG::Star_N_Uncolonized_Worlds(&::game::world, 0) == 2);
 }
 
 DOCTEST_TEST_CASE_FIXTURE(s_building_state, "queuing the last legal Colony Base removes it from the military list") {
@@ -130,22 +131,22 @@ DOCTEST_TEST_CASE_FIXTURE(s_building_state, "queuing the last legal Colony Base 
 
     MOX::colony[0].owner = 0;
     MOX::colony[0].planet = 0;
-    MOX::planet[0].colony_index = 0;
-    MOX::planet[0].planet_type = PLANET_TYPE_PLANET;
-    MOX::planet[0].star_index = 0;
-    MOX::planet[1].colony_index = -1;
-    MOX::planet[1].planet_type = PLANET_TYPE_PLANET;
-    MOX::planet[1].star_index = 0;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).colony_index = 0;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).planet_type = PLANET_TYPE_PLANET;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).star_index = 0;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).colony_index = -1;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).planet_type = PLANET_TYPE_PLANET;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).star_index = 0;
     MOX::star[0].planet_index[0] = 0;
     MOX::star[0].planet_index[1] = 1;
     TEST_COLBLDG::Set_Buildable_(BUILDING_COLONY_BASE, true);
 
-    COLBLDG::Calculate_Military_Array();
+    COLBLDG::Calculate_Military_Array(&::game::world);
     DOCTEST_REQUIRE(COLBLDG::n_military_indexes == 2);
     DOCTEST_CHECK(COLBLDG::military_indexes[0] == BUILDING_COLONY_BASE);
 
     COLBLDG::current_item[0] = BUILDING_COLONY_BASE;
-    COLBLDG::Calculate_Military_Array();
+    COLBLDG::Calculate_Military_Array(&::game::world);
 
     DOCTEST_CHECK(COLBLDG::n_military_indexes == 0);
 }
@@ -173,7 +174,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_building_state, "pending refit design owns an indepe
 DOCTEST_TEST_CASE_FIXTURE(s_building_state, "ship allocation appends without a pre-seeded owner") {
     TEST_COLBLDG::Reset_();
     MOX::colony[0].planet = 0;
-    MOX::planet[0].star_index = 0;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).star_index = 0;
     MOX::NUM_SHIPS = 1;
     MOX::ship[0].owner = 0;
     MOX::ship[0].status = 0;
@@ -181,7 +182,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_building_state, "ship allocation appends without a p
     design.ship_type = SHIP_TYPE_OUTPOST;
 
     const int16_t ship_idx =
-        COLBLDG::Create_Ship_From_Design(1, &design, 0);
+        COLBLDG::Create_Ship_From_Design(&::game::world, 1, &design, 0);
 
     DOCTEST_REQUIRE(ship_idx == 1);
     DOCTEST_CHECK(MOX::NUM_SHIPS == 2);
@@ -193,7 +194,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_building_state, "ship allocation appends without a p
 DOCTEST_TEST_CASE_FIXTURE(s_building_state, "ship allocation reuses only an owner-matched destroyed slot") {
     TEST_COLBLDG::Reset_();
     MOX::colony[0].planet = 0;
-    MOX::planet[0].star_index = 0;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).star_index = 0;
     MOX::NUM_SHIPS = 2;
     MOX::ship[0].owner = 0;
     MOX::ship[0].status = 5;
@@ -202,7 +203,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_building_state, "ship allocation reuses only an owne
     s_ship_design design = {};
 
     const int16_t ship_idx =
-        COLBLDG::Create_Ship_From_Design(1, &design, 0);
+        COLBLDG::Create_Ship_From_Design(&::game::world, 1, &design, 0);
 
     DOCTEST_REQUIRE(ship_idx == 1);
     DOCTEST_CHECK(MOX::NUM_SHIPS == 2);
@@ -213,7 +214,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_building_state, "ship allocation reuses only an owne
 DOCTEST_TEST_CASE_FIXTURE(s_building_state, "ship allocation fails when capacity has no reusable slot") {
     TEST_COLBLDG::Reset_();
     MOX::colony[0].planet = 0;
-    MOX::planet[0].star_index = 0;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).star_index = 0;
     MOX::NUM_SHIPS = MAX_SHIPS;
     for (int16_t ship_idx = 0; ship_idx < MAX_SHIPS; ++ship_idx) {
         MOX::ship[ship_idx].owner = 0;
@@ -221,7 +222,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_building_state, "ship allocation fails when capacity
     }
     s_ship_design design = {};
 
-    DOCTEST_CHECK(COLBLDG::Create_Ship_From_Design(1, &design, 0) == -1);
+    DOCTEST_CHECK(COLBLDG::Create_Ship_From_Design(&::game::world, 1, &design, 0) == -1);
     DOCTEST_CHECK(MOX::NUM_SHIPS == MAX_SHIPS);
 }
 

@@ -32,7 +32,7 @@ namespace CMBTMOV1 {
         s_combat_data* ship = &MOX::combat_data[ship_idx];
         current_facing = ship->facing_dir;
 
-        COMBINIT::Ship_Center_Offsets(ship_idx, &sx, &sy);
+        COMBINIT::Ship_Center_Offsets(&::game::world, ship_idx, &sx, &sy);
         sx += (int16_t)ship->x * 20;
         sy += (int16_t)ship->y * 20;
 
@@ -114,7 +114,7 @@ namespace CMBTMOV1 {
         int16_t target_y_val = *dest_y;
 
         int16_t center_x, center_y;
-        COMBINIT::Ship_Center_Offsets(ship_idx, &center_x, &center_y);
+        COMBINIT::Ship_Center_Offsets(&::game::world, ship_idx, &center_x, &center_y);
 
         s_combat_data* ship = &MOX::combat_data[ship_idx];
 

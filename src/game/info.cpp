@@ -2095,7 +2095,7 @@ namespace INFO {
                 }
 
                 if (input_field >= g_first_list_field && input_field <= g_last_list_field) {
-                    if (MSG_::Goto_Msg_Colony(&MSG_::msgs[g_selected_msg_p->group_id])) {
+                    if (MSG_::Goto_Msg_Colony(&::game::world, &MSG_::msgs[g_selected_msg_p->group_id])) {
                         g_turn_message_ix = g_selected_msg_p->group_id;
                         MOX::current_screen = SCREEN_COLONY;
                         MOX::return_screen = SCREEN_INFO;

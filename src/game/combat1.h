@@ -156,7 +156,7 @@ namespace COMBAT1 {
 
     // Rebuilds occupancy and move overlays for the combat grid.
     // active_ship_idx: ship whose movement overlay should be refreshed.
-    void __cdecl Assign_Combat_Grids(int16_t active_ship_idx);
+    void __cdecl Assign_Combat_Grids(::game::s_world_state* world_state, int16_t active_ship_idx);
 
     // Marks reachable combat-grid cells for the given ship.
     // ship_idx: combat ship index; range: movement range to test; check_cost: nonzero to enforce move-cost limits.

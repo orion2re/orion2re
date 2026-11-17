@@ -1382,7 +1382,7 @@ namespace FLEETPOP {
 
     bool __cdecl Check_For_Transport_Troops_Button(void) {
         const uint8_t transport_button_state =
-            FLEETPOP::Set_Transport_Troops_Flag(MOX::fleet_box.count);
+            FLEETPOP::Set_Transport_Troops_Flag(&::game::world, MOX::fleet_box.count);
 
         MOX::fleet_box.transport_btn_active =
             static_cast<int8_t>(transport_button_state);
@@ -1498,7 +1498,7 @@ namespace FLEETPOP {
             ship_idx = MOX::ship_node[current_node].ship_idx;
             if (MOX::ship[ship_idx].d.ship_type == SHIP_TYPE_OUTPOST) {
                 for (int16_t planet_slot = 0; planet_slot < 5; ++planet_slot) {
-                    if (FLEETPOP::Can_Build_Outpost(MOX::star[location].planet_index[planet_slot]) != 0) {
+                    if (FLEETPOP::Can_Build_Outpost(&::game::world, legacy_world::Planet_Id(MOX::star[location].planet_index[planet_slot])) != 0) {
                         can_build_outpost = 1;
                         break;
                     }
@@ -1512,7 +1512,7 @@ namespace FLEETPOP {
         return can_build_outpost;
     }
 
-    int8_t __cdecl Set_Transport_Troops_Flag(int16_t ship_count) {
+    int8_t __cdecl Set_Transport_Troops_Flag(::game::s_world_state* world_state, int16_t ship_count) {
         if (MOX::fleet_box_ship_stack == -1) {
             return 0;
         }
@@ -1554,9 +1554,9 @@ namespace FLEETPOP {
 
                     if (MOX::ship[ship_idx].d.ship_type == SHIP_TYPE_TRANSPORT) {
                         for (int16_t planet_slot = 0; planet_slot < 5; ++planet_slot) {
-                            const int16_t planet_idx = MOX::star[star_idx].planet_index[planet_slot];
-                            if (planet_idx != -1) {
-                                const int16_t colony_idx = MOX::planet[planet_idx].colony_index;
+                            const ::game::id_planet planet_idx = MOX::star[star_idx].planet_index[planet_slot];
+                            if (planet_idx != ::game::NO_PLANET) {
+                                const int16_t colony_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index;
                                 if (colony_idx != -1) {
                                     if (static_cast<int16_t>(MOX::colony[colony_idx].owner) == MOX::PLAYER_NUM) {
                                         transport_troops_flag = 1;
@@ -1666,7 +1666,7 @@ namespace FLEETPOP {
                                 break;
                             }
 
-                            if (FLEETPOP::Planet_Is_Colonizable(MOX::star[star_index].planet_index[planet_slot]) != 0) {
+                            if (FLEETPOP::Planet_Is_Colonizable(&::game::world, legacy_world::Planet_Id(MOX::star[star_index].planet_index[planet_slot])) != 0) {
                                 found_colonizable_planet = true;
                                 colonize_button_flag = 1;
                             }
@@ -1684,27 +1684,27 @@ namespace FLEETPOP {
         return colonize_button_flag;
     }
 
-    uint8_t __cdecl Can_Build_Outpost(int16_t planet_idx) {
-        if (planet_idx <= -1) {
+    uint8_t __cdecl Can_Build_Outpost(::game::s_world_state* world_state, ::game::id_planet planet_idx) {
+        if (planet_idx == ::game::NO_PLANET) {
             return 0;
         }
 
-        if (MOX::planet[planet_idx].colony_index != -1) {
+        if (::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index != -1) {
             return 0;
         }
 
-        if (HAROLD::Planet_Has_Outpost(planet_idx) != 0) {
+        if (HAROLD::Planet_Has_Outpost(world_state, legacy_world::Planet_Id(planet_idx)) != 0) {
             return 0;
         }
 
         return 1;
     }
 
-    int8_t __cdecl Planet_Is_Colonizable(int16_t planet_idx) {
+    int8_t __cdecl Planet_Is_Colonizable(::game::s_world_state* world_state, ::game::id_planet planet_idx) {
         int8_t is_colonizable = 0;
 
-        if (planet_idx > -1) {
-            s_planet_data* planet = &MOX::planet[planet_idx];
+        if (planet_idx != ::game::NO_PLANET) {
+            s_planet_data* planet = &::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx)));
             if (planet->planet_type == PLANET_TYPE_PLANET) {
                 int16_t colony_idx = planet->colony_index;
                 if (colony_idx == -1 || MOX::colony[colony_idx].outpost_flag != 0) {

@@ -342,7 +342,7 @@ namespace AI_SNOOPS_DEBUG {
             }
         }
 
-        void Draw_Planet_Values_(const AIDATA::s_state* ai, int player) {
+        void Draw_Planet_Values_(::game::s_world_state* world_state, const AIDATA::s_state* ai, int player) {
             static bool valued_only = true;
             ImGui::Checkbox("Valued only", &valued_only);
             if (ImGui::BeginTable("planet_values", 5,
@@ -355,8 +355,9 @@ namespace AI_SNOOPS_DEBUG {
                 ImGui::TableSetupColumn("Contextual");
                 ImGui::TableSetupColumn("Stage");
                 ImGui::TableHeadersRow();
-                for (int planet = 0; planet < MOX::planet_count; ++planet) {
-                    auto entry = ai->planets.find(legacy_world::Planet_Id(planet));
+                for (const auto& planet_entry : (world_state)->planets) {
+            const ::game::id_planet planet = planet_entry.first;
+                    auto entry = ai->planets.find(legacy_world::Planet_Id(legacy_world::Planet_Id(planet)));
                     if (entry == ai->planets.end()) continue;
                     const uint16_t base = entry->second.base_values[player];
                     const uint16_t contextual = entry->second.contextual_values[player];
@@ -364,15 +365,14 @@ namespace AI_SNOOPS_DEBUG {
                     if (valued_only && base == 0 && contextual == 0 && stage == 0) continue;
                     ImGui::TableNextRow();
                     ImGui::TableSetColumnIndex(0);
-                    ImGui::PushID(planet);
-                    if (ImGui::Selectable(std::to_string(planet).c_str(), false,
+                    ImGui::PushID(static_cast<int>(planet.id));
+                    if (ImGui::Selectable(std::to_string(planet.id).c_str(), false,
                                           ImGuiSelectableFlags_SpanAllColumns)) {
-                        debug_game_editors::Open_Planet((int16_t)planet);
+                        debug_game_editors::Open_Planet(planet);
                     }
                     ImGui::PopID();
                     ImGui::TableSetColumnIndex(1);
-                    ImGui::Text("%d", MOX::planet == nullptr ? -1 :
-                                (int)MOX::planet[planet].star_index);
+                    ImGui::Text("%d", static_cast<int>(game::Planet(world_state, planet).star_index));
                     ImGui::TableSetColumnIndex(2);
                     ImGui::Text("%u", (unsigned)base);
                     ImGui::TableSetColumnIndex(3);
@@ -398,7 +398,7 @@ namespace AI_SNOOPS_DEBUG {
                             ImGui::EndTabItem();
                         }
                         if (ImGui::BeginTabItem("Planet values")) {
-                            Draw_Planet_Values_(ai, g_player);
+                            Draw_Planet_Values_(&::game::world, ai, g_player);
                             ImGui::EndTabItem();
                         }
                         if (ImGui::BeginTabItem("Colony assessments")) {
@@ -615,7 +615,7 @@ namespace AI_SNOOPS_DEBUG {
                     ImGui::PushID((int)index);
                     if (ImGui::Selectable(std::to_string(legacy_world::Slot(planet.planet_id)).c_str())) {
                         auto planet_index = legacy_world::Index(planet.planet_id);
-                        if (planet_index) debug_game_editors::Open_Planet(*planet_index);
+                        if (planet_index) debug_game_editors::Open_Planet(legacy_world::Planet_Id(*planet_index));
                     }
                     ImGui::PopID();
                     ImGui::TableSetColumnIndex(2);

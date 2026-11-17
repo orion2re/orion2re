@@ -298,7 +298,7 @@ namespace COMBINIT {
     void __cdecl Snap_Center_Combat_Screen(int16_t, int16_t) {
     }
 
-    void __cdecl Ship_Center_Offsets(
+    void __cdecl Ship_Center_Offsets(::game::s_world_state* world_state, 
         int16_t ship_idx,
         int16_t* out_x,
         int16_t* out_y
@@ -360,13 +360,13 @@ namespace CMBTDRW1 {
         return 0;
     }
 
-    int16_t __cdecl Ship_Completely_On_Screen(int16_t) {
+    int16_t __cdecl Ship_Completely_On_Screen(::game::s_world_state* world_state, int16_t) {
         return 1;
     }
 }
 
 namespace BEAMS {
-    void __cdecl Beam_SFX(
+    void __cdecl Beam_SFX(::game::s_world_state* world_state, 
         int16_t, int16_t, int16_t, int16_t, int16_t, int16_t,
         s_beam_fx_entry*, int16_t
     ) {
@@ -427,7 +427,7 @@ namespace BOMB {
 }
 
 namespace ERICNET {
-    void __cdecl Remove_Building(int16_t, int16_t) {
+    void __cdecl Remove_Building(::game::s_world_state* world_state, int16_t, int16_t) {
     }
 }
 

@@ -65,7 +65,7 @@ namespace namestar {
     /* Returns whether the specified star can still be renamed.
      * star_idx: Star to test for rename eligibility.
      */
-    int8_t __cdecl Can_Change_Star_Name(int16_t star_idx);
+    int8_t __cdecl Can_Change_Star_Name(::game::s_world_state* world_state, int16_t star_idx);
 
     extern s_input_box_state input_box;
 

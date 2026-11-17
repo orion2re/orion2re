@@ -8,20 +8,20 @@ namespace COLLAND {
     int32_t pod1d_sfx;
     int16_t fields;
 
-    void __cdecl Print_Planet_Data(int16_t planet_idx) {
+    void __cdecl Print_Planet_Data(::game::s_world_state* world_state, ::game::id_planet planet_idx) {
         char buffer[500];
-        s_planet_data* planet = &MOX::planet[planet_idx];
+        s_planet_data* planet = &::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx)));
 
         COLONY::Set_Colony_Font_To(4);
 
         if (planet->colony_index == -1) {
-            char* planet_name = HACCESS::Get_Planet_Name(planet_idx);
+            char* planet_name = HACCESS::Get_Planet_Name(legacy_world::Planet_Id(planet_idx));
             char* fmt = ESTRINGS::E_Strings(0x46 /* ESTR_S1 */);
             snprintf(buffer, sizeof(buffer), fmt, planet_name);
         } else {
             s_colony* colony = &MOX::colony[planet->colony_index];
             char* race_name = MOX::player[colony->owner].race_name;
-            char* planet_name = HACCESS::Get_Planet_Name(planet_idx);
+            char* planet_name = HACCESS::Get_Planet_Name(legacy_world::Planet_Id(planet_idx));
             char* fmt = ESTRINGS::E_Strings(0x28 /* ESTR_S__S_COLONY */);
             snprintf(buffer, sizeof(buffer), fmt, planet_name, race_name);
         }
@@ -98,15 +98,15 @@ namespace COLLAND {
         if (COLONY::full_draw != 0) {
             graphics::Fill(0, 0, 0x27F, 0x1DF, 0);
 
-            s_animation_header* anim1 = COLONY::C_Anims(1);
+            s_animation_header* anim1 = COLONY::C_Anims(&::game::world, 1);
             animate::Draw(0, 0, anim1);
 
-            s_animation_header* anim0 = COLONY::C_Anims(0);
+            s_animation_header* anim0 = COLONY::C_Anims(&::game::world, 0);
             animate::Draw(0, 0, anim0);
 
             COLONY::Set_Colony_Font_To(4);
 
-            char* planet_name = HACCESS::Get_Planet_Name(COLONY::planet_handle);
+            char* planet_name = HACCESS::Get_Planet_Name(legacy_world::Planet_Id(COLONY::planet_handle));
             char* title_fmt = ESTRINGS::E_Strings(0xE5 /* ESTR_COLONY_BUILT_ON_S */);
             snprintf(buffer, sizeof(buffer), title_fmt, planet_name);
             fonts::Print_Centered(0x13F, 10, buffer);
@@ -124,7 +124,7 @@ namespace COLLAND {
         int16_t frame_count = animate::Get_Animation_Frame_Count(COLLAND::l_anims);
 
         if (((int32_t)frame_count - 2) <= (int32_t)current_frame) {
-            COLLAND::Print_Planet_Data(COLONY::planet_handle);
+            COLLAND::Print_Planet_Data(&::game::world, legacy_world::Planet_Id(COLONY::planet_handle));
         }
 
         if (current_frame == 1) {
@@ -149,7 +149,7 @@ namespace COLLAND {
         }
     }
 
-    void __cdecl Colony_Landing_Screen() {
+    void __cdecl Colony_Landing_Screen(::game::s_world_state* world_state) {
         MOX2::action_func_t saved_auto_fn;
         int16_t input_result;
 
@@ -161,8 +161,8 @@ namespace COLLAND {
         COLONY::star_handle = MOX::screen_data;
         COLONY::orbit_n = COLONY::orbit_temp;
 
-        COLONY::planet_handle = HAROLD::Planet_Index(MOX::screen_data, COLONY::orbit_temp);
-        COLONY::colony_handle = MOX::planet[COLONY::planet_handle].colony_index;
+        COLONY::planet_handle = HAROLD::Planet_Index(MOX::screen_data, legacy_world::Planet_Id(COLONY::orbit_temp));
+        COLONY::colony_handle = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(COLONY::planet_handle))).colony_index;
         COLONY::valid_colony = 1;
         COLONY::drawing_display = 0;
         COLONY::sys_disp_star_handle = COLONY::star_handle;
@@ -193,7 +193,7 @@ namespace COLLAND {
         video::Set_Refresh_Stencil();
 
         if (COLONY::Colony_Needs_Occupation_Policy(COLONY::colony_handle)) {
-            OCPOLPUP::Occupation_Policy_Popup();
+            OCPOLPUP::Occupation_Policy_Popup(world_state);
             COLONY::Col_Calc_Wrapper(COLONY::colony_handle);
         }
 
@@ -218,10 +218,10 @@ namespace COLLAND {
         sound::Fadeout_Sound(pod1l_sfx, 10);
         sound::Fadeout_Sound(pod2l_sfx, 10);
 
-        int16_t planet_idx = MOX::colony[COLONY::colony_handle].planet;
-        int16_t star_idx = MOX::planet[planet_idx].star_index;
+        ::game::id_planet planet_idx = MOX::colony[COLONY::colony_handle].planet;
+        int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index;
 
-        if (COLCALC::N_Colonies_And_Outposts_At_Star(star_idx) == 1 && MOX::settings.animations_on) {
+        if (COLCALC::N_Colonies_And_Outposts_At_Star(world_state, star_idx) == 1 && MOX::settings.animations_on) {
             int16_t cy = namestar::Star_Name_Popup_Screen_Center_Y();
             int16_t cx = namestar::Star_Name_Popup_Screen_Center_X();
             namestar::Change_Star_Name_Popup(cx, cy, star_idx, 1);

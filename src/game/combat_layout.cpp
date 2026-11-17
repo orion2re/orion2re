@@ -81,13 +81,13 @@ namespace COMBINIT {
         return -1;
     }
 
-    int8_t __cdecl Ship_Can_Deploy_At(int16_t x, int16_t y, int16_t ship_idx) {
+    int8_t __cdecl Ship_Can_Deploy_At(::game::s_world_state* world_state, int16_t x, int16_t y, int16_t ship_idx) {
         int8_t result = 1;
         int16_t size_threshold = 0;
 
         if (MOX::cmbt_colony_id != -1) {
-            int16_t planet_idx = MOX::colony[MOX::cmbt_colony_id].planet;
-            int8_t planet_size = MOX::planet[planet_idx].size;
+            ::game::id_planet planet_idx = MOX::colony[MOX::cmbt_colony_id].planet;
+            int8_t planet_size = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).size;
 
             switch (planet_size) {
                 case PLANET_SIZE_TINY:
@@ -242,7 +242,7 @@ namespace COMBINIT {
                             &x,
                             &y,
                             &deployed_down);
-                    } while (!Ship_Can_Deploy_At(
+                    } while (!Ship_Can_Deploy_At(&::game::world, 
                         x, y, stationary_ship_idx));
 
                     ship->x = x;
@@ -326,7 +326,7 @@ namespace COMBINIT {
         MOX::cur_combat_y = new_combat_y;
 
         COMBAT1::Add_Tactical_Combat_Fields();
-        COMBAT1::Assign_Combat_Grids(MOX::cur_ship);
+        COMBAT1::Assign_Combat_Grids(&::game::world, MOX::cur_ship);
         CMBTDRW1::Refresh_Combat_Screen_Full();
     }
 
@@ -347,7 +347,7 @@ namespace COMBINIT {
                 mouse::Pointer_X() <= 0x27B /* 635 */ &&
                 mouse::Pointer_Y() >= 5 &&
                 mouse::Pointer_Y() <= 0x1DB /* 475 */) {
-                COMBAT1::Assign_Combat_Grids(MOX::cur_ship);
+                COMBAT1::Assign_Combat_Grids(&::game::world, MOX::cur_ship);
                 COMBAT1::Add_Tactical_Combat_Fields();
                 CMBTDRW1::Refresh_Combat_Screen_Full();
                 MOX::last_ship_status = -1;

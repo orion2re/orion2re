@@ -50,7 +50,7 @@ namespace AIMOVE {
                 ship->d.date_of_design++;
 
                 if (ship->d.date_of_design == rules.eel_spawn_frequency) {
-                    auto destination = AIMOVE::Npc_Dest(world, legacy_world::Ship_Id(ship_idx), star_flag2.data());
+                    auto destination = AIMOVE::Npc_Dest(world->state, world, legacy_world::Ship_Id(ship_idx), star_flag2.data());
                     ship->d.date_of_design = 0;
 
                     // Assembly uses d.date_of_design at ship offset +0x61 as the 30-turn eel timer.
@@ -89,7 +89,7 @@ namespace AIMOVE {
             }
 
             if (try_move) {
-                auto destination = AIMOVE::Npc_Dest(world, legacy_world::Ship_Id(ship_idx), star_flag2.data());
+                auto destination = AIMOVE::Npc_Dest(world->state, world, legacy_world::Ship_Id(ship_idx), star_flag2.data());
 
                 if (!destination) {
                     s_MSG msg = {};
@@ -136,7 +136,7 @@ namespace AIMOVE {
         return (int)a->distance_parsecs - (int)b->distance_parsecs;
     }
 
-    std::optional<id_star> Npc_Dest(const game::s_view* world, id_ship ship_id, const uint8_t* star_flags) {
+    std::optional<id_star> Npc_Dest(::game::s_world_state* world_state, const game::s_view* world, id_ship ship_id, const uint8_t* star_flags) {
         const uint32_t ship_idx = legacy_world::Slot(ship_id);
         std::optional<id_star> destination;
         auto orbit = legacy_world::Orbit_Star(&world->ships[ship_idx]);
@@ -161,8 +161,8 @@ namespace AIMOVE {
         for (int16_t i = 0; i < world->Colony_Count(); i++) {
             int8_t owner = world->colonies[i].owner;
             if (owner != -1) {
-                int16_t planet_idx = world->colonies[i].planet;
-                int16_t star_idx = world->planets[planet_idx].star_index;
+                ::game::id_planet planet_idx = world->colonies[i].planet;
+                int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index;
 
                 if (ship_location != star_idx && star_flags[star_idx] == 0) {
                     if (world->players[owner].traits[TRAIT_LUCKY] == 0) {

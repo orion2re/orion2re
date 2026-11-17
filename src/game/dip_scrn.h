@@ -277,13 +277,13 @@ namespace DIP_SCRN {
 
     void __cdecl Draw_Diplomacy_System();
 
-    void __cdecl Draw_Diplomacy_System_Text(int16_t star_idx, int16_t selected_planet_idx);
+    void __cdecl Draw_Diplomacy_System_Text(::game::s_world_state* world_state, int16_t star_idx, int16_t selected_planet_idx);
 
     int16_t __cdecl Diplomacy_Offer_Money(int16_t player_idx, int16_t target_idx, int8_t do_transaction);
 
     void __cdecl Start_Diplomacy_Music(int16_t music_type);
 
-    int16_t __cdecl Diplomacy_System_Scan(int16_t star_idx, int16_t player_idx, int16_t* capitol_planet_idx, int16_t* owned_count, int16_t* planet_indices);
+    int16_t __cdecl Diplomacy_System_Scan(::game::s_world_state* world_state, int16_t star_idx, int16_t player_idx, int16_t* capitol_planet_idx, int16_t* owned_count, int16_t* planet_indices);
 
     void __cdecl Diplomacy_Generic_System_List_Draw();
 } // namespace DIP_SCRN

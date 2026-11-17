@@ -1,3 +1,4 @@
+#include "../fixtures/planet_state.h"
 #include "pch.h"
 
 #include "doctest/doctest.h"
@@ -91,7 +92,7 @@ namespace {
             (BITMAP(MAX_STARS) - BITMAP(ORIGINAL_MAX_STARS)) - 2;
         for (size_t i = 0; i < ORIGINAL_MAX_STARS; ++i) {
             for (size_t j = 0; j < 5; ++j) {
-                const int16_t planet = (i * 5 + j) % (ORIGINAL_MAX_PLANETS - 1);
+                const ::game::id_planet planet = (i * 5 + j) % (ORIGINAL_MAX_PLANETS - 1);
                 memcpy(stars + i * LEGACY_STAR_SIZE + planet_offset + j * sizeof(planet), &planet, sizeof(planet));
             }
         }
@@ -124,7 +125,7 @@ namespace {
         s_colony expected = {};
         expected.owner = -1;
         expected.allocated_to = -1;
-        expected.planet = -1;
+        expected.planet = ::game::NO_PLANET;
         expected.officer = -1;
         return memcmp(&colony, &expected, sizeof(colony)) == 0;
     }
@@ -339,14 +340,14 @@ namespace {
         Fill_Messages_();
 
         MOX::NUM_COLONIES = 700;
-        MOX::planet_count = 900;
+        test::Resize_Planets(&::game::world, 900);
         MOX::NUM_STARS = 512;
-        for (int i = 0; i < MOX::planet_count; ++i) {
+        for (int i = 0; i < ::game::Planet_Count(&::game::world); ++i) {
             state.planets[i].star_index = i % MOX::NUM_STARS;
             state.planets[i].orbit = i % 5;
         }
         for (int i = 0; i < MOX::NUM_STARS; ++i) {
-            for (int j = 0; j < 5; ++j) state.stars[i].planet_index[j] = (i * 5 + j) % MOX::planet_count;
+            for (int j = 0; j < 5; ++j) state.stars[i].planet_index[j] = (i * 5 + j) % ::game::Planet_Count(&::game::world);
         }
         MOX::NUM_PLAYERS = 8;
         MOX::NUM_SHIPS = 1000;
@@ -392,7 +393,7 @@ namespace {
         memset(MSG_::max_msgs, 0, sizeof(MSG_::max_msgs));
         memset(MSG_::n_msgs, 0, sizeof(MSG_::n_msgs));
         MOX::NUM_COLONIES = 0;
-        MOX::planet_count = 0;
+        test::Resize_Planets(&::game::world, 0);
         MOX::NUM_STARS = 0;
         MOX::NUM_PLAYERS = 0;
         MOX::NUM_SHIPS = 0;
@@ -483,8 +484,8 @@ namespace {
         for (int i = MOX::NUM_COLONIES; i < MAX_COLONIES; ++i) {
             DOCTEST_CHECK((Is_Unused_Colony_(actual.colonies[i])));
         }
-        DOCTEST_CHECK((memcmp(expected.planets, actual.planets, MOX::planet_count * sizeof(*expected.planets)) == 0));
-        for (int i = MOX::planet_count; i < MAX_PLANETS; ++i) {
+        DOCTEST_CHECK((memcmp(expected.planets, actual.planets, test::Resize_Planets(&::game::world) * sizeof(*expected.planets), = 0)));
+        for (int i = ::game::Planet_Count(&::game::world); i < MAX_PLANETS; ++i) {
             DOCTEST_CHECK((Is_Unused_Planet_(actual.planets[i])));
         }
         DOCTEST_CHECK((memcmp(expected.stars, actual.stars, MOX::NUM_STARS * sizeof(*expected.stars)) == 0));
@@ -945,7 +946,7 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
     memset(&expected.colonies[699], 0, sizeof(expected.colonies[699]));
     expected.colonies[699].owner = -1;
     expected.colonies[699].allocated_to = -1;
-    expected.colonies[699].planet = -1;
+    expected.colonies[699].planet = ::game::NO_PLANET;
     expected.colonies[699].officer = -1;
     DOCTEST_CHECK((writer.Length() < SAVEGAME::BUFFER_CAPACITY));
 
@@ -1214,7 +1215,7 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
         DOCTEST_CHECK(memcmp(MSG_::max_msgs, expected_max_msgs, sizeof(expected_max_msgs)) == 0);
         DOCTEST_CHECK(memcmp(MSG_::n_msgs, expected_n_msgs, sizeof(expected_n_msgs)) == 0);
         DOCTEST_CHECK(MOX::NUM_COLONIES == (format == 0 ? 700 : 249));
-        DOCTEST_CHECK(MOX::planet_count == (format == 0 ? 900 : 359));
+        DOCTEST_CHECK(test::Resize_Planets(&::game::world, = (format == 0 ? 900 : 359)));
         DOCTEST_CHECK(MOX::NUM_STARS == (format == 0 ? 512 : 71));
         DOCTEST_CHECK(MOX::NUM_PLAYERS == 8);
         DOCTEST_CHECK(MOX::NUM_SHIPS == (format == 0 ? 1000 : 499));
@@ -1281,7 +1282,7 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
         "Error loading config: package not found: 'saved-balance'");
     DOCTEST_CHECK(SAVEGAME::Consume_Loaded_Config_Message().empty());
     DOCTEST_CHECK(TEST_CONFIG_SNAPSHOT::commit_count == 1);
-    MOX::planet_count = 1;
+    test::Resize_Planets(&::game::world, 1);
     actual.planets[0].food_per_farmer = 77;
     MOX::cur_map_x = 321;
     SERIAL::Reader_ legacy_config_failure_reader(
@@ -1291,7 +1292,7 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
         &legacy_config_failure_reader, &unavailable_package_metadata, &unavailable_package_settings, &unavailable_package_seed, &unavailable_package_error));
     DOCTEST_CHECK(unavailable_package_error ==
         "Error loading config: unable to activate vanilla config");
-    DOCTEST_CHECK(MOX::planet_count == 1);
+    DOCTEST_CHECK(test::Resize_Planets(&::game::world, = 1));
     DOCTEST_CHECK((actual.planets[0].food_per_farmer == 77));
     DOCTEST_CHECK(MOX::cur_map_x == 321);
     DOCTEST_CHECK(TEST_CONFIG_SNAPSHOT::commit_count == 1);
@@ -1300,7 +1301,7 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
 
     Bind_State_(actual);
     Clear_State_(actual);
-    MOX::planet_count = 1;
+    test::Resize_Planets(&::game::world, 1);
     actual.planets[0].food_per_farmer = 77;
     MOX::cur_map_x = 321;
     SERIAL::Reader_ missing_extension_reader(
@@ -1316,7 +1317,7 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
         &missing_extension_error));
     DOCTEST_CHECK((missing_extension_error.find("save extensions") !=
         std::string::npos));
-    DOCTEST_CHECK(MOX::planet_count == 1);
+    DOCTEST_CHECK(test::Resize_Planets(&::game::world, = 1));
     DOCTEST_CHECK((actual.planets[0].food_per_farmer == 77));
     DOCTEST_CHECK(MOX::cur_map_x == 321);
     DOCTEST_CHECK(TEST_CONFIG_SNAPSHOT::commit_count == 1);
@@ -1494,9 +1495,9 @@ DOCTEST_TEST_CASE("save validation rejects corrupt input and restores the prior 
     const auto setup = [&]() {
         Clear_State_(*state);
         MOX::NUM_PLAYERS = 2;
-        MOX::NUM_COLONIES = MOX::planet_count = MOX::NUM_STARS = MOX::NUM_SHIPS = 1;
+        MOX::NUM_COLONIES = test::Resize_Planets(&::game::world, MOX::NUM_STARS = MOX::NUM_SHIPS = 1);
         MOX::max_map_scale = MOX::cur_map_scale = 10;
-        for (int j = 1; j < 5; ++j) state->stars[0].planet_index[j] = -1;
+        for (int j = 1; j < 5; ++j) state->stars[0].planet_index[j] = ::game::NO_PLANET;
     };
     const auto load = [&](uint32_t size) {
         SERIAL::Reader_ reader(bytes.data(), size, "save underflow", true);

@@ -7,7 +7,7 @@ namespace {
 
     s_ship_data ships[1];
     s_star_data stars[1];
-    s_planet_data planets[1];
+
     s_colony colonies[1];
 }
 
@@ -20,7 +20,7 @@ namespace TEST_DIPLOMAC {
         game::Reset_Leaders(&game::world);
         MOX::ship = ships;
         MOX::star = stars;
-        MOX::planet = planets;
+
         MOX::colony = colonies;
         MOX::NUM_PLAYERS = 2;
         MOX::NUM_SHIPS = 0;

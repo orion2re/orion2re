@@ -5,7 +5,7 @@ namespace CMBTDRW1 {
         return (grid_y * 3 * ORIGINAL_COMBAT_GRID_HEIGHT) / (2 * MOX::combat_grid_height) + 364;
     }
 
-    void __cdecl Draw_Current_Ship_Blip() {
+    void __cdecl Draw_Current_Ship_Blip(::game::s_world_state* world_state) {
         if (MOX::cur_ship < 0 || MOX::cur_ship >= MOX::combat_total_ship_count) return;
 
         int16_t blip_x = (MOX::combat_data[MOX::cur_ship].x * 3) / 2 + 500;
@@ -15,7 +15,7 @@ namespace CMBTDRW1 {
         int16_t blip_frame = blip_frame_arr[(MOX::ship_frame / 2) % 4];
 
         if (MOX::cur_ship == 0) {
-            int8_t p_size = MOX::planet[MOX::colony[MOX::cmbt_colony_id].planet].size;
+            int8_t p_size = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(MOX::colony[MOX::cmbt_colony_id].planet))).size;
             if (p_size == 0) {
                 Draw_Blip4(blip_x, blip_y, 0x60, blip_frame);
             } else if (p_size > 0 && p_size < PLANET_SIZE_COUNT) {
@@ -55,7 +55,7 @@ namespace CMBTDRW1 {
         }
     }
 
-    void __cdecl Draw_Reduced_Combat_Map() {
+    void __cdecl Draw_Reduced_Combat_Map(::game::s_world_state* world_state) {
         int16_t x_pos, y_pos;
         int8_t planet_size;
 
@@ -63,7 +63,7 @@ namespace CMBTDRW1 {
             y_pos = Reduced_Map_Y(MOX::combat_data[0].y);
             x_pos = (MOX::combat_data[0].x * 3) / 2 + 500 /* 0x1f4 */;
 
-            planet_size = MOX::planet[MOX::colony[MOX::cmbt_colony_id].planet].size;
+            planet_size = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(MOX::colony[MOX::cmbt_colony_id].planet))).size;
 
             if (planet_size == 0) {
                 Draw_Blip4(x_pos, y_pos, 0x60, 0);

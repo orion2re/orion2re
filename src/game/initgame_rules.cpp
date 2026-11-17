@@ -161,7 +161,7 @@ namespace INITGAME {
 
         MOX::player[MOX::PLAYER_NUM].contact[MOX::PLAYER_NUM] = 1;
         RUSS::Mox_Update();
-        HOMEGEN::Assign_Home_Star_Names();
+        HOMEGEN::Assign_Home_Star_Names(&::game::world);
         RUSS::Mox_Update();
         diplomac::Init_Diplomatic_Relations();
         RUSS::Mox_Update();

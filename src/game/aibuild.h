@@ -108,7 +108,7 @@ namespace AIBUILD {
     /** Buys out eligible colony production for one player while funds allow.
      * @param player_idx Player index whose colonies may buy production outright.
      */
-    void Empire_Buy_Outright(AIDATA::s_state* ai, const game::s_view* world, game::id_player player_idx);
+    void Empire_Buy_Outright(::game::s_world_state* world_state, AIDATA::s_state* ai, const game::s_view* world, game::id_player player_idx);
 
     /** Marks which buildings a colony is currently allowed to construct.
      * @param colony Colony to inspect.
@@ -120,14 +120,14 @@ namespace AIBUILD {
      * @param colony Colony being evaluated.
      * @param building_id Building or product id to score.
      */
-    int16_t __cdecl Colony_Building_Score(AIDATA::s_state* ai, const game::s_view* world, game::id_colony colony_id, struct s_colony* colony, int16_t building_id);
+    int16_t __cdecl Colony_Building_Score(::game::s_world_state* world_state, AIDATA::s_state* ai, const game::s_view* world, game::id_colony colony_id, struct s_colony* colony, int16_t building_id);
 
     /** Builds normalized deterministic production facts for one colony.
      * @param colony Colony to inspect.
      * @param war_level Effective strategic war level, or minus one to calculate it.
      * @param context Output production context.
      */
-    void Build_Production_Context(AIDATA::s_state* ai, const game::s_view* world, game::id_colony colony_id, const struct s_colony* colony, int32_t war_level, production_rules::s_context* context);
+    void Build_Production_Context(::game::s_world_state* world_state, AIDATA::s_state* ai, const game::s_view* world, game::id_colony colony_id, const struct s_colony* colony, int32_t war_level, production_rules::s_context* context);
 
     /** Reassigns colony production when the current build should be replaced.
      * @param colony Colony whose production is being checked.

@@ -398,7 +398,7 @@ namespace DIP_SCRN {
                         Get_Human_Gift_Response(player_idx, target_idx, 4, system_idx);
                     }
 
-                    if (COLCALC::May_Surrender_Star(system_idx, player_idx, target_idx)) {
+                    if (COLCALC::May_Surrender_Star(&::game::world, system_idx, player_idx, target_idx)) {
                         COLCALC::Surrender_Star(system_idx, player_idx, target_idx);
                     }
                 }
@@ -712,7 +712,7 @@ namespace DIP_SCRN {
 
                 // has_colony is treated as a bitmask where bit N indicates player N has a colony
                 if (((MOX::star[star_idx].has_colony >> (player_a & 0x1F)) & 1) != 0) {
-                    if (COLCALC::May_Surrender_Star(star_idx, player_a, player_b)) {
+                    if (COLCALC::May_Surrender_Star(&::game::world, star_idx, player_a, player_b)) {
                         surrender_count++;
                     }
                 }
@@ -764,7 +764,7 @@ namespace DIP_SCRN {
                 MOX::player[current_ambassador].bc += bc;
                 return 1;
             case 2:
-                if (COLCALC::May_Surrender_Star(star_idx, MOX::PLAYER_NUM, current_ambassador)) {
+                if (COLCALC::May_Surrender_Star(&::game::world, star_idx, MOX::PLAYER_NUM, current_ambassador)) {
                     COLCALC::Surrender_Star(star_idx, MOX::PLAYER_NUM, current_ambassador);
                 }
                 return 1;
@@ -825,7 +825,7 @@ namespace DIP_SCRN {
      * @param planet_indices Output: Array of indices for the planets owned by the player.
      * @return The player index if colonies exist, otherwise the original star owner.
      */
-    int16_t __cdecl Diplomacy_System_Scan(int16_t star_idx, int16_t player_idx, int16_t* capitol_planet_idx, int16_t* owned_count, int16_t* planet_indices) {
+    int16_t __cdecl Diplomacy_System_Scan(::game::s_world_state* world_state, int16_t star_idx, int16_t player_idx, int16_t* capitol_planet_idx, int16_t* owned_count, int16_t* planet_indices) {
         *capitol_planet_idx = -1;
         *owned_count = 0;
 
@@ -834,9 +834,9 @@ namespace DIP_SCRN {
         // Check if the player has any colonies in this system using a bitmask
         if ((star->has_colony >> (uint8_t)player_idx) & 1) {
             for (int16_t i = 0; i < 5; ++i) {
-                int16_t planet_idx = star->planet_index[i];
-                if (planet_idx != -1) {
-                    int16_t colony_idx = MOX::planet[planet_idx].colony_index;
+                ::game::id_planet planet_idx = star->planet_index[i];
+                if (planet_idx != ::game::NO_PLANET) {
+                    int16_t colony_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index;
                     if (colony_idx != -1) {
                         s_colony* colony = &MOX::colony[colony_idx];
                         if (colony->owner == (int8_t)player_idx) {
@@ -962,9 +962,9 @@ namespace DIP_SCRN {
             return;
         }
 
-        for (int16_t p_idx = 0; p_idx < (int16_t)MOX::NUM_PLAYERS; ++p_idx) {
+        for (int16_t p_idx_position = 0; p_idx_position < (int16_t)MOX::NUM_PLAYERS; ++p_idx_position) {
             for (int16_t target_idx = 0; target_idx < (int16_t)MOX::NUM_PLAYERS; ++target_idx) {
-                s_player& player = MOX::player[p_idx];
+                s_player& player = MOX::player[p_idx_position];
                 s_player& target = MOX::player[target_idx];
 
                 bool valid_opportunity = false;
@@ -977,7 +977,7 @@ namespace DIP_SCRN {
                         // Condition for the target:
                         // Must have reached 100 objectives, must be a different player,
                         // must not be eliminated, and must be in contact and within range.
-                        if (target.objectives == PLAYER_OBJECTIVE_HUMAN && p_idx != target_idx && target.eliminated == 0 &&
+                        if (target.objectives == PLAYER_OBJECTIVE_HUMAN && p_idx_position != target_idx && target.eliminated == 0 &&
                             player.contact[target_idx] == 1 && player.within_range[target_idx] == 1) {
                             valid_opportunity = true;
                         }
@@ -985,13 +985,13 @@ namespace DIP_SCRN {
                 }
 
                 if (valid_opportunity) {
-                    auto attack = AIMOVE::Find_Opportunity_Attack(&AIDATA::state, &game::current, legacy_world::Player_Id(p_idx), legacy_world::Player_Id(target_idx), 100);
+                    auto attack = AIMOVE::Find_Opportunity_Attack(&AIDATA::state, &game::current, legacy_world::Player_Id(p_idx_position), legacy_world::Player_Id(target_idx), 100);
                     auto planet_index = attack ? legacy_world::Index(attack->planet_id) : std::nullopt;
                     player.opportunity_planet_num[target_idx] = planet_index.value_or(-1);
                     player.opportunity_planet_value[target_idx] = planet_index ? attack->colony_value : 0;
                     player.opportunity_actual_attacker_ratio[target_idx] = planet_index ? attack->strength_ratio_percent : 0;
                 } else {
-                    player.opportunity_planet_num[target_idx] = -1;
+                    player.opportunity_planet_num[target_idx] = ::game::NO_PLANET;
                     player.opportunity_planet_value[target_idx] = 0;
                     player.opportunity_actual_attacker_ratio[target_idx] = 0;
                 }
@@ -1425,7 +1425,7 @@ namespace DIP_SCRN {
                         Diplomacy_Display_Response();
                         break;
                     case 0x6a:
-                        if (MOX::player[current_ambassador].opportunity_planet_num[MOX::PLAYER_NUM] != -1) {
+                        if (MOX::player[current_ambassador].opportunity_planet_num[MOX::PLAYER_NUM] != ::game::NO_PLANET) {
                             MOX::player[current_ambassador].sneak_attack_planet = MOX::player[current_ambassador].opportunity_planet_num[MOX::PLAYER_NUM];
                             MOX::player[current_ambassador].sneak_attack_player = (int8_t)MOX::PLAYER_NUM;
                             MOX::player[current_ambassador].sneak_attack_message =
@@ -2185,7 +2185,7 @@ namespace DIP_SCRN {
         }
 
         if (MOX::player[player_idx].diplomacy_proposal_system_bribe[target_idx] != -1) {
-            if (COLCALC::May_Surrender_Star(
+            if (COLCALC::May_Surrender_Star(&::game::world, 
                     MOX::player[player_idx].diplomacy_proposal_system_bribe[target_idx],
                     player_idx,
                     target_idx)) {

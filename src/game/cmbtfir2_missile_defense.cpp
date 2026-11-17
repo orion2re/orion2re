@@ -92,7 +92,7 @@ namespace CMBTFIR2 {
         int16_t center_y_offset;
         int16_t saved_active[8];
 
-        COMBINIT::Ship_Center_Offsets(ship_idx, &center_x_offset, &center_y_offset);
+        COMBINIT::Ship_Center_Offsets(&::game::world, ship_idx, &center_x_offset, &center_y_offset);
 
         if (CMBTAI::Will_Missile_Do_Damage(ship_idx, missile_idx) != 0) {
             int16_t m_type = MOX::missile[missile_idx].type;

@@ -5,13 +5,8 @@
 #include "lua/lua_game_ship_identity.h"
 
 namespace SHIPS {
-    void __cdecl Clear_Auto_Colonization_Flag(s_ship_data* ship) {
-        uint8_t ship_type = ship->d.ship_type;
-
-        if (ship_type == SHIP_TYPE_COLONY || ship_type == SHIP_TYPE_OUTPOST) {
-            ship->d.ship_weapon[0].type = -1;
-            ship->d.ship_weapon[1].type = 0;
-        }
+    void Clear_Auto_Colonization_Flag(s_ship_data* ship) {
+        ship->auto_colonize_target.reset();
     }
 } // namespace SHIPS
 
@@ -189,7 +184,7 @@ namespace SHIPMOVE {
             }
 
             if (move_info->moving != 0) {
-                SHIPMOVE::Make_Ships_Move_To(ship_list, destination_star_idx, move_info);
+                SHIPMOVE::Make_Ships_Move_To(&::game::world, ship_list, destination_star_idx, move_info);
                 return;
             }
 
@@ -653,7 +648,7 @@ namespace SHIPMOVE {
      * @param destination_star_idx Destination star index before location encoding.
      * @param move_info Precomputed movement result to apply.
      */
-    void __cdecl Make_Ships_Move_To(int16_t* ship_list, int16_t destination_star_idx, s_ship_move_info* move_info) {
+    void __cdecl Make_Ships_Move_To(::game::s_world_state* world_state, int16_t* ship_list, int16_t destination_star_idx, s_ship_move_info* move_info) {
         int8_t move_status;
         int i = 0;
         int16_t destination_location = destination_star_idx;
@@ -711,9 +706,9 @@ namespace SHIPMOVE {
             ship->status = move_status;
 
             if (ship->d.ship_type == SHIP_TYPE_COLONY || ship->d.ship_type == SHIP_TYPE_OUTPOST) {
-                int16_t planet_idx = ship->d.ship_weapon[0].type;
-                if (planet_idx == PLANET_INDEX_NONE ||
-                    MOX::planet[planet_idx].star_index != destination_star_idx) {
+                const auto planet_idx = ship->auto_colonize_target.value_or(game::NO_PLANET);
+                const auto* target = game::Find_Planet(world_state, planet_idx);
+                if (target == nullptr || target->star_index != destination_star_idx) {
                     SHIPS::Clear_Auto_Colonization_Flag(ship);
                 }
             }
@@ -1000,7 +995,7 @@ namespace SHIPMOVE {
 
         if (player_idx < MAX_PLAYERS) {
             if (!SHIPMOVE::Star_In_Range_Of_Player(target_star, (int16_t)player_idx, (int16_t)min_range)) {
-                int16_t closest_star = COMBFIND::Closest_Other_Colony_Star((int16_t)player_idx, target_star_idx);
+                int16_t closest_star = COMBFIND::Closest_Other_Colony_Star(world_state, (int16_t)player_idx, target_star_idx);
                 if (closest_star != -1) {
                     move_info->parsecs = (uint8_t)GEO::Parsecs_Between_Stars(closest_star, target_star_idx);
                 }
@@ -1267,7 +1262,7 @@ namespace SHIPMOVE {
     /**
      * Clears ignore-combat flags from stars where no opposing force remains.
      */
-    void __cdecl Reset_Needless_Ignore_Combat_Ships_Flags() {
+    void __cdecl Reset_Needless_Ignore_Combat_Ships_Flags(::game::s_world_state* world_state) {
         uint16_t presence_mask[MAX_STARS]; // Tracks which players have assets at each star
         memset(presence_mask, 0, sizeof(presence_mask));
 
@@ -1287,7 +1282,7 @@ namespace SHIPMOVE {
             for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
                 s_colony* colony = &MOX::colony[i];
                 if (colony->owner != -1) {
-                    int16_t star_index = MOX::planet[colony->planet].star_index;
+                    int16_t star_index = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony->planet))).star_index;
                     presence_mask[star_index] |= (1 << colony->owner);
                 }
             }

@@ -1,7 +1,7 @@
 #pragma once
 
 namespace HAROLD {
-    uint32_t __cdecl Is_Colony_Star(int16_t star_idx);
+    uint32_t __cdecl Is_Colony_Star(::game::s_world_state* world_state, int16_t star_idx);
 
     int16_t __cdecl Get_Scaled_Value(int16_t value);
 
@@ -11,19 +11,19 @@ namespace HAROLD {
 
     bool __cdecl Is_Home_Star(int16_t star_idx);
 
-    uint8_t __cdecl N_Planets_In_System(int16_t star_idx);
+    uint8_t __cdecl N_Planets_In_System(::game::s_world_state* world_state, int16_t star_idx);
 
-    int16_t __cdecl N_Colony_Owners(int16_t star_idx);
+    int16_t __cdecl N_Colony_Owners(::game::s_world_state* world_state, int16_t star_idx);
 
     uint8_t __cdecl N_Satellites(int16_t star_index);
 
     void __cdecl Set_Wormhole_Id(int16_t star_idx, uint8_t* star_bitmap);
 
-    int16_t __cdecl N_Food_Planets_In_System(int16_t system_index);
+    int16_t __cdecl N_Food_Planets_In_System(::game::s_world_state* world_state, int16_t system_index);
 
     bool __cdecl Star_Is_Orion(int16_t star_idx);
 
-    bool __cdecl Star_Is_Outpost_Star(int16_t star_idx);
+    bool __cdecl Star_Is_Outpost_Star(::game::s_world_state* world_state, int16_t star_idx);
 
     bool __cdecl Habitable_Spectral_Class(int16_t star_idx);
 
@@ -35,9 +35,9 @@ namespace HAROLD {
     void __cdecl Set_Sound_Volume_To_Settings();
 
     /** Verifies that planet/star orbit links are internally consistent. */
-    void __cdecl Confirm_Planet_And_Star_Index_Link(const char* unused_context);
+    void __cdecl Confirm_Planet_And_Star_Index_Link(::game::s_world_state* world_state, const char* unused_context);
 
-    int8_t __cdecl Planet_Number(int16_t planet_index);
+    int8_t __cdecl Planet_Number(::game::s_world_state* world_state, ::game::id_planet planet_index);
 
     void __cdecl Set_All_Visited_Flags();
 
@@ -137,7 +137,7 @@ namespace HAROLD {
 
     bool __cdecl Contact_With_Player(int16_t player_idx, int16_t target_idx);
 
-    char __cdecl Contact_With_One_Colony(int16_t star_idx);
+    char __cdecl Contact_With_One_Colony(::game::s_world_state* world_state, int16_t star_idx);
 
     bool __cdecl Player_Has_Stargate(int16_t player_idx, int16_t star_idx);
 
@@ -146,9 +146,9 @@ namespace HAROLD {
     bool __cdecl Player_Has_Colony(int16_t player_num, int16_t star_idx);
 
     /** Returns whether any planet in the system currently hosts an outpost. */
-    bool __cdecl Player_Has_Outpost(int16_t unused_player_num, int16_t star_idx);
+    bool __cdecl Player_Has_Outpost(::game::s_world_state* world_state, int16_t unused_player_num, int16_t star_idx);
 
-    int8_t __cdecl Planet_Has_Outpost(int16_t planet_idx);
+    int8_t __cdecl Planet_Has_Outpost(::game::s_world_state* world_state, ::game::id_planet planet_idx);
 
     uint8_t __cdecl Player_Has_Visited(int16_t player_idx, int16_t star_idx);
 
@@ -160,13 +160,13 @@ namespace HAROLD {
 
     bool __cdecl Star_Has_Dimensional_Portal(s_star_data* star);
 
-    int16_t __cdecl Planet_Type(int16_t star_idx, int16_t star_planet);
+    int16_t __cdecl Planet_Type(::game::s_world_state* world_state, int16_t star_idx, int16_t star_planet);
 
-    void __cdecl Colony_Owners(int16_t star_idx, int16_t* player_counts, int16_t* total_count, bool have_contact);
+    void __cdecl Colony_Owners(::game::s_world_state* world_state, int16_t star_idx, int16_t* player_counts, int16_t* total_count, bool have_contact);
 
     int16_t __cdecl Players_Home_Star(int16_t star_idx);
 
-    int16_t __cdecl Planet_Index(int16_t star_idx, int16_t planet_idx);
+    ::game::id_planet Planet_Index(int16_t star_idx, ::game::id_planet planet_idx);
 
     extern const char s_after_home_world_gen[];
 

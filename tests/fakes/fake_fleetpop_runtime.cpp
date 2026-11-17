@@ -1,10 +1,11 @@
+#include "../fixtures/planet_state.h"
 #include "pch.h"
 
 namespace TEST_FLEETPOP {
     void Reset_() {
         memset(MOX::ship, 0, sizeof(s_ship_data) * MAX_SHIPS);
         memset(MOX::star, 0xff, sizeof(s_star_data) * (MAX_STARS + 1));
-        memset(MOX::planet, 0, sizeof(s_planet_data) * MAX_PLANETS);
+        game::world.planets.clear();
         memset(MOX::player, 0, sizeof(s_player) * MAX_PLAYERS);
         memset(MOX::colony, 0, sizeof(s_colony) * MAX_COLONIES);
         for (int i = 0; i <= MAX_STARS; ++i) MOX::star[i].visited = 0;
@@ -26,6 +27,6 @@ namespace TEST_FLEETPOP {
         MOX::ship[0].d.ship_type = SHIP_TYPE_OUTPOST;
         MOX::star[1].colonize_player = 0;
         MOX::star[1].planet_index[0] = 0;
-        MOX::planet[0].colony_index = -1;
+        test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).colony_index = -1;
     }
 }

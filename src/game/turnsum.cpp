@@ -189,7 +189,7 @@ namespace TURNSUM {
 
                     if (input_field >= INFO::g_first_list_field && input_field <= INFO::g_last_list_field) {
                         uint8_t msg_idx = g_selected_msg_p->group_id;
-                        if (MSG_::Goto_Msg_Colony(&MSG_::msgs[msg_idx]) != 0) {
+                        if (MSG_::Goto_Msg_Colony(&::game::world, &MSG_::msgs[msg_idx]) != 0) {
                             input_field = field_hidden_bg;
                             MOX::current_screen = SCREEN_COLONY;
                             MOX::return_screen = SCREEN_TURN_SUMMARY;

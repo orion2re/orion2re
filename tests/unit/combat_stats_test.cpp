@@ -1,3 +1,4 @@
+#include "../fixtures/planet_state.h"
 #include "pch.h"
 
 #include "doctest/doctest.h"
@@ -322,7 +323,7 @@ namespace COMBINIT {
         return 0;
     }
 
-    void __cdecl Ship_Center_Offsets(int16_t, int16_t* out_x, int16_t* out_y) {
+    void __cdecl Ship_Center_Offsets(::game::s_world_state* world_state, int16_t, int16_t* out_x, int16_t* out_y) {
         *out_x = ship_center_offset_x;
         *out_y = ship_center_offset_y;
     }
@@ -748,11 +749,11 @@ DOCTEST_TEST_CASE("tactical planets use size-specific draw offsets") {
     MOX::colony[0].planet = 0;
 
     for (const s_planet_draw_offset_case test_case : cases) {
-        MOX::planet[0].size = test_case.size;
+        test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).size = test_case.size;
 
         int16_t x = -1;
         int16_t y = -1;
-        CMBTDRW1::Get_Draw_Ship_Offsets(0, &x, &y);
+        CMBTDRW1::Get_Draw_Ship_Offsets(&::game::world, 0, &x, &y);
 
         DOCTEST_CHECK(x == test_case.x);
         DOCTEST_CHECK(y == test_case.y);
@@ -761,7 +762,7 @@ DOCTEST_TEST_CASE("tactical planets use size-specific draw offsets") {
     MOX::cmbt_colony_id = -1;
     int16_t x = -1;
     int16_t y = -1;
-    CMBTDRW1::Get_Draw_Ship_Offsets(0, &x, &y);
+    CMBTDRW1::Get_Draw_Ship_Offsets(&::game::world, 0, &x, &y);
 
     DOCTEST_CHECK(x == 7);
     DOCTEST_CHECK(y == 7);
@@ -873,7 +874,7 @@ DOCTEST_TEST_CASE("current ship blip is skipped without a current ship") {
     for (int16_t cur_ship : {-1, 2}) {
         MOX::cur_ship = cur_ship;
         drawn_positions.clear();
-        CMBTDRW1::Draw_Current_Ship_Blip();
+        CMBTDRW1::Draw_Current_Ship_Blip(&::game::world);
         DOCTEST_CHECK(drawn_positions.empty());
     }
 }
@@ -899,7 +900,7 @@ DOCTEST_TEST_CASE("current ship minimap pulse matches static blips on classic an
             for (int8_t size = 0; size < SHIP_SIZE_COUNT; ++size) {
                 MOX::combat_data[1].size_class = size;
                 drawn_positions.clear();
-                CMBTDRW1::Draw_Reduced_Combat_Map();
+                CMBTDRW1::Draw_Reduced_Combat_Map(&::game::world);
                 DOCTEST_REQUIRE_FALSE(drawn_positions.empty());
                 const s_draw_position static_position = drawn_positions.front();
                 DOCTEST_CHECK(static_position.x == 560);
@@ -908,7 +909,7 @@ DOCTEST_TEST_CASE("current ship minimap pulse matches static blips on classic an
                 for (int16_t frame = 0; frame < 8; frame += 2) {
                     MOX::ship_frame = frame;
                     drawn_positions.clear();
-                    CMBTDRW1::Draw_Current_Ship_Blip();
+                    CMBTDRW1::Draw_Current_Ship_Blip(&::game::world);
                     DOCTEST_REQUIRE_FALSE(drawn_positions.empty());
                     DOCTEST_CHECK(drawn_positions.front().x == static_position.x);
                     DOCTEST_CHECK(drawn_positions.front().y == static_position.y);
@@ -937,16 +938,16 @@ DOCTEST_TEST_CASE("current planet minimap pulse matches static planet markers") 
         MOX::combat_grid_height = height;
         MOX::combat_data[0].y = height / 2;
         for (int8_t size = PLANET_SIZE_TINY; size < PLANET_SIZE_COUNT; ++size) {
-            MOX::planet[0].size = size;
+            test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).size = size;
             drawn_positions.clear();
-            CMBTDRW1::Draw_Reduced_Combat_Map();
+            CMBTDRW1::Draw_Reduced_Combat_Map(&::game::world);
             DOCTEST_REQUIRE_FALSE(drawn_positions.empty());
             const s_draw_position static_position = drawn_positions.front();
             DOCTEST_CHECK(static_position.x == 560 + (size == PLANET_SIZE_TINY ? 0 : size - 7));
             DOCTEST_CHECK(static_position.y == 415 + (size == PLANET_SIZE_TINY ? 0 : size - 7));
 
             drawn_positions.clear();
-            CMBTDRW1::Draw_Current_Ship_Blip();
+            CMBTDRW1::Draw_Current_Ship_Blip(&::game::world);
             DOCTEST_REQUIRE_FALSE(drawn_positions.empty());
             DOCTEST_CHECK(drawn_positions.front().x == static_position.x);
             DOCTEST_CHECK(drawn_positions.front().y == static_position.y);
@@ -968,7 +969,7 @@ DOCTEST_TEST_CASE("high-slot flyers use the expanded minimap scale") {
     missile->y = (MAX_COMBAT_GRID_HEIGHT - 1) * 20 + 8;
 
     drawn_positions.clear();
-    CMBTDRW1::Draw_Reduced_Combat_Map();
+    CMBTDRW1::Draw_Reduced_Combat_Map(&::game::world);
     DOCTEST_REQUIRE(drawn_positions.size() == 1);
     DOCTEST_CHECK(drawn_positions.front().x == 560);
     DOCTEST_CHECK(drawn_positions.front().y == 465);

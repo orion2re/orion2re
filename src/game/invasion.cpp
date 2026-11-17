@@ -306,7 +306,7 @@ namespace invasion {
         }
 
         if (best_colony_idx == -1) {
-            MOX::player[player_idx].home_planet_id = -1;
+            MOX::player[player_idx].home_planet_id = ::game::NO_PLANET;
         } else {
             MOX::player[player_idx].home_planet_id = MOX::colony[best_colony_idx].planet;
         }
@@ -314,7 +314,7 @@ namespace invasion {
 
     int __cdecl Unload_Transports(s_colony* colony, int16_t* transport_ship_ids, int num_transports) {
         int count = 0;
-        int limit = Colony_Infantry_Limit(colony);
+        int limit = Colony_Infantry_Limit(&::game::world, colony);
 
         if (colony->military[0] < limit) {
             while (count < num_transports) {
@@ -399,7 +399,7 @@ namespace invasion {
 
             if (rebel_side.current_troop_type_idx < 4) {
                 Change_Colony_Ownership(colony, rebel_side.player_id, 0);
-                Resolve_Rebellion_Troops(rebel_side);
+                Resolve_Rebellion_Troops(&::game::world, rebel_side);
                 colony->just_produced = COLONY_PRODUCTION_JUST_LIBERATED;
             }
         }
@@ -436,9 +436,9 @@ namespace invasion {
         Compute_Ground_Combat_Info(side_b, &side_b->combat_modifiers, &side_a->combat_modifiers);
     }
 
-    void __cdecl Resolve_Rebellion_Troops(s_invasion_side_info info) {
+    void __cdecl Resolve_Rebellion_Troops(::game::s_world_state* world_state, s_invasion_side_info info) {
         s_colony* colony = &MOX::colony[info.colony_id];
-        int16_t limit = (int16_t)Colony_Infantry_Limit(colony);
+        int16_t limit = (int16_t)Colony_Infantry_Limit(world_state, colony);
 
         if (info.unit_counts[3] < 4) {
             colony->military[0] = info.unit_counts[3];
@@ -450,12 +450,12 @@ namespace invasion {
             colony->military[0] = limit;
         }
 
-        COLCALC::Compute_Star_Colony_Stuff(&MOX::star[MOX::planet[colony->planet].star_index]);
+        COLCALC::Compute_Star_Colony_Stuff(world_state, &MOX::star[::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony->planet))).star_index]);
     }
 
-    void __cdecl Resolve_Invasion_Troops(s_invasion_side_info info) {
+    void __cdecl Resolve_Invasion_Troops(::game::s_world_state* world_state, s_invasion_side_info info) {
         s_colony* colony = &MOX::colony[info.colony_id];
-        int16_t limit = (int16_t)Colony_Infantry_Limit(colony);
+        int16_t limit = (int16_t)Colony_Infantry_Limit(world_state, colony);
 
         colony->military[0] = 1;
         int16_t remaining_infantry = info.unit_counts[1] - 1;
@@ -480,10 +480,10 @@ namespace invasion {
             colony->military[0] = limit;
         }
 
-        int16_t planet_idx = colony->planet;
-        int16_t star_idx = MOX::planet[planet_idx].star_index;
+        ::game::id_planet planet_idx = colony->planet;
+        int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index;
 
-        COLCALC::Compute_Star_Colony_Stuff(&MOX::star[star_idx]);
+        COLCALC::Compute_Star_Colony_Stuff(world_state, &MOX::star[star_idx]);
     }
 
     void __cdecl Change_Colony_Ownership(s_colony* colony, uint32_t new_owner_idx, s_battle_results_info* results) {
@@ -493,22 +493,22 @@ namespace invasion {
         // Increase war losses for the old owner against the new owner
         MOX::player[old_owner_idx].colony_war_losses[new_owner_idx] += 10;
 
-        invasion::Change_Pop_Ownership(colony_idx, new_owner_idx);
+        invasion::Change_Pop_Ownership(&::game::world, colony_idx, new_owner_idx);
 
         const int16_t captured_satellite = COMBINIT::Take_Captured_Satellite(colony_idx);
         if (captured_satellite != -1) {
-            ERICNET::Add_Building(colony_idx, captured_satellite);
+            ERICNET::Add_Building(&::game::world, colony_idx, captured_satellite);
         }
 
         // Remove defensive/security buildings upon capture
         if (colony->buildings[BUILDING_ARMOR_BARRACKS] != 0) {
-            ERICNET::Remove_Building(colony_idx, BUILDING_ARMOR_BARRACKS);
+            ERICNET::Remove_Building(&::game::world, colony_idx, BUILDING_ARMOR_BARRACKS);
         }
         if (colony->buildings[BUILDING_MARINE_BARRACKS] != 0) {
-            ERICNET::Remove_Building(colony_idx, BUILDING_MARINE_BARRACKS);
+            ERICNET::Remove_Building(&::game::world, colony_idx, BUILDING_MARINE_BARRACKS);
         }
         if (colony->buildings[BUILDING_ALIEN_CONTROL_CENTER] != 0) {
-            ERICNET::Remove_Building(colony_idx, BUILDING_ALIEN_CONTROL_CENTER);
+            ERICNET::Remove_Building(&::game::world, colony_idx, BUILDING_ALIEN_CONTROL_CENTER);
         }
 
         // Reset military units and roundoff buffers
@@ -593,7 +593,7 @@ namespace invasion {
         }
     }
 
-    void __cdecl Change_Pop_Ownership(int16_t colony_idx, uint32_t new_owner_idx) {
+    void __cdecl Change_Pop_Ownership(::game::s_world_state* world_state, int16_t colony_idx, uint32_t new_owner_idx) {
         s_colony* colony = &MOX::colony[colony_idx];
         int8_t old_owner = colony->owner;
 
@@ -602,7 +602,7 @@ namespace invasion {
         MOX::player[old_owner].colony_war_losses[new_owner_idx] += (uint8_t)colony->n_pops;
 
         if (colony->buildings[BUILDING_CAPITOL] != 0) {
-            ERICNET::Remove_Building(colony_idx, BUILDING_CAPITOL);
+            ERICNET::Remove_Building(world_state, colony_idx, BUILDING_CAPITOL);
         }
 
         if (MOX::player[old_owner].home_planet_id == colony->planet) {
@@ -610,9 +610,9 @@ namespace invasion {
         }
 
         colony->owner = (int8_t)new_owner_idx;
-        COLCALC::Do_Colony_Owner_Change_Star_Colony_Stuff(colony);
+        COLCALC::Do_Colony_Owner_Change_Star_Colony_Stuff(world_state, colony);
 
-        if (MOX::player[new_owner_idx].home_planet_id == -1) {
+        if (MOX::player[new_owner_idx].home_planet_id == ::game::NO_PLANET) {
             MOX::player[new_owner_idx].home_planet_id = colony->planet;
         }
 
@@ -620,11 +620,11 @@ namespace invasion {
 
         if (MOX::player[new_owner_idx].traits[0] / 2 == GOVERNMENT_UNIFICATION / 2) {
             if (colony->buildings[BUILDING_HOLO_SIMULATOR] != 0) {
-                ERICNET::Remove_Building(colony_idx, BUILDING_HOLO_SIMULATOR);
+                ERICNET::Remove_Building(world_state, colony_idx, BUILDING_HOLO_SIMULATOR);
                 MOX::player[new_owner_idx].bc += TECHDATA::buildings[BUILDING_HOLO_SIMULATOR].cost / 2;
             }
             if (colony->buildings[BUILDING_PLEASURE_DOME] != 0) {
-                ERICNET::Remove_Building(colony_idx, BUILDING_PLEASURE_DOME);
+                ERICNET::Remove_Building(world_state, colony_idx, BUILDING_PLEASURE_DOME);
                 MOX::player[new_owner_idx].bc += TECHDATA::buildings[BUILDING_PLEASURE_DOME].cost / 2;
             }
         }
@@ -653,7 +653,7 @@ namespace invasion {
             colony->pop[i] = pop_val;
         }
 
-        COLCALC::Colony_Environmental_Stuff(colony);
+        COLCALC::Colony_Environmental_Stuff(world_state, colony);
         invasion::Enforce_Population_Limits_At_Colony(colony);
         COLBLDG::Clear_Colony_Queue(colony_idx);
 
@@ -664,8 +664,8 @@ namespace invasion {
         colony->occupation_policy = 4;
         colony->buildings[BUILDING_COLONY_BASE] = 0;
 
-        int16_t star_idx = MOX::planet[colony->planet].star_index;
-        COLCALC::Compute_Star_Colony_Stuff(&MOX::star[star_idx]);
+        int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony->planet))).star_index;
+        COLCALC::Compute_Star_Colony_Stuff(world_state, &MOX::star[star_idx]);
 
         colony->n_turns_existed = 0;
     }
@@ -686,7 +686,7 @@ namespace invasion {
             int race = (int)(pop & 0xf);
             race_pop_count[race]++;
             if (race_pop_limit[race] == -1) {
-                race_pop_limit[race] = COLCALC::Colony_Race_Pop_Limit(colony, (int16_t)race);
+                race_pop_limit[race] = COLCALC::Colony_Race_Pop_Limit(&::game::world, colony, (int16_t)race);
                 if (race_pop_limit[race] >= 0 &&
                     race_pop_limit[race] < MAX_COLONY_POPULATION) {
                     limit_has_pops[race_pop_limit[race]] = 1;
@@ -755,7 +755,7 @@ namespace invasion {
             }
         }
 
-        if (COLCALC::Colony_Food2_Per_Farmer(colony, (int16_t)colony->owner, nullptr) == 0) {
+        if (COLCALC::Colony_Food2_Per_Farmer(&::game::world, colony, (int16_t)colony->owner, nullptr) == 0) {
             for (int i = 0; i < (int)colony->n_pops; ++i) {
                 uint32_t pop = colony->pop[i];
                 if ((pop & 0x180) == 0 && (pop & 0xf) != 8) {
@@ -821,7 +821,7 @@ namespace invasion {
 
         if ((uint8_t)local_attacker.current_troop_type_idx < 4) {
             invasion::Change_Colony_Ownership(colony, (uint32_t)local_attacker.player_id, battle_results);
-            invasion::Resolve_Invasion_Troops(local_attacker);
+            invasion::Resolve_Invasion_Troops(&::game::world, local_attacker);
         } else {
             colony->military[1] = local_defender.unit_counts[0];
             colony->military[0] = local_defender.unit_counts[1];

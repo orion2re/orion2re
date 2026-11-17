@@ -98,7 +98,7 @@ namespace CMBTMIS {
             *x = MOX::missile[fighter.target_unit_idx].x;
             *y = MOX::missile[fighter.target_unit_idx].y;
         } else {
-            COMBINIT::Ship_Center_Offsets(fighter.target_unit_idx, x, y);
+            COMBINIT::Ship_Center_Offsets(&::game::world, fighter.target_unit_idx, x, y);
             *x += MOX::combat_data[fighter.target_unit_idx].x * 20;
             *y += MOX::combat_data[fighter.target_unit_idx].y * 20;
         }
@@ -280,7 +280,7 @@ namespace CMBTMIS {
 
             const int16_t rank = COMBINIT::Is_Combat_Satellite(&ship) ? 1 : 0;
             int16_t center_x, center_y;
-            COMBINIT::Ship_Center_Offsets(ship_idx, &center_x, &center_y);
+            COMBINIT::Ship_Center_Offsets(&::game::world, ship_idx, &center_x, &center_y);
             Consider_Fighter_Target(missile_idx, ship_idx, false, rank, ship.x * 20 + center_x, ship.y * 20 + center_y, ship.current_speed, MOX::missile_hit_radius[ship.size_class], ship.size_class, &best);
         }
 
@@ -321,7 +321,7 @@ namespace CMBTMIS {
             CMBTFIRE::Does_Combat_Planet_Have_Defenses() &&
             CMBTFIRE::Target_Is_Legal_For_Weapon(fighter.type, 0, 0, 0)) {
             int16_t center_x, center_y;
-            COMBINIT::Ship_Center_Offsets(0, &center_x, &center_y);
+            COMBINIT::Ship_Center_Offsets(&::game::world, 0, &center_x, &center_y);
             const s_combat_data& planet = MOX::combat_data[0];
             Consider_Fighter_Target(missile_idx, 0, false, 2, planet.x * 20 + center_x, planet.y * 20 + center_y, 0, MOX::missile_hit_radius[planet.size_class], planet.size_class, &best);
         }

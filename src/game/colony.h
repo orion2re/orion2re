@@ -62,16 +62,16 @@ namespace COLONY {
     /**
      * Shows the colony screen for the star/orbit currently stored in the screen globals.
      */
-    void __cdecl Colony_Screen();
+    void __cdecl Colony_Screen(::game::s_world_state* world_state);
 
-    bool __cdecl Colonize_Planet(int16_t planet_idx);
+    bool __cdecl Colonize_Planet(::game::s_world_state* world_state, ::game::id_planet planet_idx);
 
     extern int16_t colony_satellite_fields[10];
 
     extern int16_t colony_saved_screen;
     extern int16_t g_scanned_star;
-    extern int16_t g_scanned_planet;
-    extern int16_t planet_display_handle;
+    extern ::game::id_planet g_scanned_planet;
+    extern ::game::id_planet planet_display_handle;
 
     extern uint16_t colonists_count;
 
@@ -100,7 +100,7 @@ namespace COLONY {
      * Caches the active colony, planet, star, and orbit handles for colony-screen helpers.
      * @param colony_idx Index of the colony to expose through the colony globals.
      */
-    void __cdecl Set_Colony_Globals(int16_t colony_idx);
+    void __cdecl Set_Colony_Globals(::game::s_world_state* world_state, int16_t colony_idx);
 
     extern uint8_t debug_flag;
     extern uint8_t using_colony_screen_palette;
@@ -123,7 +123,7 @@ namespace COLONY {
 
     extern int16_t pop_fields_ref[3][42];
 
-    extern int16_t planet_handle;
+    extern ::game::id_planet planet_handle;
     extern int16_t star_handle;
     extern int32_t orbit_n;
     extern uint8_t cheats;
@@ -134,8 +134,8 @@ namespace COLONY {
     /** Loads the colony-screen animation and bitmap resources into the screen segment. */
     void __cdecl Load_Colony_Screen_Seg();
     void __cdecl Load_Planet_Screen();
-    s_animation_header* __cdecl Cache_Load_Planet(int16_t planet_id);
-    s_animation_header* __cdecl C_Anims(int16_t anim_id);
+    s_animation_header* __cdecl Cache_Load_Planet(::game::id_planet planet_id);
+    s_animation_header* __cdecl C_Anims(::game::s_world_state* world_state, int16_t anim_id);
 
     /**
      * Loads the requested government animation frame from COLONY2.LBX.
@@ -304,7 +304,7 @@ namespace COLONY {
 
     void __cdecl Draw_Colony_Info_Morale();
 
-    void __cdecl Draw_Info_Name_And_Pop();
+    void __cdecl Draw_Info_Name_And_Pop(::game::s_world_state* world_state);
 
     void __cdecl Draw_Info_Build();
 
@@ -356,9 +356,9 @@ namespace COLONY {
     /** Returns whether an occupation policy may annihilate a population unit. */
     bool __cdecl Colony_Pop_Is_Annihilation_Target(const s_colony* colony, uint32_t pop);
 
-    int8_t __cdecl Evaluate_Input(int16_t* input_field, int16_t* scan_field);
+    int8_t __cdecl Evaluate_Input(::game::s_world_state* world_state, int16_t* input_field, int16_t* scan_field);
 
-    uint32_t __cdecl Check_System_Display_Fields(int16_t* input_field, int16_t* scan_field);
+    uint32_t __cdecl Check_System_Display_Fields(::game::s_world_state* world_state, int16_t* input_field, int16_t* scan_field);
 
     void __cdecl Do_Cheats();
 
@@ -368,7 +368,7 @@ namespace COLONY {
 
     void __cdecl Show_Food_Production(int16_t colony_idx);
 
-    void __cdecl Set_Colony_Screen_To_New_Colony(int16_t colony_idx);
+    void __cdecl Set_Colony_Screen_To_New_Colony(::game::s_world_state* world_state, int16_t colony_idx);
 
     int8_t __cdecl Evaluate_Screen_Input(int16_t* input_field);
 
@@ -376,7 +376,7 @@ namespace COLONY {
 
     void __cdecl Pickup_Colonists(int16_t colonists);
 
-    int16_t __cdecl Get_Scanned_Pop(int16_t field_idx);
+    int16_t __cdecl Get_Scanned_Pop(::game::s_world_state* world_state, int16_t field_idx);
 
     int16_t __cdecl Get_Selected_Pop(int16_t job_type);
 
@@ -435,13 +435,13 @@ namespace COLONY {
 
     extern int16_t g_count;
 
-    void __cdecl Draw_Planet_Summary(int16_t x, int16_t y, int16_t planet_index);
+    void __cdecl Draw_Planet_Summary(int16_t x, int16_t y, ::game::id_planet planet_index);
 
-    bool __cdecl Colony_Can_Buy_Product_0(int16_t colony_idx);
+    bool __cdecl Colony_Can_Buy_Product_0(::game::s_world_state* world_state, int16_t colony_idx);
 
-    void __cdecl Tested_Colony_Buys_Outright(int16_t colony_idx);
+    void __cdecl Tested_Colony_Buys_Outright(::game::s_world_state* world_state, int16_t colony_idx);
 
-    s_animation_header* __cdecl Mini_Planet_Anim(int16_t planet_idx);
+    s_animation_header* __cdecl Mini_Planet_Anim(::game::s_world_state* world_state, ::game::id_planet planet_idx);
 
     int16_t __cdecl Bldg_Coords_To_Effective_Frame(int16_t x, int32_t y);
 
@@ -456,7 +456,7 @@ namespace COLONY {
      */
     int16_t __cdecl Get_Next_Colony(int16_t current_idx, int16_t direction);
 
-    void __cdecl Set_Last_Colony_Selected(int16_t colony_idx, int16_t player_idx);
+    void __cdecl Set_Last_Colony_Selected(::game::s_world_state* world_state, int16_t colony_idx, int16_t player_idx);
 
     void __cdecl Reset_Step_Squish();
 

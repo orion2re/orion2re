@@ -34,7 +34,7 @@ namespace COMBFIND {
     extern char* really_risk_war_msg;
     extern char* trade_treaty_msg;
 
-    void __cdecl Search_For_Battles();
+    void __cdecl Search_For_Battles(::game::s_world_state* world_state);
 
     void __cdecl Process_Retreating_Ships(game::s_world_state* world_state);
 
@@ -43,15 +43,15 @@ namespace COMBFIND {
 
     bool Is_Star_Or_Antares_Location(int16_t location, int16_t star_count);
 
-    int16_t __cdecl Closest_Other_Colony_Star(int16_t player_idx, int16_t star_idx);
+    int16_t __cdecl Closest_Other_Colony_Star(::game::s_world_state* world_state, int16_t player_idx, int16_t star_idx);
 
     void __cdecl Pick_Star_And_Attacker(int16_t* star_idx, int16_t* attacker_idx);
 
-    void __cdecl Reset_One_Shot_System_Special(s_star_data* star);
+    void __cdecl Reset_One_Shot_System_Special(::game::s_world_state* world_state, s_star_data* star);
 
-    void __cdecl Do_System_Discoveries_At_Star(s_star_data* star);
+    void __cdecl Do_System_Discoveries_At_Star(::game::s_world_state* world_state, s_star_data* star);
 
-    int16_t __cdecl Find_Planet_At_Star_Satisfying(s_star_data* star, bool(__cdecl* predicate)(s_planet_data*));
+    ::game::id_planet Find_Planet_At_Star_Satisfying(::game::s_world_state* world_state, s_star_data* star, bool(__cdecl* predicate)(s_planet_data*));
 
     void __cdecl Update_Player_Needs_To_Attack(int16_t star_idx, int player_a_idx, int player_b_idx);
 
@@ -59,7 +59,7 @@ namespace COMBFIND {
 
     int8_t __cdecl Human_Confirms_Attack(int player_idx, int target_idx);
 
-    void __cdecl Get_AI_Target(int16_t star_idx, int16_t player_idx, int16_t* target_player, int16_t* target_colony, int8_t* is_sneak_attack);
+    void __cdecl Get_AI_Target(::game::s_world_state* world_state, int16_t star_idx, int16_t player_idx, int16_t* target_player, int16_t* target_colony, int8_t* is_sneak_attack);
 
     void __cdecl Get_Ship_Strength_Info(uint32_t* enemy_strength, uint32_t* player_strength, uint32_t* shield_strength, int16_t star_idx, int16_t player_idx);
 
@@ -86,7 +86,7 @@ namespace COMBFIND {
 
     void __cdecl Client_Combat_Loop();
 
-    void __cdecl Bomb_Results_Popups(s_battle_results* res);
+    void __cdecl Bomb_Results_Popups(::game::s_world_state* world_state, s_battle_results* res);
 
     void __cdecl Strategic_Results_Popup(s_battle_results* battle_results);
 
@@ -106,7 +106,7 @@ namespace COMBFIND {
 
     void __cdecl Reset_Combat_Ships_At_Current_Star_Has_Player(int16_t player_idx);
 
-    void __cdecl Do_Attacker_Beat_Colony_Stuff(int16_t* ships, int n_ships, int16_t colony_idx, s_battle_results* results);
+    void __cdecl Do_Attacker_Beat_Colony_Stuff(::game::s_world_state* world_state, int16_t* ships, int n_ships, int16_t colony_idx, s_battle_results* results);
 
     char* __cdecl Load_Combfind_Strings(char* strings_block);
 
@@ -114,9 +114,9 @@ namespace COMBFIND {
 
     bool __cdecl Planet_Has_Splinter_Colony(s_planet_data* planet);
 
-    int16_t __cdecl Target_Planet_To_Colony(int16_t planet_idx);
+    int16_t __cdecl Target_Planet_To_Colony(::game::s_world_state* world_state, ::game::id_planet planet_idx);
 
-    int16_t __cdecl Target_Colony_To_Planet(int16_t colony_idx);
+    game::id_planet Target_Colony_To_Planet(int16_t colony_idx);
 
     /**
      * Resolves one combat at a star and optionally fills a battle-results record.
@@ -127,7 +127,7 @@ namespace COMBFIND {
      * @param result Receives battle results when non-null.
      * @param is_sneak_attack Nonzero when sneak-attack handling applies.
      */
-    int16_t __cdecl Do_1_Combat(int16_t star_idx, int16_t attacker_idx, int16_t defender_idx, int16_t planet_idx, s_battle_results* result, int8_t is_sneak_attack);
+    int16_t __cdecl Do_1_Combat(int16_t star_idx, int16_t attacker_idx, int16_t defender_idx, ::game::id_planet planet_idx, s_battle_results* result, int8_t is_sneak_attack);
 
     int8_t __cdecl AI_Can_Retreat(int8_t player_idx, int16_t excluded_colony_idx);
 
@@ -135,7 +135,7 @@ namespace COMBFIND {
 
     int16_t __cdecl Pick_Attacker_At_Star(int16_t star_idx);
 
-    void __cdecl Collect_Targets_For_Combat(int16_t star_idx, int16_t player_idx);
+    void __cdecl Collect_Targets_For_Combat(::game::s_world_state* world_state, int16_t star_idx, int16_t player_idx);
 
     int8_t __cdecl Player_May_Attack_Player(int attacker_idx, int target_idx);
 

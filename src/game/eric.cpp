@@ -329,11 +329,11 @@ namespace ERIC {
         return 0;
     }
 
-    int8_t __cdecl Player_Can_Mind_Control_Colony(int16_t player_idx, int16_t colony_idx) {
+    int8_t __cdecl Player_Can_Mind_Control_Colony(::game::s_world_state* world_state, int16_t player_idx, int16_t colony_idx) {
         if (MOX::player[player_idx].traits[TRAIT_TELEPATHIC] != 0) {
-            if (Player_Has_Ship_Size_Or_Larger_At_Star(player_idx, mind_control_ship_class, MOX::planet[MOX::colony[colony_idx].planet].star_index)) {
-                if (!Player_Has_Leader_With_General_Skill_At_Star(&game::world, MOX::colony[colony_idx].owner, 48, MOX::planet[MOX::colony[colony_idx].planet].star_index)) {
-                    if (!Player_Has_Leader_With_General_Skill_At_Star(&game::world, MOX::colony[colony_idx].owner, 49, MOX::planet[MOX::colony[colony_idx].planet].star_index)) {
+            if (Player_Has_Ship_Size_Or_Larger_At_Star(player_idx, mind_control_ship_class, ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(MOX::colony[colony_idx].planet))).star_index)) {
+                if (!Player_Has_Leader_With_General_Skill_At_Star(&game::world, MOX::colony[colony_idx].owner, 48, ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(MOX::colony[colony_idx].planet))).star_index)) {
+                    if (!Player_Has_Leader_With_General_Skill_At_Star(&game::world, MOX::colony[colony_idx].owner, 49, ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(MOX::colony[colony_idx].planet))).star_index)) {
                         if (MOX::player[MOX::colony[colony_idx].owner].traits[TRAIT_TELEPATHIC] == 0) {
                             return 1;
                         }
@@ -344,14 +344,14 @@ namespace ERIC {
         return 0;
     }
 
-    int8_t __cdecl Player_Can_Mind_Control_Colony_With_Help(int16_t player_idx, int16_t colony_idx) {
+    int8_t __cdecl Player_Can_Mind_Control_Colony_With_Help(::game::s_world_state* world_state, int16_t player_idx, int16_t colony_idx) {
         if (MOX::player[player_idx].traits[TRAIT_TELEPATHIC] == 0) {
             GENDRAW::Help(ESTRINGS::E_Strings(0x233));
             return 0;
         }
 
-        int16_t planet_idx = MOX::colony[colony_idx].planet;
-        int16_t star_idx = MOX::planet[planet_idx].star_index;
+        ::game::id_planet planet_idx = MOX::colony[colony_idx].planet;
+        int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index;
 
         if (Player_Has_Ship_Size_Or_Larger_At_Star(player_idx, mind_control_ship_class, star_idx) == 0) {
             GENDRAW::Help(ESTRINGS::E_Strings(0x24C));

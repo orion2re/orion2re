@@ -189,8 +189,8 @@ DOCTEST_TEST_CASE("Telepath leaders protect colonies from mind control") {
         test_eric_runtime::Reset_();
         test_eric_runtime::Defender_Leader_()->general_skills = skill;
 
-        DOCTEST_CHECK(ERIC::Player_Can_Mind_Control_Colony(0, 0) == 0);
-        DOCTEST_CHECK(ERIC::Player_Can_Mind_Control_Colony_With_Help(0, 0) == 0);
+        DOCTEST_CHECK(ERIC::Player_Can_Mind_Control_Colony(&::game::world, 0, 0) == 0);
+        DOCTEST_CHECK(ERIC::Player_Can_Mind_Control_Colony_With_Help(&::game::world, 0, 0) == 0);
         DOCTEST_CHECK(test_eric_runtime::Last_Help_String_() == 0x200);
     }
 }
@@ -200,7 +200,7 @@ DOCTEST_TEST_CASE("Assassin leaders do not protect colonies from mind control") 
     test_eric_runtime::Defender_Leader_()->general_skills =
         LEADER_GENERAL_SKILL_ASSASSIN;
 
-    DOCTEST_CHECK(ERIC::Player_Can_Mind_Control_Colony(0, 0) == 1);
-    DOCTEST_CHECK(ERIC::Player_Can_Mind_Control_Colony_With_Help(0, 0) == 1);
+    DOCTEST_CHECK(ERIC::Player_Can_Mind_Control_Colony(&::game::world, 0, 0) == 1);
+    DOCTEST_CHECK(ERIC::Player_Can_Mind_Control_Colony_With_Help(&::game::world, 0, 0) == 1);
     DOCTEST_CHECK(test_eric_runtime::Last_Help_String_() == -1);
 }

@@ -1,4 +1,6 @@
 #pragma once
+#include <set>
+#include "object_ids.h"
 
 struct s_animation_header;
 
@@ -43,7 +45,7 @@ namespace PLNTSUM {
     extern int16_t n_ships_in_summary;
     extern int8_t can_reach_star[MAX_STARS];
 
-    extern uint8_t explored_bitmap[BITMAP(MAX_PLANETS)];
+    extern std::set<game::id_planet> explored_planets;
 
     void __cdecl Reset_Explored_Planets();
 
@@ -83,37 +85,37 @@ namespace PLNTSUM {
     bool __cdecl Send_Outpost_Button_Selectable();
     bool __cdecl Summary_Found_Colony_Ship(int16_t ship_summary_idx);
     bool __cdecl Summary_Found_Outpost_Ship(int16_t ship_summary_idx);
-    bool __cdecl Planet_Is_Outpost_Planet(int16_t planet_idx);
-    bool __cdecl Planet_Has_Players_Colony(int16_t planet_idx);
-    bool __cdecl Planet_Has_Been_Visited(int16_t planet_index);
-    bool __cdecl Planet_In_Range_Of_A_Colony(int16_t planet_idx);
+    bool __cdecl Planet_Is_Outpost_Planet(::game::s_world_state* world_state, ::game::id_planet planet_idx);
+    bool __cdecl Planet_Has_Players_Colony(::game::s_world_state* world_state, ::game::id_planet planet_idx);
+    bool __cdecl Planet_Has_Been_Visited(::game::s_world_state* world_state, ::game::id_planet planet_index);
+    bool __cdecl Planet_In_Range_Of_A_Colony(::game::s_world_state* world_state, ::game::id_planet planet_idx);
 
     int16_t __cdecl Productivity_Penalty(int16_t player_idx, int16_t planet_gravity);
 
-    int16_t __cdecl First_Planet_In_Summary_List(int16_t star_index);
+    int16_t __cdecl First_Planet_In_Summary_List(::game::s_world_state* world_state, int16_t star_index);
 
-    int16_t __cdecl Summary_Planet_Index(int16_t star_index);
+    int16_t __cdecl Summary_Planet_Index(::game::s_world_state* world_state, int16_t star_index);
 
-    int16_t __cdecl Get_ETA_To_Star(int16_t star_idx);
+    int16_t __cdecl Get_ETA_To_Star(::game::s_world_state* world_state, int16_t star_idx);
 
-    void __cdecl Set_Planet_Explored_Flags();
+    void __cdecl Set_Planet_Explored_Flags(::game::s_world_state* world_state);
 
-    bool __cdecl Planet_Has_Adverse_Gravity(int16_t planet_idx, int16_t player_idx);
-    bool __cdecl Planet_Is_Enemy_Controlled(int16_t planet_idx, int16_t player_idx);
-    bool __cdecl Planet_Has_Hostile_Environment(int16_t planet_idx);
+    bool __cdecl Planet_Has_Adverse_Gravity(::game::s_world_state* world_state, ::game::id_planet planet_idx, int16_t player_idx);
+    bool __cdecl Planet_Is_Enemy_Controlled(::game::s_world_state* world_state, ::game::id_planet planet_idx, int16_t player_idx);
+    bool __cdecl Planet_Has_Hostile_Environment(::game::s_world_state* world_state, ::game::id_planet planet_idx);
 
-    bool __cdecl Planet_Is_Mineral_Scarce(int16_t planet_idx);
-    int16_t __cdecl Colony_Ship_Auto_Colonization(s_ship_data* ship);
-    void __cdecl Set_Auto_Colonize_Flag(s_ship_data* ship, int16_t flag);
+    bool __cdecl Planet_Is_Mineral_Scarce(::game::s_world_state* world_state, ::game::id_planet planet_idx);
+    game::id_planet Colony_Ship_Auto_Colonization(game::s_world_state* world_state, s_ship_data* ship);
+    void Set_Auto_Colonize_Flag(s_ship_data* ship, game::id_planet target);
     bool __cdecl Ship_Is_Not_Colonizing(s_ship_data* ship);
 
-    int16_t __cdecl Planet_Summary_List_Id(int16_t planet_idx);
+    int16_t __cdecl Planet_Summary_List_Id(::game::id_planet planet_idx);
 
     void __cdecl Set_Colony_Ship_To_Star_Distances(int16_t summary_idx, int16_t ship_idx);
 
     void __cdecl Set_Outpost_Ship_To_Star_Distances(int16_t summary_idx, int16_t ship_idx);
 
-    void __cdecl Update_Ship_Etas();
+    void __cdecl Update_Ship_Etas(::game::s_world_state* world_state);
 
     extern int16_t last_ship_moved;
 
@@ -142,22 +144,22 @@ namespace PLNTSUM {
     int __cdecl qsort_by_max_population(const void* a, const void* b);
 
     void __cdecl Sort_Planet_Summary();
-    void __cdecl Filter_Explored_Planets(int16_t* summary_count);
-    int16_t __cdecl Planet_Summary_Id(int16_t explored_id);
+    void __cdecl Filter_Explored_Planets(::game::s_world_state* world_state, int16_t* summary_count);
+    int16_t __cdecl Planet_Summary_Id(game::id_planet explored_id);
 
     int16_t __cdecl Nearest_Ship_Id(int16_t index);
 
-    void __cdecl Send_Nearest_Ship(int16_t explored_idx);
+    void __cdecl Send_Nearest_Ship(::game::s_world_state* world_state, game::id_planet explored_idx);
 
     void __cdecl Reset_Ship_To_Star_Distances();
 
-    void __cdecl Undo_Send_Order(int16_t planet_idx, int16_t order_type);
+    void __cdecl Undo_Send_Order(::game::s_world_state* world_state, ::game::id_planet planet_idx, int16_t order_type);
 
     extern bool can_reach_scanned_planet;
 
     extern int8_t box_field_scanned;
 
-    void __cdecl Scan_Summary_Box_Fields(int16_t input_field_id, int16_t clicked_field_id, int16_t* last_input_field_id_ptr);
+    void __cdecl Scan_Summary_Box_Fields(::game::s_world_state* world_state, int16_t input_field_id, int16_t clicked_field_id, int16_t* last_input_field_id_ptr);
 
     void __cdecl Wrapper_For_Planet_Summary_Galaxy_Map();
 
@@ -179,11 +181,11 @@ namespace PLNTSUM {
 
     extern s_animation_header** p_rotating_planet;
 
-    void __cdecl Draw_Rotating_Planets();
+    void __cdecl Draw_Rotating_Planets(::game::s_world_state* world_state);
 
     s_animation_header* __cdecl Load_Planet_Segment(int16_t planet_anim_idx);
 
-    void __cdecl Summary_Screen_Print_Data();
+    void __cdecl Summary_Screen_Print_Data(::game::s_world_state* world_state);
 
     void __cdecl Draw_Colony_ETA(int16_t planet_sum_idx, int16_t scroll_idx);
     void __cdecl Draw_Outpost_ETA(int16_t planet_sum_idx, int16_t scroll_idx);

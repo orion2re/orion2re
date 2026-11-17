@@ -209,16 +209,16 @@ DOCTEST_TEST_CASE("native occupation reports follow the gameplay setting") {
     POP::Set_Assigned(&MOX::colony[0].pop[0], true);
 
     COLONY::allow_native_annihilation = 0;
-    DOCTEST_CHECK(REPORT::Need_To_Set_Occupation_Policy(0, 0) == 0);
+    DOCTEST_CHECK(REPORT::Need_To_Set_Occupation_Policy(&::game::world, 0, 0) == 0);
 
     COLONY::allow_native_annihilation = 1;
-    DOCTEST_CHECK(REPORT::Need_To_Set_Occupation_Policy(0, 0) == 1);
+    DOCTEST_CHECK(REPORT::Need_To_Set_Occupation_Policy(&::game::world, 0, 0) == 1);
 }
 
 DOCTEST_TEST_CASE("outpost prompt remains enabled by default") {
     TEST_REPORT::Reset_();
 
-    DOCTEST_CHECK(REPORT::Colonization(0, 0) == 1);
+    DOCTEST_CHECK(REPORT::Colonization(&::game::world, 0, 0) == 1);
 }
 
 DOCTEST_TEST_CASE("leader offers preserve classic decline behavior by default") {
@@ -274,7 +274,7 @@ DOCTEST_TEST_CASE("outpost prompt can be skipped") {
     TEST_REPORT::Reset_();
     REPORT::no_outpost_prompt = 1;
 
-    DOCTEST_CHECK(REPORT::Colonization(0, 0) == 0);
+    DOCTEST_CHECK(REPORT::Colonization(&::game::world, 0, 0) == 0);
 }
 
 DOCTEST_TEST_CASE("initial research prompt can be suppressed") {
@@ -298,7 +298,7 @@ DOCTEST_TEST_CASE("skipping outpost prompt retains valid colony prompt") {
     TEST_REPORT::colonizable_planet_count = 1;
     REPORT::no_outpost_prompt = 1;
 
-    DOCTEST_CHECK(REPORT::Colonization(0, 0) == 1);
+    DOCTEST_CHECK(REPORT::Colonization(&::game::world, 0, 0) == 1);
 }
 
 DOCTEST_TEST_CASE("skipping outpost prompt suppresses unusable colony prompt") {
@@ -306,7 +306,7 @@ DOCTEST_TEST_CASE("skipping outpost prompt suppresses unusable colony prompt") {
     TEST_REPORT::Add_Colony_Ship_();
     REPORT::no_outpost_prompt = 1;
 
-    DOCTEST_CHECK(REPORT::Colonization(0, 0) == 0);
+    DOCTEST_CHECK(REPORT::Colonization(&::game::world, 0, 0) == 0);
 }
 
 DOCTEST_TEST_CASE("serious-first summary order preserves queue order within each group") {
@@ -372,6 +372,6 @@ DOCTEST_TEST_CASE("filtered colony prompt retains its ship for assignment cleanu
     TEST_REPORT::confirmation_result = 1;
     REPORT::no_outpost_prompt = 1;
 
-    DOCTEST_CHECK(REPORT::Colonization(0, 1) == 1);
+    DOCTEST_CHECK(REPORT::Colonization(&::game::world, 0, 1) == 1);
     DOCTEST_CHECK(TEST_REPORT::cleared_auto_colonization_ship == &MOX::ship[1]);
 }

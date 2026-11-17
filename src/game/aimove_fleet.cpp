@@ -37,7 +37,7 @@ namespace AIMOVE {
 
     }
 
-    std::optional<AIDATA::s_route> Move_Ships_With_Possible_Intermediate(s_ai_movement_context* ctx, std::span<const id_ship> ships, id_star destination_star) {
+    std::optional<AIDATA::s_route> Move_Ships_With_Possible_Intermediate(::game::s_world_state* world_state, s_ai_movement_context* ctx, std::span<const id_ship> ships, id_star destination_star) {
         const auto* world = ctx->world;
         if (ships.empty()) return std::nullopt;
         const uint32_t i_ai = legacy_world::Slot(ctx->player_idx);
@@ -56,7 +56,7 @@ namespace AIMOVE {
         if (colony_ptr < world->colonies + world->Colony_Count()) {
             do {
                 if (colony_ptr->owner == i_ai) {
-                    int16_t current_star_idx = world->planets[colony_ptr->planet].star_index;
+                    int16_t current_star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony_ptr->planet))).star_index;
 
                     if (orbit != legacy_world::Star_Id(current_star_idx) && legacy_world::Star_Id(current_star_idx) != destination_star) {
                         ai_compat::Evaluate_Fleet_Move(ships, legacy_world::Star_Id(current_star_idx), &move_info);

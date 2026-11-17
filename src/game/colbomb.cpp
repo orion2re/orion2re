@@ -13,7 +13,7 @@ namespace COLBOMB {
 
         Do_Summary_String_Popup();
 
-        COLONY::Set_Colony_Globals(results_ptr->colony_idx);
+        COLONY::Set_Colony_Globals(&::game::world, results_ptr->colony_idx);
 
         MOX::current_screen = MOX::return_screen;
     }
@@ -34,7 +34,7 @@ namespace COLBOMB {
             message_buffer,
             sizeof(message_buffer),
             ESTRINGS::E_Strings(0x33),
-            HACCESS::Get_Planet_Name(MOX::colony[backup_results_ptr->colony_idx].planet),
+            HACCESS::Get_Planet_Name(legacy_world::Planet_Id(MOX::colony[backup_results_ptr->colony_idx].planet)),
             attacker_name);
 
         if (backup_results_ptr->population_killed != 0) {
@@ -90,7 +90,7 @@ namespace COLBOMB {
             } else {
                 wiped_out_format = ESTRINGS::E_Strings(0x37);
             }
-            snprintf(line_buffer, sizeof(line_buffer), wiped_out_format, HACCESS::Get_Planet_Name(MOX::colony[backup_results_ptr->colony_idx].planet));
+            snprintf(line_buffer, sizeof(line_buffer), wiped_out_format, HACCESS::Get_Planet_Name(legacy_world::Planet_Id(MOX::colony[backup_results_ptr->colony_idx].planet)));
             strlcat(message_buffer, line_buffer, sizeof(message_buffer));
         }
 

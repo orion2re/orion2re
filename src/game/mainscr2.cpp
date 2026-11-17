@@ -254,7 +254,7 @@ namespace MAINSCR2 {
         char message_text[200];
 
         int16_t selected_box = MOVEBOX::Moveable_Box_Selected(2);
-        int16_t scrap_amount = SETTLER::N_Freighters_Player_Can_Scrap(MOX::PLAYER_NUM);
+        int16_t scrap_amount = SETTLER::N_Freighters_Player_Can_Scrap(&::game::world, MOX::PLAYER_NUM);
 
         if (scrap_amount <= 0) {
             strlcpy(message_text, HAROLD::H_Message(HESTR_0EC_ALL_FREIGHTERS_ARE_CUR), sizeof(message_text));
@@ -347,7 +347,7 @@ namespace MAINSCR2 {
             }
 
             if (found_outpost_ship) {
-                COLONIZE::Make_New_Outpost(new_outpost_star_id, MOX::PLAYER_NUM);
+                COLONIZE::Make_New_Outpost(legacy_world::Planet_Id(new_outpost_star_id), MOX::PLAYER_NUM);
                 MOX::ship[outpost_ship_id].status = 5;
                 COLCALC::Update_Player_Stats(&game::world, &MOX::player[MOX::PLAYER_NUM]);
 
@@ -392,7 +392,7 @@ namespace MAINSCR2 {
         bool single_fleet_ship = false;
 
         int16_t star_idx = SHIPSTAK::Ship_Stack_Star_Id(MOX::ship_stack_start[MOX::fleet_box_ship_stack]);
-        namestar::Can_Change_Star_Name(star_idx);
+        namestar::Can_Change_Star_Name(&::game::world, star_idx);
 
         if (MOX::settings.expanding_help != 0) {
             MOX::settings.expanding_help = 0;
@@ -408,9 +408,9 @@ namespace MAINSCR2 {
         RUSS::Mox_Sync_Update();
         fields::Enable_Draw_All_Fields();
 
-        int16_t planet_idx = MAINPUPS::New_Colony_Selection_Popup(star_idx, 1);
+        ::game::id_planet planet_idx = MAINPUPS::New_Colony_Selection_Popup(star_idx, 1);
 
-        if (planet_idx > -1) {
+        if (planet_idx != ::game::NO_PLANET) {
             bool found_colony_ship = false;
             int16_t ship_idx = -1;
 
@@ -430,7 +430,7 @@ namespace MAINSCR2 {
                     do_animation = true;
                 }
 
-                COLONIZE::Make_New_Colony(planet_idx, MOX::PLAYER_NUM);
+                COLONIZE::Make_New_Colony(legacy_world::Planet_Id(planet_idx), MOX::PLAYER_NUM);
                 MOX::ship[ship_idx].status = 5;
                 COLCALC::Update_Player_Stats(&game::world, &MOX::player[MOX::PLAYER_NUM]);
 
@@ -445,8 +445,8 @@ namespace MAINSCR2 {
 
         if (do_animation) {
             MOX::screen_data = star_idx;
-            COLONY::orbit_temp = HACCESS::Planet_Orbit(planet_idx);
-            COLLAND::Colony_Landing_Screen();
+            COLONY::orbit_temp = HACCESS::Planet_Orbit(&::game::world, legacy_world::Planet_Id(planet_idx));
+            COLLAND::Colony_Landing_Screen(&::game::world);
             MISC::Fade_Into_Screen(MAINSCR::Draw_Mini_Main_Screen, &MOX::draw_main_screen_to_back, 0);
         }
 
@@ -599,7 +599,7 @@ namespace MAINSCR2 {
         in_reports_phase = 0;
     }
 
-    void __cdecl Unloading_Transports_In_Main_Screen() {
+    void __cdecl Unloading_Transports_In_Main_Screen(::game::s_world_state* world_state) {
         int8_t original_expanding_help = MOX::settings.expanding_help;
         bool unloaded_all = false;
 
@@ -623,7 +623,7 @@ namespace MAINSCR2 {
         star_id = MAINPUPS::Drop_Troops_Selection_Popup(star_id);
 
         if (star_id >= 0) {
-            int16_t colony_index = MOX::planet[star_id].colony_index;
+            int16_t colony_index = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(star_id))).colony_index;
             if (colony_index >= 0) {
                 if (MOX::colony[colony_index].owner == MOX::PLAYER_NUM) {
                     int16_t ship_ids[MAX_SHIPS];

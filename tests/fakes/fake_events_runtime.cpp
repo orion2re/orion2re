@@ -1,8 +1,9 @@
+#include "../fixtures/planet_state.h"
 #include "pch.h"
 
 namespace {
     s_star_data stars[MAX_STARS];
-    s_planet_data planets[MAX_PLANETS];
+
     s_colony colonies[MAX_COLONIES];
     s_player players[MAX_PLAYERS];
     s_ship_data ships[MAX_SHIPS];
@@ -27,7 +28,8 @@ namespace TEST_EVENTS {
 
     void Reset_() {
         memset(stars, 0, sizeof(stars));
-        memset(planets, 0, sizeof(planets));
+        game::world.planets.clear();
+        game::world.next_planet_id = 0;
         memset(colonies, 0, sizeof(colonies));
         memset(players, 0, sizeof(players));
         memset(ships, 0, sizeof(ships));
@@ -39,7 +41,7 @@ namespace TEST_EVENTS {
 
         for (s_star_data& star : stars) {
             for (int index = 0; index < 5; ++index) {
-                star.planet_index[index] = -1;
+                star.planet_index[index] = ::game::NO_PLANET;
             }
         }
         for (s_planet_data& planet : planets) {
@@ -98,7 +100,7 @@ namespace MOX {
     int16_t NUM_COLONIES;
     uint8_t auto_turn_exit;
     s_star_data* star = stars;
-    s_planet_data* planet = planets;
+
     s_colony* colony = colonies;
     s_player* player = players;
     s_ship_data* ship = ships;
@@ -249,7 +251,7 @@ namespace MAINSCR {
 } // namespace MAINSCR
 
 namespace HACCESS {
-    char* __cdecl Get_Planet_Name(int16_t planet_idx) {
+    char* __cdecl Get_Planet_Name(::game::id_planet planet_idx) {
         static char name[16];
         snprintf(name, sizeof(name), "Planet %d", planet_idx);
         return name;
@@ -301,12 +303,12 @@ namespace BOMB {
     void __cdecl Apply_Bomb_Hits(s_combat_bomb_result*) {
     }
 
-    void __cdecl Destroy_Colony(s_colony* colony, int32_t) {
-        if (colony->planet >= 0) {
-            MOX::planet[colony->planet].colony_index = -1;
+    void __cdecl Destroy_Colony(::game::s_world_state* world_state, s_colony* colony, int32_t) {
+        if (colony->planet != ::game::NO_PLANET) {
+            test::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony->planet))).colony_index = -1;
         }
         colony->owner = -1;
-        colony->planet = -1;
+        colony->planet = ::game::NO_PLANET;
     }
 }
 

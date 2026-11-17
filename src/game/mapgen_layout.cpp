@@ -204,7 +204,7 @@ namespace MAPGEN {
         }
     }
 
-    void __cdecl Generate_Wormhole_Links() {
+    void __cdecl Generate_Wormhole_Links(::game::s_world_state* world_state) {
         if (!special_generation_config.generate_wormholes) return;
 
         uint8_t star_used[MAX_STARS];
@@ -212,8 +212,8 @@ namespace MAPGEN {
 
         if (MOX::NUM_PLAYERS > 0) {
             for (int i = 0; i < MOX::NUM_PLAYERS; ++i) {
-                int16_t home_planet_id = MOX::player[i].home_planet_id;
-                int16_t star_index = MOX::planet[home_planet_id].star_index;
+                ::game::id_planet home_planet_id = MOX::player[i].home_planet_id;
+                int16_t star_index = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(home_planet_id))).star_index;
                 star_used[star_index] = 1;
             }
         }
@@ -612,7 +612,7 @@ namespace MAPGEN {
 
                     int16_t satellite_count = Generate_Number_Of_Satellites(i);
                     for (int16_t satellite = 0; satellite < satellite_count; ++satellite) {
-                        Planet_Generation(i);
+                        Planet_Generation(&::game::world, i);
                     }
                     star.visited = 0;
                 }
@@ -664,7 +664,7 @@ namespace MAPGEN {
             }
         }
     }
-    void __cdecl Universe_Generation(uint8_t gal_size, uint8_t gal_age, int8_t nebula_freq) {
+    void __cdecl Universe_Generation(::game::s_world_state* world_state, uint8_t gal_size, uint8_t gal_age, int8_t nebula_freq) {
         Reset_Generated_Star_Names();
         s_colors local_colors1;
         s_colors local_colors2;
@@ -702,7 +702,7 @@ namespace MAPGEN {
             MOX::star_width = 37;
             MOX::star_height = 37;
             companion_star = 0;
-            memset(MOX::planet, 0, MAX_PLANETS * sizeof(*MOX::planet));
+            world_state->planets.clear();
             RUSS::Mox_Update();
 
             name_seg = farload::Far_Reload_Data("starname.lbx", 1, MOX::screen_seg, 0, 0x33D, 0xF);
@@ -791,7 +791,7 @@ namespace MAPGEN {
             RUSS::Mox_Update();
             RUSS::Mox_Update();
 
-            MOX::planet_count = 0;
+            world_state->planets.clear();
             Generate_Number_Of_Nebulas(gal_size, nebula_freq);
             if (MOX::NUM_NEBULAS != 0) {
                 Generate_Nebulas();
@@ -819,8 +819,7 @@ namespace MAPGEN {
                 n_wormholes = 0;
                 MOX::NUM_COLONIES = 0;
                 memset(special_count, 0, sizeof(special_count));
-                MOX::planet_count = 0;
-                memset(MOX::planet, 0, MAX_PLANETS * sizeof(*MOX::planet));
+                world_state->planets.clear();
                 memset(MOX::star, 0, MAX_STARS * sizeof(*MOX::star));
                 memset(planets_per_star, 0, sizeof(planets_per_star));
 
@@ -864,7 +863,7 @@ namespace MAPGEN {
                             int16_t planet_ctr = n_sat;
                             do {
                                 RUSS::Mox_Update();
-                                Planet_Generation(star_count);
+                                Planet_Generation(world_state, star_count);
                                 --planet_ctr;
                             } while (planet_ctr != 0);
                         }

@@ -96,7 +96,7 @@ namespace MSG_ {
 
     void __cdecl Add_Msg_All(s_MSG msg);
 
-    int8_t __cdecl Goto_Msg_Colony(s_MSG* msg);
+    int8_t __cdecl Goto_Msg_Colony(::game::s_world_state* world_state, s_MSG* msg);
 
     void __cdecl Add_Nonaggression_Msg(int16_t plr_a, int16_t plr_b);
 

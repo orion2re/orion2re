@@ -69,23 +69,23 @@ namespace {
 
     bool Can_Bomb_Planet(
         int16_t ship_idx,
-        int16_t planet_idx,
+        int16_t planet_combat_ship_idx,
         uint8_t bombing_range) {
         int16_t ship_offset_x;
         int16_t ship_offset_y;
         int16_t planet_offset_x;
         int16_t planet_offset_y;
-        COMBINIT::Ship_Center_Offsets(
+        COMBINIT::Ship_Center_Offsets(&::game::world, 
             ship_idx, &ship_offset_x, &ship_offset_y);
-        COMBINIT::Ship_Center_Offsets(
-            planet_idx, &planet_offset_x, &planet_offset_y);
+        COMBINIT::Ship_Center_Offsets(&::game::world, 
+            planet_combat_ship_idx, &planet_offset_x, &planet_offset_y);
 
         int32_t distance_x =
             MOX::combat_data[ship_idx].x * 20 + ship_offset_x -
-            (MOX::combat_data[planet_idx].x * 20 + planet_offset_x);
+            (MOX::combat_data[planet_combat_ship_idx].x * 20 + planet_offset_x);
         int32_t distance_y =
             MOX::combat_data[ship_idx].y * 20 + ship_offset_y -
-            (MOX::combat_data[planet_idx].y * 20 + planet_offset_y);
+            (MOX::combat_data[planet_combat_ship_idx].y * 20 + planet_offset_y);
         if (distance_x < 0) {
             distance_x = -distance_x;
         }
@@ -142,7 +142,7 @@ namespace CMBTFIRE {
         SPHERICAL_EFFECT effect) {
         int16_t source_offset_x;
         int16_t source_offset_y;
-        COMBINIT::Ship_Center_Offsets(
+        COMBINIT::Ship_Center_Offsets(&::game::world, 
             source_ship_idx, &source_offset_x, &source_offset_y);
 
         const int32_t source_x =
@@ -159,7 +159,7 @@ namespace CMBTFIRE {
 
         int16_t target_offset_x;
         int16_t target_offset_y;
-        COMBINIT::Ship_Center_Offsets(
+        COMBINIT::Ship_Center_Offsets(&::game::world, 
             target_idx, &target_offset_x, &target_offset_y);
         int32_t distance_x = source_x -
             (MOX::combat_data[target_idx].x * 20 + target_offset_x);
@@ -222,7 +222,7 @@ namespace CMBTFIRE {
                 int idx = random_val - 1;
                 int16_t building_id = defense_list[idx];
 
-                ERICNET::Remove_Building(MOX::cmbt_colony_id, building_id);
+                ERICNET::Remove_Building(&::game::world, MOX::cmbt_colony_id, building_id);
 
                 switch (building_id) {
                     case BUILDING_MISSILE_BASE:
@@ -1446,7 +1446,7 @@ namespace CMBTFIRE {
         int16_t is_dead = Is_Combat_Ship_Dead(target_ship_idx);
 
         if (MOX::apply_damage_to_planet != 0 && MOX::super_fast_flag == 0) {
-            if (CMBTDRW1::Ship_Completely_On_Screen(target_ship_idx) == 0) {
+            if (CMBTDRW1::Ship_Completely_On_Screen(&::game::world, target_ship_idx) == 0) {
                 COMBINIT::Snap_Center_Combat_Screen(MOX::combat_data[target_ship_idx].x, MOX::combat_data[target_ship_idx].y);
             }
 
@@ -1459,7 +1459,7 @@ namespace CMBTFIRE {
             beam_fx_entries[0].is_damage_entry = 0;
             beam_fx_entries[0].specials = 0;
 
-            BEAMS::Beam_SFX(
+            BEAMS::Beam_SFX(&::game::world, 
                 source_ship_idx,
                 (MOX::combat_data[source_ship_idx].x - MOX::cur_combat_x) * 20,
                 (MOX::combat_data[source_ship_idx].y - MOX::cur_combat_y) * 20,

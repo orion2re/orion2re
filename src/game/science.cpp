@@ -38,7 +38,7 @@ namespace SCIENCE {
         JIM::Play_Background_Music();
     }
 
-    void __cdecl Show_Off_Artifact_Tech(uint16_t tech_idx, int16_t planet_idx) {
+    void __cdecl Show_Off_Artifact_Tech(uint16_t tech_idx, ::game::id_planet planet_idx) {
         int16_t discovered_tech = (int16_t)tech_idx;
 
         if (finds_presented_by_scientist == 0) {

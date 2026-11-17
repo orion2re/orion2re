@@ -2,7 +2,7 @@
 
 namespace CONTACT {
 
-    void __cdecl Compute_Contacts() {
+    void __cdecl Compute_Contacts(::game::s_world_state* world_state) {
         uint8_t old_contacts[MAX_PLAYERS][MAX_PLAYERS];
 
         for (int i = 0; i < (int)MOX::NUM_PLAYERS; ++i) {
@@ -19,22 +19,22 @@ namespace CONTACT {
 
         for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
             s_colony* colony_a = &MOX::colony[i];
-            if (colony_a->planet == -1) {
+            if (colony_a->planet == ::game::NO_PLANET) {
                 continue;
             }
 
             int8_t owner_a = colony_a->owner;
-            int16_t star_a_idx = MOX::planet[colony_a->planet].star_index;
+            int16_t star_a_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony_a->planet))).star_index;
             s_star_data* star_a = &MOX::star[star_a_idx];
 
             for (int16_t j = 0; j < i; ++j) {
                 s_colony* colony_b = &MOX::colony[j];
-                if (colony_b->planet == -1) {
+                if (colony_b->planet == ::game::NO_PLANET) {
                     continue;
                 }
 
                 int8_t owner_b = colony_b->owner;
-                int16_t star_b_idx = MOX::planet[colony_b->planet].star_index;
+                int16_t star_b_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony_b->planet))).star_index;
                 s_star_data* star_b = &MOX::star[star_b_idx];
                 bool contact_made = false;
 

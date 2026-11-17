@@ -43,12 +43,12 @@ namespace orion2re::lua::game {
     };
 
     struct s_planet_generated_event {
-        std::int16_t planet_id = -1;
+        ::game::id_planet planet_id = ::game::NO_PLANET;
     };
 
     struct s_population_growth_context {
         std::int16_t colony_id = -1;
-        std::int16_t planet_id = -1;
+        ::game::id_planet planet_id = ::game::NO_PLANET;
         std::int16_t owner_id = -1;
         std::int16_t race_id = -1;
         std::int16_t race_population = 0;
@@ -80,8 +80,8 @@ namespace orion2re::lua::game {
     bool Technology_Setup(const s_technology_setup_event* event,
         std::string* diagnostic);
     void Player_Setup(const s_player_setup_event* event);
-    void Home_System_Generated(const s_home_system_generated_event* event);
-    void Planet_Generated(const s_planet_generated_event* event);
+    void Home_System_Generated(::game::s_world_state* world_state, const s_home_system_generated_event* event);
+    void Planet_Generated(::game::s_world_state* world_state, const s_planet_generated_event* event);
     void Ship_Destroyed(const s_ship_destroyed_event* event);
     std::int16_t Modify_Population_Growth(
         const s_population_growth_context* context, std::int64_t growth);

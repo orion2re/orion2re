@@ -1,3 +1,4 @@
+#include "../fixtures/planet_state.h"
 #include "pch.h"
 
 #include "game/legacy_world.h"
@@ -7,7 +8,7 @@ namespace {
     s_star_data stars[MAX_STARS];
     s_player players[MAX_PLAYERS];
     s_colony colonies[MAX_COLONIES];
-    s_planet_data planets[MAX_PLANETS];
+
     int16_t spawn_count;
     int move_attempt_count;
 }
@@ -32,7 +33,8 @@ namespace TEST_AIMOVE {
         memset(stars, 0, sizeof(stars));
         memset(players, 0, sizeof(players));
         memset(colonies, 0, sizeof(colonies));
-        memset(planets, 0, sizeof(planets));
+        game::world.planets.clear();
+        game::world.next_planet_id = 0;
 
         MOX::NUM_SHIPS = 1;
         MOX::NUM_STARS = 2;
@@ -46,7 +48,7 @@ namespace TEST_AIMOVE {
         ships[0].d.speed = 1;
         colonies[0].owner = 0;
         colonies[0].planet = 0;
-        planets[0].star_index = 1;
+        test::Planet(&game::world, legacy_world::Planet_Id(0)).star_index = 1;
         spawn_count = 0;
         move_attempt_count = 0;
     }
@@ -87,7 +89,7 @@ namespace MOX {
     s_star_data* star = stars;
     s_player* player = players;
     s_colony* colony = colonies;
-    s_planet_data* planet = planets;
+
 }
 
 namespace INITSHIP {
@@ -111,7 +113,7 @@ namespace SHIPMOVE {
         move_attempt_count++;
     }
 
-    void __cdecl Make_Ships_Move_To(int16_t*, int16_t, s_ship_move_info*) {
+    void __cdecl Make_Ships_Move_To(::game::s_world_state* world_state, int16_t*, int16_t, s_ship_move_info*) {
     }
 }
 

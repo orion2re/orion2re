@@ -252,7 +252,7 @@ namespace COMBINIT {
             (MOX::combat_data[ship_idx].special_device_damage_flags[special_id / 8] & mask) == 0;
     }
 
-    void __cdecl Ship_Center_Offsets(int16_t, int16_t* x, int16_t* y) {
+    void __cdecl Ship_Center_Offsets(::game::s_world_state* world_state, int16_t, int16_t* x, int16_t* y) {
         *x = 0;
         *y = 0;
     }
@@ -263,11 +263,11 @@ namespace COMBINIT {
 
 namespace CMBTDRW1 {
     void __cdecl Full_Draw_Combat_Screen() { ++TEST_CMBTSPEC::full_draw_calls; }
-    int16_t __cdecl Ship_On_Screen(int16_t) {
+    int16_t __cdecl Ship_On_Screen(::game::s_world_state* world_state, int16_t) {
         return 1;
     }
 
-    int16_t __cdecl Ship_Completely_On_Screen(int16_t) {
+    int16_t __cdecl Ship_Completely_On_Screen(::game::s_world_state* world_state, int16_t) {
         return 1;
     }
 
@@ -290,7 +290,7 @@ namespace CMBTDRW1 {
         ++cloak_frame_count;
     }
 
-    void __cdecl Get_Draw_Ship_Offsets(int16_t, int16_t* x, int16_t* y) {
+    void __cdecl Get_Draw_Ship_Offsets(::game::s_world_state* world_state, int16_t, int16_t* x, int16_t* y) {
         *x = 0;
         *y = 0;
     }
@@ -535,7 +535,7 @@ namespace ERIC {
 }
 
 namespace COMBAT1 {
-    void __cdecl Assign_Combat_Grids(int16_t ship) {
+    void __cdecl Assign_Combat_Grids(::game::s_world_state* world_state, int16_t ship) {
         ++TEST_CMBTSPEC::grid_calls;
         TEST_CMBTSPEC::grid_ship = ship;
     }

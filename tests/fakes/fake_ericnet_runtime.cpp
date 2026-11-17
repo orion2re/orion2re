@@ -1,8 +1,9 @@
+#include "../fixtures/planet_state.h"
 #include "pch.h"
 
 namespace {
     s_colony colonies[2];
-    s_planet_data planets[2];
+
     s_star_data stars[1];
     s_ship_data ships[MAX_SHIPS];
 
@@ -21,7 +22,7 @@ namespace MOX {
     int16_t NUM_COLONIES = 0;
     int16_t NUM_SHIPS = 0;
     s_colony* colony = colonies;
-    s_planet_data* planet = planets;
+
     s_star_data* star = stars;
     s_ship_data* ship = ships;
     s_player* player = players;
@@ -84,15 +85,15 @@ namespace RUSS {
 namespace COLONY {
     uint8_t debug_flag = 0;
 
-    void __cdecl Set_Colony_Globals(int16_t) {}
+    void __cdecl Set_Colony_Globals(::game::s_world_state* world_state, int16_t) {}
 }
 
 namespace INITGAME {
-    void __cdecl Init_Colony(int16_t colony_idx, int16_t planet_idx,
+    void __cdecl Init_Colony(::game::s_world_state* world_state, int16_t colony_idx, ::game::id_planet planet_idx,
                               uint8_t player_num) {
         MOX::colony[colony_idx].planet = planet_idx;
         MOX::colony[colony_idx].owner = static_cast<int8_t>(player_num);
-        MOX::planet[planet_idx].colony_index = colony_idx;
+        test::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index = colony_idx;
     }
 }
 
@@ -100,7 +101,7 @@ namespace COLBLDG {
     void __cdecl Delete_From_Colony_Queue(int16_t, int16_t) {}
     void __cdecl Delete_Prod_From_Colony_Queue(int16_t, int16_t) {}
 
-    int16_t __cdecl Create_Ship_From_Design(int16_t player_idx,
+    int16_t __cdecl Create_Ship_From_Design(::game::s_world_state* world_state, int16_t player_idx,
                                              const s_ship_design* design,
                                              int16_t) {
         int16_t ship_idx = 0;
@@ -127,24 +128,24 @@ namespace COLBLDG {
 
     int16_t __cdecl Create_Ship(int16_t player_idx, int16_t design_idx,
                                  int16_t colony_idx) {
-        return Create_Ship_From_Design(
+        return Create_Ship_From_Design(&::game::world, 
             player_idx, &MOX::player[player_idx].ship_designs[design_idx],
             colony_idx);
     }
 }
 
 namespace COLCALC {
-    uint8_t __cdecl Colony_Can_Build_Product(s_colony*, int16_t) {
+    uint8_t __cdecl Colony_Can_Build_Product(::game::s_world_state* world_state, s_colony*, int16_t) {
         test::fakes::colony_can_build_product_count++;
         return 0;
     }
 
-    short __cdecl Colony_Race_Pop_Limit(s_colony*, int16_t) {
+    short __cdecl Colony_Race_Pop_Limit(::game::s_world_state* world_state, s_colony*, int16_t) {
         return 10;
     }
 
-    void __cdecl Compute_Star_Colony_Stuff(s_star_data*) {}
-    void __cdecl Colony_Environmental_Stuff(s_colony* colony) {
+    void __cdecl Compute_Star_Colony_Stuff(::game::s_world_state* world_state, s_star_data*) {}
+    void __cdecl Colony_Environmental_Stuff(::game::s_world_state* world_state, s_colony* colony) {
         test::fakes::environmental_refresh_count++;
         test::fakes::last_environmental_colony = colony;
     }

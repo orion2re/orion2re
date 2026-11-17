@@ -1,8 +1,9 @@
+#include "../fixtures/planet_state.h"
 #include "pch.h"
 
 namespace {
     s_colony colonies[MAX_COLONIES];
-    s_planet_data planets[MAX_PLANETS];
+
     s_player players[MAX_PLAYERS];
     s_ship_data ships[MAX_SHIPS];
     s_star_data stars[MAX_STARS];
@@ -46,7 +47,8 @@ namespace TEST_REPORT {
 
     void Reset_() {
         memset(colonies, 0, sizeof(colonies));
-        memset(planets, 0, sizeof(planets));
+        game::world.planets.clear();
+        game::world.next_planet_id = 0;
         memset(players, 0, sizeof(players));
         memset(ships, 0, sizeof(ships));
         memset(stars, 0xff, sizeof(stars));
@@ -113,7 +115,7 @@ namespace TEST_REPORT {
 
     void Add_Colony_Base_() {
         MOX::star[0].planet_index[0] = 0;
-        MOX::planet[0].colony_index = 0;
+        test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).colony_index = 0;
         MOX::colony[0].owner = 0;
         MOX::colony[0].buildings[BUILDING_COLONY_BASE] = 1;
     }
@@ -147,7 +149,7 @@ namespace MOX {
     int16_t screen_data;
     uint16_t global_esc;
     s_colony* colony = colonies;
-    s_planet_data* planet = planets;
+
     s_player* player = players;
     s_ship_data* ship = ships;
     s_star_data* star = stars;
@@ -187,7 +189,7 @@ namespace COLONIZE {
     void __cdecl Make_New_Outpost(int16_t, int16_t) {
     }
 
-    int16_t Star_N_Colonizable_Planets_For_Player(s_star_data*, int16_t) {
+    int16_t Star_N_Colonizable_Planets_For_Player(::game::s_world_state* world_state, s_star_data*, int16_t) {
         return TEST_REPORT::colonizable_planet_count;
     }
 }
@@ -195,7 +197,7 @@ namespace COLONIZE {
 namespace COLONY {
     int16_t orbit_temp;
 
-    void __cdecl Colony_Screen() {
+    void __cdecl Colony_Screen(::game::s_world_state* world_state) {
     }
 
     bool __cdecl Colony_Needs_Occupation_Policy(int16_t colony_idx) {
@@ -214,7 +216,7 @@ namespace COLONY {
 }
 
 namespace ERICNET {
-    void __cdecl Remove_Building(int16_t, int16_t) {
+    void __cdecl Remove_Building(::game::s_world_state* world_state, int16_t, int16_t) {
     }
 }
 
@@ -250,11 +252,11 @@ namespace MAINPUPS {
     }
 
     int16_t __cdecl New_Colony_Selection_Popup(int16_t, uint8_t) {
-        return PLANET_INDEX_NONE;
+        return ::game::NO_PLANET;
     }
 
     int16_t __cdecl New_Outpost_Selection_Popup(int16_t) {
-        return PLANET_INDEX_NONE;
+        return ::game::NO_PLANET;
     }
 }
 
@@ -269,8 +271,8 @@ namespace MOVEBOX {
 }
 
 namespace PLNTSUM {
-    int16_t __cdecl Colony_Ship_Auto_Colonization(s_ship_data*) {
-        return PLANET_INDEX_NONE;
+    game::id_planet Colony_Ship_Auto_Colonization(game::s_world_state* world_state, s_ship_data*) {
+        return ::game::NO_PLANET;
     }
 }
 
@@ -294,7 +296,7 @@ namespace TECH {
 }
 
 namespace namestar {
-    int8_t __cdecl Can_Change_Star_Name(int16_t) {
+    int8_t __cdecl Can_Change_Star_Name(::game::s_world_state* world_state, int16_t) {
         return 0;
     }
 
@@ -378,7 +380,7 @@ namespace SCIENCE {
         TEST_REPORT::science_tech = tech;
         TEST_REPORT::science_source = player;
     }
-    void __cdecl Show_Off_Artifact_Tech(uint16_t tech, int16_t planet) {
+    void __cdecl Show_Off_Artifact_Tech(uint16_t tech, ::game::id_planet planet) {
         ++TEST_REPORT::science_calls;
         TEST_REPORT::science_kind = 3;
         TEST_REPORT::science_tech = tech;
@@ -392,7 +394,7 @@ namespace SHIPMOVE {
         *result = {};
         result->moving = TEST_REPORT::relocation_allowed;
     }
-    void __cdecl Make_Ships_Move_To(int16_t* ships, int16_t destination, s_ship_move_info*) {
+    void __cdecl Make_Ships_Move_To(::game::s_world_state* world_state, int16_t* ships, int16_t destination, s_ship_move_info*) {
         ++TEST_REPORT::move_calls;
         TEST_REPORT::moved_ship = ships[0];
         TEST_REPORT::moved_destination = destination;

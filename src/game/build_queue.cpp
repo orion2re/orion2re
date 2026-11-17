@@ -101,16 +101,16 @@ namespace BUILD_QUEUE {
             return queue[1] == COLONY_PRODUCTION_REPEAT ? 2 : 1;
         }
 
-        bool Colony_Base_Available(int16_t colony_idx, const int16_t* queue) {
-            const int16_t star_idx = MOX::planet[MOX::colony[colony_idx].planet].star_index;
+        bool Colony_Base_Available(::game::s_world_state* world_state, int16_t colony_idx, const int16_t* queue) {
+            const int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(MOX::colony[colony_idx].planet))).star_index;
             int available = 0;
             int queued = 0;
             for (int orbit = 0; orbit < 5; ++orbit) {
-                const int16_t planet_idx = MOX::star[star_idx].planet_index[orbit];
-                if (planet_idx == -1 || MOX::planet[planet_idx].planet_type != PLANET_TYPE_PLANET) {
+                const ::game::id_planet planet_idx = MOX::star[star_idx].planet_index[orbit];
+                if (planet_idx == ::game::NO_PLANET || ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).planet_type != PLANET_TYPE_PLANET) {
                     continue;
                 }
-                const int16_t other_idx = MOX::planet[planet_idx].colony_index;
+                const int16_t other_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index;
                 if (other_idx == -1 ||
                     (MOX::colony[other_idx].outpost_flag != 0 &&
                         MOX::colony[other_idx].owner == MOX::colony[colony_idx].owner)) {
@@ -161,7 +161,7 @@ namespace BUILD_QUEUE {
                 }
             }
             if (product != COLONY_PRODUCTION_NONE) {
-                if (COLCALC::Colony_Can_Build_Product(&colony, product) != 1) {
+                if (COLCALC::Colony_Can_Build_Product(&::game::world, &colony, product) != 1) {
                     return COLONY_PRODUCTION_NONE;
                 }
                 if (Colony_Production_Is_Continuous_Project(product) &&
@@ -173,7 +173,7 @@ namespace BUILD_QUEUE {
                     return COLONY_PRODUCTION_NONE;
                 }
                 if (product == BUILDING_COLONY_BASE &&
-                    !Colony_Base_Available(colony_idx, queue)) {
+                    !Colony_Base_Available(&::game::world, colony_idx, queue)) {
                     return COLONY_PRODUCTION_NONE;
                 }
                 return product;
@@ -211,12 +211,12 @@ namespace BUILD_QUEUE {
                 if (!can_build) {
                     return COLONY_PRODUCTION_NONE;
                 }
-            } else if (COLCALC::Colony_Can_Build_Product(
+            } else if (COLCALC::Colony_Can_Build_Product(&::game::world, 
                            &colony, COLBLDG::Colony_Production_From_Ship_Design_Index(design_idx)) != 1) {
                 return COLONY_PRODUCTION_NONE;
             }
             const int16_t ship_idx = design != nullptr
-                ? COLBLDG::Create_Ship_From_Design(colony.owner, design, colony_idx)
+                ? COLBLDG::Create_Ship_From_Design(&::game::world, colony.owner, design, colony_idx)
                 : COLBLDG::Create_Ship(colony.owner, design_idx, colony_idx);
             if (ship_idx == -1) {
                 return COLONY_PRODUCTION_NONE;
@@ -333,7 +333,7 @@ namespace BUILD_QUEUE {
 
         void Buy(int16_t colony_idx, uint8_t instruction) {
             s_colony& colony = MOX::colony[colony_idx];
-            if (colony.bought_outright != 0 || COLCALC::Colony_Is_Blockaded(&colony)) {
+            if (colony.bought_outright != 0 || COLCALC::Colony_Is_Blockaded(&::game::world, &colony)) {
                 return;
             }
             const int16_t product = colony.producing[0];
@@ -341,7 +341,7 @@ namespace BUILD_QUEUE {
                 product == COLONY_PRODUCTION_TRADE_GOODS || product == COLONY_PRODUCTION_REPEAT) {
                 return;
             }
-            const int64_t total = COLCALC::Colony_Product_Cost(&colony, product);
+            const int64_t total = COLCALC::Colony_Product_Cost(&::game::world, &colony, product);
             const int64_t spent = colony.production_spent;
             if (total <= spent ||
                 (instruction == INSTRUCTION_BUY10 && spent * 10 < total) ||

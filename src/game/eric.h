@@ -146,10 +146,10 @@ namespace ERIC {
     int8_t __cdecl Player_Has_Leader_With_General_Skill_At_Star(game::s_world_state* world_state, int16_t player_idx, int16_t skill_idx, int16_t star_idx);
 
     /* Returns whether the player can mind-control the target colony. */
-    int8_t __cdecl Player_Can_Mind_Control_Colony(int16_t player_idx, int16_t colony_idx);
+    int8_t __cdecl Player_Can_Mind_Control_Colony(::game::s_world_state* world_state, int16_t player_idx, int16_t colony_idx);
 
     /* Returns whether the player can mind-control the colony, showing help text on failure. */
-    int8_t __cdecl Player_Can_Mind_Control_Colony_With_Help(int16_t player_idx, int16_t colony_idx);
+    int8_t __cdecl Player_Can_Mind_Control_Colony_With_Help(::game::s_world_state* world_state, int16_t player_idx, int16_t colony_idx);
 
     /* Forces colony-palette fade handling on the next transition. */
     void __cdecl Force_Fade_To_Colony_Palette(uint8_t flag);

@@ -88,7 +88,7 @@ namespace MAINSCR {
     /**
      * Enters the main-screen event loop and dispatches its UI interactions.
      */
-    void __cdecl Main_Screen();
+    void __cdecl Main_Screen(::game::s_world_state* world_state);
 
     extern uint8_t check_next_turn_exit_field;
     extern int16_t n_twinkling_stars;
@@ -242,7 +242,7 @@ namespace MAINSCR {
     void __cdecl Add_Cheats();
     bool __cdecl Check_Config_Reload_Hot_Key(int16_t key);
 
-    void __cdecl Do_Colony_Screen(int16_t colony_idx, int16_t* status_flag);
+    void __cdecl Do_Colony_Screen(::game::s_world_state* world_state, int16_t colony_idx, int16_t* status_flag);
 
     void __cdecl Check_Stars_XY(int16_t x, int16_t y, int8_t flag);
 
@@ -273,7 +273,7 @@ namespace MAINSCR {
 
     void __cdecl Check_Mouse_XY_Fields();
 
-    int16_t __cdecl Scan_System_Display_Fields(int16_t mouse_input, int16_t input, int16_t* colony_btns, int16_t* m_planet_idx, int16_t* planet_idx, int16_t* m_ship_idx, int16_t* ship_idx, int16_t* selection);
+    int16_t __cdecl Scan_System_Display_Fields(::game::s_world_state* world_state, int16_t mouse_input, int16_t input, int16_t* colony_btns, int16_t* m_planet_idx, int16_t* planet_idx, int16_t* m_ship_idx, int16_t* ship_idx, int16_t* selection);
 
     void __cdecl Draw_Main_Screen_For_Zooming();
 
@@ -281,7 +281,7 @@ namespace MAINSCR {
 
     void __cdecl Clear_Twinkling_Star_Data();
 
-    void __cdecl Change_Home_Star_Name();
+    void __cdecl Change_Home_Star_Name(::game::s_world_state* world_state);
 
     void __cdecl Warn_About_Cheating_Players();
 
@@ -301,7 +301,7 @@ namespace MAINSCR {
 
     int16_t __cdecl Get_Ship_Stack_For_Officers_Screen();
 
-    int16_t __cdecl Get_Star_Id_For_Officers_Screen();
+    int16_t __cdecl Get_Star_Id_For_Officers_Screen(::game::s_world_state* world_state);
 
     /**
      * Opens and runs the tax-rate popup until the user dismisses it.

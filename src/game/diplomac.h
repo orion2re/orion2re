@@ -57,7 +57,7 @@ namespace diplomac {
 
     void Clear_Diplomacy_Messages();
 
-    void __cdecl Diplomacy_Growth();
+    void __cdecl Diplomacy_Growth(::game::s_world_state* world_state);
 
     void Determine_First_Contacts();
 

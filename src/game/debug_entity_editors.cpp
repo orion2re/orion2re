@@ -343,11 +343,11 @@ namespace debug_game_editors {
                 location_valid && jump_gate_valid;
         }
 
-        bool Validate_Colony_(const s_colony& colony) {
+        bool Validate_Colony_(::game::s_world_state* world_state, const s_colony& colony) {
             const int16_t player_count = std::clamp<int16_t>(MOX::NUM_PLAYERS, 0, MAX_PLAYERS);
-            const int16_t planet_count = std::clamp<int16_t>(MOX::planet_count, 0, MAX_PLANETS);
+            const int16_t planet_count = std::clamp<int16_t>(::game::Planet_Count(world_state), 0, MAX_PLANETS);
             return colony.owner >= 0 && colony.owner < player_count &&
-                colony.planet >= 0 && colony.planet < planet_count &&
+                colony.planet != ::game::NO_PLANET && colony.planet < planet_count &&
                 (colony.allocated_to == -1 ||
                     (colony.allocated_to >= 0 && colony.allocated_to < player_count)) &&
                 colony.officer >= -1 && colony.officer < MAX_LEADERS &&
@@ -454,10 +454,10 @@ namespace debug_game_editors {
             ImGui::Text("Population units: %u", (unsigned)colony.n_pops);
             ImGui::TextUnformatted("Owner and planet are read-only relationship fields.");
             ImGui::BeginDisabled();
-            debug_game_widgets::Planet_Reference("Planet", &colony.planet, false);
+            debug_game_widgets::Planet_Reference(&::game::world, "Planet", &colony.planet, false);
             ImGui::EndDisabled();
             if (ImGui::Button("Open planet")) {
-                Open_Planet(colony.planet);
+                Open_Planet(legacy_world::Planet_Id(colony.planet));
             }
             debug_game_widgets::Player_Reference("Allocated to", &colony.allocated_to);
             ImGui::Text("Stored officer: %d (relationship)", (int)colony.officer);
@@ -539,11 +539,10 @@ namespace debug_game_editors {
                     k_population_jobs,
                     3);
                 if (ImGui::Button("Add population")) {
-                    SETTLER::value_type settler = 0;
-                    SETTLER::Set_Race(&settler, (uint32_t)g_new_population_race);
-                    SETTLER::Set_Prof(
-                        &settler, static_cast<POP::e_prof>(g_new_population_job));
-                    g_colony_operation_status = SETTLER::Add_Settler_To_Colony(
+                    SETTLER::s_settler settler{};
+                    settler.race = static_cast<uint8_t>(g_new_population_race);
+                    settler.profession = static_cast<POP::e_prof>(g_new_population_job);
+                    g_colony_operation_status = SETTLER::Add_Settler_To_Colony(&::game::world, 
                                                     settler, &colony) != 0
                         ? "Population added to draft."
                         : "The colony has no room for that population.";
@@ -658,7 +657,7 @@ namespace debug_game_editors {
                         live_colony.producing[0]) &&
                     COLCALC::Colony_Cost_To_Buy_Producing_Product(
                         &MOX::colony[g_colony_editor.index]) > 0 &&
-                    !COLCALC::Colony_Is_Blockaded(
+                    !COLCALC::Colony_Is_Blockaded(&::game::world, 
                         &MOX::colony[g_colony_editor.index]) &&
                     COLCALC::Colony_Can_Afford_To_Buy_Product(
                         g_colony_editor.index);
@@ -725,7 +724,7 @@ namespace debug_game_editors {
                     bool present = colony.buildings[index] != 0;
                     const bool one_shot = One_Shot_Building_((int16_t)index);
                     const bool addition_available = present ||
-                        COLCALC::Colony_Can_Build_Product(
+                        COLCALC::Colony_Can_Build_Product(&::game::world, 
                             &MOX::colony[g_colony_editor.index],
                             (int16_t)index) == 1;
                     const char* name = TECHDATA::buildings[index].name;
@@ -743,17 +742,17 @@ namespace debug_game_editors {
                         apply = ImGui::Button(label);
                     } else if (ImGui::Checkbox(label, &present)) {
                         if (present) {
-                            ERICNET::Add_Building(
+                            ERICNET::Add_Building(&::game::world, 
                                 g_colony_editor.index, (int16_t)index);
                         } else {
-                            ERICNET::Remove_Building(
+                            ERICNET::Remove_Building(&::game::world, 
                                 g_colony_editor.index, (int16_t)index);
                         }
                         apply = true;
                     }
                     if (apply) {
                         if (one_shot) {
-                            ERICNET::Add_Building(
+                            ERICNET::Add_Building(&::game::world, 
                                 g_colony_editor.index, (int16_t)index);
                         }
                         Refresh_Colony_State_();
@@ -893,7 +892,7 @@ namespace debug_game_editors {
             Draw_Discard_Popup_("Discard ship changes?", &g_ship_editor, Load_Ship_);
         }
 
-        void Draw_Colony_Editor_() {
+        void Draw_Colony_Editor_(::game::s_world_state* world_state) {
             if (!g_colony_editor.open || !Valid_Colony_(g_colony_editor.index)) {
                 g_colony_editor.open = false;
                 return;
@@ -910,7 +909,7 @@ namespace debug_game_editors {
                 Draw_Colony_Form_(g_colony_editor.draft);
                 ImGui::Separator();
                 const bool dirty = Dirty_(g_colony_editor);
-                const bool valid = Validate_Colony_(g_colony_editor.draft);
+                const bool valid = Validate_Colony_(world_state, g_colony_editor.draft);
                 s_colony merged;
                 const bool mergeable = Merge_Colony_(g_colony_editor.baseline, g_colony_editor.draft, MOX::colony[g_colony_editor.index], &merged);
                 ImGui::BeginDisabled(!dirty || !valid || !mergeable);
@@ -955,17 +954,17 @@ namespace debug_game_editors {
                 ImGui::TextUnformatted("This reinitializes the outpost as a new colony.");
                 const bool can_convert = Valid_Colony_(g_pending_outpost_colony) &&
                     MOX::colony[g_pending_outpost_colony].outpost_flag != 0 &&
-                    MOX::colony[g_pending_outpost_colony].planet >= 0 &&
-                    MOX::colony[g_pending_outpost_colony].planet < MOX::planet_count &&
-                    MOX::planet[MOX::colony[g_pending_outpost_colony].planet].colony_index ==
+                    MOX::colony[g_pending_outpost_colony].planet != ::game::NO_PLANET &&
+                    (::game::Find_Planet(world_state, legacy_world::Planet_Id(MOX::colony[g_pending_outpost_colony].planet)) != nullptr) &&
+                    ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(MOX::colony[g_pending_outpost_colony].planet))).colony_index ==
                         g_pending_outpost_colony &&
                     MOX::game_type != 2 && MOX::game_type != 3;
                 ImGui::BeginDisabled(!can_convert);
                 if (ImGui::Button("Convert")) {
                     const int16_t colony_index = g_pending_outpost_colony;
-                    const int16_t planet_index = MOX::colony[colony_index].planet;
+                    const ::game::id_planet planet_index = MOX::colony[colony_index].planet;
                     const int8_t owner = MOX::colony[colony_index].owner;
-                    COLONIZE::Make_New_Colony(planet_index, owner);
+                    COLONIZE::Make_New_Colony(legacy_world::Planet_Id(planet_index), owner);
                     Refresh_Colony_State_();
                     Load_Colony_(colony_index);
                     g_colony_operation_status = "Outpost converted to a colony.";
@@ -985,7 +984,7 @@ namespace debug_game_editors {
         void Draw_(const debug_overlay::s_panel_context& context) {
             (void)context;
             Draw_Ship_Editor_();
-            Draw_Colony_Editor_();
+            Draw_Colony_Editor_(&::game::world);
         }
 
         debug_overlay::s_screen_panel_registration g_registration(

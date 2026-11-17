@@ -66,13 +66,13 @@ namespace {
             RUSS::Mox_Update();
 #endif
         });
-        Measure(phases, "ai_data", [&] { AIDATA::Compute_AI_Data(TURN_BENCHMARK_AI_STATE); });
+        Measure(phases, "ai_data", [&] { AIDATA::Compute_AI_Data(&::game::world, TURN_BENCHMARK_AI_STATE); });
         Measure(phases, "diplomacy", [&] {
             DIP_SCRN::Resolve_Delayed_Diplomacy_Orders();
             DIP_SCRN::Set_Opportunity_Attacks();
             diplomac::Clear_Diplomacy_Messages();
             npcdiplo::NPC_Diplomacy();
-            diplomac::Diplomacy_Growth();
+            diplomac::Diplomacy_Growth(&::game::world);
         });
         Measure(phases, "leaders", [&] { aileader::Do_AI_Leaders(&game::world, TURN_BENCHMARK_AI_STATE); });
         Measure(phases, "build_needs", [&] {
@@ -143,7 +143,7 @@ namespace {
         strings::Load_Strings();
         // Nebula artwork also supplies the collision mask used by movement.
         MAPGEN::Load_Nebula_Pictures();
-        HAROLD::Confirm_Planet_And_Star_Index_Link("turn benchmark load");
+        HAROLD::Confirm_Planet_And_Star_Index_Link(&::game::world"turn benchmark load");
         MAINSCR::Update_Star_Owners();
         HAROLD::Load_Leader_Titles(&game::world);
         for (int i = 0; i < MAX_PLAYERS; ++i) {
@@ -243,7 +243,7 @@ int main(int argc, char** argv) {
         phases.reserve(11);
         const double ms = Time_Ms([&] {
             if (ai_only) {
-                AIDATA::Compute_AI_Data(TURN_BENCHMARK_AI_STATE);
+                AIDATA::Compute_AI_Data(&::game::world, TURN_BENCHMARK_AI_STATE);
             } else if (precombat) {
                 Precombat(&phases);
             } else {

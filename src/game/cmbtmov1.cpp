@@ -14,7 +14,7 @@ namespace CMBTMOV1 {
         s_combat_data* ship = &MOX::combat_data[ship_idx];
 
         current_facing = ship->facing_dir;
-        COMBINIT::Ship_Center_Offsets(ship_idx, &center_x, &center_y);
+        COMBINIT::Ship_Center_Offsets(&::game::world, ship_idx, &center_x, &center_y);
 
         center_x += ship->x * 20;
         center_y += ship->y * 20;
@@ -60,7 +60,7 @@ namespace CMBTMOV1 {
                 }
             }
 
-            if (MOX::super_fast_flag == 0 && CMBTDRW1::Ship_On_Screen(ship_idx) != 0) {
+            if (MOX::super_fast_flag == 0 && CMBTDRW1::Ship_On_Screen(&::game::world, ship_idx) != 0) {
                 video::Set_Page_Off();
                 for (int16_t i = 0; i < MOX::combat_total_ship_count; ++i) {
                     const int16_t tractor_target_idx = MOX::combat_data[i].special_cooldown == COMBAT_SHIP_NONE
@@ -199,7 +199,7 @@ namespace CMBTMOV1 {
 
         if (!skip_normal_move) {
             int16_t center_x, center_y;
-            COMBINIT::Ship_Center_Offsets(ship_idx, &center_x, &center_y);
+            COMBINIT::Ship_Center_Offsets(&::game::world, ship_idx, &center_x, &center_y);
 
             MOX::shields_flag = 0;
 
@@ -467,7 +467,7 @@ namespace CMBTMOV1 {
         int32_t dy = (MOX::combat_data[ship_idx].y - MOX::cur_combat_y) * 20;
 
         CMBTMOV1::Rotate_Ship(ship_idx, target_facing, (int16_t)dx, (int16_t)dy);
-        COMBAT1::Assign_Combat_Grids(ship_idx);
+        COMBAT1::Assign_Combat_Grids(&::game::world, ship_idx);
         CMBTDRW1::Refresh_Combat_Screen_Full();
     }
 
@@ -492,7 +492,7 @@ namespace CMBTMOV1 {
         }
 
         MOX::dont_draw_ship = ship_idx;
-        CMBTDRW1::Get_Draw_Ship_Offsets(ship_idx, &off_x, &off_y);
+        CMBTDRW1::Get_Draw_Ship_Offsets(&::game::world, ship_idx, &off_x, &off_y);
 
         ship_screen_x = (MOX::combat_data[ship_idx].x - MOX::cur_combat_x) * 20 + off_x;
         ship_screen_y = (MOX::combat_data[ship_idx].y - MOX::cur_combat_y) * 20 + off_y;

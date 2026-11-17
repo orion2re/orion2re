@@ -17,7 +17,7 @@ namespace ERICNET {
      * @param colony_idx Colony receiving the building.
      * @param building_idx Building identifier to add.
      */
-    void __cdecl Add_Building(int16_t colony_idx, int16_t building_idx);
+    void __cdecl Add_Building(::game::s_world_state* world_state, int16_t colony_idx, int16_t building_idx);
 
     /**
      * Initializes a starting colony, optionally applying homeworld-only bonuses.
@@ -25,14 +25,14 @@ namespace ERICNET {
      * @param player_idx Owning player index.
      * @param is_homeworld Nonzero to apply homeworld-only starting bonuses.
      */
-    void __cdecl Init_Homeworld_Colony2(int16_t planet_idx, int16_t player_idx, uint8_t is_homeworld);
+    void __cdecl Init_Homeworld_Colony2(::game::s_world_state* world_state, ::game::id_planet planet_idx, int16_t player_idx, uint8_t is_homeworld);
 
     /**
      * Initializes a player's homeworld colony.
      * @param planet_idx Planet that will receive the colony.
      * @param player_idx Owning player index.
      */
-    void __cdecl Init_Homeworld_Colony(int16_t planet_idx, int16_t player_idx);
+    void __cdecl Init_Homeworld_Colony(::game::id_planet planet_idx, int16_t player_idx);
 
     /**
      * Plays a sound effect when sound effects are enabled.
@@ -45,7 +45,7 @@ namespace ERICNET {
      * @param planet_idx Planet that will receive the colony.
      * @param player_idx Owning player index.
      */
-    void __cdecl Init_Non_Homeworld_Colony(int16_t planet_idx, int16_t player_idx);
+    void __cdecl Init_Non_Homeworld_Colony(::game::id_planet planet_idx, int16_t player_idx);
 
     /**
      * Applies periodic experience gains to all eligible ships.
@@ -56,7 +56,7 @@ namespace ERICNET {
      * Grants academy-based experience for a ship at its current location.
      * @param ship_index Ship to evaluate.
      */
-    void __cdecl Do_Academy_At_Location_Check(int16_t ship_index);
+    void __cdecl Do_Academy_At_Location_Check(::game::s_world_state* world_state, int16_t ship_index);
 
     /**
      * Recomputes a ship's crew quality from its experience total.
@@ -76,7 +76,7 @@ namespace ERICNET {
      * @param colony_idx Colony losing the building.
      * @param building_idx Building identifier to remove.
      */
-    void __cdecl Remove_Building(int16_t colony_idx, int16_t building_idx);
+    void __cdecl Remove_Building(::game::s_world_state* world_state, int16_t colony_idx, int16_t building_idx);
 
     /**
      * Computes each player's best instructor bonus from available leaders.

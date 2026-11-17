@@ -8,5 +8,5 @@ namespace OCPOLPUP {
     /**
      * Prompts for the current colony occupation policy and stores the selected value.
      */
-    void __cdecl Occupation_Policy_Popup();
+    void __cdecl Occupation_Policy_Popup(::game::s_world_state* world_state);
 } // namespace OCPOLPUP

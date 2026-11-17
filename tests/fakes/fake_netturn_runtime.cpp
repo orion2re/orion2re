@@ -54,8 +54,8 @@ namespace MOX {
     s_nebula* nebula = nullptr;
     uint8_t NUM_NEBULAS = 0;
     int16_t NUM_COLONIES = 0;
-    int16_t planet_count = 0;
-    s_planet_data* planet = nullptr;
+
+
     int16_t NUM_SHIPS = 0;
     s_ship_data* ship = nullptr;
     s_colony* colony = nullptr;
@@ -124,7 +124,7 @@ namespace MAINSCR {
 
 namespace COLCALC {
     void __cdecl No_Op1() {}
-    void __cdecl Compute_Star_Colony_Stuff(s_star_data*) {}
+    void __cdecl Compute_Star_Colony_Stuff(::game::s_world_state* world_state, s_star_data*) {}
 } // namespace COLCALC
 
 namespace NEXTTURN {
@@ -140,7 +140,7 @@ namespace COMBFIND {
     void __cdecl Client_Combat_Loop() {}
     void __cdecl Do_Net_Combat_Update(bool) {}
     void __cdecl Copy_Target_Info(s_combfind_target*) {}
-    int16_t __cdecl Target_Colony_To_Planet(int16_t colony_idx) {
+    game::id_planet Target_Colony_To_Planet(int16_t colony_idx) {
         return colony_idx;
     }
     void __cdecl Decode_Star_Player_Presence(NETPROTO::Packet_Reader_*, int16_t) {}
@@ -151,7 +151,7 @@ namespace EVENTS {
     s_event_data event_data[36] = {};
     uint32_t last_event_year = 0;
     int16_t event_delay_count = 0;
-    void __cdecl Event_Monster_Update(int16_t, int16_t, int16_t) {}
+    void __cdecl Event_Monster_Update(::game::s_world_state* world_state, int16_t, int16_t, int16_t) {}
 } // namespace EVENTS
 
 namespace REPORT {
@@ -227,7 +227,7 @@ namespace HAROLD {
         return -1;
     }
 
-    bool __cdecl Star_Is_Outpost_Star(int16_t) {
+    bool __cdecl Star_Is_Outpost_Star(::game::s_world_state* world_state, int16_t) {
         return false;
     }
 } // namespace HAROLD
@@ -246,7 +246,7 @@ namespace diplomac {
 } // namespace diplomac
 
 namespace BOMB {
-    void __cdecl Destroy_Colony(s_colony*, int32_t) {}
+    void __cdecl Destroy_Colony(::game::s_world_state* world_state, s_colony*, int32_t) {}
 } // namespace BOMB
 
 namespace RUSS {

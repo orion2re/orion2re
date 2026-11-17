@@ -1,3 +1,4 @@
+#include "../fixtures/planet_state.h"
 #include "pch.h"
 
 #include "doctest/doctest.h"
@@ -128,7 +129,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "Space Scanner uses its independent str
     SHIPSTAK::scan_bonus.no_scanner = 2;
     SHIPSTAK::scan_bonus.space_scanner = 3;
 
-    SHIPSTAK::Remove_Non_Detected_Ships();
+    SHIPSTAK::Remove_Non_Detected_Ships(&::game::world);
 
     DOCTEST_CHECK(MOX::ship_stack_count == 1);
     DOCTEST_CHECK(MOX::ship_stack_start[0] == 0);
@@ -146,7 +147,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "maximum strategic scan bonuses do not 
     SHIPSTAK::scan_bonus.no_scanner = 127;
     SHIPSTAK::scan_bonus.battle_scanner = 32767;
 
-    SHIPSTAK::Remove_Non_Detected_Ships();
+    SHIPSTAK::Remove_Non_Detected_Ships(&::game::world);
 
     DOCTEST_CHECK(MOX::ship_stack_count == 1);
     DOCTEST_CHECK(MOX::ship_stack_start[0] == 0);
@@ -159,7 +160,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "configured planet proximity determines
     MOX::ship[0].owner = 1;
     MOX::colony[0].owner = 0;
     MOX::colony[0].planet = 0;
-    MOX::planet[0].star_index = 0;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).star_index = 0;
     MOX::star[0].x = 0;
     MOX::star[0].y = 0;
     MOX::player[1].traits[TRAIT_STEALTHY_SHIPS] = 1;
@@ -169,7 +170,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "configured planet proximity determines
     SHIPSTAK::stealth_bonus.cloaking_device = 0;
     SHIPSTAK::stealth_bonus.phasing_cloak = 0;
 
-    SHIPSTAK::Remove_Non_Detected_Ships();
+    SHIPSTAK::Remove_Non_Detected_Ships(&::game::world);
 
     DOCTEST_CHECK(MOX::ship_stack_count == 0);
 
@@ -179,13 +180,13 @@ DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "configured planet proximity determines
     MOX::ship[0].owner = 1;
     MOX::colony[0].owner = 0;
     MOX::colony[0].planet = 0;
-    MOX::planet[0].star_index = 0;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).star_index = 0;
     MOX::star[0].x = 0;
     MOX::star[0].y = 0;
     MOX::player[1].traits[TRAIT_STEALTHY_SHIPS] = 1;
     SHIPSTAK::scan_bonus.planet = 10;
 
-    SHIPSTAK::Remove_Non_Detected_Ships();
+    SHIPSTAK::Remove_Non_Detected_Ships(&::game::world);
 
     DOCTEST_CHECK(MOX::ship_stack_count == 1);
 }
@@ -202,7 +203,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "configured fleet proximity determines 
     SHIPSTAK::stealth_bonus.cloaking_device = 0;
     SHIPSTAK::stealth_bonus.phasing_cloak = 0;
 
-    SHIPSTAK::Remove_Non_Detected_Ships();
+    SHIPSTAK::Remove_Non_Detected_Ships(&::game::world);
 
     DOCTEST_CHECK(MOX::ship_stack_count == 0);
 
@@ -213,7 +214,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "configured fleet proximity determines 
     MOX::player[1].traits[TRAIT_STEALTHY_SHIPS] = 1;
     SHIPSTAK::scan_bonus.fleet = 10;
 
-    SHIPSTAK::Remove_Non_Detected_Ships();
+    SHIPSTAK::Remove_Non_Detected_Ships(&::game::world);
 
     DOCTEST_CHECK(MOX::ship_stack_count == 1);
 }
@@ -236,7 +237,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "race_tech retains size penalty for zer
     SHIPSTAK::stealth_size_penalty =
         SHIPSTAK::e_stealth_size_penalty::race_tech;
 
-    SHIPSTAK::Remove_Non_Detected_Ships();
+    SHIPSTAK::Remove_Non_Detected_Ships(&::game::world);
 
     DOCTEST_CHECK(MOX::ship_stack_count == 1);
     DOCTEST_CHECK(MOX::ship_stack_start[0] == 0);
@@ -262,7 +263,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "race_tech retains size penalty when de
     SHIPSTAK::stealth_size_penalty =
         SHIPSTAK::e_stealth_size_penalty::race_tech;
 
-    SHIPSTAK::Remove_Non_Detected_Ships();
+    SHIPSTAK::Remove_Non_Detected_Ships(&::game::world);
 
     DOCTEST_CHECK(MOX::ship_stack_count == 1);
     DOCTEST_CHECK(MOX::ship_stack_start[0] == 0);

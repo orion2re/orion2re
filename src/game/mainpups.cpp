@@ -93,7 +93,7 @@ namespace MAINPUPS {
         anims[25] = (s_animation_header*)farload::Far_Reload_Next(COLONY::MAINPUPS_LBX, 61 /* 0x3d */, MOX::screen_seg);
         anims[26] = (s_animation_header*)farload::Far_Reload_Next(COLONY::MAINPUPS_LBX, 73 /* 0x49 */, MOX::screen_seg);
 
-        Load_Combat_Colony_Picture_To_Screen_Seg(g_data_ptr->colony_idx);
+        Load_Combat_Colony_Picture_To_Screen_Seg(&::game::world, g_data_ptr->colony_idx);
     }
 
     void __cdecl Load_System_Discovery_Popup() {
@@ -108,7 +108,7 @@ namespace MAINPUPS {
         g_y = 0xF0 - (animate::Get_Height(anim) / 2);
     }
 
-    void __cdecl Do_Popup_Setup(int16_t star_idx, s_animation_header* popup_anim) {
+    void __cdecl Do_Popup_Setup(::game::s_world_state* world_state, int16_t star_idx, s_animation_header* popup_anim) {
         if (MOX::current_screen != SCREEN_MAIN) {
             explode_flag = 0;
         }
@@ -119,8 +119,8 @@ namespace MAINPUPS {
 
         if (star_idx == -1) {
             star_idx = 0;
-            if (MOX::player[MOX::PLAYER_NUM].home_planet_id > 0) {
-                star_idx = MOX::planet[MOX::player[MOX::PLAYER_NUM].home_planet_id].star_index;
+            if (MOX::player[MOX::PLAYER_NUM].home_planet_id != game::NO_PLANET) {
+                star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(MOX::player[MOX::PLAYER_NUM].home_planet_id))).star_index;
             }
         }
 
@@ -308,18 +308,18 @@ namespace MAINPUPS {
         MAINPUPS::mp_fields[0] = fields::Add_Hidden_Field(0, 0, 639 /* 0x27f */, 479 /* 0x1df */, hotkey, (int8_t)sound);
     }
 
-    void __cdecl Build_Generic_Planet_Or_Colony_Description_String_Formatted(int16_t planet_idx, char* buffer, uint32_t buffer_size) {
+    void __cdecl Build_Generic_Planet_Or_Colony_Description_String_Formatted(::game::s_world_state* world_state, ::game::id_planet planet_idx, char* buffer, uint32_t buffer_size) {
         if (buffer == nullptr || buffer_size == 0) {
             return;
         }
 
         char chunk[256];
         buffer[0] = '\0';
-        s_planet_data* p = &MOX::planet[planet_idx];
+        s_planet_data* p = &::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx)));
 
         if (p->colony_index == -1) {
             if (p->planet_type != PLANET_TYPE_PLANET) {
-                char* planet_name = HACCESS::Get_Planet_Name(planet_idx);
+                char* planet_name = HACCESS::Get_Planet_Name(legacy_world::Planet_Id(planet_idx));
                 snprintf(chunk, sizeof(chunk), ESTRINGS::E_Strings(0x56), planet_name);
                 strlcat(buffer, chunk, buffer_size);
                 strlcat(buffer, ESTRINGS::E_Strings(0x133), buffer_size);
@@ -329,7 +329,7 @@ namespace MAINPUPS {
             s_potential_colony_info potential_info;
             COLCALC::Compute_Potential_Colony_Info(&MOX::player[MOX::PLAYER_NUM], p, &potential_info);
 
-            char* planet_name = HACCESS::Get_Planet_Name(planet_idx);
+            char* planet_name = HACCESS::Get_Planet_Name(legacy_world::Planet_Id(planet_idx));
             /* fmtpara \x1A0 and \x1A1 toggle inline paragraph justification for these stat lines. */
             snprintf(chunk, sizeof(chunk), ESTRINGS::E_Strings(0x52), "\x1A"
                                                                        "0",
@@ -410,7 +410,7 @@ namespace MAINPUPS {
         } else {
             s_colony* c = &MOX::colony[p->colony_index];
             char* race_name = MOX::player[c->owner].race_name;
-            char* planet_name = HACCESS::Get_Planet_Name(planet_idx);
+            char* planet_name = HACCESS::Get_Planet_Name(legacy_world::Planet_Id(planet_idx));
 
             /* fmtpara \x1A0 and \x1A1 toggle inline paragraph justification for these stat lines. */
             snprintf(chunk, sizeof(chunk), ESTRINGS::E_Strings(0x49), "\x1A"
@@ -513,7 +513,7 @@ namespace MAINPUPS {
 
         fonts::Set_Font_Style_Shadow_Down(1, &colors);
         Load_Dragon_New_Star_Popup();
-        Do_Popup_Setup(star_idx, anims[37]);
+        Do_Popup_Setup(&::game::world, star_idx, anims[37]);
         fields::Deactivate_Auto_Function();
         fields::Assign_Auto_Function(Draw_Dragon_New_Star_Popup, 1);
         ERICHELP::Set_Dragon_New_Star_Popup_Help_List();
@@ -550,7 +550,7 @@ namespace MAINPUPS {
         if (colony_idx == -1) {
             strlcpy(location_name, MOX::star[star_idx].name, sizeof(location_name));
         } else {
-            strlcpy(location_name, HACCESS::Get_Planet_Name(MOX::colony[colony_idx].planet), sizeof(location_name));
+            strlcpy(location_name, HACCESS::Get_Planet_Name(legacy_world::Planet_Id(MOX::colony[colony_idx].planet)), sizeof(location_name));
         }
 
         if (attacker_idx >= 0 && attacker_idx < MAX_PLAYERS) {
@@ -626,7 +626,7 @@ namespace MAINPUPS {
         Load_Colony_Defense_Selection_Popup();
 
         popup_buffer = (s_animation_header*)buffer::Buffer_Reload("BUFFER0.LBX", 0x49, MOX::global_cache_seg);
-        Do_Popup_Setup(star_idx, popup_buffer);
+        Do_Popup_Setup(&::game::world, star_idx, popup_buffer);
 
         fields::Deactivate_Auto_Function();
         fields::Assign_Auto_Function(Draw_Defense_Selection_Popup, 1);
@@ -744,7 +744,7 @@ namespace MAINPUPS {
         g_var = initial_value;
 
         Load_SLIDER_Popup();
-        Do_Popup_Setup(popup_style, anims[14]);
+        Do_Popup_Setup(&::game::world, popup_style, anims[14]);
         remap::Calculate_Picture_Remap_Colors(anims[14]);
         fields::Deactivate_Auto_Function();
         fields::Assign_Auto_Function(Draw_Slider_Popup, 1);
@@ -789,7 +789,7 @@ namespace MAINPUPS {
         Clear_System_Special_Slots();
 
         s_animation_header* popup_bg = (s_animation_header*)buffer::Buffer_Reload("BUFFER0.LBX", 0x49, MOX::global_cache_seg);
-        Do_Popup_Setup(star_idx, popup_bg);
+        Do_Popup_Setup(&::game::world, star_idx, popup_bg);
 
         fields::Deactivate_Help_List();
         fields::Deactivate_Auto_Function();
@@ -810,7 +810,7 @@ namespace MAINPUPS {
             RUSS::Mox_Sync_Update();
         } while (done == 0);
 
-        if (namestar::Can_Change_Star_Name(star_idx) != 0 &&
+        if (namestar::Can_Change_Star_Name(&::game::world, star_idx) != 0 &&
             MOX::settings.animations_on == 0 &&
             result != -1) {
             int16_t y = namestar::Star_Name_Popup_Screen_Center_Y();
@@ -840,7 +840,7 @@ namespace MAINPUPS {
     bool __cdecl Random_New_Officer_Popup(game::s_world_state* world_state, int16_t player_idx) {
         const int16_t capital_colony = ERIC::Player_Capitol_World(player_idx);
         int16_t star_idx = capital_colony >= 0
-            ? MOX::planet[MOX::colony[capital_colony].planet].star_index
+            ? ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(MOX::colony[capital_colony].planet))).star_index
             : -1;
 
         s_colors colors;
@@ -869,7 +869,7 @@ namespace MAINPUPS {
         if (star_idx == -1) {
             const int16_t colony_idx = ERIC::Pick_Random_Colony(player_idx);
             if (colony_idx >= 0) {
-                star_idx = MOX::planet[MOX::colony[colony_idx].planet].star_index;
+                star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(MOX::colony[colony_idx].planet))).star_index;
             }
         }
 
@@ -884,7 +884,7 @@ namespace MAINPUPS {
             Load_New_Officer_Popup();
         }
 
-        Do_Popup_Setup(star_idx, anims[10]);
+        Do_Popup_Setup(world_state, star_idx, anims[10]);
 
         fields::Deactivate_Auto_Function();
         fields::Assign_Auto_Function(Draw_Random_New_Officer_Popup, 1);
@@ -1018,7 +1018,7 @@ namespace MAINPUPS {
         Clear_System_Special_Slots();
 
         s_animation_header* anim = (s_animation_header*)buffer::Buffer_Reload("BUFFER0.LBX", 0x49, MOX::global_cache_seg);
-        Do_Popup_Setup(star_idx, anim);
+        Do_Popup_Setup(&::game::world, star_idx, anim);
 
         video::Copy_Off_To_Back();
         fields::Deactivate_Auto_Function();
@@ -1101,7 +1101,7 @@ namespace MAINPUPS {
 
         Clear_New_Officer_Slots();
         Load_Officer_Gains_Level_Popup();
-        Do_Popup_Setup(star_handle, anims[10]);
+        Do_Popup_Setup(&::game::world, star_handle, anims[10]);
 
         fields::Deactivate_Auto_Function();
         fields::Assign_Auto_Function(Draw_Officer_Gains_Level_Popup, 1);
@@ -1205,7 +1205,7 @@ namespace MAINPUPS {
             bombardment_result,
             has_stellar_converter);
 
-        return Colony_Combat_Popup(&data, 0);
+        return Colony_Combat_Popup(&::game::world, &data, 0);
     }
 
     void __cdecl Update_CCP_Display_Data_Invasion(
@@ -1235,7 +1235,7 @@ namespace MAINPUPS {
         ccp_data->best_shield_bldg = Get_Colony_Best_Shield_Bldg(colony_idx);
     }
 
-    int16_t __cdecl Colony_Combat_Popup(s_colony_combat_popup_data* popup_data, int16_t popup_mode) {
+    int16_t __cdecl Colony_Combat_Popup(::game::s_world_state* world_state, s_colony_combat_popup_data* popup_data, int16_t popup_mode) {
         bool invasion_started = false;
         int16_t done = 0;
         int16_t var_1C = 0;
@@ -1267,11 +1267,11 @@ namespace MAINPUPS {
         MAINPUPS::Load_Colony_Combat_Popup();
         FLCQUEUE::Free_Flic_Queue_And_Pointers();
 
-        s_animation_header* anim = COLONY::C_Anims(0xD);
+        s_animation_header* anim = COLONY::C_Anims(world_state, 0xD);
         remap::Calculate_Picture_Remap_Colors(anim);
 
-        int16_t star_idx = MOX::planet[MOX::colony[MAINPUPS::g_data_ptr->colony_idx].planet].star_index;
-        MAINPUPS::Do_Popup_Setup(star_idx, anims[3]);
+        int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(MOX::colony[MAINPUPS::g_data_ptr->colony_idx].planet))).star_index;
+        MAINPUPS::Do_Popup_Setup(world_state, star_idx, anims[3]);
 
         fields::Deactivate_Auto_Function();
         fields::Assign_Auto_Function(MAINPUPS::Draw_Colony_Combat_Popup, 1);
@@ -1363,7 +1363,7 @@ namespace MAINPUPS {
                     }
 
                     char* race_name = MOX::player[player_id].race_name;
-                    char* planet_name = HACCESS::Get_Planet_Name(MOX::colony[MAINPUPS::g_data_ptr->colony_idx].planet);
+                    char* planet_name = HACCESS::Get_Planet_Name(legacy_world::Planet_Id(MOX::colony[MAINPUPS::g_data_ptr->colony_idx].planet));
 
                     char* fmt = ESTRINGS::E_Strings(str_id);
                     snprintf(buffer, sizeof(buffer), fmt, planet_name, race_name);
@@ -1442,15 +1442,15 @@ namespace MAINPUPS {
 
         explode_flag = 0;
 
-        return Colony_Combat_Popup(&popup_data, 1);
+        return Colony_Combat_Popup(&::game::world, &popup_data, 1);
     }
 
-    int8_t __cdecl Player_Has_Colony_Or_Outpost_At_Star(int16_t player_idx, int16_t star_idx) {
+    int8_t __cdecl Player_Has_Colony_Or_Outpost_At_Star(::game::s_world_state* world_state, int16_t player_idx, int16_t star_idx) {
         for (int16_t i = 0; i < 5; ++i) {
-            int16_t planet_idx = MOX::star[star_idx].planet_index[i];
+            ::game::id_planet planet_idx = MOX::star[star_idx].planet_index[i];
 
-            if (planet_idx != -1) {
-                int16_t colony_idx = MOX::planet[planet_idx].colony_index;
+            if (planet_idx != ::game::NO_PLANET) {
+                int16_t colony_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index;
 
                 if (colony_idx != -1) {
                     if (MOX::colony[colony_idx].owner == player_idx) {
@@ -1602,7 +1602,7 @@ namespace MAINPUPS {
         anim = (s_animation_header*)buffer::Buffer_Reload("BUFFER0.LBX", 73 /* 0x49 */, MOX::global_cache_seg);
         MAINPUPS::Get_Picture_Draw_XY(anim);
 
-        SYS::Draw_System_Display_Popup(
+        SYS::Draw_System_Display_Popup(&::game::world, 
             COLONY::sys_disp_star_handle,
             1,
             msg_buffer,
@@ -1640,7 +1640,7 @@ namespace MAINPUPS {
                 selection_result = -1;
                 *refresh_flag = 1;
             } else {
-                selection_result = Check_System_Display_Fields_Selection(selected_field, field_data, refresh_flag);
+                selection_result = Check_System_Display_Fields_Selection(&::game::world, selected_field, field_data, refresh_flag);
             }
         } else if (g_special == SYSTEM_SPECIAL_MAROONED_HERO) {
             int16_t marooned_hero_idx;
@@ -1739,7 +1739,7 @@ namespace MAINPUPS {
             const char* format = ESTRINGS::E_Strings(string_id);
             snprintf(popup_text, sizeof(popup_text), format, selected_star->name);
 
-            SYS::Draw_System_Display_Popup(
+            SYS::Draw_System_Display_Popup(&::game::world, 
                 COLONY::sys_disp_star_handle,
                 1,
                 popup_text,
@@ -1963,7 +1963,7 @@ namespace MAINPUPS {
 
         // Scans the display fields at the given mouse coordinates.
         // Arg order derived from disassembly: *param_2 (Y), *param_1 (X)
-        MAINSCR::Scan_System_Display_Fields(*mouse_y, *mouse_x, MOX::planet_buttons, &out_val1, &out_val2, &scanned_ship_idx, &out_val4, &scanned_icon_idx);
+        MAINSCR::Scan_System_Display_Fields(&::game::world, *mouse_y, *mouse_x, MOX::planet_buttons, &out_val1, &out_val2, &scanned_ship_idx, &out_val4, &scanned_icon_idx);
 
         MOX::system_display_ship_scanned = scanned_ship_idx;
 
@@ -2068,7 +2068,7 @@ namespace MAINPUPS {
 
         snprintf(buffer, sizeof(buffer), format, race_name, star->name);
 
-        SYS::Draw_System_Display_Popup(
+        SYS::Draw_System_Display_Popup(&::game::world, 
             COLONY::sys_disp_star_handle,
             1,
             buffer,
@@ -2086,7 +2086,7 @@ namespace MAINPUPS {
             return -1;
         }
 
-        return Check_System_Display_Fields_Defense_Selection(field_idx, mouse_status, selection_made);
+        return Check_System_Display_Fields_Defense_Selection(&::game::world, field_idx, mouse_status, selection_made);
     }
 
     void __cdecl Draw_Officer_Gains_Level_Popup() {
@@ -2150,7 +2150,7 @@ namespace MAINPUPS {
         return best_shield_id;
     }
 
-    int16_t __cdecl Check_System_Display_Fields_Selection(int16_t* mouse_x, int16_t* mouse_y, int16_t* selection_confirmed) {
+    game::id_planet Check_System_Display_Fields_Selection(::game::s_world_state* world_state, int16_t* mouse_x, int16_t* mouse_y, int16_t* selection_confirmed) {
         int16_t planet_scanned;
         int16_t icon_scanned;
         int16_t ship_scanned;
@@ -2167,7 +2167,7 @@ namespace MAINPUPS {
 
         auto fail_selection = [&]() -> int16_t {
             redraw_selection_popup();
-            return -1;
+            return ::game::NO_PLANET;
         };
 
         auto fail_with_help = [&](int16_t help_string_id, bool mark_full_draw, bool redraw_twice) -> int16_t {
@@ -2181,7 +2181,7 @@ namespace MAINPUPS {
             return fail_selection();
         };
 
-        int16_t scan_res = MAINSCR::Scan_System_Display_Fields(
+        int16_t scan_res = MAINSCR::Scan_System_Display_Fields(world_state, 
             *mouse_y, *mouse_x, MOX::planet_buttons, &dummy_a, &planet_scanned, &ship_scanned, &dummy_8, &icon_scanned);
 
         MOX::system_display_ship_scanned = ship_scanned;
@@ -2190,27 +2190,27 @@ namespace MAINPUPS {
         }
 
         if (scan_res == 0 && planet_scanned > -1) {
-            int16_t planet_idx = HACCESS::System_Planet_Scanned_To_Planet_Id(COLONY::sys_disp_star_handle, planet_scanned);
+            ::game::id_planet planet_idx = HACCESS::System_Planet_Scanned_To_Planet_Id(COLONY::sys_disp_star_handle, legacy_world::Planet_Id(planet_scanned));
 
             if (selection_state_flag == 0) {
-                if (MOX::planet[planet_idx].planet_type != PLANET_TYPE_PLANET) {
+                if (::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).planet_type != PLANET_TYPE_PLANET) {
                     return fail_with_help(0x236, true, true);
                 }
 
-                int16_t col_idx = MOX::planet[planet_idx].colony_index;
+                int16_t col_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index;
                 if (col_idx != -1 && MOX::colony[col_idx].outpost_flag == 0) {
                     return fail_with_help(0x236, true, true);
                 }
             }
 
             if (selection_state_flag == 1) {
-                if (MOX::planet[planet_idx].colony_index != -1) {
+                if (::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index != -1) {
                     return fail_with_help(0x236, true, true);
                 }
             }
 
             if (selection_state_flag == 2) {
-                int16_t col_idx = MOX::planet[planet_idx].colony_index;
+                int16_t col_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index;
                 if (col_idx == -1) {
                     return fail_with_help(0x23b, true, true);
                 }
@@ -2225,7 +2225,7 @@ namespace MAINPUPS {
             }
 
             if (selection_state_flag == 3) {
-                if (MOX::planet[planet_idx].planet_type == PLANET_TYPE_PLANET) {
+                if (::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).planet_type == PLANET_TYPE_PLANET) {
                     return fail_with_help(0x235, false, false);
                 }
 
@@ -2238,7 +2238,7 @@ namespace MAINPUPS {
                 return planet_idx;
             }
 
-            if (New_Colony_Confirmation_Box(planet_idx) != 0) {
+            if (New_Colony_Confirmation_Box(world_state, legacy_world::Planet_Id(planet_idx)) != 0) {
                 *selection_confirmed = 1;
                 return planet_idx;
             }
@@ -2246,7 +2246,7 @@ namespace MAINPUPS {
             return fail_selection();
         }
 
-        return -1;
+        return ::game::NO_PLANET;
     }
 
     void __cdecl Draw_Slider_Popup() {
@@ -2355,10 +2355,10 @@ namespace MAINPUPS {
         mp_fields[0] = fields::Add_Hidden_Field(0, 0, 639, 479, hotkey, 0);
     }
 
-    void __cdecl Load_Combat_Colony_Picture_To_Screen_Seg(int16_t colony_idx) {
-        int16_t planet_idx = MOX::colony[colony_idx].planet;
-        int16_t climate = MOX::planet[planet_idx].climate;
-        int16_t size = MOX::planet[planet_idx].size;
+    void __cdecl Load_Combat_Colony_Picture_To_Screen_Seg(::game::s_world_state* world_state, int16_t colony_idx) {
+        ::game::id_planet planet_idx = MOX::colony[colony_idx].planet;
+        int16_t climate = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).climate;
+        int16_t size = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).size;
 
         int16_t pic_idx1 = size + (climate * 6);
         char* filename = ESTRINGS::E_Strings(0xDF);
@@ -2402,15 +2402,15 @@ namespace MAINPUPS {
         } else if (field_id == -mp_fields[14]) {
             TEXTBOX::Text_Box(ESTRINGS::E_Strings(0x108), ESTRINGS::E_Strings(0x263));
         } else if (field_id == mp_fields[15]) {
-            if (ERIC::Player_Can_Mind_Control_Colony_With_Help(MAINPUPS::g_data_ptr->attacker_player_id, MAINPUPS::g_data_ptr->colony_idx)) {
+            if (ERIC::Player_Can_Mind_Control_Colony_With_Help(&::game::world, MAINPUPS::g_data_ptr->attacker_player_id, MAINPUPS::g_data_ptr->colony_idx)) {
                 *close_popup_flag = 1;
                 return 4;
             }
         } else if (field_id == -mp_fields[15]) {
-            if (ERIC::Player_Can_Mind_Control_Colony(MAINPUPS::g_data_ptr->attacker_player_id, MAINPUPS::g_data_ptr->colony_idx)) {
+            if (ERIC::Player_Can_Mind_Control_Colony(&::game::world, MAINPUPS::g_data_ptr->attacker_player_id, MAINPUPS::g_data_ptr->colony_idx)) {
                 TEXTBOX::Text_Box(ESTRINGS::E_Strings(0x175), ESTRINGS::E_Strings(0x264));
             } else {
-                ERIC::Player_Can_Mind_Control_Colony_With_Help(MAINPUPS::g_data_ptr->attacker_player_id, MAINPUPS::g_data_ptr->colony_idx);
+                ERIC::Player_Can_Mind_Control_Colony_With_Help(&::game::world, MAINPUPS::g_data_ptr->attacker_player_id, MAINPUPS::g_data_ptr->colony_idx);
             }
         } else if (field_id == mp_fields[16]) {
             *selection_idx_ptr = 2;
@@ -2452,8 +2452,8 @@ namespace MAINPUPS {
 
             animate::Draw(0, 0, anims[37]);
 
-            s_animation_header* anim_c = COLONY::C_Anims(12);
-            s_animation_header* anim_b = COLONY::C_Anims(11);
+            s_animation_header* anim_c = COLONY::C_Anims(&::game::world, 12);
+            s_animation_header* anim_b = COLONY::C_Anims(&::game::world, 11);
 
             MOVEBOX::Draw_Galaxy_Map_Box(anim_b, anim_c, 302, 156, 148, 94, 0, 0, 0, 0, 0, 0);
 
@@ -2537,7 +2537,7 @@ namespace MAINPUPS {
         OFFICER::Load_Officer_Skill_Icons(MOX::screen_seg);
     }
 
-    int8_t __cdecl New_Colony_Confirmation_Box(int16_t planet_idx) {
+    int8_t __cdecl New_Colony_Confirmation_Box(::game::s_world_state* world_state, ::game::id_planet planet_idx) {
         s_potential_colony_info potential_info;
         char msg_buffer[2000];
         char chunk[256];
@@ -2548,10 +2548,10 @@ namespace MAINPUPS {
 
         COLCALC::Compute_Potential_Colony_Info(
             &MOX::player[MOX::PLAYER_NUM],
-            &MOX::planet[planet_idx],
+            &::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))),
             &potential_info);
 
-        char* planet_name = HACCESS::Get_Planet_Name(planet_idx);
+        char* planet_name = HACCESS::Get_Planet_Name(legacy_world::Planet_Id(planet_idx));
         char* format_title = ESTRINGS::E_Strings(0xD1); /* 209 */
         snprintf(msg_buffer, sizeof(msg_buffer), format_title, planet_name);
 
@@ -2583,7 +2583,7 @@ namespace MAINPUPS {
         snprintf(chunk, sizeof(chunk), format_bonus, ESTRINGS::s_0_0055110c, ESTRINGS::s_1_00551110, (int)potential_info.worker_bonus);
         strlcat(msg_buffer, chunk, sizeof(msg_buffer));
 
-        int16_t max_pop = COLCALC::Planet_Max_Population_For_Player(&MOX::planet[planet_idx], MOX::PLAYER_NUM);
+        int16_t max_pop = COLCALC::Planet_Max_Population_For_Player(&::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))), MOX::PLAYER_NUM);
         char* format_pop = ESTRINGS::E_Strings(0x6E); /* 110 */
         snprintf(chunk, sizeof(chunk), format_pop, ESTRINGS::s_0_0055110c, ESTRINGS::s_1_00551110, (int)max_pop);
         strlcat(msg_buffer, chunk, sizeof(msg_buffer));
@@ -2614,15 +2614,15 @@ namespace MAINPUPS {
             int16_t y_center = (g_y * 2 + anim_h) / 2;
             ERIC::Draw_Centered(x_center, y_center, MOX::combat_planet_seg);
 
-            s_animation_header* c_anims = COLONY::C_Anims(13);
+            s_animation_header* c_anims = COLONY::C_Anims(&::game::world, 13);
             remap::Calculate_Picture_Remap_Colors(c_anims);
             fonts::Set_Font_Style(3, &colors_cfg);
 
             if (g_state == 0 || g_state == 1) {
-                char* planet_name = HACCESS::Get_Planet_Name(MOX::colony[g_data_ptr->colony_idx].planet);
+                char* planet_name = HACCESS::Get_Planet_Name(legacy_world::Planet_Id(MOX::colony[g_data_ptr->colony_idx].planet));
                 snprintf(text_buffer, sizeof(text_buffer), ESTRINGS::E_Strings(458), planet_name);
             } else if (g_state == 2) {
-                char* planet_name = HACCESS::Get_Planet_Name(MOX::colony[g_data_ptr->colony_idx].planet);
+                char* planet_name = HACCESS::Get_Planet_Name(legacy_world::Planet_Id(MOX::colony[g_data_ptr->colony_idx].planet));
                 snprintf(text_buffer, sizeof(text_buffer), ESTRINGS::E_Strings(337), planet_name);
             }
 
@@ -2813,7 +2813,7 @@ namespace MAINPUPS {
             mp_fields[15] = -1000;
         } else {
             s_animation_header* anim;
-            if (ERIC::Player_Can_Mind_Control_Colony(g_data_ptr->attacker_player_id, g_data_ptr->colony_idx)) {
+            if (ERIC::Player_Can_Mind_Control_Colony(&::game::world, g_data_ptr->attacker_player_id, g_data_ptr->colony_idx)) {
                 anim = anims[20];
             } else {
                 anim = anims[21];
@@ -2843,14 +2843,14 @@ namespace MAINPUPS {
         mp_fields[0] = fields::Add_Hidden_Field(0, 0, 0x27F, 0x1DF, ESTRINGS::E_Strings(0xC), 0);
     }
 
-    int16_t __cdecl Check_System_Display_Fields_Defense_Selection(int16_t* mouse_x, int16_t* mouse_y, int16_t* selection_made) {
+    int16_t __cdecl Check_System_Display_Fields_Defense_Selection(::game::s_world_state* world_state, int16_t* mouse_x, int16_t* mouse_y, int16_t* selection_made) {
         int16_t scanned_planet_field;
         int16_t scanned_planet_icon;
         int16_t scanned_ship_field;
         int16_t scanned_ship_icon;
         int16_t scanned_system_icon;
 
-        int16_t scan_result = MAINSCR::Scan_System_Display_Fields(
+        int16_t scan_result = MAINSCR::Scan_System_Display_Fields(world_state, 
             *mouse_y,
             *mouse_x,
             MOX::planet_buttons,
@@ -2877,15 +2877,15 @@ namespace MAINPUPS {
 
         if (scan_result == 0) {
             if (scanned_planet_icon > -1) {
-                int16_t planet_id = HACCESS::System_Planet_Scanned_To_Planet_Id(
+                ::game::id_planet planet_id = HACCESS::System_Planet_Scanned_To_Planet_Id(
                     COLONY::sys_disp_star_handle,
-                    scanned_planet_icon);
+                    legacy_world::Planet_Id(scanned_planet_icon));
 
-                int16_t colony_idx = MOX::planet[planet_id].colony_index;
+                int16_t colony_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_id))).colony_index;
 
                 if (colony_idx == -1) {
                     int16_t str_id;
-                    if (MOX::planet[planet_id].planet_type == PLANET_TYPE_PLANET) {
+                    if (::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_id))).planet_type == PLANET_TYPE_PLANET) {
                         str_id = 0x250;
                     } else {
                         str_id = 0x24F;
@@ -2927,7 +2927,7 @@ namespace MAINPUPS {
                     MAINPUPS::Draw_Defense_Selection_Popup();
                     fields::Assign_Auto_Function(MAINPUPS::Draw_Defense_Selection_Popup, 1);
                 } else {
-                    if (MAINPUPS::Player_Has_Colony_Or_Outpost_At_Star(owner, COLONY::sys_disp_star_handle) != 0) {
+                    if (MAINPUPS::Player_Has_Colony_Or_Outpost_At_Star(world_state, owner, COLONY::sys_disp_star_handle) != 0) {
                         GENDRAW::Help(ESTRINGS::E_Strings(0x24E));
                         COLONY::full_draw = 1;
                         MAINPUPS::Eric_Pop_Fields();

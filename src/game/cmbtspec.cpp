@@ -89,14 +89,14 @@ namespace CMBTSPEC {
         int16_t step;
         int32_t sound_handle;
 
-        if (CMBTDRW1::Ship_On_Screen(ship_idx) == 0) {
+        if (CMBTDRW1::Ship_On_Screen(&::game::world, ship_idx) == 0) {
             return;
         }
 
         s_combat_data& ship = MOX::combat_data[ship_idx];
 
         // This call's results are not used but maintained for semantic equivalence.
-        CMBTDRW1::Get_Draw_Ship_Offsets(ship.size_class, &unused_x, &unused_y);
+        CMBTDRW1::Get_Draw_Ship_Offsets(&::game::world, ship.size_class, &unused_x, &unused_y);
 
         switch (cloak_type) {
             case 1:
@@ -133,7 +133,7 @@ namespace CMBTSPEC {
                 video::Set_Page_Off();
                 CMBTDRW1::Draw_Main_Combat_Screen();
                 CMBTDRW1::Draw_Ship_To_Bitmap(ship_idx, 0, cloak_type, progress);
-                CMBTDRW1::Get_Draw_Ship_Offsets(ship_idx, &offset_x, &offset_y);
+                CMBTDRW1::Get_Draw_Ship_Offsets(&::game::world, ship_idx, &offset_x, &offset_y);
                 graphics::Set_Window(0, 0, 639, 350);
                 video::Clip_On();
                 animate::Draw(offset_x + rel_x, offset_y + rel_y, MOX::draw_ship_bitmap);
@@ -168,11 +168,11 @@ namespace CMBTSPEC {
             return;
         }
 
-        COMBINIT::Ship_Center_Offsets(ship_idx, &x1, &y1);
+        COMBINIT::Ship_Center_Offsets(&::game::world, ship_idx, &x1, &y1);
         x1 += (MOX::combat_data[ship_idx].x - MOX::cur_combat_x) * 20;
         y1 += (MOX::combat_data[ship_idx].y - MOX::cur_combat_y) * 20;
 
-        COMBINIT::Ship_Center_Offsets(target_idx, &x2, &y2);
+        COMBINIT::Ship_Center_Offsets(&::game::world, target_idx, &x2, &y2);
         x2 += (MOX::combat_data[target_idx].x - MOX::cur_combat_x) * 20;
         y2 += (MOX::combat_data[target_idx].y - MOX::cur_combat_y) * 20;
 
@@ -203,7 +203,7 @@ namespace CMBTSPEC {
             return;
         }
 
-        COMBINIT::Ship_Center_Offsets(ship_idx, &x1, &y1);
+        COMBINIT::Ship_Center_Offsets(&::game::world, ship_idx, &x1, &y1);
         if (ship_idx == MOX::cur_ship) {
             x1 += center_x - (MOX::cur_combat_x * 20);
             y1 += center_y - (MOX::cur_combat_y * 20);
@@ -212,7 +212,7 @@ namespace CMBTSPEC {
             y1 += (MOX::combat_data[ship_idx].y - MOX::cur_combat_y) * 20;
         }
 
-        COMBINIT::Ship_Center_Offsets(target_ship_idx, &x2, &y2);
+        COMBINIT::Ship_Center_Offsets(&::game::world, target_ship_idx, &x2, &y2);
         if (target_ship_idx == MOX::cur_ship) {
             x2 += center_x - (MOX::cur_combat_x * 20);
             y2 += center_y - (MOX::cur_combat_y * 20);
@@ -245,11 +245,11 @@ namespace CMBTSPEC {
         int32_t sound_handle;
         s_animation_header* anim;
 
-        COMBINIT::Ship_Center_Offsets(ship_idx, &off_x, &off_y);
+        COMBINIT::Ship_Center_Offsets(&::game::world, ship_idx, &off_x, &off_y);
         target_x_rel_center = target_x - off_x;
         target_y_rel_center = target_y - off_y;
 
-        if (CMBTDRW1::Ship_Completely_On_Screen(ship_idx) == 0) {
+        if (CMBTDRW1::Ship_Completely_On_Screen(&::game::world, ship_idx) == 0) {
             COMBINIT::Snap_Center_Combat_Screen(MOX::combat_data[ship_idx].x, MOX::combat_data[ship_idx].y);
         }
 
@@ -305,7 +305,7 @@ namespace CMBTSPEC {
         s_animation_header* final_img;
         int32_t resource_idx;
 
-        COMBINIT::Ship_Center_Offsets(ship_idx, &center_x, &center_y);
+        COMBINIT::Ship_Center_Offsets(&::game::world, ship_idx, &center_x, &center_y);
 
         center_x += (MOX::combat_data[ship_idx].x - MOX::cur_combat_x) * 20 + off_x;
         center_y += (MOX::combat_data[ship_idx].y - MOX::cur_combat_y) * 20 + off_y;
@@ -390,7 +390,7 @@ namespace CMBTSPEC {
         uint32_t bitmap_size = bitmap::Get_Bitmap_Size(80, 80);
         temp_bitmap = allocate::Allocate_Next_Block(MOX::screen_seg, bitmap_size);
 
-        COMBINIT::Ship_Center_Offsets(ship_idx, &draw_x, &draw_y);
+        COMBINIT::Ship_Center_Offsets(&::game::world, ship_idx, &draw_x, &draw_y);
 
         draw_x += x_off;
         draw_y += y_off;
@@ -480,7 +480,7 @@ namespace CMBTSPEC {
         s_animation_header* temp_bitmap;
 
         if (MOX::apply_damage_to_planet == 1 && MOX::super_fast_flag == 0) {
-            if (!CMBTDRW1::Ship_Completely_On_Screen(target_ship_idx)) {
+            if (!CMBTDRW1::Ship_Completely_On_Screen(&::game::world, target_ship_idx)) {
                 COMBINIT::Snap_Center_Combat_Screen(MOX::combat_data[target_ship_idx].x, MOX::combat_data[target_ship_idx].y);
             }
 
@@ -491,11 +491,11 @@ namespace CMBTSPEC {
             allocate::Push_Block(MOX::screen_seg);
             temp_bitmap = (s_animation_header*)allocate::Allocate_Next_Block(MOX::screen_seg, 50000 /* 0xC350 */);
 
-            COMBINIT::Ship_Center_Offsets(source_ship_idx, &x1, &y1);
+            COMBINIT::Ship_Center_Offsets(&::game::world, source_ship_idx, &x1, &y1);
             x1 += (MOX::combat_data[source_ship_idx].x - MOX::cur_combat_x) * 20;
             y1 += (MOX::combat_data[source_ship_idx].y - MOX::cur_combat_y) * 20;
 
-            COMBINIT::Ship_Center_Offsets(target_ship_idx, &x2, &y2);
+            COMBINIT::Ship_Center_Offsets(&::game::world, target_ship_idx, &x2, &y2);
             x2 += (MOX::combat_data[target_ship_idx].x - MOX::cur_combat_x) * 20;
             y2 += (MOX::combat_data[target_ship_idx].y - MOX::cur_combat_y) * 20;
 
@@ -562,7 +562,7 @@ namespace CMBTSPEC {
         int32_t sound_handle = 0;
 
         if (MOX::apply_damage_to_planet == 1 && MOX::super_fast_flag == 0) {
-            if (!CMBTDRW1::Ship_Completely_On_Screen(target_idx)) {
+            if (!CMBTDRW1::Ship_Completely_On_Screen(&::game::world, target_idx)) {
                 COMBINIT::Snap_Center_Combat_Screen(MOX::combat_data[target_idx].x, MOX::combat_data[target_idx].y);
             }
 
@@ -672,11 +672,11 @@ namespace CMBTSPEC {
             allocate::Push_Block(MOX::screen_seg);
             s_animation_header* h1 = (s_animation_header*)allocate::Allocate_Next_Block(MOX::screen_seg, 50000);
 
-            COMBINIT::Ship_Center_Offsets(source_ship_idx, &src_x, &src_y);
+            COMBINIT::Ship_Center_Offsets(&::game::world, source_ship_idx, &src_x, &src_y);
             src_x += (MOX::combat_data[source_ship_idx].x - MOX::cur_combat_x) * 20;
             src_y += (MOX::combat_data[source_ship_idx].y - MOX::cur_combat_y) * 20;
 
-            COMBINIT::Ship_Center_Offsets(target_ship_idx, &dst_x, &dst_y);
+            COMBINIT::Ship_Center_Offsets(&::game::world, target_ship_idx, &dst_x, &dst_y);
             dst_x += (MOX::combat_data[target_ship_idx].x - MOX::cur_combat_x) * 20;
             dst_y += (MOX::combat_data[target_ship_idx].y - MOX::cur_combat_y) * 20;
 
@@ -718,7 +718,7 @@ namespace CMBTSPEC {
 
         int16_t off_x = 0;
         int16_t off_y = 0;
-        COMBINIT::Ship_Center_Offsets(ship_idx, &off_x, &off_y);
+        COMBINIT::Ship_Center_Offsets(&::game::world, ship_idx, &off_x, &off_y);
 
         int16_t curr_x = off_x + target_x_rel;
         int16_t curr_y = off_y + target_y_rel;
@@ -986,7 +986,7 @@ namespace CMBTSPEC {
         uint32_t sound_handle;
 
         if (MOX::apply_damage_to_planet == 1 && MOX::super_fast_flag == 0) {
-            if (CMBTDRW1::Ship_Completely_On_Screen(target_idx) == 0) {
+            if (CMBTDRW1::Ship_Completely_On_Screen(&::game::world, target_idx) == 0) {
                 COMBINIT::Snap_Center_Combat_Screen(MOX::combat_data[target_idx].x, MOX::combat_data[target_idx].y);
             }
 
@@ -998,11 +998,11 @@ namespace CMBTSPEC {
             allocate::Push_Block(MOX::screen_seg);
             temp_bitmap = (s_animation_header*)allocate::Allocate_Next_Block(MOX::screen_seg, 50000);
 
-            COMBINIT::Ship_Center_Offsets(attacker_idx, &x_off, &y_off);
+            COMBINIT::Ship_Center_Offsets(&::game::world, attacker_idx, &x_off, &y_off);
             x1 = x_off + (MOX::combat_data[attacker_idx].x - MOX::cur_combat_x) * 20;
             y1 = y_off + (MOX::combat_data[attacker_idx].y - MOX::cur_combat_y) * 20;
 
-            COMBINIT::Ship_Center_Offsets(target_idx, &x_off, &y_off);
+            COMBINIT::Ship_Center_Offsets(&::game::world, target_idx, &x_off, &y_off);
             x2 = x_off + (MOX::combat_data[target_idx].x - MOX::cur_combat_x) * 20;
             y2 = y_off + (MOX::combat_data[target_idx].y - MOX::cur_combat_y) * 20;
 
@@ -1093,7 +1093,7 @@ namespace CMBTSPEC {
         int16_t weapon_id = source_ship->weapons[weapon_slot_idx].weapon_id;
 
         if (MOX::apply_damage_to_planet == 1 && MOX::super_fast_flag == 0) {
-            if (!CMBTDRW1::Ship_Completely_On_Screen(target_idx)) {
+            if (!CMBTDRW1::Ship_Completely_On_Screen(&::game::world, target_idx)) {
                 COMBINIT::Snap_Center_Combat_Screen(target_ship->x, target_ship->y);
             }
 
@@ -1101,12 +1101,12 @@ namespace CMBTSPEC {
             int16_t travel_frames = animate::Get_Animation_Frame_Count(travel_seg);
 
             int16_t start_x, start_y;
-            COMBINIT::Ship_Center_Offsets(attacker_idx, &start_x, &start_y);
+            COMBINIT::Ship_Center_Offsets(&::game::world, attacker_idx, &start_x, &start_y);
             start_x += (source_ship->x - MOX::cur_combat_x) * 20 - 20;
             start_y += (source_ship->y - MOX::cur_combat_y) * 20 - 20;
 
             int16_t dest_x, dest_y;
-            COMBINIT::Ship_Center_Offsets(target_idx, &dest_x, &dest_y);
+            COMBINIT::Ship_Center_Offsets(&::game::world, target_idx, &dest_x, &dest_y);
             dest_x += (target_ship->x - MOX::cur_combat_x) * 20 - 20;
             dest_y += (target_ship->y - MOX::cur_combat_y) * 20 - 20;
 
@@ -1212,13 +1212,13 @@ namespace CMBTSPEC {
         s_animation_header* anim;
         s_combat_data* ship = &MOX::combat_data[ship_idx];
 
-        if (CMBTDRW1::Ship_Completely_On_Screen(ship_idx) == 0) {
+        if (CMBTDRW1::Ship_Completely_On_Screen(&::game::world, ship_idx) == 0) {
             timer::Mark_Time();
             COMBINIT::Snap_Center_Combat_Screen(x / 20, y / 20);
             timer::Release_Time(7);
         }
 
-        COMBINIT::Ship_Center_Offsets(ship_idx, &off_x, &off_y);
+        COMBINIT::Ship_Center_Offsets(&::game::world, ship_idx, &off_x, &off_y);
 
         if (ship->previous_owner < 10) {
             if (explosion_type != 1) {
@@ -1316,11 +1316,11 @@ namespace CMBTSPEC {
             }
 
             MOX::dont_draw_ship = old_dont_draw;
-            COMBAT1::Assign_Combat_Grids(MOX::cur_ship);
+            COMBAT1::Assign_Combat_Grids(&::game::world, MOX::cur_ship);
             CMBTDRW1::Refresh_Combat_Screen_Full();
         } else {
             int16_t facing_dir = ship->facing_dir;
-            CMBTDRW1::Get_Draw_Ship_Offsets(ship_idx, &off_x, &off_y);
+            CMBTDRW1::Get_Draw_Ship_Offsets(&::game::world, ship_idx, &off_x, &off_y);
 
             int16_t screen_off_x = (MOX::cur_combat_x * -20) + off_x + x;
             int16_t screen_off_y = (MOX::cur_combat_y * -20) + off_y + y;
@@ -1427,7 +1427,7 @@ namespace CMBTSPEC {
             video::Set_Page_Off();
             CMBTDRW1::Draw_Main_Combat_Screen();
             RUSS::Mox_Sync_Update();
-            COMBAT1::Assign_Combat_Grids(MOX::cur_ship);
+            COMBAT1::Assign_Combat_Grids(&::game::world, MOX::cur_ship);
             CMBTDRW1::Refresh_Combat_Screen_Full();
         }
     }
@@ -1492,11 +1492,11 @@ namespace CMBTSPEC {
         allocate::Push_Block(MOX::screen_seg);
         s_animation_header* block = (s_animation_header*)allocate::Allocate_Next_Block(MOX::screen_seg, 50000);
 
-        COMBINIT::Ship_Center_Offsets(source_ship_idx, &x1, &y1);
+        COMBINIT::Ship_Center_Offsets(&::game::world, source_ship_idx, &x1, &y1);
         x1 += (MOX::combat_data[source_ship_idx].x - MOX::cur_combat_x) * 20;
         y1 += (MOX::combat_data[source_ship_idx].y - MOX::cur_combat_y) * 20;
 
-        COMBINIT::Ship_Center_Offsets(target_ship_idx, &x2, &y2);
+        COMBINIT::Ship_Center_Offsets(&::game::world, target_ship_idx, &x2, &y2);
         x2 += (MOX::combat_data[target_ship_idx].x - MOX::cur_combat_x) * 20;
         y2 += (MOX::combat_data[target_ship_idx].y - MOX::cur_combat_y) * 20;
 
@@ -1618,7 +1618,7 @@ namespace CMBTSPEC {
         bitmap::Scale_Bitmap(MOX::combat_bitmap, MOX::draw_ship_bitmap, scale, scale);
 
         // Calculate frame offsets based on ship size/picture and draw to screen
-        COMBINIT::Ship_Center_Offsets(ship_idx, &center_off_x, &center_off_y);
+        COMBINIT::Ship_Center_Offsets(&::game::world, ship_idx, &center_off_x, &center_off_y);
         ERIC::Draw_Centered(center_off_x + x, center_off_y + y, MOX::combat_bitmap);
     }
 
@@ -1629,12 +1629,12 @@ namespace CMBTSPEC {
         int16_t center_dx_2;
         int16_t center_dy_2;
 
-        if (MOX::apply_damage_to_planet == 1 && MOX::super_fast_flag == 0 && CMBTDRW1::Ship_Completely_On_Screen(source_ship_idx) == 0) {
+        if (MOX::apply_damage_to_planet == 1 && MOX::super_fast_flag == 0 && CMBTDRW1::Ship_Completely_On_Screen(&::game::world, source_ship_idx) == 0) {
             COMBINIT::Snap_Center_Combat_Screen(MOX::combat_data[source_ship_idx].x, MOX::combat_data[source_ship_idx].y);
         }
 
         int16_t center_x, center_y;
-        COMBINIT::Ship_Center_Offsets(source_ship_idx, &center_x, &center_y);
+        COMBINIT::Ship_Center_Offsets(&::game::world, source_ship_idx, &center_x, &center_y);
         center_x = center_x + MOX::cur_combat_x * -20 + effect_x;
         center_y = center_y + MOX::cur_combat_y * -20 + effect_y;
 
@@ -1735,7 +1735,7 @@ namespace CMBTSPEC {
             }
         }
 
-        COMBINIT::Ship_Center_Offsets(source_ship_idx, &center_dx_2, &center_dy_2);
+        COMBINIT::Ship_Center_Offsets(&::game::world, source_ship_idx, &center_dx_2, &center_dy_2);
 
         if (MOX::apply_damage_to_planet == 1 && MOX::super_fast_flag == 0) {
             MOX::dont_draw_ship = source_ship_idx;

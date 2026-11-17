@@ -231,7 +231,7 @@ namespace COLBLDG {
         }
 
         for (int16_t building_id = BUILDING_NO_BUILDING + 1; building_id < BUILDING_COUNT; ++building_id) {
-            uint8_t can_build = COLCALC::Colony_Can_Build_Product(&MOX::colony[COLONY::colony_handle], building_id);
+            uint8_t can_build = COLCALC::Colony_Can_Build_Product(&::game::world, &MOX::colony[COLONY::colony_handle], building_id);
 
             if ((((n_building_indexes <= 54) && can_build == 1) || COLONY::cheats) && building_id != BUILDING_COLONY_BASE) {
                 int16_t current_index = n_building_indexes;
@@ -247,15 +247,15 @@ namespace COLBLDG {
             qsort_building_by_name);
     }
 
-    void __cdecl Calculate_Military_Array() {
+    void __cdecl Calculate_Military_Array(::game::s_world_state* world_state) {
         n_military_indexes = 0;
 
         s_colony& colony = MOX::colony[COLONY::colony_handle];
-        s_planet_data& planet = MOX::planet[colony.planet];
+        s_planet_data& planet = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony.planet)));
 
-        int16_t uncolonized_worlds = Star_N_Uncolonized_Worlds(planet.star_index);
+        int16_t uncolonized_worlds = Star_N_Uncolonized_Worlds(world_state, planet.star_index);
         if (N_Prods_In_Queue(BUILDING_COLONY_BASE) < uncolonized_worlds) {
-            if (COLCALC::Colony_Can_Build_Product(&colony, BUILDING_COLONY_BASE)) {
+            if (COLCALC::Colony_Can_Build_Product(world_state, &colony, BUILDING_COLONY_BASE)) {
                 military_indexes[n_military_indexes++] = BUILDING_COLONY_BASE;
             }
         }
@@ -263,7 +263,7 @@ namespace COLBLDG {
         s_player& current_player = MOX::player[MOX::PLAYER_NUM];
 
         if (current_player.tech_applications[TECH_APP_FREIGHTERS] == TECH_RESEARCH_STATUS_RESEARCHED) {
-            if (COLCALC::Colony_Can_Build_Product(&colony, COLONY_PRODUCTION_FREIGHTERS)) {
+            if (COLCALC::Colony_Can_Build_Product(world_state, &colony, COLONY_PRODUCTION_FREIGHTERS)) {
                 military_indexes[n_military_indexes++] = COLONY_PRODUCTION_FREIGHTERS;
             }
         }
@@ -318,16 +318,16 @@ namespace COLBLDG {
             military_indexes[n_military_indexes++] = COLONY_PRODUCTION_SEPARATOR;
         }
 
-        if (COLCALC::Colony_Can_Build_Product(&colony, COLONY_PRODUCTION_FARMER)) {
+        if (COLCALC::Colony_Can_Build_Product(world_state, &colony, COLONY_PRODUCTION_FARMER)) {
             military_indexes[n_military_indexes++] = COLONY_PRODUCTION_FARMER;
         }
-        if (COLCALC::Colony_Can_Build_Product(&colony, COLONY_PRODUCTION_WORKER)) {
+        if (COLCALC::Colony_Can_Build_Product(world_state, &colony, COLONY_PRODUCTION_WORKER)) {
             military_indexes[n_military_indexes++] = COLONY_PRODUCTION_WORKER;
         }
-        if (COLCALC::Colony_Can_Build_Product(&colony, COLONY_PRODUCTION_SCIENTIST)) {
+        if (COLCALC::Colony_Can_Build_Product(world_state, &colony, COLONY_PRODUCTION_SCIENTIST)) {
             military_indexes[n_military_indexes++] = COLONY_PRODUCTION_SCIENTIST;
         }
-        if (COLCALC::Colony_Can_Build_Product(&colony, COLONY_PRODUCTION_SPY)) {
+        if (COLCALC::Colony_Can_Build_Product(world_state, &colony, COLONY_PRODUCTION_SPY)) {
             military_indexes[n_military_indexes++] = COLONY_PRODUCTION_SPY;
         }
     }
@@ -471,13 +471,13 @@ namespace COLBLDG {
 
     void __cdecl Build_Arrays() {
         Calculate_Building_Array();
-        Calculate_Military_Array();
+        Calculate_Military_Array(&::game::world);
     }
 
-    int16_t __cdecl Create_Ship_From_Design(int16_t player_idx, const s_ship_design* design, int16_t colony_idx) {
+    int16_t __cdecl Create_Ship_From_Design(::game::s_world_state* world_state, int16_t player_idx, const s_ship_design* design, int16_t colony_idx) {
         int16_t ship_idx = 0;
-        int16_t planet_idx = MOX::colony[colony_idx].planet;
-        int16_t star_idx = MOX::planet[planet_idx].star_index;
+        ::game::id_planet planet_idx = MOX::colony[colony_idx].planet;
+        int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index;
 
         while (ship_idx < MAX_SHIPS) {
             auto& ship = MOX::ship[ship_idx];
@@ -532,7 +532,7 @@ namespace COLBLDG {
     }
 
     int16_t __cdecl Create_Ship(int16_t player_idx, int16_t design_idx, int16_t colony_idx) {
-        return Create_Ship_From_Design(
+        return Create_Ship_From_Design(&::game::world, 
             player_idx, &MOX::player[player_idx].ship_designs[design_idx], colony_idx);
     }
 
@@ -550,17 +550,17 @@ namespace COLBLDG {
         pending_refit_design_valid_ = false;
     }
 
-    void __cdecl Build_Queue_Popup() {
+    void __cdecl Build_Queue_Popup(::game::s_world_state* world_state) {
         uint32_t original_seed = game_random::Get_Random_Seed();
         game_random::Set_Random_Seed(COLONY::colony_handle);
 
         COLONY::star_handle = MOX::screen_data;
         COLONY::orbit_n = COLONY::orbit_temp;
 
-        int16_t planet_idx = HAROLD::Planet_Index(MOX::screen_data, COLONY::orbit_temp);
+        ::game::id_planet planet_idx = HAROLD::Planet_Index(MOX::screen_data, legacy_world::Planet_Id(COLONY::orbit_temp));
         COLONY::planet_handle = planet_idx;
 
-        int16_t colony_idx = MOX::planet[planet_idx].colony_index;
+        int16_t colony_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index;
         COLONY::colony_handle = colony_idx;
         COLBLDG::last_app = -1;
         COLONY::using_colony_screen_palette = 1;
@@ -614,7 +614,7 @@ namespace COLBLDG {
             RUSS::Mox_Sync_Update();
             field_id = ::fields::Get_Input();
             scan_code = ::fields::Scan_Input();
-            COLBLDG::Evaluate_Input(&field_id, &scan_code);
+            COLBLDG::Evaluate_Input(world_state, &field_id, &scan_code);
 
             if (field_id == COLBLDG::fields[3] ||
                 field_id == COLBLDG::fields[0] ||
@@ -658,15 +658,15 @@ namespace COLBLDG {
         game_random::Set_Random_Seed(original_seed);
     }
 
-    int16_t __cdecl Star_N_Uncolonized_Worlds(int16_t star_index) {
+    int16_t __cdecl Star_N_Uncolonized_Worlds(::game::s_world_state* world_state, int16_t star_index) {
         int16_t uncolonized_count = 0;
         const int8_t current_owner = MOX::colony[COLONY::colony_handle].owner;
         const s_star_data& star = MOX::star[star_index];
 
         for (int16_t i = 0; i < 5; ++i) {
-            int16_t planet_idx = star.planet_index[i];
-            if (planet_idx != -1) {
-                const s_planet_data& planet = MOX::planet[planet_idx];
+            ::game::id_planet planet_idx = star.planet_index[i];
+            if (planet_idx != ::game::NO_PLANET) {
+                const s_planet_data& planet = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx)));
 
                 bool is_available = false;
                 if (planet.colony_index == -1) {
@@ -723,7 +723,7 @@ namespace COLBLDG {
                     if (ERIC::Global_Cycler(30, 2) != 0) {
                         current_palette = &l_font_dim_color_array;
                     }
-                } else if (!COLCALC::Colony_Can_Build_Product(&MOX::colony[COLONY::colony_handle], mil_idx)) {
+                } else if (!COLCALC::Colony_Can_Build_Product(&::game::world, &MOX::colony[COLONY::colony_handle], mil_idx)) {
                     if (field_mode != 1) {
                         current_palette = &l_font_dim_color_array;
                     }
@@ -735,7 +735,7 @@ namespace COLBLDG {
                 mil_idx == COLONY_PRODUCTION_DOOM_STAR) {
                 if (Auto_Design_Type(mil_idx) == 0) {
                     if (mil_idx != COLONY_PRODUCTION_DOOM_STAR ||
-                        !COLCALC::Colony_Can_Build_Product(&MOX::colony[COLONY::colony_handle], COLBLDG::Colony_Production_From_Ship_Design_Index(SHIP_SIZE_DOOM_STAR))) {
+                        !COLCALC::Colony_Can_Build_Product(&::game::world, &MOX::colony[COLONY::colony_handle], COLBLDG::Colony_Production_From_Ship_Design_Index(SHIP_SIZE_DOOM_STAR))) {
                         current_palette = &l_font_dim_color_array;
                     }
                 }
@@ -911,7 +911,7 @@ namespace COLBLDG {
                 BILL::Squeeze_Print(306, (y_line_count * 13 + 21), Selection_Name(item_id), 156);
                 y_line_count += 2;
                 fonts::Set_Font_Style_Shadow_Down(3, &l_font_color_array);
-                Draw_Cost_And_Time_Info(COLONY::colony_handle, item_id, &y_line_count);
+                Draw_Cost_And_Time_Info(&::game::world, COLONY::colony_handle, item_id, &y_line_count);
                 Print_App_Description(209, 119, 248, 109 /* 0x6D */);
                 COLONY::Remap_Draw_Ship_Seg_N_Centered(244, 56, 46 /* 0x2E */);
                 break;
@@ -929,7 +929,7 @@ namespace COLBLDG {
                 fonts::Print(306, (y_line_count * 13 + 21), Selection_Name(item_id));
                 y_line_count += 2;
                 fonts::Set_Font_Style_Shadow_Down(3, &l_font_color_array);
-                Draw_Cost_And_Time_Info(COLONY::colony_handle, item_id, &y_line_count);
+                Draw_Cost_And_Time_Info(&::game::world, COLONY::colony_handle, item_id, &y_line_count);
                 Print_App_Description(209, 119, 248, 69 /* 0x45 */);
                 COLONY::Remap_Draw_Ship_Seg_N_Centered(244, 56, 48 /* 0x30 */);
                 break;
@@ -945,7 +945,7 @@ namespace COLBLDG {
                 BILL::Squeeze_Print(306, (y_line_count * 13 + 21), Selection_Name(item_id), 156);
                 y_line_count += 2;
                 fonts::Set_Font_Style_Shadow_Down(3, &l_font_color_array);
-                Draw_Cost_And_Time_Info(COLONY::colony_handle, item_id, &y_line_count);
+                Draw_Cost_And_Time_Info(&::game::world, COLONY::colony_handle, item_id, &y_line_count);
                 Print_App_Description(209, 119, 248, 41 /* 0x29 */);
                 COLONY::Remap_Draw_Ship_Seg_N_Centered(244, 56, 45 /* 0x2D */);
                 break;
@@ -955,7 +955,7 @@ namespace COLBLDG {
                 fonts::Print(306, (y_line_count * 13 + 21), Selection_Name(item_id));
                 y_line_count += 2;
                 fonts::Set_Font_Style_Shadow_Down(3, &l_font_color_array);
-                Draw_Cost_And_Time_Info(COLONY::colony_handle, item_id, &y_line_count);
+                Draw_Cost_And_Time_Info(&::game::world, COLONY::colony_handle, item_id, &y_line_count);
                 COLONY::Remap_Draw_Ship_Seg_N_Centered(244, 56, 47 /* 0x2F */);
                 Print_App_Description(209, 119, 248, 189 /* 0xBD */);
                 break;
@@ -988,7 +988,7 @@ namespace COLBLDG {
                 fonts::Print(306, (y_line_count * 13 + 21), Selection_Name(item_id));
                 y_line_count += 2;
                 fonts::Set_Font_Style_Shadow_Down(3, &l_font_color_array);
-                Draw_Cost_And_Time_Info(COLONY::colony_handle, item_id, &y_line_count);
+                Draw_Cost_And_Time_Info(&::game::world, COLONY::colony_handle, item_id, &y_line_count);
                 Print_App_Description(209, 119, 248, 166 /* 0xA6 */);
                 Draw_Icon(COLONY::Spy_Anim(MOX::player[MOX::PLAYER_NUM].race));
                 break;
@@ -998,7 +998,7 @@ namespace COLBLDG {
                 BILL::Squeeze_Print(306, (y_line_count * 13 + 21), Selection_Name(item_id), 156);
                 y_line_count += 2;
                 fonts::Set_Font_Style_Shadow_Down(3, &l_font_color_array);
-                Draw_Cost_And_Time_Info(COLONY::colony_handle, item_id, &y_line_count);
+                Draw_Cost_And_Time_Info(&::game::world, COLONY::colony_handle, item_id, &y_line_count);
                 Draw_Icon(COLONY::People_Anim(0, 4, MOX::player[MOX::PLAYER_NUM].race));
                 Print_App_Description(209, 119, 248, 7);
                 break;
@@ -1008,7 +1008,7 @@ namespace COLBLDG {
                 BILL::Squeeze_Print(306, (y_line_count * 13 + 21), Selection_Name(item_id), 156);
                 y_line_count += 2;
                 fonts::Set_Font_Style_Shadow_Down(3, &l_font_color_array);
-                Draw_Cost_And_Time_Info(COLONY::colony_handle, item_id, &y_line_count);
+                Draw_Cost_And_Time_Info(&::game::world, COLONY::colony_handle, item_id, &y_line_count);
                 Draw_Icon(COLONY::People_Anim(0, 4, MOX::player[MOX::PLAYER_NUM].race));
                 Print_App_Description(209, 119, 248, 8);
                 break;
@@ -1018,7 +1018,7 @@ namespace COLBLDG {
                 BILL::Squeeze_Print(306, (y_line_count * 13 + 21), Selection_Name(item_id), 156);
                 y_line_count += 2;
                 fonts::Set_Font_Style_Shadow_Down(3, &l_font_color_array);
-                Draw_Cost_And_Time_Info(COLONY::colony_handle, item_id, &y_line_count);
+                Draw_Cost_And_Time_Info(&::game::world, COLONY::colony_handle, item_id, &y_line_count);
                 Draw_Icon(COLONY::People_Anim(0, 4, MOX::player[MOX::PLAYER_NUM].race));
                 Print_App_Description(209, 119, 248, 6);
                 break;
@@ -1072,7 +1072,7 @@ namespace COLBLDG {
         if (COLONY::full_draw != 0) {
             graphics::Fill(0, 0, 640, 479, 0);
 
-            s_animation_header* anim = COLONY::C_Anims(0);
+            s_animation_header* anim = COLONY::C_Anims(&::game::world, 0);
             animate::Draw(0, 0, anim);
 
             COLDRAW::Draw_Road_List();
@@ -1087,7 +1087,7 @@ namespace COLBLDG {
             graphics::Darken_Fill(202, 304, 463, 470);
             animate::Draw(0, 0, COLBLDG::anims[0]);
 
-            char* planet_name = HACCESS::Get_Planet_Name(MOX::colony[COLONY::colony_handle].planet);
+            char* planet_name = HACCESS::Get_Planet_Name(legacy_world::Planet_Id(MOX::colony[COLONY::colony_handle].planet));
             char* format = ESTRINGS::E_Strings(ESTR_BUILD_LIST_FOR_S);
             snprintf(buffer, sizeof(buffer), format, planet_name);
 
@@ -1173,7 +1173,7 @@ namespace COLBLDG {
                 fonts::Set_Font_Spacing(1);
                 fonts::Set_Font_Spacing_Width(2);
 
-                Draw_Cost_And_Time_Info(COLONY::colony_handle, id, &line_count);
+                Draw_Cost_And_Time_Info(&::game::world, COLONY::colony_handle, id, &line_count);
                 Draw_Ship_Design_Info2(design);
             }
         }
@@ -1188,13 +1188,13 @@ namespace COLBLDG {
         video::Clip_Off();
     }
 
-    void __cdecl Draw_Cost_And_Time_Info(int16_t colony_idx, int16_t product_idx, int16_t* line_count) {
+    void __cdecl Draw_Cost_And_Time_Info(::game::s_world_state* world_state, int16_t colony_idx, int16_t product_idx, int16_t* line_count) {
         char buffer[500];
         int32_t y_pos;
         char* format_str;
 
         // 1. Draw Production Cost
-        int16_t cost = COLCALC::Colony_Product_Cost(&MOX::colony[colony_idx], product_idx);
+        int16_t cost = COLCALC::Colony_Product_Cost(world_state, &MOX::colony[colony_idx], product_idx);
         format_str = ESTRINGS::E_Strings(ESTR_COST_HERE_D);
         snprintf(buffer, sizeof(buffer), format_str, (int32_t)cost);
 
@@ -1236,8 +1236,8 @@ namespace COLBLDG {
 
         // 5. Special case for Gravity Generator (ID 25)
         if (COLBLDG::Colony_Production_Is_Building(product_idx) && product_idx == BUILDING_GRAVITY_GENERATOR) {
-            int16_t planet_idx = MOX::colony[colony_idx].planet;
-            int8_t gravity_class = MOX::planet[planet_idx].gravity_class;
+            ::game::id_planet planet_idx = MOX::colony[colony_idx].planet;
+            int8_t gravity_class = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).gravity_class;
             char* gravity_str = MOX::planet_gravity_string[gravity_class];
 
             format_str = ESTRINGS::E_Strings(ESTR_GRAVITY_HERE_S);
@@ -1271,7 +1271,7 @@ namespace COLBLDG {
             y_offset++;
             fonts::Set_Font_Style_Shadow_Down(3, &l_font_color_array);
 
-            Draw_Cost_And_Time_Info(COLONY::colony_handle, building_idx, &y_offset);
+            Draw_Cost_And_Time_Info(&::game::world, COLONY::colony_handle, building_idx, &y_offset);
 
             y_offset = 0;
             Print_App_Description(0xd1, 0x77, 0xf8, *(int16_t*)&TECHDATA::buildings[building_idx].tech_app);
@@ -1562,7 +1562,7 @@ namespace COLBLDG {
         }
     }
 
-    void __cdecl Evaluate_Input(int16_t* selected_field_id, int16_t* scanned_field_id) {
+    void __cdecl Evaluate_Input(::game::s_world_state* world_state, int16_t* selected_field_id, int16_t* scanned_field_id) {
         const int16_t previous_military_count = n_military_indexes;
         scanned_prod = -1;
         scanned_field = *scanned_field_id;
@@ -1752,7 +1752,7 @@ namespace COLBLDG {
         } else if (fields[2] != input_field) {
             if (fields[10] == input_field) {
                 Do_Exit_Screen_Cleanup();
-                COLONY::Tested_Colony_Buys_Outright(COLONY::colony_handle);
+                COLONY::Tested_Colony_Buys_Outright(world_state, COLONY::colony_handle);
                 active_prod[0] = -1;
                 Do_Draw_Build_Queue();
                 ::fields::Clear_Mouse_Buffer();
@@ -1765,14 +1765,14 @@ namespace COLBLDG {
                 Commit_Autobuild_State();
                 Do_Exit_Screen_Cleanup();
                 if (next_colony != COLONY::colony_handle) {
-                    COLONY::Set_Colony_Screen_To_New_Colony(next_colony);
+                    COLONY::Set_Colony_Screen_To_New_Colony(world_state, next_colony);
                 }
                 COLONY::full_draw = 1;
             } else if (fields[9] == input_field) {
                 Handle_Queue_Blockers();
                 int16_t next_colony = COLONY::Get_Next_Colony(COLONY::colony_handle, 1);
                 if (next_colony != COLONY::colony_handle) {
-                    COLONY::Set_Colony_Screen_To_New_Colony(next_colony);
+                    COLONY::Set_Colony_Screen_To_New_Colony(world_state, next_colony);
                 }
                 field_mode = 0;
                 COLONY::Reset_Mouse_Picture();
@@ -1809,7 +1809,7 @@ namespace COLBLDG {
                             }
                         }
                     } else {
-                        if (Add_To_Queue(bidx) == 0) {
+                        if (Add_To_Queue(world_state, bidx) == 0) {
                             GENDRAW::Help(ESTRINGS::E_Strings(0x188));
                             Do_Draw_Build_Queue();
                         }
@@ -1828,8 +1828,8 @@ namespace COLBLDG {
                 }
 
                 if (military_indexes[i] == BUILDING_COLONY_BASE) {
-                    int16_t star_idx = MOX::planet[MOX::colony[COLONY::colony_handle].planet].star_index;
-                    int16_t uncolonized = Star_N_Uncolonized_Worlds(star_idx);
+                    int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(MOX::colony[COLONY::colony_handle].planet))).star_index;
+                    int16_t uncolonized = Star_N_Uncolonized_Worlds(world_state, star_idx);
                     int16_t in_queue = N_Prods_In_Queue(BUILDING_COLONY_BASE);
 
                     if (uncolonized <= in_queue) {
@@ -1848,7 +1848,7 @@ namespace COLBLDG {
                         return;
                     }
                 } else {
-                    if (Add_To_Queue(midx) == 0) {
+                    if (Add_To_Queue(world_state, midx) == 0) {
                         GENDRAW::Help(ESTRINGS::E_Strings(0x188));
                         Do_Draw_Build_Queue();
                     }
@@ -1927,7 +1927,7 @@ namespace COLBLDG {
             COLCALC::Colony_Calculation(COLONY::colony_handle);
         }
 
-        Calculate_Military_Array();
+        Calculate_Military_Array(world_state);
         if (n_military_indexes != previous_military_count) {
             Update_Fields();
         }
@@ -2040,7 +2040,7 @@ namespace COLBLDG {
             fonts::Set_Font_Spacing(1);
             fonts::Set_Font_Spacing_Width(2);
 
-            COLBLDG::Draw_Cost_And_Time_Info(COLONY::colony_handle, item, &y_offset_counter);
+            COLBLDG::Draw_Cost_And_Time_Info(&::game::world, COLONY::colony_handle, item, &y_offset_counter);
             COLBLDG::Draw_Ship_Design_Info2(&ship->d);
         }
 
@@ -2091,7 +2091,7 @@ namespace COLBLDG {
             return;
         }
 
-        if (!Add_To_Queue(COLBLDG::Colony_Production_From_Ship_Index(ship_n))) {
+        if (!Add_To_Queue(&::game::world, COLBLDG::Colony_Production_From_Ship_Index(ship_n))) {
             GENDRAW::Help(ESTRINGS::E_Strings(ESTR_NO_ROOM_IN_QUEUE_SHIP_NOT_REFITTED));
             Clear_Pending_Refit_Design();
             Do_Draw_Build_Queue();
@@ -2165,7 +2165,7 @@ namespace COLBLDG {
         }
     }
 
-    int8_t __cdecl Add_To_Queue(int16_t product_id) {
+    int8_t __cdecl Add_To_Queue(::game::s_world_state* world_state, int16_t product_id) {
         int16_t q_len = COLBLDG::Get_Prod_Queue_Len();
         if (q_len == -1) {
             if (COLBLDG::field_mode != 0) {
@@ -2176,7 +2176,7 @@ namespace COLBLDG {
         }
 
         if (product_id == COLONY_PRODUCTION_HOUSING &&
-            !COLCALC::Colony_Can_Build_Product(
+            !COLCALC::Colony_Can_Build_Product(world_state, 
                 &MOX::colony[COLONY::colony_handle], product_id)) {
             return 0;
         }
@@ -2194,12 +2194,12 @@ namespace COLBLDG {
         } else if (product_id == COLONY_PRODUCTION_SCIENTIST ||
             product_id == COLONY_PRODUCTION_FARMER ||
             product_id == COLONY_PRODUCTION_WORKER) {
-            int16_t planet_idx = MOX::colony[COLONY::colony_handle].planet;
+            ::game::id_planet planet_idx = MOX::colony[COLONY::colony_handle].planet;
             int16_t n_terra = COLBLDG::N_Prods_In_Queue(COLONY_PRODUCTION_SCIENTIST);
             int16_t n_rad = COLBLDG::N_Prods_In_Queue(COLONY_PRODUCTION_WORKER);
             int16_t n_grav = COLBLDG::N_Prods_In_Queue(COLONY_PRODUCTION_FARMER);
             uint8_t pops = MOX::colony[COLONY::colony_handle].n_pops;
-            int16_t max_pop = COLCALC::Planet_Max_Population_For_Player(&MOX::planet[planet_idx], MOX::PLAYER_NUM);
+            int16_t max_pop = COLCALC::Planet_Max_Population_For_Player(&::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))), MOX::PLAYER_NUM);
 
             if ((n_terra + n_rad + n_grav + pops + 1) >= max_pop) {
                 if (GENDRAW::Do_Confirmation_Box(ESTRINGS::E_Strings(0x208))) {
@@ -2234,7 +2234,7 @@ namespace COLBLDG {
             } else if (auto_type == SHIP_TYPE_COMBAT) {
                 if (product_id == COLONY_PRODUCTION_DOOM_STAR) {
                     design_slot = SHIP_SIZE_DOOM_STAR;
-                    if (!COLCALC::Colony_Can_Build_Product(&MOX::colony[COLONY::colony_handle], COLBLDG::Colony_Production_From_Ship_Design_Index(SHIP_SIZE_DOOM_STAR))) {
+                    if (!COLCALC::Colony_Can_Build_Product(world_state, &MOX::colony[COLONY::colony_handle], COLBLDG::Colony_Production_From_Ship_Design_Index(SHIP_SIZE_DOOM_STAR))) {
                         GENDRAW::Help(ESTRINGS::E_Strings(0x245));
                         COLBLDG::Do_Draw_Build_Queue();
                         COLBLDG::field_mode = 0;
@@ -2251,7 +2251,7 @@ namespace COLBLDG {
 
             int16_t created_ship;
             if (design != nullptr) {
-                created_ship = Create_Ship_From_Design(owner, design, COLONY::colony_handle);
+                created_ship = Create_Ship_From_Design(world_state, owner, design, COLONY::colony_handle);
                 if (created_ship != -1) {
                     MOX::ship[created_ship].status = 6;
                 }
@@ -2270,7 +2270,7 @@ namespace COLBLDG {
             COLBLDG::Do_Draw_Build_Queue();
             return 0;
         } else {
-            if (COLCALC::Colony_Can_Build_Product(&MOX::colony[COLONY::colony_handle], product_id)) {
+            if (COLCALC::Colony_Can_Build_Product(world_state, &MOX::colony[COLONY::colony_handle], product_id)) {
                 int16_t created_ship = COLBLDG::Colbldg_Create_Ship(COLBLDG::Colony_Production_Ship_Design_Index(product_id));
                 if (created_ship == -1) {
                     GENDRAW::Help(ESTRINGS::E_Strings(0x21a));
@@ -2312,7 +2312,7 @@ namespace COLBLDG {
             if (product_id != COLONY_PRODUCTION_HOUSING &&
                 product_id != COLONY_PRODUCTION_TRADE_GOODS &&
                 product_id != COLONY_PRODUCTION_REPEAT) {
-                if (COLBLDG::Add_To_Queue(COLONY_PRODUCTION_REPEAT) == 0) {
+                if (COLBLDG::Add_To_Queue(world_state, COLONY_PRODUCTION_REPEAT) == 0) {
                     GENDRAW::Help(ESTRINGS::E_Strings(0x188));
                     COLBLDG::Do_Draw_Build_Queue();
                     if (COLBLDG::field_mode != 0) {

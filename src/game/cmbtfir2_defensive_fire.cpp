@@ -24,7 +24,7 @@ namespace CMBTFIR2 {
                             attacker_idx)) {
                         int8_t status = MOX::combat_data[attacker_idx].special_status_flag;
                         if (status != 1 && status != 4 && MOX::combat_data[attacker_idx].ai_range_tactic > 0) {
-                            COMBINIT::Ship_Center_Offsets(target_idx, &center_off_x, &center_off_y);
+                            COMBINIT::Ship_Center_Offsets(&::game::world, target_idx, &center_off_x, &center_off_y);
                             range1 = CMBTAI::Range_To_XY_From_Corner(attacker_idx, target_x + center_off_x, target_y + center_off_y);
 
                             if (range1 < 1) {

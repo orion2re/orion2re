@@ -434,9 +434,9 @@ namespace spy {
         }
 
         if (target_colony != -1) {
-            ERICNET::Remove_Building(target_colony, (int16_t)target_building);
+            ERICNET::Remove_Building(&::game::world, target_colony, (int16_t)target_building);
 
-            int16_t planet_idx = MOX::colony[target_colony].planet;
+            ::game::id_planet planet_idx = MOX::colony[target_colony].planet;
             int32_t diplomacy_mode = (framed_player_idx == (int16_t)acting_player_idx) ? 3 : 4;
 
             int32_t penalty = -((int32_t)game_random::Random(5) + (int32_t)game_random::Random(15));

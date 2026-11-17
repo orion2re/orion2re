@@ -153,7 +153,7 @@ namespace maintain {
                     if (colony->buildings[building_id] != 0) {
                         int32_t cost = TECHDATA::buildings[building_id].cost;
 
-                        ERICNET::Remove_Building(i, (int16_t)building_id);
+                        ERICNET::Remove_Building(&::game::world, i, (int16_t)building_id);
                         any_removed = true;
 
                         int32_t compensation = cost / 2;
@@ -361,7 +361,7 @@ namespace maintain {
                 int16_t scrap_value = (int16_t)(TECHDATA::buildings[best_building].cost / 2);
                 int16_t colony_idx = (int16_t)(best_colony - MOX::colony);
 
-                ERICNET::Remove_Building(colony_idx, (int16_t)best_building);
+                ERICNET::Remove_Building(&::game::world, colony_idx, (int16_t)best_building);
 
                 player->bc += scrap_value;
                 if (player->objectives != PLAYER_OBJECTIVE_HUMAN) {

@@ -1106,7 +1106,7 @@ namespace SCORE {
 
         y_start = SCORE::hi->next_draw_y;
 
-        anim = COLONY::C_Anims(13);
+        anim = COLONY::C_Anims(&::game::world, 13);
         remap::Calculate_Picture_Remap_Colors(anim);
 
         if (current_pop < max_pop * 48) {

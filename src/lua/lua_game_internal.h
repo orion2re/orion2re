@@ -68,16 +68,16 @@ namespace orion2re::lua::game::internal {
     void Restore_Topology_Generation(std::uint64_t generation);
     void Push_Planet_Collection(lua_State* lua_state);
     void Push_System_Collection(lua_State* lua_state);
-    bool Push_Planet(lua_State* lua_state, std::int16_t planet_id);
+    bool Push_Planet(::game::s_world_state* world_state, lua_State* lua_state, ::game::id_planet planet_id);
     bool Push_System(lua_State* lua_state, std::int16_t system_id);
     bool Read_Planet(lua_State* lua_state,
         int index,
-        std::int16_t* planet_id);
+        ::game::id_planet* planet_id);
     bool Read_System(lua_State* lua_state,
         int index,
         std::int16_t* system_id);
-    bool Resolve_Planet_System(
-        std::int16_t planet_id, std::int16_t* system_id);
+    bool Resolve_Planet_System(::game::s_world_state* world_state, 
+        ::game::id_planet planet_id, std::int16_t* system_id);
     void Create_Technology_Metatables(lua_State* lua_state);
     void Push_Technology(lua_State* lua_state);
     bool Resolve_Technology_Application_Id(

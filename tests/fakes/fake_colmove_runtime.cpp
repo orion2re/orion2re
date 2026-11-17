@@ -52,7 +52,7 @@ namespace COLONY {
         return count;
     }
 
-    s_animation_header* __cdecl C_Anims(int16_t) {
+    s_animation_header* __cdecl C_Anims(::game::s_world_state* world_state, int16_t) {
         return nullptr;
     }
 
@@ -128,7 +128,7 @@ namespace HACCESS {
 }
 
 namespace SETTLER {
-    void __cdecl Pop_Tries_To_Settle(
+    void __cdecl Pop_Tries_To_Settle(::game::s_world_state* world_state, 
             s_colony*,
             int16_t,
             s_colony*,
@@ -137,7 +137,7 @@ namespace SETTLER {
         result->can_settle = 1;
     }
 
-    void __cdecl Settle_Pop(s_colony* source_colony, int16_t pop_idx, s_colony* destination_colony) {
+    void __cdecl Settle_Pop(::game::s_world_state* world_state, s_colony* source_colony, int16_t pop_idx, s_colony* destination_colony) {
         destination_colony->pop[destination_colony->n_pops] = source_colony->pop[pop_idx];
         ++destination_colony->n_pops;
 

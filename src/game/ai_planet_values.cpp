@@ -25,7 +25,7 @@ namespace AIDATA {
         return in_range;
     }
 
-    int16_t __cdecl Proximity_Worth_To_Player(s_state* ai, const game::s_view* world, s_colony* colony, s_player* evaluating_player) {
+    int16_t __cdecl Proximity_Worth_To_Player(::game::s_world_state* world_state, s_state* ai, const game::s_view* world, s_colony* colony, s_player* evaluating_player) {
         if (world->settings->game_difficulty == GAME_DIFFICULTY_TUTOR) {
             return 0;
         }
@@ -39,7 +39,7 @@ namespace AIDATA {
         }
 
         int16_t ship_range = owner_ptr->ship_range;
-        int16_t colony_star_idx = world->planets[colony->planet].star_index;
+        int16_t colony_star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony->planet))).star_index;
         int16_t evaluating_player_idx = (int16_t)(evaluating_player - world->players);
 
         int16_t total_worth = 0;
@@ -87,9 +87,9 @@ namespace AIDATA {
         return total_worth;
     }
 
-    int16_t __cdecl Colony_Worth_To_Player(s_state* ai, const game::s_view* world, id_colony colony_idx, s_colony* colony, s_player* evaluating_player) {
+    int16_t __cdecl Colony_Worth_To_Player(::game::s_world_state* world_state, s_state* ai, const game::s_view* world, id_colony colony_idx, s_colony* colony, s_player* evaluating_player) {
         int16_t evaluating_player_idx = (int16_t)(evaluating_player - world->players);
-        s_planet_data* planet = &world->planets[colony->planet];
+        s_planet_data* planet = &::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony->planet)));
         const auto race_index = legacy_world::Index(ai->colonies[colony_idx].dominant_race);
         if (!race_index) return 0;
         const int16_t colony_race = *race_index;
@@ -101,7 +101,7 @@ namespace AIDATA {
         int avg_max_pop = (avg_sum - (avg_sum >> 31)) >> 1;
 
         if (colony->outpost_flag != 0) {
-            return AIDATA::Proximity_Worth_To_Player(ai, world, colony, evaluating_player);
+            return AIDATA::Proximity_Worth_To_Player(world_state, ai, world, colony, evaluating_player);
         }
 
         int food_base = COLCALC::Colony_Empire_Base_Food2_Produced(colony, evaluating_player_idx, colony_race, nullptr);
@@ -186,7 +186,7 @@ namespace AIDATA {
         int final_worth = (worth + ((uint32_t)worth >> 31 & 0x3F)) >> 6;
 
         if (world->settings->game_difficulty >= GAME_DIFFICULTY_AVERAGE) {
-            int16_t proximity_worth = AIDATA::Proximity_Worth_To_Player(ai, world, colony, evaluating_player);
+            int16_t proximity_worth = AIDATA::Proximity_Worth_To_Player(world_state, ai, world, colony, evaluating_player);
             final_worth += (proximity_worth + ((uint32_t)proximity_worth >> 31 & 7)) >> 3;
             if (final_worth < proximity_worth) {
                 final_worth = proximity_worth;

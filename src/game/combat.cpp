@@ -216,7 +216,7 @@ namespace COMBAT {
                 }
 
                 if (building_id != 0) {
-                    ERICNET::Remove_Building(MOX::cmbt_colony_id, building_id);
+                    ERICNET::Remove_Building(world_state, MOX::cmbt_colony_id, building_id);
                 }
             }
 
@@ -320,14 +320,14 @@ namespace COMBAT {
 
         if (result >= 1 && MOX::combat_attacker_player < MAX_PLAYERS && MOX::combat_defender_player >= 10) {
             if (MOX::ship[plr2_ships[0]].d.ftl_type > 0) {
-                NETMOX::Russ_Event_Monster_Update(MOX::combat_defender_player, -1, MOX::combat_attacker_player);
+                NETMOX::Russ_Event_Monster_Update(MOX::combat_defender_player, legacy_world::Planet_Id(-1), MOX::combat_attacker_player);
                 result = 1;
             }
         }
 
         if (result <= -1 && MOX::combat_defender_player < MAX_PLAYERS && MOX::combat_attacker_player >= 10) {
             if (MOX::ship[plr1_ships[0]].d.ftl_type > 0) {
-                NETMOX::Russ_Event_Monster_Update(MOX::combat_attacker_player, -1, MOX::combat_defender_player);
+                NETMOX::Russ_Event_Monster_Update(MOX::combat_attacker_player, legacy_world::Planet_Id(-1), MOX::combat_defender_player);
                 result = -1;
             }
         }
@@ -342,7 +342,7 @@ namespace COMBAT {
                 }
 
                 if (has_buildings == 0) {
-                    BOMB::Destroy_Colony(&MOX::colony[MOX::cmbt_colony_id], 1);
+                    BOMB::Destroy_Colony(world_state, &MOX::colony[MOX::cmbt_colony_id], 1);
                 }
             }
         }
@@ -728,21 +728,21 @@ namespace COMBAT {
                 // Check and destroy Missile Base
                 if ((MOX::qcombat_data->structural_damage / 40 > 0) && (MOX::colony_defense_flags & 0x4)) {
                     MOX::colony_defense_flags ^= 0x4;
-                    ERICNET::Remove_Building(MOX::cmbt_colony_id, BUILDING_STELLAR_CONVERTER);
+                    ERICNET::Remove_Building(&::game::world, MOX::cmbt_colony_id, BUILDING_STELLAR_CONVERTER);
                     MOX::qcombat_data->structural_damage -= 40;
                 }
 
                 // Check and destroy Star Base
                 if ((MOX::qcombat_data->structural_damage / 40 > 0) && (MOX::colony_defense_flags & 0x1)) {
                     MOX::colony_defense_flags ^= 0x1;
-                    ERICNET::Remove_Building(MOX::cmbt_colony_id, BUILDING_MISSILE_BASE);
+                    ERICNET::Remove_Building(&::game::world, MOX::cmbt_colony_id, BUILDING_MISSILE_BASE);
                     MOX::qcombat_data->structural_damage -= 40;
                 }
 
                 // Check and destroy Battle Station
                 if ((MOX::qcombat_data->structural_damage / 40 > 0) && (MOX::colony_defense_flags & 0x2)) {
                     MOX::colony_defense_flags ^= 0x2;
-                    ERICNET::Remove_Building(MOX::cmbt_colony_id, BUILDING_GROUND_BATTERIES);
+                    ERICNET::Remove_Building(&::game::world, MOX::cmbt_colony_id, BUILDING_GROUND_BATTERIES);
                     MOX::qcombat_data->missile_defense_bonus -= 10;
                     MOX::qcombat_data->structural_damage -= 40;
                 }
@@ -750,7 +750,7 @@ namespace COMBAT {
                 // Check and destroy Star Fortress
                 if ((MOX::qcombat_data->structural_damage / 40 > 0) && (MOX::colony_defense_flags & 0x8)) {
                     MOX::colony_defense_flags ^= 0x8;
-                    ERICNET::Remove_Building(MOX::cmbt_colony_id, BUILDING_FIGHTER_GARRISON);
+                    ERICNET::Remove_Building(&::game::world, MOX::cmbt_colony_id, BUILDING_FIGHTER_GARRISON);
                     MOX::qcombat_data->structural_damage -= 40;
                 }
 
@@ -897,7 +897,7 @@ namespace COMBAT {
         } else if (MOX::cmbt_colony_id == -1) {
             location_name = MOX::star[star_idx].name;
         } else {
-            location_name = HACCESS::Get_Planet_Name(MOX::colony[MOX::cmbt_colony_id].planet);
+            location_name = HACCESS::Get_Planet_Name(legacy_world::Planet_Id(MOX::colony[MOX::cmbt_colony_id].planet));
         }
         strlcat(result_msg, location_name, result_capacity);
 
@@ -1104,7 +1104,7 @@ namespace COMBAT {
         return MOX::qcombat_data->structural_damage / 40 /* 0x28 */;
     }
 
-    void __cdecl Bombardment(s_combat_bomb_result* result) {
+    void __cdecl Bombardment(::game::s_world_state* world_state, s_combat_bomb_result* result) {
         struct_::Clear_Structure(&MOX::combat_bomb_result, sizeof(s_combat_bomb_result));
 
         int16_t num_ships = 0;
@@ -1112,9 +1112,9 @@ namespace COMBAT {
         int16_t ships[MAX_SHIPS];
 
         for (int16_t i = 0; i < MAX_SHIPS; ++i) {
-            int16_t planet_idx = MOX::colony[colony_idx].planet;
+            ::game::id_planet planet_idx = MOX::colony[colony_idx].planet;
 
-            if (MOX::planet[planet_idx].star_index == MOX::ship[i].location &&
+            if (::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index == MOX::ship[i].location &&
                 MOX::ship[i].d.ship_type == SHIP_TYPE_COMBAT &&
                 MOX::ship[i].status == 0 &&
                 MOX::ship[i].owner == result->attacker_idx) {

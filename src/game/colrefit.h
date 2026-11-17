@@ -59,7 +59,7 @@ namespace COLREFIT {
      * @param ship_idx Ship index to display.
      * @param slot_idx Visible popup slot index from 0 to 14.
      */
-    void __cdecl Draw_Ship2(int16_t ship_idx, int16_t slot_idx);
+    void __cdecl Draw_Ship2(::game::s_world_state* world_state, int16_t ship_idx, int16_t slot_idx);
 
     /** Draws the detailed text summary for the scanned ship.
      * @param ship_idx Ship index whose details should be shown.
@@ -79,7 +79,7 @@ namespace COLREFIT {
      * @param selected_field_id Points to the activated field id.
      * @param hovered_field_id Points to the currently hovered field id.
      */
-    int16_t __cdecl Evaluate_Input(int16_t* selected_field_id, int16_t* hovered_field_id);
+    int16_t __cdecl Evaluate_Input(::game::s_world_state* world_state, int16_t* selected_field_id, int16_t* hovered_field_id);
 
     /** Loads the second-stage refit popup animations into the screen segment. */
     void __cdecl Load_Refit2_Ship_Anims();

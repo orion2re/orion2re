@@ -139,11 +139,11 @@ namespace aitech {
     void __cdecl Compute_AI_Tech_Info(AIDATA::s_state* ai, const game::s_view* world) {
         for (auto& player : ai->players) player.technology = {};
 
-        for (int p_idx = 0; p_idx < world->Player_Count(); ++p_idx) {
-            s_player* plr = &world->players[p_idx];
+        for (int p_idx_position = 0; p_idx_position < world->Player_Count(); ++p_idx_position) {
+            s_player* plr = &world->players[p_idx_position];
             if (plr->eliminated) continue;
 
-            AIDATA::s_technology_assessment* plr_info = &ai->players[p_idx].technology;
+            AIDATA::s_technology_assessment* plr_info = &ai->players[p_idx_position].technology;
 
             plr_info->best_shield = aitech::Player_Best_Ship_Shield(TECHDATA::shields, plr);
             plr_info->best_armor = aitech::Player_Best_Armor(TECHDATA::armor, plr);
@@ -176,7 +176,7 @@ namespace aitech {
             }
 
             s_invasion_player_bonuses grnd_bonuses;
-            invasion::Compute_Player_Ground_Combat_Bonuses((int16_t)p_idx, &grnd_bonuses, 1);
+            invasion::Compute_Player_Ground_Combat_Bonuses((int16_t)p_idx_position, &grnd_bonuses, 1);
 
             int16_t ground_bonus_total =
                 (uint8_t)grnd_bonuses.powered_armor_bonus +
@@ -196,14 +196,14 @@ namespace aitech {
         }
 
         // Galactic comparison pass
-        for (int p_idx = 0; p_idx < world->Player_Count(); ++p_idx) {
-            s_player* plr = &world->players[p_idx];
+        for (int p_idx_position = 0; p_idx_position < world->Player_Count(); ++p_idx_position) {
+            s_player* plr = &world->players[p_idx_position];
             if (plr->eliminated) continue;
 
-            AIDATA::s_technology_assessment* plr_info = &ai->players[p_idx].technology;
+            AIDATA::s_technology_assessment* plr_info = &ai->players[p_idx_position].technology;
 
             for (int other_idx = 0; other_idx < world->Player_Count(); ++other_idx) {
-                if (p_idx != other_idx && world->players[other_idx].eliminated == 0) {
+                if (p_idx_position != other_idx && world->players[other_idx].eliminated == 0) {
                     AIDATA::s_technology_assessment* other_info = &ai->players[other_idx].technology;
                     bool has_contact = plr->contact[other_idx] != 0;
 
@@ -298,7 +298,7 @@ namespace aitech {
             // Check for Colonization status
             bool can_colonize =
                 (plr->tech_applications[TECH_APP_THORIUM_FUEL_CELLS] == TECH_RESEARCH_STATUS_RESEARCHED) ||
-                AIMOVE::Best_Uncolonized_Undestined_Planet(ai, world, legacy_world::Player_Id(p_idx)).has_value();
+                AIMOVE::Best_Uncolonized_Undestined_Planet(ai, world, legacy_world::Player_Id(p_idx_position)).has_value();
 
             plr_info->colonization_idle = can_colonize ? 0 : 1;
         }

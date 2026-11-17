@@ -81,7 +81,7 @@ namespace CMBTDRW1 {
         ship_center_and_size[6] = 33;
 
         int16_t cy;
-        COMBINIT::Ship_Center_Offsets(MOX::cur_ship, ship_center_and_size, &cy);
+        COMBINIT::Ship_Center_Offsets(&::game::world, MOX::cur_ship, ship_center_and_size, &cy);
 
         int16_t cx = ship_center_and_size[0];
         cx += MOX::combat_data[MOX::cur_ship].x * 20;
@@ -274,10 +274,10 @@ namespace CMBTDRW1 {
         }
 
         if (MOX::global_combat_data.officer_idx == -1) {
-            int16_t p_idx = (int16_t)MOX::global_combat_data.owner;
-            if (p_idx >= MAX_PLAYERS) p_idx = 0;
+            int16_t player_idx = MOX::global_combat_data.owner;
+            if (player_idx >= MAX_PLAYERS) player_idx = 0;
 
-            uint8_t race = (uint8_t)MOX::player[p_idx].race;
+            uint8_t race = MOX::player[player_idx].race;
             MOX::detail_fleet_icon_seg = (s_animation_header*)farload::Far_Reload_Next("flticons.lbx", race, MOX::screen_seg);
         } else {
             int16_t mode = is_editable ? 0 : 2;
@@ -549,7 +549,7 @@ namespace CMBTDRW1 {
             }
             RUSS::Mox_Update();
 
-            Draw_Reduced_Combat_Map();
+            Draw_Reduced_Combat_Map(&::game::world);
             MOX::last_ship_status = -2;
         }
     }
@@ -813,7 +813,7 @@ namespace CMBTDRW1 {
         if (MOX::combat_total_ship_count > 0) {
             for (int16_t i = 0; i < MOX::combat_total_ship_count; ++i) {
                 if (MOX::combat_data[i].unit_status == 0 && MOX::dont_draw_ship != i) {
-                    if (Ship_On_Screen(i)) {
+                    if (Ship_On_Screen(&::game::world, i)) {
                         Draw_Ship(i, (MOX::combat_data[i].x - MOX::cur_combat_x) * 20, (MOX::combat_data[i].y - MOX::cur_combat_y) * 20);
                     }
                 }
@@ -882,11 +882,11 @@ namespace CMBTDRW1 {
                 animate::Draw(500, 363, (s_animation_header*)MOX::msl_warning_on_seg);
                 animate::Draw(529, 407, (s_animation_header*)MOX::warning_missile_seg);
             } else {
-                Draw_Reduced_Combat_Map();
+                Draw_Reduced_Combat_Map(&::game::world);
                 Draw_Reduced_Map_Box();
             }
         } else {
-            Draw_Current_Ship_Blip();
+            Draw_Current_Ship_Blip(&::game::world);
             Draw_Reduced_Map_Box();
         }
 
@@ -1084,7 +1084,7 @@ namespace CMBTDRW1 {
 
     void __cdecl Refresh_Combat_Screen_Full() {
         COMBAT1::Add_Tactical_Combat_Fields();
-        COMBAT1::Assign_Combat_Grids(MOX::cur_ship);
+        COMBAT1::Assign_Combat_Grids(&::game::world, MOX::cur_ship);
 
         if (MOX::super_fast_flag == 0) {
             video::Set_Page_Back();
@@ -1331,7 +1331,7 @@ namespace CMBTDRW1 {
         }
 
         COMBAT1::Add_Tactical_Combat_Fields();
-        COMBAT1::Assign_Combat_Grids(MOX::cur_ship);
+        COMBAT1::Assign_Combat_Grids(&::game::world, MOX::cur_ship);
         fields::Enable_Draw_All_Fields();
         Refresh_Combat_Screen_Full();
     }
@@ -1362,7 +1362,7 @@ namespace CMBTDRW1 {
 
         CMBTDRW1::Detailed_View_Ship(-1);
         COMBAT1::Add_Tactical_Combat_Fields();
-        COMBAT1::Assign_Combat_Grids(MOX::cur_ship);
+        COMBAT1::Assign_Combat_Grids(&::game::world, MOX::cur_ship);
         CMBTDRW1::Refresh_Combat_Screen_Full();
         fields::Assign_Auto_Function(CMBTDRW1::Draw_Main_Combat_Screen, 1);
     }
@@ -1444,14 +1444,14 @@ namespace CMBTDRW1 {
         fields::Clear_Fields();
         fields::Assign_Auto_Function(Draw_Main_Combat_Screen, 1);
         Refresh_Combat_Screen_Full();
-        COMBAT1::Assign_Combat_Grids(MOX::cur_ship);
+        COMBAT1::Assign_Combat_Grids(&::game::world, MOX::cur_ship);
 
         *out_val = g_var;
 
         return result;
     }
 
-    int16_t __cdecl Ship_Completely_On_Screen(int16_t ship_idx) {
+    int16_t __cdecl Ship_Completely_On_Screen(::game::s_world_state* world_state, int16_t ship_idx) {
         int16_t idx = ship_idx;
         int16_t x = (int16_t)MOX::combat_data[idx].x;
         int16_t y = (int16_t)MOX::combat_data[idx].y;
@@ -1468,8 +1468,8 @@ namespace CMBTDRW1 {
                 planet_size = 2;
             } else {
                 int16_t colony_idx = MOX::cmbt_colony_id;
-                int16_t planet_idx = MOX::colony[colony_idx].planet;
-                planet_size = (int16_t)MOX::planet[planet_idx].size;
+                ::game::id_planet planet_idx = MOX::colony[colony_idx].planet;
+                planet_size = (int16_t)::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).size;
             }
 
             int16_t dx = 0, dy = 0;
@@ -1524,7 +1524,7 @@ namespace CMBTDRW1 {
         return result;
     }
 
-    int16_t __cdecl Ship_On_Screen(int16_t ship_idx) {
+    int16_t __cdecl Ship_On_Screen(::game::s_world_state* world_state, int16_t ship_idx) {
         s_combat_data* ship = &MOX::combat_data[ship_idx];
         int16_t x = ship->x;
         int16_t y = ship->y;
@@ -1536,8 +1536,8 @@ namespace CMBTDRW1 {
 
             if (MOX::combat_defender_player != 8) {
                 int16_t colony_id = MOX::cmbt_colony_id;
-                int16_t planet_idx = MOX::colony[colony_id].planet;
-                planet_size = MOX::planet[planet_idx].size;
+                ::game::id_planet planet_idx = MOX::colony[colony_id].planet;
+                planet_size = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).size;
             }
 
             switch (planet_size) {
@@ -1658,7 +1658,7 @@ namespace CMBTDRW1 {
             animate::Draw(500, 363, MOX::msl_warning_on_seg);
             animate::Draw(529, 407, MOX::warning_missile_seg);
         } else {
-            Draw_Reduced_Combat_Map();
+            Draw_Reduced_Combat_Map(&::game::world);
             Draw_Reduced_Map_Box();
         }
 
@@ -2067,7 +2067,7 @@ namespace CMBTDRW1 {
         int16_t offset_y;
 
         // Retrieve ship-specific centering offsets based on ship image dimensions
-        COMBINIT::Ship_Center_Offsets(combat_idx, &offset_x, &offset_y);
+        COMBINIT::Ship_Center_Offsets(&::game::world, combat_idx, &offset_x, &offset_y);
 
         // Calculate screen X coordinate: (world_x - viewport_x) * grid_size + local_offset
         // 0x14 is the grid cell size (20 pixels)
@@ -2209,13 +2209,13 @@ namespace CMBTDRW1 {
         }
 
         int16_t x_offset, y_offset;
-        Get_Draw_Ship_Offsets(ship_idx, &x_offset, &y_offset);
+        Get_Draw_Ship_Offsets(&::game::world, ship_idx, &x_offset, &y_offset);
 
         if (ship_idx == 0) {
             animate::Draw((MOX::combat_data[0].x - MOX::cur_combat_x) * 20 + x_offset,
                 (MOX::combat_data[0].y - MOX::cur_combat_y) * 20 + y_offset,
                 MOX::combat_planet_seg);
-            COMBINIT::Ship_Center_Offsets(0, &draw_x, &draw_y);
+            COMBINIT::Ship_Center_Offsets(&::game::world, 0, &draw_x, &draw_y);
             return;
         }
 
@@ -2543,7 +2543,7 @@ namespace CMBTDRW1 {
         bool has_transporter = COMBINIT::Does_Combat_Ship_Have_Special(attacker_idx, SPECIAL_TRANSPORTERS) != 0;
         int16_t speed = (MOX::speedx2_flag != 0 || MOX::net_flag != 0) ? 12 : 6;
 
-        if (Ship_Completely_On_Screen(attacker_idx) == 0) {
+        if (Ship_Completely_On_Screen(&::game::world, attacker_idx) == 0) {
             COMBINIT::Snap_Center_Combat_Screen(MOX::combat_data[attacker_idx].x, MOX::combat_data[attacker_idx].y);
         }
 

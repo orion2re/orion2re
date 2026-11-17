@@ -37,7 +37,7 @@ namespace REPORT {
      * @param player_idx Player to search for.
      * @param star_idx Star to inspect.
      */
-    s_colony* __cdecl Player_Colony_Base_At_Star(int16_t player_idx, int16_t star_idx);
+    s_colony* __cdecl Player_Colony_Base_At_Star(::game::s_world_state* world_state, int16_t player_idx, int16_t star_idx);
     /**
      * Returns the first matching ship type at a star for the requested owner.
      * @param owner Ship owner to match.
@@ -68,7 +68,7 @@ namespace REPORT {
      * @param player_idx Player whose colonization state is being checked.
      * @param show_dialog Nonzero to show the placement UI.
      */
-    int8_t __cdecl Colonization(int16_t player_idx, int8_t show_dialog);
+    int8_t __cdecl Colonization(::game::s_world_state* world_state, int16_t player_idx, int8_t show_dialog);
 
     /**
      * Checks for queued reports for a player and optionally displays them.
@@ -140,7 +140,7 @@ namespace REPORT {
     /** Checks for diplomacy messages addressed to a player and optionally shows them. */
     int8_t __cdecl Has_Diplomacy_Messages(int16_t receiver_idx, bool show_messages);
     /** Checks for colonies that still need an occupation policy choice. */
-    int8_t __cdecl Need_To_Set_Occupation_Policy(int16_t player_idx, int8_t show_screen);
+    int8_t __cdecl Need_To_Set_Occupation_Policy(::game::s_world_state* world_state, int16_t player_idx, int8_t show_screen);
     /** Finds an empty colony queue and optionally jumps to that colony screen. */
-    int8_t __cdecl Empty_Colony_Queue(int16_t player_idx, int8_t do_jump);
+    int8_t __cdecl Empty_Colony_Queue(::game::s_world_state* world_state, int16_t player_idx, int8_t do_jump);
 } // namespace REPORT

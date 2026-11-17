@@ -15,7 +15,7 @@ namespace BOMB {
      * @param colony Colony to destroy.
      * @param capturing_player Player that captured the colony, or -1 if it was only destroyed.
      */
-    void __cdecl Destroy_Colony(s_colony* colony, int32_t capturing_player);
+    void __cdecl Destroy_Colony(::game::s_world_state* world_state, s_colony* colony, int32_t capturing_player);
 
     /**
      * Applies one bomb-hit outcome against a colony.

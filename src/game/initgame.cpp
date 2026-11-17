@@ -39,7 +39,7 @@ namespace INITGAME {
         for (MOX::NUM_COLONIES = 0; MOX::NUM_COLONIES < MAX_COLONIES; ++MOX::NUM_COLONIES) {
             s_colony& colony = MOX::colony[MOX::NUM_COLONIES];
 
-            colony.planet = -1;
+            colony.planet = ::game::NO_PLANET;
             colony.owner = -1;
             colony.officer = -1;
         }
@@ -180,23 +180,23 @@ namespace INITGAME {
         MOX::settings.start_of_game_seed = game_random::Get_Random_Seed();
 
         do {
-            MAPGEN::Universe_Generation((uint8_t)galaxy_size, (uint8_t)galaxy_age, (int8_t)game_difficulty);
+            MAPGEN::Universe_Generation(&::game::world, (uint8_t)galaxy_size, (uint8_t)galaxy_age, (int8_t)game_difficulty);
             RUSS::Mox_Update();
 
-            generation_success = HOMEGEN::Generate_Home_Worlds();
+            generation_success = HOMEGEN::Generate_Home_Worlds(&::game::world);
             RUSS::Mox_Update();
 
             if (generation_success != 0) {
                 video::Set_Page_Off();
                 graphics::Fill(0, 0, 0x27F, 0x1DF, 0);
                 platform::Toggle_Pages_Stub();
-                MAPGEN::Enforce_Configured_Planet_Max();
+                MAPGEN::Enforce_Configured_Planet_Max(&::game::world);
                 MAPGEN::Set_Black_Hole_Visited_Flags();
-                HAROLD::Confirm_Planet_And_Star_Index_Link(HAROLD::s_after_home_world_gen);
+                HAROLD::Confirm_Planet_And_Star_Index_Link(&::game::world, HAROLD::s_after_home_world_gen);
 
                 if (MOX::settings.starting_civilization_level ==
                     STARTING_CIVILIZATION_LEVEL_ADVANCED) {
-                    ADVCIV::Advanced_Civilization_Colonies();
+                    ADVCIV::Advanced_Civilization_Colonies(&::game::world);
                     ADVCIV::Assign_Advanced_Civilization_Starting_Ships();
                 }
             }
@@ -230,11 +230,11 @@ namespace INITGAME {
         }
 
         RUSS::Mox_Update();
-        HOMEGEN::Make_System_Monsters();
+        HOMEGEN::Make_System_Monsters(&::game::world);
         RUSS::Mox_Update();
-        Make_System_Monsters_Into_Ships();
+        Make_System_Monsters_Into_Ships(&::game::world);
         RUSS::Mox_Update();
-        MAPGEN::Generate_Wormhole_Links();
+        MAPGEN::Generate_Wormhole_Links(&::game::world);
         RUSS::Mox_Update();
 
         if (MOX::settings.starting_civilization_level ==
@@ -269,7 +269,7 @@ namespace INITGAME {
 
         COLONIZE::Allocate_New_Colony_Slots();
         RUSS::Mox_Update();
-        COLCALC::Twiddle_Initial_Homeworlds();
+        COLCALC::Twiddle_Initial_Homeworlds(&::game::world);
         RUSS::Mox_Update();
         SHIPMOVE::Allocate_New_Ship_Slots();
         RUSS::Mox_Update();
@@ -302,7 +302,7 @@ namespace INITGAME {
         }
 
         bool finalization_succeeded = false;
-        if (MAPGEN::Finalize_Configured_New_Game(&finalization_succeeded)) {
+        if (MAPGEN::Finalize_Configured_New_Game(&::game::world, &finalization_succeeded)) {
             COLCALC::Compute_All_Star_Colony_Stuff();
             COLCALC::All_Colony_Calculations();
         }
@@ -314,13 +314,13 @@ namespace INITGAME {
         return true;
     }
 
-    void __cdecl Init_Colony(int16_t colony_idx, int16_t planet_idx, uint8_t player_num) {
+    void __cdecl Init_Colony(::game::s_world_state* world_state, int16_t colony_idx, ::game::id_planet planet_idx, uint8_t player_num) {
         s_colony* colony = &MOX::colony[colony_idx];
 
         // Zero-initialize the entire colony structure
         memset(colony, 0, sizeof(s_colony));
 
-        s_planet_data* planet = &MOX::planet[planet_idx];
+        s_planet_data* planet = &::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx)));
         planet->colony_index = colony_idx;
 
         colony->planet = planet_idx;
@@ -384,17 +384,17 @@ namespace INITGAME {
 
         for (int16_t star_idx = 0; star_idx < MOX::NUM_STARS; ++star_idx) {
             // Initialize selection history to none (-1) for all planets in this system
-            for (int planet_idx = 0; planet_idx < 8; ++planet_idx) {
-                MOX::star[star_idx].last_planet_selected[planet_idx] = -1;
+            for (int planet_idx_position = 0; planet_idx_position < 8; ++planet_idx_position) {
+                MOX::star[star_idx].last_orbit_selected[planet_idx_position] = -1;
             }
 
             // Determine and set the default auto-selection logic for this star
             int16_t selected_planet_idx;
-            HACCESS::Set_Colony_Auto_Select_For_Star(star_idx, MOX::PLAYER_NUM, &selected_planet_idx);
+            HACCESS::Set_Colony_Auto_Select_For_Star(&::game::world, star_idx, MOX::PLAYER_NUM, &selected_planet_idx);
         }
     }
 
-    void __cdecl Make_System_Monsters_Into_Ships() {
+    void __cdecl Make_System_Monsters_Into_Ships(::game::s_world_state* world_state) {
         int16_t total_stars = MOX::NUM_STARS;
         s_star_data* star_ptr = MOX::star;
         s_star_data* end_ptr = &MOX::star[total_stars];
@@ -404,7 +404,7 @@ namespace INITGAME {
             if (star_ptr->system_special == SYSTEM_SPECIAL_SPACE_MONSTER) {
                 int32_t ship_type = game_random::Random(5) + 9;
                 int16_t star_idx = (int16_t)(star_ptr - MOX::star);
-                int16_t planet_idx = HOMEGEN::Random_Planet(star_idx);
+                ::game::id_planet planet_idx = HOMEGEN::Random_Planet(world_state, star_idx);
 
                 // Initialize monster ship owner to Neutral/Orion
                 MOX::ship[MOX::NUM_SHIPS].owner = 8;
@@ -414,7 +414,7 @@ namespace INITGAME {
                 star_ptr->system_special = star_ptr->twinkling1;
                 star_ptr->twinkling1 = 0;
 
-                HOMEGEN::Upgrade_Planet_Guarded_By_Monster(&MOX::planet[planet_idx], (int16_t)ship_type);
+                HOMEGEN::Upgrade_Planet_Guarded_By_Monster(world_state, planet_idx, (int16_t)ship_type);
             }
             star_ptr++;
         }

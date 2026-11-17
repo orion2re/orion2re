@@ -245,7 +245,7 @@ namespace MAINSCR {
             const bool source_is_known =
                 viewer_is_omniscient ||
                 HAROLD::Player_Has_Visited(MOX::PLAYER_NUM, star_idx) ||
-                HAROLD::Contact_With_One_Colony(star_idx);
+                HAROLD::Contact_With_One_Colony(&::game::world, star_idx);
             if (!source_is_known ||
                 (owner != MOX::PLAYER_NUM && !HAROLD::Contact_With_Player(MOX::PLAYER_NUM, owner))) {
                 continue;
@@ -1301,7 +1301,7 @@ namespace MAINSCR {
         HAROLD::Map_Scale_To_Zoom_Level();
 
         int16_t color_offset = (is_selected != 0) ? (int16_t)MOX::selected_star_color_offset : 0;
-        bool is_outpost = (bool)HAROLD::Star_Is_Outpost_Star(star_idx);
+        bool is_outpost = (bool)HAROLD::Star_Is_Outpost_Star(&::game::world, star_idx);
         s_star_data* star_ptr = &MOX::star[star_idx];
         int8_t owner = star_ptr->owner;
 
@@ -1323,7 +1323,7 @@ namespace MAINSCR {
         };
 
         if (!galactic_lore) {
-            bool has_contact = (owner >= 0 && owner < MAX_PLAYERS) && HAROLD::Contact_With_One_Colony(star_idx);
+            bool has_contact = (owner >= 0 && owner < MAX_PLAYERS) && HAROLD::Contact_With_One_Colony(&::game::world, star_idx);
             if (!has_contact) {
                 if (!HAROLD::Player_Has_Visited(MOX::PLAYER_NUM, star_idx)) return;
 
@@ -1359,7 +1359,7 @@ namespace MAINSCR {
             strings::String_To_Lower(out_name);
         }
 
-        if (HAROLD::N_Colony_Owners(star_idx) > 1) {
+        if (HAROLD::N_Colony_Owners(&::game::world, star_idx) > 1) {
             *out_uses_bitmap = Print_Star_Name_To_Bitmap(star_idx, out_name, out_bitmap_ptr);
         }
     }
@@ -1371,7 +1371,7 @@ namespace MAINSCR {
         s_colors player_colors;
 
         bool is_omniscient = HAROLD::Player_Is_Omniscient(MOX::PLAYER_NUM);
-        HAROLD::Colony_Owners(star_idx, owner_counts, &num_owners, !is_omniscient);
+        HAROLD::Colony_Owners(&::game::world, star_idx, owner_counts, &num_owners, !is_omniscient);
 
         if (num_owners <= 1) {
             return false;
@@ -1629,15 +1629,15 @@ namespace MAINSCR {
         video::Clip_Off();
     }
 
-    void __cdecl Do_Colony_Screen(int16_t colony_idx, int16_t* status_flag) {
+    void __cdecl Do_Colony_Screen(::game::s_world_state* world_state, int16_t colony_idx, int16_t* status_flag) {
         if (colony_idx >= 0) {
             s_colony* colony = &MOX::colony[colony_idx];
 
             if (colony->owner == MOX::PLAYER_NUM) {
-                int16_t planet_idx = colony->planet;
+                ::game::id_planet planet_idx = colony->planet;
 
                 if (colony->outpost_flag != 0) {
-                    char* planet_name = HACCESS::Get_Planet_Name(planet_idx);
+                    char* planet_name = HACCESS::Get_Planet_Name(legacy_world::Planet_Id(planet_idx));
                     const char* format_msg = HAROLD::H_Message(217);
                     char buffer[80];
 
@@ -1648,7 +1648,7 @@ namespace MAINSCR {
                     MOX::current_screen = SCREEN_COLONY;
                     MOX::return_screen = SCREEN_MAIN;
 
-                    s_planet_data* planet = &MOX::planet[planet_idx];
+                    s_planet_data* planet = &::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx)));
                     MOX::screen_data = planet->star_index;
                     COLONY::orbit_temp = static_cast<int16_t>(planet->orbit);
 
@@ -2059,11 +2059,11 @@ namespace MAINSCR {
      * Updates parallax background positions based on map movement.
      * Returns the vertical wrap count for the far background layer.
      */
-    int16_t __cdecl Scan_System_Display_Fields(int16_t mouse_input, int16_t input, int16_t* colony_btns, int16_t* m_planet_idx, int16_t* planet_idx, int16_t* m_ship_idx, int16_t* ship_idx, int16_t* selection) {
+    int16_t __cdecl Scan_System_Display_Fields(::game::s_world_state* world_state, int16_t mouse_input, int16_t input, int16_t* colony_btns, int16_t* m_planet_idx, int16_t* planet_idx, int16_t* m_ship_idx, int16_t* ship_idx, int16_t* selection) {
         int16_t ret_val = -1;
         int16_t gate_idx = -1;
 
-        *planet_idx = -1;
+        *planet_idx = ::game::NO_PLANET;
         *m_planet_idx = -1;
         *ship_idx = -1;
         *m_ship_idx = -1;
@@ -2094,19 +2094,19 @@ namespace MAINSCR {
             for (int i = 0; i < 5; ++i) {
                 int16_t btn_id = colony_btns[i];
                 if (input == btn_id) {
-                    *planet_idx = ERIC::Get_Sint_Index_From_List(MOX::sys_disp[i].orbit, MOX::star[MOX::system_star_id].planet_index, 5);
+                    *planet_idx = ERIC::Get_Sint_Index_From_List(MOX::sys_disp[i].planet_id, MOX::star[MOX::system_star_id].planet_index, 5);
                     ret_val = 0;
                     break;
                 }
                 if ((int)input + (int)btn_id == 0) { // Right-click or special interaction
-                    if (MOX::planet[MOX::sys_disp[i].orbit].planet_type != PLANET_TYPE_GAS_GIANT) {
-                        SYS::Potential_Colony_Info_Popup(MOX::sys_disp[i].orbit);
+                    if (::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(MOX::sys_disp[i].planet_id))).planet_type != PLANET_TYPE_GAS_GIANT) {
+                        SYS::Potential_Colony_Info_Popup(world_state, legacy_world::Planet_Id(MOX::sys_disp[i].planet_id));
                         MOX::FULL_DRAW_SCREEN_FLAG = 1;
                     }
                     return -1;
                 }
                 if (mouse_input == btn_id) {
-                    *m_planet_idx = ERIC::Get_Sint_Index_From_List(MOX::sys_disp[i].orbit, MOX::star[MOX::system_star_id].planet_index, 5);
+                    *m_planet_idx = ERIC::Get_Sint_Index_From_List(MOX::sys_disp[i].planet_id, MOX::star[MOX::system_star_id].planet_index, 5);
                     ret_val = 4;
                 }
             }
@@ -2124,8 +2124,8 @@ namespace MAINSCR {
                 int16_t orbit_id = GEO::Get_Orbit_From_X_Y(center_x - ptr_x, center_y - ptr_y);
                 if (orbit_id >= 0) {
                     for (int i = 0; i < 5; ++i) {
-                        int16_t p_idx = MOX::star[MOX::system_star_id].planet_index[i];
-                        if (p_idx > -1 && MOX::planet[p_idx].orbit == orbit_id && MOX::planet[p_idx].planet_type == PLANET_TYPE_ASTEROID) {
+                        ::game::id_planet p_idx = MOX::star[MOX::system_star_id].planet_index[i];
+                        if (p_idx != ::game::NO_PLANET && ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(p_idx))).orbit == orbit_id && ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(p_idx))).planet_type == PLANET_TYPE_ASTEROID) {
                             *planet_idx = i;
                             ret_val = 0;
                             break;
@@ -2146,8 +2146,8 @@ namespace MAINSCR {
 
                 if (orbit_id >= 0) {
                     for (int i = 0; i < 5; ++i) {
-                        int16_t p_idx = MOX::star[MOX::system_star_id].planet_index[i];
-                        if (p_idx > -1 && MOX::planet[p_idx].orbit == orbit_id && MOX::planet[p_idx].planet_type == PLANET_TYPE_ASTEROID) {
+                        ::game::id_planet p_idx = MOX::star[MOX::system_star_id].planet_index[i];
+                        if (p_idx != ::game::NO_PLANET && ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(p_idx))).orbit == orbit_id && ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(p_idx))).planet_type == PLANET_TYPE_ASTEROID) {
                             *m_planet_idx = i;
                             ret_val = 4;
                             break;
@@ -2228,10 +2228,10 @@ namespace MAINSCR {
         }
     }
 
-    void __cdecl Change_Home_Star_Name() {
+    void __cdecl Change_Home_Star_Name(::game::s_world_state* world_state) {
         int16_t player_idx = MOX::PLAYER_NUM;
         s_player* player = &MOX::player[player_idx];
-        int16_t star_idx = MOX::planet[player->home_planet_id].star_index;
+        int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(player->home_planet_id))).star_index;
 
         int16_t center_y = namestar::Star_Name_Popup_Map_Center_Y();
         int16_t center_x = namestar::Star_Name_Popup_Map_Center_X();
@@ -2316,9 +2316,9 @@ namespace MAINSCR {
         return selected_reply;
     }
 
-    int16_t __cdecl Get_Star_Id_For_Officers_Screen() {
+    int16_t __cdecl Get_Star_Id_For_Officers_Screen(::game::s_world_state* world_state) {
         int16_t player_num = MOX::PLAYER_NUM;
-        int16_t home_planet_id = MOX::player[player_num].home_planet_id;
+        ::game::id_planet home_planet_id = MOX::player[player_num].home_planet_id;
         int16_t star_idx = -1;
 
         // Check if a specific system is selected in the UI
@@ -2332,7 +2332,7 @@ namespace MAINSCR {
         }
 
         // Search for the first star system where the player has a colony, starting from home
-        int16_t home_star_idx = MOX::planet[home_planet_id].star_index;
+        int16_t home_star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(home_planet_id))).star_index;
         star_idx = home_star_idx;
 
         for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
@@ -2399,7 +2399,7 @@ namespace MAINSCR {
         MAINPUPS::last_scanned_field = -1;
         fonts::Set_Font_Style_Shadow_Down(1, &font_colors);
         MAINPUPS::Load_Tax_Rate_Popup();
-        MAINPUPS::Do_Popup_Setup(-1, MAINPUPS::anims[0x24]);
+        MAINPUPS::Do_Popup_Setup(&::game::world, -1, MAINPUPS::anims[0x24]);
         ERICHELP::Set_Tax_Rate_Popup_Help_List();
         fields::Deactivate_Auto_Function();
         fields::Assign_Auto_Function(MAINPUPS::Draw_Tax_Rate_Popup, 1);
@@ -3037,10 +3037,10 @@ namespace MAINSCR {
                 MAINSCR::Cycle_Star_Icons(&MOX::system_star_id_for_auto_select, MOX::PLAYER_NUM, 0);
                 if (MOX::system_star_id_for_auto_select > -1 && MOX::system_star_id_for_auto_select < MOX::NUM_STARS) {
                     if (MOX::settings.auto_select_colony != 0) {
-                        colony_id = HACCESS::Last_Colony_Selected(MOX::system_star_id_for_auto_select, MOX::PLAYER_NUM);
+                        colony_id = HACCESS::Last_Colony_Selected(&::game::world, MOX::system_star_id_for_auto_select, MOX::PLAYER_NUM);
                     }
                     if (colony_id > -1) {
-                        MAINSCR::Do_Colony_Screen(colony_id, flag);
+                        MAINSCR::Do_Colony_Screen(&::game::world, colony_id, flag);
                     } else {
                         MOX::moveable_box[0].id = MOX::system_star_id_for_auto_select;
                         MAINSCR::Do_System_Popup(MOX::system_star_id_for_auto_select);
@@ -3052,10 +3052,10 @@ namespace MAINSCR {
                 MAINSCR::Cycle_Star_Icons(&MOX::system_star_id_for_auto_select, MOX::PLAYER_NUM, 1);
                 if (MOX::system_star_id_for_auto_select > -1 && MOX::system_star_id_for_auto_select < MOX::NUM_STARS) {
                     if (MOX::settings.auto_select_colony != 0) {
-                        colony_id = HACCESS::Last_Colony_Selected(MOX::system_star_id_for_auto_select, MOX::PLAYER_NUM);
+                        colony_id = HACCESS::Last_Colony_Selected(&::game::world, MOX::system_star_id_for_auto_select, MOX::PLAYER_NUM);
                     }
                     if (colony_id > -1) {
-                        MAINSCR::Do_Colony_Screen(colony_id, flag);
+                        MAINSCR::Do_Colony_Screen(&::game::world, colony_id, flag);
                     } else {
                         MOX::moveable_box[0].id = MOX::system_star_id_for_auto_select;
                         MAINSCR::Do_System_Popup(MOX::system_star_id_for_auto_select);
@@ -3228,7 +3228,7 @@ namespace MAINSCR {
                 strlcpy(option_name, HAROLD::H_Message(0xac), sizeof(option_name));
                 status_flag = MOX::settings.auto_select_colony;
                 if (status_flag != 0) {
-                    HACCESS::Set_All_Colony_Auto_Select_Flags();
+                    HACCESS::Set_All_Colony_Auto_Select_Flags(&::game::world);
                 }
                 break;
 
@@ -3798,7 +3798,7 @@ namespace MAINSCR {
         s_movable_box& box = MOX::moveable_box[0];
 
         SYS::Init_System_Display(box.id);
-        SYS::Add_System_Display_Popup_Fields(
+        SYS::Add_System_Display_Popup_Fields(&::game::world, 
             box.id,
             box.x,
             box.y,

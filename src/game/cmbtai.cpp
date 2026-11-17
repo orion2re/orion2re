@@ -146,7 +146,7 @@ namespace CMBTAI {
             return;
         }
 
-        if (!CMBTDRW1::Ship_Completely_On_Screen(MOX::cur_ship)) {
+        if (!CMBTDRW1::Ship_Completely_On_Screen(&::game::world, MOX::cur_ship)) {
             COMBINIT::Snap_Center_Combat_Screen(ship->x, ship->y);
         }
 
@@ -160,7 +160,7 @@ namespace CMBTAI {
         }
 
         Ai_Stasis_Check(ship->owner);
-        COMBAT1::Assign_Combat_Grids(MOX::cur_ship);
+        COMBAT1::Assign_Combat_Grids(&::game::world, MOX::cur_ship);
 
         int16_t action_result = 0;
         do {

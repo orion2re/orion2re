@@ -1,3 +1,4 @@
+#include "../fixtures/planet_state.h"
 #include "lua/lua_mod_runtime.h"
 
 #include <doctest/doctest.h>
@@ -339,9 +340,9 @@ TEST_CASE("Lua galaxy collections enforce native capacity limits") {
     orion2re::lua::Commit_Mod_Runtimes(&runtimes);
     TEST_LUA_GAME::Reset_();
     MOX::NUM_STARS = MAX_STARS;
-    MOX::planet_count = MAX_PLANETS;
-    for (int16_t planet_id = 3; planet_id < MAX_PLANETS; ++planet_id) {
-        MOX::planet[planet_id].star_index = 0;
+    test::Resize_Planets(&::game::world, MAX_PLANETS);
+    for (::game::id_planet planet_id = ::game::id_planet{3}; planet_id < MAX_PLANETS; ++planet_id) {
+        test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_id))).star_index = 0;
     }
     MOX::NUM_SHIPS = MAX_SHIPS;
     MOX::NUM_NEBULAS = MAX_NEBULAS;
@@ -381,11 +382,11 @@ TEST_CASE("Lua galaxy collections expose complete stable domain objects") {
     orion2re::lua::Commit_Mod_Runtimes(&runtimes);
     TEST_LUA_GAME::Reset_();
     MOX::NUM_COLONIES = 2;
-    MOX::planet[0].colony_index = 0;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).colony_index = 0;
     MOX::colony[0].planet = 0;
     MOX::colony[0].owner = 0;
-    MOX::planet[1].planet_type = PLANET_TYPE_PLANET;
-    MOX::planet[1].colony_index = 1;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).planet_type = PLANET_TYPE_PLANET;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).colony_index = 1;
     MOX::colony[1].planet = 1;
     MOX::colony[1].owner = 1;
     MOX::star[0].size = 4;
@@ -438,7 +439,7 @@ TEST_CASE("Lua galaxy mutations reject invalid domains and references") {
     orion2re::lua::Commit_Mod_Runtimes(&runtimes);
     TEST_LUA_GAME::Reset_();
     MOX::NUM_COLONIES = 1;
-    MOX::planet[0].colony_index = 0;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).colony_index = 0;
     MOX::colony[0].planet = 0;
     MOX::colony[0].owner = 0;
     game::Leader(&game::world, 0).status = 0;
@@ -2295,32 +2296,32 @@ TEST_CASE("planet generated event implements the legacy deposit behavior") {
 
     const auto prior_game_type = MOX::game_type;
     MOX::game_type = 0;
-    MOX::planet_count = 2;
+    test::Resize_Planets(&::game::world, 2);
     MOX::NUM_STARS = 2;
-    MOX::planet[1].star_index = 1;
-    MOX::planet[1].orbit = 3;
-    MOX::planet[1].planet_type = PLANET_TYPE_PLANET;
-    MOX::planet[1].size = PLANET_SIZE_SMALL;
-    MOX::planet[1].gravity_class = PLANET_GRAVITY_LOW_G;
-    MOX::planet[1].climate = PLANET_CLIMATE_BARREN;
-    MOX::planet[1].mineral_class = MINERAL_RESOURCE_POOR;
-    MOX::planet[1].planet_special = SYSTEM_SPECIAL_GOLD_DEPOSITS;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).star_index = 1;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).orbit = 3;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).planet_type = PLANET_TYPE_PLANET;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).size = PLANET_SIZE_SMALL;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).gravity_class = PLANET_GRAVITY_LOW_G;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).climate = PLANET_CLIMATE_BARREN;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).mineral_class = MINERAL_RESOURCE_POOR;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).planet_special = SYSTEM_SPECIAL_GOLD_DEPOSITS;
     MOX::star[1].planet_index[3] = 1;
     const orion2re::lua::game::s_planet_generated_event event = {1};
-    orion2re::lua::game::Planet_Generated(&event);
-    CHECK(MOX::planet[1].mineral_class == MINERAL_RESOURCE_ABUNDANT);
-    CHECK(MOX::planet[1].gravity_class == PLANET_GRAVITY_NORMAL_G);
+    orion2re::lua::game::Planet_Generated(&::game::world, &event);
+    CHECK(test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).mineral_class == MINERAL_RESOURCE_ABUNDANT);
+    CHECK(test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).gravity_class == PLANET_GRAVITY_NORMAL_G);
 
     MOX::game_type = 2;
-    MOX::planet[1].mineral_class = MINERAL_RESOURCE_POOR;
-    MOX::planet[1].gravity_class = PLANET_GRAVITY_LOW_G;
-    orion2re::lua::game::Planet_Generated(&event);
-    CHECK(MOX::planet[1].mineral_class == MINERAL_RESOURCE_ABUNDANT);
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).mineral_class = MINERAL_RESOURCE_POOR;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).gravity_class = PLANET_GRAVITY_LOW_G;
+    orion2re::lua::game::Planet_Generated(&::game::world, &event);
+    CHECK(test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).mineral_class == MINERAL_RESOURCE_ABUNDANT);
     MOX::game_type = 3;
-    MOX::planet[1].mineral_class = MINERAL_RESOURCE_POOR;
-    MOX::planet[1].gravity_class = PLANET_GRAVITY_LOW_G;
-    orion2re::lua::game::Planet_Generated(&event);
-    CHECK(MOX::planet[1].gravity_class == PLANET_GRAVITY_LOW_G);
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).mineral_class = MINERAL_RESOURCE_POOR;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).gravity_class = PLANET_GRAVITY_LOW_G;
+    orion2re::lua::game::Planet_Generated(&::game::world, &event);
+    CHECK(test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).gravity_class == PLANET_GRAVITY_LOW_G);
     MOX::game_type = prior_game_type;
     orion2re::lua::Reset_Mod_Runtimes();
     Shutdown_Module_Files_(&files);

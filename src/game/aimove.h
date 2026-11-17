@@ -83,12 +83,12 @@ namespace AIMOVE {
      * Removes colonizable planets that already have an assigned colony ship or queued colony ship.
      * @param candidates In/out list of colonizable planet candidates.
      */
-    void Delete_Already_Assigned_Planets(s_ai_movement_context* ctx, std::vector<AIDATA::s_colonization_candidate>* candidates);
+    void Delete_Already_Assigned_Planets(::game::s_world_state* world_state, s_ai_movement_context* ctx, std::vector<AIDATA::s_colonization_candidate>* candidates);
 
     /**
      * Launches the AI's prepared sneak attack if the target is still valid.
      */
-    void __cdecl Launch_Sneak_Attack(AIDATA::s_state* ai, s_ai_movement_context* ctx);
+    void __cdecl Launch_Sneak_Attack(::game::s_world_state* world_state, AIDATA::s_state* ai, s_ai_movement_context* ctx);
 
     /**
      * Launches attacks of the requested mission type from all eligible staging stars.
@@ -104,11 +104,11 @@ namespace AIMOVE {
      * @param mission_type Mission code to search for.
      * @param min_pop Minimum remaining population threshold used by attack scoring.
      */
-    void Find_Best_Attack_From_Star(AIDATA::s_state* ai, s_ai_movement_context* ctx, id_star star_idx, s_attack_info* target_info, int mission_type, int min_pop);
+    void Find_Best_Attack_From_Star(::game::s_world_state* world_state, AIDATA::s_state* ai, s_ai_movement_context* ctx, id_star star_idx, s_attack_info* target_info, int mission_type, int min_pop);
 
     int8_t AI_May_Attack_Player(const game::s_view* world, id_player player_idx, id_player target_idx);
 
-    uint16_t Compute_Attack_Worthiness(
+    uint16_t Compute_Attack_Worthiness(::game::s_world_state* world_state, 
         AIDATA::s_state* ai, s_ai_movement_context* ctx,
         id_colony colony_idx,
         std::span<const id_ship> ships,
@@ -126,7 +126,7 @@ namespace AIMOVE {
 
     void __cdecl Interceptions(AIDATA::s_state* ai, s_ai_movement_context* ctx, s_interception_target* intercepts, int* count, const std::unordered_map<id_star, uint32_t>* star_to_intercept_idx, int is_desperate);
 
-    void Assign_New_Colony_Ship_Destinations(AIDATA::s_state* ai, s_ai_movement_context* ctx, std::vector<AIDATA::s_colonization_candidate>* planets);
+    void Assign_New_Colony_Ship_Destinations(::game::s_world_state* world_state, AIDATA::s_state* ai, s_ai_movement_context* ctx, std::vector<AIDATA::s_colonization_candidate>* planets);
 
     bool Star_Has_Monster(const game::s_view* world, id_star star_idx);
 
@@ -136,7 +136,7 @@ namespace AIMOVE {
 
     bool Dispatch_Escorted_Colony_Ship(AIDATA::s_state* ai, s_ai_movement_context* ctx, std::vector<id_ship>* colony_ships, id_star star_idx, int16_t max_turns);
 
-    void __cdecl Move_Transports(AIDATA::s_state* ai, s_ai_movement_context* ctx);
+    void __cdecl Move_Transports(::game::s_world_state* world_state, AIDATA::s_state* ai, s_ai_movement_context* ctx);
 
     void __cdecl Move_To_Stage_Points(AIDATA::s_state* ai, s_ai_movement_context* ctx);
 
@@ -146,7 +146,7 @@ namespace AIMOVE {
 
     int __cdecl Sort_npc_dests(const void* a, const void* b);
 
-    std::optional<id_star> Npc_Dest(const game::s_view* world, id_ship ship_idx, const uint8_t* star_flags);
+    std::optional<id_star> Npc_Dest(::game::s_world_state* world_state, const game::s_view* world, id_ship ship_idx, const uint8_t* star_flags);
 
     void __cdecl Move_All_AI(AIDATA::s_state* ai, const game::s_view* world);
 
@@ -160,7 +160,7 @@ namespace AIMOVE {
      * Gathers all currently colonizable planets within the AI player's extended range.
      * @param candidates Output list of candidate planets.
      */
-    void Get_Colonizable_Planets(AIDATA::s_state* ai, s_ai_movement_context* ctx, std::vector<AIDATA::s_colonization_candidate>* candidates);
+    void Get_Colonizable_Planets(::game::s_world_state* world_state, AIDATA::s_state* ai, s_ai_movement_context* ctx, std::vector<AIDATA::s_colonization_candidate>* candidates);
 
     void Gather_Player_Ships_At_Star(AIDATA::s_state* ai, s_ai_movement_context* ctx, id_player player_id, id_star star_id, std::vector<id_ship>* ships);
 
@@ -187,7 +187,7 @@ namespace AIMOVE {
      * @param ships Ship IDs to route.
      * @param destination_star Final destination star.
      */
-    std::optional<AIDATA::s_route> Move_Ships_With_Possible_Intermediate(s_ai_movement_context* ctx, std::span<const id_ship> ships, id_star destination_star);
+    std::optional<AIDATA::s_route> Move_Ships_With_Possible_Intermediate(::game::s_world_state* world_state, s_ai_movement_context* ctx, std::span<const id_ship> ships, id_star destination_star);
 
     int32_t Enemy_Colony_Worth_To_Player(AIDATA::s_state* ai, const game::s_view* world, id_colony colony_idx, id_player player_idx);
 

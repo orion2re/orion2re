@@ -1,3 +1,4 @@
+#include "../fixtures/planet_state.h"
 #include "pch.h"
 
 #include "doctest/doctest.h"
@@ -215,19 +216,19 @@ DOCTEST_TEST_CASE("Alien Control Center mixed-race restriction is Federation-onl
         MOX::player[0].traits[TRAIT_CURRENT_GOVERNMENT] =
             test_case.government;
 
-        DOCTEST_CHECK(COLCALC::Colony_Can_Build_Product(
+        DOCTEST_CHECK(COLCALC::Colony_Can_Build_Product(&::game::world, 
             colony, BUILDING_ALIEN_CONTROL_CENTER) ==
             test_case.classic_result);
 
         COLCALC::ignore_mixed_race_penalty[test_case.government] = 1;
 
-        DOCTEST_CHECK(COLCALC::Colony_Can_Build_Product(
+        DOCTEST_CHECK(COLCALC::Colony_Can_Build_Product(&::game::world, 
             colony, BUILDING_ALIEN_CONTROL_CENTER) ==
             test_case.configured_result);
 
         colony->pop[1] |= 0x400;
 
-        DOCTEST_CHECK(COLCALC::Colony_Can_Build_Product(
+        DOCTEST_CHECK(COLCALC::Colony_Can_Build_Product(&::game::world, 
             colony, BUILDING_ALIEN_CONTROL_CENTER) == 1);
     }
 }
@@ -236,7 +237,7 @@ DOCTEST_TEST_CASE("Dimensional Portal is limited to one per player per system") 
     TEST_COLONY_POP_GROWTH::Reset_();
 
     for (int i = 0; i < 5; ++i) {
-        MOX::star[0].planet_index[i] = -1;
+        MOX::star[0].planet_index[i] = ::game::NO_PLANET;
     }
     MOX::star[0].planet_index[0] = 0;
     MOX::star[0].planet_index[1] = 1;
@@ -244,14 +245,14 @@ DOCTEST_TEST_CASE("Dimensional Portal is limited to one per player per system") 
     s_colony* colony = &MOX::colony[0];
     colony->owner = 0;
     colony->planet = 0;
-    MOX::planet[0].star_index = 0;
-    MOX::planet[0].colony_index = 0;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).star_index = 0;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).colony_index = 0;
 
     s_colony* other_colony = &MOX::colony[1];
     other_colony->owner = 1;
     other_colony->planet = 1;
-    MOX::planet[1].star_index = 0;
-    MOX::planet[1].colony_index = 1;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).star_index = 0;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).colony_index = 1;
     for (int i = 0; i < 7; ++i) {
         other_colony->producing[i] = COLONY_PRODUCTION_NONE;
     }
@@ -262,16 +263,16 @@ DOCTEST_TEST_CASE("Dimensional Portal is limited to one per player per system") 
         TECH_RESEARCH_STATUS_RESEARCHED;
 
     other_colony->buildings[BUILDING_DIMENSIONAL_PORTAL] = 1;
-    DOCTEST_CHECK(COLCALC::Colony_Can_Build_Product(
+    DOCTEST_CHECK(COLCALC::Colony_Can_Build_Product(&::game::world, 
         colony, BUILDING_DIMENSIONAL_PORTAL) == 1);
 
     other_colony->owner = 0;
-    DOCTEST_CHECK(COLCALC::Colony_Can_Build_Product(
+    DOCTEST_CHECK(COLCALC::Colony_Can_Build_Product(&::game::world, 
         colony, BUILDING_DIMENSIONAL_PORTAL) == 2);
 
     other_colony->buildings[BUILDING_DIMENSIONAL_PORTAL] = 0;
     other_colony->producing[0] = BUILDING_DIMENSIONAL_PORTAL;
-    DOCTEST_CHECK(COLCALC::Colony_Can_Build_Product(
+    DOCTEST_CHECK(COLCALC::Colony_Can_Build_Product(&::game::world, 
         colony, BUILDING_DIMENSIONAL_PORTAL) == 2);
 }
 
@@ -279,12 +280,12 @@ DOCTEST_TEST_CASE("Weather Controller preserves classic climate eligibility") {
     s_colony* colony = Prepare_Weather_Controller_();
 
     colony->food2_per_farmer = 0;
-    DOCTEST_CHECK(COLCALC::Colony_Can_Build_Product(
+    DOCTEST_CHECK(COLCALC::Colony_Can_Build_Product(&::game::world, 
         colony, BUILDING_WEATHER_CONTROLLER) == 2);
 
     colony->food2_per_farmer = 2;
     colony->climate = PLANET_CLIMATE_RADIATED;
-    DOCTEST_CHECK(COLCALC::Colony_Can_Build_Product(
+    DOCTEST_CHECK(COLCALC::Colony_Can_Build_Product(&::game::world, 
         colony, BUILDING_WEATHER_CONTROLLER) == 1);
 }
 
@@ -293,20 +294,20 @@ DOCTEST_TEST_CASE("Weather Controller uses the configured climate") {
     COLCALC::weather_control_climate = PLANET_CLIMATE_DESERT;
 
     colony->climate = PLANET_CLIMATE_BARREN;
-    DOCTEST_CHECK(COLCALC::Colony_Can_Build_Product(
+    DOCTEST_CHECK(COLCALC::Colony_Can_Build_Product(&::game::world, 
         colony, BUILDING_WEATHER_CONTROLLER) == 2);
 
     colony->climate = PLANET_CLIMATE_DESERT;
-    DOCTEST_CHECK(COLCALC::Colony_Can_Build_Product(
+    DOCTEST_CHECK(COLCALC::Colony_Can_Build_Product(&::game::world, 
         colony, BUILDING_WEATHER_CONTROLLER) == 1);
 
     COLCALC::weather_control_climate = PLANET_CLIMATE_RADIATED;
     colony->climate = PLANET_CLIMATE_TOXIC;
-    DOCTEST_CHECK(COLCALC::Colony_Can_Build_Product(
+    DOCTEST_CHECK(COLCALC::Colony_Can_Build_Product(&::game::world, 
         colony, BUILDING_WEATHER_CONTROLLER) == 1);
 
     colony->climate = PLANET_CLIMATE_RADIATED;
-    DOCTEST_CHECK(COLCALC::Colony_Can_Build_Product(
+    DOCTEST_CHECK(COLCALC::Colony_Can_Build_Product(&::game::world, 
         colony, BUILDING_WEATHER_CONTROLLER) == 2);
 }
 
@@ -316,20 +317,20 @@ DOCTEST_TEST_CASE("configured building converts derived Toxic climate to Barren"
     s_colony* colony = &MOX::colony[0];
     colony->owner = 0;
     colony->planet = 0;
-    MOX::planet[0].climate = PLANET_CLIMATE_TOXIC;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).climate = PLANET_CLIMATE_TOXIC;
 
-    COLCALC::Colony_Environmental_Stuff(colony);
+    COLCALC::Colony_Environmental_Stuff(&::game::world, colony);
     DOCTEST_CHECK(colony->climate == PLANET_CLIMATE_TOXIC);
 
     COLCALC::terraform_toxic_building = BUILDING_ATMOSPHERE_RENEWER;
     colony->buildings[BUILDING_ATMOSPHERE_RENEWER] = 1;
-    COLCALC::Colony_Environmental_Stuff(colony);
+    COLCALC::Colony_Environmental_Stuff(&::game::world, colony);
 
     DOCTEST_CHECK(colony->climate == PLANET_CLIMATE_BARREN);
-    DOCTEST_CHECK(MOX::planet[0].climate == PLANET_CLIMATE_TOXIC);
+    DOCTEST_CHECK(test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).climate == PLANET_CLIMATE_TOXIC);
 
     colony->buildings[BUILDING_ATMOSPHERE_RENEWER] = 0;
-    COLCALC::Colony_Environmental_Stuff(colony);
+    COLCALC::Colony_Environmental_Stuff(&::game::world, colony);
     DOCTEST_CHECK(colony->climate == PLANET_CLIMATE_TOXIC);
 }
 
@@ -567,7 +568,7 @@ DOCTEST_TEST_CASE("reported population capacities do not exceed colony storage")
         COLCALC::population_capacity.size[PLANET_SIZE_HUGE];
     COLCALC::population_capacity.size[PLANET_SIZE_HUGE] = 50;
 
-    s_planet_data* planet = &MOX::planet[0];
+    s_planet_data* planet = &test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0)));
     planet->colony_index = -1;
     planet->size = PLANET_SIZE_HUGE;
     planet->climate = PLANET_CLIMATE_GAIA;
@@ -579,7 +580,7 @@ DOCTEST_TEST_CASE("reported population capacities do not exceed colony storage")
     colony->planet = 0;
     colony->climate = PLANET_CLIMATE_GAIA;
 
-    DOCTEST_CHECK(COLCALC::Colony_Race_Pop_Limit(colony, 0) == 42);
+    DOCTEST_CHECK(COLCALC::Colony_Race_Pop_Limit(&::game::world, colony, 0) == 42);
 
     COLCALC::population_capacity.size[PLANET_SIZE_HUGE] =
         previous_max_population;
@@ -675,7 +676,7 @@ DOCTEST_TEST_CASE("population tables preserve climate adjustments bonuses and st
     COLCALC::population_capacity_table_enabled = true;
     MOX::player[0].traits[TRAIT_AQUATIC] = 1;
 
-    s_planet_data* planet = &MOX::planet[0];
+    s_planet_data* planet = &test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0)));
     planet->colony_index = -1;
     planet->size = PLANET_SIZE_SMALL;
     planet->climate = PLANET_CLIMATE_TUNDRA;
@@ -690,10 +691,10 @@ DOCTEST_TEST_CASE("population tables preserve climate adjustments bonuses and st
     colony->planet = 0;
     colony->climate = PLANET_CLIMATE_TUNDRA;
     colony->buildings[BUILDING_BIOSPHERES] = 1;
-    DOCTEST_CHECK(COLCALC::Colony_Race_Pop_Limit(colony, 0) == 41);
+    DOCTEST_CHECK(COLCALC::Colony_Race_Pop_Limit(&::game::world, colony, 0) == 41);
     MOX::player[0].tech_applications[TECH_APP_ADVANCED_CITY_PLANNING] =
         TECH_RESEARCH_STATUS_RESEARCHED;
-    DOCTEST_CHECK(COLCALC::Colony_Race_Pop_Limit(colony, 0) == 42);
+    DOCTEST_CHECK(COLCALC::Colony_Race_Pop_Limit(&::game::world, colony, 0) == 42);
     DOCTEST_CHECK(COLCALC::Planet_Max_Population_For_Player(planet, 0) == 42);
 
     COLCALC::aquatic_treats_tundra_as_swamp = 1;
@@ -717,10 +718,10 @@ DOCTEST_TEST_CASE("Android room check supports a capacity of exactly 42") {
     colony->owner = 0;
     colony->planet = 0;
     colony->climate = PLANET_CLIMATE_GAIA;
-    MOX::planet[colony->planet].size = PLANET_SIZE_HUGE;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(colony->planet))).size = PLANET_SIZE_HUGE;
 
     DOCTEST_REQUIRE(
-        COLCALC::Colony_Race_Pop_Limit(
+        COLCALC::Colony_Race_Pop_Limit(&::game::world, 
             colony, (int16_t)POP::RACE_ANDROID) == 42);
     DOCTEST_CHECK(
         COLCALC::Room_For_Another_Dude(
@@ -748,11 +749,11 @@ DOCTEST_TEST_CASE("Biospheres population bonus is configurable") {
     colony->climate = PLANET_CLIMATE_GAIA;
     colony->buildings[BUILDING_BIOSPHERES] = 1;
 
-    DOCTEST_CHECK(COLCALC::Colony_Race_Pop_Limit(colony, 0) == 27);
+    DOCTEST_CHECK(COLCALC::Colony_Race_Pop_Limit(&::game::world, colony, 0) == 27);
 
     COLCALC::pop_bonus_biospheres = 7;
 
-    DOCTEST_CHECK(COLCALC::Colony_Race_Pop_Limit(colony, 0) == 32);
+    DOCTEST_CHECK(COLCALC::Colony_Race_Pop_Limit(&::game::world, colony, 0) == 32);
 }
 
 DOCTEST_TEST_CASE("Advanced City Planning population bonus is configurable") {
@@ -765,11 +766,11 @@ DOCTEST_TEST_CASE("Advanced City Planning population bonus is configurable") {
     MOX::player[0].tech_applications[TECH_APP_ADVANCED_CITY_PLANNING] =
         TECH_RESEARCH_STATUS_RESEARCHED;
 
-    DOCTEST_CHECK(COLCALC::Colony_Race_Pop_Limit(colony, 0) == 30);
+    DOCTEST_CHECK(COLCALC::Colony_Race_Pop_Limit(&::game::world, colony, 0) == 30);
 
     COLCALC::population_bonus.advanced_city_planning = 7;
 
-    DOCTEST_CHECK(COLCALC::Colony_Race_Pop_Limit(colony, 0) == 32);
+    DOCTEST_CHECK(COLCALC::Colony_Race_Pop_Limit(&::game::world, colony, 0) == 32);
 }
 
 DOCTEST_TEST_CASE("Tolerant population capacity uses the configured percentage") {
@@ -808,7 +809,7 @@ DOCTEST_TEST_CASE("Subterranean population bonus is configurable by planet size"
 DOCTEST_TEST_CASE("uncolonized planet AI separates size weight from Subterranean capacity") {
     TEST_COLONY_POP_GROWTH::Reset_();
 
-    s_planet_data* planet = &MOX::planet[0];
+    s_planet_data* planet = &test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0)));
     planet->colony_index = -1;
     planet->planet_type = PLANET_TYPE_PLANET;
     planet->size = PLANET_SIZE_MEDIUM;
@@ -845,7 +846,7 @@ DOCTEST_TEST_CASE("configured Growth values drive both AI planet-worth consumers
         MOX::NUM_PLAYERS = 1;
         MOX::settings.game_difficulty = GAME_DIFFICULTY_TUTOR;
 
-        s_planet_data* planet = &MOX::planet[0];
+        s_planet_data* planet = &test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0)));
         planet->planet_type = PLANET_TYPE_PLANET;
         planet->size = PLANET_SIZE_MEDIUM;
         planet->climate = PLANET_CLIMATE_GAIA;
@@ -870,7 +871,7 @@ DOCTEST_TEST_CASE("configured Growth values drive both AI planet-worth consumers
 
         MOX::player[0].traits[TRAIT_POP_GROWTH_BONUS] = original_value;
         const int16_t original_colony_worth =
-            AIDATA::Colony_Worth_To_Player(&ai, AI_World_(), legacy_world::Colony_Id(0), colony, &MOX::player[0]);
+            AIDATA::Colony_Worth_To_Player(&::game::world, &ai, AI_World_(), legacy_world::Colony_Id(0), colony, &MOX::player[0]);
         const int32_t original_planet_worth =
             AIDATA::Uncolonized_Planet_Worth_To_Player(
                 AI_World_(),
@@ -878,7 +879,7 @@ DOCTEST_TEST_CASE("configured Growth values drive both AI planet-worth consumers
 
         MOX::player[0].traits[TRAIT_POP_GROWTH_BONUS] = replacement_value;
         const int16_t unmatched_colony_worth =
-            AIDATA::Colony_Worth_To_Player(&ai, AI_World_(), legacy_world::Colony_Id(0), colony, &MOX::player[0]);
+            AIDATA::Colony_Worth_To_Player(&::game::world, &ai, AI_World_(), legacy_world::Colony_Id(0), colony, &MOX::player[0]);
         const int32_t unmatched_planet_worth =
             AIDATA::Uncolonized_Planet_Worth_To_Player(
                 AI_World_(),
@@ -888,7 +889,7 @@ DOCTEST_TEST_CASE("configured Growth values drive both AI planet-worth consumers
 
         configured_value = replacement_value;
         const int16_t configured_colony_worth =
-            AIDATA::Colony_Worth_To_Player(&ai, AI_World_(), legacy_world::Colony_Id(0), colony, &MOX::player[0]);
+            AIDATA::Colony_Worth_To_Player(&::game::world, &ai, AI_World_(), legacy_world::Colony_Id(0), colony, &MOX::player[0]);
         const int32_t configured_planet_worth =
             AIDATA::Uncolonized_Planet_Worth_To_Player(
                 AI_World_(),
@@ -941,7 +942,7 @@ DOCTEST_TEST_CASE("potential colony food uses the configured Aquatic Tundra trea
 DOCTEST_TEST_CASE("planet maintenance consumers preserve unsigned modifiers") {
     TEST_COLONY_POP_GROWTH::Reset_();
 
-    s_planet_data* planet = &MOX::planet[0];
+    s_planet_data* planet = &test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0)));
     planet->planet_type = PLANET_TYPE_PLANET;
     planet->size = PLANET_SIZE_MEDIUM;
     planet->climate = PLANET_CLIMATE_TOXIC;
@@ -974,7 +975,7 @@ DOCTEST_TEST_CASE("Biomorphic Fungi climate policy is shared by colony and AI fo
     s_colony* colony = &MOX::colony[0];
     colony->owner = 0;
     colony->planet = 0;
-    s_planet_data* planet = &MOX::planet[0];
+    s_planet_data* planet = &test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0)));
     planet->planet_type = PLANET_TYPE_PLANET;
     planet->size = PLANET_SIZE_MEDIUM;
     planet->climate = PLANET_CLIMATE_BARREN;
@@ -983,23 +984,23 @@ DOCTEST_TEST_CASE("Biomorphic Fungi climate policy is shared by colony and AI fo
     MOX::player[0].tech_applications[TECH_APP_BIOMORPHIC_FUNGI] =
         TECH_RESEARCH_STATUS_RESEARCHED;
 
-    DOCTEST_CHECK(COLCALC::Colony_Food2_Per_Farmer(colony, 0, nullptr) == 2);
+    DOCTEST_CHECK(COLCALC::Colony_Food2_Per_Farmer(&::game::world, colony, 0, nullptr) == 2);
 
     COLCALC::fungi_climate = COLCALC::FUNGI_CLIMATE_REVERSED;
-    DOCTEST_CHECK(COLCALC::Colony_Food2_Per_Farmer(colony, 0, nullptr) == 0);
+    DOCTEST_CHECK(COLCALC::Colony_Food2_Per_Farmer(&::game::world, colony, 0, nullptr) == 0);
 
     planet->food_per_farmer = 4;
-    DOCTEST_CHECK(COLCALC::Colony_Food2_Per_Farmer(colony, 0, nullptr) == 6);
+    DOCTEST_CHECK(COLCALC::Colony_Food2_Per_Farmer(&::game::world, colony, 0, nullptr) == 6);
 
     COLCALC::fungi_climate = COLCALC::FUNGI_CLIMATE_UNITED;
     COLCALC::food_farmer_bonus.biomorphic_fungi = 3;
-    DOCTEST_CHECK(COLCALC::Colony_Food2_Per_Farmer(colony, 0, nullptr) == 7);
+    DOCTEST_CHECK(COLCALC::Colony_Food2_Per_Farmer(&::game::world, colony, 0, nullptr) == 7);
 }
 
 DOCTEST_TEST_CASE("uncolonized planet AI food worth is configurable per half-food unit") {
     TEST_COLONY_POP_GROWTH::Reset_();
 
-    s_planet_data* planet = &MOX::planet[0];
+    s_planet_data* planet = &test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0)));
     planet->planet_type = PLANET_TYPE_PLANET;
     planet->size = PLANET_SIZE_MEDIUM;
     planet->climate = PLANET_CLIMATE_GAIA;
@@ -1027,7 +1028,7 @@ DOCTEST_TEST_CASE("uncolonized planet AI food worth is configurable per half-foo
 DOCTEST_TEST_CASE("uncolonized planet special worth saturates without signed overflow") {
     TEST_COLONY_POP_GROWTH::Reset_();
 
-    s_planet_data* planet = &MOX::planet[0];
+    s_planet_data* planet = &test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0)));
     planet->planet_type = PLANET_TYPE_PLANET;
     planet->size = PLANET_SIZE_HUGE;
     planet->climate = PLANET_CLIMATE_GAIA;
@@ -1173,10 +1174,10 @@ DOCTEST_TEST_CASE("Capitol can be built when the player has no homeworld") {
     colony->owner = 0;
 
     s_player* player = &MOX::player[0];
-    player->home_planet_id = -1;
+    player->home_planet_id = ::game::NO_PLANET;
     player->tech_applications[TECH_APP_CAPITOL] = TECH_RESEARCH_STATUS_RESEARCHED;
 
-    DOCTEST_CHECK(COLCALC::Colony_Can_Build_Product(colony, BUILDING_CAPITOL) == 1);
+    DOCTEST_CHECK(COLCALC::Colony_Can_Build_Product(&::game::world, colony, BUILDING_CAPITOL) == 1);
 }
 
 DOCTEST_TEST_CASE("Spy production requires Spy Network technology") {
@@ -1185,13 +1186,13 @@ DOCTEST_TEST_CASE("Spy production requires Spy Network technology") {
     s_colony* colony = &MOX::colony[0];
     colony->owner = 0;
 
-    DOCTEST_CHECK(COLCALC::Colony_Can_Build_Product(
+    DOCTEST_CHECK(COLCALC::Colony_Can_Build_Product(&::game::world, 
         colony, COLONY_PRODUCTION_SPY) == 0);
 
     MOX::player[0].tech_applications[TECH_APP_SPY_NETWORK] =
         TECH_RESEARCH_STATUS_RESEARCHED;
 
-    DOCTEST_CHECK(COLCALC::Colony_Can_Build_Product(
+    DOCTEST_CHECK(COLCALC::Colony_Can_Build_Product(&::game::world, 
         colony, COLONY_PRODUCTION_SPY) == 1);
 }
 
@@ -1215,9 +1216,9 @@ DOCTEST_TEST_CASE("Android production costs are selected independently") {
     COLCALC::misc_costs.android_worker = 40;
     COLCALC::misc_costs.android_scientist = 60;
 
-    DOCTEST_CHECK(COLCALC::Colony_Product_Cost(colony, COLONY_PRODUCTION_FARMER) == 30);
-    DOCTEST_CHECK(COLCALC::Colony_Product_Cost(colony, COLONY_PRODUCTION_WORKER) == 40);
-    DOCTEST_CHECK(COLCALC::Colony_Product_Cost(colony, COLONY_PRODUCTION_SCIENTIST) == 60);
+    DOCTEST_CHECK(COLCALC::Colony_Product_Cost(&::game::world, colony, COLONY_PRODUCTION_FARMER) == 30);
+    DOCTEST_CHECK(COLCALC::Colony_Product_Cost(&::game::world, colony, COLONY_PRODUCTION_WORKER) == 40);
+    DOCTEST_CHECK(COLCALC::Colony_Product_Cost(&::game::world, colony, COLONY_PRODUCTION_SCIENTIST) == 60);
 }
 
 DOCTEST_TEST_CASE("Spy and terraforming costs use configured unsigned values") {
@@ -1229,7 +1230,7 @@ DOCTEST_TEST_CASE("Spy and terraforming costs use configured unsigned values") {
     COLCALC::misc_costs.spy = 120;
     COLCALC::misc_costs.terraforming_step = 250;
 
-    DOCTEST_CHECK(COLCALC::Colony_Product_Cost(
+    DOCTEST_CHECK(COLCALC::Colony_Product_Cost(&::game::world, 
         colony, COLONY_PRODUCTION_SPY) == 120);
 
     struct s_cost_case {
@@ -1243,8 +1244,8 @@ DOCTEST_TEST_CASE("Spy and terraforming costs use configured unsigned values") {
     };
 
     for (const s_cost_case& test_case : cases) {
-        MOX::planet[0].n_terraforms = test_case.terraform_count;
-        DOCTEST_CHECK(COLCALC::Colony_Product_Cost(
+        test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).n_terraforms = test_case.terraform_count;
+        DOCTEST_CHECK(COLCALC::Colony_Product_Cost(&::game::world, 
             colony, BUILDING_TERRAFORMING) == test_case.expected_cost);
     }
 }
@@ -1255,7 +1256,7 @@ DOCTEST_TEST_CASE("freighter reduction applies only to Feudal governments") {
     s_colony* colony = &MOX::colony[0];
     colony->owner = 0;
 
-    DOCTEST_CHECK(COLCALC::Colony_Product_Cost(
+    DOCTEST_CHECK(COLCALC::Colony_Product_Cost(&::game::world, 
         colony, COLONY_PRODUCTION_FREIGHTERS) == 50);
 
     COLCALC::misc_costs.freighters = 48;
@@ -1283,11 +1284,11 @@ DOCTEST_TEST_CASE("freighter reduction applies only to Feudal governments") {
             test_case.government;
 
         COLCALC::feudal_affects_freighters = 0;
-        DOCTEST_CHECK(COLCALC::Colony_Product_Cost(
+        DOCTEST_CHECK(COLCALC::Colony_Product_Cost(&::game::world, 
             colony, COLONY_PRODUCTION_FREIGHTERS) == 48);
 
         COLCALC::feudal_affects_freighters = 1;
-        DOCTEST_CHECK(COLCALC::Colony_Product_Cost(
+        DOCTEST_CHECK(COLCALC::Colony_Product_Cost(&::game::world, 
             colony, COLONY_PRODUCTION_FREIGHTERS) ==
             test_case.enabled_cost);
     }
@@ -1299,7 +1300,7 @@ DOCTEST_TEST_CASE("completed building grants no maintenance cash") {
     TECHDATA::buildings[BUILDING_MARINE_BARRACKS].maintenance = 3;
     MOX::player[0].bc = 20;
 
-    COLCALC::Apply_Production(colony);
+    COLCALC::Apply_Production(&::game::world, colony);
 
     DOCTEST_CHECK((MOX::player[0].bc == 20));
 }
@@ -1325,7 +1326,7 @@ DOCTEST_TEST_CASE("new ship crew is normalized before same-turn combat") {
         MOX::crew_data[CREW_QUALITY_GREEN].experience = 32768;
         MOX::crew_data[CREW_QUALITY_REGULAR].experience = 65535;
 
-        COLCALC::Apply_Production(colony);
+        COLCALC::Apply_Production(&::game::world, colony);
 
         const s_ship_data& ship = MOX::ship[0];
         DOCTEST_CHECK(ship.crew_quality == test_case.expected_quality);
@@ -1342,7 +1343,7 @@ DOCTEST_TEST_CASE("refit completion preserves existing crew state") {
     MOX::ship[0].crew_quality = CREW_QUALITY_ELITE;
     MOX::ship[0].crew_experience = UINT16_MAX;
 
-    COLCALC::Apply_Production(colony);
+    COLCALC::Apply_Production(&::game::world, colony);
 
     DOCTEST_CHECK(MOX::ship[0].crew_quality == CREW_QUALITY_ELITE);
     DOCTEST_CHECK(MOX::ship[0].crew_experience == UINT16_MAX);
@@ -1368,7 +1369,7 @@ DOCTEST_TEST_CASE("freighter completion widens configured unsigned cash bonus") 
         COLCALC::freighters_cash_bonus = test_case.bonus;
         MOX::player[0].bc = 20;
 
-        COLCALC::Apply_Production(colony);
+        COLCALC::Apply_Production(&::game::world, colony);
 
         DOCTEST_CHECK((MOX::player[0].bc == test_case.expected_bc));
         DOCTEST_CHECK(MOX::player[0].n_freighters == 5);
@@ -1380,7 +1381,7 @@ DOCTEST_TEST_CASE("successful spy completion grants no maintenance cash") {
     TEST_COLONY_POP_GROWTH::Set_Add_Spy_Result_(1);
     MOX::player[0].bc = 20;
 
-    COLCALC::Apply_Production(colony);
+    COLCALC::Apply_Production(&::game::world, colony);
 
     DOCTEST_CHECK((MOX::player[0].bc == 20));
 }
@@ -1390,7 +1391,7 @@ DOCTEST_TEST_CASE("failed spy completion refunds half its production cost") {
     TEST_COLONY_POP_GROWTH::Set_Add_Spy_Result_(0);
     MOX::player[0].bc = 20;
 
-    COLCALC::Apply_Production(colony);
+    COLCALC::Apply_Production(&::game::world, colony);
 
     DOCTEST_CHECK((MOX::player[0].bc == 70));
     DOCTEST_CHECK(TEST_COLONY_POP_GROWTH::Deleted_Product_() == COLONY_PRODUCTION_SPY);
@@ -1399,7 +1400,7 @@ DOCTEST_TEST_CASE("failed spy completion refunds half its production cost") {
 DOCTEST_TEST_CASE("classic production completes at most one queued item") {
     s_colony* colony = Prepare_Multiple_Products_(120);
 
-    COLCALC::Apply_Production(colony);
+    COLCALC::Apply_Production(&::game::world, colony);
 
     DOCTEST_CHECK(TEST_COLONY_POP_GROWTH::Custom_Autobuild_Calls_() == 0);
     DOCTEST_CHECK(colony->buildings[BUILDING_MARINE_BARRACKS] == 1);
@@ -1412,7 +1413,7 @@ DOCTEST_TEST_CASE("multibuild spends one production pool across queued items") {
     s_colony* colony = Prepare_Multiple_Products_(120);
     COLCALC::multibuild = 1;
 
-    COLCALC::Apply_Production(colony);
+    COLCALC::Apply_Production(&::game::world, colony);
 
     DOCTEST_CHECK(colony->buildings[BUILDING_MARINE_BARRACKS] == 1);
     DOCTEST_CHECK(colony->buildings[BUILDING_RESEARCH_LAB] == 1);
@@ -1425,7 +1426,7 @@ DOCTEST_TEST_CASE("non-building multibuild stops after a building") {
     COLCALC::multibuild = 1;
     COLCALC::multibuild_nonbuilding_products_only = 1;
 
-    COLCALC::Apply_Production(colony);
+    COLCALC::Apply_Production(&::game::world, colony);
 
     DOCTEST_CHECK(colony->buildings[BUILDING_MARINE_BARRACKS] == 1);
     DOCTEST_CHECK(colony->buildings[BUILDING_RESEARCH_LAB] == 0);
@@ -1437,7 +1438,7 @@ DOCTEST_TEST_CASE("non-building multibuild flag has no effect without multibuild
     s_colony* colony = Prepare_Multiple_Products_(120);
     COLCALC::multibuild_nonbuilding_products_only = 1;
 
-    COLCALC::Apply_Production(colony);
+    COLCALC::Apply_Production(&::game::world, colony);
 
     DOCTEST_CHECK(colony->buildings[BUILDING_MARINE_BARRACKS] == 1);
     DOCTEST_CHECK(colony->buildings[BUILDING_RESEARCH_LAB] == 0);
@@ -1451,7 +1452,7 @@ DOCTEST_TEST_CASE("non-building multibuild stops when a building follows freight
     COLCALC::multibuild = 1;
     COLCALC::multibuild_nonbuilding_products_only = 1;
 
-    COLCALC::Apply_Production(colony);
+    COLCALC::Apply_Production(&::game::world, colony);
 
     DOCTEST_CHECK(MOX::player[0].n_freighters == 5);
     DOCTEST_CHECK(colony->buildings[BUILDING_RESEARCH_LAB] == 0);
@@ -1469,7 +1470,7 @@ DOCTEST_TEST_CASE("non-building multibuild completes successive non-building pro
     COLCALC::multibuild_nonbuilding_products_only = 1;
     TEST_COLONY_POP_GROWTH::Set_Add_Spy_Result_(1);
 
-    COLCALC::Apply_Production(colony);
+    COLCALC::Apply_Production(&::game::world, colony);
 
     DOCTEST_CHECK(MOX::player[0].n_freighters == 5);
     DOCTEST_CHECK((colony->producing[0] != COLONY_PRODUCTION_SPY));
@@ -1482,7 +1483,7 @@ DOCTEST_TEST_CASE("non-building multibuild stops after a building before freight
     COLCALC::multibuild = 1;
     COLCALC::multibuild_nonbuilding_products_only = 1;
 
-    COLCALC::Apply_Production(colony);
+    COLCALC::Apply_Production(&::game::world, colony);
 
     DOCTEST_CHECK(colony->buildings[BUILDING_MARINE_BARRACKS] == 1);
     DOCTEST_CHECK(MOX::player[0].n_freighters == 0);
@@ -1494,7 +1495,7 @@ DOCTEST_TEST_CASE("multibuild preserves production insufficient for the next ite
     s_colony* colony = Prepare_Multiple_Products_(100);
     COLCALC::multibuild = 1;
 
-    COLCALC::Apply_Production(colony);
+    COLCALC::Apply_Production(&::game::world, colony);
 
     DOCTEST_CHECK(colony->buildings[BUILDING_MARINE_BARRACKS] == 1);
     DOCTEST_CHECK(colony->buildings[BUILDING_RESEARCH_LAB] == 0);
@@ -1509,7 +1510,7 @@ DOCTEST_TEST_CASE("multibuild banks the entire remainder when reaching Trade Goo
     colony->maintenance[ECON_INDUSTRY] = 10;
     COLCALC::multibuild = 1;
 
-    COLCALC::Apply_Production(colony);
+    COLCALC::Apply_Production(&::game::world, colony);
 
     DOCTEST_CHECK(colony->buildings[BUILDING_MARINE_BARRACKS] == 1);
     DOCTEST_CHECK((colony->producing[0] == COLONY_PRODUCTION_TRADE_GOODS));
@@ -1525,7 +1526,7 @@ DOCTEST_TEST_CASE("multibuild retains stored and current production at Trade Goo
     colony->maintenance[ECON_INDUSTRY] = 10;
     COLCALC::multibuild = 1;
 
-    COLCALC::Apply_Production(colony);
+    COLCALC::Apply_Production(&::game::world, colony);
 
     DOCTEST_CHECK(colony->buildings[BUILDING_MARINE_BARRACKS] == 1);
     DOCTEST_CHECK((colony->producing[0] == COLONY_PRODUCTION_TRADE_GOODS));
@@ -1549,7 +1550,7 @@ DOCTEST_TEST_CASE("multibuild banks unused PP from four builds without convertin
     colony->producing[4] = COLONY_PRODUCTION_TRADE_GOODS;
     COLCALC::multibuild = 1;
 
-    COLCALC::Apply_Production(colony);
+    COLCALC::Apply_Production(&::game::world, colony);
 
     DOCTEST_CHECK(MOX::player[0].n_freighters == 20);
     DOCTEST_CHECK((colony->producing[0] == COLONY_PRODUCTION_TRADE_GOODS));
@@ -1557,12 +1558,12 @@ DOCTEST_TEST_CASE("multibuild banks unused PP from four builds without convertin
     DOCTEST_CHECK((colony->production[ECON_INDUSTRY] == 1000));
     DOCTEST_CHECK((MOX::player[0].bc == 0));
 
-    COLCALC::Apply_Production(colony);
+    COLCALC::Apply_Production(&::game::world, colony);
     DOCTEST_CHECK((colony->production_spent == 5040));
     colony->producing[0] = COLONY_PRODUCTION_FREIGHTERS;
     colony->producing[1] = COLONY_PRODUCTION_NONE;
     colony->production[ECON_INDUSTRY] = 0;
-    COLCALC::Apply_Production(colony);
+    COLCALC::Apply_Production(&::game::world, colony);
     DOCTEST_CHECK(MOX::player[0].n_freighters == 25);
     DOCTEST_CHECK((colony->production_spent == 4800));
 }
@@ -1580,12 +1581,12 @@ DOCTEST_TEST_CASE("multibuild does not bank industry while already producing Tra
     colony->maintenance[ECON_INDUSTRY] = 10;
     COLCALC::multibuild = 1;
 
-    COLCALC::Apply_Production(colony);
+    COLCALC::Apply_Production(&::game::world, colony);
 
     DOCTEST_CHECK((colony->production_spent == 20));
     DOCTEST_CHECK((colony->production[ECON_INDUSTRY] == 100));
     DOCTEST_CHECK((MOX::player[0].bc == 0));
-    COLCALC::Apply_Production(colony);
+    COLCALC::Apply_Production(&::game::world, colony);
     DOCTEST_CHECK((colony->production_spent == 20));
     DOCTEST_CHECK((colony->production[ECON_INDUSTRY] == 100));
     DOCTEST_CHECK((MOX::player[0].bc == 0));
@@ -1594,7 +1595,7 @@ DOCTEST_TEST_CASE("multibuild does not bank industry while already producing Tra
     TECHDATA::buildings[BUILDING_MARINE_BARRACKS].cost = 60;
     colony->production[ECON_INDUSTRY] = 10;
     colony->maintenance[ECON_INDUSTRY] = 10;
-    COLCALC::Apply_Production(colony);
+    COLCALC::Apply_Production(&::game::world, colony);
     DOCTEST_CHECK(colony->buildings[BUILDING_MARINE_BARRACKS] == 0);
     DOCTEST_CHECK((colony->production_spent == 20));
 }
@@ -1609,7 +1610,7 @@ DOCTEST_TEST_CASE("multibuild does not bank industry with no product or AI Trade
         colony->production[ECON_INDUSTRY] = 100;
         COLCALC::multibuild = 1;
 
-        COLCALC::Apply_Production(colony);
+        COLCALC::Apply_Production(&::game::world, colony);
 
         DOCTEST_CHECK((colony->production_spent == 20));
         DOCTEST_CHECK((colony->production[ECON_INDUSTRY] == 100));
@@ -1628,14 +1629,14 @@ DOCTEST_TEST_CASE("legacy autobuild cannot spend production on a Trade Goods inc
         COLCALC::multibuild = 1;
         TEST_COLONY_POP_GROWTH::Set_Legacy_Autobuild_Product_(BUILDING_MARINE_BARRACKS);
 
-        COLCALC::Apply_Production(colony);
+        COLCALC::Apply_Production(&::game::world, colony);
 
         DOCTEST_CHECK((colony->producing[0] == BUILDING_MARINE_BARRACKS));
         DOCTEST_CHECK(colony->buildings[BUILDING_MARINE_BARRACKS] == 0);
         DOCTEST_CHECK((colony->production_spent == 20));
 
         colony->production[ECON_INDUSTRY] = 0;
-        COLCALC::Apply_Production(colony);
+        COLCALC::Apply_Production(&::game::world, colony);
         DOCTEST_CHECK(colony->buildings[BUILDING_MARINE_BARRACKS] == 0);
         DOCTEST_CHECK((colony->production_spent == 20));
     }
@@ -1650,14 +1651,14 @@ DOCTEST_TEST_CASE("legacy autobuild Trade Goods after a building starts next tur
     COLCALC::multibuild = 1;
     TEST_COLONY_POP_GROWTH::Set_Legacy_Autobuild_Product_(COLONY_PRODUCTION_TRADE_GOODS);
 
-    COLCALC::Apply_Production(colony);
+    COLCALC::Apply_Production(&::game::world, colony);
 
     DOCTEST_CHECK(colony->buildings[BUILDING_MARINE_BARRACKS] == 1);
     DOCTEST_CHECK((colony->producing[0] == COLONY_PRODUCTION_TRADE_GOODS));
     DOCTEST_CHECK((colony->production_spent == 40));
     DOCTEST_CHECK((MOX::player[0].bc == 0));
 
-    COLCALC::Apply_Production(colony);
+    COLCALC::Apply_Production(&::game::world, colony);
     DOCTEST_CHECK((colony->production_spent == 40));
     DOCTEST_CHECK((MOX::player[0].bc == 0));
 }

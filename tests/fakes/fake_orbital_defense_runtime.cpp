@@ -35,7 +35,7 @@ namespace AIBUILD {
         return 100;
     }
 
-    void Build_Production_Context(AIDATA::s_state*, const game::s_view*, game::id_colony, const s_colony*, int32_t, production_rules::s_context* context) {
+    void Build_Production_Context(::game::s_world_state* world_state, AIDATA::s_state*, const game::s_view*, game::id_colony, const s_colony*, int32_t, production_rules::s_context* context) {
         *context = {};
     }
 
@@ -54,7 +54,7 @@ namespace TEST_ORBITAL_DEFENSE {
             .ships = MOX::ship,
             .stars = MOX::star,
             .colonies = MOX::colony,
-            .planets = MOX::planet,
+
             .settings = &MOX::settings,
             .colony_count = &MOX::NUM_COLONIES,
         };
@@ -71,7 +71,7 @@ namespace TEST_ORBITAL_DEFENSE {
         memset(MOX::ship, 0, sizeof(s_ship_data) * MAX_SHIPS);
         memset(MOX::ship_node, 0xff, sizeof(MOX::ship_node));
         memset(MOX::colony, 0, sizeof(s_colony) * 2);
-        memset(MOX::planet, 0, sizeof(s_planet_data) * 2);
+        game::world.planets.clear();
         memset(MOX::star, 0, sizeof(s_star_data));
         memset(MOX::player, 0, sizeof(s_player) * MAX_PLAYERS);
         ai = {};
@@ -135,20 +135,20 @@ namespace RUSS {
 } // namespace RUSS
 
 namespace COLCALC {
-    bool __cdecl Colony_Is_Blockaded(s_colony*) {
+    bool __cdecl Colony_Is_Blockaded(::game::s_world_state* world_state, s_colony*) {
         return false;
     }
     bool __cdecl Colony_Can_Build_Large_Ships(s_colony*) {
         return can_build_large_ships;
     }
-    int32_t __cdecl Colony_Product_Cost(s_colony*, int16_t) {
+    int32_t __cdecl Colony_Product_Cost(::game::s_world_state* world_state, s_colony*, int16_t) {
         return 100;
     }
     void __cdecl Do_Player_Colony_Calculations(int16_t) {}
 } // namespace COLCALC
 
 namespace EVENTS {
-    int16_t __cdecl Event_Check_Space_Anomaly(int16_t) {
+    int16_t __cdecl Event_Check_Space_Anomaly(::game::s_world_state* world_state, int16_t) {
         return 0;
     }
 } // namespace EVENTS

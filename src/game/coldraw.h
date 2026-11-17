@@ -48,10 +48,10 @@ namespace COLDRAW {
     uint8_t __cdecl Do_Pick_Random_Road_At_And_Around_CR(int16_t* row, int16_t* col, int16_t* connection_idx);
 
     // Populates decorative vegetation sprites for empty colony cells.
-    void __cdecl Build_Veggie_List_Based_On_Bldg_List();
+    void __cdecl Build_Veggie_List_Based_On_Bldg_List(::game::s_world_state* world_state);
 
     // Picks the vegetation tileset family for a colony's planet climate.
-    int16_t __cdecl Veggie_Type_For_Colony(int16_t colony_idx);
+    int16_t __cdecl Veggie_Type_For_Colony(::game::s_world_state* world_state, int16_t colony_idx);
 
     // Chooses a vegetation animation entry for one empty colony cell.
     int16_t __cdecl Pick_Random_Veggie_Anim_Entry_For_Colony_CR(int16_t colony_idx, int16_t row, int16_t col);

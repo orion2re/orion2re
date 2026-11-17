@@ -1,3 +1,4 @@
+#include "../fixtures/planet_state.h"
 #include "pch.h"
 
 #include "doctest/doctest.h"
@@ -106,7 +107,7 @@ DOCTEST_TEST_CASE("movement to assigned planet star keeps auto-colonization") {
     for (const s_case& test_case : cases) {
         TEST_SHIPMOVE::Reset_();
 
-        MOX::planet[3].star_index = 7;
+        test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(3))).star_index = 7;
         MOX::ship[0].d.ship_type = SHIP_TYPE_COLONY;
         MOX::ship[0].d.ship_weapon[0].type = 3;
         MOX::ship[0].d.ship_weapon[1].type = 1;
@@ -116,7 +117,7 @@ DOCTEST_TEST_CASE("movement to assigned planet star keeps auto-colonization") {
         s_ship_move_info move_info = {};
         move_info.turns_left = test_case.turns_left;
 
-        SHIPMOVE::Make_Ships_Move_To(ship_list, 7, &move_info);
+        SHIPMOVE::Make_Ships_Move_To(&::game::world, ship_list, 7, &move_info);
 
         DOCTEST_CHECK((MOX::ship[0].location == test_case.expected_location));
         DOCTEST_CHECK(MOX::ship[0].d.ship_weapon[0].type == 3);
@@ -187,11 +188,11 @@ DOCTEST_TEST_CASE("combat-ignore cleanup keeps flags only while another empire i
     MOX::NUM_COLONIES = 1;
     MOX::colony[0].owner = 1;
     MOX::colony[0].planet = 0;
-    MOX::planet[0].star_index = 0;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).star_index = 0;
     MOX::ship[0].location = 1;
     MOX::star[0].ignore_combat_ships = 1;
     MOX::star[1].ignore_combat_ships = 1;
-    SHIPMOVE::Reset_Needless_Ignore_Combat_Ships_Flags();
+    SHIPMOVE::Reset_Needless_Ignore_Combat_Ships_Flags(&::game::world);
     DOCTEST_CHECK((MOX::star[0].ignore_combat_ships == 1));
     DOCTEST_CHECK((MOX::star[1].ignore_combat_ships == 0));
 }
@@ -259,7 +260,7 @@ DOCTEST_TEST_CASE("new nonplayer ship lifetime advances Lua slot generation") {
 DOCTEST_TEST_CASE("movement away from assigned planet clears auto-colonization") {
     TEST_SHIPMOVE::Reset_();
 
-    MOX::planet[3].star_index = 7;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(3))).star_index = 7;
     MOX::ship[0].d.ship_type = SHIP_TYPE_OUTPOST;
     MOX::ship[0].d.ship_weapon[0].type = 3;
     MOX::ship[0].d.ship_weapon[1].type = 1;
@@ -267,9 +268,9 @@ DOCTEST_TEST_CASE("movement away from assigned planet clears auto-colonization")
     int16_t ship_list[] = {0, -1};
     s_ship_move_info move_info = {};
 
-    SHIPMOVE::Make_Ships_Move_To(ship_list, 8, &move_info);
+    SHIPMOVE::Make_Ships_Move_To(&::game::world, ship_list, 8, &move_info);
 
-    DOCTEST_CHECK(MOX::ship[0].d.ship_weapon[0].type == PLANET_INDEX_NONE);
+    DOCTEST_CHECK(MOX::ship[0].d.ship_weapon[0].type == ::game::NO_PLANET);
     DOCTEST_CHECK(MOX::ship[0].d.ship_weapon[1].type == 0);
 }
 
@@ -331,7 +332,7 @@ DOCTEST_TEST_CASE("movement stores the numeric navigator bonus") {
     int16_t ship_list[] = {0, -1};
     s_ship_move_info move_info;
     SHIPMOVE::Ships_Try_To_Move_To(ship_list, 1, &move_info);
-    SHIPMOVE::Make_Ships_Move_To(ship_list, 1, &move_info);
+    SHIPMOVE::Make_Ships_Move_To(&::game::world, ship_list, 1, &move_info);
 
     DOCTEST_CHECK(move_info.has_navigator == 2);
     DOCTEST_CHECK(MOX::ship[0].group_has_navigator == 2);
@@ -386,7 +387,7 @@ DOCTEST_TEST_CASE("Phase Shifter scales departing fleet speed using an exact rat
         DOCTEST_CHECK(move_info.traveling_speed == test_case.expected_speed);
         DOCTEST_CHECK(move_info.turns_left == (4 + test_case.expected_speed - 1) / test_case.expected_speed);
         DOCTEST_CHECK(TEST_SHIPMOVE::Movement_Speed_() == test_case.expected_speed);
-        SHIPMOVE::Make_Ships_Move_To(ship_list, 1, &move_info);
+        SHIPMOVE::Make_Ships_Move_To(&::game::world, ship_list, 1, &move_info);
         DOCTEST_CHECK(MOX::ship[0].travelling_speed == test_case.expected_speed);
         DOCTEST_CHECK(MOX::ship[1].travelling_speed == test_case.expected_speed);
         DOCTEST_CHECK(MOX::ship[0].d.combat_speed == 7);
@@ -446,7 +447,7 @@ DOCTEST_TEST_CASE("Phase Shifter leaves Navigator and Jump Gate bonuses additive
     SHIPMOVE::jump_gate_speed_bonus = UINT8_MAX;
     SHIPMOVE::Ships_Try_To_Move_To(ship_list, 1, &move_info);
     DOCTEST_CHECK(move_info.traveling_speed == 254);
-    SHIPMOVE::Make_Ships_Move_To(ship_list, 1, &move_info);
+    SHIPMOVE::Make_Ships_Move_To(&::game::world, ship_list, 1, &move_info);
     MOX::ship[0].status = 1;
     MOX::ship[0].location = SHIP_LOCATION_MOVING_OFFSET + 1;
     MOX::ship[0].x = 30;
@@ -470,7 +471,7 @@ DOCTEST_TEST_CASE("Phase Shifter is not reapplied to in-flight departure speed")
     s_ship_move_info move_info;
     SHIPMOVE::Ships_Try_To_Move_To(ship_list, 1, &move_info);
     DOCTEST_REQUIRE(move_info.traveling_speed == 8);
-    SHIPMOVE::Make_Ships_Move_To(ship_list, 1, &move_info);
+    SHIPMOVE::Make_Ships_Move_To(&::game::world, ship_list, 1, &move_info);
     MOX::ship[0].status = 1;
     MOX::ship[0].location = SHIP_LOCATION_MOVING_OFFSET + 1;
     MOX::ship[0].x = 30;

@@ -27,8 +27,8 @@ namespace CMBTDRW1 {
     void __cdecl Draw_Ship_Status(int16_t x, int16_t y, int16_t ship_idx);
     void __cdecl Draw_Grey_Damage_Bars(int16_t x, int16_t y, int16_t ship_idx);
     void __cdecl Draw_Crew_Level_Stars(int16_t ship_idx, int16_t x, int16_t y);
-    void __cdecl Draw_Reduced_Combat_Map();
-    void __cdecl Draw_Current_Ship_Blip();
+    void __cdecl Draw_Reduced_Combat_Map(::game::s_world_state* world_state);
+    void __cdecl Draw_Current_Ship_Blip(::game::s_world_state* world_state);
 
     void __cdecl Draw_Reduced_Map_Box();
 
@@ -66,18 +66,18 @@ namespace CMBTDRW1 {
 
     void __cdecl Create_Ship_Darken_Map();
 
-    int16_t __cdecl Ship_Completely_On_Screen(int16_t ship_idx);
+    int16_t __cdecl Ship_Completely_On_Screen(::game::s_world_state* world_state, int16_t ship_idx);
 
     int16_t __cdecl Relative_Bearing_XY(int16_t ship_idx, int16_t target_x, int16_t target_y);
 
     int16_t __cdecl Relative_Bearing(int16_t ship_a_idx, int16_t ship_b_idx);
 
-    int16_t __cdecl Ship_On_Screen(int16_t ship_idx);
+    int16_t __cdecl Ship_On_Screen(::game::s_world_state* world_state, int16_t ship_idx);
 
     /** Draws a combat ship or planet sprite at the supplied screen position. */
     void __cdecl Draw_Ship(int16_t ship_idx, int16_t draw_x, int16_t draw_y);
 
-    void __cdecl Get_Draw_Ship_Offsets(int16_t ship_idx, int16_t* out_x, int16_t* out_y);
+    void __cdecl Get_Draw_Ship_Offsets(::game::s_world_state* world_state, int16_t ship_idx, int16_t* out_x, int16_t* out_y);
 
     void __cdecl Draw_Ship_To_Bitmap(int16_t ship_idx, int16_t layer, int16_t plasma_mode, int16_t plasma_progress);
 

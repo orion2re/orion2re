@@ -84,7 +84,7 @@ namespace COLSUM {
 
     int16_t __cdecl Switched_cmp(int16_t a1, int16_t a2);
 
-    void __cdecl Draw_Colony_Summary_Screen();
+    void __cdecl Draw_Colony_Summary_Screen(::game::s_world_state* world_state);
 
     void __cdecl Draw_Colony_Summary();
 
@@ -108,7 +108,7 @@ namespace COLSUM {
 
     void __cdecl Draw_Galaxy_Map();
 
-    void __cdecl Draw_Colony_Summary_For_Colony(int16_t index);
+    void __cdecl Draw_Colony_Summary_For_Colony(::game::s_world_state* world_state, int16_t index);
 
     void __cdecl Draw_Info_Pop_For(int16_t colony_idx);
 
@@ -116,25 +116,25 @@ namespace COLSUM {
 
     void __cdecl Draw_Bar_Indicator();
 
-    bool __cdecl Evaluate_Input(int16_t* input_val, int16_t* scan_val);
+    bool __cdecl Evaluate_Input(::game::s_world_state* world_state, int16_t* input_val, int16_t* scan_val);
 
-    bool __cdecl Evaluate_Col_List_Input(int16_t* field_ptr, int16_t* scan_val);
+    bool __cdecl Evaluate_Col_List_Input(::game::s_world_state* world_state, int16_t* field_ptr, int16_t* scan_val);
 
-    void __cdecl Evaluate_Colony_Pop_Input(int16_t* input_field_1, int16_t* input_field_2, int16_t colony_idx_in_list);
+    void __cdecl Evaluate_Colony_Pop_Input(::game::s_world_state* world_state, int16_t* input_field_1, int16_t* input_field_2, int16_t colony_idx_in_list);
 
     int16_t __cdecl Get_Selected_Pop(int16_t colony_idx, int16_t job_idx);
 
-    int16_t __cdecl Get_Scanned_Pop(int16_t colony_list_row, int16_t job_type);
+    int16_t __cdecl Get_Scanned_Pop(::game::s_world_state* world_state, int16_t colony_list_row, int16_t job_type);
 
-    void __cdecl Check_Galaxy_Map_Fields(int16_t* clicked_field, int16_t* hovered_field);
+    void __cdecl Check_Galaxy_Map_Fields(::game::s_world_state* world_state, int16_t* clicked_field, int16_t* hovered_field);
 
     void __cdecl Draw_Scan_Info();
 
-    void __cdecl Colony_Summary_Screen();
+    void __cdecl Colony_Summary_Screen(::game::s_world_state* world_state);
 
-    int16_t __cdecl Pick_Best_Planet_To_Goto_At_Star(int16_t star_idx);
+    game::id_planet Pick_Best_Planet_To_Goto_At_Star(::game::s_world_state* world_state, int16_t star_idx);
 
     int16_t __cdecl Prod_To_Sort_Type(int16_t production_id);
 
-    void __cdecl Draw_Colony_Scan_Info();
+    void __cdecl Draw_Colony_Scan_Info(::game::s_world_state* world_state);
 } // namespace COLSUM

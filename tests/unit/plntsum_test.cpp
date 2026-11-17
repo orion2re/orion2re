@@ -1,3 +1,4 @@
+#include "../fixtures/planet_state.h"
 #include "pch.h"
 
 #include <algorithm>
@@ -10,8 +11,8 @@ namespace {
     void Add_System(int16_t star_idx, int16_t first_planet, int rotation = 0) {
         MOX::star[star_idx].visited = 1 << MOX::PLAYER_NUM;
         for (int orbit = 0; orbit < 5; ++orbit) {
-            int16_t planet_idx = first_planet + orbit;
-            auto& planet = MOX::planet[planet_idx];
+            ::game::id_planet planet_idx = first_planet + orbit;
+            auto& planet = test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx)));
             planet.star_index = star_idx;
             planet.planet_type = PLANET_TYPE_PLANET;
             planet.mineral_class = (orbit + rotation) % 5;
@@ -19,7 +20,7 @@ namespace {
             planet.food_per_farmer = 2;
             MOX::star[star_idx].planet_index[orbit] = planet_idx;
         }
-        MOX::planet_count = first_planet + 5;
+        test::Resize_Planets(&::game::world, first_planet + 5);
     }
 
     void Set_Filters(int mask) {
@@ -29,10 +30,10 @@ namespace {
     }
 
     void Check_List(std::vector<int16_t> expected) {
-        PLNTSUM::Filter_Explored_Planets(&MOX::scroll_bar->total_rows);
+        PLNTSUM::Filter_Explored_Planets(&::game::world, &MOX::scroll_bar->total_rows);
         std::vector<int16_t> actual;
         for (int i = 0; i < MOX::scroll_bar->total_rows; ++i) {
-            actual.push_back(PLNTSUM::planet_summary[i].explored);
+            actual.push_back(PLNTSUM::planet_summary[i].planet_id);
         }
         std::sort(actual.begin(), actual.end());
         std::sort(expected.begin(), expected.end());
@@ -49,7 +50,7 @@ namespace {
         MOX::ship_node[0].next_node = -1;
     }
 
-    int16_t Add_Orderable_Ship(int16_t type, int16_t planet_idx = -1, bool moving = false) {
+    int16_t Add_Orderable_Ship(int16_t type, ::game::id_planet planet_idx = ::game::NO_PLANET, bool moving = false) {
         int16_t ship_idx = MOX::NUM_SHIPS++;
         s_ship_data* ship = &MOX::ship[ship_idx];
         ship->owner = MOX::PLAYER_NUM;
@@ -57,8 +58,8 @@ namespace {
         ship->location = moving ? SHIP_LOCATION_MOVING_OFFSET : 0;
         ship->x = moving ? 42 : 0;
         ship->y = moving ? 24 : 0;
-        if (planet_idx >= 0) {
-            PLNTSUM::Set_Auto_Colonize_Flag(ship, planet_idx);
+        if (planet_idx != ::game::NO_PLANET) {
+            PLNTSUM::Set_Auto_Colonize_Flag(ship, legacy_world::Planet_Id(planet_idx));
         }
         MOX::ship_stack_start[MOX::ship_stack_count++] = ship_idx;
         MOX::ship_node[ship_idx].ship_idx = ship_idx;
@@ -67,8 +68,8 @@ namespace {
     }
 
     void Build_Planet_List() {
-        PLNTSUM::Set_Planet_Explored_Flags();
-        PLNTSUM::Filter_Explored_Planets(&MOX::scroll_bar->total_rows);
+        PLNTSUM::Set_Planet_Explored_Flags(&::game::world);
+        PLNTSUM::Filter_Explored_Planets(&::game::world, &MOX::scroll_bar->total_rows);
     }
 
     void Check_Field(int16_t field_id, int16_t x, int16_t y, int16_t x_end, int16_t y_end, char hotkey = '\0') {
@@ -104,7 +105,7 @@ DOCTEST_TEST_CASE("mixed minerals remain planet-local across filter permutations
                         // Empty, enemy colony, own colony, enemy outpost, own ship,
                         // enemy ship in orbit, or enemy ship en route.
                         if (presence >= 1 && presence <= 3) {
-                            MOX::planet[0].colony_index = 0;
+                            test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).colony_index = 0;
                             MOX::colony[0].planet = 0;
                             MOX::colony[0].owner = presence == 2 ? 0 : 1;
                             MOX::colony[0].outpost_flag = presence == 3;
@@ -112,7 +113,7 @@ DOCTEST_TEST_CASE("mixed minerals remain planet-local across filter permutations
                             Add_Ship(presence == 4 ? 0 : 1,
                                 presence == 6 ? SHIP_LOCATION_MOVING_OFFSET : 0);
                         }
-                        PLNTSUM::Set_Planet_Explored_Flags();
+                        PLNTSUM::Set_Planet_Explored_Flags(&::game::world);
                         for (const auto& order : orders) {
                             int mask = 0;
                             for (int step = 0; step < 7; ++step) {
@@ -150,17 +151,17 @@ DOCTEST_TEST_CASE("mixed minerals remain planet-local across filter permutations
 DOCTEST_TEST_CASE("destroyed occupants no longer hide mixed-mineral systems") {
     TEST_PLNTSUM::Reset_();
     Add_System(0, 0);
-    MOX::planet[0].colony_index = 0;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).colony_index = 0;
     MOX::colony[0].owner = 1;
     MOX::colony[0].planet = 0;
-    MOX::player[1].home_planet_id = -1;
+    MOX::player[1].home_planet_id = ::game::NO_PLANET;
     Add_Ship(1, 0);
-    PLNTSUM::Set_Planet_Explored_Flags();
+    PLNTSUM::Set_Planet_Explored_Flags(&::game::world);
     Set_Filters(7);
     Check_List({});
 
-    BOMB::Destroy_Colony(&MOX::colony[0], -1);
-    DOCTEST_CHECK(MOX::planet[0].colony_index == -1);
+    BOMB::Destroy_Colony(&::game::world, &MOX::colony[0], -1);
+    DOCTEST_CHECK(test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).colony_index == -1);
     DOCTEST_CHECK(MOX::colony[0].owner == -1);
     DOCTEST_CHECK(MOX::star[0].visited == 1);
     Check_List({});
@@ -171,7 +172,7 @@ DOCTEST_TEST_CASE("destroyed occupants no longer hide mixed-mineral systems") {
     MOX::ship_stack_count = 0;
     Check_List({2, 3, 4});
     // Reopening the screen rebuilds exploration flags after the destruction.
-    PLNTSUM::Set_Planet_Explored_Flags();
+    PLNTSUM::Set_Planet_Explored_Flags(&::game::world);
     MOX::scroll_bar->total_rows = 0;
     Check_List({2, 3, 4});
 }
@@ -182,7 +183,7 @@ DOCTEST_TEST_CASE("high planet indices and nonzero player visitation bits remain
             TEST_PLNTSUM::Reset_();
             MOX::PLAYER_NUM = player;
             Add_System(MAX_STARS - 1, first);
-            PLNTSUM::Set_Planet_Explored_Flags();
+            PLNTSUM::Set_Planet_Explored_Flags(&::game::world);
             Set_Filters(7);
             DOCTEST_CAPTURE(first);
             DOCTEST_CAPTURE(player);
@@ -196,10 +197,10 @@ DOCTEST_TEST_CASE("presence and range exclusions do not leak between systems") {
     Add_System(0, 0);
     Add_System(1, 5);
     Add_System(2, 10);
-    MOX::planet[0].colony_index = 0;
+    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).colony_index = 0;
     MOX::colony[0].owner = 1;
     TEST_PLNTSUM::in_range[1] = false;
-    PLNTSUM::Set_Planet_Explored_Flags();
+    PLNTSUM::Set_Planet_Explored_Flags(&::game::world);
     Set_Filters(7);
     Check_List({12, 13, 14});
     Set_Filters(6);
@@ -221,7 +222,7 @@ DOCTEST_TEST_CASE("Galactic Lore alone reproduces the whole-system exclusion reg
     Add_System(0, 0);
     MOX::star[0].visited = 0;
     MOX::player[0].has_galactic_lore = 1;
-    PLNTSUM::Set_Planet_Explored_Flags();
+    PLNTSUM::Set_Planet_Explored_Flags(&::game::world);
     Set_Filters(6);
     Check_List({2, 3, 4});
     Set_Filters(7);
@@ -230,7 +231,7 @@ DOCTEST_TEST_CASE("Galactic Lore alone reproduces the whole-system exclusion reg
     Check_List({});
 
     MOX::star[0].visited = 1;
-    PLNTSUM::Set_Planet_Explored_Flags();
+    PLNTSUM::Set_Planet_Explored_Flags(&::game::world);
     Set_Filters(7);
     Check_List({2, 3, 4});
 }
@@ -316,7 +317,7 @@ DOCTEST_TEST_CASE("sending the last selected ship disarms rather than switching 
         PLNTSUM::send_choice = choice;
         PLNTSUM::Determine_Button_Status();
         MOX::ship[choice].location = SHIP_LOCATION_MOVING_OFFSET;
-        PLNTSUM::Set_Auto_Colonize_Flag(&MOX::ship[choice], 0);
+        PLNTSUM::Set_Auto_Colonize_Flag(&MOX::ship[choice], legacy_world::Planet_Id(0));
         PLNTSUM::Determine_Button_Status();
         DOCTEST_CHECK(PLNTSUM::send_choice == -1);
         DOCTEST_CHECK(PLNTSUM::draw_colony_button_status == (choice == 0 ? 0 : 1));
@@ -395,19 +396,19 @@ DOCTEST_TEST_CASE("recall targets the dispatched ship with or without an idle al
                 Build_Planet_List();
                 PLNTSUM::Determine_Button_Status();
                 PLNTSUM::Add_Plntsum_Fields();
-                int16_t row = PLNTSUM::Planet_Summary_List_Id(0);
+                int16_t row = PLNTSUM::Planet_Summary_List_Id(legacy_world::Planet_Id(0));
                 // These are deliberately not the dispatched ship.
                 PLNTSUM::planet_summary[row].best_colony_ship_idx = free_ship;
                 PLNTSUM::planet_summary[row].best_outpost_ship_idx = free_ship;
                 PLNTSUM::send_choice = idle ? (type == SHIP_TYPE_COLONY ? 0 : 1) : -1;
-                PLNTSUM::Undo_Send_Order(0, type);
+                PLNTSUM::Undo_Send_Order(&::game::world, legacy_world::Planet_Id(0), type);
                 DOCTEST_CAPTURE(type);
                 DOCTEST_CAPTURE(idle);
                 DOCTEST_CAPTURE(moving);
                 DOCTEST_CHECK(TEST_PLNTSUM::confirmation_count == 1);
                 DOCTEST_CHECK(TEST_PLNTSUM::moved_ship == sent);
                 DOCTEST_CHECK(TEST_PLNTSUM::moved_to_star == 0);
-                DOCTEST_CHECK(PLNTSUM::Colony_Ship_Auto_Colonization(&MOX::ship[sent]) == PLANET_INDEX_NONE);
+                DOCTEST_CHECK(PLNTSUM::Colony_Ship_Auto_Colonization(&::game::world, &MOX::ship[sent]) == ::game::NO_PLANET);
                 DOCTEST_CHECK(PLNTSUM::planet_summary[row].colony_eta == -1);
                 DOCTEST_CHECK(PLNTSUM::planet_summary[row].outpost_eta == -1);
                 DOCTEST_CHECK(PLNTSUM::screen->refresh_fields);
@@ -431,9 +432,9 @@ DOCTEST_TEST_CASE("recall matches the displayed ship and ignores foreign retired
     Add_Orderable_Ship(SHIP_TYPE_COLONY, 1, true);
     Build_Planet_List();
     PLNTSUM::Determine_Button_Status();
-    PLNTSUM::Undo_Send_Order(0, SHIP_TYPE_COLONY);
+    PLNTSUM::Undo_Send_Order(&::game::world, legacy_world::Planet_Id(0), SHIP_TYPE_COLONY);
     DOCTEST_CHECK(TEST_PLNTSUM::moved_ship == displayed);
-    DOCTEST_CHECK(PLNTSUM::Colony_Ship_Auto_Colonization(&MOX::ship[0]) == 0);
+    DOCTEST_CHECK(PLNTSUM::Colony_Ship_Auto_Colonization(&::game::world, &MOX::ship[0]) == 0);
 }
 
 DOCTEST_TEST_CASE("declined unavailable or missing recall orders do not move a ship") {
@@ -444,11 +445,11 @@ DOCTEST_TEST_CASE("declined unavailable or missing recall orders do not move a s
         Build_Planet_List();
         TEST_PLNTSUM::confirm_recall = false;
         TEST_PLNTSUM::can_select_ship = scenario != 1;
-        PLNTSUM::Undo_Send_Order(0, SHIP_TYPE_COLONY);
+        PLNTSUM::Undo_Send_Order(&::game::world, legacy_world::Planet_Id(0), SHIP_TYPE_COLONY);
         DOCTEST_CHECK(TEST_PLNTSUM::moved_ship == -1);
         DOCTEST_CHECK(TEST_PLNTSUM::confirmation_count == (scenario == 0 ? 1 : 0));
         DOCTEST_CHECK(TEST_PLNTSUM::warning_count == (scenario == 1 ? 1 : 0));
-        DOCTEST_CHECK(PLNTSUM::Colony_Ship_Auto_Colonization(&MOX::ship[sent]) == (scenario == 2 ? 1 : 0));
+        DOCTEST_CHECK(PLNTSUM::Colony_Ship_Auto_Colonization(&::game::world, &MOX::ship[sent]) == (scenario == 2 ? 1 : 0));
     }
 }
 
@@ -477,7 +478,7 @@ DOCTEST_TEST_CASE("in flight ship icons survive entry filtering scrolling and so
             for (int row = 0; row < MOX::scroll_bar->total_rows; ++row) {
                 MOX::scroll_bar->first_visible_row = row;
                 PLNTSUM::Refresh_Plntsum_Fields();
-                int16_t planet = PLNTSUM::planet_summary[row].explored;
+                ::game::id_planet planet = PLNTSUM::planet_summary[row].planet_id;
                 DOCTEST_CAPTURE(mask);
                 DOCTEST_CAPTURE(sort);
                 DOCTEST_CAPTURE(row);

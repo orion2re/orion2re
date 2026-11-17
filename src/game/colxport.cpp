@@ -47,7 +47,7 @@ namespace COLXPORT {
         for (int16_t i = 0; i < 6; ++i) {
             int16_t colony_idx = COLXPORT::g_colony_list_ptr[i + COLSUM::first];
             if (colony_idx != -1) {
-                COLXPORT::Draw_Colony_Summary_For_Colony(colony_idx, i);
+                COLXPORT::Draw_Colony_Summary_For_Colony(&::game::world, colony_idx, i);
             }
         }
 
@@ -238,11 +238,11 @@ namespace COLXPORT {
         }
     }
 
-    void __cdecl Draw_Colony_Summary_For_Colony(int16_t colony_idx, int16_t entry_idx) {
+    void __cdecl Draw_Colony_Summary_For_Colony(::game::s_world_state* world_state, int16_t colony_idx, int16_t entry_idx) {
         COLXPORT::list_col[entry_idx] = colony_idx;
 
-        int16_t planet_idx = MOX::colony[colony_idx].planet;
-        int16_t star_idx = MOX::planet[planet_idx].star_index;
+        ::game::id_planet planet_idx = MOX::colony[colony_idx].planet;
+        int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index;
 
         if (((MOX::star[star_idx].blockaded >> MOX::PLAYER_NUM) & 1) != 0 || EVENTS::Event_Check_Plague(colony_idx) != 0) {
             COLONY::Set_Colony_Font_To_Red(4, 0);
@@ -250,7 +250,7 @@ namespace COLXPORT {
             COLONY::Set_Colony_Font_To(4);
         }
 
-        char* planet_name = HACCESS::Get_Planet_Name(planet_idx);
+        char* planet_name = HACCESS::Get_Planet_Name(legacy_world::Planet_Id(planet_idx));
         int16_t y_pos = entry_idx * 38 + 54;
         BILL::Squeeze_Print_Paragraph(15, y_pos, 130, 28, planet_name, 0);
 

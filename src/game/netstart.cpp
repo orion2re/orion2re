@@ -386,7 +386,7 @@ namespace NETSTART {
         msg.starting_civilization_level = MOX::settings.starting_civilization_level;
         msg.xenons_exist = MOX::settings.xenons_exist;
 
-        strlcpy(msg.version_string, GAME_BUILD_DATE, sizeof(msg.version_string));
+        strlcpy(msg.version_string, GAME_PROTOCOL_IDENTIFIER, sizeof(msg.version_string));
 
         memset(RACESEL::color_flag, 0, sizeof(RACESEL::color_flag));
         memset(NETMOX::net.player_connected_flags, 0, sizeof(NETMOX::net.player_connected_flags));
@@ -754,7 +754,7 @@ namespace NETSTART {
             }
         }
 
-        strlcpy(payload.version_string, GAME_BUILD_DATE, sizeof(payload.version_string));
+        strlcpy(payload.version_string, GAME_PROTOCOL_IDENTIFIER, sizeof(payload.version_string));
         Send_Configured_Setup_Message(
             NET_PACKET_LOAD_GAME_START, &payload, sizeof(payload));
 

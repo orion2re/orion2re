@@ -19,7 +19,7 @@ DOCTEST_TEST_CASE("game-state fixtures bind borrowed views and restore nested bi
         DOCTEST_CHECK(game::current.ships == outer.ships.data());
         DOCTEST_CHECK(game::current.stars == outer.stars.data());
         DOCTEST_CHECK(game::current.colonies == outer.colonies.data());
-        DOCTEST_CHECK(game::current.planets == outer.planets.data());
+        DOCTEST_CHECK(game::current.state == &game::world);
         DOCTEST_CHECK(game::current.state == &game::world);
         DOCTEST_CHECK(game::current.settings == &MOX::settings);
         MOX::NUM_SHIPS = 2;
@@ -41,14 +41,13 @@ DOCTEST_TEST_CASE("game-state fixtures bind borrowed views and restore nested bi
     DOCTEST_CHECK(game::current.ships == previous.ships);
     DOCTEST_CHECK(game::current.stars == previous.stars);
     DOCTEST_CHECK(game::current.colonies == previous.colonies);
-    DOCTEST_CHECK(game::current.planets == previous.planets);
+    DOCTEST_CHECK(game::current.state == previous.state);
     DOCTEST_CHECK(game::current.state == previous.state);
     DOCTEST_CHECK(game::current.settings == previous.settings);
     DOCTEST_CHECK(game::current.player_count == previous.player_count);
     DOCTEST_CHECK(game::current.ship_count == previous.ship_count);
     DOCTEST_CHECK(game::current.star_count == previous.star_count);
     DOCTEST_CHECK(game::current.colony_count == previous.colony_count);
-    DOCTEST_CHECK(game::current.planet_count == previous.planet_count);
     DOCTEST_CHECK(game::current.stardate == previous.stardate);
     DOCTEST_CHECK(game::current.combat_x == previous.combat_x);
 }
@@ -128,7 +127,7 @@ DOCTEST_TEST_CASE("star assessments name treaty partners and hostile players by 
         .star_count = &star_count,
         .colony_count = &colony_count,
     };
-    AIDATA::Compute_Star_Player_Range_Info(&ai, &world);
+    AIDATA::Compute_Star_Player_Range_Info(&::game::world, &ai, &world);
     const auto& assessment = ai.stars.at(Star_Id(0)).neighborhood.per_player[0];
     DOCTEST_CHECK(assessment.treaty_partners_in_range == 1);
     DOCTEST_CHECK(assessment.hostile_players_in_range == 1);

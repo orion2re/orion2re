@@ -37,9 +37,9 @@ DOCTEST_TEST_CASE("coverage counts do not wrap at the old byte boundary") {
             .star_count = &star_count,
             .colony_count = &count,
         };
-        AIDATA::Compute_Star_Player_Range_Info(&ai, &world);
+        AIDATA::Compute_Star_Player_Range_Info(&::game::world, &ai, &world);
         DOCTEST_CHECK(ai.stars.at(Star_Id(0)).neighborhood.per_player[0].covering_colony_count == (uint32_t)count);
-        const int16_t worth = AIDATA::Proximity_Worth_To_Player(&ai, &world, &colonies[0], &player);
+        const int16_t worth = AIDATA::Proximity_Worth_To_Player(&::game::world, &ai, &world, &colonies[0], &player);
         DOCTEST_CHECK(worth == (count == 1 ? 52 * 80 : 0));
     }
 }
@@ -134,8 +134,8 @@ DOCTEST_TEST_CASE("movement presence and flee lookups do not insert zero assessm
 
 DOCTEST_TEST_CASE("strategic AI input validation rejects missing session data") {
     game::s_view world;
-    DOCTEST_CHECK(AIDATA::Validate_Inputs(nullptr) != nullptr);
-    DOCTEST_CHECK(AIDATA::Validate_Inputs(&world) != nullptr);
+    DOCTEST_CHECK(AIDATA::Validate_Inputs(&::game::world, nullptr) != nullptr);
+    DOCTEST_CHECK(AIDATA::Validate_Inputs(&::game::world, &world) != nullptr);
 }
 
 DOCTEST_TEST_CASE("strategic AI input diagnostics identify the failing requirement") {
@@ -164,11 +164,11 @@ DOCTEST_TEST_CASE("strategic AI input diagnostics identify the failing requireme
         .planet_count = &count,
         .stardate = &date,
     };
-    DOCTEST_CHECK(AIDATA::Validate_Inputs(&world) == nullptr);
+    DOCTEST_CHECK(AIDATA::Validate_Inputs(&::game::world, &world) == nullptr);
     world.ship_count = nullptr;
-    DOCTEST_CHECK(std::string(AIDATA::Validate_Inputs(&world)) == "invalid ship count");
+    DOCTEST_CHECK(std::string(AIDATA::Validate_Inputs(&::game::world, &world)) == "invalid ship count");
     world.ship_count = &count;
-    DOCTEST_CHECK(AIDATA::Validate_Inputs(&world) == nullptr);
+    DOCTEST_CHECK(AIDATA::Validate_Inputs(&::game::world, &world) == nullptr);
 }
 
 DOCTEST_TEST_CASE("production queue removal keeps colony identities and queue positions distinct") {

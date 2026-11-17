@@ -103,7 +103,7 @@ namespace COLREFIT {
 
             Draw_Refit_Popup();
 
-            popup_result = Evaluate_Input(&selected_field_id, &hovered_field_id);
+            popup_result = Evaluate_Input(&::game::world, &selected_field_id, &hovered_field_id);
 
             RUSS::Mox_Sync_Update();
         } while (esc == 0);
@@ -183,7 +183,7 @@ namespace COLREFIT {
         return popup_result;
     }
 
-    int16_t __cdecl Evaluate_Input(int16_t* selected_field_id, int16_t* hovered_field_id) {
+    int16_t __cdecl Evaluate_Input(::game::s_world_state* world_state, int16_t* selected_field_id, int16_t* hovered_field_id) {
         char text[500];
 
         COLREFIT::scanned_ship_index = -1;
@@ -196,8 +196,8 @@ namespace COLREFIT {
                     GENDRAW::Help(ESTRINGS::E_Strings(0x23F));
                     COLONY::full_draw = 1;
                 } else {
-                    int16_t planet_idx = HAROLD::Planet_Index(MOX::screen_data, COLONY::orbit_temp);
-                    if (COLCALC::Colony_Can_Build_Product(&MOX::colony[MOX::planet[planet_idx].colony_index], COLBLDG::Colony_Production_From_Ship_Index(ship_idx))) {
+                    ::game::id_planet planet_idx = HAROLD::Planet_Index(MOX::screen_data, legacy_world::Planet_Id(COLONY::orbit_temp));
+                    if (COLCALC::Colony_Can_Build_Product(world_state, &MOX::colony[::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index], COLBLDG::Colony_Production_From_Ship_Index(ship_idx))) {
                         if (MOX::ship[ship_idx].d.previous_owner == MOX::PLAYER_NUM) {
                             if (MOX::ship[ship_idx].officer_index == -1) {
                                 COLREFIT::esc = 1;
@@ -412,16 +412,16 @@ namespace COLREFIT {
         }
     }
 
-    void __cdecl Draw_Ship2(int16_t ship_idx, int16_t slot_idx) {
+    void __cdecl Draw_Ship2(::game::s_world_state* world_state, int16_t ship_idx, int16_t slot_idx) {
         int16_t y_offset = (slot_idx / 5) * 61;
         int16_t x_offset = (slot_idx % 5) * 60;
 
         COLONY::Remap_Draw_Ship_Centered(x_offset + 188, y_offset + 77, ship_idx);
 
-        int16_t planet_idx = HAROLD::Planet_Index(MOX::screen_data, COLONY::orbit_temp);
-        int16_t colony_idx = MOX::planet[planet_idx].colony_index;
+        ::game::id_planet planet_idx = HAROLD::Planet_Index(MOX::screen_data, legacy_world::Planet_Id(COLONY::orbit_temp));
+        int16_t colony_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index;
 
-        if (!COLCALC::Colony_Can_Build_Product(&MOX::colony[colony_idx], COLBLDG::Colony_Production_From_Ship_Index(ship_idx))) {
+        if (!COLCALC::Colony_Can_Build_Product(world_state, &MOX::colony[colony_idx], COLBLDG::Colony_Production_From_Ship_Index(ship_idx))) {
             COLONY::Set_Colony_Font_To_Red(1, 1);
             char* text = ESTRINGS::E_Strings(0x18B);
             BILL::Squeeze_Paragraph_Centered(x_offset + 161, y_offset + 49, 55, 56, text, 2);
@@ -457,7 +457,7 @@ namespace COLREFIT {
         for (int16_t i = 0; i < 15; ++i) {
             int16_t ship_idx = g_ship_list_ptr[first_ship + i];
             if (ship_idx != -1 && COLONY::full_draw != 0) {
-                Draw_Ship2(ship_idx, i);
+                Draw_Ship2(&::game::world, ship_idx, i);
             }
         }
     }

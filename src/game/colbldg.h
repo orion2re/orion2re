@@ -104,9 +104,9 @@ namespace COLBLDG {
 
     void __cdecl Calculate_Building_Array();
 
-    void __cdecl Calculate_Military_Array();
+    void __cdecl Calculate_Military_Array(::game::s_world_state* world_state);
 
-    int16_t __cdecl Star_N_Uncolonized_Worlds(int16_t star_index);
+    int16_t __cdecl Star_N_Uncolonized_Worlds(::game::s_world_state* world_state, int16_t star_index);
 
     int16_t __cdecl N_Prods_In_Queue(int16_t product_id);
 
@@ -131,7 +131,7 @@ namespace COLBLDG {
     int16_t __cdecl Create_Ship(int16_t player_idx, int16_t design_idx, int16_t colony_idx);
 
     /** Creates a queued ship instance from the supplied design at a colony. */
-    int16_t __cdecl Create_Ship_From_Design(int16_t player_idx, const s_ship_design* design, int16_t colony_idx);
+    int16_t __cdecl Create_Ship_From_Design(::game::s_world_state* world_state, int16_t player_idx, const s_ship_design* design, int16_t colony_idx);
 
     /** Stores the transient design used by the cross-screen refit workflow. */
     void Set_Pending_Refit_Design(int16_t ship_idx, const s_ship_design* design);
@@ -143,7 +143,7 @@ namespace COLBLDG {
     void Clear_Pending_Refit_Design();
 
     /** Opens the colony build-queue popup and runs its input loop. */
-    void __cdecl Build_Queue_Popup();
+    void __cdecl Build_Queue_Popup(::game::s_world_state* world_state);
 
     int16_t __cdecl Colbldg_Create_Ship(int16_t design_slot);
 
@@ -209,7 +209,7 @@ namespace COLBLDG {
      * @param product_idx Building, ship, or special product identifier.
      * @param line_count In/out line counter used for vertical placement.
      */
-    void __cdecl Draw_Cost_And_Time_Info(int16_t colony_idx, int16_t product_idx, int16_t* line_count);
+    void __cdecl Draw_Cost_And_Time_Info(::game::s_world_state* world_state, int16_t colony_idx, int16_t product_idx, int16_t* line_count);
 
     void __cdecl Draw_Ship_Design_Info2(s_ship_design* design);
 
@@ -289,7 +289,7 @@ namespace COLBLDG {
     void __cdecl Remove_Ships(int8_t flag);
     int16_t __cdecl First_Prod_Queue_Slot(int16_t prod_idx);
     void __cdecl Delete_From_Queue(int16_t slot_idx);
-    int8_t __cdecl Add_To_Queue(int16_t prod_idx);
+    int8_t __cdecl Add_To_Queue(::game::s_world_state* world_state, int16_t prod_idx);
     /**
      * Moves the selected queue entry before another queue slot.
      * @param source_slot_idx Slot currently holding the item to move.
@@ -303,7 +303,7 @@ namespace COLBLDG {
      * @param selected_field_id In/out selected field identifier.
      * @param scanned_field_id In/out scanned field identifier.
      */
-    void __cdecl Evaluate_Input(int16_t* selected_field_id, int16_t* scanned_field_id);
+    void __cdecl Evaluate_Input(::game::s_world_state* world_state, int16_t* selected_field_id, int16_t* scanned_field_id);
 
     void __cdecl Print_Selection_Centered(const char* text);
 

@@ -31,7 +31,7 @@ namespace SHIPMOVE {
 
     bool Order_Fleet_Move(std::span<int16_t> ship_list, int16_t destination, s_ship_move_info* result) {
         if (!Valid_Fleet_Request(ship_list, destination, std::nullopt)) return false;
-        SHIPMOVE::Make_Ships_Move_To(ship_list.data(), destination, result);
+        SHIPMOVE::Make_Ships_Move_To(&::game::world, ship_list.data(), destination, result);
         return true;
     }
 } // namespace SHIPMOVE

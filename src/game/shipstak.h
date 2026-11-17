@@ -19,7 +19,7 @@ namespace SHIPSTAK {
         uint8_t tachyon_scanner;
         uint8_t neutron_scanner;
         uint8_t sensors;
-        uint16_t planet;
+        ::game::id_planet planet;
         uint16_t fleet;
     };
 
@@ -64,7 +64,7 @@ namespace SHIPSTAK {
     void __cdecl Find_Ship_Stacks();
 
     // Removes enemy ships from stacks when the current player cannot detect them.
-    void __cdecl Remove_Non_Detected_Ships();
+    void __cdecl Remove_Non_Detected_Ships(::game::s_world_state* world_state);
 
     // Unlinks one node from a stack.
     // stack_idx: Stack containing the node.

@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "planet_serialization.h"
 
 #include "game/netproto.h"
 #include "lua/lua_network.h"
@@ -590,10 +591,10 @@ namespace NETMOX {
         SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "netdbg: %s", buffer);
     }
 
-    void __cdecl Russ_Event_Monster_Update(int16_t monster_type, int16_t target_planet_id, int16_t player_idx_or_amount) {
+    void __cdecl Russ_Event_Monster_Update(int16_t monster_type, ::game::id_planet target_planet_id, int16_t player_idx_or_amount) {
         if (MOX::game_type != 2 /* GAME_TYPE_NETWORK_HOST */ &&
             MOX::game_type != 3 /* GAME_TYPE_NETWORK_CLIENT */) {
-            EVENTS::Event_Monster_Update(monster_type, target_planet_id, player_idx_or_amount);
+            EVENTS::Event_Monster_Update(&::game::world, monster_type, target_planet_id, player_idx_or_amount);
             return;
         }
 
@@ -651,27 +652,24 @@ namespace NETMOX {
         writer.Write_Uint16((uint16_t)MOX::NUM_PLAYERS);
 
         uint32_t size = MOX::NUM_PLAYERS * sizeof(s_player);
-        writer.Write_Bytes(MOX::player, size);
+        for (int32_t player = 0; player < MOX::NUM_PLAYERS; ++player) SAVEGAME::Write_Player_Record(world_state, &writer, &MOX::player[player], legacy_world::Player_Id(player));
 
         writer.Write_Uint16((uint16_t)MOX::NUM_STARS);
 
         size = (MOX::NUM_STARS + 1) * sizeof(s_star_data);
-        writer.Write_Bytes(MOX::star, size);
+        for (int32_t star = 0; star <= MOX::NUM_STARS; ++star) SAVEGAME::Write_Star_Record(&writer, &MOX::star[star]);
 
-        writer.Write_Uint16((uint16_t)MOX::planet_count);
-
-        size = MOX::planet_count * sizeof(s_planet_data);
-        writer.Write_Bytes(MOX::planet, size);
+        SAVEGAME::Write_Planets(world_state, &writer);
 
         writer.Write_Uint16((uint16_t)MOX::NUM_COLONIES);
 
         size = MAX_COLONIES * sizeof(s_colony);
-        writer.Write_Bytes(MOX::colony, size);
+        for (int32_t colony = 0; colony < MAX_COLONIES; ++colony) SAVEGAME::Write_Colony_Record(&writer, &MOX::colony[colony]);
 
         writer.Write_Int16((int16_t)MOX::NUM_SHIPS);
 
         size = MAX_SHIPS * sizeof(s_ship_data);
-        writer.Write_Bytes(MOX::ship, size);
+        for (int32_t ship = 0; ship < MAX_SHIPS; ++ship) SAVEGAME::Write_Ship_Record(&writer, &MOX::ship[ship]);
 
         RUSS::Mox_Update();
 
@@ -682,7 +680,7 @@ namespace NETMOX {
         writer.Write_Uint16((uint16_t)REPORT::n_reports);
 
         size = sizeof(REPORT::reports);
-        writer.Write_Bytes(REPORT::reports, size);
+        for (const auto& record : REPORT::reports) SAVEGAME::Write_Report_Record(&writer, &record);
 
         size = sizeof(EVENTS::event_data);
         writer.Write_Bytes(EVENTS::event_data, size);
@@ -695,7 +693,7 @@ namespace NETMOX {
         writer.Write_Bytes(MSG_::n_msgs, size);
 
         size = sizeof(MSG_::msgs);
-        writer.Write_Bytes(MSG_::msgs, size);
+        for (const auto& record : MSG_::msgs) SAVEGAME::Write_Message_Record(&writer, &record);
 
         writer.Write_Uint16((uint16_t)diplodef::COUNCIL_FLAG);
 
@@ -844,7 +842,9 @@ namespace NETMOX {
             exitm::Exit_With_Message("invalid broadcast player count");
         }
 
-        reader.Read_Bytes(MOX::player, MOX::NUM_PLAYERS * sizeof(s_player));
+        for (int32_t player = 0; player < MOX::NUM_PLAYERS; ++player) {
+            if (!SAVEGAME::Read_Player_Record(world_state, &reader, &MOX::player[player], legacy_world::Player_Id(player))) exitm::Exit_With_Message("invalid player record");
+        }
 
         net.num_connected_players = 0;
         for (int16_t i = 0; i < MOX::NUM_PLAYERS; i++) {
@@ -864,17 +864,11 @@ namespace NETMOX {
             exitm::Exit_With_Message("invalid broadcast star count");
         }
 
-        reader.Read_Bytes(MOX::star, (MOX::NUM_STARS + 1) * sizeof(s_star_data));
+        for (int32_t star = 0; star <= MOX::NUM_STARS; ++star) { if (!SAVEGAME::Read_Star_Record(&reader, &MOX::star[star])) exitm::Exit_With_Message("invalid star record"); }
 
         RUSS::Mox_Update();
 
-        MOX::planet_count = reader.Read_Int16();
-
-        if (MOX::planet_count < 0 || MOX::planet_count > MAX_PLANETS) {
-            exitm::Exit_With_Message("invalid broadcast planet count");
-        }
-
-        reader.Read_Bytes(MOX::planet, MOX::planet_count * sizeof(s_planet_data));
+        if (!SAVEGAME::Read_Planets(world_state, &reader)) exitm::Exit_With_Message("invalid broadcast planet identities");
 
         MOX::NUM_COLONIES = reader.Read_Int16();
 
@@ -882,7 +876,7 @@ namespace NETMOX {
             exitm::Exit_With_Message("invalid broadcast colony count");
         }
 
-        reader.Read_Bytes(MOX::colony, MAX_COLONIES * sizeof(s_colony));
+        for (int32_t colony = 0; colony < MAX_COLONIES; ++colony) { if (!SAVEGAME::Read_Colony_Record(&reader, &MOX::colony[colony])) exitm::Exit_With_Message("invalid colony record"); }
 
         MOX::NUM_SHIPS = reader.Read_Int16();
 
@@ -890,7 +884,7 @@ namespace NETMOX {
             exitm::Exit_With_Message("invalid broadcast ship count");
         }
 
-        reader.Read_Bytes(MOX::ship, MAX_SHIPS * sizeof(s_ship_data));
+        for (int32_t ship = 0; ship < MAX_SHIPS; ++ship) { if (!SAVEGAME::Read_Ship_Record(&reader, &MOX::ship[ship])) exitm::Exit_With_Message("invalid ship record"); }
 
         for (int32_t id = 0; id < MAX_LEADERS; ++id) {
             reader.Read_Bytes(&game::Leader(world_state, id), sizeof(s_leader_data));
@@ -903,7 +897,7 @@ namespace NETMOX {
             exitm::Exit_With_Message("invalid broadcast report count");
         }
 
-        reader.Read_Bytes(REPORT::reports, sizeof(REPORT::reports));
+        for (auto& record : REPORT::reports) { if (!SAVEGAME::Read_Report_Record(&reader, &record)) exitm::Exit_With_Message("invalid report record"); }
         REPORT::Client_Initialize_Reports();
 
         reader.Read_Bytes(EVENTS::event_data, sizeof(EVENTS::event_data));
@@ -913,7 +907,7 @@ namespace NETMOX {
 
         reader.Read_Bytes(MSG_::n_msgs, MOX::NUM_PLAYERS);
 
-        reader.Read_Bytes(MSG_::msgs, sizeof(MSG_::msgs));
+        for (auto& record : MSG_::msgs) { if (!SAVEGAME::Read_Message_Record(&reader, &record)) exitm::Exit_With_Message("invalid message record"); }
         RUSS::Mox_Update();
 
         diplodef::COUNCIL_FLAG = reader.Read_Int16();
@@ -1257,7 +1251,7 @@ namespace NETMOX {
 
         writer.Write_Uint32(MOX::stardate);
         writer.Write_Uint8(static_cast<uint8_t>(MOX::PLAYER_NUM));
-        writer.Write_Bytes(&MOX::player[MOX::PLAYER_NUM], sizeof(s_player));
+        SAVEGAME::Write_Player_Record(world_state, &writer, &MOX::player[MOX::PLAYER_NUM], legacy_world::Player_Id(MOX::PLAYER_NUM));
 
         RUSS::Mox_Update();
 
@@ -1300,7 +1294,7 @@ namespace NETMOX {
             for (int16_t i = 0; i < (int16_t)MOX::NUM_COLONIES; ++i) {
                 if (MOX::colony[i].owner == MOX::PLAYER_NUM) {
                     writer.Write_Int16(i);
-                    writer.Write_Bytes(&MOX::colony[i], sizeof(s_colony));
+                    SAVEGAME::Write_Colony_Record(&writer, &MOX::colony[i]);
                 }
             }
         }
@@ -1315,7 +1309,7 @@ namespace NETMOX {
             for (int16_t i = 0; i < (int16_t)MOX::NUM_SHIPS; ++i) {
                 if (MOX::ship[i].owner == MOX::PLAYER_NUM && MOX::ship[i].status != 5) {
                     writer.Write_Int16(i);
-                    writer.Write_Bytes(&MOX::ship[i], sizeof(s_ship_data));
+                    SAVEGAME::Write_Ship_Record(&writer, &MOX::ship[i]);
                 }
             }
         }
@@ -1744,11 +1738,11 @@ namespace NETMOX {
                 break;
             }
 
-            reader.Read_Bytes(&MOX::colony[colony_idx], sizeof(s_colony));
+            if (!SAVEGAME::Read_Colony_Record(&reader, &MOX::colony[colony_idx])) exitm::Exit_With_Message("invalid colony record");
 
-            int16_t planet_idx = MOX::colony[colony_idx].planet;
-            if (MOX::planet[planet_idx].colony_index != colony_idx) {
-                MOX::planet[planet_idx].colony_index = colony_idx;
+            ::game::id_planet planet_idx = MOX::colony[colony_idx].planet;
+            if (::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index != colony_idx) {
+                ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index = colony_idx;
             }
 
             RUSS::Mox_Update();
@@ -1775,7 +1769,7 @@ namespace NETMOX {
                 }
             }
 
-            reader.Read_Bytes(&MOX::ship[ship_idx], sizeof(s_ship_data));
+            if (!SAVEGAME::Read_Ship_Record(&reader, &MOX::ship[ship_idx])) exitm::Exit_With_Message("invalid ship record");
 
             ship_idx_prev = ship_idx + 1;
             RUSS::Mox_Update();
@@ -1951,29 +1945,29 @@ namespace NETMOX {
             MOX::NUM_COLONIES = reader.Read_Int16();
 
             for (int i = 0; i < 5; ++i) {
-                int16_t planet_idx = MOX::star[combat_star_id].planet_index[i];
+                ::game::id_planet planet_idx = MOX::star[combat_star_id].planet_index[i];
 
-                if (planet_idx != -1) {
+                if (planet_idx != ::game::NO_PLANET) {
                     int16_t dummy_col_idx = reader.Read_Int16();
                     int8_t p_type = static_cast<int8_t>(reader.Read_Uint8());
                     char p_climate = static_cast<char>(reader.Read_Uint8());
                     int16_t real_col_idx = reader.Read_Int16();
 
-                    MOX::planet[planet_idx].colony_index = dummy_col_idx;
-                    MOX::planet[planet_idx].planet_type = p_type;
-                    MOX::planet[planet_idx].climate = p_climate;
+                    ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index = dummy_col_idx;
+                    ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).planet_type = p_type;
+                    ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).climate = p_climate;
 
                     // Clear out existing colony mapping
-                    if (MOX::planet[planet_idx].colony_index != -1) {
-                        MOX::colony[MOX::planet[planet_idx].colony_index].owner = -1;
-                        MOX::colony[MOX::planet[planet_idx].colony_index].planet = -1;
+                    if (::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index != -1) {
+                        MOX::colony[::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index].owner = -1;
+                        MOX::colony[::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index].planet = ::game::NO_PLANET;
                     }
 
-                    MOX::planet[planet_idx].colony_index = real_col_idx;
+                    ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index = real_col_idx;
 
                     // Copy actual colony structure if a colony exists
-                    if (MOX::planet[planet_idx].colony_index != -1) {
-                        reader.Read_Bytes(&MOX::colony[MOX::planet[planet_idx].colony_index], sizeof(s_colony));
+                    if (::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index != -1) {
+                        if (!SAVEGAME::Read_Colony_Record(&reader, &MOX::colony[::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index])) exitm::Exit_With_Message("invalid colony record");
                     }
                 }
             }
@@ -1995,7 +1989,7 @@ namespace NETMOX {
                     break;
                 }
 
-                reader.Read_Bytes(&MOX::ship[ship_id], sizeof(s_ship_data));
+                if (!SAVEGAME::Read_Ship_Record(&reader, &MOX::ship[ship_id])) exitm::Exit_With_Message("invalid ship record");
 
                 RUSS::Mox_Update();
             }
@@ -2071,7 +2065,7 @@ namespace NETMOX {
             if (target_colony_id != -1) {
                 MOX::NUM_COLONIES = reader.Read_Int16();
 
-                int16_t planet_idx = reader.Read_Int16();
+                ::game::id_planet planet_idx = reader.Read_Int16();
 
                 int16_t dummy_col_idx = reader.Read_Int16();
 
@@ -2079,11 +2073,11 @@ namespace NETMOX {
 
                 char p_climate = static_cast<char>(reader.Read_Uint8());
 
-                MOX::planet[planet_idx].colony_index = dummy_col_idx;
-                MOX::planet[planet_idx].planet_type = p_type;
-                MOX::planet[planet_idx].climate = p_climate;
+                ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index = dummy_col_idx;
+                ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).planet_type = p_type;
+                ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).climate = p_climate;
 
-                reader.Read_Bytes(&MOX::colony[target_colony_id], sizeof(s_colony));
+                if (!SAVEGAME::Read_Colony_Record(&reader, &MOX::colony[target_colony_id])) exitm::Exit_With_Message("invalid colony record");
             }
 
             // 6. Read Ships
@@ -2102,7 +2096,7 @@ namespace NETMOX {
                     break;
                 }
 
-                reader.Read_Bytes(&MOX::ship[ship_id], sizeof(s_ship_data));
+                if (!SAVEGAME::Read_Ship_Record(&reader, &MOX::ship[ship_id])) exitm::Exit_With_Message("invalid ship record");
             }
         }
 
@@ -2190,24 +2184,24 @@ namespace NETMOX {
 
                 // 5. Unpack Colony Fate
                 if (combat_planet_idx != -1) {
-                    int16_t old_colony_index = MOX::planet[combat_planet_idx].colony_index;
+                    int16_t old_colony_index = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(combat_planet_idx))).colony_index;
 
                     int16_t new_colony_index = reader.Read_Int16();
                     int8_t p_type = static_cast<int8_t>(reader.Read_Uint8());
                     char p_climate = static_cast<char>(reader.Read_Uint8());
                     int16_t actual_col_idx = reader.Read_Int16();
 
-                    MOX::planet[combat_planet_idx].colony_index = new_colony_index;
-                    MOX::planet[combat_planet_idx].planet_type = p_type;
-                    MOX::planet[combat_planet_idx].climate = p_climate;
+                    ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(combat_planet_idx))).colony_index = new_colony_index;
+                    ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(combat_planet_idx))).planet_type = p_type;
+                    ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(combat_planet_idx))).climate = p_climate;
 
                     if (actual_col_idx == -1) {
                         if (old_colony_index != -1) {
-                            BOMB::Destroy_Colony(&MOX::colony[old_colony_index], 1);
+                            BOMB::Destroy_Colony(world_state, &MOX::colony[old_colony_index], 1);
                         }
                     } else {
-                        reader.Read_Bytes(&MOX::colony[actual_col_idx], sizeof(s_colony));
-                        COLCALC::Compute_Star_Colony_Stuff(&MOX::star[combat_star_id]);
+                        if (!SAVEGAME::Read_Colony_Record(&reader, &MOX::colony[actual_col_idx])) exitm::Exit_With_Message("invalid colony record");
+                        COLCALC::Compute_Star_Colony_Stuff(world_state, &MOX::star[combat_star_id]);
                     }
                 }
                 RUSS::Mox_Update();
@@ -2237,7 +2231,7 @@ namespace NETMOX {
                     }
 
                     // Update the surviving ship
-                    reader.Read_Bytes(&MOX::ship[surviving_ship_id], sizeof(s_ship_data));
+                    if (!SAVEGAME::Read_Ship_Record(&reader, &MOX::ship[surviving_ship_id])) exitm::Exit_With_Message("invalid ship record");
 
                     current_ship_idx++; // Advance past the surviving ship we just updated
                     RUSS::Mox_Update();
@@ -2260,15 +2254,15 @@ namespace NETMOX {
         NETMOX::net.player_net_info[reporting_player_id].player_state = NET_PLAYER_STATE_HUMAN_DIPLOMACY_ACTIVE;
     }
 
-    void __cdecl Decode_Dragon_Info(int16_t* colony_id_ptr, uint16_t len) {
+    void __cdecl Decode_Dragon_Info(::game::s_world_state* world_state, int16_t* colony_id_ptr, uint16_t len) {
         if (colony_id_ptr == nullptr || len != sizeof(s_packet_dragon_info)) {
             return;
         }
 
-        int16_t planet_idx = MOX::colony[*colony_id_ptr].planet;
+        ::game::id_planet planet_idx = MOX::colony[*colony_id_ptr].planet;
 
         net.combat_planet_id = planet_idx;
-        net.combat_star_id = MOX::planet[planet_idx].star_index;
+        net.combat_star_id = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index;
     }
 
     void __cdecl Send_Dragon_Info(int16_t colony_id) {
@@ -2294,7 +2288,7 @@ namespace NETMOX {
         Apply_Drop_Out_Info(packet->player_idx, &packet->drop_out_info, true);
     }
 
-    void __cdecl Send_Battle_Results(game::s_world_state* world_state, int16_t star_id, int16_t player_id, int16_t target_player_id, int16_t combat_defender_id, int16_t combat_planet_id, int16_t combat_result) {
+    void __cdecl Send_Battle_Results(game::s_world_state* world_state, int16_t star_id, int16_t player_id, int16_t target_player_id, int16_t combat_defender_id, ::game::id_planet combat_planet_id, int16_t combat_result) {
         int16_t player_num = MOX::PLAYER_NUM;
         bool include_remote_state =
             net.local_net_id != net.net_host_id &&
@@ -2344,15 +2338,15 @@ namespace NETMOX {
 
             RUSS::Mox_Update();
 
-            if (combat_planet_id != -1) {
-                int16_t colony_idx = MOX::planet[combat_planet_id].colony_index;
+            if (combat_planet_id != ::game::NO_PLANET) {
+                int16_t colony_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(combat_planet_id))).colony_index;
                 writer.Write_Int16(colony_idx);
-                writer.Write_Int8(MOX::planet[combat_planet_id].planet_type);
-                writer.Write_Char(MOX::planet[combat_planet_id].climate);
+                writer.Write_Int8(::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(combat_planet_id))).planet_type);
+                writer.Write_Char(::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(combat_planet_id))).climate);
                 writer.Write_Int16(colony_idx);
 
                 if (colony_idx != -1) {
-                    writer.Write_Bytes(&MOX::colony[colony_idx], sizeof(s_colony));
+                    SAVEGAME::Write_Colony_Record(&writer, &MOX::colony[colony_idx]);
                 }
             }
 
@@ -2365,7 +2359,7 @@ namespace NETMOX {
                     if (MOX::ship[i].location == star_id && MOX::ship[i].status != 5) {
                         if (MOX::ship[i].owner == player_id || MOX::ship[i].owner == target_player_id) {
                             writer.Write_Int16(i);
-                            writer.Write_Bytes(&MOX::ship[i], sizeof(s_ship_data));
+                            SAVEGAME::Write_Ship_Record(&writer, &MOX::ship[i]);
                         }
                     }
                 }
@@ -2437,14 +2431,14 @@ namespace NETMOX {
             RUSS::Mox_Update();
 
             if (colony_idx != -1) {
-                int16_t planet_idx = MOX::colony[colony_idx].planet;
+                ::game::id_planet planet_idx = MOX::colony[colony_idx].planet;
 
                 writer.Write_Int16((int16_t)MOX::NUM_COLONIES);
                 writer.Write_Int16(planet_idx);
-                writer.Write_Int16(MOX::planet[planet_idx].colony_index);
-                writer.Write_Int8(MOX::planet[planet_idx].planet_type);
-                writer.Write_Char(MOX::planet[planet_idx].climate);
-                writer.Write_Bytes(&MOX::colony[colony_idx], sizeof(s_colony));
+                writer.Write_Int16(::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index);
+                writer.Write_Int8(::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).planet_type);
+                writer.Write_Char(::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).climate);
+                SAVEGAME::Write_Colony_Record(&writer, &MOX::colony[colony_idx]);
             }
 
             RUSS::Mox_Update();
@@ -2456,7 +2450,7 @@ namespace NETMOX {
                     if (MOX::ship[i].location == star_idx && MOX::ship[i].status != 5) {
                         if (MOX::ship[i].owner == other_player_idx || MOX::ship[i].owner == target_player_idx) {
                             writer.Write_Int16(i);
-                            writer.Write_Bytes(&MOX::ship[i], sizeof(s_ship_data));
+                            SAVEGAME::Write_Ship_Record(&writer, &MOX::ship[i]);
                         }
                     }
                 }
@@ -2516,15 +2510,15 @@ namespace NETMOX {
             writer.Write_Int16((int16_t)MOX::NUM_COLONIES);
 
             for (int i = 0; i < 5; i++) {
-                int16_t planet_idx = MOX::star[star_idx].planet_index[i];
-                if (planet_idx != -1) {
-                    writer.Write_Int16(MOX::planet[planet_idx].colony_index);
-                    writer.Write_Int8(MOX::planet[planet_idx].planet_type);
-                    writer.Write_Char(MOX::planet[planet_idx].climate);
-                    writer.Write_Int16(MOX::planet[planet_idx].colony_index);
+                ::game::id_planet planet_idx = MOX::star[star_idx].planet_index[i];
+                if (planet_idx != ::game::NO_PLANET) {
+                    writer.Write_Int16(::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index);
+                    writer.Write_Int8(::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).planet_type);
+                    writer.Write_Char(::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).climate);
+                    writer.Write_Int16(::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index);
 
-                    if (MOX::planet[planet_idx].colony_index != -1) {
-                        writer.Write_Bytes(&MOX::colony[MOX::planet[planet_idx].colony_index], sizeof(s_colony));
+                    if (::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index != -1) {
+                        SAVEGAME::Write_Colony_Record(&writer, &MOX::colony[::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index]);
                     }
                 }
             }
@@ -2537,7 +2531,7 @@ namespace NETMOX {
                 for (int16_t i = 0; i < (int16_t)MOX::NUM_SHIPS; i++) {
                     if (MOX::ship[i].location == star_idx && MOX::ship[i].status != 5) {
                         writer.Write_Int16(i);
-                        writer.Write_Bytes(&MOX::ship[i], sizeof(s_ship_data));
+                        SAVEGAME::Write_Ship_Record(&writer, &MOX::ship[i]);
                         RUSS::Mox_Update();
                     }
                 }

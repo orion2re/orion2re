@@ -220,7 +220,7 @@ namespace RUSS {
 } // namespace RUSS
 
 namespace COMBINIT {
-    void __cdecl Ship_Center_Offsets(int16_t, int16_t* out_x, int16_t* out_y) {
+    void __cdecl Ship_Center_Offsets(::game::s_world_state* world_state, int16_t, int16_t* out_x, int16_t* out_y) {
         *out_x = 0;
         *out_y = 0;
     }

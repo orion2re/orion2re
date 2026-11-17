@@ -44,18 +44,18 @@ namespace COLDRAW {
 
                     if (morale_div2 > 0) {
                         if (is_mini != 0) {
-                            anim = COLONY::C_Anims(8);
+                            anim = COLONY::C_Anims(&::game::world, 8);
                             draw_y = y + 1;
                         } else {
-                            anim = COLONY::C_Anims(5);
+                            anim = COLONY::C_Anims(&::game::world, 5);
                             draw_y = y + 2;
                         }
                     } else {
                         if (is_mini != 0) {
-                            anim = COLONY::C_Anims(9);
+                            anim = COLONY::C_Anims(&::game::world, 9);
                             draw_y = y + 1;
                         } else {
-                            anim = COLONY::C_Anims(6);
+                            anim = COLONY::C_Anims(&::game::world, 6);
                             draw_y = y + 2;
                         }
                     }
@@ -88,14 +88,14 @@ namespace COLDRAW {
         graphics::Set_Window(0, 0, 639 /* 0x27F */, 479 /* 0x1DF */);
         video::Clip_On();
 
-        s_animation_header* anim_35 = COLONY::C_Anims(35 /* 0x23 */);
+        s_animation_header* anim_35 = COLONY::C_Anims(&::game::world, 35 /* 0x23 */);
         animate::Set_Animation_Frame(anim_35, (int32_t)frame1);
-        anim_35 = COLONY::C_Anims(35 /* 0x23 */);
+        anim_35 = COLONY::C_Anims(&::game::world, 35 /* 0x23 */);
         animate::Draw(x, y, anim_35);
 
-        s_animation_header* anim_34 = COLONY::C_Anims(34 /* 0x22 */);
+        s_animation_header* anim_34 = COLONY::C_Anims(&::game::world, 34 /* 0x22 */);
         animate::Set_Animation_Frame(anim_34, (int32_t)frame2);
-        anim_34 = COLONY::C_Anims(34 /* 0x22 */);
+        anim_34 = COLONY::C_Anims(&::game::world, 34 /* 0x22 */);
 
         int16_t y_final = (int16_t)(combined_y_offset + (int32_t)y + 10);
         animate::Draw(x, y_final, anim_34);
@@ -446,10 +446,10 @@ namespace COLDRAW {
         return count;
     }
 
-    void __cdecl Build_Veggie_List_Based_On_Bldg_List() {
-        const int16_t initial_planet_index =
-            HAROLD::Planet_Index(MOX::screen_data, COLONY::orbit_temp);
-        (void)COLONY::N_Bldgs(MOX::planet[initial_planet_index].colony_index);
+    void __cdecl Build_Veggie_List_Based_On_Bldg_List(::game::s_world_state* world_state) {
+        const auto initial_planet_index =
+            HAROLD::Planet_Index(MOX::screen_data, legacy_world::Planet_Id(COLONY::orbit_temp));
+        (void)COLONY::N_Bldgs(::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(initial_planet_index))).colony_index);
 
         COLDRAW::Clear_Veggie_Draw_Flags();
 
@@ -461,10 +461,10 @@ namespace COLDRAW {
 
                 const int16_t road_count = COLDRAW::N_Roads_Around_CR(row, col);
 
-                const int16_t planet_index =
-                    HAROLD::Planet_Index(MOX::screen_data, COLONY::orbit_temp);
+                const ::game::id_planet planet_index =
+                    HAROLD::Planet_Index(MOX::screen_data, legacy_world::Planet_Id(COLONY::orbit_temp));
                 const int16_t building_count =
-                    COLONY::N_Bldgs(MOX::planet[planet_index].colony_index);
+                    COLONY::N_Bldgs(::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_index))).colony_index);
 
                 bool should_process_cell = false;
                 if ((int32_t)game_random::Random(7) - 2 < (int32_t)road_count) {
@@ -495,11 +495,11 @@ namespace COLDRAW {
                         continue;
                     }
 
-                    const int16_t veggie_planet_index =
-                        HAROLD::Planet_Index(MOX::screen_data, COLONY::orbit_temp);
+                    const auto veggie_planet_index =
+                        HAROLD::Planet_Index(MOX::screen_data, legacy_world::Planet_Id(COLONY::orbit_temp));
                     const int16_t anim_entry =
                         COLDRAW::Pick_Random_Veggie_Anim_Entry_For_Colony_CR(
-                            MOX::planet[veggie_planet_index].colony_index, row, col);
+                            ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(veggie_planet_index))).colony_index, row, col);
 
                     COLDRAW::veggie_list[row][col].anim_entries[sprite_index] = anim_entry;
 
@@ -575,7 +575,7 @@ namespace COLDRAW {
 
     int16_t __cdecl Pick_Random_Veggie_Anim_Entry_For_Colony_CR(int16_t colony_idx, int16_t row, int16_t col) {
         int32_t random_entry = (int16_t)(game_random::Random(8) - 1);
-        int32_t veggie_type = (int16_t)COLDRAW::Veggie_Type_For_Colony(colony_idx);
+        int32_t veggie_type = (int16_t)COLDRAW::Veggie_Type_For_Colony(&::game::world, colony_idx);
 
         random_entry -= ((int32_t)row + (int32_t)col) / 2;
         if (random_entry <= 0) {
@@ -585,10 +585,10 @@ namespace COLDRAW {
         return (int16_t)(random_entry + veggie_type * 8);
     }
 
-    int16_t __cdecl Veggie_Type_For_Colony(int16_t colony_idx) {
+    int16_t __cdecl Veggie_Type_For_Colony(::game::s_world_state* world_state, int16_t colony_idx) {
         int16_t veggie_type = 4;
-        const int16_t planet_idx = MOX::colony[colony_idx].planet;
-        const int32_t climate = MOX::planet[planet_idx].climate;
+        const ::game::id_planet planet_idx = MOX::colony[colony_idx].planet;
+        const int32_t climate = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).climate;
 
         switch (climate) {
             case PLANET_CLIMATE_TOXIC:

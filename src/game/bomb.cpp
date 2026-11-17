@@ -42,7 +42,7 @@ namespace BOMB {
 
                     if (colony->buildings[BUILDING_CAPITOL] != 0) {
                         int16_t colony_idx = (int16_t)(colony - MOX::colony);
-                        ERICNET::Remove_Building(colony_idx, BUILDING_CAPITOL);
+                        ERICNET::Remove_Building(&::game::world, colony_idx, BUILDING_CAPITOL);
                     }
 
                     bomb_result->colony_wiped_out = 1;
@@ -70,7 +70,7 @@ namespace BOMB {
             if (hit_idx < target_building_count) {
                 int8_t building_id = target_building_indices[hit_idx];
                 int16_t colony_idx = (int16_t)(colony - MOX::colony);
-                ERICNET::Remove_Building(colony_idx, (int16_t)building_id);
+                ERICNET::Remove_Building(&::game::world, colony_idx, (int16_t)building_id);
                 bomb_result->buildings_destroyed[building_id] = 1;
                 bomb_result->damage_occurred = 1;
                 if (colony->n_pops == 0 && target_building_count == 1) {

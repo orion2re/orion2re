@@ -79,7 +79,7 @@ namespace {
 
         void Input(int16_t input) {
             int16_t scanned_field = 0;
-            DOCTEST_REQUIRE(COLSUM::Evaluate_Input(&input, &scanned_field));
+            DOCTEST_REQUIRE(COLSUM::Evaluate_Input(&::game::world, &input, &scanned_field));
         }
     };
 } // namespace
@@ -220,11 +220,11 @@ DOCTEST_TEST_CASE_FIXTURE(s_colony_navigation_fixture, "Colonies map clicks clam
     for (int16_t count : {1, 3, 9, 10, 12, 32}) {
         MOX::NUM_COLONIES = count;
         for (int i = 0; i < 32; ++i) colony_list[i] = i < count ? i : -1;
-        stars[0].last_planet_selected[0] = static_cast<int8_t>(count - 1);
+        stars[0].last_orbit_selected[0] = static_cast<int8_t>(count - 1);
         MOX::galaxy_map_star_field[0] = 7;
         int16_t clicked = 7;
         int16_t hovered = -1;
-        COLSUM::Check_Galaxy_Map_Fields(&clicked, &hovered);
+        COLSUM::Check_Galaxy_Map_Fields(&::game::world, &clicked, &hovered);
         DOCTEST_CHECK(COLSUM::first == std::max(0, count - 10));
         DOCTEST_CHECK(COLSUM::slider_bar_position == (count < 10 ? -1 : 0));
         DOCTEST_CHECK(COLSUM::list_col[std::min(9, count - 1)] == count - 1);

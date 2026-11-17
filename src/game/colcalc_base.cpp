@@ -17,7 +17,7 @@ namespace COLCALC {
         if (colony->owner == (int8_t)owner_idx && out == nullptr) {
             food_per_farmer = (int16_t)(uint8_t)colony->food2_per_farmer;
         } else {
-            food_per_farmer = Colony_Food2_Per_Farmer(colony, owner_idx, out);
+            food_per_farmer = Colony_Food2_Per_Farmer(&::game::world, colony, owner_idx, out);
         }
 
         if (food_per_farmer <= 0) {
@@ -61,7 +61,7 @@ namespace COLCALC {
         if ((int16_t)colony->owner == (int16_t)type && out == nullptr) {
             base_industry = (int16_t)colony->industry_per_worker;
         } else {
-            base_industry = Colony_Industry_Per_Worker(colony, type, out);
+            base_industry = Colony_Industry_Per_Worker(&::game::world, colony, type, out);
         }
 
         int32_t idx = (int32_t)player_idx;
@@ -88,7 +88,7 @@ namespace COLCALC {
         if (colony->owner == (int8_t)research_type && out == nullptr) {
             base_research_per_scientist = (uint8_t)colony->research_per_scientist;
         } else {
-            base_research_per_scientist = Colony_Research_Per_Scientist(colony, research_type, out);
+            base_research_per_scientist = Colony_Research_Per_Scientist(&::game::world, colony, research_type, out);
         }
 
         int16_t trait_bonus = 0;

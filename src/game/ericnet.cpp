@@ -69,7 +69,7 @@ namespace ERICNET {
         BUILDING_NO_BUILDING,
     };
 
-    void __cdecl Init_Homeworld_Colony2(int16_t planet_idx, int16_t player_idx, uint8_t is_homeworld) {
+    void __cdecl Init_Homeworld_Colony2(::game::s_world_state* world_state, ::game::id_planet planet_idx, int16_t player_idx, uint8_t is_homeworld) {
         const uint8_t civilization_level = Starting_Civilization_Level_For_Classic_Rules_(
             MOX::settings.starting_civilization_level);
         int16_t colony_idx = MOX::NUM_COLONIES;
@@ -83,15 +83,15 @@ namespace ERICNET {
             key::Wait_For_Key();
         }
 
-        INITGAME::Init_Colony(colony_idx, planet_idx, (uint8_t)player_idx);
-        COLONY::Set_Colony_Globals(colony_idx);
+        INITGAME::Init_Colony(world_state, colony_idx, legacy_world::Planet_Id(planet_idx), (uint8_t)player_idx);
+        COLONY::Set_Colony_Globals(world_state, colony_idx);
 
-        int16_t star_idx = MOX::planet[planet_idx].star_index;
+        int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index;
         MOX::star[star_idx].visited |= (1 << player_idx);
 
-        colony.climate = MOX::planet[planet_idx].climate;
+        colony.climate = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).climate;
 
-        int16_t population_limit = COLCALC::Colony_Race_Pop_Limit(&colony, player_idx);
+        int16_t population_limit = COLCALC::Colony_Race_Pop_Limit(world_state, &colony, player_idx);
 
         if (civilization_level == STARTING_CIVILIZATION_LEVEL_ADVANCED) {
             int32_t growth_mod = MOX::player[player_idx].traits[TRAIT_POP_GROWTH_BONUS];
@@ -114,7 +114,7 @@ namespace ERICNET {
 
         for (int i = 0; i < (int)(uint8_t)colony.n_pops; ++i) {
             uint32_t job_bits;
-            if (MOX::planet[planet_idx].food_per_farmer == 0 || MOX::player[player_idx].traits[TRAIT_EATS_MINERALS] != 0) {
+            if (::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).food_per_farmer == 0 || MOX::player[player_idx].traits[TRAIT_EATS_MINERALS] != 0) {
                 job_bits = ((i % 2) + 1) << 7;
             } else {
                 job_bits = (i % 3) << 7;
@@ -132,7 +132,7 @@ namespace ERICNET {
         memset(colony.buildings, 0, sizeof(colony.buildings));
 
         if (MOX::player[colony.owner].traits[TRAIT_CURRENT_GOVERNMENT] < GOVERNMENT_UNIFICATION && is_homeworld != 0) {
-            Add_Building(colony_idx, BUILDING_CAPITOL);
+            Add_Building(world_state, colony_idx, BUILDING_CAPITOL);
         }
 
         int16_t added_buildings_count = 0;
@@ -149,7 +149,7 @@ namespace ERICNET {
                 break;
             }
 
-            if (COLCALC::Colony_Can_Build_Product(&colony, building_id)) {
+            if (COLCALC::Colony_Can_Build_Product(world_state, &colony, building_id)) {
                 bool can_add = true;
                 switch (building_id) {
                     case BUILDING_ATMOSPHERE_RENEWER:
@@ -176,7 +176,7 @@ namespace ERICNET {
                 }
 
                 if (can_add) {
-                    Add_Building(colony_idx, building_id);
+                    Add_Building(world_state, colony_idx, building_id);
                     added_buildings_count++;
                 }
             }
@@ -191,17 +191,17 @@ namespace ERICNET {
             if (starting_outpost_ship != 0) {
                 s_ship_design outpost_ship_design = {};
                 INITSHIP::Load_Outpost_Ship_Design(player_idx, &outpost_ship_design);
-                COLBLDG::Create_Ship_From_Design(player_idx, &outpost_ship_design, colony_idx);
+                COLBLDG::Create_Ship_From_Design(world_state, player_idx, &outpost_ship_design, colony_idx);
             }
 
             s_ship_design colony_ship_design = {};
             INITSHIP::Load_Colony_Ship_Design(player_idx, &colony_ship_design);
-            COLBLDG::Create_Ship_From_Design(player_idx, &colony_ship_design, colony_idx);
+            COLBLDG::Create_Ship_From_Design(world_state, player_idx, &colony_ship_design, colony_idx);
         }
 
-        colony.food2_per_farmer = MOX::planet[colony.planet].food_per_farmer;
-        colony.max_farms = MOX::planet[colony.planet].max_farms;
-        colony.climate = MOX::planet[colony.planet].climate;
+        colony.food2_per_farmer = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony.planet))).food_per_farmer;
+        colony.max_farms = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony.planet))).max_farms;
+        colony.climate = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony.planet))).climate;
         colony.military[0] = INITGAME::start.marines; // Ground Defense Units
 
         colony.production[0] = 0;
@@ -215,12 +215,12 @@ namespace ERICNET {
         colony.maintenance[3] = 0;
     }
 
-    void __cdecl Init_Homeworld_Colony(int16_t planet_idx, int16_t player_idx) {
-        Init_Homeworld_Colony2(planet_idx, player_idx, 1);
+    void __cdecl Init_Homeworld_Colony(::game::id_planet planet_idx, int16_t player_idx) {
+        Init_Homeworld_Colony2(&::game::world, legacy_world::Planet_Id(planet_idx), player_idx, 1);
     }
 
-    void __cdecl Init_Non_Homeworld_Colony(int16_t planet_idx, int16_t player_idx) {
-        Init_Homeworld_Colony2(planet_idx, player_idx, 0);
+    void __cdecl Init_Non_Homeworld_Colony(::game::id_planet planet_idx, int16_t player_idx) {
+        Init_Homeworld_Colony2(&::game::world, legacy_world::Planet_Id(planet_idx), player_idx, 0);
     }
 
     int __cdecl Mox_Play_Sound(int16_t sound_id) {
@@ -271,7 +271,7 @@ namespace ERICNET {
     }
 
     void __cdecl Do_XP_For_Ship(int16_t ship_index, int16_t xp_gain) {
-        Do_Academy_At_Location_Check(ship_index);
+        Do_Academy_At_Location_Check(&::game::world, ship_index);
 
         int32_t total_xp = MOX::ship[ship_index].crew_experience +
             xp_gain + crew_gains_turn_xp;
@@ -285,7 +285,7 @@ namespace ERICNET {
         Calc_Ship_Level(ship_index);
     }
 
-    void __cdecl Do_Academy_At_Location_Check(int16_t ship_index) {
+    void __cdecl Do_Academy_At_Location_Check(::game::s_world_state* world_state, int16_t ship_index) {
         s_ship_data& ship = MOX::ship[ship_index];
 
         // Only active ships gain experience
@@ -294,9 +294,9 @@ namespace ERICNET {
             int8_t ship_owner = ship.owner;
 
             for (int i = 0; i < 5; ++i) {
-                int16_t planet_idx = MOX::star[star_idx].planet_index[i];
-                if (planet_idx > -1) {
-                    int16_t colony_idx = MOX::planet[planet_idx].colony_index;
+                ::game::id_planet planet_idx = MOX::star[star_idx].planet_index[i];
+                if (planet_idx != ::game::NO_PLANET) {
+                    int16_t colony_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index;
                     if (colony_idx > -1) {
                         s_colony& colony = MOX::colony[colony_idx];
                         // If colony is owned by the same player and has a Space Academy
@@ -309,10 +309,10 @@ namespace ERICNET {
         }
     }
 
-    void __cdecl Add_Building(int16_t colony_idx, int16_t building_idx) {
+    void __cdecl Add_Building(::game::s_world_state* world_state, int16_t colony_idx, int16_t building_idx) {
         s_colony* colony = &MOX::colony[colony_idx];
         s_player* player = &MOX::player[(uint8_t)colony->owner];
-        s_planet_data* planet = &MOX::planet[colony->planet];
+        s_planet_data* planet = &::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony->planet)));
         int16_t star_idx = planet->star_index;
         s_star_data* star = &MOX::star[star_idx];
 
@@ -413,53 +413,53 @@ namespace ERICNET {
                 break;
 
             case BUILDING_TERRAFORMING: {
-                int16_t p_idx = colony->planet;
+                ::game::id_planet p_idx = colony->planet;
                 int8_t old_climate = colony->climate;
                 switch (old_climate) {
                     case PLANET_CLIMATE_BARREN:
                         if (star->planet_index[0] == p_idx || star->planet_index[1] == p_idx) {
-                            MOX::planet[p_idx].climate = PLANET_CLIMATE_DESERT;
+                            ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(p_idx))).climate = PLANET_CLIMATE_DESERT;
                         } else if (star->planet_index[3] == p_idx || star->planet_index[4] == p_idx) {
-                            MOX::planet[p_idx].climate = PLANET_CLIMATE_TUNDRA;
+                            ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(p_idx))).climate = PLANET_CLIMATE_TUNDRA;
                         } else {
-                            MOX::planet[p_idx].climate = (game_random::Random(2) != 1) ? PLANET_CLIMATE_TUNDRA : PLANET_CLIMATE_DESERT;
+                            ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(p_idx))).climate = (game_random::Random(2) != 1) ? PLANET_CLIMATE_TUNDRA : PLANET_CLIMATE_DESERT;
                         }
                         break;
                     case PLANET_CLIMATE_DESERT:
-                        MOX::planet[p_idx].climate = PLANET_CLIMATE_ARID;
+                        ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(p_idx))).climate = PLANET_CLIMATE_ARID;
                         break;
                     case PLANET_CLIMATE_TUNDRA:
-                        MOX::planet[p_idx].climate = PLANET_CLIMATE_SWAMP;
+                        ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(p_idx))).climate = PLANET_CLIMATE_SWAMP;
                         break;
                     case PLANET_CLIMATE_OCEAN:
                     case PLANET_CLIMATE_SWAMP:
                     case PLANET_CLIMATE_ARID:
-                        MOX::planet[p_idx].climate = PLANET_CLIMATE_TERRAN;
+                        ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(p_idx))).climate = PLANET_CLIMATE_TERRAN;
                         break;
                 }
                 add_to_list = 0;
-                MOX::planet[p_idx].food_per_farmer += (MOX::food_per_farmer_table[MOX::planet[p_idx].climate] - MOX::food_per_farmer_table[old_climate]);
-                MOX::planet[p_idx].n_terraforms += 1;
+                ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(p_idx))).food_per_farmer += (MOX::food_per_farmer_table[::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(p_idx))).climate] - MOX::food_per_farmer_table[old_climate]);
+                ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(p_idx))).n_terraforms += 1;
             } break;
 
             case BUILDING_ARTIFICIAL_PLANET: {
-                int16_t target_planet = -1;
+                ::game::id_planet target_planet = ::game::NO_PLANET;
                 int8_t size = 0;
 
                 // Look for a gas giant first.
                 for (int i = 0; i < 5; ++i) {
-                    int16_t p_idx = star->planet_index[i];
-                    if (p_idx != -1 && MOX::planet[p_idx].planet_type == PLANET_TYPE_GAS_GIANT) {
+                    ::game::id_planet p_idx = star->planet_index[i];
+                    if (p_idx != ::game::NO_PLANET && ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(p_idx))).planet_type == PLANET_TYPE_GAS_GIANT) {
                         target_planet = p_idx;
                         size = PLANET_SIZE_HUGE;
                         break;
                     }
                 }
                 // Otherwise use an asteroid belt.
-                if (target_planet == -1) {
+                if (target_planet == ::game::NO_PLANET) {
                     for (int i = 0; i < 5; ++i) {
-                        int16_t p_idx = star->planet_index[i];
-                        if (p_idx != -1 && MOX::planet[p_idx].planet_type == PLANET_TYPE_ASTEROID) {
+                        ::game::id_planet p_idx = star->planet_index[i];
+                        if (p_idx != ::game::NO_PLANET && ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(p_idx))).planet_type == PLANET_TYPE_ASTEROID) {
                             target_planet = p_idx;
                             size = PLANET_SIZE_LARGE;
                             break;
@@ -467,8 +467,8 @@ namespace ERICNET {
                     }
                 }
 
-                if (target_planet != -1) {
-                    s_planet_data* tp = &MOX::planet[target_planet];
+                if (target_planet != ::game::NO_PLANET) {
+                    s_planet_data* tp = &::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(target_planet)));
                     tp->planet_type = PLANET_TYPE_PLANET;
                     tp->size = size;
                     tp->gravity_class = PLANET_GRAVITY_NORMAL_G;
@@ -491,7 +491,7 @@ namespace ERICNET {
         }
 
         if (recompute_star) {
-            COLCALC::Compute_Star_Colony_Stuff(star);
+            COLCALC::Compute_Star_Colony_Stuff(world_state, star);
             if (building_idx == BUILDING_WARP_INTERDICTOR) {
                 SHIPMOVE::Update_Ship_ETAs((int32_t)colony->owner);
             }
@@ -501,7 +501,7 @@ namespace ERICNET {
             star->ignore_combat_ships = 0;
         }
 
-        COLCALC::Colony_Environmental_Stuff(colony);
+        COLCALC::Colony_Environmental_Stuff(world_state, colony);
     }
 
     void __cdecl Best_Instructor_Bonus(game::s_world_state* world_state, int16_t* instructor_bonus_by_player) {
@@ -530,12 +530,12 @@ namespace ERICNET {
         }
     }
 
-    void __cdecl Remove_Building(int16_t colony_idx, int16_t building_id) {
+    void __cdecl Remove_Building(::game::s_world_state* world_state, int16_t colony_idx, int16_t building_id) {
         MOX::colony[colony_idx].buildings[building_id] = 0;
 
         if (Building_Forces_Combat_Reengagement(building_id)) {
-            int16_t planet_id = MOX::colony[colony_idx].planet;
-            int16_t star_id = MOX::planet[planet_id].star_index;
+            ::game::id_planet planet_id = MOX::colony[colony_idx].planet;
+            int16_t star_id = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_id))).star_index;
             MOX::star[star_id].ignore_combat_ships = 0;
         }
 
@@ -557,8 +557,8 @@ namespace ERICNET {
             case BUILDING_ARTEMIS_SYSTEM_NET:
             case BUILDING_DIMENSIONAL_PORTAL:
             case BUILDING_WARP_INTERDICTOR: {
-                int16_t star_idx = MOX::planet[MOX::colony[colony_idx].planet].star_index;
-                COLCALC::Compute_Star_Colony_Stuff(&MOX::star[star_idx]);
+                int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(MOX::colony[colony_idx].planet))).star_index;
+                COLCALC::Compute_Star_Colony_Stuff(world_state, &MOX::star[star_idx]);
                 if (building_id == BUILDING_WARP_INTERDICTOR) {
                     SHIPMOVE::Update_Ship_ETAs((int32_t)MOX::colony[colony_idx].owner);
                     return;
@@ -586,12 +586,12 @@ namespace ERICNET {
             case BUILDING_BARRIER_SHIELD:
             case BUILDING_FLUX_SHIELD:
             case BUILDING_RADIATION_SHIELD:
-                if (MOX::planet[MOX::colony[colony_idx].planet].climate < PLANET_CLIMATE_BARREN) {
+                if (::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(MOX::colony[colony_idx].planet))).climate < PLANET_CLIMATE_BARREN) {
                     COLBLDG::Delete_Prod_From_Colony_Queue(colony_idx, BUILDING_TERRAFORMING);
                 }
                 // Fallthrough
             case BUILDING_BIOSPHERES:
-                COLCALC::Colony_Environmental_Stuff(&MOX::colony[colony_idx]);
+                COLCALC::Colony_Environmental_Stuff(world_state, &MOX::colony[colony_idx]);
                 invasion::Enforce_Population_Limits_At_Colony(&MOX::colony[colony_idx]);
                 COLCALC::Colony_Calculation(colony_idx);
                 break;

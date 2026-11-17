@@ -57,7 +57,7 @@ namespace NETMOX {
 
     void __cdecl Handle_Network_Player_Disconnected(int player_idx);
 
-    void __cdecl Russ_Event_Monster_Update(int16_t monster_type, int16_t target_planet_id, int16_t player_idx_or_amount);
+    void __cdecl Russ_Event_Monster_Update(int16_t monster_type, ::game::id_planet target_planet_id, int16_t player_idx_or_amount);
 
     int32_t __cdecl Net_Id_To_Player_Id(int32_t player_idx);
 
@@ -164,7 +164,7 @@ namespace NETMOX {
 
     void __cdecl Decode_Pick_Your_Position(s_net_pack_pick_your_position* packet, uint32_t len);
 
-    void __cdecl Decode_Dragon_Info(int16_t* colony_id_ptr, uint16_t len);
+    void __cdecl Decode_Dragon_Info(::game::s_world_state* world_state, int16_t* colony_id_ptr, uint16_t len);
 
     void __cdecl Send_Dragon_Info(int16_t colony_id);
 
@@ -172,7 +172,7 @@ namespace NETMOX {
 
     void __cdecl Decode_Player_Disconnected_Info(void* data, uint32_t len);
 
-    void __cdecl Send_Battle_Results(game::s_world_state* world_state, int16_t star_id, int16_t player_id, int16_t target_player_id, int16_t combat_defender_id, int16_t combat_planet_id, int16_t combat_result);
+    void __cdecl Send_Battle_Results(game::s_world_state* world_state, int16_t star_id, int16_t player_id, int16_t target_player_id, int16_t combat_defender_id, ::game::id_planet combat_planet_id, int16_t combat_result);
 
 #pragma pack(push, 1)
     struct s_packet_dragon_info {

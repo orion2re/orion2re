@@ -114,7 +114,7 @@ namespace BEAMS {
 
     void __cdecl Adjust_Shield_Display_Status(int16_t* shield_status);
 
-    void __cdecl Draw_Shield_Hit(int16_t x, int16_t y, int16_t ship_idx, int16_t is_special, int16_t is_heavy, int16_t hit_rotation, int16_t frame_index);
+    void __cdecl Draw_Shield_Hit(::game::s_world_state* world_state, int16_t x, int16_t y, int16_t ship_idx, int16_t is_special, int16_t is_heavy, int16_t hit_rotation, int16_t frame_index);
 
     s_animation_header* __cdecl Reflection_Field_Anims(int16_t rotation_idx, int16_t size_idx);
 
@@ -160,7 +160,7 @@ namespace BEAMS {
 
     void __cdecl Add_Damage_Indicator_For_Biological(int16_t x, int16_t y, uint8_t side_flag, int16_t damage);
 
-    void __cdecl Beam_SFX(int16_t attacker_ship_id, int16_t attacker_x, int16_t attacker_y, int16_t target_id, int16_t target_x, int16_t target_y, s_beam_fx_entry* fx_entries, int16_t is_non_ship_target);
+    void __cdecl Beam_SFX(::game::s_world_state* world_state, int16_t attacker_ship_id, int16_t attacker_x, int16_t attacker_y, int16_t target_id, int16_t target_x, int16_t target_y, s_beam_fx_entry* fx_entries, int16_t is_non_ship_target);
 
     void __cdecl Rob_Interpolate_Line(int16_t* p_x, int16_t* p_y, int16_t target_x, int16_t target_y, int16_t step);
 

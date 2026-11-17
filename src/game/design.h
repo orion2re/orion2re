@@ -31,7 +31,7 @@ namespace DESIGN {
 
     int8_t __cdecl Count_Weapons_Loaded();
 
-    int16_t __cdecl Get_Colony_Handle();
+    int16_t __cdecl Get_Colony_Handle(::game::s_world_state* world_state);
 
     uint8_t __cdecl Current_Design_Combat_Speed(s_current_design* design);
 

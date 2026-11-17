@@ -1,3 +1,4 @@
+#include "../fixtures/planet_state.h"
 #include "pch.h"
 
 #include "fake_build_queue_runtime.h"
@@ -5,7 +6,7 @@
 
 namespace {
     s_colony colonies[4];
-    s_planet_data planets[4];
+
     s_star_data stars[2];
     s_ship_data ships[16];
     s_player players[MAX_PLAYERS];
@@ -19,7 +20,8 @@ namespace TEST_BUILD_QUEUE {
 
     void Reset_() {
         memset(colonies, 0, sizeof(colonies));
-        memset(planets, 0, sizeof(planets));
+        game::world.planets.clear();
+        game::world.next_planet_id = 0;
         memset(stars, 0xff, sizeof(stars));
         memset(ships, 0, sizeof(ships));
         memset(players, 0, sizeof(players));
@@ -37,9 +39,9 @@ namespace TEST_BUILD_QUEUE {
             for (int slot = 0; slot < 7; ++slot) {
                 colonies[colony_idx].producing[slot] = COLONY_PRODUCTION_NONE;
             }
-            planets[colony_idx].star_index = 0;
-            planets[colony_idx].planet_type = PLANET_TYPE_PLANET;
-            planets[colony_idx].colony_index = colony_idx;
+            test::Planet(&game::world, legacy_world::Planet_Id(colony_idx)).star_index = 0;
+            test::Planet(&game::world, legacy_world::Planet_Id(colony_idx)).planet_type = PLANET_TYPE_PLANET;
+            test::Planet(&game::world, legacy_world::Planet_Id(colony_idx)).colony_index = colony_idx;
         }
         stars[0].planet_index[0] = 0;
         stars[0].planet_index[1] = 1;
@@ -54,27 +56,27 @@ namespace MOX {
     int16_t NUM_COLONIES;
     int16_t NUM_SHIPS;
     s_colony* colony = colonies;
-    s_planet_data* planet = planets;
+
     s_star_data* star = stars;
     s_ship_data* ship = ships;
     s_player* player = players;
 }
 
 namespace COLBLDG {
-    int16_t __cdecl Create_Ship_From_Design(int16_t player_idx, const s_ship_design* design, int16_t colony_idx) {
+    int16_t __cdecl Create_Ship_From_Design(::game::s_world_state* world_state, int16_t player_idx, const s_ship_design* design, int16_t colony_idx) {
         if (TEST_BUILD_QUEUE::next_ship < 0 || TEST_BUILD_QUEUE::next_ship >= 16) {
             return -1;
         }
         const int16_t ship_idx = TEST_BUILD_QUEUE::next_ship++;
         MOX::ship[ship_idx].owner = static_cast<int8_t>(player_idx);
-        MOX::ship[ship_idx].location = MOX::planet[MOX::colony[colony_idx].planet].star_index;
+        MOX::ship[ship_idx].location = test::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(MOX::colony[colony_idx].planet))).star_index;
         MOX::ship[ship_idx].d = *design;
         MOX::NUM_SHIPS = std::max<int16_t>(MOX::NUM_SHIPS, ship_idx + 1);
         return ship_idx;
     }
 
     int16_t __cdecl Create_Ship(int16_t player_idx, int16_t design_idx, int16_t colony_idx) {
-        return Create_Ship_From_Design(
+        return Create_Ship_From_Design(&::game::world, 
             player_idx, &MOX::player[player_idx].ship_designs[design_idx], colony_idx);
     }
 
@@ -105,11 +107,11 @@ namespace COLCALC {
         return cost + (tenth_cost - production_spent) * 10;
     }
 
-    uint8_t __cdecl Colony_Can_Build_Product(s_colony*, int16_t product) {
+    uint8_t __cdecl Colony_Can_Build_Product(::game::s_world_state* world_state, s_colony*, int16_t product) {
         return product == TEST_BUILD_QUEUE::rejected_product ? 0 : 1;
     }
 
-    int32_t __cdecl Colony_Product_Cost(s_colony*, int16_t) {
+    int32_t __cdecl Colony_Product_Cost(::game::s_world_state* world_state, s_colony*, int16_t) {
         return 100;
     }
 
@@ -130,7 +132,7 @@ namespace COLCALC {
         colony.bought_outright = static_cast<int16_t>(100 - colony.production_spent);
     }
 
-    bool __cdecl Colony_Is_Blockaded(s_colony*) {
+    bool __cdecl Colony_Is_Blockaded(::game::s_world_state* world_state, s_colony*) {
         return false;
     }
 

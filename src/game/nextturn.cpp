@@ -7,7 +7,7 @@
 namespace NEXTTURN {
 
     bool Validate_Turn_Inputs(const game::s_view* world) {
-        if (const char* reason = AIDATA::Validate_Inputs(world)) {
+        if (const char* reason = AIDATA::Validate_Inputs(world->state, world)) {
             fprintf(stderr, "Cannot calculate next turn: %s\n", reason);
             AIDATA::Reset(&AIDATA::state);
             return false;
@@ -33,12 +33,12 @@ namespace NEXTTURN {
 
         AIDATA::s_state* ai = &AIDATA::state;
         RUSS::Mox_Update();
-        if (!AIDATA::Compute_AI_Data(ai, world)) return false;
+        if (!AIDATA::Compute_AI_Data(&::game::world, ai, world)) return false;
         DIP_SCRN::Resolve_Delayed_Diplomacy_Orders();
         DIP_SCRN::Set_Opportunity_Attacks();
         diplomac::Clear_Diplomacy_Messages();
         npcdiplo::NPC_Diplomacy();
-        diplomac::Diplomacy_Growth();
+        diplomac::Diplomacy_Growth(&::game::world);
         aileader::Do_AI_Leaders(&game::world, ai, world);
         AIBUILD::Compute_Empire_Building_Needs(ai, world);
         aidudes::All_Colony_AI(ai, world);
@@ -64,15 +64,15 @@ namespace NEXTTURN {
         COLCALC::Apply_All_Colony_Changes();
         COLCALC::Do_Surrenders();
         AIDATA::Complete_Turn(ai);
-        COMBFIND::Search_For_Battles();
+        COMBFIND::Search_For_Battles(&::game::world);
         aitech::Apply_Evolutionary_Upgrades(world);
-        EVENTS::Determine_Event();
+        EVENTS::Determine_Event(&::game::world);
         SHIPMOVE::Unmark_Just_Built_AI_Ships();
         ERICNET::Do_All_Ships_XP_Check();
-        EVENTS::Event_Twiddle();
+        EVENTS::Event_Twiddle(&::game::world);
         lostship::Lose_Out_Of_Range_Ships();
         COLCALC::Compute_Blockades();
-        SETTLER::Move_Settlers();
+        SETTLER::Move_Settlers(&::game::world);
         COLCALC::All_Colony_Calculations();
         SHIPMOVE::Allocate_New_Ship_Slots();
         OFFICER::Check_For_Officer_Level(&game::world);
@@ -80,9 +80,9 @@ namespace NEXTTURN {
         invasion::Check_All_Rebellions();
         INITSHIP::Repair_Ships_At_Colonies();
         COLONIZE::Allocate_New_Colony_Slots();
-        CONTACT::Compute_Contacts();
+        CONTACT::Compute_Contacts(&::game::world);
         diplomac::Determine_First_Contacts();
-        SHIPMOVE::Reset_Needless_Ignore_Combat_Ships_Flags();
+        SHIPMOVE::Reset_Needless_Ignore_Combat_Ships_Flags(&::game::world);
         diplomac::Determine_Diplomacy_Messages();
         diplomac::End_Of_Turn_Diplomacy_Adjustments();
 

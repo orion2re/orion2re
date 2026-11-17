@@ -410,7 +410,7 @@ namespace AIBUILD {
         Compute_Freighter_Need(&needs, world->players[player_idx].surplus_freighters);
     }
 
-    void Empire_Buy_Outright(AIDATA::s_state* ai, const game::s_view* world, game::id_player player_id) {
+    void Empire_Buy_Outright(::game::s_world_state* world_state, AIDATA::s_state* ai, const game::s_view* world, game::id_player player_id) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
         s_player* player = &world->players[player_idx];
         int16_t total_maintenance = (int16_t)(uint16_t)player->total_maintenance;
@@ -436,8 +436,8 @@ namespace AIBUILD {
                 if (colony->owner != (int8_t)player_idx) continue;
                 if (colony->bought_outright != 0) continue;
 
-                int16_t planet_idx = colony->planet;
-                int16_t star_idx = world->planets[planet_idx].star_index;
+                ::game::id_planet planet_idx = colony->planet;
+                int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index;
                 if ((world->stars[star_idx].blockaded >> (player_idx & 0x1F)) & 1) continue;
 
                 int16_t producing = colony->producing[0];
@@ -519,17 +519,17 @@ namespace AIBUILD {
 
     void __cdecl Find_Buildable_Buildings(s_colony* colony, uint16_t* buildable_flags) {
         for (int16_t product_id = BUILDING_NO_BUILDING + 1; product_id < BUILDING_COUNT; ++product_id) {
-            if (COLCALC::Colony_Can_Build_Product(colony, product_id) == 1) {
+            if (COLCALC::Colony_Can_Build_Product(&::game::world, colony, product_id) == 1) {
                 buildable_flags[product_id] = 1;
             }
         }
     }
 
-    void Build_Production_Context(AIDATA::s_state* ai, const game::s_view* world, game::id_colony colony_idx, const s_colony* colony, int32_t war_level, production_rules::s_context* context) {
+    void Build_Production_Context(::game::s_world_state* world_state, AIDATA::s_state* ai, const game::s_view* world, game::id_colony colony_idx, const s_colony* colony, int32_t war_level, production_rules::s_context* context) {
         memset(context, 0, sizeof(*context));
         int32_t owner = (uint8_t)colony->owner;
         const s_player* player = &world->players[owner];
-        const s_planet_data* planet = &world->planets[colony->planet];
+        const s_planet_data* planet = &::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony->planet)));
         const AIDATA::s_colony_assessment* ai_colony = &ai->colonies[colony_idx];
         const AIDATA::s_star_player_assessment* star_info =
             &ai->stars[legacy_world::Star_Id(planet->star_index)].neighborhood.per_player[owner];
@@ -643,7 +643,7 @@ namespace AIBUILD {
         context->mineral_class = planet->mineral_class;
     }
 
-    int16_t __cdecl Colony_Building_Score(AIDATA::s_state* ai, const game::s_view* world, game::id_colony colony_idx, s_colony* colony, int16_t building_id) {
+    int16_t __cdecl Colony_Building_Score(::game::s_world_state* world_state, AIDATA::s_state* ai, const game::s_view* world, game::id_colony colony_idx, s_colony* colony, int16_t building_id) {
         uint8_t owner_u8 = (uint8_t)colony->owner;
         int32_t owner = owner_u8;
         s_player* player = &world->players[owner];
@@ -661,7 +661,7 @@ namespace AIBUILD {
         }
         if (bc_score > 10) bc_score = 10;
 
-        s_planet_data* planet = &world->planets[colony->planet];
+        s_planet_data* planet = &::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony->planet)));
         int16_t star_idx = planet->star_index;
         AIDATA::s_star_neighborhood* ai_star = &ai->stars[legacy_world::Star_Id(star_idx)].neighborhood;
         AIDATA::s_star_player_assessment* star_player_info = &ai_star->per_player[owner];
@@ -1079,29 +1079,29 @@ namespace AIBUILD {
         memset(evaluated_weights, 0, sizeof(evaluated_weights));
 
         Find_Buildable_Buildings(colony, weights);
-        Build_Production_Context(ai, world, colony_idx, colony, -1, &context);
+        Build_Production_Context(world->state, ai, world, colony_idx, colony, -1, &context);
         context.flags[production_rules::FLAG_ORBITAL_DEFENSE_APPLICABLE] =
-            COLCALC::Colony_Can_Build_Product(colony, BUILDING_STAR_BASE) == 1 ||
-            COLCALC::Colony_Can_Build_Product(colony, BUILDING_BATTLESTATION) == 1 ||
-            COLCALC::Colony_Can_Build_Product(colony, BUILDING_STAR_FORTRESS) == 1;
+            COLCALC::Colony_Can_Build_Product(world->state, colony, BUILDING_STAR_BASE) == 1 ||
+            COLCALC::Colony_Can_Build_Product(world->state, colony, BUILDING_BATTLESTATION) == 1 ||
+            COLCALC::Colony_Can_Build_Product(world->state, colony, BUILDING_STAR_FORTRESS) == 1;
         context.flags[production_rules::FLAG_PLANETARY_DEFENSE_APPLICABLE] =
-            COLCALC::Colony_Can_Build_Product(colony, BUILDING_MISSILE_BASE) == 1 ||
-            COLCALC::Colony_Can_Build_Product(colony, BUILDING_GROUND_BATTERIES) == 1 ||
-            COLCALC::Colony_Can_Build_Product(colony, BUILDING_FIGHTER_GARRISON) == 1;
+            COLCALC::Colony_Can_Build_Product(world->state, colony, BUILDING_MISSILE_BASE) == 1 ||
+            COLCALC::Colony_Can_Build_Product(world->state, colony, BUILDING_GROUND_BATTERIES) == 1 ||
+            COLCALC::Colony_Can_Build_Product(world->state, colony, BUILDING_FIGHTER_GARRISON) == 1;
 
         for (int16_t i = BUILDING_NO_BUILDING; i < BUILDING_COUNT; ++i) {
             const production_rules::s_candidate* candidate = &rules.autobuild.candidates[i];
             if (weights[i] > 0 && candidate->enabled &&
                 production_rules::Evaluate_Eligibility(&context, &candidate->eligibility)) {
                 evaluated_weights[i] = production_rules::Evaluate_Weight(
-                    &context, &candidate->weight, Colony_Building_Score(ai, world, colony_idx, colony, i));
+                    &context, &candidate->weight, Colony_Building_Score(world->state, ai, world, colony_idx, colony, i));
             }
         }
 
         for (int32_t i = BUILDING_COUNT; i < AUTOBUILD_CANDIDATE_COUNT; ++i) {
             const production_rules::s_candidate* candidate = &rules.autobuild.candidates[i];
             int16_t native_product = i == BUILDING_COUNT ? COLONY_PRODUCTION_HOUSING : COLONY_PRODUCTION_TRADE_GOODS;
-            if (COLCALC::Colony_Can_Build_Product(colony, native_product) == 1 &&
+            if (COLCALC::Colony_Can_Build_Product(world->state, colony, native_product) == 1 &&
                 candidate->enabled && production_rules::Evaluate_Eligibility(&context, &candidate->eligibility)) {
                 evaluated_weights[i] = production_rules::Evaluate_Weight(&context, &candidate->weight, 0);
             }

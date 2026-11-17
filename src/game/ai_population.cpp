@@ -5,7 +5,7 @@
 namespace aidudes {
     static void Assign_Blockaded_Non_Farmers(s_colony* colony, AIDATA::s_colony_assignment* colony_info) {
         const auto legacy_colony = legacy_world::Index(colony_info->colony_id);
-        int16_t is_researching = legacy_colony ? EVENTS::Event_Check_Colony_Researching(*legacy_colony) : 0;
+        int16_t is_researching = legacy_colony ? EVENTS::Event_Check_Colony_Researching(&::game::world, *legacy_colony) : 0;
         POP::e_prof prof = is_researching == 0 ? POP::PROF_WORKER : POP::PROF_SCIENTIST;
 
         while ((uint8_t)colony_info->cur_pop_idx < (uint8_t)colony_info->pop_end_idx) {

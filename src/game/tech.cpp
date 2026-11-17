@@ -953,13 +953,13 @@ namespace TECH {
     }
 
     /** Builds a star-and-roman-numeral planet name for technology text. */
-    void __cdecl Do_Get_Planet_Name(int16_t planet_idx, char* out_str, uint8_t localized_flag) {
+    void __cdecl Do_Get_Planet_Name(::game::s_world_state* world_state, ::game::id_planet planet_idx, char* out_str, uint8_t localized_flag) {
         char buffer[200];
 
         strlcpy(buffer, " ", sizeof(buffer));
 
-        int16_t star_idx = MOX::planet[planet_idx].star_index;
-        char planet_num = HAROLD::Planet_Number(planet_idx);
+        int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index;
+        char planet_num = HAROLD::Planet_Number(world_state, legacy_world::Planet_Id(planet_idx));
 
         const char* numeral_str;
         if (localized_flag == 0) {

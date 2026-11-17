@@ -230,7 +230,7 @@ namespace debug_tactical_editor {
             if (Valid_Ship_(MOX::cur_ship) &&
                 MOX::combat_data[MOX::cur_ship].unit_status == 0 &&
                 MOX::combat_data[MOX::cur_ship].is_captured == 0) {
-                COMBAT1::Assign_Combat_Grids(MOX::cur_ship);
+                COMBAT1::Assign_Combat_Grids(&::game::world, MOX::cur_ship);
             }
         }
 

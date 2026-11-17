@@ -23,6 +23,7 @@ namespace game {
         bool operator==(const id_planet&) const = default;
         auto operator<=>(const id_planet&) const = default;
     };
+    inline constexpr id_planet NO_PLANET{UINT32_MAX};
     struct id_star {
         uint32_t id;
         bool operator==(const id_star&) const = default;

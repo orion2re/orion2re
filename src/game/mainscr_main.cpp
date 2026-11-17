@@ -6,12 +6,12 @@ namespace MAINSCR {
     /**
      * Runs the main-screen event loop, including map interaction, popups, and screen transitions.
      */
-    void __cdecl Main_Screen() {
+    void __cdecl Main_Screen(::game::s_world_state* world_state) {
         int16_t exit_flag = 0;
         int16_t hovered_target_id = 0;
         int16_t boxes_saved_flag = 0;
         uint8_t icon_selected_flag = 0;
-        int16_t planet_idx = 0;
+        ::game::id_planet planet_idx = ::game::id_planet{0};
         int16_t selected_target_id = 0;
         int16_t system_hover_selection_id = 0;
         int16_t m_planet_idx = 0;
@@ -110,7 +110,7 @@ namespace MAINSCR {
         if (MOX::given_chance_to_rename_home_star[MOX::PLAYER_NUM] == 0) {
             if (MOX::stardate == 35000) {
                 fields::Deactivate_Help_List();
-                MAINSCR::Change_Home_Star_Name();
+                MAINSCR::Change_Home_Star_Name(world_state);
                 EVANHELP::Set_Main_Screen_Help_List();
             }
             MOX::given_chance_to_rename_home_star[MOX::PLAYER_NUM] = 1;
@@ -222,12 +222,12 @@ namespace MAINSCR {
                         if (!icon_selected_flag) {
                             int16_t colony_idx = -1;
                             if (MOX::settings.auto_select_colony && MOX::star[selected_target_id].spectral_class != STAR_CLASS_BLACK_HOLE) {
-                                colony_idx = HACCESS::Last_Colony_Selected(selected_target_id, MOX::PLAYER_NUM);
+                                colony_idx = HACCESS::Last_Colony_Selected(world_state, selected_target_id, MOX::PLAYER_NUM);
                             }
                             if (colony_idx == -1) {
                                 MAINSCR::Do_System_Popup(selected_target_id);
                             } else {
-                                MAINSCR::Do_Colony_Screen(colony_idx, &exit_flag);
+                                MAINSCR::Do_Colony_Screen(world_state, colony_idx, &exit_flag);
                             }
                         }
                     }
@@ -306,7 +306,7 @@ namespace MAINSCR {
                     int mx = mouse::Pointer_X();
                     int my = mouse::Pointer_Y();
 
-                    int res = MAINSCR::Scan_System_Display_Fields(mouse_input, input, MOX::planet_buttons, &m_planet_idx, &planet_idx, &m_ship_idx, &ship_idx, &system_hover_selection_id);
+                    int res = MAINSCR::Scan_System_Display_Fields(world_state, mouse_input, input, MOX::planet_buttons, &m_planet_idx, &planet_idx, &m_ship_idx, &ship_idx, &system_hover_selection_id);
 
                     MOX::system_display_ship_scanned = m_ship_idx;
                     if (system_hover_selection_id == -1 && MOX::system_icon_scanned > 2000 && MOX::system_icon_scanned < 2004) {
@@ -323,11 +323,11 @@ namespace MAINSCR {
 
                     if (res == 0) {
                         if (ship_idx < 0) {
-                            int16_t p_idx = HAROLD::Planet_Index(MOX::moveable_box[0].id, planet_idx);
+                            ::game::id_planet p_idx = HAROLD::Planet_Index(MOX::moveable_box[0].id, legacy_world::Planet_Id(planet_idx));
 
-                            int16_t colony_id = MOX::planet[p_idx].colony_index;
+                            int16_t colony_id = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(p_idx))).colony_index;
                             if (colony_id > -1 && colony_id < MOX::NUM_COLONIES && MOX::colony[colony_id].owner == MOX::PLAYER_NUM) {
-                                MAINSCR::Do_Colony_Screen(colony_id, &exit_flag);
+                                MAINSCR::Do_Colony_Screen(world_state, colony_id, &exit_flag);
                             }
                         } else {
                             int16_t ship_icon = HACCESS::Ship_Icon_Id_From_Node_Ptr(ship_idx);
@@ -442,7 +442,7 @@ namespace MAINSCR {
                         design_num = MAINSCR::Get_Ship_Stack_For_Officers_Screen();
                     }
                 } else {
-                    design_num = MAINSCR::Get_Star_Id_For_Officers_Screen();
+                    design_num = MAINSCR::Get_Star_Id_For_Officers_Screen(world_state);
                 }
                 MOX::temp_star_handle = design_num;
                 officer_screen_return_screen = SCREEN_MAIN;

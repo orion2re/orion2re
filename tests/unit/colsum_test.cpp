@@ -1,3 +1,4 @@
+#include "../fixtures/planet_state.h"
 #include "pch.h"
 
 #include "doctest/doctest.h"
@@ -27,7 +28,7 @@ namespace {
         colony->production_spent = 40;
         colony->bought_outright = 10;
 
-        s_planet_data* planet = &MOX::planet[0];
+        s_planet_data* planet = &test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0)));
         planet->size = PLANET_SIZE_MEDIUM;
         planet->gravity_class = PLANET_GRAVITY_NORMAL_G;
         planet->mineral_class = MINERAL_RESOURCE_RICH;
@@ -99,7 +100,7 @@ DOCTEST_TEST_CASE("stored production sort keeps ties stable and allows switching
 DOCTEST_TEST_CASE("colony summary displays inbound population and production details") {
     Prepare_Colony_();
 
-    COLSUM::Draw_Colony_Scan_Info();
+    COLSUM::Draw_Colony_Scan_Info(&::game::world);
 
     DOCTEST_CHECK(std::string(TEST_COLONY_SCAN_INFO::Output_()) ==
         "Medium Terran \nNormal Gravity\nMineral Rich\n"
@@ -114,7 +115,7 @@ DOCTEST_TEST_CASE("colony summary preserves negative population and net producti
     colony->production[ECON_INDUSTRY] = 3;
     colony->maintenance[ECON_INDUSTRY] = 5;
 
-    COLSUM::Draw_Colony_Scan_Info();
+    COLSUM::Draw_Colony_Scan_Info(&::game::world);
 
     DOCTEST_CHECK(std::string(TEST_COLONY_SCAN_INFO::Output_()) ==
         "\x1B" "2Medium Terran \nNormal Gravity\nMineral Rich\n"
@@ -127,7 +128,7 @@ DOCTEST_TEST_CASE("colony detail readouts fall back to English for unsupported l
     for (uint8_t language : languages) {
         Prepare_Colony_();
         MOX::settings.language = language;
-        COLSUM::Draw_Colony_Scan_Info();
+        COLSUM::Draw_Colony_Scan_Info(&::game::world);
         DOCTEST_CHECK(std::string(TEST_COLONY_SCAN_INFO::Output_()) ==
             "Medium Terran \nNormal Gravity\nMineral Rich\n"
             "Population (7/20)\nEnroute (2)\n250k +1500k (1)\n50/120 +13");
@@ -148,7 +149,7 @@ DOCTEST_TEST_CASE("colony detail readouts fall back to English for unsupported l
 DOCTEST_TEST_CASE("colony scan details leave the output empty without an active colony") {
     TEST_COLONY_SCAN_INFO::Reset_();
     COLONY::g_colony_n = -1;
-    COLSUM::Draw_Colony_Scan_Info();
+    COLSUM::Draw_Colony_Scan_Info(&::game::world);
     DOCTEST_CHECK(TEST_COLONY_SCAN_INFO::Output_()[0] == '\0');
     TEST_COLONY_SCAN_INFO::Reset_();
 }

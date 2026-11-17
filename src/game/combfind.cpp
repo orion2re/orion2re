@@ -33,7 +33,7 @@ namespace COMBFIND {
     char* really_risk_war_msg;
     char* trade_treaty_msg;
 
-    void __cdecl Search_For_Battles() {
+    void __cdecl Search_For_Battles(::game::s_world_state* world_state) {
         MOX2::action_func_t saved_auto_fn;
         MOX2::Get_Auto_Function(&saved_auto_fn);
 
@@ -68,8 +68,8 @@ namespace COMBFIND {
         for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
             int8_t owner = MOX::colony[i].owner;
             if (owner != -1) {
-                int16_t planet_idx = MOX::colony[i].planet;
-                int16_t star_idx = MOX::planet[planet_idx].star_index;
+                ::game::id_planet planet_idx = MOX::colony[i].planet;
+                int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index;
                 (*star_has_player)[star_idx][owner].colony_count++;
             }
         }
@@ -131,7 +131,7 @@ namespace COMBFIND {
 
                     if (attacker_idx < MAX_PLAYERS) {
                         if (MOX::player[attacker_idx].objectives != PLAYER_OBJECTIVE_HUMAN) {
-                            Get_AI_Target(star_idx, attacker_idx, &defender_idx, &colony_idx, &unk_flag);
+                            Get_AI_Target(world_state, star_idx, attacker_idx, &defender_idx, &colony_idx, &unk_flag);
                         } else {
                             if ((MOX::star[star_idx].ignore_combat_ships & (1 << (attacker_idx & 0x1F))) == 0) {
                                 Get_Local_Human_Target(star_idx, attacker_idx, &defender_idx, &colony_idx);
@@ -165,9 +165,9 @@ namespace COMBFIND {
                     }
 
                     if (final_defender_idx != -1) {
-                        int16_t planet_idx = COMBFIND::Target_Colony_To_Planet(colony_idx);
+                        ::game::id_planet planet_idx = COMBFIND::Target_Colony_To_Planet(colony_idx);
                         MOX::star[star_idx].ignore_combat_ships = 0;
-                        Do_1_Combat(star_idx, attacker_idx, defender_idx, planet_idx, nullptr, unk_flag);
+                        Do_1_Combat(star_idx, attacker_idx, defender_idx, legacy_world::Planet_Id(planet_idx), nullptr, unk_flag);
                         current_star_has_player = 0;
                         current_star_has_nonplayer = 0;
                         Update_Player_Needs_To_Attack(star_idx, attacker_idx, final_defender_idx);
@@ -195,7 +195,7 @@ namespace COMBFIND {
         }
 
         for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
-            Do_System_Discoveries_At_Star(&MOX::star[i]);
+            Do_System_Discoveries_At_Star(world_state, &MOX::star[i]);
         }
 
         MOX2::Put_Auto_Function(&saved_auto_fn);
@@ -287,7 +287,7 @@ namespace COMBFIND {
                     }
                 }
 
-                int16_t retreat_star = Closest_Other_Colony_Star(owner, loc);
+                int16_t retreat_star = Closest_Other_Colony_Star(world_state, owner, loc);
                 bool retreat_failed = false;
                 int8_t fail_reason = -1;
 
@@ -326,7 +326,7 @@ namespace COMBFIND {
                     }
                 } else {
                     ship_indices[group_count] = -1;
-                    SHIPMOVE::Make_Ships_Move_To(ship_indices, retreat_star, &move_info);
+                    SHIPMOVE::Make_Ships_Move_To(world_state, ship_indices, retreat_star, &move_info);
                     for (int k = 0; k < group_count; ++k) {
                         int16_t idx = ship_indices[k];
                         MOX::ship[idx].location -= SHIP_LOCATION_MOVING_OFFSET;
@@ -340,7 +340,7 @@ namespace COMBFIND {
                 } else if (ship->owner >= MAX_PLAYERS && ship->status == 0 && ship->d.speed != 0) {
                     if (Wandering_Monster_Retires(ship->owner)) {
                         SHIPS::Kill_Ship(world_state, i);
-                        NETMOX::Russ_Event_Monster_Update((int16_t)ship->owner, -1, -1);
+                        NETMOX::Russ_Event_Monster_Update((int16_t)ship->owner, legacy_world::Planet_Id(-1), -1);
                     }
                 }
             }
@@ -421,59 +421,59 @@ namespace COMBFIND {
                     memset(&local_battle_results_1, 0, sizeof(s_battle_results));
                     memcpy(&local_battle_results_1, &NETMOX::net.sync_state, sizeof(local_battle_results_1.player_info));
                     local_battle_results_1.planet_id = NETMOX::net.combat_planet_id;
-                    result = COMBFIND::Do_1_Combat(NETMOX::net.combat_star_id, MOX::PLAYER_NUM, NETMOX::net.combat_defender_id, NETMOX::net.combat_planet_id, &local_battle_results_1, 0);
+                    result = COMBFIND::Do_1_Combat(NETMOX::net.combat_star_id, MOX::PLAYER_NUM, NETMOX::net.combat_defender_id, legacy_world::Planet_Id(NETMOX::net.combat_planet_id), &local_battle_results_1, 0);
                     local_battle_results_1.player_info.combat_result = (int8_t)result;
                     NETMOX::Mox_Send_Message(MOX::player[NETMOX::net.combat_target_player_id].network_player_id, NET_PACKET_STRATEGIC_RESULTS_READY, &local_battle_results_1, sizeof(local_battle_results_1));
                     while (NETMOX::net.sync_state != NET_SYNC_STATE_COMBAT_READY) {
                         RUSS::Mox_Update();
                     }
-                    NETMOX::Send_Battle_Results(&game::world, NETMOX::net.combat_star_id, MOX::PLAYER_NUM, NETMOX::net.combat_target_player_id, NETMOX::net.combat_defender_id, NETMOX::net.combat_planet_id, (int16_t)local_battle_results_1.player_info.combat_result);
+                    NETMOX::Send_Battle_Results(&game::world, NETMOX::net.combat_star_id, MOX::PLAYER_NUM, NETMOX::net.combat_target_player_id, NETMOX::net.combat_defender_id, legacy_world::Planet_Id(NETMOX::net.combat_planet_id), (int16_t)local_battle_results_1.player_info.combat_result);
                     break;
 
                 case NET_SYNC_STATE_COMBAT_TACTICAL_DEFENDER:
-                    result = COMBFIND::Do_1_Combat(NETMOX::net.combat_star_id, NETMOX::net.combat_attacker_id, NETMOX::net.combat_defender_id, NETMOX::net.combat_planet_id, nullptr, 0);
+                    result = COMBFIND::Do_1_Combat(NETMOX::net.combat_star_id, NETMOX::net.combat_attacker_id, NETMOX::net.combat_defender_id, legacy_world::Planet_Id(NETMOX::net.combat_planet_id), nullptr, 0);
                     if (NETMOX::net.sync_state != NET_SYNC_STATE_STRATEGIC_RESULTS_RECEIVED) {
                         NETMOX::net.sync_state = NET_SYNC_STATE_COMBAT_READY;
                         while (NETMOX::net.sync_state != NET_SYNC_STATE_STRATEGIC_RESULTS_RECEIVED) {
                             RUSS::Mox_Update();
                         }
                     }
-                    COMBFIND::Bomb_Results_Popups(NETMOX::net.combat_results_data);
+                    COMBFIND::Bomb_Results_Popups(&::game::world, NETMOX::net.combat_results_data);
                     NETMOX::Mox_Send_Message(MOX::player[(int)NETMOX::net.combat_attacker_id].network_player_id, NET_PACKET_STRATEGIC_RESULTS_ACK, nullptr, 0);
                     NETMOX::net.sync_state = NET_SYNC_STATE_COMBAT_READY;
-                    NETMOX::Send_Battle_Results(&game::world, NETMOX::net.combat_star_id, NETMOX::net.combat_attacker_id, MOX::PLAYER_NUM, NETMOX::net.combat_defender_id, NETMOX::net.combat_planet_id, result);
+                    NETMOX::Send_Battle_Results(&game::world, NETMOX::net.combat_star_id, NETMOX::net.combat_attacker_id, MOX::PLAYER_NUM, NETMOX::net.combat_defender_id, legacy_world::Planet_Id(NETMOX::net.combat_planet_id), result);
                     break;
 
                 case NET_SYNC_STATE_COMBAT_TACTICAL_ATTACKER_VS_NONHUMAN:
-                    result = COMBFIND::Do_1_Combat(NETMOX::net.combat_star_id, MOX::PLAYER_NUM, NETMOX::net.combat_defender_id, NETMOX::net.combat_planet_id, nullptr, 0);
+                    result = COMBFIND::Do_1_Combat(NETMOX::net.combat_star_id, MOX::PLAYER_NUM, NETMOX::net.combat_defender_id, legacy_world::Planet_Id(NETMOX::net.combat_planet_id), nullptr, 0);
                     NETMOX::net.sync_state = NET_SYNC_STATE_COMBAT_READY;
-                    NETMOX::Send_Battle_Results(&game::world, NETMOX::net.combat_star_id, MOX::PLAYER_NUM, NETMOX::net.combat_target_player_id, NETMOX::net.combat_defender_id, NETMOX::net.combat_planet_id, result);
+                    NETMOX::Send_Battle_Results(&game::world, NETMOX::net.combat_star_id, MOX::PLAYER_NUM, NETMOX::net.combat_target_player_id, NETMOX::net.combat_defender_id, legacy_world::Planet_Id(NETMOX::net.combat_planet_id), result);
                     break;
 
                 case NET_SYNC_STATE_COMBAT_TACTICAL_DEFENDER_VS_NONHUMAN:
-                    result = COMBFIND::Do_1_Combat(NETMOX::net.combat_star_id, NETMOX::net.combat_attacker_id, NETMOX::net.combat_defender_id, NETMOX::net.combat_planet_id, nullptr, 0);
+                    result = COMBFIND::Do_1_Combat(NETMOX::net.combat_star_id, NETMOX::net.combat_attacker_id, NETMOX::net.combat_defender_id, legacy_world::Planet_Id(NETMOX::net.combat_planet_id), nullptr, 0);
                     NETMOX::net.sync_state = NET_SYNC_STATE_COMBAT_READY;
                     MULTPLAY::Load_Net_Next_Turn_Screen(1);
-                    NETMOX::Send_Battle_Results(&game::world, NETMOX::net.combat_star_id, NETMOX::net.combat_attacker_id, MOX::PLAYER_NUM, NETMOX::net.combat_defender_id, NETMOX::net.combat_planet_id, result);
+                    NETMOX::Send_Battle_Results(&game::world, NETMOX::net.combat_star_id, NETMOX::net.combat_attacker_id, MOX::PLAYER_NUM, NETMOX::net.combat_defender_id, legacy_world::Planet_Id(NETMOX::net.combat_planet_id), result);
                     break;
 
                 case NET_SYNC_STATE_COMBAT_STRATEGIC_ATTACKER:
                     memset(&local_battle_results_2, 0, sizeof(s_battle_results));
                     memcpy(&local_battle_results_2, &NETMOX::net.sync_state, sizeof(local_battle_results_2.player_info));
                     local_battle_results_2.planet_id = NETMOX::net.combat_planet_id;
-                    result = COMBFIND::Do_1_Combat(NETMOX::net.combat_star_id, MOX::PLAYER_NUM, NETMOX::net.combat_defender_id, NETMOX::net.combat_planet_id, &local_battle_results_2, 0);
+                    result = COMBFIND::Do_1_Combat(NETMOX::net.combat_star_id, MOX::PLAYER_NUM, NETMOX::net.combat_defender_id, legacy_world::Planet_Id(NETMOX::net.combat_planet_id), &local_battle_results_2, 0);
                     local_battle_results_2.player_info.combat_result = (int8_t)result;
                     MULTPLAY::Load_Net_Next_Turn_Screen(1);
                     if (NETMOX::net.combat_target_player_id < MAX_PLAYERS && MOX::player[NETMOX::net.combat_target_player_id].objectives == PLAYER_OBJECTIVE_HUMAN) {
                         NETMOX::Mox_Send_Message(MOX::player[NETMOX::net.combat_target_player_id].network_player_id, NET_PACKET_STRATEGIC_BATTLE_RESULTS, &local_battle_results_2, sizeof(local_battle_results_2));
                     }
                     NETMOX::net.sync_state = NET_SYNC_STATE_COMBAT_READY;
-                    NETMOX::Send_Battle_Results(&game::world, NETMOX::net.combat_star_id, MOX::PLAYER_NUM, NETMOX::net.combat_target_player_id, NETMOX::net.combat_defender_id, NETMOX::net.combat_planet_id, (int16_t)local_battle_results_2.player_info.combat_result);
+                    NETMOX::Send_Battle_Results(&game::world, NETMOX::net.combat_star_id, MOX::PLAYER_NUM, NETMOX::net.combat_target_player_id, NETMOX::net.combat_defender_id, legacy_world::Planet_Id(NETMOX::net.combat_planet_id), (int16_t)local_battle_results_2.player_info.combat_result);
                     break;
 
                 case NET_SYNC_STATE_COMBAT_RESULTS_DISPLAY:
                     COMBFIND::Strategic_Results_Popup(NETMOX::net.combat_results_data);
-                    COMBFIND::Bomb_Results_Popups(NETMOX::net.combat_results_data);
+                    COMBFIND::Bomb_Results_Popups(&::game::world, NETMOX::net.combat_results_data);
                     MULTPLAY::Load_Net_Next_Turn_Screen(0);
                     NETMOX::net.sync_state = NET_SYNC_STATE_COMBAT_READY;
                     NETMOX::Mox_Send_Message(NETMOX::net.local_net_id, NET_PACKET_COMBAT_RESULTS_ACK, nullptr, 0);
@@ -517,14 +517,14 @@ namespace COMBFIND {
         }
 
         SHIPMOVE::Ships_Try_To_Move_To(ship_indices, dest_idx, &move_info);
-        SHIPMOVE::Make_Ships_Move_To(ship_indices, dest_idx, &move_info);
+        SHIPMOVE::Make_Ships_Move_To(&::game::world, ship_indices, dest_idx, &move_info);
 
         MOX::player[player_idx].bc -= static_cast<int32_t>(dragon_bribe_bc);
 
         (*star_has_nonplayer)[star_idx] &= 0xEF;
     }
 
-    int16_t __cdecl Closest_Other_Colony_Star(int16_t player_idx, int16_t star_idx) {
+    int16_t __cdecl Closest_Other_Colony_Star(::game::s_world_state* world_state, int16_t player_idx, int16_t star_idx) {
         uint32_t min_dist_sq = 0xFFFFFFFF;
         int16_t closest_star_idx = -1;
 
@@ -536,7 +536,7 @@ namespace COMBFIND {
             s_colony* colony = &MOX::colony[i];
 
             if (colony->owner == player_idx) {
-                int16_t target_star_idx = MOX::planet[colony->planet].star_index;
+                int16_t target_star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony->planet))).star_index;
 
                 if (target_star_idx != star_idx && target_star_idx != closest_star_idx) {
                     if (!struct_::Test_Bit_Field(src_star->black_hole_blocks, target_star_idx)) {
@@ -564,14 +564,14 @@ namespace COMBFIND {
  * @param star_idx Star containing potential combat targets.
  * @param player_idx Attacker whose legal targets are being collected.
  */
-    void __cdecl Collect_Targets_For_Combat(int16_t star_idx, int16_t player_idx) {
+    void __cdecl Collect_Targets_For_Combat(::game::s_world_state* world_state, int16_t star_idx, int16_t player_idx) {
         target.num_colony_targets = 0;
 
         if (star_idx < MOX::NUM_STARS) {
             for (int i = 0; i < 5; ++i) {
-                int16_t planet_idx = MOX::star[star_idx].planet_index[i];
-                if (planet_idx >= 0) {
-                    int16_t colony_idx = MOX::planet[planet_idx].colony_index;
+                ::game::id_planet planet_idx = MOX::star[star_idx].planet_index[i];
+                if (planet_idx != ::game::NO_PLANET) {
+                    int16_t colony_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index;
                     if (colony_idx >= 0) {
                         if (Player_May_Attack_Player(player_idx, MOX::colony[colony_idx].owner)) {
                             target.colony_targets[target.num_colony_targets] = colony_idx;
@@ -674,7 +674,7 @@ namespace COMBFIND {
                         // Mark this player as processed for this star in the current pick
                         (*player_needs_to_attack)[*star_idx_ptr] &= ~(1 << *attacker_idx_ptr);
 
-                        COMBFIND::Collect_Targets_For_Combat(*star_idx_ptr, *attacker_idx_ptr);
+                        COMBFIND::Collect_Targets_For_Combat(&::game::world, *star_idx_ptr, *attacker_idx_ptr);
 
                         // If no valid targets (player or colony) were found, try to find another attacker at the same star
                         if (target.num_player_targets == 0 && target.num_colony_targets == 0) {
@@ -691,19 +691,19 @@ namespace COMBFIND {
         }
     }
 
-    int16_t __cdecl Find_Planet_At_Star_Satisfying(s_star_data* star, bool(__cdecl* predicate)(s_planet_data*)) {
+    ::game::id_planet Find_Planet_At_Star_Satisfying(::game::s_world_state* world_state, s_star_data* star, bool(__cdecl* predicate)(s_planet_data*)) {
         for (int16_t i = 0; i < 5; ++i) {
-            int16_t planet_idx = star->planet_index[i];
+            ::game::id_planet planet_idx = star->planet_index[i];
 
-            if (planet_idx != -1) {
+            if (planet_idx != ::game::NO_PLANET) {
                 // Accessing the planet data via the global planet array
-                if (predicate(&MOX::planet[planet_idx])) {
+                if (predicate(&::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))))) {
                     return planet_idx;
                 }
             }
         }
 
-        return -1;
+        return ::game::NO_PLANET;
     }
 
     bool __cdecl Planet_Has_Splinter_Colony(s_planet_data* planet) {
@@ -716,12 +716,12 @@ namespace COMBFIND {
  * @param planet_idx Planet index in the global planet array.
  * @return Colony index for that planet, or -1.
  */
-    int16_t __cdecl Target_Planet_To_Colony(int16_t planet_idx) {
-        if (planet_idx == -1) {
+    int16_t __cdecl Target_Planet_To_Colony(::game::s_world_state* world_state, ::game::id_planet planet_idx) {
+        if (planet_idx == ::game::NO_PLANET) {
             return -1;
         }
 
-        return MOX::planet[planet_idx].colony_index;
+        return ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index;
     }
 
     s_colony* __cdecl Free_Colony_Slot() {
@@ -731,7 +731,7 @@ namespace COMBFIND {
         if (i < MOX::NUM_COLONIES) {
             do {
                 // Check if the colony slot is empty
-                if (col->planet == -1) {
+                if (col->planet == ::game::NO_PLANET) {
                     break;
                 }
                 i++;
@@ -749,20 +749,20 @@ namespace COMBFIND {
         return col;
     }
 
-    void __cdecl Do_System_Discoveries_At_Star(s_star_data* star) {
+    void __cdecl Do_System_Discoveries_At_Star(::game::s_world_state* world_state, s_star_data* star) {
         int16_t star_idx;
         int eligible_player_count;
         uint8_t player_present[MAX_PLAYERS];
         int16_t player_idx;
         s_colony* colony;
-        int16_t planet_idx;
+        ::game::id_planet planet_idx;
         int16_t limit;
         int n_techs;
         int total_valid_techs;
         s_MSG msg = {};
 
         star_idx = (int16_t)(star - MOX::star);
-        Reset_One_Shot_System_Special(star);
+        Reset_One_Shot_System_Special(world_state, star);
 
         if (star->system_special != SYSTEM_SPECIAL_NO_SPECIAL && (*star_has_nonplayer)[star_idx] == 0) {
             eligible_player_count = 0;
@@ -793,10 +793,10 @@ namespace COMBFIND {
                         star->system_special = player_idx + 70;
                         (*star_has_player)[star_idx][player_idx].colony_count = 1;
                         colony = Free_Colony_Slot();
-                        planet_idx = Find_Planet_At_Star_Satisfying(star, Planet_Has_Splinter_Colony);
-                        INITGAME::Init_Colony((int16_t)(colony - MOX::colony), planet_idx, (uint8_t)player_idx);
+                        planet_idx = Find_Planet_At_Star_Satisfying(world_state, star, Planet_Has_Splinter_Colony);
+                        INITGAME::Init_Colony(world_state, (int16_t)(colony - MOX::colony), legacy_world::Planet_Id(planet_idx), (uint8_t)player_idx);
 
-                        limit = COLCALC::Colony_Race_Pop_Limit(colony, player_idx);
+                        limit = COLCALC::Colony_Race_Pop_Limit(world_state, colony, player_idx);
                         colony->n_pops = (uint8_t)limit;
                         if (colony->n_pops > 3) {
                             colony->n_pops = 3;
@@ -812,7 +812,7 @@ namespace COMBFIND {
                             pop_val = (pop_val & ~0xF) | (player_idx & 0xF);
                             pop_val = (pop_val & ~0x70) | ((player_idx << 4) & 0x70);
 
-                            if (MOX::planet[planet_idx].food_per_farmer == 0 || MOX::player[player_idx].traits[TRAIT_EATS_MINERALS] != 0) {
+                            if (::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).food_per_farmer == 0 || MOX::player[player_idx].traits[TRAIT_EATS_MINERALS] != 0) {
                                 int r = game_random::Random(2);
                                 pop_val = (((r << 7) ^ pop_val) & 0x180) ^ pop_val;
                             } else if (MOX::player[player_idx].traits[TRAIT_CYBERNETIC] == 0) {
@@ -827,7 +827,7 @@ namespace COMBFIND {
                             colony->pop[i] = pop_val;
                         }
 
-                        COLCALC::Compute_Star_Colony_Stuff(star);
+                        COLCALC::Compute_Star_Colony_Stuff(world_state, star);
                         COLCALC::Colony_Calculation((int16_t)(colony - MOX::colony));
                         colony->just_produced = COLONY_PRODUCTION_JUST_COLONIZED;
                         break;
@@ -843,7 +843,7 @@ namespace COMBFIND {
 
                             star->system_special = player_idx + 90;
                             star->artifacts_gave_app = 1;
-                            planet_idx = Find_Planet_At_Star_Satisfying(
+                            planet_idx = Find_Planet_At_Star_Satisfying(world_state, 
                                 star, Planet_Has_Ancient_Artifacts);
 
                             if (!MAPGEN::special_generation_config.artifacts_grant_technology) {
@@ -967,7 +967,7 @@ namespace COMBFIND {
  * @param target_colony Receives the chosen colony target, or -1.
  * @param is_sneak_attack Receives nonzero when the selected attack is a sneak attack.
  */
-    void __cdecl Get_AI_Target(int16_t star_idx, int16_t player_idx, int16_t* target_player, int16_t* target_colony, int8_t* is_sneak_attack) {
+    void __cdecl Get_AI_Target(::game::s_world_state* world_state, int16_t star_idx, int16_t player_idx, int16_t* target_player, int16_t* target_colony, int8_t* is_sneak_attack) {
         *is_sneak_attack = 0;
         *target_player = -1;
         *target_colony = -1;
@@ -981,10 +981,10 @@ namespace COMBFIND {
             s_player* player = &MOX::player[player_idx];
             int16_t sneak_attack_target = -1;
 
-            if (player->sneak_attack_planet != -1) {
-                if (MOX::planet[player->sneak_attack_planet].star_index == star_idx) {
+            if (player->sneak_attack_planet != ::game::NO_PLANET) {
+                if (::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(player->sneak_attack_planet))).star_index == star_idx) {
                     sneak_attack_target = (int16_t)player->sneak_attack_player;
-                    player->sneak_attack_planet = -1;
+                    player->sneak_attack_planet = ::game::NO_PLANET;
                     player->sneak_attack_player = -1;
                     player->war_buildup_duration = 0;
                 }
@@ -1350,9 +1350,9 @@ namespace COMBFIND {
         return 0;
     }
 
-    int16_t __cdecl Target_Colony_To_Planet(int16_t colony_idx) {
+    game::id_planet Target_Colony_To_Planet(int16_t colony_idx) {
         if (colony_idx == -1) {
-            return -1;
+            return ::game::NO_PLANET;
         }
 
         return MOX::colony[colony_idx].planet;
@@ -1420,7 +1420,7 @@ namespace COMBFIND {
         }
     }
 
-    int16_t __cdecl Do_1_Combat(int16_t star_idx, int16_t plr2_idx, int16_t plr1_idx, int16_t planet_idx, s_battle_results* result, int8_t is_sneak_attack) {
+    int16_t __cdecl Do_1_Combat(int16_t star_idx, int16_t plr2_idx, int16_t plr1_idx, ::game::id_planet planet_idx, s_battle_results* result, int8_t is_sneak_attack) {
         if (combat_in_progress) {
             exitm::Exit_With_Message("nested combat detected");
         }
@@ -1437,7 +1437,7 @@ namespace COMBFIND {
         int16_t ships[MAX_SHIPS];
         s_battle_results local_results;
 
-        colony_idx = Target_Planet_To_Colony(planet_idx);
+        colony_idx = Target_Planet_To_Colony(&::game::world, legacy_world::Planet_Id(planet_idx));
 
         if (plr1_idx == -1) {
             plr1_idx = MOX::colony[colony_idx].owner;
@@ -1462,10 +1462,10 @@ namespace COMBFIND {
             }
             if (MOX::PLAYER_NUM == plr1_idx && MOX::settings.strategic_combat_flag == 0) {
                 char* star_or_planet_name;
-                if (planet_idx == -1) {
+                if (planet_idx == ::game::NO_PLANET) {
                     star_or_planet_name = RUSS::Star_Name(star_idx);
                 } else {
-                    star_or_planet_name = HACCESS::Get_Planet_Name(planet_idx);
+                    star_or_planet_name = HACCESS::Get_Planet_Name(legacy_world::Planet_Id(planet_idx));
                 }
                 char* attacker_name = COLCALC::Player_Name(plr2_idx);
                 snprintf(msg_buf, sizeof(msg_buf), s_attacks_you_at_s_msg, attacker_name, star_or_planet_name);
@@ -1481,7 +1481,7 @@ namespace COMBFIND {
         short combat_status = Russ_Combat(plr2_idx, &ships[plr2_ship_offset], plr2_ship_count, plr1_idx, &ships[plr1_ship_offset], plr1_ship_count, star_idx, colony_idx, is_sneak_attack, result);
         result->player_info.combat_result = (int8_t)combat_status;
 
-        colony_idx = Target_Planet_To_Colony(planet_idx);
+        colony_idx = Target_Planet_To_Colony(&::game::world, legacy_world::Planet_Id(planet_idx));
 
         if (MOX::game_type > 1 && MOX::game_type < 4) {
             if (MOX::PLAYER_NUM == plr2_idx || MOX::PLAYER_NUM == plr1_idx) {
@@ -1556,7 +1556,7 @@ namespace COMBFIND {
                     }
                 }
                 if (colony_idx != -1 && MOX::colony[colony_idx].owner != -1) {
-                    Do_Attacker_Beat_Colony_Stuff(&ships[plr2_ship_offset], plr2_ship_count, colony_idx, result);
+                    Do_Attacker_Beat_Colony_Stuff(&::game::world, &ships[plr2_ship_offset], plr2_ship_count, colony_idx, result);
                 }
             }
         }
@@ -1704,18 +1704,18 @@ namespace COMBFIND {
     }
 
     void __cdecl Determine_Retreat_Ships(game::s_world_state* world_state, int16_t star_idx, int16_t player_idx, int16_t colony_idx) {
-        int32_t p_idx = (int32_t)player_idx;
+        const int32_t owner_idx = player_idx;
         bool should_retreat_or_die = false;
 
-        if (colony_idx != -1 || COMBFIND::current_star_has_player[p_idx].colony_count == 0) {
-            if (COMBFIND::current_star_has_player[p_idx].colony_count < 2) {
+        if (colony_idx != -1 || COMBFIND::current_star_has_player[owner_idx].colony_count == 0) {
+            if (COMBFIND::current_star_has_player[owner_idx].colony_count < 2) {
                 should_retreat_or_die = true;
             }
         }
 
         if (should_retreat_or_die) {
             bool destroy_ships_in_flux = false;
-            if (player_idx < MAX_PLAYERS && MOX::player[p_idx].traits[29 /* TRAIT_TRANS_DIMENSIONAL */] == 0) {
+            if (player_idx < MAX_PLAYERS && MOX::player[owner_idx].traits[29 /* TRAIT_TRANS_DIMENSIONAL */] == 0) {
                 if (EVENTS::Event_Check_Hyperspace_Flux() != 0) {
                     destroy_ships_in_flux = true;
                 }
@@ -1736,7 +1736,7 @@ namespace COMBFIND {
                         SHIPS::Kill_Ship(world_state, i);
                     }
                 }
-                COMBFIND::current_star_has_player[p_idx].has_player = 0;
+                COMBFIND::current_star_has_player[owner_idx].has_player = 0;
                 return;
             } else {
                 // Otherwise the fleet enters retreat status.
@@ -1746,7 +1746,7 @@ namespace COMBFIND {
                         ship->status = 9; // Status 9: retreating/travelling
                     }
                 }
-                COMBFIND::current_star_has_player[p_idx].has_player = 0;
+                COMBFIND::current_star_has_player[owner_idx].has_player = 0;
                 MAINSCR::Update_Ship_Icons_In_Between_Turns();
                 return;
             }
@@ -1763,7 +1763,7 @@ namespace COMBFIND {
         }
 
         if (!ships_remaining) {
-            COMBFIND::current_star_has_player[p_idx].has_player = 0;
+            COMBFIND::current_star_has_player[owner_idx].has_player = 0;
         }
     }
 
@@ -1959,18 +1959,18 @@ namespace COMBFIND {
         }
     }
 
-    void __cdecl Do_Attacker_Beat_Colony_Stuff(int16_t* ship_list, int n_ships, int16_t colony_idx, s_battle_results* results) {
+    void __cdecl Do_Attacker_Beat_Colony_Stuff(::game::s_world_state* world_state, int16_t* ship_list, int n_ships, int16_t colony_idx, s_battle_results* results) {
         s_ship_data* ships = MOX::ship;
         int16_t ship_idx = *ship_list;
         int8_t attacker_id = ships[ship_idx].owner;
         s_colony* colony = &MOX::colony[colony_idx];
-        int16_t planet_idx = colony->planet;
-        int16_t star_idx = MOX::planet[planet_idx].star_index;
+        ::game::id_planet planet_idx = colony->planet;
+        int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index;
         int8_t colony_owner = colony->owner;
 
         if (colony->outpost_flag != 0) {
             results->outpost_destroyed_flag = 1;
-            BOMB::Destroy_Colony(colony, 1);
+            BOMB::Destroy_Colony(world_state, colony, 1);
             COMBFIND::current_star_has_player[colony_owner].colony_count--;
         } else if (attacker_id < MAX_PLAYERS) {
             if (MOX::player[attacker_id].objectives == PLAYER_OBJECTIVE_HUMAN) {
@@ -1993,12 +1993,12 @@ namespace COMBFIND {
                             case 1: { // Stellar Converter
                                 int8_t old_n_pops = colony->n_pops;
                                 results->info.planet_destroyed_flag = 1;
-                                BOMB::Destroy_Colony(colony, 2);
+                                BOMB::Destroy_Colony(world_state, colony, 2);
                                 ERIC::Play_Planetary_Destruction_Flic();
                                 COMBFIND::current_star_has_player[colony_owner].colony_count--;
-                                MOX::planet[planet_idx].planet_type = PLANET_TYPE_ASTEROID;
-                                if (MOX::planet[planet_idx].planet_special != SYSTEM_SPECIAL_NO_SPECIAL) {
-                                    MOX::planet[planet_idx].planet_special = SYSTEM_SPECIAL_NO_SPECIAL;
+                                ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).planet_type = PLANET_TYPE_ASTEROID;
+                                if (::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).planet_special != SYSTEM_SPECIAL_NO_SPECIAL) {
+                                    ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).planet_special = SYSTEM_SPECIAL_NO_SPECIAL;
                                     MOX::star[star_idx].system_special = SYSTEM_SPECIAL_NO_SPECIAL;
                                 }
                                 NETMOX::Russ_Change_Relations(-10000, attacker_id, colony_owner, 10, star_idx, old_n_pops);
@@ -2010,18 +2010,18 @@ namespace COMBFIND {
                                 memset(&results->bomb, 0, sizeof(s_combat_bomb_result));
                                 results->bomb.attacker_idx = attacker_id;
                                 results->bomb.colony_idx = colony_idx;
-                                COMBAT::Bombardment(&results->bomb);
+                                COMBAT::Bombardment(world_state, &results->bomb);
 
                                 invasion::Get_Invasion_Info(ship_list, n_ships, colony, &results->info.attacker_invasion, &results->info.defender_invasion);
                                 selection = MAINPUPS::Colony_Bombing_Popup(&results->bomb, &results->info.attacker_invasion, &results->info.defender_invasion, bomb_seed, colony_idx, bombardment_res, has_stellar);
                                 NETMOX::Russ_Change_Relations(-10000, attacker_id, colony_owner, 10, star_idx, results->bomb.population_killed);
 
                                 if (results->bomb.colony_wiped_out != 0) {
-                                    BOMB::Destroy_Colony(colony, 1);
+                                    BOMB::Destroy_Colony(world_state, colony, 1);
                                     COMBFIND::current_star_has_player[colony_owner].colony_count--;
                                     loop_done = true;
                                 } else {
-                                    if (results->info.attacker_invasion.unit_counts[1] == 0 && !has_stellar && !ERIC::Player_Can_Mind_Control_Colony(attacker_id, colony_idx)) {
+                                    if (results->info.attacker_invasion.unit_counts[1] == 0 && !has_stellar && !ERIC::Player_Can_Mind_Control_Colony(world_state, attacker_id, colony_idx)) {
                                         loop_done = true;
                                     }
                                 }
@@ -2080,14 +2080,14 @@ namespace COMBFIND {
                     }
                 }
             } else {
-                if (ERIC::Player_Can_Mind_Control_Colony(attacker_id, colony_idx)) {
+                if (ERIC::Player_Can_Mind_Control_Colony(world_state, attacker_id, colony_idx)) {
                     results->info.is_mind_controlled = 1;
                     invasion::Change_Colony_Ownership(colony, attacker_id, &results->info);
                     COMBFIND::current_star_has_player[attacker_id].colony_count++;
                     COMBFIND::current_star_has_player[colony_owner].colony_count--;
                 } else {
                     bool has_stellar = Has_Stellar_Converter(ship_list, n_ships);
-                    int16_t enemy_star_idx = MOX::planet[colony->planet].star_index;
+                    int16_t enemy_star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony->planet))).star_index;
                     bool knows_attacker = false;
                     uint8_t surrendered = 0;
                     uint8_t terminal_destroyed = 0;
@@ -2102,7 +2102,7 @@ namespace COMBFIND {
                     memset(&results->bomb, 0, sizeof(s_combat_bomb_result));
                     results->bomb.attacker_idx = attacker_id;
                     results->bomb.colony_idx = colony_idx;
-                    COMBAT::Bombardment(&results->bomb);
+                    COMBAT::Bombardment(world_state, &results->bomb);
 
                     int bomb_hits = results->bomb.bomb_hits_remaining;
                     int bio_hits = results->bomb.bio_hits_remaining;
@@ -2110,7 +2110,7 @@ namespace COMBFIND {
                     if (bomb_hits != 0 || bio_hits != 0 || has_stellar) {
                         bool surrender = false;
                         if (MOX::player[colony_owner].objectives != PLAYER_OBJECTIVE_HUMAN && MOX::settings.game_difficulty > GAME_DIFFICULTY_AVERAGE) {
-                            if (COLCALC::May_Surrender_Star(enemy_star_idx, colony_owner, attacker_id) && (int)(colony->n_pops * 2) <= bomb_hits) {
+                            if (COLCALC::May_Surrender_Star(world_state, enemy_star_idx, colony_owner, attacker_id) && (int)(colony->n_pops * 2) <= bomb_hits) {
                                 surrender = true;
                             }
                         }
@@ -2169,7 +2169,7 @@ namespace COMBFIND {
                             } else if (has_stellar) {
                                 results->info.planet_destroyed_flag = 1;
                                 terminal_destroyed = 1;
-                                BOMB::Destroy_Colony(colony, 2);
+                                BOMB::Destroy_Colony(world_state, colony, 2);
                             } else {
                                 BOMB::Apply_Bomb_Hits(&results->bomb);
                             }
@@ -2190,7 +2190,7 @@ namespace COMBFIND {
 
                         if (results->bomb.colony_wiped_out != 0) {
                             terminal_destroyed = 1;
-                            BOMB::Destroy_Colony(colony, 1);
+                            BOMB::Destroy_Colony(world_state, colony, 1);
                         }
                     }
 
@@ -2222,7 +2222,7 @@ namespace COMBFIND {
             }
         } else {
             if (attacker_id > 9 && attacker_id < 15) {
-                NETMOX::Russ_Event_Monster_Update(attacker_id, colony->planet, -1);
+                NETMOX::Russ_Event_Monster_Update(attacker_id, legacy_world::Planet_Id(colony->planet), -1);
             }
 
             memset(&results->bomb, 0, sizeof(s_combat_bomb_result));
@@ -2233,17 +2233,17 @@ namespace COMBFIND {
                 results->bomb.bio_hits_remaining = 0;
             }
 
-            COMBAT::Bombardment(&results->bomb);
+            COMBAT::Bombardment(world_state, &results->bomb);
             BOMB::Apply_Bomb_Hits(&results->bomb);
 
             const bool amoeba_attacked_colony =
                 attacker_id == NONPLAYER_SHIP_TYPE_AMOEBA;
 
             if (amoeba_attacked_colony) {
-                MOX::planet[planet_idx].climate = PLANET_CLIMATE_TOXIC;
-                MOX::planet[planet_idx].food_per_farmer = 0;
+                ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).climate = PLANET_CLIMATE_TOXIC;
+                ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).food_per_farmer = 0;
                 if (results->bomb.colony_wiped_out == 0) {
-                    COLCALC::Colony_Environmental_Stuff(colony);
+                    COLCALC::Colony_Environmental_Stuff(world_state, colony);
                     invasion::Enforce_Population_Limits_At_Colony(colony);
                     COLCALC::Colony_Calculation(colony_idx);
                 }
@@ -2265,11 +2265,11 @@ namespace COMBFIND {
                 for (int i = 0; i < n_ships; ++i) {
                     SHIPS::Kill_Ship(&game::world, ship_list[i]);
                 }
-                NETMOX::Russ_Event_Monster_Update(NONPLAYER_SHIP_TYPE_AMOEBA, -1, -1);
+                NETMOX::Russ_Event_Monster_Update(NONPLAYER_SHIP_TYPE_AMOEBA, legacy_world::Planet_Id(-1), -1);
             }
 
             if (results->bomb.colony_wiped_out != 0) {
-                BOMB::Destroy_Colony(colony, 1);
+                BOMB::Destroy_Colony(world_state, colony, 1);
             }
         }
 
@@ -2314,7 +2314,7 @@ namespace COMBFIND {
         MULTPLAY::Load_Net_Next_Turn_Screen(0);
     }
 
-    void __cdecl Bomb_Results_Popups(s_battle_results* res) {
+    void __cdecl Bomb_Results_Popups(::game::s_world_state* world_state, s_battle_results* res) {
         if (res->outpost_destroyed_flag == 0) {
             if (res->info.planet_destroyed_flag == 0) {
                 if (res->bomb.damage_occurred != 0) {
@@ -2341,7 +2341,7 @@ namespace COMBFIND {
                 &res->info.attacker_invasion,
                 &res->info.defender_invasion,
                 res->info.ground_defense_strength,
-                MOX::planet[res->player_info.combat_planet_id].colony_index);
+                ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(res->player_info.combat_planet_id))).colony_index);
 
             MULTPLAY::Load_Net_Next_Turn_Screen(1);
             game_random::Set_Random_Seed(seed);
@@ -2363,7 +2363,7 @@ namespace COMBFIND {
         result.attacker_idx = attacker_id;
         result.colony_idx = colony_idx;
 
-        COMBAT::Bombardment(&result);
+        COMBAT::Bombardment(&::game::world, &result);
 
         return result.bomb_hits_remaining + result.bio_hits_remaining;
     }
@@ -2486,7 +2486,7 @@ namespace COMBFIND {
                                 if (target_player_id < MAX_PLAYERS && MOX::player[target_player_id].objectives == PLAYER_OBJECTIVE_HUMAN) {
                                     NETMOX::net.player_net_info[i].player_state = NET_PLAYER_STATE_COMBAT_TACTICAL_ATTACKER;
                                     NETMOX::net.player_net_info[target_player_id].player_state = NET_PLAYER_STATE_COMBAT_TACTICAL_DEFENDER;
-                                    int16_t colony_id = Target_Planet_To_Colony(NETMOX::net.player_net_info[i].combat_planet_id);
+                                    int16_t colony_id = Target_Planet_To_Colony(&::game::world, legacy_world::Planet_Id(NETMOX::net.player_net_info[i].combat_planet_id));
                                     NETMOX::Send_You_Are_Target_Info(&game::world,
                                         target_player_id, i, NETMOX::net.player_net_info[i].combat_defender_id, colony_id, NETMOX::net.player_net_info[i].combat_star_id);
                                     msg_type = NET_PACKET_COMBAT_RESOLUTION_BEGIN;
@@ -2615,7 +2615,7 @@ namespace COMBFIND {
             target_sync_owner_id = -1;
         } else {
             if (attacker_id < MAX_PLAYERS) {
-                Get_AI_Target(star_id, attacker_id, &target_defender_id, &target_colony_idx, &is_sneak_attack);
+                Get_AI_Target(&::game::world, star_id, attacker_id, &target_defender_id, &target_colony_idx, &is_sneak_attack);
             } else {
                 Get_NPC_Target(star_id, attacker_id, &target_defender_id, &target_colony_idx);
             }
@@ -2628,7 +2628,7 @@ namespace COMBFIND {
         }
 
         NETMOX::net.player_net_info[attacker_id].combat_defender_id = target_defender_id;
-        int16_t target_planet_id = Target_Colony_To_Planet(target_colony_idx);
+        ::game::id_planet target_planet_id = Target_Colony_To_Planet(target_colony_idx);
         NETMOX::net.player_net_info[attacker_id].combat_planet_id = target_planet_id;
         NETMOX::net.player_net_info[attacker_id].combat_target_player_id = target_sync_owner_id;
 
@@ -2665,8 +2665,8 @@ namespace COMBFIND {
                     Do_Nonhuman_Attack_Against_Human(target_sync_owner_id);
                 }
             } else {
-                int16_t target_planet_id = Target_Colony_To_Planet(target_colony_idx);
-                Do_1_Combat(star_id, attacker_id, target_defender_id, target_planet_id, nullptr, 0);
+                ::game::id_planet target_planet_id = Target_Colony_To_Planet(target_colony_idx);
+                Do_1_Combat(star_id, attacker_id, target_defender_id, legacy_world::Planet_Id(target_planet_id), nullptr, 0);
                 Update_Player_Needs_To_Attack(star_id, attacker_id, target_sync_owner_id);
                 NETMOX::net.sync_phase_active_flag = 0;
                 NETMOX::net.player_net_info[attacker_id].combat_attacker_id = (undefined)0xff;
@@ -2687,7 +2687,7 @@ namespace COMBFIND {
         GNN_Reports_Combat(attacker_id, player_idx);
 
         if (MOX::settings.strategic_combat_flag == 0) {
-            int16_t colony_id = Target_Planet_To_Colony(NETMOX::net.player_net_info[player_idx].combat_planet_id);
+            int16_t colony_id = Target_Planet_To_Colony(&::game::world, legacy_world::Planet_Id(NETMOX::net.player_net_info[player_idx].combat_planet_id));
 
             NETMOX::Send_You_Are_Target_Info(&game::world,
                 (int16_t)player_idx,
@@ -2711,7 +2711,7 @@ namespace COMBFIND {
             combat_star_id,
             (int16_t)attacker_id,
             NETMOX::net.player_net_info[player_idx].combat_defender_id,
-            NETMOX::net.player_net_info[player_idx].combat_planet_id,
+            legacy_world::Planet_Id(NETMOX::net.player_net_info[player_idx].combat_planet_id),
             &battle_results,
             0);
 

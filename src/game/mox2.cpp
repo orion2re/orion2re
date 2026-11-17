@@ -51,11 +51,11 @@ namespace MOX2 {
 
             switch (current_screen) {
                 case SCREEN_MAIN:
-                    MAINSCR::Main_Screen();
+                    MAINSCR::Main_Screen(&::game::world);
                     MOX::previous_screen = SCREEN_MAIN;
                     break;
                 case SCREEN_COLONY:
-                    COLONY::Colony_Screen();
+                    COLONY::Colony_Screen(&::game::world);
                     MOX::previous_screen = SCREEN_COLONY;
                     break;
                 case SCREEN_DESIGN:
@@ -128,7 +128,7 @@ namespace MOX2 {
                     MOX::previous_screen = SCREEN_HOTSEAT;
                     break;
                 case SCREEN_HOTSEAT_SELECT_PLAYER:
-                    MULTPLAY::Hotseat_Select_Player();
+                    MULTPLAY::Hotseat_Select_Player(&::game::world);
                     MOX::previous_screen = SCREEN_HOTSEAT_SELECT_PLAYER;
                     break;
                 case SCREEN_PLANET_DATA:
@@ -136,7 +136,7 @@ namespace MOX2 {
                     MOX::previous_screen = SCREEN_PLANET_DATA;
                     break;
                 case SCREEN_COLONY_SUMMARY:
-                    COLSUM::Colony_Summary_Screen();
+                    COLSUM::Colony_Summary_Screen(&::game::world);
                     MOX::previous_screen = SCREEN_COLONY_SUMMARY;
                     break;
                 case SCREEN_START_NET:
@@ -152,7 +152,7 @@ namespace MOX2 {
                     MOX::previous_screen = SCREEN_JOIN_NET;
                     break;
                 case SCREEN_QUEUE_POPUP:
-                    COLBLDG::Build_Queue_Popup();
+                    COLBLDG::Build_Queue_Popup(&::game::world);
                     MOX::previous_screen = SCREEN_QUEUE_POPUP;
                     break;
                 case SCREEN_DISTANCE_BETWEEN_STARS:
@@ -161,7 +161,7 @@ namespace MOX2 {
                     MOX::current_screen = MOX::return_screen;
                     break;
                 case SCREEN_OFFICERS:
-                    OFFICER::Officers_Screen();
+                    OFFICER::Officers_Screen(&::game::world);
                     MOX::previous_screen = SCREEN_OFFICERS;
                     break;
                 case SCREEN_COLONIZATION_IN_MAIN:
@@ -177,11 +177,11 @@ namespace MOX2 {
                     MOX::previous_screen = SCREEN_PLANET_SUMMARY;
                     break;
                 case SCREEN_COLONY_LANDING:
-                    COLLAND::Colony_Landing_Screen();
+                    COLLAND::Colony_Landing_Screen(&::game::world);
                     MOX::previous_screen = SCREEN_COLONY_LANDING;
                     break;
                 case SCREEN_UNLOADING_TRANSPORTS_IN_MAIN:
-                    MAINSCR2::Unloading_Transports_In_Main_Screen();
+                    MAINSCR2::Unloading_Transports_In_Main_Screen(&::game::world);
                     MOX::previous_screen = SCREEN_UNLOADING_TRANSPORTS_IN_MAIN;
                     break;
                 case SCREEN_SCRAP_FREIGHTERS:

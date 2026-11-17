@@ -1,3 +1,4 @@
+#include "../fixtures/planet_state.h"
 #include "pch.h"
 
 #include "doctest/doctest.h"
@@ -5,7 +6,7 @@
 
 namespace {
     s_player players[MAX_PLAYERS];
-    s_planet_data planets[MAX_PLANETS];
+
     s_star_data stars[MAX_STARS + 1];
     s_colony colonies[2];
     s_ship_data ships[8];
@@ -20,14 +21,14 @@ namespace {
 
 namespace MOX {
     s_player* player = players;
-    s_planet_data* planet = planets;
+
     s_star_data* star = stars;
     s_colony* colony = colonies;
     s_ship_data* ship = ships;
     s_scroll_bar* scroll_bar = &scroll;
     s_animation_header* screen_seg = nullptr;
     int16_t PLAYER_NUM;
-    int16_t planet_count;
+
     int16_t scanned_field;
     int16_t ship_stack_count;
     int16_t NUM_SHIPS;
@@ -58,7 +59,8 @@ namespace TEST_PLNTSUM {
 
     void Reset_() {
         memset(players, 0, sizeof(players));
-        memset(planets, 0, sizeof(planets));
+        game::world.planets.clear();
+        game::world.next_planet_id = 0;
         memset(stars, 0, sizeof(stars));
         memset(colonies, 0, sizeof(colonies));
         memset(ships, 0, sizeof(ships));
@@ -88,14 +90,14 @@ namespace TEST_PLNTSUM {
         for (auto& star : stars) {
             memset(star.officer_index, 0xFF, sizeof(star.officer_index));
             for (int orbit = 0; orbit < 5; ++orbit) {
-                star.planet_index[orbit] = -1;
+                star.planet_index[orbit] = ::game::NO_PLANET;
             }
         }
         for (bool& reachable : in_range) {
             reachable = true;
         }
         MOX::PLAYER_NUM = 0;
-        MOX::planet_count = 0;
+        test::Resize_Planets(&::game::world, 0);
         MOX::ship_stack_count = 0;
         MOX::NUM_SHIPS = 0;
         MOX::NUM_STARS = 0;
@@ -169,7 +171,7 @@ namespace SHIPMOVE {
         move_info->turns_left = 2;
     }
 
-    void __cdecl Make_Ships_Move_To(int16_t* ship_list, int16_t star_idx, s_ship_move_info*) {
+    void __cdecl Make_Ships_Move_To(::game::s_world_state* world_state, int16_t* ship_list, int16_t star_idx, s_ship_move_info*) {
         TEST_PLNTSUM::moved_ship = ship_list[0];
         TEST_PLNTSUM::moved_to_star = star_idx;
         s_ship_data* ship = &MOX::ship[ship_list[0]];
@@ -201,7 +203,7 @@ namespace HACCESS {
 } // namespace HACCESS
 
 namespace COLCALC {
-    void __cdecl Compute_Star_Colony_Stuff(s_star_data*) {}
+    void __cdecl Compute_Star_Colony_Stuff(::game::s_world_state* world_state, s_star_data*) {}
 
     int16_t __cdecl Planet_Max_Population_For_Player(s_planet_data*, int16_t) {
         return 10;
@@ -209,7 +211,7 @@ namespace COLCALC {
 } // namespace COLCALC
 
 namespace EVENTS {
-    void __cdecl Kill_All_Events_At_Colony(int16_t) {}
+    void __cdecl Kill_All_Events_At_Colony(::game::s_world_state* world_state, int16_t) {}
 
     int16_t __cdecl Event_Check_Hyperspace_Flux() {
         return TEST_PLNTSUM::hyperspace_flux;

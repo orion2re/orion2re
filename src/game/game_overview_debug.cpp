@@ -49,7 +49,7 @@ namespace GAME_OVERVIEW_DEBUG {
             }
         }
 
-        void Draw_Game_Stats_() {
+        void Draw_Game_Stats_(::game::s_world_state* world_state) {
             const int16_t player_count =
                 std::clamp<int16_t>(MOX::NUM_PLAYERS, 0, MAX_PLAYERS);
             int16_t active_players = 0;
@@ -73,7 +73,7 @@ namespace GAME_OVERVIEW_DEBUG {
                 Draw_Count_("Active players", active_players);
                 Draw_Count_("Player slots", player_count);
                 Draw_Count_("Stars", std::clamp<int16_t>(MOX::NUM_STARS, 0, MAX_STARS));
-                Draw_Count_("Planets", std::clamp<int16_t>(MOX::planet_count, 0, MAX_PLANETS));
+                Draw_Count_("Planets", std::clamp<int16_t>(::game::Planet_Count(world_state), 0, MAX_PLANETS));
                 Draw_Count_("Colonies", std::clamp<int16_t>(MOX::NUM_COLONIES, 0, MAX_COLONIES));
                 Draw_Count_("Ships", std::clamp<int16_t>(MOX::NUM_SHIPS, 0, MAX_SHIPS));
                 ImGui::EndTable();
@@ -155,7 +155,7 @@ namespace GAME_OVERVIEW_DEBUG {
                 ImGui::TableNextRow();
                 ImGui::TableSetColumnIndex(0);
                 ImGui::TextUnformatted("Game");
-                Draw_Game_Stats_();
+                Draw_Game_Stats_(&::game::world);
                 ImGui::TableSetColumnIndex(1);
                 ImGui::TextUnformatted("Network");
                 Draw_Network_Stats_();

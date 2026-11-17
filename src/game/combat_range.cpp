@@ -26,7 +26,7 @@ namespace CMBTAI {
         int32_t is_large2 = 0;
         int32_t is_huge2 = 0;
 
-        COMBINIT::Ship_Center_Offsets(ship1_idx, &w1, &h1);
+        COMBINIT::Ship_Center_Offsets(&::game::world, ship1_idx, &w1, &h1);
         int16_t x1 = MOX::combat_data[ship1_idx].x;
         int16_t y1 = MOX::combat_data[ship1_idx].y;
 
@@ -39,7 +39,7 @@ namespace CMBTAI {
             y1++;
         }
 
-        COMBINIT::Ship_Center_Offsets(ship2_idx, &w2, &h2);
+        COMBINIT::Ship_Center_Offsets(&::game::world, ship2_idx, &w2, &h2);
         int16_t x2 = MOX::combat_data[ship2_idx].x;
         int16_t y2 = MOX::combat_data[ship2_idx].y;
 
@@ -117,7 +117,7 @@ namespace CMBTAI {
     int16_t __cdecl Range_To_XY(int16_t ship_idx, int16_t target_x_px, int16_t target_y_px) {
         int16_t center_x_offset;
         int16_t center_y_offset;
-        COMBINIT::Ship_Center_Offsets(
+        COMBINIT::Ship_Center_Offsets(&::game::world, 
             ship_idx, &center_x_offset, &center_y_offset);
         return Range_To_XY_With_Offset(
             ship_idx,
