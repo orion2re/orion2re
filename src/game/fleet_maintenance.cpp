@@ -1,5 +1,7 @@
 #include "pch.h"
 
+#include "legacy_world.h"
+
 namespace maintain {
     bool __cdecl Ship_Is_At_Colony(s_ship_data* ship) {
         int16_t star_id;
@@ -92,7 +94,13 @@ namespace maintain {
 
                 if (cheapest_ship->officer_index != -1) {
                     int16_t officer_idx = cheapest_ship->officer_index;
-                    aileader::Reassign_Fleet_Officer(player_idx, officer_idx);
+                    const game::s_view world{
+                        .players = MOX::player,
+                        .ships = MOX::ship,
+                        .leaders = MOX::leaders,
+                        .ship_count = &MOX::NUM_SHIPS,
+                    };
+                    aileader::Reassign_Fleet_Officer(&world, legacy_world::Player_Id(player_idx), legacy_world::Leader_Id(officer_idx));
 
                     if (cheapest_ship->officer_index == officer_idx) {
                         OFFICER::Move_Officer_To_Pool(officer_idx);

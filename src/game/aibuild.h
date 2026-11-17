@@ -1,10 +1,19 @@
 #pragma once
 
 #include "production_rules.h"
+#include "aidata_state.h"
 
 namespace AIBUILD {
     constexpr int32_t AUTOBUILD_CANDIDATE_COUNT = BUILDING_COUNT + 2;
-    constexpr int32_t STRATEGIC_ALLOCATION_CANDIDATE_COUNT = 6;
+    enum e_allocation_candidate : uint8_t {
+        ALLOCATION_COMBAT_SHIPS,
+        ALLOCATION_FREIGHTERS,
+        ALLOCATION_REFITS,
+        ALLOCATION_SPIES,
+        ALLOCATION_TRANSPORTS,
+        ALLOCATION_DEFER,
+        STRATEGIC_ALLOCATION_CANDIDATE_COUNT,
+    };
     constexpr int32_t EMERGENCY_DEFENSE_PRODUCT_COUNT = 8;
 
     struct s_autobuild_rules {
@@ -40,58 +49,66 @@ namespace AIBUILD {
         s_strategic_allocation allocation;
     };
 
-    extern s_autobuild_rules autobuild_rules;
-    extern s_strategic_production strategic_production;
-    extern uint8_t difficulty_ship_design[12];
-    extern int8_t difficulty_intel_bias[8];
-    extern uint8_t player_ship_size_table[9];
-    extern s_player_ship_sizes player_ship_sizes[MAX_PLAYERS];
-    extern int32_t player_total_strength_vs_colonies[MAX_PLAYERS];
-    extern uint8_t player_n_transports[MAX_PLAYERS][2];
-    extern int8_t player_n_freighter_groups_wanted[MAX_PLAYERS];
-    extern uint8_t player_n_spies[MAX_PLAYERS][2];
-    extern uint8_t player_n_colony_ships[MAX_PLAYERS][3];
-    extern int32_t player_total_strength_vs_ships[MAX_PLAYERS][3];
+    struct s_rules {
+        s_autobuild_rules autobuild = {};
+        s_strategic_production strategic = {};
+        uint8_t ship_upgrade_bonus[GAME_DIFFICULTY_COUNT] = {2, 10, 35, 50, 115};
+        int8_t human_opponent_bias[GAME_DIFFICULTY_COUNT] = {1, 1, 2, 3, 4};
+        uint8_t hull_size_weights[HULL_CLASS_COUNT] = {1, 2, 3, 5, 8, 13, 0, 0, 0};
+        bool colony_bases_prewarp = false;
+    };
+
+    extern s_rules rules;
+
+    struct s_opponent_view {
+        const s_player* players;
+        uint32_t player_count;
+        uint8_t human_opponent_bias;
+    };
+
+    s_opponent_view Opponents(const game::s_view* world);
 
     /** Returns the refit cost for replacing one ship design with another.
-     * @param player_idx Player paying for the refit.
+     * @param owner Player paying for the refit.
      * @param old_design Existing ship design.
      * @param new_design Replacement ship design.
      */
-    int16_t __cdecl Refit_Cost(int16_t player_idx, struct s_ship_design* old_design, struct s_ship_design* new_design);
+    int16_t __cdecl Refit_Cost(const s_player* owner, const struct s_ship_design* old_design, const struct s_ship_design* new_design);
 
     /** Returns an average strength estimate for a ship against relevant opponents.
      * @param ship Ship whose combat strength is being evaluated.
      */
-    int16_t __cdecl Mean_Ship_Strength(struct s_ship_data* ship);
+    int16_t __cdecl Mean_Ship_Strength(const s_opponent_view* opponents, const AIDATA::s_ship_assessment* assessment,
+        const AIDATA::s_empire_assessment* owner_info, const struct s_ship_data* ship);
 
     /** Computes build-related needs for one AI player.
      * @param player_idx Player index to evaluate.
      */
-    void __cdecl Compute_Needs(int16_t player_idx);
+    void Compute_Needs(AIDATA::s_state* ai, const game::s_view* world, game::id_player player_idx);
 
     /** Recomputes empire-wide build needs for all AI players. */
-    void __cdecl Compute_Empire_Building_Needs();
+    void __cdecl Compute_Empire_Building_Needs(AIDATA::s_state* ai, const game::s_view* world);
 
     /** Returns the highest hostile treaty state currently affecting a player.
      * @param player_idx Player index to inspect.
      */
-    int16_t __cdecl Player_War_Level(int16_t player_idx);
+    int16_t Player_War_Level(const game::s_view* world, game::id_player player_idx);
 
     /** Computes whether a player currently needs more colony ships.
-     * @param player_idx Player index to evaluate.
+     * @param needs Production needs to update.
      */
-    void __cdecl Compute_Colony_Ship_Need(int16_t player_idx);
+    void __cdecl Compute_Colony_Ship_Need(AIDATA::s_build_needs* needs);
 
     /** Computes how many freighter groups a player still needs.
-     * @param player_idx Player index to evaluate.
+     * @param needs Production needs to update.
+     * @param surplus_freighters Current empire freighter surplus.
      */
-    void __cdecl Compute_Freighter_Need(int16_t player_idx);
+    void __cdecl Compute_Freighter_Need(AIDATA::s_build_needs* needs, int16_t surplus_freighters);
 
     /** Buys out eligible colony production for one player while funds allow.
      * @param player_idx Player index whose colonies may buy production outright.
      */
-    void __cdecl Empire_Buy_Outright(int16_t player_idx);
+    void Empire_Buy_Outright(AIDATA::s_state* ai, const game::s_view* world, game::id_player player_idx);
 
     /** Marks which buildings a colony is currently allowed to construct.
      * @param colony Colony to inspect.
@@ -103,29 +120,29 @@ namespace AIBUILD {
      * @param colony Colony being evaluated.
      * @param building_id Building or product id to score.
      */
-    int16_t __cdecl Colony_Building_Score(struct s_colony* colony, int16_t building_id);
+    int16_t __cdecl Colony_Building_Score(AIDATA::s_state* ai, const game::s_view* world, game::id_colony colony_id, struct s_colony* colony, int16_t building_id);
 
     /** Builds normalized deterministic production facts for one colony.
      * @param colony Colony to inspect.
      * @param war_level Effective strategic war level, or minus one to calculate it.
      * @param context Output production context.
      */
-    void Build_Production_Context(const struct s_colony* colony, int32_t war_level, production_rules::s_context* context);
+    void Build_Production_Context(AIDATA::s_state* ai, const game::s_view* world, game::id_colony colony_id, const struct s_colony* colony, int32_t war_level, production_rules::s_context* context);
 
     /** Reassigns colony production when the current build should be replaced.
      * @param colony Colony whose production is being checked.
      */
-    void __cdecl Assign_Colony_Building(struct s_colony* colony);
+    void __cdecl Assign_Colony_Building(AIDATA::s_state* ai, const game::s_view* world, game::id_colony colony_id, struct s_colony* colony);
 
     /** Chooses a new production target for a colony.
      * @param colony Colony whose production is being assigned.
      */
-    void __cdecl Assign_Colony_New_Building(struct s_colony* colony);
+    void __cdecl Assign_Colony_New_Building(AIDATA::s_state* ai, const game::s_view* world, game::id_colony colony_id, struct s_colony* colony);
 
     /** Returns whether a colony contains foreign population from a treaty partner.
      * @param colony Colony to inspect.
      */
-    bool __cdecl Colony_Is_Conquered(struct s_colony* colony);
+    bool __cdecl Colony_Is_Conquered(const game::s_view* world, struct s_colony* colony);
 
     /** Forces one listed colony to switch to a specific production item.
      * @param id_list List of colony indexes to update.
@@ -133,7 +150,7 @@ namespace AIBUILD {
      * @param list_count Number of active ids in the list.
      * @param production_id Product id to assign.
      */
-    void __cdecl Force_Produce(int16_t* id_list, int16_t list_index, int32_t* list_count, int16_t production_id);
+    void __cdecl Force_Produce(const game::s_view* world, game::id_colony* id_list, uint32_t list_index, int32_t* list_count, int16_t production_id);
 
     /** Returns a simple industry value estimate for a colony.
      * @param colony Colony to evaluate.
@@ -148,5 +165,5 @@ namespace AIBUILD {
     /** Assigns a fresh autobuild target without recalculating current-turn production.
      * @param colony Colony to update.
      */
-    void __cdecl Player_Colony_Autobuild(s_colony* colony);
+    void __cdecl Player_Colony_Autobuild(AIDATA::s_state* ai, const game::s_view* world, game::id_colony colony_id, s_colony* colony);
 } // namespace AIBUILD

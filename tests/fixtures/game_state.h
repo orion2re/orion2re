@@ -1,6 +1,7 @@
 #pragma once
 
 #include "pch.h"
+#include "game/legacy_world.h"
 #include "lua/lua_game_ship_identity.h"
 
 namespace test {
@@ -53,6 +54,7 @@ namespace test {
         int16_t old_colony_count = MOX::NUM_COLONIES;
         int32_t old_stardate = MOX::stardate;
         uint32_t old_seed = game_random::Get_Random_Seed();
+        game::s_view old_world = game::current;
 
         s_game_state() {
             MOX::player = players.data();
@@ -74,6 +76,7 @@ namespace test {
                 leader.player_index = -1;
                 leader.status = -1;
             }
+            game::current = legacy_world::World();
         }
 
         ~s_game_state() {
@@ -93,6 +96,7 @@ namespace test {
             MOX::NUM_COLONIES = old_colony_count;
             MOX::stardate = old_stardate;
             game_random::Set_Random_Seed(old_seed);
+            game::current = old_world;
         }
 
         s_game_state(const s_game_state&) = delete;

@@ -1,13 +1,14 @@
 #include "pch.h"
 
+#include "legacy_world.h"
+
 #include "game/tech.h"
 
 namespace aitech {
-    uint8_t ai_hypertech_threshold[TECH_APP_COUNT - TECH_APP_BIOLOGY] = {};
 
-    static bool AI_Hypertech_Thresholds_Reached(const s_player* player) {
+    static bool AI_Hypertech_Thresholds_Reached(const s_rules* research_rules, const s_player* player) {
         for (int32_t i = 0; i < TECH_APP_COUNT - TECH_APP_BIOLOGY; ++i) {
-            if (player->hyper_advanced_tech[i] < ai_hypertech_threshold[i]) {
+            if (player->hyper_advanced_tech[i] < research_rules->hypertech_threshold[i]) {
                 return false;
             }
         }
@@ -15,17 +16,19 @@ namespace aitech {
         return true;
     }
 
-    static int16_t Choose_AI_Tech_Application(int16_t player_idx, s_player* player) {
-        int16_t app_id = newtech::Choose_Tech_Application(player_idx);
+    static int16_t Choose_AI_Tech_Application(const s_rules* research_rules, game::id_player player_id, s_player* player) {
+        const auto legacy_player = legacy_world::Index(player_id);
+        if (!legacy_player) return -1;
+        int16_t app_id = newtech::Choose_Tech_Application(*legacy_player);
 
         while (app_id >= TECH_APP_BIOLOGY && app_id <= TECH_APP_SOCIOLOGY) {
             int32_t hypertech_idx = app_id - TECH_APP_BIOLOGY;
             if (player->hyper_advanced_tech[hypertech_idx] <
-                ai_hypertech_threshold[hypertech_idx]) {
+                research_rules->hypertech_threshold[hypertech_idx]) {
                 return app_id;
             }
 
-            if (AI_Hypertech_Thresholds_Reached(player)) {
+            if (AI_Hypertech_Thresholds_Reached(research_rules, player)) {
                 player->do_not_research = 1;
                 return app_id;
             }
@@ -36,7 +39,7 @@ namespace aitech {
         return app_id;
     }
 
-    void __cdecl AI_Tech_Select(s_player* player) {
+    void __cdecl AI_Tech_Select(const game::s_view* world, s_player* player) {
         bool needs_new_tech = false;
 
         // Check if current field research is completed or if a new app was recently acquired
@@ -49,8 +52,8 @@ namespace aitech {
         player->got_new_app = 0;
 
         if (needs_new_tech) {
-            int16_t player_idx = (int16_t)(player - MOX::player);
-            int16_t app_id = Choose_AI_Tech_Application(player_idx, player);
+            const uint32_t player_idx = (uint32_t)(player - world->players);
+            int16_t app_id = Choose_AI_Tech_Application(&rules, legacy_world::Player_Id(player_idx), player);
 
             player->current_research_application = (int8_t)app_id;
 

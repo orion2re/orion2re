@@ -63,6 +63,10 @@ target_include_directories(orion2re_test_config_defaults PRIVATE
 target_link_libraries(orion2re_test_config_defaults PRIVATE SDL3::Headers)
 orion2re_enable_sanitizers(orion2re_test_config_defaults)
 
+orion2re_test_shared_sources(ORION2RE_AI_STATE_OBJECTS src/game/aidata_state.cpp src/game/world_view.cpp src/game/legacy_location.cpp src/game/legacy_identity.cpp)
+add_library(orion2re_test_ai_state STATIC ${ORION2RE_AI_STATE_OBJECTS})
+orion2re_enable_sanitizers(orion2re_test_ai_state)
+
 function(orion2re_add_unit_test TARGET_NAME)
     cmake_parse_arguments(ORION2RE_TEST "LINK_SDL" "" "SOURCES;PRODUCTION_SOURCES;FAKE_SOURCES;LIBRARIES" ${ARGN})
 
@@ -113,6 +117,7 @@ function(orion2re_add_unit_test TARGET_NAME)
 
     target_link_libraries(${TARGET_NAME} PRIVATE
         orion2re_test_config_defaults
+        orion2re_test_ai_state
         ${ORION2RE_TEST_LIBRARIES}
     )
     orion2re_enable_sanitizers(${TARGET_NAME})
@@ -227,13 +232,45 @@ orion2re_add_game_test(test_resource_reload
 )
 
 
-orion2re_add_unit_test(test_ai_state
+orion2re_add_unit_test(test_aidata_state
     SOURCES
-        tests/unit/ai_state_test.cpp
+        tests/unit/aidata_state_test.cpp
     PRODUCTION_SOURCES
-        src/game/ai_state.cpp
-    FAKE_SOURCES
-        tests/fakes/fake_ai_state_runtime.cpp
+        src/game/aidata_state.cpp
+)
+
+orion2re_add_unit_test(test_legacy_qsort
+    SOURCES
+        tests/unit/legacy_qsort_test.cpp
+    PRODUCTION_SOURCES
+        src/game/compat.cpp
+    LINK_SDL
+)
+
+orion2re_add_unit_test(test_aidata_routes
+    SOURCES
+        tests/unit/aidata_routes_test.cpp
+    PRODUCTION_SOURCES
+        src/game/aidata_routes.cpp
+)
+
+orion2re_add_unit_test(test_ai_inputs
+    SOURCES
+        tests/unit/ai_inputs_test.cpp
+    PRODUCTION_SOURCES
+        src/game/ai_compat.cpp
+        src/game/aimove_fleet.cpp
+        src/game/fleet_movement.cpp
+        src/game/random.cpp
+)
+
+orion2re_add_game_test(test_ai_assessments
+    tests/unit/ai_assessments_test.cpp
+    tests/unit/ai_compat_test.cpp
+)
+
+orion2re_add_game_test(test_random
+    tests/unit/random_test.cpp
 )
 
 orion2re_add_unit_test(test_config_arena_runtime
@@ -882,6 +919,8 @@ orion2re_add_unit_test(test_aimove
         src/game/legacy_sort.cpp
         src/game/special.cpp
         src/game/angle.cpp
+        src/game/ai_compat.cpp
+        src/game/fleet_movement.cpp
     FAKE_SOURCES
         tests/fakes/fake_aimove_runtime.cpp
 )

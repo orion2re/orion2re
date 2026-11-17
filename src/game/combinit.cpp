@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "legacy_ids.h"
 
 namespace {
     constexpr int kPlayerRemapPaletteStart = 144;
@@ -226,7 +227,7 @@ namespace COMBINIT {
 
         if (strategic_combat) {
             MOX::global_combat_data.structure_max =
-                AIPOWER::Max_Ship_Hits(ship_idx);
+                AIPOWER::Max_Ship_Hits(&game::current, legacy_world::Ship_Id(ship_idx));
             MOX::global_combat_data.armor_remaining = 0;
         } else {
             MOX::global_combat_data.structure_max =

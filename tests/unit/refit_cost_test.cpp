@@ -2,56 +2,128 @@
 
 #include "doctest/doctest.h"
 
+using legacy_world::Colony_Id;
+
 namespace TEST_AIBUILD_CONTEXT {
+    AIDATA::s_state* State_();
+    const game::s_view* World_();
     void Reset_();
 }
 
 namespace {
     struct s_refit_runtime {
+        game::s_view saved_world = game::current;
         s_player* saved_players = MOX::player;
         s_colony* saved_colonies = MOX::colony;
         s_planet_data* saved_planets = MOX::planet;
         s_current_design* saved_design = MOX::design;
         int16_t saved_num_players = MOX::NUM_PLAYERS;
         int32_t saved_stardate = MOX::stardate;
-        decltype(AIDATA::ai_colony_info) saved_ai_colonies = AIDATA::ai_colony_info;
-        decltype(AIDATA::ai_star_info) saved_ai_stars = AIDATA::ai_star_info;
-        decltype(AIDATA::enroute_human_ships) saved_enroute = AIDATA::enroute_human_ships;
 
         s_refit_runtime() { TEST_AIBUILD_CONTEXT::Reset_(); }
 
         ~s_refit_runtime() {
+            game::current = saved_world;
             MOX::player = saved_players;
             MOX::colony = saved_colonies;
             MOX::planet = saved_planets;
             MOX::design = saved_design;
             MOX::NUM_PLAYERS = saved_num_players;
             MOX::stardate = saved_stardate;
-            AIDATA::ai_colony_info = saved_ai_colonies;
-            AIDATA::ai_star_info = saved_ai_stars;
-            AIDATA::enroute_human_ships = saved_enroute;
         }
     };
+}
+
+DOCTEST_TEST_CASE("production facts use the supplied colony identity, not its address") {
+    TEST_AIBUILD_CONTEXT::Reset_();
+    auto* ai = TEST_AIBUILD_CONTEXT::State_();
+    constexpr auto id = Colony_Id(0x12345678u);
+    ai->colonies[id] = ai->colonies.at(Colony_Id(0));
+    ai->colonies[id].population_limit = 21;
+    s_colony detached = MOX::colony[0];
+    production_rules::s_context context;
+    AIBUILD::Build_Production_Context(ai, TEST_AIBUILD_CONTEXT::World_(), id, &detached, 0, &context);
+    DOCTEST_CHECK(context.metrics[production_rules::METRIC_POPULATION_LIMIT] == 21);
+    DOCTEST_CHECK(ai->colonies.size() == 2);
 }
 
 DOCTEST_TEST_CASE_FIXTURE(s_refit_runtime, "Food Replicator defaults do not gate eligibility on local food") {
     TEST_AIBUILD_CONTEXT::Reset_();
     production_rules::s_context context;
     production_rules::s_candidate* candidate =
-        &AIBUILD::autobuild_rules.candidates[BUILDING_FOOD_REPLICATORS];
+        &AIBUILD::rules.autobuild.candidates[BUILDING_FOOD_REPLICATORS];
 
     MOX::colony[0].production[ECON_FOOD] = 7;
     MOX::colony[0].n_food_replicated = 3;
-    AIBUILD::Build_Production_Context(&MOX::colony[0], 0, &context);
+    AIBUILD::Build_Production_Context(TEST_AIBUILD_CONTEXT::State_(), TEST_AIBUILD_CONTEXT::World_(), Colony_Id(0), &MOX::colony[0], 0, &context);
     DOCTEST_CHECK(context.metrics[production_rules::METRIC_COLONY_FOOD] == 4);
     DOCTEST_CHECK(production_rules::Evaluate_Eligibility(
         &context, &candidate->eligibility));
 
     MOX::colony[0].production[ECON_FOOD] = 6;
-    AIBUILD::Build_Production_Context(&MOX::colony[0], 0, &context);
+    AIBUILD::Build_Production_Context(TEST_AIBUILD_CONTEXT::State_(), TEST_AIBUILD_CONTEXT::World_(), Colony_Id(0), &MOX::colony[0], 0, &context);
     DOCTEST_CHECK(context.metrics[production_rules::METRIC_COLONY_FOOD] == 3);
     DOCTEST_CHECK(production_rules::Evaluate_Eligibility(
         &context, &candidate->eligibility));
+}
+
+DOCTEST_TEST_CASE("named AI production needs distinguish totals from additional demand") {
+    TEST_AIBUILD_CONTEXT::Reset_();
+    auto* ai = TEST_AIBUILD_CONTEXT::State_();
+    auto& needs = ai->players[0].build;
+    needs.combat_strength.total = 40;
+    needs.combat_strength.excluding_queued_builds = 30;
+    needs.combat_strength.additional_wanted = 15;
+    needs.spies.current = 8;
+    needs.spies.additional_wanted = 3;
+    needs.transports.current = 5;
+    needs.transports.additional_wanted = 2;
+    needs.colony_ships.current = 4;
+    needs.colony_ships.enroute = 1;
+
+    production_rules::s_context context{};
+    AIBUILD::Build_Production_Context(ai, TEST_AIBUILD_CONTEXT::World_(), Colony_Id(0), &MOX::colony[0], 0, &context);
+    DOCTEST_CHECK(context.metrics[production_rules::METRIC_CURRENT_STRENGTH] == 40);
+    DOCTEST_CHECK(context.metrics[production_rules::METRIC_COMBAT_NEED] == 15);
+    DOCTEST_CHECK(context.metrics[production_rules::METRIC_DESIRED_STRENGTH] == 55);
+    DOCTEST_CHECK(context.metrics[production_rules::METRIC_SPY_NEED] == 3);
+    DOCTEST_CHECK(context.metrics[production_rules::METRIC_TRANSPORT_NEED] == 2);
+    DOCTEST_CHECK(context.metrics[production_rules::METRIC_EXISTING_COLONY_SHIPS] == 4);
+}
+
+DOCTEST_TEST_CASE("public presence metrics distinguish hostile neutral and treaty-partner players") {
+    TEST_AIBUILD_CONTEXT::Reset_();
+    auto* ai = TEST_AIBUILD_CONTEXT::State_();
+    auto& neighborhood = ai->stars[legacy_world::Star_Id(0)].neighborhood.per_player[0];
+    neighborhood.treaty_partners_in_range = 2;
+    neighborhood.neutral_players_in_range = 1;
+    neighborhood.hostile_players_in_range = 3;
+    neighborhood.players_only_in_extended_range = 4;
+    production_rules::s_context context;
+    AIBUILD::Build_Production_Context(ai, TEST_AIBUILD_CONTEXT::World_(), Colony_Id(0), &MOX::colony[0], 0, &context);
+    DOCTEST_CHECK(context.metrics[production_rules::METRIC_ENEMY_PRESENCE] == 3);
+    DOCTEST_CHECK(context.metrics[production_rules::METRIC_NEUTRAL_PRESENCE] == 1);
+    DOCTEST_CHECK(context.metrics[production_rules::METRIC_ALLIED_PRESENCE] == 2);
+    DOCTEST_CHECK(context.metrics[production_rules::METRIC_OUT_OF_RANGE_PRESENCE] == 4);
+    DOCTEST_CHECK(context.metrics[production_rules::METRIC_LOCAL_THREAT] == 31);
+
+    production_rules::s_eligibility eligibility{};
+    eligibility.all.thresholds[production_rules::METRIC_ENEMY_PRESENCE] = {production_rules::COMPARISON_GT, 2};
+    eligibility.all.thresholds[production_rules::METRIC_ALLIED_PRESENCE] = {production_rules::COMPARISON_EQ, 2};
+    DOCTEST_CHECK(production_rules::Evaluate_Eligibility(&context, &eligibility));
+}
+
+DOCTEST_TEST_CASE("colony ship and freighter needs use current and enroute ship counts") {
+    TEST_AIBUILD_CONTEXT::Reset_();
+    AIDATA::s_build_needs needs{};
+    AIBUILD::Compute_Colony_Ship_Need(&needs);
+    DOCTEST_CHECK(needs.colony_ships.additional_wanted == 1);
+    needs.colony_ships.enroute = 2;
+    MOX::player[0].surplus_freighters = -1;
+    AIBUILD::Compute_Freighter_Need(&needs, MOX::player[0].surplus_freighters);
+    DOCTEST_CHECK(needs.freighter_groups_wanted == 1);
+    DOCTEST_CHECK(needs.colony_ships.current == 0);
+    DOCTEST_CHECK(needs.colony_ships.enroute == 2);
 }
 
 DOCTEST_TEST_CASE_FIXTURE(s_refit_runtime, "Battle Pods combat speed uses the configured overload rules") {
@@ -149,16 +221,16 @@ DOCTEST_TEST_CASE_FIXTURE(s_refit_runtime, "refit cost uses the corrected shared
     downgrade.cost = 80;
 
     DESIGN::alternative_refit = 0;
-    DOCTEST_CHECK(AIBUILD::Refit_Cost(0, &old_design, &small_upgrade) == 25);
-    DOCTEST_CHECK(AIBUILD::Refit_Cost(1, &old_design, &small_upgrade) == 17);
-    DOCTEST_CHECK(AIBUILD::Refit_Cost(0, &old_design, &large_upgrade) == 60);
-    DOCTEST_CHECK(AIBUILD::Refit_Cost(0, &old_design, &downgrade) == 25);
+    DOCTEST_CHECK(AIBUILD::Refit_Cost(&MOX::player[0], &old_design, &small_upgrade) == 25);
+    DOCTEST_CHECK(AIBUILD::Refit_Cost(&MOX::player[1], &old_design, &small_upgrade) == 17);
+    DOCTEST_CHECK(AIBUILD::Refit_Cost(&MOX::player[0], &old_design, &large_upgrade) == 60);
+    DOCTEST_CHECK(AIBUILD::Refit_Cost(&MOX::player[0], &old_design, &downgrade) == 25);
 
     DESIGN::alternative_refit = 1;
-    DOCTEST_CHECK(AIBUILD::Refit_Cost(0, &old_design, &small_upgrade) == 30);
-    DOCTEST_CHECK(AIBUILD::Refit_Cost(1, &old_design, &small_upgrade) == 22);
-    DOCTEST_CHECK(AIBUILD::Refit_Cost(0, &old_design, &large_upgrade) == 55);
-    DOCTEST_CHECK(AIBUILD::Refit_Cost(0, &old_design, &downgrade) == 25);
+    DOCTEST_CHECK(AIBUILD::Refit_Cost(&MOX::player[0], &old_design, &small_upgrade) == 30);
+    DOCTEST_CHECK(AIBUILD::Refit_Cost(&MOX::player[1], &old_design, &small_upgrade) == 22);
+    DOCTEST_CHECK(AIBUILD::Refit_Cost(&MOX::player[0], &old_design, &large_upgrade) == 55);
+    DOCTEST_CHECK(AIBUILD::Refit_Cost(&MOX::player[0], &old_design, &downgrade) == 25);
 
     DESIGN::alternative_refit = 0;
     TECHDATA::hull_data[HULL_FRIGATE].cost = saved_hull_cost;
@@ -206,7 +278,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_refit_runtime, "refit minimum reduction is limited t
     s_ship_design new_design = old_design;
     new_design.cost = 105;
 
-    DOCTEST_CHECK(AIBUILD::Refit_Cost(0, &old_design, &new_design) == 30);
+    DOCTEST_CHECK(AIBUILD::Refit_Cost(&MOX::player[0], &old_design, &new_design) == 30);
 
     DESIGN::alternative_refit = 0;
     TECHDATA::hull_data[HULL_FRIGATE].cost = saved_hull_cost;

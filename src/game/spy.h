@@ -76,7 +76,7 @@ namespace spy {
     void __cdecl Compute_Spy_Bonuses(s_player* player, int16_t* defense_bonus_out, int16_t* attack_bonus_out);
 
     /* Resolves the turn's global spy phase for all active players. */
-    void __cdecl Resolve_Spies();
+    void __cdecl Resolve_Spies(const AIDATA::s_player_assessment* players);
 
     extern int16_t spy_bonuses[16];
 
@@ -91,7 +91,7 @@ namespace spy {
     /* Allocates an AI player's available spies across home and foreign targets.
      * @param player AI player whose spies are being reassigned.
      */
-    void __cdecl Allocate_AI_Spies(s_player* player);
+    void __cdecl Allocate_AI_Spies(s_player* player, int16_t contact_count);
 
     /* Resolves all spy actions currently targeting the given player.
      * @param player Player whose incoming spy actions are processed.

@@ -1,5 +1,7 @@
 #include "pch.h"
 
+#include "legacy_world.h"
+
 namespace NEXTTURN {
     int16_t Get_Winner() {
         if (diplodef::council_winner != -1) {
@@ -34,12 +36,14 @@ namespace NEXTTURN {
     }
 
     void Next_Turn() {
+        const auto world = legacy_world::World();
+        if (!Validate_Turn_Inputs(&world)) return;
         if (MOX::game_type == 0 || MOX::game_type == 1) {
             Do_Autosave();
         }
 
         HAROLD::Confirm_Planet_And_Star_Index_Link(HAROLD::s_in_next_turn);
-        Next_Turn_Calc();
+        if (!Next_Turn_Calc()) return;
 
         MOX::current_screen = MOX::return_screen;
 

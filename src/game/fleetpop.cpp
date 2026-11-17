@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "legacy_ids.h"
 
 namespace FLEETPOP {
     uint8_t n_added_buttons;
@@ -43,8 +44,8 @@ namespace FLEETPOP {
         int16_t draw_x = x_offset + x;
         int16_t draw_y = y + y_offset - 5;
 
-        int16_t max_hits = AIPOWER::Max_Ship_Hits(ship_idx);
-        int16_t current_hits = AIPOWER::Current_Ship_Hits(ship_idx);
+        int16_t max_hits = AIPOWER::Max_Ship_Hits(&game::current, legacy_world::Ship_Id(ship_idx));
+        int16_t current_hits = AIPOWER::Current_Ship_Hits(&game::current, legacy_world::Ship_Id(ship_idx));
 
         int16_t green_width = (static_cast<int>(current_hits) * effective_width) / max_hits;
         if (green_width < 2) {

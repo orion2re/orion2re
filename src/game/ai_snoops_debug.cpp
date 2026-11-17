@@ -1,5 +1,7 @@
 #include "pch.h"
 
+#include "legacy_world.h"
+
 #if defined(ORION2RE_ENABLE_DEBUG_OVERLAY)
 #include <imgui.h>
 
@@ -12,10 +14,8 @@ namespace AI_SNOOPS_DEBUG {
         int g_dest_star = 0;
         int g_ship = 0;
 
-        const ai_state::s_snapshot* Snapshot_() {
-            const ai_state::s_snapshot* snapshot = ai_state::Get_Completed();
-            if (snapshot == nullptr) snapshot = ai_state::Get_Active();
-            return ai_state::Is_Valid(snapshot) ? snapshot : nullptr;
+        const AIDATA::s_state* State_() {
+            return AIDATA::state.initialized ? &AIDATA::state : nullptr;
         }
 
         const char* Objective_Name_(int objective) {
@@ -31,22 +31,23 @@ namespace AI_SNOOPS_DEBUG {
             }
         }
 
-        void Draw_Colony_Assessments_(const ai_state::s_snapshot* snapshot) {
-            if (ImGui::BeginTable("colony_assessments", 8,
+        void Draw_Colony_Assessments_(const AIDATA::s_state* ai) {
+            if (ImGui::BeginTable("colony_assessments", 7,
                     ImGuiTableFlags_RowBg | ImGuiTableFlags_Borders |
                         ImGuiTableFlags_ScrollY | ImGuiTableFlags_SizingStretchProp,
                     ImVec2(0.0f, 410.0f))) {
                 ImGui::TableSetupColumn("Colony");
                 ImGui::TableSetupColumn("Race");
                 ImGui::TableSetupColumn("Pop limit");
-                ImGui::TableSetupColumn("Threatened");
-                ImGui::TableSetupColumn("Flagged pops");
-                ImGui::TableSetupColumn("Food buildings applicable");
-                ImGui::TableSetupColumn("Unused 0x3");
-                ImGui::TableSetupColumn("Pollution controls applicable");
+                ImGui::TableSetupColumn("Other-player arrivals");
+                ImGui::TableSetupColumn("Conquered population");
+                ImGui::TableSetupColumn("Food buildings relevant");
+                ImGui::TableSetupColumn("Pollution controls relevant");
                 ImGui::TableHeadersRow();
-                for (int colony = 0; colony < snapshot->colony_count; ++colony) {
-                    const s_ai_colony_info& info = (*snapshot->ai_colony_info)[colony];
+                for (int colony = 0; colony < MOX::NUM_COLONIES; ++colony) {
+                    auto entry = ai->colonies.find(legacy_world::Colony_Id(colony));
+                    if (entry == ai->colonies.end()) continue;
+                    const AIDATA::s_colony_assessment& info = entry->second;
                     ImGui::TableNextRow();
                     ImGui::TableSetColumnIndex(0);
                     ImGui::PushID(colony);
@@ -55,19 +56,17 @@ namespace AI_SNOOPS_DEBUG {
                     }
                     ImGui::PopID();
                     ImGui::TableSetColumnIndex(1);
-                    ImGui::Text("%d", (int)info.race);
+                    ImGui::Text("%u", legacy_world::Slot(info.dominant_race));
                     ImGui::TableSetColumnIndex(2);
-                    ImGui::Text("%d", (int)info.pop_limit);
+                    ImGui::Text("%d", (int)info.population_limit);
                     ImGui::TableSetColumnIndex(3);
-                    ImGui::TextUnformatted(info.threatened ? "yes" : "no");
+                    ImGui::TextUnformatted(info.other_player_arrivals ? "yes" : "no");
                     ImGui::TableSetColumnIndex(4);
-                    ImGui::Text("%d", (int)info.n_flagged_pops);
+                    ImGui::Text("%d", (int)info.conquered_population);
                     ImGui::TableSetColumnIndex(5);
-                    ImGui::Text("%d", (int)info.food_buildings_applicable);
+                    ImGui::Text("%d", (int)info.food_buildings_relevant);
                     ImGui::TableSetColumnIndex(6);
-                    ImGui::Text("%d", (int)info.unused_0x3);
-                    ImGui::TableSetColumnIndex(7);
-                    ImGui::Text("%d", (int)info.pollution_controls_applicable);
+                    ImGui::Text("%d", (int)info.pollution_controls_relevant);
                 }
                 ImGui::EndTable();
             }
@@ -97,14 +96,13 @@ namespace AI_SNOOPS_DEBUG {
             return buffer;
         }
 
-        bool Player_Selector_(const char* label, int* player,
-                              const ai_state::s_snapshot* snapshot) {
-            if (snapshot->player_count <= 0) return false;
-            *player = std::clamp(*player, 0, (int)snapshot->player_count - 1);
+        bool Player_Selector_(const char* label, int* player) {
+            if (MOX::NUM_PLAYERS <= 0) return false;
+            *player = std::clamp(*player, 0, (int)MOX::NUM_PLAYERS - 1);
             char preview[64];
             bool changed = false;
             if (ImGui::BeginCombo(label, Player_Name_(*player, preview, sizeof(preview)))) {
-                for (int index = 0; index < snapshot->player_count; ++index) {
+                for (int index = 0; index < MOX::NUM_PLAYERS; ++index) {
                     char name[64];
                     if (ImGui::Selectable(Player_Name_(index, name, sizeof(name)),
                                           index == *player)) {
@@ -125,35 +123,37 @@ namespace AI_SNOOPS_DEBUG {
             ImGui::Text("%lld", (long long)value);
         }
 
-        void Draw_Snapshot_Header_(const ai_state::s_snapshot* snapshot) {
-            ImGui::Text("AI snapshot: %d.%d | %.1f MiB | %s",
-                        (int)(snapshot->stardate / 10),
-                        (int)(snapshot->stardate % 10),
-                        (double)snapshot->allocated_bytes / (1024.0 * 1024.0),
-                        ai_state::Get_Completed() == snapshot ? "completed" : "computing");
+        void Draw_State_Header_(const AIDATA::s_state* ai) {
+            ImGui::Text("AI state: %d.%d | %s",
+                        (int)(ai->stardate / 10),
+                        (int)(ai->stardate % 10),
+                        ai->complete ? "completed" : "computing");
+            ImGui::Text("Assessments: %zu ships, %zu stars, %zu planets, %zu colonies",
+                ai->ships.size(), ai->stars.size(),
+                ai->planets.size(), ai->colonies.size());
         }
 
-        void Draw_Build_Needs_(const ai_state::s_snapshot* snapshot, int player) {
-            const s_player_ship_sizes& ships = snapshot->player_ship_sizes[player];
+        void Draw_Build_Needs_(const AIDATA::s_build_needs* needs, int player) {
+            const AIDATA::s_fleet_composition& ships = needs->ship_sizes;
             if (ImGui::BeginTable("build_needs", 2,
                     ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerV)) {
-                Stat_("War level", AIBUILD::Player_War_Level((int16_t)player));
+                Stat_("War level", AIBUILD::Player_War_Level(&game::current, legacy_world::Player_Id(player)));
                 Stat_("Combat ships", ships.combat_ship_count);
                 Stat_("Weighted ship size", ships.weighted_ship_size);
                 Stat_("Target ship size", ships.target_ship_size);
                 Stat_("Command points used", ships.combat_command_points_used);
                 Stat_("Active command points", ships.active_combat_command_points_used);
-                Stat_("Strength vs ships", snapshot->player_total_strength_vs_ships[player][0]);
-                Stat_("Strength wanted", snapshot->player_total_strength_vs_ships[player][2]);
-                Stat_("Strength vs colonies", snapshot->player_total_strength_vs_colonies[player]);
-                Stat_("Transports current", snapshot->player_n_transports[player][0]);
-                Stat_("Transports wanted", snapshot->player_n_transports[player][1]);
-                Stat_("Colony ships current", snapshot->player_n_colony_ships[player][0]);
-                Stat_("Colony ships wanted", snapshot->player_n_colony_ships[player][1]);
-                Stat_("Colony ships assigned", snapshot->player_n_colony_ships[player][2]);
-                Stat_("Spies current", snapshot->player_n_spies[player][0]);
-                Stat_("Spies wanted", snapshot->player_n_spies[player][1]);
-                Stat_("Freighter groups wanted", snapshot->player_n_freighter_groups_wanted[player]);
+                Stat_("Strength vs ships", needs->combat_strength.total);
+                Stat_("Strength wanted", needs->combat_strength.additional_wanted);
+                Stat_("Strength vs colonies", needs->total_strength_vs_colonies);
+                Stat_("Transports current", needs->transports.current);
+                Stat_("Transports wanted", needs->transports.additional_wanted);
+                Stat_("Colony ships current", needs->colony_ships.current);
+                Stat_("Colony ships wanted", needs->colony_ships.additional_wanted);
+                Stat_("Colony ships en route", needs->colony_ships.enroute);
+                Stat_("Spies current", needs->spies.current);
+                Stat_("Spies wanted", needs->spies.additional_wanted);
+                Stat_("Freighter groups wanted", needs->freighter_groups_wanted);
                 ImGui::EndTable();
             }
             ImGui::TextUnformatted("Ships by hull class:");
@@ -164,15 +164,15 @@ namespace AI_SNOOPS_DEBUG {
         }
 
         void Draw_Empire_() {
-            const ai_state::s_snapshot* snapshot = Snapshot_();
-            if (snapshot == nullptr) {
-                ImGui::TextDisabled("No AI turn snapshot is available yet.");
+            const AIDATA::s_state* ai = State_();
+            if (ai == nullptr) {
+                ImGui::TextDisabled("No AI turn has run yet.");
             } else {
-                Draw_Snapshot_Header_(snapshot);
-                Player_Selector_("Player", &g_player, snapshot);
+                Draw_State_Header_(ai);
+                Player_Selector_("Player", &g_player);
                 const int player = g_player;
-                const s_ai_player_info& info = (*snapshot->ai_player_info)[player];
-                const s_ai_tech_info_player& tech = snapshot->aitech->players[player];
+                const AIDATA::s_empire_assessment& info = ai->players[player].empire;
+                const AIDATA::s_technology_assessment& tech = ai->players[player].technology;
                 const s_player* live = MOX::player == nullptr ? nullptr : &MOX::player[player];
 
                 if (ImGui::BeginTabBar("empire_tabs")) {
@@ -183,12 +183,11 @@ namespace AI_SNOOPS_DEBUG {
                                     ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerV)) {
                                 Stat_("Colonies", info.colony_count);
                                 Stat_("Colony deficit", info.colony_deficit);
-                                Stat_("Blockaded colonies", info.colony_blockaded_count);
-                                Stat_("Colonized stars", info.n_stars_with_colony);
-                                Stat_("Blockaded stars", info.n_blockaded_stars);
-                                Stat_("Contacts", info.n_contacts);
-                                Stat_("Previous contacts", info.prev_n_contacts);
-                                Stat_("Reachable players", info.n_reachable_players);
+                                Stat_("Blockaded colonies", info.blockaded_colony_count);
+                                Stat_("Colonized stars", info.colonized_star_count);
+                                Stat_("Blockaded stars", info.blockaded_star_count);
+                                Stat_("Contacts", info.contact_count);
+                                Stat_("Reachable players", info.reachable_player_count);
                                 ImGui::EndTable();
                             }
                             ImGui::SeparatorText("Reachability and estimated strength");
@@ -199,7 +198,7 @@ namespace AI_SNOOPS_DEBUG {
                                 ImGui::TableSetupColumn("Reachable");
                                 ImGui::TableSetupColumn("Ship strength");
                                 ImGui::TableHeadersRow();
-                                for (int other = 0; other < snapshot->player_count; ++other) {
+                                for (int other = 0; other < MOX::NUM_PLAYERS; ++other) {
                                     char name[64];
                                     ImGui::TableNextRow();
                                     ImGui::TableSetColumnIndex(0);
@@ -207,14 +206,14 @@ namespace AI_SNOOPS_DEBUG {
                                     ImGui::TableSetColumnIndex(1);
                                     ImGui::TextUnformatted(info.reachable_players[other] ? "yes" : "no");
                                     ImGui::TableSetColumnIndex(2);
-                                    ImGui::Text("%d", (int)info.total_ship_strength[other]);
+                                    ImGui::Text("%d", (int)info.strength_vs_player[other]);
                                 }
                                 ImGui::EndTable();
                             }
                             ImGui::EndTabItem();
                         }
                         if (ImGui::BeginTabItem("Build needs")) {
-                            Draw_Build_Needs_(snapshot, player);
+                            Draw_Build_Needs_(&ai->players[player].build, player);
                             ImGui::EndTabItem();
                         }
                         if (ImGui::BeginTabItem("Tech assessment")) {
@@ -228,10 +227,10 @@ namespace AI_SNOOPS_DEBUG {
                                 Stat_("Computer delta", tech.best_computer_delta);
                                 Stat_("Best fuel", tech.best_fuel);
                                 Stat_("Best drive", tech.best_drive);
-                                Stat_("Best beam score", tech.best_weapon1);
-                                Stat_("Beam delta", tech.best_weapon1_delta);
-                                Stat_("Best missile score", tech.best_weapon2);
-                                Stat_("Missile delta", tech.best_weapon2_delta);
+                                Stat_("Best beam score", tech.best_beam_score);
+                                Stat_("Beam delta", tech.beam_score_delta);
+                                Stat_("Best missile score", tech.best_missile_score);
+                                Stat_("Missile delta", tech.missile_score_delta);
                                 Stat_("Planet shield", tech.best_planet_shield);
                                 Stat_("Planet shield delta", tech.planet_shield_delta);
                                 Stat_("Ground bonus", tech.ground_bonus);
@@ -255,49 +254,62 @@ namespace AI_SNOOPS_DEBUG {
             }
         }
 
-        void Draw_Route_Query_(const ai_state::s_snapshot* snapshot) {
-            if (snapshot->star_count <= 0 || snapshot->player_count <= 0) return;
-            g_source_star = std::clamp(g_source_star, 0, (int)snapshot->star_count - 1);
-            g_dest_star = std::clamp(g_dest_star, 0, (int)snapshot->star_count - 1);
-            ImGui::SliderInt("Source star", &g_source_star, 0, snapshot->star_count - 1);
-            ImGui::SliderInt("Destination star", &g_dest_star, 0, snapshot->star_count - 1);
-            const size_t route_index = snapshot->Route_Index(
-                g_source_star, g_dest_star, g_player);
-            const uint8_t turns = snapshot->n_turns_from_to[route_index];
-            const AIDATA::s_turns_from_to_intermediate_cache_entry& route =
-                snapshot->n_turns_from_to_intermediate[route_index];
-            ImGui::Text("Direct turns: %s", turns == 0xFF ? "unreachable" :
-                        std::to_string(turns).c_str());
-            ImGui::Text("Normal: %u via %d | extended: %u via %d | computed: %d",
-                        (unsigned)route.turns, (int)route.intermediate_star,
-                        (unsigned)route.extended_turns,
-                        (int)route.extended_intermediate_star, (int)route.computed);
+        void Draw_Route_Result_(const char* label, const std::optional<AIDATA::s_route>* route) {
+            if (*route) {
+                ImGui::Text("%s: %u turns via %u", label,
+                    (unsigned)(*route)->turns, legacy_world::Slot((*route)->next_star));
+            } else {
+                ImGui::Text("%s: unreachable", label);
+            }
         }
 
-        void Draw_Star_State_(const ai_state::s_snapshot* snapshot, int player) {
-            if (snapshot->star_count <= 0) return;
-            g_star = std::clamp(g_star, 0, (int)snapshot->star_count - 1);
-            ImGui::SliderInt("Star", &g_star, 0, snapshot->star_count - 1);
+        void Draw_Route_Query_(const AIDATA::s_route_cache* routes) {
+            if (MOX::NUM_STARS <= 0 || MOX::NUM_PLAYERS <= 0) return;
+            g_source_star = std::clamp(g_source_star, 0, (int)MOX::NUM_STARS - 1);
+            g_dest_star = std::clamp(g_dest_star, 0, (int)MOX::NUM_STARS - 1);
+            ImGui::SliderInt("Source star", &g_source_star, 0, MOX::NUM_STARS - 1);
+            ImGui::SliderInt("Destination star", &g_dest_star, 0, MOX::NUM_STARS - 1);
+            const auto turns = AIDATA::N_Turns_From_To(routes, legacy_world::Star_Id(g_source_star), legacy_world::Star_Id(g_dest_star), legacy_world::Player_Id(g_player));
+            ImGui::Text("Direct turns: %s", turns ? std::to_string(*turns).c_str() : "unreachable");
+            auto entry = routes->intermediate.find({legacy_world::Player_Id(g_player),
+                legacy_world::Star_Id(g_source_star), legacy_world::Star_Id(g_dest_star)});
+            if (entry == routes->intermediate.end()) {
+                ImGui::TextDisabled("Intermediate route not computed.");
+                return;
+            }
+            const auto& route = entry->second;
+            Draw_Route_Result_("Normal", &route.normal);
+            Draw_Route_Result_("Extended", &route.extended);
+        }
+
+        void Draw_Star_State_(const AIDATA::s_state* ai, int player) {
+            if (MOX::NUM_STARS <= 0) return;
+            g_star = std::clamp(g_star, 0, (int)MOX::NUM_STARS - 1);
+            ImGui::SliderInt("Star", &g_star, 0, MOX::NUM_STARS - 1);
             char star_name[64];
             ImGui::TextUnformatted(Star_Name_(g_star, star_name, sizeof(star_name)));
-            const s_ai_star_info& info = (*snapshot->ai_star_info)[g_star];
-            const s_ai_star_player_block& block = info.per_player[player];
-            const uint8_t normal_mask = (*snapshot->star_in_range_of_player)[g_star];
-            const uint8_t extended_mask = (*snapshot->star_in_extended_range_of_player)[g_star];
+            auto entry = ai->stars.find(legacy_world::Star_Id(g_star));
+            if (entry == ai->stars.end()) return;
+            const auto& star = entry->second;
+            const AIDATA::s_star_neighborhood& info = star.neighborhood;
+            const AIDATA::s_star_player_assessment& block = info.per_player[player];
+            const uint8_t normal_mask = star.in_range;
+            const uint8_t extended_mask = star.in_extended_range;
             if (ImGui::BeginTable("star_state", 2,
                     ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerV)) {
-                Stat_("Planets present", info.n_planets_present);
+                Stat_("Planets present", info.planet_count);
                 Stat_("Normal range mask", normal_mask);
                 Stat_("Extended range mask", extended_mask);
-                Stat_("Enemy count", block.enemy_count);
-                Stat_("Neutral count", block.neutral_count);
-                Stat_("Alliance count", block.alliance_count);
-                Stat_("Out-of-range count", block.out_of_range_count);
-                Stat_("Nearest ETA accumulator", block.nearest_eta);
-                Stat_("Enemy enroute/threat", block.enemy_enroute_or_threat);
-                Stat_("Base stage weight", (*snapshot->base_star_stage_weights)[g_star][player]);
-                Stat_("Stage weight", (*snapshot->star_stage_weights)[g_star][player]);
-                Stat_("First combat ship", (*snapshot->i_all_combat_ships)[player][g_star]);
+                Stat_("Treaty partners in range", block.treaty_partners_in_range);
+                Stat_("Neutral players in range", block.neutral_players_in_range);
+                Stat_("Hostile players in range", block.hostile_players_in_range);
+                Stat_("Players only in extended range", block.players_only_in_extended_range);
+                Stat_("Covering colonies", block.covering_colony_count);
+                Stat_("Other-player arrivals", block.other_player_arrivals);
+                Stat_("Base stage weight", star.base_stage_weights[player]);
+                Stat_("Stage weight", star.stage_weights[player]);
+                const auto* group = ai->players[player].Find_Combat_Ships(legacy_world::Star_Id(g_star));
+                if (group) Stat_("Combat ship cursor", group->next);
                 ImGui::EndTable();
             }
 
@@ -315,17 +327,13 @@ namespace AI_SNOOPS_DEBUG {
                     ImGui::TableSetColumnIndex(0);
                     ImGui::Text("%d", turn);
                     ImGui::TableSetColumnIndex(1);
-                    ImGui::Text("%d", (int)(*snapshot->possible_ship_strengths)
-                        [g_star][player][g_opponent][turn]);
+                    ImGui::Text("%d", (int)star.possible_strengths[player][g_opponent][turn]);
                     ImGui::TableSetColumnIndex(2);
-                    ImGui::Text("%d", (int)(*snapshot->possible_ship_strengths)
-                        [g_star][g_opponent][player][turn]);
+                    ImGui::Text("%d", (int)star.possible_strengths[g_opponent][player][turn]);
                     ImGui::TableSetColumnIndex(3);
-                    ImGui::Text("%d", (int)(*snapshot->enroute_ship_strengths)
-                        [g_star][g_opponent][player][turn]);
+                    ImGui::Text("%d", (int)star.enroute_strengths[g_opponent][player][turn]);
                     ImGui::TableSetColumnIndex(4);
-                    ImGui::Text("%d", (int)(*snapshot->enroute_ships)
-                        [g_star][g_opponent][turn]);
+                    ImGui::Text("%d", (int)star.enroute_ships[g_opponent][turn]);
                 }
                 ImGui::EndTable();
             }
@@ -334,7 +342,7 @@ namespace AI_SNOOPS_DEBUG {
             }
         }
 
-        void Draw_Planet_Values_(const ai_state::s_snapshot* snapshot, int player) {
+        void Draw_Planet_Values_(const AIDATA::s_state* ai, int player) {
             static bool valued_only = true;
             ImGui::Checkbox("Valued only", &valued_only);
             if (ImGui::BeginTable("planet_values", 5,
@@ -347,11 +355,12 @@ namespace AI_SNOOPS_DEBUG {
                 ImGui::TableSetupColumn("Contextual");
                 ImGui::TableSetupColumn("Stage");
                 ImGui::TableHeadersRow();
-                for (int planet = 0; planet < snapshot->planet_count; ++planet) {
-                    const uint16_t base = (*snapshot->base_planet_values)[player][planet];
-                    const uint16_t contextual = (*snapshot->contextual_planet_values)
-                        [player * MAX_PLANETS + planet];
-                    const int16_t stage = (*snapshot->planet_stage_weights)[planet][player];
+                for (int planet = 0; planet < MOX::planet_count; ++planet) {
+                    auto entry = ai->planets.find(legacy_world::Planet_Id(planet));
+                    if (entry == ai->planets.end()) continue;
+                    const uint16_t base = entry->second.base_values[player];
+                    const uint16_t contextual = entry->second.contextual_values[player];
+                    const int16_t stage = entry->second.stage_weights[player];
                     if (valued_only && base == 0 && contextual == 0 && stage == 0) continue;
                     ImGui::TableNextRow();
                     ImGui::TableSetColumnIndex(0);
@@ -376,28 +385,28 @@ namespace AI_SNOOPS_DEBUG {
         }
 
         void Draw_Worlds_() {
-            const ai_state::s_snapshot* snapshot = Snapshot_();
-            if (snapshot == nullptr) {
-                ImGui::TextDisabled("No AI turn snapshot is available yet.");
+            const AIDATA::s_state* ai = State_();
+            if (ai == nullptr) {
+                ImGui::TextDisabled("No AI turn has run yet.");
             } else {
-                Draw_Snapshot_Header_(snapshot);
-                Player_Selector_("Player", &g_player, snapshot);
-                Player_Selector_("Opponent", &g_opponent, snapshot);
+                Draw_State_Header_(ai);
+                Player_Selector_("Player", &g_player);
+                Player_Selector_("Opponent", &g_opponent);
                 if (ImGui::BeginTabBar("world_tabs")) {
                         if (ImGui::BeginTabItem("Star threats")) {
-                            Draw_Star_State_(snapshot, g_player);
+                            Draw_Star_State_(ai, g_player);
                             ImGui::EndTabItem();
                         }
                         if (ImGui::BeginTabItem("Planet values")) {
-                            Draw_Planet_Values_(snapshot, g_player);
+                            Draw_Planet_Values_(ai, g_player);
                             ImGui::EndTabItem();
                         }
                         if (ImGui::BeginTabItem("Colony assessments")) {
-                            Draw_Colony_Assessments_(snapshot);
+                            Draw_Colony_Assessments_(ai);
                             ImGui::EndTabItem();
                         }
                         if (ImGui::BeginTabItem("Route cache")) {
-                            Draw_Route_Query_(snapshot);
+                            Draw_Route_Query_(&ai->routes);
                             ImGui::EndTabItem();
                         }
                     ImGui::EndTabBar();
@@ -405,7 +414,7 @@ namespace AI_SNOOPS_DEBUG {
             }
         }
 
-        void Draw_Fleet_Table_(const ai_state::s_snapshot* snapshot) {
+        void Draw_Fleet_Table_(const AIDATA::s_state* ai) {
             static bool refits_only = false;
             ImGui::Checkbox("Refit candidates only", &refits_only);
             if (ImGui::BeginTable("fleet_state", 7,
@@ -420,10 +429,13 @@ namespace AI_SNOOPS_DEBUG {
                 ImGui::TableSetupColumn("Bomb 0-3");
                 ImGui::TableSetupColumn("Refit");
                 ImGui::TableHeadersRow();
-                for (int index = 0; index < snapshot->n_all_ships; ++index) {
-                    const int ship = (*snapshot->all_ships)[index];
-                    if (ship < 0 || ship >= snapshot->ship_count) continue;
-                    const int desirability = (*snapshot->ship_refit_desirabilities)[ship];
+                for (game::id_ship ship_id : ai->combat_ships) {
+                    const uint32_t ship = legacy_world::Slot(ship_id);
+                    if (ship < 0 || ship >= MOX::NUM_SHIPS) continue;
+                    auto entry = ai->ships.find(legacy_world::Ship_Id(ship));
+                    if (entry == ai->ships.end()) continue;
+                    const auto& assessment = entry->second;
+                    const int desirability = assessment.refit_desirability;
                     if (refits_only && desirability == 0) continue;
                     const s_ship_data* live = MOX::ship == nullptr ? nullptr : &MOX::ship[ship];
                     ImGui::TableNextRow();
@@ -439,15 +451,15 @@ namespace AI_SNOOPS_DEBUG {
                     ImGui::TableSetColumnIndex(2);
                     ImGui::Text("%d", live == nullptr ? -1 : (int)live->location);
                     ImGui::TableSetColumnIndex(3);
-                    ImGui::Text("%u", (unsigned)(*snapshot->ship_strengths)[ship][g_opponent]);
+                    ImGui::Text("%u", (unsigned)assessment.strengths[g_opponent]);
                     ImGui::TableSetColumnIndex(4);
-                    ImGui::Text("%u", (unsigned)(*snapshot->ship_strengths_in_nebula)[ship][g_opponent]);
+                    ImGui::Text("%u", (unsigned)assessment.strengths_in_nebula[g_opponent]);
                     ImGui::TableSetColumnIndex(5);
                     ImGui::Text("%u %u %u %u",
-                                (unsigned)(*snapshot->ship_bomb_strengths)[ship][0],
-                                (unsigned)(*snapshot->ship_bomb_strengths)[ship][1],
-                                (unsigned)(*snapshot->ship_bomb_strengths)[ship][2],
-                                (unsigned)(*snapshot->ship_bomb_strengths)[ship][3]);
+                                (unsigned)assessment.bomb_strengths[0],
+                                (unsigned)assessment.bomb_strengths[1],
+                                (unsigned)assessment.bomb_strengths[2],
+                                (unsigned)assessment.bomb_strengths[3]);
                     ImGui::TableSetColumnIndex(6);
                     ImGui::Text("%d", desirability);
                 }
@@ -455,25 +467,27 @@ namespace AI_SNOOPS_DEBUG {
             }
         }
 
-        void Draw_Ship_Route_(const ai_state::s_snapshot* snapshot) {
-            if (snapshot->ship_count <= 0 || snapshot->star_count <= 0) return;
-            g_ship = std::clamp(g_ship, 0, (int)snapshot->ship_count - 1);
-            g_dest_star = std::clamp(g_dest_star, 0, (int)snapshot->star_count - 1);
-            ImGui::SliderInt("Ship", &g_ship, 0, snapshot->ship_count - 1);
-            ImGui::SliderInt("Destination", &g_dest_star, 0, snapshot->star_count - 1);
-            const size_t route_index = snapshot->Ship_Route_Index(g_ship, g_dest_star);
-            const int8_t turns = snapshot->ship_n_turns_to[route_index];
-            const AIDATA::s_ship_n_turns_to_intermediate_cache_entry& route =
-                snapshot->ship_n_turns_to_intermediate[route_index];
-            ImGui::Text("Turns: %d | cached turns: %u | via: %d | computed: %d",
-                        (int)turns, (unsigned)route.turns,
-                        (int)route.intermediate_star, (int)route.computed);
+        void Draw_Ship_Route_(const AIDATA::s_route_cache* routes) {
+            if (MOX::NUM_SHIPS <= 0 || MOX::NUM_STARS <= 0) return;
+            g_ship = std::clamp(g_ship, 0, (int)MOX::NUM_SHIPS - 1);
+            g_dest_star = std::clamp(g_dest_star, 0, (int)MOX::NUM_STARS - 1);
+            ImGui::SliderInt("Ship", &g_ship, 0, MOX::NUM_SHIPS - 1);
+            ImGui::SliderInt("Destination", &g_dest_star, 0, MOX::NUM_STARS - 1);
+            const auto turns = AIDATA::Ship_N_Turns_To(routes, legacy_world::Ship_Id(g_ship), legacy_world::Star_Id(g_dest_star));
+            ImGui::Text("Direct turns: %s", turns ? std::to_string(*turns).c_str() : "unreachable");
+            auto entry = routes->ship_intermediate.find(AIDATA::Ship_Route_Key(legacy_world::Ship_Id(g_ship), legacy_world::Star_Id(g_dest_star)));
+            if (entry == routes->ship_intermediate.end()) {
+                ImGui::TextDisabled("Intermediate route not computed.");
+                return;
+            }
+            const auto& route = entry->second;
+            Draw_Route_Result_("Intermediate", &route);
         }
 
-        void Draw_Refit_Queue_(const ai_state::s_snapshot* snapshot) {
-            Player_Selector_("Player", &g_player, snapshot);
-            const s_ai_refit_player& refits = (*snapshot->airefit)[g_player];
-            const int count = std::clamp<int>(refits.n_entries, 0, MAX_SHIPS);
+        void Draw_Refit_Queue_(const AIDATA::s_state* ai) {
+            Player_Selector_("Player", &g_player);
+            const auto& refits = ai->players[g_player].refits;
+            const int count = (int)refits.size();
             ImGui::Text("Remaining refit candidates: %d", count);
             if (ImGui::BeginTable("refit_queue", 3,
                     ImGuiTableFlags_RowBg | ImGuiTableFlags_Borders |
@@ -484,14 +498,15 @@ namespace AI_SNOOPS_DEBUG {
                 ImGui::TableSetupColumn("Desirability");
                 ImGui::TableHeadersRow();
                 for (int index = count - 1; index >= 0; --index) {
-                    const s_ai_refit_entry& entry = refits.entry[index];
+                    const auto& entry = refits[index];
                     ImGui::TableNextRow();
                     ImGui::TableSetColumnIndex(0);
                     ImGui::Text("%d", count - index);
                     ImGui::TableSetColumnIndex(1);
                     ImGui::PushID(index);
-                    if (ImGui::Selectable(std::to_string(entry.ship_idx).c_str())) {
-                        debug_game_editors::Open_Ship(entry.ship_idx);
+                    if (ImGui::Selectable(std::to_string(legacy_world::Slot(entry.ship_id)).c_str())) {
+                        auto ship_index = legacy_world::Index(entry.ship_id);
+                        if (ship_index) debug_game_editors::Open_Ship(*ship_index);
                     }
                     ImGui::PopID();
                     ImGui::TableSetColumnIndex(2);
@@ -502,23 +517,23 @@ namespace AI_SNOOPS_DEBUG {
         }
 
         void Draw_Fleets_() {
-            const ai_state::s_snapshot* snapshot = Snapshot_();
-            if (snapshot == nullptr) {
-                ImGui::TextDisabled("No AI turn snapshot is available yet.");
+            const AIDATA::s_state* ai = State_();
+            if (ai == nullptr) {
+                ImGui::TextDisabled("No AI turn has run yet.");
             } else {
-                Draw_Snapshot_Header_(snapshot);
-                Player_Selector_("Opponent perspective", &g_opponent, snapshot);
+                Draw_State_Header_(ai);
+                Player_Selector_("Opponent perspective", &g_opponent);
                 if (ImGui::BeginTabBar("fleet_tabs")) {
                         if (ImGui::BeginTabItem("Strength and refits")) {
-                            Draw_Fleet_Table_(snapshot);
+                            Draw_Fleet_Table_(ai);
                             ImGui::EndTabItem();
                         }
                         if (ImGui::BeginTabItem("Ship route cache")) {
-                            Draw_Ship_Route_(snapshot);
+                            Draw_Ship_Route_(&ai->routes);
                             ImGui::EndTabItem();
                         }
                         if (ImGui::BeginTabItem("Refit queues")) {
-                            Draw_Refit_Queue_(snapshot);
+                            Draw_Refit_Queue_(ai);
                             ImGui::EndTabItem();
                         }
                     ImGui::EndTabBar();
@@ -526,9 +541,9 @@ namespace AI_SNOOPS_DEBUG {
             }
         }
 
-        void Draw_Colony_Decisions_(const ai_state::s_snapshot* snapshot, int player) {
-            const ai_state::s_player_decisions& decisions = snapshot->players[player];
-            if (!decisions.colony_phase_ran) {
+        void Draw_Colony_Decisions_(const AIDATA::s_colony_workspace* work) {
+            const auto& decisions = *work;
+            if (!decisions.complete) {
                 ImGui::TextDisabled("The colony phase did not run for this player.");
                 return;
             }
@@ -545,17 +560,18 @@ namespace AI_SNOOPS_DEBUG {
                 ImGui::TableSetupColumn("Pollution");
                 ImGui::TableSetupColumn("Worker/Farmer scores");
                 ImGui::TableHeadersRow();
-                for (size_t index = 0; index < decisions.colonies.size(); ++index) {
-                    const ai_state::s_colony_decision& colony = decisions.colonies[index];
+                for (uint32_t index = 0; index < decisions.colonies.size(); ++index) {
+                    const AIDATA::s_colony_assignment& colony = decisions.colonies[index];
                     ImGui::TableNextRow();
                     ImGui::TableSetColumnIndex(0);
                     ImGui::PushID((int)index);
-                    if (ImGui::Selectable(std::to_string(colony.colony_idx).c_str())) {
-                        debug_game_editors::Open_Colony(colony.colony_idx);
+                    if (ImGui::Selectable(std::to_string(legacy_world::Slot(colony.colony_id)).c_str())) {
+                        auto colony_index = legacy_world::Index(colony.colony_id);
+                        if (colony_index) debug_game_editors::Open_Colony(*colony_index);
                     }
                     ImGui::PopID();
                     ImGui::TableSetColumnIndex(1);
-                    ImGui::TextUnformatted(colony.blockaded ? "yes" : "no");
+                    ImGui::TextUnformatted(index < decisions.blockaded_count ? "yes" : "no");
                     ImGui::TableSetColumnIndex(2);
                     ImGui::Text("%u", (unsigned)colony.n_farmers);
                     ImGui::TableSetColumnIndex(3);
@@ -568,22 +584,20 @@ namespace AI_SNOOPS_DEBUG {
                     ImGui::Text("%u%s", (unsigned)colony.pollution_at_start,
                                 colony.eats_minerals ? " (lithovore)" : "");
                     ImGui::TableSetColumnIndex(7);
-                    ImGui::Text("%d / %d", (int)colony.best_worker_to_farmer_score,
-                                (int)colony.worst_worker_to_farmer_score);
+                    ImGui::Text("%d / %d", (int)colony.best_reassignment_score,
+                                (int)colony.worst_reassignment_score);
                 }
                 ImGui::EndTable();
             }
         }
 
-        void Draw_Movement_Decisions_(const ai_state::s_snapshot* snapshot, int player) {
-            const ai_state::s_movement_decision& movement = snapshot->players[player].movement;
-            if (!snapshot->players[player].movement_phase_ran) {
+        void Draw_Movement_Decisions_(const AIDATA::s_movement_workspace* work) {
+            const auto& movement = *work;
+            if (!movement.complete) {
                 ImGui::TextDisabled("The movement phase did not run for this player.");
                 return;
             }
-            ImGui::Text("Pre-assignment colonization candidates: %zu | avoided stars: %zu | monsters: %zu",
-                        movement.colonizable_planets.size(), movement.flee_stars.size(),
-                        movement.nonplayer_stars.size());
+            ImGui::Text("Remaining colonization candidates: %zu", movement.colonizable.size());
             if (ImGui::BeginTable("movement_candidates", 3,
                     ImGuiTableFlags_RowBg | ImGuiTableFlags_Borders |
                         ImGuiTableFlags_ScrollY | ImGuiTableFlags_SizingStretchProp,
@@ -592,15 +606,16 @@ namespace AI_SNOOPS_DEBUG {
                 ImGui::TableSetupColumn("Planet");
                 ImGui::TableSetupColumn("Contextual value");
                 ImGui::TableHeadersRow();
-                for (size_t index = 0; index < movement.colonizable_planets.size(); ++index) {
-                    const s_ai_colonizable_planet& planet = movement.colonizable_planets[index];
+                for (uint32_t index = 0; index < movement.colonizable.size(); ++index) {
+                    const AIDATA::s_colonization_candidate& planet = movement.colonizable[index];
                     ImGui::TableNextRow();
                     ImGui::TableSetColumnIndex(0);
-                    ImGui::Text("%zu", index + 1);
+                    ImGui::Text("%u", index + 1);
                     ImGui::TableSetColumnIndex(1);
                     ImGui::PushID((int)index);
-                    if (ImGui::Selectable(std::to_string(planet.planet_idx).c_str())) {
-                        debug_game_editors::Open_Planet(planet.planet_idx);
+                    if (ImGui::Selectable(std::to_string(legacy_world::Slot(planet.planet_id)).c_str())) {
+                        auto planet_index = legacy_world::Index(planet.planet_id);
+                        if (planet_index) debug_game_editors::Open_Planet(*planet_index);
                     }
                     ImGui::PopID();
                     ImGui::TableSetColumnIndex(2);
@@ -610,34 +625,38 @@ namespace AI_SNOOPS_DEBUG {
             }
             if (!movement.flee_stars.empty()) {
                 ImGui::TextUnformatted("Avoided stars:");
-                for (size_t index = 0; index < movement.flee_stars.size(); ++index) {
-                    if (index != 0) ImGui::SameLine();
-                    ImGui::Text("%d", (int)movement.flee_stars[index]);
+                for (int star = 0; star < MOX::NUM_STARS; ++star) {
+                    auto entry = movement.flee_stars.find(legacy_world::Star_Id(star));
+                    if (entry == movement.flee_stars.end() || entry->second[AIDATA::LAST_FORECAST_TURN] == 0) continue;
+                    ImGui::SameLine();
+                    ImGui::Text("%d", star);
                 }
             }
-            if (!movement.nonplayer_stars.empty()) {
+            if (!movement.nonplayer_here.empty()) {
                 ImGui::TextUnformatted("Monster-occupied stars:");
-                for (size_t index = 0; index < movement.nonplayer_stars.size(); ++index) {
-                    if (index != 0) ImGui::SameLine();
-                    ImGui::Text("%d", (int)movement.nonplayer_stars[index]);
+                for (int star = 0; star < MOX::NUM_STARS; ++star) {
+                    auto entry = movement.nonplayer_here.find(legacy_world::Star_Id(star));
+                    if (entry == movement.nonplayer_here.end() || entry->second == legacy_world::Player_Id(0)) continue;
+                    ImGui::SameLine();
+                    ImGui::Text("%d", star);
                 }
             }
         }
 
         void Draw_Decisions_() {
-            const ai_state::s_snapshot* snapshot = Snapshot_();
-            if (snapshot == nullptr) {
-                ImGui::TextDisabled("No AI turn snapshot is available yet.");
+            const AIDATA::s_state* ai = State_();
+            if (ai == nullptr) {
+                ImGui::TextDisabled("No AI turn has run yet.");
             } else {
-                Draw_Snapshot_Header_(snapshot);
-                Player_Selector_("Player", &g_player, snapshot);
+                Draw_State_Header_(ai);
+                Player_Selector_("Player", &g_player);
                 if (ImGui::BeginTabBar("decision_tabs")) {
                         if (ImGui::BeginTabItem("Colony allocation")) {
-                            Draw_Colony_Decisions_(snapshot, g_player);
+                            Draw_Colony_Decisions_(&ai->players[g_player].colony_work);
                             ImGui::EndTabItem();
                         }
                         if (ImGui::BeginTabItem("Movement and expansion")) {
-                            Draw_Movement_Decisions_(snapshot, g_player);
+                            Draw_Movement_Decisions_(&ai->players[g_player].movement);
                             ImGui::EndTabItem();
                         }
                     ImGui::EndTabBar();

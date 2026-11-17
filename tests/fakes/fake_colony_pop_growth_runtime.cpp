@@ -3,11 +3,6 @@
 #include "fake_colony_services.h"
 #include "lua/lua_game.h"
 
-namespace AIDATA {
-    s_ai_colony_info (*ai_colony_info)[MAX_COLONIES];
-    s_ai_star_info (*ai_star_info)[MAX_STARS];
-}
-
 namespace {
     s_colony colonies[2];
     // MOX::planet points past the sentinel, leaving two usable planet records.
@@ -87,8 +82,8 @@ namespace TEST_COLONY_POP_GROWTH {
         COLCALC::growth_formula_factor = 2000;
         COLCALC::food_farmer_bonus = {2, 2, 4, 2, 4, 6};
         COLCALC::fungi_climate = COLCALC::FUNGI_CLIMATE_CLASSIC;
-        AIDATA::uncolonized_planet_food_worth = {75, 38};
-        AIDATA::uncolonized_planet_special_worth = {1280, 2560, 640, 1600};
+        AIDATA::planet_valuation_rules.food = {75, 38};
+        AIDATA::planet_valuation_rules.special = {1280, 2560, 640, 1600};
         COLCALC::population_bonus.advanced_city_planning = 5;
         COLCALC::population_bonus.tolerant = 25;
         COLCALC::pop_bonus_biospheres = 2;
@@ -361,7 +356,7 @@ namespace ERICNET {
 }
 
 namespace AIBUILD {
-    void __cdecl Player_Colony_Autobuild(s_colony* colony) {
+    void __cdecl Player_Colony_Autobuild(AIDATA::s_state*, const game::s_view*, game::id_colony, s_colony* colony) {
         if (legacy_autobuild_product != COLONY_PRODUCTION_NONE) {
             colony->producing[0] = legacy_autobuild_product;
         }

@@ -1,4 +1,6 @@
 #pragma once
+
+#include <optional>
 #include <cstdint>
 #include <vector>
 
@@ -16,18 +18,21 @@ namespace RUSS {
      * @param count Number of entries in weights.
      */
     int16_t __cdecl Get_Weighted_Choice_Char(uint8_t* weights, int16_t count);
+    std::optional<uint32_t> Choose_Weighted_Index_U8(const uint8_t* weights, uint32_t count);
 
     /** Returns a weighted random index from a 16-bit weight table, or -1 when all weights are zero.
      * @param weights Pointer to count weight values.
      * @param count Number of entries in weights.
      */
     int16_t __cdecl Get_Weighted_Choice_Short(const uint16_t* weights, int16_t count);
+    std::optional<uint32_t> Choose_Weighted_Index_U16(const uint16_t* weights, uint32_t count);
 
     /** Returns a weighted random index from a 32-bit weight table, or -1 when all weights are zero.
      * @param weights Pointer to count weight values.
      * @param count Number of entries in weights.
      */
     int16_t __cdecl Get_Weighted_Choice_Int(uint32_t* weights, int16_t count);
+    std::optional<uint32_t> Choose_Weighted_Index_U32(const uint32_t* weights, uint32_t count);
 
     /** Returns the display name for a star index, or a fallback name when out of range.
      * @param star_index Star table index to resolve.

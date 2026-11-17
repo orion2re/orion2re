@@ -1,7 +1,10 @@
 #include "pch.h"
 
+#include "legacy_world.h"
+
 namespace AIPOWER {
-    int16_t __cdecl Get_Best_Ship_Shield_Value(int16_t player_idx) {
+    int16_t Get_Best_Ship_Shield_Value(const s_tech_shield_data* shields, game::id_player player_id) {
+        const uint32_t player_idx = legacy_world::Slot(player_id);
         if (player_idx >= MAX_PLAYERS) {
             switch (player_idx) {
                 case MAX_PLAYERS:
@@ -22,23 +25,28 @@ namespace AIPOWER {
             }
         }
 
-        int16_t shield_idx = INITSHIP::Best_Ship_Shield(player_idx);
-        return TECHDATA::shields[shield_idx].shield_class;
+        const auto legacy_player = legacy_world::Index(player_id);
+        if (!legacy_player) return 0;
+        int16_t shield_idx = INITSHIP::Best_Ship_Shield(*legacy_player);
+        return shields[shield_idx].shield_class;
     }
 
-    uint32_t __cdecl Missile_Base_Strength(int16_t player_idx, int16_t target_idx) {
-        if (MOX::settings.strategic_combat_flag == 1) {
+    uint32_t Missile_Base_Strength(const game::s_view* world, game::id_player player_id, game::id_player target_id) {
+        const uint32_t player_idx = legacy_world::Slot(player_id);
+        const auto legacy_player = legacy_world::Index(player_id);
+        if (!legacy_player) return 0;
+        if (world->settings->strategic_combat_flag == 1) {
             return 90 /* 0x5a */;
         }
 
-        int16_t weapon_idx = INITSHIP::Best_Missile_Weapon_NT(player_idx);
+        int16_t weapon_idx = INITSHIP::Best_Missile_Weapon_NT(*legacy_player);
 
         // weapon_idx is used here to get space cost
-        int32_t weapon_space = DESIGN::Weapon_Space(player_idx, weapon_idx, 1, WEAPON_FIRING_ARC_360, COMBINIT::missile_base_ammo_basis, 0);
+        int32_t weapon_space = DESIGN::Weapon_Space(*legacy_player, weapon_idx, 1, WEAPON_FIRING_ARC_360, COMBINIT::missile_base_ammo_basis, 0);
 
         int16_t capacity = (int16_t)(COMBINIT::ground_defense.missile_base_space / weapon_space);
 
-        int16_t shield_val = AIPOWER::Get_Best_Ship_Shield_Value(target_idx);
+        int16_t shield_val = AIPOWER::Get_Best_Ship_Shield_Value(TECHDATA::shields, target_id);
 
         // Calculate base damage per weapon mount minus shield reduction
         int32_t net_damage = (int32_t)TECHDATA::weapons[weapon_idx].max_damage - (int32_t)shield_val;
@@ -56,23 +64,24 @@ namespace AIPOWER {
         return strength;
     }
 
-    uint16_t __cdecl Colony_Ground_Strength_Vs_Player(int16_t colony_idx, int16_t player_idx) {
+    uint16_t Colony_Ground_Strength_Vs_Player(const game::s_view* world, game::id_colony colony_id, game::id_player player_id) {
+        const uint32_t colony_idx = legacy_world::Slot(colony_id);
         uint16_t strength = 0;
-        s_colony* colony = &MOX::colony[colony_idx];
+        const s_colony* colony = &world->colonies[colony_idx];
 
         // BUILDING_MISSILE_BASE: 26
         if (colony->buildings[BUILDING_MISSILE_BASE] != 0) {
-            strength = AIPOWER::Missile_Base_Strength((int16_t)colony->owner, player_idx);
+            strength = AIPOWER::Missile_Base_Strength(world, legacy_world::Player_Id(colony->owner), player_id);
         }
 
         // BUILDING_GROUND_BATTERIES: 27
         if (colony->buildings[BUILDING_GROUND_BATTERIES] != 0) {
-            strength += AIPOWER::Phasor_Base_Strength((int16_t)colony->owner, player_idx);
+            strength += AIPOWER::Phasor_Base_Strength(world, legacy_world::Player_Id(colony->owner), player_id);
         }
 
         // BUILDING_STELLAR_CONVERTER: 42
         if (colony->buildings[BUILDING_STELLAR_CONVERTER] != 0) {
-            if (MOX::settings.strategic_combat_flag == 1) {
+            if (world->settings->strategic_combat_flag == 1) {
                 strength += 200;
             } else {
                 strength += 500;
@@ -81,7 +90,7 @@ namespace AIPOWER {
 
         // BUILDING_FIGHTER_GARRISON: 47
         if (colony->buildings[BUILDING_FIGHTER_GARRISON] != 0) {
-            strength += AIPOWER::Fighter_Garrison_Strength((int16_t)colony->owner, player_idx);
+            strength += AIPOWER::Fighter_Garrison_Strength(world, legacy_world::Player_Id(colony->owner), player_id);
         }
 
         // Cap maximum defensive strength
@@ -92,18 +101,21 @@ namespace AIPOWER {
         return strength;
     }
 
-    uint32_t __cdecl Phasor_Base_Strength(int16_t player_idx, int16_t target_idx) {
-        if (MOX::settings.strategic_combat_flag == 1) {
+    uint32_t Phasor_Base_Strength(const game::s_view* world, game::id_player player_id, game::id_player target_id) {
+        const uint32_t player_idx = legacy_world::Slot(player_id);
+        const auto legacy_player = legacy_world::Index(player_id);
+        if (!legacy_player) return 0;
+        if (world->settings->strategic_combat_flag == 1) {
             return 120 /* 0x78 */;
         }
 
         int16_t weapon_idx = INITSHIP::Best_Beam_Weapon(
             player_idx, WEAPON_MOD_FLAG_HEAVY_MOUNT);
-        int32_t space = DESIGN::Weapon_Space(player_idx, weapon_idx, 1, WEAPON_FIRING_ARC_360, 1, 2);
+        int32_t space = DESIGN::Weapon_Space(*legacy_player, weapon_idx, 1, WEAPON_FIRING_ARC_360, 1, 2);
 
         int16_t weapon_count = (int16_t)(COMBINIT::ground_defense.battery_hv_space / space);
 
-        int16_t shield_value = AIPOWER::Get_Best_Ship_Shield_Value(target_idx);
+        int16_t shield_value = AIPOWER::Get_Best_Ship_Shield_Value(TECHDATA::shields, target_id);
 
         int32_t max_damage = TECHDATA::weapons[weapon_idx].max_damage;
         int32_t base_damage = ((max_damage * 3) / 2) - shield_value;
@@ -125,19 +137,22 @@ namespace AIPOWER {
         return total_power;
     }
 
-    uint16_t __cdecl Fighter_Garrison_Strength(int16_t player_idx, int16_t target_player_idx) {
-        int16_t pd_weapon_idx = INITSHIP::Best_Point_Defense_Weapon(player_idx);
-        int16_t bomb_weapon_idx = INITSHIP::Best_Bomb_Weapon(player_idx);
+    uint16_t Fighter_Garrison_Strength(const game::s_view* world, game::id_player player_id, game::id_player target_player_id) {
+        const uint32_t player_idx = legacy_world::Slot(player_id);
+        const auto legacy_player = legacy_world::Index(player_id);
+        if (!legacy_player) return 0;
+        int16_t pd_weapon_idx = INITSHIP::Best_Point_Defense_Weapon(*legacy_player);
+        int16_t bomb_weapon_idx = INITSHIP::Best_Bomb_Weapon(*legacy_player);
         int16_t bomber_count = 0;
-        int16_t shield_value = Get_Best_Ship_Shield_Value(target_player_idx);
+        int16_t shield_value = Get_Best_Ship_Shield_Value(TECHDATA::shields, target_player_id);
         int16_t heavy_fighter_count = 0;
 
-        if (MOX::settings.strategic_combat_flag == 1) {
+        if (world->settings->strategic_combat_flag == 1) {
             return 120;
         }
 
         int16_t pd_count = COMBINIT::ground_defense.garrison_interceptors;
-        s_player* player = &MOX::player[player_idx];
+        const s_player* player = &world->players[player_idx];
 
         if (player->tech_applications[TECH_APP_HEAVY_FIGHTER_BAYS] == TECH_RESEARCH_STATUS_RESEARCHED) {
             pd_count = 0;

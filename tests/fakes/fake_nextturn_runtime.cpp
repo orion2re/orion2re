@@ -1,5 +1,11 @@
 #include "pch.h"
 
+#include "game/legacy_world.h"
+
+namespace legacy_world {
+    game::s_view World() { return {}; }
+}
+
 #include "lua/lua_game.h"
 
 namespace {
@@ -9,6 +15,9 @@ namespace {
 }
 
 namespace TEST_NEXTTURN {
+    bool invalid_inputs;
+    int32_t turn_side_effects;
+    std::vector<std::string> ai_service_order;
     int32_t observed_event_bc;
     int32_t observed_event_research;
     bool colony_changes_saw_current_economy;
@@ -20,6 +29,9 @@ namespace TEST_NEXTTURN {
     bool colony_calculation_population_growth_scope[2];
 
     void Reset_() {
+        invalid_inputs = false;
+        turn_side_effects = 0;
+        ai_service_order.clear();
         memset(players, 0, sizeof(players));
         MOX::settings = {};
         MOX::antarans = {};
@@ -76,6 +88,10 @@ namespace orion2re::lua::game {
 namespace RUSS {
     int8_t all_ai_game;
     void __cdecl Shuffle_Sint(int16_t*, int16_t) {}
+    void __cdecl Mox_Update() {
+        ++TEST_NEXTTURN::turn_side_effects;
+        TEST_NEXTTURN::ai_service_order.emplace_back("service");
+    }
 }
 
 namespace MAINSCR {
@@ -108,7 +124,7 @@ namespace COLCALC {
 }
 
 namespace EVENTS {
-    void __cdecl Clear_Deferred_Monster_Event_Target() {}
+    void __cdecl Clear_Deferred_Monster_Event_Target() { ++TEST_NEXTTURN::turn_side_effects; }
 
     void __cdecl Determine_Event() {
         TEST_NEXTTURN::observed_event_bc = MOX::player[0].bc;
@@ -121,7 +137,7 @@ namespace EVENTS {
 }
 
 namespace fields {
-    void __cdecl Assign_Auto_Function(MOX2::action_func_t, int16_t) {}
+    void __cdecl Assign_Auto_Function(MOX2::action_func_t, int16_t) { ++TEST_NEXTTURN::turn_side_effects; }
 }
 
 namespace SCORE {
@@ -129,7 +145,7 @@ namespace SCORE {
 }
 
 namespace MSG_ {
-    void __cdecl Allocate_Msg_Slots() {}
+    void __cdecl Allocate_Msg_Slots() { ++TEST_NEXTTURN::turn_side_effects; }
     void __cdecl Add_Ongoing_Event_Msgs() {}
 }
 
@@ -138,8 +154,14 @@ namespace antarans {
 }
 
 namespace AIDATA {
-    void __cdecl Compute_AI_Data() {}
-    void __cdecl Deallocate_AI_Data() {}
+    s_state state;
+    const char* Validate_Inputs(const game::s_view*) { return TEST_NEXTTURN::invalid_inputs ? "test invalid input" : nullptr; }
+    void Reset(s_state* ai) { *ai = {}; }
+    bool Compute_AI_Data(s_state*, const game::s_view*) {
+        TEST_NEXTTURN::ai_service_order.emplace_back("ai_data");
+        return true;
+    }
+    void Complete_Turn(s_state*) {}
 }
 
 namespace DIP_SCRN {
@@ -160,19 +182,19 @@ namespace npcdiplo {
 }
 
 namespace aileader {
-    void __cdecl Do_AI_Leaders() {}
+    void __cdecl Do_AI_Leaders(AIDATA::s_state*, const game::s_view*) {}
 }
 
 namespace AIBUILD {
-    void __cdecl Compute_Empire_Building_Needs() {}
+    void __cdecl Compute_Empire_Building_Needs(AIDATA::s_state*, const game::s_view*) {}
 }
 
 namespace aidudes {
-    void __cdecl All_Colony_AI() {}
+    void __cdecl All_Colony_AI(AIDATA::s_state*, const game::s_view*) {}
 }
 
 namespace AIMOVE {
-    void __cdecl Move_All_AI() {}
+    void __cdecl Move_All_AI(AIDATA::s_state*, const game::s_view*) {}
 }
 
 namespace COLONIZE {
@@ -181,8 +203,10 @@ namespace COLONIZE {
 }
 
 namespace aitech {
-    void __cdecl All_AI_Tech_Select() {}
-    void __cdecl Apply_Evolutionary_Upgrades() {}
+    void __cdecl All_AI_Tech_Select(AIDATA::s_state*, const game::s_view*) {
+        TEST_NEXTTURN::ai_service_order.emplace_back("ai_tech");
+    }
+    void __cdecl Apply_Evolutionary_Upgrades(const game::s_view*) {}
 }
 
 namespace maintain {
@@ -205,7 +229,7 @@ namespace SHIPMOVE {
 }
 
 namespace spy {
-    void __cdecl Resolve_Spies() {}
+    void __cdecl Resolve_Spies(const AIDATA::s_player_assessment*) {}
 }
 
 namespace COMBFIND {

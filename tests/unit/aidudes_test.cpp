@@ -4,6 +4,9 @@
 
 namespace TEST_AIDUDES {
     extern bool colony_researching;
+    const game::s_view* World_();
+    AIDATA::s_state* State_();
+    aidudes::s_ai_colony_context Context_();
     void Reset_();
     void Reset_Maintenance_Scrap_(bool add_replacement);
     void Reset_Maintenance_Scrap_With_Incomparable_Replacements_();
@@ -20,8 +23,9 @@ DOCTEST_TEST_CASE("blockaded event-research colonies assign non-farmers to scien
     TEST_AIDUDES::Reset_();
     TEST_AIDUDES::colony_researching = true;
     MOX::colony[0].food2_per_farmer = 0;
-    s_aidudes_colony_info info = {};
-    aidudes::Do_Blockaded_Colony(&info);
+    AIDATA::s_colony_assignment info = {};
+    info.colony_id = legacy_world::Colony_Id(0);
+    aidudes::Do_Blockaded_Colony(TEST_AIDUDES::World_(), &info);
     DOCTEST_CHECK(info.cur_pop_idx == 1);
     DOCTEST_CHECK(POP::Get_Prof(MOX::colony[0].pop[0]) == POP::PROF_SCIENTIST);
     DOCTEST_CHECK(POP::Is_Assigned(MOX::colony[0].pop[0]));
@@ -31,10 +35,10 @@ DOCTEST_TEST_CASE("blockaded event-research colonies assign non-farmers to scien
 DOCTEST_TEST_CASE("blockaded colony stops assigning farmers when recalculation disables farming") {
     TEST_AIDUDES::Reset_();
 
-    s_aidudes_colony_info colony_info = {};
-    colony_info.colony_idx = 0;
+    AIDATA::s_colony_assignment colony_info = {};
+    colony_info.colony_id = legacy_world::Colony_Id(0);
 
-    aidudes::Do_Blockaded_Colony(&colony_info);
+    aidudes::Do_Blockaded_Colony(TEST_AIDUDES::World_(), &colony_info);
 
     DOCTEST_CHECK(TEST_AIDUDES::Pre_Import_Calls_() == 2);
     DOCTEST_CHECK(colony_info.cur_pop_idx == 1);
@@ -94,7 +98,8 @@ DOCTEST_TEST_CASE("ship scrapping uses the configured refund percentage") {
 DOCTEST_TEST_CASE("AI queued Doom Star updates use strategic designs") {
     TEST_AIDUDES::Reset_Doom_Star_Update_();
 
-    aidudes::Keep_Ship_Designs_Up_To_Date();
+    auto context = TEST_AIDUDES::Context_();
+    aidudes::Keep_Ship_Designs_Up_To_Date(&context);
 
     DOCTEST_CHECK(TEST_AIDUDES::Doom_Star_Load_Count_() == 1);
     DOCTEST_CHECK(TEST_AIDUDES::Doom_Star_Strategic_Mode_());
@@ -105,7 +110,8 @@ DOCTEST_TEST_CASE("AI queued Doom Star updates use strategic designs") {
 DOCTEST_TEST_CASE("AI Doom Star upgrade refits use strategic designs") {
     TEST_AIDUDES::Reset_Doom_Star_Refit_();
 
-    aidudes::Do_Ship_Upgrade_Cheats();
+    auto context = TEST_AIDUDES::Context_();
+    aidudes::Do_Ship_Upgrade_Cheats(TEST_AIDUDES::State_(), &context);
 
     DOCTEST_CHECK(TEST_AIDUDES::Doom_Star_Load_Count_() == 1);
     DOCTEST_CHECK(TEST_AIDUDES::Doom_Star_Strategic_Mode_());

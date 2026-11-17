@@ -11,17 +11,22 @@ namespace RUSS {
     }
 
     int16_t __cdecl Get_Weighted_Choice_Char(uint8_t* weights, int16_t count) {
+        auto choice = Choose_Weighted_Index_U8(weights, count > 0 ? (uint32_t)count : 0);
+        return choice ? (int16_t)*choice : -1;
+    }
+
+    std::optional<uint32_t> Choose_Weighted_Index_U8(const uint8_t* weights, uint32_t count) {
         uint32_t total_weight = 0;
-        for (int16_t i = 0; i < count; ++i) {
+        for (uint32_t i = 0; i < count; ++i) {
             total_weight += weights[i];
         }
 
         if (total_weight == 0) {
-            return -1;
+            return std::nullopt;
         }
 
         uint16_t r = (uint16_t)game_random::Random(total_weight);
-        int16_t index = 0;
+        uint32_t index = 0;
 
         if (weights[index] < r) {
             do {
@@ -34,21 +39,26 @@ namespace RUSS {
     }
 
     int16_t __cdecl Get_Weighted_Choice_Short(const uint16_t* weights, int16_t count) {
+        auto choice = Choose_Weighted_Index_U16(weights, count > 0 ? (uint32_t)count : 0);
+        return choice ? (int16_t)*choice : -1;
+    }
+
+    std::optional<uint32_t> Choose_Weighted_Index_U16(const uint16_t* weights, uint32_t count) {
         const uint8_t* bytes = (const uint8_t*)weights;
         uint32_t total_weight = 0;
 
         if (count > 0) {
-            for (int16_t i = 0; i < count; ++i) {
+            for (uint32_t i = 0; i < count; ++i) {
                 total_weight += unaligned::Load<uint16_t>(bytes + i * sizeof(uint16_t));
             }
         }
 
         if (total_weight == 0) {
-            return -1;
+            return std::nullopt;
         }
 
-        uint32_t random_val = (uint32_t)game_random::Random((int32_t)total_weight);
-        int16_t index = 0;
+        uint32_t random_val = game_random::Random((int32_t)total_weight);
+        uint32_t index = 0;
 
         if (unaligned::Load<uint16_t>(bytes + index * sizeof(uint16_t)) < random_val) {
             do {
@@ -62,18 +72,23 @@ namespace RUSS {
     }
 
     int16_t __cdecl Get_Weighted_Choice_Int(uint32_t* weights, int16_t count) {
+        auto choice = Choose_Weighted_Index_U32(weights, count > 0 ? (uint32_t)count : 0);
+        return choice ? (int16_t)*choice : -1;
+    }
+
+    std::optional<uint32_t> Choose_Weighted_Index_U32(const uint32_t* weights, uint32_t count) {
         const uint8_t* bytes = (const uint8_t*)weights;
         uint32_t total_weight = 0;
-        for (int16_t i = 0; i < count; ++i) {
+        for (uint32_t i = 0; i < count; ++i) {
             total_weight += unaligned::Load<uint32_t>(bytes + i * sizeof(uint32_t));
         }
 
         if (total_weight == 0) {
-            return -1;
+            return std::nullopt;
         }
 
-        uint32_t roll = (uint32_t)game_random::Random((int32_t)total_weight);
-        int16_t selected_index = 0;
+        uint32_t roll = game_random::Random((int32_t)total_weight);
+        uint32_t selected_index = 0;
 
         if (unaligned::Load<uint32_t>(bytes) < roll) {
             do {

@@ -1,8 +1,11 @@
 #include "pch.h"
 
+#include "legacy_world.h"
+
 namespace aidudes {
-    static void Assign_Blockaded_Non_Farmers(s_colony* colony, s_aidudes_colony_info* colony_info) {
-        int16_t is_researching = EVENTS::Event_Check_Colony_Researching(colony_info->colony_idx);
+    static void Assign_Blockaded_Non_Farmers(s_colony* colony, AIDATA::s_colony_assignment* colony_info) {
+        const auto legacy_colony = legacy_world::Index(colony_info->colony_id);
+        int16_t is_researching = legacy_colony ? EVENTS::Event_Check_Colony_Researching(*legacy_colony) : 0;
         POP::e_prof prof = is_researching == 0 ? POP::PROF_WORKER : POP::PROF_SCIENTIST;
 
         while ((uint8_t)colony_info->cur_pop_idx < (uint8_t)colony_info->pop_end_idx) {
@@ -13,16 +16,14 @@ namespace aidudes {
         }
     }
 
-    void __cdecl Do_Blockaded_Colony(s_aidudes_colony_info* colony_info) {
-        s_colony* colony = &MOX::colony[colony_info->colony_idx];
-        Assign_Required_Colonists(colony_info);
-
-        Sort_Pops_colony_data = colony;
+    void __cdecl Do_Blockaded_Colony(const game::s_view* world, AIDATA::s_colony_assignment* colony_info) {
+        s_colony* colony = &world->colonies[legacy_world::Slot(colony_info->colony_id)];
+        Assign_Required_Colonists(world, colony_info);
 
         qsort(&colony->pop[(uint8_t)colony_info->first_assignable_pop_idx],
             (uint8_t)colony->n_pops - (uint8_t)colony_info->first_assignable_pop_idx,
             4,
-            Sort_Pops_FI);
+            Sort_Pops_FI, colony);
 
         if (colony->food2_per_farmer == 0) {
             Assign_Blockaded_Non_Farmers(colony, colony_info);
@@ -69,7 +70,8 @@ namespace aidudes {
         return worthiness_0 - worthiness_1;
     }
 
-    int __cdecl Sort_Pops_FI(const void* a, const void* b) {
+    int __cdecl Sort_Pops_FI(void* context, const void* a, const void* b) {
+        auto* Sort_Pops_colony_data = static_cast<s_colony*>(context);
         const uint32_t* pop1 = (const uint32_t*)a;
         const uint32_t* pop2 = (const uint32_t*)b;
         int16_t worth1 = FI_Worthiness(Sort_Pops_colony_data, pop1);
@@ -87,10 +89,10 @@ namespace aidudes {
         return (int)worth2 - (int)worth1;
     }
 
-    void __cdecl Assign_Required_Colonists(s_aidudes_colony_info* colony_info) {
-        s_colony* colony = &MOX::colony[colony_info->colony_idx];
+    void __cdecl Assign_Required_Colonists(const game::s_view* world, AIDATA::s_colony_assignment* colony_info) {
+        s_colony* colony = &world->colonies[legacy_world::Slot(colony_info->colony_id)];
         uint32_t* pop_ptr = colony->pop;
-        char do_not_research = MOX::player[(int)colony->owner].do_not_research;
+        char do_not_research = world->players[(int)colony->owner].do_not_research;
         int16_t non_immune_pops = 0;
 
         colony_info->first_assignable_pop_idx = 0;
@@ -124,7 +126,7 @@ namespace aidudes {
 
             // Check if population is affected by pollution (not Android/Native and not Tolerant)
             if (current_race < POP::RACE_ANDROID) {
-                if (MOX::player[current_race].traits[TRAIT_ENVIRONMENT_IMMUNE] == 0) {
+                if (world->players[current_race].traits[TRAIT_ENVIRONMENT_IMMUNE] == 0) {
                     if (!POP::Is_Conquered(current_pop) || (colony->occupation_policy >= 2 && colony->occupation_policy <= 3)) {
                         non_immune_pops++;
                     }
@@ -134,13 +136,12 @@ namespace aidudes {
 
         // Determine if Lithovore trait (eats minerals) applies to this colony
         if ((non_immune_pops * 2 < (int)colony->n_pops) &&
-            (MOX::player[(int)colony->owner].traits[TRAIT_EATS_MINERALS] != 0) &&
-            (MOX::player[(int)colony->owner].surplus_food >= 0)) {
+            (world->players[(int)colony->owner].traits[TRAIT_EATS_MINERALS] != 0) &&
+            (world->players[(int)colony->owner].surplus_food >= 0)) {
             colony_info->eats_minerals = 1;
         }
 
         // Sort population for AI processing
-        aidudes::Sort_Pops_colony_data = colony;
         qsort(colony->pop, (size_t)colony->n_pops, 4, aidudes::Sort_Pops_Fixed);
 
         colony_info->cur_pop_idx = colony_info->first_assignable_pop_idx;

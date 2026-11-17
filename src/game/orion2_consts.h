@@ -1,3 +1,5 @@
+#pragma once
+
 typedef enum ARMOR {
     ARMOR_NO_ARMOR = 0,
     ARMOR_TITANIUM_ARMOR = 1,

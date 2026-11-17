@@ -6,6 +6,8 @@
 #include "doctest/doctest.h"
 
 namespace TEST_ORBITAL_DEFENSE {
+    const game::s_view* World_();
+    AIDATA::s_state* State_();
     void Reset_(int16_t preferred, bool large_ships);
     extern std::vector<std::string> printed;
     extern uint16_t station_weights[3];
@@ -73,7 +75,7 @@ DOCTEST_TEST_CASE("AI station orders cannot create doubled defenses in the attac
                 TEST_ORBITAL_DEFENSE::Reset_(candidate + 6, large_ships);
                 if (existing >= 0) ERICNET::Add_Building(0, stations[existing]);
 
-                aidudes::Assign_Empire_Building(0);
+                aidudes::Assign_Empire_Building(TEST_ORBITAL_DEFENSE::State_(), TEST_ORBITAL_DEFENSE::World_(), legacy_world::Player_Id(0));
 
                 DOCTEST_REQUIRE(TEST_ORBITAL_DEFENSE::choice_calls == 1);
                 const bool eligible = candidate > existing;

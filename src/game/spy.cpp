@@ -3,7 +3,8 @@
 namespace spy {
     int16_t spy_bonuses[MAX_PLAYERS * 2];
 
-    void __cdecl Resolve_Spies() {
+
+    void __cdecl Resolve_Spies(const AIDATA::s_player_assessment* players) {
         uint8_t num_active_players = 0;
         int8_t active_player_indices[MAX_PLAYERS];
 
@@ -28,7 +29,7 @@ namespace spy {
             for (int16_t j = 0; j < (int16_t)num_active_players; ++j) {
                 int8_t player_idx = active_player_indices[j];
                 if (MOX::player[player_idx].objectives != PLAYER_OBJECTIVE_HUMAN) {
-                    Allocate_AI_Spies(&MOX::player[player_idx]);
+                    Allocate_AI_Spies(&MOX::player[player_idx], players[player_idx].empire.contact_count);
                 }
             }
         }
@@ -43,7 +44,8 @@ namespace spy {
         }
     }
 
-    void __cdecl Allocate_AI_Spies(s_player* player) {
+
+    void __cdecl Allocate_AI_Spies(s_player* player, int16_t contact_count) {
         if (player->eliminated != 0) {
             return;
         }
@@ -92,7 +94,7 @@ namespace spy {
         }
 
         if (total_spies == 0) {
-            if ((*AIDATA::ai_player_info)[player_idx].n_contacts > 0 && MOX::stardate > 35030) {
+            if (contact_count > 0 && MOX::stardate > 35030) {
                 if (MOX::settings.game_difficulty == GAME_DIFFICULTY_IMPOSSIBLE) {
                     if (player->objectives != PLAYER_OBJECTIVE_DIPLOMATIC) {
                         game_random::Random(8);

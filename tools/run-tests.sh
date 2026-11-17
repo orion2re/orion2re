@@ -19,6 +19,6 @@ require_command() {
 require_command cmake
 require_command ctest
 
-cmake -S "$ROOT_DIR" -B "$BUILD_DIR" -DCMAKE_BUILD_TYPE=Debug -DORION2RE_BUILD_TESTS=ON
+cmake -S "$ROOT_DIR" -B "$BUILD_DIR" -DCMAKE_BUILD_TYPE=Debug -DORION2RE_BUILD_TESTS=ON -DORION2RE_ENABLE_ASAN=ON
 cmake --build "$BUILD_DIR" --parallel 4
 ctest --test-dir "$BUILD_DIR" --output-on-failure

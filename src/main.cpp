@@ -287,7 +287,7 @@ int main(int argc, char** argv) {
 #endif
 
     orion2re::lua::Shutdown_Lua();
-    ai_state::Shutdown();
+    AIDATA::Reset(&AIDATA::state);
     config::Shutdown_Config_Loader();
     config::Shutdown_Runtime();
     vfs::Shutdown();

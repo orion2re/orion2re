@@ -264,7 +264,7 @@ namespace COLONIZE {
                         for (int p = 0; p < 5; ++p) {
                             int16_t planet_idx = star->planet_index[p];
                             if (planet_idx != -1 && MOX::planet[planet_idx].colony_index == -1) {
-                                uint32_t worth = AIDATA::Uncolonized_Planet_Worth_To_Player(&MOX::planet[planet_idx], &MOX::player[player_idx]);
+                                uint32_t worth = AIDATA::Uncolonized_Planet_Worth_To_Player(&game::current, &MOX::planet[planet_idx], &MOX::player[player_idx]);
                                 if (best_worth < (worth & 0xFFFF)) {
                                     best_planet_idx = planet_idx;
                                     best_worth = worth & 0xFFFF;

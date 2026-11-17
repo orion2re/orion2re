@@ -44,6 +44,7 @@ namespace {
         return mode[0] == 'w' || mode[0] == 'a';
     }
 
+
     struct s_case_insensitive_file_match {
         const char* requested_file_name;
         char* resolved_path;
@@ -66,6 +67,7 @@ namespace {
         return SDL_ENUM_SUCCESS;
     }
 } // namespace
+
 
 bool File_Exists(const char* path) {
     SDL_PathInfo path_info;
