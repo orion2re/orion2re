@@ -267,10 +267,14 @@ if(ORION2RE_BUILD_GAME OR ORION2RE_BUILD_CONFIG_TOOL)
             set(ORION2RE_IMGUI_SOURCES "")
             set(ORION2RE_IMGUI_USE_PREBUILT ON)
         endif()
-        # The font ships with the sources on some systems; otherwise fall
-        # back to the vendored copy.
+        # The font ships with the sources on some systems, or in the
+        # package's data directory (<prefix>/share/imgui/fonts) on others;
+        # otherwise fall back to the vendored copy.
+        get_filename_component(ORION2RE_IMGUI_PREFIX "${ORION2RE_IMGUI_INCLUDE_DIR}/../.." ABSOLUTE)
         if(EXISTS "${ORION2RE_IMGUI_INCLUDE_DIR}/misc/fonts/ProggyTiny.ttf")
             set(ORION2RE_IMGUI_FONT "${ORION2RE_IMGUI_INCLUDE_DIR}/misc/fonts/ProggyTiny.ttf")
+        elseif(EXISTS "${ORION2RE_IMGUI_PREFIX}/share/imgui/fonts/ProggyTiny.ttf")
+            set(ORION2RE_IMGUI_FONT "${ORION2RE_IMGUI_PREFIX}/share/imgui/fonts/ProggyTiny.ttf")
         elseif(EXISTS "${ORION2RE_VENDORED_IMGUI_DIR}/misc/fonts/ProggyTiny.ttf")
             set(ORION2RE_IMGUI_FONT "${ORION2RE_VENDORED_IMGUI_DIR}/misc/fonts/ProggyTiny.ttf")
         else()
@@ -583,8 +587,16 @@ else()
 endif()
 
 if(ORION2RE_USE_SYSTEM_LZ4)
-    find_package(lz4 REQUIRED)
-    set(ORION2RE_LZ4_TARGET LZ4::lz4)
+    # lz4 installs a CMake package only when built with CMake; distributions
+    # that build it with make (e.g. Fedora) ship just the pkg-config file.
+    find_package(lz4 QUIET)
+    if(TARGET LZ4::lz4)
+        set(ORION2RE_LZ4_TARGET LZ4::lz4)
+    else()
+        find_package(PkgConfig REQUIRED)
+        pkg_check_modules(liblz4 REQUIRED IMPORTED_TARGET liblz4)
+        set(ORION2RE_LZ4_TARGET PkgConfig::liblz4)
+    endif()
 else()
     add_library(orion2re_lz4 STATIC
         "${ORION2RE_VENDORED_LZ4_DIR}/lib/lz4.c"
@@ -904,18 +916,22 @@ if(ORION2RE_BUILD_GAME)
     add_executable(turn-benchmark EXCLUDE_FROM_ALL
         tools/turn_benchmark.cpp
         $<TARGET_OBJECTS:orion2re_game_objects>
-        "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smacker.c"
-        "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smk_bitstream.c"
-        "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smk_hufftree.c"
-        "${ORION2RE_VENDORED_YYJSON_DIR}/src/yyjson.c"
+        ${ORION2RE_LIBSMACKER_SOURCES}
+        ${ORION2RE_YYJSON_SOURCES}
     )
     target_compile_features(turn-benchmark PRIVATE cxx_std_20)
     target_include_directories(turn-benchmark PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/src"
-        "${ORION2RE_VENDORED_LIBSMACKER_DIR}"
-        "${ORION2RE_VENDORED_YYJSON_DIR}/src")
-    target_link_libraries(turn-benchmark PRIVATE SDL3::SDL3-static uv_a
-        orion2re_lz4 orion2re_lua orion2re_scalers miniz orion2re_imgui)
+        ${ORION2RE_LIBSMACKER_INCLUDE_DIRS}
+        ${ORION2RE_YYJSON_INCLUDE_DIRS})
+    target_link_libraries(turn-benchmark PRIVATE ${ORION2RE_SDL3_TARGET} ${ORION2RE_LIBUV_TARGET}
+        ${ORION2RE_LZ4_TARGET} orion2re_lua orion2re_scalers ${ORION2RE_MINIZ_TARGET} orion2re_imgui)
+    if(ORION2RE_USE_SYSTEM_YYJSON)
+        target_link_libraries(turn-benchmark PRIVATE PkgConfig::yyjson)
+    endif()
+    if(ORION2RE_USE_SYSTEM_LIBSMACKER)
+        target_link_libraries(turn-benchmark PRIVATE ${ORION2RE_LIBSMACKER_LIBRARY})
+    endif()
     if(MSVC)
         target_compile_definitions(turn-benchmark PRIVATE WIN32 _CRT_SECURE_NO_DEPRECATE _CRT_NONSTDC_NO_DEPRECATE)
     endif()
