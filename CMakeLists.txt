@@ -121,6 +121,11 @@ option(ORION2RE_BUILD_TESTS "Build tests" OFF)
 option(ORION2RE_USE_SYSTEM_PACKAGES
        "Use the system library for every vendored dependency instead of the bundled copy"
        OFF)
+# For distributions that do not package libsmacker. Declared here because
+# the master switch below leaves libsmacker alone when it is enabled.
+option(ORION2RE_USE_FFMPEG_SMACKER
+       "Decode Smacker video with the system FFmpeg libraries instead of libsmacker"
+       OFF)
 
 # The master switch enables every individual ORION2RE_USE_SYSTEM_*
 # option. It is placed here, before the per-library selections below,
@@ -136,7 +141,13 @@ if(ORION2RE_USE_SYSTEM_PACKAGES)
     set(ORION2RE_USE_SYSTEM_MINIZ ON CACHE BOOL "" FORCE)
     set(ORION2RE_USE_SYSTEM_YYJSON ON CACHE BOOL "" FORCE)
     set(ORION2RE_USE_SYSTEM_DOCTEST ON CACHE BOOL "" FORCE)
-    set(ORION2RE_USE_SYSTEM_LIBSMACKER ON CACHE BOOL "" FORCE)
+    # A build directory configured before FFmpeg was selected still has
+    # libsmacker switched on in its cache, so it is switched off again.
+    if(ORION2RE_USE_FFMPEG_SMACKER)
+        set(ORION2RE_USE_SYSTEM_LIBSMACKER OFF CACHE BOOL "" FORCE)
+    else()
+        set(ORION2RE_USE_SYSTEM_LIBSMACKER ON CACHE BOOL "" FORCE)
+    endif()
     set(ORION2RE_USE_SYSTEM_IMGUI ON CACHE BOOL "" FORCE)
     set(ORION2RE_USE_SYSTEM_LUA ON CACHE BOOL "" FORCE)
 endif()
@@ -521,14 +532,37 @@ if((ORION2RE_BUILD_GAME OR ORION2RE_BUILD_TESTS OR ORION2RE_BUILD_CONFIG_TOOL) A
     )
 endif()
 
-if(NOT ORION2RE_USE_SYSTEM_LIBSMACKER AND
+if(ORION2RE_USE_FFMPEG_SMACKER AND ORION2RE_USE_SYSTEM_LIBSMACKER)
+    message(FATAL_ERROR
+        "ORION2RE_USE_FFMPEG_SMACKER and ORION2RE_USE_SYSTEM_LIBSMACKER select different Smacker decoders; enable only one."
+    )
+endif()
+
+if(NOT ORION2RE_USE_SYSTEM_LIBSMACKER AND NOT ORION2RE_USE_FFMPEG_SMACKER AND
    NOT EXISTS "${ORION2RE_VENDORED_LIBSMACKER_DIR}/smacker.c")
     message(FATAL_ERROR
         "This project requires libsmacker sources at vendors/libsmacker."
     )
 endif()
 
-if(ORION2RE_USE_SYSTEM_LIBSMACKER)
+# The libsmacker API implemented with FFmpeg. It is built apart from the
+# game sources, which keep including "smacker.h".
+set(ORION2RE_SMACKER_FFMPEG_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/game/smacker_ffmpeg")
+set(ORION2RE_SMACKER_FFMPEG_SOURCES "${ORION2RE_SMACKER_FFMPEG_DIR}/smacker_ffmpeg.cpp")
+
+if(ORION2RE_USE_FFMPEG_SMACKER)
+    # FFmpeg 4.4 (libavformat 58.76) is the first whose Smacker demuxer
+    # returns the audio packets of a frame before its video packet.
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(ORION2RE_FFMPEG REQUIRED IMPORTED_TARGET
+        libavformat>=58.76 libavcodec libavutil)
+    add_library(orion2re_smacker_ffmpeg STATIC ${ORION2RE_SMACKER_FFMPEG_SOURCES})
+    target_compile_features(orion2re_smacker_ffmpeg PRIVATE cxx_std_20)
+    target_link_libraries(orion2re_smacker_ffmpeg PRIVATE PkgConfig::ORION2RE_FFMPEG)
+    set(ORION2RE_LIBSMACKER_LIBRARY orion2re_smacker_ffmpeg)
+    set(ORION2RE_LIBSMACKER_INCLUDE_DIRS "${ORION2RE_SMACKER_FFMPEG_DIR}")
+    set(ORION2RE_LIBSMACKER_SOURCES "")
+elseif(ORION2RE_USE_SYSTEM_LIBSMACKER)
     find_library(ORION2RE_LIBSMACKER_LIBRARY NAMES smacker REQUIRED)
     find_path(ORION2RE_LIBSMACKER_INCLUDE_DIR NAMES smacker.h REQUIRED)
     set(ORION2RE_LIBSMACKER_INCLUDE_DIRS "${ORION2RE_LIBSMACKER_INCLUDE_DIR}")
@@ -700,6 +734,7 @@ if(ORION2RE_BUILD_GAME OR ORION2RE_BUILD_CONFIG_TOOL)
 
     list(REMOVE_ITEM ORION2RE_SOURCES ${ORION2RE_CONFIG_GENERATED_FILES})
     list(REMOVE_ITEM ORION2RE_SOURCES ${ORION2RE_SCALER_SOURCES})
+    list(REMOVE_ITEM ORION2RE_SOURCES ${ORION2RE_SMACKER_FFMPEG_SOURCES})
     list(APPEND ORION2RE_SOURCES ${ORION2RE_CONFIG_GENERATED_FILES})
     list(REMOVE_ITEM ORION2RE_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp")
     # imgui_stb.cpp is compiled by the orion2re_imgui OBJECT library when
@@ -888,7 +923,7 @@ if(ORION2RE_BUILD_GAME)
     if(ORION2RE_USE_SYSTEM_YYJSON)
         target_link_libraries(orion2re PRIVATE PkgConfig::yyjson)
     endif()
-    if(ORION2RE_USE_SYSTEM_LIBSMACKER)
+    if(ORION2RE_USE_SYSTEM_LIBSMACKER OR ORION2RE_USE_FFMPEG_SMACKER)
         target_link_libraries(orion2re PRIVATE ${ORION2RE_LIBSMACKER_LIBRARY})
     endif()
     add_executable(config-load-benchmark EXCLUDE_FROM_ALL
@@ -907,7 +942,7 @@ if(ORION2RE_BUILD_GAME)
     if(ORION2RE_USE_SYSTEM_YYJSON)
         target_link_libraries(config-load-benchmark PRIVATE PkgConfig::yyjson)
     endif()
-    if(ORION2RE_USE_SYSTEM_LIBSMACKER)
+    if(ORION2RE_USE_SYSTEM_LIBSMACKER OR ORION2RE_USE_FFMPEG_SMACKER)
         target_link_libraries(config-load-benchmark PRIVATE ${ORION2RE_LIBSMACKER_LIBRARY})
     endif()
     if(MSVC)
@@ -929,7 +964,7 @@ if(ORION2RE_BUILD_GAME)
     if(ORION2RE_USE_SYSTEM_YYJSON)
         target_link_libraries(turn-benchmark PRIVATE PkgConfig::yyjson)
     endif()
-    if(ORION2RE_USE_SYSTEM_LIBSMACKER)
+    if(ORION2RE_USE_SYSTEM_LIBSMACKER OR ORION2RE_USE_FFMPEG_SMACKER)
         target_link_libraries(turn-benchmark PRIVATE ${ORION2RE_LIBSMACKER_LIBRARY})
     endif()
     if(MSVC)
@@ -1017,7 +1052,7 @@ if(ORION2RE_BUILD_CONFIG_TOOL)
     if(ORION2RE_USE_SYSTEM_YYJSON)
         target_link_libraries(config-tool PRIVATE PkgConfig::yyjson)
     endif()
-    if(ORION2RE_USE_SYSTEM_LIBSMACKER)
+    if(ORION2RE_USE_SYSTEM_LIBSMACKER OR ORION2RE_USE_FFMPEG_SMACKER)
         target_link_libraries(config-tool PRIVATE ${ORION2RE_LIBSMACKER_LIBRARY})
     endif()
 

@@ -111,7 +111,7 @@ function(orion2re_add_unit_test TARGET_NAME)
     if(ORION2RE_USE_SYSTEM_YYJSON)
         target_link_libraries(${TARGET_NAME} PRIVATE PkgConfig::yyjson)
     endif()
-    if(ORION2RE_USE_SYSTEM_LIBSMACKER)
+    if(ORION2RE_USE_SYSTEM_LIBSMACKER OR ORION2RE_USE_FFMPEG_SMACKER)
         target_link_libraries(${TARGET_NAME} PRIVATE ${ORION2RE_LIBSMACKER_LIBRARY})
     endif()
 
