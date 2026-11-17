@@ -58,6 +58,7 @@ namespace vfs {
     }
 
     void Shutdown() {
+        Clear_Directory_Indexes();
         if (vfs_detail::g_vfs_staged_transaction != nullptr) {
             Discard_Mount_Transaction(vfs_detail::g_vfs_staged_transaction);
         }
@@ -125,6 +126,9 @@ namespace vfs {
             vfs_detail::g_vfs_staged_transaction != nullptr) {
             return nullptr;
         }
+        // Packages are looked up afresh, as a mod can be updated in place
+        // with its directory's modification time preserved.
+        Clear_Directory_Indexes();
         s_vfs_mount_transaction* transaction = new s_vfs_mount_transaction{};
         vfs_detail::g_vfs_staged_transaction = transaction;
         return transaction;

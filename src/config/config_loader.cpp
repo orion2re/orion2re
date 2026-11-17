@@ -843,6 +843,9 @@ namespace config {
             diagnostic->message = "active configuration is not initialized";
             return false;
         }
+        // A reload that keeps the current mounts still reads loose files
+        // that may have changed.
+        Clear_Directory_Indexes();
         s_cfg_document document;
         if (!Load_Startup_Document(active_config.entry_path, &document, diagnostic)) {
             return false;

@@ -62,6 +62,9 @@ struct s_memorystatus {
 bool File_Exists(const char* path);
 bool Cleanup_Path(const char* input_path, char* output_path, size_t output_path_size, bool ensure_trailing_separator = false);
 bool Resolve_File_Path_Case(const char* path, char* resolved_path, size_t resolved_path_size);
+// Forgets the directory listings kept by Resolve_File_Path_Case, for when
+// files may have changed without their directory's modification time.
+void Clear_Directory_Indexes();
 FILE* fopen_case(const char* path, const char* mode);
 void Query_Memory_Status(s_memorystatus* memory_status);
 int Show_Message_Box(void* window_handle, const char* text, const char* caption, bool is_error = false);

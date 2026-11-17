@@ -282,5 +282,44 @@ DOCTEST_TEST_SUITE("user paths") {
             DOCTEST_CHECK(directory == environment.Path("install"));
         }
     }
+
+    DOCTEST_TEST_CASE("case-insensitive lookups follow changes to an indexed directory") {
+        s_user_environment environment;
+        environment.Write_File("assets/FIRST.LBX", "first");
+        // Old enough for the listing to be kept between lookups. A
+        // case-insensitive filesystem resolves the names without the index,
+        // so the results are compared by file, not by spelling.
+        fs::last_write_time(environment.root / "assets", fs::file_time_type::clock::now() - std::chrono::hours(1));
+        char resolved[1024] = {};
+        DOCTEST_REQUIRE(Resolve_File_Path_Case(environment.Path("assets/first.lbx").c_str(), resolved, sizeof(resolved)));
+        DOCTEST_CHECK(fs::equivalent(resolved, environment.Path("assets/FIRST.LBX")));
+        DOCTEST_CHECK_FALSE(Resolve_File_Path_Case(environment.Path("assets/second.lbx").c_str(), resolved, sizeof(resolved)));
+        environment.Write_File("assets/SECOND.LBX", "second");
+        DOCTEST_REQUIRE(Resolve_File_Path_Case(environment.Path("assets/second.lbx").c_str(), resolved, sizeof(resolved)));
+        DOCTEST_CHECK(fs::equivalent(resolved, environment.Path("assets/SECOND.LBX")));
+        fs::remove(environment.root / "assets" / "FIRST.LBX");
+        DOCTEST_CHECK_FALSE(Resolve_File_Path_Case(environment.Path("assets/first.lbx").c_str(), resolved, sizeof(resolved)));
+    }
+
+    DOCTEST_TEST_CASE("clearing the directory indexes finds a file added with the directory time preserved") {
+        s_user_environment environment;
+        environment.Write_File("assets/FIRST.LBX", "first");
+        const fs::path assets = environment.root / "assets";
+        fs::last_write_time(assets, fs::file_time_type::clock::now() - std::chrono::hours(1));
+        const fs::file_time_type indexed_time = fs::last_write_time(assets);
+        // Only a case-sensitive filesystem reaches the index for a file that exists.
+        const bool case_sensitive = !fs::exists(assets / "first.lbx");
+        char resolved[1024] = {};
+        DOCTEST_CHECK_FALSE(Resolve_File_Path_Case(environment.Path("assets/second.lbx").c_str(), resolved, sizeof(resolved)));
+        environment.Write_File("assets/SECOND.LBX", "second");
+        fs::last_write_time(assets, indexed_time);
+        if (case_sensitive) {
+            // The kept listing answers, which is what makes repeat lookups cheap.
+            DOCTEST_CHECK_FALSE(Resolve_File_Path_Case(environment.Path("assets/second.lbx").c_str(), resolved, sizeof(resolved)));
+        }
+        Clear_Directory_Indexes();
+        DOCTEST_REQUIRE(Resolve_File_Path_Case(environment.Path("assets/second.lbx").c_str(), resolved, sizeof(resolved)));
+        DOCTEST_CHECK(fs::equivalent(resolved, environment.Path("assets/SECOND.LBX")));
+    }
 #endif
 }
