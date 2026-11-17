@@ -1,7 +1,8 @@
 #include "pch.h"
+#include "legacy_ids.h"
 
 namespace spy {
-    void __cdecl Compute_Spy_Bonuses(s_player* player, int16_t* defense_bonus_out, int16_t* attack_bonus_out) {
+    void __cdecl Compute_Spy_Bonuses(game::s_world_state* world_state, s_player* player, int16_t* defense_bonus_out, int16_t* attack_bonus_out) {
         int32_t telepathic_trait_bonus =
             (int8_t)player->traits[TRAIT_TELEPATHIC] * (int8_t)telepathic_bonus;
         int32_t tech_and_trait_bonus = Tech_Spy_Bonus(player) + player->traits[TRAIT_SPYING_BONUS];
@@ -12,17 +13,18 @@ namespace spy {
 
         int32_t player_idx = (int32_t)(player - MOX::player);
 
-        for (int32_t i = 0; i < MAX_LEADERS; ++i) {
-            s_leader_data* leader = &MOX::leaders[i];
+        for (const auto& leader_entry : world_state->leaders) {
+            const int32_t i = static_cast<int32_t>(leader_entry.first.id);
+            s_leader_data* leader = &game::Leader(world_state, i);
 
             if (leader->player_index == player_idx) {
                 if (leader->status >= 0 && leader->status <= 2) {
                     if (!COLCALC::Leader_At_Anomaly(leader)) {
                         int32_t current_def_skill = 0;
                         if (leader->general_skills & LEADER_GENERAL_SKILL_SPY_MASTER2) {
-                            current_def_skill = OFFICER::Owned_Officer_Level(i) * 3 + 3;
+                            current_def_skill = OFFICER::Owned_Officer_Level(world_state, i) * 3 + 3;
                         } else if (leader->general_skills & LEADER_GENERAL_SKILL_SPY_MASTER) {
-                            current_def_skill = OFFICER::Owned_Officer_Level(i) * 2 + 2;
+                            current_def_skill = OFFICER::Owned_Officer_Level(world_state, i) * 2 + 2;
                         }
 
                         if (current_def_skill > max_leader_def_bonus) {
@@ -31,9 +33,9 @@ namespace spy {
 
                         int32_t current_atk_skill = 0;
                         if (leader->general_skills & LEADER_GENERAL_SKILL_TELEPATH2) {
-                            current_atk_skill = (OFFICER::Owned_Officer_Level(i) + 1) * 3;
+                            current_atk_skill = (OFFICER::Owned_Officer_Level(world_state, i) + 1) * 3;
                         } else if (leader->general_skills & LEADER_GENERAL_SKILL_TELEPATH) {
-                            current_atk_skill = (OFFICER::Owned_Officer_Level(i) + 1) * 2;
+                            current_atk_skill = (OFFICER::Owned_Officer_Level(world_state, i) + 1) * 2;
                         }
 
                         if (current_atk_skill > max_leader_atk_bonus) {
@@ -66,32 +68,32 @@ namespace spy {
         }
     }
 
-    void __cdecl Resolve_Assassins() {
-        for (int32_t leader_idx = MAX_LEADERS - 1;
-             leader_idx >= 0;
-             --leader_idx) {
-            s_leader_data* leader = &MOX::leaders[leader_idx];
+    void __cdecl Resolve_Assassins(game::s_world_state* world_state) {
+        for (auto entry = world_state->leaders.rbegin(); entry != world_state->leaders.rend(); ++entry) {
+            const int32_t leader_idx = static_cast<int32_t>(entry->first.id);
+            s_leader_data* leader = &entry->second;
 
             // player_index != -1 and status is active (0) or assigned (1)
             if (leader->player_index != -1 && (leader->status == 0 || leader->status == 1)) {
                 int32_t chance = 0;
 
                 if ((leader->general_skills & LEADER_GENERAL_SKILL_ASSASSIN2) != 0) {
-                    chance = OFFICER::Owned_Officer_Level(leader_idx) * 3 + 3;
+                    chance = OFFICER::Owned_Officer_Level(world_state, leader_idx) * 3 + 3;
                 } else if ((leader->general_skills & LEADER_GENERAL_SKILL_ASSASSIN) != 0) {
-                    chance = OFFICER::Owned_Officer_Level(leader_idx) * 2 + 2;
+                    chance = OFFICER::Owned_Officer_Level(world_state, leader_idx) * 2 + 2;
                 }
 
                 if (chance != 0) {
                     if ((int16_t)game_random::Random(100) <= chance) {
-                        spy::Leader_Assassinates(leader);
+                        spy::Leader_Assassinates(world_state, entry->first);
                     }
                 }
             }
         }
     }
 
-    void __cdecl Leader_Assassinates(s_leader_data* leader) {
+    void __cdecl Leader_Assassinates(game::s_world_state* world_state, game::id_leader leader_id) {
+        s_leader_data* leader = &game::Leader(world_state, leader_id);
         int32_t total_assassins = 0;
         int32_t total_defenders = 0;
         int32_t assassin_plr_a = -1;
@@ -134,7 +136,7 @@ namespace spy {
             msg.u.spy_assasination.plr_a = (int8_t)assassin_plr_a;
             msg.u.spy_assasination.plr_b = (int8_t)assassin_plr_b;
 
-            int32_t leader_idx = (int32_t)(leader - MOX::leaders);
+            int32_t leader_idx = legacy_world::Slot(leader_id);
             msg.u.spy_assasination.leader_id = (int8_t)leader_idx;
             msg.u.spy_assasination.victim_id = (int8_t)victim_player_idx;
 

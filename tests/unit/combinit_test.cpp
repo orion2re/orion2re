@@ -66,7 +66,7 @@ DOCTEST_TEST_CASE("ordinary combat loading zero-extends strategic ammo") {
     TEST_COMBINIT::Reset_();
     TEST_COMBINIT::Set_Strategic_Missile_Ammo_(UINT8_MAX);
 
-    COMBINIT::Load_Combat_Ship(0, 0);
+    COMBINIT::Load_Combat_Ship(&game::world, 0, 0);
 
     DOCTEST_CHECK(TEST_COMBINIT::Tactical_Missile_Ammo_() == UINT8_MAX);
 }
@@ -104,7 +104,7 @@ DOCTEST_TEST_CASE("crystal keep retains monster captures and immobilizes retaine
         TEST_COMBINIT::Set_Captured_Ship_(value.owner, 0, 4);
         COMBINIT::crystal_keep = value.crystal_keep;
 
-        COMBINIT::End_Of_Combat(0, 0, 1);
+        COMBINIT::End_Of_Combat(&game::world, 0, 0, 1);
 
         DOCTEST_CHECK(
             TEST_COMBINIT::Strategic_Ship_Killed_() == !value.retained);
@@ -124,7 +124,7 @@ DOCTEST_TEST_CASE("attacker victory removes a satellite recaptured by the defend
         TEST_COMBINIT::Set_Defender_Recaptured_Satellite_();
         COMBINIT::satellite_capture_enabled = capture_enabled;
 
-        COMBINIT::End_Of_Combat(0, 0, 1);
+        COMBINIT::End_Of_Combat(&game::world, 0, 0, 1);
 
         DOCTEST_CHECK(TEST_COMBINIT::Satellite_Building_Removed_(
             0, BUILDING_STAR_BASE));
@@ -138,7 +138,7 @@ DOCTEST_TEST_CASE("attacker-captured satellite is retained only when enabled") {
         TEST_COMBINIT::Set_Attacker_Captured_Satellite_();
         COMBINIT::satellite_capture_enabled = capture_enabled;
 
-        COMBINIT::End_Of_Combat(0, 0, 1);
+        COMBINIT::End_Of_Combat(&game::world, 0, 0, 1);
 
         DOCTEST_CHECK(TEST_COMBINIT::Satellite_Building_Removed_(
             0, BUILDING_STAR_BASE));
@@ -152,7 +152,7 @@ DOCTEST_TEST_CASE("destroyed attacker-captured satellite is not retained") {
     TEST_COMBINIT::Set_Attacker_Captured_Satellite_(true);
     COMBINIT::satellite_capture_enabled = 1;
 
-    COMBINIT::End_Of_Combat(0, 0, 1);
+    COMBINIT::End_Of_Combat(&game::world, 0, 0, 1);
 
     DOCTEST_CHECK(TEST_COMBINIT::Satellite_Building_Removed_(
         0, BUILDING_STAR_BASE));
@@ -173,8 +173,8 @@ DOCTEST_TEST_CASE("survival pods recover more than eight leaders after an expand
         destroyed.unit_status = 5;
         destroyed.officer_idx = i;
         MOX::ship[destroyed_idx].officer_index = i;
-        MOX::leaders[i].location = destroyed_idx;
-        MOX::leaders[i].player_index = 0;
+        game::Leader(&game::world, i).location = destroyed_idx;
+        game::Leader(&game::world, i).player_index = 0;
         s_combat_data& surviving = MOX::combat_data[surviving_idx];
         surviving.ship_idx = surviving_idx;
         surviving.owner = 0;
@@ -182,11 +182,11 @@ DOCTEST_TEST_CASE("survival pods recover more than eight leaders after an expand
         MOX::ship[surviving_idx].officer_index = -1;
     }
 
-    COMBINIT::End_Of_Combat(0, 0, 1);
+    COMBINIT::End_Of_Combat(&game::world, 0, 0, 1);
 
     for (int16_t i = 0; i < leader_count; ++i) {
         const int16_t surviving_idx = leader_count + i + 1;
-        DOCTEST_CHECK((MOX::leaders[i].location == surviving_idx));
+        DOCTEST_CHECK((game::Leader(&game::world, i).location == surviving_idx));
         DOCTEST_CHECK((MOX::ship[surviving_idx].officer_index == i));
         DOCTEST_CHECK((MOX::combat_data[surviving_idx].officer_idx == i));
     }

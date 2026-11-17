@@ -30,7 +30,7 @@ namespace {
 
     void Bind_AI_World() {
 #if defined(TURN_BENCHMARK_WORLD_VIEW)
-        game::current = legacy_world::World();
+        game::current = legacy_world::World(&game::world);
 #elif TURN_BENCHMARK_EXPLICIT_AI
         AIDATA::state.world = AI_LEGACY::World();
 #endif
@@ -74,7 +74,7 @@ namespace {
             npcdiplo::NPC_Diplomacy();
             diplomac::Diplomacy_Growth();
         });
-        Measure(phases, "leaders", [&] { aileader::Do_AI_Leaders(TURN_BENCHMARK_AI_STATE); });
+        Measure(phases, "leaders", [&] { aileader::Do_AI_Leaders(&game::world, TURN_BENCHMARK_AI_STATE); });
         Measure(phases, "build_needs", [&] {
             AIBUILD::Compute_Empire_Building_Needs(TURN_BENCHMARK_AI_STATE);
 #if !TURN_BENCHMARK_EXPLICIT_AI
@@ -145,7 +145,7 @@ namespace {
         MAPGEN::Load_Nebula_Pictures();
         HAROLD::Confirm_Planet_And_Star_Index_Link("turn benchmark load");
         MAINSCR::Update_Star_Owners();
-        HAROLD::Load_Leader_Titles();
+        HAROLD::Load_Leader_Titles(&game::world);
         for (int i = 0; i < MAX_PLAYERS; ++i) {
             auto& player = MOX::player[i];
             if (player.dead_field != 0) {

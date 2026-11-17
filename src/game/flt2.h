@@ -62,7 +62,7 @@ namespace FLT2 {
     int16_t __cdecl Get_Filter_Button_Status();
 
     /// Prints the status text for the currently scanned star.
-    void __cdecl Print_Fltscrn_Scanned_Star_Name();
+    void __cdecl Print_Fltscrn_Scanned_Star_Name(game::s_world_state* world_state);
 
     /// Builds a list of selected ships from the current big-icon selection state.
     /// @param ship_list Receives the selected ship indices.
@@ -78,7 +78,7 @@ namespace FLT2 {
 
     /// Draws the assigned captain portrait for a ship.
     /// @param ship_idx Ship index whose captain should be shown.
-    uint8_t __cdecl Draw_Captains_Picture(int16_t ship_idx);
+    uint8_t __cdecl Draw_Captains_Picture(game::s_world_state* world_state, int16_t ship_idx);
 
     /// Prints the detailed text panel for a scanned ship.
     /// @param ship_idx Ship index to describe.

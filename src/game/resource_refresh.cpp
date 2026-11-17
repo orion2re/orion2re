@@ -43,7 +43,7 @@ namespace CONFIG_REFRESH {
         LOADER::Load_Main_Screen_Pictures();
         Reload_Tech_Names_If_Loaded();
         RUSS::Release_All_Blocks(MOX::screen_seg);
-        HAROLD::Load_Leader_Titles();
+        HAROLD::Load_Leader_Titles(&game::world);
         MOX::FULL_DRAW_SCREEN_FLAG = 1;
         reload_pending = false;
     }

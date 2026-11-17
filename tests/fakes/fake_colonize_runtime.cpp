@@ -82,7 +82,7 @@ namespace REPORT {
 }
 
 namespace SHIPS {
-    void __cdecl Kill_Ship(int16_t) {
+    void __cdecl Kill_Ship(game::s_world_state* world_state, int16_t) {
     }
 }
 

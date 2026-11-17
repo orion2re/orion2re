@@ -192,13 +192,13 @@ namespace MAPGEN {
 
     void __cdecl Generate_Wormhole_Links();
 
-    void __cdecl Assign_Marooned_Heroes();
+    void __cdecl Assign_Marooned_Heroes(game::s_world_state* world_state);
 
     /** Applies configured transformations that require a completed new-game galaxy. */
     bool __cdecl Finalize_Configured_New_Game(bool* succeeded = nullptr);
 
     /** Runs the selected galaxy generator over disposable construction state. */
-    bool __cdecl Apply_Lua_Galaxy_Generator(
+    bool __cdecl Apply_Lua_Galaxy_Generator(game::s_world_state* world_state,
         std::string* diagnostic = nullptr);
 
     /** Recomputes dependent farm, food, and colony fields for a generated planet. */

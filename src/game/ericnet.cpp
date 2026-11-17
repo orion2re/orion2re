@@ -235,7 +235,7 @@ namespace ERICNET {
         int16_t instructor_bonuses[MAX_PLAYERS];
         memset(instructor_bonuses, 0, sizeof(instructor_bonuses));
 
-        Best_Instructor_Bonus(instructor_bonuses);
+        Best_Instructor_Bonus(&game::world, instructor_bonuses);
 
         for (int16_t ship_idx = 0; ship_idx < MAX_SHIPS; ++ship_idx) {
             s_ship_data& ship = MOX::ship[ship_idx];
@@ -504,9 +504,10 @@ namespace ERICNET {
         COLCALC::Colony_Environmental_Stuff(colony);
     }
 
-    void __cdecl Best_Instructor_Bonus(int16_t* instructor_bonus_by_player) {
-        for (int16_t leader_index = 0; leader_index < MAX_LEADERS; ++leader_index) {
-            const s_leader_data& leader = MOX::leaders[leader_index];
+    void __cdecl Best_Instructor_Bonus(game::s_world_state* world_state, int16_t* instructor_bonus_by_player) {
+        for (const auto& leader_entry : world_state->leaders) {
+            const int32_t leader_index = static_cast<int32_t>(leader_entry.first.id);
+            const s_leader_data& leader = game::Leader(world_state, leader_index);
             const int16_t player_index = (int8_t)leader.player_index;
 
             if ((leader.type == LEADER_TYPE_COLONY) &&
@@ -516,10 +517,10 @@ namespace ERICNET {
                 (player_index < MAX_PLAYERS)) {
                 int16_t bonus = 0;
 
-                if (OFFICER::Officer_Has_Special_Skill(player_index, leader_index, 0x16)) {
-                    bonus = (int16_t)OFFICER::Officer_Skill_Bonus((uint32_t)player_index, leader_index, 0x16);
-                } else if (OFFICER::Officer_Has_Special_Skill(player_index, leader_index, 0x17)) {
-                    bonus = (int16_t)OFFICER::Officer_Skill_Bonus((uint32_t)player_index, leader_index, 0x17);
+                if (OFFICER::Officer_Has_Special_Skill(world_state, player_index, leader_index, 0x16)) {
+                    bonus = (int16_t)OFFICER::Officer_Skill_Bonus(world_state, (uint32_t)player_index, leader_index, 0x16);
+                } else if (OFFICER::Officer_Has_Special_Skill(world_state, player_index, leader_index, 0x17)) {
+                    bonus = (int16_t)OFFICER::Officer_Skill_Bonus(world_state, (uint32_t)player_index, leader_index, 0x17);
                 }
 
                 if (instructor_bonus_by_player[player_index] < bonus) {

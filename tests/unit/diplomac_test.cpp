@@ -10,7 +10,7 @@ namespace TEST_DIPLOMAC {
 namespace {
     struct s_diplomacy_scope {
         s_player* players = MOX::player;
-        s_leader_data* leaders = MOX::leaders;
+        std::map<game::id_leader, s_leader_data> leaders = game::world.leaders;
         s_ship_data* ships = MOX::ship;
         s_star_data* stars = MOX::star;
         s_planet_data* planets = MOX::planet;
@@ -32,7 +32,7 @@ namespace {
 
         ~s_diplomacy_scope() {
             MOX::player = players;
-            MOX::leaders = leaders;
+            game::world.leaders = std::move(leaders);
             MOX::ship = ships;
             MOX::star = stars;
             MOX::planet = planets;

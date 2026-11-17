@@ -231,7 +231,7 @@ namespace COLONY {
 
     void __cdecl Draw_Colony_Info() {
         Draw_Colony_Info_Military();
-        Draw_Colony_Info_Officer();
+        Draw_Colony_Info_Officer(&game::world);
         Draw_Colony_Info_Production();
         Draw_Colony_Info_Pop();
         Draw_Colony_Info_Morale();
@@ -436,7 +436,7 @@ namespace COLONY {
         int8_t officer_idx = MOX::star[COLONY::star_handle].officer_index[MOX::PLAYER_NUM];
 
         if (officer_idx != -1) {
-            c_anims[30] = OFFICER::Load_Officer_Picture(
+            c_anims[30] = OFFICER::Load_Officer_Picture(&game::world,
                 (int32_t)MOX::PLAYER_NUM,
                 (int16_t)officer_idx,
                 MOX::screen_seg,

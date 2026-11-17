@@ -50,7 +50,7 @@ namespace TRADE {
      * @param player Player whose modifiers are applied.
      * @param other_player_idx Index of the other player.
      */
-    int16_t __cdecl Trade_Agreement_Goal(s_player* player, int16_t other_player_idx);
+    int16_t __cdecl Trade_Agreement_Goal(game::s_world_state* world_state, s_player* player, int16_t other_player_idx);
 
     /**
      * Returns half of the smaller research-population count between two players.

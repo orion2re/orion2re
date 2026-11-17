@@ -106,11 +106,11 @@ DOCTEST_TEST_CASE("leader roster pagination falls back when its page becomes emp
         Set_Leader_(i, 0, LEADER_TYPE_SHIP, 0);
     }
     OFFICER::leader_page = 1;
-    OFFICER::Build_Captain_Id_List();
+    OFFICER::Build_Captain_Id_List(&game::world);
     DOCTEST_CHECK(MOX::n_fltscrn_officers == 1);
     DOCTEST_CHECK((MOX::officer_id_list[0] == 0));
     OFFICER::leader_page = 2;
-    OFFICER::Build_Captain_Id_List();
+    OFFICER::Build_Captain_Id_List(&game::world);
     DOCTEST_CHECK(OFFICER::leader_page == 0);
     DOCTEST_CHECK(MOX::n_fltscrn_officers == 4);
     DOCTEST_CHECK((MOX::officer_id_list[0] == 4));
@@ -211,6 +211,19 @@ DOCTEST_TEST_CASE("home planet reassignment excludes outposts") {
     DOCTEST_CHECK((MOX::player[0].home_planet_id == -1));
 }
 
+DOCTEST_TEST_CASE("officer level queries use the supplied world and sparse leader identity") {
+    test_ground_commando_runtime::Reset_();
+    game::s_world_state isolated;
+    isolated.leaders.clear();
+    s_leader_data leader = {};
+    leader.xp = 150;
+    isolated.leaders.emplace(game::id_leader{1000}, leader);
+    DOCTEST_CHECK(OFFICER::Get_Officer_Level(&isolated, 1000) == 2);
+    game::Leader(&isolated, 1000).type = LEADER_TYPE_COLONY;
+    DOCTEST_CHECK(OFFICER::N_Star_Officers_Owned_By_Player(&isolated, 0) == 1);
+    DOCTEST_CHECK(game::Find_Leader(&game::world, game::id_leader{1000}) == nullptr);
+}
+
 DOCTEST_TEST_CASE("colony ground combat info preserves the resolved Commando officer") {
     test_ground_commando_runtime::Reset_();
     test_ground_commando_runtime::Set_Colony_Officer_(1);
@@ -241,42 +254,42 @@ DOCTEST_TEST_CASE("leader hire costs use configurable Commando and Megawealth ru
 
     OFFICER::commando_hire_cost = {1, 3};
     leader->general_skills = LEADER_GENERAL_SKILL_COMMANDO;
-    DOCTEST_CHECK(OFFICER::Officer_Skill_Value(0) == 3);
+    DOCTEST_CHECK(OFFICER::Officer_Skill_Value(&game::world, 0) == 3);
     leader->general_skills = LEADER_GENERAL_SKILL_COMMANDO2;
-    DOCTEST_CHECK(OFFICER::Officer_Skill_Value(0) == 6);
+    DOCTEST_CHECK(OFFICER::Officer_Skill_Value(&game::world, 0) == 6);
     leader->type = LEADER_TYPE_COLONY;
     leader->general_skills = LEADER_GENERAL_SKILL_COMMANDO;
-    DOCTEST_CHECK(OFFICER::Officer_Skill_Value(0) == 1);
+    DOCTEST_CHECK(OFFICER::Officer_Skill_Value(&game::world, 0) == 1);
     leader->general_skills = LEADER_GENERAL_SKILL_COMMANDO2;
-    DOCTEST_CHECK(OFFICER::Officer_Skill_Value(0) == 2);
+    DOCTEST_CHECK(OFFICER::Officer_Skill_Value(&game::world, 0) == 2);
 
     leader->type = LEADER_TYPE_SHIP;
     OFFICER::commando_hire_cost = {4, 6};
-    DOCTEST_CHECK(OFFICER::Officer_Skill_Value(0) == 12);
+    DOCTEST_CHECK(OFFICER::Officer_Skill_Value(&game::world, 0) == 12);
 
     OFFICER::commando_hire_cost = {128, 255};
     leader->general_skills = LEADER_GENERAL_SKILL_COMMANDO;
-    DOCTEST_CHECK(OFFICER::Officer_Skill_Value(0) == 255);
+    DOCTEST_CHECK(OFFICER::Officer_Skill_Value(&game::world, 0) == 255);
     leader->general_skills = LEADER_GENERAL_SKILL_COMMANDO2;
-    DOCTEST_CHECK(OFFICER::Officer_Skill_Value(0) == 510);
+    DOCTEST_CHECK(OFFICER::Officer_Skill_Value(&game::world, 0) == 510);
     leader->type = LEADER_TYPE_COLONY;
-    DOCTEST_CHECK(OFFICER::Officer_Skill_Value(0) == 256);
+    DOCTEST_CHECK(OFFICER::Officer_Skill_Value(&game::world, 0) == 256);
 
     leader->general_skills = LEADER_GENERAL_SKILL_MEGAWEALTH;
     leader->skill_value = 5;
     OFFICER::megawealth_doubles_hire_cost = 0;
-    DOCTEST_CHECK(OFFICER::Officer_Cost(0, 0) == 50);
+    DOCTEST_CHECK(OFFICER::Officer_Cost(&game::world, 0, 0) == 50);
     OFFICER::megawealth_doubles_hire_cost = 1;
-    DOCTEST_CHECK(OFFICER::Officer_Cost(0, 0) == 100);
+    DOCTEST_CHECK(OFFICER::Officer_Cost(&game::world, 0, 0) == 100);
 
     leader->general_skills = LEADER_GENERAL_SKILL_ASSASSIN;
     MOX::skill_data[0].cost = 255;
     OFFICER::megawealth_doubles_hire_cost = 0;
-    DOCTEST_CHECK(OFFICER::Officer_Skill_Value(0) == 255);
+    DOCTEST_CHECK(OFFICER::Officer_Skill_Value(&game::world, 0) == 255);
 
     leader->skill_value = 1530;
     leader->xp = 1000;
-    DOCTEST_CHECK(OFFICER::Officer_Cost(0, 0) == 76500);
+    DOCTEST_CHECK(OFFICER::Officer_Cost(&game::world, 0, 0) == 76500);
 }
 
 DOCTEST_TEST_CASE("defending ground Commando setting selects the configured multipliers") {
@@ -291,24 +304,24 @@ DOCTEST_TEST_CASE("defending ground Commando setting selects the configured mult
     test_ground_commando_runtime::Set_Officer_Level_(1);
 
     invasion::ground_commando_defender_x5 = 0;
-    invasion::Compute_Colony_Officer_Bonus(&colony, &bonuses);
+    invasion::Compute_Colony_Officer_Bonus(&game::world, &colony, &bonuses);
     DOCTEST_CHECK(bonuses.officer_bonus == 4);
 
     bonuses = {};
     invasion::ground_commando_defender_x5 = 1;
-    invasion::Compute_Colony_Officer_Bonus(&colony, &bonuses);
+    invasion::Compute_Colony_Officer_Bonus(&game::world, &colony, &bonuses);
     DOCTEST_CHECK(bonuses.officer_bonus == 10);
 
     bonuses = {};
     leader->general_skills = LEADER_GENERAL_SKILL_COMMANDO2;
     test_ground_commando_runtime::Set_Officer_Level_(2);
     invasion::ground_commando_defender_x5 = 0;
-    invasion::Compute_Colony_Officer_Bonus(&colony, &bonuses);
+    invasion::Compute_Colony_Officer_Bonus(&game::world, &colony, &bonuses);
     DOCTEST_CHECK(bonuses.officer_bonus == 9);
 
     bonuses = {};
     invasion::ground_commando_defender_x5 = 1;
-    invasion::Compute_Colony_Officer_Bonus(&colony, &bonuses);
+    invasion::Compute_Colony_Officer_Bonus(&game::world, &colony, &bonuses);
     DOCTEST_CHECK(bonuses.officer_bonus == 22);
 }
 
@@ -325,24 +338,24 @@ DOCTEST_TEST_CASE("attacking ground Commando setting selects the configured mult
     test_ground_commando_runtime::Set_Officer_Level_(1);
 
     invasion::ground_commando_attacker_x2 = 0;
-    invasion::Compute_Attacker_Officer_Bonus(ship_indexes, 1, &bonuses);
+    invasion::Compute_Attacker_Officer_Bonus(&game::world, ship_indexes, 1, &bonuses);
     DOCTEST_CHECK(bonuses.officer_bonus == 10);
 
     bonuses = {};
     invasion::ground_commando_attacker_x2 = 1;
-    invasion::Compute_Attacker_Officer_Bonus(ship_indexes, 1, &bonuses);
+    invasion::Compute_Attacker_Officer_Bonus(&game::world, ship_indexes, 1, &bonuses);
     DOCTEST_CHECK(bonuses.officer_bonus == 4);
 
     bonuses = {};
     leader->general_skills = LEADER_GENERAL_SKILL_COMMANDO2;
     test_ground_commando_runtime::Set_Officer_Level_(2);
     invasion::ground_commando_attacker_x2 = 0;
-    invasion::Compute_Attacker_Officer_Bonus(ship_indexes, 1, &bonuses);
+    invasion::Compute_Attacker_Officer_Bonus(&game::world, ship_indexes, 1, &bonuses);
     DOCTEST_CHECK(bonuses.officer_bonus == 23);
 
     bonuses = {};
     invasion::ground_commando_attacker_x2 = 1;
-    invasion::Compute_Attacker_Officer_Bonus(ship_indexes, 1, &bonuses);
+    invasion::Compute_Attacker_Officer_Bonus(&game::world, ship_indexes, 1, &bonuses);
     DOCTEST_CHECK(bonuses.officer_bonus == 9);
 }
 
@@ -367,7 +380,7 @@ DOCTEST_TEST_CASE("attacking ground Commando ties select the last listed officer
     test_ground_commando_runtime::Set_Officer_Level_(1);
 
     invasion::ground_commando_attacker_x2 = 0;
-    invasion::Compute_Attacker_Officer_Bonus(ship_indexes, 2, &bonuses);
+    invasion::Compute_Attacker_Officer_Bonus(&game::world, ship_indexes, 2, &bonuses);
 
     DOCTEST_CHECK(bonuses.officer_bonus == 10);
     DOCTEST_CHECK(bonuses.officer_idx == 1);
@@ -711,7 +724,7 @@ DOCTEST_TEST_CASE("leader XP advancement ignores the effective Warlord bonus") {
     for (const s_advance_case& test_case : cases) {
         s_leader_data* leader = test_ground_commando_runtime::Leader_(0);
         leader->xp = test_case.initial_xp;
-        OFFICER::Increase_Officer_Level_By_One(0);
+        OFFICER::Increase_Officer_Level_By_One(&game::world, 0);
         DOCTEST_CHECK(leader->xp == test_case.expected_xp);
     }
 }
@@ -723,7 +736,7 @@ DOCTEST_TEST_CASE("leader XP advancement does not narrow unreachable thresholds"
     leader->xp = 500;
     OFFICER::progression.experience_thresholds[4] = 65535;
 
-    OFFICER::Increase_Officer_Level_By_One(0);
+    OFFICER::Increase_Officer_Level_By_One(&game::world, 0);
 
     DOCTEST_CHECK(leader->xp == 500);
     OFFICER::progression = saved_progression;
@@ -757,7 +770,7 @@ DOCTEST_TEST_CASE("leader paging uses descending leader order on the first page"
     }
 
     OFFICER::leaders_no_limit = 1;
-    OFFICER::Build_Captain_Id_List();
+    OFFICER::Build_Captain_Id_List(&game::world);
 
     DOCTEST_CHECK(MOX::n_fltscrn_officers == 4);
     const int16_t* ids = test_ground_commando_runtime::Officer_Ids_();

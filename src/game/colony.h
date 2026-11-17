@@ -292,7 +292,7 @@ namespace COLONY {
 
     void __cdecl Set_Colony_Font_To(int32_t style);
 
-    void __cdecl Draw_Colony_Info_Officer();
+    void __cdecl Draw_Colony_Info_Officer(game::s_world_state* world_state);
 
     void __cdecl Draw_Colony_Info_Production();
 

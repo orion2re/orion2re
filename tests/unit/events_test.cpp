@@ -153,13 +153,13 @@ DOCTEST_TEST_CASE("monster reports use preserved planet identity safely") {
     MOX::colony[2].planet = -1;
 
     char message[64];
-    EVENTS::Get_Event_Message(
+    EVENTS::Get_Event_Message(&game::world,
         EVENT_SPACE_AMOEBA + 2, 3, 2, 7,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         message, sizeof(message));
     DOCTEST_CHECK(strcmp(message, "Target Planet 7") == 0);
 
-    EVENTS::Get_Event_Message(
+    EVENTS::Get_Event_Message(&game::world,
         EVENT_SPACE_AMOEBA + 2, 3, MAX_COLONIES, -1,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         message, sizeof(message));

@@ -48,66 +48,66 @@ namespace CMBTFIR2 {
         .alternate_chance = {100, 95, 90, 80, 70, 50, 30, 10},
     };
 
-    int16_t __cdecl Helmsman_Bonus(int16_t leader_idx) {
+    int16_t __cdecl Helmsman_Bonus(game::s_world_state* world_state, int16_t leader_idx) {
         int16_t bonus = 0;
-        uint32_t special_skills = MOX::leaders[leader_idx].special_skills;
+        uint32_t special_skills = game::Leader(world_state, leader_idx).special_skills;
 
         if (special_skills & LEADER_SHIP_SKILL_HELMSMAN) {
-            int16_t level = OFFICER::Owned_Officer_Level(leader_idx);
+            int16_t level = OFFICER::Owned_Officer_Level(world_state, leader_idx);
             return (int16_t)((level + 1) * 5);
         }
 
         if (special_skills & LEADER_SHIP_SKILL_HELMSMAN2) {
-            int16_t level = OFFICER::Owned_Officer_Level(leader_idx);
+            int16_t level = OFFICER::Owned_Officer_Level(world_state, leader_idx);
             bonus = (int16_t)(((level * 3 + 3) * 5) / 2);
         }
 
         return bonus;
     }
 
-    int16_t __cdecl Weaponry_Bonus(int16_t leader_idx) {
+    int16_t __cdecl Weaponry_Bonus(game::s_world_state* world_state, int16_t leader_idx) {
         int16_t bonus = 0;
 
-        if ((MOX::leaders[leader_idx].special_skills & LEADER_SHIP_SKILL_WEAPONRY) != 0) {
-            bonus = OFFICER::Owned_Officer_Level(leader_idx);
+        if ((game::Leader(world_state, leader_idx).special_skills & LEADER_SHIP_SKILL_WEAPONRY) != 0) {
+            bonus = OFFICER::Owned_Officer_Level(world_state, leader_idx);
             return (int16_t)((bonus + 1) * 5);
         }
 
-        if ((MOX::leaders[leader_idx].special_skills & LEADER_SHIP_SKILL_WEAPONRY2) != 0) {
-            bonus = OFFICER::Owned_Officer_Level(leader_idx);
+        if ((game::Leader(world_state, leader_idx).special_skills & LEADER_SHIP_SKILL_WEAPONRY2) != 0) {
+            bonus = OFFICER::Owned_Officer_Level(world_state, leader_idx);
             bonus = (int16_t)(((bonus * 3 + 3) * 5) / 2);
         }
 
         return bonus;
     }
 
-    int16_t __cdecl Engineer_Bonus(int16_t leader_idx) {
+    int16_t __cdecl Engineer_Bonus(game::s_world_state* world_state, int16_t leader_idx) {
         int16_t bonus = 0;
 
-        if ((MOX::leaders[leader_idx].special_skills & LEADER_SHIP_SKILL_ENGINEER) != 0) {
-            bonus = OFFICER::Owned_Officer_Level(leader_idx);
+        if ((game::Leader(world_state, leader_idx).special_skills & LEADER_SHIP_SKILL_ENGINEER) != 0) {
+            bonus = OFFICER::Owned_Officer_Level(world_state, leader_idx);
             return bonus * 2 + 2;
         }
 
-        if ((MOX::leaders[leader_idx].special_skills & LEADER_SHIP_SKILL_ENGINEER2) != 0) {
-            bonus = OFFICER::Owned_Officer_Level(leader_idx);
+        if ((game::Leader(world_state, leader_idx).special_skills & LEADER_SHIP_SKILL_ENGINEER2) != 0) {
+            bonus = OFFICER::Owned_Officer_Level(world_state, leader_idx);
             bonus = (bonus + 1) * 3;
         }
 
         return bonus;
     }
 
-    int16_t __cdecl Fighter_Pilot_Bonus(int16_t leader_idx) {
+    int16_t __cdecl Fighter_Pilot_Bonus(game::s_world_state* world_state, int16_t leader_idx) {
         int16_t bonus = 0;
-        uint32_t special_skills = MOX::leaders[leader_idx].special_skills;
+        uint32_t special_skills = game::Leader(world_state, leader_idx).special_skills;
 
         if (special_skills & LEADER_SHIP_SKILL_FIGHTER_PILOT) {
-            int16_t level = OFFICER::Owned_Officer_Level(leader_idx);
+            int16_t level = OFFICER::Owned_Officer_Level(world_state, leader_idx);
             return (level + 1) * 5;
         }
 
         if (special_skills & LEADER_SHIP_SKILL_FIGHTER_PILOT2) {
-            int16_t level = OFFICER::Owned_Officer_Level(leader_idx);
+            int16_t level = OFFICER::Owned_Officer_Level(world_state, leader_idx);
             bonus = (int16_t)(((level * 3 + 3) * 5) / 2);
         }
 
@@ -119,17 +119,17 @@ namespace CMBTFIR2 {
      * @param leader_idx Index of the leader in the global leaders array.
      * @return The calculated bonus value.
      */
-    int16_t __cdecl Galactic_Lore_Bonus(int16_t leader_idx) {
+    int16_t __cdecl Galactic_Lore_Bonus(game::s_world_state* world_state, int16_t leader_idx) {
         int16_t bonus = 0;
-        uint32_t special_skills = MOX::leaders[leader_idx].special_skills;
+        uint32_t special_skills = game::Leader(world_state, leader_idx).special_skills;
 
         if (special_skills & LEADER_SHIP_SKILL_GALACTIC_LORE) {
-            int16_t level = OFFICER::Owned_Officer_Level(leader_idx);
+            int16_t level = OFFICER::Owned_Officer_Level(world_state, leader_idx);
             return (int16_t)((level + 1) * 5);
         }
 
         if (special_skills & LEADER_SHIP_SKILL_GALACTIC_LORE2) {
-            int32_t level = OFFICER::Owned_Officer_Level(leader_idx);
+            int32_t level = OFFICER::Owned_Officer_Level(world_state, leader_idx);
             bonus = (int16_t)(((level * 3 + 3) * 5) / 2);
         }
 
@@ -164,7 +164,7 @@ namespace CMBTFIR2 {
                         *bonus_val_ptr = CMBTMIS::missile_defense.wide_area_jammer_fleet_missile_defense;
                     }
                     if (ship->officer_idx > -1) {
-                        int16_t bonus = Helmsman_Bonus(ship->officer_idx);
+                        int16_t bonus = Helmsman_Bonus(&game::world, ship->officer_idx);
                         if (bonus > max_helmsman_bonus) {
                             max_helmsman_bonus = bonus;
                         }
@@ -178,7 +178,7 @@ namespace CMBTFIR2 {
                 s_combat_data* ship = &MOX::combat_data[i];
                 if ((int16_t)ship->owner == player_idx && ship->is_captured == 0 && ship->unit_status == 0) {
                     if (ship->officer_idx > -1) {
-                        int16_t bonus = Helmsman_Bonus(ship->officer_idx);
+                        int16_t bonus = Helmsman_Bonus(&game::world, ship->officer_idx);
                         if (bonus > max_helmsman_bonus) {
                             max_helmsman_bonus = bonus;
                         }
@@ -285,13 +285,13 @@ namespace CMBTFIR2 {
 
                 int16_t officer_idx = ship->officer_idx;
                 if (officer_idx > -1) {
-                    int16_t w_bonus = CMBTFIR2::Weaponry_Bonus(officer_idx);
+                    int16_t w_bonus = CMBTFIR2::Weaponry_Bonus(&game::world, officer_idx);
                     if (w_bonus > max_weaponry_bonus) {
                         max_weaponry_bonus = w_bonus;
                     }
 
                     if (is_ancient != 0) {
-                        int16_t l_bonus = CMBTFIR2::Galactic_Lore_Bonus(officer_idx);
+                        int16_t l_bonus = CMBTFIR2::Galactic_Lore_Bonus(&game::world, officer_idx);
                         if (l_bonus > max_lore_bonus) {
                             max_lore_bonus = l_bonus;
                         }
@@ -361,7 +361,7 @@ namespace CMBTFIR2 {
                 MOX::combat_data[i].is_captured == 0 &&
                 MOX::combat_data[i].unit_status == 0 &&
                 MOX::combat_data[i].officer_idx > -1) {
-                int16_t bonus = Leader_Ordnance_Bonus(MOX::combat_data[i].officer_idx);
+                int16_t bonus = Leader_Ordnance_Bonus(&game::world, MOX::combat_data[i].officer_idx);
 
                 if (bonus > max_bonus) {
                     max_bonus = bonus;
@@ -384,7 +384,7 @@ namespace CMBTFIR2 {
 
             if ((int16_t)ship->owner == player_idx && ship->is_captured == 0 && ship->unit_status == 0) {
                 if (ship->officer_idx > -1) {
-                    int16_t current_bonus = CMBTFIR2::Engineer_Bonus(ship->officer_idx);
+                    int16_t current_bonus = CMBTFIR2::Engineer_Bonus(&game::world, ship->officer_idx);
                     if (current_bonus > max_bonus) {
                         max_bonus = current_bonus;
                     }
@@ -405,7 +405,7 @@ namespace CMBTFIR2 {
                 if (ship.is_captured == 0) {
                     if (ship.unit_status == 0 /* ACTIVE */) {
                         if (ship.officer_idx > -1) {
-                            int16_t bonus = Fighter_Pilot_Bonus(ship.officer_idx);
+                            int16_t bonus = Fighter_Pilot_Bonus(&game::world, ship.officer_idx);
                             if (bonus > max_bonus) {
                                 max_bonus = bonus;
                             }
@@ -418,13 +418,13 @@ namespace CMBTFIR2 {
         return max_bonus;
     }
 
-    int16_t Leader_Ordnance_Bonus(int16_t leader_idx) {
+    int16_t Leader_Ordnance_Bonus(game::s_world_state* world_state, int16_t leader_idx) {
         int16_t bonus = 0;
 
-        if ((MOX::leaders[leader_idx].special_skills & LEADER_SHIP_SKILL_ORDNANCE) != 0) {
-            bonus = (OFFICER::Owned_Officer_Level(leader_idx) + 1) * 5;
-        } else if ((MOX::leaders[leader_idx].special_skills & LEADER_SHIP_SKILL_ORDNANCE2) != 0) {
-            int16_t level = OFFICER::Owned_Officer_Level(leader_idx);
+        if ((game::Leader(world_state, leader_idx).special_skills & LEADER_SHIP_SKILL_ORDNANCE) != 0) {
+            bonus = (OFFICER::Owned_Officer_Level(world_state, leader_idx) + 1) * 5;
+        } else if ((game::Leader(world_state, leader_idx).special_skills & LEADER_SHIP_SKILL_ORDNANCE2) != 0) {
+            int16_t level = OFFICER::Owned_Officer_Level(world_state, leader_idx);
             bonus = (int16_t)(((level * 3 + 3) * 5) / 2);
         }
 
@@ -752,7 +752,7 @@ namespace CMBTFIR2 {
 
             if (ship.owner == player_idx && ship.is_captured == 0 && ship.unit_status == 0) {
                 if (ship.officer_idx > -1) {
-                    int16_t bonus = CMBTFIR2::Commando_Bonus(ship.officer_idx);
+                    int16_t bonus = CMBTFIR2::Commando_Bonus(&game::world, ship.officer_idx);
                     if (bonus > max_bonus) {
                         max_bonus = bonus;
                     }
@@ -763,15 +763,15 @@ namespace CMBTFIR2 {
         return max_bonus;
     }
 
-    int16_t __cdecl Commando_Bonus(int16_t leader_idx) {
-        const s_leader_data& leader = MOX::leaders[leader_idx];
+    int16_t __cdecl Commando_Bonus(game::s_world_state* world_state, int16_t leader_idx) {
+        const s_leader_data& leader = game::Leader(world_state, leader_idx);
 
         if (leader.general_skills & LEADER_GENERAL_SKILL_COMMANDO) {
-            return OFFICER::Owned_Officer_Level(leader_idx) * 2 + 2;
+            return OFFICER::Owned_Officer_Level(world_state, leader_idx) * 2 + 2;
         }
 
         if (leader.general_skills & LEADER_GENERAL_SKILL_COMMANDO2) {
-            return (OFFICER::Owned_Officer_Level(leader_idx) + 1) * 3;
+            return (OFFICER::Owned_Officer_Level(world_state, leader_idx) + 1) * 3;
         }
 
         return 0;
@@ -790,7 +790,7 @@ namespace CMBTFIR2 {
 
                 if (ship.owner == player_idx && ship.is_captured == 0 && ship.unit_status == 0) {
                     if (ship.officer_idx > -1) {
-                        int16_t current_bonus = CMBTFIR2::Security_Bonus(ship.officer_idx);
+                        int16_t current_bonus = CMBTFIR2::Security_Bonus(&game::world, ship.officer_idx);
                         if (current_bonus > max_bonus) {
                             max_bonus = current_bonus;
                         }
@@ -802,13 +802,13 @@ namespace CMBTFIR2 {
         return max_bonus;
     }
 
-    int16_t __cdecl Security_Bonus(int16_t leader_idx) {
-        if ((MOX::leaders[leader_idx].special_skills & LEADER_SHIP_SKILL_SECURITY) != 0) {
-            return OFFICER::Owned_Officer_Level(leader_idx) * 2 + 2;
+    int16_t __cdecl Security_Bonus(game::s_world_state* world_state, int16_t leader_idx) {
+        if ((game::Leader(world_state, leader_idx).special_skills & LEADER_SHIP_SKILL_SECURITY) != 0) {
+            return OFFICER::Owned_Officer_Level(world_state, leader_idx) * 2 + 2;
         }
 
-        if ((MOX::leaders[leader_idx].special_skills & LEADER_SHIP_SKILL_SECURITY2) != 0) {
-            return (OFFICER::Owned_Officer_Level(leader_idx) + 1) * 3;
+        if ((game::Leader(world_state, leader_idx).special_skills & LEADER_SHIP_SKILL_SECURITY2) != 0) {
+            return (OFFICER::Owned_Officer_Level(world_state, leader_idx) + 1) * 3;
         }
 
         return 0;

@@ -302,7 +302,7 @@ namespace EVANHELP {
     void __cdecl Set_Officer_Screen_Help() {
         int16_t displayed_skill_counts[4] = {0};
 
-        OFFICER::Get_N_Skills_Per_Officer_Displayed(displayed_skill_counts);
+        OFFICER::Get_N_Skills_Per_Officer_Displayed(&game::world, displayed_skill_counts);
 
         if (MOX::officer_scrn_type == 1) {
             Set_ColOff_Screen_Help_List(displayed_skill_counts);

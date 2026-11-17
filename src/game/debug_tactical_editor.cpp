@@ -638,7 +638,7 @@ namespace debug_tactical_editor {
                     "Crew quality", &ship.crew_quality, k_crew_qualities, CREW_QUALITY_COUNT);
                 int8_t officer_index = (int8_t)std::clamp<int16_t>(
                     ship.officer_idx, -1, MAX_LEADERS - 1);
-                if (debug_game_widgets::Officer_Reference("Officer", &officer_index)) {
+                if (debug_game_widgets::Officer_Reference(&game::world, "Officer", &officer_index)) {
                     ship.officer_idx = officer_index;
                 }
                 ship.crew_quality = (int8_t)std::clamp<int16_t>(

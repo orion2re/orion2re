@@ -132,7 +132,7 @@ namespace MAINPUPS {
 
     void __cdecl Mainpups_Tested_Execute_Autofunction();
 
-    void __cdecl Leader_Technology_String(int16_t player_idx, int16_t leader_idx, char* output_buf, uint32_t output_buf_size);
+    void __cdecl Leader_Technology_String(game::s_world_state* world_state, int16_t player_idx, int16_t leader_idx, char* output_buf, uint32_t output_buf_size);
 
     void __cdecl Evaluate_Tax_Rate_Input(int16_t* input_val, int16_t* scan_val, int16_t* exit_flag);
 
@@ -229,7 +229,7 @@ namespace MAINPUPS {
 
     int16_t __cdecl Drop_Troops_Selection_Popup(int16_t target_idx);
 
-    bool __cdecl Random_New_Officer_Popup(int16_t player_idx);
+    bool __cdecl Random_New_Officer_Popup(game::s_world_state* world_state, int16_t player_idx);
 
     void __cdecl New_System_Discovery_Popup(int16_t star_idx, uint8_t special_flag);
 

@@ -307,16 +307,16 @@ namespace debug_game_widgets {
 #endif
     }
 
-    bool Officer_Reference(const char* label, int8_t* officer_index, bool allow_none) {
+    bool Officer_Reference(game::s_world_state* world_state, const char* label, int8_t* officer_index, bool allow_none) {
 #if defined(ORION2RE_ENABLE_DEBUG_OVERLAY)
         if (label == nullptr || officer_index == nullptr) {
             return false;
         }
-        const int16_t count = MOX::leaders == nullptr ? 0 : MAX_LEADERS;
+        const auto* selected = game::Find_Leader(world_state, game::id_leader{static_cast<uint32_t>(*officer_index)});
         const char* preview = *officer_index < 0
             ? "None"
-            : ((*officer_index < count)
-                      ? Bounded_Name(MOX::leaders[*officer_index].name, sizeof(MOX::leaders[*officer_index].name))
+            : ((selected != nullptr)
+                      ? Bounded_Name(selected->name, sizeof(selected->name))
                       : "Invalid");
         bool changed = false;
         if (ImGui::BeginCombo(label, preview)) {
@@ -324,10 +324,11 @@ namespace debug_game_widgets {
                 *officer_index = -1;
                 changed = true;
             }
-            for (int16_t index = 0; index < count; ++index) {
-                const char* name = Bounded_Name(MOX::leaders[index].name, sizeof(MOX::leaders[index].name));
-                if (ImGui::Selectable(name, *officer_index == index)) {
-                    *officer_index = (int8_t)index;
+            for (const auto& [id, leader] : world_state->leaders) {
+                if (id.id > INT8_MAX) continue;
+                const char* name = Bounded_Name(leader.name, sizeof(leader.name));
+                if (ImGui::Selectable(name, *officer_index == id.id)) {
+                    *officer_index = static_cast<int8_t>(id.id);
                     changed = true;
                 }
             }

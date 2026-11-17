@@ -327,7 +327,7 @@ namespace FLT2 {
         }
     }
 
-    void __cdecl Print_Fltscrn_Scanned_Star_Name() {
+    void __cdecl Print_Fltscrn_Scanned_Star_Name(game::s_world_state* world_state) {
         char status_text[80];
         s_colors status_colors;
         int16_t referenced_star_idx = 0;
@@ -471,7 +471,7 @@ namespace FLT2 {
                     if (leader_idx == -1 || HAROLD::Player_Has_Colony(MOX::PLAYER_NUM, val) == 0) {
                         strlcpy(status_text, MOX::star[val].name, sizeof(status_text));
                     } else {
-                        s_leader_data* leader = &MOX::leaders[leader_idx];
+                        s_leader_data* leader = &game::Leader(world_state, leader_idx);
                         if (leader->eta <= 0) {
                             snprintf(status_text, sizeof(status_text), MOX::s_fmt_scanned_star_info, MOX::star[val].name, leader->name);
                         } else if (leader->eta == 1) {
@@ -566,7 +566,7 @@ namespace FLT2 {
             return;
         }
 
-        bool has_captain = FLT2::Draw_Captains_Picture(ship_idx) != 0;
+        bool has_captain = FLT2::Draw_Captains_Picture(&game::world, ship_idx) != 0;
 
         fonts::Set_Font_Style(3, &FLT2::normal_colors);
         fonts::Print(0x12, 0x11F, MOX::ship[ship_idx].d.name);
@@ -812,7 +812,7 @@ namespace FLT2 {
         }
     }
 
-    uint8_t __cdecl Draw_Captains_Picture(int16_t ship_idx) {
+    uint8_t __cdecl Draw_Captains_Picture(game::s_world_state* world_state, int16_t ship_idx) {
         int16_t leader_idx = 0;
         s_colors highlight_colors = {{0x4C, 0x4D, 0x4E, 0x4F, 0x3F, 0x40, 0x41, 0x42}};
         char captain_label[80];
@@ -820,11 +820,12 @@ namespace FLT2 {
         int16_t portrait_idx = 0;
         uint8_t found_captain = 0;
 
-        for (int16_t i = 0; i < MAX_LEADERS; i++) {
-            if (MOX::leaders[i].player_index == MOX::PLAYER_NUM &&
-                MOX::leaders[i].status == 1 &&
-                MOX::leaders[i].type == LEADER_TYPE_SHIP) {
-                if (MOX::leaders[i].location == ship_idx) {
+        for (const auto& leader_entry : world_state->leaders) {
+            const int32_t i = static_cast<int32_t>(leader_entry.first.id);
+            if (game::Leader(world_state, i).player_index == MOX::PLAYER_NUM &&
+                game::Leader(world_state, i).status == 1 &&
+                game::Leader(world_state, i).type == LEADER_TYPE_SHIP) {
+                if (game::Leader(world_state, i).location == ship_idx) {
                     leader_idx = i;
                     found_captain = 1;
                     break;
@@ -838,15 +839,15 @@ namespace FLT2 {
             int16_t width = animate::Get_Width(pict);
             int16_t height = animate::Get_Height(pict);
 
-            char* leader_name = OFFICER::Leader_Name(leader_idx, 1);
+            char* leader_name = OFFICER::Leader_Name(world_state, leader_idx, 1);
             snprintf(captain_label, sizeof(captain_label), "%s", leader_name);
 
             fonts::Set_Font_Style(0, &normal_colors);
             ERIC::Print_Paragraph_Centered_Vertically(0xAD, 0x11F, 0x42, height, captain_label, 2);
             animate::Draw(0xF2, 0x11C, pict);
 
-            if (MOX::leaders[leader_idx].eta > 0) {
-                OFFICER::Print_ETA_On_Officer_Picture(leader_idx, 0xF2, 0x11C, width);
+            if (game::Leader(world_state, leader_idx).eta > 0) {
+                OFFICER::Print_ETA_On_Officer_Picture(world_state, leader_idx, 0xF2, 0x11C, width);
                 width += 2;
                 height += 2;
                 MISC::Draw_Highlight_Box(0xF0, 0x11A, width, height, &highlight_colors.colors[0]);

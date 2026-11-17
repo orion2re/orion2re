@@ -148,7 +148,7 @@ namespace MSG_ {
         }
     }
 
-    void __cdecl sprintf_msg(char* out_text, uint32_t out_text_size, s_MSG* msg) {
+    void __cdecl sprintf_msg(game::s_world_state* world_state, char* out_text, uint32_t out_text_size, s_MSG* msg) {
         char and_text[20];
         char append_text[200];
         char details_text[200];
@@ -335,7 +335,7 @@ namespace MSG_ {
                 snprintf(out_text, out_text_size, msg_lost_ship_fmt, TECHDATA::hull_data[ship->d.size].name, ship, (int)ship->d.cost, &MOX::star[lost_ship_msg.star_idx]);
                 uint8_t leader_idx = lost_ship_msg.leader_idx;
                 if (leader_idx != 0xFF) {
-                    snprintf(append_text, sizeof(append_text), leader_fate_strings[lost_ship_msg.fate], &MOX::leaders[leader_idx]);
+                    snprintf(append_text, sizeof(append_text), leader_fate_strings[lost_ship_msg.fate], &game::Leader(world_state, leader_idx));
                     strlcat(out_text, append_text, out_text_size);
                     return;
                 }
@@ -359,7 +359,7 @@ namespace MSG_ {
                 snprintf(out_text, out_text_size, msg_lost_colony_fmt, msg_colony_or_outpost[(uint8_t)lost_colony_msg.colony_or_outpost], planet_name, reason_text);
                 int16_t leader_idx = lost_colony_msg.leader_idx;
                 if (leader_idx != -1) {
-                    snprintf(append_text, sizeof(append_text), msg_lost_colony_leader_fmt, &MOX::leaders[leader_idx]);
+                    snprintf(append_text, sizeof(append_text), msg_lost_colony_leader_fmt, &game::Leader(world_state, leader_idx));
                     strlcat(out_text, append_text, out_text_size);
                     return;
                 }
@@ -383,7 +383,7 @@ namespace MSG_ {
                 snprintf(out_text, out_text_size, msg_hyperspace_beast_ate_your_ship_fmt, &MOX::ship[ship_idx], &MOX::star[star_idx]);
                 uint8_t officer_idx = beast_msg.officer_idx;
                 if (officer_idx != 0xFF) {
-                    snprintf(append_text, sizeof(append_text), leader_fate_strings[(uint8_t)beast_msg.leader_status], &MOX::leaders[officer_idx]);
+                    snprintf(append_text, sizeof(append_text), leader_fate_strings[(uint8_t)beast_msg.leader_status], &game::Leader(world_state, officer_idx));
                     strlcat(out_text, append_text, out_text_size);
                     return;
                 }
@@ -410,7 +410,7 @@ namespace MSG_ {
                 const auto& artemis_leader_msg = msg->u.artemis_leader;
                 int16_t star_idx = artemis_leader_msg.star_idx;
                 snprintf(out_text, out_text_size, msg_artemis_leader_fmt, &MOX::star[star_idx]);
-                snprintf(append_text, sizeof(append_text), leader_fate_strings[artemis_leader_msg.fate], &MOX::leaders[artemis_leader_msg.leader_idx]);
+                snprintf(append_text, sizeof(append_text), leader_fate_strings[artemis_leader_msg.fate], &game::Leader(world_state, artemis_leader_msg.leader_idx));
                 strlcat(out_text, append_text, out_text_size);
                 return;
             }
@@ -447,10 +447,10 @@ namespace MSG_ {
                     return;
                 }
                 if (MOX::settings.language == 4) {
-                    snprintf(out_text, out_text_size, msg_spy_assassinated_victim_fmt, &MOX::leaders[(uint8_t)assassination_msg.leader_id], details_text, MOX::player[attacking_player_idx].race_name);
+                    snprintf(out_text, out_text_size, msg_spy_assassinated_victim_fmt, &game::Leader(world_state, (uint8_t)assassination_msg.leader_id), details_text, MOX::player[attacking_player_idx].race_name);
                     return;
                 }
-                snprintf(out_text, out_text_size, msg_spy_assassinated_victim_fmt, &MOX::leaders[(uint8_t)assassination_msg.leader_id], MOX::player[attacking_player_idx].race_name, details_text);
+                snprintf(out_text, out_text_size, msg_spy_assassinated_victim_fmt, &game::Leader(world_state, (uint8_t)assassination_msg.leader_id), MOX::player[attacking_player_idx].race_name, details_text);
                 return;
             }
             case MSG_TYPE_ANOMALY: {
@@ -487,7 +487,7 @@ namespace MSG_ {
                 strlcpy(out_text, msg_april1_fmt, out_text_size);
                 return;
             case MSG_TYPE_SCRAP_LEADER:
-                snprintf(out_text, out_text_size, msg_scrap_leader_fmt, &MOX::leaders[(uint8_t)msg->u.scrap_leader.leader_idx]);
+                snprintf(out_text, out_text_size, msg_scrap_leader_fmt, &game::Leader(world_state, (uint8_t)msg->u.scrap_leader.leader_idx));
                 return;
             default:
                 break;

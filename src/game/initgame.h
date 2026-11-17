@@ -24,7 +24,7 @@ namespace INITGAME {
     void Init_Colonies_Array();
 
     /** Loads leader data and refreshes randomized and derived leader fields. */
-    void __cdecl Init_Leaders();
+    void __cdecl Init_Leaders(game::s_world_state* world_state);
 
     /** Initializes player records, including race traits, colors, names, and starting tech state. */
     void __cdecl Init_Players();

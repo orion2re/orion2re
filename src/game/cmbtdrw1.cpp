@@ -281,7 +281,7 @@ namespace CMBTDRW1 {
             MOX::detail_fleet_icon_seg = (s_animation_header*)farload::Far_Reload_Next("flticons.lbx", race, MOX::screen_seg);
         } else {
             int16_t mode = is_editable ? 0 : 2;
-            MOX::detail_fleet_icon_seg = (s_animation_header*)OFFICER::Load_Officer_Picture(0, MOX::global_combat_data.officer_idx, MOX::screen_seg, 0, mode);
+            MOX::detail_fleet_icon_seg = (s_animation_header*)OFFICER::Load_Officer_Picture(&game::world, 0, MOX::global_combat_data.officer_idx, MOX::screen_seg, 0, mode);
         }
 
         fields::Mark_Fields();

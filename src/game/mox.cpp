@@ -660,7 +660,7 @@ namespace MOX {
     void* dimmed_scrap_button_seg;
     void* dimmed_officers_button_seg;
 
-    s_leader_data* leaders;
+    // s_leader_data* leaders;
 
     char* officer_level_names[6];
 

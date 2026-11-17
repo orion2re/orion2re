@@ -50,7 +50,7 @@ namespace {
             char buffer[256];
 
             fonts::Set_Font_LF(10);
-            MSG_::sprintf_msg(buffer, sizeof(buffer), &MSG_::msgs[msg_idx]);
+            MSG_::sprintf_msg(&game::world, buffer, sizeof(buffer), &MSG_::msgs[msg_idx]);
             fonts::Print(x, y, "^");
             FMTPARA::Print_Formatted_Paragraph(x + 13, y, 320, buffer, 0);
         }

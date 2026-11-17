@@ -891,7 +891,7 @@ namespace SHIPMOVE {
      * @param target_star_idx Destination star index.
      * @param move_info Output movement analysis record.
      */
-    static void Evaluate_Ship_Movement(int16_t* ship_list, int16_t target_star_idx, s_ship_move_info* move_info, const s_move_origin* origin) {
+    static void Evaluate_Ship_Movement(game::s_world_state* world_state, int16_t* ship_list, int16_t target_star_idx, s_ship_move_info* move_info, const s_move_origin* origin) {
         int16_t start_x = 0;
         int16_t start_y = 0;
         int32_t navigator_bonus = 0;
@@ -943,13 +943,13 @@ namespace SHIPMOVE {
             all_phase_shifters &= has_phase_shifter;
 
             if (ship->officer_index != -1) {
-                s_leader_data* leader = &MOX::leaders[ship->officer_index];
+                s_leader_data* leader = &game::Leader(world_state, ship->officer_index);
                 if (leader->eta == 0) {
                     int32_t bonus = 0;
                     if ((leader->special_skills & LEADER_SHIP_SKILL_NAVIGATOR2) != 0) {
-                        bonus = (OFFICER::Owned_Officer_Level(ship->officer_index) / 3) + 1;
+                        bonus = (OFFICER::Owned_Officer_Level(world_state, ship->officer_index) / 3) + 1;
                     } else if ((leader->special_skills & LEADER_SHIP_SKILL_NAVIGATOR) != 0) {
-                        bonus = (OFFICER::Owned_Officer_Level(ship->officer_index) / 4) + 1;
+                        bonus = (OFFICER::Owned_Officer_Level(world_state, ship->officer_index) / 4) + 1;
                     }
                     if (navigator_bonus < bonus) {
                         navigator_bonus = bonus;
@@ -1109,12 +1109,12 @@ namespace SHIPMOVE {
     }
 
     void __cdecl Ships_Try_To_Move_To(int16_t* ship_list, int16_t target_star_idx, s_ship_move_info* move_info) {
-        Evaluate_Ship_Movement(ship_list, target_star_idx, move_info, nullptr);
+        Evaluate_Ship_Movement(&game::world, ship_list, target_star_idx, move_info, nullptr);
     }
 
     void Evaluate_Fleet_Move_From_Star(int16_t* ship_list, int16_t target_star_idx, int16_t origin_star, s_ship_move_info* move_info) {
         const s_move_origin origin{{origin_star, (int16_t)MOX::star[origin_star].x, (int16_t)MOX::star[origin_star].y}};
-        Evaluate_Ship_Movement(ship_list, target_star_idx, move_info, &origin);
+        Evaluate_Ship_Movement(&game::world, ship_list, target_star_idx, move_info, &origin);
     }
 
     /**
@@ -1170,13 +1170,13 @@ namespace SHIPMOVE {
         }
     }
 
-    bool __cdecl Confirm_Officer_Change(int16_t leader_idx, int16_t target_ship_idx, int8_t target_eta) {
+    bool __cdecl Confirm_Officer_Change(game::s_world_state* world_state, int16_t leader_idx, int16_t target_ship_idx, int8_t target_eta) {
         if (leader_idx < 0 || leader_idx >= MAX_LEADERS ||
-            MOX::leaders[leader_idx].type != LEADER_TYPE_SHIP) {
+            game::Leader(world_state, leader_idx).type != LEADER_TYPE_SHIP) {
             return true;
         }
 
-        s_leader_data* leader = &MOX::leaders[leader_idx];
+        s_leader_data* leader = &game::Leader(world_state, leader_idx);
         int16_t source_ship_idx = leader->location;
         int16_t source_officer_idx = -1;
         int16_t target_officer_idx = -1;
@@ -1415,7 +1415,7 @@ namespace SHIPMOVE {
      * Resolves the Hyperspace Beast event for one player's moving ships.
      * @param player_idx Owning player to search, or -1 for no eligible ship.
      */
-    void __cdecl Do_Hyperspace_Beast(int32_t player_idx) {
+    void __cdecl Do_Hyperspace_Beast(game::s_world_state* world_state, int32_t player_idx) {
         s_MSG msg;
         msg.msg_type = MSG_TYPE_HYPERSPACE_BEAST;
 
@@ -1445,9 +1445,9 @@ namespace SHIPMOVE {
             msg.u.hyperspace_beast.star_idx = Ship_Destination_Star(selected_ship);
 
             if (officer_index != -1) {
-                OFFICER::Move_Officer_To_Pool(officer_index);
+                OFFICER::Move_Officer_To_Pool(world_state, officer_index);
 
-                s_leader_data* leader = &MOX::leaders[officer_index];
+                s_leader_data* leader = &game::Leader(world_state, officer_index);
                 if (leader->eta > 0) {
                     msg.u.hyperspace_beast.leader_status = 1;
                 } else {
@@ -1493,7 +1493,7 @@ namespace SHIPMOVE {
                     }
 
                     if (msg.u.hyperspace_beast.leader_status == 0) {
-                        OFFICER::Kill_Officer(officer_index);
+                        OFFICER::Kill_Officer(world_state, officer_index);
                     }
                 }
             }

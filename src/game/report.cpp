@@ -288,8 +288,8 @@ namespace REPORT {
                                     if (is_colony) {
                                         COLONIZE::Make_New_Colony(planet_idx, player_idx);
                                         if (colony_base == nullptr) {
-                                            SHIPS::Kill_Ship((int16_t)(colony_ship - MOX::ship));
-                                            COLCALC::Update_Player_Stats(&MOX::player[player_idx]);
+                                            SHIPS::Kill_Ship(&game::world, (int16_t)(colony_ship - MOX::ship));
+                                            COLCALC::Update_Player_Stats(&game::world, &MOX::player[player_idx]);
                                             MAINSCR::Update_Ship_Icons_In_Between_Turns();
                                             colony_base = nullptr;
                                         } else {
@@ -319,8 +319,8 @@ namespace REPORT {
                                         return 1;
                                     } else {
                                         COLONIZE::Make_New_Outpost(planet_idx, player_idx);
-                                        SHIPS::Kill_Ship((int16_t)(outpost_ship - MOX::ship));
-                                        COLCALC::Update_Player_Stats(&MOX::player[player_idx]);
+                                        SHIPS::Kill_Ship(&game::world, (int16_t)(outpost_ship - MOX::ship));
+                                        COLCALC::Update_Player_Stats(&game::world, &MOX::player[player_idx]);
                                         MAINSCR::Update_Ship_Icons_In_Between_Turns();
                                     }
                                 }
@@ -356,7 +356,7 @@ namespace REPORT {
         if ((status = Explored_New_Star(player_idx, (int8_t)show_ui)) != 0) return status;
         if ((status = Colonization(player_idx, (int8_t)show_ui)) != 0) return status;
         if ((status = Has_Officer_For_Hire(player_idx, (int8_t)show_ui)) != 0) return status;
-        if ((status = OFFICER::Officer_Made_Level_Report(player_idx, (int8_t)show_ui)) != 0) return status;
+        if ((status = OFFICER::Officer_Made_Level_Report(&game::world, player_idx, (int8_t)show_ui)) != 0) return status;
         if ((status = Has_Diplomacy_Messages(player_idx, show_ui != 0)) != 0) return status;
         if ((status = Has_Msg(player_idx, (int8_t)show_ui)) != 0) return status;
         if ((status = Empty_Colony_Queue(player_idx, (int8_t)show_ui)) != 0) return status;
@@ -519,10 +519,10 @@ namespace REPORT {
             has_officer = 1;
 
             if (hire_flag != 0) {
-                bool accepted = MAINPUPS::Random_New_Officer_Popup(player_idx);
+                bool accepted = MAINPUPS::Random_New_Officer_Popup(&game::world, player_idx);
                 int32_t cost = OFFICER::Calculate_Officer_Cost(player_idx, officer_id);
 
-                OFFICER::Set_Officer_To_Player(officer_id, player_idx, (uint8_t)accepted);
+                OFFICER::Set_Officer_To_Player(&game::world, officer_id, player_idx, (uint8_t)accepted);
 
                 if (accepted) {
                     MOX::player[player_idx].bc -= cost;

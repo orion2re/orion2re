@@ -72,13 +72,13 @@ namespace orion2re::lua::game::internal {
             return luaL_error(lua_state, "immutable Lua game object");
         }
 
-        s_leader_proxy* Check_Leader_(lua_State* lua_state, int index) {
+        s_leader_proxy* Check_Leader_(::game::s_world_state* world_state, lua_State* lua_state, int index) {
             auto* proxy = static_cast<s_leader_proxy*>(
                 luaL_checkudata(lua_state, index, LEADER_METATABLE_));
             if (proxy->leader_id < 0 || proxy->leader_id >= MAX_LEADERS ||
                 proxy->generation != Leader_Generation_(proxy->leader_id) ||
                 proxy->topology_generation != Topology_Generation() ||
-                MOX::leaders == nullptr || !Game_State_Access_Allowed()) {
+                !world_state->leaders.contains(::game::id_leader{static_cast<uint32_t>(proxy->leader_id)}) || !Game_State_Access_Allowed()) {
                 luaL_error(lua_state, "expired leader reference");
             }
             return proxy;
@@ -100,8 +100,8 @@ namespace orion2re::lua::game::internal {
             return proxy;
         }
 
-        void Push_Leader_(lua_State* lua_state, std::int16_t leader_id) {
-            if (MOX::leaders == nullptr || leader_id < 0 ||
+        void Push_Leader_(::game::s_world_state* world_state, lua_State* lua_state, std::int16_t leader_id) {
+            if (!world_state->leaders.contains(::game::id_leader{static_cast<uint32_t>(leader_id)}) || leader_id < 0 ||
                 leader_id >= MAX_LEADERS) {
                 lua_pushnil(lua_state);
                 return;
@@ -131,7 +131,7 @@ namespace orion2re::lua::game::internal {
             luaL_setmetatable(lua_state, NEBULA_METATABLE_);
         }
 
-        int Leader_Index_(lua_State* lua_state) {
+        int Leader_Index_(::game::s_world_state* world_state, lua_State* lua_state) {
             const auto* proxy = static_cast<s_leader_proxy*>(
                 luaL_checkudata(lua_state, 1, LEADER_METATABLE_));
             const char* key = luaL_checkstring(lua_state, 2);
@@ -143,11 +143,11 @@ namespace orion2re::lua::game::internal {
                             Leader_Generation_(proxy->leader_id) &&
                         proxy->topology_generation ==
                             Topology_Generation() &&
-                        MOX::leaders != nullptr);
+                        world_state->leaders.contains(::game::id_leader{static_cast<uint32_t>(proxy->leader_id)}));
                 return 1;
             }
-            Check_Leader_(lua_state, 1);
-            const s_leader_data& leader = MOX::leaders[proxy->leader_id];
+            Check_Leader_(world_state, lua_state, 1);
+            const s_leader_data& leader = ::game::Leader(world_state, proxy->leader_id);
             if (strcmp(key, "kind") == 0) {
                 lua_pushliteral(lua_state, "leader");
             } else if (strcmp(key, "id") == 0) {
@@ -183,48 +183,48 @@ namespace orion2re::lua::game::internal {
             if (leader_id < 0 || leader_id >= MAX_LEADERS) {
                 lua_pushnil(lua_state);
             } else {
-                Push_Leader_(lua_state,
+                Push_Leader_(&::game::world, lua_state,
                     static_cast<std::int16_t>(leader_id));
             }
             return 1;
         }
 
-        int Leader_Collection_All_(lua_State* lua_state) {
+        int Leader_Collection_All_(::game::s_world_state* world_state, lua_State* lua_state) {
             luaL_checkudata(lua_state, 1, LEADER_COLLECTION_METATABLE_);
-            if (!Game_State_Access_Allowed() || MOX::leaders == nullptr) {
+            if (!Game_State_Access_Allowed()) {
                 return luaL_error(lua_state,
                     "native leader collection is unavailable");
             }
-            lua_createtable(lua_state, MAX_LEADERS, 0);
-            for (std::int16_t leader_id = 0; leader_id < MAX_LEADERS;
-                 ++leader_id) {
-                Push_Leader_(lua_state, leader_id);
-                lua_rawseti(lua_state, -2, leader_id + 1);
+            lua_createtable(lua_state, static_cast<int>(world_state->leaders.size()), 0);
+            lua_Integer position = 1;
+            for (const auto& [id, leader] : world_state->leaders) {
+                Push_Leader_(world_state, lua_state, static_cast<int16_t>(id.id));
+                lua_rawseti(lua_state, -2, position++);
             }
             return 1;
         }
 
-        int Leader_Collection_Copy_(lua_State* lua_state) {
+        int Leader_Collection_Copy_(::game::s_world_state* world_state, lua_State* lua_state) {
             luaL_checkudata(lua_state, 1, LEADER_COLLECTION_METATABLE_);
             if (!Galaxy_State_Mutation_Allowed()) {
                 return luaL_error(lua_state,
                     "leader placement is available only during galaxy generation");
             }
-            const s_leader_proxy* source = Check_Leader_(lua_state, 2);
-            const s_leader_proxy* target = Check_Leader_(lua_state, 3);
+            const s_leader_proxy* source = Check_Leader_(world_state, lua_state, 2);
+            const s_leader_proxy* target = Check_Leader_(world_state, lua_state, 3);
             std::int16_t system_id = -1;
             if (!Read_System(lua_state, 4, &system_id) ||
-                MOX::leaders[source->leader_id].status != 5 ||
-                MOX::leaders[target->leader_id].status != -1) {
+                ::game::Leader(world_state, source->leader_id).status != 5 ||
+                ::game::Leader(world_state, target->leader_id).status != -1) {
                 return luaL_error(lua_state,
                     "leader copy requires a marooned source, unused target, and valid system");
             }
             Advance_Leader_Generation_(target->leader_id);
-            MOX::leaders[target->leader_id] =
-                MOX::leaders[source->leader_id];
-            MOX::leaders[target->leader_id].location = system_id;
-            MOX::leaders[target->leader_id].player_index = -1;
-            Push_Leader_(lua_state, target->leader_id);
+            ::game::Leader(world_state, target->leader_id) =
+                ::game::Leader(world_state, source->leader_id);
+            ::game::Leader(world_state, target->leader_id).location = system_id;
+            ::game::Leader(world_state, target->leader_id).player_index = -1;
+            Push_Leader_(world_state, lua_state, target->leader_id);
             return 1;
         }
 
@@ -234,9 +234,9 @@ namespace orion2re::lua::game::internal {
             if (strcmp(key, "get") == 0) {
                 lua_pushcfunction(lua_state, Leader_Collection_Get_);
             } else if (strcmp(key, "all") == 0) {
-                lua_pushcfunction(lua_state, Leader_Collection_All_);
+                lua_pushcfunction(lua_state, [](lua_State* state) { return Leader_Collection_All_(&::game::world, state); });
             } else if (strcmp(key, "copy") == 0) {
-                lua_pushcfunction(lua_state, Leader_Collection_Copy_);
+                lua_pushcfunction(lua_state, [](lua_State* state) { return Leader_Collection_Copy_(&::game::world, state); });
             } else {
                 lua_pushnil(lua_state);
             }
@@ -451,7 +451,7 @@ namespace orion2re::lua::game::internal {
     void Create_Leader_Nebula_Metatables(lua_State* lua_state) {
         Create_Metatable_(lua_state,
             LEADER_METATABLE_,
-            Leader_Index_,
+            [](lua_State* state) { return Leader_Index_(&::game::world, state); },
             Immutable_New_Index_,
             Leader_Equal_);
         Create_Metatable_(lua_state,

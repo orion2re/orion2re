@@ -22,7 +22,7 @@ namespace lostship {
             for (int16_t player_idx = 0; player_idx < (int16_t)MOX::NUM_PLAYERS; ++player_idx) {
                 lostship::Compute_Stars_In_Range_Of_Player(basic_range_array, extended_range_array, player_idx);
                 lostship::Player_Lose_Out_Of_Range_Ships(basic_range_array, extended_range_array, player_idx);
-                COMBFIND::Process_Retreating_Ships();
+                COMBFIND::Process_Retreating_Ships(&game::world);
             }
         }
     }

@@ -310,7 +310,7 @@ namespace COMBAT {
                  loaded_ships < COMBINIT::max_ships_per_side;
                  ++i) {
                 if (MOX::ship[ship_array[i]].d.ship_type == SHIP_TYPE_COMBAT) {
-                    COMBINIT::Load_Combat_Ship(ship_array[i], MOX::combat_total_ship_count);
+                    COMBINIT::Load_Combat_Ship(&game::world, ship_array[i], MOX::combat_total_ship_count);
                     MOX::combat_data[MOX::combat_total_ship_count].x = 0;
                     MOX::combat_data[MOX::combat_total_ship_count].y = 0;
                     MOX::combat_total_ship_count++;

@@ -9,7 +9,7 @@ namespace {
     s_star_data systems[MAX_STARS];
     s_planet_data planets[MAX_PLANETS];
     s_colony colonies[MAX_PLAYERS];
-    s_leader_data leaders[MAX_LEADERS];
+
     s_nebula nebulas[MAX_NEBULAS];
     char star_names[829][15];
     uint16_t star_name_indices[829];
@@ -24,7 +24,7 @@ namespace TEST_LUA_GAME {
         memset(systems, 0, sizeof(systems));
         memset(planets, 0, sizeof(planets));
         memset(colonies, 0, sizeof(colonies));
-        memset(leaders, 0, sizeof(leaders));
+        game::Reset_Leaders(&game::world);
         memset(nebulas, 0, sizeof(nebulas));
         for (int index = 0; index < 829; ++index) {
             snprintf(star_names[index], sizeof(star_names[index]), "Star %d", index);
@@ -128,7 +128,6 @@ namespace MOX {
     s_star_data* star = systems;
     s_planet_data* planet = planets;
     s_colony* colony = colonies;
-    s_leader_data* leaders = ::leaders;
     s_nebula* nebula = nebulas;
     uint8_t NUM_NEBULAS;
     int16_t MAP_MAX_X = 506;

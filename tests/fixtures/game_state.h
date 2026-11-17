@@ -33,7 +33,7 @@ namespace test {
         std::vector<s_star_data> stars = std::vector<s_star_data>(MAX_STARS + 1);
         std::vector<s_planet_data> planets = std::vector<s_planet_data>(MAX_PLANETS);
         std::vector<s_colony> colonies = std::vector<s_colony>(MAX_COLONIES);
-        std::vector<s_leader_data> leaders = std::vector<s_leader_data>(MAX_LEADERS);
+        std::map<game::id_leader, s_leader_data> old_leaders = game::world.leaders;
         s_current_design design = {};
         std::vector<uint64_t> generations = std::vector<uint64_t>(MAX_SHIPS);
         orion2re::lua::game::s_ship_generation_scope generation_scope{generations.data()};
@@ -43,7 +43,6 @@ namespace test {
         s_star_data* old_stars = MOX::star;
         s_planet_data* old_planets = MOX::planet;
         s_colony* old_colonies = MOX::colony;
-        s_leader_data* old_leaders = MOX::leaders;
         s_current_design* old_design = MOX::design;
         s_settings old_settings = MOX::settings;
         int16_t old_player_num = MOX::PLAYER_NUM;
@@ -62,7 +61,7 @@ namespace test {
             MOX::star = stars.data();
             MOX::planet = planets.data();
             MOX::colony = colonies.data();
-            MOX::leaders = leaders.data();
+            game::Reset_Leaders(&game::world);
             MOX::design = &design;
             MOX::settings = {};
             MOX::PLAYER_NUM = 0;
@@ -72,11 +71,11 @@ namespace test {
             MOX::planet_count = 0;
             MOX::NUM_COLONIES = 0;
             MOX::stardate = 35000;
-            for (auto& leader : leaders) {
+            for (auto& [id, leader] : game::world.leaders) {
                 leader.player_index = -1;
                 leader.status = -1;
             }
-            game::current = legacy_world::World();
+            game::current = legacy_world::World(&game::world);
         }
 
         ~s_game_state() {
@@ -85,7 +84,7 @@ namespace test {
             MOX::star = old_stars;
             MOX::planet = old_planets;
             MOX::colony = old_colonies;
-            MOX::leaders = old_leaders;
+            game::world.leaders = std::move(old_leaders);
             MOX::design = old_design;
             MOX::settings = old_settings;
             MOX::PLAYER_NUM = old_player_num;

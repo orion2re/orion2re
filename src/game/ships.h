@@ -135,7 +135,7 @@ namespace SHIPS {
      * Marks a ship destroyed and relocates an assigned officer if needed.
      * @param ship_idx Ship index to retire.
      */
-    void __cdecl Kill_Ship(int16_t ship_idx);
+    void __cdecl Kill_Ship(game::s_world_state* world_state, int16_t ship_idx);
 
     /**
      * Clears the auto-colonization marker stored in a colony or outpost hull.

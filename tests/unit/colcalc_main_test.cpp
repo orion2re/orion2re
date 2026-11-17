@@ -136,22 +136,22 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "government economy bonuses apply 
         };
 
         s_colony_job_production breakdown = {};
-        DOCTEST_CHECK(COLCALC::Colony_Job_Production(
+        DOCTEST_CHECK(COLCALC::Colony_Job_Production(&game::world,
             colony, ECON_FOOD, &breakdown) == 2);
         DOCTEST_CHECK((breakdown.govt_bonus == 30));
 
         colony->pop[0] = 0x280;
-        DOCTEST_CHECK(COLCALC::Colony_Job_Production(
+        DOCTEST_CHECK(COLCALC::Colony_Job_Production(&game::world,
             colony, ECON_INDUSTRY, &breakdown) == 2);
         DOCTEST_CHECK((breakdown.govt_bonus == 10));
 
         colony->pop[0] = 0x300;
-        DOCTEST_CHECK(COLCALC::Colony_Job_Production(
+        DOCTEST_CHECK(COLCALC::Colony_Job_Production(&game::world,
             colony, ECON_RESEARCH, &breakdown) == 4);
         DOCTEST_CHECK((breakdown.govt_bonus == 15));
 
         colony->pop[0] = 0;
-        COLCALC::Colony_BC_Production(colony, nullptr);
+        COLCALC::Colony_BC_Production(&game::world, colony, nullptr);
         DOCTEST_CHECK((colony->production[ECON_BC] == 2));
     }
 
@@ -187,18 +187,18 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "Android morale policy applies to 
             COLCALC::android_morale = COLCALC::ANDROID_MORALE_ALL_DROIDS;
 
             s_colony_job_production all_droids = {};
-            COLCALC::Colony_Job_Production(colony, jobs[index], &all_droids);
+            COLCALC::Colony_Job_Production(&game::world, colony, jobs[index], &all_droids);
             DOCTEST_REQUIRE((all_droids.morale_bonus != 0));
 
             COLCALC::android_morale = policy.value;
             s_colony_job_production configured = {};
-            COLCALC::Colony_Job_Production(colony, jobs[index], &configured);
+            COLCALC::Colony_Job_Production(&game::world, colony, jobs[index], &configured);
             DOCTEST_CHECK((configured.morale_bonus ==
                 (policy.applies[index] ? all_droids.morale_bonus : 0)));
 
             MOX::player[0].traits[TRAIT_CURRENT_GOVERNMENT] = GOVERNMENT_UNIFICATION;
             s_colony_job_production unification = {};
-            COLCALC::Colony_Job_Production(colony, jobs[index], &unification);
+            COLCALC::Colony_Job_Production(&game::world, colony, jobs[index], &unification);
             DOCTEST_CHECK((unification.morale_bonus == 0));
         }
     }
@@ -214,16 +214,16 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured planet special BC bonu
     COLCALC::planet_bc_bonus = {7, 13};
 
     MOX::planet[0].planet_special = SYSTEM_SPECIAL_GOLD_DEPOSITS;
-    COLCALC::Colony_BC_Production(colony, nullptr);
+    COLCALC::Colony_BC_Production(&game::world, colony, nullptr);
     DOCTEST_CHECK((colony->production[ECON_BC] == 12));
 
     colony->buildings[BUILDING_SPACEPORT] = 1;
-    COLCALC::Colony_BC_Production(colony, nullptr);
+    COLCALC::Colony_BC_Production(&game::world, colony, nullptr);
     DOCTEST_CHECK((colony->production[ECON_BC] == 18));
 
     colony->buildings[BUILDING_SPACEPORT] = 0;
     MOX::planet[0].planet_special = SYSTEM_SPECIAL_GEM_DEPOSITS;
-    COLCALC::Colony_BC_Production(colony, nullptr);
+    COLCALC::Colony_BC_Production(&game::world, colony, nullptr);
     DOCTEST_CHECK((colony->production[ECON_BC] == 18));
 
     TEST_GOVERNMENT_BONUS::Cleanup_();
@@ -237,20 +237,20 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured Trade Goods ratios app
     colony->producing[0] = COLONY_PRODUCTION_TRADE_GOODS;
     colony->production[ECON_INDUSTRY] = 9;
 
-    COLCALC::Colony_BC_Production(colony, nullptr);
+    COLCALC::Colony_BC_Production(&game::world, colony, nullptr);
     DOCTEST_CHECK((colony->production[ECON_BC] == 6));
 
     MOX::player[0].traits[TRAIT_FANTASTIC_TRADERS] = 1;
-    COLCALC::Colony_BC_Production(colony, nullptr);
+    COLCALC::Colony_BC_Production(&game::world, colony, nullptr);
     DOCTEST_CHECK((colony->production[ECON_BC] == 10));
 
     COLCALC::trade_goods_ratio = {40, 175};
     MOX::player[0].traits[TRAIT_FANTASTIC_TRADERS] = 0;
-    COLCALC::Colony_BC_Production(colony, nullptr);
+    COLCALC::Colony_BC_Production(&game::world, colony, nullptr);
     DOCTEST_CHECK((colony->production[ECON_BC] == 5));
 
     MOX::player[0].traits[TRAIT_FANTASTIC_TRADERS] = 1;
-    COLCALC::Colony_BC_Production(colony, nullptr);
+    COLCALC::Colony_BC_Production(&game::world, colony, nullptr);
     DOCTEST_CHECK((colony->production[ECON_BC] == 17));
 
     TEST_GOVERNMENT_BONUS::Cleanup_();
@@ -264,22 +264,22 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured colony BC bonuses appl
     colony->n_pops = 5;
     COLCALC::bc_bonus = {75, 125, 50};
 
-    COLCALC::Colony_BC_Production(colony, nullptr);
+    COLCALC::Colony_BC_Production(&game::world, colony, nullptr);
     DOCTEST_CHECK((colony->production[ECON_BC] == 5));
 
     colony->buildings[BUILDING_SPACEPORT] = 1;
-    COLCALC::Colony_BC_Production(colony, nullptr);
+    COLCALC::Colony_BC_Production(&game::world, colony, nullptr);
     DOCTEST_CHECK((colony->production[ECON_BC] == 8));
 
     colony->buildings[BUILDING_SPACEPORT] = 0;
     colony->buildings[BUILDING_STOCK_EXCHANGE] = 1;
-    COLCALC::Colony_BC_Production(colony, nullptr);
+    COLCALC::Colony_BC_Production(&game::world, colony, nullptr);
     DOCTEST_CHECK((colony->production[ECON_BC] == 11));
 
     colony->buildings[BUILDING_STOCK_EXCHANGE] = 0;
     MOX::player[0].tech_applications[TECH_APP_GALACTIC_CURRENCY_EXCHANGE] =
         TECH_RESEARCH_STATUS_RESEARCHED;
-    COLCALC::Colony_BC_Production(colony, nullptr);
+    COLCALC::Colony_BC_Production(&game::world, colony, nullptr);
     DOCTEST_CHECK((colony->production[ECON_BC] == 7));
 
     COLCALC::bc_bonus = saved_bonus;
@@ -437,7 +437,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured pollution reductions p
         COLCALC::pollution_processor_ratio = test_case.processor_ratio;
         COLCALC::atmospheric_renewer_ratio = test_case.renewer_ratio;
 
-        COLCALC::Colony_Industry_Production(colony, nullptr);
+        COLCALC::Colony_Industry_Production(&game::world, colony, nullptr);
 
         DOCTEST_CHECK(colony->pollution == test_case.expected_pollution);
         DOCTEST_CHECK((
@@ -476,7 +476,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "high Pollution Processor ratios p
         COLCALC::planet_no_pollution_prod[0] = 0;
         COLCALC::pollution_processor_ratio = test_case.ratio;
 
-        COLCALC::Colony_Industry_Production(colony, nullptr);
+        COLCALC::Colony_Industry_Production(&game::world, colony, nullptr);
 
         DOCTEST_CHECK(colony->pollution == test_case.expected_pollution);
         DOCTEST_CHECK((
@@ -584,7 +584,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured fixed production and R
     colony->buildings[BUILDING_RECYCLOTRON] = 1;
     colony->buildings[BUILDING_CORE_WASTE_DUMP] = 1;
 
-    COLCALC::Colony_Industry_Production(colony, nullptr);
+    COLCALC::Colony_Industry_Production(&game::world, colony, nullptr);
 
     DOCTEST_CHECK((colony->production[ECON_INDUSTRY] == 34));
     DOCTEST_CHECK(colony->n_industry_recyclers == 15);
@@ -607,7 +607,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "Scout Lab research uses the confi
         ship->d.special_device_flags[SPECIAL_SCOUT_LAB >> 3] |=
             (uint8_t)(1U << (SPECIAL_SCOUT_LAB & 7));
 
-        COLCALC::Update_Player_Stats(&MOX::player[0]);
+        COLCALC::Update_Player_Stats(&game::world, &MOX::player[0]);
 
         DOCTEST_CHECK(MOX::player[0].research_produced == expected);
     }
@@ -660,7 +660,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured command-point values a
     MOX::ship[1].d.ship_type = SHIP_TYPE_COLONY;
     MOX::ship[1].d.size = SHIP_SIZE_MEDIUM;
 
-    COLCALC::Compute_Player_Maintenance(&MOX::player[0], nullptr);
+    COLCALC::Compute_Player_Maintenance(&game::world, &MOX::player[0], nullptr);
 
     DOCTEST_CHECK(MOX::player[0].command_points == 43);
     DOCTEST_CHECK(MOX::player[0].command_points_used == 13);
@@ -680,7 +680,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "negative command-point settings r
 
         char output[128];
         STRBUILD::s_builder builder = STRBUILD::Init(output, sizeof(output));
-        COLCALC::Compute_Player_Maintenance(&MOX::player[0], &builder);
+        COLCALC::Compute_Player_Maintenance(&game::world, &MOX::player[0], &builder);
 
         char expected[128];
         snprintf(expected, sizeof(expected),
@@ -698,7 +698,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "negative command-point settings r
         COLCALC::command_points = {};
         COLCALC::command_points.tachyon_communications = value;
 
-        COLCALC::Compute_Player_Maintenance(&MOX::player[0], nullptr);
+        COLCALC::Compute_Player_Maintenance(&game::world, &MOX::player[0], nullptr);
         DOCTEST_CHECK(MOX::player[0].command_points == value);
     }
 }

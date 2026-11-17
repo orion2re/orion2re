@@ -837,7 +837,7 @@ namespace MAINPUPS {
         return result;
     }
 
-    bool __cdecl Random_New_Officer_Popup(int16_t player_idx) {
+    bool __cdecl Random_New_Officer_Popup(game::s_world_state* world_state, int16_t player_idx) {
         const int16_t capital_colony = ERIC::Player_Capitol_World(player_idx);
         int16_t star_idx = capital_colony >= 0
             ? MOX::planet[MOX::colony[capital_colony].planet].star_index
@@ -950,7 +950,7 @@ namespace MAINPUPS {
                     fields::Set_Input_Delay(3);
                 } else if (input == -mp_fields[8]) {
                     int32_t info_cost = OFFICER::Calculate_Officer_Cost(g_player_n, g_officer);
-                    s_leader_data* leader = &MOX::leaders[g_officer];
+                    s_leader_data* leader = &game::Leader(world_state, g_officer);
                     char* level_name = MOX::officer_level_names[leader->level];
                     char buffer[500];
 
@@ -965,7 +965,7 @@ namespace MAINPUPS {
                     COLONY::full_draw = 1;
                 } else if (input == -mp_fields[7]) {
                     int32_t info_cost = OFFICER::Calculate_Officer_Cost(g_player_n, g_officer);
-                    s_leader_data* leader = &MOX::leaders[g_officer];
+                    s_leader_data* leader = &game::Leader(world_state, g_officer);
                     char* level_name = MOX::officer_level_names[leader->level];
                     char buffer[500];
 
@@ -1047,7 +1047,7 @@ namespace MAINPUPS {
 
                     g_special = SYSTEM_SPECIAL_NO_SPECIAL;
 
-                    uint8_t can_join = OFFICER::Marooned_Hero_At_Star_Can_Join(
+                    uint8_t can_join = OFFICER::Marooned_Hero_At_Star_Can_Join(&game::world,
                         star_idx, &leader_idx, MOX::PLAYER_NUM);
 
                     if (can_join == 0) {
@@ -1647,7 +1647,7 @@ namespace MAINPUPS {
             uint8_t can_join;
 
             g_special = SYSTEM_SPECIAL_NO_SPECIAL;
-            can_join = OFFICER::Marooned_Hero_At_Star_Can_Join(g_star_n, &marooned_hero_idx, MOX::PLAYER_NUM);
+            can_join = OFFICER::Marooned_Hero_At_Star_Can_Join(&game::world, g_star_n, &marooned_hero_idx, MOX::PLAYER_NUM);
             if (can_join == 0) {
                 Marooned_Officer_Fails_Popup(g_star_n, marooned_hero_idx);
             } else {
@@ -1680,7 +1680,7 @@ namespace MAINPUPS {
         anims[10] = (s_animation_header*)farload::Far_Reload_Next(COLONY::MAINPUPS_LBX, 0x30, MOX::screen_seg);
         anims[12] = (s_animation_header*)farload::Far_Reload_Next(COLONY::MAINPUPS_LBX, 0x31, MOX::screen_seg);
         anims[13] = (s_animation_header*)farload::Far_Reload_Next(COLONY::MAINPUPS_LBX, 0x32, MOX::screen_seg);
-        anims[11] = OFFICER::Load_Officer_Picture(g_player_n, g_officer, MOX::screen_seg, 0, 0);
+        anims[11] = OFFICER::Load_Officer_Picture(&game::world, g_player_n, g_officer, MOX::screen_seg, 0, 0);
 
         OFFICER::Load_Officer_Skill_Icons(MOX::screen_seg);
     }
@@ -1690,7 +1690,7 @@ namespace MAINPUPS {
         anims[10] = (s_animation_header*)farload::Far_Reload_Next(COLONY::MAINPUPS_LBX, 0x39, MOX::screen_seg);
         anims[12] = (s_animation_header*)farload::Far_Reload_Next(COLONY::MAINPUPS_LBX, 0x3A, MOX::screen_seg);
         anims[13] = (s_animation_header*)farload::Far_Reload_Next(COLONY::MAINPUPS_LBX, 0x3B, MOX::screen_seg);
-        anims[11] = OFFICER::Load_Officer_Picture(g_player_n, g_officer, MOX::screen_seg, 0, 0);
+        anims[11] = OFFICER::Load_Officer_Picture(&game::world, g_player_n, g_officer, MOX::screen_seg, 0, 0);
         if (on_officer_screen_flag == 0) {
             OFFICER::Load_Officer_Skill_Icons(MOX::screen_seg);
         }
@@ -1889,7 +1889,7 @@ namespace MAINPUPS {
         if (MAINPUPS::on_officer_screen_flag != 0 ||
             field_state == 0 ||
             field_state == 2) {
-            MAINPUPS::Leader_Technology_String(MAINPUPS::g_player_n,
+            MAINPUPS::Leader_Technology_String(&game::world, MAINPUPS::g_player_n,
                 MAINPUPS::g_officer,
                 tech_buffer,
                 sizeof(tech_buffer));
@@ -1897,7 +1897,7 @@ namespace MAINPUPS {
                 MAINPUPS::g_officer);
             officer_cost = OFFICER::Calculate_Officer_Cost(MAINPUPS::g_player_n,
                 MAINPUPS::g_officer);
-            leader_name = OFFICER::Leader_Name(MAINPUPS::g_officer, 0);
+            leader_name = OFFICER::Leader_Name(&game::world, MAINPUPS::g_officer, 0);
 
             if (MAINPUPS::on_officer_screen_flag != 0) {
                 format_string = HAROLD::H_Message(HESTR_125_S_WILL_COST_D_BCS_INIT);
@@ -1923,13 +1923,13 @@ namespace MAINPUPS {
         } else if (field_state == 1) {
             officer_cost = OFFICER::Calculate_Officer_Cost(MAINPUPS::g_player_n,
                 MAINPUPS::g_officer);
-            leader_name = OFFICER::Leader_Name(MAINPUPS::g_officer, 0);
+            leader_name = OFFICER::Leader_Name(&game::world, MAINPUPS::g_officer, 0);
             format_string = ESTRINGS::E_Strings(6);
             snprintf(message_buffer, sizeof(message_buffer), format_string, leader_name, officer_cost);
         } else if (field_state == 3) {
             officer_cost = OFFICER::Calculate_Officer_Cost(MAINPUPS::g_player_n,
                 MAINPUPS::g_officer);
-            leader_name = OFFICER::Leader_Name(MAINPUPS::g_officer, 0);
+            leader_name = OFFICER::Leader_Name(&game::world, MAINPUPS::g_officer, 0);
             format_string = ESTRINGS::E_Strings(4);
             snprintf(message_buffer, sizeof(message_buffer), format_string, leader_name, officer_cost);
         }
@@ -1941,7 +1941,7 @@ namespace MAINPUPS {
             message_buffer,
             2);
 
-        leader_name = OFFICER::Leader_Name(MAINPUPS::g_officer, 1);
+        leader_name = OFFICER::Leader_Name(&game::world, MAINPUPS::g_officer, 1);
         ERIC::Print_Paragraph_Centered(MAINPUPS::g_x + 0x0b,
             MAINPUPS::g_y + 0x0c,
             0x11d,
@@ -2108,15 +2108,15 @@ namespace MAINPUPS {
         animate::Draw(g_x + 13, g_y + 55, anims[11]);
 
         if (officer_gains_level_state == 0) {
-            char* name = OFFICER::Leader_Name(g_officer, 0);
+            char* name = OFFICER::Leader_Name(&game::world, g_officer, 0);
             char* format = ESTRINGS::E_Strings(1);
             snprintf(message_buffer, sizeof(message_buffer), format, name);
         } else if (officer_gains_level_state == 1) {
-            char* name = OFFICER::Leader_Name(g_officer, 0);
+            char* name = OFFICER::Leader_Name(&game::world, g_officer, 0);
             char* format = ESTRINGS::E_Strings(584);
             snprintf(message_buffer, sizeof(message_buffer), format, name);
         } else if (officer_gains_level_state == 2) {
-            char* name = OFFICER::Leader_Name(g_officer, 0);
+            char* name = OFFICER::Leader_Name(&game::world, g_officer, 0);
             char* format = ESTRINGS::E_Strings(585);
             snprintf(message_buffer, sizeof(message_buffer), format, name);
         }
@@ -2125,7 +2125,7 @@ namespace MAINPUPS {
 
         ERIC::Print_Paragraph_Centered(g_x + 14, g_y + 149, 281, 62, message_buffer);
 
-        char* leader_full_name = OFFICER::Leader_Name(g_officer, 1);
+        char* leader_full_name = OFFICER::Leader_Name(&game::world, g_officer, 1);
         ERIC::Print_Paragraph_Centered(g_x + 11, g_y + 12, 285, 33, leader_full_name);
 
         video::Copy_Off_To_Back();
@@ -2295,7 +2295,7 @@ namespace MAINPUPS {
         line::Line(draw_x, MAINPUPS::g_y + 153, draw_x, MAINPUPS::g_y + 164, 32 /* ' ' */);
     }
 
-    void __cdecl Leader_Technology_String(int16_t player_idx, int16_t leader_idx, char* output_buf, uint32_t output_buf_size) {
+    void __cdecl Leader_Technology_String(game::s_world_state* world_state, int16_t player_idx, int16_t leader_idx, char* output_buf, uint32_t output_buf_size) {
         if (output_buf == nullptr || output_buf_size == 0) {
             return;
         }
@@ -2304,7 +2304,7 @@ namespace MAINPUPS {
         output_buf[0] = '\0';
 
         for (int16_t i = 0; i < 3; ++i) {
-            uint8_t tech_id = MOX::leaders[leader_idx].tech_application[i];
+            uint8_t tech_id = game::Leader(world_state, leader_idx).tech_application[i];
             if (tech_id != 0) {
                 const char* prefix;
                 if (i == 0) {
@@ -2527,7 +2527,7 @@ namespace MAINPUPS {
 
         anims[10] = (s_animation_header*)farload::Far_Reload_Next(COLONY::MAINPUPS_LBX, 0x33, MOX::screen_seg);
 
-        anims[11] = OFFICER::Load_Officer_Picture(
+        anims[11] = OFFICER::Load_Officer_Picture(&game::world,
             MOX::PLAYER_NUM,
             MAINPUPS::g_officer,
             MOX::screen_seg,

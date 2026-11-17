@@ -107,7 +107,7 @@ namespace HAROLD {
 
     bool __cdecl Player_Sighted_Monster(int16_t player_id, int16_t star_id);
 
-    void __cdecl Load_Leader_Titles();
+    void __cdecl Load_Leader_Titles(game::s_world_state* world_state);
 
     void __cdecl Load_H_Strings();
 

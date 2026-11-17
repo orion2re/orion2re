@@ -218,11 +218,11 @@ namespace NETMOX {
         Send_Drop_Out_Info(player_idx, 0x38);
     }
 
-    void __cdecl Ditch_Leader(int32_t leader_idx) {
-        MOX::leaders[leader_idx].eta = 0;
-        MOX::leaders[leader_idx].status = -1;
-        MOX::leaders[leader_idx].location = -1;
-        MOX::leaders[leader_idx].player_index = -1;
+    void __cdecl Ditch_Leader(game::s_world_state* world_state, int32_t leader_idx) {
+        game::Leader(world_state, leader_idx).eta = 0;
+        game::Leader(world_state, leader_idx).status = -1;
+        game::Leader(world_state, leader_idx).location = -1;
+        game::Leader(world_state, leader_idx).player_index = -1;
     }
 
     void __cdecl Mark_Leader_Deassigned(int16_t leader_idx) {
@@ -628,7 +628,7 @@ namespace NETMOX {
         allocate::Pop_Block(MOX::screen_seg);
     }
 
-    static uint32_t Encode_Native_Game_Data_Snapshot(void* buffer, uint32_t len) {
+    static uint32_t Encode_Native_Game_Data_Snapshot(game::s_world_state* world_state, void* buffer, uint32_t len) {
         Scoped_Net_Update_Suspension_ suspend_net_updates;
         NETPROTO::Packet_Writer_ writer(buffer, len, "invalid broadcast game data payload");
 
@@ -675,8 +675,9 @@ namespace NETMOX {
 
         RUSS::Mox_Update();
 
-        size = MAX_LEADERS * sizeof(s_leader_data);
-        writer.Write_Bytes(MOX::leaders, size);
+        for (int32_t id = 0; id < MAX_LEADERS; ++id) {
+            writer.Write_Bytes(&game::Leader(world_state, id), sizeof(s_leader_data));
+        }
 
         writer.Write_Uint16((uint16_t)REPORT::n_reports);
 
@@ -720,14 +721,14 @@ namespace NETMOX {
 
     uint32_t __cdecl Encode_Broadcast_Game_Data_Snapshot(void* buffer, uint32_t len) {
         if (!orion2re::lua::Network_Lua_Enabled()) {
-            return Encode_Native_Game_Data_Snapshot(buffer, len);
+            return Encode_Native_Game_Data_Snapshot(&game::world, buffer, len);
         }
         if (buffer == nullptr || len <= O2GD_HEADER_SIZE) {
             exitm::Exit_With_Message("Lua-enabled game data buffer too small");
         }
         std::string diagnostic;
         uint8_t* bytes = static_cast<uint8_t*>(buffer);
-        const uint32_t native_size = Encode_Native_Game_Data_Snapshot(
+        const uint32_t native_size = Encode_Native_Game_Data_Snapshot(&game::world,
             bytes + O2GD_HEADER_SIZE, len - O2GD_HEADER_SIZE);
         uint32_t lua_state_size = 0;
         uint32_t flags = 0;
@@ -804,7 +805,7 @@ namespace NETMOX {
         allocate::Pop_Block(MOX::screen_seg);
     }
 
-    static int8_t Decode_Native_Game_Data_Snapshot(
+    static int8_t Decode_Native_Game_Data_Snapshot(game::s_world_state* world_state,
         void* buf, size_t size) {
         Scoped_Net_Update_Suspension_ suspend_net_updates;
         uint8_t* ptr = (uint8_t*)buf;
@@ -891,7 +892,9 @@ namespace NETMOX {
 
         reader.Read_Bytes(MOX::ship, MAX_SHIPS * sizeof(s_ship_data));
 
-        reader.Read_Bytes(MOX::leaders, MAX_LEADERS * sizeof(s_leader_data));
+        for (int32_t id = 0; id < MAX_LEADERS; ++id) {
+            reader.Read_Bytes(&game::Leader(world_state, id), sizeof(s_leader_data));
+        }
 
         REPORT::n_reports = reader.Read_Int16();
 
@@ -1023,13 +1026,13 @@ namespace NETMOX {
                 exitm::Exit_With_Message(
                     "unable to allocate game data rollback checkpoint");
             }
-            const uint32_t prior_size = Encode_Native_Game_Data_Snapshot(
+            const uint32_t prior_size = Encode_Native_Game_Data_Snapshot(&game::world,
                 prior_native.data(),
                 static_cast<uint32_t>(prior_native.size()));
             prior_native.resize(prior_size);
         }
 
-        Decode_Native_Game_Data_Snapshot(native, native_size);
+        Decode_Native_Game_Data_Snapshot(&game::world, native, native_size);
         orion2re::lua::s_lua_network_state_transaction* lua_transaction =
             nullptr;
         if (lua_enabled) {
@@ -1044,7 +1047,7 @@ namespace NETMOX {
                 &committed,
                 &diagnostic);
             if (!prepared) {
-                Decode_Native_Game_Data_Snapshot(
+                Decode_Native_Game_Data_Snapshot(&game::world,
                     prior_native.data(), prior_native.size());
                 exitm::Exit_With_Message(diagnostic.c_str());
             }
@@ -1240,7 +1243,7 @@ namespace NETMOX {
         NETMOX::is_updating = 0;
     }
 
-    void __cdecl Send_Game_Orders() {
+    void __cdecl Send_Game_Orders(game::s_world_state* world_state) {
         Scoped_Net_Update_Suspension_ suspend_net_updates;
         allocate::Push_Block(MOX::screen_seg);
         uint8_t* packet = reinterpret_cast<uint8_t*>(allocate::Allocate_Next_Block(MOX::screen_seg, NETMOX_MAX_GAME_DATA_PAYLOAD_BYTES));
@@ -1322,10 +1325,10 @@ namespace NETMOX {
         RUSS::Mox_Update();
 
         for (int16_t i = 0; i < MAX_LEADERS; ++i) {
-            if (MOX::leaders[i].player_index == MOX::PLAYER_NUM ||
+            if (game::Leader(world_state, i).player_index == MOX::PLAYER_NUM ||
                 deassigned_leaders[i] != 0) {
                 writer.Write_Int16(i);
-                writer.Write_Bytes(&MOX::leaders[i], sizeof(s_leader_data));
+                writer.Write_Bytes(&game::Leader(world_state, i), sizeof(s_leader_data));
             }
         }
 
@@ -1623,7 +1626,7 @@ namespace NETMOX {
         return -1;
     }
 
-    void __cdecl Decode_Game_Orders(void* data, uint32_t len) {
+    void __cdecl Decode_Game_Orders(game::s_world_state* world_state, void* data, uint32_t len) {
         Scoped_Net_Update_Suspension_ suspend_net_updates;
         NETPROTO::Packet_Reader_ reader(data, len, "invalid game orders payload");
 
@@ -1768,7 +1771,7 @@ namespace NETMOX {
             for (int16_t i = ship_idx_prev; i < ship_idx; ++i) {
                 if (MOX::ship[i].owner == player_idx && MOX::ship[i].status != 5) {
                     MOX::ship[i].officer_index = -1;
-                    SHIPS::Kill_Ship(i);
+                    SHIPS::Kill_Ship(world_state, i);
                 }
             }
 
@@ -1781,7 +1784,7 @@ namespace NETMOX {
         for (int16_t i = ship_idx_prev; i < MOX::NUM_SHIPS; ++i) {
             if (MOX::ship[i].owner == player_idx && MOX::ship[i].status != 5) {
                 MOX::ship[i].officer_index = -1;
-                SHIPS::Kill_Ship(i);
+                SHIPS::Kill_Ship(world_state, i);
             }
         }
 
@@ -1795,19 +1798,19 @@ namespace NETMOX {
             }
 
             for (int i = leader_idx_prev; i < leader_idx; ++i) {
-                if (MOX::leaders[i].player_index == player_idx) {
-                    NETMOX::Ditch_Leader(i);
+                if (game::Leader(world_state, i).player_index == player_idx) {
+                    NETMOX::Ditch_Leader(world_state, i);
                 }
             }
 
-            reader.Read_Bytes(&MOX::leaders[leader_idx], sizeof(s_leader_data));
+            reader.Read_Bytes(&game::Leader(world_state, leader_idx), sizeof(s_leader_data));
 
             leader_idx_prev = leader_idx + 1;
         }
 
         for (int i = leader_idx_prev; i < MAX_LEADERS; ++i) {
-            if (MOX::leaders[i].player_index == player_idx) {
-                NETMOX::Ditch_Leader(i);
+            if (game::Leader(world_state, i).player_index == player_idx) {
+                NETMOX::Ditch_Leader(world_state, i);
             }
         }
 
@@ -1888,7 +1891,7 @@ namespace NETMOX {
         return RUSS::Get_Weighted_Choice_Char(weights, player_count);
     }
 
-    void __cdecl Decode_Pick_Target_Info(void* packet_data, uint32_t len) {
+    void __cdecl Decode_Pick_Target_Info(game::s_world_state* world_state, void* packet_data, uint32_t len) {
         NETPROTO::Packet_Reader_ reader(packet_data, len, "invalid combat payload");
 
         // 1. Read Combat Star ID
@@ -1921,7 +1924,7 @@ namespace NETMOX {
 
             // 4. Read Leaders
             for (int i = 0; i < MAX_LEADERS; ++i) {
-                MOX::leaders[i].player_index = -1;
+                game::Leader(world_state, i).player_index = -1;
             }
 
             while (true) {
@@ -1931,7 +1934,7 @@ namespace NETMOX {
                     break;
                 }
 
-                reader.Read_Bytes(&MOX::leaders[leader_id], sizeof(s_leader_data));
+                reader.Read_Bytes(&game::Leader(world_state, leader_id), sizeof(s_leader_data));
                 RUSS::Mox_Update();
             }
             RUSS::Mox_Update();
@@ -2005,7 +2008,7 @@ namespace NETMOX {
         NETMOX::net.sync_state = NET_SYNC_STATE_PICKING_COMBAT_TARGET;
     }
 
-    void __cdecl Decode_You_Are_Target_Info(void* packet_data, uint32_t len) {
+    void __cdecl Decode_You_Are_Target_Info(game::s_world_state* world_state, void* packet_data, uint32_t len) {
         NETPROTO::Packet_Reader_ reader(packet_data, len, "invalid combat payload");
 
         // 1. Read Header
@@ -2039,9 +2042,9 @@ namespace NETMOX {
 
             // 3. Read Leaders
             for (int i = 0; i < MAX_LEADERS; ++i) {
-                int16_t owner = MOX::leaders[i].player_index;
+                int16_t owner = game::Leader(world_state, i).player_index;
                 if (owner == attacker_id || owner == MOX::PLAYER_NUM) {
-                    MOX::leaders[i].player_index = -1;
+                    game::Leader(world_state, i).player_index = -1;
                 }
             }
 
@@ -2052,7 +2055,7 @@ namespace NETMOX {
                     break;
                 }
 
-                reader.Read_Bytes(&MOX::leaders[leader_id], sizeof(s_leader_data));
+                reader.Read_Bytes(&game::Leader(world_state, leader_id), sizeof(s_leader_data));
             }
 
             // 4. Read Star Officer Indexes
@@ -2124,7 +2127,7 @@ namespace NETMOX {
         memcpy(MOX::player, packet->players, num_players * sizeof(s_player));
     }
 
-    void __cdecl Decode_Battle_Results(void* packet_data, uint32_t len) {
+    void __cdecl Decode_Battle_Results(game::s_world_state* world_state, void* packet_data, uint32_t len) {
         NETPROTO::Packet_Reader_ reader(packet_data, len, "invalid combat payload");
 
         // 1. Read Header
@@ -2181,7 +2184,7 @@ namespace NETMOX {
                         break;
                     }
 
-                    reader.Read_Bytes(&MOX::leaders[leader_id], sizeof(s_leader_data));
+                    reader.Read_Bytes(&game::Leader(world_state, leader_id), sizeof(s_leader_data));
                 }
                 RUSS::Mox_Update();
 
@@ -2228,7 +2231,7 @@ namespace NETMOX {
                         if ((ship->owner == attacker_id || ship->owner == defender_id) &&
                             ship->status != 5 && ship->location == combat_star_id) {
                             ship->officer_index = -1;
-                            SHIPS::Kill_Ship(current_ship_idx);
+                            SHIPS::Kill_Ship(world_state, current_ship_idx);
                         }
                         current_ship_idx++;
                     }
@@ -2246,7 +2249,7 @@ namespace NETMOX {
                     if ((ship->owner == attacker_id || ship->owner == defender_id) &&
                         ship->status != 5 && ship->location == combat_star_id) {
                         ship->officer_index = -1;
-                        SHIPS::Kill_Ship(current_ship_idx);
+                        SHIPS::Kill_Ship(world_state, current_ship_idx);
                     }
                     current_ship_idx++;
                 }
@@ -2291,7 +2294,7 @@ namespace NETMOX {
         Apply_Drop_Out_Info(packet->player_idx, &packet->drop_out_info, true);
     }
 
-    void __cdecl Send_Battle_Results(int16_t star_id, int16_t player_id, int16_t target_player_id, int16_t combat_defender_id, int16_t combat_planet_id, int16_t combat_result) {
+    void __cdecl Send_Battle_Results(game::s_world_state* world_state, int16_t star_id, int16_t player_id, int16_t target_player_id, int16_t combat_defender_id, int16_t combat_planet_id, int16_t combat_result) {
         int16_t player_num = MOX::PLAYER_NUM;
         bool include_remote_state =
             net.local_net_id != net.net_host_id &&
@@ -2331,9 +2334,9 @@ namespace NETMOX {
             RUSS::Mox_Update();
 
             for (int16_t i = 0; i < MAX_LEADERS; i++) {
-                if (MOX::leaders[i].player_index == player_id || MOX::leaders[i].player_index == target_player_id) {
+                if (game::Leader(world_state, i).player_index == player_id || game::Leader(world_state, i).player_index == target_player_id) {
                     writer.Write_Int16(i);
-                    writer.Write_Bytes(&MOX::leaders[i], sizeof(s_leader_data));
+                    writer.Write_Bytes(&game::Leader(world_state, i), sizeof(s_leader_data));
                 }
             }
 
@@ -2379,7 +2382,7 @@ namespace NETMOX {
         allocate::Pop_Block(MOX::screen_seg);
     }
 
-    void __cdecl Send_You_Are_Target_Info(
+    void __cdecl Send_You_Are_Target_Info(game::s_world_state* world_state,
         int16_t target_player_idx,
         int16_t other_player_idx,
         int16_t defender_id,
@@ -2415,9 +2418,9 @@ namespace NETMOX {
             RUSS::Mox_Update();
 
             for (int16_t i = 0; i < MAX_LEADERS; ++i) {
-                if (MOX::leaders[i].player_index == other_player_idx || MOX::leaders[i].player_index == target_player_idx) {
+                if (game::Leader(world_state, i).player_index == other_player_idx || game::Leader(world_state, i).player_index == target_player_idx) {
                     writer.Write_Int16(i);
-                    writer.Write_Bytes(&MOX::leaders[i], sizeof(s_leader_data));
+                    writer.Write_Bytes(&game::Leader(world_state, i), sizeof(s_leader_data));
                 }
             }
 
@@ -2470,7 +2473,7 @@ namespace NETMOX {
         allocate::Pop_Block(MOX::screen_seg);
     }
 
-    void __cdecl Send_Pick_Target_Info(int16_t player_idx, int16_t star_idx, s_combfind_target* target_info) {
+    void __cdecl Send_Pick_Target_Info(game::s_world_state* world_state, int16_t player_idx, int16_t star_idx, s_combfind_target* target_info) {
         allocate::Push_Block(MOX::screen_seg);
 
         uint32_t alloc_size =
@@ -2496,7 +2499,7 @@ namespace NETMOX {
 
             for (int16_t i = 0; i < MAX_LEADERS; i++) {
                 writer.Write_Int16(i);
-                writer.Write_Bytes(&MOX::leaders[i], sizeof(s_leader_data));
+                writer.Write_Bytes(&game::Leader(world_state, i), sizeof(s_leader_data));
                 RUSS::Mox_Update();
             }
 

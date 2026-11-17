@@ -1673,7 +1673,7 @@ namespace LOADSAVE {
         RUSS::Load_Russ_Strings();
         ESTRINGS::Load_E_Strings();
         HAROLD::Load_Language_Fonts();
-        HAROLD::Load_Leader_Titles();
+        HAROLD::Load_Leader_Titles(&game::world);
         HAROLD::Set_Language_Race_Names();
         TECHINIT::Load_Tech_Names();
         INITSHIP::Update_Ship_Names_To_New_Language();

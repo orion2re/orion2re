@@ -2,19 +2,20 @@
 
 namespace SHIPS {
 
-    void __cdecl Kill_Ship(int16_t ship_idx) {
+    void __cdecl Kill_Ship(game::s_world_state* world_state, int16_t ship_idx) {
         HACCESS::Ship_Owner(ship_idx);
 
         bool officer_relocated = false;
-        for (int16_t leader_idx = 0; leader_idx < MAX_LEADERS; ++leader_idx) {
+        for (const auto& leader_entry : world_state->leaders) {
+            const int32_t leader_idx = static_cast<int32_t>(leader_entry.first.id);
             if (officer_relocated) {
                 break;
             }
 
-            if (MOX::leaders[leader_idx].type == LEADER_TYPE_SHIP &&
-                MOX::leaders[leader_idx].location == ship_idx &&
-                MOX::leaders[leader_idx].eta > 0) {
-                OFFICER::Move_Officer_To_Pool(leader_idx);
+            if (game::Leader(world_state, leader_idx).type == LEADER_TYPE_SHIP &&
+                game::Leader(world_state, leader_idx).location == ship_idx &&
+                game::Leader(world_state, leader_idx).eta > 0) {
+                OFFICER::Move_Officer_To_Pool(world_state, leader_idx);
                 officer_relocated = true;
             }
         }

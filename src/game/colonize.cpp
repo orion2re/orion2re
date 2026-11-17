@@ -293,7 +293,7 @@ namespace COLONIZE {
                                         ship->mission = 0;
                                     }
                                 }
-                                SHIPS::Kill_Ship((int16_t)(colony_ship_ptr - MOX::ship));
+                                SHIPS::Kill_Ship(&game::world, (int16_t)(colony_ship_ptr - MOX::ship));
                                 MAINSCR::Update_Ship_Icons_In_Between_Turns();
                             } else {
                                 // Consumed an existing colony base building

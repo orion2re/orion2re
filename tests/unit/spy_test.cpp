@@ -77,7 +77,7 @@ DOCTEST_TEST_CASE("Assassins resolve in descending leader and RNG order") {
     const uint32_t rolls[] = {3, 1, 3};
     TEST_SPY::Set_Random_Results_(rolls, 3);
 
-    spy::Resolve_Assassins();
+    spy::Resolve_Assassins(&game::world);
 
     DOCTEST_REQUIRE(TEST_SPY::Level_Call_Count_() == 2);
     DOCTEST_CHECK(TEST_SPY::Level_Leader_(0) == 60);
@@ -109,12 +109,12 @@ DOCTEST_TEST_CASE("Telepathic spying bonus uses signed immediate-byte semantics"
 
         int16_t defense = 0;
         int16_t attack = 0;
-        spy::Compute_Spy_Bonuses(player, &defense, &attack);
+        spy::Compute_Spy_Bonuses(&game::world, player, &defense, &attack);
         DOCTEST_CHECK(defense == 0);
         DOCTEST_CHECK(attack == 0);
 
         player->traits[TRAIT_TELEPATHIC] = 1;
-        spy::Compute_Spy_Bonuses(player, &defense, &attack);
+        spy::Compute_Spy_Bonuses(&game::world, player, &defense, &attack);
         DOCTEST_CHECK(defense == test_case.expected);
         DOCTEST_CHECK(attack == test_case.expected);
     }

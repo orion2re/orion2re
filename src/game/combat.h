@@ -15,7 +15,7 @@ namespace COMBAT {
      * @param summary Output summary text buffer.
      * @param details Output details text buffer.
      */
-    int16_t __cdecl Strategic_Combat(int16_t* plr1_ships, int16_t plr1_ship_count, int16_t* plr2_ships, int16_t plr2_ship_count, int16_t star_idx, int16_t colony_idx, char* summary, int32_t summary_size, char* details, int32_t details_size);
+    int16_t __cdecl Strategic_Combat(game::s_world_state* world_state, int16_t* plr1_ships, int16_t plr1_ship_count, int16_t* plr2_ships, int16_t plr2_ship_count, int16_t star_idx, int16_t colony_idx, char* summary, int32_t summary_size, char* details, int32_t details_size);
 
     /**
      * Scan the supplied ships and record the highest available officer combat bonuses.
@@ -27,7 +27,7 @@ namespace COMBAT {
      * @param weaponry_max Output maximum weaponry bonus.
      * @param lore_max Output maximum lore bonus.
      */
-    void __cdecl Get_Leader_Combat_Bonuses(int16_t* ship_indices, int16_t count, int16_t* helmsman_max, int16_t* ordnance_max, int16_t* engineer_max, int16_t* weaponry_max, int16_t* lore_max);
+    void __cdecl Get_Leader_Combat_Bonuses(game::s_world_state* world_state, int16_t* ship_indices, int16_t count, int16_t* helmsman_max, int16_t* ordnance_max, int16_t* engineer_max, int16_t* weaponry_max, int16_t* lore_max);
 
     /**
      * Append eligible ships for one side to the strategic combat queue and initialize their combat fields.

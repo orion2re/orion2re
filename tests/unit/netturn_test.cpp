@@ -257,7 +257,7 @@ DOCTEST_TEST_CASE("client next turn preserves a payload that arrives before the 
     MOX::PLAYER_NUM = 1;
     MOX::NUM_PLAYERS = 2;
     MOX::NUM_STARS = 0;
-    MOX::leaders = leaders;
+    game::Import_Leaders(&game::world, leaders);
     MOX::game_type = 3;
     MOX::stardate = 35155;
     MOX::screen_seg = static_cast<s_animation_header*>(allocate::Allocate_Space(

@@ -55,7 +55,7 @@ namespace MOVEBOX {
     void __cdecl Do_Fleet_Screen_Stuff(int16_t map_x_off, int16_t map_y_off, int32_t scale_x, int32_t scale_y);
 
     /* Draws officer-screen overlays associated with the galaxy map. */
-    void __cdecl Do_Officer_Screen_Stuff(int16_t map_x_off, int16_t map_y_off, int16_t scale_x, int16_t scale_y);
+    void __cdecl Do_Officer_Screen_Stuff(game::s_world_state* world_state, int16_t map_x_off, int16_t map_y_off, int16_t scale_x, int16_t scale_y);
 
     /* Draws the galaxy-map movable box.
      * anim1: Optional background animation. unused_anim2: Preserved unused parameter.

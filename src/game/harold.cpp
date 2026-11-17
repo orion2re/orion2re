@@ -620,12 +620,13 @@ namespace HAROLD {
         }
     }
 
-    void __cdecl Load_Leader_Titles() {
+    void __cdecl Load_Leader_Titles(game::s_world_state* world_state) {
         if (MOX::screen_seg != NULL) {
             char lbx_filename[20];
             Get_Officer_Data_LBX_Name(lbx_filename);
 
-            for (int16_t i = 0; i < MAX_LEADERS; ++i) {
+            for (const auto& leader_entry : world_state->leaders) {
+                const int32_t i = static_cast<int32_t>(leader_entry.first.id);
                 allocate::Push_Block(MOX::screen_seg);
 
                 void* record_ptr = farload::Far_Reload_Next_Data(
@@ -638,7 +639,7 @@ namespace HAROLD {
 
                 if (record_ptr != nullptr) {
                     char* src_title = (char*)record_ptr + 15;
-                    char* dest_title = MOX::leaders[i].title;
+                    char* dest_title = game::Leader(world_state, i).title;
 
                     while ((*dest_title++ = *src_title++) != '\0');
                 }

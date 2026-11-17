@@ -55,7 +55,7 @@ namespace turn_oracle {
             RUSS::all_ai_game = 1;
             BILL::Cache_Player_Scientist_Anim();
             if (MOX::NUM_NEBULAS != 0) MAPGEN::Load_Nebula_Pictures();
-            HAROLD::Load_Leader_Titles();
+            HAROLD::Load_Leader_Titles(&game::world);
             CONFIG_REFRESH::Reload_Resources_Between_Screens();
             game_random::Set_Random_Seed(seed);
             return true;

@@ -168,7 +168,7 @@ namespace FILEDEF {
         free(save_buffer);
 
         AIDATA::Reset(&AIDATA::state);
-        game::current = legacy_world::World();
+        game::current = legacy_world::World(&game::world);
         MISC::Increment_Mouse_Clock_Image();
 
         int16_t description_slot_index = (slot_index >= 9) ? 9 : slot_index;
@@ -201,7 +201,7 @@ namespace FILEDEF {
         RUSS::Assert_Settings();
         MAINSCR::Update_Star_Owners();
         RUSS::Assert_Settings();
-        HAROLD::Load_Leader_Titles();
+        HAROLD::Load_Leader_Titles(&game::world);
 
         for (int i = 0; i < MAX_PLAYERS; ++i) {
             if (MOX::player[i].dead_field != 0) {

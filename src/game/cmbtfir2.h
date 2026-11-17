@@ -55,25 +55,25 @@ namespace CMBTFIR2 {
     extern bool lab_and_lore_against_antarans;
 
     /** Returns the helmsman combat bonus granted by the specified leader. */
-    int16_t __cdecl Helmsman_Bonus(int16_t leader_idx);
+    int16_t __cdecl Helmsman_Bonus(game::s_world_state* world_state, int16_t leader_idx);
 
     /** Returns the weaponry combat bonus granted by the specified leader. */
-    int16_t __cdecl Weaponry_Bonus(int16_t leader_idx);
+    int16_t __cdecl Weaponry_Bonus(game::s_world_state* world_state, int16_t leader_idx);
 
     /** Returns the engineer repair bonus granted by the specified leader. */
-    int16_t __cdecl Engineer_Bonus(int16_t leader_idx);
+    int16_t __cdecl Engineer_Bonus(game::s_world_state* world_state, int16_t leader_idx);
 
     /** Returns the fighter-pilot combat bonus granted by the specified leader. */
-    int16_t __cdecl Fighter_Pilot_Bonus(int16_t leader_idx);
+    int16_t __cdecl Fighter_Pilot_Bonus(game::s_world_state* world_state, int16_t leader_idx);
 
     /** Returns the galactic-lore combat bonus granted by the specified leader. */
-    int16_t __cdecl Galactic_Lore_Bonus(int16_t leader_idx);
+    int16_t __cdecl Galactic_Lore_Bonus(game::s_world_state* world_state, int16_t leader_idx);
 
     /** Recomputes ordnance bonuses for the current combat participants. */
     void __cdecl Set_Combat_Ordnance_Values();
 
     /** Returns the ordnance bonus granted by the specified leader. */
-    int16_t __cdecl Leader_Ordnance_Bonus(int16_t leader_idx);
+    int16_t __cdecl Leader_Ordnance_Bonus(game::s_world_state* world_state, int16_t leader_idx);
 
     /** Returns the highest ordnance bonus among active ships owned by a player. */
     int16_t __cdecl Get_Fleet_Ordnance_Bonus(int16_t owner);
@@ -90,13 +90,13 @@ namespace CMBTFIR2 {
 
     void __cdecl Set_Boarded_Flag(int16_t ship_idx);
 
-    int16_t __cdecl Commando_Bonus(int16_t leader_idx);
+    int16_t __cdecl Commando_Bonus(game::s_world_state* world_state, int16_t leader_idx);
 
     int16_t __cdecl Get_Fleet_Commando_Bonus(int16_t player_idx);
 
     int16_t __cdecl Crew_Boarding_Combat_Bonus(int16_t ship_idx);
 
-    int16_t __cdecl Security_Bonus(int16_t leader_idx);
+    int16_t __cdecl Security_Bonus(game::s_world_state* world_state, int16_t leader_idx);
 
     int16_t __cdecl Get_Fleet_Security_Bonus(int16_t player_idx);
 

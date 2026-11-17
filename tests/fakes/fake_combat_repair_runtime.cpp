@@ -36,7 +36,7 @@ namespace {
     bool destroyed_with_black_hole_state[4];
     int speed_calc_count;
     bool strategic_ship_killed;
-    s_leader_data leaders[MAX_LEADERS];
+
     int scroll_draw_count;
     bool satellite_building_removed;
     int16_t removed_colony_idx;
@@ -57,7 +57,7 @@ namespace TEST_COMBAT_REPAIR {
         memset(destroyed, 0, sizeof(destroyed));
         memset(destroyed_with_black_hole_state, 0,
                sizeof(destroyed_with_black_hole_state));
-        memset(leaders, 0, sizeof(leaders));
+        game::Reset_Leaders(&game::world);
         memset(TECHDATA::weapons, 0, sizeof(TECHDATA::weapons));
         memset(TECHDATA::hull_data, 0, sizeof(TECHDATA::hull_data));
         speed_calc_count = 0;
@@ -459,7 +459,6 @@ namespace MOX {
     s_missile* missile = missiles;
     s_ship_data* ship = ships;
     s_player* player = players;
-    s_leader_data* leaders = ::leaders;
     int16_t NUM_STARS;
     int16_t NUM_PLAYERS;
     int16_t bio_weapon_flag;
@@ -620,13 +619,13 @@ namespace ERICNET {
 }
 
 namespace OFFICER {
-    void __cdecl Move_Officer_To_Pool(int16_t) {
+    void __cdecl Move_Officer_To_Pool(game::s_world_state* world_state, int16_t) {
     }
 
-    void __cdecl Kill_Officer(int16_t) {
+    void __cdecl Kill_Officer(game::s_world_state* world_state, int16_t) {
     }
 
-    void __cdecl Give_Officer_XP(int16_t, int16_t, int16_t) {
+    void __cdecl Give_Officer_XP(game::s_world_state* world_state, int16_t, int16_t, int16_t) {
     }
 }
 
@@ -645,7 +644,7 @@ namespace antarans {
 }
 
 namespace SHIPS {
-    void __cdecl Kill_Ship(int16_t ship_idx) {
+    void __cdecl Kill_Ship(game::s_world_state* world_state, int16_t ship_idx) {
         if (ship_idx == 0) {
             strategic_ship_killed = true;
         }

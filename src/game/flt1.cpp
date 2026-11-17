@@ -349,7 +349,7 @@ namespace FLT1 {
         }
 
         if (MOX::galaxy_map_scanned_star > -1) {
-            FLT2::Print_Fltscrn_Scanned_Star_Name();
+            FLT2::Print_Fltscrn_Scanned_Star_Name(&game::world);
         }
 
         if (MOX::scanned_big_ship > -1 && MOX::scanned_big_ship < MAX_SHIPS && MOX::current_screen == SCREEN_FLEET) {
@@ -467,7 +467,7 @@ namespace FLT1 {
         MOX::big_icon_x_offset = 0x15B;
         MOX::big_icon_y_offset = 0x35;
 
-        Reload_Fleet_Screen();
+        Reload_Fleet_Screen(&game::world);
         fields::Assign_Auto_Function((void (*)())Draw_Fleet_Screen, 1);
         MOX::icon_overlay_x = -1;
         MOX::icon_overlay_y = -1;
@@ -635,13 +635,13 @@ namespace FLT1 {
                 fields::Clear_Fields();
                 fields::Deactivate_Auto_Function();
                 MOX::galaxy_map_scanned_star = -1;
-                OFFICER::Move_From_Limbo_To_Pool();
+                OFFICER::Move_From_Limbo_To_Pool(&game::world);
                 exit_flag = 1;
             }
 
             if (input == btn_scrap) {
                 Build_Scrap_List(scrap_list, &scrap_count);
-                uint8_t scrapped = Scrap_Ships(MOX::PLAYER_NUM, scrap_list, scrap_count, 1);
+                uint8_t scrapped = Scrap_Ships(&game::world, MOX::PLAYER_NUM, scrap_list, scrap_count, 1);
                 scan_val.full = (scan_val.full & 0xFFFFFF00) | scrapped;
 
                 int16_t selected_count = N_Fltscrn_Ships_Selected();
@@ -1068,7 +1068,7 @@ namespace FLT1 {
      * Searches the ship icon array for a record matching the provided node index.
      * Returns the index of the first match found, or -1 if no match exists.
      */
-    void __cdecl Reload_Fleet_Screen(void) {
+    void __cdecl Reload_Fleet_Screen(game::s_world_state* world_state) {
         int16_t matching_officer_count = 0;
 
         MAINSCR::Allocate_First_Screen_Seg(5);
@@ -1096,10 +1096,11 @@ namespace FLT1 {
         MOX::temp_officers_pict = (s_animation_header**)allocate::Allocate_Next_Block(MOX::screen_seg, MAX_LEADERS * sizeof(s_animation_header*));
         FLT1::Allocate_Fltscrn_Next_Screen_Seg();
 
-        for (int16_t i = 0; i < MAX_LEADERS; ++i) {
-            s_leader_data* leader = &MOX::leaders[i];
+        for (const auto& leader_entry : world_state->leaders) {
+            const int32_t i = static_cast<int32_t>(leader_entry.first.id);
+            s_leader_data* leader = &game::Leader(world_state, i);
             if (leader->player_index == MOX::PLAYER_NUM && leader->status == 1 && leader->type == LEADER_TYPE_SHIP) {
-                MOX::temp_officers_pict[matching_officer_count] = (s_animation_header*)FLT1::Load_Fltscrn_Officer_Picture(MOX::PLAYER_NUM, i, MOX::screen_seg, 0);
+                MOX::temp_officers_pict[matching_officer_count] = (s_animation_header*)FLT1::Load_Fltscrn_Officer_Picture(world_state, MOX::PLAYER_NUM, i, MOX::screen_seg, 0);
                 MOX::officer_id_list[matching_officer_count] = i;
                 matching_officer_count++;
             }
@@ -1109,9 +1110,9 @@ namespace FLT1 {
         FLT1::Load_Galaxy_Stars();
     }
 
-    void* __cdecl Load_Fltscrn_Officer_Picture(int16_t player_num, int16_t leader_idx, void* buffer, uint8_t reload_flag) {
+    void* __cdecl Load_Fltscrn_Officer_Picture(game::s_world_state* world_state, int16_t player_num, int16_t leader_idx, void* buffer, uint8_t reload_flag) {
         (void)player_num;
-        int16_t entry_num = (int16_t)MOX::leaders[leader_idx].pict_num + 0x2d;
+        int16_t entry_num = (int16_t)game::Leader(world_state, leader_idx).pict_num + 0x2d;
 
         if (reload_flag != 0) {
             return farload::Far_Reload("FLEET.LBX", entry_num, buffer);
@@ -1167,7 +1168,7 @@ namespace FLT1 {
             *relocate_fleet_field_id = fields::Add_Hidden_Field(441, 380, w + 441, h + 380, "R", 41);
         }
 
-        bool has_officer = FLT1::At_Least_One_Officer(MOX::PLAYER_NUM);
+        bool has_officer = FLT1::At_Least_One_Officer(&game::world, MOX::PLAYER_NUM);
         if (has_officer) {
             *officers_button_field_id = fields::Add_Button_Field(342, 430, "", MOX::officers_button_seg, "L", 40);
             MOX::add_officers_button = 1;
@@ -1239,11 +1240,12 @@ namespace FLT1 {
      *
      * @return true if at least one active officer is found, false otherwise.
      */
-    bool __cdecl At_Least_One_Officer(int16_t player_num) {
+    bool __cdecl At_Least_One_Officer(game::s_world_state* world_state, int16_t player_num) {
         (void)player_num;
 
-        for (int16_t i = 0; i < MAX_LEADERS; ++i) {
-            if (MOX::leaders[i].player_index == MOX::PLAYER_NUM && MOX::leaders[i].status >= 0) {
+        for (const auto& leader_entry : world_state->leaders) {
+            const int32_t i = static_cast<int32_t>(leader_entry.first.id);
+            if (game::Leader(world_state, i).player_index == MOX::PLAYER_NUM && game::Leader(world_state, i).status >= 0) {
                 return true;
             }
         }
@@ -1315,7 +1317,7 @@ namespace FLT1 {
     }
 
     /** Scraps the selected ships and optionally awards BC and recovered technology. */
-    int8_t __cdecl Scrap_Ships(int16_t player_idx, int16_t* ship_indices, int16_t num_ships, int8_t interactive) {
+    int8_t __cdecl Scrap_Ships(game::s_world_state* world_state, int16_t player_idx, int16_t* ship_indices, int16_t num_ships, int8_t interactive) {
         bool give_bc = true;
         bool has_officer = false;
 
@@ -1349,7 +1351,7 @@ namespace FLT1 {
                 if (MOX::ship[ship_idx].officer_index > -1) {
                     if (interactive != 0) {
                         char leader_name_buf[200];
-                        strlcpy(leader_name_buf, OFFICER::Leader_Name(MOX::ship[ship_idx].officer_index, 1), sizeof(leader_name_buf));
+                        strlcpy(leader_name_buf, OFFICER::Leader_Name(world_state, MOX::ship[ship_idx].officer_index, 1), sizeof(leader_name_buf));
 
                         char msg_buf[300];
                         snprintf(msg_buf, sizeof(msg_buf), HAROLD::H_Message(126 /* 0x7e */), MOX::ship[ship_idx].d.name, leader_name_buf);
@@ -1369,7 +1371,7 @@ namespace FLT1 {
         for (int i = 0; i < num_ships; ++i) {
             int16_t officer_idx = MOX::ship[ship_indices[i]].officer_index;
             if (officer_idx != -1 &&
-                !SHIPMOVE::Confirm_Officer_Change(officer_idx, -1, 0)) {
+                !SHIPMOVE::Confirm_Officer_Change(world_state, officer_idx, -1, 0)) {
                 return 0;
             }
         }
@@ -1401,9 +1403,9 @@ namespace FLT1 {
                     int16_t ship_idx = ship_indices[i];
                     int16_t officer_idx = MOX::ship[ship_idx].officer_index;
                     if (officer_idx > -1) {
-                        MOX::leaders[officer_idx].status = 0;
-                        MOX::leaders[officer_idx].location = -1;
-                        MOX::leaders[officer_idx].eta = 0;
+                        game::Leader(world_state, officer_idx).status = 0;
+                        game::Leader(world_state, officer_idx).location = -1;
+                        game::Leader(world_state, officer_idx).eta = 0;
                         MOX::ship[ship_idx].officer_index = -1;
                     }
                 }
@@ -1412,7 +1414,7 @@ namespace FLT1 {
 
         if (num_ships > 0) {
             for (int i = 0; i < num_ships; ++i) {
-                SHIPS::Kill_Ship(ship_indices[i]);
+                SHIPS::Kill_Ship(world_state, ship_indices[i]);
             }
         }
 

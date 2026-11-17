@@ -3,7 +3,7 @@
 #include "game/legacy_world.h"
 
 namespace legacy_world {
-    game::s_view World() { return {}; }
+    game::s_view World(game::s_world_state* world_state) { return {.state = world_state}; }
 }
 
 #include "lua/lua_game.h"
@@ -182,7 +182,7 @@ namespace npcdiplo {
 }
 
 namespace aileader {
-    void __cdecl Do_AI_Leaders(AIDATA::s_state*, const game::s_view*) {}
+    void __cdecl Do_AI_Leaders(game::s_world_state* world_state, AIDATA::s_state*, const game::s_view*) {}
 }
 
 namespace AIBUILD {
@@ -249,8 +249,8 @@ namespace SETTLER {
 }
 
 namespace OFFICER {
-    void __cdecl Check_For_Officer_Level() {}
-    void __cdecl Decrement_Officer_ETA() {}
+    void __cdecl Check_For_Officer_Level(game::s_world_state* world_state) {}
+    void __cdecl Decrement_Officer_ETA(game::s_world_state* world_state) {}
     void __cdecl Random_Officer_Check(int16_t player_idx) {
         TEST_NEXTTURN::officer_check_order[
             TEST_NEXTTURN::officer_check_count++] = player_idx;
@@ -259,7 +259,7 @@ namespace OFFICER {
             TEST_NEXTTURN::officer_offer_player = player_idx;
         }
     }
-    void __cdecl Assert_Marooned_Leaders() {}
+    void __cdecl Assert_Marooned_Leaders(game::s_world_state* world_state) {}
 }
 
 namespace invasion {

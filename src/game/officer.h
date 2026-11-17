@@ -1,5 +1,7 @@
 #pragma once
 
+#include "object_ids.h"
+
 struct s_animation_header;
 
 typedef struct s_officer_picture_slot s_officer_picture_slot, *Ps_officer_picture_slot;
@@ -50,7 +52,7 @@ namespace OFFICER {
 
     extern s_orion_reward_technology orion_reward_technology;
 
-    s_animation_header* __cdecl Load_Officer_Picture(
+    s_animation_header* __cdecl Load_Officer_Picture(game::s_world_state* world_state,
         int32_t unused,
         int16_t leader_idx,
         s_animation_header* dest,
@@ -77,53 +79,53 @@ namespace OFFICER {
 
     int16_t __cdecl Get_Officer_Base_Level(int16_t xp, int8_t warlord);
 
-    int16_t __cdecl Get_Officer_Level(int16_t leader_idx);
+    int16_t __cdecl Get_Officer_Level(game::s_world_state* world_state, int16_t leader_idx);
 
-    int16_t __cdecl Bonus_For_Famous_Heroes(int16_t player_idx);
+    int16_t __cdecl Bonus_For_Famous_Heroes(game::s_world_state* world_state, int16_t player_idx);
 
-    int16_t __cdecl Owned_Officer_Level(int16_t leader_idx);
+    int16_t __cdecl Owned_Officer_Level(game::s_world_state* world_state, int16_t leader_idx);
 
-    int32_t __cdecl Officer_Skill_Bonus(uint32_t unused, int16_t leader_idx, int16_t skill_idx);
+    int32_t __cdecl Officer_Skill_Bonus(game::s_world_state* world_state, uint32_t unused, int16_t leader_idx, int16_t skill_idx);
 
-    int16_t __cdecl Officer_Skill_Value(int16_t leader_index);
+    int16_t __cdecl Officer_Skill_Value(game::s_world_state* world_state, int16_t leader_index);
 
-    bool __cdecl Officer_Has_General_Skill(int16_t player_num, int16_t leader_index, int16_t skill_id);
+    bool __cdecl Officer_Has_General_Skill(game::s_world_state* world_state, int16_t player_num, int16_t leader_index, int16_t skill_id);
 
-    bool __cdecl Officer_Has_Special_Skill(int16_t player_num, int16_t leader_idx, int16_t skill_idx);
+    bool __cdecl Officer_Has_Special_Skill(game::s_world_state* world_state, int16_t player_num, int16_t leader_idx, int16_t skill_idx);
 
     int16_t __cdecl Get_Research_Cost_Skill_Value(int32_t cost);
 
     void __cdecl Get_Random_Skills(uint32_t* primary_mask, uint32_t* secondary_mask, int16_t skill_class, int16_t count, int8_t randomize_class);
 
-    void __cdecl Increase_Officer_Level_By_One(int16_t leader_idx);
+    void __cdecl Increase_Officer_Level_By_One(game::s_world_state* world_state, int16_t leader_idx);
 
     void __cdecl Officers_Screen();
 
-    void __cdecl Deassign_Officer(int16_t leader_idx);
+    void __cdecl Deassign_Officer(game::s_world_state* world_state, int16_t leader_idx);
 
-    void __cdecl Move_Officer_To_Pool(int16_t leader_idx);
+    void __cdecl Move_Officer_To_Pool(game::s_world_state* world_state, int16_t leader_idx);
 
-    void __cdecl Allocate_Adv_Civ_Game_Officers();
+    void __cdecl Allocate_Adv_Civ_Game_Officers(game::s_world_state* world_state);
 
     bool __cdecl One_Leader_With_Galactic_Lore(int16_t player_idx);
 
     int16_t __cdecl Officer_Maintenance(int16_t player_idx, int16_t leader_idx);
 
-    int32_t __cdecl Officer_Cost(int16_t player_idx, int16_t leader_idx);
+    int32_t __cdecl Officer_Cost(game::s_world_state* world_state, int16_t player_idx, int16_t leader_idx);
 
     bool Is_Fleet_Officer_Screen();
 
-    void __cdecl Draw_Officer_Screen();
+    void __cdecl Draw_Officer_Screen(game::s_world_state* world_state);
 
-    void __cdecl Draw_Officer_Screen_To_Back();
+    void __cdecl Draw_Officer_Screen_To_Back(game::s_world_state* world_state);
 
-    void __cdecl Reload_Officer_Screen_Pictures();
+    void __cdecl Reload_Officer_Screen_Pictures(game::s_world_state* world_state);
 
-    void __cdecl Build_Captain_Id_List();
+    void __cdecl Build_Captain_Id_List(game::s_world_state* world_state);
 
     void __cdecl Get_Officer_Pictures();
 
-    s_animation_header* __cdecl Load_Darkened_Officer_Picture(int16_t player_num, int16_t officer_id, void* buffer, uint8_t load_now);
+    s_animation_header* __cdecl Load_Darkened_Officer_Picture(game::s_world_state* world_state, int16_t player_num, int16_t officer_id, void* buffer, uint8_t load_now);
 
     void __cdecl Load_Officer_Skill_Name_Descriptions();
 
@@ -153,24 +155,24 @@ namespace OFFICER {
 
     uint8_t __cdecl Ask_For_Hire(int16_t leader_idx);
 
-    int16_t __cdecl Do_Hire_Officer(int16_t leader_idx);
+    int16_t __cdecl Do_Hire_Officer(game::s_world_state* world_state, int16_t leader_idx);
 
-    void __cdecl Leader_Cheat_Popup();
+    void __cdecl Leader_Cheat_Popup(game::s_world_state* world_state);
 
     int16_t __cdecl Assign_Loknar_Ship_To_Player(int16_t player_idx);
 
-    int8_t __cdecl Officer_Made_Level_Report(int16_t player_idx, int8_t process_popups);
-    void __cdecl Check_For_Officer_Level();
-    void __cdecl Decrement_Officer_ETA();
+    int8_t __cdecl Officer_Made_Level_Report(game::s_world_state* world_state, int16_t player_idx, int8_t process_popups);
+    void __cdecl Check_For_Officer_Level(game::s_world_state* world_state);
+    void __cdecl Decrement_Officer_ETA(game::s_world_state* world_state);
     void __cdecl Random_Officer_Check(int16_t player_idx);
-    void __cdecl Generate_Random_Officer(int16_t player_index);
-    void __cdecl Assert_Marooned_Leaders();
+    void __cdecl Generate_Random_Officer(game::s_world_state* world_state, int16_t player_index);
+    void __cdecl Assert_Marooned_Leaders(game::s_world_state* world_state);
 
-    void __cdecl Kill_Officer(int16_t leader_idx);
+    void __cdecl Kill_Officer(game::s_world_state* world_state, int16_t leader_idx);
 
-    void __cdecl Give_Officer_XP(int16_t player_idx, int16_t leader_idx, int16_t xp_amount);
+    void __cdecl Give_Officer_XP(game::s_world_state* world_state, int16_t player_idx, int16_t leader_idx, int16_t xp_amount);
 
-    void __cdecl Check_Officer_Fields(int16_t input, int16_t scanned, int16_t* officer_fields, int16_t* portrait_fields);
+    void __cdecl Check_Officer_Fields(game::s_world_state* world_state, int16_t input, int16_t scanned, int16_t* officer_fields, int16_t* portrait_fields);
 
     int16_t __cdecl Scan_Officer_Fields(
         int16_t* field_x_a,
@@ -192,23 +194,23 @@ namespace OFFICER {
 
     int16_t __cdecl Officer_Screen_User_Box(const char* message, int16_t type);
 
-    void __cdecl Dismiss_Officer(int16_t leader_idx);
+    void __cdecl Dismiss_Officer(game::s_world_state* world_state, int16_t leader_idx);
 
-    void __cdecl Assign_Captain(int16_t leader_idx, int16_t ship_idx);
+    void __cdecl Assign_Captain(game::s_world_state* world_state, int16_t leader_idx, int16_t ship_idx);
 
-    int8_t __cdecl Get_Ship_Leader_ETA(int16_t player_num, int16_t leader_idx, int16_t ship_idx);
+    int8_t __cdecl Get_Ship_Leader_ETA(game::s_world_state* world_state, int16_t player_num, int16_t leader_idx, int16_t ship_idx);
 
-    int8_t __cdecl Get_Star_Leader_ETA(int16_t player_num, int16_t leader_idx, int16_t star_idx);
+    int8_t __cdecl Get_Star_Leader_ETA(game::s_world_state* world_state, int16_t player_num, int16_t leader_idx, int16_t star_idx);
 
-    void __cdecl Assign_Leader_To_Ship(s_player* player, s_leader_data* leader, s_ship_data* ship, int8_t eta);
+    void __cdecl Assign_Leader_To_Ship(game::s_world_state* world_state, s_player* player, game::id_leader leader_id, s_ship_data* ship, int8_t eta);
 
-    void __cdecl Ai_Assign_Leader_To_Ship(s_player* player, s_leader_data* leader, s_ship_data* ship);
+    void __cdecl Ai_Assign_Leader_To_Ship(game::s_world_state* world_state, s_player* player, game::id_leader leader_id, s_ship_data* ship);
 
-    bool __cdecl Leader_Can_Be_Assigned(int16_t leader_idx);
+    bool __cdecl Leader_Can_Be_Assigned(game::s_world_state* world_state, int16_t leader_idx);
 
-    char* __cdecl Leader_Name(int16_t leader_idx, char include_title, void* star_ptr = nullptr);
+    char* __cdecl Leader_Name(game::s_world_state* world_state, int16_t leader_idx, char include_title, void* star_ptr = nullptr);
 
-    void __cdecl Print_ETA_On_Officer_Picture(int16_t leader_idx, int16_t x, int16_t y, int16_t w);
+    void __cdecl Print_ETA_On_Officer_Picture(game::s_world_state* world_state, int16_t leader_idx, int16_t x, int16_t y, int16_t w);
 
     extern char* officer_skill_description_string[27];
 
@@ -223,11 +225,11 @@ namespace OFFICER {
      */
     void __cdecl Get_Skill_Description_LBX_Name(char* lbx_name, uint32_t lbx_name_size);
 
-    void __cdecl Print_Officer_Skill_Help(int16_t skill_id, int16_t bonus, int16_t leader_idx);
+    void __cdecl Print_Officer_Skill_Help(game::s_world_state* world_state, int16_t skill_id, int16_t bonus, int16_t leader_idx);
 
-    void __cdecl Find_Selected_Leader(int16_t leader_idx);
+    void __cdecl Find_Selected_Leader(game::s_world_state* world_state, int16_t leader_idx);
 
-    void __cdecl Give_Player_Loknar_Special(int16_t player_idx, int16_t* techs, int16_t* num_techs);
+    void __cdecl Give_Player_Loknar_Special(game::s_world_state* world_state, int16_t player_idx, int16_t* techs, int16_t* num_techs);
 
     void __cdecl Get_Available_Antaran_Tech(int16_t player_idx, int16_t* available_techs, int16_t* available_count);
 
@@ -235,27 +237,27 @@ namespace OFFICER {
 
     void __cdecl Rescued_Loknar_Popup(int16_t unused, int16_t* tech_app_ids, int16_t tech_app_count);
 
-    void __cdecl Make_Loknar_Message(char* output, uint32_t output_size, const int16_t* tech_app_ids, int16_t tech_app_count);
+    void __cdecl Make_Loknar_Message(game::s_world_state* world_state, char* output, uint32_t output_size, const int16_t* tech_app_ids, int16_t tech_app_count);
 
-    int16_t __cdecl N_Fleet_Officers_Owned_By_Player(int16_t player_idx);
+    int16_t __cdecl N_Fleet_Officers_Owned_By_Player(game::s_world_state* world_state, int16_t player_idx);
 
-    int16_t __cdecl N_Star_Officers_Owned_By_Player(int16_t player_idx);
+    int16_t __cdecl N_Star_Officers_Owned_By_Player(game::s_world_state* world_state, int16_t player_idx);
 
-    int16_t __cdecl Chance_To_Hire_Hero(int16_t player_idx);
+    int16_t __cdecl Chance_To_Hire_Hero(game::s_world_state* world_state, int16_t player_idx);
 
     bool __cdecl Player_Can_Hire_More_Officers(int16_t player_idx);
 
     void __cdecl Deselect_Offpop_Icons();
-    void __cdecl Move_Officer_To_Limbo(int16_t officer_idx);
+    void __cdecl Move_Officer_To_Limbo(game::s_world_state* world_state, int16_t officer_idx);
     void __cdecl Change_Screen_Type(int8_t* out_flag);
 
     void __cdecl Wrapper_For_Offscrn_System_Popup(int16_t system_id);
 
     void __cdecl Print_Galmap_Scanned_Ship(int16_t icon_idx);
 
-    void __cdecl Print_Scanned_Ship_Name();
+    void __cdecl Print_Scanned_Ship_Name(game::s_world_state* world_state);
 
-    void __cdecl Print_Officer_Data(
+    void __cdecl Print_Officer_Data(game::s_world_state* world_state,
         int16_t officer_list_index,
         int16_t officer_id,
         int16_t text_x,
@@ -269,29 +271,29 @@ namespace OFFICER {
 
     void __cdecl Wrapper_For_Offscrn_Data(int16_t officer_list_index, int16_t officer_id);
 
-    bool __cdecl Leaders_In_Hiring_Pool();
+    bool __cdecl Leaders_In_Hiring_Pool(game::s_world_state* world_state);
 
     void __cdecl Get_Officer_Costs(int16_t officer_idx, int32_t* out_cost, int16_t* out_maintenance);
 
-    void __cdecl Set_Officer_To_Player(int16_t officer_idx, int16_t player_idx, uint8_t is_instant);
+    void __cdecl Set_Officer_To_Player(game::s_world_state* world_state, int16_t officer_idx, int16_t player_idx, uint8_t is_instant);
 
     void __cdecl Give_Leader_Specials_To_Player(int16_t officer_idx, int16_t player_idx);
 
-    void __cdecl Hire_Officer(int16_t player_idx, int16_t leader_idx);
+    void __cdecl Hire_Officer(game::s_world_state* world_state, int16_t player_idx, int16_t leader_idx);
 
-    void __cdecl Check_For_Colony_Calculation_Update();
+    void __cdecl Check_For_Colony_Calculation_Update(game::s_world_state* world_state);
 
-    void __cdecl Move_From_Limbo_To_Pool();
+    void __cdecl Move_From_Limbo_To_Pool(game::s_world_state* world_state);
 
-    void __cdecl Save_Officers_Original_Colony_Id();
+    void __cdecl Save_Officers_Original_Colony_Id(game::s_world_state* world_state);
 
-    void __cdecl Save_Officers_Original_Ship_Id();
+    void __cdecl Save_Officers_Original_Ship_Id(game::s_world_state* world_state);
 
     void __cdecl Draw_Colony_Box();
 
     void __cdecl Draw_Fleet_Box();
 
-    void __cdecl Assign_Leader_To_Star(s_player* player, s_leader_data* leader, s_star_data* star, int8_t eta);
+    void __cdecl Assign_Leader_To_Star(game::s_world_state* world_state, s_player* player, game::id_leader leader_id, s_star_data* star, int8_t eta);
 
     bool __cdecl Ships_In_Same_Place(int16_t ship_index_1, int16_t ship_index_2);
 
@@ -301,19 +303,19 @@ namespace OFFICER {
 
     uint8_t __cdecl Hire_Officer_Popup(int16_t player_num, int16_t officer_id);
 
-    void __cdecl Decrement_Officer_ETA();
+    void __cdecl Decrement_Officer_ETA(game::s_world_state* world_state);
 
-    int16_t __cdecl Select_Leader_For_Hire(int16_t player_index);
+    int16_t __cdecl Select_Leader_For_Hire(game::s_world_state* world_state, int16_t player_index);
 
-    int8_t __cdecl Leader_Available_For_Hire(int16_t leader_idx);
+    int8_t __cdecl Leader_Available_For_Hire(game::s_world_state* world_state, int16_t leader_idx);
 
-    bool __cdecl Officer_Status_Ok(int16_t officer_index);
+    bool __cdecl Officer_Status_Ok(game::s_world_state* world_state, int16_t officer_index);
 
     int32_t __cdecl Calculate_Officer_Cost(int16_t player_idx, int16_t leader_idx);
 
-    bool __cdecl Marooned_Hero_At_Star_Can_Join(int16_t star_idx, int16_t* hero_idx, int16_t player_idx);
+    bool __cdecl Marooned_Hero_At_Star_Can_Join(game::s_world_state* world_state, int16_t star_idx, int16_t* hero_idx, int16_t player_idx);
 
-    void __cdecl Ai_Assign_Leader_To_Star(s_player* player, s_leader_data* leader, s_star_data* star);
+    void __cdecl Ai_Assign_Leader_To_Star(game::s_world_state* world_state, s_player* player, game::id_leader leader_id, s_star_data* star);
 
     void __cdecl Wrapper_For_Offscrn_Help_Fields();
 
@@ -321,7 +323,7 @@ namespace OFFICER {
 
     bool __cdecl Officer_Is_Female(int16_t officer_idx);
 
-    void __cdecl Get_Italian_The(int16_t leader_idx, char* dest, uint32_t dest_size);
+    void __cdecl Get_Italian_The(game::s_world_state* world_state, int16_t leader_idx, char* dest, uint32_t dest_size);
 
     void __cdecl Wrapper_For_Officer_Popup_Help_Fields(int16_t field_x, int16_t officer_idx);
 
@@ -332,7 +334,7 @@ namespace OFFICER {
         int16_t skill_count_minus_one,
         int16_t popup_param);
 
-    void __cdecl Get_N_Skills_Per_Officer_Displayed(int16_t* skill_counts);
+    void __cdecl Get_N_Skills_Per_Officer_Displayed(game::s_world_state* world_state, int16_t* skill_counts);
 
     extern s_officer_skill_help officer_skill_help[4];
 
@@ -342,7 +344,7 @@ namespace OFFICER {
      * Add hidden help fields for each visible officer skill row.
      * @param help_fields Receives five field IDs followed by five skill IDs.
      */
-    void __cdecl Add_Skill_Description_Help_Fields(
+    void __cdecl Add_Skill_Description_Help_Fields(game::s_world_state* world_state,
         int16_t left,
         int16_t top,
         uint32_t unused,
@@ -353,7 +355,7 @@ namespace OFFICER {
 
     void __cdecl Draw_Officer_Skill_Icon(int16_t x, int16_t y, int16_t skill_idx);
 
-    int16_t __cdecl Get_Skill_Data_Max_Pixel_Width(int16_t leader_idx);
+    int16_t __cdecl Get_Skill_Data_Max_Pixel_Width(game::s_world_state* world_state, int16_t leader_idx);
 
     int16_t __cdecl Get_Advanced_Government_Type(int16_t player_idx);
 } // namespace OFFICER

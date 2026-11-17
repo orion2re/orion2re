@@ -41,7 +41,7 @@ namespace COMBAT {
     const char s_Guardian_00557e48[12] = "Guardian";
     const char s_Antaran_00557e54[8] = "Antaran";
 
-    int16_t __cdecl Strategic_Combat(int16_t* plr1_ships, int16_t plr1_ship_count, int16_t* plr2_ships, int16_t plr2_ship_count, int16_t star_idx, int16_t colony_idx, char* summary, int32_t summary_size, char* details, int32_t details_size) {
+    int16_t __cdecl Strategic_Combat(game::s_world_state* world_state, int16_t* plr1_ships, int16_t plr1_ship_count, int16_t* plr2_ships, int16_t plr2_ship_count, int16_t star_idx, int16_t colony_idx, char* summary, int32_t summary_size, char* details, int32_t details_size) {
         MOX2::action_func_t auto_fn;
         int16_t leader_combat_bonuses[20];
 
@@ -72,7 +72,7 @@ namespace COMBAT {
         if (MOX::combat_attacker_player == 9 && MOX::combat_defender_player >= MAX_PLAYERS) {
             MOX::combat_attacker_player = 9;
             for (int i = 0; i < plr2_ship_count; i++) {
-                SHIPS::Kill_Ship(plr2_ships[i]);
+                SHIPS::Kill_Ship(world_state, plr2_ships[i]);
             }
             MOX2::Put_Auto_Function(&auto_fn);
             return 1;
@@ -80,7 +80,7 @@ namespace COMBAT {
 
         if (MOX::combat_defender_player == 9 && MOX::combat_attacker_player >= MAX_PLAYERS) {
             for (int i = 0; i < plr1_ship_count; i++) {
-                SHIPS::Kill_Ship(plr1_ships[i]);
+                SHIPS::Kill_Ship(world_state, plr1_ships[i]);
             }
             MOX2::Put_Auto_Function(&auto_fn);
             return -1;
@@ -94,7 +94,7 @@ namespace COMBAT {
         int16_t bonus3 = 0;
         int16_t bonus4 = 0;
 
-        Get_Leader_Combat_Bonuses(plr1_ships, plr1_ship_count, &bonus1, &bonus2, &leader_combat_bonuses[MOX::combat_attacker_player], &bonus3, &bonus4);
+        Get_Leader_Combat_Bonuses(world_state, plr1_ships, plr1_ship_count, &bonus1, &bonus2, &leader_combat_bonuses[MOX::combat_attacker_player], &bonus3, &bonus4);
         Qload_Ships(plr1_ships, plr1_ship_count, bonus1, bonus2, bonus3, bonus4);
 
         const int16_t attacker_ship_count = MOX::combat_total_ship_count - 1;
@@ -124,7 +124,7 @@ namespace COMBAT {
                 bonus2 = 0;
                 bonus3 = 0;
                 bonus4 = 0;
-                Get_Leader_Combat_Bonuses(plr2_ships, plr2_ship_count, &bonus1, &bonus2, &leader_combat_bonuses[MOX::combat_defender_player], &bonus3, &bonus4);
+                Get_Leader_Combat_Bonuses(world_state, plr2_ships, plr2_ship_count, &bonus1, &bonus2, &leader_combat_bonuses[MOX::combat_defender_player], &bonus3, &bonus4);
                 Qload_Ships(plr2_ships, plr2_ship_count, bonus1, bonus2, bonus3, bonus4);
             }
 
@@ -247,15 +247,15 @@ namespace COMBAT {
 
                 int16_t officer_idx = MOX::qcombat_data[i].officer_idx;
                 if (officer_idx != -1) {
-                    if (MOX::leaders[officer_idx].eta <= 0) {
+                    if (game::Leader(world_state, officer_idx).eta <= 0) {
                         if (MOX::player[MOX::qcombat_data[i].player].tech_applications[TECH_APP_SURVIVAL_PODS] == TECH_RESEARCH_STATUS_RESEARCHED) {
                             survived_officer_ids[survived_officers_count] = officer_idx;
                             survived_officers_count++;
                         } else {
-                            OFFICER::Kill_Officer(officer_idx);
+                            OFFICER::Kill_Officer(world_state, officer_idx);
                         }
                     } else {
-                        OFFICER::Move_Officer_To_Pool(officer_idx);
+                        OFFICER::Move_Officer_To_Pool(world_state, officer_idx);
                         MOX::ship[MOX::qcombat_data[i].ship_design_idx].officer_index = -1;
                     }
                 }
@@ -274,7 +274,7 @@ namespace COMBAT {
                 bool found = false;
                 bool move_to_pool = false;
                 int16_t officer_idx = survived_officer_ids[j];
-                int16_t player_idx = MOX::leaders[officer_idx].player_index;
+                int16_t player_idx = game::Leader(world_state, officer_idx).player_index;
 
                 for (int16_t i = 1; i < MOX::combat_total_ship_count; i++) {
                     if (MOX::qcombat_data[i].status == 0 && MOX::qcombat_data[i].ship_design_idx != -1) {
@@ -283,8 +283,8 @@ namespace COMBAT {
                                 found = true;
                                 MOX::ship[MOX::qcombat_data[i].ship_design_idx].officer_index = officer_idx;
                                 MOX::qcombat_data[i].officer_idx = officer_idx;
-                                MOX::ship[MOX::leaders[officer_idx].location].officer_index = -1;
-                                MOX::leaders[officer_idx].location = MOX::qcombat_data[i].ship_design_idx;
+                                MOX::ship[game::Leader(world_state, officer_idx).location].officer_index = -1;
+                                game::Leader(world_state, officer_idx).location = MOX::qcombat_data[i].ship_design_idx;
                                 break;
                             }
                             move_to_pool = true;
@@ -294,9 +294,9 @@ namespace COMBAT {
 
                 if (!found) {
                     if (move_to_pool) {
-                        OFFICER::Move_Officer_To_Pool(officer_idx);
+                        OFFICER::Move_Officer_To_Pool(world_state, officer_idx);
                     } else {
-                        OFFICER::Kill_Officer(officer_idx);
+                        OFFICER::Kill_Officer(world_state, officer_idx);
                     }
                 }
             }
@@ -311,9 +311,9 @@ namespace COMBAT {
                         antarans::Kill_Antaran_Offensive_Ship(MOX::qcombat_data[i].size);
                     }
                     if (MOX::ship[MOX::qcombat_data[i].ship_design_idx].officer_index != -1) {
-                        OFFICER::Move_Officer_To_Pool(MOX::ship[MOX::qcombat_data[i].ship_design_idx].officer_index);
+                        OFFICER::Move_Officer_To_Pool(world_state, MOX::ship[MOX::qcombat_data[i].ship_design_idx].officer_index);
                     }
-                    SHIPS::Kill_Ship(MOX::qcombat_data[i].ship_design_idx);
+                    SHIPS::Kill_Ship(world_state, MOX::qcombat_data[i].ship_design_idx);
                 }
             }
         }
@@ -351,7 +351,7 @@ namespace COMBAT {
         return result;
     }
 
-    void __cdecl Get_Leader_Combat_Bonuses(int16_t* ship_indices, int16_t count, int16_t* helmsman_max, int16_t* ordnance_max, int16_t* engineer_max, int16_t* weaponry_max, int16_t* lore_max) {
+    void __cdecl Get_Leader_Combat_Bonuses(game::s_world_state* world_state, int16_t* ship_indices, int16_t count, int16_t* helmsman_max, int16_t* ordnance_max, int16_t* engineer_max, int16_t* weaponry_max, int16_t* lore_max) {
         if (count <= 0) {
             return;
         }
@@ -360,30 +360,30 @@ namespace COMBAT {
             int16_t ship_idx = ship_indices[i];
             int16_t officer_idx = MOX::ship[ship_idx].officer_index;
 
-            if (officer_idx != -1 && MOX::leaders[officer_idx].eta == 0) {
+            if (officer_idx != -1 && game::Leader(world_state, officer_idx).eta == 0) {
                 int16_t bonus;
 
-                bonus = CMBTFIR2::Helmsman_Bonus(officer_idx);
+                bonus = CMBTFIR2::Helmsman_Bonus(world_state, officer_idx);
                 if (*helmsman_max < bonus) {
                     *helmsman_max = bonus;
                 }
 
-                bonus = CMBTFIR2::Leader_Ordnance_Bonus(MOX::ship[ship_idx].officer_index);
+                bonus = CMBTFIR2::Leader_Ordnance_Bonus(world_state, MOX::ship[ship_idx].officer_index);
                 if (*ordnance_max < bonus) {
                     *ordnance_max = bonus;
                 }
 
-                bonus = CMBTFIR2::Engineer_Bonus(MOX::ship[ship_idx].officer_index);
+                bonus = CMBTFIR2::Engineer_Bonus(world_state, MOX::ship[ship_idx].officer_index);
                 if (*engineer_max < bonus) {
                     *engineer_max = bonus;
                 }
 
-                bonus = CMBTFIR2::Weaponry_Bonus(MOX::ship[ship_idx].officer_index);
+                bonus = CMBTFIR2::Weaponry_Bonus(world_state, MOX::ship[ship_idx].officer_index);
                 if (*weaponry_max < bonus) {
                     *weaponry_max = bonus;
                 }
 
-                bonus = CMBTFIR2::Galactic_Lore_Bonus(MOX::ship[ship_idx].officer_index);
+                bonus = CMBTFIR2::Galactic_Lore_Bonus(world_state, MOX::ship[ship_idx].officer_index);
                 if (*lore_max < bonus) {
                     *lore_max = bonus;
                 }

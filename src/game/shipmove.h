@@ -40,7 +40,7 @@ namespace SHIPMOVE {
     void __cdecl Make_Ships_Move_To(int16_t* ship_list, int16_t destination_star_idx, s_ship_move_info* move_info);
     bool __cdecl Apply_Player_Movement_Order(int16_t* ship_list, int16_t destination_star_idx, s_ship_move_info* move_info);
 
-    bool __cdecl Confirm_Officer_Change(int16_t leader_idx, int16_t target_ship_idx, int8_t target_eta);
+    bool __cdecl Confirm_Officer_Change(game::s_world_state* world_state, int16_t leader_idx, int16_t target_ship_idx, int8_t target_eta);
     void __cdecl Recalculate_Moving_Fleet(int16_t ship_idx);
     void __cdecl Recalculate_All_Moving_Fleets();
 
@@ -65,7 +65,7 @@ namespace SHIPMOVE {
     bool Stop_Ship_Transit(s_ship_data* ship, std::optional<uint32_t> current_star);
     void __cdecl Update_Ship_ETAs(int16_t player_id);
 
-    void __cdecl Do_Hyperspace_Beast(int32_t player_idx);
+    void __cdecl Do_Hyperspace_Beast(game::s_world_state* world_state, int32_t player_idx);
 
     void __cdecl Do_Wormhole_Event(int32_t player_idx, s_wormhole_data* wormhole);
 } // namespace SHIPMOVE

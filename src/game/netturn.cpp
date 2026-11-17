@@ -173,7 +173,7 @@ namespace NETTURN {
                     (int)NETMOX::net.host_active_player_id,
                     (unsigned int)NETMOX::net.total_bytes_received,
                     (unsigned int)NETMOX::net.sync_state);
-                NETMOX::Decode_Game_Orders(NETMOX::net.network_data_ptr, NETMOX::net.total_bytes_received);
+                NETMOX::Decode_Game_Orders(&game::world, NETMOX::net.network_data_ptr, NETMOX::net.total_bytes_received);
                 NETMOX::net.network_data_ptr = nullptr;
                 allocate::Pop_Block(MOX::screen_seg);
                 NETMOX::net.host_orders_received_flags[NETMOX::net.host_active_player_id] = 1;
@@ -333,7 +333,7 @@ namespace NETTURN {
             MULTPLAY::Chat_Box_Input_Loop();
         }
 
-        NETMOX::Send_Game_Orders();
+        NETMOX::Send_Game_Orders(&game::world);
         NETMOX::Net_Debug_Log(
             "Client_Next_Turn_: sent game orders sync=%u",
             (unsigned int)NETMOX::net.sync_state);

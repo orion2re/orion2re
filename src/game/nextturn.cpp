@@ -17,7 +17,7 @@ namespace NEXTTURN {
 
 
     bool Next_Turn_Calc() {
-        game::current = legacy_world::World();
+        game::current = legacy_world::World(&game::world);
         const auto* world = &game::current;
         if (!Validate_Turn_Inputs(world)) return false;
         if (MOX::game_type >= 0 && MOX::game_type <= 1) {
@@ -39,7 +39,7 @@ namespace NEXTTURN {
         diplomac::Clear_Diplomacy_Messages();
         npcdiplo::NPC_Diplomacy();
         diplomac::Diplomacy_Growth();
-        aileader::Do_AI_Leaders(ai, world);
+        aileader::Do_AI_Leaders(&game::world, ai, world);
         AIBUILD::Compute_Empire_Building_Needs(ai, world);
         aidudes::All_Colony_AI(ai, world);
         AIMOVE::Move_All_AI(ai, world);
@@ -75,8 +75,8 @@ namespace NEXTTURN {
         SETTLER::Move_Settlers();
         COLCALC::All_Colony_Calculations();
         SHIPMOVE::Allocate_New_Ship_Slots();
-        OFFICER::Check_For_Officer_Level();
-        OFFICER::Decrement_Officer_ETA();
+        OFFICER::Check_For_Officer_Level(&game::world);
+        OFFICER::Decrement_Officer_ETA(&game::world);
         invasion::Check_All_Rebellions();
         INITSHIP::Repair_Ships_At_Colonies();
         COLONIZE::Allocate_New_Colony_Slots();
@@ -118,7 +118,7 @@ namespace NEXTTURN {
         MSG_::Add_Ongoing_Event_Msgs();
 
         if (capture::Check_Release_Version() == 0) {
-            OFFICER::Assert_Marooned_Leaders();
+            OFFICER::Assert_Marooned_Leaders(&game::world);
         }
 
         BILL::Record_History();

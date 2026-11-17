@@ -332,8 +332,8 @@ namespace ERIC {
     int8_t __cdecl Player_Can_Mind_Control_Colony(int16_t player_idx, int16_t colony_idx) {
         if (MOX::player[player_idx].traits[TRAIT_TELEPATHIC] != 0) {
             if (Player_Has_Ship_Size_Or_Larger_At_Star(player_idx, mind_control_ship_class, MOX::planet[MOX::colony[colony_idx].planet].star_index)) {
-                if (!Player_Has_Leader_With_General_Skill_At_Star(MOX::colony[colony_idx].owner, 48, MOX::planet[MOX::colony[colony_idx].planet].star_index)) {
-                    if (!Player_Has_Leader_With_General_Skill_At_Star(MOX::colony[colony_idx].owner, 49, MOX::planet[MOX::colony[colony_idx].planet].star_index)) {
+                if (!Player_Has_Leader_With_General_Skill_At_Star(&game::world, MOX::colony[colony_idx].owner, 48, MOX::planet[MOX::colony[colony_idx].planet].star_index)) {
+                    if (!Player_Has_Leader_With_General_Skill_At_Star(&game::world, MOX::colony[colony_idx].owner, 49, MOX::planet[MOX::colony[colony_idx].planet].star_index)) {
                         if (MOX::player[MOX::colony[colony_idx].owner].traits[TRAIT_TELEPATHIC] == 0) {
                             return 1;
                         }
@@ -360,8 +360,8 @@ namespace ERIC {
 
         int16_t owner_idx = MOX::colony[colony_idx].owner;
 
-        if (Player_Has_Leader_With_General_Skill_At_Star(owner_idx, 48, star_idx) != 0 ||
-            Player_Has_Leader_With_General_Skill_At_Star(owner_idx, 49, star_idx) != 0) {
+        if (Player_Has_Leader_With_General_Skill_At_Star(&game::world, owner_idx, 48, star_idx) != 0 ||
+            Player_Has_Leader_With_General_Skill_At_Star(&game::world, owner_idx, 49, star_idx) != 0) {
             GENDRAW::Help(ESTRINGS::E_Strings(0x200));
             return 0;
         }
@@ -460,14 +460,15 @@ namespace ERIC {
         }
     }
 
-    int8_t __cdecl Player_Has_Leader_With_General_Skill_At_Star(int16_t player_idx, int16_t skill_idx, int16_t star_idx) {
-        for (int16_t i = 0; i < MAX_LEADERS; ++i) {
-            if (MOX::leaders[i].player_index == player_idx &&
-                MOX::leaders[i].status == 1 &&
-                MOX::leaders[i].eta == 0) {
-                if ((MOX::leaders[i].type == LEADER_TYPE_SHIP && MOX::ship[MOX::leaders[i].location].location == star_idx) ||
-                    (MOX::leaders[i].type == LEADER_TYPE_COLONY && MOX::leaders[i].location == star_idx)) {
-                    if (OFFICER::Officer_Has_General_Skill(player_idx, i, skill_idx)) {
+    int8_t __cdecl Player_Has_Leader_With_General_Skill_At_Star(game::s_world_state* world_state, int16_t player_idx, int16_t skill_idx, int16_t star_idx) {
+        for (const auto& leader_entry : world_state->leaders) {
+            const int32_t i = static_cast<int32_t>(leader_entry.first.id);
+            if (game::Leader(world_state, i).player_index == player_idx &&
+                game::Leader(world_state, i).status == 1 &&
+                game::Leader(world_state, i).eta == 0) {
+                if ((game::Leader(world_state, i).type == LEADER_TYPE_SHIP && MOX::ship[game::Leader(world_state, i).location].location == star_idx) ||
+                    (game::Leader(world_state, i).type == LEADER_TYPE_COLONY && game::Leader(world_state, i).location == star_idx)) {
+                    if (OFFICER::Officer_Has_General_Skill(world_state, player_idx, i, skill_idx)) {
                         return 1;
                     }
                 }

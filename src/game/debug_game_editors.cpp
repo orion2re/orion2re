@@ -268,7 +268,7 @@ namespace debug_game_editors {
                     ImGui::SeparatorText("Details");
                     Input_S8("Last planet selected", &star.last_planet_selected[player]);
                     debug_game_widgets::Player_Bitmap("Blockaded by", &star.blockaded_by[player]);
-                    debug_game_widgets::Officer_Reference("Officer", &star.officer_index[player]);
+                    debug_game_widgets::Officer_Reference(&game::world, "Officer", &star.officer_index[player]);
                     debug_game_widgets::Star_Reference("Relocate ships to", &star.relocate_ship_to[player]);
                     debug_game_widgets::Player_Reference("Surrender to", &star.surrender_to[player]);
                     ImGui::TreePop();

@@ -7,7 +7,7 @@ namespace {
     s_player players[MAX_PLAYERS];
     s_ship_data ships[MAX_SHIPS];
     s_star_data stars[MAX_STARS];
-    s_leader_data leaders[MAX_LEADERS];
+
     s_colony colonies[MAX_COLONIES];
 
     bool hyperspace_flux;
@@ -29,7 +29,7 @@ namespace TEST_SHIPMOVE {
         memset(players, 0, sizeof(players));
         memset(ships, 0, sizeof(ships));
         memset(stars, 0, sizeof(stars));
-        memset(leaders, 0, sizeof(leaders));
+        game::Reset_Leaders(&game::world);
         memset(colonies, 0, sizeof(colonies));
         memset(TECHDATA::fuel, 0, sizeof(TECHDATA::fuel));
         memset(best_warp, 0, sizeof(best_warp));
@@ -99,7 +99,6 @@ namespace MOX {
     s_player* player = players;
     s_ship_data* ship = ships;
     s_star_data* star = stars;
-    s_leader_data* leaders = ::leaders;
 } // namespace MOX
 
 namespace EVENTS {
@@ -193,18 +192,18 @@ namespace COMBFIND {
 } // namespace COMBFIND
 
 namespace OFFICER {
-    void __cdecl Move_Officer_To_Pool(int16_t officer) {
+    void __cdecl Move_Officer_To_Pool(game::s_world_state* world_state, int16_t officer) {
         TEST_SHIPMOVE::pooled_officer = officer;
-        MOX::leaders[officer].status = 4;
-        MOX::leaders[officer].eta = 0;
+        game::Leader(&game::world, officer).status = 4;
+        game::Leader(&game::world, officer).eta = 0;
     }
-    void __cdecl Kill_Officer(int16_t officer) {
+    void __cdecl Kill_Officer(game::s_world_state* world_state, int16_t officer) {
         TEST_SHIPMOVE::killed_officer = officer;
-        MOX::leaders[officer].player_index = -1;
-        MOX::leaders[officer].status = -1;
+        game::Leader(&game::world, officer).player_index = -1;
+        game::Leader(&game::world, officer).status = -1;
     }
-    int16_t __cdecl Owned_Officer_Level(int16_t leader_idx) {
-        return MOX::leaders[leader_idx].xp;
+    int16_t __cdecl Owned_Officer_Level(game::s_world_state* world_state, int16_t leader_idx) {
+        return game::Leader(&game::world, leader_idx).xp;
     }
 } // namespace OFFICER
 

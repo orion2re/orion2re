@@ -1533,7 +1533,7 @@ namespace MAINSCR {
         }
 
         if (key == leader_cheat) {
-            OFFICER::Leader_Cheat_Popup();
+            OFFICER::Leader_Cheat_Popup(&game::world);
             Set_Player_Cheated_Flag(MOX::PLAYER_NUM, 7);
             return;
         }

@@ -94,7 +94,7 @@ namespace MOX2 {
                     break;
                 case SCREEN_NEW_GAME:
                     if (MOX::game_type == 0) {
-                        const int16_t newgame_result = NEWGAME::Newgame_Screen();
+                        const int16_t newgame_result = NEWGAME::Newgame_Screen(&game::world);
                         if (newgame_result == 0) {
                             MOX::current_screen = SCREEN_MAIN_MENU;
                         } else {
@@ -110,7 +110,7 @@ namespace MOX2 {
                         }
                     } else {
                         MOX::return_screen = SCREEN_MULTI_PLAYER;
-                        NEWGAME::Newgame_Screen();
+                        NEWGAME::Newgame_Screen(&game::world);
                     }
                     MOX::previous_screen = SCREEN_NEW_GAME;
                     break;

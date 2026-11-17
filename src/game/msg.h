@@ -92,7 +92,7 @@ namespace MSG_ {
     extern char* msg_colony_1_settler_arrived_fmt;
     extern char* msg_colony_d_settlers_arrived_over_limit_fmt;
 
-    void __cdecl sprintf_msg(char* out_text, uint32_t out_text_size, s_MSG* msg);
+    void __cdecl sprintf_msg(game::s_world_state* world_state, char* out_text, uint32_t out_text_size, s_MSG* msg);
 
     void __cdecl Add_Msg_All(s_MSG msg);
 

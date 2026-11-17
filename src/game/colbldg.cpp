@@ -1394,7 +1394,7 @@ namespace COLBLDG {
         } else {
             char leader_name[500];
             char crew_desc[500];
-            strlcpy(leader_name, OFFICER::Leader_Name(ship->officer_index, '\0'), sizeof(leader_name));
+            strlcpy(leader_name, OFFICER::Leader_Name(&game::world, ship->officer_index, '\0'), sizeof(leader_name));
             strlcpy(crew_desc, FLT2::Crew_Description_String((int16_t)(ship - MOX::ship)), sizeof(crew_desc));
 
             STRBUILD::Sprintf(
@@ -2433,7 +2433,7 @@ namespace COLBLDG {
                         int16_t ship_idx = COLBLDG::Colony_Production_Ship_Index(prod);
                         int16_t officer_idx = MOX::ship[ship_idx].officer_index;
                         if (officer_idx != -1) {
-                            OFFICER::Move_Officer_To_Pool(officer_idx);
+                            OFFICER::Move_Officer_To_Pool(&game::world, officer_idx);
                             MOX::ship[ship_idx].officer_index = -1;
                         }
                         Delete_Ship(ship_idx);
@@ -2446,7 +2446,7 @@ namespace COLBLDG {
                         int16_t ship_idx = COLBLDG::Colony_Production_Ship_Index(prod);
                         int16_t officer_idx = MOX::ship[ship_idx].officer_index;
                         if (officer_idx != -1) {
-                            OFFICER::Move_Officer_To_Pool(officer_idx);
+                            OFFICER::Move_Officer_To_Pool(&game::world, officer_idx);
                             MOX::ship[ship_idx].officer_index = -1;
                         }
                         Delete_Ship(ship_idx);

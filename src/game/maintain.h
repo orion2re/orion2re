@@ -55,7 +55,7 @@ namespace maintain {
     /// @param at_colony_only Whether ships must be at an owned colony.
     /// @param restricted_mission Whether only a restricted set of missions is allowed.
     /// @param ship_type Ship class to target.
-    void __cdecl Kill_Ships(s_player* player, bool at_colony_only, bool restricted_mission, int16_t ship_type);
+    void __cdecl Kill_Ships(game::s_world_state* world_state, s_player* player, bool at_colony_only, bool restricted_mission, int16_t ship_type);
 
     /// Reduces spy allocations until the player's deficit is resolved.
     /// @param player Player whose spy counts may be reduced.
@@ -63,5 +63,5 @@ namespace maintain {
 
     /// Removes maintained leaders until the player's deficit is resolved.
     /// @param player Player whose leaders may be removed.
-    void __cdecl Kill_Leaders(s_player* player);
+    void __cdecl Kill_Leaders(game::s_world_state* world_state, s_player* player);
 } // namespace maintain

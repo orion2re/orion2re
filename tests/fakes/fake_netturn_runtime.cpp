@@ -58,7 +58,6 @@ namespace MOX {
     s_planet_data* planet = nullptr;
     int16_t NUM_SHIPS = 0;
     s_ship_data* ship = nullptr;
-    s_leader_data* leaders = nullptr;
     s_colony* colony = nullptr;
     int16_t bill_savegame[6] = {};
 } // namespace MOX
@@ -218,7 +217,7 @@ namespace sound {
 } // namespace sound
 
 namespace SHIPS {
-    void __cdecl Kill_Ship(int16_t) {}
+    void __cdecl Kill_Ship(game::s_world_state* world_state, int16_t) {}
     void __cdecl Build_Ship_Icons() {}
     void __cdecl Set_Ship_Icon_XYs() {}
 } // namespace SHIPS

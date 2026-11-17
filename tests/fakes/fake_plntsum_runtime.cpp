@@ -24,7 +24,6 @@ namespace MOX {
     s_star_data* star = stars;
     s_colony* colony = colonies;
     s_ship_data* ship = ships;
-    s_leader_data* leaders = nullptr;
     s_scroll_bar* scroll_bar = &scroll;
     s_animation_header* screen_seg = nullptr;
     int16_t PLAYER_NUM;
@@ -143,11 +142,11 @@ namespace RUSS {
 } // namespace RUSS
 
 namespace OFFICER {
-    void __cdecl Move_Officer_To_Pool(int16_t) {
+    void __cdecl Move_Officer_To_Pool(game::s_world_state* world_state, int16_t) {
         DOCTEST_FAIL("Unexpected officer in colony destruction fixture");
     }
 
-    void __cdecl Kill_Officer(int16_t) {
+    void __cdecl Kill_Officer(game::s_world_state* world_state, int16_t) {
         DOCTEST_FAIL("Unexpected officer in colony destruction fixture");
     }
 

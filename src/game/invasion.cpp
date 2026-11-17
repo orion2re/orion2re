@@ -68,19 +68,19 @@ namespace invasion {
         }
     }
 
-    void __cdecl Compute_Colony_Officer_Bonus(s_colony* colony, s_invasion_player_bonuses* bonuses) {
-        int leader_idx = COLCALC::Colony_Officer(colony);
+    void __cdecl Compute_Colony_Officer_Bonus(game::s_world_state* world_state, s_colony* colony, s_invasion_player_bonuses* bonuses) {
+        int leader_idx = COLCALC::Colony_Officer(world_state, colony);
 
         if (leader_idx != -1) {
-            s_leader_data* leader = &MOX::leaders[leader_idx];
+            s_leader_data* leader = &game::Leader(world_state, leader_idx);
 
             if (leader->general_skills & LEADER_GENERAL_SKILL_COMMANDO2) {
-                int16_t level = OFFICER::Owned_Officer_Level(leader_idx);
+                int16_t level = OFFICER::Owned_Officer_Level(world_state, leader_idx);
                 bonuses->officer_bonus = ground_commando_defender_x5
                     ? ((level + 1) * 15) / 2
                     : (level + 1) * 3;
             } else if (leader->general_skills & LEADER_GENERAL_SKILL_COMMANDO) {
-                int16_t level = OFFICER::Owned_Officer_Level(leader_idx);
+                int16_t level = OFFICER::Owned_Officer_Level(world_state, leader_idx);
                 bonuses->officer_bonus =
                     (level + 1) * (ground_commando_defender_x5 ? 5 : 2);
             }
@@ -91,7 +91,7 @@ namespace invasion {
         }
     }
 
-    void __cdecl Compute_Attacker_Officer_Bonus(int16_t* ship_indexes, int16_t count, s_invasion_player_bonuses* bonuses) {
+    void __cdecl Compute_Attacker_Officer_Bonus(game::s_world_state* world_state, int16_t* ship_indexes, int16_t count, s_invasion_player_bonuses* bonuses) {
         if (count <= 0) {
             return;
         }
@@ -101,16 +101,16 @@ namespace invasion {
             int16_t officer_idx = MOX::ship[ship_idx].officer_index;
 
             if (officer_idx >= 0) {
-                if (MOX::leaders[officer_idx].eta == 0) {
+                if (game::Leader(world_state, officer_idx).eta == 0) {
                     int16_t bonus = 0;
 
-                    if ((MOX::leaders[officer_idx].general_skills & LEADER_GENERAL_SKILL_COMMANDO2) != 0) {
-                        int16_t level = OFFICER::Owned_Officer_Level(officer_idx);
+                    if ((game::Leader(world_state, officer_idx).general_skills & LEADER_GENERAL_SKILL_COMMANDO2) != 0) {
+                        int16_t level = OFFICER::Owned_Officer_Level(world_state, officer_idx);
                         bonus = ground_commando_attacker_x2
                             ? (level + 1) * 3
                             : (level * 15 + 16) / 2;
-                    } else if ((MOX::leaders[officer_idx].general_skills & LEADER_GENERAL_SKILL_COMMANDO) != 0) {
-                        int16_t level = OFFICER::Owned_Officer_Level(officer_idx);
+                    } else if ((game::Leader(world_state, officer_idx).general_skills & LEADER_GENERAL_SKILL_COMMANDO) != 0) {
+                        int16_t level = OFFICER::Owned_Officer_Level(world_state, officer_idx);
                         bonus = (level + 1) *
                             (ground_commando_attacker_x2 ? 2 : 5);
                     }
@@ -322,7 +322,7 @@ namespace invasion {
                 transport_ship_ids++;
                 count++;
 
-                SHIPS::Kill_Ship(ship_idx);
+                SHIPS::Kill_Ship(&game::world, ship_idx);
 
                 colony->military[0] += 4;
                 if (colony->military[0] >= limit) {
@@ -331,7 +331,7 @@ namespace invasion {
             }
         }
 
-        COLCALC::Update_Player_Stats(&MOX::player[colony->owner]);
+        COLCALC::Update_Player_Stats(&game::world, &MOX::player[colony->owner]);
 
         return count;
     }
@@ -430,7 +430,7 @@ namespace invasion {
         side_a->combat_modifiers.officer_bonus = 0;
 
         Compute_Player_Ground_Combat_Bonuses(side_b->player_id, &side_b->combat_modifiers, 1);
-        Compute_Colony_Officer_Bonus(colony, &side_b->combat_modifiers);
+        Compute_Colony_Officer_Bonus(&game::world, colony, &side_b->combat_modifiers);
 
         Compute_Ground_Combat_Info(side_a, &side_a->combat_modifiers, &side_b->combat_modifiers);
         Compute_Ground_Combat_Info(side_b, &side_b->combat_modifiers, &side_a->combat_modifiers);
@@ -465,7 +465,7 @@ namespace invasion {
                 int16_t ship_idx = info.ship_list[i];
                 if (MOX::ship[ship_idx].d.ship_type == SHIP_TYPE_TRANSPORT) {
                     if (remaining_infantry < 4) {
-                        SHIPS::Kill_Ship(ship_idx);
+                        SHIPS::Kill_Ship(&game::world, ship_idx);
                     } else {
                         remaining_infantry -= 4;
                     }
@@ -597,7 +597,7 @@ namespace invasion {
         s_colony* colony = &MOX::colony[colony_idx];
         int8_t old_owner = colony->owner;
 
-        BOMB::Handle_Leader_At_Lost_Colony(colony);
+        BOMB::Handle_Leader_At_Lost_Colony(&game::world, colony);
 
         MOX::player[old_owner].colony_war_losses[new_owner_idx] += (uint8_t)colony->n_pops;
 
@@ -793,10 +793,10 @@ namespace invasion {
         defender_side->unit_counts[2] = (int16_t)Colony_N_Militia(colony);
 
         Compute_Player_Ground_Combat_Bonuses(attacker_side->player_id, &attacker_side->combat_modifiers, 0);
-        Compute_Attacker_Officer_Bonus(ship_list, n_ships, &attacker_side->combat_modifiers);
+        Compute_Attacker_Officer_Bonus(&game::world, ship_list, n_ships, &attacker_side->combat_modifiers);
 
         Compute_Player_Ground_Combat_Bonuses(attacker_side->opponent_player_id, &defender_side->combat_modifiers, 1);
-        Compute_Colony_Officer_Bonus(colony, &defender_side->combat_modifiers);
+        Compute_Colony_Officer_Bonus(&game::world, colony, &defender_side->combat_modifiers);
 
         Compute_Ground_Combat_Info(attacker_side, &attacker_side->combat_modifiers, &defender_side->combat_modifiers);
         Compute_Ground_Combat_Info(defender_side, &defender_side->combat_modifiers, &attacker_side->combat_modifiers);
@@ -829,7 +829,7 @@ namespace invasion {
             for (int16_t i = 0; i < n_ships; ++i) {
                 int16_t ship_idx = ship_list[i];
                 if (MOX::ship[ship_idx].d.ship_type == SHIP_TYPE_TRANSPORT) {
-                    SHIPS::Kill_Ship(ship_idx);
+                    SHIPS::Kill_Ship(&game::world, ship_idx);
                 }
             }
         }
@@ -862,7 +862,7 @@ namespace invasion {
         side_info->unit_counts[2] = (int16_t)Colony_N_Militia(colony);
 
         Compute_Player_Ground_Combat_Bonuses(colony->owner, &side_info->combat_modifiers, 1);
-        Compute_Colony_Officer_Bonus(colony, &side_info->combat_modifiers);
+        Compute_Colony_Officer_Bonus(&game::world, colony, &side_info->combat_modifiers);
         Compute_Ground_Combat_Info(
             side_info,
             &side_info->combat_modifiers,

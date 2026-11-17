@@ -202,7 +202,7 @@ DOCTEST_TEST_CASE("hyperspace beasts report the lost ship and officer fate to ea
     MOX::ship[0].status = 1;
     MOX::ship[0].location = SHIP_LOCATION_MOVING_OFFSET + 1;
     MOX::ship[0].officer_index = 0;
-    SHIPMOVE::Do_Hyperspace_Beast(0);
+    SHIPMOVE::Do_Hyperspace_Beast(&game::world, 0);
     DOCTEST_CHECK(TEST_SHIPMOVE::pooled_officer == 0);
     DOCTEST_CHECK(TEST_SHIPMOVE::killed_officer == 0);
     DOCTEST_CHECK((MOX::ship[0].status == 8));
@@ -230,12 +230,12 @@ DOCTEST_TEST_CASE("survival pods transfer a beast victim's officer to a matching
         MOX::ship[i].d.ship_type = SHIP_TYPE_COMBAT;
     }
     MOX::ship[1].officer_index = 0;
-    SHIPMOVE::Do_Hyperspace_Beast(0);
+    SHIPMOVE::Do_Hyperspace_Beast(&game::world, 0);
     DOCTEST_CHECK(TEST_SHIPMOVE::pooled_officer == 0);
     DOCTEST_CHECK(TEST_SHIPMOVE::killed_officer == -1);
     DOCTEST_CHECK((MOX::ship[0].officer_index == 0));
-    DOCTEST_CHECK((MOX::leaders[0].location == 0));
-    DOCTEST_CHECK((MOX::leaders[0].status == 1));
+    DOCTEST_CHECK((game::Leader(&game::world, 0).location == 0));
+    DOCTEST_CHECK((game::Leader(&game::world, 0).status == 1));
     DOCTEST_REQUIRE(TEST_SHIPMOVE::messages.size() == 1);
     DOCTEST_CHECK((TEST_SHIPMOVE::messages[0].u.hyperspace_beast.leader_status == 2));
 }
@@ -323,9 +323,9 @@ DOCTEST_TEST_CASE("extended fuel range rounds odd ranges up") {
 DOCTEST_TEST_CASE("movement stores the numeric navigator bonus") {
     TEST_SHIPMOVE::Reset_();
 
-    MOX::leaders[0].eta = 0;
-    MOX::leaders[0].xp = 5;
-    MOX::leaders[0].special_skills = LEADER_SHIP_SKILL_NAVIGATOR2;
+    game::Leader(&game::world, 0).eta = 0;
+    game::Leader(&game::world, 0).xp = 5;
+    game::Leader(&game::world, 0).special_skills = LEADER_SHIP_SKILL_NAVIGATOR2;
     MOX::ship[0].officer_index = 0;
 
     int16_t ship_list[] = {0, -1};
@@ -426,8 +426,8 @@ DOCTEST_TEST_CASE("Phase Shifter leaves Navigator and Jump Gate bonuses additive
     SHIPMOVE::phase_shifter_speed_multiplier = {2, 1};
     MOX::ship[0].d.special_device_flags[SPECIAL_PHASE_SHIFTER / 8] |=
         1 << (SPECIAL_PHASE_SHIFTER % 8);
-    MOX::leaders[0].xp = 5;
-    MOX::leaders[0].special_skills = LEADER_SHIP_SKILL_NAVIGATOR2;
+    game::Leader(&game::world, 0).xp = 5;
+    game::Leader(&game::world, 0).special_skills = LEADER_SHIP_SKILL_NAVIGATOR2;
     MOX::ship[0].officer_index = 0;
     MOX::star[0].has_jumpgate = 1;
     MOX::star[1].has_jumpgate = 1;
@@ -592,9 +592,9 @@ DOCTEST_TEST_CASE("splitting an in-flight fleet recalculates the remaining ships
     MOX::NUM_STARS = 3;
     MOX::star[2].x = 180;
     MOX::star[2].y = 0;
-    MOX::leaders[0].eta = 0;
-    MOX::leaders[0].xp = 5;
-    MOX::leaders[0].special_skills = LEADER_SHIP_SKILL_NAVIGATOR2;
+    game::Leader(&game::world, 0).eta = 0;
+    game::Leader(&game::world, 0).xp = 5;
+    game::Leader(&game::world, 0).special_skills = LEADER_SHIP_SKILL_NAVIGATOR2;
 
     for (int16_t i = 0; i < 2; ++i) {
         MOX::ship[i].owner = 0;

@@ -216,37 +216,37 @@ DOCTEST_TEST_CASE("crew turn updates use the best active colony instructor for e
 
         s_crew_scope() {
             memcpy(saved_ships.data(), MOX::ship, sizeof(s_ship_data) * MAX_SHIPS);
-            memcpy(saved_leaders.data(), MOX::leaders, sizeof(s_leader_data) * MAX_LEADERS);
+            saved_leaders = game::Export_Leaders(&game::world);
             memcpy(saved_bonuses, test::fakes::instructor_bonuses, sizeof(saved_bonuses));
         }
 
         ~s_crew_scope() {
             memcpy(MOX::ship, saved_ships.data(), sizeof(s_ship_data) * MAX_SHIPS);
-            memcpy(MOX::leaders, saved_leaders.data(), sizeof(s_leader_data) * MAX_LEADERS);
+            game::Import_Leaders(&game::world, saved_leaders);
             memcpy(test::fakes::instructor_bonuses, saved_bonuses, sizeof(saved_bonuses));
             ERICNET::crew_gains_turn_xp = saved_turn_xp;
             MOX::crew_data[CREW_QUALITY_ELITE].experience = saved_cap;
         }
     } crew_scope;
     Reset_Colony_();
-    memset(MOX::leaders, 0, sizeof(s_leader_data) * MAX_LEADERS);
+    game::Reset_Leaders(&game::world);
     memset(test::fakes::instructor_bonuses, 0, sizeof(test::fakes::instructor_bonuses));
-    for (int i = 0; i < MAX_LEADERS; ++i) MOX::leaders[i].player_index = -1;
+    for (int i = 0; i < MAX_LEADERS; ++i) game::Leader(&game::world, i).player_index = -1;
     for (int i = 0; i < 6; ++i) {
-        MOX::leaders[i].player_index = i < 2 || i == 5 ? 0 : 1;
-        MOX::leaders[i].type = LEADER_TYPE_COLONY;
+        game::Leader(&game::world, i).player_index = i < 2 || i == 5 ? 0 : 1;
+        game::Leader(&game::world, i).type = LEADER_TYPE_COLONY;
     }
     test::fakes::instructor_bonuses[0][0] = 3;
     test::fakes::instructor_bonuses[1][1] = 5;
     test::fakes::instructor_bonuses[2][0] = 7;
-    MOX::leaders[2].eta = 1;
+    game::Leader(&game::world, 2).eta = 1;
     test::fakes::instructor_bonuses[3][0] = 9;
-    MOX::leaders[3].type = LEADER_TYPE_SHIP;
+    game::Leader(&game::world, 3).type = LEADER_TYPE_SHIP;
     test::fakes::instructor_bonuses[4][0] = 2;
     test::fakes::instructor_bonuses[5][0] = 99;
-    MOX::leaders[5].status = -1;
+    game::Leader(&game::world, 5).status = -1;
     int16_t bonuses[MAX_PLAYERS] = {};
-    ERICNET::Best_Instructor_Bonus(bonuses);
+    ERICNET::Best_Instructor_Bonus(&game::world, bonuses);
     DOCTEST_CHECK(bonuses[0] == 5);
     DOCTEST_CHECK(bonuses[1] == 2);
 

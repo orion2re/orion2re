@@ -53,7 +53,7 @@ namespace COMBINIT {
             (drive_max_hits - half_drive_hits));
     }
 
-    void __cdecl Load_Combat_Ship(int16_t ship_idx, int16_t combat_idx) {
+    void __cdecl Load_Combat_Ship(game::s_world_state* world_state, int16_t ship_idx, int16_t combat_idx) {
         s_ship_data* ship = &MOX::ship[ship_idx];
         s_combat_data* combat = &MOX::combat_data[combat_idx];
 
@@ -114,7 +114,7 @@ namespace COMBINIT {
         combat->crew_quality = ship->crew_quality;
 
         int16_t officer_idx = ship->officer_index;
-        if (officer_idx < 0 || MOX::leaders[officer_idx].eta != 0) {
+        if (officer_idx < 0 || game::Leader(world_state, officer_idx).eta != 0) {
             combat->officer_idx = -1;
         } else {
             combat->officer_idx = officer_idx;
@@ -443,7 +443,7 @@ namespace COMBINIT {
             }
         }
     }
-    void __cdecl End_Of_Combat(int16_t star_idx, int16_t colony_pop_lost, int16_t combat_winner) {
+    void __cdecl End_Of_Combat(game::s_world_state* world_state, int16_t star_idx, int16_t colony_pop_lost, int16_t combat_winner) {
         int16_t leader_count = 0;
         int16_t defender_losses = 0;
         int16_t attacker_losses = 0;
@@ -511,15 +511,15 @@ namespace COMBINIT {
 
                 if (ship->ship_idx != -1 && ship->officer_idx > -1) {
                     int16_t officer_idx = ship->officer_idx;
-                    if (MOX::leaders[officer_idx].eta > 0) {
-                        OFFICER::Move_Officer_To_Pool(officer_idx);
+                    if (game::Leader(world_state, officer_idx).eta > 0) {
+                        OFFICER::Move_Officer_To_Pool(world_state, officer_idx);
                     } else {
                         if (MOX::player[ship->owner].tech_applications[TECH_APP_SURVIVAL_PODS] == TECH_RESEARCH_STATUS_RESEARCHED) {
                             leaders[leader_count] = officer_idx;
                             leader_count++;
                             MOX::ship[ship->ship_idx].officer_index = -1;
                         } else {
-                            OFFICER::Kill_Officer(officer_idx);
+                            OFFICER::Kill_Officer(world_state, officer_idx);
                         }
                     }
                 }
@@ -583,7 +583,7 @@ namespace COMBINIT {
                 if (xp < 1) {
                     xp = 1;
                 }
-                OFFICER::Give_Officer_XP(victor_player, ship->officer_idx, xp);
+                OFFICER::Give_Officer_XP(world_state, victor_player, ship->officer_idx, xp);
             }
         }
 
@@ -599,13 +599,13 @@ namespace COMBINIT {
                     }
                     s_combat_data* ship = &MOX::combat_data[i];
                     if ((ship->unit_status != 5 || ship->is_retreating == 2) && ship->ship_idx != -1) {
-                        if (MOX::leaders[leader_id].player_index == ship->owner) {
+                        if (game::Leader(world_state, leader_id).player_index == ship->owner) {
                             if (MOX::ship[ship->ship_idx].officer_index == -1) {
                                 ship_idx_found = 1;
                                 MOX::ship[ship->ship_idx].officer_index = leader_id;
                                 ship->officer_idx = leader_id;
-                                MOX::ship[MOX::leaders[leader_id].location].officer_index = -1;
-                                MOX::leaders[leader_id].location = ship->ship_idx;
+                                MOX::ship[game::Leader(world_state, leader_id).location].officer_index = -1;
+                                game::Leader(world_state, leader_id).location = ship->ship_idx;
                             }
                             ship_assigned = 1;
                         }
@@ -613,21 +613,21 @@ namespace COMBINIT {
                 }
 
                 if (ship_idx_found != 0 || ship_assigned != 0) {
-                    if (MOX::leaders[leader_id].player_index == victor_player) {
+                    if (game::Leader(world_state, leader_id).player_index == victor_player) {
                         int16_t xp = (victor_player == MOX::combat_attacker_player) ? defender_losses : attacker_losses;
                         xp /= 2;
                         if (xp < 1) {
                             xp = 1;
                         }
-                        OFFICER::Give_Officer_XP(victor_player, leader_id, xp);
+                        OFFICER::Give_Officer_XP(world_state, victor_player, leader_id, xp);
                     }
                 }
 
                 if (ship_idx_found == 0) {
                     if (ship_assigned == 1) {
-                        OFFICER::Move_Officer_To_Pool(leader_id);
+                        OFFICER::Move_Officer_To_Pool(world_state, leader_id);
                     } else {
-                        OFFICER::Kill_Officer(leader_id);
+                        OFFICER::Kill_Officer(world_state, leader_id);
                     }
                 }
             }
@@ -645,9 +645,9 @@ namespace COMBINIT {
                     antarans::Kill_Antaran_Offensive_Ship(ship->size_class);
                 }
                 if (MOX::ship[ship->ship_idx].officer_index > -1) {
-                    OFFICER::Move_Officer_To_Pool(MOX::ship[ship->ship_idx].officer_index);
+                    OFFICER::Move_Officer_To_Pool(world_state, MOX::ship[ship->ship_idx].officer_index);
                 }
-                SHIPS::Kill_Ship(ship->ship_idx);
+                SHIPS::Kill_Ship(world_state, ship->ship_idx);
             } else if (ship->owner == victor_player && ship->ship_idx != -1) {
                 int16_t xp = (victor_player == MOX::combat_attacker_player) ? defender_losses : attacker_losses;
                 xp /= 2;

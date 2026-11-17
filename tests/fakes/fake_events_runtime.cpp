@@ -6,7 +6,7 @@ namespace {
     s_colony colonies[MAX_COLONIES];
     s_player players[MAX_PLAYERS];
     s_ship_data ships[MAX_SHIPS];
-    s_leader_data leaders[MAX_LEADERS];
+
     char event_message[300];
     uint32_t random_result;
     uint32_t last_weights[MAX_PLAYERS];
@@ -31,7 +31,7 @@ namespace TEST_EVENTS {
         memset(colonies, 0, sizeof(colonies));
         memset(players, 0, sizeof(players));
         memset(ships, 0, sizeof(ships));
-        memset(leaders, 0, sizeof(leaders));
+        game::Reset_Leaders(&game::world);
         memset(EVENTS::event_data, 0, sizeof(EVENTS::event_data));
         EVENTS::current_event = 0;
         EVENTS::event_message[0] = '\0';
@@ -102,7 +102,6 @@ namespace MOX {
     s_colony* colony = colonies;
     s_player* player = players;
     s_ship_data* ship = ships;
-    s_leader_data* leaders = ::leaders;
     char* mineral_class_string[MINERAL_RESOURCE_COUNT];
     s_settings settings = {};
     uint8_t food_per_farmer_table[PLANET_CLIMATE_COUNT];
@@ -322,12 +321,12 @@ namespace diplomac {
 }
 
 namespace OFFICER {
-    void __cdecl Kill_Officer(int16_t) {
+    void __cdecl Kill_Officer(game::s_world_state* world_state, int16_t) {
     }
 }
 
 namespace SHIPS {
-    void __cdecl Kill_Ship(int16_t) {
+    void __cdecl Kill_Ship(game::s_world_state* world_state, int16_t) {
     }
 
     int16_t __cdecl Build_Nonplayer_Ship(int16_t, int16_t, uint8_t) {
@@ -343,7 +342,7 @@ namespace SHIPMOVE {
         result->dest_star_idx = 1;
         result->count = 3;
     }
-    void __cdecl Do_Hyperspace_Beast(int32_t) {
+    void __cdecl Do_Hyperspace_Beast(game::s_world_state* world_state, int32_t) {
     }
 }
 

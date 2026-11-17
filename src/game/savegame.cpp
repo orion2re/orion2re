@@ -1502,7 +1502,7 @@ namespace SAVEGAME {
             antaran->attack_notified_mask = reader->Read_Uint8();
         }
 
-        void Write_Game_State(SERIAL::Writer_* writer, const s_settings* settings, uint32_t random_seed) {
+        void Write_Game_State(game::s_world_state* world_state, SERIAL::Writer_* writer, const s_settings* settings, uint32_t random_seed) {
             Write_Settings(writer, settings);
             writer->Write_Uint32(random_seed);
             writer->Write_Int16(MOX::NUM_COLONIES);
@@ -1511,7 +1511,7 @@ namespace SAVEGAME {
             for (int i = 0; i < MOX::planet_count; ++i) Write_Planet(writer, &MOX::planet[i]);
             writer->Write_Int16(MOX::NUM_STARS);
             for (int i = 0; i < MOX::NUM_STARS; ++i) Write_Star(writer, &MOX::star[i]);
-            for (int i = 0; i < MAX_LEADERS; ++i) Write_Leader(writer, &MOX::leaders[i]);
+            for (int i = 0; i < MAX_LEADERS; ++i) Write_Leader(writer, &game::Leader(world_state, i));
             writer->Write_Int16(MOX::NUM_PLAYERS);
             for (int i = 0; i < MAX_PLAYERS; ++i) Write_Player(writer, &MOX::player[i]);
             writer->Write_Int16(MOX::NUM_SHIPS);
@@ -1567,7 +1567,7 @@ namespace SAVEGAME {
             }
         }
 
-        bool Read_Game_State(SERIAL::Reader_* reader, uint16_t version, s_settings* settings, uint32_t* random_seed) {
+        bool Read_Game_State(game::s_world_state* world_state, SERIAL::Reader_* reader, uint16_t version, s_settings* settings, uint32_t* random_seed) {
             Read_Settings(reader, settings);
             *random_seed = reader->Read_Uint32();
             MOX::NUM_COLONIES = reader->Read_Int16();
@@ -1599,7 +1599,7 @@ namespace SAVEGAME {
                 Initialize_Unused_Star(&MOX::star[i]);
             }
             if (reader->Failed()) return false;
-            for (int i = 0; i < MAX_LEADERS; ++i) Read_Leader(reader, &MOX::leaders[i]);
+            for (int i = 0; i < MAX_LEADERS; ++i) Read_Leader(reader, &game::Leader(world_state, i));
             MOX::NUM_PLAYERS = reader->Read_Int16();
             for (int i = 0; i < MAX_PLAYERS; ++i) {
                 Read_Player(reader, &MOX::player[i], version);
@@ -1809,7 +1809,7 @@ namespace SAVEGAME {
         writer->Write_Int32(MOX::stardate);
         writer->Write_Int8(MOX::game_type);
         writer->Write_Uint16(CURRENT_VERSION);
-        Write_Game_State(writer, &MOX::settings, random_seed);
+        Write_Game_State(&game::world, writer, &MOX::settings, random_seed);
         if (extension_size == 0 || writer->Length() > BUFFER_CAPACITY ||
             extension_size > BUFFER_CAPACITY - writer->Length()) {
             if (error_text != nullptr) {
@@ -1852,7 +1852,7 @@ namespace SAVEGAME {
         if (prior_state == nullptr) return false;
         SERIAL::Writer_ prior_writer(
             prior_state, BUFFER_CAPACITY, "native load rollback overflow");
-        Write_Game_State(&prior_writer, &MOX::settings, 0);
+        Write_Game_State(&game::world, &prior_writer, &MOX::settings, 0);
         const uint32_t prior_state_size = prior_writer.Length();
         orion2re::lua::game::s_semantic_state_replacement
             semantic_state_replacement;
@@ -1861,7 +1861,7 @@ namespace SAVEGAME {
             SERIAL::Reader_ prior_reader(prior_state, prior_state_size, "native load rollback underflow");
             s_settings ignored_settings = {};
             uint32_t ignored_seed = 0;
-            Read_Game_State(&prior_reader,
+            Read_Game_State(&game::world, &prior_reader,
                 CURRENT_VERSION,
                 &ignored_settings,
                 &ignored_seed);
@@ -1876,7 +1876,7 @@ namespace SAVEGAME {
             free(prior_state);
             return false;
         };
-        if (!Read_Game_State(reader, metadata->version, saved_settings, random_seed) || !Loaded_State_Is_Valid()) {
+        if (!Read_Game_State(&game::world, reader, metadata->version, saved_settings, random_seed) || !Loaded_State_Is_Valid()) {
             return fail_after_native_read();
         }
         orion2re::lua::game::Begin_Semantic_State_Replacement(

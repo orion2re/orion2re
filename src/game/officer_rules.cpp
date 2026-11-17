@@ -23,8 +23,8 @@ namespace OFFICER {
             leader.type == (Is_Fleet_Officer_Screen() ? LEADER_TYPE_SHIP : LEADER_TYPE_COLONY);
     }
 
-    int16_t __cdecl Get_Officer_Level(int16_t leader_idx) {
-        int16_t current_xp = MOX::leaders[leader_idx].xp;
+    int16_t __cdecl Get_Officer_Level(game::s_world_state* world_state, int16_t leader_idx) {
+        int16_t current_xp = game::Leader(world_state, leader_idx).xp;
 
         int16_t level = Get_Officer_Base_Level(current_xp, 0);
 
@@ -55,14 +55,14 @@ namespace OFFICER {
         return level;
     }
 
-    int32_t __cdecl Officer_Skill_Bonus(uint32_t unused, int16_t leader_idx, int16_t skill_idx) {
+    int32_t __cdecl Officer_Skill_Bonus(game::s_world_state* world_state, uint32_t unused, int16_t leader_idx, int16_t skill_idx) {
         int16_t level;
         (void)unused;
 
-        if (MOX::leaders[leader_idx].player_index == -1) {
-            level = Get_Officer_Level(leader_idx);
+        if (game::Leader(world_state, leader_idx).player_index == -1) {
+            level = Get_Officer_Level(world_state, leader_idx);
         } else {
-            level = Owned_Officer_Level(leader_idx);
+            level = Owned_Officer_Level(world_state, leader_idx);
         }
 
         int32_t current_level_val = static_cast<int32_t>(level) + 1;
@@ -74,9 +74,9 @@ namespace OFFICER {
         return (intermediate * bonus_base) / 10;
     }
 
-    int16_t __cdecl Owned_Officer_Level(int16_t leader_idx) {
+    int16_t __cdecl Owned_Officer_Level(game::s_world_state* world_state, int16_t leader_idx) {
         int8_t warlord;
-        s_leader_data* leader = &MOX::leaders[leader_idx];
+        s_leader_data* leader = &game::Leader(world_state, leader_idx);
         int16_t xp = leader->xp;
 
         // Leader index 66 (0x42) is handled as having no warlord bonus
@@ -97,15 +97,15 @@ namespace OFFICER {
         return level;
     }
 
-    int16_t __cdecl Officer_Skill_Value(int16_t leader_index) {
+    int16_t __cdecl Officer_Skill_Value(game::s_world_state* world_state, int16_t leader_index) {
         int32_t total_value = 0;
-        s_leader_data& leader = MOX::leaders[leader_index];
+        s_leader_data& leader = game::Leader(world_state, leader_index);
 
         for (int16_t skill_idx = 0; skill_idx < 54; ++skill_idx) {
             s_skill_data& skill = MOX::skill_data[skill_idx];
 
             if (skill.skill_type == 0) {
-                if (OFFICER::Officer_Has_General_Skill(MOX::PLAYER_NUM, leader_index, skill_idx)) {
+                if (OFFICER::Officer_Has_General_Skill(world_state, MOX::PLAYER_NUM, leader_index, skill_idx)) {
                     int32_t val = skill.cost;
                     if (skill_idx == 2 || skill_idx == 3) {
                         const int32_t commando_cost = (leader.type == LEADER_TYPE_SHIP)
@@ -122,13 +122,13 @@ namespace OFFICER {
 
             if (leader.type == LEADER_TYPE_SHIP) {
                 if (skill.skill_type == 1) {
-                    if (OFFICER::Officer_Has_Special_Skill(MOX::PLAYER_NUM, leader_index, skill_idx)) {
+                    if (OFFICER::Officer_Has_Special_Skill(world_state, MOX::PLAYER_NUM, leader_index, skill_idx)) {
                         total_value += skill.cost;
                     }
                 }
             } else if (leader.type == LEADER_TYPE_COLONY) {
                 if (skill.skill_type == 2) {
-                    if (OFFICER::Officer_Has_Special_Skill(MOX::PLAYER_NUM, leader_index, skill_idx)) {
+                    if (OFFICER::Officer_Has_Special_Skill(world_state, MOX::PLAYER_NUM, leader_index, skill_idx)) {
                         total_value += skill.cost;
                     }
                 }
@@ -151,13 +151,13 @@ namespace OFFICER {
         return static_cast<int16_t>(total_value);
     }
 
-    bool __cdecl Officer_Has_General_Skill(int16_t player_num, int16_t leader_index, int16_t skill_id) {
-        return (MOX::skill_data[skill_id].skill_mask & MOX::leaders[leader_index].general_skills) != 0;
+    bool __cdecl Officer_Has_General_Skill(game::s_world_state* world_state, int16_t player_num, int16_t leader_index, int16_t skill_id) {
+        return (MOX::skill_data[skill_id].skill_mask & game::Leader(world_state, leader_index).general_skills) != 0;
     }
 
-    bool __cdecl Officer_Has_Special_Skill(int16_t player_num, int16_t leader_idx, int16_t skill_idx) {
+    bool __cdecl Officer_Has_Special_Skill(game::s_world_state* world_state, int16_t player_num, int16_t leader_idx, int16_t skill_idx) {
         uint32_t mask = MOX::skill_data[skill_idx].skill_mask;
-        uint32_t leader_skills = MOX::leaders[leader_idx].special_skills;
+        uint32_t leader_skills = game::Leader(world_state, leader_idx).special_skills;
 
         return (mask & leader_skills) != 0;
     }
@@ -174,8 +174,8 @@ namespace OFFICER {
         return 3;
     }
 
-    void __cdecl Increase_Officer_Level_By_One(int16_t leader_index) {
-        s_leader_data& leader = MOX::leaders[leader_index];
+    void __cdecl Increase_Officer_Level_By_One(game::s_world_state* world_state, int16_t leader_index) {
+        s_leader_data& leader = game::Leader(world_state, leader_index);
         int16_t current_level = Get_Officer_Base_Level(leader.xp, 0);
 
         // Increase level if not already at max (level 5 / Elite)
@@ -185,20 +185,20 @@ namespace OFFICER {
         }
     }
 
-    int32_t __cdecl Officer_Cost(int16_t player_idx, int16_t leader_idx) {
-        uint16_t level_data = Get_Officer_Level(leader_idx);
+    int32_t __cdecl Officer_Cost(game::s_world_state* world_state, int16_t player_idx, int16_t leader_idx) {
+        uint16_t level_data = Get_Officer_Level(world_state, leader_idx);
         int16_t level_multiplier = (int16_t)((level_data & 0xFF) + 1);
 
         int32_t base_calc =
-            static_cast<int32_t>(MOX::leaders[leader_idx].skill_value) *
+            static_cast<int32_t>(game::Leader(world_state, leader_idx).skill_value) *
             level_multiplier;
-        int16_t bonus = Bonus_For_Famous_Heroes(player_idx);
+        int16_t bonus = Bonus_For_Famous_Heroes(world_state, player_idx);
 
         int32_t total_cost = base_calc * 10;
 
         if (megawealth_doubles_hire_cost != 0 &&
-            (Officer_Has_General_Skill(player_idx, leader_idx, 28) ||
-                Officer_Has_General_Skill(player_idx, leader_idx, 29))) {
+            (Officer_Has_General_Skill(world_state, player_idx, leader_idx, 28) ||
+                Officer_Has_General_Skill(world_state, player_idx, leader_idx, 29))) {
             total_cost = base_calc * 20;
         }
 
@@ -215,22 +215,23 @@ namespace OFFICER {
         return MOX::officer_scrn_type == LEADER_TYPE_SHIP;
     }
 
-    int16_t __cdecl Bonus_For_Famous_Heroes(int16_t player_idx) {
+    int16_t __cdecl Bonus_For_Famous_Heroes(game::s_world_state* world_state, int16_t player_idx) {
         int16_t max_bonus = 0;
         int16_t current_skill_bonus = 0;
 
-        for (int16_t leader_idx = 0; leader_idx < MAX_LEADERS; ++leader_idx) {
-            auto& leader = MOX::leaders[leader_idx];
+        for (const auto& leader_entry : world_state->leaders) {
+            const int32_t leader_idx = static_cast<int32_t>(leader_entry.first.id);
+            auto& leader = game::Leader(world_state, leader_idx);
 
             // Check if the leader belongs to the player and is in a valid status (0 or 1)
             if (leader.player_index == player_idx && (leader.status == 0 || leader.status == 1)) {
-                bool has_famous = Officer_Has_General_Skill(player_idx, leader_idx, 10 /* FAMOUS */);
+                bool has_famous = Officer_Has_General_Skill(world_state, player_idx, leader_idx, 10 /* FAMOUS */);
                 if (has_famous) {
-                    current_skill_bonus = (int16_t)Officer_Skill_Bonus(player_idx, leader_idx, 10 /* FAMOUS */);
+                    current_skill_bonus = (int16_t)Officer_Skill_Bonus(world_state, player_idx, leader_idx, 10 /* FAMOUS */);
                 } else {
-                    bool has_super_famous = Officer_Has_General_Skill(player_idx, leader_idx, 11 /* SUPER_FAMOUS */);
+                    bool has_super_famous = Officer_Has_General_Skill(world_state, player_idx, leader_idx, 11 /* SUPER_FAMOUS */);
                     if (has_super_famous) {
-                        current_skill_bonus = (int16_t)Officer_Skill_Bonus(player_idx, leader_idx, 11 /* SUPER_FAMOUS */);
+                        current_skill_bonus = (int16_t)Officer_Skill_Bonus(world_state, player_idx, leader_idx, 11 /* SUPER_FAMOUS */);
                     }
                 }
 
@@ -245,16 +246,16 @@ namespace OFFICER {
     }
 
     bool __cdecl Player_Can_Hire_More_Officers(int16_t player_idx) {
-        int16_t fleet_officers = N_Fleet_Officers_Owned_By_Player(player_idx);
-        int16_t star_officers = N_Star_Officers_Owned_By_Player(player_idx);
+        int16_t fleet_officers = N_Fleet_Officers_Owned_By_Player(&game::world, player_idx);
+        int16_t star_officers = N_Star_Officers_Owned_By_Player(&game::world, player_idx);
 
         return static_cast<int32_t>(fleet_officers) +
             static_cast<int32_t>(star_officers) <
             Total_Leader_Limit();
     }
 
-    bool __cdecl Officer_Status_Ok(int16_t officer_index) {
-        int8_t status = MOX::leaders[officer_index].status;
+    bool __cdecl Officer_Status_Ok(game::s_world_state* world_state, int16_t officer_index) {
+        int8_t status = game::Leader(world_state, officer_index).status;
 
         // Valid statuses are 0, 1, 3, or 4 based on disassembly branching logic
         if (status == 0 || status == 1 || status == 4 || status == 3) {
@@ -264,13 +265,14 @@ namespace OFFICER {
         return false;
     }
 
-    int16_t __cdecl N_Fleet_Officers_Owned_By_Player(int16_t player_index) {
+    int16_t __cdecl N_Fleet_Officers_Owned_By_Player(game::s_world_state* world_state, int16_t player_index) {
         int16_t count = 0;
 
-        for (int16_t i = 0; i < MAX_LEADERS; ++i) {
+        for (const auto& leader_entry : world_state->leaders) {
+            const int32_t i = static_cast<int32_t>(leader_entry.first.id);
             // Check if leader belongs to the player and is of type fleet (0)
-            if ((int16_t)MOX::leaders[i].player_index == player_index && MOX::leaders[i].type == LEADER_TYPE_SHIP) {
-                if (Officer_Status_Ok(i)) {
+            if ((int16_t)game::Leader(world_state, i).player_index == player_index && game::Leader(world_state, i).type == LEADER_TYPE_SHIP) {
+                if (Officer_Status_Ok(world_state, i)) {
                     count++;
                 }
             }
@@ -279,13 +281,14 @@ namespace OFFICER {
         return count;
     }
 
-    int16_t __cdecl N_Star_Officers_Owned_By_Player(int16_t player_index) {
+    int16_t __cdecl N_Star_Officers_Owned_By_Player(game::s_world_state* world_state, int16_t player_index) {
         int16_t count = 0;
 
-        for (int16_t i = 0; i < MAX_LEADERS; ++i) {
+        for (const auto& leader_entry : world_state->leaders) {
+            const int32_t i = static_cast<int32_t>(leader_entry.first.id);
             // Check if the leader belongs to the specified player and is of type 1 (Star Officer)
-            if (MOX::leaders[i].player_index == (int8_t)player_index && MOX::leaders[i].type == LEADER_TYPE_COLONY) {
-                if (Officer_Status_Ok(i)) {
+            if (game::Leader(world_state, i).player_index == (int8_t)player_index && game::Leader(world_state, i).type == LEADER_TYPE_COLONY) {
+                if (Officer_Status_Ok(world_state, i)) {
                     count++;
                 }
             }
@@ -294,7 +297,7 @@ namespace OFFICER {
         return count;
     }
 
-    void __cdecl Build_Captain_Id_List() {
+    void __cdecl Build_Captain_Id_List(game::s_world_state* world_state) {
         int16_t count = 0;
         int16_t matching_leaders = 0;
         const int16_t first_leader =
@@ -304,8 +307,9 @@ namespace OFFICER {
             MOX::officer_id_list[i] = -1;
         }
 
-        for (int16_t i = MAX_LEADERS - 1; i >= 0; --i) {
-            if (!Leader_Is_Displayed(MOX::leaders[i])) {
+        for (auto entry = world_state->leaders.rbegin(); entry != world_state->leaders.rend(); ++entry) {
+            const int32_t i = static_cast<int32_t>(entry->first.id);
+            if (!Leader_Is_Displayed(entry->second)) {
                 continue;
             }
             if (matching_leaders++ < first_leader) {
@@ -320,7 +324,7 @@ namespace OFFICER {
 
         if (count == 0 && leader_page > 0) {
             leader_page = 0;
-            Build_Captain_Id_List();
+            Build_Captain_Id_List(world_state);
             return;
         }
 

@@ -195,7 +195,7 @@ namespace COMBAT1 {
             ship_idx, time_warp_phase_active);
     }
 
-    static void Process_Retreating_Ships(int16_t active_player_id, int16_t time_warp_only) {
+    static void Process_Retreating_Ships(game::s_world_state* world_state, int16_t active_player_id, int16_t time_warp_only) {
         for (int16_t i = 0; i < MOX::combat_total_ship_count; ++i) {
             if (!Combat_Ship_Participates_In_Pass(i, time_warp_only != 0)) {
                 continue;
@@ -278,7 +278,7 @@ namespace COMBAT1 {
             }
         }
 
-        Process_Retreating_Ships(active_player_id, time_warp_only);
+        Process_Retreating_Ships(&game::world, active_player_id, time_warp_only);
         RUSS::Mox_Update();
 
         int16_t order_idx = 0;

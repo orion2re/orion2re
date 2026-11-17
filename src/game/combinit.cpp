@@ -456,7 +456,7 @@ namespace COMBINIT {
         int16_t loaded_ships_1 = 0;
         for (int16_t i = 0; i < plr1_ship_count; ++i) {
             if (MOX::ship[plr1_ships[i]].d.ship_type == SHIP_TYPE_COMBAT && loaded_ships_1 < max_ships_per_side) {
-                Load_Combat_Ship(plr1_ships[i], MOX::combat_total_ship_count);
+                Load_Combat_Ship(&game::world, plr1_ships[i], MOX::combat_total_ship_count);
 
                 for (int j = 0; j < 8; ++j) {
                     switch (MOX::combat_data[MOX::combat_total_ship_count].weapons[j].weapon_id) {
@@ -668,7 +668,7 @@ namespace COMBINIT {
                 int16_t loaded_ships_2 = 0;
                 for (int16_t i = 0; i < plr2_ship_count; ++i) {
                     if (MOX::ship[plr2_ships[i]].d.ship_type == SHIP_TYPE_COMBAT && loaded_ships_2 < max_ships_per_side) {
-                        Load_Combat_Ship(plr2_ships[i], MOX::combat_total_ship_count);
+                        Load_Combat_Ship(&game::world, plr2_ships[i], MOX::combat_total_ship_count);
 
                         for (int j = 0; j < 8; ++j) {
                             switch (MOX::combat_data[MOX::combat_total_ship_count].weapons[j].weapon_id) {
@@ -1008,7 +1008,7 @@ namespace COMBINIT {
             }
         }
 
-        End_Of_Combat(star_idx, colony_pop, combat_winner);
+        End_Of_Combat(&game::world, star_idx, colony_pop, combat_winner);
 
         if (combat_winner == 1 || combat_winner == 0x29A) {
             if (MOX::combat_attacker_player < MAX_PLAYERS && MOX::combat_defender_player >= 10 && MOX::ship[plr2_ships[0]].d.speed > 0) {

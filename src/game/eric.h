@@ -143,7 +143,7 @@ namespace ERIC {
     int8_t __cdecl Player_Has_Ship_Size_Or_Larger_At_Star(int16_t player_idx, int16_t minimum_size, int16_t star_idx);
 
     /* Returns whether the player has a leader with the given general skill at the star. */
-    int8_t __cdecl Player_Has_Leader_With_General_Skill_At_Star(int16_t player_idx, int16_t skill_idx, int16_t star_idx);
+    int8_t __cdecl Player_Has_Leader_With_General_Skill_At_Star(game::s_world_state* world_state, int16_t player_idx, int16_t skill_idx, int16_t star_idx);
 
     /* Returns whether the player can mind-control the target colony. */
     int8_t __cdecl Player_Can_Mind_Control_Colony(int16_t player_idx, int16_t colony_idx);

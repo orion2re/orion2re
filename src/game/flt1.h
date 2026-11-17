@@ -53,19 +53,19 @@ namespace FLT1 {
      * @param buffer Destination allocation segment or buffer.
      * @param reload_flag Nonzero to reload in place instead of appending.
      */
-    void* __cdecl Load_Fltscrn_Officer_Picture(int16_t player_num, int16_t leader_idx, void* buffer, uint8_t reload_flag);
+    void* __cdecl Load_Fltscrn_Officer_Picture(game::s_world_state* world_state, int16_t player_num, int16_t leader_idx, void* buffer, uint8_t reload_flag);
 
     void __cdecl Reload_Small_Ship_Icons();
 
     void __cdecl Load_Galaxy_Stars();
 
-    void __cdecl Reload_Fleet_Screen();
+    void __cdecl Reload_Fleet_Screen(game::s_world_state* world_state);
 
     void __cdecl Draw_Fleet_Screen();
 
     void __cdecl Add_Fleet_Screen_Fields(int16_t* relocate_fleet_field_id, int16_t* scrap_button_field_id, int16_t* fleet_return_button_field_id, int16_t* up_scroll_button_field_id, int16_t* down_scroll_button_field_id, int16_t* next_fleet_button_field_id, int16_t* prev_fleet_button_field_id, int16_t* officers_button_field_id, int16_t* all_button_field_id, int16_t* big_icon_field_ids);
 
-    bool __cdecl At_Least_One_Officer(int16_t player_num);
+    bool __cdecl At_Least_One_Officer(game::s_world_state* world_state, int16_t player_num);
 
     /** Cancels the relocation order for a star and shows the confirmation message.
      * @param star_id Index of the star whose relocation order is cleared.
@@ -105,7 +105,7 @@ namespace FLT1 {
      * @param num_ships Number of ship indices in the list.
      * @param interactive Nonzero to show confirmation prompts.
      */
-    int8_t __cdecl Scrap_Ships(int16_t player_idx, int16_t* ship_indices, int16_t num_ships, int8_t interactive);
+    int8_t __cdecl Scrap_Ships(game::s_world_state* world_state, int16_t player_idx, int16_t* ship_indices, int16_t num_ships, int8_t interactive);
 
     int32_t __cdecl Get_Scrap_Ship_Value();
 

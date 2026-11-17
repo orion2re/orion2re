@@ -107,7 +107,7 @@ namespace {
             {MOX::player, MOX::player + MAX_PLAYERS},
             {MOX::colony, MOX::colony + MAX_COLONIES},
             {MOX::ship, MOX::ship + MAX_SHIPS},
-            {MOX::leaders, MOX::leaders + MAX_LEADERS},
+            game::Export_Leaders(&game::world),
             {MOX::nebula, MOX::nebula + MAX_NEBULAS},
             std::vector<uint64_t>(MAX_SHIPS),
             orion2re::lua::game::internal::Topology_Generation(),
@@ -141,7 +141,7 @@ namespace {
         DOCTEST_CHECK(memcmp(MOX::ship,
                           expected.ships.data(),
                           MAX_SHIPS * sizeof(s_ship_data)) == 0);
-        DOCTEST_CHECK(memcmp(MOX::leaders,
+        DOCTEST_CHECK(memcmp(game::Export_Leaders(&game::world).data(),
                           expected.leaders.data(),
                           MAX_LEADERS * sizeof(s_leader_data)) == 0);
         DOCTEST_CHECK(memcmp(MOX::nebula,
@@ -627,7 +627,7 @@ DOCTEST_TEST_CASE("galaxy generator fallback leaves native state untouched") {
     const s_galaxy_snapshot before = Capture_Galaxy_();
     std::string diagnostic = "stale";
 
-    DOCTEST_REQUIRE(MAPGEN::Apply_Lua_Galaxy_Generator(&diagnostic));
+    DOCTEST_REQUIRE(MAPGEN::Apply_Lua_Galaxy_Generator(&game::world, &diagnostic));
 
     DOCTEST_CHECK(diagnostic.empty());
     DOCTEST_CHECK(TEST_MAPGEN::Galaxy_Provider_Calls_() == 0);
@@ -645,7 +645,7 @@ DOCTEST_TEST_CASE(
     MOX::game_type = 2;
     std::string diagnostic;
 
-    DOCTEST_REQUIRE(MAPGEN::Apply_Lua_Galaxy_Generator(&diagnostic));
+    DOCTEST_REQUIRE(MAPGEN::Apply_Lua_Galaxy_Generator(&game::world, &diagnostic));
 
     DOCTEST_CHECK(TEST_MAPGEN::Galaxy_Provider_Calls_() == 1);
     DOCTEST_CHECK(TEST_MAPGEN::Random_Calls_() == 1);
@@ -658,7 +658,7 @@ DOCTEST_TEST_CASE(
     MOX::game_type = 3;
     const s_galaxy_snapshot client_before_transfer = Capture_Galaxy_();
 
-    DOCTEST_REQUIRE(MAPGEN::Apply_Lua_Galaxy_Generator(&diagnostic));
+    DOCTEST_REQUIRE(MAPGEN::Apply_Lua_Galaxy_Generator(&game::world, &diagnostic));
 
     DOCTEST_CHECK(TEST_MAPGEN::Galaxy_Provider_Calls_() == 0);
     DOCTEST_CHECK(TEST_MAPGEN::Random_Calls_() == 0);
@@ -685,7 +685,7 @@ DOCTEST_TEST_CASE(
     }
     std::string diagnostic;
 
-    DOCTEST_REQUIRE(MAPGEN::Apply_Lua_Galaxy_Generator(&diagnostic));
+    DOCTEST_REQUIRE(MAPGEN::Apply_Lua_Galaxy_Generator(&game::world, &diagnostic));
 
     DOCTEST_CHECK(TEST_MAPGEN::Galaxy_Provider_Calls_() == 1);
     DOCTEST_CHECK(TEST_MAPGEN::Galaxy_Provider_Isolated_());
@@ -708,7 +708,7 @@ DOCTEST_TEST_CASE(
     const s_galaxy_snapshot before = Capture_Galaxy_();
     std::string diagnostic;
 
-    DOCTEST_CHECK_FALSE(MAPGEN::Apply_Lua_Galaxy_Generator(&diagnostic));
+    DOCTEST_CHECK_FALSE(MAPGEN::Apply_Lua_Galaxy_Generator(&game::world, &diagnostic));
 
     DOCTEST_CHECK(diagnostic == "provider failed");
     DOCTEST_CHECK(TEST_MAPGEN::Galaxy_Provider_Topology_Generation_() ==
@@ -726,7 +726,7 @@ DOCTEST_TEST_CASE("galaxy generator validation rejects invalid candidate") {
     const s_galaxy_snapshot before = Capture_Galaxy_();
     std::string diagnostic;
 
-    DOCTEST_CHECK_FALSE(MAPGEN::Apply_Lua_Galaxy_Generator(&diagnostic));
+    DOCTEST_CHECK_FALSE(MAPGEN::Apply_Lua_Galaxy_Generator(&game::world, &diagnostic));
 
     DOCTEST_CHECK(diagnostic.find("invalid construction state") !=
         std::string::npos);

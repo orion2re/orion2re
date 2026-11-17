@@ -436,9 +436,9 @@ namespace EVENTS {
                 case EVENT_FREAK_ACCIDENT:
                     if (MOX::ship[event_data[i].target_id].officer_index != -1) {
                         event_data[i].amount = MOX::ship[event_data[i].target_id].officer_index;
-                        OFFICER::Kill_Officer(MOX::ship[event_data[i].target_id].officer_index);
+                        OFFICER::Kill_Officer(&game::world, MOX::ship[event_data[i].target_id].officer_index);
                     }
-                    SHIPS::Kill_Ship(event_data[i].target_id);
+                    SHIPS::Kill_Ship(&game::world, event_data[i].target_id);
                     event_data[i].status = 5;
                     break;
 
@@ -680,7 +680,7 @@ namespace EVENTS {
                             event_data[i].status = 5;
                         }
                         if (event_data[i].status != 5) {
-                            SHIPMOVE::Do_Hyperspace_Beast((int)event_data[i].player_idx);
+                            SHIPMOVE::Do_Hyperspace_Beast(&game::world, (int)event_data[i].player_idx);
                             event_data[i].player_idx = (int8_t)Get_Event_Victim(event_good_array[i]);
                         }
                         event_data[i].turn_count++;
@@ -2350,10 +2350,10 @@ namespace EVENTS {
                 if (current_event == 0) {
                     Start_Main_Event();
                     event_display_seg = 0;
-                    Get_Event_Message(0, (int16_t)(game_random::Random(4) - 1), 0, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, event_message, sizeof(event_message));
+                    Get_Event_Message(&game::world, 0, (int16_t)(game_random::Random(4) - 1), 0, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, event_message, sizeof(event_message));
                 } else {
                     event_display_seg = 0;
-                    Get_Event_Message(1, (int16_t)(game_random::Random(4) - 1), 0, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, event_message, sizeof(event_message));
+                    Get_Event_Message(&game::world, 1, (int16_t)(game_random::Random(4) - 1), 0, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, event_message, sizeof(event_message));
                     event_status_flag = 0;
                 }
                 Drive_Event_Screen();
@@ -2365,7 +2365,7 @@ namespace EVENTS {
                 Load_Event_Picture(event_id);
             }
 
-            Get_Event_Message(event_id + 2, event_subtype, p3, planet_idx, p4, p5, player_idx, p7, p8, p9, p10, p11, p12, p13, event_message, sizeof(event_message));
+            Get_Event_Message(&game::world, event_id + 2, event_subtype, p3, planet_idx, p4, p5, player_idx, p7, p8, p9, p10, p11, p12, p13, event_message, sizeof(event_message));
             event_status_flag = 0;
 
             if (MOX::settings.show_gnn_report == 1) {
@@ -2378,7 +2378,7 @@ namespace EVENTS {
         }
     }
 
-    void __cdecl Get_Event_Message(
+    void __cdecl Get_Event_Message(game::s_world_state* world_state,
         int16_t event_type,
         int16_t event_subtype,
         int16_t colony_idx,
@@ -2481,7 +2481,7 @@ namespace EVENTS {
             } else if (c == '\x88') {
                 append_str = MOX::player[player_idx2].name;
             } else if (c == '\x89') {
-                append_str = MOX::leaders[leader_idx].name;
+                append_str = game::Leader(world_state, leader_idx).name;
             } else if (c == '\x8A') {
                 fetch_player = player_idx3;
             } else if (c == '\x8B') {

@@ -4,7 +4,7 @@
 #include "game/officer_roster.h"
 
 namespace {
-    s_leader_data leaders[MAX_LEADERS];
+
     s_player players[2];
     s_colony colonies[2];
     s_planet_data planets[1];
@@ -43,7 +43,7 @@ namespace test_ground_commando_runtime {
         MOX::NUM_PLAYERS = 2;
         MOX::NUM_SHIPS = 2;
         OFFICER::leader_page = 0;
-        memset(leaders, 0, sizeof(leaders));
+        game::Reset_Leaders(&game::world);
         memset(players, 0, sizeof(players));
         memset(colonies, 0, sizeof(colonies));
         memset(planets, 0, sizeof(planets));
@@ -66,9 +66,9 @@ namespace test_ground_commando_runtime {
         MOX::skill_data[28].skill_mask = LEADER_GENERAL_SKILL_MEGAWEALTH;
         MOX::skill_data[29].skill_mask = LEADER_GENERAL_SKILL_MEGAWEALTH2;
         for (int i = 0; i < MAX_LEADERS; ++i) {
-            leaders[i].status = -1;
-            leaders[i].player_index = -1;
-            leaders[i].location = -1;
+            game::Leader(&game::world, i).status = -1;
+            game::Leader(&game::world, i).player_index = -1;
+            game::Leader(&game::world, i).location = -1;
             officer_ids[i] = -1;
         }
         MOX::PLAYER_NUM = 0;
@@ -90,7 +90,7 @@ namespace test_ground_commando_runtime {
     }
 
     s_leader_data* Leader_(int index) {
-        return &leaders[index];
+        return &game::Leader(&game::world, index);
     }
 
     s_ship_data* Ship_(int index) {
@@ -99,18 +99,24 @@ namespace test_ground_commando_runtime {
 
     void Set_Colony_Officer_(int leader_idx) {
         colony_officer = leader_idx;
+        if (leader_idx >= 0) {
+            game::Leader(&game::world, leader_idx).player_index = colonies[0].owner;
+        }
     }
 
     void Set_Officer_Level_(int16_t level) {
         const int16_t level_thresholds[] = {0, 60, 150, 300, 500, 1000};
         int leader_idx = colony_officer >= 0 ? colony_officer : 0;
-        leaders[leader_idx].xp = level_thresholds[level];
+        game::Leader(&game::world, leader_idx).xp = level_thresholds[level];
+        if (game::Leader(&game::world, leader_idx).player_index < 0) {
+            game::Leader(&game::world, leader_idx).player_index = 0;
+        }
     }
 
     void Set_Leader_(int index, int8_t player, int8_t type, int8_t status) {
-        leaders[index].player_index = player;
-        leaders[index].type = type;
-        leaders[index].status = status;
+        game::Leader(&game::world, index).player_index = player;
+        game::Leader(&game::world, index).type = type;
+        game::Leader(&game::world, index).status = status;
     }
 
     const int16_t* Officer_Ids_() {
@@ -142,7 +148,6 @@ namespace buffer {
 } // namespace buffer
 
 namespace MOX {
-    s_leader_data* leaders = ::leaders;
     s_player* player = players;
     s_colony* colony = colonies;
     s_star_data* star = stars;
@@ -189,7 +194,7 @@ namespace aitech {
 }
 
 namespace COLCALC {
-    void __cdecl Update_Player_Stats(s_player* player) {
+    void __cdecl Update_Player_Stats(game::s_world_state* world_state, s_player* player) {
         ++test_ground_commando_runtime::stats_updates;
         test_ground_commando_runtime::stats_player = (int16_t)(player - MOX::player);
     }
@@ -199,7 +204,7 @@ namespace COLCALC {
         {25, 25, 25, 25, 25, 25, 40, 60, 80, 100},
     };
 
-    int __cdecl Colony_Officer(s_colony*) {
+    int __cdecl Colony_Officer(game::s_world_state* world_state, s_colony*) {
         return colony_officer;
     }
 
@@ -273,7 +278,7 @@ namespace game_random {
 } // namespace game_random
 
 namespace SHIPS {
-    void __cdecl Kill_Ship(int16_t ship_idx) {
+    void __cdecl Kill_Ship(game::s_world_state* world_state, int16_t ship_idx) {
         DOCTEST_REQUIRE(ship_idx >= 0);
         DOCTEST_REQUIRE(ship_idx < 2);
         test_ground_commando_runtime::killed_ships.push_back(ship_idx);
@@ -311,7 +316,7 @@ namespace ERICNET {
 } // namespace ERICNET
 
 namespace BOMB {
-    int32_t __cdecl Handle_Leader_At_Lost_Colony(s_colony*) {
+    int32_t __cdecl Handle_Leader_At_Lost_Colony(game::s_world_state* world_state, s_colony*) {
         return -1;
     }
 } // namespace BOMB

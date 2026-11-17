@@ -4,7 +4,7 @@ namespace {
     s_combat_data combat_data[2];
     s_missile missile_data[MAX_COMBAT_FLYERS];
     s_qship qcombat_data[2];
-    s_leader_data leaders[1];
+
     s_player players[MAX_PLAYERS];
     int final_fire_count;
     int retarget_count;
@@ -18,7 +18,7 @@ namespace TEST_STASIS_AREA_EFFECTS {
         memset(combat_data, 0, sizeof(combat_data));
         memset(missile_data, 0, sizeof(missile_data));
         memset(qcombat_data, 0, sizeof(qcombat_data));
-        memset(leaders, 0, sizeof(leaders));
+        game::Reset_Leaders(&game::world);
         memset(players, 0, sizeof(players));
         memset(TECHDATA::weapons, 0, sizeof(TECHDATA::weapons));
         final_fire_count = 0;
@@ -168,7 +168,6 @@ namespace MOX {
     uint16_t combat_init;
     int16_t cur_ship;
     int16_t ordnance_bonus[15];
-    s_leader_data* leaders = ::leaders;
     s_player* player = players;
     s_crew_data crew_data[CREW_QUALITY_COUNT];
 } // namespace MOX
@@ -308,7 +307,7 @@ namespace struct_ {
 } // namespace struct_
 
 namespace OFFICER {
-    int16_t __cdecl Owned_Officer_Level(int16_t) {
+    int16_t __cdecl Owned_Officer_Level(game::s_world_state* world_state, int16_t) {
         return 0;
     }
 } // namespace OFFICER

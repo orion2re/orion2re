@@ -167,7 +167,7 @@ namespace INITSHIP {
 } // namespace INITSHIP
 
 namespace COMBINIT {
-    void __cdecl Load_Combat_Ship(int16_t, int16_t combat_idx) {
+    void __cdecl Load_Combat_Ship(game::s_world_state* world_state, int16_t, int16_t combat_idx) {
         s_combat_data* ship = &MOX::combat_data[combat_idx];
         const int16_t weapon_ids[] = {
             kBeamWeapon,

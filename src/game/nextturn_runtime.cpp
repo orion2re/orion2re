@@ -36,7 +36,7 @@ namespace NEXTTURN {
     }
 
     void Next_Turn() {
-        const auto world = legacy_world::World();
+        const auto world = legacy_world::World(&game::world);
         if (!Validate_Turn_Inputs(&world)) return;
         if (MOX::game_type == 0 || MOX::game_type == 1) {
             Do_Autosave();

@@ -384,7 +384,7 @@ namespace diplomac {
         if (MOX::player[target_idx].tech_applications[TECH_APP_XENO_PSYCHOLOGY] == TECH_RESEARCH_STATUS_RESEARCHED) score += 5;
         if (MOX::player[target_idx].traits[TRAIT_CHARISMATIC] == 1) score += 10;
 
-        score = (score + COLCALC::Best_Leader_Diplomat_Bonus(target_idx) - MOX::settings.game_difficulty) + 15;
+        score = (score + COLCALC::Best_Leader_Diplomat_Bonus(&game::world, target_idx) - MOX::settings.game_difficulty) + 15;
 
         int16_t final_prob;
         uint8_t last_threat_turn = MOX::player[player_idx].last_diplomacy_threat_turn[target_idx];
@@ -3535,7 +3535,7 @@ namespace diplomac {
             score += 30;
         }
 
-        score += COLCALC::Best_Leader_Diplomat_Bonus(proposer_idx);
+        score += COLCALC::Best_Leader_Diplomat_Bonus(&game::world, proposer_idx);
 
         if (score < -75) {
             return 0;

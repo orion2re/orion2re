@@ -656,7 +656,7 @@ namespace COLONY {
         } while (i < 2);
     }
 
-    void Draw_Colony_Info_Officer() {
+    void Draw_Colony_Info_Officer(game::s_world_state* world_state) {
         int8_t officer_idx = MOX::star[COLONY::star_handle].officer_index[MOX::PLAYER_NUM];
 
         if (officer_idx != -1) {
@@ -671,7 +671,7 @@ namespace COLONY {
 
             Set_Colony_Font_To(2);
 
-            s_leader_data& leader = MOX::leaders[officer_idx];
+            s_leader_data& leader = game::Leader(world_state, officer_idx);
 
             if (leader.eta > 0) {
                 char local_buffer[500];
@@ -1146,7 +1146,7 @@ namespace COLONY {
         char local_buffer[3000];
         STRBUILD::s_builder builder = STRBUILD::Init(local_buffer, sizeof(local_buffer));
 
-        COLCALC::Colony_BC_Production(&MOX::colony[colony_idx], &builder);
+        COLCALC::Colony_BC_Production(&game::world, &MOX::colony[colony_idx], &builder);
 
         TEXTBOX::Text_Box(COLCALC::bc_summary_msg, local_buffer);
     }
@@ -1157,7 +1157,7 @@ namespace COLONY {
 
         s_colony* colony = &MOX::colony[colony_idx];
 
-        COLCALC::Colony_Morale(colony, &builder);
+        COLCALC::Colony_Morale(&game::world, colony, &builder);
 
         TEXTBOX::Text_Box(COLCALC::morale_summary_msg, buffer);
     }

@@ -55,13 +55,13 @@ namespace NETMOX {
         int16_t, uint16_t, void*, uint32_t) {
         return 1;
     }
-    void __cdecl Decode_Game_Orders(void*, uint32_t) {}
+    void __cdecl Decode_Game_Orders(game::s_world_state* world_state, void*, uint32_t) {}
     void __cdecl Broadcast_Game_Data_Differential(uint8_t) {}
     int8_t __cdecl Decode_Broadcast_Game_Data_Differential(
         void*, size_t, uint8_t) {
         return 1;
     }
-    void __cdecl Send_Game_Orders() {}
+    void __cdecl Send_Game_Orders(game::s_world_state* world_state) {}
     void __cdecl Human_Surrenders(int32_t) {}
 } // namespace NETMOX
 

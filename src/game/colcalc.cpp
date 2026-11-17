@@ -158,18 +158,18 @@ namespace COLCALC {
         STRBUILD::s_builder builder = STRBUILD::Init(msg_buffer, sizeof(msg_buffer));
 
         // Assembly calculates offset: player_idx * 3753 (0xEA9)
-        Compute_Player_Maintenance(&MOX::player[player_idx], &builder);
+        Compute_Player_Maintenance(&game::world, &MOX::player[player_idx], &builder);
 
         TEXTBOX::Text_Box(command_summary_msg, msg_buffer);
     }
 
-    int __cdecl Colony_Officer(s_colony* colony) {
+    int __cdecl Colony_Officer(game::s_world_state* world_state, s_colony* colony) {
         int16_t star_idx = MOX::planet[colony->planet].star_index;
 
         int8_t officer_idx = (int8_t)MOX::star[star_idx].officer_index[colony->owner];
 
         if (officer_idx != -1) {
-            if (MOX::leaders[officer_idx].eta != 0) {
+            if (game::Leader(world_state, officer_idx).eta != 0) {
                 return -1;
             }
         }
@@ -184,7 +184,7 @@ namespace COLCALC {
         RUSS::Mox_Update();
 
         for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
-            Twiddle_Initial_Homeworld(&MOX::colony[i]);
+            Twiddle_Initial_Homeworld(&game::world, &MOX::colony[i]);
         }
 
         SHIPMOVE::Update_All_Ship_Ranges();
@@ -305,7 +305,7 @@ namespace COLCALC {
             }
         }
 
-        Update_Player_Stats(&MOX::player[player_idx]);
+        Update_Player_Stats(&game::world, &MOX::player[player_idx]);
     }
 
     void __cdecl Compute_Star_Colony_Stuff(s_star_data* star) {
@@ -516,9 +516,9 @@ namespace COLCALC {
         colony->industry_per_worker = (uint8_t)Colony_Industry_Per_Worker(colony, (int16_t)(int8_t)colony->owner, nullptr);
         colony->research_per_scientist = (int8_t)Colony_Research_Per_Scientist(colony, (int16_t)(int8_t)colony->owner, nullptr);
 
-        Colony_Morale(colony, nullptr);
+        Colony_Morale(&game::world, colony, nullptr);
         Colony_Industry_Maintenance(colony);
-        Colony_Industry_Production(colony, nullptr);
+        Colony_Industry_Production(&game::world, colony, nullptr);
         Colony_Food_Production(colony, nullptr);
         Colony_Food_Maintenance(colony);
         Colony_Replicators(colony);
@@ -532,7 +532,7 @@ namespace COLCALC {
 
         Colony_Research_Production(colony, nullptr);
         Colony_Industry_To_Tax(colony);
-        Colony_BC_Production(colony, nullptr);
+        Colony_BC_Production(&game::world, colony, nullptr);
         Colony_BC_Maintenance(colony);
     }
 
@@ -785,7 +785,7 @@ namespace COLCALC {
         }
     }
 
-    void __cdecl Colony_Pop_Grows(s_colony* colony) {
+    void __cdecl Colony_Pop_Grows(game::s_world_state* world_state, s_colony* colony) {
         int total_pops = static_cast<uint8_t>(colony->n_pops);
         if (total_pops == 0) {
             for (int i = 0; i < COLONY_POP_RACE_COUNT; ++i) {
@@ -891,7 +891,7 @@ namespace COLCALC {
             int limit = static_cast<int>(Colony_Race_Pop_Limit(colony, i));
             int64_t native_growth = 0;
             if (total_pops < limit) {
-                int leader_idx = Colony_Officer(colony);
+                int leader_idx = Colony_Officer(world_state, colony);
                 int growth_modifier = MOX::player[i].traits[TRAIT_POP_GROWTH_BONUS] +
                     100 + growth_rate_bonus.general_modifier;
                 s_player* owner_ptr = &MOX::player[static_cast<uint8_t>(colony->owner)];
@@ -908,12 +908,12 @@ namespace COLCALC {
                 }
 
                 if (leader_idx != -1) {
-                    uint32_t skills = MOX::leaders[leader_idx].special_skills;
+                    uint32_t skills = game::Leader(world_state, leader_idx).special_skills;
                     if (skills & LEADER_COLONY_SKILL_MEDICINE2) {
-                        int level = OFFICER::Owned_Officer_Level(leader_idx);
+                        int level = OFFICER::Owned_Officer_Level(world_state, leader_idx);
                         growth_modifier += (level * 3 + 3) * 5;
                     } else if (skills & LEADER_COLONY_SKILL_MEDICINE) {
-                        int level = OFFICER::Owned_Officer_Level(leader_idx);
+                        int level = OFFICER::Owned_Officer_Level(world_state, leader_idx);
                         growth_modifier += (level * 5 + 5) * 2;
                     }
                 }
@@ -979,7 +979,7 @@ namespace COLCALC {
     }
 
     void __cdecl Post_Import_Computing(s_colony* colony) {
-        COLCALC::Colony_Pop_Grows(colony);
+        COLCALC::Colony_Pop_Grows(&game::world, colony);
         COLCALC::Colony_Specialty(colony);
     }
 
@@ -1071,7 +1071,7 @@ namespace COLCALC {
         }
 
         for (int16_t i = 0; i < MOX::NUM_PLAYERS; ++i) {
-            Update_Player_Stats(&MOX::player[i]);
+            Update_Player_Stats(&game::world, &MOX::player[i]);
         }
 
         for (int16_t i = 0; i < MOX::NUM_PLAYERS; ++i) {
@@ -1223,7 +1223,7 @@ namespace COLCALC {
 
         s_colony* colony = &MOX::colony[colony_idx];
 
-        Colony_Industry_Production(colony, &builder);
+        Colony_Industry_Production(&game::world, colony, &builder);
         TEXTBOX::Text_Box(industry_summary_msg, buffer);
     }
 
@@ -1416,7 +1416,7 @@ namespace COLCALC {
             end = &MOX::colony[MOX::NUM_COLONIES];
         }
 
-        Update_Player_Stats(&MOX::player[player_idx]);
+        Update_Player_Stats(&game::world, &MOX::player[player_idx]);
     }
 
     bool __cdecl Player_May_Get_Tech_App(s_player* plr, int tech_app) {
@@ -1674,7 +1674,7 @@ namespace COLCALC {
             Recalculate_Colony(colony);
         }
 
-        Update_Player_Stats(&MOX::player[colony->owner]);
+        Update_Player_Stats(&game::world, &MOX::player[colony->owner]);
     }
 
     int16_t __cdecl N_Colonies_And_Outposts_At_Star(int16_t star_index) {
@@ -1892,7 +1892,7 @@ namespace COLCALC {
                 // Add surplus BC to player treasury
                 plr->bc += static_cast<int>(plr->surplus_bc);
 
-                Update_Player_Stats(plr);
+                Update_Player_Stats(&game::world, plr);
                 Check_For_Research_Breakthrough(plr);
                 Compute_Player_Total_Known_Tech_Cost(plr);
 
@@ -1994,21 +1994,22 @@ namespace COLCALC {
     }
 
     /** Finds the highest diplomatic or charisma bonus provided by any owned leader. */
-    int __cdecl Best_Leader_Diplomat_Bonus(int player_idx) {
+    int __cdecl Best_Leader_Diplomat_Bonus(game::s_world_state* world_state, int player_idx) {
         int max_bonus = 0;
         s_player* plr = &MOX::player[player_idx];
 
-        for (int i = 0; i < MAX_LEADERS; ++i) {
-            s_leader_data* leader = &MOX::leaders[i];
+        for (const auto& leader_entry : world_state->leaders) {
+            const int32_t i = static_cast<int32_t>(leader_entry.first.id);
+            s_leader_data* leader = &game::Leader(world_state, i);
 
             if (Player_Owns_Officer(plr, leader)) {
                 int bonus = 0;
 
                 if (leader->general_skills & LEADER_GENERAL_SKILL_DIPLOMAT2) {
-                    int16_t level = OFFICER::Owned_Officer_Level(i);
+                    int16_t level = OFFICER::Owned_Officer_Level(world_state, i);
                     bonus = (level * 3 + 3) * 5;
                 } else if (leader->general_skills & LEADER_GENERAL_SKILL_DIPLOMAT) {
-                    int16_t level = OFFICER::Owned_Officer_Level(i);
+                    int16_t level = OFFICER::Owned_Officer_Level(world_state, i);
                     bonus = (level * 5 + 5) * 2;
                 }
 
@@ -2056,7 +2057,7 @@ namespace COLCALC {
             if (ship->owner == (int8_t)surrender_id) {
                 ship->owner = (int8_t)receiver_id;
                 if (ship->officer_index != -1) {
-                    OFFICER::Deassign_Officer(ship->officer_index);
+                    OFFICER::Deassign_Officer(&game::world, ship->officer_index);
                     ship->officer_index = -1;
                 }
             }
@@ -2096,7 +2097,7 @@ namespace COLCALC {
         receiver_plr->bc += surrender_plr->bc;
         surrender_plr->surrender_to = -1;
 
-        Eliminate_Player(surrender_plr);
+        Eliminate_Player(&game::world, surrender_plr);
     }
 
     void __cdecl Produce_Ground_Military(s_colony* colony) {
@@ -2578,7 +2579,7 @@ namespace COLCALC {
         star.colonize_player = -1;
 
         if (star.officer_index[old_owner] != -1) {
-            OFFICER::Move_Officer_To_Pool((int16_t)star.officer_index[old_owner]);
+            OFFICER::Move_Officer_To_Pool(&game::world, (int16_t)star.officer_index[old_owner]);
             star.officer_index[old_owner] = -1;
         }
 
@@ -2793,7 +2794,7 @@ namespace COLCALC {
             if (player->eliminated == 0) {
                 // If the player has no colonies left, eliminate them from the game
                 if (has_colonies[i] == 0) {
-                    Eliminate_Player(player);
+                    Eliminate_Player(&game::world, player);
                     EVENTS::Event_Race_Eliminated((int8_t)i);
                 }
 
@@ -2885,7 +2886,7 @@ namespace COLCALC {
         return found;
     }
 
-    void __cdecl Eliminate_Player(s_player* player) {
+    void __cdecl Eliminate_Player(game::s_world_state* world_state, s_player* player) {
         int16_t player_idx = static_cast<int16_t>(player - MOX::player);
 
         player->eliminated = 1;
@@ -2899,8 +2900,9 @@ namespace COLCALC {
         }
 
         // Release all leaders hired by the eliminated player
-        for (int i = 0; i < MAX_LEADERS; ++i) {
-            s_leader_data* leader = &MOX::leaders[i];
+        for (const auto& leader_entry : world_state->leaders) {
+            const int32_t i = static_cast<int32_t>(leader_entry.first.id);
+            s_leader_data* leader = &game::Leader(world_state, i);
             if (leader->player_index == player_idx) {
                 leader->status = -2 /* STATUS_RELEASED? */;
                 leader->eta = 0;
@@ -2919,7 +2921,7 @@ namespace COLCALC {
         // Destroy all ships owned by the eliminated player
         for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
             if (MOX::ship[i].owner == player_idx) {
-                SHIPS::Kill_Ship(i);
+                SHIPS::Kill_Ship(world_state, i);
             }
         }
 

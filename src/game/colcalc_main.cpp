@@ -3,7 +3,7 @@
 #include "strbuild.h"
 
 namespace COLCALC {
-    void __cdecl Colony_Morale(s_colony* colony, STRBUILD::s_builder* debug_out) {
+    void __cdecl Colony_Morale(game::s_world_state* world_state, s_colony* colony, STRBUILD::s_builder* debug_out) {
         int8_t owner = colony->owner;
         s_player* player = &MOX::player[owner];
         int8_t govt = player->traits[TRAIT_CURRENT_GOVERNMENT];
@@ -23,13 +23,13 @@ namespace COLCALC {
         colony->morale = morale_lookup_table[govt];
 
         if (gov_type != GOVERNMENT_UNIFICATION / 2) {
-            int officer_idx = Colony_Officer(colony);
+            int officer_idx = Colony_Officer(world_state, colony);
             if (officer_idx != -1) {
-                s_leader_data* leader = &MOX::leaders[officer_idx];
+                s_leader_data* leader = &game::Leader(world_state, officer_idx);
                 if (leader->special_skills & LEADER_COLONY_SKILL_SPIRITUAL_LEADER2) {
-                    leader_bonus = (OFFICER::Owned_Officer_Level(officer_idx) * 3 + 4) / 2;
+                    leader_bonus = (OFFICER::Owned_Officer_Level(world_state, officer_idx) * 3 + 4) / 2;
                 } else if (leader->special_skills & LEADER_COLONY_SKILL_SPIRITUAL_LEADER) {
-                    leader_bonus = OFFICER::Owned_Officer_Level(officer_idx) + 1;
+                    leader_bonus = OFFICER::Owned_Officer_Level(world_state, officer_idx) + 1;
                 }
             }
 
@@ -115,7 +115,7 @@ namespace COLCALC {
         }
     }
 
-    void __cdecl Twiddle_Initial_Homeworld(s_colony* colony) {
+    void __cdecl Twiddle_Initial_Homeworld(game::s_world_state* world_state, s_colony* colony) {
         uint32_t* p_pop = (uint32_t*)colony->pop;
         uint32_t* p_pop_end = &p_pop[colony->n_pops];
         uint32_t* last_adjusted_pop = nullptr;
@@ -183,9 +183,10 @@ namespace COLCALC {
                 break;
             case SYSTEM_SPECIAL_MAROONED_HERO:
                 // Deassign officers if the system special is removed (e.g., Orion conquered)
-                for (int16_t i = 0; i < MAX_LEADERS; ++i) {
-                    if (MOX::leaders[i].status == 5 && MOX::leaders[i].location == star_idx) {
-                        OFFICER::Deassign_Officer(i);
+                for (const auto& leader_entry : world_state->leaders) {
+                    const int32_t i = static_cast<int32_t>(leader_entry.first.id);
+                    if (game::Leader(world_state, i).status == 5 && game::Leader(world_state, i).location == star_idx) {
+                        OFFICER::Deassign_Officer(world_state, i);
                     }
                 }
                 MOX::star[star_idx].system_special = SYSTEM_SPECIAL_NO_SPECIAL;
@@ -429,7 +430,7 @@ namespace COLCALC {
         colony->production[ECON_INDUSTRY] -= final_industry_cost;
     }
 
-    void __cdecl Update_Player_Stats(s_player* plr) {
+    void __cdecl Update_Player_Stats(game::s_world_state* world_state, s_player* plr) {
         int player_idx = static_cast<int>(plr - MOX::player);
 
         int total_research = 0;
@@ -476,8 +477,9 @@ namespace COLCALC {
         }
 
         // Process Leaders
-        for (int i = 0; i < MAX_LEADERS; ++i) {
-            s_leader_data* leader = &MOX::leaders[i];
+        for (const auto& leader_entry : world_state->leaders) {
+            const int32_t i = static_cast<int32_t>(leader_entry.first.id);
+            s_leader_data* leader = &game::Leader(world_state, i);
             if (Player_Owns_Officer(plr, leader) && Leader_At_Anomaly(leader) == 0) {
                 uint32_t skills = leader->general_skills;
 
@@ -488,10 +490,10 @@ namespace COLCALC {
                 }
 
                 if (skills & LEADER_GENERAL_SKILL_RESEARCHER2) {
-                    int level_bonus = OFFICER::Owned_Officer_Level(i) * 5 + 5;
+                    int level_bonus = OFFICER::Owned_Officer_Level(world_state, i) * 5 + 5;
                     total_research += (level_bonus * 15) / 10;
                 } else if (skills & LEADER_GENERAL_SKILL_RESEARCHER) {
-                    int level_bonus = OFFICER::Owned_Officer_Level(i) * 5 + 5;
+                    int level_bonus = OFFICER::Owned_Officer_Level(world_state, i) * 5 + 5;
                     total_research += level_bonus;
                 }
             }
@@ -550,7 +552,7 @@ namespace COLCALC {
         }
         plr->bc_produced = static_cast<int16_t>(total_bc);
 
-        Compute_Player_Maintenance(plr, nullptr);
+        Compute_Player_Maintenance(world_state, plr, nullptr);
         plr->surplus_bc = plr->bc_produced - static_cast<int16_t>(plr->total_maintenance);
     }
 
@@ -629,12 +631,12 @@ namespace COLCALC {
         }
     }
 
-    int __cdecl Colony_Job_Production(s_colony* colony, short econ_type, s_colony_job_production* out) {
+    int __cdecl Colony_Job_Production(game::s_world_state* world_state, s_colony* colony, short econ_type, s_colony_job_production* out) {
         s_colony_job_production final;
         s_colony_job_production cur_stat;
 
         bool is_blockaded = Colony_Is_Blockaded(colony);
-        int leader_idx = Colony_Officer(colony);
+        int leader_idx = Colony_Officer(world_state, colony);
         int8_t owner = colony->owner;
         int8_t govt_trait = MOX::player[owner].traits[TRAIT_CURRENT_GOVERNMENT];
         int govt_type = govt_trait;
@@ -645,24 +647,24 @@ namespace COLCALC {
         bool base_morale_applies = (govt_trait / 2 != GOVERNMENT_UNIFICATION / 2);
 
         if (leader_idx != -1) {
-            auto& leader = MOX::leaders[leader_idx];
+            auto& leader = game::Leader(world_state, leader_idx);
             if (econ_type == ECON_FOOD) {
                 if (leader.special_skills & LEADER_COLONY_SKILL_FARMING_LEADER2) {
-                    officer_bonus = (OFFICER::Owned_Officer_Level(leader_idx) + 1) * 3;
+                    officer_bonus = (OFFICER::Owned_Officer_Level(world_state, leader_idx) + 1) * 3;
                 } else if (leader.special_skills & LEADER_COLONY_SKILL_FARMING_LEADER) {
-                    officer_bonus = OFFICER::Owned_Officer_Level(leader_idx) * 2 + 2;
+                    officer_bonus = OFFICER::Owned_Officer_Level(world_state, leader_idx) * 2 + 2;
                 }
             } else if (econ_type == ECON_INDUSTRY) {
                 if (leader.special_skills & LEADER_COLONY_SKILL_LABOR_LEADER2) {
-                    officer_bonus = (OFFICER::Owned_Officer_Level(leader_idx) + 1) * 3;
+                    officer_bonus = (OFFICER::Owned_Officer_Level(world_state, leader_idx) + 1) * 3;
                 } else if (leader.special_skills & LEADER_COLONY_SKILL_LABOR_LEADER) {
-                    officer_bonus = OFFICER::Owned_Officer_Level(leader_idx) * 2 + 2;
+                    officer_bonus = OFFICER::Owned_Officer_Level(world_state, leader_idx) * 2 + 2;
                 }
             } else if (econ_type == ECON_RESEARCH) {
                 if (leader.special_skills & LEADER_COLONY_SKILL_SCIENCE_LEADER2) {
-                    officer_bonus = (OFFICER::Owned_Officer_Level(leader_idx) + 1) * 3;
+                    officer_bonus = (OFFICER::Owned_Officer_Level(world_state, leader_idx) + 1) * 3;
                 } else if (leader.special_skills & LEADER_COLONY_SKILL_SCIENCE_LEADER) {
-                    officer_bonus = OFFICER::Owned_Officer_Level(leader_idx) * 2 + 2;
+                    officer_bonus = OFFICER::Owned_Officer_Level(world_state, leader_idx) * 2 + 2;
                 }
             }
         }
@@ -788,7 +790,7 @@ namespace COLCALC {
         return (final.final_prod + 10) / 20;
     }
 
-    void __cdecl Compute_Player_Maintenance(s_player* plr, STRBUILD::s_builder* debug_out) {
+    void __cdecl Compute_Player_Maintenance(game::s_world_state* world_state, s_player* plr, STRBUILD::s_builder* debug_out) {
         int16_t player_idx = static_cast<int16_t>(plr - MOX::player);
 
         plr->command_points = 0;
@@ -800,17 +802,18 @@ namespace COLCALC {
         int32_t leader_cp_bonus = 0;
         int32_t bonus_leader_idx = -1;
 
-        for (int16_t i = 0; i < MAX_LEADERS; ++i) {
-            s_leader_data* leader = &MOX::leaders[i];
+        for (const auto& leader_entry : world_state->leaders) {
+            const int32_t i = static_cast<int32_t>(leader_entry.first.id);
+            s_leader_data* leader = &game::Leader(world_state, i);
             if (leader->player_index == player_idx && leader->status >= 0 && leader->status < 3) {
                 if (Leader_At_Anomaly(leader) == 0) {
                     plr->maintenance[5] += OFFICER::Officer_Maintenance(player_idx, i);
 
                     int32_t cp_val = 0;
                     if (leader->general_skills & LEADER_GENERAL_SKILL_OPERATIONS2) {
-                        cp_val = OFFICER::Owned_Officer_Level(i) * 3 + 3;
+                        cp_val = OFFICER::Owned_Officer_Level(world_state, i) * 3 + 3;
                     } else if (leader->general_skills & LEADER_GENERAL_SKILL_OPERATIONS) {
-                        cp_val = OFFICER::Owned_Officer_Level(i) * 2 + 2;
+                        cp_val = OFFICER::Owned_Officer_Level(world_state, i) * 2 + 2;
                     }
 
                     if (leader_cp_bonus < cp_val) {
@@ -899,7 +902,7 @@ namespace COLCALC {
                 STRBUILD::Sprintf(debug_out, "%d : %s\n", comm_tech_total, TECHDATA::technology_applications[comm_tech_idx].name);
             }
             if (leader_cp_bonus != 0) {
-                STRBUILD::Sprintf(debug_out, "%d : %s\n", leader_cp_bonus, MOX::leaders[bonus_leader_idx].name);
+                STRBUILD::Sprintf(debug_out, "%d : %s\n", leader_cp_bonus, game::Leader(world_state, bonus_leader_idx).name);
             }
             if (warlord_bonus != 0) {
                 STRBUILD::Sprintf(debug_out, "%d %s\n", warlord_bonus, from_warlord_msg);
@@ -992,7 +995,7 @@ namespace COLCALC {
         }
     }
 
-    void __cdecl Colony_BC_Production(s_colony* colony, STRBUILD::s_builder* debug_buf) {
+    void __cdecl Colony_BC_Production(game::s_world_state* world_state, s_colony* colony, STRBUILD::s_builder* debug_buf) {
         if (colony->n_pops == 0) {
             colony->production[ECON_BC] = 0;
             return;
@@ -1008,7 +1011,7 @@ namespace COLCALC {
         }
 
         s_player* owner_ptr = &MOX::player[colony->owner];
-        int officer_idx = Colony_Officer(colony);
+        int officer_idx = Colony_Officer(world_state, colony);
 
         int morale_bonus = 0;
         int trade_goods_bc = 0;
@@ -1096,11 +1099,11 @@ namespace COLCALC {
         }
 
         if (officer_idx != -1) {
-            if (MOX::leaders[officer_idx].special_skills & LEADER_COLONY_SKILL_FINANCIAL_LEADER2) {
-                int16_t lvl = OFFICER::Owned_Officer_Level(officer_idx);
+            if (game::Leader(world_state, officer_idx).special_skills & LEADER_COLONY_SKILL_FINANCIAL_LEADER2) {
+                int16_t lvl = OFFICER::Owned_Officer_Level(world_state, officer_idx);
                 leader_bonus_bc = ((lvl + 1) * income_base * 3 + 10) / 20;
-            } else if (MOX::leaders[officer_idx].special_skills & LEADER_COLONY_SKILL_FINANCIAL_LEADER) {
-                int16_t lvl = OFFICER::Owned_Officer_Level(officer_idx);
+            } else if (game::Leader(world_state, officer_idx).special_skills & LEADER_COLONY_SKILL_FINANCIAL_LEADER) {
+                int16_t lvl = OFFICER::Owned_Officer_Level(world_state, officer_idx);
                 leader_bonus_bc = ((lvl + 1) * income_base + 5) / 10;
             }
         }
@@ -1174,7 +1177,7 @@ namespace COLCALC {
         }
 
         s_colony_job_production* breakdown_ptr = (debug_out != nullptr) ? &breakdown : nullptr;
-        int32_t job_production = Colony_Job_Production(colony, ECON_RESEARCH, breakdown_ptr);
+        int32_t job_production = Colony_Job_Production(&game::world, colony, ECON_RESEARCH, breakdown_ptr);
 
         res_lab_bonus = colony->buildings[BUILDING_RESEARCH_LAB]
             ? research_colony_bonus.research_lab
@@ -1296,7 +1299,7 @@ namespace COLCALC {
         if (colony->food2_per_farmer == 0) {
             memset(&breakdown, 0, sizeof(breakdown));
         } else {
-            base_job_prod = Colony_Job_Production(colony, 0, debug_out ? &breakdown : nullptr);
+            base_job_prod = Colony_Job_Production(&game::world, colony, 0, debug_out ? &breakdown : nullptr);
         }
 
         if (colony->buildings[BUILDING_HYDROPONIC_FARM]) {
@@ -1391,7 +1394,7 @@ namespace COLCALC {
         }
     }
 
-    void __cdecl Colony_Industry_Production(s_colony* colony, STRBUILD::s_builder* debug_out) {
+    void __cdecl Colony_Industry_Production(game::s_world_state* world_state, s_colony* colony, STRBUILD::s_builder* debug_out) {
         s_colony_job_production breakdown;
         int64_t base_worker_prod;
         int32_t bonus_recycling = 0;
@@ -1420,7 +1423,7 @@ namespace COLCALC {
         }
 
         s_colony_job_production* p_breakdown = debug_out ? &breakdown : nullptr;
-        base_worker_prod = Colony_Job_Production(colony, ECON_INDUSTRY, p_breakdown);
+        base_worker_prod = Colony_Job_Production(world_state, colony, ECON_INDUSTRY, p_breakdown);
 
         bonus_automated_factory = colony->buildings[BUILDING_AUTOMATED_FACTORY]
             ? production_colony_bonus.automated_factory
@@ -1453,7 +1456,7 @@ namespace COLCALC {
         if (colony->buildings[BUILDING_CORE_WASTE_DUMP]) {
             colony->pollution = 0;
         } else {
-            int16_t officer_idx = Colony_Officer(colony);
+            int16_t officer_idx = Colony_Officer(world_state, colony);
             int64_t base_pollution = base_worker_prod + bonus_robotic_factory;
             int64_t reduction_size = planet_no_pollution_prod[MOX::planet[colony->planet].size];
 
@@ -1470,10 +1473,10 @@ namespace COLCALC {
 
             if (officer_idx != -1) {
                 int32_t officer_reduction = 0;
-                if (MOX::leaders[officer_idx].special_skills & LEADER_COLONY_SKILL_ENVIRONMENTALIST2) {
-                    officer_reduction = (OFFICER::Owned_Officer_Level(officer_idx) * 3 + 3) * 5;
-                } else if (MOX::leaders[officer_idx].special_skills & LEADER_COLONY_SKILL_ENVIRONMENTALIST) {
-                    officer_reduction = (OFFICER::Owned_Officer_Level(officer_idx) * 5 + 5) * 2;
+                if (game::Leader(world_state, officer_idx).special_skills & LEADER_COLONY_SKILL_ENVIRONMENTALIST2) {
+                    officer_reduction = (OFFICER::Owned_Officer_Level(world_state, officer_idx) * 3 + 3) * 5;
+                } else if (game::Leader(world_state, officer_idx).special_skills & LEADER_COLONY_SKILL_ENVIRONMENTALIST) {
+                    officer_reduction = (OFFICER::Owned_Officer_Level(world_state, officer_idx) * 5 + 5) * 2;
                 }
                 base_pollution += (officer_reduction * base_pollution) / -100;
             }

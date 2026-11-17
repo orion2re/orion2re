@@ -36,7 +36,7 @@ namespace COMBFIND {
 
     void __cdecl Search_For_Battles();
 
-    void __cdecl Process_Retreating_Ships();
+    void __cdecl Process_Retreating_Ships(game::s_world_state* world_state);
 
     bool Wandering_Monster_Retires(
         int8_t monster_type, bool amoeba_toxicized_colony = false);
@@ -102,7 +102,7 @@ namespace COMBFIND {
      * @param player_idx Owner of the retreating fleet.
      * @param colony_idx Colony that can still anchor the fleet, or -1.
      */
-    void __cdecl Determine_Retreat_Ships(int16_t star_idx, int16_t player_idx, int16_t colony_idx);
+    void __cdecl Determine_Retreat_Ships(game::s_world_state* world_state, int16_t star_idx, int16_t player_idx, int16_t colony_idx);
 
     void __cdecl Reset_Combat_Ships_At_Current_Star_Has_Player(int16_t player_idx);
 

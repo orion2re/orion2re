@@ -9,7 +9,7 @@
 #include "officer.h"
 
 namespace BOMB {
-    int32_t __cdecl Handle_Leader_At_Lost_Colony(s_colony* colony) {
+    int32_t __cdecl Handle_Leader_At_Lost_Colony(game::s_world_state* world_state, s_colony* colony) {
         int32_t owner_idx = colony->owner;
         int16_t star_idx = MOX::planet[colony->planet].star_index;
         int32_t killed_leader_idx = -1;
@@ -30,10 +30,10 @@ namespace BOMB {
             }
 
             if (!other_colony_found) {
-                if (MOX::leaders[leader_idx].eta > 0) {
-                    OFFICER::Move_Officer_To_Pool(leader_idx);
+                if (game::Leader(world_state, leader_idx).eta > 0) {
+                    OFFICER::Move_Officer_To_Pool(world_state, leader_idx);
                 } else {
-                    OFFICER::Kill_Officer(leader_idx);
+                    OFFICER::Kill_Officer(world_state, leader_idx);
                     killed_leader_idx = leader_idx;
                 }
                 MOX::star[star_idx].officer_index[owner_idx] = -1;
@@ -56,7 +56,7 @@ namespace BOMB {
 
         EVENTS::Kill_All_Events_At_Colony(colony_idx);
 
-        leader_idx = BOMB::Handle_Leader_At_Lost_Colony(colony);
+        leader_idx = BOMB::Handle_Leader_At_Lost_Colony(&game::world, colony);
 
         if (capturing_player != -1) {
             const int16_t capture_reason = (int16_t)capturing_player;

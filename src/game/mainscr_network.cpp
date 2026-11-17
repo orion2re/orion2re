@@ -304,7 +304,7 @@ namespace MAINSCR {
             }
             case NET_PACKET_PICK_TARGET_INFO: {
                 NETMOX::net.sync_state = NET_SYNC_STATE_PICKING_COMBAT_TARGET;
-                NETMOX::Decode_Pick_Target_Info(payload, payload_len);
+                NETMOX::Decode_Pick_Target_Info(&game::world, payload, payload_len);
                 break;
             }
             case NET_PACKET_COMBAT_TARGET_CHOSEN: {
@@ -316,7 +316,7 @@ namespace MAINSCR {
                 break;
             }
             case NET_PACKET_YOU_ARE_TARGET_INFO: {
-                NETMOX::Decode_You_Are_Target_Info(payload, payload_len);
+                NETMOX::Decode_You_Are_Target_Info(&game::world, payload, payload_len);
                 break;
             }
             case NET_PACKET_COMBAT_EXECUTE: {
@@ -334,7 +334,7 @@ namespace MAINSCR {
                 break;
             }
             case NET_PACKET_BATTLE_RESULTS: {
-                NETMOX::Decode_Battle_Results(payload, payload_len);
+                NETMOX::Decode_Battle_Results(&game::world, payload, payload_len);
                 break;
             }
             case NET_PACKET_STRATEGIC_BATTLE_RESULTS:

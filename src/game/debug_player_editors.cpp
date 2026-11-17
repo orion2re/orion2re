@@ -391,7 +391,7 @@ namespace debug_game_editors {
             COLCALC::Compute_All_Star_Colony_Stuff();
             COLCALC::All_Colony_Calculations();
             COLCALC::Compute_Player_Total_Known_Tech_Cost(&player);
-            COLCALC::Update_Player_Stats(&player);
+            COLCALC::Update_Player_Stats(&game::world, &player);
             SHIPMOVE::Update_All_Ship_Ranges();
             SHIPMOVE::Recalculate_All_Moving_Fleets();
             SHIPS::Build_Ship_Icons();
@@ -637,7 +637,7 @@ namespace debug_game_editors {
             Input_S16_("offensive_stagepoint", &player.offensive_stagepoint);
             Read_Only_S8_("best_ftl_drive", &player.best_ftl_drive);
             Read_Only_U8_("ship_speed", &player.ship_speed);
-            debug_game_widgets::Officer_Reference(
+            debug_game_widgets::Officer_Reference(&game::world,
                 "officer_for_hire", &player.officer_for_hire);
             Read_Only_S16_("n_trade_pops", &player.n_trade_pops);
             Read_Only_S16_("n_research_pops", &player.n_research_pops);

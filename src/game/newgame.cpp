@@ -43,7 +43,7 @@ namespace NEWGAME {
 
     } // namespace
 
-    int16_t __cdecl Newgame_Screen(void) {
+    int16_t __cdecl Newgame_Screen(game::s_world_state* world_state) {
         memcpy(NEWGAME::color_ken.colors, "y{z|||||", sizeof(NEWGAME::color_ken.colors));
 
         struct_::Clear_Structure(MOX::star, MAX_STARS * sizeof(*MOX::star));
@@ -51,7 +51,7 @@ namespace NEWGAME {
         struct_::Clear_Structure(MOX::colony, MAX_COLONIES * sizeof(*MOX::colony));
         struct_::Clear_Structure(MOX::ship, MAX_SHIPS * sizeof(*MOX::ship));
         struct_::Clear_Structure(MOX::player, MAX_PLAYERS * sizeof(*MOX::player));
-        struct_::Clear_Structure(MOX::leaders, MAX_LEADERS * sizeof(*MOX::leaders));
+        game::Reset_Leaders(world_state);
 
         int16_t result = 0;
 

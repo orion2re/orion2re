@@ -20,7 +20,7 @@ DOCTEST_TEST_CASE("game-state fixtures bind borrowed views and restore nested bi
         DOCTEST_CHECK(game::current.stars == outer.stars.data());
         DOCTEST_CHECK(game::current.colonies == outer.colonies.data());
         DOCTEST_CHECK(game::current.planets == outer.planets.data());
-        DOCTEST_CHECK(game::current.leaders == outer.leaders.data());
+        DOCTEST_CHECK(game::current.state == &game::world);
         DOCTEST_CHECK(game::current.settings == &MOX::settings);
         MOX::NUM_SHIPS = 2;
         DOCTEST_CHECK(game::current.Ship_Count() == 2);
@@ -42,7 +42,7 @@ DOCTEST_TEST_CASE("game-state fixtures bind borrowed views and restore nested bi
     DOCTEST_CHECK(game::current.stars == previous.stars);
     DOCTEST_CHECK(game::current.colonies == previous.colonies);
     DOCTEST_CHECK(game::current.planets == previous.planets);
-    DOCTEST_CHECK(game::current.leaders == previous.leaders);
+    DOCTEST_CHECK(game::current.state == previous.state);
     DOCTEST_CHECK(game::current.settings == previous.settings);
     DOCTEST_CHECK(game::current.player_count == previous.player_count);
     DOCTEST_CHECK(game::current.ship_count == previous.ship_count);

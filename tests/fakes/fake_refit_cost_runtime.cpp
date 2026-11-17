@@ -45,6 +45,6 @@ namespace TEST_AIBUILD_CONTEXT {
         planets[0].star_index = 0;
         ai.colonies[legacy_world::Colony_Id(0)].population_limit = 12;
         ai.colonies[legacy_world::Colony_Id(0)].food_buildings_relevant = true;
-        game::current = legacy_world::World();
+        game::current = legacy_world::World(&game::world);
     }
 } // namespace TEST_AIBUILD_CONTEXT

@@ -72,5 +72,5 @@ namespace NEWGAME {
     /**
      * Runs the new game setup screen and returns whether setup was accepted.
      */
-    int16_t __cdecl Newgame_Screen();
+    int16_t __cdecl Newgame_Screen(game::s_world_state* world_state);
 } // namespace NEWGAME

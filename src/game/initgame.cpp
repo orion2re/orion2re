@@ -136,7 +136,7 @@ namespace INITGAME {
             return false;
         }
         AIDATA::Reset(&AIDATA::state);
-        game::current = legacy_world::World();
+        game::current = legacy_world::World(&game::world);
         orion2re::lua::game::Reset_Semantic_State();
         const bool random_player_count =
             num_players == NEW_GAME_RANDOM_PLAYER_COUNT;
@@ -168,7 +168,7 @@ namespace INITGAME {
             MOX::PLAYER_NUM = 0;
         }
 
-        Init_Leaders();
+        Init_Leaders(&game::world);
         RUSS::Mox_Update();
         Init_Players();
         RUSS::Mox_Update();
@@ -239,16 +239,16 @@ namespace INITGAME {
 
         if (MOX::settings.starting_civilization_level ==
             STARTING_CIVILIZATION_LEVEL_ADVANCED) {
-            OFFICER::Allocate_Adv_Civ_Game_Officers();
+            OFFICER::Allocate_Adv_Civ_Game_Officers(&game::world);
             RUSS::Mox_Update();
         }
 
-        MAPGEN::Assign_Marooned_Heroes();
+        MAPGEN::Assign_Marooned_Heroes(&game::world);
         RUSS::Mox_Update();
         RUSS::Mox_Update();
 
         std::string galaxy_diagnostic;
-        if (!MAPGEN::Apply_Lua_Galaxy_Generator(&galaxy_diagnostic)) {
+        if (!MAPGEN::Apply_Lua_Galaxy_Generator(&game::world, &galaxy_diagnostic)) {
             const std::string message =
                 "Lua galaxy_generator failed: " + galaxy_diagnostic;
             exitm::Exit_With_Message(message.c_str());
@@ -340,13 +340,13 @@ namespace INITGAME {
         colony->just_produced = COLONY_PRODUCTION_NONE;
     }
 
-    void __cdecl Init_Leaders() {
+    void __cdecl Init_Leaders(game::s_world_state* world_state) {
         char lbx_filename[20];
         HAROLD::Get_Officer_Data_LBX_Name(lbx_filename);
 
         void* leader_records = farload::Far_Reload_Data(lbx_filename, 0, MOX::screen_seg, 0, MAX_LEADERS, sizeof(s_leader_data));
 
-        memcpy(MOX::leaders, leader_records, MAX_LEADERS * sizeof(s_leader_data));
+        game::Import_Leaders(world_state, {static_cast<const s_leader_data*>(leader_records), MAX_LEADERS});
 
         for (int16_t i = 0; i < MAX_LEADERS; ++i) {
             // Skill masks are misaligned in the packed leader record, so
@@ -356,21 +356,21 @@ namespace INITGAME {
             if (i == OFFICER::progression.special_leaders.random_skills_colony_leader_id) {
                 // Special handling for leader at index 41
                 OFFICER::Get_Random_Skills(&special_skills, &general_skills, 2, 5, 1);
-                MOX::leaders[i].special_skills = special_skills;
-                MOX::leaders[i].general_skills = general_skills;
+                game::Leader(world_state, i).special_skills = special_skills;
+                game::Leader(world_state, i).general_skills = general_skills;
             } else if (i == OFFICER::progression.special_leaders.random_skills_ship_officer_id) {
                 // Special handling for leader at index 52
                 OFFICER::Get_Random_Skills(&special_skills, &general_skills, 1, 5, 1);
-                MOX::leaders[i].special_skills = special_skills;
-                MOX::leaders[i].general_skills = general_skills;
+                game::Leader(world_state, i).special_skills = special_skills;
+                game::Leader(world_state, i).general_skills = general_skills;
             } else if (i == 65) {
                 // Special randomized tech application for leader at index 65
-                MOX::leaders[i].tech_application[0] = (uint8_t)game_random::Random(101);
-                MOX::leaders[i].tech_application[1] = (uint8_t)game_random::Random(102) + 101;
+                game::Leader(world_state, i).tech_application[0] = (uint8_t)game_random::Random(101);
+                game::Leader(world_state, i).tech_application[1] = (uint8_t)game_random::Random(102) + 101;
             }
 
             // Calculate and set the skill value for this leader.
-            MOX::leaders[i].skill_value = OFFICER::Officer_Skill_Value(i);
+            game::Leader(world_state, i).skill_value = OFFICER::Officer_Skill_Value(world_state, i);
 
             // Refresh systems after each leader update.
             RUSS::Mox_Update();

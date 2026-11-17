@@ -10,7 +10,7 @@
 #include <vector>
 
 namespace legacy_world {
-    game::s_view World();
+    game::s_view World(game::s_world_state* world_state);
     std::optional<game::id_colony> Colony_Id(const game::s_view* world, const s_colony* colony);
 
     inline std::optional<uint32_t> Nonnegative_Slot(int32_t index) {

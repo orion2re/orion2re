@@ -181,7 +181,7 @@ namespace EVENTS {
      * @param out_str Destination buffer that receives the formatted message.
      * @param out_str_size Size of the destination buffer in bytes.
      */
-    void __cdecl Get_Event_Message(
+    void __cdecl Get_Event_Message(game::s_world_state* world_state,
         int16_t event_type,
         int16_t event_subtype,
         int16_t colony_idx,

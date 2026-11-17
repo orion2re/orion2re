@@ -89,7 +89,6 @@ namespace allocate {
         MOX::ship = (s_ship_data*)Allocate_Dos_Space(MAX_SHIPS * sizeof(s_ship_data));
         struct_::Clear_Structure(MOX::ship, MAX_SHIPS * sizeof(s_ship_data));
 
-        MOX::leaders = (s_leader_data*)Allocate_Dos_Space(MAX_LEADERS * sizeof(s_leader_data));
-        struct_::Clear_Structure(MOX::leaders, MAX_LEADERS * sizeof(s_leader_data));
+        game::Reset_Leaders(&game::world);
     }
 } // namespace allocate

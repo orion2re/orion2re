@@ -82,5 +82,5 @@ namespace ERICNET {
      * Computes each player's best instructor bonus from available leaders.
      * @param instructor_bonus_by_player Output array indexed by player.
      */
-    void __cdecl Best_Instructor_Bonus(int16_t* instructor_bonus_by_player);
+    void __cdecl Best_Instructor_Bonus(game::s_world_state* world_state, int16_t* instructor_bonus_by_player);
 } // namespace ERICNET

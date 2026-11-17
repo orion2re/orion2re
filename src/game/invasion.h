@@ -62,10 +62,10 @@ namespace invasion {
     int __cdecl Colony_N_Militia(s_colony* colony);
 
     /// Applies the best eligible officer bonus from the attacking ships.
-    void __cdecl Compute_Attacker_Officer_Bonus(int16_t* ship_indexes, int16_t count, s_invasion_player_bonuses* bonuses);
+    void __cdecl Compute_Attacker_Officer_Bonus(game::s_world_state* world_state, int16_t* ship_indexes, int16_t count, s_invasion_player_bonuses* bonuses);
 
     /// Applies the defending colony officer bonus, if present.
-    void __cdecl Compute_Colony_Officer_Bonus(s_colony* colony, s_invasion_player_bonuses* bonuses);
+    void __cdecl Compute_Colony_Officer_Bonus(game::s_world_state* world_state, s_colony* colony, s_invasion_player_bonuses* bonuses);
 
     /// Transfers a colony to a new owner and records battle-result side effects.
     void __cdecl Change_Colony_Ownership(s_colony* colony, uint32_t new_owner_idx, s_battle_results_info* results);

@@ -216,7 +216,7 @@ namespace RACESCRN {
         }
 
         fonts::Set_Font_Style(3, &race_normal_color);
-        spy::Compute_Spy_Bonuses(MOX::cur_plyr_ptr, &spy_bonus, &agent_bonus);
+        spy::Compute_Spy_Bonuses(&game::world, MOX::cur_plyr_ptr, &spy_bonus, &agent_bonus);
 
         snprintf(treaty_segment_buffer, sizeof(treaty_segment_buffer), "%s%hi%%", spy_bonus_str, spy_bonus);
         BILL::Squeeze_Centered_Print(0x1A1, 0x174, treaty_segment_buffer, 0x62);

@@ -149,11 +149,11 @@ namespace CMBTFIR2 {
     void __cdecl Init_Internal_Space(s_combat_data*) {
     }
 
-    int16_t __cdecl Helmsman_Bonus(int16_t) {
+    int16_t __cdecl Helmsman_Bonus(game::s_world_state* world_state, int16_t) {
         return 0;
     }
 
-    int16_t __cdecl Weaponry_Bonus(int16_t) {
+    int16_t __cdecl Weaponry_Bonus(game::s_world_state* world_state, int16_t) {
         return 0;
     }
 } // namespace CMBTFIR2

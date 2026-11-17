@@ -529,7 +529,7 @@ namespace aidudes {
                                 if (cost <= refit_design->cost &&
                                     cost <= AIBUILD::Industry_Worth(temp_colony) * (war_level + 10)) {
                                     if (s->officer_index != -1) {
-                                        OFFICER::Move_Officer_To_Pool(s->officer_index);
+                                        OFFICER::Move_Officer_To_Pool(&game::world, s->officer_index);
                                         s->officer_index = -1;
                                     }
 

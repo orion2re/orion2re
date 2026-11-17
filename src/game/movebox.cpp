@@ -107,7 +107,7 @@ namespace MOVEBOX {
         }
 
         if (MOX::current_screen == SCREEN_OFFICERS) {
-            Do_Officer_Screen_Stuff(map_x_off, map_y_off, scale_x, scale_y);
+            Do_Officer_Screen_Stuff(&game::world, map_x_off, map_y_off, scale_x, scale_y);
         }
     }
 
@@ -214,7 +214,7 @@ namespace MOVEBOX {
         }
     }
 
-    void __cdecl Do_Officer_Screen_Stuff(int16_t map_x_off, int16_t map_y_off, int16_t scale_x, int16_t scale_y) {
+    void __cdecl Do_Officer_Screen_Stuff(game::s_world_state* world_state, int16_t map_x_off, int16_t map_y_off, int16_t scale_x, int16_t scale_y) {
         bool is_fleet_officer = OFFICER::Is_Fleet_Officer_Screen();
         int16_t scanned_star_idx = MOX::galaxy_map_scanned_star;
 
@@ -255,7 +255,7 @@ namespace MOVEBOX {
                 if (off_idx == -1 || !has_colony) {
                     strlcpy(buffer, star.name, sizeof(buffer));
                 } else {
-                    s_leader_data& leader = MOX::leaders[off_idx];
+                    s_leader_data& leader = game::Leader(world_state, off_idx);
                     int8_t eta = leader.eta;
 
                     if (eta <= 0) {

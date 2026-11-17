@@ -809,7 +809,7 @@ namespace npcdiplo {
             return false;
         }
 
-        int bonus = COLCALC::Best_Leader_Diplomat_Bonus(player_idx);
+        int bonus = COLCALC::Best_Leader_Diplomat_Bonus(&game::world, player_idx);
         int score = bonus / -15;
 
         score -= diplodef::personality_relation_modifiers[(uint8_t)npc->personality] / 5;
@@ -852,7 +852,7 @@ namespace npcdiplo {
     int16_t __cdecl Get_Tech_Exchange_Reaction(int16_t player_idx, int16_t target_idx, int16_t reaction_bonus_flag) {
         int32_t rand_val = game_random::Random(150);
 
-        int32_t reaction = MOX::player[player_idx].diplomacy_proposal_rejection[target_idx] * 20 + COLCALC::Best_Leader_Diplomat_Bonus(player_idx) + (GAME_DIFFICULTY_HARD - MOX::settings.game_difficulty) * 50 + MOX::player[player_idx].broken_treaties_modifier[target_idx] + MOX::player[player_idx].relations[target_idx];
+        int32_t reaction = MOX::player[player_idx].diplomacy_proposal_rejection[target_idx] * 20 + COLCALC::Best_Leader_Diplomat_Bonus(&game::world, player_idx) + (GAME_DIFFICULTY_HARD - MOX::settings.game_difficulty) * 50 + MOX::player[player_idx].broken_treaties_modifier[target_idx] + MOX::player[player_idx].relations[target_idx];
 
         if (MOX::player[player_idx].traits[TRAIT_CHARISMATIC] != 0) {
             reaction += 50;

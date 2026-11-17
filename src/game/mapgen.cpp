@@ -779,7 +779,9 @@ namespace MAPGEN {
             s_player* players = MOX::player;
             s_colony* colonies = MOX::colony;
             s_ship_data* ships = MOX::ship;
-            s_leader_data* leaders = MOX::leaders;
+            game::s_world_state* world_state;
+            std::map<game::id_leader, s_leader_data> leaders;
+            s_leader_data* candidate_leaders;
             s_nebula* nebulas = MOX::nebula;
             int16_t planet_count = MOX::planet_count;
             int16_t star_count = MOX::NUM_STARS;
@@ -787,19 +789,20 @@ namespace MAPGEN {
             int16_t ship_count = MOX::NUM_SHIPS;
             uint8_t nebula_count = MOX::NUM_NEBULAS;
 
-            s_galaxy_candidate_scope(s_planet_data* candidate_planets,
+            s_galaxy_candidate_scope(game::s_world_state* state, s_planet_data* candidate_planets,
                 s_star_data* candidate_stars,
                 s_player* candidate_players,
                 s_colony* candidate_colonies,
                 s_ship_data* candidate_ships,
                 s_leader_data* candidate_leaders,
-                s_nebula* candidate_nebulas) {
+                s_nebula* candidate_nebulas) : world_state(state), candidate_leaders(candidate_leaders) {
                 MOX::planet = candidate_planets;
                 MOX::star = candidate_stars;
                 MOX::player = candidate_players;
                 MOX::colony = candidate_colonies;
                 MOX::ship = candidate_ships;
-                MOX::leaders = candidate_leaders;
+                leaders.swap(world_state->leaders);
+                game::Import_Leaders(world_state, {candidate_leaders, MAX_LEADERS});
                 MOX::nebula = candidate_nebulas;
             }
 
@@ -809,7 +812,9 @@ namespace MAPGEN {
                 MOX::player = players;
                 MOX::colony = colonies;
                 MOX::ship = ships;
-                MOX::leaders = leaders;
+                const auto records = game::Export_Leaders(world_state);
+                std::copy(records.begin(), records.end(), candidate_leaders);
+                leaders.swap(world_state->leaders);
                 MOX::nebula = nebulas;
                 MOX::planet_count = planet_count;
                 MOX::NUM_STARS = star_count;
@@ -819,9 +824,9 @@ namespace MAPGEN {
             }
         };
 
-        bool Valid_Galaxy_Candidate() {
+        bool Valid_Galaxy_Candidate(game::s_world_state* world_state) {
             if (!Valid_Generated_Map() || MOX::colony == nullptr ||
-                MOX::ship == nullptr || MOX::leaders == nullptr ||
+                MOX::ship == nullptr || world_state->leaders.size() != MAX_LEADERS ||
                 MOX::nebula == nullptr || MOX::NUM_COLONIES < 0 ||
                 MOX::NUM_COLONIES > MAX_COLONIES || MOX::NUM_SHIPS < 0 ||
                 MOX::NUM_SHIPS > MAX_SHIPS ||
@@ -888,9 +893,8 @@ namespace MAPGEN {
                     return false;
                 }
             }
-            for (int16_t leader_idx = 0; leader_idx < MAX_LEADERS;
-                 ++leader_idx) {
-                const s_leader_data& leader = MOX::leaders[leader_idx];
+            for (const auto& [id, leader] : world_state->leaders) {
+                const int32_t leader_idx = static_cast<int32_t>(id.id);
                 if (leader.status == 5 &&
                     (leader.location < 0 ||
                         leader.location >= MOX::NUM_STARS ||
@@ -924,11 +928,8 @@ namespace MAPGEN {
                     continue;
                 }
                 int leader_count = 0;
-                for (int16_t leader_idx = 0;
-                     leader_idx < MAX_LEADERS;
-                     ++leader_idx) {
-                    leader_count += MOX::leaders[leader_idx].status == 5 &&
-                        MOX::leaders[leader_idx].location == star_idx;
+                for (const auto& [id, leader] : world_state->leaders) {
+                    leader_count += leader.status == 5 && leader.location == star_idx;
                 }
                 if (leader_count != 1) {
                     return false;
@@ -984,7 +985,7 @@ namespace MAPGEN {
             return non_black_holes > 0 && reached_count == non_black_holes;
         }
 
-        bool Compact_Galaxy_Candidate() {
+        bool Compact_Galaxy_Candidate(game::s_world_state* world_state) {
             int16_t star_remap[MAX_STARS];
             int16_t planet_remap[MAX_PLANETS];
             memset(star_remap, 0xff, sizeof(star_remap));
@@ -1113,9 +1114,7 @@ namespace MAPGEN {
                         star_remap[ship.prior_jump_gate_destination];
                 }
             }
-            for (int16_t leader_id = 0; leader_id < MAX_LEADERS;
-                 ++leader_id) {
-                s_leader_data& leader = MOX::leaders[leader_id];
+            for (auto& [id, leader] : world_state->leaders) {
                 if (leader.status == 5 ||
                     (leader.status == 1 &&
                         leader.type == LEADER_TYPE_COLONY)) {
@@ -1222,7 +1221,7 @@ namespace MAPGEN {
             return colony_state_changed;
         }
 
-        void Transform_Marooned_Heroes() {
+        void Transform_Marooned_Heroes(game::s_world_state* world_state) {
             if (MAPGEN::special_generation_config.highlight_marooned_heroes) {
                 for (int16_t star_idx = 0; star_idx < MOX::NUM_STARS; ++star_idx) {
                     s_star_data* star = &MOX::star[star_idx];
@@ -1235,8 +1234,9 @@ namespace MAPGEN {
             }
 
             if (MAPGEN::special_generation_config.remove_marooned_heroes) {
-                for (int16_t leader_idx = 0; leader_idx < MAX_LEADERS; ++leader_idx) {
-                    s_leader_data* leader = &MOX::leaders[leader_idx];
+                for (const auto& leader_entry : world_state->leaders) {
+                    const int32_t leader_idx = static_cast<int32_t>(leader_entry.first.id);
+                    s_leader_data* leader = &game::Leader(world_state, leader_idx);
                     if (leader->status == 5 && leader->location >= 0 &&
                         leader->location < MOX::NUM_STARS) {
                         MOX::star[leader->location].system_special = SYSTEM_SPECIAL_PIRATE_CACHE;
@@ -1498,7 +1498,7 @@ namespace MAPGEN {
         if (succeeded == nullptr) succeeded = &local_succeeded;
         *succeeded = false;
         bool colony_state_changed = Transform_Generated_Planets();
-        Transform_Marooned_Heroes();
+        Transform_Marooned_Heroes(&game::world);
         colony_state_changed |= Transform_Monster_Guarded_Planets();
         Transform_Home_Systems();
         bool lua_succeeded = false;
@@ -1509,7 +1509,7 @@ namespace MAPGEN {
         return colony_state_changed;
     }
 
-    bool __cdecl Apply_Lua_Galaxy_Generator(std::string* diagnostic) {
+    bool __cdecl Apply_Lua_Galaxy_Generator(game::s_world_state* world_state, std::string* diagnostic) {
         std::string local_diagnostic;
         if (diagnostic == nullptr) diagnostic = &local_diagnostic;
         diagnostic->clear();
@@ -1528,8 +1528,7 @@ namespace MAPGEN {
             MOX::colony, MOX::colony + MAX_COLONIES);
         std::vector<s_ship_data> ships(
             MOX::ship, MOX::ship + MAX_SHIPS);
-        std::vector<s_leader_data> leaders(
-            MOX::leaders, MOX::leaders + MAX_LEADERS);
+        std::vector<s_leader_data> leaders = game::Export_Leaders(world_state);
         std::vector<s_nebula> nebulas(
             MOX::nebula, MOX::nebula + MAX_NEBULAS);
         uint64_t ship_generations[MAX_SHIPS];
@@ -1557,7 +1556,7 @@ namespace MAPGEN {
         bool valid = false;
         orion2re::lua::game::internal::Advance_Topology_Generation();
         {
-            s_galaxy_candidate_scope scope(planets.data(),
+            s_galaxy_candidate_scope scope(world_state, planets.data(),
                 stars.data(),
                 players.data(),
                 colonies.data(),
@@ -1572,8 +1571,8 @@ namespace MAPGEN {
                     topology_generation);
                 return false;
             }
-            valid = invoked && Compact_Galaxy_Candidate() &&
-                Valid_Galaxy_Candidate();
+            valid = invoked && Compact_Galaxy_Candidate(world_state) &&
+                Valid_Galaxy_Candidate(world_state);
             if (valid) {
                 for (int16_t planet_idx = 0;
                      planet_idx < MOX::planet_count;
@@ -1614,9 +1613,7 @@ namespace MAPGEN {
             colonies.data(),
             MAX_COLONIES * sizeof(s_colony));
         memcpy(MOX::ship, ships.data(), MAX_SHIPS * sizeof(s_ship_data));
-        memcpy(MOX::leaders,
-            leaders.data(),
-            MAX_LEADERS * sizeof(s_leader_data));
+        game::Import_Leaders(world_state, leaders);
         memcpy(MOX::nebula,
             nebulas.data(),
             MAX_NEBULAS * sizeof(s_nebula));

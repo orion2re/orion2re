@@ -35,7 +35,7 @@ namespace maintain {
     /**
      * Iteratively scraps the cheapest ships matching criteria until player maintenance deficit is resolved.
      */
-    void __cdecl Kill_Ships(s_player* player, bool at_colony_only, bool restricted_mission, int16_t ship_type) {
+    void __cdecl Kill_Ships(game::s_world_state* world_state, s_player* player, bool at_colony_only, bool restricted_mission, int16_t ship_type) {
         int16_t player_idx = (int16_t)(player - MOX::player);
         bool no_more_ships_found = false;
 
@@ -97,13 +97,13 @@ namespace maintain {
                     const game::s_view world{
                         .players = MOX::player,
                         .ships = MOX::ship,
-                        .leaders = MOX::leaders,
+                        .state = world_state,
                         .ship_count = &MOX::NUM_SHIPS,
                     };
-                    aileader::Reassign_Fleet_Officer(&world, legacy_world::Player_Id(player_idx), legacy_world::Leader_Id(officer_idx));
+                    aileader::Reassign_Fleet_Officer(world_state, &world, legacy_world::Player_Id(player_idx), legacy_world::Leader_Id(officer_idx));
 
                     if (cheapest_ship->officer_index == officer_idx) {
-                        OFFICER::Move_Officer_To_Pool(officer_idx);
+                        OFFICER::Move_Officer_To_Pool(world_state, officer_idx);
                     }
                     cheapest_ship->officer_index = -1;
                 }

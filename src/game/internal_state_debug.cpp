@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "legacy_ids.h"
 
 #if defined(ORION2RE_ENABLE_DEBUG_OVERLAY)
 #include <imgui.h>
@@ -128,17 +129,17 @@ namespace INTERNAL_STATE_DEBUG {
             return name;
         }
 
-        const char* Leader_Name_(int16_t leader) {
-            static thread_local char name[sizeof(MOX::leaders[0].name) + 1];
-            if (MOX::leaders == nullptr || leader < 0 || leader >= MAX_LEADERS) {
+        const char* Leader_Name_(game::s_world_state* world_state, int16_t leader) {
+            static thread_local char name[sizeof(game::Leader(world_state, 0).name) + 1];
+            if (!world_state->leaders.contains(game::id_leader{static_cast<uint32_t>(leader)})) {
                 return "leader";
             }
-            strlcpy(name, MOX::leaders[leader].name, sizeof(name));
+            strlcpy(name, game::Leader(world_state, leader).name, sizeof(name));
             return name;
         }
 
-        bool Valid_Leader_(int16_t leader) {
-            return MOX::leaders != nullptr && leader >= 0 && leader < MAX_LEADERS;
+        bool Valid_Leader_(game::s_world_state* world_state, int16_t leader) {
+            return world_state->leaders.contains(game::id_leader{static_cast<uint32_t>(leader)});
         }
 
         bool Valid_Player_(int16_t player) {
@@ -176,13 +177,13 @@ namespace INTERNAL_STATE_DEBUG {
             Request_Redraw_();
         }
 
-        void Load_Leader_(int16_t leader) {
-            if (!Valid_Leader_(leader)) {
+        void Load_Leader_(game::s_world_state* world_state, int16_t leader) {
+            if (!Valid_Leader_(world_state, leader)) {
                 g_selected_leader = -1;
                 return;
             }
             g_selected_leader = leader;
-            g_leader_baseline = MOX::leaders[leader];
+            g_leader_baseline = game::Leader(world_state, leader);
             g_leader_draft = g_leader_baseline;
             g_transfer_player = g_leader_draft.player_index;
             g_assignment_eta = std::max<int8_t>(g_leader_draft.eta, 0);
@@ -194,7 +195,7 @@ namespace INTERNAL_STATE_DEBUG {
         }
 
         bool Leader_Metadata_Dirty_() {
-            if (!Valid_Leader_(g_selected_leader)) {
+            if (!Valid_Leader_(&game::world, g_selected_leader)) {
                 return false;
             }
             return memcmp(g_leader_draft.name, g_leader_baseline.name, sizeof(g_leader_draft.name)) != 0 ||
@@ -228,11 +229,11 @@ namespace INTERNAL_STATE_DEBUG {
                 g_leader_baseline.status != 1;
         }
 
-        bool Leader_Metadata_Conflict_() {
-            if (!Valid_Leader_(g_selected_leader)) {
+        bool Leader_Metadata_Conflict_(game::s_world_state* world_state) {
+            if (!Valid_Leader_(world_state, g_selected_leader)) {
                 return true;
             }
-            const s_leader_data& live = MOX::leaders[g_selected_leader];
+            const s_leader_data& live = game::Leader(world_state, g_selected_leader);
 #define LEADER_METADATA_CONFLICT(field) \
             (memcmp(&g_leader_draft.field, &g_leader_baseline.field, sizeof(g_leader_draft.field)) != 0 && \
                 memcmp(&live.field, &g_leader_baseline.field, sizeof(live.field)) != 0 && \
@@ -251,8 +252,8 @@ namespace INTERNAL_STATE_DEBUG {
 #undef LEADER_METADATA_CONFLICT
         }
 
-        void Save_Leader_Metadata_() {
-            s_leader_data& live = MOX::leaders[g_selected_leader];
+        void Save_Leader_Metadata_(game::s_world_state* world_state) {
+            s_leader_data& live = game::Leader(world_state, g_selected_leader);
 #define SAVE_LEADER_METADATA(field) \
             if (memcmp(&g_leader_draft.field, &g_leader_baseline.field, sizeof(g_leader_draft.field)) != 0) { \
                 memcpy(&live.field, &g_leader_draft.field, sizeof(live.field)); \
@@ -270,7 +271,7 @@ namespace INTERNAL_STATE_DEBUG {
             SAVE_LEADER_METADATA(display_level_popup);
 #undef SAVE_LEADER_METADATA
             Refresh_Leader_State_();
-            Load_Leader_(g_selected_leader);
+            Load_Leader_(world_state, g_selected_leader);
             g_leader_status = "Leader metadata saved.";
         }
 
@@ -314,7 +315,7 @@ namespace INTERNAL_STATE_DEBUG {
                 : -1;
         }
 
-        bool Player_Has_Leader_Slot_(int16_t player, int8_t type) {
+        bool Player_Has_Leader_Slot_(game::s_world_state* world_state, int16_t player, int8_t type) {
             if (!Valid_Player_(player) || type < 0 || type >= LEADER_TYPE_COUNT) {
                 return false;
             }
@@ -322,8 +323,9 @@ namespace INTERNAL_STATE_DEBUG {
                 return true;
             }
             int16_t count = 0;
-            for (int16_t leader = 0; leader < MAX_LEADERS; ++leader) {
-                const s_leader_data& data = MOX::leaders[leader];
+            for (const auto& leader_entry : world_state->leaders) {
+                const int32_t leader = static_cast<int32_t>(leader_entry.first.id);
+                const s_leader_data& data = game::Leader(world_state, leader);
                 if (data.player_index == player && data.type == type &&
                     data.status >= 0 && data.status <= 4) {
                     ++count;
@@ -332,14 +334,14 @@ namespace INTERNAL_STATE_DEBUG {
             return count < 4;
         }
 
-        bool Leader_Relationship_Consistent_(const s_leader_data& leader) {
+        bool Leader_Relationship_Consistent_(game::s_world_state* world_state, int32_t leader_index) {
+            const s_leader_data& leader = game::Leader(world_state, leader_index);
             if (leader.status != 1) {
                 return leader.location == -1;
             }
             if (!Valid_Player_(leader.player_index)) {
                 return false;
             }
-            const int16_t leader_index = (int16_t)(&leader - MOX::leaders);
             if (leader.type == LEADER_TYPE_COLONY) {
                 return Valid_Star_(leader.location) &&
                     MOX::star[leader.location].officer_index[leader.player_index] ==
@@ -349,43 +351,43 @@ namespace INTERNAL_STATE_DEBUG {
                 MOX::ship[leader.location].officer_index == leader_index;
         }
 
-        void Assign_Leader_To_Star_(int16_t star) {
-            s_leader_data& leader = MOX::leaders[g_selected_leader];
-            OFFICER::Assign_Leader_To_Star(
+        void Assign_Leader_To_Star_(game::s_world_state* world_state, int16_t star) {
+            s_leader_data& leader = game::Leader(world_state, g_selected_leader);
+            OFFICER::Assign_Leader_To_Star(world_state,
                 &MOX::player[leader.player_index],
-                &leader,
+                legacy_world::Leader_Id(g_selected_leader),
                 &MOX::star[star],
                 g_assignment_eta);
             Refresh_Leader_State_();
-            Load_Leader_(g_selected_leader);
+            Load_Leader_(world_state, g_selected_leader);
             g_leader_status = "Leader assigned to star.";
         }
 
-        void Assign_Leader_To_Ship_() {
-            s_leader_data& leader = MOX::leaders[g_selected_leader];
-            OFFICER::Assign_Leader_To_Ship(
+        void Assign_Leader_To_Ship_(game::s_world_state* world_state) {
+            s_leader_data& leader = game::Leader(world_state, g_selected_leader);
+            OFFICER::Assign_Leader_To_Ship(world_state,
                 &MOX::player[leader.player_index],
-                &leader,
+                legacy_world::Leader_Id(g_selected_leader),
                 &MOX::ship[g_target_ship],
                 g_assignment_eta);
             Refresh_Leader_State_();
-            Load_Leader_(g_selected_leader);
+            Load_Leader_(world_state, g_selected_leader);
             g_leader_status = "Leader assigned to ship.";
         }
 
-        void Transfer_Leader_() {
-            s_leader_data& leader = MOX::leaders[g_selected_leader];
+        void Transfer_Leader_(game::s_world_state* world_state) {
+            s_leader_data& leader = game::Leader(world_state, g_selected_leader);
             if (leader.status == 1) {
-                OFFICER::Move_Officer_To_Pool(g_selected_leader);
+                OFFICER::Move_Officer_To_Pool(world_state, g_selected_leader);
             } else if (leader.status == 2) {
                 leader.status = 0;
                 leader.eta = 0;
                 leader.location = -1;
             }
             Clear_Hire_References_(g_selected_leader);
-            OFFICER::Set_Officer_To_Player(g_selected_leader, g_transfer_player, 1);
+            OFFICER::Set_Officer_To_Player(world_state, g_selected_leader, g_transfer_player, 1);
             Refresh_Leader_State_();
-            Load_Leader_(g_selected_leader);
+            Load_Leader_(world_state, g_selected_leader);
             g_leader_status = "Leader moved to another player.";
         }
 
@@ -408,17 +410,18 @@ namespace INTERNAL_STATE_DEBUG {
             }
         }
 
-        void Draw_Leader_List_() {
+        void Draw_Leader_List_(game::s_world_state* world_state) {
             static ImGuiTextFilter filter;
             Draw_Player_Filter_("Player filter", &g_leader_player_filter);
             filter.Draw("Filter leaders", -1.0f);
             const float list_width = ImGui::GetContentRegionAvail().x * 0.4f;
             if (ImGui::BeginChild("leader_list", ImVec2(list_width, 0.0f), true)) {
-                if (MOX::leaders == nullptr) {
+                if (world_state->leaders.empty()) {
                     ImGui::TextUnformatted("No leader data is loaded.");
                 } else {
-                    for (int16_t leader = 0; leader < MAX_LEADERS; ++leader) {
-                        const s_leader_data& data = MOX::leaders[leader];
+                    for (const auto& leader_entry : world_state->leaders) {
+                        const int32_t leader = static_cast<int32_t>(leader_entry.first.id);
+                        const s_leader_data& data = game::Leader(world_state, leader);
                         if (g_leader_player_filter != -2 && data.player_index != g_leader_player_filter) {
                             continue;
                         }
@@ -427,7 +430,7 @@ namespace INTERNAL_STATE_DEBUG {
                             label,
                             sizeof(label),
                             "%s [%d] - %s, %s",
-                            Leader_Name_(leader),
+                            Leader_Name_(world_state, leader),
                             (int)leader,
                             data.type == LEADER_TYPE_SHIP ? "ship" : "colony",
                             Leader_Status_Name_(data.status));
@@ -435,7 +438,7 @@ namespace INTERNAL_STATE_DEBUG {
                             continue;
                         }
                         if (ImGui::Selectable(label, g_selected_leader == leader)) {
-                            Load_Leader_(leader);
+                            Load_Leader_(world_state, leader);
                         }
                     }
                 }
@@ -443,34 +446,34 @@ namespace INTERNAL_STATE_DEBUG {
             ImGui::EndChild();
         }
 
-        void Draw_Leader_Relationships_() {
-            const s_leader_data& live = MOX::leaders[g_selected_leader];
+        void Draw_Leader_Relationships_(game::s_world_state* world_state) {
+            const s_leader_data& live = game::Leader(world_state, g_selected_leader);
             ImGui::Text("Player: %s (%d)", Player_Name_(live.player_index), (int)live.player_index);
             ImGui::Text("Status: %s (%d)", Leader_Status_Name_(live.status), (int)live.status);
             ImGui::Text("Location: %d", (int)live.location);
             ImGui::Text("Assignment ETA: %d", (int)live.eta);
-            ImGui::Text("Calculated level: %d", (int)OFFICER::Get_Officer_Level(g_selected_leader));
+            ImGui::Text("Calculated level: %d", (int)OFFICER::Get_Officer_Level(world_state, g_selected_leader));
             if (Valid_Player_(live.player_index)) {
                 ImGui::Text(
                     "Cost: %d | Maintenance: %d",
-                    (int)OFFICER::Officer_Cost(live.player_index, g_selected_leader),
+                    (int)OFFICER::Officer_Cost(world_state, live.player_index, g_selected_leader),
                     (int)OFFICER::Officer_Maintenance(live.player_index, g_selected_leader));
             }
         }
 
-        void Draw_Leader_Assignment_() {
-            s_leader_data& live = MOX::leaders[g_selected_leader];
+        void Draw_Leader_Assignment_(game::s_world_state* world_state) {
+            s_leader_data& live = game::Leader(world_state, g_selected_leader);
             const bool blocked = Network_Game_() || Leader_Metadata_Dirty_();
             const bool can_assign = Valid_Player_(live.player_index) &&
                 (live.status == 0 || live.status == 1 || live.status == 2) &&
-                Leader_Relationship_Consistent_(live);
+                Leader_Relationship_Consistent_(world_state, g_selected_leader);
             Input_S8_("ETA for new assignment", &g_assignment_eta);
             if (live.type == LEADER_TYPE_COLONY) {
                 debug_game_widgets::Star_Reference("Target star", &g_target_star, false);
                 const bool star_valid = Star_Has_Player_Colony_(g_target_star, live.player_index);
                 ImGui::BeginDisabled(blocked || !can_assign || !star_valid || g_assignment_eta < 0);
                 if (ImGui::Button("Assign to star")) {
-                    Assign_Leader_To_Star_(g_target_star);
+                    Assign_Leader_To_Star_(world_state, g_target_star);
                 }
                 ImGui::EndDisabled();
 
@@ -481,7 +484,7 @@ namespace INTERNAL_STATE_DEBUG {
                     Star_Has_Player_Colony_(colony_star, live.player_index);
                 ImGui::BeginDisabled(blocked || !can_assign || !colony_valid || g_assignment_eta < 0);
                 if (ImGui::Button("Assign to colony's star")) {
-                    Assign_Leader_To_Star_(colony_star);
+                    Assign_Leader_To_Star_(world_state, colony_star);
                 }
                 ImGui::EndDisabled();
             } else {
@@ -491,7 +494,7 @@ namespace INTERNAL_STATE_DEBUG {
                     MOX::ship[g_target_ship].status < 5;
                 ImGui::BeginDisabled(blocked || !can_assign || !ship_valid || g_assignment_eta < 0);
                 if (ImGui::Button("Assign to ship")) {
-                    Assign_Leader_To_Ship_();
+                    Assign_Leader_To_Ship_(world_state);
                 }
                 ImGui::EndDisabled();
             }
@@ -499,12 +502,12 @@ namespace INTERNAL_STATE_DEBUG {
             if (live.status == 1) {
                 Input_S8_("New current ETA", &g_new_assignment_eta);
                 ImGui::BeginDisabled(
-                    blocked || !Leader_Relationship_Consistent_(live) ||
+                    blocked || !Leader_Relationship_Consistent_(world_state, g_selected_leader) ||
                     g_new_assignment_eta < 0);
                 if (ImGui::Button("Update assignment ETA")) {
                     live.eta = g_new_assignment_eta;
                     Refresh_Leader_State_();
-                    Load_Leader_(g_selected_leader);
+                    Load_Leader_(world_state, g_selected_leader);
                     g_leader_status = "Assignment ETA updated.";
                 }
                 ImGui::EndDisabled();
@@ -512,27 +515,27 @@ namespace INTERNAL_STATE_DEBUG {
 
             ImGui::BeginDisabled(
                 blocked || !Valid_Player_(live.player_index) || live.status == -2 ||
-                !Leader_Relationship_Consistent_(live));
+                !Leader_Relationship_Consistent_(world_state, g_selected_leader));
             if (ImGui::Button("Move to player's pool")) {
                 Clear_Hire_References_(g_selected_leader);
-                OFFICER::Move_Officer_To_Pool(g_selected_leader);
+                OFFICER::Move_Officer_To_Pool(world_state, g_selected_leader);
                 Refresh_Leader_State_();
-                Load_Leader_(g_selected_leader);
+                Load_Leader_(world_state, g_selected_leader);
                 g_leader_status = "Leader moved to the officer pool.";
             }
             ImGui::EndDisabled();
-            if (!Leader_Relationship_Consistent_(live)) {
+            if (!Leader_Relationship_Consistent_(world_state, g_selected_leader)) {
                 ImGui::TextUnformatted("Assignment reciprocal is inconsistent; repair it through the related star or ship editor first.");
             }
         }
 
-        void Draw_Leader_Ownership_() {
-            s_leader_data& live = MOX::leaders[g_selected_leader];
+        void Draw_Leader_Ownership_(game::s_world_state* world_state) {
+            s_leader_data& live = game::Leader(world_state, g_selected_leader);
             debug_game_widgets::Player_Reference("Move to player", &g_transfer_player, false);
             const bool transferable_status = live.status >= -1 && live.status <= 4;
             const bool can_transfer = Valid_Player_(g_transfer_player) &&
                 g_transfer_player != live.player_index && transferable_status &&
-                Player_Has_Leader_Slot_(g_transfer_player, live.type);
+                Player_Has_Leader_Slot_(world_state, g_transfer_player, live.type);
             ImGui::BeginDisabled(
                 Network_Game_() || Leader_Metadata_Dirty_() || !can_transfer);
             if (ImGui::Button("Move leader to player")) {
@@ -547,17 +550,17 @@ namespace INTERNAL_STATE_DEBUG {
                 !Valid_Player_(live.player_index) || g_xp_amount <= 0 ||
                 g_xp_amount > xp_room || live.status == -2);
             if (ImGui::Button("Grant XP")) {
-                OFFICER::Give_Officer_XP(
+                OFFICER::Give_Officer_XP(world_state,
                     live.player_index, g_selected_leader, g_xp_amount);
                 Refresh_Leader_State_();
-                Load_Leader_(g_selected_leader);
+                Load_Leader_(world_state, g_selected_leader);
                 g_leader_status = "Leader XP granted.";
             }
             ImGui::EndDisabled();
             ImGui::SameLine();
             ImGui::BeginDisabled(
                 Network_Game_() || Leader_Metadata_Dirty_() || live.status == -2 ||
-                !Leader_Relationship_Consistent_(live));
+                !Leader_Relationship_Consistent_(world_state, g_selected_leader));
             if (ImGui::Button("Kill leader")) {
                 g_kill_requested = true;
             }
@@ -565,11 +568,11 @@ namespace INTERNAL_STATE_DEBUG {
         }
 
         void Draw_Leader_Editor_() {
-            if (!Valid_Leader_(g_selected_leader)) {
+            if (!Valid_Leader_(&game::world, g_selected_leader)) {
                 ImGui::TextUnformatted("Select a leader to inspect or edit.");
                 return;
             }
-            Draw_Leader_Relationships_();
+            Draw_Leader_Relationships_(&game::world);
             ImGui::SeparatorText("Metadata");
             ImGui::InputText("Name", g_leader_draft.name, sizeof(g_leader_draft.name));
             ImGui::InputText("Title", g_leader_draft.title, sizeof(g_leader_draft.title));
@@ -596,15 +599,15 @@ namespace INTERNAL_STATE_DEBUG {
 
             const bool dirty = Leader_Metadata_Dirty_();
             const bool valid = Leader_Metadata_Valid_();
-            const bool conflict = Leader_Metadata_Conflict_();
+            const bool conflict = Leader_Metadata_Conflict_(&game::world);
             ImGui::BeginDisabled(!dirty || !valid || conflict || Network_Game_());
             if (ImGui::Button("Save metadata")) {
-                Save_Leader_Metadata_();
+                Save_Leader_Metadata_(&game::world);
             }
             ImGui::EndDisabled();
             ImGui::SameLine();
             if (ImGui::Button("Reload live")) {
-                Load_Leader_(g_selected_leader);
+                Load_Leader_(&game::world, g_selected_leader);
             }
             ImGui::SameLine();
             ImGui::TextUnformatted(
@@ -612,9 +615,9 @@ namespace INTERNAL_STATE_DEBUG {
                          : (!valid ? "Invalid metadata" : (dirty ? "Unsaved metadata" : "Metadata unchanged")));
 
             ImGui::SeparatorText("Assignment");
-            Draw_Leader_Assignment_();
+            Draw_Leader_Assignment_(&game::world);
             ImGui::SeparatorText("Ownership and lifecycle");
-            Draw_Leader_Ownership_();
+            Draw_Leader_Ownership_(&game::world);
             if (Network_Game_()) {
                 ImGui::TextUnformatted("Leader mutations are disabled in network games.");
             }
@@ -623,7 +626,7 @@ namespace INTERNAL_STATE_DEBUG {
             }
         }
 
-        void Draw_Leader_Modals_() {
+        void Draw_Leader_Modals_(game::s_world_state* world_state) {
             if (g_transfer_requested) {
                 ImGui::OpenPopup("Move leader to another player?");
                 g_transfer_requested = false;
@@ -634,19 +637,19 @@ namespace INTERNAL_STATE_DEBUG {
                     ImGuiWindowFlags_AlwaysAutoResize)) {
                 ImGui::Text(
                     "Move %s to %s? Current assignment will be cleared.",
-                    Leader_Name_(g_selected_leader),
+                    Leader_Name_(world_state, g_selected_leader),
                     Player_Name_(g_transfer_player));
-                const bool valid = Valid_Leader_(g_selected_leader) &&
+                const bool valid = Valid_Leader_(world_state, g_selected_leader) &&
                     Valid_Player_(g_transfer_player) && !Network_Game_() &&
-                    g_transfer_player != MOX::leaders[g_selected_leader].player_index &&
-                    MOX::leaders[g_selected_leader].status >= -1 &&
-                    MOX::leaders[g_selected_leader].status <= 4 &&
-                    Leader_Relationship_Consistent_(MOX::leaders[g_selected_leader]) &&
-                    Player_Has_Leader_Slot_(
-                        g_transfer_player, MOX::leaders[g_selected_leader].type);
+                    g_transfer_player != game::Leader(world_state, g_selected_leader).player_index &&
+                    game::Leader(world_state, g_selected_leader).status >= -1 &&
+                    game::Leader(world_state, g_selected_leader).status <= 4 &&
+                    Leader_Relationship_Consistent_(world_state, g_selected_leader) &&
+                    Player_Has_Leader_Slot_(world_state,
+                        g_transfer_player, game::Leader(world_state, g_selected_leader).type);
                 ImGui::BeginDisabled(!valid);
                 if (ImGui::Button("Move")) {
-                    Transfer_Leader_();
+                    Transfer_Leader_(world_state);
                     ImGui::CloseCurrentPopup();
                 }
                 ImGui::EndDisabled();
@@ -665,17 +668,17 @@ namespace INTERNAL_STATE_DEBUG {
                     "Kill leader?", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
                 ImGui::Text(
                     "Permanently kill %s?",
-                    Leader_Name_(g_selected_leader));
-                const bool valid = Valid_Leader_(g_selected_leader) && !Network_Game_() &&
-                    MOX::leaders[g_selected_leader].status != -2 &&
-                    Valid_Player_(MOX::leaders[g_selected_leader].player_index) &&
-                    Leader_Relationship_Consistent_(MOX::leaders[g_selected_leader]);
+                    Leader_Name_(world_state, g_selected_leader));
+                const bool valid = Valid_Leader_(world_state, g_selected_leader) && !Network_Game_() &&
+                    game::Leader(world_state, g_selected_leader).status != -2 &&
+                    Valid_Player_(game::Leader(world_state, g_selected_leader).player_index) &&
+                    Leader_Relationship_Consistent_(world_state, g_selected_leader);
                 ImGui::BeginDisabled(!valid);
                 if (ImGui::Button("Kill")) {
                     Clear_Hire_References_(g_selected_leader);
-                    OFFICER::Kill_Officer(g_selected_leader);
+                    OFFICER::Kill_Officer(world_state, g_selected_leader);
                     Refresh_Leader_State_();
-                    Load_Leader_(g_selected_leader);
+                    Load_Leader_(world_state, g_selected_leader);
                     g_leader_status = "Leader killed.";
                     ImGui::CloseCurrentPopup();
                 }
@@ -689,13 +692,13 @@ namespace INTERNAL_STATE_DEBUG {
         }
 
         void Draw_Leaders_() {
-            Draw_Leader_List_();
+            Draw_Leader_List_(&game::world);
             ImGui::SameLine();
             if (ImGui::BeginChild("leader_editor", ImVec2(0.0f, 0.0f), true)) {
                 Draw_Leader_Editor_();
             }
             ImGui::EndChild();
-            Draw_Leader_Modals_();
+            Draw_Leader_Modals_(&game::world);
         }
 
         bool Event_Is_Global_(int16_t event) {
@@ -800,15 +803,15 @@ namespace INTERNAL_STATE_DEBUG {
             return true;
         }
 
-        bool Ship_Relationship_Valid_(int16_t ship) {
+        bool Ship_Relationship_Valid_(game::s_world_state* world_state, int16_t ship) {
             if (!Valid_Ship_(ship)) {
                 return false;
             }
             const int16_t leader = MOX::ship[ship].officer_index;
             return leader == -1 ||
-                (Valid_Leader_(leader) && MOX::leaders[leader].type == LEADER_TYPE_SHIP &&
-                    MOX::leaders[leader].status == 1 &&
-                    MOX::leaders[leader].location == ship);
+                (Valid_Leader_(world_state, leader) && game::Leader(world_state, leader).type == LEADER_TYPE_SHIP &&
+                    game::Leader(world_state, leader).status == 1 &&
+                    game::Leader(world_state, leader).location == ship);
         }
 
         void Suggest_Event_Defaults_() {
@@ -952,7 +955,7 @@ namespace INTERNAL_STATE_DEBUG {
                 case EVENT_TARGET_COLONY:
                     return Colony_Relationship_Valid_(g_event_draft.target_id);
                 case EVENT_TARGET_SHIP:
-                    return Ship_Relationship_Valid_(g_event_draft.target_id);
+                    return Ship_Relationship_Valid_(&game::world, g_event_draft.target_id);
                 case EVENT_TARGET_TECH:
                     return g_event_draft.target_id >= 0 && g_event_draft.target_id < TECH_APP_COUNT;
                 default: return true;

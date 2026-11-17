@@ -105,7 +105,7 @@ namespace orion2re::lua::game::internal {
             return proxy;
         }
 
-        bool Delete_Colony_(std::int16_t colony_id) {
+        bool Delete_Colony_(::game::s_world_state* world_state, std::int16_t colony_id) {
             if (colony_id < 0 || colony_id >= MOX::NUM_COLONIES) {
                 return false;
             }
@@ -118,7 +118,7 @@ namespace orion2re::lua::game::internal {
             if (officer_id >= 0) {
                 if (officer_id >= MAX_LEADERS) return false;
                 const std::int8_t player_id =
-                    MOX::leaders[officer_id].player_index;
+                    ::game::Leader(world_state, officer_id).player_index;
                 const std::int16_t star_id =
                     MOX::planet[planet_id].star_index;
                 if (player_id >= 0 && player_id < MOX::NUM_PLAYERS &&
@@ -127,8 +127,8 @@ namespace orion2re::lua::game::internal {
                         officer_id) {
                     MOX::star[star_id].officer_index[player_id] = -1;
                 }
-                MOX::leaders[officer_id].status = 0;
-                MOX::leaders[officer_id].location = -1;
+                ::game::Leader(world_state, officer_id).status = 0;
+                ::game::Leader(world_state, officer_id).location = -1;
                 MOX::colony[colony_id].officer = -1;
             }
             MOX::planet[planet_id].colony_index = -1;
@@ -162,7 +162,7 @@ namespace orion2re::lua::game::internal {
                 }
             }
             if (MOX::planet[planet_id].colony_index >= 0 &&
-                !Delete_Colony_(MOX::planet[planet_id].colony_index)) {
+                !Delete_Colony_(&::game::world, MOX::planet[planet_id].colony_index)) {
                 return false;
             }
             const s_planet_data removed = MOX::planet[planet_id];
@@ -547,7 +547,7 @@ namespace orion2re::lua::game::internal {
             return 0;
         }
 
-        int System_Delete_Method_(lua_State* lua_state) {
+        int System_Delete_Method_(::game::s_world_state* world_state, lua_State* lua_state) {
             const s_system_proxy* proxy = Check_System_(lua_state, 1);
             if (!Galaxy_State_Mutation_Allowed()) {
                 return luaL_error(lua_state,
@@ -585,8 +585,8 @@ namespace orion2re::lua::game::internal {
                     const std::int16_t officer_id =
                         MOX::ship[ship_id].officer_index;
                     if (officer_id >= 0 && officer_id < MAX_LEADERS) {
-                        MOX::leaders[officer_id].status = 0;
-                        MOX::leaders[officer_id].location = -1;
+                        ::game::Leader(world_state, officer_id).status = 0;
+                        ::game::Leader(world_state, officer_id).location = -1;
                     }
                     MOX::ship[ship_id].status = 5;
                     MOX::ship[ship_id].location = -1;
@@ -600,15 +600,15 @@ namespace orion2re::lua::game::internal {
             for (std::int16_t leader_id = 0;
                  leader_id < MAX_LEADERS;
                  ++leader_id) {
-                if (MOX::leaders[leader_id].status == 5 &&
-                    MOX::leaders[leader_id].location == system_id) {
-                    MOX::leaders[leader_id].status = -1;
-                    MOX::leaders[leader_id].location = -1;
-                } else if (MOX::leaders[leader_id].status == 1 &&
-                    MOX::leaders[leader_id].type == LEADER_TYPE_COLONY &&
-                    MOX::leaders[leader_id].location == system_id) {
-                    MOX::leaders[leader_id].status = 0;
-                    MOX::leaders[leader_id].location = -1;
+                if (::game::Leader(world_state, leader_id).status == 5 &&
+                    ::game::Leader(world_state, leader_id).location == system_id) {
+                    ::game::Leader(world_state, leader_id).status = -1;
+                    ::game::Leader(world_state, leader_id).location = -1;
+                } else if (::game::Leader(world_state, leader_id).status == 1 &&
+                    ::game::Leader(world_state, leader_id).type == LEADER_TYPE_COLONY &&
+                    ::game::Leader(world_state, leader_id).location == system_id) {
+                    ::game::Leader(world_state, leader_id).status = 0;
+                    ::game::Leader(world_state, leader_id).location = -1;
                 }
             }
             memset(&MOX::star[system_id], 0, sizeof(s_star_data));
@@ -630,7 +630,7 @@ namespace orion2re::lua::game::internal {
                 return 1;
             }
             if (strcmp(key, "delete") == 0) {
-                lua_pushcfunction(lua_state, System_Delete_Method_);
+                lua_pushcfunction(lua_state, [](lua_State* state) { return System_Delete_Method_(&::game::world, state); });
                 return 1;
             }
             return System_Index_(lua_state);

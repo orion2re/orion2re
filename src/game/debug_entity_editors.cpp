@@ -461,7 +461,7 @@ namespace debug_game_editors {
             }
             debug_game_widgets::Player_Reference("Allocated to", &colony.allocated_to);
             ImGui::Text("Stored officer: %d (relationship)", (int)colony.officer);
-            ImGui::Text("Effective officer: %d (calculated)", COLCALC::Colony_Officer(&colony));
+            ImGui::Text("Effective officer: %d (calculated)", COLCALC::Colony_Officer(&game::world, &colony));
             ImGui::Text("Outpost: %s", colony.outpost_flag != 0 ? "yes" : "no");
             if (colony.outpost_flag != 0) {
                 const bool network_game = MOX::game_type == 2 || MOX::game_type == 3;

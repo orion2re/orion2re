@@ -6,7 +6,7 @@ namespace {
     s_player players[MAX_PLAYERS];
     s_ship_data ships[MAX_SHIPS];
     s_star_data stars[MAX_STARS];
-    s_leader_data leaders[MAX_LEADERS];
+
     char planet_name[] = "Planet";
     char trash_colony_base_fmt[] = "Trash colony base for %d BC?";
     char spy_steals_fmt[] = "%s from %s";
@@ -50,7 +50,7 @@ namespace TEST_REPORT {
         memset(players, 0, sizeof(players));
         memset(ships, 0, sizeof(ships));
         memset(stars, 0xff, sizeof(stars));
-        memset(leaders, 0, sizeof(leaders));
+        game::Reset_Leaders(&game::world);
         memset(REPORT::done_colonize_check, 0, sizeof(REPORT::done_colonize_check));
         memset(&MOX::settings, 0, sizeof(MOX::settings));
         memset(MSG_::msgs, 0, sizeof(MSG_::msgs));
@@ -151,12 +151,11 @@ namespace MOX {
     s_player* player = players;
     s_ship_data* ship = ships;
     s_star_data* star = stars;
-    s_leader_data* leaders = ::leaders;
     s_settings settings;
 }
 
 namespace OFFICER {
-    int8_t __cdecl Officer_Made_Level_Report(int16_t player, int8_t show) {
+    int8_t __cdecl Officer_Made_Level_Report(game::s_world_state* world_state, int16_t player, int8_t show) {
         ++TEST_REPORT::level_report_calls;
         TEST_REPORT::level_report_player = player;
         TEST_REPORT::level_report_show = show;
@@ -166,9 +165,9 @@ namespace OFFICER {
         return 0;
     }
 
-    void __cdecl Set_Officer_To_Player(int16_t officer_idx, int16_t player_idx, uint8_t is_instant) {
-        MOX::leaders[officer_idx].player_index = (int8_t)player_idx;
-        MOX::leaders[officer_idx].status = is_instant == 0 ? 4 : 0;
+    void __cdecl Set_Officer_To_Player(game::s_world_state* world_state, int16_t officer_idx, int16_t player_idx, uint8_t is_instant) {
+        game::Leader(&game::world, officer_idx).player_index = (int8_t)player_idx;
+        game::Leader(&game::world, officer_idx).status = is_instant == 0 ? 4 : 0;
     }
 }
 
@@ -177,7 +176,7 @@ namespace COLCALC {
         ++TEST_REPORT::recalculation_calls;
     }
 
-    void __cdecl Update_Player_Stats(s_player*) {
+    void __cdecl Update_Player_Stats(game::s_world_state* world_state, s_player*) {
     }
 }
 
@@ -246,7 +245,7 @@ namespace MAINPUPS {
         TEST_REPORT::discovery_star = star;
         TEST_REPORT::discovery_special = special;
     }
-    bool __cdecl Random_New_Officer_Popup(int16_t) {
+    bool __cdecl Random_New_Officer_Popup(game::s_world_state* world_state, int16_t) {
         return TEST_REPORT::accept_officer_offer;
     }
 
@@ -280,7 +279,7 @@ namespace SHIPS {
         TEST_REPORT::cleared_auto_colonization_ship = ship;
     }
 
-    void __cdecl Kill_Ship(int16_t) {
+    void __cdecl Kill_Ship(game::s_world_state* world_state, int16_t) {
     }
 }
 

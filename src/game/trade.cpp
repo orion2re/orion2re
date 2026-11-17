@@ -31,7 +31,7 @@ namespace TRADE {
     }
 
     void __cdecl Process_Trade_Agreement(s_player* player, int16_t other_player_idx) {
-        int16_t goal = Trade_Agreement_Goal(player, other_player_idx);
+        int16_t goal = Trade_Agreement_Goal(&game::world, player, other_player_idx);
         int16_t current_level = player->current_trade_agreement_level[other_player_idx];
 
         if (current_level < goal) {
@@ -105,7 +105,7 @@ namespace TRADE {
         return (int32_t)min_research_pops / 2;
     }
 
-    int16_t __cdecl Trade_Agreement_Goal(s_player* player, int16_t other_player_idx) {
+    int16_t __cdecl Trade_Agreement_Goal(game::s_world_state* world_state, s_player* player, int16_t other_player_idx) {
         int32_t trait_multiplier = 100;
         int16_t base_goal = Base_Trade_Agreement_Goal(player, other_player_idx);
 
@@ -122,17 +122,18 @@ namespace TRADE {
         int16_t max_leader_bonus = 0;
         int32_t current_player_index = (int32_t)(player - MOX::player);
 
-        for (int32_t i = 0; i < MAX_LEADERS; ++i) {
-            s_leader_data* leader = &MOX::leaders[i];
+        for (const auto& leader_entry : world_state->leaders) {
+            const int32_t i = static_cast<int32_t>(leader_entry.first.id);
+            s_leader_data* leader = &game::Leader(world_state, i);
 
             if ((int32_t)leader->player_index == current_player_index &&
                 leader->status >= 0 && leader->status < 3) {
                 int32_t leader_bonus = 0;
                 if (leader->general_skills & LEADER_GENERAL_SKILL_TRADER2) {
-                    int16_t level = OFFICER::Owned_Officer_Level(i);
+                    int16_t level = OFFICER::Owned_Officer_Level(world_state, i);
                     leader_bonus = (level * 3 + 3) * 5;
                 } else if (leader->general_skills & LEADER_GENERAL_SKILL_TRADER) {
-                    int16_t level = OFFICER::Owned_Officer_Level(i);
+                    int16_t level = OFFICER::Owned_Officer_Level(world_state, i);
                     leader_bonus = (level * 5 + 5) * 2;
                 }
 
@@ -202,14 +203,14 @@ namespace TRADE {
 
         player->trade_treaty[other_player_idx] = 1;
         player->current_trade_agreement_level[other_player_idx] = -base_goal;
-        player->trade_agreement_goal[other_player_idx] = TRADE::Trade_Agreement_Goal(player, other_player_idx);
+        player->trade_agreement_goal[other_player_idx] = TRADE::Trade_Agreement_Goal(&game::world, player, other_player_idx);
 
         other_player->trade_treaty[player_idx] = 1;
         other_player->current_trade_agreement_level[player_idx] = -base_goal;
-        other_player->trade_agreement_goal[player_idx] = TRADE::Trade_Agreement_Goal(other_player, player_idx);
+        other_player->trade_agreement_goal[player_idx] = TRADE::Trade_Agreement_Goal(&game::world, other_player, player_idx);
 
-        COLCALC::Update_Player_Stats(player);
-        COLCALC::Update_Player_Stats(other_player);
+        COLCALC::Update_Player_Stats(&game::world, player);
+        COLCALC::Update_Player_Stats(&game::world, other_player);
     }
 
     void __cdecl Start_Research_Agreement(s_player* player, int16_t other_player_idx) {
@@ -235,7 +236,7 @@ namespace TRADE {
         agreement_goal = TRADE::Research_Agreement_Goal(other_player, player_idx);
         other_player->research_agreement_goal[player_idx] = agreement_goal;
 
-        COLCALC::Update_Player_Stats(player);
-        COLCALC::Update_Player_Stats(other_player);
+        COLCALC::Update_Player_Stats(&game::world, player);
+        COLCALC::Update_Player_Stats(&game::world, other_player);
     }
 } // namespace TRADE

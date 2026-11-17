@@ -73,7 +73,7 @@ namespace spy {
      * @param defense_bonus_out Receives the computed defensive bonus.
      * @param attack_bonus_out Receives the computed offensive bonus.
      */
-    void __cdecl Compute_Spy_Bonuses(s_player* player, int16_t* defense_bonus_out, int16_t* attack_bonus_out);
+    void __cdecl Compute_Spy_Bonuses(game::s_world_state* world_state, s_player* player, int16_t* defense_bonus_out, int16_t* attack_bonus_out);
 
     /* Resolves the turn's global spy phase for all active players. */
     void __cdecl Resolve_Spies(const AIDATA::s_player_assessment* players);
@@ -81,12 +81,12 @@ namespace spy {
     extern int16_t spy_bonuses[16];
 
     /* Resolves assassin attempts made by eligible leaders this turn. */
-    void __cdecl Resolve_Assassins();
+    void __cdecl Resolve_Assassins(game::s_world_state* world_state);
 
     /* Resolves a completed assassination attempt against the given leader.
      * @param leader Leader targeted by the assassination event.
      */
-    void __cdecl Leader_Assassinates(s_leader_data* leader);
+    void __cdecl Leader_Assassinates(game::s_world_state* world_state, game::id_leader leader_id);
 
     /* Allocates an AI player's available spies across home and foreign targets.
      * @param player AI player whose spies are being reassigned.

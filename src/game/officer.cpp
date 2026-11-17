@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "officer_roster.h"
+#include "legacy_ids.h"
 #include "string_overrides.h"
 
 #include "lua/lua_game_ship_identity.h"
@@ -34,10 +35,11 @@ namespace OFFICER {
     const char s__00551100[1] = "";
 
     namespace {
-        int16_t Displayed_Leader_Count() {
+        int16_t Displayed_Leader_Count(game::s_world_state* world_state) {
             int16_t count = 0;
-            for (int16_t leader_idx = 0; leader_idx < MAX_LEADERS; ++leader_idx) {
-                if (Leader_Is_Displayed(MOX::leaders[leader_idx])) {
+            for (const auto& leader_entry : world_state->leaders) {
+                const int32_t leader_idx = static_cast<int32_t>(leader_entry.first.id);
+                if (Leader_Is_Displayed(game::Leader(world_state, leader_idx))) {
                     ++count;
                 }
             }
@@ -58,7 +60,7 @@ namespace OFFICER {
         }
 
         void Change_Leader_Page(int16_t direction) {
-            const int16_t leader_count = Displayed_Leader_Count();
+            const int16_t leader_count = Displayed_Leader_Count(&game::world);
             const int16_t last_page = leader_count > 0
                 ? static_cast<int16_t>((leader_count - 1) / LEADERS_PER_PAGE)
                 : 0;
@@ -70,7 +72,7 @@ namespace OFFICER {
                 leader_page = 0;
             }
 
-            Build_Captain_Id_List();
+            Build_Captain_Id_List(&game::world);
             Get_Officer_Pictures();
             EVANHELP::Set_Officer_Screen_Help();
             MOX::officer_selected = -1;
@@ -150,12 +152,12 @@ namespace OFFICER {
      * The experience thresholds are 60, 150, 300, 500, and 1000 for levels 1 through 5.
      * If the officer is already at the maximum level (5), no change is made.
      */
-    void __cdecl Deassign_Officer(int16_t leader_idx) {
-        s_leader_data& leader = MOX::leaders[leader_idx];
+    void __cdecl Deassign_Officer(game::s_world_state* world_state, int16_t leader_idx) {
+        s_leader_data& leader = game::Leader(world_state, leader_idx);
         int16_t player_idx = (int16_t)leader.player_index;
 
         NETMOX::Mark_Leader_Deassigned(leader_idx);
-        OFFICER::Increase_Officer_Level_By_One(leader_idx);
+        OFFICER::Increase_Officer_Level_By_One(world_state, leader_idx);
 
         if (leader.type == LEADER_TYPE_COLONY) {
             int16_t star_idx = leader.location;
@@ -183,7 +185,7 @@ namespace OFFICER {
         leader.player_index = -1;
     }
 
-    void __cdecl Allocate_Adv_Civ_Game_Officers() {
+    void __cdecl Allocate_Adv_Civ_Game_Officers(game::s_world_state* world_state) {
         int16_t leader_indices[MAX_LEADERS];
         uint8_t is_leader_assigned[MAX_LEADERS];
 
@@ -211,8 +213,8 @@ namespace OFFICER {
             if (MOX::player[player_idx].traits[TRAIT_REPULSIVE] != 0) {
                 int16_t leader_idx = leader_indices[repulsive_pool_idx++];
                 if (leader_idx >= 0) {
-                    MOX::leaders[leader_idx].status = 4;
-                    MOX::leaders[leader_idx].player_index = (int8_t)player_idx;
+                    game::Leader(world_state, leader_idx).status = 4;
+                    game::Leader(world_state, leader_idx).player_index = (int8_t)player_idx;
                     is_leader_assigned[leader_idx] = 1;
                 }
             }
@@ -245,8 +247,8 @@ namespace OFFICER {
                     }
 
                     if (leader_idx >= 0) {
-                        MOX::leaders[leader_idx].status = 4;
-                        MOX::leaders[leader_idx].player_index = (int8_t)player_idx;
+                        game::Leader(world_state, leader_idx).status = 4;
+                        game::Leader(world_state, leader_idx).player_index = (int8_t)player_idx;
                         is_leader_assigned[leader_idx] = 1;
                     }
                 }
@@ -260,13 +262,13 @@ namespace OFFICER {
      * specific skills or is in a specific slot (0x41).
      */
     int16_t __cdecl Officer_Maintenance(int16_t player_idx, int16_t leader_idx) {
-        int32_t cost = OFFICER::Officer_Cost(player_idx, leader_idx);
+        int32_t cost = OFFICER::Officer_Cost(&game::world, player_idx, leader_idx);
         int16_t maintenance = static_cast<int16_t>((cost + 99) / 100);
 
         bool has_free_maintenance_skill = false;
-        if (OFFICER::Officer_Has_General_Skill(player_idx, leader_idx, 28 /* 0x1c */)) {
+        if (OFFICER::Officer_Has_General_Skill(&game::world, player_idx, leader_idx, 28 /* 0x1c */)) {
             has_free_maintenance_skill = true;
-        } else if (OFFICER::Officer_Has_General_Skill(player_idx, leader_idx, 29 /* 0x1d */)) {
+        } else if (OFFICER::Officer_Has_General_Skill(&game::world, player_idx, leader_idx, 29 /* 0x1d */)) {
             has_free_maintenance_skill = true;
         }
 
@@ -294,7 +296,7 @@ namespace OFFICER {
         uint8_t result = Hire_Officer_Popup(MOX::PLAYER_NUM, leader_idx);
 
         if (result != 0) {
-            Hire_Officer(MOX::PLAYER_NUM, leader_idx);
+            Hire_Officer(&game::world, MOX::PLAYER_NUM, leader_idx);
             officer_button_mode = -1;
         } else {
             if (officer_button_mode == 0) {
@@ -305,20 +307,20 @@ namespace OFFICER {
 
         EVANHELP::Set_Officer_Screen_Help();
         full_draw = 0;
-        fields::Assign_Auto_Function(Draw_Officer_Screen, 1);
+        fields::Assign_Auto_Function([]() { Draw_Officer_Screen(&game::world); }, 1);
         MOX::draw_officer_to_back = 1;
 
         return result;
     }
 
-    int16_t __cdecl Do_Hire_Officer(int16_t leader_idx) {
+    int16_t __cdecl Do_Hire_Officer(game::s_world_state* world_state, int16_t leader_idx) {
         int16_t result = 0;
-        int32_t cost = Officer_Cost(MOX::PLAYER_NUM, leader_idx);
+        int32_t cost = Officer_Cost(world_state, MOX::PLAYER_NUM, leader_idx);
 
         mouse::Set_Mouse_List(&MOX::mouse_list_arrow, 1);
 
         // Leader status 4 (0x4) generally represents being available for hire.
-        s_leader_data* leader = &MOX::leaders[leader_idx];
+        s_leader_data* leader = &game::Leader(world_state, leader_idx);
 
         if (leader->status == 4) {
             s_player* player = &MOX::player[MOX::PLAYER_NUM];
@@ -334,7 +336,7 @@ namespace OFFICER {
         return result;
     }
 
-    void __cdecl Leader_Cheat_Popup() {
+    void __cdecl Leader_Cheat_Popup(game::s_world_state* world_state) {
         char prompt[200];
         char message[200];
 
@@ -356,21 +358,21 @@ namespace OFFICER {
                 return;
             }
 
-            const s_leader_data& leader = MOX::leaders[leader_idx];
+            const s_leader_data& leader = game::Leader(world_state, leader_idx);
             if (leader.status != -1) {
                 snprintf(
                     message,
                     sizeof(message),
                     HAROLD::H_Message(0x117),
-                    Leader_Name(leader_idx, 0));
+                    Leader_Name(world_state, leader_idx, 0));
                 HAROLD::User_Box(
                     &MOX::draw_main_screen_to_back, message, 3);
                 return;
             }
 
             const int16_t owned = leader.type == LEADER_TYPE_COLONY
-                ? N_Star_Officers_Owned_By_Player(MOX::PLAYER_NUM)
-                : N_Fleet_Officers_Owned_By_Player(MOX::PLAYER_NUM);
+                ? N_Star_Officers_Owned_By_Player(world_state, MOX::PLAYER_NUM)
+                : N_Fleet_Officers_Owned_By_Player(world_state, MOX::PLAYER_NUM);
             if (owned >= Leader_Type_Limit()) {
                 const int16_t message_id = leader.type == LEADER_TYPE_COLONY
                     ? HESTR_11E_YOU_CANNOT_HAVE_S_AS_Y
@@ -379,7 +381,7 @@ namespace OFFICER {
                     message,
                     sizeof(message),
                     HAROLD::H_Message(message_id),
-                    Leader_Name(leader_idx, 0));
+                    Leader_Name(world_state, leader_idx, 0));
                 HAROLD::User_Box(
                     &MOX::draw_main_screen_to_back, message, 3);
                 return;
@@ -395,7 +397,7 @@ namespace OFFICER {
                     message,
                     sizeof(message),
                     HAROLD::H_Message(HESTR_120_S_IS_IN_SS_HIRING_QUEU),
-                    Leader_Name(leader_idx, 0),
+                    Leader_Name(world_state, leader_idx, 0),
                     MOX::player[player_idx].name);
                 HAROLD::User_Box(
                     &MOX::draw_main_screen_to_back, message, 3);
@@ -406,7 +408,7 @@ namespace OFFICER {
                 message,
                 sizeof(message),
                 HAROLD::H_Message(HESTR_132_MAKE_S_AVAILABLE_TO_S),
-                Leader_Name(leader_idx, 1),
+                Leader_Name(world_state, leader_idx, 1),
                 MOX::player[MOX::PLAYER_NUM].name);
             if (HAROLD::User_Box(
                     &MOX::draw_main_screen_to_back, message, 1) != 0) {
@@ -425,7 +427,7 @@ namespace OFFICER {
         const char* msg = HAROLD::H_Message(HESTR_123_YOU_HAVE_D_BC_IN_YOUR_);
         strlcpy(format_string, msg, sizeof(format_string));
 
-        char* leader_name = Leader_Name(leader_idx, 1);
+        char* leader_name = Leader_Name(&game::world, leader_idx, 1);
 
         snprintf(output_buffer, sizeof(output_buffer), format_string, MOX::player[MOX::PLAYER_NUM].bc, leader_name, (int32_t)cost);
 
@@ -442,7 +444,7 @@ namespace OFFICER {
 
         strlcpy(format_buffer, localized_format, sizeof(format_buffer));
 
-        char* leader_name = Leader_Name(officer_id, 1);
+        char* leader_name = Leader_Name(&game::world, officer_id, 1);
 
         snprintf(output_buffer, sizeof(output_buffer), format_buffer, leader_name);
 
@@ -451,9 +453,10 @@ namespace OFFICER {
         MOX::officer_selected = -1;
     }
 
-    void __cdecl Check_For_Colony_Calculation_Update() {
-        for (int16_t i = 0; i < MAX_LEADERS; ++i) {
-            s_leader_data& leader = MOX::leaders[i];
+    void __cdecl Check_For_Colony_Calculation_Update(game::s_world_state* world_state) {
+        for (const auto& leader_entry : world_state->leaders) {
+            const int32_t i = static_cast<int32_t>(leader_entry.first.id);
+            s_leader_data& leader = game::Leader(world_state, i);
 
             if (leader.type == LEADER_TYPE_COLONY) {
                 int16_t original_star_id = MOX::officers_original_star_id[i];
@@ -465,28 +468,31 @@ namespace OFFICER {
         }
     }
 
-    void __cdecl Move_From_Limbo_To_Pool() {
-        for (int16_t i = 0; i < MAX_LEADERS; ++i) {
-            if (MOX::leaders[i].status == 2) {
-                MOX::leaders[i].status = 0;
-                MOX::leaders[i].eta = 0;
+    void __cdecl Move_From_Limbo_To_Pool(game::s_world_state* world_state) {
+        for (const auto& leader_entry : world_state->leaders) {
+            const int32_t i = static_cast<int32_t>(leader_entry.first.id);
+            if (game::Leader(world_state, i).status == 2) {
+                game::Leader(world_state, i).status = 0;
+                game::Leader(world_state, i).eta = 0;
             }
         }
     }
 
-    void __cdecl Save_Officers_Original_Colony_Id() {
-        for (int32_t i = 0; i < MAX_LEADERS; ++i) {
-            MOX::officers_original_star_id[i] = MOX::leaders[i].location;
+    void __cdecl Save_Officers_Original_Colony_Id(game::s_world_state* world_state) {
+        for (const auto& leader_entry : world_state->leaders) {
+            const int32_t i = static_cast<int32_t>(leader_entry.first.id);
+            MOX::officers_original_star_id[i] = game::Leader(world_state, i).location;
         }
     }
 
-    void __cdecl Save_Officers_Original_Ship_Id() {
-        for (int16_t i = 0; i < MAX_LEADERS; ++i) {
-            MOX::officers_original_ship_id[i] = MOX::leaders[i].location;
+    void __cdecl Save_Officers_Original_Ship_Id(game::s_world_state* world_state) {
+        for (const auto& leader_entry : world_state->leaders) {
+            const int32_t i = static_cast<int32_t>(leader_entry.first.id);
+            MOX::officers_original_ship_id[i] = game::Leader(world_state, i).location;
         }
     }
 
-    void __cdecl Draw_Officer_Screen_To_Back() {
+    void __cdecl Draw_Officer_Screen_To_Back(game::s_world_state* world_state) {
         bool is_fleet_screen = OFFICER::Is_Fleet_Officer_Screen();
         video::Set_Page_Back();
         graphics::Reset_Window();
@@ -503,7 +509,7 @@ namespace OFFICER {
                     int16_t anim_w = animate::Get_Width(portrait_anim);
                     int16_t anim_h = animate::Get_Height(portrait_anim);
 
-                    s_leader_data& leader = MOX::leaders[leader_id];
+                    s_leader_data& leader = game::Leader(world_state, leader_id);
                     s_animation_header* draw_anim;
 
                     if (leader.eta <= 0 && leader.status != 4) {
@@ -557,7 +563,7 @@ namespace OFFICER {
 
         palstore::Darken_Palette(100);
         video::Set_Page_Off();
-        Draw_Officer_Screen();
+        Draw_Officer_Screen(&game::world);
         palette::Clear_Palette_Changes(0, 0xFF);
         RUSS::Mox_Sync_Update();
 
@@ -567,7 +573,7 @@ namespace OFFICER {
         fields::Enable_Draw_All_Fields();
     }
 
-    void __cdecl Print_Scanned_Ship_Name() {
+    void __cdecl Print_Scanned_Ship_Name(game::s_world_state* world_state) {
         char buffer[80];
 
         int16_t ship_idx = MOX::fltscrn_big_icon[MOX::scanned_big_ship].ship_idx;
@@ -581,7 +587,7 @@ namespace OFFICER {
         if (officer_idx < 0) {
             strlcpy(buffer, ship->d.name, sizeof(buffer));
         } else {
-            s_leader_data* leader = &MOX::leaders[officer_idx];
+            s_leader_data* leader = &game::Leader(world_state, officer_idx);
             int8_t eta = leader->eta;
 
             if (eta < 1) {
@@ -601,14 +607,14 @@ namespace OFFICER {
         fonts::Print_Centered(466, 211, buffer);
     }
 
-    void Draw_Officer_Screen() {
+    void Draw_Officer_Screen(game::s_world_state* world_state) {
         char buffer[100];
         int32_t hire_cost;
         int16_t maint_cost;
         bool is_fleet_screen = Is_Fleet_Officer_Screen();
 
         if (MOX::draw_officer_to_back || MOX::FULL_DRAW_SCREEN_FLAG != 0 || OFFICER::full_draw) {
-            Draw_Officer_Screen_To_Back();
+            Draw_Officer_Screen_To_Back(world_state);
         }
 
         graphics::Reset_Window();
@@ -642,7 +648,7 @@ namespace OFFICER {
         }
 
         if (MOX::scanned_big_ship > -1 && is_fleet_screen) {
-            Print_Scanned_Ship_Name();
+            Print_Scanned_Ship_Name(world_state);
         }
 
         for (int16_t i = 0; i < MOX::n_fltscrn_officers; ++i) {
@@ -665,7 +671,7 @@ namespace OFFICER {
             animate::Draw(388, 441, MOX::dull_officer_pool_button_seg);
         }
 
-        if (!Leaders_In_Hiring_Pool()) {
+        if (!Leaders_In_Hiring_Pool(world_state)) {
             animate::Draw(313, 441, MOX::dull_officer_hire_button_seg);
         }
 
@@ -689,7 +695,7 @@ namespace OFFICER {
             if (leader_idx == -1) {
                 strlcpy(buffer, MOX::star[star_idx].name, sizeof(buffer));
             } else {
-                s_leader_data* leader = &MOX::leaders[leader_idx];
+                s_leader_data* leader = &game::Leader(world_state, leader_idx);
                 if (leader->eta < 1) {
                     snprintf(buffer, sizeof(buffer), MOX::s_fmt_scanned_star_info, MOX::star[star_idx].name, leader->name);
                 } else {
@@ -778,7 +784,7 @@ namespace OFFICER {
             MOX::officer_scrn_type = LEADER_TYPE_SHIP;
         }
 
-        Reload_Officer_Screen_Pictures();
+        Reload_Officer_Screen_Pictures(&game::world);
         SHIPS::Build_Ship_Icons();
         FLT::Set_Fltscrn_Small_Ship_Icon_XYs(0x132, 0xEB, 0x13E, 0xA9);
 
@@ -807,7 +813,7 @@ namespace OFFICER {
 
         MOX::draw_officer_to_back = 1;
 
-        fields::Assign_Auto_Function(Draw_Officer_Screen, 1);
+        fields::Assign_Auto_Function([]() { Draw_Officer_Screen(&game::world); }, 1);
         MOX::big_icon_display_columns = 5;
         MOX::big_icon_display_rows = 3;
         MOX::big_icon_display_max_icons = 0x0F;
@@ -825,8 +831,8 @@ namespace OFFICER {
         MOX::officer_scanned = 0;
 
         SYS::Clear_System_Display_Loaded_Flag();
-        Save_Officers_Original_Colony_Id();
-        Save_Officers_Original_Ship_Id();
+        Save_Officers_Original_Colony_Id(&game::world);
+        Save_Officers_Original_Ship_Id(&game::world);
         MOX::draw_officer_to_back = 1;
         MOX::global_var = 1;
         MOX::return_screen = (int16_t)MOX::previous_screen;
@@ -870,11 +876,11 @@ namespace OFFICER {
                         MOX::officer_selected = -1;
                     }
                 } else {
-                    Do_Hire_Officer((int16_t)MOX::officer_selected);
+                    Do_Hire_Officer(&game::world, (int16_t)MOX::officer_selected);
                 }
             }
 
-            Check_Officer_Fields(input, scanned_id, (int16_t*)big_icons_scanned, (int16_t*)big_icons_ids);
+            Check_Officer_Fields(&game::world, input, scanned_id, (int16_t*)big_icons_scanned, (int16_t*)big_icons_ids);
 
             if (officer_button_mode == -1) {
                 int16_t scanned_ship_id, scanned_ship_idx;
@@ -889,7 +895,7 @@ namespace OFFICER {
                     if (scanned_ship_idx != -1) {
                         needs_help_reset = 1;
                     }
-                    Reload_Officer_Screen_Pictures();
+                    Reload_Officer_Screen_Pictures(&game::world);
                 }
             }
             if (officer_button_mode == -1 && is_fleet) {
@@ -911,13 +917,13 @@ namespace OFFICER {
                             FLT2::Clear_All_Selection_Status();
                             MOX::fltscrn_big_icon[MOX::offpop_big_icon_selected].selected = 1;
                             if (MOX::officer_selected > -1 && MOX::officer_selected < MAX_LEADERS) {
-                                if (Leader_Can_Be_Assigned((int16_t)MOX::officer_selected) == 0) {
+                                if (Leader_Can_Be_Assigned(&game::world, (int16_t)MOX::officer_selected) == 0) {
                                     char buffer[200];
                                     const char* fmt = HAROLD::H_Message(0x12D /* HESTR_12D_S_CANNOT_BE_PUT_INTO_S */);
-                                    snprintf(buffer, sizeof(buffer), fmt, Leader_Name((int16_t)MOX::officer_selected, 0));
+                                    snprintf(buffer, sizeof(buffer), fmt, Leader_Name(&game::world, (int16_t)MOX::officer_selected, 0));
                                     Officer_Screen_User_Box(buffer, 0);
                                 } else {
-                                    Assign_Captain((int16_t)MOX::officer_selected, MOX::fltscrn_big_icon[(int16_t)b_idx].ship_idx);
+                                    Assign_Captain(&game::world, (int16_t)MOX::officer_selected, MOX::fltscrn_big_icon[(int16_t)b_idx].ship_idx);
                                     MOX::draw_officer_to_back = 1;
                                     Deselect_Offpop_Icons();
                                 }
@@ -1014,7 +1020,7 @@ namespace OFFICER {
                     mouse::Set_Mouse_List(&MOX::mouse_list_arrow, 1);
                 } else {
                     if (MOX::officer_selected > -1) {
-                        Move_Officer_To_Limbo((int16_t)MOX::officer_selected);
+                        Move_Officer_To_Limbo(&game::world, (int16_t)MOX::officer_selected);
                     } else {
                         officer_button_mode = 1;
                         mouse::Set_Mouse_List(&DIP_SCRN::diplomacy_hand_mouse, 1);
@@ -1067,7 +1073,7 @@ namespace OFFICER {
 
             if (exit_screen == 0) {
                 video::Set_Page_Off();
-                Draw_Officer_Screen();
+                Draw_Officer_Screen(&game::world);
                 RUSS::Mox_Sync_Update();
             }
 
@@ -1078,8 +1084,8 @@ namespace OFFICER {
         fields::Clear_Fields();
         fields::Deactivate_Auto_Function();
         mouse::Set_Mouse_List(&MOX::mouse_list_arrow, 1);
-        Move_From_Limbo_To_Pool();
-        Check_For_Colony_Calculation_Update();
+        Move_From_Limbo_To_Pool(&game::world);
+        Check_For_Colony_Calculation_Update(&game::world);
         COLCALC::Do_Player_Colony_Calculations(MOX::PLAYER_NUM);
 
         MOX::cur_map_scale = (int16_t)saved_map_scale;
@@ -1102,7 +1108,7 @@ namespace OFFICER {
         if (OFFICER::full_draw == 0) {
             video::Set_Page_Off();
             MOX::draw_officer_to_back = 1;
-            OFFICER::Draw_Officer_Screen();
+            OFFICER::Draw_Officer_Screen(&game::world);
             RUSS::Mox_Sync_Update();
         }
     }
@@ -1120,16 +1126,17 @@ namespace OFFICER {
         return false;
     }
 
-    void __cdecl Assign_Leader_To_Star(s_player* player, s_leader_data* leader, s_star_data* star, int8_t eta) {
+    void __cdecl Assign_Leader_To_Star(game::s_world_state* world_state, s_player* player, game::id_leader leader_id, s_star_data* star, int8_t eta) {
+        s_leader_data* leader = &game::Leader(world_state, leader_id);
         // Calculate indices based on base pointers
         int32_t player_index = static_cast<int32_t>(player - MOX::player);
-        int32_t leader_index = static_cast<int32_t>(leader - MOX::leaders);
+        int32_t leader_index = legacy_world::Slot(leader_id);
         int16_t star_index = (int16_t)(star - MOX::star);
 
         // Check if there's already an officer assigned to this star for the player
         int8_t current_leader_idx = star->officer_index[player_index];
         if (current_leader_idx > -1 && current_leader_idx < MAX_LEADERS) {
-            s_leader_data* prev_leader = &MOX::leaders[current_leader_idx];
+            s_leader_data* prev_leader = &game::Leader(world_state, current_leader_idx);
             prev_leader->eta = 0;
             prev_leader->status = 0;
             prev_leader->location = -1;
@@ -1149,14 +1156,15 @@ namespace OFFICER {
         star->officer_index[player_index] = static_cast<int8_t>(leader_index);
     }
 
-    void __cdecl Assign_Leader_To_Ship(s_player* player, s_leader_data* leader, s_ship_data* ship, int8_t eta) {
-        int leader_idx = (int)(leader - MOX::leaders);
+    void __cdecl Assign_Leader_To_Ship(game::s_world_state* world_state, s_player* player, game::id_leader leader_id, s_ship_data* ship, int8_t eta) {
+        s_leader_data* leader = &game::Leader(world_state, leader_id);
+        int leader_idx = legacy_world::Slot(leader_id);
         int16_t ship_idx = (int16_t)(ship - MOX::ship);
 
         // If the ship already has an officer, clear that officer's assignment data.
         short current_officer_idx = ship->officer_index;
         if (current_officer_idx > -1 && current_officer_idx < MAX_LEADERS) {
-            s_leader_data* old_officer = &MOX::leaders[current_officer_idx];
+            s_leader_data* old_officer = &game::Leader(world_state, current_officer_idx);
             old_officer->status = 0;
             old_officer->location = -1;
             old_officer->eta = 0;
@@ -1284,7 +1292,7 @@ namespace OFFICER {
         return result;
     }
 
-    void __cdecl Check_Officer_Fields(int16_t input, int16_t scanned, int16_t* officer_fields, int16_t* portrait_fields) {
+    void __cdecl Check_Officer_Fields(game::s_world_state* world_state, int16_t input, int16_t scanned, int16_t* officer_fields, int16_t* portrait_fields) {
         bool is_fleet_screen = Is_Fleet_Officer_Screen();
         int16_t field1, field2;
         int16_t scan_result = Scan_Officer_Fields(officer_fields, portrait_fields, scanned, input, &MOX::officer_scanned, &field2, &field1);
@@ -1299,8 +1307,8 @@ namespace OFFICER {
                 MOX::officer_selected = static_cast<int8_t>(field2);
                 int8_t mode = officer_button_mode;
 
-                if (mode == 0 || (mode == -1 && MOX::leaders[field2].status == 4 /* Limbo */)) {
-                    Do_Hire_Officer(field2);
+                if (mode == 0 || (mode == -1 && game::Leader(world_state, field2).status == 4 /* Limbo */)) {
+                    Do_Hire_Officer(world_state, field2);
                     MOX::draw_officer_to_back = 1;
                     if (officer_button_mode != 0) {
                         MOX::officer_selected = -1;
@@ -1310,56 +1318,56 @@ namespace OFFICER {
                     char final_msg[200];
                     strlcpy(format_str, HAROLD::H_Message(HESTR_126_DISMISS_S), sizeof(format_str));
                     mouse::Set_Mouse_List(&MOX::mouse_list_arrow, 1);
-                    snprintf(final_msg, sizeof(final_msg), format_str, Leader_Name(MOX::officer_selected, 1));
+                    snprintf(final_msg, sizeof(final_msg), format_str, Leader_Name(world_state, MOX::officer_selected, 1));
 
                     if (Officer_Screen_User_Box(final_msg, 1) != 0 &&
-                        SHIPMOVE::Confirm_Officer_Change(MOX::officer_selected, -1, 0)) {
-                        Dismiss_Officer(MOX::officer_selected);
+                        SHIPMOVE::Confirm_Officer_Change(world_state, MOX::officer_selected, -1, 0)) {
+                        Dismiss_Officer(world_state, MOX::officer_selected);
                         MOX::officer_selected = -1;
                     } else {
                         mouse::Set_Mouse_List(&DIP_SCRN::diplomacy_hand_mouse, 1);
                     }
                     MOX::draw_officer_to_back = 1;
                 } else if (mode == 1 /* Relocate */) {
-                    if (MOX::leaders[field2].status == 0 || MOX::leaders[field2].status == 2) {
+                    if (game::Leader(world_state, field2).status == 0 || game::Leader(world_state, field2).status == 2) {
                         MOX::officer_selected = -1;
                         officer_button_mode = -1;
                         mouse::Set_Mouse_List(&MOX::mouse_list_arrow, 1);
                     } else {
-                        Move_Officer_To_Limbo(field2);
+                        Move_Officer_To_Limbo(world_state, field2);
                     }
                     MOX::draw_officer_to_back = 1;
                 } else if (is_fleet_screen) {
                     if (MOX::offpop_big_icon_selected >= 0) {
                         int16_t ship_idx = MOX::fltscrn_big_icon[MOX::offpop_big_icon_selected].ship_idx;
-                        if (Leader_Can_Be_Assigned(field2) != 0) {
-                            Assign_Captain(MOX::officer_selected, ship_idx);
+                        if (Leader_Can_Be_Assigned(world_state, field2) != 0) {
+                            Assign_Captain(world_state, MOX::officer_selected, ship_idx);
                             MOX::draw_officer_to_back = 1;
                             Deselect_Offpop_Icons();
                         } else {
                             char format_str[200];
                             char final_msg[200];
                             strlcpy(format_str, HAROLD::H_Message(HESTR_127_S_MUST_BE_HIRED_BEFORE), sizeof(format_str));
-                            snprintf(final_msg, sizeof(final_msg), format_str, Leader_Name(MOX::officer_selected, 0));
+                            snprintf(final_msg, sizeof(final_msg), format_str, Leader_Name(world_state, MOX::officer_selected, 0));
                             Officer_Screen_User_Box(final_msg, 0);
                         }
                         MOX::officer_selected = -1;
                     }
                 } else if (officer_star_chosen != -1 && HAROLD::Player_Has_Colony(MOX::PLAYER_NUM, officer_star_chosen)) {
-                    if (Leader_Can_Be_Assigned(MOX::officer_selected) != 0) {
-                        if (MOX::leaders[static_cast<uint8_t>(MOX::officer_selected)].location != officer_star_chosen) {
-                            Assign_Captain(MOX::officer_selected, officer_star_chosen);
+                    if (Leader_Can_Be_Assigned(world_state, MOX::officer_selected) != 0) {
+                        if (game::Leader(world_state, static_cast<uint8_t>(MOX::officer_selected)).location != officer_star_chosen) {
+                            Assign_Captain(world_state, MOX::officer_selected, officer_star_chosen);
                             MOX::draw_officer_to_back = 1;
                         }
                     } else {
                         char format_str[200];
                         char final_msg[200];
-                        if (MOX::leaders[static_cast<uint8_t>(MOX::officer_selected)].status == 4) {
+                        if (game::Leader(world_state, static_cast<uint8_t>(MOX::officer_selected)).status == 4) {
                             strlcpy(format_str, HAROLD::H_Message(HESTR_127_S_MUST_BE_HIRED_BEFORE), sizeof(format_str));
-                            snprintf(final_msg, sizeof(final_msg), format_str, Leader_Name(MOX::officer_selected, 0));
+                            snprintf(final_msg, sizeof(final_msg), format_str, Leader_Name(world_state, MOX::officer_selected, 0));
                         } else {
                             strlcpy(format_str, HAROLD::H_Message(HESTR_128_YOU_CANNOT_ASSIGN_S_TO), sizeof(format_str));
-                            snprintf(final_msg, sizeof(final_msg), format_str, Leader_Name(MOX::officer_selected, 0), MOX::star[officer_star_chosen].name);
+                            snprintf(final_msg, sizeof(final_msg), format_str, Leader_Name(world_state, MOX::officer_selected, 0), MOX::star[officer_star_chosen].name);
                         }
                         Officer_Screen_User_Box(final_msg, 0);
                     }
@@ -1368,16 +1376,16 @@ namespace OFFICER {
             }
         } else if (scan_result == 1) {
             if (field1 != -1) {
-                int32_t bonus = Officer_Skill_Bonus(MOX::PLAYER_NUM, field2, field1);
-                Print_Officer_Skill_Help(field1, static_cast<int16_t>(bonus), field2);
+                int32_t bonus = Officer_Skill_Bonus(world_state, MOX::PLAYER_NUM, field2, field1);
+                Print_Officer_Skill_Help(world_state, field1, static_cast<int16_t>(bonus), field2);
             } else {
-                Find_Selected_Leader(field2);
+                Find_Selected_Leader(world_state, field2);
             }
         }
     }
 
-    void __cdecl Dismiss_Officer(int16_t officer_idx) {
-        s_leader_data& leader = MOX::leaders[officer_idx];
+    void __cdecl Dismiss_Officer(game::s_world_state* world_state, int16_t officer_idx) {
+        s_leader_data& leader = game::Leader(world_state, officer_idx);
         int16_t location = leader.location;
 
         if (leader.type == LEADER_TYPE_SHIP) {
@@ -1392,8 +1400,8 @@ namespace OFFICER {
             }
         }
 
-        Deassign_Officer(officer_idx);
-        Build_Captain_Id_List();
+        Deassign_Officer(world_state, officer_idx);
+        Build_Captain_Id_List(world_state);
         Get_Officer_Pictures();
         EVANHELP::Set_Officer_Screen_Help();
 
@@ -1401,8 +1409,8 @@ namespace OFFICER {
         OFFICER::officer_button_mode = -1;
     }
 
-    bool __cdecl Leader_Can_Be_Assigned(int16_t leader_idx) {
-        int8_t status = MOX::leaders[leader_idx].status;
+    bool __cdecl Leader_Can_Be_Assigned(game::s_world_state* world_state, int16_t leader_idx) {
+        int8_t status = game::Leader(world_state, leader_idx).status;
 
         if (status == 0 || status == 1 || status == 2) {
             return true;
@@ -1411,7 +1419,7 @@ namespace OFFICER {
         return false;
     }
 
-    void __cdecl Hire_Officer(int16_t player_idx, int16_t leader_idx) {
+    void __cdecl Hire_Officer(game::s_world_state* world_state, int16_t player_idx, int16_t leader_idx) {
         int16_t maintenance_cost;
         int32_t hire_cost;
 
@@ -1421,13 +1429,13 @@ namespace OFFICER {
         MOX::player[player_idx].bc -= hire_cost;
 
         // Status 1 likely means 'hired' or 'active'
-        Set_Officer_To_Player(leader_idx, player_idx, 1);
+        Set_Officer_To_Player(world_state, leader_idx, player_idx, 1);
 
         // If officer type is 0 (Ship Officer), check for Galactic Lore skills
-        if (MOX::leaders[leader_idx].type == LEADER_TYPE_SHIP) {
-            bool has_lore = Officer_Has_Special_Skill(player_idx, leader_idx, 0x12 /* SKILL_GALACTIC_LORE_1 */);
+        if (game::Leader(world_state, leader_idx).type == LEADER_TYPE_SHIP) {
+            bool has_lore = Officer_Has_Special_Skill(world_state, player_idx, leader_idx, 0x12 /* SKILL_GALACTIC_LORE_1 */);
             if (!has_lore) {
-                has_lore = Officer_Has_Special_Skill(player_idx, leader_idx, 0x13 /* SKILL_GALACTIC_LORE_2 */);
+                has_lore = Officer_Has_Special_Skill(world_state, player_idx, leader_idx, 0x13 /* SKILL_GALACTIC_LORE_2 */);
             }
 
             if (has_lore) {
@@ -1436,11 +1444,11 @@ namespace OFFICER {
         }
     }
 
-    int8_t __cdecl Get_Ship_Leader_ETA(int16_t player_idx, int16_t leader_idx, int16_t ship_idx) {
+    int8_t __cdecl Get_Ship_Leader_ETA(game::s_world_state* world_state, int16_t player_idx, int16_t leader_idx, int16_t ship_idx) {
         int16_t leader_loc;
 
         if (prev_leaders == nullptr) {
-            leader_loc = HAROLD::Absolute_Location(MOX::leaders[leader_idx].location);
+            leader_loc = HAROLD::Absolute_Location(game::Leader(world_state, leader_idx).location);
         } else {
             leader_loc = prev_leaders[leader_idx].location;
         }
@@ -1476,11 +1484,11 @@ namespace OFFICER {
         return 5;
     }
 
-    int8_t __cdecl Get_Star_Leader_ETA(int16_t player_index, int16_t leader_index, int16_t target_star_index) {
+    int8_t __cdecl Get_Star_Leader_ETA(game::s_world_state* world_state, int16_t player_index, int16_t leader_index, int16_t target_star_index) {
         int16_t home_star_index = MOX::planet[MOX::player[player_index].home_planet_id].star_index;
 
         if (OFFICER::prev_leaders == nullptr) {
-            if (target_star_index == home_star_index && MOX::leaders[leader_index].status == 0) {
+            if (target_star_index == home_star_index && game::Leader(world_state, leader_index).status == 0) {
                 return 0;
             }
         } else {
@@ -1497,7 +1505,7 @@ namespace OFFICER {
         return 5;
     }
 
-    void __cdecl Assign_Captain(int16_t leader_idx, int16_t ship_idx) {
+    void __cdecl Assign_Captain(game::s_world_state* world_state, int16_t leader_idx, int16_t ship_idx) {
         char format_buf[200];
         char display_buf[200];
         int8_t eta;
@@ -1505,23 +1513,23 @@ namespace OFFICER {
         if (Is_Fleet_Officer_Screen()) {
             if (HACCESS::Ship_Owner(ship_idx) != MOX::PLAYER_NUM) {
                 strlcpy(format_buf, HAROLD::H_Message(HESTR_117_YOU_MAY_NOT_ASSIGN_S_T), sizeof(format_buf));
-                snprintf(display_buf, sizeof(display_buf), format_buf, Leader_Name(leader_idx, 0));
+                snprintf(display_buf, sizeof(display_buf), format_buf, Leader_Name(world_state, leader_idx, 0));
                 Officer_Screen_User_Box(display_buf, 3);
                 return;
             }
 
-            eta = Get_Ship_Leader_ETA(MOX::PLAYER_NUM, leader_idx, ship_idx);
+            eta = Get_Ship_Leader_ETA(world_state, MOX::PLAYER_NUM, leader_idx, ship_idx);
             s_ship_data* target_ship = &MOX::ship[ship_idx];
 
             if (eta == 0) {
                 strlcpy(format_buf, HAROLD::H_Message(HESTR_119_ASSIGN_S_TO_S), sizeof(format_buf));
-                snprintf(display_buf, sizeof(display_buf), format_buf, Leader_Name(leader_idx, 0), target_ship);
+                snprintf(display_buf, sizeof(display_buf), format_buf, Leader_Name(world_state, leader_idx, 0), target_ship);
             } else {
                 strlcpy(format_buf, HAROLD::H_Message(HESTR_118_IT_WILL_TAKE_D_TURNS_F), sizeof(format_buf));
                 if (MOX::settings.language == 4) {
-                    snprintf(display_buf, sizeof(display_buf), format_buf, Leader_Name(leader_idx, 0), (int)eta, target_ship);
+                    snprintf(display_buf, sizeof(display_buf), format_buf, Leader_Name(world_state, leader_idx, 0), (int)eta, target_ship);
                 } else {
-                    snprintf(display_buf, sizeof(display_buf), format_buf, (int)eta, Leader_Name(leader_idx, 0), target_ship);
+                    snprintf(display_buf, sizeof(display_buf), format_buf, (int)eta, Leader_Name(world_state, leader_idx, 0), target_ship);
                 }
             }
 
@@ -1530,36 +1538,36 @@ namespace OFFICER {
                 bool proceed = true;
 
                 if (existing_leader != -1) {
-                    s_leader_data* leader = &MOX::leaders[existing_leader];
+                    s_leader_data* leader = &game::Leader(world_state, existing_leader);
                     int16_t msg_id = (leader->eta < 1) ? HESTR_11B_S_CURRENTLY_ON_S_WILL_ : HESTR_11A_S_IN_ROUTE_TO_S_WILL_B;
 
                     strlcpy(format_buf, HAROLD::H_Message(msg_id), sizeof(format_buf));
-                    snprintf(display_buf, sizeof(display_buf), format_buf, Leader_Name(existing_leader, 1), target_ship);
+                    snprintf(display_buf, sizeof(display_buf), format_buf, Leader_Name(world_state, existing_leader, 1), target_ship);
                     proceed = Officer_Screen_User_Box(display_buf, 1) != 0;
                 }
 
-                int16_t source_ship_idx = MOX::leaders[leader_idx].location;
+                int16_t source_ship_idx = game::Leader(world_state, leader_idx).location;
                 if (proceed &&
-                    SHIPMOVE::Confirm_Officer_Change(leader_idx, ship_idx, eta)) {
-                    Assign_Leader_To_Ship(&MOX::player[MOX::PLAYER_NUM], &MOX::leaders[leader_idx], target_ship, eta);
+                    SHIPMOVE::Confirm_Officer_Change(world_state, leader_idx, ship_idx, eta)) {
+                    Assign_Leader_To_Ship(world_state, &MOX::player[MOX::PLAYER_NUM], legacy_world::Leader_Id(leader_idx), target_ship, eta);
                     SHIPMOVE::Recalculate_Moving_Fleet(source_ship_idx);
                     SHIPMOVE::Recalculate_Moving_Fleet(ship_idx);
                 }
             }
         } else {
             // Colony Officer Screen logic
-            eta = Get_Star_Leader_ETA(MOX::PLAYER_NUM, leader_idx, ship_idx);
+            eta = Get_Star_Leader_ETA(world_state, MOX::PLAYER_NUM, leader_idx, ship_idx);
             s_star_data* target_star = &MOX::star[ship_idx];
 
             if (eta == 0) {
                 strlcpy(format_buf, HAROLD::H_Message(HESTR_119_ASSIGN_S_TO_S), sizeof(format_buf));
-                snprintf(display_buf, sizeof(display_buf), format_buf, Leader_Name(leader_idx, 0), target_star);
+                snprintf(display_buf, sizeof(display_buf), format_buf, Leader_Name(world_state, leader_idx, 0), target_star);
             } else {
                 strlcpy(format_buf, HAROLD::H_Message(HESTR_118_IT_WILL_TAKE_D_TURNS_F), sizeof(format_buf));
                 if (MOX::settings.language == 4) {
-                    snprintf(display_buf, sizeof(display_buf), format_buf, Leader_Name(leader_idx, 0), (int)eta, target_star);
+                    snprintf(display_buf, sizeof(display_buf), format_buf, Leader_Name(world_state, leader_idx, 0), (int)eta, target_star);
                 } else {
-                    snprintf(display_buf, sizeof(display_buf), format_buf, (int)eta, Leader_Name(leader_idx, 0), target_star);
+                    snprintf(display_buf, sizeof(display_buf), format_buf, (int)eta, Leader_Name(world_state, leader_idx, 0), target_star);
                 }
             }
 
@@ -1568,16 +1576,16 @@ namespace OFFICER {
                 bool proceed = true;
 
                 if (leader_idx != existing_leader && existing_leader != -1) {
-                    s_leader_data* leader = &MOX::leaders[existing_leader];
+                    s_leader_data* leader = &game::Leader(world_state, existing_leader);
                     int16_t msg_id = (leader->eta < 1) ? HESTR_11B_S_CURRENTLY_ON_S_WILL_ : HESTR_11A_S_IN_ROUTE_TO_S_WILL_B;
 
                     strlcpy(format_buf, HAROLD::H_Message(msg_id), sizeof(format_buf));
-                    snprintf(display_buf, sizeof(display_buf), format_buf, Leader_Name(existing_leader, 1), target_star);
+                    snprintf(display_buf, sizeof(display_buf), format_buf, Leader_Name(world_state, existing_leader, 1), target_star);
                     proceed = Officer_Screen_User_Box(display_buf, 1) != 0;
                 }
 
                 if (proceed) {
-                    Assign_Leader_To_Star(&MOX::player[MOX::PLAYER_NUM], &MOX::leaders[leader_idx], target_star, eta);
+                    Assign_Leader_To_Star(world_state, &MOX::player[MOX::PLAYER_NUM], legacy_world::Leader_Id(leader_idx), target_star, eta);
                 }
             }
         }
@@ -1605,7 +1613,7 @@ namespace OFFICER {
 
         video::Set_Page_Off();
         MOX::draw_officer_to_back = 1;
-        OFFICER::Draw_Officer_Screen();
+        OFFICER::Draw_Officer_Screen(&game::world);
         RUSS::Mox_Sync_Update();
 
         return result;
@@ -1615,15 +1623,16 @@ namespace OFFICER {
      * Updates the status and estimated time of arrival (ETA) for all officers.
      * Decrements ETA for traveling officers and increments it for those in a pending/cooldown state.
      */
-    void __cdecl Decrement_Officer_ETA() {
-        for (int16_t leader_idx = 0; leader_idx < MAX_LEADERS; ++leader_idx) {
-            s_leader_data& leader = MOX::leaders[leader_idx];
+    void __cdecl Decrement_Officer_ETA(game::s_world_state* world_state) {
+        for (const auto& leader_entry : world_state->leaders) {
+            const int32_t leader_idx = static_cast<int32_t>(leader_entry.first.id);
+            s_leader_data& leader = game::Leader(world_state, leader_idx);
 
             if (leader.status == 4) {
                 // Officer is likely in a cooldown or "killed" state
                 leader.eta++;
                 if (leader.eta >= 30 /* 0x1e */) {
-                    Deassign_Officer(leader_idx);
+                    Deassign_Officer(world_state, leader_idx);
                 }
             } else if (leader.status == 1) {
                 // Officer is traveling or active
@@ -1648,15 +1657,15 @@ namespace OFFICER {
         MOX::offpop_big_icon_selected = -1;
     }
 
-    void __cdecl Print_Officer_Skill_Help(int16_t skill_id, int16_t bonus, int16_t leader_idx) {
+    void __cdecl Print_Officer_Skill_Help(game::s_world_state* world_state, int16_t skill_id, int16_t bonus, int16_t leader_idx) {
         char leader_name_buf[80];
         char skill_desc_buf[256];
         char skill_name_buf[80];
 
-        char* leader_raw_name = Leader_Name(leader_idx, 1);
+        char* leader_raw_name = Leader_Name(world_state, leader_idx, 1);
         snprintf(leader_name_buf, sizeof(leader_name_buf), MOX::s_fmt_s, leader_raw_name);
 
-        if (MOX::settings.language != 4 && MOX::leaders[leader_idx].title[0] != '\0') {
+        if (MOX::settings.language != 4 && game::Leader(world_state, leader_idx).title[0] != '\0') {
             strlcat(leader_name_buf, ",", sizeof(leader_name_buf));
         }
 
@@ -1681,15 +1690,15 @@ namespace OFFICER {
         }
     }
 
-    void __cdecl Move_Officer_To_Limbo(int16_t leader_idx) {
-        s_leader_data& leader = MOX::leaders[leader_idx];
+    void __cdecl Move_Officer_To_Limbo(game::s_world_state* world_state, int16_t leader_idx) {
+        s_leader_data& leader = game::Leader(world_state, leader_idx);
 
         if (leader.status == 4 /* CAPTURED/PRISONER */) {
             const char* message_template = HAROLD::H_Message(HESTR_12B_YOU_MAY_NOT_PLACE_S_IN);
             char template_buffer[200];
             strlcpy(template_buffer, message_template, sizeof(template_buffer));
 
-            char* leader_name = Leader_Name(leader_idx, 0);
+            char* leader_name = Leader_Name(world_state, leader_idx, 0);
             char final_message[200];
 
             snprintf(final_message, sizeof(final_message), template_buffer, leader_name);
@@ -1699,7 +1708,7 @@ namespace OFFICER {
         }
 
         if (Is_Fleet_Officer_Screen() &&
-            !SHIPMOVE::Confirm_Officer_Change(leader_idx, -1, 0)) {
+            !SHIPMOVE::Confirm_Officer_Change(world_state, leader_idx, -1, 0)) {
             return;
         }
 
@@ -1749,7 +1758,7 @@ namespace OFFICER {
             SYS::Init_System_Display(OFFICER::officer_star_displayed);
             MOX::draw_officer_to_back = 1;
             OFFICER::officer_star_chosen = OFFICER::officer_star_displayed;
-            OFFICER::Reload_Officer_Screen_Pictures();
+            OFFICER::Reload_Officer_Screen_Pictures(&game::world);
 
             *out_flag = 1;
             MOX::draw_officer_to_back = 1;
@@ -1768,11 +1777,11 @@ namespace OFFICER {
         FLT2::Build_Fltscrn_Big_Icon_Fields(
             MOX::small_ship_stack_ptr,
             MOX::scroll_bar->first_visible_row);
-        OFFICER::Reload_Officer_Screen_Pictures();
+        OFFICER::Reload_Officer_Screen_Pictures(&game::world);
 
         MOX::draw_officer_to_back = 1;
         OFFICER::offscrn_skip_draw_ships = 1;
-        OFFICER::Draw_Officer_Screen();
+        OFFICER::Draw_Officer_Screen(&game::world);
         RUSS::Mox_Sync_Update();
         KEN::Load_Player_Ship_Palette(MOX::PLAYER_NUM);
 
@@ -1795,7 +1804,7 @@ namespace OFFICER {
                     OFFICER::officer_skill_help[officer_slot].skill_id[skill_index] = 0;
                 }
             } else {
-                OFFICER::Add_Skill_Description_Help_Fields(
+                OFFICER::Add_Skill_Description_Help_Fields(&game::world,
                     0x5e,
                     y,
                     (uint32_t)MOX::PLAYER_NUM,
@@ -1827,12 +1836,13 @@ namespace OFFICER {
             3);
     }
 
-    bool __cdecl Leaders_In_Hiring_Pool() {
+    bool __cdecl Leaders_In_Hiring_Pool(game::s_world_state* world_state) {
         bool is_fleet_screen = Is_Fleet_Officer_Screen();
         bool found = false;
 
-        for (int16_t i = 0; i < MAX_LEADERS; ++i) {
-            const auto& leader = MOX::leaders[i];
+        for (const auto& leader_entry : world_state->leaders) {
+            const int32_t i = static_cast<int32_t>(leader_entry.first.id);
+            const auto& leader = game::Leader(world_state, i);
 
             bool type_match;
             if (is_fleet_screen) {
@@ -1855,7 +1865,7 @@ namespace OFFICER {
         // Calculations use 16-bit intermediate as per IMUL CX, ADD CX sequence
         int16_t scaled = officer_list_index * 0x6D;
 
-        Print_Officer_Data(
+        Print_Officer_Data(&game::world,
             officer_list_index,
             officer_id,
             0x5C,
@@ -1871,17 +1881,17 @@ namespace OFFICER {
     void __cdecl Get_Officer_Costs(int16_t officer_idx, int32_t* out_cost, int16_t* out_maintenance) {
         int16_t player_num = MOX::PLAYER_NUM;
 
-        *out_cost = Officer_Cost(player_num, officer_idx);
+        *out_cost = Officer_Cost(&game::world, player_num, officer_idx);
 
         *out_maintenance = Officer_Maintenance(player_num, officer_idx);
 
-        if (Officer_Has_General_Skill(player_num, officer_idx, 0x1c) ||
-            Officer_Has_General_Skill(player_num, officer_idx, 0x1d)) {
+        if (Officer_Has_General_Skill(&game::world, player_num, officer_idx, 0x1c) ||
+            Officer_Has_General_Skill(&game::world, player_num, officer_idx, 0x1d)) {
             *out_maintenance = 0;
         }
     }
 
-    static void Give_Leader_Specials_To_Player_Impl(
+    static void Give_Leader_Specials_To_Player_Impl(game::s_world_state* world_state,
         int16_t leader_idx, int16_t player_idx, int16_t* granted_tech_apps, int16_t* granted_tech_app_count) {
         if (leader_idx == progression.special_leaders.advanced_government_leader_id) {
             int16_t gov_type = static_cast<int16_t>(Get_Advanced_Government_Type(player_idx));
@@ -1896,7 +1906,7 @@ namespace OFFICER {
             }
         } else {
             for (int i = 0; i < 3; ++i) {
-                uint8_t tech_app = MOX::leaders[leader_idx].tech_application[i];
+                uint8_t tech_app = game::Leader(world_state, leader_idx).tech_application[i];
                 if (tech_app != 0) {
                     if (COLCALC::Player_May_Get_Tech_App(&MOX::player[player_idx], (int32_t)tech_app)) {
                         COLCALC::Player_Gets_Tech_App(&MOX::player[player_idx], (int16_t)tech_app);
@@ -1909,10 +1919,10 @@ namespace OFFICER {
             }
         }
 
-        if (MOX::leaders[leader_idx].type == LEADER_TYPE_SHIP) {
-            bool has_skill = Officer_Has_Special_Skill(player_idx, leader_idx, 18);
+        if (game::Leader(world_state, leader_idx).type == LEADER_TYPE_SHIP) {
+            bool has_skill = Officer_Has_Special_Skill(world_state, player_idx, leader_idx, 18);
             if (!has_skill) {
-                has_skill = Officer_Has_Special_Skill(player_idx, leader_idx, 19);
+                has_skill = Officer_Has_Special_Skill(world_state, player_idx, leader_idx, 19);
             }
 
             if (has_skill) {
@@ -1922,20 +1932,21 @@ namespace OFFICER {
     }
 
     void __cdecl Give_Leader_Specials_To_Player(int16_t leader_idx, int16_t player_idx) {
-        Give_Leader_Specials_To_Player_Impl(leader_idx, player_idx, nullptr, nullptr);
+        Give_Leader_Specials_To_Player_Impl(&game::world, leader_idx, player_idx, nullptr, nullptr);
     }
 
-    void __cdecl Set_Officer_To_Player(int16_t officer_idx, int16_t player_idx, uint8_t is_instant) {
+    void __cdecl Set_Officer_To_Player(game::s_world_state* world_state, int16_t officer_idx, int16_t player_idx, uint8_t is_instant) {
         int16_t count = 0;
         int16_t replace_idx = -1;
         int16_t max_eta = 0;
 
-        for (int16_t i = 0; i < MAX_LEADERS; ++i) {
+        for (const auto& leader_entry : world_state->leaders) {
+            const int32_t i = static_cast<int32_t>(leader_entry.first.id);
             if (i != officer_idx) {
-                auto& leader = MOX::leaders[i];
+                auto& leader = game::Leader(world_state, i);
                 if (leader.player_index == (int8_t)player_idx) {
                     if (leader.status != -2 && leader.status != -1) {
-                        if (MOX::leaders[officer_idx].type == leader.type) {
+                        if (game::Leader(world_state, officer_idx).type == leader.type) {
                             if (leader.status == 4 && (int16_t)leader.eta > max_eta) {
                                 replace_idx = i;
                                 max_eta = (int16_t)leader.eta;
@@ -1951,10 +1962,10 @@ namespace OFFICER {
             if (replace_idx == -1) {
                 return;
             }
-            Deassign_Officer(replace_idx);
+            Deassign_Officer(world_state, replace_idx);
         }
 
-        auto& target = MOX::leaders[officer_idx];
+        auto& target = game::Leader(world_state, officer_idx);
         target.eta = 0;
         target.player_index = (int8_t)player_idx;
         target.status = (is_instant == 0) ? 4 : 0;
@@ -2102,7 +2113,7 @@ namespace OFFICER {
         }
     }
 
-    void __cdecl Reload_Officer_Screen_Pictures() {
+    void __cdecl Reload_Officer_Screen_Pictures(game::s_world_state* world_state) {
         bitmap::Get_Bitmap_Size(100, 100);
 
         auto& player = MOX::player[MOX::PLAYER_NUM];
@@ -2120,12 +2131,13 @@ namespace OFFICER {
 
         prev_leaders = static_cast<s_prev_leader_data*>(allocate::Allocate_Next_Block(MOX::screen_seg, 0xF71));
 
-        for (int16_t i = 0; i < MAX_LEADERS; ++i) {
-            prev_leaders[i].status = MOX::leaders[i].status;
-            prev_leaders[i].location = MOX::leaders[i].location;
-            prev_leaders[i].eta = static_cast<short>(MOX::leaders[i].eta);
+        for (const auto& leader_entry : world_state->leaders) {
+            const int32_t i = static_cast<int32_t>(leader_entry.first.id);
+            prev_leaders[i].status = game::Leader(world_state, i).status;
+            prev_leaders[i].location = game::Leader(world_state, i).location;
+            prev_leaders[i].eta = static_cast<short>(game::Leader(world_state, i).eta);
 
-            if (MOX::leaders[i].type == LEADER_TYPE_COLONY) {
+            if (game::Leader(world_state, i).type == LEADER_TYPE_COLONY) {
                 if (prev_leaders[i].status == 0 || prev_leaders[i].status == 4) {
                     prev_leaders[i].location = home_star_idx;
                 }
@@ -2135,7 +2147,7 @@ namespace OFFICER {
         MOX::officers_original_ship_id = static_cast<int16_t*>(allocate::Allocate_Next_Block(MOX::screen_seg, 0x10C));
         MOX::officers_original_star_id = static_cast<int16_t*>(allocate::Allocate_Next_Block(MOX::screen_seg, 0x10C));
 
-        Build_Captain_Id_List();
+        Build_Captain_Id_List(world_state);
         RUSS::Mox_Update();
 
         const char* lbx = PTR_s_OFFICER_LBX;
@@ -2183,8 +2195,8 @@ namespace OFFICER {
         Load_Fleet_Galaxy_Stars();
     }
 
-    void __cdecl Generate_Random_Officer(int16_t player_index) {
-        int16_t leader_index = Select_Leader_For_Hire(player_index);
+    void __cdecl Generate_Random_Officer(game::s_world_state* world_state, int16_t player_index) {
+        int16_t leader_index = Select_Leader_For_Hire(world_state, player_index);
 
         MOX::player[player_index].officer_for_hire = (int8_t)leader_index;
 
@@ -2194,13 +2206,13 @@ namespace OFFICER {
                 MOX::player[player_index].stardate_last_offered_hero = static_cast<uint16_t>(MOX::stardate);
             }
 
-            MOX::leaders[leader_index].player_index = (int8_t)player_index;
+            game::Leader(world_state, leader_index).player_index = (int8_t)player_index;
         }
     }
 
     void __cdecl Random_Officer_Check(int16_t player_idx) {
         bool should_generate = false;
-        int16_t chance = Chance_To_Hire_Hero(player_idx);
+        int16_t chance = Chance_To_Hire_Hero(&game::world, player_idx);
 
         if (Player_Can_Hire_More_Officers(player_idx)) {
             if (chance > 0) {
@@ -2211,7 +2223,7 @@ namespace OFFICER {
             }
 
             if (should_generate) {
-                Generate_Random_Officer(player_idx);
+                Generate_Random_Officer(&game::world, player_idx);
             }
         }
     }
@@ -2226,7 +2238,7 @@ namespace OFFICER {
      * @brief Asserts or validates that leaders who are marooned at special systems 
      * (Orion or Antares-type systems) are correctly associated with their location.
      */
-    void __cdecl Assert_Marooned_Leaders() {
+    void __cdecl Assert_Marooned_Leaders(game::s_world_state* world_state) {
         for (int16_t star_idx = 0; star_idx < MOX::NUM_STARS; ++star_idx) {
             int8_t special = MOX::star[star_idx].system_special;
 
@@ -2234,14 +2246,15 @@ namespace OFFICER {
             if (special == SYSTEM_SPECIAL_MAROONED_HERO || (special >= 80 && (special - 80) < MOX::NUM_PLAYERS)) {
                 bool found = false;
                 // Iterate through all possible leaders (67 slots)
-                for (int leader_idx = 0; leader_idx < MAX_LEADERS; ++leader_idx) {
+                for (const auto& leader_entry : world_state->leaders) {
+                    const int32_t leader_idx = static_cast<int32_t>(leader_entry.first.id);
                     if (found) {
                         break;
                     }
 
                     // Check if leader status is 5 (marooned) and location matches current star
-                    if (MOX::leaders[leader_idx].status == 5 &&
-                        MOX::leaders[leader_idx].location == star_idx) {
+                    if (game::Leader(world_state, leader_idx).status == 5 &&
+                        game::Leader(world_state, leader_idx).location == star_idx) {
                         found = true;
                     }
                 }
@@ -2262,16 +2275,17 @@ namespace OFFICER {
     /**
      * Iterates through all officers and grants a level/XP increment if they are hired.
      */
-    int8_t __cdecl Officer_Made_Level_Report(int16_t player_idx, int8_t process_popups) {
+    int8_t __cdecl Officer_Made_Level_Report(game::s_world_state* world_state, int16_t player_idx, int8_t process_popups) {
         int8_t found = 0;
 
-        for (int16_t i = 0; i < MAX_LEADERS; ++i) {
+        for (const auto& leader_entry : world_state->leaders) {
+            const int32_t i = static_cast<int32_t>(leader_entry.first.id);
             // Check if a report was found in previous iteration
             if (found != 0) {
                 return 1;
             }
 
-            s_leader_data* leader = &MOX::leaders[i];
+            s_leader_data* leader = &game::Leader(world_state, i);
             bool is_active = false;
 
             // Logic to determine if the officer/leader is active or in a pool
@@ -2306,25 +2320,26 @@ namespace OFFICER {
         return found;
     }
 
-    void __cdecl Check_For_Officer_Level() {
-        for (int16_t i = 0; i < MAX_LEADERS; ++i) {
-            s_leader_data& leader = MOX::leaders[i];
+    void __cdecl Check_For_Officer_Level(game::s_world_state* world_state) {
+        for (const auto& leader_entry : world_state->leaders) {
+            const int32_t i = static_cast<int32_t>(leader_entry.first.id);
+            s_leader_data& leader = game::Leader(world_state, i);
 
             // A status of 0 or 1 indicates the leader is in active service (hired or standby)
             if ((leader.status == 1 || leader.status == 0) && (int8_t)leader.player_index != -1) {
-                Give_Officer_XP(static_cast<int16_t>(leader.player_index), i, 1);
+                Give_Officer_XP(world_state, static_cast<int16_t>(leader.player_index), i, 1);
             }
         }
     }
 
-    int16_t __cdecl Select_Leader_For_Hire(int16_t player_idx) {
+    int16_t __cdecl Select_Leader_For_Hire(game::s_world_state* world_state, int16_t player_idx) {
         int16_t selected_leader_idx = -1;
         int16_t attempts = 0;
         bool found = false;
         const int16_t leader_type_limit = Leader_Type_Limit();
 
-        int16_t n_fleet_officers = N_Fleet_Officers_Owned_By_Player(player_idx);
-        int16_t n_star_officers = N_Star_Officers_Owned_By_Player(player_idx);
+        int16_t n_fleet_officers = N_Fleet_Officers_Owned_By_Player(world_state, player_idx);
+        int16_t n_star_officers = N_Star_Officers_Owned_By_Player(world_state, player_idx);
         int32_t delta_stardate = antarans::Delta_Stardate();
 
         // Initial candidate pool limit calculation
@@ -2351,7 +2366,7 @@ namespace OFFICER {
             int16_t leader_idx = (int16_t)roll - 1;
 
             bool type_match = false;
-            char leader_type = MOX::leaders[leader_idx].type;
+            char leader_type = game::Leader(world_state, leader_idx).type;
 
             // Check if leader type (Fleet=0 or Star=1) fits current player slots (max 4 of each)
             if ((leader_type == LEADER_TYPE_SHIP &&
@@ -2362,7 +2377,7 @@ namespace OFFICER {
             }
 
             if (type_match) {
-                if (Leader_Available_For_Hire(leader_idx)) {
+                if (Leader_Available_For_Hire(world_state, leader_idx)) {
                     found = true;
                     selected_leader_idx = leader_idx;
                 }
@@ -2378,23 +2393,23 @@ namespace OFFICER {
     }
 
     /**
-     * Calculates the indices of the player, leader, and ship pointers,
+     * Calculates the indices of the player and ship pointers,
      * determines the ETA for assigning the leader to the ship,
      * and performs the assignment.
      */
-    void __cdecl Ai_Assign_Leader_To_Ship(s_player* player, s_leader_data* leader, s_ship_data* ship) {
+    void __cdecl Ai_Assign_Leader_To_Ship(game::s_world_state* world_state, s_player* player, game::id_leader leader_id, s_ship_data* ship) {
         int16_t ship_idx = (int16_t)(ship - MOX::ship);
-        int16_t leader_idx = static_cast<int16_t>(leader - MOX::leaders);
+        int16_t leader_idx = static_cast<int16_t>(legacy_world::Slot(leader_id));
         int16_t player_idx = static_cast<int16_t>(player - MOX::player);
 
-        int8_t eta = Get_Ship_Leader_ETA(player_idx, leader_idx, ship_idx);
+        int8_t eta = Get_Ship_Leader_ETA(world_state, player_idx, leader_idx, ship_idx);
 
-        Assign_Leader_To_Ship(player, leader, ship, eta);
+        Assign_Leader_To_Ship(world_state, player, leader_id, ship, eta);
     }
 
-    int16_t __cdecl Chance_To_Hire_Hero(int16_t player_idx) {
-        int16_t n_fleet_officers = N_Fleet_Officers_Owned_By_Player(player_idx);
-        int16_t n_star_officers = N_Star_Officers_Owned_By_Player(player_idx);
+    int16_t __cdecl Chance_To_Hire_Hero(game::s_world_state* world_state, int16_t player_idx) {
+        int16_t n_fleet_officers = N_Fleet_Officers_Owned_By_Player(world_state, player_idx);
+        int16_t n_star_officers = N_Star_Officers_Owned_By_Player(world_state, player_idx);
 
         if (antarans::Delta_Stardate() < progression.hire_chance.initial_delay) {
             return 0;
@@ -2415,20 +2430,21 @@ namespace OFFICER {
             chance -= progression.hire_chance.repulsive_penalty;
         }
 
-        for (int16_t leader_idx = 0; leader_idx < MAX_LEADERS; ++leader_idx) {
+        for (const auto& leader_entry : world_state->leaders) {
+            const int32_t leader_idx = static_cast<int32_t>(leader_entry.first.id);
             int16_t level_plus_1;
-            if (MOX::leaders[leader_idx].player_index == -1) {
-                level_plus_1 = Get_Officer_Level(leader_idx) + 1;
+            if (game::Leader(world_state, leader_idx).player_index == -1) {
+                level_plus_1 = Get_Officer_Level(world_state, leader_idx) + 1;
             } else {
-                level_plus_1 = Owned_Officer_Level(leader_idx) + 1;
+                level_plus_1 = Owned_Officer_Level(world_state, leader_idx) + 1;
             }
 
-            if (MOX::leaders[leader_idx].player_index == player_idx) {
-                int8_t status = MOX::leaders[leader_idx].status;
+            if (game::Leader(world_state, leader_idx).player_index == player_idx) {
+                int8_t status = game::Leader(world_state, leader_idx).status;
                 if (status == 0 || status == 1) {
-                    if (Officer_Has_General_Skill(player_idx, leader_idx, 10 /* Famous */)) {
+                    if (Officer_Has_General_Skill(world_state, player_idx, leader_idx, 10 /* Famous */)) {
                         chance += level_plus_1;
-                    } else if (Officer_Has_General_Skill(player_idx, leader_idx, 11 /* Reputation */)) {
+                    } else if (Officer_Has_General_Skill(world_state, player_idx, leader_idx, 11 /* Reputation */)) {
                         chance += (level_plus_1 * 15) / 10;
                     }
                 }
@@ -2443,8 +2459,8 @@ namespace OFFICER {
         return (int16_t)((int32_t)chance / n_officers);
     }
 
-    void __cdecl Kill_Officer(int16_t leader_idx) {
-        s_leader_data* leader = &MOX::leaders[leader_idx];
+    void __cdecl Kill_Officer(game::s_world_state* world_state, int16_t leader_idx) {
+        s_leader_data* leader = &game::Leader(world_state, leader_idx);
         int16_t loc = leader->location;
 
         if (loc > -1) {
@@ -2467,7 +2483,7 @@ namespace OFFICER {
         }
     }
 
-    s_animation_header* __cdecl Load_Officer_Picture(
+    s_animation_header* __cdecl Load_Officer_Picture(game::s_world_state* world_state,
         int32_t unused,
         int16_t leader_idx,
         s_animation_header* dest,
@@ -2483,7 +2499,7 @@ namespace OFFICER {
             pic_offset = 0x115;
         }
 
-        int32_t frame_index = pic_offset + static_cast<uint8_t>(MOX::leaders[leader_idx].pict_num);
+        int32_t frame_index = pic_offset + static_cast<uint8_t>(game::Leader(world_state, leader_idx).pict_num);
 
         if (use_far_reload == 0) {
             return (s_animation_header*)farload::Far_Reload_Next(PTR_s_OFFICER_LBX, frame_index, dest);
@@ -2507,26 +2523,26 @@ namespace OFFICER {
         sb->thumb_center_y = sb->track_len_px - (height / 2);
     }
 
-    void __cdecl Move_Officer_To_Pool(int16_t leader_idx) {
-        int16_t location = MOX::leaders[leader_idx].location;
-        int8_t player_idx = MOX::leaders[leader_idx].player_index;
+    void __cdecl Move_Officer_To_Pool(game::s_world_state* world_state, int16_t leader_idx) {
+        int16_t location = game::Leader(world_state, leader_idx).location;
+        int8_t player_idx = game::Leader(world_state, leader_idx).player_index;
 
-        if (location != -1 && MOX::leaders[leader_idx].status != 5) {
-            if (MOX::leaders[leader_idx].type == LEADER_TYPE_SHIP) {
+        if (location != -1 && game::Leader(world_state, leader_idx).status != 5) {
+            if (game::Leader(world_state, leader_idx).type == LEADER_TYPE_SHIP) {
                 if (MOX::ship[location].officer_index == leader_idx) {
                     MOX::ship[location].officer_index = -1;
                 }
-            } else if (MOX::leaders[leader_idx].type == LEADER_TYPE_COLONY) {
+            } else if (game::Leader(world_state, leader_idx).type == LEADER_TYPE_COLONY) {
                 MOX::star[location].officer_index[player_idx] = -1;
             }
         }
 
-        MOX::leaders[leader_idx].status = 0;
-        MOX::leaders[leader_idx].eta = 0;
-        MOX::leaders[leader_idx].location = -1;
+        game::Leader(world_state, leader_idx).status = 0;
+        game::Leader(world_state, leader_idx).eta = 0;
+        game::Leader(world_state, leader_idx).location = -1;
 
-        if (MOX::leaders[leader_idx].type == LEADER_TYPE_COLONY) {
-            COLCALC::Do_Player_Colony_Calculations((int16_t)MOX::leaders[leader_idx].player_index);
+        if (game::Leader(world_state, leader_idx).type == LEADER_TYPE_COLONY) {
+            COLCALC::Do_Player_Colony_Calculations((int16_t)game::Leader(world_state, leader_idx).player_index);
         } else {
             SHIPMOVE::Recalculate_Moving_Fleet(location);
         }
@@ -2540,7 +2556,7 @@ namespace OFFICER {
                 const int16_t officer_id = MOX::officer_id_list[picture_slot_index];
 
                 if (officer_id > -1) {
-                    s_animation_header* picture = OFFICER::Load_Officer_Picture(
+                    s_animation_header* picture = OFFICER::Load_Officer_Picture(&game::world,
                         (int32_t)MOX::PLAYER_NUM,
                         officer_id,
                         reinterpret_cast<s_animation_header*>(MOX::officer_pictures_screen_seg),
@@ -2550,7 +2566,7 @@ namespace OFFICER {
                     OFFICER::ldrpict[picture_slot_index].pic = picture;
                     OFFICER::ldrpict[picture_slot_index].officer_id = MOX::officer_id_list[picture_slot_index];
 
-                    picture = OFFICER::Load_Darkened_Officer_Picture(
+                    picture = OFFICER::Load_Darkened_Officer_Picture(&game::world,
                         MOX::PLAYER_NUM,
                         officer_id,
                         MOX::officer_pictures_screen_seg,
@@ -2629,7 +2645,7 @@ namespace OFFICER {
         int16_t* prev_btn,
         int16_t* big_icon_fields) {
         bool is_fleet_officer_screen = Is_Fleet_Officer_Screen();
-        bool leaders_in_pool = Leaders_In_Hiring_Pool();
+        bool leaders_in_pool = Leaders_In_Hiring_Pool(&game::world);
         bool has_officers = MOX::n_fltscrn_officers > 0;
 
         if (officer_button_mode != 0 && has_officers) {
@@ -2808,33 +2824,33 @@ namespace OFFICER {
             0x0);
     }
 
-    void __cdecl Give_Officer_XP(int16_t player_idx, int16_t leader_idx, int16_t xp_amount) {
+    void __cdecl Give_Officer_XP(game::s_world_state* world_state, int16_t player_idx, int16_t leader_idx, int16_t xp_amount) {
         int16_t current_level;
         int16_t new_level;
 
-        if (MOX::leaders[leader_idx].player_index == -1) {
-            current_level = Get_Officer_Level(leader_idx);
+        if (game::Leader(world_state, leader_idx).player_index == -1) {
+            current_level = Get_Officer_Level(world_state, leader_idx);
         } else {
-            current_level = OFFICER::Owned_Officer_Level(leader_idx);
+            current_level = OFFICER::Owned_Officer_Level(world_state, leader_idx);
         }
 
-        MOX::leaders[leader_idx].xp += xp_amount;
+        game::Leader(world_state, leader_idx).xp += xp_amount;
 
-        if (MOX::leaders[leader_idx].xp > 30000) {
-            MOX::leaders[leader_idx].xp = 30000;
+        if (game::Leader(world_state, leader_idx).xp > 30000) {
+            game::Leader(world_state, leader_idx).xp = 30000;
         }
 
-        if (MOX::leaders[leader_idx].player_index == -1) {
-            new_level = Get_Officer_Level(leader_idx);
+        if (game::Leader(world_state, leader_idx).player_index == -1) {
+            new_level = Get_Officer_Level(world_state, leader_idx);
         } else {
-            new_level = OFFICER::Owned_Officer_Level(leader_idx);
+            new_level = OFFICER::Owned_Officer_Level(world_state, leader_idx);
         }
 
         if (new_level != current_level) {
-            if (MOX::leaders[leader_idx].type == LEADER_TYPE_COLONY && MOX::leaders[leader_idx].location != -1) {
-                COLCALC::Star_Colony_Calculation(MOX::leaders[leader_idx].location, player_idx);
+            if (game::Leader(world_state, leader_idx).type == LEADER_TYPE_COLONY && game::Leader(world_state, leader_idx).location != -1) {
+                COLCALC::Star_Colony_Calculation(game::Leader(world_state, leader_idx).location, player_idx);
             }
-            MOX::leaders[leader_idx].display_level_popup = 1;
+            game::Leader(world_state, leader_idx).display_level_popup = 1;
         }
     }
 
@@ -2858,10 +2874,10 @@ namespace OFFICER {
         SYS::Add_System_Display_Popup_Fields(system_id, 0x132, 0x11, 0, 0, 0, 0, &popup_close_field, nullptr, &popup_name_field);
     }
 
-    void __cdecl Print_ETA_On_Officer_Picture(int16_t leader_idx, int16_t x, int16_t y, int16_t w) {
+    void __cdecl Print_ETA_On_Officer_Picture(game::s_world_state* world_state, int16_t leader_idx, int16_t x, int16_t y, int16_t w) {
         char buffer[20];
 
-        int8_t eta = MOX::leaders[leader_idx].eta;
+        int8_t eta = game::Leader(world_state, leader_idx).eta;
 
         fonts::Set_Font_Style_Outline_Heavy(2, &red_colors);
         fonts::Set_Outline_Color(0, 0);
@@ -2884,40 +2900,40 @@ namespace OFFICER {
         line::Line(text_x, text_y + font_height + 1, text_end_x, text_y + font_height + 1, 129);
     }
 
-    char* __cdecl Leader_Name(int16_t leader_idx, char include_title, void* star_ptr) {
+    char* __cdecl Leader_Name(game::s_world_state* world_state, int16_t leader_idx, char include_title, void* star_ptr) {
         (void)star_ptr;
         char title_prefix[200];
         int16_t level;
 
-        if (MOX::leaders[leader_idx].player_index == -1) {
-            level = Get_Officer_Level(leader_idx);
+        if (game::Leader(world_state, leader_idx).player_index == -1) {
+            level = Get_Officer_Level(world_state, leader_idx);
         } else {
-            level = Owned_Officer_Level(leader_idx);
+            level = Owned_Officer_Level(world_state, leader_idx);
         }
 
         MOX::temp_string[0] = '\0';
 
-        if (MOX::leaders[leader_idx].type == LEADER_TYPE_SHIP) {
+        if (game::Leader(world_state, leader_idx).type == LEADER_TYPE_SHIP) {
             strlcpy(MOX::temp_string, MOX::officer_level_names[level], sizeof(MOX::temp_string));
         } else {
             strlcpy(MOX::temp_string, MOX::star_officer_level_names[level], sizeof(MOX::temp_string));
         }
 
         strlcat(MOX::temp_string, " ", sizeof(MOX::temp_string));
-        strlcat(MOX::temp_string, MOX::leaders[leader_idx].name, sizeof(MOX::temp_string));
+        strlcat(MOX::temp_string, game::Leader(world_state, leader_idx).name, sizeof(MOX::temp_string));
 
         if (include_title == '\0') {
             return MOX::temp_string;
         }
 
-        if (MOX::leaders[leader_idx].title[0] == '\0') {
+        if (game::Leader(world_state, leader_idx).title[0] == '\0') {
             return MOX::temp_string;
         }
 
         if (MOX::settings.language == 4) {
-            Get_Italian_The(leader_idx, title_prefix, sizeof(title_prefix));
+            Get_Italian_The(world_state, leader_idx, title_prefix, sizeof(title_prefix));
         } else {
-            if (MOX::settings.language == 2 && MISC::Is_Vowel(MOX::leaders[leader_idx].title[0])) {
+            if (MOX::settings.language == 2 && MISC::Is_Vowel(game::Leader(world_state, leader_idx).title[0])) {
                 MISC::Get_LBX_Message(0x186, title_prefix);
             } else {
                 if (!Officer_Is_Female(leader_idx)) {
@@ -2929,7 +2945,7 @@ namespace OFFICER {
         }
 
         strlcat(MOX::temp_string, title_prefix, sizeof(MOX::temp_string));
-        strlcat(MOX::temp_string, MOX::leaders[leader_idx].title, sizeof(MOX::temp_string));
+        strlcat(MOX::temp_string, game::Leader(world_state, leader_idx).title, sizeof(MOX::temp_string));
 
         return MOX::temp_string;
     }
@@ -2941,29 +2957,29 @@ namespace OFFICER {
             return;
         }
 
-        strlcpy(dst, Leader_Name(officer_idx, 0), dst_size);
+        strlcpy(dst, Leader_Name(&game::world, officer_idx, 0), dst_size);
     }
 
-    void __cdecl Find_Selected_Leader(int16_t leader_idx) {
+    void __cdecl Find_Selected_Leader(game::s_world_state* world_state, int16_t leader_idx) {
         char msg_buf1[200];
         char msg_buf2[200];
         char msg_buf3[200];
 
-        int16_t location = MOX::leaders[leader_idx].location;
-        char type = MOX::leaders[leader_idx].type;
+        int16_t location = game::Leader(world_state, leader_idx).location;
+        char type = game::Leader(world_state, leader_idx).type;
 
         msg_buf2[0] = '\0';
         msg_buf3[0] = '\0';
 
         if (location == -1) {
             int16_t msg_idx;
-            if (MOX::leaders[leader_idx].status == 0) {
+            if (game::Leader(world_state, leader_idx).status == 0) {
                 msg_idx = HESTR_111_S_IS_IN_THE_OFFICER_PO;
             } else {
                 msg_idx = HESTR_112_S_DOES_NOT_HAVE_A_LOCA;
             }
             strlcpy(msg_buf1, HAROLD::H_Message(msg_idx), sizeof(msg_buf1));
-            snprintf(msg_buf2, sizeof(msg_buf2), msg_buf1, Leader_Name(leader_idx, 0));
+            snprintf(msg_buf2, sizeof(msg_buf2), msg_buf1, Leader_Name(world_state, leader_idx, 0));
         }
 
         if (msg_buf2[0] == '\0') {
@@ -2971,12 +2987,12 @@ namespace OFFICER {
                 if (MOX::ship[location].status == 4) {
                     int16_t abs_loc = HAROLD::Absolute_Location(MOX::ship[location].location);
                     strlcpy(msg_buf1, HAROLD::H_Message(HESTR_113_S_IS_LOCATED_ON_S_WHIC), sizeof(msg_buf1));
-                    snprintf(msg_buf2, sizeof(msg_buf2), msg_buf1, Leader_Name(leader_idx, 0), &MOX::ship[location], &MOX::star[abs_loc]);
+                    snprintf(msg_buf2, sizeof(msg_buf2), msg_buf1, Leader_Name(world_state, leader_idx, 0), &MOX::ship[location], &MOX::star[abs_loc]);
                 } else {
                     int16_t stack_id = HACCESS::Ship_Stack_From_Ship_Id(location);
                     if (stack_id == -1) {
                         strlcpy(msg_buf1, HAROLD::H_Message(HESTR_114_S_CANNOT_BE_LOCATED), sizeof(msg_buf1));
-                        snprintf(msg_buf2, sizeof(msg_buf2), msg_buf1, Leader_Name(leader_idx, 0));
+                        snprintf(msg_buf2, sizeof(msg_buf2), msg_buf1, Leader_Name(world_state, leader_idx, 0));
                     } else {
                         bool diff = MOX::small_ship_stack_ptr != stack_id;
                         MOX::small_ship_stack_ptr = stack_id;
@@ -3063,7 +3079,7 @@ namespace OFFICER {
         }
     }
 
-    void __cdecl Give_Player_Loknar_Special(int16_t player_idx, int16_t* techs, int16_t* num_techs) {
+    void __cdecl Give_Player_Loknar_Special(game::s_world_state* world_state, int16_t player_idx, int16_t* techs, int16_t* num_techs) {
         // Battle-result outputs can point into packed storage.
         int16_t granted_techs[7];
         int16_t granted_tech_count = 0;
@@ -3076,25 +3092,25 @@ namespace OFFICER {
             dont_assign = true;
         }
 
-        if (N_Fleet_Officers_Owned_By_Player(player_idx) >=
+        if (N_Fleet_Officers_Owned_By_Player(world_state, player_idx) >=
             Leader_Type_Limit()) {
             dont_assign = true;
         }
 
         if (dont_assign) {
-            MOX::leaders[0x41].location = -1;
-            MOX::leaders[0x41].player_index = -1;
-            MOX::leaders[0x41].status = 6;
+            game::Leader(world_state, 0x41).location = -1;
+            game::Leader(world_state, 0x41).player_index = -1;
+            game::Leader(world_state, 0x41).status = 6;
             if (ship_idx != -1) {
                 MOX::ship[ship_idx].officer_index = -1;
             }
         } else {
             if (ship_idx != -1) {
-                MOX::leaders[0x41].location = ship_idx;
-                MOX::leaders[0x41].player_index = static_cast<int8_t>(player_idx);
-                MOX::leaders[0x41].status = 1;
+                game::Leader(world_state, 0x41).location = ship_idx;
+                game::Leader(world_state, 0x41).player_index = static_cast<int8_t>(player_idx);
+                game::Leader(world_state, 0x41).status = 1;
                 if (loknar_gives_no_tech == 0) {
-                    Give_Leader_Specials_To_Player_Impl(
+                    Give_Leader_Specials_To_Player_Impl(world_state,
                         0x41, player_idx, loknar_techs, &num_loknar_techs);
                 }
             }
@@ -3119,8 +3135,8 @@ namespace OFFICER {
         MAINSCR::Update_Ship_Icons_In_Between_Turns();
     }
 
-    void __cdecl Make_Loknar_Message(char* output, uint32_t output_size, const int16_t* tech_app_ids, int16_t tech_app_count) {
-        const int16_t message_id = (MOX::leaders[0x41].status == 6) ? 0x25 : 0x26;
+    void __cdecl Make_Loknar_Message(game::s_world_state* world_state, char* output, uint32_t output_size, const int16_t* tech_app_ids, int16_t tech_app_count) {
+        const int16_t message_id = (game::Leader(world_state, 0x41).status == 6) ? 0x25 : 0x26;
 
         if (output == nullptr || output_size == 0) {
             return;
@@ -3145,7 +3161,7 @@ namespace OFFICER {
         char buffer[500];
         (void)unused;
 
-        Make_Loknar_Message(buffer, sizeof(buffer), tech_app_ids, tech_app_count);
+        Make_Loknar_Message(&game::world, buffer, sizeof(buffer), tech_app_ids, tech_app_count);
         HAROLD::User_Box(&MOX::draw_main_screen_to_back, buffer, 0);
         MOX::FULL_DRAW_SCREEN_FLAG = 1;
     }
@@ -3179,11 +3195,11 @@ namespace OFFICER {
         }
     }
 
-    int8_t __cdecl Leader_Available_For_Hire(int16_t leader_idx) {
-        if (MOX::leaders[leader_idx].player_index == -1 &&
+    int8_t __cdecl Leader_Available_For_Hire(game::s_world_state* world_state, int16_t leader_idx) {
+        if (game::Leader(world_state, leader_idx).player_index == -1 &&
             leader_idx != 0x41 &&
             leader_idx != 0x42 &&
-            MOX::leaders[leader_idx].status == -1) {
+            game::Leader(world_state, leader_idx).status == -1) {
             return 1;
         }
         return 0;
@@ -3193,34 +3209,35 @@ namespace OFFICER {
         MAINPUPS::g_officer = officer_id;
         MAINPUPS::on_officer_screen_flag = 1;
 
-        uint8_t result = (uint8_t)MAINPUPS::Random_New_Officer_Popup(player_num);
+        uint8_t result = (uint8_t)MAINPUPS::Random_New_Officer_Popup(&game::world, player_num);
 
         MAINPUPS::on_officer_screen_flag = 0;
         return result;
     }
 
     int32_t __cdecl Calculate_Officer_Cost(int16_t player_idx, int16_t leader_idx) {
-        return Officer_Cost(player_idx, leader_idx);
+        return Officer_Cost(&game::world, player_idx, leader_idx);
     }
 
-    bool __cdecl Marooned_Hero_At_Star_Can_Join(int16_t star_idx, int16_t* hero_idx, int16_t player_idx) {
+    bool __cdecl Marooned_Hero_At_Star_Can_Join(game::s_world_state* world_state, int16_t star_idx, int16_t* hero_idx, int16_t player_idx) {
         bool found = false;
         int16_t deassign_idx = -1;
         bool can_join = false;
 
         *hero_idx = -1;
 
-        for (int16_t i = 0; i < MAX_LEADERS; i++) {
+        for (const auto& leader_entry : world_state->leaders) {
+            const int32_t i = static_cast<int32_t>(leader_entry.first.id);
             if (found) {
                 break;
             }
 
-            if (MOX::leaders[i].status == 5 && MOX::leaders[i].location == star_idx) {
+            if (game::Leader(world_state, i).status == 5 && game::Leader(world_state, i).location == star_idx) {
                 int16_t count;
-                if (MOX::leaders[i].type == LEADER_TYPE_SHIP) {
-                    count = N_Fleet_Officers_Owned_By_Player(player_idx);
+                if (game::Leader(world_state, i).type == LEADER_TYPE_SHIP) {
+                    count = N_Fleet_Officers_Owned_By_Player(world_state, player_idx);
                 } else {
-                    count = N_Star_Officers_Owned_By_Player(player_idx);
+                    count = N_Star_Officers_Owned_By_Player(world_state, player_idx);
                 }
 
                 *hero_idx = i;
@@ -3235,27 +3252,27 @@ namespace OFFICER {
         }
 
         if (deassign_idx != -1) {
-            Deassign_Officer(deassign_idx);
+            Deassign_Officer(world_state, deassign_idx);
             return can_join;
         }
 
         if (*hero_idx != -1) {
-            MOX::leaders[*hero_idx].player_index = static_cast<int8_t>(player_idx);
-            MOX::leaders[*hero_idx].location = -1;
-            Set_Officer_To_Player(*hero_idx, player_idx, 1);
-            Move_Officer_To_Pool(*hero_idx);
+            game::Leader(world_state, *hero_idx).player_index = static_cast<int8_t>(player_idx);
+            game::Leader(world_state, *hero_idx).location = -1;
+            Set_Officer_To_Player(world_state, *hero_idx, player_idx, 1);
+            Move_Officer_To_Pool(world_state, *hero_idx);
         }
 
         return can_join;
     }
 
-    void __cdecl Ai_Assign_Leader_To_Star(s_player* player, s_leader_data* leader, s_star_data* star) {
+    void __cdecl Ai_Assign_Leader_To_Star(game::s_world_state* world_state, s_player* player, game::id_leader leader_id, s_star_data* star) {
         int16_t player_idx = static_cast<int16_t>(player - MOX::player);
-        int16_t leader_idx = static_cast<int16_t>(leader - MOX::leaders);
+        int16_t leader_idx = static_cast<int16_t>(legacy_world::Slot(leader_id));
         int16_t star_idx = (int16_t)(star - MOX::star);
 
-        int8_t eta = Get_Star_Leader_ETA(player_idx, leader_idx, star_idx);
-        Assign_Leader_To_Star(player, leader, star, eta);
+        int8_t eta = Get_Star_Leader_ETA(world_state, player_idx, leader_idx, star_idx);
+        Assign_Leader_To_Star(world_state, player, leader_id, star, eta);
     }
 
     /**
@@ -3304,14 +3321,14 @@ namespace OFFICER {
         }
     }
 
-    void __cdecl Get_Italian_The(int16_t leader_idx, char* output, uint32_t output_size) {
+    void __cdecl Get_Italian_The(game::s_world_state* world_state, int16_t leader_idx, char* output, uint32_t output_size) {
         if (output == nullptr || output_size == 0) {
             return;
         }
 
         output[0] = '\0';
 
-        if (MISC::Is_Vowel(MOX::leaders[leader_idx].title[0])) {
+        if (MISC::Is_Vowel(game::Leader(world_state, leader_idx).title[0])) {
             strlcpy(output, HAROLD::H_Message(HESTR_186_S), output_size);
             return;
         }
@@ -3329,8 +3346,8 @@ namespace OFFICER {
         strlcpy(output, HAROLD::H_Message(0x110 /* HESTR_110_THE */), output_size);
     }
 
-    s_animation_header* __cdecl Load_Darkened_Officer_Picture(int16_t player_num, int16_t leader_idx, void* buffer, uint8_t load_now) {
-        const int16_t image_id = static_cast<int16_t>(static_cast<uint8_t>(MOX::leaders[leader_idx].pict_num) + 0x8f);
+    s_animation_header* __cdecl Load_Darkened_Officer_Picture(game::s_world_state* world_state, int16_t player_num, int16_t leader_idx, void* buffer, uint8_t load_now) {
+        const int16_t image_id = static_cast<int16_t>(static_cast<uint8_t>(game::Leader(world_state, leader_idx).pict_num) + 0x8f);
 
         if (load_now != 0) {
             return (s_animation_header*)farload::Far_Reload(PTR_s_OFFICER_LBX, image_id, buffer);
@@ -3341,28 +3358,28 @@ namespace OFFICER {
 
     void __cdecl Wrapper_For_Colony_Officer_Popup_Data(int16_t x, int16_t y, int16_t officer_idx) {
         offscrn_ask_for_hire_popup = 1;
-        Print_Officer_Data(-1, officer_idx, x + 0x5f, y + 5, x + 10, y + 2, 0x50, 0x5a, 0xc3, 0xe);
+        Print_Officer_Data(&game::world, -1, officer_idx, x + 0x5f, y + 5, x + 10, y + 2, 0x50, 0x5a, 0xc3, 0xe);
         offscrn_ask_for_hire_popup = 0;
     }
 
-    void __cdecl Get_N_Skills_Per_Officer_Displayed(int16_t* skill_counts) {
+    void __cdecl Get_N_Skills_Per_Officer_Displayed(game::s_world_state* world_state, int16_t* skill_counts) {
         for (int16_t i = 0; i < 4; ++i) {
             int16_t officer_idx = MOX::officer_id_list[i];
             if (officer_idx > -1) {
-                int16_t player_idx = MOX::leaders[officer_idx].player_index;
-                char type = MOX::leaders[officer_idx].type;
+                int16_t player_idx = game::Leader(world_state, officer_idx).player_index;
+                char type = game::Leader(world_state, officer_idx).type;
 
                 if (type == LEADER_TYPE_SHIP) {
                     for (int16_t skill_idx = 0; skill_idx < 54; ++skill_idx) {
-                        if ((MOX::skill_data[skill_idx].skill_type == 0 && OFFICER::Officer_Has_General_Skill(player_idx, officer_idx, skill_idx)) ||
-                            (MOX::skill_data[skill_idx].skill_type == 1 && OFFICER::Officer_Has_Special_Skill(player_idx, officer_idx, skill_idx))) {
+                        if ((MOX::skill_data[skill_idx].skill_type == 0 && OFFICER::Officer_Has_General_Skill(world_state, player_idx, officer_idx, skill_idx)) ||
+                            (MOX::skill_data[skill_idx].skill_type == 1 && OFFICER::Officer_Has_Special_Skill(world_state, player_idx, officer_idx, skill_idx))) {
                             skill_counts[i]++;
                         }
                     }
                 } else if (type == LEADER_TYPE_COLONY) {
                     for (int16_t skill_idx = 0; skill_idx < 54; ++skill_idx) {
-                        if ((MOX::skill_data[skill_idx].skill_type == 0 && OFFICER::Officer_Has_General_Skill(player_idx, officer_idx, skill_idx)) ||
-                            (MOX::skill_data[skill_idx].skill_type == 2 && OFFICER::Officer_Has_Special_Skill(player_idx, officer_idx, skill_idx))) {
+                        if ((MOX::skill_data[skill_idx].skill_type == 0 && OFFICER::Officer_Has_General_Skill(world_state, player_idx, officer_idx, skill_idx)) ||
+                            (MOX::skill_data[skill_idx].skill_type == 2 && OFFICER::Officer_Has_Special_Skill(world_state, player_idx, officer_idx, skill_idx))) {
                             skill_counts[i]++;
                         }
                     }
@@ -3375,7 +3392,7 @@ namespace OFFICER {
         animate::Draw(x, static_cast<int16_t>(y - 4), MOX::officer_skill_icon_seg[skill_idx]);
     }
 
-    void __cdecl Print_Officer_Data(
+    void __cdecl Print_Officer_Data(game::s_world_state* world_state,
         int16_t officer_list_index,
         int16_t officer_id,
         int16_t text_x,
@@ -3386,7 +3403,7 @@ namespace OFFICER {
         int16_t portrait_status_offset_y,
         int16_t right_column_offset_x,
         int16_t unk_10) {
-        s_leader_data& leader = MOX::leaders[officer_id];
+        s_leader_data& leader = game::Leader(world_state, officer_id);
         const int16_t leader_location = leader.location;
         const int16_t officer_status = static_cast<int16_t>(leader.status);
         const uint16_t officer_type = leader.type;
@@ -3421,7 +3438,7 @@ namespace OFFICER {
         }
 
         if (MOX::current_screen == SCREEN_OFFICERS && OFFICER::offscrn_ask_for_hire_popup == 0) {
-            snprintf(text_buffer, sizeof(text_buffer), "%s", OFFICER::Leader_Name(officer_id, false));
+            snprintf(text_buffer, sizeof(text_buffer), "%s", OFFICER::Leader_Name(world_state, officer_id, false));
             fonts::Set_Font_Style_Outline(3, &text_colors);
             fonts::Set_Font_Spacing(1);
 
@@ -3472,7 +3489,7 @@ namespace OFFICER {
                 fonts::Print(label_x, label_y, label);
             }
 
-            int16_t level = OFFICER::Owned_Officer_Level(officer_id);
+            int16_t level = OFFICER::Owned_Officer_Level(world_state, officer_id);
             if (level > 4) {
                 level = 4;
             }
@@ -3556,7 +3573,7 @@ namespace OFFICER {
         status_text[0] = '\0';
 
         if (officer_eta > 0 && officer_status == 1) {
-            OFFICER::Print_ETA_On_Officer_Picture(
+            OFFICER::Print_ETA_On_Officer_Picture(world_state,
                 officer_id, portrait_x, portrait_y, portrait_width);
         }
 
@@ -3569,7 +3586,7 @@ namespace OFFICER {
 
         strlcpy(dot_text, " .", sizeof(dot_text));
         fonts::Get_String_Width(dot_text);
-        OFFICER::Get_Skill_Data_Max_Pixel_Width(officer_id);
+        OFFICER::Get_Skill_Data_Max_Pixel_Width(world_state, officer_id);
 
         const int16_t skill_column_x = static_cast<int16_t>(text_x + 2);
 
@@ -3578,12 +3595,12 @@ namespace OFFICER {
 
             if (officer_type == LEADER_TYPE_SHIP) {
                 if (MOX::skill_data[skill_idx].skill_type == 1 &&
-                    OFFICER::Officer_Has_Special_Skill(MOX::PLAYER_NUM, officer_id, skill_idx)) {
+                    OFFICER::Officer_Has_Special_Skill(world_state, MOX::PLAYER_NUM, officer_id, skill_idx)) {
                     has_skill = true;
                 }
             } else if (officer_type == LEADER_TYPE_COLONY) {
                 if (MOX::skill_data[skill_idx].skill_type == 2 &&
-                    OFFICER::Officer_Has_Special_Skill(MOX::PLAYER_NUM, officer_id, skill_idx)) {
+                    OFFICER::Officer_Has_Special_Skill(world_state, MOX::PLAYER_NUM, officer_id, skill_idx)) {
                     has_skill = true;
                 }
             }
@@ -3597,7 +3614,7 @@ namespace OFFICER {
                 fonts::Get_String_Width(text_buffer);
 
                 const int16_t bonus =
-                    static_cast<int16_t>(OFFICER::Officer_Skill_Bonus(MOX::PLAYER_NUM, officer_id, skill_idx));
+                    static_cast<int16_t>(OFFICER::Officer_Skill_Bonus(world_state, MOX::PLAYER_NUM, officer_id, skill_idx));
 
                 snprintf(
                     text_buffer,
@@ -3620,7 +3637,7 @@ namespace OFFICER {
             bool has_skill = false;
 
             if (MOX::skill_data[skill_idx].skill_type == 0 &&
-                OFFICER::Officer_Has_General_Skill(MOX::PLAYER_NUM, officer_id, skill_idx)) {
+                OFFICER::Officer_Has_General_Skill(world_state, MOX::PLAYER_NUM, officer_id, skill_idx)) {
                 has_skill = true;
             }
 
@@ -3633,7 +3650,7 @@ namespace OFFICER {
                 fonts::Get_String_Width(text_buffer);
 
                 const int16_t bonus =
-                    static_cast<int16_t>(OFFICER::Officer_Skill_Bonus(MOX::PLAYER_NUM, officer_id, skill_idx));
+                    static_cast<int16_t>(OFFICER::Officer_Skill_Bonus(world_state, MOX::PLAYER_NUM, officer_id, skill_idx));
 
                 snprintf(
                     text_buffer,
@@ -3653,26 +3670,26 @@ namespace OFFICER {
         }
     }
 
-    int16_t __cdecl Get_Skill_Data_Max_Pixel_Width(int16_t leader_idx) {
+    int16_t __cdecl Get_Skill_Data_Max_Pixel_Width(game::s_world_state* world_state, int16_t leader_idx) {
         int16_t max_width = 0;
         char formatted_bonus[68];
-        const int16_t player_idx = static_cast<int8_t>(MOX::leaders[leader_idx].player_index);
+        const int16_t player_idx = static_cast<int8_t>(game::Leader(world_state, leader_idx).player_index);
 
         for (int16_t skill_idx = 0; skill_idx < 54; ++skill_idx) {
             const uint8_t skill_type = MOX::skill_data[skill_idx].skill_type;
             bool has_skill = false;
 
             if (skill_type == 0) {
-                has_skill = OFFICER::Officer_Has_General_Skill(player_idx, leader_idx, skill_idx);
+                has_skill = OFFICER::Officer_Has_General_Skill(world_state, player_idx, leader_idx, skill_idx);
             } else if (skill_type >= 1 && skill_type <= 2) {
-                has_skill = OFFICER::Officer_Has_Special_Skill(player_idx, leader_idx, skill_idx);
+                has_skill = OFFICER::Officer_Has_Special_Skill(world_state, player_idx, leader_idx, skill_idx);
             }
 
             if (!has_skill) {
                 continue;
             }
 
-            const int16_t bonus = (int16_t)OFFICER::Officer_Skill_Bonus(static_cast<uint32_t>(player_idx), leader_idx, skill_idx);
+            const int16_t bonus = (int16_t)OFFICER::Officer_Skill_Bonus(world_state, static_cast<uint32_t>(player_idx), leader_idx, skill_idx);
             snprintf(formatted_bonus, sizeof(formatted_bonus), MOX::skill_data[skill_idx].format_str, static_cast<int>(bonus));
 
             const int16_t width = fonts::Get_String_Width(formatted_bonus);
@@ -3694,7 +3711,7 @@ namespace OFFICER {
         int16_t popup_param) {
         memset(OFFICER::officer_skill_help, 0, sizeof(OFFICER::officer_skill_help));
 
-        OFFICER::Add_Skill_Description_Help_Fields(
+        OFFICER::Add_Skill_Description_Help_Fields(&game::world,
             skill_id_base + 0x61,
             skill_count_minus_one + 1,
             (uint16_t)MOX::PLAYER_NUM,
@@ -3706,7 +3723,7 @@ namespace OFFICER {
  * Add hidden help fields for each visible officer skill row.
  * @param help_fields Receives five field IDs followed by five skill IDs.
  */
-    void __cdecl Add_Skill_Description_Help_Fields(
+    void __cdecl Add_Skill_Description_Help_Fields(game::s_world_state* world_state,
         int16_t left,
         int16_t top,
         uint32_t unused,
@@ -3714,7 +3731,7 @@ namespace OFFICER {
         int16_t* help_fields) {
         (void)unused;
 
-        uint16_t leader_type = MOX::leaders[leader_index].type;
+        uint16_t leader_type = game::Leader(world_state, leader_index).type;
         int16_t slot = 0;
         int16_t current_y = top;
 
@@ -3723,14 +3740,14 @@ namespace OFFICER {
 
             if (leader_type == LEADER_TYPE_SHIP) {
                 if (MOX::skill_data[skill_index].skill_type == 1) {
-                    add_field = OFFICER::Officer_Has_Special_Skill(
+                    add_field = OFFICER::Officer_Has_Special_Skill(world_state,
                         MOX::PLAYER_NUM,
                         leader_index,
                         skill_index);
                 }
             } else if (leader_type == LEADER_TYPE_COLONY) {
                 if (MOX::skill_data[skill_index].skill_type == 2) {
-                    add_field = OFFICER::Officer_Has_Special_Skill(
+                    add_field = OFFICER::Officer_Has_Special_Skill(world_state,
                         MOX::PLAYER_NUM,
                         leader_index,
                         skill_index);
@@ -3757,7 +3774,7 @@ namespace OFFICER {
             bool add_field = false;
 
             if (MOX::skill_data[skill_index].skill_type == 0) {
-                add_field = OFFICER::Officer_Has_General_Skill(
+                add_field = OFFICER::Officer_Has_General_Skill(world_state,
                     MOX::PLAYER_NUM,
                     leader_index,
                     skill_index);
@@ -3807,9 +3824,9 @@ namespace OFFICER {
         OFFICER::Load_Officer_Skill_Name_Descriptions();
 
         const int16_t skill_bonus =
-            static_cast<int16_t>(OFFICER::Officer_Skill_Bonus(static_cast<uint32_t>(MOX::PLAYER_NUM), officer_idx, skill_id));
+            static_cast<int16_t>(OFFICER::Officer_Skill_Bonus(&game::world, static_cast<uint32_t>(MOX::PLAYER_NUM), officer_idx, skill_id));
 
-        OFFICER::Print_Officer_Skill_Help(skill_id, skill_bonus, officer_idx);
+        OFFICER::Print_Officer_Skill_Help(&game::world, skill_id, skill_bonus, officer_idx);
         allocate::Pop_Block(MOX::screen_seg);
     }
 

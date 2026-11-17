@@ -75,16 +75,16 @@ namespace NETMOX {
 
     void __cdecl Net_Debug_Log(const char* format, ...);
 
-    void __cdecl Send_You_Are_Target_Info(
+    void __cdecl Send_You_Are_Target_Info(game::s_world_state* world_state,
         int16_t target_player_idx,
         int16_t other_player_idx,
         int16_t defender_id,
         int16_t colony_idx,
         int16_t star_idx);
 
-    void __cdecl Send_Pick_Target_Info(int16_t player_idx, int16_t star_idx, s_combfind_target* target_info);
+    void __cdecl Send_Pick_Target_Info(game::s_world_state* world_state, int16_t player_idx, int16_t star_idx, s_combfind_target* target_info);
 
-    void __cdecl Ditch_Leader(int32_t leader_idx);
+    void __cdecl Ditch_Leader(game::s_world_state* world_state, int32_t leader_idx);
 
     void __cdecl Mark_Leader_Deassigned(int16_t leader_idx);
 
@@ -92,7 +92,7 @@ namespace NETMOX {
 
     int32_t __cdecl Mox_Send_Message(int16_t recipient_net_id, uint16_t msg_type, void* packet, uint32_t packet_len);
 
-    void __cdecl Decode_Game_Orders(void* data, uint32_t len);
+    void __cdecl Decode_Game_Orders(game::s_world_state* world_state, void* data, uint32_t len);
 
     uint32_t __cdecl Encode_Broadcast_Game_Data_Snapshot(void* buffer, uint32_t len);
 
@@ -116,7 +116,7 @@ namespace NETMOX {
 
     void __cdecl Write_Net_Snapshot_Cache(s_net_snapshot_cache* cache, const void* buffer, size_t size);
 
-    void __cdecl Send_Game_Orders();
+    void __cdecl Send_Game_Orders(game::s_world_state* world_state);
 
     void __cdecl Receive_Message(int16_t net_id, uint16_t packet_id, uint32_t len, uint8_t* packet);
 
@@ -156,11 +156,11 @@ namespace NETMOX {
 
     int16_t __cdecl Get_Next_AI_Talker(int32_t target_player_id);
 
-    void __cdecl Decode_Pick_Target_Info(void* packet_data, uint32_t len);
+    void __cdecl Decode_Pick_Target_Info(game::s_world_state* world_state, void* packet_data, uint32_t len);
 
-    void __cdecl Decode_You_Are_Target_Info(void* packet_data, uint32_t len);
+    void __cdecl Decode_You_Are_Target_Info(game::s_world_state* world_state, void* packet_data, uint32_t len);
 
-    void __cdecl Decode_Battle_Results(void* packet_data, uint32_t len);
+    void __cdecl Decode_Battle_Results(game::s_world_state* world_state, void* packet_data, uint32_t len);
 
     void __cdecl Decode_Pick_Your_Position(s_net_pack_pick_your_position* packet, uint32_t len);
 
@@ -172,7 +172,7 @@ namespace NETMOX {
 
     void __cdecl Decode_Player_Disconnected_Info(void* data, uint32_t len);
 
-    void __cdecl Send_Battle_Results(int16_t star_id, int16_t player_id, int16_t target_player_id, int16_t combat_defender_id, int16_t combat_planet_id, int16_t combat_result);
+    void __cdecl Send_Battle_Results(game::s_world_state* world_state, int16_t star_id, int16_t player_id, int16_t target_player_id, int16_t combat_defender_id, int16_t combat_planet_id, int16_t combat_result);
 
 #pragma pack(push, 1)
     struct s_packet_dragon_info {

@@ -2,7 +2,7 @@
 #include "legacy_ids.h"
 
 namespace aileader {
-    void __cdecl Do_AI_Leaders(AIDATA::s_state* ai, const game::s_view* world) {
+    void __cdecl Do_AI_Leaders(game::s_world_state* world_state, AIDATA::s_state* ai, const game::s_view* world) {
         for (int16_t i = 0; i < world->Player_Count(); ++i) {
             s_player* player = &world->players[i];
 
@@ -11,7 +11,7 @@ namespace aileader {
 
                 if (leader_idx != -1) {
                     bool hire_criteria_met = false;
-                    s_leader_data* leader = &world->leaders[leader_idx];
+                    s_leader_data* leader = &game::Leader(world_state, leader_idx);
                     uint32_t general_skills = leader->general_skills;
 
                     if ((general_skills & (LEADER_GENERAL_SKILL_MEGAWEALTH | LEADER_GENERAL_SKILL_MEGAWEALTH2)) != 0) {
@@ -40,7 +40,7 @@ namespace aileader {
                         }
                     }
 
-                    OFFICER::Set_Officer_To_Player((int16_t)leader_idx, i, (uint8_t)accept_offer);
+                    OFFICER::Set_Officer_To_Player(world_state, (int16_t)leader_idx, i, (uint8_t)accept_offer);
                 }
 
                 player->officer_for_hire = -1;
@@ -55,24 +55,24 @@ namespace aileader {
                 int16_t player_idx = (int16_t)(system_special - 80);
                 if (world->players[player_idx].objectives != PLAYER_OBJECTIVE_HUMAN) {
                     int16_t joined_result;
-                    OFFICER::Marooned_Hero_At_Star_Can_Join(star_idx, &joined_result, player_idx);
+                    OFFICER::Marooned_Hero_At_Star_Can_Join(world_state, star_idx, &joined_result, player_idx);
                 }
             }
         }
 
         for (int32_t i = 0; i < world->Player_Count(); ++i) {
             if (world->players[i].objectives != PLAYER_OBJECTIVE_HUMAN) {
-                Assign_Unassigned_Leaders(ai, world, legacy_world::Player_Id(i));
+                Assign_Unassigned_Leaders(world_state, ai, world, legacy_world::Player_Id(i));
             }
         }
     }
 
-    void Assign_Star_Officer(AIDATA::s_state* ai, const game::s_view* world, game::id_player player_id, game::id_leader leader_id) {
+    void Assign_Star_Officer(game::s_world_state* world_state, AIDATA::s_state* ai, const game::s_view* world, game::id_player player_id, game::id_leader leader_id) {
         const uint32_t player_index = legacy_world::Slot(player_id);
         const uint32_t leader_index = legacy_world::Slot(leader_id);
         std::vector<int32_t> star_scores(world->Star_Count(), 0);
 
-        uint32_t skills = world->leaders[leader_index].special_skills;
+        uint32_t skills = game::Leader(world_state, leader_index).special_skills;
 
         for (int16_t i = 0; i < world->Colony_Count(); ++i) {
             s_colony* colony = &world->colonies[i];
@@ -131,11 +131,11 @@ namespace aileader {
         }
 
         if (star_scores[best_star_idx] != 0) {
-            OFFICER::Ai_Assign_Leader_To_Star(&world->players[player_index], &world->leaders[leader_index], &world->stars[best_star_idx]);
+            OFFICER::Ai_Assign_Leader_To_Star(world_state, &world->players[player_index], leader_id, &world->stars[best_star_idx]);
         }
     }
 
-    void Assign_Fleet_Officer(const game::s_view* world, game::id_player player_id, game::id_leader leader_id) {
+    void Assign_Fleet_Officer(game::s_world_state* world_state, const game::s_view* world, game::id_player player_id, game::id_leader leader_id) {
         const uint32_t player_index = legacy_world::Slot(player_id);
         const uint32_t leader_index = legacy_world::Slot(leader_id);
         s_ship_data* best_ship = nullptr;
@@ -156,30 +156,31 @@ namespace aileader {
         }
 
         if (best_ship != nullptr) {
-            OFFICER::Ai_Assign_Leader_To_Ship(
+            OFFICER::Ai_Assign_Leader_To_Ship(world_state,
                 &world->players[player_index],
-                &world->leaders[leader_index],
+                leader_id,
                 best_ship);
         }
     }
 
 
-    void Assign_Unassigned_Leaders(AIDATA::s_state* ai, const game::s_view* world, game::id_player player_id) {
+    void Assign_Unassigned_Leaders(game::s_world_state* world_state, AIDATA::s_state* ai, const game::s_view* world, game::id_player player_id) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
-        for (int32_t leader_index = 0; leader_index < MAX_LEADERS; ++leader_index) {
-            s_leader_data* leader = &world->leaders[leader_index];
+        for (const auto& leader_entry : world_state->leaders) {
+            const int32_t leader_index = static_cast<int32_t>(leader_entry.first.id);
+            s_leader_data* leader = &game::Leader(world_state, leader_index);
 
             if (leader->player_index == (char)player_idx) {
                 if (leader->status == 0 /* Available/Unassigned */) {
                     if (leader->type == LEADER_TYPE_SHIP) {
-                        Assign_Fleet_Officer(world, player_id, legacy_world::Leader_Id(leader_index));
+                        Assign_Fleet_Officer(world_state, world, player_id, legacy_world::Leader_Id(leader_index));
                     } else /* Star Officer */ {
-                        Assign_Star_Officer(ai, world, player_id, legacy_world::Leader_Id(leader_index));
+                        Assign_Star_Officer(world_state, ai, world, player_id, legacy_world::Leader_Id(leader_index));
                     }
                 } else if (leader->status == 1 /* Assigned */) {
                     // Only fleet officers seem to be reassigned in this manner
                     if (leader->type == LEADER_TYPE_SHIP) {
-                        Reassign_Fleet_Officer(world, player_id, legacy_world::Leader_Id(leader_index));
+                        Reassign_Fleet_Officer(world_state, world, player_id, legacy_world::Leader_Id(leader_index));
                     }
                 }
             }

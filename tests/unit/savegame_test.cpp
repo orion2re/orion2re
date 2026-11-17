@@ -106,7 +106,7 @@ namespace {
         MOX::colony = state.colonies;
         MOX::planet = state.planets;
         MOX::star = state.stars;
-        MOX::leaders = state.leaders;
+        game::Import_Leaders(&game::world, state.leaders);
         MOX::player = state.players;
         MOX::ship = state.ships;
         MOX::nebula = state.nebulas;
@@ -309,6 +309,7 @@ namespace {
         Fill_Bytes_(state.planets, sizeof(state.planets), 2);
         Fill_Bytes_(state.stars, sizeof(state.stars), 3);
         Fill_Bytes_(state.leaders, sizeof(state.leaders), 4);
+        game::Import_Leaders(&game::world, state.leaders);
         Fill_Bytes_(state.players, sizeof(state.players), 5);
         Fill_Ships_(state.ships, 6);
         Fill_Bytes_(state.nebulas, sizeof(state.nebulas), 7);
@@ -490,7 +491,7 @@ namespace {
         for (int i = MOX::NUM_STARS; i < MAX_STARS; ++i) {
             DOCTEST_CHECK((Is_Unused_Star_(actual.stars[i])));
         }
-        DOCTEST_CHECK((memcmp(expected.leaders, actual.leaders, sizeof(expected.leaders)) == 0));
+        DOCTEST_CHECK((memcmp(expected.leaders, game::Export_Leaders(&game::world).data(), sizeof(expected.leaders)) == 0));
         DOCTEST_CHECK((memcmp(expected.players, actual.players, sizeof(expected.players)) == 0));
         DOCTEST_CHECK((memcmp(expected.ships, actual.ships, MOX::NUM_SHIPS * sizeof(*expected.ships)) == 0));
         for (int i = MOX::NUM_SHIPS; i < MAX_SHIPS; ++i) {
@@ -531,7 +532,7 @@ namespace {
         for (int i = ORIGINAL_MAX_STARS; i < MAX_STARS; ++i) {
             DOCTEST_CHECK((Is_Unused_Star_(actual.stars[i])));
         }
-        DOCTEST_CHECK((memcmp(expected.leaders, actual.leaders, sizeof(expected.leaders)) == 0));
+        DOCTEST_CHECK((memcmp(expected.leaders, game::Export_Leaders(&game::world).data(), sizeof(expected.leaders)) == 0));
         int converted_locations = 0;
         for (int i = 0; i < ORIGINAL_MAX_SHIPS; ++i) {
             s_ship_data expected_ship = expected.ships[i];

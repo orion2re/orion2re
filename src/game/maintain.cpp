@@ -88,36 +88,36 @@ namespace maintain {
         }
 
         if (((int32_t)player->command_points * 4) / 3 < (int32_t)player->command_points_used) {
-            Kill_Ships(player, 1, 1, SHIP_TYPE_OUTPOST);
-            Kill_Ships(player, 1, 0, SHIP_TYPE_OUTPOST);
-            Kill_Ships(player, 1, 1, SHIP_TYPE_TRANSPORT);
-            Kill_Ships(player, 1, 1, SHIP_TYPE_COMBAT);
-            Kill_Ships(player, 0, 1, SHIP_TYPE_OUTPOST);
-            Kill_Ships(player, 0, 0, SHIP_TYPE_OUTPOST);
-            Kill_Ships(player, 0, 1, SHIP_TYPE_TRANSPORT);
-            Kill_Ships(player, 0, 1, SHIP_TYPE_COMBAT);
+            Kill_Ships(&game::world, player, 1, 1, SHIP_TYPE_OUTPOST);
+            Kill_Ships(&game::world, player, 1, 0, SHIP_TYPE_OUTPOST);
+            Kill_Ships(&game::world, player, 1, 1, SHIP_TYPE_TRANSPORT);
+            Kill_Ships(&game::world, player, 1, 1, SHIP_TYPE_COMBAT);
+            Kill_Ships(&game::world, player, 0, 1, SHIP_TYPE_OUTPOST);
+            Kill_Ships(&game::world, player, 0, 0, SHIP_TYPE_OUTPOST);
+            Kill_Ships(&game::world, player, 0, 1, SHIP_TYPE_TRANSPORT);
+            Kill_Ships(&game::world, player, 0, 1, SHIP_TYPE_COMBAT);
         }
 
         Kill_Buildings(player, Phase1_Building);
-        Kill_Ships(player, 1, 1, SHIP_TYPE_OUTPOST);
-        Kill_Ships(player, 1, 0, SHIP_TYPE_OUTPOST);
-        Kill_Ships(player, 0, 1, SHIP_TYPE_OUTPOST);
-        Kill_Ships(player, 0, 0, SHIP_TYPE_OUTPOST);
-        Kill_Ships(player, 1, 1, SHIP_TYPE_TRANSPORT);
-        Kill_Ships(player, 1, 1, SHIP_TYPE_COMBAT);
-        Kill_Ships(player, 0, 1, SHIP_TYPE_TRANSPORT);
-        Kill_Ships(player, 0, 1, SHIP_TYPE_COMBAT);
+        Kill_Ships(&game::world, player, 1, 1, SHIP_TYPE_OUTPOST);
+        Kill_Ships(&game::world, player, 1, 0, SHIP_TYPE_OUTPOST);
+        Kill_Ships(&game::world, player, 0, 1, SHIP_TYPE_OUTPOST);
+        Kill_Ships(&game::world, player, 0, 0, SHIP_TYPE_OUTPOST);
+        Kill_Ships(&game::world, player, 1, 1, SHIP_TYPE_TRANSPORT);
+        Kill_Ships(&game::world, player, 1, 1, SHIP_TYPE_COMBAT);
+        Kill_Ships(&game::world, player, 0, 1, SHIP_TYPE_TRANSPORT);
+        Kill_Ships(&game::world, player, 0, 1, SHIP_TYPE_COMBAT);
         Kill_Buildings(player, Phase2_Building);
-        Kill_Ships(player, 1, 0, SHIP_TYPE_TRANSPORT);
-        Kill_Ships(player, 0, 0, SHIP_TYPE_TRANSPORT);
-        Kill_Ships(player, 1, 1, SHIP_TYPE_COLONY);
-        Kill_Ships(player, 0, 1, SHIP_TYPE_COLONY);
-        Kill_Ships(player, 1, 0, SHIP_TYPE_COLONY);
-        Kill_Ships(player, 0, 0, SHIP_TYPE_COLONY);
+        Kill_Ships(&game::world, player, 1, 0, SHIP_TYPE_TRANSPORT);
+        Kill_Ships(&game::world, player, 0, 0, SHIP_TYPE_TRANSPORT);
+        Kill_Ships(&game::world, player, 1, 1, SHIP_TYPE_COLONY);
+        Kill_Ships(&game::world, player, 0, 1, SHIP_TYPE_COLONY);
+        Kill_Ships(&game::world, player, 1, 0, SHIP_TYPE_COLONY);
+        Kill_Ships(&game::world, player, 0, 0, SHIP_TYPE_COLONY);
         Kill_Spy(player);
-        Kill_Ships(player, 1, 0, SHIP_TYPE_COMBAT);
-        Kill_Ships(player, 0, 0, SHIP_TYPE_COMBAT);
-        Kill_Leaders(player);
+        Kill_Ships(&game::world, player, 1, 0, SHIP_TYPE_COMBAT);
+        Kill_Ships(&game::world, player, 0, 0, SHIP_TYPE_COMBAT);
+        Kill_Leaders(&game::world, player);
         Kill_Buildings(player, All_But_Capitol);
 
         ship_worths = nullptr;
@@ -190,7 +190,7 @@ namespace maintain {
 
         for (int16_t i = 0; i < num_ships; ++i) {
             if (ships[i].status == 7 || ships[i].status == 8) {
-                SHIPS::Kill_Ship(i);
+                SHIPS::Kill_Ship(&game::world, i);
             }
         }
     }
@@ -232,7 +232,7 @@ namespace maintain {
         }
     }
 
-    void __cdecl Kill_Leaders(s_player* player) {
+    void __cdecl Kill_Leaders(game::s_world_state* world_state, s_player* player) {
         int32_t player_idx = (int32_t)(player - MOX::player);
         bool searched_without_removal = false;
         int32_t balance = (int32_t)player->surplus_bc + player->bc;
@@ -243,10 +243,11 @@ namespace maintain {
             }
 
             searched_without_removal = true;
-            for (int16_t leader_idx = 0; leader_idx < MAX_LEADERS; ++leader_idx) {
-                if (MOX::leaders[leader_idx].player_index == player_idx) {
+            for (const auto& leader_entry : world_state->leaders) {
+                const int32_t leader_idx = static_cast<int32_t>(leader_entry.first.id);
+                if (game::Leader(world_state, leader_idx).player_index == player_idx) {
                     if (OFFICER::Officer_Maintenance((int16_t)player_idx, leader_idx) > 0) {
-                        OFFICER::Deassign_Officer(leader_idx);
+                        OFFICER::Deassign_Officer(world_state, leader_idx);
                         searched_without_removal = false;
                         COLCALC::Do_Player_Colony_Calculations((int16_t)player_idx);
 

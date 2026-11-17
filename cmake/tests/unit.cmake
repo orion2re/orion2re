@@ -63,7 +63,7 @@ target_include_directories(orion2re_test_config_defaults PRIVATE
 target_link_libraries(orion2re_test_config_defaults PRIVATE SDL3::Headers)
 orion2re_enable_sanitizers(orion2re_test_config_defaults)
 
-orion2re_test_shared_sources(ORION2RE_AI_STATE_OBJECTS src/game/aidata_state.cpp src/game/world_view.cpp src/game/legacy_location.cpp src/game/legacy_identity.cpp)
+orion2re_test_shared_sources(ORION2RE_AI_STATE_OBJECTS src/game/world.cpp src/game/aidata_state.cpp src/game/world_view.cpp src/game/legacy_location.cpp src/game/legacy_identity.cpp)
 add_library(orion2re_test_ai_state STATIC ${ORION2RE_AI_STATE_OBJECTS})
 orion2re_enable_sanitizers(orion2re_test_ai_state)
 
@@ -953,6 +953,11 @@ orion2re_add_unit_test(test_homegen
         src/game/legacy_sort.cpp
     FAKE_SOURCES
         tests/fakes/fake_homegen_runtime.cpp
+)
+
+orion2re_add_unit_test(test_world
+    SOURCES
+        tests/unit/world_test.cpp
 )
 
 orion2re_add_unit_test(test_mapgen_planet_max

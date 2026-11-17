@@ -600,7 +600,8 @@ namespace MOX {
     extern void* dimmed_scrap_button_seg;
     extern void* dimmed_officers_button_seg;
 
-    extern s_leader_data* leaders;
+    // Leader records are owned by game::s_world_state.
+    // extern s_leader_data* leaders;
 
     extern char* officer_level_names[6];
 

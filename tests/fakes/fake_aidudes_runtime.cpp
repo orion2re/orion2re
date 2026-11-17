@@ -4,7 +4,7 @@ namespace {
     s_colony colonies[1];
     s_player players[MAX_PLAYERS];
     s_ship_data ships[3];
-    s_leader_data leaders[1];
+
     s_star_data stars[1];
     int32_t ship_worths[MAX_SHIPS];
     int pre_import_calls;
@@ -23,7 +23,7 @@ namespace TEST_AIDUDES {
         world.ships = ships;
         world.stars = stars;
         world.colonies = colonies;
-        world.leaders = leaders;
+        world.state = &game::world;
         world.settings = &MOX::settings;
         world.ship_count = &MOX::NUM_SHIPS;
         world.stardate = &MOX::stardate;
@@ -54,7 +54,7 @@ namespace TEST_AIDUDES {
     void Reset_Maintenance_Scrap_(bool add_replacement) {
         memset(players, 0, sizeof(players));
         memset(ships, 0, sizeof(ships));
-        memset(leaders, 0, sizeof(leaders));
+        game::Reset_Leaders(&game::world);
         memset(stars, 0, sizeof(stars));
         memset(ship_worths, 0, sizeof(ship_worths));
         memset(&MOX::settings, 0, sizeof(MOX::settings));
@@ -87,10 +87,10 @@ namespace TEST_AIDUDES {
         ships[1].officer_index = -1;
         ship_worths[1] = 1;
 
-        leaders[0].player_index = 0;
-        leaders[0].type = LEADER_TYPE_SHIP;
-        leaders[0].status = 1;
-        leaders[0].location = 0;
+        game::Leader(&game::world, 0).player_index = 0;
+        game::Leader(&game::world, 0).type = LEADER_TYPE_SHIP;
+        game::Leader(&game::world, 0).status = 1;
+        game::Leader(&game::world, 0).location = 0;
     }
 
     void Reset_Maintenance_Scrap_With_Incomparable_Replacements_() {
@@ -164,7 +164,6 @@ namespace MOX {
     s_colony* colony = colonies;
     s_player* player = players;
     s_ship_data* ship = ships;
-    s_leader_data* leaders = ::leaders;
     s_star_data* star = stars;
     int16_t NUM_SHIPS;
     int32_t stardate;
@@ -245,8 +244,9 @@ namespace OFFICER {
         return true;
     }
 
-    void __cdecl Ai_Assign_Leader_To_Ship(s_player*, s_leader_data* leader, s_ship_data* ship) {
-        int16_t leader_idx = (int16_t)(leader - MOX::leaders);
+    void __cdecl Ai_Assign_Leader_To_Ship(game::s_world_state* world_state, s_player*, game::id_leader leader_id, s_ship_data* ship) {
+        s_leader_data* leader = &game::Leader(world_state, leader_id);
+        int16_t leader_idx = static_cast<int16_t>(leader_id.id);
         int16_t ship_idx = (int16_t)(ship - MOX::ship);
 
         MOX::ship[leader->location].officer_index = -1;
@@ -255,8 +255,8 @@ namespace OFFICER {
         ship->officer_index = leader_idx;
     }
 
-    void __cdecl Move_Officer_To_Pool(int16_t leader_idx) {
-        s_leader_data* leader = &MOX::leaders[leader_idx];
+    void __cdecl Move_Officer_To_Pool(game::s_world_state* world_state, int16_t leader_idx) {
+        s_leader_data* leader = &game::Leader(&game::world, leader_idx);
         pooled_officer = leader_idx;
 
         if (leader->location >= 0 && MOX::ship[leader->location].officer_index == leader_idx) {

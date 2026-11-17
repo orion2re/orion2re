@@ -336,7 +336,7 @@ DOCTEST_TEST_CASE("configured building converts derived Toxic climate to Barren"
 DOCTEST_TEST_CASE("population growth preserves the classic base modifier") {
     s_colony* colony = Prepare_Growth_Modifier_();
 
-    COLCALC::Colony_Pop_Grows(colony);
+    COLCALC::Colony_Pop_Grows(&game::world, colony);
 
     DOCTEST_CHECK(colony->pop_growth[0] == 100);
 }
@@ -347,7 +347,7 @@ DOCTEST_TEST_CASE("population growth passes the final native value through the L
     colony->pop[1] = 0;
     TEST_COLONY_POP_GROWTH::Set_Population_Growth_Adjustment_(25);
 
-    COLCALC::Colony_Pop_Grows(colony);
+    COLCALC::Colony_Pop_Grows(&game::world, colony);
 
     DOCTEST_CHECK(colony->pop_growth[0] == 125);
     DOCTEST_CHECK(TEST_COLONY_POP_GROWTH::Population_Growth_Calls_() == 1);
@@ -374,7 +374,7 @@ DOCTEST_TEST_CASE("population growth rules receive races at capacity") {
     }
     TEST_COLONY_POP_GROWTH::Set_Population_Growth_Adjustment_(25);
 
-    COLCALC::Colony_Pop_Grows(colony);
+    COLCALC::Colony_Pop_Grows(&game::world, colony);
 
     DOCTEST_CHECK(colony->pop_growth[0] == 25);
     DOCTEST_CHECK(TEST_COLONY_POP_GROWTH::Population_Growth_Calls_() == 1);
@@ -397,7 +397,7 @@ DOCTEST_TEST_CASE("population growth widens the configured formula before taking
     MOX::player[1].traits[TRAIT_POP_GROWTH_BONUS] = -100;
     COLCALC::growth_formula_factor = INT32_MAX;
 
-    COLCALC::Colony_Pop_Grows(colony);
+    COLCALC::Colony_Pop_Grows(&game::world, colony);
 
     DOCTEST_CHECK(TEST_COLONY_POP_GROWTH::Population_Growth_Calls_() == 2);
     DOCTEST_CHECK(colony->pop_growth[0] == 18390);
@@ -407,7 +407,7 @@ DOCTEST_TEST_CASE("Cloning Center growth uses the configured bonus") {
     s_colony* colony = Prepare_Growth_Modifier_();
     colony->buildings[BUILDING_CLONING_CENTER] = 1;
 
-    COLCALC::Colony_Pop_Grows(colony);
+    COLCALC::Colony_Pop_Grows(&game::world, colony);
 
     DOCTEST_CHECK(colony->pop_growth[0] == 200);
 
@@ -415,7 +415,7 @@ DOCTEST_TEST_CASE("Cloning Center growth uses the configured bonus") {
     colony->buildings[BUILDING_CLONING_CENTER] = 1;
     COLCALC::cloning_center_growth_bonus = 37;
 
-    COLCALC::Colony_Pop_Grows(colony);
+    COLCALC::Colony_Pop_Grows(&game::world, colony);
 
     DOCTEST_CHECK(colony->pop_growth[0] == 137);
 }
@@ -424,7 +424,7 @@ DOCTEST_TEST_CASE("general population growth modifier is independent of Housing"
     s_colony* colony = Prepare_Growth_Modifier_();
     COLCALC::growth_rate_bonus.general_modifier = 40;
 
-    COLCALC::Colony_Pop_Grows(colony);
+    COLCALC::Colony_Pop_Grows(&game::world, colony);
 
     DOCTEST_CHECK((colony->producing[0] != COLONY_PRODUCTION_HOUSING));
     DOCTEST_CHECK(colony->pop_growth[0] == 140);
@@ -433,12 +433,12 @@ DOCTEST_TEST_CASE("general population growth modifier is independent of Housing"
 DOCTEST_TEST_CASE("Housing may ignore the total population divisor") {
     s_colony* colony = Prepare_Housing_Growth_Modifier_();
 
-    COLCALC::Colony_Pop_Grows(colony);
+    COLCALC::Colony_Pop_Grows(&game::world, colony);
     const int16_t classic_growth = colony->pop_growth[0];
 
     colony = Prepare_Housing_Growth_Modifier_();
     COLCALC::housing_no_popagg = 1;
-    COLCALC::Colony_Pop_Grows(colony);
+    COLCALC::Colony_Pop_Grows(&game::world, colony);
 
     DOCTEST_CHECK(colony->pop_growth[0] - classic_growth == 200);
 }
@@ -449,7 +449,7 @@ DOCTEST_TEST_CASE("population growth uses configured technology modifiers") {
     MOX::player[0].tech_applications[TECH_APP_MICROBIOTICS] =
         TECH_RESEARCH_STATUS_RESEARCHED;
 
-    COLCALC::Colony_Pop_Grows(colony);
+    COLCALC::Colony_Pop_Grows(&game::world, colony);
 
     DOCTEST_CHECK(colony->pop_growth[0] == 107);
 
@@ -461,7 +461,7 @@ DOCTEST_TEST_CASE("population growth uses configured technology modifiers") {
     MOX::player[0].tech_applications[TECH_APP_UNIVERSAL_ANTIDOTE] =
         TECH_RESEARCH_STATUS_RESEARCHED;
 
-    COLCALC::Colony_Pop_Grows(colony);
+    COLCALC::Colony_Pop_Grows(&game::world, colony);
 
     DOCTEST_CHECK(colony->pop_growth[0] == 113);
 
@@ -474,7 +474,7 @@ DOCTEST_TEST_CASE("population growth uses configured technology modifiers") {
     MOX::player[0].tech_applications[TECH_APP_UNIVERSAL_ANTIDOTE] =
         TECH_RESEARCH_STATUS_RESEARCHED;
 
-    COLCALC::Colony_Pop_Grows(colony);
+    COLCALC::Colony_Pop_Grows(&game::world, colony);
 
     DOCTEST_CHECK(colony->pop_growth[0] == 120);
 }
@@ -486,7 +486,7 @@ DOCTEST_TEST_CASE("population growth uses configured event modifiers") {
     TEST_COLONY_POP_GROWTH::Set_Population_Boom_(true);
     TEST_COLONY_POP_GROWTH::Set_Plague_(true);
 
-    COLCALC::Colony_Pop_Grows(colony);
+    COLCALC::Colony_Pop_Grows(&game::world, colony);
 
     DOCTEST_CHECK(colony->pop_growth[0] == 89);
 }

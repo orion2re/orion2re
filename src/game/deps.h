@@ -21,6 +21,7 @@
 #include "pop.h"
 #include "settler.h"
 #include "orion2.h"
+#include "world.h"
 
 #include "lbx_types.h"
 #include "sound_types.h"

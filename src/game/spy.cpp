@@ -8,7 +8,7 @@ namespace spy {
         uint8_t num_active_players = 0;
         int8_t active_player_indices[MAX_PLAYERS];
 
-        Resolve_Assassins();
+        Resolve_Assassins(&game::world);
 
         for (int16_t i = 0; i < MOX::NUM_PLAYERS; ++i) {
             // player structure size: 0xEA9 (3753 bytes)
@@ -16,7 +16,7 @@ namespace spy {
                 active_player_indices[num_active_players] = (int8_t)i;
                 num_active_players++;
 
-                Compute_Spy_Bonuses(
+                Compute_Spy_Bonuses(&game::world,
                     &MOX::player[i],
                     &spy_bonuses[i * 2],
                     &spy_bonuses[i * 2 + 1]);

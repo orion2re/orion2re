@@ -97,7 +97,7 @@ namespace AIMOVE {
                     msg.u.eel.star_idx = (int16_t)current_star;
                     MSG_::Add_Msg_All(msg);
 
-                    SHIPS::Kill_Ship(ship_idx);
+                    SHIPS::Kill_Ship(&game::world, ship_idx);
                 } else {
                     const std::array<id_ship, 1> ships{legacy_world::Ship_Id(ship_idx)};
                     s_ship_move_info move_info = {};

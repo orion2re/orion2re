@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <compare>
 #include <functional>
 #include <type_traits>
 
@@ -10,27 +11,38 @@ namespace game {
     struct id_ship {
         uint32_t id;
         bool operator==(const id_ship&) const = default;
+        auto operator<=>(const id_ship&) const = default;
     };
     struct id_colony {
         uint32_t id;
         bool operator==(const id_colony&) const = default;
+        auto operator<=>(const id_colony&) const = default;
     };
     struct id_planet {
         uint32_t id;
         bool operator==(const id_planet&) const = default;
+        auto operator<=>(const id_planet&) const = default;
     };
     struct id_star {
         uint32_t id;
         bool operator==(const id_star&) const = default;
+        auto operator<=>(const id_star&) const = default;
     };
     // Includes the legacy non-player faction slots used by combat assessments.
     struct id_player {
         uint32_t id;
         bool operator==(const id_player&) const = default;
+        auto operator<=>(const id_player&) const = default;
     };
     struct id_leader {
         uint32_t id;
         bool operator==(const id_leader&) const = default;
+        auto operator<=>(const id_leader&) const = default;
+    };
+    struct id_nebula {
+        uint32_t id;
+        bool operator==(const id_nebula&) const = default;
+        auto operator<=>(const id_nebula&) const = default;
     };
 
     static_assert(sizeof(id_ship) == sizeof(uint32_t));
@@ -62,6 +74,10 @@ namespace game {
     static_assert(alignof(id_leader) == alignof(uint32_t));
     static_assert(std::is_trivially_copyable_v<id_leader>);
     static_assert(std::is_standard_layout_v<id_leader>);
+    static_assert(sizeof(id_nebula) == sizeof(uint32_t));
+    static_assert(alignof(id_nebula) == alignof(uint32_t));
+    static_assert(std::is_trivially_copyable_v<id_nebula>);
+    static_assert(std::is_standard_layout_v<id_nebula>);
 } // namespace game
 
 namespace std {

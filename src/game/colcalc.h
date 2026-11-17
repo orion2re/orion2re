@@ -325,12 +325,12 @@ namespace COLCALC {
 
     char* __cdecl Player_Name(int32_t player_idx);
 
-    int __cdecl Colony_Officer(s_colony* colony);
+    int __cdecl Colony_Officer(game::s_world_state* world_state, s_colony* colony);
 
     short __cdecl Colony_Race_Pop_Limit(s_colony* colony, int16_t player_idx);
 
     int16_t __cdecl Get_Player_Max_Population(int16_t player_idx);
-    int __cdecl Best_Leader_Diplomat_Bonus(int player_idx);
+    int __cdecl Best_Leader_Diplomat_Bonus(game::s_world_state* world_state, int player_idx);
 
     bool __cdecl Star_Has_Asteroid_Or_Gas_Giant(int16_t star_index);
 
@@ -386,7 +386,7 @@ namespace COLCALC {
     bool __cdecl Biomorphic_Fungi_Applies(int16_t food2_per_farmer);
 
     void __cdecl Twiddle_Initial_Homeworlds();
-    void __cdecl Twiddle_Initial_Homeworld(s_colony* colony);
+    void __cdecl Twiddle_Initial_Homeworld(game::s_world_state* world_state, s_colony* colony);
 
     /**
      * Recomputes a colony's local production and maintenance state before empire-wide import distribution.
@@ -429,7 +429,7 @@ namespace COLCALC {
 
     void __cdecl Do_Surrender_Empire(int16_t player_idx, int16_t target_idx);
 
-    void __cdecl Eliminate_Player(s_player* player);
+    void __cdecl Eliminate_Player(game::s_world_state* world_state, s_player* player);
 
     bool __cdecl May_Surrender_Empire(int16_t player_idx, int16_t target_idx);
 
@@ -461,13 +461,13 @@ namespace COLCALC {
 
     void __cdecl Colony_Calculation(int16_t colony_idx);
 
-    void __cdecl Colony_Pop_Grows(s_colony* colony);
+    void __cdecl Colony_Pop_Grows(game::s_world_state* world_state, s_colony* colony);
 
     void __cdecl Colony_Specialty(s_colony* colony);
 
     void __cdecl Post_Import_Computing(s_colony* colony);
 
-    void __cdecl Update_Player_Stats(s_player* player);
+    void __cdecl Update_Player_Stats(game::s_world_state* world_state, s_player* player);
 
     void __cdecl Colony_Environmental_Stuff(s_colony* colony);
 
@@ -476,7 +476,7 @@ namespace COLCALC {
      * @param colony Colony to evaluate.
      * @param debug_out Optional output buffer for the morale breakdown.
      */
-    void __cdecl Colony_Morale(s_colony* colony, STRBUILD::s_builder* debug_out);
+    void __cdecl Colony_Morale(game::s_world_state* world_state, s_colony* colony, STRBUILD::s_builder* debug_out);
 
     void __cdecl Colony_Industry_Maintenance(s_colony* colony);
 
@@ -485,13 +485,13 @@ namespace COLCALC {
      * @param colony Colony to evaluate.
      * @param debug_out Optional output buffer for the industry summary.
      */
-    void __cdecl Colony_Industry_Production(s_colony* colony, STRBUILD::s_builder* debug_out);
+    void __cdecl Colony_Industry_Production(game::s_world_state* world_state, s_colony* colony, STRBUILD::s_builder* debug_out);
 
     void __cdecl Show_Industry_Production(int16_t colony_idx);
 
     void __cdecl Show_Research_Production(int16_t colony_idx);
 
-    int __cdecl Colony_Job_Production(s_colony* colony, short econ_type, s_colony_job_production* out);
+    int __cdecl Colony_Job_Production(game::s_world_state* world_state, s_colony* colony, short econ_type, s_colony_job_production* out);
 
     int16_t __cdecl Colony_Pop_Base_Prod_Produced(const s_colony* colony, const uint32_t* pop, int16_t job_type, s_colony_job_production* out);
 
@@ -521,7 +521,7 @@ namespace COLCALC {
 
     void __cdecl Colony_Industry_To_Tax(s_colony* colony);
 
-    void __cdecl Colony_BC_Production(s_colony* colony, STRBUILD::s_builder* debug_buf);
+    void __cdecl Colony_BC_Production(game::s_world_state* world_state, s_colony* colony, STRBUILD::s_builder* debug_buf);
 
     void __cdecl Colony_BC_Maintenance(s_colony* colony);
 
@@ -568,7 +568,7 @@ namespace COLCALC {
      * @param plr Player to update.
      * @param debug_out Optional output buffer for the maintenance summary.
      */
-    void __cdecl Compute_Player_Maintenance(s_player* plr, STRBUILD::s_builder* debug_out);
+    void __cdecl Compute_Player_Maintenance(game::s_world_state* world_state, s_player* plr, STRBUILD::s_builder* debug_out);
 
     int16_t __cdecl Gravity_Player_Production_Factor(const s_colony* colony, int16_t player_idx);
 

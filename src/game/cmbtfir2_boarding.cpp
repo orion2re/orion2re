@@ -127,14 +127,14 @@ namespace CMBTFIR2 {
         s_combat_data* combat_ship = &MOX::combat_data[ship_idx];
 
         if (combat_ship->officer_idx > -1) {
-            OFFICER::Kill_Officer(combat_ship->officer_idx);
+            OFFICER::Kill_Officer(&game::world, combat_ship->officer_idx);
             combat_ship->officer_idx = -1;
         }
 
         if (combat_ship->ship_idx != -1) {
             int16_t officer_idx = MOX::ship[combat_ship->ship_idx].officer_index;
             if (officer_idx != -1) {
-                OFFICER::Move_Officer_To_Pool(officer_idx);
+                OFFICER::Move_Officer_To_Pool(&game::world, officer_idx);
             }
         }
 

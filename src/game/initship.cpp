@@ -832,11 +832,11 @@ namespace INITSHIP {
         Get_Design_Combat_Bonuses(design_copy, &attack_bonus, &defense_bonus, &missile_defense_bonus);
 
         if (ship->officer_index > -1) {
-            int16_t helmsman_bonus = CMBTFIR2::Helmsman_Bonus(ship->officer_index);
+            int16_t helmsman_bonus = CMBTFIR2::Helmsman_Bonus(&game::world, ship->officer_index);
             defense_bonus += helmsman_bonus;
             missile_defense_bonus += (int16_t)(helmsman_bonus / 2);
 
-            attack_bonus += CMBTFIR2::Weaponry_Bonus(ship->officer_index);
+            attack_bonus += CMBTFIR2::Weaponry_Bonus(&game::world, ship->officer_index);
         }
 
         int16_t crew_def_bonus = MOX::crew_data[(int)ship->crew_quality].defense;

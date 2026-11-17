@@ -182,7 +182,7 @@ namespace COMBINIT {
     // Copies a strategic ship into a combat-data slot.
     // ship_idx: Strategic ship index to load.
     // combat_idx: Combat-data slot to populate.
-    void __cdecl Load_Combat_Ship(int16_t ship_idx, int16_t combat_idx);
+    void __cdecl Load_Combat_Ship(game::s_world_state* world_state, int16_t ship_idx, int16_t combat_idx);
 
     // Returns the maximum shield strength for a loaded combat ship.
     // ship_idx: Combat-data ship index to inspect.
@@ -286,7 +286,7 @@ namespace COMBINIT {
     // star_idx: Star index for the battle, or NUM_STARS for Antares.
     // colony_pop_lost: Population lost during the battle.
     // combat_winner: Tactical combat result code.
-    void __cdecl End_Of_Combat(int16_t star_idx, int16_t colony_pop_lost, int16_t combat_winner);
+    void __cdecl End_Of_Combat(game::s_world_state* world_state, int16_t star_idx, int16_t colony_pop_lost, int16_t combat_winner);
 
     // Runs a tactical combat encounter and returns the result code.
     // plr1_ships: Attacker ship index array.

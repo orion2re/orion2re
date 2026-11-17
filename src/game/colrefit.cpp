@@ -203,12 +203,12 @@ namespace COLREFIT {
                                 COLREFIT::esc = 1;
                                 return ship_idx;
                             } else {
-                                char* leader_name = OFFICER::Leader_Name(MOX::ship[ship_idx].officer_index, 0);
+                                char* leader_name = OFFICER::Leader_Name(&game::world, MOX::ship[ship_idx].officer_index, 0);
                                 char* format_str = ESTRINGS::E_Strings(0x212);
                                 snprintf(text, sizeof(text), format_str, leader_name);
 
                                 if (GENDRAW::Do_Confirmation_Box(text) != 0) {
-                                    OFFICER::Move_Officer_To_Pool(MOX::ship[ship_idx].officer_index);
+                                    OFFICER::Move_Officer_To_Pool(&game::world, MOX::ship[ship_idx].officer_index);
                                     MOX::ship[ship_idx].officer_index = -1;
                                     COLREFIT::esc = 1;
                                     return ship_idx;
