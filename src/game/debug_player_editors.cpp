@@ -337,7 +337,7 @@ namespace debug_game_editors {
                 player.personality >= PLAYER_PERSONALITY_COUNT ||
                 !((player.objectives <= PLAYER_OBJECTIVE_ECOLOGIST) ||
                     player.objectives == PLAYER_OBJECTIVE_HUMAN) ||
-                player.home_planet_id < -1 || (::game::Find_Planet(world_state, legacy_world::Planet_Id(player.home_planet_id)) == nullptr) ||
+                (player.home_planet_id != game::NO_PLANET && game::Find_Planet(world_state, player.home_planet_id) == nullptr) ||
                 player.officer_for_hire < -1 || player.officer_for_hire >= MAX_LEADERS ||
                 player.settlers_freighted < 0 ||
                 player.settlers_freighted > MAX_FREIGHTED_SETTLERS ||
@@ -727,7 +727,7 @@ namespace debug_game_editors {
             DIP_S8(stop_blockading_duration);
             DIP_S16(last_diplomacy_proposal_turn);
             DIP_S16(diplomacy_proposal_rejection);
-            DIP_S16(opportunity_planet_num);
+            debug_game_widgets::Planet_Reference(&game::world, "opportunity_planet_num", &player.opportunity_planet_num[g_counterparty]);
             DIP_S16(opportunity_planet_value);
             DIP_S32(opportunity_actual_attacker_ratio);
             DIP_S16(temp_diplomacy_dummy1);
@@ -741,7 +741,7 @@ namespace debug_game_editors {
 #undef DIP_S16
 #undef DIP_S32
             ImGui::SeparatorText("Player-wide diplomacy state");
-            Input_S16_("sneak_attack_planet", &player.sneak_attack_planet);
+            debug_game_widgets::Planet_Reference(&game::world, "sneak_attack_planet", &player.sneak_attack_planet);
             Input_S8_("sneak_attack_message", &player.sneak_attack_message);
             Input_S8_("sneak_attack_player", &player.sneak_attack_player);
             Input_S8_("council_threat", &player.council_threat);

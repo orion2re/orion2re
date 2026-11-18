@@ -78,7 +78,7 @@ namespace DIP_SCRN {
     int16_t offer_help_entry[7] = {598, 599, 600, 601, 602, 613, -1};
     char* offer_diplomacy_list[7];
     char* offer_title;
-    int16_t diplomacy_system_planet_list[5];
+    game::id_planet diplomacy_system_planet_list[5];
     int16_t diplomacy_system_population;
     uint8_t diplomacy_system_receiver;
     int16_t diplomacy_system_planet_count;
@@ -91,7 +91,7 @@ namespace DIP_SCRN {
     char* demand_title;
     char* agree_diplomacy_list[4];
     char* system_cancel_buffer;
-    int16_t diplomacy_system_homeworld_flag;
+    game::id_planet diplomacy_system_homeworld_flag;
     s_animation_header* diplomacy_system_star_background_seg;
     int16_t diplomacy_system_fields[MAX_STARS];
     uint8_t* diplomacy_mouse_bitmap;
@@ -780,7 +780,7 @@ namespace DIP_SCRN {
                     if (DIP_SCRN::diplomacy_system_fields[i + 1] == input) {
                         if (DIP_SCRN::Diplomacy_System_Scan(&::game::world, input - 1, giver_idx, &DIP_SCRN::diplomacy_system_homeworld_flag, &DIP_SCRN::diplomacy_system_planet_count, DIP_SCRN::diplomacy_system_planet_list) == giver_idx) {
                             if (COLCALC::May_Surrender_Star(&::game::world, input - 1, (int16_t)DIP_SCRN::diplomacy_system_giver, (int16_t)DIP_SCRN::diplomacy_system_receiver)) {
-                                if (DIP_SCRN::diplomacy_system_homeworld_flag == -1) {
+                                if (DIP_SCRN::diplomacy_system_homeworld_flag == game::NO_PLANET) {
                                     done = true;
                                     result_star_idx = i;
                                 }
@@ -2327,11 +2327,11 @@ namespace DIP_SCRN {
      * @param star_idx The scanned star-system index.
      * @param selected_planet_idx The highlighted planet index, or -1 when none is highlighted.
      */
-    void __cdecl Draw_Diplomacy_System_Text(::game::s_world_state* world_state, int16_t star_idx, int16_t selected_planet_idx) {
+    void __cdecl Draw_Diplomacy_System_Text(::game::s_world_state* world_state, int16_t star_idx, game::id_planet selected_planet_idx) {
         char text_buffer[80];
         bool use_special_colors = false;
 
-        if (selected_planet_idx == -1) {
+        if (selected_planet_idx == game::NO_PLANET) {
             fonts::Set_Font_Style_Shadow_Down(4, &DIP_SCRN::diplomacy_normal_colors);
         } else {
             use_special_colors = true;
@@ -2348,7 +2348,7 @@ namespace DIP_SCRN {
 
         fonts::Print(10, 287 /* 0x11f */, text_buffer);
 
-        if (selected_planet_idx != -1 || use_special_colors) {
+        if (selected_planet_idx != game::NO_PLANET || use_special_colors) {
             fonts::Set_Font_Style_Shadow_Down(3, &DIP_SCRN::diplomacy_special_colors);
         } else {
             fonts::Set_Font_Style_Shadow_Down(3, &DIP_SCRN::diplomacy_normal_colors);

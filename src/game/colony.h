@@ -134,7 +134,7 @@ namespace COLONY {
     /** Loads the colony-screen animation and bitmap resources into the screen segment. */
     void __cdecl Load_Colony_Screen_Seg();
     void __cdecl Load_Planet_Screen();
-    s_animation_header* __cdecl Cache_Load_Planet(::game::id_planet planet_id);
+    s_animation_header* __cdecl Cache_Load_Planet(int16_t entry_num);
     s_animation_header* __cdecl C_Anims(::game::s_world_state* world_state, int16_t anim_id);
 
     /**

@@ -49,7 +49,7 @@ namespace TEST_LUA_GAME {
         players[0].eliminated = 1;
         players[0].traits[TRAIT_CURRENT_GOVERNMENT] =
             GOVERNMENT_DEMOCRACY;
-        players[0].home_planet_id = 0;
+        players[0].home_planet_id = game::id_planet{0};
         players[1].objectives = PLAYER_OBJECTIVE_EXPANSIONIST;
         players[1].traits[TRAIT_CURRENT_GOVERNMENT] =
             GOVERNMENT_UNIFICATION;
@@ -59,7 +59,8 @@ namespace TEST_LUA_GAME {
                 system.planet_index[index] = ::game::NO_PLANET;
             }
         }
-        for (s_planet_data& planet : planets) {
+        test::Resize_Planets(&game::world, 3);
+        for (auto& [id, planet] : game::world.planets) {
             planet.colony_index = -1;
         }
         test::Planet(&game::world, legacy_world::Planet_Id(0)).star_index = 0;
@@ -86,11 +87,11 @@ namespace TEST_LUA_GAME {
         test::Planet(&game::world, legacy_world::Planet_Id(2)).climate = PLANET_CLIMATE_TOXIC;
         test::Planet(&game::world, legacy_world::Planet_Id(2)).mineral_class = MINERAL_RESOURCE_ULTRA_POOR;
         test::Planet(&game::world, legacy_world::Planet_Id(2)).planet_special = SYSTEM_SPECIAL_SPACE_DEBRIS;
-        systems[0].planet_index[0] = 0;
-        systems[0].planet_index[2] = 2;
+        systems[0].planet_index[0] = game::id_planet{0};
+        systems[0].planet_index[2] = game::id_planet{2};
         systems[0].x = 10;
         systems[0].y = 20;
-        systems[1].planet_index[3] = 1;
+        systems[1].planet_index[3] = game::id_planet{1};
         systems[1].x = 30;
         systems[1].y = 40;
         for (std::int16_t field_id = 0;

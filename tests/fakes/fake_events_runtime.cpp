@@ -44,7 +44,7 @@ namespace TEST_EVENTS {
                 star.planet_index[index] = ::game::NO_PLANET;
             }
         }
-        for (s_planet_data& planet : planets) {
+        for (auto& [id, planet] : game::world.planets) {
             planet.colony_index = -1;
         }
 

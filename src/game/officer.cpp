@@ -971,7 +971,7 @@ namespace OFFICER {
                     MOX::system_icon_scanned = hovered_system_icon;
                 }
                 if (sys_res == 0 && clicked_planet_idx > -1) {
-                    ::game::id_planet planet_idx = HAROLD::Planet_Index(officer_star_displayed, legacy_world::Planet_Id(clicked_planet_idx));
+                    auto planet_idx = HAROLD::Planet_Index(officer_star_displayed, clicked_planet_idx);
                     if (::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index > -1 && ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index < MOX::NUM_COLONIES && MAINSCR::officer_screen_return_screen == 0x27) {
                         Officer_Screen_User_Box(HAROLD::H_Message(0x12E), 0);
                     }

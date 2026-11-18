@@ -280,7 +280,7 @@ namespace COLONY {
 
         star_handle = MOX::screen_data;
         orbit_n = (int32_t)orbit_temp;
-        ::game::id_planet planet_idx = HAROLD::Planet_Index(MOX::screen_data, legacy_world::Planet_Id(orbit_temp));
+        auto planet_idx = HAROLD::Planet_Index(MOX::screen_data, orbit_temp);
         planet_handle = planet_idx;
 
         colony_handle = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_handle))).colony_index;
@@ -501,8 +501,8 @@ namespace COLONY {
         switch (anim_id) {
             case 0:
                 return Cache_Load_Planet(
-                    legacy_world::Planet_Id(static_cast<int16_t>(static_cast<int8_t>(::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(MOX::colony[colony_handle].planet))).climate_bg_type) +
-                        static_cast<uint8_t>(MOX::colony[colony_handle].climate) * 3)));
+                    static_cast<int16_t>(static_cast<int8_t>(game::Planet(world_state, MOX::colony[colony_handle].planet).climate_bg_type) +
+                        static_cast<uint8_t>(MOX::colony[colony_handle].climate) * 3));
             case 1:
                 return (s_animation_header*)buffer::Buffer_Reload(COLONY2_LBX, 0x31, MOX::global_cache_seg);
             case 2:

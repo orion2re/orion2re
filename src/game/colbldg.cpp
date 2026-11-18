@@ -557,7 +557,7 @@ namespace COLBLDG {
         COLONY::star_handle = MOX::screen_data;
         COLONY::orbit_n = COLONY::orbit_temp;
 
-        ::game::id_planet planet_idx = HAROLD::Planet_Index(MOX::screen_data, legacy_world::Planet_Id(COLONY::orbit_temp));
+        auto planet_idx = HAROLD::Planet_Index(MOX::screen_data, COLONY::orbit_temp);
         COLONY::planet_handle = planet_idx;
 
         int16_t colony_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index;

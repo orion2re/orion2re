@@ -2452,11 +2452,11 @@ namespace EVENTS {
 
             if (c == '\x80') {
                 auto name_planet_idx = planet_idx;
-                if (name_planet_idx == -1 && colony_idx >= 0 &&
+                if (name_planet_idx == game::NO_PLANET && colony_idx >= 0 &&
                     colony_idx < MAX_COLONIES) {
                     name_planet_idx = MOX::colony[colony_idx].planet;
                 }
-                if (name_planet_idx >= 0 && name_planet_idx < MAX_PLANETS) {
+                if (game::Find_Planet(world_state, name_planet_idx) != nullptr) {
                     append_str = HACCESS::Get_Planet_Name(legacy_world::Planet_Id(name_planet_idx));
                 }
             } else if (c == '\x81') {

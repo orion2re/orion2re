@@ -109,7 +109,7 @@ namespace COLXPORT {
 }
 
 namespace HACCESS {
-    char* __cdecl Get_Planet_Name_No_Prime(int16_t) {
+    char* __cdecl Get_Planet_Name_No_Prime(game::id_planet) {
         return size_medium;
     }
 }

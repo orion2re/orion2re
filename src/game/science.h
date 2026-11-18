@@ -60,5 +60,5 @@ namespace SCIENCE {
      * tech_count: Number of entries in captured_tech_ids.
      * message_arg: Text decoding argument for the footer message.
      */
-    void __cdecl Show_Off_Captured_Tech(int16_t* captured_tech_ids, uint16_t tech_count, int16_t message_arg);
+    void __cdecl Show_Off_Captured_Tech(int16_t* captured_tech_ids, uint16_t tech_count, game::id_planet planet_id);
 } // namespace SCIENCE

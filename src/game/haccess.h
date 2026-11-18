@@ -9,7 +9,7 @@ namespace HACCESS {
      */
     void __cdecl Race_Name(int16_t race_id, char* race_name_out, uint32_t race_name_out_size);
 
-    void __cdecl Set_Colony_Auto_Select_For_Star(::game::s_world_state* world_state, int16_t star_idx, int16_t player_idx, int16_t* out_planet_idx);
+    void __cdecl Set_Colony_Auto_Select_For_Star(::game::s_world_state* world_state, int16_t star_idx, int16_t player_idx, game::id_planet* out_planet_idx);
 
     bool __cdecl Star_Has_Relocation(int16_t star_idx, int16_t player_idx);
 
@@ -128,7 +128,7 @@ namespace HACCESS {
 
     void __cdecl Set_All_Colony_Auto_Select_Flags(::game::s_world_state* world_state);
 
-    int16_t __cdecl System_Planet_Scanned_To_Planet_Id(int16_t star_idx, ::game::id_planet planet_idx);
+    game::id_planet __cdecl System_Planet_Scanned_To_Planet_Id(int16_t star_idx, int16_t orbit);
 
     int16_t __cdecl System_Ship_Scanned_To_Ship_Id(int16_t ship_node_idx);
 

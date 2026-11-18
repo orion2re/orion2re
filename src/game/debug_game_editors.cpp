@@ -571,7 +571,7 @@ namespace debug_game_editors {
             g_star_editor.focus_requested = true;
         }
 
-        void Load_Planet(::game::s_world_state* world_state, int16_t index) {
+        void Load_Planet(::game::s_world_state* world_state, game::id_planet index) {
             g_planet_editor.index = index;
             g_planet_editor.pending_index = game::NO_PLANET;
             g_planet_editor.baseline = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(index)));
@@ -580,12 +580,14 @@ namespace debug_game_editors {
             g_planet_editor.focus_requested = true;
         }
 
+        template <typename Id, typename Load>
         void Draw_Discard_Popup(
             const char* popup_id,
             bool* discard_requested,
             bool* editor_open,
-            int16_t* pending_index,
-            void (*load_pending)(int16_t)) {
+            Id* pending_index,
+            Id none,
+            Load load_pending) {
             if (*discard_requested) {
                 ImGui::OpenPopup(popup_id);
                 *discard_requested = false;
@@ -593,9 +595,9 @@ namespace debug_game_editors {
             if (ImGui::BeginPopupModal(popup_id, nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
                 ImGui::TextUnformatted("Discard unsaved changes?");
                 if (ImGui::Button("Discard")) {
-                    const int16_t next = *pending_index;
+                    const Id next = *pending_index;
                     ImGui::CloseCurrentPopup();
-                    if (next >= 0) {
+                    if (next != none) {
                         load_pending(next);
                     } else {
                         *editor_open = false;
@@ -603,7 +605,7 @@ namespace debug_game_editors {
                 }
                 ImGui::SameLine();
                 if (ImGui::Button("Keep editing")) {
-                    *pending_index = -1;
+                    *pending_index = none;
                     *editor_open = true;
                     ImGui::CloseCurrentPopup();
                 }
@@ -679,6 +681,7 @@ namespace debug_game_editors {
                 &g_star_editor.discard_requested,
                 &g_star_editor.open,
                 &g_star_editor.pending_index,
+                int16_t{-1},
                 Load_Star);
         }
 
@@ -707,7 +710,7 @@ namespace debug_game_editors {
                     (g_pending_colony_player >= 0 && g_pending_colony_player < MOX::NUM_PLAYERS);
                 ImGui::BeginDisabled(!colony_player_valid);
                 if (ImGui::Button("Confirm")) {
-                    int16_t result_planet = -1;
+                    auto result_planet = game::NO_PLANET;
                     e_planet_operation_result result = PLANET_OPERATION_INVALID_RELATION;
                     if (g_pending_planet_operation == 0) {
                         result = Add_Planet(world_state, 
@@ -772,7 +775,7 @@ namespace debug_game_editors {
             }
             ImGui::SetNextWindowSize(ImVec2(315.0f, 410.0f), ImGuiCond_FirstUseEver);
             char title[48];
-            snprintf(title, sizeof(title), "Planet Editor [%d]", (int)g_planet_editor.index);
+            snprintf(title, sizeof(title), "Planet Editor [%u]", g_planet_editor.index.id);
             bool open = g_planet_editor.open;
             if (ImGui::Begin(title, &open)) {
                 Draw_Planet_Form(g_planet_editor.draft);
@@ -836,7 +839,8 @@ namespace debug_game_editors {
                 &g_planet_editor.discard_requested,
                 &g_planet_editor.open,
                 &g_planet_editor.pending_index,
-                [](int16_t index) { return Load_Planet(&::game::world, index); });
+                game::NO_PLANET,
+                [](game::id_planet index) { Load_Planet(&game::world, index); });
         }
 
         void Draw(const debug_overlay::s_panel_context& context) {

@@ -32,13 +32,15 @@ namespace {
 
     void Reset_Colony_() {
         memset(MOX::colony, 0, sizeof(s_colony) * 2);
-        memset(MOX::planet, 0, sizeof(s_planet_data) * 2);
+        game::world.planets.clear();
+        game::world.next_planet_id = 0;
+        test::Resize_Planets(&game::world, 2);
         memset(MOX::star, 0, sizeof(s_star_data));
         memset(MOX::ship, 0, sizeof(s_ship_data) * 8);
         memset(MOX::player, 0, sizeof(s_player) * MAX_PLAYERS);
         MOX::NUM_COLONIES = 0;
         MOX::NUM_SHIPS = 0;
-        MOX::colony[0].planet = 0;
+        MOX::colony[0].planet = game::id_planet{0};
         test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).star_index = 0;
         test::fakes::environmental_refresh_count = 0;
         test::fakes::colony_can_build_product_count = 0;
@@ -360,7 +362,7 @@ DOCTEST_TEST_CASE("Artificial Planets use configured population capacity") {
         for (int orbit = 0; orbit < 5; ++orbit) {
             MOX::star[0].planet_index[orbit] = ::game::NO_PLANET;
         }
-        MOX::star[0].planet_index[0] = 1;
+    MOX::star[0].planet_index[0] = game::id_planet{1};
         test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).planet_type = test_case.source_type;
         COLCALC::population_capacity.size[test_case.expected_size] =
             test_case.capacity;

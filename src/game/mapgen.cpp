@@ -488,10 +488,10 @@ namespace MAPGEN {
 
                     case SYSTEM_SPECIAL_GOLD_DEPOSITS:
                     case SYSTEM_SPECIAL_GEM_DEPOSITS: {
-                        ::game::id_planet p_idx = RUSS::Get_Weighted_Choice_Short(valid_planets, 5);
-                        if (p_idx != ::game::NO_PLANET) {
+                        const int16_t p_idx = RUSS::Get_Weighted_Choice_Short(valid_planets, 5);
+                        if (p_idx >= 0) {
                             if (commit_changes) {
-                                int16_t actual_p_idx = MOX::star[star_idx].planet_index[p_idx];
+                                const auto actual_p_idx = MOX::star[star_idx].planet_index[p_idx];
                                 ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(actual_p_idx))).planet_special = (int8_t)choice;
                                 MOX::star[star_idx].system_special = (int8_t)choice;
                             }
@@ -502,10 +502,10 @@ namespace MAPGEN {
 
                     case SYSTEM_SPECIAL_NATIVES:
                     case SYSTEM_SPECIAL_SPLINTER_COLONY: {
-                        ::game::id_planet p_idx = RUSS::Get_Weighted_Choice_Short(large_planets, 5);
-                        if (p_idx != ::game::NO_PLANET) {
+                        const int16_t p_idx = RUSS::Get_Weighted_Choice_Short(large_planets, 5);
+                        if (p_idx >= 0) {
                             if (commit_changes) {
-                                int16_t actual_p_idx = MOX::star[star_idx].planet_index[p_idx];
+                                const auto actual_p_idx = MOX::star[star_idx].planet_index[p_idx];
                                 ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(actual_p_idx))).planet_special = (int8_t)choice;
                                 MOX::star[star_idx].system_special = (int8_t)choice;
                             }
@@ -523,10 +523,10 @@ namespace MAPGEN {
                         break;
 
                     case SYSTEM_SPECIAL_ANCIENT_ARTIFACTS: {
-                        ::game::id_planet p_idx = RUSS::Get_Weighted_Choice_Short(habitable_planets, 5);
-                        if (p_idx != ::game::NO_PLANET) {
+                        const int16_t p_idx = RUSS::Get_Weighted_Choice_Short(habitable_planets, 5);
+                        if (p_idx >= 0) {
                             if (commit_changes) {
-                                int16_t actual_p_idx = MOX::star[star_idx].planet_index[p_idx];
+                                const auto actual_p_idx = MOX::star[star_idx].planet_index[p_idx];
                                 ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(actual_p_idx))).planet_special = (int8_t)choice;
                                 MOX::star[star_idx].system_special = (int8_t)choice;
                             }
@@ -684,10 +684,9 @@ namespace MAPGEN {
             }
             for (int16_t player_idx = 0; player_idx < MOX::NUM_PLAYERS;
                  ++player_idx) {
-                const int16_t home_planet_idx =
+                const auto home_planet_idx =
                     MOX::player[player_idx].home_planet_id;
-                if (home_planet_idx < 0 ||
-                    home_planet_idx >= ::game::Planet_Count(world_state)) {
+                if (game::Find_Planet(world_state, home_planet_idx) == nullptr) {
                     return false;
                 }
             }
@@ -787,9 +786,9 @@ namespace MAPGEN {
             }
             for (int16_t player_idx = 0; player_idx < MOX::NUM_PLAYERS;
                  ++player_idx) {
-                const int16_t home_planet =
+                const auto home_planet =
                     MOX::player[player_idx].home_planet_id;
-                if (home_planet < 0 || home_planet >= ::game::Planet_Count(world_state) ||
+                if (game::Find_Planet(world_state, home_planet) == nullptr ||
                     ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(home_planet))).planet_type !=
                         PLANET_TYPE_PLANET ||
                     ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(home_planet))).colony_index < 0 ||
@@ -1348,7 +1347,7 @@ namespace MAPGEN {
 
             const uint32_t radius_sq = radius * radius * 900;
             for (int16_t player_idx = 0; player_idx < MOX::NUM_PLAYERS; ++player_idx) {
-                const int16_t home_planet_idx = MOX::player[player_idx].home_planet_id;
+                const auto home_planet_idx = MOX::player[player_idx].home_planet_id;
                 const s_star_data* home = &MOX::star[::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(home_planet_idx))).star_index];
                 for (int16_t star_idx = 0; star_idx < MOX::NUM_STARS; ++star_idx) {
                     s_star_data* star = &MOX::star[star_idx];

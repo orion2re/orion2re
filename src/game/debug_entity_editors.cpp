@@ -345,9 +345,8 @@ namespace debug_game_editors {
 
         bool Validate_Colony_(::game::s_world_state* world_state, const s_colony& colony) {
             const int16_t player_count = std::clamp<int16_t>(MOX::NUM_PLAYERS, 0, MAX_PLAYERS);
-            const int16_t planet_count = std::clamp<int16_t>(::game::Planet_Count(world_state), 0, MAX_PLANETS);
             return colony.owner >= 0 && colony.owner < player_count &&
-                colony.planet != ::game::NO_PLANET && colony.planet < planet_count &&
+                game::Find_Planet(world_state, colony.planet) != nullptr &&
                 (colony.allocated_to == -1 ||
                     (colony.allocated_to >= 0 && colony.allocated_to < player_count)) &&
                 colony.officer >= -1 && colony.officer < MAX_LEADERS &&

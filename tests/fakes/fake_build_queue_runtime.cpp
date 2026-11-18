@@ -35,7 +35,7 @@ namespace TEST_BUILD_QUEUE {
         BUILD_QUEUE::autobuild_settings = {};
         for (int colony_idx = 0; colony_idx < 4; ++colony_idx) {
             colonies[colony_idx].owner = 0;
-            colonies[colony_idx].planet = colony_idx;
+            colonies[colony_idx].planet = game::id_planet{static_cast<uint32_t>(colony_idx)};
             for (int slot = 0; slot < 7; ++slot) {
                 colonies[colony_idx].producing[slot] = COLONY_PRODUCTION_NONE;
             }
@@ -43,8 +43,8 @@ namespace TEST_BUILD_QUEUE {
             test::Planet(&game::world, legacy_world::Planet_Id(colony_idx)).planet_type = PLANET_TYPE_PLANET;
             test::Planet(&game::world, legacy_world::Planet_Id(colony_idx)).colony_index = colony_idx;
         }
-        stars[0].planet_index[0] = 0;
-        stars[0].planet_index[1] = 1;
+        stars[0].planet_index[0] = game::id_planet{0};
+        stars[0].planet_index[1] = game::id_planet{1};
         players[0].bc = 10000;
         players[0].ship_range = 5;
         players[0].ship_speed = 5;

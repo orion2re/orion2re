@@ -341,7 +341,7 @@ TEST_CASE("Lua galaxy collections enforce native capacity limits") {
     TEST_LUA_GAME::Reset_();
     MOX::NUM_STARS = MAX_STARS;
     test::Resize_Planets(&::game::world, MAX_PLANETS);
-    for (::game::id_planet planet_id = ::game::id_planet{3}; planet_id < MAX_PLANETS; ++planet_id) {
+    for (uint32_t planet_id = 3; planet_id < MAX_PLANETS; ++planet_id) {
         test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_id))).star_index = 0;
     }
     MOX::NUM_SHIPS = MAX_SHIPS;
@@ -383,11 +383,11 @@ TEST_CASE("Lua galaxy collections expose complete stable domain objects") {
     TEST_LUA_GAME::Reset_();
     MOX::NUM_COLONIES = 2;
     test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).colony_index = 0;
-    MOX::colony[0].planet = 0;
+    MOX::colony[0].planet = game::id_planet{0};
     MOX::colony[0].owner = 0;
     test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).planet_type = PLANET_TYPE_PLANET;
     test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).colony_index = 1;
-    MOX::colony[1].planet = 1;
+    MOX::colony[1].planet = game::id_planet{1};
     MOX::colony[1].owner = 1;
     MOX::star[0].size = 4;
     MOX::star[0].pict_type = 5;
@@ -440,7 +440,7 @@ TEST_CASE("Lua galaxy mutations reject invalid domains and references") {
     TEST_LUA_GAME::Reset_();
     MOX::NUM_COLONIES = 1;
     test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).colony_index = 0;
-    MOX::colony[0].planet = 0;
+    MOX::colony[0].planet = game::id_planet{0};
     MOX::colony[0].owner = 0;
     game::Leader(&game::world, 0).status = 0;
     game::Leader(&game::world, 1).status = 0;
@@ -2066,7 +2066,7 @@ TEST_CASE("population growth rules use package order and immutable context") {
     MOX::game_type = 0;
     orion2re::lua::game::s_population_growth_context context;
     context.colony_id = 1;
-    context.planet_id = 2;
+    context.planet_id = game::id_planet{2};
     context.owner_id = 0;
     context.race_id = 0;
     context.race_population = 3;
@@ -2306,7 +2306,7 @@ TEST_CASE("planet generated event implements the legacy deposit behavior") {
     test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).climate = PLANET_CLIMATE_BARREN;
     test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).mineral_class = MINERAL_RESOURCE_POOR;
     test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).planet_special = SYSTEM_SPECIAL_GOLD_DEPOSITS;
-    MOX::star[1].planet_index[3] = 1;
+    MOX::star[1].planet_index[3] = game::id_planet{1};
     const orion2re::lua::game::s_planet_generated_event event = {1};
     orion2re::lua::game::Planet_Generated(&::game::world, &event);
     CHECK(test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).mineral_class == MINERAL_RESOURCE_ABUNDANT);

@@ -26,14 +26,14 @@ namespace {
     int random_calls;
     bool deposit_rules_enabled;
     bool home_system_edits_enabled;
-    int fail_generated_planet;
+    game::id_planet fail_generated_planet;
     int home_system_event_calls;
     int generated_planet_event_calls;
     int generated_event_sequence;
     int first_generated_planet_event_order;
     bool generated_event_observed_home_system;
     int16_t home_system_player_order[MAX_PLAYERS];
-    int16_t generated_planet_order[MAX_PLANETS];
+    game::id_planet generated_planet_order[MAX_PLANETS];
     bool galaxy_provider_active;
     bool galaxy_provider_fails;
     bool galaxy_provider_invalid;
@@ -107,7 +107,7 @@ namespace TEST_MAPGEN {
         random_calls = 0;
         deposit_rules_enabled = false;
         home_system_edits_enabled = false;
-        fail_generated_planet = -1;
+        fail_generated_planet = game::NO_PLANET;
         home_system_event_calls = 0;
         generated_planet_event_calls = 0;
         generated_event_sequence = 0;
@@ -116,7 +116,7 @@ namespace TEST_MAPGEN {
         memset(home_system_player_order,
             -1,
             sizeof(home_system_player_order));
-        memset(generated_planet_order, -1, sizeof(generated_planet_order));
+        std::fill_n(generated_planet_order, MAX_PLANETS, game::NO_PLANET);
         galaxy_provider_active = false;
         galaxy_provider_fails = false;
         galaxy_provider_invalid = false;
@@ -127,13 +127,13 @@ namespace TEST_MAPGEN {
         orion2re::lua::game::internal::Restore_Topology_Generation(1);
     }
 
-    void Set_Planet_(::game::id_planet planet_idx, int16_t star_idx, int8_t orbit,
+    void Set_Planet_(uint32_t planet_idx, int16_t star_idx, int8_t orbit,
                      int8_t planet_type, int16_t colony_idx) {
         test::Planet(&game::world, legacy_world::Planet_Id(planet_idx)).star_index = star_idx;
         test::Planet(&game::world, legacy_world::Planet_Id(planet_idx)).orbit = orbit;
         test::Planet(&game::world, legacy_world::Planet_Id(planet_idx)).planet_type = planet_type;
         test::Planet(&game::world, legacy_world::Planet_Id(planet_idx)).colony_index = colony_idx;
-        stars[star_idx].planet_index[(uint8_t)orbit] = planet_idx;
+        stars[star_idx].planet_index[(uint8_t)orbit] = game::id_planet{planet_idx};
     }
 
     void Set_Food_Star_(int16_t star_idx) {
@@ -194,7 +194,7 @@ namespace TEST_MAPGEN {
         return generated_event_observed_home_system;
     }
 
-    int16_t Generated_Planet_Event_Planet_(int index) {
+    game::id_planet Generated_Planet_Event_Planet_(int index) {
         return generated_planet_order[index];
     }
 
@@ -232,7 +232,7 @@ namespace orion2re::lua {
         *invoked = galaxy_provider_active;
         if (!galaxy_provider_active) return true;
         galaxy_provider_isolated = MOX::star != stars &&
-            MOX::planet != planets && MOX::player != players &&
+            MOX::player != players &&
             MOX::colony != colonies && MOX::ship != ships &&
             MOX::nebula != nebulas;
         galaxy_provider_topology_generation =
@@ -327,7 +327,7 @@ namespace orion2re::lua::game {
             throw std::runtime_error("generated planet event failed");
         }
         s_planet_data& planet = test::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(event->planet_id)));
-        if (event->planet_id == 0 &&
+        if (event->planet_id == ::game::id_planet{0} &&
             planet.size == PLANET_SIZE_HUGE &&
             planet.climate == PLANET_CLIMATE_GAIA &&
             planet.planet_special == SYSTEM_SPECIAL_GOLD_DEPOSITS) {

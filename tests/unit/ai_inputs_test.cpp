@@ -124,7 +124,7 @@ DOCTEST_TEST_CASE("typed ID compatibility preserves zero and rejects absent or u
     for (int16_t index : {int16_t{0}, int16_t{INT16_MAX}}) {
         DOCTEST_CHECK(Index(*Try_Ship_Id(index)) == index);
         DOCTEST_CHECK(Index(*Try_Colony_Id(index)) == index);
-        DOCTEST_CHECK(Index(*Try_Planet_Id(index)) == index);
+        DOCTEST_CHECK(Index(*Try_Planet_Id(index)) == game::id_planet{static_cast<uint32_t>(index)});
         DOCTEST_CHECK(Index(*Try_Star_Id(index)) == index);
         DOCTEST_CHECK(Index(*Try_Player_Id(index)) == index);
         DOCTEST_CHECK(Index(*Try_Leader_Id(index)) == index);
@@ -132,7 +132,8 @@ DOCTEST_TEST_CASE("typed ID compatibility preserves zero and rejects absent or u
     for (uint32_t value : {uint32_t{INT16_MAX} + 1, UINT32_MAX}) {
         DOCTEST_CHECK_FALSE(Index(Ship_Id(value)));
         DOCTEST_CHECK_FALSE(Index(Colony_Id(value)));
-        DOCTEST_CHECK_FALSE(Index(legacy_world::Planet_Id(Planet_Id(legacy_world::Planet_Id(value)))));
+        if (value == UINT32_MAX) DOCTEST_CHECK_FALSE(Index(Planet_Id(value)));
+        else DOCTEST_CHECK(Index(Planet_Id(value)) == game::id_planet{value});
         DOCTEST_CHECK_FALSE(Index(Star_Id(value)));
         DOCTEST_CHECK_FALSE(Index(Player_Id(value)));
         DOCTEST_CHECK_FALSE(Index(Leader_Id(value)));

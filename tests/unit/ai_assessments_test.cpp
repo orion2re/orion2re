@@ -103,7 +103,6 @@ DOCTEST_TEST_CASE("star assessments name treaty partners and hostile players by 
     test::s_game_state game_state;
     s_player players[3] = {};
     s_colony colonies[3] = {};
-    s_planet_data planets[3] = {};
     s_star_data stars[1] = {};
     int16_t player_count = 3;
     int16_t colony_count = 3;
@@ -113,7 +112,8 @@ DOCTEST_TEST_CASE("star assessments name treaty partners and hostile players by 
     for (uint32_t i = 0; i < 3; ++i) {
         players[i].ship_range = 6;
         colonies[i].owner = (int8_t)i;
-        colonies[i].planet = (int16_t)i;
+        colonies[i].planet = game::id_planet{i};
+        game::Create_Planet(&game::world, {});
     }
     players[0].treaty[1] = 1;
     players[0].treaty[2] = 4;
@@ -122,7 +122,7 @@ DOCTEST_TEST_CASE("star assessments name treaty partners and hostile players by 
         .players = players,
         .stars = stars,
         .colonies = colonies,
-        .planets = planets,
+        .state = &game::world,
         .player_count = &player_count,
         .star_count = &star_count,
         .colony_count = &colony_count,

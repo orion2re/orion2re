@@ -202,7 +202,7 @@ namespace PLNTSUM {
         bool is_at_planet = (location >= 0 && location < SHIP_LOCATION_MOVING_OFFSET);
         bool is_in_warp_range = (location >= SHIP_LOCATION_WORMHOLE_OFFSET && location < SHIP_LOCATION_LIMIT);
 
-        int16_t auto_col_status = Colony_Ship_Auto_Colonization(&::game::world, ship);
+        const auto auto_col_status = Colony_Ship_Auto_Colonization(&game::world, ship);
 
         if (is_at_planet) {
             return true;
@@ -368,8 +368,8 @@ namespace PLNTSUM {
         bool has_omniscience_trait =
             MOX::player[MOX::PLAYER_NUM].traits[TRAIT_OMNISCIENCE] != 0;
 
-        for (int16_t i = 0; i < (int16_t)::game::Planet_Count(world_state); ++i) {
-            int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(i))).star_index;
+        for (const auto& [i, planet] : world_state->planets) {
+            int16_t star_idx = planet.star_index;
             if (has_omniscience_trait ||
                 HAROLD::Player_Has_Visited(MOX::PLAYER_NUM, star_idx)) {
                 PLNTSUM::explored_planets.insert(i);
@@ -655,7 +655,7 @@ namespace PLNTSUM {
 
         *summary_count = 0;
 
-        for (int16_t i = 0; i < (int16_t)::game::Planet_Count(world_state); ++i) {
+        for (const auto& [i, planet] : world_state->planets) {
             RUSS::Mox_Update();
 
             bool passes_filter = true;

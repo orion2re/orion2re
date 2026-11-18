@@ -614,17 +614,14 @@ namespace NETMOX {
 
         allocate::Push_Block(MOX::screen_seg);
 
-        s_net_pack_pick_your_position* packet =
-            (s_net_pack_pick_your_position*)allocate::Allocate_Next_Block(MOX::screen_seg, sizeof(s_net_pack_pick_your_position));
-
-        packet->num_players = MOX::NUM_PLAYERS;
-
-        // Copy the current player list into the network packet
-        memcpy(packet->players, MOX::player, num_players * (int32_t)sizeof(s_player));
-
-        uint32_t msg_size = (uint32_t)sizeof(packet->num_players) +
-            (uint32_t)num_players * (uint32_t)sizeof(packet->players[0]);
-        NETMOX::Mox_Send_Message(network_player_id, NET_PACKET_PICK_YOUR_POSITION, packet, msg_size);
+        constexpr uint32_t capacity = MAX_PLAYERS * (sizeof(s_player) + MAX_FREIGHTED_SETTLERS * 13 + 32) + 2;
+        void* packet = allocate::Allocate_Next_Block(MOX::screen_seg, capacity);
+        NETPROTO::Packet_Writer_ writer(packet, capacity, "position-pick packet overflow");
+        writer.Write_Int16(MOX::NUM_PLAYERS);
+        for (int32_t i = 0; i < num_players; ++i) {
+            SAVEGAME::Write_Player_Record(&game::world, &writer, &MOX::player[i], legacy_world::Player_Id(i));
+        }
+        NETMOX::Mox_Send_Message(network_player_id, NET_PACKET_PICK_YOUR_POSITION, packet, writer.Length());
 
         allocate::Pop_Block(MOX::screen_seg);
     }
@@ -1392,7 +1389,9 @@ namespace NETMOX {
         int16_t disconnected_network_id = MOX::player[player_idx].network_player_id;
         s_net_pack_player_disconnected_info_ packet;
         packet.player_idx = (int16_t)player_idx;
-        Build_Drop_Out_Info_From_Local_State(player_idx, &packet.drop_out_info);
+        s_net_pack_drop_out_info aligned_info{};
+        Build_Drop_Out_Info_From_Local_State(player_idx, &aligned_info);
+        memcpy(&packet.drop_out_info, &aligned_info, sizeof(aligned_info));
         Apply_Drop_Out_Bookkeeping(player_idx, disconnected_network_id, true);
 
         Mox_Send_Message((int16_t)netadapter::NETADAPTER_BROADCAST_EXCLUDING_SELF, NET_PACKET_PLAYER_DISCONNECTED, &packet, (uint16_t)sizeof(packet));
@@ -1639,10 +1638,13 @@ namespace NETMOX {
             exitm::Exit_With_Message("invalid game orders payload");
         }
 
-        reader.Require(sizeof(s_player) + MOX::NUM_STARS * sizeof(s_net_pack_star_order) + sizeof(int16_t));
-
         s_player player = {};
-        reader.Read_Bytes(&player, sizeof(player));
+        game::s_world_state incoming;
+        const auto player_id = legacy_world::Player_Id(player_idx);
+        if (!SAVEGAME::Read_Player_Record(&incoming, &reader, &player, player_id)) {
+            exitm::Exit_With_Message("invalid game orders player record");
+        }
+        reader.Require(MOX::NUM_STARS * sizeof(s_net_pack_star_order) + sizeof(int16_t));
 
         const int32_t freight_count = player.settlers_freighted;
         if (freight_count < 0 ||
@@ -1652,6 +1654,7 @@ namespace NETMOX {
         }
 
         MOX::player[player_idx] = player;
+        world_state->settlers[player_id] = std::move(incoming.settlers[player_id]);
 
         RUSS::Mox_Update();
 
@@ -2065,7 +2068,7 @@ namespace NETMOX {
             if (target_colony_id != -1) {
                 MOX::NUM_COLONIES = reader.Read_Int16();
 
-                ::game::id_planet planet_idx = reader.Read_Int16();
+                const game::id_planet planet_idx{reader.Read_Uint32()};
 
                 int16_t dummy_col_idx = reader.Read_Int16();
 
@@ -2110,15 +2113,19 @@ namespace NETMOX {
             return;
         }
 
-        int32_t num_players = packet->num_players;
-        uint32_t expected_len = (uint32_t)sizeof(packet->num_players) +
-            (uint32_t)num_players * (uint32_t)sizeof(packet->players[0]);
-        if (num_players < 0 || num_players > MAX_PLAYERS || len != expected_len) {
-            return;
+        NETPROTO::Packet_Reader_ reader(packet, len, "invalid position-pick packet", true);
+        const int16_t num_players = reader.Read_Int16();
+        if (num_players < 0 || num_players > MAX_PLAYERS) return;
+        std::array<s_player, MAX_PLAYERS> players{};
+        game::s_world_state incoming;
+        for (int16_t i = 0; i < num_players; ++i) {
+            if (!SAVEGAME::Read_Player_Record(&incoming, &reader, &players[i], legacy_world::Player_Id(i))) return;
         }
+        if (reader.Failed() || reader.Remaining() != 0) return;
 
-        MOX::NUM_PLAYERS = (int16_t)num_players;
-        memcpy(MOX::player, packet->players, num_players * sizeof(s_player));
+        MOX::NUM_PLAYERS = num_players;
+        std::copy_n(players.begin(), num_players, MOX::player);
+        game::world.settlers = std::move(incoming.settlers);
     }
 
     void __cdecl Decode_Battle_Results(game::s_world_state* world_state, void* packet_data, uint32_t len) {
@@ -2155,7 +2162,7 @@ namespace NETMOX {
 
                 reader.Skip(sizeof(int16_t));
 
-                int16_t combat_planet_idx = reader.Read_Int16();
+                const game::id_planet combat_planet_idx{reader.Read_Uint32()};
 
                 RUSS::Mox_Update();
 
@@ -2183,7 +2190,7 @@ namespace NETMOX {
                 RUSS::Mox_Update();
 
                 // 5. Unpack Colony Fate
-                if (combat_planet_idx != -1) {
+                if (combat_planet_idx != game::NO_PLANET) {
                     int16_t old_colony_index = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(combat_planet_idx))).colony_index;
 
                     int16_t new_colony_index = reader.Read_Int16();
@@ -2276,7 +2283,10 @@ namespace NETMOX {
     }
 
     void __cdecl Decode_Drop_Out_Info(int32_t player_idx, s_net_pack_drop_out_info* drop_out_info) {
-        Apply_Drop_Out_Info(player_idx, drop_out_info, false);
+        if (drop_out_info == nullptr) return;
+        s_net_pack_drop_out_info aligned_info;
+        memcpy(&aligned_info, drop_out_info, sizeof(aligned_info));
+        Apply_Drop_Out_Info(player_idx, &aligned_info, false);
     }
 
     void __cdecl Decode_Player_Disconnected_Info(void* data, uint32_t len) {
@@ -2285,7 +2295,9 @@ namespace NETMOX {
         }
 
         s_net_pack_player_disconnected_info_* packet = (s_net_pack_player_disconnected_info_*)data;
-        Apply_Drop_Out_Info(packet->player_idx, &packet->drop_out_info, true);
+        s_net_pack_drop_out_info aligned_info;
+        memcpy(&aligned_info, &packet->drop_out_info, sizeof(aligned_info));
+        Apply_Drop_Out_Info(packet->player_idx, &aligned_info, true);
     }
 
     void __cdecl Send_Battle_Results(game::s_world_state* world_state, int16_t star_id, int16_t player_id, int16_t target_player_id, int16_t combat_defender_id, ::game::id_planet combat_planet_id, int16_t combat_result) {
@@ -2311,7 +2323,7 @@ namespace NETMOX {
             COMBFIND::Send_Star_Player_Presence(&writer, -1);
 
             writer.Write_Int16(combat_defender_id);
-            writer.Write_Int16(combat_planet_id);
+            writer.Write_Uint32(combat_planet_id.id);
 
             RUSS::Mox_Update();
 
@@ -2434,7 +2446,7 @@ namespace NETMOX {
                 ::game::id_planet planet_idx = MOX::colony[colony_idx].planet;
 
                 writer.Write_Int16((int16_t)MOX::NUM_COLONIES);
-                writer.Write_Int16(planet_idx);
+                writer.Write_Uint32(planet_idx.id);
                 writer.Write_Int16(::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index);
                 writer.Write_Int8(::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).planet_type);
                 writer.Write_Char(::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).climate);

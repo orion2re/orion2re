@@ -24,8 +24,7 @@ namespace MAINSCR_DEBUG {
         }
 
         void Draw_Planet_(::game::s_world_state* world_state, ::game::id_planet planet_index) {
-            const int16_t planet_count = std::clamp<int16_t>(::game::Planet_Count(world_state), 0, MAX_PLANETS);
-            if (planet_index == ::game::NO_PLANET || planet_index >= planet_count) {
+            if (game::Find_Planet(world_state, planet_index) == nullptr) {
                 return;
             }
 
@@ -35,7 +34,7 @@ namespace MAINSCR_DEBUG {
             if (MOX::star != nullptr && planet.star_index >= 0 && planet.star_index < star_count) {
                 HACCESS::Do_Get_Planet_Name(world_state, legacy_world::Planet_Id(planet_index), name, 1);
             } else {
-                snprintf(name, sizeof(name), "Planet %d", (int)planet_index);
+                snprintf(name, sizeof(name), "Planet %u", planet_index.id);
             }
             char label[112];
             const int16_t colony_count = std::clamp<int16_t>(MOX::NUM_COLONIES, 0, MAX_COLONIES);
@@ -46,7 +45,7 @@ namespace MAINSCR_DEBUG {
             } else {
                 strlcpy(label, name, sizeof(label));
             }
-            ImGui::PushID((int32_t)planet_index);
+            ImGui::PushID(static_cast<int>(planet_index.id));
             if (ImGui::Selectable(label)) {
                 debug_game_editors::Open_Planet(legacy_world::Planet_Id(planet_index));
             }

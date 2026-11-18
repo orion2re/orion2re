@@ -11,7 +11,7 @@ namespace OCPOLPUP {
         int16_t colony_index;
         int16_t owner_index;
 
-        planet_index = HAROLD::Planet_Index(MOX::screen_data, legacy_world::Planet_Id(COLONY::orbit_temp));
+        planet_index = HAROLD::Planet_Index(MOX::screen_data, COLONY::orbit_temp);
         colony_index = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_index))).colony_index;
         occupation_policy_value = (uint16_t)(uint8_t)MOX::colony[colony_index].occupation_policy;
 
@@ -21,7 +21,7 @@ namespace OCPOLPUP {
         MOX2::Get_Auto_Function(&saved_autofunction);
         fields::Deactivate_Auto_Function();
 
-        planet_index = HAROLD::Planet_Index(MOX::screen_data, legacy_world::Planet_Id(COLONY::orbit_temp));
+        planet_index = HAROLD::Planet_Index(MOX::screen_data, COLONY::orbit_temp);
         colony_index = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_index))).colony_index;
         owner_index = MOX::colony[colony_index].owner;
 
@@ -35,7 +35,7 @@ namespace OCPOLPUP {
             occupation_policy_value = 3;
         }
 
-        planet_index = HAROLD::Planet_Index(MOX::screen_data, legacy_world::Planet_Id(COLONY::orbit_temp));
+        planet_index = HAROLD::Planet_Index(MOX::screen_data, COLONY::orbit_temp);
         colony_index = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_index))).colony_index;
         MOX::colony[colony_index].occupation_policy = (char)occupation_policy_value;
 

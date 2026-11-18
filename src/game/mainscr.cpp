@@ -2063,7 +2063,7 @@ namespace MAINSCR {
         int16_t ret_val = -1;
         int16_t gate_idx = -1;
 
-        *planet_idx = ::game::NO_PLANET;
+        *planet_idx = -1;
         *m_planet_idx = -1;
         *ship_idx = -1;
         *m_ship_idx = -1;
@@ -2094,7 +2094,7 @@ namespace MAINSCR {
             for (int i = 0; i < 5; ++i) {
                 int16_t btn_id = colony_btns[i];
                 if (input == btn_id) {
-                    *planet_idx = ERIC::Get_Sint_Index_From_List(MOX::sys_disp[i].planet_id, MOX::star[MOX::system_star_id].planet_index, 5);
+                    *planet_idx = MOX::sys_disp[i].orbit_idx;
                     ret_val = 0;
                     break;
                 }
@@ -2106,7 +2106,7 @@ namespace MAINSCR {
                     return -1;
                 }
                 if (mouse_input == btn_id) {
-                    *m_planet_idx = ERIC::Get_Sint_Index_From_List(MOX::sys_disp[i].planet_id, MOX::star[MOX::system_star_id].planet_index, 5);
+                    *m_planet_idx = MOX::sys_disp[i].orbit_idx;
                     ret_val = 4;
                 }
             }

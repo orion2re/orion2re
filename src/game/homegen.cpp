@@ -646,7 +646,7 @@ namespace HOMEGEN {
         PlanetRef candidates[5];
         int16_t candidate_count = 0;
         bool found_climate = false;
-        *out_planet_idx = -1;
+        *out_planet_idx = game::NO_PLANET;
 
         for (int16_t orbit = 0; orbit < 5; ++orbit) {
             ::game::id_planet p_idx = MOX::star[star_idx].planet_index[orbit];

@@ -26,7 +26,7 @@ namespace TEST_FLEETPOP {
         MOX::ship[0].owner = 0;
         MOX::ship[0].d.ship_type = SHIP_TYPE_OUTPOST;
         MOX::star[1].colonize_player = 0;
-        MOX::star[1].planet_index[0] = 0;
+        MOX::star[1].planet_index[0] = game::id_planet{0};
         test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).colony_index = -1;
     }
 }

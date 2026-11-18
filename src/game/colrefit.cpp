@@ -196,7 +196,7 @@ namespace COLREFIT {
                     GENDRAW::Help(ESTRINGS::E_Strings(0x23F));
                     COLONY::full_draw = 1;
                 } else {
-                    ::game::id_planet planet_idx = HAROLD::Planet_Index(MOX::screen_data, legacy_world::Planet_Id(COLONY::orbit_temp));
+                    auto planet_idx = HAROLD::Planet_Index(MOX::screen_data, COLONY::orbit_temp);
                     if (COLCALC::Colony_Can_Build_Product(world_state, &MOX::colony[::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index], COLBLDG::Colony_Production_From_Ship_Index(ship_idx))) {
                         if (MOX::ship[ship_idx].d.previous_owner == MOX::PLAYER_NUM) {
                             if (MOX::ship[ship_idx].officer_index == -1) {
@@ -418,7 +418,7 @@ namespace COLREFIT {
 
         COLONY::Remap_Draw_Ship_Centered(x_offset + 188, y_offset + 77, ship_idx);
 
-        ::game::id_planet planet_idx = HAROLD::Planet_Index(MOX::screen_data, legacy_world::Planet_Id(COLONY::orbit_temp));
+        auto planet_idx = HAROLD::Planet_Index(MOX::screen_data, COLONY::orbit_temp);
         int16_t colony_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index;
 
         if (!COLCALC::Colony_Can_Build_Product(world_state, &MOX::colony[colony_idx], COLBLDG::Colony_Production_From_Ship_Index(ship_idx))) {

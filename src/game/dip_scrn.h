@@ -220,7 +220,7 @@ namespace DIP_SCRN {
     extern char* offer_diplomacy_list[7];
     extern char* offer_title;
 
-    extern int16_t diplomacy_system_planet_list[5];
+    extern game::id_planet diplomacy_system_planet_list[5];
     extern int16_t diplomacy_system_population;
     extern uint8_t diplomacy_system_receiver;
     extern int16_t diplomacy_system_planet_count;
@@ -234,7 +234,7 @@ namespace DIP_SCRN {
     extern char* demand_title;
     extern char* agree_diplomacy_list[4];
     extern char* system_cancel_buffer;
-    extern int16_t diplomacy_system_homeworld_flag;
+    extern game::id_planet diplomacy_system_homeworld_flag;
     extern s_animation_header* diplomacy_system_star_background_seg;
     extern int16_t diplomacy_system_fields[MAX_STARS];
     extern uint8_t* diplomacy_mouse_bitmap;
@@ -277,13 +277,13 @@ namespace DIP_SCRN {
 
     void __cdecl Draw_Diplomacy_System();
 
-    void __cdecl Draw_Diplomacy_System_Text(::game::s_world_state* world_state, int16_t star_idx, int16_t selected_planet_idx);
+    void __cdecl Draw_Diplomacy_System_Text(::game::s_world_state* world_state, int16_t star_idx, game::id_planet selected_planet_idx);
 
     int16_t __cdecl Diplomacy_Offer_Money(int16_t player_idx, int16_t target_idx, int8_t do_transaction);
 
     void __cdecl Start_Diplomacy_Music(int16_t music_type);
 
-    int16_t __cdecl Diplomacy_System_Scan(::game::s_world_state* world_state, int16_t star_idx, int16_t player_idx, int16_t* capitol_planet_idx, int16_t* owned_count, int16_t* planet_indices);
+    int16_t __cdecl Diplomacy_System_Scan(::game::s_world_state* world_state, int16_t star_idx, int16_t player_idx, game::id_planet* capitol_planet_idx, int16_t* owned_count, game::id_planet* planet_indices);
 
     void __cdecl Diplomacy_Generic_System_List_Draw();
 } // namespace DIP_SCRN

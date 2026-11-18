@@ -328,9 +328,9 @@ namespace MAINSCR2 {
         RUSS::Mox_Sync_Update();
         fields::Enable_Draw_All_Fields();
 
-        int16_t new_outpost_star_id = MAINPUPS::New_Outpost_Selection_Popup(star_id);
+        auto outpost_planet = MAINPUPS::New_Outpost_Selection_Popup(star_id);
 
-        if (new_outpost_star_id > -1) {
+        if (outpost_planet != game::NO_PLANET) {
             bool found_outpost_ship = false;
             int16_t outpost_ship_id = -1;
 
@@ -347,7 +347,7 @@ namespace MAINSCR2 {
             }
 
             if (found_outpost_ship) {
-                COLONIZE::Make_New_Outpost(legacy_world::Planet_Id(new_outpost_star_id), MOX::PLAYER_NUM);
+                COLONIZE::Make_New_Outpost(outpost_planet, MOX::PLAYER_NUM);
                 MOX::ship[outpost_ship_id].status = 5;
                 COLCALC::Update_Player_Stats(&game::world, &MOX::player[MOX::PLAYER_NUM]);
 
@@ -620,10 +620,10 @@ namespace MAINSCR2 {
         RUSS::Mox_Sync_Update();
         fields::Enable_Draw_All_Fields();
 
-        star_id = MAINPUPS::Drop_Troops_Selection_Popup(star_id);
+        const auto target_planet = MAINPUPS::Drop_Troops_Selection_Popup(star_id);
 
-        if (star_id >= 0) {
-            int16_t colony_index = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(star_id))).colony_index;
+        if (target_planet != game::NO_PLANET) {
+            int16_t colony_index = game::Planet(world_state, target_planet).colony_index;
             if (colony_index >= 0) {
                 if (MOX::colony[colony_index].owner == MOX::PLAYER_NUM) {
                     int16_t ship_ids[MAX_SHIPS];

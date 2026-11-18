@@ -10,6 +10,7 @@
 #include "game/config_refresh.h"
 #include "game/savegame.h"
 #include "game/turn_oracle_history.h"
+#include "game/turn_oracle_save.h"
 #include "game/user_paths.h"
 
 namespace turn_oracle {
@@ -45,8 +46,8 @@ namespace turn_oracle {
                 if (error->empty()) *error = "invalid initial oracle save";
                 return false;
             }
-            if (metadata.game_type != 0 || metadata.version != SAVEGAME::CURRENT_VERSION) {
-                *error = "oracle requires a current-version single-player save";
+            if (metadata.game_type != 0 || (metadata.version != 7 && metadata.version != 8)) {
+                *error = "oracle requires a version 7 or 8 single-player save";
                 return false;
             }
             MOX::settings = settings;
@@ -84,7 +85,7 @@ namespace turn_oracle {
                 const auto canonical = Turn_Path(history_directory, turn);
                 const auto actual = Turn_Path(temporary_directory, turn);
                 if (!Capture_(recording ? canonical : actual, error)) return false;
-                if (!recording && !Compare_Files(canonical, actual, error)) {
+                if (!recording && !Compare_Save_Files(canonical, actual, error)) {
                     *error = "oracle mismatch at turn " + std::to_string(turn) + ", stardate " + std::to_string(MOX::stardate) + "\n" + *error;
                     return false;
                 }

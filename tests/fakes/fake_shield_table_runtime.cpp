@@ -18,6 +18,7 @@ namespace TEST_SHIELD_TABLE {
         memset(&MOX::settings, 0, sizeof(MOX::settings));
         game::world.planets.clear();
         game::world.next_planet_id = 0;
+        game::Create_Planet(&game::world, {});
         memset(players, 0, sizeof(players));
         MOX::combat_data = ::combat_data;
         MOX::colony = colonies;

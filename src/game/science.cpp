@@ -18,7 +18,7 @@ namespace SCIENCE {
 
     void* science_mouse_bitmap;
 
-    void __cdecl Show_Off_Captured_Tech(int16_t* captured_tech_ids, uint16_t tech_count, int16_t message_arg) {
+    void __cdecl Show_Off_Captured_Tech(int16_t* captured_tech_ids, uint16_t tech_count, game::id_planet planet_id) {
         char text_buffer[0x100];
 
         allocate::Push_Block(MOX::screen_seg);
@@ -27,7 +27,8 @@ namespace SCIENCE {
         file_ani::Set_File_Animation_Buffer(animation_buffer);
 
         JIM::Get_Text_Message("billtext.lbx", 3, text_buffer, sizeof(text_buffer));
-        JIM::Decode_Text_System(text_buffer, message_arg, sizeof(text_buffer));
+        const auto* planet = game::Find_Planet(&game::world, planet_id);
+        JIM::Decode_Text_System(text_buffer, planet ? planet->star_index : -1, sizeof(text_buffer));
 
         char* trooper_anim = BILL::Cache_Player_Trooper_Anim();
         SCIENCE::Science_Room(trooper_anim, tech_count, captured_tech_ids, text_buffer);

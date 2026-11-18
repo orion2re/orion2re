@@ -346,14 +346,14 @@ namespace PLNTSUM {
                 int current_row = first_row + i;
                 game::id_planet explored_idx = PLNTSUM::planet_summary[current_row].planet_id;
 
-                if (explored_idx != -1) {
+                    if (explored_idx != game::NO_PLANET) {
                     int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(explored_idx))).star_index;
 
                     // Handle interaction: Click on fields/icons
                     if (PLNTSUM::screen->fields[i] == clicked_field_id) {
                         if (PLNTSUM::send_choice == 0 || PLNTSUM::send_choice == 1) {
-                            ::game::id_planet planet_id = PLNTSUM::Planet_Summary_Id(explored_idx);
-                            auto ship_id = PLNTSUM::Nearest_Ship_Id(planet_id);
+                            const auto row = PLNTSUM::Planet_Summary_Id(explored_idx);
+                            auto ship_id = PLNTSUM::Nearest_Ship_Id(row);
                             if (ship_id > -1) {
                                 PLNTSUM::Send_Nearest_Ship(world_state, legacy_world::Planet_Id(explored_idx));
                                 PLNTSUM::Determine_Button_Status();
@@ -372,9 +372,9 @@ namespace PLNTSUM {
                     // Handle interaction: Hover/Input on fields
                     else if (PLNTSUM::screen->fields[i] == input_field_id && current_row < total_rows) {
                         PLNTSUM::box_field_scanned = (int8_t)i;
-                        if (explored_idx > -1) {
-                            ::game::id_planet planet_id = PLNTSUM::Planet_Summary_Id(explored_idx);
-                            auto ship_id = PLNTSUM::Nearest_Ship_Id(planet_id);
+                        if (explored_idx != game::NO_PLANET) {
+                            const auto row = PLNTSUM::Planet_Summary_Id(explored_idx);
+                            auto ship_id = PLNTSUM::Nearest_Ship_Id(row);
                             if (ship_id != -1 && (PLNTSUM::send_choice == 0 || PLNTSUM::send_choice == 1)) {
                                 PLNTSUM::can_reach_scanned_planet = true;
                             }
@@ -706,7 +706,7 @@ namespace PLNTSUM {
             for (int16_t i = 0; i < (int16_t)count; ++i) {
                 game::id_planet explored_planet_idx = PLNTSUM::planet_summary[first_row + i].planet_id;
 
-                if (explored_planet_idx != -1) {
+                if (explored_planet_idx != game::NO_PLANET) {
                     s_planet_data* planet = &::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(explored_planet_idx)));
 
                     // Planet animation index is determined by climate type and planet size
@@ -829,7 +829,7 @@ namespace PLNTSUM {
         char star_name_buffer[100];
         int8_t status = 0; // 0: neutral, 1: red, 2: green
         int16_t scanned_field = MOX::scanned_field;
-        ::game::id_planet planet_idx = Summary_Planet_Index(&::game::world, scanned_field);
+        const auto planet_idx = Summary_Planet_Index(&::game::world, scanned_field);
 
         if (PLNTSUM::planet_summary[planet_idx].blocked == 1) {
             snprintf(msg_buffer, sizeof(msg_buffer), HAROLD::H_Message(324 /* HESTR_144_BLACK_HOLE_BLOCKS_TRAV */), MOX::star[scanned_field].name);

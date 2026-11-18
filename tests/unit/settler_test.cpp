@@ -16,11 +16,11 @@ static void Add_Resident_Pops_(s_colony* colony, int32_t race_idx, int32_t pop_c
     }
 }
 
-static void Add_Inbound_Settler_(s_player* player, int32_t race_idx, int16_t dest_planet) {
-    SETTLER::value_type settler_data = 0;
-    SETTLER::Set_Race(&settler_data, (uint32_t)race_idx);
-    SETTLER::Set_Dest_Planet(&settler_data, dest_planet);
-    player->settlers[player->settlers_freighted].val = settler_data;
+static void Add_Inbound_Settler_(s_player* player, int32_t race_idx, game::id_planet dest_planet) {
+    game::world.settlers[game::id_player{static_cast<uint32_t>(player - MOX::player)}].push_back({
+        .destination_planet = dest_planet,
+        .race = static_cast<uint8_t>(race_idx),
+    });
     player->settlers_freighted++;
 }
 
@@ -28,10 +28,10 @@ static void Prepare_Interstar_Move_() {
     TEST_SETTLER::Set_Pop_Limit_(0, 42);
 
     MOX::colony[0].owner = 0;
-    MOX::colony[0].planet = 0;
+    MOX::colony[0].planet = game::id_planet{0};
     MOX::colony[0].n_pops = 2;
     MOX::colony[1].owner = 0;
-    MOX::colony[1].planet = 1;
+    MOX::colony[1].planet = game::id_planet{1};
     test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).star_index = 0;
     test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).star_index = 1;
     MOX::player[0].n_freighters = 10000;
@@ -45,7 +45,7 @@ DOCTEST_TEST_CASE("inbound settlers count only when scheduling another settler")
 
     s_colony* colony = &MOX::colony[0];
     colony->owner = 0;
-    colony->planet = 0;
+    colony->planet = game::id_planet{1000000};
     Add_Resident_Pops_(colony, 0, 4);
     Add_Inbound_Settler_(&MOX::player[0], 0, colony->planet);
 
@@ -59,9 +59,9 @@ DOCTEST_TEST_CASE("settlers heading elsewhere do not consume destination capacit
 
     s_colony* colony = &MOX::colony[0];
     colony->owner = 0;
-    colony->planet = 0;
+    colony->planet = game::id_planet{0};
     Add_Resident_Pops_(colony, 0, 4);
-    Add_Inbound_Settler_(&MOX::player[0], 0, 1);
+    Add_Inbound_Settler_(&MOX::player[0], 0, game::id_planet{1});
 
     DOCTEST_CHECK(SETTLER::Room_For_Another(&::game::world, colony, 0, 1));
 }
@@ -73,7 +73,7 @@ DOCTEST_TEST_CASE("higher mixed-race limit blocks an additional lower-limit sett
 
     s_colony* colony = &MOX::colony[0];
     colony->owner = 0;
-    colony->planet = 0;
+    colony->planet = game::id_planet{0};
     Add_Resident_Pops_(colony, 0, 4);
     Add_Resident_Pops_(colony, 1, 6);
 
@@ -86,7 +86,7 @@ DOCTEST_TEST_CASE("absolute colony population limit remains 42") {
 
     s_colony* colony = &MOX::colony[0];
     colony->owner = 0;
-    colony->planet = 0;
+    colony->planet = game::id_planet{0};
     Add_Resident_Pops_(colony, 0, 42);
 
     DOCTEST_CHECK_FALSE(SETTLER::Room_For_Another(&::game::world, colony, 0, 0));
@@ -131,12 +131,12 @@ DOCTEST_TEST_CASE("last population transfer follows the configured policy") {
 
     s_colony* source = &MOX::colony[0];
     source->owner = 0;
-    source->planet = 0;
+    source->planet = game::id_planet{0};
     source->n_pops = 1;
     POP::Set_Race(&source->pop[0], 0);
     s_colony* destination = &MOX::colony[1];
     destination->owner = 0;
-    destination->planet = 1;
+    destination->planet = game::id_planet{1};
     test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).star_index = 0;
     test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).star_index = 0;
 

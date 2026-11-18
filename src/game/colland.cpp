@@ -161,7 +161,7 @@ namespace COLLAND {
         COLONY::star_handle = MOX::screen_data;
         COLONY::orbit_n = COLONY::orbit_temp;
 
-        COLONY::planet_handle = HAROLD::Planet_Index(MOX::screen_data, legacy_world::Planet_Id(COLONY::orbit_temp));
+        COLONY::planet_handle = HAROLD::Planet_Index(MOX::screen_data, COLONY::orbit_temp);
         COLONY::colony_handle = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(COLONY::planet_handle))).colony_index;
         COLONY::valid_colony = 1;
         COLONY::drawing_display = 0;

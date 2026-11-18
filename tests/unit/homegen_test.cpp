@@ -28,8 +28,8 @@ DOCTEST_TEST_CASE("minimum-distance planet generation preserves existing satelli
 
     HOMEGEN::Guarantee_A_Planet_At_Min_Dist(&::game::world, 0, 4, home_stars);
 
-    DOCTEST_CHECK(test::Resize_Planets(&::game::world, = 2));
-    DOCTEST_CHECK((MOX::star[1].planet_index[2] == 0));
+    DOCTEST_CHECK(game::Planet_Count(&game::world) == 2);
+    DOCTEST_CHECK(MOX::star[1].planet_index[2] == game::id_planet{0});
     DOCTEST_CHECK(test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).star_index == 1);
     DOCTEST_CHECK(test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).planet_type == PLANET_TYPE_PLANET);
     DOCTEST_CHECK(TEST_HOMEGEN::Satellite_Generation_Count_() == 2);
@@ -45,7 +45,7 @@ DOCTEST_TEST_CASE("minimum-distance generation converts black holes through gala
     HOMEGEN::Guarantee_A_Planet_At_Min_Dist(&::game::world, 0, 4, home_stars);
 
     DOCTEST_CHECK(MOX::star[1].spectral_class == STAR_CLASS_G);
-    DOCTEST_CHECK(test::Resize_Planets(&::game::world, = 2));
+    DOCTEST_CHECK(game::Planet_Count(&game::world) == 2);
     DOCTEST_CHECK(TEST_HOMEGEN::Satellite_Generation_Count_() == 2);
     DOCTEST_CHECK(TEST_HOMEGEN::Non_Black_Hole_Generation_Count_() == 1);
 }
@@ -60,8 +60,8 @@ DOCTEST_TEST_CASE("minimum-distance conversion runs configured generation before
 
     DOCTEST_CHECK(TEST_HOMEGEN::Normal_Planet_Generation_Count_() == 1);
     DOCTEST_CHECK(TEST_HOMEGEN::Satellite_Generation_Count_() == 3);
-    DOCTEST_CHECK(test::Resize_Planets(&::game::world, = 3));
-    DOCTEST_CHECK((MOX::star[1].planet_index[2] == 0));
+    DOCTEST_CHECK(game::Planet_Count(&game::world) == 3);
+    DOCTEST_CHECK(MOX::star[1].planet_index[2] == game::id_planet{0});
     DOCTEST_CHECK(test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).planet_type == PLANET_TYPE_PLANET);
     DOCTEST_CHECK(HAROLD::N_Planets_In_System(&::game::world, 1) == 2);
 }
@@ -103,10 +103,12 @@ DOCTEST_TEST_CASE("food-world generation rerolls unsuitable stars without allowi
     TEST_HOMEGEN::Set_Generated_Spectral_Class_(STAR_CLASS_K);
     MOX::star[0].spectral_class = STAR_CLASS_DWARF;
 
-    HOMEGEN::Make_One_Planet(&::game::world, 0, legacy_world::Planet_Id(1), 0, 1);
+    const auto id = game::Create_Planet(&game::world, {});
+    DOCTEST_REQUIRE(id.has_value());
+    HOMEGEN::Make_One_Planet(&game::world, 0, *id, 0, 1);
 
     DOCTEST_CHECK(MOX::star[0].spectral_class == STAR_CLASS_K);
-    DOCTEST_CHECK((MOX::star[0].planet_index[0] == 1));
+    DOCTEST_CHECK(MOX::star[0].planet_index[0] == *id);
     DOCTEST_CHECK(TEST_HOMEGEN::Non_Black_Hole_Generation_Count_() == 1);
 }
 
@@ -114,13 +116,13 @@ DOCTEST_TEST_CASE("home-system minimum follows map configuration") {
     TEST_HOMEGEN::Reset_();
     MAPGEN::home_system_config.minimum_planets = 5;
     MOX::star[0].spectral_class = STAR_CLASS_G;
-    MOX::star[0].planet_index[0] = 0;
+    MOX::star[0].planet_index[0] = game::id_planet{0};
     test::Resize_Planets(&::game::world, 1);
     const int32_t generation_count = TEST_HOMEGEN::Satellite_Generation_Count_();
 
     HOMEGEN::Enforce_3_Planet_Minimum(&::game::world, 0);
 
-    DOCTEST_CHECK(test::Resize_Planets(&::game::world, = 5));
+    DOCTEST_CHECK(game::Planet_Count(&game::world) == 5);
     DOCTEST_CHECK(TEST_HOMEGEN::Satellite_Generation_Count_() - generation_count == 5);
     MAPGEN::home_system_config.minimum_planets = 3;
 }
@@ -136,8 +138,8 @@ DOCTEST_TEST_CASE("habitable home-system minimum skips ordinary generation") {
     DOCTEST_CHECK(TEST_HOMEGEN::Normal_Planet_Generation_Count_() == 0);
     DOCTEST_CHECK(TEST_HOMEGEN::Satellite_Generation_Count_() == 3);
     DOCTEST_CHECK(HAROLD::N_Planets_In_System(&::game::world, 0) == 3);
-    DOCTEST_CHECK(test::Resize_Planets(&::game::world, = 4));
-    DOCTEST_CHECK((MOX::star[1].planet_index[2] == 0));
+    DOCTEST_CHECK(game::Planet_Count(&game::world) == 4);
+    DOCTEST_CHECK(MOX::star[1].planet_index[2] == game::id_planet{0});
     DOCTEST_CHECK(test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).planet_type == PLANET_TYPE_ASTEROID);
 }
 

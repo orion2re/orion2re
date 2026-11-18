@@ -118,10 +118,10 @@ namespace HACCESS {
         return MOX::star[star_idx].relocate_ship_to[player_idx];
     }
 
-    void __cdecl Set_Colony_Auto_Select_For_Star(::game::s_world_state* world_state, int16_t star_idx, int16_t player_idx, int16_t* out_planet_idx) {
+    void __cdecl Set_Colony_Auto_Select_For_Star(::game::s_world_state* world_state, int16_t star_idx, int16_t player_idx, game::id_planet* out_planet_idx) {
         int16_t colony_found = -1;
         bool found = false;
-        *out_planet_idx = -1;
+        *out_planet_idx = game::NO_PLANET;
 
         for (int16_t i = 0; i < 5; ++i) {
             if (found) {
@@ -147,7 +147,7 @@ namespace HACCESS {
         }
 
         if (colony_found == -1) {
-            *out_planet_idx = -1;
+            *out_planet_idx = game::NO_PLANET;
         }
     }
 
@@ -724,8 +724,8 @@ namespace HACCESS {
         }
     }
 
-    int16_t __cdecl System_Planet_Scanned_To_Planet_Id(int16_t star_idx, ::game::id_planet planet_idx) {
-        return MOX::star[star_idx].planet_index[planet_idx];
+    game::id_planet __cdecl System_Planet_Scanned_To_Planet_Id(int16_t star_idx, int16_t orbit) {
+        return HAROLD::Planet_Index(star_idx, orbit);
     }
 
     int16_t __cdecl System_Ship_Scanned_To_Ship_Id(int16_t ship_node_idx) {

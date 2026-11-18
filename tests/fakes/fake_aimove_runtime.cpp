@@ -20,7 +20,7 @@ namespace TEST_AIMOVE {
         world.ships = ships;
         world.stars = stars;
         world.colonies = colonies;
-        world.planets = planets;
+        world.state = &game::world;
         world.player_count = &MOX::NUM_PLAYERS;
         world.ship_count = &MOX::NUM_SHIPS;
         world.star_count = &MOX::NUM_STARS;
@@ -47,7 +47,7 @@ namespace TEST_AIMOVE {
         ships[0].location = 0;
         ships[0].d.speed = 1;
         colonies[0].owner = 0;
-        colonies[0].planet = 0;
+        colonies[0].planet = game::id_planet{0};
         test::Planet(&game::world, legacy_world::Planet_Id(0)).star_index = 1;
         spawn_count = 0;
         move_attempt_count = 0;

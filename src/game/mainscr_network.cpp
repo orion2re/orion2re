@@ -257,7 +257,10 @@ namespace MAINSCR {
                 break;
             }
             case NET_PACKET_AI_DIPLOMACY_END_STATE: {
-                s_net_pack_end_ai_diplomacy* pack = (s_net_pack_end_ai_diplomacy*)payload;
+                s_net_pack_end_ai_diplomacy packet;
+                if (payload_len != sizeof(packet)) break;
+                memcpy(&packet, payload, sizeof(packet));
+                const auto* pack = &packet;
                 int8_t remote_id = NETMOX::net.player_net_info[from_player_id].diplomacy_target_id;
 
                 memcpy(&MOX::player[remote_id], &pack->target_player, sizeof(s_player));
@@ -308,10 +311,12 @@ namespace MAINSCR {
                 break;
             }
             case NET_PACKET_COMBAT_TARGET_CHOSEN: {
-                const s_net_pack_combat_target_chosen* packet = (const s_net_pack_combat_target_chosen*)payload;
-                NETMOX::net.player_net_info[from_player_id].combat_defender_id = packet->combat_defender_id;
-                NETMOX::net.player_net_info[from_player_id].combat_planet_id = packet->combat_planet_id;
-                NETMOX::net.player_net_info[from_player_id].combat_target_player_id = packet->combat_target_player_id;
+                s_net_pack_combat_target_chosen packet;
+                if (payload_len != sizeof(packet)) break;
+                memcpy(&packet, payload, sizeof(packet));
+                NETMOX::net.player_net_info[from_player_id].combat_defender_id = packet.combat_defender_id;
+                NETMOX::net.player_net_info[from_player_id].combat_planet_id = packet.combat_planet_id;
+                NETMOX::net.player_net_info[from_player_id].combat_target_player_id = packet.combat_target_player_id;
                 NETMOX::net.player_net_info[from_player_id].player_state = NET_PLAYER_STATE_COMBAT_TARGET_CHOSEN;
                 break;
             }
@@ -365,7 +370,10 @@ namespace MAINSCR {
                 break;
             }
             case NET_PACKET_REQUEST_HUMAN_DIPLOMACY: {
-                s_net_pack_req_human_diplomacy* pack = (s_net_pack_req_human_diplomacy*)payload;
+                s_net_pack_req_human_diplomacy packet;
+                if (payload_len != sizeof(packet)) break;
+                memcpy(&packet, payload, sizeof(packet));
+                const auto* pack = &packet;
                 if (NETMOX::net.players_hit_next_turn[MOX::PLAYER_NUM] == 0) {
                     memcpy(&MOX::player[from_player_id], &pack->player, sizeof(s_player));
 
@@ -448,14 +456,17 @@ namespace MAINSCR {
                 break;
             }
             case NET_PACKET_SYNC_PLAYER_STATE: {
-                s_net_pack_end_ai_diplomacy* pack = (s_net_pack_end_ai_diplomacy*)payload;
+                s_net_pack_end_ai_diplomacy packet;
+                if (payload_len != sizeof(packet)) break;
+                memcpy(&packet, payload, sizeof(packet));
+                const auto* pack = &packet;
                 int target_id = pack->target_player_id;
 
                 memcpy(&MOX::player[target_id], &pack->target_player, sizeof(s_player));
                 memcpy(&MOX::player[pack->player_num], &pack->player, sizeof(s_player));
 
                 for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
-                    pack->surrender_to[i] = MOX::star[i].surrender_to[target_id];
+                    MOX::star[i].surrender_to[target_id] = pack->surrender_to[i];
                 }
                 break;
             }
@@ -556,6 +567,7 @@ namespace MAINSCR {
             }
             case NET_PACKET_PLAYER_ABDICATED:
             case NET_PACKET_PLAYER_SURRENDERED: {
+                if (payload_len != sizeof(s_net_pack_drop_out_info)) break;
                 NETMOX::Decode_Drop_Out_Info(from_player_id, (s_net_pack_drop_out_info*)payload);
                 break;
             }

@@ -187,7 +187,7 @@ DOCTEST_TEST_CASE("combat-ignore cleanup keeps flags only while another empire i
     MOX::NUM_PLAYERS = 2;
     MOX::NUM_COLONIES = 1;
     MOX::colony[0].owner = 1;
-    MOX::colony[0].planet = 0;
+    MOX::colony[0].planet = game::id_planet{0};
     test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).star_index = 0;
     MOX::ship[0].location = 1;
     MOX::star[0].ignore_combat_ships = 1;
@@ -270,8 +270,7 @@ DOCTEST_TEST_CASE("movement away from assigned planet clears auto-colonization")
 
     SHIPMOVE::Make_Ships_Move_To(&::game::world, ship_list, 8, &move_info);
 
-    DOCTEST_CHECK(MOX::ship[0].d.ship_weapon[0].type == ::game::NO_PLANET);
-    DOCTEST_CHECK(MOX::ship[0].d.ship_weapon[1].type == 0);
+    DOCTEST_CHECK_FALSE(MOX::ship[0].auto_colonize_target.has_value());
 }
 
 DOCTEST_TEST_CASE("in-flight recalculation preserves departure speed during hyperspace flux") {

@@ -68,7 +68,7 @@ DOCTEST_TEST_CASE("header-backed arena exact fits include header and alignment")
 }
 
 DOCTEST_TEST_CASE("global screen space covers expanded non-AI screen structures") {
-    DOCTEST_CHECK(allocate::Global_Screen_Space() == 0x123D668u);
+    DOCTEST_CHECK(allocate::Global_Screen_Space() == 19447640u);
 }
 
 DOCTEST_TEST_CASE("aligned blocks preserve headers, bounds, and pool restoration") {

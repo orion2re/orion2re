@@ -15,7 +15,7 @@ namespace test {
             if (entry->first.id >= static_cast<uint32_t>(count)) entry = world->planets.erase(entry);
             else ++entry;
         }
-        for (int32_t id = 0; id < count; ++id) Planet(world, game::id_planet{static_cast<uint32_t>(id)});
+        for (int32_t id = 0; id < count; ++id) test::Planet(world, game::id_planet{static_cast<uint32_t>(id)});
     }
 
     inline bool Planets_Equal(const std::map<game::id_planet, s_planet_data>& left,

@@ -166,7 +166,7 @@ namespace HAROLD {
 
     int16_t __cdecl Players_Home_Star(int16_t star_idx);
 
-    ::game::id_planet Planet_Index(int16_t star_idx, ::game::id_planet planet_idx);
+    game::id_planet Planet_Index(int16_t star_idx, int16_t orbit);
 
     extern const char s_after_home_world_gen[];
 

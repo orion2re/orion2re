@@ -53,7 +53,10 @@ namespace TEST_COLONY_POP_GROWTH {
             0,
             sizeof(TECHDATA::technology_applications));
         planet_storage[0].colony_index = 1;
-        planet_storage[1].size = PLANET_SIZE_HUGE;
+        game::world.planets.clear();
+        game::world.next_planet_id = 0;
+        game::world.settlers.clear();
+        test::Planet(&game::world, game::id_planet{0}).size = PLANET_SIZE_HUGE;
         colonies[1].buildings[BUILDING_CAPITOL] = 1;
         stars[0].officer_index[0] = -1;
         TECHDATA::buildings[BUILDING_CAPITOL].tech_app = TECH_APP_CAPITOL;
@@ -160,14 +163,14 @@ namespace TEST_COLONY_POP_GROWTH {
             memset(star.surrender_to, 0xff, sizeof(star.surrender_to));
         }
         for (int i = 0; i < 2; ++i) {
-            colonies[i].planet = i;
+            colonies[i].planet = game::id_planet{static_cast<uint32_t>(i)};
             colonies[i].n_pops = 1;
             for (int slot = 0; slot < 7; ++slot) {
                 colonies[i].producing[slot] = COLONY_PRODUCTION_NONE;
             }
             test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(i))).colony_index = i;
             test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(i))).star_index = i;
-            stars[i].planet_index[0] = i;
+            stars[i].planet_index[0] = colonies[i].planet;
             stars[i].has_colony = 1;
         }
     }

@@ -467,7 +467,7 @@ namespace COLSUM {
         }
 
         if (draw_planet_sum == 1) {
-            auto index = HAROLD::Planet_Index(MOX::screen_data, legacy_world::Planet_Id(COLONY::orbit_temp));
+            auto index = HAROLD::Planet_Index(MOX::screen_data, COLONY::orbit_temp);
             COLONY::Draw_Planet_Summary(229, 135, legacy_world::Planet_Id(index));
         }
 
@@ -945,7 +945,7 @@ namespace COLSUM {
                 MOX::screen_data = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index;
                 COLONY::orbit_temp = (int16_t)::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).orbit;
 
-                ::game::id_planet target_planet = HAROLD::Planet_Index(MOX::screen_data, legacy_world::Planet_Id(COLONY::orbit_temp));
+                ::game::id_planet target_planet = HAROLD::Planet_Index(MOX::screen_data, COLONY::orbit_temp);
                 ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(target_planet))).colony_index = colony_idx;
 
                 if (COLMOVE::cluster_colony_n != -1) {

@@ -148,7 +148,7 @@ namespace orion2re::lua::game::internal {
             const std::int16_t last_id = --MOX::NUM_COLONIES;
             if (colony_id != last_id) {
                 MOX::colony[colony_id] = MOX::colony[last_id];
-                const std::auto moved_planet =
+                const auto moved_planet =
                     MOX::colony[colony_id].planet;
                 if (moved_planet == ::game::NO_PLANET || (::game::Find_Planet(world_state, legacy_world::Planet_Id(moved_planet)) == nullptr) ||
                     ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(moved_planet))).colony_index != last_id) {
@@ -213,7 +213,7 @@ namespace orion2re::lua::game::internal {
                 return luaL_error(lua_state, "planet orbit is outside its domain");
             }
             s_planet_data& planet = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(proxy->planet_id)));
-            const std::auto occupied =
+            const auto occupied =
                 MOX::star[system_id].planet_index[orbit];
             if (occupied != ::game::NO_PLANET && occupied != proxy->planet_id) {
                 return luaL_error(lua_state,
@@ -675,7 +675,7 @@ namespace orion2re::lua::game::internal {
             planet.orbit = static_cast<int8_t>(orbit);
             planet.colony_index = -1;
             auto id = ::game::Create_Planet(world_state, planet);
-            if (!id) return luaL_error(lua_state, "planet capacity or identity space exhausted");
+            if (!id) return luaL_error(lua_state, "planet capacity exceeded or identity space exhausted");
             MOX::star[system_id].planet_index[orbit] = *id;
             Push_Planet(world_state, lua_state, *id);
             return 1;
@@ -757,6 +757,7 @@ namespace orion2re::lua::game::internal {
         int Planet_Collection_All_(::game::s_world_state* world_state, lua_State* lua_state) {
             luaL_checkudata(lua_state, 1, PLANET_COLLECTION_METATABLE_);
             if (!Game_State_Access_Allowed()) return luaL_error(lua_state, "game state is unavailable outside a callback");
+            if (world_state->planets.size() > MAX_PLANETS) return luaL_error(lua_state, "invalid native planet count");
             lua_createtable(lua_state, static_cast<int>(world_state->planets.size()), 0);
             lua_Integer position = 1;
             for (const auto& [id, planet] : world_state->planets) {

@@ -32,7 +32,7 @@ namespace TEST_HOMEGEN {
             }
         }
 
-        stars[1].planet_index[2] = 0;
+        stars[1].planet_index[2] = game::id_planet{0};
         test::Planet(&game::world, legacy_world::Planet_Id(0)).star_index = 1;
         test::Planet(&game::world, legacy_world::Planet_Id(0)).orbit = 2;
         test::Planet(&game::world, legacy_world::Planet_Id(0)).planet_type = PLANET_TYPE_ASTEROID;
@@ -160,18 +160,19 @@ namespace MAPGEN {
                 continue;
             }
 
-            ::game::id_planet planet_idx = ::game::Planet_Count(world_state);
-            MOX::star[star_idx].planet_index[orbit] = planet_idx;
-            test::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).planet_type = PLANET_TYPE_ASTEROID;
-            Generate_Satellite(world_state, legacy_world::Planet_Id(star_idx), orbit, PLANET_TYPE_ASTEROID);
-            ::game::Planet_Count(world_state)++;
+            const auto planet_idx = game::Create_Planet(world_state, {});
+            if (!planet_idx) return;
+            MOX::star[star_idx].planet_index[orbit] = *planet_idx;
+            Generate_Satellite(world_state, *planet_idx, star_idx, orbit, PLANET_TYPE_ASTEROID);
             return;
         }
     }
 
-    void __cdecl Generate_Satellite(::game::s_world_state* world_state, int16_t star_idx, int16_t orbit, int16_t) {
-        test::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(::game::Planet_Count(world_state)))).star_index = star_idx;
-        test::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(::game::Planet_Count(world_state)))).orbit = (int8_t)orbit;
+    void Generate_Satellite(game::s_world_state* world_state, game::id_planet id, int16_t star_idx, int16_t orbit, int16_t type) {
+        auto& planet = game::Planet(world_state, id);
+        planet.star_index = star_idx;
+        planet.orbit = static_cast<int8_t>(orbit);
+        planet.planet_type = static_cast<int8_t>(type);
         satellite_generation_count++;
     }
 

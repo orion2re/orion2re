@@ -11,7 +11,7 @@ namespace MAINSCR {
         int16_t hovered_target_id = 0;
         int16_t boxes_saved_flag = 0;
         uint8_t icon_selected_flag = 0;
-        ::game::id_planet planet_idx = ::game::id_planet{0};
+        int16_t planet_idx = 0;
         int16_t selected_target_id = 0;
         int16_t system_hover_selection_id = 0;
         int16_t m_planet_idx = 0;
@@ -323,7 +323,7 @@ namespace MAINSCR {
 
                     if (res == 0) {
                         if (ship_idx < 0) {
-                            ::game::id_planet p_idx = HAROLD::Planet_Index(MOX::moveable_box[0].id, legacy_world::Planet_Id(planet_idx));
+                            const auto p_idx = HAROLD::Planet_Index(MOX::moveable_box[0].id, planet_idx);
 
                             int16_t colony_id = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(p_idx))).colony_index;
                             if (colony_id > -1 && colony_id < MOX::NUM_COLONIES && MOX::colony[colony_id].owner == MOX::PLAYER_NUM) {

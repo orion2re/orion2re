@@ -15,12 +15,12 @@ namespace TEST_COLONIZE {
 DOCTEST_TEST_CASE("same-owner outpost ship does not suppress colony ship priority") {
     TEST_COLONIZE::Reset_();
 
-    MOX::star[0].planet_index[0] = 0;
+    MOX::star[0].planet_index[0] = game::id_planet{0};
     test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).star_index = 0;
     test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).planet_type = PLANET_TYPE_PLANET;
     test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).colony_index = 0;
     MOX::colony[0].owner = 0;
-    MOX::colony[0].planet = 0;
+    MOX::colony[0].planet = game::id_planet{0};
     MOX::colony[0].outpost_flag = 1;
 
     MOX::ship[0].owner = 0;
@@ -41,21 +41,21 @@ DOCTEST_TEST_CASE("same-owner outpost ship does not suppress colony base priorit
     MOX::NUM_COLONIES = 2;
     MOX::NUM_SHIPS = 1;
 
-    MOX::star[0].planet_index[0] = 0;
-    MOX::star[0].planet_index[1] = 1;
+    MOX::star[0].planet_index[0] = game::id_planet{0};
+    MOX::star[0].planet_index[1] = game::id_planet{1};
 
     test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).star_index = 0;
     test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).planet_type = PLANET_TYPE_PLANET;
     test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).colony_index = 0;
     MOX::colony[0].owner = 0;
-    MOX::colony[0].planet = 0;
+    MOX::colony[0].planet = game::id_planet{0};
     MOX::colony[0].buildings[BUILDING_COLONY_BASE] = 1;
 
     test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).star_index = 0;
     test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).planet_type = PLANET_TYPE_PLANET;
     test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).colony_index = 1;
     MOX::colony[1].owner = 0;
-    MOX::colony[1].planet = 1;
+    MOX::colony[1].planet = game::id_planet{1};
     MOX::colony[1].outpost_flag = 1;
 
     MOX::ship[0].owner = 0;
@@ -102,7 +102,7 @@ DOCTEST_TEST_CASE("first colony after losing the homeworld becomes the new home"
 
     COLONIZE::Make_New_Colony(legacy_world::Planet_Id(0), 0);
 
-    DOCTEST_CHECK((MOX::player[0].home_planet_id == 0));
+    DOCTEST_CHECK(MOX::player[0].home_planet_id == game::id_planet{0});
 }
 
 DOCTEST_TEST_CASE("new outpost does not become the homeworld") {

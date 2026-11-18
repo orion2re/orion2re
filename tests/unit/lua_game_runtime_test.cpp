@@ -1926,13 +1926,8 @@ TEST_CASE("source-updated ICE repairs homeworld state") {
         test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).climate = PLANET_CLIMATE_TERRAN;
         test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).food_per_farmer =
             MOX::food_per_farmer_table[PLANET_CLIMATE_TERRAN];
-        for (::game::id_planet planet_id = ::game::id_planet{0};
-             planet_id < ::game::Planet_Count(&::game::world);
-             ++planet_id) {
-            if (test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_id))).star_index == 0) {
-                test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_id))).planet_special =
-                    SYSTEM_SPECIAL_NO_SPECIAL;
-            }
+        for (auto& [id, planet] : game::world.planets) {
+            if (planet.star_index == 0) planet.planet_special = SYSTEM_SPECIAL_NO_SPECIAL;
         }
         MOX::star[0].system_special = SYSTEM_SPECIAL_NO_SPECIAL;
     };
@@ -2050,11 +2045,8 @@ TEST_CASE("source-updated VDC repairs home-system state") {
         test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).climate = PLANET_CLIMATE_SWAMP;
         test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(2))).size = PLANET_SIZE_SMALL;
         test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(2))).climate = PLANET_CLIMATE_TOXIC;
-        for (::game::id_planet planet_id = ::game::id_planet{0};
-             planet_id < ::game::Planet_Count(&::game::world);
-             ++planet_id) {
-            test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_id))).planet_special =
-                SYSTEM_SPECIAL_NO_SPECIAL;
+        for (auto& [id, planet] : game::world.planets) {
+            planet.planet_special = SYSTEM_SPECIAL_NO_SPECIAL;
         }
         for (std::int16_t system_id = 0;
              system_id < MOX::NUM_STARS;
@@ -3173,12 +3165,12 @@ TEST_CASE("stable game collections honor callback capabilities") {
     MOX::NUM_STARS = 2;
 
     MOX::player[0].traits[TRAIT_CURRENT_GOVERNMENT] = GOVERNMENT_COUNT;
-    MOX::player[0].home_planet_id = 99;
+    MOX::player[0].home_planet_id = game::id_planet{99};
     REQUIRE(orion2re::lua::Dispatch_Mod_Event(
         runtime, "test.invalid_player", nullptr, nullptr, &result));
     MOX::player[0].traits[TRAIT_CURRENT_GOVERNMENT] =
         GOVERNMENT_DEMOCRACY;
-    MOX::player[0].home_planet_id = 0;
+    MOX::player[0].home_planet_id = game::id_planet{0};
 
     MOX::player[0].tech_applications[TECH_APP_PLASMA_CANNON] = 2;
     TECHDATA::technology_applications[TECH_APP_PLASMA_CANNON]

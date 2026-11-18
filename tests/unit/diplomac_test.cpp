@@ -13,7 +13,8 @@ namespace {
         std::map<game::id_leader, s_leader_data> leaders = game::world.leaders;
         s_ship_data* ships = MOX::ship;
         s_star_data* stars = MOX::star;
-        s_planet_data* planets = MOX::planet;
+        std::map<game::id_planet, s_planet_data> planets = game::world.planets;
+        uint64_t next_planet_id = game::world.next_planet_id;
         s_colony* colonies = MOX::colony;
         int16_t player_count = MOX::NUM_PLAYERS;
         int16_t ship_count = MOX::NUM_SHIPS;
@@ -35,7 +36,8 @@ namespace {
             game::world.leaders = std::move(leaders);
             MOX::ship = ships;
             MOX::star = stars;
-            MOX::planet = planets;
+            game::world.planets = std::move(planets);
+            game::world.next_planet_id = next_planet_id;
             MOX::colony = colonies;
             MOX::NUM_PLAYERS = player_count;
             MOX::NUM_SHIPS = ship_count;

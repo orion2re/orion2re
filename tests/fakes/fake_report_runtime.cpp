@@ -114,7 +114,7 @@ namespace TEST_REPORT {
     }
 
     void Add_Colony_Base_() {
-        MOX::star[0].planet_index[0] = 0;
+        MOX::star[0].planet_index[0] = game::id_planet{0};
         test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).colony_index = 0;
         MOX::colony[0].owner = 0;
         MOX::colony[0].buildings[BUILDING_COLONY_BASE] = 1;
@@ -183,10 +183,10 @@ namespace COLCALC {
 }
 
 namespace COLONIZE {
-    void __cdecl Make_New_Colony(int16_t, int16_t) {
+    void __cdecl Make_New_Colony(game::id_planet, int16_t) {
     }
 
-    void __cdecl Make_New_Outpost(int16_t, int16_t) {
+    void __cdecl Make_New_Outpost(game::id_planet, int16_t) {
     }
 
     int16_t Star_N_Colonizable_Planets_For_Player(::game::s_world_state* world_state, s_star_data*, int16_t) {
@@ -236,7 +236,7 @@ namespace HACCESS {
     int16_t __cdecl Relocation(int16_t, int16_t) {
         return TEST_REPORT::relocation_destination;
     }
-    char* __cdecl Get_Planet_Name(int16_t) {
+    char* __cdecl Get_Planet_Name(game::id_planet) {
         return planet_name;
     }
 }
@@ -251,11 +251,11 @@ namespace MAINPUPS {
         return TEST_REPORT::accept_officer_offer;
     }
 
-    int16_t __cdecl New_Colony_Selection_Popup(int16_t, uint8_t) {
+    game::id_planet __cdecl New_Colony_Selection_Popup(int16_t, uint8_t) {
         return ::game::NO_PLANET;
     }
 
-    int16_t __cdecl New_Outpost_Selection_Popup(int16_t) {
+    game::id_planet __cdecl New_Outpost_Selection_Popup(int16_t) {
         return ::game::NO_PLANET;
     }
 }
@@ -384,7 +384,7 @@ namespace SCIENCE {
         ++TEST_REPORT::science_calls;
         TEST_REPORT::science_kind = 3;
         TEST_REPORT::science_tech = tech;
-        TEST_REPORT::science_source = planet;
+        TEST_REPORT::science_source = static_cast<int16_t>(planet.id);
     }
 }
 

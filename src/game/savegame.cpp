@@ -409,7 +409,7 @@ namespace SAVEGAME {
                 MOX::max_map_scale < 1 || MOX::cur_map_scale < 1 ||
                 REPORT::n_reports < 0 || REPORT::n_reports > MAX_REPORTS) return false;
 
-            for (auto i = ::game::id_planet{0}; i < MAX_PLAYERS; ++i) {
+            for (int i = 0; i < MAX_PLAYERS; ++i) {
                 if (MSG_::first_msg[i] + MSG_::n_msgs[i] > MAX_MESSAGES ||
                     MSG_::first_msg[i] + MSG_::max_msgs[i] > MAX_MESSAGES) return false;
             }
@@ -419,13 +419,13 @@ namespace SAVEGAME {
                 if (planet.star_index < -1 || planet.star_index >= MOX::NUM_STARS ||
                     planet.orbit < 0 || planet.orbit >= 5) return false;
             }
-            for (auto i = ::game::id_planet{0}; i < MOX::NUM_STARS; ++i) {
+            for (int i = 0; i < MOX::NUM_STARS; ++i) {
                 for (int j = 0; j < 5; ++j) {
                     const ::game::id_planet planet = MOX::star[i].planet_index[j];
-                    if (planet < -1 || (::game::Find_Planet(world_state, legacy_world::Planet_Id(planet)) == nullptr)) return false;
+                    if (planet != game::NO_PLANET && game::Find_Planet(world_state, planet) == nullptr) return false;
                 }
             }
-            for (auto i = ::game::id_planet{0}; i < EVENT_COUNT; ++i) {
+            for (int i = 0; i < EVENT_COUNT; ++i) {
                 if (!Loaded_Event_Is_Valid(world_state, i, EVENTS::event_data[i])) return false;
             }
             return true;

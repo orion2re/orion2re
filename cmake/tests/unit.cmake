@@ -492,7 +492,8 @@ orion2re_add_unit_test(test_startup_options
 
 orion2re_add_unit_test(test_turn_oracle_history
     SOURCES tests/unit/turn_oracle_history_test.cpp
-    PRODUCTION_SOURCES src/game/turn_oracle_history.cpp
+    PRODUCTION_SOURCES src/game/turn_oracle_history.cpp src/game/turn_oracle_save.cpp src/game/serialization.cpp src/game/save_sections.cpp
+    FAKE_SOURCES tests/fakes/fake_serialization_runtime.cpp
 )
 
 # Exercise the debug-only switches against the actual game's compilation.
@@ -609,6 +610,10 @@ orion2re_add_unit_test(test_config_snapshot
 orion2re_add_unit_test(test_pop_helpers
     SOURCES
         tests/unit/pop_test.cpp
+    PRODUCTION_SOURCES
+        src/game/serialization.cpp
+    FAKE_SOURCES
+        tests/fakes/fake_serialization_runtime.cpp
 )
 
 orion2re_add_unit_test(test_racecust

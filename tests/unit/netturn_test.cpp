@@ -323,6 +323,24 @@ DOCTEST_TEST_CASE("Lua game data accepts only the elected sender with full decod
     NETMOX::net.network_data_ptr = nullptr;
     TEST_LUA_NETWORK::Set_Network_Lua_Enabled_(false);
 }
+
+DOCTEST_TEST_CASE("combat target packets preserve full-width planet IDs at unaligned offsets") {
+    NETMOX::net = {};
+    s_net_pack_combat_target_chosen packet{};
+    packet.combat_defender_id = 2;
+    packet.combat_planet_id = game::id_planet{1000000};
+    packet.combat_target_player_id = 3;
+    alignas(4) uint8_t bytes[sizeof(packet) + 1];
+    std::memcpy(bytes + 1, &packet, sizeof(packet));
+
+    MAINSCR::Main_Receive_Message(1, 174, NET_PACKET_COMBAT_TARGET_CHOSEN, sizeof(packet) - 1, bytes + 1);
+    DOCTEST_CHECK(NETMOX::net.player_net_info[1].player_state != NET_PLAYER_STATE_COMBAT_TARGET_CHOSEN);
+    MAINSCR::Main_Receive_Message(1, 174, NET_PACKET_COMBAT_TARGET_CHOSEN, sizeof(packet), bytes + 1);
+    DOCTEST_CHECK(NETMOX::net.player_net_info[1].player_state == NET_PLAYER_STATE_COMBAT_TARGET_CHOSEN);
+    DOCTEST_CHECK(NETMOX::net.player_net_info[1].combat_defender_id == 2);
+    DOCTEST_CHECK(NETMOX::net.player_net_info[1].combat_planet_id == packet.combat_planet_id);
+    DOCTEST_CHECK(NETMOX::net.player_net_info[1].combat_target_player_id == 3);
+}
 }
 
 DOCTEST_TEST_SUITE("netmox disconnect recovery") {

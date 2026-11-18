@@ -12,7 +12,8 @@ namespace {
         std::vector<s_field> field_storage = std::vector<s_field>(250);
         s_animation_header animation = {};
         s_colony* saved_colonies = MOX::colony;
-        s_planet_data* saved_planets = MOX::planet;
+        decltype(game::world.planets) saved_planets = game::world.planets;
+        uint64_t saved_next_planet_id = game::world.next_planet_id;
         s_star_data* saved_stars = MOX::star;
         s_player* saved_players = MOX::player;
         int16_t saved_star_count = MOX::NUM_STARS;
@@ -29,7 +30,7 @@ namespace {
 
         s_colony_navigation_fixture() {
             MOX::colony = colonies;
-            MOX::planet = planets;
+            game::Import_Legacy_Planets(&game::world, planets);
             MOX::star = stars;
             MOX::player = players;
             MOX::NUM_STARS = 1;
@@ -39,9 +40,9 @@ namespace {
             std::fill_n(colony_list, MAX_COLONIES, static_cast<int16_t>(-1));
             for (int16_t index = 0; index < 32; ++index) {
                 colony_list[index] = index;
-                colonies[index].planet = index;
+                colonies[index].planet = game::id_planet{static_cast<uint32_t>(index)};
                 colonies[index].producing[0] = COLONY_PRODUCTION_NONE;
-                planets[index].colony_index = index;
+                game::Planet(&game::world, colonies[index].planet).colony_index = index;
             }
             COLXPORT::g_colony_list_ptr = colony_list;
             fields::fields = field_storage.data();
@@ -64,7 +65,8 @@ namespace {
 
         ~s_colony_navigation_fixture() {
             MOX::colony = saved_colonies;
-            MOX::planet = saved_planets;
+            game::world.planets = std::move(saved_planets);
+            game::world.next_planet_id = saved_next_planet_id;
             MOX::star = saved_stars;
             MOX::player = saved_players;
             MOX::NUM_STARS = saved_star_count;
@@ -220,7 +222,8 @@ DOCTEST_TEST_CASE_FIXTURE(s_colony_navigation_fixture, "Colonies map clicks clam
     for (int16_t count : {1, 3, 9, 10, 12, 32}) {
         MOX::NUM_COLONIES = count;
         for (int i = 0; i < 32; ++i) colony_list[i] = i < count ? i : -1;
-        stars[0].last_orbit_selected[0] = static_cast<int8_t>(count - 1);
+        stars[0].last_orbit_selected[0] = 0;
+        stars[0].planet_index[0] = game::id_planet{static_cast<uint32_t>(count - 1)};
         MOX::galaxy_map_star_field[0] = 7;
         int16_t clicked = 7;
         int16_t hovered = -1;

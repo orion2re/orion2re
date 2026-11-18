@@ -764,7 +764,7 @@ namespace MAINPUPS {
         return g_var;
     }
 
-    int16_t __cdecl New_Colony_Selection_Popup(int16_t star_idx, uint8_t using_colony_ship) {
+    game::id_planet __cdecl New_Colony_Selection_Popup(int16_t star_idx, uint8_t using_colony_ship) {
         s_colors colors;
         colors.colors[0] = 0x9f;
         colors.colors[1] = 0xa0;
@@ -799,7 +799,7 @@ namespace MAINPUPS {
         Draw_Selection_Popup();
         RUSS::Mox_Sync_Update();
 
-        int16_t result;
+        game::id_planet result;
         do {
             timer::Release_Time(2);
             timer::Mark_Time();
@@ -812,7 +812,7 @@ namespace MAINPUPS {
 
         if (namestar::Can_Change_Star_Name(&::game::world, star_idx) != 0 &&
             MOX::settings.animations_on == 0 &&
-            result != -1) {
+            result != game::NO_PLANET) {
             int16_t y = namestar::Star_Name_Popup_Screen_Center_Y();
             int16_t x = namestar::Star_Name_Popup_Screen_Center_X();
             namestar::Change_Star_Name_Popup(x, y, star_idx, 0);
@@ -823,16 +823,16 @@ namespace MAINPUPS {
         return result;
     }
 
-    int16_t __cdecl New_Outpost_Selection_Popup(int16_t star_id) {
+    game::id_planet __cdecl New_Outpost_Selection_Popup(int16_t star_id) {
         selection_state_flag = 1;
-        int16_t result = New_Colony_Selection_Popup(star_id, 0);
+        auto result = New_Colony_Selection_Popup(star_id, 0);
         selection_state_flag = 0;
         return result;
     }
 
-    int16_t __cdecl Drop_Troops_Selection_Popup(int16_t target_idx) {
+    game::id_planet __cdecl Drop_Troops_Selection_Popup(int16_t target_idx) {
         selection_state_flag = 2;
-        int16_t result = New_Colony_Selection_Popup(target_idx, 0);
+        auto result = New_Colony_Selection_Popup(target_idx, 0);
         selection_state_flag = 0;
         return result;
     }
@@ -1630,14 +1630,14 @@ namespace MAINPUPS {
         ERICHELP::Set_Planet_Selection_Popup_Help_List();
     }
 
-    int16_t __cdecl Evaluate_Selection_Input(int16_t* selected_field, int16_t* field_data, int16_t* refresh_flag) {
+    game::id_planet __cdecl Evaluate_Selection_Input(int16_t* selected_field, int16_t* field_data, int16_t* refresh_flag) {
         int16_t saved_x = g_x;
         int16_t saved_y = g_y;
-        int16_t selection_result = 0;
+        auto selection_result = game::NO_PLANET;
 
         if (g_special == SYSTEM_SPECIAL_NO_SPECIAL) {
             if (*selected_field == mp_fields[2]) {
-                selection_result = -1;
+                selection_result = game::NO_PLANET;
                 *refresh_flag = 1;
             } else {
                 selection_result = Check_System_Display_Fields_Selection(&::game::world, selected_field, field_data, refresh_flag);
@@ -2165,12 +2165,12 @@ namespace MAINPUPS {
             fields::Assign_Auto_Function(Draw_Selection_Popup, 1);
         };
 
-        auto fail_selection = [&]() -> int16_t {
+        auto fail_selection = [&]() {
             redraw_selection_popup();
             return ::game::NO_PLANET;
         };
 
-        auto fail_with_help = [&](int16_t help_string_id, bool mark_full_draw, bool redraw_twice) -> int16_t {
+        auto fail_with_help = [&](int16_t help_string_id, bool mark_full_draw, bool redraw_twice) {
             GENDRAW::Help(ESTRINGS::E_Strings(help_string_id));
             if (mark_full_draw) {
                 COLONY::full_draw = 1;
@@ -2190,7 +2190,8 @@ namespace MAINPUPS {
         }
 
         if (scan_res == 0 && planet_scanned > -1) {
-            ::game::id_planet planet_idx = HACCESS::System_Planet_Scanned_To_Planet_Id(COLONY::sys_disp_star_handle, legacy_world::Planet_Id(planet_scanned));
+            auto planet_idx = HACCESS::System_Planet_Scanned_To_Planet_Id(COLONY::sys_disp_star_handle, planet_scanned);
+            if (planet_idx == game::NO_PLANET) return fail_selection();
 
             if (selection_state_flag == 0) {
                 if (::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).planet_type != PLANET_TYPE_PLANET) {
@@ -2879,7 +2880,7 @@ namespace MAINPUPS {
             if (scanned_planet_icon > -1) {
                 ::game::id_planet planet_id = HACCESS::System_Planet_Scanned_To_Planet_Id(
                     COLONY::sys_disp_star_handle,
-                    legacy_world::Planet_Id(scanned_planet_icon));
+                    scanned_planet_icon);
 
                 int16_t colony_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_id))).colony_index;
 

@@ -383,7 +383,7 @@ namespace COMBFIND {
             RUSS::Mox_Update();
 
             switch (NETMOX::net.sync_state) {
-                case NET_SYNC_STATE_PICKING_COMBAT_TARGET:
+                case NET_SYNC_STATE_PICKING_COMBAT_TARGET: {
                     fields::Assign_Auto_Function(SCORE::nullsub, 1);
                     video::Set_Page_Off();
                     MOX::dont_draw_main_screen_to_back = 1;
@@ -405,8 +405,13 @@ namespace COMBFIND {
                     } else {
                         NETMOX::net.combat_target_player_id = MOX::colony[target_colony].owner;
                     }
-                    NETMOX::Mox_Send_Message(NETMOX::net.local_net_id, NET_PACKET_COMBAT_TARGET_CHOSEN, &NETMOX::net.combat_defender_id, sizeof(NETMOX::net.combat_defender_id) + sizeof(NETMOX::net.combat_planet_id) + sizeof(NETMOX::net.combat_target_player_id));
+                    s_net_pack_combat_target_chosen packet{};
+                    packet.combat_defender_id = NETMOX::net.combat_defender_id;
+                    packet.combat_planet_id = NETMOX::net.combat_planet_id;
+                    packet.combat_target_player_id = NETMOX::net.combat_target_player_id;
+                    NETMOX::Mox_Send_Message(NETMOX::net.local_net_id, NET_PACKET_COMBAT_TARGET_CHOSEN, &packet, sizeof(packet));
                     break;
+                }
 
                 case NET_SYNC_STATE_COMBAT_RESOLUTION_DISPATCH:
                     if (NETMOX::net.combat_attacker_id < MAX_PLAYERS && MOX::player[(int)NETMOX::net.combat_attacker_id].objectives == PLAYER_OBJECTIVE_HUMAN) {

@@ -165,8 +165,8 @@ namespace COLONY {
             MOX::global_cache_seg));
     }
 
-    s_animation_header* __cdecl Cache_Load_Planet(::game::id_planet planet_id) {
-        return reinterpret_cast<s_animation_header*>(buffer::Buffer_Reload(PLANETS_LBX, planet_id, MOX::global_cache_seg));
+    s_animation_header* __cdecl Cache_Load_Planet(int16_t entry_num) {
+        return reinterpret_cast<s_animation_header*>(buffer::Buffer_Reload(PLANETS_LBX, entry_num, MOX::global_cache_seg));
     }
 
     s_animation_header* __cdecl Buffer_Reload_Colony(int16_t index) {
@@ -1678,11 +1678,11 @@ namespace COLONY {
                 for (int16_t i = 0; i < 5; ++i) {
                     if (COLONY::sys_disp_planet_fields[i] == *input_field) {
                         if (COLONY::field_mode == 1) {
-                            ::game::id_planet planet_idx = HAROLD::Planet_Index(COLONY::sys_disp_star_handle, legacy_world::Planet_Id(i));
+                            auto planet_idx = HAROLD::Planet_Index(COLONY::sys_disp_star_handle, i);
                             COLMOVE::Send_Cluster(::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index, -1);
                             COLONY::Restore_Control();
                         } else {
-                            ::game::id_planet planet_idx = HAROLD::Planet_Index(COLONY::sys_disp_star_handle, legacy_world::Planet_Id(i));
+                            auto planet_idx = HAROLD::Planet_Index(COLONY::sys_disp_star_handle, i);
                             int16_t col_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index;
 
                             if (col_idx != -1 &&
@@ -1706,14 +1706,14 @@ namespace COLONY {
                             return 1;
                         }
                     } else if (COLONY::sys_disp_summ_fields[i] == *input_field) {
-                        ::game::id_planet planet_idx = HAROLD::Planet_Index(COLONY::sys_disp_star_handle, legacy_world::Planet_Id(i));
+                        auto planet_idx = HAROLD::Planet_Index(COLONY::sys_disp_star_handle, i);
                         if (::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).planet_type == PLANET_TYPE_PLANET) {
-                            COLONY::planet_display_handle = HAROLD::Planet_Index(COLONY::sys_disp_star_handle, legacy_world::Planet_Id(i));
+                            COLONY::planet_display_handle = HAROLD::Planet_Index(COLONY::sys_disp_star_handle, i);
                             COLONY::drawing_display = 2;
                             return 1;
                         }
                     } else if (*scan_field == COLONY::sys_disp_planet_fields[i]) {
-                        COLONY::g_scanned_planet = HAROLD::Planet_Index(COLONY::sys_disp_star_handle, legacy_world::Planet_Id(i));
+                        COLONY::g_scanned_planet = HAROLD::Planet_Index(COLONY::sys_disp_star_handle, i);
                     }
                 }
             }

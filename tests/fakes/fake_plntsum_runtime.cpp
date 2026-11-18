@@ -83,7 +83,7 @@ namespace TEST_PLNTSUM {
         memset(summary, 0xFF, sizeof(summary));
         memset(MOX::ship_stack_start, 0xFF, sizeof(MOX::ship_stack_start));
         memset(MOX::ship_node, 0xFF, sizeof(MOX::ship_node));
-        for (auto& planet : planets) {
+        for (auto& [id, planet] : game::world.planets) {
             planet.colony_index = -1;
             planet.planet_type = PLANET_TYPE_ASTEROID;
         }
@@ -196,7 +196,7 @@ namespace HACCESS {
         return 0;
     }
 
-    char* __cdecl Get_Planet_Name_No_Prime(int16_t) {
+    char* __cdecl Get_Planet_Name_No_Prime(game::id_planet) {
         static char name[] = "Test planet";
         return name;
     }
@@ -311,7 +311,6 @@ namespace MAINSCR {
 
 namespace SHIPS {
     void __cdecl Clear_Auto_Colonization_Flag(s_ship_data* ship) {
-        ship->d.ship_weapon[1].type = 0;
-        ship->d.ship_weapon[0].type = -1;
+        ship->auto_colonize_target.reset();
     }
 } // namespace SHIPS

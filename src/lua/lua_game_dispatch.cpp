@@ -108,7 +108,7 @@ namespace orion2re::lua::game {
             const int object = lua_gettop(lua_state);
             lua_newtable(lua_state);
             const int values = lua_gettop(lua_state);
-            lua_pushinteger(lua_state, event->planet_id);
+            lua_pushinteger(lua_state, event->planet_id.id);
             lua_setfield(lua_state, values, "planet_id");
             lua_newtable(lua_state);
             lua_pushvalue(lua_state, values);
@@ -160,7 +160,7 @@ namespace orion2re::lua::game {
                 lua_setfield(lua_state, values, name);
             };
             set_integer("colony_id", context->colony_id);
-            set_integer("planet_id", context->planet_id);
+            set_integer("planet_id", context->planet_id.id);
             set_integer("owner_id", context->owner_id);
             set_integer("race_id", context->race_id);
             set_integer("race_population", context->race_population);

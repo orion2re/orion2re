@@ -465,17 +465,18 @@ DOCTEST_TEST_CASE("saved mods and canonical launch restoration refresh resources
 DOCTEST_TEST_CASE("invalid planet links do not escape the planet and star arrays") {
     test::s_game_state state;
     test::Resize_Planets(&::game::world, MOX::NUM_STARS = 1);
-    state.planets[0].star_index = 5000;
-    state.planets[0].orbit = 9;
-    state.stars[0].planet_index[0] = 5000;
+    auto& planet = test::Planet(&game::world, game::id_planet{0});
+    planet.star_index = 5000;
+    planet.orbit = 9;
+    state.stars[0].planet_index[0] = game::id_planet{5000};
     for (int j = 1; j < 5; ++j) state.stars[0].planet_index[j] = ::game::NO_PLANET;
     DOCTEST_CHECK(HAROLD::Planet_Number(&::game::world, legacy_world::Planet_Id(0)) == 0);
     DOCTEST_CHECK(HAROLD::Planet_Number(&::game::world, legacy_world::Planet_Id(-1)) == 0);
     DOCTEST_CHECK(HAROLD::Planet_Number(&::game::world, legacy_world::Planet_Id(5000)) == 0);
-    HAROLD::Confirm_Planet_And_Star_Index_Link(&::game::world"test");
-    state.stars[0].planet_index[0] = 0;
-    HAROLD::Confirm_Planet_And_Star_Index_Link(&::game::world"test");
-    state.planets[0].star_index = state.planets[0].orbit = 0;
+    HAROLD::Confirm_Planet_And_Star_Index_Link(&game::world, "test");
+    state.stars[0].planet_index[0] = game::id_planet{0};
+    HAROLD::Confirm_Planet_And_Star_Index_Link(&game::world, "test");
+    planet.star_index = planet.orbit = 0;
     DOCTEST_CHECK(HAROLD::Planet_Number(&::game::world, legacy_world::Planet_Id(0)) == 0);
 }
 
@@ -526,11 +527,12 @@ DOCTEST_TEST_CASE("successful file save load requests resource reload even when 
     std::vector<s_star_data> stars(MAX_STARS);
     std::vector<s_nebula> nebulas(MAX_NEBULAS);
     MOX::colony = colonies.data();
-    MOX::planet = planets.data();
+    game::world.planets.clear();
+    game::world.next_planet_id = 0;
     MOX::star = stars.data();
     MOX::nebula = nebulas.data();
     MOX::global_data_seg = allocate::Allocate_Space(0x2800 + MAX_SHIPS - ORIGINAL_MAX_SHIPS);
-    MOX::NUM_COLONIES = test::Resize_Planets(&::game::world, MOX::NUM_STARS = MOX::NUM_SHIPS = 0);
+    MOX::NUM_COLONIES = MOX::NUM_STARS = MOX::NUM_SHIPS = 0;
     MOX::NUM_NEBULAS = 0;
     MOX::NUM_PLAYERS = 1;
     MOX::PLAYER_NUM = 0;
@@ -570,7 +572,8 @@ DOCTEST_TEST_CASE("successful file save load requests resource reload even when 
     free((allocate::s_alloc_header*)MOX::global_data_seg - 1);
     MOX::global_data_seg = nullptr;
     MOX::colony = nullptr;
-    MOX::planet = nullptr;
+    game::world.planets.clear();
+    game::world.next_planet_id = 0;
     MOX::star = nullptr;
     MOX::nebula = nullptr;
 }

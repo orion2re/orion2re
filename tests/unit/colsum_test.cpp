@@ -18,7 +18,7 @@ namespace {
 
         s_colony* colony = &MOX::colony[0];
         colony->owner = 0;
-        colony->planet = 0;
+        colony->planet = game::id_planet{0};
         colony->climate = PLANET_CLIMATE_TERRAN;
         colony->n_pops = 7;
         colony->pop_roundoff[0] = 250;
@@ -35,9 +35,11 @@ namespace {
 
         s_player* player = &MOX::player[0];
         player->settlers_freighted = 3;
-        SETTLER::Set_Dest_Planet(&player->settlers[0].val, 0);
-        SETTLER::Set_Dest_Planet(&player->settlers[1].val, 0);
-        SETTLER::Set_Dest_Planet(&player->settlers[2].val, 1);
+        game::world.settlers[game::id_player{0}] = {
+            {.destination_planet = colony->planet},
+            {.destination_planet = colony->planet},
+            {.destination_planet = game::id_planet{1}},
+        };
 
         TEST_COLONY_SCAN_INFO::Set_Product_Cost_(120);
         return colony;

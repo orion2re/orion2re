@@ -19,7 +19,7 @@ namespace SHIPSTAK {
         uint8_t tachyon_scanner;
         uint8_t neutron_scanner;
         uint8_t sensors;
-        ::game::id_planet planet;
+        int16_t planet;
         uint16_t fleet;
     };
 

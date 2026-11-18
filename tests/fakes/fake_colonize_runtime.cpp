@@ -58,7 +58,7 @@ namespace ERICNET {
 }
 
 namespace INITGAME {
-    void __cdecl Init_Colony(::game::s_world_state* world_state, int16_t, int16_t, uint8_t) {
+    void __cdecl Init_Colony(::game::s_world_state* world_state, int16_t, game::id_planet, uint8_t) {
     }
 }
 

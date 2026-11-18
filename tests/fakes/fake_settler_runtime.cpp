@@ -2,7 +2,6 @@
 #include "pch.h"
 
 static s_colony colonies[2];
-static s_planet_data test::Planet(&game::world, legacy_world::Planet_Id(2));
 static s_player players[2];
 static s_star_data stars[2];
 static int16_t pop_limits[10];
@@ -11,6 +10,7 @@ namespace TEST_SETTLER {
     void Reset_() {
         memset(colonies, 0, sizeof(colonies));
         game::world.planets.clear();
+        game::world.settlers.clear();
         game::world.next_planet_id = 0;
         memset(players, 0, sizeof(players));
         memset(stars, 0, sizeof(stars));

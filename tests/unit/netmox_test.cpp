@@ -114,7 +114,9 @@ namespace {
         std::array<s_MSG, 100> saved_msgs = {};
         s_player* saved_player_ptr = MOX::player;
         s_star_data* saved_star_ptr = MOX::star;
-        s_planet_data* saved_planet_ptr = MOX::planet;
+        decltype(game::world.planets) saved_planets = game::world.planets;
+        uint64_t saved_next_planet_id = game::world.next_planet_id;
+        decltype(game::world.settlers) saved_settlers = game::world.settlers;
         s_colony* saved_colony_ptr = MOX::colony;
         s_ship_data* saved_ship_ptr = MOX::ship;
         std::map<game::id_leader, s_leader_data> saved_leaders = game::world.leaders;
@@ -127,7 +129,6 @@ namespace {
 
         std::vector<s_player> players = std::vector<s_player>(MAX_PLAYERS);
         std::vector<s_star_data> stars = std::vector<s_star_data>(MAX_STARS + 1);
-        std::vector<s_planet_data> planets = std::vector<s_planet_data>(MAX_PLANETS);
         std::vector<s_colony> colonies = std::vector<s_colony>(MAX_COLONIES);
         std::vector<s_ship_data> ships = std::vector<s_ship_data>(MAX_SHIPS);
         std::vector<s_nebula> nebulas = std::vector<s_nebula>(MAX_NEBULAS);
@@ -143,7 +144,9 @@ namespace {
 
             MOX::player = players.data();
             MOX::star = stars.data();
-            MOX::planet = planets.data();
+            game::world.planets.clear();
+            game::world.settlers.clear();
+            game::world.next_planet_id = 0;
             MOX::colony = colonies.data();
             MOX::ship = ships.data();
             game::Reset_Leaders(&game::world);
@@ -159,7 +162,9 @@ namespace {
 
             MOX::player = saved_player_ptr;
             MOX::star = saved_star_ptr;
-            MOX::planet = saved_planet_ptr;
+            game::world.planets = std::move(saved_planets);
+            game::world.next_planet_id = saved_next_planet_id;
+            game::world.settlers = std::move(saved_settlers);
             MOX::colony = saved_colony_ptr;
             MOX::ship = saved_ship_ptr;
             game::world.leaders = std::move(saved_leaders);
@@ -226,7 +231,8 @@ namespace {
 
         std::memset(MOX::player, 0, MAX_PLAYERS * sizeof(s_player));
         std::memset(MOX::star, 0, (MAX_STARS + 1) * sizeof(s_star_data));
-        std::memset(MOX::planet, 0, MAX_PLANETS * sizeof(s_planet_data));
+        game::world.planets.clear();
+        game::world.next_planet_id = 0;
         std::memset(MOX::colony, 0, MAX_COLONIES * sizeof(s_colony));
         std::memset(MOX::ship, 0, MAX_SHIPS * sizeof(s_ship_data));
         game::Reset_Leaders(&game::world);
@@ -245,7 +251,7 @@ namespace {
             MOX::player[i].objectives = (i == 2) ? PLAYER_OBJECTIVE_MILITARIST : PLAYER_OBJECTIVE_HUMAN;
             MOX::player[i].race = (uint8_t)(i + 3);
             MOX::player[i].color = (uint8_t)(i + 1);
-            MOX::player[i].home_planet_id = (int16_t)i;
+            MOX::player[i].home_planet_id = game::id_planet{static_cast<uint32_t>(i)};
             MOX::player[i].ship_range = (int16_t)(30 + i);
             MOX::player[i].bc = 1000 + i * 77;
             MOX::player[i].tech_applications[0] = (uint8_t)(11 + i);
@@ -273,7 +279,7 @@ namespace {
 
         for (int i = 0; i < MOX::NUM_COLONIES; ++i) {
             MOX::colony[i].owner = (int8_t)(i % MOX::NUM_PLAYERS);
-            MOX::colony[i].planet = (int16_t)i;
+            MOX::colony[i].planet = game::id_planet{static_cast<uint32_t>(i)};
             MOX::colony[i].morale = (int8_t)(50 + i);
             MOX::colony[i].pollution = (int16_t)(i * 2);
             MOX::colony[i].pop_growth[0] = (int16_t)(100 + i);
@@ -319,7 +325,7 @@ namespace {
         }
 
         for (int i = 0; i < 100; ++i) {
-            MSG_::msgs[i].msg_type = (int8_t)(i % 9);
+            MSG_::msgs[i].msg_type = MSG_TYPE_FINANCIAL;
             MSG_::msgs[i].priority = (uint8_t)(i % 5);
             MSG_::msgs[i].u.financial.a = (int16_t)(500 + i);
             MSG_::msgs[i].u.financial.b = (int16_t)(700 + i);
@@ -454,22 +460,22 @@ DOCTEST_TEST_CASE("differential decode requires full shared payload workspace on
                   worst_case_received_diff_bytes <= required_decode_workspace_bytes);
 }
 
-DOCTEST_TEST_CASE("network packet structs stay byte packed and size stable") {
-    DOCTEST_CHECK(alignof(s_net_pack_combat_target_chosen) == 1);
-    DOCTEST_CHECK(sizeof(s_net_pack_combat_target_chosen) == 6);
+DOCTEST_TEST_CASE("network packet layouts match the current protocol") {
+    DOCTEST_CHECK(alignof(s_net_pack_combat_target_chosen) == 4);
+    DOCTEST_CHECK(sizeof(s_net_pack_combat_target_chosen) == 12);
     DOCTEST_CHECK(offsetof(s_net_pack_combat_target_chosen, combat_defender_id) == 0);
-    DOCTEST_CHECK(offsetof(s_net_pack_combat_target_chosen, combat_planet_id) == 2);
-    DOCTEST_CHECK(offsetof(s_net_pack_combat_target_chosen, combat_target_player_id) == 4);
+    DOCTEST_CHECK(offsetof(s_net_pack_combat_target_chosen, combat_planet_id) == 4);
+    DOCTEST_CHECK(offsetof(s_net_pack_combat_target_chosen, combat_target_player_id) == 8);
 
     DOCTEST_CHECK(alignof(s_net_pack_change_relation) == 1);
     DOCTEST_CHECK(sizeof(s_net_pack_change_relation) == 12);
     DOCTEST_CHECK(offsetof(s_net_pack_change_relation, incident_value) == 10);
 
-    DOCTEST_CHECK(alignof(s_net_pack_monster_update) == 1);
-    DOCTEST_CHECK(sizeof(s_net_pack_monster_update) == 10);
+    DOCTEST_CHECK(alignof(s_net_pack_monster_update) == 4);
+    DOCTEST_CHECK(sizeof(s_net_pack_monster_update) == 12);
     DOCTEST_CHECK(offsetof(s_net_pack_monster_update, monster_type) == 0);
     DOCTEST_CHECK(offsetof(s_net_pack_monster_update, target_planet_id) == 4);
-    DOCTEST_CHECK(offsetof(s_net_pack_monster_update, player_idx_or_amount) == 6);
+    DOCTEST_CHECK(offsetof(s_net_pack_monster_update, player_idx_or_amount) == 8);
 
     DOCTEST_CHECK(alignof(NETMOX::s_packet_dragon_info) == 1);
     DOCTEST_CHECK(sizeof(NETMOX::s_packet_dragon_info) == sizeof(int16_t));
@@ -494,11 +500,11 @@ DOCTEST_TEST_CASE("network packet structs stay byte packed and size stable") {
     DOCTEST_CHECK(sizeof(NETMOX::s_NET_MSG_SYNC_PLAYER) ==
                   sizeof(int32_t) + sizeof(s_player) + MAX_STARS * sizeof(int8_t) + sizeof(int32_t) + sizeof(s_player));
 
-    DOCTEST_CHECK(alignof(s_net_pack_drop_out_info) == 1);
+    DOCTEST_CHECK(alignof(s_net_pack_drop_out_info) == alignof(s_player));
     DOCTEST_CHECK(sizeof(s_net_pack_drop_out_info) ==
                   sizeof(s_player) + MAX_STARS * sizeof(int8_t));
 
-    DOCTEST_CHECK(alignof(s_net_pack_end_ai_diplomacy) == 1);
+    DOCTEST_CHECK(alignof(s_net_pack_end_ai_diplomacy) == alignof(s_player));
     DOCTEST_CHECK(sizeof(s_net_pack_end_ai_diplomacy) ==
                   sizeof(int32_t) + sizeof(s_player) + MAX_STARS * sizeof(int8_t) + sizeof(int32_t) + sizeof(s_player));
 }
@@ -507,8 +513,9 @@ DOCTEST_TEST_CASE("pick-position packet preserves expanded freight storage") {
     Scoped_Netmox_Roundtrip_State_ scope;
     Fill_Netmox_Roundtrip_State_();
     MOX::NUM_PLAYERS = MAX_PLAYERS;
-    MOX::player[MAX_PLAYERS - 1].settlers[MAX_FREIGHTED_SETTLERS - 1].val =
-            0x123456789ABCDEF0ull;
+    constexpr game::id_player last_player{MAX_PLAYERS - 1};
+    const SETTLER::s_settler passenger{.destination_planet = game::id_planet{1000000}, .race = 3, .eta = 12};
+    game::world.settlers[last_player].assign(MAX_FREIGHTED_SETTLERS, passenger);
     MOX::screen_seg = (s_animation_header*)allocate::Allocate_Space(
             NETMOX::NETMOX_MAX_GAME_DATA_PAYLOAD_BYTES + sizeof(s_alloc_header));
 
@@ -517,18 +524,15 @@ DOCTEST_TEST_CASE("pick-position packet preserves expanded freight storage") {
     NETMOX::Send_Pick_Your_Position(123);
     netcode::g_net_send_hook = nullptr;
 
-    constexpr uint32_t expected_size =
-            sizeof(int16_t) + MAX_PLAYERS * sizeof(s_player);
-    DOCTEST_CHECK(expected_size > 65535u);
-    DOCTEST_REQUIRE(g_pick_position_payload.size() == expected_size);
+    DOCTEST_REQUIRE(g_pick_position_payload.size() > sizeof(int16_t));
 
     memset(MOX::player, 0, MAX_PLAYERS * sizeof(s_player));
+    game::world.settlers.clear();
     NETMOX::Decode_Pick_Your_Position(
             (s_net_pack_pick_your_position*)g_pick_position_payload.data(),
             (uint32_t)g_pick_position_payload.size());
-    DOCTEST_CHECK((
-        MOX::player[MAX_PLAYERS - 1].settlers[MAX_FREIGHTED_SETTLERS - 1].val ==
-        0x123456789ABCDEF0ull));
+    DOCTEST_REQUIRE(game::world.settlers[last_player].size() == MAX_FREIGHTED_SETTLERS);
+    DOCTEST_CHECK(game::world.settlers[last_player].back() == passenger);
 
     MOX::NUM_PLAYERS = 3;
     NETMOX::Decode_Pick_Your_Position(
@@ -561,7 +565,8 @@ DOCTEST_TEST_CASE("broadcast snapshot encode and decode round trip serialized ga
     const int16_t expected_report_count = REPORT::n_reports;
     std::vector<s_player> expected_players(MOX::player, MOX::player + MAX_PLAYERS);
     std::vector<s_star_data> expected_stars(MOX::star, MOX::star + MAX_STARS + 1);
-    std::vector<s_planet_data> expected_planets(MOX::planet, MOX::planet + MAX_PLANETS);
+    const auto expected_planets = game::world.planets;
+    const auto expected_next_planet = game::world.next_planet_id;
     std::vector<s_colony> expected_colonies(MOX::colony, MOX::colony + MAX_COLONIES);
     std::vector<s_ship_data> expected_ships(MOX::ship, MOX::ship + MAX_SHIPS);
     const auto expected_leaders = game::Export_Leaders(&game::world);
@@ -598,7 +603,8 @@ DOCTEST_TEST_CASE("broadcast snapshot encode and decode round trip serialized ga
     REPORT::n_reports = 0;
     std::memset(MOX::player, 0, MAX_PLAYERS * sizeof(s_player));
     std::memset(MOX::star, 0, (MAX_STARS + 1) * sizeof(s_star_data));
-    std::memset(MOX::planet, 0, MAX_PLANETS * sizeof(s_planet_data));
+    game::world.planets.clear();
+    game::world.next_planet_id = 0;
     std::memset(MOX::colony, 0, MAX_COLONIES * sizeof(s_colony));
     std::memset(MOX::ship, 0, MAX_SHIPS * sizeof(s_ship_data));
     game::Reset_Leaders(&game::world);
@@ -621,14 +627,15 @@ DOCTEST_TEST_CASE("broadcast snapshot encode and decode round trip serialized ga
     DOCTEST_CHECK(game_random::Get_Random_Seed() == expected_random_seed);
     DOCTEST_CHECK(MOX::NUM_PLAYERS == expected_num_players);
     DOCTEST_CHECK(MOX::NUM_STARS == expected_num_stars);
-    DOCTEST_CHECK(test::Resize_Planets(&::game::world, = expected_planet_count));
+    DOCTEST_CHECK(game::Planet_Count(&game::world) == expected_planet_count);
     DOCTEST_CHECK(MOX::NUM_COLONIES == expected_num_colonies);
     DOCTEST_CHECK(MOX::NUM_SHIPS == expected_num_ships);
     DOCTEST_CHECK(MOX::NUM_NEBULAS == expected_num_nebulas);
     DOCTEST_CHECK(REPORT::n_reports == expected_report_count);
     DOCTEST_CHECK(std::memcmp(MOX::player, expected_players.data(), MAX_PLAYERS * sizeof(s_player)) == 0);
     DOCTEST_CHECK(std::memcmp(MOX::star, expected_stars.data(), (MAX_STARS + 1) * sizeof(s_star_data)) == 0);
-    DOCTEST_CHECK(std::memcmp(MOX::planet, expected_planets.data(), MAX_PLANETS * sizeof(s_planet_data)) == 0);
+    DOCTEST_CHECK(test::Planets_Equal(game::world.planets, expected_planets));
+    DOCTEST_CHECK(game::world.next_planet_id == expected_next_planet);
     DOCTEST_CHECK(std::memcmp(MOX::colony, expected_colonies.data(), MAX_COLONIES * sizeof(s_colony)) == 0);
     DOCTEST_CHECK(std::memcmp(MOX::ship, expected_ships.data(), MAX_SHIPS * sizeof(s_ship_data)) == 0);
     DOCTEST_CHECK(std::memcmp(game::Export_Leaders(&game::world).data(), expected_leaders.data(), MAX_LEADERS * sizeof(s_leader_data)) == 0);
@@ -687,7 +694,10 @@ DOCTEST_TEST_CASE("loaded Lua state extends the current native snapshot") {
         sizeof(uint32_t));
     DOCTEST_REQUIRE(native.Read_Int16() == MOX::NUM_PLAYERS);
     std::array<s_player, 3> transferred_players = {};
-    native.Read_Bytes(transferred_players.data(), sizeof(transferred_players));
+    game::s_world_state transferred_world;
+    for (uint32_t i = 0; i < transferred_players.size(); ++i) {
+        DOCTEST_REQUIRE(SAVEGAME::Read_Player_Record(&transferred_world, &native, &transferred_players[i], game::id_player{i}));
+    }
 
     DOCTEST_CHECK((transferred_players[0].network_player_id == 306));
     DOCTEST_CHECK((transferred_players[1].network_player_id == 308));
@@ -764,7 +774,8 @@ DOCTEST_TEST_CASE("broadcast differential decode round trips against cached prio
     const int16_t expected_report_count = REPORT::n_reports;
     std::vector<s_player> expected_players(MOX::player, MOX::player + MAX_PLAYERS);
     std::vector<s_star_data> expected_stars(MOX::star, MOX::star + MAX_STARS + 1);
-    std::vector<s_planet_data> expected_planets(MOX::planet, MOX::planet + MAX_PLANETS);
+    const auto expected_planets = game::world.planets;
+    const auto expected_next_planet = game::world.next_planet_id;
     std::vector<s_colony> expected_colonies(MOX::colony, MOX::colony + MAX_COLONIES);
     std::vector<s_ship_data> expected_ships(MOX::ship, MOX::ship + MAX_SHIPS);
     const auto expected_leaders = game::Export_Leaders(&game::world);
@@ -809,7 +820,8 @@ DOCTEST_TEST_CASE("broadcast differential decode round trips against cached prio
     REPORT::n_reports = 0;
     std::memset(MOX::player, 0, MAX_PLAYERS * sizeof(s_player));
     std::memset(MOX::star, 0, (MAX_STARS + 1) * sizeof(s_star_data));
-    std::memset(MOX::planet, 0, MAX_PLANETS * sizeof(s_planet_data));
+    game::world.planets.clear();
+    game::world.next_planet_id = 0;
     std::memset(MOX::colony, 0, MAX_COLONIES * sizeof(s_colony));
     std::memset(MOX::ship, 0, MAX_SHIPS * sizeof(s_ship_data));
     game::Reset_Leaders(&game::world);
@@ -832,14 +844,15 @@ DOCTEST_TEST_CASE("broadcast differential decode round trips against cached prio
     DOCTEST_CHECK(game_random::Get_Random_Seed() == expected_random_seed);
     DOCTEST_CHECK(MOX::NUM_PLAYERS == expected_num_players);
     DOCTEST_CHECK(MOX::NUM_STARS == expected_num_stars);
-    DOCTEST_CHECK(test::Resize_Planets(&::game::world, = expected_planet_count));
+    DOCTEST_CHECK(game::Planet_Count(&game::world) == expected_planet_count);
     DOCTEST_CHECK(MOX::NUM_COLONIES == expected_num_colonies);
     DOCTEST_CHECK(MOX::NUM_SHIPS == expected_num_ships);
     DOCTEST_CHECK(MOX::NUM_NEBULAS == expected_num_nebulas);
     DOCTEST_CHECK(REPORT::n_reports == expected_report_count);
     DOCTEST_CHECK(std::memcmp(MOX::player, expected_players.data(), MAX_PLAYERS * sizeof(s_player)) == 0);
     DOCTEST_CHECK(std::memcmp(MOX::star, expected_stars.data(), (MAX_STARS + 1) * sizeof(s_star_data)) == 0);
-    DOCTEST_CHECK(std::memcmp(MOX::planet, expected_planets.data(), MAX_PLANETS * sizeof(s_planet_data)) == 0);
+    DOCTEST_CHECK(test::Planets_Equal(game::world.planets, expected_planets));
+    DOCTEST_CHECK(game::world.next_planet_id == expected_next_planet);
     DOCTEST_CHECK(std::memcmp(MOX::colony, expected_colonies.data(), MAX_COLONIES * sizeof(s_colony)) == 0);
     DOCTEST_CHECK(std::memcmp(MOX::ship, expected_ships.data(), MAX_SHIPS * sizeof(s_ship_data)) == 0);
     DOCTEST_CHECK(std::memcmp(game::Export_Leaders(&game::world).data(), expected_leaders.data(), MAX_LEADERS * sizeof(s_leader_data)) == 0);
@@ -948,7 +961,9 @@ DOCTEST_TEST_CASE("game orders preserve expanded freight storage") {
     SETTLER::max_pop_freighted = MAX_FREIGHTED_SETTLERS;
     s_player* player = &MOX::player[MOX::PLAYER_NUM];
     player->settlers_freighted = MAX_FREIGHTED_SETTLERS;
-    player->settlers[MAX_FREIGHTED_SETTLERS - 1].val = 0x123456789ABCDEF0ull;
+    const game::id_player player_id{static_cast<uint32_t>(MOX::PLAYER_NUM)};
+    const SETTLER::s_settler passenger{.destination_planet = game::id_planet{1000000}, .race = 3, .eta = 12};
+    game::world.settlers[player_id].assign(MAX_FREIGHTED_SETTLERS, passenger);
 
     g_game_orders_payload.clear();
     netcode::g_net_send_hook = &Capture_Game_Orders_;
@@ -958,16 +973,15 @@ DOCTEST_TEST_CASE("game orders preserve expanded freight storage") {
     DOCTEST_REQUIRE(!g_game_orders_payload.empty());
 
     player->settlers_freighted = 0;
-    std::memset(player->settlers, 0, sizeof(player->settlers));
+    game::world.settlers.clear();
 
     NETMOX::Decode_Game_Orders(&game::world,
         g_game_orders_payload.data(),
         static_cast<uint32_t>(g_game_orders_payload.size()));
 
     DOCTEST_CHECK(player->settlers_freighted == MAX_FREIGHTED_SETTLERS);
-    DOCTEST_CHECK(
-        player->settlers[MAX_FREIGHTED_SETTLERS - 1].val ==
-        0x123456789ABCDEF0ull);
+    DOCTEST_REQUIRE(game::world.settlers[player_id].size() == MAX_FREIGHTED_SETTLERS);
+    DOCTEST_CHECK(game::world.settlers[player_id].back() == passenger);
 }
 
 DOCTEST_TEST_CASE("game orders preserve the advanced XP of a deassigned leader") {

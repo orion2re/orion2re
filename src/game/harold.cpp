@@ -138,8 +138,9 @@ namespace HAROLD {
         return relative_planet_num;
     }
 
-    ::game::id_planet Planet_Index(int16_t star_idx, ::game::id_planet planet_idx) {
-        return MOX::star[star_idx].planet_index[planet_idx];
+    game::id_planet Planet_Index(int16_t star_idx, int16_t orbit) {
+        if (orbit < 0 || orbit >= 5) return game::NO_PLANET;
+        return MOX::star[star_idx].planet_index[orbit];
     }
 
     void __cdecl Get_Font_File(char* buffer) {
@@ -593,8 +594,8 @@ namespace HAROLD {
     void Confirm_Planet_And_Star_Index_Link(::game::s_world_state* world_state, const char* unused_context) {
         (void)unused_context;
 
-        for (int16_t i = 0; i < ::game::Planet_Count(world_state); ++i) {
-            Planet_Number(world_state, legacy_world::Planet_Id(i));
+        for (const auto& [id, planet] : world_state->planets) {
+            Planet_Number(world_state, id);
         }
 
         for (int16_t star_idx = 0; star_idx < MOX::NUM_STARS; ++star_idx) {

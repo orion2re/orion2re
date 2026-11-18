@@ -448,7 +448,7 @@ namespace COLDRAW {
 
     void __cdecl Build_Veggie_List_Based_On_Bldg_List(::game::s_world_state* world_state) {
         const auto initial_planet_index =
-            HAROLD::Planet_Index(MOX::screen_data, legacy_world::Planet_Id(COLONY::orbit_temp));
+            HAROLD::Planet_Index(MOX::screen_data, COLONY::orbit_temp);
         (void)COLONY::N_Bldgs(::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(initial_planet_index))).colony_index);
 
         COLDRAW::Clear_Veggie_Draw_Flags();
@@ -462,7 +462,7 @@ namespace COLDRAW {
                 const int16_t road_count = COLDRAW::N_Roads_Around_CR(row, col);
 
                 const ::game::id_planet planet_index =
-                    HAROLD::Planet_Index(MOX::screen_data, legacy_world::Planet_Id(COLONY::orbit_temp));
+                    HAROLD::Planet_Index(MOX::screen_data, COLONY::orbit_temp);
                 const int16_t building_count =
                     COLONY::N_Bldgs(::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_index))).colony_index);
 
@@ -496,7 +496,7 @@ namespace COLDRAW {
                     }
 
                     const auto veggie_planet_index =
-                        HAROLD::Planet_Index(MOX::screen_data, legacy_world::Planet_Id(COLONY::orbit_temp));
+                        HAROLD::Planet_Index(MOX::screen_data, COLONY::orbit_temp);
                     const int16_t anim_entry =
                         COLDRAW::Pick_Random_Veggie_Anim_Entry_For_Colony_CR(
                             ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(veggie_planet_index))).colony_index, row, col);

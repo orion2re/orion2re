@@ -41,7 +41,7 @@ namespace TEST_AIBUILD_CONTEXT {
         ai = {};
         MOX::NUM_PLAYERS = 1;
         colonies[0].owner = 0;
-        colonies[0].planet = 0;
+        colonies[0].planet = game::id_planet{0};
         colonies[0].n_pops = 4;
         colonies[0].food2_needed_for_our_empire = 8;
         test::Planet(&game::world, legacy_world::Planet_Id(0)).star_index = 0;

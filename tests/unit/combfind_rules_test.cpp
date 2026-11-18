@@ -51,24 +51,27 @@ DOCTEST_TEST_CASE("one-shot discovery cleanup preserves Ancient Artifacts") {
 
     s_star_data star = {};
     memset(star.planet_index, 0xFF, sizeof(star.planet_index));
-    star.planet_index[0] = 0;
+    star.planet_index[0] = game::id_planet{0};
+    game::world.planets.clear();
+    game::world.next_planet_id = 0;
+    auto& planet = game::Planet(&game::world, *game::Create_Planet(&game::world, {}));
 
     for (int marker = 50; marker < 90; ++marker) {
         star.system_special = static_cast<int8_t>(marker);
-        planets[0].planet_special = SYSTEM_SPECIAL_ANCIENT_ARTIFACTS;
+        planet.planet_special = SYSTEM_SPECIAL_ANCIENT_ARTIFACTS;
         COMBFIND::Reset_One_Shot_System_Special(&::game::world, &star);
         DOCTEST_CHECK(star.system_special == SYSTEM_SPECIAL_NO_SPECIAL);
         DOCTEST_CHECK(
-            planets[0].planet_special == SYSTEM_SPECIAL_NO_SPECIAL);
+            planet.planet_special == SYSTEM_SPECIAL_NO_SPECIAL);
     }
 
     for (int marker = 90; marker < 100; ++marker) {
         star.system_special = static_cast<int8_t>(marker);
-        planets[0].planet_special = SYSTEM_SPECIAL_ANCIENT_ARTIFACTS;
+        planet.planet_special = SYSTEM_SPECIAL_ANCIENT_ARTIFACTS;
         COMBFIND::Reset_One_Shot_System_Special(&::game::world, &star);
         DOCTEST_CHECK(star.system_special == SYSTEM_SPECIAL_NO_SPECIAL);
         DOCTEST_CHECK(
-            planets[0].planet_special == SYSTEM_SPECIAL_ANCIENT_ARTIFACTS);
+            planet.planet_special == SYSTEM_SPECIAL_ANCIENT_ARTIFACTS);
     }
 }
 

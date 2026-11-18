@@ -825,8 +825,8 @@ namespace DIP_SCRN {
      * @param planet_indices Output: Array of indices for the planets owned by the player.
      * @return The player index if colonies exist, otherwise the original star owner.
      */
-    int16_t __cdecl Diplomacy_System_Scan(::game::s_world_state* world_state, int16_t star_idx, int16_t player_idx, int16_t* capitol_planet_idx, int16_t* owned_count, int16_t* planet_indices) {
-        *capitol_planet_idx = -1;
+    int16_t __cdecl Diplomacy_System_Scan(::game::s_world_state* world_state, int16_t star_idx, int16_t player_idx, game::id_planet* capitol_planet_idx, int16_t* owned_count, game::id_planet* planet_indices) {
+        *capitol_planet_idx = game::NO_PLANET;
         *owned_count = 0;
 
         s_star_data* star = &MOX::star[star_idx];
@@ -987,7 +987,7 @@ namespace DIP_SCRN {
                 if (valid_opportunity) {
                     auto attack = AIMOVE::Find_Opportunity_Attack(&AIDATA::state, &game::current, legacy_world::Player_Id(p_idx_position), legacy_world::Player_Id(target_idx), 100);
                     auto planet_index = attack ? legacy_world::Index(attack->planet_id) : std::nullopt;
-                    player.opportunity_planet_num[target_idx] = planet_index.value_or(-1);
+                    player.opportunity_planet_num[target_idx] = planet_index.value_or(game::NO_PLANET);
                     player.opportunity_planet_value[target_idx] = planet_index ? attack->colony_value : 0;
                     player.opportunity_actual_attacker_ratio[target_idx] = planet_index ? attack->strength_ratio_percent : 0;
                 } else {

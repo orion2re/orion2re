@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/planet_state.h"
 
 namespace TEST_COLONY_REPLICATORS {
     void Reset_() {
@@ -21,21 +22,22 @@ namespace TEST_GOVERNMENT_BONUS {
     void Reset_() {
         s_player* players = MOX::player;
         s_colony* colonies = MOX::colony;
-        s_planet_data* planets = MOX::planet;
         s_star_data* stars = MOX::star;
         memset(players, 0, sizeof(s_player) * MAX_PLAYERS);
         memset(colonies, 0, sizeof(s_colony) * MAX_COLONIES);
-        memset(planets, 0, sizeof(s_planet_data) * MAX_PLANETS);
+        game::world.planets.clear();
+        game::world.next_planet_id = 0;
         memset(stars, 0, sizeof(s_star_data) * (MAX_STARS + 1));
         for (int player = 0; player < MAX_PLAYERS; ++player) {
             stars[0].officer_index[player] = -1;
         }
         colonies[0].owner = 0;
-        colonies[0].planet = 0;
-        planets[0].star_index = 0;
-        planets[0].gravity_class = PLANET_GRAVITY_NORMAL_G;
-        planets[0].food_per_farmer = 2;
-        planets[0].mineral_class = 0;
+        colonies[0].planet = game::id_planet{0};
+        auto& planet = test::Planet(&game::world, game::id_planet{0});
+        planet.star_index = 0;
+        planet.gravity_class = PLANET_GRAVITY_NORMAL_G;
+        planet.food_per_farmer = 2;
+        planet.mineral_class = 0;
         COLCALC::minerals_per_mine[0] = 1;
         players[0].objectives = PLAYER_OBJECTIVE_HUMAN;
         COLCALC::android_morale = COLCALC::ANDROID_MORALE_WORKERS_ONLY;

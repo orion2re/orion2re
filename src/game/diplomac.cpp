@@ -1724,7 +1724,7 @@ namespace diplomac {
                 }
 
                 if (threats == 2 && has_active_bond) {
-                    ::game::id_planet p_idx = Get_Player_Diplomacy_Personality(current_player, target_player);
+        const auto p_idx = Get_Player_Diplomacy_Personality(current_player, target_player);
                     int16_t demand_chance = diplodef::threat_demand_chance[p_idx];
                     if ((int16_t)game_random::Random(100) <= demand_chance) {
                         if (Get_Demands(current_player, target_player, 6, 1, 1, 1, 1) == 1) {

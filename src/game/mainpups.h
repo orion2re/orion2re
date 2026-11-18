@@ -84,7 +84,7 @@ namespace MAINPUPS {
 
     void __cdecl Draw_Selection_Popup();
 
-    int16_t __cdecl Evaluate_Selection_Input(int16_t* selected_field, int16_t* field_data, int16_t* refresh_flag);
+    game::id_planet __cdecl Evaluate_Selection_Input(int16_t* selected_field, int16_t* field_data, int16_t* refresh_flag);
 
     /**
      * Evaluates a system-display click for colony, outpost, troop-drop, or dragon selection popups.
@@ -224,10 +224,10 @@ namespace MAINPUPS {
 
     void __cdecl Draw_Officer_Gains_Level_Popup();
 
-    int16_t __cdecl New_Colony_Selection_Popup(int16_t star_idx, uint8_t using_colony_ship);
-    int16_t __cdecl New_Outpost_Selection_Popup(int16_t star_id);
+    game::id_planet __cdecl New_Colony_Selection_Popup(int16_t star_idx, uint8_t using_colony_ship);
+    game::id_planet __cdecl New_Outpost_Selection_Popup(int16_t star_id);
 
-    int16_t __cdecl Drop_Troops_Selection_Popup(int16_t target_idx);
+    game::id_planet __cdecl Drop_Troops_Selection_Popup(int16_t target_idx);
 
     bool __cdecl Random_New_Officer_Popup(game::s_world_state* world_state, int16_t player_idx);
 

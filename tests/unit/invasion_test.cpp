@@ -199,12 +199,12 @@ DOCTEST_TEST_CASE("home planet reassignment excludes outposts") {
 
     s_colony* colony = test_ground_commando_runtime::Colony_(0);
     colony->owner = 0;
-    colony->planet = 1;
+    colony->planet = game::id_planet{1};
     colony->n_pops = 1;
 
     s_colony* outpost = test_ground_commando_runtime::Colony_(1);
     outpost->owner = 0;
-    outpost->planet = 2;
+    outpost->planet = game::id_planet{2};
     outpost->outpost_flag = 1;
 
     invasion::Assign_New_Home_Planet(0, 0);

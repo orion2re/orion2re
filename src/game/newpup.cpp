@@ -53,7 +53,7 @@ namespace NEWPUP {
             animate::Draw(2, 0x149, NEWPUP::anims);
 
             summary_row = 0;
-            planet_index = HAROLD::Planet_Index(MOX::screen_data, legacy_world::Planet_Id(COLONY::orbit_temp));
+            planet_index = HAROLD::Planet_Index(MOX::screen_data, COLONY::orbit_temp);
 
             invasion::Compute_Colony_Ground_Combat_Info(
                 &MOX::colony[::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_index))).colony_index],
