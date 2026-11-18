@@ -2941,7 +2941,7 @@ namespace diplomac {
         if (*accepted == 1 && demand_type == 5) {
             int32_t rnd1 = game_random::Random(50);
             int32_t rnd2 = game_random::Random(50);
-            MOX::player[player_b].stop_spying_duration[demand_value] = (int8_t)(rnd1 + rnd2 + 10);
+            MOX::player[player_b].stop_spying_duration[player_a] = (int8_t)(rnd1 + rnd2 + 10);
         }
     }
 

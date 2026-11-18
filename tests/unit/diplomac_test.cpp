@@ -85,6 +85,23 @@ DOCTEST_TEST_CASE_FIXTURE(s_diplomacy_scope, "diplomacy fixtures preserve determ
     DOCTEST_CHECK(game_random::Random(50) == 1);
 }
 
+DOCTEST_TEST_CASE_FIXTURE(s_diplomacy_scope, "accepted stop spying demand protects the requester instead of slot zero") {
+    TEST_DIPLOMAC::Reset_();
+    MOX::NUM_PLAYERS = 3;
+    const int16_t requester = 1;
+    const int16_t responder = 2;
+    MOX::player[requester].objectives = PLAYER_OBJECTIVE_HUMAN;
+    MOX::player[responder].objectives = PLAYER_OBJECTIVE_MILITARIST;
+
+    int16_t accepted = 0;
+    int16_t response_code = 0;
+    diplomac::Get_Demand_Response(requester, responder, 5, 0, &accepted, &response_code);
+
+    DOCTEST_REQUIRE(accepted == 1);
+    DOCTEST_CHECK(MOX::player[responder].stop_spying_duration[requester] > 0);
+    DOCTEST_CHECK(MOX::player[responder].stop_spying_duration[0] == 0);
+}
+
 DOCTEST_TEST_CASE_FIXTURE(s_diplomacy_scope, "configured starting relations initialize current and base values") {
     TEST_DIPLOMAC::Reset_();
     MOX::player[0].race = STOCK_RACE_HUMAN;
