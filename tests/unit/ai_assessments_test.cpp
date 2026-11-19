@@ -40,7 +40,8 @@ DOCTEST_TEST_CASE("game-state fixtures bind borrowed views and restore nested bi
     DOCTEST_CHECK(game::current.players == previous.players);
     DOCTEST_CHECK(game::current.ships == previous.ships);
     DOCTEST_CHECK(game::current.stars == previous.stars);
-    DOCTEST_CHECK(game::current.colonies == previous.colonies);
+    DOCTEST_CHECK(game::current.colonies.state == previous.colonies.state);
+    DOCTEST_CHECK(game::current.colonies.fixture == previous.colonies.fixture);
     DOCTEST_CHECK(game::current.state == previous.state);
     DOCTEST_CHECK(game::current.state == previous.state);
     DOCTEST_CHECK(game::current.settings == previous.settings);

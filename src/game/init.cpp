@@ -68,8 +68,7 @@ namespace allocate {
         MOX::player = (s_player*)Allocate_Space(MAX_PLAYERS * sizeof(s_player));
         struct_::Clear_Structure(MOX::player, MAX_PLAYERS * sizeof(s_player));
 
-        MOX::colony = (s_colony*)Allocate_Space(MAX_COLONIES * sizeof(s_colony));
-        struct_::Clear_Structure(MOX::colony, MAX_COLONIES * sizeof(s_colony));
+        MOX::colony.Reset();
 
         MOX::nebula_screen_seg = Allocate_Space(12 * 0x10000);
 

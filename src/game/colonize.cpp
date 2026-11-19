@@ -196,9 +196,29 @@ namespace COLONIZE {
         }
     }
 
+    size_t Plan_Colony_Reservations(std::span<const int16_t> demand,
+        size_t first_player, std::span<int16_t> reserved_for_player) {
+        if (first_player >= demand.size() || demand.size() > MAX_PLAYERS) return 0;
+
+        int16_t allocated_counts[MAX_PLAYERS]{};
+        size_t player = first_player;
+        size_t skipped = 0;
+        size_t reserved = 0;
+        while (reserved < reserved_for_player.size() && skipped < demand.size()) {
+            if (allocated_counts[player] < demand[player]) {
+                reserved_for_player[reserved++] = static_cast<int16_t>(player);
+                ++allocated_counts[player];
+                skipped = 0;
+            } else {
+                ++skipped;
+            }
+            if (++player == demand.size()) player = 0;
+        }
+        return reserved;
+    }
+
     void Allocate_New_Colony_Slots() {
         int16_t uncolonized_counts[MAX_PLAYERS] = {0};
-        int16_t allocated_counts[MAX_PLAYERS] = {0};
         int16_t free_slots_indices[MAX_COLONIES];
 
         int16_t free_slots_count = 0;
@@ -224,24 +244,13 @@ namespace COLONIZE {
             return;
         }
 
-        int16_t current_player = (int16_t)((int32_t)MOX::stardate % MOX::NUM_PLAYERS);
-        int16_t skipped_players = 0;
-        int16_t free_slot_ptr = 0;
-
-        while (skipped_players < MOX::NUM_PLAYERS) {
-            if (allocated_counts[current_player] < uncolonized_counts[current_player]) {
-                int16_t colony_idx = free_slots_indices[free_slot_ptr++];
-                MOX::colony[colony_idx].allocated_to = (char)current_player;
-                allocated_counts[current_player]++;
-                skipped_players = 0;
-            } else {
-                skipped_players++;
-            }
-
-            current_player++;
-            if (current_player == MOX::NUM_PLAYERS) {
-                current_player = 0;
-            }
+        int16_t reserved_for_player[MAX_COLONIES];
+        const size_t reserved = Plan_Colony_Reservations(
+            {uncolonized_counts, static_cast<size_t>(MOX::NUM_PLAYERS)},
+            MOX::stardate % MOX::NUM_PLAYERS,
+            {reserved_for_player, static_cast<size_t>(free_slots_count)});
+        for (size_t i = 0; i < reserved; ++i) {
+            MOX::colony[free_slots_indices[i]].allocated_to = static_cast<int8_t>(reserved_for_player[i]);
         }
     }
 
@@ -297,7 +306,7 @@ namespace COLONIZE {
                                 MAINSCR::Update_Ship_Icons_In_Between_Turns();
                             } else {
                                 // Consumed an existing colony base building
-                                ERICNET::Remove_Building(world_state, (int16_t)(colony_base_ptr - MOX::colony), BUILDING_COLONY_BASE);
+                                ERICNET::Remove_Building(world_state, MOX::colony.Position_Of(colony_base_ptr), BUILDING_COLONY_BASE);
                             }
                             // Continue checking system (logic loops to see if more ships/bases exist)
                         }
@@ -338,12 +347,12 @@ namespace COLONIZE {
             return;
         }
 
-        if (colony >= (MOX::colony + MOX::NUM_COLONIES)) {
-            MOX::NUM_COLONIES = (int16_t)(colony - MOX::colony) + 1;
-        }
-
-        int16_t colony_idx = (int16_t)(colony - MOX::colony);
+        const int16_t colony_idx = MOX::colony.Position_Of(colony);
+        const bool network = MOX::game_type == 2 || MOX::game_type == 3;
+        if (!MOX::colony.Activate(colony_idx, network ? player_idx : -1)) return;
+        if (colony_idx >= MOX::NUM_COLONIES) MOX::NUM_COLONIES = colony_idx + 1;
         INITGAME::Init_Colony(world_state, colony_idx, legacy_world::Planet_Id(planet_idx), (uint8_t)player_idx);
+        colony = &MOX::colony[colony_idx];
 
         colony->allocated_to = -1;
 

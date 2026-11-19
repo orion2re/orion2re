@@ -418,7 +418,9 @@ TEST_CASE("full mirror package rebuilds destination home systems") {
     CHECK(invoked);
     CHECK(diagnostic.empty());
     CHECK(game_random::Get_Random_Seed() == expected_seed);
-    CHECK(MOX::NUM_COLONIES == 3);
+    CHECK(MOX::NUM_COLONIES == 4);
+    CHECK(MOX::colony[2].owner == -1);
+    CHECK(MOX::colony[2].planet == game::NO_PLANET);
     CHECK(MOX::player[0].home_planet_id == game::id_planet{0});
     CHECK(MOX::player[1].home_planet_id == game::id_planet{2});
     CHECK(test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).star_index == 0);
@@ -433,8 +435,8 @@ TEST_CASE("full mirror package rebuilds destination home systems") {
     CHECK(memcmp(&MOX::colony[1],
               &source_home_colony,
               sizeof(source_home_colony)) == 0);
-    CHECK(test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(3))).colony_index == 2);
-    CHECK(memcmp(&MOX::colony[2],
+    CHECK(test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(3))).colony_index == 3);
+    CHECK(memcmp(&MOX::colony[3],
               &source_extra_colony,
               sizeof(source_extra_colony)) == 0);
     CHECK(memcmp(&game::Leader(&game::world, 1),

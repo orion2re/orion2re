@@ -75,15 +75,15 @@ namespace ERICNET {
         int16_t colony_idx = MOX::NUM_COLONIES;
         MOX::NUM_COLONIES++;
 
-        s_colony& colony = MOX::colony[colony_idx];
-        memset(&colony, 0, sizeof(s_colony));
+        memset(&MOX::colony[colony_idx], 0, sizeof(s_colony));
 
         if (COLONY::debug_flag) {
-            RUSS::PFMT(0, 0, "INITING HOMEWORLD ph:%d pl:%d num:%d", planet_idx, (int)player_idx, (int)MOX::NUM_COLONIES);
+            RUSS::PFMT(0, 0, "INITING HOMEWORLD ph:%u pl:%d num:%d", planet_idx.id, (int)player_idx, (int)MOX::NUM_COLONIES);
             key::Wait_For_Key();
         }
 
         INITGAME::Init_Colony(world_state, colony_idx, legacy_world::Planet_Id(planet_idx), (uint8_t)player_idx);
+        s_colony& colony = MOX::colony[colony_idx];
         COLONY::Set_Colony_Globals(world_state, colony_idx);
 
         int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index;

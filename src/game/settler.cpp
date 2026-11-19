@@ -201,12 +201,12 @@ namespace SETTLER {
             return;
         }
 
-        if (EVENTS::Event_Check_Space_Anomaly(world_state, (int16_t)(source_colony - MOX::colony)) != 0) {
+        if (EVENTS::Event_Check_Space_Anomaly(world_state, MOX::colony.Position_Of(source_colony)) != 0) {
             result->source_space_anomaly = 1;
             return;
         }
 
-        if (EVENTS::Event_Check_Plague((int16_t)(source_colony - MOX::colony)) != 0) {
+        if (EVENTS::Event_Check_Plague(MOX::colony.Position_Of(source_colony)) != 0) {
             result->source_plague = 1;
             return;
         }
@@ -253,7 +253,7 @@ namespace SETTLER {
             result->dest_blockaded = 1;
         }
 
-        if (EVENTS::Event_Check_Space_Anomaly(world_state, (int16_t)(dest_colony - MOX::colony)) != 0) {
+        if (EVENTS::Event_Check_Space_Anomaly(world_state, MOX::colony.Position_Of(dest_colony)) != 0) {
             result->dest_space_anomaly = 1;
         }
 
@@ -279,7 +279,7 @@ namespace SETTLER {
                 Add_Settler_To_Colony(world_state, encoded_settler, dest_colony);
             } else {
                 encoded_settler.eta = static_cast<uint16_t>(Settler_ETA(owner_player, source_star_index, dest_star_index));
-                encoded_settler.source_colony = legacy_world::Colony_Id(static_cast<uint32_t>(source_colony - MOX::colony));
+                encoded_settler.source_colony = MOX::colony.Id_At(MOX::colony.Position_Of(source_colony));
                 encoded_settler.destination_planet = dest_colony->planet;
                 auto& records = world_state->settlers[legacy_world::Player_Id(static_cast<uint32_t>(source_colony->owner))];
                 records.push_back(encoded_settler);

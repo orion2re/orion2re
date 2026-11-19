@@ -795,7 +795,7 @@ namespace COLCALC {
             return;
         }
 
-        int16_t colony_idx = (int16_t)(colony - MOX::colony);
+        int16_t colony_idx = MOX::colony.Position_Of(colony);
         if (EVENTS::Event_Check_Space_Anomaly(world_state, colony_idx)) {
             for (int i = 0; i < COLONY_POP_RACE_COUNT; ++i) {
                 colony->pop_growth[i] = 0;
@@ -1134,7 +1134,7 @@ namespace COLCALC {
     }
 
     void __cdecl Colony_Industry_Maintenance(s_colony* colony) {
-        int16_t colony_idx = (int16_t)(((uintptr_t)colony - (uintptr_t)MOX::colony) / sizeof(s_colony));
+        int16_t colony_idx = MOX::colony.Position_Of(colony);
 
         if (EVENTS::Event_Check_Space_Anomaly(&::game::world, colony_idx) != 0) {
             colony->maintenance[ECON_INDUSTRY] = 0;
@@ -1236,7 +1236,7 @@ namespace COLCALC {
     }
 
     void __cdecl Colony_Food_Maintenance(s_colony* colony) {
-        int16_t colony_idx = (int16_t)(colony - MOX::colony);
+        int16_t colony_idx = MOX::colony.Position_Of(colony);
 
         if (EVENTS::Event_Check_Space_Anomaly(&::game::world, colony_idx) != 0) {
             colony->maintenance[ECON_FOOD] = 0;
@@ -1334,7 +1334,7 @@ namespace COLCALC {
         if (colony->n_pops == 0) {
             colony->maintenance[ECON_BC] = 0;
         } else {
-            int16_t colony_idx = (int16_t)(colony - MOX::colony);
+            int16_t colony_idx = MOX::colony.Position_Of(colony);
             if (EVENTS::Event_Check_Space_Anomaly(&::game::world, colony_idx) != 0) {
                 colony->maintenance[ECON_BC] = 0;
             } else {
@@ -1383,17 +1383,13 @@ namespace COLCALC {
     void __cdecl Do_Player_Colony_Calculations(int16_t player_idx) {
         RUSS::Mox_Update();
 
-        s_colony* colony = MOX::colony;
-        s_colony* end = &MOX::colony[MOX::NUM_COLONIES];
-
-        while (colony < end) {
+        for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
+            auto* colony = &MOX::colony[i];
             if (colony->owner == player_idx && colony->outpost_flag == 0) {
                 COLCALC::Pre_Import_Computing(colony);
                 RUSS::Mox_Update();
             }
 
-            colony++;
-            end = &MOX::colony[MOX::NUM_COLONIES];
         }
 
         COLCALC::Do_Player_Colony_Post_Production(player_idx);
@@ -1403,17 +1399,13 @@ namespace COLCALC {
     void __cdecl Do_Player_Colony_Post_Production(int16_t player_idx) {
         Pass_Out_Imports(player_idx, nullptr);
 
-        s_colony* colony = MOX::colony;
-        s_colony* end = &MOX::colony[MOX::NUM_COLONIES];
-
-        while (colony < end) {
+        for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
+            auto* colony = &MOX::colony[i];
             if (colony->owner == player_idx && colony->outpost_flag == 0) {
                 Post_Import_Computing(colony);
                 RUSS::Mox_Update();
             }
 
-            colony++;
-            end = &MOX::colony[MOX::NUM_COLONIES];
         }
 
         Update_Player_Stats(&game::world, &MOX::player[player_idx]);
@@ -2024,17 +2016,11 @@ namespace COLCALC {
 
     int16_t __cdecl Get_Player_Max_Population(int16_t player_idx) {
         int16_t total_max_pop = 0;
-        s_colony* colony = MOX::colony;
-
-        s_colony* end = &MOX::colony[MOX::NUM_COLONIES];
-
-        while (colony < end) {
+        for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
+            auto* colony = &MOX::colony[i];
             if (colony->owner == player_idx && colony->outpost_flag == 0) {
                 total_max_pop += Colony_Race_Pop_Limit(&::game::world, colony, player_idx);
             }
-            colony++;
-
-            end = &MOX::colony[MOX::NUM_COLONIES];
         }
 
         return total_max_pop;
@@ -2132,7 +2118,7 @@ namespace COLCALC {
     }
 
     void __cdecl Apply_Colony_Changes(s_colony* colony) {
-        const int16_t colony_idx = (int16_t)(colony - MOX::colony);
+        const int16_t colony_idx = MOX::colony.Position_Of(colony);
 
         if (EVENTS::Event_Check_Space_Anomaly(&::game::world, colony_idx) == 0) {
             if (colony->occupation_policy == 4) {
@@ -2153,7 +2139,7 @@ namespace COLCALC {
     }
 
     void __cdecl Apply_Colony_Pop_Growth(s_colony* colony) {
-        const int16_t colony_idx = (int16_t)(colony - MOX::colony);
+        const int16_t colony_idx = MOX::colony.Position_Of(colony);
 
         if (EVENTS::Event_Check_Space_Anomaly(&::game::world, colony_idx) != 0) {
             return;
@@ -2394,9 +2380,8 @@ namespace COLCALC {
                         } else if (owner_player->surplus_food == 0 && owner_player->traits[TRAIT_EATS_MINERALS] == 0) {
                             bool found_later_owned_colony = false;
 
-                            for (s_colony* scan = colony + 1;
-                                 scan < MOX::colony + MOX::NUM_COLONIES;
-                                 ++scan) {
+                            for (int16_t i = MOX::colony.Position_Of(colony) + 1; i < MOX::NUM_COLONIES; ++i) {
+                                const auto* scan = &MOX::colony[i];
                                 if (scan->owner == colony->owner && scan->outpost_flag == 0) {
                                     found_later_owned_colony = true;
                                     break;
@@ -2464,23 +2449,12 @@ namespace COLCALC {
     }
 
     void __cdecl Apply_All_Colony_Changes() {
-        s_colony* current = MOX::colony;
-        int16_t num_colonies = MOX::NUM_COLONIES;
-        if (num_colonies <= 0) {
-            return;
-        }
-
-        do {
+        for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
+            auto* current = &MOX::colony[i];
             if (current->owner != -1 && current->outpost_flag == 0) {
                 Apply_Colony_Changes(current);
             }
-
-            ++current;
-            num_colonies = MOX::NUM_COLONIES;
-            if (num_colonies <= 0) {
-                break;
-            }
-        } while (current < &MOX::colony[num_colonies]);
+        }
     }
 
     bool __cdecl May_Surrender_Star(::game::s_world_state* world_state, int16_t star_idx, int16_t player_idx, int16_t recipient_idx) {
@@ -2542,7 +2516,7 @@ namespace COLCALC {
         Colony_Environmental_Stuff(world_state, colony);
         invasion::Enforce_Population_Limits_At_Colony(colony);
 
-        int16_t colony_idx = (int16_t)(colony - MOX::colony);
+        int16_t colony_idx = MOX::colony.Position_Of(colony);
         COLBLDG::Clear_Colony_Queue(colony_idx);
         COLCALC::Colony_Calculation(colony_idx);
 
@@ -3535,7 +3509,7 @@ namespace COLCALC {
     }
 
     void __cdecl Apply_Assimilation(s_colony* colony) {
-        const int16_t colony_index = (int16_t)(colony - MOX::colony);
+        const int16_t colony_index = MOX::colony.Position_Of(colony);
         if (EVENTS::Event_Check_Space_Anomaly(&::game::world, colony_index) != 0) {
             return;
         }
@@ -3946,7 +3920,7 @@ namespace COLCALC {
         for (building_idx = 0; building_idx < BUILDING_COUNT; ++building_idx) {
             if (colony->buildings[building_idx] != 0) {
                 if (game_random::Random(10) == 1) {
-                    const int16_t colony_idx = (int16_t)(colony - MOX::colony);
+                    const int16_t colony_idx = MOX::colony.Position_Of(colony);
                     ERICNET::Remove_Building(&::game::world, colony_idx, static_cast<int16_t>(building_idx));
                 } else {
                     ++surviving_building_count;

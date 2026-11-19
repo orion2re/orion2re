@@ -713,7 +713,7 @@ namespace MAPGEN {
             std::map<game::id_planet, s_planet_data>* candidate_planets;
             s_star_data* stars = MOX::star;
             s_player* players = MOX::player;
-            s_colony* colonies = MOX::colony;
+            game::s_colony_slots colonies = MOX::colony;
             s_ship_data* ships = MOX::ship;
             game::s_world_state* world_state;
             std::map<game::id_leader, s_leader_data> leaders;
@@ -727,7 +727,7 @@ namespace MAPGEN {
             s_galaxy_candidate_scope(game::s_world_state* state, std::map<game::id_planet, s_planet_data>* staged_planets,
                 s_star_data* candidate_stars,
                 s_player* candidate_players,
-                s_colony* candidate_colonies,
+                game::s_colony_slots candidate_colonies,
                 s_ship_data* candidate_ships,
                 s_leader_data* candidate_leaders,
                 s_nebula* candidate_nebulas) : world_state(state), candidate_leaders(candidate_leaders) {
@@ -807,6 +807,7 @@ namespace MAPGEN {
                  colony_idx < MOX::NUM_COLONIES;
                  ++colony_idx) {
                 const s_colony& colony = MOX::colony[colony_idx];
+                if (colony.owner < 0 && colony.planet == game::NO_PLANET) continue;
                 if (colony.planet == ::game::NO_PLANET || (::game::Find_Planet(world_state, legacy_world::Planet_Id(colony.planet)) == nullptr) ||
                     colony.owner < 0 || colony.owner >= MOX::NUM_PLAYERS ||
                     ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony.planet))).colony_index != colony_idx) {
@@ -988,6 +989,7 @@ namespace MAPGEN {
                 if (game::Find_Planet(world_state, MOX::player[player_id].home_planet_id) == nullptr) return false;
             }
             for (int16_t colony_id = 0; colony_id < MOX::NUM_COLONIES; ++colony_id) {
+                if (MOX::colony[colony_id].owner < 0 && MOX::colony[colony_id].planet == game::NO_PLANET) continue;
                 if (game::Find_Planet(world_state, MOX::colony[colony_id].planet) == nullptr) return false;
             }
             for (const auto& [id, planet] : world_state->planets) {
@@ -1392,8 +1394,20 @@ namespace MAPGEN {
             MOX::star, MOX::star + MAX_STARS);
         std::vector<s_player> players(
             MOX::player, MOX::player + MAX_PLAYERS);
-        std::vector<s_colony> colonies(
-            MOX::colony, MOX::colony + MAX_COLONIES);
+        std::vector<s_colony> colonies;
+        game::s_world_state colony_candidate;
+        game::s_colony_slots staged_colonies(&colony_candidate);
+        if (MOX::colony.state != nullptr) {
+            const auto* live = MOX::colony.state;
+            colony_candidate.colonies = live->colonies;
+            colony_candidate.colony_order = live->colony_order;
+            colony_candidate.vacant_colony_positions = live->vacant_colony_positions;
+            colony_candidate.next_colony_id = live->next_colony_id;
+            colony_candidate.settlers = live->settlers;
+        } else {
+            colonies.assign(MOX::colony.fixture, MOX::colony.fixture + MAX_COLONIES);
+            staged_colonies = colonies.data();
+        }
         std::vector<s_ship_data> ships(
             MOX::ship, MOX::ship + MAX_SHIPS);
         std::vector<s_leader_data> leaders = game::Export_Leaders(world_state);
@@ -1427,7 +1441,7 @@ namespace MAPGEN {
             s_galaxy_candidate_scope scope(world_state, &planets,
                 stars.data(),
                 players.data(),
-                colonies.data(),
+                staged_colonies,
                 ships.data(),
                 leaders.data(),
                 nebulas.data());
@@ -1474,9 +1488,15 @@ namespace MAPGEN {
         world_state->planets = std::move(planets);
         memcpy(MOX::star, stars.data(), MAX_STARS * sizeof(s_star_data));
         memcpy(MOX::player, players.data(), MAX_PLAYERS * sizeof(s_player));
-        memcpy(MOX::colony,
-            colonies.data(),
-            MAX_COLONIES * sizeof(s_colony));
+        if (auto* live = MOX::colony.state) {
+            live->colonies = std::move(colony_candidate.colonies);
+            live->colony_order = colony_candidate.colony_order;
+            live->vacant_colony_positions = std::move(colony_candidate.vacant_colony_positions);
+            live->next_colony_id = colony_candidate.next_colony_id;
+            live->settlers = std::move(colony_candidate.settlers);
+        } else {
+            std::copy(colonies.begin(), colonies.end(), MOX::colony.fixture);
+        }
         memcpy(MOX::ship, ships.data(), MAX_SHIPS * sizeof(s_ship_data));
         game::Import_Leaders(world_state, leaders);
         memcpy(MOX::nebula,

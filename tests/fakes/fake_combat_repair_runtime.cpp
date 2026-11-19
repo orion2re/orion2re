@@ -483,7 +483,7 @@ namespace MOX {
     int16_t combat_far_y;
     int16_t last_ship_status;
     int16_t in_nebula_flag;
-    s_colony* colony = colonies;
+    game::s_colony_slots colony = colonies;
 
 }
 

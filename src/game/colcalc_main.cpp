@@ -1001,7 +1001,7 @@ namespace COLCALC {
             return;
         }
 
-        int16_t colony_idx = (int16_t)(colony - MOX::colony);
+        int16_t colony_idx = MOX::colony.Position_Of(colony);
         if (EVENTS::Event_Check_Space_Anomaly(world_state, colony_idx) != 0) {
             colony->production[ECON_BC] = 0;
             if (debug_buf) {
@@ -1167,7 +1167,7 @@ namespace COLCALC {
             return;
         }
 
-        int16_t colony_idx = (int16_t)(colony - MOX::colony);
+        int16_t colony_idx = MOX::colony.Position_Of(colony);
         if (EVENTS::Event_Check_Space_Anomaly(&::game::world, colony_idx) != 0) {
             colony->production[ECON_RESEARCH] = 0;
             if (debug_out != nullptr) {
@@ -1282,7 +1282,7 @@ namespace COLCALC {
             return;
         }
 
-        int16_t colony_idx = (int16_t)(colony - MOX::colony);
+        int16_t colony_idx = MOX::colony.Position_Of(colony);
         if (EVENTS::Event_Check_Space_Anomaly(&::game::world, colony_idx)) {
             colony->production[ECON_FOOD] = 0;
             if (debug_out) {
@@ -1411,7 +1411,7 @@ namespace COLCALC {
             return;
         }
 
-        int16_t colony_idx = (int16_t)(colony - MOX::colony);
+        int16_t colony_idx = MOX::colony.Position_Of(colony);
         if (EVENTS::Event_Check_Space_Anomaly(world_state, colony_idx)) {
             colony->production[ECON_INDUSTRY] = 0;
             colony->pollution = 0;

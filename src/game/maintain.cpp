@@ -359,7 +359,7 @@ namespace maintain {
                 no_more_buildings = true;
             } else {
                 int16_t scrap_value = (int16_t)(TECHDATA::buildings[best_building].cost / 2);
-                int16_t colony_idx = (int16_t)(best_colony - MOX::colony);
+                    int16_t colony_idx = MOX::colony.Position_Of(best_colony);
 
                 ERICNET::Remove_Building(&::game::world, colony_idx, (int16_t)best_building);
 

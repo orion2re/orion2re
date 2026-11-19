@@ -14,7 +14,7 @@ namespace {
     struct s_refit_runtime {
         game::s_view saved_world = game::current;
         s_player* saved_players = MOX::player;
-        s_colony* saved_colonies = MOX::colony;
+        game::s_colony_slots saved_colonies = MOX::colony;
         decltype(game::world.planets) saved_planets = game::world.planets;
         uint64_t saved_next_planet_id = game::world.next_planet_id;
         s_current_design* saved_design = MOX::design;

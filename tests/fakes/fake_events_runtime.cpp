@@ -101,7 +101,7 @@ namespace MOX {
     uint8_t auto_turn_exit;
     s_star_data* star = stars;
 
-    s_colony* colony = colonies;
+    game::s_colony_slots colony = colonies;
     s_player* player = players;
     s_ship_data* ship = ships;
     char* mineral_class_string[MINERAL_RESOURCE_COUNT];

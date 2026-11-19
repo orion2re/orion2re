@@ -14,7 +14,7 @@ namespace TEST_COLBLDG {
     }
 
     void Reset_() {
-        memset(MOX::colony, 0, sizeof(s_colony) * MAX_COLONIES);
+        MOX::colony.Reset();
         game::world.planets.clear();
         memset(MOX::player, 0, sizeof(s_player) * MAX_PLAYERS);
         memset(MOX::ship, 0, sizeof(s_ship_data) * MAX_SHIPS);

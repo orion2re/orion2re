@@ -55,7 +55,7 @@ namespace MOX {
     int16_t PLAYER_NUM;
     int16_t NUM_COLONIES;
     int16_t NUM_SHIPS;
-    s_colony* colony = colonies;
+    game::s_colony_slots colony = colonies;
 
     s_star_data* star = stars;
     s_ship_data* ship = ships;

@@ -49,7 +49,7 @@ namespace NEWGAME {
         struct_::Clear_Structure(MOX::star, MAX_STARS * sizeof(*MOX::star));
         world_state->planets.clear();
         world_state->next_planet_id = 0;
-        struct_::Clear_Structure(MOX::colony, MAX_COLONIES * sizeof(*MOX::colony));
+        MOX::colony.Reset();
         struct_::Clear_Structure(MOX::ship, MAX_SHIPS * sizeof(*MOX::ship));
         struct_::Clear_Structure(MOX::player, MAX_PLAYERS * sizeof(*MOX::player));
         game::Reset_Leaders(world_state);

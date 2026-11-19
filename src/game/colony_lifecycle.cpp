@@ -17,7 +17,7 @@ namespace BOMB {
 
         if (leader_idx != -1) {
             bool other_colony_found = false;
-            int16_t current_colony_idx = (int16_t)(colony - MOX::colony);
+        int16_t current_colony_idx = MOX::colony.Position_Of(colony);
 
             for (int32_t planet_slot_idx = 0; planet_slot_idx < 5; ++planet_slot_idx) {
                 ::game::id_planet p_idx = MOX::star[star_idx].planet_index[planet_slot_idx];
@@ -52,7 +52,7 @@ namespace BOMB {
 
         star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony->planet))).star_index;
         star = &MOX::star[star_idx];
-        colony_idx = (int16_t)(colony - MOX::colony);
+        colony_idx = MOX::colony.Position_Of(colony);
 
         EVENTS::Kill_All_Events_At_Colony(world_state, colony_idx);
 
@@ -82,6 +82,17 @@ namespace BOMB {
         colony->planet = ::game::NO_PLANET;
         colony->owner = -1;
 
+        if (MOX::colony.state != nullptr) {
+            const auto retired_id = MOX::colony.Id_At(colony_idx);
+            for (auto& [player, settlers] : world_state->settlers) {
+                for (auto& settler : settlers) {
+                    if (settler.source_colony == retired_id) settler.source_colony.reset();
+                }
+            }
+            const auto empty = *colony;
+            MOX::colony.Retire(colony_idx);
+            MOX::colony[colony_idx] = empty;
+        }
         COLCALC::Compute_Star_Colony_Stuff(world_state, star);
     }
 } // namespace BOMB

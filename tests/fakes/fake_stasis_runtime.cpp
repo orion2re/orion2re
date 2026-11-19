@@ -241,7 +241,7 @@ namespace TEST_FIGHTER_ORDNANCE {
 namespace MOX {
     s_combat_data* combat_data = ::combat_data;
     s_missile* missile = missiles;
-    s_colony* colony;
+    game::s_colony_slots colony;
     s_player* player = players;
     int16_t ordnance_bonus[15];
     int16_t fighter_beam_type[9];

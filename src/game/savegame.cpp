@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "colony_serialization.h"
 #include "planet_serialization.h"
 #include "record_serialization.h"
 #include "settler_serialization.h"
@@ -466,8 +467,7 @@ namespace SAVEGAME {
         void Write_Game_State(game::s_world_state* world_state, SERIAL::Writer_* writer, const s_settings* settings, uint32_t random_seed) {
             Write_Settings(writer, settings);
             writer->Write_Uint32(random_seed);
-            writer->Write_Int16(MOX::NUM_COLONIES);
-            for (int i = 0; i < MOX::NUM_COLONIES; ++i) Write_Colony(writer, &MOX::colony[i]);
+            Write_Ordered_Colonies(MOX::colony, writer, MOX::NUM_COLONIES);
             Write_Planets(world_state, writer);
             writer->Write_Int16(MOX::NUM_STARS);
             for (int i = 0; i < MOX::NUM_STARS; ++i) Write_Star(writer, &MOX::star[i]);
@@ -523,19 +523,7 @@ namespace SAVEGAME {
         bool Read_Game_State(game::s_world_state* world_state, SERIAL::Reader_* reader, uint16_t version, s_settings* settings, uint32_t* random_seed) {
             Read_Settings(reader, settings);
             *random_seed = reader->Read_Uint32();
-            MOX::NUM_COLONIES = reader->Read_Int16();
-            if (MOX::NUM_COLONIES < 0 || MOX::NUM_COLONIES > MAX_COLONIES) return false;
-            const int colony_record_count = version == LEGACY_VERSION ? ORIGINAL_MAX_COLONIES : MOX::NUM_COLONIES;
-            for (int i = 0; i < colony_record_count; ++i) {
-                Read_Colony(reader, &MOX::colony[i], version);
-                if (Is_Zeroed_Colony_Slot(MOX::colony[i])) {
-                    Initialize_Unused_Colony(&MOX::colony[i]);
-                }
-            }
-            for (int i = colony_record_count; i < MAX_COLONIES; ++i) {
-                Initialize_Unused_Colony(&MOX::colony[i]);
-            }
-            if (reader->Failed()) return false;
+            if (!Read_Ordered_Colonies(MOX::colony, reader, version, &MOX::NUM_COLONIES)) return false;
             if (version >= PLANET_ID_VERSION) {
                 if (!Read_Planets(world_state, reader)) return false;
             } else {

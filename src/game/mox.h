@@ -609,7 +609,7 @@ namespace MOX {
 
     extern s_skill_data skill_data[54];
 
-    extern s_colony* colony;
+    extern game::s_colony_slots colony;
 
     extern s_animation_header* darkened_turn_button_seg;
 

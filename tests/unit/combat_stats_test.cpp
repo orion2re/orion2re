@@ -209,7 +209,7 @@ namespace TEST_STRICT_COMBAT_SEQUENCE {
 
 namespace MOX {
     s_combat_data* combat_data = ::combat_data;
-    s_colony* colony = colonies;
+    game::s_colony_slots colony = colonies;
     s_missile* missile = missiles;
     s_planet_data* planet = planets;
     s_player* player = players;

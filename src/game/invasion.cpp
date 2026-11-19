@@ -210,13 +210,11 @@ namespace invasion {
     }
 
     void __cdecl Check_All_Rebellions() {
-        s_colony* colony = MOX::colony;
-
-        while (colony < MOX::colony + MOX::NUM_COLONIES) {
+        for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
+            auto* colony = &MOX::colony[i];
             if (colony->owner != -1 && colony->outpost_flag == 0) {
                 Check_Rebellion(colony);
             }
-            colony++;
         }
     }
 
@@ -412,7 +410,7 @@ namespace invasion {
         side_a->opponent_player_id = (int16_t)colony->owner;
         side_a->ship_list = nullptr;
         side_a->n_ships = 0;
-        side_a->colony_id = (int16_t)(colony - MOX::colony);
+        side_a->colony_id = MOX::colony.Position_Of(colony);
         side_a->unit_counts[3] = marines_count;
 
         memset(side_b, 0, sizeof(s_invasion_side_info));
@@ -421,7 +419,7 @@ namespace invasion {
         side_b->opponent_player_id = side_a->player_id;
         side_b->ship_list = nullptr;
         side_b->n_ships = 0;
-        side_b->colony_id = (int16_t)(colony - MOX::colony);
+        side_b->colony_id = MOX::colony.Position_Of(colony);
         side_b->unit_counts[0] = colony->military[1]; // Tanks
         side_b->unit_counts[1] = colony->military[0]; // Infantry
         side_b->unit_counts[2] = Colony_N_Militia(colony);
@@ -488,7 +486,7 @@ namespace invasion {
 
     void __cdecl Change_Colony_Ownership(s_colony* colony, uint32_t new_owner_idx, s_battle_results_info* results) {
         int8_t old_owner_idx = colony->owner;
-        int16_t colony_idx = (int16_t)(colony - MOX::colony);
+        int16_t colony_idx = MOX::colony.Position_Of(colony);
 
         // Increase war losses for the old owner against the new owner
         MOX::player[old_owner_idx].colony_war_losses[new_owner_idx] += 10;
@@ -770,7 +768,7 @@ namespace invasion {
 
         attacker_side->player_id = MOX::ship[ship_list[0]].owner;
         attacker_side->opponent_player_id = colony->owner;
-        attacker_side->colony_id = (int16_t)(colony - MOX::colony);
+        attacker_side->colony_id = MOX::colony.Position_Of(colony);
         attacker_side->ship_list = ship_list;
         attacker_side->n_ships = n_ships;
 
@@ -784,7 +782,7 @@ namespace invasion {
 
         defender_side->player_id = colony->owner;
         defender_side->opponent_player_id = attacker_side->player_id;
-        defender_side->colony_id = (int16_t)(colony - MOX::colony);
+        defender_side->colony_id = MOX::colony.Position_Of(colony);
         defender_side->ship_list = ship_list;
         defender_side->n_ships = n_ships;
 
@@ -855,7 +853,7 @@ namespace invasion {
         side_info->ship_list = nullptr;
         side_info->n_ships = 0;
 
-        side_info->colony_id = (int16_t)(colony - MOX::colony);
+        side_info->colony_id = MOX::colony.Position_Of(colony);
 
         side_info->unit_counts[0] = colony->military[1];
         side_info->unit_counts[1] = colony->military[0];

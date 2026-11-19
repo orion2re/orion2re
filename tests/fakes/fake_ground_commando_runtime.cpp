@@ -151,7 +151,7 @@ namespace buffer {
 
 namespace MOX {
     s_player* player = players;
-    s_colony* colony = colonies;
+    game::s_colony_slots colony = colonies;
     s_star_data* star = stars;
     void* global_cache_seg;
 

@@ -15,11 +15,23 @@ deletion, slot reuse, and compaction during generation are a different boundary.
 Two independently generated galaxies therefore must not be substituted for replay
 from the same saved starting state.
 
-The save comparator decodes both versions into a detached version-8 representation.
+The save comparator decodes both versions into detached comparison records.
 It does not load either save into the running game, change configuration or Lua
-state, consume RNG values, or remap IDs by matching planet properties.
+state, consume RNG values, or remap planet IDs by matching planet properties.
 
-It compares planet IDs, all planet fields, and their serialized references in
+Historical colony identities come from their occupied record positions; empty
+slots do not shift later IDs. Version 8 stores the colony ID at each processing
+position and the allocator's next ID. Processing positions are retained for
+legacy iteration order and are not identities. Version-8 saves written before
+the colony migration are not supported. In cross-version comparisons, colonies are paired
+by the exact ID of their planet. Their records, planet backlinks, live event
+targets and settler sources are then compared through that pairing. This only
+changes comparison, not save bytes or gameplay processing order. A different
+RNG state, colony state or reference is still a mismatch. In particular, an
+ID-keyed container must not silently change the iteration order of slot-ordered
+legacy rules that consume RNG or break ties by the first candidate.
+
+It compares planet IDs, all planet state, and their serialized references in
 colonies, stars, players, settlers, ships and events. Counts, allocator state,
 RNG state, other actor records, settings, turn globals and extension bytes remain
 checked. Version-7 allocator state is inferred as the planet record count.

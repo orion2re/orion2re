@@ -21,7 +21,7 @@ namespace test::fakes {
 namespace MOX {
     int16_t NUM_COLONIES = 0;
     int16_t NUM_SHIPS = 0;
-    s_colony* colony = colonies;
+    game::s_colony_slots colony = colonies;
 
     s_star_data* star = stars;
     s_ship_data* ship = ships;

@@ -1,4 +1,6 @@
 #include "pch.h"
+#include "colony_serialization.h"
+#include "savegame.h"
 #include "planet_serialization.h"
 
 #include "game/netproto.h"
@@ -32,6 +34,18 @@ namespace NETMOX {
     uint8_t next_update_player_counter;
 
     namespace {
+        void Write_Colony_Update(SERIAL::Writer_* writer, int16_t position) {
+            writer->Write_Uint32(MOX::colony.Id_At(position).id);
+            SAVEGAME::Write_Colony_Record(writer, &MOX::colony[position]);
+        }
+
+        void Read_Colony_Update(SERIAL::Reader_* reader, int16_t position) {
+            const game::id_colony id{reader->Read_Uint32()};
+            s_colony record{};
+            if (!SAVEGAME::Read_Colony_Record(reader, &record) || !MOX::colony.Install(position, id, record)) {
+                exitm::Exit_With_Message("invalid network colony update");
+            }
+        }
         uint32_t suspended_net_update_depth;
         uint8_t deassigned_leaders[MAX_LEADERS];
 
@@ -658,10 +672,7 @@ namespace NETMOX {
 
         SAVEGAME::Write_Planets(world_state, &writer);
 
-        writer.Write_Uint16((uint16_t)MOX::NUM_COLONIES);
-
-        size = MAX_COLONIES * sizeof(s_colony);
-        for (int32_t colony = 0; colony < MAX_COLONIES; ++colony) SAVEGAME::Write_Colony_Record(&writer, &MOX::colony[colony]);
+        SAVEGAME::Write_Ordered_Colonies(MOX::colony, &writer, MOX::NUM_COLONIES);
 
         writer.Write_Int16((int16_t)MOX::NUM_SHIPS);
 
@@ -867,13 +878,9 @@ namespace NETMOX {
 
         if (!SAVEGAME::Read_Planets(world_state, &reader)) exitm::Exit_With_Message("invalid broadcast planet identities");
 
-        MOX::NUM_COLONIES = reader.Read_Int16();
-
-        if (MOX::NUM_COLONIES < 0 || MOX::NUM_COLONIES > MAX_COLONIES) {
-            exitm::Exit_With_Message("invalid broadcast colony count");
+        if (!SAVEGAME::Read_Ordered_Colonies(MOX::colony, &reader, SAVEGAME::CURRENT_VERSION, &MOX::NUM_COLONIES)) {
+            exitm::Exit_With_Message("invalid broadcast colony identities");
         }
-
-        for (int32_t colony = 0; colony < MAX_COLONIES; ++colony) { if (!SAVEGAME::Read_Colony_Record(&reader, &MOX::colony[colony])) exitm::Exit_With_Message("invalid colony record"); }
 
         MOX::NUM_SHIPS = reader.Read_Int16();
 
@@ -1291,7 +1298,7 @@ namespace NETMOX {
             for (int16_t i = 0; i < (int16_t)MOX::NUM_COLONIES; ++i) {
                 if (MOX::colony[i].owner == MOX::PLAYER_NUM) {
                     writer.Write_Int16(i);
-                    SAVEGAME::Write_Colony_Record(&writer, &MOX::colony[i]);
+                    Write_Colony_Update(&writer, i);
                 }
             }
         }
@@ -1741,7 +1748,7 @@ namespace NETMOX {
                 break;
             }
 
-            if (!SAVEGAME::Read_Colony_Record(&reader, &MOX::colony[colony_idx])) exitm::Exit_With_Message("invalid colony record");
+            Read_Colony_Update(&reader, colony_idx);
 
             ::game::id_planet planet_idx = MOX::colony[colony_idx].planet;
             if (::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index != colony_idx) {
@@ -1961,16 +1968,17 @@ namespace NETMOX {
                     ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).climate = p_climate;
 
                     // Clear out existing colony mapping
-                    if (::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index != -1) {
-                        MOX::colony[::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index].owner = -1;
-                        MOX::colony[::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index].planet = ::game::NO_PLANET;
+                    if (dummy_col_idx >= 0 && dummy_col_idx != real_col_idx) {
+                        MOX::colony.Retire(dummy_col_idx);
+                        MOX::colony[dummy_col_idx].owner = -1;
+                        MOX::colony[dummy_col_idx].planet = game::NO_PLANET;
                     }
 
                     ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index = real_col_idx;
 
                     // Copy actual colony structure if a colony exists
                     if (::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index != -1) {
-                        if (!SAVEGAME::Read_Colony_Record(&reader, &MOX::colony[::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index])) exitm::Exit_With_Message("invalid colony record");
+                        Read_Colony_Update(&reader, real_col_idx);
                     }
                 }
             }
@@ -2080,7 +2088,7 @@ namespace NETMOX {
                 ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).planet_type = p_type;
                 ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).climate = p_climate;
 
-                if (!SAVEGAME::Read_Colony_Record(&reader, &MOX::colony[target_colony_id])) exitm::Exit_With_Message("invalid colony record");
+                Read_Colony_Update(&reader, target_colony_id);
             }
 
             // 6. Read Ships
@@ -2207,7 +2215,7 @@ namespace NETMOX {
                             BOMB::Destroy_Colony(world_state, &MOX::colony[old_colony_index], 1);
                         }
                     } else {
-                        if (!SAVEGAME::Read_Colony_Record(&reader, &MOX::colony[actual_col_idx])) exitm::Exit_With_Message("invalid colony record");
+                        Read_Colony_Update(&reader, actual_col_idx);
                         COLCALC::Compute_Star_Colony_Stuff(world_state, &MOX::star[combat_star_id]);
                     }
                 }
@@ -2358,7 +2366,7 @@ namespace NETMOX {
                 writer.Write_Int16(colony_idx);
 
                 if (colony_idx != -1) {
-                    SAVEGAME::Write_Colony_Record(&writer, &MOX::colony[colony_idx]);
+                    Write_Colony_Update(&writer, colony_idx);
                 }
             }
 
@@ -2450,7 +2458,7 @@ namespace NETMOX {
                 writer.Write_Int16(::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index);
                 writer.Write_Int8(::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).planet_type);
                 writer.Write_Char(::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).climate);
-                SAVEGAME::Write_Colony_Record(&writer, &MOX::colony[colony_idx]);
+                Write_Colony_Update(&writer, colony_idx);
             }
 
             RUSS::Mox_Update();
@@ -2530,7 +2538,7 @@ namespace NETMOX {
                     writer.Write_Int16(::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index);
 
                     if (::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index != -1) {
-                        SAVEGAME::Write_Colony_Record(&writer, &MOX::colony[::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).colony_index]);
+                        Write_Colony_Update(&writer, game::Planet(world_state, planet_idx).colony_index);
                     }
                 }
             }

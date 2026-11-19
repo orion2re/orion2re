@@ -71,7 +71,7 @@ namespace TEST_ORBITAL_DEFENSE {
     void Reset_(int16_t preferred, bool large_ships) {
         memset(MOX::ship, 0, sizeof(s_ship_data) * MAX_SHIPS);
         memset(MOX::ship_node, 0xff, sizeof(MOX::ship_node));
-        memset(MOX::colony, 0, sizeof(s_colony) * 2);
+        memset(MOX::colony.fixture, 0, sizeof(s_colony) * 2);
         game::world.planets.clear();
         game::world.next_planet_id = 0;
         test::Resize_Planets(&game::world, 2);

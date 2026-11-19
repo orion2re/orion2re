@@ -27,7 +27,7 @@ namespace TEST_SETTLER {
 
 namespace MOX {
     int16_t NUM_PLAYERS;
-    s_colony* colony = colonies;
+    game::s_colony_slots colony = colonies;
 
     s_player* player = players;
     s_star_data* star = stars;

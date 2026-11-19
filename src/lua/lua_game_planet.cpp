@@ -145,21 +145,19 @@ namespace orion2re::lua::game::internal {
                 MOX::colony[colony_id].officer = -1;
             }
             ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_id))).colony_index = -1;
-            const std::int16_t last_id = --MOX::NUM_COLONIES;
-            if (colony_id != last_id) {
-                MOX::colony[colony_id] = MOX::colony[last_id];
-                const auto moved_planet =
-                    MOX::colony[colony_id].planet;
-                if (moved_planet == ::game::NO_PLANET || (::game::Find_Planet(world_state, legacy_world::Planet_Id(moved_planet)) == nullptr) ||
-                    ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(moved_planet))).colony_index != last_id) {
-                    return false;
+            if (MOX::colony.state != nullptr) {
+                const auto retired_id = MOX::colony.Id_At(colony_id);
+                MOX::colony.Retire(colony_id);
+                for (auto& [player, settlers] : MOX::colony.state->settlers) {
+                    for (auto& settler : settlers) {
+                        if (settler.source_colony == retired_id) settler.source_colony.reset();
+                    }
                 }
-                ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(moved_planet))).colony_index = colony_id;
             }
-            memset(&MOX::colony[last_id], 0, sizeof(s_colony));
-            MOX::colony[last_id].planet = ::game::NO_PLANET;
-            MOX::colony[last_id].owner = -1;
-            MOX::colony[last_id].officer = -1;
+            MOX::colony[colony_id] = {.owner = -1, .allocated_to = -1, .planet = ::game::NO_PLANET, .officer = -1};
+            while (MOX::NUM_COLONIES > 0 && MOX::colony[MOX::NUM_COLONIES - 1].planet == ::game::NO_PLANET) {
+                --MOX::NUM_COLONIES;
+            }
             return true;
         }
 

@@ -731,27 +731,11 @@ namespace COMBFIND {
 
     s_colony* __cdecl Free_Colony_Slot() {
         int16_t i = 0;
-        s_colony* col = MOX::colony;
-
-        if (i < MOX::NUM_COLONIES) {
-            do {
-                // Check if the colony slot is empty
-                if (col->planet == ::game::NO_PLANET) {
-                    break;
-                }
-                i++;
-                col++;
-            } while (i < MOX::NUM_COLONIES);
-
-            // Found a free slot within the existing array bounds
-            if (i < MOX::NUM_COLONIES) {
-                return col;
-            }
-        }
-
-        // No free slot found; expand the colony count and return the next slot
-        MOX::NUM_COLONIES = i + 1;
-        return col;
+        while (i < MOX::NUM_COLONIES && MOX::colony[i].planet != game::NO_PLANET) ++i;
+        if (i == MAX_COLONIES) return nullptr;
+        if (!MOX::colony.Activate(i)) return nullptr;
+        if (i == MOX::NUM_COLONIES) ++MOX::NUM_COLONIES;
+        return &MOX::colony[i];
     }
 
     void __cdecl Do_System_Discoveries_At_Star(::game::s_world_state* world_state, s_star_data* star) {
@@ -798,8 +782,9 @@ namespace COMBFIND {
                         star->system_special = player_idx + 70;
                         (*star_has_player)[star_idx][player_idx].colony_count = 1;
                         colony = Free_Colony_Slot();
+                        if (colony == nullptr) return;
                         planet_idx = Find_Planet_At_Star_Satisfying(world_state, star, Planet_Has_Splinter_Colony);
-                        INITGAME::Init_Colony(world_state, (int16_t)(colony - MOX::colony), legacy_world::Planet_Id(planet_idx), (uint8_t)player_idx);
+            INITGAME::Init_Colony(world_state, MOX::colony.Position_Of(colony), legacy_world::Planet_Id(planet_idx), (uint8_t)player_idx);
 
                         limit = COLCALC::Colony_Race_Pop_Limit(world_state, colony, player_idx);
                         colony->n_pops = (uint8_t)limit;
@@ -833,7 +818,7 @@ namespace COMBFIND {
                         }
 
                         COLCALC::Compute_Star_Colony_Stuff(world_state, star);
-                        COLCALC::Colony_Calculation((int16_t)(colony - MOX::colony));
+            COLCALC::Colony_Calculation(MOX::colony.Position_Of(colony));
                         colony->just_produced = COLONY_PRODUCTION_JUST_COLONIZED;
                         break;
 

@@ -171,7 +171,7 @@ namespace MOX {
     uint16_t FULL_DRAW_SCREEN_FLAG;
     uint8_t dont_draw_main_screen_to_back;
     s_player* player = test_eric_runtime::players;
-    s_colony* colony = test_eric_runtime::colonies;
+    game::s_colony_slots colony = test_eric_runtime::colonies;
 
     s_ship_data* ship = test_eric_runtime::ships;
 }

@@ -2,6 +2,7 @@
 
 #include "turn_oracle_save.h"
 #include "turn_oracle_history.h"
+#include "colony_serialization.h"
 #include "planet_serialization.h"
 #include "record_serialization.h"
 #include "save_sections.h"
@@ -62,7 +63,50 @@ namespace turn_oracle {
             return monster && event.status != 1 && (event.status == 4 || event.max_amount != -1);
         }
 
-        bool Decode(const std::vector<uint8_t>& bytes, s_decoded_save* save, std::string* error) {
+        bool Colony_Event(int type) {
+            return type == EVENT_COMET || type == EVENT_EARTHQUAKE ||
+                type == EVENT_PLAGUE || type == EVENT_POPULATION_BOOM;
+        }
+
+        struct s_colony_comparison {
+            // The dense ranks exist only in detached comparison bytes. They are
+            // not saved, used to allocate IDs, or used to order gameplay.
+            std::map<game::id_colony, int16_t> rank_by_id;
+
+            std::optional<int16_t> Rank(game::id_colony id) const {
+                const auto found = rank_by_id.find(id);
+                if (found == rank_by_id.end()) return std::nullopt;
+                return found->second;
+            }
+        };
+
+        bool Encode_Colonies_For_Comparison(s_decoded_save* save,
+            const std::map<game::id_colony, s_colony>& colonies,
+            s_colony_comparison* comparison, std::string* error) {
+            std::map<game::id_planet, game::id_colony> ordered;
+            for (const auto& [id, colony] : colonies) {
+                if (colony.owner < 0 || colony.planet == game::NO_PLANET) continue;
+                if (!ordered.emplace(colony.planet, id).second) {
+                    *error = "multiple colonies on planet[" + std::to_string(colony.planet.id) + "]";
+                    return false;
+                }
+            }
+            Encode(save, "colony count", [&ordered](SERIAL::Writer_* writer) {
+                writer->Write_Uint16(static_cast<uint16_t>(ordered.size()));
+            });
+            int16_t rank = 0;
+            for (const auto& [planet, id] : ordered) {
+                comparison->rank_by_id.emplace(id, rank++);
+                const auto& colony = colonies.at(id);
+                Encode(save, "colony on planet[" + std::to_string(planet.id) + "]", [&colony](SERIAL::Writer_* writer) {
+                    SAVEGAME::records::Write_Colony(writer, &colony);
+                });
+            }
+            return true;
+        }
+
+        bool Decode(const std::vector<uint8_t>& bytes, bool compare_colony_states,
+            s_decoded_save* save, std::string* error) {
             if (bytes.size() < HEADER_SIZE || bytes.size() > SAVEGAME::BUFFER_CAPACITY) {
                 *error = "invalid save size";
                 return false;
@@ -84,16 +128,26 @@ namespace turn_oracle {
             save->parts.back().bytes[47] = 0;
             if (!Opaque(&reader, save, "settings and random seed", SETTINGS_SIZE + 4)) return false;
 
-            uint16_t colonies = 0;
-            if (!Count(&reader, save, "colony count", MAX_COLONIES, &colonies)) return false;
-            for (uint16_t position = 0; position < colonies; ++position) {
-                s_colony colony{};
-                SAVEGAME::records::Read_Colony(&reader, &colony, version);
-                if (reader.Failed()) return false;
-                Encode(save, "colony[" + std::to_string(position) + "]", [&colony](SERIAL::Writer_* writer) { SAVEGAME::records::Write_Colony(writer, &colony); });
+            game::s_world_state world;
+            const game::s_colony_slots colony_slots(&world);
+            int16_t colony_extent = 0;
+            if (!SAVEGAME::Read_Ordered_Colonies(colony_slots, &reader, version, &colony_extent)) return false;
+            s_colony_comparison colony_comparison;
+            if (compare_colony_states) {
+                if (!Encode_Colonies_For_Comparison(save, world.colonies, &colony_comparison, error)) return false;
+            } else {
+                Encode(save, "colony order header", [&](SERIAL::Writer_* writer) {
+                    writer->Write_Int16(colony_extent);
+                    writer->Write_Uint64(world.next_colony_id);
+                });
+                for (int16_t position = 0; position < colony_extent; ++position) {
+                    Encode(save, "colony[" + std::to_string(position) + "]", [&](SERIAL::Writer_* writer) {
+                        writer->Write_Uint32(colony_slots.Id_At(position).id);
+                        SAVEGAME::records::Write_Colony(writer, &colony_slots[position]);
+                    });
+                }
             }
 
-            game::s_world_state world;
             if (version == 8) {
                 if (!SAVEGAME::Read_Planets(&world, &reader)) return false;
             } else {
@@ -113,9 +167,18 @@ namespace turn_oracle {
             });
             for (const auto& [id, planet] : world.planets) {
                 save->summary.planets.push_back({id, planet.star_index, planet.orbit});
-                Encode(save, "planet[" + std::to_string(id.id) + "]", [id, &planet](SERIAL::Writer_* writer) {
+                s_planet_data record = planet;
+                if (compare_colony_states && planet.colony_index != -1) {
+                    const auto rank = colony_comparison.Rank(colony_slots.Id_At(planet.colony_index));
+                    if (!rank) {
+                        *error = "planet[" + std::to_string(id.id) + "].colony_index points to a missing colony";
+                        return false;
+                    }
+                    record.colony_index = *rank;
+                }
+                Encode(save, "planet[" + std::to_string(id.id) + "]", [id, &record](SERIAL::Writer_* writer) {
                     writer->Write_Uint32(id.id);
-                    SAVEGAME::records::Write_Planet(writer, &planet);
+                    SAVEGAME::records::Write_Planet(writer, &record);
                 });
             }
 
@@ -179,6 +242,19 @@ namespace turn_oracle {
                     event.target_id = -1;
                 }
                 if (reader.Failed()) return false;
+                if (compare_colony_states && Colony_Event(type)) {
+                    if (event.status == 0 || event.status == 3) {
+                        // An unstarted or expired event has no live target.
+                        event.target_id = -1;
+                    } else if (event.target_id >= 0) {
+                        const auto rank = colony_comparison.Rank(colony_slots.Id_At(event.target_id));
+                        if (!rank) {
+                            *error = "event[" + std::to_string(type) + "] points to a missing colony";
+                            return false;
+                        }
+                        event.target_id = *rank;
+                    }
+                }
                 Encode(save, "event[" + std::to_string(type) + "]", [&event](SERIAL::Writer_* writer) {
                     writer->Write_Int8(event.player_idx);
                     writer->Write_Int8(event.status);
@@ -210,6 +286,17 @@ namespace turn_oracle {
             for (uint32_t player = 0; player < MAX_PLAYERS; ++player) {
                 const auto id = game::id_player{player};
                 if (world.settlers[id].size() != static_cast<size_t>(players[player].settlers_freighted)) return false;
+                if (compare_colony_states) {
+                    for (auto& settler : world.settlers[id]) {
+                        if (!settler.source_colony) continue;
+                        const auto rank = colony_comparison.Rank(*settler.source_colony);
+                        if (!rank) {
+                            *error = "player[" + std::to_string(player) + "] has a settler with a missing source colony";
+                            return false;
+                        }
+                        settler.source_colony = game::id_colony{static_cast<uint32_t>(*rank)};
+                    }
+                }
                 Encode(save, "player[" + std::to_string(player) + "]", [&](SERIAL::Writer_* writer) { SAVEGAME::records::Write_Player(&world, writer, &players[player], id); });
                 save->parts[player_part + player] = std::move(save->parts.back());
                 save->parts.pop_back();
@@ -229,9 +316,10 @@ namespace turn_oracle {
             return true;
         }
 
-        bool Decode_Checked(const std::vector<uint8_t>& bytes, s_decoded_save* save, std::string* error) {
+        bool Decode_Checked(const std::vector<uint8_t>& bytes, bool compare_colony_states,
+            s_decoded_save* save, std::string* error) {
             error->clear();
-            if (Decode(bytes, save, error)) return true;
+            if (Decode(bytes, compare_colony_states, save, error)) return true;
             if (error->empty()) *error = "invalid or truncated oracle save";
             return false;
         }
@@ -242,7 +330,7 @@ namespace turn_oracle {
         normalized->clear();
         if (summary != nullptr) *summary = {};
         s_decoded_save save;
-        if (!Decode_Checked(bytes, &save, error)) return false;
+        if (!Decode_Checked(bytes, false, &save, error)) return false;
         if (save.summary.version == 8) {
             *normalized = bytes;
         } else {
@@ -258,13 +346,15 @@ namespace turn_oracle {
         std::vector<uint8_t> expected_bytes;
         std::vector<uint8_t> actual_bytes;
         if (!Read_File(canonical, &expected_bytes, error) || !Read_File(actual, &actual_bytes, error)) return false;
+        const bool cross_version = expected_bytes.size() >= HEADER_SIZE && actual_bytes.size() >= HEADER_SIZE &&
+            expected_bytes[46] != actual_bytes[46];
         s_decoded_save expected;
         s_decoded_save received;
-        if (!Decode_Checked(expected_bytes, &expected, error)) {
+        if (!Decode_Checked(expected_bytes, cross_version, &expected, error)) {
             *error = canonical.string() + ": " + *error;
             return false;
         }
-        if (!Decode_Checked(actual_bytes, &received, error)) {
+        if (!Decode_Checked(actual_bytes, cross_version, &received, error)) {
             *error = actual.string() + ": " + *error;
             return false;
         }

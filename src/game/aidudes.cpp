@@ -13,13 +13,11 @@ namespace aidudes {
             }
         }
 
-        s_colony* col = world->colonies;
-        s_colony* end = world->colonies + world->Colony_Count();
-        while (col < end) {
+        for (int32_t i = 0; i < world->Colony_Count(); ++i) {
+            auto* col = &world->colonies[i];
             if (col->producing[0] == COLONY_PRODUCTION_AI_TRADE_GOODS) {
                 col->producing[0] = COLONY_PRODUCTION_TRADE_GOODS;
             }
-            ++col;
         }
     }
 
@@ -267,7 +265,7 @@ namespace aidudes {
     }
 
     int __cdecl Sort_Colonies_Blockaded(void* context, const void* a, const void* b) {
-        auto* colonies = static_cast<s_colony*>(context);
+        const auto& colonies = *static_cast<const game::s_colony_slots*>(context);
         const auto* info1 = static_cast<const AIDATA::s_colony_assignment*>(a);
         const auto* info2 = static_cast<const AIDATA::s_colony_assignment*>(b);
 
@@ -301,7 +299,8 @@ namespace aidudes {
             }
         }
 
-        qsort(ctx->work->colonies.data(), ctx->work->colonies.size(), sizeof(AIDATA::s_colony_assignment), Sort_Colonies_Blockaded, world->colonies);
+        auto colonies = world->colonies;
+        qsort(ctx->work->colonies.data(), ctx->work->colonies.size(), sizeof(AIDATA::s_colony_assignment), Sort_Colonies_Blockaded, &colonies);
 
     }
 

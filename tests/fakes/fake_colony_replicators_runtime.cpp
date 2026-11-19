@@ -3,7 +3,7 @@
 
 namespace TEST_COLONY_REPLICATORS {
     void Reset_() {
-        memset(MOX::colony, 0, sizeof(s_colony) * MAX_COLONIES);
+        MOX::colony.Reset();
         memset(TECHDATA::buildings, 0, sizeof(TECHDATA::buildings));
         TECHDATA::buildings[BUILDING_AUTOMATED_FACTORY].maintenance = 2;
         COLCALC::replicator_food_pp = 2;
@@ -21,10 +21,10 @@ namespace TEST_COLONY_REPLICATORS {
 namespace TEST_GOVERNMENT_BONUS {
     void Reset_() {
         s_player* players = MOX::player;
-        s_colony* colonies = MOX::colony;
+        const auto colonies = MOX::colony;
         s_star_data* stars = MOX::star;
         memset(players, 0, sizeof(s_player) * MAX_PLAYERS);
-        memset(colonies, 0, sizeof(s_colony) * MAX_COLONIES);
+        colonies.Reset();
         game::world.planets.clear();
         game::world.next_planet_id = 0;
         memset(stars, 0, sizeof(s_star_data) * (MAX_STARS + 1));
@@ -55,7 +55,7 @@ namespace TEST_GOVERNMENT_BONUS {
 
     void Cleanup_() {
         memset(MOX::player, 0, sizeof(s_player) * MAX_PLAYERS);
-        memset(MOX::colony, 0, sizeof(s_colony) * MAX_COLONIES);
+        MOX::colony.Reset();
         game::world.planets.clear();
         memset(MOX::star, 0, sizeof(s_star_data) * (MAX_STARS + 1));
         COLCALC::minerals_per_mine[0] = 0;

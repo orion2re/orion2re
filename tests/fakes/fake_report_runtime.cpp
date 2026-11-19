@@ -148,7 +148,7 @@ namespace MOX {
     int16_t return_screen;
     int16_t screen_data;
     uint16_t global_esc;
-    s_colony* colony = colonies;
+    game::s_colony_slots colony = colonies;
 
     s_player* player = players;
     s_ship_data* ship = ships;

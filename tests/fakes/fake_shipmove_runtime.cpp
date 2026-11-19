@@ -87,7 +87,7 @@ namespace game_random {
 
 namespace MOX {
     int16_t NUM_COLONIES;
-    s_colony* colony = colonies;
+    game::s_colony_slots colony = colonies;
     s_antaran antarans;
     int8_t game_type;
     int16_t NUM_PLAYERS;

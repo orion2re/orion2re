@@ -12,7 +12,7 @@ namespace {
 namespace MOX {
     s_animation_header* screen_seg;
     s_player* player = players;
-    s_colony* colony;
+    game::s_colony_slots colony;
     int16_t NUM_PLAYERS;
     int16_t NUM_COLONIES;
     int32_t stardate;

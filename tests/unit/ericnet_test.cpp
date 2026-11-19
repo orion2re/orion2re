@@ -31,7 +31,7 @@ namespace {
     };
 
     void Reset_Colony_() {
-        memset(MOX::colony, 0, sizeof(s_colony) * 2);
+        memset(MOX::colony.fixture, 0, sizeof(s_colony) * 2);
         game::world.planets.clear();
         game::world.next_planet_id = 0;
         test::Resize_Planets(&game::world, 2);

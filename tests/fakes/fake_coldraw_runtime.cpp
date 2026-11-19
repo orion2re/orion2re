@@ -33,7 +33,7 @@ namespace TEST_COLDRAW {
 }
 
 namespace MOX {
-    s_colony* colony = colonies;
+    game::s_colony_slots colony = colonies;
 }
 
 namespace COLONY {

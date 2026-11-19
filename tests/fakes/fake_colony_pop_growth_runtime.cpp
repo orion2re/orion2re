@@ -242,7 +242,7 @@ namespace MOX {
     int16_t NUM_SHIPS = 1;
     int32_t stardate = 35000;
     char* race_names[20];
-    s_colony* colony = colonies;
+    game::s_colony_slots colony = colonies;
 
     s_player* player = players;
     s_star_data* star = stars;
@@ -444,7 +444,7 @@ namespace INITSHIP {
 
 namespace COLCALC {
     void __cdecl Twiddle_Initial_Homeworld(game::s_world_state* world_state, s_colony* colony) {
-        TEST_COLONY_POP_GROWTH::services.homeworlds.push_back((int16_t)(colony - MOX::colony));
+        TEST_COLONY_POP_GROWTH::services.homeworlds.push_back(MOX::colony.Position_Of(colony));
     }
 
     void __cdecl Compute_Player_Maintenance(game::s_world_state* world_state, s_player* player, STRBUILD::s_builder* builder) {
@@ -476,7 +476,7 @@ namespace COLCALC {
 
     void __cdecl Colony_Industry_Production(game::s_world_state* world_state, s_colony* colony, STRBUILD::s_builder* builder) {
         if (builder != nullptr) {
-            TEST_COLONY_POP_GROWTH::services.industry_summary_colony = (int16_t)(colony - MOX::colony);
+        TEST_COLONY_POP_GROWTH::services.industry_summary_colony = MOX::colony.Position_Of(colony);
             STRBUILD::Cat(builder, "Industry detail");
         }
     }
@@ -489,7 +489,7 @@ namespace COLCALC {
 
     void __cdecl Colony_Research_Production(s_colony* colony, STRBUILD::s_builder* builder) {
         if (builder != nullptr) {
-            TEST_COLONY_POP_GROWTH::services.research_summary_colony = (int16_t)(colony - MOX::colony);
+        TEST_COLONY_POP_GROWTH::services.research_summary_colony = MOX::colony.Position_Of(colony);
             STRBUILD::Cat(builder, "Research detail");
         }
     }
@@ -590,7 +590,7 @@ namespace diplomac {
 
 namespace invasion {
     void __cdecl Enforce_Population_Limits_At_Colony(s_colony* colony) {
-        TEST_COLONY_POP_GROWTH::services.population_limits.push_back((int16_t)(colony - MOX::colony));
+        TEST_COLONY_POP_GROWTH::services.population_limits.push_back(MOX::colony.Position_Of(colony));
     }
 }
 

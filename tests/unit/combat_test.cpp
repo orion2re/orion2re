@@ -96,7 +96,7 @@ namespace MOX {
     s_animation_header* screen_seg;
     s_player* player = players;
     s_ship_data* ship = ships;
-    s_colony* colony = colonies;
+    game::s_colony_slots colony = colonies;
     s_qship* qcombat_data = ::qcombat_data;
     s_combat_data* combat_data;
     s_missile* missile;

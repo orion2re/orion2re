@@ -723,7 +723,7 @@ namespace MOX {
         {53, 0x8000, 1, 75, 1, 6, nullptr, "+%d"},
     };
 
-    s_colony* colony;
+    game::s_colony_slots colony{&game::world};
 
     s_animation_header* darkened_turn_button_seg;
 

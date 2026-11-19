@@ -15,7 +15,7 @@ namespace {
         s_star_data* stars = MOX::star;
         std::map<game::id_planet, s_planet_data> planets = game::world.planets;
         uint64_t next_planet_id = game::world.next_planet_id;
-        s_colony* colonies = MOX::colony;
+        game::s_colony_slots colonies = MOX::colony;
         int16_t player_count = MOX::NUM_PLAYERS;
         int16_t ship_count = MOX::NUM_SHIPS;
         int16_t star_count = MOX::NUM_STARS;

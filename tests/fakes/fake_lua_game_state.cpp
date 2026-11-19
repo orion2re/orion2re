@@ -130,7 +130,7 @@ namespace MOX {
     s_ship_data* ship = ships;
     s_star_data* star = systems;
 
-    s_colony* colony = colonies;
+    game::s_colony_slots colony = colonies;
     s_nebula* nebula = nebulas;
     uint8_t NUM_NEBULAS;
     int16_t MAP_MAX_X = 506;

@@ -12,6 +12,21 @@ namespace TEST_COLONIZE {
     void Reset_();
 }
 
+DOCTEST_TEST_CASE("colony reservation priority is round-robin rather than player or ID order") {
+    constexpr int16_t demand[] = {2, 0, 1, 2, 1};
+    std::array<int16_t, 8> reserved;
+    reserved.fill(-1);
+    const size_t count = COLONIZE::Plan_Colony_Reservations(demand, 2, reserved);
+    DOCTEST_CHECK(count == 6);
+    const std::array<int16_t, 8> expected{2, 3, 4, 0, 3, 0, -1, -1};
+    DOCTEST_CHECK(reserved == expected);
+
+    std::array<int16_t, 3> limited;
+    DOCTEST_CHECK(COLONIZE::Plan_Colony_Reservations(demand, 2, limited) == limited.size());
+    const std::array<int16_t, 3> expected_limited{2, 3, 4};
+    DOCTEST_CHECK(limited == expected_limited);
+}
+
 DOCTEST_TEST_CASE("same-owner outpost ship does not suppress colony ship priority") {
     TEST_COLONIZE::Reset_();
 

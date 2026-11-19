@@ -52,9 +52,8 @@ namespace AIMOVE {
 
         std::optional<AIDATA::s_route> best;
 
-        s_colony* colony_ptr = world->colonies;
-        if (colony_ptr < world->colonies + world->Colony_Count()) {
-            do {
+        for (int32_t i = 0; i < world->Colony_Count(); ++i) {
+            const auto* colony_ptr = &world->colonies[i];
                 if (colony_ptr->owner == i_ai) {
                     int16_t current_star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony_ptr->planet))).star_index;
 
@@ -78,8 +77,6 @@ namespace AIMOVE {
                         }
                     }
                 }
-                colony_ptr++;
-            } while (colony_ptr < world->colonies + world->Colony_Count());
         }
 
         return best;

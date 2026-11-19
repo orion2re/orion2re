@@ -19,7 +19,7 @@ namespace game {
         s_player* players = nullptr;
         s_ship_data* ships = nullptr;
         s_star_data* stars = nullptr;
-        s_colony* colonies = nullptr;
+        s_colony_slots colonies;
         s_world_state* state = nullptr;
         const s_settings* settings = nullptr;
         const int16_t* player_count = nullptr;

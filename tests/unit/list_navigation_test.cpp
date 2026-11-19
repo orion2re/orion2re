@@ -11,7 +11,7 @@ namespace {
         int16_t colony_list[MAX_COLONIES];
         std::vector<s_field> field_storage = std::vector<s_field>(250);
         s_animation_header animation = {};
-        s_colony* saved_colonies = MOX::colony;
+        game::s_colony_slots saved_colonies = MOX::colony;
         decltype(game::world.planets) saved_planets = game::world.planets;
         uint64_t saved_next_planet_id = game::world.next_planet_id;
         s_star_data* saved_stars = MOX::star;

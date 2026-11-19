@@ -1,8 +1,14 @@
 #pragma once
 #include <cstdint>
+#include <span>
 
 namespace COLONIZE {
     extern uint8_t first_pop_to_production;
+
+    // Assigns available capacity in priority order. Neither the input nor the
+    // output identifies a colony; entries in the output are player numbers.
+    size_t Plan_Colony_Reservations(std::span<const int16_t> demand,
+        size_t first_player, std::span<int16_t> reserved_for_player);
 
     // Allocates free colony slots to players based on pending colonization opportunities.
     void Allocate_New_Colony_Slots();

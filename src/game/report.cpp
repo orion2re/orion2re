@@ -293,7 +293,7 @@ namespace REPORT {
                                             MAINSCR::Update_Ship_Icons_In_Between_Turns();
                                             colony_base = nullptr;
                                         } else {
-                                            ERICNET::Remove_Building(world_state, (int16_t)(colony_base - MOX::colony), BUILDING_COLONY_BASE);
+                                    ERICNET::Remove_Building(world_state, MOX::colony.Position_Of(colony_base), BUILDING_COLONY_BASE);
                                             colony_base = Player_Colony_Base_At_Star(world_state, player_idx, star_idx);
                                         }
 
@@ -754,7 +754,7 @@ namespace REPORT {
 
     int8_t __cdecl Need_To_Set_Occupation_Policy(::game::s_world_state* world_state, int16_t player_idx, int8_t show_screen) {
         int16_t num_colonies = MOX::NUM_COLONIES;
-        s_colony* colonies = MOX::colony;
+        const auto colonies = MOX::colony;
 
         for (int16_t i = 0; i < num_colonies; ++i) {
             s_colony* colony = &colonies[i];

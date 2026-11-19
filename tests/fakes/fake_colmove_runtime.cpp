@@ -21,7 +21,7 @@ namespace TEST_COLMOVE {
 }
 
 namespace MOX {
-    s_colony* colony = colonies;
+    game::s_colony_slots colony = colonies;
     s_settings settings;
 }
 

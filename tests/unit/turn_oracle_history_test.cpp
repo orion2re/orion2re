@@ -35,6 +35,11 @@ namespace {
         bool event_target = false;
         bool random_seed = false;
         bool allocator = false;
+        bool shift_colony_slot = false;
+        bool colony_population = false;
+        bool colony_backlink = false;
+        bool colony_event = false;
+        bool settler_source = false;
     };
 
     std::vector<uint8_t> Encoded_Save(uint16_t version, s_save_changes changes = {}) {
@@ -52,17 +57,32 @@ namespace {
         writer.Write_Uint16(version);
         zeros(0x229);
         writer.Write_Uint32(changes.random_seed ? 43 : 42);
-        writer.Write_Uint16(1);
+        const int16_t colony_slot = changes.shift_colony_slot ? 1 : 0;
+        const game::id_colony colony_id{changes.shift_colony_slot ? 1000000u : 0u};
+        writer.Write_Uint16(colony_slot + 1);
         if (version == 7) {
             // Version-7 colony records are 362 wire bytes, regardless of native layout.
-            zeros(362);
+            writer.Write_Int8(1); // Owner; distinguishes the live record from a zeroed slot.
+            zeros(361);
         } else {
+            writer.Write_Uint64(uint64_t{colony_id.id} + 1);
+            if (changes.shift_colony_slot) {
+                s_colony hole{};
+                hole.owner = -1;
+                hole.planet = game::NO_PLANET;
+                writer.Write_Uint32(game::NO_COLONY.id);
+                Write_Colony(&writer, &hole);
+            }
             s_colony colony{};
+            colony.owner = 1;
             colony.planet = changes.colony_target ? second : first;
+            if (changes.colony_population) colony.n_pops = 1;
+            writer.Write_Uint32(colony_id.id);
             Write_Colony(&writer, &colony);
         }
         game::s_world_state world;
         s_planet_data a{};
+        a.colony_index = changes.colony_backlink ? -1 : colony_slot;
         a.size = PLANET_SIZE_MEDIUM;
         s_planet_data b = a;
         b.colony_index = -1;
@@ -96,11 +116,12 @@ namespace {
         }
         zeros(MAX_LEADERS * 59);
         writer.Write_Uint16(1);
-        constexpr uint64_t packed_settler = UINT64_C(0xFFFF) | (UINT64_C(1) << 16) |
+        constexpr uint64_t packed_settler = (UINT64_C(1) << 16) |
             (UINT64_C(2) << 32) | (UINT64_C(7) << 36) | (UINT64_C(1) << 40);
         world.settlers[game::id_player{0}] = std::vector<SETTLER::s_settler>(26,
-            {std::nullopt, second, 2, 7, POP::PROF_WORKER});
+            {colony_id, second, 2, 7, POP::PROF_WORKER});
         if (changes.settler_target) world.settlers[game::id_player{0}][25].destination_planet = first;
+        if (changes.settler_source) world.settlers[game::id_player{0}][25].source_colony.reset();
         for (uint32_t player = 0; player < MAX_PLAYERS; ++player) {
             if (version == 7) {
                 // Only the first 25 freight words live in the old player record.
@@ -146,14 +167,15 @@ namespace {
         }
         zeros(1 + MAX_PLAYERS + BITMAP(MAX_STARS));
         for (int type = 0; type < EVENT_COUNT; ++type) {
-            const bool active = type == EVENT_CLIMATIC_CHANGE;
+            const bool climate = type == EVENT_CLIMATIC_CHANGE;
+            const bool plague = type == EVENT_PLAGUE;
             writer.Write_Int8(0);
-            writer.Write_Int8(active ? 1 : 0);
+            writer.Write_Int8(climate ? 1 : plague ? 2 : 0);
             writer.Write_Int8(0);
-            writer.Write_Int16(version == 7 && active ? 1 : -1);
+            writer.Write_Int16(version == 7 && climate ? 1 : plague && !changes.colony_event ? colony_slot : -1);
             writer.Write_Int16(0);
             writer.Write_Int16(-1);
-            if (version == 8) writer.Write_Uint32(active ? (changes.event_target ? first.id : second.id) : game::NO_PLANET.id);
+            if (version == 8) writer.Write_Uint32(climate ? (changes.event_target ? first.id : second.id) : game::NO_PLANET.id);
         }
         for (size_t message = 0; message < MAX_MESSAGES; ++message) {
             if (version == 7) zeros(19);
@@ -232,7 +254,7 @@ DOCTEST_TEST_CASE("oracle rejects changed planet data, references, IDs, counters
     DOCTEST_REQUIRE(turn_oracle::Write_File(canonical, Encoded_Save(7), &error));
     const std::vector<std::pair<s_save_changes, std::string>> cases = {
         {{.planet_size = true}, "planet[1].size"},
-        {{.colony_target = true}, "colony[0]"},
+        {{.colony_target = true}, "colony on planet[0]"},
         {{.star_target = true}, "star[0]"},
         {{.player_target = true}, "player[0]"},
         {{.settler_target = true}, "player[0]"},
@@ -240,7 +262,7 @@ DOCTEST_TEST_CASE("oracle rejects changed planet data, references, IDs, counters
         {{.event_target = true}, "event["},
         {{.random_seed = true}, "settings and random seed"},
         {{.allocator = true}, "planet count and next ID"},
-        {{.swap_planet_ids = true}, "colony[0]"},
+        {{.swap_planet_ids = true}, "colony on planet[0]"},
     };
     for (const auto& [changes, section] : cases) {
         DOCTEST_REQUIRE(turn_oracle::Write_File(actual, Encoded_Save(8, changes), &error));
@@ -248,6 +270,31 @@ DOCTEST_TEST_CASE("oracle rejects changed planet data, references, IDs, counters
         DOCTEST_CHECK(error.find(section) != std::string::npos);
         DOCTEST_CHECK(error.find("old position i") != std::string::npos);
     }
+}
+
+DOCTEST_TEST_CASE("cross-version oracle matches colony identities by planet but checks state and links") {
+    s_history_fixture fixture;
+    const auto canonical = fixture.directory / "old.GAM";
+    const auto actual = fixture.directory / "new.GAM";
+    std::string error;
+    DOCTEST_REQUIRE(turn_oracle::Write_File(canonical, Encoded_Save(7), &error));
+    DOCTEST_REQUIRE(turn_oracle::Write_File(actual, Encoded_Save(8, {.shift_colony_slot = true}), &error));
+    DOCTEST_REQUIRE(turn_oracle::Compare_Save_Files(canonical, actual, &error));
+    const std::pair<s_save_changes, const char*> cases[] = {
+        {{.shift_colony_slot = true, .colony_population = true}, "colony on planet[0]"},
+        {{.shift_colony_slot = true, .colony_backlink = true}, "planet[0].colony_index"},
+        {{.shift_colony_slot = true, .colony_event = true}, "event["},
+        {{.shift_colony_slot = true, .settler_source = true}, "player[0]"},
+    };
+    for (const auto& [changes, section] : cases) {
+        DOCTEST_CAPTURE(section);
+        DOCTEST_REQUIRE(turn_oracle::Write_File(actual, Encoded_Save(8, changes), &error));
+        DOCTEST_CHECK_FALSE(turn_oracle::Compare_Save_Files(canonical, actual, &error));
+        DOCTEST_CHECK(error.find(section) != std::string::npos);
+    }
+    DOCTEST_REQUIRE(turn_oracle::Write_File(canonical, Encoded_Save(8), &error));
+    DOCTEST_REQUIRE(turn_oracle::Write_File(actual, Encoded_Save(8, {.shift_colony_slot = true}), &error));
+    DOCTEST_CHECK_FALSE(turn_oracle::Compare_Save_Files(canonical, actual, &error));
 }
 
 DOCTEST_TEST_CASE("oracle rejects truncated and unsupported save formats") {
@@ -287,7 +334,9 @@ DOCTEST_TEST_CASE("oracle rejects duplicate planet IDs and invalid allocator met
     SERIAL::Reader_ reader(save.data(), save.size(), "oracle fixture layout", true);
     reader.Skip(48 + 0x229 + 4);
     const uint16_t colonies = reader.Read_Uint16();
+    reader.Skip(8);
     for (uint16_t position = 0; position < colonies; ++position) {
+        reader.Skip(4);
         s_colony colony{};
         SAVEGAME::records::Read_Colony(&reader, &colony, 8);
     }

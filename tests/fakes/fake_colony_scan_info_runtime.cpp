@@ -64,7 +64,7 @@ namespace TEST_COLONY_SCAN_INFO {
 }
 
 namespace MOX {
-    s_colony* colony = colonies;
+    game::s_colony_slots colony = colonies;
 
     s_player* player = players;
     s_ship_data* ship;

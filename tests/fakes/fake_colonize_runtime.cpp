@@ -26,12 +26,13 @@ namespace TEST_COLONIZE {
 }
 
 namespace MOX {
+    int8_t game_type = 0;
     int16_t NUM_STARS;
     int16_t NUM_COLONIES;
     int16_t NUM_SHIPS;
     int16_t NUM_PLAYERS;
     int32_t stardate;
-    s_colony* colony = colonies;
+    game::s_colony_slots colony = colonies;
 
     s_star_data* star = stars;
     s_ship_data* ship = ships;

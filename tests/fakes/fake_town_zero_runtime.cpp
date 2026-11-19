@@ -15,7 +15,7 @@ namespace TEST_TOWN_ZERO {
 }
 
 namespace MOX {
-    s_colony* colony = colonies;
+    game::s_colony_slots colony = colonies;
     s_player* player = players;
 }
 

@@ -5,7 +5,7 @@
 namespace aidudes {
 
     int __cdecl colony_less_industry_cmp(void* context, const void* p1, const void* p2) {
-        auto* colonies = static_cast<s_colony*>(context);
+        const auto& colonies = *static_cast<const game::s_colony_slots*>(context);
         int16_t worth1 = AIBUILD::Industry_Worth(&colonies[legacy_world::Slot(legacy_world::Read_Colony_Id(p1))]);
         int16_t worth2 = AIBUILD::Industry_Worth(&colonies[legacy_world::Slot(legacy_world::Read_Colony_Id(p2))]);
 
@@ -174,7 +174,8 @@ namespace aidudes {
             }
         }
 
-        qsort(colony_queue, (uint32_t)colony_queue_count, sizeof(game::id_colony), aidudes::colony_less_industry_cmp, world->colonies);
+        auto colonies = world->colonies;
+        qsort(colony_queue, (uint32_t)colony_queue_count, sizeof(game::id_colony), aidudes::colony_less_industry_cmp, &colonies);
 
         if (AIBUILD::rules.strategic.expansion.enabled &&
             p->tech_applications[TECH_APP_COLONY_BASE] == TECH_RESEARCH_STATUS_RESEARCHED) {
@@ -364,7 +365,7 @@ namespace aidudes {
 
                                 if (temp_colony->buildings[BUILDING_STAR_FORTRESS] == 0) {
                                     if (p->tech_applications[TECH_APP_STAR_FORTRESS] == TECH_RESEARCH_STATUS_RESEARCHED &&
-                                        COLCALC::Colony_Product_Cost(world_state, world->colonies, BUILDING_STAR_FORTRESS) <= (war_level * 2 + 31) * ind_worth) {
+                                        COLCALC::Colony_Product_Cost(world_state, &world->colonies[0], BUILDING_STAR_FORTRESS) <= (war_level * 2 + 31) * ind_worth) {
                                         star_fortress_candidate = true;
                                         ship_weights[8] = (uint16_t)((pressure.neutral_players_in_range + 2 +
                                                                          (ai->colonies[legacy_world::Colony_Id(i)].other_player_arrivals + pressure.hostile_players_in_range) * 2) *
@@ -381,7 +382,7 @@ namespace aidudes {
                                 if (temp_colony->buildings[BUILDING_STAR_FORTRESS] == 0 &&
                                     temp_colony->buildings[BUILDING_BATTLESTATION] == 0) {
                                     if (p->tech_applications[TECH_APP_BATTLESTATION] == TECH_RESEARCH_STATUS_RESEARCHED &&
-                                        COLCALC::Colony_Product_Cost(world_state, world->colonies, BUILDING_BATTLESTATION) <= cost_threshold_1) {
+                                        COLCALC::Colony_Product_Cost(world_state, &world->colonies[0], BUILDING_BATTLESTATION) <= cost_threshold_1) {
                                         battlestation_candidate = true;
                                         ship_weights[7] = (uint16_t)((ai->colonies[legacy_world::Colony_Id(i)].other_player_arrivals + pressure.hostile_players_in_range) * 2 +
                                                               pressure.neutral_players_in_range + 2) *
@@ -394,7 +395,7 @@ namespace aidudes {
 
                                     if (temp_colony->buildings[BUILDING_STAR_BASE] == 0) {
                                         if (p->tech_applications[TECH_APP_STAR_BASE] == TECH_RESEARCH_STATUS_RESEARCHED &&
-                                            COLCALC::Colony_Product_Cost(world_state, world->colonies, BUILDING_STAR_BASE) <= (war_level * 2 + 35) * ind_worth) {
+                                            COLCALC::Colony_Product_Cost(world_state, &world->colonies[0], BUILDING_STAR_BASE) <= (war_level * 2 + 35) * ind_worth) {
                                             star_base_candidate = true;
                                             ship_weights[6] = (uint16_t)(ai->colonies[legacy_world::Colony_Id(i)].other_player_arrivals + pressure.hostile_players_in_range) * 10 +
                                                 pressure.treaty_partners_in_range * 4 + 12 +

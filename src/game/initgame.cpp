@@ -34,7 +34,7 @@ namespace INITGAME {
      * Clears the entire array and sets initial sentinel values for owner, planet, and officer.
      */
     void Init_Colonies_Array() {
-        memset(MOX::colony, 0, MAX_COLONIES * sizeof(s_colony));
+        MOX::colony.Reset();
 
         for (MOX::NUM_COLONIES = 0; MOX::NUM_COLONIES < MAX_COLONIES; ++MOX::NUM_COLONIES) {
             s_colony& colony = MOX::colony[MOX::NUM_COLONIES];
@@ -315,6 +315,7 @@ namespace INITGAME {
     }
 
     void __cdecl Init_Colony(::game::s_world_state* world_state, int16_t colony_idx, ::game::id_planet planet_idx, uint8_t player_num) {
+        if (!MOX::colony.Activate(colony_idx)) std::abort();
         s_colony* colony = &MOX::colony[colony_idx];
 
         // Zero-initialize the entire colony structure

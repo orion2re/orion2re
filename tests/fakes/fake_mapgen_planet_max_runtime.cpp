@@ -359,7 +359,7 @@ namespace MOX {
 
     s_star_data* star = stars;
     s_player* player = players;
-    s_colony* colony = colonies;
+    game::s_colony_slots colony = colonies;
     s_ship_data* ship = ships;
     s_nebula* nebula = nebulas;
     uint8_t NUM_NEBULAS;

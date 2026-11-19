@@ -106,7 +106,7 @@ namespace {
             {MOX::star, MOX::star + MAX_STARS},
             game::world.planets,
             {MOX::player, MOX::player + MAX_PLAYERS},
-            {MOX::colony, MOX::colony + MAX_COLONIES},
+            {MOX::colony.fixture, MOX::colony.fixture + MAX_COLONIES},
             {MOX::ship, MOX::ship + MAX_SHIPS},
             game::Export_Leaders(&game::world),
             {MOX::nebula, MOX::nebula + MAX_NEBULAS},
@@ -134,7 +134,7 @@ namespace {
         DOCTEST_CHECK(memcmp(MOX::player,
                           expected.players.data(),
                           MAX_PLAYERS * sizeof(s_player)) == 0);
-        DOCTEST_CHECK(memcmp(MOX::colony,
+        DOCTEST_CHECK(memcmp(MOX::colony.fixture,
                           expected.colonies.data(),
                           MAX_COLONIES * sizeof(s_colony)) == 0);
         DOCTEST_CHECK(memcmp(MOX::ship,
