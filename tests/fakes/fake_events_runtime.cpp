@@ -99,7 +99,7 @@ namespace MOX {
     int16_t NUM_STARS;
     int16_t NUM_COLONIES;
     uint8_t auto_turn_exit;
-    s_star_data* star = stars;
+    game::s_star_slots star = stars;
 
     game::s_colony_slots colony = colonies;
     s_player* player = players;

@@ -466,7 +466,7 @@ DOCTEST_TEST_CASE("invalid planet links do not escape the planet and star arrays
     test::s_game_state state;
     test::Resize_Planets(&::game::world, MOX::NUM_STARS = 1);
     auto& planet = test::Planet(&game::world, game::id_planet{0});
-    planet.star_index = 5000;
+    planet.parent_star = game::id_star{5000};
     planet.orbit = 9;
     state.stars[0].planet_index[0] = game::id_planet{5000};
     for (int j = 1; j < 5; ++j) state.stars[0].planet_index[j] = ::game::NO_PLANET;
@@ -476,7 +476,8 @@ DOCTEST_TEST_CASE("invalid planet links do not escape the planet and star arrays
     HAROLD::Confirm_Planet_And_Star_Index_Link(&game::world, "test");
     state.stars[0].planet_index[0] = game::id_planet{0};
     HAROLD::Confirm_Planet_And_Star_Index_Link(&game::world, "test");
-    planet.star_index = planet.orbit = 0;
+    planet.parent_star = game::id_star{0};
+    planet.orbit = 0;
     DOCTEST_CHECK(HAROLD::Planet_Number(&::game::world, legacy_world::Planet_Id(0)) == 0);
 }
 

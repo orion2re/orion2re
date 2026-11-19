@@ -708,7 +708,7 @@ namespace MAINSCR {
         video::Clip_On();
 
         for (int16_t star_idx = 0; star_idx < MOX::NUM_STARS; ++star_idx) {
-            int16_t wormhole_id = MOX::star[star_idx].wormhole_star_id;
+            int16_t wormhole_id = MOX::star.Position_Of(MOX::star[star_idx].wormhole_star_id);
             if (wormhole_id != -1) {
                 bool is_visible = HAROLD::Player_Has_Visited(MOX::PLAYER_NUM, star_idx);
                 if (!is_visible) {
@@ -1649,7 +1649,7 @@ namespace MAINSCR {
                     MOX::return_screen = SCREEN_MAIN;
 
                     s_planet_data* planet = &::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx)));
-                    MOX::screen_data = planet->star_index;
+                    MOX::screen_data = planet->Star_Position(MOX::star);
                     COLONY::orbit_temp = static_cast<int16_t>(planet->orbit);
 
                     *status_flag = 1;
@@ -2231,7 +2231,7 @@ namespace MAINSCR {
     void __cdecl Change_Home_Star_Name(::game::s_world_state* world_state) {
         int16_t player_idx = MOX::PLAYER_NUM;
         s_player* player = &MOX::player[player_idx];
-        int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(player->home_planet_id))).star_index;
+        const auto star_idx = game::Planet(world_state, player->home_planet_id).Star_Position(MOX::star);
 
         int16_t center_y = namestar::Star_Name_Popup_Map_Center_Y();
         int16_t center_x = namestar::Star_Name_Popup_Map_Center_X();
@@ -2332,7 +2332,7 @@ namespace MAINSCR {
         }
 
         // Search for the first star system where the player has a colony, starting from home
-        int16_t home_star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(home_planet_id))).star_index;
+        const auto home_star_idx = game::Planet(world_state, home_planet_id).Star_Position(MOX::star);
         star_idx = home_star_idx;
 
         for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {

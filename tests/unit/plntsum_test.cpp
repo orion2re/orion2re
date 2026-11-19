@@ -13,7 +13,7 @@ namespace {
         for (int orbit = 0; orbit < 5; ++orbit) {
             game::id_planet planet_idx{static_cast<uint32_t>(first_planet + orbit)};
             auto& planet = test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx)));
-            planet.star_index = star_idx;
+            planet.parent_star = MOX::star.Id_At(star_idx);
             planet.orbit = static_cast<int8_t>(orbit);
             planet.colony_index = -1;
             planet.planet_type = PLANET_TYPE_PLANET;
@@ -44,7 +44,7 @@ namespace {
 
     void Add_Ship(int16_t owner, int16_t location) {
         MOX::ship[0].owner = owner;
-        MOX::ship[0].location = location;
+        MOX::ship[0].Set_Legacy_Location(MOX::star, location);
         MOX::ship[0].status = 0;
         MOX::ship_stack_count = 1;
         MOX::ship_stack_start[0] = 0;
@@ -57,7 +57,7 @@ namespace {
         s_ship_data* ship = &MOX::ship[ship_idx];
         ship->owner = MOX::PLAYER_NUM;
         ship->d.ship_type = type;
-        ship->location = moving ? SHIP_LOCATION_MOVING_OFFSET : 0;
+        ship->location = {moving ? game::e_ship_location::in_flight : game::e_ship_location::at_star, game::id_star{0}};
         ship->x = moving ? 42 : 0;
         ship->y = moving ? 24 : 0;
         if (planet_idx >= 0) {
@@ -169,7 +169,7 @@ DOCTEST_TEST_CASE("destroyed occupants no longer hide mixed-mineral systems") {
     Check_List({});
     // Model Kill_Ship's retirement, including a stack that has not yet been rebuilt.
     MOX::ship[0].status = 5;
-    MOX::ship[0].location = -1;
+    MOX::ship[0].location = {};
     Check_List({2, 3, 4});
     MOX::ship_stack_count = 0;
     Check_List({2, 3, 4});
@@ -318,7 +318,7 @@ DOCTEST_TEST_CASE("sending the last selected ship disarms rather than switching 
         Build_Planet_List();
         PLNTSUM::send_choice = choice;
         PLNTSUM::Determine_Button_Status();
-        MOX::ship[choice].location = SHIP_LOCATION_MOVING_OFFSET;
+        MOX::ship[choice].location = {game::e_ship_location::in_flight, game::id_star{0}};
         PLNTSUM::Set_Auto_Colonize_Flag(&MOX::ship[choice], legacy_world::Planet_Id(0));
         PLNTSUM::Determine_Button_Status();
         DOCTEST_CHECK(PLNTSUM::send_choice == -1);
@@ -429,7 +429,7 @@ DOCTEST_TEST_CASE("recall matches the displayed ship and ignores foreign retired
     int16_t displayed = Add_Orderable_Ship(SHIP_TYPE_COLONY, 0, true);
     MOX::ship[Add_Orderable_Ship(SHIP_TYPE_COLONY, 0, true)].owner = 1;
     MOX::ship[Add_Orderable_Ship(SHIP_TYPE_COLONY, 0, true)].status = 5;
-    MOX::ship[Add_Orderable_Ship(SHIP_TYPE_COLONY, 0, true)].location = -1;
+    MOX::ship[Add_Orderable_Ship(SHIP_TYPE_COLONY, 0, true)].location = {};
     Add_Orderable_Ship(SHIP_TYPE_OUTPOST, 0, true);
     Add_Orderable_Ship(SHIP_TYPE_COLONY, 1, true);
     Build_Planet_List();

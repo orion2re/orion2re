@@ -181,8 +181,9 @@ namespace FLT1 {
                 int16_t owner = HACCESS::Ship_Owner(ship_id);
 
                 if (owner == MOX::PLAYER_NUM) {
-                    int16_t abs_loc = HAROLD::Absolute_Location(MOX::ship[ship_id].location);
-                    if (abs_loc != MOX::NUM_STARS && MOX::ship[ship_id].location >= SHIP_LOCATION_MOVING_OFFSET && MOX::ship[ship_id].location < SHIP_LOCATION_LIMIT) {
+                    const auto location = MOX::ship[ship_id].Legacy_Location(MOX::star);
+                    int16_t abs_loc = HAROLD::Absolute_Location(location);
+                    if (abs_loc != MOX::NUM_STARS && location >= SHIP_LOCATION_MOVING_OFFSET && location < SHIP_LOCATION_LIMIT) {
                         draw_dest = true;
                         temp_color = local_green;
                     }
@@ -195,7 +196,7 @@ namespace FLT1 {
 
                 if (draw_dest) {
                     int16_t actual_star_id;
-                    HAROLD::Actual_Star_Id(MOX::ship[ship_id].location, &actual_star_id);
+                    HAROLD::Actual_Star_Id(MOX::ship[ship_id].Legacy_Location(MOX::star), &actual_star_id);
 
                     MOVEBOX::Get_Galaxy_Map_Star_XY(
                         actual_star_id,

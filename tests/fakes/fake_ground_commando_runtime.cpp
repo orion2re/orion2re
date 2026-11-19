@@ -55,7 +55,7 @@ namespace test_ground_commando_runtime {
         colonies[0].planet = game::id_planet{0};
         MOX::NUM_COLONIES = 1;
         colonies[0].owner = 0;
-        test::Planet(&game::world, legacy_world::Planet_Id(0)).star_index = 0;
+        test::Planet(&game::world, game::id_planet{0}).parent_star = game::id_star{0};
         players[0].home_planet_id = ::game::NO_PLANET;
         players[1].home_planet_id = ::game::NO_PLANET;
         for (int skill_idx = 0; skill_idx < 54; ++skill_idx) {
@@ -152,7 +152,7 @@ namespace buffer {
 namespace MOX {
     s_player* player = players;
     game::s_colony_slots colony = colonies;
-    s_star_data* star = stars;
+    game::s_star_slots star = stars;
     void* global_cache_seg;
 
     s_ship_data* ship = ships;

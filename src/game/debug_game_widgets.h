@@ -14,6 +14,7 @@ namespace debug_game_widgets {
         bool allow_none = true,
         bool allow_contested = false);
     bool Star_Reference(const char* label, int16_t* star_index, bool allow_none = true);
+    bool Star_Reference(const char* label, game::id_star* star_id, bool allow_none = true);
     bool Planet_Reference(game::s_world_state* world_state, const char* label, game::id_planet* planet_index, bool allow_none = true);
     bool Colony_Reference(const char* label, int16_t* colony_index, bool allow_none = true);
     bool Officer_Reference(game::s_world_state* world_state, const char* label, int8_t* officer_index, bool allow_none = true);

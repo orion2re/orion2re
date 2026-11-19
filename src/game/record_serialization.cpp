@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "record_serialization.h"
+#include "legacy_location.h"
 #include "settler_serialization.h"
 #include "savegame.h"
 
@@ -8,7 +9,11 @@ namespace SAVEGAME::records {
             Write_Ship_Design(writer, &ship->d);
             writer->Write_Int8(ship->owner);
             writer->Write_Int8(ship->status);
-            writer->Write_Int16(ship->location);
+            writer->Write_Uint8(static_cast<uint8_t>(ship->location.kind));
+            const auto& destination = ship->location.destination;
+            writer->Write_Uint32(destination.Star_Id_Or_None().id);
+            // Preserve the version-8 flag on the wire, not the in-memory enum.
+            writer->Write_Uint8(destination.Kind() == game::e_ship_destination::antares);
             writer->Write_Int16(ship->x);
             writer->Write_Int16(ship->y);
             writer->Write_Int8(ship->group_has_navigator);
@@ -29,13 +34,31 @@ namespace SAVEGAME::records {
             if (ship->auto_colonize_target) writer->Write_Uint32(ship->auto_colonize_target->id);
         }
 
-        void Read_Ship(SERIAL::Reader_* reader, s_ship_data* ship, uint16_t version) {
+        void Read_Ship(SERIAL::Reader_* reader, s_ship_data* ship, uint16_t version, int16_t legacy_star_count) {
             Read_Ship_Design(reader, &ship->d);
             ship->owner = reader->Read_Int8();
             ship->status = reader->Read_Int8();
-            ship->location = reader->Read_Int16();
-            if (version == LEGACY_VERSION) {
-                ship->location = Convert_Legacy_Ship_Location(ship->location);
+            if (version >= 8) {
+                const auto mode = reader->Read_Uint8();
+                const game::id_star destination{reader->Read_Uint32()};
+                const auto antares = reader->Read_Uint8();
+                if (mode > static_cast<uint8_t>(game::e_ship_location::in_wormhole) || antares > 1 ||
+                    (antares && destination != game::NO_STAR)) {
+                    reader->Require(reader->Remaining() + 1);
+                    return;
+                }
+                ship->location = {static_cast<game::e_ship_location>(mode),
+                    antares ? game::s_ship_destination::Antares() : game::s_ship_destination::Star(destination)};
+            } else {
+                const auto encoded = reader->Read_Int16();
+                const auto decoded = legacy_world::Decode_Ship_Location(
+                    version == LEGACY_VERSION ? Convert_Legacy_Ship_Location(encoded) : encoded);
+                ship->location = {};
+                if (decoded) {
+                    const bool antares = legacy_star_count >= 0 && decoded->star_id.id == static_cast<uint32_t>(legacy_star_count);
+                    ship->location = {decoded->kind, antares
+                        ? game::s_ship_destination::Antares() : game::s_ship_destination::Star(decoded->star_id)};
+                }
             }
             ship->x = reader->Read_Int16();
             ship->y = reader->Read_Int16();
@@ -53,7 +76,7 @@ namespace SAVEGAME::records {
             ship->structural_damage = reader->Read_Int16();
             ship->mission = reader->Read_Int8();
             ship->just_built = reader->Read_Int8();
-            ship->prior_jump_gate_destination = -1;
+            ship->prior_jump_gate_destination = game::NO_STAR;
             ship->prior_jump_gate_stardate = 0;
             ship->auto_colonize_target.reset();
             if (version >= PLANET_ID_VERSION) {
@@ -73,7 +96,7 @@ namespace SAVEGAME::records {
         }
         void Write_Planet(SERIAL::Writer_* writer, const s_planet_data* planet) {
             writer->Write_Int16(planet->colony_index);
-            writer->Write_Int16(planet->star_index);
+            writer->Write_Uint32(planet->parent_star.id);
             writer->Write_Int8(planet->orbit);
             writer->Write_Int8(planet->planet_type);
             writer->Write_Int8(planet->size);
@@ -92,7 +115,12 @@ namespace SAVEGAME::records {
 
         void Read_Planet(SERIAL::Reader_* reader, s_planet_data* planet, uint16_t version) {
             planet->colony_index = reader->Read_Int16();
-            planet->star_index = version == LEGACY_VERSION ? reader->Read_Int8() : reader->Read_Int16();
+            if (version >= 8) {
+                planet->parent_star = game::id_star{reader->Read_Uint32()};
+            } else {
+                const int16_t parent = version == LEGACY_VERSION ? reader->Read_Int8() : reader->Read_Int16();
+                planet->parent_star = parent < 0 ? game::NO_STAR : game::id_star{static_cast<uint32_t>(parent)};
+            }
             planet->orbit = reader->Read_Int8();
             planet->planet_type = reader->Read_Int8();
             planet->size = reader->Read_Int8();
@@ -345,7 +373,7 @@ namespace SAVEGAME::records {
             writer->Write_Bytes(star->last_orbit_selected, sizeof(star->last_orbit_selected));
             writer->Write_Bytes(star->black_hole_blocks, sizeof(star->black_hole_blocks));
             writer->Write_Int8(star->system_special);
-            writer->Write_Int16(star->wormhole_star_id);
+            writer->Write_Uint32(star->wormhole_star_id.id);
             writer->Write_Uint8(star->blockaded);
             writer->Write_Bytes(star->blockaded_by, sizeof(star->blockaded_by));
             writer->Write_Uint8(star->visited);
@@ -365,7 +393,7 @@ namespace SAVEGAME::records {
             writer->Write_Uint8(star->is_stagepoint);
             writer->Write_Bytes(star->officer_index, sizeof(star->officer_index));
             for (const auto id : star->planet_index) writer->Write_Uint32(id.id);
-            Write_Int16_Array(writer, star->relocate_ship_to, MAX_PLAYERS);
+            for (const auto id : star->relocate_ship_to) writer->Write_Uint32(id.id);
             writer->Write_Int8(star->twinkling1);
             writer->Write_Int8(star->twinkling2);
             writer->Write_Uint8(star->not_used3);
@@ -387,7 +415,12 @@ namespace SAVEGAME::records {
             reader->Read_Bytes(star->black_hole_blocks, black_hole_blocks_size);
             memset(star->black_hole_blocks + black_hole_blocks_size, 0, sizeof(star->black_hole_blocks) - black_hole_blocks_size);
             star->system_special = reader->Read_Int8();
-            star->wormhole_star_id = version == LEGACY_VERSION ? reader->Read_Int8() : reader->Read_Int16();
+            if (version >= 8) {
+                star->wormhole_star_id = game::id_star{reader->Read_Uint32()};
+            } else {
+                const int16_t position = version == LEGACY_VERSION ? reader->Read_Int8() : reader->Read_Int16();
+                star->wormhole_star_id = position < 0 ? game::NO_STAR : game::id_star{static_cast<uint32_t>(position)};
+            }
             star->blockaded = reader->Read_Uint8();
             reader->Read_Bytes(star->blockaded_by, sizeof(star->blockaded_by));
             star->visited = reader->Read_Uint8();
@@ -407,7 +440,14 @@ namespace SAVEGAME::records {
             star->is_stagepoint = reader->Read_Uint8();
             reader->Read_Bytes(star->officer_index, sizeof(star->officer_index));
             for (auto& id : star->planet_index) id = Read_Planet_Reference(reader, version);
-            Read_Int16_Array(reader, star->relocate_ship_to, MAX_PLAYERS);
+            for (auto& id : star->relocate_ship_to) {
+                if (version >= 8) {
+                    id = game::id_star{reader->Read_Uint32()};
+                } else {
+                    const auto position = reader->Read_Int16();
+                    id = position < 0 ? game::NO_STAR : game::id_star{static_cast<uint32_t>(position)};
+                }
+            }
             star->twinkling1 = reader->Read_Int8();
             star->twinkling2 = reader->Read_Int8();
             star->not_used3 = reader->Read_Uint8();
@@ -1213,12 +1253,12 @@ namespace SAVEGAME {
 
     void Write_Ship_Record(SERIAL::Writer_* writer, const s_ship_data* ship) {
         records::Write_Ship(writer, ship);
-        writer->Write_Int16(ship->prior_jump_gate_destination);
+        writer->Write_Uint32(ship->prior_jump_gate_destination.id);
         writer->Write_Int32(ship->prior_jump_gate_stardate);
     }
     bool Read_Ship_Record(SERIAL::Reader_* reader, s_ship_data* ship) {
         records::Read_Ship(reader, ship, CURRENT_VERSION);
-        ship->prior_jump_gate_destination = reader->Read_Int16();
+        ship->prior_jump_gate_destination = game::id_star{reader->Read_Uint32()};
         ship->prior_jump_gate_stardate = reader->Read_Int32();
         return !reader->Failed();
     }

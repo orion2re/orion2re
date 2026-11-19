@@ -46,7 +46,7 @@ namespace NEWGAME {
     int16_t __cdecl Newgame_Screen(game::s_world_state* world_state) {
         memcpy(NEWGAME::color_ken.colors, "y{z|||||", sizeof(NEWGAME::color_ken.colors));
 
-        struct_::Clear_Structure(MOX::star, MAX_STARS * sizeof(*MOX::star));
+        MOX::star.Reset();
         world_state->planets.clear();
         world_state->next_planet_id = 0;
         MOX::colony.Reset();

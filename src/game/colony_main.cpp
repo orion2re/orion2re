@@ -762,7 +762,7 @@ namespace COLONY {
             return;
         }
 
-        int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(col->planet))).star_index;
+        const auto star_idx = game::Planet(world_state, col->planet).Star_Position(MOX::star);
         if ((MOX::star[star_idx].blockaded >> (MOX::PLAYER_NUM & 0x1f)) & 1) {
             GENDRAW::Help(ESTRINGS::E_Strings(ESTR_YOU_CANNOT_BUY_WHILE_THIS_STAR_IS_BLOCKADED));
             COLONY::Show_Colony_Screen();
@@ -832,7 +832,7 @@ namespace COLONY {
         fonts::Print_Centered(320, 0, buffer);
 
         auto colony_planet = MOX::colony[handle].planet;
-        int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony_planet))).star_index;
+        const auto star_idx = game::Planet(world_state, colony_planet).Star_Position(MOX::star);
 
         int16_t status_msg_id = -1;
         if ((MOX::star[star_idx].blockaded >> (MOX::PLAYER_NUM & 0x1F)) & 1) {

@@ -69,7 +69,7 @@ namespace COMBFIND {
             int8_t owner = MOX::colony[i].owner;
             if (owner != -1) {
                 ::game::id_planet planet_idx = MOX::colony[i].planet;
-                int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index;
+                const auto star_idx = game::Planet(world_state, planet_idx).Star_Position(MOX::star);
                 (*star_has_player)[star_idx][owner].colony_count++;
             }
         }
@@ -78,7 +78,7 @@ namespace COMBFIND {
 
         for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
             s_ship_data* ship = &MOX::ship[i];
-            int16_t loc = ship->location;
+            int16_t loc = ship->Legacy_Location(MOX::star);
             if (Is_Star_Or_Antares_Location(loc, MOX::NUM_STARS)) {
                 if (ship->status == 0) {
                     int8_t owner = ship->owner;
@@ -235,7 +235,7 @@ namespace COMBFIND {
         for (int16_t i = MOX::NUM_SHIPS - 1; i >= 0; --i) {
             s_ship_data* ship = &MOX::ship[i];
 
-            if (ship->location == MOX::NUM_STARS) {
+            if (ship->Legacy_Location(MOX::star) == MOX::NUM_STARS) {
                 int8_t owner = ship->owner;
                 if (player_retreat_target[owner] == -1) {
                     player_retreat_target[owner] = 0x48; /* 'H' */
@@ -267,21 +267,21 @@ namespace COMBFIND {
                     SHIPS::Kill_Ship(world_state, i);
                 } else {
                     int16_t target_loc = player_retreat_target[owner];
-                    ship->location = target_loc;
+                    ship->Set_Legacy_Location(MOX::star, target_loc);
                     ship->x = MOX::star[target_loc].x;
                     ship->y = MOX::star[target_loc].y;
                     ship->status = 0;
                 }
             } else if (ship->status == 9) {
                 int group_count = 1;
-                int16_t loc = ship->location;
+                int16_t loc = ship->Legacy_Location(MOX::star);
                 int8_t owner = ship->owner;
                 ship_indices[0] = i;
                 ship->mission = 0;
 
                 for (int16_t j = i - 1; j >= 0; --j) {
                     s_ship_data* other = &MOX::ship[j];
-                    if (other->status == 9 && other->location == loc && other->owner == owner) {
+                    if (other->status == 9 && other->Legacy_Location(MOX::star) == loc && other->owner == owner) {
                         ship_indices[group_count++] = j;
                         other->mission = 0;
                     }
@@ -310,7 +310,7 @@ namespace COMBFIND {
                         if (leader_idx != -1) {
                             if (game::Leader(world_state, leader_idx).eta < 1) {
                                 OFFICER::Kill_Officer(world_state, leader_idx);
-                                report[owner * retreat_location_count + MOX::ship[i].location].killed_officers++;
+                                report[owner * retreat_location_count + MOX::ship[i].Legacy_Location(MOX::star)].killed_officers++;
                             } else {
                                 OFFICER::Move_Officer_To_Pool(world_state, leader_idx);
                             }
@@ -319,7 +319,7 @@ namespace COMBFIND {
                         // been killed. A location of -1 aliases the preceding player's final slot.
                         // Fix this attribution bug later even though doing so diverges from the oracle.
                         s_retreat_report& retreat =
-                            report[owner * retreat_location_count + MOX::ship[i].location];
+                            report[owner * retreat_location_count + MOX::ship[i].Legacy_Location(MOX::star)];
                         retreat.count++;
                         retreat.reason = fail_reason;
                         SHIPS::Kill_Ship(world_state, idx);
@@ -329,7 +329,7 @@ namespace COMBFIND {
                     SHIPMOVE::Make_Ships_Move_To(world_state, ship_indices, retreat_star, &move_info);
                     for (int k = 0; k < group_count; ++k) {
                         int16_t idx = ship_indices[k];
-                        MOX::ship[idx].location -= SHIP_LOCATION_MOVING_OFFSET;
+                        MOX::ship[idx].Set_Legacy_Location(MOX::star, MOX::ship[idx].Legacy_Location(MOX::star) - SHIP_LOCATION_MOVING_OFFSET);
                         MOX::ship[idx].status = 1;
                     }
                 }
@@ -516,7 +516,7 @@ namespace COMBFIND {
 
         for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
             // Owner 12 is the Dragon/Guardian
-            if (MOX::ship[i].owner == 12 && MOX::ship[i].location == star_idx) {
+            if (MOX::ship[i].owner == 12 && MOX::ship[i].Legacy_Location(MOX::star) == star_idx) {
                 ship_indices[0] = i;
             }
         }
@@ -541,7 +541,7 @@ namespace COMBFIND {
             s_colony* colony = &MOX::colony[i];
 
             if (colony->owner == player_idx) {
-                int16_t target_star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony->planet))).star_index;
+                const auto target_star_idx = game::Planet(world_state, colony->planet).Star_Position(MOX::star);
 
                 if (target_star_idx != star_idx && target_star_idx != closest_star_idx) {
                     if (!struct_::Test_Bit_Field(src_star->black_hole_blocks, target_star_idx)) {
@@ -750,7 +750,7 @@ namespace COMBFIND {
         int total_valid_techs;
         s_MSG msg = {};
 
-        star_idx = (int16_t)(star - MOX::star);
+        star_idx = MOX::star.Position_Of(star);
         Reset_One_Shot_System_Special(world_state, star);
 
         if (star->system_special != SYSTEM_SPECIAL_NO_SPECIAL && (*star_has_nonplayer)[star_idx] == 0) {
@@ -972,7 +972,7 @@ namespace COMBFIND {
             int16_t sneak_attack_target = -1;
 
             if (player->sneak_attack_planet != ::game::NO_PLANET) {
-                if (::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(player->sneak_attack_planet))).star_index == star_idx) {
+                if (game::Planet(world_state, player->sneak_attack_planet).Star_Position(MOX::star) == star_idx) {
                     sneak_attack_target = (int16_t)player->sneak_attack_player;
                     player->sneak_attack_planet = ::game::NO_PLANET;
                     player->sneak_attack_player = -1;
@@ -1397,7 +1397,7 @@ namespace COMBFIND {
         for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
             s_ship_data* ship = &MOX::ship[i];
 
-            if (ship->location == star_idx && ship->status == 0) {
+            if (ship->Legacy_Location(MOX::star) == star_idx && ship->status == 0) {
                 if (ship->owner == (int8_t)plr1_idx) {
                     ships[*plr1_count] = i;
                     *plr1_count = *plr1_count + 1;
@@ -1715,7 +1715,7 @@ namespace COMBFIND {
                 // Under Hyperspace Flux, non-trans-dimensional player fleets at this star are destroyed instead of retreating.
                 for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
                     s_ship_data* ship = &MOX::ship[i];
-                    if (ship->owner == player_idx && ship->location == star_idx && ship->status == 0) {
+                    if (ship->owner == player_idx && ship->Legacy_Location(MOX::star) == star_idx && ship->status == 0) {
                         if (ship->officer_index != -1) {
                             if (game::Leader(world_state, ship->officer_index).eta <= 0) {
                                 OFFICER::Kill_Officer(world_state, ship->officer_index);
@@ -1732,7 +1732,7 @@ namespace COMBFIND {
                 // Otherwise the fleet enters retreat status.
                 for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
                     s_ship_data* ship = &MOX::ship[i];
-                    if (ship->owner == player_idx && ship->location == star_idx && ship->status == 0) {
+                    if (ship->owner == player_idx && ship->Legacy_Location(MOX::star) == star_idx && ship->status == 0) {
                         ship->status = 9; // Status 9: retreating/travelling
                     }
                 }
@@ -1746,7 +1746,7 @@ namespace COMBFIND {
         bool ships_remaining = false;
         for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
             s_ship_data* ship = &MOX::ship[i];
-            if (ship->owner == player_idx && ship->location == star_idx && ship->status == 0) {
+            if (ship->owner == player_idx && ship->Legacy_Location(MOX::star) == star_idx && ship->status == 0) {
                 ships_remaining = true;
                 break;
             }
@@ -1792,7 +1792,7 @@ namespace COMBFIND {
         s_ship_data* ship = MOX::ship;
 
         for (int16_t i = 0; i < num_ships; ++i, ++ship) {
-            if (ship->location == star_idx && ship->status == 0) {
+            if (ship->Legacy_Location(MOX::star) == star_idx && ship->status == 0) {
                 int16_t owner = ship->owner;
 
                 if (player_idx == owner) {
@@ -1955,7 +1955,7 @@ namespace COMBFIND {
         int8_t attacker_id = ships[ship_idx].owner;
         s_colony* colony = &MOX::colony[colony_idx];
         ::game::id_planet planet_idx = colony->planet;
-        int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index;
+        const auto star_idx = game::Planet(world_state, planet_idx).Star_Position(MOX::star);
         int8_t colony_owner = colony->owner;
 
         if (colony->outpost_flag != 0) {
@@ -2077,7 +2077,7 @@ namespace COMBFIND {
                     COMBFIND::current_star_has_player[colony_owner].colony_count--;
                 } else {
                     bool has_stellar = Has_Stellar_Converter(ship_list, n_ships);
-                    int16_t enemy_star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony->planet))).star_index;
+                    const auto enemy_star_idx = game::Planet(world_state, colony->planet).Star_Position(MOX::star);
                     bool knows_attacker = false;
                     uint8_t surrendered = 0;
                     uint8_t terminal_destroyed = 0;

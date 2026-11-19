@@ -82,8 +82,7 @@ namespace allocate {
         MOX::nebula = (s_nebula*)Allocate_Dos_Space(MAX_NEBULAS * sizeof(s_nebula));
         struct_::Clear_Structure(MOX::nebula, MAX_NEBULAS * sizeof(s_nebula));
 
-        MOX::star = (s_star_data*)Allocate_Dos_Space(MAX_STARS * sizeof(s_star_data));
-        struct_::Clear_Structure(MOX::star, MAX_STARS * sizeof(s_star_data));
+        MOX::star.Reset();
 
         MOX::ship = (s_ship_data*)Allocate_Dos_Space(MAX_SHIPS * sizeof(s_ship_data));
         struct_::Clear_Structure(MOX::ship, MAX_SHIPS * sizeof(s_ship_data));

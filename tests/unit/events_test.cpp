@@ -174,7 +174,7 @@ DOCTEST_TEST_CASE("planet event reports preserve vanilla and v150 location token
     MOX::colony[0].planet = game::id_planet{188};
     MOX::colony[3].planet = game::id_planet{193};
     test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(193))).colony_index = 3;
-    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(193))).star_index = 54;
+    test::Planet(&game::world, game::id_planet{193}).parent_star = game::id_star{54};
     test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(193))).mineral_class = MINERAL_RESOURCE_ULTRA_RICH;
     strlcpy(MOX::star[54].name, "Gnol", sizeof(MOX::star[54].name));
     strlcpy(MOX::player[2].race_name, "Gnolam", sizeof(MOX::player[2].race_name));

@@ -86,7 +86,7 @@ namespace ERICNET {
         s_colony& colony = MOX::colony[colony_idx];
         COLONY::Set_Colony_Globals(world_state, colony_idx);
 
-        int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index;
+        const auto star_idx = game::Planet(world_state, planet_idx).Star_Position(MOX::star);
         MOX::star[star_idx].visited |= (1 << player_idx);
 
         colony.climate = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).climate;
@@ -290,7 +290,7 @@ namespace ERICNET {
 
         // Only active ships gain experience
         if (ship.status == 0) {
-            int16_t star_idx = ship.location;
+            int16_t star_idx = ship.Legacy_Location(MOX::star);
             int8_t ship_owner = ship.owner;
 
             for (int i = 0; i < 5; ++i) {
@@ -313,7 +313,7 @@ namespace ERICNET {
         s_colony* colony = &MOX::colony[colony_idx];
         s_player* player = &MOX::player[(uint8_t)colony->owner];
         s_planet_data* planet = &::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony->planet)));
-        int16_t star_idx = planet->star_index;
+        const auto star_idx = planet->Star_Position(MOX::star);
         s_star_data* star = &MOX::star[star_idx];
 
         uint8_t add_to_list = 1;
@@ -535,7 +535,7 @@ namespace ERICNET {
 
         if (Building_Forces_Combat_Reengagement(building_id)) {
             ::game::id_planet planet_id = MOX::colony[colony_idx].planet;
-            int16_t star_id = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_id))).star_index;
+            const auto star_id = game::Planet(world_state, planet_id).Star_Position(MOX::star);
             MOX::star[star_id].ignore_combat_ships = 0;
         }
 
@@ -557,7 +557,7 @@ namespace ERICNET {
             case BUILDING_ARTEMIS_SYSTEM_NET:
             case BUILDING_DIMENSIONAL_PORTAL:
             case BUILDING_WARP_INTERDICTOR: {
-                int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(MOX::colony[colony_idx].planet))).star_index;
+                const auto star_idx = game::Planet(world_state, MOX::colony[colony_idx].planet).Star_Position(MOX::star);
                 COLCALC::Compute_Star_Colony_Stuff(world_state, &MOX::star[star_idx]);
                 if (building_id == BUILDING_WARP_INTERDICTOR) {
                     SHIPMOVE::Update_Ship_ETAs((int32_t)MOX::colony[colony_idx].owner);

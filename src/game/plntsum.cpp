@@ -21,7 +21,7 @@ namespace PLNTSUM {
 
             if (summary->planet_id != game::NO_PLANET) {
                 s_planet_data* planet = &::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(summary->planet_id)));
-                int16_t star_idx = planet->star_index;
+                const auto star_idx = planet->Star_Position(MOX::star);
                 int16_t mineral_class = summary->mineral_class;
                 int16_t climate_idx = summary->climate;
                 int16_t gravity_class = static_cast<int16_t>(planet->gravity_class);
@@ -178,13 +178,13 @@ namespace PLNTSUM {
         ship_list[0] = -1;
         ship_list[1] = -1;
 
-        target_star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index;
+        target_star_idx = game::Planet(world_state, planet_idx).Star_Position(MOX::star);
         omniscient = HAROLD::Player_Is_Omniscient(MOX::PLAYER_NUM);
         summary_idx = Planet_Summary_Id(planet_idx);
         nearest_ship_idx = Nearest_Ship_Id(summary_idx);
 
         ship_type = MOX::ship[nearest_ship_idx].d.ship_type;
-        ship_origin_star_idx = HAROLD::Absolute_Location(MOX::ship[nearest_ship_idx].location);
+        ship_origin_star_idx = HAROLD::Absolute_Location(MOX::ship[nearest_ship_idx].Legacy_Location(MOX::star));
 
         if (((ship_origin_star_idx != target_star_idx) && (ship_type == SHIP_TYPE_COLONY) && (PLNTSUM::planet_summary[summary_idx].colony_eta > 0)) ||
             ((ship_type == SHIP_TYPE_OUTPOST) && (PLNTSUM::planet_summary[summary_idx].outpost_eta > 0))) {
@@ -197,7 +197,7 @@ namespace PLNTSUM {
             }
         }
 
-        if (nearest_ship_idx <= -1 || MOX::ship[nearest_ship_idx].location < SHIP_LOCATION_MOVING_OFFSET) {
+        if (nearest_ship_idx <= -1 || MOX::ship[nearest_ship_idx].Legacy_Location(MOX::star) < SHIP_LOCATION_MOVING_OFFSET) {
             if (nearest_ship_idx == -1) {
                 should_continue = false;
             }
@@ -347,7 +347,7 @@ namespace PLNTSUM {
                 game::id_planet explored_idx = PLNTSUM::planet_summary[current_row].planet_id;
 
                     if (explored_idx != game::NO_PLANET) {
-                    int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(explored_idx))).star_index;
+                    const auto star_idx = game::Planet(world_state, explored_idx).Star_Position(MOX::star);
 
                     // Handle interaction: Click on fields/icons
                     if (PLNTSUM::screen->fields[i] == clicked_field_id) {
@@ -671,7 +671,7 @@ namespace PLNTSUM {
         }
 
         s_ship_data* ship = &MOX::ship[ship_idx];
-        int16_t location = ship->location;
+        int16_t location = ship->Legacy_Location(MOX::star);
 
         bool is_space_location = (location >= SHIP_LOCATION_MOVING_OFFSET && location < SHIP_LOCATION_WORMHOLE_OFFSET);
         bool is_travel_location = (location >= SHIP_LOCATION_WORMHOLE_OFFSET && location < SHIP_LOCATION_LIMIT);
@@ -806,10 +806,10 @@ namespace PLNTSUM {
             int16_t ship_idx = MOX::ship_node[node_idx].ship_idx;
             s_ship_data* ship_ptr = &MOX::ship[ship_idx];
 
-            if (ship_ptr->location >= SHIP_LOCATION_MOVING_OFFSET) {
+            if (ship_ptr->Legacy_Location(MOX::star) >= SHIP_LOCATION_MOVING_OFFSET) {
                 uint8_t type = ship_ptr->d.ship_type;
                 if (type == SHIP_TYPE_COLONY || type == SHIP_TYPE_OUTPOST) {
-                    PLNTSUM::Draw_Nearest_Ship_Directional_Line(ship_ptr->location);
+                    PLNTSUM::Draw_Nearest_Ship_Directional_Line(ship_ptr->Legacy_Location(MOX::star));
                 }
             }
         }

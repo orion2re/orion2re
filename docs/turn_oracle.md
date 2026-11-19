@@ -15,6 +15,21 @@ deletion, slot reuse, and compaction during generation are a different boundary.
 Two independently generated galaxies therefore must not be substituted for replay
 from the same saved starting state.
 
+Planet parent links use stable star IDs. Version 8 writes the parent as a
+32-bit ID; older saves decode the historical star position as the imported ID.
+Moving a star in the processing order does not change its planets' parent IDs.
+
+Ship records store a travel mode and a stable destination independently, with
+an explicit Antares destination. Versions 7 and earlier decode the old
+position-plus-offset field on import. Jump-gate redirect state also stores a
+stable star ID in version 8.
+
+Stars use a separate processing order too. Historical star positions become
+IDs on import. Version 8 writes each ID in processing order plus the allocator's
+next ID; the oracle checks that order and those IDs exactly. Antares remains a
+synthetic destination, not a live star. Version-8 saves from before the star
+refactor do not have this layout and are not supported.
+
 The save comparator decodes both versions into detached comparison records.
 It does not load either save into the running game, change configuration or Lua
 state, consume RNG values, or remap planet IDs by matching planet properties.

@@ -9,7 +9,7 @@ namespace maintain {
         uint8_t owner = (uint8_t)ship->owner;
 
         if (status == 0 || status == 4) {
-            star_id = ship->location;
+            star_id = ship->Legacy_Location(MOX::star);
         } else if (status == 2) {
             int16_t x = ship->x;
             int16_t y = ship->y;
@@ -86,7 +86,7 @@ namespace maintain {
                 s_MSG msg;
                 memset(&msg, 0, sizeof(msg));
                 msg.msg_type = MSG_TYPE_SCRAP_SHIP;
-                msg.u.scrap_ship.where = cheapest_ship->location;
+                msg.u.scrap_ship.where = cheapest_ship->Legacy_Location(MOX::star);
                 msg.u.scrap_ship.ship_idx = ship_index;
                 msg.u.scrap_ship.bc = scrap_cost;
 

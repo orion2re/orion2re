@@ -1927,7 +1927,7 @@ TEST_CASE("source-updated ICE repairs homeworld state") {
         test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).food_per_farmer =
             MOX::food_per_farmer_table[PLANET_CLIMATE_TERRAN];
         for (auto& [id, planet] : game::world.planets) {
-            if (planet.star_index == 0) planet.planet_special = SYSTEM_SPECIAL_NO_SPECIAL;
+            if (planet.parent_star == game::id_star{0}) planet.planet_special = SYSTEM_SPECIAL_NO_SPECIAL;
         }
         MOX::star[0].system_special = SYSTEM_SPECIAL_NO_SPECIAL;
     };

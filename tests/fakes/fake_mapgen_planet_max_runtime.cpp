@@ -129,7 +129,7 @@ namespace TEST_MAPGEN {
 
     void Set_Planet_(uint32_t planet_idx, int16_t star_idx, int8_t orbit,
                      int8_t planet_type, int16_t colony_idx) {
-        test::Planet(&game::world, legacy_world::Planet_Id(planet_idx)).star_index = star_idx;
+        test::Planet(&game::world, legacy_world::Planet_Id(planet_idx)).parent_star = MOX::star.Id_At(star_idx);
         test::Planet(&game::world, legacy_world::Planet_Id(planet_idx)).orbit = orbit;
         test::Planet(&game::world, legacy_world::Planet_Id(planet_idx)).planet_type = planet_type;
         test::Planet(&game::world, legacy_world::Planet_Id(planet_idx)).colony_index = colony_idx;
@@ -357,7 +357,7 @@ namespace MOX {
     int16_t NUM_COLONIES;
 
 
-    s_star_data* star = stars;
+    game::s_star_slots star = stars;
     s_player* player = players;
     game::s_colony_slots colony = colonies;
     s_ship_data* ship = ships;

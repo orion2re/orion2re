@@ -17,7 +17,7 @@
 
 namespace game {
     struct s_world_state {
-        // Players, ships, stars and nebulas still use legacy storage.
+        // Players, ships and nebulas still use legacy storage.
         std::map<id_player, s_player> players;
         std::map<id_ship, s_ship_data> ships;
         std::map<id_star, s_star_data> stars;
@@ -28,10 +28,14 @@ namespace game {
         std::map<id_player, std::vector<SETTLER::s_settler>> settlers;
         uint64_t next_planet_id = 0;
         uint64_t next_colony_id = 0;
+        uint64_t next_star_id = 0;
         // Legacy gameplay order is not an identity. Only vacant positions
         // have reservation records; live colony records belong to colonies.
         std::array<id_colony, MAX_COLONIES> colony_order;
         std::map<int16_t, s_colony> vacant_colony_positions;
+        std::array<id_star, MAX_STARS> star_order;
+        std::map<int16_t, s_star_data> vacant_star_positions;
+        s_star_data antares{};
 
         s_world_state();
     };
@@ -55,6 +59,37 @@ namespace game {
     int32_t Colony_Count(const s_world_state* world);
     std::optional<id_colony> Create_Colony(s_world_state* world, const s_colony& colony);
     bool Erase_Colony(s_world_state* world, id_colony id);
+
+    s_star_data* Find_Star(s_world_state* world, id_star id);
+    const s_star_data* Find_Star(const s_world_state* world, id_star id);
+    s_star_data& Star(s_world_state* world, id_star id);
+    const s_star_data& Star(const s_world_state* world, id_star id);
+    int32_t Star_Count(const s_world_state* world);
+    std::optional<id_star> Create_Star(s_world_state* world, const s_star_data& star);
+
+    // Legacy positions still order iteration and encode locations/bitmaps.
+    // The position at the extent is Antares, not a live star ID.
+    struct s_star_slots {
+        s_world_state* state = nullptr;
+        s_star_data* fixture = nullptr;
+        const int16_t* extent = nullptr;
+
+        s_star_slots() = default;
+        s_star_slots(s_star_data* records) : fixture(records) {}
+        s_star_slots(s_world_state* world, const int16_t* count) : state(world), extent(count) {}
+
+        explicit operator bool() const { return state != nullptr || fixture != nullptr; }
+        bool operator==(std::nullptr_t) const { return !static_cast<bool>(*this); }
+        bool operator==(const s_star_data* records) const { return fixture == records && state == nullptr; }
+        bool operator==(const s_star_slots&) const = default;
+        s_star_data& operator[](int32_t position) const;
+        id_star Id_At(int32_t position) const;
+        int16_t Position_Of(id_star id) const;
+        int16_t Position_Of(const s_star_data* star) const;
+        bool Activate(int16_t position) const;
+        void Retire(int16_t position) const;
+        void Reset() const;
+    };
 
     struct s_colony_slots {
         s_world_state* state = nullptr;

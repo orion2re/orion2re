@@ -140,7 +140,7 @@ namespace AIDATA {
             if (ship.status < 3) {
                 int owner = ship.owner;
                 bool player_owned = owner >= 0 && owner < MAX_PLAYERS;
-                const auto location = legacy_world::Read_Ship_Location(&ship);
+                const auto location = legacy_world::Read_Ship_Location(&ship, world->stars);
                 if (!location) continue;
                 std::optional<id_star> star_id;
                 int turn_idx = -1;
@@ -234,7 +234,7 @@ namespace AIDATA {
         for (int16_t c = 0; c < world->Colony_Count(); ++c) {
             s_colony& col = world->colonies[c];
             if (col.planet != ::game::NO_PLANET) {
-                int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(col.planet))).star_index;
+                const auto star_idx = game::Planet(world_state, col.planet).Star_Position(world->stars);
                 int16_t sx = world->stars[star_idx].x;
                 int16_t sy = world->stars[star_idx].y;
                 for (int16_t s = 0; s < world->Star_Count(); ++s) {
@@ -316,7 +316,7 @@ namespace AIDATA {
             s_colony& col = world->colonies[c];
             if (col.owner != -1) {
                 int owner = col.owner;
-                int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(col.planet))).star_index;
+                const auto star_idx = game::Planet(world_state, col.planet).Star_Position(world->stars);
                 for (int p = world->Player_Count() - 1; p >= 0; --p) {
                     if (p != owner && ai->stars[legacy_world::Star_Id(star_idx)].enroute_ships[p][LAST_FORECAST_TURN]) {
                         ai->colonies[legacy_world::Colony_Id(c)].other_player_arrivals = true;
@@ -383,7 +383,7 @@ namespace AIDATA {
             s_colony& col = world->colonies[c];
             if (col.owner != -1) {
                 ai->players[(int)col.owner].empire.colony_count++;
-                if ((world->stars[::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(col.planet))).star_index].blockaded >> col.owner) & 1) {
+                if ((world->stars[game::Planet(world_state, col.planet).Star_Position(world->stars)].blockaded >> col.owner) & 1) {
                     ai->players[(int)col.owner].empire.blockaded_colony_count++;
                 }
             }
@@ -422,11 +422,12 @@ namespace AIDATA {
             qsort(refits.data(), refits.size(), sizeof(s_refit_candidate), airefit_cmp);
         }
 
-        qsort(ai->combat_ships.data(), ai->combat_ships.size(), sizeof(id_ship), sort_ships, world->ships);
+        auto sort_world = *world;
+        qsort(ai->combat_ships.data(), ai->combat_ships.size(), sizeof(id_ship), sort_ships, &sort_world);
 
         for (uint32_t i = 0; i < ai->combat_ships.size(); ++i) {
             const uint32_t ship_idx = legacy_world::Slot(ai->combat_ships[i]);
-            auto orbit = legacy_world::Orbit_Star(&world->ships[ship_idx]);
+            auto orbit = legacy_world::Orbit_Star(&world->ships[ship_idx], world->stars);
             int owner = world->ships[ship_idx].owner;
             if (orbit) {
                 auto& groups = ai->players[owner].combat_ship_groups;
@@ -444,7 +445,7 @@ namespace AIDATA {
         for (uint32_t i_as = 0; i_as < ai->combat_ships.size(); ++i_as) {
             const uint32_t i = legacy_world::Slot(ai->combat_ships[i_as]);
             int8_t stealth = (int8_t)struct_::Test_Bit_Field(world->ships[i].d.special_device_flags, 11);
-            const auto location = legacy_world::Read_Ship_Location(&world->ships[i]);
+            const auto location = legacy_world::Read_Ship_Location(&world->ships[i], world->stars);
             if (!location) continue;
             uint32_t start_star = legacy_world::Slot(location->star_id);
             int owner = world->ships[i].owner;
@@ -556,7 +557,7 @@ namespace AIDATA {
                         for (const auto& planet_entry : (world->state)->planets) {
             const game::id_planet pl = planet_entry.first;
                             if (legacy_world::Planet_Id(legacy_world::Planet_Id(pl)) != *best_planet_at_star[p_o]) {
-                                auto route = Player_N_Turns_From_Star_To_Star_With_Intermediate(ai, world, legacy_world::Player_Id(p_o), legacy_world::Star_Id(s), legacy_world::Star_Id(::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(pl))).star_index), false);
+                                auto route = Player_N_Turns_From_Star_To_Star_With_Intermediate(ai, world, legacy_world::Player_Id(p_o), legacy_world::Star_Id(s), legacy_world::Star_Id(game::Planet(world_state, pl).Star_Position(world->stars)), false);
                                 if (route && route->turns < 3) {
                                     value_sum += ai->planets[legacy_world::Planet_Id(legacy_world::Planet_Id(pl))].stage_weights[p_o];
                                 }
@@ -610,7 +611,7 @@ namespace AIDATA {
                 int owner = (int)col.owner;
 
                 if (owner != -1) {
-                    int16_t col_star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(col.planet))).star_index;
+                    const auto col_star_idx = game::Planet(world_state, col.planet).Star_Position(world->stars);
                     int ship_range = (int)world->players[owner].ship_range;
 
                     if (Star_In_Range_Of_Given_Star(world, legacy_world::Star_Id(star_idx), legacy_world::Star_Id(col_star_idx), ship_range)) {
@@ -689,7 +690,7 @@ namespace AIDATA {
 
             if (owner != -1 && in_normal_range_out[owner] == 0) {
                 auto& planet = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony.planet)));
-                auto& colony_star = world->stars[planet.star_index];
+                auto& colony_star = world->stars[planet.Star_Position(world->stars)];
 
                 int32_t dx = (int32_t)colony_star.x - target_x;
                 int32_t dy = (int32_t)colony_star.y - target_y;
@@ -718,7 +719,8 @@ namespace AIDATA {
     int __cdecl sort_ships(void* context, const void* lhs, const void* rhs) {
         const uint32_t idx1 = legacy_world::Slot(legacy_world::Read_Ship_Id(lhs));
         const uint32_t idx2 = legacy_world::Slot(legacy_world::Read_Ship_Id(rhs));
-        const auto* ships = static_cast<const s_ship_data*>(context);
+        const auto* world = static_cast<const game::s_view*>(context);
+        const auto* ships = world->ships;
 
         const s_ship_data& ship1 = ships[idx1];
         const s_ship_data& ship2 = ships[idx2];
@@ -730,7 +732,7 @@ namespace AIDATA {
             return 1;
         }
 
-        return legacy_world::Compare_Ship_Locations(&ship1, &ship2);
+        return legacy_world::Compare_Ship_Locations(&ship1, &ship2, world->stars);
     }
 
     void __cdecl Compute_Base_Planet_Values(::game::s_world_state* world_state, s_state* ai, const game::s_view* world) {
@@ -747,7 +749,7 @@ namespace AIDATA {
             const ::game::id_planet planet_idx = planet_entry.first;
                 s_planet_data* planet = &::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx)));
 
-                uint8_t system_visibility_bits = ai->stars[legacy_world::Star_Id(planet->star_index)].in_extended_range;
+                uint8_t system_visibility_bits = ai->stars[legacy_world::Star_Id(planet->Star_Position(world->stars))].in_extended_range;
 
                 if ((system_visibility_bits >> (player_idx & 0x1F)) & 1) {
                     int16_t col_idx = planet->colony_index;
@@ -787,7 +789,7 @@ namespace AIDATA {
                 }
 
                 s_planet_data* planet = &::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(i)));
-                s_star_data* star = &world->stars[planet->star_index];
+                s_star_data* star = &world->stars[planet->Star_Position(world->stars)];
 
                 uint16_t& contextual_val = ai->planets[legacy_world::Planet_Id(legacy_world::Planet_Id(i))].contextual_values[p];
                 contextual_val = base_val;

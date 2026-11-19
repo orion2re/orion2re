@@ -75,7 +75,8 @@ namespace TEST_ORBITAL_DEFENSE {
         game::world.planets.clear();
         game::world.next_planet_id = 0;
         test::Resize_Planets(&game::world, 2);
-        memset(MOX::star, 0, sizeof(s_star_data));
+        for (auto& [id, planet] : game::world.planets) planet.parent_star = game::id_star{0};
+        memset(MOX::star.fixture, 0, sizeof(s_star_data));
         memset(MOX::player, 0, sizeof(s_player) * MAX_PLAYERS);
         ai = {};
         memset(station_weights, 0, sizeof(station_weights));

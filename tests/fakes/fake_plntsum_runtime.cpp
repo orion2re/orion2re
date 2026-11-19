@@ -22,7 +22,7 @@ namespace {
 namespace MOX {
     s_player* player = players;
 
-    s_star_data* star = stars;
+    game::s_star_slots star = stars;
     game::s_colony_slots colony = colonies;
     s_ship_data* ship = ships;
     s_scroll_bar* scroll_bar = &scroll;
@@ -159,7 +159,7 @@ namespace OFFICER {
 
 namespace SHIPMOVE {
     bool __cdecl Star_In_Extended_Range_Of_Player(s_star_data* star, int16_t) {
-        return TEST_PLNTSUM::in_range[star - MOX::star];
+        return TEST_PLNTSUM::in_range[MOX::star.Position_Of(star)];
     }
 
     void __cdecl Ships_Try_To_Move_To(int16_t* ship_list, int16_t, s_ship_move_info* move_info) {
@@ -175,7 +175,7 @@ namespace SHIPMOVE {
         TEST_PLNTSUM::moved_ship = ship_list[0];
         TEST_PLNTSUM::moved_to_star = star_idx;
         s_ship_data* ship = &MOX::ship[ship_list[0]];
-        ship->location = ship->location >= SHIP_LOCATION_MOVING_OFFSET ? SHIP_LOCATION_MOVING_OFFSET + star_idx : star_idx;
+        ship->location = {ship->location.kind == game::e_ship_location::at_star ? game::e_ship_location::at_star : game::e_ship_location::in_flight, MOX::star.Id_At(star_idx)};
     }
 } // namespace SHIPMOVE
 

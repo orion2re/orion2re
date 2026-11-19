@@ -63,7 +63,7 @@ namespace TEST_LUA_GAME {
         for (auto& [id, planet] : game::world.planets) {
             planet.colony_index = -1;
         }
-        test::Planet(&game::world, legacy_world::Planet_Id(0)).star_index = 0;
+        test::Planet(&game::world, game::id_planet{0}).parent_star = game::id_star{0};
         test::Planet(&game::world, legacy_world::Planet_Id(0)).orbit = 0;
         test::Planet(&game::world, legacy_world::Planet_Id(0)).planet_type = PLANET_TYPE_PLANET;
         test::Planet(&game::world, legacy_world::Planet_Id(0)).size = PLANET_SIZE_MEDIUM;
@@ -71,7 +71,7 @@ namespace TEST_LUA_GAME {
         test::Planet(&game::world, legacy_world::Planet_Id(0)).climate = PLANET_CLIMATE_TERRAN;
         test::Planet(&game::world, legacy_world::Planet_Id(0)).mineral_class = MINERAL_RESOURCE_ABUNDANT;
         test::Planet(&game::world, legacy_world::Planet_Id(0)).planet_special = SYSTEM_SPECIAL_NO_SPECIAL;
-        test::Planet(&game::world, legacy_world::Planet_Id(1)).star_index = 1;
+        test::Planet(&game::world, game::id_planet{1}).parent_star = game::id_star{1};
         test::Planet(&game::world, legacy_world::Planet_Id(1)).orbit = 3;
         test::Planet(&game::world, legacy_world::Planet_Id(1)).planet_type = PLANET_TYPE_GAS_GIANT;
         test::Planet(&game::world, legacy_world::Planet_Id(1)).size = PLANET_SIZE_LARGE;
@@ -79,7 +79,7 @@ namespace TEST_LUA_GAME {
         test::Planet(&game::world, legacy_world::Planet_Id(1)).climate = PLANET_CLIMATE_BARREN;
         test::Planet(&game::world, legacy_world::Planet_Id(1)).mineral_class = MINERAL_RESOURCE_RICH;
         test::Planet(&game::world, legacy_world::Planet_Id(1)).planet_special = SYSTEM_SPECIAL_GOLD_DEPOSITS;
-        test::Planet(&game::world, legacy_world::Planet_Id(2)).star_index = 0;
+        test::Planet(&game::world, game::id_planet{2}).parent_star = game::id_star{0};
         test::Planet(&game::world, legacy_world::Planet_Id(2)).orbit = 2;
         test::Planet(&game::world, legacy_world::Planet_Id(2)).planet_type = PLANET_TYPE_ASTEROID;
         test::Planet(&game::world, legacy_world::Planet_Id(2)).size = PLANET_SIZE_SMALL;
@@ -128,7 +128,7 @@ namespace MOX {
     s_player* player = players;
     s_combat_data* combat_data = combat_ships;
     s_ship_data* ship = ships;
-    s_star_data* star = systems;
+    game::s_star_slots star = systems;
 
     game::s_colony_slots colony = colonies;
     s_nebula* nebula = nebulas;

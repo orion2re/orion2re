@@ -40,6 +40,7 @@ namespace {
         bool colony_backlink = false;
         bool colony_event = false;
         bool settler_source = false;
+        bool planet_parent = false;
     };
 
     std::vector<uint8_t> Encoded_Save(uint16_t version, s_save_changes changes = {}) {
@@ -83,23 +84,34 @@ namespace {
         game::s_world_state world;
         s_planet_data a{};
         a.colony_index = changes.colony_backlink ? -1 : colony_slot;
+        a.parent_star = game::id_star{0};
         a.size = PLANET_SIZE_MEDIUM;
         s_planet_data b = a;
         b.colony_index = -1;
         b.orbit = 1;
+        if (changes.planet_parent) b.parent_star = game::id_star{1};
         if (changes.planet_size) b.size = PLANET_SIZE_HUGE;
         DOCTEST_REQUIRE(game::Insert_Planet(&world, first, a));
         DOCTEST_REQUIRE(game::Insert_Planet(&world, second, b));
         world.next_planet_id = changes.allocator ? 3 : 2;
         if (version == 7) {
             writer.Write_Uint16(2);
-            Write_Planet(&writer, &a);
-            Write_Planet(&writer, &b);
+            for (const auto& planet : {a, b}) {
+                writer.Write_Int16(planet.colony_index);
+                writer.Write_Int16(0); // Historical parent position.
+                writer.Write_Int8(planet.orbit);
+                writer.Write_Int8(0); // Body type.
+                writer.Write_Int8(planet.size);
+                zeros(11);
+            }
         } else SAVEGAME::Write_Planets(&world, &writer);
         writer.Write_Uint16(1);
         if (version == 7) {
             std::vector<uint8_t> star(106 + BITMAP(MAX_STARS));
             const size_t ids_offset = 67 + BITMAP(MAX_STARS);
+            const size_t wormhole_offset = 32 + BITMAP(MAX_STARS);
+            star[wormhole_offset] = star[wormhole_offset + 1] = 0xff;
+            std::fill_n(star.begin() + ids_offset + 10, MAX_PLAYERS * 2, 0xff);
             for (size_t orbit = 0; orbit < 5; ++orbit) {
                 const uint16_t id = orbit < 2 ? static_cast<uint16_t>(orbit) : UINT16_MAX;
                 star[ids_offset + orbit * 2] = static_cast<uint8_t>(id);
@@ -107,6 +119,8 @@ namespace {
             }
             writer.Write_Bytes(star.data(), star.size());
         } else {
+            writer.Write_Uint64(1); // Next star ID.
+            writer.Write_Uint32(0); // The only star keeps its historical ID.
             s_star_data star{};
             std::fill(std::begin(star.planet_index), std::end(star.planet_index), game::NO_PLANET);
             star.planet_index[0] = first;
@@ -145,14 +159,17 @@ namespace {
         writer.Write_Uint16(1);
         s_ship_data ship{};
         ship.d.ship_type = SHIP_TYPE_COLONY;
+        ship.location = {game::e_ship_location::at_star, game::id_star{0}};
         if (version == 7) {
             ship.d.ship_weapon[0].type = 1;
             ship.d.ship_weapon[1].type = 1;
             std::array<uint8_t, 1024> encoded{};
             SERIAL::Writer_ old_ship(encoded.data(), encoded.size(), "oracle ship fixture");
             Write_Ship(&old_ship, &ship);
-            DOCTEST_REQUIRE(old_ship.Length() == 130);
-            writer.Write_Bytes(encoded.data(), 129); // No optional-target field before version 8.
+            DOCTEST_REQUIRE(old_ship.Length() == 134);
+            writer.Write_Bytes(encoded.data(), 101); // Design, owner and status.
+            writer.Write_Int16(0); // Historical orbit position.
+            writer.Write_Bytes(encoded.data() + 107, 26); // Fields after location, before optional target.
         } else {
             ship.auto_colonize_target = changes.ship_target ? first : second;
             if (changes.ship_storage) ship.d.ship_weapon[0].type = 42;
@@ -187,7 +204,9 @@ namespace {
                 for (size_t slot = 25; slot < MAX_FREIGHTED_SETTLERS; ++slot) writer.Write_Uint64(player == 0 && slot == 25 ? packed_settler : 0);
             }
         }
-        zeros(6); // One ship's redirect-state tail.
+        if (version == 7) writer.Write_Int16(-1);
+        else writer.Write_Uint32(game::NO_STAR.id);
+        writer.Write_Int32(0); // One ship's redirect-state tail.
         SAVEGAME::Write_Extension_Header(&writer, 0, 0);
         bytes.resize(writer.Length());
         return bytes;
@@ -263,6 +282,7 @@ DOCTEST_TEST_CASE("oracle rejects changed planet data, references, IDs, counters
         {{.random_seed = true}, "settings and random seed"},
         {{.allocator = true}, "planet count and next ID"},
         {{.swap_planet_ids = true}, "colony on planet[0]"},
+        {{.planet_parent = true}, "planet[1].parent_star"},
     };
     for (const auto& [changes, section] : cases) {
         DOCTEST_REQUIRE(turn_oracle::Write_File(actual, Encoded_Save(8, changes), &error));

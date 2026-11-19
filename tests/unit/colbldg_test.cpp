@@ -133,10 +133,10 @@ DOCTEST_TEST_CASE_FIXTURE(s_building_state, "queuing the last legal Colony Base 
         MOX::colony[0].planet = game::id_planet{0};
     test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).colony_index = 0;
     test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).planet_type = PLANET_TYPE_PLANET;
-    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).star_index = 0;
+    test::Planet(&game::world, game::id_planet{0}).parent_star = game::id_star{0};
     test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).colony_index = -1;
     test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).planet_type = PLANET_TYPE_PLANET;
-    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).star_index = 0;
+    test::Planet(&game::world, game::id_planet{1}).parent_star = game::id_star{0};
         MOX::star[0].planet_index[0] = game::id_planet{0};
         MOX::star[0].planet_index[1] = game::id_planet{1};
     TEST_COLBLDG::Set_Buildable_(BUILDING_COLONY_BASE, true);
@@ -174,7 +174,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_building_state, "pending refit design owns an indepe
 DOCTEST_TEST_CASE_FIXTURE(s_building_state, "ship allocation appends without a pre-seeded owner") {
     TEST_COLBLDG::Reset_();
         MOX::colony[0].planet = game::id_planet{0};
-    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).star_index = 0;
+    test::Planet(&game::world, game::id_planet{0}).parent_star = game::id_star{0};
     MOX::NUM_SHIPS = 1;
     MOX::ship[0].owner = 0;
     MOX::ship[0].status = 0;
@@ -194,7 +194,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_building_state, "ship allocation appends without a p
 DOCTEST_TEST_CASE_FIXTURE(s_building_state, "ship allocation reuses only an owner-matched destroyed slot") {
     TEST_COLBLDG::Reset_();
         MOX::colony[0].planet = game::id_planet{0};
-    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).star_index = 0;
+    test::Planet(&game::world, game::id_planet{0}).parent_star = game::id_star{0};
     MOX::NUM_SHIPS = 2;
     MOX::ship[0].owner = 0;
     MOX::ship[0].status = 5;
@@ -214,7 +214,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_building_state, "ship allocation reuses only an owne
 DOCTEST_TEST_CASE_FIXTURE(s_building_state, "ship allocation fails when capacity has no reusable slot") {
     TEST_COLBLDG::Reset_();
         MOX::colony[0].planet = game::id_planet{0};
-    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).star_index = 0;
+    test::Planet(&game::world, game::id_planet{0}).parent_star = game::id_star{0};
     MOX::NUM_SHIPS = MAX_SHIPS;
     for (int16_t ship_idx = 0; ship_idx < MAX_SHIPS; ++ship_idx) {
         MOX::ship[ship_idx].owner = 0;

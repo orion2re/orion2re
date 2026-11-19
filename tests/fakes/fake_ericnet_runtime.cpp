@@ -23,7 +23,7 @@ namespace MOX {
     int16_t NUM_SHIPS = 0;
     game::s_colony_slots colony = colonies;
 
-    s_star_data* star = stars;
+    game::s_star_slots star = stars;
     s_ship_data* ship = ships;
     s_player* player = players;
     int16_t super_fast_flag;

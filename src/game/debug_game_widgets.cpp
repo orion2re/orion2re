@@ -225,6 +225,14 @@ namespace debug_game_widgets {
 #endif
     }
 
+    bool Star_Reference(const char* label, game::id_star* star_id, bool allow_none) {
+        if (star_id == nullptr) return false;
+        auto position = MOX::star.Position_Of(*star_id);
+        if (!Star_Reference(label, &position, allow_none)) return false;
+        *star_id = MOX::star.Id_At(position);
+        return true;
+    }
+
     bool Planet_Reference(game::s_world_state* world_state, const char* label, game::id_planet* selected, bool allow_none) {
 #if defined(ORION2RE_ENABLE_DEBUG_OVERLAY)
         if (label == nullptr || selected == nullptr) return false;

@@ -56,7 +56,7 @@ namespace ADVCIV {
         int16_t base_proximity = ADVCIV::Proximity_Bonus(world_state, player_idx, legacy_world::Planet_Id(planet_idx));
         *proximity_bonus = (int16_t)((int32_t)base_proximity * (*worth) / 100);
 
-        if (Player_Has_Colony_At_Star(player_idx, planet->star_index)) {
+        if (Player_Has_Colony_At_Star(player_idx, planet->Star_Position(MOX::star))) {
             *worth = (*worth * 67) / 100;
             *has_colony = 1;
         }
@@ -94,7 +94,7 @@ namespace ADVCIV {
         for (int16_t player_idx = 0; player_idx < MOX::NUM_PLAYERS; ++player_idx) {
             adv_civ_player[player_idx].candidate_star_count = 0;
 
-            int16_t home_star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(MOX::player[player_idx].home_planet_id))).star_index;
+            const auto home_star_idx = game::Planet(world_state, MOX::player[player_idx].home_planet_id).Star_Position(MOX::star);
             for (int16_t star_idx = 1; star_idx < MAX_STARS; ++star_idx) {
                 int16_t distance = (int16_t)parsec[home_star_idx].dist[star_idx];
                 if (max_dist_so_far < distance) {
@@ -174,7 +174,7 @@ namespace ADVCIV {
     int16_t Get_Next_Adv_Civ_Planet(game::s_world_state* world_state, int16_t player_idx, const std::map<game::id_planet, int8_t>& availability_map) {
         s_adv_civ_player& adv_player = adv_civ_player[player_idx];
         ::game::id_planet home_planet_id = MOX::player[player_idx].home_planet_id;
-        int16_t home_star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(home_planet_id))).star_index;
+        const auto home_star_idx = game::Planet(world_state, home_planet_id).Star_Position(MOX::star);
 
         int16_t expansion_cutoff = Num_Adv_Civ_Planets();
 
@@ -191,7 +191,7 @@ namespace ADVCIV {
                 ::game::id_planet p_idx = adv_player.planets[i].planet_idx;
 
                 if (p_idx != ::game::NO_PLANET && availability_map.at(p_idx) == -1) {
-                    int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(p_idx))).star_index;
+                    const auto star_idx = game::Planet(world_state, p_idx).Star_Position(MOX::star);
                     int16_t distance = (int16_t)parsec[home_star_idx].dist[star_idx];
 
                     if (!Enemy_Has_Colony_At_Star(player_idx, star_idx)) {
@@ -267,7 +267,7 @@ namespace ADVCIV {
                     active_player_order[i] = -1;
                 } else {
                     auto global_planet_idx = adv_civ_player[player_idx].planets[candidate_planet_idx].planet_idx;
-                    int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(global_planet_idx))).star_index;
+                    const auto star_idx = game::Planet(world_state, global_planet_idx).Star_Position(MOX::star);
                     picked_planet_idx[player_idx] = candidate_planet_idx;
                     planet_selected_flag[global_planet_idx] = (int8_t)player_idx;
                     star_colony_owner[star_idx] = (int8_t)player_idx;
@@ -383,7 +383,7 @@ namespace ADVCIV {
 
         for (int16_t p_idx_position = 0; p_idx_position < MOX::NUM_PLAYERS; ++p_idx_position) {
             auto hw_idx = MOX::player[p_idx_position].home_planet_id;
-            int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(hw_idx))).star_index;
+            const auto star_idx = game::Planet(world_state, hw_idx).Star_Position(MOX::star);
 
             for (int16_t i = 0; i < MAX_PLANETS; ++i) {
                 adv_civ_player[p_idx_position].planets[i].planet_idx = ::game::NO_PLANET;
@@ -464,12 +464,12 @@ namespace ADVCIV {
 
                     if (player_special_count[i] < player_special_count[best_player_idx] &&
                         ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(j))).planet_special == SYSTEM_SPECIAL_NO_SPECIAL &&
-                        MOX::star[::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(j))).star_index].system_special == SYSTEM_SPECIAL_NO_SPECIAL) {
+                        MOX::star[game::Planet(world_state, j).Star_Position(MOX::star)].system_special == SYSTEM_SPECIAL_NO_SPECIAL) {
                         if (!(MOX::player[i].home_planet_id == j && MOX::player[i].traits[TRAIT_ANCIENT_HOME_WORLD] != 0)) {
                             int16_t attempts = 0;
                             do {
                                 int16_t unused_special_slot;
-                                MAPGEN::Get_A_Planet_Or_Star_Special(world_state, ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(j))).star_index, &unused_special_slot, &generated_special, 0, 0);
+                                MAPGEN::Get_A_Planet_Or_Star_Special(world_state, game::Planet(world_state, j).Star_Position(MOX::star), &unused_special_slot, &generated_special, 0, 0);
                                 if (generated_special == SYSTEM_SPECIAL_GEM_DEPOSITS || generated_special == SYSTEM_SPECIAL_GOLD_DEPOSITS || generated_special == SYSTEM_SPECIAL_ANCIENT_ARTIFACTS) {
                                     attempts = 100;
                                 } else {
@@ -482,7 +482,7 @@ namespace ADVCIV {
                         if (generated_special > SYSTEM_SPECIAL_NO_SPECIAL) {
                             ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(j))).planet_special = generated_special;
                             player_special_count[i]++;
-                            MOX::star[::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(j))).star_index].system_special = generated_special;
+                            MOX::star[game::Planet(world_state, j).Star_Position(MOX::star)].system_special = generated_special;
                         }
 
                         if (Get_Players_Planet_Worthiness_Average(world_state, i) >= (max_worthiness * 90 / 100)) {
@@ -496,7 +496,7 @@ namespace ADVCIV {
                             if (twiddle_result != 0) {
                                 break;
                             }
-                            MAPGEN::Set_Secondary_Planet_Data(world_state, ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(j))).star_index, legacy_world::Planet_Id(j));
+                            MAPGEN::Set_Secondary_Planet_Data(world_state, game::Planet(world_state, j).Star_Position(MOX::star), j);
                             if (Get_Players_Planet_Worthiness_Average(world_state, i) >= (max_worthiness * 90 / 100)) {
                                 player_satisfied = true;
                             }
@@ -549,7 +549,7 @@ namespace ADVCIV {
     int16_t __cdecl Proximity_Bonus(::game::s_world_state* world_state, int16_t player_idx, ::game::id_planet planet_idx) {
         int16_t proximity_bonus = 0;
         int16_t i = 0;
-        const int16_t target_star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index;
+        const auto target_star_idx = game::Planet(world_state, planet_idx).Star_Position(MOX::star);
         const int16_t num_stars = MOX::NUM_STARS;
 
         if (num_stars > 0) {

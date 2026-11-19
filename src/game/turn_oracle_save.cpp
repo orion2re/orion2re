@@ -8,6 +8,7 @@
 #include "save_sections.h"
 #include "savegame.h"
 #include "settler_serialization.h"
+#include "star_serialization.h"
 
 namespace turn_oracle {
     namespace {
@@ -166,7 +167,7 @@ namespace turn_oracle {
                 writer->Write_Uint64(world.next_planet_id);
             });
             for (const auto& [id, planet] : world.planets) {
-                save->summary.planets.push_back({id, planet.star_index, planet.orbit});
+                save->summary.planets.push_back({id, planet.parent_star, planet.orbit});
                 s_planet_data record = planet;
                 if (compare_colony_states && planet.colony_index != -1) {
                     const auto rank = colony_comparison.Rank(colony_slots.Id_At(planet.colony_index));
@@ -182,13 +183,18 @@ namespace turn_oracle {
                 });
             }
 
-            uint16_t stars = 0;
-            if (!Count(&reader, save, "star count", MAX_STARS, &stars)) return false;
-            for (uint16_t position = 0; position < stars; ++position) {
-                s_star_data star{};
-                SAVEGAME::records::Read_Star(&reader, &star, version);
-                if (reader.Failed()) return false;
-                Encode(save, "star[" + std::to_string(position) + "]", [&star](SERIAL::Writer_* writer) { SAVEGAME::records::Write_Star(writer, &star); });
+            int16_t star_extent = 0;
+            const game::s_star_slots star_slots(&world, &star_extent);
+            if (!SAVEGAME::Read_Ordered_Stars(star_slots, &reader, version, &star_extent)) return false;
+            Encode(save, "star order and next ID", [&](SERIAL::Writer_* writer) {
+                writer->Write_Int16(star_extent);
+                writer->Write_Uint64(world.next_star_id);
+            });
+            for (int16_t position = 0; position < star_extent; ++position) {
+                Encode(save, "star[" + std::to_string(position) + "]", [&](SERIAL::Writer_* writer) {
+                    writer->Write_Uint32(star_slots.Id_At(position).id);
+                    SAVEGAME::records::Write_Star(writer, &star_slots[position]);
+                });
             }
             if (!Opaque(&reader, save, "leaders", MAX_LEADERS * LEADER_SIZE)) return false;
             uint16_t player_count = 0;
@@ -206,7 +212,7 @@ namespace turn_oracle {
             const size_t ship_part = save->parts.size();
             save->parts.resize(ship_part + ship_count);
             for (auto& ship : ships) {
-                SAVEGAME::records::Read_Ship(&reader, &ship, version);
+                SAVEGAME::records::Read_Ship(&reader, &ship, version, star_extent);
                 if (reader.Failed()) return false;
                 // These two type slots were control metadata, not colony-ship weapons.
                 if (ship.d.ship_type == SHIP_TYPE_COLONY || ship.d.ship_type == SHIP_TYPE_OUTPOST) {
@@ -301,7 +307,25 @@ namespace turn_oracle {
                 save->parts[player_part + player] = std::move(save->parts.back());
                 save->parts.pop_back();
             }
-            if (!Opaque(&reader, save, "ship redirect state", ship_count * 6)) return false;
+            for (uint32_t ship = 0; ship < ship_count; ++ship) {
+                auto& redirect = ships[ship];
+                if (version >= 8) {
+                    redirect.prior_jump_gate_destination = game::id_star{reader.Read_Uint32()};
+                } else {
+                    const auto position = reader.Read_Int16();
+                    if (position < -1 || position >= star_extent) return false;
+                    redirect.prior_jump_gate_destination = star_slots.Id_At(position);
+                }
+                redirect.prior_jump_gate_stardate = reader.Read_Int32();
+                if (reader.Failed() || (redirect.prior_jump_gate_destination != game::NO_STAR &&
+                    game::Find_Star(&world, redirect.prior_jump_gate_destination) == nullptr)) return false;
+            }
+            Encode(save, "ship redirect state", [&](SERIAL::Writer_* writer) {
+                for (const auto& ship : ships) {
+                    writer->Write_Uint32(ship.prior_jump_gate_destination.id);
+                    writer->Write_Int32(ship.prior_jump_gate_stardate);
+                }
+            });
             for (uint32_t ship = 0; ship < ship_count; ++ship) {
                 Encode(save, "ship[" + std::to_string(ship) + "]", [&](SERIAL::Writer_* writer) { SAVEGAME::records::Write_Ship(writer, &ships[ship]); });
                 save->parts[ship_part + ship] = std::move(save->parts.back());
@@ -373,8 +397,10 @@ namespace turn_oracle {
                     "id",
                     "colony_index",
                     "colony_index",
-                    "star_index",
-                    "star_index",
+                    "parent_star",
+                    "parent_star",
+                    "parent_star",
+                    "parent_star",
                     "orbit",
                     "planet_type",
                     "size",

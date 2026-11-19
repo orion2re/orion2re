@@ -630,7 +630,7 @@ namespace MSG_ {
                     MOX::current_screen = SCREEN_COLONY;
 
                     s_planet_data* planet = &::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony->planet)));
-                    MOX::screen_data = planet->star_index;
+                    MOX::screen_data = planet->Star_Position(MOX::star);
                     COLONY::orbit_temp = (int16_t)planet->orbit;
 
                     return 1;

@@ -310,13 +310,14 @@ namespace debug_game_editors {
                 (ship.owner >= MAX_PLAYERS && ship.owner <= NONPLAYER_SHIP_TYPE_HYDRA);
             bool location_valid = true;
             if (ship.status == 0) {
-                location_valid = ship.location >= 0 && ship.location < star_count;
+                const auto position = ship.Legacy_Location(MOX::star);
+                location_valid = position >= 0 && position < star_count;
             } else if (ship.status == 1) {
-                const int32_t destination = ship.location - SHIP_LOCATION_MOVING_OFFSET;
+                const int32_t destination = ship.Legacy_Location(MOX::star) - SHIP_LOCATION_MOVING_OFFSET;
                 location_valid = destination >= 0 && destination < star_count &&
                     ship.travelling_speed > 0;
             } else if (ship.status == 2) {
-                const int32_t destination = ship.location - SHIP_LOCATION_WORMHOLE_OFFSET;
+                const int32_t destination = ship.Legacy_Location(MOX::star) - SHIP_LOCATION_WORMHOLE_OFFSET;
                 location_valid = destination >= 0 && destination < star_count;
             }
             bool weapons_valid = true;
@@ -325,9 +326,9 @@ namespace debug_game_editors {
                     weapon.count >= 0 && weapon.current_count >= 0 &&
                     weapon.current_count <= weapon.count && Valid_Weapon_Arc_(weapon.firing_arc);
             }
-            const bool jump_gate_valid = ship.prior_jump_gate_destination == -1 ||
-                (ship.prior_jump_gate_destination >= 0 &&
-                    ship.prior_jump_gate_destination < star_count);
+            const auto prior_position = MOX::star.Position_Of(ship.prior_jump_gate_destination);
+            const bool jump_gate_valid = ship.prior_jump_gate_destination == game::NO_STAR ||
+                (prior_position >= 0 && prior_position < star_count);
             return ship.d.name[sizeof(ship.d.name) - 1] == '\0' &&
                 ship.d.size >= 0 && ship.d.size < SHIP_SIZE_COUNT &&
                 ship.d.ship_type >= 0 && ship.d.ship_type < SHIP_TYPE_COUNT &&
@@ -371,7 +372,8 @@ namespace debug_game_editors {
             debug_game_widgets::Enum("Size", &ship.d.size, k_ship_sizes, SHIP_SIZE_COUNT);
             debug_game_widgets::Enum("Type", &ship.d.ship_type, k_ship_types, SHIP_TYPE_COUNT);
             debug_game_widgets::Enum("Status", &ship.status, k_ship_statuses, (int16_t)(sizeof(k_ship_statuses) / sizeof(k_ship_statuses[0])));
-            Input_S16_("Location", &ship.location);
+            auto position = ship.Legacy_Location(MOX::star);
+            if (Input_S16_("Location", &position)) ship.Set_Legacy_Location(MOX::star, position);
             Input_S16_("X", &ship.x);
             Input_S16_("Y", &ship.y);
             Input_U8_("Turns left", &ship.turns_left);

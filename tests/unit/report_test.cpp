@@ -87,7 +87,7 @@ DOCTEST_TEST_CASE("Antaran notifications choose a movie or a targeted room only 
     MOX::antarans.invasion_stardate = 35000;
     MOX::ship[0].owner = MAX_PLAYERS;
     MOX::ship[0].status = 1;
-    MOX::ship[0].location = SHIP_LOCATION_MOVING_OFFSET;
+    MOX::ship[0].location = {game::e_ship_location::in_flight, game::id_star{0}};
     MOX::ship[0].turns_left = 3;
     MOX::star[0].has_colony = 1;
     const uint32_t seed = game_random::Get_Random_Seed();

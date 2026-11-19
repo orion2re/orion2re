@@ -43,7 +43,7 @@ namespace test {
 
         s_player* old_players = MOX::player;
         s_ship_data* old_ships = MOX::ship;
-        s_star_data* old_stars = MOX::star;
+        game::s_star_slots old_stars = MOX::star;
         game::s_colony_slots old_colonies = MOX::colony;
         s_current_design* old_design = MOX::design;
         s_settings old_settings = MOX::settings;

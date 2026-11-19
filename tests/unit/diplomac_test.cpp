@@ -12,7 +12,7 @@ namespace {
         s_player* players = MOX::player;
         std::map<game::id_leader, s_leader_data> leaders = game::world.leaders;
         s_ship_data* ships = MOX::ship;
-        s_star_data* stars = MOX::star;
+        game::s_star_slots stars = MOX::star;
         std::map<game::id_planet, s_planet_data> planets = game::world.planets;
         uint64_t next_planet_id = game::world.next_planet_id;
         game::s_colony_slots colonies = MOX::colony;

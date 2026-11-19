@@ -44,11 +44,11 @@ namespace TEST_AIMOVE {
         AIMOVE::rules.max_eels = 4;
         ships[0].owner = NONPLAYER_SHIP_TYPE_EEL;
         ships[0].status = 0;
-        ships[0].location = 0;
+        ships[0].location.destination = game::s_ship_destination::Star(game::id_star{0});
         ships[0].d.speed = 1;
         colonies[0].owner = 0;
         colonies[0].planet = game::id_planet{0};
-        test::Planet(&game::world, legacy_world::Planet_Id(0)).star_index = 1;
+        test::Planet(&game::world, game::id_planet{0}).parent_star = game::id_star{1};
         spawn_count = 0;
         move_attempt_count = 0;
     }
@@ -86,7 +86,7 @@ namespace MOX {
     int16_t NUM_PLAYERS;
     int16_t NUM_COLONIES;
     s_ship_data* ship = ships;
-    s_star_data* star = stars;
+    game::s_star_slots star = stars;
     s_player* player = players;
     game::s_colony_slots colony = colonies;
 

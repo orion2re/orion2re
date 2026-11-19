@@ -102,7 +102,7 @@ namespace {
 namespace MOX {
     s_player* player = players;
     s_ship_data* ship = ships;
-    s_star_data* star = stars;
+    game::s_star_slots star = stars;
     int16_t NUM_SHIPS;
     s_combat_data* combat_data = ::combat_data;
     char* race_names[20] = {};
@@ -243,7 +243,7 @@ DOCTEST_TEST_CASE("ships repair at an owned colony but not an empty star") {
     Reset_Initship_();
     MOX::NUM_SHIPS = 1;
     ships[0].owner = kPlayer;
-    ships[0].location = 0;
+    ships[0].location = {game::e_ship_location::at_star, game::id_star{0}};
     ships[0].status = 0;
     ships[0].d.ship_type = SHIP_TYPE_COMBAT;
     ships[0].structural_damage = 12;

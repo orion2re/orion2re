@@ -220,7 +220,7 @@ namespace HOMEGEN {
 
     void __cdecl Set_Special_For_Star_Guarded_By_Monster(::game::s_world_state* world_state, s_star_data* star, int16_t monster_type) {
         char race_name[200];
-        int16_t star_idx = (int16_t)(star - MOX::star);
+        int16_t star_idx = MOX::star.Position_Of(star);
         int16_t need_new_special = 0;
 
         HACCESS::Race_Name(monster_type, race_name, sizeof(race_name));
@@ -291,7 +291,7 @@ namespace HOMEGEN {
         s_planet_data* planet = &::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_index)));
         planet->mineral_class = (int8_t)mineral_class;
 
-        int16_t star_idx = planet->star_index;
+        const auto star_idx = planet->Star_Position(MOX::star);
         s_star_data* star = &MOX::star[star_idx];
 
         bool richness_is_valid = false;

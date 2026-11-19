@@ -70,7 +70,7 @@ namespace TEST_AIDUDES {
 
         ships[0].owner = 0;
         ships[0].status = 0;
-        ships[0].location = 0;
+        ships[0].location.destination = game::s_ship_destination::Star(game::id_star{0});
         ships[0].d.ship_type = SHIP_TYPE_COMBAT;
         ships[0].d.cost = 40;
         ships[0].d.size = 4;
@@ -82,7 +82,7 @@ namespace TEST_AIDUDES {
 
         ships[1].owner = 0;
         ships[1].status = 0;
-        ships[1].location = 0;
+        ships[1].location.destination = game::s_ship_destination::Star(game::id_star{0});
         ships[1].d.ship_type = SHIP_TYPE_COMBAT;
         ships[1].officer_index = -1;
         ship_worths[1] = 1;
@@ -133,7 +133,7 @@ namespace TEST_AIDUDES {
 
         MOX::stardate = 35036;
         players[0].total_pop = 9;
-        ships[0].location = 0;
+        ships[0].location.destination = game::s_ship_destination::Star(game::id_star{0});
         stars[0].has_colony = 1;
         ai.players[0].refits.push_back({legacy_world::Ship_Id(0), 1000});
         ai.players[0].empire.colony_count = 2;
@@ -164,7 +164,7 @@ namespace MOX {
     game::s_colony_slots colony = colonies;
     s_player* player = players;
     s_ship_data* ship = ships;
-    s_star_data* star = stars;
+    game::s_star_slots star = stars;
     int16_t NUM_SHIPS;
     int32_t stardate;
     s_settings settings;

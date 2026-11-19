@@ -94,7 +94,7 @@ namespace TEST_REPORT {
         MOX::star[0].colonize_player = 0;
         MOX::star[0].ignore_colony_ships = 0;
         MOX::ship[0].owner = 0;
-        MOX::ship[0].location = 0;
+        MOX::ship[0].location.destination = game::s_ship_destination::Star(game::id_star{0});
         MOX::ship[0].d.ship_type = SHIP_TYPE_OUTPOST;
         REPORT::no_outpost_prompt = 0;
         COLONY::allow_native_annihilation = 0;
@@ -108,7 +108,7 @@ namespace TEST_REPORT {
 
     void Add_Colony_Ship_() {
         MOX::ship[1].owner = 0;
-        MOX::ship[1].location = 0;
+        MOX::ship[1].location.destination = game::s_ship_destination::Star(game::id_star{0});
         MOX::ship[1].d.ship_type = SHIP_TYPE_COLONY;
         MOX::NUM_SHIPS = 2;
     }
@@ -152,7 +152,7 @@ namespace MOX {
 
     s_player* player = players;
     s_ship_data* ship = ships;
-    s_star_data* star = stars;
+    game::s_star_slots star = stars;
     s_settings settings;
 }
 

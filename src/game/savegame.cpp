@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "colony_serialization.h"
+#include "star_serialization.h"
 #include "planet_serialization.h"
 #include "record_serialization.h"
 #include "settler_serialization.h"
@@ -57,21 +58,9 @@ namespace SAVEGAME {
         void Initialize_Unused_Planet(s_planet_data* planet) {
             memset(planet, 0, sizeof(*planet));
             planet->colony_index = -1;
-            planet->star_index = -1;
+            planet->parent_star = game::NO_STAR;
         }
 
-        void Initialize_Unused_Star(s_star_data* star) {
-            memset(star, 0, sizeof(*star));
-            star->owner = -1;
-            star->colonize_player = -1;
-            star->wormhole_star_id = -1;
-            star->next_wfi_in_list = -1;
-            memset(star->officer_index, 0xFF, sizeof(star->officer_index));
-            // Packed fields: fill bytewise rather than through int16_t&.
-            memset(star->planet_index, 0xFF, sizeof(star->planet_index));
-            memset(star->relocate_ship_to, 0xFF, sizeof(star->relocate_ship_to));
-            memset(star->surrender_to, 0xFF, sizeof(star->surrender_to));
-        }
 
 
 
@@ -417,7 +406,8 @@ namespace SAVEGAME {
             for (const auto& planet_entry : (world_state)->planets) {
             const game::id_planet i = planet_entry.first;
                 const s_planet_data& planet = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(i)));
-                if (planet.star_index < -1 || planet.star_index >= MOX::NUM_STARS ||
+                if ((planet.parent_star != game::NO_STAR &&
+                        (planet.Star_Position(MOX::star) < 0 || planet.Star_Position(MOX::star) >= MOX::NUM_STARS)) ||
                     planet.orbit < 0 || planet.orbit >= 5) return false;
             }
             for (int i = 0; i < MOX::NUM_STARS; ++i) {
@@ -469,8 +459,7 @@ namespace SAVEGAME {
             writer->Write_Uint32(random_seed);
             Write_Ordered_Colonies(MOX::colony, writer, MOX::NUM_COLONIES);
             Write_Planets(world_state, writer);
-            writer->Write_Int16(MOX::NUM_STARS);
-            for (int i = 0; i < MOX::NUM_STARS; ++i) Write_Star(writer, &MOX::star[i]);
+            Write_Ordered_Stars(MOX::star, writer, MOX::NUM_STARS);
             for (int i = 0; i < MAX_LEADERS; ++i) Write_Leader(writer, &game::Leader(world_state, i));
             writer->Write_Int16(MOX::NUM_PLAYERS);
             for (int i = 0; i < MAX_PLAYERS; ++i) Write_Player(world_state, writer, &MOX::player[i], legacy_world::Player_Id(i));
@@ -515,7 +504,7 @@ namespace SAVEGAME {
             writer->Write_Uint8(MOX::antarans.offensive_titan_built);
             writer->Write_Uint8(MOX::antarans.offensive_limit_exhausted_mask);
             for (int ship_idx = 0; ship_idx < MOX::NUM_SHIPS; ++ship_idx) {
-                writer->Write_Int16(MOX::ship[ship_idx].prior_jump_gate_destination);
+                writer->Write_Uint32(MOX::ship[ship_idx].prior_jump_gate_destination.id);
                 writer->Write_Int32(MOX::ship[ship_idx].prior_jump_gate_stardate);
             }
         }
@@ -535,19 +524,12 @@ namespace SAVEGAME {
                 for (uint32_t position = 0; position < record_count; ++position) {
                     s_planet_data planet{};
                     Read_Planet(reader, &planet, version);
-                    if (position < count && planet.star_index >= 0 &&
+                    if (position < count && planet.parent_star != game::NO_STAR &&
                         !game::Insert_Planet(world_state, game::id_planet{position}, planet)) return false;
                 }
                 if (reader->Failed()) return false;
             }
-            MOX::NUM_STARS = reader->Read_Int16();
-            if (MOX::NUM_STARS < 0 || MOX::NUM_STARS > MAX_STARS) return false;
-            const int star_record_count = version == LEGACY_VERSION ? ORIGINAL_MAX_STARS : MOX::NUM_STARS;
-            for (int i = 0; i < star_record_count; ++i) Read_Star(reader, &MOX::star[i], version);
-            for (int i = star_record_count; i < MAX_STARS; ++i) {
-                Initialize_Unused_Star(&MOX::star[i]);
-            }
-            if (reader->Failed()) return false;
+            if (!Read_Ordered_Stars(MOX::star, reader, version, &MOX::NUM_STARS)) return false;
             for (int i = 0; i < MAX_LEADERS; ++i) Read_Leader(reader, &game::Leader(world_state, i));
             MOX::NUM_PLAYERS = reader->Read_Int16();
             for (int i = 0; i < MAX_PLAYERS; ++i) {
@@ -567,11 +549,12 @@ namespace SAVEGAME {
                 : MAX_SHIPS;
             if (MOX::NUM_SHIPS < 0 || MOX::NUM_SHIPS > ship_capacity) return false;
             const int ship_record_count = version == LEGACY_VERSION ? ORIGINAL_MAX_SHIPS : MOX::NUM_SHIPS;
-            for (int i = 0; i < ship_record_count; ++i) Read_Ship(reader, &MOX::ship[i], version);
+            for (int i = 0; i < ship_record_count; ++i) Read_Ship(reader, &MOX::ship[i], version, MOX::NUM_STARS);
             memset(&MOX::ship[ship_record_count], 0, (MAX_SHIPS - ship_record_count) * sizeof(*MOX::ship));
             for (int i = ship_record_count; i < MAX_SHIPS; ++i) {
                 MOX::ship[i].status = 5;
-                MOX::ship[i].location = -1;
+                MOX::ship[i].location = {};
+                MOX::ship[i].prior_jump_gate_destination = game::NO_STAR;
                 MOX::ship[i].officer_index = -1;
             }
             if (reader->Failed()) return false;
@@ -649,10 +632,16 @@ namespace SAVEGAME {
             if (version >= JUMP_GATE_REDIRECT_STATE_VERSION) {
                 for (int ship_idx = 0; ship_idx < MOX::NUM_SHIPS; ++ship_idx) {
                     s_ship_data& ship = MOX::ship[ship_idx];
-                    ship.prior_jump_gate_destination = reader->Read_Int16();
+                    if (version >= 8) {
+                        ship.prior_jump_gate_destination = game::id_star{reader->Read_Uint32()};
+                    } else {
+                        const auto position = reader->Read_Int16();
+                        if (position < -1 || position >= MOX::NUM_STARS) return false;
+                        ship.prior_jump_gate_destination = MOX::star.Id_At(position);
+                    }
                     ship.prior_jump_gate_stardate = reader->Read_Int32();
-                    if (ship.prior_jump_gate_destination < -1 ||
-                        ship.prior_jump_gate_destination >= MOX::NUM_STARS) {
+                    if (ship.prior_jump_gate_destination != game::NO_STAR &&
+                        MOX::star.Position_Of(ship.prior_jump_gate_destination) < 0) {
                         return false;
                     }
                 }

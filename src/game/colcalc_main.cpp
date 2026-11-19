@@ -127,7 +127,7 @@ namespace COLCALC {
             POP::Set_Prof(p, POP::PROF_SCIENTIST);
         }
 
-        int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony->planet))).star_index;
+        const auto star_idx = game::Planet(world_state, colony->planet).Star_Position(MOX::star);
         MOX::star[star_idx].ignore_colony_ships |= (1 << (colony->owner & 0x1F));
 
         Recalculate_Colony(colony);

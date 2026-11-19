@@ -342,7 +342,7 @@ TEST_CASE("Lua galaxy collections enforce native capacity limits") {
     MOX::NUM_STARS = MAX_STARS;
     test::Resize_Planets(&::game::world, MAX_PLANETS);
     for (uint32_t planet_id = 3; planet_id < MAX_PLANETS; ++planet_id) {
-        test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_id))).star_index = 0;
+        test::Planet(&::game::world, legacy_world::Planet_Id(planet_id)).parent_star = game::id_star{0};
     }
     MOX::NUM_SHIPS = MAX_SHIPS;
     MOX::NUM_NEBULAS = MAX_NEBULAS;
@@ -391,11 +391,11 @@ TEST_CASE("Lua galaxy collections expose complete stable domain objects") {
     MOX::colony[1].owner = 1;
     MOX::star[0].size = 4;
     MOX::star[0].pict_type = 5;
-    MOX::star[0].wormhole_star_id = -1;
-    MOX::star[1].wormhole_star_id = -1;
+    MOX::star[0].wormhole_star_id = game::NO_STAR;
+    MOX::star[1].wormhole_star_id = game::NO_STAR;
     MOX::ship[0].owner = 0;
     MOX::ship[0].status = 1;
-    MOX::ship[0].location = 0;
+    MOX::ship[0].location = {game::e_ship_location::at_star, game::id_star{0}};
     MOX::ship[0].x = 10;
     MOX::ship[0].y = 20;
     std::strcpy(game::Leader(&game::world, 0).name, "Pathfinder");
@@ -542,8 +542,8 @@ TEST_CASE("Lua galaxy structural operations preserve stable candidate handles") 
     CHECK(diagnostic.empty());
     CHECK((MOX::star[1].x == 70));
     CHECK((MOX::star[1].y == 80));
-    CHECK((MOX::star[0].wormhole_star_id == 1));
-    CHECK((MOX::star[1].wormhole_star_id == 0));
+    CHECK(MOX::star[0].wormhole_star_id == game::id_star{1});
+    CHECK(MOX::star[1].wormhole_star_id == game::id_star{0});
 
     TEST_LUA_GAME::Reset_();
     orion2re::lua::Reset_Mod_Runtimes();
@@ -2298,7 +2298,7 @@ TEST_CASE("planet generated event implements the legacy deposit behavior") {
     MOX::game_type = 0;
     test::Resize_Planets(&::game::world, 2);
     MOX::NUM_STARS = 2;
-    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).star_index = 1;
+    test::Planet(&game::world, game::id_planet{1}).parent_star = game::id_star{1};
     test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).orbit = 3;
     test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).planet_type = PLANET_TYPE_PLANET;
     test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).size = PLANET_SIZE_SMALL;

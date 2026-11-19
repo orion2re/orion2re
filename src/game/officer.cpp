@@ -804,7 +804,7 @@ namespace OFFICER {
         } else {
             int16_t star_idx = MOX::temp_star_handle;
             if (star_idx == -1) {
-                star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(MOX::player[MOX::PLAYER_NUM].home_planet_id))).star_index;
+                star_idx = game::Planet(world_state, MOX::player[MOX::PLAYER_NUM].home_planet_id).Star_Position(MOX::star);
             }
             officer_star_displayed = star_idx;
             officer_star_chosen = star_idx;
@@ -1131,7 +1131,7 @@ namespace OFFICER {
         // Calculate indices based on base pointers
         int32_t player_index = static_cast<int32_t>(player - MOX::player);
         int32_t leader_index = legacy_world::Slot(leader_id);
-        int16_t star_index = (int16_t)(star - MOX::star);
+        int16_t star_index = MOX::star.Position_Of(star);
 
         // Check if there's already an officer assigned to this star for the player
         int8_t current_leader_idx = star->officer_index[player_index];
@@ -1453,7 +1453,7 @@ namespace OFFICER {
             leader_loc = prev_leaders[leader_idx].location;
         }
 
-        int16_t home_star_id = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(MOX::player[player_idx].home_planet_id))).star_index;
+        const auto home_star_id = game::Planet(world_state, MOX::player[player_idx].home_planet_id).Star_Position(MOX::star);
         bool at_same_place = false;
 
         if (leader_loc != -1) {
@@ -1473,7 +1473,7 @@ namespace OFFICER {
         }
 
         const auto& ship = MOX::ship[ship_idx];
-        if (ship.location == home_star_id) {
+        if (ship.Legacy_Location(MOX::star) == home_star_id) {
             return 0;
         }
 
@@ -1485,7 +1485,7 @@ namespace OFFICER {
     }
 
     int8_t __cdecl Get_Star_Leader_ETA(game::s_world_state* world_state, int16_t player_index, int16_t leader_index, int16_t target_star_index) {
-        int16_t home_star_index = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(MOX::player[player_index].home_planet_id))).star_index;
+        const auto home_star_index = game::Planet(world_state, MOX::player[player_index].home_planet_id).Star_Position(MOX::star);
 
         if (OFFICER::prev_leaders == nullptr) {
             if (target_star_index == home_star_index && game::Leader(world_state, leader_index).status == 0) {
@@ -2117,7 +2117,7 @@ namespace OFFICER {
         bitmap::Get_Bitmap_Size(100, 100);
 
         auto& player = MOX::player[MOX::PLAYER_NUM];
-        int16_t home_star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(player.home_planet_id))).star_index;
+        const auto home_star_idx = game::Planet(world_state, player.home_planet_id).Star_Position(MOX::star);
 
         RUSS::Mox_Update();
         MAINSCR::Allocate_First_Screen_Seg(5);
@@ -2299,7 +2299,7 @@ namespace OFFICER {
 
                     // If leader is an Officer (type 0) and assigned to a ship
                     if (leader->type == LEADER_TYPE_SHIP && loc > -1) {
-                        loc = MOX::ship[loc].location;
+                        loc = MOX::ship[loc].Legacy_Location(MOX::star);
 
                         // Resolve ship location to an absolute map index
                         if (loc < SHIP_LOCATION_MOVING_OFFSET || loc >= SHIP_LOCATION_WORMHOLE_OFFSET) {
@@ -2985,7 +2985,7 @@ namespace OFFICER {
         if (msg_buf2[0] == '\0') {
             if (type == 0) {
                 if (MOX::ship[location].status == 4) {
-                    int16_t abs_loc = HAROLD::Absolute_Location(MOX::ship[location].location);
+                    int16_t abs_loc = HAROLD::Absolute_Location(MOX::ship[location].Legacy_Location(MOX::star));
                     strlcpy(msg_buf1, HAROLD::H_Message(HESTR_113_S_IS_LOCATED_ON_S_WHIC), sizeof(msg_buf1));
                     snprintf(msg_buf2, sizeof(msg_buf2), msg_buf1, Leader_Name(world_state, leader_idx, 0), &MOX::ship[location], &MOX::star[abs_loc]);
                 } else {
@@ -3052,7 +3052,7 @@ namespace OFFICER {
 
             new_ship.d.previous_owner = (uint8_t)player_idx;
             new_ship.owner = static_cast<char>(player_idx);
-            new_ship.location = 0;
+            new_ship.location = {game::e_ship_location::at_star, MOX::star.Id_At(0)};
             new_ship.x = MOX::star[0].x;
             new_ship.y = MOX::star[0].y;
             new_ship.status = 0;
@@ -3269,7 +3269,7 @@ namespace OFFICER {
     void __cdecl Ai_Assign_Leader_To_Star(game::s_world_state* world_state, s_player* player, game::id_leader leader_id, s_star_data* star) {
         int16_t player_idx = static_cast<int16_t>(player - MOX::player);
         int16_t leader_idx = static_cast<int16_t>(legacy_world::Slot(leader_id));
-        int16_t star_idx = (int16_t)(star - MOX::star);
+        int16_t star_idx = MOX::star.Position_Of(star);
 
         int8_t eta = Get_Star_Leader_ETA(world_state, player_idx, leader_idx, star_idx);
         Assign_Leader_To_Star(world_state, player, leader_id, star, eta);

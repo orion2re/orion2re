@@ -958,7 +958,7 @@ namespace TECH {
 
         strlcpy(buffer, " ", sizeof(buffer));
 
-        int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index;
+        const auto star_idx = game::Planet(world_state, planet_idx).Star_Position(MOX::star);
         char planet_num = HAROLD::Planet_Number(world_state, legacy_world::Planet_Id(planet_idx));
 
         const char* numeral_str;

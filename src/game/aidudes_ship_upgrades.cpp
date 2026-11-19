@@ -79,7 +79,7 @@ namespace aidudes {
 
             const auto* entry = &refits[i - 1];
             s_ship_data* ship = &world->ships[legacy_world::Slot(entry->ship_id)];
-            auto orbit = legacy_world::Orbit_Star(ship);
+            auto orbit = legacy_world::Orbit_Star(ship, world->stars);
             if (!orbit) continue;
             const game::id_star location = *orbit;
 

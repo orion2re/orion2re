@@ -24,7 +24,7 @@ namespace CONTACT {
             }
 
             int8_t owner_a = colony_a->owner;
-            int16_t star_a_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony_a->planet))).star_index;
+            auto star_a_idx = game::Planet(world_state, colony_a->planet).Star_Position(MOX::star);
             s_star_data* star_a = &MOX::star[star_a_idx];
 
             for (int16_t j = 0; j < i; ++j) {
@@ -34,7 +34,7 @@ namespace CONTACT {
                 }
 
                 int8_t owner_b = colony_b->owner;
-                int16_t star_b_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony_b->planet))).star_index;
+                auto star_b_idx = game::Planet(world_state, colony_b->planet).Star_Position(MOX::star);
                 s_star_data* star_b = &MOX::star[star_b_idx];
                 bool contact_made = false;
 

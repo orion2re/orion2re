@@ -41,7 +41,7 @@ namespace {
 
 DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "fleet at last active star exposes build outpost button") {
     TEST_FLEETPOP::Reset_();
-    MOX::ship[0].location = static_cast<int16_t>(MOX::NUM_STARS - 1);
+    MOX::ship[0].Set_Legacy_Location(MOX::star, MOX::NUM_STARS - 1);
 
     DOCTEST_CHECK(FLEETPOP::Set_Build_Outpost_Button_Flag(1) == 1);
 }
@@ -57,7 +57,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "build outpost button rejects invalid d
 
     for (int16_t location : invalid_locations) {
         TEST_FLEETPOP::Reset_();
-        MOX::ship[0].location = location;
+        MOX::ship[0].Set_Legacy_Location(MOX::star, location);
 
         DOCTEST_CAPTURE(location);
         DOCTEST_CHECK(FLEETPOP::Set_Build_Outpost_Button_Flag(1) == 0);
@@ -66,8 +66,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "build outpost button rejects invalid d
 
 DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "fleet en route does not expose build outpost button") {
     TEST_FLEETPOP::Reset_();
-    MOX::ship[0].location =
-        static_cast<int16_t>(SHIP_LOCATION_WORMHOLE_OFFSET + 1);
+    MOX::ship[0].location = {game::e_ship_location::in_wormhole, game::id_star{1}};
 
     DOCTEST_CHECK(FLEETPOP::Set_Build_Outpost_Button_Flag(1) == 0);
 }
@@ -160,7 +159,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "configured planet proximity determines
     MOX::ship[0].owner = 1;
     MOX::colony[0].owner = 0;
     MOX::colony[0].planet = game::id_planet{0};
-    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).star_index = 0;
+    test::Planet(&game::world, game::id_planet{0}).parent_star = game::id_star{0};
     MOX::star[0].x = 0;
     MOX::star[0].y = 0;
     MOX::player[1].traits[TRAIT_STEALTHY_SHIPS] = 1;
@@ -180,7 +179,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "configured planet proximity determines
     MOX::ship[0].owner = 1;
     MOX::colony[0].owner = 0;
     MOX::colony[0].planet = game::id_planet{0};
-    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).star_index = 0;
+    test::Planet(&game::world, game::id_planet{0}).parent_star = game::id_star{0};
     MOX::star[0].x = 0;
     MOX::star[0].y = 0;
     MOX::player[1].traits[TRAIT_STEALTHY_SHIPS] = 1;

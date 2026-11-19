@@ -735,7 +735,7 @@ namespace MOX {
     uint8_t ship_icon_width[4];
     uint8_t ship_icon_height[4];
 
-    s_star_data* star;
+    game::s_star_slots star{&game::world, &NUM_STARS};
 
     uint8_t orbit_to_satellite_type[10][5] = {
         {MAPGEN_SATELLITE_ASTEROID, MAPGEN_SATELLITE_ASTEROID, MAPGEN_SATELLITE_ASTEROID, MAPGEN_SATELLITE_ASTEROID, MAPGEN_SATELLITE_ASTEROID},

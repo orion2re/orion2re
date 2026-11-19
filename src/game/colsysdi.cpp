@@ -63,7 +63,7 @@ namespace COLSYSDI {
 
             int16_t display_row = 0;
             if (planet->orbit >= 0) {
-                int16_t star_idx = planet->star_index;
+                const auto star_idx = planet->Star_Position(MOX::star);
                 do {
                     volatile auto unused_planet_idx = MOX::star[star_idx].planet_index[display_row];
                     (void)unused_planet_idx;

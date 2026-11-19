@@ -30,7 +30,7 @@ namespace {
         memset(ships, 0, sizeof(ships));
         players[0].ship_speed = 3;
         for (uint32_t star = 0; star < 3; ++star) {
-            stars[star].wormhole_star_id = -1;
+            stars[star].wormhole_star_id = game::NO_STAR;
             ai->stars[Star_Id(star)].in_range = 1;
             ai->stars[Star_Id(star)].in_extended_range = 1;
         }
@@ -44,7 +44,7 @@ namespace {
 
 namespace MOX {
     s_player* player = players;
-    s_star_data* star = stars;
+    game::s_star_slots star = stars;
     s_ship_data* ship = ships;
     int16_t NUM_STARS = 3;
 } // namespace MOX
@@ -151,7 +151,7 @@ DOCTEST_TEST_CASE("direct routes preserve a zero-turn route and absent normal ra
 DOCTEST_TEST_CASE("moving ship routes retain computed-unreachable cache entries") {
     AIDATA::s_state ai;
     Prepare(&ai);
-    ships[0].location = SHIP_LOCATION_MOVING_OFFSET;
+    ships[0].location = {game::e_ship_location::in_flight, game::id_star{0}};
     DOCTEST_CHECK_FALSE(AIDATA::Ship_N_Turns_To_Star_With_Intermediate(&ai, World_(), Ship_Id(0), Star_Id(2)));
     DOCTEST_REQUIRE(ai.routes.ship_intermediate.size() == 1);
     DOCTEST_CHECK_FALSE(ai.routes.ship_intermediate.begin()->second);

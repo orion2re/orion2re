@@ -14,7 +14,7 @@ namespace AIDATA {
             return true;
         }
 
-        int16_t wormhole_id = world->stars[legacy_world::Slot(source_star_idx)].wormhole_star_id;
+        int16_t wormhole_id = world->stars.Position_Of(world->stars[legacy_world::Slot(source_star_idx)].wormhole_star_id);
         if (wormhole_id != -1) {
             distance = GEO::Parsecs_Between_Stars(wormhole_id, *target);
             if (distance <= max_range_parsecs) {
@@ -39,7 +39,7 @@ namespace AIDATA {
         }
 
         int16_t ship_range = owner_ptr->ship_range;
-        int16_t colony_star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony->planet))).star_index;
+        const auto colony_star_idx = game::Planet(world_state, colony->planet).Star_Position(world->stars);
         int16_t evaluating_player_idx = (int16_t)(evaluating_player - world->players);
 
         int16_t total_worth = 0;

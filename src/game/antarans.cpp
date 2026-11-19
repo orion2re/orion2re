@@ -434,7 +434,7 @@ namespace antarans {
                     SHIPMOVE::Make_Ships_Move_To(&::game::world, ship_list, target_star, &move_info);
                     s_ship_data* ship = &MOX::ship[ship_idx];
                     ship->status = 1;
-                    ship->location = target_star + SHIP_LOCATION_MOVING_OFFSET;
+                    ship->location = {game::e_ship_location::in_flight, MOX::star.Id_At(target_star)};
                     const CREW_QUALITY crew_quality =
                         offensive_crew == e_offensive_crew::elite
                         ? CREW_QUALITY_ELITE

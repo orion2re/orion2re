@@ -10,7 +10,7 @@
 namespace turn_oracle {
     struct s_planet_placement {
         game::id_planet id;
-        int16_t star;
+        game::id_star parent_star;
         int8_t orbit;
 
         bool operator==(const s_planet_placement&) const = default;

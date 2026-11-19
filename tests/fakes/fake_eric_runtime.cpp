@@ -120,11 +120,11 @@ namespace test_eric_runtime {
         players[0].traits[TRAIT_TELEPATHIC] = 1;
         colonies[0].owner = 1;
         colonies[0].planet = game::id_planet{0};
-        test::Planet(&game::world, legacy_world::Planet_Id(0)).star_index = 3;
+        test::Planet(&game::world, game::id_planet{0}).parent_star = game::id_star{3};
 
         ships[0].owner = 0;
         ships[0].status = 0;
-        ships[0].location = 3;
+        ships[0].location.destination = game::s_ship_destination::Star(game::id_star{3});
         ships[0].d.size = SHIP_SIZE_LARGE;
 
         game::Leader(&game::world, 0).player_index = 1;
@@ -172,6 +172,8 @@ namespace MOX {
     uint8_t dont_draw_main_screen_to_back;
     s_player* player = test_eric_runtime::players;
     game::s_colony_slots colony = test_eric_runtime::colonies;
+    static s_star_data stars[4];
+    game::s_star_slots star = stars;
 
     s_ship_data* ship = test_eric_runtime::ships;
 }

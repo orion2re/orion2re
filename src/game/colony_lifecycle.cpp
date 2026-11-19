@@ -11,7 +11,7 @@
 namespace BOMB {
     int32_t __cdecl Handle_Leader_At_Lost_Colony(game::s_world_state* world_state, s_colony* colony) {
         int32_t owner_idx = colony->owner;
-        int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony->planet))).star_index;
+        const auto star_idx = game::Planet(world_state, colony->planet).Star_Position(MOX::star);
         int32_t killed_leader_idx = -1;
         int32_t leader_idx = MOX::star[star_idx].officer_index[owner_idx];
 
@@ -50,7 +50,7 @@ namespace BOMB {
         int16_t leader_idx;
         s_MSG msg;
 
-        star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony->planet))).star_index;
+        star_idx = game::Planet(world_state, colony->planet).Star_Position(MOX::star);
         star = &MOX::star[star_idx];
         colony_idx = MOX::colony.Position_Of(colony);
 

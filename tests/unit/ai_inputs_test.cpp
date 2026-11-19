@@ -64,7 +64,7 @@ namespace {
 
 namespace MOX {
     s_ship_data* ship = legacy_ships;
-    s_star_data* star = legacy_stars;
+    game::s_star_slots star = legacy_stars;
     int16_t NUM_SHIPS = 2;
     int16_t NUM_STARS = 2;
 } // namespace MOX
@@ -77,7 +77,7 @@ namespace SHIPMOVE {
         queried_destination = destination;
         for (int32_t i = 0; ships[i] != -1; ++i) {
             queried_ships.push_back(ships[i]);
-            queried_locations.push_back((int16_t)MOX::ship[ships[i]].location);
+            queried_locations.push_back(MOX::ship[ships[i]].Legacy_Location(MOX::star));
         }
         *result = {};
         result->moving = 1;
@@ -180,7 +180,7 @@ DOCTEST_TEST_CASE("fleet evaluation passes a proposed origin without modifying r
     DOCTEST_CHECK(proposed_origin == 1);
     DOCTEST_CHECK(queried_destination == 0);
     for (const auto& ship : legacy_ships) {
-        DOCTEST_CHECK((int16_t)ship.location == 0);
+        DOCTEST_CHECK(ship.Legacy_Location(MOX::star) == 0);
         DOCTEST_CHECK((int16_t)ship.x == 10);
         DOCTEST_CHECK((int16_t)ship.y == 20);
     }
@@ -199,10 +199,13 @@ DOCTEST_TEST_CASE("fleet evaluation passes a proposed origin without modifying r
 
 DOCTEST_TEST_CASE("fleet collection preserves cached order and mission filtering") {
     s_ship_data ships[2] = {};
+    s_star_data stars[2]{};
+    ships[0].location.destination = game::s_ship_destination::Star(Star_Id(0));
+    ships[1].location.destination = game::s_ship_destination::Star(Star_Id(0));
     ships[1].mission = 5;
     s_player player{};
     player.offensive_stagepoint = -1;
-    const game::s_view world{.ships = ships};
+    const game::s_view world{.ships = ships, .stars = stars};
     AIDATA::s_state ai;
     ai.combat_ships = {Ship_Id(0), Ship_Id(1)};
     ai.players[0].combat_ship_groups[Star_Id(0)] = {0, 2};

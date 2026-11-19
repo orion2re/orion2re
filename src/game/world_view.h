@@ -18,7 +18,7 @@ namespace game {
     struct s_view {
         s_player* players = nullptr;
         s_ship_data* ships = nullptr;
-        s_star_data* stars = nullptr;
+        s_star_slots stars;
         s_colony_slots colonies;
         s_world_state* state = nullptr;
         const s_settings* settings = nullptr;

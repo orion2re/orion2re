@@ -69,8 +69,8 @@ namespace debug_game_editors {
 
             s_planet_data& planet = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_index)));
             if (planet.planet_type != PLANET_TYPE_PLANET || planet.colony_index != -1 ||
-                !Valid_Star(planet.star_index) || planet.orbit < 0 || planet.orbit >= 5 ||
-                MOX::star[planet.star_index].planet_index[planet.orbit] != planet_index) {
+                !Valid_Star(planet.Star_Position(MOX::star)) || planet.orbit < 0 || planet.orbit >= 5 ||
+                MOX::star[planet.Star_Position(MOX::star)].planet_index[planet.orbit] != planet_index) {
                 return PLANET_OPERATION_INVALID_RELATION;
             }
 
@@ -208,7 +208,7 @@ namespace debug_game_editors {
         void Initialize_Unused_Planet(s_planet_data* planet) {
             memset(planet, 0, sizeof(*planet));
             planet->colony_index = -1;
-            planet->star_index = -1;
+            planet->parent_star = game::NO_STAR;
         }
 
         bool Input_S8(const char* label, int8_t* value) {
@@ -378,11 +378,12 @@ namespace debug_game_editors {
             }
             ImGui::BeginDisabled();
             debug_game_widgets::Colony_Reference("Colony", &planet.colony_index);
-            debug_game_widgets::Star_Reference("Star", &planet.star_index);
+            debug_game_widgets::Star_Reference("Star", &planet.parent_star);
             Input_S8("Orbit", &planet.orbit);
             ImGui::EndDisabled();
-            if (Valid_Star(planet.star_index) && ImGui::Button("Open related star")) {
-                Open_Star(planet.star_index);
+            const auto parent_position = planet.Star_Position(MOX::star);
+            if (Valid_Star(parent_position) && ImGui::Button("Open related star")) {
+                Open_Star(parent_position);
             }
             if (has_colony) {
                 ImGui::SameLine();
@@ -507,7 +508,7 @@ namespace debug_game_editors {
             bool valid = true;
 #define MERGE_PLANET_FIELD(field) valid = Merge_Field(baseline.field, draft.field, live.field, &merged->field) && valid
             MERGE_PLANET_FIELD(colony_index);
-            MERGE_PLANET_FIELD(star_index);
+            MERGE_PLANET_FIELD(parent_star);
             MERGE_PLANET_FIELD(orbit);
             MERGE_PLANET_FIELD(planet_type);
             MERGE_PLANET_FIELD(size);
@@ -886,7 +887,7 @@ namespace debug_game_editors {
         if (orbit < 0 || orbit >= 5) return PLANET_OPERATION_NO_FREE_ORBIT;
         if (MOX::star[star_index].planet_index[orbit] != game::NO_PLANET) return PLANET_OPERATION_INVALID_RELATION;
         auto planet = *original;
-        planet.star_index = star_index;
+        planet.parent_star = MOX::star.Id_At(star_index);
         planet.orbit = static_cast<int8_t>(orbit);
         planet.colony_index = -1;
         auto id = game::Create_Planet(world_state, planet);
@@ -908,12 +909,13 @@ namespace debug_game_editors {
         if (Planet_Has_External_Reference(world_state, legacy_world::Planet_Id(planet_index))) {
             return PLANET_OPERATION_IS_REFERENCED;
         }
-        if (!Valid_Star(planet.star_index) || planet.orbit < 0 || planet.orbit >= 5 ||
-            MOX::star[planet.star_index].planet_index[planet.orbit] != planet_index) {
+        const auto parent_position = planet.Star_Position(MOX::star);
+        if (!Valid_Star(parent_position) || planet.orbit < 0 || planet.orbit >= 5 ||
+            MOX::star[parent_position].planet_index[planet.orbit] != planet_index) {
             return PLANET_OPERATION_INVALID_RELATION;
         }
 
-        MOX::star[planet.star_index].planet_index[planet.orbit] = ::game::NO_PLANET;
+        MOX::star[parent_position].planet_index[planet.orbit] = ::game::NO_PLANET;
         game::Erase_Planet(world_state, planet_index);
         PLNTSUM::explored_planets.erase(planet_index);
         if (COLONY::g_scanned_planet == planet_index) {

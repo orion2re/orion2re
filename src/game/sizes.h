@@ -20,7 +20,7 @@ ORION2RE_STATIC_SIZE_ASSERT(s_nebula, 0x5);
 ORION2RE_STATIC_SIZE_ASSERT(s_settings, 0x229);
 // Native planet references no longer share the historical on-disk record layout.
 static_assert(std::is_trivially_copyable_v<s_player>);
-ORION2RE_STATIC_SIZE_ASSERT(s_planet_data, 0x12);
+ORION2RE_STATIC_SIZE_ASSERT(s_planet_data, 0x14);
 static_assert(std::is_trivially_copyable_v<s_colony>);
 ORION2RE_STATIC_SIZE_ASSERT_PTR(s_tech_building_data, 0x14, 0x18);
 static_assert(std::is_trivially_copyable_v<s_star_data>);

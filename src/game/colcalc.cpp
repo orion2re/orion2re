@@ -164,7 +164,7 @@ namespace COLCALC {
     }
 
     int __cdecl Colony_Officer(game::s_world_state* world_state, s_colony* colony) {
-        int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony->planet))).star_index;
+        const auto star_idx = game::Planet(world_state, colony->planet).Star_Position(MOX::star);
 
         int8_t officer_idx = (int8_t)MOX::star[star_idx].officer_index[colony->owner];
 
@@ -192,7 +192,7 @@ namespace COLCALC {
 
         for (int i = 0; i < MOX::NUM_PLAYERS; ++i) {
             s_player* player = &MOX::player[i];
-            int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(player->home_planet_id))).star_index;
+            const auto star_idx = game::Planet(world_state, player->home_planet_id).Star_Position(MOX::star);
             MOX::star[star_idx].colonize_player = (int8_t)i;
 
             if (player->command_points < (int16_t)min_command_points) {
@@ -208,7 +208,7 @@ namespace COLCALC {
                 s_player* player = &MOX::player[i];
                 RUSS::Mox_Update();
 
-                int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(player->home_planet_id))).star_index;
+                const auto star_idx = game::Planet(world_state, player->home_planet_id).Star_Position(MOX::star);
                 MOX::star[star_idx].colonize_player = (int8_t)i;
 
                 player->bc = (player->traits[TRAIT_TAX_BONUS] * 100 + 200);
@@ -276,15 +276,9 @@ namespace COLCALC {
     }
 
     void __cdecl Compute_All_Star_Colony_Stuff() {
-        int16_t num_stars = MOX::NUM_STARS;
-        s_star_data* star_ptr = MOX::star;
-        s_star_data* end_ptr = &MOX::star[num_stars];
-
-        if (star_ptr < end_ptr) {
-            do {
-                Compute_Star_Colony_Stuff(&::game::world, star_ptr);
-                star_ptr++;
-            } while (star_ptr < end_ptr);
+        const int16_t num_stars = MOX::NUM_STARS;
+        for (int16_t position = 0; position < num_stars; ++position) {
+            Compute_Star_Colony_Stuff(&game::world, &MOX::star[position]);
         }
     }
 
@@ -372,7 +366,7 @@ namespace COLCALC {
 
     void __cdecl Do_Colony_Owner_Change_Star_Colony_Stuff(::game::s_world_state* world_state, s_colony* colony) {
         s_planet_data* planet = &::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony->planet)));
-        const int16_t star_idx = planet->star_index;
+        const auto star_idx = planet->Star_Position(MOX::star);
         s_star_data* star = &MOX::star[star_idx];
 
         COLCALC::Compute_Star_Colony_Stuff(world_state, star);
@@ -755,7 +749,7 @@ namespace COLCALC {
     bool __cdecl Colony_Is_Blockaded(::game::s_world_state* world_state, s_colony* colony) {
         ::game::id_planet planet_idx = colony->planet;
 
-        int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index;
+        const auto star_idx = game::Planet(world_state, planet_idx).Star_Position(MOX::star);
 
         uint8_t blockaded_mask = MOX::star[star_idx].blockaded;
 
@@ -1209,7 +1203,7 @@ namespace COLCALC {
             s_ship_data* current_ship = &ship_list[i];
 
             // In MoO2, owner indices 8 and above typically represent monsters or guardians
-            if (current_ship->owner >= MAX_PLAYERS && current_ship->location == star_idx) {
+            if (current_ship->owner >= MAX_PLAYERS && current_ship->Legacy_Location(MOX::star) == star_idx) {
                 return true;
             }
         }
@@ -1941,8 +1935,8 @@ namespace COLCALC {
             s_ship_data* ship = &MOX::ship[i];
 
             // Only active combat ships inside known star systems can blockade
-            if (ship->status == 0 && ship->location < MAX_STARS && ship->d.ship_type == SHIP_TYPE_COMBAT) {
-                int16_t star_id = ship->location;
+            if (ship->status == 0 && ship->Legacy_Location(MOX::star) < MAX_STARS && ship->d.ship_type == SHIP_TYPE_COMBAT) {
+                int16_t star_id = ship->Legacy_Location(MOX::star);
                 int8_t ship_owner = ship->owner;
                 s_star_data* star = &MOX::star[star_id];
 
@@ -2063,7 +2057,7 @@ namespace COLCALC {
             s_colony* colony = &MOX::colony[i];
             if (colony->owner == (int8_t)surrender_id) {
                 Do_Surrender_Colony(world_state, colony, receiver_id);
-                int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony->planet))).star_index;
+                const auto star_idx = game::Planet(world_state, colony->planet).Star_Position(MOX::star);
                 Compute_Star_Colony_Stuff(world_state, &MOX::star[star_idx]);
             }
         }
@@ -2459,7 +2453,7 @@ namespace COLCALC {
 
     bool __cdecl May_Surrender_Star(::game::s_world_state* world_state, int16_t star_idx, int16_t player_idx, int16_t recipient_idx) {
         if (MOX::player[player_idx].home_planet_id != ::game::NO_PLANET) {
-            if (::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(MOX::player[player_idx].home_planet_id))).star_index == star_idx) {
+            if (game::Planet(world_state, MOX::player[player_idx].home_planet_id).Star_Position(MOX::star) == star_idx) {
                 return false;
             }
         }
@@ -2523,7 +2517,7 @@ namespace COLCALC {
         colony->n_turns_existed = 0;
 
         // Update the 'visited' bitmask for the star system to reflect the new owner
-        int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony->planet))).star_index;
+        const auto star_idx = game::Planet(world_state, colony->planet).Star_Position(MOX::star);
         MOX::star[star_idx].visited |= (1 << (uint8_t)new_owner);
     }
 
@@ -2992,7 +2986,7 @@ namespace COLCALC {
                     case BUILDING_ARTEMIS_SYSTEM_NET:
                     case BUILDING_DIMENSIONAL_PORTAL: {
                         uint8_t retval = 1;
-                        int16_t star_index = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony->planet))).star_index;
+                        const auto star_index = game::Planet(world_state, colony->planet).Star_Position(MOX::star);
                         for (int i = 0; i < 5; ++i) {
                             auto p = MOX::star[star_index].planet_index[i];
                             if (p != ::game::NO_PLANET) {
@@ -3022,7 +3016,7 @@ namespace COLCALC {
                     }
                     case BUILDING_COLONY_BASE: {
                         bool has_planet_type_3 = false;
-                        int16_t star_index = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony->planet))).star_index;
+                        const auto star_index = game::Planet(world_state, colony->planet).Star_Position(MOX::star);
                         for (int i = 0; i < 5; ++i) {
                             auto p = MOX::star[star_index].planet_index[i];
                             if (p != ::game::NO_PLANET) {
@@ -3096,7 +3090,7 @@ namespace COLCALC {
                         return (uint8_t)colony->climate < weather_control_climate ? 2 : 1;
                     }
                     case BUILDING_ARTIFICIAL_PLANET: {
-                        return COLCALC::Star_Has_Asteroid_Or_Gas_Giant(world_state, ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony->planet))).star_index);
+                        return COLCALC::Star_Has_Asteroid_Or_Gas_Giant(world_state, game::Planet(world_state, colony->planet).Star_Position(MOX::star));
                     }
                     default:
                         return 1;
@@ -3717,7 +3711,7 @@ namespace COLCALC {
                         }
                     } else if (current_product == BUILDING_ARTIFICIAL_PLANET) {
                         const ::game::id_planet planet_idx = colony->planet;
-                        const int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index;
+                        const auto star_idx = game::Planet(world_state, planet_idx).Star_Position(MOX::star);
                         COLCALC::Delete_Obsolete_Artifical_Planets_Under_Construction(world_state, star_idx);
                     }
                 } else {
@@ -3749,10 +3743,10 @@ namespace COLCALC {
                         }
 
                         ship->just_built = 1;
-                        MOX::star[ship->location].ignore_combat_ships = 0;
+                        MOX::star[ship->Legacy_Location(MOX::star)].ignore_combat_ships = 0;
 
                         if (ship->d.ship_type == SHIP_TYPE_COLONY || ship->d.ship_type == SHIP_TYPE_OUTPOST) {
-                            MOX::star[ship->location].ignore_colony_ships |=
+                            MOX::star[ship->Legacy_Location(MOX::star)].ignore_colony_ships |=
                                 static_cast<uint8_t>(1u << static_cast<uint8_t>(ship->owner));
                         }
                     } else {

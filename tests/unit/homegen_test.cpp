@@ -30,7 +30,7 @@ DOCTEST_TEST_CASE("minimum-distance planet generation preserves existing satelli
 
     DOCTEST_CHECK(game::Planet_Count(&game::world) == 2);
     DOCTEST_CHECK(MOX::star[1].planet_index[2] == game::id_planet{0});
-    DOCTEST_CHECK(test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).star_index == 1);
+    DOCTEST_CHECK(test::Planet(&game::world, game::id_planet{0}).parent_star == game::id_star{1});
     DOCTEST_CHECK(test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).planet_type == PLANET_TYPE_PLANET);
     DOCTEST_CHECK(TEST_HOMEGEN::Satellite_Generation_Count_() == 2);
     DOCTEST_CHECK(TEST_HOMEGEN::Non_Black_Hole_Generation_Count_() == 0);
@@ -174,7 +174,7 @@ DOCTEST_TEST_CASE("mineral richness exhaustion selects a compatible configured c
     MAPGEN::planet_gravity[MINERAL_RESOURCE_RICH][PLANET_SIZE_MEDIUM] =
         PLANET_GRAVITY_HEAVY_G;
     MOX::star[0].spectral_class = STAR_CLASS_DWARF;
-    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).star_index = 0;
+    test::Planet(&game::world, game::id_planet{0}).parent_star = game::id_star{0};
     test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).size = PLANET_SIZE_MEDIUM;
 
     HOMEGEN::Enforce_Mineral_Richness(&::game::world, legacy_world::Planet_Id(0), MINERAL_RESOURCE_RICH);

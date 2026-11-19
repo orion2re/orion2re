@@ -6,6 +6,7 @@
 #include "game/serialization.h"
 #include "game/planet_serialization.h"
 #include "game/colony_serialization.h"
+#include "game/star_serialization.h"
 
 DOCTEST_TEST_CASE("worlds own independent leader records") {
     game::s_world_state first;
@@ -232,6 +233,63 @@ DOCTEST_TEST_CASE("reusing a colony processing position never reuses the histori
     DOCTEST_CHECK(restored.Id_At(2) == survivor);
     DOCTEST_CHECK(restored[2].planet == game::id_planet{17});
     DOCTEST_CHECK(loaded.next_colony_id == world.next_colony_id);
+}
+
+DOCTEST_TEST_CASE("star IDs survive a position reuse and preserve legacy save order") {
+    game::s_world_state source;
+    int16_t extent = 3;
+    const game::s_star_slots positions(&source, &extent);
+    DOCTEST_REQUIRE(positions.Activate(0));
+    DOCTEST_REQUIRE(positions.Activate(1));
+    DOCTEST_REQUIRE(positions.Activate(2));
+    const auto retired = positions.Id_At(0);
+    const auto survivor = positions.Id_At(2);
+    source.next_star_id = 2000000;
+    positions.Retire(0);
+    positions.Retire(1);
+    positions[1].spectral_class = -1;
+    DOCTEST_REQUIRE(positions.Activate(0));
+    const auto replacement = positions.Id_At(0);
+    DOCTEST_CHECK(replacement == game::id_star{2000000});
+    DOCTEST_CHECK(game::Find_Star(&source, retired) == nullptr);
+    DOCTEST_CHECK(positions.Id_At(2) == survivor);
+    DOCTEST_CHECK(positions.Id_At(extent) == game::NO_STAR);
+    DOCTEST_CHECK(game::Star_Count(&source) == 2);
+    DOCTEST_CHECK(&positions[0] == &game::Star(&source, replacement));
+    positions[0].x = 123;
+    positions[2].x = 234;
+    positions[0].wormhole_star_id = survivor;
+    positions[2].wormhole_star_id = replacement;
+    positions[2].relocate_ship_to[1] = replacement;
+    positions[extent].x = 345;
+
+    std::array<uint8_t, 2048> bytes{};
+    SERIAL::Writer_ writer(bytes.data(), bytes.size(), "ordered stars test");
+    SAVEGAME::Write_Ordered_Stars(positions, &writer, extent, true);
+    game::s_world_state loaded;
+    int16_t loaded_extent = 0;
+    const game::s_star_slots restored(&loaded, &loaded_extent);
+    SERIAL::Reader_ reader(bytes.data(), writer.Length(), "ordered stars test", true);
+    DOCTEST_REQUIRE(SAVEGAME::Read_Ordered_Stars(restored, &reader, 8, &loaded_extent, true));
+    DOCTEST_CHECK(reader.Remaining() == 0);
+    DOCTEST_CHECK(loaded_extent == 3);
+    DOCTEST_CHECK(restored.Id_At(0) == replacement);
+    DOCTEST_CHECK(restored.Id_At(1) == game::NO_STAR);
+    DOCTEST_CHECK(restored.Id_At(2) == survivor);
+    DOCTEST_CHECK(restored[0].x == 123);
+    DOCTEST_CHECK(restored[1].spectral_class == -1);
+    DOCTEST_CHECK(restored[2].x == 234);
+    DOCTEST_CHECK(restored[0].wormhole_star_id == survivor);
+    DOCTEST_CHECK(restored[2].wormhole_star_id == replacement);
+    DOCTEST_CHECK(restored[2].relocate_ship_to[1] == replacement);
+    DOCTEST_CHECK(restored[3].x == 345);
+    DOCTEST_CHECK(restored.Id_At(3) == game::NO_STAR);
+    DOCTEST_CHECK(loaded.next_star_id == 2000001);
+
+    SERIAL::Reader_ truncated(bytes.data(), writer.Length() - 1, "truncated stars", true);
+    DOCTEST_CHECK_FALSE(SAVEGAME::Read_Ordered_Stars(restored, &truncated, 8, &loaded_extent, true));
+    DOCTEST_CHECK(restored.Id_At(0) == replacement);
+    DOCTEST_CHECK(restored[3].x == 345);
 }
 
 DOCTEST_TEST_CASE("settler serialization preserves typed destinations without native bitpacking") {

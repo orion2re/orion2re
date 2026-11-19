@@ -30,6 +30,7 @@ namespace game {
         bool operator==(const id_star&) const = default;
         auto operator<=>(const id_star&) const = default;
     };
+    inline constexpr id_star NO_STAR{UINT32_MAX};
     // Includes the legacy non-player faction slots used by combat assessments.
     struct id_player {
         uint32_t id;

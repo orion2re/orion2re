@@ -35,13 +35,13 @@ namespace {
         game::world.planets.clear();
         game::world.next_planet_id = 0;
         test::Resize_Planets(&game::world, 2);
-        memset(MOX::star, 0, sizeof(s_star_data));
+        memset(MOX::star.fixture, 0, sizeof(s_star_data));
         memset(MOX::ship, 0, sizeof(s_ship_data) * 8);
         memset(MOX::player, 0, sizeof(s_player) * MAX_PLAYERS);
         MOX::NUM_COLONIES = 0;
         MOX::NUM_SHIPS = 0;
         MOX::colony[0].planet = game::id_planet{0};
-        test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).star_index = 0;
+        test::Planet(&game::world, game::id_planet{0}).parent_star = game::id_star{0};
         test::fakes::environmental_refresh_count = 0;
         test::fakes::colony_can_build_product_count = 0;
         test::fakes::last_environmental_colony = nullptr;
@@ -120,7 +120,7 @@ DOCTEST_TEST_CASE("starting Outpost Ships are allocated for every player") {
     ERICNET::starting_outpost_ship = 1;
     MOX::player[1].traits[TRAIT_CURRENT_GOVERNMENT] = GOVERNMENT_UNIFICATION;
     MOX::player[1].ship_designs[0].ship_type = SHIP_TYPE_COMBAT;
-    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).star_index = 0;
+    test::Planet(&game::world, game::id_planet{1}).parent_star = game::id_star{0};
 
     ERICNET::Init_Homeworld_Colony(legacy_world::Planet_Id(0), 0);
     ERICNET::Init_Homeworld_Colony(legacy_world::Planet_Id(1), 1);

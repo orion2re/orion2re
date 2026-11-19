@@ -131,7 +131,7 @@ namespace EVENTS {
 
         if (event.status == 2 || event.status == 4 || event.status == 6) {
             ::game::id_planet planet_idx = MOX::colony[colony_idx].planet;
-            if (::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index == event.target_id) {
+            if (game::Planet(world_state, planet_idx).Star_Position(MOX::star) == event.target_id) {
                 return 1;
             }
         }
@@ -173,7 +173,7 @@ namespace EVENTS {
 
         if ((event_data[EVENT_SUPERNOVA].status == 2 || event_data[EVENT_SUPERNOVA].status == 6)) {
             ::game::id_planet planet_idx = MOX::colony[colony_idx].planet;
-            if (::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index == event_data[EVENT_SUPERNOVA].target_id) {
+            if (game::Planet(world_state, planet_idx).Star_Position(MOX::star) == event_data[EVENT_SUPERNOVA].target_id) {
                 return 1;
             }
         }
@@ -375,7 +375,7 @@ namespace EVENTS {
 
                 case EVENT_COMET:
                     if (event_data[i].status != 6) {
-                        int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(MOX::colony[event_data[i].target_id].planet))).star_index;
+                        const auto star_idx = game::Planet(world_state, MOX::colony[event_data[i].target_id].planet).Star_Position(MOX::star);
                         event_data[i].amount -= Ship_Size_Points_At_Star(star_idx);
                         if (event_data[i].amount <= 0) {
                             event_data[i].amount = 0;
@@ -737,7 +737,7 @@ namespace EVENTS {
         int8_t status14 = event_data[EVENT_PIRATE_ACTIVITY].status;
         if (status14 == 2 || status14 == 4 || status14 == 6) {
             ::game::id_planet planet_idx = MOX::colony[colony_idx].planet;
-            if (::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index == event_data[EVENT_PIRATE_ACTIVITY].target_id) {
+            if (game::Planet(world_state, planet_idx).Star_Position(MOX::star) == event_data[EVENT_PIRATE_ACTIVITY].target_id) {
                 return EVENT_PIRATE_ACTIVITY;
             }
         }
@@ -745,7 +745,7 @@ namespace EVENTS {
         int8_t status24 = event_data[EVENT_SUPERNOVA].status;
         if (status24 == 2 || status24 == 4 || status24 == 6) {
             ::game::id_planet planet_idx = MOX::colony[colony_idx].planet;
-            if (::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index == event_data[EVENT_SUPERNOVA].target_id) {
+            if (game::Planet(world_state, planet_idx).Star_Position(MOX::star) == event_data[EVENT_SUPERNOVA].target_id) {
                 return EVENT_SUPERNOVA;
             }
         }
@@ -1261,7 +1261,7 @@ namespace EVENTS {
 
         if (EVENTS::Event_Check_Space_Anomaly(world_state, colony_idx) == 1) {
             ::game::id_planet planet_idx = MOX::colony[colony_idx].planet;
-            int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index;
+            const auto star_idx = game::Planet(world_state, planet_idx).Star_Position(MOX::star);
             int16_t presence_count = 0;
             uint8_t has_colony_mask = MOX::star[star_idx].has_colony;
 
@@ -1280,7 +1280,7 @@ namespace EVENTS {
         int8_t status14 = event_data[EVENT_PIRATE_ACTIVITY].status;
         if (status14 == 2 || status14 == 4 || status14 == 6) {
             ::game::id_planet planet_idx = MOX::colony[colony_idx].planet;
-            int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index;
+            const auto star_idx = game::Planet(world_state, planet_idx).Star_Position(MOX::star);
 
             if (event_data[EVENT_PIRATE_ACTIVITY].target_id == star_idx) {
                 int16_t presence_count = 0;
@@ -1302,7 +1302,7 @@ namespace EVENTS {
         int8_t status24 = event_data[EVENT_SUPERNOVA].status;
         if (status24 == 2 || status24 == 4 || status24 == 6) {
             ::game::id_planet planet_idx = MOX::colony[colony_idx].planet;
-            int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index;
+            const auto star_idx = game::Planet(world_state, planet_idx).Star_Position(MOX::star);
 
             if (event_data[EVENT_SUPERNOVA].target_id == star_idx) {
                 int16_t presence_count = 0;
@@ -1575,7 +1575,7 @@ namespace EVENTS {
                 event_data[EVENT_COMET].status == 6)) {
             int16_t colony_idx = event_data[EVENT_COMET].target_id;
             ::game::id_planet planet_idx = MOX::colony[colony_idx].planet;
-            if (::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index == star_idx) {
+            if (game::Planet(world_state, planet_idx).Star_Position(MOX::star) == star_idx) {
                 return EVENT_COMET;
             }
         }
@@ -1584,7 +1584,7 @@ namespace EVENTS {
                 event_data[EVENT_PLAGUE].status == 6)) {
             int16_t colony_idx = event_data[EVENT_PLAGUE].target_id;
             ::game::id_planet planet_idx = MOX::colony[colony_idx].planet;
-            if (::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index == star_idx) {
+            if (game::Planet(world_state, planet_idx).Star_Position(MOX::star) == star_idx) {
                 return EVENT_PLAGUE;
             }
         }
@@ -1594,7 +1594,7 @@ namespace EVENTS {
                 event_data[EVENT_POPULATION_BOOM].status == 6)) {
             int16_t colony_idx = event_data[EVENT_POPULATION_BOOM].target_id;
             ::game::id_planet planet_idx = MOX::colony[colony_idx].planet;
-            if (::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index == star_idx) {
+            if (game::Planet(world_state, planet_idx).Star_Position(MOX::star) == star_idx) {
                 return EVENT_POPULATION_BOOM;
             }
         }
@@ -1725,7 +1725,7 @@ namespace EVENTS {
         int16_t total_size_points = 0;
 
         for (int16_t i = 0; i < MAX_SHIPS; ++i) {
-            if (MOX::ship[i].location == star_idx && MOX::ship[i].status == 0) {
+            if (MOX::ship[i].Legacy_Location(MOX::star) == star_idx && MOX::ship[i].status == 0) {
                 total_size_points += (int16_t)MOX::ship[i].d.size + 1;
             }
         }
@@ -2198,19 +2198,19 @@ namespace EVENTS {
             case EVENT_INDUSTRIAL_ACCIDENT:
                 event_subtype = 0;
                 planet_idx = event_data[event_id].planet_target;
-                p11 = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(event_data[event_id].planet_target))).star_index;
+                p11 = game::Planet(world_state, event_data[event_id].planet_target).Star_Position(MOX::star);
                 break;
             case EVENT_MINERAL_DEPLETION:
                 p8 = player_idx;
                 event_subtype = 0;
                 planet_idx = event_data[event_id].planet_target;
-                p11 = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(event_data[event_id].planet_target))).star_index;
+                p11 = game::Planet(world_state, event_data[event_id].planet_target).Star_Position(MOX::star);
                 p4 = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(event_data[event_id].planet_target))).mineral_class;
                 break;
             case EVENT_MINERAL_DEPOSIT:
                 event_subtype = 0;
                 planet_idx = event_data[event_id].planet_target;
-                p11 = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(event_data[event_id].planet_target))).star_index;
+                p11 = game::Planet(world_state, event_data[event_id].planet_target).Star_Position(MOX::star);
                 p4 = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(event_data[event_id].planet_target))).mineral_class;
                 break;
             case EVENT_MUTINY:
@@ -2261,7 +2261,7 @@ namespace EVENTS {
                         event_subtype = 3;
                         p3 = event_data[event_id].max_amount;
                         planet_idx = event_data[event_id].planet_target;
-                        p11 = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index;
+                        p11 = game::Planet(world_state, planet_idx).Star_Position(MOX::star);
 
                         if (MOX::game_type == 1) {
                             deferred_monster_event_target = event_id;

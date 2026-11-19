@@ -47,7 +47,7 @@ namespace REPORT {
         while (ship < end) {
             if ((short)(int8_t)ship->d.ship_type == ship_type &&
                 (short)ship->owner == owner &&
-                ship->location == location &&
+                ship->Legacy_Location(MOX::star) == location &&
                 ship->status < 5) {
                 if (include_just_built != 0 || ship->just_built == 0) {
                     return ship;
@@ -311,7 +311,7 @@ namespace REPORT {
                                         if (MOX::settings.animations_on != 0) {
                                             MOX::current_screen = 0x21; /* SCR_COLONIZE */
                                             MOX::return_screen = SCREEN_REPORTS;
-                                            MOX::screen_data = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index;
+                                            MOX::screen_data = game::Planet(world_state, planet_idx).Star_Position(MOX::star);
                                             MOX::global_esc = 1;
                                             COLONY::orbit_temp = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).orbit;
                                             return 3;
@@ -638,7 +638,7 @@ namespace REPORT {
                 if (show_popup != 0) {
                     MOVEBOX::Remove_Box_Check();
                     char special_type = REPORT::Draw_Special(star, player_idx);
-                    int16_t star_idx = (int16_t)(star - MOX::star);
+                    int16_t star_idx = i;
                     MAINPUPS::New_System_Discovery_Popup(star_idx, (int16_t)special_type);
 
                     // Mark as no longer "just visited" after reporting
@@ -721,7 +721,7 @@ namespace REPORT {
                         s_ship_data* ship = &MOX::ship[i];
                         if (ship->owner == 8 /* Antaran */ && ship->status == 1 /* Active */) {
                             if (max_turns_left < (uint8_t)ship->turns_left) {
-                                target_star_idx = ship->location - SHIP_LOCATION_MOVING_OFFSET;
+                                target_star_idx = ship->Legacy_Location(MOX::star) - SHIP_LOCATION_MOVING_OFFSET;
                                 max_turns_left = ship->turns_left;
                             }
                         }
@@ -769,7 +769,7 @@ namespace REPORT {
                     ::game::id_planet planet_idx = colony->planet;
                     s_planet_data* planet = &::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx)));
 
-                    MOX::screen_data = planet->star_index;
+                    MOX::screen_data = planet->Star_Position(MOX::star);
                     COLONY::orbit_temp = (int16_t)planet->orbit;
 
                     COLONY::Colony_Screen(world_state);
@@ -794,7 +794,7 @@ namespace REPORT {
 
                     // If ship is active (not destroyed/refitting)
                     if (ship->status == 0) {
-                        int16_t star_idx = ship->location;
+                        int16_t star_idx = ship->Legacy_Location(MOX::star);
                         if (HACCESS::Star_Has_Relocation(star_idx, player_idx)) {
                             int16_t target_star_idx = HACCESS::Relocation(star_idx, player_idx);
 
@@ -892,7 +892,7 @@ namespace REPORT {
             MOX::current_screen = SCREEN_COLONY;
 
             // Set up planet specific data for the colony screen jump
-            MOX::screen_data = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(target_colony->planet))).star_index;
+            MOX::screen_data = game::Planet(world_state, target_colony->planet).Star_Position(MOX::star);
             COLONY::orbit_temp = (int16_t)::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(target_colony->planet))).orbit;
             MOX::global_esc = 1;
         }

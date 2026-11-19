@@ -633,7 +633,7 @@ namespace FLT2 {
 
         y_cursor = fonts::Get_Font_Height() + y_cursor + 2;
 
-        int16_t loc = MOX::ship[ship_idx].location;
+        int16_t loc = MOX::ship[ship_idx].Legacy_Location(MOX::star);
         if (loc >= SHIP_LOCATION_MOVING_OFFSET && loc <= MOX::NUM_STARS + SHIP_LOCATION_WORMHOLE_OFFSET) {
             int16_t star_idx = HAROLD::Absolute_Location(loc);
             bool visited = HAROLD::Player_Has_Visited(MOX::PLAYER_NUM, star_idx);

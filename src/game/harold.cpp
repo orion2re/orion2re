@@ -117,7 +117,7 @@ namespace HAROLD {
     int8_t __cdecl Planet_Number(::game::s_world_state* world_state, ::game::id_planet planet_index) {
         // Callers use this as a Roman-numeral index, so fall back to planet I.
         if (planet_index == ::game::NO_PLANET || (::game::Find_Planet(world_state, legacy_world::Planet_Id(planet_index)) == nullptr)) return 0;
-        int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_index))).star_index;
+        const auto star_idx = game::Planet(world_state, planet_index).Star_Position(MOX::star);
         if (star_idx < 0 || star_idx >= MOX::NUM_STARS) return 0;
         s_star_data* star = &MOX::star[star_idx];
 
@@ -236,7 +236,7 @@ namespace HAROLD {
                                MOX::settings.galaxy_size) +
                         3 &&
                 star_bitmap[i] == 0 &&
-                MOX::star[i].wormhole_star_id == -1 &&
+                MOX::star[i].wormhole_star_id == game::NO_STAR &&
                 MOX::star[i].spectral_class != STAR_CLASS_BLACK_HOLE &&
                 MOX::star[i].system_special == SYSTEM_SPECIAL_NO_SPECIAL &&
                 i != star_idx) {
@@ -251,7 +251,7 @@ namespace HAROLD {
             int16_t invalidated_count = 0;
             for (int i = 0; i < count; ++i) {
                 int16_t star_id = candidates[i];
-                if (MOX::star[star_id].wormhole_star_id > 0 || N_Satellites(star_id) == 0) {
+                if (MOX::star.Position_Of(MOX::star[star_id].wormhole_star_id) > 0 || N_Satellites(star_id) == 0) {
                     candidates[i] = -1;
                     invalidated_count++;
                 }
@@ -281,14 +281,14 @@ namespace HAROLD {
                 }
 
                 if (wormhole_exit_id != -1) {
-                    MOX::star[wormhole_exit_id].wormhole_star_id = star_idx;
-                    MOX::star[star_idx].wormhole_star_id = wormhole_exit_id;
+                    MOX::star[wormhole_exit_id].wormhole_star_id = MOX::star.Id_At(star_idx);
+                    MOX::star[star_idx].wormhole_star_id = MOX::star.Id_At(wormhole_exit_id);
                     return;
                 }
             }
         }
 
-        MOX::star[star_idx].wormhole_star_id = -1;
+        MOX::star[star_idx].wormhole_star_id = game::NO_STAR;
     }
 
     bool __cdecl Empty_System(int16_t star_idx) {
@@ -725,7 +725,7 @@ namespace HAROLD {
 
                 // Status 0 indicates the ship is active/available.
                 // Owners >= MAX_PLAYERS (specifically owner 8) are typically neutral monsters (Orion Guardians, etc).
-                if (ship->status == 0 && ship->owner >= MAX_PLAYERS && ship->location == location_idx) {
+                if (ship->status == 0 && ship->owner >= MAX_PLAYERS && ship->Legacy_Location(MOX::star) == location_idx) {
                     found = true;
                     *monster_owner = (int16_t)ship->owner;
                     break;

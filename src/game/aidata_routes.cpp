@@ -27,8 +27,8 @@ namespace AIDATA {
         if (player->ship_speed != 0 &&
             player->tech_applications[TECH_APP_JUMP_GATE] != TECH_RESEARCH_STATUS_RESEARCHED &&
             player->tech_applications[TECH_APP_STAR_GATE] != TECH_RESEARCH_STATUS_RESEARCHED &&
-            world->stars[legacy_world::Slot(source_star)].wormhole_star_id == -1 &&
-            world->stars[legacy_world::Slot(destination_star)].wormhole_star_id == -1 && direct) {
+            world->stars[legacy_world::Slot(source_star)].wormhole_star_id == game::NO_STAR &&
+            world->stars[legacy_world::Slot(destination_star)].wormhole_star_id == game::NO_STAR && direct) {
             auto source_index = legacy_world::Index(source_star);
             auto destination_index = legacy_world::Index(destination_star);
             if (source_index && destination_index) {
@@ -91,7 +91,7 @@ namespace AIDATA {
         std::optional<s_route> result;
         const s_ship_data* ship = &world->ships[legacy_world::Slot(ship_id)];
         const bool has_stargate = struct_::Read_Bit_Field(ship->d.special_device_flags, 11);
-        const auto location = legacy_world::Read_Ship_Location(ship);
+        const auto location = legacy_world::Read_Ship_Location(ship, world->stars);
         if (location && location->kind == e_ship_location::in_flight) {
             const id_star destination = location->star_id;
             const uint32_t owner = (uint32_t)ship->owner;

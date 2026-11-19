@@ -773,8 +773,7 @@ namespace SYS {
 
         MOX::system_star_id_for_auto_select = star_idx;
         int16_t star_index = star_idx;
-        if (MOX::star[star_index].wormhole_star_id > -1) {
-            int16_t wormhole_star_id = MOX::star[star_index].wormhole_star_id;
+        if (const int16_t wormhole_star_id = MOX::star.Position_Of(MOX::star[star_index].wormhole_star_id); wormhole_star_id >= 0) {
             s_colors* wormhole_font_colors = MISC::Font_Colors2(1, 'n', 's');
             s_colors wormhole_title_colors;
             memcpy(&wormhole_title_colors, wormhole_font_colors, sizeof(s_colors));
@@ -795,7 +794,7 @@ namespace SYS {
             char wormhole_info_text[100];
             wormhole_info_text[0] = '\0';
 
-            if (MOX::star[star_index].wormhole_star_id <= -1) {
+            if (MOX::star[star_index].wormhole_star_id == game::NO_STAR) {
                 if (HAROLD::Player_Has_Visited(MOX::PLAYER_NUM, star_idx)) {
                     const char* special_text = MOX::planet_special_string[MOX::star[star_index].system_special];
                     strlcpy(wormhole_info_text, special_text, sizeof(wormhole_info_text));
@@ -1285,7 +1284,7 @@ namespace SYS {
             (MOX::player_has_ship_in_system != 0) ||
             HAROLD::Player_Has_Colony(
                 MOX::PLAYER_NUM,
-                planet->star_index) ||
+                planet->Star_Position(MOX::star)) ||
             MOX::player[MOX::PLAYER_NUM].traits[TRAIT_OMNISCIENCE] != 0;
 
         *max_width = 0;
@@ -2108,7 +2107,7 @@ namespace SYS {
                 const int16_t ship_idx = MOX::ship_node[node_idx].ship_idx;
                 s_ship_data* const ship = &MOX::ship[ship_idx];
 
-                if (ship->location == system_idx && ship->status < 3) {
+                if (ship->Legacy_Location(MOX::star) == system_idx && ship->status < 3) {
                     const int16_t owner_idx = ship->owner;
                     MOX::system_display_ships[owner_idx].ship_idx = node_idx;
 

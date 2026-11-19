@@ -270,9 +270,10 @@ namespace orion2re::lua::game {
             exitm::Exit_With_Message("invalid planet.generated Lua event");
         }
         const s_planet_data& planet = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(event->planet_id)));
-        if (planet.star_index < 0 || planet.star_index >= MOX::NUM_STARS ||
+        const auto position = planet.Star_Position(MOX::star);
+        if (position < 0 || position >= MOX::NUM_STARS ||
             planet.orbit < 0 || planet.orbit >= 5 ||
-            MOX::star[planet.star_index].planet_index[planet.orbit] !=
+            MOX::star[position].planet_index[planet.orbit] !=
                 event->planet_id) {
             exitm::Exit_With_Message("invalid planet.generated planet");
         }
@@ -402,7 +403,7 @@ namespace orion2re::lua::game {
         const ::game::id_planet home_planet_id =
             MOX::player[event->player_id].home_planet_id;
         if (home_planet_id == ::game::NO_PLANET || (::game::Find_Planet(world_state, legacy_world::Planet_Id(home_planet_id)) == nullptr) ||
-            ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(home_planet_id))).star_index != event->system_id) {
+            ::game::Planet(world_state, home_planet_id).parent_star != MOX::star.Id_At(event->system_id)) {
             exitm::Exit_With_Message(
                 "invalid new_game.home_system_generated home system");
         }

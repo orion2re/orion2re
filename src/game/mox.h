@@ -622,7 +622,7 @@ namespace MOX {
     extern uint8_t ship_icon_height[4];
     extern s_ship_move_info g_ship_move_info;
 
-    extern s_star_data* star;
+    extern game::s_star_slots star;
 
     // Suggested name: MOX::orbit_to_satellite_type
     extern uint8_t orbit_to_satellite_type[10][5];

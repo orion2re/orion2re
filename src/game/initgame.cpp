@@ -20,7 +20,8 @@ namespace INITGAME {
         for (MOX::NUM_SHIPS = 0; MOX::NUM_SHIPS < MAX_SHIPS; ++MOX::NUM_SHIPS) {
             s_ship_data& ship = MOX::ship[MOX::NUM_SHIPS];
             ship.status = 5;
-            ship.location = -1;
+            ship.location = {};
+            ship.prior_jump_gate_destination = game::NO_STAR;
             ship.officer_index = -1;
         }
 
@@ -328,7 +329,7 @@ namespace INITGAME {
         colony->owner = player_num;
         colony->officer = -1;
 
-        int16_t star_idx = planet->star_index;
+        const auto star_idx = planet->Star_Position(MOX::star);
         // Mark the star system as visited/seen by the player
         uint8_t visited_player_mask = (uint8_t)(1u << (player_num & 0x1f));
         MOX::star[star_idx].visited |= visited_player_mask;
@@ -397,14 +398,11 @@ namespace INITGAME {
 
     void __cdecl Make_System_Monsters_Into_Ships(::game::s_world_state* world_state) {
         int16_t total_stars = MOX::NUM_STARS;
-        s_star_data* star_ptr = MOX::star;
-        s_star_data* end_ptr = &MOX::star[total_stars];
-
         // Process standard Space Monsters
-        while (star_ptr < end_ptr) {
+        for (int16_t star_idx = 0; star_idx < total_stars; ++star_idx) {
+            auto* star_ptr = &MOX::star[star_idx];
             if (star_ptr->system_special == SYSTEM_SPECIAL_SPACE_MONSTER) {
                 int32_t ship_type = game_random::Random(5) + 9;
-                int16_t star_idx = (int16_t)(star_ptr - MOX::star);
                 ::game::id_planet planet_idx = HOMEGEN::Random_Planet(world_state, star_idx);
 
                 // Initialize monster ship owner to Neutral/Orion
@@ -417,7 +415,6 @@ namespace INITGAME {
 
                 HOMEGEN::Upgrade_Planet_Guarded_By_Monster(world_state, planet_idx, (int16_t)ship_type);
             }
-            star_ptr++;
         }
 
         // Process Orion Star Guardian (Limit to one)

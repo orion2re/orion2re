@@ -78,7 +78,7 @@ namespace aileader {
             s_colony* colony = &world->colonies[i];
 
             if (colony->owner == player_index && colony->outpost_flag == 0) {
-                int16_t star_index = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony->planet))).star_index;
+                const auto star_index = game::Planet(world_state, colony->planet).Star_Position(world->stars);
 
                 if (world->stars[star_index].officer_index[player_index] == -1) {
                     if ((skills & (LEADER_COLONY_SKILL_ENVIRONMENTALIST | LEADER_COLONY_SKILL_ENVIRONMENTALIST2)) &&

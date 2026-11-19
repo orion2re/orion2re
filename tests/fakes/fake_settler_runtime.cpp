@@ -30,7 +30,7 @@ namespace MOX {
     game::s_colony_slots colony = colonies;
 
     s_player* player = players;
-    s_star_data* star = stars;
+    game::s_star_slots star = stars;
 }
 
 namespace COLCALC {

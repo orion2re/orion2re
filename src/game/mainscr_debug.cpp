@@ -31,7 +31,8 @@ namespace MAINSCR_DEBUG {
             const s_planet_data& planet = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_index)));
             char name[64];
             const int16_t star_count = std::min<int16_t>(MOX::NUM_STARS, MAX_STARS);
-            if (MOX::star != nullptr && planet.star_index >= 0 && planet.star_index < star_count) {
+            const auto parent_position = planet.Star_Position(MOX::star);
+            if (MOX::star != nullptr && parent_position >= 0 && parent_position < star_count) {
                 HACCESS::Do_Get_Planet_Name(world_state, legacy_world::Planet_Id(planet_index), name, 1);
             } else {
                 snprintf(name, sizeof(name), "Planet %u", planet_index.id);

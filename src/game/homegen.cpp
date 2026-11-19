@@ -334,7 +334,7 @@ namespace HOMEGEN {
             if (is_race_assigned[race_idx] == 0) {
                 char* src_name = &star_names[race_idx * 15];
                 ::game::id_planet home_planet_id = plr->home_planet_id;
-                int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(home_planet_id))).star_index;
+                const auto star_idx = game::Planet(world_state, home_planet_id).Star_Position(MOX::star);
                 s_star_data* star = &MOX::star[star_idx];
 
                 char* dst = star->name;
@@ -543,7 +543,7 @@ namespace HOMEGEN {
             }
         }
 
-        int16_t star_idx = planet->star_index;
+        const auto star_idx = planet->Star_Position(MOX::star);
         MAPGEN::Set_Secondary_Planet_Data(world_state, star_idx, legacy_world::Planet_Id(planet_index));
 
         s_star_data* star = &MOX::star[star_idx];
@@ -727,7 +727,7 @@ namespace HOMEGEN {
         s_star_data& star = MOX::star[star_idx];
 
         star.system_special = SYSTEM_SPECIAL_NO_SPECIAL;
-        star.wormhole_star_id = -1;
+        star.wormhole_star_id = game::NO_STAR;
 
         for (int i = 0; i < 5; ++i) {
             ::game::id_planet planet_idx = star.planet_index[i];
@@ -782,7 +782,7 @@ namespace HOMEGEN {
         if (::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).mineral_class == MINERAL_RESOURCE_ULTRA_RICH) {
             // Trait index 0 corresponds to Heavy-G World
             if (MOX::player[player_idx].traits[TRAIT_HEAVY_G_WORLD] == 0) {
-                uint8_t new_minerals = MAPGEN::Generate_Mineral_Class(::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index, legacy_world::Planet_Id(planet_idx));
+                uint8_t new_minerals = MAPGEN::Generate_Mineral_Class(game::Planet(world_state, planet_idx).Star_Position(MOX::star), planet_idx);
 
                 // Logic quirk: The reassignment target is the planet at the player's slot index.
                 ::game::Planet(world_state, planet_idx).mineral_class = (int8_t)new_minerals;
@@ -811,7 +811,7 @@ namespace HOMEGEN {
                 int16_t min_dist = 999;
                 uint8_t found_food_system = 0;
 
-                int16_t colony_star = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index;
+                const auto colony_star = game::Planet(world_state, planet_idx).Star_Position(MOX::star);
 
                 for (int16_t star_idx = 1; star_idx < MOX::NUM_STARS; ++star_idx) {
                     if (found_food_system != 0) break;
@@ -857,7 +857,7 @@ namespace HOMEGEN {
                         int32_t rnd = game_random::Random(buffer_count);
                         ::game::id_planet target_p_idx = planet_buffer[rnd - 1];
                         int8_t original_special = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(target_p_idx))).planet_special;
-                        int16_t star_of_planet = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(target_p_idx))).star_index;
+                        const auto star_of_planet = game::Planet(world_state, target_p_idx).Star_Position(MOX::star);
                         food_star = star_of_planet;
 
                         const int16_t orbit_index = game::Planet(world_state, legacy_world::Planet_Id(target_p_idx)).orbit;
@@ -867,7 +867,7 @@ namespace HOMEGEN {
                     }
                 } else {
                     if (buffer_count > 0 && food_star == -1) {
-                        food_star = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_buffer[0]))).star_index;
+                        food_star = game::Planet(world_state, planet_buffer[0]).Star_Position(MOX::star);
                     }
                 }
 

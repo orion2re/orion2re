@@ -152,7 +152,7 @@ namespace {
         s_ship_data* ship = &MOX::ship[0];
         ship->owner = 0;
         ship->status = status;
-        ship->location = 0;
+        ship->location = {game::e_ship_location::at_star, game::id_star{0}};
         ship->d.ship_type = SHIP_TYPE_COMBAT;
         ship->d.cost = 50;
         return colony;
@@ -244,13 +244,13 @@ DOCTEST_TEST_CASE("Dimensional Portal is limited to one per player per system") 
     s_colony* colony = &MOX::colony[0];
     colony->owner = 0;
     colony->planet = game::id_planet{0};
-    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).star_index = 0;
+    test::Planet(&game::world, game::id_planet{0}).parent_star = game::id_star{0};
     test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).colony_index = 0;
 
     s_colony* other_colony = &MOX::colony[1];
     other_colony->owner = 1;
     other_colony->planet = game::id_planet{1};
-    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).star_index = 0;
+    test::Planet(&game::world, game::id_planet{1}).parent_star = game::id_star{0};
     test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).colony_index = 1;
     for (int i = 0; i < 7; ++i) {
         other_colony->producing[i] = COLONY_PRODUCTION_NONE;

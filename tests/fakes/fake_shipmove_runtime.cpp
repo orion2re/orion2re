@@ -58,7 +58,7 @@ namespace TEST_SHIPMOVE {
         players[0].ship_speed = 4;
         ships[0].owner = 0;
         ships[0].officer_index = -1;
-        ships[0].location = 0;
+        ships[0].location.destination = game::s_ship_destination::Star(game::id_star{0});
         stars[0].x = 0;
         stars[0].y = 0;
         stars[0].has_colony = 1;
@@ -98,7 +98,7 @@ namespace MOX {
 
     s_player* player = players;
     s_ship_data* ship = ships;
-    s_star_data* star = stars;
+    game::s_star_slots star = stars;
 } // namespace MOX
 
 namespace EVENTS {

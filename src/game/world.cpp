@@ -2,9 +2,14 @@
 
 #include "world.h"
 
+int16_t s_planet_data::Star_Position(const game::s_star_slots& stars) const {
+    return stars.Position_Of(parent_star);
+}
+
 namespace game {
     s_world_state::s_world_state() {
         colony_order.fill(NO_COLONY);
+        star_order.fill(NO_STAR);
         Reset_Leaders(this);
     }
 
@@ -97,6 +102,114 @@ namespace game {
 
     bool Erase_Colony(s_world_state* world, id_colony id) {
         return world->colonies.erase(id) != 0;
+    }
+
+    s_star_data* Find_Star(s_world_state* world, id_star id) {
+        const auto found = world->stars.find(id);
+        return found == world->stars.end() ? nullptr : &found->second;
+    }
+
+    const s_star_data* Find_Star(const s_world_state* world, id_star id) {
+        const auto found = world->stars.find(id);
+        return found == world->stars.end() ? nullptr : &found->second;
+    }
+
+    s_star_data& Star(s_world_state* world, id_star id) {
+        auto* star = Find_Star(world, id);
+        if (star == nullptr) std::abort();
+        return *star;
+    }
+
+    const s_star_data& Star(const s_world_state* world, id_star id) {
+        const auto* star = Find_Star(world, id);
+        if (star == nullptr) std::abort();
+        return *star;
+    }
+
+    int32_t Star_Count(const s_world_state* world) {
+        return static_cast<int32_t>(world->stars.size());
+    }
+
+    std::optional<id_star> Create_Star(s_world_state* world, const s_star_data& star) {
+        if (world->stars.size() == MAX_STARS || world->next_star_id >= NO_STAR.id) return std::nullopt;
+        const id_star id{static_cast<uint32_t>(world->next_star_id)};
+        if (!world->stars.emplace(id, star).second) std::abort();
+        ++world->next_star_id;
+        return id;
+    }
+
+    s_star_data& s_star_slots::operator[](int32_t position) const {
+        if (fixture != nullptr) return fixture[position];
+        if (state == nullptr || position < 0 || position > MAX_STARS) std::abort();
+        const auto id = Id_At(position);
+        if (id != NO_STAR) return Star(state, id);
+        if (extent != nullptr && position == *extent) return state->antares;
+        if (position == MAX_STARS) std::abort();
+        return state->vacant_star_positions.try_emplace(static_cast<int16_t>(position)).first->second;
+    }
+
+    id_star s_star_slots::Id_At(int32_t position) const {
+        if (position < 0 || position >= MAX_STARS || (extent != nullptr && position == *extent)) return NO_STAR;
+        if (fixture != nullptr) return id_star{static_cast<uint32_t>(position)};
+        return state != nullptr ? state->star_order[position] : NO_STAR;
+    }
+
+    int16_t s_star_slots::Position_Of(id_star id) const {
+        if (id == NO_STAR) return -1;
+        if (fixture != nullptr) return id.id < MAX_STARS ? static_cast<int16_t>(id.id) : -1;
+        if (state == nullptr) return -1;
+        const auto found = std::find(state->star_order.begin(), state->star_order.end(), id);
+        return found == state->star_order.end() ? -1 : static_cast<int16_t>(found - state->star_order.begin());
+    }
+
+    int16_t s_star_slots::Position_Of(const s_star_data* star) const {
+        if (star == nullptr) return -1;
+        if (fixture != nullptr) {
+            const auto first = reinterpret_cast<uintptr_t>(fixture);
+            const auto address = reinterpret_cast<uintptr_t>(star);
+            if (address < first || (address - first) % sizeof(s_star_data) != 0) return -1;
+            const auto position = (address - first) / sizeof(s_star_data);
+            return position <= MAX_STARS ? static_cast<int16_t>(position) : -1;
+        }
+        if (state == nullptr) return -1;
+        if (star == &state->antares && extent != nullptr) return *extent;
+        for (int16_t position = 0; position < MAX_STARS; ++position) {
+            const auto id = state->star_order[position];
+            if (id != NO_STAR && Find_Star(state, id) == star) return position;
+        }
+        return -1;
+    }
+
+    bool s_star_slots::Activate(int16_t position) const {
+        if (position < 0 || position >= MAX_STARS) return false;
+        if (fixture != nullptr) return true;
+        if (state == nullptr) return false;
+        if (state->star_order[position] != NO_STAR) return true;
+        const auto id = Create_Star(state, {});
+        if (!id) return false;
+        state->star_order[position] = *id;
+        state->vacant_star_positions.erase(position);
+        return true;
+    }
+
+    void s_star_slots::Retire(int16_t position) const {
+        if (state == nullptr || position < 0 || position >= MAX_STARS) return;
+        const auto id = state->star_order[position];
+        if (id == NO_STAR) return;
+        state->star_order[position] = NO_STAR;
+        state->stars.erase(id);
+    }
+
+    void s_star_slots::Reset() const {
+        if (fixture != nullptr) {
+            memset(fixture, 0, MAX_STARS * sizeof(s_star_data));
+        } else if (state != nullptr) {
+            state->stars.clear();
+            state->star_order.fill(NO_STAR);
+            state->vacant_star_positions.clear();
+            state->next_star_id = 0;
+            state->antares = {};
+        }
     }
 
     s_colony& s_colony_slots::operator[](int32_t position) const {

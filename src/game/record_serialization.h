@@ -5,7 +5,7 @@
 
 namespace SAVEGAME::records {
     void Write_Ship(SERIAL::Writer_* writer, const s_ship_data* ship);
-    void Read_Ship(SERIAL::Reader_* reader, s_ship_data* ship, uint16_t version);
+    void Read_Ship(SERIAL::Reader_* reader, s_ship_data* ship, uint16_t version, int16_t legacy_star_count = -1);
     void Write_Planet(SERIAL::Writer_* writer, const s_planet_data* planet);
     void Read_Planet(SERIAL::Reader_* reader, s_planet_data* planet, uint16_t version);
     inline constexpr uint16_t LEGACY_VERSION = 0;

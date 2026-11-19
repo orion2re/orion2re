@@ -437,7 +437,7 @@ namespace AIBUILD {
                 if (colony->bought_outright != 0) continue;
 
                 ::game::id_planet planet_idx = colony->planet;
-                int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index;
+                const auto star_idx = game::Planet(world_state, planet_idx).Star_Position(world->stars);
                 if ((world->stars[star_idx].blockaded >> (player_idx & 0x1F)) & 1) continue;
 
                 int16_t producing = colony->producing[0];
@@ -532,7 +532,7 @@ namespace AIBUILD {
         const s_planet_data* planet = &::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony->planet)));
         const AIDATA::s_colony_assessment* ai_colony = &ai->colonies[colony_idx];
         const AIDATA::s_star_player_assessment* star_info =
-            &ai->stars[legacy_world::Star_Id(planet->star_index)].neighborhood.per_player[owner];
+            &ai->stars[legacy_world::Star_Id(planet->Star_Position(world->stars))].neighborhood.per_player[owner];
 
         int32_t population = (uint8_t)colony->n_pops;
         int32_t population_limit = (uint8_t)ai_colony->population_limit;
@@ -561,7 +561,7 @@ namespace AIBUILD {
         context->metrics[production_rules::METRIC_CLIMATE] = planet->climate;
         context->metrics[production_rules::METRIC_MINERAL_CLASS] = planet->mineral_class;
         context->metrics[production_rules::METRIC_INCOMING_HUMAN_SHIPS] =
-            ai->stars[legacy_world::Star_Id(planet->star_index)].enroute_human_ships[AIDATA::LAST_FORECAST_TURN];
+            ai->stars[legacy_world::Star_Id(planet->Star_Position(world->stars))].enroute_human_ships[AIDATA::LAST_FORECAST_TURN];
         context->metrics[production_rules::METRIC_ENEMY_PRESENCE] = (uint8_t)star_info->hostile_players_in_range;
         context->metrics[production_rules::METRIC_NEUTRAL_PRESENCE] = (uint8_t)star_info->neutral_players_in_range;
         context->metrics[production_rules::METRIC_ALLIED_PRESENCE] = (uint8_t)star_info->treaty_partners_in_range;
@@ -662,7 +662,7 @@ namespace AIBUILD {
         if (bc_score > 10) bc_score = 10;
 
         s_planet_data* planet = &::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony->planet)));
-        int16_t star_idx = planet->star_index;
+        const auto star_idx = planet->Star_Position(world->stars);
         AIDATA::s_star_neighborhood* ai_star = &ai->stars[legacy_world::Star_Id(star_idx)].neighborhood;
         AIDATA::s_star_player_assessment* star_player_info = &ai_star->per_player[owner];
 

@@ -558,7 +558,7 @@ namespace COLONY {
 
             if (colony.bought_outright == 0) {
                 ::game::id_planet planet_idx = colony.planet;
-                int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index;
+                const auto star_idx = game::Planet(world_state, planet_idx).Star_Position(MOX::star);
                 s_star_data& star = MOX::star[star_idx];
 
                 if (!struct_::Test_Bit_Field(&star.blockaded, MOX::PLAYER_NUM)) {
@@ -1446,7 +1446,7 @@ namespace COLONY {
 
         ::game::id_planet planet_idx = MOX::colony[colony_idx].planet;
 
-        MOX::screen_data = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index;
+        MOX::screen_data = game::Planet(world_state, planet_idx).Star_Position(MOX::star);
         orbit_temp = (int16_t)::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).orbit;
         temp_colony_idx = colony_idx;
 
@@ -1943,7 +1943,7 @@ namespace COLONY {
             ::game::id_planet planet_idx = MOX::colony[colony_idx].planet;
 
             // Note: star_index and orbit are extracted from the planet associated with the colony
-            int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index;
+            const auto star_idx = game::Planet(world_state, planet_idx).Star_Position(MOX::star);
             char orbit = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).orbit;
 
             // Update the player's last selected planet in the system's star data
@@ -2031,7 +2031,7 @@ namespace COLONY {
     void __cdecl Set_Colony_Globals(::game::s_world_state* world_state, int16_t colony_idx) {
         colony_handle = colony_idx;
         planet_handle = MOX::colony[colony_idx].planet;
-        star_handle = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_handle))).star_index;
+        star_handle = game::Planet(world_state, planet_handle).Star_Position(MOX::star);
         orbit_n = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_handle))).orbit;
     }
 

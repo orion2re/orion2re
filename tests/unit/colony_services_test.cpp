@@ -66,7 +66,7 @@ DOCTEST_TEST_CASE("blockades report the attacking and defending empires to diplo
     Reset_Services_();
     MOX::NUM_SHIPS = 1;
     MOX::ship[0].owner = 0;
-    MOX::ship[0].location = 0;
+    MOX::ship[0].location = {game::e_ship_location::at_star, game::id_star{0}};
     MOX::ship[0].d.ship_type = SHIP_TYPE_COMBAT;
     MOX::player[0].treaty[1] = 4;
     MOX::star[0].has_colony = 2;

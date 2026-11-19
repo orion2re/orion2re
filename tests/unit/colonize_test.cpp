@@ -31,7 +31,7 @@ DOCTEST_TEST_CASE("same-owner outpost ship does not suppress colony ship priorit
     TEST_COLONIZE::Reset_();
 
     MOX::star[0].planet_index[0] = game::id_planet{0};
-    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).star_index = 0;
+    test::Planet(&game::world, game::id_planet{0}).parent_star = game::id_star{0};
     test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).planet_type = PLANET_TYPE_PLANET;
     test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).colony_index = 0;
     MOX::colony[0].owner = 0;
@@ -39,10 +39,10 @@ DOCTEST_TEST_CASE("same-owner outpost ship does not suppress colony ship priorit
     MOX::colony[0].outpost_flag = 1;
 
     MOX::ship[0].owner = 0;
-    MOX::ship[0].location = 0;
+    MOX::ship[0].location = {game::e_ship_location::at_star, game::id_star{0}};
     MOX::ship[0].d.ship_type = SHIP_TYPE_OUTPOST;
     MOX::ship[1].owner = 0;
-    MOX::ship[1].location = 0;
+    MOX::ship[1].location = {game::e_ship_location::at_star, game::id_star{0}};
     MOX::ship[1].d.ship_type = SHIP_TYPE_COLONY;
 
     COLONIZE::Find_Colonize_Players(&::game::world);
@@ -59,14 +59,14 @@ DOCTEST_TEST_CASE("same-owner outpost ship does not suppress colony base priorit
     MOX::star[0].planet_index[0] = game::id_planet{0};
     MOX::star[0].planet_index[1] = game::id_planet{1};
 
-    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).star_index = 0;
+    test::Planet(&game::world, game::id_planet{0}).parent_star = game::id_star{0};
     test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).planet_type = PLANET_TYPE_PLANET;
     test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).colony_index = 0;
     MOX::colony[0].owner = 0;
     MOX::colony[0].planet = game::id_planet{0};
     MOX::colony[0].buildings[BUILDING_COLONY_BASE] = 1;
 
-    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).star_index = 0;
+    test::Planet(&game::world, game::id_planet{1}).parent_star = game::id_star{0};
     test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).planet_type = PLANET_TYPE_PLANET;
     test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).colony_index = 1;
     MOX::colony[1].owner = 0;
@@ -74,7 +74,7 @@ DOCTEST_TEST_CASE("same-owner outpost ship does not suppress colony base priorit
     MOX::colony[1].outpost_flag = 1;
 
     MOX::ship[0].owner = 0;
-    MOX::ship[0].location = 0;
+    MOX::ship[0].location = {game::e_ship_location::at_star, game::id_star{0}};
     MOX::ship[0].d.ship_type = SHIP_TYPE_OUTPOST;
 
     TECHDATA::buildings[BUILDING_COLONY_BASE].cost = 100;
@@ -89,7 +89,7 @@ DOCTEST_TEST_CASE("same-owner outpost ship does not suppress colony base priorit
 DOCTEST_TEST_CASE("outpost on non-planet body uses barren climate") {
     TEST_COLONIZE::Reset_();
 
-    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).star_index = 0;
+    test::Planet(&game::world, game::id_planet{0}).parent_star = game::id_star{0};
     test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).planet_type = PLANET_TYPE_ASTEROID;
     test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).climate = PLANET_CLIMATE_GAIA;
 
@@ -101,7 +101,7 @@ DOCTEST_TEST_CASE("outpost on non-planet body uses barren climate") {
 DOCTEST_TEST_CASE("outpost on planet preserves planet climate") {
     TEST_COLONIZE::Reset_();
 
-    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).star_index = 0;
+    test::Planet(&game::world, game::id_planet{0}).parent_star = game::id_star{0};
     test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).planet_type = PLANET_TYPE_PLANET;
     test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).climate = PLANET_CLIMATE_OCEAN;
 
@@ -113,7 +113,7 @@ DOCTEST_TEST_CASE("outpost on planet preserves planet climate") {
 DOCTEST_TEST_CASE("first colony after losing the homeworld becomes the new home") {
     TEST_COLONIZE::Reset_();
     MOX::player[0].home_planet_id = ::game::NO_PLANET;
-    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).star_index = 0;
+    test::Planet(&game::world, game::id_planet{0}).parent_star = game::id_star{0};
 
     COLONIZE::Make_New_Colony(legacy_world::Planet_Id(0), 0);
 
@@ -123,7 +123,7 @@ DOCTEST_TEST_CASE("first colony after losing the homeworld becomes the new home"
 DOCTEST_TEST_CASE("new outpost does not become the homeworld") {
     TEST_COLONIZE::Reset_();
     MOX::player[0].home_planet_id = ::game::NO_PLANET;
-    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).star_index = 0;
+    test::Planet(&game::world, game::id_planet{0}).parent_star = game::id_star{0};
 
     COLONIZE::Make_New_Outpost(legacy_world::Planet_Id(0), 0);
 
@@ -133,7 +133,7 @@ DOCTEST_TEST_CASE("new outpost does not become the homeworld") {
 DOCTEST_TEST_CASE("first colony population uses the configured worker rule") {
     TEST_COLONIZE::Reset_();
 
-    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).star_index = 0;
+    test::Planet(&game::world, game::id_planet{0}).parent_star = game::id_star{0};
     test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).food_per_farmer = 2;
 
     COLONIZE::Make_New_Colony(legacy_world::Planet_Id(0), 0);
@@ -141,7 +141,7 @@ DOCTEST_TEST_CASE("first colony population uses the configured worker rule") {
     DOCTEST_CHECK((POP::Get_Prof(MOX::colony[0].pop[0]) == POP::PROF_FARMER));
 
     TEST_COLONIZE::Reset_();
-    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).star_index = 0;
+    test::Planet(&game::world, game::id_planet{0}).parent_star = game::id_star{0};
     test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).food_per_farmer = 2;
     COLONIZE::first_pop_to_production = 1;
 
@@ -154,7 +154,7 @@ DOCTEST_TEST_CASE("new colony populations use semantic identity and assignment f
     TEST_COLONIZE::Reset_();
     constexpr int16_t player_idx = 3;
     MOX::colony[0].allocated_to = player_idx;
-    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).star_index = 0;
+    test::Planet(&game::world, game::id_planet{0}).parent_star = game::id_star{0};
     test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).food_per_farmer = 2;
     test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).planet_special = SYSTEM_SPECIAL_NATIVES;
 

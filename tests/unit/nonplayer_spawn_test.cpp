@@ -11,7 +11,7 @@ namespace {
         std::vector<s_ship_data> ships{MAX_SHIPS};
         std::vector<uint64_t> generations = std::vector<uint64_t>(MAX_SHIPS);
         orion2re::lua::game::s_ship_generation_scope generation_scope{generations.data()};
-        s_star_data* saved_stars = MOX::star;
+        game::s_star_slots saved_stars = MOX::star;
         s_ship_data* saved_ships = MOX::ship;
         int16_t saved_num_stars = MOX::NUM_STARS;
         int16_t saved_num_ships = MOX::NUM_SHIPS;

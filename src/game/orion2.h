@@ -3,7 +3,12 @@
 #include <cstddef>
 #include <optional>
 #include "object_ids.h"
+#include "ship_location.h"
 #include "unaligned.h"
+
+namespace game {
+    struct s_star_slots;
+}
 
 #pragma pack(push, 1)
 
@@ -2024,9 +2029,10 @@ struct s_parsec {
 
 typedef struct s_planet_data s_planet_data, *Ps_planet_data;
 
+#pragma pack(push, 4)
 struct s_planet_data {
+    ::game::id_star parent_star = ::game::NO_STAR;
     int16_t colony_index;
-    int16_t star_index;
     int8_t orbit;
     int8_t planet_type;
     int8_t size;
@@ -2041,7 +2047,10 @@ struct s_planet_data {
     uint8_t max_population;
     int8_t planet_special;
     int8_t environmental_alterations;
+
+    int16_t Star_Position(const game::s_star_slots& stars) const;
 };
+#pragma pack(pop)
 
 typedef struct s_planet_max_farms s_planet_max_farms, *Ps_planet_max_farms;
 
@@ -2742,7 +2751,7 @@ struct s_ship_data {
     struct s_ship_design d;
     int8_t owner;
     sbyte status;
-    int16_t location;
+    game::s_ship_location location;
     int16_t x;
     int16_t y;
     int8_t group_has_navigator;
@@ -2759,9 +2768,12 @@ struct s_ship_data {
     int16_t structural_damage;
     int8_t mission;
     int8_t just_built;
-    int16_t prior_jump_gate_destination;
+    game::id_star prior_jump_gate_destination = game::NO_STAR;
     int32_t prior_jump_gate_stardate;
     std::optional<game::id_planet> auto_colonize_target;
+
+    int16_t Legacy_Location(const game::s_star_slots& stars) const;
+    void Set_Legacy_Location(const game::s_star_slots& stars, int32_t encoded);
 };
 #pragma pack(pop)
 
@@ -2883,7 +2895,7 @@ struct s_star_data {
     int8_t last_orbit_selected[MAX_PLAYERS];
     int8_t black_hole_blocks[BITMAP(MAX_STARS)];
     int8_t system_special;
-    int16_t wormhole_star_id;
+    ::game::id_star wormhole_star_id = ::game::NO_STAR;
     uint8_t blockaded;
     uint8_t blockaded_by[MAX_PLAYERS];
     uint8_t visited;
@@ -2903,7 +2915,10 @@ struct s_star_data {
     uint8_t is_stagepoint;
     int8_t officer_index[MAX_PLAYERS];
     ::game::id_planet planet_index[5];
-    int16_t relocate_ship_to[MAX_PLAYERS];
+    ::game::id_star relocate_ship_to[MAX_PLAYERS] = {
+        ::game::NO_STAR, ::game::NO_STAR, ::game::NO_STAR, ::game::NO_STAR,
+        ::game::NO_STAR, ::game::NO_STAR, ::game::NO_STAR, ::game::NO_STAR,
+    };
     int8_t twinkling1;
     int8_t twinkling2;
     uint8_t not_used3;

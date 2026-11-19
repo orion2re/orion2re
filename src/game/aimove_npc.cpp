@@ -22,7 +22,7 @@ namespace AIMOVE {
             }
 
             if (ship->status == 1) {
-                auto location = legacy_world::Read_Ship_Location(ship);
+                auto location = legacy_world::Read_Ship_Location(ship, world->stars);
                 if (location && legacy_world::Slot(location->star_id) < star_flag2.size()) star_flag2[legacy_world::Slot(location->star_id)] = 1;
                 continue;
             }
@@ -31,7 +31,7 @@ namespace AIMOVE {
                 continue;
             }
 
-            const auto orbit = legacy_world::Orbit_Star(ship);
+            const auto orbit = legacy_world::Orbit_Star(ship, world->stars);
             if (!orbit || legacy_world::Slot(*orbit) >= (uint32_t)world->Star_Count()) continue;
             const uint32_t current_star = legacy_world::Slot(*orbit);
 
@@ -139,7 +139,7 @@ namespace AIMOVE {
     std::optional<id_star> Npc_Dest(::game::s_world_state* world_state, const game::s_view* world, id_ship ship_id, const uint8_t* star_flags) {
         const uint32_t ship_idx = legacy_world::Slot(ship_id);
         std::optional<id_star> destination;
-        auto orbit = legacy_world::Orbit_Star(&world->ships[ship_idx]);
+        auto orbit = legacy_world::Orbit_Star(&world->ships[ship_idx], world->stars);
         if (!orbit) return std::nullopt;
         const uint32_t ship_location = legacy_world::Slot(*orbit);
         const auto legacy_location = legacy_world::Index(*orbit);
@@ -162,7 +162,7 @@ namespace AIMOVE {
             int8_t owner = world->colonies[i].owner;
             if (owner != -1) {
                 ::game::id_planet planet_idx = world->colonies[i].planet;
-                int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index;
+                const auto star_idx = game::Planet(world_state, planet_idx).Star_Position(world->stars);
 
                 if (ship_location != star_idx && star_flags[star_idx] == 0) {
                     if (world->players[owner].traits[TRAIT_LUCKY] == 0) {

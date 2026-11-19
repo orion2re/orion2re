@@ -213,7 +213,7 @@ namespace MAPGEN {
         if (MOX::NUM_PLAYERS > 0) {
             for (int i = 0; i < MOX::NUM_PLAYERS; ++i) {
                 ::game::id_planet home_planet_id = MOX::player[i].home_planet_id;
-                int16_t star_index = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(home_planet_id))).star_index;
+                const auto star_index = game::Planet(world_state, home_planet_id).Star_Position(MOX::star);
                 star_used[star_index] = 1;
             }
         }
@@ -228,7 +228,7 @@ namespace MAPGEN {
                         MOX::star[star_idx].system_special == SYSTEM_SPECIAL_NO_SPECIAL &&
                         !HAROLD::Empty_System(star_idx) &&
                         MOX::star[star_idx].spectral_class != STAR_CLASS_BLACK_HOLE &&
-                        MOX::star[star_idx].wormhole_star_id == -1) {
+                        MOX::star[star_idx].wormhole_star_id == game::NO_STAR) {
                         found_star_idx = star_idx;
                         break;
                     }
@@ -820,7 +820,10 @@ namespace MAPGEN {
                 MOX::NUM_COLONIES = 0;
                 memset(special_count, 0, sizeof(special_count));
                 world_state->planets.clear();
-                memset(MOX::star, 0, MAX_STARS * sizeof(*MOX::star));
+                MOX::star.Reset();
+                for (int16_t position = 0; position < MOX::NUM_STARS; ++position) {
+                    if (!MOX::star.Activate(position)) std::abort();
+                }
                 memset(planets_per_star, 0, sizeof(planets_per_star));
 
                 if (Set_Star_XYs(grid_x, grid_y, gal_age, 1, 1)) {
@@ -836,7 +839,7 @@ namespace MAPGEN {
                     RUSS::Mox_Update();
                     memset(MOX::star[star_count].relocate_ship_to, 0xFF, sizeof(MOX::star[star_count].relocate_ship_to));
                     memset(MOX::star[star_count].officer_index, 0xFF, sizeof(MOX::star[star_count].officer_index));
-                    MOX::star[star_count].wormhole_star_id = -1;
+                    MOX::star[star_count].wormhole_star_id = game::NO_STAR;
 
                     if (num_maps_to_generate == 1 && map_idx < 1) {
                         if (Should_Update_Generation_Progress(star_count)) {
@@ -876,7 +879,7 @@ namespace MAPGEN {
                         Generate_Star_Special(star_count, &unused_wormhole_flag, special_count);
                     }
 
-                    MOX::star[star_count].wormhole_star_id = -1;
+                    MOX::star[star_count].wormhole_star_id = game::NO_STAR;
                     ++n_stars;
                 }
 

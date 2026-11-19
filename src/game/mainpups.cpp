@@ -120,7 +120,7 @@ namespace MAINPUPS {
         if (star_idx == -1) {
             star_idx = 0;
             if (MOX::player[MOX::PLAYER_NUM].home_planet_id != game::NO_PLANET) {
-                star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(MOX::player[MOX::PLAYER_NUM].home_planet_id))).star_index;
+                star_idx = game::Planet(world_state, MOX::player[MOX::PLAYER_NUM].home_planet_id).Star_Position(MOX::star);
             }
         }
 
@@ -840,7 +840,7 @@ namespace MAINPUPS {
     bool __cdecl Random_New_Officer_Popup(game::s_world_state* world_state, int16_t player_idx) {
         const int16_t capital_colony = ERIC::Player_Capitol_World(player_idx);
         int16_t star_idx = capital_colony >= 0
-            ? ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(MOX::colony[capital_colony].planet))).star_index
+            ? game::Planet(world_state, MOX::colony[capital_colony].planet).Star_Position(MOX::star)
             : -1;
 
         s_colors colors;
@@ -869,7 +869,7 @@ namespace MAINPUPS {
         if (star_idx == -1) {
             const int16_t colony_idx = ERIC::Pick_Random_Colony(player_idx);
             if (colony_idx >= 0) {
-                star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(MOX::colony[colony_idx].planet))).star_index;
+                star_idx = game::Planet(world_state, MOX::colony[colony_idx].planet).Star_Position(MOX::star);
             }
         }
 
@@ -1270,7 +1270,7 @@ namespace MAINPUPS {
         s_animation_header* anim = COLONY::C_Anims(world_state, 0xD);
         remap::Calculate_Picture_Remap_Colors(anim);
 
-        int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(MOX::colony[MAINPUPS::g_data_ptr->colony_idx].planet))).star_index;
+        const auto star_idx = game::Planet(world_state, MOX::colony[MAINPUPS::g_data_ptr->colony_idx].planet).Star_Position(MOX::star);
         MAINPUPS::Do_Popup_Setup(world_state, star_idx, anims[3]);
 
         fields::Deactivate_Auto_Function();

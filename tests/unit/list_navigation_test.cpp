@@ -14,7 +14,7 @@ namespace {
         game::s_colony_slots saved_colonies = MOX::colony;
         decltype(game::world.planets) saved_planets = game::world.planets;
         uint64_t saved_next_planet_id = game::world.next_planet_id;
-        s_star_data* saved_stars = MOX::star;
+        game::s_star_slots saved_stars = MOX::star;
         s_player* saved_players = MOX::player;
         int16_t saved_star_count = MOX::NUM_STARS;
         int16_t saved_star_field = MOX::galaxy_map_star_field[0];

@@ -372,7 +372,7 @@ namespace AI_SNOOPS_DEBUG {
                     }
                     ImGui::PopID();
                     ImGui::TableSetColumnIndex(1);
-                    ImGui::Text("%d", static_cast<int>(game::Planet(world_state, planet).star_index));
+                    ImGui::Text("%u", game::Planet(world_state, planet).parent_star.id);
                     ImGui::TableSetColumnIndex(2);
                     ImGui::Text("%u", (unsigned)base);
                     ImGui::TableSetColumnIndex(3);
@@ -449,7 +449,7 @@ namespace AI_SNOOPS_DEBUG {
                     ImGui::TableSetColumnIndex(1);
                     ImGui::Text("%d", live == nullptr ? -1 : (int)live->owner);
                     ImGui::TableSetColumnIndex(2);
-                    ImGui::Text("%d", live == nullptr ? -1 : (int)live->location);
+                    ImGui::Text("%d", live == nullptr ? -1 : live->Legacy_Location(MOX::star));
                     ImGui::TableSetColumnIndex(3);
                     ImGui::Text("%u", (unsigned)assessment.strengths[g_opponent]);
                     ImGui::TableSetColumnIndex(4);

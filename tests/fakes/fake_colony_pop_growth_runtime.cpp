@@ -169,7 +169,7 @@ namespace TEST_COLONY_POP_GROWTH {
                 colonies[i].producing[slot] = COLONY_PRODUCTION_NONE;
             }
             test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(i))).colony_index = i;
-            test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(i))).star_index = i;
+            test::Planet(&game::world, legacy_world::Planet_Id(i)).parent_star = game::id_star{static_cast<uint32_t>(i)};
             stars[i].planet_index[0] = colonies[i].planet;
             stars[i].has_colony = 1;
         }
@@ -245,7 +245,7 @@ namespace MOX {
     game::s_colony_slots colony = colonies;
 
     s_player* player = players;
-    s_star_data* star = stars;
+    game::s_star_slots star = stars;
     s_ship_data* ship = ships;
     s_settings settings = {};
     s_crew_data crew_data[CREW_QUALITY_COUNT] = {};
@@ -547,12 +547,12 @@ namespace SHIPMOVE {
     }
 
     bool __cdecl Star_In_Normal_Range_Of_Player(s_star_data* star, int16_t player) {
-        TEST_COLONY_POP_GROWTH::services.normal_ranges.push_back({(int16_t)(star - MOX::star), player});
+        TEST_COLONY_POP_GROWTH::services.normal_ranges.push_back({MOX::star.Position_Of(star), player});
         return TEST_COLONY_POP_GROWTH::services.in_normal_range;
     }
 
     bool __cdecl Star_In_Range_Of_Player(s_star_data* star, int16_t player, int16_t range) {
-        TEST_COLONY_POP_GROWTH::services.ranges.push_back({(int16_t)(star - MOX::star), player, range});
+        TEST_COLONY_POP_GROWTH::services.ranges.push_back({MOX::star.Position_Of(star), player, range});
         return TEST_COLONY_POP_GROWTH::services.in_range;
     }
 }

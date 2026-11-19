@@ -32,8 +32,8 @@ static void Prepare_Interstar_Move_() {
     MOX::colony[0].n_pops = 2;
     MOX::colony[1].owner = 0;
     MOX::colony[1].planet = game::id_planet{1};
-    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).star_index = 0;
-    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).star_index = 1;
+    test::Planet(&game::world, game::id_planet{0}).parent_star = game::id_star{0};
+    test::Planet(&game::world, game::id_planet{1}).parent_star = game::id_star{1};
     MOX::player[0].n_freighters = 10000;
 }
 
@@ -137,8 +137,8 @@ DOCTEST_TEST_CASE("last population transfer follows the configured policy") {
     s_colony* destination = &MOX::colony[1];
     destination->owner = 0;
     destination->planet = game::id_planet{1};
-    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).star_index = 0;
-    test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(1))).star_index = 0;
+    test::Planet(&game::world, game::id_planet{0}).parent_star = game::id_star{0};
+    test::Planet(&game::world, game::id_planet{1}).parent_star = game::id_star{0};
 
     s_settler_settle_result result = {};
     SETTLER::Pop_Tries_To_Settle(&::game::world, source, 0, destination, &result);

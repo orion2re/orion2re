@@ -109,12 +109,12 @@ DOCTEST_TEST_CASE("star assessments name treaty partners and hostile players by 
     int16_t colony_count = 3;
     int16_t star_count = 1;
     stars[0].has_colony = 7;
-    stars[0].wormhole_star_id = -1;
+    stars[0].wormhole_star_id = game::NO_STAR;
     for (uint32_t i = 0; i < 3; ++i) {
         players[i].ship_range = 6;
         colonies[i].owner = (int8_t)i;
         colonies[i].planet = game::id_planet{i};
-        game::Create_Planet(&game::world, {});
+        game::Create_Planet(&game::world, {.parent_star = game::id_star{0}});
     }
     players[0].treaty[1] = 1;
     players[0].treaty[2] = 4;

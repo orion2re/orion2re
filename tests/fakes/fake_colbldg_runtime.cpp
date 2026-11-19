@@ -18,7 +18,7 @@ namespace TEST_COLBLDG {
         game::world.planets.clear();
         memset(MOX::player, 0, sizeof(s_player) * MAX_PLAYERS);
         memset(MOX::ship, 0, sizeof(s_ship_data) * MAX_SHIPS);
-        memset(MOX::star, 0xff, sizeof(s_star_data) * (MAX_STARS + 1));
+        memset(MOX::star.fixture, 0xff, sizeof(s_star_data) * (MAX_STARS + 1));
         for (char*& text : ESTRINGS::strings) text = trade_goods;
         ESTRINGS::strings[ESTR_HOUSING] = housing;
         memset(&MOX::settings, 0, sizeof(MOX::settings));

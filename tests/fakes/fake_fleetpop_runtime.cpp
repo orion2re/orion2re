@@ -4,7 +4,7 @@
 namespace TEST_FLEETPOP {
     void Reset_() {
         memset(MOX::ship, 0, sizeof(s_ship_data) * MAX_SHIPS);
-        memset(MOX::star, 0xff, sizeof(s_star_data) * (MAX_STARS + 1));
+        memset(MOX::star.fixture, 0xff, sizeof(s_star_data) * (MAX_STARS + 1));
         game::world.planets.clear();
         memset(MOX::player, 0, sizeof(s_player) * MAX_PLAYERS);
         MOX::colony.Reset();

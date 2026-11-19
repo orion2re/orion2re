@@ -440,7 +440,7 @@ namespace spy {
             int32_t diplomacy_mode = (framed_player_idx == (int16_t)acting_player_idx) ? 3 : 4;
 
             int32_t penalty = -((int32_t)game_random::Random(5) + (int32_t)game_random::Random(15));
-            diplomac::Change_Relations((int16_t)penalty, (int16_t)acting_player_idx, victim_player_idx, diplomacy_mode, game::Planet(&game::world, planet_idx).star_index, (int16_t)target_building);
+            diplomac::Change_Relations((int16_t)penalty, (int16_t)acting_player_idx, victim_player_idx, diplomacy_mode, game::Planet(&game::world, planet_idx).Star_Position(MOX::star), (int16_t)target_building);
 
             s_report report;
             memset(&report, 0, sizeof(report));

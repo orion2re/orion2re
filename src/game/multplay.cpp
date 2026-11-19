@@ -414,7 +414,7 @@ namespace MULTPLAY {
             Restore_Hotseat_Map_Info();
 
             ::game::id_planet home_planet_id = MOX::player[MOX::PLAYER_NUM].home_planet_id;
-            int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(home_planet_id))).star_index;
+            const auto star_idx = game::Planet(world_state, home_planet_id).Star_Position(MOX::star);
             s_star_data* star = &MOX::star[star_idx];
             MAINSCR::Center_Map(star->x, star->y);
         } else {

@@ -76,7 +76,7 @@ namespace COLONIZE {
             s_ship_data* ship = &MOX::ship[i];
             if (ship->status == 0) { // Active
                 if (ship->d.ship_type == SHIP_TYPE_COLONY || ship->d.ship_type == SHIP_TYPE_OUTPOST) {
-                    int16_t star_idx = ship->location;
+                    int16_t star_idx = ship->Legacy_Location(MOX::star);
                     if (star_idx >= 0 && star_idx < MAX_STARS) {
                         s_star_data* star = &MOX::star[star_idx];
                         if (star->colonize_player == MAX_PLAYERS) {
@@ -101,7 +101,7 @@ namespace COLONIZE {
         for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
             s_colony* colony = &MOX::colony[i];
             if (colony->owner != -1 && colony->buildings[BUILDING_COLONY_BASE] != 0) {
-                int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony->planet))).star_index;
+                const auto star_idx = game::Planet(world_state, colony->planet).Star_Position(MOX::star);
                 s_star_data* star = &MOX::star[star_idx];
                 if (star->colonize_player == MAX_PLAYERS) {
                     star->colonize_player = colony->owner;
@@ -144,7 +144,7 @@ namespace COLONIZE {
         for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
             s_ship_data* ship = &MOX::ship[i];
             if (ship->status == 0 && ship->d.ship_type == SHIP_TYPE_COMBAT) {
-                int16_t star_idx = ship->location;
+                int16_t star_idx = ship->Legacy_Location(MOX::star);
                 if (star_idx >= 0 && star_idx < MAX_STARS) {
                     s_star_data* star = &MOX::star[star_idx];
                     int8_t colonizer = star->colonize_player;
@@ -167,7 +167,7 @@ namespace COLONIZE {
         for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
             s_colony* colony = &MOX::colony[i];
             if (colony->owner != -1 && colony->buildings[BUILDING_COLONY_BASE] != 0) {
-                int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony->planet))).star_index;
+                const auto star_idx = game::Planet(world_state, colony->planet).Star_Position(MOX::star);
                 s_star_data* star = &MOX::star[star_idx];
 
                 bool remove_base = false;
@@ -298,7 +298,7 @@ namespace COLONIZE {
                                 // Consumed a colony ship
                                 for (int16_t s = 0; s < MOX::NUM_SHIPS; ++s) {
                                     s_ship_data* ship = &MOX::ship[s];
-                                    if (ship->mission == 4 && ship->owner == (char)player_idx && ship->location == i) {
+                                    if (ship->mission == 4 && ship->owner == (char)player_idx && ship->Legacy_Location(MOX::star) == i) {
                                         ship->mission = 0;
                                     }
                                 }
@@ -381,7 +381,7 @@ namespace COLONIZE {
                 }
                 colony->n_pops = 4;
                 planet->planet_special = SYSTEM_SPECIAL_NO_SPECIAL;
-                MOX::star[planet->star_index].system_special = SYSTEM_SPECIAL_NO_SPECIAL;
+                MOX::star[planet->Star_Position(MOX::star)].system_special = SYSTEM_SPECIAL_NO_SPECIAL;
             }
 
             if (is_reused) {
@@ -402,7 +402,7 @@ namespace COLONIZE {
         }
 
         colony->producing[0] = COLONY_PRODUCTION_NONE;
-        COLCALC::Compute_Star_Colony_Stuff(world_state, &MOX::star[planet->star_index]);
+        COLCALC::Compute_Star_Colony_Stuff(world_state, &MOX::star[planet->Star_Position(MOX::star)]);
     }
 
     void __cdecl Make_New_Colony(::game::id_planet planet_idx, int16_t player_idx) {

@@ -253,7 +253,7 @@ namespace COLBLDG {
         s_colony& colony = MOX::colony[COLONY::colony_handle];
         s_planet_data& planet = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(colony.planet)));
 
-        int16_t uncolonized_worlds = Star_N_Uncolonized_Worlds(world_state, planet.star_index);
+        int16_t uncolonized_worlds = Star_N_Uncolonized_Worlds(world_state, planet.Star_Position(MOX::star));
         if (N_Prods_In_Queue(BUILDING_COLONY_BASE) < uncolonized_worlds) {
             if (COLCALC::Colony_Can_Build_Product(world_state, &colony, BUILDING_COLONY_BASE)) {
                 military_indexes[n_military_indexes++] = BUILDING_COLONY_BASE;
@@ -477,7 +477,7 @@ namespace COLBLDG {
     int16_t __cdecl Create_Ship_From_Design(::game::s_world_state* world_state, int16_t player_idx, const s_ship_design* design, int16_t colony_idx) {
         int16_t ship_idx = 0;
         ::game::id_planet planet_idx = MOX::colony[colony_idx].planet;
-        int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index;
+        const auto star_idx = game::Planet(world_state, planet_idx).Star_Position(MOX::star);
 
         while (ship_idx < MAX_SHIPS) {
             auto& ship = MOX::ship[ship_idx];
@@ -506,7 +506,7 @@ namespace COLBLDG {
         new_ship.owner = (int8_t)player_idx;
         new_ship.d.previous_owner = (uint8_t)player_idx;
         new_ship.status = 0;
-        new_ship.location = star_idx;
+        new_ship.location = {game::e_ship_location::at_star, MOX::star.Id_At(star_idx)};
         new_ship.x = MOX::star[star_idx].x;
         new_ship.y = MOX::star[star_idx].y;
         new_ship.officer_index = -1;
@@ -1828,7 +1828,7 @@ namespace COLBLDG {
                 }
 
                 if (military_indexes[i] == BUILDING_COLONY_BASE) {
-                    int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(MOX::colony[COLONY::colony_handle].planet))).star_index;
+                    const auto star_idx = game::Planet(world_state, MOX::colony[COLONY::colony_handle].planet).Star_Position(MOX::star);
                     int16_t uncolonized = Star_N_Uncolonized_Worlds(world_state, star_idx);
                     int16_t in_queue = N_Prods_In_Queue(BUILDING_COLONY_BASE);
 
@@ -2018,7 +2018,7 @@ namespace COLBLDG {
 
     void __cdecl Delete_Ship(int16_t ship_index) {
         MOX::ship[ship_index].status = 5;
-        MOX::ship[ship_index].location = -1;
+        MOX::ship[ship_index].location = {};
     }
 
     void __cdecl Draw_Ship_Info(int16_t item) {

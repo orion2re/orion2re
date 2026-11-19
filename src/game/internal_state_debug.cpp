@@ -306,7 +306,7 @@ namespace INTERNAL_STATE_DEBUG {
                 return -1;
             }
             const auto* planet = game::Find_Planet(world_state, MOX::colony[colony].planet);
-            return planet ? planet->star_index : -1;
+            return planet ? planet->Star_Position(MOX::star) : -1;
         }
 
         bool Player_Has_Leader_Slot_(game::s_world_state* world_state, int16_t player, int8_t type) {
@@ -779,7 +779,7 @@ namespace INTERNAL_STATE_DEBUG {
             const ::game::id_planet planet = MOX::colony[colony].planet;
             return Planet_Relationship_Valid_(world_state, legacy_world::Planet_Id(planet)) &&
                 ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet))).colony_index == colony &&
-                Valid_Star_(::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet))).star_index);
+                Valid_Star_(game::Planet(world_state, planet).Star_Position(MOX::star));
         }
 
         bool Star_Relationship_Valid_(::game::s_world_state* world_state, int16_t star) {
@@ -789,7 +789,7 @@ namespace INTERNAL_STATE_DEBUG {
             for (int16_t orbit = 0; orbit < 5; ++orbit) {
                 const ::game::id_planet planet = MOX::star[star].planet_index[orbit];
                 if (planet != ::game::NO_PLANET && (!Planet_Relationship_Valid_(world_state, legacy_world::Planet_Id(planet)) ||
-                        ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet))).star_index != star)) {
+                        game::Planet(world_state, planet).parent_star != MOX::star.Id_At(star))) {
                     return false;
                 }
             }

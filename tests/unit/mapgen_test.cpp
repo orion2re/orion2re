@@ -103,7 +103,7 @@ namespace {
 
     s_galaxy_snapshot Capture_Galaxy_() {
         s_galaxy_snapshot snapshot = {
-            {MOX::star, MOX::star + MAX_STARS},
+            {MOX::star.fixture, MOX::star.fixture + MAX_STARS},
             game::world.planets,
             {MOX::player, MOX::player + MAX_PLAYERS},
             {MOX::colony.fixture, MOX::colony.fixture + MAX_COLONIES},
@@ -127,7 +127,7 @@ namespace {
     }
 
     void Check_Galaxy_Equals_(const s_galaxy_snapshot& expected) {
-        DOCTEST_CHECK(memcmp(MOX::star,
+        DOCTEST_CHECK(memcmp(MOX::star.fixture,
                           expected.stars.data(),
                           MAX_STARS * sizeof(s_star_data)) == 0);
         DOCTEST_CHECK(test::Planets_Equal(game::world.planets, expected.planets));
@@ -173,7 +173,7 @@ namespace {
         MOX::star[0].y = 20;
         MOX::star[0].spectral_class = STAR_CLASS_G;
         MOX::star[0].owner = 0;
-        MOX::star[0].wormhole_star_id = -1;
+        MOX::star[0].wormhole_star_id = game::NO_STAR;
         test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).size = PLANET_SIZE_MEDIUM;
         test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).gravity_class = PLANET_GRAVITY_NORMAL_G;
         test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(0))).climate = PLANET_CLIMATE_TERRAN;
@@ -226,7 +226,7 @@ DOCTEST_TEST_CASE("planet trimming preserves generated Orion and surviving ident
 
     DOCTEST_CHECK(game::world.planets.size() == 4);
     DOCTEST_CHECK(game::Find_Planet(&game::world, game::id_planet{0}) == nullptr);
-    DOCTEST_CHECK(game::Planet(&game::world, game::id_planet{1}).star_index == 0);
+    DOCTEST_CHECK(game::Planet(&game::world, game::id_planet{1}).parent_star == game::id_star{0});
     DOCTEST_CHECK(game::Planet(&game::world, game::id_planet{1}).planet_special == SYSTEM_SPECIAL_ORION_STAR);
     DOCTEST_CHECK(MOX::star[0].system_special == SYSTEM_SPECIAL_ORION_STAR);
     DOCTEST_CHECK(MOX::star[0].planet_index[1] == game::id_planet{1});
@@ -307,7 +307,7 @@ DOCTEST_TEST_CASE("planet trimming does not protect star zero when Orion is disa
     MAPGEN::Enforce_Planet_Max(&::game::world, 2);
 
     DOCTEST_CHECK(game::world.planets.size() == 1);
-    DOCTEST_CHECK(game::Planet(&game::world, game::id_planet{1}).star_index == 1);
+    DOCTEST_CHECK(game::Planet(&game::world, game::id_planet{1}).parent_star == game::id_star{1});
     DOCTEST_CHECK(MOX::player[0].home_planet_id == game::id_planet{1});
     DOCTEST_CHECK(MOX::colony[0].planet == game::id_planet{1});
     DOCTEST_CHECK((MOX::star[0].planet_index[0] == ::game::NO_PLANET));
@@ -360,7 +360,7 @@ DOCTEST_TEST_CASE("configured planet threshold allows crowded classic galaxies")
             const ::game::id_planet planet = planet_entry.first;
             const s_planet_data& body = test::Planet(&::game::world, legacy_world::Planet_Id(legacy_world::Planet_Id(planet)));
             DOCTEST_CHECK(
-                (MOX::star[body.star_index].planet_index[body.orbit] == planet));
+                (MOX::star[body.Star_Position(MOX::star)].planet_index[body.orbit] == planet));
         }
     }
     MAPGEN::planet_limit = 250;
@@ -675,7 +675,7 @@ DOCTEST_TEST_CASE(
     TEST_MAPGEN::Enable_Galaxy_Provider_(false, false);
     MOX::food_per_farmer_table[PLANET_CLIMATE_GAIA] = 6;
     MOX::planet_max_farms[PLANET_SIZE_MEDIUM] = 7;
-    s_star_data* live_stars = MOX::star;
+    const auto live_stars = MOX::star;
     s_galaxy_snapshot expected = Capture_Galaxy_();
     expected.stars[0].x = 77;
     expected.planets.at(game::id_planet{0}).climate = PLANET_CLIMATE_GAIA;
@@ -718,6 +718,58 @@ DOCTEST_TEST_CASE(
         before.ship_generations[0] + 1);
     Check_Galaxy_Equals_(before);
     DOCTEST_CHECK(TEST_MAPGEN::Random_Calls_() == 1);
+}
+
+DOCTEST_TEST_CASE("galaxy candidate compaction changes star positions without changing live IDs") {
+    TEST_MAPGEN::Reset_();
+    Set_Valid_Galaxy_Candidate_();
+    TEST_MAPGEN::Enable_Galaxy_Provider_(false, false);
+    struct s_restore_star_view {
+        game::s_star_slots prior = MOX::star;
+        ~s_restore_star_view() { MOX::star = prior; }
+    } restore;
+    game::s_world_state stars;
+    const auto home = MOX::star[0];
+    MOX::star = game::s_star_slots(&stars, &MOX::NUM_STARS);
+    MOX::NUM_STARS = 3;
+    DOCTEST_REQUIRE(MOX::star.Activate(0));
+    DOCTEST_REQUIRE(MOX::star.Activate(1));
+    DOCTEST_REQUIRE(MOX::star.Activate(2));
+    const auto home_id = MOX::star.Id_At(0);
+    const auto removed = MOX::star.Id_At(1);
+    const auto survivor = MOX::star.Id_At(2);
+    MOX::star[0] = home;
+    MOX::star[1].spectral_class = -1;
+    MOX::star[2] = home;
+    MOX::star[2].x = 80;
+    MOX::star[2].owner = -1;
+    std::fill_n(MOX::star[2].planet_index, 5, game::NO_PLANET);
+    MOX::star[0].wormhole_star_id = survivor;
+    MOX::star[2].wormhole_star_id = home_id;
+    MOX::star[0].relocate_ship_to[0] = survivor;
+    auto companion = game::Planet(&game::world, game::id_planet{0});
+    companion.parent_star = survivor;
+    companion.colony_index = -1;
+    const auto planet_id = game::Create_Planet(&game::world, companion);
+    DOCTEST_REQUIRE(planet_id.has_value());
+    MOX::star[2].planet_index[companion.orbit] = *planet_id;
+    std::string diagnostic;
+    DOCTEST_INFO(diagnostic);
+    DOCTEST_REQUIRE(MAPGEN::Apply_Lua_Galaxy_Generator(&game::world, &diagnostic));
+    DOCTEST_CHECK(MOX::NUM_STARS == 2);
+    DOCTEST_CHECK(MOX::star.Id_At(0) == home_id);
+    DOCTEST_CHECK(MOX::star.Id_At(1) == survivor);
+    DOCTEST_CHECK(MOX::star[0].x == 77);
+    DOCTEST_CHECK(MOX::star[1].x == 80);
+    DOCTEST_CHECK(MOX::star[0].wormhole_star_id == survivor);
+    DOCTEST_CHECK(MOX::star[1].wormhole_star_id == home_id);
+    DOCTEST_CHECK(MOX::star[0].relocate_ship_to[0] == survivor);
+    const auto& result = game::Planet(&game::world, *planet_id);
+    DOCTEST_CHECK(result.parent_star == survivor);
+    DOCTEST_CHECK(result.Star_Position(MOX::star) == 1);
+    DOCTEST_CHECK(MOX::star[1].planet_index[result.orbit] == *planet_id);
+    DOCTEST_CHECK(game::Find_Star(&stars, removed) == nullptr);
+    DOCTEST_CHECK(stars.next_star_id == 3);
 }
 
 DOCTEST_TEST_CASE("galaxy generator validation rejects invalid candidate") {

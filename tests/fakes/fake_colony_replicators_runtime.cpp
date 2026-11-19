@@ -22,7 +22,7 @@ namespace TEST_GOVERNMENT_BONUS {
     void Reset_() {
         s_player* players = MOX::player;
         const auto colonies = MOX::colony;
-        s_star_data* stars = MOX::star;
+        s_star_data* stars = MOX::star.fixture;
         memset(players, 0, sizeof(s_player) * MAX_PLAYERS);
         colonies.Reset();
         game::world.planets.clear();
@@ -34,7 +34,7 @@ namespace TEST_GOVERNMENT_BONUS {
         colonies[0].owner = 0;
         colonies[0].planet = game::id_planet{0};
         auto& planet = test::Planet(&game::world, game::id_planet{0});
-        planet.star_index = 0;
+        planet.parent_star = game::id_star{0};
         planet.gravity_class = PLANET_GRAVITY_NORMAL_G;
         planet.food_per_farmer = 2;
         planet.mineral_class = 0;
@@ -57,7 +57,7 @@ namespace TEST_GOVERNMENT_BONUS {
         memset(MOX::player, 0, sizeof(s_player) * MAX_PLAYERS);
         MOX::colony.Reset();
         game::world.planets.clear();
-        memset(MOX::star, 0, sizeof(s_star_data) * (MAX_STARS + 1));
+        memset(MOX::star.fixture, 0, sizeof(s_star_data) * (MAX_STARS + 1));
         COLCALC::minerals_per_mine[0] = 0;
         MOX::NUM_PLAYERS = 0;
         MOX::NUM_COLONIES = 0;
@@ -70,7 +70,7 @@ namespace TEST_PLAYER_STATS {
         memset(MOX::ship, 0, sizeof(s_ship_data) * MAX_SHIPS);
         game::Reset_Leaders(&game::world);
         game::world.planets.clear();
-        memset(MOX::star, 0, sizeof(s_star_data) * (MAX_STARS + 1));
+        memset(MOX::star.fixture, 0, sizeof(s_star_data) * (MAX_STARS + 1));
         memset(&MOX::settings, 0, sizeof(MOX::settings));
         for (int i = 0; i < MAX_LEADERS; ++i) {
             game::Leader(&game::world, i).status = -1;

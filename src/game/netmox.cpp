@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "colony_serialization.h"
+#include "star_serialization.h"
 #include "savegame.h"
 #include "planet_serialization.h"
 
@@ -665,10 +666,7 @@ namespace NETMOX {
         uint32_t size = MOX::NUM_PLAYERS * sizeof(s_player);
         for (int32_t player = 0; player < MOX::NUM_PLAYERS; ++player) SAVEGAME::Write_Player_Record(world_state, &writer, &MOX::player[player], legacy_world::Player_Id(player));
 
-        writer.Write_Uint16((uint16_t)MOX::NUM_STARS);
-
-        size = (MOX::NUM_STARS + 1) * sizeof(s_star_data);
-        for (int32_t star = 0; star <= MOX::NUM_STARS; ++star) SAVEGAME::Write_Star_Record(&writer, &MOX::star[star]);
+        SAVEGAME::Write_Ordered_Stars(MOX::star, &writer, MOX::NUM_STARS, true);
 
         SAVEGAME::Write_Planets(world_state, &writer);
 
@@ -866,13 +864,9 @@ namespace NETMOX {
             }
         }
 
-        MOX::NUM_STARS = reader.Read_Int16();
-
-        if (MOX::NUM_STARS < 0 || MOX::NUM_STARS > MAX_STARS) {
-            exitm::Exit_With_Message("invalid broadcast star count");
+        if (!SAVEGAME::Read_Ordered_Stars(MOX::star, &reader, SAVEGAME::CURRENT_VERSION, &MOX::NUM_STARS, true)) {
+            exitm::Exit_With_Message("invalid broadcast star identities");
         }
-
-        for (int32_t star = 0; star <= MOX::NUM_STARS; ++star) { if (!SAVEGAME::Read_Star_Record(&reader, &MOX::star[star])) exitm::Exit_With_Message("invalid star record"); }
 
         RUSS::Mox_Update();
 
@@ -2238,7 +2232,7 @@ namespace NETMOX {
                     while (current_ship_idx < surviving_ship_id) {
                         s_ship_data* ship = &MOX::ship[current_ship_idx];
                         if ((ship->owner == attacker_id || ship->owner == defender_id) &&
-                            ship->status != 5 && ship->location == combat_star_id) {
+                            ship->status != 5 && ship->Legacy_Location(MOX::star) == combat_star_id) {
                             ship->officer_index = -1;
                             SHIPS::Kill_Ship(world_state, current_ship_idx);
                         }
@@ -2256,7 +2250,7 @@ namespace NETMOX {
                 while (current_ship_idx < MOX::NUM_SHIPS) {
                     s_ship_data* ship = &MOX::ship[current_ship_idx];
                     if ((ship->owner == attacker_id || ship->owner == defender_id) &&
-                        ship->status != 5 && ship->location == combat_star_id) {
+                        ship->status != 5 && ship->Legacy_Location(MOX::star) == combat_star_id) {
                         ship->officer_index = -1;
                         SHIPS::Kill_Ship(world_state, current_ship_idx);
                     }
@@ -2277,7 +2271,7 @@ namespace NETMOX {
         ::game::id_planet planet_idx = MOX::colony[*colony_id_ptr].planet;
 
         net.combat_planet_id = planet_idx;
-        net.combat_star_id = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index;
+        net.combat_star_id = game::Planet(world_state, planet_idx).Star_Position(MOX::star);
     }
 
     void __cdecl Send_Dragon_Info(int16_t colony_id) {
@@ -2376,7 +2370,7 @@ namespace NETMOX {
 
             if (MOX::NUM_SHIPS > 0) {
                 for (int16_t i = 0; i < (int16_t)MOX::NUM_SHIPS; i++) {
-                    if (MOX::ship[i].location == star_id && MOX::ship[i].status != 5) {
+                    if (MOX::ship[i].Legacy_Location(MOX::star) == star_id && MOX::ship[i].status != 5) {
                         if (MOX::ship[i].owner == player_id || MOX::ship[i].owner == target_player_id) {
                             writer.Write_Int16(i);
                             SAVEGAME::Write_Ship_Record(&writer, &MOX::ship[i]);
@@ -2467,7 +2461,7 @@ namespace NETMOX {
 
             if (MOX::NUM_SHIPS > 0) {
                 for (int16_t i = 0; i < (int16_t)MOX::NUM_SHIPS; ++i) {
-                    if (MOX::ship[i].location == star_idx && MOX::ship[i].status != 5) {
+                    if (MOX::ship[i].Legacy_Location(MOX::star) == star_idx && MOX::ship[i].status != 5) {
                         if (MOX::ship[i].owner == other_player_idx || MOX::ship[i].owner == target_player_idx) {
                             writer.Write_Int16(i);
                             SAVEGAME::Write_Ship_Record(&writer, &MOX::ship[i]);
@@ -2549,7 +2543,7 @@ namespace NETMOX {
 
             if (MOX::NUM_SHIPS > 0) {
                 for (int16_t i = 0; i < (int16_t)MOX::NUM_SHIPS; i++) {
-                    if (MOX::ship[i].location == star_idx && MOX::ship[i].status != 5) {
+                    if (MOX::ship[i].Legacy_Location(MOX::star) == star_idx && MOX::ship[i].status != 5) {
                         writer.Write_Int16(i);
                         SAVEGAME::Write_Ship_Record(&writer, &MOX::ship[i]);
                         RUSS::Mox_Update();

@@ -739,9 +739,10 @@ namespace INITSHIP {
                 if (ship.owner > 8) {
                     Repair_Ship_Full(i);
                 } else {
-                    if (ship.location >= 0 && ship.location < MAX_STARS &&
+                    const auto position = ship.Legacy_Location(MOX::star);
+                    if (position >= 0 && position < MAX_STARS &&
                         ship.status == 0 && ship.d.ship_type == SHIP_TYPE_COMBAT) {
-                        if (struct_::Test_Bit_Field(&MOX::star[ship.location].has_colony, (int16_t)ship.owner)) {
+                        if (struct_::Test_Bit_Field(&MOX::star[position].has_colony, (int16_t)ship.owner)) {
                             Repair_Ship_Full(i);
                         }
                     }

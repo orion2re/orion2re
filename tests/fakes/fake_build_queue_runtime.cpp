@@ -39,7 +39,7 @@ namespace TEST_BUILD_QUEUE {
             for (int slot = 0; slot < 7; ++slot) {
                 colonies[colony_idx].producing[slot] = COLONY_PRODUCTION_NONE;
             }
-            test::Planet(&game::world, legacy_world::Planet_Id(colony_idx)).star_index = 0;
+            test::Planet(&game::world, legacy_world::Planet_Id(colony_idx)).parent_star = game::id_star{0};
             test::Planet(&game::world, legacy_world::Planet_Id(colony_idx)).planet_type = PLANET_TYPE_PLANET;
             test::Planet(&game::world, legacy_world::Planet_Id(colony_idx)).colony_index = colony_idx;
         }
@@ -57,7 +57,7 @@ namespace MOX {
     int16_t NUM_SHIPS;
     game::s_colony_slots colony = colonies;
 
-    s_star_data* star = stars;
+    game::s_star_slots star = stars;
     s_ship_data* ship = ships;
     s_player* player = players;
 }
@@ -69,7 +69,7 @@ namespace COLBLDG {
         }
         const int16_t ship_idx = TEST_BUILD_QUEUE::next_ship++;
         MOX::ship[ship_idx].owner = static_cast<int8_t>(player_idx);
-        MOX::ship[ship_idx].location = test::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(MOX::colony[colony_idx].planet))).star_index;
+        MOX::ship[ship_idx].location = {game::e_ship_location::at_star, game::Planet(world_state, MOX::colony[colony_idx].planet).parent_star};
         MOX::ship[ship_idx].d = *design;
         MOX::NUM_SHIPS = std::max<int16_t>(MOX::NUM_SHIPS, ship_idx + 1);
         return ship_idx;
@@ -82,7 +82,7 @@ namespace COLBLDG {
 
     void __cdecl Delete_Ship(int16_t ship_idx) {
         MOX::ship[ship_idx].status = 5;
-        MOX::ship[ship_idx].location = -1;
+        MOX::ship[ship_idx].location = {};
     }
 }
 

@@ -93,7 +93,7 @@ namespace orion2re::lua::game::internal {
                 return 1;
             }
             if (strcmp(key, "system") == 0) {
-                Push_System(lua_state, ship.location);
+                Push_System(lua_state, ship.Legacy_Location(MOX::star));
                 return 1;
             }
             if (strcmp(key, "x") == 0) {
@@ -127,7 +127,7 @@ namespace orion2re::lua::game::internal {
                 return luaL_error(lua_state, "invalid ship system reference");
             }
             s_ship_data& ship = MOX::ship[proxy->ship_id];
-            ship.location = system_id;
+            ship.location = {::game::e_ship_location::at_star, MOX::star.Id_At(system_id)};
             ship.x = MOX::star[system_id].x;
             ship.y = MOX::star[system_id].y;
             return 0;
@@ -141,7 +141,7 @@ namespace orion2re::lua::game::internal {
             }
             s_ship_data& ship = MOX::ship[proxy->ship_id];
             ship.status = 5;
-            ship.location = -1;
+            ship.location = {};
             ship.officer_index = -1;
             if (!Advance_Ship_Generation(proxy->ship_id)) {
                 return luaL_error(lua_state,
@@ -168,7 +168,7 @@ namespace orion2re::lua::game::internal {
             }
             const std::int16_t ship_id = MOX::NUM_SHIPS++;
             MOX::ship[ship_id] = MOX::ship[source_id];
-            MOX::ship[ship_id].location = system_id;
+            MOX::ship[ship_id].location = {::game::e_ship_location::at_star, MOX::star.Id_At(system_id)};
             MOX::ship[ship_id].x = MOX::star[system_id].x;
             MOX::ship[ship_id].y = MOX::star[system_id].y;
             MOX::ship[ship_id].officer_index = -1;

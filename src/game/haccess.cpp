@@ -15,7 +15,7 @@ namespace HACCESS {
         int16_t node_idx = MOX::ship_icon[ship_icon_idx].node_idx;
         int16_t ship_idx = MOX::ship_node[node_idx].ship_idx;
 
-        return MOX::ship[ship_idx].location;
+        return MOX::ship[ship_idx].Legacy_Location(MOX::star);
     }
 
     int16_t __cdecl Ship_Owner(int16_t ship_idx) {
@@ -111,11 +111,11 @@ namespace HACCESS {
     }
 
     bool __cdecl Star_Has_Relocation(int16_t star_idx, int16_t player_idx) {
-        return MOX::star[star_idx].relocate_ship_to[player_idx] != -1;
+        return MOX::star[star_idx].relocate_ship_to[player_idx] != game::NO_STAR;
     }
 
     int16_t __cdecl Relocation(int16_t star_idx, int16_t player_idx) {
-        return MOX::star[star_idx].relocate_ship_to[player_idx];
+        return MOX::star.Position_Of(MOX::star[star_idx].relocate_ship_to[player_idx]);
     }
 
     void __cdecl Set_Colony_Auto_Select_For_Star(::game::s_world_state* world_state, int16_t star_idx, int16_t player_idx, game::id_planet* out_planet_idx) {
@@ -208,7 +208,7 @@ namespace HACCESS {
     void __cdecl Do_Get_Planet_Name(::game::s_world_state* world_state, ::game::id_planet planet_idx, char* out_str, uint8_t localized_flag) {
         char buffer[200];
 
-        int16_t star_idx = ::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx))).star_index;
+        const auto star_idx = game::Planet(world_state, planet_idx).Star_Position(MOX::star);
         int8_t planet_num = HAROLD::Planet_Number(world_state, legacy_world::Planet_Id(planet_idx));
 
         const char* numeral_str;
@@ -278,7 +278,7 @@ namespace HACCESS {
     }
 
     void __cdecl Set_Relocation(int16_t star_idx, int16_t player_idx, int16_t target_star_idx) {
-        MOX::star[star_idx].relocate_ship_to[player_idx] = target_star_idx;
+        MOX::star[star_idx].relocate_ship_to[player_idx] = MOX::star.Id_At(target_star_idx);
     }
 
     void __cdecl Set_All_Star_Relocations(int16_t target_star_idx, int16_t player_idx) {
@@ -591,7 +591,7 @@ namespace HACCESS {
 
     int16_t __cdecl Ship_Stack_Star_Id(int16_t node_idx) {
         int16_t ship_idx = MOX::ship_node[node_idx].ship_idx;
-        return MOX::ship[ship_idx].location;
+        return MOX::ship[ship_idx].Legacy_Location(MOX::star);
     }
 
     int16_t __cdecl N_Star_Relocations(int16_t player_idx) {
@@ -607,12 +607,12 @@ namespace HACCESS {
     }
 
     void __cdecl Clear_Star_Relocation(int16_t star_idx, int16_t player_idx) {
-        MOX::star[star_idx].relocate_ship_to[player_idx] = -1;
+        MOX::star[star_idx].relocate_ship_to[player_idx] = game::NO_STAR;
     }
 
     int8_t __cdecl Orion_Owner(::game::s_world_state* world_state) {
         for (int i = 0; i < 5; ++i) {
-            ::game::id_planet planet_idx = MOX::star->planet_index[i];
+            ::game::id_planet planet_idx = MOX::star[0].planet_index[i];
 
             if (planet_idx != ::game::NO_PLANET) {
                 s_planet_data* planet = &::game::Planet(world_state, legacy_world::Planet_Id(legacy_world::Planet_Id(planet_idx)));
@@ -656,7 +656,7 @@ namespace HACCESS {
                 int16_t ship_idx = MOX::ship_node[node_idx].ship_idx;
 
                 if (HACCESS::Ship_Owner(ship_idx) != MOX::PLAYER_NUM) {
-                    int16_t location = MOX::ship[ship_idx].location;
+                    int16_t location = MOX::ship[ship_idx].Legacy_Location(MOX::star);
                     int16_t abs_location = HAROLD::Absolute_Location(location);
 
                     if (HAROLD::Player_Has_Colony(MOX::PLAYER_NUM, abs_location)) {

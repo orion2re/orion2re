@@ -22,7 +22,7 @@ namespace MOX {
     s_player* player = nullptr;
     s_ship_data* ship = nullptr;
     game::s_colony_slots colony;
-    s_star_data* star = nullptr;
+    game::s_star_slots star;
     int16_t bill_savegame[6] = {};
     uint16_t antaran_resource_level = 0;
     uint16_t chance_for_antaran_invasion = 0;

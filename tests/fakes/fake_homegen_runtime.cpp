@@ -33,7 +33,7 @@ namespace TEST_HOMEGEN {
         }
 
         stars[1].planet_index[2] = game::id_planet{0};
-        test::Planet(&game::world, legacy_world::Planet_Id(0)).star_index = 1;
+        test::Planet(&game::world, game::id_planet{0}).parent_star = game::id_star{1};
         test::Planet(&game::world, legacy_world::Planet_Id(0)).orbit = 2;
         test::Planet(&game::world, legacy_world::Planet_Id(0)).planet_type = PLANET_TYPE_ASTEROID;
 
@@ -85,7 +85,7 @@ namespace MOX {
     void* global_data_seg = nullptr;
 
 
-    s_star_data* star = stars;
+    game::s_star_slots star = stars;
     s_settings settings = {};
     uint8_t star_class_table[STAR_CLASS_COUNT][GALAXY_AGE_COUNT];
 }
@@ -170,7 +170,7 @@ namespace MAPGEN {
 
     void Generate_Satellite(game::s_world_state* world_state, game::id_planet id, int16_t star_idx, int16_t orbit, int16_t type) {
         auto& planet = game::Planet(world_state, id);
-        planet.star_index = star_idx;
+        planet.parent_star = MOX::star.Id_At(star_idx);
         planet.orbit = static_cast<int8_t>(orbit);
         planet.planet_type = static_cast<int8_t>(type);
         satellite_generation_count++;

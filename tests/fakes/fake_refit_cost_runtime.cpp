@@ -8,6 +8,7 @@
 namespace {
     s_player players[MAX_PLAYERS];
     s_colony colonies[1];
+    s_star_data stars[1];
 
     int16_t colony_count = 1;
     AIDATA::s_state ai;
@@ -17,6 +18,7 @@ namespace TEST_AIBUILD_CONTEXT {
     const game::s_view* World_() {
         static const game::s_view world{
             .players = players,
+            .stars = stars,
             .colonies = colonies,
 
             .player_count = &MOX::NUM_PLAYERS,
@@ -44,7 +46,7 @@ namespace TEST_AIBUILD_CONTEXT {
         colonies[0].planet = game::id_planet{0};
         colonies[0].n_pops = 4;
         colonies[0].food2_needed_for_our_empire = 8;
-        test::Planet(&game::world, legacy_world::Planet_Id(0)).star_index = 0;
+        test::Planet(&game::world, game::id_planet{0}).parent_star = game::id_star{0};
         ai.colonies[legacy_world::Colony_Id(0)].population_limit = 12;
         ai.colonies[legacy_world::Colony_Id(0)].food_buildings_relevant = true;
         game::current = legacy_world::World(&game::world);

@@ -34,7 +34,7 @@ namespace MOX {
     int32_t stardate;
     game::s_colony_slots colony = colonies;
 
-    s_star_data* star = stars;
+    game::s_star_slots star = stars;
     s_ship_data* ship = ships;
     s_player* player = players;
 }

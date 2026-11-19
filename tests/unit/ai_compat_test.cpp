@@ -17,13 +17,13 @@ DOCTEST_TEST_CASE("coverage counts do not wrap at the old byte boundary") {
         s_settings settings{};
         settings.game_difficulty = GAME_DIFFICULTY_AVERAGE;
         auto& stars = game_state.stars;
-        for (auto& star : stars) star.wormhole_star_id = -1;
+        for (auto& star : stars) star.wormhole_star_id = game::NO_STAR;
         std::vector<s_colony> colonies(257);
         game::world.planets.clear();
         game::world.next_planet_id = 0;
         for (uint32_t i = 0; i < 257; ++i) {
             colonies[i].owner = 0;
-            colonies[i].planet = *game::Create_Planet(&game::world, {.star_index = static_cast<int16_t>(i / 5)});
+            colonies[i].planet = *game::Create_Planet(&game::world, {.parent_star = game::id_star{i / 5}});
         }
         int16_t players = 1;
         int16_t star_count = 52;
@@ -60,7 +60,7 @@ DOCTEST_TEST_CASE("typed ship locations round-trip legacy orbit and transit enco
     using game::e_ship_location;
     for (auto kind : {e_ship_location::at_star, e_ship_location::in_flight, e_ship_location::in_wormhole}) {
         for (uint32_t star : {0u, 1u, (uint32_t)MAX_STARS}) {
-            const game::s_ship_location location{kind, Star_Id(star)};
+            const legacy_world::s_positional_ship_location location{kind, Star_Id(star)};
             auto encoded = legacy_world::Encode_Ship_Location(&location);
             DOCTEST_REQUIRE(encoded);
             auto decoded = legacy_world::Decode_Ship_Location(*encoded);
@@ -72,28 +72,30 @@ DOCTEST_TEST_CASE("typed ship locations round-trip legacy orbit and transit enco
     for (int32_t invalid : {-1, MAX_STARS + 1, SHIP_LOCATION_STEP - 1, SHIP_LOCATION_LIMIT}) {
         DOCTEST_CHECK_FALSE(legacy_world::Decode_Ship_Location(invalid));
     }
-    const game::s_ship_location high{e_ship_location::at_star, Star_Id(UINT32_MAX)};
+    const legacy_world::s_positional_ship_location high{e_ship_location::at_star, Star_Id(UINT32_MAX)};
     DOCTEST_CHECK_FALSE(legacy_world::Encode_Ship_Location(&high));
 }
 
 DOCTEST_TEST_CASE("location compatibility preserves transit kind without exposing offset arithmetic") {
+    s_star_data records[10]{};
+    const game::s_star_slots stars(records);
     s_ship_data ship{};
     ship.status = 1;
-    ship.location = SHIP_LOCATION_MOVING_OFFSET + 9;
-    auto location = legacy_world::Read_Ship_Location(&ship);
+    ship.Set_Legacy_Location(stars, SHIP_LOCATION_MOVING_OFFSET + 9);
+    auto location = legacy_world::Read_Ship_Location(&ship, stars);
     DOCTEST_REQUIRE(location);
     DOCTEST_CHECK(location->kind == game::e_ship_location::in_flight);
     DOCTEST_CHECK(location->star_id == Star_Id(9));
-    DOCTEST_CHECK_FALSE(legacy_world::Orbit_Star(&ship));
+    DOCTEST_CHECK_FALSE(legacy_world::Orbit_Star(&ship, stars));
     ship.status = 4;
-    ship.location = 0;
-    DOCTEST_CHECK(legacy_world::Orbit_Star(&ship) == Star_Id(0));
+    ship.Set_Legacy_Location(stars, 0);
+    DOCTEST_CHECK(legacy_world::Orbit_Star(&ship, stars) == Star_Id(0));
 }
 
 DOCTEST_TEST_CASE("a shared location tag does not imply a shared physical position") {
     s_ship_data first{};
     s_ship_data second{};
-    first.location = second.location = SHIP_LOCATION_MOVING_OFFSET + 3;
+    first.location = second.location = {game::e_ship_location::in_flight, game::id_star{3}};
     first.x = 10;
     second.x = 20;
     DOCTEST_CHECK(legacy_world::Same_Location_Tag(&first, &second));
@@ -103,18 +105,47 @@ DOCTEST_TEST_CASE("a shared location tag does not imply a shared physical positi
 }
 
 DOCTEST_TEST_CASE("location codecs set and clear representation without changing activity") {
+    s_star_data records[1]{};
+    const game::s_star_slots stars(records);
     s_ship_data ship{};
     ship.status = 4;
     const game::s_ship_location orbit{game::e_ship_location::at_star, Star_Id(0)};
     DOCTEST_REQUIRE(legacy_world::Set_Ship_Location(&ship, &orbit));
-    DOCTEST_CHECK(legacy_world::Orbit_Star(&ship) == Star_Id(0));
+    DOCTEST_CHECK(legacy_world::Orbit_Star(&ship, stars) == Star_Id(0));
     DOCTEST_CHECK((int8_t)ship.status == 4);
     const game::s_ship_location invalid{game::e_ship_location::at_star, Star_Id(UINT32_MAX)};
     DOCTEST_CHECK_FALSE(legacy_world::Set_Ship_Location(&ship, &invalid));
-    DOCTEST_CHECK(legacy_world::Orbit_Star(&ship) == Star_Id(0));
+    DOCTEST_CHECK(legacy_world::Orbit_Star(&ship, stars) == Star_Id(0));
     legacy_world::Clear_Ship_Location(&ship);
-    DOCTEST_CHECK_FALSE(legacy_world::Read_Ship_Location(&ship));
+    DOCTEST_CHECK_FALSE(legacy_world::Read_Ship_Location(&ship, stars));
     DOCTEST_CHECK((int8_t)ship.status == 4);
+}
+
+DOCTEST_TEST_CASE("native travel keeps a stable destination while legacy positions change") {
+    game::s_world_state world;
+    world.next_star_id = 1000000;
+    int16_t extent = 3;
+    const game::s_star_slots stars(&world, &extent);
+    DOCTEST_REQUIRE(stars.Activate(0));
+    DOCTEST_REQUIRE(stars.Activate(2));
+    s_ship_data ship{};
+    ship.Set_Legacy_Location(stars, SHIP_LOCATION_WORMHOLE_OFFSET + 2);
+    const auto destination = stars.Id_At(2);
+    DOCTEST_CHECK(ship.location.kind == game::e_ship_location::in_wormhole);
+    DOCTEST_CHECK(ship.location.destination == game::s_ship_destination::Star(destination));
+    DOCTEST_CHECK(ship.location.destination.Star_Id_Or_None().id > UINT16_MAX);
+
+    std::swap(world.star_order[1], world.star_order[2]);
+    extent = 2;
+    DOCTEST_CHECK(ship.location.destination == game::s_ship_destination::Star(destination));
+    DOCTEST_CHECK(ship.Legacy_Location(stars) == SHIP_LOCATION_WORMHOLE_OFFSET + 1);
+
+    ship.Set_Legacy_Location(stars, SHIP_LOCATION_MOVING_OFFSET + extent);
+    DOCTEST_CHECK(ship.location.kind == game::e_ship_location::in_flight);
+    DOCTEST_CHECK(ship.location.destination == game::s_ship_destination::Antares());
+    DOCTEST_CHECK(ship.location.destination.Star_Id_Or_None() == game::NO_STAR);
+    extent = 3;
+    DOCTEST_CHECK(ship.Legacy_Location(stars) == SHIP_LOCATION_MOVING_OFFSET + 3);
 }
 
 DOCTEST_TEST_CASE("movement presence and flee lookups do not insert zero assessments") {
