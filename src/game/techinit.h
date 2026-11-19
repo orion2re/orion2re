@@ -7,7 +7,7 @@ struct s_tech_field_data;
 
 namespace TECHINIT {
     inline constexpr int16_t POSTWARP_TECH_COUNT = 29;
-    inline constexpr int16_t POSTWARP_STRATEGIC_EXTRA_TECH_COUNT = 7;
+    inline constexpr int16_t POSTWARP_TACTICAL_ONLY_TECH_COUNT = 7;
 
     extern int16_t postwarp_tech[POSTWARP_TECH_COUNT];
     extern uint8_t lithovore_allows_biomorphic_fungi;

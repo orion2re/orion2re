@@ -35,8 +35,8 @@ namespace TECHINIT {
     void __cdecl Grant_Postwarp_Technologies() {
         const int16_t first_tech_idx =
             MOX::settings.strategic_combat_flag == 1
-            ? 0
-            : POSTWARP_STRATEGIC_EXTRA_TECH_COUNT;
+            ? POSTWARP_TACTICAL_ONLY_TECH_COUNT
+            : 0;
 
         for (int16_t player_idx = 0; player_idx < MOX::NUM_PLAYERS; ++player_idx) {
             for (int16_t tech_idx = first_tech_idx;

@@ -384,14 +384,19 @@ DOCTEST_TEST_CASE("Pre-Warp and Average Technology process every configured star
         sizeof(original_fields));
 }
 
-DOCTEST_TEST_CASE("Post-warp tactical games grant the common technology segment") {
+DOCTEST_TEST_CASE("Post-warp tactical games grant tactical-only and common technologies") {
     TEST_TECHINIT::Reset_();
 
     TECHINIT::Grant_Postwarp_Technologies();
 
-    DOCTEST_CHECK(
-        MOX::player[0].tech_applications[TECH_APP_REINFORCED_HULL] !=
-        TECH_RESEARCH_STATUS_RESEARCHED);
+    DOCTEST_CHECK(TEST_TECHINIT::Grant_Count_() == TECHINIT::POSTWARP_TECH_COUNT);
+    for (int16_t tech_idx = 0;
+         tech_idx < TECHINIT::POSTWARP_TACTICAL_ONLY_TECH_COUNT;
+         ++tech_idx) {
+        DOCTEST_CHECK(
+            MOX::player[0].tech_applications[TECHINIT::postwarp_tech[tech_idx]] ==
+            TECH_RESEARCH_STATUS_RESEARCHED);
+    }
     DOCTEST_CHECK(
         MOX::player[0].tech_applications[TECH_APP_AUTOMATED_FACTORIES] ==
         TECH_RESEARCH_STATUS_RESEARCHED);
@@ -402,18 +407,19 @@ DOCTEST_TEST_CASE("Post-warp tactical games grant the common technology segment"
 
 DOCTEST_TEST_CASE("Post-warp grants application zero and preserves configured table order") {
     TEST_TECHINIT::Reset_();
+    MOX::settings.strategic_combat_flag = 1;
     int16_t original[TECHINIT::POSTWARP_TECH_COUNT];
     std::memcpy(original, TECHINIT::postwarp_tech, sizeof(original));
-    TECHINIT::postwarp_tech[TECHINIT::POSTWARP_STRATEGIC_EXTRA_TECH_COUNT] = 0;
-    TECHINIT::postwarp_tech[TECHINIT::POSTWARP_STRATEGIC_EXTRA_TECH_COUNT + 1] = 211;
-    TECHINIT::postwarp_tech[TECHINIT::POSTWARP_STRATEGIC_EXTRA_TECH_COUNT + 2] =
+    TECHINIT::postwarp_tech[TECHINIT::POSTWARP_TACTICAL_ONLY_TECH_COUNT] = 0;
+    TECHINIT::postwarp_tech[TECHINIT::POSTWARP_TACTICAL_ONLY_TECH_COUNT + 1] = 211;
+    TECHINIT::postwarp_tech[TECHINIT::POSTWARP_TACTICAL_ONLY_TECH_COUNT + 2] =
         TECH_APP_AUTOMATED_FACTORIES;
 
     TECHINIT::Grant_Postwarp_Technologies();
 
     DOCTEST_CHECK(TEST_TECHINIT::Grant_Count_() ==
-                  TECHINIT::POSTWARP_TECH_COUNT -
-                      TECHINIT::POSTWARP_STRATEGIC_EXTRA_TECH_COUNT);
+        TECHINIT::POSTWARP_TECH_COUNT -
+            TECHINIT::POSTWARP_TACTICAL_ONLY_TECH_COUNT);
     DOCTEST_CHECK(TEST_TECHINIT::Granted_App_(0) == 0);
     DOCTEST_CHECK(TEST_TECHINIT::Granted_App_(1) == 211);
     DOCTEST_CHECK(TEST_TECHINIT::Granted_App_(2) == TECH_APP_AUTOMATED_FACTORIES);
@@ -426,17 +432,24 @@ DOCTEST_TEST_CASE("Post-warp grants application zero and preserves configured ta
     std::memcpy(TECHINIT::postwarp_tech, original, sizeof(original));
 }
 
-DOCTEST_TEST_CASE("Post-warp strategic games also grant the leading exceptions") {
+DOCTEST_TEST_CASE("Post-warp strategic games grant only common technologies") {
     TEST_TECHINIT::Reset_();
     MOX::settings.strategic_combat_flag = 1;
 
     TECHINIT::Grant_Postwarp_Technologies();
 
+    DOCTEST_CHECK(TEST_TECHINIT::Grant_Count_() ==
+        TECHINIT::POSTWARP_TECH_COUNT -
+            TECHINIT::POSTWARP_TACTICAL_ONLY_TECH_COUNT);
+    for (int16_t tech_idx = 0;
+         tech_idx < TECHINIT::POSTWARP_TACTICAL_ONLY_TECH_COUNT;
+         ++tech_idx) {
+        DOCTEST_CHECK(
+            MOX::player[0].tech_applications[TECHINIT::postwarp_tech[tech_idx]] !=
+            TECH_RESEARCH_STATUS_RESEARCHED);
+    }
     DOCTEST_CHECK(
-        MOX::player[0].tech_applications[TECH_APP_REINFORCED_HULL] ==
-        TECH_RESEARCH_STATUS_RESEARCHED);
-    DOCTEST_CHECK(
-        MOX::player[0].tech_applications[TECH_APP_ANTI_MISSILE_ROCKETS] ==
+        MOX::player[0].tech_applications[TECH_APP_AUTOMATED_FACTORIES] ==
         TECH_RESEARCH_STATUS_RESEARCHED);
     DOCTEST_CHECK(
         MOX::player[0].tech_applications[TECH_APP_FIGHTER_BAYS] ==
