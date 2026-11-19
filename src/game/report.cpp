@@ -47,7 +47,7 @@ namespace REPORT {
         while (ship < end) {
             if ((short)(int8_t)ship->d.ship_type == ship_type &&
                 (short)ship->owner == owner &&
-                ship->Legacy_Location(MOX::star) == location &&
+                MOX::star.Is_Orbiting(ship->location, location) &&
                 ship->status < 5) {
                 if (include_just_built != 0 || ship->just_built == 0) {
                     return ship;
@@ -721,7 +721,8 @@ namespace REPORT {
                         s_ship_data* ship = &MOX::ship[i];
                         if (ship->owner == 8 /* Antaran */ && ship->status == 1 /* Active */) {
                             if (max_turns_left < (uint8_t)ship->turns_left) {
-                                target_star_idx = ship->Legacy_Location(MOX::star) - SHIP_LOCATION_MOVING_OFFSET;
+                                target_star_idx = ship->location.kind == game::e_ship_location::in_flight
+                                    ? MOX::star.Destination_Position(ship->location.destination) : -1;
                                 max_turns_left = ship->turns_left;
                             }
                         }
@@ -794,8 +795,8 @@ namespace REPORT {
 
                     // If ship is active (not destroyed/refitting)
                     if (ship->status == 0) {
-                        int16_t star_idx = ship->Legacy_Location(MOX::star);
-                        if (HACCESS::Star_Has_Relocation(star_idx, player_idx)) {
+                        const auto star_idx = MOX::star.Orbit_Position(ship->location);
+                        if (star_idx >= 0 && HACCESS::Star_Has_Relocation(star_idx, player_idx)) {
                             int16_t target_star_idx = HACCESS::Relocation(star_idx, player_idx);
 
                             int16_t ship_indices[2];

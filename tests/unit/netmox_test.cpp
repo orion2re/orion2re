@@ -369,12 +369,20 @@ DOCTEST_TEST_SUITE("netmox packet limits") {
 
 DOCTEST_TEST_CASE("host target selection refreshes ship icons before entering combat selection") {
     Scoped_Netmox_Roundtrip_State_ state;
+    game::s_world_state stars;
+    MOX::NUM_STARS = 2;
+    MOX::star = game::s_star_slots(&stars, &MOX::NUM_STARS);
+    stars.next_star_id = 1000000;
+    DOCTEST_REQUIRE(MOX::star.Activate(1));
     NETMOX::net = {};
     NETMOX::net.local_net_id = 17;
     NETMOX::net.net_host_id = 17;
     NETMOX::net.sync_state = NET_SYNC_STATE_READY;
     MOX::PLAYER_NUM = 0;
-    std::array<uint8_t, sizeof(int16_t) + sizeof(s_combfind_target)> packet = {};
+    std::array<uint8_t, NETMOX::COMBAT_DESTINATION_BYTES + sizeof(s_combfind_target)> packet = {};
+    SERIAL::Writer_ writer(packet.data(), packet.size(), "combat destination fixture");
+    writer.Write_Uint32(MOX::star.Id_At(1).id);
+    writer.Write_Uint8(0);
     const int previous_refreshes = TEST_NETMOX_UI::ship_icon_refresh_count;
 
     NETMOX::Decode_Pick_Target_Info(&game::world, packet.data(), static_cast<uint32_t>(packet.size()));
@@ -382,6 +390,7 @@ DOCTEST_TEST_CASE("host target selection refreshes ship icons before entering co
     DOCTEST_CHECK(TEST_NETMOX_UI::ship_icon_refresh_count == previous_refreshes + 1);
     DOCTEST_CHECK(TEST_NETMOX_UI::last_refresh_sync_state == NET_SYNC_STATE_READY);
     DOCTEST_CHECK(NETMOX::net.sync_state == NET_SYNC_STATE_PICKING_COMBAT_TARGET);
+    DOCTEST_CHECK(NETMOX::net.combat_star_id == 1);
     DOCTEST_CHECK((NETMOX::net.player_net_info[0].player_state == NET_PLAYER_STATE_PICK_TARGET_INFO));
 }
 
@@ -403,10 +412,10 @@ DOCTEST_TEST_CASE("large combat payload allocations stay within the shared limit
 
     constexpr uint32_t battle_results_remote_payload_bytes =
         sizeof(int16_t) * 4 +
-        sizeof(int16_t) +
+        NETMOX::COMBAT_DESTINATION_BYTES +
         MAX_PLAYERS * sizeof(s_combfind_star_has_player) +
         sizeof(uint8_t) +
-        sizeof(int16_t) * 2 +
+        sizeof(int16_t) + sizeof(uint32_t) +
         2 * (sizeof(MOX::player[0].tech_applications) + sizeof(uint8_t)) +
         MAX_LEADERS * (sizeof(int16_t) + sizeof(s_leader_data)) +
         sizeof(int16_t) +
@@ -429,7 +438,7 @@ DOCTEST_TEST_CASE("large combat payload allocations stay within the shared limit
         sizeof(int16_t);
 
     constexpr uint32_t pick_target_remote_payload_bytes =
-        sizeof(int16_t) +
+        NETMOX::COMBAT_DESTINATION_BYTES +
         sizeof(s_combfind_target) +
         MAX_PLAYERS * sizeof(s_combfind_star_has_player) +
         sizeof(uint8_t) +
@@ -496,7 +505,7 @@ DOCTEST_TEST_CASE("network packet layouts match the current protocol") {
 
     DOCTEST_CHECK(alignof(NETMOX::s_packet_0x12) == 1);
     DOCTEST_CHECK(sizeof(NETMOX::s_packet_0x12) ==
-                  sizeof(int16_t) * 4);
+                  NETMOX::COMBAT_DESTINATION_BYTES + sizeof(int16_t) * 3);
 
     DOCTEST_CHECK(alignof(NETMOX::s_NET_MSG_RANK) == 1);
     DOCTEST_CHECK(sizeof(NETMOX::s_NET_MSG_RANK) ==

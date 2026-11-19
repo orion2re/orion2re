@@ -9,6 +9,7 @@
 
 namespace {
     void Add_System(int16_t star_idx, int16_t first_planet, int rotation = 0) {
+        MOX::NUM_STARS = std::max<int16_t>(MOX::NUM_STARS, star_idx + 1);
         MOX::star[star_idx].visited = 1 << MOX::PLAYER_NUM;
         for (int orbit = 0; orbit < 5; ++orbit) {
             game::id_planet planet_idx{static_cast<uint32_t>(first_planet + orbit)};

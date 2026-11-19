@@ -30,6 +30,11 @@ next ID; the oracle checks that order and those IDs exactly. Antares remains a
 synthetic destination, not a live star. Version-8 saves from before the star
 refactor do not have this layout and are not supported.
 
+The current version-8 layout also writes the offensive staging point,
+diplomacy system and bribe targets, and the warp-field interdictor link as
+32-bit star IDs. Earlier version-8 layouts with positional fields are not
+supported; historical saves still decode the old field widths.
+
 The save comparator decodes both versions into detached comparison records.
 It does not load either save into the running game, change configuration or Lua
 state, consume RNG values, or remap planet IDs by matching planet properties.

@@ -850,11 +850,12 @@ namespace MAPGEN {
             for (int16_t ship_idx = 0; ship_idx < MOX::NUM_SHIPS;
                  ++ship_idx) {
                 const s_ship_data& ship = MOX::ship[ship_idx];
-                const auto position = ship.Legacy_Location(MOX::star);
+                const auto position = MOX::star.Destination_Position(ship.location.destination);
                 const auto prior_position = MOX::star.Position_Of(ship.prior_jump_gate_destination);
                 const auto destination_kind = ship.location.destination.Kind();
                 if (destination_kind == game::e_ship_destination::antares || position >= MOX::NUM_STARS ||
-                    (destination_kind == game::e_ship_destination::star && position < 0) ||
+                    (destination_kind == game::e_ship_destination::star &&
+                        (position < 0 || ship.location.kind != game::e_ship_location::at_star)) ||
                     (ship.status == 0 && position < 0) ||
                     (ship.prior_jump_gate_destination != game::NO_STAR &&
                         (prior_position < 0 || prior_position >= MOX::NUM_STARS))) {
@@ -1019,14 +1020,7 @@ namespace MAPGEN {
                     return true;
                 };
                 if (!check_reference(&star.wormhole_star_id)) return false;
-                if (star.next_wfi_in_list >= 0) {
-                    if (star.next_wfi_in_list >= MAX_STARS ||
-                        star_remap[star.next_wfi_in_list] < 0) {
-                        return false;
-                    }
-                    star.next_wfi_in_list =
-                        star_remap[star.next_wfi_in_list];
-                }
+                if (!check_reference(&star.next_wfi_in_list)) return false;
                 for (auto& relocation : star.relocate_ship_to) {
                     if (!check_reference(&relocation)) return false;
                 }
@@ -1204,12 +1198,13 @@ namespace MAPGEN {
             bool colony_state_changed = false;
             for (int16_t ship_idx = 0; ship_idx < MOX::NUM_SHIPS; ++ship_idx) {
                 const s_ship_data* ship = &MOX::ship[ship_idx];
+                const auto position = MOX::star.Orbit_Position(ship->location);
                 if (ship->owner < NONPLAYER_SHIP_TYPE_AMOEBA ||
                     ship->owner > NONPLAYER_SHIP_TYPE_HYDRA ||
-                    ship->Legacy_Location(MOX::star) < 0 || ship->Legacy_Location(MOX::star) >= MOX::NUM_STARS) {
+                    position < 0 || position >= MOX::NUM_STARS) {
                     continue;
                 }
-                s_star_data* star = &MOX::star[ship->Legacy_Location(MOX::star)];
+                s_star_data* star = &MOX::star[position];
                 for (int orbit = 0; orbit < 5; ++orbit) {
                     const ::game::id_planet planet_idx = star->planet_index[orbit];
                     if (planet_idx == ::game::NO_PLANET || (::game::Find_Planet(world_state, legacy_world::Planet_Id(planet_idx)) == nullptr)) continue;

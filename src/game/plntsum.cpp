@@ -184,7 +184,7 @@ namespace PLNTSUM {
         nearest_ship_idx = Nearest_Ship_Id(summary_idx);
 
         ship_type = MOX::ship[nearest_ship_idx].d.ship_type;
-        ship_origin_star_idx = HAROLD::Absolute_Location(MOX::ship[nearest_ship_idx].Legacy_Location(MOX::star));
+        ship_origin_star_idx = MOX::star.Destination_Position(MOX::ship[nearest_ship_idx].location.destination);
 
         if (((ship_origin_star_idx != target_star_idx) && (ship_type == SHIP_TYPE_COLONY) && (PLNTSUM::planet_summary[summary_idx].colony_eta > 0)) ||
             ((ship_type == SHIP_TYPE_OUTPOST) && (PLNTSUM::planet_summary[summary_idx].outpost_eta > 0))) {
@@ -197,7 +197,8 @@ namespace PLNTSUM {
             }
         }
 
-        if (nearest_ship_idx <= -1 || MOX::ship[nearest_ship_idx].Legacy_Location(MOX::star) < SHIP_LOCATION_MOVING_OFFSET) {
+        if (nearest_ship_idx <= -1 || ship_origin_star_idx < 0 ||
+            MOX::ship[nearest_ship_idx].location.kind == game::e_ship_location::at_star) {
             if (nearest_ship_idx == -1) {
                 should_continue = false;
             }
@@ -671,10 +672,9 @@ namespace PLNTSUM {
         }
 
         s_ship_data* ship = &MOX::ship[ship_idx];
-        int16_t location = ship->Legacy_Location(MOX::star);
-
-        bool is_space_location = (location >= SHIP_LOCATION_MOVING_OFFSET && location < SHIP_LOCATION_WORMHOLE_OFFSET);
-        bool is_travel_location = (location >= SHIP_LOCATION_WORMHOLE_OFFSET && location < SHIP_LOCATION_LIMIT);
+        const auto location = MOX::star.Destination_Position(ship->location.destination);
+        const bool is_space_location = location >= 0 && ship->location.kind == game::e_ship_location::in_flight;
+        const bool is_travel_location = location >= 0 && ship->location.kind == game::e_ship_location::in_wormhole;
 
         if (is_space_location) {
             MOVEBOX::Get_Galaxy_Map_Space_XY(summary->ship_icon_id, 443, 17, 180, 116, out_x, out_y);

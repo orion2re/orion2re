@@ -591,7 +591,9 @@ namespace DIP_SCRN {
                     replacement = An(MOX::player[listener_player_id].race_name);
                     break;
                 case 0x86:
-                    replacement = MOX::star[MOX::player[listener_player_id].diplomacy_system[speaker_player_id]].name;
+                    if (const auto position = MOX::star.Position_Of(MOX::player[listener_player_id].diplomacy_system[speaker_player_id]); position >= 0) {
+                        replacement = MOX::star[position].name;
+                    }
                     break;
                 case 0x87:
                 case 0x88:
@@ -643,9 +645,9 @@ namespace DIP_SCRN {
                         if (MOX::player[listener_player_id].diplomacy_proposal_tech_bribe1[speaker_player_id] != 0) {
                             replacement = TECH::Technology_Applications_Name(MOX::player[listener_player_id].diplomacy_proposal_tech_bribe1[speaker_player_id], listener_player_id);
                         } else if (MOX::player[listener_player_id].diplomacy_proposal_gold_bribe[speaker_player_id] == 0) {
-                            if (MOX::player[listener_player_id].diplomacy_proposal_system_bribe[speaker_player_id] != -1) {
+                            if (const auto position = MOX::star.Position_Of(MOX::player[listener_player_id].diplomacy_proposal_system_bribe[speaker_player_id]); position >= 0) {
                                 JIM::Get_Text_Message(s_jimtext2_lbx, 0x3A, temp_buf, 50);
-                                JIM::Decode_Text_System(temp_buf, MOX::player[listener_player_id].diplomacy_proposal_system_bribe[speaker_player_id], 50);
+                                JIM::Decode_Text_System(temp_buf, position, 50);
                                 replacement = temp_buf;
                             }
                         } else {
@@ -674,7 +676,9 @@ namespace DIP_SCRN {
                     break;
                 }
                 case 0x93:
-                    replacement = MOX::star[MOX::player[listener_player_id].diplomacy_system[speaker_player_id]].name;
+                    if (const auto position = MOX::star.Position_Of(MOX::player[listener_player_id].diplomacy_system[speaker_player_id]); position >= 0) {
+                        replacement = MOX::star[position].name;
+                    }
                     break;
                 case 0x94:
                     replacement = MOX::player[MOX::player[listener_player_id].trust_breaker_player[speaker_player_id]].race_name;
@@ -2184,13 +2188,13 @@ namespace DIP_SCRN {
             return;
         }
 
-        if (MOX::player[player_idx].diplomacy_proposal_system_bribe[target_idx] != -1) {
+        if (const auto position = MOX::star.Position_Of(MOX::player[player_idx].diplomacy_proposal_system_bribe[target_idx]); position >= 0) {
             if (COLCALC::May_Surrender_Star(&::game::world, 
-                    MOX::player[player_idx].diplomacy_proposal_system_bribe[target_idx],
+                    position,
                     player_idx,
                     target_idx)) {
                 COLCALC::Surrender_Star(
-                    MOX::player[player_idx].diplomacy_proposal_system_bribe[target_idx],
+                    position,
                     player_idx,
                     target_idx);
             }

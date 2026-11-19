@@ -34,16 +34,13 @@ namespace orion2re::lua::game::internal {
         };
 
         struct s_system_proxy {
-            std::int16_t system_id = -1;
+            ::game::id_star star_id = ::game::NO_STAR;
+            std::int16_t original_position = -1;
             std::uint64_t topology_generation = 0;
             std::uint64_t slot_generation = 0;
         };
 
-        struct s_collection_proxy {
-            std::int16_t system_id = -1;
-            std::uint64_t topology_generation = 0;
-            std::uint64_t slot_generation = 0;
-        };
+        using s_collection_proxy = s_system_proxy;
 
         std::uint64_t topology_generation_ = 1;
         std::map<::game::id_planet, uint64_t> planet_generations_;
@@ -81,6 +78,16 @@ namespace orion2re::lua::game::internal {
                 MOX::star[system_id].spectral_class >= STAR_CLASS_B &&
                 MOX::star[system_id].spectral_class <=
                 STAR_CLASS_BLACK_HOLE;
+        }
+
+        std::int16_t System_Proxy_Position_(const s_system_proxy* proxy) {
+            if (proxy == nullptr || proxy->topology_generation != topology_generation_) return -1;
+            const auto position = MOX::star.Position_Of(proxy->star_id);
+            if (!Valid_System_(position)) return -1;
+            // Array-backed test worlds still reuse positional identities.
+            if (MOX::star.fixture != nullptr &&
+                proxy->slot_generation != Current_Generation_(system_generations_, position)) return -1;
+            return position;
         }
 
         bool Valid_Planet_Identity_(::game::s_world_state* world_state, ::game::id_planet planet_id,
@@ -225,18 +232,14 @@ namespace orion2re::lua::game::internal {
             return 0;
         }
 
-        s_system_proxy* Check_System_(lua_State* lua_state, int index) {
+        std::int16_t Check_System_Position_(lua_State* lua_state, int index) {
             auto* proxy = static_cast<s_system_proxy*>(
                 luaL_checkudata(lua_state, index, SYSTEM_METATABLE_));
-            if (proxy == nullptr ||
-                proxy->system_id < 0 || proxy->system_id >= MAX_STARS ||
-                proxy->topology_generation != topology_generation_ ||
-                proxy->slot_generation != Current_Generation_(system_generations_, proxy->system_id) ||
-                !Valid_System_(proxy->system_id) ||
-                !Game_State_Access_Allowed()) {
+            const auto position = System_Proxy_Position_(proxy);
+            if (position < 0 || !Game_State_Access_Allowed()) {
                 luaL_error(lua_state, "expired system reference");
             }
-            return proxy;
+            return position;
         }
 
         int Immutable_New_Index_(lua_State* lua_state) {
@@ -414,18 +417,16 @@ namespace orion2re::lua::game::internal {
                 return 1;
             }
             if (strcmp(key, "id") == 0) {
-                lua_pushinteger(lua_state, proxy->system_id);
+                const auto position = System_Proxy_Position_(proxy);
+                lua_pushinteger(lua_state, position >= 0 ? position : proxy->original_position);
                 return 1;
             }
             if (strcmp(key, "valid") == 0) {
-                lua_pushboolean(lua_state,
-                    proxy->topology_generation == topology_generation_ &&
-                        proxy->slot_generation == Current_Generation_(system_generations_, proxy->system_id) &&
-                        Valid_System_(proxy->system_id));
+                lua_pushboolean(lua_state, System_Proxy_Position_(proxy) >= 0);
                 return 1;
             }
-            Check_System_(lua_state, 1);
-            const s_star_data& system = MOX::star[proxy->system_id];
+            const auto position = Check_System_Position_(lua_state, 1);
+            const s_star_data& system = MOX::star[position];
             if (strcmp(key, "x") == 0) {
                 lua_pushinteger(lua_state, system.x);
             } else if (strcmp(key, "y") == 0) {
@@ -451,11 +452,7 @@ namespace orion2re::lua::game::internal {
                 auto* collection = static_cast<s_collection_proxy*>(
                     lua_newuserdatauv(
                         lua_state, sizeof(s_collection_proxy), 0));
-                *collection = {
-                    proxy->system_id,
-                    proxy->topology_generation,
-                    proxy->slot_generation,
-                };
+                *collection = *proxy;
                 luaL_setmetatable(
                     lua_state, SYSTEM_PLANET_COLLECTION_METATABLE_);
             } else {
@@ -465,14 +462,14 @@ namespace orion2re::lua::game::internal {
         }
 
         int System_New_Index_(::game::s_world_state* world_state, lua_State* lua_state) {
-            const s_system_proxy* proxy = Check_System_(lua_state, 1);
+            const auto position = Check_System_Position_(lua_state, 1);
             if (!Galaxy_State_Mutation_Allowed()) {
                 return luaL_error(lua_state,
                     "system mutation is available only during galaxy generation");
             }
             const char* key = luaL_checkstring(lua_state, 2);
             const lua_Integer value = luaL_checkinteger(lua_state, 3);
-            s_star_data& system = MOX::star[proxy->system_id];
+            s_star_data& system = MOX::star[position];
             if (strcmp(key, "x") == 0 || strcmp(key, "y") == 0) {
                 const std::int16_t maximum = strcmp(key, "x") == 0
                     ? MOX::MAP_MAX_X
@@ -528,7 +525,7 @@ namespace orion2re::lua::game::internal {
         }
 
         int System_Set_Wormhole_Method_(lua_State* lua_state) {
-            const s_system_proxy* proxy = Check_System_(lua_state, 1);
+            const auto source_position = Check_System_Position_(lua_state, 1);
             if (!Galaxy_State_Mutation_Allowed()) {
                 return luaL_error(lua_state,
                     "wormhole mutation is available only during galaxy generation");
@@ -536,11 +533,11 @@ namespace orion2re::lua::game::internal {
             std::int16_t destination_id = -1;
             if (!lua_isnoneornil(lua_state, 2) &&
                 (!Read_System(lua_state, 2, &destination_id) ||
-                    destination_id == proxy->system_id)) {
+                    destination_id == source_position)) {
                 return luaL_error(lua_state,
                     "invalid wormhole destination system");
             }
-            s_star_data& source = MOX::star[proxy->system_id];
+            s_star_data& source = MOX::star[source_position];
             if (const auto old = MOX::star.Position_Of(source.wormhole_star_id); old >= 0) {
                 MOX::star[old].wormhole_star_id = ::game::NO_STAR;
             }
@@ -553,17 +550,16 @@ namespace orion2re::lua::game::internal {
                 MOX::star[old].wormhole_star_id = ::game::NO_STAR;
             }
             source.wormhole_star_id = MOX::star.Id_At(destination_id);
-            destination.wormhole_star_id = MOX::star.Id_At(proxy->system_id);
+            destination.wormhole_star_id = MOX::star.Id_At(source_position);
             return 0;
         }
 
         int System_Delete_Method_(::game::s_world_state* world_state, lua_State* lua_state) {
-            const s_system_proxy* proxy = Check_System_(lua_state, 1);
+            const auto system_id = Check_System_Position_(lua_state, 1);
             if (!Galaxy_State_Mutation_Allowed()) {
                 return luaL_error(lua_state,
                     "system deletion is available only during galaxy generation");
             }
-            const std::int16_t system_id = proxy->system_id;
             for (std::int16_t player_id = 0;
                  player_id < MOX::NUM_PLAYERS;
                  ++player_id) {
@@ -598,7 +594,7 @@ namespace orion2re::lua::game::internal {
             for (std::int16_t ship_id = 0;
                  ship_id < MOX::NUM_SHIPS;
                  ++ship_id) {
-                if (MOX::ship[ship_id].Legacy_Location(MOX::star) == system_id) {
+                if (MOX::star.Is_Orbiting(MOX::ship[ship_id].location, system_id)) {
                     const std::int16_t officer_id =
                         MOX::ship[ship_id].officer_index;
                     if (officer_id >= 0 && officer_id < MAX_LEADERS) {
@@ -661,7 +657,7 @@ namespace orion2re::lua::game::internal {
                 luaL_testudata(lua_state, 2, SYSTEM_METATABLE_));
             lua_pushboolean(lua_state,
                 left != nullptr && right != nullptr &&
-                    left->system_id == right->system_id &&
+                    left->star_id == right->star_id &&
                     left->topology_generation == right->topology_generation &&
                     left->slot_generation == right->slot_generation);
             return 1;
@@ -751,7 +747,7 @@ namespace orion2re::lua::game::internal {
             system.visited = source.visited;
             system.owner = -1;
             system.wormhole_star_id = ::game::NO_STAR;
-            system.next_wfi_in_list = -1;
+            system.next_wfi_in_list = ::game::NO_STAR;
             memset(system.last_orbit_selected,
                 0xff,
                 sizeof(system.last_orbit_selected));
@@ -824,12 +820,8 @@ namespace orion2re::lua::game::internal {
             const auto* collection = static_cast<s_collection_proxy*>(
                 luaL_checkudata(
                     lua_state, 1, SYSTEM_PLANET_COLLECTION_METATABLE_));
-            if (!Game_State_Access_Allowed() ||
-                collection->topology_generation != topology_generation_ ||
-                collection->system_id < 0 ||
-                collection->system_id >= MAX_STARS ||
-                collection->slot_generation != Current_Generation_(system_generations_, collection->system_id) ||
-                !Valid_System_(collection->system_id)) {
+            const auto position = System_Proxy_Position_(collection);
+            if (!Game_State_Access_Allowed() || position < 0) {
                 return luaL_error(lua_state,
                     "expired system planet collection");
             }
@@ -837,7 +829,7 @@ namespace orion2re::lua::game::internal {
             lua_Integer sequence_index = 1;
             for (std::int8_t orbit = 0; orbit < 5; ++orbit) {
                 const ::game::id_planet planet_id =
-                    MOX::star[collection->system_id].planet_index[orbit];
+                    MOX::star[position].planet_index[orbit];
                 if (planet_id == ::game::NO_PLANET) {
                     continue;
                 }
@@ -1007,14 +999,11 @@ namespace orion2re::lua::game::internal {
         std::int16_t* system_id) {
         const auto* proxy = static_cast<s_system_proxy*>(
             luaL_testudata(lua_state, index, SYSTEM_METATABLE_));
-        if (proxy == nullptr ||
-            proxy->system_id < 0 || proxy->system_id >= MAX_STARS ||
-            proxy->topology_generation != topology_generation_ ||
-            proxy->slot_generation != Current_Generation_(system_generations_, proxy->system_id) ||
-            !Valid_System_(proxy->system_id) || system_id == nullptr) {
+        const auto position = System_Proxy_Position_(proxy);
+        if (position < 0 || system_id == nullptr) {
             return false;
         }
-        *system_id = proxy->system_id;
+        *system_id = position;
         return true;
     }
 
@@ -1025,9 +1014,9 @@ namespace orion2re::lua::game::internal {
         }
         auto* proxy = static_cast<s_system_proxy*>(
             lua_newuserdatauv(lua_state, sizeof(s_system_proxy), 0));
-        *proxy = {system_id,
+        *proxy = {MOX::star.Id_At(system_id), system_id,
             topology_generation_,
-            Current_Generation_(system_generations_, system_id)};
+            MOX::star.fixture != nullptr ? Current_Generation_(system_generations_, system_id) : 0};
         luaL_setmetatable(lua_state, SYSTEM_METATABLE_);
         return true;
     }

@@ -223,7 +223,7 @@ namespace {
         expected.owner = -1;
         expected.colonize_player = -1;
         expected.wormhole_star_id = game::NO_STAR;
-        expected.next_wfi_in_list = -1;
+        expected.next_wfi_in_list = game::NO_STAR;
         memset(expected.officer_index, 0xFF, sizeof(expected.officer_index));
         memset(expected.planet_index, 0xFF, sizeof(expected.planet_index));
         memset(expected.relocate_ship_to, 0xFF, sizeof(expected.relocate_ship_to));
@@ -548,7 +548,8 @@ namespace {
                     sizeof(stars[i].wormhole_star_id),
                 source + legacy_wormhole_offset + sizeof(int8_t),
                 legacy_next_wfi_offset - legacy_wormhole_offset - sizeof(int8_t));
-            stars[i].next_wfi_in_list = source[legacy_next_wfi_offset];
+            const auto old_wfi = source[legacy_next_wfi_offset];
+            stars[i].next_wfi_in_list = old_wfi == UINT8_MAX ? game::NO_STAR : game::id_star{old_wfi};
             memcpy(destination + offsetof(s_star_data, next_wfi_in_list) +
                     sizeof(stars[i].next_wfi_in_list),
                 source + legacy_next_wfi_offset + sizeof(uint8_t),
@@ -652,11 +653,13 @@ namespace {
             const auto location = SAVEGAME::records::Convert_Legacy_Ship_Location(old_location);
             converted_locations += location != old_location;
             const auto decoded = legacy_world::Decode_Ship_Location(location);
-            if (decoded && decoded->star_id.id == static_cast<uint32_t>(MOX::NUM_STARS)) {
+            if (decoded && decoded->position == MOX::NUM_STARS) {
                 DOCTEST_CHECK(actual.ships[i].location.destination == game::s_ship_destination::Antares());
                 DOCTEST_CHECK(actual.ships[i].location.kind == decoded->kind);
             } else {
-                const auto expected_location = decoded ? game::s_ship_location{decoded->kind, decoded->star_id} : game::s_ship_location{};
+                const auto expected_location = decoded
+                    ? game::s_ship_location{decoded->kind, game::id_star{static_cast<uint32_t>(decoded->position)}}
+                    : game::s_ship_location{};
                 DOCTEST_CHECK(actual.ships[i].location == expected_location);
             }
             DOCTEST_CHECK(actual.ships[i].crew_experience == unaligned::Load<uint16_t>(record + 114));
@@ -1033,8 +1036,8 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
         game::Planet(&game::world, id) = expected.planets[id.id];
     }
     expected.stars[70].wormhole_star_id = game::id_star{510};
-    expected.stars[70].next_wfi_in_list = 509;
-    expected.players[0].offensive_stagepoint = 508;
+    expected.stars[70].next_wfi_in_list = game::id_star{509};
+    expected.players[0].offensive_stagepoint = game::id_star{508};
     REPORT::reports[2].d.sabotage.planet_idx = game::id_planet{359};
     REPORT::reports[3].d.enemy_sabotage.planet_idx = game::id_planet{358};
     for (s_MSG& message : MSG_::msgs) {

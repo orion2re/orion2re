@@ -5,6 +5,13 @@
 #include "savegame.h"
 
 namespace SAVEGAME::records {
+    namespace {
+        game::id_star Read_Star_Reference(SERIAL::Reader_* reader, uint16_t version, bool original_byte = false) {
+            if (version >= 8) return game::id_star{reader->Read_Uint32()};
+            const int16_t position = original_byte && version == LEGACY_VERSION ? reader->Read_Int8() : reader->Read_Int16();
+            return position < 0 ? game::NO_STAR : game::id_star{static_cast<uint32_t>(position)};
+        }
+    }
         void Write_Ship(SERIAL::Writer_* writer, const s_ship_data* ship) {
             Write_Ship_Design(writer, &ship->d);
             writer->Write_Int8(ship->owner);
@@ -55,9 +62,9 @@ namespace SAVEGAME::records {
                     version == LEGACY_VERSION ? Convert_Legacy_Ship_Location(encoded) : encoded);
                 ship->location = {};
                 if (decoded) {
-                    const bool antares = legacy_star_count >= 0 && decoded->star_id.id == static_cast<uint32_t>(legacy_star_count);
+                    const bool antares = decoded->position == legacy_star_count;
                     ship->location = {decoded->kind, antares
-                        ? game::s_ship_destination::Antares() : game::s_ship_destination::Star(decoded->star_id)};
+                        ? game::s_ship_destination::Antares() : game::s_ship_destination::Star(game::id_star{static_cast<uint32_t>(decoded->position)})};
                 }
             }
             ship->x = reader->Read_Int16();
@@ -383,7 +390,7 @@ namespace SAVEGAME::records {
             writer->Write_Int8(star->colonize_player);
             writer->Write_Uint8(star->has_colony);
             writer->Write_Uint8(star->has_warp_field_interdictor);
-            writer->Write_Int16(star->next_wfi_in_list);
+            writer->Write_Uint32(star->next_wfi_in_list.id);
             writer->Write_Uint8(star->has_tachyon);
             writer->Write_Uint8(star->has_subspace);
             writer->Write_Uint8(star->has_stargate);
@@ -430,7 +437,12 @@ namespace SAVEGAME::records {
             star->colonize_player = reader->Read_Int8();
             star->has_colony = reader->Read_Uint8();
             star->has_warp_field_interdictor = reader->Read_Uint8();
-            star->next_wfi_in_list = version == LEGACY_VERSION ? reader->Read_Uint8() : reader->Read_Int16();
+            if (version == LEGACY_VERSION) {
+                const auto position = reader->Read_Uint8();
+                star->next_wfi_in_list = position == UINT8_MAX ? game::NO_STAR : game::id_star{position};
+            } else {
+                star->next_wfi_in_list = Read_Star_Reference(reader, version);
+            }
             star->has_tachyon = reader->Read_Uint8();
             star->has_subspace = reader->Read_Uint8();
             star->has_stargate = reader->Read_Uint8();
@@ -516,7 +528,7 @@ namespace SAVEGAME::records {
             writer->Write_Bytes(player->n_times_established_contact, sizeof(player->n_times_established_contact));
             writer->Write_Bytes(player->within_range, sizeof(player->within_range));
             writer->Write_Int8(player->do_not_research);
-            writer->Write_Int16(player->offensive_stagepoint);
+            writer->Write_Uint32(player->offensive_stagepoint.id);
             writer->Write_Int8(player->best_ftl_drive);
             writer->Write_Uint8(player->ship_speed);
             writer->Write_Int8(player->officer_for_hire);
@@ -544,7 +556,7 @@ namespace SAVEGAME::records {
             writer->Write_Bytes(player->diplomacy_message, sizeof(player->diplomacy_message));
             Write_Int16_Array(writer, player->diplomacy_severity, MAX_PLAYERS);
             Write_Int16_Array(writer, player->diplomacy_value, MAX_PLAYERS);
-            Write_Int16_Array(writer, player->diplomacy_system, MAX_PLAYERS);
+            for (const auto id : player->diplomacy_system) writer->Write_Uint32(id.id);
             Write_Int16_Array(writer, player->treaty_modifier, MAX_PLAYERS);
             Write_Int16_Array(writer, player->trade_modifier, MAX_PLAYERS);
             Write_Int16_Array(writer, player->tech_exchange_modifier, MAX_PLAYERS);
@@ -571,7 +583,7 @@ namespace SAVEGAME::records {
             writer->Write_Bytes(player->diplomacy_proposal_war_player, sizeof(player->diplomacy_proposal_war_player));
             Write_Int32_Array(writer, player->diplomacy_proposal_exchange_max_value, MAX_PLAYERS);
             writer->Write_Bytes(player->diplomacy_proposal_exchange_tech, sizeof(player->diplomacy_proposal_exchange_tech));
-            Write_Int16_Array(writer, player->diplomacy_proposal_system_bribe, MAX_PLAYERS);
+            for (const auto id : player->diplomacy_proposal_system_bribe) writer->Write_Uint32(id.id);
             writer->Write_Uint32(player->sneak_attack_planet.id);
             writer->Write_Int8(player->sneak_attack_message);
             writer->Write_Int8(player->sneak_attack_player);
@@ -694,7 +706,7 @@ namespace SAVEGAME::records {
             reader->Read_Bytes(player->n_times_established_contact, sizeof(player->n_times_established_contact));
             reader->Read_Bytes(player->within_range, sizeof(player->within_range));
             player->do_not_research = reader->Read_Int8();
-            player->offensive_stagepoint = version == LEGACY_VERSION ? reader->Read_Int8() : reader->Read_Int16();
+            player->offensive_stagepoint = Read_Star_Reference(reader, version, true);
             player->best_ftl_drive = reader->Read_Int8();
             player->ship_speed = reader->Read_Uint8();
             player->officer_for_hire = reader->Read_Int8();
@@ -722,7 +734,7 @@ namespace SAVEGAME::records {
             reader->Read_Bytes(player->diplomacy_message, sizeof(player->diplomacy_message));
             Read_Int16_Array(reader, player->diplomacy_severity, MAX_PLAYERS);
             Read_Int16_Array(reader, player->diplomacy_value, MAX_PLAYERS);
-            Read_Int16_Array(reader, player->diplomacy_system, MAX_PLAYERS);
+            for (auto& id : player->diplomacy_system) id = Read_Star_Reference(reader, version);
             Read_Int16_Array(reader, player->treaty_modifier, MAX_PLAYERS);
             Read_Int16_Array(reader, player->trade_modifier, MAX_PLAYERS);
             Read_Int16_Array(reader, player->tech_exchange_modifier, MAX_PLAYERS);
@@ -749,7 +761,7 @@ namespace SAVEGAME::records {
             reader->Read_Bytes(player->diplomacy_proposal_war_player, sizeof(player->diplomacy_proposal_war_player));
             Read_Int32_Array(reader, player->diplomacy_proposal_exchange_max_value, MAX_PLAYERS);
             reader->Read_Bytes(player->diplomacy_proposal_exchange_tech, sizeof(player->diplomacy_proposal_exchange_tech));
-            Read_Int16_Array(reader, player->diplomacy_proposal_system_bribe, MAX_PLAYERS);
+            for (auto& id : player->diplomacy_proposal_system_bribe) id = Read_Star_Reference(reader, version);
             player->sneak_attack_planet = Read_Planet_Reference(reader, version);
             player->sneak_attack_message = reader->Read_Int8();
             player->sneak_attack_player = reader->Read_Int8();

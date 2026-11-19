@@ -1114,7 +1114,9 @@ namespace COMBAT {
         for (int16_t i = 0; i < MAX_SHIPS; ++i) {
             ::game::id_planet planet_idx = MOX::colony[colony_idx].planet;
 
-            if (game::Planet(world_state, planet_idx).Star_Position(MOX::star) == MOX::ship[i].Legacy_Location(MOX::star) &&
+            const auto parent = game::Planet(world_state, planet_idx).parent_star;
+            if (parent != game::NO_STAR && MOX::ship[i].location.kind == game::e_ship_location::at_star &&
+                MOX::ship[i].location.destination == game::s_ship_destination::Star(parent) &&
                 MOX::ship[i].d.ship_type == SHIP_TYPE_COMBAT &&
                 MOX::ship[i].status == 0 &&
                 MOX::ship[i].owner == result->attacker_idx) {

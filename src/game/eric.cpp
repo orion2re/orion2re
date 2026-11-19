@@ -319,7 +319,7 @@ namespace ERIC {
 
     int8_t __cdecl Player_Has_Ship_Size_Or_Larger_At_Star(int16_t player_idx, int16_t minimum_size, int16_t star_idx) {
         for (int16_t i = 0; i < MAX_SHIPS; ++i) {
-            if (MOX::ship[i].Legacy_Location(MOX::star) == star_idx &&
+            if (MOX::star.Is_Orbiting(MOX::ship[i].location, star_idx) &&
                 MOX::ship[i].status == 0 &&
                 MOX::ship[i].owner == player_idx &&
                 MOX::ship[i].d.size >= minimum_size) {
@@ -467,7 +467,7 @@ namespace ERIC {
             if (game::Leader(world_state, i).player_index == player_idx &&
                 game::Leader(world_state, i).status == 1 &&
                 game::Leader(world_state, i).eta == 0) {
-                if ((game::Leader(world_state, i).type == LEADER_TYPE_SHIP && MOX::ship[game::Leader(world_state, i).location].Legacy_Location(MOX::star) == star_idx) ||
+                if ((game::Leader(world_state, i).type == LEADER_TYPE_SHIP && MOX::star.Is_Orbiting(MOX::ship[game::Leader(world_state, i).location].location, star_idx)) ||
                     (game::Leader(world_state, i).type == LEADER_TYPE_COLONY && game::Leader(world_state, i).location == star_idx)) {
                     if (OFFICER::Officer_Has_General_Skill(world_state, player_idx, i, skill_idx)) {
                         return 1;

@@ -10,7 +10,7 @@ namespace diplomac {
 
     uint8_t alternate_diplomacy = 0;
 
-    int16_t diplomacy_proposal_system_bribe;
+    game::id_star diplomacy_proposal_system_bribe = game::NO_STAR;
 
     int8_t diplomacy_proposal_tribute_bribe;
 
@@ -598,7 +598,7 @@ namespace diplomac {
                 MOX::player[i].diplomacy_severity[j] = 0;
                 MOX::player[i].diplomacy_incident[j] = 0;
                 MOX::player[i].diplomacy_value[j] = 0;
-                MOX::player[i].diplomacy_system[j] = 0;
+                MOX::player[i].diplomacy_system[j] = MOX::star.Id_At(0);
                 MOX::player[i].treaty_modifier[j] = 0;
                 MOX::player[i].trade_modifier[j] = 0;
                 MOX::player[i].tech_exchange_modifier[j] = 0;
@@ -1264,7 +1264,7 @@ namespace diplomac {
                 MOX::player[p_b].diplomacy_severity[p_a] = 10000;
                 MOX::player[p_b].diplomacy_incident[p_a] = (uint8_t)incident;
                 MOX::player[p_b].diplomacy_value[p_a] = value;
-                MOX::player[p_b].diplomacy_system[p_a] = system;
+                MOX::player[p_b].diplomacy_system[p_a] = MOX::star.Id_At(system);
             }
             return;
         }
@@ -1372,7 +1372,7 @@ namespace diplomac {
                     MOX::player[p_b].diplomacy_severity[p_a] = final_change;
                     MOX::player[p_b].diplomacy_incident[p_a] = (uint8_t)incident;
                     MOX::player[p_b].diplomacy_value[p_a] = value;
-                    MOX::player[p_b].diplomacy_system[p_a] = system;
+                    MOX::player[p_b].diplomacy_system[p_a] = MOX::star.Id_At(system);
                 }
             }
 
@@ -2949,7 +2949,7 @@ namespace diplomac {
         diplomacy_proposal_gold_bribe = 0;
         diplomacy_proposal_tribute_bribe = 0;
         diplomacy_proposal_tech_bribe1 = 0;
-        diplomacy_proposal_system_bribe = -1;
+        diplomacy_proposal_system_bribe = game::NO_STAR;
 
         if (severity > 10) {
             severity = 10;
@@ -3101,7 +3101,7 @@ namespace diplomac {
             int16_t system_idx = COLCALC::Get_Surrender_System(&::game::world, target_idx, player_idx, severity > 6 ? 1 : 0);
             if (system_idx != -1) {
                 if (COLCALC::May_Surrender_Star(&::game::world, system_idx, target_idx, player_idx)) {
-                    diplomacy_proposal_system_bribe = system_idx;
+                    diplomacy_proposal_system_bribe = MOX::star.Id_At(system_idx);
                     return 1;
                 }
             }
@@ -3167,9 +3167,9 @@ namespace diplomac {
                                 *response = 0xAA;
                                 Set_Demands(player_idx, target_idx);
                             }
-                            if (diplomacy_proposal_system_bribe != -1) {
+                            if (const auto position = MOX::star.Position_Of(diplomacy_proposal_system_bribe); position >= 0) {
                                 *demand_type = 2;
-                                *demand_system = diplomacy_proposal_system_bribe;
+                                *demand_system = position;
                                 *response = 0xAA;
                                 Set_Demands(player_idx, target_idx);
                             }
@@ -3233,9 +3233,9 @@ namespace diplomac {
                                 *response = 0xAA;
                                 Set_Demands(player_idx, target_idx);
                             }
-                            if (diplomacy_proposal_system_bribe != -1) {
+                            if (const auto position = MOX::star.Position_Of(diplomacy_proposal_system_bribe); position >= 0) {
                                 *demand_type = 2;
-                                *demand_system = diplomacy_proposal_system_bribe;
+                                *demand_system = position;
                                 *response = 0xAA;
                                 Set_Demands(player_idx, target_idx);
                             }
@@ -3314,9 +3314,9 @@ namespace diplomac {
                                 *response = 0xAA;
                                 Set_Demands(player_idx, target_idx);
                             }
-                            if (diplomacy_proposal_system_bribe != -1) {
+                            if (const auto position = MOX::star.Position_Of(diplomacy_proposal_system_bribe); position >= 0) {
                                 *demand_type = 2;
-                                *demand_system = diplomacy_proposal_system_bribe;
+                                *demand_system = position;
                                 *response = 0xAA;
                                 Set_Demands(player_idx, target_idx);
                             }

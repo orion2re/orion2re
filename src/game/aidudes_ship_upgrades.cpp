@@ -79,9 +79,9 @@ namespace aidudes {
 
             const auto* entry = &refits[i - 1];
             s_ship_data* ship = &world->ships[legacy_world::Slot(entry->ship_id)];
-            auto orbit = legacy_world::Orbit_Star(ship, world->stars);
-            if (!orbit) continue;
-            const game::id_star location = *orbit;
+            const auto orbit = world->stars.Orbit_Position(ship->location);
+            if (orbit < 0) continue;
+            const game::id_star location = legacy_world::Star_Id(orbit);
 
             // Skip ships in systems with incoming human activity
             if (ai->stars[location].enroute_human_ships[3] != 0) {

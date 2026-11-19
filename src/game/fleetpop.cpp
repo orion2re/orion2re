@@ -1437,7 +1437,7 @@ namespace FLEETPOP {
         int16_t* star_idx,
         int16_t* info_type) {
         s_ship_data& ship = MOX::ship[ship_idx];
-        int16_t absolute_location = HAROLD::Absolute_Location(ship.Legacy_Location(MOX::star));
+        const auto absolute_location = MOX::star.Destination_Position(ship.location.destination);
         uint16_t turns_left = static_cast<uint16_t>(static_cast<uint8_t>(ship.turns_left));
 
         if (absolute_location != MOX::NUM_STARS) {
@@ -1463,11 +1463,8 @@ namespace FLEETPOP {
         int16_t ship_owner = HACCESS::Ship_Owner(ship_idx);
         uint8_t can_build_outpost = 0;
 
-        const int16_t location = MOX::ship[ship_idx].Legacy_Location(MOX::star);
-        const bool valid_star_location =
-            location >= 0 &&
-            location < SHIP_LOCATION_MOVING_OFFSET &&
-            location < MOX::NUM_STARS;
+        const auto location = MOX::star.Orbit_Position(MOX::ship[ship_idx].location);
+        const bool valid_star_location = location >= 0 && location < MOX::NUM_STARS;
 
         if (MOX::PLAYER_NUM != ship_owner) {
             return can_build_outpost;
@@ -1522,22 +1519,8 @@ namespace FLEETPOP {
         int16_t first_ship_owner = HACCESS::Ship_Owner(first_ship_idx);
         int8_t transport_troops_flag = 0;
 
-        int16_t star_idx = MOX::ship[first_ship_idx].Legacy_Location(MOX::star);
-        bool is_valid_star_location = false;
-        if (star_idx > -1) {
-            is_valid_star_location = (star_idx < SHIP_LOCATION_MOVING_OFFSET);
-        }
-
-        bool needs_xy_to_star = false;
-        if (star_idx > SHIP_LOCATION_WORMHOLE_OFFSET) {
-            needs_xy_to_star = (star_idx < SHIP_LOCATION_LIMIT);
-        }
-
-        if (needs_xy_to_star) {
-            star_idx = HAROLD::XY_To_Star_Id(MOX::ship[first_ship_idx].x, MOX::ship[first_ship_idx].y);
-        }
-
-        if ((MOX::PLAYER_NUM == first_ship_owner) && is_valid_star_location) {
+        const auto star_idx = MOX::star.Orbit_Position(MOX::ship[first_ship_idx].location);
+        if ((MOX::PLAYER_NUM == first_ship_owner) && star_idx >= 0) {
             int16_t processed_count = 0;
             if (ship_count > 0) {
                 while (processed_count < ship_count) {
@@ -1593,7 +1576,7 @@ namespace FLEETPOP {
                         if (MOX::ship[ship_slot].status < 3) {
                             // BUG: selected_ship_idx is used here instead of ship_slot.
                             if (HACCESS::Is_Combat_Ship(selected_ship_idx)) {
-                                if (HAROLD::Absolute_Location(MOX::ship[selected_ship_idx].Legacy_Location(MOX::star)) !=
+                                if (MOX::star.Destination_Position(MOX::ship[selected_ship_idx].location.destination) !=
                                     MOX::NUM_STARS) {
                                     if (MOX::ship[ship_slot].x == MOX::ship[selected_ship_idx].x) {
                                         if (MOX::ship[ship_slot].y == MOX::ship[selected_ship_idx].y) {
@@ -1631,13 +1614,11 @@ namespace FLEETPOP {
         int8_t colonize_button_flag = 0;
         bool found_colonizable_planet = false;
 
-        int16_t star_index = MOX::ship[ship_idx].Legacy_Location(MOX::star);
-        const bool is_at_star = (star_index > -1) && (star_index < SHIP_LOCATION_MOVING_OFFSET);
-        const bool is_in_transit_to_star = (star_index > SHIP_LOCATION_WORMHOLE_OFFSET) && (star_index < SHIP_LOCATION_LIMIT);
-
-        if (is_in_transit_to_star) {
-            star_index -= SHIP_LOCATION_WORMHOLE_OFFSET;
-        }
+        const auto& location = MOX::ship[ship_idx].location;
+        const auto star_index = MOX::star.Destination_Position(location.destination);
+        const bool is_at_star = star_index >= 0 && location.kind == game::e_ship_location::at_star;
+        // Preserve the strict legacy wormhole bound, which excluded position zero.
+        const bool is_in_transit_to_star = star_index > 0 && location.kind == game::e_ship_location::in_wormhole;
 
         if ((ship_owner == MOX::PLAYER_NUM) &&
             (is_at_star || is_in_transit_to_star) &&
@@ -1727,10 +1708,10 @@ namespace FLEETPOP {
         int16_t stack_node_idx = MOX::ship_stack_start[MOX::fleet_box_ship_stack];
         int16_t primary_ship_idx = MOX::ship_node[stack_node_idx].ship_idx;
         int16_t primary_owner = HACCESS::Ship_Owner(primary_ship_idx);
-        int16_t star_idx = MOX::ship[primary_ship_idx].Legacy_Location(MOX::star);
-
-        const bool is_at_star = (star_idx > -1) && (star_idx < SHIP_LOCATION_MOVING_OFFSET);
-        const bool is_at_xy_star = (star_idx > SHIP_LOCATION_WORMHOLE_OFFSET) && (star_idx < SHIP_LOCATION_LIMIT);
+        const auto& location = MOX::ship[primary_ship_idx].location;
+        auto star_idx = MOX::star.Destination_Position(location.destination);
+        const bool is_at_star = star_idx >= 0 && location.kind == game::e_ship_location::at_star;
+        const bool is_at_xy_star = star_idx > 0 && location.kind == game::e_ship_location::in_wormhole;
 
         if (is_at_xy_star) {
             star_idx = HAROLD::XY_To_Star_Id(MOX::ship[primary_ship_idx].x, MOX::ship[primary_ship_idx].y);

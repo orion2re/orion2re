@@ -2107,7 +2107,7 @@ namespace SYS {
                 const int16_t ship_idx = MOX::ship_node[node_idx].ship_idx;
                 s_ship_data* const ship = &MOX::ship[ship_idx];
 
-                if (ship->Legacy_Location(MOX::star) == system_idx && ship->status < 3) {
+                if (ship->status < 3 && MOX::star.Is_Orbiting(ship->location, system_idx)) {
                     const int16_t owner_idx = ship->owner;
                     MOX::system_display_ships[owner_idx].ship_idx = node_idx;
 

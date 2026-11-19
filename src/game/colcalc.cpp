@@ -165,6 +165,7 @@ namespace COLCALC {
 
     int __cdecl Colony_Officer(game::s_world_state* world_state, s_colony* colony) {
         const auto star_idx = game::Planet(world_state, colony->planet).Star_Position(MOX::star);
+        if (star_idx < 0) return -1;
 
         int8_t officer_idx = (int8_t)MOX::star[star_idx].officer_index[colony->owner];
 
@@ -1203,7 +1204,7 @@ namespace COLCALC {
             s_ship_data* current_ship = &ship_list[i];
 
             // In MoO2, owner indices 8 and above typically represent monsters or guardians
-            if (current_ship->owner >= MAX_PLAYERS && current_ship->Legacy_Location(MOX::star) == star_idx) {
+            if (current_ship->owner >= MAX_PLAYERS && MOX::star.Is_Orbiting(current_ship->location, star_idx)) {
                 return true;
             }
         }
@@ -1935,8 +1936,8 @@ namespace COLCALC {
             s_ship_data* ship = &MOX::ship[i];
 
             // Only active combat ships inside known star systems can blockade
-            if (ship->status == 0 && ship->Legacy_Location(MOX::star) < MAX_STARS && ship->d.ship_type == SHIP_TYPE_COMBAT) {
-                int16_t star_id = ship->Legacy_Location(MOX::star);
+            const auto star_id = MOX::star.Orbit_Position(ship->location);
+            if (ship->status == 0 && star_id >= 0 && star_id < MAX_STARS && ship->d.ship_type == SHIP_TYPE_COMBAT) {
                 int8_t ship_owner = ship->owner;
                 s_star_data* star = &MOX::star[star_id];
 
@@ -3743,10 +3744,11 @@ namespace COLCALC {
                         }
 
                         ship->just_built = 1;
-                        MOX::star[ship->Legacy_Location(MOX::star)].ignore_combat_ships = 0;
+                        auto& system = MOX::star[MOX::star.Orbit_Position(ship->location)];
+                        system.ignore_combat_ships = 0;
 
                         if (ship->d.ship_type == SHIP_TYPE_COLONY || ship->d.ship_type == SHIP_TYPE_OUTPOST) {
-                            MOX::star[ship->Legacy_Location(MOX::star)].ignore_colony_ships |=
+                            system.ignore_colony_ships |=
                                 static_cast<uint8_t>(1u << static_cast<uint8_t>(ship->owner));
                         }
                     } else {

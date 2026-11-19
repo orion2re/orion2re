@@ -1473,7 +1473,7 @@ namespace OFFICER {
         }
 
         const auto& ship = MOX::ship[ship_idx];
-        if (ship.Legacy_Location(MOX::star) == home_star_id) {
+        if (MOX::star.Is_Orbiting(ship.location, home_star_id)) {
             return 0;
         }
 
@@ -2299,15 +2299,9 @@ namespace OFFICER {
 
                     // If leader is an Officer (type 0) and assigned to a ship
                     if (leader->type == LEADER_TYPE_SHIP && loc > -1) {
-                        loc = MOX::ship[loc].Legacy_Location(MOX::star);
-
-                        // Resolve ship location to an absolute map index
-                        if (loc < SHIP_LOCATION_MOVING_OFFSET || loc >= SHIP_LOCATION_WORMHOLE_OFFSET) {
-                            loc = HAROLD::Absolute_Location(loc);
-                        } else {
-                            // Location is in-transit or invalid for report
-                            loc = -1;
-                        }
+                        const auto& location = MOX::ship[loc].location;
+                        loc = location.kind == game::e_ship_location::in_flight
+                            ? -1 : MOX::star.Destination_Position(location.destination);
                     }
 
                     MAINPUPS::Officer_Gains_Level_Popup(loc, i);
@@ -2985,7 +2979,7 @@ namespace OFFICER {
         if (msg_buf2[0] == '\0') {
             if (type == 0) {
                 if (MOX::ship[location].status == 4) {
-                    int16_t abs_loc = HAROLD::Absolute_Location(MOX::ship[location].Legacy_Location(MOX::star));
+                    const auto abs_loc = MOX::star.Destination_Position(MOX::ship[location].location.destination);
                     strlcpy(msg_buf1, HAROLD::H_Message(HESTR_113_S_IS_LOCATED_ON_S_WHIC), sizeof(msg_buf1));
                     snprintf(msg_buf2, sizeof(msg_buf2), msg_buf1, Leader_Name(world_state, leader_idx, 0), &MOX::ship[location], &MOX::star[abs_loc]);
                 } else {

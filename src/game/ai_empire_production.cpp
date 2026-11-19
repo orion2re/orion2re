@@ -513,7 +513,7 @@ namespace aidudes {
                         for (int j = n_entries; j >= 0; j--) {
                             const uint32_t ship_idx = legacy_world::Slot(refits[j].ship_id);
                             s_ship_data* s = &world->ships[ship_idx];
-                            if (legacy_world::Orbit_Star(s, world->stars) == legacy_world::Star_Id(refit_planet_idx) &&
+                            if (world->stars.Is_Orbiting(s->location, refit_planet_idx) &&
                                 (s->d.size < SHIP_SIZE_LARGE || COLCALC::Colony_Can_Build_Large_Ships(temp_colony))) {
                                 s_ship_design* refit_design;
                                 if (s->d.size == SHIP_SIZE_DOOM_STAR) {

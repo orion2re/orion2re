@@ -25,12 +25,12 @@ namespace AIMOVE {
             ship_id = ai->combat_ships[index];
             s_ship_data* ship = &world->ships[legacy_world::Slot(ship_id)];
 
-            if (ship->owner != legacy_world::Slot(player_id) || legacy_world::Orbit_Star(ship, world->stars) != star_id) {
+            if (ship->owner != legacy_world::Slot(player_id) || !world->stars.Is_Orbiting(ship->location, legacy_world::Slot(star_id))) {
                 break;
             }
 
             // Skip ships on mission 5 (potentially 'In transit') unless we are at an offensive stagepoint
-            if (p_ai->offensive_stagepoint == legacy_world::Slot(star_id) || ship->mission != 5) {
+            if (p_ai->offensive_stagepoint == world->stars.Id_At(legacy_world::Slot(star_id)) || ship->mission != 5) {
                 ships->push_back(ship_id);
             }
         }
@@ -44,7 +44,7 @@ namespace AIMOVE {
 
         s_ship_move_info move_info;
         if (ai_compat::Evaluate_Fleet_Move(ships, destination_star, &move_info) == SHIPMOVE::e_fleet_evaluation::invalid_input) return std::nullopt;
-        auto orbit = legacy_world::Orbit_Star(&world->ships[legacy_world::Slot(ships.front())], world->stars);
+        const auto orbit = world->stars.Orbit_Position(world->ships[legacy_world::Slot(ships.front())].location);
 
         if (move_info.moving != 0) {
             return AIDATA::s_route{destination_star, (uint8_t)move_info.turns_left};
@@ -57,7 +57,7 @@ namespace AIMOVE {
                 if (colony_ptr->owner == i_ai) {
                     const auto current_star_idx = game::Planet(world_state, colony_ptr->planet).Star_Position(world->stars);
 
-                    if (orbit != legacy_world::Star_Id(current_star_idx) && legacy_world::Star_Id(current_star_idx) != destination_star) {
+                    if (orbit != current_star_idx && legacy_world::Star_Id(current_star_idx) != destination_star) {
                         ai_compat::Evaluate_Fleet_Move(ships, legacy_world::Star_Id(current_star_idx), &move_info);
 
                         if (move_info.moving != 0) {

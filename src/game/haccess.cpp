@@ -656,8 +656,7 @@ namespace HACCESS {
                 int16_t ship_idx = MOX::ship_node[node_idx].ship_idx;
 
                 if (HACCESS::Ship_Owner(ship_idx) != MOX::PLAYER_NUM) {
-                    int16_t location = MOX::ship[ship_idx].Legacy_Location(MOX::star);
-                    int16_t abs_location = HAROLD::Absolute_Location(location);
+                    const auto abs_location = MOX::star.Destination_Position(MOX::ship[ship_idx].location.destination);
 
                     if (HAROLD::Player_Has_Colony(MOX::PLAYER_NUM, abs_location)) {
                         enemy_approaching = true;

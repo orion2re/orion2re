@@ -56,7 +56,9 @@ namespace TEST_COLONY_POP_GROWTH {
         game::world.planets.clear();
         game::world.next_planet_id = 0;
         game::world.settlers.clear();
-        test::Planet(&game::world, game::id_planet{0}).size = PLANET_SIZE_HUGE;
+        auto& home = test::Planet(&game::world, game::id_planet{0});
+        home.parent_star = game::id_star{0};
+        home.size = PLANET_SIZE_HUGE;
         colonies[1].buildings[BUILDING_CAPITOL] = 1;
         stars[0].officer_index[0] = -1;
         TECHDATA::buildings[BUILDING_CAPITOL].tech_app = TECH_APP_CAPITOL;

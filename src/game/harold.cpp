@@ -725,7 +725,7 @@ namespace HAROLD {
 
                 // Status 0 indicates the ship is active/available.
                 // Owners >= MAX_PLAYERS (specifically owner 8) are typically neutral monsters (Orion Guardians, etc).
-                if (ship->status == 0 && ship->owner >= MAX_PLAYERS && ship->Legacy_Location(MOX::star) == location_idx) {
+                if (ship->status == 0 && ship->owner >= MAX_PLAYERS && MOX::star.Is_Orbiting(ship->location, location_idx)) {
                     found = true;
                     *monster_owner = (int16_t)ship->owner;
                     break;

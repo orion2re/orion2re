@@ -162,6 +162,26 @@ namespace game {
         return found == state->star_order.end() ? -1 : static_cast<int16_t>(found - state->star_order.begin());
     }
 
+    s_ship_destination s_star_slots::Destination_At(int32_t position) const {
+        if (extent && position >= 0 && position == *extent) return s_ship_destination::Antares();
+        return s_ship_destination::Star(Id_At(position));
+    }
+
+    int16_t s_star_slots::Destination_Position(const s_ship_destination& destination) const {
+        if (destination.Kind() == e_ship_destination::antares) return extent ? *extent : -1;
+        return Position_Of(destination.Star_Id_Or_None());
+    }
+
+    int16_t s_star_slots::Orbit_Position(const s_ship_location& location) const {
+        return location.kind == e_ship_location::at_star ? Destination_Position(location.destination) : -1;
+    }
+
+    bool s_star_slots::Is_Orbiting(const s_ship_location& location, int32_t position) const {
+        const auto destination = Destination_At(position);
+        return location.kind == e_ship_location::at_star && destination.Kind() != e_ship_destination::none &&
+            location.destination == destination;
+    }
+
     int16_t s_star_slots::Position_Of(const s_star_data* star) const {
         if (star == nullptr) return -1;
         if (fixture != nullptr) {

@@ -204,7 +204,7 @@ DOCTEST_TEST_CASE("fleet collection preserves cached order and mission filtering
     ships[1].location.destination = game::s_ship_destination::Star(Star_Id(0));
     ships[1].mission = 5;
     s_player player{};
-    player.offensive_stagepoint = -1;
+    player.offensive_stagepoint = game::NO_STAR;
     const game::s_view world{.ships = ships, .stars = stars};
     AIDATA::s_state ai;
     ai.combat_ships = {Ship_Id(0), Ship_Id(1)};
@@ -214,7 +214,7 @@ DOCTEST_TEST_CASE("fleet collection preserves cached order and mission filtering
 
     AIMOVE::Gather_Player_Ships_At_Star(&ai, &context, Player_Id(0), Star_Id(0), &collected);
     DOCTEST_CHECK(collected == std::vector<id_ship>{Ship_Id(0)});
-    player.offensive_stagepoint = 0;
+    player.offensive_stagepoint = Star_Id(0);
     AIMOVE::Gather_Player_Ships_At_Star(&ai, &context, Player_Id(0), Star_Id(0), &collected);
     DOCTEST_CHECK(collected == std::vector<id_ship>{Ship_Id(0), Ship_Id(1)});
     ships[1].owner = 1;

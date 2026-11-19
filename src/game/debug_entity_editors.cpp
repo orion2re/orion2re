@@ -309,16 +309,15 @@ namespace debug_game_editors {
             const bool owner_valid = (ship.owner >= 0 && ship.owner < player_count) ||
                 (ship.owner >= MAX_PLAYERS && ship.owner <= NONPLAYER_SHIP_TYPE_HYDRA);
             bool location_valid = true;
+            const auto destination = MOX::star.Destination_Position(ship.location.destination);
+            const bool real_star = destination >= 0 && destination < star_count;
             if (ship.status == 0) {
-                const auto position = ship.Legacy_Location(MOX::star);
-                location_valid = position >= 0 && position < star_count;
+                location_valid = real_star && ship.location.kind == game::e_ship_location::at_star;
             } else if (ship.status == 1) {
-                const int32_t destination = ship.Legacy_Location(MOX::star) - SHIP_LOCATION_MOVING_OFFSET;
-                location_valid = destination >= 0 && destination < star_count &&
+                location_valid = real_star && ship.location.kind == game::e_ship_location::in_flight &&
                     ship.travelling_speed > 0;
             } else if (ship.status == 2) {
-                const int32_t destination = ship.Legacy_Location(MOX::star) - SHIP_LOCATION_WORMHOLE_OFFSET;
-                location_valid = destination >= 0 && destination < star_count;
+                location_valid = real_star && ship.location.kind == game::e_ship_location::in_wormhole;
             }
             bool weapons_valid = true;
             for (const s_ship_weapons& weapon : ship.d.ship_weapon) {
@@ -372,8 +371,19 @@ namespace debug_game_editors {
             debug_game_widgets::Enum("Size", &ship.d.size, k_ship_sizes, SHIP_SIZE_COUNT);
             debug_game_widgets::Enum("Type", &ship.d.ship_type, k_ship_types, SHIP_TYPE_COUNT);
             debug_game_widgets::Enum("Status", &ship.status, k_ship_statuses, (int16_t)(sizeof(k_ship_statuses) / sizeof(k_ship_statuses[0])));
-            auto position = ship.Legacy_Location(MOX::star);
-            if (Input_S16_("Location", &position)) ship.Set_Legacy_Location(MOX::star, position);
+            const char* modes[] = {"Orbit", "Flight", "Wormhole"};
+            int mode = static_cast<int>(ship.location.kind);
+            if (ImGui::Combo("Travel mode", &mode, modes, 3)) {
+                ship.location.kind = static_cast<game::e_ship_location>(mode);
+            }
+            auto id = ship.location.destination.Star_Id_Or_None();
+            if (debug_game_widgets::Star_Reference("Destination star", &id)) {
+                ship.location.destination = game::s_ship_destination::Star(id);
+            }
+            bool antares = ship.location.destination.Kind() == game::e_ship_destination::antares;
+            if (ImGui::Checkbox("Destination is Antares", &antares)) {
+                ship.location.destination = antares ? game::s_ship_destination::Antares() : game::s_ship_destination::None();
+            }
             Input_S16_("X", &ship.x);
             Input_S16_("Y", &ship.y);
             Input_U8_("Turns left", &ship.turns_left);

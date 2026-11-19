@@ -99,10 +99,10 @@ namespace SHIPS {
             }
 
             MOX::ship[ship_idx].status = 1;
-            MOX::ship[ship_idx].Set_Legacy_Location(MOX::star, star_idx + SHIP_LOCATION_MOVING_OFFSET);
+            MOX::ship[ship_idx].location = {game::e_ship_location::in_flight, MOX::star.Destination_At(star_idx)};
         } else {
             MOX::ship[ship_idx].status = 0;
-            MOX::ship[ship_idx].Set_Legacy_Location(MOX::star, star_idx);
+            MOX::ship[ship_idx].location = {game::e_ship_location::at_star, MOX::star.Destination_At(star_idx)};
         }
 
         return GEO::Parsecs_Between_Points(MOX::star[star_idx].x, MOX::star[star_idx].y, MOX::ship[ship_idx].x, MOX::ship[ship_idx].y);
@@ -401,7 +401,7 @@ namespace SHIPS {
             s_ship_data* ship = &MOX::ship[ship_idx];
 
             if (ship->status != 0) {
-                int16_t star_idx = HAROLD::Absolute_Location(ship->Legacy_Location(MOX::star));
+                const auto star_idx = MOX::star.Destination_Position(ship->location.destination);
 
                 if (HAROLD::Player_Has_Colony(MOX::PLAYER_NUM, star_idx)) {
                     result = true;
@@ -423,7 +423,7 @@ namespace SHIPS {
 
             bool is_player_ship_moving = false;
             if (owner == MOX::PLAYER_NUM) {
-                int16_t abs_loc = HAROLD::Absolute_Location(MOX::ship[ship_id].Legacy_Location(MOX::star));
+                const auto abs_loc = MOX::star.Destination_Position(MOX::ship[ship_id].location.destination);
                 if (abs_loc != MOX::NUM_STARS) {
                     is_player_ship_moving = true;
                 }
@@ -445,9 +445,9 @@ namespace SHIPS {
             }
 
             if (is_player_ship_moving || show_enemy_move || is_selected) {
-                int16_t location = MOX::ship[ship_id].Legacy_Location(MOX::star);
-                if (location >= SHIP_LOCATION_MOVING_OFFSET && location < SHIP_LOCATION_LIMIT) {
-                    int16_t abs_loc = HAROLD::Absolute_Location(location);
+                const auto& location = MOX::ship[ship_id].location;
+                const auto abs_loc = MOX::star.Destination_Position(location.destination);
+                if (abs_loc >= 0 && location.kind != game::e_ship_location::at_star) {
                     if (abs_loc != MOX::NUM_STARS) {
                         int16_t star_x, star_y;
                         int16_t ship_x, ship_y;
@@ -464,7 +464,7 @@ namespace SHIPS {
 
                         SHIPS::Draw_Ship_Destination_Line(star_x, star_y, ship_x, ship_y, colors);
 
-                        if (location >= SHIP_LOCATION_MOVING_OFFSET && location < SHIP_LOCATION_WORMHOLE_OFFSET) {
+                        if (location.kind == game::e_ship_location::in_flight) {
                             int16_t zoom = HAROLD::Map_Scale_To_Zoom_Level();
                             SHIPS::Print_Eta_On_Ship_Icon(node_idx, zoom, ship_x, ship_y);
                         }

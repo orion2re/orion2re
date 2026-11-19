@@ -5,7 +5,7 @@ namespace diplomac {
 
     extern uint8_t alternate_diplomacy;
 
-    extern int16_t diplomacy_proposal_system_bribe;
+    extern game::id_star diplomacy_proposal_system_bribe;
 
     extern int8_t diplomacy_proposal_tribute_bribe;
 

@@ -91,9 +91,9 @@ namespace AIDATA {
         std::optional<s_route> result;
         const s_ship_data* ship = &world->ships[legacy_world::Slot(ship_id)];
         const bool has_stargate = struct_::Read_Bit_Field(ship->d.special_device_flags, 11);
-        const auto location = legacy_world::Read_Ship_Location(ship, world->stars);
+        const auto location = legacy_world::Read_Ship_Position(ship, world->stars);
         if (location && location->kind == e_ship_location::in_flight) {
-            const id_star destination = location->star_id;
+            const id_star destination = legacy_world::Star_Id(location->position);
             const uint32_t owner = (uint32_t)ship->owner;
             for (int32_t index = world->Star_Count() - 1; index >= 0; --index) {
                 const id_star star_id = legacy_world::Star_Id(index);
@@ -122,7 +122,7 @@ namespace AIDATA {
         } else {
             auto source = location && location->kind == e_ship_location::in_wormhole
                 ? legacy_world::Try_Star_Id(HAROLD::XY_To_Star_Id(ship->x, ship->y))
-                : location ? std::optional<id_star>{location->star_id} : std::nullopt;
+                : location ? std::optional<id_star>{legacy_world::Star_Id(location->position)} : std::nullopt;
             if (source) {
                 result = Player_N_Turns_From_Star_To_Star_With_Intermediate(
                     ai, world, legacy_world::Player_Id(ship->owner), *source, destination_star, has_stargate);

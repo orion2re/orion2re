@@ -35,6 +35,24 @@ namespace NETMOX {
     uint8_t next_update_player_counter;
 
     namespace {
+        void Write_Combat_Destination(SERIAL::Writer_* writer, int16_t position) {
+            const bool antares = position == MOX::NUM_STARS;
+            writer->Write_Uint32(antares ? game::NO_STAR.id : MOX::star.Id_At(position).id);
+            writer->Write_Uint8(antares);
+        }
+
+        int16_t Read_Combat_Destination(SERIAL::Reader_* reader) {
+            const game::id_star id{reader->Read_Uint32()};
+            const auto antares = reader->Read_Uint8();
+            if (antares == 1 && id == game::NO_STAR) return MOX::NUM_STARS;
+            if (antares == 0) {
+                const auto position = MOX::star.Position_Of(id);
+                if (position >= 0 && position < MOX::NUM_STARS) return position;
+            }
+            exitm::Exit_With_Message("invalid combat destination");
+            return -1;
+        }
+
         void Write_Colony_Update(SERIAL::Writer_* writer, int16_t position) {
             writer->Write_Uint32(MOX::colony.Id_At(position).id);
             SAVEGAME::Write_Colony_Record(writer, &MOX::colony[position]);
@@ -1893,8 +1911,9 @@ namespace NETMOX {
         NETPROTO::Packet_Reader_ reader(packet_data, len, "invalid combat payload");
 
         // 1. Read Combat Star ID
-        reader.Require(sizeof(int16_t) + sizeof(s_combfind_target));
-        int16_t combat_star_id = reader.Read_Int16();
+        reader.Require(COMBAT_DESTINATION_BYTES + sizeof(s_combfind_target));
+        const auto combat_star_id = Read_Combat_Destination(&reader);
+        if (combat_star_id < 0) return;
 
         NETMOX::net.combat_attacker_id = static_cast<int8_t>(MOX::PLAYER_NUM);
         NETMOX::net.combat_star_id = combat_star_id;
@@ -2012,7 +2031,8 @@ namespace NETMOX {
 
         // 1. Read Header
         reader.Require(sizeof(s_packet_0x12));
-        int16_t star_id = reader.Read_Int16();
+        const auto star_id = Read_Combat_Destination(&reader);
+        if (star_id < 0) return;
         int16_t attacker_id = reader.Read_Int16();
         int16_t defender_id = reader.Read_Int16();
         int16_t target_colony_id = reader.Read_Int16();
@@ -2157,8 +2177,9 @@ namespace NETMOX {
             }
 
             if (!skip_unpack) {
-                reader.Require(sizeof(int16_t) + k_star_player_presence_payload_bytes + sizeof(int16_t) * 2);
-                int16_t combat_star_id = reader.Read_Int16();
+                reader.Require(COMBAT_DESTINATION_BYTES + k_star_player_presence_payload_bytes + sizeof(int16_t) + sizeof(uint32_t));
+                const auto combat_star_id = Read_Combat_Destination(&reader);
+                if (combat_star_id < 0) return;
 
                 COMBFIND::Decode_Star_Player_Presence(&reader, combat_star_id);
 
@@ -2232,7 +2253,7 @@ namespace NETMOX {
                     while (current_ship_idx < surviving_ship_id) {
                         s_ship_data* ship = &MOX::ship[current_ship_idx];
                         if ((ship->owner == attacker_id || ship->owner == defender_id) &&
-                            ship->status != 5 && ship->Legacy_Location(MOX::star) == combat_star_id) {
+                            ship->status != 5 && MOX::star.Is_Orbiting(ship->location, combat_star_id)) {
                             ship->officer_index = -1;
                             SHIPS::Kill_Ship(world_state, current_ship_idx);
                         }
@@ -2250,7 +2271,7 @@ namespace NETMOX {
                 while (current_ship_idx < MOX::NUM_SHIPS) {
                     s_ship_data* ship = &MOX::ship[current_ship_idx];
                     if ((ship->owner == attacker_id || ship->owner == defender_id) &&
-                        ship->status != 5 && ship->Legacy_Location(MOX::star) == combat_star_id) {
+                        ship->status != 5 && MOX::star.Is_Orbiting(ship->location, combat_star_id)) {
                         ship->officer_index = -1;
                         SHIPS::Kill_Ship(world_state, current_ship_idx);
                     }
@@ -2319,7 +2340,7 @@ namespace NETMOX {
         writer.Write_Int16(combat_result);
 
         if (include_remote_state) {
-            writer.Write_Int16(star_id);
+            Write_Combat_Destination(&writer, star_id);
 
             writer.Require(k_star_player_presence_payload_bytes);
             COMBFIND::Send_Star_Player_Presence(&writer, -1);
@@ -2370,7 +2391,7 @@ namespace NETMOX {
 
             if (MOX::NUM_SHIPS > 0) {
                 for (int16_t i = 0; i < (int16_t)MOX::NUM_SHIPS; i++) {
-                    if (MOX::ship[i].Legacy_Location(MOX::star) == star_id && MOX::ship[i].status != 5) {
+                    if (MOX::ship[i].status != 5 && MOX::star.Is_Orbiting(MOX::ship[i].location, star_id)) {
                         if (MOX::ship[i].owner == player_id || MOX::ship[i].owner == target_player_id) {
                             writer.Write_Int16(i);
                             SAVEGAME::Write_Ship_Record(&writer, &MOX::ship[i]);
@@ -2403,7 +2424,7 @@ namespace NETMOX {
         uint8_t* packet = (uint8_t*)allocate::Allocate_Next_Block(MOX::screen_seg, alloc_size);
         NETPROTO::Packet_Writer_ writer(packet, alloc_size, "invalid combat payload");
 
-        writer.Write_Int16(star_idx);
+        Write_Combat_Destination(&writer, star_idx);
         writer.Write_Int16(other_player_idx);
         writer.Write_Int16(defender_id);
         writer.Write_Int16(colony_idx);
@@ -2461,7 +2482,7 @@ namespace NETMOX {
 
             if (MOX::NUM_SHIPS > 0) {
                 for (int16_t i = 0; i < (int16_t)MOX::NUM_SHIPS; ++i) {
-                    if (MOX::ship[i].Legacy_Location(MOX::star) == star_idx && MOX::ship[i].status != 5) {
+                    if (MOX::ship[i].status != 5 && MOX::star.Is_Orbiting(MOX::ship[i].location, star_idx)) {
                         if (MOX::ship[i].owner == other_player_idx || MOX::ship[i].owner == target_player_idx) {
                             writer.Write_Int16(i);
                             SAVEGAME::Write_Ship_Record(&writer, &MOX::ship[i]);
@@ -2485,11 +2506,11 @@ namespace NETMOX {
         allocate::Push_Block(MOX::screen_seg);
 
         uint32_t alloc_size =
-            (player_idx == MOX::PLAYER_NUM) ? (sizeof(int16_t) + sizeof(s_combfind_target)) : NETMOX_MAX_GAME_DATA_PAYLOAD_BYTES;
+            (player_idx == MOX::PLAYER_NUM) ? (COMBAT_DESTINATION_BYTES + sizeof(s_combfind_target)) : NETMOX_MAX_GAME_DATA_PAYLOAD_BYTES;
         uint8_t* packet = static_cast<uint8_t*>(allocate::Allocate_Next_Block(MOX::screen_seg, alloc_size));
         NETPROTO::Packet_Writer_ writer(packet, alloc_size, "invalid combat payload");
 
-        writer.Write_Int16(star_idx);
+        Write_Combat_Destination(&writer, star_idx);
         writer.Write_Bytes(target_info, sizeof(s_combfind_target));
 
         if (MOX::player[player_idx].network_player_id != net.local_net_id) {
@@ -2543,7 +2564,7 @@ namespace NETMOX {
 
             if (MOX::NUM_SHIPS > 0) {
                 for (int16_t i = 0; i < (int16_t)MOX::NUM_SHIPS; i++) {
-                    if (MOX::ship[i].Legacy_Location(MOX::star) == star_idx && MOX::ship[i].status != 5) {
+                    if (MOX::ship[i].status != 5 && MOX::star.Is_Orbiting(MOX::ship[i].location, star_idx)) {
                         writer.Write_Int16(i);
                         SAVEGAME::Write_Ship_Record(&writer, &MOX::ship[i]);
                         RUSS::Mox_Update();

@@ -149,6 +149,7 @@ namespace {
                 writer.Write_Bytes(record.data(), record.size());
             } else {
                 s_player record{};
+                record.offensive_stagepoint = game::id_star{0}; // Historical fixture is zero-filled.
                 record.home_planet_id = first;
                 if (changes.player_target && player == 0) record.home_planet_id = second;
                 record.sneak_attack_planet = first;

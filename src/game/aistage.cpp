@@ -14,7 +14,7 @@ namespace AISTAGE {
             return;
         }
 
-        world->players[player_idx].offensive_stagepoint = -1;
+        world->players[player_idx].offensive_stagepoint = game::NO_STAR;
 
         for (int16_t i = 0; i < world->Star_Count(); ++i) {
             world->stars[i].is_stagepoint &= ~(1 << (player_idx & 0x1F));
@@ -41,7 +41,7 @@ namespace AISTAGE {
                 world->stars[best_star].is_stagepoint |= (1 << (player_idx & 0x1F));
 
                 if (selected_stagepoint_count == 0) {
-                    world->players[player_idx].offensive_stagepoint = best_star;
+                    world->players[player_idx].offensive_stagepoint = world->stars.Id_At(best_star);
                 }
 
                 ++selected_stagepoint_count;
@@ -122,7 +122,7 @@ namespace AISTAGE {
                 }
             }
 
-            world->players[player_idx].offensive_stagepoint = candidate_star;
+            world->players[player_idx].offensive_stagepoint = world->stars.Id_At(candidate_star);
             world->stars[candidate_star].is_stagepoint |= (1 << (player_idx & 0x1F));
         }
     }

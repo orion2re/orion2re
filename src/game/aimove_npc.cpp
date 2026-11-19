@@ -22,8 +22,8 @@ namespace AIMOVE {
             }
 
             if (ship->status == 1) {
-                auto location = legacy_world::Read_Ship_Location(ship, world->stars);
-                if (location && legacy_world::Slot(location->star_id) < star_flag2.size()) star_flag2[legacy_world::Slot(location->star_id)] = 1;
+                const auto position = world->stars.Destination_Position(ship->location.destination);
+                if (position >= 0 && static_cast<size_t>(position) < star_flag2.size()) star_flag2[position] = 1;
                 continue;
             }
 
@@ -31,9 +31,8 @@ namespace AIMOVE {
                 continue;
             }
 
-            const auto orbit = legacy_world::Orbit_Star(ship, world->stars);
-            if (!orbit || legacy_world::Slot(*orbit) >= (uint32_t)world->Star_Count()) continue;
-            const uint32_t current_star = legacy_world::Slot(*orbit);
+            const auto current_star = world->stars.Orbit_Position(ship->location);
+            if (current_star < 0 || current_star >= world->Star_Count()) continue;
 
             bool try_move = false;
 
@@ -139,10 +138,10 @@ namespace AIMOVE {
     std::optional<id_star> Npc_Dest(::game::s_world_state* world_state, const game::s_view* world, id_ship ship_id, const uint8_t* star_flags) {
         const uint32_t ship_idx = legacy_world::Slot(ship_id);
         std::optional<id_star> destination;
-        auto orbit = legacy_world::Orbit_Star(&world->ships[ship_idx], world->stars);
-        if (!orbit) return std::nullopt;
-        const uint32_t ship_location = legacy_world::Slot(*orbit);
-        const auto legacy_location = legacy_world::Index(*orbit);
+        const auto orbit = world->stars.Orbit_Position(world->ships[ship_idx].location);
+        if (orbit < 0) return std::nullopt;
+        const uint32_t ship_location = orbit;
+        const auto legacy_location = legacy_world::Index(legacy_world::Star_Id(orbit));
         if (!legacy_location) return std::nullopt;
         uint32_t player_str[MAX_PLAYERS] = {0};
         std::vector<s_nonplayer_destination> npc_dest(world->Star_Count());

@@ -140,15 +140,15 @@ namespace AIDATA {
             if (ship.status < 3) {
                 int owner = ship.owner;
                 bool player_owned = owner >= 0 && owner < MAX_PLAYERS;
-                const auto location = legacy_world::Read_Ship_Location(&ship, world->stars);
+                const auto location = legacy_world::Read_Ship_Position(&ship, world->stars);
                 if (!location) continue;
                 std::optional<id_star> star_id;
                 int turn_idx = -1;
                 if (ship.status == 0) {
-                    star_id = location->star_id;
+                    star_id = legacy_world::Star_Id(location->position);
                     turn_idx = 0;
                 } else if (ship.status == 1) {
-                    star_id = location->star_id;
+                    star_id = legacy_world::Star_Id(location->position);
                     turn_idx = (int)ship.turns_left;
                 } else if (ship.status == 2) {
                     star_id = legacy_world::Try_Star_Id(HAROLD::XY_To_Star_Id(ship.x, ship.y));
@@ -427,11 +427,11 @@ namespace AIDATA {
 
         for (uint32_t i = 0; i < ai->combat_ships.size(); ++i) {
             const uint32_t ship_idx = legacy_world::Slot(ai->combat_ships[i]);
-            auto orbit = legacy_world::Orbit_Star(&world->ships[ship_idx], world->stars);
+            const auto orbit = world->stars.Orbit_Position(world->ships[ship_idx].location);
             int owner = world->ships[ship_idx].owner;
-            if (orbit) {
+            if (orbit >= 0) {
                 auto& groups = ai->players[owner].combat_ship_groups;
-                auto group = groups.try_emplace(*orbit, s_combat_ship_group{i, i + 1}).first;
+                auto group = groups.try_emplace(legacy_world::Star_Id(orbit), s_combat_ship_group{i, i + 1}).first;
                 group->second.end = i + 1;
             } else {
                 auto& group = ai->players[owner].in_transit_combat_ships;
@@ -445,9 +445,9 @@ namespace AIDATA {
         for (uint32_t i_as = 0; i_as < ai->combat_ships.size(); ++i_as) {
             const uint32_t i = legacy_world::Slot(ai->combat_ships[i_as]);
             int8_t stealth = (int8_t)struct_::Test_Bit_Field(world->ships[i].d.special_device_flags, 11);
-            const auto location = legacy_world::Read_Ship_Location(&world->ships[i], world->stars);
+            const auto location = legacy_world::Read_Ship_Position(&world->ships[i], world->stars);
             if (!location) continue;
-            uint32_t start_star = legacy_world::Slot(location->star_id);
+            uint32_t start_star = location->position;
             int owner = world->ships[i].owner;
             int initial_delay = 0;
 

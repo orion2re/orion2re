@@ -86,6 +86,10 @@ namespace game {
         id_star Id_At(int32_t position) const;
         int16_t Position_Of(id_star id) const;
         int16_t Position_Of(const s_star_data* star) const;
+        s_ship_destination Destination_At(int32_t position) const;
+        int16_t Destination_Position(const s_ship_destination& destination) const;
+        int16_t Orbit_Position(const s_ship_location& location) const;
+        bool Is_Orbiting(const s_ship_location& location, int32_t position) const;
         bool Activate(int16_t position) const;
         void Retire(int16_t position) const;
         void Reset() const;

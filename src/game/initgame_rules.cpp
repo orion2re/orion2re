@@ -131,7 +131,7 @@ namespace INITGAME {
             s_player& player = MOX::player[player_idx];
 
             player.officer_for_hire = -1;
-            player.offensive_stagepoint = -1;
+            player.offensive_stagepoint = game::NO_STAR;
             player.contact[player_idx] = 1;
             player.player_done_flags = 0;
             player.bc = starting_money;

@@ -35,11 +35,13 @@ namespace lostship {
             s_ship_data* ship = &ship_array[i];
 
             if (ship->status == 0 && (int16_t)ship->owner == player_idx) {
+                const auto position = MOX::star.Orbit_Position(ship->location);
+                if (position < 0 || position >= MOX::NUM_STARS) continue;
                 bool is_out_of_range = false;
 
-                if (extended_range_array[ship->Legacy_Location(MOX::star)] == 0) {
+                if (extended_range_array[position] == 0) {
                     is_out_of_range = true;
-                } else if (basic_range_array[ship->Legacy_Location(MOX::star)] == 0) {
+                } else if (basic_range_array[position] == 0) {
                     if (!struct_::Test_Bit_Field(ship->d.special_device_flags, (uint16_t)SPECIAL_EXTENDED_FUEL_TANKS)) {
                         is_out_of_range = true;
                     }

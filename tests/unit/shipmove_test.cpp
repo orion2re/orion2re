@@ -41,6 +41,45 @@ DOCTEST_TEST_CASE("stopping transit changes location and activity without arriva
     DOCTEST_CHECK((int8_t)ship->status == 0);
 }
 
+DOCTEST_TEST_CASE("first listed ship determines departure mode without changing the destination ID") {
+    using game::e_ship_location;
+    using game::s_ship_destination;
+    struct s_restore_star_view {
+        game::s_star_slots previous = MOX::star;
+        ~s_restore_star_view() { MOX::star = previous; }
+    };
+    for (const bool flight_first : {false, true}) {
+        TEST_SHIPMOVE::Reset_();
+        game::s_world_state stars;
+        stars.next_star_id = 1000000;
+        s_restore_star_view restore;
+        MOX::NUM_STARS = 2;
+        MOX::star = game::s_star_slots(&stars, &MOX::NUM_STARS);
+        DOCTEST_REQUIRE(MOX::star.Activate(0));
+        DOCTEST_REQUIRE(MOX::star.Activate(1));
+        const auto source = MOX::star.Destination_At(0);
+        const auto target = MOX::star.Destination_At(1);
+        MOX::NUM_SHIPS = 2;
+        MOX::ship[0].location = {e_ship_location::at_star, source};
+        MOX::ship[0].status = 0;
+        MOX::ship[1] = MOX::ship[0];
+        MOX::ship[1].location.kind = e_ship_location::in_flight;
+        MOX::ship[1].status = 1;
+        int16_t list[] = {static_cast<int16_t>(flight_first), static_cast<int16_t>(!flight_first), -1};
+        s_ship_move_info move{};
+        move.turns_left = 1;
+        SHIPMOVE::Make_Ships_Move_To(&game::world, list, 1, &move);
+        for (int i = 0; i < MOX::NUM_SHIPS; ++i) {
+            DOCTEST_CHECK(MOX::ship[i].location.destination == target);
+            DOCTEST_CHECK(MOX::ship[i].location.kind == (flight_first ? e_ship_location::in_flight : e_ship_location::in_wormhole));
+            DOCTEST_CHECK(SHIPMOVE::Ship_Destination_Star(&MOX::ship[i]) == 1);
+        }
+        DOCTEST_REQUIRE(SHIPMOVE::Stop_Ship_Transit(&MOX::ship[0], MOX::NUM_STARS));
+        DOCTEST_CHECK(MOX::ship[0].location.destination == s_ship_destination::Antares());
+        DOCTEST_CHECK(SHIPMOVE::Ship_Destination_Star(&MOX::ship[0]) == MOX::NUM_STARS);
+    }
+}
+
 DOCTEST_TEST_CASE("hypothetical fleet origins preserve legacy evaluation without mutating ships") {
     struct s_case {
         int8_t status;

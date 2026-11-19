@@ -9,6 +9,7 @@ struct s_net_snapshot_cache {
 };
 
 namespace NETMOX {
+    inline constexpr uint32_t COMBAT_DESTINATION_BYTES = sizeof(uint32_t) + sizeof(uint8_t);
     constexpr uint32_t NETMOX_MAX_GAME_DATA_PAYLOAD_BYTES = 8 * 1024 * 1024;
 
     extern s_network net;
@@ -180,7 +181,8 @@ namespace NETMOX {
     };
 
     struct s_packet_0x12 {
-        int16_t star_idx;
+        uint32_t star_id;
+        uint8_t antares;
         int16_t other_player_idx;
         int16_t defender_id;
         int16_t colony_idx;

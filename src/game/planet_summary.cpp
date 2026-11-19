@@ -171,7 +171,7 @@ namespace PLNTSUM {
                     done_traversing = true;
                 } else {
                     int16_t ship_idx = MOX::ship_node[node_idx].ship_idx;
-                    if (MOX::ship[ship_idx].Legacy_Location(MOX::star) == star_idx) {
+                    if (MOX::star.Is_Orbiting(MOX::ship[ship_idx].location, star_idx)) {
                         if (HACCESS::Ship_Owner(ship_idx) != MOX::PLAYER_NUM) {
                             done_traversing = true;
                             result = true;
@@ -197,10 +197,9 @@ namespace PLNTSUM {
     }
 
     bool __cdecl Ship_Is_Not_Colonizing(s_ship_data* ship) {
-        int16_t location = ship->Legacy_Location(MOX::star);
-
-        bool is_at_planet = (location >= 0 && location < SHIP_LOCATION_MOVING_OFFSET);
-        bool is_in_warp_range = (location >= SHIP_LOCATION_WORMHOLE_OFFSET && location < SHIP_LOCATION_LIMIT);
+        const bool has_destination = MOX::star.Destination_Position(ship->location.destination) >= 0;
+        const bool is_at_planet = has_destination && ship->location.kind == game::e_ship_location::at_star;
+        const bool is_in_warp_range = has_destination && ship->location.kind == game::e_ship_location::in_wormhole;
 
         const auto auto_col_status = Colony_Ship_Auto_Colonization(&game::world, ship);
 
@@ -222,7 +221,7 @@ namespace PLNTSUM {
         }
 
         for (int16_t ship_idx = 0; ship_idx < (int16_t)MOX::NUM_SHIPS; ++ship_idx) {
-            int16_t star_id = HAROLD::Absolute_Location(MOX::ship[ship_idx].Legacy_Location(MOX::star));
+            const auto star_id = MOX::star.Destination_Position(MOX::ship[ship_idx].location.destination);
             int16_t owner = HACCESS::Ship_Owner(ship_idx);
 
             if (owner == MOX::PLAYER_NUM && star_id > -1 && MOX::ship[ship_idx].status < 3) {
@@ -370,6 +369,7 @@ namespace PLNTSUM {
 
         for (const auto& [i, planet] : world_state->planets) {
             const auto star_idx = planet.Star_Position(MOX::star);
+            if (star_idx < 0 || star_idx >= MOX::NUM_STARS) continue;
             if (has_omniscience_trait ||
                 HAROLD::Player_Has_Visited(MOX::PLAYER_NUM, star_idx)) {
                 PLNTSUM::explored_planets.insert(i);
@@ -747,18 +747,10 @@ namespace PLNTSUM {
         int16_t moving_ships[2];
         s_ship_move_info move_info;
 
-        int16_t location = MOX::ship[ship_idx].Legacy_Location(MOX::star);
-
-        if (location >= SHIP_LOCATION_WORMHOLE_OFFSET && location < SHIP_LOCATION_LIMIT) {
-            in_stasis_1000 = true;
-        } else {
-            in_stasis_1000 = false;
-        }
-
-        if (location >= SHIP_LOCATION_MOVING_OFFSET && location < SHIP_LOCATION_WORMHOLE_OFFSET) {
-            in_stasis_500 = true;
-        } else {
-            in_stasis_500 = false;
+        const auto& location = MOX::ship[ship_idx].location;
+        if (MOX::star.Destination_Position(location.destination) >= 0) {
+            in_stasis_1000 = location.kind == game::e_ship_location::in_wormhole;
+            in_stasis_500 = location.kind == game::e_ship_location::in_flight;
         }
 
         moving_ships[0] = ship_summary[ship_summary_idx].colony_ship_idx;
@@ -812,12 +804,10 @@ namespace PLNTSUM {
         int16_t moving_ships[2];
         s_ship_move_info move_info;
 
-        int16_t location = MOX::ship[ship_idx].Legacy_Location(MOX::star);
-
-        if (location >= SHIP_LOCATION_WORMHOLE_OFFSET && location < SHIP_LOCATION_LIMIT) {
-            in_stasis_1000 = true;
-        } else if (location >= SHIP_LOCATION_MOVING_OFFSET && location < SHIP_LOCATION_WORMHOLE_OFFSET) {
-            in_stasis_500 = true;
+        const auto& location = MOX::ship[ship_idx].location;
+        if (MOX::star.Destination_Position(location.destination) >= 0) {
+            in_stasis_1000 = location.kind == game::e_ship_location::in_wormhole;
+            in_stasis_500 = location.kind == game::e_ship_location::in_flight;
         }
 
         moving_ships[0] = ship_summary[ship_summary_idx].outpost_ship_idx;
@@ -935,7 +925,7 @@ namespace PLNTSUM {
         for (int16_t ship_idx = MOX::NUM_SHIPS - 1; ship_idx >= 0; --ship_idx) {
             s_ship_data* ship = &MOX::ship[ship_idx];
             if (ship->d.ship_type == order_type && HACCESS::Ship_Owner(ship_idx) == MOX::PLAYER_NUM &&
-                HAROLD::Absolute_Location(ship->Legacy_Location(MOX::star)) > -1 &&
+                MOX::star.Destination_Position(ship->location.destination) >= 0 &&
                 Colony_Ship_Auto_Colonization(&::game::world, ship) == planet_idx) {
                 return ship_idx;
             }

@@ -78,8 +78,9 @@ namespace COMBFIND {
 
         for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
             s_ship_data* ship = &MOX::ship[i];
-            int16_t loc = ship->Legacy_Location(MOX::star);
-            if (Is_Star_Or_Antares_Location(loc, MOX::NUM_STARS)) {
+            const auto loc = MOX::star.Destination_Position(ship->location.destination);
+            if (!Is_Star_Or_Antares_Location(loc, MOX::NUM_STARS)) continue;
+            if (ship->location.kind == game::e_ship_location::at_star) {
                 if (ship->status == 0) {
                     int8_t owner = ship->owner;
                     if (owner < MAX_PLAYERS) {
@@ -96,12 +97,12 @@ namespace COMBFIND {
                         (*player_needs_to_attack)[loc] |= (1 << (owner & 0x1F));
                     }
                 }
-            } else if (ship->d.ship_type == SHIP_TYPE_TRANSPORT && ship->status == 1) {
-                int16_t star_idx = loc - SHIP_LOCATION_MOVING_OFFSET;
+            } else if (ship->location.kind == game::e_ship_location::in_flight &&
+                ship->d.ship_type == SHIP_TYPE_TRANSPORT && ship->status == 1) {
                 if (ship->turns_left == 1) {
-                    (*star_has_player)[star_idx][ship->owner].transport_count++;
+                    (*star_has_player)[loc][ship->owner].transport_count++;
                 } else {
-                    (*star_has_player)[star_idx][ship->owner].transport_unk = 1;
+                    (*star_has_player)[loc][ship->owner].transport_unk = 1;
                 }
             }
         }
@@ -235,7 +236,8 @@ namespace COMBFIND {
         for (int16_t i = MOX::NUM_SHIPS - 1; i >= 0; --i) {
             s_ship_data* ship = &MOX::ship[i];
 
-            if (ship->Legacy_Location(MOX::star) == MOX::NUM_STARS) {
+            if (ship->location.kind == game::e_ship_location::at_star &&
+                ship->location.destination.Kind() == game::e_ship_destination::antares) {
                 int8_t owner = ship->owner;
                 if (player_retreat_target[owner] == -1) {
                     player_retreat_target[owner] = 0x48; /* 'H' */
@@ -267,21 +269,21 @@ namespace COMBFIND {
                     SHIPS::Kill_Ship(world_state, i);
                 } else {
                     int16_t target_loc = player_retreat_target[owner];
-                    ship->Set_Legacy_Location(MOX::star, target_loc);
+                    ship->location = {game::e_ship_location::at_star, MOX::star.Destination_At(target_loc)};
                     ship->x = MOX::star[target_loc].x;
                     ship->y = MOX::star[target_loc].y;
                     ship->status = 0;
                 }
             } else if (ship->status == 9) {
                 int group_count = 1;
-                int16_t loc = ship->Legacy_Location(MOX::star);
+                const auto loc = MOX::star.Orbit_Position(ship->location);
                 int8_t owner = ship->owner;
                 ship_indices[0] = i;
                 ship->mission = 0;
 
                 for (int16_t j = i - 1; j >= 0; --j) {
                     s_ship_data* other = &MOX::ship[j];
-                    if (other->status == 9 && other->Legacy_Location(MOX::star) == loc && other->owner == owner) {
+                    if (other->status == 9 && other->location == ship->location && other->owner == owner) {
                         ship_indices[group_count++] = j;
                         other->mission = 0;
                     }
@@ -310,7 +312,7 @@ namespace COMBFIND {
                         if (leader_idx != -1) {
                             if (game::Leader(world_state, leader_idx).eta < 1) {
                                 OFFICER::Kill_Officer(world_state, leader_idx);
-                                report[owner * retreat_location_count + MOX::ship[i].Legacy_Location(MOX::star)].killed_officers++;
+                                report[owner * retreat_location_count + MOX::star.Orbit_Position(ship->location)].killed_officers++;
                             } else {
                                 OFFICER::Move_Officer_To_Pool(world_state, leader_idx);
                             }
@@ -319,7 +321,7 @@ namespace COMBFIND {
                         // been killed. A location of -1 aliases the preceding player's final slot.
                         // Fix this attribution bug later even though doing so diverges from the oracle.
                         s_retreat_report& retreat =
-                            report[owner * retreat_location_count + MOX::ship[i].Legacy_Location(MOX::star)];
+                            report[owner * retreat_location_count + MOX::star.Orbit_Position(ship->location)];
                         retreat.count++;
                         retreat.reason = fail_reason;
                         SHIPS::Kill_Ship(world_state, idx);
@@ -329,7 +331,12 @@ namespace COMBFIND {
                     SHIPMOVE::Make_Ships_Move_To(world_state, ship_indices, retreat_star, &move_info);
                     for (int k = 0; k < group_count; ++k) {
                         int16_t idx = ship_indices[k];
-                        MOX::ship[idx].Set_Legacy_Location(MOX::star, MOX::ship[idx].Legacy_Location(MOX::star) - SHIP_LOCATION_MOVING_OFFSET);
+                        auto& location = MOX::ship[idx].location;
+                        switch (location.kind) {
+                            case game::e_ship_location::in_wormhole: location.kind = game::e_ship_location::in_flight; break;
+                            case game::e_ship_location::in_flight: location.kind = game::e_ship_location::at_star; break;
+                            case game::e_ship_location::at_star: location = {}; break;
+                        }
                         MOX::ship[idx].status = 1;
                     }
                 }
@@ -516,7 +523,7 @@ namespace COMBFIND {
 
         for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
             // Owner 12 is the Dragon/Guardian
-            if (MOX::ship[i].owner == 12 && MOX::ship[i].Legacy_Location(MOX::star) == star_idx) {
+            if (MOX::ship[i].owner == 12 && MOX::star.Is_Orbiting(MOX::ship[i].location, star_idx)) {
                 ship_indices[0] = i;
             }
         }
@@ -1397,7 +1404,7 @@ namespace COMBFIND {
         for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
             s_ship_data* ship = &MOX::ship[i];
 
-            if (ship->Legacy_Location(MOX::star) == star_idx && ship->status == 0) {
+            if (ship->status == 0 && MOX::star.Is_Orbiting(ship->location, star_idx)) {
                 if (ship->owner == (int8_t)plr1_idx) {
                     ships[*plr1_count] = i;
                     *plr1_count = *plr1_count + 1;
@@ -1715,7 +1722,7 @@ namespace COMBFIND {
                 // Under Hyperspace Flux, non-trans-dimensional player fleets at this star are destroyed instead of retreating.
                 for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
                     s_ship_data* ship = &MOX::ship[i];
-                    if (ship->owner == player_idx && ship->Legacy_Location(MOX::star) == star_idx && ship->status == 0) {
+                    if (ship->owner == player_idx && ship->status == 0 && MOX::star.Is_Orbiting(ship->location, star_idx)) {
                         if (ship->officer_index != -1) {
                             if (game::Leader(world_state, ship->officer_index).eta <= 0) {
                                 OFFICER::Kill_Officer(world_state, ship->officer_index);
@@ -1732,7 +1739,7 @@ namespace COMBFIND {
                 // Otherwise the fleet enters retreat status.
                 for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
                     s_ship_data* ship = &MOX::ship[i];
-                    if (ship->owner == player_idx && ship->Legacy_Location(MOX::star) == star_idx && ship->status == 0) {
+                    if (ship->owner == player_idx && ship->status == 0 && MOX::star.Is_Orbiting(ship->location, star_idx)) {
                         ship->status = 9; // Status 9: retreating/travelling
                     }
                 }
@@ -1746,7 +1753,7 @@ namespace COMBFIND {
         bool ships_remaining = false;
         for (int16_t i = 0; i < MOX::NUM_SHIPS; ++i) {
             s_ship_data* ship = &MOX::ship[i];
-            if (ship->owner == player_idx && ship->Legacy_Location(MOX::star) == star_idx && ship->status == 0) {
+            if (ship->owner == player_idx && ship->status == 0 && MOX::star.Is_Orbiting(ship->location, star_idx)) {
                 ships_remaining = true;
                 break;
             }
@@ -1792,7 +1799,7 @@ namespace COMBFIND {
         s_ship_data* ship = MOX::ship;
 
         for (int16_t i = 0; i < num_ships; ++i, ++ship) {
-            if (ship->Legacy_Location(MOX::star) == star_idx && ship->status == 0) {
+            if (ship->status == 0 && MOX::star.Is_Orbiting(ship->location, star_idx)) {
                 int16_t owner = ship->owner;
 
                 if (player_idx == owner) {

@@ -93,7 +93,7 @@ namespace orion2re::lua::game::internal {
                 return 1;
             }
             if (strcmp(key, "system") == 0) {
-                Push_System(lua_state, ship.Legacy_Location(MOX::star));
+                Push_System(lua_state, MOX::star.Orbit_Position(ship.location));
                 return 1;
             }
             if (strcmp(key, "x") == 0) {

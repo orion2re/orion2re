@@ -73,7 +73,7 @@ namespace SHIPMOVE {
         }
 
         struct s_move_position {
-            int16_t location;
+            game::s_ship_location location;
             int16_t x;
             int16_t y;
         };
@@ -87,13 +87,13 @@ namespace SHIPMOVE {
         s_move_position Movement_Position(int16_t index, const s_move_origin* origin) {
             if (origin != nullptr) return origin->position;
             const auto* ship = &MOX::ship[index];
-            return {ship->Legacy_Location(MOX::star), (int16_t)ship->x, (int16_t)ship->y};
+            return {ship->location, (int16_t)ship->x, (int16_t)ship->y};
         }
 
-        int16_t Destination_At_Location(const s_ship_data* ship, int16_t location) {
-            if (ship->status == 1) return location - SHIP_LOCATION_MOVING_OFFSET;
-            if (ship->status == 2) return location - SHIP_LOCATION_WORMHOLE_OFFSET;
-            return location;
+        bool Continues_In_Flight_To(const s_ship_data* ship, const s_move_position& position, int16_t target) {
+            const auto destination = MOX::star.Destination_At(target);
+            return ship->status == 1 && position.location.kind == game::e_ship_location::in_flight &&
+                destination.Kind() != game::e_ship_destination::none && position.location.destination == destination;
         }
 
         bool Same_Moving_Fleet_At_Positions(const s_ship_data* first, const s_move_position* first_position, const s_ship_data* ship, const s_move_position* position) {
@@ -138,7 +138,7 @@ namespace SHIPMOVE {
                 if (ship->status != 1) {
                     return false;
                 }
-                if (Destination_At_Location(ship, position.location) == target_star_idx &&
+                if (Continues_In_Flight_To(ship, position, target_star_idx) &&
                     Ship_Uses_Jump_Gate(ship)) {
                     continue;
                 }
@@ -519,11 +519,19 @@ namespace SHIPMOVE {
     }
 
     /**
-     * Returns the destination star index encoded in the ship's current location field.
+     * Returns the destination position for callers using the legacy status convention.
      * @param ship Ship record to inspect.
      */
     int16_t __cdecl Ship_Destination_Star(s_ship_data* ship) {
-        return Destination_At_Location(ship, ship->Legacy_Location(MOX::star));
+        const auto expected = ship->status == 1 ? game::e_ship_location::in_flight :
+            ship->status == 2 ? game::e_ship_location::in_wormhole : game::e_ship_location::at_star;
+        const auto position = MOX::star.Destination_Position(ship->location.destination);
+        if (position >= 0 && ship->location.kind == expected) return position;
+        // Preserve status-based decoding for inconsistent or unset legacy records.
+        const auto encoded = ship->Legacy_Location(MOX::star);
+        if (ship->status == 1) return encoded - SHIP_LOCATION_MOVING_OFFSET;
+        if (ship->status == 2) return encoded - SHIP_LOCATION_WORMHOLE_OFFSET;
+        return encoded;
     }
 
     /**
@@ -569,7 +577,7 @@ namespace SHIPMOVE {
         MOX::ship[i].status = 0;
 
         // Set orbital position and coordinates
-        MOX::ship[i].Set_Legacy_Location(MOX::star, HAROLD::XY_To_Star_Id(x, y));
+        MOX::ship[i].location = {game::e_ship_location::at_star, MOX::star.Destination_At(HAROLD::XY_To_Star_Id(x, y))};
         MOX::ship[i].x = x;
         MOX::ship[i].y = y;
 
@@ -600,9 +608,7 @@ namespace SHIPMOVE {
                     ship->location.kind = game::e_ship_location::in_flight;
                 }
 
-                const auto& target = ship->location.destination;
-                const auto star_idx = target.Kind() == game::e_ship_destination::antares
-                    ? MOX::NUM_STARS : MOX::star.Position_Of(target.Star_Id_Or_None());
+                const auto star_idx = MOX::star.Destination_Position(ship->location.destination);
                 if (star_idx < 0) continue;
                 int16_t star_x = MOX::star[star_idx].x;
                 int16_t star_y = MOX::star[star_idx].y;
@@ -657,15 +663,16 @@ namespace SHIPMOVE {
         int i = 0;
         auto travel_mode = game::e_ship_location::at_star;
         const auto destination = destination_star_idx == MOX::NUM_STARS
-            ? game::s_ship_destination::Antares() : game::s_ship_destination::Star(MOX::star.Id_At(destination_star_idx));
+            ? game::s_ship_destination::Antares() : MOX::star.Destination_At(destination_star_idx);
 
         if (move_info->turns_left == 0) {
             move_status = 0;
         } else {
-            int16_t first_ship_idx = ship_list[0];
-            int16_t first_loc = MOX::ship[first_ship_idx].Legacy_Location(MOX::star);
-
-            if (first_loc < MAX_STARS || first_loc >= SHIP_LOCATION_WORMHOLE_OFFSET) {
+            const auto& first = MOX::ship[ship_list[0]].location;
+            const auto first_position = MOX::star.Destination_Position(first.destination);
+            // The old orbit test excluded the extra Antares position at full capacity.
+            if (first_position < 0 || first.kind == game::e_ship_location::in_wormhole ||
+                (first.kind == game::e_ship_location::at_star && first_position < MAX_STARS)) {
                 move_status = 2;
                 travel_mode = game::e_ship_location::in_wormhole;
             } else {
@@ -867,14 +874,13 @@ namespace SHIPMOVE {
 
             // Update colony ship arrival flags
             if (ship->d.ship_type == SHIP_TYPE_COLONY || ship->d.ship_type == SHIP_TYPE_OUTPOST) {
-            MOX::star[ship->Legacy_Location(MOX::star)].ignore_colony_ships &= ~(1 << owner);
+            MOX::star[star_idx].ignore_colony_ships &= ~(1 << owner);
             }
 
             // Mark system as visited by player
-            const auto position = ship->Legacy_Location(MOX::star);
-            if (!((MOX::star[position].visited >> owner) & 1)) {
-                MOX::star[position].visited |= (1 << owner);
-                MOX::star[position].just_visited |= (1 << owner);
+            if (!((MOX::star[star_idx].visited >> owner) & 1)) {
+                MOX::star[star_idx].visited |= (1 << owner);
+                MOX::star[star_idx].just_visited |= (1 << owner);
             }
         } else if (owner == 13 /* Monster/Antaran */) {
             ship->d.date_of_design = 0;
@@ -988,8 +994,7 @@ namespace SHIPMOVE {
         }
 
         int16_t start_star_id = HAROLD::XY_To_Star_Id(start_x, start_y);
-        bool continuing_existing_route = first->status == 1 &&
-            Destination_At_Location(first, first_position.location) == target_star_idx;
+        bool continuing_existing_route = Continues_In_Flight_To(first, first_position, target_star_idx);
         bool continuing_jump_gate_route = Fleet_Uses_Jump_Gate(ship_list, target_star_idx, origin);
 
         // Dimensional Portal logic for Antares
@@ -1117,7 +1122,8 @@ namespace SHIPMOVE {
     }
 
     void Evaluate_Fleet_Move_From_Star(int16_t* ship_list, int16_t target_star_idx, int16_t origin_star, s_ship_move_info* move_info) {
-        const s_move_origin origin{{origin_star, (int16_t)MOX::star[origin_star].x, (int16_t)MOX::star[origin_star].y}};
+        const s_move_origin origin{{{game::e_ship_location::at_star, MOX::star.Destination_At(origin_star)},
+            MOX::star[origin_star].x, MOX::star[origin_star].y}};
         Evaluate_Ship_Movement(&game::world, ship_list, target_star_idx, move_info, &origin);
     }
 
@@ -1281,7 +1287,8 @@ namespace SHIPMOVE {
                 s_ship_data* ship = &MOX::ship[i];
                 // Only active ships with a valid owner count
                 if (ship->owner != -1 && ship->status == 0) {
-                    presence_mask[ship->Legacy_Location(MOX::star)] |= (1 << ship->owner);
+                    const auto position = MOX::star.Orbit_Position(ship->location);
+                    if (position >= 0 && position < MOX::NUM_STARS) presence_mask[position] |= (1 << ship->owner);
                 }
             }
         }
@@ -1328,7 +1335,8 @@ namespace SHIPMOVE {
 
         for (; ship < ship_end; ++ship) {
             if ((int8_t)ship->owner == player_idx && ship->status == 0) {
-                int16_t star_idx = ship->Legacy_Location(MOX::star);
+                const auto star_idx = MOX::star.Orbit_Position(ship->location);
+                if (star_idx < 0) continue;
                 uint8_t colony_mask = MOX::star[star_idx].has_colony;
 
                 if (((colony_mask >> (colony_bit_idx & 0x1f)) & 1) != 0 &&
@@ -1539,7 +1547,7 @@ namespace SHIPMOVE {
             const auto location = selected_ship->location;
             int32_t x = selected_ship->x;
             int32_t y = selected_ship->y;
-            int16_t star_idx = selected_ship->Legacy_Location(MOX::star) - SHIP_LOCATION_MOVING_OFFSET;
+            const auto star_idx = Ship_Destination_Star(selected_ship);
 
             wormhole->success = 1;
             wormhole->count = star_idx;

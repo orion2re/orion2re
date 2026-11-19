@@ -10,7 +10,7 @@ namespace SAVEGAME {
             star.owner = -1;
             star.colonize_player = -1;
             star.wormhole_star_id = game::NO_STAR;
-            star.next_wfi_in_list = -1;
+            star.next_wfi_in_list = game::NO_STAR;
             memset(star.officer_index, 0xff, sizeof(star.officer_index));
             memset(star.planet_index, 0xff, sizeof(star.planet_index));
             memset(star.relocate_ship_to, 0xff, sizeof(star.relocate_ship_to));

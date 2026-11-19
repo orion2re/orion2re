@@ -1725,7 +1725,7 @@ namespace EVENTS {
         int16_t total_size_points = 0;
 
         for (int16_t i = 0; i < MAX_SHIPS; ++i) {
-            if (MOX::ship[i].Legacy_Location(MOX::star) == star_idx && MOX::ship[i].status == 0) {
+            if (MOX::ship[i].status == 0 && MOX::star.Is_Orbiting(MOX::ship[i].location, star_idx)) {
                 total_size_points += (int16_t)MOX::ship[i].d.size + 1;
             }
         }
