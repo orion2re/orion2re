@@ -14,6 +14,10 @@ license notices are distributed with the project.
 - miniz, by Rich Geldreich and contributors, under its distributed license.
 - libsmacker, by Greg Kennedy, under the GNU Lesser General Public License,
   version 2.1.
+- FFmpeg, by the FFmpeg developers, under the GNU Lesser General Public
+  License, version 2.1 or later, in builds that use it in place of libsmacker
+  (`ORION2RE_USE_FFMPEG_SMACKER`). It is linked from the system, not
+  distributed with the project.
 - yyjson, by YaoYuan, under the MIT license.
 - Dear ImGui, by Omar Cornut, under the MIT license.
 
