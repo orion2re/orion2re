@@ -125,9 +125,9 @@ namespace spy {
     bool __cdecl Frame_Another(int16_t player_idx_a, int16_t player_idx_b, int16_t* framed_player_idx, int32_t tech_app_id);
 
     /* Destroys a random victim building and reports the sabotage outcome.
-     * @param framed_player_idx Player blamed for the sabotage.
-     * @param victim_player_idx Player whose building is destroyed.
      * @param acting_player_idx Player who actually performed the sabotage.
+     * @param victim_player_idx Player whose building is destroyed.
+     * @param framed_player_idx Player blamed for the sabotage, or the acting player if no one was framed.
      */
-    void __cdecl Destroy_Random_Building(int16_t framed_player_idx, int16_t victim_player_idx, int32_t acting_player_idx);
+    void __cdecl Destroy_Random_Building(int16_t acting_player_idx, int16_t victim_player_idx, int32_t framed_player_idx);
 } // namespace spy

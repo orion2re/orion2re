@@ -405,7 +405,7 @@ namespace spy {
         }
     }
 
-    void __cdecl Destroy_Random_Building(int16_t framed_player_idx, int16_t victim_player_idx, int32_t acting_player_idx) {
+    void __cdecl Destroy_Random_Building(int16_t acting_player_idx, int16_t victim_player_idx, int32_t framed_player_idx) {
         int16_t target_colony = -1;
         int32_t target_building = -1;
         int32_t total_weight = 0;
@@ -437,19 +437,19 @@ namespace spy {
             ERICNET::Remove_Building(target_colony, (int16_t)target_building);
 
             int16_t planet_idx = MOX::colony[target_colony].planet;
-            int32_t diplomacy_mode = (framed_player_idx == (int16_t)acting_player_idx) ? 3 : 4;
+            int32_t diplomacy_mode = (acting_player_idx == (int16_t)framed_player_idx) ? 3 : 4;
 
             int32_t penalty = -((int32_t)game_random::Random(5) + (int32_t)game_random::Random(15));
-            diplomac::Change_Relations((int16_t)penalty, (int16_t)acting_player_idx, victim_player_idx, diplomacy_mode, planet_idx, (int16_t)target_building);
+            diplomac::Change_Relations((int16_t)penalty, (int16_t)framed_player_idx, victim_player_idx, diplomacy_mode, planet_idx, (int16_t)target_building);
 
             s_report report;
             memset(&report, 0, sizeof(report));
 
-            // Report 1: framed player side (Sabotage)
+            // Report 1: acting player side (Sabotage)
             report.type = 1;
-            report.player_idx = framed_player_idx;
+            report.player_idx = acting_player_idx;
             report.action = 1;
-            report.d.sabotage.framed_player_idx = (framed_player_idx == (int16_t)acting_player_idx) ? -1 : (int8_t)acting_player_idx;
+            report.d.sabotage.framed_player_idx = (acting_player_idx == (int16_t)framed_player_idx) ? -1 : (int8_t)framed_player_idx;
             report.d.sabotage.victim_player_idx = (uint8_t)victim_player_idx;
             report.d.sabotage.planet_idx = planet_idx;
             report.d.sabotage.building_id = (uint8_t)target_building;
@@ -459,7 +459,7 @@ namespace spy {
             report.type = 2;
             report.player_idx = victim_player_idx;
             report.action = 1;
-            report.d.enemy_sabotage.enemy_player_idx = (int16_t)acting_player_idx;
+            report.d.enemy_sabotage.enemy_player_idx = (int16_t)framed_player_idx;
             report.d.enemy_sabotage.planet_idx = planet_idx;
             report.d.enemy_sabotage.building_id = (uint8_t)target_building;
             REPORT::Add_Report(&report);
