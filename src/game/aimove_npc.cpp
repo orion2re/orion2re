@@ -142,8 +142,8 @@ namespace AIMOVE {
         auto orbit = legacy_world::Orbit_Star(&world->ships[ship_idx]);
         if (!orbit) return std::nullopt;
         const uint32_t ship_location = legacy_world::Slot(*orbit);
-        const auto legacy_location = legacy_world::Index(*orbit);
-        if (!legacy_location) return std::nullopt;
+        const auto legacy_location = (*orbit).id;
+        if (legacy_location >= MAX_STARS) return std::nullopt;
         uint32_t player_str[MAX_PLAYERS] = {0};
         std::vector<s_nonplayer_destination> npc_dest(world->Star_Count());
 
@@ -161,8 +161,8 @@ namespace AIMOVE {
         for (int16_t i = 0; i < world->Colony_Count(); i++) {
             int8_t owner = world->colonies[i].owner;
             if (owner != -1) {
-                int16_t planet_idx = world->colonies[i].planet;
-                int16_t star_idx = world->state->planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).star_index;
+                const auto planet_idx = world->colonies[i].planet_id.get();
+                int16_t star_idx = world->state->planets.at(planet_idx).star_index;
 
                 if (ship_location != star_idx && star_flags[star_idx] == 0) {
                     if (world->players[owner].traits[TRAIT_LUCKY] == 0) {
@@ -177,7 +177,7 @@ namespace AIMOVE {
                         }
                     }
                     npc_dest[star_idx].star_id = legacy_world::Star_Id(star_idx);
-                    npc_dest[star_idx].distance_parsecs = (uint8_t)GEO::Parsecs_Between_Stars(*legacy_location, star_idx);
+                    npc_dest[star_idx].distance_parsecs = (uint8_t)GEO::Parsecs_Between_Stars(legacy_location, star_idx);
                 }
             }
         }

@@ -77,8 +77,8 @@ namespace AIMOVE {
             }
 
             if (ai->stars[legacy_world::Star_Id(star_idx)].enroute_strengths[i_ai][target_player][1] != 0) {
-                const auto legacy_player = legacy_world::Index(ctx->player_idx);
-                if (legacy_player) diplomac::Declare_War(*legacy_player, target_player);
+                const auto legacy_player = ctx->player_idx.id;
+                if (legacy_player < MAX_PLAYERS) diplomac::Declare_War(legacy_player, target_player);
             }
         }
     }
@@ -350,7 +350,7 @@ namespace AIMOVE {
                 s_colony* colony = &world->colonies[i];
 
                 if (colony->owner == i_ai && colony->producing[0] == BUILDING_COLONY_BASE) {
-                    int16_t colony_star_idx = world->state->planets.at(game::id_planet{static_cast<uint32_t>(colony->planet)}).star_index;
+                    int16_t colony_star_idx = world->state->planets.at(colony->planet_id.get()).star_index;
                     bool found = false;
 
                     for (uint32_t j = (uint32_t)candidates->size(); j-- > 0;) {
@@ -798,14 +798,14 @@ namespace AIMOVE {
     int32_t N_Enemy_Stars_Reachable(const game::s_view* world, id_player player_id, int16_t player_bit, id_star source_star) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
         const uint32_t source_star_idx = legacy_world::Slot(source_star);
-        const auto source = legacy_world::Index(source_star);
-        if (!source) return 0;
+        const auto source = source_star.id;
+        if (source >= MAX_STARS) return 0;
         int32_t reachable_count = 0;
 
         for (int16_t i = 0; i < world->Star_Count(); ++i) {
             if ((world->stars[i].has_colony >> (player_bit & 0x1f)) & 1) {
                 int16_t ship_range = world->players[player_idx].ship_range;
-                int16_t distance = GEO::Parsecs_Between_Stars(i, *source);
+                int16_t distance = GEO::Parsecs_Between_Stars(i, source);
 
                 if (distance <= ship_range) {
                     if (!struct_::Test_Bit_Field(world->stars[i].black_hole_blocks, source_star_idx)) {
@@ -841,11 +841,11 @@ namespace AIMOVE {
             weight_owner--;
         }
 
-        int16_t planet_idx = world->colonies[colony_idx].planet;
+        const auto planet_idx = world->colonies[colony_idx].planet_id.get();
 
         return (
-                   ai->planets[game::id_planet{static_cast<uint32_t>(planet_idx)}].base_values[player_idx] * weight_player +
-                   ai->planets[game::id_planet{static_cast<uint32_t>(planet_idx)}].base_values[owner] * weight_owner) /
+                   ai->planets[planet_idx].base_values[player_idx] * weight_player +
+                   ai->planets[planet_idx].base_values[owner] * weight_owner) /
             6;
     }
 
@@ -909,9 +909,9 @@ namespace AIMOVE {
                                 if (world->settings->game_difficulty >= GAME_DIFFICULTY_AVERAGE || p_ai->objectives == PLAYER_OBJECTIVE_MILITARIST) {
                                     int16_t ship_idx = i;
                                     for (int j = 4; j >= 0; j--) {
-                                        int16_t planet_idx = legacy_world::Index(world->stars[loc].orbit_planet_ids[j].get()).value_or(-1);
-                                        if (planet_idx != -1) {
-                                            int16_t colony_idx = world->state->planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).colony_index;
+                                        const auto planet_idx = world->stars[loc].orbit_planet_ids[j].get();
+                                        if (planet_idx != game::NO_PLANET) {
+                                            int16_t colony_idx = world->state->planets.at(planet_idx).colony_index;
                                             if (colony_idx != -1) {
                                                 s_colony* colony = &world->colonies[colony_idx];
                                                 if (colony->owner == ai_idx && colony->outpost_flag == 0) {
@@ -955,9 +955,9 @@ namespace AIMOVE {
                 if (dest_star) {
                     auto route = Move_Ships_With_Possible_Intermediate(ctx, ship_arr, legacy_world::Star_Id(*dest_star));
                     if (route) {
-                        auto destination_index = legacy_world::Index(route->next_star);
-                        if (!destination_index) continue;
-                        const int16_t out_dest = *destination_index;
+                        const auto destination_index = route->next_star.id;
+                        if (destination_index >= MAX_STARS) continue;
+                        const int16_t out_dest = destination_index;
                         const uint16_t out_eta = route->turns;
                         if (out_eta >= targets.at(*dest_star).outpost_turn - 1) {
                             s_ship_move_info move_info;
@@ -992,9 +992,9 @@ namespace AIMOVE {
 
                         auto route = Move_Ships_With_Possible_Intermediate(ctx, ship_arr, legacy_world::Star_Id(i));
                         if (!route) continue;
-                        auto destination_index = legacy_world::Index(route->next_star);
-                        if (!destination_index) continue;
-                        const int16_t out_dest = *destination_index;
+                        const auto destination_index = route->next_star.id;
+                        if (destination_index >= MAX_STARS) continue;
+                        const int16_t out_dest = destination_index;
                         int16_t out_eta = (int16_t)route->turns;
 
                         bool better = false;
@@ -1367,9 +1367,9 @@ namespace AIMOVE {
                         if (assignment && SHIPMOVE::Can_Order_Ship(&world->ships[legacy_world::Slot(ship_id)])) {
                             s_ship_move_info move_info;
                             const std::array<id_ship, 1> ship_list{legacy_world::Ship_Id(ship_id)};
-                            auto destination_index = legacy_world::Index(assignment->next_star);
-                            if (!destination_index) continue;
-                            int16_t target_star = *destination_index;
+                            const auto destination_index = assignment->next_star.id;
+                            if (destination_index >= MAX_STARS) continue;
+                            int16_t target_star = destination_index;
                             ai_compat::Evaluate_Fleet_Move(ship_list, legacy_world::Star_Id(target_star), &move_info);
 
                             const auto& target_work = work.stars.at(assignment->target_star);
@@ -1592,8 +1592,8 @@ namespace AIMOVE {
                         }
                     }
 
-                    int16_t planet_idx = world->colonies[i].planet;
-                    int16_t target_star = world->state->planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).star_index;
+                    const auto planet_idx = world->colonies[i].planet_id.get();
+                    int16_t target_star = world->state->planets.at(planet_idx).star_index;
 
                     if (visited_stars[target_star] == 0) {
                         if (((ai->stars[legacy_world::Star_Id(target_star)].in_range >> i_ai) & 1) != 0) {
@@ -1666,8 +1666,8 @@ namespace AIMOVE {
             const uint32_t best_colony_idx = *best_colony;
 
             int8_t best_mission = mission_array[best_colony_idx];
-            int16_t best_planet_idx = world->colonies[best_colony_idx].planet;
-            int16_t best_star_idx = world->state->planets.at(game::id_planet{static_cast<uint32_t>(best_planet_idx)}).star_index;
+            const auto best_planet_idx = world->colonies[best_colony_idx].planet_id.get();
+            int16_t best_star_idx = world->state->planets.at(best_planet_idx).star_index;
 
             ai->players[i_ai].combat_ship_groups.erase(star_id);
 
@@ -1810,8 +1810,8 @@ namespace AIMOVE {
         s_player* p_ai = ctx->player;
         s_colony* colony = &world->colonies[colony_idx];
         int8_t owner = colony->owner;
-        int16_t planet_idx = colony->planet;
-        int16_t star_idx = world->state->planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).star_index;
+        const auto planet_idx = colony->planet_id.get();
+        int16_t star_idx = world->state->planets.at(planet_idx).star_index;
 
         uint32_t attack_worthiness = 0;
         uint32_t total_space_strength = 0;
@@ -1952,7 +1952,7 @@ namespace AIMOVE {
                     target_info->strength_ratio_percent = (int16_t)target_val;
 
                     if (target_info->minimum_strength_ratio_percent < (int16_t)target_val) {
-                        target_info->target_planet = game::id_planet{static_cast<uint32_t>(planet_idx)};
+                        target_info->target_planet = planet_idx;
                         target_info->colony_value = (int16_t)colony_worth;
                     } else {
                         attack_worthiness = 0;

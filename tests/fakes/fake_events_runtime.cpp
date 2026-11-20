@@ -302,11 +302,11 @@ namespace BOMB {
     }
 
     void __cdecl Destroy_Colony(s_colony* colony, int32_t) {
-        if (colony->planet >= 0) {
-            test_planets::Record(colony->planet).colony_index = -1;
+        if (colony->planet_id.get() != game::NO_PLANET) {
+            test_planets::Record(SERIAL::Encode_Legacy_Planet_Reference(colony->planet_id.get())).colony_index = -1;
         }
         colony->owner = -1;
-        colony->planet = -1;
+        colony->planet_id = game::NO_PLANET;
     }
 }
 

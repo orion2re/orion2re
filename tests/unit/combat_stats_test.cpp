@@ -746,7 +746,7 @@ DOCTEST_TEST_CASE("tactical planets use size-specific draw offsets") {
     };
 
     MOX::cmbt_colony_id = 0;
-    MOX::colony[0].planet = 0;
+    MOX::colony[0].planet_id = game::id_planet{0};
 
     for (const s_planet_draw_offset_case test_case : cases) {
         test_planets::Record(0).size = test_case.size;
@@ -926,7 +926,7 @@ DOCTEST_TEST_CASE("current planet minimap pulse matches static planet markers") 
     memset(combat_data, 0, sizeof(combat_data));
     memset(missiles, 0, sizeof(missiles));
     MOX::cmbt_colony_id = 0;
-    MOX::colony[0].planet = 0;
+    MOX::colony[0].planet_id = game::id_planet{0};
     MOX::combat_total_ship_count = 1;
     MOX::cur_ship = 0;
     MOX::ship_frame = 2;

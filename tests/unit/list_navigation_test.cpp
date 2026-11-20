@@ -39,7 +39,7 @@ namespace {
             std::fill_n(colony_list, MAX_COLONIES, static_cast<int16_t>(-1));
             for (int16_t index = 0; index < 32; ++index) {
                 colony_list[index] = index;
-                colonies[index].planet = index;
+                colonies[index].planet_id = SERIAL::Decode_Legacy_Planet_Reference(index);
                 colonies[index].producing[0] = COLONY_PRODUCTION_NONE;
                 test_planets::Record(index).colony_index = index;
             }

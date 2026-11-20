@@ -241,8 +241,8 @@ namespace COLXPORT {
     void __cdecl Draw_Colony_Summary_For_Colony(int16_t colony_idx, int16_t entry_idx) {
         COLXPORT::list_col[entry_idx] = colony_idx;
 
-        int16_t planet_idx = MOX::colony[colony_idx].planet;
-        int16_t star_idx = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).star_index;
+        const auto planet_idx = MOX::colony[colony_idx].planet_id.get();
+        int16_t star_idx = game::current_state.planets.at(planet_idx).star_index;
 
         if (((MOX::star[star_idx].blockaded >> MOX::PLAYER_NUM) & 1) != 0 || EVENTS::Event_Check_Plague(colony_idx) != 0) {
             COLONY::Set_Colony_Font_To_Red(4, 0);
@@ -250,7 +250,7 @@ namespace COLXPORT {
             COLONY::Set_Colony_Font_To(4);
         }
 
-        char* planet_name = HACCESS::Get_Planet_Name(planet_idx);
+        char* planet_name = HACCESS::Get_Planet_Name(SERIAL::Encode_Legacy_Planet_Reference(planet_idx));
         int16_t y_pos = entry_idx * 38 + 54;
         BILL::Squeeze_Print_Paragraph(15, y_pos, 130, 28, planet_name, 0);
 

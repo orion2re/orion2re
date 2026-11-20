@@ -51,8 +51,8 @@ namespace AIPOWER {
 
 
     int16_t Ship_Strength_Vs_Shield(const game::s_view* world, game::id_ship ship_id, game::id_player target_id, int16_t shield_strength) {
-        const auto legacy_ship = legacy_world::Index(ship_id);
-        if (!legacy_ship) return 0;
+        const auto legacy_ship = ship_id.id;
+        if (legacy_ship >= MAX_SHIPS) return 0;
         const uint32_t ship_idx = legacy_world::Slot(ship_id);
         const s_ship_data* ship = &world->ships[ship_idx];
         int32_t total_strength = 0;
@@ -63,9 +63,9 @@ namespace AIPOWER {
 
         if (world->settings->strategic_combat_flag != 0) {
             attack_bonus = AIPOWER::Base_Generic_Ocv(world, legacy_world::Player_Id(ship->owner));
-            INITSHIP::Update_Strategic_Ship(*legacy_ship);
+            INITSHIP::Update_Strategic_Ship(legacy_ship);
         } else {
-            INITSHIP::Get_Ship_Combat_Bonuses(*legacy_ship, &temp_attack, &temp_defense, &attack_bonus);
+            INITSHIP::Get_Ship_Combat_Bonuses(legacy_ship, &temp_attack, &temp_defense, &attack_bonus);
         }
 
         defense_bonus = Base_Generic_Dcv(world, target_id);
@@ -180,10 +180,10 @@ namespace AIPOWER {
     int16_t __cdecl Max_Ship_Hits(const game::s_view* world, game::id_ship ship_id) {
         const uint32_t ship_idx = legacy_world::Slot(ship_id);
         if (world->settings->strategic_combat_flag == 0) {
-            const auto legacy_ship = legacy_world::Index(ship_id);
-            if (!legacy_ship) return 0;
-            int16_t structure = INITSHIP::Get_Ship_Structure(*legacy_ship);
-            int16_t armor_hits = INITSHIP::Get_Ship_Armor_Hits(*legacy_ship);
+            const auto legacy_ship = ship_id.id;
+            if (legacy_ship >= MAX_SHIPS) return 0;
+            int16_t structure = INITSHIP::Get_Ship_Structure(legacy_ship);
+            int16_t armor_hits = INITSHIP::Get_Ship_Armor_Hits(legacy_ship);
             return structure + armor_hits;
         } else {
             const s_ship_data* ship = &world->ships[ship_idx];
@@ -293,12 +293,12 @@ namespace AIPOWER {
 
     int16_t Base_Generic_Ocv(const game::s_view* world, game::id_player player_id) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
-        const auto legacy_player = legacy_world::Index(player_id);
-        if (!legacy_player) return 0;
+        const auto legacy_player = player_id.id;
+        if (legacy_player >= MAX_PLAYERS) return 0;
         int16_t computer_idx;
         int16_t bonus;
 
-        computer_idx = INITSHIP::Best_Computer(*legacy_player);
+        computer_idx = INITSHIP::Best_Computer(legacy_player);
         bonus = TECHDATA::computers[computer_idx].bonus;
 
         if (player_idx < MAX_PLAYERS) {
@@ -325,9 +325,9 @@ namespace AIPOWER {
 
     int16_t Base_Generic_Dcv(const game::s_view* world, game::id_player player_id) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
-        const auto legacy_player = legacy_world::Index(player_id);
-        if (!legacy_player) return 0;
-        const int16_t best_drive_idx = INITSHIP::Best_Warp_Drive(*legacy_player);
+        const auto legacy_player = player_id.id;
+        if (legacy_player >= MAX_PLAYERS) return 0;
+        const int16_t best_drive_idx = INITSHIP::Best_Warp_Drive(legacy_player);
 
         int16_t dcv =
             (int16_t)TECHDATA::drives[best_drive_idx].combat_speed_min[2];
@@ -345,8 +345,8 @@ namespace AIPOWER {
 
     uint16_t Satelite_Strength_Vs_Ships(const game::s_view* world, int16_t building_type, game::id_player player_id, game::id_player target_player_id) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
-        const auto legacy_player = legacy_world::Index(player_id);
-        if (!legacy_player) return 0;
+        const auto legacy_player = player_id.id;
+        if (legacy_player >= MAX_PLAYERS) return 0;
         uint32_t total_strength = 0;
 
         if (building_type != -1) {
@@ -361,8 +361,8 @@ namespace AIPOWER {
                 accuracy_mod = 100;
             }
 
-            int16_t best_beam = INITSHIP::Best_Beam_Weapon(*legacy_player);
-            int16_t best_missile = INITSHIP::Best_Missile_Weapon_NT(*legacy_player);
+            int16_t best_beam = INITSHIP::Best_Beam_Weapon(legacy_player);
+            int16_t best_missile = INITSHIP::Best_Missile_Weapon_NT(legacy_player);
 
             int16_t beam_count_normal;
             int16_t beam_count_heavy;
@@ -375,19 +375,19 @@ namespace AIPOWER {
                 int16_t rem_size = hull_size - size_div_2;
 
                 // Tactical: Calculate weapon counts based on available hull space
-                int32_t space_normal = DESIGN::Weapon_Space(*legacy_player, best_beam, 1, WEAPON_FIRING_ARC_360, 0, 0);
+                int32_t space_normal = DESIGN::Weapon_Space(legacy_player, best_beam, 1, WEAPON_FIRING_ARC_360, 0, 0);
                 beam_count_normal = (int16_t)(COMBINIT::Satellite_Allocated_Space(
                                                   size_div_2,
                                                   COMBINIT::satellite_space_allocation.normal) /
                     space_normal);
 
-                int32_t space_heavy = DESIGN::Weapon_Space(*legacy_player, best_beam, 1, WEAPON_FIRING_ARC_360, 0, 2 /* MOD_HEAVY_MOUNT */);
+                int32_t space_heavy = DESIGN::Weapon_Space(legacy_player, best_beam, 1, WEAPON_FIRING_ARC_360, 0, 2 /* MOD_HEAVY_MOUNT */);
                 beam_count_heavy = (int16_t)(COMBINIT::Satellite_Allocated_Space(
                                                  size_div_2,
                                                  COMBINIT::satellite_space_allocation.heavy) /
                     space_heavy);
 
-                int32_t space_missile = DESIGN::Weapon_Space(*legacy_player, best_missile, 1, WEAPON_FIRING_ARC_360, COMBINIT::satellite_ammo_basis, 0);
+                int32_t space_missile = DESIGN::Weapon_Space(legacy_player, best_missile, 1, WEAPON_FIRING_ARC_360, COMBINIT::satellite_ammo_basis, 0);
                 missile_count = (int16_t)(COMBINIT::Satellite_Allocated_Space(
                                               rem_size,
                                               COMBINIT::satellite_space_allocation.missile_torp) /

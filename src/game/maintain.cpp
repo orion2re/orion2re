@@ -373,7 +373,7 @@ namespace maintain {
                 s_MSG msg;
                 memset(&msg, 0, sizeof(msg));
                 msg.msg_type = MSG_TYPE_COLONY;
-                msg.u.colony.planet_idx = best_colony->planet;
+                msg.u.colony.planet_idx = SERIAL::Encode_Legacy_Planet_Reference(best_colony->planet_id.get());
                 msg.u.colony.subtype = MSG_COLONY_SUBTYPE_BUILDING_SCRAPPED;
                 msg.u.colony.c.scrap.building_id = (int16_t)best_building;
                 msg.u.colony.c.scrap.bc = scrap_value;

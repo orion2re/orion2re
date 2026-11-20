@@ -38,7 +38,7 @@ namespace {
         memset(MOX::player, 0, sizeof(s_player) * MAX_PLAYERS);
         MOX::NUM_COLONIES = 0;
         MOX::NUM_SHIPS = 0;
-        MOX::colony[0].planet = 0;
+        MOX::colony[0].planet_id = game::id_planet{0};
         test_planets::Record(0).star_index = 0;
         test::fakes::environmental_refresh_count = 0;
         test::fakes::colony_can_build_product_count = 0;
@@ -91,23 +91,23 @@ DOCTEST_TEST_CASE("gameplay sound playback follows settings and combat speed") {
 DOCTEST_TEST_CASE("starting Outpost Ships follow the configured civilization levels") {
     Reset_Homeworld_(STARTING_CIVILIZATION_LEVEL_AVERAGE);
     ERICNET::starting_outpost_ship = 0;
-    ERICNET::Init_Homeworld_Colony(0, 0);
+    ERICNET::Init_Homeworld_Colony(game::id_planet{0}, 0);
     DOCTEST_CHECK(MOX::NUM_SHIPS == 3);
     DOCTEST_CHECK(MOX::ship[2].d.ship_type == SHIP_TYPE_COLONY);
 
     Reset_Homeworld_(STARTING_CIVILIZATION_LEVEL_AVERAGE);
     ERICNET::starting_outpost_ship = 1;
-    ERICNET::Init_Homeworld_Colony(0, 0);
+    ERICNET::Init_Homeworld_Colony(game::id_planet{0}, 0);
     DOCTEST_CHECK(MOX::NUM_SHIPS == 4);
     DOCTEST_CHECK(MOX::ship[2].d.ship_type == SHIP_TYPE_OUTPOST);
     DOCTEST_CHECK(MOX::ship[3].d.ship_type == SHIP_TYPE_COLONY);
 
     Reset_Homeworld_(STARTING_CIVILIZATION_LEVEL_POST_WARP);
-    ERICNET::Init_Homeworld_Colony(0, 0);
+    ERICNET::Init_Homeworld_Colony(game::id_planet{0}, 0);
     DOCTEST_CHECK(MOX::NUM_SHIPS == 4);
 
     Reset_Homeworld_(STARTING_CIVILIZATION_LEVEL_ADVANCED);
-    ERICNET::Init_Homeworld_Colony(0, 0);
+    ERICNET::Init_Homeworld_Colony(game::id_planet{0}, 0);
     DOCTEST_CHECK(MOX::NUM_SHIPS == 0);
 
     ERICNET::starting_outpost_ship = 0;
@@ -120,8 +120,8 @@ DOCTEST_TEST_CASE("starting Outpost Ships are allocated for every player") {
     MOX::player[1].ship_designs[0].ship_type = SHIP_TYPE_COMBAT;
     test_planets::Record(1).star_index = 0;
 
-    ERICNET::Init_Homeworld_Colony(0, 0);
-    ERICNET::Init_Homeworld_Colony(1, 1);
+    ERICNET::Init_Homeworld_Colony(game::id_planet{0}, 0);
+    ERICNET::Init_Homeworld_Colony(game::id_planet{1}, 1);
 
     DOCTEST_REQUIRE(MOX::NUM_SHIPS == 8);
     for (int16_t ship_idx = 0; ship_idx < 4; ++ship_idx) {
@@ -139,12 +139,12 @@ DOCTEST_TEST_CASE("starting Outpost Ships are allocated for every player") {
 DOCTEST_TEST_CASE("starting ships can be disabled without changing civilization eligibility") {
     Reset_Homeworld_(STARTING_CIVILIZATION_LEVEL_AVERAGE);
     ERICNET::starting_ships = 0;
-    ERICNET::Init_Homeworld_Colony(0, 0);
+    ERICNET::Init_Homeworld_Colony(game::id_planet{0}, 0);
     DOCTEST_CHECK(MOX::NUM_SHIPS == 0);
 
     Reset_Homeworld_(STARTING_CIVILIZATION_LEVEL_POST_WARP);
     ERICNET::starting_ships = 0;
-    ERICNET::Init_Homeworld_Colony(0, 0);
+    ERICNET::Init_Homeworld_Colony(game::id_planet{0}, 0);
     DOCTEST_CHECK(MOX::NUM_SHIPS == 0);
 
     ERICNET::starting_ships = 1;
@@ -160,11 +160,11 @@ DOCTEST_TEST_CASE("configured starting population stays within colony storage") 
         INITGAME::start.population = population;
         MOX::colony[0].pop_roundoff[0] = 0;
 
-        ERICNET::Init_Homeworld_Colony(0, 0);
+        ERICNET::Init_Homeworld_Colony(game::id_planet{0}, 0);
 
         DOCTEST_CHECK((uint8_t)MOX::colony[0].n_pops == population);
         for (uint8_t index = 0; index < population; ++index) {
-            DOCTEST_CHECK(MOX::colony[0].pop[index] != 0);
+            DOCTEST_CHECK((MOX::colony[0].pop[index] != 0));
         }
         DOCTEST_CHECK(MOX::colony[0].pop_roundoff[0] == 0);
     }
@@ -182,7 +182,7 @@ DOCTEST_TEST_CASE("configured starting marines use the complete byte domain") {
         ERICNET::starting_ships = 0;
         INITGAME::start.marines = marine_count;
 
-        ERICNET::Init_Homeworld_Colony(0, 0);
+        ERICNET::Init_Homeworld_Colony(game::id_planet{0}, 0);
 
         DOCTEST_CHECK(MOX::colony[0].military[0] == marine_count);
     }
@@ -199,7 +199,7 @@ DOCTEST_TEST_CASE("Advanced civilization derives population independently of con
         Reset_Homeworld_(STARTING_CIVILIZATION_LEVEL_ADVANCED);
         INITGAME::start.population = population;
 
-        ERICNET::Init_Homeworld_Colony(0, 0);
+        ERICNET::Init_Homeworld_Colony(game::id_planet{0}, 0);
 
         DOCTEST_CHECK((uint8_t)MOX::colony[0].n_pops == 8);
     }
@@ -328,14 +328,14 @@ DOCTEST_TEST_CASE("initial building priority stops at none and stays within its 
     }
     ERICNET::buildlist[2] = BUILDING_NO_BUILDING;
     Reset_Homeworld_(STARTING_CIVILIZATION_LEVEL_ADVANCED);
-    ERICNET::Init_Homeworld_Colony(0, 0);
+    ERICNET::Init_Homeworld_Colony(game::id_planet{0}, 0);
     DOCTEST_CHECK(test::fakes::colony_can_build_product_count == 2);
 
     for (int index = 0; index < ERICNET::INITIAL_BUILDING_CAPACITY; ++index) {
         ERICNET::buildlist[index] = BUILDING_AUTOMATED_FACTORY;
     }
     Reset_Homeworld_(STARTING_CIVILIZATION_LEVEL_ADVANCED);
-    ERICNET::Init_Homeworld_Colony(0, 0);
+    ERICNET::Init_Homeworld_Colony(game::id_planet{0}, 0);
     DOCTEST_CHECK(test::fakes::colony_can_build_product_count ==
                   ERICNET::INITIAL_BUILDING_CAPACITY);
 

@@ -182,10 +182,10 @@ namespace COLCALC {
 }
 
 namespace COLONIZE {
-    void __cdecl Make_New_Colony(int16_t, int16_t) {
+    void __cdecl Make_New_Colony(game::id_planet, int16_t) {
     }
 
-    void __cdecl Make_New_Outpost(int16_t, int16_t) {
+    void __cdecl Make_New_Outpost(game::id_planet, int16_t) {
     }
 
     int16_t Star_N_Colonizable_Planets_For_Player(s_star_data*, int16_t) {

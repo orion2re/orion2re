@@ -31,7 +31,7 @@ namespace TEST_GOVERNMENT_BONUS {
             stars[0].officer_index[player] = -1;
         }
         colonies[0].owner = 0;
-        colonies[0].planet = 0;
+        colonies[0].planet_id = game::id_planet{0};
         auto& planet = test_planets::Record(0);
         planet.star_index = 0;
         planet.gravity_class = PLANET_GRAVITY_NORMAL_G;

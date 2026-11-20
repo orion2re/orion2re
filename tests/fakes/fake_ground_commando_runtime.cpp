@@ -50,7 +50,7 @@ namespace test_ground_commando_runtime {
         memset(stars, 0, sizeof(stars));
         memset(ships, 0, sizeof(ships));
         memset(&animation, 0, sizeof(animation));
-        colonies[0].planet = 0;
+        colonies[0].planet_id = game::id_planet{0};
         MOX::NUM_COLONIES = 1;
         colonies[0].owner = 0;
         test_planets::Record(0).star_index = 0;

@@ -98,9 +98,18 @@
       planet pointers. Use `planet_order` for canonical and order-sensitive
       traversal, not lookup or renumbering. Use direct map iteration where
       order does not matter.
-- [ ] Widen the remaining narrow key encodings (colony links, reports,
-      incremental combat packets, and UI selections). These are IDs now, not
-      offsets, but still have signed or packed width limits. A live-count cap
-      does not bound a monotonic ID.
+- [x] Store colony planet links as `id_planet` and pass them directly through
+      AI, colony creation, and Lua homeworld assignment. Save v8 and multiplayer
+      use the same explicit colony codec. Historical zero-filled unused colony
+      records are recognized before clearing their planet link to `NO_PLANET`.
+- [x] Remove `legacy_world::Index` and planet `Slot` conversions. Orbit and
+      candidate searches select existing IDs rather than creating IDs from loop
+      counters. Keep orbit order for first-match and tie-breaking rules,
+      canonical planet order for order-sensitive traversal, and direct map
+      iteration for independent AI values and record refreshes.
+- [ ] Widen the remaining narrow key encodings: reports and messages, event
+      payloads, incremental combat packets, ship mission targets, and older UI
+      selection records. These still impose signed or packed width limits;
+      a live-count cap does not bound a monotonic ID.
 - [ ] Thread `s_game_state` into the legacy call chains still reading
       `game::current_state` directly (UI, colony rules, combat, and turn events).

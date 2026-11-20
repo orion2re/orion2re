@@ -34,7 +34,7 @@ namespace TEST_BUILD_QUEUE {
         BUILD_QUEUE::autobuild_settings = {};
         for (int colony_idx = 0; colony_idx < 4; ++colony_idx) {
             colonies[colony_idx].owner = 0;
-            colonies[colony_idx].planet = colony_idx;
+            colonies[colony_idx].planet_id = SERIAL::Decode_Legacy_Planet_Reference(colony_idx);
             for (int slot = 0; slot < 7; ++slot) {
                 colonies[colony_idx].producing[slot] = COLONY_PRODUCTION_NONE;
             }
@@ -68,7 +68,7 @@ namespace COLBLDG {
         }
         const int16_t ship_idx = TEST_BUILD_QUEUE::next_ship++;
         MOX::ship[ship_idx].owner = static_cast<int8_t>(player_idx);
-        MOX::ship[ship_idx].location = test_planets::Record(MOX::colony[colony_idx].planet).star_index;
+        MOX::ship[ship_idx].location = game::current_state.planets.at(MOX::colony[colony_idx].planet_id.get()).star_index;
         MOX::ship[ship_idx].d = *design;
         MOX::NUM_SHIPS = std::max<int16_t>(MOX::NUM_SHIPS, ship_idx + 1);
         return ship_idx;

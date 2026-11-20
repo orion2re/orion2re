@@ -34,7 +34,7 @@ namespace COLBOMB {
             message_buffer,
             sizeof(message_buffer),
             ESTRINGS::E_Strings(0x33),
-            HACCESS::Get_Planet_Name(MOX::colony[backup_results_ptr->colony_idx].planet),
+            HACCESS::Get_Planet_Name(SERIAL::Encode_Legacy_Planet_Reference(MOX::colony[backup_results_ptr->colony_idx].planet_id.get())),
             attacker_name);
 
         if (backup_results_ptr->population_killed != 0) {
@@ -90,7 +90,7 @@ namespace COLBOMB {
             } else {
                 wiped_out_format = ESTRINGS::E_Strings(0x37);
             }
-            snprintf(line_buffer, sizeof(line_buffer), wiped_out_format, HACCESS::Get_Planet_Name(MOX::colony[backup_results_ptr->colony_idx].planet));
+            snprintf(line_buffer, sizeof(line_buffer), wiped_out_format, HACCESS::Get_Planet_Name(SERIAL::Encode_Legacy_Planet_Reference(MOX::colony[backup_results_ptr->colony_idx].planet_id.get())));
             strlcat(message_buffer, line_buffer, sizeof(message_buffer));
         }
 

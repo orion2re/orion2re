@@ -516,7 +516,7 @@ namespace MSG_ {
                 if (EVENTS::Event_Check_Plague(colony_idx) != 0) {
                     memset(&msg, 0, sizeof(msg));
                     msg.msg_type = MSG_TYPE_COLONY;
-                    msg.u.colony.planet_idx = MOX::colony[colony_idx].planet;
+                    msg.u.colony.planet_idx = SERIAL::Encode_Legacy_Planet_Reference(MOX::colony[colony_idx].planet_id.get());
                     msg.u.colony.subtype = MSG_COLONY_SUBTYPE_PLAGUE;
                     Add_Msg(msg, owner);
                 }
@@ -524,7 +524,7 @@ namespace MSG_ {
                 if (EVENTS::Event_Check_Population_Boom(colony_idx) != 0) {
                     memset(&msg, 0, sizeof(msg));
                     msg.msg_type = MSG_TYPE_COLONY;
-                    msg.u.colony.planet_idx = MOX::colony[colony_idx].planet;
+                    msg.u.colony.planet_idx = SERIAL::Encode_Legacy_Planet_Reference(MOX::colony[colony_idx].planet_id.get());
                     msg.u.colony.subtype = MSG_COLONY_SUBTYPE_POPULATION_BOOM;
                     Add_Msg(msg, owner);
                 }
@@ -532,7 +532,7 @@ namespace MSG_ {
                 if (EVENTS::Event_Check_Comet(colony_idx) != 0) {
                     memset(&msg, 0, sizeof(msg));
                     msg.msg_type = MSG_TYPE_COLONY;
-                    msg.u.colony.planet_idx = MOX::colony[colony_idx].planet;
+                    msg.u.colony.planet_idx = SERIAL::Encode_Legacy_Planet_Reference(MOX::colony[colony_idx].planet_id.get());
                     msg.u.colony.subtype = MSG_COLONY_SUBTYPE_COMET;
                     Add_Msg(msg, owner);
                 }
@@ -631,7 +631,7 @@ namespace MSG_ {
                     MOX::return_screen = SCREEN_INFO;
                     MOX::current_screen = SCREEN_COLONY;
 
-                    s_planet_data* planet = &current_state.planets.at(game::id_planet{static_cast<uint32_t>(colony->planet)});
+                    s_planet_data* planet = &current_state.planets.at(colony->planet_id.get());
                     MOX::screen_data = planet->star_index;
                     COLONY::orbit_temp = (int16_t)planet->orbit;
 

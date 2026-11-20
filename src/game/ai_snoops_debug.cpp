@@ -368,7 +368,7 @@ namespace AI_SNOOPS_DEBUG {
                     ImGui::PushID(planet);
                     if (ImGui::Selectable(std::to_string(planet).c_str(), false,
                                           ImGuiSelectableFlags_SpanAllColumns)) {
-                        if (const auto index = legacy_world::Index(id)) debug_game_editors::Open_Planet(*index);
+                        if (id.id <= INT16_MAX) debug_game_editors::Open_Planet(id.id);
                     }
                     ImGui::PopID();
                     ImGui::TableSetColumnIndex(1);
@@ -505,8 +505,7 @@ namespace AI_SNOOPS_DEBUG {
                     ImGui::TableSetColumnIndex(1);
                     ImGui::PushID(index);
                     if (ImGui::Selectable(std::to_string(legacy_world::Slot(entry.ship_id)).c_str())) {
-                        auto ship_index = legacy_world::Index(entry.ship_id);
-                        if (ship_index) debug_game_editors::Open_Ship(*ship_index);
+                        if (entry.ship_id.id < MAX_SHIPS) debug_game_editors::Open_Ship(entry.ship_id.id);
                     }
                     ImGui::PopID();
                     ImGui::TableSetColumnIndex(2);
@@ -566,8 +565,7 @@ namespace AI_SNOOPS_DEBUG {
                     ImGui::TableSetColumnIndex(0);
                     ImGui::PushID((int)index);
                     if (ImGui::Selectable(std::to_string(legacy_world::Slot(colony.colony_id)).c_str())) {
-                        auto colony_index = legacy_world::Index(colony.colony_id);
-                        if (colony_index) debug_game_editors::Open_Colony(*colony_index);
+                        if (colony.colony_id.id < MAX_COLONIES) debug_game_editors::Open_Colony(colony.colony_id.id);
                     }
                     ImGui::PopID();
                     ImGui::TableSetColumnIndex(1);
@@ -613,9 +611,8 @@ namespace AI_SNOOPS_DEBUG {
                     ImGui::Text("%u", index + 1);
                     ImGui::TableSetColumnIndex(1);
                     ImGui::PushID((int)index);
-                    if (ImGui::Selectable(std::to_string(legacy_world::Slot(planet.planet_id)).c_str())) {
-                        auto planet_index = legacy_world::Index(planet.planet_id);
-                        if (planet_index) debug_game_editors::Open_Planet(*planet_index);
+                    if (ImGui::Selectable(std::to_string(planet.planet_id.id).c_str())) {
+                        if (planet.planet_id.id <= INT16_MAX) debug_game_editors::Open_Planet(planet.planet_id.id);
                     }
                     ImGui::PopID();
                     ImGui::TableSetColumnIndex(2);

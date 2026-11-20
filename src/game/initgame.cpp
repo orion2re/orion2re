@@ -41,7 +41,7 @@ namespace INITGAME {
         for (MOX::NUM_COLONIES = 0; MOX::NUM_COLONIES < MAX_COLONIES; ++MOX::NUM_COLONIES) {
             s_colony& colony = MOX::colony[MOX::NUM_COLONIES];
 
-            colony.planet = -1;
+            colony.planet_id = game::NO_PLANET;
             colony.owner = -1;
             colony.officer = -1;
         }
@@ -316,16 +316,16 @@ namespace INITGAME {
         return true;
     }
 
-    void __cdecl Init_Colony(int16_t colony_idx, int16_t planet_idx, uint8_t player_num) {
+    void __cdecl Init_Colony(int16_t colony_idx, game::id_planet planet_id, uint8_t player_num) {
         s_colony* colony = &MOX::colony[colony_idx];
 
         // Zero-initialize the entire colony structure
         memset(colony, 0, sizeof(s_colony));
 
-        s_planet_data* planet = &game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)});
+        s_planet_data* planet = &game::current_state.planets.at(planet_id);
         planet->colony_index = colony_idx;
 
-        colony->planet = planet_idx;
+        colony->planet_id = planet_id;
         colony->owner = player_num;
         colony->officer = -1;
 
@@ -400,7 +400,7 @@ namespace INITGAME {
             if (star_ptr->system_special == SYSTEM_SPECIAL_SPACE_MONSTER) {
                 int32_t ship_type = game_random::Random(5) + 9;
                 int16_t star_idx = (int16_t)(star_ptr - MOX::star);
-                int16_t planet_idx = HOMEGEN::Random_Planet(star_idx);
+                const auto planet_id = HOMEGEN::Random_Planet(game::current_state, star_idx);
 
                 // Initialize monster ship owner to Neutral/Orion
                 MOX::ship[MOX::NUM_SHIPS].owner = 8;
@@ -410,7 +410,7 @@ namespace INITGAME {
                 star_ptr->system_special = star_ptr->twinkling1;
                 star_ptr->twinkling1 = 0;
 
-                HOMEGEN::Upgrade_Planet_Guarded_By_Monster(&game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}), (int16_t)ship_type);
+                HOMEGEN::Upgrade_Planet_Guarded_By_Monster(&game::current_state.planets.at(planet_id), (int16_t)ship_type);
             }
             star_ptr++;
         }

@@ -306,8 +306,8 @@ namespace INTERNAL_STATE_DEBUG {
             if (!Valid_Colony_(colony)) {
                 return -1;
             }
-            const int16_t planet = MOX::colony[colony].planet;
-            const auto it = current_state.planets.find(game::id_planet{static_cast<uint32_t>(planet)});
+            const auto planet = MOX::colony[colony].planet_id.get();
+            const auto it = current_state.planets.find(planet);
             return it == current_state.planets.end() ? -1 : it->second.star_index;
         }
 
@@ -756,7 +756,7 @@ namespace INTERNAL_STATE_DEBUG {
         }
 
         int16_t Planet_For_Colony_(int16_t colony) {
-            return Valid_Colony_(colony) ? MOX::colony[colony].planet : -1;
+            return Valid_Colony_(colony) ? SERIAL::Encode_Legacy_Planet_Reference(MOX::colony[colony].planet_id.get()) : -1;
         }
 
         bool Planet_Relationship_Valid_(int16_t planet) {
@@ -765,17 +765,17 @@ namespace INTERNAL_STATE_DEBUG {
             }
             const int16_t colony = current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet)}).colony_index;
             return colony == -1 ||
-                (Valid_Colony_(colony) && MOX::colony[colony].planet == planet);
+                (Valid_Colony_(colony) && SERIAL::Encode_Legacy_Planet_Reference(MOX::colony[colony].planet_id.get()) == planet);
         }
 
         bool Colony_Relationship_Valid_(int16_t colony) {
             if (!Valid_Colony_(colony)) {
                 return false;
             }
-            const int16_t planet = MOX::colony[colony].planet;
-            return Planet_Relationship_Valid_(planet) &&
-                current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet)}).colony_index == colony &&
-                Valid_Star_(current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet)}).star_index);
+            const auto planet = MOX::colony[colony].planet_id.get();
+            return Planet_Relationship_Valid_(SERIAL::Encode_Legacy_Planet_Reference(planet)) &&
+                current_state.planets.at(planet).colony_index == colony &&
+                Valid_Star_(current_state.planets.at(planet).star_index);
         }
 
         bool Star_Relationship_Valid_(int16_t star) {
@@ -783,9 +783,9 @@ namespace INTERNAL_STATE_DEBUG {
                 return false;
             }
             for (int16_t orbit = 0; orbit < 5; ++orbit) {
-                const int16_t planet = legacy_world::Index(MOX::star[star].orbit_planet_ids[orbit].get()).value_or(-1);
-                if (planet != -1 && (!Planet_Relationship_Valid_(planet) ||
-                        current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet)}).star_index != star)) {
+                const auto planet = MOX::star[star].orbit_planet_ids[orbit].get();
+                if (planet != game::NO_PLANET && (!Planet_Relationship_Valid_(SERIAL::Encode_Legacy_Planet_Reference(planet)) ||
+                        current_state.planets.at(planet).star_index != star)) {
                     return false;
                 }
             }
@@ -1078,10 +1078,14 @@ namespace INTERNAL_STATE_DEBUG {
                     debug_game_widgets::Star_Reference(
                         "Target star", &g_event_draft.target_id, false);
                     break;
-                case EVENT_TARGET_PLANET:
-                    debug_game_widgets::Planet_Reference(
-                        "Target planet", &g_event_draft.target_id, false);
+                case EVENT_TARGET_PLANET: {
+                    auto planet_id = SERIAL::Decode_Legacy_Planet_Reference(g_event_draft.target_id);
+                    if (debug_game_widgets::Planet_Reference("Target planet", &planet_id, false) &&
+                        planet_id.id <= INT16_MAX) {
+                        g_event_draft.target_id = SERIAL::Encode_Legacy_Planet_Reference(planet_id);
+                    }
                     break;
+                }
                 case EVENT_TARGET_COLONY:
                     debug_game_widgets::Colony_Reference(
                         "Target colony", &g_event_draft.target_id, false);

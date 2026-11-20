@@ -6,6 +6,7 @@
 #include <utility>
 
 #include "game_state.h"
+#include "planet_reference.h"
 #include "serialization.h"
 
 namespace SERIAL {
@@ -17,9 +18,6 @@ namespace SERIAL {
     inline constexpr uint16_t WIDE_ATTACK_PLANETS_FLAG = 0x2000; // Stored in the player count.
     static_assert(MAX_PLANETS < KEYED_PLANET_COUNT_FLAG);
 
-    inline constexpr game::id_planet Decode_Legacy_Planet_Reference(int16_t index) {
-        return index < 0 ? game::NO_PLANET : game::id_planet{static_cast<uint32_t>(index)};
-    }
 
     inline void Write_Planet(Writer_& writer, const s_planet_data& planet) {
         writer.Write_Int16(planet.colony_index);

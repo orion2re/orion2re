@@ -20,7 +20,7 @@ DOCTEST_TEST_CASE("same-owner outpost ship does not suppress colony ship priorit
     test_planets::Record(0).planet_type = PLANET_TYPE_PLANET;
     test_planets::Record(0).colony_index = 0;
     MOX::colony[0].owner = 0;
-    MOX::colony[0].planet = 0;
+    MOX::colony[0].planet_id = game::id_planet{0};
     MOX::colony[0].outpost_flag = 1;
 
     MOX::ship[0].owner = 0;
@@ -48,14 +48,14 @@ DOCTEST_TEST_CASE("same-owner outpost ship does not suppress colony base priorit
     test_planets::Record(0).planet_type = PLANET_TYPE_PLANET;
     test_planets::Record(0).colony_index = 0;
     MOX::colony[0].owner = 0;
-    MOX::colony[0].planet = 0;
+    MOX::colony[0].planet_id = game::id_planet{0};
     MOX::colony[0].buildings[BUILDING_COLONY_BASE] = 1;
 
     test_planets::Record(1).star_index = 0;
     test_planets::Record(1).planet_type = PLANET_TYPE_PLANET;
     test_planets::Record(1).colony_index = 1;
     MOX::colony[1].owner = 0;
-    MOX::colony[1].planet = 1;
+    MOX::colony[1].planet_id = game::id_planet{1};
     MOX::colony[1].outpost_flag = 1;
 
     MOX::ship[0].owner = 0;
@@ -78,7 +78,7 @@ DOCTEST_TEST_CASE("outpost on non-planet body uses barren climate") {
     test_planets::Record(0).planet_type = PLANET_TYPE_ASTEROID;
     test_planets::Record(0).climate = PLANET_CLIMATE_GAIA;
 
-    COLONIZE::Make_New_Outpost(0, 0);
+    COLONIZE::Make_New_Outpost(game::id_planet{0}, 0);
 
     DOCTEST_CHECK((MOX::colony[0].climate == PLANET_CLIMATE_BARREN));
 }
@@ -90,7 +90,7 @@ DOCTEST_TEST_CASE("outpost on planet preserves planet climate") {
     test_planets::Record(0).planet_type = PLANET_TYPE_PLANET;
     test_planets::Record(0).climate = PLANET_CLIMATE_OCEAN;
 
-    COLONIZE::Make_New_Outpost(0, 0);
+    COLONIZE::Make_New_Outpost(game::id_planet{0}, 0);
 
     DOCTEST_CHECK((MOX::colony[0].climate == PLANET_CLIMATE_OCEAN));
 }
@@ -100,7 +100,7 @@ DOCTEST_TEST_CASE("first colony after losing the homeworld becomes the new home"
     MOX::player[0].home_planet_id = game::NO_PLANET;
     test_planets::Record(0).star_index = 0;
 
-    COLONIZE::Make_New_Colony(0, 0);
+    COLONIZE::Make_New_Colony(game::id_planet{0}, 0);
 
     DOCTEST_CHECK(MOX::player[0].home_planet_id.get() == game::id_planet{0});
 }
@@ -110,9 +110,25 @@ DOCTEST_TEST_CASE("new outpost does not become the homeworld") {
     MOX::player[0].home_planet_id = game::NO_PLANET;
     test_planets::Record(0).star_index = 0;
 
-    COLONIZE::Make_New_Outpost(0, 0);
+    COLONIZE::Make_New_Outpost(game::id_planet{0}, 0);
 
     DOCTEST_CHECK(MOX::player[0].home_planet_id.get() == game::NO_PLANET);
+}
+
+DOCTEST_TEST_CASE("orbit queries and colony creation use a wide planet ID") {
+    TEST_COLONIZE::Reset_();
+    constexpr game::id_planet id{70000};
+    test_planets::Record(id.id) = {.colony_index = -1, .star_index = 0, .planet_type = PLANET_TYPE_PLANET};
+    auto& star = MOX::star[0];
+    star.orbit_planet_ids[0] = id;
+    MOX::player[0].home_planet_id = game::NO_PLANET;
+
+    DOCTEST_CHECK(COLONIZE::Star_N_Colonizable_Planets_For_Player(&star, 0) == 1);
+    DOCTEST_CHECK(COLONIZE::Star_N_Outpostable_Planets(&star) == 1);
+    COLONIZE::Make_New_Colony(id, 0);
+    DOCTEST_CHECK(MOX::colony[0].planet_id.get() == id);
+    DOCTEST_CHECK(MOX::player[0].home_planet_id.get() == id);
+    DOCTEST_CHECK(COLONIZE::Star_N_Uncolonized_Planets(&star) == 0);
 }
 
 DOCTEST_TEST_CASE("first colony population uses the configured worker rule") {
@@ -121,7 +137,7 @@ DOCTEST_TEST_CASE("first colony population uses the configured worker rule") {
     test_planets::Record(0).star_index = 0;
     test_planets::Record(0).food_per_farmer = 2;
 
-    COLONIZE::Make_New_Colony(0, 0);
+    COLONIZE::Make_New_Colony(game::id_planet{0}, 0);
 
     DOCTEST_CHECK((POP::Get_Prof(MOX::colony[0].pop[0]) == POP::PROF_FARMER));
 
@@ -130,7 +146,7 @@ DOCTEST_TEST_CASE("first colony population uses the configured worker rule") {
     test_planets::Record(0).food_per_farmer = 2;
     COLONIZE::first_pop_to_production = 1;
 
-    COLONIZE::Make_New_Colony(0, 0);
+    COLONIZE::Make_New_Colony(game::id_planet{0}, 0);
 
     DOCTEST_CHECK((POP::Get_Prof(MOX::colony[0].pop[0]) == POP::PROF_WORKER));
 }
@@ -143,7 +159,7 @@ DOCTEST_TEST_CASE("new colony populations use semantic identity and assignment f
     test_planets::Record(0).food_per_farmer = 2;
     test_planets::Record(0).planet_special = SYSTEM_SPECIAL_NATIVES;
 
-    COLONIZE::Make_New_Colony(0, player_idx);
+    COLONIZE::Make_New_Colony(game::id_planet{0}, player_idx);
 
     DOCTEST_CHECK((POP::Get_Race(MOX::colony[0].pop[0]) == player_idx));
     DOCTEST_CHECK((POP::Get_Original_Owner(MOX::colony[0].pop[0]) == player_idx));

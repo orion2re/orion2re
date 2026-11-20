@@ -6,17 +6,17 @@ namespace AIDATA {
     bool Star_In_Range_Of_Given_Star(const game::s_view* world, id_star target_star_idx, id_star source_star_idx, int32_t max_range_parsecs) {
         bool in_range = false;
 
-        const auto source = legacy_world::Index(source_star_idx);
-        const auto target = legacy_world::Index(target_star_idx);
-        if (!source || !target) return false;
-        int32_t distance = GEO::Parsecs_Between_Stars(*source, *target);
+        const auto source = source_star_idx.id;
+        const auto target = target_star_idx.id;
+        if (source >= MAX_STARS || target >= MAX_STARS) return false;
+        int32_t distance = GEO::Parsecs_Between_Stars(source, target);
         if (distance <= max_range_parsecs) {
             return true;
         }
 
         int16_t wormhole_id = world->stars[legacy_world::Slot(source_star_idx)].wormhole_star_id;
         if (wormhole_id != -1) {
-            distance = GEO::Parsecs_Between_Stars(wormhole_id, *target);
+            distance = GEO::Parsecs_Between_Stars(wormhole_id, target);
             if (distance <= max_range_parsecs) {
                 in_range = true;
             }
@@ -39,7 +39,7 @@ namespace AIDATA {
         }
 
         int16_t ship_range = owner_ptr->ship_range;
-        int16_t colony_star_idx = world->state->planets.at(game::id_planet{static_cast<uint32_t>(colony->planet)}).star_index;
+        int16_t colony_star_idx = world->state->planets.at(colony->planet_id.get()).star_index;
         int16_t evaluating_player_idx = (int16_t)(evaluating_player - world->players);
 
         int16_t total_worth = 0;
@@ -89,10 +89,10 @@ namespace AIDATA {
 
     int16_t __cdecl Colony_Worth_To_Player(s_state* ai, const game::s_view* world, id_colony colony_idx, s_colony* colony, s_player* evaluating_player) {
         int16_t evaluating_player_idx = (int16_t)(evaluating_player - world->players);
-        s_planet_data* planet = &world->state->planets.at(game::id_planet{static_cast<uint32_t>(colony->planet)});
-        const auto race_index = legacy_world::Index(ai->colonies[colony_idx].dominant_race);
-        if (!race_index) return 0;
-        const int16_t colony_race = *race_index;
+        s_planet_data* planet = &world->state->planets.at(colony->planet_id.get());
+        const auto race_index = ai->colonies[colony_idx].dominant_race.id;
+        if (race_index >= MAX_PLAYERS) return 0;
+        const int16_t colony_race = race_index;
         s_player* race_player = &world->players[colony_race];
 
         int16_t max_pop_race = COLCALC::Planet_Max_Population_For_Player(planet, colony_race);

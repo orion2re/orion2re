@@ -1,5 +1,4 @@
 #include "pch.h"
-#include "planet_serialization.h"
 #include <unordered_set>
 
 namespace ADVCIV {
@@ -353,13 +352,12 @@ namespace ADVCIV {
             const auto home_id = MOX::player[p_idx].home_planet_id.get();
             int16_t star_idx = staged.planets.at(home_id).star_index;
 
-            for (int16_t i = 0; i < MAX_PLANETS; ++i) {
-                auto& padding = adv_civ_player[p_idx].planets[i];
-                padding.planet_id = game::NO_PLANET;
-                // Preserve the old sort's negative placeholder, not a home-world candidate.
-                if (static_cast<size_t>(i) < staged.planet_order.size() && staged.planet_order[i] == home_id) {
-                    padding.worth = -32766;
-                }
+            auto& candidates = adv_civ_player[p_idx].planets;
+            for (auto& entry : candidates) entry.planet_id = game::NO_PLANET;
+            // Preserve the old sort's negative placeholder at the home world's rank.
+            const auto home_rank = std::ranges::find(staged.planet_order, home_id);
+            if (home_rank != staged.planet_order.end()) {
+                candidates[home_rank - staged.planet_order.begin()].worth = -32766;
             }
 
             for (int16_t i = 0; i < MAX_STARS; ++i) {

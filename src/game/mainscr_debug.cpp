@@ -85,7 +85,7 @@ namespace MAINSCR_DEBUG {
             }
 
             for (int32_t orbit = 0; orbit < 5; ++orbit) {
-                Draw_Planet_(legacy_world::Index(star.orbit_planet_ids[orbit].get()).value_or(-1));
+                Draw_Planet_(SERIAL::Encode_Legacy_Planet_Reference(star.orbit_planet_ids[orbit].get()));
             }
             ImGui::TreePop();
         }

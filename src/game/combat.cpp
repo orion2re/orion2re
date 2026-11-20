@@ -900,7 +900,7 @@ namespace COMBAT {
         } else if (MOX::cmbt_colony_id == -1) {
             location_name = MOX::star[star_idx].name;
         } else {
-            location_name = HACCESS::Get_Planet_Name(MOX::colony[MOX::cmbt_colony_id].planet);
+            location_name = HACCESS::Get_Planet_Name(SERIAL::Encode_Legacy_Planet_Reference(MOX::colony[MOX::cmbt_colony_id].planet_id.get()));
         }
         strlcat(result_msg, location_name, result_capacity);
 
@@ -1115,9 +1115,9 @@ namespace COMBAT {
         int16_t ships[MAX_SHIPS];
 
         for (int16_t i = 0; i < MAX_SHIPS; ++i) {
-            int16_t planet_idx = MOX::colony[colony_idx].planet;
+            const auto planet_idx = MOX::colony[colony_idx].planet_id.get();
 
-            if (current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).star_index == MOX::ship[i].location &&
+            if (current_state.planets.at(planet_idx).star_index == MOX::ship[i].location &&
                 MOX::ship[i].d.ship_type == SHIP_TYPE_COMBAT &&
                 MOX::ship[i].status == 0 &&
                 MOX::ship[i].owner == result->attacker_idx) {

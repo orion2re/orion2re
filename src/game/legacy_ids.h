@@ -22,7 +22,6 @@ namespace legacy_world {
 
     constexpr uint32_t Slot(game::id_ship value) { return value.id; }
     constexpr uint32_t Slot(game::id_colony value) { return value.id; }
-    constexpr uint32_t Slot(game::id_planet value) { return value.id; }
     constexpr uint32_t Slot(game::id_star value) { return value.id; }
     constexpr uint32_t Slot(game::id_player value) { return value.id; }
     constexpr uint32_t Slot(game::id_leader value) { return value.id; }
@@ -42,19 +41,6 @@ namespace legacy_world {
     constexpr std::optional<game::id_leader> Try_Leader_Id(int32_t index) {
         return index < 0 ? std::nullopt : std::optional{Leader_Id(static_cast<uint32_t>(index))};
     }
-
-    namespace detail {
-        constexpr std::optional<int16_t> Narrow_Index(uint32_t value) {
-            if (value > INT16_MAX) return std::nullopt;
-            return static_cast<int16_t>(value);
-        }
-    }
-    constexpr std::optional<int16_t> Index(game::id_ship id) { return detail::Narrow_Index(Slot(id)); }
-    constexpr std::optional<int16_t> Index(game::id_colony id) { return detail::Narrow_Index(Slot(id)); }
-    constexpr std::optional<int16_t> Index(game::id_planet id) { return detail::Narrow_Index(Slot(id)); }
-    constexpr std::optional<int16_t> Index(game::id_star id) { return detail::Narrow_Index(Slot(id)); }
-    constexpr std::optional<int16_t> Index(game::id_player id) { return detail::Narrow_Index(Slot(id)); }
-    constexpr std::optional<int16_t> Index(game::id_leader id) { return detail::Narrow_Index(Slot(id)); }
 
     // Legacy qsort passes erased pointers to the typed elements being compared.
     inline game::id_ship Read_Ship_Id(const void* value) {

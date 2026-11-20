@@ -547,7 +547,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "worker production cache preserves
         TEST_GOVERNMENT_BONUS::Reset_();
         s_colony* colony = &MOX::colony[0];
         colony->owner = 0;
-        colony->planet = 0;
+        colony->planet_id = game::id_planet{0};
         test_planets::Record(0).mineral_class = MINERAL_RESOURCE_ULTRA_POOR;
         COLCALC::minerals_per_mine[MINERAL_RESOURCE_ULTRA_POOR] = value;
         COLCALC::production_worker_bonus = {};

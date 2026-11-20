@@ -544,7 +544,7 @@ namespace COLONY {
             int16_t colony_idx = MOX::NUM_COLONIES;
             MOX::NUM_COLONIES++;
 
-            INITGAME::Init_Colony(colony_idx, planet_idx, (uint8_t)MOX::PLAYER_NUM);
+            INITGAME::Init_Colony(colony_idx, SERIAL::Decode_Legacy_Planet_Reference(planet_idx), (uint8_t)MOX::PLAYER_NUM);
 
             return true;
         }
@@ -557,8 +557,8 @@ namespace COLONY {
             s_colony& colony = MOX::colony[colony_idx];
 
             if (colony.bought_outright == 0) {
-                int16_t planet_idx = colony.planet;
-                int16_t star_idx = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).star_index;
+                const auto planet_idx = colony.planet_id.get();
+                int16_t star_idx = game::current_state.planets.at(planet_idx).star_index;
                 s_star_data& star = MOX::star[star_idx];
 
                 if (!struct_::Test_Bit_Field(&star.blockaded, MOX::PLAYER_NUM)) {
@@ -971,7 +971,7 @@ namespace COLONY {
         }
 
         if (production_id == COLONY_PRODUCTION_JUST_COLONIZED) {
-            char* planet_name = HACCESS::Get_Planet_Name(colony->planet);
+            char* planet_name = HACCESS::Get_Planet_Name(SERIAL::Encode_Legacy_Planet_Reference(colony->planet_id.get()));
             char* format = ESTRINGS::E_Strings(ESTR_S_JUST_COLONIZED_PLACE_YOUR_ORDERS_FOR_FUTURE_PRODUCTION);
             snprintf(buffer, sizeof(buffer), format, planet_name);
             GENDRAW::Help(buffer);
@@ -981,7 +981,7 @@ namespace COLONY {
         }
 
         if (production_id == COLONY_PRODUCTION_JUST_CONQUERED) {
-            char* planet_name = HACCESS::Get_Planet_Name(colony->planet);
+            char* planet_name = HACCESS::Get_Planet_Name(SERIAL::Encode_Legacy_Planet_Reference(colony->planet_id.get()));
             char* format = ESTRINGS::E_Strings(ESTR_S_JUST_CONQUERED_PLACE_YOUR_ORDERS_FOR_FUTURE_PRODUCTION);
             snprintf(buffer, sizeof(buffer), format, planet_name);
             GENDRAW::Help(buffer);
@@ -991,7 +991,7 @@ namespace COLONY {
         }
 
         if (production_id == COLONY_PRODUCTION_JUST_LIBERATED) {
-            char* planet_name = HACCESS::Get_Planet_Name(colony->planet);
+            char* planet_name = HACCESS::Get_Planet_Name(SERIAL::Encode_Legacy_Planet_Reference(colony->planet_id.get()));
             char* format = ESTRINGS::E_Strings(ESTR_S_JUST_LIBERATED_PLACE_YOUR_ORDERS_FOR_FUTURE_PRODUCTION);
             snprintf(buffer, sizeof(buffer), format, planet_name);
             GENDRAW::Help(buffer);
@@ -1001,7 +1001,7 @@ namespace COLONY {
         }
 
         char* selection_name = COLBLDG::Selection_Name(production_id);
-        char* planet_name = HACCESS::Get_Planet_Name(colony->planet);
+        char* planet_name = HACCESS::Get_Planet_Name(SERIAL::Encode_Legacy_Planet_Reference(colony->planet_id.get()));
         char* format = ESTRINGS::E_Strings(ESTR_S_FINISHED_BUILDING_S_PLACE_YOUR_ORDERS_FOR_FUTURE_PRODUCTION);
         snprintf(buffer, sizeof(buffer), format, planet_name, selection_name);
         GENDRAW::Help(buffer);
@@ -1445,10 +1445,10 @@ namespace COLONY {
     void __cdecl Set_Colony_Screen_To_New_Colony(int16_t colony_idx) {
         Cleanup_Colony_Queue(colony_handle);
 
-        int16_t planet_idx = MOX::colony[colony_idx].planet;
+        const auto planet_idx = MOX::colony[colony_idx].planet_id.get();
 
-        MOX::screen_data = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).star_index;
-        orbit_temp = (int16_t)game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).orbit;
+        MOX::screen_data = game::current_state.planets.at(planet_idx).star_index;
+        orbit_temp = (int16_t)game::current_state.planets.at(planet_idx).orbit;
         temp_colony_idx = colony_idx;
 
         Reset_Field_Mode();
@@ -1941,11 +1941,11 @@ namespace COLONY {
      */
     void __cdecl Set_Last_Colony_Selected(int16_t colony_idx, int16_t player_idx) {
         if (MOX::colony[colony_idx].outpost_flag == 0) {
-            int16_t planet_idx = MOX::colony[colony_idx].planet;
+            const auto planet_idx = MOX::colony[colony_idx].planet_id.get();
 
             // Note: star_index and orbit are extracted from the planet associated with the colony
-            int16_t star_idx = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).star_index;
-            char orbit = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).orbit;
+            int16_t star_idx = game::current_state.planets.at(planet_idx).star_index;
+            char orbit = game::current_state.planets.at(planet_idx).orbit;
 
             // Update the player's last selected planet in the system's star data
             MOX::star[star_idx].last_planet_selected[player_idx] = orbit;
@@ -2031,7 +2031,7 @@ namespace COLONY {
 
     void __cdecl Set_Colony_Globals(int16_t colony_idx) {
         colony_handle = colony_idx;
-        planet_handle = MOX::colony[colony_idx].planet;
+        planet_handle = SERIAL::Encode_Legacy_Planet_Reference(MOX::colony[colony_idx].planet_id.get());
         star_handle = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_handle)}).star_index;
         orbit_n = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_handle)}).orbit;
     }

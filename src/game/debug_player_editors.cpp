@@ -355,10 +355,9 @@ namespace debug_game_editors {
             for (int32_t index = 0; index < player.settlers_freighted; ++index) {
                 const auto& settler = player.settlers[index];
                 const int16_t source = settler.source_colony.get();
-                const auto destination = legacy_world::Index(settler.destination.get());
                 if ((source != SETTLER::SOURCE_COLONY_IN_TRANSIT &&
                         (source < 0 || source >= MOX::NUM_COLONIES)) ||
-                    !destination || !game::current_state.planets.contains(settler.destination.get()) ||
+                    !game::current_state.planets.contains(settler.destination.get()) ||
                     settler.race > POP::RACE_NATIVE || settler.eta > 15 ||
                     settler.profession > POP::PROF_SCIENTIST) {
                     return false;
@@ -433,9 +432,9 @@ namespace debug_game_editors {
             Input_U8_("color", &player.color);
             Input_U8_("personality", &player.personality);
             Input_U8_("objectives", &player.objectives);
-            int16_t home = legacy_world::Index(player.home_planet_id.get()).value_or(-1);
+            auto home = player.home_planet_id.get();
             if (debug_game_widgets::Planet_Reference("home_planet_id", &home)) {
-                player.home_planet_id = home < 0 ? game::NO_PLANET : game::id_planet{static_cast<uint32_t>(home)};
+                player.home_planet_id = home;
             }
             Input_S16_("network_player_id", &player.network_player_id);
             Input_S8_("player_done_flags", &player.player_done_flags);
@@ -447,14 +446,14 @@ namespace debug_game_editors {
                 "Settler slot", &g_settler_slot, 0, MAX_FREIGHTED_SETTLERS - 1);
             s_settler_info& settler = player.settlers[g_settler_slot];
             int16_t source = settler.source_colony.get();
-            int16_t destination = legacy_world::Index(settler.destination.get()).value_or(-1);
+            auto destination = settler.destination.get();
             int8_t job = static_cast<int8_t>(settler.profession);
             if (Input_S16_("source_colony", &source)) {
                 settler.source_colony = source;
             }
             if (debug_game_widgets::Planet_Reference(
-                    "dest_planet", &destination, false) && destination >= 0) {
-                settler.destination = game::id_planet{static_cast<uint32_t>(destination)};
+                    "dest_planet", &destination, false)) {
+                settler.destination = destination;
             }
             Input_U8_("race", &settler.race);
             Input_U8_("eta", &settler.eta);
@@ -464,7 +463,7 @@ namespace debug_game_editors {
             }
             ImGui::Text(
                 "Destination ID: %u | %s",
-                legacy_world::Slot(settler.destination.get()),
+                settler.destination.get().id,
                 g_settler_slot < player.settlers_freighted ? "active" : "inactive");
         }
 

@@ -147,9 +147,6 @@ DOCTEST_TEST_CASE("route availability does not reserve a duration or object ID")
 DOCTEST_TEST_CASE("legacy boundary conversions handle absence and narrowing explicitly") {
     DOCTEST_CHECK(legacy_world::Nonnegative_Slot(0) == 0);
     DOCTEST_CHECK_FALSE(legacy_world::Nonnegative_Slot(-1));
-    DOCTEST_CHECK(legacy_world::Index(Ship_Id(INT16_MAX)) == INT16_MAX);
-    DOCTEST_CHECK_FALSE(legacy_world::Index(Ship_Id((uint32_t)INT16_MAX + 1)));
-    DOCTEST_CHECK_FALSE(legacy_world::Index(Ship_Id(UINT32_MAX)));
     DOCTEST_CHECK(legacy_world::Travel_Turns(0) == 0);
     DOCTEST_CHECK(legacy_world::Travel_Turns(254) == 254);
     DOCTEST_CHECK_FALSE(legacy_world::Travel_Turns(-1));

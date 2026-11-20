@@ -130,7 +130,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_building_state, "queuing the last legal Colony Base 
     TEST_COLBLDG::Reset_();
 
     MOX::colony[0].owner = 0;
-    MOX::colony[0].planet = 0;
+    MOX::colony[0].planet_id = game::id_planet{0};
     test_planets::Record(0).colony_index = 0;
     test_planets::Record(0).planet_type = PLANET_TYPE_PLANET;
     test_planets::Record(0).star_index = 0;
@@ -173,7 +173,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_building_state, "pending refit design owns an indepe
 
 DOCTEST_TEST_CASE_FIXTURE(s_building_state, "ship allocation appends without a pre-seeded owner") {
     TEST_COLBLDG::Reset_();
-    MOX::colony[0].planet = 0;
+    MOX::colony[0].planet_id = game::id_planet{0};
     test_planets::Record(0).star_index = 0;
     MOX::NUM_SHIPS = 1;
     MOX::ship[0].owner = 0;
@@ -193,7 +193,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_building_state, "ship allocation appends without a p
 
 DOCTEST_TEST_CASE_FIXTURE(s_building_state, "ship allocation reuses only an owner-matched destroyed slot") {
     TEST_COLBLDG::Reset_();
-    MOX::colony[0].planet = 0;
+    MOX::colony[0].planet_id = game::id_planet{0};
     test_planets::Record(0).star_index = 0;
     MOX::NUM_SHIPS = 2;
     MOX::ship[0].owner = 0;
@@ -213,7 +213,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_building_state, "ship allocation reuses only an owne
 
 DOCTEST_TEST_CASE_FIXTURE(s_building_state, "ship allocation fails when capacity has no reusable slot") {
     TEST_COLBLDG::Reset_();
-    MOX::colony[0].planet = 0;
+    MOX::colony[0].planet_id = game::id_planet{0};
     test_planets::Record(0).star_index = 0;
     MOX::NUM_SHIPS = MAX_SHIPS;
     for (int16_t ship_idx = 0; ship_idx < MAX_SHIPS; ++ship_idx) {

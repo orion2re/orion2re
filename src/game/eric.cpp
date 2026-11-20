@@ -331,9 +331,11 @@ namespace ERIC {
 
     int8_t __cdecl Player_Can_Mind_Control_Colony(int16_t player_idx, int16_t colony_idx) {
         if (MOX::player[player_idx].traits[TRAIT_TELEPATHIC] != 0) {
-            if (Player_Has_Ship_Size_Or_Larger_At_Star(player_idx, mind_control_ship_class, game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(MOX::colony[colony_idx].planet)}).star_index)) {
-                if (!Player_Has_Leader_With_General_Skill_At_Star(MOX::colony[colony_idx].owner, 48, game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(MOX::colony[colony_idx].planet)}).star_index)) {
-                    if (!Player_Has_Leader_With_General_Skill_At_Star(MOX::colony[colony_idx].owner, 49, game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(MOX::colony[colony_idx].planet)}).star_index)) {
+            const auto& colony = MOX::colony[colony_idx];
+            const auto star = game::current_state.planets.at(colony.planet_id.get()).star_index;
+            if (Player_Has_Ship_Size_Or_Larger_At_Star(player_idx, mind_control_ship_class, star)) {
+                if (!Player_Has_Leader_With_General_Skill_At_Star(colony.owner, 48, star)) {
+                    if (!Player_Has_Leader_With_General_Skill_At_Star(colony.owner, 49, star)) {
                         if (MOX::player[MOX::colony[colony_idx].owner].traits[TRAIT_TELEPATHIC] == 0) {
                             return 1;
                         }
@@ -350,8 +352,8 @@ namespace ERIC {
             return 0;
         }
 
-        int16_t planet_idx = MOX::colony[colony_idx].planet;
-        int16_t star_idx = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).star_index;
+        const auto planet_idx = MOX::colony[colony_idx].planet_id.get();
+        int16_t star_idx = game::current_state.planets.at(planet_idx).star_index;
 
         if (Player_Has_Ship_Size_Or_Larger_At_Star(player_idx, mind_control_ship_class, star_idx) == 0) {
             GENDRAW::Help(ESTRINGS::E_Strings(0x24C));

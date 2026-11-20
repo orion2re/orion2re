@@ -179,10 +179,10 @@ namespace COLSUM {
         char name2[52];
         char* planet_name_ptr;
 
-        planet_name_ptr = HACCESS::Get_Planet_Name_No_Prime(MOX::colony[colony_idx_1].planet);
+        planet_name_ptr = HACCESS::Get_Planet_Name_No_Prime(SERIAL::Encode_Legacy_Planet_Reference(MOX::colony[colony_idx_1].planet_id.get()));
         strlcpy(name1, planet_name_ptr, sizeof(name1));
 
-        planet_name_ptr = HACCESS::Get_Planet_Name_No_Prime(MOX::colony[colony_idx_2].planet);
+        planet_name_ptr = HACCESS::Get_Planet_Name_No_Prime(SERIAL::Encode_Legacy_Planet_Reference(MOX::colony[colony_idx_2].planet_id.get()));
         strlcpy(name2, planet_name_ptr, sizeof(name2));
 
         return (int16_t)strcasecmp(name1, name2);
@@ -263,7 +263,7 @@ namespace COLSUM {
         if (COLONY::g_colony_n != -1) {
             s_colony* colony = &MOX::colony[COLONY::g_colony_n];
             climate_idx = (uint8_t)colony->climate;
-            planet_idx = colony->planet;
+            planet_idx = SERIAL::Encode_Legacy_Planet_Reference(colony->planet_id.get());
 
             int16_t y_pos = 349 /* 0x15d */;
             for (int16_t i = 0; i < ECON_COUNT; ++i) {
@@ -282,7 +282,7 @@ namespace COLSUM {
             int32_t inbound_population = 0;
             s_player* owner = &MOX::player[colony->owner];
             for (int16_t i = 0; i < owner->settlers_freighted; ++i) {
-                if (owner->settlers[i].destination.get() == game::id_planet{static_cast<uint32_t>(colony->planet)}) {
+                if (owner->settlers[i].destination.get() == colony->planet_id.get()) {
                     inbound_population++;
                 }
             }

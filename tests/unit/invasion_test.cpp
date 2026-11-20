@@ -199,12 +199,12 @@ DOCTEST_TEST_CASE("home planet reassignment excludes outposts") {
 
     s_colony* colony = test_ground_commando_runtime::Colony_(0);
     colony->owner = 0;
-    colony->planet = 1;
+    colony->planet_id = game::id_planet{1};
     colony->n_pops = 1;
 
     s_colony* outpost = test_ground_commando_runtime::Colony_(1);
     outpost->owner = 0;
-    outpost->planet = 2;
+    outpost->planet_id = game::id_planet{2};
     outpost->outpost_flag = 1;
 
     invasion::Assign_New_Home_Planet(0, 0);
@@ -503,7 +503,7 @@ DOCTEST_TEST_CASE("ground-unit limits use configured planet-size capacity") {
     test_ground_commando_runtime::Reset_();
     s_colony* colony = test_ground_commando_runtime::Colony_();
     colony->owner = 0;
-    test_planets::Record(colony->planet).size = PLANET_SIZE_HUGE;
+    test_planets::Record(SERIAL::Encode_Legacy_Planet_Reference(colony->planet_id.get())).size = PLANET_SIZE_HUGE;
     const uint8_t saved_capacity =
         COLCALC::population_capacity.size[PLANET_SIZE_HUGE];
 

@@ -21,10 +21,10 @@ namespace REPORT {
 
     s_colony* __cdecl Player_Colony_Base_At_Star(int16_t player_idx, int16_t star_idx) {
         for (int i = 0; i < 5; ++i) {
-            int16_t planet_idx = legacy_world::Index(MOX::star[star_idx].orbit_planet_ids[i].get()).value_or(-1);
+            const auto planet_idx = MOX::star[star_idx].orbit_planet_ids[i].get();
 
-            if (planet_idx != -1) {
-                int16_t colony_idx = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).colony_index;
+            if (planet_idx != game::NO_PLANET) {
+                int16_t colony_idx = game::current_state.planets.at(planet_idx).colony_index;
 
                 if (colony_idx != -1) {
                     s_colony* colony = &MOX::colony[colony_idx];
@@ -286,7 +286,7 @@ namespace REPORT {
                                     MOX::star[star_idx].ignore_colony_ships |= (1 << player_idx);
                                 } else {
                                     if (is_colony) {
-                                        COLONIZE::Make_New_Colony(planet_idx, player_idx);
+                                        COLONIZE::Make_New_Colony(SERIAL::Decode_Legacy_Planet_Reference(planet_idx), player_idx);
                                         if (colony_base == nullptr) {
                                             SHIPS::Kill_Ship((int16_t)(colony_ship - MOX::ship));
                                             COLCALC::Update_Player_Stats(&MOX::player[player_idx]);
@@ -318,7 +318,7 @@ namespace REPORT {
                                         }
                                         return 1;
                                     } else {
-                                        COLONIZE::Make_New_Outpost(planet_idx, player_idx);
+                                        COLONIZE::Make_New_Outpost(SERIAL::Decode_Legacy_Planet_Reference(planet_idx), player_idx);
                                         SHIPS::Kill_Ship((int16_t)(outpost_ship - MOX::ship));
                                         COLCALC::Update_Player_Stats(&MOX::player[player_idx]);
                                         MAINSCR::Update_Ship_Icons_In_Between_Turns();
@@ -766,8 +766,8 @@ namespace REPORT {
                     MOX::current_screen = SCREEN_COLONY;
                     MOX::return_screen = SCREEN_REPORTS;
 
-                    int16_t planet_idx = colony->planet;
-                    s_planet_data* planet = &game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)});
+                    const auto planet_idx = colony->planet_id.get();
+                    s_planet_data* planet = &game::current_state.planets.at(planet_idx);
 
                     MOX::screen_data = planet->star_index;
                     COLONY::orbit_temp = (int16_t)planet->orbit;
@@ -892,8 +892,8 @@ namespace REPORT {
             MOX::current_screen = SCREEN_COLONY;
 
             // Set up planet specific data for the colony screen jump
-            MOX::screen_data = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(target_colony->planet)}).star_index;
-            COLONY::orbit_temp = (int16_t)game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(target_colony->planet)}).orbit;
+            MOX::screen_data = game::current_state.planets.at(target_colony->planet_id.get()).star_index;
+            COLONY::orbit_temp = (int16_t)game::current_state.planets.at(target_colony->planet_id.get()).orbit;
             MOX::global_esc = 1;
         }
 

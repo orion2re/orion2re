@@ -241,7 +241,7 @@ namespace debug_game_editors {
 #define MERGE_COLONY_FIELD(field) valid = Merge_Field_(baseline.field, draft.field, live.field, &merged->field) && valid
             MERGE_COLONY_FIELD(owner);
             MERGE_COLONY_FIELD(allocated_to);
-            MERGE_COLONY_FIELD(planet);
+            MERGE_COLONY_FIELD(planet_id);
             MERGE_COLONY_FIELD(officer);
             MERGE_COLONY_FIELD(outpost_flag);
             MERGE_COLONY_FIELD(morale);
@@ -346,7 +346,7 @@ namespace debug_game_editors {
         bool Validate_Colony_(const s_colony& colony) {
             const int16_t player_count = std::clamp<int16_t>(MOX::NUM_PLAYERS, 0, MAX_PLAYERS);
             return colony.owner >= 0 && colony.owner < player_count &&
-                colony.planet >= 0 && game::current_state.planets.contains(game::id_planet{static_cast<uint32_t>(colony.planet)}) &&
+                colony.planet_id.get() != game::NO_PLANET && game::current_state.planets.contains(colony.planet_id.get()) &&
                 (colony.allocated_to == -1 ||
                     (colony.allocated_to >= 0 && colony.allocated_to < player_count)) &&
                 colony.officer >= -1 && colony.officer < MAX_LEADERS &&
@@ -453,10 +453,13 @@ namespace debug_game_editors {
             ImGui::Text("Population units: %u", (unsigned)colony.n_pops);
             ImGui::TextUnformatted("Owner and planet are read-only relationship fields.");
             ImGui::BeginDisabled();
-            debug_game_widgets::Planet_Reference("Planet", &colony.planet, false);
+            auto planet_field = colony.planet_id.get();
+            if (debug_game_widgets::Planet_Reference("Planet", &planet_field, false)) {
+                colony.planet_id = planet_field;
+            }
             ImGui::EndDisabled();
             if (ImGui::Button("Open planet")) {
-                Open_Planet(colony.planet);
+                Open_Planet(SERIAL::Encode_Legacy_Planet_Reference(colony.planet_id.get()));
             }
             debug_game_widgets::Player_Reference("Allocated to", &colony.allocated_to);
             ImGui::Text("Stored officer: %d (relationship)", (int)colony.officer);
@@ -954,17 +957,17 @@ namespace debug_game_editors {
                 ImGui::TextUnformatted("This reinitializes the outpost as a new colony.");
                 const bool can_convert = Valid_Colony_(g_pending_outpost_colony) &&
                     MOX::colony[g_pending_outpost_colony].outpost_flag != 0 &&
-                    MOX::colony[g_pending_outpost_colony].planet >= 0 &&
-                    game::current_state.planets.contains(game::id_planet{static_cast<uint32_t>(MOX::colony[g_pending_outpost_colony].planet)}) &&
-                    game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(MOX::colony[g_pending_outpost_colony].planet)}).colony_index ==
+                    MOX::colony[g_pending_outpost_colony].planet_id.get() != game::NO_PLANET &&
+                    game::current_state.planets.contains(MOX::colony[g_pending_outpost_colony].planet_id.get()) &&
+                    game::current_state.planets.at(MOX::colony[g_pending_outpost_colony].planet_id.get()).colony_index ==
                         g_pending_outpost_colony &&
                     MOX::game_type != 2 && MOX::game_type != 3;
                 ImGui::BeginDisabled(!can_convert);
                 if (ImGui::Button("Convert")) {
                     const int16_t colony_index = g_pending_outpost_colony;
-                    const int16_t planet_index = MOX::colony[colony_index].planet;
+                    const int16_t planet_index = SERIAL::Encode_Legacy_Planet_Reference(MOX::colony[colony_index].planet_id.get());
                     const int8_t owner = MOX::colony[colony_index].owner;
-                    COLONIZE::Make_New_Colony(planet_index, owner);
+                    COLONIZE::Make_New_Colony(MOX::colony[colony_index].planet_id.get(), owner);
                     Refresh_Colony_State_();
                     Load_Colony_(colony_index);
                     g_colony_operation_status = "Outpost converted to a colony.";

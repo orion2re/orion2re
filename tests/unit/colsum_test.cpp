@@ -18,7 +18,7 @@ namespace {
 
         s_colony* colony = &MOX::colony[0];
         colony->owner = 0;
-        colony->planet = 0;
+        colony->planet_id = game::id_planet{0};
         colony->climate = PLANET_CLIMATE_TERRAN;
         colony->n_pops = 7;
         colony->pop_roundoff[0] = 250;

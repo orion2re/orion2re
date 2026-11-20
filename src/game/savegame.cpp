@@ -3,6 +3,7 @@
 #include "leader_serialization.h"
 #include "planet_serialization.h"
 #include "star_serialization.h"
+#include "colony_serialization.h"
 #include "settler_serialization.h"
 
 #include "game/savegame.h"
@@ -48,14 +49,16 @@ namespace SAVEGAME {
             memset(colony, 0, sizeof(*colony));
             colony->owner = -1;
             colony->allocated_to = -1;
-            colony->planet = -1;
+            colony->planet_id = game::NO_PLANET;
             colony->officer = -1;
         }
 
         bool Is_Zeroed_Colony_Slot(const s_colony& colony) {
             s_colony zeroed = colony;
             zeroed.allocated_to = 0;
-            const s_colony empty = {};
+            // Historical empty slots included a zero in the planet field.
+            s_colony empty{};
+            empty.planet_id = game::id_planet{0};
             return memcmp(&zeroed, &empty, sizeof(zeroed)) == 0;
         }
 
@@ -283,117 +286,6 @@ namespace SAVEGAME {
             design->cost = reader->Read_Int16();
             design->combat_speed = reader->Read_Uint8();
             design->date_of_design = reader->Read_Uint16();
-        }
-
-        void Write_Colony(SERIAL::Writer_* writer, const s_colony* colony) {
-            writer->Write_Int8(colony->owner);
-            writer->Write_Int8(colony->allocated_to);
-            writer->Write_Int16(colony->planet);
-            writer->Write_Int16(colony->officer);
-            writer->Write_Uint8(colony->outpost_flag);
-            writer->Write_Int8(colony->morale);
-            writer->Write_Int16(colony->pollution);
-            writer->Write_Uint8(colony->n_pops);
-            writer->Write_Int8(colony->specialty);
-            for (int i = 0; i < 42; ++i) writer->Write_Uint32(colony->pop[i]);
-            Write_Int16_Array(writer, colony->pop_roundoff, COLONY_POP_RACE_COUNT);
-            Write_Int16_Array(writer, colony->pop_growth, COLONY_POP_RACE_COUNT);
-            writer->Write_Int8(colony->n_turns_existed);
-            writer->Write_Uint8(colony->food2_per_farmer);
-            writer->Write_Uint8(colony->industry_per_worker);
-            writer->Write_Int8(colony->research_per_scientist);
-            writer->Write_Uint8(colony->max_farms);
-            writer->Write_Int8(colony->max_population);
-            writer->Write_Uint8(colony->climate);
-            writer->Write_Int16(colony->ground_strength);
-            writer->Write_Int16(colony->space_strength);
-            Write_Int16_Array(writer, colony->production, ECON_COUNT);
-            writer->Write_Bytes(colony->maintenance, sizeof(colony->maintenance));
-            Write_Int16_Array(writer, colony->imports, ECON_COUNT);
-            writer->Write_Int8(colony->n_industry_recyclers);
-            writer->Write_Uint8(colony->food2_needed_for_our_empire);
-            writer->Write_Uint8(colony->food2_needed_for_assimilated);
-            writer->Write_Uint8(colony->food2_needed_for_conquered);
-            writer->Write_Uint8(colony->food2_needed_for_natives);
-            writer->Write_Uint8(colony->industry2_needed_for_our_empire);
-            writer->Write_Uint8(colony->industry2_needed_for_androids);
-            writer->Write_Uint8(colony->industry2_needed_for_assimilated);
-            writer->Write_Uint8(colony->industry2_needed_for_conquered);
-            writer->Write_Bytes(colony->food2_needed_for_empire, sizeof(colony->food2_needed_for_empire));
-            writer->Write_Bytes(colony->industry2_needed_for_empire, sizeof(colony->industry2_needed_for_empire));
-            writer->Write_Int8(colony->n_food_replicated);
-            Write_Int16_Array(writer, colony->producing, 7);
-            writer->Write_Int16(colony->just_produced);
-            writer->Write_Int16(colony->production_spent);
-            writer->Write_Int16(colony->n_industry_taxed);
-            writer->Write_Uint8(colony->auto_building);
-            writer->Write_Int16(colony->production_surplus);
-            writer->Write_Int16(colony->bought_outright);
-            writer->Write_Int8(colony->occupation_points);
-            writer->Write_Int8(colony->occupation_policy);
-            Write_Int16_Array(writer, colony->military, 2);
-            writer->Write_Int8(colony->tank_roundoff);
-            writer->Write_Int8(colony->infantry_roundoff);
-            writer->Write_Bytes(colony->buildings, sizeof(colony->buildings));
-            writer->Write_Uint16(colony->last_turn_building_destroyed);
-            writer->Write_Uint8(colony->buildings_scrapped_this_turn);
-        }
-
-        void Read_Colony(SERIAL::Reader_* reader, s_colony* colony, uint16_t version) {
-            memset(colony, 0, sizeof(*colony));
-            colony->owner = reader->Read_Int8();
-            colony->allocated_to = reader->Read_Int8();
-            colony->planet = reader->Read_Int16();
-            colony->officer = reader->Read_Int16();
-            colony->outpost_flag = reader->Read_Uint8();
-            colony->morale = reader->Read_Int8();
-            colony->pollution = reader->Read_Int16();
-            colony->n_pops = reader->Read_Uint8();
-            colony->specialty = reader->Read_Int8();
-            for (int i = 0; i < 42; ++i) colony->pop[i] = reader->Read_Uint32();
-            Read_Int16_Array(reader, colony->pop_roundoff, COLONY_POP_RACE_COUNT);
-            Read_Int16_Array(reader, colony->pop_growth, COLONY_POP_RACE_COUNT);
-            colony->n_turns_existed = reader->Read_Int8();
-            colony->food2_per_farmer = reader->Read_Uint8();
-            colony->industry_per_worker = reader->Read_Uint8();
-            colony->research_per_scientist = reader->Read_Int8();
-            colony->max_farms = reader->Read_Uint8();
-            colony->max_population = reader->Read_Int8();
-            colony->climate = reader->Read_Uint8();
-            colony->ground_strength = reader->Read_Int16();
-            colony->space_strength = reader->Read_Int16();
-            Read_Int16_Array(reader, colony->production, ECON_COUNT);
-            reader->Read_Bytes(colony->maintenance, sizeof(colony->maintenance));
-            Read_Int16_Array(reader, colony->imports, ECON_COUNT);
-            colony->n_industry_recyclers = reader->Read_Int8();
-            colony->food2_needed_for_our_empire = reader->Read_Uint8();
-            colony->food2_needed_for_assimilated = reader->Read_Uint8();
-            colony->food2_needed_for_conquered = reader->Read_Uint8();
-            colony->food2_needed_for_natives = reader->Read_Uint8();
-            colony->industry2_needed_for_our_empire = reader->Read_Uint8();
-            colony->industry2_needed_for_androids = reader->Read_Uint8();
-            colony->industry2_needed_for_assimilated = reader->Read_Uint8();
-            colony->industry2_needed_for_conquered = reader->Read_Uint8();
-            reader->Read_Bytes(colony->food2_needed_for_empire, sizeof(colony->food2_needed_for_empire));
-            reader->Read_Bytes(colony->industry2_needed_for_empire, sizeof(colony->industry2_needed_for_empire));
-            colony->n_food_replicated = reader->Read_Int8();
-            Read_Int16_Array(reader, colony->producing, 7);
-            colony->just_produced = reader->Read_Int16();
-            colony->production_spent = reader->Read_Int16();
-            colony->n_industry_taxed = reader->Read_Int16();
-            colony->auto_building = reader->Read_Uint8();
-            colony->production_surplus = reader->Read_Int16();
-            colony->bought_outright = reader->Read_Int16();
-            colony->occupation_points = reader->Read_Int8();
-            colony->occupation_policy = reader->Read_Int8();
-            Read_Int16_Array(reader, colony->military, 2);
-            colony->tank_roundoff = reader->Read_Int8();
-            colony->infantry_roundoff = reader->Read_Int8();
-            reader->Read_Bytes(colony->buildings, sizeof(colony->buildings));
-            colony->last_turn_building_destroyed = reader->Read_Uint16();
-            colony->buildings_scrapped_this_turn = version >= BUILDING_SCRAP_COUNT_VERSION
-                ? reader->Read_Uint8()
-                : (colony->last_turn_building_destroyed != 0 ? 1 : 0);
         }
 
         void Write_Player(SERIAL::Writer_* writer, const s_player* player) {
@@ -1353,8 +1245,8 @@ namespace SAVEGAME {
         void Write_Game_State(const game::s_game_state& state, SERIAL::Writer_* writer, const s_settings* settings, uint32_t random_seed) {
             Write_Settings(writer, settings);
             writer->Write_Uint32(random_seed);
-            writer->Write_Int16(MOX::NUM_COLONIES);
-            for (int i = 0; i < MOX::NUM_COLONIES; ++i) Write_Colony(writer, &MOX::colony[i]);
+            writer->Write_Uint16(MOX::NUM_COLONIES | SERIAL::WIDE_COLONY_PLANET_FLAG);
+            for (int i = 0; i < MOX::NUM_COLONIES; ++i) SERIAL::Write_Colony(*writer, MOX::colony[i]);
             SERIAL::Write_Planet_Block(state, *writer);
             writer->Write_Uint16(MOX::NUM_STARS | SERIAL::WIDE_ORBIT_IDS_FLAG);
             for (int i = 0; i < MOX::NUM_STARS; ++i) SERIAL::Write_Star(*writer, MOX::star[i]);
@@ -1418,11 +1310,13 @@ namespace SAVEGAME {
         bool Read_Game_State(game::s_game_state& state, SERIAL::Reader_* reader, uint16_t version, s_settings* settings, uint32_t* random_seed) {
             Read_Settings(reader, settings);
             *random_seed = reader->Read_Uint32();
-            MOX::NUM_COLONIES = reader->Read_Int16();
+            const auto colony_count = reader->Read_Uint16();
+            const bool wide_colony_planets = version >= 8 && (colony_count & SERIAL::WIDE_COLONY_PLANET_FLAG);
+            MOX::NUM_COLONIES = static_cast<int16_t>(wide_colony_planets ? colony_count & ~SERIAL::WIDE_COLONY_PLANET_FLAG : colony_count);
             if (MOX::NUM_COLONIES < 0 || MOX::NUM_COLONIES > MAX_COLONIES) return false;
             const int colony_record_count = version == LEGACY_VERSION ? ORIGINAL_MAX_COLONIES : MOX::NUM_COLONIES;
             for (int i = 0; i < colony_record_count; ++i) {
-                Read_Colony(reader, &MOX::colony[i], version);
+                SERIAL::Read_Colony(*reader, MOX::colony[i], wide_colony_planets, version >= BUILDING_SCRAP_COUNT_VERSION);
                 if (Is_Zeroed_Colony_Slot(MOX::colony[i])) {
                     Initialize_Unused_Colony(&MOX::colony[i]);
                 }

@@ -25,24 +25,24 @@ namespace AIPOWER {
             }
         }
 
-        const auto legacy_player = legacy_world::Index(player_id);
-        if (!legacy_player) return 0;
-        int16_t shield_idx = INITSHIP::Best_Ship_Shield(*legacy_player);
+        const auto legacy_player = player_id.id;
+        if (legacy_player >= MAX_PLAYERS) return 0;
+        int16_t shield_idx = INITSHIP::Best_Ship_Shield(legacy_player);
         return shields[shield_idx].shield_class;
     }
 
     uint32_t Missile_Base_Strength(const game::s_view* world, game::id_player player_id, game::id_player target_id) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
-        const auto legacy_player = legacy_world::Index(player_id);
-        if (!legacy_player) return 0;
+        const auto legacy_player = player_id.id;
+        if (legacy_player >= MAX_PLAYERS) return 0;
         if (world->settings->strategic_combat_flag == 1) {
             return 90 /* 0x5a */;
         }
 
-        int16_t weapon_idx = INITSHIP::Best_Missile_Weapon_NT(*legacy_player);
+        int16_t weapon_idx = INITSHIP::Best_Missile_Weapon_NT(legacy_player);
 
         // weapon_idx is used here to get space cost
-        int32_t weapon_space = DESIGN::Weapon_Space(*legacy_player, weapon_idx, 1, WEAPON_FIRING_ARC_360, COMBINIT::missile_base_ammo_basis, 0);
+        int32_t weapon_space = DESIGN::Weapon_Space(legacy_player, weapon_idx, 1, WEAPON_FIRING_ARC_360, COMBINIT::missile_base_ammo_basis, 0);
 
         int16_t capacity = (int16_t)(COMBINIT::ground_defense.missile_base_space / weapon_space);
 
@@ -103,15 +103,15 @@ namespace AIPOWER {
 
     uint32_t Phasor_Base_Strength(const game::s_view* world, game::id_player player_id, game::id_player target_id) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
-        const auto legacy_player = legacy_world::Index(player_id);
-        if (!legacy_player) return 0;
+        const auto legacy_player = player_id.id;
+        if (legacy_player >= MAX_PLAYERS) return 0;
         if (world->settings->strategic_combat_flag == 1) {
             return 120 /* 0x78 */;
         }
 
         int16_t weapon_idx = INITSHIP::Best_Beam_Weapon(
             player_idx, WEAPON_MOD_FLAG_HEAVY_MOUNT);
-        int32_t space = DESIGN::Weapon_Space(*legacy_player, weapon_idx, 1, WEAPON_FIRING_ARC_360, 1, 2);
+        int32_t space = DESIGN::Weapon_Space(legacy_player, weapon_idx, 1, WEAPON_FIRING_ARC_360, 1, 2);
 
         int16_t weapon_count = (int16_t)(COMBINIT::ground_defense.battery_hv_space / space);
 
@@ -139,10 +139,10 @@ namespace AIPOWER {
 
     uint16_t Fighter_Garrison_Strength(const game::s_view* world, game::id_player player_id, game::id_player target_player_id) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
-        const auto legacy_player = legacy_world::Index(player_id);
-        if (!legacy_player) return 0;
-        int16_t pd_weapon_idx = INITSHIP::Best_Point_Defense_Weapon(*legacy_player);
-        int16_t bomb_weapon_idx = INITSHIP::Best_Bomb_Weapon(*legacy_player);
+        const auto legacy_player = player_id.id;
+        if (legacy_player >= MAX_PLAYERS) return 0;
+        int16_t pd_weapon_idx = INITSHIP::Best_Point_Defense_Weapon(legacy_player);
+        int16_t bomb_weapon_idx = INITSHIP::Best_Bomb_Weapon(legacy_player);
         int16_t bomber_count = 0;
         int16_t shield_value = Get_Best_Ship_Shield_Value(TECHDATA::shields, target_player_id);
         int16_t heavy_fighter_count = 0;

@@ -89,11 +89,11 @@ namespace COLONY {
 }
 
 namespace INITGAME {
-    void __cdecl Init_Colony(int16_t colony_idx, int16_t planet_idx,
+    void __cdecl Init_Colony(int16_t colony_idx, game::id_planet planet_id,
                               uint8_t player_num) {
-        MOX::colony[colony_idx].planet = planet_idx;
+        MOX::colony[colony_idx].planet_id = planet_id;
         MOX::colony[colony_idx].owner = static_cast<int8_t>(player_num);
-        test_planets::Record(planet_idx).colony_index = colony_idx;
+        game::current_state.planets.at(planet_id).colony_index = colony_idx;
     }
 }
 

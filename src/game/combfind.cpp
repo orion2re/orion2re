@@ -70,8 +70,8 @@ namespace COMBFIND {
         for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
             int8_t owner = MOX::colony[i].owner;
             if (owner != -1) {
-                int16_t planet_idx = MOX::colony[i].planet;
-                int16_t star_idx = current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).star_index;
+                const auto planet_idx = MOX::colony[i].planet_id.get();
+                int16_t star_idx = current_state.planets.at(planet_idx).star_index;
                 (*star_has_player)[star_idx][owner].colony_count++;
             }
         }
@@ -539,7 +539,7 @@ namespace COMBFIND {
             s_colony* colony = &MOX::colony[i];
 
             if (colony->owner == player_idx) {
-                int16_t target_star_idx = current_state.planets.at(game::id_planet{static_cast<uint32_t>(colony->planet)}).star_index;
+                int16_t target_star_idx = current_state.planets.at(colony->planet_id.get()).star_index;
 
                 if (target_star_idx != star_idx && target_star_idx != closest_star_idx) {
                     if (!struct_::Test_Bit_Field(src_star->black_hole_blocks, target_star_idx)) {
@@ -572,9 +572,9 @@ namespace COMBFIND {
 
         if (star_idx < MOX::NUM_STARS) {
             for (int i = 0; i < 5; ++i) {
-                int16_t planet_idx = legacy_world::Index(MOX::star[star_idx].orbit_planet_ids[i].get()).value_or(-1);
-                if (planet_idx >= 0) {
-                    int16_t colony_idx = current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).colony_index;
+                const auto planet_idx = MOX::star[star_idx].orbit_planet_ids[i].get();
+                if (planet_idx != game::NO_PLANET) {
+                    int16_t colony_idx = current_state.planets.at(planet_idx).colony_index;
                     if (colony_idx >= 0) {
                         if (Player_May_Attack_Player(player_idx, MOX::colony[colony_idx].owner)) {
                             target.colony_targets[target.num_colony_targets] = colony_idx;
@@ -694,19 +694,13 @@ namespace COMBFIND {
         }
     }
 
-    int16_t __cdecl Find_Planet_At_Star_Satisfying(s_star_data* star, bool(__cdecl* predicate)(s_planet_data*)) {
-        for (int16_t i = 0; i < 5; ++i) {
-            int16_t planet_idx = legacy_world::Index(star->orbit_planet_ids[i].get()).value_or(-1);
-
-            if (planet_idx != -1) {
-                // Accessing the planet data via the global planet array
-                if (predicate(&current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}))) {
-                    return planet_idx;
-                }
-            }
+    static game::id_planet Find_Planet_At_Star_Satisfying(game::s_game_state& state, const s_star_data& star,
+        bool(__cdecl* predicate)(s_planet_data*)) {
+        for (const auto& link : star.orbit_planet_ids) {
+            const auto id = link.get();
+            if (id != game::NO_PLANET && predicate(&state.planets.at(id))) return id;
         }
-
-        return -1;
+        return game::NO_PLANET;
     }
 
     bool __cdecl Planet_Has_Splinter_Colony(s_planet_data* planet) {
@@ -734,7 +728,7 @@ namespace COMBFIND {
         if (i < MOX::NUM_COLONIES) {
             do {
                 // Check if the colony slot is empty
-                if (col->planet == -1) {
+                if (col->planet_id.get() == game::NO_PLANET) {
                     break;
                 }
                 i++;
@@ -758,7 +752,6 @@ namespace COMBFIND {
         uint8_t player_present[MAX_PLAYERS];
         int16_t player_idx;
         s_colony* colony;
-        int16_t planet_idx;
         int16_t limit;
         int n_techs;
         int total_valid_techs;
@@ -792,12 +785,13 @@ namespace COMBFIND {
                         star->system_special = player_idx + 60;
                         break;
 
-                    case SYSTEM_SPECIAL_SPLINTER_COLONY:
+                    case SYSTEM_SPECIAL_SPLINTER_COLONY: {
+                        const auto id = Find_Planet_At_Star_Satisfying(current_state, *star, Planet_Has_Splinter_Colony);
+                        if (id == game::NO_PLANET) break;
                         star->system_special = player_idx + 70;
                         (*star_has_player)[star_idx][player_idx].colony_count = 1;
                         colony = Free_Colony_Slot();
-                        planet_idx = Find_Planet_At_Star_Satisfying(star, Planet_Has_Splinter_Colony);
-                        INITGAME::Init_Colony((int16_t)(colony - MOX::colony), planet_idx, (uint8_t)player_idx);
+                        INITGAME::Init_Colony((int16_t)(colony - MOX::colony), id, (uint8_t)player_idx);
 
                         limit = COLCALC::Colony_Race_Pop_Limit(colony, player_idx);
                         colony->n_pops = (uint8_t)limit;
@@ -815,7 +809,7 @@ namespace COMBFIND {
                             pop_val = (pop_val & ~0xF) | (player_idx & 0xF);
                             pop_val = (pop_val & ~0x70) | ((player_idx << 4) & 0x70);
 
-                            if (current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).food_per_farmer == 0 || MOX::player[player_idx].traits[TRAIT_EATS_MINERALS] != 0) {
+                            if (current_state.planets.at(id).food_per_farmer == 0 || MOX::player[player_idx].traits[TRAIT_EATS_MINERALS] != 0) {
                                 int r = game_random::Random(2);
                                 pop_val = (((r << 7) ^ pop_val) & 0x180) ^ pop_val;
                             } else if (MOX::player[player_idx].traits[TRAIT_CYBERNETIC] == 0) {
@@ -834,6 +828,7 @@ namespace COMBFIND {
                         COLCALC::Colony_Calculation((int16_t)(colony - MOX::colony));
                         colony->just_produced = COLONY_PRODUCTION_JUST_COLONIZED;
                         break;
+                    }
 
                     case SYSTEM_SPECIAL_MAROONED_HERO:
                         star->system_special = player_idx + 80;
@@ -846,8 +841,8 @@ namespace COMBFIND {
 
                             star->system_special = player_idx + 90;
                             star->artifacts_gave_app = 1;
-                            planet_idx = Find_Planet_At_Star_Satisfying(
-                                star, Planet_Has_Ancient_Artifacts);
+                            const auto id = Find_Planet_At_Star_Satisfying(
+                                current_state, *star, Planet_Has_Ancient_Artifacts);
 
                             if (!MAPGEN::special_generation_config.artifacts_grant_technology) {
                                 break;
@@ -880,7 +875,7 @@ namespace COMBFIND {
                                     s_report report = {};
                                     report.type = 3;
                                     report.player_idx = player_idx;
-                                    report.d.artifacts.planet_idx = planet_idx;
+                                    report.d.artifacts.planet_idx = SERIAL::Encode_Legacy_Planet_Reference(id);
                                     report.d.artifacts.tech_app_id = tech_app_id;
                                     REPORT::Add_Report(&report);
                                 }
@@ -1361,7 +1356,7 @@ namespace COMBFIND {
             return -1;
         }
 
-        return MOX::colony[colony_idx].planet;
+        return SERIAL::Encode_Legacy_Planet_Reference(MOX::colony[colony_idx].planet_id.get());
     }
 
     int8_t __cdecl Some_Star_Player_Is_Busy(int16_t star_idx) {
@@ -1970,8 +1965,8 @@ namespace COMBFIND {
         int16_t ship_idx = *ship_list;
         int8_t attacker_id = ships[ship_idx].owner;
         s_colony* colony = &MOX::colony[colony_idx];
-        int16_t planet_idx = colony->planet;
-        int16_t star_idx = current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).star_index;
+        const auto planet_idx = colony->planet_id.get();
+        int16_t star_idx = current_state.planets.at(planet_idx).star_index;
         int8_t colony_owner = colony->owner;
 
         if (colony->outpost_flag != 0) {
@@ -2002,9 +1997,9 @@ namespace COMBFIND {
                                 BOMB::Destroy_Colony(colony, 2);
                                 ERIC::Play_Planetary_Destruction_Flic();
                                 COMBFIND::current_star_has_player[colony_owner].colony_count--;
-                                current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).planet_type = PLANET_TYPE_ASTEROID;
-                                if (current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).planet_special != SYSTEM_SPECIAL_NO_SPECIAL) {
-                                    current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).planet_special = SYSTEM_SPECIAL_NO_SPECIAL;
+                                current_state.planets.at(planet_idx).planet_type = PLANET_TYPE_ASTEROID;
+                                if (current_state.planets.at(planet_idx).planet_special != SYSTEM_SPECIAL_NO_SPECIAL) {
+                                    current_state.planets.at(planet_idx).planet_special = SYSTEM_SPECIAL_NO_SPECIAL;
                                     MOX::star[star_idx].system_special = SYSTEM_SPECIAL_NO_SPECIAL;
                                 }
                                 NETMOX::Russ_Change_Relations(-10000, attacker_id, colony_owner, 10, star_idx, old_n_pops);
@@ -2059,7 +2054,7 @@ namespace COMBFIND {
                                 invasion::Change_Colony_Ownership(colony, attacker_id, &results->info);
                                 results->info.is_mind_controlled = 1;
                                 if (results->info.captured_tech_id != 0) {
-                                    SCIENCE::Show_Off_Captured_Tech(results->info.captured_techs_data, results->info.captured_tech_id, colony->planet);
+                                    SCIENCE::Show_Off_Captured_Tech(results->info.captured_techs_data, results->info.captured_tech_id, SERIAL::Encode_Legacy_Planet_Reference(colony->planet_id.get()));
                                 }
                                 NETMOX::Russ_Change_Relations(-10000, attacker_id, colony_owner, 10, star_idx, colony->n_pops);
                                 COMBFIND::current_star_has_player[attacker_id].colony_count++;
@@ -2093,7 +2088,7 @@ namespace COMBFIND {
                     COMBFIND::current_star_has_player[colony_owner].colony_count--;
                 } else {
                     bool has_stellar = Has_Stellar_Converter(ship_list, n_ships);
-                    int16_t enemy_star_idx = current_state.planets.at(game::id_planet{static_cast<uint32_t>(colony->planet)}).star_index;
+                    int16_t enemy_star_idx = current_state.planets.at(colony->planet_id.get()).star_index;
                     bool knows_attacker = false;
                     uint8_t surrendered = 0;
                     uint8_t terminal_destroyed = 0;
@@ -2228,7 +2223,7 @@ namespace COMBFIND {
             }
         } else {
             if (attacker_id > 9 && attacker_id < 15) {
-                NETMOX::Russ_Event_Monster_Update(attacker_id, colony->planet, -1);
+                NETMOX::Russ_Event_Monster_Update(attacker_id, SERIAL::Encode_Legacy_Planet_Reference(colony->planet_id.get()), -1);
             }
 
             memset(&results->bomb, 0, sizeof(s_combat_bomb_result));
@@ -2246,8 +2241,8 @@ namespace COMBFIND {
                 attacker_id == NONPLAYER_SHIP_TYPE_AMOEBA;
 
             if (amoeba_attacked_colony) {
-                current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).climate = PLANET_CLIMATE_TOXIC;
-                current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).food_per_farmer = 0;
+                current_state.planets.at(planet_idx).climate = PLANET_CLIMATE_TOXIC;
+                current_state.planets.at(planet_idx).food_per_farmer = 0;
                 if (results->bomb.colony_wiped_out == 0) {
                     COLCALC::Colony_Environmental_Stuff(colony);
                     invasion::Enforce_Population_Limits_At_Colony(colony);

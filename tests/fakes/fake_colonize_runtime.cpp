@@ -58,7 +58,10 @@ namespace ERICNET {
 }
 
 namespace INITGAME {
-    void __cdecl Init_Colony(int16_t, int16_t, uint8_t) {
+    void __cdecl Init_Colony(int16_t colony_idx, game::id_planet id, uint8_t player) {
+        MOX::colony[colony_idx].owner = player;
+        MOX::colony[colony_idx].planet_id = id;
+        game::current_state.planets.at(id).colony_index = colony_idx;
     }
 }
 

@@ -46,7 +46,7 @@ namespace TEST_AIMOVE {
         ships[0].location = 0;
         ships[0].d.speed = 1;
         colonies[0].owner = 0;
-        colonies[0].planet = 0;
+        colonies[0].planet_id = game::id_planet{0};
         test_planets::Record(0).star_index = 1;
         spawn_count = 0;
         move_attempt_count = 0;

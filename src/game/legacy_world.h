@@ -23,9 +23,8 @@ namespace legacy_world {
         std::vector<int16_t> encoded;
         encoded.reserve(ids.size() + 1);
         for (game::id_ship id : ids) {
-            auto index = Index(id);
-            if (!index) return std::nullopt;
-            encoded.push_back(*index);
+            if (id.id > INT16_MAX) return std::nullopt;
+            encoded.push_back(id.id);
         }
         encoded.push_back(-1);
         return encoded;

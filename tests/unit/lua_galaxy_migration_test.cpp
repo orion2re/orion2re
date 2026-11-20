@@ -165,11 +165,11 @@ TEST_CASE("home-system mirror package copies the selected native orbit layout") 
     test_planets::Record(4).planet_special = SYSTEM_SPECIAL_NO_SPECIAL;
     MOX::player[0].home_planet_id = game::id_planet{0};
     MOX::player[1].home_planet_id = game::id_planet{2};
-    MOX::colony[0].planet = 0;
+    MOX::colony[0].planet_id = game::id_planet{0};
     MOX::colony[0].owner = 0;
-    MOX::colony[1].planet = 2;
+    MOX::colony[1].planet_id = game::id_planet{2};
     MOX::colony[1].owner = 1;
-    MOX::colony[2].planet = 4;
+    MOX::colony[2].planet_id = game::id_planet{4};
     MOX::colony[2].owner = 0;
     MOX::ship[0].location = 2;
     game::current_state.leaders[0].status = 5;
@@ -212,9 +212,8 @@ TEST_CASE("home-system mirror package copies the selected native orbit layout") 
     CHECK(test_planets::Record(source_home).orbit == source_orbit);
     CHECK(test_planets::Record(destination_home).star_index == destination_system);
     CHECK(test_planets::Record(destination_home).orbit == source_orbit);
-    const int16_t copied_planet =
-        legacy_world::Index(MOX::star[destination_system].orbit_planet_ids[source_extra_orbit].get()).value_or(-1);
-    REQUIRE(copied_planet >= 0);
+    const auto copied_planet = MOX::star[destination_system].orbit_planet_ids[source_extra_orbit].get().id;
+    REQUIRE(game::current_state.planets.contains(game::id_planet{copied_planet}));
     CHECK(test_planets::Record(copied_planet).star_index == destination_system);
     CHECK(test_planets::Record(copied_planet).orbit == source_extra_orbit);
     CHECK(test_planets::Record(copied_planet).planet_type ==
@@ -227,8 +226,8 @@ TEST_CASE("home-system mirror package copies the selected native orbit layout") 
         expected_extra.mineral_class);
     CHECK(test_planets::Record(copied_planet).colony_index == -1);
     CHECK(test_planets::Record(source_extra).star_index == source_system);
-    CHECK(MOX::colony[0].planet == 0);
-    CHECK(MOX::colony[1].planet == 2);
+    CHECK(SERIAL::Encode_Legacy_Planet_Reference(MOX::colony[0].planet_id.get()) == 0);
+    CHECK(SERIAL::Encode_Legacy_Planet_Reference(MOX::colony[1].planet_id.get()) == 2);
     CHECK(memcmp(&test_planets::Record(4),
               &unrelated_planet,
               sizeof(unrelated_planet)) == 0);
@@ -336,13 +335,13 @@ TEST_CASE("full mirror package rebuilds destination home systems") {
          ++colony_id) {
         MOX::colony[colony_id].officer = -1;
     }
-    MOX::colony[0].planet = 0;
+    MOX::colony[0].planet_id = game::id_planet{0};
     MOX::colony[0].owner = 0;
-    MOX::colony[1].planet = 2;
+    MOX::colony[1].planet_id = game::id_planet{2};
     MOX::colony[1].owner = 1;
-    MOX::colony[2].planet = 1;
+    MOX::colony[2].planet_id = game::id_planet{1};
     MOX::colony[2].owner = 0;
-    MOX::colony[3].planet = 3;
+    MOX::colony[3].planet_id = game::id_planet{3};
     MOX::colony[3].owner = 1;
 
     auto& leaders = game::current_state.leaders;
@@ -442,8 +441,8 @@ TEST_CASE("full mirror package rebuilds destination home systems") {
               sizeof(advanced_start_ship)) == 0);
     CHECK(leaders[3] == ship_officer);
 
-    const int16_t copied_home_extra = legacy_world::Index(MOX::star[0].orbit_planet_ids[1].get()).value_or(-1);
-    REQUIRE(copied_home_extra >= 0);
+    const auto copied_home_extra = MOX::star[0].orbit_planet_ids[1].get().id;
+    REQUIRE(game::current_state.planets.contains(game::id_planet{copied_home_extra}));
     CHECK(MOX::star[0].orbit_planet_ids[0].get() == game::NO_PLANET);
     CHECK(MOX::star[0].orbit_planet_ids[2].get() == game::NO_PLANET);
     CHECK(MOX::star[0].orbit_planet_ids[3].get() == game::id_planet{0});
@@ -622,13 +621,13 @@ TEST_CASE("full mirror package preserves native home systems") {
     MOX::player[1].home_planet_id = game::id_planet{2};
     MOX::star[0].owner = 0;
     MOX::star[4].owner = 1;
-    MOX::colony[0].planet = 0;
+    MOX::colony[0].planet_id = game::id_planet{0};
     MOX::colony[0].owner = 0;
     MOX::colony[0].officer = -1;
-    MOX::colony[1].planet = 2;
+    MOX::colony[1].planet_id = game::id_planet{2};
     MOX::colony[1].owner = 1;
     MOX::colony[1].officer = -1;
-    MOX::colony[2].planet = 6;
+    MOX::colony[2].planet_id = game::id_planet{6};
     MOX::colony[2].owner = 0;
     MOX::colony[2].officer = -1;
 
@@ -772,12 +771,10 @@ TEST_CASE("full mirror package preserves native home systems") {
     CHECK(MOX::star[5].wormhole_star_id == 6);
     CHECK(MOX::star[6].wormhole_star_id == 5);
 
-    const int16_t copied_planet_0 =
-        legacy_world::Index(MOX::star[copied_marooned_system].orbit_planet_ids[1].get()).value_or(-1);
-    const int16_t copied_planet_1 =
-        legacy_world::Index(MOX::star[copied_monster_system].orbit_planet_ids[4].get()).value_or(-1);
-    REQUIRE(copied_planet_0 >= 0);
-    REQUIRE(copied_planet_1 >= 0);
+    const auto copied_planet_0 = MOX::star[copied_marooned_system].orbit_planet_ids[1].get().id;
+    const auto copied_planet_1 = MOX::star[copied_monster_system].orbit_planet_ids[4].get().id;
+    REQUIRE(game::current_state.planets.contains(game::id_planet{copied_planet_0}));
+    REQUIRE(game::current_state.planets.contains(game::id_planet{copied_planet_1}));
     CHECK(test_planets::Record(copied_planet_0).planet_type ==
         source_planet_0.planet_type);
     CHECK(test_planets::Record(copied_planet_0).size == source_planet_0.size);

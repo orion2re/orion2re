@@ -10,7 +10,7 @@ namespace TEST_TOWN_ZERO {
         memset(colonies, 0, sizeof(colonies));
         memset(players, 0, sizeof(players));
         colonies[0].owner = 0;
-        colonies[0].planet = 0;
+        colonies[0].planet_id = game::id_planet{0};
     }
 }
 

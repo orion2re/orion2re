@@ -44,7 +44,7 @@ namespace {
 
         s_colony* colony = &MOX::colony[0];
         colony->owner = 0;
-        colony->planet = 0;
+        colony->planet_id = game::id_planet{0};
         colony->climate = PLANET_CLIMATE_GAIA;
         colony->n_pops = 1;
         colony->pop[0] = 0;
@@ -57,7 +57,7 @@ namespace {
 
         s_colony* colony = &MOX::colony[0];
         colony->owner = 0;
-        colony->planet = 0;
+        colony->planet_id = game::id_planet{0};
         colony->occupation_policy = 4;
         colony->climate = PLANET_CLIMATE_GAIA;
         colony->n_pops = 1;
@@ -86,7 +86,7 @@ namespace {
 
         s_colony* colony = &MOX::colony[0];
         colony->owner = 0;
-        colony->planet = 0;
+        colony->planet_id = game::id_planet{0};
         colony->occupation_policy = 4;
         colony->n_pops = 1;
         colony->pop_growth[0] = -1000;
@@ -128,8 +128,8 @@ namespace {
 
         s_colony* colony = &MOX::colony[0];
         colony->owner = 0;
-        colony->planet = 0;
-        MOX::player[0].settlers[0].destination = game::id_planet{static_cast<uint32_t>(colony->planet)};
+        colony->planet_id = game::id_planet{0};
+        MOX::player[0].settlers[0].destination = colony->planet_id.get();
         MOX::player[0].settlers_freighted = 1;
         return colony;
     }
@@ -139,7 +139,7 @@ namespace {
 
         s_colony* colony = &MOX::colony[0];
         colony->owner = 0;
-        colony->planet = 0;
+        colony->planet_id = game::id_planet{0};
         colony->n_pops = 1;
         colony->producing[0] = product;
         colony->producing[1] = COLONY_PRODUCTION_NONE;
@@ -164,7 +164,7 @@ namespace {
 
         s_colony* colony = &MOX::colony[0];
         colony->owner = 0;
-        colony->planet = 0;
+        colony->planet_id = game::id_planet{0};
         colony->n_pops = 1;
         colony->producing[0] = BUILDING_MARINE_BARRACKS;
         colony->producing[1] = BUILDING_RESEARCH_LAB;
@@ -244,13 +244,13 @@ DOCTEST_TEST_CASE("Dimensional Portal is limited to one per player per system") 
 
     s_colony* colony = &MOX::colony[0];
     colony->owner = 0;
-    colony->planet = 0;
+    colony->planet_id = game::id_planet{0};
     test_planets::Record(0).star_index = 0;
     test_planets::Record(0).colony_index = 0;
 
     s_colony* other_colony = &MOX::colony[1];
     other_colony->owner = 1;
-    other_colony->planet = 1;
+    other_colony->planet_id = game::id_planet{1};
     test_planets::Record(1).star_index = 0;
     test_planets::Record(1).colony_index = 1;
     for (int i = 0; i < 7; ++i) {
@@ -316,7 +316,7 @@ DOCTEST_TEST_CASE("configured building converts derived Toxic climate to Barren"
 
     s_colony* colony = &MOX::colony[0];
     colony->owner = 0;
-    colony->planet = 0;
+    colony->planet_id = game::id_planet{0};
     test_planets::Record(0).climate = PLANET_CLIMATE_TOXIC;
 
     COLCALC::Colony_Environmental_Stuff(colony);
@@ -577,7 +577,7 @@ DOCTEST_TEST_CASE("reported population capacities do not exceed colony storage")
 
     s_colony* colony = &MOX::colony[0];
     colony->owner = 0;
-    colony->planet = 0;
+    colony->planet_id = game::id_planet{0};
     colony->climate = PLANET_CLIMATE_GAIA;
 
     DOCTEST_CHECK(COLCALC::Colony_Race_Pop_Limit(colony, 0) == 42);
@@ -688,7 +688,7 @@ DOCTEST_TEST_CASE("population tables preserve climate adjustments bonuses and st
 
     s_colony* colony = &MOX::colony[0];
     colony->owner = 0;
-    colony->planet = 0;
+    colony->planet_id = game::id_planet{0};
     colony->climate = PLANET_CLIMATE_TUNDRA;
     colony->buildings[BUILDING_BIOSPHERES] = 1;
     DOCTEST_CHECK(COLCALC::Colony_Race_Pop_Limit(colony, 0) == 41);
@@ -716,9 +716,9 @@ DOCTEST_TEST_CASE("Android room check supports a capacity of exactly 42") {
 
     s_colony* colony = &MOX::colony[0];
     colony->owner = 0;
-    colony->planet = 0;
+    colony->planet_id = game::id_planet{0};
     colony->climate = PLANET_CLIMATE_GAIA;
-    test_planets::Record(colony->planet).size = PLANET_SIZE_HUGE;
+    test_planets::Record(SERIAL::Encode_Legacy_Planet_Reference(colony->planet_id.get())).size = PLANET_SIZE_HUGE;
 
     DOCTEST_REQUIRE(
         COLCALC::Colony_Race_Pop_Limit(
@@ -745,7 +745,7 @@ DOCTEST_TEST_CASE("Biospheres population bonus is configurable") {
 
     s_colony* colony = &MOX::colony[0];
     colony->owner = 0;
-    colony->planet = 0;
+    colony->planet_id = game::id_planet{0};
     colony->climate = PLANET_CLIMATE_GAIA;
     colony->buildings[BUILDING_BIOSPHERES] = 1;
 
@@ -761,7 +761,7 @@ DOCTEST_TEST_CASE("Advanced City Planning population bonus is configurable") {
 
     s_colony* colony = &MOX::colony[0];
     colony->owner = 0;
-    colony->planet = 0;
+    colony->planet_id = game::id_planet{0};
     colony->climate = PLANET_CLIMATE_GAIA;
     MOX::player[0].tech_applications[TECH_APP_ADVANCED_CITY_PLANNING] =
         TECH_RESEARCH_STATUS_RESEARCHED;
@@ -857,7 +857,7 @@ DOCTEST_TEST_CASE("configured Growth values drive both AI planet-worth consumers
 
         s_colony* colony = &MOX::colony[0];
         colony->owner = 0;
-        colony->planet = 0;
+        colony->planet_id = game::id_planet{0};
         colony->climate = PLANET_CLIMATE_GAIA;
         colony->n_pops = 4;
         for (int pop = 0; pop < colony->n_pops; ++pop) {
@@ -974,7 +974,7 @@ DOCTEST_TEST_CASE("Biomorphic Fungi climate policy is shared by colony and AI fo
 
     s_colony* colony = &MOX::colony[0];
     colony->owner = 0;
-    colony->planet = 0;
+    colony->planet_id = game::id_planet{0};
     s_planet_data* planet = &test_planets::Record(0);
     planet->planet_type = PLANET_TYPE_PLANET;
     planet->size = PLANET_SIZE_MEDIUM;
@@ -1086,7 +1086,7 @@ DOCTEST_TEST_CASE("extinction stops after removing the last pop of an unprotecte
     COLCALC::Apply_Colony_Pop_Growth(colony);
 
     DOCTEST_REQUIRE(colony->n_pops == 1);
-    DOCTEST_CHECK(colony->pop[0] == 0);
+    DOCTEST_CHECK((colony->pop[0] == 0));
     DOCTEST_CHECK(colony->specialty == 5);
     DOCTEST_CHECK(colony->pop_roundoff[1] == 0);
 }
@@ -1225,7 +1225,7 @@ DOCTEST_TEST_CASE("Spy and terraforming costs use configured unsigned values") {
     TEST_COLONY_POP_GROWTH::Reset_();
 
     s_colony* colony = &MOX::colony[0];
-    colony->planet = 0;
+    colony->planet_id = game::id_planet{0};
     TECHDATA::buildings[BUILDING_TERRAFORMING].cost = 40;
     COLCALC::misc_costs.spy = 120;
     COLCALC::misc_costs.terraforming_step = 250;
@@ -1539,7 +1539,7 @@ DOCTEST_TEST_CASE("multibuild banks unused PP from four builds without convertin
     TEST_COLONY_POP_GROWTH::Reset_();
     s_colony* colony = &MOX::colony[0];
     colony->owner = 0;
-    colony->planet = 0;
+    colony->planet_id = game::id_planet{0};
     colony->n_pops = 1;
     colony->production_spent = 5000;
     colony->production[ECON_INDUSTRY] = 1000;
@@ -1573,7 +1573,7 @@ DOCTEST_TEST_CASE("multibuild does not bank industry while already producing Tra
 
     s_colony* colony = &MOX::colony[0];
     colony->owner = 0;
-    colony->planet = 0;
+    colony->planet_id = game::id_planet{0};
     colony->n_pops = 1;
     colony->producing[0] = COLONY_PRODUCTION_TRADE_GOODS;
     colony->production_spent = 20;

@@ -22,7 +22,7 @@ DOCTEST_TEST_CASE("coverage counts do not wrap at the old byte boundary") {
         game::s_game_state roster;
         for (uint32_t i = 0; i < 257; ++i) {
             colonies[i].owner = 0;
-            colonies[i].planet = (int16_t)i;
+            colonies[i].planet_id = SERIAL::Decode_Legacy_Planet_Reference((int16_t)i);
             roster.Create_Planet({.star_index = static_cast<int16_t>(i / 5)});
         }
         int16_t players = 1;

@@ -35,7 +35,7 @@ namespace {
         MOX::stardate = 35500;
         MOX::player[0].total_pop = 10;
         MOX::colony[0].owner = 0;
-        MOX::colony[0].planet = 0;
+        MOX::colony[0].planet_id = game::id_planet{0};
         test_planets::Record(0).colony_index = 0;
         EVENTS::last_event_year = 35000;
         EVENTS::event_delay_count = EVENTS::between_events_delay;
@@ -151,7 +151,7 @@ DOCTEST_TEST_CASE("monster death updates retain completion payload") {
 DOCTEST_TEST_CASE("monster reports use preserved planet identity safely") {
     TEST_EVENTS::Reset_();
     TEST_EVENTS::Set_Event_Message_("Target \x80");
-    MOX::colony[2].planet = -1;
+    MOX::colony[2].planet_id = game::NO_PLANET;
 
     char message[64];
     EVENTS::Get_Event_Message(
@@ -170,8 +170,8 @@ DOCTEST_TEST_CASE("monster reports use preserved planet identity safely") {
 DOCTEST_TEST_CASE("planet event reports preserve vanilla and v150 location tokens") {
     TEST_EVENTS::Reset_();
     MOX::PLAYER_NUM = 0;
-    MOX::colony[0].planet = 188;
-    MOX::colony[3].planet = 193;
+    MOX::colony[0].planet_id = game::id_planet{188};
+    MOX::colony[3].planet_id = game::id_planet{193};
     test_planets::Record(193).colony_index = 3;
     test_planets::Record(193).star_index = 54;
     test_planets::Record(193).mineral_class = MINERAL_RESOURCE_ULTRA_RICH;
@@ -334,7 +334,7 @@ DOCTEST_TEST_CASE("failed Supernova resets planet environment before destruction
     test_planets::Record(1).climate = PLANET_CLIMATE_GAIA;
     test_planets::Record(1).environmental_alterations = 2;
     MOX::colony[0].owner = 0;
-    MOX::colony[0].planet = 0;
+    MOX::colony[0].planet_id = game::id_planet{0};
     MOX::food_per_farmer_table[PLANET_CLIMATE_RADIATED] = 7;
 
     s_event_data& event = EVENTS::event_data[EVENT_SUPERNOVA];

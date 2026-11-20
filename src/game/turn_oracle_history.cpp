@@ -5,6 +5,7 @@
 #include "game/leader_serialization.h"
 #include "game/planet_serialization.h"
 #include "game/star_serialization.h"
+#include "game/colony_serialization.h"
 #include "game/settler_serialization.h"
 #include "game/savegame.h"
 #include "game/turn_oracle_history.h"
@@ -31,16 +32,20 @@ namespace turn_oracle {
             constexpr uint16_t max_colonies_and_planets = 5120;
             constexpr uint16_t max_stars = 1024;
             size_t offset = SAVE_VERSION_OFFSET + sizeof(uint16_t) + settings_bytes + sizeof(uint32_t);
-            const auto skip_records = [&](size_t record_bytes, uint16_t max_count) {
+            const auto skip_records = [&](size_t record_bytes, uint16_t max_count, bool colonies = false) {
                 if (offset > bytes.size() || bytes.size() - offset < sizeof(uint16_t)) return false;
-                const uint16_t count = bytes[offset] | (bytes[offset + 1] << 8);
+                uint16_t count = bytes[offset] | (bytes[offset + 1] << 8);
+                if (colonies && (count & SERIAL::WIDE_COLONY_PLANET_FLAG)) {
+                    count &= ~SERIAL::WIDE_COLONY_PLANET_FLAG;
+                    record_bytes += 2;
+                }
                 offset += sizeof(uint16_t);
                 const size_t size = count * record_bytes;
                 if (count > max_count || size > bytes.size() - offset) return false;
                 offset += size;
                 return true;
             };
-            if (!skip_records(colony_bytes, max_colonies_and_planets) ||
+            if (!skip_records(colony_bytes, max_colonies_and_planets, true) ||
                 bytes.size() - offset < sizeof(uint16_t)) return false;
             const size_t planet_count_offset = offset;
             const uint16_t count = bytes[offset] | (bytes[offset + 1] << 8);
@@ -91,6 +96,9 @@ namespace turn_oracle {
                     count &= ~SERIAL::KEYED_PLANET_COUNT_FLAG;
                     offset += 4;
                     width += 4;
+                } else if (!planets && (count & SERIAL::WIDE_COLONY_PLANET_FLAG)) {
+                    count &= ~SERIAL::WIDE_COLONY_PLANET_FLAG;
+                    width += 2;
                 }
                 if (count > limit || offset > bytes.size() || count * width > bytes.size() - offset) return false;
                 offset += count * width;
@@ -98,6 +106,25 @@ namespace turn_oracle {
             };
             if (!skip(0x16a, 5120) || !skip(0x12, 5120, true) || bytes.size() - offset < 2) return std::nullopt;
             return offset;
+        }
+
+        bool Upgrade_Colony_Planet_Ids(std::vector<uint8_t>& bytes) {
+            constexpr size_t count_offset = 605;
+            constexpr size_t start = count_offset + 2;
+            constexpr size_t legacy_width = 0x16a;
+            const size_t count = bytes[count_offset] | (bytes[count_offset + 1] << 8);
+            if (count > 5120 || count * legacy_width > bytes.size() - start) return false;
+            for (size_t colony = count; colony-- > 0;) {
+                const size_t offset = start + colony * legacy_width + 2;
+                const auto id = SERIAL::Decode_Legacy_Planet_Reference(
+                    static_cast<int16_t>(bytes[offset] | (bytes[offset + 1] << 8)));
+                bytes[offset] = static_cast<uint8_t>(id.id);
+                bytes[offset + 1] = static_cast<uint8_t>(id.id >> 8);
+                bytes.insert(bytes.begin() + offset + 2,
+                    {static_cast<uint8_t>(id.id >> 16), static_cast<uint8_t>(id.id >> 24)});
+            }
+            bytes[count_offset + 1] |= SERIAL::WIDE_COLONY_PLANET_FLAG >> 8;
+            return true;
         }
 
         std::optional<size_t> Player_Count_Offset(const std::vector<uint8_t>& bytes) {
@@ -268,6 +295,13 @@ namespace turn_oracle {
         if ((expected_v7 || expected_v8) && (actual_v7 || actual_v8) && (expected_v8 || actual_v8)) {
             if (!Normalize_Save_Ids(expected_bytes, expected_v7) || !Normalize_Save_Ids(actual_bytes, actual_v7)) {
                 *error = "invalid save prefix, planet section, or leader section: " + canonical.string() + " / " + actual.string();
+                return false;
+            }
+            const bool expected_colony_ids = (expected_bytes[606] & 0x80) != 0;
+            const bool actual_colony_ids = (actual_bytes[606] & 0x80) != 0;
+            if (expected_colony_ids != actual_colony_ids &&
+                !Upgrade_Colony_Planet_Ids(expected_colony_ids ? actual_bytes : expected_bytes)) {
+                *error = "invalid legacy colony planet references";
                 return false;
             }
             const auto expected_stars = Star_Count_Offset(expected_bytes);

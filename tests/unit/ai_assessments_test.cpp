@@ -149,7 +149,7 @@ DOCTEST_TEST_CASE("star assessments name treaty partners and hostile players by 
     for (uint32_t i = 0; i < 3; ++i) {
         players[i].ship_range = 6;
         colonies[i].owner = (int8_t)i;
-        colonies[i].planet = (int16_t)i;
+        colonies[i].planet_id = SERIAL::Decode_Legacy_Planet_Reference((int16_t)i);
     }
     players[0].treaty[1] = 1;
     players[0].treaty[2] = 4;

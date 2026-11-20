@@ -110,7 +110,7 @@ namespace orion2re::lua::game {
             const int object = lua_gettop(lua_state);
             lua_newtable(lua_state);
             const int values = lua_gettop(lua_state);
-            lua_pushinteger(lua_state, legacy_world::Slot(event->planet_id));
+            lua_pushinteger(lua_state, event->planet_id.id);
             lua_setfield(lua_state, values, "planet_id");
             lua_newtable(lua_state);
             lua_pushvalue(lua_state, values);

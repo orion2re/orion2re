@@ -360,8 +360,6 @@ namespace orion2re::lua::game {
             if (!internal::Read_Planet(lua_state, 2, &planet_id, &record)) {
                 return luaL_error(lua_state, "invalid home planet reference");
             }
-            const auto index = legacy_world::Index(planet_id);
-            if (!index) return luaL_error(lua_state, "home planet cannot be represented in the legacy player record");
             const auto& planet = *record;
             if (planet.planet_type != PLANET_TYPE_PLANET) {
                 return luaL_error(lua_state,
@@ -369,7 +367,7 @@ namespace orion2re::lua::game {
             }
             if (planet.colony_index < 0 ||
                 planet.colony_index >= MOX::NUM_COLONIES ||
-                MOX::colony[planet.colony_index].planet != *index ||
+                MOX::colony[planet.colony_index].planet_id.get() != planet_id ||
                 MOX::colony[planet.colony_index].owner != proxy->player_id) {
                 return luaL_error(lua_state,
                     "player home must be an existing colony owned by that player");

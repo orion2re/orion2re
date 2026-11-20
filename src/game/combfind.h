@@ -51,7 +51,6 @@ namespace COMBFIND {
 
     void __cdecl Do_System_Discoveries_At_Star(s_star_data* star);
 
-    int16_t __cdecl Find_Planet_At_Star_Satisfying(s_star_data* star, bool(__cdecl* predicate)(s_planet_data*));
 
     void __cdecl Update_Player_Needs_To_Attack(int16_t star_idx, int player_a_idx, int player_b_idx);
 

@@ -117,7 +117,7 @@ namespace test_eric_runtime {
 
         players[0].traits[TRAIT_TELEPATHIC] = 1;
         colonies[0].owner = 1;
-        colonies[0].planet = 0;
+        colonies[0].planet_id = game::id_planet{0};
         test_planets::Record(0).star_index = 3;
 
         ships[0].owner = 0;

@@ -553,7 +553,7 @@ namespace MAINPUPS {
         if (colony_idx == -1) {
             strlcpy(location_name, MOX::star[star_idx].name, sizeof(location_name));
         } else {
-            strlcpy(location_name, HACCESS::Get_Planet_Name(MOX::colony[colony_idx].planet), sizeof(location_name));
+            strlcpy(location_name, HACCESS::Get_Planet_Name(SERIAL::Encode_Legacy_Planet_Reference(MOX::colony[colony_idx].planet_id.get())), sizeof(location_name));
         }
 
         if (attacker_idx >= 0 && attacker_idx < MAX_PLAYERS) {
@@ -843,7 +843,7 @@ namespace MAINPUPS {
     bool __cdecl Random_New_Officer_Popup(int16_t player_idx) {
         const int16_t capital_colony = ERIC::Player_Capitol_World(player_idx);
         int16_t star_idx = capital_colony >= 0
-            ? current_state.planets.at(game::id_planet{static_cast<uint32_t>(MOX::colony[capital_colony].planet)}).star_index
+            ? current_state.planets.at(MOX::colony[capital_colony].planet_id.get()).star_index
             : -1;
 
         s_colors colors;
@@ -872,7 +872,7 @@ namespace MAINPUPS {
         if (star_idx == -1) {
             const int16_t colony_idx = ERIC::Pick_Random_Colony(player_idx);
             if (colony_idx >= 0) {
-                star_idx = current_state.planets.at(game::id_planet{static_cast<uint32_t>(MOX::colony[colony_idx].planet)}).star_index;
+                star_idx = current_state.planets.at(MOX::colony[colony_idx].planet_id.get()).star_index;
             }
         }
 
@@ -1273,7 +1273,7 @@ namespace MAINPUPS {
         s_animation_header* anim = COLONY::C_Anims(0xD);
         remap::Calculate_Picture_Remap_Colors(anim);
 
-        int16_t star_idx = current_state.planets.at(game::id_planet{static_cast<uint32_t>(MOX::colony[MAINPUPS::g_data_ptr->colony_idx].planet)}).star_index;
+        int16_t star_idx = current_state.planets.at(MOX::colony[MAINPUPS::g_data_ptr->colony_idx].planet_id.get()).star_index;
         MAINPUPS::Do_Popup_Setup(star_idx, anims[3]);
 
         fields::Deactivate_Auto_Function();
@@ -1366,7 +1366,7 @@ namespace MAINPUPS {
                     }
 
                     char* race_name = MOX::player[player_id].race_name;
-                    char* planet_name = HACCESS::Get_Planet_Name(MOX::colony[MAINPUPS::g_data_ptr->colony_idx].planet);
+                    char* planet_name = HACCESS::Get_Planet_Name(SERIAL::Encode_Legacy_Planet_Reference(MOX::colony[MAINPUPS::g_data_ptr->colony_idx].planet_id.get()));
 
                     char* fmt = ESTRINGS::E_Strings(str_id);
                     snprintf(buffer, sizeof(buffer), fmt, planet_name, race_name);
@@ -1450,10 +1450,10 @@ namespace MAINPUPS {
 
     int8_t __cdecl Player_Has_Colony_Or_Outpost_At_Star(int16_t player_idx, int16_t star_idx) {
         for (int16_t i = 0; i < 5; ++i) {
-            int16_t planet_idx = legacy_world::Index(MOX::star[star_idx].orbit_planet_ids[i].get()).value_or(-1);
+            const auto planet_idx = MOX::star[star_idx].orbit_planet_ids[i].get();
 
-            if (planet_idx != -1) {
-                int16_t colony_idx = current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).colony_index;
+            if (planet_idx != game::NO_PLANET) {
+                int16_t colony_idx = current_state.planets.at(planet_idx).colony_index;
 
                 if (colony_idx != -1) {
                     if (MOX::colony[colony_idx].owner == player_idx) {
@@ -2359,9 +2359,9 @@ namespace MAINPUPS {
     }
 
     void __cdecl Load_Combat_Colony_Picture_To_Screen_Seg(int16_t colony_idx) {
-        int16_t planet_idx = MOX::colony[colony_idx].planet;
-        int16_t climate = current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).climate;
-        int16_t size = current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).size;
+        const auto planet_idx = MOX::colony[colony_idx].planet_id.get();
+        int16_t climate = current_state.planets.at(planet_idx).climate;
+        int16_t size = current_state.planets.at(planet_idx).size;
 
         int16_t pic_idx1 = size + (climate * 6);
         char* filename = ESTRINGS::E_Strings(0xDF);
@@ -2622,10 +2622,10 @@ namespace MAINPUPS {
             fonts::Set_Font_Style(3, &colors_cfg);
 
             if (g_state == 0 || g_state == 1) {
-                char* planet_name = HACCESS::Get_Planet_Name(MOX::colony[g_data_ptr->colony_idx].planet);
+                char* planet_name = HACCESS::Get_Planet_Name(SERIAL::Encode_Legacy_Planet_Reference(MOX::colony[g_data_ptr->colony_idx].planet_id.get()));
                 snprintf(text_buffer, sizeof(text_buffer), ESTRINGS::E_Strings(458), planet_name);
             } else if (g_state == 2) {
-                char* planet_name = HACCESS::Get_Planet_Name(MOX::colony[g_data_ptr->colony_idx].planet);
+                char* planet_name = HACCESS::Get_Planet_Name(SERIAL::Encode_Legacy_Planet_Reference(MOX::colony[g_data_ptr->colony_idx].planet_id.get()));
                 snprintf(text_buffer, sizeof(text_buffer), ESTRINGS::E_Strings(337), planet_name);
             }
 

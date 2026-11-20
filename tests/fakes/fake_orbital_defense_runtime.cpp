@@ -83,10 +83,10 @@ namespace TEST_ORBITAL_DEFENSE {
         printed.clear();
         MOX::NUM_COLONIES = 1;
         MOX::colony[0].owner = 0;
-        MOX::colony[0].planet = 0;
+        MOX::colony[0].planet_id = game::id_planet{0};
         MOX::colony[0].n_pops = 10;
         MOX::colony[0].producing[0] = COLONY_PRODUCTION_NONE;
-        MOX::colony[1].planet = 1;
+        MOX::colony[1].planet_id = game::id_planet{1};
         MOX::player[0].ship_range = 4;
         MOX::player[0].ship_speed = 2;
         MOX::player[0].tech_applications[TECH_APP_STAR_BASE] = TECH_RESEARCH_STATUS_RESEARCHED;

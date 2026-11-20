@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game/colony_serialization.h"
 #include "../fixtures/planet_roster.h"
 
 #include "doctest/doctest.h"
@@ -71,7 +72,7 @@ namespace {
             sizeof(uint16_t) +
             sizeof(uint32_t) + MAX_PLANETS * SERIAL::KEYED_PLANET_BYTES +
             sizeof(uint16_t) +
-            MAX_COLONIES * sizeof(s_colony) +
+            MAX_COLONIES * SERIAL::COLONY_BYTES +
             sizeof(int16_t) +
             MAX_SHIPS * sizeof(s_ship_data) +
             SERIAL::LEADER_STATE_BYTES +
@@ -270,7 +271,7 @@ namespace {
 
         for (int i = 0; i < MOX::NUM_COLONIES; ++i) {
             MOX::colony[i].owner = (int8_t)(i % MOX::NUM_PLAYERS);
-            MOX::colony[i].planet = (int16_t)i;
+            MOX::colony[i].planet_id = SERIAL::Decode_Legacy_Planet_Reference((int16_t)i);
             MOX::colony[i].morale = (int8_t)(50 + i);
             MOX::colony[i].pollution = (int16_t)(i * 2);
             MOX::colony[i].pop_growth[0] = (int16_t)(100 + i);
@@ -371,7 +372,7 @@ DOCTEST_TEST_CASE("large combat payload allocations stay within the shared limit
         NETPROTO::PLAYER_BYTES +
         MAX_STARS * sizeof(s_net_pack_star_order) +
         sizeof(int16_t) +
-        MAX_COLONIES * (sizeof(int16_t) + sizeof(s_colony)) +
+        MAX_COLONIES * (sizeof(int16_t) + SERIAL::COLONY_BYTES) +
         sizeof(int16_t) +
         sizeof(int16_t) +
         MAX_SHIPS * (sizeof(int16_t) + sizeof(s_ship_data)) +
@@ -388,7 +389,7 @@ DOCTEST_TEST_CASE("large combat payload allocations stay within the shared limit
         2 * (sizeof(MOX::player[0].tech_applications) + sizeof(uint8_t)) +
         MAX_LEADERS * (sizeof(int16_t) + SERIAL::LEADER_BYTES) +
         sizeof(int16_t) +
-        (sizeof(int16_t) * 2 + sizeof(uint8_t) * 2 + sizeof(s_colony)) +
+        (sizeof(int16_t) * 2 + sizeof(uint8_t) * 2 + SERIAL::COLONY_BYTES) +
         sizeof(int16_t) +
         MAX_SHIPS * (sizeof(int16_t) + sizeof(s_ship_data)) +
         sizeof(int16_t);
@@ -401,7 +402,7 @@ DOCTEST_TEST_CASE("large combat payload allocations stay within the shared limit
         MAX_LEADERS * (sizeof(int16_t) + SERIAL::LEADER_BYTES) +
         sizeof(int16_t) +
         2 * sizeof(uint8_t) +
-        (sizeof(int16_t) * 3 + sizeof(uint8_t) * 2 + sizeof(s_colony)) +
+        (sizeof(int16_t) * 3 + sizeof(uint8_t) * 2 + SERIAL::COLONY_BYTES) +
         sizeof(int16_t) +
         MAX_SHIPS * (sizeof(int16_t) + sizeof(s_ship_data)) +
         sizeof(int16_t);
@@ -416,7 +417,7 @@ DOCTEST_TEST_CASE("large combat payload allocations stay within the shared limit
         sizeof(int16_t) +
         MAX_PLAYERS * sizeof(uint8_t) +
         sizeof(int16_t) +
-        5 * (sizeof(int16_t) * 2 + sizeof(uint8_t) * 2 + sizeof(s_colony)) +
+        5 * (sizeof(int16_t) * 2 + sizeof(uint8_t) * 2 + SERIAL::COLONY_BYTES) +
         sizeof(int16_t) +
         MAX_SHIPS * (sizeof(int16_t) + sizeof(s_ship_data)) +
         sizeof(int16_t);
@@ -576,6 +577,8 @@ DOCTEST_TEST_CASE("broadcast snapshot encode and decode round trip serialized ga
     std::vector<s_player> expected_players(MOX::player, MOX::player + MAX_PLAYERS);
     MOX::star[1].orbit_planet_ids[3] = *wide_planet;
     MOX::star[1].orbit_planet_ids[4] = game::NO_PLANET;
+    MOX::colony[0].planet_id = *wide_planet;
+    game::current_state.planets.at(*wide_planet).colony_index = 0;
     std::vector<s_star_data> expected_stars(MOX::star, MOX::star + MAX_STARS + 1);
     std::vector<s_colony> expected_colonies(MOX::colony, MOX::colony + MAX_COLONIES);
     std::vector<s_ship_data> expected_ships(MOX::ship, MOX::ship + MAX_SHIPS);
@@ -645,6 +648,7 @@ DOCTEST_TEST_CASE("broadcast snapshot encode and decode round trip serialized ga
     DOCTEST_CHECK(std::memcmp(MOX::star, expected_stars.data(), (MAX_STARS + 1) * sizeof(s_star_data)) == 0);
     DOCTEST_CHECK(MOX::star[1].orbit_planet_ids[3].get() == game::id_planet{70000});
     DOCTEST_CHECK(MOX::star[1].orbit_planet_ids[4].get() == game::NO_PLANET);
+    DOCTEST_CHECK(MOX::colony[0].planet_id.get() == *wide_planet);
     DOCTEST_CHECK(std::memcmp(MOX::colony, expected_colonies.data(), MAX_COLONIES * sizeof(s_colony)) == 0);
     DOCTEST_CHECK(std::memcmp(MOX::ship, expected_ships.data(), MAX_SHIPS * sizeof(s_ship_data)) == 0);
     DOCTEST_CHECK(game::current_state == expected_state);
@@ -690,7 +694,7 @@ DOCTEST_TEST_CASE("loaded Lua state extends the current native snapshot") {
 
     SERIAL::Reader_ native(
         envelope.Ptr(), native_size, "invalid test native network snapshot");
-    DOCTEST_CHECK(native.Read_Uint32() == 0x364E324F); // O2N6
+    DOCTEST_CHECK(native.Read_Uint32() == 0x374E324F); // O2N7
     DOCTEST_CHECK(native.Read_Int16() == 306);
     DOCTEST_CHECK(native.Read_Uint32() == 35200);
     native.Skip(sizeof(MOX::settings.random_events) +

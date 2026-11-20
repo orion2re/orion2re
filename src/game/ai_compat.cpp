@@ -7,19 +7,20 @@ namespace ai_compat {
     SHIPMOVE::e_fleet_evaluation Evaluate_Fleet_Move(std::span<const game::id_ship> ships,
         game::id_star destination, s_ship_move_info* result, std::optional<game::id_star> origin) {
         *result = {};
-        const auto target = legacy_world::Index(destination);
-        const auto source = origin ? legacy_world::Index(*origin) : std::optional<int16_t>{};
-        if (!target || (origin && !source)) return SHIPMOVE::e_fleet_evaluation::invalid_input;
+        if (destination.id >= MAX_STARS || (origin && origin->id >= MAX_STARS)) {
+            return SHIPMOVE::e_fleet_evaluation::invalid_input;
+        }
+        std::optional<int16_t> source;
+        if (origin) source = origin->id;
         auto ship_list = legacy_world::Ship_List(ships);
         if (!ship_list) return SHIPMOVE::e_fleet_evaluation::invalid_input;
-        return SHIPMOVE::Evaluate_Fleet_Move(*ship_list, *target, result, source);
+        return SHIPMOVE::Evaluate_Fleet_Move(*ship_list, destination.id, result, source);
     }
 
     bool Order_Fleet_Move(std::span<const game::id_ship> ships, game::id_star destination, s_ship_move_info* result) {
-        const auto target = legacy_world::Index(destination);
-        if (!target) return false;
+        if (destination.id >= MAX_STARS) return false;
         auto ship_list = legacy_world::Ship_List(ships);
-        return ship_list && SHIPMOVE::Order_Fleet_Move(*ship_list, *target, result);
+        return ship_list && SHIPMOVE::Order_Fleet_Move(*ship_list, destination.id, result);
     }
 
     void Shuffle_Ships(std::span<game::id_ship> ships) {
