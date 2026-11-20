@@ -1,6 +1,7 @@
 #include <cstddef>
 #include "leader_data.h"
 #include "planet_data.h"
+#include "settler_data.h"
 #include "unaligned.h"
 
 #pragma pack(push, 1)
@@ -1538,7 +1539,6 @@ typedef struct s_net_pack_drop_out_info s_net_pack_drop_out_info, *Ps_net_pack_d
 
 typedef struct s_player s_player, *Ps_player;
 
-typedef struct s_settler_info s_settler_info, *Ps_settler_info;
 
 typedef struct s_ship_design s_ship_design, *Ps_ship_design;
 
@@ -1569,11 +1569,6 @@ struct s_ship_design {
     int16_t cost;
     uint8_t combat_speed;
     uint16_t date_of_design;
-};
-
-struct s_settler_info {
-    // bits 0-15 source_colony, 16-31 dest_planet, 32-35 race, 36-39 eta, 40-41 job.
-    SETTLER::value_type val;
 };
 
 struct s_player {
@@ -1752,8 +1747,13 @@ inline uint8_t Player_Tech_Field_Status_(const s_player* player, int16_t tech_fi
     return reinterpret_cast<const uint8_t*>(player)[offsetof(s_player, tech_fields) + tech_field_id];
 }
 
+// Non-freight bytes still use the existing player wire layout.
+struct s_net_player_wire {
+    uint8_t bytes[sizeof(uint32_t) + sizeof(s_player) - sizeof(s_player::settlers) + MAX_FREIGHTED_SETTLERS * SERIAL::SETTLER_BYTES];
+};
+
 struct s_net_pack_drop_out_info {
-    struct s_player player_data;
+    s_net_player_wire player_data;
     int8_t star_surrender_to[MAX_STARS];
 };
 
@@ -1763,10 +1763,10 @@ typedef struct s_net_pack_end_ai_diplomacy s_net_pack_end_ai_diplomacy, *Ps_net_
 
 struct s_net_pack_end_ai_diplomacy {
     int32_t target_player_id;
-    struct s_player target_player;
+    s_net_player_wire target_player;
     uint8_t surrender_to[MAX_STARS];
     int32_t player_num;
-    struct s_player player;
+    s_net_player_wire player;
 };
 
 typedef struct s_net_pack_monster_update s_net_pack_monster_update, *Ps_net_pack_monster_update;
@@ -1782,7 +1782,7 @@ typedef struct s_net_pack_pick_your_position s_net_pack_pick_your_position, *Ps_
 
 struct s_net_pack_pick_your_position {
     int16_t num_players;
-    struct s_player players[MAX_PLAYERS];
+    s_net_player_wire players[MAX_PLAYERS];
 };
 
 struct s_net_pack_combat_target_chosen {
@@ -1794,7 +1794,7 @@ struct s_net_pack_combat_target_chosen {
 typedef struct s_net_pack_req_human_diplomacy s_net_pack_req_human_diplomacy, *Ps_net_pack_req_human_diplomacy;
 
 struct s_net_pack_req_human_diplomacy {
-    struct s_player player;
+    s_net_player_wire player;
     int8_t surrender_to[MAX_STARS];
 };
 

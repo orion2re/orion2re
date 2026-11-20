@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "player_network_serialization.h"
 
 #include "config/config_snapshot.h"
 #include "game/serialization.h"
@@ -136,8 +137,8 @@ namespace MAINSCR {
                 break;
             }
             case NET_PACKET_PLAYER_SETUP: {
+                if (!NETPROTO::Decode_Player(payload, payload_len, MOX::player[from_player_id])) break;
                 NETMOX::net.player_connected_flags[from_player_id] = 1;
-                memcpy(&MOX::player[from_player_id], payload, (uint16_t)payload_len);
 
                 if (MOX::NUM_PLAYERS > 0) {
                     for (int i = 0; i < MOX::NUM_PLAYERS; ++i) {
@@ -257,11 +258,16 @@ namespace MAINSCR {
                 break;
             }
             case NET_PACKET_AI_DIPLOMACY_END_STATE: {
+                if (payload_len != sizeof(s_net_pack_end_ai_diplomacy)) break;
                 s_net_pack_end_ai_diplomacy* pack = (s_net_pack_end_ai_diplomacy*)payload;
                 int8_t remote_id = NETMOX::net.player_net_info[from_player_id].diplomacy_target_id;
 
-                memcpy(&MOX::player[remote_id], &pack->target_player, sizeof(s_player));
-                memcpy(&MOX::player[from_player_id], &pack->player, sizeof(s_player));
+                s_player target, sender;
+                if (remote_id < 0 || remote_id >= MOX::NUM_PLAYERS ||
+                    !NETPROTO::Decode_Player(&pack->target_player, sizeof(pack->target_player), target) ||
+                    !NETPROTO::Decode_Player(&pack->player, sizeof(pack->player), sender)) break;
+                MOX::player[remote_id] = target;
+                MOX::player[from_player_id] = sender;
 
                 for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
                     MOX::star[i].surrender_to[remote_id] = pack->surrender_to[i];
@@ -365,9 +371,10 @@ namespace MAINSCR {
                 break;
             }
             case NET_PACKET_REQUEST_HUMAN_DIPLOMACY: {
+                if (payload_len != sizeof(s_net_pack_req_human_diplomacy)) break;
                 s_net_pack_req_human_diplomacy* pack = (s_net_pack_req_human_diplomacy*)payload;
                 if (NETMOX::net.players_hit_next_turn[MOX::PLAYER_NUM] == 0) {
-                    memcpy(&MOX::player[from_player_id], &pack->player, sizeof(s_player));
+                    if (!NETPROTO::Decode_Player(&pack->player, sizeof(pack->player), MOX::player[from_player_id])) break;
 
                     for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
                         MOX::star[i].surrender_to[from_player_id] = pack->surrender_to[i];
@@ -391,7 +398,7 @@ namespace MAINSCR {
                 break;
             }
             case NET_PACKET_ACCEPT_HUMAN_DIPLOMACY: {
-                memcpy(&MOX::player[from_player_id], payload, sizeof(s_player));
+                if (!NETPROTO::Decode_Player(payload, payload_len, MOX::player[from_player_id])) break;
 
                 if (NETMOX::net.sync_state == NET_SYNC_STATE_HUMAN_DIPLOMACY_REQUESTED && NETMOX::net.diplomacy_target_id == from_player_id) {
                     uint8_t mask = ~(1 << (from_player_id & 0x1F));
@@ -448,11 +455,17 @@ namespace MAINSCR {
                 break;
             }
             case NET_PACKET_SYNC_PLAYER_STATE: {
+                if (payload_len != sizeof(s_net_pack_end_ai_diplomacy)) break;
                 s_net_pack_end_ai_diplomacy* pack = (s_net_pack_end_ai_diplomacy*)payload;
                 int target_id = pack->target_player_id;
 
-                memcpy(&MOX::player[target_id], &pack->target_player, sizeof(s_player));
-                memcpy(&MOX::player[pack->player_num], &pack->player, sizeof(s_player));
+                s_player target, sender;
+                if (target_id < 0 || target_id >= MOX::NUM_PLAYERS ||
+                    pack->player_num < 0 || pack->player_num >= MOX::NUM_PLAYERS ||
+                    !NETPROTO::Decode_Player(&pack->target_player, sizeof(pack->target_player), target) ||
+                    !NETPROTO::Decode_Player(&pack->player, sizeof(pack->player), sender)) break;
+                MOX::player[target_id] = target;
+                MOX::player[pack->player_num] = sender;
 
                 for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
                     pack->surrender_to[i] = MOX::star[i].surrender_to[target_id];
@@ -556,6 +569,7 @@ namespace MAINSCR {
             }
             case NET_PACKET_PLAYER_ABDICATED:
             case NET_PACKET_PLAYER_SURRENDERED: {
+                if (payload_len != sizeof(s_net_pack_drop_out_info)) break;
                 NETMOX::Decode_Drop_Out_Info(from_player_id, (s_net_pack_drop_out_info*)payload);
                 break;
             }
@@ -631,7 +645,7 @@ namespace MAINSCR {
                 break;
             }
             case NET_PACKET_HUMAN_DIPLOMACY_READY_DATA: {
-                memcpy(&MOX::player[from_player_id], payload, sizeof(s_player));
+                if (!NETPROTO::Decode_Player(payload, payload_len, MOX::player[from_player_id])) break;
                 if (NETMOX::net.sync_state == NET_SYNC_STATE_HUMAN_DIPLOMACY_CONNECTING && NETMOX::net.diplomacy_target_id == from_player_id) {
                     uint8_t mask = ~(1 << (from_player_id & 0x1F));
                     NETMOX::net.sync_state = NET_SYNC_STATE_HUMAN_DIPLOMACY_READY;

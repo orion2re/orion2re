@@ -2,6 +2,7 @@
 
 #include "doctest/doctest.h"
 #include "game/settler.h"
+#include "game/legacy_ids.h"
 
 namespace TEST_SETTLER {
     void Reset_();
@@ -16,10 +17,10 @@ static void Add_Resident_Pops_(s_colony* colony, int32_t race_idx, int32_t pop_c
 }
 
 static void Add_Inbound_Settler_(s_player* player, int32_t race_idx, int16_t dest_planet) {
-    SETTLER::value_type settler_data = 0;
-    SETTLER::Set_Race(&settler_data, (uint32_t)race_idx);
-    DOCTEST_REQUIRE(SETTLER::Try_Set_Dest_Planet(&settler_data, legacy_world::Planet_Id(dest_planet)));
-    player->settlers[player->settlers_freighted].val = settler_data;
+    player->settlers[player->settlers_freighted] = {
+        .destination = legacy_world::Planet_Id(dest_planet),
+        .race = static_cast<uint8_t>(race_idx),
+    };
     player->settlers_freighted++;
 }
 
@@ -73,8 +74,8 @@ DOCTEST_TEST_CASE("arrivals resolve existing planets and discard missing destina
     MOX::planet[0].colony_index = 0;
     Add_Inbound_Settler_(&player, 0, MOX::planet_count);
     Add_Inbound_Settler_(&player, 0, 0);
-    SETTLER::Set_Eta(&player.settlers[0].val, 1);
-    SETTLER::Set_Eta(&player.settlers[1].val, 1);
+    player.settlers[0].eta = 1;
+    player.settlers[1].eta = 1;
 
     SETTLER::Move_Settlers();
 

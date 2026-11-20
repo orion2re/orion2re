@@ -51,17 +51,16 @@
       arrivals, advanced starts, and Lua planet generations. Generation rules
       take records directly; regeneration no longer borrows the count as an ID.
 - [x] Carry typed IDs through the Lua planet APIs and `planet.generated`.
-      Freight destination access also uses typed IDs, with checked conversion
-      to the legacy signed 16-bit field. Preserve all other freight bits and
-      do not resolve arrivals against missing destinations.
+      Freight records store full planet IDs in separate fields, including a
+      field for opaque bits from legacy saves. Save v8 and network packets
+      encode freight field by field. Arrivals still check the legacy roster.
 - [ ] Replace the legacy planet array with the ID-keyed roster. Remove dense
       compaction, bounds checks based on the live count, and arithmetic on
       planet pointers. Iterate the map directly; keep star orbit order for
       operations whose order must match the oracle.
 - [ ] Migrate narrow references (star orbits, colony planet, player home and
-      attack targets, freight encoding, reports, and UI scratch state). A
-      limit on the live planet count does not bound a monotonic ID. The legacy
-      freight word's upper bits must remain intact on old saves.
+      attack targets, reports, and UI scratch state). A limit on the live
+      planet count does not bound a monotonic ID.
 - [ ] Wire the tagged planet section to the live map and its actual allocator
       high-water mark. The current save boundary still uses `MOX::planet` and
       deliberately rejects sparse IDs while gameplay assumes density. Switch

@@ -188,10 +188,10 @@ namespace NETMOX {
 
     struct s_NET_MSG_SYNC_PLAYER {
         int32_t player1_idx;
-        s_player player1;
+        s_net_player_wire player1;
         int8_t surrender_to[MAX_STARS];
         int32_t player2_idx;
-        s_player player2;
+        s_net_player_wire player2;
     };
 
     struct s_NET_MSG_RANK {
