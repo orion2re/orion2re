@@ -66,13 +66,13 @@ namespace TEST_PLAYER_STATS {
     void Reset_() {
         memset(MOX::player, 0, sizeof(s_player) * MAX_PLAYERS);
         memset(MOX::ship, 0, sizeof(s_ship_data) * MAX_SHIPS);
-        memset(MOX::leaders, 0, sizeof(s_leader_data) * MAX_LEADERS);
+        game::current_state = game::s_game_state{};
         memset(MOX::planet, 0, sizeof(s_planet_data) * MAX_PLANETS);
         memset(MOX::star, 0, sizeof(s_star_data) * (MAX_STARS + 1));
         memset(&MOX::settings, 0, sizeof(MOX::settings));
-        for (int i = 0; i < MAX_LEADERS; ++i) {
-            MOX::leaders[i].status = -1;
-            MOX::leaders[i].player_index = -1;
+        for (auto& leader : game::current_state.leaders) {
+            leader.status = -1;
+            leader.player_index = -1;
         }
         MOX::NUM_PLAYERS = 1;
         MOX::NUM_COLONIES = 0;

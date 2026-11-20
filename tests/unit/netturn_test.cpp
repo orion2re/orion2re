@@ -290,7 +290,6 @@ DOCTEST_TEST_CASE_FIXTURE(Network_Flags_Fixture_, "No during resolution saves th
 
 DOCTEST_TEST_CASE("client next turn preserves a payload that arrives before the final wait loop") {
     s_player players[2]{};
-    s_leader_data leaders[MAX_LEADERS]{};
     players[0].network_player_id = 176;
     players[0].objectives = PLAYER_OBJECTIVE_HUMAN;
     players[1].network_player_id = 174;
@@ -300,7 +299,7 @@ DOCTEST_TEST_CASE("client next turn preserves a payload that arrives before the 
     MOX::PLAYER_NUM = 1;
     MOX::NUM_PLAYERS = 2;
     MOX::NUM_STARS = 0;
-    MOX::leaders = leaders;
+    game::current_state = game::s_game_state{};
     MOX::game_type = 3;
     MOX::stardate = 35155;
     MOX::screen_seg = static_cast<s_animation_header*>(allocate::Allocate_Space(

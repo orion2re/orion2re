@@ -6,7 +6,6 @@ namespace {
     s_player players[MAX_PLAYERS];
     s_ship_data ships[MAX_SHIPS];
     s_star_data stars[MAX_STARS];
-    s_leader_data leaders[MAX_LEADERS];
     char planet_name[] = "Planet";
     char trash_colony_base_fmt[] = "Trash colony base for %d BC?";
     char spy_steals_fmt[] = "%s from %s";
@@ -50,7 +49,7 @@ namespace TEST_REPORT {
         memset(players, 0, sizeof(players));
         memset(ships, 0, sizeof(ships));
         memset(stars, 0xff, sizeof(stars));
-        memset(leaders, 0, sizeof(leaders));
+        game::current_state = game::s_game_state{};
         memset(REPORT::done_colonize_check, 0, sizeof(REPORT::done_colonize_check));
         memset(&MOX::settings, 0, sizeof(MOX::settings));
         memset(MSG_::msgs, 0, sizeof(MSG_::msgs));
@@ -151,7 +150,6 @@ namespace MOX {
     s_player* player = players;
     s_ship_data* ship = ships;
     s_star_data* star = stars;
-    s_leader_data* leaders = ::leaders;
     s_settings settings;
 }
 
@@ -167,8 +165,9 @@ namespace OFFICER {
     }
 
     void __cdecl Set_Officer_To_Player(int16_t officer_idx, int16_t player_idx, uint8_t is_instant) {
-        MOX::leaders[officer_idx].player_index = (int8_t)player_idx;
-        MOX::leaders[officer_idx].status = is_instant == 0 ? 4 : 0;
+        auto& leader = game::current_state.leaders.at(officer_idx);
+        leader.player_index = (int8_t)player_idx;
+        leader.status = is_instant == 0 ? 4 : 0;
     }
 }
 

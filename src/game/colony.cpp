@@ -671,7 +671,8 @@ namespace COLONY {
 
             Set_Colony_Font_To(2);
 
-            s_leader_data& leader = MOX::leaders[officer_idx];
+            auto& state = game::current_state;
+            auto& leader = state.leaders.at(officer_idx);
 
             if (leader.eta > 0) {
                 char local_buffer[500];

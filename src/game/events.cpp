@@ -2480,7 +2480,8 @@ namespace EVENTS {
             } else if (c == '\x88') {
                 append_str = MOX::player[player_idx2].name;
             } else if (c == '\x89') {
-                append_str = MOX::leaders[leader_idx].name;
+                const auto& state = game::current_state;
+                append_str = state.leaders.at(leader_idx).name;
             } else if (c == '\x8A') {
                 fetch_player = player_idx3;
             } else if (c == '\x8B') {

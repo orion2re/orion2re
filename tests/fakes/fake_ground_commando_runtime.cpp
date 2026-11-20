@@ -4,7 +4,6 @@
 #include "game/officer_roster.h"
 
 namespace {
-    s_leader_data leaders[MAX_LEADERS];
     s_player players[2];
     s_colony colonies[2];
     s_planet_data planets[1];
@@ -43,7 +42,7 @@ namespace test_ground_commando_runtime {
         MOX::NUM_PLAYERS = 2;
         MOX::NUM_SHIPS = 2;
         OFFICER::leader_page = 0;
-        memset(leaders, 0, sizeof(leaders));
+        game::current_state = game::s_game_state{};
         memset(players, 0, sizeof(players));
         memset(colonies, 0, sizeof(colonies));
         memset(planets, 0, sizeof(planets));
@@ -66,9 +65,10 @@ namespace test_ground_commando_runtime {
         MOX::skill_data[28].skill_mask = LEADER_GENERAL_SKILL_MEGAWEALTH;
         MOX::skill_data[29].skill_mask = LEADER_GENERAL_SKILL_MEGAWEALTH2;
         for (int i = 0; i < MAX_LEADERS; ++i) {
-            leaders[i].status = -1;
-            leaders[i].player_index = -1;
-            leaders[i].location = -1;
+            auto& leader = game::current_state.leaders[i];
+            leader.status = -1;
+            leader.player_index = -1;
+            leader.location = -1;
             officer_ids[i] = -1;
         }
         MOX::PLAYER_NUM = 0;
@@ -90,7 +90,7 @@ namespace test_ground_commando_runtime {
     }
 
     s_leader_data* Leader_(int index) {
-        return &leaders[index];
+        return &game::current_state.leaders.at(index);
     }
 
     s_ship_data* Ship_(int index) {
@@ -104,13 +104,16 @@ namespace test_ground_commando_runtime {
     void Set_Officer_Level_(int16_t level) {
         const int16_t level_thresholds[] = {0, 60, 150, 300, 500, 1000};
         int leader_idx = colony_officer >= 0 ? colony_officer : 0;
-        leaders[leader_idx].xp = level_thresholds[level];
+        auto& leader = game::current_state.leaders.at(leader_idx);
+        if (leader.player_index == -1) leader.player_index = 0;
+        leader.xp = level_thresholds[level];
     }
 
     void Set_Leader_(int index, int8_t player, int8_t type, int8_t status) {
-        leaders[index].player_index = player;
-        leaders[index].type = type;
-        leaders[index].status = status;
+        auto& leader = game::current_state.leaders.at(index);
+        leader.player_index = player;
+        leader.type = type;
+        leader.status = status;
     }
 
     const int16_t* Officer_Ids_() {
@@ -142,7 +145,6 @@ namespace buffer {
 } // namespace buffer
 
 namespace MOX {
-    s_leader_data* leaders = ::leaders;
     s_player* player = players;
     s_colony* colony = colonies;
     s_star_data* star = stars;

@@ -5,7 +5,6 @@ namespace {
     s_planet_data planets[2];
     s_star_data stars[1];
     s_ship_data ships[MAX_SHIPS];
-    s_leader_data leaders[MAX_LEADERS];
     s_player players[MAX_PLAYERS];
 }
 
@@ -24,7 +23,6 @@ namespace MOX {
     s_planet_data* planet = planets;
     s_star_data* star = stars;
     s_ship_data* ship = ships;
-    s_leader_data* leaders = ::leaders;
     s_player* player = players;
     int16_t super_fast_flag;
     s_settings settings = {};

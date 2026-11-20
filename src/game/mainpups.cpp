@@ -1,4 +1,6 @@
 #include "pch.h"
+
+using game::current_state;
 #include "string_overrides.h"
 
 namespace MAINPUPS {
@@ -950,7 +952,7 @@ namespace MAINPUPS {
                     fields::Set_Input_Delay(3);
                 } else if (input == -mp_fields[8]) {
                     int32_t info_cost = OFFICER::Calculate_Officer_Cost(g_player_n, g_officer);
-                    s_leader_data* leader = &MOX::leaders[g_officer];
+                    auto* leader = &current_state.leaders.at(g_officer);
                     char* level_name = MOX::officer_level_names[leader->level];
                     char buffer[500];
 
@@ -965,7 +967,7 @@ namespace MAINPUPS {
                     COLONY::full_draw = 1;
                 } else if (input == -mp_fields[7]) {
                     int32_t info_cost = OFFICER::Calculate_Officer_Cost(g_player_n, g_officer);
-                    s_leader_data* leader = &MOX::leaders[g_officer];
+                    auto* leader = &current_state.leaders.at(g_officer);
                     char* level_name = MOX::officer_level_names[leader->level];
                     char buffer[500];
 
@@ -2304,7 +2306,7 @@ namespace MAINPUPS {
         output_buf[0] = '\0';
 
         for (int16_t i = 0; i < 3; ++i) {
-            uint8_t tech_id = MOX::leaders[leader_idx].tech_application[i];
+            uint8_t tech_id = current_state.leaders.at(leader_idx).tech_application[i];
             if (tech_id != 0) {
                 const char* prefix;
                 if (i == 0) {

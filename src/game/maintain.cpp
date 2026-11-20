@@ -244,7 +244,8 @@ namespace maintain {
 
             searched_without_removal = true;
             for (int16_t leader_idx = 0; leader_idx < MAX_LEADERS; ++leader_idx) {
-                if (MOX::leaders[leader_idx].player_index == player_idx) {
+                const auto& state = game::current_state;
+                if (state.leaders.at(leader_idx).player_index == player_idx) {
                     if (OFFICER::Officer_Maintenance((int16_t)player_idx, leader_idx) > 0) {
                         OFFICER::Deassign_Officer(leader_idx);
                         searched_without_removal = false;

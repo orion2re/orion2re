@@ -1,5 +1,7 @@
 #include "pch.h"
 
+using game::current_state;
+
 namespace {
     COMBINIT::s_satellite_capture_state satellite_capture_state;
 
@@ -114,7 +116,7 @@ namespace COMBINIT {
         combat->crew_quality = ship->crew_quality;
 
         int16_t officer_idx = ship->officer_index;
-        if (officer_idx < 0 || MOX::leaders[officer_idx].eta != 0) {
+        if (officer_idx < 0 || current_state.leaders.at(officer_idx).eta != 0) {
             combat->officer_idx = -1;
         } else {
             combat->officer_idx = officer_idx;
@@ -511,7 +513,7 @@ namespace COMBINIT {
 
                 if (ship->ship_idx != -1 && ship->officer_idx > -1) {
                     int16_t officer_idx = ship->officer_idx;
-                    if (MOX::leaders[officer_idx].eta > 0) {
+                    if (current_state.leaders.at(officer_idx).eta > 0) {
                         OFFICER::Move_Officer_To_Pool(officer_idx);
                     } else {
                         if (MOX::player[ship->owner].tech_applications[TECH_APP_SURVIVAL_PODS] == TECH_RESEARCH_STATUS_RESEARCHED) {
@@ -599,13 +601,14 @@ namespace COMBINIT {
                     }
                     s_combat_data* ship = &MOX::combat_data[i];
                     if ((ship->unit_status != 5 || ship->is_retreating == 2) && ship->ship_idx != -1) {
-                        if (MOX::leaders[leader_id].player_index == ship->owner) {
+                        auto& leader = current_state.leaders.at(leader_id);
+                        if (leader.player_index == ship->owner) {
                             if (MOX::ship[ship->ship_idx].officer_index == -1) {
                                 ship_idx_found = 1;
                                 MOX::ship[ship->ship_idx].officer_index = leader_id;
                                 ship->officer_idx = leader_id;
-                                MOX::ship[MOX::leaders[leader_id].location].officer_index = -1;
-                                MOX::leaders[leader_id].location = ship->ship_idx;
+                                MOX::ship[leader.location].officer_index = -1;
+                                leader.location = ship->ship_idx;
                             }
                             ship_assigned = 1;
                         }
@@ -613,7 +616,7 @@ namespace COMBINIT {
                 }
 
                 if (ship_idx_found != 0 || ship_assigned != 0) {
-                    if (MOX::leaders[leader_id].player_index == victor_player) {
+                    if (current_state.leaders.at(leader_id).player_index == victor_player) {
                         int16_t xp = (victor_player == MOX::combat_attacker_player) ? defender_losses : attacker_losses;
                         xp /= 2;
                         if (xp < 1) {

@@ -1,4 +1,5 @@
 #include <cstddef>
+#include "leader_data.h"
 #include "unaligned.h"
 
 #pragma pack(push, 1)
@@ -924,26 +925,6 @@ struct _iobuf_copy {
     int32_t _charbuf;
     int32_t _bufsiz;
     char* _tmpfname;
-};
-
-typedef struct s_leader_data s_leader_data, *Ps_leader_data;
-
-struct s_leader_data {
-    char name[15];
-    char title[20];
-    uint8_t type;
-    int16_t xp;
-    uint32_t general_skills;
-    uint32_t special_skills;
-    uint8_t tech_application[3];
-    uint8_t pict_num;
-    int16_t skill_value;
-    uint8_t level;
-    int16_t location;
-    sbyte eta;
-    char display_level_popup;
-    sbyte status;
-    int8_t player_index;
 };
 
 typedef struct s_main_menu s_main_menu, *Ps_main_menu;

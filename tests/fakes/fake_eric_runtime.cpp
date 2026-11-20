@@ -7,7 +7,6 @@ namespace test_eric_runtime {
     s_colony colonies[4];
     s_planet_data planets[4];
     s_ship_data ships[MAX_SHIPS];
-    s_leader_data leaders[MAX_LEADERS];
     int16_t last_help_string;
     char help_string[1];
     int32_t fade_levels[101];
@@ -113,7 +112,7 @@ namespace test_eric_runtime {
         memset(colonies, 0, sizeof(colonies));
         memset(planets, 0, sizeof(planets));
         memset(ships, 0, sizeof(ships));
-        memset(leaders, 0, sizeof(leaders));
+        game::current_state = game::s_game_state{};
 
         players[0].traits[TRAIT_TELEPATHIC] = 1;
         colonies[0].owner = 1;
@@ -125,11 +124,12 @@ namespace test_eric_runtime {
         ships[0].location = 3;
         ships[0].d.size = SHIP_SIZE_LARGE;
 
-        leaders[0].player_index = 1;
-        leaders[0].status = 1;
-        leaders[0].eta = 0;
-        leaders[0].type = LEADER_TYPE_COLONY;
-        leaders[0].location = 3;
+        auto& leader = game::current_state.leaders[0];
+        leader.player_index = 1;
+        leader.status = 1;
+        leader.eta = 0;
+        leader.type = LEADER_TYPE_COLONY;
+        leader.location = 3;
 
         last_help_string = -1;
     }
@@ -150,7 +150,7 @@ namespace test_eric_runtime {
     }
 
     s_leader_data* Defender_Leader_() {
-        return &leaders[0];
+        return &game::current_state.leaders[0];
     }
 
     int16_t Last_Help_String_() {
@@ -172,7 +172,6 @@ namespace MOX {
     s_colony* colony = test_eric_runtime::colonies;
     s_planet_data* planet = test_eric_runtime::planets;
     s_ship_data* ship = test_eric_runtime::ships;
-    s_leader_data* leaders = test_eric_runtime::leaders;
 }
 
 namespace OFFICER {
@@ -185,7 +184,7 @@ namespace OFFICER {
         } else if (skill_idx == 49) {
             skill_mask = LEADER_GENERAL_SKILL_TELEPATH2;
         }
-        return (MOX::leaders[leader_idx].general_skills & skill_mask) != 0;
+        return (game::current_state.leaders.at(leader_idx).general_skills & skill_mask) != 0;
     }
 }
 

@@ -5,6 +5,7 @@
 #include "config/config_loader.h"
 #include "config/config_snapshot.h"
 #include "game/savegame.h"
+#include "game/leader_serialization.h"
 #include "game/save_sections.h"
 #include "lua/lua_game_ship_identity.h"
 
@@ -43,7 +44,6 @@ namespace {
         s_colony colonies[MAX_COLONIES] = {};
         s_planet_data planets[MAX_PLANETS] = {};
         s_star_data stars[MAX_STARS] = {};
-        s_leader_data leaders[MAX_LEADERS] = {};
         s_player players[MAX_PLAYERS] = {};
         s_ship_data ships[MAX_SHIPS] = {};
         s_nebula nebulas[MAX_NEBULAS] = {};
@@ -56,6 +56,35 @@ namespace {
             value = value * 1664525u + 1013904223u;
             bytes[i] = static_cast<uint8_t>(value >> 24);
         }
+    }
+
+    game::s_game_state Legacy_Leaders_() {
+        std::array<uint8_t, MAX_LEADERS * SERIAL::LEADER_BYTES> bytes;
+        Fill_Bytes_(bytes.data(), bytes.size(), 4);
+        SERIAL::Reader_ reader(bytes.data(), bytes.size(), "test leader underflow");
+        game::s_game_state state;
+        DOCTEST_REQUIRE(SERIAL::Read_Leader_State(state, reader, true));
+        return state;
+    }
+
+    constexpr uint32_t LEADER_IDS_BYTES = MAX_LEADERS * sizeof(uint32_t);
+
+    uint32_t Strip_Leader_Ids_(uint8_t* data, uint32_t size) {
+        std::array<uint8_t, SERIAL::LEADER_STATE_BYTES> roster;
+        SERIAL::Writer_ writer(roster.data(), roster.size(), "test leader overflow");
+        SERIAL::Write_Leader_State(game::current_state, writer);
+        uint8_t* start = std::search(data, data + size, roster.begin(), roster.end());
+        DOCTEST_REQUIRE(start != data + size);
+        auto* read = start;
+        auto* write = start;
+        for (int slot = 0; slot < MAX_LEADERS; ++slot) {
+            read += sizeof(uint32_t);
+            memmove(write, read, SERIAL::LEADER_BYTES);
+            read += SERIAL::LEADER_BYTES;
+            write += SERIAL::LEADER_BYTES;
+        }
+        memmove(write, read, data + size - read);
+        return size - LEADER_IDS_BYTES;
     }
 
     void Fill_Ships_(s_ship_data* ships, uint32_t seed) {
@@ -74,7 +103,6 @@ namespace {
         MOX::colony = state.colonies;
         MOX::planet = state.planets;
         MOX::star = state.stars;
-        MOX::leaders = state.leaders;
         MOX::player = state.players;
         MOX::ship = state.ships;
         MOX::nebula = state.nebulas;
@@ -276,7 +304,7 @@ namespace {
         Fill_Bytes_(state.colonies, sizeof(state.colonies), 1);
         Fill_Bytes_(state.planets, sizeof(state.planets), 2);
         Fill_Bytes_(state.stars, sizeof(state.stars), 3);
-        Fill_Bytes_(state.leaders, sizeof(state.leaders), 4);
+        game::current_state = Legacy_Leaders_();
         Fill_Bytes_(state.players, sizeof(state.players), 5);
         Fill_Ships_(state.ships, 6);
         Fill_Bytes_(state.nebulas, sizeof(state.nebulas), 7);
@@ -345,6 +373,7 @@ namespace {
 
     void Clear_State_(State_& state) {
         memset(&state, 0, sizeof(state));
+        game::current_state = game::s_game_state{};
         memset(&MOX::settings, 0, sizeof(MOX::settings));
         memset(&MOX::antarans, 0, sizeof(MOX::antarans));
         memset(MOX::moveable_box, 0, sizeof(MOX::moveable_box));
@@ -458,7 +487,6 @@ namespace {
         for (int i = MOX::NUM_STARS; i < MAX_STARS; ++i) {
             DOCTEST_CHECK((Is_Unused_Star_(actual.stars[i])));
         }
-        DOCTEST_CHECK((memcmp(expected.leaders, actual.leaders, sizeof(expected.leaders)) == 0));
         DOCTEST_CHECK((memcmp(expected.players, actual.players, sizeof(expected.players)) == 0));
         DOCTEST_CHECK((memcmp(expected.ships, actual.ships, MOX::NUM_SHIPS * sizeof(*expected.ships)) == 0));
         for (int i = MOX::NUM_SHIPS; i < MAX_SHIPS; ++i) {
@@ -499,7 +527,7 @@ namespace {
         for (int i = ORIGINAL_MAX_STARS; i < MAX_STARS; ++i) {
             DOCTEST_CHECK((Is_Unused_Star_(actual.stars[i])));
         }
-        DOCTEST_CHECK((memcmp(expected.leaders, actual.leaders, sizeof(expected.leaders)) == 0));
+        DOCTEST_CHECK(game::current_state == Legacy_Leaders_());
         int converted_locations = 0;
         for (int i = 0; i < ORIGINAL_MAX_SHIPS; ++i) {
             s_ship_data expected_ship = expected.ships[i];
@@ -553,6 +581,47 @@ namespace {
     }
 
 } // namespace
+
+DOCTEST_TEST_CASE("version 8 leader records use fixed slot IDs") {
+    constexpr size_t record_size = sizeof(uint32_t) + SERIAL::LEADER_BYTES;
+    std::array<uint8_t, MAX_LEADERS * record_size> bytes{};
+    game::s_game_state original;
+    original.leaders.front().xp = 21;
+    original.leaders.back().status = -2;
+    SERIAL::Writer_ writer(bytes.data(), bytes.size(), "test leader overflow");
+    SERIAL::Write_Leader_State(original, writer);
+    DOCTEST_REQUIRE(writer.Length() == bytes.size());
+
+    SERIAL::Reader_ ids(bytes.data(), bytes.size(), "test leader underflow");
+    for (uint32_t slot = 0; slot < MAX_LEADERS; ++slot) {
+        DOCTEST_CHECK(ids.Read_Uint32() == slot);
+        ids.Skip(SERIAL::LEADER_BYTES);
+    }
+
+    game::s_game_state loaded;
+    SERIAL::Reader_ valid(bytes.data(), bytes.size(), "test leader underflow");
+    DOCTEST_REQUIRE(SERIAL::Read_Leader_State(loaded, valid));
+    DOCTEST_CHECK(loaded == original);
+
+    // Reject noncanonical IDs without publishing any of the decoded records.
+    const game::s_game_state prior;
+    loaded = prior;
+    bytes[record_size] = 0; // Duplicate slot 0.
+    SERIAL::Reader_ duplicate(bytes.data(), bytes.size(), "test leader underflow", true);
+    DOCTEST_CHECK_FALSE(SERIAL::Read_Leader_State(loaded, duplicate));
+    DOCTEST_CHECK(loaded == prior);
+
+    bytes[0] = 1; // Slots 0 and 1 are now reversed.
+    SERIAL::Reader_ reordered(bytes.data(), bytes.size(), "test leader underflow", true);
+    DOCTEST_CHECK_FALSE(SERIAL::Read_Leader_State(loaded, reordered));
+    DOCTEST_CHECK(loaded == prior);
+
+    bytes[0] = 0;
+    bytes[record_size] = MAX_LEADERS;
+    SERIAL::Reader_ out_of_range(bytes.data(), bytes.size(), "test leader underflow", true);
+    DOCTEST_CHECK_FALSE(SERIAL::Read_Leader_State(loaded, out_of_range));
+    DOCTEST_CHECK(loaded == prior);
+}
 
 DOCTEST_TEST_CASE("version 0 ship locations migrate to configured ranges") {
     DOCTEST_CHECK(SAVEGAME::Convert_Legacy_Ship_Location(-1) == -1);
@@ -610,21 +679,24 @@ DOCTEST_TEST_CASE("save versions 5 and 6 preserve ship limits and fixed location
     constexpr size_t version_offset = sizeof(uint32_t) +
         sizeof(SAVEGAME::s_metadata::description) + sizeof(int32_t) + sizeof(int8_t);
     const uint16_t old_version = 5;
+    const uint32_t invalid_old_size = Strip_Leader_Ids_(bytes.get(), writer.Length());
     memcpy(bytes.get() + version_offset, &old_version, sizeof(old_version));
-    SERIAL::Reader_ invalid_old_reader(bytes.get(), writer.Length(), "test save underflow");
+    SERIAL::Reader_ invalid_old_reader(bytes.get(), invalid_old_size, "test save underflow");
     DOCTEST_CHECK_FALSE(SAVEGAME::Read_Game(
         &invalid_old_reader, &metadata, &settings, &seed));
 
     Bind_State_(*expected);
+    game::current_state = Legacy_Leaders_();
     MOX::NUM_SHIPS = 9000;
     MOX::NUM_COLONIES = 0;
     SERIAL::Writer_ old_writer(bytes.get(), SAVEGAME::BUFFER_CAPACITY, "test save overflow");
     DOCTEST_REQUIRE(SAVEGAME::Write_Game(&old_writer, description, 0x12345678));
+    const uint32_t old_size = Strip_Leader_Ids_(bytes.get(), old_writer.Length());
     memcpy(bytes.get() + version_offset, &old_version, sizeof(old_version));
 
     Bind_State_(*actual);
     Clear_State_(*actual);
-    SERIAL::Reader_ old_reader(bytes.get(), old_writer.Length(), "test save underflow");
+    SERIAL::Reader_ old_reader(bytes.get(), old_size, "test save underflow");
     DOCTEST_REQUIRE(SAVEGAME::Read_Game(&old_reader, &metadata, &settings, &seed));
     DOCTEST_CHECK((old_reader.Remaining() == 0));
     DOCTEST_CHECK((metadata.version == old_version));
@@ -717,6 +789,7 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
     State_& actual = *actual_state;
     Bind_State_(expected);
     Fill_State_(expected);
+    const game::s_game_state expected_leaders = game::current_state;
     config::s_config_state default_config;
     DOCTEST_REQUIRE(config::Initialize_Defaults(&default_config));
     DOCTEST_REQUIRE(config::Commit_State(&default_config));
@@ -934,7 +1007,7 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
     constexpr uint32_t colonies_offset = versioned_game_header_size +
         sizeof(s_settings) + sizeof(uint32_t) + sizeof(int16_t);
     constexpr size_t old_colony_size = offsetof(s_colony, buildings_scrapped_this_turn);
-    const uint32_t previous_colony_format_size = writer.Length() - MOX::NUM_COLONIES;
+    uint32_t previous_colony_format_size = writer.Length() - MOX::NUM_COLONIES;
     uint8_t* previous_colony_format = static_cast<uint8_t*>(malloc(previous_colony_format_size));
     DOCTEST_REQUIRE(previous_colony_format != nullptr);
     memcpy(previous_colony_format, versioned, colonies_offset);
@@ -946,6 +1019,7 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
     memcpy(previous_colony_format + colonies_offset + MOX::NUM_COLONIES * old_colony_size,
         versioned + colonies_offset + MOX::NUM_COLONIES * sizeof(s_colony),
         writer.Length() - colonies_offset - MOX::NUM_COLONIES * sizeof(s_colony));
+    previous_colony_format_size = Strip_Leader_Ids_(previous_colony_format, previous_colony_format_size);
     SERIAL::Reader_ extension_reader(versioned + extension_offset,
         extension_size,
         "test extension underflow");
@@ -981,7 +1055,7 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
         MOX::NUM_SHIPS * (sizeof(int16_t) + sizeof(int32_t));
     const uint32_t version_one_size = writer.Length() -
         jump_gate_redirect_state_size - freight_capacity_state_size -
-        antaran_runtime_state_size - extension_size - MOX::NUM_COLONIES;
+        antaran_runtime_state_size - extension_size - MOX::NUM_COLONIES - LEADER_IDS_BYTES;
     uint8_t* version_one = static_cast<uint8_t*>(malloc(version_one_size));
     DOCTEST_REQUIRE(version_one != nullptr);
     memcpy(version_one, previous_colony_format, version_one_size);
@@ -1100,6 +1174,7 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
         DOCTEST_CHECK(memcmp(&loaded_settings, &expected_settings, sizeof(expected_settings)) == 0);
         if (format == 0) {
             Check_Versioned_State_(expected, actual);
+            DOCTEST_CHECK(game::current_state == expected_leaders);
             DOCTEST_CHECK((actual.colonies[0].industry_per_worker == 0));
             DOCTEST_CHECK((actual.colonies[1].industry_per_worker == 127));
             DOCTEST_CHECK((actual.colonies[2].industry_per_worker == 128));
@@ -1318,7 +1393,7 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
     SAVEGAME::loaded_config_prompt = true;
 
     const uint32_t previous_version_three_size =
-        writer.Length() - jump_gate_redirect_state_size - extension_size - MOX::NUM_COLONIES;
+        writer.Length() - jump_gate_redirect_state_size - extension_size - MOX::NUM_COLONIES - LEADER_IDS_BYTES;
     uint8_t* version_three = static_cast<uint8_t*>(malloc(previous_version_three_size));
     DOCTEST_REQUIRE(version_three != nullptr);
     memcpy(version_three, previous_colony_format, previous_version_three_size);

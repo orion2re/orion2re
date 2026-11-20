@@ -209,42 +209,43 @@ DOCTEST_TEST_CASE("Advanced civilization derives population independently of con
 DOCTEST_TEST_CASE("crew turn updates use the best active colony instructor for each owner") {
     struct s_crew_scope {
         std::vector<s_ship_data> saved_ships{MAX_SHIPS};
-        std::vector<s_leader_data> saved_leaders{MAX_LEADERS};
+        game::s_game_state saved_state = std::move(game::current_state);
         decltype(test::fakes::instructor_bonuses) saved_bonuses;
         uint8_t saved_turn_xp = ERICNET::crew_gains_turn_xp;
         uint16_t saved_cap = MOX::crew_data[CREW_QUALITY_ELITE].experience;
 
         s_crew_scope() {
             memcpy(saved_ships.data(), MOX::ship, sizeof(s_ship_data) * MAX_SHIPS);
-            memcpy(saved_leaders.data(), MOX::leaders, sizeof(s_leader_data) * MAX_LEADERS);
             memcpy(saved_bonuses, test::fakes::instructor_bonuses, sizeof(saved_bonuses));
         }
 
         ~s_crew_scope() {
             memcpy(MOX::ship, saved_ships.data(), sizeof(s_ship_data) * MAX_SHIPS);
-            memcpy(MOX::leaders, saved_leaders.data(), sizeof(s_leader_data) * MAX_LEADERS);
+            game::current_state = std::move(saved_state);
             memcpy(test::fakes::instructor_bonuses, saved_bonuses, sizeof(saved_bonuses));
             ERICNET::crew_gains_turn_xp = saved_turn_xp;
             MOX::crew_data[CREW_QUALITY_ELITE].experience = saved_cap;
         }
     } crew_scope;
     Reset_Colony_();
-    memset(MOX::leaders, 0, sizeof(s_leader_data) * MAX_LEADERS);
+    auto& state = game::current_state;
+    state = game::s_game_state{};
     memset(test::fakes::instructor_bonuses, 0, sizeof(test::fakes::instructor_bonuses));
-    for (int i = 0; i < MAX_LEADERS; ++i) MOX::leaders[i].player_index = -1;
+    for (auto& leader : state.leaders) leader.player_index = -1;
     for (int i = 0; i < 6; ++i) {
-        MOX::leaders[i].player_index = i < 2 || i == 5 ? 0 : 1;
-        MOX::leaders[i].type = LEADER_TYPE_COLONY;
+        auto& leader = state.leaders.at(i);
+        leader.player_index = i < 2 || i == 5 ? 0 : 1;
+        leader.type = LEADER_TYPE_COLONY;
     }
     test::fakes::instructor_bonuses[0][0] = 3;
     test::fakes::instructor_bonuses[1][1] = 5;
     test::fakes::instructor_bonuses[2][0] = 7;
-    MOX::leaders[2].eta = 1;
+    state.leaders[2].eta = 1;
     test::fakes::instructor_bonuses[3][0] = 9;
-    MOX::leaders[3].type = LEADER_TYPE_SHIP;
+    state.leaders[3].type = LEADER_TYPE_SHIP;
     test::fakes::instructor_bonuses[4][0] = 2;
     test::fakes::instructor_bonuses[5][0] = 99;
-    MOX::leaders[5].status = -1;
+    state.leaders[5].status = -1;
     int16_t bonuses[MAX_PLAYERS] = {};
     ERICNET::Best_Instructor_Bonus(bonuses);
     DOCTEST_CHECK(bonuses[0] == 5);

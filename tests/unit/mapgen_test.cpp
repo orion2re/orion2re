@@ -87,7 +87,7 @@ namespace {
         std::vector<s_player> players;
         std::vector<s_colony> colonies;
         std::vector<s_ship_data> ships;
-        std::vector<s_leader_data> leaders;
+        game::s_game_state state;
         std::vector<s_nebula> nebulas;
         std::vector<uint64_t> ship_generations;
         uint64_t topology_generation = 0;
@@ -108,7 +108,7 @@ namespace {
             {MOX::player, MOX::player + MAX_PLAYERS},
             {MOX::colony, MOX::colony + MAX_COLONIES},
             {MOX::ship, MOX::ship + MAX_SHIPS},
-            {MOX::leaders, MOX::leaders + MAX_LEADERS},
+            game::current_state,
             {MOX::nebula, MOX::nebula + MAX_NEBULAS},
             std::vector<uint64_t>(MAX_SHIPS),
             orion2re::lua::game::internal::Topology_Generation(),
@@ -142,9 +142,7 @@ namespace {
         DOCTEST_CHECK(memcmp(MOX::ship,
                           expected.ships.data(),
                           MAX_SHIPS * sizeof(s_ship_data)) == 0);
-        DOCTEST_CHECK(memcmp(MOX::leaders,
-                          expected.leaders.data(),
-                          MAX_LEADERS * sizeof(s_leader_data)) == 0);
+        DOCTEST_CHECK(game::current_state == expected.state);
         DOCTEST_CHECK(memcmp(MOX::nebula,
                           expected.nebulas.data(),
                           MAX_NEBULAS * sizeof(s_nebula)) == 0);
@@ -681,6 +679,7 @@ DOCTEST_TEST_CASE(
     s_galaxy_snapshot expected = Capture_Galaxy_();
     expected.stars[0].x = 77;
     expected.planets[0].climate = PLANET_CLIMATE_GAIA;
+    ++expected.state.leaders[0].xp;
     expected.planets[0].food_per_farmer = 6;
     expected.planets[0].max_farms = 7;
     expected.topology_generation += 2;

@@ -3,6 +3,8 @@
 #include <cstddef>
 #include <vector>
 
+#include "game_state.h"
+
 typedef struct s_skill_data s_skill_data, *Ps_skill_data;
 
 struct s_skill_data {
@@ -600,7 +602,6 @@ namespace MOX {
     extern void* dimmed_scrap_button_seg;
     extern void* dimmed_officers_button_seg;
 
-    extern s_leader_data* leaders;
 
     extern char* officer_level_names[6];
 

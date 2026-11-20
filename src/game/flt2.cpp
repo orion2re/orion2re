@@ -1,5 +1,7 @@
 #include "pch.h"
 
+using game::current_state;
+
 namespace FLT2 {
     s_colors normal_colors = {{111, 116, 114, 116, 116, 116, 116, 116}};
     s_colors neutral_colors = {{4, 16, 12, 16, 16, 16, 16, 16}};
@@ -471,7 +473,7 @@ namespace FLT2 {
                     if (leader_idx == -1 || HAROLD::Player_Has_Colony(MOX::PLAYER_NUM, val) == 0) {
                         strlcpy(status_text, MOX::star[val].name, sizeof(status_text));
                     } else {
-                        s_leader_data* leader = &MOX::leaders[leader_idx];
+                        auto* leader = &current_state.leaders.at(leader_idx);
                         if (leader->eta <= 0) {
                             snprintf(status_text, sizeof(status_text), MOX::s_fmt_scanned_star_info, MOX::star[val].name, leader->name);
                         } else if (leader->eta == 1) {
@@ -821,10 +823,10 @@ namespace FLT2 {
         uint8_t found_captain = 0;
 
         for (int16_t i = 0; i < MAX_LEADERS; i++) {
-            if (MOX::leaders[i].player_index == MOX::PLAYER_NUM &&
-                MOX::leaders[i].status == 1 &&
-                MOX::leaders[i].type == LEADER_TYPE_SHIP) {
-                if (MOX::leaders[i].location == ship_idx) {
+            const auto& leader = current_state.leaders.at(i);
+            if (leader.player_index == MOX::PLAYER_NUM &&
+                leader.status == 1 && leader.type == LEADER_TYPE_SHIP) {
+                if (leader.location == ship_idx) {
                     leader_idx = i;
                     found_captain = 1;
                     break;
@@ -845,7 +847,7 @@ namespace FLT2 {
             ERIC::Print_Paragraph_Centered_Vertically(0xAD, 0x11F, 0x42, height, captain_label, 2);
             animate::Draw(0xF2, 0x11C, pict);
 
-            if (MOX::leaders[leader_idx].eta > 0) {
+            if (current_state.leaders.at(leader_idx).eta > 0) {
                 OFFICER::Print_ETA_On_Officer_Picture(leader_idx, 0xF2, 0x11C, width);
                 width += 2;
                 height += 2;

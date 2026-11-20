@@ -1,5 +1,6 @@
 #include "pch.h"
 
+#include "game/leader_serialization.h"
 #include "game/netproto.h"
 #include "game/legacy_world.h"
 #include "lua/lua_network.h"
@@ -38,6 +39,7 @@ namespace NETMOX {
         constexpr uint32_t O2GD_MAGIC = 0x4447324F;
         constexpr uint16_t O2GD_VERSION = 1;
         constexpr uint16_t O2GD_HEADER_SIZE = 20;
+        constexpr uint32_t NATIVE_SNAPSHOT_VERSION_TAG = 0x324E324F; // O2N2
 
         struct Scoped_Net_Update_Suspension_ {
             Scoped_Net_Update_Suspension_() {
@@ -231,11 +233,12 @@ namespace NETMOX {
         Send_Drop_Out_Info(player_idx, 0x38);
     }
 
-    void __cdecl Ditch_Leader(int32_t leader_idx) {
-        MOX::leaders[leader_idx].eta = 0;
-        MOX::leaders[leader_idx].status = -1;
-        MOX::leaders[leader_idx].location = -1;
-        MOX::leaders[leader_idx].player_index = -1;
+    void __cdecl Ditch_Leader(game::s_game_state& state, int32_t leader_idx) {
+        auto& leader = state.leaders.at(leader_idx);
+        leader.eta = 0;
+        leader.status = -1;
+        leader.location = -1;
+        leader.player_index = -1;
     }
 
     void __cdecl Mark_Leader_Deassigned(int16_t leader_idx) {
@@ -641,11 +644,12 @@ namespace NETMOX {
         allocate::Pop_Block(MOX::screen_seg);
     }
 
-    static uint32_t Encode_Native_Game_Data_Snapshot(void* buffer, uint32_t len) {
+    static uint32_t Encode_Native_Game_Data_Snapshot(const game::s_game_state& state, void* buffer, uint32_t len) {
         Scoped_Net_Update_Suspension_ suspend_net_updates;
         NETPROTO::Packet_Writer_ writer(buffer, len, "invalid broadcast game data payload");
 
         // Assemble a packed byte stream from primitive values using the original x86 little-endian layout.
+        writer.Write_Uint32(NATIVE_SNAPSHOT_VERSION_TAG);
         writer.Write_Int16(net.host_election_id);
         writer.Write_Uint32(MOX::stardate);
         writer.Write_Uint8(MOX::settings.random_events);
@@ -688,8 +692,7 @@ namespace NETMOX {
 
         RUSS::Mox_Update();
 
-        size = MAX_LEADERS * sizeof(s_leader_data);
-        writer.Write_Bytes(MOX::leaders, size);
+        SERIAL::Write_Leader_State(state, writer);
 
         writer.Write_Uint16((uint16_t)REPORT::n_reports);
 
@@ -733,7 +736,7 @@ namespace NETMOX {
 
     uint32_t __cdecl Encode_Broadcast_Game_Data_Snapshot(void* buffer, uint32_t len) {
         if (!orion2re::lua::Network_Lua_Enabled()) {
-            return Encode_Native_Game_Data_Snapshot(buffer, len);
+            return Encode_Native_Game_Data_Snapshot(game::current_state, buffer, len);
         }
         if (buffer == nullptr || len <= O2GD_HEADER_SIZE) {
             exitm::Exit_With_Message("Lua-enabled game data buffer too small");
@@ -741,7 +744,7 @@ namespace NETMOX {
         std::string diagnostic;
         uint8_t* bytes = static_cast<uint8_t*>(buffer);
         const uint32_t native_size = Encode_Native_Game_Data_Snapshot(
-            bytes + O2GD_HEADER_SIZE, len - O2GD_HEADER_SIZE);
+            game::current_state, bytes + O2GD_HEADER_SIZE, len - O2GD_HEADER_SIZE);
         uint32_t lua_state_size = 0;
         uint32_t flags = 0;
         const bool captured = orion2re::lua::Capture_Lua_Network_Payload(
@@ -818,7 +821,7 @@ namespace NETMOX {
     }
 
     static int8_t Decode_Native_Game_Data_Snapshot(
-        void* buf, size_t size) {
+        game::s_game_state& state, void* buf, size_t size) {
         Scoped_Net_Update_Suspension_ suspend_net_updates;
         uint8_t* ptr = (uint8_t*)buf;
 
@@ -831,6 +834,9 @@ namespace NETMOX {
         RUSS::Mox_Update();
 
         NETPROTO::Packet_Reader_ reader(ptr, (uint32_t)size, "invalid broadcast game data payload");
+        if (reader.Read_Uint32() != NATIVE_SNAPSHOT_VERSION_TAG) {
+            exitm::Exit_With_Message("incompatible broadcast game data version");
+        }
 
         // Interpret the packed byte stream using the original x86 little-endian layout.
         net.host_election_id = reader.Read_Int16();
@@ -904,7 +910,9 @@ namespace NETMOX {
 
         reader.Read_Bytes(MOX::ship, MAX_SHIPS * sizeof(s_ship_data));
 
-        reader.Read_Bytes(MOX::leaders, MAX_LEADERS * sizeof(s_leader_data));
+        if (!SERIAL::Read_Leader_State(state, reader)) {
+            exitm::Exit_With_Message("invalid broadcast leader roster");
+        }
 
         REPORT::n_reports = reader.Read_Int16();
 
@@ -1037,14 +1045,14 @@ namespace NETMOX {
                     "unable to allocate game data rollback checkpoint");
             }
             const uint32_t prior_size = Encode_Native_Game_Data_Snapshot(
-                prior_native.data(),
+                game::current_state, prior_native.data(),
                 static_cast<uint32_t>(prior_native.size()));
             prior_native.resize(prior_size);
         }
 
         // Snapshots populate the backing storage, not the guest's local pointers into it.
         game::current = legacy_world::World();
-        Decode_Native_Game_Data_Snapshot(native, native_size);
+        Decode_Native_Game_Data_Snapshot(game::current_state, native, native_size);
         orion2re::lua::s_lua_network_state_transaction* lua_transaction =
             nullptr;
         if (lua_enabled) {
@@ -1060,7 +1068,7 @@ namespace NETMOX {
                 &diagnostic);
             if (!prepared) {
                 Decode_Native_Game_Data_Snapshot(
-                    prior_native.data(), prior_native.size());
+                    game::current_state, prior_native.data(), prior_native.size());
                 exitm::Exit_With_Message(diagnostic.c_str());
             }
             if (!committed) {
@@ -1336,11 +1344,13 @@ namespace NETMOX {
 
         RUSS::Mox_Update();
 
+        const auto& state = game::current_state;
         for (int16_t i = 0; i < MAX_LEADERS; ++i) {
-            if (MOX::leaders[i].player_index == MOX::PLAYER_NUM ||
+            const auto& leader = state.leaders.at(i);
+            if (leader.player_index == MOX::PLAYER_NUM ||
                 deassigned_leaders[i] != 0) {
                 writer.Write_Int16(i);
-                writer.Write_Bytes(&MOX::leaders[i], sizeof(s_leader_data));
+                SERIAL::Write_Leader(writer, leader);
             }
         }
 
@@ -1813,6 +1823,7 @@ namespace NETMOX {
 
         RUSS::Mox_Update();
 
+        auto& state = game::current_state;
         int leader_idx_prev = 0;
         while (true) {
             int16_t leader_idx = reader.Read_Int16();
@@ -1820,20 +1831,24 @@ namespace NETMOX {
                 break;
             }
 
+            if (leader_idx < leader_idx_prev || leader_idx >= MAX_LEADERS) {
+                exitm::Exit_With_Message("invalid game orders leader slot");
+            }
             for (int i = leader_idx_prev; i < leader_idx; ++i) {
-                if (MOX::leaders[i].player_index == player_idx) {
-                    NETMOX::Ditch_Leader(i);
+                if (state.leaders.at(i).player_index == player_idx) {
+                    NETMOX::Ditch_Leader(state, i);
                 }
             }
 
-            reader.Read_Bytes(&MOX::leaders[leader_idx], sizeof(s_leader_data));
+            reader.Require(SERIAL::LEADER_BYTES);
+            SERIAL::Read_Leader(reader, state.leaders.at(leader_idx));
 
             leader_idx_prev = leader_idx + 1;
         }
 
         for (int i = leader_idx_prev; i < MAX_LEADERS; ++i) {
-            if (MOX::leaders[i].player_index == player_idx) {
-                NETMOX::Ditch_Leader(i);
+            if (state.leaders.at(i).player_index == player_idx) {
+                NETMOX::Ditch_Leader(state, i);
             }
         }
 
@@ -1946,8 +1961,9 @@ namespace NETMOX {
             }
 
             // 4. Read Leaders
-            for (int i = 0; i < MAX_LEADERS; ++i) {
-                MOX::leaders[i].player_index = -1;
+            auto& state = game::current_state;
+            for (auto& leader : state.leaders) {
+                leader.player_index = -1;
             }
 
             while (true) {
@@ -1957,7 +1973,11 @@ namespace NETMOX {
                     break;
                 }
 
-                reader.Read_Bytes(&MOX::leaders[leader_id], sizeof(s_leader_data));
+                if (leader_id < 0 || leader_id >= MAX_LEADERS) {
+                    exitm::Exit_With_Message("invalid combat leader slot");
+                }
+                reader.Require(SERIAL::LEADER_BYTES);
+                SERIAL::Read_Leader(reader, state.leaders.at(leader_id));
                 RUSS::Mox_Update();
             }
             RUSS::Mox_Update();
@@ -2064,10 +2084,11 @@ namespace NETMOX {
             }
 
             // 3. Read Leaders
-            for (int i = 0; i < MAX_LEADERS; ++i) {
-                int16_t owner = MOX::leaders[i].player_index;
+            auto& state = game::current_state;
+            for (auto& leader : state.leaders) {
+                int16_t owner = leader.player_index;
                 if (owner == attacker_id || owner == MOX::PLAYER_NUM) {
-                    MOX::leaders[i].player_index = -1;
+                    leader.player_index = -1;
                 }
             }
 
@@ -2078,7 +2099,11 @@ namespace NETMOX {
                     break;
                 }
 
-                reader.Read_Bytes(&MOX::leaders[leader_id], sizeof(s_leader_data));
+                if (leader_id < 0 || leader_id >= MAX_LEADERS) {
+                    exitm::Exit_With_Message("invalid combat leader slot");
+                }
+                reader.Require(SERIAL::LEADER_BYTES);
+                SERIAL::Read_Leader(reader, state.leaders.at(leader_id));
             }
 
             // 4. Read Star Officer Indexes
@@ -2200,6 +2225,7 @@ namespace NETMOX {
                 }
 
                 // 4. Unpack Surviving Leaders
+                auto& state = game::current_state;
                 while (true) {
                     int16_t leader_id = reader.Read_Int16();
 
@@ -2207,7 +2233,11 @@ namespace NETMOX {
                         break;
                     }
 
-                    reader.Read_Bytes(&MOX::leaders[leader_id], sizeof(s_leader_data));
+                    if (leader_id < 0 || leader_id >= MAX_LEADERS) {
+                        exitm::Exit_With_Message("invalid combat leader slot");
+                    }
+                    reader.Require(SERIAL::LEADER_BYTES);
+                    SERIAL::Read_Leader(reader, state.leaders.at(leader_id));
                 }
                 RUSS::Mox_Update();
 
@@ -2356,10 +2386,12 @@ namespace NETMOX {
 
             RUSS::Mox_Update();
 
+            const auto& state = game::current_state;
             for (int16_t i = 0; i < MAX_LEADERS; i++) {
-                if (MOX::leaders[i].player_index == player_id || MOX::leaders[i].player_index == target_player_id) {
+                const auto& leader = state.leaders.at(i);
+                if (leader.player_index == player_id || leader.player_index == target_player_id) {
                     writer.Write_Int16(i);
-                    writer.Write_Bytes(&MOX::leaders[i], sizeof(s_leader_data));
+                    SERIAL::Write_Leader(writer, leader);
                 }
             }
 
@@ -2440,10 +2472,12 @@ namespace NETMOX {
 
             RUSS::Mox_Update();
 
+            const auto& state = game::current_state;
             for (int16_t i = 0; i < MAX_LEADERS; ++i) {
-                if (MOX::leaders[i].player_index == other_player_idx || MOX::leaders[i].player_index == target_player_idx) {
+                const auto& leader = state.leaders.at(i);
+                if (leader.player_index == other_player_idx || leader.player_index == target_player_idx) {
                     writer.Write_Int16(i);
-                    writer.Write_Bytes(&MOX::leaders[i], sizeof(s_leader_data));
+                    SERIAL::Write_Leader(writer, leader);
                 }
             }
 
@@ -2520,9 +2554,10 @@ namespace NETMOX {
 
             RUSS::Mox_Update();
 
+            const auto& state = game::current_state;
             for (int16_t i = 0; i < MAX_LEADERS; i++) {
                 writer.Write_Int16(i);
-                writer.Write_Bytes(&MOX::leaders[i], sizeof(s_leader_data));
+                SERIAL::Write_Leader(writer, state.leaders.at(i));
                 RUSS::Mox_Update();
             }
 

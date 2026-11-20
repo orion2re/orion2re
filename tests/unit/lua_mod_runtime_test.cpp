@@ -250,8 +250,9 @@ TEST_CASE("Lua galaxy candidate handles expire after publication and rejection")
             &config_diagnostic));
         orion2re::lua::Commit_Mod_Runtimes(&runtimes);
         TEST_LUA_GAME::Reset_();
-        MOX::leaders[0].status = 5;
-        MOX::leaders[0].location = 0;
+        auto& leader = game::current_state.leaders[0];
+        leader.status = 5;
+        leader.location = 0;
 
         const uint64_t live_topology_generation =
             orion2re::lua::game::internal::Topology_Generation();
@@ -398,11 +399,13 @@ TEST_CASE("Lua galaxy collections expose complete stable domain objects") {
     MOX::ship[0].location = 0;
     MOX::ship[0].x = 10;
     MOX::ship[0].y = 20;
-    std::strcpy(MOX::leaders[0].name, "Pathfinder");
-    MOX::leaders[0].status = 5;
-    MOX::leaders[0].location = 0;
-    MOX::leaders[1].status = -1;
-    MOX::leaders[1].location = -1;
+    auto& first = game::current_state.leaders[0];
+    auto& second = game::current_state.leaders[1];
+    std::strcpy(first.name, "Pathfinder");
+    first.status = 5;
+    first.location = 0;
+    second.status = -1;
+    second.location = -1;
 
     bool invoked = false;
     std::string diagnostic;
@@ -442,8 +445,8 @@ TEST_CASE("Lua galaxy mutations reject invalid domains and references") {
     MOX::planet[0].colony_index = 0;
     MOX::colony[0].planet = 0;
     MOX::colony[0].owner = 0;
-    MOX::leaders[0].status = 0;
-    MOX::leaders[1].status = 0;
+    game::current_state.leaders[0].status = 0;
+    game::current_state.leaders[1].status = 0;
 
     bool invoked = false;
     std::string diagnostic;

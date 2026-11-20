@@ -85,7 +85,7 @@ namespace OFFICER {
 
     int32_t __cdecl Officer_Skill_Bonus(uint32_t unused, int16_t leader_idx, int16_t skill_idx);
 
-    int16_t __cdecl Officer_Skill_Value(int16_t leader_index);
+    int16_t __cdecl Officer_Skill_Value(const game::s_game_state& state, int16_t leader_index);
 
     bool __cdecl Officer_Has_General_Skill(int16_t player_num, int16_t leader_index, int16_t skill_id);
 
@@ -196,13 +196,13 @@ namespace OFFICER {
 
     void __cdecl Assign_Captain(int16_t leader_idx, int16_t ship_idx);
 
-    int8_t __cdecl Get_Ship_Leader_ETA(int16_t player_num, int16_t leader_idx, int16_t ship_idx);
+    int8_t __cdecl Get_Ship_Leader_ETA(const game::s_game_state& state, int16_t player_num, int16_t leader_idx, int16_t ship_idx);
 
-    int8_t __cdecl Get_Star_Leader_ETA(int16_t player_num, int16_t leader_idx, int16_t star_idx);
+    int8_t __cdecl Get_Star_Leader_ETA(const game::s_game_state& state, int16_t player_num, int16_t leader_idx, int16_t star_idx);
 
-    void __cdecl Assign_Leader_To_Ship(s_player* player, s_leader_data* leader, s_ship_data* ship, int8_t eta);
+    void __cdecl Assign_Leader_To_Ship(game::s_game_state& state, int16_t leader_slot, s_ship_data* ship, int8_t eta);
 
-    void __cdecl Ai_Assign_Leader_To_Ship(s_player* player, s_leader_data* leader, s_ship_data* ship);
+    void __cdecl Ai_Assign_Leader_To_Ship(game::s_game_state& state, s_player* player, int16_t leader_slot, s_ship_data* ship);
 
     bool __cdecl Leader_Can_Be_Assigned(int16_t leader_idx);
 
@@ -291,7 +291,7 @@ namespace OFFICER {
 
     void __cdecl Draw_Fleet_Box();
 
-    void __cdecl Assign_Leader_To_Star(s_player* player, s_leader_data* leader, s_star_data* star, int8_t eta);
+    void __cdecl Assign_Leader_To_Star(game::s_game_state& state, s_player* player, int16_t leader_slot, s_star_data* star, int8_t eta);
 
     bool __cdecl Ships_In_Same_Place(int16_t ship_index_1, int16_t ship_index_2);
 
@@ -307,13 +307,12 @@ namespace OFFICER {
 
     int8_t __cdecl Leader_Available_For_Hire(int16_t leader_idx);
 
-    bool __cdecl Officer_Status_Ok(int16_t officer_index);
 
     int32_t __cdecl Calculate_Officer_Cost(int16_t player_idx, int16_t leader_idx);
 
     bool __cdecl Marooned_Hero_At_Star_Can_Join(int16_t star_idx, int16_t* hero_idx, int16_t player_idx);
 
-    void __cdecl Ai_Assign_Leader_To_Star(s_player* player, s_leader_data* leader, s_star_data* star);
+    void __cdecl Ai_Assign_Leader_To_Star(game::s_game_state& state, s_player* player, int16_t leader_slot, s_star_data* star);
 
     void __cdecl Wrapper_For_Offscrn_Help_Fields();
 

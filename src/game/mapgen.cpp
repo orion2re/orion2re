@@ -1,5 +1,7 @@
 #include "pch.h"
 
+using game::current_state;
+
 #include "lua/lua_game.h"
 #include "lua/lua_game_internal.h"
 #include "lua/lua_game_setup.h"
@@ -780,7 +782,7 @@ namespace MAPGEN {
             s_player* players = MOX::player;
             s_colony* colonies = MOX::colony;
             s_ship_data* ships = MOX::ship;
-            s_leader_data* leaders = MOX::leaders;
+            game::s_game_state& candidate_state;
             s_nebula* nebulas = MOX::nebula;
             int16_t planet_count = MOX::planet_count;
             int16_t star_count = MOX::NUM_STARS;
@@ -793,14 +795,14 @@ namespace MAPGEN {
                 s_player* candidate_players,
                 s_colony* candidate_colonies,
                 s_ship_data* candidate_ships,
-                s_leader_data* candidate_leaders,
-                s_nebula* candidate_nebulas) {
+                game::s_game_state& state,
+                s_nebula* candidate_nebulas) : candidate_state(state) {
                 MOX::planet = candidate_planets;
                 MOX::star = candidate_stars;
                 MOX::player = candidate_players;
                 MOX::colony = candidate_colonies;
                 MOX::ship = candidate_ships;
-                MOX::leaders = candidate_leaders;
+                std::swap(current_state, candidate_state);
                 MOX::nebula = candidate_nebulas;
             }
 
@@ -810,7 +812,7 @@ namespace MAPGEN {
                 MOX::player = players;
                 MOX::colony = colonies;
                 MOX::ship = ships;
-                MOX::leaders = leaders;
+                std::swap(current_state, candidate_state);
                 MOX::nebula = nebulas;
                 MOX::planet_count = planet_count;
                 MOX::NUM_STARS = star_count;
@@ -822,7 +824,7 @@ namespace MAPGEN {
 
         bool Valid_Galaxy_Candidate() {
             if (!Valid_Generated_Map() || MOX::colony == nullptr ||
-                MOX::ship == nullptr || MOX::leaders == nullptr ||
+                MOX::ship == nullptr ||
                 MOX::nebula == nullptr || MOX::NUM_COLONIES < 0 ||
                 MOX::NUM_COLONIES > MAX_COLONIES || MOX::NUM_SHIPS < 0 ||
                 MOX::NUM_SHIPS > MAX_SHIPS ||
@@ -891,7 +893,7 @@ namespace MAPGEN {
             }
             for (int16_t leader_idx = 0; leader_idx < MAX_LEADERS;
                  ++leader_idx) {
-                const s_leader_data& leader = MOX::leaders[leader_idx];
+                const auto& leader = current_state.leaders.at(leader_idx);
                 if (leader.status == 5 &&
                     (leader.location < 0 ||
                         leader.location >= MOX::NUM_STARS ||
@@ -925,11 +927,8 @@ namespace MAPGEN {
                     continue;
                 }
                 int leader_count = 0;
-                for (int16_t leader_idx = 0;
-                     leader_idx < MAX_LEADERS;
-                     ++leader_idx) {
-                    leader_count += MOX::leaders[leader_idx].status == 5 &&
-                        MOX::leaders[leader_idx].location == star_idx;
+                for (const auto& leader : current_state.leaders) {
+                    leader_count += leader.status == 5 && leader.location == star_idx;
                 }
                 if (leader_count != 1) {
                     return false;
@@ -1114,9 +1113,7 @@ namespace MAPGEN {
                         star_remap[ship.prior_jump_gate_destination];
                 }
             }
-            for (int16_t leader_id = 0; leader_id < MAX_LEADERS;
-                 ++leader_id) {
-                s_leader_data& leader = MOX::leaders[leader_id];
+            for (auto& leader : current_state.leaders) {
                 if (leader.status == 5 ||
                     (leader.status == 1 &&
                         leader.type == LEADER_TYPE_COLONY)) {
@@ -1236,13 +1233,11 @@ namespace MAPGEN {
             }
 
             if (MAPGEN::special_generation_config.remove_marooned_heroes) {
-                for (int16_t leader_idx = 0; leader_idx < MAX_LEADERS; ++leader_idx) {
-                    s_leader_data* leader = &MOX::leaders[leader_idx];
-                    if (leader->status == 5 && leader->location >= 0 &&
-                        leader->location < MOX::NUM_STARS) {
-                        MOX::star[leader->location].system_special = SYSTEM_SPECIAL_PIRATE_CACHE;
-                        leader->location = -1;
-                        leader->status = -1;
+                for (auto& leader : current_state.leaders) {
+                    if (leader.status == 5 && leader.location >= 0 && leader.location < MOX::NUM_STARS) {
+                        MOX::star[leader.location].system_special = SYSTEM_SPECIAL_PIRATE_CACHE;
+                        leader.location = -1;
+                        leader.status = -1;
                     }
                 }
             }
@@ -1530,8 +1525,7 @@ namespace MAPGEN {
             MOX::colony, MOX::colony + MAX_COLONIES);
         std::vector<s_ship_data> ships(
             MOX::ship, MOX::ship + MAX_SHIPS);
-        std::vector<s_leader_data> leaders(
-            MOX::leaders, MOX::leaders + MAX_LEADERS);
+        game::s_game_state candidate_state = current_state;
         std::vector<s_nebula> nebulas(
             MOX::nebula, MOX::nebula + MAX_NEBULAS);
         uint64_t ship_generations[MAX_SHIPS];
@@ -1564,7 +1558,7 @@ namespace MAPGEN {
                 players.data(),
                 colonies.data(),
                 ships.data(),
-                leaders.data(),
+                candidate_state,
                 nebulas.data());
             orion2re::lua::game::s_ship_generation_scope generation_scope(
                 ship_generations);
@@ -1616,9 +1610,7 @@ namespace MAPGEN {
             colonies.data(),
             MAX_COLONIES * sizeof(s_colony));
         memcpy(MOX::ship, ships.data(), MAX_SHIPS * sizeof(s_ship_data));
-        memcpy(MOX::leaders,
-            leaders.data(),
-            MAX_LEADERS * sizeof(s_leader_data));
+        current_state = std::move(candidate_state);
         memcpy(MOX::nebula,
             nebulas.data(),
             MAX_NEBULAS * sizeof(s_nebula));

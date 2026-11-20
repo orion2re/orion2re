@@ -1,4 +1,6 @@
 #include "pch.h"
+
+using game::current_state;
 #include "legacy_ids.h"
 
 namespace COMBFIND {
@@ -253,8 +255,9 @@ namespace COMBFIND {
                 if (player_retreat_target[owner] == 0x48) {
                     int16_t leader_idx = ship->officer_index;
                     if (leader_idx != -1) {
-                        if (MOX::leaders[leader_idx].eta < 1) {
-                            MOX::leaders[leader_idx].location = -1;
+                        auto& leader = current_state.leaders.at(leader_idx);
+                        if (leader.eta < 1) {
+                            leader.location = -1;
                             ship->officer_index = -1;
                             OFFICER::Kill_Officer(leader_idx);
                             report[owner * retreat_location_count + MOX::NUM_STARS].killed_officers++;
@@ -308,7 +311,7 @@ namespace COMBFIND {
                         int16_t idx = ship_indices[k];
                         int16_t leader_idx = MOX::ship[idx].officer_index;
                         if (leader_idx != -1) {
-                            if (MOX::leaders[leader_idx].eta < 1) {
+                            if (current_state.leaders.at(leader_idx).eta < 1) {
                                 OFFICER::Kill_Officer(leader_idx);
                                 report[owner * retreat_location_count + MOX::ship[i].location].killed_officers++;
                             } else {
@@ -1727,7 +1730,7 @@ namespace COMBFIND {
                     s_ship_data* ship = &MOX::ship[i];
                     if (ship->owner == player_idx && ship->location == star_idx && ship->status == 0) {
                         if (ship->officer_index != -1) {
-                            if (MOX::leaders[ship->officer_index].eta <= 0) {
+                            if (current_state.leaders.at(ship->officer_index).eta <= 0) {
                                 OFFICER::Kill_Officer(ship->officer_index);
                             } else {
                                 OFFICER::Move_Officer_To_Pool(ship->officer_index);

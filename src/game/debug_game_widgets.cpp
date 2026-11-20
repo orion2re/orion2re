@@ -312,11 +312,12 @@ namespace debug_game_widgets {
         if (label == nullptr || officer_index == nullptr) {
             return false;
         }
-        const int16_t count = MOX::leaders == nullptr ? 0 : MAX_LEADERS;
+        const auto& state = game::current_state;
+        const int16_t count = state.leaders.size();
         const char* preview = *officer_index < 0
             ? "None"
             : ((*officer_index < count)
-                      ? Bounded_Name(MOX::leaders[*officer_index].name, sizeof(MOX::leaders[*officer_index].name))
+                      ? Bounded_Name(state.leaders.at(*officer_index).name, sizeof(s_leader_data::name))
                       : "Invalid");
         bool changed = false;
         if (ImGui::BeginCombo(label, preview)) {
@@ -325,7 +326,7 @@ namespace debug_game_widgets {
                 changed = true;
             }
             for (int16_t index = 0; index < count; ++index) {
-                const char* name = Bounded_Name(MOX::leaders[index].name, sizeof(MOX::leaders[index].name));
+                const char* name = Bounded_Name(state.leaders.at(index).name, sizeof(s_leader_data::name));
                 if (ImGui::Selectable(name, *officer_index == index)) {
                     *officer_index = (int8_t)index;
                     changed = true;

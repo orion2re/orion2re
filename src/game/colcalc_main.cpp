@@ -1,5 +1,7 @@
 #include "pch.h"
 
+using game::current_state;
+
 #include "strbuild.h"
 
 namespace COLCALC {
@@ -25,7 +27,7 @@ namespace COLCALC {
         if (gov_type != GOVERNMENT_UNIFICATION / 2) {
             int officer_idx = Colony_Officer(colony);
             if (officer_idx != -1) {
-                s_leader_data* leader = &MOX::leaders[officer_idx];
+                auto* leader = &current_state.leaders.at(officer_idx);
                 if (leader->special_skills & LEADER_COLONY_SKILL_SPIRITUAL_LEADER2) {
                     leader_bonus = (OFFICER::Owned_Officer_Level(officer_idx) * 3 + 4) / 2;
                 } else if (leader->special_skills & LEADER_COLONY_SKILL_SPIRITUAL_LEADER) {
@@ -184,7 +186,8 @@ namespace COLCALC {
             case SYSTEM_SPECIAL_MAROONED_HERO:
                 // Deassign officers if the system special is removed (e.g., Orion conquered)
                 for (int16_t i = 0; i < MAX_LEADERS; ++i) {
-                    if (MOX::leaders[i].status == 5 && MOX::leaders[i].location == star_idx) {
+                    const auto& leader = current_state.leaders.at(i);
+                    if (leader.status == 5 && leader.location == star_idx) {
                         OFFICER::Deassign_Officer(i);
                     }
                 }
@@ -477,7 +480,7 @@ namespace COLCALC {
 
         // Process Leaders
         for (int i = 0; i < MAX_LEADERS; ++i) {
-            s_leader_data* leader = &MOX::leaders[i];
+            auto* leader = &current_state.leaders.at(i);
             if (Player_Owns_Officer(plr, leader) && Leader_At_Anomaly(leader) == 0) {
                 uint32_t skills = leader->general_skills;
 
@@ -645,7 +648,7 @@ namespace COLCALC {
         bool base_morale_applies = (govt_trait / 2 != GOVERNMENT_UNIFICATION / 2);
 
         if (leader_idx != -1) {
-            auto& leader = MOX::leaders[leader_idx];
+            auto& leader = current_state.leaders.at(leader_idx);
             if (econ_type == ECON_FOOD) {
                 if (leader.special_skills & LEADER_COLONY_SKILL_FARMING_LEADER2) {
                     officer_bonus = (OFFICER::Owned_Officer_Level(leader_idx) + 1) * 3;
@@ -801,7 +804,7 @@ namespace COLCALC {
         int32_t bonus_leader_idx = -1;
 
         for (int16_t i = 0; i < MAX_LEADERS; ++i) {
-            s_leader_data* leader = &MOX::leaders[i];
+            auto* leader = &current_state.leaders.at(i);
             if (leader->player_index == player_idx && leader->status >= 0 && leader->status < 3) {
                 if (Leader_At_Anomaly(leader) == 0) {
                     plr->maintenance[5] += OFFICER::Officer_Maintenance(player_idx, i);
@@ -899,7 +902,8 @@ namespace COLCALC {
                 STRBUILD::Sprintf(debug_out, "%d : %s\n", comm_tech_total, TECHDATA::technology_applications[comm_tech_idx].name);
             }
             if (leader_cp_bonus != 0) {
-                STRBUILD::Sprintf(debug_out, "%d : %s\n", leader_cp_bonus, MOX::leaders[bonus_leader_idx].name);
+                const auto& leader = current_state.leaders.at(bonus_leader_idx);
+                STRBUILD::Sprintf(debug_out, "%d : %s\n", leader_cp_bonus, leader.name);
             }
             if (warlord_bonus != 0) {
                 STRBUILD::Sprintf(debug_out, "%d %s\n", warlord_bonus, from_warlord_msg);
@@ -1096,10 +1100,11 @@ namespace COLCALC {
         }
 
         if (officer_idx != -1) {
-            if (MOX::leaders[officer_idx].special_skills & LEADER_COLONY_SKILL_FINANCIAL_LEADER2) {
+            const auto skills = current_state.leaders.at(officer_idx).special_skills;
+            if (skills & LEADER_COLONY_SKILL_FINANCIAL_LEADER2) {
                 int16_t lvl = OFFICER::Owned_Officer_Level(officer_idx);
                 leader_bonus_bc = ((lvl + 1) * income_base * 3 + 10) / 20;
-            } else if (MOX::leaders[officer_idx].special_skills & LEADER_COLONY_SKILL_FINANCIAL_LEADER) {
+            } else if (skills & LEADER_COLONY_SKILL_FINANCIAL_LEADER) {
                 int16_t lvl = OFFICER::Owned_Officer_Level(officer_idx);
                 leader_bonus_bc = ((lvl + 1) * income_base + 5) / 10;
             }
@@ -1470,9 +1475,10 @@ namespace COLCALC {
 
             if (officer_idx != -1) {
                 int32_t officer_reduction = 0;
-                if (MOX::leaders[officer_idx].special_skills & LEADER_COLONY_SKILL_ENVIRONMENTALIST2) {
+                const auto skills = current_state.leaders.at(officer_idx).special_skills;
+                if (skills & LEADER_COLONY_SKILL_ENVIRONMENTALIST2) {
                     officer_reduction = (OFFICER::Owned_Officer_Level(officer_idx) * 3 + 3) * 5;
-                } else if (MOX::leaders[officer_idx].special_skills & LEADER_COLONY_SKILL_ENVIRONMENTALIST) {
+                } else if (skills & LEADER_COLONY_SKILL_ENVIRONMENTALIST) {
                     officer_reduction = (OFFICER::Owned_Officer_Level(officer_idx) * 5 + 5) * 2;
                 }
                 base_pollution += (officer_reduction * base_pollution) / -100;

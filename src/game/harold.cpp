@@ -638,7 +638,8 @@ namespace HAROLD {
 
                 if (record_ptr != nullptr) {
                     char* src_title = (char*)record_ptr + 15;
-                    char* dest_title = MOX::leaders[i].title;
+                    auto& state = game::current_state;
+                    char* dest_title = state.leaders.at(i).title;
 
                     while ((*dest_title++ = *src_title++) != '\0');
                 }

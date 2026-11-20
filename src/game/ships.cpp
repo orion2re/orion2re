@@ -11,9 +11,9 @@ namespace SHIPS {
                 break;
             }
 
-            if (MOX::leaders[leader_idx].type == LEADER_TYPE_SHIP &&
-                MOX::leaders[leader_idx].location == ship_idx &&
-                MOX::leaders[leader_idx].eta > 0) {
+            const auto& state = game::current_state;
+            const auto& leader = state.leaders.at(leader_idx);
+            if (leader.type == LEADER_TYPE_SHIP && leader.location == ship_idx && leader.eta > 0) {
                 OFFICER::Move_Officer_To_Pool(leader_idx);
                 officer_relocated = true;
             }

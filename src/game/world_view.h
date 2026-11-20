@@ -8,10 +8,10 @@ struct s_ship_data;
 struct s_star_data;
 struct s_colony;
 struct s_planet_data;
-struct s_leader_data;
 struct s_settings;
 
 namespace game {
+    struct s_game_state;
     // Borrowed session data. Counts stay live when legacy services create objects.
     struct s_view {
         s_player* players = nullptr;
@@ -19,7 +19,7 @@ namespace game {
         s_star_data* stars = nullptr;
         s_colony* colonies = nullptr;
         s_planet_data* planets = nullptr;
-        s_leader_data* leaders = nullptr;
+        s_game_state* state = nullptr;
         const s_settings* settings = nullptr;
         const int16_t* player_count = nullptr;
         const int16_t* ship_count = nullptr;

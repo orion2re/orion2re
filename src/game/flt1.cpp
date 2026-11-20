@@ -1,5 +1,7 @@
 #include "pch.h"
 
+using game::current_state;
+
 namespace FLT1 {
 
     int16_t fleet_screen_bad_ship_id;
@@ -1097,7 +1099,7 @@ namespace FLT1 {
         FLT1::Allocate_Fltscrn_Next_Screen_Seg();
 
         for (int16_t i = 0; i < MAX_LEADERS; ++i) {
-            s_leader_data* leader = &MOX::leaders[i];
+            auto* leader = &current_state.leaders.at(i);
             if (leader->player_index == MOX::PLAYER_NUM && leader->status == 1 && leader->type == LEADER_TYPE_SHIP) {
                 MOX::temp_officers_pict[matching_officer_count] = (s_animation_header*)FLT1::Load_Fltscrn_Officer_Picture(MOX::PLAYER_NUM, i, MOX::screen_seg, 0);
                 MOX::officer_id_list[matching_officer_count] = i;
@@ -1111,7 +1113,7 @@ namespace FLT1 {
 
     void* __cdecl Load_Fltscrn_Officer_Picture(int16_t player_num, int16_t leader_idx, void* buffer, uint8_t reload_flag) {
         (void)player_num;
-        int16_t entry_num = (int16_t)MOX::leaders[leader_idx].pict_num + 0x2d;
+        int16_t entry_num = (int16_t)current_state.leaders.at(leader_idx).pict_num + 0x2d;
 
         if (reload_flag != 0) {
             return farload::Far_Reload("FLEET.LBX", entry_num, buffer);
@@ -1243,7 +1245,8 @@ namespace FLT1 {
         (void)player_num;
 
         for (int16_t i = 0; i < MAX_LEADERS; ++i) {
-            if (MOX::leaders[i].player_index == MOX::PLAYER_NUM && MOX::leaders[i].status >= 0) {
+            const auto& leader = current_state.leaders.at(i);
+            if (leader.player_index == MOX::PLAYER_NUM && leader.status >= 0) {
                 return true;
             }
         }
@@ -1401,9 +1404,10 @@ namespace FLT1 {
                     int16_t ship_idx = ship_indices[i];
                     int16_t officer_idx = MOX::ship[ship_idx].officer_index;
                     if (officer_idx > -1) {
-                        MOX::leaders[officer_idx].status = 0;
-                        MOX::leaders[officer_idx].location = -1;
-                        MOX::leaders[officer_idx].eta = 0;
+                        auto& leader = current_state.leaders.at(officer_idx);
+                        leader.status = 0;
+                        leader.location = -1;
+                        leader.eta = 0;
                         MOX::ship[ship_idx].officer_index = -1;
                     }
                 }

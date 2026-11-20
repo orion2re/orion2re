@@ -10,7 +10,6 @@ namespace {
     s_player players[MAX_PLAYERS];
     s_star_data stars[2];
     s_ship_data ships[2];
-    s_leader_data leaders[MAX_LEADERS];
     char race_name[] = "Fixture race";
     int32_t destroy_colony_reason;
     int16_t add_spy_result;
@@ -45,7 +44,7 @@ namespace TEST_COLONY_POP_GROWTH {
         memset(players, 0, sizeof(players));
         memset(stars, 0, sizeof(stars));
         memset(ships, 0, sizeof(ships));
-        memset(leaders, 0, sizeof(leaders));
+        game::current_state = game::s_game_state{};
         memset(TECHDATA::buildings, 0, sizeof(TECHDATA::buildings));
         memset(
             TECHDATA::technology_applications,
@@ -141,7 +140,7 @@ namespace TEST_COLONY_POP_GROWTH {
         MOX::NUM_PLAYERS = 2;
         MOX::NUM_STARS = 1;
         MOX::NUM_SHIPS = 2;
-        for (auto& leader : leaders) {
+        for (auto& leader : game::current_state.leaders) {
             leader.player_index = -1;
             leader.status = -1;
             leader.location = -1;
@@ -243,7 +242,6 @@ namespace MOX {
     s_player* player = players;
     s_star_data* star = stars;
     s_ship_data* ship = ships;
-    s_leader_data* leaders = ::leaders;
     s_settings settings = {};
     s_crew_data crew_data[CREW_QUALITY_COUNT] = {};
     uint8_t food_per_farmer_table[PLANET_CLIMATE_COUNT] = {};
@@ -289,16 +287,18 @@ namespace EVENTS {
 namespace OFFICER {
     void __cdecl Deassign_Officer(int16_t leader) {
         TEST_COLONY_POP_GROWTH::services.deassigned.push_back(leader);
-        MOX::leaders[leader].location = -1;
-        MOX::leaders[leader].status = 0;
-        MOX::leaders[leader].eta = 0;
+        auto& officer = game::current_state.leaders.at(leader);
+        officer.location = -1;
+        officer.status = 0;
+        officer.eta = 0;
     }
 
     void __cdecl Move_Officer_To_Pool(int16_t leader) {
         TEST_COLONY_POP_GROWTH::services.pooled.push_back(leader);
-        MOX::leaders[leader].location = -1;
-        MOX::leaders[leader].status = 0;
-        MOX::leaders[leader].eta = 0;
+        auto& officer = game::current_state.leaders.at(leader);
+        officer.location = -1;
+        officer.status = 0;
+        officer.eta = 0;
     }
 
     int16_t __cdecl Owned_Officer_Level(int16_t) {

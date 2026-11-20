@@ -86,7 +86,7 @@ namespace spy {
     /* Resolves a completed assassination attempt against the given leader.
      * @param leader Leader targeted by the assassination event.
      */
-    void __cdecl Leader_Assassinates(s_leader_data* leader);
+    void __cdecl Leader_Assassinates(game::s_game_state& state, int32_t leader_idx);
 
     /* Allocates an AI player's available spies across home and foreign targets.
      * @param player AI player whose spies are being reassigned.
