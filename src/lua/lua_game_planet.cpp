@@ -129,7 +129,7 @@ namespace orion2re::lua::game::internal {
             if (colony_id < 0 || colony_id >= MOX::NUM_COLONIES) {
                 return false;
             }
-            const id_planet planet_id{static_cast<uint32_t>(MOX::colony[colony_id].planet)};
+            const id_planet planet_id = MOX::colony[colony_id].planet_id.get();
             auto* planet = Resolve_Planet_Record_(planet_id);
             if (!planet || planet->colony_index != colony_id) {
                 return false;
@@ -156,14 +156,14 @@ namespace orion2re::lua::game::internal {
             const std::int16_t last_id = --MOX::NUM_COLONIES;
             if (colony_id != last_id) {
                 MOX::colony[colony_id] = MOX::colony[last_id];
-                auto* moved_planet = Resolve_Planet_Record_(id_planet{static_cast<uint32_t>(MOX::colony[colony_id].planet)});
+                auto* moved_planet = Resolve_Planet_Record_(MOX::colony[colony_id].planet_id.get());
                 if (!moved_planet || moved_planet->colony_index != last_id) {
                     return false;
                 }
                 moved_planet->colony_index = colony_id;
             }
             memset(&MOX::colony[last_id], 0, sizeof(s_colony));
-            MOX::colony[last_id].planet = -1;
+            MOX::colony[last_id].planet_id = NO_PLANET;
             MOX::colony[last_id].owner = -1;
             MOX::colony[last_id].officer = -1;
             return true;
@@ -357,7 +357,7 @@ namespace orion2re::lua::game::internal {
                 return 1;
             }
             if (strcmp(key, "id") == 0) {
-                lua_pushinteger(lua_state, legacy_world::Slot(proxy->planet_id));
+                lua_pushinteger(lua_state, proxy->planet_id.id);
                 return 1;
             }
             if (strcmp(key, "valid") == 0) {

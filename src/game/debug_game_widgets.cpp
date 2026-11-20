@@ -225,33 +225,30 @@ namespace debug_game_widgets {
 #endif
     }
 
-    bool Planet_Reference(const char* label, int16_t* planet_index, bool allow_none) {
+    bool Planet_Reference(const char* label, game::id_planet* planet_id, bool allow_none) {
 #if defined(ORION2RE_ENABLE_DEBUG_OVERLAY)
-        if (label == nullptr || planet_index == nullptr) {
+        if (label == nullptr || planet_id == nullptr) {
             return false;
         }
         char preview[64];
-        if (*planet_index < 0) {
+        if (*planet_id == game::NO_PLANET) {
             strlcpy(preview, "None", sizeof(preview));
-        } else if (game::current_state.planets.contains(game::id_planet{static_cast<uint32_t>(*planet_index)})) {
-            snprintf(preview, sizeof(preview), "Planet %d", (int)*planet_index);
+        } else if (game::current_state.planets.contains(*planet_id)) {
+            snprintf(preview, sizeof(preview), "Planet %u", planet_id->id);
         } else {
             strlcpy(preview, "Invalid", sizeof(preview));
         }
         bool changed = false;
         if (ImGui::BeginCombo(label, preview)) {
-            if (allow_none && ImGui::Selectable("None", *planet_index < 0)) {
-                *planet_index = -1;
+            if (allow_none && ImGui::Selectable("None", *planet_id == game::NO_PLANET)) {
+                *planet_id = game::NO_PLANET;
                 changed = true;
             }
             for (const auto id : game::current_state.planet_order) {
-                const auto slot = legacy_world::Index(id);
-                if (!slot) continue;
-                const auto index = *slot;
                 char item[64];
-                snprintf(item, sizeof(item), "Planet %d", (int)index);
-                if (ImGui::Selectable(item, *planet_index == index)) {
-                    *planet_index = index;
+                snprintf(item, sizeof(item), "Planet %u", id.id);
+                if (ImGui::Selectable(item, *planet_id == id)) {
+                    *planet_id = id;
                     changed = true;
                 }
             }
@@ -260,7 +257,7 @@ namespace debug_game_widgets {
         return changed;
 #else
         (void)label;
-        (void)planet_index;
+        (void)planet_id;
         (void)allow_none;
         return false;
 #endif

@@ -86,8 +86,8 @@ namespace COMBINIT {
         int16_t size_threshold = 0;
 
         if (MOX::cmbt_colony_id != -1) {
-            int16_t planet_idx = MOX::colony[MOX::cmbt_colony_id].planet;
-            int8_t planet_size = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).size;
+            const auto planet_idx = MOX::colony[MOX::cmbt_colony_id].planet_id.get();
+            int8_t planet_size = game::current_state.planets.at(planet_idx).size;
 
             switch (planet_size) {
                 case PLANET_SIZE_TINY:

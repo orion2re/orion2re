@@ -102,15 +102,15 @@ namespace BUILD_QUEUE {
         }
 
         bool Colony_Base_Available(int16_t colony_idx, const int16_t* queue) {
-            const int16_t star_idx = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(MOX::colony[colony_idx].planet)}).star_index;
+            const int16_t star_idx = game::current_state.planets.at(MOX::colony[colony_idx].planet_id.get()).star_index;
             int available = 0;
             int queued = 0;
             for (int orbit = 0; orbit < 5; ++orbit) {
-                const int16_t planet_idx = legacy_world::Index(MOX::star[star_idx].orbit_planet_ids[orbit].get()).value_or(-1);
-                if (planet_idx == -1 || game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).planet_type != PLANET_TYPE_PLANET) {
+                const auto planet_idx = MOX::star[star_idx].orbit_planet_ids[orbit].get();
+                if (planet_idx == game::NO_PLANET || game::current_state.planets.at(planet_idx).planet_type != PLANET_TYPE_PLANET) {
                     continue;
                 }
-                const int16_t other_idx = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).colony_index;
+                const int16_t other_idx = game::current_state.planets.at(planet_idx).colony_index;
                 if (other_idx == -1 ||
                     (MOX::colony[other_idx].outpost_flag != 0 &&
                         MOX::colony[other_idx].owner == MOX::colony[colony_idx].owner)) {

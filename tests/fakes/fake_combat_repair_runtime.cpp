@@ -391,7 +391,7 @@ namespace TEST_COMBINIT {
             combat_data[combat_idx].size_class = SHIP_SIZE_HUGE;
             ++combat_idx;
             MOX::cmbt_colony_id = 0;
-            colonies[0].planet = 0;
+            colonies[0].planet_id = game::id_planet{0};
             test_planets::Record(0).size = PLANET_SIZE_MEDIUM;
         }
 

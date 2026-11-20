@@ -9,6 +9,7 @@
 #include "game/leader_serialization.h"
 #include "game/planet_serialization.h"
 #include "game/star_serialization.h"
+#include "game/colony_serialization.h"
 #include "game/settler_serialization.h"
 #include "game/save_sections.h"
 #include "lua/lua_game_ship_identity.h"
@@ -133,6 +134,21 @@ namespace {
     }
 
     uint32_t Strip_Planet_Ids_(uint8_t* data, uint32_t size, size_t colony_bytes = sizeof(s_colony)) {
+        if (colony_bytes == SERIAL::COLONY_BYTES) {
+            auto* count_field = data + COLONY_RECORDS_OFFSET - 2;
+            count_field[1] &= 0x7f;
+            auto* record = count_field + 2;
+            auto* output = record;
+            for (int i = 0; i < MOX::NUM_COLONIES; ++i) {
+                memmove(output, record, 4);
+                memmove(output + 4, record + 6, colony_bytes - 6);
+                output += colony_bytes - 2;
+                record += colony_bytes;
+            }
+            memmove(output, record, data + size - record);
+            size -= static_cast<uint32_t>(record - output);
+            colony_bytes -= 2;
+        }
         auto* count = data + COLONY_RECORDS_OFFSET + MOX::NUM_COLONIES * colony_bytes;
         DOCTEST_REQUIRE(count + sizeof(uint16_t) + sizeof(uint32_t) <= data + size);
         DOCTEST_REQUIRE((count[1] & 0x80) != 0);
@@ -226,7 +242,7 @@ namespace {
         s_colony expected = {};
         expected.owner = -1;
         expected.allocated_to = -1;
-        expected.planet = -1;
+        expected.planet_id = game::NO_PLANET;
         expected.officer = -1;
         return memcmp(&colony, &expected, sizeof(colony)) == 0;
     }
@@ -408,6 +424,10 @@ namespace {
 
     void Fill_State_(State_& state) {
         Fill_Bytes_(state.colonies, sizeof(state.colonies), 1);
+        // Use representable links in fixtures also down-converted to old saves.
+        for (uint32_t i = 0; i < MAX_COLONIES; ++i) {
+            state.colonies[i].planet_id = game::id_planet{i % 359};
+        }
         Fill_Bytes_(state.planets, sizeof(state.planets), 2);
         Fill_Bytes_(state.stars, sizeof(state.stars), 3);
         game::current_state = Legacy_Leaders_();
@@ -585,7 +605,14 @@ namespace {
     }
 
     void Check_Versioned_State_(const State_& expected, const State_& actual) {
-        DOCTEST_CHECK((memcmp(expected.colonies, actual.colonies, MOX::NUM_COLONIES * sizeof(*expected.colonies)) == 0));
+        for (int i = 0; i < MOX::NUM_COLONIES; ++i) {
+            const auto* lhs = reinterpret_cast<const uint8_t*>(&expected.colonies[i]);
+            const auto* rhs = reinterpret_cast<const uint8_t*>(&actual.colonies[i]);
+            const auto difference = std::mismatch(lhs, lhs + sizeof(s_colony), rhs);
+            DOCTEST_CAPTURE(i);
+            DOCTEST_CAPTURE(difference.first - lhs);
+            DOCTEST_CHECK(difference.first == lhs + sizeof(s_colony));
+        }
         for (int i = MOX::NUM_COLONIES; i < MAX_COLONIES; ++i) {
             DOCTEST_CHECK((Is_Unused_Colony_(actual.colonies[i])));
         }
@@ -609,11 +636,15 @@ namespace {
         s_planet_data expected_planets[MAX_PLANETS] = {};
         s_star_data expected_stars[MAX_STARS] = {};
         s_nebula expected_nebulas[MAX_NEBULAS] = {};
-        constexpr size_t legacy_colony_size = offsetof(s_colony, buildings_scrapped_this_turn);
+        constexpr size_t legacy_colony_size = 0x169;
         uint8_t legacy_colonies[ORIGINAL_MAX_COLONIES * legacy_colony_size];
         Fill_Bytes_(legacy_colonies, sizeof(legacy_colonies), 1);
         for (int i = 0; i < ORIGINAL_MAX_COLONIES; ++i) {
-            memcpy(&expected_colonies[i], legacy_colonies + i * legacy_colony_size, legacy_colony_size);
+            const auto* record = legacy_colonies + i * legacy_colony_size;
+            auto* output = reinterpret_cast<uint8_t*>(&expected_colonies[i]);
+            memcpy(output, record, 2);
+            expected_colonies[i].planet_id = SERIAL::Decode_Legacy_Planet_Reference(unaligned::Load<int16_t>(record + 2));
+            memcpy(output + 6, record + 4, legacy_colony_size - 4);
             expected_colonies[i].buildings_scrapped_this_turn =
                 expected_colonies[i].last_turn_building_destroyed != 0 ? 1 : 0;
         }
@@ -789,6 +820,44 @@ DOCTEST_TEST_CASE("untagged planet blocks import their implicit IDs in record or
     DOCTEST_CHECK(new_reader.Read_Uint32() == 1);
     DOCTEST_CHECK(new_reader.Read_Uint32() == 0);
 
+}
+
+DOCTEST_TEST_CASE("colony codec preserves wide keys and decodes historical planet links") {
+    constexpr game::id_planet wide_id{70000};
+    s_colony colony{};
+    colony.officer = 25;
+    colony.pop[1] = 0x12345678;
+    colony.buildings_scrapped_this_turn = 2;
+    std::array<uint8_t, SERIAL::COLONY_BYTES> bytes{};
+    for (const auto id : {wide_id, game::id_planet{0}, game::NO_PLANET}) {
+        colony.planet_id = id;
+        SERIAL::Writer_ writer(bytes.data(), bytes.size(), "colony overflow");
+        SERIAL::Write_Colony(writer, colony);
+        DOCTEST_REQUIRE(writer.Length() == bytes.size());
+        SERIAL::Reader_ reader(bytes.data(), bytes.size(), "colony underflow");
+        s_colony decoded{};
+        SERIAL::Read_Colony(reader, decoded);
+        DOCTEST_CHECK(reader.Remaining() == 0);
+        DOCTEST_CHECK(decoded.planet_id.get() == id);
+        DOCTEST_CHECK((decoded.officer == 25));
+        DOCTEST_CHECK((decoded.pop[1] == 0x12345678));
+        DOCTEST_CHECK(decoded.buildings_scrapped_this_turn == 2);
+    }
+
+    // Historical records store a signed 16-bit key at byte 2.
+    constexpr size_t old_colony_bytes = 0x16a;
+    std::array<uint8_t, old_colony_bytes> old{};
+    old[2] = 42;
+    old[4] = 25;
+    SERIAL::Reader_ reader(old.data(), old.size(), "legacy colony underflow");
+    SERIAL::Read_Colony(reader, colony, false);
+    DOCTEST_CHECK(reader.Remaining() == 0);
+    DOCTEST_CHECK(colony.planet_id.get() == game::id_planet{42});
+    DOCTEST_CHECK((colony.officer == 25));
+    old[2] = old[3] = 0xff;
+    SERIAL::Reader_ absent(old.data(), old.size(), "legacy colony underflow");
+    SERIAL::Read_Colony(absent, colony, false);
+    DOCTEST_CHECK(colony.planet_id.get() == game::NO_PLANET);
 }
 
 DOCTEST_TEST_CASE("star codec preserves wide orbit IDs and empty orbits") {
@@ -1225,7 +1294,7 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
     memset(&expected.colonies[699], 0, sizeof(expected.colonies[699]));
     expected.colonies[699].owner = -1;
     expected.colonies[699].allocated_to = -1;
-    expected.colonies[699].planet = -1;
+    expected.colonies[699].planet_id = game::NO_PLANET;
     expected.colonies[699].officer = -1;
     DOCTEST_CHECK((writer.Length() < SAVEGAME::BUFFER_CAPACITY));
 
@@ -1246,17 +1315,19 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
     const uint32_t extension_offset = writer.Length() - extension_size;
     constexpr uint32_t colonies_offset = versioned_game_header_size +
         sizeof(s_settings) + sizeof(uint32_t) + sizeof(int16_t);
-    constexpr size_t old_colony_size = offsetof(s_colony, buildings_scrapped_this_turn);
+    constexpr size_t old_colony_size = 0x169;
     auto earlier_v8 = std::vector<uint8_t>(versioned, versioned + writer.Length());
     const auto earlier_v8_size = Pack_Freight_For_Older_Save_(earlier_v8.data(), earlier_v8.size());
-    uint32_t previous_colony_format_size = earlier_v8_size - MOX::NUM_COLONIES;
+    uint32_t previous_colony_format_size = earlier_v8_size - 3 * MOX::NUM_COLONIES;
     uint8_t* previous_colony_format = static_cast<uint8_t*>(malloc(previous_colony_format_size));
     DOCTEST_REQUIRE(previous_colony_format != nullptr);
     memcpy(previous_colony_format, earlier_v8.data(), colonies_offset);
+    previous_colony_format[colonies_offset - 1] &= 0x7f;
     for (int i = 0; i < MOX::NUM_COLONIES; ++i) {
-        memcpy(previous_colony_format + colonies_offset + i * old_colony_size,
-            earlier_v8.data() + colonies_offset + i * sizeof(s_colony),
-            old_colony_size);
+        auto* output = previous_colony_format + colonies_offset + i * old_colony_size;
+        const auto* input = earlier_v8.data() + colonies_offset + i * SERIAL::COLONY_BYTES;
+        memcpy(output, input, 4);
+        memcpy(output + 4, input + 6, old_colony_size - 4);
     }
     memcpy(previous_colony_format + colonies_offset + MOX::NUM_COLONIES * old_colony_size,
         earlier_v8.data() + colonies_offset + MOX::NUM_COLONIES * sizeof(s_colony),

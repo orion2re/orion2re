@@ -78,7 +78,7 @@ namespace DIP_SCRN {
     int16_t offer_help_entry[7] = {598, 599, 600, 601, 602, 613, -1};
     char* offer_diplomacy_list[7];
     char* offer_title;
-    int16_t diplomacy_system_planet_list[5];
+    game::id_planet diplomacy_system_planet_list[5];
     int16_t diplomacy_system_population;
     uint8_t diplomacy_system_receiver;
     int16_t diplomacy_system_planet_count;
@@ -91,7 +91,7 @@ namespace DIP_SCRN {
     char* demand_title;
     char* agree_diplomacy_list[4];
     char* system_cancel_buffer;
-    int16_t diplomacy_system_homeworld_flag;
+    game::id_planet diplomacy_system_capitol = game::NO_PLANET;
     s_animation_header* diplomacy_system_star_background_seg;
     int16_t diplomacy_system_fields[MAX_STARS];
     uint8_t* diplomacy_mouse_bitmap;
@@ -751,7 +751,7 @@ namespace DIP_SCRN {
                 if (scanned_input == exit_field_id) {
                     DIP_SCRN::diplomacy_scan_input_flag = 1000;
                 } else if (scanned_input >= DIP_SCRN::diplomacy_system_fields[1] && scanned_input <= DIP_SCRN::diplomacy_system_fields[MOX::NUM_STARS]) {
-                    if (DIP_SCRN::Diplomacy_System_Scan(scanned_input - 1, giver_idx, &DIP_SCRN::diplomacy_system_homeworld_flag, &DIP_SCRN::diplomacy_system_planet_count, DIP_SCRN::diplomacy_system_planet_list) == giver_idx) {
+                    if (DIP_SCRN::Diplomacy_System_Scan(game::current_state, scanned_input - 1, giver_idx, &DIP_SCRN::diplomacy_system_capitol, &DIP_SCRN::diplomacy_system_planet_count, DIP_SCRN::diplomacy_system_planet_list) == giver_idx) {
                         MOX::galaxy_map_scanned_star = scanned_input - 1;
                         DIP_SCRN::diplomacy_system_population = COLCALC::Get_System_Population(giver_idx, MOX::galaxy_map_scanned_star);
                         JIM::Get_Text_Message(DIP_SCRN::s_jimtext2_lbx, 0x38, DIP_SCRN::system_million_colonists_buffer, 0x1E);
@@ -777,9 +777,9 @@ namespace DIP_SCRN {
                 for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
                     if (done) break;
                     if (DIP_SCRN::diplomacy_system_fields[i + 1] == input) {
-                        if (DIP_SCRN::Diplomacy_System_Scan(input - 1, giver_idx, &DIP_SCRN::diplomacy_system_homeworld_flag, &DIP_SCRN::diplomacy_system_planet_count, DIP_SCRN::diplomacy_system_planet_list) == giver_idx) {
+                        if (DIP_SCRN::Diplomacy_System_Scan(game::current_state, input - 1, giver_idx, &DIP_SCRN::diplomacy_system_capitol, &DIP_SCRN::diplomacy_system_planet_count, DIP_SCRN::diplomacy_system_planet_list) == giver_idx) {
                             if (COLCALC::May_Surrender_Star(input - 1, (int16_t)DIP_SCRN::diplomacy_system_giver, (int16_t)DIP_SCRN::diplomacy_system_receiver)) {
-                                if (DIP_SCRN::diplomacy_system_homeworld_flag == -1) {
+                                if (DIP_SCRN::diplomacy_system_capitol == game::NO_PLANET) {
                                     done = true;
                                     result_star_idx = i;
                                 }
@@ -846,7 +846,7 @@ namespace DIP_SCRN {
         fonts::Print(0x12, 0x8D, system_cancel_buffer);
 
         if (diplomacy_scan_input_flag != -1) {
-            Draw_Diplomacy_System_Text(diplomacy_scan_input_flag - 1, diplomacy_system_homeworld_flag);
+            Draw_Diplomacy_System_Text(diplomacy_scan_input_flag - 1, diplomacy_system_capitol);
         }
     }
 
@@ -2274,7 +2274,8 @@ namespace DIP_SCRN {
         diplomacy_system_giver = (uint8_t)giver_player_idx;
         diplomacy_system_receiver = (uint8_t)receiver_player_idx;
 
-        Diplomacy_System_Scan(star_idx, giver_player_idx, &diplomacy_system_homeworld_flag, &diplomacy_system_planet_count, diplomacy_system_planet_list);
+        Diplomacy_System_Scan(game::current_state, star_idx, giver_player_idx, &diplomacy_system_capitol,
+            &diplomacy_system_planet_count, diplomacy_system_planet_list);
 
         diplomacy_system_population = COLCALC::Get_System_Population(giver_player_idx, star_idx);
 
@@ -2326,11 +2327,11 @@ namespace DIP_SCRN {
      * @param star_idx The scanned star-system index.
      * @param selected_planet_idx The highlighted planet index, or -1 when none is highlighted.
      */
-    void __cdecl Draw_Diplomacy_System_Text(int16_t star_idx, int16_t selected_planet_idx) {
+    void __cdecl Draw_Diplomacy_System_Text(int16_t star_idx, game::id_planet selected_planet) {
         char text_buffer[80];
         bool use_special_colors = false;
 
-        if (selected_planet_idx == -1) {
+        if (selected_planet == game::NO_PLANET) {
             fonts::Set_Font_Style_Shadow_Down(4, &DIP_SCRN::diplomacy_normal_colors);
         } else {
             use_special_colors = true;
@@ -2347,7 +2348,7 @@ namespace DIP_SCRN {
 
         fonts::Print(10, 287 /* 0x11f */, text_buffer);
 
-        if (selected_planet_idx != -1 || use_special_colors) {
+        if (selected_planet != game::NO_PLANET || use_special_colors) {
             fonts::Set_Font_Style_Shadow_Down(3, &DIP_SCRN::diplomacy_special_colors);
         } else {
             fonts::Set_Font_Style_Shadow_Down(3, &DIP_SCRN::diplomacy_normal_colors);
@@ -2358,12 +2359,12 @@ namespace DIP_SCRN {
         if (DIP_SCRN::diplomacy_system_planet_count > 0) {
             int y_offset = 32;
             for (int16_t i = 0; i < DIP_SCRN::diplomacy_system_planet_count; ++i) {
-                int16_t planet_idx = DIP_SCRN::diplomacy_system_planet_list[i];
-                s_planet_data* planet = &game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)});
+                const auto id = DIP_SCRN::diplomacy_system_planet_list[i];
+                const auto* planet = &game::current_state.planets.at(id);
 
                 snprintf(text_buffer, sizeof(text_buffer), "%s, %s", MOX::planet_size_string[planet->size], MOX::planet_climate_string[planet->climate]);
 
-                if (planet_idx == selected_planet_idx) {
+                if (id == selected_planet) {
                     strlcat(text_buffer, DIP_SCRN::system_homeworld_buffer, sizeof(text_buffer));
                 }
 
@@ -2400,7 +2401,7 @@ namespace DIP_SCRN {
 
         Draw_Diplomacy_System_Text(
             diplomacy_scan_input_flag,
-            diplomacy_system_homeworld_flag);
+            diplomacy_system_capitol);
     }
 
     /**

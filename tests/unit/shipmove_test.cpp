@@ -187,7 +187,7 @@ DOCTEST_TEST_CASE("combat-ignore cleanup keeps flags only while another empire i
     MOX::NUM_PLAYERS = 2;
     MOX::NUM_COLONIES = 1;
     MOX::colony[0].owner = 1;
-    MOX::colony[0].planet = 0;
+    MOX::colony[0].planet_id = game::id_planet{0};
     test_planets::Record(0).star_index = 0;
     MOX::ship[0].location = 1;
     MOX::star[0].ignore_combat_ships = 1;

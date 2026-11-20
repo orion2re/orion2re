@@ -311,7 +311,7 @@ namespace invasion {
         if (best_colony_idx == -1) {
             MOX::player[player_idx].home_planet_id = game::NO_PLANET;
         } else {
-            MOX::player[player_idx].home_planet_id = game::id_planet{static_cast<uint32_t>(MOX::colony[best_colony_idx].planet)};
+            MOX::player[player_idx].home_planet_id = MOX::colony[best_colony_idx].planet_id.get();
         }
     }
 
@@ -391,7 +391,7 @@ namespace invasion {
 
             s_MSG msg = {};
             msg.msg_type = MSG_TYPE_COLONY;
-            msg.u.colony.planet_idx = colony->planet;
+            msg.u.colony.planet_idx = SERIAL::Encode_Legacy_Planet_Reference(colony->planet_id.get());
             msg.u.colony.subtype = MSG_COLONY_SUBTYPE_REBELLION;
             msg.u.colony.c.rebels.owner_player = (int8_t)rebel_player;
             msg.u.colony.c.rebels.rebels = (int8_t)rebel_count;
@@ -453,7 +453,7 @@ namespace invasion {
             colony->military[0] = limit;
         }
 
-        COLCALC::Compute_Star_Colony_Stuff(&MOX::star[current_state.planets.at(game::id_planet{static_cast<uint32_t>(colony->planet)}).star_index]);
+        COLCALC::Compute_Star_Colony_Stuff(&MOX::star[current_state.planets.at(colony->planet_id.get()).star_index]);
     }
 
     void __cdecl Resolve_Invasion_Troops(s_invasion_side_info info) {
@@ -483,8 +483,8 @@ namespace invasion {
             colony->military[0] = limit;
         }
 
-        int16_t planet_idx = colony->planet;
-        int16_t star_idx = current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).star_index;
+        const auto planet_idx = colony->planet_id.get();
+        int16_t star_idx = current_state.planets.at(planet_idx).star_index;
 
         COLCALC::Compute_Star_Colony_Stuff(&MOX::star[star_idx]);
     }
@@ -592,7 +592,7 @@ namespace invasion {
 
             memcpy(results->captured_techs_data, captured_techs, captured_count * sizeof(int16_t));
             results->captured_tech_id = (int16_t)captured_count;
-            results->captured_tech_planet_id = colony->planet;
+            results->captured_tech_planet_id = SERIAL::Encode_Legacy_Planet_Reference(colony->planet_id.get());
         }
     }
 
@@ -608,7 +608,7 @@ namespace invasion {
             ERICNET::Remove_Building(colony_idx, BUILDING_CAPITOL);
         }
 
-        const game::id_planet planet_id{static_cast<uint32_t>(colony->planet)};
+        const game::id_planet planet_id = colony->planet_id.get();
         if (MOX::player[old_owner].home_planet_id.get() == planet_id) {
             invasion::Assign_New_Home_Planet(old_owner, colony_idx);
         }
@@ -668,7 +668,7 @@ namespace invasion {
         colony->occupation_policy = 4;
         colony->buildings[BUILDING_COLONY_BASE] = 0;
 
-        int16_t star_idx = current_state.planets.at(game::id_planet{static_cast<uint32_t>(colony->planet)}).star_index;
+        int16_t star_idx = current_state.planets.at(colony->planet_id.get()).star_index;
         COLCALC::Compute_Star_Colony_Stuff(&MOX::star[star_idx]);
 
         colony->n_turns_existed = 0;

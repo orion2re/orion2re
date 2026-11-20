@@ -4,8 +4,8 @@
 
 namespace aidudes {
     void __cdecl Keep_Ship_Designs_Up_To_Date(s_ai_colony_context* ctx) {
-        const auto legacy_player = legacy_world::Index(ctx->i_ai);
-        if (!legacy_player) return;
+        const auto legacy_player = ctx->i_ai.id;
+        if (legacy_player >= MAX_PLAYERS) return;
         const auto* world = ctx->world;
         s_ship_design doom_star_design;
         doom_star_design.cost = 0;
@@ -25,7 +25,7 @@ namespace aidudes {
                     } else {
                         if (doom_star_design.cost == 0) {
                             INITSHIP::Load_Doom_Star_Ship_Design(
-                                *legacy_player, &doom_star_design, world->settings->strategic_combat_flag != 0);
+                                legacy_player, &doom_star_design, world->settings->strategic_combat_flag != 0);
                         }
                         source_design = &doom_star_design;
                     }
@@ -36,8 +36,8 @@ namespace aidudes {
     }
 
     void __cdecl Do_Ship_Upgrade_Cheats(AIDATA::s_state* ai, s_ai_colony_context* ctx) {
-        const auto legacy_player = legacy_world::Index(ctx->i_ai);
-        if (!legacy_player) return;
+        const auto legacy_player = ctx->i_ai.id;
+        if (legacy_player >= MAX_PLAYERS) return;
         const auto* world = ctx->world;
         auto& refits = ai->players[legacy_world::Slot(ctx->i_ai)].refits;
         const uint32_t num_entries = (uint32_t)refits.size();
@@ -100,7 +100,7 @@ namespace aidudes {
                 ship->d = ctx->p_ai->ship_designs[(int)ship->d.size];
             } else {
                 INITSHIP::Load_Doom_Star_Ship_Design(
-                    *legacy_player, &ship->d, world->settings->strategic_combat_flag != 0);
+                    legacy_player, &ship->d, world->settings->strategic_combat_flag != 0);
             }
 
             upgrade_count--;

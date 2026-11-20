@@ -159,7 +159,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "configured planet proximity determines
     MOX::NUM_COLONIES = 1;
     MOX::ship[0].owner = 1;
     MOX::colony[0].owner = 0;
-    MOX::colony[0].planet = 0;
+    MOX::colony[0].planet_id = game::id_planet{0};
     test_planets::Record(0).star_index = 0;
     MOX::star[0].x = 0;
     MOX::star[0].y = 0;
@@ -179,7 +179,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "configured planet proximity determines
     MOX::NUM_COLONIES = 1;
     MOX::ship[0].owner = 1;
     MOX::colony[0].owner = 0;
-    MOX::colony[0].planet = 0;
+    MOX::colony[0].planet_id = game::id_planet{0};
     test_planets::Record(0).star_index = 0;
     MOX::star[0].x = 0;
     MOX::star[0].y = 0;

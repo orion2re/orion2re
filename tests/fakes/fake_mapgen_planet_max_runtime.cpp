@@ -320,7 +320,7 @@ namespace orion2re::lua::game {
     }
 
     void Planet_Generated(const s_planet_generated_event* event) {
-        const int16_t planet_idx = legacy_world::Index(event->planet_id).value();
+        const auto planet_idx = event->planet_id.id;
         if (first_generated_planet_event_order == 0) {
             first_generated_planet_event_order = ++generated_event_sequence;
         }
@@ -465,8 +465,8 @@ namespace HAROLD {
     }
 
     int16_t __cdecl Planet_Type(int16_t star_idx, int16_t orbit) {
-        int16_t planet_idx = legacy_world::Index(MOX::star[star_idx].orbit_planet_ids[orbit].get()).value_or(-1);
-        return planet_idx >= 0 ? test_planets::Record(planet_idx).planet_type : -1;
+        const auto planet_id = MOX::star[star_idx].orbit_planet_ids[orbit].get();
+        return planet_id == game::NO_PLANET ? -1 : game::current_state.planets.at(planet_id).planet_type;
     }
 }
 

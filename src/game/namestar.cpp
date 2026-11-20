@@ -279,9 +279,9 @@ namespace namestar {
                 break;
             }
 
-            int16_t planet_idx = legacy_world::Index(MOX::star[star_idx].orbit_planet_ids[i].get()).value_or(-1);
-            if (planet_idx > -1) {
-                if (game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).colony_index > -1) {
+            const auto planet_idx = MOX::star[star_idx].orbit_planet_ids[i].get();
+            if (planet_idx != game::NO_PLANET) {
+                if (game::current_state.planets.at(planet_idx).colony_index > -1) {
                     can_change = 0;
                     found = true;
                 }

@@ -10,10 +10,10 @@ namespace COLSYSDI {
         int16_t star_idx = COLONY::sys_disp_star_handle;
 
         for (int16_t i = 0; i < 5; i++) {
-            int16_t planet_idx = legacy_world::Index(MOX::star[star_idx].orbit_planet_ids[i].get()).value_or(-1);
+            const auto planet_idx = MOX::star[star_idx].orbit_planet_ids[i].get();
 
-            if (planet_idx != -1) {
-                s_planet_data* planet = &game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)});
+            if (planet_idx != game::NO_PLANET) {
+                s_planet_data* planet = &game::current_state.planets.at(planet_idx);
                 uint8_t climate;
 
                 if (planet->colony_index == -1) {
@@ -36,7 +36,7 @@ namespace COLSYSDI {
                 COLONY::Set_Colony_Font_To(1);
 
                 char summary_text[500];
-                Planet_Summary_String(summary_text, sizeof(summary_text), planet_idx, 1);
+                Planet_Summary_String(summary_text, sizeof(summary_text), SERIAL::Encode_Legacy_Planet_Reference(planet_idx), 1);
 
                 BILL::_Print_Paragraph(x + 28, text_y, 89 - x, summary_text, 0);
             }
@@ -51,8 +51,8 @@ namespace COLSYSDI {
     void __cdecl Draw_Col_Sys_Disp_Last_Scanned(int16_t x, int16_t y) {
         s_colony* colony = &MOX::colony[COLONY::colony_handle];
 
-        if (colony->planet != -1) {
-            s_planet_data* planet = &game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(colony->planet)});
+        if (colony->planet_id.get() != game::NO_PLANET) {
+            s_planet_data* planet = &game::current_state.planets.at(colony->planet_id.get());
             uint8_t climate;
 
             if (planet->colony_index == -1) {
@@ -168,7 +168,6 @@ namespace COLSYSDI {
     }
 
     void __cdecl Add_Col_Sys_Disp_Fields(int16_t x, int16_t y, int16_t end_x) {
-        int16_t planet_idx;
         int16_t height;
         int16_t width;
         int16_t star_handle;
@@ -184,13 +183,14 @@ namespace COLSYSDI {
         star_handle = COLONY::sys_disp_star_handle;
 
         for (i = 0; i < 5; i++) {
-            planet_idx = legacy_world::Index(MOX::star[star_handle].orbit_planet_ids[i].get()).value_or(-1);
+            const auto id = MOX::star[star_handle].orbit_planet_ids[i].get();
 
-            if (planet_idx == -1) {
+            if (id == game::NO_PLANET) {
                 COLONY::sys_disp_planet_fields[i] = -1000;
                 display_idx++;
             } else {
-                anim = Planet_Anims(game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).climate, game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).size);
+                const auto& planet = game::current_state.planets.at(id);
+                anim = Planet_Anims(planet.climate, planet.size);
 
                 height = animate::Get_Height(anim);
                 width = animate::Get_Width(anim);

@@ -145,8 +145,8 @@ namespace aidesign {
         int16_t* type2,
         int16_t* spec2,
         int16_t* arc2) {
-        const auto legacy_player = legacy_world::Index(player_idx);
-        if (!legacy_player) return;
+        const auto legacy_player = player_idx.id;
+        if (legacy_player >= MAX_PLAYERS) return;
         int16_t weapon_count = 0;
         int16_t weapon_id[DESIGN_WEAPON_CODE_COUNT];
         int16_t weapon_mods[DESIGN_WEAPON_CODE_COUNT];
@@ -198,7 +198,7 @@ namespace aidesign {
             first_living_player++;
         }
 
-        int16_t best_comp = INITSHIP::Best_Computer(*legacy_player);
+        int16_t best_comp = INITSHIP::Best_Computer(legacy_player);
         int16_t comp_bonus = TECHDATA::computers[best_comp].bonus;
         comp_bonus += world->players[legacy_world::Slot(player_idx)].traits[TRAIT_SHIP_ATTACK];
 
@@ -218,7 +218,7 @@ namespace aidesign {
 
         for (int16_t i = 0; i < weapon_count; ++i) {
             int16_t w_id = weapon_id[i];
-            int16_t min_lvl = DESIGN::Miniaturization_Level(*legacy_player, TECHDATA::weapons[w_id].tech_app_id);
+            int16_t min_lvl = DESIGN::Miniaturization_Level(legacy_player, TECHDATA::weapons[w_id].tech_app_id);
             if (min_lvl > 5) min_lvl = 5;
 
             int16_t cur_bonus = net_bonus;
@@ -322,7 +322,7 @@ namespace aidesign {
                 *type1 = weapon_id[0];
                 *spec1 = spec1_mods[0] & 0x7ff9;
             } else {
-                int16_t pd_weapon = INITSHIP::Best_Point_Defense_Weapon_By_Size(*legacy_player);
+                int16_t pd_weapon = INITSHIP::Best_Point_Defense_Weapon_By_Size(legacy_player);
                 int16_t pd_idx = 0;
                 for (pd_idx = 0; pd_idx < weapon_count; pd_idx++) {
                     if (weapon_id[pd_idx] == pd_weapon) {
@@ -347,7 +347,7 @@ namespace aidesign {
                         for (int16_t i = 0; i < weapon_count; i++) {
                             int16_t w_id = weapon_id[i];
                             if (w_id != 0) {
-                                int32_t space = DESIGN::Weapon_Space(*legacy_player, w_id, 1, WEAPON_FIRING_ARC_FORWARD, 1, 0);
+                                int32_t space = DESIGN::Weapon_Space(legacy_player, w_id, 1, WEAPON_FIRING_ARC_FORWARD, 1, 0);
                                 uint16_t natural_mods = TECHDATA::weapons[w_id].natural_mods;
                                 int32_t damage = TECHDATA::weapons[w_id].max_damage;
 
@@ -390,7 +390,7 @@ namespace aidesign {
             for (int16_t i = 0; i < weapon_count; i++) {
                 int16_t w_id = weapon_id[i];
                 if (w_id != 0 && (TECHDATA::weapons[w_id].available_mods & WEAPON_MOD_FLAG_HEAVY_MOUNT) != 0) {
-                    int32_t space = DESIGN::Weapon_Space(*legacy_player, w_id, 1, WEAPON_FIRING_ARC_FORWARD, 1, 2);
+                    int32_t space = DESIGN::Weapon_Space(legacy_player, w_id, 1, WEAPON_FIRING_ARC_FORWARD, 1, 2);
                     uint16_t natural_mods = TECHDATA::weapons[w_id].natural_mods;
                     int32_t damage = TECHDATA::weapons[w_id].max_damage * 3;
 
@@ -483,8 +483,8 @@ namespace aidesign {
     }
 
     int32_t Add_Specials_To_Design(const game::s_view* world, const struct s_spcl* list, int16_t count, game::id_player player_idx, struct s_ship_design* design, int32_t space_available, int16_t* weapon_slot_idx_ptr) {
-        const auto legacy_player = legacy_world::Index(player_idx);
-        if (!legacy_player) return 0;
+        const auto legacy_player = player_idx.id;
+        if (legacy_player >= MAX_PLAYERS) return 0;
         int32_t total_space_used = 0;
         int16_t already_has_anti_missile_rocket = 0;
 
@@ -499,7 +499,7 @@ namespace aidesign {
                         // Check if player has Stealth trait, if so skip Stealth Field device
                         if (rules.allow_stealth_field || world->players[legacy_world::Slot(player_idx)].traits[TRAIT_STEALTHY_SHIPS] == 0 || item_id != SPECIAL_STEALTH_FIELD) {
                             int8_t mini_cat = DESIGN::Miniaturization_Category(tech_app_id);
-                            int16_t tech_lvl = DESIGN::Tech_Level(*legacy_player, tech_app_id);
+                            int16_t tech_lvl = DESIGN::Tech_Level(legacy_player, tech_app_id);
                             int16_t base_space = TECHDATA::specials[item_id].space_per_ship_type[design->size];
                             int16_t actual_space = (int16_t)DESIGN::Space_Given_M_Level(base_space, tech_lvl, mini_cat);
 
@@ -523,7 +523,7 @@ namespace aidesign {
 
                     int16_t weapon_tech_app_id = TECHDATA::weapons[item_id].tech_app_id;
                     if (world->players[legacy_world::Slot(player_idx)].tech_applications[weapon_tech_app_id] == TECH_RESEARCH_STATUS_RESEARCHED && !already_has_anti_missile_rocket) {
-                        int32_t weapon_unit_space = DESIGN::Weapon_Space(*legacy_player, item_id, 1, WEAPON_FIRING_ARC_360, 1, 0);
+                        int32_t weapon_unit_space = DESIGN::Weapon_Space(legacy_player, item_id, 1, WEAPON_FIRING_ARC_360, 1, 0);
                         int16_t max_count = (int16_t)(space_available / weapon_unit_space);
 
                         if (item_id == WEAPON_ANTI_MISSILE_ROCKET) {
@@ -567,7 +567,7 @@ namespace aidesign {
 
                             ++(*weapon_slot_idx_ptr);
 
-                            int16_t space_calc = (int16_t)DESIGN::Weapon_Space(*legacy_player, item_id, 1, WEAPON_FIRING_ARC_360, 1, 0);
+                            int16_t space_calc = (int16_t)DESIGN::Weapon_Space(legacy_player, item_id, 1, WEAPON_FIRING_ARC_360, 1, 0);
                             int32_t used_space = space_calc * items_this_type;
                             total_space_used += used_space;
                             space_available -= used_space;
@@ -581,8 +581,8 @@ namespace aidesign {
     }
 
     int32_t Add_Beam_Weapon_To_Design(const game::s_view* world, game::id_player player_idx, struct s_ship_design* design, int16_t* weapon_index_ptr, int32_t space, int16_t weapon_class) {
-        const auto legacy_player = legacy_world::Index(player_idx);
-        if (!legacy_player) return 0;
+        const auto legacy_player = player_idx.id;
+        if (legacy_player >= MAX_PLAYERS) return 0;
         int16_t types[4] = {0};
         int16_t specials[4] = {0};
         int16_t arcs[4] = {0};
@@ -609,7 +609,7 @@ namespace aidesign {
         int16_t weapon_specials = specials[weapon_class];
         int16_t weapon_arc = arcs[weapon_class];
 
-        int32_t unit_space = DESIGN::Weapon_Space(*legacy_player, weapon_type, 1, (uint8_t)weapon_arc, 0, weapon_specials);
+        int32_t unit_space = DESIGN::Weapon_Space(legacy_player, weapon_type, 1, (uint8_t)weapon_arc, 0, weapon_specials);
         if (unit_space == 0) {
             return 0;
         }
@@ -653,7 +653,7 @@ namespace aidesign {
 
         (*weapon_index_ptr)++;
 
-        int32_t final_unit_space = DESIGN::Weapon_Space(*legacy_player, weapon_type, 1, (uint8_t)weapon_arc, 0, weapon_specials);
+        int32_t final_unit_space = DESIGN::Weapon_Space(legacy_player, weapon_type, 1, (uint8_t)weapon_arc, 0, weapon_specials);
         return final_unit_space * total_added;
     }
 
@@ -945,15 +945,15 @@ namespace aidesign {
     }
 
     int32_t Add_Fighters_To_Design(const game::s_view* world, game::id_player player_idx, s_ship_design* design, int16_t* weapon_slot_idx, int32_t available_space) {
-        const auto legacy_player = legacy_world::Index(player_idx);
-        if (!legacy_player) return 0;
+        const auto legacy_player = player_idx.id;
+        if (legacy_player >= MAX_PLAYERS) return 0;
         int16_t weapon_type;
         int space_per_weapon;
         int16_t total_fighters = 0;
         int32_t total_space_used = 0;
 
         if (world->players[legacy_world::Slot(player_idx)].tech_applications[TECH_APP_HEAVY_FIGHTER_BAYS] == TECH_RESEARCH_STATUS_RESEARCHED) {
-            space_per_weapon = DESIGN::Weapon_Space(*legacy_player, WEAPON_HEAVY_FIGHTER, 1, WEAPON_FIRING_ARC_360, 1, 0);
+            space_per_weapon = DESIGN::Weapon_Space(legacy_player, WEAPON_HEAVY_FIGHTER, 1, WEAPON_FIRING_ARC_360, 1, 0);
             if (available_space / space_per_weapon > 0) {
                 weapon_type = WEAPON_HEAVY_FIGHTER;
                 goto calculate_fighters;
@@ -961,7 +961,7 @@ namespace aidesign {
         }
 
         if (world->players[legacy_world::Slot(player_idx)].tech_applications[TECH_APP_BOMBER_BAYS] == TECH_RESEARCH_STATUS_RESEARCHED) {
-            space_per_weapon = DESIGN::Weapon_Space(*legacy_player, WEAPON_BOMBER, 1, WEAPON_FIRING_ARC_360, 1, 0);
+            space_per_weapon = DESIGN::Weapon_Space(legacy_player, WEAPON_BOMBER, 1, WEAPON_FIRING_ARC_360, 1, 0);
             if (available_space / space_per_weapon > 0) {
                 weapon_type = WEAPON_BOMBER;
                 goto calculate_fighters;
@@ -971,7 +971,7 @@ namespace aidesign {
         weapon_type = WEAPON_INTERCEPTOR;
 
     calculate_fighters:
-        space_per_weapon = DESIGN::Weapon_Space(*legacy_player, weapon_type, 1, WEAPON_FIRING_ARC_360, 1, 0);
+        space_per_weapon = DESIGN::Weapon_Space(legacy_player, weapon_type, 1, WEAPON_FIRING_ARC_360, 1, 0);
         int num_fighters = (int)available_space / space_per_weapon;
 
         if (num_fighters > 0 && weapon_type != 0 && *weapon_slot_idx < 8) {
@@ -1012,7 +1012,7 @@ namespace aidesign {
         finalize_count:
             *weapon_slot_idx = *weapon_slot_idx + 1;
 
-            int fighter_unit_space = DESIGN::Weapon_Space(*legacy_player, weapon_type, 1, WEAPON_FIRING_ARC_360, 1, 0);
+            int fighter_unit_space = DESIGN::Weapon_Space(legacy_player, weapon_type, 1, WEAPON_FIRING_ARC_360, 1, 0);
             total_space_used = fighter_unit_space * total_fighters;
         }
 
@@ -1020,8 +1020,8 @@ namespace aidesign {
     }
 
     void Determine_Bomb_Weapon(const game::s_view* world, game::id_player player_idx, int16_t* out_weapon_idx) {
-        const auto legacy_player = legacy_world::Index(player_idx);
-        if (!legacy_player) return;
+        const auto legacy_player = player_idx.id;
+        if (legacy_player >= MAX_PLAYERS) return;
         int16_t candidates[DESIGN_WEAPON_CODE_COUNT];
         int16_t scores[DESIGN_WEAPON_CODE_COUNT];
         int num_candidates = 0;
@@ -1067,7 +1067,7 @@ namespace aidesign {
         int i = 0;
         for (; i < num_candidates; ++i) {
             int16_t tech_app_id = TECHDATA::weapons[candidates[i]].tech_app_id;
-            int16_t min_lvl = DESIGN::Miniaturization_Level(*legacy_player, tech_app_id);
+            int16_t min_lvl = DESIGN::Miniaturization_Level(legacy_player, tech_app_id);
             if (min_lvl > 5) min_lvl = 5;
 
             if (scores[i] + min_lvl >= threshold) {
@@ -1083,14 +1083,14 @@ namespace aidesign {
     }
 
     int32_t Add_Bomb_Weapon_To_Design(const game::s_view* world, game::id_player player_idx, s_ship_design* design, int16_t* weapon_slot_idx, int32_t space_available) {
-        const auto legacy_player = legacy_world::Index(player_idx);
-        if (!legacy_player) return 0;
+        const auto legacy_player = player_idx.id;
+        if (legacy_player >= MAX_PLAYERS) return 0;
         int16_t bomb_type = 0;
         int16_t total_bombs_added = 0;
 
         Determine_Bomb_Weapon(world, player_idx, &bomb_type);
 
-        int32_t space_per_bomb = DESIGN::Weapon_Space(*legacy_player, bomb_type, 1, WEAPON_FIRING_ARC_FORWARD, 0, 0);
+        int32_t space_per_bomb = DESIGN::Weapon_Space(legacy_player, bomb_type, 1, WEAPON_FIRING_ARC_FORWARD, 0, 0);
 
         if (space_per_bomb == 0) {
             return 0;
@@ -1133,7 +1133,7 @@ namespace aidesign {
             *weapon_slot_idx += 1;
         }
 
-        int32_t final_space_per_bomb = DESIGN::Weapon_Space(*legacy_player, bomb_type, 1, WEAPON_FIRING_ARC_FORWARD, 0, 0);
+        int32_t final_space_per_bomb = DESIGN::Weapon_Space(legacy_player, bomb_type, 1, WEAPON_FIRING_ARC_FORWARD, 0, 0);
 
         return final_space_per_bomb * total_bombs_added;
     }
@@ -1146,8 +1146,8 @@ namespace aidesign {
         int16_t weapon_count_table_idx,
         int32_t available_space,
         int16_t* out_weapon_count) {
-        const auto legacy_player = legacy_world::Index(player_idx);
-        if (!legacy_player) return;
+        const auto legacy_player = player_idx.id;
+        if (legacy_player >= MAX_PLAYERS) return;
         uint16_t sort_keys[DESIGN_WEAPON_CODE_COUNT];
         uint16_t weapon_indices[DESIGN_WEAPON_CODE_COUNT];
         uint16_t weapon_mods[DESIGN_WEAPON_CODE_COUNT];
@@ -1210,7 +1210,7 @@ namespace aidesign {
                     sort_keys[i] = 0;
                     out_weapon_mods[i] = 0;
                 } else {
-                    int16_t mini_level = DESIGN::Miniaturization_Level(*legacy_player, TECHDATA::weapons[w_idx].tech_app_id);
+                    int16_t mini_level = DESIGN::Miniaturization_Level(legacy_player, TECHDATA::weapons[w_idx].tech_app_id);
                     if (mini_level > 5) {
                         mini_level = 5;
                     }
@@ -1254,7 +1254,7 @@ namespace aidesign {
                 for (int16_t i = 0; i < count; ++i) {
                     uint16_t w_idx = weapon_indices[i];
                     if (w_idx != 0) {
-                        int32_t space = DESIGN::Weapon_Space(*legacy_player, w_idx, 1, WEAPON_FIRING_ARC_FORWARD, 5, 0);
+                        int32_t space = DESIGN::Weapon_Space(legacy_player, w_idx, 1, WEAPON_FIRING_ARC_FORWARD, 5, 0);
                         int32_t score = (((int32_t)TECHDATA::weapons[w_idx].max_damage - max_shield) * 10) / space;
                         if (best_score < score) {
                             best_index = i;
@@ -1269,7 +1269,7 @@ namespace aidesign {
         }
 
         uint16_t mods = *out_weapon_mods;
-        int32_t space = DESIGN::Weapon_Space(*legacy_player, *out_weapon_id, 1, WEAPON_FIRING_ARC_FORWARD, *out_weapon_count, mods);
+        int32_t space = DESIGN::Weapon_Space(legacy_player, *out_weapon_id, 1, WEAPON_FIRING_ARC_FORWARD, *out_weapon_count, mods);
         int16_t minimum_weapon_count = MIN_WEAPON_COUNTS[weapon_count_table_idx];
         int32_t fitting_weapon_count = available_space / space;
 
@@ -1279,13 +1279,13 @@ namespace aidesign {
                 *out_weapon_count = 5;
             }
 
-            space = DESIGN::Weapon_Space(*legacy_player, *out_weapon_id, 1, WEAPON_FIRING_ARC_FORWARD, *out_weapon_count, mods);
+            space = DESIGN::Weapon_Space(legacy_player, *out_weapon_id, 1, WEAPON_FIRING_ARC_FORWARD, *out_weapon_count, mods);
             fitting_weapon_count = available_space / space;
 
             if (DESIGN::Should_Autodesign_Use_X3_Rack(
                     *out_weapon_count, fitting_weapon_count, minimum_weapon_count)) {
                 *out_weapon_count = DESIGN::Missile_Rack_Quantity(1);
-                space = DESIGN::Weapon_Space(*legacy_player, *out_weapon_id, 1, WEAPON_FIRING_ARC_FORWARD, *out_weapon_count, mods);
+                space = DESIGN::Weapon_Space(legacy_player, *out_weapon_id, 1, WEAPON_FIRING_ARC_FORWARD, *out_weapon_count, mods);
                 fitting_weapon_count = available_space / space;
             }
 
@@ -1295,7 +1295,7 @@ namespace aidesign {
                     *out_weapon_mods = mods;
                 }
 
-                space = DESIGN::Weapon_Space(*legacy_player, *out_weapon_id, 1, WEAPON_FIRING_ARC_FORWARD, *out_weapon_count, mods);
+                space = DESIGN::Weapon_Space(legacy_player, *out_weapon_id, 1, WEAPON_FIRING_ARC_FORWARD, *out_weapon_count, mods);
 
                 if ((available_space / space) < MIN_WEAPON_COUNTS[weapon_count_table_idx]) {
                     if (mods & WEAPON_MOD_FLAG_FAST) {
@@ -1303,15 +1303,15 @@ namespace aidesign {
                         *out_weapon_mods = mods;
                     }
 
-                    DESIGN::Weapon_Space(*legacy_player, *out_weapon_id, 1, WEAPON_FIRING_ARC_FORWARD, *out_weapon_count, mods);
+                    DESIGN::Weapon_Space(legacy_player, *out_weapon_id, 1, WEAPON_FIRING_ARC_FORWARD, *out_weapon_count, mods);
                 }
             }
         }
     }
 
     int32_t Add_Missile_Weapon_To_Design(const game::s_view* world, game::id_player player_idx, s_ship_design* design, int16_t* weapon_index_ptr, int32_t space_limit, int16_t ammo) {
-        const auto legacy_player = legacy_world::Index(player_idx);
-        if (!legacy_player) return 0;
+        const auto legacy_player = player_idx.id;
+        if (legacy_player >= MAX_PLAYERS) return 0;
         uint16_t weapon_type = 0;
         uint16_t specials = 0;
         int16_t total_missiles_added = 0;
@@ -1323,7 +1323,7 @@ namespace aidesign {
             return 0;
         }
 
-        int32_t space_per_missile = DESIGN::Weapon_Space(*legacy_player, (int16_t)weapon_type, 1, WEAPON_FIRING_ARC_FORWARD, modified_ammo, specials);
+        int32_t space_per_missile = DESIGN::Weapon_Space(legacy_player, (int16_t)weapon_type, 1, WEAPON_FIRING_ARC_FORWARD, modified_ammo, specials);
 
         int32_t total_possible = space_limit / space_per_missile;
 
@@ -1369,13 +1369,13 @@ namespace aidesign {
     finalize_index:
         (*weapon_index_ptr)++;
 
-        int32_t final_space_coeff = DESIGN::Weapon_Space(*legacy_player, (int16_t)weapon_type, 1, WEAPON_FIRING_ARC_FORWARD, modified_ammo, specials);
+        int32_t final_space_coeff = DESIGN::Weapon_Space(legacy_player, (int16_t)weapon_type, 1, WEAPON_FIRING_ARC_FORWARD, modified_ammo, specials);
         return final_space_coeff * total_missiles_added;
     }
 
     void Auto_Design_Ship(const game::s_view* world, game::id_player player_idx, s_ship_design* design, int16_t hull_idx) {
-        const auto legacy_player = legacy_world::Index(player_idx);
-        if (!legacy_player) return;
+        const auto legacy_player = player_idx.id;
+        if (legacy_player >= MAX_PLAYERS) return;
         const auto& design_rules = rules;
         const auto& priorities = design_rules.priorities;
         int16_t ship_class;
@@ -1416,12 +1416,12 @@ namespace aidesign {
 
         design->ship_type = 0;
         design->size = (int8_t)hull_idx;
-        design->shield_type = (int8_t)INITSHIP::Best_Ship_Shield(*legacy_player);
-        design->ftl_type = (int8_t)INITSHIP::Best_Warp_Drive(*legacy_player);
+        design->shield_type = (int8_t)INITSHIP::Best_Ship_Shield(legacy_player);
+        design->ftl_type = (int8_t)INITSHIP::Best_Warp_Drive(legacy_player);
         design->speed = static_cast<uint8_t>(
-            INITSHIP::Get_FTL_Speed(*legacy_player, (int16_t)design->ftl_type));
-        design->computer_type = (int8_t)INITSHIP::Best_Computer(*legacy_player);
-        design->armor_type = (int8_t)INITSHIP::Best_Armor(*legacy_player);
+            INITSHIP::Get_FTL_Speed(legacy_player, (int16_t)design->ftl_type));
+        design->computer_type = (int8_t)INITSHIP::Best_Computer(legacy_player);
+        design->armor_type = (int8_t)INITSHIP::Best_Armor(legacy_player);
 
         remaining_space = TECHDATA::hull_data[hull_idx].size;
         if (player->tech_applications[TECH_APP_MEGAFLUXERS] == TECH_RESEARCH_STATUS_RESEARCHED) {
@@ -1433,7 +1433,7 @@ namespace aidesign {
             struct_::Set_Bit_Field(design->special_device_flags, SPECIAL_BATTLE_PODS);
         }
 
-        remaining_space -= DESIGN::Shield_Space_Given_M_Level((int16_t)design->shield_type, (int16_t)design->size, *legacy_player);
+        remaining_space -= DESIGN::Shield_Space_Given_M_Level((int16_t)design->shield_type, (int16_t)design->size, legacy_player);
 
         const int16_t table_class = (ship_class == 7) ? 0 : ship_class;
         const s_allocation_profile* table =
@@ -1597,7 +1597,7 @@ namespace aidesign {
                 if (player->tech_applications[TECH_APP_EXTENDED_FUEL_TANKS] == TECH_RESEARCH_STATUS_RESEARCHED) {
                     struct_::Set_Bit_Field(design->special_device_flags, SPECIAL_EXTENDED_FUEL_TANKS);
                     int8_t cat = DESIGN::Miniaturization_Category(TECH_APP_EXTENDED_FUEL_TANKS);
-                    int16_t m_level = DESIGN::Miniaturization_Level(*legacy_player, TECH_APP_EXTENDED_FUEL_TANKS);
+                    int16_t m_level = DESIGN::Miniaturization_Level(legacy_player, TECH_APP_EXTENDED_FUEL_TANKS);
                     int16_t fuel_tank_base_space = (int16_t)TECHDATA::specials[SPECIAL_EXTENDED_FUEL_TANKS].space_per_ship_type[hull_idx];
                     remaining_space -= DESIGN::Space_Given_M_Level(fuel_tank_base_space, m_level, cat);
                 }
@@ -1636,8 +1636,8 @@ namespace aidesign {
                 world, player_idx, design, &weapon_slot_idx, current_budget + (remaining_space * table->bombs) / 100);
         }
 
-        design->previous_owner = *legacy_player;
-        design->cost = DESIGN::Calculate_Design(*legacy_player, design, &design->combat_speed);
+        design->previous_owner = legacy_player;
+        design->cost = DESIGN::Calculate_Design(legacy_player, design, &design->combat_speed);
         design->date_of_design = (uint16_t)world->Stardate();
     }
 

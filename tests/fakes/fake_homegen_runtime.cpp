@@ -117,8 +117,8 @@ namespace HAROLD {
     uint8_t __cdecl N_Planets_In_System(int16_t star_idx) {
         uint8_t count = 0;
         for (int16_t orbit = 0; orbit < 5; ++orbit) {
-            int16_t planet_idx = legacy_world::Index(MOX::star[star_idx].orbit_planet_ids[orbit].get()).value_or(-1);
-            if (planet_idx >= 0 && test_planets::Record(planet_idx).planet_type == PLANET_TYPE_PLANET) {
+            const auto planet_id = MOX::star[star_idx].orbit_planet_ids[orbit].get();
+            if (planet_id != game::NO_PLANET && game::current_state.planets.at(planet_id).planet_type == PLANET_TYPE_PLANET) {
                 count++;
             }
         }

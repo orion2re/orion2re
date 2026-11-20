@@ -121,23 +121,16 @@ DOCTEST_TEST_CASE("typed ID compatibility preserves zero and rejects absent or u
         DOCTEST_CHECK_FALSE(Try_Leader_Id(absent));
     }
     for (int16_t index : {int16_t{0}, int16_t{INT16_MAX}}) {
-        DOCTEST_CHECK(Index(*Try_Ship_Id(index)) == index);
-        DOCTEST_CHECK(Index(*Try_Colony_Id(index)) == index);
-        DOCTEST_CHECK(Index(game::id_planet{static_cast<uint32_t>(index)}) == index);
-        DOCTEST_CHECK(Index(*Try_Star_Id(index)) == index);
-        DOCTEST_CHECK(Index(*Try_Player_Id(index)) == index);
-        DOCTEST_CHECK(Index(*Try_Leader_Id(index)) == index);
+        DOCTEST_CHECK(Try_Ship_Id(index)->id == index);
+        DOCTEST_CHECK(Try_Colony_Id(index)->id == index);
+        DOCTEST_CHECK(Try_Star_Id(index)->id == index);
+        DOCTEST_CHECK(Try_Player_Id(index)->id == index);
+        DOCTEST_CHECK(Try_Leader_Id(index)->id == index);
     }
     for (uint32_t value : {uint32_t{INT16_MAX} + 1, UINT32_MAX}) {
-        DOCTEST_CHECK_FALSE(Index(Ship_Id(value)));
-        DOCTEST_CHECK_FALSE(Index(Colony_Id(value)));
-        DOCTEST_CHECK_FALSE(Index(game::id_planet{value}));
-        DOCTEST_CHECK_FALSE(Index(Star_Id(value)));
-        DOCTEST_CHECK_FALSE(Index(Player_Id(value)));
-        DOCTEST_CHECK_FALSE(Index(Leader_Id(value)));
+        DOCTEST_CHECK_FALSE(Ship_List(std::array{Ship_Id(value)}));
         DOCTEST_CHECK(Slot(Ship_Id(value)) == value);
         DOCTEST_CHECK(Slot(Colony_Id(value)) == value);
-        DOCTEST_CHECK(Slot(game::id_planet{value}) == value);
         DOCTEST_CHECK(Slot(Star_Id(value)) == value);
         DOCTEST_CHECK(Slot(Player_Id(value)) == value);
         DOCTEST_CHECK(Slot(Leader_Id(value)) == value);

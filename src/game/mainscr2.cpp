@@ -347,7 +347,7 @@ namespace MAINSCR2 {
             }
 
             if (found_outpost_ship) {
-                COLONIZE::Make_New_Outpost(new_outpost_star_id, MOX::PLAYER_NUM);
+                COLONIZE::Make_New_Outpost(SERIAL::Decode_Legacy_Planet_Reference(new_outpost_star_id), MOX::PLAYER_NUM);
                 MOX::ship[outpost_ship_id].status = 5;
                 COLCALC::Update_Player_Stats(&MOX::player[MOX::PLAYER_NUM]);
 
@@ -430,7 +430,7 @@ namespace MAINSCR2 {
                     do_animation = true;
                 }
 
-                COLONIZE::Make_New_Colony(planet_idx, MOX::PLAYER_NUM);
+                COLONIZE::Make_New_Colony(SERIAL::Decode_Legacy_Planet_Reference(planet_idx), MOX::PLAYER_NUM);
                 MOX::ship[ship_idx].status = 5;
                 COLCALC::Update_Player_Stats(&MOX::player[MOX::PLAYER_NUM]);
 

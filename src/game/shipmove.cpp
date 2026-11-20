@@ -1306,7 +1306,7 @@ namespace SHIPMOVE {
             for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
                 s_colony* colony = &MOX::colony[i];
                 if (colony->owner != -1) {
-                    int16_t star_index = current_state.planets.at(game::id_planet{static_cast<uint32_t>(colony->planet)}).star_index;
+                    int16_t star_index = current_state.planets.at(colony->planet_id.get()).star_index;
                     presence_mask[star_index] |= (1 << colony->owner);
                 }
             }

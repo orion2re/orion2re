@@ -435,11 +435,11 @@ namespace COLMOVE {
         if (moved_count > 0) {
             strlcpy(
                 source_planet_name,
-                HACCESS::Get_Planet_Name(MOX::colony[COLMOVE::cluster_colony_n].planet),
+                HACCESS::Get_Planet_Name(SERIAL::Encode_Legacy_Planet_Reference(MOX::colony[COLMOVE::cluster_colony_n].planet_id.get())),
                 sizeof(source_planet_name));
             strlcpy(
                 destination_planet_name,
-                HACCESS::Get_Planet_Name(MOX::colony[colony_idx].planet),
+                HACCESS::Get_Planet_Name(SERIAL::Encode_Legacy_Planet_Reference(MOX::colony[colony_idx].planet_id.get())),
                 sizeof(destination_planet_name));
 
             ERIC::String_Builder2(

@@ -532,7 +532,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "defense missile ECCM installation is 
         s_colony* colony = TEST_SHIELD_TABLE::Colony_();
         s_player* defender = TEST_SHIELD_TABLE::Player_();
         colony->owner = 0;
-        colony->planet = 0;
+        colony->planet_id = game::id_planet{0};
         colony->buildings[BUILDING_MISSILE_BASE] = 1;
 
         TECHDATA::weapons[WEAPON_NUCLEAR_MISSILE].type = WEAPON_TYPE_MISSILE;
@@ -601,7 +601,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "planet extra specials follow building
         s_colony* colony = TEST_SHIELD_TABLE::Colony_();
         s_player* defender = TEST_SHIELD_TABLE::Player_();
         colony->owner = 0;
-        colony->planet = 0;
+        colony->planet_id = game::id_planet{0};
         colony->buildings[BUILDING_GROUND_BATTERIES] =
             test.has_ground_batteries ? 1 : 0;
         colony->buildings[BUILDING_STELLAR_CONVERTER] =
@@ -656,7 +656,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "planet defenses use configured eligib
     s_colony* colony = TEST_SHIELD_TABLE::Colony_();
     s_player* defender = TEST_SHIELD_TABLE::Player_();
     colony->owner = 0;
-    colony->planet = 0;
+    colony->planet_id = game::id_planet{0};
     colony->buildings[BUILDING_GROUND_BATTERIES] = 1;
     colony->buildings[BUILDING_MISSILE_BASE] = 1;
 
@@ -800,7 +800,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "defense point-defense selection uses 
         s_colony* colony = TEST_SHIELD_TABLE::Colony_();
         s_player* defender = TEST_SHIELD_TABLE::Player_();
         colony->owner = 0;
-        colony->planet = 0;
+        colony->planet_id = game::id_planet{0};
         colony->buildings[BUILDING_GROUND_BATTERIES] = 1;
 
         TECHDATA::weapons[WEAPON_LASER_CANNON].type = WEAPON_TYPE_BEAM;

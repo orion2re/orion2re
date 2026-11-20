@@ -655,7 +655,7 @@ namespace COLGCBT {
         }
 
         char* race_name = MOX::player[g_attack_ptr->player_id].race_name;
-        char* planet_name = HACCESS::Get_Planet_Name(MOX::colony[COLONY::colony_handle].planet);
+        char* planet_name = HACCESS::Get_Planet_Name(SERIAL::Encode_Legacy_Planet_Reference(MOX::colony[COLONY::colony_handle].planet_id.get()));
         char* format_str = ESTRINGS::E_Strings(string_id);
 
         char buffer[500];
@@ -892,7 +892,7 @@ namespace COLGCBT {
             (uint8_t)g_defend_ptr->current_troop_type_idx < UNIT_COUNT) {
             char buffer[500];
             char* race_name = MOX::player[g_attack_ptr->player_id].race_name;
-            char* planet_name = HACCESS::Get_Planet_Name(MOX::colony[COLONY::colony_handle].planet);
+            char* planet_name = HACCESS::Get_Planet_Name(SERIAL::Encode_Legacy_Planet_Reference(MOX::colony[COLONY::colony_handle].planet_id.get()));
             snprintf(buffer, sizeof(buffer), ESTRINGS::E_Strings(0x2F), planet_name, race_name);
             fonts::Print_Centered(0x13F, 10, buffer);
 

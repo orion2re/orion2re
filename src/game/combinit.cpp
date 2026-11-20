@@ -1336,7 +1336,7 @@ namespace COMBINIT {
                 player_color = 2;
             } else {
                 player_color = (int16_t)MOX::player[player_idx].color;
-                planet_size = (int16_t)game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(MOX::colony[MOX::cmbt_colony_id].planet)}).size;
+                planet_size = (int16_t)game::current_state.planets.at(MOX::colony[MOX::cmbt_colony_id].planet_id.get()).size;
             }
 
             if (planet_size > 0) {
@@ -1364,8 +1364,8 @@ namespace COMBINIT {
     }
 
     void __cdecl Load_Combat_Colony_Picture(int16_t colony_idx) {
-        int16_t planet_idx = MOX::colony[colony_idx].planet;
-        s_planet_data* planet = &game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)});
+        const auto planet_idx = MOX::colony[colony_idx].planet_id.get();
+        s_planet_data* planet = &game::current_state.planets.at(planet_idx);
 
         int8_t climate = planet->climate;
         int8_t size = planet->size;
@@ -1402,7 +1402,7 @@ namespace COMBINIT {
     }
 
     void __cdecl Load_Tactical_Colony(int16_t colony_idx, int16_t load_picture) {
-        char* planet_name = HACCESS::Get_Planet_Name_No_Prime(MOX::colony[colony_idx].planet);
+        char* planet_name = HACCESS::Get_Planet_Name_No_Prime(SERIAL::Encode_Legacy_Planet_Reference(MOX::colony[colony_idx].planet_id.get()));
         strlcpy(MOX::combat_data->name, planet_name, sizeof(MOX::combat_data->name));
 
         MOX::combat_data->owner = MOX::colony[colony_idx].owner;
@@ -2134,7 +2134,7 @@ namespace COMBINIT {
         if (MOX::cmbt_colony_id < 0) {
             return 2; // Antares: no colony
         }
-        const auto planet = game::id_planet{static_cast<uint32_t>(MOX::colony[MOX::cmbt_colony_id].planet)};
+        const auto planet = MOX::colony[MOX::cmbt_colony_id].planet_id.get();
         return game::current_state.planets.at(planet).size;
     }
 
@@ -2145,8 +2145,8 @@ namespace COMBINIT {
             if (MOX::cmbt_colony_id == -1) {
                 result_offset = 60;
             } else {
-                int16_t planet_idx = MOX::colony[MOX::cmbt_colony_id].planet;
-                int8_t planet_size = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).size;
+                const auto planet_idx = MOX::colony[MOX::cmbt_colony_id].planet_id.get();
+                int8_t planet_size = game::current_state.planets.at(planet_idx).size;
 
                 switch (planet_size) {
                     case PLANET_SIZE_TINY:

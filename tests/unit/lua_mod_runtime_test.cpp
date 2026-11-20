@@ -386,11 +386,11 @@ TEST_CASE("Lua galaxy collections expose complete stable domain objects") {
     TEST_LUA_GAME::Reset_();
     MOX::NUM_COLONIES = 2;
     test_planets::Record(0).colony_index = 0;
-    MOX::colony[0].planet = 0;
+    MOX::colony[0].planet_id = game::id_planet{0};
     MOX::colony[0].owner = 0;
     test_planets::Record(1).planet_type = PLANET_TYPE_PLANET;
     test_planets::Record(1).colony_index = 1;
-    MOX::colony[1].planet = 1;
+    MOX::colony[1].planet_id = game::id_planet{1};
     MOX::colony[1].owner = 1;
     MOX::star[0].size = 4;
     MOX::star[0].pict_type = 5;
@@ -445,7 +445,7 @@ TEST_CASE("Lua galaxy mutations reject invalid domains and references") {
     TEST_LUA_GAME::Reset_();
     MOX::NUM_COLONIES = 1;
     test_planets::Record(0).colony_index = 0;
-    MOX::colony[0].planet = 0;
+    MOX::colony[0].planet_id = game::id_planet{0};
     MOX::colony[0].owner = 0;
     game::current_state.leaders[0].status = 0;
     game::current_state.leaders[1].status = 0;

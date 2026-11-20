@@ -129,7 +129,7 @@ namespace COLCALC {
             POP::Set_Prof(p, POP::PROF_SCIENTIST);
         }
 
-        int16_t star_idx = current_state.planets.at(game::id_planet{static_cast<uint32_t>(colony->planet)}).star_index;
+        int16_t star_idx = current_state.planets.at(colony->planet_id.get()).star_index;
         MOX::star[star_idx].ignore_colony_ships |= (1 << (colony->owner & 0x1F));
 
         Recalculate_Colony(colony);
@@ -177,9 +177,9 @@ namespace COLCALC {
             case SYSTEM_SPECIAL_SPLINTER_COLONY:
                 MOX::star[star_idx].system_special = SYSTEM_SPECIAL_NO_SPECIAL;
                 for (int i = 0; i < 5; ++i) {
-                    int16_t p_idx = legacy_world::Index(MOX::star[star_idx].orbit_planet_ids[i].get()).value_or(-1);
-                    if (p_idx != -1) {
-                        current_state.planets.at(game::id_planet{static_cast<uint32_t>(p_idx)}).planet_special = SYSTEM_SPECIAL_NO_SPECIAL;
+                    const auto p_idx = MOX::star[star_idx].orbit_planet_ids[i].get();
+                    if (p_idx != game::NO_PLANET) {
+                        current_state.planets.at(p_idx).planet_special = SYSTEM_SPECIAL_NO_SPECIAL;
                     }
                 }
                 break;
@@ -1052,7 +1052,7 @@ namespace COLCALC {
         }
 
         int special_planet_bc = 0;
-        int8_t planet_special = current_state.planets.at(game::id_planet{static_cast<uint32_t>(colony->planet)}).planet_special;
+        int8_t planet_special = current_state.planets.at(colony->planet_id.get()).planet_special;
         if (planet_special == SYSTEM_SPECIAL_GOLD_DEPOSITS) {
             special_planet_bc = planet_bc_bonus.gold_deposits;
         } else if (planet_special == SYSTEM_SPECIAL_GEM_DEPOSITS) {
@@ -1438,7 +1438,7 @@ namespace COLCALC {
             : 0;
 
         if (colony->buildings[BUILDING_ROBOTIC_FACTORY]) {
-            bonus_robotic_factory = production_colony_bonus.robotic_factory[current_state.planets.at(game::id_planet{static_cast<uint32_t>(colony->planet)}).mineral_class];
+            bonus_robotic_factory = production_colony_bonus.robotic_factory[current_state.planets.at(colony->planet_id.get()).mineral_class];
         }
 
         if (colony->buildings[BUILDING_RECYCLOTRON]) {
@@ -1460,7 +1460,7 @@ namespace COLCALC {
         } else {
             int16_t officer_idx = Colony_Officer(colony);
             int64_t base_pollution = base_worker_prod + bonus_robotic_factory;
-            int64_t reduction_size = planet_no_pollution_prod[current_state.planets.at(game::id_planet{static_cast<uint32_t>(colony->planet)}).size];
+            int64_t reduction_size = planet_no_pollution_prod[current_state.planets.at(colony->planet_id.get()).size];
 
             if (MOX::player[colony->owner].tech_applications[TECH_APP_NANO_DISASSEMBLERS] == TECH_RESEARCH_STATUS_RESEARCHED) {
                 reduction_size *= nano_disassemblers_coeff;

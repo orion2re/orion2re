@@ -53,9 +53,9 @@ namespace HOMEGEN {
                 return true;
             }
 
-            int16_t planet_idx = legacy_world::Index(MOX::star[star_index].orbit_planet_ids[i].get()).value_or(-1);
-            if (planet_idx > -1) {
-                if (game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).planet_type == PLANET_TYPE_PLANET) {
+            const auto planet_idx = MOX::star[star_index].orbit_planet_ids[i].get();
+            if (planet_idx != game::NO_PLANET) {
+                if (game::current_state.planets.at(planet_idx).planet_type == PLANET_TYPE_PLANET) {
                     planet_found = true;
                 }
             }
@@ -199,13 +199,13 @@ namespace HOMEGEN {
 
             if (orbit_candidate < 0 || orbit_candidate > 4) continue;
 
-            int16_t p_idx = legacy_world::Index(MOX::star[star_idx].orbit_planet_ids[orbit_candidate].get()).value_or(-1);
+            const auto p_idx = MOX::star[star_idx].orbit_planet_ids[orbit_candidate].get();
 
-            if (p_idx == -1) {
+            if (p_idx == game::NO_PLANET) {
                 result_orbit = orbit_candidate;
                 found = true;
-            } else if (game::current_state.planets.contains(game::id_planet{static_cast<uint32_t>(p_idx)})) {
-                if (game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(p_idx)}).planet_type != PLANET_TYPE_PLANET) {
+            } else if (game::current_state.planets.contains(p_idx)) {
+                if (game::current_state.planets.at(p_idx).planet_type != PLANET_TYPE_PLANET) {
                     result_orbit = orbit_candidate;
                     found = true;
                 }
@@ -215,8 +215,8 @@ namespace HOMEGEN {
         // Sequential search fallback if random attempts fail
         if (!found) {
             for (int16_t i = 0; i < 5; ++i) {
-                int16_t p_idx = legacy_world::Index(MOX::star[star_idx].orbit_planet_ids[i].get()).value_or(-1);
-                if (p_idx == -1 || game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(p_idx)}).planet_type != PLANET_TYPE_PLANET) {
+                const auto p_idx = MOX::star[star_idx].orbit_planet_ids[i].get();
+                if (p_idx == game::NO_PLANET || game::current_state.planets.at(p_idx).planet_type != PLANET_TYPE_PLANET) {
                     result_orbit = i;
                     found = true;
                     break;
@@ -247,9 +247,9 @@ namespace HOMEGEN {
         }
 
         bool has_planet_special = false;
-        for (int i = 0; i < 5; ++i) {
-            int16_t p_idx = legacy_world::Index(star->orbit_planet_ids[i].get()).value_or(-1);
-            if (p_idx > -1 && game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(p_idx)}).planet_special > SYSTEM_SPECIAL_NO_SPECIAL) {
+        for (const auto& link : star->orbit_planet_ids) {
+            const auto id = link.get();
+            if (id != game::NO_PLANET && game::current_state.planets.at(id).planet_special > SYSTEM_SPECIAL_NO_SPECIAL) {
                 has_planet_special = true;
                 break;
             }
@@ -257,10 +257,10 @@ namespace HOMEGEN {
 
         if (has_planet_special) {
             if ((monster_mask >> ((uint8_t)star->system_special & 0x1F)) & 1) {
-                for (int i = 0; i < 5; ++i) {
-                    int16_t p_idx = legacy_world::Index(star->orbit_planet_ids[i].get()).value_or(-1);
-                    if (p_idx > -1) {
-                        game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(p_idx)}).planet_special = SYSTEM_SPECIAL_NO_SPECIAL;
+                for (const auto& link : star->orbit_planet_ids) {
+                    const auto id = link.get();
+                    if (id != game::NO_PLANET) {
+                        game::current_state.planets.at(id).planet_special = SYSTEM_SPECIAL_NO_SPECIAL;
                     }
                 }
                 need_new_special = 1;

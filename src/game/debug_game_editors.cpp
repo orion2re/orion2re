@@ -79,7 +79,7 @@ namespace debug_game_editors {
             int16_t colony_index = -1;
             for (int16_t index = 0; index < MAX_COLONIES; ++index) {
                 if (MOX::colony[index].allocated_to == player_index) {
-                    const bool free = index >= colony_count || MOX::colony[index].planet == -1;
+                    const bool free = index >= colony_count || MOX::colony[index].planet_id.get() == game::NO_PLANET;
                     if (!free) {
                         return PLANET_OPERATION_INVALID_RELATION;
                     }
@@ -89,7 +89,7 @@ namespace debug_game_editors {
             }
             if (colony_index < 0) {
                 for (int16_t index = 0; index < MAX_COLONIES; ++index) {
-                    if (index >= colony_count || MOX::colony[index].planet == -1) {
+                    if (index >= colony_count || MOX::colony[index].planet_id.get() == game::NO_PLANET) {
                         colony_index = index;
                         break;
                     }
@@ -101,9 +101,9 @@ namespace debug_game_editors {
 
             const int8_t previous_allocation = MOX::colony[colony_index].allocated_to;
             MOX::colony[colony_index].allocated_to = player_index;
-            COLONIZE::Make_New_Colony(planet_index, player_index);
+            COLONIZE::Make_New_Colony(SERIAL::Decode_Legacy_Planet_Reference(planet_index), player_index);
             if (planet.colony_index != colony_index ||
-                MOX::colony[colony_index].planet != planet_index ||
+                SERIAL::Encode_Legacy_Planet_Reference(MOX::colony[colony_index].planet_id.get()) != planet_index ||
                 MOX::colony[colony_index].owner != player_index) {
                 MOX::colony[colony_index].allocated_to = previous_allocation;
                 return PLANET_OPERATION_INVALID_RELATION;
@@ -185,7 +185,7 @@ namespace debug_game_editors {
 
             const int16_t colony_count = std::clamp<int16_t>(MOX::NUM_COLONIES, 0, MAX_COLONIES);
             for (int16_t colony = 0; colony < colony_count; ++colony) {
-                if (MOX::colony[colony].planet == planet_index) {
+                if (SERIAL::Encode_Legacy_Planet_Reference(MOX::colony[colony].planet_id.get()) == planet_index) {
                     return true;
                 }
             }
@@ -310,12 +310,12 @@ namespace debug_game_editors {
                     char label[24];
                     snprintf(label, sizeof(label), "Orbit %d", orbit + 1);
                     ImGui::BeginDisabled();
-                    int16_t slot = legacy_world::Index(star.orbit_planet_ids[orbit].get()).value_or(-1);
-                    if (debug_game_widgets::Planet_Reference(label, &slot)) {
-                        star.orbit_planet_ids[orbit] = slot < 0 ? game::NO_PLANET : game::id_planet{static_cast<uint32_t>(slot)};
-                    }
+                    const auto id = star.orbit_planet_ids[orbit].get();
+                    auto selection = id;
+                    debug_game_widgets::Planet_Reference(label, &selection);
                     ImGui::EndDisabled();
                     ImGui::SameLine();
+                    const auto slot = SERIAL::Encode_Legacy_Planet_Reference(id);
                     if (slot >= 0) {
                         if (ImGui::SmallButton("Open")) {
                             Open_Planet(slot);

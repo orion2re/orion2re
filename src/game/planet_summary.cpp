@@ -149,9 +149,9 @@ namespace PLNTSUM {
             if (result) {
                 return result;
             }
-            int16_t p_idx = legacy_world::Index(MOX::star[star_idx].orbit_planet_ids[i].get()).value_or(-1);
-            if (p_idx > -1) {
-                int16_t colony_idx = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(p_idx)}).colony_index;
+            const auto p_idx = MOX::star[star_idx].orbit_planet_ids[i].get();
+            if (p_idx != game::NO_PLANET) {
+                int16_t colony_idx = game::current_state.planets.at(p_idx).colony_index;
                 if (colony_idx > -1) {
                     if (MOX::colony[colony_idx].owner != MOX::PLAYER_NUM) {
                         result = true;
@@ -666,9 +666,8 @@ namespace PLNTSUM {
         *summary_count = 0;
 
         for (const auto id : game::current_state.planet_order) {
-            const auto index = legacy_world::Index(id);
-            if (!index) continue; // The summary selection record still carries a signed legacy ID.
-            const int16_t i = *index;
+            const auto i = SERIAL::Encode_Legacy_Planet_Reference(id);
+            if (i < 0) continue; // The summary selection record still has a narrow key field.
             RUSS::Mox_Update();
 
             bool passes_filter = true;
@@ -796,7 +795,7 @@ namespace PLNTSUM {
                     if (planet_summary[summary_planet_idx].best_colony_eta == -1 ||
                         turns < planet_summary[summary_planet_idx].best_colony_eta) {
                         for (int16_t p = 0; p < 5; ++p) {
-                            int16_t planet_idx = legacy_world::Index(MOX::star[star_idx].orbit_planet_ids[p].get()).value_or(-1);
+                            int16_t planet_idx = SERIAL::Encode_Legacy_Planet_Reference(MOX::star[star_idx].orbit_planet_ids[p].get());
                             if (planet_idx != -1) {
                                 int16_t summary_id = Planet_Summary_Id(planet_idx);
                                 if (summary_id != -1) {
@@ -855,7 +854,7 @@ namespace PLNTSUM {
                     if (planet_summary[summary_planet_idx].best_outpost_eta == -1 ||
                         turns < planet_summary[summary_planet_idx].best_outpost_eta) {
                         for (int16_t p = 0; p < 5; ++p) {
-                            int16_t planet_idx = legacy_world::Index(MOX::star[star_idx].orbit_planet_ids[p].get()).value_or(-1);
+                            int16_t planet_idx = SERIAL::Encode_Legacy_Planet_Reference(MOX::star[star_idx].orbit_planet_ids[p].get());
                             if (planet_idx != -1) {
                                 int16_t summary_id = Planet_Summary_Id(planet_idx);
                                 if (summary_id != -1) {

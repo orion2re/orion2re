@@ -1341,7 +1341,7 @@ namespace DESIGN {
                 message_id = HESTR_00E_SINCE_S_CANNOT_BUILD_S;
                 if (MOX::return_screen == 0x19) {
                     int16_t colony_idx = DESIGN::Get_Colony_Handle();
-                    char* planet_name = HACCESS::Get_Planet_Name(MOX::colony[colony_idx].planet);
+                    char* planet_name = HACCESS::Get_Planet_Name(SERIAL::Encode_Legacy_Planet_Reference(MOX::colony[colony_idx].planet_id.get()));
                     is_formatted = true;
                     strlcpy(planet_name_buf, planet_name, sizeof(planet_name_buf));
                 }

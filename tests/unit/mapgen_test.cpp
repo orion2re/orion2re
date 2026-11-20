@@ -209,7 +209,7 @@ namespace {
         test_planets::Record(0).climate = PLANET_CLIMATE_TERRAN;
         test_planets::Record(0).mineral_class = MINERAL_RESOURCE_ABUNDANT;
         MOX::player[0].home_planet_id = game::id_planet{0};
-        MOX::colony[0].planet = 0;
+        MOX::colony[0].planet_id = game::id_planet{0};
         MOX::colony[0].owner = 0;
     }
 } // namespace
@@ -249,7 +249,7 @@ DOCTEST_TEST_CASE("planet trimming preserves generated Orion and stable referenc
     MOX::star[0].system_special = SYSTEM_SPECIAL_ORION_STAR;
     test_planets::Record(1).planet_special = SYSTEM_SPECIAL_ORION_STAR;
     MOX::player[0].home_planet_id = game::id_planet{2};
-    MOX::colony[0].planet = 2;
+    MOX::colony[0].planet_id = game::id_planet{2};
     TEST_MAPGEN::Set_Food_Star_(3);
 
     MAPGEN::Enforce_Planet_Max(5);
@@ -262,7 +262,7 @@ DOCTEST_TEST_CASE("planet trimming preserves generated Orion and stable referenc
     DOCTEST_CHECK(MOX::star[0].orbit_planet_ids[1].get() == game::id_planet{1});
 
     DOCTEST_CHECK(MOX::player[0].home_planet_id.get() == game::id_planet{2});
-    DOCTEST_CHECK(MOX::colony[0].planet == 2);
+    DOCTEST_CHECK(SERIAL::Encode_Legacy_Planet_Reference(MOX::colony[0].planet_id.get()) == 2);
     DOCTEST_CHECK(MOX::star[2].orbit_planet_ids[0].get() == game::id_planet{2});
     DOCTEST_CHECK(MOX::star[2].orbit_planet_ids[1].get() == game::id_planet{3});
     DOCTEST_CHECK(MOX::star[3].orbit_planet_ids[0].get() == game::id_planet{4});
@@ -281,7 +281,7 @@ DOCTEST_TEST_CASE("planet trimming counts and removes gas giants at the threshol
         TEST_MAPGEN::Set_Planet_(2, 2, 1, PLANET_TYPE_ASTEROID, -1);
         test_planets::Resize_Dense(3);
         MOX::player[0].home_planet_id = game::id_planet{1};
-        MOX::colony[0].planet = 1;
+        MOX::colony[0].planet_id = game::id_planet{1};
 
         MAPGEN::Enforce_Planet_Max(limit);
 
@@ -289,7 +289,7 @@ DOCTEST_TEST_CASE("planet trimming counts and removes gas giants at the threshol
         DOCTEST_CHECK(static_cast<int16_t>(game::current_state.planets.size()) == (trimmed ? 2 : 3));
         DOCTEST_CHECK(MOX::star[1].orbit_planet_ids[1].get() == (trimmed ? game::NO_PLANET : game::id_planet{0}));
         DOCTEST_CHECK(MOX::player[0].home_planet_id.get() == game::id_planet{1});
-        DOCTEST_CHECK(MOX::colony[0].planet == 1);
+        DOCTEST_CHECK(SERIAL::Encode_Legacy_Planet_Reference(MOX::colony[0].planet_id.get()) == 1);
         DOCTEST_CHECK(TEST_MAPGEN::Random_Calls_() == (trimmed ? 1 : 0));
     }
 }
@@ -307,7 +307,7 @@ DOCTEST_TEST_CASE("planet trimming retains gas giants in protected systems") {
     TEST_MAPGEN::Set_Planet_(5, 2, 1, PLANET_TYPE_GAS_GIANT, -1);
     test_planets::Resize_Dense(6);
     MOX::player[0].home_planet_id = game::id_planet{2};
-    MOX::colony[0].planet = 2;
+    MOX::colony[0].planet_id = game::id_planet{2};
     TEST_MAPGEN::Set_Food_Star_(2);
 
     MAPGEN::Enforce_Planet_Max(2);
@@ -318,7 +318,7 @@ DOCTEST_TEST_CASE("planet trimming retains gas giants in protected systems") {
     DOCTEST_CHECK(MOX::star[1].orbit_planet_ids[1].get() == game::id_planet{3});
     DOCTEST_CHECK(MOX::star[2].orbit_planet_ids[1].get() == game::id_planet{5});
     DOCTEST_CHECK(MOX::player[0].home_planet_id.get() == game::id_planet{2});
-    DOCTEST_CHECK(MOX::colony[0].planet == 2);
+    DOCTEST_CHECK(SERIAL::Encode_Legacy_Planet_Reference(MOX::colony[0].planet_id.get()) == 2);
     DOCTEST_CHECK(TEST_MAPGEN::Random_Calls_() == 1);
 }
 
@@ -332,7 +332,7 @@ DOCTEST_TEST_CASE("planet trimming does not protect star zero when Orion is disa
     TEST_MAPGEN::Set_Planet_(1, 1, 0, PLANET_TYPE_PLANET, 0);
     test_planets::Resize_Dense(2);
     MOX::player[0].home_planet_id = game::id_planet{1};
-    MOX::colony[0].planet = 1;
+    MOX::colony[0].planet_id = game::id_planet{1};
 
     MAPGEN::Enforce_Planet_Max(2);
 
@@ -340,7 +340,7 @@ DOCTEST_TEST_CASE("planet trimming does not protect star zero when Orion is disa
     DOCTEST_CHECK_FALSE(game::current_state.planets.contains(game::id_planet{0}));
     DOCTEST_CHECK(game::current_state.planets.at(game::id_planet{1}).star_index == 1);
     DOCTEST_CHECK(MOX::player[0].home_planet_id.get() == game::id_planet{1});
-    DOCTEST_CHECK(MOX::colony[0].planet == 1);
+    DOCTEST_CHECK(SERIAL::Encode_Legacy_Planet_Reference(MOX::colony[0].planet_id.get()) == 1);
     DOCTEST_CHECK(MOX::star[0].orbit_planet_ids[0].get() == game::NO_PLANET);
     DOCTEST_CHECK(MOX::star[1].orbit_planet_ids[0].get() == game::id_planet{1});
 

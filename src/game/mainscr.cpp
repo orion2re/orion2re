@@ -1634,10 +1634,10 @@ namespace MAINSCR {
             s_colony* colony = &MOX::colony[colony_idx];
 
             if (colony->owner == MOX::PLAYER_NUM) {
-                int16_t planet_idx = colony->planet;
+                const auto planet_idx = colony->planet_id.get();
 
                 if (colony->outpost_flag != 0) {
-                    char* planet_name = HACCESS::Get_Planet_Name(planet_idx);
+                    char* planet_name = HACCESS::Get_Planet_Name(SERIAL::Encode_Legacy_Planet_Reference(planet_idx));
                     const char* format_msg = HAROLD::H_Message(217);
                     char buffer[80];
 
@@ -1648,7 +1648,7 @@ namespace MAINSCR {
                     MOX::current_screen = SCREEN_COLONY;
                     MOX::return_screen = SCREEN_MAIN;
 
-                    s_planet_data* planet = &game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)});
+                    s_planet_data* planet = &game::current_state.planets.at(planet_idx);
                     MOX::screen_data = planet->star_index;
                     COLONY::orbit_temp = static_cast<int16_t>(planet->orbit);
 
@@ -2131,8 +2131,8 @@ namespace MAINSCR {
                 int16_t orbit_id = GEO::Get_Orbit_From_X_Y(center_x - ptr_x, center_y - ptr_y);
                 if (orbit_id >= 0) {
                     for (int i = 0; i < 5; ++i) {
-                        int16_t p_idx = legacy_world::Index(MOX::star[MOX::system_star_id].orbit_planet_ids[i].get()).value_or(-1);
-                        if (p_idx > -1 && game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(p_idx)}).orbit == orbit_id && game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(p_idx)}).planet_type == PLANET_TYPE_ASTEROID) {
+                        const auto p_idx = MOX::star[MOX::system_star_id].orbit_planet_ids[i].get();
+                        if (p_idx != game::NO_PLANET && game::current_state.planets.at(p_idx).orbit == orbit_id && game::current_state.planets.at(p_idx).planet_type == PLANET_TYPE_ASTEROID) {
                             *planet_idx = i;
                             ret_val = 0;
                             break;
@@ -2153,8 +2153,8 @@ namespace MAINSCR {
 
                 if (orbit_id >= 0) {
                     for (int i = 0; i < 5; ++i) {
-                        int16_t p_idx = legacy_world::Index(MOX::star[MOX::system_star_id].orbit_planet_ids[i].get()).value_or(-1);
-                        if (p_idx > -1 && game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(p_idx)}).orbit == orbit_id && game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(p_idx)}).planet_type == PLANET_TYPE_ASTEROID) {
+                        const auto p_idx = MOX::star[MOX::system_star_id].orbit_planet_ids[i].get();
+                        if (p_idx != game::NO_PLANET && game::current_state.planets.at(p_idx).orbit == orbit_id && game::current_state.planets.at(p_idx).planet_type == PLANET_TYPE_ASTEROID) {
                             *m_planet_idx = i;
                             ret_val = 4;
                             break;

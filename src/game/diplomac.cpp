@@ -2106,10 +2106,10 @@ namespace diplomac {
                     if (threat) {
                         int16_t col_idx = game::current_state.planets.at(threat->attack.planet_id).colony_index;
                         if (col_idx != -1) {
-                            auto star_index = legacy_world::Index(threat->source_star);
-                            if (star_index && MOX::colony[col_idx].n_pops > 4 && threat->attack.strength_ratio_percent > 100) {
+                            const auto star_index = threat->source_star.id;
+                            if (star_index < MAX_STARS && MOX::colony[col_idx].n_pops > 4 && threat->attack.strength_ratio_percent > 100) {
                                 int amount = -((MOX::colony[col_idx].n_pops - 4) + (threat->attack.strength_ratio_percent / 50));
-                                Change_Relations(amount, p1, p2, 5, *star_index, 0);
+                                Change_Relations(amount, p1, p2, 5, star_index, 0);
                             }
                         }
                     }

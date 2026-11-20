@@ -840,7 +840,7 @@ namespace MAPGEN {
                 const auto& planet = state.planets.at(home);
                 if (planet.planet_type != PLANET_TYPE_PLANET ||
                     planet.colony_index < 0 || planet.colony_index >= MOX::NUM_COLONIES ||
-                    SERIAL::Decode_Legacy_Planet_Reference(MOX::colony[planet.colony_index].planet) != home ||
+                    MOX::colony[planet.colony_index].planet_id.get() != home ||
                     MOX::colony[planet.colony_index].owner != player_idx ||
                     MOX::star[planet.star_index].owner != player_idx) {
                     return false;
@@ -850,7 +850,7 @@ namespace MAPGEN {
                  colony_idx < MOX::NUM_COLONIES;
                  ++colony_idx) {
                 const s_colony& colony = MOX::colony[colony_idx];
-                const auto it = state.planets.find(SERIAL::Decode_Legacy_Planet_Reference(colony.planet));
+                const auto it = state.planets.find(colony.planet_id.get());
                 if (it == state.planets.end() || it->second.colony_index != colony_idx ||
                     colony.owner < 0 || colony.owner >= MOX::NUM_PLAYERS) {
                     return false;
@@ -1492,7 +1492,7 @@ namespace MAPGEN {
             }
             valid = invoked && Compact_Galaxy_Candidate(current_state) && Valid_Galaxy_Candidate(current_state);
             if (valid) {
-                for (const auto id : current_state.planet_order) Refresh_Configured_Planet(current_state.planets.at(id));
+                for (auto& [id, planet] : current_state.planets) Refresh_Configured_Planet(planet);
                 GEO::Initialize_Star_In_Nebula_Info();
                 candidate_star_count = MOX::NUM_STARS;
                 candidate_colony_count = MOX::NUM_COLONIES;

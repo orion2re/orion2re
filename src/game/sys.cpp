@@ -109,7 +109,7 @@ namespace SYS {
         draw_sun_before_planet = 1;
 
         for (int16_t orbit_idx = 0; orbit_idx < 5; ++orbit_idx) {
-            int16_t planet_idx = legacy_world::Index(star->orbit_planet_ids[orbit_idx].get()).value_or(-1);
+            int16_t planet_idx = SERIAL::Encode_Legacy_Planet_Reference(star->orbit_planet_ids[orbit_idx].get());
             if (planet_idx < 0) {
                 MOX::sys_disp[orbit_idx].orbit = -1;
                 MOX::sys_disp[orbit_idx].x = 999;

@@ -587,8 +587,8 @@ namespace COLDRAW {
 
     int16_t __cdecl Veggie_Type_For_Colony(int16_t colony_idx) {
         int16_t veggie_type = 4;
-        const int16_t planet_idx = MOX::colony[colony_idx].planet;
-        const int32_t climate = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).climate;
+        const auto planet_idx = MOX::colony[colony_idx].planet_id.get();
+        const int32_t climate = game::current_state.planets.at(planet_idx).climate;
 
         switch (climate) {
             case PLANET_CLIMATE_TOXIC:

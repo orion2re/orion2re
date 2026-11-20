@@ -157,7 +157,7 @@ namespace TEST_COLONY_POP_GROWTH {
             memset(star.surrender_to, 0xff, sizeof(star.surrender_to));
         }
         for (int i = 0; i < 2; ++i) {
-            colonies[i].planet = i;
+            colonies[i].planet_id = SERIAL::Decode_Legacy_Planet_Reference(i);
             colonies[i].n_pops = 1;
             for (int slot = 0; slot < 7; ++slot) {
                 colonies[i].producing[slot] = COLONY_PRODUCTION_NONE;

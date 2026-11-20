@@ -137,10 +137,10 @@ namespace COLCALC {
         int16_t total_pop = 0;
 
         for (int i = 0; i < 5; ++i) {
-            int16_t planet_idx = legacy_world::Index(MOX::star[star_idx].orbit_planet_ids[i].get()).value_or(-1);
+            const auto planet_idx = MOX::star[star_idx].orbit_planet_ids[i].get();
 
-            if (planet_idx != -1) {
-                int16_t colony_idx = current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).colony_index;
+            if (planet_idx != game::NO_PLANET) {
+                int16_t colony_idx = current_state.planets.at(planet_idx).colony_index;
 
                 if (colony_idx != -1) {
                     // Check if colony belongs to the specified player
@@ -166,7 +166,7 @@ namespace COLCALC {
     }
 
     int __cdecl Colony_Officer(s_colony* colony) {
-        int16_t star_idx = current_state.planets.at(game::id_planet{static_cast<uint32_t>(colony->planet)}).star_index;
+        int16_t star_idx = current_state.planets.at(colony->planet_id.get()).star_index;
 
         int8_t officer_idx = (int8_t)MOX::star[star_idx].officer_index[colony->owner];
 
@@ -293,17 +293,14 @@ namespace COLCALC {
     void __cdecl Star_Colony_Calculation(int16_t star_idx, int16_t player_idx) {
         s_star_data* star = &MOX::star[star_idx];
 
-        for (int i = 0; i < 5; ++i) {
-            int16_t planet_idx = legacy_world::Index(star->orbit_planet_ids[i].get()).value_or(-1);
-            if (planet_idx != -1) {
-                int16_t colony_idx = current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).colony_index;
-                if (colony_idx != -1) {
-                    s_colony* colony = &MOX::colony[colony_idx];
-
-                    if (colony->owner == player_idx && colony->outpost_flag == 0) {
-                        Recalculate_Colony(colony);
-                    }
-                }
+        for (const auto& link : star->orbit_planet_ids) {
+            const auto id = link.get();
+            if (id == game::NO_PLANET) continue;
+            const auto colony_idx = current_state.planets.at(id).colony_index;
+            if (colony_idx < 0) continue;
+            auto& colony = MOX::colony[colony_idx];
+            if (colony.owner == player_idx && !colony.outpost_flag) {
+                Recalculate_Colony(&colony);
             }
         }
 
@@ -322,11 +319,11 @@ namespace COLCALC {
         star->has_artemis_net = 0;
         star->has_dimensional_portal = 0;
 
-        for (int16_t i = 0; i < 5; ++i) {
-            int16_t p_idx = legacy_world::Index(star->orbit_planet_ids[i].get()).value_or(-1);
-            if (p_idx == -1) continue;
+        for (const auto& link : star->orbit_planet_ids) {
+            const auto id = link.get();
+            if (id == game::NO_PLANET) continue;
 
-            int16_t c_idx = current_state.planets.at(game::id_planet{static_cast<uint32_t>(p_idx)}).colony_index;
+            const auto c_idx = current_state.planets.at(id).colony_index;
             if (c_idx == -1) continue;
 
             s_colony* colony = &MOX::colony[c_idx];
@@ -373,7 +370,7 @@ namespace COLCALC {
     }
 
     void __cdecl Do_Colony_Owner_Change_Star_Colony_Stuff(s_colony* colony) {
-        s_planet_data* planet = &current_state.planets.at(game::id_planet{static_cast<uint32_t>(colony->planet)});
+        s_planet_data* planet = &current_state.planets.at(colony->planet_id.get());
         const int16_t star_idx = planet->star_index;
         s_star_data* star = &MOX::star[star_idx];
 
@@ -562,7 +559,7 @@ namespace COLCALC {
     }
 
     int16_t __cdecl Colony_Food2_Per_Farmer(const s_colony* colony, int16_t player_idx, s_colony_job_production* out) {
-        int16_t food_total = (int16_t)current_state.planets.at(game::id_planet{static_cast<uint32_t>(colony->planet)}).food_per_farmer;
+        int16_t food_total = (int16_t)current_state.planets.at(colony->planet_id.get()).food_per_farmer;
 
         if (out != nullptr) {
             out->base_prod = food_total;
@@ -598,7 +595,7 @@ namespace COLCALC {
     int16_t __cdecl Colony_Industry_Per_Worker(const s_colony* colony, int16_t player_idx, s_colony_job_production* out) {
         int16_t industry;
 
-        int8_t mineral_class = current_state.planets.at(game::id_planet{static_cast<uint32_t>(colony->planet)}).mineral_class;
+        int8_t mineral_class = current_state.planets.at(colony->planet_id.get()).mineral_class;
         industry = minerals_per_mine[mineral_class];
 
         if (out != nullptr) {
@@ -687,7 +684,7 @@ namespace COLCALC {
             }
         }
 
-        int8_t special = current_state.planets.at(game::id_planet{static_cast<uint32_t>(colony->planet)}).planet_special;
+        int8_t special = current_state.planets.at(colony->planet_id.get()).planet_special;
 
         if (special == SYSTEM_SPECIAL_ANCIENT_ARTIFACTS) {
             research_per_scientist += research_scientist_bonus.artifacts_planet;
@@ -705,7 +702,7 @@ namespace COLCALC {
     }
 
     void __cdecl Colony_Environmental_Stuff(s_colony* colony) {
-        int8_t climate = current_state.planets.at(game::id_planet{static_cast<uint32_t>(colony->planet)}).climate;
+        int8_t climate = current_state.planets.at(colony->planet_id.get()).climate;
         colony->climate = climate;
 
         if (climate == PLANET_CLIMATE_RADIATED) {
@@ -755,9 +752,9 @@ namespace COLCALC {
     }
 
     bool __cdecl Colony_Is_Blockaded(s_colony* colony) {
-        int16_t planet_idx = colony->planet;
+        const auto planet_idx = colony->planet_id.get();
 
-        int16_t star_idx = current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).star_index;
+        int16_t star_idx = current_state.planets.at(planet_idx).star_index;
 
         uint8_t blockaded_mask = MOX::star[star_idx].blockaded;
 
@@ -960,7 +957,7 @@ namespace COLCALC {
             }
             orion2re::lua::game::s_population_growth_context context;
             context.colony_id = colony_idx;
-            context.planet_id = colony->planet;
+            context.planet_id = SERIAL::Encode_Legacy_Planet_Reference(colony->planet_id.get());
             context.owner_id = static_cast<uint8_t>(colony->owner);
             context.race_id = i;
             context.race_population = race_pop_count[i];
@@ -1106,7 +1103,7 @@ namespace COLCALC {
     short __cdecl Colony_Race_Pop_Limit(s_colony* colony, int16_t player_idx) {
         // Calculate base limit from planet size and climate
         int16_t pop_limit = (int)Size_And_Climate_Race_Pop_Limit(
-            current_state.planets.at(game::id_planet{static_cast<uint32_t>(colony->planet)}).size,
+            current_state.planets.at(colony->planet_id.get()).size,
             (uint8_t)colony->climate,
             player_idx);
 
@@ -1482,7 +1479,7 @@ namespace COLCALC {
             return 4;
         }
 
-        int8_t gravity_class = current_state.planets.at(game::id_planet{static_cast<uint32_t>(colony->planet)}).gravity_class;
+        int8_t gravity_class = current_state.planets.at(colony->planet_id.get()).gravity_class;
 
         if (gravity_class == PLANET_GRAVITY_LOW_G) { // Low Gravity
             const s_player& player = MOX::player[player_idx];
@@ -1664,7 +1661,7 @@ namespace COLCALC {
     }
 
     bool __cdecl Housing_Is_Useless(s_colony* colony) {
-        int16_t max_pop = Planet_Max_Population_For_Player(&current_state.planets.at(game::id_planet{static_cast<uint32_t>(colony->planet)}), colony->owner);
+        int16_t max_pop = Planet_Max_Population_For_Player(&current_state.planets.at(colony->planet_id.get()), colony->owner);
 
         return max_pop == (uint8_t)colony->n_pops;
     }
@@ -1682,11 +1679,11 @@ namespace COLCALC {
     int16_t __cdecl N_Colonies_And_Outposts_At_Star(int16_t star_index) {
         int16_t count = 0;
         for (int i = 0; i < 5; ++i) {
-            int16_t planet_idx = legacy_world::Index(MOX::star[star_index].orbit_planet_ids[i].get()).value_or(-1);
+            const auto planet_idx = MOX::star[star_index].orbit_planet_ids[i].get();
 
             // Check if planet exists in this orbit and if it has a colony/outpost
-            if (planet_idx > -1) {
-                if (current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).colony_index > -1) {
+            if (planet_idx != game::NO_PLANET) {
+                if (current_state.planets.at(planet_idx).colony_index > -1) {
                     count++;
                 }
             }
@@ -2078,7 +2075,7 @@ namespace COLCALC {
             s_colony* colony = &MOX::colony[i];
             if (colony->owner == (int8_t)surrender_id) {
                 Do_Surrender_Colony(colony, receiver_id);
-                int16_t star_idx = current_state.planets.at(game::id_planet{static_cast<uint32_t>(colony->planet)}).star_index;
+                int16_t star_idx = current_state.planets.at(colony->planet_id.get()).star_index;
                 Compute_Star_Colony_Stuff(&MOX::star[star_idx]);
             }
         }
@@ -2188,7 +2185,7 @@ namespace COLCALC {
 
                     s_MSG msg = {};
                     msg.msg_type = MSG_TYPE_COLONY;
-                    msg.u.colony.planet_idx = colony->planet;
+                    msg.u.colony.planet_idx = SERIAL::Encode_Legacy_Planet_Reference(colony->planet_id.get());
                     msg.u.colony.subtype = MSG_COLONY_SUBTYPE_GENOCIDE;
                     msg.u.colony.c.assimilation.val = static_cast<uint8_t>(POP::Get_Race(POP::Load(selected_pop)));
 
@@ -2314,7 +2311,7 @@ namespace COLCALC {
             if (food_shortage > 0 || industry_shortage > 0) {
                 s_MSG msg = {};
                 msg.msg_type = MSG_TYPE_COLONY;
-                msg.u.colony.planet_idx = colony->planet;
+                msg.u.colony.planet_idx = SERIAL::Encode_Legacy_Planet_Reference(colony->planet_id.get());
                 msg.u.colony.subtype = MSG_COLONY_SUBTYPE_STARVATION;
 
                 if (food_shortage > 0) {
@@ -2551,7 +2548,7 @@ namespace COLCALC {
         colony->n_turns_existed = 0;
 
         // Update the 'visited' bitmask for the star system to reflect the new owner
-        int16_t star_idx = current_state.planets.at(game::id_planet{static_cast<uint32_t>(colony->planet)}).star_index;
+        int16_t star_idx = current_state.planets.at(colony->planet_id.get()).star_index;
         MOX::star[star_idx].visited |= (1 << (uint8_t)new_owner);
     }
 
@@ -2559,9 +2556,9 @@ namespace COLCALC {
         s_star_data& star = MOX::star[star_idx];
 
         for (int i = 0; i < 5; ++i) {
-            int16_t planet_idx = legacy_world::Index(star.orbit_planet_ids[i].get()).value_or(-1);
-            if (planet_idx != -1) {
-                int16_t colony_idx = current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).colony_index;
+            const auto planet_idx = star.orbit_planet_ids[i].get();
+            if (planet_idx != game::NO_PLANET) {
+                int16_t colony_idx = current_state.planets.at(planet_idx).colony_index;
                 if (colony_idx != -1) {
                     s_colony& colony = MOX::colony[colony_idx];
                     if (colony.owner == (int8_t)old_owner) {
@@ -2674,7 +2671,7 @@ namespace COLCALC {
                     return base_cost;
 
                 case BUILDING_TERRAFORMING: {
-                    int32_t n_terraforms = current_state.planets.at(game::id_planet{static_cast<uint32_t>(colony->planet)}).n_terraforms;
+                    int32_t n_terraforms = current_state.planets.at(colony->planet_id.get()).n_terraforms;
                     return base_cost + (n_terraforms * misc_costs.terraforming_step);
                 }
 
@@ -2809,9 +2806,9 @@ namespace COLCALC {
     void __cdecl Delete_Obsolete_Artifical_Planets_Under_Construction(int16_t star_idx) {
         if (!COLCALC::Star_Has_Asteroid_Or_Gas_Giant(star_idx)) {
             for (int32_t planet_slot = 0; planet_slot < 5; ++planet_slot) {
-                const int16_t planet_idx = legacy_world::Index(MOX::star[star_idx].orbit_planet_ids[planet_slot].get()).value_or(-1);
-                if (planet_idx != -1) {
-                    const int16_t colony_idx = current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).colony_index;
+                const auto planet_idx = MOX::star[star_idx].orbit_planet_ids[planet_slot].get();
+                if (planet_idx != game::NO_PLANET) {
+                    const int16_t colony_idx = current_state.planets.at(planet_idx).colony_index;
                     if (colony_idx != -1) {
                         COLBLDG::Delete_Prod_From_Colony_Queue(colony_idx, BUILDING_ARTIFICIAL_PLANET);
                     }
@@ -2872,11 +2869,11 @@ namespace COLCALC {
         bool found = false;
 
         for (int i = 0; i < 5; ++i) {
-            int16_t planet_index = legacy_world::Index(MOX::star[star_index].orbit_planet_ids[i].get()).value_or(-1);
+            const auto planet_index = MOX::star[star_index].orbit_planet_ids[i].get();
 
-            if (planet_index != -1) {
+            if (planet_index != game::NO_PLANET) {
                 // s_planet_data size is 17 (0x11). planet_type is at offset 0x4.
-                int8_t planet_type = current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_index)}).planet_type;
+                int8_t planet_type = current_state.planets.at(planet_index).planet_type;
 
                 // Checks for specific planet types (likely 1 = Asteroids, 2 = Gas Giant)
                 if (planet_type == PLANET_TYPE_ASTEROID || planet_type == PLANET_TYPE_GAS_GIANT) {
@@ -3017,11 +3014,11 @@ namespace COLCALC {
                     case BUILDING_ARTEMIS_SYSTEM_NET:
                     case BUILDING_DIMENSIONAL_PORTAL: {
                         uint8_t retval = 1;
-                        int16_t star_index = current_state.planets.at(game::id_planet{static_cast<uint32_t>(colony->planet)}).star_index;
+                        int16_t star_index = current_state.planets.at(colony->planet_id.get()).star_index;
                         for (int i = 0; i < 5; ++i) {
-                            int16_t p = legacy_world::Index(MOX::star[star_index].orbit_planet_ids[i].get()).value_or(-1);
-                            if (p != -1) {
-                                int16_t c = current_state.planets.at(game::id_planet{static_cast<uint32_t>(p)}).colony_index;
+                            const auto p = MOX::star[star_index].orbit_planet_ids[i].get();
+                            if (p != game::NO_PLANET) {
+                                int16_t c = current_state.planets.at(p).colony_index;
                                 if (c != -1 && MOX::colony[c].owner == owner) {
                                     if (MOX::colony[c].buildings[product] != 0 ||
                                         COLCALC::N_Prods_In_Colony_Queue(c, product) >= 1) {
@@ -3047,13 +3044,13 @@ namespace COLCALC {
                     }
                     case BUILDING_COLONY_BASE: {
                         bool has_planet_type_3 = false;
-                        int16_t star_index = current_state.planets.at(game::id_planet{static_cast<uint32_t>(colony->planet)}).star_index;
+                        int16_t star_index = current_state.planets.at(colony->planet_id.get()).star_index;
                         for (int i = 0; i < 5; ++i) {
-                            int16_t p = legacy_world::Index(MOX::star[star_index].orbit_planet_ids[i].get()).value_or(-1);
-                            if (p != -1) {
-                                if (current_state.planets.at(game::id_planet{static_cast<uint32_t>(p)}).planet_type == PLANET_TYPE_PLANET) {
+                            const auto p = MOX::star[star_index].orbit_planet_ids[i].get();
+                            if (p != game::NO_PLANET) {
+                                if (current_state.planets.at(p).planet_type == PLANET_TYPE_PLANET) {
                                     has_planet_type_3 = true;
-                                    if (current_state.planets.at(game::id_planet{static_cast<uint32_t>(p)}).colony_index == -1) {
+                                    if (current_state.planets.at(p).colony_index == -1) {
                                         return 1;
                                     }
                                 }
@@ -3076,7 +3073,7 @@ namespace COLCALC {
                     }
                     case BUILDING_GRAVITY_GENERATOR: {
                         if (colony->n_pops > 0) {
-                            int8_t gravity = current_state.planets.at(game::id_planet{static_cast<uint32_t>(colony->planet)}).gravity_class;
+                            int8_t gravity = current_state.planets.at(colony->planet_id.get()).gravity_class;
                             for (int i = 0; i < colony->n_pops; ++i) {
                                 uint32_t race = POP::Get_Race(colony->pop[i]);
                                 if (race < MAX_PLAYERS) {
@@ -3099,7 +3096,7 @@ namespace COLCALC {
                         if (colony->buildings[BUILDING_BARRIER_SHIELD] != 0) return 0;
                         return 1;
                     case BUILDING_SOIL_ENRICHMENT: {
-                        if ((current_state.planets.at(game::id_planet{static_cast<uint32_t>(colony->planet)}).environmental_alterations & 2) != 0) return 0;
+                        if ((current_state.planets.at(colony->planet_id.get()).environmental_alterations & 2) != 0) return 0;
                         if (colony->climate >= PLANET_CLIMATE_DESERT && colony->climate <= PLANET_CLIMATE_GAIA) return 1;
                         return 0;
                     }
@@ -3121,7 +3118,7 @@ namespace COLCALC {
                         return (uint8_t)colony->climate < weather_control_climate ? 2 : 1;
                     }
                     case BUILDING_ARTIFICIAL_PLANET: {
-                        return COLCALC::Star_Has_Asteroid_Or_Gas_Giant(current_state.planets.at(game::id_planet{static_cast<uint32_t>(colony->planet)}).star_index);
+                        return COLCALC::Star_Has_Asteroid_Or_Gas_Giant(current_state.planets.at(colony->planet_id.get()).star_index);
                     }
                     default:
                         return 1;
@@ -3230,9 +3227,9 @@ namespace COLCALC {
 
                     // Check if any colony owned by the surrendering player is their capitol.
                     for (int p = 4; p >= 0; --p) {
-                        int16_t planet_idx = legacy_world::Index(star->orbit_planet_ids[p].get()).value_or(-1);
-                        if (planet_idx != -1) {
-                            int16_t colony_idx = current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).colony_index;
+                        const auto id = star->orbit_planet_ids[p].get();
+                        if (id != game::NO_PLANET) {
+                            const auto colony_idx = current_state.planets.at(id).colony_index;
                             if (colony_idx != -1) {
                                 s_colony* colony = &MOX::colony[colony_idx];
                                 if (colony->owner == (char)player_idx && colony->buildings[BUILDING_CAPITOL] != 0) {
@@ -3278,9 +3275,9 @@ namespace COLCALC {
 
                 // Calculate weight based on total population of colonies owned by the player in this system
                 for (int p = 0; p < 5; ++p) {
-                    int16_t planet_idx = legacy_world::Index(MOX::star[star_idx].orbit_planet_ids[p].get()).value_or(-1);
-                    if (planet_idx != -1) {
-                        int16_t colony_idx = current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).colony_index;
+                    const auto planet_idx = MOX::star[star_idx].orbit_planet_ids[p].get();
+                    if (planet_idx != game::NO_PLANET) {
+                        int16_t colony_idx = current_state.planets.at(planet_idx).colony_index;
                         if (colony_idx != -1 && MOX::colony[colony_idx].owner == player_idx) {
                             star_weights[i].weight += MOX::colony[colony_idx].n_pops;
                         }
@@ -3598,7 +3595,7 @@ namespace COLCALC {
 
                         s_MSG msg = {};
                         msg.msg_type = MSG_TYPE_COLONY;
-                        msg.u.colony.planet_idx = colony->planet;
+                        msg.u.colony.planet_idx = SERIAL::Encode_Legacy_Planet_Reference(colony->planet_id.get());
                         msg.u.colony.subtype = MSG_COLONY_SUBTYPE_ASSIMILATION;
                         msg.u.colony.c.assimilation.val =
                             static_cast<uint8_t>(POP::Get_Race(colony->pop[chosen_pop_idx]));
@@ -3624,9 +3621,9 @@ namespace COLCALC {
         const game::s_view world{.colonies = MOX::colony, .colony_count = &MOX::NUM_COLONIES};
         const auto colony_id = legacy_world::Colony_Id(&world, colony);
         if (!colony_id) return;
-        const auto legacy_colony = legacy_world::Index(*colony_id);
-        if (!legacy_colony) return;
-        const int16_t colony_idx = *legacy_colony;
+        const auto legacy_colony = (*colony_id).id;
+        if (legacy_colony >= MAX_COLONIES) return;
+        const int16_t colony_idx = legacy_colony;
         s_player& player = MOX::player[owner_player_idx];
 
         if (EVENTS::Event_Check_Space_Anomaly(colony_idx) != 0) {
@@ -3695,7 +3692,7 @@ namespace COLCALC {
             if (production_pool >= product_cost) {
                 s_MSG build_msg{};
                 build_msg.msg_type = MSG_TYPE_COLONY;
-                build_msg.u.colony.planet_idx = colony->planet;
+                build_msg.u.colony.planet_idx = SERIAL::Encode_Legacy_Planet_Reference(colony->planet_id.get());
                 build_msg.u.colony.subtype = MSG_COLONY_SUBTYPE_PRODUCTION_COMPLETED;
                 build_msg.u.colony.c.build.build_id = current_product;
 
@@ -3741,8 +3738,8 @@ namespace COLCALC {
                             COLBLDG::Delete_Prod_From_Colony_Queue(colony_idx, BUILDING_TERRAFORMING);
                         }
                     } else if (current_product == BUILDING_ARTIFICIAL_PLANET) {
-                        const int16_t planet_idx = colony->planet;
-                        const int16_t star_idx = current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).star_index;
+                        const auto planet_idx = colony->planet_id.get();
+                        const int16_t star_idx = current_state.planets.at(planet_idx).star_index;
                         COLCALC::Delete_Obsolete_Artifical_Planets_Under_Construction(star_idx);
                     }
                 } else {
@@ -3849,7 +3846,7 @@ namespace COLCALC {
                                     } else {
                                         s_MSG pop_removed_msg{};
                                         pop_removed_msg.msg_type = MSG_TYPE_COLONY;
-                                        pop_removed_msg.u.colony.planet_idx = colony->planet;
+                                        pop_removed_msg.u.colony.planet_idx = SERIAL::Encode_Legacy_Planet_Reference(colony->planet_id.get());
                                         pop_removed_msg.u.colony.subtype = MSG_COLONY_SUBTYPE_ANDROID_KILLED_ORGANIC;
                                         pop_removed_msg.u.colony.c.android_killed.race_idx =
                                             static_cast<int8_t>(POP::Get_Race(POP::Load(selected_pop)));
@@ -3882,7 +3879,7 @@ namespace COLCALC {
                                 } else {
                                     s_MSG pop_failed_msg{};
                                     pop_failed_msg.msg_type = MSG_TYPE_COLONY;
-                                    pop_failed_msg.u.colony.planet_idx = colony->planet;
+                                    pop_failed_msg.u.colony.planet_idx = SERIAL::Encode_Legacy_Planet_Reference(colony->planet_id.get());
                                     pop_failed_msg.u.colony.subtype = MSG_COLONY_SUBTYPE_NO_ROOM_FOR_ANDROID;
                                     MSG_::Add_Msg(pop_failed_msg, static_cast<int16_t>(owner_player_idx));
 
@@ -3961,7 +3958,7 @@ namespace COLCALC {
 
                 if (player->settlers_freighted > 0) {
                     for (int32_t settler_idx = 0; settler_idx < player->settlers_freighted; ++settler_idx) {
-                        if (player->settlers[settler_idx].destination.get() == game::id_planet{static_cast<uint32_t>(colony->planet)}) {
+                        if (player->settlers[settler_idx].destination.get() == colony->planet_id.get()) {
                             has_incoming_settlers = true;
                         }
                     }

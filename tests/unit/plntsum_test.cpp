@@ -109,7 +109,7 @@ DOCTEST_TEST_CASE("mixed minerals remain planet-local across filter permutations
                         // enemy ship in orbit, or enemy ship en route.
                         if (presence >= 1 && presence <= 3) {
                             test_planets::Record(0).colony_index = 0;
-                            MOX::colony[0].planet = 0;
+                            MOX::colony[0].planet_id = game::id_planet{0};
                             MOX::colony[0].owner = presence == 2 ? 0 : 1;
                             MOX::colony[0].outpost_flag = presence == 3;
                         } else if (presence >= 4) {
@@ -156,7 +156,7 @@ DOCTEST_TEST_CASE("destroyed occupants no longer hide mixed-mineral systems") {
     Add_System(0, 0);
     test_planets::Record(0).colony_index = 0;
     MOX::colony[0].owner = 1;
-    MOX::colony[0].planet = 0;
+    MOX::colony[0].planet_id = game::id_planet{0};
     MOX::player[1].home_planet_id = game::NO_PLANET;
     Add_Ship(1, 0);
     PLNTSUM::Set_Planet_Explored_Flags();
