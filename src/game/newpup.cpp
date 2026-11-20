@@ -56,7 +56,7 @@ namespace NEWPUP {
             planet_index = HAROLD::Planet_Index(MOX::screen_data, COLONY::orbit_temp);
 
             invasion::Compute_Colony_Ground_Combat_Info(
-                &MOX::colony[MOX::planet[planet_index].colony_index],
+                &MOX::colony[game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_index)}).colony_index],
                 &invasion_info,
                 rebel_display != 0);
 

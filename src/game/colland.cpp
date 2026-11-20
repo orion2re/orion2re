@@ -10,7 +10,7 @@ namespace COLLAND {
 
     void __cdecl Print_Planet_Data(int16_t planet_idx) {
         char buffer[500];
-        s_planet_data* planet = &MOX::planet[planet_idx];
+        s_planet_data* planet = &game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)});
 
         COLONY::Set_Colony_Font_To(4);
 
@@ -162,7 +162,7 @@ namespace COLLAND {
         COLONY::orbit_n = COLONY::orbit_temp;
 
         COLONY::planet_handle = HAROLD::Planet_Index(MOX::screen_data, COLONY::orbit_temp);
-        COLONY::colony_handle = MOX::planet[COLONY::planet_handle].colony_index;
+        COLONY::colony_handle = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(COLONY::planet_handle)}).colony_index;
         COLONY::valid_colony = 1;
         COLONY::drawing_display = 0;
         COLONY::sys_disp_star_handle = COLONY::star_handle;
@@ -219,7 +219,7 @@ namespace COLLAND {
         sound::Fadeout_Sound(pod2l_sfx, 10);
 
         int16_t planet_idx = MOX::colony[COLONY::colony_handle].planet;
-        int16_t star_idx = MOX::planet[planet_idx].star_index;
+        int16_t star_idx = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).star_index;
 
         if (COLCALC::N_Colonies_And_Outposts_At_Star(star_idx) == 1 && MOX::settings.animations_on) {
             int16_t cy = namestar::Star_Name_Popup_Screen_Center_Y();

@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/planet_roster.h"
 
 #include "doctest/doctest.h"
 #include "game/events.h"
@@ -35,7 +36,7 @@ namespace {
         MOX::player[0].total_pop = 10;
         MOX::colony[0].owner = 0;
         MOX::colony[0].planet = 0;
-        MOX::planet[0].colony_index = 0;
+        test_planets::Record(0).colony_index = 0;
         EVENTS::last_event_year = 35000;
         EVENTS::event_delay_count = EVENTS::between_events_delay;
         EVENTS::force_event_type = static_cast<uint8_t>(event + 1);
@@ -123,7 +124,7 @@ DOCTEST_TEST_CASE("Lucky event selection retains the full random result") {
 
 DOCTEST_TEST_CASE("monster planet updates retain explicit report state") {
     TEST_EVENTS::Reset_();
-    MOX::planet[3].colony_index = 2;
+    test_planets::Record(3).colony_index = 2;
     MOX::colony[2].owner = 4;
 
     EVENTS::Event_Monster_Update(NONPLAYER_SHIP_TYPE_AMOEBA, 3, -1);
@@ -171,9 +172,9 @@ DOCTEST_TEST_CASE("planet event reports preserve vanilla and v150 location token
     MOX::PLAYER_NUM = 0;
     MOX::colony[0].planet = 188;
     MOX::colony[3].planet = 193;
-    MOX::planet[193].colony_index = 3;
-    MOX::planet[193].star_index = 54;
-    MOX::planet[193].mineral_class = MINERAL_RESOURCE_ULTRA_RICH;
+    test_planets::Record(193).colony_index = 3;
+    test_planets::Record(193).star_index = 54;
+    test_planets::Record(193).mineral_class = MINERAL_RESOURCE_ULTRA_RICH;
     strlcpy(MOX::star[54].name, "Gnol", sizeof(MOX::star[54].name));
     strlcpy(MOX::player[2].race_name, "Gnolam", sizeof(MOX::player[2].race_name));
     char mineral_name[] = "Ultra Rich";
@@ -311,10 +312,10 @@ DOCTEST_TEST_CASE("Pirate Raid calculation avoids signed product overflow") {
 DOCTEST_TEST_CASE("Supernova adds the minimum to total system research") {
     TEST_EVENTS::Reset_();
 
-    MOX::star[0].planet_index[0] = 0;
-    MOX::star[0].planet_index[1] = 1;
-    MOX::planet[0].colony_index = 0;
-    MOX::planet[1].colony_index = 1;
+    MOX::star[0].orbit_planet_ids[0] = game::id_planet{0};
+    MOX::star[0].orbit_planet_ids[1] = game::id_planet{1};
+    test_planets::Record(0).colony_index = 0;
+    test_planets::Record(1).colony_index = 1;
     MOX::colony[0].production[ECON_RESEARCH] = 4;
     MOX::colony[1].production[ECON_RESEARCH] = 7;
     EVENTS::supernova.minimum_research_per_turn = 10;
@@ -325,13 +326,13 @@ DOCTEST_TEST_CASE("Supernova adds the minimum to total system research") {
 DOCTEST_TEST_CASE("failed Supernova resets planet environment before destruction") {
     TEST_EVENTS::Reset_();
 
-    MOX::star[0].planet_index[0] = 0;
-    MOX::star[0].planet_index[1] = 1;
-    MOX::planet[0].colony_index = 0;
-    MOX::planet[0].climate = PLANET_CLIMATE_TERRAN;
-    MOX::planet[0].environmental_alterations = 2;
-    MOX::planet[1].climate = PLANET_CLIMATE_GAIA;
-    MOX::planet[1].environmental_alterations = 2;
+    MOX::star[0].orbit_planet_ids[0] = game::id_planet{0};
+    MOX::star[0].orbit_planet_ids[1] = game::id_planet{1};
+    test_planets::Record(0).colony_index = 0;
+    test_planets::Record(0).climate = PLANET_CLIMATE_TERRAN;
+    test_planets::Record(0).environmental_alterations = 2;
+    test_planets::Record(1).climate = PLANET_CLIMATE_GAIA;
+    test_planets::Record(1).environmental_alterations = 2;
     MOX::colony[0].owner = 0;
     MOX::colony[0].planet = 0;
     MOX::food_per_farmer_table[PLANET_CLIMATE_RADIATED] = 7;
@@ -346,11 +347,11 @@ DOCTEST_TEST_CASE("failed Supernova resets planet environment before destruction
 
     DOCTEST_CHECK((event.status == 5));
     for (int planet_idx = 0; planet_idx < 2; ++planet_idx) {
-        DOCTEST_CHECK((MOX::planet[planet_idx].climate == PLANET_CLIMATE_RADIATED));
-        DOCTEST_CHECK((MOX::planet[planet_idx].environmental_alterations == 0));
-        DOCTEST_CHECK((MOX::planet[planet_idx].food_per_farmer == 7));
+        DOCTEST_CHECK((test_planets::Record(planet_idx).climate == PLANET_CLIMATE_RADIATED));
+        DOCTEST_CHECK((test_planets::Record(planet_idx).environmental_alterations == 0));
+        DOCTEST_CHECK((test_planets::Record(planet_idx).food_per_farmer == 7));
     }
-    DOCTEST_CHECK((MOX::planet[0].colony_index == -1));
+    DOCTEST_CHECK((test_planets::Record(0).colony_index == -1));
     DOCTEST_CHECK((MOX::colony[0].owner == -1));
 }
 

@@ -1,11 +1,12 @@
 #include "pch.h"
+#include "../fixtures/planet_roster.h"
 
 #include "doctest/doctest.h"
 #include "fake_plntsum_runtime.h"
 
 namespace {
     s_player players[MAX_PLAYERS];
-    s_planet_data planets[MAX_PLANETS];
+
     s_star_data stars[MAX_STARS + 1];
     s_colony colonies[2];
     s_ship_data ships[8];
@@ -20,14 +21,14 @@ namespace {
 
 namespace MOX {
     s_player* player = players;
-    s_planet_data* planet = planets;
+
     s_star_data* star = stars;
     s_colony* colony = colonies;
     s_ship_data* ship = ships;
     s_scroll_bar* scroll_bar = &scroll;
     s_animation_header* screen_seg = nullptr;
     int16_t PLAYER_NUM;
-    int16_t planet_count;
+
     int16_t scanned_field;
     int16_t ship_stack_count;
     int16_t NUM_SHIPS;
@@ -58,7 +59,7 @@ namespace TEST_PLNTSUM {
 
     void Reset_() {
         memset(players, 0, sizeof(players));
-        memset(planets, 0, sizeof(planets));
+        test_planets::Reset(0);
         memset(stars, 0, sizeof(stars));
         memset(colonies, 0, sizeof(colonies));
         memset(ships, 0, sizeof(ships));
@@ -81,21 +82,21 @@ namespace TEST_PLNTSUM {
         memset(summary, 0xFF, sizeof(summary));
         memset(MOX::ship_stack_start, 0xFF, sizeof(MOX::ship_stack_start));
         memset(MOX::ship_node, 0xFF, sizeof(MOX::ship_node));
-        for (auto& planet : planets) {
+        for (auto& [id, planet] : game::current_state.planets) {
             planet.colony_index = -1;
             planet.planet_type = PLANET_TYPE_ASTEROID;
         }
         for (auto& star : stars) {
             memset(star.officer_index, 0xFF, sizeof(star.officer_index));
             for (int orbit = 0; orbit < 5; ++orbit) {
-                star.planet_index[orbit] = -1;
+                star.orbit_planet_ids[orbit] = game::NO_PLANET;
             }
         }
         for (bool& reachable : in_range) {
             reachable = true;
         }
         MOX::PLAYER_NUM = 0;
-        MOX::planet_count = 0;
+        test_planets::Resize_Dense(0);
         MOX::ship_stack_count = 0;
         MOX::NUM_SHIPS = 0;
         MOX::NUM_STARS = 0;

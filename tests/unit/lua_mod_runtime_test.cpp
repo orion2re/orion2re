@@ -1,4 +1,5 @@
 #include "lua/lua_mod_runtime.h"
+#include "../fixtures/planet_roster.h"
 
 #include <doctest/doctest.h>
 
@@ -10,6 +11,7 @@
 
 #include "config/mod_manifest.h"
 #include "game/consts.h"
+#include "game/game_state.h"
 #include "game/random.h"
 #include "game/vfs.h"
 #include "lua/lua_game.h"
@@ -340,9 +342,9 @@ TEST_CASE("Lua galaxy collections enforce native capacity limits") {
     orion2re::lua::Commit_Mod_Runtimes(&runtimes);
     TEST_LUA_GAME::Reset_();
     MOX::NUM_STARS = MAX_STARS;
-    MOX::planet_count = MAX_PLANETS;
+    test_planets::Resize_Dense(MAX_PLANETS);
     for (int16_t planet_id = 3; planet_id < MAX_PLANETS; ++planet_id) {
-        MOX::planet[planet_id].star_index = 0;
+        test_planets::Record(planet_id).star_index = 0;
     }
     MOX::NUM_SHIPS = MAX_SHIPS;
     MOX::NUM_NEBULAS = MAX_NEBULAS;
@@ -382,11 +384,11 @@ TEST_CASE("Lua galaxy collections expose complete stable domain objects") {
     orion2re::lua::Commit_Mod_Runtimes(&runtimes);
     TEST_LUA_GAME::Reset_();
     MOX::NUM_COLONIES = 2;
-    MOX::planet[0].colony_index = 0;
+    test_planets::Record(0).colony_index = 0;
     MOX::colony[0].planet = 0;
     MOX::colony[0].owner = 0;
-    MOX::planet[1].planet_type = PLANET_TYPE_PLANET;
-    MOX::planet[1].colony_index = 1;
+    test_planets::Record(1).planet_type = PLANET_TYPE_PLANET;
+    test_planets::Record(1).colony_index = 1;
     MOX::colony[1].planet = 1;
     MOX::colony[1].owner = 1;
     MOX::star[0].size = 4;
@@ -441,7 +443,7 @@ TEST_CASE("Lua galaxy mutations reject invalid domains and references") {
     orion2re::lua::Commit_Mod_Runtimes(&runtimes);
     TEST_LUA_GAME::Reset_();
     MOX::NUM_COLONIES = 1;
-    MOX::planet[0].colony_index = 0;
+    test_planets::Record(0).colony_index = 0;
     MOX::colony[0].planet = 0;
     MOX::colony[0].owner = 0;
     game::current_state.leaders[0].status = 0;
@@ -511,7 +513,7 @@ TEST_CASE("Lua galaxy generator registration and provider conflicts fail activat
     }
 }
 
-TEST_CASE("Lua galaxy structural operations preserve stable candidate handles") {
+TEST_CASE("Lua galaxy structural operations preserve keyed candidate identities") {
     s_module_files files;
     Initialize_Package_Files_(&files, {"provider"});
     Write_Package_File_(&files,
@@ -536,9 +538,18 @@ TEST_CASE("Lua galaxy structural operations preserve stable candidate handles") 
     bool invoked = false;
     std::string diagnostic;
 
+    game::s_game_state candidate;
+    for (int16_t i = 0; i < static_cast<int16_t>(game::current_state.planets.size()); ++i) {
+        REQUIRE(candidate.Create_Planet(test_planets::Record(i)).has_value());
+    }
+    candidate.next_planet_id = 70000;
+    const auto first_new = candidate.next_planet_id;
+    const auto live_count = static_cast<int16_t>(game::current_state.planets.size());
     CAPTURE(diagnostic);
-    REQUIRE(orion2re::lua::Dispatch_Active_Galaxy_Generator(
-        &invoked, &diagnostic));
+    orion2re::lua::game::internal::galaxy_planet_candidate = &candidate;
+    const bool dispatched = orion2re::lua::Dispatch_Active_Galaxy_Generator(&invoked, &diagnostic);
+    orion2re::lua::game::internal::galaxy_planet_candidate = nullptr;
+    REQUIRE(dispatched);
 
     CHECK(invoked);
     CHECK(diagnostic.empty());
@@ -546,6 +557,11 @@ TEST_CASE("Lua galaxy structural operations preserve stable candidate handles") 
     CHECK((MOX::star[1].y == 80));
     CHECK((MOX::star[0].wormhole_star_id == 1));
     CHECK((MOX::star[1].wormhole_star_id == 0));
+    CHECK(static_cast<int16_t>(game::current_state.planets.size()) == live_count);
+    CHECK(candidate.next_planet_id == first_new + 2);
+    CHECK_FALSE(candidate.planets.contains(game::id_planet{first_new}));
+    CHECK(candidate.planet_order.back() == game::id_planet{first_new + 1});
+    CHECK(candidate.planets.at(game::id_planet{first_new + 1}).star_index == 1);
 
     TEST_LUA_GAME::Reset_();
     orion2re::lua::Reset_Mod_Runtimes();
@@ -2298,32 +2314,32 @@ TEST_CASE("planet generated event implements the legacy deposit behavior") {
 
     const auto prior_game_type = MOX::game_type;
     MOX::game_type = 0;
-    MOX::planet_count = 2;
+    test_planets::Resize_Dense(2);
     MOX::NUM_STARS = 2;
-    MOX::planet[1].star_index = 1;
-    MOX::planet[1].orbit = 3;
-    MOX::planet[1].planet_type = PLANET_TYPE_PLANET;
-    MOX::planet[1].size = PLANET_SIZE_SMALL;
-    MOX::planet[1].gravity_class = PLANET_GRAVITY_LOW_G;
-    MOX::planet[1].climate = PLANET_CLIMATE_BARREN;
-    MOX::planet[1].mineral_class = MINERAL_RESOURCE_POOR;
-    MOX::planet[1].planet_special = SYSTEM_SPECIAL_GOLD_DEPOSITS;
-    MOX::star[1].planet_index[3] = 1;
+    test_planets::Record(1).star_index = 1;
+    test_planets::Record(1).orbit = 3;
+    test_planets::Record(1).planet_type = PLANET_TYPE_PLANET;
+    test_planets::Record(1).size = PLANET_SIZE_SMALL;
+    test_planets::Record(1).gravity_class = PLANET_GRAVITY_LOW_G;
+    test_planets::Record(1).climate = PLANET_CLIMATE_BARREN;
+    test_planets::Record(1).mineral_class = MINERAL_RESOURCE_POOR;
+    test_planets::Record(1).planet_special = SYSTEM_SPECIAL_GOLD_DEPOSITS;
+    MOX::star[1].orbit_planet_ids[3] = game::id_planet{1};
     const orion2re::lua::game::s_planet_generated_event event = {game::id_planet{1}};
     orion2re::lua::game::Planet_Generated(&event);
-    CHECK(MOX::planet[1].mineral_class == MINERAL_RESOURCE_ABUNDANT);
-    CHECK(MOX::planet[1].gravity_class == PLANET_GRAVITY_NORMAL_G);
+    CHECK(test_planets::Record(1).mineral_class == MINERAL_RESOURCE_ABUNDANT);
+    CHECK(test_planets::Record(1).gravity_class == PLANET_GRAVITY_NORMAL_G);
 
     MOX::game_type = 2;
-    MOX::planet[1].mineral_class = MINERAL_RESOURCE_POOR;
-    MOX::planet[1].gravity_class = PLANET_GRAVITY_LOW_G;
+    test_planets::Record(1).mineral_class = MINERAL_RESOURCE_POOR;
+    test_planets::Record(1).gravity_class = PLANET_GRAVITY_LOW_G;
     orion2re::lua::game::Planet_Generated(&event);
-    CHECK(MOX::planet[1].mineral_class == MINERAL_RESOURCE_ABUNDANT);
+    CHECK(test_planets::Record(1).mineral_class == MINERAL_RESOURCE_ABUNDANT);
     MOX::game_type = 3;
-    MOX::planet[1].mineral_class = MINERAL_RESOURCE_POOR;
-    MOX::planet[1].gravity_class = PLANET_GRAVITY_LOW_G;
+    test_planets::Record(1).mineral_class = MINERAL_RESOURCE_POOR;
+    test_planets::Record(1).gravity_class = PLANET_GRAVITY_LOW_G;
     orion2re::lua::game::Planet_Generated(&event);
-    CHECK(MOX::planet[1].gravity_class == PLANET_GRAVITY_LOW_G);
+    CHECK(test_planets::Record(1).gravity_class == PLANET_GRAVITY_LOW_G);
     MOX::game_type = prior_game_type;
     orion2re::lua::Reset_Mod_Runtimes();
     Shutdown_Module_Files_(&files);

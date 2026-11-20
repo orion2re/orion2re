@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/planet_roster.h"
 
 #include "doctest/doctest.h"
 #include "game/config_refresh.h"
@@ -464,18 +465,19 @@ DOCTEST_TEST_CASE("saved mods and canonical launch restoration refresh resources
 
 DOCTEST_TEST_CASE("invalid planet links do not escape the planet and star arrays") {
     test::s_game_state state;
-    MOX::planet_count = MOX::NUM_STARS = 1;
-    state.planets[0].star_index = 5000;
-    state.planets[0].orbit = 9;
-    state.stars[0].planet_index[0] = 5000;
-    for (int j = 1; j < 5; ++j) state.stars[0].planet_index[j] = -1;
+    test_planets::Resize_Dense(1);
+    MOX::NUM_STARS = 1;
+    test_planets::Record(0).star_index = 5000;
+    test_planets::Record(0).orbit = 9;
+    state.stars[0].orbit_planet_ids[0] = game::id_planet{5000};
+    for (int j = 1; j < 5; ++j) state.stars[0].orbit_planet_ids[j] = game::NO_PLANET;
     DOCTEST_CHECK(HAROLD::Planet_Number(0) == 0);
     DOCTEST_CHECK(HAROLD::Planet_Number(-1) == 0);
     DOCTEST_CHECK(HAROLD::Planet_Number(5000) == 0);
     HAROLD::Confirm_Planet_And_Star_Index_Link("test");
-    state.stars[0].planet_index[0] = 0;
+    state.stars[0].orbit_planet_ids[0] = game::id_planet{0};
     HAROLD::Confirm_Planet_And_Star_Index_Link("test");
-    state.planets[0].star_index = state.planets[0].orbit = 0;
+    test_planets::Record(0).star_index = test_planets::Record(0).orbit = 0;
     DOCTEST_CHECK(HAROLD::Planet_Number(0) == 0);
 }
 
@@ -522,15 +524,14 @@ DOCTEST_TEST_CASE("session settings recover missing and short files without losi
 DOCTEST_TEST_CASE("successful file save load requests resource reload even when mods are unchanged") {
     Fixture fixture;
     std::vector<s_colony> colonies(MAX_COLONIES);
-    std::vector<s_planet_data> planets(MAX_PLANETS);
     std::vector<s_star_data> stars(MAX_STARS);
     std::vector<s_nebula> nebulas(MAX_NEBULAS);
     MOX::colony = colonies.data();
-    MOX::planet = planets.data();
     MOX::star = stars.data();
     MOX::nebula = nebulas.data();
     MOX::global_data_seg = allocate::Allocate_Space(0x2800 + MAX_SHIPS - ORIGINAL_MAX_SHIPS);
-    MOX::NUM_COLONIES = MOX::planet_count = MOX::NUM_STARS = MOX::NUM_SHIPS = 0;
+    test_planets::Reset();
+    MOX::NUM_COLONIES = MOX::NUM_STARS = MOX::NUM_SHIPS = 0;
     MOX::NUM_NEBULAS = 0;
     MOX::NUM_PLAYERS = 1;
     MOX::PLAYER_NUM = 0;
@@ -570,7 +571,6 @@ DOCTEST_TEST_CASE("successful file save load requests resource reload even when 
     free((allocate::s_alloc_header*)MOX::global_data_seg - 1);
     MOX::global_data_seg = nullptr;
     MOX::colony = nullptr;
-    MOX::planet = nullptr;
     MOX::star = nullptr;
     MOX::nebula = nullptr;
 }

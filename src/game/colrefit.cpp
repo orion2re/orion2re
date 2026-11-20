@@ -197,7 +197,7 @@ namespace COLREFIT {
                     COLONY::full_draw = 1;
                 } else {
                     int16_t planet_idx = HAROLD::Planet_Index(MOX::screen_data, COLONY::orbit_temp);
-                    if (COLCALC::Colony_Can_Build_Product(&MOX::colony[MOX::planet[planet_idx].colony_index], COLBLDG::Colony_Production_From_Ship_Index(ship_idx))) {
+                    if (COLCALC::Colony_Can_Build_Product(&MOX::colony[game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).colony_index], COLBLDG::Colony_Production_From_Ship_Index(ship_idx))) {
                         if (MOX::ship[ship_idx].d.previous_owner == MOX::PLAYER_NUM) {
                             if (MOX::ship[ship_idx].officer_index == -1) {
                                 COLREFIT::esc = 1;
@@ -419,7 +419,7 @@ namespace COLREFIT {
         COLONY::Remap_Draw_Ship_Centered(x_offset + 188, y_offset + 77, ship_idx);
 
         int16_t planet_idx = HAROLD::Planet_Index(MOX::screen_data, COLONY::orbit_temp);
-        int16_t colony_idx = MOX::planet[planet_idx].colony_index;
+        int16_t colony_idx = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).colony_index;
 
         if (!COLCALC::Colony_Can_Build_Product(&MOX::colony[colony_idx], COLBLDG::Colony_Production_From_Ship_Index(ship_idx))) {
             COLONY::Set_Colony_Font_To_Red(1, 1);

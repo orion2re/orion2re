@@ -19,11 +19,11 @@ DOCTEST_TEST_CASE("coverage counts do not wrap at the old byte boundary") {
         auto& stars = game_state.stars;
         for (auto& star : stars) star.wormhole_star_id = -1;
         std::vector<s_colony> colonies(257);
-        std::vector<s_planet_data> planets(257);
+        game::s_game_state roster;
         for (uint32_t i = 0; i < 257; ++i) {
             colonies[i].owner = 0;
             colonies[i].planet = (int16_t)i;
-            planets[i].star_index = (int16_t)(i / 5);
+            roster.Create_Planet({.star_index = static_cast<int16_t>(i / 5)});
         }
         int16_t players = 1;
         int16_t star_count = 52;
@@ -31,7 +31,7 @@ DOCTEST_TEST_CASE("coverage counts do not wrap at the old byte boundary") {
             .players = &player,
             .stars = stars.data(),
             .colonies = colonies.data(),
-            .planets = planets.data(),
+            .state = &roster,
             .settings = &settings,
             .player_count = &players,
             .star_count = &star_count,
@@ -154,14 +154,12 @@ DOCTEST_TEST_CASE("strategic AI input diagnostics identify the failing requireme
         .ships = &ship,
         .stars = &star,
         .colonies = &colony,
-        .planets = &planet,
         .state = &state,
         .settings = &settings,
         .player_count = &players,
         .ship_count = &count,
         .star_count = &count,
         .colony_count = &count,
-        .planet_count = &count,
         .stardate = &date,
     };
     DOCTEST_CHECK(AIDATA::Validate_Inputs(&world) == nullptr);

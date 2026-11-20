@@ -43,15 +43,17 @@ namespace AIMOVE {
         const auto* world = ctx->world;
         const uint32_t i_ai = legacy_world::Slot(ctx->player_idx);
         s_player* p_ai = ctx->player;
-        if (p_ai->sneak_attack_planet != -1) {
+        if (p_ai->sneak_attack_planet.get() != game::NO_PLANET) {
             if (AIBUILD::Player_War_Level(world, legacy_world::Player_Id(i_ai)) != 0) {
-                p_ai->sneak_attack_planet = -1;
+                p_ai->sneak_attack_planet = game::NO_PLANET;
             }
         }
 
-        if (p_ai->sneak_attack_planet != -1) {
-            int16_t target_planet_idx = p_ai->sneak_attack_planet;
-            int16_t colony_idx = world->planets[target_planet_idx].colony_index;
+        const auto target_id = p_ai->sneak_attack_planet.get();
+        if (world->state->planets.contains(target_id)) {
+            const auto& target = world->state->planets.at(target_id);
+            int16_t colony_idx = target.colony_index;
+            const int16_t star_idx = target.star_index;
             uint8_t target_player = (uint8_t)p_ai->sneak_attack_player;
 
             if (colony_idx != -1 && world->colonies[colony_idx].owner == target_player) {
@@ -60,7 +62,6 @@ namespace AIMOVE {
                 if (ai->players[i_ai].Find_Combat_Ships(legacy_world::Star_Id(stage_point))) {
                     std::vector<id_ship> ship_list;
                     s_ship_move_info move_info;
-                    int16_t star_idx = world->planets[target_planet_idx].star_index;
 
                     Gather_Player_Ships_At_Star(ai, ctx, legacy_world::Player_Id(i_ai), legacy_world::Star_Id(stage_point), &ship_list);
                     ai_compat::Evaluate_Fleet_Move(ship_list, legacy_world::Star_Id(star_idx), &move_info);
@@ -75,7 +76,6 @@ namespace AIMOVE {
                 }
             }
 
-            int16_t star_idx = world->planets[p_ai->sneak_attack_planet].star_index;
             if (ai->stars[legacy_world::Star_Id(star_idx)].enroute_strengths[i_ai][target_player][1] != 0) {
                 const auto legacy_player = legacy_world::Index(ctx->player_idx);
                 if (legacy_player) diplomac::Declare_War(*legacy_player, target_player);
@@ -302,11 +302,8 @@ namespace AIMOVE {
         const auto* world = ctx->world;
         const uint32_t i_ai = legacy_world::Slot(ctx->player_idx);
         candidates->clear();
-        s_planet_data* planet = world->planets;
-        s_planet_data* end = planet + world->Planet_Count();
-        uint32_t i = 0;
-
-        while (planet < end) {
+        for (const auto id : world->state->planet_order) {
+            const auto* planet = &world->state->planets.at(id);
             // Only consider uncolonized planets.
             // PLANET_TYPE_PLANET is a standard colonizable planet (excluding gas giants, asteroids).
             if (planet->colony_index == -1 && planet->planet_type == PLANET_TYPE_PLANET) {
@@ -316,13 +313,10 @@ namespace AIMOVE {
                 uint8_t star_range_mask = ai->stars[legacy_world::Star_Id(star_idx)].in_extended_range;
 
                 if (((1u << ((uint8_t)i_ai & 0x1F)) & (uint32_t)star_range_mask) != 0) {
-                    const game::id_planet id{static_cast<uint32_t>(i)};
                     candidates->push_back({id, (int32_t)(uint16_t)ai->planets[id].contextual_values[i_ai]});
                 }
             }
 
-            ++planet;
-            ++i;
         }
     }
 
@@ -342,7 +336,7 @@ namespace AIMOVE {
                     if (!location) continue;
                     const uint32_t star_idx = legacy_world::Slot(location->star_id);
                     for (uint32_t j = (uint32_t)candidates->size(); j-- > 0;) {
-                        if (world->planets[legacy_world::Slot((*candidates)[j].planet_id)].star_index == star_idx) {
+                        if (world->state->planets.at((*candidates)[j].planet_id).star_index == star_idx) {
                             candidates->erase(candidates->begin() + j);
                             break;
                         }
@@ -356,11 +350,11 @@ namespace AIMOVE {
                 s_colony* colony = &world->colonies[i];
 
                 if (colony->owner == i_ai && colony->producing[0] == BUILDING_COLONY_BASE) {
-                    int16_t colony_star_idx = world->planets[colony->planet].star_index;
+                    int16_t colony_star_idx = world->state->planets.at(game::id_planet{static_cast<uint32_t>(colony->planet)}).star_index;
                     bool found = false;
 
                     for (uint32_t j = (uint32_t)candidates->size(); j-- > 0;) {
-                        if (world->planets[legacy_world::Slot((*candidates)[j].planet_id)].star_index == colony_star_idx) {
+                        if (world->state->planets.at((*candidates)[j].planet_id).star_index == colony_star_idx) {
                             candidates->erase(candidates->begin() + j);
                             found = true;
                             break;
@@ -915,9 +909,9 @@ namespace AIMOVE {
                                 if (world->settings->game_difficulty >= GAME_DIFFICULTY_AVERAGE || p_ai->objectives == PLAYER_OBJECTIVE_MILITARIST) {
                                     int16_t ship_idx = i;
                                     for (int j = 4; j >= 0; j--) {
-                                        int16_t planet_idx = world->stars[loc].planet_index[j];
+                                        int16_t planet_idx = legacy_world::Index(world->stars[loc].orbit_planet_ids[j].get()).value_or(-1);
                                         if (planet_idx != -1) {
-                                            int16_t colony_idx = world->planets[planet_idx].colony_index;
+                                            int16_t colony_idx = world->state->planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).colony_index;
                                             if (colony_idx != -1) {
                                                 s_colony* colony = &world->colonies[colony_idx];
                                                 if (colony->owner == ai_idx && colony->outpost_flag == 0) {
@@ -1148,7 +1142,7 @@ namespace AIMOVE {
 
         while (!planets->empty()) {
             if (my_colony_ships.empty()) return;
-            int16_t star_idx = world->planets[legacy_world::Slot(planets->back().planet_id)].star_index;
+            int16_t star_idx = world->state->planets.at(planets->back().planet_id).star_index;
 
             if ((~((1 << i_ai)) & ai->stars[legacy_world::Star_Id(star_idx)].in_extended_range) == 0 &&
                 !ai->stars[legacy_world::Star_Id(star_idx)].neighborhood.per_player[i_ai].other_player_arrivals &&
@@ -1599,7 +1593,7 @@ namespace AIMOVE {
                     }
 
                     int16_t planet_idx = world->colonies[i].planet;
-                    int16_t target_star = world->planets[planet_idx].star_index;
+                    int16_t target_star = world->state->planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).star_index;
 
                     if (visited_stars[target_star] == 0) {
                         if (((ai->stars[legacy_world::Star_Id(target_star)].in_range >> i_ai) & 1) != 0) {
@@ -1673,7 +1667,7 @@ namespace AIMOVE {
 
             int8_t best_mission = mission_array[best_colony_idx];
             int16_t best_planet_idx = world->colonies[best_colony_idx].planet;
-            int16_t best_star_idx = world->planets[best_planet_idx].star_index;
+            int16_t best_star_idx = world->state->planets.at(game::id_planet{static_cast<uint32_t>(best_planet_idx)}).star_index;
 
             ai->players[i_ai].combat_ship_groups.erase(star_id);
 
@@ -1817,7 +1811,7 @@ namespace AIMOVE {
         s_colony* colony = &world->colonies[colony_idx];
         int8_t owner = colony->owner;
         int16_t planet_idx = colony->planet;
-        int16_t star_idx = world->planets[planet_idx].star_index;
+        int16_t star_idx = world->state->planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).star_index;
 
         uint32_t attack_worthiness = 0;
         uint32_t total_space_strength = 0;

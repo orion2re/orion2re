@@ -422,9 +422,7 @@ namespace MOX {
     s_nebula* nebula;
     uint8_t NUM_NEBULAS;
     int16_t NUM_COLONIES;
-    int16_t planet_count;
     int8_t climate_modifier_table[MINERAL_RESOURCE_COUNT] = {0, 0, 0, -10, -20};
-    s_planet_data* planet;
     const char* roman_literals[21] = {
         nullptr,
         "I",

@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/planet_roster.h"
 
 #include "doctest/doctest.h"
 #include "game/colony.h"
@@ -35,7 +36,7 @@ namespace test_ground_commando_runtime {
 DOCTEST_TEST_CASE("transport unloading consumes only enough ships to meet the infantry limit") {
     using namespace test_ground_commando_runtime;
     Reset_();
-    MOX::planet[0].size = PLANET_SIZE_MEDIUM;
+    test_planets::Record(0).size = PLANET_SIZE_MEDIUM;
     Colony_()->military[0] = 3;
     Ship_(0)->d.ship_type = Ship_(1)->d.ship_type = SHIP_TYPE_TRANSPORT;
     int16_t ships[] = {0, 1};
@@ -502,7 +503,7 @@ DOCTEST_TEST_CASE("ground-unit limits use configured planet-size capacity") {
     test_ground_commando_runtime::Reset_();
     s_colony* colony = test_ground_commando_runtime::Colony_();
     colony->owner = 0;
-    MOX::planet[colony->planet].size = PLANET_SIZE_HUGE;
+    test_planets::Record(colony->planet).size = PLANET_SIZE_HUGE;
     const uint8_t saved_capacity =
         COLCALC::population_capacity.size[PLANET_SIZE_HUGE];
 

@@ -20,7 +20,7 @@ namespace PLNTSUM {
             s_plntsum_planet* summary = &PLNTSUM::planet_summary[summary_idx];
 
             if (summary->explored != -1) {
-                s_planet_data* planet = &MOX::planet[summary->explored];
+                s_planet_data* planet = &game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(summary->explored)});
                 int16_t star_idx = planet->star_index;
                 int16_t mineral_class = summary->mineral_class;
                 int16_t climate_idx = summary->climate;
@@ -178,7 +178,7 @@ namespace PLNTSUM {
         ship_list[0] = -1;
         ship_list[1] = -1;
 
-        target_star_idx = MOX::planet[planet_idx].star_index;
+        target_star_idx = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).star_index;
         omniscient = HAROLD::Player_Is_Omniscient(MOX::PLAYER_NUM);
         summary_idx = Planet_Summary_Id(planet_idx);
         nearest_ship_idx = Nearest_Ship_Id(summary_idx);
@@ -347,7 +347,7 @@ namespace PLNTSUM {
                 int16_t explored_idx = PLNTSUM::planet_summary[current_row].explored;
 
                 if (explored_idx != -1) {
-                    int16_t star_idx = MOX::planet[explored_idx].star_index;
+                    int16_t star_idx = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(explored_idx)}).star_index;
 
                     // Handle interaction: Click on fields/icons
                     if (PLNTSUM::screen->fields[i] == clicked_field_id) {
@@ -707,7 +707,7 @@ namespace PLNTSUM {
                 int16_t explored_planet_idx = PLNTSUM::planet_summary[first_row + i].explored;
 
                 if (explored_planet_idx != -1) {
-                    s_planet_data* planet = &MOX::planet[explored_planet_idx];
+                    s_planet_data* planet = &game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(explored_planet_idx)});
 
                     // Planet animation index is determined by climate type and planet size
                     int16_t anim_idx = (int16_t)planet->climate * PLANET_SIZE_COUNT + (int16_t)planet->size;

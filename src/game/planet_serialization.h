@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <utility>
@@ -13,6 +14,7 @@ namespace SERIAL {
     inline constexpr size_t KEYED_PLANET_BYTES = sizeof(uint32_t) + PLANET_BYTES;
     inline constexpr uint16_t KEYED_PLANET_COUNT_FLAG = 0x8000;
     inline constexpr uint16_t WIDE_HOME_PLANET_FLAG = 0x4000; // Stored in the player count.
+    inline constexpr uint16_t WIDE_ATTACK_PLANETS_FLAG = 0x2000; // Stored in the player count.
     static_assert(MAX_PLANETS < KEYED_PLANET_COUNT_FLAG);
 
     inline constexpr game::id_planet Decode_Legacy_Planet_Reference(int16_t index) {
@@ -60,84 +62,66 @@ namespace SERIAL {
         planet.environmental_alterations = reader.Read_Int8();
     }
 
-    inline void Write_Planet_Records(const game::s_game_state& state, Writer_& writer) {
-        for (const auto& [id, planet] : state.planets) {
+    namespace detail {
+        struct s_planet_block_header {
+            uint16_t count;
+            uint16_t record_count;
+            uint32_t next_id;
+            bool keyed;
+        };
+
+        inline std::optional<s_planet_block_header> Read_Planet_Block_Header(Reader_& reader, uint16_t version) {
+            const uint16_t count_field = reader.Read_Uint16();
+            const bool keyed = version >= 8 && (count_field & KEYED_PLANET_COUNT_FLAG) != 0;
+            const uint16_t count = keyed ? count_field & ~KEYED_PLANET_COUNT_FLAG : count_field;
+            const uint16_t record_count = version == 0 ? ORIGINAL_MAX_PLANETS : count;
+            if (count > MAX_PLANETS || count > record_count || reader.Failed()) return std::nullopt;
+            const uint32_t next_id = keyed ? reader.Read_Uint32() : count;
+            const size_t width = keyed ? KEYED_PLANET_BYTES : version == 0 ? LEGACY_PLANET_BYTES : PLANET_BYTES;
+            if (reader.Failed() || next_id < count || !reader.Require(record_count * width)) return std::nullopt;
+            return s_planet_block_header{count, record_count, next_id, keyed};
+        }
+
+        inline void Write_Planet_Block_Header(Writer_& writer, uint16_t count, uint32_t next_id) {
+            writer.Write_Uint16(count | KEYED_PLANET_COUNT_FLAG);
+            writer.Write_Uint32(next_id);
+        }
+
+        inline void Write_Keyed_Planet(Writer_& writer, game::id_planet id, const s_planet_data& planet) {
             writer.Write_Uint32(id.id);
             Write_Planet(writer, planet);
         }
-    }
-
-    inline bool Read_Planet_Records(game::s_game_state& state, Reader_& reader, uint16_t count, uint32_t next_id) {
-        if (count > MAX_PLANETS || !reader.Require(count * KEYED_PLANET_BYTES)) return false;
-
-        decltype(state.planets) planets;
-        for (uint16_t i = 0; i < count; ++i) {
-            const game::id_planet id{reader.Read_Uint32()};
-            if (id.id >= next_id) return false;
-            const auto [it, inserted] = planets.try_emplace(id);
-            if (!inserted) return false;
-            Read_Planet(reader, it->second);
-        }
-        state.planets = std::move(planets);
-        state.next_planet_id = next_id;
-        return true;
-    }
+    } // namespace detail
 
     inline void Write_Planet_Block(const game::s_game_state& state, Writer_& writer) {
-        writer.Write_Uint16(static_cast<uint16_t>(state.planets.size()) | KEYED_PLANET_COUNT_FLAG);
-        writer.Write_Uint32(state.next_planet_id);
-        Write_Planet_Records(state, writer);
+        assert(state.planet_order.size() == state.planets.size());
+        detail::Write_Planet_Block_Header(writer, static_cast<uint16_t>(state.planets.size()), state.next_planet_id);
+        for (const auto id : state.planet_order) {
+            detail::Write_Keyed_Planet(writer, id, state.planets.at(id));
+        }
     }
 
     inline bool Read_Planet_Block(game::s_game_state& state, Reader_& reader, uint16_t version) {
-        const uint16_t count_field = reader.Read_Uint16();
-        if (reader.Failed()) return false;
-        if (version >= 8 && (count_field & KEYED_PLANET_COUNT_FLAG) != 0) {
-            const uint32_t next_id = reader.Read_Uint32();
-            if (reader.Failed()) return false;
-            return Read_Planet_Records(state, reader, count_field & ~KEYED_PLANET_COUNT_FLAG, next_id);
-        }
-
-        if (count_field > MAX_PLANETS) return false;
-        const uint16_t records = version == 0 ? ORIGINAL_MAX_PLANETS : count_field;
-        if (!reader.Require(records * (version == 0 ? LEGACY_PLANET_BYTES : PLANET_BYTES))) return false;
+        const auto header = detail::Read_Planet_Block_Header(reader, version);
+        if (!header) return false;
         decltype(state.planets) planets;
-        for (uint32_t slot = 0; slot < records; ++slot) {
-            s_planet_data planet;
-            Read_Planet(reader, planet, version);
-            if (slot < count_field) planets.emplace(game::id_planet{slot}, planet);
+        decltype(state.planet_order) order;
+        order.reserve(header->count);
+        for (uint32_t i = 0; i < header->count; ++i) {
+            const game::id_planet id{header->keyed ? reader.Read_Uint32() : i};
+            if (id.id >= header->next_id) return false;
+            const auto [it, inserted] = planets.try_emplace(id);
+            if (!inserted) return false;
+            Read_Planet(reader, it->second, version);
+            order.push_back(id);
         }
+        // Classic saves wrote unused slots as well; they are not live planets.
+        reader.Skip((header->record_count - header->count) * LEGACY_PLANET_BYTES);
+        if (reader.Failed()) return false;
         state.planets = std::move(planets);
-        state.next_planet_id = count_field;
+        state.planet_order = std::move(order);
+        state.next_planet_id = header->next_id;
         return true;
     }
 
-    // Used by saves and full snapshots until their runtime callers own the map.
-    inline void Write_Dense_Planet_Block(Writer_& writer, const s_planet_data* planets, uint16_t count) {
-        writer.Write_Uint16(count | KEYED_PLANET_COUNT_FLAG);
-        writer.Write_Uint32(count);
-        for (uint32_t slot = 0; slot < count; ++slot) {
-            writer.Write_Uint32(slot);
-            Write_Planet(writer, planets[slot]);
-        }
-    }
-
-    inline bool Read_Dense_Planet_Block(Reader_& reader, s_planet_data* planets, int16_t& count, uint16_t version) {
-        const uint16_t count_field = reader.Read_Uint16();
-        const bool keyed = version >= 8 && (count_field & KEYED_PLANET_COUNT_FLAG) != 0;
-        const uint16_t live_count = keyed ? count_field & ~KEYED_PLANET_COUNT_FLAG : count_field;
-        if (live_count > MAX_PLANETS) return false;
-        // Sparse IDs and allocator gaps cannot be represented by the legacy runtime.
-        if (keyed && reader.Read_Uint32() != live_count) return false;
-
-        const uint16_t records = version == 0 ? ORIGINAL_MAX_PLANETS : live_count;
-        const size_t record_bytes = keyed ? KEYED_PLANET_BYTES : version == 0 ? LEGACY_PLANET_BYTES : PLANET_BYTES;
-        if (!reader.Require(records * record_bytes)) return false;
-        for (uint32_t slot = 0; slot < records; ++slot) {
-            if (keyed && reader.Read_Uint32() != slot) return false;
-            Read_Planet(reader, planets[slot], version);
-        }
-        count = static_cast<int16_t>(live_count);
-        return !reader.Failed();
-    }
 } // namespace SERIAL

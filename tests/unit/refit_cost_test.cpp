@@ -15,7 +15,7 @@ namespace {
         game::s_view saved_world = game::current;
         s_player* saved_players = MOX::player;
         s_colony* saved_colonies = MOX::colony;
-        s_planet_data* saved_planets = MOX::planet;
+        game::s_game_state saved_planets_saved_roster = game::current_state;
         s_current_design* saved_design = MOX::design;
         int16_t saved_num_players = MOX::NUM_PLAYERS;
         int32_t saved_stardate = MOX::stardate;
@@ -26,7 +26,7 @@ namespace {
             game::current = saved_world;
             MOX::player = saved_players;
             MOX::colony = saved_colonies;
-            MOX::planet = saved_planets;
+            game::current_state = std::move(saved_planets_saved_roster);
             MOX::design = saved_design;
             MOX::NUM_PLAYERS = saved_num_players;
             MOX::stardate = saved_stardate;

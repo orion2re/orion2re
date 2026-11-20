@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/planet_roster.h"
 
 #include "doctest/doctest.h"
 #include "game/shipmove.h"
@@ -106,7 +107,7 @@ DOCTEST_TEST_CASE("movement to assigned planet star keeps auto-colonization") {
     for (const s_case& test_case : cases) {
         TEST_SHIPMOVE::Reset_();
 
-        MOX::planet[3].star_index = 7;
+        test_planets::Record(3).star_index = 7;
         MOX::ship[0].d.ship_type = SHIP_TYPE_COLONY;
         MOX::ship[0].d.ship_weapon[0].type = 3;
         MOX::ship[0].d.ship_weapon[1].type = 1;
@@ -187,7 +188,7 @@ DOCTEST_TEST_CASE("combat-ignore cleanup keeps flags only while another empire i
     MOX::NUM_COLONIES = 1;
     MOX::colony[0].owner = 1;
     MOX::colony[0].planet = 0;
-    MOX::planet[0].star_index = 0;
+    test_planets::Record(0).star_index = 0;
     MOX::ship[0].location = 1;
     MOX::star[0].ignore_combat_ships = 1;
     MOX::star[1].ignore_combat_ships = 1;
@@ -260,7 +261,7 @@ DOCTEST_TEST_CASE("new nonplayer ship lifetime advances Lua slot generation") {
 DOCTEST_TEST_CASE("movement away from assigned planet clears auto-colonization") {
     TEST_SHIPMOVE::Reset_();
 
-    MOX::planet[3].star_index = 7;
+    test_planets::Record(3).star_index = 7;
     MOX::ship[0].d.ship_type = SHIP_TYPE_OUTPOST;
     MOX::ship[0].d.ship_weapon[0].type = 3;
     MOX::ship[0].d.ship_weapon[1].type = 1;

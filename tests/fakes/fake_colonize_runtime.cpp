@@ -1,8 +1,9 @@
 #include "pch.h"
+#include "../fixtures/planet_roster.h"
 
 namespace {
     s_colony colonies[MAX_COLONIES];
-    s_planet_data planets[MAX_PLANETS];
+
     s_star_data stars[MAX_STARS];
     s_ship_data ships[MAX_SHIPS];
     s_player players[MAX_PLAYERS];
@@ -11,7 +12,7 @@ namespace {
 namespace TEST_COLONIZE {
     void Reset_() {
         memset(colonies, 0, sizeof(colonies));
-        memset(planets, 0, sizeof(planets));
+        test_planets::Reset(0);
         memset(stars, 0xff, sizeof(stars));
         memset(ships, 0, sizeof(ships));
         memset(players, 0, sizeof(players));
@@ -31,7 +32,7 @@ namespace MOX {
     int16_t NUM_PLAYERS;
     int32_t stardate;
     s_colony* colony = colonies;
-    s_planet_data* planet = planets;
+
     s_star_data* star = stars;
     s_ship_data* ship = ships;
     s_player* player = players;

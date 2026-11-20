@@ -1,16 +1,17 @@
 #include "pch.h"
+#include "../fixtures/planet_roster.h"
 
 #include "doctest/doctest.h"
 #include "game/combfind.h"
 
 namespace {
-    s_planet_data planets[MAX_PLANETS];
+
     uint32_t random_result;
     uint32_t last_random_bound;
     int random_call_count;
 
     void Reset_() {
-        memset(planets, 0, sizeof(planets));
+        test_planets::Reset(0);
         COMBFIND::monsters_stay = false;
         COMBFIND::monsters_stay_chance = 2;
         random_result = 1;
@@ -20,7 +21,7 @@ namespace {
 } // namespace
 
 namespace MOX {
-    s_planet_data* planet = planets;
+
 } // namespace MOX
 
 namespace game_random {
@@ -50,25 +51,25 @@ DOCTEST_TEST_CASE("one-shot discovery cleanup preserves Ancient Artifacts") {
     Reset_();
 
     s_star_data star = {};
-    memset(star.planet_index, 0xFF, sizeof(star.planet_index));
-    star.planet_index[0] = 0;
+    for (auto& link : star.orbit_planet_ids) link = game::NO_PLANET;
+    star.orbit_planet_ids[0] = game::id_planet{0};
 
     for (int marker = 50; marker < 90; ++marker) {
         star.system_special = static_cast<int8_t>(marker);
-        planets[0].planet_special = SYSTEM_SPECIAL_ANCIENT_ARTIFACTS;
+        test_planets::Record(0).planet_special = SYSTEM_SPECIAL_ANCIENT_ARTIFACTS;
         COMBFIND::Reset_One_Shot_System_Special(&star);
         DOCTEST_CHECK(star.system_special == SYSTEM_SPECIAL_NO_SPECIAL);
         DOCTEST_CHECK(
-            planets[0].planet_special == SYSTEM_SPECIAL_NO_SPECIAL);
+            test_planets::Record(0).planet_special == SYSTEM_SPECIAL_NO_SPECIAL);
     }
 
     for (int marker = 90; marker < 100; ++marker) {
         star.system_special = static_cast<int8_t>(marker);
-        planets[0].planet_special = SYSTEM_SPECIAL_ANCIENT_ARTIFACTS;
+        test_planets::Record(0).planet_special = SYSTEM_SPECIAL_ANCIENT_ARTIFACTS;
         COMBFIND::Reset_One_Shot_System_Special(&star);
         DOCTEST_CHECK(star.system_special == SYSTEM_SPECIAL_NO_SPECIAL);
         DOCTEST_CHECK(
-            planets[0].planet_special == SYSTEM_SPECIAL_ANCIENT_ARTIFACTS);
+            test_planets::Record(0).planet_special == SYSTEM_SPECIAL_ANCIENT_ARTIFACTS);
     }
 }
 

@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/planet_roster.h"
 
 namespace CMBTMIS {
     void Reset_Fighter_Pursuit_History() {}
@@ -28,7 +29,7 @@ namespace {
     s_ship_data ships[MAX_COMBAT_SHIPS];
     s_player players[MAX_PLAYERS];
     s_colony colonies[1];
-    s_planet_data planets[1];
+
     int16_t engineer_bonus[MAX_PLAYERS];
     int16_t repair_amount[4];
     int repair_count[4];
@@ -49,7 +50,7 @@ namespace TEST_COMBAT_REPAIR {
         memset(ships, 0, sizeof(ships));
         memset(players, 0, sizeof(players));
         memset(colonies, 0, sizeof(colonies));
-        memset(planets, 0, sizeof(planets));
+        test_planets::Reset(1);
         memset(engineer_bonus, 0, sizeof(engineer_bonus));
         memset(repair_amount, 0, sizeof(repair_amount));
         memset(repair_count, 0, sizeof(repair_count));
@@ -391,7 +392,7 @@ namespace TEST_COMBINIT {
             ++combat_idx;
             MOX::cmbt_colony_id = 0;
             colonies[0].planet = 0;
-            planets[0].size = PLANET_SIZE_MEDIUM;
+            test_planets::Record(0).size = PLANET_SIZE_MEDIUM;
         }
 
         for (int16_t i = 0; i < attacker_count; ++i) {
@@ -481,7 +482,7 @@ namespace MOX {
     int16_t last_ship_status;
     int16_t in_nebula_flag;
     s_colony* colony = colonies;
-    s_planet_data* planet = planets;
+
 }
 
 namespace TECHDATA {

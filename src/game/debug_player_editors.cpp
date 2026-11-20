@@ -229,7 +229,7 @@ namespace debug_game_editors {
             MERGE_PLAYER_FIELD(war_buildup_duration);
             MERGE_PLAYER_FIELD(last_diplomacy_proposal_turn);
             MERGE_PLAYER_FIELD(diplomacy_proposal_rejection);
-            MERGE_PLAYER_FIELD(opportunity_planet_num);
+            MERGE_PLAYER_FIELD(opportunity_planet_id);
             MERGE_PLAYER_FIELD(opportunity_planet_value);
             MERGE_PLAYER_FIELD(opportunity_actual_attacker_ratio);
             MERGE_PLAYER_FIELD(temp_diplomacy_dummy1);
@@ -333,7 +333,7 @@ namespace debug_game_editors {
                 !((player.objectives <= PLAYER_OBJECTIVE_ECOLOGIST) ||
                     player.objectives == PLAYER_OBJECTIVE_HUMAN) ||
                 (player.home_planet_id.get() != game::NO_PLANET &&
-                    player.home_planet_id.get().id >= static_cast<uint32_t>(MOX::planet_count)) ||
+                    !game::current_state.planets.contains(player.home_planet_id.get())) ||
                 player.officer_for_hire < -1 || player.officer_for_hire >= MAX_LEADERS ||
                 player.settlers_freighted < 0 ||
                 player.settlers_freighted > MAX_FREIGHTED_SETTLERS ||
@@ -358,7 +358,7 @@ namespace debug_game_editors {
                 const auto destination = legacy_world::Index(settler.destination.get());
                 if ((source != SETTLER::SOURCE_COLONY_IN_TRANSIT &&
                         (source < 0 || source >= MOX::NUM_COLONIES)) ||
-                    !destination || *destination >= MOX::planet_count ||
+                    !destination || !game::current_state.planets.contains(settler.destination.get()) ||
                     settler.race > POP::RACE_NATIVE || settler.eta > 15 ||
                     settler.profession > POP::PROF_SCIENTIST) {
                     return false;
@@ -667,6 +667,15 @@ namespace debug_game_editors {
             }
         }
 
+        void Input_Planet_Id_(const char* label, unaligned::field<game::id_planet>& field) {
+            auto id = field.get();
+            if (ImGui::InputScalar(label, ImGuiDataType_U32, &id.id)) field = id;
+            if (id == game::NO_PLANET) {
+                ImGui::SameLine();
+                ImGui::TextUnformatted("No planet");
+            }
+        }
+
         void Draw_Diplomacy_(s_player& player) {
 #define DIP_S8(field) Input_S8_(#field, &player.field[g_counterparty])
 #define DIP_U8(field) Input_U8_(#field, &player.field[g_counterparty])
@@ -728,7 +737,7 @@ namespace debug_game_editors {
             DIP_S8(stop_blockading_duration);
             DIP_S16(last_diplomacy_proposal_turn);
             DIP_S16(diplomacy_proposal_rejection);
-            DIP_S16(opportunity_planet_num);
+            Input_Planet_Id_("opportunity_planet_id", player.opportunity_planet_id[g_counterparty]);
             DIP_S16(opportunity_planet_value);
             DIP_S32(opportunity_actual_attacker_ratio);
             DIP_S16(temp_diplomacy_dummy1);
@@ -742,7 +751,7 @@ namespace debug_game_editors {
 #undef DIP_S16
 #undef DIP_S32
             ImGui::SeparatorText("Player-wide diplomacy state");
-            Input_S16_("sneak_attack_planet", &player.sneak_attack_planet);
+            Input_Planet_Id_("sneak_attack_planet", player.sneak_attack_planet);
             Input_S8_("sneak_attack_message", &player.sneak_attack_message);
             Input_S8_("sneak_attack_player", &player.sneak_attack_player);
             Input_S8_("council_threat", &player.council_threat);

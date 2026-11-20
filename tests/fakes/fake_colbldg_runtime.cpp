@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/planet_roster.h"
 
 #include "lua/lua_game_ship_identity.h"
 
@@ -15,7 +16,7 @@ namespace TEST_COLBLDG {
 
     void Reset_() {
         memset(MOX::colony, 0, sizeof(s_colony) * MAX_COLONIES);
-        memset(MOX::planet, 0, sizeof(s_planet_data) * MAX_PLANETS);
+        test_planets::Reset();
         memset(MOX::player, 0, sizeof(s_player) * MAX_PLAYERS);
         memset(MOX::ship, 0, sizeof(s_ship_data) * MAX_SHIPS);
         memset(MOX::star, 0xff, sizeof(s_star_data) * (MAX_STARS + 1));

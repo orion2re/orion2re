@@ -1117,7 +1117,7 @@ namespace COMBAT {
         for (int16_t i = 0; i < MAX_SHIPS; ++i) {
             int16_t planet_idx = MOX::colony[colony_idx].planet;
 
-            if (MOX::planet[planet_idx].star_index == MOX::ship[i].location &&
+            if (current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).star_index == MOX::ship[i].location &&
                 MOX::ship[i].d.ship_type == SHIP_TYPE_COMBAT &&
                 MOX::ship[i].status == 0 &&
                 MOX::ship[i].owner == result->attacker_idx) {

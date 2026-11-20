@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/planet_roster.h"
 
 #include "doctest/doctest.h"
 #include "game/ericnet.h"
@@ -31,14 +32,14 @@ namespace {
 
     void Reset_Colony_() {
         memset(MOX::colony, 0, sizeof(s_colony) * 2);
-        memset(MOX::planet, 0, sizeof(s_planet_data) * 2);
+        test_planets::Reset();
         memset(MOX::star, 0, sizeof(s_star_data));
         memset(MOX::ship, 0, sizeof(s_ship_data) * 8);
         memset(MOX::player, 0, sizeof(s_player) * MAX_PLAYERS);
         MOX::NUM_COLONIES = 0;
         MOX::NUM_SHIPS = 0;
         MOX::colony[0].planet = 0;
-        MOX::planet[0].star_index = 0;
+        test_planets::Record(0).star_index = 0;
         test::fakes::environmental_refresh_count = 0;
         test::fakes::colony_can_build_product_count = 0;
         test::fakes::last_environmental_colony = nullptr;
@@ -117,7 +118,7 @@ DOCTEST_TEST_CASE("starting Outpost Ships are allocated for every player") {
     ERICNET::starting_outpost_ship = 1;
     MOX::player[1].traits[TRAIT_CURRENT_GOVERNMENT] = GOVERNMENT_UNIFICATION;
     MOX::player[1].ship_designs[0].ship_type = SHIP_TYPE_COMBAT;
-    MOX::planet[1].star_index = 0;
+    test_planets::Record(1).star_index = 0;
 
     ERICNET::Init_Homeworld_Colony(0, 0);
     ERICNET::Init_Homeworld_Colony(1, 1);
@@ -229,7 +230,7 @@ DOCTEST_TEST_CASE("crew turn updates use the best active colony instructor for e
     } crew_scope;
     Reset_Colony_();
     auto& state = game::current_state;
-    state = game::s_game_state{};
+    state.leaders = {};
     memset(test::fakes::instructor_bonuses, 0, sizeof(test::fakes::instructor_bonuses));
     for (auto& leader : state.leaders) leader.player_index = -1;
     for (int i = 0; i < 6; ++i) {
@@ -356,20 +357,20 @@ DOCTEST_TEST_CASE("Artificial Planets use configured population capacity") {
 
     for (const s_case& test_case : cases) {
         Reset_Colony_();
-        MOX::planet[1] = {};
+        test_planets::Record(1) = {};
         for (int orbit = 0; orbit < 5; ++orbit) {
-            MOX::star[0].planet_index[orbit] = -1;
+            MOX::star[0].orbit_planet_ids[orbit] = game::NO_PLANET;
         }
-        MOX::star[0].planet_index[0] = 1;
-        MOX::planet[1].planet_type = test_case.source_type;
+        MOX::star[0].orbit_planet_ids[0] = game::id_planet{1};
+        test_planets::Record(1).planet_type = test_case.source_type;
         COLCALC::population_capacity.size[test_case.expected_size] =
             test_case.capacity;
 
         ERICNET::Add_Building(0, BUILDING_ARTIFICIAL_PLANET);
 
-        DOCTEST_CHECK(MOX::planet[1].planet_type == PLANET_TYPE_PLANET);
-        DOCTEST_CHECK(MOX::planet[1].size == test_case.expected_size);
-        DOCTEST_CHECK(MOX::planet[1].max_population == test_case.capacity);
+        DOCTEST_CHECK(test_planets::Record(1).planet_type == PLANET_TYPE_PLANET);
+        DOCTEST_CHECK(test_planets::Record(1).size == test_case.expected_size);
+        DOCTEST_CHECK(test_planets::Record(1).max_population == test_case.capacity);
     }
 
     COLCALC::population_capacity = saved;
@@ -380,11 +381,11 @@ DOCTEST_TEST_SUITE("building combat re-engagement") {
 DOCTEST_TEST_CASE("adding an environmental building refreshes the affected colony") {
     Reset_Colony_();
     MOX::colony[0].climate = PLANET_CLIMATE_ARID;
-    MOX::planet[0].climate = PLANET_CLIMATE_ARID;
+    test_planets::Record(0).climate = PLANET_CLIMATE_ARID;
 
     ERICNET::Add_Building(0, BUILDING_TERRAFORMING);
 
-    DOCTEST_CHECK(MOX::planet[0].climate == PLANET_CLIMATE_TERRAN);
+    DOCTEST_CHECK(test_planets::Record(0).climate == PLANET_CLIMATE_TERRAN);
     DOCTEST_CHECK(test::fakes::environmental_refresh_count == 1);
     DOCTEST_CHECK(test::fakes::last_environmental_colony == &MOX::colony[0]);
 }

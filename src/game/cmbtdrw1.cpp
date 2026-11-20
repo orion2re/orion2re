@@ -1469,7 +1469,7 @@ namespace CMBTDRW1 {
             } else {
                 int16_t colony_idx = MOX::cmbt_colony_id;
                 int16_t planet_idx = MOX::colony[colony_idx].planet;
-                planet_size = (int16_t)MOX::planet[planet_idx].size;
+                planet_size = (int16_t)game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).size;
             }
 
             int16_t dx = 0, dy = 0;
@@ -1537,7 +1537,7 @@ namespace CMBTDRW1 {
             if (MOX::combat_defender_player != 8) {
                 int16_t colony_id = MOX::cmbt_colony_id;
                 int16_t planet_idx = MOX::colony[colony_id].planet;
-                planet_size = MOX::planet[planet_idx].size;
+                planet_size = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).size;
             }
 
             switch (planet_size) {

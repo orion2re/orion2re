@@ -1,18 +1,18 @@
 #include "pch.h"
+#include "../fixtures/planet_roster.h"
 
 #include "doctest/doctest.h"
 
 namespace {
     struct s_colony_navigation_fixture {
         s_colony colonies[32] = {};
-        s_planet_data planets[32] = {};
         s_star_data stars[1] = {};
         s_player players[MAX_PLAYERS] = {};
         int16_t colony_list[MAX_COLONIES];
         std::vector<s_field> field_storage = std::vector<s_field>(250);
         s_animation_header animation = {};
         s_colony* saved_colonies = MOX::colony;
-        s_planet_data* saved_planets = MOX::planet;
+        game::s_game_state saved_planets_saved_roster = game::current_state;
         s_star_data* saved_stars = MOX::star;
         s_player* saved_players = MOX::player;
         int16_t saved_star_count = MOX::NUM_STARS;
@@ -29,7 +29,7 @@ namespace {
 
         s_colony_navigation_fixture() {
             MOX::colony = colonies;
-            MOX::planet = planets;
+            test_planets::Reset(32);
             MOX::star = stars;
             MOX::player = players;
             MOX::NUM_STARS = 1;
@@ -41,7 +41,7 @@ namespace {
                 colony_list[index] = index;
                 colonies[index].planet = index;
                 colonies[index].producing[0] = COLONY_PRODUCTION_NONE;
-                planets[index].colony_index = index;
+                test_planets::Record(index).colony_index = index;
             }
             COLXPORT::g_colony_list_ptr = colony_list;
             fields::fields = field_storage.data();
@@ -64,7 +64,7 @@ namespace {
 
         ~s_colony_navigation_fixture() {
             MOX::colony = saved_colonies;
-            MOX::planet = saved_planets;
+            game::current_state = std::move(saved_planets_saved_roster);
             MOX::star = saved_stars;
             MOX::player = saved_players;
             MOX::NUM_STARS = saved_star_count;

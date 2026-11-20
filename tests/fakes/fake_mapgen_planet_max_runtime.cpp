@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/planet_roster.h"
 
 using game::current_state;
 
@@ -10,7 +11,7 @@ using game::current_state;
 
 namespace {
     alignas(std::max_align_t) uint8_t allocation_pool[512 * 1024];
-    s_planet_data planets[MAX_PLANETS];
+
     s_star_data stars[MAX_STARS];
     s_player players[MAX_PLAYERS];
     s_colony colonies[MAX_COLONIES];
@@ -56,7 +57,7 @@ namespace {
 namespace TEST_MAPGEN {
     void Reset_() {
         memset(allocation_pool, 0, sizeof(allocation_pool));
-        memset(planets, 0, sizeof(planets));
+        test_planets::Reset(0);
         memset(stars, 0, sizeof(stars));
         memset(players, 0, sizeof(players));
         memset(colonies, 0, sizeof(colonies));
@@ -77,16 +78,16 @@ namespace TEST_MAPGEN {
 
         for (int16_t star_idx = 0; star_idx < MAX_STARS; ++star_idx) {
             for (int16_t orbit = 0; orbit < 5; ++orbit) {
-                stars[star_idx].planet_index[orbit] = -1;
+                stars[star_idx].orbit_planet_ids[orbit] = game::NO_PLANET;
             }
         }
         for (int16_t planet_idx = 0; planet_idx < MAX_PLANETS; ++planet_idx) {
-            planets[planet_idx].colony_index = -1;
+            test_planets::Record(planet_idx).colony_index = -1;
         }
 
         MOX::NUM_STARS = 0;
         MOX::NUM_PLAYERS = 0;
-        MOX::planet_count = 0;
+        test_planets::Resize_Dense(0);
         MOX::NUM_COLONIES = 0;
         MOX::NUM_SHIPS = 0;
         MOX::NUM_NEBULAS = 0;
@@ -128,11 +129,11 @@ namespace TEST_MAPGEN {
 
     void Set_Planet_(int16_t planet_idx, int16_t star_idx, int8_t orbit,
                      int8_t planet_type, int16_t colony_idx) {
-        planets[planet_idx].star_index = star_idx;
-        planets[planet_idx].orbit = orbit;
-        planets[planet_idx].planet_type = planet_type;
-        planets[planet_idx].colony_index = colony_idx;
-        stars[star_idx].planet_index[(uint8_t)orbit] = planet_idx;
+        test_planets::Record(planet_idx).star_index = star_idx;
+        test_planets::Record(planet_idx).orbit = orbit;
+        test_planets::Record(planet_idx).planet_type = planet_type;
+        test_planets::Record(planet_idx).colony_index = colony_idx;
+        stars[star_idx].orbit_planet_ids[(uint8_t)orbit] = game::id_planet{static_cast<uint32_t>(planet_idx)};
     }
 
     void Set_Food_Star_(int16_t star_idx) {
@@ -231,14 +232,15 @@ namespace orion2re::lua {
         *invoked = galaxy_provider_active;
         if (!galaxy_provider_active) return true;
         galaxy_provider_isolated = MOX::star != stars &&
-            MOX::planet != planets && MOX::player != players &&
+            game::internal::galaxy_planet_candidate == &current_state &&
+            MOX::player != players &&
             MOX::colony != colonies && MOX::ship != ships &&
             MOX::nebula != nebulas;
         galaxy_provider_topology_generation =
             game::internal::Topology_Generation();
         galaxy_provider_ship_generation = game::Ship_Generation(0);
         MOX::star[0].x = galaxy_provider_invalid ? MOX::MAP_MAX_X : 77;
-        MOX::planet[0].climate = PLANET_CLIMATE_GAIA;
+        current_state.planets.at(orion2re::id_planet{0}).climate = PLANET_CLIMATE_GAIA;
         ++current_state.leaders[0].xp;
         game_random::Random(100);
         if (galaxy_provider_fails) {
@@ -308,8 +310,8 @@ namespace orion2re::lua::game {
     void Home_System_Generated(const s_home_system_generated_event* event) {
         home_system_player_order[home_system_event_calls++] = event->player_id;
         if (!home_system_edits_enabled) return;
-        s_planet_data& homeworld =
-            MOX::planet[MOX::player[event->player_id].home_planet_id.get().id];
+        auto& homeworld = internal::galaxy_planet_candidate->planets.at(
+            MOX::player[event->player_id].home_planet_id.get());
         homeworld.size = PLANET_SIZE_HUGE;
         homeworld.climate = PLANET_CLIMATE_GAIA;
         homeworld.planet_special = SYSTEM_SPECIAL_GOLD_DEPOSITS;
@@ -327,7 +329,7 @@ namespace orion2re::lua::game {
         if (planet_idx == fail_generated_planet) {
             throw std::runtime_error("generated planet event failed");
         }
-        s_planet_data& planet = MOX::planet[planet_idx];
+        auto& planet = internal::galaxy_planet_candidate->planets.at(event->planet_id);
         if (planet_idx == 0 &&
             planet.size == PLANET_SIZE_HUGE &&
             planet.climate == PLANET_CLIMATE_GAIA &&
@@ -356,8 +358,8 @@ namespace MOX {
     int16_t NUM_STARS;
     int16_t NUM_SHIPS;
     int16_t NUM_COLONIES;
-    int16_t planet_count;
-    s_planet_data* planet = planets;
+
+
     s_star_data* star = stars;
     s_player* player = players;
     s_colony* colony = colonies;
@@ -463,8 +465,8 @@ namespace HAROLD {
     }
 
     int16_t __cdecl Planet_Type(int16_t star_idx, int16_t orbit) {
-        int16_t planet_idx = MOX::star[star_idx].planet_index[orbit];
-        return planet_idx >= 0 ? MOX::planet[planet_idx].planet_type : -1;
+        int16_t planet_idx = legacy_world::Index(MOX::star[star_idx].orbit_planet_ids[orbit].get()).value_or(-1);
+        return planet_idx >= 0 ? test_planets::Record(planet_idx).planet_type : -1;
     }
 }
 

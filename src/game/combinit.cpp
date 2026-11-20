@@ -1334,7 +1334,7 @@ namespace COMBINIT {
                 player_color = 2;
             } else {
                 player_color = (int16_t)MOX::player[player_idx].color;
-                planet_size = (int16_t)MOX::planet[MOX::colony[MOX::cmbt_colony_id].planet].size;
+                planet_size = (int16_t)game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(MOX::colony[MOX::cmbt_colony_id].planet)}).size;
             }
 
             if (planet_size > 0) {
@@ -1363,7 +1363,7 @@ namespace COMBINIT {
 
     void __cdecl Load_Combat_Colony_Picture(int16_t colony_idx) {
         int16_t planet_idx = MOX::colony[colony_idx].planet;
-        s_planet_data* planet = &MOX::planet[planet_idx];
+        s_planet_data* planet = &game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)});
 
         int8_t climate = planet->climate;
         int8_t size = planet->size;
@@ -2136,7 +2136,7 @@ namespace COMBINIT {
                 result_offset = 60;
             } else {
                 int16_t planet_idx = MOX::colony[MOX::cmbt_colony_id].planet;
-                int8_t planet_size = MOX::planet[planet_idx].size;
+                int8_t planet_size = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).size;
 
                 switch (planet_size) {
                     case PLANET_SIZE_TINY:

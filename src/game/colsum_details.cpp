@@ -306,7 +306,7 @@ namespace COLSUM {
                            "2";
             }
 
-            s_planet_data* planet = &MOX::planet[planet_idx];
+            s_planet_data* planet = &game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)});
             int16_t max_pop = COLCALC::Planet_Max_Population_For_Player(planet, MOX::PLAYER_NUM);
             const char* format = ESTRINGS::E_Strings(74 /* 0x4a */);
             if (strstr(format, "%s%d") == nullptr) {

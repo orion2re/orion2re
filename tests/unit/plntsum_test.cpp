@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/planet_roster.h"
 
 #include <algorithm>
 #include <vector>
@@ -8,18 +9,21 @@
 
 namespace {
     void Add_System(int16_t star_idx, int16_t first_planet, int rotation = 0) {
+        MOX::NUM_STARS = std::max<int16_t>(MOX::NUM_STARS, star_idx + 1);
         MOX::star[star_idx].visited = 1 << MOX::PLAYER_NUM;
         for (int orbit = 0; orbit < 5; ++orbit) {
             int16_t planet_idx = first_planet + orbit;
-            auto& planet = MOX::planet[planet_idx];
+            auto& planet = test_planets::Record(planet_idx);
+            planet.colony_index = -1;
             planet.star_index = star_idx;
+            planet.orbit = static_cast<int8_t>(orbit);
             planet.planet_type = PLANET_TYPE_PLANET;
             planet.mineral_class = (orbit + rotation) % 5;
             planet.gravity_class = PLANET_GRAVITY_NORMAL_G;
             planet.food_per_farmer = 2;
-            MOX::star[star_idx].planet_index[orbit] = planet_idx;
+            MOX::star[star_idx].orbit_planet_ids[orbit] = game::id_planet{static_cast<uint32_t>(planet_idx)};
         }
-        MOX::planet_count = first_planet + 5;
+        test_planets::Resize_Dense(first_planet + 5);
     }
 
     void Set_Filters(int mask) {
@@ -104,7 +108,7 @@ DOCTEST_TEST_CASE("mixed minerals remain planet-local across filter permutations
                         // Empty, enemy colony, own colony, enemy outpost, own ship,
                         // enemy ship in orbit, or enemy ship en route.
                         if (presence >= 1 && presence <= 3) {
-                            MOX::planet[0].colony_index = 0;
+                            test_planets::Record(0).colony_index = 0;
                             MOX::colony[0].planet = 0;
                             MOX::colony[0].owner = presence == 2 ? 0 : 1;
                             MOX::colony[0].outpost_flag = presence == 3;
@@ -150,7 +154,7 @@ DOCTEST_TEST_CASE("mixed minerals remain planet-local across filter permutations
 DOCTEST_TEST_CASE("destroyed occupants no longer hide mixed-mineral systems") {
     TEST_PLNTSUM::Reset_();
     Add_System(0, 0);
-    MOX::planet[0].colony_index = 0;
+    test_planets::Record(0).colony_index = 0;
     MOX::colony[0].owner = 1;
     MOX::colony[0].planet = 0;
     MOX::player[1].home_planet_id = game::NO_PLANET;
@@ -160,7 +164,7 @@ DOCTEST_TEST_CASE("destroyed occupants no longer hide mixed-mineral systems") {
     Check_List({});
 
     BOMB::Destroy_Colony(&MOX::colony[0], -1);
-    DOCTEST_CHECK(MOX::planet[0].colony_index == -1);
+    DOCTEST_CHECK(test_planets::Record(0).colony_index == -1);
     DOCTEST_CHECK(MOX::colony[0].owner == -1);
     DOCTEST_CHECK(MOX::star[0].visited == 1);
     Check_List({});
@@ -196,7 +200,7 @@ DOCTEST_TEST_CASE("presence and range exclusions do not leak between systems") {
     Add_System(0, 0);
     Add_System(1, 5);
     Add_System(2, 10);
-    MOX::planet[0].colony_index = 0;
+    test_planets::Record(0).colony_index = 0;
     MOX::colony[0].owner = 1;
     TEST_PLNTSUM::in_range[1] = false;
     PLNTSUM::Set_Planet_Explored_Flags();
@@ -396,6 +400,7 @@ DOCTEST_TEST_CASE("recall targets the dispatched ship with or without an idle al
                 PLNTSUM::Determine_Button_Status();
                 PLNTSUM::Add_Plntsum_Fields();
                 int16_t row = PLNTSUM::Planet_Summary_List_Id(0);
+                DOCTEST_REQUIRE(row >= 0);
                 // These are deliberately not the dispatched ship.
                 PLNTSUM::planet_summary[row].best_colony_ship_idx = free_ship;
                 PLNTSUM::planet_summary[row].best_outpost_ship_idx = free_ship;

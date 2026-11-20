@@ -47,7 +47,7 @@ namespace NEWGAME {
         memcpy(NEWGAME::color_ken.colors, "y{z|||||", sizeof(NEWGAME::color_ken.colors));
 
         struct_::Clear_Structure(MOX::star, MAX_STARS * sizeof(*MOX::star));
-        struct_::Clear_Structure(MOX::planet, MAX_PLANETS * sizeof(*MOX::planet));
+        game::current_state.Reset_Planets();
         struct_::Clear_Structure(MOX::colony, MAX_COLONIES * sizeof(*MOX::colony));
         struct_::Clear_Structure(MOX::ship, MAX_SHIPS * sizeof(*MOX::ship));
         struct_::Clear_Structure(MOX::player, MAX_PLAYERS * sizeof(*MOX::player));

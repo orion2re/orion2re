@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/planet_roster.h"
 
 #include "doctest/doctest.h"
 
@@ -7,6 +8,7 @@
 #include "game/savegame.h"
 #include "game/leader_serialization.h"
 #include "game/planet_serialization.h"
+#include "game/star_serialization.h"
 #include "game/settler_serialization.h"
 #include "game/save_sections.h"
 #include "lua/lua_game_ship_identity.h"
@@ -33,8 +35,7 @@ namespace TEST_LUA_SAVE {
 
 namespace {
     constexpr size_t LEGACY_PLANET_SIZE = SERIAL::LEGACY_PLANET_BYTES;
-    constexpr size_t LEGACY_STAR_SIZE = sizeof(s_star_data) -
-        (BITMAP(MAX_STARS) - BITMAP(ORIGINAL_MAX_STARS)) - 2 * sizeof(int8_t);
+    constexpr size_t LEGACY_STAR_SIZE = 0x71;
 
     config::t_variable_id Variable_(const char* path) {
         config::t_variable_id variable_id = config::CONFIG_NO_VARIABLE;
@@ -76,15 +77,18 @@ namespace {
 
     uint32_t Pack_Freight_For_Older_Save_(uint8_t* data, uint32_t size) {
         const size_t player_count_offset = COLONY_RECORDS_OFFSET + MOX::NUM_COLONIES * sizeof(s_colony) +
-            2 + 4 + MOX::planet_count * SERIAL::KEYED_PLANET_BYTES +
-            2 + MOX::NUM_STARS * sizeof(s_star_data) + SERIAL::LEADER_STATE_BYTES;
-        const size_t player_size = 0xf0e + 2 + ORIGINAL_MAX_FREIGHTED_SETTLERS * (SERIAL::SETTLER_BYTES - 8);
+            2 + 4 + static_cast<int16_t>(game::current_state.planets.size()) * SERIAL::KEYED_PLANET_BYTES +
+            2 + MOX::NUM_STARS * SERIAL::STAR_BYTES + SERIAL::LEADER_STATE_BYTES;
+        constexpr size_t sneak_offset = 0x82c;
+        constexpr size_t opportunity_offset = 0x89c;
+        const size_t player_size = 0xf0e + 2 + ORIGINAL_MAX_FREIGHTED_SETTLERS * (SERIAL::SETTLER_BYTES - 8)
+            + 2 * (1 + MAX_PLAYERS);
         const size_t ships = player_count_offset + 2 + MAX_PLAYERS * player_size;
         const size_t tail = ships + 2 + MOX::NUM_SHIPS * 129 + 164 + MOX::NUM_NEBULAS * 5 + 4491;
         constexpr size_t tail_records = MAX_PLAYERS * (MAX_FREIGHTED_SETTLERS - ORIGINAL_MAX_FREIGHTED_SETTLERS);
         DOCTEST_REQUIRE(tail + tail_records * SERIAL::SETTLER_BYTES <= size);
         DOCTEST_REQUIRE((data[player_count_offset + 1] & 0x80) != 0);
-        data[player_count_offset + 1] &= 0x3f;
+        data[player_count_offset + 1] &= 0x1f;
         size_t read = player_count_offset + 2, write = read;
         const auto copy = [&](size_t length) {
             memmove(data + write, data + read, length);
@@ -112,7 +116,15 @@ namespace {
             read += 2;
             copy(0x42 - 43);
             for (int i = 0; i < ORIGINAL_MAX_FREIGHTED_SETTLERS; ++i) record();
-            copy(0xf0e - 0x42 - ORIGINAL_MAX_FREIGHTED_SETTLERS * 8);
+            copy(sneak_offset - 0x42 - ORIGINAL_MAX_FREIGHTED_SETTLERS * 8);
+            copy(2);
+            read += 2;
+            copy(opportunity_offset - sneak_offset - 2);
+            for (int i = 0; i < MAX_PLAYERS; ++i) {
+                copy(2);
+                read += 2;
+            }
+            copy(0xf0e - opportunity_offset - 2 * MAX_PLAYERS);
         }
         copy(tail - read);
         for (size_t i = 0; i < tail_records; ++i) record();
@@ -134,6 +146,31 @@ namespace {
             memmove(write, read, SERIAL::PLANET_BYTES);
             read += SERIAL::PLANET_BYTES;
             write += SERIAL::PLANET_BYTES;
+        }
+        memmove(write, read, data + size - read);
+        size -= static_cast<uint32_t>(read - write);
+
+        // Historical fixtures also use the unflagged star count and narrow orbit links.
+        auto* star_count = write;
+        DOCTEST_REQUIRE(star_count + 2 <= data + size);
+        DOCTEST_REQUIRE((star_count[1] & 0x80) != 0);
+        star_count[1] &= 0x7f;
+        const auto stars = star_count[0] | (star_count[1] << 8);
+        write = read = star_count + 2;
+        DOCTEST_REQUIRE(read + stars * SERIAL::STAR_BYTES <= data + size);
+        constexpr size_t orbit_offset = offsetof(s_star_data, orbit_planet_ids);
+        const auto copy = [&](size_t count) {
+            memmove(write, read, count);
+            write += count;
+            read += count;
+        };
+        for (int i = 0; i < stars; ++i) {
+            copy(orbit_offset);
+            for (int orbit = 0; orbit < 5; ++orbit) {
+                copy(2);
+                read += 2;
+            }
+            copy(SERIAL::STAR_BYTES - orbit_offset - 20);
         }
         memmove(write, read, data + size - read);
         return size - static_cast<uint32_t>(read - write);
@@ -171,7 +208,6 @@ namespace {
 
     void Bind_State_(State_& state) {
         MOX::colony = state.colonies;
-        MOX::planet = state.planets;
         MOX::star = state.stars;
         MOX::player = state.players;
         MOX::ship = state.ships;
@@ -209,7 +245,7 @@ namespace {
         expected.wormhole_star_id = -1;
         expected.next_wfi_in_list = -1;
         memset(expected.officer_index, 0xFF, sizeof(expected.officer_index));
-        memset(expected.planet_index, 0xFF, sizeof(expected.planet_index));
+        for (auto& link : expected.orbit_planet_ids) link = game::NO_PLANET;
         memset(expected.relocate_ship_to, 0xFF, sizeof(expected.relocate_ship_to));
         memset(expected.surrender_to, 0xFF, sizeof(expected.surrender_to));
         return memcmp(&star, &expected, sizeof(star)) == 0;
@@ -404,14 +440,15 @@ namespace {
         Fill_Messages_();
 
         MOX::NUM_COLONIES = 700;
-        MOX::planet_count = 900;
+        test_planets::Resize_Dense(900);
         MOX::NUM_STARS = 512;
-        for (int i = 0; i < MOX::planet_count; ++i) {
+        for (int i = 0; i < static_cast<int16_t>(game::current_state.planets.size()); ++i) {
             state.planets[i].star_index = i % MOX::NUM_STARS;
             state.planets[i].orbit = i % 5;
+            test_planets::Record(i) = state.planets[i];
         }
         for (int i = 0; i < MOX::NUM_STARS; ++i) {
-            for (int j = 0; j < 5; ++j) state.stars[i].planet_index[j] = (i * 5 + j) % MOX::planet_count;
+            for (int j = 0; j < 5; ++j) state.stars[i].orbit_planet_ids[j] = game::id_planet{static_cast<uint32_t>((i * 5 + j) % static_cast<int16_t>(game::current_state.planets.size()))};
         }
         MOX::NUM_PLAYERS = 8;
         MOX::NUM_SHIPS = 1000;
@@ -458,7 +495,7 @@ namespace {
         memset(MSG_::max_msgs, 0, sizeof(MSG_::max_msgs));
         memset(MSG_::n_msgs, 0, sizeof(MSG_::n_msgs));
         MOX::NUM_COLONIES = 0;
-        MOX::planet_count = 0;
+        test_planets::Resize_Dense(0);
         MOX::NUM_STARS = 0;
         MOX::NUM_PLAYERS = 0;
         MOX::NUM_SHIPS = 0;
@@ -522,6 +559,7 @@ namespace {
             offsetof(s_star_data, wormhole_star_id) - expanded_black_hole_size;
         const size_t legacy_next_wfi_offset =
             offsetof(s_star_data, next_wfi_in_list) - expanded_black_hole_size - sizeof(int8_t);
+        const size_t legacy_orbit_offset = offsetof(s_star_data, orbit_planet_ids) - expanded_black_hole_size - 2;
         for (size_t i = 0; i < ORIGINAL_MAX_STARS; ++i) {
             const uint8_t* source = legacy + i * LEGACY_STAR_SIZE;
             uint8_t* destination = reinterpret_cast<uint8_t*>(&stars[i]);
@@ -539,8 +577,10 @@ namespace {
             memcpy(destination + offsetof(s_star_data, next_wfi_in_list) +
                     sizeof(stars[i].next_wfi_in_list),
                 source + legacy_next_wfi_offset + sizeof(uint8_t),
-                LEGACY_STAR_SIZE - legacy_next_wfi_offset - sizeof(uint8_t));
-            for (int j = 0; j < 5; ++j) stars[i].planet_index[j] = (i * 5 + j) % (ORIGINAL_MAX_PLANETS - 1);
+                legacy_orbit_offset - legacy_next_wfi_offset - sizeof(uint8_t));
+            memcpy(destination + offsetof(s_star_data, relocate_ship_to), source + legacy_orbit_offset + 10,
+                LEGACY_STAR_SIZE - legacy_orbit_offset - 10);
+            for (int j = 0; j < 5; ++j) stars[i].orbit_planet_ids[j] = game::id_planet{static_cast<uint32_t>((i * 5 + j) % (ORIGINAL_MAX_PLANETS - 1))};
         }
     }
 
@@ -549,9 +589,8 @@ namespace {
         for (int i = MOX::NUM_COLONIES; i < MAX_COLONIES; ++i) {
             DOCTEST_CHECK((Is_Unused_Colony_(actual.colonies[i])));
         }
-        DOCTEST_CHECK((memcmp(expected.planets, actual.planets, MOX::planet_count * sizeof(*expected.planets)) == 0));
-        for (int i = MOX::planet_count; i < MAX_PLANETS; ++i) {
-            DOCTEST_CHECK((Is_Unused_Planet_(actual.planets[i])));
+        for (const auto& [id, planet] : game::current_state.planets) {
+            DOCTEST_CHECK(planet == expected.planets[id.id]);
         }
         DOCTEST_CHECK((memcmp(expected.stars, actual.stars, MOX::NUM_STARS * sizeof(*expected.stars)) == 0));
         for (int i = MOX::NUM_STARS; i < MAX_STARS; ++i) {
@@ -589,15 +628,14 @@ namespace {
         for (int i = ORIGINAL_MAX_COLONIES; i < MAX_COLONIES; ++i) {
             DOCTEST_CHECK((Is_Unused_Colony_(actual.colonies[i])));
         }
-        DOCTEST_CHECK((memcmp(expected_planets, actual.planets, ORIGINAL_MAX_PLANETS * sizeof(*expected_planets)) == 0));
-        for (int i = ORIGINAL_MAX_PLANETS; i < MAX_PLANETS; ++i) {
-            DOCTEST_CHECK((Is_Unused_Planet_(actual.planets[i])));
+        for (const auto& [id, planet] : game::current_state.planets) {
+            DOCTEST_CHECK(planet == expected_planets[id.id]);
         }
         DOCTEST_CHECK((memcmp(expected_stars, actual.stars, ORIGINAL_MAX_STARS * sizeof(*expected_stars)) == 0));
         for (int i = ORIGINAL_MAX_STARS; i < MAX_STARS; ++i) {
             DOCTEST_CHECK((Is_Unused_Star_(actual.stars[i])));
         }
-        DOCTEST_CHECK(game::current_state == Legacy_Leaders_());
+        DOCTEST_CHECK(game::current_state.leaders == Legacy_Leaders_().leaders);
         int converted_locations = 0;
         for (int i = 0; i < ORIGINAL_MAX_SHIPS; ++i) {
             s_ship_data expected_ship = expected.ships[i];
@@ -652,18 +690,18 @@ namespace {
 
 } // namespace
 
-DOCTEST_TEST_CASE("planet state does not reuse deleted IDs") {
+DOCTEST_TEST_CASE("planet deletion preserves survivor order and creation appends a fresh ID") {
     game::s_game_state state;
     const auto first = state.Create_Planet({.star_index = 1});
     const auto second = state.Create_Planet({.star_index = 2});
-    DOCTEST_REQUIRE(first.has_value());
-    DOCTEST_REQUIRE(second.has_value());
-    DOCTEST_CHECK(*first < *second);
-    DOCTEST_CHECK(state.planets.erase(*second) == 1);
-
     const auto third = state.Create_Planet({.star_index = 3});
-    DOCTEST_REQUIRE(third.has_value());
-    DOCTEST_CHECK(*second < *third);
+    DOCTEST_REQUIRE((first && second && third));
+    DOCTEST_REQUIRE(state.Erase_Planet(*second));
+    DOCTEST_CHECK_FALSE(state.Erase_Planet(*second));
+    const auto fourth = state.Create_Planet({.star_index = 4});
+    DOCTEST_REQUIRE(fourth.has_value());
+    DOCTEST_CHECK(*third < *fourth);
+    DOCTEST_CHECK((state.planet_order == std::vector{*first, *third, *fourth}));
     DOCTEST_CHECK_FALSE(state.planets.contains(*second));
     DOCTEST_CHECK(state.planets.at(*first).star_index == 1);
     DOCTEST_CHECK(state.planets.at(*third).star_index == 3);
@@ -693,7 +731,7 @@ DOCTEST_TEST_CASE("planet codec preserves wire size and historical fields") {
     DOCTEST_CHECK(restored.environmental_alterations == -2);
 }
 
-DOCTEST_TEST_CASE("keyed planet records preserve gaps and the allocation limit") {
+DOCTEST_TEST_CASE("keyed planet records preserve gaps, order, and the next ID") {
     game::s_game_state original;
     original.next_planet_id = 70000;
     const auto first = original.Create_Planet({.star_index = 1});
@@ -701,8 +739,10 @@ DOCTEST_TEST_CASE("keyed planet records preserve gaps and the allocation limit")
     const auto third = original.Create_Planet({.star_index = 3});
     const auto last = original.Create_Planet({.star_index = 4});
     DOCTEST_REQUIRE((first && second && third && last));
-    DOCTEST_REQUIRE(original.planets.erase(*second) == 1);
-    DOCTEST_REQUIRE(original.planets.erase(*last) == 1);
+    DOCTEST_REQUIRE(original.Erase_Planet(*second));
+    DOCTEST_REQUIRE(original.Erase_Planet(*last));
+    // A loaded or deliberately reordered roster need not be in ID order.
+    std::reverse(original.planet_order.begin(), original.planet_order.end());
 
     constexpr size_t header_bytes = sizeof(uint16_t) + sizeof(uint32_t);
     std::array<uint8_t, header_bytes + 2 * SERIAL::KEYED_PLANET_BYTES> bytes{};
@@ -713,9 +753,11 @@ DOCTEST_TEST_CASE("keyed planet records preserve gaps and the allocation limit")
     game::s_game_state restored;
     DOCTEST_REQUIRE(SERIAL::Read_Planet_Block(restored, reader, 8));
     DOCTEST_CHECK(restored == original);
+    DOCTEST_CHECK((restored.planet_order == std::vector{*third, *first}));
     const auto created = restored.Create_Planet({});
     DOCTEST_REQUIRE(created.has_value());
     DOCTEST_CHECK(*last < *created);
+    DOCTEST_CHECK((restored.planet_order == std::vector{*third, *first, *created}));
 
     // A duplicate ID must not replace live state, even if earlier records decoded successfully.
     std::copy_n(bytes.begin() + header_bytes, sizeof(uint32_t), bytes.begin() + header_bytes + SERIAL::KEYED_PLANET_BYTES);
@@ -725,40 +767,49 @@ DOCTEST_TEST_CASE("keyed planet records preserve gaps and the allocation limit")
     DOCTEST_CHECK(restored == before);
 }
 
-DOCTEST_TEST_CASE("the dense planet-block boundary accepts earlier snapshots and rejects sparse IDs") {
+DOCTEST_TEST_CASE("untagged planet blocks import their implicit IDs in record order") {
     const s_planet_data planet{.colony_index = -1, .star_index = 3, .orbit = 2};
     std::array<uint8_t, sizeof(uint16_t) + sizeof(uint32_t) + SERIAL::KEYED_PLANET_BYTES> bytes{};
     SERIAL::Writer_ untagged(bytes.data(), bytes.size(), "planet block overflow");
     untagged.Write_Uint16(1);
     SERIAL::Write_Planet(untagged, planet);
 
-    s_planet_data restored{};
-    int16_t count = 0;
-    SERIAL::Reader_ old_reader(bytes.data(), untagged.Length(), "planet block underflow");
-    DOCTEST_REQUIRE(SERIAL::Read_Dense_Planet_Block(old_reader, &restored, count, 8));
-    DOCTEST_CHECK(count == 1);
-    DOCTEST_CHECK(restored == planet);
-
     game::s_game_state state;
-    SERIAL::Reader_ import(bytes.data(), untagged.Length(), "planet block underflow");
-    DOCTEST_REQUIRE(SERIAL::Read_Planet_Block(state, import, 8));
+    SERIAL::Reader_ old_reader(bytes.data(), untagged.Length(), "planet block underflow");
+    DOCTEST_REQUIRE(SERIAL::Read_Planet_Block(state, old_reader, 8));
+    DOCTEST_CHECK(state.planets.size() == 1);
     DOCTEST_CHECK(state.next_planet_id == 1);
     DOCTEST_CHECK(state.planets.at(game::id_planet{0}) == planet);
+    DOCTEST_CHECK(state.planet_order == std::vector{game::id_planet{0}});
 
     SERIAL::Writer_ tagged(bytes.data(), bytes.size(), "planet block overflow");
-    SERIAL::Write_Dense_Planet_Block(tagged, &planet, 1);
+    SERIAL::Write_Planet_Block(state, tagged);
     SERIAL::Reader_ new_reader(bytes.data(), tagged.Length(), "planet block underflow");
     DOCTEST_CHECK(new_reader.Read_Uint16() == (SERIAL::KEYED_PLANET_COUNT_FLAG | 1));
     DOCTEST_CHECK(new_reader.Read_Uint32() == 1);
     DOCTEST_CHECK(new_reader.Read_Uint32() == 0);
 
-    bytes[sizeof(uint16_t) + sizeof(uint32_t)] = 1;
-    count = 0;
-    restored = {};
-    SERIAL::Reader_ invalid(bytes.data(), tagged.Length(), "planet block underflow", true);
-    DOCTEST_CHECK_FALSE(SERIAL::Read_Dense_Planet_Block(invalid, &restored, count, 8));
-    DOCTEST_CHECK(count == 0);
-    DOCTEST_CHECK(restored == s_planet_data{});
+}
+
+DOCTEST_TEST_CASE("star codec preserves wide orbit IDs and empty orbits") {
+    s_star_data star{};
+    star.orbit_planet_ids[1] = game::id_planet{70000};
+    star.orbit_planet_ids[4] = game::id_planet{42};
+    star.wormhole_star_id = 7;
+    star.relocate_ship_to[0] = 300;
+    std::array<uint8_t, SERIAL::STAR_BYTES> bytes{};
+    SERIAL::Writer_ writer(bytes.data(), bytes.size(), "star overflow");
+    SERIAL::Write_Star(writer, star);
+    DOCTEST_REQUIRE(writer.Length() == bytes.size());
+    s_star_data decoded{};
+    SERIAL::Reader_ reader(bytes.data(), bytes.size(), "star underflow");
+    SERIAL::Read_Star(reader, decoded, true);
+    DOCTEST_CHECK(reader.Remaining() == 0);
+    DOCTEST_CHECK(decoded.orbit_planet_ids[0].get() == game::NO_PLANET);
+    DOCTEST_CHECK(decoded.orbit_planet_ids[1].get() == game::id_planet{70000});
+    DOCTEST_CHECK(decoded.orbit_planet_ids[4].get() == game::id_planet{42});
+    DOCTEST_CHECK((decoded.wormhole_star_id == 7));
+    DOCTEST_CHECK((decoded.relocate_ship_to[0] == 300));
 }
 
 DOCTEST_TEST_CASE("version 8 leader records use fixed slot IDs") {
@@ -870,7 +921,7 @@ DOCTEST_TEST_CASE("save versions 5 and 6 preserve ship limits and fixed location
         &invalid_old_reader, &metadata, &settings, &seed));
 
     Bind_State_(*expected);
-    game::current_state = Legacy_Leaders_();
+    game::current_state.leaders = Legacy_Leaders_().leaders;
     MOX::NUM_SHIPS = 9000;
     MOX::NUM_COLONIES = 0;
     SERIAL::Writer_ old_writer(bytes.get(), SAVEGAME::BUFFER_CAPACITY, "test save overflow");
@@ -1027,6 +1078,7 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
     expected.colonies[2].industry_per_worker = 128;
     expected.colonies[3].industry_per_worker = 255;
     expected.planets[0].food_per_farmer = 3;
+    test_planets::Record(0).food_per_farmer = 3;
     expected.players[0].tech_applications[TECH_APP_ION_DRIVE] =
         TECH_RESEARCH_STATUS_AVAILABLE;
     expected.players[0].tech_applications[TECH_APP_ION_PULSE_CANNON] =
@@ -1057,6 +1109,10 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
     uint8_t expected_n_msgs[MAX_PLAYERS] = {};
     expected.players[0].home_planet_id = game::id_planet{70000};
     expected.players[1].home_planet_id = game::NO_PLANET;
+    expected.players[0].sneak_attack_planet = game::id_planet{73000};
+    expected.players[0].opportunity_planet_id[MAX_PLAYERS - 1] = game::id_planet{80000};
+    expected.players[1].sneak_attack_planet = game::NO_PLANET;
+    expected.players[1].opportunity_planet_id[0] = game::NO_PLANET;
     expected.players[0].settlers[0] = {
         .source_colony = 699, .destination = game::id_planet{70000}, .race = 7, .eta = 12,
         .profession = POP::PROF_SCIENTIST,
@@ -1095,6 +1151,7 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
     }
 
     expected.planets[358].star_index = 511;
+    test_planets::Record(358).star_index = 511;
     expected.stars[70].wormhole_star_id = 510;
     expected.stars[70].next_wfi_in_list = 509;
     expected.players[0].offensive_stagepoint = 508;
@@ -1360,7 +1417,7 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
         DOCTEST_CHECK(memcmp(&loaded_settings, &expected_settings, sizeof(expected_settings)) == 0);
         if (format == 0) {
             Check_Versioned_State_(expected, actual);
-            DOCTEST_CHECK(game::current_state == expected_leaders);
+            DOCTEST_CHECK(game::current_state.leaders == expected_leaders.leaders);
             DOCTEST_CHECK((actual.colonies[0].industry_per_worker == 0));
             DOCTEST_CHECK((actual.colonies[1].industry_per_worker == 127));
             DOCTEST_CHECK((actual.colonies[2].industry_per_worker == 128));
@@ -1387,6 +1444,10 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
                 TECH_RESEARCH_STATUS_UNAVAILABLE));
             DOCTEST_CHECK(actual.players[0].home_planet_id.get() == game::id_planet{70000});
             DOCTEST_CHECK(actual.players[1].home_planet_id.get() == game::NO_PLANET);
+            DOCTEST_CHECK(actual.players[0].sneak_attack_planet.get() == game::id_planet{73000});
+            DOCTEST_CHECK(actual.players[0].opportunity_planet_id[MAX_PLAYERS - 1].get() == game::id_planet{80000});
+            DOCTEST_CHECK(actual.players[1].sneak_attack_planet.get() == game::NO_PLANET);
+            DOCTEST_CHECK(actual.players[1].opportunity_planet_id[0].get() == game::NO_PLANET);
             DOCTEST_CHECK(actual.players[0].settlers[0].source_colony.get() == 699);
             DOCTEST_CHECK(actual.players[0].settlers[0].destination.get() == game::id_planet{70000});
         } else {
@@ -1442,7 +1503,7 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
         DOCTEST_CHECK(memcmp(MSG_::max_msgs, expected_max_msgs, sizeof(expected_max_msgs)) == 0);
         DOCTEST_CHECK(memcmp(MSG_::n_msgs, expected_n_msgs, sizeof(expected_n_msgs)) == 0);
         DOCTEST_CHECK(MOX::NUM_COLONIES == (format == 0 ? 700 : 249));
-        DOCTEST_CHECK(MOX::planet_count == (format == 0 ? 900 : 359));
+        DOCTEST_CHECK(static_cast<int16_t>(game::current_state.planets.size()) == (format == 0 ? 900 : 359));
         DOCTEST_CHECK(MOX::NUM_STARS == (format == 0 ? 512 : 71));
         DOCTEST_CHECK(MOX::NUM_PLAYERS == 8);
         DOCTEST_CHECK(MOX::NUM_SHIPS == (format == 0 ? 1000 : 499));
@@ -1509,8 +1570,8 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
         "Error loading config: package not found: 'saved-balance'");
     DOCTEST_CHECK(SAVEGAME::Consume_Loaded_Config_Message().empty());
     DOCTEST_CHECK(TEST_CONFIG_SNAPSHOT::commit_count == 1);
-    MOX::planet_count = 1;
-    actual.planets[0].food_per_farmer = 77;
+    test_planets::Resize_Dense(1);
+    test_planets::Record(0).food_per_farmer = 77;
     MOX::cur_map_x = 321;
     SERIAL::Reader_ legacy_config_failure_reader(
         legacy, legacy_size, "test save underflow");
@@ -1519,8 +1580,8 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
         &legacy_config_failure_reader, &unavailable_package_metadata, &unavailable_package_settings, &unavailable_package_seed, &unavailable_package_error));
     DOCTEST_CHECK(unavailable_package_error ==
         "Error loading config: unable to activate vanilla config");
-    DOCTEST_CHECK(MOX::planet_count == 1);
-    DOCTEST_CHECK((actual.planets[0].food_per_farmer == 77));
+    DOCTEST_CHECK(static_cast<int16_t>(game::current_state.planets.size()) == 1);
+    DOCTEST_CHECK((game::current_state.planets.at(game::id_planet{0}).food_per_farmer == 77));
     DOCTEST_CHECK(MOX::cur_map_x == 321);
     DOCTEST_CHECK(TEST_CONFIG_SNAPSHOT::commit_count == 1);
     TEST_CONFIG_SNAPSHOT::reapply_succeeds = true;
@@ -1528,8 +1589,8 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
 
     Bind_State_(actual);
     Clear_State_(actual);
-    MOX::planet_count = 1;
-    actual.planets[0].food_per_farmer = 77;
+    test_planets::Resize_Dense(1);
+    test_planets::Record(0).food_per_farmer = 77;
     MOX::cur_map_x = 321;
     SERIAL::Reader_ missing_extension_reader(
         versioned, extension_offset, "test save underflow");
@@ -1544,8 +1605,8 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
         &missing_extension_error));
     DOCTEST_CHECK((missing_extension_error.find("save extensions") !=
         std::string::npos));
-    DOCTEST_CHECK(MOX::planet_count == 1);
-    DOCTEST_CHECK((actual.planets[0].food_per_farmer == 77));
+    DOCTEST_CHECK(static_cast<int16_t>(game::current_state.planets.size()) == 1);
+    DOCTEST_CHECK((game::current_state.planets.at(game::id_planet{0}).food_per_farmer == 77));
     DOCTEST_CHECK(MOX::cur_map_x == 321);
     DOCTEST_CHECK(TEST_CONFIG_SNAPSHOT::commit_count == 1);
 
@@ -1648,7 +1709,7 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
     DOCTEST_CHECK(TEST_CONFIG_SNAPSHOT::commit_count == 4);
     DOCTEST_CHECK((TEST_CONFIG_SNAPSHOT::required_mods.empty()));
     DOCTEST_CHECK((version_one_metadata.version == 1));
-    DOCTEST_CHECK((actual.planets[0].food_per_farmer == 6));
+    DOCTEST_CHECK((game::current_state.planets.at(game::id_planet{0}).food_per_farmer == 6));
     DOCTEST_CHECK((actual.colonies[0].food2_per_farmer == 7));
     DOCTEST_CHECK((MOX::antarans.offensive_titan_built == 0));
     DOCTEST_CHECK((MOX::antarans.offensive_limit_exhausted_mask == 0));
@@ -1671,7 +1732,7 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
     DOCTEST_CHECK(TEST_CONFIG_SNAPSHOT::commit_count == 5);
     DOCTEST_CHECK((TEST_CONFIG_SNAPSHOT::required_mods.empty()));
     DOCTEST_CHECK((version_two_metadata.version == 2));
-    DOCTEST_CHECK((actual.planets[0].food_per_farmer == 3));
+    DOCTEST_CHECK((game::current_state.planets.at(game::id_planet{0}).food_per_farmer == 3));
     DOCTEST_CHECK((MOX::antarans.offensive_titan_built == 0));
     DOCTEST_CHECK((MOX::antarans.offensive_limit_exhausted_mask == 0));
     DOCTEST_CHECK((Is_Zero_(
@@ -1722,9 +1783,10 @@ DOCTEST_TEST_CASE("save validation rejects corrupt input and restores the prior 
     const auto setup = [&]() {
         Clear_State_(*state);
         MOX::NUM_PLAYERS = 2;
-        MOX::NUM_COLONIES = MOX::planet_count = MOX::NUM_STARS = MOX::NUM_SHIPS = 1;
+        test_planets::Resize_Dense(1);
+        MOX::NUM_COLONIES = MOX::NUM_STARS = MOX::NUM_SHIPS = 1;
         MOX::max_map_scale = MOX::cur_map_scale = 10;
-        for (int j = 1; j < 5; ++j) state->stars[0].planet_index[j] = -1;
+        for (int j = 1; j < 5; ++j) state->stars[0].orbit_planet_ids[j] = game::NO_PLANET;
     };
     const auto load = [&](uint32_t size) {
         SERIAL::Reader_ reader(bytes.data(), size, "save underflow", true);
@@ -1775,9 +1837,9 @@ DOCTEST_TEST_CASE("save validation rejects corrupt input and restores the prior 
                 MSG_::first_msg[0] = MAX_MESSAGES;
                 MSG_::max_msgs[0] = 1;
                 break;
-            case 10: state->planets[0].star_index = 5000; break;
-            case 11: state->planets[0].orbit = -1; break;
-            case 12: state->stars[0].planet_index[0] = 5000; break;
+            case 10: test_planets::Record(0).star_index = 5000; break;
+            case 11: test_planets::Record(0).orbit = -1; break;
+            case 12: state->stars[0].orbit_planet_ids[0] = game::id_planet{5000}; break;
             case 13: EVENTS::event_data[EVENT_DERELICT] = {0, 2, 0, TECH_APP_COUNT, 0, 1}; break;
             case 14: EVENTS::event_data[EVENT_COMET] = {0, 6, 3, 0, 50, 0}; break;
             case 15: EVENTS::event_data[EVENT_PLAGUE] = {100, 2, 0, 0, 0, 1}; break;

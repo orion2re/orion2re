@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "legacy_ids.h"
 
 namespace {
     bool Building_Forces_Combat_Reengagement(int16_t building_id) {
@@ -86,10 +87,10 @@ namespace ERICNET {
         INITGAME::Init_Colony(colony_idx, planet_idx, (uint8_t)player_idx);
         COLONY::Set_Colony_Globals(colony_idx);
 
-        int16_t star_idx = MOX::planet[planet_idx].star_index;
+        int16_t star_idx = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).star_index;
         MOX::star[star_idx].visited |= (1 << player_idx);
 
-        colony.climate = MOX::planet[planet_idx].climate;
+        colony.climate = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).climate;
 
         int16_t population_limit = COLCALC::Colony_Race_Pop_Limit(&colony, player_idx);
 
@@ -114,7 +115,7 @@ namespace ERICNET {
 
         for (int i = 0; i < (int)(uint8_t)colony.n_pops; ++i) {
             uint32_t job_bits;
-            if (MOX::planet[planet_idx].food_per_farmer == 0 || MOX::player[player_idx].traits[TRAIT_EATS_MINERALS] != 0) {
+            if (game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).food_per_farmer == 0 || MOX::player[player_idx].traits[TRAIT_EATS_MINERALS] != 0) {
                 job_bits = ((i % 2) + 1) << 7;
             } else {
                 job_bits = (i % 3) << 7;
@@ -199,9 +200,9 @@ namespace ERICNET {
             COLBLDG::Create_Ship_From_Design(player_idx, &colony_ship_design, colony_idx);
         }
 
-        colony.food2_per_farmer = MOX::planet[colony.planet].food_per_farmer;
-        colony.max_farms = MOX::planet[colony.planet].max_farms;
-        colony.climate = MOX::planet[colony.planet].climate;
+        colony.food2_per_farmer = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(colony.planet)}).food_per_farmer;
+        colony.max_farms = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(colony.planet)}).max_farms;
+        colony.climate = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(colony.planet)}).climate;
         colony.military[0] = INITGAME::start.marines; // Ground Defense Units
 
         colony.production[0] = 0;
@@ -219,8 +220,10 @@ namespace ERICNET {
         Init_Homeworld_Colony2(planet_idx, player_idx, 1);
     }
 
-    void __cdecl Init_Non_Homeworld_Colony(int16_t planet_idx, int16_t player_idx) {
-        Init_Homeworld_Colony2(planet_idx, player_idx, 0);
+    void __cdecl Init_Non_Homeworld_Colony(game::id_planet planet_id, int16_t player_idx) {
+        const auto index = legacy_world::Index(planet_id);
+        if (!index || !game::current_state.planets.contains(planet_id)) return;
+        Init_Homeworld_Colony2(*index, player_idx, 0);
     }
 
     int __cdecl Mox_Play_Sound(int16_t sound_id) {
@@ -294,9 +297,9 @@ namespace ERICNET {
             int8_t ship_owner = ship.owner;
 
             for (int i = 0; i < 5; ++i) {
-                int16_t planet_idx = MOX::star[star_idx].planet_index[i];
+                int16_t planet_idx = legacy_world::Index(MOX::star[star_idx].orbit_planet_ids[i].get()).value_or(-1);
                 if (planet_idx > -1) {
-                    int16_t colony_idx = MOX::planet[planet_idx].colony_index;
+                    int16_t colony_idx = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).colony_index;
                     if (colony_idx > -1) {
                         s_colony& colony = MOX::colony[colony_idx];
                         // If colony is owned by the same player and has a Space Academy
@@ -312,7 +315,7 @@ namespace ERICNET {
     void __cdecl Add_Building(int16_t colony_idx, int16_t building_idx) {
         s_colony* colony = &MOX::colony[colony_idx];
         s_player* player = &MOX::player[(uint8_t)colony->owner];
-        s_planet_data* planet = &MOX::planet[colony->planet];
+        s_planet_data* planet = &game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(colony->planet)});
         int16_t star_idx = planet->star_index;
         s_star_data* star = &MOX::star[star_idx];
 
@@ -416,30 +419,32 @@ namespace ERICNET {
                 int16_t p_idx = colony->planet;
                 int8_t old_climate = colony->climate;
                 switch (old_climate) {
-                    case PLANET_CLIMATE_BARREN:
-                        if (star->planet_index[0] == p_idx || star->planet_index[1] == p_idx) {
-                            MOX::planet[p_idx].climate = PLANET_CLIMATE_DESERT;
-                        } else if (star->planet_index[3] == p_idx || star->planet_index[4] == p_idx) {
-                            MOX::planet[p_idx].climate = PLANET_CLIMATE_TUNDRA;
+                    case PLANET_CLIMATE_BARREN: {
+                        const game::id_planet id{static_cast<uint32_t>(p_idx)};
+                        if (star->orbit_planet_ids[0].get() == id || star->orbit_planet_ids[1].get() == id) {
+                            game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(p_idx)}).climate = PLANET_CLIMATE_DESERT;
+                        } else if (star->orbit_planet_ids[3].get() == id || star->orbit_planet_ids[4].get() == id) {
+                            game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(p_idx)}).climate = PLANET_CLIMATE_TUNDRA;
                         } else {
-                            MOX::planet[p_idx].climate = (game_random::Random(2) != 1) ? PLANET_CLIMATE_TUNDRA : PLANET_CLIMATE_DESERT;
+                            game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(p_idx)}).climate = (game_random::Random(2) != 1) ? PLANET_CLIMATE_TUNDRA : PLANET_CLIMATE_DESERT;
                         }
                         break;
+                    }
                     case PLANET_CLIMATE_DESERT:
-                        MOX::planet[p_idx].climate = PLANET_CLIMATE_ARID;
+                        game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(p_idx)}).climate = PLANET_CLIMATE_ARID;
                         break;
                     case PLANET_CLIMATE_TUNDRA:
-                        MOX::planet[p_idx].climate = PLANET_CLIMATE_SWAMP;
+                        game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(p_idx)}).climate = PLANET_CLIMATE_SWAMP;
                         break;
                     case PLANET_CLIMATE_OCEAN:
                     case PLANET_CLIMATE_SWAMP:
                     case PLANET_CLIMATE_ARID:
-                        MOX::planet[p_idx].climate = PLANET_CLIMATE_TERRAN;
+                        game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(p_idx)}).climate = PLANET_CLIMATE_TERRAN;
                         break;
                 }
                 add_to_list = 0;
-                MOX::planet[p_idx].food_per_farmer += (MOX::food_per_farmer_table[MOX::planet[p_idx].climate] - MOX::food_per_farmer_table[old_climate]);
-                MOX::planet[p_idx].n_terraforms += 1;
+                game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(p_idx)}).food_per_farmer += (MOX::food_per_farmer_table[game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(p_idx)}).climate] - MOX::food_per_farmer_table[old_climate]);
+                game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(p_idx)}).n_terraforms += 1;
             } break;
 
             case BUILDING_ARTIFICIAL_PLANET: {
@@ -448,8 +453,8 @@ namespace ERICNET {
 
                 // Look for a gas giant first.
                 for (int i = 0; i < 5; ++i) {
-                    int16_t p_idx = star->planet_index[i];
-                    if (p_idx != -1 && MOX::planet[p_idx].planet_type == PLANET_TYPE_GAS_GIANT) {
+                    int16_t p_idx = legacy_world::Index(star->orbit_planet_ids[i].get()).value_or(-1);
+                    if (p_idx != -1 && game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(p_idx)}).planet_type == PLANET_TYPE_GAS_GIANT) {
                         target_planet = p_idx;
                         size = PLANET_SIZE_HUGE;
                         break;
@@ -458,8 +463,8 @@ namespace ERICNET {
                 // Otherwise use an asteroid belt.
                 if (target_planet == -1) {
                     for (int i = 0; i < 5; ++i) {
-                        int16_t p_idx = star->planet_index[i];
-                        if (p_idx != -1 && MOX::planet[p_idx].planet_type == PLANET_TYPE_ASTEROID) {
+                        int16_t p_idx = legacy_world::Index(star->orbit_planet_ids[i].get()).value_or(-1);
+                        if (p_idx != -1 && game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(p_idx)}).planet_type == PLANET_TYPE_ASTEROID) {
                             target_planet = p_idx;
                             size = PLANET_SIZE_LARGE;
                             break;
@@ -468,7 +473,7 @@ namespace ERICNET {
                 }
 
                 if (target_planet != -1) {
-                    s_planet_data* tp = &MOX::planet[target_planet];
+                    s_planet_data* tp = &game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(target_planet)});
                     tp->planet_type = PLANET_TYPE_PLANET;
                     tp->size = size;
                     tp->gravity_class = PLANET_GRAVITY_NORMAL_G;
@@ -535,7 +540,7 @@ namespace ERICNET {
 
         if (Building_Forces_Combat_Reengagement(building_id)) {
             int16_t planet_id = MOX::colony[colony_idx].planet;
-            int16_t star_id = MOX::planet[planet_id].star_index;
+            int16_t star_id = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_id)}).star_index;
             MOX::star[star_id].ignore_combat_ships = 0;
         }
 
@@ -557,7 +562,7 @@ namespace ERICNET {
             case BUILDING_ARTEMIS_SYSTEM_NET:
             case BUILDING_DIMENSIONAL_PORTAL:
             case BUILDING_WARP_INTERDICTOR: {
-                int16_t star_idx = MOX::planet[MOX::colony[colony_idx].planet].star_index;
+                int16_t star_idx = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(MOX::colony[colony_idx].planet)}).star_index;
                 COLCALC::Compute_Star_Colony_Stuff(&MOX::star[star_idx]);
                 if (building_id == BUILDING_WARP_INTERDICTOR) {
                     SHIPMOVE::Update_Ship_ETAs((int32_t)MOX::colony[colony_idx].owner);
@@ -586,7 +591,7 @@ namespace ERICNET {
             case BUILDING_BARRIER_SHIELD:
             case BUILDING_FLUX_SHIELD:
             case BUILDING_RADIATION_SHIELD:
-                if (MOX::planet[MOX::colony[colony_idx].planet].climate < PLANET_CLIMATE_BARREN) {
+                if (game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(MOX::colony[colony_idx].planet)}).climate < PLANET_CLIMATE_BARREN) {
                     COLBLDG::Delete_Prod_From_Colony_Queue(colony_idx, BUILDING_TERRAFORMING);
                 }
                 // Fallthrough

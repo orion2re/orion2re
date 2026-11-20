@@ -355,8 +355,9 @@ namespace AI_SNOOPS_DEBUG {
                 ImGui::TableSetupColumn("Contextual");
                 ImGui::TableSetupColumn("Stage");
                 ImGui::TableHeadersRow();
-                for (int planet = 0; planet < MOX::planet_count; ++planet) {
-                    auto entry = ai->planets.find(game::id_planet{static_cast<uint32_t>(planet)});
+                for (const auto& [id, body] : game::current_state.planets) {
+                    const int planet = static_cast<int>(id.id);
+                    auto entry = ai->planets.find(id);
                     if (entry == ai->planets.end()) continue;
                     const uint16_t base = entry->second.base_values[player];
                     const uint16_t contextual = entry->second.contextual_values[player];
@@ -367,12 +368,11 @@ namespace AI_SNOOPS_DEBUG {
                     ImGui::PushID(planet);
                     if (ImGui::Selectable(std::to_string(planet).c_str(), false,
                                           ImGuiSelectableFlags_SpanAllColumns)) {
-                        debug_game_editors::Open_Planet((int16_t)planet);
+                        if (const auto index = legacy_world::Index(id)) debug_game_editors::Open_Planet(*index);
                     }
                     ImGui::PopID();
                     ImGui::TableSetColumnIndex(1);
-                    ImGui::Text("%d", MOX::planet == nullptr ? -1 :
-                                (int)MOX::planet[planet].star_index);
+                    ImGui::Text("%d", static_cast<int>(body.star_index));
                     ImGui::TableSetColumnIndex(2);
                     ImGui::Text("%u", (unsigned)base);
                     ImGui::TableSetColumnIndex(3);

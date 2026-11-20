@@ -264,18 +264,11 @@ namespace orion2re::lua::game {
         if (runtime_count == 0 || !Setup_Callback_Allowed_()) {
             return;
         }
-        const auto planet_idx = event ? legacy_world::Index(event->planet_id) : std::nullopt;
-        if (!planet_idx || MOX::planet == nullptr ||
-            MOX::star == nullptr || MOX::planet_count < 0 ||
-            MOX::planet_count > MAX_PLANETS || MOX::NUM_STARS < 0 ||
-            MOX::NUM_STARS > MAX_STARS || *planet_idx >= MOX::planet_count) {
+        if (!event) {
             exitm::Exit_With_Message("invalid planet.generated Lua event");
         }
-        const s_planet_data& planet = MOX::planet[*planet_idx];
-        if (planet.star_index < 0 || planet.star_index >= MOX::NUM_STARS ||
-            planet.orbit < 0 || planet.orbit >= 5 ||
-            MOX::star[planet.star_index].planet_index[planet.orbit] !=
-                *planet_idx) {
+        int16_t system;
+        if (!internal::Resolve_Planet_System(event->planet_id, &system)) {
             exitm::Exit_With_Message("invalid planet.generated planet");
         }
 
@@ -391,9 +384,8 @@ namespace orion2re::lua::game {
             return;
         }
         if (event == nullptr || MOX::player == nullptr ||
-            MOX::planet == nullptr || MOX::star == nullptr ||
+            MOX::star == nullptr ||
             MOX::NUM_PLAYERS < 0 || MOX::NUM_PLAYERS > MAX_PLAYERS ||
-            MOX::planet_count < 0 || MOX::planet_count > MAX_PLANETS ||
             MOX::NUM_STARS < 0 || MOX::NUM_STARS > MAX_STARS ||
             event->player_id < 0 ||
             event->player_id >= MOX::NUM_PLAYERS || event->system_id < 0 ||
@@ -402,8 +394,8 @@ namespace orion2re::lua::game {
                 "invalid new_game.home_system_generated Lua event");
         }
         const auto home = MOX::player[event->player_id].home_planet_id.get();
-        if (home == NO_PLANET || home.id >= static_cast<uint32_t>(MOX::planet_count) ||
-            MOX::planet[home.id].star_index != event->system_id) {
+        int16_t system;
+        if (!internal::Resolve_Planet_System(home, &system) || system != event->system_id) {
             exitm::Exit_With_Message(
                 "invalid new_game.home_system_generated home system");
         }

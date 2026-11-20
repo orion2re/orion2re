@@ -56,7 +56,7 @@ namespace AIMOVE {
         if (colony_ptr < world->colonies + world->Colony_Count()) {
             do {
                 if (colony_ptr->owner == i_ai) {
-                    int16_t current_star_idx = world->planets[colony_ptr->planet].star_index;
+                    int16_t current_star_idx = world->state->planets.at(game::id_planet{static_cast<uint32_t>(colony_ptr->planet)}).star_index;
 
                     if (orbit != legacy_world::Star_Id(current_star_idx) && legacy_world::Star_Id(current_star_idx) != destination_star) {
                         ai_compat::Evaluate_Fleet_Move(ships, legacy_world::Star_Id(current_star_idx), &move_info);

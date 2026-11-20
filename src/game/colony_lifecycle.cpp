@@ -11,7 +11,7 @@
 namespace BOMB {
     int32_t __cdecl Handle_Leader_At_Lost_Colony(s_colony* colony) {
         int32_t owner_idx = colony->owner;
-        int16_t star_idx = MOX::planet[colony->planet].star_index;
+        int16_t star_idx = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(colony->planet)}).star_index;
         int32_t killed_leader_idx = -1;
         int32_t leader_idx = MOX::star[star_idx].officer_index[owner_idx];
 
@@ -20,9 +20,9 @@ namespace BOMB {
             int16_t current_colony_idx = (int16_t)(colony - MOX::colony);
 
             for (int32_t planet_slot_idx = 0; planet_slot_idx < 5; ++planet_slot_idx) {
-                int16_t p_idx = MOX::star[star_idx].planet_index[planet_slot_idx];
+                int16_t p_idx = legacy_world::Index(MOX::star[star_idx].orbit_planet_ids[planet_slot_idx].get()).value_or(-1);
                 if (p_idx != -1) {
-                    int16_t c_idx = MOX::planet[p_idx].colony_index;
+                    int16_t c_idx = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(p_idx)}).colony_index;
                     if (c_idx != -1 && MOX::colony[c_idx].owner == owner_idx && c_idx != current_colony_idx) {
                         other_colony_found = true;
                     }
@@ -51,7 +51,7 @@ namespace BOMB {
         int16_t leader_idx;
         s_MSG msg;
 
-        star_idx = MOX::planet[colony->planet].star_index;
+        star_idx = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(colony->planet)}).star_index;
         star = &MOX::star[star_idx];
         colony_idx = (int16_t)(colony - MOX::colony);
 
@@ -77,7 +77,7 @@ namespace BOMB {
 
         COLBLDG::Clear_Colony_Queue(colony_idx);
 
-        MOX::planet[colony->planet].colony_index = -1;
+        game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(colony->planet)}).colony_index = -1;
 
         memset(colony, 0, sizeof(s_colony));
         colony->planet = -1;

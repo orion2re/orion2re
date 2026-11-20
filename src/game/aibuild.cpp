@@ -437,7 +437,7 @@ namespace AIBUILD {
                 if (colony->bought_outright != 0) continue;
 
                 int16_t planet_idx = colony->planet;
-                int16_t star_idx = world->planets[planet_idx].star_index;
+                int16_t star_idx = world->state->planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).star_index;
                 if ((world->stars[star_idx].blockaded >> (player_idx & 0x1F)) & 1) continue;
 
                 int16_t producing = colony->producing[0];
@@ -529,7 +529,7 @@ namespace AIBUILD {
         memset(context, 0, sizeof(*context));
         int32_t owner = (uint8_t)colony->owner;
         const s_player* player = &world->players[owner];
-        const s_planet_data* planet = &world->planets[colony->planet];
+        const s_planet_data* planet = &world->state->planets.at(game::id_planet{static_cast<uint32_t>(colony->planet)});
         const AIDATA::s_colony_assessment* ai_colony = &ai->colonies[colony_idx];
         const AIDATA::s_star_player_assessment* star_info =
             &ai->stars[legacy_world::Star_Id(planet->star_index)].neighborhood.per_player[owner];
@@ -661,7 +661,7 @@ namespace AIBUILD {
         }
         if (bc_score > 10) bc_score = 10;
 
-        s_planet_data* planet = &world->planets[colony->planet];
+        s_planet_data* planet = &world->state->planets.at(game::id_planet{static_cast<uint32_t>(colony->planet)});
         int16_t star_idx = planet->star_index;
         AIDATA::s_star_neighborhood* ai_star = &ai->stars[legacy_world::Star_Id(star_idx)].neighborhood;
         AIDATA::s_star_player_assessment* star_player_info = &ai_star->per_player[owner];

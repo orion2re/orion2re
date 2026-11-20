@@ -540,7 +540,7 @@ namespace COLONY {
     }
 
     bool __cdecl Colonize_Planet(int16_t planet_idx) {
-        if (MOX::planet[planet_idx].colony_index == -1) {
+        if (game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).colony_index == -1) {
             int16_t colony_idx = MOX::NUM_COLONIES;
             MOX::NUM_COLONIES++;
 
@@ -558,7 +558,7 @@ namespace COLONY {
 
             if (colony.bought_outright == 0) {
                 int16_t planet_idx = colony.planet;
-                int16_t star_idx = MOX::planet[planet_idx].star_index;
+                int16_t star_idx = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).star_index;
                 s_star_data& star = MOX::star[star_idx];
 
                 if (!struct_::Test_Bit_Field(&star.blockaded, MOX::PLAYER_NUM)) {
@@ -1280,7 +1280,7 @@ namespace COLONY {
     }
 
     s_animation_header* __cdecl Mini_Planet_Anim(int16_t planet_idx) {
-        s_planet_data* planet = &MOX::planet[planet_idx];
+        s_planet_data* planet = &game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)});
         uint8_t climate;
 
         if (planet->colony_index == -1) {
@@ -1447,8 +1447,8 @@ namespace COLONY {
 
         int16_t planet_idx = MOX::colony[colony_idx].planet;
 
-        MOX::screen_data = MOX::planet[planet_idx].star_index;
-        orbit_temp = (int16_t)MOX::planet[planet_idx].orbit;
+        MOX::screen_data = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).star_index;
+        orbit_temp = (int16_t)game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).orbit;
         temp_colony_idx = colony_idx;
 
         Reset_Field_Mode();
@@ -1680,11 +1680,11 @@ namespace COLONY {
                     if (COLONY::sys_disp_planet_fields[i] == *input_field) {
                         if (COLONY::field_mode == 1) {
                             int16_t planet_idx = HAROLD::Planet_Index(COLONY::sys_disp_star_handle, i);
-                            COLMOVE::Send_Cluster(MOX::planet[planet_idx].colony_index, -1);
+                            COLMOVE::Send_Cluster(game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).colony_index, -1);
                             COLONY::Restore_Control();
                         } else {
                             int16_t planet_idx = HAROLD::Planet_Index(COLONY::sys_disp_star_handle, i);
-                            int16_t col_idx = MOX::planet[planet_idx].colony_index;
+                            int16_t col_idx = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).colony_index;
 
                             if (col_idx != -1 &&
                                 MOX::colony[col_idx].outpost_flag != 1 &&
@@ -1708,7 +1708,7 @@ namespace COLONY {
                         }
                     } else if (COLONY::sys_disp_summ_fields[i] == *input_field) {
                         int16_t planet_idx = HAROLD::Planet_Index(COLONY::sys_disp_star_handle, i);
-                        if (MOX::planet[planet_idx].planet_type == PLANET_TYPE_PLANET) {
+                        if (game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).planet_type == PLANET_TYPE_PLANET) {
                             COLONY::planet_display_handle = HAROLD::Planet_Index(COLONY::sys_disp_star_handle, i);
                             COLONY::drawing_display = 2;
                             return 1;
@@ -1944,8 +1944,8 @@ namespace COLONY {
             int16_t planet_idx = MOX::colony[colony_idx].planet;
 
             // Note: star_index and orbit are extracted from the planet associated with the colony
-            int16_t star_idx = MOX::planet[planet_idx].star_index;
-            char orbit = MOX::planet[planet_idx].orbit;
+            int16_t star_idx = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).star_index;
+            char orbit = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).orbit;
 
             // Update the player's last selected planet in the system's star data
             MOX::star[star_idx].last_planet_selected[player_idx] = orbit;
@@ -2032,8 +2032,8 @@ namespace COLONY {
     void __cdecl Set_Colony_Globals(int16_t colony_idx) {
         colony_handle = colony_idx;
         planet_handle = MOX::colony[colony_idx].planet;
-        star_handle = MOX::planet[planet_handle].star_index;
-        orbit_n = MOX::planet[planet_handle].orbit;
+        star_handle = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_handle)}).star_index;
+        orbit_n = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_handle)}).orbit;
     }
 
     s_animation_header* __cdecl Load_Govt_Anim(int16_t govt_anim_id) {

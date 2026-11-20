@@ -21,10 +21,10 @@ namespace REPORT {
 
     s_colony* __cdecl Player_Colony_Base_At_Star(int16_t player_idx, int16_t star_idx) {
         for (int i = 0; i < 5; ++i) {
-            int16_t planet_idx = MOX::star[star_idx].planet_index[i];
+            int16_t planet_idx = legacy_world::Index(MOX::star[star_idx].orbit_planet_ids[i].get()).value_or(-1);
 
             if (planet_idx != -1) {
-                int16_t colony_idx = MOX::planet[planet_idx].colony_index;
+                int16_t colony_idx = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).colony_index;
 
                 if (colony_idx != -1) {
                     s_colony* colony = &MOX::colony[colony_idx];
@@ -216,7 +216,7 @@ namespace REPORT {
                                     planet_idx = PLNTSUM::Colony_Ship_Auto_Colonization(outpost_ship);
                                     if (planet_idx == PLANET_INDEX_NONE) {
                                         planet_idx = MAINPUPS::New_Outpost_Selection_Popup(star_idx);
-                                    } else if (MOX::planet[planet_idx].colony_index == -1) {
+                                    } else if (game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).colony_index == -1) {
                                         char msg[200];
                                         snprintf(msg, sizeof(msg), outpost_preselected_planet_fmt, HACCESS::Get_Planet_Name(planet_idx));
                                         if (GENDRAW::Do_Confirmation_Box(msg) == 0) {
@@ -237,7 +237,7 @@ namespace REPORT {
 
                                     if (colony_base == nullptr && PLNTSUM::Colony_Ship_Auto_Colonization(colony_prompt_ship) != PLANET_INDEX_NONE) {
                                         planet_idx = PLNTSUM::Colony_Ship_Auto_Colonization(colony_prompt_ship);
-                                        if (MOX::planet[planet_idx].colony_index == -1) {
+                                        if (game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).colony_index == -1) {
                                             auto_colonized = true;
                                             char msg[200];
                                             snprintf(msg, sizeof(msg), colonize_preselected_planet_fmt, HACCESS::Get_Planet_Name(planet_idx));
@@ -311,9 +311,9 @@ namespace REPORT {
                                         if (MOX::settings.animations_on != 0) {
                                             MOX::current_screen = 0x21; /* SCR_COLONIZE */
                                             MOX::return_screen = SCREEN_REPORTS;
-                                            MOX::screen_data = MOX::planet[planet_idx].star_index;
+                                            MOX::screen_data = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).star_index;
                                             MOX::global_esc = 1;
-                                            COLONY::orbit_temp = MOX::planet[planet_idx].orbit;
+                                            COLONY::orbit_temp = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).orbit;
                                             return 3;
                                         }
                                         return 1;
@@ -767,7 +767,7 @@ namespace REPORT {
                     MOX::return_screen = SCREEN_REPORTS;
 
                     int16_t planet_idx = colony->planet;
-                    s_planet_data* planet = &MOX::planet[planet_idx];
+                    s_planet_data* planet = &game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)});
 
                     MOX::screen_data = planet->star_index;
                     COLONY::orbit_temp = (int16_t)planet->orbit;
@@ -892,8 +892,8 @@ namespace REPORT {
             MOX::current_screen = SCREEN_COLONY;
 
             // Set up planet specific data for the colony screen jump
-            MOX::screen_data = MOX::planet[target_colony->planet].star_index;
-            COLONY::orbit_temp = (int16_t)MOX::planet[target_colony->planet].orbit;
+            MOX::screen_data = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(target_colony->planet)}).star_index;
+            COLONY::orbit_temp = (int16_t)game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(target_colony->planet)}).orbit;
             MOX::global_esc = 1;
         }
 

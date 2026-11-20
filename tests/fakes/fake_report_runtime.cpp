@@ -1,8 +1,9 @@
 #include "pch.h"
+#include "../fixtures/planet_roster.h"
 
 namespace {
     s_colony colonies[MAX_COLONIES];
-    s_planet_data planets[MAX_PLANETS];
+
     s_player players[MAX_PLAYERS];
     s_ship_data ships[MAX_SHIPS];
     s_star_data stars[MAX_STARS];
@@ -45,7 +46,7 @@ namespace TEST_REPORT {
 
     void Reset_() {
         memset(colonies, 0, sizeof(colonies));
-        memset(planets, 0, sizeof(planets));
+        test_planets::Reset(0);
         memset(players, 0, sizeof(players));
         memset(ships, 0, sizeof(ships));
         memset(stars, 0xff, sizeof(stars));
@@ -111,8 +112,8 @@ namespace TEST_REPORT {
     }
 
     void Add_Colony_Base_() {
-        MOX::star[0].planet_index[0] = 0;
-        MOX::planet[0].colony_index = 0;
+        MOX::star[0].orbit_planet_ids[0] = game::id_planet{0};
+        test_planets::Record(0).colony_index = 0;
         MOX::colony[0].owner = 0;
         MOX::colony[0].buildings[BUILDING_COLONY_BASE] = 1;
     }
@@ -146,7 +147,7 @@ namespace MOX {
     int16_t screen_data;
     uint16_t global_esc;
     s_colony* colony = colonies;
-    s_planet_data* planet = planets;
+
     s_player* player = players;
     s_ship_data* ship = ships;
     s_star_data* star = stars;

@@ -4,8 +4,6 @@
 #include "settler_data.h"
 #include "unaligned.h"
 
-#pragma pack(push, 1)
-
 typedef struct s_adv_civ_player s_adv_civ_player, *Ps_adv_civ_player;
 
 typedef struct s_adv_civ_player_star s_adv_civ_player_star, *Ps_adv_civ_player_star;
@@ -13,11 +11,8 @@ typedef struct s_adv_civ_player_star s_adv_civ_player_star, *Ps_adv_civ_player_s
 typedef struct s_adv_civ_player_planet s_adv_civ_player_planet, *Ps_adv_civ_player_planet;
 
 struct s_adv_civ_player_planet {
-    int8_t is_homeworld;
-    int16_t proximity_bonus;
     int32_t worth;
-    int16_t planet_idx;
-    int8_t is_settled;
+    game::id_planet planet_id;
 };
 
 struct s_adv_civ_player_star {
@@ -34,19 +29,7 @@ struct s_adv_civ_player {
     struct s_adv_civ_player_planet planets[MAX_PLANETS];
 };
 
-typedef struct s_adv_planet_worth s_adv_planet_worth, *Ps_adv_planet_worth;
-
-typedef struct s_adv_planet_worth_s1 s_adv_planet_worth_s1, *Ps_adv_planet_worth_s1;
-
-struct s_adv_planet_worth_s1 {
-    int16_t planet_idx;
-    int32_t worth;
-};
-
-struct s_adv_planet_worth {
-    int8_t num_planets;
-    struct s_adv_planet_worth_s1 planets[20];
-};
+#pragma pack(push, 1)
 
 typedef struct s_alloc_header s_alloc_header, *Ps_alloc_header;
 
@@ -1686,7 +1669,7 @@ struct s_player {
     int32_t diplomacy_proposal_exchange_max_value[MAX_PLAYERS];
     uint8_t diplomacy_proposal_exchange_tech[MAX_PLAYERS];
     int16_t diplomacy_proposal_system_bribe[MAX_PLAYERS];
-    int16_t sneak_attack_planet;
+    unaligned::field<game::id_planet> sneak_attack_planet = game::NO_PLANET;
     int8_t sneak_attack_message;
     int8_t sneak_attack_player;
     int8_t council_threat;
@@ -1702,7 +1685,7 @@ struct s_player {
     int8_t war_buildup_duration;
     int16_t last_diplomacy_proposal_turn[MAX_PLAYERS];
     int16_t diplomacy_proposal_rejection[MAX_PLAYERS];
-    int16_t opportunity_planet_num[MAX_PLAYERS];
+    unaligned::field<game::id_planet> opportunity_planet_id[MAX_PLAYERS];
     int16_t opportunity_planet_value[MAX_PLAYERS];
     int32_t opportunity_actual_attacker_ratio[MAX_PLAYERS];
     int16_t temp_diplomacy_dummy1[MAX_PLAYERS];
@@ -2807,7 +2790,9 @@ struct s_star_data {
     uint8_t has_dimensional_portal;
     uint8_t is_stagepoint;
     int8_t officer_index[MAX_PLAYERS];
-    int16_t planet_index[5];
+    unaligned::field<game::id_planet> orbit_planet_ids[5] = {
+        game::NO_PLANET, game::NO_PLANET, game::NO_PLANET, game::NO_PLANET, game::NO_PLANET,
+    };
     int16_t relocate_ship_to[MAX_PLAYERS];
     int8_t twinkling1;
     int8_t twinkling2;

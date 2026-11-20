@@ -6,10 +6,10 @@ namespace COMBFIND {
         if (star->system_special >= 50) {
             if (star->system_special < 90) {
                 for (int i = 0; i < 5; ++i) {
-                    int16_t planet_idx = star->planet_index[i];
+                    int16_t planet_idx = legacy_world::Index(star->orbit_planet_ids[i].get()).value_or(-1);
                     if (planet_idx != -1) {
                         // Reset the special status on each planet belonging to this system.
-                        MOX::planet[planet_idx].planet_special = SYSTEM_SPECIAL_NO_SPECIAL;
+                        game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).planet_special = SYSTEM_SPECIAL_NO_SPECIAL;
                     }
                 }
             }

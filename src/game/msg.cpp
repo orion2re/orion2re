@@ -622,7 +622,7 @@ namespace MSG_ {
     int8_t __cdecl Goto_Msg_Colony(s_MSG* msg) {
         if (msg->msg_type == MSG_TYPE_COLONY) {
             int16_t planet_idx = msg->u.colony.planet_idx;
-            int16_t colony_idx = MOX::planet[planet_idx].colony_index;
+            int16_t colony_idx = current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).colony_index;
 
             if (colony_idx != -1) {
                 s_colony* colony = &MOX::colony[colony_idx];
@@ -631,7 +631,7 @@ namespace MSG_ {
                     MOX::return_screen = SCREEN_INFO;
                     MOX::current_screen = SCREEN_COLONY;
 
-                    s_planet_data* planet = &MOX::planet[colony->planet];
+                    s_planet_data* planet = &current_state.planets.at(game::id_planet{static_cast<uint32_t>(colony->planet)});
                     MOX::screen_data = planet->star_index;
                     COLONY::orbit_temp = (int16_t)planet->orbit;
 

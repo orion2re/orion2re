@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/planet_roster.h"
 
 #include "game/legacy_world.h"
 
@@ -6,7 +7,7 @@ namespace {
     s_player players[MAX_PLAYERS];
     s_ship_data ships[1];
     s_star_data stars[1];
-    s_planet_data planets[1];
+
     s_colony colonies[1];
 }
 
@@ -18,7 +19,7 @@ namespace TEST_DIPLOMAC {
         MOX::player = players;
         MOX::ship = ships;
         MOX::star = stars;
-        MOX::planet = planets;
+        test_planets::Reset(1);
         MOX::colony = colonies;
         MOX::NUM_PLAYERS = 2;
         MOX::NUM_SHIPS = 0;

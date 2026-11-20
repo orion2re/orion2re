@@ -24,7 +24,7 @@ namespace CONTACT {
             }
 
             int8_t owner_a = colony_a->owner;
-            int16_t star_a_idx = MOX::planet[colony_a->planet].star_index;
+            int16_t star_a_idx = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(colony_a->planet)}).star_index;
             s_star_data* star_a = &MOX::star[star_a_idx];
 
             for (int16_t j = 0; j < i; ++j) {
@@ -34,7 +34,7 @@ namespace CONTACT {
                 }
 
                 int8_t owner_b = colony_b->owner;
-                int16_t star_b_idx = MOX::planet[colony_b->planet].star_index;
+                int16_t star_b_idx = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(colony_b->planet)}).star_index;
                 s_star_data* star_b = &MOX::star[star_b_idx];
                 bool contact_made = false;
 

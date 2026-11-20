@@ -345,9 +345,8 @@ namespace debug_game_editors {
 
         bool Validate_Colony_(const s_colony& colony) {
             const int16_t player_count = std::clamp<int16_t>(MOX::NUM_PLAYERS, 0, MAX_PLAYERS);
-            const int16_t planet_count = std::clamp<int16_t>(MOX::planet_count, 0, MAX_PLANETS);
             return colony.owner >= 0 && colony.owner < player_count &&
-                colony.planet >= 0 && colony.planet < planet_count &&
+                colony.planet >= 0 && game::current_state.planets.contains(game::id_planet{static_cast<uint32_t>(colony.planet)}) &&
                 (colony.allocated_to == -1 ||
                     (colony.allocated_to >= 0 && colony.allocated_to < player_count)) &&
                 colony.officer >= -1 && colony.officer < MAX_LEADERS &&
@@ -956,8 +955,8 @@ namespace debug_game_editors {
                 const bool can_convert = Valid_Colony_(g_pending_outpost_colony) &&
                     MOX::colony[g_pending_outpost_colony].outpost_flag != 0 &&
                     MOX::colony[g_pending_outpost_colony].planet >= 0 &&
-                    MOX::colony[g_pending_outpost_colony].planet < MOX::planet_count &&
-                    MOX::planet[MOX::colony[g_pending_outpost_colony].planet].colony_index ==
+                    game::current_state.planets.contains(game::id_planet{static_cast<uint32_t>(MOX::colony[g_pending_outpost_colony].planet)}) &&
+                    game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(MOX::colony[g_pending_outpost_colony].planet)}).colony_index ==
                         g_pending_outpost_colony &&
                     MOX::game_type != 2 && MOX::game_type != 3;
                 ImGui::BeginDisabled(!can_convert);

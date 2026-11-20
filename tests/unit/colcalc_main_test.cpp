@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/planet_roster.h"
 #include "../fixtures/game_state.h"
 #include "game/allocate.h"
 #include "game/vfs.h"
@@ -213,7 +214,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured planet special BC bonu
     colony->n_pops = 5;
     COLCALC::planet_bc_bonus = {7, 13};
 
-    MOX::planet[0].planet_special = SYSTEM_SPECIAL_GOLD_DEPOSITS;
+    test_planets::Record(0).planet_special = SYSTEM_SPECIAL_GOLD_DEPOSITS;
     COLCALC::Colony_BC_Production(colony, nullptr);
     DOCTEST_CHECK((colony->production[ECON_BC] == 12));
 
@@ -222,7 +223,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured planet special BC bonu
     DOCTEST_CHECK((colony->production[ECON_BC] == 18));
 
     colony->buildings[BUILDING_SPACEPORT] = 0;
-    MOX::planet[0].planet_special = SYSTEM_SPECIAL_GEM_DEPOSITS;
+    test_planets::Record(0).planet_special = SYSTEM_SPECIAL_GEM_DEPOSITS;
     COLCALC::Colony_BC_Production(colony, nullptr);
     DOCTEST_CHECK((colony->production[ECON_BC] == 18));
 
@@ -295,7 +296,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured research bonuses drive
     };
 
     s_colony* colony = &MOX::colony[0];
-    s_planet_data* planet = &MOX::planet[0];
+    s_planet_data* planet = &test_planets::Record(0);
     colony->n_pops = 1;
     colony->buildings[BUILDING_ASTRO_UNIVERSITY] = 1;
     colony->buildings[BUILDING_SUPERCOMPUTER] = 1;
@@ -530,7 +531,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured worker production stay
 
     s_potential_colony_info potential = {};
     COLCALC::Compute_Potential_Colony_Info(
-        &MOX::player[0], &MOX::planet[0], &potential);
+        &MOX::player[0], &test_planets::Record(0), &potential);
     DOCTEST_CHECK(potential.industry == 9);
 
     memcpy(COLCALC::minerals_per_mine, saved_worker_base,
@@ -547,7 +548,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "worker production cache preserves
         s_colony* colony = &MOX::colony[0];
         colony->owner = 0;
         colony->planet = 0;
-        MOX::planet[0].mineral_class = MINERAL_RESOURCE_ULTRA_POOR;
+        test_planets::Record(0).mineral_class = MINERAL_RESOURCE_ULTRA_POOR;
         COLCALC::minerals_per_mine[MINERAL_RESOURCE_ULTRA_POOR] = value;
         COLCALC::production_worker_bonus = {};
 
@@ -576,7 +577,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured fixed production and R
     colony->pop[0] = 0x200;
     colony->pop[1] = 0x200;
     colony->pop[2] = 0x200;
-    MOX::planet[0].mineral_class = MINERAL_RESOURCE_RICH;
+    test_planets::Record(0).mineral_class = MINERAL_RESOURCE_RICH;
     colony->buildings[BUILDING_AUTOMATED_FACTORY] = 1;
     colony->buildings[BUILDING_ROBO_MINER_PLANT] = 1;
     colony->buildings[BUILDING_DEEP_CORE_MINE] = 1;

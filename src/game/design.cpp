@@ -1718,7 +1718,7 @@ namespace DESIGN {
     int16_t __cdecl Get_Colony_Handle() {
         int16_t planet_idx = HAROLD::Planet_Index(MOX::screen_data, COLONY::orbit_temp);
 
-        return MOX::planet[planet_idx].colony_index;
+        return game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).colony_index;
     }
 
     void __cdecl Clear_Special_System_Slot(int16_t slot_idx) {
