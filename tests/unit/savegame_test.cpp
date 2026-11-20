@@ -70,38 +70,6 @@ namespace {
         }
     }
 
-    uint8_t* Find_Legacy_Block_(uint8_t* data, size_t size, size_t block_size, uint32_t seed) {
-        std::vector<uint8_t> pattern(block_size);
-        Fill_Bytes_(pattern.data(), pattern.size(), seed);
-        uint8_t* block = std::search(data, data + size, pattern.begin(), pattern.end());
-        DOCTEST_REQUIRE(block != data + size);
-        return block;
-    }
-
-    void Normalize_Legacy_Fixture_(uint8_t* data, size_t size) {
-        // The byte-pattern fixture predates semantic validation. Keep its binary
-        // layout coverage, but give the validated fields meaningful values.
-        uint8_t* planets = Find_Legacy_Block_(data, size, ORIGINAL_MAX_PLANETS * LEGACY_PLANET_SIZE, 2);
-        for (size_t i = 0; i < ORIGINAL_MAX_PLANETS; ++i) {
-            planets[i * LEGACY_PLANET_SIZE + offsetof(s_planet_data, star_index)] = i % (ORIGINAL_MAX_STARS - 1);
-            planets[i * LEGACY_PLANET_SIZE + offsetof(s_planet_data, orbit) - 1] = i % 5;
-        }
-        uint8_t* stars = Find_Legacy_Block_(data, size, ORIGINAL_MAX_STARS * LEGACY_STAR_SIZE, 3);
-        constexpr size_t planet_offset = offsetof(s_star_data, planet_index) -
-            (BITMAP(MAX_STARS) - BITMAP(ORIGINAL_MAX_STARS)) - 2;
-        for (size_t i = 0; i < ORIGINAL_MAX_STARS; ++i) {
-            for (size_t j = 0; j < 5; ++j) {
-                const int16_t planet = (i * 5 + j) % (ORIGINAL_MAX_PLANETS - 1);
-                memcpy(stars + i * LEGACY_STAR_SIZE + planet_offset + j * sizeof(planet), &planet, sizeof(planet));
-            }
-        }
-        uint8_t* events = Find_Legacy_Block_(data, size, sizeof(EVENTS::event_data), 15);
-        for (size_t i = 0; i < EVENT_COUNT; ++i) events[i * sizeof(s_event_data) + offsetof(s_event_data, status)] = 0;
-        for (uint32_t seed : {16u, 17u, 18u}) {
-            memset(Find_Legacy_Block_(data, size, MAX_PLAYERS, seed), 0, MAX_PLAYERS);
-        }
-    }
-
     void Bind_State_(State_& state) {
         MOX::colony = state.colonies;
         MOX::planet = state.planets;
@@ -1051,7 +1019,6 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
     DOCTEST_REQUIRE(legacy != nullptr);
     DOCTEST_REQUIRE(fread(legacy, 1, legacy_size, legacy_file) == legacy_size);
     fclose(legacy_file);
-    Normalize_Legacy_Fixture_(legacy, legacy_size);
 
     const SETTLER::legacy_value_type first_legacy_settler = 0x7C17F2EAu;
     uint8_t* first_legacy_settler_ptr = nullptr;

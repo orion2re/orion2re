@@ -1333,6 +1333,13 @@ target_compile_definitions(test_savegame PRIVATE
     TEST_CONFIG_RUNTIME_EXTERNAL_SHIPS
 )
 
+orion2re_add_game_test(test_savegame_compatibility
+    tests/unit/savegame_compatibility_test.cpp
+)
+target_compile_definitions(test_savegame_compatibility PRIVATE
+    SAVEGAME_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/data"
+)
+
 orion2re_add_unit_test(test_netturn_host_selection
     SOURCES
         tests/unit/netturn_test.cpp
