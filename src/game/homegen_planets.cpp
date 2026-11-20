@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "legacy_ids.h"
 
 namespace HOMEGEN {
     s_star_dist* star_list;
@@ -13,19 +14,14 @@ namespace HOMEGEN {
             }
 
             int16_t new_planet_idx = MOX::planet_count;
-            Make_One_Planet(star_idx, new_planet_idx, orbit, 0);
+            Make_One_Planet(legacy_world::Planet_Id(new_planet_idx), star_idx, orbit, 0);
             MOX::planet_count++;
             return;
         }
 
-        uint16_t saved_global_count = MOX::planet_count;
-        MOX::planet_count = (uint16_t)existing_planet_idx;
-
         MOX::planet[existing_planet_idx].orbit = (int8_t)orbit;
         MOX::planet[existing_planet_idx].planet_type = PLANET_TYPE_PLANET;
-        MAPGEN::Generate_Satellite(star_idx, (int8_t)orbit, PLANET_TYPE_PLANET);
-
-        MOX::planet_count = saved_global_count;
+        MAPGEN::Generate_Satellite(MOX::planet[existing_planet_idx], star_idx);
     }
 
     static void Generate_Normal_Satellites(int16_t star_idx) {
@@ -172,7 +168,8 @@ namespace HOMEGEN {
         return (left->dist > right->dist) ? 1 : -1;
     }
 
-    void __cdecl Make_One_Planet(int16_t star_idx, int16_t planet_idx, int16_t orbit_idx, int8_t is_food_planet) {
+    void __cdecl Make_One_Planet(game::id_planet planet_id, int16_t star_idx, int16_t orbit_idx, int8_t is_food_planet) {
+        const int16_t planet_idx = static_cast<int16_t>(legacy_world::Slot(planet_id));
         s_star_data& star = MOX::star[star_idx];
 
         if (is_food_planet != 0 && star.spectral_class >= STAR_CLASS_DWARF) {
@@ -184,37 +181,14 @@ namespace HOMEGEN {
 
         s_planet_data& planet = MOX::planet[planet_idx];
 
-        planet.colony_index = 0;
-        planet.star_index = 0;
-        planet.orbit = 0;
-        planet.planet_type = 0;
-        planet.size = 0;
-        planet.gravity_class = 0;
-        planet.group = 0;
-        planet.climate = 0;
-        planet.climate_bg_type = 0;
-        planet.mineral_class = 0;
-        planet.food_per_farmer = 0;
-        planet.n_terraforms = 0;
-        planet.max_farms = 0;
-        planet.max_population = 0;
+        planet = {};
         planet.planet_special = SYSTEM_SPECIAL_NO_SPECIAL;
-        planet.environmental_alterations = 0;
 
         planet.orbit = (int8_t)orbit_idx;
         planet.planet_type = PLANET_TYPE_PLANET;
 
-        MAPGEN::Generate_Satellite(star_idx, (int8_t)orbit_idx, PLANET_TYPE_PLANET);
+        MAPGEN::Generate_Satellite(planet, star_idx);
         MAPGEN::make_food_planet = 0;
-
-        if (MOX::planet_count == planet_idx) {
-            int16_t existing_idx = star.planet_index[orbit_idx];
-            if (existing_idx >= 0) {
-                MOX::planet[existing_idx] = planet;
-                MOX::planet_count--;
-                return;
-            }
-        }
 
         star.planet_index[orbit_idx] = planet_idx;
     }

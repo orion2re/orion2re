@@ -3,6 +3,8 @@
 #include <cstdint>
 #include <string>
 
+struct s_planet_data;
+
 namespace MAPGEN {
     constexpr int32_t STAR_NAME_COUNT = 829;
     struct s_map_layout {
@@ -103,7 +105,6 @@ namespace MAPGEN {
     extern uint32_t satellite_stat[6];
     extern uint32_t nebula_stat[MAX_NEBULAS + 1];
     extern int16_t star_count;
-    extern s_planet_data* pl;
     extern const char s_raceopt_lbx[12];
     extern const char s_starname_lbx[13];
     extern uint8_t MAPGEN_TRACE;
@@ -117,20 +118,20 @@ namespace MAPGEN {
     int8_t __cdecl Generate_Spectral_Class(int16_t star_type_index);
     /** Generates an age-weighted spectral class that is not a black hole. */
     int8_t __cdecl Generate_Non_Black_Hole_Spectral_Class(int16_t star_type_index);
-    uint8_t __cdecl Generate_Food_Per_Farmer(int16_t star_index, int16_t planet_index);
-    uint8_t __cdecl Generate_Max_Farms(int16_t star_idx, int16_t planet_idx);
+    uint8_t __cdecl Generate_Food_Per_Farmer(const s_planet_data& planet, int16_t star_index);
+    uint8_t __cdecl Generate_Max_Farms(const s_planet_data& planet, int16_t star_idx);
     int8_t __cdecl Generate_Orbit(int16_t star_id);
     uint8_t __cdecl Generate_Satellite_Type(int16_t star_idx, int8_t orbit);
-    void __cdecl Generate_Satellite(int16_t star_idx, int16_t orbit, int16_t type);
+    void __cdecl Generate_Satellite(s_planet_data& planet, int16_t star_idx);
     uint8_t __cdecl Generate_Size();
 
-    int8_t __cdecl Generate_Mineral_Class(int16_t star_index, int16_t unused_planet_idx);
+    int8_t __cdecl Generate_Mineral_Class(int16_t star_index);
 
     int8_t __cdecl Get_Climate_Modifier(int8_t climate_index);
 
-    int8_t __cdecl Generate_Gravity_Class(int16_t planet_idx);
+    int8_t __cdecl Generate_Gravity_Class(const s_planet_data& planet);
 
-    int16_t __cdecl Get_Planet_Group(int16_t planet_idx);
+    int16_t __cdecl Get_Planet_Group(const s_planet_data& planet);
 
     void __cdecl Update_Planet_Group_Cache();
 
@@ -202,7 +203,7 @@ namespace MAPGEN {
         std::string* diagnostic = nullptr);
 
     /** Recomputes dependent farm, food, and colony fields for a generated planet. */
-    void __cdecl Set_Secondary_Planet_Data(int16_t star_idx, int16_t planet_idx);
+    void __cdecl Set_Secondary_Planet_Data(s_planet_data& planet, int16_t star_idx);
 
     /**
      * Chooses an eligible planet or system special for a star.

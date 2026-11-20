@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "legacy_ids.h"
 
 #if defined(ORION2RE_ENABLE_DEBUG_OVERLAY)
 #include <imgui.h>
@@ -175,7 +176,7 @@ namespace debug_game_editors {
                     }
                 }
                 for (const s_settler_info& settler : data.settlers) {
-                    if (settler.val != 0 && SETTLER::Get_Dest_Planet(settler.val) == planet_index) {
+                    if (settler.val != 0 && SETTLER::Get_Dest_Planet(settler.val) == legacy_world::Planet_Id(planet_index)) {
                         return true;
                     }
                 }
@@ -878,7 +879,7 @@ namespace debug_game_editors {
         const int16_t index = MOX::planet_count;
         const s_planet_data previous_planet = MOX::planet[index];
         const int16_t previous_slot = MOX::star[star_index].planet_index[orbit];
-        HOMEGEN::Make_One_Planet(star_index, index, orbit, 0);
+        HOMEGEN::Make_One_Planet(legacy_world::Planet_Id(index), star_index, orbit, 0);
         if (MOX::star[star_index].planet_index[orbit] != index ||
             MOX::planet[index].star_index != star_index ||
             MOX::planet[index].orbit != orbit) {
@@ -956,7 +957,7 @@ namespace debug_game_editors {
         MOX::star[planet.star_index].planet_index[planet.orbit] = -1;
         Initialize_Unused_Planet(&MOX::planet[planet_index]);
         MOX::planet_count--;
-        struct_::Clear_Bit_Field(PLNTSUM::explored_bitmap, (uint16_t)planet_index);
+        PLNTSUM::explored_planets.erase(legacy_world::Planet_Id(planet_index));
         if (COLONY::g_scanned_planet == planet_index) {
             COLONY::g_scanned_planet = -1;
         }

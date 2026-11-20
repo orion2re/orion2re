@@ -3,7 +3,6 @@
 
 namespace ADVCIV {
     extern int8_t* star_colony_owner;
-    extern int8_t* planet_selected_flag;
     extern s_adv_civ_player* adv_civ_player;
     extern s_parsec* parsec;
     extern s_adv_planet_worth* planet_worth_to_player;
@@ -46,7 +45,7 @@ namespace ADVCIV {
      * @param player_idx Player whose candidate list is searched.
      * @param availability_map Per-planet selection map where -1 means unclaimed.
      */
-    int16_t __cdecl Get_Next_Adv_Civ_Planet(int16_t player_idx, int8_t* availability_map);
+    int16_t __cdecl Get_Next_Adv_Civ_Planet(int16_t player_idx);
 
     /** Improves selected planets so weaker starts better match the strongest one. */
     void __cdecl Twiddle_Selected_Adv_Civ_Planets();

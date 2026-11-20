@@ -1,5 +1,7 @@
 #include "pch.h"
 
+#include "game/legacy_ids.h"
+
 #include "lua/lua_game_internal.h"
 
 #include <climits>
@@ -353,23 +355,25 @@ namespace orion2re::lua::game {
                 return luaL_error(lua_state,
                     "player home assignment is available only during galaxy generation");
             }
-            std::int16_t planet_id = -1;
+            id_planet planet_id{};
             if (!internal::Read_Planet(lua_state, 2, &planet_id)) {
                 return luaL_error(lua_state, "invalid home planet reference");
             }
-            s_planet_data& planet = MOX::planet[planet_id];
+            const auto index = legacy_world::Index(planet_id);
+            if (!index) return luaL_error(lua_state, "home planet cannot be represented in the legacy player record");
+            s_planet_data& planet = MOX::planet[*index];
             if (planet.planet_type != PLANET_TYPE_PLANET) {
                 return luaL_error(lua_state,
                     "player home must be a colonizable planet");
             }
             if (planet.colony_index < 0 ||
                 planet.colony_index >= MOX::NUM_COLONIES ||
-                MOX::colony[planet.colony_index].planet != planet_id ||
+                MOX::colony[planet.colony_index].planet != *index ||
                 MOX::colony[planet.colony_index].owner != proxy->player_id) {
                 return luaL_error(lua_state,
                     "player home must be an existing colony owned by that player");
             }
-            MOX::player[proxy->player_id].home_planet_id = planet_id;
+            MOX::player[proxy->player_id].home_planet_id = *index;
             return 0;
         }
 
@@ -596,7 +600,7 @@ namespace orion2re::lua::game {
                     return 1;
                 }
                 if (!internal::Push_Planet(
-                        lua_state, player.home_planet_id)) {
+                        lua_state, legacy_world::Planet_Id(player.home_planet_id))) {
                     return luaL_error(lua_state,
                         "player %d has invalid home planet %d",
                         proxy->player_id,
@@ -611,7 +615,7 @@ namespace orion2re::lua::game {
                 }
                 std::int16_t system_id = -1;
                 if (!internal::Resolve_Planet_System(
-                        player.home_planet_id, &system_id) ||
+                        legacy_world::Planet_Id(player.home_planet_id), &system_id) ||
                     !internal::Push_System(lua_state, system_id)) {
                     return luaL_error(lua_state,
                         "player %d has invalid home planet %d",

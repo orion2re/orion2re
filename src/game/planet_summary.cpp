@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "legacy_ids.h"
 
 namespace PLNTSUM {
     s_colors hi_neutral_colors = {{0x40, 0xFF, 0x43, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}};
@@ -18,7 +19,7 @@ namespace PLNTSUM {
     s_plntsum_ship* ship_summary;
     int16_t n_ships_in_summary;
     int8_t can_reach_star[MAX_STARS];
-    uint8_t explored_bitmap[BITMAP(MAX_PLANETS)];
+    std::unordered_set<game::id_planet> explored_planets;
 
     uint8_t found_outpost_ship;
     uint8_t draw_colony_button_status;
@@ -336,7 +337,7 @@ namespace PLNTSUM {
     }
 
     void __cdecl Reset_Explored_Planets() {
-        memset(explored_bitmap, 0, sizeof(explored_bitmap));
+        explored_planets.clear();
     }
 
     void __cdecl Reset_Ship_To_Star_Distances() {
@@ -381,7 +382,7 @@ namespace PLNTSUM {
             int16_t star_idx = MOX::planet[i].star_index;
             if (has_omniscience_trait ||
                 HAROLD::Player_Has_Visited(MOX::PLAYER_NUM, star_idx)) {
-                struct_::Set_Bit_Field(PLNTSUM::explored_bitmap, i);
+                explored_planets.insert(legacy_world::Planet_Id(i));
             }
         }
     }
@@ -683,7 +684,7 @@ namespace PLNTSUM {
                 if (!Planet_Has_Been_Visited(i)) {
                     passes_filter = false;
                 } else if (PLNTSUM::filter_out_enemy_controlled_planets != 0 &&
-                    !struct_::Test_Bit_Field(PLNTSUM::explored_bitmap, i)) {
+                    !explored_planets.contains(legacy_world::Planet_Id(i))) {
                     passes_filter = false;
                 }
             }

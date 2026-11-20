@@ -4,6 +4,12 @@
 #include <cstdint>
 #include <string>
 
+#include "game/object_ids.h"
+
+namespace orion2re {
+    using game::id_planet;
+}
+
 namespace orion2re::lua::game {
 
     struct s_authoritative_population_growth_scope {
@@ -43,7 +49,7 @@ namespace orion2re::lua::game {
     };
 
     struct s_planet_generated_event {
-        std::int16_t planet_id = -1;
+        id_planet planet_id{UINT32_MAX};
     };
 
     struct s_population_growth_context {

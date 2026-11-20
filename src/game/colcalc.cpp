@@ -3960,7 +3960,7 @@ namespace COLCALC {
 
                 if (player->settlers_freighted > 0) {
                     for (int32_t settler_idx = 0; settler_idx < player->settlers_freighted; ++settler_idx) {
-                        if (SETTLER::Get_Dest_Planet(player->settlers[settler_idx].val) == colony->planet) {
+                        if (SETTLER::Get_Dest_Planet(player->settlers[settler_idx].val) == legacy_world::Planet_Id(colony->planet)) {
                             has_incoming_settlers = true;
                         }
                     }

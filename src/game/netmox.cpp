@@ -1,6 +1,7 @@
 #include "pch.h"
 
 #include "game/leader_serialization.h"
+#include "game/planet_serialization.h"
 #include "game/netproto.h"
 #include "lua/lua_network.h"
 
@@ -662,10 +663,7 @@ namespace NETMOX {
         size = (MOX::NUM_STARS + 1) * sizeof(s_star_data);
         writer.Write_Bytes(MOX::star, size);
 
-        writer.Write_Uint16((uint16_t)MOX::planet_count);
-
-        size = MOX::planet_count * sizeof(s_planet_data);
-        writer.Write_Bytes(MOX::planet, size);
+        SERIAL::Write_Dense_Planet_Block(writer, MOX::planet, MOX::planet_count);
 
         writer.Write_Uint16((uint16_t)MOX::NUM_COLONIES);
 
@@ -873,13 +871,9 @@ namespace NETMOX {
 
         RUSS::Mox_Update();
 
-        MOX::planet_count = reader.Read_Int16();
-
-        if (MOX::planet_count < 0 || MOX::planet_count > MAX_PLANETS) {
-            exitm::Exit_With_Message("invalid broadcast planet count");
+        if (!SERIAL::Read_Dense_Planet_Block(reader, MOX::planet, MOX::planet_count, 8)) {
+            exitm::Exit_With_Message("invalid broadcast planet records");
         }
-
-        reader.Read_Bytes(MOX::planet, MOX::planet_count * sizeof(s_planet_data));
 
         MOX::NUM_COLONIES = reader.Read_Int16();
 

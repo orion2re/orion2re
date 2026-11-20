@@ -405,7 +405,7 @@ DOCTEST_TEST_CASE("mineral generation uses the one-based random roll") {
     MAPGEN::mineral_class[9][STAR_CLASS_F] = MINERAL_RESOURCE_RICH;
     TEST_MAPGEN::Set_Random_Result_(10);
 
-    DOCTEST_CHECK(MAPGEN::Generate_Mineral_Class(0, 0) ==
+    DOCTEST_CHECK(MAPGEN::Generate_Mineral_Class(0) ==
                   MINERAL_RESOURCE_RICH);
 }
 

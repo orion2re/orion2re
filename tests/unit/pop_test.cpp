@@ -128,13 +128,13 @@ DOCTEST_TEST_CASE("packed settler setters preserve reserved bits and transit sen
         memset(bytes, 0xCC, sizeof(bytes));
         auto* settler = new (bytes + offset) s_settler_info{UINT64_MAX};
         SETTLER::Set_Source_Colony(&settler->val, SETTLER::SOURCE_COLONY_IN_TRANSIT);
-        SETTLER::Set_Dest_Planet(&settler->val, 1000);
+        DOCTEST_REQUIRE(SETTLER::Try_Set_Dest_Planet(&settler->val, game::id_planet{1000}));
         SETTLER::Set_Race(&settler->val, 7);
         SETTLER::Set_Eta(&settler->val, 5);
         SETTLER::Set_Prof(&settler->val, POP::PROF_WORKER);
         const SETTLER::value_type value = SETTLER::Load(&settler->val);
         DOCTEST_CHECK(SETTLER::Get_Source_Colony(value) == SETTLER::SOURCE_COLONY_IN_TRANSIT);
-        DOCTEST_CHECK(SETTLER::Get_Dest_Planet(value) == 1000);
+        DOCTEST_CHECK(SETTLER::Get_Dest_Planet(value) == game::id_planet{1000});
         DOCTEST_CHECK(SETTLER::Get_Race(value) == 7);
         DOCTEST_CHECK(SETTLER::Get_Eta(value) == 5);
         DOCTEST_CHECK(SETTLER::Get_Prof(value) == POP::PROF_WORKER);
@@ -208,11 +208,27 @@ DOCTEST_TEST_CASE("settler subfield helpers preserve independent 64-bit fields")
 
         for (int16_t dest_planet : index_values) {
             SETTLER::value_type actual = settler_data;
-            SETTLER::Set_Dest_Planet(&actual, dest_planet);
-            DOCTEST_CHECK(SETTLER::Get_Dest_Planet(actual) == dest_planet);
+            const auto id = legacy_world::Try_Planet_Id(dest_planet);
+            if (!id) {
+                actual = (actual & ~SETTLER::MASK_DEST_PLANET) |
+                    (static_cast<uint64_t>(static_cast<uint16_t>(dest_planet)) << 16);
+                DOCTEST_CHECK_FALSE(SETTLER::Get_Dest_Planet(actual).has_value());
+                continue;
+            }
+            DOCTEST_REQUIRE(SETTLER::Try_Set_Dest_Planet(&actual, *id));
+            DOCTEST_CHECK(SETTLER::Get_Dest_Planet(actual) == id);
             DOCTEST_CHECK((actual & ~SETTLER::MASK_DEST_PLANET) ==
                           (settler_data & ~SETTLER::MASK_DEST_PLANET));
         }
+    }
+}
+
+DOCTEST_TEST_CASE("legacy freight encoding rejects planet IDs it cannot represent") {
+    constexpr auto original = UINT64_C(0x123456789ABCDEF0);
+    for (const uint32_t id : {uint32_t{INT16_MAX + 1}, uint32_t{UINT16_MAX + 1}, UINT32_MAX}) {
+        auto value = original;
+        DOCTEST_CHECK_FALSE(SETTLER::Try_Set_Dest_Planet(&value, game::id_planet{id}));
+        DOCTEST_CHECK(value == original);
     }
 }
 
@@ -221,7 +237,7 @@ DOCTEST_TEST_CASE("legacy settler records migrate all fields") {
     const SETTLER::value_type migrated = SETTLER::From_Legacy(legacy);
 
     DOCTEST_CHECK(SETTLER::Get_Source_Colony(migrated) == 0x82);
-    DOCTEST_CHECK(SETTLER::Get_Dest_Planet(migrated) == 0xC3);
+    DOCTEST_CHECK(SETTLER::Get_Dest_Planet(migrated) == game::id_planet{0xC3});
     DOCTEST_CHECK(SETTLER::Get_Race(migrated) == 4u);
     DOCTEST_CHECK(SETTLER::Get_Eta(migrated) == 0xBu);
     DOCTEST_CHECK(SETTLER::Get_Prof(migrated) == POP::PROF_SCIENTIST);

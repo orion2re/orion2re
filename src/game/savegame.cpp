@@ -1,6 +1,7 @@
 #include "pch.h"
 
 #include "leader_serialization.h"
+#include "planet_serialization.h"
 
 #include "game/savegame.h"
 
@@ -396,47 +397,6 @@ namespace SAVEGAME {
             colony->buildings_scrapped_this_turn = version >= BUILDING_SCRAP_COUNT_VERSION
                 ? reader->Read_Uint8()
                 : (colony->last_turn_building_destroyed != 0 ? 1 : 0);
-        }
-
-        void Write_Planet(SERIAL::Writer_* writer, const s_planet_data* planet) {
-            writer->Write_Int16(planet->colony_index);
-            writer->Write_Int16(planet->star_index);
-            writer->Write_Int8(planet->orbit);
-            writer->Write_Int8(planet->planet_type);
-            writer->Write_Int8(planet->size);
-            writer->Write_Int8(planet->gravity_class);
-            writer->Write_Int8(planet->group);
-            writer->Write_Int8(planet->climate);
-            writer->Write_Int8(planet->climate_bg_type);
-            writer->Write_Int8(planet->mineral_class);
-            writer->Write_Uint8(planet->food_per_farmer);
-            writer->Write_Uint8(planet->n_terraforms);
-            writer->Write_Uint8(planet->max_farms);
-            writer->Write_Uint8(planet->max_population);
-            writer->Write_Int8(planet->planet_special);
-            writer->Write_Int8(planet->environmental_alterations);
-        }
-
-        void Read_Planet(SERIAL::Reader_* reader, s_planet_data* planet, uint16_t version) {
-            planet->colony_index = reader->Read_Int16();
-            planet->star_index = version == LEGACY_VERSION ? reader->Read_Int8() : reader->Read_Int16();
-            planet->orbit = reader->Read_Int8();
-            planet->planet_type = reader->Read_Int8();
-            planet->size = reader->Read_Int8();
-            planet->gravity_class = reader->Read_Int8();
-            planet->group = reader->Read_Int8();
-            planet->climate = reader->Read_Int8();
-            planet->climate_bg_type = reader->Read_Int8();
-            planet->mineral_class = reader->Read_Int8();
-            planet->food_per_farmer = reader->Read_Uint8();
-            if (version < 2) {
-                planet->food_per_farmer = (uint8_t)(planet->food_per_farmer * 2);
-            }
-            planet->n_terraforms = reader->Read_Uint8();
-            planet->max_farms = reader->Read_Uint8();
-            planet->max_population = reader->Read_Uint8();
-            planet->planet_special = reader->Read_Int8();
-            planet->environmental_alterations = reader->Read_Int8();
         }
 
         void Write_Star(SERIAL::Writer_* writer, const s_star_data* star) {
@@ -1473,8 +1433,7 @@ namespace SAVEGAME {
             writer->Write_Uint32(random_seed);
             writer->Write_Int16(MOX::NUM_COLONIES);
             for (int i = 0; i < MOX::NUM_COLONIES; ++i) Write_Colony(writer, &MOX::colony[i]);
-            writer->Write_Int16(MOX::planet_count);
-            for (int i = 0; i < MOX::planet_count; ++i) Write_Planet(writer, &MOX::planet[i]);
+            SERIAL::Write_Dense_Planet_Block(*writer, MOX::planet, MOX::planet_count);
             writer->Write_Int16(MOX::NUM_STARS);
             for (int i = 0; i < MOX::NUM_STARS; ++i) Write_Star(writer, &MOX::star[i]);
             SERIAL::Write_Leader_State(state, *writer);
@@ -1549,10 +1508,8 @@ namespace SAVEGAME {
                 Initialize_Unused_Colony(&MOX::colony[i]);
             }
             if (reader->Failed()) return false;
-            MOX::planet_count = reader->Read_Int16();
-            if (MOX::planet_count < 0 || MOX::planet_count > MAX_PLANETS) return false;
+            if (!SERIAL::Read_Dense_Planet_Block(*reader, MOX::planet, MOX::planet_count, version)) return false;
             const int planet_record_count = version == LEGACY_VERSION ? ORIGINAL_MAX_PLANETS : MOX::planet_count;
-            for (int i = 0; i < planet_record_count; ++i) Read_Planet(reader, &MOX::planet[i], version);
             for (int i = planet_record_count; i < MAX_PLANETS; ++i) {
                 Initialize_Unused_Planet(&MOX::planet[i]);
             }

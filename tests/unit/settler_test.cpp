@@ -18,7 +18,7 @@ static void Add_Resident_Pops_(s_colony* colony, int32_t race_idx, int32_t pop_c
 static void Add_Inbound_Settler_(s_player* player, int32_t race_idx, int16_t dest_planet) {
     SETTLER::value_type settler_data = 0;
     SETTLER::Set_Race(&settler_data, (uint32_t)race_idx);
-    SETTLER::Set_Dest_Planet(&settler_data, dest_planet);
+    DOCTEST_REQUIRE(SETTLER::Try_Set_Dest_Planet(&settler_data, legacy_world::Planet_Id(dest_planet)));
     player->settlers[player->settlers_freighted].val = settler_data;
     player->settlers_freighted++;
 }
@@ -63,6 +63,23 @@ DOCTEST_TEST_CASE("settlers heading elsewhere do not consume destination capacit
     Add_Inbound_Settler_(&MOX::player[0], 0, 1);
 
     DOCTEST_CHECK(SETTLER::Room_For_Another(colony, 0, 1));
+}
+
+DOCTEST_TEST_CASE("arrivals resolve existing planets and discard missing destinations") {
+    TEST_SETTLER::Reset_();
+    TEST_SETTLER::Set_Pop_Limit_(0, 5);
+    auto& player = MOX::player[0];
+    MOX::colony[0].owner = 0;
+    MOX::planet[0].colony_index = 0;
+    Add_Inbound_Settler_(&player, 0, MOX::planet_count);
+    Add_Inbound_Settler_(&player, 0, 0);
+    SETTLER::Set_Eta(&player.settlers[0].val, 1);
+    SETTLER::Set_Eta(&player.settlers[1].val, 1);
+
+    SETTLER::Move_Settlers();
+
+    DOCTEST_CHECK(player.settlers_freighted == 0);
+    DOCTEST_CHECK(MOX::colony[0].n_pops == 1);
 }
 
 DOCTEST_TEST_CASE("higher mixed-race limit blocks an additional lower-limit settler") {

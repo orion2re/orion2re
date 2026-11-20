@@ -1,5 +1,9 @@
 #pragma once
 
+#include <unordered_set>
+
+#include "object_ids.h"
+
 struct s_animation_header;
 
 typedef struct s_plntsum_screen s_plntsum_screen, *Ps_plntsum_screen;
@@ -43,7 +47,7 @@ namespace PLNTSUM {
     extern int16_t n_ships_in_summary;
     extern int8_t can_reach_star[MAX_STARS];
 
-    extern uint8_t explored_bitmap[BITMAP(MAX_PLANETS)];
+    extern std::unordered_set<game::id_planet> explored_planets;
 
     void __cdecl Reset_Explored_Planets();
 

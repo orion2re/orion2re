@@ -1,6 +1,7 @@
 #pragma once
 
 #include "consts.h"
+#include "legacy_ids.h"
 #include "pop.h"
 
 struct s_colony;
@@ -43,13 +44,16 @@ namespace SETTLER {
             static_cast<uint16_t>(source_colony));
     }
 
-    inline int16_t __cdecl Get_Dest_Planet(value_type settler_data) {
-        return static_cast<int16_t>((settler_data & MASK_DEST_PLANET) >> 16);
+    inline std::optional<game::id_planet> __cdecl Get_Dest_Planet(value_type settler_data) {
+        return legacy_world::Try_Planet_Id(static_cast<int16_t>((settler_data & MASK_DEST_PLANET) >> 16));
     }
 
-    inline void __cdecl Set_Dest_Planet(value_type* settler_data, int16_t dest_planet) {
+    [[nodiscard]] inline bool __cdecl Try_Set_Dest_Planet(value_type* settler_data, game::id_planet dest_planet) {
+        const auto index = legacy_world::Index(dest_planet);
+        if (!index) return false;
         Store(settler_data, (Load(settler_data) & ~MASK_DEST_PLANET) |
-            (static_cast<value_type>(static_cast<uint16_t>(dest_planet)) << 16));
+            (static_cast<value_type>(*index) << 16));
+        return true;
     }
 
     inline uint32_t __cdecl Get_Race(value_type settler_data) {
@@ -83,7 +87,7 @@ namespace SETTLER {
         value_type result = 0;
         const uint8_t legacy_source = static_cast<uint8_t>(settler_data);
         Set_Source_Colony(&result, legacy_source >= LEGACY_SOURCE_COLONY_IN_TRANSIT ? SOURCE_COLONY_IN_TRANSIT : legacy_source);
-        Set_Dest_Planet(&result, static_cast<uint8_t>(settler_data >> 8));
+        (void)Try_Set_Dest_Planet(&result, game::id_planet{static_cast<uint8_t>(settler_data >> 8)});
         Set_Race(&result, (settler_data >> 16) & 0x0Fu);
         Set_Eta(&result, (settler_data >> 20) & 0x0Fu);
         Set_Prof(&result, static_cast<POP::e_prof>((settler_data >> 24) & 0x03u));

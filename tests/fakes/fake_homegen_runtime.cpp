@@ -161,15 +161,15 @@ namespace MAPGEN {
             int16_t planet_idx = MOX::planet_count;
             MOX::star[star_idx].planet_index[orbit] = planet_idx;
             MOX::planet[planet_idx].planet_type = PLANET_TYPE_ASTEROID;
-            Generate_Satellite(star_idx, orbit, PLANET_TYPE_ASTEROID);
+            MOX::planet[planet_idx].orbit = static_cast<int8_t>(orbit);
+            Generate_Satellite(MOX::planet[planet_idx], star_idx);
             MOX::planet_count++;
             return;
         }
     }
 
-    void __cdecl Generate_Satellite(int16_t star_idx, int16_t orbit, int16_t) {
-        MOX::planet[MOX::planet_count].star_index = star_idx;
-        MOX::planet[MOX::planet_count].orbit = (int8_t)orbit;
+    void __cdecl Generate_Satellite(s_planet_data& planet, int16_t star_idx) {
+        planet.star_index = star_idx;
         satellite_generation_count++;
     }
 

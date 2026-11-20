@@ -58,6 +58,11 @@ services.register("galaxy_generator", 1, function()
       game.planets:get(3) ~= nil then
     error("planet collection is not stable and ordered")
   end
+  for _, invalid_id in ipairs({-1, 65536, 4294967295, 4294967296}) do
+    if game.planets:get(invalid_id) ~= nil then
+      error("out-of-range planet ID aliased a live planet")
+    end
+  end
   if home.system ~= first or home.orbit ~= 0 or
       home.planet_type ~= defines.planet_type.planet or
       home.size ~= defines.planet_size.medium or

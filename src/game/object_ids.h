@@ -1,5 +1,6 @@
 #pragma once
 
+#include <compare>
 #include <cstdint>
 #include <functional>
 #include <type_traits>
@@ -17,7 +18,7 @@ namespace game {
     };
     struct id_planet {
         uint32_t id;
-        bool operator==(const id_planet&) const = default;
+        auto operator<=>(const id_planet&) const = default;
     };
     struct id_star {
         uint32_t id;

@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "legacy_ids.h"
 #include "string_overrides.h"
 
 namespace HOMEGEN {
@@ -471,7 +472,9 @@ namespace HOMEGEN {
         return star->planet_index[choice_idx];
     }
 
-    void __cdecl Upgrade_Planet_Guarded_By_Monster(s_planet_data* planet, int16_t monster_type) {
+    void __cdecl Upgrade_Planet_Guarded_By_Monster(game::id_planet planet_id, int16_t monster_type) {
+        const int16_t planet_index = static_cast<int16_t>(legacy_world::Slot(planet_id));
+        s_planet_data* planet = &MOX::planet[planet_index];
         bool should_upgrade_climate = true;
         uint16_t size_weights[PLANET_SIZE_COUNT] = {0};
         uint16_t mineral_weights[MINERAL_RESOURCE_COUNT] = {0};
@@ -542,9 +545,8 @@ namespace HOMEGEN {
             }
         }
 
-        int16_t planet_index = (int16_t)(planet - MOX::planet);
         int16_t star_idx = planet->star_index;
-        MAPGEN::Set_Secondary_Planet_Data(star_idx, planet_index);
+        MAPGEN::Set_Secondary_Planet_Data(*planet, star_idx);
 
         s_star_data* star = &MOX::star[star_idx];
         Set_Special_For_Star_Guarded_By_Monster(star, monster_type);
@@ -619,8 +621,9 @@ namespace HOMEGEN {
                 }
                 Enforce_Gravity(home_planet_id, gravity_type, owner_idx);
 
-                MOX::planet[home_planet_id].food_per_farmer = MAPGEN::Generate_Food_Per_Farmer(i, home_planet_id);
-                MOX::planet[home_planet_id].max_farms = MAPGEN::Generate_Max_Farms(i, home_planet_id);
+                auto& home_planet = MOX::planet[home_planet_id];
+                home_planet.food_per_farmer = MAPGEN::Generate_Food_Per_Farmer(home_planet, i);
+                home_planet.max_farms = MAPGEN::Generate_Max_Farms(home_planet, i);
 
                 ERICNET::Init_Homeworld_Colony(home_planet_id, owner_idx);
 
@@ -672,7 +675,8 @@ namespace HOMEGEN {
 
         if (found_climate) {
             int16_t p_idx = *out_planet_idx;
-            MOX::planet[p_idx].food_per_farmer = MAPGEN::Generate_Food_Per_Farmer(star_idx, p_idx);
+            auto& planet = MOX::planet[p_idx];
+            planet.food_per_farmer = MAPGEN::Generate_Food_Per_Farmer(planet, star_idx);
             return;
         }
 
@@ -714,7 +718,8 @@ namespace HOMEGEN {
                 int16_t chosen_group_idx = game_random::Random(valid_group_count) - 1;
                 MOX::planet[p_idx].group = (int8_t)valid_groups[chosen_group_idx];
 
-                MOX::planet[p_idx].food_per_farmer = MAPGEN::Generate_Food_Per_Farmer(star_idx, p_idx);
+                auto& planet = MOX::planet[p_idx];
+                planet.food_per_farmer = MAPGEN::Generate_Food_Per_Farmer(planet, star_idx);
                 return;
             } else {
                 // If the current star's spectral class cannot support this climate, regenerate it
@@ -782,7 +787,7 @@ namespace HOMEGEN {
         if (MOX::planet[planet_idx].mineral_class == MINERAL_RESOURCE_ULTRA_RICH) {
             // Trait index 0 corresponds to Heavy-G World
             if (MOX::player[player_idx].traits[TRAIT_HEAVY_G_WORLD] == 0) {
-                uint8_t new_minerals = MAPGEN::Generate_Mineral_Class(MOX::planet[planet_idx].star_index, planet_idx);
+                uint8_t new_minerals = MAPGEN::Generate_Mineral_Class(MOX::planet[planet_idx].star_index);
 
                 // Logic quirk: The reassignment target is the planet at the player's slot index.
                 MOX::planet[player_idx].mineral_class = (int8_t)new_minerals;
@@ -848,10 +853,11 @@ namespace HOMEGEN {
                 if (found_food_system == 0) {
                     if (nearest_empty_star != -1) {
                         int16_t orbit = Usable_Orbit(nearest_empty_star);
-                        int16_t new_planet_idx = MOX::planet_count;
-                        Make_One_Planet(nearest_empty_star, new_planet_idx, orbit, 1);
+                        const int16_t existing_planet_idx = MOX::star[nearest_empty_star].planet_index[orbit];
+                        const int16_t planet_idx = existing_planet_idx < 0 ? MOX::planet_count : existing_planet_idx;
+                        Make_One_Planet(legacy_world::Planet_Id(planet_idx), nearest_empty_star, orbit, 1);
                         food_star = nearest_empty_star;
-                        MOX::planet_count++;
+                        if (existing_planet_idx < 0) ++MOX::planet_count;
                     } else if (nearest_star_in_range != -1) {
                         int32_t rnd = game_random::Random(buffer_count);
                         int16_t target_p_idx = planet_buffer[rnd - 1];
@@ -859,14 +865,10 @@ namespace HOMEGEN {
                         int16_t star_of_planet = MOX::planet[target_p_idx].star_index;
                         food_star = star_of_planet;
 
-                        uint16_t saved_planet_count = MOX::planet_count;
-                        MOX::planet_count = target_p_idx;
-
                         uint32_t orbit_index = ERIC::Get_Sint_Index_From_List(target_p_idx, MOX::star[star_of_planet].planet_index, 5);
-                        Make_One_Planet(star_of_planet, target_p_idx, (int16_t)orbit_index, 1);
+                        Make_One_Planet(legacy_world::Planet_Id(target_p_idx), star_of_planet, (int16_t)orbit_index, 1);
 
                         MOX::planet[target_p_idx].planet_special = original_special;
-                        MOX::planet_count = saved_planet_count;
                     }
                 } else {
                     if (buffer_count > 0 && food_star == -1) {
@@ -1032,8 +1034,8 @@ namespace HOMEGEN {
         p->climate = PLANET_CLIMATE_GAIA;
         p->mineral_class = MINERAL_RESOURCE_ULTRA_RICH;
         p->planet_special = SYSTEM_SPECIAL_ORION_STAR;
-        p->food_per_farmer = MAPGEN::Generate_Food_Per_Farmer(0, target_planet_idx);
-        p->max_farms = MAPGEN::Generate_Max_Farms(0, target_planet_idx);
+        p->food_per_farmer = MAPGEN::Generate_Food_Per_Farmer(*p, 0);
+        p->max_farms = MAPGEN::Generate_Max_Farms(*p, 0);
 
         return orion_star_idx;
     }

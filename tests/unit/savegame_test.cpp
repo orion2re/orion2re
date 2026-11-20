@@ -6,6 +6,7 @@
 #include "config/config_snapshot.h"
 #include "game/savegame.h"
 #include "game/leader_serialization.h"
+#include "game/planet_serialization.h"
 #include "game/save_sections.h"
 #include "lua/lua_game_ship_identity.h"
 
@@ -30,7 +31,7 @@ namespace TEST_LUA_SAVE {
 } // namespace TEST_LUA_SAVE
 
 namespace {
-    constexpr size_t LEGACY_PLANET_SIZE = sizeof(s_planet_data) - sizeof(int8_t);
+    constexpr size_t LEGACY_PLANET_SIZE = SERIAL::LEGACY_PLANET_BYTES;
     constexpr size_t LEGACY_STAR_SIZE = sizeof(s_star_data) -
         (BITMAP(MAX_STARS) - BITMAP(ORIGINAL_MAX_STARS)) - 2 * sizeof(int8_t);
 
@@ -68,6 +69,28 @@ namespace {
     }
 
     constexpr uint32_t LEADER_IDS_BYTES = MAX_LEADERS * sizeof(uint32_t);
+    constexpr size_t COLONY_RECORDS_OFFSET = sizeof(uint32_t) +
+        sizeof(SAVEGAME::s_metadata::description) + sizeof(int32_t) +
+        sizeof(int8_t) + sizeof(uint16_t) + sizeof(s_settings) + sizeof(uint32_t) + sizeof(uint16_t);
+
+    uint32_t Strip_Planet_Ids_(uint8_t* data, uint32_t size, size_t colony_bytes = sizeof(s_colony)) {
+        auto* count = data + COLONY_RECORDS_OFFSET + MOX::NUM_COLONIES * colony_bytes;
+        DOCTEST_REQUIRE(count + sizeof(uint16_t) + sizeof(uint32_t) <= data + size);
+        DOCTEST_REQUIRE((count[1] & 0x80) != 0);
+        count[1] &= 0x7f;
+        const uint16_t slots = count[0] | (count[1] << 8);
+        auto* write = count + sizeof(uint16_t);
+        auto* read = write + sizeof(uint32_t);
+        DOCTEST_REQUIRE(read + slots * SERIAL::KEYED_PLANET_BYTES <= data + size);
+        for (uint16_t slot = 0; slot < slots; ++slot) {
+            read += sizeof(uint32_t);
+            memmove(write, read, SERIAL::PLANET_BYTES);
+            read += SERIAL::PLANET_BYTES;
+            write += SERIAL::PLANET_BYTES;
+        }
+        memmove(write, read, data + size - read);
+        return size - static_cast<uint32_t>(read - write);
+    }
 
     uint32_t Strip_Leader_Ids_(uint8_t* data, uint32_t size) {
         std::array<uint8_t, SERIAL::LEADER_STATE_BYTES> roster;
@@ -582,6 +605,115 @@ namespace {
 
 } // namespace
 
+DOCTEST_TEST_CASE("planet state does not reuse deleted IDs") {
+    game::s_game_state state;
+    const auto first = state.Create_Planet({.star_index = 1});
+    const auto second = state.Create_Planet({.star_index = 2});
+    DOCTEST_REQUIRE(first.has_value());
+    DOCTEST_REQUIRE(second.has_value());
+    DOCTEST_CHECK(*first < *second);
+    DOCTEST_CHECK(state.planets.erase(*second) == 1);
+
+    const auto third = state.Create_Planet({.star_index = 3});
+    DOCTEST_REQUIRE(third.has_value());
+    DOCTEST_CHECK(*second < *third);
+    DOCTEST_CHECK_FALSE(state.planets.contains(*second));
+    DOCTEST_CHECK(state.planets.at(*first).star_index == 1);
+    DOCTEST_CHECK(state.planets.at(*third).star_index == 3);
+}
+
+DOCTEST_TEST_CASE("planet codec preserves wire size and historical fields") {
+    const s_planet_data planet{.colony_index = -1, .star_index = 73,
+        .orbit = 4, .food_per_farmer = 6, .environmental_alterations = -2};
+    std::array<uint8_t, SERIAL::PLANET_BYTES> bytes{};
+    SERIAL::Writer_ writer(bytes.data(), bytes.size(), "planet codec overflow");
+    SERIAL::Write_Planet(writer, planet);
+    DOCTEST_REQUIRE(writer.Length() == bytes.size());
+
+    SERIAL::Reader_ reader(bytes.data(), bytes.size(), "planet codec underflow");
+    s_planet_data restored{};
+    SERIAL::Read_Planet(reader, restored);
+    DOCTEST_CHECK(restored == planet);
+
+    std::array<uint8_t, SERIAL::LEGACY_PLANET_BYTES> legacy{};
+    std::copy_n(bytes.begin(), 3, legacy.begin());
+    std::copy(bytes.begin() + 4, bytes.end(), legacy.begin() + 3);
+    SERIAL::Reader_ legacy_reader(legacy.data(), legacy.size(), "legacy planet codec underflow");
+    SERIAL::Read_Planet(legacy_reader, restored, 0);
+    DOCTEST_CHECK(legacy_reader.Remaining() == 0);
+    DOCTEST_CHECK(restored.star_index == 73);
+    DOCTEST_CHECK(restored.food_per_farmer == 12);
+    DOCTEST_CHECK(restored.environmental_alterations == -2);
+}
+
+DOCTEST_TEST_CASE("keyed planet records preserve gaps and the allocation limit") {
+    game::s_game_state original;
+    original.next_planet_id = 70000;
+    const auto first = original.Create_Planet({.star_index = 1});
+    const auto second = original.Create_Planet({.star_index = 2});
+    const auto third = original.Create_Planet({.star_index = 3});
+    const auto last = original.Create_Planet({.star_index = 4});
+    DOCTEST_REQUIRE((first && second && third && last));
+    DOCTEST_REQUIRE(original.planets.erase(*second) == 1);
+    DOCTEST_REQUIRE(original.planets.erase(*last) == 1);
+
+    constexpr size_t header_bytes = sizeof(uint16_t) + sizeof(uint32_t);
+    std::array<uint8_t, header_bytes + 2 * SERIAL::KEYED_PLANET_BYTES> bytes{};
+    SERIAL::Writer_ writer(bytes.data(), bytes.size(), "planet roster overflow");
+    SERIAL::Write_Planet_Block(original, writer);
+    DOCTEST_REQUIRE(writer.Length() == bytes.size());
+    SERIAL::Reader_ reader(bytes.data(), bytes.size(), "planet roster underflow");
+    game::s_game_state restored;
+    DOCTEST_REQUIRE(SERIAL::Read_Planet_Block(restored, reader, 8));
+    DOCTEST_CHECK(restored == original);
+    const auto created = restored.Create_Planet({});
+    DOCTEST_REQUIRE(created.has_value());
+    DOCTEST_CHECK(*last < *created);
+
+    // A duplicate ID must not replace live state, even if earlier records decoded successfully.
+    std::copy_n(bytes.begin() + header_bytes, sizeof(uint32_t), bytes.begin() + header_bytes + SERIAL::KEYED_PLANET_BYTES);
+    SERIAL::Reader_ duplicate(bytes.data(), bytes.size(), "planet roster underflow", true);
+    const auto before = restored;
+    DOCTEST_CHECK_FALSE(SERIAL::Read_Planet_Block(restored, duplicate, 8));
+    DOCTEST_CHECK(restored == before);
+}
+
+DOCTEST_TEST_CASE("the dense planet-block boundary accepts earlier snapshots and rejects sparse IDs") {
+    const s_planet_data planet{.colony_index = -1, .star_index = 3, .orbit = 2};
+    std::array<uint8_t, sizeof(uint16_t) + sizeof(uint32_t) + SERIAL::KEYED_PLANET_BYTES> bytes{};
+    SERIAL::Writer_ untagged(bytes.data(), bytes.size(), "planet block overflow");
+    untagged.Write_Uint16(1);
+    SERIAL::Write_Planet(untagged, planet);
+
+    s_planet_data restored{};
+    int16_t count = 0;
+    SERIAL::Reader_ old_reader(bytes.data(), untagged.Length(), "planet block underflow");
+    DOCTEST_REQUIRE(SERIAL::Read_Dense_Planet_Block(old_reader, &restored, count, 8));
+    DOCTEST_CHECK(count == 1);
+    DOCTEST_CHECK(restored == planet);
+
+    game::s_game_state state;
+    SERIAL::Reader_ import(bytes.data(), untagged.Length(), "planet block underflow");
+    DOCTEST_REQUIRE(SERIAL::Read_Planet_Block(state, import, 8));
+    DOCTEST_CHECK(state.next_planet_id == 1);
+    DOCTEST_CHECK(state.planets.at(game::id_planet{0}) == planet);
+
+    SERIAL::Writer_ tagged(bytes.data(), bytes.size(), "planet block overflow");
+    SERIAL::Write_Dense_Planet_Block(tagged, &planet, 1);
+    SERIAL::Reader_ new_reader(bytes.data(), tagged.Length(), "planet block underflow");
+    DOCTEST_CHECK(new_reader.Read_Uint16() == (SERIAL::KEYED_PLANET_COUNT_FLAG | 1));
+    DOCTEST_CHECK(new_reader.Read_Uint32() == 1);
+    DOCTEST_CHECK(new_reader.Read_Uint32() == 0);
+
+    bytes[sizeof(uint16_t) + sizeof(uint32_t)] = 1;
+    count = 0;
+    restored = {};
+    SERIAL::Reader_ invalid(bytes.data(), tagged.Length(), "planet block underflow", true);
+    DOCTEST_CHECK_FALSE(SERIAL::Read_Dense_Planet_Block(invalid, &restored, count, 8));
+    DOCTEST_CHECK(count == 0);
+    DOCTEST_CHECK(restored == s_planet_data{});
+}
+
 DOCTEST_TEST_CASE("version 8 leader records use fixed slot IDs") {
     constexpr size_t record_size = sizeof(uint32_t) + SERIAL::LEADER_BYTES;
     std::array<uint8_t, MAX_LEADERS * record_size> bytes{};
@@ -679,7 +811,12 @@ DOCTEST_TEST_CASE("save versions 5 and 6 preserve ship limits and fixed location
     constexpr size_t version_offset = sizeof(uint32_t) +
         sizeof(SAVEGAME::s_metadata::description) + sizeof(int32_t) + sizeof(int8_t);
     const uint16_t old_version = 5;
-    const uint32_t invalid_old_size = Strip_Leader_Ids_(bytes.get(), writer.Length());
+    const uint32_t earlier_v8_size = Strip_Planet_Ids_(bytes.get(), writer.Length());
+    SERIAL::Reader_ earlier_v8_reader(bytes.get(), earlier_v8_size, "test save underflow");
+    DOCTEST_REQUIRE(SAVEGAME::Read_Game(&earlier_v8_reader, &metadata, &settings, &seed));
+    DOCTEST_CHECK(earlier_v8_reader.Remaining() == 0);
+    DOCTEST_CHECK(MOX::NUM_SHIPS == MAX_SHIPS);
+    const uint32_t invalid_old_size = Strip_Leader_Ids_(bytes.get(), earlier_v8_size);
     memcpy(bytes.get() + version_offset, &old_version, sizeof(old_version));
     SERIAL::Reader_ invalid_old_reader(bytes.get(), invalid_old_size, "test save underflow");
     DOCTEST_CHECK_FALSE(SAVEGAME::Read_Game(
@@ -691,7 +828,7 @@ DOCTEST_TEST_CASE("save versions 5 and 6 preserve ship limits and fixed location
     MOX::NUM_COLONIES = 0;
     SERIAL::Writer_ old_writer(bytes.get(), SAVEGAME::BUFFER_CAPACITY, "test save overflow");
     DOCTEST_REQUIRE(SAVEGAME::Write_Game(&old_writer, description, 0x12345678));
-    const uint32_t old_size = Strip_Leader_Ids_(bytes.get(), old_writer.Length());
+    const uint32_t old_size = Strip_Leader_Ids_(bytes.get(), Strip_Planet_Ids_(bytes.get(), old_writer.Length()));
     memcpy(bytes.get() + version_offset, &old_version, sizeof(old_version));
 
     Bind_State_(*actual);
@@ -873,7 +1010,7 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
     uint8_t expected_n_msgs[MAX_PLAYERS] = {};
     expected.players[0].settlers[0].val = 0;
     SETTLER::Set_Source_Colony(&expected.players[0].settlers[0].val, 699);
-    SETTLER::Set_Dest_Planet(&expected.players[0].settlers[0].val, 899);
+    DOCTEST_REQUIRE(SETTLER::Try_Set_Dest_Planet(&expected.players[0].settlers[0].val, game::id_planet{899}));
     SETTLER::Set_Race(&expected.players[0].settlers[0].val, 7);
     SETTLER::Set_Eta(&expected.players[0].settlers[0].val, 12);
     SETTLER::Set_Prof(&expected.players[0].settlers[0].val, POP::PROF_SCIENTIST);
@@ -1019,6 +1156,7 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
     memcpy(previous_colony_format + colonies_offset + MOX::NUM_COLONIES * old_colony_size,
         versioned + colonies_offset + MOX::NUM_COLONIES * sizeof(s_colony),
         writer.Length() - colonies_offset - MOX::NUM_COLONIES * sizeof(s_colony));
+    previous_colony_format_size = Strip_Planet_Ids_(previous_colony_format, previous_colony_format_size, old_colony_size);
     previous_colony_format_size = Strip_Leader_Ids_(previous_colony_format, previous_colony_format_size);
     SERIAL::Reader_ extension_reader(versioned + extension_offset,
         extension_size,
@@ -1053,9 +1191,9 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
         sizeof(SETTLER::value_type);
     const uint32_t jump_gate_redirect_state_size =
         MOX::NUM_SHIPS * (sizeof(int16_t) + sizeof(int32_t));
-    const uint32_t version_one_size = writer.Length() -
+    const uint32_t version_one_size = previous_colony_format_size -
         jump_gate_redirect_state_size - freight_capacity_state_size -
-        antaran_runtime_state_size - extension_size - MOX::NUM_COLONIES - LEADER_IDS_BYTES;
+        antaran_runtime_state_size - extension_size;
     uint8_t* version_one = static_cast<uint8_t*>(malloc(version_one_size));
     DOCTEST_REQUIRE(version_one != nullptr);
     memcpy(version_one, previous_colony_format, version_one_size);
@@ -1200,7 +1338,7 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
                               .tech_applications[TECH_APP_STASIS_FIELD] ==
                 TECH_RESEARCH_STATUS_UNAVAILABLE));
             DOCTEST_CHECK((SETTLER::Get_Source_Colony(actual.players[0].settlers[0].val) == 699));
-            DOCTEST_CHECK((SETTLER::Get_Dest_Planet(actual.players[0].settlers[0].val) == 899));
+            DOCTEST_CHECK((SETTLER::Get_Dest_Planet(actual.players[0].settlers[0].val) == game::id_planet{899}));
         } else {
             DOCTEST_CHECK(orion2re::lua::game::Ship_Generation(0) == 1);
             DOCTEST_CHECK(orion2re::lua::game::Ship_Generation(
@@ -1393,7 +1531,7 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
     SAVEGAME::loaded_config_prompt = true;
 
     const uint32_t previous_version_three_size =
-        writer.Length() - jump_gate_redirect_state_size - extension_size - MOX::NUM_COLONIES - LEADER_IDS_BYTES;
+        previous_colony_format_size - jump_gate_redirect_state_size - extension_size;
     uint8_t* version_three = static_cast<uint8_t*>(malloc(previous_version_three_size));
     DOCTEST_REQUIRE(version_three != nullptr);
     memcpy(version_three, previous_colony_format, previous_version_three_size);

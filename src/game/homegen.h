@@ -1,7 +1,7 @@
 #pragma once
 #include <cstdint>
 
-struct s_planet_data;
+namespace game { struct id_planet; }
 
 namespace HOMEGEN {
 #pragma pack(push, 1)
@@ -119,7 +119,7 @@ namespace HOMEGEN {
     int16_t __cdecl Usable_Orbit(int16_t star_idx);
 
     /** Creates or rewrites a planet record in the given system orbit. */
-    void __cdecl Make_One_Planet(int16_t star_idx, int16_t planet_idx, int16_t orbit_idx, int8_t is_food_planet);
+    void __cdecl Make_One_Planet(game::id_planet planet_id, int16_t star_idx, int16_t orbit_idx, int8_t is_food_planet);
 
     /** Ensures a system contains at least three planetary bodies. */
     void __cdecl Enforce_3_Planet_Minimum(int16_t star_idx);
@@ -131,7 +131,7 @@ namespace HOMEGEN {
     void __cdecl Set_Special_For_Star_Guarded_By_Monster(s_star_data* star, int16_t monster_type);
 
     /** Upgrades a monster-guarded planet and refreshes its parent star special. */
-    void __cdecl Upgrade_Planet_Guarded_By_Monster(s_planet_data* planet, int16_t monster_type);
+    void __cdecl Upgrade_Planet_Guarded_By_Monster(game::id_planet planet_id, int16_t monster_type);
 
     /** Returns whether the supplied star currently has a real planet. */
     bool __cdecl Star_Has_Planet(int16_t star_index);

@@ -2309,7 +2309,7 @@ TEST_CASE("planet generated event implements the legacy deposit behavior") {
     MOX::planet[1].mineral_class = MINERAL_RESOURCE_POOR;
     MOX::planet[1].planet_special = SYSTEM_SPECIAL_GOLD_DEPOSITS;
     MOX::star[1].planet_index[3] = 1;
-    const orion2re::lua::game::s_planet_generated_event event = {1};
+    const orion2re::lua::game::s_planet_generated_event event = {game::id_planet{1}};
     orion2re::lua::game::Planet_Generated(&event);
     CHECK(MOX::planet[1].mineral_class == MINERAL_RESOURCE_ABUNDANT);
     CHECK(MOX::planet[1].gravity_class == PLANET_GRAVITY_NORMAL_G);
