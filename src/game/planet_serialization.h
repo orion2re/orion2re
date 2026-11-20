@@ -12,7 +12,12 @@ namespace SERIAL {
     inline constexpr size_t LEGACY_PLANET_BYTES = PLANET_BYTES - 1;
     inline constexpr size_t KEYED_PLANET_BYTES = sizeof(uint32_t) + PLANET_BYTES;
     inline constexpr uint16_t KEYED_PLANET_COUNT_FLAG = 0x8000;
+    inline constexpr uint16_t WIDE_HOME_PLANET_FLAG = 0x4000; // Stored in the player count.
     static_assert(MAX_PLANETS < KEYED_PLANET_COUNT_FLAG);
+
+    inline constexpr game::id_planet Decode_Legacy_Planet_Reference(int16_t index) {
+        return index < 0 ? game::NO_PLANET : game::id_planet{static_cast<uint32_t>(index)};
+    }
 
     inline void Write_Planet(Writer_& writer, const s_planet_data& planet) {
         writer.Write_Int16(planet.colony_index);

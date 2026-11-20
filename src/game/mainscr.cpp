@@ -2231,7 +2231,7 @@ namespace MAINSCR {
     void __cdecl Change_Home_Star_Name() {
         int16_t player_idx = MOX::PLAYER_NUM;
         s_player* player = &MOX::player[player_idx];
-        int16_t star_idx = MOX::planet[player->home_planet_id].star_index;
+        int16_t star_idx = MOX::planet[player->home_planet_id.get().id].star_index;
 
         int16_t center_y = namestar::Star_Name_Popup_Map_Center_Y();
         int16_t center_x = namestar::Star_Name_Popup_Map_Center_X();
@@ -2318,7 +2318,7 @@ namespace MAINSCR {
 
     int16_t __cdecl Get_Star_Id_For_Officers_Screen() {
         int16_t player_num = MOX::PLAYER_NUM;
-        int16_t home_planet_id = MOX::player[player_num].home_planet_id;
+        const auto home_planet_id = MOX::player[player_num].home_planet_id.get();
         int16_t star_idx = -1;
 
         // Check if a specific system is selected in the UI
@@ -2332,7 +2332,7 @@ namespace MAINSCR {
         }
 
         // Search for the first star system where the player has a colony, starting from home
-        int16_t home_star_idx = MOX::planet[home_planet_id].star_index;
+        int16_t home_star_idx = MOX::planet[home_planet_id.id].star_index;
         star_idx = home_star_idx;
 
         for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {

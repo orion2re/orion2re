@@ -71,7 +71,7 @@ namespace BOMB {
             MSG_::Add_Msg(msg, colony->owner);
         }
 
-        if (MOX::player[(uint8_t)colony->owner].home_planet_id == colony->planet) {
+        if (MOX::player[(uint8_t)colony->owner].home_planet_id.get() == game::id_planet{static_cast<uint32_t>(colony->planet)}) {
             invasion::Assign_New_Home_Planet(colony->owner, colony_idx);
         }
 

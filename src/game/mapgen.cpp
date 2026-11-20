@@ -3,6 +3,7 @@
 #include <unordered_set>
 
 #include "legacy_ids.h"
+#include "planet_pruning.h"
 
 using game::current_state;
 
@@ -375,6 +376,19 @@ namespace MAPGEN {
         }
     }
 
+    std::vector<game::id_planet> Choose_Planets_To_Prune(
+        std::vector<game::id_planet> candidates, int live_count, int limit) {
+        std::vector<game::id_planet> removed;
+        while (limit <= live_count && !candidates.empty()) {
+            const size_t choice = game_random::Random(static_cast<uint32_t>(candidates.size())) - 1;
+            removed.push_back(candidates[choice]);
+            candidates[choice] = candidates.back();
+            candidates.pop_back();
+            --live_count;
+        }
+        return removed;
+    }
+
     void __cdecl Enforce_Planet_Max(int16_t max_planets) {
         int16_t original_planet_count = MOX::planet_count;
 
@@ -384,8 +398,8 @@ namespace MAPGEN {
 
             for (int32_t i = 0; i < MAX_PLAYERS; ++i) {
                 if (i < MOX::NUM_PLAYERS) {
-                    int16_t home_pid = MOX::player[i].home_planet_id;
-                    is_home_system[MOX::planet[home_pid].star_index] = 1;
+                    const auto home = MOX::player[i].home_planet_id.get();
+                    if (home != game::NO_PLANET) is_home_system[MOX::planet[home.id].star_index] = 1;
                 }
             }
 
@@ -403,27 +417,23 @@ namespace MAPGEN {
                         planet.star_index != 0) &&
                     is_home_system[planet.star_index] == 0 &&
                     !HOMEGEN::Is_Added_Food_World(planet.star_index)) {
-                    removable_planets.push_back(legacy_world::Planet_Id(planet_idx));
+                    removable_planets.push_back(game::id_planet{static_cast<uint32_t>(planet_idx)});
                 }
             }
 
-            std::unordered_set<game::id_planet> removed;
-            while (max_planets <= MOX::planet_count && !removable_planets.empty()) {
-                const size_t choice = game_random::Random(removable_planets.size()) - 1;
-                removed.insert(removable_planets[choice]);
-                removable_planets[choice] = removable_planets.back();
-                removable_planets.pop_back();
-                MOX::planet_count--;
-            }
+            const auto selected = Choose_Planets_To_Prune(std::move(removable_planets), original_planet_count, max_planets);
+            const std::unordered_set<game::id_planet> removed(selected.begin(), selected.end());
+            MOX::planet_count = static_cast<int16_t>(original_planet_count - selected.size());
 
             int16_t new_idx = 0;
             Clear_Planets_In_Star_Structure();
 
             for (int16_t old_idx = 0; old_idx < original_planet_count; ++old_idx) {
-                if (!removed.contains(legacy_world::Planet_Id(old_idx))) {
-                    int16_t player_home_idx = Home_Planet(old_idx);
+                const game::id_planet old_id{static_cast<uint32_t>(old_idx)};
+                if (!removed.contains(old_id)) {
+                    int16_t player_home_idx = Home_Planet(old_id);
                     if (player_home_idx != -1) {
-                        MOX::player[player_home_idx].home_planet_id = new_idx;
+                        MOX::player[player_home_idx].home_planet_id = game::id_planet{static_cast<uint32_t>(new_idx)};
                     }
 
                     RUSS::PFMT(0, 10, "Moving planet %d to planet %d", old_idx, new_idx);
@@ -664,9 +674,9 @@ namespace MAPGEN {
         }
     }
 
-    int16_t __cdecl Home_Planet(int16_t planet_id) {
+    int16_t __cdecl Home_Planet(game::id_planet planet_id) {
         for (int16_t i = 0; i < (int16_t)MOX::NUM_PLAYERS; ++i) {
-            if (MOX::player[i].home_planet_id == planet_id) {
+            if (MOX::player[i].home_planet_id.get() == planet_id) {
                 return i;
             }
         }
@@ -730,10 +740,8 @@ namespace MAPGEN {
             }
             for (int16_t player_idx = 0; player_idx < MOX::NUM_PLAYERS;
                  ++player_idx) {
-                const int16_t home_planet_idx =
-                    MOX::player[player_idx].home_planet_id;
-                if (home_planet_idx < 0 ||
-                    home_planet_idx >= MOX::planet_count) {
+                const auto home = MOX::player[player_idx].home_planet_id.get();
+                if (home == game::NO_PLANET || home.id >= static_cast<uint32_t>(MOX::planet_count)) {
                     return false;
                 }
             }
@@ -829,9 +837,9 @@ namespace MAPGEN {
             }
             for (int16_t player_idx = 0; player_idx < MOX::NUM_PLAYERS;
                  ++player_idx) {
-                const int16_t home_planet =
-                    MOX::player[player_idx].home_planet_id;
-                if (home_planet < 0 || home_planet >= MOX::planet_count ||
+                const auto home = MOX::player[player_idx].home_planet_id.get();
+                const auto home_planet = home.id;
+                if (home == game::NO_PLANET || home_planet >= static_cast<uint32_t>(MOX::planet_count) ||
                     MOX::planet[home_planet].planet_type !=
                         PLANET_TYPE_PLANET ||
                     MOX::planet[home_planet].colony_index < 0 ||
@@ -1047,13 +1055,13 @@ namespace MAPGEN {
             }
             for (int16_t player_id = 0; player_id < MOX::NUM_PLAYERS;
                  ++player_id) {
-                const int16_t home = MOX::player[player_id].home_planet_id;
-                if (home < 0 || home >= MAX_PLANETS ||
-                    planet_remap[home] < 0) {
+                const auto home = MOX::player[player_id].home_planet_id.get();
+                if (home == game::NO_PLANET || home.id >= MAX_PLANETS ||
+                    planet_remap[home.id] < 0) {
                     return false;
                 }
                 MOX::player[player_id].home_planet_id =
-                    planet_remap[home];
+                    game::id_planet{static_cast<uint32_t>(planet_remap[home.id])};
             }
             for (int16_t colony_id = 0;
                  colony_id < MOX::NUM_COLONIES;
@@ -1280,7 +1288,7 @@ namespace MAPGEN {
                 MAPGEN::home_system_config.use_fixed_unoccupied_planets;
             for (int16_t player_idx = 0; player_idx < MOX::NUM_PLAYERS; ++player_idx) {
                 s_player* player = &MOX::player[player_idx];
-                s_planet_data* home = &MOX::planet[player->home_planet_id];
+                s_planet_data* home = &MOX::planet[player->home_planet_id.get().id];
                 s_star_data* star = &MOX::star[home->star_index];
                 int unoccupied_index = 0;
                 for (int orbit = 0; orbit < 5; ++orbit) {
@@ -1398,12 +1406,11 @@ namespace MAPGEN {
                 for (int16_t player_idx = 0;
                      player_idx < MOX::NUM_PLAYERS;
                      ++player_idx) {
-                    const int16_t home_planet_idx =
-                        MOX::player[player_idx].home_planet_id;
+                    const auto home_planet = MOX::player[player_idx].home_planet_id.get();
                     const orion2re::lua::game::s_home_system_generated_event
                         event = {
                             player_idx,
-                            MOX::planet[home_planet_idx].star_index,
+                            MOX::planet[home_planet.id].star_index,
                         };
                     orion2re::lua::game::Home_System_Generated(&event);
                 }
@@ -1411,7 +1418,7 @@ namespace MAPGEN {
                      planet_idx < MOX::planet_count;
                      ++planet_idx) {
                     const orion2re::lua::game::s_planet_generated_event
-                        event = {legacy_world::Planet_Id(planet_idx)};
+                        event = {game::id_planet{static_cast<uint32_t>(planet_idx)}};
                     orion2re::lua::game::Planet_Generated(&event);
                 }
                 if (!Valid_Generated_Map()) {
@@ -1452,8 +1459,8 @@ namespace MAPGEN {
 
             const uint32_t radius_sq = radius * radius * 900;
             for (int16_t player_idx = 0; player_idx < MOX::NUM_PLAYERS; ++player_idx) {
-                const int16_t home_planet_idx = MOX::player[player_idx].home_planet_id;
-                const s_star_data* home = &MOX::star[MOX::planet[home_planet_idx].star_index];
+                const auto home_planet = MOX::player[player_idx].home_planet_id.get();
+                const s_star_data* home = &MOX::star[MOX::planet[home_planet.id].star_index];
                 for (int16_t star_idx = 0; star_idx < MOX::NUM_STARS; ++star_idx) {
                     s_star_data* star = &MOX::star[star_idx];
                     const int32_t dx = star->x - home->x;

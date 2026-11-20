@@ -612,7 +612,7 @@ namespace AIBUILD {
         context->flags[production_rules::FLAG_RESEARCH_ENABLED] = player->do_not_research == 0;
         context->flags[production_rules::FLAG_THREATENED] = ai_colony->other_player_arrivals;
         context->flags[production_rules::FLAG_AT_WAR] = war_level > 0;
-        context->flags[production_rules::FLAG_IS_HOMEWORLD] = player->home_planet_id == colony->planet;
+        context->flags[production_rules::FLAG_IS_HOMEWORLD] = player->home_planet_id.get() == game::id_planet{static_cast<uint32_t>(colony->planet)};
         context->flags[production_rules::FLAG_EMPIRE_FOOD_DEFICIT] = player->surplus_food < 0;
         context->flags[production_rules::FLAG_EMPIRE_LOW_MONEY] =
             player->bc + player->surplus_bc < player->total_maintenance;
@@ -753,7 +753,7 @@ namespace AIBUILD {
             } break;
 
             case BUILDING_CAPITOL:
-                if (government_family != 3 && player->home_planet_id == colony->planet) {
+                if (government_family != 3 && player->home_planet_id.get() == game::id_planet{static_cast<uint32_t>(colony->planet)}) {
                     score = 100;
                 }
                 break;

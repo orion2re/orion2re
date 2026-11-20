@@ -53,8 +53,8 @@ namespace test_ground_commando_runtime {
         MOX::NUM_COLONIES = 1;
         colonies[0].owner = 0;
         planets[0].star_index = 0;
-        players[0].home_planet_id = -1;
-        players[1].home_planet_id = -1;
+        players[0].home_planet_id = game::NO_PLANET;
+        players[1].home_planet_id = game::NO_PLANET;
         for (int skill_idx = 0; skill_idx < 54; ++skill_idx) {
             MOX::skill_data[skill_idx].cost = 0;
         }

@@ -309,7 +309,7 @@ namespace orion2re::lua::game {
         home_system_player_order[home_system_event_calls++] = event->player_id;
         if (!home_system_edits_enabled) return;
         s_planet_data& homeworld =
-            MOX::planet[MOX::player[event->player_id].home_planet_id];
+            MOX::planet[MOX::player[event->player_id].home_planet_id.get().id];
         homeworld.size = PLANET_SIZE_HUGE;
         homeworld.climate = PLANET_CLIMATE_GAIA;
         homeworld.planet_special = SYSTEM_SPECIAL_GOLD_DEPOSITS;

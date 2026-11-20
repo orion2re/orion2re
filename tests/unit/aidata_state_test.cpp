@@ -7,7 +7,6 @@
 using legacy_world::Ship_Id;
 using legacy_world::Star_Id;
 using legacy_world::Player_Id;
-using legacy_world::Planet_Id;
 
 DOCTEST_TEST_CASE("AI workspaces own independent assessments and operation data") {
     AIDATA::s_state first;
@@ -162,9 +161,9 @@ DOCTEST_TEST_CASE("legacy boundary conversions handle absence and narrowing expl
 DOCTEST_TEST_CASE("optional attack targets preserve entity ID zero") {
     AIMOVE::s_attack_info info{};
     DOCTEST_CHECK_FALSE(info.target_planet);
-    info.target_planet = Planet_Id(0);
+    info.target_planet = game::id_planet{0};
     DOCTEST_REQUIRE(info.target_planet);
-    DOCTEST_CHECK(*info.target_planet == Planet_Id(0));
+    DOCTEST_CHECK(*info.target_planet == game::id_planet{0});
 }
 
 DOCTEST_TEST_CASE("direct route row availability survives growth across bitmap words") {

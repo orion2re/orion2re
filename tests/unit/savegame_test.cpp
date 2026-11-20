@@ -78,13 +78,13 @@ namespace {
         const size_t player_count_offset = COLONY_RECORDS_OFFSET + MOX::NUM_COLONIES * sizeof(s_colony) +
             2 + 4 + MOX::planet_count * SERIAL::KEYED_PLANET_BYTES +
             2 + MOX::NUM_STARS * sizeof(s_star_data) + SERIAL::LEADER_STATE_BYTES;
-        const size_t player_size = 0xf0e + ORIGINAL_MAX_FREIGHTED_SETTLERS * (SERIAL::SETTLER_BYTES - 8);
+        const size_t player_size = 0xf0e + 2 + ORIGINAL_MAX_FREIGHTED_SETTLERS * (SERIAL::SETTLER_BYTES - 8);
         const size_t ships = player_count_offset + 2 + MAX_PLAYERS * player_size;
         const size_t tail = ships + 2 + MOX::NUM_SHIPS * 129 + 164 + MOX::NUM_NEBULAS * 5 + 4491;
         constexpr size_t tail_records = MAX_PLAYERS * (MAX_FREIGHTED_SETTLERS - ORIGINAL_MAX_FREIGHTED_SETTLERS);
         DOCTEST_REQUIRE(tail + tail_records * SERIAL::SETTLER_BYTES <= size);
         DOCTEST_REQUIRE((data[player_count_offset + 1] & 0x80) != 0);
-        data[player_count_offset + 1] &= 0x7f;
+        data[player_count_offset + 1] &= 0x3f;
         size_t read = player_count_offset + 2, write = read;
         const auto copy = [&](size_t length) {
             memmove(data + write, data + read, length);
@@ -106,7 +106,11 @@ namespace {
             write += 8;
         };
         for (int player = 0; player < MAX_PLAYERS; ++player) {
-            copy(0x42);
+            copy(41);
+            // Legacy saved the low 16 bits of this reference; skip its high bytes.
+            copy(2);
+            read += 2;
+            copy(0x42 - 43);
             for (int i = 0; i < ORIGINAL_MAX_FREIGHTED_SETTLERS; ++i) record();
             copy(0xf0e - 0x42 - ORIGINAL_MAX_FREIGHTED_SETTLERS * 8);
         }
@@ -1051,6 +1055,8 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
     uint8_t expected_first_msg[MAX_PLAYERS] = {};
     uint8_t expected_max_msgs[MAX_PLAYERS] = {};
     uint8_t expected_n_msgs[MAX_PLAYERS] = {};
+    expected.players[0].home_planet_id = game::id_planet{70000};
+    expected.players[1].home_planet_id = game::NO_PLANET;
     expected.players[0].settlers[0] = {
         .source_colony = 699, .destination = game::id_planet{70000}, .race = 7, .eta = 12,
         .profession = POP::PROF_SCIENTIST,
@@ -1379,6 +1385,8 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
             DOCTEST_CHECK((actual.players[0]
                               .tech_applications[TECH_APP_STASIS_FIELD] ==
                 TECH_RESEARCH_STATUS_UNAVAILABLE));
+            DOCTEST_CHECK(actual.players[0].home_planet_id.get() == game::id_planet{70000});
+            DOCTEST_CHECK(actual.players[1].home_planet_id.get() == game::NO_PLANET);
             DOCTEST_CHECK(actual.players[0].settlers[0].source_colony.get() == 699);
             DOCTEST_CHECK(actual.players[0].settlers[0].destination.get() == game::id_planet{70000});
         } else {

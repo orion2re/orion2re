@@ -8,6 +8,7 @@
 
 namespace orion2re {
     using game::id_planet;
+    using game::NO_PLANET;
 }
 
 namespace orion2re::lua::game {
@@ -49,7 +50,7 @@ namespace orion2re::lua::game {
     };
 
     struct s_planet_generated_event {
-        id_planet planet_id{UINT32_MAX};
+        id_planet planet_id = NO_PLANET;
     };
 
     struct s_population_growth_context {

@@ -3181,12 +3181,12 @@ TEST_CASE("stable game collections honor callback capabilities") {
     MOX::NUM_STARS = 2;
 
     MOX::player[0].traits[TRAIT_CURRENT_GOVERNMENT] = GOVERNMENT_COUNT;
-    MOX::player[0].home_planet_id = 99;
+    MOX::player[0].home_planet_id = game::id_planet{99};
     REQUIRE(orion2re::lua::Dispatch_Mod_Event(
         runtime, "test.invalid_player", nullptr, nullptr, &result));
     MOX::player[0].traits[TRAIT_CURRENT_GOVERNMENT] =
         GOVERNMENT_DEMOCRACY;
-    MOX::player[0].home_planet_id = 0;
+    MOX::player[0].home_planet_id = game::id_planet{0};
 
     MOX::player[0].tech_applications[TECH_APP_PLASMA_CANNON] = 2;
     TECHDATA::technology_applications[TECH_APP_PLASMA_CANNON]

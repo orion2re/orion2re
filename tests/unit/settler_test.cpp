@@ -18,7 +18,7 @@ static void Add_Resident_Pops_(s_colony* colony, int32_t race_idx, int32_t pop_c
 
 static void Add_Inbound_Settler_(s_player* player, int32_t race_idx, int16_t dest_planet) {
     player->settlers[player->settlers_freighted] = {
-        .destination = legacy_world::Planet_Id(dest_planet),
+        .destination = game::id_planet{static_cast<uint32_t>(dest_planet)},
         .race = static_cast<uint8_t>(race_idx),
     };
     player->settlers_freighted++;

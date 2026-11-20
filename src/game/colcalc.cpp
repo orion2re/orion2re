@@ -194,7 +194,7 @@ namespace COLCALC {
 
         for (int i = 0; i < MOX::NUM_PLAYERS; ++i) {
             s_player* player = &MOX::player[i];
-            int16_t star_idx = MOX::planet[player->home_planet_id].star_index;
+            int16_t star_idx = MOX::planet[player->home_planet_id.get().id].star_index;
             MOX::star[star_idx].colonize_player = (int8_t)i;
 
             if (player->command_points < (int16_t)min_command_points) {
@@ -210,7 +210,7 @@ namespace COLCALC {
                 s_player* player = &MOX::player[i];
                 RUSS::Mox_Update();
 
-                int16_t star_idx = MOX::planet[player->home_planet_id].star_index;
+                int16_t star_idx = MOX::planet[player->home_planet_id.get().id].star_index;
                 MOX::star[star_idx].colonize_player = (int8_t)i;
 
                 player->bc = (player->traits[TRAIT_TAX_BONUS] * 100 + 200);
@@ -2485,8 +2485,9 @@ namespace COLCALC {
     }
 
     bool __cdecl May_Surrender_Star(int16_t star_idx, int16_t player_idx, int16_t recipient_idx) {
-        if (MOX::player[player_idx].home_planet_id != -1) {
-            if (MOX::planet[MOX::player[player_idx].home_planet_id].star_index == star_idx) {
+        const auto home_planet_id = MOX::player[player_idx].home_planet_id.get();
+        if (home_planet_id != game::NO_PLANET) {
+            if (MOX::planet[home_planet_id.id].star_index == star_idx) {
                 return false;
             }
         }
@@ -3038,9 +3039,9 @@ namespace COLCALC {
                     }
                     case BUILDING_CAPITOL: {
                         if (MOX::player[owner].traits[TRAIT_CURRENT_GOVERNMENT] / 2 == 3) return 0;
-                        int16_t home_planet_id = MOX::player[owner].home_planet_id;
-                        if (home_planet_id == -1) return 1;
-                        int16_t c = MOX::planet[home_planet_id].colony_index;
+                        const auto home_planet_id = MOX::player[owner].home_planet_id.get();
+                        if (home_planet_id == game::NO_PLANET) return 1;
+                        int16_t c = MOX::planet[home_planet_id.id].colony_index;
                         if (MOX::colony[c].buildings[BUILDING_CAPITOL] != 0) return 0;
                         return 1;
                     }
@@ -3960,7 +3961,7 @@ namespace COLCALC {
 
                 if (player->settlers_freighted > 0) {
                     for (int32_t settler_idx = 0; settler_idx < player->settlers_freighted; ++settler_idx) {
-                        if (player->settlers[settler_idx].destination.get() == legacy_world::Planet_Id(colony->planet)) {
+                        if (player->settlers[settler_idx].destination.get() == game::id_planet{static_cast<uint32_t>(colony->planet)}) {
                             has_incoming_settlers = true;
                         }
                     }

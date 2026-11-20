@@ -413,8 +413,8 @@ namespace MULTPLAY {
             MOX::return_screen = SCREEN_HOTSEAT_SELECT_PLAYER;
             Restore_Hotseat_Map_Info();
 
-            int16_t home_planet_id = MOX::player[MOX::PLAYER_NUM].home_planet_id;
-            int16_t star_idx = MOX::planet[home_planet_id].star_index;
+            const auto home_planet_id = MOX::player[MOX::PLAYER_NUM].home_planet_id.get();
+            int16_t star_idx = MOX::planet[home_planet_id.id].star_index;
             s_star_data* star = &MOX::star[star_idx];
             MAINSCR::Center_Map(star->x, star->y);
         } else {

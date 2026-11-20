@@ -167,7 +167,7 @@ namespace debug_game_editors {
             const int16_t player_count = std::clamp<int16_t>(MOX::NUM_PLAYERS, 0, MAX_PLAYERS);
             for (int16_t player = 0; player < player_count; ++player) {
                 const s_player& data = MOX::player[player];
-                if (data.home_planet_id == planet_index || data.sneak_attack_planet == planet_index) {
+                if (data.home_planet_id.get() == game::id_planet{static_cast<uint32_t>(planet_index)} || data.sneak_attack_planet == planet_index) {
                     return true;
                 }
                 for (int16_t other = 0; other < player_count; ++other) {
@@ -177,7 +177,7 @@ namespace debug_game_editors {
                 }
                 const int freight_count = std::clamp<int>(data.settlers_freighted, 0, MAX_FREIGHTED_SETTLERS);
                 for (int i = 0; i < freight_count; ++i) {
-                    if (data.settlers[i].destination.get() == legacy_world::Planet_Id(planet_index)) {
+                    if (data.settlers[i].destination.get() == game::id_planet{static_cast<uint32_t>(planet_index)}) {
                         return true;
                     }
                 }
@@ -880,7 +880,7 @@ namespace debug_game_editors {
         const int16_t index = MOX::planet_count;
         const s_planet_data previous_planet = MOX::planet[index];
         const int16_t previous_slot = MOX::star[star_index].planet_index[orbit];
-        HOMEGEN::Make_One_Planet(legacy_world::Planet_Id(index), star_index, orbit, 0);
+        HOMEGEN::Make_One_Planet(game::id_planet{static_cast<uint32_t>(index)}, star_index, orbit, 0);
         if (MOX::star[star_index].planet_index[orbit] != index ||
             MOX::planet[index].star_index != star_index ||
             MOX::planet[index].orbit != orbit) {
@@ -958,7 +958,7 @@ namespace debug_game_editors {
         MOX::star[planet.star_index].planet_index[planet.orbit] = -1;
         Initialize_Unused_Planet(&MOX::planet[planet_index]);
         MOX::planet_count--;
-        PLNTSUM::explored_planets.erase(legacy_world::Planet_Id(planet_index));
+        PLNTSUM::explored_planets.erase(game::id_planet{static_cast<uint32_t>(planet_index)});
         if (COLONY::g_scanned_planet == planet_index) {
             COLONY::g_scanned_planet = -1;
         }

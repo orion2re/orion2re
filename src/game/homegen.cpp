@@ -334,8 +334,8 @@ namespace HOMEGEN {
 
             if (is_race_assigned[race_idx] == 0) {
                 char* src_name = &star_names[race_idx * 15];
-                int16_t home_planet_id = plr->home_planet_id;
-                int16_t star_idx = MOX::planet[home_planet_id].star_index;
+                const auto home_planet_id = plr->home_planet_id.get();
+                int16_t star_idx = MOX::planet[home_planet_id.id].star_index;
                 s_star_data* star = &MOX::star[star_idx];
 
                 char* dst = star->name;
@@ -592,7 +592,7 @@ namespace HOMEGEN {
                 Enforce_Climate(i, climate_threshold, &home_planet_id);
                 Remove_Specials(i);
 
-                player->home_planet_id = home_planet_id;
+                player->home_planet_id = game::id_planet{static_cast<uint32_t>(home_planet_id)};
 
                 if (player->traits[TRAIT_LARGE_HOME_WORLD] == 0) { // Not Large Home World
                     Enforce_Medium_Planet_Size(home_planet_id);
@@ -855,7 +855,7 @@ namespace HOMEGEN {
                         int16_t orbit = Usable_Orbit(nearest_empty_star);
                         const int16_t existing_planet_idx = MOX::star[nearest_empty_star].planet_index[orbit];
                         const int16_t planet_idx = existing_planet_idx < 0 ? MOX::planet_count : existing_planet_idx;
-                        Make_One_Planet(legacy_world::Planet_Id(planet_idx), nearest_empty_star, orbit, 1);
+                        Make_One_Planet(game::id_planet{static_cast<uint32_t>(planet_idx)}, nearest_empty_star, orbit, 1);
                         food_star = nearest_empty_star;
                         if (existing_planet_idx < 0) ++MOX::planet_count;
                     } else if (nearest_star_in_range != -1) {
@@ -866,7 +866,7 @@ namespace HOMEGEN {
                         food_star = star_of_planet;
 
                         uint32_t orbit_index = ERIC::Get_Sint_Index_From_List(target_p_idx, MOX::star[star_of_planet].planet_index, 5);
-                        Make_One_Planet(legacy_world::Planet_Id(target_p_idx), star_of_planet, (int16_t)orbit_index, 1);
+                        Make_One_Planet(game::id_planet{static_cast<uint32_t>(target_p_idx)}, star_of_planet, (int16_t)orbit_index, 1);
 
                         MOX::planet[target_p_idx].planet_special = original_special;
                     }

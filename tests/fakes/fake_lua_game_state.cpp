@@ -46,11 +46,11 @@ namespace TEST_LUA_GAME {
         players[0].eliminated = 1;
         players[0].traits[TRAIT_CURRENT_GOVERNMENT] =
             GOVERNMENT_DEMOCRACY;
-        players[0].home_planet_id = 0;
+        players[0].home_planet_id = game::id_planet{0};
         players[1].objectives = PLAYER_OBJECTIVE_EXPANSIONIST;
         players[1].traits[TRAIT_CURRENT_GOVERNMENT] =
             GOVERNMENT_UNIFICATION;
-        players[1].home_planet_id = -1;
+        players[1].home_planet_id = game::NO_PLANET;
         for (s_star_data& system : systems) {
             for (int index = 0; index < 5; ++index) {
                 system.planet_index[index] = -1;

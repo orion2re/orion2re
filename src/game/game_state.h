@@ -18,8 +18,8 @@ namespace game {
         uint32_t next_planet_id = 0;
 
         std::optional<id_planet> Create_Planet(const s_planet_data& planet) {
-            if (planets.size() >= MAX_PLANETS || next_planet_id == UINT32_MAX) return std::nullopt;
             const id_planet id{next_planet_id};
+            if (planets.size() >= MAX_PLANETS || id == NO_PLANET) return std::nullopt;
             if (!planets.try_emplace(id, planet).second) return std::nullopt;
             ++next_planet_id;
             return id;

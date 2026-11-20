@@ -491,7 +491,8 @@ namespace AIDATA {
         for (int16_t pl = 0; pl < world->Planet_Count(); ++pl) {
             if (world->planets[pl].colony_index != -1) {
                 int owner = world->colonies[world->planets[pl].colony_index].owner;
-                ai->planets[legacy_world::Planet_Id(pl)].stage_weights[owner] = ai->planets[legacy_world::Planet_Id(pl)].base_values[owner];
+                auto& planet = ai->planets[game::id_planet{static_cast<uint32_t>(pl)}];
+                planet.stage_weights[owner] = planet.base_values[owner];
             }
         }
 
@@ -523,9 +524,10 @@ namespace AIDATA {
                     int16_t pl_idx = world->stars[s].planet_index[pl_i];
                     if (pl_idx != -1 && world->planets[pl_idx].colony_index != -1) {
                         int owner = world->colonies[world->planets[pl_idx].colony_index].owner;
-                        int16_t val = ai->planets[legacy_world::Planet_Id(pl_idx)].stage_weights[owner];
+                        const game::id_planet id{static_cast<uint32_t>(pl_idx)};
+                        int16_t val = ai->planets[id].stage_weights[owner];
                         if (val > best_planet_val_at_star[owner]) {
-                            best_planet_at_star[owner] = legacy_world::Planet_Id(pl_idx);
+                            best_planet_at_star[owner] = id;
                             best_planet_val_at_star[owner] = val;
                         }
                     }
@@ -554,10 +556,11 @@ namespace AIDATA {
                         }
 
                         for (int16_t pl = 0; pl < world->Planet_Count(); ++pl) {
-                            if (legacy_world::Planet_Id(pl) != *best_planet_at_star[p_o]) {
+                            const game::id_planet id{static_cast<uint32_t>(pl)};
+                            if (id != *best_planet_at_star[p_o]) {
                                 auto route = Player_N_Turns_From_Star_To_Star_With_Intermediate(ai, world, legacy_world::Player_Id(p_o), legacy_world::Star_Id(s), legacy_world::Star_Id(world->planets[pl].star_index), false);
                                 if (route && route->turns < 3) {
-                                    value_sum += ai->planets[legacy_world::Planet_Id(pl)].stage_weights[p_o];
+                                    value_sum += ai->planets[id].stage_weights[p_o];
                                 }
                             }
                         }
@@ -757,7 +760,7 @@ namespace AIDATA {
                         value = Colony_Worth_To_Player(ai, world, legacy_world::Colony_Id(col_idx), &world->colonies[col_idx], &world->players[player_idx]);
                     }
 
-                    ai->planets[legacy_world::Planet_Id(planet_idx)].base_values[player_idx] = value;
+                    ai->planets[game::id_planet{static_cast<uint32_t>(planet_idx)}].base_values[player_idx] = value;
                 }
             }
         }
@@ -778,7 +781,8 @@ namespace AIDATA {
 
         for (int p = 0; p < (int)world->Player_Count(); ++p) {
             for (int16_t i = 0; i < world->Planet_Count(); ++i) {
-                uint16_t base_val = ai->planets[legacy_world::Planet_Id(i)].base_values[p];
+                const game::id_planet id{static_cast<uint32_t>(i)};
+                uint16_t base_val = ai->planets[id].base_values[p];
                 if (base_val <= 0) {
                     continue;
                 }
@@ -786,7 +790,7 @@ namespace AIDATA {
                 s_planet_data* planet = &world->planets[i];
                 s_star_data* star = &world->stars[planet->star_index];
 
-                uint16_t& contextual_val = ai->planets[legacy_world::Planet_Id(i)].contextual_values[p];
+                uint16_t& contextual_val = ai->planets[id].contextual_values[p];
                 contextual_val = base_val;
 
                 int uncolonized_system_base_sum = 0;
@@ -806,12 +810,12 @@ namespace AIDATA {
 
                     if (colony_idx == -1) {
                         // Uncolonized planet in system
-                        uncolonized_system_base_sum += ai->planets[legacy_world::Planet_Id(sys_planet_idx)].base_values[p];
+                        uncolonized_system_base_sum += ai->planets[game::id_planet{static_cast<uint32_t>(sys_planet_idx)}].base_values[p];
                     } else {
                         if (world->colonies[colony_idx].owner == p) {
                             // Colony owned by the current player
                             owned_colonies_in_system++;
-                            owned_system_base_sum += ai->planets[legacy_world::Planet_Id(sys_planet_idx)].base_values[p];
+                            owned_system_base_sum += ai->planets[game::id_planet{static_cast<uint32_t>(sys_planet_idx)}].base_values[p];
                         } else {
                             // Colony owned by an enemy
                             enemy_colonies_in_system++;

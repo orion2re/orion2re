@@ -373,7 +373,7 @@ namespace orion2re::lua::game {
                 return luaL_error(lua_state,
                     "player home must be an existing colony owned by that player");
             }
-            MOX::player[proxy->player_id].home_planet_id = *index;
+            MOX::player[proxy->player_id].home_planet_id = planet_id;
             return 0;
         }
 
@@ -595,32 +595,34 @@ namespace orion2re::lua::game {
                 return 1;
             }
             if (strcmp(key, "home_planet") == 0) {
-                if (player.home_planet_id == -1) {
+                const auto home = player.home_planet_id.get();
+                if (home == NO_PLANET) {
                     lua_pushnil(lua_state);
                     return 1;
                 }
                 if (!internal::Push_Planet(
-                        lua_state, legacy_world::Planet_Id(player.home_planet_id))) {
+                        lua_state, home)) {
                     return luaL_error(lua_state,
-                        "player %d has invalid home planet %d",
+                        "player %d has invalid home planet %u",
                         proxy->player_id,
-                        player.home_planet_id);
+                        home.id);
                 }
                 return 1;
             }
             if (strcmp(key, "home_system") == 0) {
-                if (player.home_planet_id == -1) {
+                const auto home = player.home_planet_id.get();
+                if (home == NO_PLANET) {
                     lua_pushnil(lua_state);
                     return 1;
                 }
                 std::int16_t system_id = -1;
                 if (!internal::Resolve_Planet_System(
-                        legacy_world::Planet_Id(player.home_planet_id), &system_id) ||
+                        home, &system_id) ||
                     !internal::Push_System(lua_state, system_id)) {
                     return luaL_error(lua_state,
-                        "player %d has invalid home planet %d",
+                        "player %d has invalid home planet %u",
                         proxy->player_id,
-                        player.home_planet_id);
+                        home.id);
                 }
                 return 1;
             }

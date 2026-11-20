@@ -316,8 +316,8 @@ namespace AIMOVE {
                 uint8_t star_range_mask = ai->stars[legacy_world::Star_Id(star_idx)].in_extended_range;
 
                 if (((1u << ((uint8_t)i_ai & 0x1F)) & (uint32_t)star_range_mask) != 0) {
-                    candidates->push_back({legacy_world::Planet_Id(i),
-                        (int32_t)(uint16_t)ai->planets[legacy_world::Planet_Id(i)].contextual_values[i_ai]});
+                    const game::id_planet id{static_cast<uint32_t>(i)};
+                    candidates->push_back({id, (int32_t)(uint16_t)ai->planets[id].contextual_values[i_ai]});
                 }
             }
 
@@ -850,8 +850,8 @@ namespace AIMOVE {
         int16_t planet_idx = world->colonies[colony_idx].planet;
 
         return (
-                   ai->planets[legacy_world::Planet_Id(planet_idx)].base_values[player_idx] * weight_player +
-                   ai->planets[legacy_world::Planet_Id(planet_idx)].base_values[owner] * weight_owner) /
+                   ai->planets[game::id_planet{static_cast<uint32_t>(planet_idx)}].base_values[player_idx] * weight_player +
+                   ai->planets[game::id_planet{static_cast<uint32_t>(planet_idx)}].base_values[owner] * weight_owner) /
             6;
     }
 
@@ -1958,7 +1958,7 @@ namespace AIMOVE {
                     target_info->strength_ratio_percent = (int16_t)target_val;
 
                     if (target_info->minimum_strength_ratio_percent < (int16_t)target_val) {
-                        target_info->target_planet = legacy_world::Planet_Id(planet_idx);
+                        target_info->target_planet = game::id_planet{static_cast<uint32_t>(planet_idx)};
                         target_info->colony_value = (int16_t)colony_worth;
                     } else {
                         attack_worthiness = 0;

@@ -360,7 +360,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "hyper-advanced research costs use
                       &player, TECH_FIELD_BIOLOGY) == 49000);
 
     COLCALC::Compute_Player_Total_Known_Tech_Cost(&player);
-    DOCTEST_CHECK(player.total_known_tech_cost == 37000);
+    DOCTEST_CHECK((player.total_known_tech_cost == 37000));
 
     COLCALC::hyper_advanced_cost_increment = saved_increment;
     TECHDATA::technology_fields[TECH_FIELD_BIOLOGY].cost = saved_base_cost;

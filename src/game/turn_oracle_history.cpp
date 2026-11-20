@@ -146,6 +146,25 @@ namespace turn_oracle {
             bytes = std::move(upgraded);
             return true;
         }
+
+        bool Upgrade_Home_Planet_References(std::vector<uint8_t>& bytes, size_t player_count_offset) {
+            constexpr size_t home_offset = 41;
+            constexpr size_t player_bytes = 0xf0e + 25 * (SERIAL::SETTLER_BYTES - 8);
+            constexpr size_t player_count = 8;
+            const size_t players = player_count_offset + 2;
+            if (bytes.size() - players < player_count * player_bytes) return false;
+            bytes[player_count_offset + 1] |= SERIAL::WIDE_HOME_PLANET_FLAG >> 8;
+            // Work backwards so inserting the high bytes cannot shift the next record to read.
+            for (size_t player = player_count; player-- > 0;) {
+                const size_t home = players + player * player_bytes + home_offset;
+                const int16_t legacy = static_cast<int16_t>(bytes[home] | (bytes[home + 1] << 8));
+                const auto id = SERIAL::Decode_Legacy_Planet_Reference(legacy);
+                bytes[home] = static_cast<uint8_t>(id.id);
+                bytes[home + 1] = static_cast<uint8_t>(id.id >> 8);
+                bytes.insert(bytes.begin() + home + 2, {static_cast<uint8_t>(id.id >> 16), static_cast<uint8_t>(id.id >> 24)});
+            }
+            return true;
+        }
     } // namespace
 
     bool Read_File(const std::filesystem::path& path, std::vector<uint8_t>* bytes, std::string* error) {
@@ -198,6 +217,14 @@ namespace turn_oracle {
                     !(expected_fields ? Upgrade_Packed_Freight(actual_bytes, *actual_offset)
                                       : Upgrade_Packed_Freight(expected_bytes, *expected_offset))) {
                     *error = "invalid legacy freight section";
+                    return false;
+                }
+                const bool expected_wide = (expected_bytes[*expected_offset + 1] & (SERIAL::WIDE_HOME_PLANET_FLAG >> 8)) != 0;
+                const bool actual_wide = (actual_bytes[*actual_offset + 1] & (SERIAL::WIDE_HOME_PLANET_FLAG >> 8)) != 0;
+                if (expected_wide != actual_wide &&
+                    !(expected_wide ? Upgrade_Home_Planet_References(actual_bytes, *actual_offset)
+                                    : Upgrade_Home_Planet_References(expected_bytes, *expected_offset))) {
+                    *error = "invalid legacy home-planet references";
                     return false;
                 }
             }

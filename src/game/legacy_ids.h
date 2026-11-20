@@ -10,14 +10,12 @@ namespace legacy_world {
     // signed fields with absence sentinels, and Index for checked legacy calls.
     constexpr game::id_ship Ship_Id(uint32_t value) { return {value}; }
     constexpr game::id_colony Colony_Id(uint32_t value) { return {value}; }
-    constexpr game::id_planet Planet_Id(uint32_t value) { return {value}; }
     constexpr game::id_star Star_Id(uint32_t value) { return {value}; }
     constexpr game::id_player Player_Id(uint32_t value) { return {value}; }
     constexpr game::id_leader Leader_Id(uint32_t value) { return {value}; }
 
     constexpr game::id_ship Ship_Id(game::id_ship id) { return id; }
     constexpr game::id_colony Colony_Id(game::id_colony id) { return id; }
-    constexpr game::id_planet Planet_Id(game::id_planet id) { return id; }
     constexpr game::id_star Star_Id(game::id_star id) { return id; }
     constexpr game::id_player Player_Id(game::id_player id) { return id; }
     constexpr game::id_leader Leader_Id(game::id_leader id) { return id; }
@@ -34,9 +32,6 @@ namespace legacy_world {
     }
     constexpr std::optional<game::id_colony> Try_Colony_Id(int32_t index) {
         return index < 0 ? std::nullopt : std::optional{Colony_Id(static_cast<uint32_t>(index))};
-    }
-    constexpr std::optional<game::id_planet> Try_Planet_Id(int32_t index) {
-        return index < 0 ? std::nullopt : std::optional{Planet_Id(static_cast<uint32_t>(index))};
     }
     constexpr std::optional<game::id_star> Try_Star_Id(int32_t index) {
         return index < 0 ? std::nullopt : std::optional{Star_Id(static_cast<uint32_t>(index))};

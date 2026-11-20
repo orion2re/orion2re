@@ -208,7 +208,7 @@ DOCTEST_TEST_CASE("home planet reassignment excludes outposts") {
 
     invasion::Assign_New_Home_Planet(0, 0);
 
-    DOCTEST_CHECK((MOX::player[0].home_planet_id == -1));
+    DOCTEST_CHECK(MOX::player[0].home_planet_id.get() == game::NO_PLANET);
 }
 
 DOCTEST_TEST_CASE("colony ground combat info preserves the resolved Commando officer") {
