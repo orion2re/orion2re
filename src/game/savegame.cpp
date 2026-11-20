@@ -2,6 +2,7 @@
 
 #include "leader_serialization.h"
 #include "planet_serialization.h"
+#include "settler_serialization.h"
 
 #include "game/savegame.h"
 
@@ -504,7 +505,7 @@ namespace SAVEGAME {
             writer->Write_Int16(player->food_freighted);
             writer->Write_Int16(player->settlers_freighted);
             for (int i = 0; i < ORIGINAL_MAX_FREIGHTED_SETTLERS; ++i) {
-                writer->Write_Uint64(player->settlers[i].val);
+                SERIAL::Write_Settler(*writer, player->settlers[i]);
             }
             writer->Write_Int16(player->total_pop);
             writer->Write_Int16(player->food_produced);
@@ -650,7 +651,7 @@ namespace SAVEGAME {
             writer->Write_Bytes(player->filler, sizeof(player->filler));
         }
 
-        void Read_Player(SERIAL::Reader_* reader, s_player* player, uint16_t version) {
+        void Read_Player(SERIAL::Reader_* reader, s_player* player, uint16_t version, bool field_settlers) {
             player->picture = reader->Read_Int8();
             reader->Read_Bytes(player->name, sizeof(player->name));
             reader->Read_Bytes(player->race_name, sizeof(player->race_name));
@@ -673,9 +674,9 @@ namespace SAVEGAME {
             player->food_freighted = reader->Read_Int16();
             player->settlers_freighted = reader->Read_Int16();
             for (int i = 0; i < ORIGINAL_MAX_FREIGHTED_SETTLERS; ++i) {
-                player->settlers[i].val = version == LEGACY_VERSION
-                    ? SETTLER::From_Legacy(reader->Read_Uint32())
-                    : reader->Read_Uint64();
+                player->settlers[i] = field_settlers ? SERIAL::Read_Settler(*reader)
+                    : version == LEGACY_VERSION ? SERIAL::Decode_Classic_Settler(reader->Read_Uint32())
+                    : SERIAL::Decode_Packed_Settler(reader->Read_Uint64());
             }
             memset(player->settlers + ORIGINAL_MAX_FREIGHTED_SETTLERS, 0, (MAX_FREIGHTED_SETTLERS - ORIGINAL_MAX_FREIGHTED_SETTLERS) * sizeof(player->settlers[0]));
             player->total_pop = reader->Read_Int16();
@@ -1437,7 +1438,7 @@ namespace SAVEGAME {
             writer->Write_Int16(MOX::NUM_STARS);
             for (int i = 0; i < MOX::NUM_STARS; ++i) Write_Star(writer, &MOX::star[i]);
             SERIAL::Write_Leader_State(state, *writer);
-            writer->Write_Int16(MOX::NUM_PLAYERS);
+            writer->Write_Uint16(MOX::NUM_PLAYERS | SERIAL::FIELD_SETTLERS_FLAG);
             for (int i = 0; i < MAX_PLAYERS; ++i) Write_Player(writer, &MOX::player[i]);
             writer->Write_Int16(MOX::NUM_SHIPS);
             for (int i = 0; i < MOX::NUM_SHIPS; ++i) Write_Ship(writer, &MOX::ship[i]);
@@ -1483,7 +1484,7 @@ namespace SAVEGAME {
                 for (int settler_idx = ORIGINAL_MAX_FREIGHTED_SETTLERS;
                      settler_idx < MAX_FREIGHTED_SETTLERS;
                      ++settler_idx) {
-                    writer->Write_Uint64(MOX::player[player_idx].settlers[settler_idx].val);
+                    SERIAL::Write_Settler(*writer, MOX::player[player_idx].settlers[settler_idx]);
                 }
             }
             for (int ship_idx = 0; ship_idx < MOX::NUM_SHIPS; ++ship_idx) {
@@ -1523,9 +1524,11 @@ namespace SAVEGAME {
             }
             if (reader->Failed()) return false;
             if (!SERIAL::Read_Leader_State(state, *reader, version < 8)) return false;
-            MOX::NUM_PLAYERS = reader->Read_Int16();
+            const uint16_t player_count = reader->Read_Uint16();
+            const bool field_settlers = version >= 8 && (player_count & SERIAL::FIELD_SETTLERS_FLAG) != 0;
+            MOX::NUM_PLAYERS = static_cast<int16_t>(field_settlers ? player_count & ~SERIAL::FIELD_SETTLERS_FLAG : player_count);
             for (int i = 0; i < MAX_PLAYERS; ++i) {
-                Read_Player(reader, &MOX::player[i], version);
+                Read_Player(reader, &MOX::player[i], version, field_settlers);
                 s_ship_design& sixth_design =
                     MOX::player[i].ship_designs[SHIP_SIZE_DOOM_STAR];
                 if (version == LEGACY_VERSION &&
@@ -1613,8 +1616,9 @@ namespace SAVEGAME {
                     for (int settler_idx = ORIGINAL_MAX_FREIGHTED_SETTLERS;
                          settler_idx < MAX_FREIGHTED_SETTLERS;
                          ++settler_idx) {
-                        MOX::player[player_idx].settlers[settler_idx].val =
-                            reader->Read_Uint64();
+                        MOX::player[player_idx].settlers[settler_idx] = field_settlers
+                            ? SERIAL::Read_Settler(*reader)
+                            : SERIAL::Decode_Packed_Settler(reader->Read_Uint64());
                     }
                 }
             }

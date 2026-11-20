@@ -4,6 +4,7 @@
 
 #include "game/leader_serialization.h"
 #include "game/planet_serialization.h"
+#include "game/settler_serialization.h"
 #include "game/savegame.h"
 #include "game/turn_oracle_history.h"
 
@@ -78,6 +79,73 @@ namespace turn_oracle {
             bytes = std::move(upgraded);
             return true;
         }
+
+        std::optional<size_t> Player_Count_Offset(const std::vector<uint8_t>& bytes) {
+            size_t offset = 605; // Header, settings, and seed in v7/v8.
+            const auto skip = [&](size_t width, uint16_t limit, bool planets = false) {
+                if (offset > bytes.size() || bytes.size() - offset < 2) return false;
+                uint16_t count = bytes[offset] | (bytes[offset + 1] << 8);
+                offset += 2;
+                if (planets && (count & SERIAL::KEYED_PLANET_COUNT_FLAG)) {
+                    count &= ~SERIAL::KEYED_PLANET_COUNT_FLAG;
+                    offset += 4;
+                    width += 4;
+                }
+                if (count > limit || offset > bytes.size() || count * width > bytes.size() - offset) return false;
+                offset += count * width;
+                return true;
+            };
+            if (!skip(0x16a, 5120) || !skip(0x12, 5120, true) || !skip(0xea, 1024) ||
+                bytes.size() - offset < SERIAL::LEADER_STATE_BYTES + 2) return std::nullopt;
+            return offset + SERIAL::LEADER_STATE_BYTES;
+        }
+
+        bool Upgrade_Packed_Freight(std::vector<uint8_t>& bytes, size_t player_count_offset) {
+            constexpr size_t player_bytes = 0xf0e;
+            constexpr size_t first_settler = 0x42;
+            constexpr size_t base_records = 25;
+            constexpr size_t extra_records = 8 * (1000 - base_records);
+            const size_t players = player_count_offset + 2;
+            const size_t ships = players + 8 * player_bytes;
+            if (ships > bytes.size() || bytes.size() - ships < 2) return false;
+            const uint16_t ship_count = bytes[ships] | (bytes[ships + 1] << 8);
+            // 129 bytes per ship; fixed game fields through the nebula count;
+            // then 5 bytes per nebula and the fixed game tail before freight.
+            const size_t nebulas = ships + 2 + 129 * ship_count + 163;
+            if (ship_count > 10000 || nebulas >= bytes.size()) return false;
+            const size_t tail = nebulas + 1 + bytes[nebulas] * 5 + 4491;
+            if (tail > bytes.size() || extra_records * 8 > bytes.size() - tail) return false;
+
+            std::vector<uint8_t> upgraded(bytes.begin(), bytes.begin() + players);
+            upgraded[player_count_offset + 1] |= SERIAL::FIELD_SETTLERS_FLAG >> 8;
+            const auto append = [&](uint32_t value, int size) {
+                for (int i = 0; i < size; ++i) upgraded.push_back(static_cast<uint8_t>(value >> (i * 8)));
+            };
+            const auto records = [&](size_t start, size_t count) {
+                for (size_t i = 0; i < count; ++i) {
+                    uint64_t word = 0;
+                    for (unsigned j = 0; j < 8; ++j) word |= static_cast<uint64_t>(bytes[start++]) << (j * 8);
+                    const auto settler = SERIAL::Decode_Packed_Settler(word);
+                    append(static_cast<uint16_t>(settler.source_colony.get()), 2);
+                    append(settler.destination.get().id, 4);
+                    append(settler.race, 1);
+                    append(settler.eta, 1);
+                    append(settler.profession, 1);
+                    append(settler.legacy_flags.get(), 4);
+                }
+            };
+            for (size_t i = 0; i < 8; ++i) {
+                const size_t start = players + i * player_bytes;
+                upgraded.insert(upgraded.end(), bytes.begin() + start, bytes.begin() + start + first_settler);
+                records(start + first_settler, base_records);
+                upgraded.insert(upgraded.end(), bytes.begin() + start + first_settler + base_records * 8, bytes.begin() + start + player_bytes);
+            }
+            upgraded.insert(upgraded.end(), bytes.begin() + ships, bytes.begin() + tail);
+            records(tail, extra_records);
+            upgraded.insert(upgraded.end(), bytes.begin() + tail + extra_records * 8, bytes.end());
+            bytes = std::move(upgraded);
+            return true;
+        }
     } // namespace
 
     bool Read_File(const std::filesystem::path& path, std::vector<uint8_t>* bytes, std::string* error) {
@@ -120,6 +188,18 @@ namespace turn_oracle {
             if (!Normalize_Save_Ids(expected_bytes, expected_v7) || !Normalize_Save_Ids(actual_bytes, actual_v7)) {
                 *error = "invalid save prefix, planet section, or leader section: " + canonical.string() + " / " + actual.string();
                 return false;
+            }
+            const auto expected_offset = Player_Count_Offset(expected_bytes);
+            const auto actual_offset = Player_Count_Offset(actual_bytes);
+            if (expected_offset && actual_offset) {
+                const bool expected_fields = (expected_bytes[*expected_offset + 1] & 0x80) != 0;
+                const bool actual_fields = (actual_bytes[*actual_offset + 1] & 0x80) != 0;
+                if (expected_fields != actual_fields &&
+                    !(expected_fields ? Upgrade_Packed_Freight(actual_bytes, *actual_offset)
+                                      : Upgrade_Packed_Freight(expected_bytes, *expected_offset))) {
+                    *error = "invalid legacy freight section";
+                    return false;
+                }
             }
         }
         size_t offset = 0;

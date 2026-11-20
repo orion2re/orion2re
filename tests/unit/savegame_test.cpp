@@ -7,6 +7,7 @@
 #include "game/savegame.h"
 #include "game/leader_serialization.h"
 #include "game/planet_serialization.h"
+#include "game/settler_serialization.h"
 #include "game/save_sections.h"
 #include "lua/lua_game_ship_identity.h"
 
@@ -72,6 +73,48 @@ namespace {
     constexpr size_t COLONY_RECORDS_OFFSET = sizeof(uint32_t) +
         sizeof(SAVEGAME::s_metadata::description) + sizeof(int32_t) +
         sizeof(int8_t) + sizeof(uint16_t) + sizeof(s_settings) + sizeof(uint32_t) + sizeof(uint16_t);
+
+    uint32_t Pack_Freight_For_Older_Save_(uint8_t* data, uint32_t size) {
+        const size_t player_count_offset = COLONY_RECORDS_OFFSET + MOX::NUM_COLONIES * sizeof(s_colony) +
+            2 + 4 + MOX::planet_count * SERIAL::KEYED_PLANET_BYTES +
+            2 + MOX::NUM_STARS * sizeof(s_star_data) + SERIAL::LEADER_STATE_BYTES;
+        const size_t player_size = 0xf0e + ORIGINAL_MAX_FREIGHTED_SETTLERS * (SERIAL::SETTLER_BYTES - 8);
+        const size_t ships = player_count_offset + 2 + MAX_PLAYERS * player_size;
+        const size_t tail = ships + 2 + MOX::NUM_SHIPS * 129 + 164 + MOX::NUM_NEBULAS * 5 + 4491;
+        constexpr size_t tail_records = MAX_PLAYERS * (MAX_FREIGHTED_SETTLERS - ORIGINAL_MAX_FREIGHTED_SETTLERS);
+        DOCTEST_REQUIRE(tail + tail_records * SERIAL::SETTLER_BYTES <= size);
+        DOCTEST_REQUIRE((data[player_count_offset + 1] & 0x80) != 0);
+        data[player_count_offset + 1] &= 0x7f;
+        size_t read = player_count_offset + 2, write = read;
+        const auto copy = [&](size_t length) {
+            memmove(data + write, data + read, length);
+            read += length;
+            write += length;
+        };
+        const auto record = [&]() {
+            SERIAL::Reader_ reader(data + read, SERIAL::SETTLER_BYTES, "test freight underflow");
+            const auto settler = SERIAL::Read_Settler(reader);
+            const uint64_t word = static_cast<uint16_t>(settler.source_colony.get()) |
+                (static_cast<uint64_t>(static_cast<uint16_t>(settler.destination.get().id)) << 16) |
+                (static_cast<uint64_t>(settler.race & 15) << 32) |
+                (static_cast<uint64_t>(settler.eta & 15) << 36) |
+                (static_cast<uint64_t>(settler.profession & 3) << 40) |
+                (static_cast<uint64_t>(settler.legacy_flags.get()) << 42);
+            SERIAL::Writer_ writer(data + write, 8, "test freight overflow");
+            writer.Write_Uint64(word);
+            read += SERIAL::SETTLER_BYTES;
+            write += 8;
+        };
+        for (int player = 0; player < MAX_PLAYERS; ++player) {
+            copy(0x42);
+            for (int i = 0; i < ORIGINAL_MAX_FREIGHTED_SETTLERS; ++i) record();
+            copy(0xf0e - 0x42 - ORIGINAL_MAX_FREIGHTED_SETTLERS * 8);
+        }
+        copy(tail - read);
+        for (size_t i = 0; i < tail_records; ++i) record();
+        copy(size - read);
+        return static_cast<uint32_t>(write);
+    }
 
     uint32_t Strip_Planet_Ids_(uint8_t* data, uint32_t size, size_t colony_bytes = sizeof(s_colony)) {
         auto* count = data + COLONY_RECORDS_OFFSET + MOX::NUM_COLONIES * colony_bytes;
@@ -811,7 +854,7 @@ DOCTEST_TEST_CASE("save versions 5 and 6 preserve ship limits and fixed location
     constexpr size_t version_offset = sizeof(uint32_t) +
         sizeof(SAVEGAME::s_metadata::description) + sizeof(int32_t) + sizeof(int8_t);
     const uint16_t old_version = 5;
-    const uint32_t earlier_v8_size = Strip_Planet_Ids_(bytes.get(), writer.Length());
+    const uint32_t earlier_v8_size = Strip_Planet_Ids_(bytes.get(), Pack_Freight_For_Older_Save_(bytes.get(), writer.Length()));
     SERIAL::Reader_ earlier_v8_reader(bytes.get(), earlier_v8_size, "test save underflow");
     DOCTEST_REQUIRE(SAVEGAME::Read_Game(&earlier_v8_reader, &metadata, &settings, &seed));
     DOCTEST_CHECK(earlier_v8_reader.Remaining() == 0);
@@ -828,7 +871,7 @@ DOCTEST_TEST_CASE("save versions 5 and 6 preserve ship limits and fixed location
     MOX::NUM_COLONIES = 0;
     SERIAL::Writer_ old_writer(bytes.get(), SAVEGAME::BUFFER_CAPACITY, "test save overflow");
     DOCTEST_REQUIRE(SAVEGAME::Write_Game(&old_writer, description, 0x12345678));
-    const uint32_t old_size = Strip_Leader_Ids_(bytes.get(), Strip_Planet_Ids_(bytes.get(), old_writer.Length()));
+    const uint32_t old_size = Strip_Leader_Ids_(bytes.get(), Strip_Planet_Ids_(bytes.get(), Pack_Freight_For_Older_Save_(bytes.get(), old_writer.Length())));
     memcpy(bytes.get() + version_offset, &old_version, sizeof(old_version));
 
     Bind_State_(*actual);
@@ -1008,14 +1051,11 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
     uint8_t expected_first_msg[MAX_PLAYERS] = {};
     uint8_t expected_max_msgs[MAX_PLAYERS] = {};
     uint8_t expected_n_msgs[MAX_PLAYERS] = {};
-    expected.players[0].settlers[0].val = 0;
-    SETTLER::Set_Source_Colony(&expected.players[0].settlers[0].val, 699);
-    DOCTEST_REQUIRE(SETTLER::Try_Set_Dest_Planet(&expected.players[0].settlers[0].val, game::id_planet{899}));
-    SETTLER::Set_Race(&expected.players[0].settlers[0].val, 7);
-    SETTLER::Set_Eta(&expected.players[0].settlers[0].val, 12);
-    SETTLER::Set_Prof(&expected.players[0].settlers[0].val, POP::PROF_SCIENTIST);
-    expected.players[0].settlers[MAX_FREIGHTED_SETTLERS - 1].val =
-        0x123456789ABCDEF0ull;
+    expected.players[0].settlers[0] = {
+        .source_colony = 699, .destination = game::id_planet{70000}, .race = 7, .eta = 12,
+        .profession = POP::PROF_SCIENTIST,
+    };
+    expected.players[0].settlers[MAX_FREIGHTED_SETTLERS - 1] = SERIAL::Decode_Packed_Settler(0x123456789ABCDEF0ull);
     const uint16_t legacy_crew_experience = expected.ships[0].crew_experience;
     expected.ships[0].crew_experience = UINT16_MAX;
     memcpy(expected_legacy_reports, REPORT::reports, sizeof(expected_legacy_reports));
@@ -1144,18 +1184,20 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
     constexpr uint32_t colonies_offset = versioned_game_header_size +
         sizeof(s_settings) + sizeof(uint32_t) + sizeof(int16_t);
     constexpr size_t old_colony_size = offsetof(s_colony, buildings_scrapped_this_turn);
-    uint32_t previous_colony_format_size = writer.Length() - MOX::NUM_COLONIES;
+    auto earlier_v8 = std::vector<uint8_t>(versioned, versioned + writer.Length());
+    const auto earlier_v8_size = Pack_Freight_For_Older_Save_(earlier_v8.data(), earlier_v8.size());
+    uint32_t previous_colony_format_size = earlier_v8_size - MOX::NUM_COLONIES;
     uint8_t* previous_colony_format = static_cast<uint8_t*>(malloc(previous_colony_format_size));
     DOCTEST_REQUIRE(previous_colony_format != nullptr);
-    memcpy(previous_colony_format, versioned, colonies_offset);
+    memcpy(previous_colony_format, earlier_v8.data(), colonies_offset);
     for (int i = 0; i < MOX::NUM_COLONIES; ++i) {
         memcpy(previous_colony_format + colonies_offset + i * old_colony_size,
-            versioned + colonies_offset + i * sizeof(s_colony),
+            earlier_v8.data() + colonies_offset + i * sizeof(s_colony),
             old_colony_size);
     }
     memcpy(previous_colony_format + colonies_offset + MOX::NUM_COLONIES * old_colony_size,
-        versioned + colonies_offset + MOX::NUM_COLONIES * sizeof(s_colony),
-        writer.Length() - colonies_offset - MOX::NUM_COLONIES * sizeof(s_colony));
+        earlier_v8.data() + colonies_offset + MOX::NUM_COLONIES * sizeof(s_colony),
+        earlier_v8_size - colonies_offset - MOX::NUM_COLONIES * sizeof(s_colony));
     previous_colony_format_size = Strip_Planet_Ids_(previous_colony_format, previous_colony_format_size, old_colony_size);
     previous_colony_format_size = Strip_Leader_Ids_(previous_colony_format, previous_colony_format_size);
     SERIAL::Reader_ extension_reader(versioned + extension_offset,
@@ -1188,7 +1230,7 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
     constexpr uint32_t freight_capacity_state_size =
         MAX_PLAYERS *
         (MAX_FREIGHTED_SETTLERS - ORIGINAL_MAX_FREIGHTED_SETTLERS) *
-        sizeof(SETTLER::value_type);
+        sizeof(uint64_t);
     const uint32_t jump_gate_redirect_state_size =
         MOX::NUM_SHIPS * (sizeof(int16_t) + sizeof(int32_t));
     const uint32_t version_one_size = previous_colony_format_size -
@@ -1232,7 +1274,7 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
     DOCTEST_REQUIRE(fread(legacy, 1, legacy_size, legacy_file) == legacy_size);
     fclose(legacy_file);
 
-    const SETTLER::legacy_value_type first_legacy_settler = 0x7C17F2EAu;
+    const uint32_t first_legacy_settler = 0x7C17F2EAu;
     uint8_t* first_legacy_settler_ptr = nullptr;
     for (uint32_t offset = 0;
          offset + sizeof(first_legacy_settler) <= legacy_size;
@@ -1243,7 +1285,7 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
         }
     }
     DOCTEST_REQUIRE(first_legacy_settler_ptr != nullptr);
-    *first_legacy_settler_ptr = SETTLER::LEGACY_SOURCE_COLONY_IN_TRANSIT;
+    *first_legacy_settler_ptr = 0xfa;
 
     uint8_t* version_zero = static_cast<uint8_t*>(malloc(SAVEGAME::BUFFER_CAPACITY));
     DOCTEST_REQUIRE(version_zero != nullptr);
@@ -1337,8 +1379,8 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
             DOCTEST_CHECK((actual.players[0]
                               .tech_applications[TECH_APP_STASIS_FIELD] ==
                 TECH_RESEARCH_STATUS_UNAVAILABLE));
-            DOCTEST_CHECK((SETTLER::Get_Source_Colony(actual.players[0].settlers[0].val) == 699));
-            DOCTEST_CHECK((SETTLER::Get_Dest_Planet(actual.players[0].settlers[0].val) == game::id_planet{899}));
+            DOCTEST_CHECK(actual.players[0].settlers[0].source_colony.get() == 699);
+            DOCTEST_CHECK(actual.players[0].settlers[0].destination.get() == game::id_planet{70000});
         } else {
             DOCTEST_CHECK(orion2re::lua::game::Ship_Generation(0) == 1);
             DOCTEST_CHECK(orion2re::lua::game::Ship_Generation(
@@ -1357,13 +1399,12 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
                             ? 0x2B
                             : 0)));
             }
-            DOCTEST_CHECK((actual.players[0].settlers[0].val == 0x00007C1700F2FFFFull));
-            DOCTEST_CHECK((SETTLER::Get_Source_Colony(actual.players[0].settlers[0].val) ==
-                SETTLER::SOURCE_COLONY_IN_TRANSIT));
-            DOCTEST_CHECK((actual.players[0].settlers[1].val == 0x0000A01400730027ull));
-            DOCTEST_CHECK((actual.players[0].settlers[24].val == 0x0000A58E00130067ull));
-            DOCTEST_CHECK((actual.players[7].settlers[0].val == 0x0000478B00CD000Aull));
-            DOCTEST_CHECK((actual.players[7].settlers[24].val == 0x0000D81700EE00D1ull));
+            DOCTEST_CHECK(actual.players[0].settlers[0] == SERIAL::Decode_Packed_Settler(0x00007C1700F2FFFFull));
+            DOCTEST_CHECK(actual.players[0].settlers[0].source_colony.get() == SETTLER::SOURCE_COLONY_IN_TRANSIT);
+            DOCTEST_CHECK(actual.players[0].settlers[1] == SERIAL::Decode_Packed_Settler(0x0000A01400730027ull));
+            DOCTEST_CHECK(actual.players[0].settlers[24] == SERIAL::Decode_Packed_Settler(0x0000A58E00130067ull));
+            DOCTEST_CHECK(actual.players[7].settlers[0] == SERIAL::Decode_Packed_Settler(0x0000478B00CD000Aull));
+            DOCTEST_CHECK(actual.players[7].settlers[24] == SERIAL::Decode_Packed_Settler(0x0000D81700EE00D1ull));
             DOCTEST_CHECK((Is_Zero_(
                 &actual.players[0].settlers[ORIGINAL_MAX_FREIGHTED_SETTLERS],
                 (MAX_FREIGHTED_SETTLERS - ORIGINAL_MAX_FREIGHTED_SETTLERS) *

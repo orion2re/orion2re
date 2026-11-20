@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "player_network_serialization.h"
 
 #include "config/config_loader.h"
 #include "config/config_snapshot.h"
@@ -132,7 +133,8 @@ namespace NETSTART {
         NETMOX::net.network_data_ptr = nullptr;
         NETMOX::net.sync_state = NET_SYNC_STATE_WAITING_FOR_GAME_DATA;
 
-        NETMOX::Mox_Send_Message(NETMOX::net.host_election_id, NET_PACKET_PLAYER_SETUP, local_player, sizeof(*local_player));
+        auto packet = NETPROTO::Encode_Player(*local_player);
+        NETMOX::Mox_Send_Message(NETMOX::net.host_election_id, NET_PACKET_PLAYER_SETUP, &packet, sizeof(packet));
 
         while (NETMOX::net.network_data_ptr == nullptr) {
             fields::Get_Input();

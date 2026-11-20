@@ -3,6 +3,7 @@
 #include "doctest/doctest.h"
 #include "game/leader_serialization.h"
 #include "game/planet_serialization.h"
+#include "game/player_network_serialization.h"
 
 #include <array>
 #include <cstring>
@@ -63,7 +64,7 @@ namespace {
             sizeof(MOX::settings.xenons_exist) +
             sizeof(uint32_t) +
             sizeof(uint16_t) +
-            MAX_PLAYERS * sizeof(s_player) +
+            MAX_PLAYERS * NETPROTO::PLAYER_BYTES +
             sizeof(uint16_t) +
             (MAX_STARS + 1) * sizeof(s_star_data) +
             sizeof(uint16_t) +
@@ -372,7 +373,7 @@ DOCTEST_TEST_CASE("large combat payload allocations stay within the shared limit
     constexpr uint32_t game_orders_payload_bytes =
         sizeof(uint32_t) +
         sizeof(uint8_t) +
-        sizeof(s_player) +
+        NETPROTO::PLAYER_BYTES +
         MAX_STARS * sizeof(s_net_pack_star_order) +
         sizeof(int16_t) +
         MAX_COLONIES * (sizeof(int16_t) + sizeof(s_colony)) +
@@ -494,23 +495,23 @@ DOCTEST_TEST_CASE("network packet structs stay byte packed and size stable") {
 
     DOCTEST_CHECK(alignof(NETMOX::s_NET_MSG_SYNC_PLAYER) == 1);
     DOCTEST_CHECK(sizeof(NETMOX::s_NET_MSG_SYNC_PLAYER) ==
-                  sizeof(int32_t) + sizeof(s_player) + MAX_STARS * sizeof(int8_t) + sizeof(int32_t) + sizeof(s_player));
+                  sizeof(int32_t) + NETPROTO::PLAYER_BYTES + MAX_STARS * sizeof(int8_t) + sizeof(int32_t) + NETPROTO::PLAYER_BYTES);
 
     DOCTEST_CHECK(alignof(s_net_pack_drop_out_info) == 1);
     DOCTEST_CHECK(sizeof(s_net_pack_drop_out_info) ==
-                  sizeof(s_player) + MAX_STARS * sizeof(int8_t));
+                  NETPROTO::PLAYER_BYTES + MAX_STARS * sizeof(int8_t));
 
     DOCTEST_CHECK(alignof(s_net_pack_end_ai_diplomacy) == 1);
     DOCTEST_CHECK(sizeof(s_net_pack_end_ai_diplomacy) ==
-                  sizeof(int32_t) + sizeof(s_player) + MAX_STARS * sizeof(int8_t) + sizeof(int32_t) + sizeof(s_player));
+                  sizeof(int32_t) + NETPROTO::PLAYER_BYTES + MAX_STARS * sizeof(int8_t) + sizeof(int32_t) + NETPROTO::PLAYER_BYTES);
 }
 
 DOCTEST_TEST_CASE("pick-position packet preserves expanded freight storage") {
     Scoped_Netmox_Roundtrip_State_ scope;
     Fill_Netmox_Roundtrip_State_();
     MOX::NUM_PLAYERS = MAX_PLAYERS;
-    MOX::player[MAX_PLAYERS - 1].settlers[MAX_FREIGHTED_SETTLERS - 1].val =
-            0x123456789ABCDEF0ull;
+    const s_settler_info freight{.source_colony = -1, .destination = game::id_planet{70000}, .race = 3, .eta = 2, .profession = 1, .legacy_flags = 0x12345};
+    MOX::player[MAX_PLAYERS - 1].settlers[MAX_FREIGHTED_SETTLERS - 1] = freight;
     MOX::screen_seg = (s_animation_header*)allocate::Allocate_Space(
             NETMOX::NETMOX_MAX_GAME_DATA_PAYLOAD_BYTES + sizeof(s_alloc_header));
 
@@ -520,7 +521,7 @@ DOCTEST_TEST_CASE("pick-position packet preserves expanded freight storage") {
     netcode::g_net_send_hook = nullptr;
 
     constexpr uint32_t expected_size =
-            sizeof(int16_t) + MAX_PLAYERS * sizeof(s_player);
+            sizeof(int16_t) + MAX_PLAYERS * NETPROTO::PLAYER_BYTES;
     DOCTEST_CHECK(expected_size > 65535u);
     DOCTEST_REQUIRE(g_pick_position_payload.size() == expected_size);
 
@@ -529,8 +530,7 @@ DOCTEST_TEST_CASE("pick-position packet preserves expanded freight storage") {
             (s_net_pack_pick_your_position*)g_pick_position_payload.data(),
             (uint32_t)g_pick_position_payload.size());
     DOCTEST_CHECK((
-        MOX::player[MAX_PLAYERS - 1].settlers[MAX_FREIGHTED_SETTLERS - 1].val ==
-        0x123456789ABCDEF0ull));
+        MOX::player[MAX_PLAYERS - 1].settlers[MAX_FREIGHTED_SETTLERS - 1] == freight));
 
     MOX::NUM_PLAYERS = 3;
     NETMOX::Decode_Pick_Your_Position(
@@ -676,7 +676,7 @@ DOCTEST_TEST_CASE("loaded Lua state extends the current native snapshot") {
 
     SERIAL::Reader_ native(
         envelope.Ptr(), native_size, "invalid test native network snapshot");
-    DOCTEST_CHECK(native.Read_Uint32() == 0x324E324F); // O2N2
+    DOCTEST_CHECK(native.Read_Uint32() == 0x334E324F); // O2N3
     DOCTEST_CHECK(native.Read_Int16() == 306);
     DOCTEST_CHECK(native.Read_Uint32() == 35200);
     native.Skip(sizeof(MOX::settings.random_events) +
@@ -690,7 +690,7 @@ DOCTEST_TEST_CASE("loaded Lua state extends the current native snapshot") {
         sizeof(uint32_t));
     DOCTEST_REQUIRE(native.Read_Int16() == MOX::NUM_PLAYERS);
     std::array<s_player, 3> transferred_players = {};
-    native.Read_Bytes(transferred_players.data(), sizeof(transferred_players));
+    for (auto& player : transferred_players) DOCTEST_REQUIRE(NETPROTO::Read_Player(native, player));
 
     DOCTEST_CHECK((transferred_players[0].network_player_id == 306));
     DOCTEST_CHECK((transferred_players[1].network_player_id == 308));
@@ -951,7 +951,8 @@ DOCTEST_TEST_CASE("game orders preserve expanded freight storage") {
     SETTLER::max_pop_freighted = MAX_FREIGHTED_SETTLERS;
     s_player* player = &MOX::player[MOX::PLAYER_NUM];
     player->settlers_freighted = MAX_FREIGHTED_SETTLERS;
-    player->settlers[MAX_FREIGHTED_SETTLERS - 1].val = 0x123456789ABCDEF0ull;
+    const s_settler_info freight{.destination = game::id_planet{70000}, .race = 2, .eta = 3};
+    player->settlers[MAX_FREIGHTED_SETTLERS - 1] = freight;
 
     g_game_orders_payload.clear();
     netcode::g_net_send_hook = &Capture_Game_Orders_;
@@ -969,8 +970,7 @@ DOCTEST_TEST_CASE("game orders preserve expanded freight storage") {
 
     DOCTEST_CHECK(player->settlers_freighted == MAX_FREIGHTED_SETTLERS);
     DOCTEST_CHECK(
-        player->settlers[MAX_FREIGHTED_SETTLERS - 1].val ==
-        0x123456789ABCDEF0ull);
+        player->settlers[MAX_FREIGHTED_SETTLERS - 1] == freight);
 }
 
 DOCTEST_TEST_CASE("game orders preserve the advanced XP of a deassigned leader") {

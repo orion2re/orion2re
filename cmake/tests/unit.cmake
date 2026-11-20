@@ -609,6 +609,11 @@ orion2re_add_unit_test(test_config_snapshot
 orion2re_add_unit_test(test_pop_helpers
     SOURCES
         tests/unit/pop_test.cpp
+    PRODUCTION_SOURCES
+        src/game/serialization.cpp
+    FAKE_SOURCES
+        tests/fakes/fake_exitm.cpp
+        tests/fakes/fake_fields_helpers_runtime.cpp
 )
 
 orion2re_add_unit_test(test_racecust

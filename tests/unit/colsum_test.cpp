@@ -34,9 +34,9 @@ namespace {
 
         s_player* player = &MOX::player[0];
         player->settlers_freighted = 3;
-        DOCTEST_REQUIRE(SETTLER::Try_Set_Dest_Planet(&player->settlers[0].val, game::id_planet{0}));
-        DOCTEST_REQUIRE(SETTLER::Try_Set_Dest_Planet(&player->settlers[1].val, game::id_planet{0}));
-        DOCTEST_REQUIRE(SETTLER::Try_Set_Dest_Planet(&player->settlers[2].val, game::id_planet{1}));
+        player->settlers[0].destination = game::id_planet{0};
+        player->settlers[1].destination = game::id_planet{0};
+        player->settlers[2].destination = game::id_planet{1};
 
         TEST_COLONY_SCAN_INFO::Set_Product_Cost_(120);
         return colony;

@@ -2,6 +2,7 @@
 
 #include "game/leader_serialization.h"
 #include "game/planet_serialization.h"
+#include "game/player_network_serialization.h"
 #include "game/netproto.h"
 #include "lua/lua_network.h"
 
@@ -39,7 +40,7 @@ namespace NETMOX {
         constexpr uint32_t O2GD_MAGIC = 0x4447324F;
         constexpr uint16_t O2GD_VERSION = 1;
         constexpr uint16_t O2GD_HEADER_SIZE = 20;
-        constexpr uint32_t NATIVE_SNAPSHOT_VERSION_TAG = 0x324E324F; // O2N2
+        constexpr uint32_t NATIVE_SNAPSHOT_VERSION_TAG = 0x334E324F; // O2N3
 
         struct Scoped_Net_Update_Suspension_ {
             Scoped_Net_Update_Suspension_() {
@@ -131,7 +132,7 @@ namespace NETMOX {
             MOX::player[player_idx].network_player_id = -1;
             RUSS::Make_Player_Into_AI(player_idx);
 
-            memcpy(&packet->player_data, &MOX::player[player_idx], sizeof(s_player));
+            packet->player_data = NETPROTO::Encode_Player(MOX::player[player_idx]);
 
             if (MOX::NUM_STARS > 0) {
                 for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
@@ -145,6 +146,8 @@ namespace NETMOX {
                 return;
             }
 
+            s_player decoded;
+            if (!NETPROTO::Decode_Player(&drop_out_info->player_data, sizeof(drop_out_info->player_data), decoded)) return;
             int16_t disconnected_network_id = MOX::player[player_idx].network_player_id;
             if (MOX::player[player_idx].network_player_id == net.host_election_winner_id) {
                 net.host_election_winner_id = -1;
@@ -152,7 +155,7 @@ namespace NETMOX {
 
             RUSS::Make_Player_Into_AI(player_idx);
 
-            memcpy(&MOX::player[player_idx], &drop_out_info->player_data, sizeof(s_player));
+            MOX::player[player_idx] = decoded;
 
             for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
                 MOX::star[i].surrender_to[player_idx] = drop_out_info->star_surrender_to[i];
@@ -310,15 +313,15 @@ namespace NETMOX {
 
     void __cdecl Net_End_AI_Diplomacy() {
         if (MOX::game_type >= 2 && MOX::game_type <= 3) {
-            s_net_pack_end_ai_diplomacy msg;
+            s_net_pack_end_ai_diplomacy msg{};
 
             int32_t target_player_id = net.diplomacy_target_id;
             msg.target_player_id = target_player_id;
-            msg.target_player = MOX::player[target_player_id];
+            msg.target_player = NETPROTO::Encode_Player(MOX::player[target_player_id]);
 
             int32_t player_num = MOX::PLAYER_NUM;
             msg.player_num = player_num;
-            msg.player = MOX::player[player_num];
+            msg.player = NETPROTO::Encode_Player(MOX::player[player_num]);
 
             for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
                 msg.surrender_to[i] = MOX::star[i].surrender_to[target_player_id];
@@ -328,7 +331,7 @@ namespace NETMOX {
             net.sync_state = NET_SYNC_STATE_READY;
 
             if (net.host_election_winner_id != -1) {
-                Mox_Send_Message(net.host_election_winner_id, NET_PACKET_AI_DIPLOMACY_END_STATE, &msg, static_cast<int16_t>(sizeof(msg)));
+                Mox_Send_Message(net.host_election_winner_id, NET_PACKET_AI_DIPLOMACY_END_STATE, &msg, sizeof(msg));
             }
         }
     }
@@ -548,11 +551,12 @@ namespace NETMOX {
         net.diplomacy_active_flag = 1;
         net.is_diplomacy_initiator = 0;
 
+        auto player_packet = NETPROTO::Encode_Player(MOX::player[MOX::PLAYER_NUM]);
         Mox_Send_Message(
             MOX::player[player_idx].network_player_id,
             NET_PACKET_ACCEPT_HUMAN_DIPLOMACY,
-            &MOX::player[MOX::PLAYER_NUM],
-            sizeof(MOX::player[MOX::PLAYER_NUM]));
+            &player_packet,
+            sizeof(player_packet));
 
         while (net.sync_state == NET_SYNC_STATE_HUMAN_DIPLOMACY_REQUESTED || net.sync_state == NET_SYNC_STATE_HUMAN_DIPLOMACY_CONNECTING) {
             RUSS::Mox_Update();
@@ -622,8 +626,7 @@ namespace NETMOX {
 
         packet->num_players = MOX::NUM_PLAYERS;
 
-        // Copy the current player list into the network packet
-        memcpy(packet->players, MOX::player, num_players * (int32_t)sizeof(s_player));
+        for (int i = 0; i < num_players; ++i) packet->players[i] = NETPROTO::Encode_Player(MOX::player[i]);
 
         uint32_t msg_size = (uint32_t)sizeof(packet->num_players) +
             (uint32_t)num_players * (uint32_t)sizeof(packet->players[0]);
@@ -655,12 +658,11 @@ namespace NETMOX {
 
         writer.Write_Uint16((uint16_t)MOX::NUM_PLAYERS);
 
-        uint32_t size = MOX::NUM_PLAYERS * sizeof(s_player);
-        writer.Write_Bytes(MOX::player, size);
+        for (int i = 0; i < MOX::NUM_PLAYERS; ++i) NETPROTO::Write_Player(writer, MOX::player[i]);
 
         writer.Write_Uint16((uint16_t)MOX::NUM_STARS);
 
-        size = (MOX::NUM_STARS + 1) * sizeof(s_star_data);
+        uint32_t size = (MOX::NUM_STARS + 1) * sizeof(s_star_data);
         writer.Write_Bytes(MOX::star, size);
 
         SERIAL::Write_Dense_Planet_Block(writer, MOX::planet, MOX::planet_count);
@@ -847,7 +849,9 @@ namespace NETMOX {
             exitm::Exit_With_Message("invalid broadcast player count");
         }
 
-        reader.Read_Bytes(MOX::player, MOX::NUM_PLAYERS * sizeof(s_player));
+        for (int i = 0; i < MOX::NUM_PLAYERS; ++i) {
+            if (!NETPROTO::Read_Player(reader, MOX::player[i])) exitm::Exit_With_Message("invalid broadcast player record");
+        }
 
         net.num_connected_players = 0;
         for (int16_t i = 0; i < MOX::NUM_PLAYERS; i++) {
@@ -1115,10 +1119,10 @@ namespace NETMOX {
 
         for (int i = 0; i < MOX::NUM_PLAYERS; ++i) {
             if (NETMOX::net.players_sync_mask[i] & (1 << current_player_idx)) {
-                s_NET_MSG_SYNC_PLAYER sync_pkt;
+                s_NET_MSG_SYNC_PLAYER sync_pkt{};
 
                 sync_pkt.player1_idx = i;
-                memcpy(&sync_pkt.player1, &MOX::player[i], sizeof(s_player));
+                sync_pkt.player1 = NETPROTO::Encode_Player(MOX::player[i]);
 
                 for (int16_t star_idx = 0; star_idx < MOX::NUM_STARS; ++star_idx) {
                     sync_pkt.surrender_to[star_idx] = MOX::star[star_idx].surrender_to[i];
@@ -1126,7 +1130,7 @@ namespace NETMOX {
 
                 int32_t sync_target_idx = NETMOX::net.diplomacy_sync_mask[i];
                 sync_pkt.player2_idx = sync_target_idx;
-                memcpy(&sync_pkt.player2, &MOX::player[sync_target_idx], sizeof(s_player));
+                sync_pkt.player2 = NETPROTO::Encode_Player(MOX::player[sync_target_idx]);
 
                 if (MOX::PLAYER_NUM != current_player_idx && sync_target_idx != current_player_idx) {
                     if (MOX::player[current_player_idx].objectives == PLAYER_OBJECTIVE_HUMAN &&
@@ -1235,7 +1239,8 @@ namespace NETMOX {
             if (NETMOX::net.diplomacy_initiator_id != -1) {
                 int8_t target_idx = NETMOX::net.diplomacy_target_id;
                 NETMOX::net.diplomacy_initiator_id = -1;
-                NETMOX::Mox_Send_Message(MOX::player[target_idx].network_player_id, NET_PACKET_HUMAN_DIPLOMACY_READY_DATA, &MOX::player[MOX::PLAYER_NUM], sizeof(s_player));
+                auto packet = NETPROTO::Encode_Player(MOX::player[MOX::PLAYER_NUM]);
+                NETMOX::Mox_Send_Message(MOX::player[target_idx].network_player_id, NET_PACKET_HUMAN_DIPLOMACY_READY_DATA, &packet, sizeof(packet));
             }
         }
 
@@ -1256,7 +1261,7 @@ namespace NETMOX {
 
         writer.Write_Uint32(MOX::stardate);
         writer.Write_Uint8(static_cast<uint8_t>(MOX::PLAYER_NUM));
-        writer.Write_Bytes(&MOX::player[MOX::PLAYER_NUM], sizeof(s_player));
+        NETPROTO::Write_Player(writer, MOX::player[MOX::PLAYER_NUM]);
 
         RUSS::Mox_Update();
 
@@ -1354,12 +1359,12 @@ namespace NETMOX {
     void __cdecl Send_Drop_Out_Info(int player_idx, uint16_t msg_type) {
         uint8_t any_processed;
         uint8_t player_process_flags[MAX_PLAYERS];
-        s_net_pack_drop_out_info packet;
+        s_net_pack_drop_out_info packet{};
 
         MOX::player[player_idx].network_player_id = -1;
         RUSS::Make_Player_Into_AI(player_idx);
 
-        memcpy(&packet.player_data, &MOX::player[player_idx], sizeof(s_player));
+        packet.player_data = NETPROTO::Encode_Player(MOX::player[player_idx]);
 
         if (MOX::NUM_STARS > 0) {
             for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
@@ -1397,7 +1402,7 @@ namespace NETMOX {
         }
 
         int16_t disconnected_network_id = MOX::player[player_idx].network_player_id;
-        s_net_pack_player_disconnected_info_ packet;
+        s_net_pack_player_disconnected_info_ packet{};
         packet.player_idx = (int16_t)player_idx;
         Build_Drop_Out_Info_From_Local_State(player_idx, &packet.drop_out_info);
         Apply_Drop_Out_Bookkeeping(player_idx, disconnected_network_id, true);
@@ -1583,19 +1588,20 @@ namespace NETMOX {
             net.human_diplomacy_request_mask &= mask;
             net.is_diplomacy_initiator = 0;
 
+            auto player_packet = NETPROTO::Encode_Player(MOX::player[MOX::PLAYER_NUM]);
             Mox_Send_Message(
                 MOX::player[target_player_id].network_player_id,
                 NET_PACKET_ACCEPT_HUMAN_DIPLOMACY,
-                MOX::player + MOX::PLAYER_NUM,
-                sizeof(MOX::player[MOX::PLAYER_NUM]));
+                &player_packet,
+                sizeof(player_packet));
         } else {
             net.sync_state = NET_SYNC_STATE_HUMAN_DIPLOMACY_REQUESTED;
             net.diplomacy_active_flag = 0;
 
             if (Human_Hit_Next_Turn(target_player_id) == 0) {
-                s_net_pack_req_human_diplomacy packet;
+                s_net_pack_req_human_diplomacy packet{};
 
-                memcpy(&packet.player, MOX::player + MOX::PLAYER_NUM, sizeof(s_player));
+                packet.player = NETPROTO::Encode_Player(MOX::player[MOX::PLAYER_NUM]);
 
                 for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
                     packet.surrender_to[i] = MOX::star[i].surrender_to[MOX::PLAYER_NUM];
@@ -1646,10 +1652,10 @@ namespace NETMOX {
             exitm::Exit_With_Message("invalid game orders payload");
         }
 
-        reader.Require(sizeof(s_player) + MOX::NUM_STARS * sizeof(s_net_pack_star_order) + sizeof(int16_t));
+        reader.Require(NETPROTO::PLAYER_BYTES + MOX::NUM_STARS * sizeof(s_net_pack_star_order) + sizeof(int16_t));
 
         s_player player = {};
-        reader.Read_Bytes(&player, sizeof(player));
+        if (!NETPROTO::Read_Player(reader, player)) exitm::Exit_With_Message("invalid game orders player record");
 
         const int32_t freight_count = player.settlers_freighted;
         if (freight_count < 0 ||
@@ -2139,8 +2145,12 @@ namespace NETMOX {
             return;
         }
 
+        std::array<s_player, MAX_PLAYERS> players;
+        for (int i = 0; i < num_players; ++i) {
+            if (!NETPROTO::Decode_Player(&packet->players[i], sizeof(packet->players[i]), players[i])) return;
+        }
         MOX::NUM_PLAYERS = (int16_t)num_players;
-        memcpy(MOX::player, packet->players, num_players * sizeof(s_player));
+        std::copy_n(players.begin(), num_players, MOX::player);
     }
 
     void __cdecl Decode_Battle_Results(void* packet_data, uint32_t len) {

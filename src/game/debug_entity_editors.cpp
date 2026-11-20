@@ -539,10 +539,10 @@ namespace debug_game_editors {
                     k_population_jobs,
                     3);
                 if (ImGui::Button("Add population")) {
-                    SETTLER::value_type settler = 0;
-                    SETTLER::Set_Race(&settler, (uint32_t)g_new_population_race);
-                    SETTLER::Set_Prof(
-                        &settler, static_cast<POP::e_prof>(g_new_population_job));
+                    const s_settler_info settler{
+                        .race = static_cast<uint8_t>(g_new_population_race),
+                        .profession = static_cast<uint8_t>(g_new_population_job),
+                    };
                     g_colony_operation_status = SETTLER::Add_Settler_To_Colony(
                                                     settler, &colony) != 0
                         ? "Population added to draft."

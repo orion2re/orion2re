@@ -175,8 +175,9 @@ namespace debug_game_editors {
                         return true;
                     }
                 }
-                for (const s_settler_info& settler : data.settlers) {
-                    if (settler.val != 0 && SETTLER::Get_Dest_Planet(settler.val) == legacy_world::Planet_Id(planet_index)) {
+                const int freight_count = std::clamp<int>(data.settlers_freighted, 0, MAX_FREIGHTED_SETTLERS);
+                for (int i = 0; i < freight_count; ++i) {
+                    if (data.settlers[i].destination.get() == legacy_world::Planet_Id(planet_index)) {
                         return true;
                     }
                 }
