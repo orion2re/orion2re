@@ -54,12 +54,20 @@
       Freight records store full planet IDs in separate fields, including a
       field for opaque bits from legacy saves. Save v8 and network packets
       encode freight field by field. Arrivals still check the legacy roster.
+- [x] Store player home planets as `id_planet`, with `NO_PLANET` for absence.
+      Save v8 and player packets encode the full ID, while historical saves
+      decode their signed home reference at the file boundary. The unchecked
+      `legacy_world::Planet_Id` factory has been removed.
+- [x] Isolate pruning's legacy RNG order: it draws positions from a candidate
+      list but returns IDs, including sparse IDs. The legacy caller still
+      compacts its array after selection; remove that during the roster cutover.
 - [ ] Replace the legacy planet array with the ID-keyed roster. Remove dense
       compaction, bounds checks based on the live count, and arithmetic on
-      planet pointers. Iterate the map directly; keep star orbit order for
-      operations whose order must match the oracle.
-- [ ] Migrate narrow references (star orbits, colony planet, player home and
-      attack targets, reports, and UI scratch state). A limit on the live
+      planet pointers. Where the oracle needs positional behavior, retain a
+      temporary traversal of typed IDs without using positions for lookup or
+      renumbering records. Switch to direct map iteration after verification.
+- [ ] Migrate narrow references (star orbits, colony planet, player attack
+      targets, reports, and UI scratch state). A limit on the live
       planet count does not bound a monotonic ID.
 - [ ] Wire the tagged planet section to the live map and its actual allocator
       high-water mark. The current save boundary still uses `MOX::planet` and

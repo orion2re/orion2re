@@ -491,7 +491,7 @@ namespace SAVEGAME {
             writer->Write_Uint8(player->color);
             writer->Write_Uint8(player->personality);
             writer->Write_Uint8(player->objectives);
-            writer->Write_Int16(player->home_planet_id);
+            writer->Write_Uint32(player->home_planet_id.get().id);
             writer->Write_Int16(player->network_player_id);
             writer->Write_Int8(player->player_done_flags);
             writer->Write_Int16(player->dead_field);
@@ -651,7 +651,7 @@ namespace SAVEGAME {
             writer->Write_Bytes(player->filler, sizeof(player->filler));
         }
 
-        void Read_Player(SERIAL::Reader_* reader, s_player* player, uint16_t version, bool field_settlers) {
+        void Read_Player(SERIAL::Reader_* reader, s_player* player, uint16_t version, bool field_settlers, bool wide_home_planet) {
             player->picture = reader->Read_Int8();
             reader->Read_Bytes(player->name, sizeof(player->name));
             reader->Read_Bytes(player->race_name, sizeof(player->race_name));
@@ -660,7 +660,8 @@ namespace SAVEGAME {
             player->color = reader->Read_Uint8();
             player->personality = reader->Read_Uint8();
             player->objectives = reader->Read_Uint8();
-            player->home_planet_id = reader->Read_Int16();
+            player->home_planet_id = wide_home_planet ? game::id_planet{reader->Read_Uint32()}
+                : SERIAL::Decode_Legacy_Planet_Reference(reader->Read_Int16());
             player->network_player_id = reader->Read_Int16();
             player->player_done_flags = reader->Read_Int8();
             player->dead_field = reader->Read_Int16();
@@ -1438,7 +1439,7 @@ namespace SAVEGAME {
             writer->Write_Int16(MOX::NUM_STARS);
             for (int i = 0; i < MOX::NUM_STARS; ++i) Write_Star(writer, &MOX::star[i]);
             SERIAL::Write_Leader_State(state, *writer);
-            writer->Write_Uint16(MOX::NUM_PLAYERS | SERIAL::FIELD_SETTLERS_FLAG);
+            writer->Write_Uint16(MOX::NUM_PLAYERS | SERIAL::FIELD_SETTLERS_FLAG | SERIAL::WIDE_HOME_PLANET_FLAG);
             for (int i = 0; i < MAX_PLAYERS; ++i) Write_Player(writer, &MOX::player[i]);
             writer->Write_Int16(MOX::NUM_SHIPS);
             for (int i = 0; i < MOX::NUM_SHIPS; ++i) Write_Ship(writer, &MOX::ship[i]);
@@ -1526,9 +1527,11 @@ namespace SAVEGAME {
             if (!SERIAL::Read_Leader_State(state, *reader, version < 8)) return false;
             const uint16_t player_count = reader->Read_Uint16();
             const bool field_settlers = version >= 8 && (player_count & SERIAL::FIELD_SETTLERS_FLAG) != 0;
-            MOX::NUM_PLAYERS = static_cast<int16_t>(field_settlers ? player_count & ~SERIAL::FIELD_SETTLERS_FLAG : player_count);
+            const bool wide_home_planet = version >= 8 && (player_count & SERIAL::WIDE_HOME_PLANET_FLAG) != 0;
+            MOX::NUM_PLAYERS = static_cast<int16_t>(version >= 8
+                ? player_count & ~(SERIAL::FIELD_SETTLERS_FLAG | SERIAL::WIDE_HOME_PLANET_FLAG) : player_count);
             for (int i = 0; i < MAX_PLAYERS; ++i) {
-                Read_Player(reader, &MOX::player[i], version, field_settlers);
+                Read_Player(reader, &MOX::player[i], version, field_settlers, wide_home_planet);
                 s_ship_design& sixth_design =
                     MOX::player[i].ship_designs[SHIP_SIZE_DOOM_STAR];
                 if (version == LEGACY_VERSION &&

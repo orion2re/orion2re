@@ -214,8 +214,8 @@ namespace MAPGEN {
 
         if (MOX::NUM_PLAYERS > 0) {
             for (int i = 0; i < MOX::NUM_PLAYERS; ++i) {
-                int16_t home_planet_id = MOX::player[i].home_planet_id;
-                int16_t star_index = MOX::planet[home_planet_id].star_index;
+                const auto home_planet_id = MOX::player[i].home_planet_id.get();
+                int16_t star_index = MOX::planet[home_planet_id.id].star_index;
                 star_used[star_index] = 1;
             }
         }

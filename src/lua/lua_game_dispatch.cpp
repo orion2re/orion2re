@@ -401,10 +401,9 @@ namespace orion2re::lua::game {
             exitm::Exit_With_Message(
                 "invalid new_game.home_system_generated Lua event");
         }
-        const std::int16_t home_planet_id =
-            MOX::player[event->player_id].home_planet_id;
-        if (home_planet_id < 0 || home_planet_id >= MOX::planet_count ||
-            MOX::planet[home_planet_id].star_index != event->system_id) {
+        const auto home = MOX::player[event->player_id].home_planet_id.get();
+        if (home == NO_PLANET || home.id >= static_cast<uint32_t>(MOX::planet_count) ||
+            MOX::planet[home.id].star_index != event->system_id) {
             exitm::Exit_With_Message(
                 "invalid new_game.home_system_generated home system");
         }

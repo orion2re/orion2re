@@ -382,7 +382,7 @@ namespace PLNTSUM {
             int16_t star_idx = MOX::planet[i].star_index;
             if (has_omniscience_trait ||
                 HAROLD::Player_Has_Visited(MOX::PLAYER_NUM, star_idx)) {
-                explored_planets.insert(legacy_world::Planet_Id(i));
+                explored_planets.insert(game::id_planet{static_cast<uint32_t>(i)});
             }
         }
     }
@@ -684,7 +684,7 @@ namespace PLNTSUM {
                 if (!Planet_Has_Been_Visited(i)) {
                     passes_filter = false;
                 } else if (PLNTSUM::filter_out_enemy_controlled_planets != 0 &&
-                    !explored_planets.contains(legacy_world::Planet_Id(i))) {
+                    !explored_planets.contains(game::id_planet{static_cast<uint32_t>(i)})) {
                     passes_filter = false;
                 }
             }
@@ -985,7 +985,7 @@ namespace PLNTSUM {
                 star_id = HACCESS::Nearest_Star_To_XY(ships);
 
                 if (star_id == -1) {
-                    star_id = MOX::planet[MOX::player[MOX::PLAYER_NUM].home_planet_id].star_index;
+                    star_id = MOX::planet[MOX::player[MOX::PLAYER_NUM].home_planet_id.get().id].star_index;
                 }
             }
 

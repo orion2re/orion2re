@@ -22,7 +22,7 @@ DOCTEST_TEST_CASE("advanced homeworld initialization updates contacts ranges and
     MOX::NUM_PLAYERS = 1;
     MOX::NUM_SHIPS = 0;
     MOX::colony[0].outpost_flag = 1;
-    MOX::player[0].home_planet_id = 0;
+    MOX::player[0].home_planet_id = game::id_planet{0};
     MOX::player[0].command_points = 2;
     MOX::settings.starting_civilization_level = STARTING_CIVILIZATION_LEVEL_ADVANCED;
     COLCALC::Twiddle_Initial_Homeworlds();
@@ -166,7 +166,7 @@ DOCTEST_TEST_CASE("surrender eligibility uses recipient range and excludes the c
     Reset_Services_();
     MOX::NUM_STARS = 2;
     MOX::NUM_COLONIES = 2;
-    MOX::player[0].home_planet_id = 1;
+    MOX::player[0].home_planet_id = game::id_planet{1};
     MOX::player[1].ship_range = 9;
     services.in_normal_range = false;
     DOCTEST_CHECK_FALSE(COLCALC::May_Surrender_Star(0, 0, 1));

@@ -121,8 +121,9 @@ namespace MAINPUPS {
 
         if (star_idx == -1) {
             star_idx = 0;
-            if (MOX::player[MOX::PLAYER_NUM].home_planet_id > 0) {
-                star_idx = MOX::planet[MOX::player[MOX::PLAYER_NUM].home_planet_id].star_index;
+            const auto home = MOX::player[MOX::PLAYER_NUM].home_planet_id.get();
+            if (home != game::NO_PLANET && home.id > 0) {
+                star_idx = MOX::planet[home.id].star_index;
             }
         }
 

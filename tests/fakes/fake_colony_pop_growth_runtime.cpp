@@ -149,7 +149,7 @@ namespace TEST_COLONY_POP_GROWTH {
             ship.officer_index = -1;
         }
         for (auto& player : players) {
-            player.home_planet_id = -1;
+            player.home_planet_id = game::NO_PLANET;
             player.last_attacker = -1;
         }
         for (auto& star : stars) {

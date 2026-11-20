@@ -338,7 +338,7 @@ namespace ERICNET {
                 break;
 
             case BUILDING_CAPITOL:
-                player->home_planet_id = colony->planet;
+                player->home_planet_id = game::id_planet{static_cast<uint32_t>(colony->planet)};
                 for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
                     if (i != colony_idx && MOX::colony[i].owner == colony->owner) {
                         COLBLDG::Delete_Prod_From_Colony_Queue(i, BUILDING_CAPITOL);

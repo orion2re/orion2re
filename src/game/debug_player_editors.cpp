@@ -332,7 +332,8 @@ namespace debug_game_editors {
                 player.personality >= PLAYER_PERSONALITY_COUNT ||
                 !((player.objectives <= PLAYER_OBJECTIVE_ECOLOGIST) ||
                     player.objectives == PLAYER_OBJECTIVE_HUMAN) ||
-                player.home_planet_id < -1 || player.home_planet_id >= MOX::planet_count ||
+                (player.home_planet_id.get() != game::NO_PLANET &&
+                    player.home_planet_id.get().id >= static_cast<uint32_t>(MOX::planet_count)) ||
                 player.officer_for_hire < -1 || player.officer_for_hire >= MAX_LEADERS ||
                 player.settlers_freighted < 0 ||
                 player.settlers_freighted > MAX_FREIGHTED_SETTLERS ||
@@ -432,8 +433,10 @@ namespace debug_game_editors {
             Input_U8_("color", &player.color);
             Input_U8_("personality", &player.personality);
             Input_U8_("objectives", &player.objectives);
-            debug_game_widgets::Planet_Reference(
-                "home_planet_id", &player.home_planet_id);
+            int16_t home = legacy_world::Index(player.home_planet_id.get()).value_or(-1);
+            if (debug_game_widgets::Planet_Reference("home_planet_id", &home)) {
+                player.home_planet_id = home < 0 ? game::NO_PLANET : game::id_planet{static_cast<uint32_t>(home)};
+            }
             Input_S16_("network_player_id", &player.network_player_id);
             Input_S8_("player_done_flags", &player.player_done_flags);
             ImGui::Text("dead_field: %d (unknown, read-only)", (int)player.dead_field);
@@ -451,7 +454,7 @@ namespace debug_game_editors {
             }
             if (debug_game_widgets::Planet_Reference(
                     "dest_planet", &destination, false) && destination >= 0) {
-                settler.destination = legacy_world::Planet_Id(destination);
+                settler.destination = game::id_planet{static_cast<uint32_t>(destination)};
             }
             Input_U8_("race", &settler.race);
             Input_U8_("eta", &settler.eta);

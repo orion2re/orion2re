@@ -14,7 +14,7 @@ namespace HOMEGEN {
             }
 
             int16_t new_planet_idx = MOX::planet_count;
-            Make_One_Planet(legacy_world::Planet_Id(new_planet_idx), star_idx, orbit, 0);
+            Make_One_Planet(game::id_planet{static_cast<uint32_t>(new_planet_idx)}, star_idx, orbit, 0);
             MOX::planet_count++;
             return;
         }

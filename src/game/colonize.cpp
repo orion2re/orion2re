@@ -381,8 +381,8 @@ namespace COLONIZE {
 
             COLCALC::Colony_Calculation(colony_idx);
             colony->just_produced = COLONY_PRODUCTION_JUST_COLONIZED;
-            if (MOX::player[player_idx].home_planet_id == -1) {
-                MOX::player[player_idx].home_planet_id = planet_idx;
+            if (MOX::player[player_idx].home_planet_id.get() == game::NO_PLANET) {
+                MOX::player[player_idx].home_planet_id = game::id_planet{static_cast<uint32_t>(planet_idx)};
             }
         } else {
             colony->outpost_flag = 1;

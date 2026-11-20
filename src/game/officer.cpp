@@ -801,7 +801,7 @@ namespace OFFICER {
         } else {
             int16_t star_idx = MOX::temp_star_handle;
             if (star_idx == -1) {
-                star_idx = MOX::planet[MOX::player[MOX::PLAYER_NUM].home_planet_id].star_index;
+                star_idx = MOX::planet[MOX::player[MOX::PLAYER_NUM].home_planet_id.get().id].star_index;
             }
             officer_star_displayed = star_idx;
             officer_star_chosen = star_idx;
@@ -1450,7 +1450,7 @@ namespace OFFICER {
             leader_loc = prev_leaders[leader_idx].location;
         }
 
-        int16_t home_star_id = MOX::planet[MOX::player[player_idx].home_planet_id].star_index;
+        int16_t home_star_id = MOX::planet[MOX::player[player_idx].home_planet_id.get().id].star_index;
         bool at_same_place = false;
 
         if (leader_loc != -1) {
@@ -1482,7 +1482,7 @@ namespace OFFICER {
     }
 
     int8_t __cdecl Get_Star_Leader_ETA(const game::s_game_state& state, int16_t player_index, int16_t leader_index, int16_t target_star_index) {
-        int16_t home_star_index = MOX::planet[MOX::player[player_index].home_planet_id].star_index;
+        int16_t home_star_index = MOX::planet[MOX::player[player_index].home_planet_id.get().id].star_index;
 
         if (OFFICER::prev_leaders == nullptr) {
             if (target_star_index == home_star_index && state.leaders.at(leader_index).status == 0) {
@@ -2109,7 +2109,7 @@ namespace OFFICER {
         bitmap::Get_Bitmap_Size(100, 100);
 
         auto& player = MOX::player[MOX::PLAYER_NUM];
-        int16_t home_star_idx = MOX::planet[player.home_planet_id].star_index;
+        int16_t home_star_idx = MOX::planet[player.home_planet_id.get().id].star_index;
 
         RUSS::Mox_Update();
         MAINSCR::Allocate_First_Screen_Seg(5);

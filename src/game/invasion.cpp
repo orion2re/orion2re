@@ -309,9 +309,9 @@ namespace invasion {
         }
 
         if (best_colony_idx == -1) {
-            MOX::player[player_idx].home_planet_id = -1;
+            MOX::player[player_idx].home_planet_id = game::NO_PLANET;
         } else {
-            MOX::player[player_idx].home_planet_id = MOX::colony[best_colony_idx].planet;
+            MOX::player[player_idx].home_planet_id = game::id_planet{static_cast<uint32_t>(MOX::colony[best_colony_idx].planet)};
         }
     }
 
@@ -608,15 +608,16 @@ namespace invasion {
             ERICNET::Remove_Building(colony_idx, BUILDING_CAPITOL);
         }
 
-        if (MOX::player[old_owner].home_planet_id == colony->planet) {
+        const game::id_planet planet_id{static_cast<uint32_t>(colony->planet)};
+        if (MOX::player[old_owner].home_planet_id.get() == planet_id) {
             invasion::Assign_New_Home_Planet(old_owner, colony_idx);
         }
 
         colony->owner = (int8_t)new_owner_idx;
         COLCALC::Do_Colony_Owner_Change_Star_Colony_Stuff(colony);
 
-        if (MOX::player[new_owner_idx].home_planet_id == -1) {
-            MOX::player[new_owner_idx].home_planet_id = colony->planet;
+        if (MOX::player[new_owner_idx].home_planet_id.get() == game::NO_PLANET) {
+            MOX::player[new_owner_idx].home_planet_id = planet_id;
         }
 
         colony->auto_building = 0;

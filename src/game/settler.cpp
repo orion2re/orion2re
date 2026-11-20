@@ -73,14 +73,14 @@ namespace SETTLER {
             Count_Pop(colony, (int32_t)POP::Get_Race(colony->pop[i]), pop_limits, pop_counts);
         }
 
-        const auto planet_id = legacy_world::Try_Planet_Id(colony->planet);
-        if (include_freighters != 0 && planet_id) {
+        const auto planet_id = colony->planet < 0 ? game::NO_PLANET : game::id_planet{static_cast<uint32_t>(colony->planet)};
+        if (include_freighters != 0 && planet_id != game::NO_PLANET) {
             s_player* player = &MOX::player[(int)colony->owner];
 
             if (player->settlers_freighted > 0) {
                 for (int32_t i = 0; i < (int32_t)player->settlers_freighted; ++i) {
                     const auto& settler = player->settlers[i];
-                    if (settler.destination.get() == *planet_id && settler.race <= POP::RACE_NATIVE) {
+                    if (settler.destination.get() == planet_id && settler.race <= POP::RACE_NATIVE) {
                         Count_Pop(
                             colony,
                             settler.race,
@@ -322,7 +322,7 @@ namespace SETTLER {
             } else {
                 settler.eta = static_cast<uint8_t>(Settler_ETA(owner_player, source_star_index, dest_star_index));
                 settler.source_colony = static_cast<int16_t>(source_colony - MOX::colony);
-                settler.destination = legacy_world::Planet_Id(dest_planet_index);
+                settler.destination = game::id_planet{static_cast<uint32_t>(dest_planet_index)};
 
                 const int32_t freighted_index = (int32_t)owner_player->settlers_freighted;
                 owner_player->settlers[freighted_index] = settler;

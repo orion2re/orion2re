@@ -1578,7 +1578,7 @@ struct s_player {
     uint8_t color;
     uint8_t personality;
     uint8_t objectives;
-    int16_t home_planet_id;
+    unaligned::field<game::id_planet> home_planet_id = game::NO_PLANET;
     int16_t network_player_id;
     int8_t player_done_flags;
     int16_t dead_field;

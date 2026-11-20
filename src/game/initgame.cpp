@@ -410,7 +410,7 @@ namespace INITGAME {
                 star_ptr->system_special = star_ptr->twinkling1;
                 star_ptr->twinkling1 = 0;
 
-                HOMEGEN::Upgrade_Planet_Guarded_By_Monster(legacy_world::Planet_Id(planet_idx), (int16_t)ship_type);
+                HOMEGEN::Upgrade_Planet_Guarded_By_Monster(game::id_planet{static_cast<uint32_t>(planet_idx)}, (int16_t)ship_type);
             }
             star_ptr++;
         }

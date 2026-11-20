@@ -4,6 +4,7 @@
 #include <string>
 
 struct s_planet_data;
+namespace game { struct id_planet; }
 
 namespace MAPGEN {
     constexpr int32_t STAR_NAME_COUNT = 829;
@@ -113,7 +114,7 @@ namespace MAPGEN {
 
     int16_t __cdecl Gas_Giants();
 
-    int16_t __cdecl Home_Planet(int16_t planet_id);
+    int16_t __cdecl Home_Planet(game::id_planet planet_id);
 
     int8_t __cdecl Generate_Spectral_Class(int16_t star_type_index);
     /** Generates an age-weighted spectral class that is not a black hole. */

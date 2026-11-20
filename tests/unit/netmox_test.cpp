@@ -247,7 +247,7 @@ namespace {
             MOX::player[i].objectives = (i == 2) ? PLAYER_OBJECTIVE_MILITARIST : PLAYER_OBJECTIVE_HUMAN;
             MOX::player[i].race = (uint8_t)(i + 3);
             MOX::player[i].color = (uint8_t)(i + 1);
-            MOX::player[i].home_planet_id = (int16_t)i;
+            MOX::player[i].home_planet_id = game::id_planet{static_cast<uint32_t>(i)};
             MOX::player[i].ship_range = (int16_t)(30 + i);
             MOX::player[i].bc = 1000 + i * 77;
             MOX::player[i].tech_applications[0] = (uint8_t)(11 + i);
@@ -512,6 +512,8 @@ DOCTEST_TEST_CASE("pick-position packet preserves expanded freight storage") {
     MOX::NUM_PLAYERS = MAX_PLAYERS;
     const s_settler_info freight{.source_colony = -1, .destination = game::id_planet{70000}, .race = 3, .eta = 2, .profession = 1, .legacy_flags = 0x12345};
     MOX::player[MAX_PLAYERS - 1].settlers[MAX_FREIGHTED_SETTLERS - 1] = freight;
+    MOX::player[MAX_PLAYERS - 1].home_planet_id = game::id_planet{70000};
+    MOX::player[0].home_planet_id = game::NO_PLANET;
     MOX::screen_seg = (s_animation_header*)allocate::Allocate_Space(
             NETMOX::NETMOX_MAX_GAME_DATA_PAYLOAD_BYTES + sizeof(s_alloc_header));
 
@@ -531,6 +533,8 @@ DOCTEST_TEST_CASE("pick-position packet preserves expanded freight storage") {
             (uint32_t)g_pick_position_payload.size());
     DOCTEST_CHECK((
         MOX::player[MAX_PLAYERS - 1].settlers[MAX_FREIGHTED_SETTLERS - 1] == freight));
+    DOCTEST_CHECK(MOX::player[MAX_PLAYERS - 1].home_planet_id.get() == game::id_planet{70000});
+    DOCTEST_CHECK(MOX::player[0].home_planet_id.get() == game::NO_PLANET);
 
     MOX::NUM_PLAYERS = 3;
     NETMOX::Decode_Pick_Your_Position(
@@ -676,7 +680,7 @@ DOCTEST_TEST_CASE("loaded Lua state extends the current native snapshot") {
 
     SERIAL::Reader_ native(
         envelope.Ptr(), native_size, "invalid test native network snapshot");
-    DOCTEST_CHECK(native.Read_Uint32() == 0x334E324F); // O2N3
+    DOCTEST_CHECK(native.Read_Uint32() == 0x344E324F); // O2N4
     DOCTEST_CHECK(native.Read_Int16() == 306);
     DOCTEST_CHECK(native.Read_Uint32() == 35200);
     native.Skip(sizeof(MOX::settings.random_events) +

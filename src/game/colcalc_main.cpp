@@ -42,10 +42,10 @@ namespace COLCALC {
             int8_t owner_trait0 = MOX::player[owner].traits[TRAIT_CURRENT_GOVERNMENT];
             int8_t owner_gov = owner_trait0 / 2;
             if (owner_gov != GOVERNMENT_UNIFICATION / 2) {
-                int16_t home_id = player->home_planet_id;
+                const auto home_id = player->home_planet_id.get();
                 bool has_capitol = false;
-                if (home_id != -1) {
-                    int16_t cap_col_idx = MOX::planet[home_id].colony_index;
+                if (home_id != game::NO_PLANET) {
+                    int16_t cap_col_idx = MOX::planet[home_id.id].colony_index;
                     if (MOX::colony[cap_col_idx].buildings[BUILDING_CAPITOL]) has_capitol = true;
                 }
                 if (!has_capitol) no_capital_penalty = non_capital_morale_lookup[owner_gov];

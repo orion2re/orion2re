@@ -356,7 +356,7 @@ namespace AI_SNOOPS_DEBUG {
                 ImGui::TableSetupColumn("Stage");
                 ImGui::TableHeadersRow();
                 for (int planet = 0; planet < MOX::planet_count; ++planet) {
-                    auto entry = ai->planets.find(legacy_world::Planet_Id(planet));
+                    auto entry = ai->planets.find(game::id_planet{static_cast<uint32_t>(planet)});
                     if (entry == ai->planets.end()) continue;
                     const uint16_t base = entry->second.base_values[player];
                     const uint16_t contextual = entry->second.contextual_values[player];

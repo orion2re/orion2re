@@ -451,7 +451,7 @@ namespace HAROLD {
             int16_t planet_id = MOX::star[star_idx].planet_index[planet_slot];
             if (planet_id > -1) {
                 for (int16_t p = 0; p < (int16_t)MOX::NUM_PLAYERS; ++p) {
-                    if (MOX::player[p].home_planet_id == planet_id) {
+                    if (MOX::player[p].home_planet_id.get() == game::id_planet{static_cast<uint32_t>(planet_id)}) {
                         found_player_idx = p;
                     }
                 }

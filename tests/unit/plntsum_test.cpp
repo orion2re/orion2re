@@ -153,7 +153,7 @@ DOCTEST_TEST_CASE("destroyed occupants no longer hide mixed-mineral systems") {
     MOX::planet[0].colony_index = 0;
     MOX::colony[0].owner = 1;
     MOX::colony[0].planet = 0;
-    MOX::player[1].home_planet_id = -1;
+    MOX::player[1].home_planet_id = game::NO_PLANET;
     Add_Ship(1, 0);
     PLNTSUM::Set_Planet_Explored_Flags();
     Set_Filters(7);

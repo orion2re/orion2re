@@ -128,7 +128,7 @@ namespace {
         s_colony* colony = &MOX::colony[0];
         colony->owner = 0;
         colony->planet = 0;
-        MOX::player[0].settlers[0].destination = legacy_world::Planet_Id(colony->planet);
+        MOX::player[0].settlers[0].destination = game::id_planet{static_cast<uint32_t>(colony->planet)};
         MOX::player[0].settlers_freighted = 1;
         return colony;
     }
@@ -1173,7 +1173,7 @@ DOCTEST_TEST_CASE("Capitol can be built when the player has no homeworld") {
     colony->owner = 0;
 
     s_player* player = &MOX::player[0];
-    player->home_planet_id = -1;
+    player->home_planet_id = game::NO_PLANET;
     player->tech_applications[TECH_APP_CAPITOL] = TECH_RESEARCH_STATUS_RESEARCHED;
 
     DOCTEST_CHECK(COLCALC::Colony_Can_Build_Product(colony, BUILDING_CAPITOL) == 1);

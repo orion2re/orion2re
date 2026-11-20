@@ -169,7 +169,7 @@ namespace orion2re::lua::game::internal {
             for (std::int16_t player_id = 0;
                  player_id < MOX::NUM_PLAYERS;
                  ++player_id) {
-                if (MOX::player[player_id].home_planet_id == planet_id) {
+                if (MOX::player[player_id].home_planet_id.get() == id_planet{static_cast<uint32_t>(planet_id)}) {
                     return false;
                 }
             }
@@ -182,7 +182,7 @@ namespace orion2re::lua::game::internal {
             memset(&MOX::planet[planet_id], 0, sizeof(s_planet_data));
             MOX::planet[planet_id].star_index = -1;
             MOX::planet[planet_id].colony_index = -1;
-            Advance_Planet_Generation_(legacy_world::Planet_Id(planet_id));
+            Advance_Planet_Generation_(id_planet{static_cast<uint32_t>(planet_id)});
             return true;
         }
 
@@ -573,7 +573,7 @@ namespace orion2re::lua::game::internal {
                  ++player_id) {
                 std::int16_t home_system = -1;
                 if (!Resolve_Planet_System(
-                        legacy_world::Planet_Id(MOX::player[player_id].home_planet_id),
+                        MOX::player[player_id].home_planet_id.get(),
                         &home_system) ||
                     home_system == system_id) {
                     return luaL_error(lua_state,
@@ -700,7 +700,7 @@ namespace orion2re::lua::game::internal {
             MOX::planet[planet_id].orbit = static_cast<std::int8_t>(orbit);
             MOX::planet[planet_id].colony_index = -1;
             MOX::star[system_id].planet_index[orbit] = planet_id;
-            Push_Planet(lua_state, legacy_world::Planet_Id(planet_id));
+            Push_Planet(lua_state, id_planet{static_cast<uint32_t>(planet_id)});
             return 1;
         }
 
@@ -797,7 +797,7 @@ namespace orion2re::lua::game::internal {
             for (std::int16_t planet_id = 0;
                  planet_id < MOX::planet_count;
                  ++planet_id) {
-                Push_Planet(lua_state, legacy_world::Planet_Id(planet_id));
+                Push_Planet(lua_state, id_planet{static_cast<uint32_t>(planet_id)});
                 if (!lua_isnil(lua_state, -1)) {
                     lua_rawseti(lua_state, -2, sequence_index++);
                 } else {
@@ -870,7 +870,7 @@ namespace orion2re::lua::game::internal {
                 if (planet_id < 0) {
                     continue;
                 }
-                Push_Planet(lua_state, legacy_world::Planet_Id(planet_id));
+                Push_Planet(lua_state, id_planet{static_cast<uint32_t>(planet_id)});
                 if (!lua_isnil(lua_state, -1)) {
                     lua_rawseti(lua_state, -2, sequence_index++);
                 } else {

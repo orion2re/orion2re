@@ -96,22 +96,22 @@ DOCTEST_TEST_CASE("outpost on planet preserves planet climate") {
 
 DOCTEST_TEST_CASE("first colony after losing the homeworld becomes the new home") {
     TEST_COLONIZE::Reset_();
-    MOX::player[0].home_planet_id = -1;
+    MOX::player[0].home_planet_id = game::NO_PLANET;
     MOX::planet[0].star_index = 0;
 
     COLONIZE::Make_New_Colony(0, 0);
 
-    DOCTEST_CHECK((MOX::player[0].home_planet_id == 0));
+    DOCTEST_CHECK(MOX::player[0].home_planet_id.get() == game::id_planet{0});
 }
 
 DOCTEST_TEST_CASE("new outpost does not become the homeworld") {
     TEST_COLONIZE::Reset_();
-    MOX::player[0].home_planet_id = -1;
+    MOX::player[0].home_planet_id = game::NO_PLANET;
     MOX::planet[0].star_index = 0;
 
     COLONIZE::Make_New_Outpost(0, 0);
 
-    DOCTEST_CHECK((MOX::player[0].home_planet_id == -1));
+    DOCTEST_CHECK(MOX::player[0].home_planet_id.get() == game::NO_PLANET);
 }
 
 DOCTEST_TEST_CASE("first colony population uses the configured worker rule") {
