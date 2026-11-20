@@ -7,6 +7,7 @@
 #include "game/star_serialization.h"
 #include "game/colony_serialization.h"
 #include "game/settler_serialization.h"
+#include "game/ship_serialization.h"
 #include "game/savegame.h"
 #include "game/turn_oracle_history.h"
 
@@ -165,10 +166,13 @@ namespace turn_oracle {
             const size_t players = player_count_offset + 2;
             const size_t ships = players + 8 * player_bytes;
             if (ships > bytes.size() || bytes.size() - ships < 2) return false;
-            const uint16_t ship_count = bytes[ships] | (bytes[ships + 1] << 8);
+            const uint16_t ship_field = bytes[ships] | (bytes[ships + 1] << 8);
+            const auto ship_count = ship_field & ~SERIAL::SHIP_MISSION_PLANETS_FLAG;
+            const size_t ship_width = (ship_field & SERIAL::SHIP_MISSION_PLANETS_FLAG)
+                ? SERIAL::SHIP_RECORD_BYTES : SERIAL::LEGACY_SHIP_RECORD_BYTES;
             // 129 bytes per ship; fixed game fields through the nebula count;
             // then 5 bytes per nebula and the fixed game tail before freight.
-            const size_t nebulas = ships + 2 + 129 * ship_count + 163;
+            const size_t nebulas = ships + 2 + ship_width * ship_count + 163;
             if (ship_count > 10000 || nebulas >= bytes.size()) return false;
             const size_t tail = nebulas + 1 + bytes[nebulas] * 5 + 4491;
             if (tail > bytes.size() || extra_records * 8 > bytes.size() - tail) return false;
@@ -252,6 +256,49 @@ namespace turn_oracle {
                 widen(start + sneak_offset);
             }
             bytes[player_count_offset + 1] |= SERIAL::WIDE_ATTACK_PLANETS_FLAG >> 8;
+            return true;
+        }
+
+        std::optional<size_t> Ship_Count_Offset(const std::vector<uint8_t>& bytes, size_t players) {
+            const uint16_t flags = static_cast<uint16_t>(bytes[players + 1] << 8);
+            const size_t width = 0xf0e +
+                ((flags & SERIAL::FIELD_SETTLERS_FLAG) ? 25 * (SERIAL::SETTLER_BYTES - 8) : 0) +
+                ((flags & SERIAL::WIDE_HOME_PLANET_FLAG) ? 2 : 0) +
+                ((flags & SERIAL::WIDE_ATTACK_PLANETS_FLAG) ? 18 : 0);
+            const size_t ships = players + 2 + 8 * width;
+            return ships + 2 <= bytes.size() ? std::optional{ships} : std::nullopt;
+        }
+
+        bool Normalize_Ship_Missions(std::vector<uint8_t>& bytes, size_t ships, bool typed) {
+            // Frozen offsets in the v7/v8 ship design and ship prefix.
+            constexpr size_t ship_type = 17;
+            constexpr size_t old_target = 28;
+            constexpr size_t old_marker = 36;
+            constexpr size_t status = 100;
+            const size_t count = (bytes[ships] | (bytes[ships + 1] << 8)) & ~SERIAL::SHIP_MISSION_PLANETS_FLAG;
+            const size_t width = typed ? SERIAL::SHIP_RECORD_BYTES : SERIAL::LEGACY_SHIP_RECORD_BYTES;
+            const size_t start = ships + 2;
+            if (count > 10000 || count * width > bytes.size() - start) return false;
+            for (size_t ship = count; ship-- > 0;) {
+                const size_t record = start + ship * width;
+                auto id = game::NO_PLANET;
+                if (bytes[record + ship_type] == SHIP_TYPE_COLONY || bytes[record + ship_type] == SHIP_TYPE_OUTPOST) {
+                    if (!typed && static_cast<int8_t>(bytes[record + status]) < 3 &&
+                        bytes[record + old_marker] == 1 && bytes[record + old_marker + 1] == 0) {
+                        id = SERIAL::Decode_Legacy_Planet_Reference(static_cast<int16_t>(
+                            bytes[record + old_target] | (bytes[record + old_target + 1] << 8)));
+                    }
+                    // These weapon types were mission scratch fields on civilian ships.
+                    bytes[record + old_target] = bytes[record + old_target + 1] = 0xff;
+                    bytes[record + old_marker] = bytes[record + old_marker + 1] = 0;
+                }
+                if (!typed) {
+                    bytes.insert(bytes.begin() + record + width, {
+                        static_cast<uint8_t>(id.id), static_cast<uint8_t>(id.id >> 8),
+                        static_cast<uint8_t>(id.id >> 16), static_cast<uint8_t>(id.id >> 24)});
+                }
+            }
+            bytes[ships + 1] |= SERIAL::SHIP_MISSION_PLANETS_FLAG >> 8;
             return true;
         }
     } // namespace
@@ -342,6 +389,18 @@ namespace turn_oracle {
                                       : Upgrade_Attack_Planet_References(expected_bytes, *expected_offset))) {
                     *error = "invalid legacy attack-planet references";
                     return false;
+                }
+                const auto expected_ships = Ship_Count_Offset(expected_bytes, *expected_offset);
+                const auto actual_ships = Ship_Count_Offset(actual_bytes, *actual_offset);
+                if (expected_ships && actual_ships) {
+                    const bool expected_typed = (expected_bytes[*expected_ships + 1] & 0x80) != 0;
+                    const bool actual_typed = (actual_bytes[*actual_ships + 1] & 0x80) != 0;
+                    if (expected_typed != actual_typed &&
+                        (!Normalize_Ship_Missions(expected_bytes, *expected_ships, expected_typed) ||
+                         !Normalize_Ship_Missions(actual_bytes, *actual_ships, actual_typed))) {
+                        *error = "invalid ship mission section";
+                        return false;
+                    }
                 }
             }
         }

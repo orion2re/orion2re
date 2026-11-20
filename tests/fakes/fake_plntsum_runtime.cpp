@@ -195,7 +195,7 @@ namespace HACCESS {
         return 0;
     }
 
-    char* __cdecl Get_Planet_Name_No_Prime(int16_t) {
+    char* Get_Planet_Name_No_Prime(const game::s_game_state&, game::id_planet) {
         static char name[] = "Test planet";
         return name;
     }
@@ -310,7 +310,6 @@ namespace MAINSCR {
 
 namespace SHIPS {
     void __cdecl Clear_Auto_Colonization_Flag(s_ship_data* ship) {
-        ship->d.ship_weapon[1].type = 0;
-        ship->d.ship_weapon[0].type = -1;
+        ship->colonization_target = game::NO_PLANET;
     }
 } // namespace SHIPS

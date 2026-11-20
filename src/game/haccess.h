@@ -52,6 +52,7 @@ namespace HACCESS {
     void __cdecl Do_Get_Planet_Name(int16_t planet_idx, char* buffer, uint8_t localized_flag);
 
     char* __cdecl Get_Planet_Name(int16_t planet_idx);
+    char* Get_Planet_Name(const game::s_game_state& state, game::id_planet id);
 
     int16_t __cdecl Last_Colony_Selected(int16_t star_idx, int16_t player_idx);
 
@@ -95,6 +96,7 @@ namespace HACCESS {
     bool __cdecl Is_Combat_Ship(int16_t ship_index);
 
     char* __cdecl Get_Planet_Name_No_Prime(int16_t planet_idx);
+    char* Get_Planet_Name_No_Prime(const game::s_game_state& state, game::id_planet id);
 
     int16_t __cdecl N_Star_Relocations(int16_t player_idx);
 

@@ -36,7 +36,7 @@ namespace {
         PLNTSUM::Filter_Explored_Planets(&MOX::scroll_bar->total_rows);
         std::vector<int16_t> actual;
         for (int i = 0; i < MOX::scroll_bar->total_rows; ++i) {
-            actual.push_back(PLNTSUM::planet_summary[i].explored);
+            actual.push_back(PLNTSUM::planet_summary[i].planet_id.get().id);
         }
         std::sort(actual.begin(), actual.end());
         std::sort(expected.begin(), expected.end());
@@ -61,9 +61,7 @@ namespace {
         ship->location = moving ? SHIP_LOCATION_MOVING_OFFSET : 0;
         ship->x = moving ? 42 : 0;
         ship->y = moving ? 24 : 0;
-        if (planet_idx >= 0) {
-            PLNTSUM::Set_Auto_Colonize_Flag(ship, planet_idx);
-        }
+        ship->colonization_target = SERIAL::Decode_Legacy_Planet_Reference(planet_idx);
         MOX::ship_stack_start[MOX::ship_stack_count++] = ship_idx;
         MOX::ship_node[ship_idx].ship_idx = ship_idx;
         MOX::ship_node[ship_idx].next_node = -1;
@@ -320,7 +318,7 @@ DOCTEST_TEST_CASE("sending the last selected ship disarms rather than switching 
         PLNTSUM::send_choice = choice;
         PLNTSUM::Determine_Button_Status();
         MOX::ship[choice].location = SHIP_LOCATION_MOVING_OFFSET;
-        PLNTSUM::Set_Auto_Colonize_Flag(&MOX::ship[choice], 0);
+        MOX::ship[choice].colonization_target = game::id_planet{0};
         PLNTSUM::Determine_Button_Status();
         DOCTEST_CHECK(PLNTSUM::send_choice == -1);
         DOCTEST_CHECK(PLNTSUM::draw_colony_button_status == (choice == 0 ? 0 : 1));
@@ -399,20 +397,20 @@ DOCTEST_TEST_CASE("recall targets the dispatched ship with or without an idle al
                 Build_Planet_List();
                 PLNTSUM::Determine_Button_Status();
                 PLNTSUM::Add_Plntsum_Fields();
-                int16_t row = PLNTSUM::Planet_Summary_List_Id(0);
+                int16_t row = PLNTSUM::Planet_Summary_List_Id(game::id_planet{0});
                 DOCTEST_REQUIRE(row >= 0);
                 // These are deliberately not the dispatched ship.
                 PLNTSUM::planet_summary[row].best_colony_ship_idx = free_ship;
                 PLNTSUM::planet_summary[row].best_outpost_ship_idx = free_ship;
                 PLNTSUM::send_choice = idle ? (type == SHIP_TYPE_COLONY ? 0 : 1) : -1;
-                PLNTSUM::Undo_Send_Order(0, type);
+                PLNTSUM::Undo_Send_Order(game::id_planet{0}, type);
                 DOCTEST_CAPTURE(type);
                 DOCTEST_CAPTURE(idle);
                 DOCTEST_CAPTURE(moving);
                 DOCTEST_CHECK(TEST_PLNTSUM::confirmation_count == 1);
                 DOCTEST_CHECK(TEST_PLNTSUM::moved_ship == sent);
                 DOCTEST_CHECK(TEST_PLNTSUM::moved_to_star == 0);
-                DOCTEST_CHECK(PLNTSUM::Colony_Ship_Auto_Colonization(&MOX::ship[sent]) == PLANET_INDEX_NONE);
+                DOCTEST_CHECK(PLNTSUM::Colony_Ship_Auto_Colonization(&MOX::ship[sent]) == game::NO_PLANET);
                 DOCTEST_CHECK(PLNTSUM::planet_summary[row].colony_eta == -1);
                 DOCTEST_CHECK(PLNTSUM::planet_summary[row].outpost_eta == -1);
                 DOCTEST_CHECK(PLNTSUM::screen->refresh_fields);
@@ -436,9 +434,32 @@ DOCTEST_TEST_CASE("recall matches the displayed ship and ignores foreign retired
     Add_Orderable_Ship(SHIP_TYPE_COLONY, 1, true);
     Build_Planet_List();
     PLNTSUM::Determine_Button_Status();
-    PLNTSUM::Undo_Send_Order(0, SHIP_TYPE_COLONY);
+    PLNTSUM::Undo_Send_Order(game::id_planet{0}, SHIP_TYPE_COLONY);
     DOCTEST_CHECK(TEST_PLNTSUM::moved_ship == displayed);
-    DOCTEST_CHECK(PLNTSUM::Colony_Ship_Auto_Colonization(&MOX::ship[0]) == 0);
+    DOCTEST_CHECK(PLNTSUM::Colony_Ship_Auto_Colonization(&MOX::ship[0]) == game::id_planet{0});
+}
+
+DOCTEST_TEST_CASE("summary ETA and recall use the wide planet key rather than its row") {
+    TEST_PLNTSUM::Reset_();
+    Add_System(0, 0);
+    constexpr game::id_planet target{70000};
+    test_planets::Record(target.id) = test_planets::Record(4);
+    DOCTEST_REQUIRE(game::current_state.Erase_Planet(game::id_planet{4}));
+    MOX::star[0].orbit_planet_ids[4] = target;
+    const auto sent = Add_Orderable_Ship(SHIP_TYPE_COLONY, -1, true);
+    MOX::ship[sent].colonization_target = target;
+
+    Build_Planet_List();
+    const auto row = PLNTSUM::Planet_Summary_List_Id(target);
+    DOCTEST_REQUIRE(row >= 0);
+    DOCTEST_CHECK(PLNTSUM::planet_summary[row].planet_id.get() == target);
+    PLNTSUM::Update_Ship_Etas();
+    DOCTEST_CHECK(PLNTSUM::planet_summary[row].colony_eta >= 0);
+
+    PLNTSUM::Undo_Send_Order(target, SHIP_TYPE_COLONY);
+    DOCTEST_CHECK(TEST_PLNTSUM::moved_ship == sent);
+    DOCTEST_CHECK(MOX::ship[sent].colonization_target.get() == game::NO_PLANET);
+    DOCTEST_CHECK(PLNTSUM::planet_summary[row].colony_eta == -1);
 }
 
 DOCTEST_TEST_CASE("declined unavailable or missing recall orders do not move a ship") {
@@ -449,11 +470,11 @@ DOCTEST_TEST_CASE("declined unavailable or missing recall orders do not move a s
         Build_Planet_List();
         TEST_PLNTSUM::confirm_recall = false;
         TEST_PLNTSUM::can_select_ship = scenario != 1;
-        PLNTSUM::Undo_Send_Order(0, SHIP_TYPE_COLONY);
+        PLNTSUM::Undo_Send_Order(game::id_planet{0}, SHIP_TYPE_COLONY);
         DOCTEST_CHECK(TEST_PLNTSUM::moved_ship == -1);
         DOCTEST_CHECK(TEST_PLNTSUM::confirmation_count == (scenario == 0 ? 1 : 0));
         DOCTEST_CHECK(TEST_PLNTSUM::warning_count == (scenario == 1 ? 1 : 0));
-        DOCTEST_CHECK(PLNTSUM::Colony_Ship_Auto_Colonization(&MOX::ship[sent]) == (scenario == 2 ? 1 : 0));
+        DOCTEST_CHECK(PLNTSUM::Colony_Ship_Auto_Colonization(&MOX::ship[sent]) == game::id_planet{scenario == 2 ? 1u : 0u});
     }
 }
 
@@ -482,7 +503,7 @@ DOCTEST_TEST_CASE("in flight ship icons survive entry filtering scrolling and so
             for (int row = 0; row < MOX::scroll_bar->total_rows; ++row) {
                 MOX::scroll_bar->first_visible_row = row;
                 PLNTSUM::Refresh_Plntsum_Fields();
-                int16_t planet = PLNTSUM::planet_summary[row].explored;
+                const auto planet = PLNTSUM::planet_summary[row].planet_id.get().id;
                 DOCTEST_CAPTURE(mask);
                 DOCTEST_CAPTURE(sort);
                 DOCTEST_CAPTURE(row);

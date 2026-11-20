@@ -86,7 +86,7 @@ namespace allocate {
         struct_::Clear_Structure(MOX::star, MAX_STARS * sizeof(s_star_data));
 
         MOX::ship = (s_ship_data*)Allocate_Dos_Space(MAX_SHIPS * sizeof(s_ship_data));
-        struct_::Clear_Structure(MOX::ship, MAX_SHIPS * sizeof(s_ship_data));
+        std::fill_n(MOX::ship, MAX_SHIPS, s_ship_data{});
 
     }
 } // namespace allocate

@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/planet_roster.h"
 
 #include "doctest/doctest.h"
 #include "game/officer.h"
@@ -29,6 +30,7 @@ namespace TEST_REPORT {
     extern int16_t confirmation_result;
     extern bool accept_officer_offer;
     extern s_ship_data* cleared_auto_colonization_ship;
+    extern game::id_planet colonized_planet;
 
     void Reset_();
     void Add_Colony_Ship_();
@@ -377,4 +379,21 @@ DOCTEST_TEST_CASE("filtered colony prompt retains its ship for assignment cleanu
 
     DOCTEST_CHECK(REPORT::Colonization(0, 1) == 1);
     DOCTEST_CHECK(TEST_REPORT::cleared_auto_colonization_ship == &MOX::ship[1]);
+}
+
+DOCTEST_TEST_CASE("arrived colony ship offers its wide planet target") {
+    TEST_REPORT::Reset_();
+    TEST_REPORT::Add_Colony_Ship_();
+    constexpr game::id_planet target{70000};
+    auto& planet = test_planets::Record(target.id);
+    planet.star_index = 0;
+    planet.colony_index = -1;
+    MOX::ship[1].colonization_target = target;
+    TEST_REPORT::confirmation_result = 1;
+    TEST_REPORT::colonizable_planet_count = 1;
+    REPORT::no_outpost_prompt = 1;
+
+    DOCTEST_CHECK(REPORT::Colonization(0, 1) == 1);
+    DOCTEST_CHECK(TEST_REPORT::colonized_planet == target);
+    DOCTEST_CHECK(MOX::ship[1].colonization_target.get() == game::NO_PLANET);
 }

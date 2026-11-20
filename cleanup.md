@@ -107,9 +107,15 @@
       counters. Keep orbit order for first-match and tie-breaking rules,
       canonical planet order for order-sensitive traversal, and direct map
       iteration for independent AI values and record refreshes.
+- [x] Store a dedicated `id_planet` destination for colony and outpost ships.
+      Carry it through summary rows, dispatch, movement, arrival confirmation,
+      and recall. Preserve orbit and row positions separately. The v8 ship
+      codec and multiplayer ship packets serialize the target explicitly;
+      historical saves decode the old weapon-slot marker and target.
 - [ ] Widen the remaining narrow key encodings: reports and messages, event
-      payloads, incremental combat packets, ship mission targets, and older UI
-      selection records. These still impose signed or packed width limits;
+      payloads, incremental combat packets, and older UI selection records
+      (including the manual colony/outpost picker). These still impose
+      signed or packed width limits;
       a live-count cap does not bound a monotonic ID.
 - [ ] Thread `s_game_state` into the legacy call chains still reading
       `game::current_state` directly (UI, colony rules, combat, and turn events).

@@ -19,8 +19,8 @@ namespace PLNTSUM {
             int16_t y_base = PLNTSUM::plntscrn_delta_y[scroll_row] + 0x27;
             s_plntsum_planet* summary = &PLNTSUM::planet_summary[summary_idx];
 
-            if (summary->explored != -1) {
-                s_planet_data* planet = &game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(summary->explored)});
+            if (summary->planet_id.get() != game::NO_PLANET) {
+                s_planet_data* planet = &game::current_state.planets.at(summary->planet_id.get());
                 int16_t star_idx = planet->star_index;
                 int16_t mineral_class = summary->mineral_class;
                 int16_t climate_idx = summary->climate;
@@ -79,7 +79,7 @@ namespace PLNTSUM {
                 int16_t y_offset = (25 - font_h) - 4;
 
                 char planet_name_buf[32];
-                strlcpy(planet_name_buf, HACCESS::Get_Planet_Name_No_Prime(summary->explored), sizeof(planet_name_buf));
+                strlcpy(planet_name_buf, HACCESS::Get_Planet_Name_No_Prime(game::current_state, summary->planet_id.get()), sizeof(planet_name_buf));
                 MISC::Set_Fitted_Font_Style(planet_name_buf, &font_colors, 2, 2, 0, 0x56, 1);
                 int16_t fitted_name_h = fonts::Get_Font_Height();
                 fonts::Print_Centered(0x3d, y_base + (25 - fitted_name_h) * 2, planet_name_buf);
@@ -162,7 +162,7 @@ namespace PLNTSUM {
         }
     }
 
-    void __cdecl Send_Nearest_Ship(int16_t planet_idx) {
+    void __cdecl Send_Nearest_Ship(game::id_planet planet_idx) {
         char msg_buffer[120];
         int16_t ship_list[2];
         s_ship_move_info move_info;
@@ -178,7 +178,7 @@ namespace PLNTSUM {
         ship_list[0] = -1;
         ship_list[1] = -1;
 
-        target_star_idx = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).star_index;
+        target_star_idx = game::current_state.planets.at(planet_idx).star_index;
         omniscient = HAROLD::Player_Is_Omniscient(MOX::PLAYER_NUM);
         summary_idx = Planet_Summary_Id(planet_idx);
         nearest_ship_idx = Nearest_Ship_Id(summary_idx);
@@ -266,7 +266,7 @@ namespace PLNTSUM {
                     GENDRAW::Message_Box(msg_buffer);
                     PLNTSUM::screen->refresh_fields = true;
                     PLNTSUM::last_ship_moved = best_ship_idx;
-                    PLNTSUM::Set_Auto_Colonize_Flag(&MOX::ship[best_ship_idx], planet_idx);
+                    MOX::ship[best_ship_idx].colonization_target = planet_idx;
                     PLNTSUM::Update_Ship_Etas();
                 }
             }
@@ -344,10 +344,10 @@ namespace PLNTSUM {
         if (count > 0) {
             for (int16_t i = 0; i < (int16_t)count; ++i) {
                 int current_row = first_row + i;
-                int16_t explored_idx = PLNTSUM::planet_summary[current_row].explored;
+                const auto explored_idx = PLNTSUM::planet_summary[current_row].planet_id.get();
 
-                if (explored_idx != -1) {
-                    int16_t star_idx = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(explored_idx)}).star_index;
+                if (explored_idx != game::NO_PLANET) {
+                    int16_t star_idx = game::current_state.planets.at(explored_idx).star_index;
 
                     // Handle interaction: Click on fields/icons
                     if (PLNTSUM::screen->fields[i] == clicked_field_id) {
@@ -372,7 +372,7 @@ namespace PLNTSUM {
                     // Handle interaction: Hover/Input on fields
                     else if (PLNTSUM::screen->fields[i] == input_field_id && current_row < total_rows) {
                         PLNTSUM::box_field_scanned = (int8_t)i;
-                        if (explored_idx > -1) {
+                        if (explored_idx != game::NO_PLANET) {
                             int16_t planet_id = PLNTSUM::Planet_Summary_Id(explored_idx);
                             int16_t ship_id = PLNTSUM::Nearest_Ship_Id(planet_id);
                             if (ship_id != -1 && (PLNTSUM::send_choice == 0 || PLNTSUM::send_choice == 1)) {
@@ -704,10 +704,10 @@ namespace PLNTSUM {
         int32_t count = (int16_t)upper_bound - first_row;
         if (count > 0) {
             for (int16_t i = 0; i < (int16_t)count; ++i) {
-                int16_t explored_planet_idx = PLNTSUM::planet_summary[first_row + i].explored;
+                const auto explored_planet_idx = PLNTSUM::planet_summary[first_row + i].planet_id.get();
 
-                if (explored_planet_idx != -1) {
-                    s_planet_data* planet = &game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(explored_planet_idx)});
+                if (explored_planet_idx != game::NO_PLANET) {
+                    s_planet_data* planet = &game::current_state.planets.at(explored_planet_idx);
 
                     // Planet animation index is determined by climate type and planet size
                     int16_t anim_idx = (int16_t)planet->climate * PLANET_SIZE_COUNT + (int16_t)planet->size;

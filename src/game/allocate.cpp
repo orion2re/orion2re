@@ -76,6 +76,7 @@ namespace allocate {
 
         // The fixed baseline budget contains the old 16-bit orbit links.
         size += ORIGINAL_MAX_STARS * 5 * (sizeof(uint32_t) - sizeof(int16_t));
+        size += 2 * ORIGINAL_MAX_PLANETS * (sizeof(uint32_t) - sizeof(int16_t));
         size += alignof(s_adv_civ_player) - 1;
 
         return (size + 3u) & ~3u;

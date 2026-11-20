@@ -17,7 +17,7 @@ namespace INITGAME {
      */
     void Init_Ships_Array() {
         orion2re::lua::game::Reset_Ship_Generations();
-        memset(MOX::ship, 0, MAX_SHIPS * sizeof(s_ship_data));
+        std::fill_n(MOX::ship, MAX_SHIPS, s_ship_data{});
 
         for (MOX::NUM_SHIPS = 0; MOX::NUM_SHIPS < MAX_SHIPS; ++MOX::NUM_SHIPS) {
             s_ship_data& ship = MOX::ship[MOX::NUM_SHIPS];

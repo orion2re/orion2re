@@ -107,10 +107,9 @@ DOCTEST_TEST_CASE("movement to assigned planet star keeps auto-colonization") {
     for (const s_case& test_case : cases) {
         TEST_SHIPMOVE::Reset_();
 
-        test_planets::Record(3).star_index = 7;
+        test_planets::Record(70000).star_index = 7;
         MOX::ship[0].d.ship_type = SHIP_TYPE_COLONY;
-        MOX::ship[0].d.ship_weapon[0].type = 3;
-        MOX::ship[0].d.ship_weapon[1].type = 1;
+        MOX::ship[0].colonization_target = game::id_planet{70000};
         MOX::ship[0].location = test_case.initial_location;
 
         int16_t ship_list[] = {0, -1};
@@ -120,8 +119,7 @@ DOCTEST_TEST_CASE("movement to assigned planet star keeps auto-colonization") {
         SHIPMOVE::Make_Ships_Move_To(ship_list, 7, &move_info);
 
         DOCTEST_CHECK((MOX::ship[0].location == test_case.expected_location));
-        DOCTEST_CHECK(MOX::ship[0].d.ship_weapon[0].type == 3);
-        DOCTEST_CHECK(MOX::ship[0].d.ship_weapon[1].type == 1);
+        DOCTEST_CHECK(MOX::ship[0].colonization_target.get() == game::id_planet{70000});
     }
 }
 
@@ -261,18 +259,16 @@ DOCTEST_TEST_CASE("new nonplayer ship lifetime advances Lua slot generation") {
 DOCTEST_TEST_CASE("movement away from assigned planet clears auto-colonization") {
     TEST_SHIPMOVE::Reset_();
 
-    test_planets::Record(3).star_index = 7;
+    test_planets::Record(70000).star_index = 7;
     MOX::ship[0].d.ship_type = SHIP_TYPE_OUTPOST;
-    MOX::ship[0].d.ship_weapon[0].type = 3;
-    MOX::ship[0].d.ship_weapon[1].type = 1;
+    MOX::ship[0].colonization_target = game::id_planet{70000};
 
     int16_t ship_list[] = {0, -1};
     s_ship_move_info move_info = {};
 
     SHIPMOVE::Make_Ships_Move_To(ship_list, 8, &move_info);
 
-    DOCTEST_CHECK(MOX::ship[0].d.ship_weapon[0].type == PLANET_INDEX_NONE);
-    DOCTEST_CHECK(MOX::ship[0].d.ship_weapon[1].type == 0);
+    DOCTEST_CHECK(MOX::ship[0].colonization_target.get() == game::NO_PLANET);
 }
 
 DOCTEST_TEST_CASE("in-flight recalculation preserves departure speed during hyperspace flux") {
