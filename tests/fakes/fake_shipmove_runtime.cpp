@@ -1,9 +1,10 @@
 #include "pch.h"
+#include "../fixtures/planet_roster.h"
 
 #include "lua/lua_game_ship_identity.h"
 
 namespace {
-    s_planet_data planets[MAX_PLANETS];
+
     s_player players[MAX_PLAYERS];
     s_ship_data ships[MAX_SHIPS];
     s_star_data stars[MAX_STARS];
@@ -24,7 +25,7 @@ namespace TEST_SHIPMOVE {
     std::vector<int16_t> message_players;
 
     void Reset_() {
-        memset(planets, 0, sizeof(planets));
+        test_planets::Reset(0);
         memset(players, 0, sizeof(players));
         memset(ships, 0, sizeof(ships));
         memset(stars, 0, sizeof(stars));
@@ -94,7 +95,6 @@ namespace MOX {
     int16_t PLAYER_NUM;
     int32_t stardate;
 
-    s_planet_data* planet = planets;
     s_player* player = players;
     s_ship_data* ship = ships;
     s_star_data* star = stars;

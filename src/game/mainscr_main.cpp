@@ -325,7 +325,7 @@ namespace MAINSCR {
                         if (ship_idx < 0) {
                             int16_t p_idx = HAROLD::Planet_Index(MOX::moveable_box[0].id, planet_idx);
 
-                            int16_t colony_id = MOX::planet[p_idx].colony_index;
+                            int16_t colony_id = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(p_idx)}).colony_index;
                             if (colony_id > -1 && colony_id < MOX::NUM_COLONIES && MOX::colony[colony_id].owner == MOX::PLAYER_NUM) {
                                 MAINSCR::Do_Colony_Screen(colony_id, &exit_flag);
                             }

@@ -449,7 +449,7 @@ namespace COLDRAW {
     void __cdecl Build_Veggie_List_Based_On_Bldg_List() {
         const int16_t initial_planet_index =
             HAROLD::Planet_Index(MOX::screen_data, COLONY::orbit_temp);
-        (void)COLONY::N_Bldgs(MOX::planet[initial_planet_index].colony_index);
+        (void)COLONY::N_Bldgs(game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(initial_planet_index)}).colony_index);
 
         COLDRAW::Clear_Veggie_Draw_Flags();
 
@@ -464,7 +464,7 @@ namespace COLDRAW {
                 const int16_t planet_index =
                     HAROLD::Planet_Index(MOX::screen_data, COLONY::orbit_temp);
                 const int16_t building_count =
-                    COLONY::N_Bldgs(MOX::planet[planet_index].colony_index);
+                    COLONY::N_Bldgs(game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_index)}).colony_index);
 
                 bool should_process_cell = false;
                 if ((int32_t)game_random::Random(7) - 2 < (int32_t)road_count) {
@@ -499,7 +499,7 @@ namespace COLDRAW {
                         HAROLD::Planet_Index(MOX::screen_data, COLONY::orbit_temp);
                     const int16_t anim_entry =
                         COLDRAW::Pick_Random_Veggie_Anim_Entry_For_Colony_CR(
-                            MOX::planet[veggie_planet_index].colony_index, row, col);
+                            game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(veggie_planet_index)}).colony_index, row, col);
 
                     COLDRAW::veggie_list[row][col].anim_entries[sprite_index] = anim_entry;
 
@@ -588,7 +588,7 @@ namespace COLDRAW {
     int16_t __cdecl Veggie_Type_For_Colony(int16_t colony_idx) {
         int16_t veggie_type = 4;
         const int16_t planet_idx = MOX::colony[colony_idx].planet;
-        const int32_t climate = MOX::planet[planet_idx].climate;
+        const int32_t climate = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).climate;
 
         switch (climate) {
             case PLANET_CLIMATE_TOXIC:

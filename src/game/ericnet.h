@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include "object_ids.h"
 
 namespace ERICNET {
     constexpr int COMBAT_REENGAGE_BUILDING_CAPACITY = BUILDING_COUNT;
@@ -42,10 +43,10 @@ namespace ERICNET {
 
     /**
      * Initializes a non-homeworld starting colony.
-     * @param planet_idx Planet that will receive the colony.
+     * @param planet_id Planet that will receive the colony.
      * @param player_idx Owning player index.
      */
-    void __cdecl Init_Non_Homeworld_Colony(int16_t planet_idx, int16_t player_idx);
+    void __cdecl Init_Non_Homeworld_Colony(game::id_planet planet_id, int16_t player_idx);
 
     /**
      * Applies periodic experience gains to all eligible ships.

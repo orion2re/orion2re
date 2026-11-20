@@ -103,7 +103,7 @@ namespace COLSUM {
                 MOX::galaxy_map_scanned_star = star_idx;
 
                 if (best_planet != -1) {
-                    COLONY::g_colony_n = MOX::planet[best_planet].colony_index;
+                    COLONY::g_colony_n = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(best_planet)}).colony_index;
                 }
             }
         }
@@ -165,7 +165,7 @@ namespace COLSUM {
 
         COLONY::g_colony_n = COLSUM::list_col[0];
         COLONY::using_colony_screen_palette = 1;
-        MOX::galaxy_map_scanned_star = MOX::planet[MOX::colony[COLONY::g_colony_n].planet].star_index;
+        MOX::galaxy_map_scanned_star = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(MOX::colony[COLONY::g_colony_n].planet)}).star_index;
         COLONY::full_draw = 1;
 
         ERICHELP::Set_Colony_Summary_Screen_Help_List();
@@ -461,8 +461,8 @@ namespace COLSUM {
             colors.colors[3] = 0xEB;
             colors.colors[4] = 0xEA;
             colors.colors[5] = 0xE9;
-            int16_t star1 = MOX::planet[MOX::colony[COLMOVE::cluster_colony_n].planet].star_index;
-            int16_t star2 = MOX::planet[MOX::colony[COLONY::g_colony_n].planet].star_index;
+            int16_t star1 = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(MOX::colony[COLMOVE::cluster_colony_n].planet)}).star_index;
+            int16_t star2 = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(MOX::colony[COLONY::g_colony_n].planet)}).star_index;
             Colsum_Connect_Galaxy_Map_Stars(star1, star2, &colors);
         }
 
@@ -524,7 +524,7 @@ namespace COLSUM {
 
         uint16_t paragraph_type;
         if (event_id == -1) {
-            s_planet_data* planet = &MOX::planet[planet_idx];
+            s_planet_data* planet = &game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)});
             int16_t star_idx = planet->star_index;
             s_star_data* star = &MOX::star[star_idx];
 
@@ -822,8 +822,8 @@ namespace COLSUM {
 
         if (field == open_colony_hotkey && COLONY::g_colony_n != -1) {
             const int16_t planet_idx = MOX::colony[COLONY::g_colony_n].planet;
-            MOX::screen_data = MOX::planet[planet_idx].star_index;
-            COLONY::orbit_temp = static_cast<int16_t>(MOX::planet[planet_idx].orbit);
+            MOX::screen_data = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).star_index;
+            COLONY::orbit_temp = static_cast<int16_t>(game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).orbit);
             MOX::return_screen = MOX::current_screen;
             MOX::current_screen = SCREEN_COLONY;
             *field_ptr = x_fields[3];
@@ -900,7 +900,7 @@ namespace COLSUM {
 
             // Accessing planet index from colony structure (size 361) and star index from planet structure (size 17)
             int16_t planet_idx = MOX::colony[colony_id].planet;
-            MOX::galaxy_map_scanned_star = MOX::planet[planet_idx].star_index;
+            MOX::galaxy_map_scanned_star = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).star_index;
         }
     }
 
@@ -926,8 +926,8 @@ namespace COLSUM {
                     int16_t colony_idx = COLSUM::list_col[i];
                     int16_t planet_idx = MOX::colony[colony_idx].planet;
 
-                    MOX::screen_data = MOX::planet[planet_idx].star_index;
-                    COLONY::orbit_temp = (int16_t)MOX::planet[planet_idx].orbit;
+                    MOX::screen_data = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).star_index;
+                    COLONY::orbit_temp = (int16_t)game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).orbit;
 
                     MOX::return_screen = MOX::current_screen;
                     MOX::current_screen = SCREEN_COLONY;
@@ -942,11 +942,11 @@ namespace COLSUM {
                 int16_t colony_idx = COLSUM::list_col[i];
                 int16_t planet_idx = MOX::colony[colony_idx].planet;
 
-                MOX::screen_data = MOX::planet[planet_idx].star_index;
-                COLONY::orbit_temp = (int16_t)MOX::planet[planet_idx].orbit;
+                MOX::screen_data = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).star_index;
+                COLONY::orbit_temp = (int16_t)game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).orbit;
 
                 int16_t target_planet = HAROLD::Planet_Index(MOX::screen_data, COLONY::orbit_temp);
-                MOX::planet[target_planet].colony_index = colony_idx;
+                game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(target_planet)}).colony_index = colony_idx;
 
                 if (COLMOVE::cluster_colony_n != -1) {
                     COLMOVE::Clear_Cluster();
@@ -960,8 +960,8 @@ namespace COLSUM {
                 int16_t colony_idx = COLSUM::list_col[i];
                 int16_t planet_idx = MOX::colony[colony_idx].planet;
 
-                MOX::screen_data = MOX::planet[planet_idx].star_index;
-                COLONY::orbit_temp = (int16_t)MOX::planet[planet_idx].orbit;
+                MOX::screen_data = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).star_index;
+                COLONY::orbit_temp = (int16_t)game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).orbit;
                 COLSUM::draw_planet_sum = 1;
             } else if (list_buy_fields[i] == current_input) {
                 COLONY::Tested_Colony_Buys_Outright(COLSUM::list_col[i]);
@@ -1011,7 +1011,7 @@ namespace COLSUM {
             &list_col_job_fields[list_idx]);
 
         COLONY::g_colony_n = colony_idx;
-        MOX::galaxy_map_scanned_star = MOX::planet[MOX::colony[colony_idx].planet].star_index;
+        MOX::galaxy_map_scanned_star = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(MOX::colony[colony_idx].planet)}).star_index;
 
         return result;
     }
@@ -1058,7 +1058,7 @@ namespace COLSUM {
         if (planet_idx == -1) {
             needs_search = true;
         } else {
-            int16_t colony_idx = MOX::planet[planet_idx].colony_index;
+            int16_t colony_idx = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).colony_index;
             if (colony_idx == -1) {
                 needs_search = true;
             } else {
@@ -1070,9 +1070,9 @@ namespace COLSUM {
 
         if (needs_search) {
             for (int16_t i = 0; i < 5; ++i) {
-                int16_t p_idx = MOX::star[star_idx].planet_index[i];
+                int16_t p_idx = legacy_world::Index(MOX::star[star_idx].orbit_planet_ids[i].get()).value_or(-1);
                 if (p_idx != -1) {
-                    int16_t c_idx = MOX::planet[p_idx].colony_index;
+                    int16_t c_idx = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(p_idx)}).colony_index;
                     if (c_idx != -1) {
                         if (MOX::colony[c_idx].owner == MOX::PLAYER_NUM) {
                             planet_idx = p_idx;

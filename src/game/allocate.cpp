@@ -12,11 +12,11 @@ namespace {
     }
 
     uint32_t Advanced_Civilization_Bytes(uint32_t star_count,
-        uint32_t planet_count) {
+        uint32_t planet_count, uint32_t candidate_bytes) {
         const uint32_t player_size =
             4 * sizeof(int16_t) + planet_count +
             star_count * sizeof(s_adv_civ_player_star) +
-            planet_count * sizeof(s_adv_civ_player_planet);
+            planet_count * candidate_bytes;
         return MAX_PLAYERS * player_size +
             star_count * star_count * sizeof(int32_t) +
             planet_count + star_count;
@@ -55,9 +55,10 @@ namespace {
     uint32_t Capacity_Dependent_Screen_Bytes(uint32_t star_count,
         uint32_t planet_count,
         uint32_t colony_count,
-        uint32_t ship_count) {
+        uint32_t ship_count,
+        uint32_t candidate_bytes) {
         return Good_Star_Bytes(star_count) +
-            Advanced_Civilization_Bytes(star_count, planet_count) +
+            Advanced_Civilization_Bytes(star_count, planet_count, candidate_bytes) +
             Map_Generation_Bytes(star_count, planet_count) +
             Planet_Summary_Bytes(star_count, planet_count, ship_count) +
             Fleet_Screen_Bytes(ship_count) +
@@ -67,10 +68,15 @@ namespace {
 
 namespace allocate {
     uint32_t Global_Screen_Space() {
+        constexpr uint32_t legacy_candidate_bytes = 10;
         uint32_t size = 0x1B5030 +
-            Capacity_Dependent_Screen_Bytes(MAX_STARS, MAX_PLANETS, MAX_COLONIES, MAX_SHIPS) -
-            Capacity_Dependent_Screen_Bytes(ORIGINAL_MAX_STARS, ORIGINAL_MAX_PLANETS, ORIGINAL_MAX_COLONIES, ORIGINAL_MAX_SHIPS) +
+            Capacity_Dependent_Screen_Bytes(MAX_STARS, MAX_PLANETS, MAX_COLONIES, MAX_SHIPS, sizeof(s_adv_civ_player_planet)) -
+            Capacity_Dependent_Screen_Bytes(ORIGINAL_MAX_STARS, ORIGINAL_MAX_PLANETS, ORIGINAL_MAX_COLONIES, ORIGINAL_MAX_SHIPS, legacy_candidate_bytes) +
             NETMOX::NETMOX_MAX_GAME_DATA_PAYLOAD_BYTES - 0xE1000u;
+
+        // The fixed baseline budget contains the old 16-bit orbit links.
+        size += ORIGINAL_MAX_STARS * 5 * (sizeof(uint32_t) - sizeof(int16_t));
+        size += alignof(s_adv_civ_player) - 1;
 
         return (size + 3u) & ~3u;
     }

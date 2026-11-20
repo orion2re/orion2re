@@ -322,7 +322,7 @@ namespace INITGAME {
         // Zero-initialize the entire colony structure
         memset(colony, 0, sizeof(s_colony));
 
-        s_planet_data* planet = &MOX::planet[planet_idx];
+        s_planet_data* planet = &game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)});
         planet->colony_index = colony_idx;
 
         colony->planet = planet_idx;
@@ -410,7 +410,7 @@ namespace INITGAME {
                 star_ptr->system_special = star_ptr->twinkling1;
                 star_ptr->twinkling1 = 0;
 
-                HOMEGEN::Upgrade_Planet_Guarded_By_Monster(game::id_planet{static_cast<uint32_t>(planet_idx)}, (int16_t)ship_type);
+                HOMEGEN::Upgrade_Planet_Guarded_By_Monster(&game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}), (int16_t)ship_type);
             }
             star_ptr++;
         }

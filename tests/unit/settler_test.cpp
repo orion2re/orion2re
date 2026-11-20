@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/planet_roster.h"
 
 #include "doctest/doctest.h"
 #include "game/settler.h"
@@ -32,8 +33,8 @@ static void Prepare_Interstar_Move_() {
     MOX::colony[0].n_pops = 2;
     MOX::colony[1].owner = 0;
     MOX::colony[1].planet = 1;
-    MOX::planet[0].star_index = 0;
-    MOX::planet[1].star_index = 1;
+    test_planets::Record(0).star_index = 0;
+    test_planets::Record(1).star_index = 1;
     MOX::player[0].n_freighters = 10000;
 }
 
@@ -71,8 +72,8 @@ DOCTEST_TEST_CASE("arrivals resolve existing planets and discard missing destina
     TEST_SETTLER::Set_Pop_Limit_(0, 5);
     auto& player = MOX::player[0];
     MOX::colony[0].owner = 0;
-    MOX::planet[0].colony_index = 0;
-    Add_Inbound_Settler_(&player, 0, MOX::planet_count);
+    test_planets::Record(0).colony_index = 0;
+    Add_Inbound_Settler_(&player, 0, static_cast<int16_t>(game::current_state.planets.size()));
     Add_Inbound_Settler_(&player, 0, 0);
     player.settlers[0].eta = 1;
     player.settlers[1].eta = 1;
@@ -154,8 +155,8 @@ DOCTEST_TEST_CASE("last population transfer follows the configured policy") {
     s_colony* destination = &MOX::colony[1];
     destination->owner = 0;
     destination->planet = 1;
-    MOX::planet[0].star_index = 0;
-    MOX::planet[1].star_index = 0;
+    test_planets::Record(0).star_index = 0;
+    test_planets::Record(1).star_index = 0;
 
     s_settler_settle_result result = {};
     SETTLER::Pop_Tries_To_Settle(source, 0, destination, &result);

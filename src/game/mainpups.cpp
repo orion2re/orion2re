@@ -123,7 +123,7 @@ namespace MAINPUPS {
             star_idx = 0;
             const auto home = MOX::player[MOX::PLAYER_NUM].home_planet_id.get();
             if (home != game::NO_PLANET && home.id > 0) {
-                star_idx = MOX::planet[home.id].star_index;
+                star_idx = current_state.planets.at(home).star_index;
             }
         }
 
@@ -318,7 +318,7 @@ namespace MAINPUPS {
 
         char chunk[256];
         buffer[0] = '\0';
-        s_planet_data* p = &MOX::planet[planet_idx];
+        s_planet_data* p = &current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)});
 
         if (p->colony_index == -1) {
             if (p->planet_type != PLANET_TYPE_PLANET) {
@@ -843,7 +843,7 @@ namespace MAINPUPS {
     bool __cdecl Random_New_Officer_Popup(int16_t player_idx) {
         const int16_t capital_colony = ERIC::Player_Capitol_World(player_idx);
         int16_t star_idx = capital_colony >= 0
-            ? MOX::planet[MOX::colony[capital_colony].planet].star_index
+            ? current_state.planets.at(game::id_planet{static_cast<uint32_t>(MOX::colony[capital_colony].planet)}).star_index
             : -1;
 
         s_colors colors;
@@ -872,7 +872,7 @@ namespace MAINPUPS {
         if (star_idx == -1) {
             const int16_t colony_idx = ERIC::Pick_Random_Colony(player_idx);
             if (colony_idx >= 0) {
-                star_idx = MOX::planet[MOX::colony[colony_idx].planet].star_index;
+                star_idx = current_state.planets.at(game::id_planet{static_cast<uint32_t>(MOX::colony[colony_idx].planet)}).star_index;
             }
         }
 
@@ -1273,7 +1273,7 @@ namespace MAINPUPS {
         s_animation_header* anim = COLONY::C_Anims(0xD);
         remap::Calculate_Picture_Remap_Colors(anim);
 
-        int16_t star_idx = MOX::planet[MOX::colony[MAINPUPS::g_data_ptr->colony_idx].planet].star_index;
+        int16_t star_idx = current_state.planets.at(game::id_planet{static_cast<uint32_t>(MOX::colony[MAINPUPS::g_data_ptr->colony_idx].planet)}).star_index;
         MAINPUPS::Do_Popup_Setup(star_idx, anims[3]);
 
         fields::Deactivate_Auto_Function();
@@ -1450,10 +1450,10 @@ namespace MAINPUPS {
 
     int8_t __cdecl Player_Has_Colony_Or_Outpost_At_Star(int16_t player_idx, int16_t star_idx) {
         for (int16_t i = 0; i < 5; ++i) {
-            int16_t planet_idx = MOX::star[star_idx].planet_index[i];
+            int16_t planet_idx = legacy_world::Index(MOX::star[star_idx].orbit_planet_ids[i].get()).value_or(-1);
 
             if (planet_idx != -1) {
-                int16_t colony_idx = MOX::planet[planet_idx].colony_index;
+                int16_t colony_idx = current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).colony_index;
 
                 if (colony_idx != -1) {
                     if (MOX::colony[colony_idx].owner == player_idx) {
@@ -2196,24 +2196,24 @@ namespace MAINPUPS {
             int16_t planet_idx = HACCESS::System_Planet_Scanned_To_Planet_Id(COLONY::sys_disp_star_handle, planet_scanned);
 
             if (selection_state_flag == 0) {
-                if (MOX::planet[planet_idx].planet_type != PLANET_TYPE_PLANET) {
+                if (current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).planet_type != PLANET_TYPE_PLANET) {
                     return fail_with_help(0x236, true, true);
                 }
 
-                int16_t col_idx = MOX::planet[planet_idx].colony_index;
+                int16_t col_idx = current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).colony_index;
                 if (col_idx != -1 && MOX::colony[col_idx].outpost_flag == 0) {
                     return fail_with_help(0x236, true, true);
                 }
             }
 
             if (selection_state_flag == 1) {
-                if (MOX::planet[planet_idx].colony_index != -1) {
+                if (current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).colony_index != -1) {
                     return fail_with_help(0x236, true, true);
                 }
             }
 
             if (selection_state_flag == 2) {
-                int16_t col_idx = MOX::planet[planet_idx].colony_index;
+                int16_t col_idx = current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).colony_index;
                 if (col_idx == -1) {
                     return fail_with_help(0x23b, true, true);
                 }
@@ -2228,7 +2228,7 @@ namespace MAINPUPS {
             }
 
             if (selection_state_flag == 3) {
-                if (MOX::planet[planet_idx].planet_type == PLANET_TYPE_PLANET) {
+                if (current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).planet_type == PLANET_TYPE_PLANET) {
                     return fail_with_help(0x235, false, false);
                 }
 
@@ -2360,8 +2360,8 @@ namespace MAINPUPS {
 
     void __cdecl Load_Combat_Colony_Picture_To_Screen_Seg(int16_t colony_idx) {
         int16_t planet_idx = MOX::colony[colony_idx].planet;
-        int16_t climate = MOX::planet[planet_idx].climate;
-        int16_t size = MOX::planet[planet_idx].size;
+        int16_t climate = current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).climate;
+        int16_t size = current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).size;
 
         int16_t pic_idx1 = size + (climate * 6);
         char* filename = ESTRINGS::E_Strings(0xDF);
@@ -2551,7 +2551,7 @@ namespace MAINPUPS {
 
         COLCALC::Compute_Potential_Colony_Info(
             &MOX::player[MOX::PLAYER_NUM],
-            &MOX::planet[planet_idx],
+            &current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}),
             &potential_info);
 
         char* planet_name = HACCESS::Get_Planet_Name(planet_idx);
@@ -2586,7 +2586,7 @@ namespace MAINPUPS {
         snprintf(chunk, sizeof(chunk), format_bonus, ESTRINGS::s_0_0055110c, ESTRINGS::s_1_00551110, (int)potential_info.worker_bonus);
         strlcat(msg_buffer, chunk, sizeof(msg_buffer));
 
-        int16_t max_pop = COLCALC::Planet_Max_Population_For_Player(&MOX::planet[planet_idx], MOX::PLAYER_NUM);
+        int16_t max_pop = COLCALC::Planet_Max_Population_For_Player(&current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}), MOX::PLAYER_NUM);
         char* format_pop = ESTRINGS::E_Strings(0x6E); /* 110 */
         snprintf(chunk, sizeof(chunk), format_pop, ESTRINGS::s_0_0055110c, ESTRINGS::s_1_00551110, (int)max_pop);
         strlcat(msg_buffer, chunk, sizeof(msg_buffer));
@@ -2884,11 +2884,11 @@ namespace MAINPUPS {
                     COLONY::sys_disp_star_handle,
                     scanned_planet_icon);
 
-                int16_t colony_idx = MOX::planet[planet_id].colony_index;
+                int16_t colony_idx = current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_id)}).colony_index;
 
                 if (colony_idx == -1) {
                     int16_t str_id;
-                    if (MOX::planet[planet_id].planet_type == PLANET_TYPE_PLANET) {
+                    if (current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_id)}).planet_type == PLANET_TYPE_PLANET) {
                         str_id = 0x250;
                     } else {
                         str_id = 0x24F;

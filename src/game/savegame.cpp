@@ -2,6 +2,7 @@
 
 #include "leader_serialization.h"
 #include "planet_serialization.h"
+#include "star_serialization.h"
 #include "settler_serialization.h"
 
 #include "game/savegame.h"
@@ -58,11 +59,6 @@ namespace SAVEGAME {
             return memcmp(&zeroed, &empty, sizeof(zeroed)) == 0;
         }
 
-        void Initialize_Unused_Planet(s_planet_data* planet) {
-            memset(planet, 0, sizeof(*planet));
-            planet->colony_index = -1;
-            planet->star_index = -1;
-        }
 
         void Initialize_Unused_Star(s_star_data* star) {
             memset(star, 0, sizeof(*star));
@@ -72,7 +68,7 @@ namespace SAVEGAME {
             star->next_wfi_in_list = -1;
             memset(star->officer_index, 0xFF, sizeof(star->officer_index));
             // Packed fields: fill bytewise rather than through int16_t&.
-            memset(star->planet_index, 0xFF, sizeof(star->planet_index));
+            for (auto& link : star->orbit_planet_ids) link = game::NO_PLANET;
             memset(star->relocate_ship_to, 0xFF, sizeof(star->relocate_ship_to));
             memset(star->surrender_to, 0xFF, sizeof(star->surrender_to));
         }
@@ -400,88 +396,6 @@ namespace SAVEGAME {
                 : (colony->last_turn_building_destroyed != 0 ? 1 : 0);
         }
 
-        void Write_Star(SERIAL::Writer_* writer, const s_star_data* star) {
-            writer->Write_Bytes(star->name, sizeof(star->name));
-            writer->Write_Int16(star->x);
-            writer->Write_Int16(star->y);
-            writer->Write_Int8(star->size);
-            writer->Write_Int8(star->owner);
-            writer->Write_Int8(star->pict_type);
-            writer->Write_Int8(star->spectral_class);
-            writer->Write_Bytes(star->last_planet_selected, sizeof(star->last_planet_selected));
-            writer->Write_Bytes(star->black_hole_blocks, sizeof(star->black_hole_blocks));
-            writer->Write_Int8(star->system_special);
-            writer->Write_Int16(star->wormhole_star_id);
-            writer->Write_Uint8(star->blockaded);
-            writer->Write_Bytes(star->blockaded_by, sizeof(star->blockaded_by));
-            writer->Write_Uint8(star->visited);
-            writer->Write_Uint8(star->just_visited);
-            writer->Write_Uint8(star->ignore_colony_ships);
-            writer->Write_Uint8(star->ignore_combat_ships);
-            writer->Write_Int8(star->colonize_player);
-            writer->Write_Uint8(star->has_colony);
-            writer->Write_Uint8(star->has_warp_field_interdictor);
-            writer->Write_Int16(star->next_wfi_in_list);
-            writer->Write_Uint8(star->has_tachyon);
-            writer->Write_Uint8(star->has_subspace);
-            writer->Write_Uint8(star->has_stargate);
-            writer->Write_Uint8(star->has_jumpgate);
-            writer->Write_Uint8(star->has_artemis_net);
-            writer->Write_Uint8(star->has_dimensional_portal);
-            writer->Write_Uint8(star->is_stagepoint);
-            writer->Write_Bytes(star->officer_index, sizeof(star->officer_index));
-            Write_Int16_Array(writer, star->planet_index, 5);
-            Write_Int16_Array(writer, star->relocate_ship_to, MAX_PLAYERS);
-            writer->Write_Int8(star->twinkling1);
-            writer->Write_Int8(star->twinkling2);
-            writer->Write_Uint8(star->not_used3);
-            writer->Write_Bytes(star->surrender_to, sizeof(star->surrender_to));
-            writer->Write_Uint8(star->in_nebula);
-            writer->Write_Uint8(star->artifacts_gave_app);
-        }
-
-        void Read_Star(SERIAL::Reader_* reader, s_star_data* star, uint16_t version) {
-            reader->Read_Bytes(star->name, sizeof(star->name));
-            star->x = reader->Read_Int16();
-            star->y = reader->Read_Int16();
-            star->size = reader->Read_Int8();
-            star->owner = reader->Read_Int8();
-            star->pict_type = reader->Read_Int8();
-            star->spectral_class = reader->Read_Int8();
-            reader->Read_Bytes(star->last_planet_selected, sizeof(star->last_planet_selected));
-            const size_t black_hole_blocks_size = version == LEGACY_VERSION ? BITMAP(ORIGINAL_MAX_STARS) : sizeof(star->black_hole_blocks);
-            reader->Read_Bytes(star->black_hole_blocks, black_hole_blocks_size);
-            memset(star->black_hole_blocks + black_hole_blocks_size, 0, sizeof(star->black_hole_blocks) - black_hole_blocks_size);
-            star->system_special = reader->Read_Int8();
-            star->wormhole_star_id = version == LEGACY_VERSION ? reader->Read_Int8() : reader->Read_Int16();
-            star->blockaded = reader->Read_Uint8();
-            reader->Read_Bytes(star->blockaded_by, sizeof(star->blockaded_by));
-            star->visited = reader->Read_Uint8();
-            star->just_visited = reader->Read_Uint8();
-            star->ignore_colony_ships = reader->Read_Uint8();
-            star->ignore_combat_ships = reader->Read_Uint8();
-            star->colonize_player = reader->Read_Int8();
-            star->has_colony = reader->Read_Uint8();
-            star->has_warp_field_interdictor = reader->Read_Uint8();
-            star->next_wfi_in_list = version == LEGACY_VERSION ? reader->Read_Uint8() : reader->Read_Int16();
-            star->has_tachyon = reader->Read_Uint8();
-            star->has_subspace = reader->Read_Uint8();
-            star->has_stargate = reader->Read_Uint8();
-            star->has_jumpgate = reader->Read_Uint8();
-            star->has_artemis_net = reader->Read_Uint8();
-            star->has_dimensional_portal = reader->Read_Uint8();
-            star->is_stagepoint = reader->Read_Uint8();
-            reader->Read_Bytes(star->officer_index, sizeof(star->officer_index));
-            Read_Int16_Array(reader, star->planet_index, 5);
-            Read_Int16_Array(reader, star->relocate_ship_to, MAX_PLAYERS);
-            star->twinkling1 = reader->Read_Int8();
-            star->twinkling2 = reader->Read_Int8();
-            star->not_used3 = reader->Read_Uint8();
-            reader->Read_Bytes(star->surrender_to, sizeof(star->surrender_to));
-            star->in_nebula = reader->Read_Uint8();
-            star->artifacts_gave_app = reader->Read_Uint8();
-        }
-
         void Write_Player(SERIAL::Writer_* writer, const s_player* player) {
             writer->Write_Int8(player->picture);
             writer->Write_Bytes(player->name, sizeof(player->name));
@@ -601,7 +515,7 @@ namespace SAVEGAME {
             Write_Int32_Array(writer, player->diplomacy_proposal_exchange_max_value, MAX_PLAYERS);
             writer->Write_Bytes(player->diplomacy_proposal_exchange_tech, sizeof(player->diplomacy_proposal_exchange_tech));
             Write_Int16_Array(writer, player->diplomacy_proposal_system_bribe, MAX_PLAYERS);
-            writer->Write_Int16(player->sneak_attack_planet);
+            writer->Write_Uint32(player->sneak_attack_planet.get().id);
             writer->Write_Int8(player->sneak_attack_message);
             writer->Write_Int8(player->sneak_attack_player);
             writer->Write_Int8(player->council_threat);
@@ -617,7 +531,7 @@ namespace SAVEGAME {
             writer->Write_Int8(player->war_buildup_duration);
             Write_Int16_Array(writer, player->last_diplomacy_proposal_turn, MAX_PLAYERS);
             Write_Int16_Array(writer, player->diplomacy_proposal_rejection, MAX_PLAYERS);
-            Write_Int16_Array(writer, player->opportunity_planet_num, MAX_PLAYERS);
+            for (const auto& target : player->opportunity_planet_id) writer->Write_Uint32(target.get().id);
             Write_Int16_Array(writer, player->opportunity_planet_value, MAX_PLAYERS);
             Write_Int32_Array(writer, player->opportunity_actual_attacker_ratio, MAX_PLAYERS);
             Write_Int16_Array(writer, player->temp_diplomacy_dummy1, MAX_PLAYERS);
@@ -651,7 +565,7 @@ namespace SAVEGAME {
             writer->Write_Bytes(player->filler, sizeof(player->filler));
         }
 
-        void Read_Player(SERIAL::Reader_* reader, s_player* player, uint16_t version, bool field_settlers, bool wide_home_planet) {
+        void Read_Player(SERIAL::Reader_* reader, s_player* player, uint16_t version, bool field_settlers, bool wide_home_planet, bool wide_attack_planets) {
             player->picture = reader->Read_Int8();
             reader->Read_Bytes(player->name, sizeof(player->name));
             reader->Read_Bytes(player->race_name, sizeof(player->race_name));
@@ -774,7 +688,8 @@ namespace SAVEGAME {
             Read_Int32_Array(reader, player->diplomacy_proposal_exchange_max_value, MAX_PLAYERS);
             reader->Read_Bytes(player->diplomacy_proposal_exchange_tech, sizeof(player->diplomacy_proposal_exchange_tech));
             Read_Int16_Array(reader, player->diplomacy_proposal_system_bribe, MAX_PLAYERS);
-            player->sneak_attack_planet = reader->Read_Int16();
+            player->sneak_attack_planet = wide_attack_planets ? game::id_planet{reader->Read_Uint32()}
+                : SERIAL::Decode_Legacy_Planet_Reference(reader->Read_Int16());
             player->sneak_attack_message = reader->Read_Int8();
             player->sneak_attack_player = reader->Read_Int8();
             player->council_threat = reader->Read_Int8();
@@ -790,7 +705,10 @@ namespace SAVEGAME {
             player->war_buildup_duration = reader->Read_Int8();
             Read_Int16_Array(reader, player->last_diplomacy_proposal_turn, MAX_PLAYERS);
             Read_Int16_Array(reader, player->diplomacy_proposal_rejection, MAX_PLAYERS);
-            Read_Int16_Array(reader, player->opportunity_planet_num, MAX_PLAYERS);
+            for (auto& target : player->opportunity_planet_id) {
+                target = wide_attack_planets ? game::id_planet{reader->Read_Uint32()}
+                    : SERIAL::Decode_Legacy_Planet_Reference(reader->Read_Int16());
+            }
             Read_Int16_Array(reader, player->opportunity_planet_value, MAX_PLAYERS);
             Read_Int32_Array(reader, player->opportunity_actual_attacker_ratio, MAX_PLAYERS);
             Read_Int16_Array(reader, player->temp_diplomacy_dummy1, MAX_PLAYERS);
@@ -996,12 +914,15 @@ namespace SAVEGAME {
             event->max_amount = reader->Read_Int16();
         }
 
-        bool Loaded_Event_Is_Valid(int type, const s_event_data& event) {
+        bool Loaded_Event_Is_Valid(const game::s_game_state& state, int type, const s_event_data& event) {
             if (event.status < 0 || event.status > 6) return false;
             if (event.status == 0 || event.status == 3) return true;
             if (event.player_idx < -1 || event.player_idx >= MOX::NUM_PLAYERS) return false;
 
             const int target = event.target_id;
+            const auto targets_planet = [&] {
+                return state.planets.contains(SERIAL::Decode_Legacy_Planet_Reference(event.target_id));
+            };
             switch (type) {
                 case EVENT_DERELICT:
                     return event.player_idx >= 0 && target >= 0 && target < TECH_APP_COUNT &&
@@ -1019,7 +940,7 @@ namespace SAVEGAME {
                 case EVENT_INDUSTRIAL_ACCIDENT:
                 case EVENT_MINERAL_DEPLETION:
                 case EVENT_MINERAL_DEPOSIT:
-                    return target >= 0 && target < MOX::planet_count;
+                    return targets_planet();
                 case EVENT_COMET:
                     return target >= 0 && target < MOX::NUM_COLONIES && event.max_amount != 0;
                 case EVENT_EARTHQUAKE:
@@ -1044,9 +965,9 @@ namespace SAVEGAME {
                     if (event.status == 1) return target >= 0 && target < MOX::NUM_STARS;
                     if (event.status == 5) return true;
                     if (event.status == 4 || event.max_amount != -1) {
-                        return target == -1 || (target >= 0 && target < MOX::planet_count);
+                        return target == -1 || targets_planet();
                     }
-                    return target == -1 || (target >= 0 && target < std::max(MOX::NUM_STARS, MOX::planet_count));
+                    return target == -1 || (target >= 0 && target < MOX::NUM_STARS) || targets_planet();
                 case EVENT_UNSTABLE_WORMHOLE:
                     return event.amount >= 0 && event.amount < MOX::NUM_STARS;
                 case EVENT_EMPIRE_GROWN_IN_STRENGTH:
@@ -1059,7 +980,7 @@ namespace SAVEGAME {
 
         // Validate incoming state once, before gameplay or config callbacks can use it.
         // Rollback checkpoints are decoded without applying this policy.
-        bool Loaded_State_Is_Valid() {
+        bool Loaded_State_Is_Valid(const game::s_game_state& state) {
             if (MOX::NUM_PLAYERS < 1 || MOX::NUM_PLAYERS > MAX_PLAYERS ||
                 MOX::PLAYER_NUM < 0 || MOX::PLAYER_NUM >= MOX::NUM_PLAYERS ||
                 MOX::max_map_scale < 1 || MOX::cur_map_scale < 1 ||
@@ -1069,19 +990,18 @@ namespace SAVEGAME {
                 if (MSG_::first_msg[i] + MSG_::n_msgs[i] > MAX_MESSAGES ||
                     MSG_::first_msg[i] + MSG_::max_msgs[i] > MAX_MESSAGES) return false;
             }
-            for (int i = 0; i < MOX::planet_count; ++i) {
-                const s_planet_data& planet = MOX::planet[i];
+            for (const auto& [id, planet] : state.planets) {
                 if (planet.star_index < -1 || planet.star_index >= MOX::NUM_STARS ||
                     planet.orbit < 0 || planet.orbit >= 5) return false;
             }
             for (int i = 0; i < MOX::NUM_STARS; ++i) {
                 for (int j = 0; j < 5; ++j) {
-                    const int16_t planet = MOX::star[i].planet_index[j];
-                    if (planet < -1 || planet >= MOX::planet_count) return false;
+                    const auto planet = MOX::star[i].orbit_planet_ids[j].get();
+                    if (planet != game::NO_PLANET && !state.planets.contains(planet)) return false;
                 }
             }
             for (int i = 0; i < EVENT_COUNT; ++i) {
-                if (!Loaded_Event_Is_Valid(i, EVENTS::event_data[i])) return false;
+                if (!Loaded_Event_Is_Valid(state, i, EVENTS::event_data[i])) return false;
             }
             return true;
         }
@@ -1435,11 +1355,12 @@ namespace SAVEGAME {
             writer->Write_Uint32(random_seed);
             writer->Write_Int16(MOX::NUM_COLONIES);
             for (int i = 0; i < MOX::NUM_COLONIES; ++i) Write_Colony(writer, &MOX::colony[i]);
-            SERIAL::Write_Dense_Planet_Block(*writer, MOX::planet, MOX::planet_count);
-            writer->Write_Int16(MOX::NUM_STARS);
-            for (int i = 0; i < MOX::NUM_STARS; ++i) Write_Star(writer, &MOX::star[i]);
+            SERIAL::Write_Planet_Block(state, *writer);
+            writer->Write_Uint16(MOX::NUM_STARS | SERIAL::WIDE_ORBIT_IDS_FLAG);
+            for (int i = 0; i < MOX::NUM_STARS; ++i) SERIAL::Write_Star(*writer, MOX::star[i]);
             SERIAL::Write_Leader_State(state, *writer);
-            writer->Write_Uint16(MOX::NUM_PLAYERS | SERIAL::FIELD_SETTLERS_FLAG | SERIAL::WIDE_HOME_PLANET_FLAG);
+            writer->Write_Uint16(MOX::NUM_PLAYERS | SERIAL::FIELD_SETTLERS_FLAG | SERIAL::WIDE_HOME_PLANET_FLAG |
+                SERIAL::WIDE_ATTACK_PLANETS_FLAG);
             for (int i = 0; i < MAX_PLAYERS; ++i) Write_Player(writer, &MOX::player[i]);
             writer->Write_Int16(MOX::NUM_SHIPS);
             for (int i = 0; i < MOX::NUM_SHIPS; ++i) Write_Ship(writer, &MOX::ship[i]);
@@ -1510,16 +1431,13 @@ namespace SAVEGAME {
                 Initialize_Unused_Colony(&MOX::colony[i]);
             }
             if (reader->Failed()) return false;
-            if (!SERIAL::Read_Dense_Planet_Block(*reader, MOX::planet, MOX::planet_count, version)) return false;
-            const int planet_record_count = version == LEGACY_VERSION ? ORIGINAL_MAX_PLANETS : MOX::planet_count;
-            for (int i = planet_record_count; i < MAX_PLANETS; ++i) {
-                Initialize_Unused_Planet(&MOX::planet[i]);
-            }
-            if (reader->Failed()) return false;
-            MOX::NUM_STARS = reader->Read_Int16();
+            if (!SERIAL::Read_Planet_Block(state, *reader, version)) return false;
+            const auto star_count_field = reader->Read_Uint16();
+            const bool wide_orbits = version >= 8 && (star_count_field & SERIAL::WIDE_ORBIT_IDS_FLAG) != 0;
+            MOX::NUM_STARS = static_cast<int16_t>(wide_orbits ? star_count_field & ~SERIAL::WIDE_ORBIT_IDS_FLAG : star_count_field);
             if (MOX::NUM_STARS < 0 || MOX::NUM_STARS > MAX_STARS) return false;
             const int star_record_count = version == LEGACY_VERSION ? ORIGINAL_MAX_STARS : MOX::NUM_STARS;
-            for (int i = 0; i < star_record_count; ++i) Read_Star(reader, &MOX::star[i], version);
+            for (int i = 0; i < star_record_count; ++i) SERIAL::Read_Star(*reader, MOX::star[i], wide_orbits, version == LEGACY_VERSION);
             for (int i = star_record_count; i < MAX_STARS; ++i) {
                 Initialize_Unused_Star(&MOX::star[i]);
             }
@@ -1528,10 +1446,11 @@ namespace SAVEGAME {
             const uint16_t player_count = reader->Read_Uint16();
             const bool field_settlers = version >= 8 && (player_count & SERIAL::FIELD_SETTLERS_FLAG) != 0;
             const bool wide_home_planet = version >= 8 && (player_count & SERIAL::WIDE_HOME_PLANET_FLAG) != 0;
+            const bool wide_attack_planets = version >= 8 && (player_count & SERIAL::WIDE_ATTACK_PLANETS_FLAG) != 0;
             MOX::NUM_PLAYERS = static_cast<int16_t>(version >= 8
-                ? player_count & ~(SERIAL::FIELD_SETTLERS_FLAG | SERIAL::WIDE_HOME_PLANET_FLAG) : player_count);
+                ? player_count & ~(SERIAL::FIELD_SETTLERS_FLAG | SERIAL::WIDE_HOME_PLANET_FLAG | SERIAL::WIDE_ATTACK_PLANETS_FLAG) : player_count);
             for (int i = 0; i < MAX_PLAYERS; ++i) {
-                Read_Player(reader, &MOX::player[i], version, field_settlers, wide_home_planet);
+                Read_Player(reader, &MOX::player[i], version, field_settlers, wide_home_planet, wide_attack_planets);
                 s_ship_design& sixth_design =
                     MOX::player[i].ship_designs[SHIP_SIZE_DOOM_STAR];
                 if (version == LEGACY_VERSION &&
@@ -1791,10 +1710,11 @@ namespace SAVEGAME {
             SERIAL::Reader_ prior_reader(prior_state, prior_state_size, "native load rollback underflow");
             s_settings ignored_settings = {};
             uint32_t ignored_seed = 0;
-            Read_Game_State(game::current_state, &prior_reader,
-                CURRENT_VERSION,
-                &ignored_settings,
-                &ignored_seed);
+            game::s_game_state prior;
+            if (!Read_Game_State(prior, &prior_reader, CURRENT_VERSION, &ignored_settings, &ignored_seed)) {
+                exitm::Exit_With_Message("unable to restore native load checkpoint");
+            }
+            game::current_state = std::move(prior);
         };
         const auto fail_after_native_read = [&]() {
             if (queued_network_lua_state) {
@@ -1806,8 +1726,13 @@ namespace SAVEGAME {
             free(prior_state);
             return false;
         };
-        if (!Read_Game_State(game::current_state, reader, metadata->version, saved_settings, random_seed) || !Loaded_State_Is_Valid()) {
-            return fail_after_native_read();
+        {
+            game::s_game_state loaded;
+            if (!Read_Game_State(loaded, reader, metadata->version, saved_settings, random_seed) ||
+                !Loaded_State_Is_Valid(loaded)) {
+                return fail_after_native_read();
+            }
+            game::current_state = std::move(loaded);
         }
         orion2re::lua::game::Begin_Semantic_State_Replacement(
             &semantic_state_replacement);

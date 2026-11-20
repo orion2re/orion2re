@@ -283,7 +283,7 @@ namespace COLONY {
         int16_t planet_idx = HAROLD::Planet_Index(MOX::screen_data, orbit_temp);
         planet_handle = planet_idx;
 
-        colony_handle = MOX::planet[planet_handle].colony_index;
+        colony_handle = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_handle)}).colony_index;
         g_scanned_star = -1;
         g_scanned_planet = -1;
         sys_disp_star_handle = star_handle;
@@ -501,7 +501,7 @@ namespace COLONY {
         switch (anim_id) {
             case 0:
                 return Cache_Load_Planet(
-                    static_cast<int16_t>(static_cast<int8_t>(MOX::planet[MOX::colony[colony_handle].planet].climate_bg_type) +
+                    static_cast<int16_t>(static_cast<int8_t>(game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(MOX::colony[colony_handle].planet)}).climate_bg_type) +
                         static_cast<uint8_t>(MOX::colony[colony_handle].climate) * 3));
             case 1:
                 return (s_animation_header*)buffer::Buffer_Reload(COLONY2_LBX, 0x31, MOX::global_cache_seg);
@@ -762,7 +762,7 @@ namespace COLONY {
             return;
         }
 
-        int16_t star_idx = MOX::planet[col->planet].star_index;
+        int16_t star_idx = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(col->planet)}).star_index;
         if ((MOX::star[star_idx].blockaded >> (MOX::PLAYER_NUM & 0x1f)) & 1) {
             GENDRAW::Help(ESTRINGS::E_Strings(ESTR_YOU_CANNOT_BUY_WHILE_THIS_STAR_IS_BLOCKADED));
             COLONY::Show_Colony_Screen();
@@ -832,7 +832,7 @@ namespace COLONY {
         fonts::Print_Centered(320, 0, buffer);
 
         int16_t colony_planet = MOX::colony[handle].planet;
-        int16_t star_idx = MOX::planet[colony_planet].star_index;
+        int16_t star_idx = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(colony_planet)}).star_index;
 
         int16_t status_msg_id = -1;
         if ((MOX::star[star_idx].blockaded >> (MOX::PLAYER_NUM & 0x1F)) & 1) {

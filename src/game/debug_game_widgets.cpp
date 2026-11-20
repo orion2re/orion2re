@@ -230,13 +230,10 @@ namespace debug_game_widgets {
         if (label == nullptr || planet_index == nullptr) {
             return false;
         }
-        const int16_t count = MOX::planet == nullptr
-            ? 0
-            : std::clamp<int16_t>(MOX::planet_count, 0, MAX_PLANETS);
         char preview[64];
         if (*planet_index < 0) {
             strlcpy(preview, "None", sizeof(preview));
-        } else if (*planet_index < count) {
+        } else if (game::current_state.planets.contains(game::id_planet{static_cast<uint32_t>(*planet_index)})) {
             snprintf(preview, sizeof(preview), "Planet %d", (int)*planet_index);
         } else {
             strlcpy(preview, "Invalid", sizeof(preview));
@@ -247,7 +244,10 @@ namespace debug_game_widgets {
                 *planet_index = -1;
                 changed = true;
             }
-            for (int16_t index = 0; index < count; ++index) {
+            for (const auto id : game::current_state.planet_order) {
+                const auto slot = legacy_world::Index(id);
+                if (!slot) continue;
+                const auto index = *slot;
                 char item[64];
                 snprintf(item, sizeof(item), "Planet %d", (int)index);
                 if (ImGui::Selectable(item, *planet_index == index)) {

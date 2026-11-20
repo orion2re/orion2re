@@ -106,7 +106,7 @@ namespace CMBTDRW1 {
             };
 
             int16_t planet_size =
-                MOX::planet[MOX::colony[MOX::cmbt_colony_id].planet].size;
+                game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(MOX::colony[MOX::cmbt_colony_id].planet)}).size;
             if (planet_size < PLANET_SIZE_TINY ||
                 planet_size >= PLANET_SIZE_COUNT) {
                 return;

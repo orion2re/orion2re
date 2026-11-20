@@ -356,12 +356,13 @@ namespace orion2re::lua::game {
                     "player home assignment is available only during galaxy generation");
             }
             id_planet planet_id{};
-            if (!internal::Read_Planet(lua_state, 2, &planet_id)) {
+            const s_planet_data* record = nullptr;
+            if (!internal::Read_Planet(lua_state, 2, &planet_id, &record)) {
                 return luaL_error(lua_state, "invalid home planet reference");
             }
             const auto index = legacy_world::Index(planet_id);
             if (!index) return luaL_error(lua_state, "home planet cannot be represented in the legacy player record");
-            s_planet_data& planet = MOX::planet[*index];
+            const auto& planet = *record;
             if (planet.planet_type != PLANET_TYPE_PLANET) {
                 return luaL_error(lua_state,
                     "player home must be a colonizable planet");

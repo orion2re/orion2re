@@ -378,12 +378,10 @@ namespace MOX {
 
     extern int16_t NUM_COLONIES;
 
-    extern int16_t planet_count;
 
     // Suggested name: MOX::climate_modifier_table
     extern int8_t climate_modifier_table[MINERAL_RESOURCE_COUNT];
 
-    extern s_planet_data* planet;
 
     extern const char* roman_literals[21];
 

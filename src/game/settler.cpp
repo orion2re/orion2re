@@ -147,8 +147,8 @@ namespace SETTLER {
                     if (settler.eta == 0) {
                         const auto dest = settler.destination.get();
                         const auto index = legacy_world::Index(dest);
-                        if (index && *index < MOX::planet_count) {
-                            const auto& planet = MOX::planet[*index];
+                        if (index && game::current_state.planets.contains(dest)) {
+                            const auto& planet = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(*index)});
                             const int16_t star_index = planet.star_index;
                             if (star_index >= 0 && star_index < MOX::NUM_STARS) {
                                 auto& arrival = arrivals[dest];
@@ -190,7 +190,7 @@ namespace SETTLER {
                 msg.u.colony.c.settlers.over_limit = arrival.over_limit;
 
                 int32_t player_idx = (int32_t)(curr_player - MOX::player);
-                int16_t star_index = MOX::planet[*planet_idx].star_index;
+                int16_t star_index = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(*planet_idx)}).star_index;
                 msg.u.colony.c.settlers.blockaded =
                     (uint8_t)(MOX::star[star_index].blockaded >> ((uint8_t)player_idx & 0x1f)) & 1;
 
@@ -226,8 +226,8 @@ namespace SETTLER {
         s_colony* dest_colony,
         s_settler_settle_result* result) {
         s_player* player = &MOX::player[source_colony->owner];
-        const int16_t source_star_idx = MOX::planet[source_colony->planet].star_index;
-        const int16_t dest_star_idx = MOX::planet[dest_colony->planet].star_index;
+        const int16_t source_star_idx = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(source_colony->planet)}).star_index;
+        const int16_t dest_star_idx = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(dest_colony->planet)}).star_index;
 
         memset(result, 0, sizeof(*result));
 
@@ -308,8 +308,8 @@ namespace SETTLER {
             s_player* owner_player = &MOX::player[(int32_t)source_colony->owner];
             const int16_t source_planet_index = source_colony->planet;
             const int16_t dest_planet_index = dest_colony->planet;
-            const int16_t source_star_index = MOX::planet[source_planet_index].star_index;
-            const int16_t dest_star_index = MOX::planet[dest_planet_index].star_index;
+            const int16_t source_star_index = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(source_planet_index)}).star_index;
+            const int16_t dest_star_index = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(dest_planet_index)}).star_index;
             POP::value_type* pop_slot = &source_colony->pop[(int32_t)pop_index];
             const POP::value_type pop_value = POP::Load(pop_slot);
             s_settler_info settler{

@@ -303,7 +303,7 @@ namespace diplomac {
         if (MOX::player[player_idx].personality == PLAYER_PERSONALITY_RUTHLESS) {
             if (Fleet_Strength_Comparison(player_idx, target_idx) >= 100) {
                 if (MOX::player[player_idx].opportunity_actual_attacker_ratio[target_idx] >= 200 &&
-                    MOX::player[player_idx].opportunity_planet_num[target_idx] != -1) {
+                    MOX::player[player_idx].opportunity_planet_id[target_idx].get() != game::NO_PLANET) {
                     int16_t opp_mod = (int16_t)(MOX::player[player_idx].opportunity_actual_attacker_ratio[target_idx] / -20);
                     if (opp_mod < min_mod) {
                         msg_id = 115 /* 0x73 */;
@@ -473,9 +473,9 @@ namespace diplomac {
                 }
             }
 
-            if (plr1->sneak_attack_planet == -1 && human_war_count == 0) {
+            if (plr1->sneak_attack_planet.get() == game::NO_PLANET && human_war_count == 0) {
                 for (int16_t p2 = 0; p2 < (int16_t)MOX::NUM_PLAYERS; ++p2) {
-                    if (plr1->opportunity_planet_num[p2] == -1) {
+                    if (plr1->opportunity_planet_id[p2].get() == game::NO_PLANET) {
                         plr1->opportunity_planet_value[p2] = 0;
                         plr1->opportunity_actual_attacker_ratio[p2] = 0;
                     }
@@ -512,7 +512,7 @@ namespace diplomac {
                     if (eval_results[p2] == 2) {
                         if (Get_Player_Diplomacy_Personality(p1, p2) != PLAYER_PERSONALITY_HONORABLE) {
                             Clear_Last_Threat_Turn(p1, p2);
-                            if (plr1->opportunity_planet_num[p2] == -1 ||
+                            if (plr1->opportunity_planet_id[p2].get() == game::NO_PLANET ||
                                 plr1->opportunity_actual_attacker_ratio[p2] <= (int32_t)eval_ratios[p2]) {
                                 plr1->war_buildup_duration = (int8_t)game_random::Random(20) + 20;
                                 if (npc_war_count > 0 && (int32_t)game_random::Random(4) < (int32_t)MOX::settings.game_difficulty) {
@@ -523,7 +523,7 @@ namespace diplomac {
                                     }
                                 }
                             } else if (plr1->opportunity_planet_value[p2] > 0) {
-                                plr1->sneak_attack_planet = plr1->opportunity_planet_num[p2];
+                                plr1->sneak_attack_planet = plr1->opportunity_planet_id[p2];
                                 plr1->sneak_attack_player = (int8_t)p2;
                                 plr1->sneak_attack_message = (int8_t)eval_messages[p2];
                                 plr1->war_buildup_duration = (int8_t)game_random::Random(20) + 20;
@@ -562,7 +562,7 @@ namespace diplomac {
                     }
                 }
             } else if (plr1->war_buildup_duration == 0) {
-                plr1->sneak_attack_planet = -1;
+                plr1->sneak_attack_planet = game::NO_PLANET;
             }
         }
     }
@@ -627,7 +627,7 @@ namespace diplomac {
                 MOX::player[i].diplomacy_proposal_tech_bribe2[j] = 0;
                 MOX::player[i].diplomacy_proposal_gold_bribe[j] = 0;
                 MOX::player[i].diplomacy_proposal_war_player[j] = 0;
-                MOX::player[i].opportunity_planet_num[j] = -1;
+                MOX::player[i].opportunity_planet_id[j] = game::NO_PLANET;
                 MOX::player[i].delayed_diplomacy_orders[j] = -1;
 
                 npcdiplo::Clear_Last_Proposal_Turn(i, j);
@@ -635,7 +635,7 @@ namespace diplomac {
             MOX::player[i].war_buildup_duration = 0;
             MOX::player[i].council_voted_for = -1;
             MOX::player[i].council_threat = -1;
-            MOX::player[i].sneak_attack_planet = -1;
+            MOX::player[i].sneak_attack_planet = game::NO_PLANET;
             MOX::player[i].sneak_attack_message = 0;
             MOX::player[i].time_since_last_lucky_event = 0;
         }
@@ -857,13 +857,13 @@ namespace diplomac {
         s_player* player_ptr = MOX::player;
         s_player& attacker = player_ptr[attacker_idx];
 
-        int16_t planet_num = attacker.opportunity_planet_num[target_idx];
+        const auto planet_id = attacker.opportunity_planet_id[target_idx].get();
         int32_t actual_ratio = attacker.opportunity_actual_attacker_ratio[target_idx];
 
-        if (planet_num != -1 && actual_ratio >= 200) {
+        if (planet_id != game::NO_PLANET && actual_ratio >= 200) {
             int16_t personality = Get_Player_Diplomacy_Personality(attacker_idx, target_idx);
             if (personality != PLAYER_PERSONALITY_HONORABLE) {
-                attacker.sneak_attack_planet = planet_num;
+                attacker.sneak_attack_planet = planet_id;
                 attacker.sneak_attack_player = (int8_t)target_idx;
                 attacker.sneak_attack_message = message_idx + 70;
                 return;
@@ -2104,7 +2104,7 @@ namespace diplomac {
                 if (MOX::player[p1].objectives == PLAYER_OBJECTIVE_HUMAN && MOX::player[p2].objectives != PLAYER_OBJECTIVE_HUMAN && MOX::player[p1].treaty[p2] != 2) {
                     auto threat = AIMOVE::Player_Threatens_Player(&AIDATA::state, &game::current, legacy_world::Player_Id(p1), legacy_world::Player_Id(p2));
                     if (threat) {
-                        int16_t col_idx = MOX::planet[legacy_world::Slot(threat->attack.planet_id)].colony_index;
+                        int16_t col_idx = game::current_state.planets.at(threat->attack.planet_id).colony_index;
                         if (col_idx != -1) {
                             auto star_index = legacy_world::Index(threat->source_star);
                             if (star_index && MOX::colony[col_idx].n_pops > 4 && threat->attack.strength_ratio_percent > 100) {

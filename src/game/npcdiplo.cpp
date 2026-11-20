@@ -346,7 +346,7 @@ namespace npcdiplo {
             int potential_targets_count = 0;
             for (int j = 0; j < MOX::NUM_PLAYERS; ++j) {
                 if (j != i && p_source.peace_duration[j] < 1) {
-                    if (p_source.treaty[j] >= 4 || p_source.sneak_attack_planet != -1) {
+                    if (p_source.treaty[j] >= 4 || p_source.sneak_attack_planet.get() != game::NO_PLANET) {
                         protective_treaties++;
                     }
                     if (decision[j] == 1) {

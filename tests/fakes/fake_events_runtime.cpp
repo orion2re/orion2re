@@ -1,8 +1,9 @@
 #include "pch.h"
+#include "../fixtures/planet_roster.h"
 
 namespace {
     s_star_data stars[MAX_STARS];
-    s_planet_data planets[MAX_PLANETS];
+
     s_colony colonies[MAX_COLONIES];
     s_player players[MAX_PLAYERS];
     s_ship_data ships[MAX_SHIPS];
@@ -26,7 +27,7 @@ namespace TEST_EVENTS {
 
     void Reset_() {
         memset(stars, 0, sizeof(stars));
-        memset(planets, 0, sizeof(planets));
+        test_planets::Reset(0);
         memset(colonies, 0, sizeof(colonies));
         memset(players, 0, sizeof(players));
         memset(ships, 0, sizeof(ships));
@@ -38,10 +39,10 @@ namespace TEST_EVENTS {
 
         for (s_star_data& star : stars) {
             for (int index = 0; index < 5; ++index) {
-                star.planet_index[index] = -1;
+                star.orbit_planet_ids[index] = game::NO_PLANET;
             }
         }
-        for (s_planet_data& planet : planets) {
+        for (auto& [id, planet] : game::current_state.planets) {
             planet.colony_index = -1;
         }
 
@@ -97,7 +98,7 @@ namespace MOX {
     int16_t NUM_COLONIES;
     uint8_t auto_turn_exit;
     s_star_data* star = stars;
-    s_planet_data* planet = planets;
+
     s_colony* colony = colonies;
     s_player* player = players;
     s_ship_data* ship = ships;
@@ -301,7 +302,7 @@ namespace BOMB {
 
     void __cdecl Destroy_Colony(s_colony* colony, int32_t) {
         if (colony->planet >= 0) {
-            MOX::planet[colony->planet].colony_index = -1;
+            test_planets::Record(colony->planet).colony_index = -1;
         }
         colony->owner = -1;
         colony->planet = -1;

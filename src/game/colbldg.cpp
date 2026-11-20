@@ -251,7 +251,7 @@ namespace COLBLDG {
         n_military_indexes = 0;
 
         s_colony& colony = MOX::colony[COLONY::colony_handle];
-        s_planet_data& planet = MOX::planet[colony.planet];
+        s_planet_data& planet = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(colony.planet)});
 
         int16_t uncolonized_worlds = Star_N_Uncolonized_Worlds(planet.star_index);
         if (N_Prods_In_Queue(BUILDING_COLONY_BASE) < uncolonized_worlds) {
@@ -477,7 +477,7 @@ namespace COLBLDG {
     int16_t __cdecl Create_Ship_From_Design(int16_t player_idx, const s_ship_design* design, int16_t colony_idx) {
         int16_t ship_idx = 0;
         int16_t planet_idx = MOX::colony[colony_idx].planet;
-        int16_t star_idx = MOX::planet[planet_idx].star_index;
+        int16_t star_idx = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).star_index;
 
         while (ship_idx < MAX_SHIPS) {
             auto& ship = MOX::ship[ship_idx];
@@ -560,7 +560,7 @@ namespace COLBLDG {
         int16_t planet_idx = HAROLD::Planet_Index(MOX::screen_data, COLONY::orbit_temp);
         COLONY::planet_handle = planet_idx;
 
-        int16_t colony_idx = MOX::planet[planet_idx].colony_index;
+        int16_t colony_idx = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).colony_index;
         COLONY::colony_handle = colony_idx;
         COLBLDG::last_app = -1;
         COLONY::using_colony_screen_palette = 1;
@@ -664,9 +664,9 @@ namespace COLBLDG {
         const s_star_data& star = MOX::star[star_index];
 
         for (int16_t i = 0; i < 5; ++i) {
-            int16_t planet_idx = star.planet_index[i];
+            int16_t planet_idx = legacy_world::Index(star.orbit_planet_ids[i].get()).value_or(-1);
             if (planet_idx != -1) {
-                const s_planet_data& planet = MOX::planet[planet_idx];
+                const s_planet_data& planet = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)});
 
                 bool is_available = false;
                 if (planet.colony_index == -1) {
@@ -1237,7 +1237,7 @@ namespace COLBLDG {
         // 5. Special case for Gravity Generator (ID 25)
         if (COLBLDG::Colony_Production_Is_Building(product_idx) && product_idx == BUILDING_GRAVITY_GENERATOR) {
             int16_t planet_idx = MOX::colony[colony_idx].planet;
-            int8_t gravity_class = MOX::planet[planet_idx].gravity_class;
+            int8_t gravity_class = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).gravity_class;
             char* gravity_str = MOX::planet_gravity_string[gravity_class];
 
             format_str = ESTRINGS::E_Strings(ESTR_GRAVITY_HERE_S);
@@ -1828,7 +1828,7 @@ namespace COLBLDG {
                 }
 
                 if (military_indexes[i] == BUILDING_COLONY_BASE) {
-                    int16_t star_idx = MOX::planet[MOX::colony[COLONY::colony_handle].planet].star_index;
+                    int16_t star_idx = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(MOX::colony[COLONY::colony_handle].planet)}).star_index;
                     int16_t uncolonized = Star_N_Uncolonized_Worlds(star_idx);
                     int16_t in_queue = N_Prods_In_Queue(BUILDING_COLONY_BASE);
 
@@ -2199,7 +2199,7 @@ namespace COLBLDG {
             int16_t n_rad = COLBLDG::N_Prods_In_Queue(COLONY_PRODUCTION_WORKER);
             int16_t n_grav = COLBLDG::N_Prods_In_Queue(COLONY_PRODUCTION_FARMER);
             uint8_t pops = MOX::colony[COLONY::colony_handle].n_pops;
-            int16_t max_pop = COLCALC::Planet_Max_Population_For_Player(&MOX::planet[planet_idx], MOX::PLAYER_NUM);
+            int16_t max_pop = COLCALC::Planet_Max_Population_For_Player(&game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}), MOX::PLAYER_NUM);
 
             if ((n_terra + n_rad + n_grav + pops + 1) >= max_pop) {
                 if (GENDRAW::Do_Confirmation_Box(ESTRINGS::E_Strings(0x208))) {

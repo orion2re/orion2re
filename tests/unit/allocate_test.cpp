@@ -68,7 +68,11 @@ DOCTEST_TEST_CASE("header-backed arena exact fits include header and alignment")
 }
 
 DOCTEST_TEST_CASE("global screen space covers expanded non-AI screen structures") {
-    DOCTEST_CHECK(allocate::Global_Screen_Space() == 0x123D668u);
+    constexpr uint32_t legacy_capacity = 0x123D668u;
+    constexpr uint32_t ranked_bytes_saved = MAX_PLAYERS * MAX_PLANETS * (10 - sizeof(s_adv_civ_player_planet));
+    constexpr uint32_t wider_orbits = MAX_STARS * 5 * (sizeof(uint32_t) - sizeof(int16_t));
+    constexpr uint32_t bytes_before_rounding = legacy_capacity - ranked_bytes_saved + wider_orbits + alignof(s_adv_civ_player) - 1;
+    DOCTEST_CHECK(allocate::Global_Screen_Space() == ((bytes_before_rounding + 3) & ~3u));
 }
 
 DOCTEST_TEST_CASE("aligned blocks preserve headers, bounds, and pool restoration") {

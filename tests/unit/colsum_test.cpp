@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/planet_roster.h"
 
 #include "doctest/doctest.h"
 #include "game/colsum.h"
@@ -27,7 +28,7 @@ namespace {
         colony->production_spent = 40;
         colony->bought_outright = 10;
 
-        s_planet_data* planet = &MOX::planet[0];
+        s_planet_data* planet = &test_planets::Record(0);
         planet->size = PLANET_SIZE_MEDIUM;
         planet->gravity_class = PLANET_GRAVITY_NORMAL_G;
         planet->mineral_class = MINERAL_RESOURCE_RICH;

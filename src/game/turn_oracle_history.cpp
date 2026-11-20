@@ -4,6 +4,7 @@
 
 #include "game/leader_serialization.h"
 #include "game/planet_serialization.h"
+#include "game/star_serialization.h"
 #include "game/settler_serialization.h"
 #include "game/savegame.h"
 #include "game/turn_oracle_history.h"
@@ -80,7 +81,7 @@ namespace turn_oracle {
             return true;
         }
 
-        std::optional<size_t> Player_Count_Offset(const std::vector<uint8_t>& bytes) {
+        std::optional<size_t> Star_Count_Offset(const std::vector<uint8_t>& bytes) {
             size_t offset = 605; // Header, settings, and seed in v7/v8.
             const auto skip = [&](size_t width, uint16_t limit, bool planets = false) {
                 if (offset > bytes.size() || bytes.size() - offset < 2) return false;
@@ -95,9 +96,38 @@ namespace turn_oracle {
                 offset += count * width;
                 return true;
             };
-            if (!skip(0x16a, 5120) || !skip(0x12, 5120, true) || !skip(0xea, 1024) ||
-                bytes.size() - offset < SERIAL::LEADER_STATE_BYTES + 2) return std::nullopt;
-            return offset + SERIAL::LEADER_STATE_BYTES;
+            if (!skip(0x16a, 5120) || !skip(0x12, 5120, true) || bytes.size() - offset < 2) return std::nullopt;
+            return offset;
+        }
+
+        std::optional<size_t> Player_Count_Offset(const std::vector<uint8_t>& bytes) {
+            const auto stars = Star_Count_Offset(bytes);
+            if (!stars) return std::nullopt;
+            const uint16_t field = bytes[*stars] | (bytes[*stars + 1] << 8);
+            const size_t width = (field & SERIAL::WIDE_ORBIT_IDS_FLAG) ? 0xf4 : 0xea;
+            const auto count = field & ~SERIAL::WIDE_ORBIT_IDS_FLAG;
+            const size_t offset = *stars + 2 + count * width + SERIAL::LEADER_STATE_BYTES;
+            if (count > 1024 || offset + 2 > bytes.size()) return std::nullopt;
+            return offset;
+        }
+
+        bool Upgrade_Orbit_Ids(std::vector<uint8_t>& bytes, size_t stars) {
+            constexpr size_t old_width = 0xea;
+            constexpr size_t orbit_offset = 0xc3;
+            const size_t count = bytes[stars] | (bytes[stars + 1] << 8);
+            const size_t start = stars + 2;
+            if (count > 1024 || count * old_width > bytes.size() - start) return false;
+            bytes[stars + 1] |= SERIAL::WIDE_ORBIT_IDS_FLAG >> 8;
+            for (size_t star = count; star-- > 0;) {
+                for (size_t orbit = 5; orbit-- > 0;) {
+                    const size_t offset = start + star * old_width + orbit_offset + orbit * 2;
+                    const int16_t raw = static_cast<int16_t>(bytes[offset] | (bytes[offset + 1] << 8));
+                    const uint8_t fill = raw < 0 ? 0xff : 0;
+                    if (raw < 0) bytes[offset] = bytes[offset + 1] = fill;
+                    bytes.insert(bytes.begin() + offset + 2, {fill, fill});
+                }
+            }
+            return true;
         }
 
         bool Upgrade_Packed_Freight(std::vector<uint8_t>& bytes, size_t player_count_offset) {
@@ -165,6 +195,38 @@ namespace turn_oracle {
             }
             return true;
         }
+
+        bool Upgrade_Attack_Planet_References(std::vector<uint8_t>& bytes, size_t player_count_offset) {
+            // Frozen offsets in the v7 player record. Freight and home IDs
+            // may already have been widened by the earlier normalization passes.
+            constexpr size_t legacy_player_bytes = 0xf0e;
+            constexpr size_t sneak_offset = 0x82c;
+            constexpr size_t opportunity_offset = 0x89c;
+            constexpr size_t player_count = 8;
+            const uint16_t flags = static_cast<uint16_t>(bytes[player_count_offset + 1] << 8);
+            const size_t growth = ((flags & SERIAL::FIELD_SETTLERS_FLAG) ? 25 * (SERIAL::SETTLER_BYTES - 8) : 0) +
+                ((flags & SERIAL::WIDE_HOME_PLANET_FLAG) ? 2 : 0);
+            const size_t players = player_count_offset + 2;
+            const size_t player_bytes = legacy_player_bytes + growth;
+            if (bytes.size() - players < player_count * player_bytes) return false;
+
+            const auto widen = [&](size_t offset) {
+                const auto id = SERIAL::Decode_Legacy_Planet_Reference(
+                    static_cast<int16_t>(bytes[offset] | (bytes[offset + 1] << 8)));
+                bytes[offset] = static_cast<uint8_t>(id.id);
+                bytes[offset + 1] = static_cast<uint8_t>(id.id >> 8);
+                bytes.insert(bytes.begin() + offset + 2,
+                    {static_cast<uint8_t>(id.id >> 16), static_cast<uint8_t>(id.id >> 24)});
+            };
+            // Work backwards so offsets of not-yet-converted fields stay valid.
+            for (size_t player = player_count; player-- > 0;) {
+                const size_t start = players + player * player_bytes + growth;
+                for (size_t target = player_count; target-- > 0;) widen(start + opportunity_offset + 2 * target);
+                widen(start + sneak_offset);
+            }
+            bytes[player_count_offset + 1] |= SERIAL::WIDE_ATTACK_PLANETS_FLAG >> 8;
+            return true;
+        }
     } // namespace
 
     bool Read_File(const std::filesystem::path& path, std::vector<uint8_t>* bytes, std::string* error) {
@@ -208,6 +270,18 @@ namespace turn_oracle {
                 *error = "invalid save prefix, planet section, or leader section: " + canonical.string() + " / " + actual.string();
                 return false;
             }
+            const auto expected_stars = Star_Count_Offset(expected_bytes);
+            const auto actual_stars = Star_Count_Offset(actual_bytes);
+            if (expected_stars && actual_stars) {
+                const bool expected_wide = (expected_bytes[*expected_stars + 1] & 0x80) != 0;
+                const bool actual_wide = (actual_bytes[*actual_stars + 1] & 0x80) != 0;
+                if (expected_wide != actual_wide &&
+                    !(expected_wide ? Upgrade_Orbit_Ids(actual_bytes, *actual_stars)
+                                    : Upgrade_Orbit_Ids(expected_bytes, *expected_stars))) {
+                    *error = "invalid legacy star orbit references";
+                    return false;
+                }
+            }
             const auto expected_offset = Player_Count_Offset(expected_bytes);
             const auto actual_offset = Player_Count_Offset(actual_bytes);
             if (expected_offset && actual_offset) {
@@ -225,6 +299,14 @@ namespace turn_oracle {
                     !(expected_wide ? Upgrade_Home_Planet_References(actual_bytes, *actual_offset)
                                     : Upgrade_Home_Planet_References(expected_bytes, *expected_offset))) {
                     *error = "invalid legacy home-planet references";
+                    return false;
+                }
+                const bool expected_attack = (expected_bytes[*expected_offset + 1] & (SERIAL::WIDE_ATTACK_PLANETS_FLAG >> 8)) != 0;
+                const bool actual_attack = (actual_bytes[*actual_offset + 1] & (SERIAL::WIDE_ATTACK_PLANETS_FLAG >> 8)) != 0;
+                if (expected_attack != actual_attack &&
+                    !(expected_attack ? Upgrade_Attack_Planet_References(actual_bytes, *actual_offset)
+                                      : Upgrade_Attack_Planet_References(expected_bytes, *expected_offset))) {
+                    *error = "invalid legacy attack-planet references";
                     return false;
                 }
             }

@@ -53,23 +53,54 @@
 - [x] Carry typed IDs through the Lua planet APIs and `planet.generated`.
       Freight records store full planet IDs in separate fields, including a
       field for opaque bits from legacy saves. Save v8 and network packets
-      encode freight field by field. Arrivals still check the legacy roster.
+      encode freight field by field. Arrivals check the keyed roster.
 - [x] Store player home planets as `id_planet`, with `NO_PLANET` for absence.
       Save v8 and player packets encode the full ID, while historical saves
       decode their signed home reference at the file boundary. The unchecked
       `legacy_world::Planet_Id` factory has been removed.
-- [x] Isolate pruning's legacy RNG order: it draws positions from a candidate
-      list but returns IDs, including sparse IDs. The legacy caller still
-      compacts its array after selection; remove that during the roster cutover.
-- [ ] Replace the legacy planet array with the ID-keyed roster. Remove dense
+- [x] Keep player sneak-attack and opportunity targets as typed IDs from AI
+      selection through diplomacy and combat. Save v8 and player packets
+      preserve the full IDs; older saves decode signed references.
+- [x] Prune the live keyed roster in canonical order. RNG selects candidate
+      positions; survivors keep their IDs and orbit/colony links.
+- [x] Lua galaxy construction mutates the keyed candidate directly. Copy
+      allocates a new ID and delete erases it without reusing it. Candidate
+      compaction and validation use that map; publication moves the validated
+      candidate into live state without remapping any planet IDs.
+- [x] Native galaxy layout rolls satellites and planet specials into the live
+      keyed roster, then homeworld setup operates on the same records.
+- [x] Run configured generation transforms and Lua generated-event callbacks
+      on a keyed roster; no callback swaps the live planet pointer.
+- [x] Apply homeworld traits to planet records without looking them up again.
+      The legacy gravity/mineral quirk still selects a target by player rank
+      in canonical planet order.
+- [x] Score and balance advanced-start candidates against the live keyed roster.
+- [x] Store star orbit links as full-width `id_planet` values, in orbit order.
+      Keep the rest of the star record packed for its later refactor. Saves
+      and multiplayer snapshots use the explicit star codec; older saves
+      decode signed orbit references. Some consumers still narrow keys for
+      older interfaces.
+- [x] Advanced-start candidate ranking carries `id_planet` in the score record.
+      Picks use positions only within the ranked list; the home planet is not
+      inserted as a candidate. Preserve the old sort's full width and the
+      negative padding at the legacy home slot for deterministic tie ordering.
+      Candidate discovery visits typed orbit links in orbit order.
+- [x] Generate a home-system planet record without using an ID or offset.
+      Callers allocate a key in the map only for a new object.
+- [x] Store canonical traversal order in `s_game_state::planet_order`.
+      Creation appends IDs, deletion preserves survivor order, and the keyed
+      map codec restores order from the v8 record sequence without a new field.
+- [x] Read and write the keyed planet map in save v8 and full snapshots.
+      Save validation checks star and event references against staged keys;
+      classical padding is consumed but not published as live planets.
+- [x] Replace the legacy planet array with the ID-keyed roster. Remove dense
       compaction, bounds checks based on the live count, and arithmetic on
-      planet pointers. Where the oracle needs positional behavior, retain a
-      temporary traversal of typed IDs without using positions for lookup or
-      renumbering records. Switch to direct map iteration after verification.
-- [ ] Migrate narrow references (star orbits, colony planet, player attack
-      targets, reports, and UI scratch state). A limit on the live
-      planet count does not bound a monotonic ID.
-- [ ] Wire the tagged planet section to the live map and its actual allocator
-      high-water mark. The current save boundary still uses `MOX::planet` and
-      deliberately rejects sparse IDs while gameplay assumes density. Switch
-      the full snapshot codec to the map at the same time.
+      planet pointers. Use `planet_order` for canonical and order-sensitive
+      traversal, not lookup or renumbering. Use direct map iteration where
+      order does not matter.
+- [ ] Widen the remaining narrow key encodings (colony links, reports,
+      incremental combat packets, and UI selections). These are IDs now, not
+      offsets, but still have signed or packed width limits. A live-count cap
+      does not bound a monotonic ID.
+- [ ] Thread `s_game_state` into the legacy call chains still reading
+      `game::current_state` directly (UI, colony rules, combat, and turn events).

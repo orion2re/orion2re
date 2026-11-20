@@ -239,7 +239,7 @@ namespace aidudes {
 
                 // TECH_APP_PLANETARY_GRAVITY_GENERATOR (131), BUILDING_GRAVITY_GENERATOR (25)
                 if (p_ai->tech_applications[TECH_APP_PLANETARY_GRAVITY_GENERATOR] == TECH_RESEARCH_STATUS_RESEARCHED && colony->buildings[BUILDING_GRAVITY_GENERATOR] == 0) {
-                    int8_t gravity = world->planets[colony->planet].gravity_class;
+                    int8_t gravity = world->state->planets.at(game::id_planet{static_cast<uint32_t>(colony->planet)}).gravity_class;
                     if (gravity == PLANET_GRAVITY_LOW_G) {
                         if (p_ai->traits[TRAIT_LOW_G_WORLD] == 0) {
                             weights[BUILDING_GRAVITY_GENERATOR] = 10;

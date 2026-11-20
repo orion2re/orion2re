@@ -39,7 +39,7 @@ namespace AIDATA {
         }
 
         int16_t ship_range = owner_ptr->ship_range;
-        int16_t colony_star_idx = world->planets[colony->planet].star_index;
+        int16_t colony_star_idx = world->state->planets.at(game::id_planet{static_cast<uint32_t>(colony->planet)}).star_index;
         int16_t evaluating_player_idx = (int16_t)(evaluating_player - world->players);
 
         int16_t total_worth = 0;
@@ -89,7 +89,7 @@ namespace AIDATA {
 
     int16_t __cdecl Colony_Worth_To_Player(s_state* ai, const game::s_view* world, id_colony colony_idx, s_colony* colony, s_player* evaluating_player) {
         int16_t evaluating_player_idx = (int16_t)(evaluating_player - world->players);
-        s_planet_data* planet = &world->planets[colony->planet];
+        s_planet_data* planet = &world->state->planets.at(game::id_planet{static_cast<uint32_t>(colony->planet)});
         const auto race_index = legacy_world::Index(ai->colonies[colony_idx].dominant_race);
         if (!race_index) return 0;
         const int16_t colony_race = *race_index;

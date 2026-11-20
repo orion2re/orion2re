@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/planet_roster.h"
 
 #include "doctest/doctest.h"
 #include "game/aipower.h"
@@ -11,7 +12,7 @@ namespace {
     s_combat_data combat_data[MAX_COMBAT_SHIPS];
     s_colony colonies[1];
     s_missile missiles[MAX_COMBAT_FLYERS];
-    s_planet_data planets[1];
+
     s_player players[MAX_PLAYERS];
     s_ship_data ships[MAX_COMBAT_SHIPS];
 
@@ -210,7 +211,7 @@ namespace MOX {
     s_combat_data* combat_data = ::combat_data;
     s_colony* colony = colonies;
     s_missile* missile = missiles;
-    s_planet_data* planet = planets;
+
     s_player* player = players;
     s_ship_data* ship = ships;
     s_animation_header* screen_seg;
@@ -751,7 +752,7 @@ DOCTEST_TEST_CASE("tactical planets use size-specific draw offsets") {
     MOX::colony[0].planet = 0;
 
     for (const s_planet_draw_offset_case test_case : cases) {
-        MOX::planet[0].size = test_case.size;
+        test_planets::Record(0).size = test_case.size;
 
         int16_t x = -1;
         int16_t y = -1;
@@ -940,7 +941,7 @@ DOCTEST_TEST_CASE("current planet minimap pulse matches static planet markers") 
         MOX::combat_grid_height = height;
         MOX::combat_data[0].y = height / 2;
         for (int8_t size = PLANET_SIZE_TINY; size < PLANET_SIZE_COUNT; ++size) {
-            MOX::planet[0].size = size;
+            test_planets::Record(0).size = size;
             drawn_positions.clear();
             CMBTDRW1::Draw_Reduced_Combat_Map();
             DOCTEST_REQUIRE_FALSE(drawn_positions.empty());

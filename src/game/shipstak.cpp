@@ -139,7 +139,7 @@ namespace SHIPSTAK {
                 for (int16_t colony_idx = 0; colony_idx < MOX::NUM_COLONIES; ++colony_idx) {
                     const s_colony& colony = MOX::colony[colony_idx];
                     if ((int16_t)(int8_t)colony.owner == player_num) {
-                        const int16_t colony_star_idx = MOX::planet[colony.planet].star_index;
+                        const int16_t colony_star_idx = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(colony.planet)}).star_index;
                         const s_star_data& colony_star = MOX::star[colony_star_idx];
 
                         int32_t range_steps = (special::Range(

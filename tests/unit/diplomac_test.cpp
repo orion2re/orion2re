@@ -13,7 +13,7 @@ namespace {
         game::s_game_state state = game::current_state;
         s_ship_data* ships = MOX::ship;
         s_star_data* stars = MOX::star;
-        s_planet_data* planets = MOX::planet;
+        game::s_game_state planets_saved_roster = game::current_state;
         s_colony* colonies = MOX::colony;
         int16_t player_count = MOX::NUM_PLAYERS;
         int16_t ship_count = MOX::NUM_SHIPS;
@@ -35,7 +35,7 @@ namespace {
             game::current_state = std::move(state);
             MOX::ship = ships;
             MOX::star = stars;
-            MOX::planet = planets;
+            game::current_state = std::move(planets_saved_roster);
             MOX::colony = colonies;
             MOX::NUM_PLAYERS = player_count;
             MOX::NUM_SHIPS = ship_count;

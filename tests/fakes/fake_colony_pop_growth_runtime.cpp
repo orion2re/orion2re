@@ -1,12 +1,12 @@
 #include "pch.h"
+#include "../fixtures/planet_roster.h"
 
 #include "fake_colony_services.h"
 #include "lua/lua_game.h"
 
 namespace {
     s_colony colonies[2];
-    // MOX::planet points past the sentinel, leaving two usable planet records.
-    s_planet_data planet_storage[3];
+
     s_player players[MAX_PLAYERS];
     s_star_data stars[2];
     s_ship_data ships[2];
@@ -40,7 +40,7 @@ namespace TEST_COLONY_POP_GROWTH {
             name = race_name;
         }
         memset(colonies, 0, sizeof(colonies));
-        memset(planet_storage, 0, sizeof(planet_storage));
+        test_planets::Reset(2);
         memset(players, 0, sizeof(players));
         memset(stars, 0, sizeof(stars));
         memset(ships, 0, sizeof(ships));
@@ -50,8 +50,7 @@ namespace TEST_COLONY_POP_GROWTH {
             TECHDATA::technology_applications,
             0,
             sizeof(TECHDATA::technology_applications));
-        planet_storage[0].colony_index = 1;
-        planet_storage[1].size = PLANET_SIZE_HUGE;
+        test_planets::Record(0).size = PLANET_SIZE_HUGE;
         colonies[1].buildings[BUILDING_CAPITOL] = 1;
         stars[0].officer_index[0] = -1;
         TECHDATA::buildings[BUILDING_CAPITOL].tech_app = TECH_APP_CAPITOL;
@@ -153,7 +152,7 @@ namespace TEST_COLONY_POP_GROWTH {
             player.last_attacker = -1;
         }
         for (auto& star : stars) {
-            memset(star.planet_index, 0xff, sizeof(star.planet_index));
+            for (auto& link : star.orbit_planet_ids) link = game::NO_PLANET;
             memset(star.officer_index, 0xff, sizeof(star.officer_index));
             memset(star.surrender_to, 0xff, sizeof(star.surrender_to));
         }
@@ -163,9 +162,9 @@ namespace TEST_COLONY_POP_GROWTH {
             for (int slot = 0; slot < 7; ++slot) {
                 colonies[i].producing[slot] = COLONY_PRODUCTION_NONE;
             }
-            MOX::planet[i].colony_index = i;
-            MOX::planet[i].star_index = i;
-            stars[i].planet_index[0] = i;
+            test_planets::Record(i).colony_index = i;
+            test_planets::Record(i).star_index = i;
+            stars[i].orbit_planet_ids[0] = game::id_planet{static_cast<uint32_t>(i)};
             stars[i].has_colony = 1;
         }
     }
@@ -235,11 +234,11 @@ namespace MOX {
     int16_t NUM_PLAYERS = 1;
     int16_t NUM_STARS = 0;
     int16_t NUM_SHIPS = 1;
-    int16_t planet_count = 2;
+
     int32_t stardate = 35000;
     char* race_names[20];
     s_colony* colony = colonies;
-    s_planet_data* planet = &planet_storage[1];
+
     s_player* player = players;
     s_star_data* star = stars;
     s_ship_data* ship = ships;

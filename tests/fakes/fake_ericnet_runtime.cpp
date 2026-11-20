@@ -1,8 +1,9 @@
 #include "pch.h"
+#include "../fixtures/planet_roster.h"
 
 namespace {
     s_colony colonies[2];
-    s_planet_data planets[2];
+
     s_star_data stars[1];
     s_ship_data ships[MAX_SHIPS];
     s_player players[MAX_PLAYERS];
@@ -18,9 +19,10 @@ namespace test::fakes {
 
 namespace MOX {
     int16_t NUM_COLONIES = 0;
+
     int16_t NUM_SHIPS = 0;
     s_colony* colony = colonies;
-    s_planet_data* planet = planets;
+
     s_star_data* star = stars;
     s_ship_data* ship = ships;
     s_player* player = players;
@@ -91,7 +93,7 @@ namespace INITGAME {
                               uint8_t player_num) {
         MOX::colony[colony_idx].planet = planet_idx;
         MOX::colony[colony_idx].owner = static_cast<int8_t>(player_num);
-        MOX::planet[planet_idx].colony_index = colony_idx;
+        test_planets::Record(planet_idx).colony_index = colony_idx;
     }
 }
 

@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/planet_roster.h"
 
 #include "doctest/doctest.h"
 #include "game/colonize.h"
@@ -465,18 +466,19 @@ DOCTEST_TEST_CASE("saved mods and canonical launch restoration refresh resources
 
 DOCTEST_TEST_CASE("invalid planet links do not escape the planet and star arrays") {
     test::s_game_state state;
-    MOX::planet_count = MOX::NUM_STARS = 1;
-    state.planets[0].star_index = 5000;
-    state.planets[0].orbit = 9;
-    state.stars[0].planet_index[0] = 5000;
-    for (int j = 1; j < 5; ++j) state.stars[0].planet_index[j] = -1;
+    test_planets::Resize_Dense(1);
+    MOX::NUM_STARS = 1;
+    test_planets::Record(0).star_index = 5000;
+    test_planets::Record(0).orbit = 9;
+    state.stars[0].orbit_planet_ids[0] = game::id_planet{5000};
+    for (int j = 1; j < 5; ++j) state.stars[0].orbit_planet_ids[j] = game::NO_PLANET;
     DOCTEST_CHECK(HAROLD::Planet_Number(0) == 0);
     DOCTEST_CHECK(HAROLD::Planet_Number(-1) == 0);
     DOCTEST_CHECK(HAROLD::Planet_Number(5000) == 0);
     HAROLD::Confirm_Planet_And_Star_Index_Link("test");
-    state.stars[0].planet_index[0] = 0;
+    state.stars[0].orbit_planet_ids[0] = game::id_planet{0};
     HAROLD::Confirm_Planet_And_Star_Index_Link("test");
-    state.planets[0].star_index = state.planets[0].orbit = 0;
+    test_planets::Record(0).star_index = test_planets::Record(0).orbit = 0;
     DOCTEST_CHECK(HAROLD::Planet_Number(0) == 0);
 }
 
@@ -523,16 +525,14 @@ DOCTEST_TEST_CASE("session settings recover missing and short files without losi
 DOCTEST_TEST_CASE("successful file load restores colony reservations and requests resource reload") {
     Fixture fixture;
     std::vector<s_colony> colonies(MAX_COLONIES);
-    std::vector<s_planet_data> planets(MAX_PLANETS);
     std::vector<s_star_data> stars(MAX_STARS);
     std::vector<s_nebula> nebulas(MAX_NEBULAS);
     MOX::colony = colonies.data();
-    MOX::planet = planets.data();
     MOX::star = stars.data();
     MOX::nebula = nebulas.data();
     MOX::global_data_seg = allocate::Allocate_Space(0x2800 + MAX_SHIPS - ORIGINAL_MAX_SHIPS);
     MOX::NUM_COLONIES = 1;
-    MOX::planet_count = 2;
+    test_planets::Reset(2);
     MOX::NUM_STARS = MOX::NUM_SHIPS = 1;
     MOX::NUM_NEBULAS = 0;
     MOX::NUM_PLAYERS = 1;
@@ -546,13 +546,13 @@ DOCTEST_TEST_CASE("successful file load restores colony reservations and request
     stars[0].planet_index[0] = 0;
     stars[0].planet_index[1] = 1;
     stars[0].colonize_player = 0;
-    planets[0].planet_type = PLANET_TYPE_PLANET;
-    planets[0].colony_index = 0;
-    planets[1].planet_type = PLANET_TYPE_PLANET;
-    planets[1].orbit = 1;
-    planets[1].colony_index = -1;
-    planets[1].food_per_farmer = 2;
-    planets[1].max_population = 8;
+    test_planets::Record(0).planet_type = PLANET_TYPE_PLANET;
+    test_planets::Record(0).colony_index = 0;
+    test_planets::Record(1).planet_type = PLANET_TYPE_PLANET;
+    test_planets::Record(1).orbit = 1;
+    test_planets::Record(1).colony_index = -1;
+    test_planets::Record(1).food_per_farmer = 2;
+    test_planets::Record(1).max_population = 8;
     colonies[0].allocated_to = -1;
     colonies[0].officer = -1;
     colonies[1].allocated_to = 0; // Reserved, but outside the v7 saved colony records.
@@ -587,11 +587,11 @@ DOCTEST_TEST_CASE("successful file load restores colony reservations and request
     fs::current_path(fixture.root);
     DOCTEST_REQUIRE(FILEDEF::Load_Game(0) == 1);
     DOCTEST_CHECK((MOX::NUM_COLONIES == 1));
-    DOCTEST_CHECK((planets[1].colony_index == -1));
+    DOCTEST_CHECK((test_planets::Record(1).colony_index == -1));
     DOCTEST_CHECK((colonies[0].allocated_to == -1));
     DOCTEST_REQUIRE((colonies[1].allocated_to == 0));
     COLONIZE::Make_New_Colony(1, 0);
-    DOCTEST_CHECK((planets[1].colony_index == 1));
+    DOCTEST_CHECK((test_planets::Record(1).colony_index == 1));
     DOCTEST_CHECK((colonies[1].planet == 1));
     DOCTEST_CHECK(CONFIG_REFRESH::Resource_Reload_Pending());
     CONFIG_REFRESH::Reload_Resources_Between_Screens();
@@ -600,7 +600,6 @@ DOCTEST_TEST_CASE("successful file load restores colony reservations and request
     free((allocate::s_alloc_header*)MOX::global_data_seg - 1);
     MOX::global_data_seg = nullptr;
     MOX::colony = nullptr;
-    MOX::planet = nullptr;
     MOX::star = nullptr;
     MOX::nebula = nullptr;
 }

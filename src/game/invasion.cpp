@@ -453,7 +453,7 @@ namespace invasion {
             colony->military[0] = limit;
         }
 
-        COLCALC::Compute_Star_Colony_Stuff(&MOX::star[MOX::planet[colony->planet].star_index]);
+        COLCALC::Compute_Star_Colony_Stuff(&MOX::star[current_state.planets.at(game::id_planet{static_cast<uint32_t>(colony->planet)}).star_index]);
     }
 
     void __cdecl Resolve_Invasion_Troops(s_invasion_side_info info) {
@@ -484,7 +484,7 @@ namespace invasion {
         }
 
         int16_t planet_idx = colony->planet;
-        int16_t star_idx = MOX::planet[planet_idx].star_index;
+        int16_t star_idx = current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).star_index;
 
         COLCALC::Compute_Star_Colony_Stuff(&MOX::star[star_idx]);
     }
@@ -668,7 +668,7 @@ namespace invasion {
         colony->occupation_policy = 4;
         colony->buildings[BUILDING_COLONY_BASE] = 0;
 
-        int16_t star_idx = MOX::planet[colony->planet].star_index;
+        int16_t star_idx = current_state.planets.at(game::id_planet{static_cast<uint32_t>(colony->planet)}).star_index;
         COLCALC::Compute_Star_Colony_Stuff(&MOX::star[star_idx]);
 
         colony->n_turns_existed = 0;

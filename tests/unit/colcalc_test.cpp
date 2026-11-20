@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/planet_roster.h"
 
 #include "doctest/doctest.h"
 
@@ -29,7 +30,7 @@ namespace {
             .players = MOX::player,
             .stars = MOX::star,
             .colonies = MOX::colony,
-            .planets = MOX::planet,
+            .state = &game::current_state,
             .settings = &MOX::settings,
             .player_count = &MOX::NUM_PLAYERS,
             .star_count = &MOX::NUM_STARS,
@@ -236,22 +237,22 @@ DOCTEST_TEST_CASE("Dimensional Portal is limited to one per player per system") 
     TEST_COLONY_POP_GROWTH::Reset_();
 
     for (int i = 0; i < 5; ++i) {
-        MOX::star[0].planet_index[i] = -1;
+        MOX::star[0].orbit_planet_ids[i] = game::NO_PLANET;
     }
-    MOX::star[0].planet_index[0] = 0;
-    MOX::star[0].planet_index[1] = 1;
+    MOX::star[0].orbit_planet_ids[0] = game::id_planet{0};
+    MOX::star[0].orbit_planet_ids[1] = game::id_planet{1};
 
     s_colony* colony = &MOX::colony[0];
     colony->owner = 0;
     colony->planet = 0;
-    MOX::planet[0].star_index = 0;
-    MOX::planet[0].colony_index = 0;
+    test_planets::Record(0).star_index = 0;
+    test_planets::Record(0).colony_index = 0;
 
     s_colony* other_colony = &MOX::colony[1];
     other_colony->owner = 1;
     other_colony->planet = 1;
-    MOX::planet[1].star_index = 0;
-    MOX::planet[1].colony_index = 1;
+    test_planets::Record(1).star_index = 0;
+    test_planets::Record(1).colony_index = 1;
     for (int i = 0; i < 7; ++i) {
         other_colony->producing[i] = COLONY_PRODUCTION_NONE;
     }
@@ -316,7 +317,7 @@ DOCTEST_TEST_CASE("configured building converts derived Toxic climate to Barren"
     s_colony* colony = &MOX::colony[0];
     colony->owner = 0;
     colony->planet = 0;
-    MOX::planet[0].climate = PLANET_CLIMATE_TOXIC;
+    test_planets::Record(0).climate = PLANET_CLIMATE_TOXIC;
 
     COLCALC::Colony_Environmental_Stuff(colony);
     DOCTEST_CHECK(colony->climate == PLANET_CLIMATE_TOXIC);
@@ -326,7 +327,7 @@ DOCTEST_TEST_CASE("configured building converts derived Toxic climate to Barren"
     COLCALC::Colony_Environmental_Stuff(colony);
 
     DOCTEST_CHECK(colony->climate == PLANET_CLIMATE_BARREN);
-    DOCTEST_CHECK(MOX::planet[0].climate == PLANET_CLIMATE_TOXIC);
+    DOCTEST_CHECK(test_planets::Record(0).climate == PLANET_CLIMATE_TOXIC);
 
     colony->buildings[BUILDING_ATMOSPHERE_RENEWER] = 0;
     COLCALC::Colony_Environmental_Stuff(colony);
@@ -567,7 +568,7 @@ DOCTEST_TEST_CASE("reported population capacities do not exceed colony storage")
         COLCALC::population_capacity.size[PLANET_SIZE_HUGE];
     COLCALC::population_capacity.size[PLANET_SIZE_HUGE] = 50;
 
-    s_planet_data* planet = &MOX::planet[0];
+    s_planet_data* planet = &test_planets::Record(0);
     planet->colony_index = -1;
     planet->size = PLANET_SIZE_HUGE;
     planet->climate = PLANET_CLIMATE_GAIA;
@@ -675,7 +676,7 @@ DOCTEST_TEST_CASE("population tables preserve climate adjustments bonuses and st
     COLCALC::population_capacity_table_enabled = true;
     MOX::player[0].traits[TRAIT_AQUATIC] = 1;
 
-    s_planet_data* planet = &MOX::planet[0];
+    s_planet_data* planet = &test_planets::Record(0);
     planet->colony_index = -1;
     planet->size = PLANET_SIZE_SMALL;
     planet->climate = PLANET_CLIMATE_TUNDRA;
@@ -717,7 +718,7 @@ DOCTEST_TEST_CASE("Android room check supports a capacity of exactly 42") {
     colony->owner = 0;
     colony->planet = 0;
     colony->climate = PLANET_CLIMATE_GAIA;
-    MOX::planet[colony->planet].size = PLANET_SIZE_HUGE;
+    test_planets::Record(colony->planet).size = PLANET_SIZE_HUGE;
 
     DOCTEST_REQUIRE(
         COLCALC::Colony_Race_Pop_Limit(
@@ -808,7 +809,7 @@ DOCTEST_TEST_CASE("Subterranean population bonus is configurable by planet size"
 DOCTEST_TEST_CASE("uncolonized planet AI separates size weight from Subterranean capacity") {
     TEST_COLONY_POP_GROWTH::Reset_();
 
-    s_planet_data* planet = &MOX::planet[0];
+    s_planet_data* planet = &test_planets::Record(0);
     planet->colony_index = -1;
     planet->planet_type = PLANET_TYPE_PLANET;
     planet->size = PLANET_SIZE_MEDIUM;
@@ -845,7 +846,7 @@ DOCTEST_TEST_CASE("configured Growth values drive both AI planet-worth consumers
         MOX::NUM_PLAYERS = 1;
         MOX::settings.game_difficulty = GAME_DIFFICULTY_TUTOR;
 
-        s_planet_data* planet = &MOX::planet[0];
+        s_planet_data* planet = &test_planets::Record(0);
         planet->planet_type = PLANET_TYPE_PLANET;
         planet->size = PLANET_SIZE_MEDIUM;
         planet->climate = PLANET_CLIMATE_GAIA;
@@ -941,7 +942,7 @@ DOCTEST_TEST_CASE("potential colony food uses the configured Aquatic Tundra trea
 DOCTEST_TEST_CASE("planet maintenance consumers preserve unsigned modifiers") {
     TEST_COLONY_POP_GROWTH::Reset_();
 
-    s_planet_data* planet = &MOX::planet[0];
+    s_planet_data* planet = &test_planets::Record(0);
     planet->planet_type = PLANET_TYPE_PLANET;
     planet->size = PLANET_SIZE_MEDIUM;
     planet->climate = PLANET_CLIMATE_TOXIC;
@@ -974,7 +975,7 @@ DOCTEST_TEST_CASE("Biomorphic Fungi climate policy is shared by colony and AI fo
     s_colony* colony = &MOX::colony[0];
     colony->owner = 0;
     colony->planet = 0;
-    s_planet_data* planet = &MOX::planet[0];
+    s_planet_data* planet = &test_planets::Record(0);
     planet->planet_type = PLANET_TYPE_PLANET;
     planet->size = PLANET_SIZE_MEDIUM;
     planet->climate = PLANET_CLIMATE_BARREN;
@@ -999,7 +1000,7 @@ DOCTEST_TEST_CASE("Biomorphic Fungi climate policy is shared by colony and AI fo
 DOCTEST_TEST_CASE("uncolonized planet AI food worth is configurable per half-food unit") {
     TEST_COLONY_POP_GROWTH::Reset_();
 
-    s_planet_data* planet = &MOX::planet[0];
+    s_planet_data* planet = &test_planets::Record(0);
     planet->planet_type = PLANET_TYPE_PLANET;
     planet->size = PLANET_SIZE_MEDIUM;
     planet->climate = PLANET_CLIMATE_GAIA;
@@ -1027,7 +1028,7 @@ DOCTEST_TEST_CASE("uncolonized planet AI food worth is configurable per half-foo
 DOCTEST_TEST_CASE("uncolonized planet special worth saturates without signed overflow") {
     TEST_COLONY_POP_GROWTH::Reset_();
 
-    s_planet_data* planet = &MOX::planet[0];
+    s_planet_data* planet = &test_planets::Record(0);
     planet->planet_type = PLANET_TYPE_PLANET;
     planet->size = PLANET_SIZE_HUGE;
     planet->climate = PLANET_CLIMATE_GAIA;
@@ -1243,7 +1244,7 @@ DOCTEST_TEST_CASE("Spy and terraforming costs use configured unsigned values") {
     };
 
     for (const s_cost_case& test_case : cases) {
-        MOX::planet[0].n_terraforms = test_case.terraform_count;
+        test_planets::Record(0).n_terraforms = test_case.terraform_count;
         DOCTEST_CHECK(COLCALC::Colony_Product_Cost(
             colony, BUILDING_TERRAFORMING) == test_case.expected_cost);
     }

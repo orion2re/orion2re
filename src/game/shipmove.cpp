@@ -715,7 +715,7 @@ namespace SHIPMOVE {
             if (ship->d.ship_type == SHIP_TYPE_COLONY || ship->d.ship_type == SHIP_TYPE_OUTPOST) {
                 int16_t planet_idx = ship->d.ship_weapon[0].type;
                 if (planet_idx == PLANET_INDEX_NONE ||
-                    MOX::planet[planet_idx].star_index != destination_star_idx) {
+                    current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).star_index != destination_star_idx) {
                     SHIPS::Clear_Auto_Colonization_Flag(ship);
                 }
             }
@@ -1306,7 +1306,7 @@ namespace SHIPMOVE {
             for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
                 s_colony* colony = &MOX::colony[i];
                 if (colony->owner != -1) {
-                    int16_t star_index = MOX::planet[colony->planet].star_index;
+                    int16_t star_index = current_state.planets.at(game::id_planet{static_cast<uint32_t>(colony->planet)}).star_index;
                     presence_mask[star_index] |= (1 << colony->owner);
                 }
             }

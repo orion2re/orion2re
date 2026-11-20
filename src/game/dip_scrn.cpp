@@ -2359,7 +2359,7 @@ namespace DIP_SCRN {
             int y_offset = 32;
             for (int16_t i = 0; i < DIP_SCRN::diplomacy_system_planet_count; ++i) {
                 int16_t planet_idx = DIP_SCRN::diplomacy_system_planet_list[i];
-                s_planet_data* planet = &MOX::planet[planet_idx];
+                s_planet_data* planet = &game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)});
 
                 snprintf(text_buffer, sizeof(text_buffer), "%s, %s", MOX::planet_size_string[planet->size], MOX::planet_climate_string[planet->climate]);
 

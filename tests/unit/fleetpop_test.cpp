@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/planet_roster.h"
 
 #include "doctest/doctest.h"
 #include "game/fleetpop.h"
@@ -159,7 +160,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "configured planet proximity determines
     MOX::ship[0].owner = 1;
     MOX::colony[0].owner = 0;
     MOX::colony[0].planet = 0;
-    MOX::planet[0].star_index = 0;
+    test_planets::Record(0).star_index = 0;
     MOX::star[0].x = 0;
     MOX::star[0].y = 0;
     MOX::player[1].traits[TRAIT_STEALTHY_SHIPS] = 1;
@@ -179,7 +180,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_fleet_state, "configured planet proximity determines
     MOX::ship[0].owner = 1;
     MOX::colony[0].owner = 0;
     MOX::colony[0].planet = 0;
-    MOX::planet[0].star_index = 0;
+    test_planets::Record(0).star_index = 0;
     MOX::star[0].x = 0;
     MOX::star[0].y = 0;
     MOX::player[1].traits[TRAIT_STEALTHY_SHIPS] = 1;

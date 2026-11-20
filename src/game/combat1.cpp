@@ -1456,7 +1456,7 @@ namespace COMBAT1 {
                             if (MOX::cmbt_colony_id == -1) {
                                 dim = 6;
                             } else {
-                                int8_t planet_size = MOX::planet[MOX::colony[MOX::cmbt_colony_id].planet].size;
+                                int8_t planet_size = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(MOX::colony[MOX::cmbt_colony_id].planet)}).size;
                                 switch (planet_size) {
                                     case PLANET_SIZE_TINY: dim = 3; break;
                                     case PLANET_SIZE_SMALL: dim = 4; break;

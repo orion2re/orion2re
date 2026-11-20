@@ -4,7 +4,7 @@
 #include <string>
 
 struct s_planet_data;
-namespace game { struct id_planet; }
+namespace game { struct id_planet; struct s_game_state; }
 
 namespace MAPGEN {
     constexpr int32_t STAR_NAME_COUNT = 829;
@@ -179,10 +179,11 @@ namespace MAPGEN {
     bool Copy_Generated_Star_Name(int16_t star_idx, char* name, size_t name_size);
     int16_t __cdecl Generate_Number_Of_Satellites(int16_t star_idx);
     void __cdecl Planet_Generation(int16_t star_idx);
+    void Planet_Generation(game::s_game_state& state, int16_t star_idx);
     /** Assigns one generated special to a star system and updates summary counts. */
-    void __cdecl Generate_Star_Special(int16_t star_idx, int16_t* wormhole_out, uint8_t* special_counts);
+    void Generate_Star_Special(game::s_game_state& state, int16_t star_idx, int16_t* wormhole_out, uint8_t* special_counts);
     /** Re-rolls black holes that overlap nebulae into habitable stars. */
-    void __cdecl Black_Hole_Fix(int16_t galaxy_age);
+    void Black_Hole_Fix(game::s_game_state& state, int16_t galaxy_age);
 
     /** Removes excess non-home, non-gas-giant planets until the map reaches the requested cap. */
     void __cdecl Enforce_Planet_Max(int16_t max_planets);
@@ -215,6 +216,8 @@ namespace MAPGEN {
      * @param excluded_mask Bitmask of specials to skip during selection.
      */
     void __cdecl Get_A_Planet_Or_Star_Special(int16_t star_idx, int16_t* wormhole_out, int8_t* special_out, uint8_t commit_changes, int32_t excluded_mask);
+    void Get_A_Planet_Or_Star_Special(game::s_game_state& state, int16_t star_idx, int16_t* wormhole_out,
+        int8_t* special_out, uint8_t commit_changes, int32_t excluded_mask);
 
     /** Loads animation frames for each generated nebula type. */
     void __cdecl Load_Nebula_Pictures();

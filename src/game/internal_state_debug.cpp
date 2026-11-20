@@ -290,13 +290,11 @@ namespace INTERNAL_STATE_DEBUG {
                 return false;
             }
             for (int16_t orbit = 0; orbit < 5; ++orbit) {
-                const int16_t planet = MOX::star[star].planet_index[orbit];
-                const int16_t planet_count = std::clamp<int16_t>(
-                    MOX::planet_count, 0, MAX_PLANETS);
-                if (planet < 0 || planet >= planet_count) {
+                const auto it = current_state.planets.find(MOX::star[star].orbit_planet_ids[orbit].get());
+                if (it == current_state.planets.end()) {
                     continue;
                 }
-                const int16_t colony = MOX::planet[planet].colony_index;
+                const int16_t colony = it->second.colony_index;
                 if (Valid_Colony_(colony) && MOX::colony[colony].owner == player) {
                     return true;
                 }
@@ -309,11 +307,8 @@ namespace INTERNAL_STATE_DEBUG {
                 return -1;
             }
             const int16_t planet = MOX::colony[colony].planet;
-            const int16_t planet_count = std::clamp<int16_t>(
-                MOX::planet_count, 0, MAX_PLANETS);
-            return planet >= 0 && planet < planet_count
-                ? MOX::planet[planet].star_index
-                : -1;
+            const auto it = current_state.planets.find(game::id_planet{static_cast<uint32_t>(planet)});
+            return it == current_state.planets.end() ? -1 : it->second.star_index;
         }
 
         bool Player_Has_Leader_Slot_(int16_t player, int8_t type) {
@@ -765,11 +760,10 @@ namespace INTERNAL_STATE_DEBUG {
         }
 
         bool Planet_Relationship_Valid_(int16_t planet) {
-            if (MOX::planet == nullptr || planet < 0 ||
-                planet >= std::clamp<int16_t>(MOX::planet_count, 0, MAX_PLANETS)) {
+            if (planet < 0 || !current_state.planets.contains(game::id_planet{static_cast<uint32_t>(planet)})) {
                 return false;
             }
-            const int16_t colony = MOX::planet[planet].colony_index;
+            const int16_t colony = current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet)}).colony_index;
             return colony == -1 ||
                 (Valid_Colony_(colony) && MOX::colony[colony].planet == planet);
         }
@@ -780,8 +774,8 @@ namespace INTERNAL_STATE_DEBUG {
             }
             const int16_t planet = MOX::colony[colony].planet;
             return Planet_Relationship_Valid_(planet) &&
-                MOX::planet[planet].colony_index == colony &&
-                Valid_Star_(MOX::planet[planet].star_index);
+                current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet)}).colony_index == colony &&
+                Valid_Star_(current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet)}).star_index);
         }
 
         bool Star_Relationship_Valid_(int16_t star) {
@@ -789,9 +783,9 @@ namespace INTERNAL_STATE_DEBUG {
                 return false;
             }
             for (int16_t orbit = 0; orbit < 5; ++orbit) {
-                const int16_t planet = MOX::star[star].planet_index[orbit];
+                const int16_t planet = legacy_world::Index(MOX::star[star].orbit_planet_ids[orbit].get()).value_or(-1);
                 if (planet != -1 && (!Planet_Relationship_Valid_(planet) ||
-                        MOX::planet[planet].star_index != star)) {
+                        current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet)}).star_index != star)) {
                     return false;
                 }
             }

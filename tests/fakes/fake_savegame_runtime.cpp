@@ -12,8 +12,8 @@ namespace MOX {
     s_settings settings = {};
     uint8_t NUM_NEBULAS = 0;
     int16_t NUM_COLONIES = 0;
-    int16_t planet_count = 0;
-    s_planet_data* planet = nullptr;
+
+
     int16_t NUM_SHIPS = 0;
     int16_t max_zoom_count = 0;
     uint8_t star_bg_index = 0;

@@ -24,12 +24,11 @@ namespace MAINSCR_DEBUG {
         }
 
         void Draw_Planet_(int16_t planet_index) {
-            const int16_t planet_count = std::clamp<int16_t>(MOX::planet_count, 0, MAX_PLANETS);
-            if (MOX::planet == nullptr || planet_index < 0 || planet_index >= planet_count) {
+            if (planet_index < 0 || !game::current_state.planets.contains(game::id_planet{static_cast<uint32_t>(planet_index)})) {
                 return;
             }
 
-            const s_planet_data& planet = MOX::planet[planet_index];
+            const s_planet_data& planet = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_index)});
             char name[64];
             const int16_t star_count = std::min<int16_t>(MOX::NUM_STARS, MAX_STARS);
             if (MOX::star != nullptr && planet.star_index >= 0 && planet.star_index < star_count) {
@@ -86,7 +85,7 @@ namespace MAINSCR_DEBUG {
             }
 
             for (int32_t orbit = 0; orbit < 5; ++orbit) {
-                Draw_Planet_(star.planet_index[orbit]);
+                Draw_Planet_(legacy_world::Index(star.orbit_planet_ids[orbit].get()).value_or(-1));
             }
             ImGui::TreePop();
         }

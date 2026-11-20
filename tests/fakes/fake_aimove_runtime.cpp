@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/planet_roster.h"
 
 #include "game/legacy_world.h"
 
@@ -7,7 +8,7 @@ namespace {
     s_star_data stars[MAX_STARS];
     s_player players[MAX_PLAYERS];
     s_colony colonies[MAX_COLONIES];
-    s_planet_data planets[MAX_PLANETS];
+
     int16_t spawn_count;
     int move_attempt_count;
 }
@@ -15,11 +16,11 @@ namespace {
 namespace TEST_AIMOVE {
     const game::s_view* World_() {
         static game::s_view world;
+        world.state = &game::current_state;
         world.players = players;
         world.ships = ships;
         world.stars = stars;
         world.colonies = colonies;
-        world.planets = planets;
         world.player_count = &MOX::NUM_PLAYERS;
         world.ship_count = &MOX::NUM_SHIPS;
         world.star_count = &MOX::NUM_STARS;
@@ -32,7 +33,7 @@ namespace TEST_AIMOVE {
         memset(stars, 0, sizeof(stars));
         memset(players, 0, sizeof(players));
         memset(colonies, 0, sizeof(colonies));
-        memset(planets, 0, sizeof(planets));
+        test_planets::Reset(0);
 
         MOX::NUM_SHIPS = 1;
         MOX::NUM_STARS = 2;
@@ -46,7 +47,7 @@ namespace TEST_AIMOVE {
         ships[0].d.speed = 1;
         colonies[0].owner = 0;
         colonies[0].planet = 0;
-        planets[0].star_index = 1;
+        test_planets::Record(0).star_index = 1;
         spawn_count = 0;
         move_attempt_count = 0;
     }
@@ -87,7 +88,7 @@ namespace MOX {
     s_star_data* star = stars;
     s_player* player = players;
     s_colony* colony = colonies;
-    s_planet_data* planet = planets;
+
 }
 
 namespace INITSHIP {

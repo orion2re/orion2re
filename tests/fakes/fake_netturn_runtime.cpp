@@ -55,8 +55,8 @@ namespace MOX {
     s_nebula* nebula = nullptr;
     uint8_t NUM_NEBULAS = 0;
     int16_t NUM_COLONIES = 0;
-    int16_t planet_count = 0;
-    s_planet_data* planet = nullptr;
+
+
     int16_t NUM_SHIPS = 0;
     s_ship_data* ship = nullptr;
     s_colony* colony = nullptr;

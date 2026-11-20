@@ -12,7 +12,7 @@ namespace OCPOLPUP {
         int16_t owner_index;
 
         planet_index = HAROLD::Planet_Index(MOX::screen_data, COLONY::orbit_temp);
-        colony_index = MOX::planet[planet_index].colony_index;
+        colony_index = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_index)}).colony_index;
         occupation_policy_value = (uint16_t)(uint8_t)MOX::colony[colony_index].occupation_policy;
 
         fonts::Set_Font_Style_Shadow_Down(1, &font_colors);
@@ -22,7 +22,7 @@ namespace OCPOLPUP {
         fields::Deactivate_Auto_Function();
 
         planet_index = HAROLD::Planet_Index(MOX::screen_data, COLONY::orbit_temp);
-        colony_index = MOX::planet[planet_index].colony_index;
+        colony_index = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_index)}).colony_index;
         owner_index = MOX::colony[colony_index].owner;
 
         if (MOX::player[owner_index].traits[TRAIT_CURRENT_GOVERNMENT] != GOVERNMENT_DEMOCRACY && MOX::player[owner_index].traits[TRAIT_CURRENT_GOVERNMENT] != GOVERNMENT_FEDERATION) {
@@ -36,7 +36,7 @@ namespace OCPOLPUP {
         }
 
         planet_index = HAROLD::Planet_Index(MOX::screen_data, COLONY::orbit_temp);
-        colony_index = MOX::planet[planet_index].colony_index;
+        colony_index = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_index)}).colony_index;
         MOX::colony[colony_index].occupation_policy = (char)occupation_policy_value;
 
         fields::Deactivate_Help_List();

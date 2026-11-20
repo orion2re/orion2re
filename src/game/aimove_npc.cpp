@@ -162,7 +162,7 @@ namespace AIMOVE {
             int8_t owner = world->colonies[i].owner;
             if (owner != -1) {
                 int16_t planet_idx = world->colonies[i].planet;
-                int16_t star_idx = world->planets[planet_idx].star_index;
+                int16_t star_idx = world->state->planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).star_index;
 
                 if (ship_location != star_idx && star_flags[star_idx] == 0) {
                     if (world->players[owner].traits[TRAIT_LUCKY] == 0) {

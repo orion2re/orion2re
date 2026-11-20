@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/planet_roster.h"
 
 #include "doctest/doctest.h"
 #include "game/colbldg.h"
@@ -102,25 +103,25 @@ DOCTEST_TEST_CASE_FIXTURE(s_building_state, "enemy outpost is not a colony base 
     TEST_COLBLDG::Reset_();
 
     for (int16_t i = 0; i < 5; ++i) {
-        MOX::star[0].planet_index[i] = i;
-        MOX::planet[i].planet_type = PLANET_TYPE_PLANET;
+        MOX::star[0].orbit_planet_ids[i] = game::id_planet{static_cast<uint32_t>(i)};
+        test_planets::Record(i).planet_type = PLANET_TYPE_PLANET;
     }
 
-    MOX::planet[0].colony_index = 0;
+    test_planets::Record(0).colony_index = 0;
     MOX::colony[0].owner = 0;
 
-    MOX::planet[1].colony_index = -1;
+    test_planets::Record(1).colony_index = -1;
 
-    MOX::planet[2].colony_index = 1;
+    test_planets::Record(2).colony_index = 1;
     MOX::colony[1].owner = 0;
     MOX::colony[1].outpost_flag = 1;
 
-    MOX::planet[3].colony_index = 2;
+    test_planets::Record(3).colony_index = 2;
     MOX::colony[2].owner = 1;
     MOX::colony[2].outpost_flag = 1;
 
-    MOX::planet[4].colony_index = -1;
-    MOX::planet[4].planet_type = PLANET_TYPE_ASTEROID;
+    test_planets::Record(4).colony_index = -1;
+    test_planets::Record(4).planet_type = PLANET_TYPE_ASTEROID;
 
     DOCTEST_CHECK(COLBLDG::Star_N_Uncolonized_Worlds(0) == 2);
 }
@@ -130,14 +131,14 @@ DOCTEST_TEST_CASE_FIXTURE(s_building_state, "queuing the last legal Colony Base 
 
     MOX::colony[0].owner = 0;
     MOX::colony[0].planet = 0;
-    MOX::planet[0].colony_index = 0;
-    MOX::planet[0].planet_type = PLANET_TYPE_PLANET;
-    MOX::planet[0].star_index = 0;
-    MOX::planet[1].colony_index = -1;
-    MOX::planet[1].planet_type = PLANET_TYPE_PLANET;
-    MOX::planet[1].star_index = 0;
-    MOX::star[0].planet_index[0] = 0;
-    MOX::star[0].planet_index[1] = 1;
+    test_planets::Record(0).colony_index = 0;
+    test_planets::Record(0).planet_type = PLANET_TYPE_PLANET;
+    test_planets::Record(0).star_index = 0;
+    test_planets::Record(1).colony_index = -1;
+    test_planets::Record(1).planet_type = PLANET_TYPE_PLANET;
+    test_planets::Record(1).star_index = 0;
+    MOX::star[0].orbit_planet_ids[0] = game::id_planet{0};
+    MOX::star[0].orbit_planet_ids[1] = game::id_planet{1};
     TEST_COLBLDG::Set_Buildable_(BUILDING_COLONY_BASE, true);
 
     COLBLDG::Calculate_Military_Array();
@@ -173,7 +174,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_building_state, "pending refit design owns an indepe
 DOCTEST_TEST_CASE_FIXTURE(s_building_state, "ship allocation appends without a pre-seeded owner") {
     TEST_COLBLDG::Reset_();
     MOX::colony[0].planet = 0;
-    MOX::planet[0].star_index = 0;
+    test_planets::Record(0).star_index = 0;
     MOX::NUM_SHIPS = 1;
     MOX::ship[0].owner = 0;
     MOX::ship[0].status = 0;
@@ -193,7 +194,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_building_state, "ship allocation appends without a p
 DOCTEST_TEST_CASE_FIXTURE(s_building_state, "ship allocation reuses only an owner-matched destroyed slot") {
     TEST_COLBLDG::Reset_();
     MOX::colony[0].planet = 0;
-    MOX::planet[0].star_index = 0;
+    test_planets::Record(0).star_index = 0;
     MOX::NUM_SHIPS = 2;
     MOX::ship[0].owner = 0;
     MOX::ship[0].status = 5;
@@ -213,7 +214,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_building_state, "ship allocation reuses only an owne
 DOCTEST_TEST_CASE_FIXTURE(s_building_state, "ship allocation fails when capacity has no reusable slot") {
     TEST_COLBLDG::Reset_();
     MOX::colony[0].planet = 0;
-    MOX::planet[0].star_index = 0;
+    test_planets::Record(0).star_index = 0;
     MOX::NUM_SHIPS = MAX_SHIPS;
     for (int16_t ship_idx = 0; ship_idx < MAX_SHIPS; ++ship_idx) {
         MOX::ship[ship_idx].owner = 0;

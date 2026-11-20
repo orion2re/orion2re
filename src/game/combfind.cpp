@@ -71,7 +71,7 @@ namespace COMBFIND {
             int8_t owner = MOX::colony[i].owner;
             if (owner != -1) {
                 int16_t planet_idx = MOX::colony[i].planet;
-                int16_t star_idx = MOX::planet[planet_idx].star_index;
+                int16_t star_idx = current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).star_index;
                 (*star_has_player)[star_idx][owner].colony_count++;
             }
         }
@@ -539,7 +539,7 @@ namespace COMBFIND {
             s_colony* colony = &MOX::colony[i];
 
             if (colony->owner == player_idx) {
-                int16_t target_star_idx = MOX::planet[colony->planet].star_index;
+                int16_t target_star_idx = current_state.planets.at(game::id_planet{static_cast<uint32_t>(colony->planet)}).star_index;
 
                 if (target_star_idx != star_idx && target_star_idx != closest_star_idx) {
                     if (!struct_::Test_Bit_Field(src_star->black_hole_blocks, target_star_idx)) {
@@ -572,9 +572,9 @@ namespace COMBFIND {
 
         if (star_idx < MOX::NUM_STARS) {
             for (int i = 0; i < 5; ++i) {
-                int16_t planet_idx = MOX::star[star_idx].planet_index[i];
+                int16_t planet_idx = legacy_world::Index(MOX::star[star_idx].orbit_planet_ids[i].get()).value_or(-1);
                 if (planet_idx >= 0) {
-                    int16_t colony_idx = MOX::planet[planet_idx].colony_index;
+                    int16_t colony_idx = current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).colony_index;
                     if (colony_idx >= 0) {
                         if (Player_May_Attack_Player(player_idx, MOX::colony[colony_idx].owner)) {
                             target.colony_targets[target.num_colony_targets] = colony_idx;
@@ -696,11 +696,11 @@ namespace COMBFIND {
 
     int16_t __cdecl Find_Planet_At_Star_Satisfying(s_star_data* star, bool(__cdecl* predicate)(s_planet_data*)) {
         for (int16_t i = 0; i < 5; ++i) {
-            int16_t planet_idx = star->planet_index[i];
+            int16_t planet_idx = legacy_world::Index(star->orbit_planet_ids[i].get()).value_or(-1);
 
             if (planet_idx != -1) {
                 // Accessing the planet data via the global planet array
-                if (predicate(&MOX::planet[planet_idx])) {
+                if (predicate(&current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}))) {
                     return planet_idx;
                 }
             }
@@ -724,7 +724,7 @@ namespace COMBFIND {
             return -1;
         }
 
-        return MOX::planet[planet_idx].colony_index;
+        return current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).colony_index;
     }
 
     s_colony* __cdecl Free_Colony_Slot() {
@@ -815,7 +815,7 @@ namespace COMBFIND {
                             pop_val = (pop_val & ~0xF) | (player_idx & 0xF);
                             pop_val = (pop_val & ~0x70) | ((player_idx << 4) & 0x70);
 
-                            if (MOX::planet[planet_idx].food_per_farmer == 0 || MOX::player[player_idx].traits[TRAIT_EATS_MINERALS] != 0) {
+                            if (current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).food_per_farmer == 0 || MOX::player[player_idx].traits[TRAIT_EATS_MINERALS] != 0) {
                                 int r = game_random::Random(2);
                                 pop_val = (((r << 7) ^ pop_val) & 0x180) ^ pop_val;
                             } else if (MOX::player[player_idx].traits[TRAIT_CYBERNETIC] == 0) {
@@ -984,12 +984,15 @@ namespace COMBFIND {
             s_player* player = &MOX::player[player_idx];
             int16_t sneak_attack_target = -1;
 
-            if (player->sneak_attack_planet != -1) {
-                if (MOX::planet[player->sneak_attack_planet].star_index == star_idx) {
+            const auto attack_planet = player->sneak_attack_planet.get();
+            if (attack_planet != game::NO_PLANET && star_idx >= 0 && star_idx < MOX::NUM_STARS) {
+                for (int orbit = 0; orbit < 5; ++orbit) {
+                    if (MOX::star[star_idx].orbit_planet_ids[orbit].get() != attack_planet) continue;
                     sneak_attack_target = (int16_t)player->sneak_attack_player;
-                    player->sneak_attack_planet = -1;
+                    player->sneak_attack_planet = game::NO_PLANET;
                     player->sneak_attack_player = -1;
                     player->war_buildup_duration = 0;
+                    break;
                 }
             }
 
@@ -1968,7 +1971,7 @@ namespace COMBFIND {
         int8_t attacker_id = ships[ship_idx].owner;
         s_colony* colony = &MOX::colony[colony_idx];
         int16_t planet_idx = colony->planet;
-        int16_t star_idx = MOX::planet[planet_idx].star_index;
+        int16_t star_idx = current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).star_index;
         int8_t colony_owner = colony->owner;
 
         if (colony->outpost_flag != 0) {
@@ -1999,9 +2002,9 @@ namespace COMBFIND {
                                 BOMB::Destroy_Colony(colony, 2);
                                 ERIC::Play_Planetary_Destruction_Flic();
                                 COMBFIND::current_star_has_player[colony_owner].colony_count--;
-                                MOX::planet[planet_idx].planet_type = PLANET_TYPE_ASTEROID;
-                                if (MOX::planet[planet_idx].planet_special != SYSTEM_SPECIAL_NO_SPECIAL) {
-                                    MOX::planet[planet_idx].planet_special = SYSTEM_SPECIAL_NO_SPECIAL;
+                                current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).planet_type = PLANET_TYPE_ASTEROID;
+                                if (current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).planet_special != SYSTEM_SPECIAL_NO_SPECIAL) {
+                                    current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).planet_special = SYSTEM_SPECIAL_NO_SPECIAL;
                                     MOX::star[star_idx].system_special = SYSTEM_SPECIAL_NO_SPECIAL;
                                 }
                                 NETMOX::Russ_Change_Relations(-10000, attacker_id, colony_owner, 10, star_idx, old_n_pops);
@@ -2090,7 +2093,7 @@ namespace COMBFIND {
                     COMBFIND::current_star_has_player[colony_owner].colony_count--;
                 } else {
                     bool has_stellar = Has_Stellar_Converter(ship_list, n_ships);
-                    int16_t enemy_star_idx = MOX::planet[colony->planet].star_index;
+                    int16_t enemy_star_idx = current_state.planets.at(game::id_planet{static_cast<uint32_t>(colony->planet)}).star_index;
                     bool knows_attacker = false;
                     uint8_t surrendered = 0;
                     uint8_t terminal_destroyed = 0;
@@ -2243,8 +2246,8 @@ namespace COMBFIND {
                 attacker_id == NONPLAYER_SHIP_TYPE_AMOEBA;
 
             if (amoeba_attacked_colony) {
-                MOX::planet[planet_idx].climate = PLANET_CLIMATE_TOXIC;
-                MOX::planet[planet_idx].food_per_farmer = 0;
+                current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).climate = PLANET_CLIMATE_TOXIC;
+                current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).food_per_farmer = 0;
                 if (results->bomb.colony_wiped_out == 0) {
                     COLCALC::Colony_Environmental_Stuff(colony);
                     invasion::Enforce_Population_Limits_At_Colony(colony);
@@ -2344,7 +2347,7 @@ namespace COMBFIND {
                 &res->info.attacker_invasion,
                 &res->info.defender_invasion,
                 res->info.ground_defense_strength,
-                MOX::planet[res->player_info.combat_planet_id].colony_index);
+                current_state.planets.at(game::id_planet{static_cast<uint32_t>(res->player_info.combat_planet_id)}).colony_index);
 
             MULTPLAY::Load_Net_Next_Turn_Screen(1);
             game_random::Set_Random_Seed(seed);

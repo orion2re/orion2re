@@ -834,9 +834,9 @@ namespace DIP_SCRN {
         // Check if the player has any colonies in this system using a bitmask
         if ((star->has_colony >> (uint8_t)player_idx) & 1) {
             for (int16_t i = 0; i < 5; ++i) {
-                int16_t planet_idx = star->planet_index[i];
+                int16_t planet_idx = legacy_world::Index(star->orbit_planet_ids[i].get()).value_or(-1);
                 if (planet_idx != -1) {
-                    int16_t colony_idx = MOX::planet[planet_idx].colony_index;
+                    int16_t colony_idx = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).colony_index;
                     if (colony_idx != -1) {
                         s_colony* colony = &MOX::colony[colony_idx];
                         if (colony->owner == (int8_t)player_idx) {
@@ -986,12 +986,11 @@ namespace DIP_SCRN {
 
                 if (valid_opportunity) {
                     auto attack = AIMOVE::Find_Opportunity_Attack(&AIDATA::state, &game::current, legacy_world::Player_Id(p_idx), legacy_world::Player_Id(target_idx), 100);
-                    auto planet_index = attack ? legacy_world::Index(attack->planet_id) : std::nullopt;
-                    player.opportunity_planet_num[target_idx] = planet_index.value_or(-1);
-                    player.opportunity_planet_value[target_idx] = planet_index ? attack->colony_value : 0;
-                    player.opportunity_actual_attacker_ratio[target_idx] = planet_index ? attack->strength_ratio_percent : 0;
+                    player.opportunity_planet_id[target_idx] = attack ? attack->planet_id : game::NO_PLANET;
+                    player.opportunity_planet_value[target_idx] = attack ? attack->colony_value : 0;
+                    player.opportunity_actual_attacker_ratio[target_idx] = attack ? attack->strength_ratio_percent : 0;
                 } else {
-                    player.opportunity_planet_num[target_idx] = -1;
+                    player.opportunity_planet_id[target_idx] = game::NO_PLANET;
                     player.opportunity_planet_value[target_idx] = 0;
                     player.opportunity_actual_attacker_ratio[target_idx] = 0;
                 }
@@ -1422,8 +1421,8 @@ namespace DIP_SCRN {
                         Diplomacy_Display_Response();
                         break;
                     case 0x6a:
-                        if (MOX::player[current_ambassador].opportunity_planet_num[MOX::PLAYER_NUM] != -1) {
-                            MOX::player[current_ambassador].sneak_attack_planet = MOX::player[current_ambassador].opportunity_planet_num[MOX::PLAYER_NUM];
+                        if (MOX::player[current_ambassador].opportunity_planet_id[MOX::PLAYER_NUM].get() != game::NO_PLANET) {
+                            MOX::player[current_ambassador].sneak_attack_planet = MOX::player[current_ambassador].opportunity_planet_id[MOX::PLAYER_NUM];
                             MOX::player[current_ambassador].sneak_attack_player = (int8_t)MOX::PLAYER_NUM;
                             MOX::player[current_ambassador].sneak_attack_message =
                                 (uint8_t)MOX::player[current_ambassador].diplomacy_demand_rejection_message[MOX::PLAYER_NUM];

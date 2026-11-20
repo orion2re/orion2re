@@ -958,7 +958,7 @@ namespace TECH {
 
         strlcpy(buffer, " ", sizeof(buffer));
 
-        int16_t star_idx = MOX::planet[planet_idx].star_index;
+        int16_t star_idx = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).star_index;
         char planet_num = HAROLD::Planet_Number(planet_idx);
 
         const char* numeral_str;

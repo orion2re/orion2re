@@ -623,7 +623,7 @@ namespace MAINSCR2 {
         star_id = MAINPUPS::Drop_Troops_Selection_Popup(star_id);
 
         if (star_id >= 0) {
-            int16_t colony_index = MOX::planet[star_id].colony_index;
+            int16_t colony_index = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(star_id)}).colony_index;
             if (colony_index >= 0) {
                 if (MOX::colony[colony_index].owner == MOX::PLAYER_NUM) {
                     int16_t ship_ids[MAX_SHIPS];

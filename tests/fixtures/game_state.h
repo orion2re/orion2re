@@ -1,6 +1,7 @@
 #pragma once
 
 #include "pch.h"
+#include "../fixtures/planet_roster.h"
 #include "game/legacy_world.h"
 #include "lua/lua_game_ship_identity.h"
 
@@ -31,7 +32,6 @@ namespace test {
         std::vector<s_player> players = std::vector<s_player>(MAX_PLAYERS);
         std::vector<s_ship_data> ships = std::vector<s_ship_data>(MAX_SHIPS);
         std::vector<s_star_data> stars = std::vector<s_star_data>(MAX_STARS + 1);
-        std::vector<s_planet_data> planets = std::vector<s_planet_data>(MAX_PLANETS);
         std::vector<s_colony> colonies = std::vector<s_colony>(MAX_COLONIES);
         s_current_design design = {};
         std::vector<uint64_t> generations = std::vector<uint64_t>(MAX_SHIPS);
@@ -40,7 +40,6 @@ namespace test {
         s_player* old_players = MOX::player;
         s_ship_data* old_ships = MOX::ship;
         s_star_data* old_stars = MOX::star;
-        s_planet_data* old_planets = MOX::planet;
         s_colony* old_colonies = MOX::colony;
         game::s_game_state old_state = std::move(game::current_state);
         s_current_design* old_design = MOX::design;
@@ -49,7 +48,6 @@ namespace test {
         int16_t old_player_count = MOX::NUM_PLAYERS;
         int16_t old_ship_count = MOX::NUM_SHIPS;
         int16_t old_star_count = MOX::NUM_STARS;
-        int16_t old_planet_count = MOX::planet_count;
         int16_t old_colony_count = MOX::NUM_COLONIES;
         int32_t old_stardate = MOX::stardate;
         uint32_t old_seed = game_random::Get_Random_Seed();
@@ -59,7 +57,6 @@ namespace test {
             MOX::player = players.data();
             MOX::ship = ships.data();
             MOX::star = stars.data();
-            MOX::planet = planets.data();
             MOX::colony = colonies.data();
             game::current_state = game::s_game_state{};
             MOX::design = &design;
@@ -68,7 +65,6 @@ namespace test {
             MOX::NUM_PLAYERS = 0;
             MOX::NUM_SHIPS = 0;
             MOX::NUM_STARS = 0;
-            MOX::planet_count = 0;
             MOX::NUM_COLONIES = 0;
             MOX::stardate = 35000;
             for (auto& leader : game::current_state.leaders) {
@@ -82,7 +78,6 @@ namespace test {
             MOX::player = old_players;
             MOX::ship = old_ships;
             MOX::star = old_stars;
-            MOX::planet = old_planets;
             MOX::colony = old_colonies;
             game::current_state = std::move(old_state);
             MOX::design = old_design;
@@ -91,7 +86,6 @@ namespace test {
             MOX::NUM_PLAYERS = old_player_count;
             MOX::NUM_SHIPS = old_ship_count;
             MOX::NUM_STARS = old_star_count;
-            MOX::planet_count = old_planet_count;
             MOX::NUM_COLONIES = old_colony_count;
             MOX::stardate = old_stardate;
             game_random::Set_Random_Seed(old_seed);

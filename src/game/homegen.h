@@ -1,7 +1,7 @@
 #pragma once
 #include <cstdint>
 
-namespace game { struct id_planet; }
+struct s_planet_data;
 
 namespace HOMEGEN {
 #pragma pack(push, 1)
@@ -86,25 +86,26 @@ namespace HOMEGEN {
     void __cdecl Remove_Specials(int16_t star_idx);
 
     /** Sets a planet's size field. */
-    void __cdecl Set_Planet_Size(int16_t planet_index, int8_t size);
+    void __cdecl Set_Planet_Size(s_planet_data& planet, int8_t size);
 
     /** Forces a planet to medium size and refreshes dependent farm data. */
-    void __cdecl Enforce_Medium_Planet_Size(int16_t planet_idx);
+    void __cdecl Enforce_Medium_Planet_Size(s_planet_data& planet);
 
     /** Forces the specified body to be a normal planet. */
-    void __cdecl Enforce_Planet_Type(int16_t star_idx, int16_t planet_idx);
+    void __cdecl Enforce_Planet_Type(s_planet_data& planet);
 
     /** Forces a planet to at least abundant mineral richness. */
-    void __cdecl Enforce_Planet_Abundant_Mineral_Class(int16_t planet_idx);
+    void __cdecl Enforce_Planet_Abundant_Mineral_Class(s_planet_data& planet);
 
     /** Forces a planet to the requested mineral richness and adjusts gravity data. */
-    void __cdecl Enforce_Mineral_Richness(int16_t planet_index, int16_t mineral_class);
+    void __cdecl Enforce_Mineral_Richness(s_planet_data& planet, int16_t mineral_class);
 
     /** Marks a planet and its star with the artifacts special. */
-    void __cdecl Set_System_Planet_Artifact_Special(int16_t planet_idx, int16_t star_idx);
+    void __cdecl Set_System_Planet_Artifact_Special(s_planet_data& planet, int16_t star_idx);
 
     /** Sets homeworld gravity and downgrades invalid ultra-rich starts when needed. */
-    void __cdecl Enforce_Gravity(int16_t planet_idx, int8_t gravity_class, int16_t player_idx);
+    void __cdecl Enforce_Gravity(s_planet_data& planet, s_planet_data& mineral_target,
+        int8_t gravity_class, bool heavy_gravity_trait);
 
     /** Guarantees a nearby planet-bearing system within min_dist of a home star. */
     void __cdecl Guarantee_A_Planet_At_Min_Dist(int16_t star_idx, int16_t min_dist, int16_t* home_star_ids);
@@ -118,8 +119,8 @@ namespace HOMEGEN {
     /** Chooses a usable orbit slot in a star system. */
     int16_t __cdecl Usable_Orbit(int16_t star_idx);
 
-    /** Creates or rewrites a planet record in the given system orbit. */
-    void __cdecl Make_One_Planet(game::id_planet planet_id, int16_t star_idx, int16_t orbit_idx, int8_t is_food_planet);
+    /** Generates the record for a system orbit without allocating or linking it. */
+    s_planet_data __cdecl Make_One_Planet(int16_t star_idx, int16_t orbit_idx, int8_t is_food_planet);
 
     /** Ensures a system contains at least three planetary bodies. */
     void __cdecl Enforce_3_Planet_Minimum(int16_t star_idx);
@@ -131,7 +132,7 @@ namespace HOMEGEN {
     void __cdecl Set_Special_For_Star_Guarded_By_Monster(s_star_data* star, int16_t monster_type);
 
     /** Upgrades a monster-guarded planet and refreshes its parent star special. */
-    void __cdecl Upgrade_Planet_Guarded_By_Monster(game::id_planet planet_id, int16_t monster_type);
+    void __cdecl Upgrade_Planet_Guarded_By_Monster(s_planet_data* planet, int16_t monster_type);
 
     /** Returns whether the supplied star currently has a real planet. */
     bool __cdecl Star_Has_Planet(int16_t star_index);

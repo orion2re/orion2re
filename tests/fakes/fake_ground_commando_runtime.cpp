@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/planet_roster.h"
 
 #include "doctest/doctest.h"
 #include "game/officer_roster.h"
@@ -6,7 +7,7 @@
 namespace {
     s_player players[2];
     s_colony colonies[2];
-    s_planet_data planets[1];
+
     s_star_data stars[1];
     s_ship_data ships[2];
     int16_t officer_ids[MAX_LEADERS];
@@ -45,14 +46,14 @@ namespace test_ground_commando_runtime {
         game::current_state = game::s_game_state{};
         memset(players, 0, sizeof(players));
         memset(colonies, 0, sizeof(colonies));
-        memset(planets, 0, sizeof(planets));
+        test_planets::Reset(1);
         memset(stars, 0, sizeof(stars));
         memset(ships, 0, sizeof(ships));
         memset(&animation, 0, sizeof(animation));
         colonies[0].planet = 0;
         MOX::NUM_COLONIES = 1;
         colonies[0].owner = 0;
-        planets[0].star_index = 0;
+        test_planets::Record(0).star_index = 0;
         players[0].home_planet_id = game::NO_PLANET;
         players[1].home_planet_id = game::NO_PLANET;
         for (int skill_idx = 0; skill_idx < 54; ++skill_idx) {
@@ -149,7 +150,7 @@ namespace MOX {
     s_colony* colony = colonies;
     s_star_data* star = stars;
     void* global_cache_seg;
-    s_planet_data* planet = planets;
+
     s_ship_data* ship = ships;
     s_settings settings = {};
     int16_t NUM_COLONIES = 1;

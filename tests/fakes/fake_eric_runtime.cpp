@@ -1,11 +1,12 @@
 #include "pch.h"
+#include "../fixtures/planet_roster.h"
 #include <stdexcept>
 #include "doctest/doctest.h"
 
 namespace test_eric_runtime {
     s_player players[2];
     s_colony colonies[4];
-    s_planet_data planets[4];
+
     s_ship_data ships[MAX_SHIPS];
     int16_t last_help_string;
     char help_string[1];
@@ -110,14 +111,14 @@ namespace test_eric_runtime {
         MOX::NUM_COLONIES = 1;
         memset(players, 0, sizeof(players));
         memset(colonies, 0, sizeof(colonies));
-        memset(planets, 0, sizeof(planets));
+        test_planets::Reset(4);
         memset(ships, 0, sizeof(ships));
         game::current_state = game::s_game_state{};
 
         players[0].traits[TRAIT_TELEPATHIC] = 1;
         colonies[0].owner = 1;
         colonies[0].planet = 0;
-        planets[0].star_index = 3;
+        test_planets::Record(0).star_index = 3;
 
         ships[0].owner = 0;
         ships[0].status = 0;
@@ -170,7 +171,7 @@ namespace MOX {
     uint8_t dont_draw_main_screen_to_back;
     s_player* player = test_eric_runtime::players;
     s_colony* colony = test_eric_runtime::colonies;
-    s_planet_data* planet = test_eric_runtime::planets;
+
     s_ship_data* ship = test_eric_runtime::ships;
 }
 
