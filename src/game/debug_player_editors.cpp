@@ -353,10 +353,10 @@ namespace debug_game_editors {
             for (int32_t index = 0; index < player.settlers_freighted; ++index) {
                 const SETTLER::value_type value = player.settlers[index].val;
                 const int16_t source = SETTLER::Get_Source_Colony(value);
-                const int16_t destination = SETTLER::Get_Dest_Planet(value);
+                const auto destination = SETTLER::Get_Dest_Planet(value);
                 if ((source != SETTLER::SOURCE_COLONY_IN_TRANSIT &&
                         (source < 0 || source >= MOX::NUM_COLONIES)) ||
-                    destination < 0 || destination >= MOX::planet_count ||
+                    !destination || legacy_world::Slot(*destination) >= static_cast<uint32_t>(MOX::planet_count) ||
                     SETTLER::Get_Race(value) > POP::RACE_NATIVE ||
                     SETTLER::Get_Prof(value) > POP::PROF_SCIENTIST) {
                     return false;
@@ -443,7 +443,8 @@ namespace debug_game_editors {
                 "Settler slot", &g_settler_slot, 0, MAX_FREIGHTED_SETTLERS - 1);
             s_settler_info& settler = player.settlers[g_settler_slot];
             int16_t source = SETTLER::Get_Source_Colony(settler.val);
-            int16_t destination = SETTLER::Get_Dest_Planet(settler.val);
+            const auto destination_id = SETTLER::Get_Dest_Planet(settler.val);
+            int16_t destination = destination_id ? legacy_world::Index(*destination_id).value_or(-1) : -1;
             uint8_t race = (uint8_t)SETTLER::Get_Race(settler.val);
             uint8_t eta = (uint8_t)SETTLER::Get_Eta(settler.val);
             int8_t job = (int8_t)SETTLER::Get_Prof(settler.val);
@@ -451,8 +452,8 @@ namespace debug_game_editors {
                 SETTLER::Set_Source_Colony(&settler.val, source);
             }
             if (debug_game_widgets::Planet_Reference(
-                    "dest_planet", &destination, false)) {
-                SETTLER::Set_Dest_Planet(&settler.val, destination);
+                    "dest_planet", &destination, false) && destination >= 0) {
+                (void)SETTLER::Try_Set_Dest_Planet(&settler.val, legacy_world::Planet_Id(destination));
             }
             if (Input_U8_("race", &race)) {
                 SETTLER::Set_Race(&settler.val, race);

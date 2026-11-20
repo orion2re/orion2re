@@ -235,6 +235,7 @@ namespace MOX {
     int16_t NUM_PLAYERS = 1;
     int16_t NUM_STARS = 0;
     int16_t NUM_SHIPS = 1;
+    int16_t planet_count = 2;
     int32_t stardate = 35000;
     char* race_names[20];
     s_colony* colony = colonies;

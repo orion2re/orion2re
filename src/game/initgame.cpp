@@ -1,6 +1,7 @@
 #include "pch.h"
 
 #include "leader_serialization.h"
+#include "legacy_ids.h"
 #include "legacy_world.h"
 #include "string_overrides.h"
 
@@ -409,7 +410,7 @@ namespace INITGAME {
                 star_ptr->system_special = star_ptr->twinkling1;
                 star_ptr->twinkling1 = 0;
 
-                HOMEGEN::Upgrade_Planet_Guarded_By_Monster(&MOX::planet[planet_idx], (int16_t)ship_type);
+                HOMEGEN::Upgrade_Planet_Guarded_By_Monster(legacy_world::Planet_Id(planet_idx), (int16_t)ship_type);
             }
             star_ptr++;
         }

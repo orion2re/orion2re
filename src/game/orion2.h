@@ -1,5 +1,6 @@
 #include <cstddef>
 #include "leader_data.h"
+#include "planet_data.h"
 #include "unaligned.h"
 
 #pragma pack(push, 1)
@@ -28,7 +29,6 @@ struct s_adv_civ_player {
     int16_t candidate_planet_count;
     int16_t settled_planet_count;
     int16_t furthest_star_dist_from_home;
-    int8_t has_planet[MAX_PLANETS];
     struct s_adv_civ_player_star stars[MAX_STARS];
     struct s_adv_civ_player_planet planets[MAX_PLANETS];
 };
@@ -1964,27 +1964,6 @@ typedef struct s_parsec s_parsec, *Ps_parsec;
 
 struct s_parsec {
     int32_t dist[MAX_STARS];
-};
-
-typedef struct s_planet_data s_planet_data, *Ps_planet_data;
-
-struct s_planet_data {
-    int16_t colony_index;
-    int16_t star_index;
-    int8_t orbit;
-    int8_t planet_type;
-    int8_t size;
-    int8_t gravity_class;
-    int8_t group;
-    int8_t climate;
-    int8_t climate_bg_type;
-    int8_t mineral_class;
-    uint8_t food_per_farmer;
-    uint8_t n_terraforms;
-    uint8_t max_farms;
-    uint8_t max_population;
-    int8_t planet_special;
-    int8_t environmental_alterations;
 };
 
 typedef struct s_planet_max_farms s_planet_max_farms, *Ps_planet_max_farms;

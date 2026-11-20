@@ -318,16 +318,17 @@ namespace orion2re::lua::game {
     }
 
     void Planet_Generated(const s_planet_generated_event* event) {
+        const int16_t planet_idx = legacy_world::Index(event->planet_id).value();
         if (first_generated_planet_event_order == 0) {
             first_generated_planet_event_order = ++generated_event_sequence;
         }
         generated_planet_order[generated_planet_event_calls++] =
-            event->planet_id;
-        if (event->planet_id == fail_generated_planet) {
+            planet_idx;
+        if (planet_idx == fail_generated_planet) {
             throw std::runtime_error("generated planet event failed");
         }
-        s_planet_data& planet = MOX::planet[event->planet_id];
-        if (event->planet_id == 0 &&
+        s_planet_data& planet = MOX::planet[planet_idx];
+        if (planet_idx == 0 &&
             planet.size == PLANET_SIZE_HUGE &&
             planet.climate == PLANET_CLIMATE_GAIA &&
             planet.planet_special == SYSTEM_SPECIAL_GOLD_DEPOSITS) {

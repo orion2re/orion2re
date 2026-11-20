@@ -1,5 +1,7 @@
 #include "pch.h"
 
+#include "game/legacy_ids.h"
+
 #include "lua/lua_game.h"
 
 #include <climits>
@@ -109,7 +111,7 @@ namespace orion2re::lua::game {
             const int object = lua_gettop(lua_state);
             lua_newtable(lua_state);
             const int values = lua_gettop(lua_state);
-            lua_pushinteger(lua_state, event->planet_id);
+            lua_pushinteger(lua_state, legacy_world::Slot(event->planet_id));
             lua_setfield(lua_state, values, "planet_id");
             lua_newtable(lua_state);
             lua_pushvalue(lua_state, values);
@@ -263,18 +265,18 @@ namespace orion2re::lua::game {
         if (runtime_count == 0 || !Setup_Callback_Allowed_()) {
             return;
         }
-        if (event == nullptr || MOX::planet == nullptr ||
+        const auto planet_idx = event ? legacy_world::Index(event->planet_id) : std::nullopt;
+        if (!planet_idx || MOX::planet == nullptr ||
             MOX::star == nullptr || MOX::planet_count < 0 ||
             MOX::planet_count > MAX_PLANETS || MOX::NUM_STARS < 0 ||
-            MOX::NUM_STARS > MAX_STARS || event->planet_id < 0 ||
-            event->planet_id >= MOX::planet_count) {
+            MOX::NUM_STARS > MAX_STARS || *planet_idx >= MOX::planet_count) {
             exitm::Exit_With_Message("invalid planet.generated Lua event");
         }
-        const s_planet_data& planet = MOX::planet[event->planet_id];
+        const s_planet_data& planet = MOX::planet[*planet_idx];
         if (planet.star_index < 0 || planet.star_index >= MOX::NUM_STARS ||
             planet.orbit < 0 || planet.orbit >= 5 ||
             MOX::star[planet.star_index].planet_index[planet.orbit] !=
-                event->planet_id) {
+                *planet_idx) {
             exitm::Exit_With_Message("invalid planet.generated planet");
         }
 

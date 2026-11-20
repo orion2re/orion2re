@@ -128,7 +128,7 @@ namespace {
         s_colony* colony = &MOX::colony[0];
         colony->owner = 0;
         colony->planet = 0;
-        SETTLER::Set_Dest_Planet(&MOX::player[0].settlers[0].val, colony->planet);
+        DOCTEST_REQUIRE(SETTLER::Try_Set_Dest_Planet(&MOX::player[0].settlers[0].val, legacy_world::Planet_Id(colony->planet)));
         MOX::player[0].settlers_freighted = 1;
         return colony;
     }

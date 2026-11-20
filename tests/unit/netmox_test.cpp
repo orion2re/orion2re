@@ -3,6 +3,7 @@
 #include "doctest/doctest.h"
 #include "game/world_view.h"
 #include "game/leader_serialization.h"
+#include "game/planet_serialization.h"
 
 #include <array>
 #include <cstring>
@@ -67,7 +68,7 @@ namespace {
             sizeof(uint16_t) +
             (MAX_STARS + 1) * sizeof(s_star_data) +
             sizeof(uint16_t) +
-            MAX_PLANETS * sizeof(s_planet_data) +
+            sizeof(uint32_t) + MAX_PLANETS * SERIAL::KEYED_PLANET_BYTES +
             sizeof(uint16_t) +
             MAX_COLONIES * sizeof(s_colony) +
             sizeof(int16_t) +

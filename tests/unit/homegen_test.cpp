@@ -102,7 +102,7 @@ DOCTEST_TEST_CASE("food-world generation rerolls unsuitable stars without allowi
     TEST_HOMEGEN::Set_Generated_Spectral_Class_(STAR_CLASS_K);
     MOX::star[0].spectral_class = STAR_CLASS_DWARF;
 
-    HOMEGEN::Make_One_Planet(0, 1, 0, 1);
+    HOMEGEN::Make_One_Planet(game::id_planet{1}, 0, 0, 1);
 
     DOCTEST_CHECK(MOX::star[0].spectral_class == STAR_CLASS_K);
     DOCTEST_CHECK((MOX::star[0].planet_index[0] == 1));

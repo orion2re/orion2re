@@ -2250,7 +2250,7 @@ TEST_CASE("VDC home-system state is observed by planet generated event") {
     const orion2re::lua::game::s_home_system_generated_event event = {0, 0};
     orion2re::lua::game::Home_System_Generated(&event);
 
-    const orion2re::lua::game::s_planet_generated_event planet_event = {0};
+    const orion2re::lua::game::s_planet_generated_event planet_event = {game::id_planet{0}};
     orion2re::lua::game::Planet_Generated(&planet_event);
     CHECK(MOX::planet[0].mineral_class == MINERAL_RESOURCE_RICH);
     CHECK(MOX::planet[0].gravity_class == PLANET_GRAVITY_NORMAL_G);

@@ -16,6 +16,9 @@ namespace TEST_SETTLER {
         SETTLER::allow_last_population_transfer = false;
         SETTLER::max_pop_freighted = ORIGINAL_MAX_FREIGHTED_SETTLERS;
         MOX::NUM_PLAYERS = 1;
+        MOX::NUM_COLONIES = 2;
+        MOX::NUM_STARS = 2;
+        MOX::planet_count = 2;
     }
 
     void Set_Pop_Limit_(int32_t race_idx, int16_t pop_limit) {
@@ -25,6 +28,9 @@ namespace TEST_SETTLER {
 
 namespace MOX {
     int16_t NUM_PLAYERS;
+    int16_t NUM_COLONIES;
+    int16_t NUM_STARS;
+    int16_t planet_count;
     s_colony* colony = colonies;
     s_planet_data* planet = planets;
     s_player* player = players;
