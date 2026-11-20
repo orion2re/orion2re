@@ -211,16 +211,17 @@ namespace REPORT {
                                 bool is_colony = false;
                                 MOVEBOX::Remove_Box_Check();
 
-                                int16_t planet_idx;
+                                auto planet_id = game::NO_PLANET;
                                 if (colony_base == nullptr && (colony_prompt_ship == nullptr || outpost_ship != nullptr)) {
-                                    planet_idx = PLNTSUM::Colony_Ship_Auto_Colonization(outpost_ship);
-                                    if (planet_idx == PLANET_INDEX_NONE) {
-                                        planet_idx = MAINPUPS::New_Outpost_Selection_Popup(star_idx);
-                                    } else if (game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).colony_index == -1) {
+                                    planet_id = PLNTSUM::Colony_Ship_Auto_Colonization(outpost_ship);
+                                    if (planet_id == game::NO_PLANET) {
+                                        planet_id = SERIAL::Decode_Legacy_Planet_Reference(MAINPUPS::New_Outpost_Selection_Popup(star_idx));
+                                    } else if (const auto planet = game::current_state.planets.find(planet_id);
+                                        planet != game::current_state.planets.end() && planet->second.colony_index == -1) {
                                         char msg[200];
-                                        snprintf(msg, sizeof(msg), outpost_preselected_planet_fmt, HACCESS::Get_Planet_Name(planet_idx));
+                                        snprintf(msg, sizeof(msg), outpost_preselected_planet_fmt, HACCESS::Get_Planet_Name(game::current_state, planet_id));
                                         if (GENDRAW::Do_Confirmation_Box(msg) == 0) {
-                                            planet_idx = PLANET_INDEX_NONE;
+                                            planet_id = game::NO_PLANET;
                                         } else {
                                             if (namestar::Can_Change_Star_Name(star_idx) != 0 && MOX::settings.animations_on == 0) {
                                                 int16_t y = namestar::Star_Name_Popup_Screen_Center_Y();
@@ -229,20 +230,21 @@ namespace REPORT {
                                             }
                                         }
                                     } else {
-                                        planet_idx = MAINPUPS::New_Outpost_Selection_Popup(star_idx);
+                                        planet_id = SERIAL::Decode_Legacy_Planet_Reference(MAINPUPS::New_Outpost_Selection_Popup(star_idx));
                                     }
                                 } else {
                                     is_colony = true;
                                     bool auto_colonized = false;
 
-                                    if (colony_base == nullptr && PLNTSUM::Colony_Ship_Auto_Colonization(colony_prompt_ship) != PLANET_INDEX_NONE) {
-                                        planet_idx = PLNTSUM::Colony_Ship_Auto_Colonization(colony_prompt_ship);
-                                        if (game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).colony_index == -1) {
+                                    if (colony_base == nullptr && PLNTSUM::Colony_Ship_Auto_Colonization(colony_prompt_ship) != game::NO_PLANET) {
+                                        planet_id = PLNTSUM::Colony_Ship_Auto_Colonization(colony_prompt_ship);
+                                        if (const auto planet = game::current_state.planets.find(planet_id);
+                                            planet != game::current_state.planets.end() && planet->second.colony_index == -1) {
                                             auto_colonized = true;
                                             char msg[200];
-                                            snprintf(msg, sizeof(msg), colonize_preselected_planet_fmt, HACCESS::Get_Planet_Name(planet_idx));
+                                            snprintf(msg, sizeof(msg), colonize_preselected_planet_fmt, HACCESS::Get_Planet_Name(game::current_state, planet_id));
                                             if (GENDRAW::Do_Confirmation_Box(msg) == 0) {
-                                                planet_idx = PLANET_INDEX_NONE;
+                                                planet_id = game::NO_PLANET;
                                             } else {
                                                 if (namestar::Can_Change_Star_Name(star_idx) != 0 && MOX::settings.animations_on == 0) {
                                                     int16_t y = namestar::Star_Name_Popup_Screen_Center_Y();
@@ -254,15 +256,15 @@ namespace REPORT {
                                     }
 
                                     if (!auto_colonized) {
-                                        planet_idx = MAINPUPS::New_Colony_Selection_Popup(star_idx, colony_base == nullptr);
+                                        planet_id = SERIAL::Decode_Legacy_Planet_Reference(MAINPUPS::New_Colony_Selection_Popup(star_idx, colony_base == nullptr));
                                     }
 
-                                    while (colony_base != nullptr && planet_idx < 0) {
+                                    while (colony_base != nullptr && planet_id == game::NO_PLANET) {
                                         int refund = TECHDATA::buildings[BUILDING_COLONY_BASE].cost / 2;
                                         char msg[200];
                                         snprintf(msg, sizeof(msg), really_trash_colony_base_fmt, refund);
                                         if (GENDRAW::Do_Confirmation_Box(msg) == 0) {
-                                            planet_idx = MAINPUPS::New_Colony_Selection_Popup(star_idx, colony_base == nullptr);
+                                            planet_id = SERIAL::Decode_Legacy_Planet_Reference(MAINPUPS::New_Colony_Selection_Popup(star_idx, colony_base == nullptr));
                                         } else {
                                             do {
                                                 MOX::player[player_idx].bc += refund;
@@ -281,12 +283,12 @@ namespace REPORT {
                                     SHIPS::Clear_Auto_Colonization_Flag(outpost_ship);
                                 }
 
-                                if (planet_idx < 0) {
+                                if (planet_id == game::NO_PLANET) {
                                     struct_::Set_Bit_Field(done_colonize_check, star_idx);
                                     MOX::star[star_idx].ignore_colony_ships |= (1 << player_idx);
                                 } else {
                                     if (is_colony) {
-                                        COLONIZE::Make_New_Colony(SERIAL::Decode_Legacy_Planet_Reference(planet_idx), player_idx);
+                                        COLONIZE::Make_New_Colony(planet_id, player_idx);
                                         if (colony_base == nullptr) {
                                             SHIPS::Kill_Ship((int16_t)(colony_ship - MOX::ship));
                                             COLCALC::Update_Player_Stats(&MOX::player[player_idx]);
@@ -311,14 +313,14 @@ namespace REPORT {
                                         if (MOX::settings.animations_on != 0) {
                                             MOX::current_screen = 0x21; /* SCR_COLONIZE */
                                             MOX::return_screen = SCREEN_REPORTS;
-                                            MOX::screen_data = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).star_index;
+                                            MOX::screen_data = game::current_state.planets.at(planet_id).star_index;
                                             MOX::global_esc = 1;
-                                            COLONY::orbit_temp = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).orbit;
+                                            COLONY::orbit_temp = game::current_state.planets.at(planet_id).orbit;
                                             return 3;
                                         }
                                         return 1;
                                     } else {
-                                        COLONIZE::Make_New_Outpost(SERIAL::Decode_Legacy_Planet_Reference(planet_idx), player_idx);
+                                        COLONIZE::Make_New_Outpost(planet_id, player_idx);
                                         SHIPS::Kill_Ship((int16_t)(outpost_ship - MOX::ship));
                                         COLCALC::Update_Player_Stats(&MOX::player[player_idx]);
                                         MAINSCR::Update_Ship_Icons_In_Between_Turns();

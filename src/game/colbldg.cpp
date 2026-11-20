@@ -500,7 +500,7 @@ namespace COLBLDG {
         }
 
         auto& new_ship = MOX::ship[ship_idx];
-        memset(&new_ship, 0, sizeof(s_ship_data));
+        new_ship = {};
 
         memcpy(&new_ship.d, design, sizeof(new_ship.d));
         new_ship.owner = (int8_t)player_idx;

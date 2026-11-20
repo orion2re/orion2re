@@ -38,6 +38,7 @@ namespace HAROLD {
     void __cdecl Confirm_Planet_And_Star_Index_Link(const char* unused_context);
 
     int8_t __cdecl Planet_Number(int16_t planet_index);
+    int8_t Planet_Number(const game::s_game_state& state, game::id_planet id);
 
     void __cdecl Set_All_Visited_Flags();
 

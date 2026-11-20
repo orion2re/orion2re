@@ -10,6 +10,7 @@
 #include "game/planet_serialization.h"
 #include "game/star_serialization.h"
 #include "game/colony_serialization.h"
+#include "game/ship_serialization.h"
 #include "game/settler_serialization.h"
 #include "game/save_sections.h"
 #include "lua/lua_game_ship_identity.h"
@@ -85,7 +86,7 @@ namespace {
         const size_t player_size = 0xf0e + 2 + ORIGINAL_MAX_FREIGHTED_SETTLERS * (SERIAL::SETTLER_BYTES - 8)
             + 2 * (1 + MAX_PLAYERS);
         const size_t ships = player_count_offset + 2 + MAX_PLAYERS * player_size;
-        const size_t tail = ships + 2 + MOX::NUM_SHIPS * 129 + 164 + MOX::NUM_NEBULAS * 5 + 4491;
+        const size_t tail = ships + 2 + MOX::NUM_SHIPS * SERIAL::SHIP_RECORD_BYTES + 164 + MOX::NUM_NEBULAS * 5 + 4491;
         constexpr size_t tail_records = MAX_PLAYERS * (MAX_FREIGHTED_SETTLERS - ORIGINAL_MAX_FREIGHTED_SETTLERS);
         DOCTEST_REQUIRE(tail + tail_records * SERIAL::SETTLER_BYTES <= size);
         DOCTEST_REQUIRE((data[player_count_offset + 1] & 0x80) != 0);
@@ -126,6 +127,14 @@ namespace {
                 read += 2;
             }
             copy(0xf0e - opportunity_offset - 2 * MAX_PLAYERS);
+        }
+        DOCTEST_REQUIRE(read == ships);
+        DOCTEST_REQUIRE((data[read + 1] & (SERIAL::SHIP_MISSION_PLANETS_FLAG >> 8)) != 0);
+        data[read + 1] &= ~(SERIAL::SHIP_MISSION_PLANETS_FLAG >> 8);
+        copy(2);
+        for (int i = 0; i < MOX::NUM_SHIPS; ++i) {
+            copy(SERIAL::LEGACY_SHIP_RECORD_BYTES);
+            read += sizeof(uint32_t);
         }
         copy(tail - read);
         for (size_t i = 0; i < tail_records; ++i) record();
@@ -820,6 +829,33 @@ DOCTEST_TEST_CASE("untagged planet blocks import their implicit IDs in record or
     DOCTEST_CHECK(new_reader.Read_Uint32() == 1);
     DOCTEST_CHECK(new_reader.Read_Uint32() == 0);
 
+}
+
+DOCTEST_TEST_CASE("ship codec moves legacy colony targets out of weapon fields") {
+    s_ship_data ship{};
+    ship.d.ship_type = SHIP_TYPE_COLONY;
+    ship.d.ship_weapon[0].type = 42;
+    ship.d.ship_weapon[1].type = 1;
+    std::array<uint8_t, SERIAL::SHIP_RECORD_BYTES> bytes{};
+    SERIAL::Writer_ legacy_writer(bytes.data(), bytes.size(), "ship overflow");
+    SERIAL::Write_Ship_Record(&legacy_writer, &ship);
+    DOCTEST_REQUIRE(legacy_writer.Length() == SERIAL::LEGACY_SHIP_RECORD_BYTES);
+    SERIAL::Reader_ legacy_reader(bytes.data(), legacy_writer.Length(), "ship underflow");
+    s_ship_data decoded{};
+    SERIAL::Read_Ship(legacy_reader, decoded, false);
+    DOCTEST_CHECK(legacy_reader.Remaining() == 0);
+    DOCTEST_CHECK(decoded.colonization_target.get() == game::id_planet{42});
+    DOCTEST_CHECK((decoded.d.ship_weapon[0].type == -1));
+    DOCTEST_CHECK((decoded.d.ship_weapon[1].type == 0));
+
+    decoded.colonization_target = game::id_planet{70000};
+    SERIAL::Writer_ writer(bytes.data(), bytes.size(), "ship overflow");
+    SERIAL::Write_Ship(writer, decoded);
+    DOCTEST_REQUIRE(writer.Length() == bytes.size());
+    SERIAL::Reader_ reader(bytes.data(), bytes.size(), "ship underflow");
+    SERIAL::Read_Ship(reader, ship, true);
+    DOCTEST_CHECK(reader.Remaining() == 0);
+    DOCTEST_CHECK(ship.colonization_target.get() == game::id_planet{70000});
 }
 
 DOCTEST_TEST_CASE("colony codec preserves wide keys and decodes historical planet links") {

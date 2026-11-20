@@ -9,6 +9,7 @@ namespace {
     s_star_data stars[MAX_STARS];
     char planet_name[] = "Planet";
     char trash_colony_base_fmt[] = "Trash colony base for %d BC?";
+    char colonize_preselected_planet_fmt[] = "Colonize %s?";
     char spy_steals_fmt[] = "%s from %s";
     char spy_destroys_fmt[] = "%s %s %s";
     char framed_fmt[] = " Framed %s";
@@ -43,12 +44,13 @@ namespace TEST_REPORT {
     int16_t confirmation_result;
     bool accept_officer_offer;
     s_ship_data* cleared_auto_colonization_ship;
+    game::id_planet colonized_planet;
 
     void Reset_() {
         memset(colonies, 0, sizeof(colonies));
         test_planets::Reset(0);
         memset(players, 0, sizeof(players));
-        memset(ships, 0, sizeof(ships));
+        std::fill(std::begin(ships), std::end(ships), s_ship_data{});
         memset(stars, 0xff, sizeof(stars));
         game::current_state = game::s_game_state{};
         memset(REPORT::done_colonize_check, 0, sizeof(REPORT::done_colonize_check));
@@ -99,9 +101,11 @@ namespace TEST_REPORT {
         OFFICER::rejected_offer_keeps_timer = 0;
         accept_officer_offer = false;
         REPORT::really_trash_colony_base_fmt = trash_colony_base_fmt;
+        REPORT::colonize_preselected_planet_fmt = colonize_preselected_planet_fmt;
         colonizable_planet_count = 0;
         confirmation_result = 0;
         cleared_auto_colonization_ship = nullptr;
+        colonized_planet = game::NO_PLANET;
     }
 
     void Add_Colony_Ship_() {
@@ -182,7 +186,8 @@ namespace COLCALC {
 }
 
 namespace COLONIZE {
-    void __cdecl Make_New_Colony(game::id_planet, int16_t) {
+    void __cdecl Make_New_Colony(game::id_planet id, int16_t) {
+        TEST_REPORT::colonized_planet = id;
     }
 
     void __cdecl Make_New_Outpost(game::id_planet, int16_t) {
@@ -238,6 +243,9 @@ namespace HACCESS {
     char* __cdecl Get_Planet_Name(int16_t) {
         return planet_name;
     }
+    char* Get_Planet_Name(const game::s_game_state&, game::id_planet) {
+        return planet_name;
+    }
 }
 
 namespace MAINPUPS {
@@ -270,14 +278,15 @@ namespace MOVEBOX {
 }
 
 namespace PLNTSUM {
-    int16_t __cdecl Colony_Ship_Auto_Colonization(s_ship_data*) {
-        return PLANET_INDEX_NONE;
+    game::id_planet Colony_Ship_Auto_Colonization(const s_ship_data* ship) {
+        return ship ? ship->colonization_target.get() : game::NO_PLANET;
     }
 }
 
 namespace SHIPS {
     void __cdecl Clear_Auto_Colonization_Flag(s_ship_data* ship) {
         TEST_REPORT::cleared_auto_colonization_ship = ship;
+        ship->colonization_target = game::NO_PLANET;
     }
 
     void __cdecl Kill_Ship(int16_t) {

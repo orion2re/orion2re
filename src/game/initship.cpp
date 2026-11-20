@@ -195,7 +195,7 @@ namespace INITSHIP {
             }
 
             s_combat_data* ship = &MOX::combat_data[combat_idx];
-            struct_::Clear_Structure(ship, sizeof(*ship));
+            *ship = {};
 
             const s_ship_design& design =
                 SHIP_CONFIG::antaran_defensive_templates[difficulty][hull_size];

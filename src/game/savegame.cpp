@@ -3,6 +3,7 @@
 #include "leader_serialization.h"
 #include "planet_serialization.h"
 #include "star_serialization.h"
+#include "ship_serialization.h"
 #include "colony_serialization.h"
 #include "settler_serialization.h"
 
@@ -234,60 +235,6 @@ namespace SAVEGAME {
                 sizeof(*settings) - SETTINGS_RESERVED_OFFSET);
         }
 
-        void Write_Ship_Weapons(SERIAL::Writer_* writer, const s_ship_weapons* weapons) {
-            writer->Write_Int16(weapons->type);
-            writer->Write_Int8(weapons->count);
-            writer->Write_Int8(weapons->current_count);
-            writer->Write_Int8(weapons->firing_arc);
-            writer->Write_Uint16(weapons->specials);
-            writer->Write_Int8(weapons->ammo);
-        }
-
-        void Read_Ship_Weapons(SERIAL::Reader_* reader, s_ship_weapons* weapons) {
-            weapons->type = reader->Read_Int16();
-            weapons->count = reader->Read_Int8();
-            weapons->current_count = reader->Read_Int8();
-            weapons->firing_arc = reader->Read_Int8();
-            weapons->specials = reader->Read_Uint16();
-            weapons->ammo = reader->Read_Int8();
-        }
-
-        void Write_Ship_Design(SERIAL::Writer_* writer, const s_ship_design* design) {
-            writer->Write_Bytes(design->name, sizeof(design->name));
-            writer->Write_Int8(design->size);
-            writer->Write_Int8(design->ship_type);
-            writer->Write_Int8(design->shield_type);
-            writer->Write_Int8(design->ftl_type);
-            writer->Write_Uint8(design->speed);
-            writer->Write_Int8(design->computer_type);
-            writer->Write_Int8(design->armor_type);
-            writer->Write_Bytes(design->special_device_flags, sizeof(design->special_device_flags));
-            for (int i = 0; i < 8; ++i) Write_Ship_Weapons(writer, &design->ship_weapon[i]);
-            writer->Write_Int8(design->picture_num);
-            writer->Write_Uint8(design->previous_owner);
-            writer->Write_Int16(design->cost);
-            writer->Write_Uint8(design->combat_speed);
-            writer->Write_Uint16(design->date_of_design);
-        }
-
-        void Read_Ship_Design(SERIAL::Reader_* reader, s_ship_design* design) {
-            reader->Read_Bytes(design->name, sizeof(design->name));
-            design->size = reader->Read_Int8();
-            design->ship_type = reader->Read_Int8();
-            design->shield_type = reader->Read_Int8();
-            design->ftl_type = reader->Read_Int8();
-            design->speed = reader->Read_Uint8();
-            design->computer_type = reader->Read_Int8();
-            design->armor_type = reader->Read_Int8();
-            reader->Read_Bytes(design->special_device_flags, sizeof(design->special_device_flags));
-            for (int i = 0; i < 8; ++i) Read_Ship_Weapons(reader, &design->ship_weapon[i]);
-            design->picture_num = reader->Read_Int8();
-            design->previous_owner = reader->Read_Uint8();
-            design->cost = reader->Read_Int16();
-            design->combat_speed = reader->Read_Uint8();
-            design->date_of_design = reader->Read_Uint16();
-        }
-
         void Write_Player(SERIAL::Writer_* writer, const s_player* player) {
             writer->Write_Int8(player->picture);
             writer->Write_Bytes(player->name, sizeof(player->name));
@@ -344,7 +291,7 @@ namespace SAVEGAME {
             writer->Write_Int8(player->current_research_application);
             writer->Write_Int8(player->got_new_app);
             writer->Write_Int16(player->ship_range);
-            for (int i = 0; i < 6; ++i) Write_Ship_Design(writer, &player->ship_designs[i]);
+            for (int i = 0; i < 6; ++i) SERIAL::Write_Ship_Design(writer, &player->ship_designs[i]);
             Write_Int16_Array(writer, player->ships_built, 6);
             writer->Write_Bytes(player->contact, sizeof(player->contact));
             writer->Write_Int8(player->just_established_contact);
@@ -517,7 +464,7 @@ namespace SAVEGAME {
             player->current_research_application = reader->Read_Int8();
             player->got_new_app = reader->Read_Int8();
             player->ship_range = reader->Read_Int16();
-            for (int i = 0; i < 6; ++i) Read_Ship_Design(reader, &player->ship_designs[i]);
+            for (int i = 0; i < 6; ++i) SERIAL::Read_Ship_Design(reader, &player->ship_designs[i]);
             Read_Int16_Array(reader, player->ships_built, 6);
             reader->Read_Bytes(player->contact, sizeof(player->contact));
             player->just_established_contact = reader->Read_Int8();
@@ -632,57 +579,6 @@ namespace SAVEGAME {
             player->cheated_this_turn = reader->Read_Int8();
             player->tribute_income = reader->Read_Int32();
             reader->Read_Bytes(player->filler, sizeof(player->filler));
-        }
-
-        void Write_Ship(SERIAL::Writer_* writer, const s_ship_data* ship) {
-            Write_Ship_Design(writer, &ship->d);
-            writer->Write_Int8(ship->owner);
-            writer->Write_Int8(ship->status);
-            writer->Write_Int16(ship->location);
-            writer->Write_Int16(ship->x);
-            writer->Write_Int16(ship->y);
-            writer->Write_Int8(ship->group_has_navigator);
-            writer->Write_Uint8(ship->travelling_speed);
-            writer->Write_Uint8(ship->turns_left);
-            writer->Write_Int8(ship->shield_damage_percent);
-            writer->Write_Int8(ship->drive_damage_percent);
-            writer->Write_Int8(ship->computer_damage);
-            writer->Write_Int8(ship->crew_quality);
-            writer->Write_Uint16(ship->crew_experience);
-            writer->Write_Int16(ship->officer_index);
-            writer->Write_Bytes(ship->special_device_damage_flags, sizeof(ship->special_device_damage_flags));
-            writer->Write_Int16(ship->armor_damage);
-            writer->Write_Int16(ship->structural_damage);
-            writer->Write_Int8(ship->mission);
-            writer->Write_Int8(ship->just_built);
-        }
-
-        void Read_Ship(SERIAL::Reader_* reader, s_ship_data* ship, uint16_t version) {
-            Read_Ship_Design(reader, &ship->d);
-            ship->owner = reader->Read_Int8();
-            ship->status = reader->Read_Int8();
-            ship->location = reader->Read_Int16();
-            if (version == LEGACY_VERSION) {
-                ship->location = Convert_Legacy_Ship_Location(ship->location);
-            }
-            ship->x = reader->Read_Int16();
-            ship->y = reader->Read_Int16();
-            ship->group_has_navigator = reader->Read_Int8();
-            ship->travelling_speed = reader->Read_Uint8();
-            ship->turns_left = reader->Read_Uint8();
-            ship->shield_damage_percent = reader->Read_Int8();
-            ship->drive_damage_percent = reader->Read_Int8();
-            ship->computer_damage = reader->Read_Int8();
-            ship->crew_quality = reader->Read_Int8();
-            ship->crew_experience = reader->Read_Uint16();
-            ship->officer_index = reader->Read_Int16();
-            reader->Read_Bytes(ship->special_device_damage_flags, sizeof(ship->special_device_damage_flags));
-            ship->armor_damage = reader->Read_Int16();
-            ship->structural_damage = reader->Read_Int16();
-            ship->mission = reader->Read_Int8();
-            ship->just_built = reader->Read_Int8();
-            ship->prior_jump_gate_destination = -1;
-            ship->prior_jump_gate_stardate = 0;
         }
 
         void Write_Movable_Box(SERIAL::Writer_* writer, const s_movable_box* box) {
@@ -1254,8 +1150,8 @@ namespace SAVEGAME {
             writer->Write_Uint16(MOX::NUM_PLAYERS | SERIAL::FIELD_SETTLERS_FLAG | SERIAL::WIDE_HOME_PLANET_FLAG |
                 SERIAL::WIDE_ATTACK_PLANETS_FLAG);
             for (int i = 0; i < MAX_PLAYERS; ++i) Write_Player(writer, &MOX::player[i]);
-            writer->Write_Int16(MOX::NUM_SHIPS);
-            for (int i = 0; i < MOX::NUM_SHIPS; ++i) Write_Ship(writer, &MOX::ship[i]);
+            writer->Write_Uint16(MOX::NUM_SHIPS | SERIAL::SHIP_MISSION_PLANETS_FLAG);
+            for (int i = 0; i < MOX::NUM_SHIPS; ++i) SERIAL::Write_Ship(*writer, MOX::ship[i]);
             for (int i = 0; i < 5; ++i) Write_Movable_Box(writer, &MOX::moveable_box[i]);
             Write_Int16_Array(writer, MOX::moveable_box_order, 5);
             writer->Write_Int16(MOX::PLAYER_NUM);
@@ -1354,14 +1250,20 @@ namespace SAVEGAME {
                 }
             }
             if (reader->Failed()) return false;
-            MOX::NUM_SHIPS = reader->Read_Int16();
+            const auto ship_count = reader->Read_Uint16();
+            const bool typed_missions = version >= 8 && (ship_count & SERIAL::SHIP_MISSION_PLANETS_FLAG);
+            MOX::NUM_SHIPS = typed_missions ? ship_count & ~SERIAL::SHIP_MISSION_PLANETS_FLAG : ship_count;
             const int ship_capacity = version < EXPANDED_SHIP_CAPACITY_VERSION
                 ? PREVIOUS_MAX_SHIPS
                 : MAX_SHIPS;
             if (MOX::NUM_SHIPS < 0 || MOX::NUM_SHIPS > ship_capacity) return false;
             const int ship_record_count = version == LEGACY_VERSION ? ORIGINAL_MAX_SHIPS : MOX::NUM_SHIPS;
-            for (int i = 0; i < ship_record_count; ++i) Read_Ship(reader, &MOX::ship[i], version);
-            memset(&MOX::ship[ship_record_count], 0, (MAX_SHIPS - ship_record_count) * sizeof(*MOX::ship));
+            for (int i = 0; i < ship_record_count; ++i) {
+                auto& ship = MOX::ship[i];
+                SERIAL::Read_Ship(*reader, ship, typed_missions);
+                if (version == LEGACY_VERSION) ship.location = Convert_Legacy_Ship_Location(ship.location);
+            }
+            std::fill(MOX::ship + ship_record_count, MOX::ship + MAX_SHIPS, s_ship_data{});
             for (int i = ship_record_count; i < MAX_SHIPS; ++i) {
                 MOX::ship[i].status = 5;
                 MOX::ship[i].location = -1;

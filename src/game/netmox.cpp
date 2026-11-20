@@ -3,6 +3,7 @@
 #include "game/leader_serialization.h"
 #include "game/planet_serialization.h"
 #include "game/star_serialization.h"
+#include "game/ship_serialization.h"
 #include "game/colony_serialization.h"
 #include "game/player_network_serialization.h"
 #include "game/netproto.h"
@@ -43,7 +44,7 @@ namespace NETMOX {
         constexpr uint32_t O2GD_MAGIC = 0x4447324F;
         constexpr uint16_t O2GD_VERSION = 1;
         constexpr uint16_t O2GD_HEADER_SIZE = 20;
-        constexpr uint32_t NATIVE_SNAPSHOT_VERSION_TAG = 0x374E324F; // O2N7
+        constexpr uint32_t NATIVE_SNAPSHOT_VERSION_TAG = 0x384E324F; // O2N8
 
         struct Scoped_Net_Update_Suspension_ {
             Scoped_Net_Update_Suspension_() {
@@ -688,8 +689,7 @@ namespace NETMOX {
 
         writer.Write_Int16((int16_t)MOX::NUM_SHIPS);
 
-        size = MAX_SHIPS * sizeof(s_ship_data);
-        writer.Write_Bytes(MOX::ship, size);
+        for (int i = 0; i < MAX_SHIPS; ++i) SERIAL::Write_Ship_Packet(writer, MOX::ship[i]);
 
         RUSS::Mox_Update();
 
@@ -911,7 +911,8 @@ namespace NETMOX {
             exitm::Exit_With_Message("invalid broadcast ship count");
         }
 
-        reader.Read_Bytes(MOX::ship, MAX_SHIPS * sizeof(s_ship_data));
+        reader.Require(MAX_SHIPS * SERIAL::SHIP_PACKET_BYTES);
+        for (int i = 0; i < MAX_SHIPS; ++i) SERIAL::Read_Ship_Packet(reader, MOX::ship[i]);
 
         if (!SERIAL::Read_Leader_State(state, reader)) {
             exitm::Exit_With_Message("invalid broadcast leader roster");
@@ -1339,7 +1340,7 @@ namespace NETMOX {
             for (int16_t i = 0; i < (int16_t)MOX::NUM_SHIPS; ++i) {
                 if (MOX::ship[i].owner == MOX::PLAYER_NUM && MOX::ship[i].status != 5) {
                     writer.Write_Int16(i);
-                    writer.Write_Bytes(&MOX::ship[i], sizeof(s_ship_data));
+                    SERIAL::Write_Ship_Packet(writer, MOX::ship[i]);
                 }
             }
         }
@@ -1813,7 +1814,7 @@ namespace NETMOX {
                 }
             }
 
-            reader.Read_Bytes(&MOX::ship[ship_idx], sizeof(s_ship_data));
+            SERIAL::Read_Ship_Packet(reader, MOX::ship[ship_idx]);
 
             ship_idx_prev = ship_idx + 1;
             RUSS::Mox_Update();
@@ -2043,7 +2044,7 @@ namespace NETMOX {
                     break;
                 }
 
-                reader.Read_Bytes(&MOX::ship[ship_id], sizeof(s_ship_data));
+                SERIAL::Read_Ship_Packet(reader, MOX::ship[ship_id]);
 
                 RUSS::Mox_Update();
             }
@@ -2155,7 +2156,7 @@ namespace NETMOX {
                     break;
                 }
 
-                reader.Read_Bytes(&MOX::ship[ship_id], sizeof(s_ship_data));
+                SERIAL::Read_Ship_Packet(reader, MOX::ship[ship_id]);
             }
         }
 
@@ -2299,7 +2300,7 @@ namespace NETMOX {
                     }
 
                     // Update the surviving ship
-                    reader.Read_Bytes(&MOX::ship[surviving_ship_id], sizeof(s_ship_data));
+                    SERIAL::Read_Ship_Packet(reader, MOX::ship[surviving_ship_id]);
 
                     current_ship_idx++; // Advance past the surviving ship we just updated
                     RUSS::Mox_Update();
@@ -2429,7 +2430,7 @@ namespace NETMOX {
                     if (MOX::ship[i].location == star_id && MOX::ship[i].status != 5) {
                         if (MOX::ship[i].owner == player_id || MOX::ship[i].owner == target_player_id) {
                             writer.Write_Int16(i);
-                            writer.Write_Bytes(&MOX::ship[i], sizeof(s_ship_data));
+                            SERIAL::Write_Ship_Packet(writer, MOX::ship[i]);
                         }
                     }
                 }
@@ -2522,7 +2523,7 @@ namespace NETMOX {
                     if (MOX::ship[i].location == star_idx && MOX::ship[i].status != 5) {
                         if (MOX::ship[i].owner == other_player_idx || MOX::ship[i].owner == target_player_idx) {
                             writer.Write_Int16(i);
-                            writer.Write_Bytes(&MOX::ship[i], sizeof(s_ship_data));
+                            SERIAL::Write_Ship_Packet(writer, MOX::ship[i]);
                         }
                     }
                 }
@@ -2604,7 +2605,7 @@ namespace NETMOX {
                 for (int16_t i = 0; i < (int16_t)MOX::NUM_SHIPS; i++) {
                     if (MOX::ship[i].location == star_idx && MOX::ship[i].status != 5) {
                         writer.Write_Int16(i);
-                        writer.Write_Bytes(&MOX::ship[i], sizeof(s_ship_data));
+                        SERIAL::Write_Ship_Packet(writer, MOX::ship[i]);
                         RUSS::Mox_Update();
                     }
                 }

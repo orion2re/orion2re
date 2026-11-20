@@ -2014,7 +2014,7 @@ struct s_plntsum_planet {
     int16_t minerals;
     int16_t mineral_class;
     int16_t climate;
-    int16_t explored;
+    unaligned::field<game::id_planet> planet_id = game::NO_PLANET;
     int16_t best_colony_eta;
     int16_t best_outpost_eta;
     int16_t best_colony_ship_idx;
@@ -2654,6 +2654,7 @@ struct s_ship_data {
     int8_t just_built;
     int16_t prior_jump_gate_destination;
     int32_t prior_jump_gate_stardate;
+    unaligned::field<game::id_planet> colonization_target = game::NO_PLANET;
 };
 
 typedef struct s_ship_drive_data s_ship_drive_data, *Ps_ship_drive_data;

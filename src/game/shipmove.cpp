@@ -8,12 +8,7 @@ using game::current_state;
 
 namespace SHIPS {
     void __cdecl Clear_Auto_Colonization_Flag(s_ship_data* ship) {
-        uint8_t ship_type = ship->d.ship_type;
-
-        if (ship_type == SHIP_TYPE_COLONY || ship_type == SHIP_TYPE_OUTPOST) {
-            ship->d.ship_weapon[0].type = -1;
-            ship->d.ship_weapon[1].type = 0;
-        }
+        ship->colonization_target = game::NO_PLANET;
     }
 } // namespace SHIPS
 
@@ -564,7 +559,7 @@ namespace SHIPMOVE {
         }
 
         // Initialize ship slot
-        memset(&MOX::ship[i], 0, sizeof(s_ship_data));
+        MOX::ship[i] = {};
 
         if (design != nullptr) {
             memcpy(&MOX::ship[i].d, design, sizeof(s_ship_design));
@@ -713,9 +708,8 @@ namespace SHIPMOVE {
             ship->status = move_status;
 
             if (ship->d.ship_type == SHIP_TYPE_COLONY || ship->d.ship_type == SHIP_TYPE_OUTPOST) {
-                int16_t planet_idx = ship->d.ship_weapon[0].type;
-                if (planet_idx == PLANET_INDEX_NONE ||
-                    current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).star_index != destination_star_idx) {
+                const auto target = current_state.planets.find(ship->colonization_target.get());
+                if (target == current_state.planets.end() || target->second.star_index != destination_star_idx) {
                     SHIPS::Clear_Auto_Colonization_Flag(ship);
                 }
             }

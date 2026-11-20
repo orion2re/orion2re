@@ -115,24 +115,22 @@ namespace HAROLD {
     }
 
     int8_t __cdecl Planet_Number(int16_t planet_index) {
+        return Planet_Number(game::current_state, SERIAL::Decode_Legacy_Planet_Reference(planet_index));
+    }
+
+    int8_t Planet_Number(const game::s_game_state& state, game::id_planet id) {
         // Callers use this as a Roman-numeral index, so fall back to planet I.
-        if (planet_index < 0 || !game::current_state.planets.contains(game::id_planet{static_cast<uint32_t>(planet_index)})) return 0;
-        int16_t star_idx = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_index)}).star_index;
+        const auto planet = state.planets.find(id);
+        if (planet == state.planets.end()) return 0;
+        const auto star_idx = planet->second.star_index;
         if (star_idx < 0 || star_idx >= MOX::NUM_STARS) return 0;
         s_star_data* star = &MOX::star[star_idx];
 
         int8_t relative_planet_num = 0;
-        for (int i = 0; i < 5; ++i) {
-            int16_t system_planet_id = SERIAL::Encode_Legacy_Planet_Reference(star->orbit_planet_ids[i].get());
-
-            if (system_planet_id == planet_index) {
-                return relative_planet_num;
-            }
-
-            // Only increment the count if the slot contains a valid planet (not -1)
-            if (system_planet_id > -1) {
-                relative_planet_num++;
-            }
+        for (const auto& link : star->orbit_planet_ids) {
+            const auto orbit_id = link.get();
+            if (orbit_id == id) return relative_planet_num;
+            if (orbit_id != game::NO_PLANET) ++relative_planet_num;
         }
 
         return relative_planet_num;

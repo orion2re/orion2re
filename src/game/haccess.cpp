@@ -205,11 +205,12 @@ namespace HACCESS {
         return (bool)MOX::ship_node[node_idx].selected;
     }
 
-    void __cdecl Do_Get_Planet_Name(int16_t planet_idx, char* out_str, uint8_t localized_flag) {
+    static void Do_Get_Planet_Name(const game::s_game_state& state, game::id_planet id,
+        char* out_str, uint8_t localized_flag) {
         char buffer[200];
 
-        int16_t star_idx = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).star_index;
-        int8_t planet_num = HAROLD::Planet_Number(planet_idx);
+        const auto star_idx = state.planets.at(id).star_index;
+        const auto planet_num = HAROLD::Planet_Number(state, id);
 
         const char* numeral_str;
         if (localized_flag == 0) {
@@ -233,13 +234,25 @@ namespace HACCESS {
         memcpy(out_str, buffer, len);
     }
 
+    void __cdecl Do_Get_Planet_Name(int16_t planet_idx, char* out_str, uint8_t localized_flag) {
+        Do_Get_Planet_Name(game::current_state, SERIAL::Decode_Legacy_Planet_Reference(planet_idx), out_str, localized_flag);
+    }
+
     char* __cdecl Get_Planet_Name(int16_t planet_idx) {
-        Do_Get_Planet_Name(planet_idx, MOX::temp_string, 1);
+        return Get_Planet_Name(game::current_state, SERIAL::Decode_Legacy_Planet_Reference(planet_idx));
+    }
+
+    char* Get_Planet_Name(const game::s_game_state& state, game::id_planet id) {
+        Do_Get_Planet_Name(state, id, MOX::temp_string, 1);
         return MOX::temp_string;
     }
 
     char* __cdecl Get_Planet_Name_No_Prime(int16_t planet_idx) {
-        Do_Get_Planet_Name(planet_idx, MOX::temp_string, 0);
+        return Get_Planet_Name_No_Prime(game::current_state, SERIAL::Decode_Legacy_Planet_Reference(planet_idx));
+    }
+
+    char* Get_Planet_Name_No_Prime(const game::s_game_state& state, game::id_planet id) {
+        Do_Get_Planet_Name(state, id, MOX::temp_string, 0);
         return MOX::temp_string;
     }
 

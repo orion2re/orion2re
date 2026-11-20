@@ -3038,7 +3038,7 @@ namespace OFFICER {
             INITSHIP::Load_Loknar_Ship_Design(&design);
 
             s_ship_data new_ship;
-            memset(&new_ship, 0, sizeof(s_ship_data));
+            new_ship = {};
 
             new_ship.d = design;
 
