@@ -506,7 +506,8 @@ namespace ERICNET {
 
     void __cdecl Best_Instructor_Bonus(int16_t* instructor_bonus_by_player) {
         for (int16_t leader_index = 0; leader_index < MAX_LEADERS; ++leader_index) {
-            const s_leader_data& leader = MOX::leaders[leader_index];
+            const auto& state = game::current_state;
+            const auto& leader = state.leaders.at(leader_index);
             const int16_t player_index = (int8_t)leader.player_index;
 
             if ((leader.type == LEADER_TYPE_COLONY) &&

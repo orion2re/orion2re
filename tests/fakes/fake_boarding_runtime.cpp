@@ -8,7 +8,6 @@ namespace {
     s_missile missiles[1];
     s_ship_data ships[2];
     s_player players[2];
-    s_leader_data leaders[1];
     int16_t killed_officer;
     int16_t pooled_officer;
     int16_t raid_choice_idx;
@@ -66,7 +65,7 @@ namespace TEST_BOARDING {
         MOX::combat_init = 0;
         memset(ships, 0, sizeof(ships));
         memset(players, 0, sizeof(players));
-        memset(leaders, 0, sizeof(leaders));
+        game::current_state = game::s_game_state{};
         memset(MOX::crew_data, 0, sizeof(MOX::crew_data));
         memset(TECHDATA::hull_data, 0, sizeof(TECHDATA::hull_data));
         memset(TECHDATA::specials, 0, sizeof(TECHDATA::specials));
@@ -270,7 +269,6 @@ namespace MOX {
     s_combat_data* combat_data = ::combat_data;
     s_ship_data* ship = ships;
     s_player* player = players;
-    s_leader_data* leaders = ::leaders;
     int16_t ship_turn_order[MAX_COMBAT_SHIPS];
     int16_t combat_attacker_player;
     int16_t combat_defender_player;

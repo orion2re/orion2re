@@ -55,7 +55,7 @@ DOCTEST_TEST_CASE("maintenance marks a ship scrapped before recalculation and re
     DOCTEST_CHECK(MOX::ship[0].status == 7);
     DOCTEST_CHECK(MOX::ship[0].officer_index == -1);
     DOCTEST_CHECK((MOX::ship[1].officer_index == 0));
-    DOCTEST_CHECK((MOX::leaders[0].location == 1));
+    DOCTEST_CHECK(game::current_state.leaders[0].location == 1);
     DOCTEST_CHECK(TEST_AIDUDES::Pooled_Officer_() == -1);
 }
 
@@ -68,7 +68,7 @@ DOCTEST_TEST_CASE("maintenance considers officer replacements in descending ship
     DOCTEST_CHECK(MOX::ship[0].officer_index == -1);
     DOCTEST_CHECK((MOX::ship[1].officer_index == -1));
     DOCTEST_CHECK((MOX::ship[2].officer_index == 0));
-    DOCTEST_CHECK((MOX::leaders[0].location == 2));
+    DOCTEST_CHECK(game::current_state.leaders[0].location == 2);
     DOCTEST_CHECK(TEST_AIDUDES::Pooled_Officer_() == -1);
 }
 
@@ -79,7 +79,7 @@ DOCTEST_TEST_CASE("maintenance pools an officer when the scrapped ship has no re
 
     DOCTEST_CHECK(TEST_AIDUDES::Status_During_Recalculation_() == 7);
     DOCTEST_CHECK(MOX::ship[0].officer_index == -1);
-    DOCTEST_CHECK((MOX::leaders[0].location == -1));
+    DOCTEST_CHECK(game::current_state.leaders[0].location == -1);
     DOCTEST_CHECK(TEST_AIDUDES::Pooled_Officer_() == 0);
 }
 

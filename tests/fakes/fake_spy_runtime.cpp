@@ -2,7 +2,6 @@
 
 namespace {
     s_player players[3];
-    s_leader_data leaders[MAX_LEADERS];
     uint8_t spies[3][3];
     uint32_t random_results[16];
     uint32_t random_bounds[16];
@@ -15,7 +14,7 @@ namespace {
 namespace TEST_SPY {
     void Reset_() {
         memset(players, 0, sizeof(players));
-        memset(leaders, 0, sizeof(leaders));
+        game::current_state = game::s_game_state{};
         memset(spies, 0, sizeof(spies));
         memset(random_results, 0, sizeof(random_results));
         memset(random_bounds, 0, sizeof(random_bounds));
@@ -24,7 +23,7 @@ namespace TEST_SPY {
         random_call_count = 0;
         level_call_count = 0;
         for (int index = 0; index < MAX_LEADERS; ++index) {
-            leaders[index].player_index = -1;
+            game::current_state.leaders.at(index).player_index = -1;
         }
         players[0].traits[TRAIT_CURRENT_GOVERNMENT] = GOVERNMENT_FEUDAL;
         spy::spy_tech_bonus = {10, 0, 5, 10, 10, 10};
@@ -39,7 +38,7 @@ namespace TEST_SPY {
     }
 
     s_leader_data* Leader_(int index) {
-        return &leaders[index];
+        return &game::current_state.leaders.at(index);
     }
 
     void Set_Assassin_Spies_(uint8_t count) {
@@ -74,7 +73,6 @@ namespace TEST_SPY {
 
 namespace MOX {
     s_player* player = players;
-    s_leader_data* leaders = ::leaders;
     int16_t NUM_PLAYERS = 3;
 }
 

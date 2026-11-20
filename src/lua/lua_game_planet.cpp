@@ -13,6 +13,8 @@ extern "C" {
 #include <lua.h>
 }
 
+using game::current_state;
+
 namespace orion2re::lua::game::internal {
     namespace {
 
@@ -118,7 +120,7 @@ namespace orion2re::lua::game::internal {
             if (officer_id >= 0) {
                 if (officer_id >= MAX_LEADERS) return false;
                 const std::int8_t player_id =
-                    MOX::leaders[officer_id].player_index;
+                    current_state.leaders.at(officer_id).player_index;
                 const std::int16_t star_id =
                     MOX::planet[planet_id].star_index;
                 if (player_id >= 0 && player_id < MOX::NUM_PLAYERS &&
@@ -127,8 +129,9 @@ namespace orion2re::lua::game::internal {
                         officer_id) {
                     MOX::star[star_id].officer_index[player_id] = -1;
                 }
-                MOX::leaders[officer_id].status = 0;
-                MOX::leaders[officer_id].location = -1;
+                auto& leader = current_state.leaders.at(officer_id);
+                leader.status = 0;
+                leader.location = -1;
                 MOX::colony[colony_id].officer = -1;
             }
             MOX::planet[planet_id].colony_index = -1;
@@ -585,8 +588,9 @@ namespace orion2re::lua::game::internal {
                     const std::int16_t officer_id =
                         MOX::ship[ship_id].officer_index;
                     if (officer_id >= 0 && officer_id < MAX_LEADERS) {
-                        MOX::leaders[officer_id].status = 0;
-                        MOX::leaders[officer_id].location = -1;
+                        auto& leader = current_state.leaders.at(officer_id);
+                        leader.status = 0;
+                        leader.location = -1;
                     }
                     MOX::ship[ship_id].status = 5;
                     MOX::ship[ship_id].location = -1;
@@ -597,18 +601,13 @@ namespace orion2re::lua::game::internal {
                     }
                 }
             }
-            for (std::int16_t leader_id = 0;
-                 leader_id < MAX_LEADERS;
-                 ++leader_id) {
-                if (MOX::leaders[leader_id].status == 5 &&
-                    MOX::leaders[leader_id].location == system_id) {
-                    MOX::leaders[leader_id].status = -1;
-                    MOX::leaders[leader_id].location = -1;
-                } else if (MOX::leaders[leader_id].status == 1 &&
-                    MOX::leaders[leader_id].type == LEADER_TYPE_COLONY &&
-                    MOX::leaders[leader_id].location == system_id) {
-                    MOX::leaders[leader_id].status = 0;
-                    MOX::leaders[leader_id].location = -1;
+            for (auto& leader : current_state.leaders) {
+                if (leader.status == 5 && leader.location == system_id) {
+                    leader.status = -1;
+                    leader.location = -1;
+                } else if (leader.status == 1 && leader.type == LEADER_TYPE_COLONY && leader.location == system_id) {
+                    leader.status = 0;
+                    leader.location = -1;
                 }
             }
             memset(&MOX::star[system_id], 0, sizeof(s_star_data));

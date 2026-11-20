@@ -10,7 +10,7 @@ namespace legacy_world {
             MOX::star,
             MOX::colony,
             MOX::planet,
-            MOX::leaders,
+            &game::current_state,
             &MOX::settings,
             &MOX::NUM_PLAYERS,
             &MOX::NUM_SHIPS,

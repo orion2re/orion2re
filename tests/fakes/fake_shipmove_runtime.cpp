@@ -7,7 +7,6 @@ namespace {
     s_player players[MAX_PLAYERS];
     s_ship_data ships[MAX_SHIPS];
     s_star_data stars[MAX_STARS];
-    s_leader_data leaders[MAX_LEADERS];
     s_colony colonies[MAX_COLONIES];
 
     bool hyperspace_flux;
@@ -29,7 +28,7 @@ namespace TEST_SHIPMOVE {
         memset(players, 0, sizeof(players));
         memset(ships, 0, sizeof(ships));
         memset(stars, 0, sizeof(stars));
-        memset(leaders, 0, sizeof(leaders));
+        game::current_state = game::s_game_state{};
         memset(colonies, 0, sizeof(colonies));
         memset(TECHDATA::fuel, 0, sizeof(TECHDATA::fuel));
         memset(best_warp, 0, sizeof(best_warp));
@@ -99,7 +98,6 @@ namespace MOX {
     s_player* player = players;
     s_ship_data* ship = ships;
     s_star_data* star = stars;
-    s_leader_data* leaders = ::leaders;
 } // namespace MOX
 
 namespace EVENTS {
@@ -195,16 +193,18 @@ namespace COMBFIND {
 namespace OFFICER {
     void __cdecl Move_Officer_To_Pool(int16_t officer) {
         TEST_SHIPMOVE::pooled_officer = officer;
-        MOX::leaders[officer].status = 4;
-        MOX::leaders[officer].eta = 0;
+        auto& leader = game::current_state.leaders.at(officer);
+        leader.status = 4;
+        leader.eta = 0;
     }
     void __cdecl Kill_Officer(int16_t officer) {
         TEST_SHIPMOVE::killed_officer = officer;
-        MOX::leaders[officer].player_index = -1;
-        MOX::leaders[officer].status = -1;
+        auto& leader = game::current_state.leaders.at(officer);
+        leader.player_index = -1;
+        leader.status = -1;
     }
     int16_t __cdecl Owned_Officer_Level(int16_t leader_idx) {
-        return MOX::leaders[leader_idx].xp;
+        return game::current_state.leaders.at(leader_idx).xp;
     }
 } // namespace OFFICER
 

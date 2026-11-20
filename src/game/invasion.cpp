@@ -1,5 +1,7 @@
 #include "pch.h"
 
+using game::current_state;
+
 namespace invasion {
 
     void __cdecl Compute_Player_Ground_Combat_Bonuses(int player_idx, s_invasion_player_bonuses* bonuses, int8_t is_defender) {
@@ -72,7 +74,7 @@ namespace invasion {
         int leader_idx = COLCALC::Colony_Officer(colony);
 
         if (leader_idx != -1) {
-            s_leader_data* leader = &MOX::leaders[leader_idx];
+            auto* leader = &current_state.leaders.at(leader_idx);
 
             if (leader->general_skills & LEADER_GENERAL_SKILL_COMMANDO2) {
                 int16_t level = OFFICER::Owned_Officer_Level(leader_idx);
@@ -101,15 +103,16 @@ namespace invasion {
             int16_t officer_idx = MOX::ship[ship_idx].officer_index;
 
             if (officer_idx >= 0) {
-                if (MOX::leaders[officer_idx].eta == 0) {
+                const auto& leader = current_state.leaders.at(officer_idx);
+                if (leader.eta == 0) {
                     int16_t bonus = 0;
 
-                    if ((MOX::leaders[officer_idx].general_skills & LEADER_GENERAL_SKILL_COMMANDO2) != 0) {
+                    if ((leader.general_skills & LEADER_GENERAL_SKILL_COMMANDO2) != 0) {
                         int16_t level = OFFICER::Owned_Officer_Level(officer_idx);
                         bonus = ground_commando_attacker_x2
                             ? (level + 1) * 3
                             : (level * 15 + 16) / 2;
-                    } else if ((MOX::leaders[officer_idx].general_skills & LEADER_GENERAL_SKILL_COMMANDO) != 0) {
+                    } else if ((leader.general_skills & LEADER_GENERAL_SKILL_COMMANDO) != 0) {
                         int16_t level = OFFICER::Owned_Officer_Level(officer_idx);
                         bonus = (level + 1) *
                             (ground_commando_attacker_x2 ? 2 : 5);

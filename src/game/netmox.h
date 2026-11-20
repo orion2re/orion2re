@@ -84,7 +84,7 @@ namespace NETMOX {
 
     void __cdecl Send_Pick_Target_Info(int16_t player_idx, int16_t star_idx, s_combfind_target* target_info);
 
-    void __cdecl Ditch_Leader(int32_t leader_idx);
+    void __cdecl Ditch_Leader(game::s_game_state& state, int32_t leader_idx);
 
     void __cdecl Mark_Leader_Deassigned(int16_t leader_idx);
 

@@ -123,7 +123,7 @@ namespace TRADE {
         int32_t current_player_index = (int32_t)(player - MOX::player);
 
         for (int32_t i = 0; i < MAX_LEADERS; ++i) {
-            s_leader_data* leader = &MOX::leaders[i];
+            auto* leader = &game::current_state.leaders.at(i);
 
             if ((int32_t)leader->player_index == current_player_index &&
                 leader->status >= 0 && leader->status < 3) {

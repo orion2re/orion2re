@@ -36,7 +36,6 @@ namespace {
     bool destroyed_with_black_hole_state[4];
     int speed_calc_count;
     bool strategic_ship_killed;
-    s_leader_data leaders[MAX_LEADERS];
     int scroll_draw_count;
     bool satellite_building_removed;
     int16_t removed_colony_idx;
@@ -57,7 +56,7 @@ namespace TEST_COMBAT_REPAIR {
         memset(destroyed, 0, sizeof(destroyed));
         memset(destroyed_with_black_hole_state, 0,
                sizeof(destroyed_with_black_hole_state));
-        memset(leaders, 0, sizeof(leaders));
+        game::current_state = game::s_game_state{};
         memset(TECHDATA::weapons, 0, sizeof(TECHDATA::weapons));
         memset(TECHDATA::hull_data, 0, sizeof(TECHDATA::hull_data));
         speed_calc_count = 0;
@@ -459,7 +458,6 @@ namespace MOX {
     s_missile* missile = missiles;
     s_ship_data* ship = ships;
     s_player* player = players;
-    s_leader_data* leaders = ::leaders;
     int16_t NUM_STARS;
     int16_t NUM_PLAYERS;
     int16_t bio_weapon_flag;

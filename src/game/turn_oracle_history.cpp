@@ -2,9 +2,64 @@
 
 #include <fstream>
 
+#include "game/leader_serialization.h"
+#include "game/savegame.h"
 #include "game/turn_oracle_history.h"
 
 namespace turn_oracle {
+    namespace {
+        constexpr size_t SAVE_VERSION_OFFSET = sizeof(uint32_t) +
+            sizeof(SAVEGAME::s_metadata::description) + sizeof(int32_t) + sizeof(int8_t);
+        constexpr uint16_t VERSION_BEFORE_LEADER_IDS = 7;
+        constexpr uint16_t VERSION_WITH_LEADER_IDS = 8;
+
+        bool Has_Save_Version(const std::vector<uint8_t>& bytes, uint16_t version) {
+            return bytes.size() >= SAVE_VERSION_OFFSET + sizeof(uint16_t) &&
+                bytes[0] == SAVEGAME::VERSIONED_HEADER && bytes[1] == 0 && bytes[2] == 0 && bytes[3] == 0 &&
+                bytes[SAVE_VERSION_OFFSET] == version && bytes[SAVE_VERSION_OFFSET + 1] == 0;
+        }
+
+        bool Upgrade_V7_Leader_Ids(std::vector<uint8_t>& bytes) {
+            // Frozen v7 serialized widths, not sizeof() of the live game records.
+            constexpr size_t settings_bytes = 0x229;
+            constexpr size_t colony_bytes = 0x16a;
+            constexpr size_t planet_bytes = 0x12;
+            constexpr size_t star_bytes = 0xea;
+            constexpr uint16_t max_colonies_and_planets = 5120;
+            constexpr uint16_t max_stars = 1024;
+            size_t offset = SAVE_VERSION_OFFSET + sizeof(uint16_t) + settings_bytes + sizeof(uint32_t);
+            const auto skip_records = [&](size_t record_bytes, uint16_t max_count) {
+                if (offset > bytes.size() || bytes.size() - offset < sizeof(uint16_t)) return false;
+                const uint16_t count = bytes[offset] | (bytes[offset + 1] << 8);
+                offset += sizeof(uint16_t);
+                const size_t size = count * record_bytes;
+                if (count > max_count || size > bytes.size() - offset) return false;
+                offset += size;
+                return true;
+            };
+            if (!skip_records(colony_bytes, max_colonies_and_planets) ||
+                !skip_records(planet_bytes, max_colonies_and_planets) ||
+                !skip_records(star_bytes, max_stars) || bytes.size() - offset < MAX_LEADERS * SERIAL::LEADER_BYTES) {
+                return false;
+            }
+
+            std::vector<uint8_t> upgraded;
+            upgraded.reserve(bytes.size() + MAX_LEADERS * sizeof(uint32_t));
+            upgraded.insert(upgraded.end(), bytes.begin(), bytes.begin() + offset);
+            upgraded[SAVE_VERSION_OFFSET] = VERSION_WITH_LEADER_IDS;
+            for (uint32_t slot = 0; slot < MAX_LEADERS; ++slot) {
+                for (unsigned shift = 0; shift < 32; shift += 8) {
+                    upgraded.push_back(static_cast<uint8_t>(slot >> shift));
+                }
+                upgraded.insert(upgraded.end(), bytes.begin() + offset, bytes.begin() + offset + SERIAL::LEADER_BYTES);
+                offset += SERIAL::LEADER_BYTES;
+            }
+            upgraded.insert(upgraded.end(), bytes.begin() + offset, bytes.end());
+            bytes = std::move(upgraded);
+            return true;
+        }
+    } // namespace
+
     bool Read_File(const std::filesystem::path& path, std::vector<uint8_t>* bytes, std::string* error) {
         std::ifstream file(path, std::ios::binary | std::ios::ate);
         const std::streamoff size = file ? static_cast<std::streamoff>(file.tellg()) : -1;
@@ -37,6 +92,17 @@ namespace turn_oracle {
         std::vector<uint8_t> expected_bytes;
         std::vector<uint8_t> actual_bytes;
         if (!Read_File(canonical, &expected_bytes, error) || !Read_File(actual, &actual_bytes, error)) return false;
+        if (Has_Save_Version(expected_bytes, VERSION_BEFORE_LEADER_IDS) && Has_Save_Version(actual_bytes, VERSION_WITH_LEADER_IDS)) {
+            if (!Upgrade_V7_Leader_Ids(expected_bytes)) {
+                *error = "invalid v7 save prefix or leader section: " + canonical.string();
+                return false;
+            }
+        } else if (Has_Save_Version(expected_bytes, VERSION_WITH_LEADER_IDS) && Has_Save_Version(actual_bytes, VERSION_BEFORE_LEADER_IDS)) {
+            if (!Upgrade_V7_Leader_Ids(actual_bytes)) {
+                *error = "invalid v7 save prefix or leader section: " + actual.string();
+                return false;
+            }
+        }
         size_t offset = 0;
         while (offset < expected_bytes.size() && offset < actual_bytes.size() && expected_bytes[offset] == actual_bytes[offset]) ++offset;
         if (offset == expected_bytes.size() && offset == actual_bytes.size()) return true;

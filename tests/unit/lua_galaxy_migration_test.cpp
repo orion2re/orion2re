@@ -173,8 +173,8 @@ TEST_CASE("home-system mirror package copies the selected native orbit layout") 
     MOX::colony[2].planet = 4;
     MOX::colony[2].owner = 0;
     MOX::ship[0].location = 2;
-    MOX::leaders[0].status = 5;
-    MOX::leaders[0].location = 2;
+    game::current_state.leaders[0].status = 5;
+    game::current_state.leaders[0].location = 2;
     MOX::nebula[0] = {70, 80, 1};
 
     constexpr uint32_t RNG_SEED = 0x12345678;
@@ -195,7 +195,7 @@ TEST_CASE("home-system mirror package copies the selected native orbit layout") 
     const s_planet_data unrelated_planet = MOX::planet[4];
     const s_colony unrelated_colony = MOX::colony[2];
     const s_ship_data unrelated_ship = MOX::ship[0];
-    const s_leader_data unrelated_leader = MOX::leaders[0];
+    const auto unrelated_leader = game::current_state.leaders[0];
     const s_nebula unrelated_nebula = MOX::nebula[0];
 
     bool invoked = false;
@@ -240,9 +240,7 @@ TEST_CASE("home-system mirror package copies the selected native orbit layout") 
     CHECK(memcmp(&MOX::ship[0],
               &unrelated_ship,
               sizeof(unrelated_ship)) == 0);
-    CHECK(memcmp(&MOX::leaders[0],
-              &unrelated_leader,
-              sizeof(unrelated_leader)) == 0);
+    CHECK(game::current_state.leaders[0] == unrelated_leader);
     CHECK(memcmp(&MOX::nebula[0],
               &unrelated_nebula,
               sizeof(unrelated_nebula)) == 0);
@@ -350,27 +348,28 @@ TEST_CASE("full mirror package rebuilds destination home systems") {
     MOX::colony[3].planet = 3;
     MOX::colony[3].owner = 1;
 
-    for (int16_t leader_id = 0; leader_id < MAX_LEADERS; ++leader_id) {
-        MOX::leaders[leader_id].status = -1;
-        MOX::leaders[leader_id].location = -1;
-        MOX::leaders[leader_id].player_index = -1;
+    auto& leaders = game::current_state.leaders;
+    for (auto& leader : leaders) {
+        leader.status = -1;
+        leader.location = -1;
+        leader.player_index = -1;
     }
-    strcpy(MOX::leaders[0].name, "Source Hero");
-    MOX::leaders[0].status = 5;
-    MOX::leaders[0].location = 5;
-    MOX::leaders[1].status = 1;
-    MOX::leaders[1].location = 4;
-    MOX::leaders[1].player_index = 1;
+    strcpy(leaders[0].name, "Source Hero");
+    leaders[0].status = 5;
+    leaders[0].location = 5;
+    leaders[1].status = 1;
+    leaders[1].location = 4;
+    leaders[1].player_index = 1;
     MOX::colony[3].officer = 1;
     MOX::star[4].officer_index[1] = 1;
-    MOX::leaders[2].status = 1;
-    MOX::leaders[2].location = 0;
-    MOX::leaders[2].player_index = 0;
+    leaders[2].status = 1;
+    leaders[2].location = 0;
+    leaders[2].player_index = 0;
     MOX::colony[2].officer = 2;
     MOX::star[0].officer_index[0] = 2;
-    MOX::leaders[3].status = 1;
-    MOX::leaders[3].location = 1;
-    MOX::leaders[3].player_index = 0;
+    leaders[3].status = 1;
+    leaders[3].location = 1;
+    leaders[3].player_index = 0;
 
     MOX::ship[0].owner = NONPLAYER_SHIP_TYPE_GUARDIAN;
     MOX::ship[0].status = 1;
@@ -394,8 +393,8 @@ TEST_CASE("full mirror package rebuilds destination home systems") {
     const s_colony source_home_colony = MOX::colony[1];
     const s_colony source_extra_colony = MOX::colony[3];
     const s_ship_data advanced_start_ship = MOX::ship[1];
-    const s_leader_data source_colony_officer = MOX::leaders[1];
-    const s_leader_data ship_officer = MOX::leaders[3];
+    const auto source_colony_officer = leaders[1];
+    const auto ship_officer = leaders[3];
 
     constexpr uint32_t RNG_SEED = 0x12345678;
     game_random::Set_Random_Seed(RNG_SEED);
@@ -436,19 +435,15 @@ TEST_CASE("full mirror package rebuilds destination home systems") {
     CHECK(memcmp(&MOX::colony[2],
               &source_extra_colony,
               sizeof(source_extra_colony)) == 0);
-    CHECK(memcmp(&MOX::leaders[1],
-              &source_colony_officer,
-              sizeof(source_colony_officer)) == 0);
+    CHECK(leaders[1] == source_colony_officer);
     CHECK(MOX::star[4].officer_index[1] == 1);
-    CHECK(MOX::leaders[2].status == 0);
-    CHECK((MOX::leaders[2].location == -1));
+    CHECK(leaders[2].status == 0);
+    CHECK(leaders[2].location == -1);
     CHECK((MOX::star[0].officer_index[0] == -1));
     CHECK(memcmp(&MOX::ship[1],
               &advanced_start_ship,
               sizeof(advanced_start_ship)) == 0);
-    CHECK(memcmp(&MOX::leaders[3],
-              &ship_officer,
-              sizeof(ship_officer)) == 0);
+    CHECK(leaders[3] == ship_officer);
 
     const int16_t copied_home_extra = MOX::star[0].planet_index[1];
     REQUIRE(copied_home_extra >= 0);
@@ -497,13 +492,13 @@ TEST_CASE("full mirror package rebuilds destination home systems") {
 
     int marooned_leaders = 0;
     bool copied_leader_found = false;
-    for (int16_t leader_id = 0; leader_id < MAX_LEADERS; ++leader_id) {
-        if (MOX::leaders[leader_id].status != 5) {
+    for (const auto& leader : leaders) {
+        if (leader.status != 5) {
             continue;
         }
         ++marooned_leaders;
         copied_leader_found |=
-            MOX::leaders[leader_id].location == copied_marooned_system;
+            leader.location == copied_marooned_system;
     }
     CHECK(marooned_leaders == 2);
     CHECK(copied_leader_found);
@@ -641,14 +636,15 @@ TEST_CASE("full mirror package preserves native home systems") {
     MOX::colony[2].owner = 0;
     MOX::colony[2].officer = -1;
 
-    for (int16_t leader_id = 0; leader_id < MAX_LEADERS; ++leader_id) {
-        MOX::leaders[leader_id].status = -1;
-        MOX::leaders[leader_id].location = -1;
-        MOX::leaders[leader_id].player_index = -1;
+    auto& leaders = game::current_state.leaders;
+    for (auto& leader : leaders) {
+        leader.status = -1;
+        leader.location = -1;
+        leader.player_index = -1;
     }
-    strcpy(MOX::leaders[0].name, "Source Hero");
-    MOX::leaders[0].status = 5;
-    MOX::leaders[0].location = 5;
+    strcpy(leaders[0].name, "Source Hero");
+    leaders[0].status = 5;
+    leaders[0].location = 5;
     MOX::ship[0].owner = NONPLAYER_SHIP_TYPE_GUARDIAN;
     MOX::ship[0].status = 1;
     MOX::ship[0].location = 6;
@@ -797,13 +793,13 @@ TEST_CASE("full mirror package preserves native home systems") {
 
     int marooned_leaders = 0;
     bool copied_leader_found = false;
-    for (int16_t leader_id = 0; leader_id < MAX_LEADERS; ++leader_id) {
-        if (MOX::leaders[leader_id].status != 5) {
+    for (const auto& leader : leaders) {
+        if (leader.status != 5) {
             continue;
         }
         ++marooned_leaders;
         copied_leader_found |=
-            MOX::leaders[leader_id].location == copied_marooned_system;
+            leader.location == copied_marooned_system;
     }
     CHECK(marooned_leaders == 2);
     CHECK(copied_leader_found);

@@ -1,5 +1,7 @@
 #include "pch.h"
 
+using game::current_state;
+
 namespace CMBTFIR2 {
     namespace {
         void Refresh_Shield_Capacity(int16_t ship_idx) {
@@ -50,7 +52,7 @@ namespace CMBTFIR2 {
 
     int16_t __cdecl Helmsman_Bonus(int16_t leader_idx) {
         int16_t bonus = 0;
-        uint32_t special_skills = MOX::leaders[leader_idx].special_skills;
+        uint32_t special_skills = current_state.leaders.at(leader_idx).special_skills;
 
         if (special_skills & LEADER_SHIP_SKILL_HELMSMAN) {
             int16_t level = OFFICER::Owned_Officer_Level(leader_idx);
@@ -68,12 +70,13 @@ namespace CMBTFIR2 {
     int16_t __cdecl Weaponry_Bonus(int16_t leader_idx) {
         int16_t bonus = 0;
 
-        if ((MOX::leaders[leader_idx].special_skills & LEADER_SHIP_SKILL_WEAPONRY) != 0) {
+        const auto skills = current_state.leaders.at(leader_idx).special_skills;
+        if ((skills & LEADER_SHIP_SKILL_WEAPONRY) != 0) {
             bonus = OFFICER::Owned_Officer_Level(leader_idx);
             return (int16_t)((bonus + 1) * 5);
         }
 
-        if ((MOX::leaders[leader_idx].special_skills & LEADER_SHIP_SKILL_WEAPONRY2) != 0) {
+        if ((skills & LEADER_SHIP_SKILL_WEAPONRY2) != 0) {
             bonus = OFFICER::Owned_Officer_Level(leader_idx);
             bonus = (int16_t)(((bonus * 3 + 3) * 5) / 2);
         }
@@ -84,12 +87,13 @@ namespace CMBTFIR2 {
     int16_t __cdecl Engineer_Bonus(int16_t leader_idx) {
         int16_t bonus = 0;
 
-        if ((MOX::leaders[leader_idx].special_skills & LEADER_SHIP_SKILL_ENGINEER) != 0) {
+        const auto skills = current_state.leaders.at(leader_idx).special_skills;
+        if ((skills & LEADER_SHIP_SKILL_ENGINEER) != 0) {
             bonus = OFFICER::Owned_Officer_Level(leader_idx);
             return bonus * 2 + 2;
         }
 
-        if ((MOX::leaders[leader_idx].special_skills & LEADER_SHIP_SKILL_ENGINEER2) != 0) {
+        if ((skills & LEADER_SHIP_SKILL_ENGINEER2) != 0) {
             bonus = OFFICER::Owned_Officer_Level(leader_idx);
             bonus = (bonus + 1) * 3;
         }
@@ -99,7 +103,7 @@ namespace CMBTFIR2 {
 
     int16_t __cdecl Fighter_Pilot_Bonus(int16_t leader_idx) {
         int16_t bonus = 0;
-        uint32_t special_skills = MOX::leaders[leader_idx].special_skills;
+        uint32_t special_skills = current_state.leaders.at(leader_idx).special_skills;
 
         if (special_skills & LEADER_SHIP_SKILL_FIGHTER_PILOT) {
             int16_t level = OFFICER::Owned_Officer_Level(leader_idx);
@@ -121,7 +125,7 @@ namespace CMBTFIR2 {
      */
     int16_t __cdecl Galactic_Lore_Bonus(int16_t leader_idx) {
         int16_t bonus = 0;
-        uint32_t special_skills = MOX::leaders[leader_idx].special_skills;
+        uint32_t special_skills = current_state.leaders.at(leader_idx).special_skills;
 
         if (special_skills & LEADER_SHIP_SKILL_GALACTIC_LORE) {
             int16_t level = OFFICER::Owned_Officer_Level(leader_idx);
@@ -421,9 +425,10 @@ namespace CMBTFIR2 {
     int16_t Leader_Ordnance_Bonus(int16_t leader_idx) {
         int16_t bonus = 0;
 
-        if ((MOX::leaders[leader_idx].special_skills & LEADER_SHIP_SKILL_ORDNANCE) != 0) {
+        const auto skills = current_state.leaders.at(leader_idx).special_skills;
+        if ((skills & LEADER_SHIP_SKILL_ORDNANCE) != 0) {
             bonus = (OFFICER::Owned_Officer_Level(leader_idx) + 1) * 5;
-        } else if ((MOX::leaders[leader_idx].special_skills & LEADER_SHIP_SKILL_ORDNANCE2) != 0) {
+        } else if ((skills & LEADER_SHIP_SKILL_ORDNANCE2) != 0) {
             int16_t level = OFFICER::Owned_Officer_Level(leader_idx);
             bonus = (int16_t)(((level * 3 + 3) * 5) / 2);
         }
@@ -764,7 +769,7 @@ namespace CMBTFIR2 {
     }
 
     int16_t __cdecl Commando_Bonus(int16_t leader_idx) {
-        const s_leader_data& leader = MOX::leaders[leader_idx];
+        const auto& leader = current_state.leaders.at(leader_idx);
 
         if (leader.general_skills & LEADER_GENERAL_SKILL_COMMANDO) {
             return OFFICER::Owned_Officer_Level(leader_idx) * 2 + 2;
@@ -803,11 +808,12 @@ namespace CMBTFIR2 {
     }
 
     int16_t __cdecl Security_Bonus(int16_t leader_idx) {
-        if ((MOX::leaders[leader_idx].special_skills & LEADER_SHIP_SKILL_SECURITY) != 0) {
+        const auto skills = current_state.leaders.at(leader_idx).special_skills;
+        if ((skills & LEADER_SHIP_SKILL_SECURITY) != 0) {
             return OFFICER::Owned_Officer_Level(leader_idx) * 2 + 2;
         }
 
-        if ((MOX::leaders[leader_idx].special_skills & LEADER_SHIP_SKILL_SECURITY2) != 0) {
+        if ((skills & LEADER_SHIP_SKILL_SECURITY2) != 0) {
             return (OFFICER::Owned_Officer_Level(leader_idx) + 1) * 3;
         }
 

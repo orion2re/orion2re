@@ -4,9 +4,8 @@
 
 namespace {
     struct s_leader_text_fixture {
-        std::vector<s_leader_data> leaders{MAX_LEADERS};
         std::vector<s_player> players{MAX_PLAYERS};
-        s_leader_data* saved_leaders = MOX::leaders;
+        game::s_game_state saved_state = std::move(game::current_state);
         s_player* saved_players = MOX::player;
         decltype(MOX::government_labels) saved_labels;
         decltype(TECHDATA::technology_applications) saved_applications;
@@ -20,7 +19,7 @@ namespace {
             memcpy(saved_labels, MOX::government_labels, sizeof(saved_labels));
             memcpy(saved_applications, TECHDATA::technology_applications, sizeof(saved_applications));
             memcpy(saved_strings, ESTRINGS::strings, sizeof(saved_strings));
-            MOX::leaders = leaders.data();
+            game::current_state = game::s_game_state{};
             MOX::player = players.data();
             memset(MOX::government_labels, 0, sizeof(MOX::government_labels));
             memset(TECHDATA::technology_applications, 0, sizeof(TECHDATA::technology_applications));
@@ -31,7 +30,7 @@ namespace {
         }
 
         ~s_leader_text_fixture() {
-            MOX::leaders = saved_leaders;
+            game::current_state = std::move(saved_state);
             MOX::player = saved_players;
             memcpy(MOX::government_labels, saved_labels, sizeof(saved_labels));
             memcpy(TECHDATA::technology_applications, saved_applications, sizeof(saved_applications));

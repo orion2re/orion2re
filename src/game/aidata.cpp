@@ -117,7 +117,7 @@ namespace AIDATA {
         if (!world->stars) return "missing star records";
         if (!world->colonies) return "missing colony records";
         if (!world->planets) return "missing planet records";
-        if (!world->leaders) return "missing leader records";
+        if (!world->state) return "missing leader records";
         if (!world->settings) return "missing game settings";
         if (!world->stardate) return "missing stardate";
         if (!world->player_count || *world->player_count <= 0 || *world->player_count > MAX_PLAYERS) return "invalid player count";

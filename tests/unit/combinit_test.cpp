@@ -173,8 +173,9 @@ DOCTEST_TEST_CASE("survival pods recover more than eight leaders after an expand
         destroyed.unit_status = 5;
         destroyed.officer_idx = i;
         MOX::ship[destroyed_idx].officer_index = i;
-        MOX::leaders[i].location = destroyed_idx;
-        MOX::leaders[i].player_index = 0;
+        auto& leader = game::current_state.leaders.at(i);
+        leader.location = destroyed_idx;
+        leader.player_index = 0;
         s_combat_data& surviving = MOX::combat_data[surviving_idx];
         surviving.ship_idx = surviving_idx;
         surviving.owner = 0;
@@ -186,7 +187,7 @@ DOCTEST_TEST_CASE("survival pods recover more than eight leaders after an expand
 
     for (int16_t i = 0; i < leader_count; ++i) {
         const int16_t surviving_idx = leader_count + i + 1;
-        DOCTEST_CHECK((MOX::leaders[i].location == surviving_idx));
+        DOCTEST_CHECK(game::current_state.leaders.at(i).location == surviving_idx);
         DOCTEST_CHECK((MOX::ship[surviving_idx].officer_index == i));
         DOCTEST_CHECK((MOX::combat_data[surviving_idx].officer_idx == i));
     }

@@ -11,7 +11,8 @@ namespace aileader {
 
                 if (leader_idx != -1) {
                     bool hire_criteria_met = false;
-                    s_leader_data* leader = &world->leaders[leader_idx];
+                    auto& state = *world->state;
+                    auto* leader = &state.leaders.at(leader_idx);
                     uint32_t general_skills = leader->general_skills;
 
                     if ((general_skills & (LEADER_GENERAL_SKILL_MEGAWEALTH | LEADER_GENERAL_SKILL_MEGAWEALTH2)) != 0) {
@@ -67,12 +68,12 @@ namespace aileader {
         }
     }
 
-    void Assign_Star_Officer(AIDATA::s_state* ai, const game::s_view* world, game::id_player player_id, game::id_leader leader_id) {
+    void Assign_Star_Officer(const game::s_view* world, AIDATA::s_state* ai, game::id_player player_id, int16_t leader_index) {
         const uint32_t player_index = legacy_world::Slot(player_id);
-        const uint32_t leader_index = legacy_world::Slot(leader_id);
+        auto& state = *world->state;
         std::vector<int32_t> star_scores(world->Star_Count(), 0);
 
-        uint32_t skills = world->leaders[leader_index].special_skills;
+        uint32_t skills = state.leaders.at(leader_index).special_skills;
 
         for (int16_t i = 0; i < world->Colony_Count(); ++i) {
             s_colony* colony = &world->colonies[i];
@@ -131,13 +132,12 @@ namespace aileader {
         }
 
         if (star_scores[best_star_idx] != 0) {
-            OFFICER::Ai_Assign_Leader_To_Star(&world->players[player_index], &world->leaders[leader_index], &world->stars[best_star_idx]);
+            OFFICER::Ai_Assign_Leader_To_Star(state, &world->players[player_index], leader_index, &world->stars[best_star_idx]);
         }
     }
 
-    void Assign_Fleet_Officer(const game::s_view* world, game::id_player player_id, game::id_leader leader_id) {
+    void Assign_Fleet_Officer(const game::s_view* world, game::id_player player_id, int16_t leader_index) {
         const uint32_t player_index = legacy_world::Slot(player_id);
-        const uint32_t leader_index = legacy_world::Slot(leader_id);
         s_ship_data* best_ship = nullptr;
         s_ship_data* ship_list = world->ships;
         int32_t num_ships = world->Ship_Count();
@@ -157,8 +157,9 @@ namespace aileader {
 
         if (best_ship != nullptr) {
             OFFICER::Ai_Assign_Leader_To_Ship(
+                *world->state,
                 &world->players[player_index],
-                &world->leaders[leader_index],
+                leader_index,
                 best_ship);
         }
     }
@@ -166,20 +167,21 @@ namespace aileader {
 
     void Assign_Unassigned_Leaders(AIDATA::s_state* ai, const game::s_view* world, game::id_player player_id) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
-        for (int32_t leader_index = 0; leader_index < MAX_LEADERS; ++leader_index) {
-            s_leader_data* leader = &world->leaders[leader_index];
+        auto& state = *world->state;
+        for (int16_t leader_index = 0; leader_index < MAX_LEADERS; ++leader_index) {
+            auto* leader = &state.leaders.at(leader_index);
 
             if (leader->player_index == (char)player_idx) {
                 if (leader->status == 0 /* Available/Unassigned */) {
                     if (leader->type == LEADER_TYPE_SHIP) {
-                        Assign_Fleet_Officer(world, player_id, legacy_world::Leader_Id(leader_index));
+                        Assign_Fleet_Officer(world, player_id, leader_index);
                     } else /* Star Officer */ {
-                        Assign_Star_Officer(ai, world, player_id, legacy_world::Leader_Id(leader_index));
+                        Assign_Star_Officer(world, ai, player_id, leader_index);
                     }
                 } else if (leader->status == 1 /* Assigned */) {
                     // Only fleet officers seem to be reassigned in this manner
                     if (leader->type == LEADER_TYPE_SHIP) {
-                        Reassign_Fleet_Officer(world, player_id, legacy_world::Leader_Id(leader_index));
+                        Reassign_Fleet_Officer(world, player_id, leader_index);
                     }
                 }
             }

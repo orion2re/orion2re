@@ -225,13 +225,14 @@ DOCTEST_TEST_CASE("leader offers preserve classic decline behavior by default") 
     TEST_REPORT::Reset_();
     MOX::player[0].officer_for_hire = 3;
     MOX::player[0].stardate_last_offered_hero = 35005;
-    MOX::leaders[3].player_index = 0;
+    auto& leader = game::current_state.leaders[3];
+    leader.player_index = 0;
 
     DOCTEST_CHECK(REPORT::Has_Officer_For_Hire(0, 0) == 1);
     DOCTEST_CHECK(MOX::player[0].officer_for_hire == 3);
     DOCTEST_CHECK(REPORT::Has_Officer_For_Hire(0, 1) == 1);
-    DOCTEST_CHECK(MOX::leaders[3].status == 4);
-    DOCTEST_CHECK(MOX::leaders[3].player_index == 0);
+    DOCTEST_CHECK(leader.status == 4);
+    DOCTEST_CHECK(leader.player_index == 0);
     DOCTEST_CHECK((MOX::player[0].stardate_last_offered_hero == 35005));
     DOCTEST_CHECK(MOX::player[0].officer_for_hire == -1);
 }
@@ -241,14 +242,15 @@ DOCTEST_TEST_CASE("declining a leader offer keeps it hireable without resetting 
     OFFICER::rejected_offer_keeps_timer = 1;
     MOX::player[0].officer_for_hire = 3;
     MOX::player[0].stardate_last_offered_hero = 35001;
-    MOX::leaders[3].player_index = 0;
-    MOX::leaders[3].xp = 60;
+    auto& leader = game::current_state.leaders[3];
+    leader.player_index = 0;
+    leader.xp = 60;
 
     DOCTEST_CHECK(REPORT::Has_Officer_For_Hire(0, 1) == 1);
-    DOCTEST_CHECK(MOX::leaders[3].status == 4);
-    DOCTEST_CHECK(MOX::leaders[3].player_index == 0);
-    DOCTEST_CHECK((MOX::leaders[3].xp == 60));
-    DOCTEST_CHECK(MOX::leaders[3].eta == 0);
+    DOCTEST_CHECK(leader.status == 4);
+    DOCTEST_CHECK(leader.player_index == 0);
+    DOCTEST_CHECK(leader.xp == 60);
+    DOCTEST_CHECK(leader.eta == 0);
     DOCTEST_CHECK((MOX::player[0].stardate_last_offered_hero == 35001));
     DOCTEST_CHECK(MOX::player[0].officer_for_hire == -1);
 }
@@ -260,12 +262,13 @@ DOCTEST_TEST_CASE("accepting a leader into the pool records its offer date") {
     MOX::stardate = 35006;
     MOX::player[0].officer_for_hire = 3;
     MOX::player[0].stardate_last_offered_hero = 35001;
-    MOX::leaders[3].player_index = 0;
+    auto& leader = game::current_state.leaders[3];
+    leader.player_index = 0;
 
     DOCTEST_CHECK(REPORT::Has_Officer_For_Hire(0, 1) == 1);
-    DOCTEST_CHECK(MOX::leaders[3].status == 0);
-    DOCTEST_CHECK(MOX::leaders[3].player_index == 0);
-    DOCTEST_CHECK((MOX::leaders[3].xp == 0));
+    DOCTEST_CHECK(leader.status == 0);
+    DOCTEST_CHECK(leader.player_index == 0);
+    DOCTEST_CHECK(leader.xp == 0);
     DOCTEST_CHECK((MOX::player[0].stardate_last_offered_hero == 35005));
     DOCTEST_CHECK(MOX::player[0].officer_for_hire == -1);
 }

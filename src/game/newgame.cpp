@@ -51,7 +51,7 @@ namespace NEWGAME {
         struct_::Clear_Structure(MOX::colony, MAX_COLONIES * sizeof(*MOX::colony));
         struct_::Clear_Structure(MOX::ship, MAX_SHIPS * sizeof(*MOX::ship));
         struct_::Clear_Structure(MOX::player, MAX_PLAYERS * sizeof(*MOX::player));
-        struct_::Clear_Structure(MOX::leaders, MAX_LEADERS * sizeof(*MOX::leaders));
+        game::current_state = game::s_game_state{};
 
         int16_t result = 0;
 

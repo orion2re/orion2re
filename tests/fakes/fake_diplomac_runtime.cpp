@@ -4,7 +4,6 @@
 
 namespace {
     s_player players[MAX_PLAYERS];
-    s_leader_data leaders[MAX_LEADERS];
     s_ship_data ships[1];
     s_star_data stars[1];
     s_planet_data planets[1];
@@ -14,10 +13,9 @@ namespace {
 namespace TEST_DIPLOMAC {
     void Reset_() {
         memset(players, 0, sizeof(players));
-        memset(leaders, 0, sizeof(leaders));
-        for (auto& leader : leaders) leader.player_index = -1;
+        game::current_state = game::s_game_state{};
+        for (auto& leader : game::current_state.leaders) leader.player_index = -1;
         MOX::player = players;
-        MOX::leaders = leaders;
         MOX::ship = ships;
         MOX::star = stars;
         MOX::planet = planets;

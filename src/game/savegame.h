@@ -7,7 +7,7 @@
 namespace SAVEGAME {
     inline constexpr uint32_t LEGACY_HEADER = 0xE0;
     inline constexpr uint32_t VERSIONED_HEADER = 0xE1;
-    inline constexpr uint16_t CURRENT_VERSION = 7;
+    inline constexpr uint16_t CURRENT_VERSION = 8;
     inline constexpr uint32_t BUFFER_CAPACITY = 4 * 1024 * 1024;
     extern bool loaded_config_prompt;
 

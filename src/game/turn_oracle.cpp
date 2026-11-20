@@ -45,8 +45,8 @@ namespace turn_oracle {
                 if (error->empty()) *error = "invalid initial oracle save";
                 return false;
             }
-            if (metadata.game_type != 0 || metadata.version != SAVEGAME::CURRENT_VERSION) {
-                *error = "oracle requires a current-version single-player save";
+            if (metadata.game_type != 0 || (metadata.version != 7 && metadata.version != SAVEGAME::CURRENT_VERSION)) {
+                *error = "oracle requires a v7 or current-version single-player save";
                 return false;
             }
             MOX::settings = settings;

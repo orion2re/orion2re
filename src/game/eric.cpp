@@ -462,11 +462,11 @@ namespace ERIC {
 
     int8_t __cdecl Player_Has_Leader_With_General_Skill_At_Star(int16_t player_idx, int16_t skill_idx, int16_t star_idx) {
         for (int16_t i = 0; i < MAX_LEADERS; ++i) {
-            if (MOX::leaders[i].player_index == player_idx &&
-                MOX::leaders[i].status == 1 &&
-                MOX::leaders[i].eta == 0) {
-                if ((MOX::leaders[i].type == LEADER_TYPE_SHIP && MOX::ship[MOX::leaders[i].location].location == star_idx) ||
-                    (MOX::leaders[i].type == LEADER_TYPE_COLONY && MOX::leaders[i].location == star_idx)) {
+            const auto& state = game::current_state;
+            const auto& leader = state.leaders.at(i);
+            if (leader.player_index == player_idx && leader.status == 1 && leader.eta == 0) {
+                if ((leader.type == LEADER_TYPE_SHIP && MOX::ship[leader.location].location == star_idx) ||
+                    (leader.type == LEADER_TYPE_COLONY && leader.location == star_idx)) {
                     if (OFFICER::Officer_Has_General_Skill(player_idx, i, skill_idx)) {
                         return 1;
                     }

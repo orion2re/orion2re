@@ -241,26 +241,26 @@ DOCTEST_TEST_CASE("leader hire costs use configurable Commando and Megawealth ru
 
     OFFICER::commando_hire_cost = {1, 3};
     leader->general_skills = LEADER_GENERAL_SKILL_COMMANDO;
-    DOCTEST_CHECK(OFFICER::Officer_Skill_Value(0) == 3);
+    DOCTEST_CHECK(OFFICER::Officer_Skill_Value(game::current_state, 0) == 3);
     leader->general_skills = LEADER_GENERAL_SKILL_COMMANDO2;
-    DOCTEST_CHECK(OFFICER::Officer_Skill_Value(0) == 6);
+    DOCTEST_CHECK(OFFICER::Officer_Skill_Value(game::current_state, 0) == 6);
     leader->type = LEADER_TYPE_COLONY;
     leader->general_skills = LEADER_GENERAL_SKILL_COMMANDO;
-    DOCTEST_CHECK(OFFICER::Officer_Skill_Value(0) == 1);
+    DOCTEST_CHECK(OFFICER::Officer_Skill_Value(game::current_state, 0) == 1);
     leader->general_skills = LEADER_GENERAL_SKILL_COMMANDO2;
-    DOCTEST_CHECK(OFFICER::Officer_Skill_Value(0) == 2);
+    DOCTEST_CHECK(OFFICER::Officer_Skill_Value(game::current_state, 0) == 2);
 
     leader->type = LEADER_TYPE_SHIP;
     OFFICER::commando_hire_cost = {4, 6};
-    DOCTEST_CHECK(OFFICER::Officer_Skill_Value(0) == 12);
+    DOCTEST_CHECK(OFFICER::Officer_Skill_Value(game::current_state, 0) == 12);
 
     OFFICER::commando_hire_cost = {128, 255};
     leader->general_skills = LEADER_GENERAL_SKILL_COMMANDO;
-    DOCTEST_CHECK(OFFICER::Officer_Skill_Value(0) == 255);
+    DOCTEST_CHECK(OFFICER::Officer_Skill_Value(game::current_state, 0) == 255);
     leader->general_skills = LEADER_GENERAL_SKILL_COMMANDO2;
-    DOCTEST_CHECK(OFFICER::Officer_Skill_Value(0) == 510);
+    DOCTEST_CHECK(OFFICER::Officer_Skill_Value(game::current_state, 0) == 510);
     leader->type = LEADER_TYPE_COLONY;
-    DOCTEST_CHECK(OFFICER::Officer_Skill_Value(0) == 256);
+    DOCTEST_CHECK(OFFICER::Officer_Skill_Value(game::current_state, 0) == 256);
 
     leader->general_skills = LEADER_GENERAL_SKILL_MEGAWEALTH;
     leader->skill_value = 5;
@@ -272,7 +272,7 @@ DOCTEST_TEST_CASE("leader hire costs use configurable Commando and Megawealth ru
     leader->general_skills = LEADER_GENERAL_SKILL_ASSASSIN;
     MOX::skill_data[0].cost = 255;
     OFFICER::megawealth_doubles_hire_cost = 0;
-    DOCTEST_CHECK(OFFICER::Officer_Skill_Value(0) == 255);
+    DOCTEST_CHECK(OFFICER::Officer_Skill_Value(game::current_state, 0) == 255);
 
     leader->skill_value = 1530;
     leader->xp = 1000;

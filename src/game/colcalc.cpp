@@ -1,4 +1,6 @@
 #include "pch.h"
+
+using game::current_state;
 #include "legacy_world.h"
 
 #include "build_queue.h"
@@ -169,7 +171,7 @@ namespace COLCALC {
         int8_t officer_idx = (int8_t)MOX::star[star_idx].officer_index[colony->owner];
 
         if (officer_idx != -1) {
-            if (MOX::leaders[officer_idx].eta != 0) {
+            if (current_state.leaders.at(officer_idx).eta != 0) {
                 return -1;
             }
         }
@@ -908,7 +910,7 @@ namespace COLCALC {
                 }
 
                 if (leader_idx != -1) {
-                    uint32_t skills = MOX::leaders[leader_idx].special_skills;
+                    uint32_t skills = current_state.leaders.at(leader_idx).special_skills;
                     if (skills & LEADER_COLONY_SKILL_MEDICINE2) {
                         int level = OFFICER::Owned_Officer_Level(leader_idx);
                         growth_modifier += (level * 3 + 3) * 5;
@@ -1999,7 +2001,7 @@ namespace COLCALC {
         s_player* plr = &MOX::player[player_idx];
 
         for (int i = 0; i < MAX_LEADERS; ++i) {
-            s_leader_data* leader = &MOX::leaders[i];
+            auto* leader = &current_state.leaders.at(i);
 
             if (Player_Owns_Officer(plr, leader)) {
                 int bonus = 0;
@@ -2899,20 +2901,19 @@ namespace COLCALC {
         }
 
         // Release all leaders hired by the eliminated player
-        for (int i = 0; i < MAX_LEADERS; ++i) {
-            s_leader_data* leader = &MOX::leaders[i];
-            if (leader->player_index == player_idx) {
-                leader->status = -2 /* STATUS_RELEASED? */;
-                leader->eta = 0;
-                if (leader->location != -1) {
-                    if (leader->type == LEADER_TYPE_SHIP) {
-                        MOX::ship[leader->location].officer_index = -1;
+        for (auto& leader : current_state.leaders) {
+            if (leader.player_index == player_idx) {
+                leader.status = -2 /* STATUS_RELEASED? */;
+                leader.eta = 0;
+                if (leader.location != -1) {
+                    if (leader.type == LEADER_TYPE_SHIP) {
+                        MOX::ship[leader.location].officer_index = -1;
                     } else {
-                        MOX::star[leader->location].officer_index[player_idx] = -1;
+                        MOX::star[leader.location].officer_index[player_idx] = -1;
                     }
-                    leader->location = -1;
+                    leader.location = -1;
                 }
-                leader->player_index = -1;
+                leader.player_index = -1;
             }
         }
 

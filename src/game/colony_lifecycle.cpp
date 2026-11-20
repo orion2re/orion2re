@@ -30,7 +30,8 @@ namespace BOMB {
             }
 
             if (!other_colony_found) {
-                if (MOX::leaders[leader_idx].eta > 0) {
+                const auto& state = game::current_state;
+                if (state.leaders.at(leader_idx).eta > 0) {
                     OFFICER::Move_Officer_To_Pool(leader_idx);
                 } else {
                     OFFICER::Kill_Officer(leader_idx);

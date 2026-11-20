@@ -1,6 +1,7 @@
 #include "pch.h"
 
 #include "doctest/doctest.h"
+#include "game/leader_serialization.h"
 
 #include <array>
 #include <cstring>
@@ -49,7 +50,7 @@ namespace {
 
     constexpr uint32_t Broadcast_Game_Data_Snapshot_Max_Bytes_() {
         return
-            sizeof(NETMOX::net.host_election_id) +
+            sizeof(uint32_t) + sizeof(NETMOX::net.host_election_id) +
             sizeof(MOX::stardate) +
             sizeof(MOX::settings.random_events) +
             sizeof(MOX::settings.game_difficulty) +
@@ -70,7 +71,7 @@ namespace {
             MAX_COLONIES * sizeof(s_colony) +
             sizeof(int16_t) +
             MAX_SHIPS * sizeof(s_ship_data) +
-            MAX_LEADERS * sizeof(s_leader_data) +
+            SERIAL::LEADER_STATE_BYTES +
             sizeof(uint16_t) +
             sizeof(REPORT::reports) +
             sizeof(EVENTS::event_data) +
@@ -116,7 +117,7 @@ namespace {
         s_planet_data* saved_planet_ptr = MOX::planet;
         s_colony* saved_colony_ptr = MOX::colony;
         s_ship_data* saved_ship_ptr = MOX::ship;
-        s_leader_data* saved_leader_ptr = MOX::leaders;
+        game::s_game_state saved_state = std::move(game::current_state);
         s_nebula* saved_nebula_ptr = MOX::nebula;
         s_animation_header* saved_screen_seg = MOX::screen_seg;
         void (*saved_net_send_hook)(int32_t, int16_t, void*, uint32_t) = netcode::g_net_send_hook;
@@ -129,7 +130,6 @@ namespace {
         std::vector<s_planet_data> planets = std::vector<s_planet_data>(MAX_PLANETS);
         std::vector<s_colony> colonies = std::vector<s_colony>(MAX_COLONIES);
         std::vector<s_ship_data> ships = std::vector<s_ship_data>(MAX_SHIPS);
-        std::vector<s_leader_data> leaders = std::vector<s_leader_data>(MAX_LEADERS);
         std::vector<s_nebula> nebulas = std::vector<s_nebula>(MAX_NEBULAS);
 
         Scoped_Netmox_Roundtrip_State_() {
@@ -146,7 +146,7 @@ namespace {
             MOX::planet = planets.data();
             MOX::colony = colonies.data();
             MOX::ship = ships.data();
-            MOX::leaders = leaders.data();
+            game::current_state = game::s_game_state{};
             MOX::nebula = nebulas.data();
         }
 
@@ -162,7 +162,7 @@ namespace {
             MOX::planet = saved_planet_ptr;
             MOX::colony = saved_colony_ptr;
             MOX::ship = saved_ship_ptr;
-            MOX::leaders = saved_leader_ptr;
+            game::current_state = std::move(saved_state);
             MOX::nebula = saved_nebula_ptr;
 
             NETMOX::net = saved_net;
@@ -229,7 +229,7 @@ namespace {
         std::memset(MOX::planet, 0, MAX_PLANETS * sizeof(s_planet_data));
         std::memset(MOX::colony, 0, MAX_COLONIES * sizeof(s_colony));
         std::memset(MOX::ship, 0, MAX_SHIPS * sizeof(s_ship_data));
-        std::memset(MOX::leaders, 0, MAX_LEADERS * sizeof(s_leader_data));
+        game::current_state = game::s_game_state{};
         std::memset(MOX::nebula, 0, MAX_NEBULAS * sizeof(s_nebula));
         std::memset(REPORT::reports, 0, sizeof(REPORT::reports));
         std::memset(EVENTS::event_data, 0, sizeof(EVENTS::event_data));
@@ -288,9 +288,10 @@ namespace {
         }
 
         for (int i = 0; i < MAX_LEADERS; ++i) {
-            MOX::leaders[i].player_index = (int8_t)(i % MOX::NUM_PLAYERS);
-            MOX::leaders[i].location = (int8_t)(i % MOX::NUM_STARS);
-            MOX::leaders[i].eta = (int8_t)(i + 3);
+            auto& leader = game::current_state.leaders.at(i);
+            leader.player_index = (int8_t)(i % MOX::NUM_PLAYERS);
+            leader.location = (int8_t)(i % MOX::NUM_STARS);
+            leader.eta = (int8_t)(i + 3);
         }
 
         for (int i = 0; i < REPORT::n_reports; ++i) {
@@ -378,7 +379,7 @@ DOCTEST_TEST_CASE("large combat payload allocations stay within the shared limit
         sizeof(int16_t) +
         MAX_SHIPS * (sizeof(int16_t) + sizeof(s_ship_data)) +
         sizeof(int16_t) +
-        MAX_LEADERS * (sizeof(int16_t) + sizeof(s_leader_data)) +
+        MAX_LEADERS * (sizeof(int16_t) + SERIAL::LEADER_BYTES) +
         sizeof(int16_t);
 
     constexpr uint32_t battle_results_remote_payload_bytes =
@@ -388,7 +389,7 @@ DOCTEST_TEST_CASE("large combat payload allocations stay within the shared limit
         sizeof(uint8_t) +
         sizeof(int16_t) * 2 +
         2 * (sizeof(MOX::player[0].tech_applications) + sizeof(uint8_t)) +
-        MAX_LEADERS * (sizeof(int16_t) + sizeof(s_leader_data)) +
+        MAX_LEADERS * (sizeof(int16_t) + SERIAL::LEADER_BYTES) +
         sizeof(int16_t) +
         (sizeof(int16_t) * 2 + sizeof(uint8_t) * 2 + sizeof(s_colony)) +
         sizeof(int16_t) +
@@ -400,7 +401,7 @@ DOCTEST_TEST_CASE("large combat payload allocations stay within the shared limit
         MAX_PLAYERS * sizeof(s_combfind_star_has_player) +
         sizeof(uint8_t) +
         2 * (sizeof(MOX::player[0].tech_fields) + sizeof(MOX::player[0].tech_applications)) +
-        MAX_LEADERS * (sizeof(int16_t) + sizeof(s_leader_data)) +
+        MAX_LEADERS * (sizeof(int16_t) + SERIAL::LEADER_BYTES) +
         sizeof(int16_t) +
         2 * sizeof(uint8_t) +
         (sizeof(int16_t) * 3 + sizeof(uint8_t) * 2 + sizeof(s_colony)) +
@@ -414,7 +415,7 @@ DOCTEST_TEST_CASE("large combat payload allocations stay within the shared limit
         MAX_PLAYERS * sizeof(s_combfind_star_has_player) +
         sizeof(uint8_t) +
         MAX_PLAYERS * (sizeof(MOX::player[0].tech_fields) + sizeof(MOX::player[0].tech_applications)) +
-        MAX_LEADERS * (sizeof(int16_t) + sizeof(s_leader_data)) +
+        MAX_LEADERS * (sizeof(int16_t) + SERIAL::LEADER_BYTES) +
         sizeof(int16_t) +
         MAX_PLAYERS * sizeof(uint8_t) +
         sizeof(int16_t) +
@@ -564,7 +565,7 @@ DOCTEST_TEST_CASE("broadcast snapshot encode and decode round trip serialized ga
     std::vector<s_planet_data> expected_planets(MOX::planet, MOX::planet + MAX_PLANETS);
     std::vector<s_colony> expected_colonies(MOX::colony, MOX::colony + MAX_COLONIES);
     std::vector<s_ship_data> expected_ships(MOX::ship, MOX::ship + MAX_SHIPS);
-    std::vector<s_leader_data> expected_leaders(MOX::leaders, MOX::leaders + MAX_LEADERS);
+    const auto expected_state = game::current_state;
     std::array<s_report, 50> expected_reports = {};
     std::array<s_event_data, 36> expected_events = {};
     std::array<uint8_t, MAX_PLAYERS> expected_first_msg = {};
@@ -601,7 +602,7 @@ DOCTEST_TEST_CASE("broadcast snapshot encode and decode round trip serialized ga
     std::memset(MOX::planet, 0, MAX_PLANETS * sizeof(s_planet_data));
     std::memset(MOX::colony, 0, MAX_COLONIES * sizeof(s_colony));
     std::memset(MOX::ship, 0, MAX_SHIPS * sizeof(s_ship_data));
-    std::memset(MOX::leaders, 0, MAX_LEADERS * sizeof(s_leader_data));
+    game::current_state = game::s_game_state{};
     std::memset(REPORT::reports, 0, sizeof(REPORT::reports));
     std::memset(EVENTS::event_data, 0, sizeof(EVENTS::event_data));
     std::memset(MSG_::first_msg, 0, sizeof(MSG_::first_msg));
@@ -631,7 +632,7 @@ DOCTEST_TEST_CASE("broadcast snapshot encode and decode round trip serialized ga
     DOCTEST_CHECK(std::memcmp(MOX::planet, expected_planets.data(), MAX_PLANETS * sizeof(s_planet_data)) == 0);
     DOCTEST_CHECK(std::memcmp(MOX::colony, expected_colonies.data(), MAX_COLONIES * sizeof(s_colony)) == 0);
     DOCTEST_CHECK(std::memcmp(MOX::ship, expected_ships.data(), MAX_SHIPS * sizeof(s_ship_data)) == 0);
-    DOCTEST_CHECK(std::memcmp(MOX::leaders, expected_leaders.data(), MAX_LEADERS * sizeof(s_leader_data)) == 0);
+    DOCTEST_CHECK(game::current_state == expected_state);
     DOCTEST_CHECK(std::memcmp(REPORT::reports, expected_reports.data(), sizeof(REPORT::reports)) == 0);
     DOCTEST_CHECK(std::memcmp(EVENTS::event_data, expected_events.data(), sizeof(EVENTS::event_data)) == 0);
     DOCTEST_CHECK(std::memcmp(MSG_::first_msg, expected_first_msg.data(), sizeof(MSG_::first_msg)) == 0);
@@ -674,6 +675,7 @@ DOCTEST_TEST_CASE("loaded Lua state extends the current native snapshot") {
 
     SERIAL::Reader_ native(
         envelope.Ptr(), native_size, "invalid test native network snapshot");
+    DOCTEST_CHECK(native.Read_Uint32() == 0x324E324F); // O2N2
     DOCTEST_CHECK(native.Read_Int16() == 306);
     DOCTEST_CHECK(native.Read_Uint32() == 35200);
     native.Skip(sizeof(MOX::settings.random_events) +
@@ -728,7 +730,7 @@ DOCTEST_TEST_CASE("broadcast differential decode round trips against cached prio
     MOX::planet[3].planet_type = 9;
     MOX::colony[1].morale = 88;
     MOX::ship[3].turns_left = 12;
-    MOX::leaders[4].eta = 21;
+    game::current_state.leaders[4].eta = 21;
     REPORT::n_reports = 2;
     REPORT::reports[0].type = 9;
     EVENTS::event_data[5].status = 6;
@@ -767,7 +769,7 @@ DOCTEST_TEST_CASE("broadcast differential decode round trips against cached prio
     std::vector<s_planet_data> expected_planets(MOX::planet, MOX::planet + MAX_PLANETS);
     std::vector<s_colony> expected_colonies(MOX::colony, MOX::colony + MAX_COLONIES);
     std::vector<s_ship_data> expected_ships(MOX::ship, MOX::ship + MAX_SHIPS);
-    std::vector<s_leader_data> expected_leaders(MOX::leaders, MOX::leaders + MAX_LEADERS);
+    const auto expected_state = game::current_state;
     std::array<s_report, 50> expected_reports = {};
     std::array<s_event_data, 36> expected_events = {};
     std::array<uint8_t, MAX_PLAYERS> expected_first_msg = {};
@@ -812,7 +814,7 @@ DOCTEST_TEST_CASE("broadcast differential decode round trips against cached prio
     std::memset(MOX::planet, 0, MAX_PLANETS * sizeof(s_planet_data));
     std::memset(MOX::colony, 0, MAX_COLONIES * sizeof(s_colony));
     std::memset(MOX::ship, 0, MAX_SHIPS * sizeof(s_ship_data));
-    std::memset(MOX::leaders, 0, MAX_LEADERS * sizeof(s_leader_data));
+    game::current_state = game::s_game_state{};
     std::memset(REPORT::reports, 0, sizeof(REPORT::reports));
     std::memset(EVENTS::event_data, 0, sizeof(EVENTS::event_data));
     std::memset(MSG_::first_msg, 0, sizeof(MSG_::first_msg));
@@ -842,7 +844,7 @@ DOCTEST_TEST_CASE("broadcast differential decode round trips against cached prio
     DOCTEST_CHECK(std::memcmp(MOX::planet, expected_planets.data(), MAX_PLANETS * sizeof(s_planet_data)) == 0);
     DOCTEST_CHECK(std::memcmp(MOX::colony, expected_colonies.data(), MAX_COLONIES * sizeof(s_colony)) == 0);
     DOCTEST_CHECK(std::memcmp(MOX::ship, expected_ships.data(), MAX_SHIPS * sizeof(s_ship_data)) == 0);
-    DOCTEST_CHECK(std::memcmp(MOX::leaders, expected_leaders.data(), MAX_LEADERS * sizeof(s_leader_data)) == 0);
+    DOCTEST_CHECK(game::current_state == expected_state);
     DOCTEST_CHECK(std::memcmp(REPORT::reports, expected_reports.data(), sizeof(REPORT::reports)) == 0);
     DOCTEST_CHECK(std::memcmp(EVENTS::event_data, expected_events.data(), sizeof(EVENTS::event_data)) == 0);
     DOCTEST_CHECK(std::memcmp(MSG_::first_msg, expected_first_msg.data(), sizeof(MSG_::first_msg)) == 0);
@@ -986,13 +988,14 @@ DOCTEST_TEST_CASE("game orders preserve the advanced XP of a deassigned leader")
     NETMOX::net.local_net_id = 202;
 
     constexpr int16_t leader_idx = 4;
-    MOX::leaders[leader_idx].player_index = 1;
-    MOX::leaders[leader_idx].status = 0;
-    MOX::leaders[leader_idx].xp = 59;
+    auto& leader = game::current_state.leaders.at(leader_idx);
+    leader.player_index = 1;
+    leader.status = 0;
+    leader.xp = 59;
 
     NETMOX::Mark_Leader_Deassigned(leader_idx);
-    MOX::leaders[leader_idx].xp = 60;
-    NETMOX::Ditch_Leader(leader_idx);
+    leader.xp = 60;
+    NETMOX::Ditch_Leader(game::current_state, leader_idx);
 
     g_game_orders_payload.clear();
     netcode::g_net_send_hook = &Capture_Game_Orders_;
@@ -1001,17 +1004,17 @@ DOCTEST_TEST_CASE("game orders preserve the advanced XP of a deassigned leader")
 
     DOCTEST_REQUIRE(!g_game_orders_payload.empty());
 
-    MOX::leaders[leader_idx].player_index = 1;
-    MOX::leaders[leader_idx].status = 0;
-    MOX::leaders[leader_idx].xp = 59;
+    leader.player_index = 1;
+    leader.status = 0;
+    leader.xp = 59;
 
     NETMOX::Decode_Game_Orders(
         g_game_orders_payload.data(),
         static_cast<uint32_t>(g_game_orders_payload.size()));
 
-    DOCTEST_CHECK(MOX::leaders[leader_idx].xp == 60);
-    DOCTEST_CHECK(MOX::leaders[leader_idx].player_index == -1);
-    DOCTEST_CHECK(MOX::leaders[leader_idx].status == -1);
+    DOCTEST_CHECK(leader.xp == 60);
+    DOCTEST_CHECK(leader.player_index == -1);
+    DOCTEST_CHECK(leader.status == -1);
 }
 
 }

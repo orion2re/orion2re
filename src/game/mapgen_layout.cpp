@@ -1,4 +1,6 @@
 #include "pch.h"
+
+using game::current_state;
 #include "string_overrides.h"
 
 namespace MAPGEN {
@@ -251,7 +253,7 @@ namespace MAPGEN {
                 do {
                     int16_t hero_candidate = (int16_t)game_random::Random(38) - 1;
 
-                    if (hero_candidate == 0x41 || MOX::leaders[hero_candidate].status != -1) {
+                    if (hero_candidate == 0x41 || current_state.leaders.at(hero_candidate).status != -1) {
                         attempts++;
                     } else {
                         selected_hero_idx = hero_candidate;
@@ -266,8 +268,9 @@ namespace MAPGEN {
                 if (selected_hero_idx == -1) {
                     MOX::star[star_idx].system_special = SYSTEM_SPECIAL_NO_SPECIAL;
                 } else {
-                    MOX::leaders[selected_hero_idx].status = 5;
-                    MOX::leaders[selected_hero_idx].location = star_idx;
+                    auto& leader = current_state.leaders.at(selected_hero_idx);
+                    leader.status = 5;
+                    leader.location = star_idx;
                 }
             }
         }

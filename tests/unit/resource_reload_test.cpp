@@ -23,7 +23,7 @@ namespace {
     struct Fixture {
         fs::path root = fs::temp_directory_path() /
             ("orion-resource-reload-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
-        std::vector<s_leader_data> leaders{MAX_LEADERS};
+        game::s_game_state old_state = std::move(game::current_state);
         std::vector<s_player> players{MAX_PLAYERS};
         std::vector<s_ship_data> ships{MAX_SHIPS};
 
@@ -31,7 +31,7 @@ namespace {
             platform::Reset_Exit();
             fs::create_directories(root);
             MOX::settings = {};
-            MOX::leaders = leaders.data();
+            game::current_state = game::s_game_state{};
             MOX::player = players.data();
             MOX::ship = ships.data();
             MOX::NUM_PLAYERS = 1;
@@ -59,7 +59,7 @@ namespace {
             free((allocate::s_alloc_header*)MOX::global_screen_seg - 1);
             MOX::screen_seg = nullptr;
             MOX::global_screen_seg = nullptr;
-            MOX::leaders = nullptr;
+            game::current_state = std::move(old_state);
             MOX::player = nullptr;
             MOX::ship = nullptr;
             vfs::Shutdown();
@@ -231,11 +231,11 @@ DOCTEST_TEST_CASE("invalid new-game requests fail before resetting game or Lua s
     MOX::settings.start_of_game_seed = 123;
     MOX::player[0].bc = 1234;
     MOX::ship[0].status = 1;
-    MOX::leaders[0].xp = 42;
+    game::current_state.leaders[0].xp = 42;
     const s_settings settings = MOX::settings;
     const s_player player = MOX::player[0];
     const s_ship_data ship = MOX::ship[0];
-    const s_leader_data leader = MOX::leaders[0];
+    const s_leader_data leader = game::current_state.leaders[0];
     const auto semantic_state = []() {
         orion2re::lua::game::s_semantic_state_replacement state;
         orion2re::lua::game::Begin_Semantic_State_Replacement(&state);
@@ -257,7 +257,7 @@ DOCTEST_TEST_CASE("invalid new-game requests fail before resetting game or Lua s
         DOCTEST_CHECK(memcmp(&MOX::settings, &settings, sizeof(settings)) == 0);
         DOCTEST_CHECK(memcmp(&MOX::player[0], &player, sizeof(player)) == 0);
         DOCTEST_CHECK(memcmp(&MOX::ship[0], &ship, sizeof(ship)) == 0);
-        DOCTEST_CHECK(memcmp(&MOX::leaders[0], &leader, sizeof(leader)) == 0);
+        DOCTEST_CHECK(game::current_state.leaders[0] == leader);
         DOCTEST_CHECK(game_random::Get_Random_Seed() == seed);
         const auto after = semantic_state();
         DOCTEST_CHECK(after.prior_event_sequence == before.prior_event_sequence);
@@ -323,7 +323,7 @@ DOCTEST_TEST_CASE("real resources switch repeatedly without consuming screen sto
         DOCTEST_CHECK(((char*)MOX::fleet_box_close_sm_button_seg)[0] == expected);
         DOCTEST_CHECK(strcmp(MOX::player[0].race_name, "Saved race") == 0);
         DOCTEST_CHECK(strcmp(MOX::ship[0].d.name, "Saved ship") == 0);
-        DOCTEST_CHECK(MOX::leaders[0].title[0] == expected);
+        DOCTEST_CHECK(game::current_state.leaders[0].title[0] == expected);
         DOCTEST_CHECK(MOX::star_name_loaded_string == nullptr);
         DOCTEST_CHECK(MOX::sys_disp == nullptr);
         DOCTEST_CHECK(allocate::Get_Max_Block_Space(SYS::sys_data_buffer) == 0xDC);
@@ -381,7 +381,7 @@ DOCTEST_TEST_CASE("all mod mount and priority transitions reload strings and art
             CONFIG_REFRESH::Reload_Resources_Between_Screens();
             DOCTEST_CHECK(ESTRINGS::E_Strings(126)[0] == target.expected);
             DOCTEST_CHECK(((char*)MOX::main_game_button_seg)[0] == target.expected);
-            DOCTEST_CHECK(MOX::leaders[0].title[0] == target.expected);
+            DOCTEST_CHECK(game::current_state.leaders[0].title[0] == target.expected);
             DOCTEST_CHECK_FALSE(CONFIG_REFRESH::Resource_Reload_Pending());
         }
     }

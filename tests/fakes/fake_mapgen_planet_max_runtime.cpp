@@ -1,5 +1,7 @@
 #include "pch.h"
 
+using game::current_state;
+
 #include <stdexcept>
 
 #include "lua/lua_game.h"
@@ -13,7 +15,6 @@ namespace {
     s_player players[MAX_PLAYERS];
     s_colony colonies[MAX_COLONIES];
     s_ship_data ships[MAX_SHIPS];
-    s_leader_data leaders[MAX_LEADERS];
     s_nebula nebulas[MAX_NEBULAS];
     uint32_t allocation_offset;
     int16_t food_star;
@@ -60,7 +61,7 @@ namespace TEST_MAPGEN {
         memset(players, 0, sizeof(players));
         memset(colonies, 0, sizeof(colonies));
         memset(ships, 0, sizeof(ships));
-        memset(leaders, 0, sizeof(leaders));
+        game::current_state = game::s_game_state{};
         memset(nebulas, 0, sizeof(nebulas));
         memset(MOX::food_per_farmer_table, 0, sizeof(MOX::food_per_farmer_table));
         memset(MOX::planet_size_table, 0, sizeof(MOX::planet_size_table));
@@ -232,12 +233,13 @@ namespace orion2re::lua {
         galaxy_provider_isolated = MOX::star != stars &&
             MOX::planet != planets && MOX::player != players &&
             MOX::colony != colonies && MOX::ship != ships &&
-            MOX::leaders != leaders && MOX::nebula != nebulas;
+            MOX::nebula != nebulas;
         galaxy_provider_topology_generation =
             game::internal::Topology_Generation();
         galaxy_provider_ship_generation = game::Ship_Generation(0);
         MOX::star[0].x = galaxy_provider_invalid ? MOX::MAP_MAX_X : 77;
         MOX::planet[0].climate = PLANET_CLIMATE_GAIA;
+        ++current_state.leaders[0].xp;
         game_random::Random(100);
         if (galaxy_provider_fails) {
             *diagnostic = "provider failed";
@@ -359,7 +361,6 @@ namespace MOX {
     s_player* player = players;
     s_colony* colony = colonies;
     s_ship_data* ship = ships;
-    s_leader_data* leaders = ::leaders;
     s_nebula* nebula = nebulas;
     uint8_t NUM_NEBULAS;
     int8_t game_type;

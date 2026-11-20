@@ -1,5 +1,6 @@
 #include "pch.h"
 
+#include "leader_serialization.h"
 #include "legacy_world.h"
 #include "string_overrides.h"
 
@@ -168,7 +169,7 @@ namespace INITGAME {
             MOX::PLAYER_NUM = 0;
         }
 
-        Init_Leaders();
+        Init_Leaders(game::current_state);
         RUSS::Mox_Update();
         Init_Players();
         RUSS::Mox_Update();
@@ -340,37 +341,31 @@ namespace INITGAME {
         colony->just_produced = COLONY_PRODUCTION_NONE;
     }
 
-    void __cdecl Init_Leaders() {
+    void __cdecl Init_Leaders(game::s_game_state& state) {
         char lbx_filename[20];
         HAROLD::Get_Officer_Data_LBX_Name(lbx_filename);
 
-        void* leader_records = farload::Far_Reload_Data(lbx_filename, 0, MOX::screen_seg, 0, MAX_LEADERS, sizeof(s_leader_data));
-
-        memcpy(MOX::leaders, leader_records, MAX_LEADERS * sizeof(s_leader_data));
+        constexpr auto size = MAX_LEADERS * SERIAL::LEADER_BYTES;
+        const void* leader_records = farload::Far_Reload_Data(lbx_filename, 0, MOX::screen_seg, 0, MAX_LEADERS, SERIAL::LEADER_BYTES);
+        SERIAL::Reader_ reader(leader_records, size, "invalid leader resource");
+        SERIAL::Read_Leader_State(state, reader, true);
 
         for (int16_t i = 0; i < MAX_LEADERS; ++i) {
-            // Skill masks are misaligned in the packed leader record, so
-            // generate them in locals and store them afterward.
-            uint32_t special_skills;
-            uint32_t general_skills;
+            auto& leader = state.leaders.at(i);
             if (i == OFFICER::progression.special_leaders.random_skills_colony_leader_id) {
                 // Special handling for leader at index 41
-                OFFICER::Get_Random_Skills(&special_skills, &general_skills, 2, 5, 1);
-                MOX::leaders[i].special_skills = special_skills;
-                MOX::leaders[i].general_skills = general_skills;
+                OFFICER::Get_Random_Skills(&leader.special_skills, &leader.general_skills, 2, 5, 1);
             } else if (i == OFFICER::progression.special_leaders.random_skills_ship_officer_id) {
                 // Special handling for leader at index 52
-                OFFICER::Get_Random_Skills(&special_skills, &general_skills, 1, 5, 1);
-                MOX::leaders[i].special_skills = special_skills;
-                MOX::leaders[i].general_skills = general_skills;
+                OFFICER::Get_Random_Skills(&leader.special_skills, &leader.general_skills, 1, 5, 1);
             } else if (i == 65) {
                 // Special randomized tech application for leader at index 65
-                MOX::leaders[i].tech_application[0] = (uint8_t)game_random::Random(101);
-                MOX::leaders[i].tech_application[1] = (uint8_t)game_random::Random(102) + 101;
+                leader.tech_application[0] = (uint8_t)game_random::Random(101);
+                leader.tech_application[1] = (uint8_t)game_random::Random(102) + 101;
             }
 
             // Calculate and set the skill value for this leader.
-            MOX::leaders[i].skill_value = OFFICER::Officer_Skill_Value(i);
+            leader.skill_value = OFFICER::Officer_Skill_Value(state, i);
 
             // Refresh systems after each leader update.
             RUSS::Mox_Update();

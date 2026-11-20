@@ -144,7 +144,7 @@ DOCTEST_TEST_CASE("strategic AI input diagnostics identify the failing requireme
     s_star_data star{};
     s_colony colony{};
     s_planet_data planet{};
-    s_leader_data leader{};
+    game::s_game_state state;
     s_settings settings{};
     int16_t players = 1;
     int16_t count = 0;
@@ -155,7 +155,7 @@ DOCTEST_TEST_CASE("strategic AI input diagnostics identify the failing requireme
         .stars = &star,
         .colonies = &colony,
         .planets = &planet,
-        .leaders = &leader,
+        .state = &state,
         .settings = &settings,
         .player_count = &players,
         .ship_count = &count,

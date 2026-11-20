@@ -1,4 +1,6 @@
 #include "pch.h"
+
+using game::current_state;
 #include "legacy_ids.h"
 
 #include "lua/lua_game.h"
@@ -247,7 +249,7 @@ namespace COMBAT {
 
                 int16_t officer_idx = MOX::qcombat_data[i].officer_idx;
                 if (officer_idx != -1) {
-                    if (MOX::leaders[officer_idx].eta <= 0) {
+                    if (current_state.leaders.at(officer_idx).eta <= 0) {
                         if (MOX::player[MOX::qcombat_data[i].player].tech_applications[TECH_APP_SURVIVAL_PODS] == TECH_RESEARCH_STATUS_RESEARCHED) {
                             survived_officer_ids[survived_officers_count] = officer_idx;
                             survived_officers_count++;
@@ -274,7 +276,8 @@ namespace COMBAT {
                 bool found = false;
                 bool move_to_pool = false;
                 int16_t officer_idx = survived_officer_ids[j];
-                int16_t player_idx = MOX::leaders[officer_idx].player_index;
+                auto& leader = current_state.leaders.at(officer_idx);
+                int16_t player_idx = leader.player_index;
 
                 for (int16_t i = 1; i < MOX::combat_total_ship_count; i++) {
                     if (MOX::qcombat_data[i].status == 0 && MOX::qcombat_data[i].ship_design_idx != -1) {
@@ -283,8 +286,8 @@ namespace COMBAT {
                                 found = true;
                                 MOX::ship[MOX::qcombat_data[i].ship_design_idx].officer_index = officer_idx;
                                 MOX::qcombat_data[i].officer_idx = officer_idx;
-                                MOX::ship[MOX::leaders[officer_idx].location].officer_index = -1;
-                                MOX::leaders[officer_idx].location = MOX::qcombat_data[i].ship_design_idx;
+                                MOX::ship[leader.location].officer_index = -1;
+                                leader.location = MOX::qcombat_data[i].ship_design_idx;
                                 break;
                             }
                             move_to_pool = true;
@@ -360,7 +363,7 @@ namespace COMBAT {
             int16_t ship_idx = ship_indices[i];
             int16_t officer_idx = MOX::ship[ship_idx].officer_index;
 
-            if (officer_idx != -1 && MOX::leaders[officer_idx].eta == 0) {
+            if (officer_idx != -1 && current_state.leaders.at(officer_idx).eta == 0) {
                 int16_t bonus;
 
                 bonus = CMBTFIR2::Helmsman_Bonus(officer_idx);

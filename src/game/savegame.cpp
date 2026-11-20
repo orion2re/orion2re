@@ -1,5 +1,7 @@
 #include "pch.h"
 
+#include "leader_serialization.h"
+
 #include "game/savegame.h"
 
 #include "config/config_loader.h"
@@ -517,42 +519,6 @@ namespace SAVEGAME {
             reader->Read_Bytes(star->surrender_to, sizeof(star->surrender_to));
             star->in_nebula = reader->Read_Uint8();
             star->artifacts_gave_app = reader->Read_Uint8();
-        }
-
-        void Write_Leader(SERIAL::Writer_* writer, const s_leader_data* leader) {
-            writer->Write_Bytes(leader->name, sizeof(leader->name));
-            writer->Write_Bytes(leader->title, sizeof(leader->title));
-            writer->Write_Uint8(leader->type);
-            writer->Write_Int16(leader->xp);
-            writer->Write_Uint32(leader->general_skills);
-            writer->Write_Uint32(leader->special_skills);
-            writer->Write_Bytes(leader->tech_application, sizeof(leader->tech_application));
-            writer->Write_Uint8(leader->pict_num);
-            writer->Write_Int16(leader->skill_value);
-            writer->Write_Uint8(leader->level);
-            writer->Write_Int16(leader->location);
-            writer->Write_Int8(leader->eta);
-            writer->Write_Char(leader->display_level_popup);
-            writer->Write_Int8(leader->status);
-            writer->Write_Int8(leader->player_index);
-        }
-
-        void Read_Leader(SERIAL::Reader_* reader, s_leader_data* leader) {
-            reader->Read_Bytes(leader->name, sizeof(leader->name));
-            reader->Read_Bytes(leader->title, sizeof(leader->title));
-            leader->type = reader->Read_Uint8();
-            leader->xp = reader->Read_Int16();
-            leader->general_skills = reader->Read_Uint32();
-            leader->special_skills = reader->Read_Uint32();
-            reader->Read_Bytes(leader->tech_application, sizeof(leader->tech_application));
-            leader->pict_num = reader->Read_Uint8();
-            leader->skill_value = reader->Read_Int16();
-            leader->level = reader->Read_Uint8();
-            leader->location = reader->Read_Int16();
-            leader->eta = reader->Read_Int8();
-            leader->display_level_popup = reader->Read_Char();
-            leader->status = reader->Read_Int8();
-            leader->player_index = reader->Read_Int8();
         }
 
         void Write_Player(SERIAL::Writer_* writer, const s_player* player) {
@@ -1502,7 +1468,7 @@ namespace SAVEGAME {
             antaran->attack_notified_mask = reader->Read_Uint8();
         }
 
-        void Write_Game_State(SERIAL::Writer_* writer, const s_settings* settings, uint32_t random_seed) {
+        void Write_Game_State(const game::s_game_state& state, SERIAL::Writer_* writer, const s_settings* settings, uint32_t random_seed) {
             Write_Settings(writer, settings);
             writer->Write_Uint32(random_seed);
             writer->Write_Int16(MOX::NUM_COLONIES);
@@ -1511,7 +1477,7 @@ namespace SAVEGAME {
             for (int i = 0; i < MOX::planet_count; ++i) Write_Planet(writer, &MOX::planet[i]);
             writer->Write_Int16(MOX::NUM_STARS);
             for (int i = 0; i < MOX::NUM_STARS; ++i) Write_Star(writer, &MOX::star[i]);
-            for (int i = 0; i < MAX_LEADERS; ++i) Write_Leader(writer, &MOX::leaders[i]);
+            SERIAL::Write_Leader_State(state, *writer);
             writer->Write_Int16(MOX::NUM_PLAYERS);
             for (int i = 0; i < MAX_PLAYERS; ++i) Write_Player(writer, &MOX::player[i]);
             writer->Write_Int16(MOX::NUM_SHIPS);
@@ -1567,7 +1533,7 @@ namespace SAVEGAME {
             }
         }
 
-        bool Read_Game_State(SERIAL::Reader_* reader, uint16_t version, s_settings* settings, uint32_t* random_seed) {
+        bool Read_Game_State(game::s_game_state& state, SERIAL::Reader_* reader, uint16_t version, s_settings* settings, uint32_t* random_seed) {
             Read_Settings(reader, settings);
             *random_seed = reader->Read_Uint32();
             MOX::NUM_COLONIES = reader->Read_Int16();
@@ -1599,7 +1565,7 @@ namespace SAVEGAME {
                 Initialize_Unused_Star(&MOX::star[i]);
             }
             if (reader->Failed()) return false;
-            for (int i = 0; i < MAX_LEADERS; ++i) Read_Leader(reader, &MOX::leaders[i]);
+            if (!SERIAL::Read_Leader_State(state, *reader, version < 8)) return false;
             MOX::NUM_PLAYERS = reader->Read_Int16();
             for (int i = 0; i < MAX_PLAYERS; ++i) {
                 Read_Player(reader, &MOX::player[i], version);
@@ -1809,7 +1775,7 @@ namespace SAVEGAME {
         writer->Write_Int32(MOX::stardate);
         writer->Write_Int8(MOX::game_type);
         writer->Write_Uint16(CURRENT_VERSION);
-        Write_Game_State(writer, &MOX::settings, random_seed);
+        Write_Game_State(game::current_state, writer, &MOX::settings, random_seed);
         if (extension_size == 0 || writer->Length() > BUFFER_CAPACITY ||
             extension_size > BUFFER_CAPACITY - writer->Length()) {
             if (error_text != nullptr) {
@@ -1852,7 +1818,7 @@ namespace SAVEGAME {
         if (prior_state == nullptr) return false;
         SERIAL::Writer_ prior_writer(
             prior_state, BUFFER_CAPACITY, "native load rollback overflow");
-        Write_Game_State(&prior_writer, &MOX::settings, 0);
+        Write_Game_State(game::current_state, &prior_writer, &MOX::settings, 0);
         const uint32_t prior_state_size = prior_writer.Length();
         orion2re::lua::game::s_semantic_state_replacement
             semantic_state_replacement;
@@ -1861,7 +1827,7 @@ namespace SAVEGAME {
             SERIAL::Reader_ prior_reader(prior_state, prior_state_size, "native load rollback underflow");
             s_settings ignored_settings = {};
             uint32_t ignored_seed = 0;
-            Read_Game_State(&prior_reader,
+            Read_Game_State(game::current_state, &prior_reader,
                 CURRENT_VERSION,
                 &ignored_settings,
                 &ignored_seed);
@@ -1876,7 +1842,7 @@ namespace SAVEGAME {
             free(prior_state);
             return false;
         };
-        if (!Read_Game_State(reader, metadata->version, saved_settings, random_seed) || !Loaded_State_Is_Valid()) {
+        if (!Read_Game_State(game::current_state, reader, metadata->version, saved_settings, random_seed) || !Loaded_State_Is_Valid()) {
             return fail_after_native_read();
         }
         orion2re::lua::game::Begin_Semantic_State_Replacement(

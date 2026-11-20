@@ -24,7 +24,6 @@ namespace MOX {
     s_star_data* star = stars;
     s_colony* colony = colonies;
     s_ship_data* ship = ships;
-    s_leader_data* leaders = nullptr;
     s_scroll_bar* scroll_bar = &scroll;
     s_animation_header* screen_seg = nullptr;
     int16_t PLAYER_NUM;

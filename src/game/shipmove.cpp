@@ -1,4 +1,6 @@
 #include "pch.h"
+
+using game::current_state;
 #include "legacy_location.h"
 #include "legacy_ids.h"
 
@@ -943,7 +945,7 @@ namespace SHIPMOVE {
             all_phase_shifters &= has_phase_shifter;
 
             if (ship->officer_index != -1) {
-                s_leader_data* leader = &MOX::leaders[ship->officer_index];
+                auto* leader = &current_state.leaders.at(ship->officer_index);
                 if (leader->eta == 0) {
                     int32_t bonus = 0;
                     if ((leader->special_skills & LEADER_SHIP_SKILL_NAVIGATOR2) != 0) {
@@ -1172,11 +1174,11 @@ namespace SHIPMOVE {
 
     bool __cdecl Confirm_Officer_Change(int16_t leader_idx, int16_t target_ship_idx, int8_t target_eta) {
         if (leader_idx < 0 || leader_idx >= MAX_LEADERS ||
-            MOX::leaders[leader_idx].type != LEADER_TYPE_SHIP) {
+            current_state.leaders.at(leader_idx).type != LEADER_TYPE_SHIP) {
             return true;
         }
 
-        s_leader_data* leader = &MOX::leaders[leader_idx];
+        auto* leader = &current_state.leaders.at(leader_idx);
         int16_t source_ship_idx = leader->location;
         int16_t source_officer_idx = -1;
         int16_t target_officer_idx = -1;
@@ -1447,7 +1449,7 @@ namespace SHIPMOVE {
             if (officer_index != -1) {
                 OFFICER::Move_Officer_To_Pool(officer_index);
 
-                s_leader_data* leader = &MOX::leaders[officer_index];
+                auto* leader = &current_state.leaders.at(officer_index);
                 if (leader->eta > 0) {
                     msg.u.hyperspace_beast.leader_status = 1;
                 } else {
