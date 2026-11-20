@@ -14,6 +14,7 @@ namespace config::tool {
             "config_enums.cpp",
             "config_enums.h",
             "config_groups.h",
+            "settings_metadata.h",
         };
 
         std::string Join_Path_(const char* directory, const char* name) {
@@ -204,6 +205,59 @@ namespace config::tool {
                 "    CONFIG_GROUP_COUNT,\n"
                 "};\n\n"
                 "}\n";
+            return output;
+        }
+
+        // One row per parameter in the interface and
+        // synchronized_interface groups, in spec declaration order: the
+        // settings UI reads its titles and descriptions from here instead
+        // of hardcoding them. restart_required is true when the spec
+        // remarks say the change takes effect the next time the game
+        // starts; that phrase is the spec's own restart signal, so the
+        // generator derives the flag from it rather than from a separate
+        // list that could drift.
+        std::string Settings_Metadata_Header_(const s_schema* schema) {
+            std::string output =
+                "// Generated from specs/config/main.json5. Do not edit.\n"
+                "#pragma once\n\n"
+                "#include <cstddef>\n\n"
+                "namespace config {\n\n"
+                "struct s_settings_metadata {\n"
+                "    // Dotted path, for example \"interface.window_width\".\n"
+                "    const char* path;\n"
+                "    const char* title;\n"
+                "    const char* description;\n"
+                "    // \"interface\" or \"synchronized_interface\".\n"
+                "    const char* group;\n"
+                "    // True when the spec remarks say the change takes\n"
+                "    // effect the next time the game starts.\n"
+                "    bool restart_required;\n"
+                "};\n\n"
+                "inline const s_settings_metadata settings_metadata[] = {\n";
+            size_t count = 0;
+            for (const s_parameter_declaration& parameter :
+                schema->parameter_declarations) {
+                if (parameter.group != "interface" &&
+                    parameter.group != "synchronized_interface") {
+                    continue;
+                }
+                const bool restart_required =
+                    parameter.metadata.remarks.find(
+                        "Changes take effect the next time the game starts") !=
+                    std::string::npos;
+                output += "    { " +
+                    Cpp_String_(parameter.name_space + "." + parameter.id) + ", " +
+                    Cpp_String_(parameter.metadata.title) + ", " +
+                    Cpp_String_(parameter.metadata.description) + ", " +
+                    Cpp_String_(parameter.group) + ", " +
+                    (restart_required ? "true" : "false") + " },\n";
+                ++count;
+            }
+            output +=
+                "};\n\n"
+                "inline const std::size_t settings_metadata_count = " +
+                std::to_string(count) + ";\n\n"
+                "} // namespace config\n";
             return output;
         }
 
@@ -1120,8 +1174,12 @@ namespace config::tool {
             Join_Path_(output_directory, "config_enums.h");
         const std::string group_header_path =
             Join_Path_(output_directory, "config_groups.h");
+        const std::string settings_metadata_path =
+            Join_Path_(output_directory, "settings_metadata.h");
         return Write_File_If_Different(
                    group_header_path.c_str(), Group_Header_(schema), diagnostic) &&
+            Write_File_If_Different(settings_metadata_path.c_str(),
+                Settings_Metadata_Header_(schema), diagnostic) &&
             Write_File_If_Different(
                 enum_header_path.c_str(), Enum_Header_(), diagnostic) &&
             Write_File_If_Different(

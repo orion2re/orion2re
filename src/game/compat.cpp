@@ -3,12 +3,15 @@
 #include "user_paths.h"
 
 namespace {
-    constexpr char k_native_path_separator =
-#if defined(_WIN32)
-        '\\';
-#else
-        '/';
-#endif
+    // A path separator on any platform. Cleanup_Path preserves the
+    // separator style of its input instead of forcing the native one:
+    // callers (user_paths, VFS) build paths with '/', and the tests
+    // compare against fs::path results that keep '/' in appended
+    // components, so converting '/' to '\\' on Windows breaks the
+    // string comparison even though the path names the same file.
+    bool Is_Separator_(char ch) {
+        return ch == '/' || ch == '\\';
+    }
 
     const char* Get_File_Name(const char* path) {
         const char* slash = strrchr(path, '/');
@@ -47,6 +50,10 @@ namespace {
 
     struct s_case_insensitive_file_match {
         const char* requested_file_name;
+        // The separator that precedes the file name in the path being
+        // resolved, from Resolve_File_Path_Case: the join uses the input
+        // path's separator style, not the one SDL passes in dirname.
+        char separator;
         char* resolved_path;
         size_t resolved_path_size;
         bool found;
@@ -59,7 +66,20 @@ namespace {
             return SDL_ENUM_CONTINUE;
         }
 
-        if (snprintf(match->resolved_path, match->resolved_path_size, "%s%s", dirname, fname) >= (int)match->resolved_path_size) {
+        // SDL passes dirname with a trailing native separator, but the path
+        // being resolved keeps the input's separator style (Cleanup_Path
+        // preserves it). Join with the separator that precedes the file
+        // name in the input path (match->separator, from
+        // Resolve_File_Path_Case), not with a separator scanned from
+        // dirname: dirname comes from SDL and its last separator can be a
+        // backslash from the system prefix even when the input uses '/'
+        // before the file name (a Windows temp path under the install dir).
+        size_t dirname_length = strlen(dirname);
+        while (dirname_length > 0 && Is_Separator_(dirname[dirname_length - 1])) {
+            --dirname_length;
+        }
+        if (snprintf(match->resolved_path, match->resolved_path_size, "%.*s%c%s",
+                      (int)dirname_length, dirname, match->separator, fname) >= (int)match->resolved_path_size) {
             return SDL_ENUM_FAILURE;
         }
 
@@ -93,8 +113,7 @@ bool Cleanup_Path(const char* input_path, char* output_path, size_t output_path_
 
     for (size_t read_pos = 0; input_path[read_pos] != '\0'; ++read_pos) {
         char ch = input_path[read_pos];
-        if (ch == '/' || ch == '\\') {
-            ch = k_native_path_separator;
+        if (Is_Separator_(ch)) {
             if (last_was_separator) {
                 continue;
             }
@@ -114,35 +133,35 @@ bool Cleanup_Path(const char* input_path, char* output_path, size_t output_path_
 
     while (write_pos >= 2 &&
         output_path[write_pos - 2] == '.' &&
-        output_path[write_pos - 1] == k_native_path_separator) {
+        Is_Separator_(output_path[write_pos - 1])) {
         output_path[write_pos - 2] = '\0';
         write_pos -= 2;
     }
 
     if (strcmp(output_path, ".") == 0 ||
-        (output_path[0] == '.' && output_path[1] == k_native_path_separator && output_path[2] == '\0')) {
+        (output_path[0] == '.' && Is_Separator_(output_path[1]) && output_path[2] == '\0')) {
         output_path[0] = '\0';
         write_pos = 0;
     }
 
     while (write_pos >= 3 &&
         output_path[0] == '.' &&
-        output_path[1] == k_native_path_separator &&
+        Is_Separator_(output_path[1]) &&
         output_path[2] == '.') {
         memmove(output_path, output_path + 2, write_pos - 1);
         write_pos -= 2;
     }
 
     if (ensure_trailing_separator) {
-        if (write_pos > 0 && output_path[write_pos - 1] != k_native_path_separator) {
+        if (write_pos > 0 && !Is_Separator_(output_path[write_pos - 1])) {
             if (write_pos + 1 >= output_path_size) {
                 return false;
             }
-            output_path[write_pos++] = k_native_path_separator;
+            output_path[write_pos++] = '/';
             output_path[write_pos] = '\0';
         }
     } else {
-        while (write_pos > 1 && output_path[write_pos - 1] == k_native_path_separator) {
+        while (write_pos > 1 && Is_Separator_(output_path[write_pos - 1])) {
             output_path[--write_pos] = '\0';
         }
     }
@@ -177,7 +196,15 @@ bool Resolve_File_Path_Case(const char* path, char* resolved_path, size_t resolv
     }
 
     if (SDL_GetPathInfo(resolved_path, &path_info)) {
-        return true;
+        // A directory needs no name resolved here: returning it as-is keeps
+        // the recursion grounded (a directory is resolved by the enumeration
+        // of its parent when it is a component of a longer path).
+        // A file, however, must have its on-disk name resolved below: on a
+        // case-insensitive filesystem the path can exist without matching
+        // the on-disk case, and returning the requested case would be wrong.
+        if (path_info.type == SDL_PATHTYPE_DIRECTORY) {
+            return true;
+        }
     }
 
     slash = strrchr(open_path, '/');
@@ -210,6 +237,10 @@ bool Resolve_File_Path_Case(const char* path, char* resolved_path, size_t resolv
     }
 
     match.requested_file_name = file_name;
+    // The separator before the file name in the input path: the later of
+    // the last '/' and the last backslash. A bare file name has none, so
+    // the callback joins with '/' (the previous default for that case).
+    match.separator = separator != nullptr ? *separator : '/';
     match.resolved_path = resolved_path;
     match.resolved_path_size = resolved_path_size;
     match.found = false;
