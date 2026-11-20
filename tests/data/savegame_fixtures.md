@@ -23,6 +23,6 @@ The v1–v6 fixtures encode the same state in the older layouts:
 | 7 | Adds a scrap-count byte to each colony record. |
 
 `test_savegame_compatibility` reads each file unchanged through the game's
-save loader, including the production config and Lua readers. When bumping
-the save version, add a fixture for the new version and keep older fixtures
-unchanged so the test continues to catch changes to historical layouts.
+save loader, including the production config and Lua readers. The test covers
+v0–v7 regardless of the current writer version. Keep those fixtures unchanged;
+v8 is still evolving and does not have a frozen fixture.
