@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "game/game_wire_version.h"
 
 #include "lua/lua_network.h"
 
@@ -152,7 +153,7 @@ namespace orion2re::lua {
                 Append_U32(bytes, LUID_MAGIC);
                 Append_U16(bytes, LUID_VERSION);
                 Append_U16(bytes, 8);
-                if (!Append_String(bytes, GAME_BUILD_DATE) ||
+                if (!Append_String(bytes, NETPROTO::GAME_WIRE_VERSION) ||
                     !Append_String(bytes, registry->lua_version)) {
                     *diagnostic = "Lua network identity string limit exceeded";
                     return false;

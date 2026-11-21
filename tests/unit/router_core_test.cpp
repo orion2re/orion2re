@@ -1,5 +1,6 @@
 #include "doctest/doctest.h"
 
+#include "game/game_wire_version.h"
 #include "network/router_core.h"
 
 #include <cstring>
@@ -434,23 +435,32 @@ DOCTEST_TEST_CASE("session owner can disable and re-enable new joins like Direct
     DOCTEST_CHECK(output[0].message.header.kind == ROUTER_MESSAGE_JOINED_SESSION);
 }
 
-DOCTEST_TEST_CASE("join rejects mismatched client builds") {
-    s_router_core_state core;
-    Router_Core_Init(&core, "router-test");
-    Router_Core_Open_Connection(&core, 1);
-    Router_Core_Open_Connection(&core, 2);
-    Handle_Message_(&core, 1, Make_Hello_("host", 1));
-    Handle_Message_(&core, 2, Make_Hello_("guest", 2));
-    Handle_Message_(&core, 1, Make_Register_Build_("build-a", 3));
+DOCTEST_TEST_CASE("join rejects mixed game protocols before admitting a member") {
+    for (bool legacy_host : {false, true}) {
+        DOCTEST_CAPTURE(legacy_host);
+        constexpr const char* legacy = "Aug 15 2026";
+        const char* host = legacy_host ? legacy : NETPROTO::GAME_WIRE_VERSION;
+        const char* guest = legacy_host ? NETPROTO::GAME_WIRE_VERSION : legacy;
+        s_router_core_state core;
+        Router_Core_Init(&core, "router-test");
+        Router_Core_Open_Connection(&core, 1);
+        Router_Core_Open_Connection(&core, 2);
+        Handle_Message_(&core, 1, Make_Hello_("host", 1));
+        Handle_Message_(&core, 2, Make_Hello_("guest", 2));
+        Handle_Message_(&core, 1, Make_Register_Build_(host, 3));
 
-    std::vector<s_router_outbound_message> output = Handle_Message_(&core, 2, Make_Join_Build_(1, "build-b", 4));
-    DOCTEST_REQUIRE(output.size() == 1);
-    DOCTEST_CHECK(output[0].message.header.kind == ROUTER_MESSAGE_ERROR);
+        auto output = Handle_Message_(&core, 2, Make_Join_Build_(1, guest, 4));
+        DOCTEST_REQUIRE(output.size() == 1);
+        DOCTEST_CHECK(output[0].message.header.kind == ROUTER_MESSAGE_ERROR);
+        s_router_error_payload error_payload;
+        std::string error;
+        DOCTEST_REQUIRE(Decode_Error_Payload(&output[0].message.payload, &error_payload, &error));
+        DOCTEST_CHECK(error_payload.code == ROUTER_ERROR_BUILD_MISMATCH);
 
-    s_router_error_payload error_payload;
-    std::string error;
-    DOCTEST_REQUIRE(Decode_Error_Payload(&output[0].message.payload, &error_payload, &error));
-    DOCTEST_CHECK(error_payload.code == ROUTER_ERROR_BUILD_MISMATCH);
+        output = Handle_Message_(&core, 2, Make_Join_Build_(1, host, 5));
+        DOCTEST_REQUIRE(output.size() == 3);
+        DOCTEST_CHECK(output[0].message.header.kind == ROUTER_MESSAGE_JOINED_SESSION);
+    }
 }
 
 DOCTEST_TEST_CASE("register uses session build string independently from hello router version") {

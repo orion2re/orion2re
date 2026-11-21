@@ -7,9 +7,11 @@
 #include "doctest/doctest.h"
 
 #include "game/allocate.h"
+#include "game/game_wire_version.h"
 #include "game/mainscr.h"
 #include "game/netmox.h"
 #include "game/netturn.h"
+#include "game/player_network_serialization.h"
 
 namespace MULTPLAY {
     extern void (*g_chat_box_input_loop_hook)();
@@ -58,6 +60,48 @@ namespace {
     };
 
 #ifdef TEST_REAL_MAIN_RECEIVE
+    DOCTEST_TEST_CASE_FIXTURE(Network_Flags_Fixture_, "new and loaded games check the wire version before applying setup") {
+        const auto check = [](auto& packet, uint16_t kind) {
+            DOCTEST_CAPTURE(kind);
+            const auto receive = [&] {
+                MAINSCR::Main_Receive_Message(1, 101, kind, sizeof(packet), &packet);
+            };
+
+            std::strcpy(packet.version_string, "Aug 15 2026"); // Legacy build-date token.
+            DOCTEST_CHECK_THROWS_WITH(receive(), "Incompatible multiplayer protocol version");
+
+            NETPROTO::Write_Setup_Version(packet.version_string);
+            std::memset(packet.version_string + sizeof(NETPROTO::GAME_WIRE_VERSION) - 1,
+                'x', sizeof(packet.version_string) - sizeof(NETPROTO::GAME_WIRE_VERSION) + 1);
+            DOCTEST_CHECK_THROWS_WITH(receive(), "Incompatible multiplayer protocol version");
+
+            NETPROTO::Write_Setup_Version(packet.version_string);
+            // A matching version reaches configuration validation. No config follows this prefix.
+            DOCTEST_CHECK_THROWS_WITH(receive(), "network configuration packet missing");
+        };
+
+        s_net_pack_start_game start{};
+        s_load_net_screen_packet load{};
+        check(start, NET_PACKET_START_GAME);
+        check(load, NET_PACKET_LOAD_GAME_START);
+    }
+
+    DOCTEST_TEST_CASE_FIXTURE(Network_Flags_Fixture_, "invalid player setup fails instead of leaving the host waiting") {
+        NETMOX::net.sync_state = NET_SYNC_STATE_HOST_WAITING_FOR_PLAYER_SETUP;
+        s_player player{};
+        player.network_player_id = 101;
+
+        // Older builds sent an untagged player record.
+        DOCTEST_CHECK_THROWS_WITH(MAINSCR::Main_Receive_Message(
+            1, 101, NET_PACKET_PLAYER_SETUP, sizeof(player), &player),
+            "Invalid multiplayer player setup packet. Make sure all players use compatible game versions.");
+        DOCTEST_CHECK(NETMOX::net.player_connected_flags[1] == 0);
+
+        auto packet = NETPROTO::Encode_Player(player);
+        MAINSCR::Main_Receive_Message(1, 101, NET_PACKET_PLAYER_SETUP, sizeof(packet), &packet);
+        DOCTEST_CHECK(NETMOX::net.player_connected_flags[1] == 1);
+    }
+
     DOCTEST_TEST_CASE_FIXTURE(Network_Flags_Fixture_, "network turns reject Lua authority before host or client execution") {
         struct s_authority_scope {
             bool allowed = TEST_LUA_NETWORK::authority_allowed;

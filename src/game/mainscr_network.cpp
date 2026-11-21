@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "battle_results_serialization.h"
+#include "game_wire_version.h"
 #include "player_network_serialization.h"
 
 #include "config/config_snapshot.h"
@@ -31,11 +32,6 @@ namespace MAINSCR {
                 exitm::Exit_With_Message(diagnostic.c_str());
             }
             return true;
-        }
-
-        bool Valid_Setup_Version(const char* version, size_t capacity) {
-            const void* terminator = memchr(version, '\0', capacity);
-            return terminator != nullptr && strcmp(version, GAME_BUILD_DATE) == 0;
         }
 
         void Apply_Setup_Config(const void* payload, uint32_t payload_len, uint32_t prefix_size) {
@@ -81,9 +77,8 @@ namespace MAINSCR {
                 }
                 s_net_pack_start_game pack;
                 memcpy(&pack, payload, sizeof(pack));
-                if (!Valid_Setup_Version(pack.version_string,
-                        sizeof(pack.version_string))) {
-                    exitm::Exit_With_Message("Incompatible network version");
+                if (!NETPROTO::Valid_Setup_Version(pack.version_string)) {
+                    exitm::Exit_With_Message("Incompatible multiplayer protocol version");
                 }
                 if (orion2re::lua::Has_Pending_Lua_Network_Setup()) {
                     if (!Commit_Pending_Lua_Setup(sender_net_id_or_host_id,
@@ -138,7 +133,11 @@ namespace MAINSCR {
                 break;
             }
             case NET_PACKET_PLAYER_SETUP: {
-                if (!NETPROTO::Decode_Player(payload, payload_len, MOX::player[from_player_id])) break;
+                if (NETMOX::net.sync_state != NET_SYNC_STATE_HOST_WAITING_FOR_PLAYER_SETUP ||
+                    from_player_id >= MAX_PLAYERS || std::cmp_greater_equal(from_player_id, MOX::NUM_PLAYERS)) break;
+                if (!NETPROTO::Decode_Player(payload, payload_len, MOX::player[from_player_id])) {
+                    exitm::Exit_With_Message("Invalid multiplayer player setup packet. Make sure all players use compatible game versions.");
+                }
                 NETMOX::net.player_connected_flags[from_player_id] = 1;
 
                 if (MOX::NUM_PLAYERS > 0) {
@@ -512,9 +511,8 @@ namespace MAINSCR {
                 }
                 s_load_net_screen_packet pack;
                 memcpy(&pack, payload, sizeof(pack));
-                if (!Valid_Setup_Version(pack.version_string,
-                        sizeof(pack.version_string))) {
-                    exitm::Exit_With_Message("Incompatible network version");
+                if (!NETPROTO::Valid_Setup_Version(pack.version_string)) {
+                    exitm::Exit_With_Message("Incompatible multiplayer protocol version");
                 }
                 if (orion2re::lua::Has_Pending_Lua_Network_Setup()) {
                     if (!Commit_Pending_Lua_Setup(sender_net_id_or_host_id,
