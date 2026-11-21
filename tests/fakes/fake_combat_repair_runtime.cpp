@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
 
 namespace CMBTMIS {
@@ -28,7 +29,7 @@ namespace {
     s_missile missiles[MAX_COMBAT_FLYERS];
     s_ship_data ships[MAX_COMBAT_SHIPS];
     s_player players[MAX_PLAYERS];
-    s_colony colonies[1];
+    test_colonies::Slots<1> colonies;
 
     int16_t engineer_bonus[MAX_PLAYERS];
     int16_t repair_amount[4];
@@ -49,7 +50,7 @@ namespace TEST_COMBAT_REPAIR {
         memset(missiles, 0, sizeof(missiles));
         memset(ships, 0, sizeof(ships));
         memset(players, 0, sizeof(players));
-        memset(colonies, 0, sizeof(colonies));
+        colonies.Reset();
         test_planets::Reset(1);
         memset(engineer_bonus, 0, sizeof(engineer_bonus));
         memset(repair_amount, 0, sizeof(repair_amount));
@@ -74,7 +75,7 @@ namespace TEST_COMBAT_REPAIR {
         MOX::combat_defender_player = 1;
         MOX::PLAYER_NUM = 0;
         MOX::net_flag = 0;
-        MOX::cmbt_colony_id = -1;
+        MOX::cmbt_colony_id = game::NO_COLONY;
         MOX::bio_weapon_flag = 0;
         combat_data[0].owner = 0;
         combat_data[1].owner = 1;
@@ -303,7 +304,7 @@ namespace TEST_COMBINIT {
     }
 
     void Set_Defender_Recaptured_Satellite_() {
-        MOX::cmbt_colony_id = 0;
+        MOX::cmbt_colony_id = game::id_colony{0};
         colonies[0].buildings[BUILDING_STAR_BASE] = 1;
         combat_data[1] = {};
         combat_data[1].owner = MOX::combat_defender_player;
@@ -321,11 +322,11 @@ namespace TEST_COMBINIT {
     }
 
     bool Satellite_Building_Removed_(
-        int16_t colony_idx, int16_t building_idx) {
+        game::id_colony colony_idx, int16_t building_idx) {
         return satellite_building_removed &&
-            removed_colony_idx == colony_idx &&
+            removed_colony_idx == static_cast<int16_t>(colony_idx.id) &&
             removed_building_idx == building_idx &&
-            colonies[colony_idx].buildings[building_idx] == 0;
+            colonies[colony_idx.id].buildings[building_idx] == 0;
     }
 
     void Set_Strategic_Missile_Ammo_(uint8_t ammo) {
@@ -390,7 +391,7 @@ namespace TEST_COMBINIT {
             combat_data[combat_idx].ftl_type = DRIVE_NO_DRIVE;
             combat_data[combat_idx].size_class = SHIP_SIZE_HUGE;
             ++combat_idx;
-            MOX::cmbt_colony_id = 0;
+            MOX::cmbt_colony_id = game::id_colony{0};
             colonies[0].planet_id = game::id_planet{0};
             test_planets::Record(0).size = PLANET_SIZE_MEDIUM;
         }
@@ -467,7 +468,7 @@ namespace MOX {
     int16_t combat_defender_player;
     int16_t PLAYER_NUM;
     int16_t net_flag;
-    int16_t cmbt_colony_id;
+    game::id_colony cmbt_colony_id;
     int16_t combat_turn;
     uint16_t combat_init;
     int16_t cur_ship;
@@ -481,7 +482,6 @@ namespace MOX {
     int16_t combat_far_y;
     int16_t last_ship_status;
     int16_t in_nebula_flag;
-    s_colony* colony = colonies;
 
 }
 
@@ -610,7 +610,8 @@ namespace CMBTFIR2 {
 }
 
 namespace ERICNET {
-    void __cdecl Remove_Building(int16_t colony_idx, int16_t building_idx) {
+    void __cdecl Remove_Building(game::s_game_state&, game::id_colony id, int16_t building_idx) {
+        const auto colony_idx = static_cast<int16_t>(id.id);
         satellite_building_removed = true;
         removed_colony_idx = colony_idx;
         removed_building_idx = building_idx;
@@ -652,7 +653,7 @@ namespace SHIPS {
 }
 
 namespace BOMB {
-    void __cdecl Destroy_Colony(s_colony*, int32_t) {
+    void __cdecl Destroy_Colony(game::s_game_state&, game::id_colony, int32_t) {
     }
 }
 

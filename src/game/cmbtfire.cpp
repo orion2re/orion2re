@@ -186,11 +186,11 @@ namespace CMBTFIRE {
         int16_t found_count = 0;
         int16_t defense_list[4];
 
-        if (MOX::cmbt_colony_id == -1) {
+        if (MOX::cmbt_colony_id == game::NO_COLONY) {
             return;
         }
 
-        s_colony* colony = &MOX::colony[MOX::cmbt_colony_id];
+        s_colony* colony = &game::current_state.colonies.at(MOX::cmbt_colony_id);
 
         if (colony->buildings[BUILDING_MISSILE_BASE] != 0) {
             defense_list[found_count] = BUILDING_MISSILE_BASE;
@@ -222,7 +222,7 @@ namespace CMBTFIRE {
                 int idx = random_val - 1;
                 int16_t building_id = defense_list[idx];
 
-                ERICNET::Remove_Building(MOX::cmbt_colony_id, building_id);
+                ERICNET::Remove_Building(game::current_state, MOX::cmbt_colony_id, building_id);
 
                 switch (building_id) {
                     case BUILDING_MISSILE_BASE:
@@ -283,19 +283,19 @@ namespace CMBTFIRE {
     }
 
     int16_t __cdecl Does_Combat_Planet_Have_Defenses() {
-        if (MOX::cmbt_colony_id != -1) {
+        if (MOX::cmbt_colony_id != game::NO_COLONY) {
             int16_t defenses = 0;
 
-            if (MOX::colony[MOX::cmbt_colony_id].buildings[BUILDING_MISSILE_BASE] != 0) {
+            if (game::current_state.colonies.at(MOX::cmbt_colony_id).buildings[BUILDING_MISSILE_BASE] != 0) {
                 defenses |= COMBAT_PLANET_DEFENSE_MISSILE_BASE;
             }
-            if (MOX::colony[MOX::cmbt_colony_id].buildings[BUILDING_GROUND_BATTERIES] != 0) {
+            if (game::current_state.colonies.at(MOX::cmbt_colony_id).buildings[BUILDING_GROUND_BATTERIES] != 0) {
                 defenses |= COMBAT_PLANET_DEFENSE_GROUND_BATTERIES;
             }
-            if (MOX::colony[MOX::cmbt_colony_id].buildings[BUILDING_STELLAR_CONVERTER] != 0) {
+            if (game::current_state.colonies.at(MOX::cmbt_colony_id).buildings[BUILDING_STELLAR_CONVERTER] != 0) {
                 defenses |= COMBAT_PLANET_DEFENSE_STELLAR_CONVERTER;
             }
-            if (MOX::colony[MOX::cmbt_colony_id].buildings[BUILDING_FIGHTER_GARRISON] != 0) {
+            if (game::current_state.colonies.at(MOX::cmbt_colony_id).buildings[BUILDING_FIGHTER_GARRISON] != 0) {
                 defenses |= COMBAT_PLANET_DEFENSE_FIGHTER_GARRISON;
             }
 
@@ -1107,12 +1107,11 @@ namespace CMBTFIRE {
     }
 
     int16_t __cdecl Apply_Damage_To_Planet(int16_t* damage, uint16_t specials, uint16_t flags) {
-        s_combat_bomb_result bomb_stats;
+        s_combat_bomb_result bomb_stats{};
         int16_t defense_hits = 0;
         int16_t colony_hits = 0;
         int16_t shield_hit_flag = 0;
 
-        struct_::Clear_Structure(&bomb_stats, sizeof(s_combat_bomb_result));
 
         int16_t best_armor_idx = INITSHIP::Best_Armor(MOX::combat_data->owner);
         int16_t armor_threshold = (int16_t)Ground_Defense_Structure(
@@ -1143,12 +1142,12 @@ namespace CMBTFIRE {
                     bomb_stats.attacker_idx = (int8_t)MOX::combat_attacker_player;
                     MOX::combat_bomb_result.bio_hits_remaining += 1;
                     bomb_stats.bomb_hits_remaining = 0;
-                    bomb_stats.colony_idx = MOX::cmbt_colony_id;
+                    bomb_stats.colony_id = MOX::cmbt_colony_id;
                     bomb_stats.bio_hits_remaining = 1;
                     bomb_stats.is_planetary_hit = 0;
                     MOX::combat_bomb_result.is_bio_weapon = 1;
 
-                    if (MOX::apply_damage_to_planet != 0 && MOX::cmbt_colony_id != -1) {
+                    if (MOX::apply_damage_to_planet != 0 && MOX::cmbt_colony_id != game::NO_COLONY) {
                         BOMB::Apply_Bomb_Hits(&bomb_stats);
                     }
                 }
@@ -1198,7 +1197,7 @@ namespace CMBTFIRE {
             }
 
             if (colony_hits > 0) {
-                if (MOX::cmbt_colony_id != -1 &&
+                if (MOX::cmbt_colony_id != game::NO_COLONY &&
                     !(flags & (WEAPON_NATURAL_FLAG_ANTI_SHIELD | WEAPON_NATURAL_FLAG_IGNORES_ARMOR_STRUCTURE))) {
                     if (flags & WEAPON_NATURAL_FLAG_EXTRA_STRUCTURAL_DAMAGE) {
                         colony_hits *= 2;
@@ -1210,12 +1209,12 @@ namespace CMBTFIRE {
 
                     if (MOX::combat_data->structure_max >= civilian_armor_hits) {
                         bomb_stats.attacker_idx = (int8_t)MOX::combat_attacker_player;
-                        bomb_stats.colony_idx = MOX::cmbt_colony_id;
+                        bomb_stats.colony_id = MOX::cmbt_colony_id;
                         bomb_stats.is_planetary_hit = 1;
                         MOX::combat_bomb_result.is_planetary_hit = 1;
                         bomb_stats.bomb_hits_remaining = MOX::combat_data->structure_max / civilian_armor_hits;
 
-                        if (MOX::apply_damage_to_planet != 0 && MOX::cmbt_colony_id != -1) {
+                        if (MOX::apply_damage_to_planet != 0 && MOX::cmbt_colony_id != game::NO_COLONY) {
                             BOMB::Apply_Bomb_Hits(&bomb_stats);
 
                             if (bomb_stats.buildings_destroyed[BUILDING_RADIATION_SHIELD] != 0) {
@@ -1236,7 +1235,7 @@ namespace CMBTFIRE {
                             (int16_t)(bomb_stats.total_hits_processed * civilian_armor_hits);
                     }
                 } else {
-                    if (MOX::cmbt_colony_id != -1) {
+                    if (MOX::cmbt_colony_id != game::NO_COLONY) {
                         colony_hits = 0;
                     }
                 }

@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
 
 #include "lua/lua_game_ship_identity.h"
@@ -8,7 +9,7 @@ namespace {
     s_player players[MAX_PLAYERS];
     s_ship_data ships[MAX_SHIPS];
     s_star_data stars[MAX_STARS];
-    s_colony colonies[MAX_COLONIES];
+    test_colonies::Slots<MAX_COLONIES> colonies;
 
     bool hyperspace_flux;
     int16_t movement_speed;
@@ -30,11 +31,10 @@ namespace TEST_SHIPMOVE {
         memset(ships, 0, sizeof(ships));
         memset(stars, 0, sizeof(stars));
         game::current_state = game::s_game_state{};
-        memset(colonies, 0, sizeof(colonies));
+        colonies.Reset();
         memset(TECHDATA::fuel, 0, sizeof(TECHDATA::fuel));
         memset(best_warp, 0, sizeof(best_warp));
         memset(ftl_speed, 0, sizeof(ftl_speed));
-        MOX::NUM_COLONIES = 0;
         MOX::antarans = {};
         MOX::game_type = 0;
         icon_refresh_count = drive_queries = speed_queries = 0;
@@ -85,8 +85,6 @@ namespace game_random {
 } // namespace game_random
 
 namespace MOX {
-    int16_t NUM_COLONIES;
-    s_colony* colony = colonies;
     s_antaran antarans;
     int8_t game_type;
     int16_t NUM_PLAYERS;

@@ -125,16 +125,17 @@ namespace orion2re::lua::game::internal {
             return proxy;
         }
 
-        bool Delete_Colony_(std::int16_t colony_id) {
-            if (colony_id < 0 || colony_id >= MOX::NUM_COLONIES) {
+        bool Delete_Colony_(id_colony colony_id) {
+            if (!current_state.colonies.contains(colony_id)) {
                 return false;
             }
-            const id_planet planet_id = MOX::colony[colony_id].planet_id.get();
+            auto& colony = current_state.colonies.at(colony_id);
+            const auto planet_id = colony.planet_id;
             auto* planet = Resolve_Planet_Record_(planet_id);
-            if (!planet || planet->colony_index != colony_id) {
+            if (!planet || planet->colony_id != colony_id) {
                 return false;
             }
-            const std::int16_t officer_id = MOX::colony[colony_id].officer;
+            const auto officer_id = colony.officer;
             if (officer_id >= 0) {
                 if (officer_id >= MAX_LEADERS) return false;
                 const std::int8_t player_id =
@@ -150,22 +151,9 @@ namespace orion2re::lua::game::internal {
                 auto& leader = current_state.leaders.at(officer_id);
                 leader.status = 0;
                 leader.location = -1;
-                MOX::colony[colony_id].officer = -1;
             }
-            planet->colony_index = -1;
-            const std::int16_t last_id = --MOX::NUM_COLONIES;
-            if (colony_id != last_id) {
-                MOX::colony[colony_id] = MOX::colony[last_id];
-                auto* moved_planet = Resolve_Planet_Record_(MOX::colony[colony_id].planet_id.get());
-                if (!moved_planet || moved_planet->colony_index != last_id) {
-                    return false;
-                }
-                moved_planet->colony_index = colony_id;
-            }
-            memset(&MOX::colony[last_id], 0, sizeof(s_colony));
-            MOX::colony[last_id].planet_id = NO_PLANET;
-            MOX::colony[last_id].owner = -1;
-            MOX::colony[last_id].officer = -1;
+            planet->colony_id = NO_COLONY;
+            current_state.colonies.erase(colony_id);
             return true;
         }
 
@@ -181,7 +169,7 @@ namespace orion2re::lua::game::internal {
                     return false;
                 }
             }
-            if (planet->colony_index >= 0 && !Delete_Colony_(planet->colony_index)) {
+            if (planet->colony_id != NO_COLONY && !Delete_Colony_(planet->colony_id)) {
                 return false;
             }
             MOX::star[planet->star_index].orbit_planet_ids[planet->orbit] = NO_PLANET;
@@ -676,7 +664,7 @@ namespace orion2re::lua::game::internal {
             s_planet_data copy = *Resolve_Planet_Record_(source_id);
             copy.star_index = system_id;
             copy.orbit = static_cast<std::int8_t>(orbit);
-            copy.colony_index = -1;
+            copy.colony_id = NO_COLONY;
             const auto id = (galaxy_planet_candidate ? *galaxy_planet_candidate : current_state).Create_Planet(copy);
             if (!id) return luaL_error(lua_state, "planet capacity exceeded");
             MOX::star[system_id].orbit_planet_ids[orbit] = *id;

@@ -74,9 +74,12 @@ namespace allocate {
             Capacity_Dependent_Screen_Bytes(ORIGINAL_MAX_STARS, ORIGINAL_MAX_PLANETS, ORIGINAL_MAX_COLONIES, ORIGINAL_MAX_SHIPS, legacy_candidate_bytes) +
             NETMOX::NETMOX_MAX_GAME_DATA_PAYLOAD_BYTES - 0xE1000u;
 
-        // The fixed baseline budget contains the old 16-bit orbit links.
+        // The fixed baseline budget contains the old 16-bit links in these records.
         size += ORIGINAL_MAX_STARS * 5 * (sizeof(uint32_t) - sizeof(int16_t));
+        size += ORIGINAL_MAX_PLANETS * (sizeof(s_planet_data) - 18);
         size += 2 * ORIGINAL_MAX_PLANETS * (sizeof(uint32_t) - sizeof(int16_t));
+        size += ORIGINAL_MAX_COLONIES * MAX_COLONY_POPULATION * (sizeof(s_hiscore_tmp_pop) - 5);
+        size += 16 * (sizeof(s_hiscore_pop) - 4);
         size += alignof(s_adv_civ_player) - 1;
 
         return (size + 3u) & ~3u;

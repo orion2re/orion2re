@@ -16,10 +16,10 @@ namespace COLSYSDI {
                 s_planet_data* planet = &game::current_state.planets.at(planet_idx);
                 uint8_t climate;
 
-                if (planet->colony_index == -1) {
+                if (planet->colony_id == game::NO_COLONY) {
                     climate = planet->climate;
                 } else {
-                    climate = MOX::colony[planet->colony_index].climate;
+                    climate = game::current_state.colonies.at(planet->colony_id).climate;
                 }
 
                 if (planet->planet_type == PLANET_TYPE_PLANET) {
@@ -49,16 +49,16 @@ namespace COLSYSDI {
     }
 
     void __cdecl Draw_Col_Sys_Disp_Last_Scanned(int16_t x, int16_t y) {
-        s_colony* colony = &MOX::colony[COLONY::colony_handle];
+        s_colony* colony = &game::current_state.colonies.at(COLONY::colony_handle);
 
-        if (colony->planet_id.get() != game::NO_PLANET) {
-            s_planet_data* planet = &game::current_state.planets.at(colony->planet_id.get());
+        if (colony->planet_id != game::NO_PLANET) {
+            s_planet_data* planet = &game::current_state.planets.at(colony->planet_id);
             uint8_t climate;
 
-            if (planet->colony_index == -1) {
+            if (planet->colony_id == game::NO_COLONY) {
                 climate = planet->climate;
             } else {
-                climate = MOX::colony[planet->colony_index].climate;
+                climate = game::current_state.colonies.at(planet->colony_id).climate;
             }
 
             int16_t display_row = 0;
@@ -100,7 +100,7 @@ namespace COLSYSDI {
         summary_text[0] = '\0';
 
         s_planet_data* planet = &game::current_state.planets.at(planet_idx);
-        int16_t colony_idx = planet->colony_index;
+        game::id_colony colony_idx = planet->colony_id;
 
         gravity_str[PLANET_GRAVITY_LOW_G] = ESTRINGS::E_Strings(0x169);
         gravity_str[PLANET_GRAVITY_NORMAL_G] = ESTRINGS::E_Strings(0xC);
@@ -134,10 +134,10 @@ namespace COLSYSDI {
         asteroid_str = ESTRINGS::E_Strings(0xBA);
 
         uint8_t climate;
-        if (colony_idx == -1) {
+        if (colony_idx == game::NO_COLONY) {
             climate = planet->climate;
         } else {
-            climate = MOX::colony[colony_idx].climate;
+            climate = game::current_state.colonies.at(colony_idx).climate;
         }
 
         if (planet->planet_type != PLANET_TYPE_PLANET) {
@@ -150,20 +150,20 @@ namespace COLSYSDI {
             return;
         }
 
-        if (colony_idx == -1) {
+        if (colony_idx == game::NO_COLONY) {
             strlcpy(pop_str, ESTRINGS::E_Strings(0xC), sizeof(pop_str));
         } else {
             if (font_player_idx != -1) {
-                COLONY::Set_Colony_Font_To_Player((uint8_t)font_player_idx, MOX::colony[colony_idx].owner);
+                COLONY::Set_Colony_Font_To_Player((uint8_t)font_player_idx, game::current_state.colonies.at(colony_idx).owner);
             }
-            int16_t max_pop = COLCALC::Planet_Max_Population_For_Player(planet, MOX::colony[colony_idx].owner);
-            snprintf(pop_str, sizeof(pop_str), ESTRINGS::E_Strings(0x8), (int)MOX::colony[colony_idx].n_pops, (int)max_pop);
+            int16_t max_pop = COLCALC::Planet_Max_Population_For_Player(planet, game::current_state.colonies.at(colony_idx).owner);
+            snprintf(pop_str, sizeof(pop_str), ESTRINGS::E_Strings(0x8), (int)game::current_state.colonies.at(colony_idx).n_pops, (int)max_pop);
         }
 
-        if (colony_idx == -1) {
+        if (colony_idx == game::NO_COLONY) {
             snprintf(summary_text, summary_text_size, ESTRINGS::E_Strings(0x2C), size_str[(int)planet->size], MOX::planet_climate_string[(int)climate], gravity_str[(int)planet->gravity_class], mineral_str[(int)planet->mineral_class], pop_str);
         } else {
-            snprintf(summary_text, summary_text_size, ESTRINGS::E_Strings(0x29), MOX::player[(int)MOX::colony[colony_idx].owner].race_name, gravity_str[(int)planet->gravity_class], mineral_str[(int)planet->mineral_class], pop_str);
+            snprintf(summary_text, summary_text_size, ESTRINGS::E_Strings(0x29), MOX::player[(int)game::current_state.colonies.at(colony_idx).owner].race_name, gravity_str[(int)planet->gravity_class], mineral_str[(int)planet->mineral_class], pop_str);
         }
     }
 

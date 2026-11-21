@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
 
 #include <string>
@@ -43,7 +44,7 @@ namespace AIBUILD {
     void __cdecl Force_Produce(const game::s_view*, game::id_colony* queue, uint32_t index, int32_t* count, int16_t product) {
         DOCTEST_REQUIRE(*count == 1);
         DOCTEST_REQUIRE(index == 0);
-        MOX::colony[legacy_world::Slot(queue[index])].producing[0] = product;
+        test_colonies::Record(queue[index].id).producing[0] = product;
         --*count;
     }
 } // namespace AIBUILD
@@ -54,10 +55,8 @@ namespace TEST_ORBITAL_DEFENSE {
             .players = MOX::player,
             .ships = MOX::ship,
             .stars = MOX::star,
-            .colonies = MOX::colony,
             .state = &game::current_state,
             .settings = &MOX::settings,
-            .colony_count = &MOX::NUM_COLONIES,
         };
         return &world;
     }
@@ -67,11 +66,12 @@ namespace TEST_ORBITAL_DEFENSE {
     std::vector<std::string> printed;
     uint16_t station_weights[3];
     int choice_calls;
+    std::vector<const s_colony*> priced_colonies;
 
     void Reset_(int16_t preferred, bool large_ships) {
         memset(MOX::ship, 0, sizeof(s_ship_data) * MAX_SHIPS);
         memset(MOX::ship_node, 0xff, sizeof(MOX::ship_node));
-        memset(MOX::colony, 0, sizeof(s_colony) * 2);
+        test_colonies::Reset(2);
         test_planets::Reset(2);
         memset(MOX::star, 0, sizeof(s_star_data));
         memset(MOX::player, 0, sizeof(s_player) * MAX_PLAYERS);
@@ -80,13 +80,13 @@ namespace TEST_ORBITAL_DEFENSE {
         preferred_station = preferred;
         can_build_large_ships = large_ships;
         choice_calls = 0;
+        priced_colonies.clear();
         printed.clear();
-        MOX::NUM_COLONIES = 1;
-        MOX::colony[0].owner = 0;
-        MOX::colony[0].planet_id = game::id_planet{0};
-        MOX::colony[0].n_pops = 10;
-        MOX::colony[0].producing[0] = COLONY_PRODUCTION_NONE;
-        MOX::colony[1].planet_id = game::id_planet{1};
+        test_colonies::Record(0).owner = 0;
+        test_colonies::Record(0).planet_id = game::id_planet{0};
+        test_colonies::Record(0).n_pops = 10;
+        test_colonies::Record(0).producing[0] = COLONY_PRODUCTION_NONE;
+        test_colonies::Record(1).planet_id = game::id_planet{1};
         MOX::player[0].ship_range = 4;
         MOX::player[0].ship_speed = 2;
         MOX::player[0].tech_applications[TECH_APP_STAR_BASE] = TECH_RESEARCH_STATUS_RESEARCHED;
@@ -142,14 +142,15 @@ namespace COLCALC {
     bool __cdecl Colony_Can_Build_Large_Ships(s_colony*) {
         return can_build_large_ships;
     }
-    int32_t __cdecl Colony_Product_Cost(s_colony*, int16_t) {
+    int32_t __cdecl Colony_Product_Cost(s_colony* colony, int16_t) {
+        TEST_ORBITAL_DEFENSE::priced_colonies.push_back(colony);
         return 100;
     }
     void __cdecl Do_Player_Colony_Calculations(int16_t) {}
 } // namespace COLCALC
 
 namespace EVENTS {
-    int16_t __cdecl Event_Check_Space_Anomaly(int16_t) {
+    int16_t __cdecl Event_Check_Space_Anomaly(game::id_colony) {
         return 0;
     }
 } // namespace EVENTS

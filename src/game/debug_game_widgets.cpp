@@ -263,31 +263,29 @@ namespace debug_game_widgets {
 #endif
     }
 
-    bool Colony_Reference(const char* label, int16_t* colony_index, bool allow_none) {
+    bool Colony_Reference(const char* label, game::id_colony* colony_index, bool allow_none) {
 #if defined(ORION2RE_ENABLE_DEBUG_OVERLAY)
         if (label == nullptr || colony_index == nullptr) {
             return false;
         }
-        const int16_t count = MOX::colony == nullptr
-            ? 0
-            : std::clamp<int16_t>(MOX::NUM_COLONIES, 0, MAX_COLONIES);
         char preview[48];
-        if (*colony_index < 0) {
+        if (*colony_index == game::NO_COLONY) {
             strlcpy(preview, "None", sizeof(preview));
-        } else if (*colony_index < count) {
-            snprintf(preview, sizeof(preview), "Colony %d (player %d)", (int)*colony_index, (int)MOX::colony[*colony_index].owner);
+        } else if (game::current_state.colonies.contains(*colony_index)) {
+            snprintf(preview, sizeof(preview), "Colony %u (player %d)", colony_index->id, (int)game::current_state.colonies.at(*colony_index).owner);
         } else {
             strlcpy(preview, "Invalid", sizeof(preview));
         }
         bool changed = false;
         if (ImGui::BeginCombo(label, preview)) {
-            if (allow_none && ImGui::Selectable("None", *colony_index < 0)) {
-                *colony_index = -1;
+            if (allow_none && ImGui::Selectable("None", *colony_index == game::NO_COLONY)) {
+                *colony_index = game::NO_COLONY;
                 changed = true;
             }
-            for (int16_t index = 0; index < count; ++index) {
+            for (const auto& [id, colony] : game::current_state.colonies) {
+                const auto index = id;
                 char item[64];
-                snprintf(item, sizeof(item), "Colony %d (player %d)", (int)index, (int)MOX::colony[index].owner);
+                snprintf(item, sizeof(item), "Colony %u (player %d)", id.id, (int)colony.owner);
                 if (ImGui::Selectable(item, *colony_index == index)) {
                     *colony_index = index;
                     changed = true;

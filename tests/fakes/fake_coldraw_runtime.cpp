@@ -1,7 +1,8 @@
 #include "pch.h"
+#include "../fixtures/colony_roster.h"
 
 namespace {
-    s_colony colonies[MAX_COLONIES];
+    test_colonies::Slots<MAX_COLONIES> colonies;
     uint8_t production_animation;
     uint8_t import_animation;
     uint8_t shortage_animation;
@@ -12,7 +13,7 @@ namespace {
 
 namespace TEST_COLDRAW {
     void Reset_() {
-        memset(colonies, 0, sizeof(colonies));
+        colonies.Reset();
         COLONY::step_squish = 0;
         short_anim_calls = 0;
         draw_calls = 0;
@@ -33,7 +34,6 @@ namespace TEST_COLDRAW {
 }
 
 namespace MOX {
-    s_colony* colony = colonies;
 }
 
 namespace COLONY {

@@ -552,7 +552,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "defense missile ECCM installation is 
         COMBINIT::defenses_allowed_mods.missile_torp =
             test.allowed ? WEAPON_MOD_FLAG_ECCM : 0;
 
-        COMBINIT::Load_Tactical_Colony(0, 0);
+        COMBINIT::Load_Tactical_Colony(game::id_colony{0}, 0);
         bool found_missile_base_weapon = false;
         for (int slot = 0; slot < 8; ++slot) {
             const s_combat_weapon_slot& weapon =
@@ -631,7 +631,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "planet extra specials follow building
                 TECH_RESEARCH_STATUS_RESEARCHED;
         }
 
-        COMBINIT::Load_Tactical_Colony(0, 0);
+        COMBINIT::Load_Tactical_Colony(game::id_colony{0}, 0);
 
         s_combat_data* planet = TEST_SHIELD_TABLE::Combat_Ship_();
         DOCTEST_CHECK(struct_::Test_Bit_Field(
@@ -752,7 +752,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "planet defenses use configured eligib
     DOCTEST_REQUIRE(missile_space > 0);
     DOCTEST_REQUIRE(charged_eccm_space > missile_space);
 
-    COMBINIT::Load_Tactical_Colony(0, 0);
+    COMBINIT::Load_Tactical_Colony(game::id_colony{0}, 0);
 
     DOCTEST_CHECK(TEST_SHIELD_TABLE::Combat_Ship_()->weapons[0].specials ==
                   (WEAPON_MOD_FLAG_HEAVY_MOUNT |
@@ -837,7 +837,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_shield_state, "defense point-defense selection uses 
             WEAPON_MOD_FLAG_POINT_DEFENSE |
             WEAPON_MOD_FLAG_AUTO_FIRE;
 
-        COMBINIT::Load_Tactical_Colony(0, 0);
+        COMBINIT::Load_Tactical_Colony(game::id_colony{0}, 0);
         const s_combat_weapon_slot& ground_pd =
             TEST_SHIELD_TABLE::Combat_Ship_()->weapons[1];
         DOCTEST_CHECK((ground_pd.weapon_id == test.expected_weapon));

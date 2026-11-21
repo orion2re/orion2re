@@ -3,7 +3,7 @@
 #include "settler_serialization.h"
 
 namespace NETPROTO {
-    inline constexpr uint32_t PLAYER_TAG = 0x3450324f; // O2P4
+    inline constexpr uint32_t PLAYER_TAG = 0x3550324f; // O2P5
     inline constexpr size_t HOME_PLANET_OFFSET = offsetof(s_player, home_planet_id);
     inline constexpr size_t POST_HOME_OFFSET = offsetof(s_player, network_player_id);
     inline constexpr size_t PLAYER_PREFIX = offsetof(s_player, settlers);

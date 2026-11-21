@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
 
 #include "lua/lua_game_ship_identity.h"
@@ -15,7 +16,7 @@ namespace TEST_COLBLDG {
     }
 
     void Reset_() {
-        memset(MOX::colony, 0, sizeof(s_colony) * MAX_COLONIES);
+        test_colonies::Reset(1);
         test_planets::Reset();
         memset(MOX::player, 0, sizeof(s_player) * MAX_PLAYERS);
         memset(MOX::ship, 0, sizeof(s_ship_data) * MAX_SHIPS);
@@ -31,7 +32,7 @@ namespace TEST_COLBLDG {
         COLBLDG::build_list_format[COLBLDG::BUILD_LIST_PRODUCT_TRADE_GOODS].order = -2;
         COLBLDG::build_list_format[COLBLDG::BUILD_LIST_PRODUCT_HOUSING].order = -1;
         COLCALC::disable_housing = 0;
-        COLONY::colony_handle = 0;
+        COLONY::colony_handle = game::id_colony{0};
         COLONY::cheats = 0;
         COLBLDG::active_prod[0] = -1;
         COLBLDG::field_mode = 0;

@@ -7,11 +7,14 @@ struct s_colony;
 struct s_player;
 struct s_settler_settle_result;
 
+namespace game {
+    struct s_game_state;
+}
+
 namespace SETTLER {
     extern bool allow_last_population_transfer;
     extern uint16_t max_pop_freighted;
 
-    constexpr int16_t SOURCE_COLONY_IN_TRANSIT = -1;
 
     /**
      * Returns how many freighters the player can scrap without stranding settlers already in transit.
@@ -25,7 +28,7 @@ namespace SETTLER {
      * @param race_idx Race index of the incoming pop.
      * @param include_freighters Nonzero to count settlers already heading to the colony.
      */
-    bool __cdecl Room_For_Another(s_colony* colony, int16_t race_idx, int8_t include_freighters);
+    bool __cdecl Room_For_Another(const s_colony* colony, int16_t race_idx, int8_t include_freighters);
 
     /**
      * Adds an encoded settler record to the colony if capacity allows.
@@ -41,15 +44,17 @@ namespace SETTLER {
 
     /**
      * Validates whether the selected pop can settle the destination colony and records the result flags.
-     * @param source_colony Colony providing the pop.
+     * @param state State containing the source and destination planets.
+     * @param source_id Colony providing the pop.
      * @param selected_pop_idx Pop index selected in the source colony.
-     * @param dest_colony Destination colony to receive the pop.
+     * @param destination_id Destination colony to receive the pop.
      * @param result Output structure filled with settlement validation flags.
      */
     void __cdecl Pop_Tries_To_Settle(
-        s_colony* source_colony,
+        const game::s_game_state& state,
+        game::id_colony source_id,
         int16_t selected_pop_idx,
-        s_colony* dest_colony,
+        game::id_colony destination_id,
         s_settler_settle_result* result);
 
     /**
@@ -62,9 +67,12 @@ namespace SETTLER {
 
     /**
      * Moves one pop from the source colony to the destination colony or dispatches it into transit.
-     * @param source_colony Colony losing the pop.
+     * @param state State containing the source and destination planets.
+     * @param source_id Colony losing the pop.
      * @param pop_index Pop index to move from the source colony.
-     * @param dest_colony Destination colony receiving the pop.
+     * @param destination_id Destination colony receiving the pop.
      */
-    void __cdecl Settle_Pop(s_colony* source_colony, int16_t pop_index, s_colony* dest_colony);
+    // Updates the active game, including its legacy player freight storage.
+    void __cdecl Settle_Pop(game::id_colony source_id,
+        int16_t pop_index, game::id_colony destination_id);
 } // namespace SETTLER

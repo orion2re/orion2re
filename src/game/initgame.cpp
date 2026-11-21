@@ -36,17 +36,7 @@ namespace INITGAME {
      * Clears the entire array and sets initial sentinel values for owner, planet, and officer.
      */
     void Init_Colonies_Array() {
-        memset(MOX::colony, 0, MAX_COLONIES * sizeof(s_colony));
-
-        for (MOX::NUM_COLONIES = 0; MOX::NUM_COLONIES < MAX_COLONIES; ++MOX::NUM_COLONIES) {
-            s_colony& colony = MOX::colony[MOX::NUM_COLONIES];
-
-            colony.planet_id = game::NO_PLANET;
-            colony.owner = -1;
-            colony.officer = -1;
-        }
-
-        MOX::NUM_COLONIES = 0;
+        game::current_state.Reset_Colonies();
     }
 
     /**
@@ -316,30 +306,36 @@ namespace INITGAME {
         return true;
     }
 
-    void __cdecl Init_Colony(int16_t colony_idx, game::id_planet planet_id, uint8_t player_num) {
-        s_colony* colony = &MOX::colony[colony_idx];
+    game::id_colony __cdecl Init_Colony(game::s_game_state& state, game::id_colony colony_id, game::id_planet planet_id, uint8_t player_num) {
+        auto& planet = state.planets.at(planet_id);
+        s_colony colony{.owner = static_cast<int8_t>(player_num), .planet_id = planet_id, .officer = -1};
+        std::ranges::fill(colony.producing, COLONY_PRODUCTION_NONE);
+        colony.occupation_policy = 4;
+        colony.just_produced = COLONY_PRODUCTION_NONE;
+        if (colony_id == game::NO_COLONY) {
+            if (state.colonies.size() >= MAX_COLONIES) return game::NO_COLONY;
+            // Unscheduled creation must not claim an ID held by the round's reservation order.
+            for (const auto& ids : state.colony_reservations) {
+                if (!ids.empty()) state.next_colony_id = std::max(state.next_colony_id, ids.back().id + 1);
+            }
+            const auto created = state.Create_Colony(colony);
+            if (!created) return game::NO_COLONY;
+            colony_id = *created;
+        } else {
+            const auto existing = state.colonies.find(colony_id);
+            if (existing != state.colonies.end() && existing->second.planet_id != planet_id) return game::NO_COLONY;
+            if (!state.colonies.contains(colony_id) && state.colonies.size() >= MAX_COLONIES) return game::NO_COLONY;
+            state.colonies.insert_or_assign(colony_id, colony);
+            state.next_colony_id = std::max(state.next_colony_id, colony_id.id + 1);
+        }
+        planet.colony_id = colony_id;
 
-        // Zero-initialize the entire colony structure
-        memset(colony, 0, sizeof(s_colony));
-
-        s_planet_data* planet = &game::current_state.planets.at(planet_id);
-        planet->colony_index = colony_idx;
-
-        colony->planet_id = planet_id;
-        colony->owner = player_num;
-        colony->officer = -1;
-
-        int16_t star_idx = planet->star_index;
+        int16_t star_idx = planet.star_index;
         // Mark the star system as visited/seen by the player
         uint8_t visited_player_mask = (uint8_t)(1u << (player_num & 0x1f));
         MOX::star[star_idx].visited |= visited_player_mask;
 
-        for (int32_t producing_idx = 0; producing_idx < (int32_t)(sizeof(colony->producing) / sizeof(colony->producing[0])); ++producing_idx) {
-            colony->producing[producing_idx] = COLONY_PRODUCTION_NONE;
-        }
-
-        colony->occupation_policy = 4;
-        colony->just_produced = COLONY_PRODUCTION_NONE;
+        return colony_id;
     }
 
     void __cdecl Init_Leaders(game::s_game_state& state) {

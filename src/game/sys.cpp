@@ -209,7 +209,7 @@ namespace SYS {
         (void)unused_arg;
 
         s_planet_data* planet = &game::current_state.planets.at(planet_idx);
-        int16_t colony_idx = planet->colony_index;
+        game::id_colony colony_idx = planet->colony_id;
         uint16_t climate = (uint16_t)(uint8_t)planet->climate;
         int8_t size = planet->size;
 
@@ -217,9 +217,9 @@ namespace SYS {
             size = PLANET_SIZE_HUGE;
         }
 
-        if (colony_idx > -1 && colony_idx < MOX::NUM_COLONIES && planet->planet_type != PLANET_TYPE_GAS_GIANT) {
-            if (MOX::colony[colony_idx].outpost_flag == 0) {
-                climate = (uint16_t)(uint8_t)MOX::colony[colony_idx].climate;
+        if (game::current_state.colonies.contains(colony_idx) && planet->planet_type != PLANET_TYPE_GAS_GIANT) {
+            if (game::current_state.colonies.at(colony_idx).outpost_flag == 0) {
+                climate = (uint16_t)(uint8_t)game::current_state.colonies.at(colony_idx).climate;
             }
         }
 
@@ -635,7 +635,7 @@ namespace SYS {
     }
 
     void __cdecl Draw_System_Highlight(game::id_planet planet_idx, int16_t rect_w, int16_t rect_h, int16_t x_offset, int16_t y_offset) {
-        int16_t colony_idx = game::current_state.planets.at(planet_idx).colony_index;
+        game::id_colony colony_idx = game::current_state.planets.at(planet_idx).colony_id;
         MOX::o_highlight_seg = (s_animation_header*)buffer::Buffer_Reload("BUFFER0.LBX", 0x4b, (void*)MOX::global_cache_seg);
         int16_t w = animate::Get_Width(MOX::o_highlight_seg);
         int16_t h = animate::Get_Height(MOX::o_highlight_seg);
@@ -643,7 +643,7 @@ namespace SYS {
         bool replaced = false;
         uint8_t player_color = 0;
 
-        if (colony_idx < 0) {
+        if (colony_idx == game::NO_COLONY) {
             for (int i = 0; i < 9; ++i) {
                 replace::Replace_Color(MOX::o_highlight_seg, (int16_t)(0x49 + i), (int8_t)(0x06 + i));
             }
@@ -652,7 +652,7 @@ namespace SYS {
                 replace::Replace_Color(MOX::o_highlight_seg, (int16_t)(0x06 + i), (int8_t)(0x49 + i));
             }
         } else {
-            player_color = (uint8_t)MOX::player[MOX::colony[colony_idx].owner].color;
+            player_color = (uint8_t)MOX::player[game::current_state.colonies.at(colony_idx).owner].color;
             if (player_color != 0) {
                 uint8_t base_color = MOX::main_palette_player_colors[player_color];
                 for (int i = 0; i < 9; ++i) {
@@ -841,14 +841,14 @@ namespace SYS {
                 short marker_x = orbit_display->x + x_offset + content_w + 0x9f + base_x;
                 short marker_y = orbit_display->y + y_offset + content_h + 0x58 + base_y;
 
-                if (planet->colony_index > -1) {
+                if (planet->colony_id != game::NO_COLONY) {
                     if (planet->planet_type == PLANET_TYPE_ASTEROID) {
                         short offset = (short)(MOX::rot_plan_dim[planet_size] >> 1);
                         marker_x += offset;
                         marker_y += offset;
                     }
-                    short colony_owner = (short)MOX::colony[planet->colony_index].owner;
-                    if (MOX::colony[planet->colony_index].outpost_flag == '\0') {
+                    short colony_owner = (short)game::current_state.colonies.at(planet->colony_id).owner;
+                    if (game::current_state.colonies.at(planet->colony_id).outpost_flag == '\0') {
                         Draw_Colony_Marker(marker_x, marker_y, colony_owner);
                     } else {
                         Draw_Outpost_Marker(marker_x, marker_y, colony_owner);
@@ -1298,10 +1298,10 @@ namespace SYS {
 
         font_colors = *MISC::Font_Colors2(2, 0x3c, 0x43);
 
-        const int16_t colony_idx = planet->colony_index;
+        const game::id_colony colony_idx = planet->colony_id;
         s_colony* colony = nullptr;
-        if (colony_idx > -1) {
-            colony = &MOX::colony[colony_idx];
+        if (colony_idx != game::NO_COLONY) {
+            colony = &game::current_state.colonies.at(colony_idx);
             colony_owner = static_cast<int8_t>(colony->owner);
         }
 

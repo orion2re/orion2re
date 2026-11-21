@@ -20,11 +20,9 @@ namespace TEST_DIPLOMAC {
         MOX::ship = ships;
         MOX::star = stars;
         test_planets::Reset(1);
-        MOX::colony = colonies;
         MOX::NUM_PLAYERS = 2;
         MOX::NUM_SHIPS = 0;
         MOX::NUM_STARS = 0;
-        MOX::NUM_COLONIES = 0;
         memset(diplodef::personality_relation_modifiers, 0,
             sizeof(diplodef::personality_relation_modifiers));
         game::current = legacy_world::World();

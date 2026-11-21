@@ -5,11 +5,11 @@ namespace COLXPORT {
 
     int16_t cheezy_hack_col_count[MAX_PLAYERS];
 
-    int16_t* g_colony_list_ptr;
+    game::id_colony* g_colony_list_ptr;
 
     MOX2::action_func_t saved_autofunction;
 
-    int16_t list_col[6];
+    game::id_colony list_col[6];
 
     s_colsum_col_pop_ref list_col_pop_ref[6];
 
@@ -45,8 +45,8 @@ namespace COLXPORT {
         COLSUM::Update_First(6, &COLSUM::first, &COLSUM::slider_bar_position);
 
         for (int16_t i = 0; i < 6; ++i) {
-            int16_t colony_idx = COLXPORT::g_colony_list_ptr[i + COLSUM::first];
-            if (colony_idx != -1) {
+            game::id_colony colony_idx = COLXPORT::g_colony_list_ptr[i + COLSUM::first];
+            if (colony_idx != game::NO_COLONY) {
                 COLXPORT::Draw_Colony_Summary_For_Colony(colony_idx, i);
             }
         }
@@ -70,8 +70,8 @@ namespace COLXPORT {
         }
 
         int16_t colony_count = 0;
-        for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
-            s_colony* colony = &MOX::colony[i];
+        for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
+            s_colony* colony = &roster_colony;
 
             if ((int16_t)colony->owner == player_idx && colony->outpost_flag == 0) {
                 colony_count++;
@@ -91,15 +91,15 @@ namespace COLXPORT {
     void __cdecl Build_Global_Colony_List() {
         int16_t count = 0;
 
-        for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
-            if (MOX::colony[i].owner == (char)MOX::PLAYER_NUM && MOX::colony[i].outpost_flag == 0) {
-                g_colony_list_ptr[count] = i;
+        for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
+            if (roster_colony.owner == (char)MOX::PLAYER_NUM && roster_colony.outpost_flag == 0) {
+                g_colony_list_ptr[count] = roster_id;
                 count++;
             }
         }
 
         for (; count < MAX_COLONIES; ++count) {
-            g_colony_list_ptr[count] = -1;
+            g_colony_list_ptr[count] = game::NO_COLONY;
         }
     }
 
@@ -109,13 +109,13 @@ namespace COLXPORT {
         anims[2] = (s_animation_header*)farload::Far_Reload_Next(COLONY::COLPUPS_LBX, 0x14, MOX::screen_seg);
     }
 
-    int16_t __cdecl Xport_Popup() {
-        int16_t colony_list_buffer[MAX_COLONIES];
+    game::id_colony __cdecl Xport_Popup() {
+        game::id_colony colony_list_buffer[MAX_COLONIES];
         int16_t input_id;
-        int16_t selected_colony = -1;
+        game::id_colony selected_colony = game::NO_COLONY;
 
         for (int32_t i = 0; i < 15; ++i) {
-            colony_list_buffer[i] = -1;
+            colony_list_buffer[i] = game::NO_COLONY;
         }
 
         memset(&colony_list_buffer[15], 0, (MAX_COLONIES - 15) * sizeof(colony_list_buffer[0]));
@@ -140,7 +140,7 @@ namespace COLXPORT {
             if (input_id == x_fields_array[2]) {
                 COLSUM::Decrement_First(6);
             } else if (input_id == x_fields_array[3]) {
-                if (g_colony_list_ptr[COLSUM::first + 6] != -1) {
+                if (g_colony_list_ptr[COLSUM::first + 6] != game::NO_COLONY) {
                     COLSUM::Increment_First(6);
                 }
             } else {
@@ -161,7 +161,7 @@ namespace COLXPORT {
             Add_Fields();
             RUSS::Mox_Sync_Update();
 
-        } while (input_id != x_fields_array[1] && selected_colony == -1);
+        } while (input_id != x_fields_array[1] && selected_colony == game::NO_COLONY);
 
         fields::Clear_Fields();
         fields::Deactivate_Help_List();
@@ -224,7 +224,7 @@ namespace COLXPORT {
 
         y_offset = 83;
         for (int32_t i = 0; i < 6; ++i) {
-            if (COLXPORT::list_col[i] != -1) {
+            if (COLXPORT::list_col[i] != game::NO_COLONY) {
                 char* scroll_str = ESTRINGS::E_Strings(12);
                 COLXPORT::list_fields[i] = fields::Add_Hidden_Field(
                     15,
@@ -238,10 +238,10 @@ namespace COLXPORT {
         }
     }
 
-    void __cdecl Draw_Colony_Summary_For_Colony(int16_t colony_idx, int16_t entry_idx) {
+    void __cdecl Draw_Colony_Summary_For_Colony(game::id_colony colony_idx, int16_t entry_idx) {
         COLXPORT::list_col[entry_idx] = colony_idx;
 
-        const auto planet_idx = MOX::colony[colony_idx].planet_id.get();
+        const auto planet_idx = game::current_state.colonies.at(colony_idx).planet_id;
         int16_t star_idx = game::current_state.planets.at(planet_idx).star_index;
 
         if (((MOX::star[star_idx].blockaded >> MOX::PLAYER_NUM) & 1) != 0 || EVENTS::Event_Check_Plague(colony_idx) != 0) {

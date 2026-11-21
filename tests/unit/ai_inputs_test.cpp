@@ -115,14 +115,12 @@ DOCTEST_TEST_CASE("typed ID compatibility preserves zero and rejects absent or u
     using namespace legacy_world;
     for (int32_t absent : {-1, -2}) {
         DOCTEST_CHECK_FALSE(Try_Ship_Id(absent));
-        DOCTEST_CHECK_FALSE(Try_Colony_Id(absent));
         DOCTEST_CHECK_FALSE(Try_Star_Id(absent));
         DOCTEST_CHECK_FALSE(Try_Player_Id(absent));
         DOCTEST_CHECK_FALSE(Try_Leader_Id(absent));
     }
     for (int16_t index : {int16_t{0}, int16_t{INT16_MAX}}) {
         DOCTEST_CHECK(Try_Ship_Id(index)->id == index);
-        DOCTEST_CHECK(Try_Colony_Id(index)->id == index);
         DOCTEST_CHECK(Try_Star_Id(index)->id == index);
         DOCTEST_CHECK(Try_Player_Id(index)->id == index);
         DOCTEST_CHECK(Try_Leader_Id(index)->id == index);
@@ -130,7 +128,6 @@ DOCTEST_TEST_CASE("typed ID compatibility preserves zero and rejects absent or u
     for (uint32_t value : {uint32_t{INT16_MAX} + 1, UINT32_MAX}) {
         DOCTEST_CHECK_FALSE(Ship_List(std::array{Ship_Id(value)}));
         DOCTEST_CHECK(Slot(Ship_Id(value)) == value);
-        DOCTEST_CHECK(Slot(Colony_Id(value)) == value);
         DOCTEST_CHECK(Slot(Star_Id(value)) == value);
         DOCTEST_CHECK(Slot(Player_Id(value)) == value);
         DOCTEST_CHECK(Slot(Leader_Id(value)) == value);

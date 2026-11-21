@@ -13,6 +13,8 @@
 #include "lua/lua_mod_runtime.h"
 #include "lua/lua_game_traits.h"
 
+using game::current_state;
+
 extern "C" {
 #include <lauxlib.h>
 #include <lua.h>
@@ -365,10 +367,9 @@ namespace orion2re::lua::game {
                 return luaL_error(lua_state,
                     "player home must be a colonizable planet");
             }
-            if (planet.colony_index < 0 ||
-                planet.colony_index >= MOX::NUM_COLONIES ||
-                MOX::colony[planet.colony_index].planet_id.get() != planet_id ||
-                MOX::colony[planet.colony_index].owner != proxy->player_id) {
+            if (!current_state.colonies.contains(planet.colony_id) ||
+                current_state.colonies.at(planet.colony_id).planet_id != planet_id ||
+                current_state.colonies.at(planet.colony_id).owner != proxy->player_id) {
                 return luaL_error(lua_state,
                     "player home must be an existing colony owned by that player");
             }

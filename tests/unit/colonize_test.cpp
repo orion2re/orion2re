@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
 
 #include "doctest/doctest.h"
@@ -18,10 +19,10 @@ DOCTEST_TEST_CASE("same-owner outpost ship does not suppress colony ship priorit
     MOX::star[0].orbit_planet_ids[0] = game::id_planet{0};
     test_planets::Record(0).star_index = 0;
     test_planets::Record(0).planet_type = PLANET_TYPE_PLANET;
-    test_planets::Record(0).colony_index = 0;
-    MOX::colony[0].owner = 0;
-    MOX::colony[0].planet_id = game::id_planet{0};
-    MOX::colony[0].outpost_flag = 1;
+    test_planets::Record(0).colony_id = game::id_colony{0};
+    test_colonies::Record(0).owner = 0;
+    test_colonies::Record(0).planet_id = game::id_planet{0};
+    test_colonies::Record(0).outpost_flag = 1;
 
     MOX::ship[0].owner = 0;
     MOX::ship[0].location = 0;
@@ -38,7 +39,6 @@ DOCTEST_TEST_CASE("same-owner outpost ship does not suppress colony ship priorit
 DOCTEST_TEST_CASE("same-owner outpost ship does not suppress colony base priority") {
     TEST_COLONIZE::Reset_();
 
-    MOX::NUM_COLONIES = 2;
     MOX::NUM_SHIPS = 1;
 
     MOX::star[0].orbit_planet_ids[0] = game::id_planet{0};
@@ -46,17 +46,17 @@ DOCTEST_TEST_CASE("same-owner outpost ship does not suppress colony base priorit
 
     test_planets::Record(0).star_index = 0;
     test_planets::Record(0).planet_type = PLANET_TYPE_PLANET;
-    test_planets::Record(0).colony_index = 0;
-    MOX::colony[0].owner = 0;
-    MOX::colony[0].planet_id = game::id_planet{0};
-    MOX::colony[0].buildings[BUILDING_COLONY_BASE] = 1;
+    test_planets::Record(0).colony_id = game::id_colony{0};
+    test_colonies::Record(0).owner = 0;
+    test_colonies::Record(0).planet_id = game::id_planet{0};
+    test_colonies::Record(0).buildings[BUILDING_COLONY_BASE] = 1;
 
     test_planets::Record(1).star_index = 0;
     test_planets::Record(1).planet_type = PLANET_TYPE_PLANET;
-    test_planets::Record(1).colony_index = 1;
-    MOX::colony[1].owner = 0;
-    MOX::colony[1].planet_id = game::id_planet{1};
-    MOX::colony[1].outpost_flag = 1;
+    test_planets::Record(1).colony_id = game::id_colony{1};
+    test_colonies::Record(1).owner = 0;
+    test_colonies::Record(1).planet_id = game::id_planet{1};
+    test_colonies::Record(1).outpost_flag = 1;
 
     MOX::ship[0].owner = 0;
     MOX::ship[0].location = 0;
@@ -67,41 +67,7 @@ DOCTEST_TEST_CASE("same-owner outpost ship does not suppress colony base priorit
     COLONIZE::Find_Colonize_Players();
 
     DOCTEST_CHECK((MOX::star[0].colonize_player == 0));
-    DOCTEST_CHECK((MOX::colony[0].buildings[BUILDING_COLONY_BASE] == 1));
-    DOCTEST_CHECK((MOX::player[0].bc == 0));
-}
-
-DOCTEST_TEST_CASE("restoring colony reservations preserves saved claims and does not process colony bases") {
-    TEST_COLONIZE::Reset_();
-    MOX::NUM_PLAYERS = 2;
-    MOX::NUM_COLONIES = 2;
-    MOX::NUM_SHIPS = 0;
-    for (int16_t i = 0; i < MAX_COLONIES; ++i) {
-        MOX::colony[i].allocated_to = -1;
-    }
-
-    MOX::star[0].colonize_player = 1;
-    MOX::star[0].planet_index[0] = 0;
-    MOX::star[0].planet_index[1] = 1;
-    MOX::star[0].planet_index[2] = 2;
-    MOX::planet[0].colony_index = -1;
-    MOX::planet[1].colony_index = -1;
-    MOX::planet[2].colony_index = 1;
-    MOX::colony[0].planet = -1;
-    MOX::colony[0].allocated_to = 1;
-    MOX::colony[1].planet = 2;
-    MOX::colony[1].buildings[BUILDING_COLONY_BASE] = 1;
-    MOX::colony[2].allocated_to = 0;
-    TECHDATA::buildings[BUILDING_COLONY_BASE].cost = 100;
-
-    COLONIZE::Restore_Colony_Slot_Reservations();
-
-    DOCTEST_CHECK((MOX::star[0].colonize_player == 1));
-    DOCTEST_CHECK((MOX::colony[0].allocated_to == 1));
-    DOCTEST_CHECK((MOX::colony[1].buildings[BUILDING_COLONY_BASE] == 1));
-    DOCTEST_CHECK((MOX::colony[2].allocated_to == 0));
-    DOCTEST_CHECK((MOX::colony[3].allocated_to == 1));
-    DOCTEST_CHECK((MOX::colony[4].allocated_to == -1));
+    DOCTEST_CHECK((test_colonies::Record(0).buildings[BUILDING_COLONY_BASE] == 1));
     DOCTEST_CHECK((MOX::player[0].bc == 0));
 }
 
@@ -114,7 +80,7 @@ DOCTEST_TEST_CASE("outpost on non-planet body uses barren climate") {
 
     COLONIZE::Make_New_Outpost(game::id_planet{0}, 0);
 
-    DOCTEST_CHECK((MOX::colony[0].climate == PLANET_CLIMATE_BARREN));
+    DOCTEST_CHECK((test_colonies::Record(0).climate == PLANET_CLIMATE_BARREN));
 }
 
 DOCTEST_TEST_CASE("outpost on planet preserves planet climate") {
@@ -126,7 +92,24 @@ DOCTEST_TEST_CASE("outpost on planet preserves planet climate") {
 
     COLONIZE::Make_New_Outpost(game::id_planet{0}, 0);
 
-    DOCTEST_CHECK((MOX::colony[0].climate == PLANET_CLIMATE_OCEAN));
+    DOCTEST_CHECK((test_colonies::Record(0).climate == PLANET_CLIMATE_OCEAN));
+}
+
+DOCTEST_TEST_CASE("outpost founding consumes a reserved key below the high-water mark") {
+    TEST_COLONIZE::Reset_();
+    auto& state = game::current_state;
+    constexpr game::id_planet site{0};
+    constexpr game::id_colony reserved{79998};
+    test_planets::Record(site.id).star_index = 0;
+    state.next_colony_id = 80001;
+    state.colony_reservations[0] = {reserved, game::id_colony{80002}};
+
+    DOCTEST_REQUIRE(COLONIZE::Make_New_Outpost(site, 0));
+    DOCTEST_CHECK(state.planets.at(site).colony_id == reserved);
+    DOCTEST_CHECK(state.colonies.at(reserved).outpost_flag == 1);
+    DOCTEST_CHECK(state.next_colony_id == 80001);
+    DOCTEST_REQUIRE(state.colony_reservations[0].size() == 1);
+    DOCTEST_CHECK(state.colony_reservations[0].front() == game::id_colony{80002});
 }
 
 DOCTEST_TEST_CASE("first colony after losing the homeworld becomes the new home") {
@@ -152,7 +135,7 @@ DOCTEST_TEST_CASE("new outpost does not become the homeworld") {
 DOCTEST_TEST_CASE("orbit queries and colony creation use a wide planet ID") {
     TEST_COLONIZE::Reset_();
     constexpr game::id_planet id{70000};
-    test_planets::Record(id.id) = {.colony_index = -1, .star_index = 0, .planet_type = PLANET_TYPE_PLANET};
+    test_planets::Record(id.id) = {.colony_id = game::NO_COLONY, .star_index = 0, .planet_type = PLANET_TYPE_PLANET};
     auto& star = MOX::star[0];
     star.orbit_planet_ids[0] = id;
     MOX::player[0].home_planet_id = game::NO_PLANET;
@@ -160,7 +143,7 @@ DOCTEST_TEST_CASE("orbit queries and colony creation use a wide planet ID") {
     DOCTEST_CHECK(COLONIZE::Star_N_Colonizable_Planets_For_Player(&star, 0) == 1);
     DOCTEST_CHECK(COLONIZE::Star_N_Outpostable_Planets(&star) == 1);
     COLONIZE::Make_New_Colony(id, 0);
-    DOCTEST_CHECK(MOX::colony[0].planet_id.get() == id);
+    DOCTEST_CHECK(test_colonies::Record(0).planet_id == id);
     DOCTEST_CHECK(MOX::player[0].home_planet_id.get() == id);
     DOCTEST_CHECK(COLONIZE::Star_N_Uncolonized_Planets(&star) == 0);
 }
@@ -173,7 +156,7 @@ DOCTEST_TEST_CASE("first colony population uses the configured worker rule") {
 
     COLONIZE::Make_New_Colony(game::id_planet{0}, 0);
 
-    DOCTEST_CHECK((POP::Get_Prof(MOX::colony[0].pop[0]) == POP::PROF_FARMER));
+    DOCTEST_CHECK((POP::Get_Prof(test_colonies::Record(0).pop[0]) == POP::PROF_FARMER));
 
     TEST_COLONIZE::Reset_();
     test_planets::Record(0).star_index = 0;
@@ -182,27 +165,27 @@ DOCTEST_TEST_CASE("first colony population uses the configured worker rule") {
 
     COLONIZE::Make_New_Colony(game::id_planet{0}, 0);
 
-    DOCTEST_CHECK((POP::Get_Prof(MOX::colony[0].pop[0]) == POP::PROF_WORKER));
+    DOCTEST_CHECK((POP::Get_Prof(test_colonies::Record(0).pop[0]) == POP::PROF_WORKER));
 }
 
 DOCTEST_TEST_CASE("new colony populations use semantic identity and assignment fields") {
     TEST_COLONIZE::Reset_();
     constexpr int16_t player_idx = 3;
-    MOX::colony[0].allocated_to = player_idx;
+    test_colonies::Record(0).allocated_to = player_idx;
     test_planets::Record(0).star_index = 0;
     test_planets::Record(0).food_per_farmer = 2;
     test_planets::Record(0).planet_special = SYSTEM_SPECIAL_NATIVES;
 
     COLONIZE::Make_New_Colony(game::id_planet{0}, player_idx);
 
-    DOCTEST_CHECK((POP::Get_Race(MOX::colony[0].pop[0]) == player_idx));
-    DOCTEST_CHECK((POP::Get_Original_Owner(MOX::colony[0].pop[0]) == player_idx));
-    DOCTEST_CHECK((POP::Is_Assigned(MOX::colony[0].pop[0])));
-    DOCTEST_CHECK((POP::Get_Prof(MOX::colony[0].pop[0]) == POP::PROF_FARMER));
+    DOCTEST_CHECK((POP::Get_Race(test_colonies::Record(0).pop[0]) == player_idx));
+    DOCTEST_CHECK((POP::Get_Original_Owner(test_colonies::Record(0).pop[0]) == player_idx));
+    DOCTEST_CHECK((POP::Is_Assigned(test_colonies::Record(0).pop[0])));
+    DOCTEST_CHECK((POP::Get_Prof(test_colonies::Record(0).pop[0]) == POP::PROF_FARMER));
     for (int index = 1; index < 4; ++index) {
-        DOCTEST_CHECK((POP::Get_Race(MOX::colony[0].pop[index]) == POP::RACE_NATIVE));
-        DOCTEST_CHECK((POP::Get_Original_Owner(MOX::colony[0].pop[index]) == player_idx));
-        DOCTEST_CHECK((POP::Is_Assigned(MOX::colony[0].pop[index])));
-        DOCTEST_CHECK((POP::Get_Prof(MOX::colony[0].pop[index]) == POP::PROF_FARMER));
+        DOCTEST_CHECK((POP::Get_Race(test_colonies::Record(0).pop[index]) == POP::RACE_NATIVE));
+        DOCTEST_CHECK((POP::Get_Original_Owner(test_colonies::Record(0).pop[index]) == player_idx));
+        DOCTEST_CHECK((POP::Is_Assigned(test_colonies::Record(0).pop[index])));
+        DOCTEST_CHECK((POP::Get_Prof(test_colonies::Record(0).pop[index]) == POP::PROF_FARMER));
     }
 }

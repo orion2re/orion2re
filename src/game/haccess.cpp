@@ -119,7 +119,7 @@ namespace HACCESS {
     }
 
     void __cdecl Set_Colony_Auto_Select_For_Star(int16_t star_idx, int16_t player_idx, game::id_planet* out_planet_idx) {
-        int16_t colony_found = -1;
+        game::id_colony colony_found = game::NO_COLONY;
         bool found = false;
         *out_planet_idx = game::NO_PLANET;
 
@@ -131,22 +131,22 @@ namespace HACCESS {
             const auto planet_idx = MOX::star[star_idx].orbit_planet_ids[i].get();
             if (planet_idx != game::NO_PLANET) {
                 *out_planet_idx = planet_idx;
-                int16_t colony_idx = game::current_state.planets.at(planet_idx).colony_index;
+                game::id_colony colony_idx = game::current_state.planets.at(planet_idx).colony_id;
 
-                if (colony_idx > -1) {
+                if (colony_idx != game::NO_COLONY) {
                     colony_found = colony_idx;
                     // Check if colony belongs to the player and is not an outpost
-                    if (MOX::colony[colony_idx].outpost_flag == 0 && MOX::colony[colony_idx].owner == player_idx) {
+                    if (game::current_state.colonies.at(colony_idx).outpost_flag == 0 && game::current_state.colonies.at(colony_idx).owner == player_idx) {
                         MOX::star[star_idx].last_planet_selected[player_idx] = (int8_t)i;
                         found = true;
                     } else {
-                        colony_found = -1;
+                        colony_found = game::NO_COLONY;
                     }
                 }
             }
         }
 
-        if (colony_found == -1) {
+        if (colony_found == game::NO_COLONY) {
             *out_planet_idx = game::NO_PLANET;
         }
     }
@@ -253,8 +253,8 @@ namespace HACCESS {
         return MOX::ship[ship_index].d.ship_type == SHIP_TYPE_COMBAT;
     }
 
-    int16_t __cdecl Last_Colony_Selected(int16_t star_idx, int16_t player_idx) {
-        int16_t colony_idx = -1;
+    game::id_colony __cdecl Last_Colony_Selected(int16_t star_idx, int16_t player_idx) {
+        auto colony_id = game::NO_COLONY;
         auto planet_idx = game::NO_PLANET;
 
         int8_t last_sel_idx = MOX::star[star_idx].last_planet_selected[player_idx];
@@ -264,19 +264,19 @@ namespace HACCESS {
         }
 
         if (game::current_state.planets.contains(planet_idx)) {
-            colony_idx = game::current_state.planets.at(planet_idx).colony_index;
+            colony_id = game::current_state.planets.at(planet_idx).colony_id;
         }
 
-        if (colony_idx == -1 || MOX::colony[colony_idx].owner != player_idx) {
+        if (!game::current_state.colonies.contains(colony_id) || game::current_state.colonies.at(colony_id).owner != player_idx) {
             Set_Colony_Auto_Select_For_Star(star_idx, player_idx, &planet_idx);
 
             if (game::current_state.planets.contains(planet_idx)) {
-                return game::current_state.planets.at(planet_idx).colony_index;
+                return game::current_state.planets.at(planet_idx).colony_id;
             }
-            return -1;
+            return game::NO_COLONY;
         }
 
-        return colony_idx;
+        return colony_id;
     }
 
     bool __cdecl Player_Has_Colony_In_System(int16_t player_idx, int16_t system_idx) {
@@ -450,11 +450,11 @@ namespace HACCESS {
 
             // Check if there is a planet in this orbit
             if (planet_idx != game::NO_PLANET) {
-                int16_t colony_idx = game::current_state.planets.at(planet_idx).colony_index;
+                game::id_colony colony_idx = game::current_state.planets.at(planet_idx).colony_id;
 
                 // Check if the planet has a colony
-                if (colony_idx != -1) {
-                    s_colony& colony = MOX::colony[colony_idx];
+                if (colony_idx != game::NO_COLONY) {
+                    s_colony& colony = game::current_state.colonies.at(colony_idx);
 
                     // Outpost flag must be 0 (full colony, not an outpost)
                     if (colony.outpost_flag == 0) {
@@ -621,8 +621,8 @@ namespace HACCESS {
             const auto id = link.get();
             if (id == game::NO_PLANET) continue;
             const auto& planet = game::current_state.planets.at(id);
-            if (planet.planet_type == PLANET_TYPE_PLANET && planet.colony_index >= 0) {
-                return MOX::colony[planet.colony_index].owner;
+            if (planet.planet_type == PLANET_TYPE_PLANET && planet.colony_id != game::NO_COLONY) {
+                return game::current_state.colonies.at(planet.colony_id).owner;
             }
         }
 
@@ -694,9 +694,9 @@ namespace HACCESS {
                 const auto id = MOX::star[star_idx].orbit_planet_ids[last_selected].get();
                 const auto planet = game::current_state.planets.find(id);
                 if (planet != game::current_state.planets.end()) {
-                    const auto colony_idx = planet->second.colony_index;
-                    found_valid = colony_idx >= 0 && colony_idx < MOX::NUM_COLONIES &&
-                        MOX::colony[colony_idx].owner == MOX::PLAYER_NUM;
+                    const auto colony_id = planet->second.colony_id;
+                    found_valid = game::current_state.colonies.contains(colony_id) &&
+                        game::current_state.colonies.at(colony_id).owner == MOX::PLAYER_NUM;
                 }
             }
 
@@ -704,9 +704,9 @@ namespace HACCESS {
                 for (int16_t slot = 0; slot < 5; ++slot) {
                     const auto planet_idx = MOX::star[star_idx].orbit_planet_ids[slot].get();
                     if (planet_idx != game::NO_PLANET) {
-                        int16_t col_idx = game::current_state.planets.at(planet_idx).colony_index;
-                        if (col_idx > -1) {
-                            s_colony* colony = &MOX::colony[col_idx];
+                        const auto colony_id = game::current_state.planets.at(planet_idx).colony_id;
+                        if (game::current_state.colonies.contains(colony_id)) {
+                            s_colony* colony = &game::current_state.colonies.at(colony_id);
                             if (colony->outpost_flag == 0) {
                                 if (colony->owner == (int8_t)MOX::PLAYER_NUM) {
                                     MOX::star[star_idx].last_planet_selected[MOX::PLAYER_NUM] = (int8_t)slot;

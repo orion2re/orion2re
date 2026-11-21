@@ -1,11 +1,12 @@
 #include "pch.h"
+#include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
 
 #include "fake_colony_services.h"
 #include "lua/lua_game.h"
 
 namespace {
-    s_colony colonies[2];
+    test_colonies::Slots<2> colonies;
 
     s_player players[MAX_PLAYERS];
     s_star_data stars[2];
@@ -30,7 +31,6 @@ namespace TEST_COLONY_POP_GROWTH {
 
     void Reset_() {
         services = {};
-        MOX::NUM_COLONIES = 1;
         MOX::NUM_PLAYERS = 1;
         MOX::NUM_STARS = 0;
         MOX::NUM_SHIPS = 1;
@@ -39,7 +39,7 @@ namespace TEST_COLONY_POP_GROWTH {
         for (char*& name : MOX::race_names) {
             name = race_name;
         }
-        memset(colonies, 0, sizeof(colonies));
+        colonies.Reset();
         test_planets::Reset(2);
         memset(players, 0, sizeof(players));
         memset(stars, 0, sizeof(stars));
@@ -162,7 +162,7 @@ namespace TEST_COLONY_POP_GROWTH {
             for (int slot = 0; slot < 7; ++slot) {
                 colonies[i].producing[slot] = COLONY_PRODUCTION_NONE;
             }
-            test_planets::Record(i).colony_index = i;
+            test_planets::Record(i).colony_id = game::id_colony{static_cast<uint32_t>(i)};
             test_planets::Record(i).star_index = i;
             stars[i].orbit_planet_ids[0] = game::id_planet{static_cast<uint32_t>(i)};
             stars[i].has_colony = 1;
@@ -230,14 +230,12 @@ namespace orion2re::lua::game {
 } // namespace orion2re::lua::game
 
 namespace MOX {
-    int16_t NUM_COLONIES = 1;
     int16_t NUM_PLAYERS = 1;
     int16_t NUM_STARS = 0;
     int16_t NUM_SHIPS = 1;
 
     int32_t stardate = 35000;
     char* race_names[20];
-    s_colony* colony = colonies;
 
     s_player* player = players;
     s_star_data* star = stars;
@@ -267,19 +265,19 @@ namespace EVENTS {
         return TEST_COLONY_POP_GROWTH::services.anomaly_result;
     }
 
-    int16_t __cdecl Event_Check_Space_Anomaly(int16_t) {
+    int16_t __cdecl Event_Check_Space_Anomaly(game::id_colony) {
         return 0;
     }
 
-    int16_t __cdecl Event_Check_Colony_Researching(int16_t) {
+    int16_t __cdecl Event_Check_Colony_Researching(game::id_colony) {
         return 0;
     }
 
-    int16_t __cdecl Event_Check_Population_Boom(int16_t) {
+    int16_t __cdecl Event_Check_Population_Boom(game::id_colony) {
         return population_boom;
     }
 
-    int16_t __cdecl Event_Check_Plague(int16_t) {
+    int16_t __cdecl Event_Check_Plague(game::id_colony) {
         return plague;
     }
 }
@@ -337,21 +335,21 @@ namespace RUSS {
 }
 
 namespace BOMB {
-    void __cdecl Destroy_Colony(s_colony*, int32_t capturing_player) {
+    void __cdecl Destroy_Colony(game::s_game_state&, game::id_colony, int32_t capturing_player) {
         destroy_colony_reason = capturing_player;
     }
 }
 
 namespace ERICNET {
-    void __cdecl Add_Building(int16_t colony_idx, int16_t building_idx) {
-        MOX::colony[colony_idx].buildings[building_idx] = 1;
+    void __cdecl Add_Building(game::id_colony colony_idx, int16_t building_idx) {
+        test_colonies::Record(colony_idx.id).buildings[building_idx] = 1;
     }
 
     void __cdecl Calc_Ship_Level(int16_t) {
         ++calc_ship_level_calls;
     }
 
-    void __cdecl Remove_Building(int16_t, int16_t) {
+    void __cdecl Remove_Building(game::s_game_state&, game::id_colony, int16_t) {
     }
 }
 
@@ -387,19 +385,20 @@ namespace BUILD_QUEUE {
 }
 
 namespace COLBLDG {
-    void __cdecl Clear_Colony_Queue(int16_t colony) {
+    void __cdecl Clear_Colony_Queue(game::s_game_state&, game::id_colony id) {
+        const auto colony = static_cast<int16_t>(id.id);
         TEST_COLONY_POP_GROWTH::services.queues.push_back(colony);
         for (int slot = 0; slot < 7; ++slot) {
-            MOX::colony[colony].producing[slot] = COLONY_PRODUCTION_NONE;
+            test_colonies::Record(colony).producing[slot] = COLONY_PRODUCTION_NONE;
         }
     }
 
-    int16_t __cdecl Create_Ship(int16_t player, int16_t design, int16_t colony) {
-        TEST_COLONY_POP_GROWTH::services.creations.push_back({player, design, colony});
+    int16_t __cdecl Create_Ship(int16_t player, int16_t design, game::id_colony colony) {
+        TEST_COLONY_POP_GROWTH::services.creations.push_back({player, design, static_cast<int16_t>(colony.id)});
         return -1;
     }
 
-    void __cdecl Delete_Prod_From_Colony_Queue(int16_t, int16_t product) {
+    void __cdecl Delete_Prod_From_Colony_Queue(game::s_game_state&, game::id_colony, int16_t product) {
         deleted_product = product;
     }
 }
@@ -440,8 +439,8 @@ namespace INITSHIP {
 }
 
 namespace COLCALC {
-    void __cdecl Twiddle_Initial_Homeworld(s_colony* colony) {
-        TEST_COLONY_POP_GROWTH::services.homeworlds.push_back((int16_t)(colony - MOX::colony));
+    void __cdecl Twiddle_Initial_Homeworld(game::id_colony colony_id, s_colony*) {
+        TEST_COLONY_POP_GROWTH::services.homeworlds.push_back(static_cast<int16_t>(colony_id.id));
     }
 
     void __cdecl Compute_Player_Maintenance(s_player* player, STRBUILD::s_builder* builder) {
@@ -471,30 +470,30 @@ namespace COLCALC {
     void __cdecl Colony_Morale(s_colony*, STRBUILD::s_builder*) {
     }
 
-    void __cdecl Colony_Industry_Production(s_colony* colony, STRBUILD::s_builder* builder) {
+    void __cdecl Colony_Industry_Production(game::id_colony colony_id, s_colony* colony, STRBUILD::s_builder* builder) {
         if (builder != nullptr) {
-            TEST_COLONY_POP_GROWTH::services.industry_summary_colony = (int16_t)(colony - MOX::colony);
+            TEST_COLONY_POP_GROWTH::services.industry_summary_colony = static_cast<int16_t>(colony_id.id);
             STRBUILD::Cat(builder, "Industry detail");
         }
     }
 
-    void __cdecl Colony_Food_Production(s_colony*, STRBUILD::s_builder*) {
+    void __cdecl Colony_Food_Production(game::id_colony, s_colony*, STRBUILD::s_builder*) {
     }
 
     void __cdecl Colony_Replicators(s_colony*) {
     }
 
-    void __cdecl Colony_Research_Production(s_colony* colony, STRBUILD::s_builder* builder) {
+    void __cdecl Colony_Research_Production(game::id_colony colony_id, s_colony* colony, STRBUILD::s_builder* builder) {
         if (builder != nullptr) {
-            TEST_COLONY_POP_GROWTH::services.research_summary_colony = (int16_t)(colony - MOX::colony);
+            TEST_COLONY_POP_GROWTH::services.research_summary_colony = static_cast<int16_t>(colony_id.id);
             STRBUILD::Cat(builder, "Research detail");
         }
     }
 
-    void __cdecl Colony_BC_Production(s_colony*, STRBUILD::s_builder*) {
+    void __cdecl Colony_BC_Production(game::id_colony, s_colony*, STRBUILD::s_builder*) {
     }
 
-    void __cdecl Pass_Out_Imports(int16_t, s_colony*) {
+    void __cdecl Pass_Out_Imports(int16_t, game::id_colony) {
     }
 
     void __cdecl Update_Player_Stats(s_player* player) {
@@ -508,8 +507,8 @@ namespace COLONY {
         return false;
     }
 
-    void __cdecl Fix_Colony_Queue(int16_t colony_idx) {
-        s_colony& colony = MOX::colony[colony_idx];
+    void __cdecl Fix_Colony_Queue(game::id_colony colony_idx) {
+        s_colony& colony = test_colonies::Record(colony_idx.id);
         int destination = 0;
         for (int source = 0; source < 7; ++source) {
             if (colony.producing[source] != COLONY_PRODUCTION_NONE) {
@@ -587,7 +586,7 @@ namespace diplomac {
 
 namespace invasion {
     void __cdecl Enforce_Population_Limits_At_Colony(s_colony* colony) {
-        TEST_COLONY_POP_GROWTH::services.population_limits.push_back((int16_t)(colony - MOX::colony));
+        TEST_COLONY_POP_GROWTH::services.population_limits.push_back(static_cast<int16_t>(game::current_state.planets.at(colony->planet_id).colony_id.id));
     }
 }
 

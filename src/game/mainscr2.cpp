@@ -346,8 +346,7 @@ namespace MAINSCR2 {
                 }
             }
 
-            if (found_outpost_ship) {
-                COLONIZE::Make_New_Outpost(new_outpost_planet, MOX::PLAYER_NUM);
+            if (found_outpost_ship && COLONIZE::Make_New_Outpost(new_outpost_planet, MOX::PLAYER_NUM)) {
                 MOX::ship[outpost_ship_id].status = 5;
                 COLCALC::Update_Player_Stats(&MOX::player[MOX::PLAYER_NUM]);
 
@@ -425,12 +424,11 @@ namespace MAINSCR2 {
                 }
             }
 
-            if (found_colony_ship) {
+            if (found_colony_ship && COLONIZE::Make_New_Colony(planet_idx, MOX::PLAYER_NUM)) {
                 if (MOX::settings.animations_on != 0) {
                     do_animation = true;
                 }
 
-                COLONIZE::Make_New_Colony(planet_idx, MOX::PLAYER_NUM);
                 MOX::ship[ship_idx].status = 5;
                 COLCALC::Update_Player_Stats(&MOX::player[MOX::PLAYER_NUM]);
 
@@ -623,12 +621,12 @@ namespace MAINSCR2 {
         const auto planet_id = MAINPUPS::Drop_Troops_Selection_Popup(star_id);
 
         if (planet_id != game::NO_PLANET) {
-            int16_t colony_index = game::current_state.planets.at(planet_id).colony_index;
-            if (colony_index >= 0) {
-                if (MOX::colony[colony_index].owner == MOX::PLAYER_NUM) {
+            game::id_colony colony_index = game::current_state.planets.at(planet_id).colony_id;
+            if (colony_index != game::NO_COLONY) {
+                if (game::current_state.colonies.at(colony_index).owner == MOX::PLAYER_NUM) {
                     int16_t ship_ids[MAX_SHIPS];
                     int32_t count = HACCESS::Get_Fleet_Box_Selected_Ship_Ids(ship_ids, sizeof(ship_ids) / sizeof(ship_ids[0]), 2);
-                    int16_t unloaded = invasion::Unload_Transports(&MOX::colony[colony_index], ship_ids, count);
+                    int16_t unloaded = invasion::Unload_Transports(&game::current_state.colonies.at(colony_index), ship_ids, count);
 
                     if (MOX::fleet_box.count == unloaded) {
                         unloaded_all = true;

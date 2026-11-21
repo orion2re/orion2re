@@ -1,5 +1,6 @@
 #include "lua/lua_mod_runtime.h"
 #include "../fixtures/planet_roster.h"
+#include "../fixtures/colony_roster.h"
 
 #include <doctest/doctest.h>
 
@@ -384,14 +385,13 @@ TEST_CASE("Lua galaxy collections expose complete stable domain objects") {
         &config_diagnostic));
     orion2re::lua::Commit_Mod_Runtimes(&runtimes);
     TEST_LUA_GAME::Reset_();
-    MOX::NUM_COLONIES = 2;
-    test_planets::Record(0).colony_index = 0;
-    MOX::colony[0].planet_id = game::id_planet{0};
-    MOX::colony[0].owner = 0;
+    test_planets::Record(0).colony_id = game::id_colony{0};
+    test_colonies::Record(0).planet_id = game::id_planet{0};
+    test_colonies::Record(0).owner = 0;
     test_planets::Record(1).planet_type = PLANET_TYPE_PLANET;
-    test_planets::Record(1).colony_index = 1;
-    MOX::colony[1].planet_id = game::id_planet{1};
-    MOX::colony[1].owner = 1;
+    test_planets::Record(1).colony_id = game::id_colony{1};
+    test_colonies::Record(1).planet_id = game::id_planet{1};
+    test_colonies::Record(1).owner = 1;
     MOX::star[0].size = 4;
     MOX::star[0].pict_type = 5;
     MOX::star[0].wormhole_star_id = -1;
@@ -443,10 +443,9 @@ TEST_CASE("Lua galaxy mutations reject invalid domains and references") {
         &config_diagnostic));
     orion2re::lua::Commit_Mod_Runtimes(&runtimes);
     TEST_LUA_GAME::Reset_();
-    MOX::NUM_COLONIES = 1;
-    test_planets::Record(0).colony_index = 0;
-    MOX::colony[0].planet_id = game::id_planet{0};
-    MOX::colony[0].owner = 0;
+    test_planets::Record(0).colony_id = game::id_colony{0};
+    test_colonies::Record(0).planet_id = game::id_planet{0};
+    test_colonies::Record(0).owner = 0;
     game::current_state.leaders[0].status = 0;
     game::current_state.leaders[1].status = 0;
 
@@ -2065,6 +2064,8 @@ TEST_CASE("population growth rules use package order and immutable context") {
         "high",
         "main.lua",
         "rules.modify('population.growth', function(context, value)\n"
+        "  assert(context.colony_id == 70000)\n"
+        "  assert(context.planet_id == 90000)\n"
         "  return value * 2\n"
         "end)\n");
     std::vector<config::s_mod_manifest> packages = {
@@ -2090,8 +2091,8 @@ TEST_CASE("population growth rules use package order and immutable context") {
     const auto prior_game_type = MOX::game_type;
     MOX::game_type = 0;
     orion2re::lua::game::s_population_growth_context context;
-    context.colony_id = 1;
-    context.planet_id = game::id_planet{2};
+    context.colony_id = game::id_colony{70000};
+    context.planet_id = game::id_planet{90000};
     context.owner_id = 0;
     context.race_id = 0;
     context.race_population = 3;

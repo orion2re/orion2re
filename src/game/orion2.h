@@ -1,4 +1,5 @@
 #include <cstddef>
+#include "colony_data.h"
 #include "leader_data.h"
 #include "planet_data.h"
 #include "settler_data.h"
@@ -137,7 +138,7 @@ struct s_invasion_side_info {
     int8_t current_unit_damage;
     int8_t round_hit_unit_type;
     int8_t round_killed_unit_type;
-    int16_t colony_id;
+    unaligned::field<game::id_colony> colony_id = game::NO_COLONY;
     int16_t* ship_list;
     int16_t n_ships;
     int16_t opponent_player_id;
@@ -161,7 +162,7 @@ struct s_battle_results_info {
 
 struct s_combat_bomb_result {
     int8_t attacker_idx;
-    int16_t colony_idx;
+    unaligned::field<game::id_colony> colony_id = game::NO_COLONY;
     int8_t is_planetary_hit;
     int16_t bomb_hits_remaining;
     int8_t is_bio_weapon;
@@ -306,63 +307,6 @@ struct s_coldraw_veggie_cell {
 
 typedef struct s_colony s_colony, *Ps_colony;
 
-// Population identities are player slots, androids, and natives, not stock-race IDs.
-inline constexpr int COLONY_POP_RACE_COUNT = 10;
-
-struct s_colony {
-    int8_t owner;
-    int8_t allocated_to;
-    unaligned::field<game::id_planet> planet_id = game::NO_PLANET;
-    int16_t officer;
-    uint8_t outpost_flag;
-    int8_t morale;
-    int16_t pollution;
-    uint8_t n_pops;
-    int8_t specialty;
-    uint32_t pop[MAX_COLONY_POPULATION];
-    int16_t pop_roundoff[COLONY_POP_RACE_COUNT];
-    int16_t pop_growth[COLONY_POP_RACE_COUNT];
-    int8_t n_turns_existed;
-    uint8_t food2_per_farmer;
-    uint8_t industry_per_worker;
-    int8_t research_per_scientist;
-    uint8_t max_farms;
-    int8_t max_population;
-    uint8_t climate;
-    int16_t ground_strength;
-    int16_t space_strength;
-    int16_t production[ECON_COUNT];
-    uint8_t maintenance[ECON_COUNT];
-    int16_t imports[ECON_COUNT];
-    int8_t n_industry_recyclers;
-    uint8_t food2_needed_for_our_empire;
-    uint8_t food2_needed_for_assimilated;
-    uint8_t food2_needed_for_conquered;
-    uint8_t food2_needed_for_natives;
-    uint8_t industry2_needed_for_our_empire;
-    uint8_t industry2_needed_for_androids;
-    uint8_t industry2_needed_for_assimilated;
-    uint8_t industry2_needed_for_conquered;
-    int8_t food2_needed_for_empire[8];
-    int8_t industry2_needed_for_empire[8];
-    int8_t n_food_replicated;
-    int16_t producing[7];
-    int16_t just_produced;
-    int16_t production_spent;
-    int16_t n_industry_taxed;
-    uint8_t auto_building;
-    int16_t production_surplus;
-    int16_t bought_outright;
-    int8_t occupation_points;
-    int8_t occupation_policy;
-    int16_t military[2];
-    int8_t tank_roundoff;
-    int8_t infantry_roundoff;
-    uint8_t buildings[BUILDING_COUNT];
-    uint16_t last_turn_building_destroyed;
-    uint8_t buildings_scrapped_this_turn;
-};
-
 typedef struct s_colony_bldg s_colony_bldg, *Ps_colony_bldg;
 
 struct s_colony_bldg {
@@ -499,7 +443,7 @@ struct s_combfind_star_has_player {
 typedef struct s_combfind_target s_combfind_target, *Ps_combfind_target;
 
 struct s_combfind_target {
-    int16_t colony_targets[5];
+    unaligned::field<game::id_colony> colony_targets[5];
     int16_t num_colony_targets;
     int16_t player_targets[15];
     int16_t num_player_targets;
@@ -602,6 +546,7 @@ struct s_event_data {
     int16_t amount;
     int16_t max_amount;
     unaligned::field<game::id_planet> planet_target = game::NO_PLANET;
+    unaligned::field<game::id_colony> colony_target = game::NO_COLONY;
 };
 
 typedef struct s_file_buffer_entry s_file_buffer_entry, *Ps_file_buffer_entry;
@@ -850,14 +795,14 @@ struct s_help_topic_record {
 typedef struct s_hiscore_pop s_hiscore_pop, *Ps_hiscore_pop;
 
 struct s_hiscore_pop {
-    int16_t race_id;
+    unaligned::field<game::id_colony> colony_id = game::NO_COLONY;
     int16_t icon_id;
 };
 
 typedef struct s_hiscore_tmp_pop s_hiscore_tmp_pop, *Ps_hiscore_tmp_pop;
 
 struct s_hiscore_tmp_pop {
-    int16_t colony_idx;
+    unaligned::field<game::id_colony> colony_idx = game::NO_COLONY;
     uint8_t race_idx;
     uint8_t pop_idx;
     int8_t is_used;

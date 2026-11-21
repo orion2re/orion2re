@@ -14,7 +14,6 @@ namespace MOX {
     s_player* player = players;
     s_colony* colony;
     int16_t NUM_PLAYERS;
-    int16_t NUM_COLONIES;
     int32_t stardate;
     s_settings settings;
 } // namespace MOX
@@ -36,7 +35,6 @@ DOCTEST_TEST_CASE("hotseat player scores align temporary state and restore the s
     memset(players, 0, sizeof(players));
     MOX::settings = {};
     MOX::NUM_PLAYERS = 2;
-    MOX::NUM_COLONIES = 0;
     allocate::mark_stack_pos[0] = 0;
     players[1].player_defeated[0] = 1;
     players[1].tech_fields[0] = 3;

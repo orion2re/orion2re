@@ -91,7 +91,7 @@ namespace CMBTDRW1 {
         *out_y = 0;
 
         if (ship_idx == 0) {
-            if (MOX::cmbt_colony_id == -1) {
+            if (MOX::cmbt_colony_id == game::NO_COLONY) {
                 *out_x = 7;
                 *out_y = 7;
                 return;
@@ -106,7 +106,7 @@ namespace CMBTDRW1 {
             };
 
             int16_t planet_size =
-                game::current_state.planets.at(MOX::colony[MOX::cmbt_colony_id].planet_id.get()).size;
+                game::current_state.planets.at(game::current_state.colonies.at(MOX::cmbt_colony_id).planet_id).size;
             if (planet_size < PLANET_SIZE_TINY ||
                 planet_size >= PLANET_SIZE_COUNT) {
                 return;

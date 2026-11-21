@@ -186,5 +186,5 @@ namespace COLGCBT {
      * @param seed Random seed used to simulate the combat presentation.
      * @param colony_idx Colony index whose background and state should be displayed.
      */
-    void __cdecl Colony_Combat_Screen(s_invasion_side_info* attacker, s_invasion_side_info* defender, uint32_t seed, int16_t colony_idx);
+    void __cdecl Colony_Combat_Screen(s_invasion_side_info* attacker, s_invasion_side_info* defender, uint32_t seed, game::id_colony colony_idx);
 } // namespace COLGCBT

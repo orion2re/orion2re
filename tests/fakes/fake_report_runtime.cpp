@@ -1,8 +1,9 @@
 #include "pch.h"
+#include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
 
 namespace {
-    s_colony colonies[MAX_COLONIES];
+    test_colonies::Slots<MAX_COLONIES> colonies;
 
     s_player players[MAX_PLAYERS];
     s_ship_data ships[MAX_SHIPS];
@@ -45,9 +46,15 @@ namespace TEST_REPORT {
     bool accept_officer_offer;
     s_ship_data* cleared_auto_colonization_ship;
     game::id_planet colonized_planet;
+    bool founding_succeeds;
+    int founding_attempts;
+    int colony_assets_consumed;
 
     void Reset_() {
-        memset(colonies, 0, sizeof(colonies));
+        founding_succeeds = true;
+        founding_attempts = 0;
+        colony_assets_consumed = 0;
+        colonies.Reset();
         test_planets::Reset(0);
         memset(players, 0, sizeof(players));
         std::fill(std::begin(ships), std::end(ships), s_ship_data{});
@@ -59,7 +66,6 @@ namespace TEST_REPORT {
         memset(TECHDATA::technology_applications, 0, sizeof(TECHDATA::technology_applications));
         MOX::antarans = {};
         MOX::NUM_PLAYERS = 0;
-        MOX::NUM_COLONIES = 0;
         MOX::PLAYER_NUM = 0;
         MOX::stardate = 35000;
         MOX::game_type = 0;
@@ -117,9 +123,9 @@ namespace TEST_REPORT {
 
     void Add_Colony_Base_() {
         MOX::star[0].orbit_planet_ids[0] = game::id_planet{0};
-        test_planets::Record(0).colony_index = 0;
-        MOX::colony[0].owner = 0;
-        MOX::colony[0].buildings[BUILDING_COLONY_BASE] = 1;
+        test_planets::Record(0).colony_id = game::id_colony{0};
+        test_colonies::Record(0).owner = 0;
+        test_colonies::Record(0).buildings[BUILDING_COLONY_BASE] = 1;
     }
 }
 
@@ -141,7 +147,6 @@ namespace MOX {
     int16_t NUM_PLAYERS;
     int8_t game_type;
     s_antaran antarans;
-    int16_t NUM_COLONIES;
     int16_t NUM_STARS;
     int16_t NUM_SHIPS;
     int16_t PLAYER_NUM;
@@ -150,7 +155,6 @@ namespace MOX {
     int16_t return_screen;
     int16_t screen_data;
     uint16_t global_esc;
-    s_colony* colony = colonies;
 
     s_player* player = players;
     s_ship_data* ship = ships;
@@ -186,11 +190,16 @@ namespace COLCALC {
 }
 
 namespace COLONIZE {
-    void __cdecl Make_New_Colony(game::id_planet id, int16_t) {
+    bool __cdecl Make_New_Colony(game::id_planet id, int16_t) {
+        ++TEST_REPORT::founding_attempts;
+        if (!TEST_REPORT::founding_succeeds) return false;
         TEST_REPORT::colonized_planet = id;
+        return true;
     }
 
-    void __cdecl Make_New_Outpost(game::id_planet, int16_t) {
+    bool __cdecl Make_New_Outpost(game::id_planet, int16_t) {
+        ++TEST_REPORT::founding_attempts;
+        return TEST_REPORT::founding_succeeds;
     }
 
     int16_t Star_N_Colonizable_Planets_For_Player(s_star_data*, int16_t) {
@@ -204,8 +213,8 @@ namespace COLONY {
     void __cdecl Colony_Screen() {
     }
 
-    bool __cdecl Colony_Needs_Occupation_Policy(int16_t colony_idx) {
-        const s_colony* colony = &MOX::colony[colony_idx];
+    bool __cdecl Colony_Needs_Occupation_Policy(game::id_colony colony_idx) {
+        const s_colony* colony = &test_colonies::Record(colony_idx.id);
         if (colony->occupation_policy != 4) {
             return false;
         }
@@ -220,7 +229,7 @@ namespace COLONY {
 }
 
 namespace ERICNET {
-    void __cdecl Remove_Building(int16_t, int16_t) {
+    void __cdecl Remove_Building(game::s_game_state&, game::id_colony, int16_t) {
     }
 }
 
@@ -290,6 +299,7 @@ namespace SHIPS {
     }
 
     void __cdecl Kill_Ship(int16_t) {
+        ++TEST_REPORT::colony_assets_consumed;
     }
 }
 

@@ -1,14 +1,14 @@
 #include "pch.h"
 
 namespace COLMOVE {
-    int16_t cluster_colony_n = -1;
+    game::id_colony cluster_colony_n = game::NO_COLONY;
     uint8_t g_hacky_dont_draw_cluster_flag;
 
     void __cdecl Clear_Cluster() {
-        int16_t unemployed_idx = cluster_colony_n == -1 ? -1 : Get_First_Unemployed(cluster_colony_n);
+        int16_t unemployed_idx = cluster_colony_n == game::NO_COLONY ? -1 : Get_First_Unemployed(cluster_colony_n);
 
         while (unemployed_idx != -1) {
-            uint32_t* pop_flags = &MOX::colony[cluster_colony_n].pop[unemployed_idx];
+            uint32_t* pop_flags = &game::current_state.colonies.at(cluster_colony_n).pop[unemployed_idx];
 
             if (!POP::Is_Assigned(POP::Load(pop_flags))) {
                 POP::Set_Assigned(pop_flags, true);
@@ -17,12 +17,12 @@ namespace COLMOVE {
             unemployed_idx = Get_First_Unemployed(cluster_colony_n);
         }
 
-        cluster_colony_n = -1;
+        cluster_colony_n = game::NO_COLONY;
         COLONY::Reset_Mouse_Picture();
     }
 
-    void __cdecl Get_Cluster(int16_t colony_idx, int16_t start_pop_idx) {
-        s_colony* colony = &MOX::colony[colony_idx];
+    void __cdecl Get_Cluster(game::id_colony colony_idx, int16_t start_pop_idx) {
+        s_colony* colony = &game::current_state.colonies.at(colony_idx);
 
         if (POP::Is_Native(colony->pop[start_pop_idx]) && !native_population_transfer) {
             char* message = ESTRINGS::E_Strings(0x17e /* ESTR_NATIVES_CANNOT_BE_MOVED_TO_ANOTHER_JOB_OR_PLANET */);
@@ -43,8 +43,8 @@ namespace COLMOVE {
         COLONY::Clear_Mouse_Picture();
     }
 
-    int16_t __cdecl Get_First_Unemployed(int16_t colony_idx) {
-        s_colony& colony = MOX::colony[colony_idx];
+    int16_t __cdecl Get_First_Unemployed(game::id_colony colony_idx) {
+        s_colony& colony = game::current_state.colonies.at(colony_idx);
         uint8_t n_pops = (uint8_t)colony.n_pops;
 
         if (n_pops != 0) {
@@ -58,12 +58,12 @@ namespace COLMOVE {
         return -1;
     }
 
-    int16_t __cdecl Get_Num_Unemployed(int16_t colony_idx) {
+    int16_t __cdecl Get_Num_Unemployed(game::id_colony colony_idx) {
         int16_t unemployed_count = 0;
-        int16_t n_pops = (uint8_t)MOX::colony[colony_idx].n_pops;
+        int16_t n_pops = (uint8_t)game::current_state.colonies.at(colony_idx).n_pops;
 
         for (int16_t i = 0; i < n_pops; ++i) {
-            if (!POP::Is_Assigned(MOX::colony[colony_idx].pop[i])) {
+            if (!POP::Is_Assigned(game::current_state.colonies.at(colony_idx).pop[i])) {
                 unemployed_count++;
             }
         }
@@ -71,9 +71,9 @@ namespace COLMOVE {
         return unemployed_count;
     }
 
-    bool __cdecl Pops_Identical(int16_t source_colony_idx, int16_t source_pop_idx, int16_t dest_colony_idx, int16_t dest_pop_idx) {
-        uint32_t pop1 = MOX::colony[source_colony_idx].pop[source_pop_idx];
-        uint32_t pop2 = MOX::colony[dest_colony_idx].pop[dest_pop_idx];
+    bool __cdecl Pops_Identical(game::id_colony source_colony_idx, int16_t source_pop_idx, game::id_colony dest_colony_idx, int16_t dest_pop_idx) {
+        uint32_t pop1 = game::current_state.colonies.at(source_colony_idx).pop[source_pop_idx];
+        uint32_t pop2 = game::current_state.colonies.at(dest_colony_idx).pop[dest_pop_idx];
 
         if (POP::Get_Prof(pop1) != POP::Get_Prof(pop2)) {
             return false;
@@ -94,7 +94,7 @@ namespace COLMOVE {
         return true;
     }
 
-    void __cdecl Send_Cluster(int16_t colony_idx, int16_t requested_job) {
+    void __cdecl Send_Cluster(game::id_colony colony_idx, int16_t requested_job) {
         int16_t warning_state = 0;
         bool extra_success_notice = false;
         int16_t moved_count = 0;
@@ -104,7 +104,7 @@ namespace COLMOVE {
         char pop_string[52];
         char message[1000];
 
-        if (colony_idx < 0) {
+        if (colony_idx == game::NO_COLONY) {
             GENDRAW::Help(ESTRINGS::E_Strings(0x210 /* ESTR_THIS_IS_NOT_A_VALID_COLONY */));
             return;
         }
@@ -119,7 +119,7 @@ namespace COLMOVE {
             if (COLMOVE::Get_First_Unemployed(COLMOVE::cluster_colony_n) == -1) {
                 COLONY::Reset_Mouse_Picture();
                 COLONY::Reset_Field_Mode();
-                COLMOVE::cluster_colony_n = -1;
+                COLMOVE::cluster_colony_n = game::NO_COLONY;
             }
             return;
         }
@@ -128,7 +128,7 @@ namespace COLMOVE {
 
         while (unemployed_pop_idx != -1) {
             if (colony_idx == COLMOVE::cluster_colony_n) {
-                uint32_t* pop_flags = &MOX::colony[COLMOVE::cluster_colony_n].pop[unemployed_pop_idx];
+                uint32_t* pop_flags = &game::current_state.colonies.at(COLMOVE::cluster_colony_n).pop[unemployed_pop_idx];
                 const int32_t current_job = (int32_t)POP::Get_Prof(POP::Load(pop_flags));
 
                 if (requested_job == -1 || current_job == requested_job) {
@@ -143,13 +143,15 @@ namespace COLMOVE {
                     }
                 }
             } else {
-                s_colony* const source_colony = &MOX::colony[COLMOVE::cluster_colony_n];
-                s_colony* const destination_colony = &MOX::colony[colony_idx];
+                s_colony* const source_colony = &game::current_state.colonies.at(COLMOVE::cluster_colony_n);
+                const auto source_id = COLMOVE::cluster_colony_n;
+                const auto destination_id = colony_idx;
 
                 SETTLER::Pop_Tries_To_Settle(
-                    source_colony,
+                    game::current_state,
+                    source_id,
                     unemployed_pop_idx,
-                    destination_colony,
+                    destination_id,
                     &settle_result);
 
                 if (settle_result.can_settle != 0) {
@@ -240,7 +242,7 @@ namespace COLMOVE {
                             POP::Set_Assigned(pop_flags, false);
                         }
 
-                        SETTLER::Settle_Pop(source_colony, unemployed_pop_idx, destination_colony);
+                        SETTLER::Settle_Pop(source_id, unemployed_pop_idx, destination_id);
                         ++moved_count;
                     } else {
                         int16_t line_count = 0;
@@ -435,11 +437,11 @@ namespace COLMOVE {
         if (moved_count > 0) {
             strlcpy(
                 source_planet_name,
-                HACCESS::Get_Planet_Name(game::current_state, MOX::colony[COLMOVE::cluster_colony_n].planet_id.get()),
+                HACCESS::Get_Planet_Name(game::current_state, game::current_state.colonies.at(COLMOVE::cluster_colony_n).planet_id),
                 sizeof(source_planet_name));
             strlcpy(
                 destination_planet_name,
-                HACCESS::Get_Planet_Name(game::current_state, MOX::colony[colony_idx].planet_id.get()),
+                HACCESS::Get_Planet_Name(game::current_state, game::current_state.colonies.at(colony_idx).planet_id),
                 sizeof(destination_planet_name));
 
             ERIC::String_Builder2(
@@ -480,12 +482,12 @@ namespace COLMOVE {
         if (COLMOVE::Get_First_Unemployed(COLMOVE::cluster_colony_n) == -1) {
             COLONY::Reset_Mouse_Picture();
             COLONY::Reset_Field_Mode();
-            COLMOVE::cluster_colony_n = -1;
+            COLMOVE::cluster_colony_n = game::NO_COLONY;
         }
     }
 
     uint8_t __cdecl Give_Colonist_New_Job(
-        int16_t colony_idx,
+        game::id_colony colony_idx,
         int16_t pop_idx,
         int16_t new_job,
         bool inter_colony_transfer) {
@@ -497,7 +499,7 @@ namespace COLMOVE {
         }
 
         if (pop_state == 4) {
-            int16_t current_job = (int16_t)POP::Get_Prof(MOX::colony[colony_idx].pop[pop_idx]);
+            int16_t current_job = (int16_t)POP::Get_Prof(game::current_state.colonies.at(colony_idx).pop[pop_idx]);
             if (current_job != new_job) {
                 GENDRAW::Help(ESTRINGS::E_Strings(ESTR_THIS_COLONIST_IS_AN_ANDROID_AND_CANNOT_BE_RECONFIGURED_FOR_ANOTHER_JOB));
                 return 0;
@@ -510,11 +512,11 @@ namespace COLMOVE {
             return 0;
         }
 
-        uint8_t max_farms = MOX::colony[colony_idx].max_farms;
+        uint8_t max_farms = game::current_state.colonies.at(colony_idx).max_farms;
         int16_t sum_colonists_again = COLONY::Sum_Colonists(colony_idx, new_job, -1, -1, 0, -1);
 
         if (inter_colony_transfer || max_farms > sum_colonists_again || new_job != ECON_FOOD) {
-            uint32_t* pop = &MOX::colony[colony_idx].pop[pop_idx];
+            uint32_t* pop = &game::current_state.colonies.at(colony_idx).pop[pop_idx];
             POP::Set_Prof(pop, (POP::e_prof)new_job);
             POP::Set_Assigned(pop, true);
 
@@ -525,12 +527,12 @@ namespace COLMOVE {
         return 0;
     }
 
-    void __cdecl Colony_Pop_String(int16_t colony_idx, int16_t pop_idx, char* output_buffer, size_t output_buffer_size) {
+    void __cdecl Colony_Pop_String(game::id_colony colony_idx, int16_t pop_idx, char* output_buffer, size_t output_buffer_size) {
         if (output_buffer_size == 0) {
             return;
         }
 
-        uint32_t pop_value = MOX::colony[colony_idx].pop[pop_idx];
+        uint32_t pop_value = game::current_state.colonies.at(colony_idx).pop[pop_idx];
 
         if (MOX::settings.language == 4) {
             int16_t pop_state = COLONY::Pop_To_Pop_State(colony_idx, pop_idx);

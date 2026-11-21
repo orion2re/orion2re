@@ -283,7 +283,7 @@ namespace COLCALC {
 
     int32_t __cdecl Colony_Cost_To_Buy_Producing_Product(s_colony* colony);
 
-    bool __cdecl Colony_Can_Afford_To_Buy_Product(int16_t colony_idx);
+    bool __cdecl Colony_Can_Afford_To_Buy_Product(game::id_colony colony_idx);
 
     int32_t __cdecl Colony_Product_Cost(s_colony* colony, int16_t product_id);
 
@@ -291,23 +291,22 @@ namespace COLCALC {
 
     int32_t __cdecl Ship_Type_Cost_For_Player(int32_t ship_type, int16_t player_idx);
 
-    void __cdecl Colony_Buy_Outright(int16_t colony_idx);
+    void __cdecl Colony_Buy_Outright(game::id_colony colony_idx);
 
     int16_t __cdecl Colony_N_Turns_To_Produce(s_colony* colony);
 
-    void __cdecl Apply_Colony_Changes(s_colony* colony);
 
-    void __cdecl Apply_Colony_Pop_Growth(s_colony* colony);
+    void __cdecl Apply_Colony_Pop_Growth(game::id_colony colony_id, s_colony* colony);
 
     extern int8_t assimilation_rate_by_government[GOVERNMENT_COUNT];
 
-    void __cdecl Apply_Assimilation(s_colony* colony);
+    void __cdecl Apply_Assimilation(game::id_colony colony_id, s_colony* colony);
 
     void __cdecl Produce_Ground_Military(s_colony* colony);
 
-    void __cdecl Apply_Production(s_colony* colony);
+    void __cdecl Apply_Production(game::id_colony colony_id);
 
-    void __cdecl Ghost_Colony_Stuff(s_colony* colony);
+    void __cdecl Ghost_Colony_Stuff(game::id_colony colony_id);
 
     void __cdecl Apply_All_Colony_Changes();
     void __cdecl Do_Surrenders();
@@ -327,7 +326,7 @@ namespace COLCALC {
 
     int __cdecl Colony_Officer(s_colony* colony);
 
-    short __cdecl Colony_Race_Pop_Limit(s_colony* colony, int16_t player_idx);
+    short __cdecl Colony_Race_Pop_Limit(const s_colony* colony, int16_t player_idx);
 
     int16_t __cdecl Get_Player_Max_Population(int16_t player_idx);
     int __cdecl Best_Leader_Diplomat_Bonus(int player_idx);
@@ -386,22 +385,22 @@ namespace COLCALC {
     bool __cdecl Biomorphic_Fungi_Applies(int16_t food2_per_farmer);
 
     void __cdecl Twiddle_Initial_Homeworlds();
-    void __cdecl Twiddle_Initial_Homeworld(s_colony* colony);
+    void __cdecl Twiddle_Initial_Homeworld(game::id_colony colony_id, s_colony* colony);
 
     /**
      * Recomputes a colony's local production and maintenance state before empire-wide import distribution.
      * @param colony Colony to prepare.
      */
-    void __cdecl Pre_Import_Computing(s_colony* colony);
+    void __cdecl Pre_Import_Computing(game::id_colony colony_id, s_colony* colony);
 
     /**
      * Distributes empire food imports among a player's colonies and optionally finalizes one target colony.
      * @param player_idx Player whose colonies are being balanced.
      * @param colony Optional colony to ensure receives post-import recomputation.
      */
-    void __cdecl Pass_Out_Imports(int16_t player_idx, s_colony* colony);
+    void __cdecl Pass_Out_Imports(int16_t player_idx, game::id_colony colony_id);
 
-    void __cdecl Recalculate_Colony(s_colony* colony);
+    void __cdecl Recalculate_Colony(game::id_colony colony_id, s_colony* colony);
 
     bool __cdecl Colony_Can_Build_Large_Ships(s_colony* colony);
 
@@ -421,7 +420,7 @@ namespace COLCALC {
 
     void __cdecl Surrender_Star(int16_t star_idx, int16_t player_idx, int16_t to_player_idx);
 
-    void __cdecl Do_Surrender_Colony(s_colony* colony, int16_t new_owner);
+    void __cdecl Do_Surrender_Colony(game::id_colony colony_id, s_colony* colony, int16_t new_owner);
 
     void __cdecl Do_Colony_Owner_Change_Star_Colony_Stuff(s_colony* colony);
 
@@ -447,7 +446,7 @@ namespace COLCALC {
 
     int32_t __cdecl Chance_For_Research_Breakthrough(s_player* plr);
 
-    int16_t __cdecl Get_First_Player_Colony_Idx(int32_t player_idx);
+    game::id_colony __cdecl Get_First_Player_Colony_Idx(int32_t player_idx);
 
     inline bool __cdecl Monster_At_Star(int16_t star_idx);
 
@@ -459,13 +458,13 @@ namespace COLCALC {
 
     void __cdecl All_Colony_Calculations();
 
-    void __cdecl Colony_Calculation(int16_t colony_idx);
+    void __cdecl Colony_Calculation(game::id_colony colony_idx);
 
-    void __cdecl Colony_Pop_Grows(s_colony* colony);
+    void __cdecl Colony_Pop_Grows(game::id_colony colony_id, s_colony* colony);
 
     void __cdecl Colony_Specialty(s_colony* colony);
 
-    void __cdecl Post_Import_Computing(s_colony* colony);
+    void __cdecl Post_Import_Computing(game::id_colony colony_id, s_colony* colony);
 
     void __cdecl Update_Player_Stats(s_player* player);
 
@@ -478,18 +477,18 @@ namespace COLCALC {
      */
     void __cdecl Colony_Morale(s_colony* colony, STRBUILD::s_builder* debug_out);
 
-    void __cdecl Colony_Industry_Maintenance(s_colony* colony);
+    void __cdecl Colony_Industry_Maintenance(game::id_colony colony_id, s_colony* colony);
 
     /**
      * Computes colony industry output, pollution, and optional production breakdown text.
      * @param colony Colony to evaluate.
      * @param debug_out Optional output buffer for the industry summary.
      */
-    void __cdecl Colony_Industry_Production(s_colony* colony, STRBUILD::s_builder* debug_out);
+    void __cdecl Colony_Industry_Production(game::id_colony colony_id, s_colony* colony, STRBUILD::s_builder* debug_out);
 
-    void __cdecl Show_Industry_Production(int16_t colony_idx);
+    void __cdecl Show_Industry_Production(game::id_colony colony_idx);
 
-    void __cdecl Show_Research_Production(int16_t colony_idx);
+    void __cdecl Show_Research_Production(game::id_colony colony_idx);
 
     int __cdecl Colony_Job_Production(s_colony* colony, short econ_type, s_colony_job_production* out);
 
@@ -505,7 +504,7 @@ namespace COLCALC {
      * @param colony Colony to evaluate.
      * @param debug_out Optional output buffer for the food summary.
      */
-    void __cdecl Colony_Food_Production(s_colony* colony, STRBUILD::s_builder* debug_out);
+    void __cdecl Colony_Food_Production(game::id_colony colony_id, s_colony* colony, STRBUILD::s_builder* debug_out);
 
     int16_t __cdecl Colony_Empire_Base_Food2_Produced(const s_colony* colony, int16_t owner_idx, int16_t player_idx, s_colony_job_production* out);
 
@@ -513,17 +512,17 @@ namespace COLCALC {
 
     int16_t __cdecl Colony_Empire_Base_Research_Produced(const s_colony* colony, int16_t research_type, int16_t player_idx, s_colony_job_production* out);
 
-    void __cdecl Colony_Food_Maintenance(s_colony* colony);
+    void __cdecl Colony_Food_Maintenance(game::id_colony colony_id, s_colony* colony);
 
     void __cdecl Colony_Replicators(s_colony* colony);
 
-    void __cdecl Colony_Research_Production(s_colony* colony, STRBUILD::s_builder* debug_out);
+    void __cdecl Colony_Research_Production(game::id_colony colony_id, s_colony* colony, STRBUILD::s_builder* debug_out);
 
     void __cdecl Colony_Industry_To_Tax(s_colony* colony);
 
-    void __cdecl Colony_BC_Production(s_colony* colony, STRBUILD::s_builder* debug_buf);
+    void __cdecl Colony_BC_Production(game::id_colony colony_id, s_colony* colony, STRBUILD::s_builder* debug_buf);
 
-    void __cdecl Colony_BC_Maintenance(s_colony* colony);
+    void __cdecl Colony_BC_Maintenance(game::id_colony colony_id, s_colony* colony);
 
     bool __cdecl Colony_Is_Blockaded(s_colony* colony);
 
@@ -598,7 +597,7 @@ namespace COLCALC {
 
     void __cdecl Compute_Player_Total_Known_Tech_Cost(s_player* player);
 
-    short __cdecl N_Prods_In_Colony_Queue(int16_t colony_idx, short item_id);
+    short __cdecl N_Prods_In_Colony_Queue(game::id_colony colony_idx, short item_id);
 
     int16_t __cdecl Colony_Planetary_Shield(s_colony* colony);
 

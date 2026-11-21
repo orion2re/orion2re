@@ -242,7 +242,7 @@ namespace MAINSCR {
     void __cdecl Add_Cheats();
     bool __cdecl Check_Config_Reload_Hot_Key(int16_t key);
 
-    void __cdecl Do_Colony_Screen(int16_t colony_idx, int16_t* status_flag);
+    void __cdecl Do_Colony_Screen(game::id_colony colony_idx, int16_t* status_flag);
 
     void __cdecl Check_Stars_XY(int16_t x, int16_t y, int8_t flag);
 

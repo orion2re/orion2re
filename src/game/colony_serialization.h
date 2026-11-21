@@ -1,16 +1,27 @@
 #pragma once
 
+#include "colony_data.h"
 #include "planet_reference.h"
 #include "serialization.h"
 
 namespace SERIAL {
     inline constexpr uint16_t WIDE_COLONY_PLANET_FLAG = 0x8000;
     inline constexpr size_t COLONY_BYTES = 0x16c;
+    inline constexpr size_t LEGACY_COLONY_BYTES = 0x16a;
+    inline constexpr uint16_t BUILDING_SCRAP_COUNT_VERSION = 7;
+
+    inline bool Is_Zeroed_Legacy_Colony_Slot(const s_colony& colony) {
+        auto slot = colony;
+        slot.allocated_to = 0;
+        // A historical empty record can have zero in the planet link, even
+        // though zero in a live record refers to planet 0.
+        return slot == s_colony{.planet_id = game::id_planet{0}};
+    }
 
     inline void Write_Colony(Writer_& writer, const s_colony& colony) {
         writer.Write_Int8(colony.owner);
         writer.Write_Int8(colony.allocated_to);
-        writer.Write_Uint32(colony.planet_id.get().id);
+        writer.Write_Uint32(colony.planet_id.id);
         writer.Write_Int16(colony.officer);
         writer.Write_Uint8(colony.outpost_flag);
         writer.Write_Int8(colony.morale);

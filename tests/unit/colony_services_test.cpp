@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/colony_roster.h"
 
 #include "doctest/doctest.h"
 #include "../fakes/fake_colony_services.h"
@@ -7,8 +8,8 @@ DOCTEST_TEST_CASE("colony summaries pass the selected entity and complete text t
     using namespace TEST_COLONY_POP_GROWTH;
     Reset_Services_();
     COLCALC::Show_Command_Points(1);
-    COLCALC::Show_Industry_Production(0);
-    COLCALC::Show_Research_Production(0);
+    COLCALC::Show_Industry_Production(game::id_colony{0});
+    COLCALC::Show_Research_Production(game::id_colony{0});
     DOCTEST_CHECK(services.maintenance_summary_player == 1);
     DOCTEST_CHECK(services.industry_summary_colony == 0);
     DOCTEST_CHECK(services.research_summary_colony == 0);
@@ -19,9 +20,10 @@ DOCTEST_TEST_CASE("colony summaries pass the selected entity and complete text t
 DOCTEST_TEST_CASE("advanced homeworld initialization updates contacts ranges and design requests") {
     using namespace TEST_COLONY_POP_GROWTH;
     Reset_Services_();
+    game::current_state.colonies.erase(game::id_colony{1});
     MOX::NUM_PLAYERS = 1;
     MOX::NUM_SHIPS = 0;
-    MOX::colony[0].outpost_flag = 1;
+    test_colonies::Record(0).outpost_flag = 1;
     MOX::player[0].home_planet_id = game::id_planet{0};
     MOX::player[0].command_points = 2;
     MOX::settings.starting_civilization_level = STARTING_CIVILIZATION_LEVEL_ADVANCED;
@@ -80,7 +82,8 @@ DOCTEST_TEST_CASE("blockades report the attacking and defending empires to diplo
 DOCTEST_TEST_CASE("elimination releases leaders destroys owned ships and clears foreign relations") {
     using namespace TEST_COLONY_POP_GROWTH;
     Reset_Services_();
-    MOX::colony[0].owner = 1;
+    game::current_state.colonies.erase(game::id_colony{1});
+    test_colonies::Record(0).owner = 1;
     MOX::ship[0].owner = 0;
     MOX::ship[0].officer_index = 0;
     MOX::ship[1].owner = 1;
@@ -109,9 +112,10 @@ DOCTEST_TEST_CASE("elimination releases leaders destroys owned ships and clears 
 DOCTEST_TEST_CASE("empire surrender transfers assets caps spies and recalculates interdicted fleets") {
     using namespace TEST_COLONY_POP_GROWTH;
     Reset_Services_();
-    MOX::colony[0].buildings[BUILDING_CAPITOL] = 1;
-    MOX::colony[0].buildings[BUILDING_WARP_INTERDICTOR] = 1;
-    MOX::colony[0].n_turns_existed = 3;
+    game::current_state.colonies.erase(game::id_colony{1});
+    test_colonies::Record(0).buildings[BUILDING_CAPITOL] = 1;
+    test_colonies::Record(0).buildings[BUILDING_WARP_INTERDICTOR] = 1;
+    test_colonies::Record(0).n_turns_existed = 3;
     MOX::ship[0].owner = 0;
     MOX::ship[0].officer_index = 0;
     MOX::ship[1].owner = 1;
@@ -130,9 +134,9 @@ DOCTEST_TEST_CASE("empire surrender transfers assets caps spies and recalculates
     DOCTEST_CHECK((MOX::ship[0].owner == 1));
     DOCTEST_CHECK((MOX::ship[0].officer_index == -1));
     DOCTEST_CHECK((services.deassigned == std::vector<int16_t>{0}));
-    DOCTEST_CHECK((MOX::colony[0].owner == 1));
-    DOCTEST_CHECK((MOX::colony[0].buildings[BUILDING_CAPITOL] == 0));
-    DOCTEST_CHECK((MOX::colony[0].n_turns_existed == 0));
+    DOCTEST_CHECK((test_colonies::Record(0).owner == 1));
+    DOCTEST_CHECK((test_colonies::Record(0).buildings[BUILDING_CAPITOL] == 0));
+    DOCTEST_CHECK((test_colonies::Record(0).n_turns_existed == 0));
     DOCTEST_CHECK((services.queues == std::vector<int16_t>{0}));
     DOCTEST_CHECK((services.population_limits == std::vector<int16_t>{0}));
     DOCTEST_CHECK((services.fleet_etas == std::vector<int16_t>{-1}));
@@ -165,7 +169,6 @@ DOCTEST_TEST_CASE("surrender eligibility uses recipient range and excludes the c
     using namespace TEST_COLONY_POP_GROWTH;
     Reset_Services_();
     MOX::NUM_STARS = 2;
-    MOX::NUM_COLONIES = 2;
     MOX::player[0].home_planet_id = game::id_planet{1};
     MOX::player[1].ship_range = 9;
     services.in_normal_range = false;

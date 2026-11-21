@@ -5,22 +5,25 @@
 #include <cstdint>
 #include <utility>
 
+#include "colony_reference.h"
 #include "game_state.h"
 #include "planet_reference.h"
 #include "serialization.h"
 
 namespace SERIAL {
-    inline constexpr size_t PLANET_BYTES = 18;
-    inline constexpr size_t LEGACY_PLANET_BYTES = PLANET_BYTES - 1;
+    inline constexpr size_t PLANET_BYTES = 20;
+    inline constexpr size_t NARROW_COLONY_PLANET_BYTES = 18;
+    inline constexpr size_t LEGACY_PLANET_BYTES = NARROW_COLONY_PLANET_BYTES - 1;
     inline constexpr size_t KEYED_PLANET_BYTES = sizeof(uint32_t) + PLANET_BYTES;
     inline constexpr uint16_t KEYED_PLANET_COUNT_FLAG = 0x8000;
+    inline constexpr uint16_t WIDE_PLANET_COLONY_FLAG = 0x4000;
     inline constexpr uint16_t WIDE_HOME_PLANET_FLAG = 0x4000; // Stored in the player count.
     inline constexpr uint16_t WIDE_ATTACK_PLANETS_FLAG = 0x2000; // Stored in the player count.
-    static_assert(MAX_PLANETS < KEYED_PLANET_COUNT_FLAG);
+    static_assert(MAX_PLANETS < WIDE_PLANET_COLONY_FLAG);
 
 
     inline void Write_Planet(Writer_& writer, const s_planet_data& planet) {
-        writer.Write_Int16(planet.colony_index);
+        writer.Write_Uint32(planet.colony_id.id);
         writer.Write_Int16(planet.star_index);
         writer.Write_Int8(planet.orbit);
         writer.Write_Int8(planet.planet_type);
@@ -38,8 +41,9 @@ namespace SERIAL {
         writer.Write_Int8(planet.environmental_alterations);
     }
 
-    inline void Read_Planet(Reader_& reader, s_planet_data& planet, uint16_t version = 2) {
-        planet.colony_index = reader.Read_Int16();
+    inline void Read_Planet(Reader_& reader, s_planet_data& planet, uint16_t version = 8, bool wide_colony = true) {
+        planet.colony_id = wide_colony ? game::id_colony{reader.Read_Uint32()}
+                                      : Decode_Legacy_Colony_Reference(reader.Read_Int16());
         planet.star_index = version == 0 ? reader.Read_Int8() : reader.Read_Int16();
         planet.orbit = reader.Read_Int8();
         planet.planet_type = reader.Read_Int8();
@@ -66,22 +70,26 @@ namespace SERIAL {
             uint16_t record_count;
             uint32_t next_id;
             bool keyed;
+            bool wide_colony;
         };
 
         inline std::optional<s_planet_block_header> Read_Planet_Block_Header(Reader_& reader, uint16_t version) {
             const uint16_t count_field = reader.Read_Uint16();
             const bool keyed = version >= 8 && (count_field & KEYED_PLANET_COUNT_FLAG) != 0;
-            const uint16_t count = keyed ? count_field & ~KEYED_PLANET_COUNT_FLAG : count_field;
+            const bool wide_colony = version >= 8 && (count_field & WIDE_PLANET_COLONY_FLAG) != 0;
+            if (wide_colony && !keyed) return std::nullopt;
+            const uint16_t count = keyed ? count_field & ~(KEYED_PLANET_COUNT_FLAG | WIDE_PLANET_COLONY_FLAG) : count_field;
             const uint16_t record_count = version == 0 ? ORIGINAL_MAX_PLANETS : count;
             if (count > MAX_PLANETS || count > record_count || reader.Failed()) return std::nullopt;
             const uint32_t next_id = keyed ? reader.Read_Uint32() : count;
-            const size_t width = keyed ? KEYED_PLANET_BYTES : version == 0 ? LEGACY_PLANET_BYTES : PLANET_BYTES;
+            const size_t width = keyed ? sizeof(uint32_t) + (wide_colony ? PLANET_BYTES : NARROW_COLONY_PLANET_BYTES)
+                                       : version == 0 ? LEGACY_PLANET_BYTES : NARROW_COLONY_PLANET_BYTES;
             if (reader.Failed() || next_id < count || !reader.Require(record_count * width)) return std::nullopt;
-            return s_planet_block_header{count, record_count, next_id, keyed};
+            return s_planet_block_header{count, record_count, next_id, keyed, wide_colony};
         }
 
         inline void Write_Planet_Block_Header(Writer_& writer, uint16_t count, uint32_t next_id) {
-            writer.Write_Uint16(count | KEYED_PLANET_COUNT_FLAG);
+            writer.Write_Uint16(count | KEYED_PLANET_COUNT_FLAG | WIDE_PLANET_COLONY_FLAG);
             writer.Write_Uint32(next_id);
         }
 
@@ -110,7 +118,7 @@ namespace SERIAL {
             if (id.id >= header->next_id) return false;
             const auto [it, inserted] = planets.try_emplace(id);
             if (!inserted) return false;
-            Read_Planet(reader, it->second, version);
+            Read_Planet(reader, it->second, version, header->wide_colony);
             order.push_back(id);
         }
         // Classic saves wrote unused slots as well; they are not live planets.

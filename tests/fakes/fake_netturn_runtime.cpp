@@ -54,7 +54,6 @@ namespace MOX {
     s_antaran antarans = {};
     s_nebula* nebula = nullptr;
     uint8_t NUM_NEBULAS = 0;
-    int16_t NUM_COLONIES = 0;
 
 
     int16_t NUM_SHIPS = 0;
@@ -196,8 +195,8 @@ namespace COMBFIND {
     void __cdecl Client_Combat_Loop() {}
     void __cdecl Do_Net_Combat_Update(bool) {}
     void __cdecl Copy_Target_Info(s_combfind_target*) {}
-    game::id_planet __cdecl Target_Colony_To_Planet(int16_t colony_idx) {
-        return SERIAL::Decode_Legacy_Planet_Reference(colony_idx);
+    game::id_planet __cdecl Target_Colony_To_Planet(game::id_colony colony_idx) {
+        return colony_idx == game::NO_COLONY ? game::NO_PLANET : game::id_planet{colony_idx.id};
     }
     void __cdecl Decode_Star_Player_Presence(NETPROTO::Packet_Reader_*, int16_t) {}
     void __cdecl Send_Star_Player_Presence(NETPROTO::Packet_Writer_*, int16_t) {}
@@ -303,7 +302,7 @@ namespace diplomac {
 } // namespace diplomac
 
 namespace BOMB {
-    void __cdecl Destroy_Colony(s_colony*, int32_t) {}
+    void __cdecl Destroy_Colony(game::s_game_state&, game::id_colony, int32_t) {}
 } // namespace BOMB
 
 namespace RUSS {

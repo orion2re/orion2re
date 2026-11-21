@@ -7,8 +7,6 @@ namespace COLONIZE {
 
     // Allocates free colony slots to players based on pending colonization opportunities.
     void Allocate_New_Colony_Slots();
-    // Rebuilds omitted reservations using the saved star priorities, without processing the turn.
-    void Restore_Colony_Slot_Reservations();
     // Runs AI colonization for every active AI player.
     void __cdecl All_AI_Colonize();
 
@@ -28,7 +26,8 @@ namespace COLONIZE {
     void __cdecl AI_Colonize(int16_t player_idx);
 
     // Creates a new colony for the specified player on the target planet.
-    void __cdecl Make_New_Colony(game::id_planet planet_id, int16_t player_idx);
+    bool __cdecl Make_New_Colony(game::id_planet planet_id, int16_t player_idx);
     // Creates a new outpost for the specified player on the target planet.
-    void __cdecl Make_New_Outpost(game::id_planet planet_id, int16_t player_idx);
+    bool __cdecl Make_New_Outpost(game::id_planet planet_id, int16_t player_idx);
+    void Make_Debug_Colony(game::id_planet planet_id, int16_t player_idx);
 } // namespace COLONIZE

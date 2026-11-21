@@ -1340,8 +1340,8 @@ namespace DESIGN {
             case 0xF5:
                 message_id = HESTR_00E_SINCE_S_CANNOT_BUILD_S;
                 if (MOX::return_screen == 0x19) {
-                    int16_t colony_idx = DESIGN::Get_Colony_Handle();
-                    char* planet_name = HACCESS::Get_Planet_Name(game::current_state, MOX::colony[colony_idx].planet_id.get());
+                    game::id_colony colony_idx = DESIGN::Get_Colony_Handle();
+                    char* planet_name = HACCESS::Get_Planet_Name(game::current_state, game::current_state.colonies.at(colony_idx).planet_id);
                     is_formatted = true;
                     strlcpy(planet_name_buf, planet_name, sizeof(planet_name_buf));
                 }
@@ -1715,10 +1715,10 @@ namespace DESIGN {
         return level;
     }
 
-    int16_t __cdecl Get_Colony_Handle() {
+    game::id_colony __cdecl Get_Colony_Handle() {
         const auto planet_idx = MOX::star[MOX::screen_data].orbit_planet_ids[COLONY::orbit_temp].get();
 
-        return game::current_state.planets.at(planet_idx).colony_index;
+        return game::current_state.planets.at(planet_idx).colony_id;
     }
 
     void __cdecl Clear_Special_System_Slot(int16_t slot_idx) {

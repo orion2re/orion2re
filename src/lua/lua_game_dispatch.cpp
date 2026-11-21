@@ -158,11 +158,11 @@ namespace orion2re::lua::game {
             const int object = lua_gettop(lua_state);
             lua_newtable(lua_state);
             const int values = lua_gettop(lua_state);
-            const auto set_integer = [&](const char* name, std::int16_t value) {
+            const auto set_integer = [&](const char* name, lua_Integer value) {
                 lua_pushinteger(lua_state, value);
                 lua_setfield(lua_state, values, name);
             };
-            set_integer("colony_id", context->colony_id);
+            set_integer("colony_id", context->colony_id.id);
             set_integer("planet_id", context->planet_id.id);
             set_integer("owner_id", context->owner_id);
             set_integer("race_id", context->race_id);
@@ -477,8 +477,8 @@ namespace orion2re::lua::game {
             (network_game && authoritative_population_growth_depth_ == 0)) {
             return growth;
         }
-        if (context == nullptr || context->colony_id < 0 ||
-            context->colony_id >= MAX_COLONIES || context->planet_id == NO_PLANET || context->owner_id < 0 ||
+        if (context == nullptr || context->colony_id == NO_COLONY ||
+            context->planet_id == NO_PLANET || context->owner_id < 0 ||
             context->owner_id >= MAX_PLAYERS || context->race_id < 0 ||
             context->race_id >= MAX_PLAYERS ||
             context->race_population < 0 ||

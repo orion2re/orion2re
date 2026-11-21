@@ -36,7 +36,7 @@ namespace PLNTSUM {
                 }
 
                 s_colors font_colors;
-                Colony_Owner_Colors(planet->colony_index, &font_colors, color_choice);
+                Colony_Owner_Colors(planet->colony_id, &font_colors, color_choice);
 
                 graphics::Set_Window(0x12, y_base, 0x68, PLNTSUM::plntscrn_delta_y[scroll_row + 1] + y_base);
                 video::Clip_On();
@@ -87,8 +87,8 @@ namespace PLNTSUM {
                 char owner_label[100];
                 bool has_owner_label = false;
 
-                if (planet->colony_index != -1) {
-                    char* race_name = MOX::player[MOX::colony[planet->colony_index].owner].race_name;
+                if (planet->colony_id != game::NO_COLONY) {
+                    char* race_name = MOX::player[game::current_state.colonies.at(planet->colony_id).owner].race_name;
                     snprintf(owner_label, sizeof(owner_label), "(%s)", race_name);
                     has_owner_label = true;
                 } else if (HAROLD::Star_Guarded_By_Monster(star_idx, &monster_race)) {
@@ -1107,11 +1107,11 @@ namespace PLNTSUM {
         return segment;
     }
 
-    void __cdecl Colony_Owner_Colors(int16_t colony_idx, s_colors* colors, int8_t highlight_type) {
+    void __cdecl Colony_Owner_Colors(game::id_colony colony_idx, s_colors* colors, int8_t highlight_type) {
         uint8_t glow_color;
 
-        if (colony_idx != -1) {
-            Player_Colors(MOX::colony[colony_idx].owner, colors, highlight_type, &glow_color);
+        if (colony_idx != game::NO_COLONY) {
+            Player_Colors(game::current_state.colonies.at(colony_idx).owner, colors, highlight_type, &glow_color);
         } else {
             Player_Colors(-1, colors, highlight_type, &glow_color);
         }

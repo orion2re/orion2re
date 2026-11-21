@@ -37,7 +37,7 @@ namespace REPORT {
      * @param player_idx Player to search for.
      * @param star_idx Star to inspect.
      */
-    s_colony* __cdecl Player_Colony_Base_At_Star(int16_t player_idx, int16_t star_idx);
+    game::id_colony __cdecl Player_Colony_Base_At_Star(int16_t player_idx, int16_t star_idx);
     /**
      * Returns the first matching ship type at a star for the requested owner.
      * @param owner Ship owner to match.

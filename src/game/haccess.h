@@ -52,7 +52,7 @@ namespace HACCESS {
 
     char* Get_Planet_Name(const game::s_game_state& state, game::id_planet id);
 
-    int16_t __cdecl Last_Colony_Selected(int16_t star_idx, int16_t player_idx);
+    game::id_colony __cdecl Last_Colony_Selected(int16_t star_idx, int16_t player_idx);
 
     void __cdecl Set_All_Star_Relocations(int16_t target_star_idx, int16_t player_idx);
 

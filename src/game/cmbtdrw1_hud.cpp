@@ -59,11 +59,11 @@ namespace CMBTDRW1 {
         int16_t x_pos, y_pos;
         int8_t planet_size;
 
-        if (MOX::cmbt_colony_id != -1) {
+        if (MOX::cmbt_colony_id != game::NO_COLONY) {
             y_pos = Reduced_Map_Y(MOX::combat_data[0].y);
             x_pos = (MOX::combat_data[0].x * 3) / 2 + 500 /* 0x1f4 */;
 
-            planet_size = game::current_state.planets.at(MOX::colony[MOX::cmbt_colony_id].planet_id.get()).size;
+            planet_size = game::current_state.planets.at(game::current_state.colonies.at(MOX::cmbt_colony_id).planet_id).size;
 
             if (planet_size == 0) {
                 Draw_Blip4(x_pos, y_pos, 0x60, 0);

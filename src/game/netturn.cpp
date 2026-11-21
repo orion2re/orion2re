@@ -239,18 +239,26 @@ namespace NETTURN {
                     (int)NETMOX::net.host_active_player_id,
                     (unsigned int)NETMOX::net.total_bytes_received,
                     (unsigned int)NETMOX::net.sync_state);
-                const int active_player = NETMOX::net.host_active_player_id;
-                if (NETMOX::net.network_data_ptr != nullptr) {
-                    if (active_player >= 0 && MOX::player[active_player].network_player_id != -1) {
-                        NETMOX::Decode_Game_Orders(NETMOX::net.network_data_ptr, NETMOX::net.total_bytes_received);
-                    }
-                    NETMOX::net.network_data_ptr = nullptr;
-                    allocate::Pop_Block(MOX::screen_seg);
-                    if (active_player >= 0) {
-                        NETMOX::net.host_orders_received_flags[active_player] = 1;
+                // A disconnect can end the wait without delivering a packet.
+                if (NETMOX::net.network_data_ptr == nullptr) continue;
+                const auto player = NETMOX::net.host_active_player_id;
+                const bool connected = player >= 0 && MOX::player[player].network_player_id != -1;
+                const bool accepted = !connected || NETMOX::Decode_Game_Orders(
+                    NETMOX::net.network_data_ptr, NETMOX::net.total_bytes_received, player);
+                NETMOX::net.network_data_ptr = nullptr;
+                NETMOX::net.total_bytes_received = 0;
+                allocate::Pop_Block(MOX::screen_seg);
+                NETMOX::net.host_active_player_id = -1;
+                if (!accepted) {
+                    exitm::Exit_With_Message("Invalid multiplayer game orders; turn not advanced.");
+                    return;
+                }
+                if (player >= 0 && !NETMOX::net.host_orders_received_flags[player]) {
+                    NETMOX::net.host_orders_received_flags[player] = 1;
+                    if (++NETMOX::net.host_sync_counter >= MOX::NUM_PLAYERS) {
+                        NETMOX::net.sync_state = NET_SYNC_STATE_HOST_BEGIN_TURN;
                     }
                 }
-                NETMOX::net.host_active_player_id = -1;
             }
         }
 

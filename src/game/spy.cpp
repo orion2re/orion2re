@@ -406,12 +406,12 @@ namespace spy {
     }
 
     void __cdecl Destroy_Random_Building(int16_t acting_player_idx, int16_t victim_player_idx, int32_t framed_player_idx) {
-        int16_t target_colony = -1;
+        game::id_colony target_colony = game::NO_COLONY;
         int32_t target_building = -1;
         int32_t total_weight = 0;
 
-        for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
-            s_colony* colony = &MOX::colony[i];
+        for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
+            s_colony* colony = &roster_colony;
             if (colony->owner == victim_player_idx) {
                 for (int32_t b_idx = 0; b_idx < BUILDING_COUNT; ++b_idx) {
                     s_tech_building_data* building_data = &TECHDATA::buildings[b_idx];
@@ -425,7 +425,7 @@ namespace spy {
                         total_weight += cost;
 
                         if ((int32_t)game_random::Random(total_weight) <= cost) {
-                            target_colony = i;
+                            target_colony = roster_id;
                             target_building = b_idx;
                         }
                     }
@@ -433,10 +433,10 @@ namespace spy {
             }
         }
 
-        if (target_colony != -1) {
-            ERICNET::Remove_Building(target_colony, (int16_t)target_building);
+        if (target_colony != game::NO_COLONY) {
+            ERICNET::Remove_Building(game::current_state, target_colony, (int16_t)target_building);
 
-            const auto planet_id = MOX::colony[target_colony].planet_id.get();
+            const auto planet_id = game::current_state.colonies.at(target_colony).planet_id;
             int32_t diplomacy_mode = (acting_player_idx == (int16_t)framed_player_idx) ? 3 : 4;
 
             int32_t penalty = -((int32_t)game_random::Random(5) + (int32_t)game_random::Random(15));

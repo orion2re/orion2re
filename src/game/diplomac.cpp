@@ -2104,11 +2104,11 @@ namespace diplomac {
                 if (MOX::player[p1].objectives == PLAYER_OBJECTIVE_HUMAN && MOX::player[p2].objectives != PLAYER_OBJECTIVE_HUMAN && MOX::player[p1].treaty[p2] != 2) {
                     auto threat = AIMOVE::Player_Threatens_Player(&AIDATA::state, &game::current, legacy_world::Player_Id(p1), legacy_world::Player_Id(p2));
                     if (threat) {
-                        int16_t col_idx = game::current_state.planets.at(threat->attack.planet_id).colony_index;
-                        if (col_idx != -1) {
+                        game::id_colony col_idx = game::current_state.planets.at(threat->attack.planet_id).colony_id;
+                        if (col_idx != game::NO_COLONY) {
                             const auto star_index = threat->source_star.id;
-                            if (star_index < MAX_STARS && MOX::colony[col_idx].n_pops > 4 && threat->attack.strength_ratio_percent > 100) {
-                                int amount = -((MOX::colony[col_idx].n_pops - 4) + (threat->attack.strength_ratio_percent / 50));
+                            if (star_index < MAX_STARS && game::current_state.colonies.at(col_idx).n_pops > 4 && threat->attack.strength_ratio_percent > 100) {
+                                int amount = -((game::current_state.colonies.at(col_idx).n_pops - 4) + (threat->attack.strength_ratio_percent / 50));
                                 Change_Relations(amount, p1, p2, 5, star_index, 0);
                             }
                         }

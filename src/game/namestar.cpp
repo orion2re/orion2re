@@ -281,7 +281,7 @@ namespace namestar {
 
             const auto planet_idx = MOX::star[star_idx].orbit_planet_ids[i].get();
             if (planet_idx != game::NO_PLANET) {
-                if (game::current_state.planets.at(planet_idx).colony_index > -1) {
+                if (game::current_state.planets.at(planet_idx).colony_id != game::NO_COLONY) {
                     can_change = 0;
                     found = true;
                 }

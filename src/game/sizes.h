@@ -57,7 +57,6 @@ ORION2RE_STATIC_SIZE_ASSERT(s_npcdiplo_tech, 5);
 ORION2RE_STATIC_SIZE_ASSERT(s_combat_weapon_slot, 11);
 ORION2RE_STATIC_SIZE_ASSERT(s_missile, 0x1A);
 ORION2RE_STATIC_SIZE_ASSERT(s_combfind_star_has_player, 0xb);
-ORION2RE_STATIC_SIZE_ASSERT(s_combfind_target, 0x2c);
 
 ORION2RE_STATIC_SIZE_ASSERT(s_animation_header, 0x0c);
 ORION2RE_STATIC_SIZE_ASSERT(s_colony_job_production, 0x256);

@@ -60,7 +60,7 @@ DOCTEST_TEST_CASE("unopposed invasion saves its seed and refreshes icons after c
     Colony_()->n_pops = 1;
     int16_t ships[] = {0};
     s_battle_results_info results = {};
-    invasion::Invade(ships, 1, 0, &results);
+    invasion::Invade(ships, 1, game::id_colony{0}, &results);
     DOCTEST_CHECK(seed_queries == 1);
     DOCTEST_CHECK((results.ground_defense_strength == (int32_t)random_seed));
     DOCTEST_CHECK((results.attacker_invasion.player_id == 1));
@@ -77,7 +77,7 @@ DOCTEST_TEST_CASE("rebellion weights and reports preserve both participants") {
     Reset_();
     Colony_()->n_pops = 2;
     Colony_()->pop[0] = Colony_()->pop[1] = 1 | 0x400;
-    invasion::Check_Rebellion(Colony_());
+    invasion::Check_Rebellion(game::id_colony{0}, Colony_());
     DOCTEST_CHECK(rebel_choices == 1);
     DOCTEST_CHECK((rebel_weights[0] == 0));
     DOCTEST_CHECK((rebel_weights[1] == 2));
@@ -94,7 +94,7 @@ DOCTEST_TEST_CASE("rebellion weights and reports preserve both participants") {
     Colony_()->n_pops = 1;
     Colony_()->pop[0] = 1 | 0x400;
     Colony_()->occupation_policy = 4;
-    invasion::Check_Rebellion(Colony_());
+    invasion::Check_Rebellion(game::id_colony{0}, Colony_());
     DOCTEST_CHECK(rebel_choices == 0);
     DOCTEST_CHECK(messages.empty());
 }
@@ -149,10 +149,10 @@ DOCTEST_TEST_CASE("native colony detection excludes androids") {
     POP::Set_Race(&colony->pop[0], POP::RACE_ANDROID);
     POP::Set_Race(&colony->pop[1], 0);
 
-    DOCTEST_CHECK_FALSE(COLONY::Colony_Has_Natives(0));
+    DOCTEST_CHECK_FALSE(COLONY::Colony_Has_Natives(game::id_colony{0}));
 
     POP::Set_Race(&colony->pop[1], POP::RACE_NATIVE);
-    DOCTEST_CHECK(COLONY::Colony_Has_Natives(0));
+    DOCTEST_CHECK(COLONY::Colony_Has_Natives(game::id_colony{0}));
 }
 
 DOCTEST_TEST_CASE("native occupation policy follows the gameplay setting") {
@@ -164,13 +164,13 @@ DOCTEST_TEST_CASE("native occupation policy follows the gameplay setting") {
     POP::Set_Assigned(&colony->pop[0], true);
 
     COLONY::allow_native_annihilation = 0;
-    DOCTEST_CHECK_FALSE(COLONY::Colony_Needs_Occupation_Policy(0));
+    DOCTEST_CHECK_FALSE(COLONY::Colony_Needs_Occupation_Policy(game::id_colony{0}));
 
     COLONY::allow_native_annihilation = 1;
-    DOCTEST_CHECK(COLONY::Colony_Needs_Occupation_Policy(0));
+    DOCTEST_CHECK(COLONY::Colony_Needs_Occupation_Policy(game::id_colony{0}));
 
     colony->occupation_policy = 3;
-    DOCTEST_CHECK_FALSE(COLONY::Colony_Needs_Occupation_Policy(0));
+    DOCTEST_CHECK_FALSE(COLONY::Colony_Needs_Occupation_Policy(game::id_colony{0}));
 }
 
 DOCTEST_TEST_CASE("native annihilation follows the gameplay setting") {
@@ -195,7 +195,6 @@ DOCTEST_TEST_CASE("native annihilation follows the gameplay setting") {
 
 DOCTEST_TEST_CASE("home planet reassignment excludes outposts") {
     test_ground_commando_runtime::Reset_();
-    MOX::NUM_COLONIES = 2;
 
     s_colony* colony = test_ground_commando_runtime::Colony_(0);
     colony->owner = 0;
@@ -207,7 +206,7 @@ DOCTEST_TEST_CASE("home planet reassignment excludes outposts") {
     outpost->planet_id = game::id_planet{2};
     outpost->outpost_flag = 1;
 
-    invasion::Assign_New_Home_Planet(0, 0);
+    invasion::Assign_New_Home_Planet(game::current_state, 0, game::id_colony{0});
 
     DOCTEST_CHECK(MOX::player[0].home_planet_id.get() == game::NO_PLANET);
 }
@@ -227,7 +226,8 @@ DOCTEST_TEST_CASE("colony ground combat info preserves the resolved Commando off
 
     invasion::ground_commando_defender_x5 = 0;
     s_invasion_side_info side = {};
-    invasion::Compute_Colony_Ground_Combat_Info(colony, &side, false);
+    invasion::Compute_Colony_Ground_Combat_Info(game::id_colony{70000}, colony, &side, false);
+    DOCTEST_CHECK(side.colony_id.get() == game::id_colony{70000});
 
     DOCTEST_CHECK(side.combat_modifiers.officer_bonus == 4);
     DOCTEST_CHECK(side.combat_modifiers.officer_idx == 1);
@@ -503,7 +503,7 @@ DOCTEST_TEST_CASE("ground-unit limits use configured planet-size capacity") {
     test_ground_commando_runtime::Reset_();
     s_colony* colony = test_ground_commando_runtime::Colony_();
     colony->owner = 0;
-    test_planets::Record(SERIAL::Encode_Legacy_Planet_Reference(colony->planet_id.get())).size = PLANET_SIZE_HUGE;
+    test_planets::Record(SERIAL::Encode_Legacy_Planet_Reference(colony->planet_id)).size = PLANET_SIZE_HUGE;
     const uint8_t saved_capacity =
         COLCALC::population_capacity.size[PLANET_SIZE_HUGE];
 
@@ -540,11 +540,11 @@ DOCTEST_TEST_CASE("rebel display uses colony modifiers only when requested") {
     invasion::troop.type.rebels = -20;
 
     s_invasion_side_info classic = {};
-    invasion::Compute_Colony_Ground_Combat_Info(colony, &classic, false);
+    invasion::Compute_Colony_Ground_Combat_Info(game::id_colony{0}, colony, &classic, false);
     DOCTEST_CHECK(classic.unit_strengths[3] == -22);
 
     s_invasion_side_info displayed = {};
-    invasion::Compute_Colony_Ground_Combat_Info(colony, &displayed, true);
+    invasion::Compute_Colony_Ground_Combat_Info(game::id_colony{0}, colony, &displayed, true);
     DOCTEST_CHECK(displayed.unit_strengths[3] == -2);
 
     TECHDATA::armor[0].troops_bonus = saved_armor_bonus;
@@ -621,7 +621,7 @@ DOCTEST_TEST_CASE("AI invasion technology weights preserve unsigned configuratio
                 static_cast<uint32_t>(test_case.expected_chance));
             s_battle_results_info results = {};
 
-            invasion::Change_Colony_Ownership(colony, 1, &results);
+            invasion::Change_Colony_Ownership(game::id_colony{0}, colony, 1, &results);
 
             DOCTEST_CHECK(test_ground_commando_runtime::Random_Call_Count_() ==
                 1);

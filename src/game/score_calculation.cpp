@@ -150,10 +150,10 @@ namespace SCORE {
     int16_t __cdecl Get_Total_Population(int16_t player_idx) {
         int16_t total_pop = 0;
 
-        for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
-            if ((int16_t)MOX::colony[i].owner == player_idx) {
+        for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
+            if ((int16_t)roster_colony.owner == player_idx) {
                 // Assembly zero-extends the n_pops byte into CX before adding to AX
-                total_pop += (uint8_t)MOX::colony[i].n_pops;
+                total_pop += (uint8_t)roster_colony.n_pops;
             }
         }
 

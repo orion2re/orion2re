@@ -128,10 +128,10 @@ namespace COLBLDG {
      * @param design_idx Ship design slot to copy.
      * @param colony_idx Colony that supplies the ship location.
      */
-    int16_t __cdecl Create_Ship(int16_t player_idx, int16_t design_idx, int16_t colony_idx);
+    int16_t __cdecl Create_Ship(int16_t player_idx, int16_t design_idx, game::id_colony colony_idx);
 
     /** Creates a queued ship instance from the supplied design at a colony. */
-    int16_t __cdecl Create_Ship_From_Design(int16_t player_idx, const s_ship_design* design, int16_t colony_idx);
+    int16_t __cdecl Create_Ship_From_Design(int16_t player_idx, const s_ship_design* design, game::id_colony colony_idx);
 
     /** Stores the transient design used by the cross-screen refit workflow. */
     void Set_Pending_Refit_Design(int16_t ship_idx, const s_ship_design* design);
@@ -209,7 +209,7 @@ namespace COLBLDG {
      * @param product_idx Building, ship, or special product identifier.
      * @param line_count In/out line counter used for vertical placement.
      */
-    void __cdecl Draw_Cost_And_Time_Info(int16_t colony_idx, int16_t product_idx, int16_t* line_count);
+    void __cdecl Draw_Cost_And_Time_Info(game::id_colony colony_idx, int16_t product_idx, int16_t* line_count);
 
     void __cdecl Draw_Ship_Design_Info2(s_ship_design* design);
 
@@ -244,17 +244,17 @@ namespace COLBLDG {
      */
     void __cdecl Build_Weapon_String(s_ship_weapons* weapon, char* dest, uint32_t dest_size, uint8_t include_postfix_modifiers, uint8_t weapon_count);
 
-    int16_t __cdecl First_Prod_Colony_Queue_Slot(int16_t colony_idx, int16_t product_id);
+    int16_t __cdecl First_Prod_Colony_Queue_Slot(const game::s_game_state& state, game::id_colony colony_id, int16_t product_id);
 
-    void __cdecl Delete_From_Colony_Queue(int16_t colony_idx, int16_t queue_idx);
+    void __cdecl Delete_From_Colony_Queue(game::s_game_state& state, game::id_colony colony_id, int16_t queue_idx);
 
-    void __cdecl Delete_Prod_From_Colony_Queue(int16_t colony_idx, int16_t product_id);
+    void __cdecl Delete_Prod_From_Colony_Queue(game::s_game_state& state, game::id_colony colony_id, int16_t product_id);
 
     void __cdecl Delete_Ship(int16_t ship_index);
 
-    void __cdecl Squish_Out_Colony_Queue_Slot(int16_t colony_idx, int16_t queue_idx);
+    void __cdecl Squish_Out_Colony_Queue_Slot(game::s_game_state& state, game::id_colony colony_id, int16_t queue_idx);
 
-    void __cdecl Clear_Colony_Queue(int16_t colony_idx);
+    void __cdecl Clear_Colony_Queue(game::s_game_state& state, game::id_colony colony_id);
 
     void __cdecl Print_App_Description(uint16_t x, int16_t y, uint16_t width, int16_t app_id);
 

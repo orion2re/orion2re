@@ -183,7 +183,7 @@ namespace SCORE {
      * @param out_colony_idx Receives the selected colony index.
      * @param out_pop_idx Receives the selected population index.
      */
-    void __cdecl Get_From_Tmp_Pop(s_hiscore_tmp_pop* tmp_pop_list, uint16_t race_idx, int16_t entry_count, int16_t* out_colony_idx, int16_t* out_pop_idx);
+    void __cdecl Get_From_Tmp_Pop(s_hiscore_tmp_pop* tmp_pop_list, uint16_t race_idx, int16_t entry_count, game::id_colony* out_colony_idx, int16_t* out_pop_idx);
 
     /** Compares two uint8_t values in ascending order for qsort. */
     int __cdecl ascending_qsort_uchar(const void* a, const void* b);

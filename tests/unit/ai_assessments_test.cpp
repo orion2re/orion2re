@@ -26,7 +26,7 @@ DOCTEST_TEST_CASE("advanced start candidates resolve sparse orbit IDs in orbit o
     test::s_game_state fixture;
     MOX::NUM_PLAYERS = 1;
     game::s_game_state planets;
-    const s_planet_data unoccupied{.colony_index = -1, .star_index = 1, .planet_type = PLANET_TYPE_PLANET};
+    const s_planet_data unoccupied{.colony_id = game::NO_COLONY, .star_index = 1, .planet_type = PLANET_TYPE_PLANET};
     planets.planets.emplace(game::id_planet{17}, unoccupied);
     planets.planets.emplace(game::id_planet{70000}, unoccupied);
     MOX::star[1].orbit_planet_ids[0] = game::id_planet{70000};
@@ -56,7 +56,7 @@ DOCTEST_TEST_CASE("game-state fixtures bind borrowed views and restore nested bi
         DOCTEST_CHECK(game::current.players == outer.players.data());
         DOCTEST_CHECK(game::current.ships == outer.ships.data());
         DOCTEST_CHECK(game::current.stars == outer.stars.data());
-        DOCTEST_CHECK(game::current.colonies == outer.colonies.data());
+        DOCTEST_CHECK(game::current.state == &game::current_state);
         DOCTEST_CHECK(game::current.state == &game::current_state);
         DOCTEST_CHECK(game::current.settings == &MOX::settings);
         MOX::NUM_SHIPS = 2;
@@ -77,13 +77,11 @@ DOCTEST_TEST_CASE("game-state fixtures bind borrowed views and restore nested bi
     DOCTEST_CHECK(game::current.players == previous.players);
     DOCTEST_CHECK(game::current.ships == previous.ships);
     DOCTEST_CHECK(game::current.stars == previous.stars);
-    DOCTEST_CHECK(game::current.colonies == previous.colonies);
     DOCTEST_CHECK(game::current.state == previous.state);
     DOCTEST_CHECK(game::current.settings == previous.settings);
     DOCTEST_CHECK(game::current.player_count == previous.player_count);
     DOCTEST_CHECK(game::current.ship_count == previous.ship_count);
     DOCTEST_CHECK(game::current.star_count == previous.star_count);
-    DOCTEST_CHECK(game::current.colony_count == previous.colony_count);
     DOCTEST_CHECK(game::current.stardate == previous.stardate);
     DOCTEST_CHECK(game::current.combat_x == previous.combat_x);
 }
@@ -150,6 +148,7 @@ DOCTEST_TEST_CASE("star assessments name treaty partners and hostile players by 
         players[i].ship_range = 6;
         colonies[i].owner = (int8_t)i;
         colonies[i].planet_id = SERIAL::Decode_Legacy_Planet_Reference((int16_t)i);
+        game::current_state.colonies.insert_or_assign(game::id_colony{static_cast<uint32_t>(i)}, colonies[i]);
     }
     players[0].treaty[1] = 1;
     players[0].treaty[2] = 4;
@@ -157,11 +156,9 @@ DOCTEST_TEST_CASE("star assessments name treaty partners and hostile players by 
     game::s_view world{
         .players = players,
         .stars = stars,
-        .colonies = colonies,
         .state = &game::current_state,
         .player_count = &player_count,
         .star_count = &star_count,
-        .colony_count = &colony_count,
     };
     AIDATA::Compute_Star_Player_Range_Info(&ai, &world);
     const auto& assessment = ai.stars.at(Star_Id(0)).neighborhood.per_player[0];

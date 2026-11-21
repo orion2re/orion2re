@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
 
 #include <algorithm>
@@ -14,7 +15,7 @@ namespace {
         for (int orbit = 0; orbit < 5; ++orbit) {
             int16_t planet_idx = first_planet + orbit;
             auto& planet = test_planets::Record(planet_idx);
-            planet.colony_index = -1;
+            planet.colony_id = game::NO_COLONY;
             planet.star_index = star_idx;
             planet.orbit = static_cast<int8_t>(orbit);
             planet.planet_type = PLANET_TYPE_PLANET;
@@ -106,10 +107,10 @@ DOCTEST_TEST_CASE("mixed minerals remain planet-local across filter permutations
                         // Empty, enemy colony, own colony, enemy outpost, own ship,
                         // enemy ship in orbit, or enemy ship en route.
                         if (presence >= 1 && presence <= 3) {
-                            test_planets::Record(0).colony_index = 0;
-                            MOX::colony[0].planet_id = game::id_planet{0};
-                            MOX::colony[0].owner = presence == 2 ? 0 : 1;
-                            MOX::colony[0].outpost_flag = presence == 3;
+                            test_planets::Record(0).colony_id = game::id_colony{0};
+                            test_colonies::Record(0).planet_id = game::id_planet{0};
+                            test_colonies::Record(0).owner = presence == 2 ? 0 : 1;
+                            test_colonies::Record(0).outpost_flag = presence == 3;
                         } else if (presence >= 4) {
                             Add_Ship(presence == 4 ? 0 : 1,
                                 presence == 6 ? SHIP_LOCATION_MOVING_OFFSET : 0);
@@ -152,18 +153,20 @@ DOCTEST_TEST_CASE("mixed minerals remain planet-local across filter permutations
 DOCTEST_TEST_CASE("destroyed occupants no longer hide mixed-mineral systems") {
     TEST_PLNTSUM::Reset_();
     Add_System(0, 0);
-    test_planets::Record(0).colony_index = 0;
-    MOX::colony[0].owner = 1;
-    MOX::colony[0].planet_id = game::id_planet{0};
+    constexpr game::id_colony colony_id{70000};
+    test_planets::Record(0).colony_id = colony_id;
+    test_colonies::Record(colony_id.id).owner = 1;
+    test_colonies::Record(colony_id.id).planet_id = game::id_planet{0};
     MOX::player[1].home_planet_id = game::NO_PLANET;
     Add_Ship(1, 0);
     PLNTSUM::Set_Planet_Explored_Flags();
     Set_Filters(7);
     Check_List({});
 
-    BOMB::Destroy_Colony(&MOX::colony[0], -1);
-    DOCTEST_CHECK(test_planets::Record(0).colony_index == -1);
-    DOCTEST_CHECK(MOX::colony[0].owner == -1);
+    BOMB::Destroy_Colony(game::current_state, colony_id, -1);
+    DOCTEST_CHECK(test_planets::Record(0).colony_id == game::NO_COLONY);
+    DOCTEST_CHECK_FALSE(game::current_state.colonies.contains(colony_id));
+    DOCTEST_CHECK(game::current_state.next_colony_id == colony_id.id + 1);
     DOCTEST_CHECK(MOX::star[0].visited == 1);
     Check_List({});
     // Model Kill_Ship's retirement, including a stack that has not yet been rebuilt.
@@ -198,8 +201,8 @@ DOCTEST_TEST_CASE("presence and range exclusions do not leak between systems") {
     Add_System(0, 0);
     Add_System(1, 5);
     Add_System(2, 10);
-    test_planets::Record(0).colony_index = 0;
-    MOX::colony[0].owner = 1;
+    test_planets::Record(0).colony_id = game::id_colony{0};
+    test_colonies::Record(0).owner = 1;
     TEST_PLNTSUM::in_range[1] = false;
     PLNTSUM::Set_Planet_Explored_Flags();
     Set_Filters(7);

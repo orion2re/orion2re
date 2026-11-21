@@ -14,11 +14,9 @@ namespace {
         s_ship_data* ships = MOX::ship;
         s_star_data* stars = MOX::star;
         game::s_game_state planets_saved_roster = game::current_state;
-        s_colony* colonies = MOX::colony;
         int16_t player_count = MOX::NUM_PLAYERS;
         int16_t ship_count = MOX::NUM_SHIPS;
         int16_t star_count = MOX::NUM_STARS;
-        int16_t colony_count = MOX::NUM_COLONIES;
         int16_t council_flag = diplodef::COUNCIL_FLAG;
         int16_t council_winner = diplodef::council_winner;
         int16_t council_turn = diplodef::next_council_meeting_turn;
@@ -36,11 +34,9 @@ namespace {
             MOX::ship = ships;
             MOX::star = stars;
             game::current_state = std::move(planets_saved_roster);
-            MOX::colony = colonies;
             MOX::NUM_PLAYERS = player_count;
             MOX::NUM_SHIPS = ship_count;
             MOX::NUM_STARS = star_count;
-            MOX::NUM_COLONIES = colony_count;
             diplodef::COUNCIL_FLAG = council_flag;
             diplodef::council_winner = council_winner;
             diplodef::next_council_meeting_turn = council_turn;

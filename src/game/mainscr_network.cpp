@@ -174,6 +174,9 @@ namespace MAINSCR {
                 break;
             }
             case NET_PACKET_GAME_ORDERS_PAYLOAD: {
+                if (NETMOX::net.sync_state != NET_SYNC_STATE_HOST_RECEIVING_PLAYER_DATA ||
+                    NETMOX::net.host_active_player_id < 0 ||
+                    from_player_id != static_cast<uint32_t>(NETMOX::net.host_active_player_id)) break;
                 NETMOX::Net_Debug_Log(
                     "Main_Receive_Message_: GAME_ORDERS_PAYLOAD from_player=%u bytes=%u host_sync_counter_before=%d",
                     (unsigned int)from_player_id,
@@ -187,16 +190,7 @@ namespace MAINSCR {
                 NETMOX::net.network_data_ptr = allocate::Allocate_Next_Block(MOX::screen_seg, payload_len);
                 memcpy(NETMOX::net.network_data_ptr, payload, payload_len);
                 NETMOX::net.total_bytes_received = payload_len;
-                NETMOX::net.host_sync_counter++;
-                if ((uint8_t)NETMOX::net.host_sync_counter == MOX::NUM_PLAYERS) {
-                    NETMOX::net.sync_state = NET_SYNC_STATE_HOST_BEGIN_TURN;
-                } else {
-                    NETMOX::net.sync_state = NET_SYNC_STATE_HOST_WAITING_FOR_ORDERS;
-                }
-                NETMOX::Net_Debug_Log(
-                    "Main_Receive_Message_: GAME_ORDERS_PAYLOAD complete host_sync_counter_after=%d next_sync=%u",
-                    (int)NETMOX::net.host_sync_counter,
-                    (unsigned int)NETMOX::net.sync_state);
+                NETMOX::net.sync_state = NET_SYNC_STATE_HOST_WAITING_FOR_ORDERS;
                 break;
             }
             case NET_PACKET_HOST_ELECTION_RANK: {
@@ -478,7 +472,7 @@ namespace MAINSCR {
             }
             case NET_PACKET_DRAGON_INFO: {
                 NETMOX::net.sync_state = NET_SYNC_STATE_DRAGON_BRIBE_PROMPT;
-                NETMOX::Decode_Dragon_Info((int16_t*)payload, (uint16_t)payload_len);
+                NETMOX::Decode_Dragon_Info(payload, payload_len);
                 break;
             }
             case NET_PACKET_DRAGON_NO_BRIBE: {

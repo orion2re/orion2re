@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
 
 #include "game/legacy_world.h"
@@ -7,7 +8,7 @@ namespace {
     s_ship_data ships[MAX_SHIPS];
     s_star_data stars[MAX_STARS];
     s_player players[MAX_PLAYERS];
-    s_colony colonies[MAX_COLONIES];
+    test_colonies::Slots<MAX_COLONIES> colonies;
 
     int16_t spawn_count;
     int move_attempt_count;
@@ -20,11 +21,9 @@ namespace TEST_AIMOVE {
         world.players = players;
         world.ships = ships;
         world.stars = stars;
-        world.colonies = colonies;
         world.player_count = &MOX::NUM_PLAYERS;
         world.ship_count = &MOX::NUM_SHIPS;
         world.star_count = &MOX::NUM_STARS;
-        world.colony_count = &MOX::NUM_COLONIES;
         return &world;
     }
 
@@ -32,13 +31,12 @@ namespace TEST_AIMOVE {
         memset(ships, 0, sizeof(ships));
         memset(stars, 0, sizeof(stars));
         memset(players, 0, sizeof(players));
-        memset(colonies, 0, sizeof(colonies));
+        colonies.Reset();
         test_planets::Reset(0);
 
         MOX::NUM_SHIPS = 1;
         MOX::NUM_STARS = 2;
         MOX::NUM_PLAYERS = 1;
-        MOX::NUM_COLONIES = 1;
         AIMOVE::rules.eel_spawn_frequency = 30;
         AIMOVE::rules.max_eels = 4;
         ships[0].owner = NONPLAYER_SHIP_TYPE_EEL;
@@ -83,11 +81,9 @@ namespace MOX {
     int16_t NUM_SHIPS;
     int16_t NUM_STARS;
     int16_t NUM_PLAYERS;
-    int16_t NUM_COLONIES;
     s_ship_data* ship = ships;
     s_star_data* star = stars;
     s_player* player = players;
-    s_colony* colony = colonies;
 
 }
 

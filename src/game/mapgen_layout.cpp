@@ -818,7 +818,6 @@ namespace MAPGEN {
                 n_stars = 0;
                 n_marooned_heroes = 0;
                 n_wormholes = 0;
-                MOX::NUM_COLONIES = 0;
                 memset(special_count, 0, sizeof(special_count));
                 current_state.Reset_Planets();
                 auto& layout_state = current_state;

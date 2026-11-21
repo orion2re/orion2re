@@ -212,8 +212,8 @@ namespace SHIPMOVE {
         }
 
         int colony_production_slots[MAX_PLAYERS] = {0};
-        for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
-            s_colony* col = &MOX::colony[i];
+        for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
+            s_colony* col = &roster_colony;
             if (col->owner != -1 && col->outpost_flag == 0) {
                 for (int j = 0; j < 7; ++j) {
                     if (!COLBLDG::Colony_Production_Is_Queued_Ship(col->producing[j])) {
@@ -1296,11 +1296,11 @@ namespace SHIPMOVE {
         }
 
         // Mark player presence via colonies
-        if (MOX::NUM_COLONIES > 0) {
-            for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
-                s_colony* colony = &MOX::colony[i];
+        if (!game::current_state.colonies.empty()) {
+            for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
+                s_colony* colony = &roster_colony;
                 if (colony->owner != -1) {
-                    int16_t star_index = current_state.planets.at(colony->planet_id.get()).star_index;
+                    int16_t star_index = current_state.planets.at(colony->planet_id).star_index;
                     presence_mask[star_index] |= (1 << colony->owner);
                 }
             }

@@ -1,11 +1,12 @@
 #include "pch.h"
 #include "../fixtures/planet_roster.h"
+#include "../fixtures/colony_roster.h"
 
 #include <cstring>
 
 namespace {
     s_combat_data combat_data[2];
-    s_colony colonies[1];
+    test_colonies::Slots<1> colonies;
     s_current_design current_design;
 
     s_player players[MAX_PLAYERS];
@@ -14,13 +15,12 @@ namespace {
 namespace TEST_SHIELD_TABLE {
     void Reset_() {
         memset(combat_data, 0, sizeof(combat_data));
-        memset(colonies, 0, sizeof(colonies));
+        colonies.Reset();
         memset(&current_design, 0, sizeof(current_design));
         memset(&MOX::settings, 0, sizeof(MOX::settings));
         test_planets::Reset(1);
         memset(players, 0, sizeof(players));
         MOX::combat_data = ::combat_data;
-        MOX::colony = colonies;
         MOX::design = &current_design;
         test_planets::Reset(1);
         MOX::player = players;

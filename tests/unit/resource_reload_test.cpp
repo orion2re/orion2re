@@ -2,7 +2,6 @@
 #include "../fixtures/planet_roster.h"
 
 #include "doctest/doctest.h"
-#include "game/colonize.h"
 #include "game/config_refresh.h"
 #include "game/loader.h"
 #include "config/config_loader.h"
@@ -486,7 +485,6 @@ DOCTEST_TEST_CASE("colony auto-select preserves a remembered orbit owned by the 
     test::s_game_state state;
     MOX::NUM_STARS = 1;
     MOX::PLAYER_NUM = 0;
-    MOX::NUM_COLONIES = 13;
 
     constexpr game::id_planet remembered{70000};
     constexpr game::id_planet alternative{70001};
@@ -494,19 +492,21 @@ DOCTEST_TEST_CASE("colony auto-select preserves a remembered orbit owned by the 
     selected = 1;
     state.stars[0].orbit_planet_ids[1] = remembered;
     state.stars[0].orbit_planet_ids[3] = alternative;
-    test_planets::Record(remembered.id).colony_index = 12;
-    test_planets::Record(alternative.id).colony_index = 4;
+    test_planets::Record(remembered.id).colony_id = game::id_colony{12};
+    test_planets::Record(alternative.id).colony_id = game::id_colony{4};
     state.colonies[12].owner = MOX::PLAYER_NUM;
     state.colonies[4].owner = MOX::PLAYER_NUM;
 
     HACCESS::Set_All_Colony_Auto_Select_Flags();
     DOCTEST_CHECK(selected == 1);
+    DOCTEST_CHECK(HACCESS::Last_Colony_Selected(0, 0) == game::id_colony{12});
 
     // A foreign colony in record 0 is not owned by player 0.
-    test_planets::Record(remembered.id).colony_index = 0;
+    test_planets::Record(remembered.id).colony_id = game::id_colony{0};
     state.colonies[0].owner = 1;
     HACCESS::Set_All_Colony_Auto_Select_Flags();
     DOCTEST_CHECK(selected == 3);
+    DOCTEST_CHECK(HACCESS::Last_Colony_Selected(0, 0) == game::id_colony{4});
 }
 
 DOCTEST_TEST_CASE("session settings recover missing and short files without losing live choices") {
@@ -549,18 +549,16 @@ DOCTEST_TEST_CASE("session settings recover missing and short files without losi
     DOCTEST_CHECK(memcmp(&live, &MOX::settings, sizeof(live)) == 0);
 }
 
-DOCTEST_TEST_CASE("successful file load restores colony reservations and requests resource reload") {
+DOCTEST_TEST_CASE("successful file save load requests resource reload even when mods are unchanged") {
     Fixture fixture;
     std::vector<s_colony> colonies(MAX_COLONIES);
     std::vector<s_star_data> stars(MAX_STARS);
     std::vector<s_nebula> nebulas(MAX_NEBULAS);
-    MOX::colony = colonies.data();
     MOX::star = stars.data();
     MOX::nebula = nebulas.data();
     MOX::global_data_seg = allocate::Allocate_Space(0x2800 + MAX_SHIPS - ORIGINAL_MAX_SHIPS);
-    MOX::NUM_COLONIES = 1;
-    test_planets::Reset(2);
-    MOX::NUM_STARS = MOX::NUM_SHIPS = 1;
+    test_planets::Reset();
+    MOX::NUM_STARS = MOX::NUM_SHIPS = 0;
     MOX::NUM_NEBULAS = 0;
     MOX::NUM_PLAYERS = 1;
     MOX::PLAYER_NUM = 0;
@@ -569,26 +567,6 @@ DOCTEST_TEST_CASE("successful file load restores colony reservations and request
     MOX::cur_map_scale = 10;
     MOX::player[0].objectives = PLAYER_OBJECTIVE_HUMAN;
     MOX::player[0].surrender_to = -1;
-    memset(stars[0].planet_index, 0xff, sizeof(stars[0].planet_index));
-    stars[0].planet_index[0] = 0;
-    stars[0].planet_index[1] = 1;
-    stars[0].colonize_player = 0;
-    test_planets::Record(0).planet_type = PLANET_TYPE_PLANET;
-    test_planets::Record(0).colony_index = 0;
-    test_planets::Record(1).planet_type = PLANET_TYPE_PLANET;
-    test_planets::Record(1).orbit = 1;
-    test_planets::Record(1).colony_index = -1;
-    test_planets::Record(1).food_per_farmer = 2;
-    test_planets::Record(1).max_population = 8;
-    colonies[0].allocated_to = -1;
-    colonies[0].officer = -1;
-    colonies[1].allocated_to = 0; // Reserved, but outside the v7 saved colony records.
-    MOX::ship[0].d.ship_type = SHIP_TYPE_COLONY;
-    MOX::ship[0].officer_index = -1;
-    for (int zoom = 0; zoom < 4; ++zoom) {
-        fixture.Write("data/BUFFER0.LBX/" + std::to_string(205 + zoom),
-            std::string(sizeof(s_animation_header), '\0'));
-    }
     config::s_effective_config effective;
     config::s_cfg_diagnostic diagnostic;
     bool loaded = false;
@@ -613,20 +591,12 @@ DOCTEST_TEST_CASE("successful file load restores colony reservations and request
     } restore{prior};
     fs::current_path(fixture.root);
     DOCTEST_REQUIRE(FILEDEF::Load_Game(0) == 1);
-    DOCTEST_CHECK((MOX::NUM_COLONIES == 1));
-    DOCTEST_CHECK((test_planets::Record(1).colony_index == -1));
-    DOCTEST_CHECK((colonies[0].allocated_to == -1));
-    DOCTEST_REQUIRE((colonies[1].allocated_to == 0));
-    COLONIZE::Make_New_Colony(1, 0);
-    DOCTEST_CHECK((test_planets::Record(1).colony_index == 1));
-    DOCTEST_CHECK((colonies[1].planet == 1));
     DOCTEST_CHECK(CONFIG_REFRESH::Resource_Reload_Pending());
     CONFIG_REFRESH::Reload_Resources_Between_Screens();
     DOCTEST_CHECK_FALSE(CONFIG_REFRESH::Resource_Reload_Pending());
     DOCTEST_CHECK(ESTRINGS::E_Strings(126)[0] == 'B');
     free((allocate::s_alloc_header*)MOX::global_data_seg - 1);
     MOX::global_data_seg = nullptr;
-    MOX::colony = nullptr;
     MOX::star = nullptr;
     MOX::nebula = nullptr;
 }

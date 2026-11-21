@@ -76,7 +76,7 @@ namespace COLONY {
     extern uint16_t colonists_count;
 
     extern int16_t orbit_temp;
-    extern int16_t temp_colony_idx;
+    extern game::id_colony temp_colony_idx;
 
     extern int16_t ship_bitm_n;
     extern int16_t bldg_bitm_n;
@@ -100,7 +100,7 @@ namespace COLONY {
      * Caches the active colony, planet, star, and orbit handles for colony-screen helpers.
      * @param colony_idx Index of the colony to expose through the colony globals.
      */
-    void __cdecl Set_Colony_Globals(int16_t colony_idx);
+    void __cdecl Set_Colony_Globals(game::id_colony colony_idx);
 
     extern uint8_t debug_flag;
     extern uint8_t using_colony_screen_palette;
@@ -114,7 +114,7 @@ namespace COLONY {
     extern int16_t scanned_bldg_C;
     extern int16_t scanned_bldg_R;
     extern uint8_t full_draw;
-    extern int16_t colony_handle;
+    extern game::id_colony colony_handle;
     extern int16_t building_cr_xy[7][7][4];
 
     extern int16_t colony_bldg_fields[36];
@@ -145,9 +145,9 @@ namespace COLONY {
 
     s_animation_header* __cdecl Govt_Anim(int16_t govt_anim_id);
 
-    s_animation_header* __cdecl Colony_Pop_Anim(int16_t colony_idx, int16_t pop_idx);
+    s_animation_header* __cdecl Colony_Pop_Anim(game::id_colony colony_idx, int16_t pop_idx);
 
-    int16_t __cdecl Get_Effective_Pop_Player(int16_t colony_idx, int16_t pop_idx);
+    int16_t __cdecl Get_Effective_Pop_Player(game::id_colony colony_idx, int16_t pop_idx);
 
     s_animation_header* __cdecl Colony_Pop_Icon(int16_t race_index);
 
@@ -159,13 +159,13 @@ namespace COLONY {
      * @param colony_idx Colony that owns the pop record.
      * @param pop_idx Index of the pop entry within the colony.
      */
-    int16_t __cdecl Pop_To_Pop_State(int16_t colony_idx, int16_t pop_idx);
+    int16_t __cdecl Pop_To_Pop_State(game::id_colony colony_idx, int16_t pop_idx);
 
     char* __cdecl Pop_State_String(int16_t state);
 
     char* __cdecl Conquered_String(bool is_conquered);
 
-    char* __cdecl Pop_Race_String(int16_t colony_idx, int16_t pop_idx);
+    char* __cdecl Pop_Race_String(game::id_colony colony_idx, int16_t pop_idx);
 
     char* __cdecl Job_String(int16_t job_id);
 
@@ -174,7 +174,7 @@ namespace COLONY {
     bool __cdecl XY_In_Bldg_Poly(int16_t x, int16_t y, int16_t bldg_type, int32_t bldg_id);
 
     void __cdecl Update_Colony_Palette();
-    void __cdecl Make_Bldg_Array_For_Colony(int16_t colony_handle, uint8_t flag);
+    void __cdecl Make_Bldg_Array_For_Colony(game::id_colony colony_handle, uint8_t flag);
     void __cdecl Reset_Mouse_Picture();
     void __cdecl Clear_Mouse_Picture();
     void __cdecl Picture_To_Mouse(s_animation_header* anim_header);
@@ -220,7 +220,7 @@ namespace COLONY {
 
     int16_t __cdecl Satellite_Anim_Pic(int16_t id);
 
-    s_animation_header* __cdecl Satellite_Anim(int16_t colony_id);
+    s_animation_header* __cdecl Satellite_Anim(int16_t satellite_id);
 
     void __cdecl Draw_Satellite_Dark(int16_t x, int16_t y, int16_t satellite_id);
 
@@ -235,9 +235,9 @@ namespace COLONY {
 
     void __cdecl Remap_Draw_Ship_Centered(int16_t x, int16_t y, int16_t ship_index);
 
-    int16_t __cdecl Calculate_Colony_Turn_Count_From_Scrap_For_Prod(int16_t colony_idx, int16_t product_id);
+    int16_t __cdecl Calculate_Colony_Turn_Count_From_Scrap_For_Prod(game::id_colony colony_idx, int16_t product_id);
 
-    int16_t __cdecl Calculate_Current_Production_Turn_Count(int16_t colony_idx);
+    int16_t __cdecl Calculate_Current_Production_Turn_Count(game::id_colony colony_idx);
 
     void __cdecl Clear_Colony_Buidlings();
     void __cdecl Clear_Satellite_Array();
@@ -250,7 +250,7 @@ namespace COLONY {
 
     int16_t __cdecl CR_To_XY(int16_t col, int16_t row, int16_t axis);
 
-    void __cdecl Insert_Bldg_Into_Array(int16_t num_houses_delta, int16_t bldg_id, int16_t bldg_type, int8_t use_back_to_front);
+    void __cdecl Insert_Bldg_Into_Array(game::id_colony colony, int16_t bldg_id, int16_t bldg_type, int8_t use_back_to_front);
 
     void __cdecl Sort_Bldg_Array_Columns();
 
@@ -344,14 +344,14 @@ namespace COLONY {
 
     void __cdecl Update_Fields();
 
-    bool __cdecl Prompt_For_Autobuild_Queue(int16_t colony_idx);
+    bool __cdecl Prompt_For_Autobuild_Queue(game::id_colony colony_idx);
 
     void __cdecl Do_Informational_And_Decision_Popups();
 
-    bool __cdecl Colony_Has_Natives(int16_t colony_idx);
+    bool __cdecl Colony_Has_Natives(game::id_colony colony_idx);
 
     /** Returns whether a pending occupation policy has eligible populations. */
-    bool __cdecl Colony_Needs_Occupation_Policy(int16_t colony_idx);
+    bool __cdecl Colony_Needs_Occupation_Policy(game::id_colony colony_idx);
 
     /** Returns whether an occupation policy may annihilate a population unit. */
     bool __cdecl Colony_Pop_Is_Annihilation_Target(const s_colony* colony, uint32_t pop);
@@ -362,13 +362,13 @@ namespace COLONY {
 
     void __cdecl Do_Cheats();
 
-    void __cdecl Show_Morale(int16_t colony_idx);
+    void __cdecl Show_Morale(game::id_colony colony_idx);
 
-    void __cdecl Show_BC_Production(int16_t colony_idx);
+    void __cdecl Show_BC_Production(game::id_colony colony_idx);
 
-    void __cdecl Show_Food_Production(int16_t colony_idx);
+    void __cdecl Show_Food_Production(game::id_colony colony_idx);
 
-    void __cdecl Set_Colony_Screen_To_New_Colony(int16_t colony_idx);
+    void __cdecl Set_Colony_Screen_To_New_Colony(game::id_colony colony_idx);
 
     int8_t __cdecl Evaluate_Screen_Input(int16_t* input_field);
 
@@ -386,21 +386,21 @@ namespace COLONY {
 
     void __cdecl Check_Bldg_Fields(int16_t* input_field, int16_t* scan_field);
 
-    void __cdecl Fix_Colony_Queue(int16_t colony_idx);
+    void __cdecl Fix_Colony_Queue(game::id_colony colony_idx);
 
-    void __cdecl Squish_Out_Colony_Queue_Slot(int16_t colony_idx, int16_t slot_idx);
+    void __cdecl Squish_Out_Colony_Queue_Slot(game::id_colony colony_idx, int16_t slot_idx);
 
-    void __cdecl Defragment_Colony_Queue(int16_t colony_idx);
+    void __cdecl Defragment_Colony_Queue(game::id_colony colony_idx);
 
-    void __cdecl Cleanup_Colony_Queue(int16_t colony_idx);
+    void __cdecl Cleanup_Colony_Queue(game::id_colony colony_idx);
 
-    void __cdecl Col_Calc_Wrapper(int16_t colony_idx);
+    void __cdecl Col_Calc_Wrapper(game::id_colony colony_idx);
 
     void __cdecl Reset_Field_Arrays();
 
     void __cdecl Clear_Sys_Disp_Fields();
 
-    int16_t __cdecl Sum_Colonists(int16_t colony_idx, int16_t job, int16_t state, int16_t race, int16_t moved_flag, int16_t conquered_flag);
+    int16_t __cdecl Sum_Colonists(game::id_colony colony_idx, int16_t job, int16_t state, int16_t race, int16_t moved_flag, int16_t conquered_flag);
 
     void __cdecl Reset_Field_Mode();
 
@@ -416,7 +416,7 @@ namespace COLONY {
     void __cdecl Draw_Current_Building(int16_t building_id);
     void __cdecl Draw_Current_Ship(int16_t ship_id);
 
-    extern int16_t g_colony_n;
+    extern game::id_colony g_colony_n;
     extern s_colors bright_blue_font_color_array;
     extern s_colors font_color_array;
     extern s_colors font_dim_color_array;
@@ -437,15 +437,15 @@ namespace COLONY {
 
     void __cdecl Draw_Planet_Summary(int16_t x, int16_t y, game::id_planet planet_id);
 
-    bool __cdecl Colony_Can_Buy_Product_0(int16_t colony_idx);
+    bool __cdecl Colony_Can_Buy_Product_0(game::id_colony colony_idx);
 
-    void __cdecl Tested_Colony_Buys_Outright(int16_t colony_idx);
+    void __cdecl Tested_Colony_Buys_Outright(game::id_colony colony_idx);
 
     s_animation_header* __cdecl Mini_Planet_Anim(game::id_planet planet_id);
 
     int16_t __cdecl Bldg_Coords_To_Effective_Frame(int16_t x, int32_t y);
 
-    char* __cdecl Colony_Type(int16_t colony_idx);
+    char* __cdecl Colony_Type(game::id_colony colony_idx);
 
     void __cdecl Set_Colony_Font_To_Red(uint8_t style, uint8_t color_idx);
 
@@ -454,15 +454,15 @@ namespace COLONY {
      * @param current_idx Current colony index.
      * @param direction 0 searches forward, 1 searches backward.
      */
-    int16_t __cdecl Get_Next_Colony(int16_t current_idx, int16_t direction);
+    game::id_colony __cdecl Get_Next_Colony(game::id_colony current_idx, int16_t direction);
 
-    void __cdecl Set_Last_Colony_Selected(int16_t colony_idx, int16_t player_idx);
+    void __cdecl Set_Last_Colony_Selected(game::id_colony colony_idx, int16_t player_idx);
 
     void __cdecl Reset_Step_Squish();
 
-    int16_t __cdecl N_Bldgs(int16_t colony_idx);
+    int16_t __cdecl N_Bldgs(game::id_colony colony_idx);
 
-    void __cdecl Draw_Pop_Dark(int16_t x, int16_t y, int16_t colony_idx, int16_t pop_idx);
+    void __cdecl Draw_Pop_Dark(int16_t x, int16_t y, game::id_colony colony_idx, int16_t pop_idx);
 
     void __cdecl Create_Shadow_Farmer(int16_t unused);
 

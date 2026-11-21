@@ -72,7 +72,7 @@ namespace INTERNAL_STATE_DEBUG {
         int8_t g_event_player_filter = -2;
         int8_t g_transfer_player = -1;
         int16_t g_target_star = -1;
-        int16_t g_target_colony = -1;
+        game::id_colony g_target_colony = game::NO_COLONY;
         int16_t g_target_ship = -1;
         int8_t g_assignment_eta = 0;
         int8_t g_new_assignment_eta = 0;
@@ -153,9 +153,8 @@ namespace INTERNAL_STATE_DEBUG {
                 star < std::clamp<int16_t>(MOX::NUM_STARS, 0, MAX_STARS);
         }
 
-        bool Valid_Colony_(int16_t colony) {
-            return MOX::colony != nullptr && colony >= 0 &&
-                colony < std::clamp<int16_t>(MOX::NUM_COLONIES, 0, MAX_COLONIES);
+        bool Valid_Colony_(game::id_colony colony) {
+            return game::current_state.colonies.contains(colony);
         }
 
         bool Valid_Ship_(int16_t ship) {
@@ -190,7 +189,7 @@ namespace INTERNAL_STATE_DEBUG {
             g_assignment_eta = std::max<int8_t>(g_leader_draft.eta, 0);
             g_new_assignment_eta = g_assignment_eta;
             g_target_star = -1;
-            g_target_colony = -1;
+            g_target_colony = game::NO_COLONY;
             g_target_ship = -1;
             g_leader_status = nullptr;
         }
@@ -294,19 +293,19 @@ namespace INTERNAL_STATE_DEBUG {
                 if (it == current_state.planets.end()) {
                     continue;
                 }
-                const int16_t colony = it->second.colony_index;
-                if (Valid_Colony_(colony) && MOX::colony[colony].owner == player) {
+                const auto colony = it->second.colony_id;
+                if (Valid_Colony_(colony) && game::current_state.colonies.at(colony).owner == player) {
                     return true;
                 }
             }
             return false;
         }
 
-        int16_t Colony_Star_(int16_t colony) {
+        int16_t Colony_Star_(game::id_colony colony) {
             if (!Valid_Colony_(colony)) {
                 return -1;
             }
-            const auto planet = MOX::colony[colony].planet_id.get();
+            const auto planet = game::current_state.colonies.at(colony).planet_id;
             const auto it = current_state.planets.find(planet);
             return it == current_state.planets.end() ? -1 : it->second.star_index;
         }
@@ -469,7 +468,7 @@ namespace INTERNAL_STATE_DEBUG {
                 debug_game_widgets::Colony_Reference("Target colony", &g_target_colony, false);
                 const int16_t colony_star = Colony_Star_(g_target_colony);
                 const bool colony_valid = Valid_Colony_(g_target_colony) &&
-                    MOX::colony[g_target_colony].owner == live.player_index &&
+                    game::current_state.colonies.at(g_target_colony).owner == live.player_index &&
                     Star_Has_Player_Colony_(colony_star, live.player_index);
                 ImGui::BeginDisabled(blocked || !can_assign || !colony_valid || g_assignment_eta < 0);
                 if (ImGui::Button("Assign to colony's star")) {
@@ -719,8 +718,8 @@ namespace INTERNAL_STATE_DEBUG {
                 case EVENT_COMET:
                 case EVENT_EARTHQUAKE:
                 case EVENT_PLAGUE:
-                case EVENT_POPULATION_BOOM:
-                case EVENT_REBEL_ASSIMILATION: return EVENT_TARGET_COLONY;
+                case EVENT_POPULATION_BOOM: return EVENT_TARGET_COLONY;
+                case EVENT_REBEL_ASSIMILATION:
                 case EVENT_DIPLOMATIC_BLUNDER:
                 case EVENT_DIPLOMATIC_MARRIAGE:
                 case EVENT_EMPIRE_SURRENDERS: return EVENT_TARGET_PLAYER;
@@ -755,26 +754,23 @@ namespace INTERNAL_STATE_DEBUG {
             g_event_draft.turn_count = 0;
         }
 
-        game::id_planet Planet_For_Colony_(int16_t colony) {
-            return Valid_Colony_(colony) ? MOX::colony[colony].planet_id.get() : game::NO_PLANET;
+        game::id_planet Planet_For_Colony_(game::id_colony colony) {
+            const auto it = current_state.colonies.find(colony);
+            return it == current_state.colonies.end() ? game::NO_PLANET : it->second.planet_id;
         }
 
         bool Planet_Relationship_Valid_(game::id_planet planet) {
             if (!current_state.planets.contains(planet)) {
                 return false;
             }
-            const auto colony = current_state.planets.at(planet).colony_index;
-            return colony == -1 ||
-                (Valid_Colony_(colony) && MOX::colony[colony].planet_id.get() == planet);
+            const auto colony = current_state.planets.at(planet).colony_id;
+            return colony == game::NO_COLONY || Planet_For_Colony_(colony) == planet;
         }
 
-        bool Colony_Relationship_Valid_(int16_t colony) {
-            if (!Valid_Colony_(colony)) {
-                return false;
-            }
-            const auto planet = MOX::colony[colony].planet_id.get();
+        bool Colony_Relationship_Valid_(game::id_colony colony) {
+            const auto planet = Planet_For_Colony_(colony);
             return Planet_Relationship_Valid_(planet) &&
-                current_state.planets.at(planet).colony_index == colony &&
+                current_state.planets.at(planet).colony_id == colony &&
                 Valid_Star_(current_state.planets.at(planet).star_index);
         }
 
@@ -815,7 +811,7 @@ namespace INTERNAL_STATE_DEBUG {
                 g_event_status = "Load a game before generating player-scoped event defaults.";
                 return;
             }
-            int16_t colony = -1;
+            auto colony = game::NO_COLONY;
             switch (g_selected_event) {
                 case EVENT_DERELICT:
                     g_event_draft.target_id = TECH_APP_ACHILLES_TARGETING_UNIT;
@@ -826,7 +822,7 @@ namespace INTERNAL_STATE_DEBUG {
                     g_event_draft.planet_target = Planet_For_Colony_(colony);
                     break;
                 case EVENT_COMET:
-                    g_event_draft.target_id = EVENTS::Pick_Random_Colony_No_Capitol(player);
+                    g_event_draft.colony_target = EVENTS::Pick_Random_Colony_No_Capitol(player);
                     g_event_draft.amount = 100;
                     g_event_draft.max_amount = 100;
                     g_event_draft.turn_count = 10;
@@ -846,8 +842,8 @@ namespace INTERNAL_STATE_DEBUG {
                 case EVENT_EARTHQUAKE:
                 case EVENT_PLAGUE:
                     colony = EVENTS::Pick_Random_Colony_No_Capitol(player);
-                    g_event_draft.target_id = colony;
-                    if (g_selected_event == EVENT_PLAGUE && Valid_Colony_(colony)) {
+                    g_event_draft.colony_target = colony;
+                    if (g_selected_event == EVENT_PLAGUE && Colony_Relationship_Valid_(colony)) {
                         g_event_draft.amount = std::max<int16_t>(
                             1, EVENTS::Colony_Research_Points(colony));
                         g_event_draft.max_amount = g_event_draft.amount;
@@ -882,7 +878,7 @@ namespace INTERNAL_STATE_DEBUG {
                     g_event_draft.amount = 100;
                     break;
                 case EVENT_POPULATION_BOOM:
-                    g_event_draft.target_id = EVENTS::Pick_Random_Colony_No_Outpost(player);
+                    g_event_draft.colony_target = EVENTS::Pick_Random_Colony_No_Outpost(player);
                     break;
                 case EVENT_SERENDIPITY:
                     g_event_draft.target_id = MOX::player[player].current_research_field;
@@ -942,7 +938,7 @@ namespace INTERNAL_STATE_DEBUG {
                 case EVENT_TARGET_PLANET:
                     return current_state.planets.contains(g_event_draft.planet_target.get());
                 case EVENT_TARGET_COLONY:
-                    return Colony_Relationship_Valid_(g_event_draft.target_id);
+                    return Colony_Relationship_Valid_(g_event_draft.colony_target.get());
                 case EVENT_TARGET_SHIP:
                     return Ship_Relationship_Valid_(g_event_draft.target_id);
                 case EVENT_TARGET_TECH:
@@ -1085,10 +1081,11 @@ namespace INTERNAL_STATE_DEBUG {
                     }
                     break;
                 }
-                case EVENT_TARGET_COLONY:
-                    debug_game_widgets::Colony_Reference(
-                        "Target colony", &g_event_draft.target_id, false);
+                case EVENT_TARGET_COLONY: {
+                    auto colony = g_event_draft.colony_target.get();
+                    if (Input_U32_("Target colony", &colony.id)) g_event_draft.colony_target = colony;
                     break;
+                }
                 case EVENT_TARGET_SHIP:
                     Input_S16_("Target ship", &g_event_draft.target_id);
                     break;

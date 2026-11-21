@@ -126,23 +126,23 @@ namespace COMBINIT {
     }
 
     struct s_satellite_capture_state {
-        int16_t colony_idx = -1;
+        game::id_colony colony_idx = game::NO_COLONY;
         int16_t building_idx = -1;
     };
 
     inline void Reset_Satellite_Capture_State(s_satellite_capture_state* state) {
-        state->colony_idx = -1;
+        state->colony_idx = game::NO_COLONY;
         state->building_idx = -1;
     }
 
     inline void Record_Captured_Satellite_State(
-        s_satellite_capture_state* state, int16_t colony_idx, int16_t building_idx) {
+        s_satellite_capture_state* state, game::id_colony colony_idx, int16_t building_idx) {
         state->colony_idx = colony_idx;
         state->building_idx = building_idx;
     }
 
     inline int16_t Take_Captured_Satellite_State(
-        s_satellite_capture_state* state, int16_t colony_idx) {
+        s_satellite_capture_state* state, game::id_colony colony_idx) {
         if (state->colony_idx != colony_idx) {
             return -1;
         }
@@ -162,13 +162,13 @@ namespace COMBINIT {
     // Clears any satellite awaiting the outcome of colony capture.
     void __cdecl Reset_Satellite_Capture();
     // Records a removed satellite that may transfer with its colony.
-    void __cdecl Record_Captured_Satellite(int16_t colony_idx, int16_t building_idx);
+    void __cdecl Record_Captured_Satellite(game::id_colony colony_idx, int16_t building_idx);
     // Returns and clears the satellite recorded for this colony, or -1.
-    int16_t __cdecl Take_Captured_Satellite(int16_t colony_idx);
+    int16_t __cdecl Take_Captured_Satellite(game::id_colony colony_idx);
 
     // Loads the tactical planet graphics for the specified colony.
     // colony_idx: Colony whose planet art should be loaded.
-    void __cdecl Load_Combat_Colony_Picture(int16_t colony_idx);
+    void __cdecl Load_Combat_Colony_Picture(game::id_colony colony_idx);
 
     /**
      * The combat planet's size (PLANET_SIZE_*): its colony's planet, or the Antaran homeworld's
@@ -201,7 +201,7 @@ namespace COMBINIT {
 
     // Returns whether the colony has any tactical defensive installation.
     // colony_idx: Colony index to inspect.
-    int8_t __cdecl Colony_Has_Defenses(int16_t colony_idx);
+    int8_t __cdecl Colony_Has_Defenses(game::id_colony colony_idx);
 
     // Loads the scripted Antaran defensive fleet into combat data.
     void __cdecl Load_Antaran_Defense_Fleet();
@@ -217,16 +217,16 @@ namespace COMBINIT {
     void __cdecl Load_Antaran_Planet();
     // Loads the colony and any orbiting defense platform into combat data.
     // colony_idx: Colony index whose defenses should be loaded.
-    void __cdecl Load_Colony_Defense(int16_t colony_idx);
+    void __cdecl Load_Colony_Defense(game::id_colony colony_idx);
 
     // Loads the colony combat object and optionally its artwork.
     // colony_idx: Colony index to load.
     // load_picture: Nonzero to load the colony picture assets.
-    void __cdecl Load_Tactical_Colony(int16_t colony_idx, int16_t load_picture);
+    void __cdecl Load_Tactical_Colony(game::id_colony colony_idx, int16_t load_picture);
 
     // Returns the combat station type present at the colony, or -1 if none.
     // colony_idx: Colony index to inspect.
-    int16_t __cdecl Type_Of_Space_Station(int16_t colony_idx);
+    int16_t __cdecl Type_Of_Space_Station(game::id_colony colony_idx);
 
     // Loads one orbital defense platform or station into combat data.
     // station_type: Station hull/type selector.
@@ -302,7 +302,7 @@ namespace COMBINIT {
     // star_idx: Star index for the battle, or NUM_STARS for Antares.
     // colony_idx: Defending colony index, or -1.
     // retreat_flag: Initial retreat-control flag.
-    int16_t __cdecl Tactical_Combat(int16_t* plr1_ships, int16_t plr1_ship_count, int16_t* plr2_ships, int16_t plr2_ship_count, int16_t star_idx, int16_t colony_idx, int16_t retreat_flag);
+    int16_t __cdecl Tactical_Combat(int16_t* plr1_ships, int16_t plr1_ship_count, int16_t* plr2_ships, int16_t plr2_ship_count, int16_t star_idx, game::id_colony colony_idx, int16_t retreat_flag);
 
     // Converts subsystem hit-point loss to a strategic damage percentage.
     inline int16_t Damage_Percent_From_Hits(uint16_t maximum_hits, uint16_t current_hits) {

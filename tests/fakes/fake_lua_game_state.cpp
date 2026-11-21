@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
 
 #include "lua/lua_game_ship_identity.h"
@@ -9,7 +10,7 @@ namespace {
     s_ship_data ships[MAX_SHIPS];
     s_star_data systems[MAX_STARS];
 
-    s_colony colonies[MAX_PLAYERS];
+    test_colonies::Slots<MAX_PLAYERS> colonies;
     s_nebula nebulas[MAX_NEBULAS];
     char star_names[829][15];
     uint16_t star_name_indices[829];
@@ -23,7 +24,7 @@ namespace TEST_LUA_GAME {
         memset(ships, 0, sizeof(ships));
         memset(systems, 0, sizeof(systems));
         test_planets::Reset(0);
-        memset(colonies, 0, sizeof(colonies));
+        colonies.Reset();
         game::current_state = game::s_game_state{};
         memset(nebulas, 0, sizeof(nebulas));
         for (int index = 0; index < 829; ++index) {
@@ -40,7 +41,6 @@ namespace TEST_LUA_GAME {
         MOX::NUM_SHIPS = 2;
         MOX::NUM_STARS = 2;
         test_planets::Resize_Dense(3);
-        MOX::NUM_COLONIES = 0;
         MOX::NUM_NEBULAS = 0;
         MOX::combat_total_ship_count = 2;
         players[0].objectives = PLAYER_OBJECTIVE_HUMAN;
@@ -58,7 +58,7 @@ namespace TEST_LUA_GAME {
             }
         }
         for (auto& [id, planet] : game::current_state.planets) {
-            planet.colony_index = -1;
+            planet.colony_id = game::NO_COLONY;
         }
         test_planets::Record(0).star_index = 0;
         test_planets::Record(0).orbit = 0;
@@ -120,14 +120,12 @@ namespace MOX {
     int16_t NUM_SHIPS;
     int16_t NUM_STARS;
 
-    int16_t NUM_COLONIES;
     int16_t combat_total_ship_count;
     s_player* player = players;
     s_combat_data* combat_data = combat_ships;
     s_ship_data* ship = ships;
     s_star_data* star = systems;
 
-    s_colony* colony = colonies;
     s_nebula* nebula = nebulas;
     uint8_t NUM_NEBULAS;
     int16_t MAP_MAX_X = 506;

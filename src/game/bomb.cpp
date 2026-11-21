@@ -41,8 +41,7 @@ namespace BOMB {
                     colony->n_pops = 0;
 
                     if (colony->buildings[BUILDING_CAPITOL] != 0) {
-                        int16_t colony_idx = (int16_t)(colony - MOX::colony);
-                        ERICNET::Remove_Building(colony_idx, BUILDING_CAPITOL);
+                        ERICNET::Remove_Building(game::current_state, bomb_result->colony_id.get(), BUILDING_CAPITOL);
                     }
 
                     bomb_result->colony_wiped_out = 1;
@@ -69,8 +68,7 @@ namespace BOMB {
 
             if (hit_idx < target_building_count) {
                 int8_t building_id = target_building_indices[hit_idx];
-                int16_t colony_idx = (int16_t)(colony - MOX::colony);
-                ERICNET::Remove_Building(colony_idx, (int16_t)building_id);
+                ERICNET::Remove_Building(game::current_state, bomb_result->colony_id.get(), (int16_t)building_id);
                 bomb_result->buildings_destroyed[building_id] = 1;
                 bomb_result->damage_occurred = 1;
                 if (colony->n_pops == 0 && target_building_count == 1) {
@@ -233,8 +231,9 @@ namespace BOMB {
     void __cdecl Apply_Bomb_Hits(s_combat_bomb_result* bomb_result) {
         int32_t bio_hits = bomb_result->bio_hits_remaining;
         int32_t bomb_hits = bomb_result->bomb_hits_remaining;
-        const int16_t colony_idx = bomb_result->colony_idx;
-        s_colony* colony = &MOX::colony[colony_idx];
+        const auto colony_id = bomb_result->colony_id.get();
+        if (colony_id == game::NO_COLONY) return;
+        s_colony* colony = &game::current_state.colonies.at(colony_id);
 
         while (bio_hits + bomb_hits > 0) {
             if (bio_hits != 0) {

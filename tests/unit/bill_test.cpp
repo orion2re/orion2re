@@ -9,7 +9,6 @@ DOCTEST_TEST_CASE("population history includes freighted population") {
         s_player* saved_players = MOX::player;
         int16_t saved_num_players = MOX::NUM_PLAYERS;
         int16_t saved_num_ships = MOX::NUM_SHIPS;
-        int16_t saved_num_colonies = MOX::NUM_COLONIES;
         int16_t saved_history[6];
 
         s_history_fixture() {
@@ -17,7 +16,6 @@ DOCTEST_TEST_CASE("population history includes freighted population") {
             MOX::player = &player;
             MOX::NUM_PLAYERS = 1;
             MOX::NUM_SHIPS = 0;
-            MOX::NUM_COLONIES = 0;
             const int16_t history[6] = {2, 7, 1, 1, 1, 1};
             memcpy(MOX::bill_savegame, history, sizeof(history));
         }
@@ -26,7 +24,6 @@ DOCTEST_TEST_CASE("population history includes freighted population") {
             MOX::player = saved_players;
             MOX::NUM_PLAYERS = saved_num_players;
             MOX::NUM_SHIPS = saved_num_ships;
-            MOX::NUM_COLONIES = saved_num_colonies;
             memcpy(MOX::bill_savegame, saved_history, sizeof(saved_history));
         }
     } fixture;

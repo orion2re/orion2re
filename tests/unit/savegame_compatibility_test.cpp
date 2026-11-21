@@ -67,7 +67,7 @@ DOCTEST_TEST_CASE("every released savegame version loads through the game runtim
         DOCTEST_CHECK(memcmp(metadata.description, description, sizeof(description)) == 0);
         DOCTEST_CHECK((metadata.stardate == 35123));
         DOCTEST_CHECK(seed == 0xCAFEBABE);
-        DOCTEST_CHECK(MOX::NUM_COLONIES == 249);
+        DOCTEST_CHECK(game::current_state.next_colony_id == 249);
         const auto& game_state = game::current_state;
         DOCTEST_CHECK(game_state.planets.size() == 359);
         DOCTEST_REQUIRE(game_state.planet_order.size() == 359);
@@ -85,7 +85,7 @@ DOCTEST_TEST_CASE("every released savegame version loads through the game runtim
         DOCTEST_CHECK((MOX::antarans.offensive_titan_built == (version >= 3 ? 1 : 0)));
         DOCTEST_CHECK((MOX::antarans.offensive_limit_exhausted_mask == (version >= 3 ? 4 : 0)));
         const auto& settler = state.players[0].settlers[ORIGINAL_MAX_FREIGHTED_SETTLERS];
-        DOCTEST_CHECK(settler.source_colony.get() == (version >= 3 ? 4 : 0));
+        DOCTEST_CHECK(settler.source_colony.get() == game::id_colony{version >= 3 ? 4u : 0u});
         DOCTEST_CHECK(settler.destination.get() == game::id_planet{version >= 3 ? 3u : 0u});
         DOCTEST_CHECK(settler.race == (version >= 3 ? 2 : 0));
         DOCTEST_CHECK(settler.eta == 0);
@@ -93,7 +93,11 @@ DOCTEST_TEST_CASE("every released savegame version loads through the game runtim
         DOCTEST_CHECK(settler.legacy_flags.get() == 0);
         DOCTEST_CHECK((state.ships[0].prior_jump_gate_destination == (version >= 4 ? 3 : -1)));
         DOCTEST_CHECK((state.ships[0].prior_jump_gate_stardate == (version >= 4 ? 35122 : 0)));
-        DOCTEST_CHECK((state.colonies[0].buildings_scrapped_this_turn == (version >= 7 ? 3 : 1)));
+        DOCTEST_CHECK_FALSE(game_state.colonies.contains(game::id_colony{0}));
+        // The synthetic legacy records contain dangling and out-of-range links.
+        DOCTEST_CHECK_FALSE(game_state.colonies.contains(game::id_colony{3}));
+        DOCTEST_CHECK(game_state.colonies.at(game::id_colony{60}).buildings_scrapped_this_turn == 1);
+        DOCTEST_CHECK(game_state.planets.at(game::id_planet{292}).colony_id == game::id_colony{60});
         DOCTEST_CHECK(SAVEGAME::Consume_Loaded_Config_Message() ==
             (version >= 3 ? "Loaded config: base_game" : ""));
     }

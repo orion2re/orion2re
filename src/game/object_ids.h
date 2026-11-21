@@ -14,8 +14,9 @@ namespace game {
     };
     struct id_colony {
         uint32_t id;
-        bool operator==(const id_colony&) const = default;
+        auto operator<=>(const id_colony&) const = default;
     };
+    inline constexpr id_colony NO_COLONY{UINT32_MAX};
     struct id_planet {
         uint32_t id;
         auto operator<=>(const id_planet&) const = default;
