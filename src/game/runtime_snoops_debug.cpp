@@ -51,6 +51,10 @@ namespace RUNTIME_SNOOPS_DEBUG {
         int16_t g_nebula_star = 0;
         bool g_show_empty_message_slots = false;
 
+        std::string Planet_Id_Label_(game::id_planet id) {
+            return id == game::NO_PLANET ? "None" : std::to_string(id.id);
+        }
+
         const char* Message_Type_Name_(int8_t type) {
             return type >= 0 && type < (int8_t)(sizeof(k_message_type_names) /
                        sizeof(k_message_type_names[0]))
@@ -218,17 +222,17 @@ namespace RUNTIME_SNOOPS_DEBUG {
                 ImGui::Text("Framed player: %s", Player_Name_(
                     report.d.sabotage.framed_player_idx, player_name, sizeof(player_name)));
                 ImGui::Text("Victim player: %u", (unsigned)report.d.sabotage.victim_player_idx);
-                ImGui::Text("Planet: %u", report.d.sabotage.planet_id.get().id);
+                ImGui::Text("Planet: %s", Planet_Id_Label_(report.d.sabotage.planet_id.get()).c_str());
                 ImGui::Text("Building: %u", (unsigned)report.d.sabotage.building_id);
             } else if (report.type == 2 && report.action == 0) {
                 ImGui::Text("Enemy player: %d", (int)report.d.enemy_steal.enemy_player_idx);
                 ImGui::Text("Technology application: %d", (int)report.d.enemy_steal.tech_app_id);
             } else if (report.type == 2 && report.action == 1) {
                 ImGui::Text("Enemy player: %d", (int)report.d.enemy_sabotage.enemy_player_idx);
-                ImGui::Text("Planet: %u", report.d.enemy_sabotage.planet_id.get().id);
+                ImGui::Text("Planet: %s", Planet_Id_Label_(report.d.enemy_sabotage.planet_id.get()).c_str());
                 ImGui::Text("Building: %u", (unsigned)report.d.enemy_sabotage.building_id);
             } else if (report.type == 3) {
-                ImGui::Text("Planet: %u", report.d.artifacts.planet_id.get().id);
+                ImGui::Text("Planet: %s", Planet_Id_Label_(report.d.artifacts.planet_id.get()).c_str());
                 ImGui::Text("Technology application: %d",
                     (int)report.d.artifacts.tech_app_id);
             }
@@ -307,7 +311,7 @@ namespace RUNTIME_SNOOPS_DEBUG {
             char name_b[64];
             switch (message.msg_type) {
                 case MSG_TYPE_COLONY:
-                    ImGui::Text("Planet: %u", message.u.colony.planet_id.get().id);
+                    ImGui::Text("Planet: %s", Planet_Id_Label_(message.u.colony.planet_id.get()).c_str());
                     ImGui::Text("Event: %u - %s", (unsigned)message.u.colony.subtype,
                         Colony_Message_Name_(message.u.colony.subtype));
                     switch (message.u.colony.subtype) {
@@ -376,8 +380,8 @@ namespace RUNTIME_SNOOPS_DEBUG {
                         (int)message.u.scrap_ship.ship_idx);
                     break;
                 case MSG_TYPE_LOST_COLONY:
-                    ImGui::Text("Planet: %d, reason: %d, leader: %d, colony/outpost: %d",
-                        message.u.lost_colony.planet_id.get().id,
+                    ImGui::Text("Planet: %s, reason: %d, leader: %d, colony/outpost: %d",
+                        Planet_Id_Label_(message.u.lost_colony.planet_id.get()).c_str(),
                         (int)message.u.lost_colony.reason,
                         (int)message.u.lost_colony.leader_idx,
                         (int)message.u.lost_colony.colony_or_outpost);
@@ -769,7 +773,7 @@ namespace RUNTIME_SNOOPS_DEBUG {
                     player < MAX_PLAYERS ? (int)network.player_connected_flags[player] : -1);
                 ImGui::Text("Combat star: %d", (int)info.combat_star_id);
                 ImGui::Text("Combat defender: %d", (int)info.combat_defender_id);
-                ImGui::Text("Combat planet: %d", info.combat_planet_id.get().id);
+                ImGui::Text("Combat planet: %s", Planet_Id_Label_(info.combat_planet_id.get()).c_str());
                 ImGui::Text("Combat target player: %d", (int)info.combat_target_player_id);
                 ImGui::Text("Combat type: %u", (unsigned)info.combat_type);
                 ImGui::Text("Combat attacker: %d", (int)info.combat_attacker_id);
@@ -858,8 +862,8 @@ namespace RUNTIME_SNOOPS_DEBUG {
             }
 
             if (ImGui::CollapsingHeader("Combat synchronization")) {
-                ImGui::Text("Star: %d; planet: %d; defender: %d; target player: %d",
-                    (int)network.combat_star_id, network.combat_planet_id.get().id,
+                ImGui::Text("Star: %d; planet: %s; defender: %d; target player: %d",
+                    (int)network.combat_star_id, Planet_Id_Label_(network.combat_planet_id.get()).c_str(),
                     (int)network.combat_defender_id, (int)network.combat_target_player_id);
                 ImGui::Text("Type: %u; attacker: %d; result: %d; battle results: %p",
                     (unsigned)network.combat_type, (int)network.combat_attacker_id,

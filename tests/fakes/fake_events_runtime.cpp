@@ -301,8 +301,9 @@ namespace BOMB {
     }
 
     void __cdecl Destroy_Colony(s_colony* colony, int32_t) {
-        if (colony->planet_id.get() != game::NO_PLANET) {
-            test_planets::Record(SERIAL::Encode_Legacy_Planet_Reference(colony->planet_id.get())).colony_index = -1;
+        const auto id = colony->planet_id.get();
+        if (id != game::NO_PLANET) {
+            game::current_state.planets.at(id).colony_index = -1;
         }
         colony->owner = -1;
         colony->planet_id = game::NO_PLANET;

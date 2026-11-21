@@ -324,18 +324,20 @@ DOCTEST_TEST_CASE("Supernova adds the minimum to total system research") {
     DOCTEST_CHECK(EVENTS::Supernova_Research_Requirement(0, 3) == 63);
 }
 
-DOCTEST_TEST_CASE("failed Supernova resets planet environment before destruction") {
+DOCTEST_TEST_CASE("failed Supernova resets planet environment and clears a wide colony link") {
     TEST_EVENTS::Reset_();
 
-    MOX::star[0].orbit_planet_ids[0] = game::id_planet{0};
+    constexpr game::id_planet colony_planet{70000};
+    MOX::star[0].orbit_planet_ids[0] = colony_planet;
     MOX::star[0].orbit_planet_ids[1] = game::id_planet{1};
-    test_planets::Record(0).colony_index = 0;
-    test_planets::Record(0).climate = PLANET_CLIMATE_TERRAN;
-    test_planets::Record(0).environmental_alterations = 2;
+    auto& colonized = test_planets::Record(colony_planet.id);
+    colonized.colony_index = 0;
+    colonized.climate = PLANET_CLIMATE_TERRAN;
+    colonized.environmental_alterations = 2;
     test_planets::Record(1).climate = PLANET_CLIMATE_GAIA;
     test_planets::Record(1).environmental_alterations = 2;
     MOX::colony[0].owner = 0;
-    MOX::colony[0].planet_id = game::id_planet{0};
+    MOX::colony[0].planet_id = colony_planet;
     MOX::food_per_farmer_table[PLANET_CLIMATE_RADIATED] = 7;
 
     s_event_data& event = EVENTS::event_data[EVENT_SUPERNOVA];
@@ -347,12 +349,15 @@ DOCTEST_TEST_CASE("failed Supernova resets planet environment before destruction
     EVENTS::Event_Twiddle();
 
     DOCTEST_CHECK((event.status == 5));
-    for (int planet_idx = 0; planet_idx < 2; ++planet_idx) {
-        DOCTEST_CHECK((test_planets::Record(planet_idx).climate == PLANET_CLIMATE_RADIATED));
-        DOCTEST_CHECK((test_planets::Record(planet_idx).environmental_alterations == 0));
-        DOCTEST_CHECK((test_planets::Record(planet_idx).food_per_farmer == 7));
+    for (const auto id : {colony_planet, game::id_planet{1}}) {
+        const auto& planet = game::current_state.planets.at(id);
+        DOCTEST_CHECK(planet.climate == PLANET_CLIMATE_RADIATED);
+        DOCTEST_CHECK(planet.environmental_alterations == 0);
+        DOCTEST_CHECK(planet.food_per_farmer == 7);
     }
-    DOCTEST_CHECK((test_planets::Record(0).colony_index == -1));
+    DOCTEST_CHECK(colonized.colony_index == -1);
+    DOCTEST_CHECK_FALSE(game::current_state.planets.contains(game::NO_PLANET));
+    DOCTEST_CHECK(MOX::colony[0].planet_id.get() == game::NO_PLANET);
     DOCTEST_CHECK((MOX::colony[0].owner == -1));
 }
 

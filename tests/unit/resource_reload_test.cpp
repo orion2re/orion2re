@@ -482,6 +482,33 @@ DOCTEST_TEST_CASE("invalid planet links do not escape the planet and star arrays
     DOCTEST_CHECK(HAROLD::Planet_Number(game::current_state, game::id_planet{0}) == 0);
 }
 
+DOCTEST_TEST_CASE("colony auto-select preserves a remembered orbit owned by the player") {
+    test::s_game_state state;
+    MOX::NUM_STARS = 1;
+    MOX::PLAYER_NUM = 0;
+    MOX::NUM_COLONIES = 13;
+
+    constexpr game::id_planet remembered{70000};
+    constexpr game::id_planet alternative{70001};
+    auto& selected = state.stars[0].last_planet_selected[MOX::PLAYER_NUM];
+    selected = 1;
+    state.stars[0].orbit_planet_ids[1] = remembered;
+    state.stars[0].orbit_planet_ids[3] = alternative;
+    test_planets::Record(remembered.id).colony_index = 12;
+    test_planets::Record(alternative.id).colony_index = 4;
+    state.colonies[12].owner = MOX::PLAYER_NUM;
+    state.colonies[4].owner = MOX::PLAYER_NUM;
+
+    HACCESS::Set_All_Colony_Auto_Select_Flags();
+    DOCTEST_CHECK(selected == 1);
+
+    // A foreign colony in record 0 is not owned by player 0.
+    test_planets::Record(remembered.id).colony_index = 0;
+    state.colonies[0].owner = 1;
+    HACCESS::Set_All_Colony_Auto_Select_Flags();
+    DOCTEST_CHECK(selected == 3);
+}
+
 DOCTEST_TEST_CASE("session settings recover missing and short files without losing live choices") {
     Fixture fixture;
     struct Restore_Directory {
