@@ -122,7 +122,7 @@ namespace COLCALC {
 }
 
 namespace HACCESS {
-    char* __cdecl Get_Planet_Name(int16_t) {
+    char* Get_Planet_Name(const game::s_game_state&, game::id_planet) {
         return planet_name;
     }
 }

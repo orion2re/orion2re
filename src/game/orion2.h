@@ -150,7 +150,7 @@ struct s_battle_results_info {
     int32_t ground_defense_strength;
     int16_t captured_techs_data[TECH_APP_COUNT];
     int16_t captured_tech_id;
-    int16_t captured_tech_planet_id;
+    unaligned::field<game::id_planet> captured_tech_planet_id = game::NO_PLANET;
     int8_t planet_destroyed_flag;
     int16_t orion_techs[7];
     int16_t rescued_hero_id;
@@ -181,7 +181,7 @@ struct s_net_player_info {
     int8_t player_state;
     int16_t combat_star_id;
     int16_t combat_defender_id;
-    int16_t combat_planet_id;
+    unaligned::field<game::id_planet> combat_planet_id = game::NO_PLANET;
     int16_t combat_target_player_id;
     uint8_t combat_type;
     int8_t combat_attacker_id;
@@ -192,7 +192,7 @@ struct s_net_player_info {
 struct s_battle_results {
     struct s_net_player_info player_info;
     int8_t outpost_destroyed_flag;
-    int16_t planet_id;
+    unaligned::field<game::id_planet> planet_id = game::NO_PLANET;
     struct s_combat_bomb_result bomb;
     struct s_battle_results_info info;
 };
@@ -599,6 +599,7 @@ struct s_event_data {
     int16_t target_id;
     int16_t amount;
     int16_t max_amount;
+    unaligned::field<game::id_planet> planet_target = game::NO_PLANET;
 };
 
 typedef struct s_file_buffer_entry s_file_buffer_entry, *Ps_file_buffer_entry;
@@ -1393,13 +1394,13 @@ union s_MSG_colony_union {
 };
 
 struct s_MSG_colony {
-    int16_t planet_idx;
+    unaligned::field<game::id_planet> planet_id;
     MSG_COLONY_SUBTYPE subtype;
     union s_MSG_colony_union c;
 };
 
 struct s_MSG_lost_colony {
-    int16_t planet_idx;
+    unaligned::field<game::id_planet> planet_id;
     int16_t reason;
     int16_t leader_idx;
     int8_t colony_or_outpost;
@@ -1427,6 +1428,7 @@ struct s_MSG_anomaly {
 };
 
 union s_MSG_union {
+    uint8_t payload_bytes[11]{};
     struct s_MSG_colony colony;
     struct s_MSG_players players;
     struct s_MSG_financial financial;
@@ -1450,7 +1452,7 @@ union s_MSG_union {
 struct s_MSG {
     int8_t msg_type;
     uint8_t priority;
-    union s_MSG_union u;
+    union s_MSG_union u{};
     uint8_t reserved[8];
 };
 
@@ -1754,7 +1756,7 @@ typedef struct s_net_pack_monster_update s_net_pack_monster_update, *Ps_net_pack
 
 struct s_net_pack_monster_update {
     int32_t monster_type;
-    int16_t target_planet_id;
+    unaligned::field<game::id_planet> target_planet_id;
     // Used only when target_planet_id is -1; updates both event player and amount.
     int32_t player_idx_or_amount;
 };
@@ -1768,7 +1770,7 @@ struct s_net_pack_pick_your_position {
 
 struct s_net_pack_combat_target_chosen {
     int16_t combat_defender_id;
-    int16_t combat_planet_id;
+    unaligned::field<game::id_planet> combat_planet_id = game::NO_PLANET;
     int16_t combat_target_player_id;
 };
 
@@ -1846,7 +1848,7 @@ struct s_network {
     uint8_t sync_state;
     int16_t combat_star_id;
     int16_t combat_defender_id;
-    int16_t combat_planet_id;
+    unaligned::field<game::id_planet> combat_planet_id = game::NO_PLANET;
     int16_t combat_target_player_id;
     uint8_t combat_type;
     int8_t combat_attacker_id;
@@ -2114,20 +2116,21 @@ typedef struct s_report_enemy_sabotage s_report_enemy_sabotage, *Ps_report_enemy
 typedef struct s_report_artifacts s_report_artifacts, *Ps_report_artifacts;
 
 struct s_report_artifacts {
-    int16_t planet_idx;
+    unaligned::field<game::id_planet> planet_id;
     int16_t tech_app_id;
+    uint8_t reserved;
 };
 
 struct s_report_enemy_sabotage {
     int16_t enemy_player_idx;
-    int16_t planet_idx;
+    unaligned::field<game::id_planet> planet_id;
     uint8_t building_id;
 };
 
 struct s_report_sabotage {
     int8_t framed_player_idx;
     uint8_t victim_player_idx;
-    int16_t planet_idx;
+    unaligned::field<game::id_planet> planet_id;
     uint8_t building_id;
 };
 
@@ -2143,6 +2146,7 @@ struct s_report_steal {
 };
 
 union s_report_data {
+    uint8_t payload_bytes[7]{};
     struct s_report_steal steal;
     struct s_report_sabotage sabotage;
     struct s_report_enemy_steal enemy_steal;
@@ -2154,7 +2158,7 @@ struct s_report {
     uint8_t type;
     int16_t player_idx;
     uint8_t action;
-    union s_report_data d;
+    union s_report_data d{};
     uint8_t reserved[11];
 };
 
@@ -2813,7 +2817,7 @@ struct s_star_weight {
 typedef struct s_sys_disp s_sys_disp, *Ps_sys_disp;
 
 struct s_sys_disp {
-    int16_t orbit;
+    unaligned::field<game::id_planet> planet_id = game::NO_PLANET;
     int16_t x;
     int16_t y;
     int8_t oribit_pos;

@@ -114,10 +114,6 @@ namespace HAROLD {
         return false;
     }
 
-    int8_t __cdecl Planet_Number(int16_t planet_index) {
-        return Planet_Number(game::current_state, SERIAL::Decode_Legacy_Planet_Reference(planet_index));
-    }
-
     int8_t Planet_Number(const game::s_game_state& state, game::id_planet id) {
         // Callers use this as a Roman-numeral index, so fall back to planet I.
         const auto planet = state.planets.find(id);
@@ -134,10 +130,6 @@ namespace HAROLD {
         }
 
         return relative_planet_num;
-    }
-
-    int16_t __cdecl Planet_Index(int16_t star_idx, int16_t planet_idx) {
-        return SERIAL::Encode_Legacy_Planet_Reference(MOX::star[star_idx].orbit_planet_ids[planet_idx].get());
     }
 
     void __cdecl Get_Font_File(char* buffer) {
@@ -858,11 +850,11 @@ namespace HAROLD {
         return has_outpost;
     }
 
-    int8_t __cdecl Planet_Has_Outpost(int16_t planet_idx) {
+    int8_t __cdecl Planet_Has_Outpost(game::id_planet planet_idx) {
         int8_t has_outpost = 0;
 
-        if (planet_idx != -1) {
-            const int16_t colony_idx = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).colony_index;
+        if (planet_idx != game::NO_PLANET) {
+            const int16_t colony_idx = game::current_state.planets.at(planet_idx).colony_index;
             if (colony_idx != -1) {
                 if (MOX::colony[colony_idx].outpost_flag != 0) {
                     has_outpost = 1;

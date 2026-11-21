@@ -57,7 +57,7 @@ namespace NETMOX {
 
     void __cdecl Handle_Network_Player_Disconnected(int player_idx);
 
-    void __cdecl Russ_Event_Monster_Update(int16_t monster_type, int16_t target_planet_id, int16_t player_idx_or_amount);
+    void __cdecl Russ_Event_Monster_Update(int16_t monster_type, game::id_planet target_planet_id, int16_t player_idx_or_amount);
 
     int32_t __cdecl Net_Id_To_Player_Id(int32_t player_idx);
 
@@ -172,7 +172,7 @@ namespace NETMOX {
 
     void __cdecl Decode_Player_Disconnected_Info(void* data, uint32_t len);
 
-    void __cdecl Send_Battle_Results(int16_t star_id, int16_t player_id, int16_t target_player_id, int16_t combat_defender_id, int16_t combat_planet_id, int16_t combat_result);
+    void __cdecl Send_Battle_Results(int16_t star_id, int16_t player_id, int16_t target_player_id, int16_t combat_defender_id, game::id_planet combat_planet_id, int16_t combat_result);
 
 #pragma pack(push, 1)
     struct s_packet_dragon_info {

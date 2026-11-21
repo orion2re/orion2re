@@ -162,7 +162,7 @@ namespace orion2re::lua::game {
                 lua_setfield(lua_state, values, name);
             };
             set_integer("colony_id", context->colony_id);
-            set_integer("planet_id", context->planet_id);
+            set_integer("planet_id", context->planet_id.id);
             set_integer("owner_id", context->owner_id);
             set_integer("race_id", context->race_id);
             set_integer("race_population", context->race_population);
@@ -477,8 +477,7 @@ namespace orion2re::lua::game {
             return growth;
         }
         if (context == nullptr || context->colony_id < 0 ||
-            context->colony_id >= MAX_COLONIES || context->planet_id < 0 ||
-            context->planet_id >= MAX_PLANETS || context->owner_id < 0 ||
+            context->colony_id >= MAX_COLONIES || context->planet_id == NO_PLANET || context->owner_id < 0 ||
             context->owner_id >= MAX_PLAYERS || context->race_id < 0 ||
             context->race_id >= MAX_PLAYERS ||
             context->race_population < 0 ||

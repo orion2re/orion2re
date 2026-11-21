@@ -9,7 +9,7 @@ namespace HACCESS {
      */
     void __cdecl Race_Name(int16_t race_id, char* race_name_out, uint32_t race_name_out_size);
 
-    void __cdecl Set_Colony_Auto_Select_For_Star(int16_t star_idx, int16_t player_idx, int16_t* out_planet_idx);
+    void __cdecl Set_Colony_Auto_Select_For_Star(int16_t star_idx, int16_t player_idx, game::id_planet* out_planet_idx);
 
     bool __cdecl Star_Has_Relocation(int16_t star_idx, int16_t player_idx);
 
@@ -49,9 +49,7 @@ namespace HACCESS {
 
     bool __cdecl Fleet_Movement_Icon_Selected(int16_t icon_idx);
 
-    void __cdecl Do_Get_Planet_Name(int16_t planet_idx, char* buffer, uint8_t localized_flag);
 
-    char* __cdecl Get_Planet_Name(int16_t planet_idx);
     char* Get_Planet_Name(const game::s_game_state& state, game::id_planet id);
 
     int16_t __cdecl Last_Colony_Selected(int16_t star_idx, int16_t player_idx);
@@ -95,7 +93,6 @@ namespace HACCESS {
 
     bool __cdecl Is_Combat_Ship(int16_t ship_index);
 
-    char* __cdecl Get_Planet_Name_No_Prime(int16_t planet_idx);
     char* Get_Planet_Name_No_Prime(const game::s_game_state& state, game::id_planet id);
 
     int16_t __cdecl N_Star_Relocations(int16_t player_idx);
@@ -124,13 +121,12 @@ namespace HACCESS {
 
     bool __cdecl Player_Has_Tech(int16_t tech_idx, int16_t player_idx);
 
-    int16_t __cdecl Planet_Orbit(int16_t planet_idx);
 
     bool __cdecl Enemy_Ship_Going_To_My_Colony();
 
     void __cdecl Set_All_Colony_Auto_Select_Flags();
 
-    int16_t __cdecl System_Planet_Scanned_To_Planet_Id(int16_t star_idx, int16_t planet_idx);
+    game::id_planet __cdecl System_Planet_Scanned_To_Planet_Id(int16_t star_idx, int16_t planet_idx);
 
     int16_t __cdecl System_Ship_Scanned_To_Ship_Id(int16_t ship_node_idx);
 

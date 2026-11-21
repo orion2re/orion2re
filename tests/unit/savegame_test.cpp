@@ -11,6 +11,8 @@
 #include "game/star_serialization.h"
 #include "game/colony_serialization.h"
 #include "game/ship_serialization.h"
+#include "game/notice_serialization.h"
+#include "game/event_serialization.h"
 #include "game/settler_serialization.h"
 #include "game/save_sections.h"
 #include "lua/lua_game_ship_identity.h"
@@ -86,7 +88,8 @@ namespace {
         const size_t player_size = 0xf0e + 2 + ORIGINAL_MAX_FREIGHTED_SETTLERS * (SERIAL::SETTLER_BYTES - 8)
             + 2 * (1 + MAX_PLAYERS);
         const size_t ships = player_count_offset + 2 + MAX_PLAYERS * player_size;
-        const size_t tail = ships + 2 + MOX::NUM_SHIPS * SERIAL::SHIP_RECORD_BYTES + 164 + MOX::NUM_NEBULAS * 5 + 4491;
+        const size_t report_count = ships + 2 + MOX::NUM_SHIPS * SERIAL::SHIP_RECORD_BYTES + 164 + MOX::NUM_NEBULAS * 5 + 12;
+        const size_t tail = report_count + 4491 - 12 + 2 * (MAX_REPORTS + MAX_MESSAGES) + 4 * EVENT_COUNT;
         constexpr size_t tail_records = MAX_PLAYERS * (MAX_FREIGHTED_SETTLERS - ORIGINAL_MAX_FREIGHTED_SETTLERS);
         DOCTEST_REQUIRE(tail + tail_records * SERIAL::SETTLER_BYTES <= size);
         DOCTEST_REQUIRE((data[player_count_offset + 1] & 0x80) != 0);
@@ -135,6 +138,37 @@ namespace {
         for (int i = 0; i < MOX::NUM_SHIPS; ++i) {
             copy(SERIAL::LEGACY_SHIP_RECORD_BYTES);
             read += sizeof(uint32_t);
+        }
+        copy(report_count - read);
+        data[read + 1] &= ~(SERIAL::WIDE_NOTICES_FLAG >> 8);
+        copy(2);
+        for (int i = 0; i < MAX_REPORTS; ++i) {
+            s_report report{};
+            SERIAL::Reader_ reader(data + read, SERIAL::REPORT_BYTES, "test report underflow");
+            SERIAL::Read_Report(&reader, &report, 8, true);
+            SERIAL::Writer_ writer(data + write, SERIAL::LEGACY_REPORT_BYTES, "test report overflow");
+            SERIAL::Write_Report(&writer, &report, false);
+            read += SERIAL::REPORT_BYTES;
+            write += SERIAL::LEGACY_REPORT_BYTES;
+        }
+        copy(1 + MAX_PLAYERS + BITMAP(MAX_STARS));
+        for (int i = 0; i < EVENT_COUNT; ++i) {
+            s_event_data event{};
+            SERIAL::Reader_ reader(data + read, SERIAL::EVENT_BYTES, "test event underflow");
+            SERIAL::Read_Event(reader, event, i, true);
+            SERIAL::Writer_ writer(data + write, SERIAL::LEGACY_EVENT_BYTES, "test event overflow");
+            SERIAL::Write_Event(writer, event, i, false);
+            read += SERIAL::EVENT_BYTES;
+            write += SERIAL::LEGACY_EVENT_BYTES;
+        }
+        for (int i = 0; i < MAX_MESSAGES; ++i) {
+            s_MSG msg{};
+            SERIAL::Reader_ reader(data + read, SERIAL::MESSAGE_BYTES, "test message underflow");
+            SERIAL::Read_Message(&reader, &msg, 8, true);
+            SERIAL::Writer_ writer(data + write, SERIAL::LEGACY_MESSAGE_BYTES, "test message overflow");
+            SERIAL::Write_Message(&writer, &msg, false);
+            read += SERIAL::MESSAGE_BYTES;
+            write += SERIAL::LEGACY_MESSAGE_BYTES;
         }
         copy(tail - read);
         for (size_t i = 0; i < tail_records; ++i) record();
@@ -288,7 +322,7 @@ namespace {
             message.priority = static_cast<uint8_t>(i * 3);
             switch (message.msg_type) {
                 case MSG_TYPE_COLONY:
-                    message.u.colony.planet_idx = static_cast<uint8_t>(i);
+                    message.u.colony.planet_id = SERIAL::Decode_Legacy_Planet_Reference(static_cast<uint8_t>(i));
                     message.u.colony.subtype = static_cast<MSG_COLONY_SUBTYPE>(
                         i >= MSG_TYPE_SCRAP_LEADER + 1 &&
                                 i < MSG_TYPE_SCRAP_LEADER + MSG_COLONY_SUBTYPE_COUNT + 1
@@ -351,7 +385,7 @@ namespace {
                     message.u.scrap_ship.ship_idx = static_cast<int16_t>(i);
                     break;
                 case MSG_TYPE_LOST_COLONY:
-                    message.u.lost_colony.planet_idx = static_cast<int16_t>(i);
+                    message.u.lost_colony.planet_id = SERIAL::Decode_Legacy_Planet_Reference(static_cast<int16_t>(i));
                     message.u.lost_colony.reason = static_cast<int16_t>(i % 4);
                     message.u.lost_colony.leader_idx = static_cast<int16_t>(i % MAX_LEADERS);
                     message.u.lost_colony.colony_or_outpost = static_cast<int8_t>(i & 1);
@@ -460,8 +494,14 @@ namespace {
         Fill_Bytes_(MOX::bill_savegame, sizeof(MOX::bill_savegame), 12);
         Fill_Bytes_(REPORT::something_interesting_happened, sizeof(REPORT::something_interesting_happened), 13);
         Fill_Bytes_(REPORT::done_colonize_check, sizeof(REPORT::done_colonize_check), 14);
-        Fill_Bytes_(EVENTS::event_data, sizeof(EVENTS::event_data), 15);
-        for (s_event_data& event : EVENTS::event_data) event.status = 0;
+        std::array<uint8_t, EVENT_COUNT * SERIAL::LEGACY_EVENT_BYTES> events{};
+        Fill_Bytes_(events.data(), events.size(), 15);
+        for (int i = 0; i < EVENT_COUNT; ++i) {
+            auto* bytes = events.data() + i * SERIAL::LEGACY_EVENT_BYTES;
+            bytes[1] = 0;
+            SERIAL::Reader_ reader(bytes, SERIAL::LEGACY_EVENT_BYTES, "test event underflow");
+            SERIAL::Read_Event(reader, EVENTS::event_data[i], i, false);
+        }
         memset(MSG_::first_msg, 0, sizeof(MSG_::first_msg));
         memset(MSG_::max_msgs, 0, sizeof(MSG_::max_msgs));
         memset(MSG_::n_msgs, 0, sizeof(MSG_::n_msgs));
@@ -708,8 +748,8 @@ namespace {
                     expected[i].d.sabotage.framed_player_idx));
                 DOCTEST_CHECK((actual.d.sabotage.victim_player_idx ==
                     expected[i].d.sabotage.victim_player_idx));
-                DOCTEST_CHECK((actual.d.sabotage.planet_idx ==
-                    expected[i].d.sabotage.planet_idx));
+                DOCTEST_CHECK((actual.d.sabotage.planet_id.get() ==
+                    expected[i].d.sabotage.planet_id.get()));
                 DOCTEST_CHECK((actual.d.sabotage.building_id ==
                     expected[i].d.sabotage.building_id));
             } else if (actual.type == 2 && actual.action == 0) {
@@ -719,8 +759,8 @@ namespace {
             } else {
                 DOCTEST_CHECK((actual.d.enemy_sabotage.enemy_player_idx ==
                     expected[i].d.enemy_sabotage.enemy_player_idx));
-                DOCTEST_CHECK((actual.d.enemy_sabotage.planet_idx ==
-                    expected[i].d.enemy_sabotage.planet_idx));
+                DOCTEST_CHECK((actual.d.enemy_sabotage.planet_id.get() ==
+                    expected[i].d.enemy_sabotage.planet_id.get()));
                 DOCTEST_CHECK((actual.d.enemy_sabotage.building_id ==
                     expected[i].d.enemy_sabotage.building_id));
             }
@@ -1246,10 +1286,10 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
         uint8_t* data = reinterpret_cast<uint8_t*>(&report.d);
         if (report.type == 1 && report.action == 1) {
             report.d.sabotage.building_id = data[3];
-            report.d.sabotage.planet_idx = data[2];
+            report.d.sabotage.planet_id = SERIAL::Decode_Legacy_Planet_Reference(data[2]);
         } else if (report.type == 2 && report.action == 1) {
             report.d.enemy_sabotage.building_id = data[3];
-            report.d.enemy_sabotage.planet_idx = data[2];
+            report.d.enemy_sabotage.planet_id = SERIAL::Decode_Legacy_Planet_Reference(data[2]);
         } else {
             data[4] = 0;
         }
@@ -1260,12 +1300,12 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
     expected.stars[70].wormhole_star_id = 510;
     expected.stars[70].next_wfi_in_list = 509;
     expected.players[0].offensive_stagepoint = 508;
-    REPORT::reports[2].d.sabotage.planet_idx = 359;
-    REPORT::reports[3].d.enemy_sabotage.planet_idx = 358;
+    REPORT::reports[2].d.sabotage.planet_id = game::id_planet{359};
+    REPORT::reports[3].d.enemy_sabotage.planet_id = game::id_planet{358};
     for (s_MSG& message : MSG_::msgs) {
         switch (message.msg_type) {
             case MSG_TYPE_COLONY:
-                message.u.colony.planet_idx = 359;
+                message.u.colony.planet_id = game::id_planet{359};
                 break;
             case MSG_TYPE_LOST_SHIP:
                 message.u.lost_ship.star_idx = 511;
@@ -1276,7 +1316,7 @@ DOCTEST_TEST_CASE("latest and version 0 save streams restore the complete persis
                 message.u.scrap_ship.ship_idx = 998;
                 break;
             case MSG_TYPE_LOST_COLONY:
-                message.u.lost_colony.planet_idx = 899;
+                message.u.lost_colony.planet_id = game::id_planet{899};
                 break;
             case MSG_TYPE_HYPERSPACE_BEAST:
                 message.u.hyperspace_beast.star_idx = 511;
@@ -1908,7 +1948,10 @@ DOCTEST_TEST_CASE("save validation rejects corrupt input and restores the prior 
         return writer.Length();
     };
     setup();
-    for (int i = 0; i < EVENT_COUNT; ++i) EVENTS::event_data[i] = {0, 2, 0, 0, 0, 1};
+    for (int i = 0; i < EVENT_COUNT; ++i) {
+        EVENTS::event_data[i] = {0, 2, 0, 0, 0, 1};
+        if (SERIAL::Legacy_Event_Targets_Planet(i, 2, 1)) EVENTS::event_data[i].planet_target = game::id_planet{0};
+    }
     const auto valid_size = write();
     DOCTEST_REQUIRE(load(valid_size));
     for (int i = 0; i < EVENT_COUNT; ++i) DOCTEST_CHECK(EVENTS::event_data[i].status == 2);
@@ -1954,7 +1997,7 @@ DOCTEST_TEST_CASE("save validation rejects corrupt input and restores the prior 
             case 17: EVENTS::event_data[EVENT_SUPERNOVA].status = 9; break;
             case 18:
                 MOX::NUM_STARS = 2;
-                EVENTS::event_data[EVENT_SPACE_AMOEBA] = {-1, 4, 0, 1, -1, -1};
+                EVENTS::event_data[EVENT_SPACE_AMOEBA] = {-1, 4, 0, -1, -1, -1, game::id_planet{1}};
                 break;
         }
         const auto size = write();

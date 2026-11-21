@@ -968,8 +968,8 @@ namespace OFFICER {
                     MOX::system_icon_scanned = hovered_system_icon;
                 }
                 if (sys_res == 0 && clicked_planet_idx > -1) {
-                    int16_t planet_idx = HAROLD::Planet_Index(officer_star_displayed, clicked_planet_idx);
-                    if (current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).colony_index > -1 && current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).colony_index < MOX::NUM_COLONIES && MAINSCR::officer_screen_return_screen == 0x27) {
+                    const auto planet_idx = MOX::star[officer_star_displayed].orbit_planet_ids[clicked_planet_idx].get();
+                    if (current_state.planets.at(planet_idx).colony_index > -1 && current_state.planets.at(planet_idx).colony_index < MOX::NUM_COLONIES && MAINSCR::officer_screen_return_screen == 0x27) {
                         Officer_Screen_User_Box(HAROLD::H_Message(0x12E), 0);
                     }
                 }

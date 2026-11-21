@@ -436,11 +436,12 @@ namespace spy {
         if (target_colony != -1) {
             ERICNET::Remove_Building(target_colony, (int16_t)target_building);
 
-            int16_t planet_idx = SERIAL::Encode_Legacy_Planet_Reference(MOX::colony[target_colony].planet_id.get());
+            const auto planet_id = MOX::colony[target_colony].planet_id.get();
             int32_t diplomacy_mode = (acting_player_idx == (int16_t)framed_player_idx) ? 3 : 4;
 
             int32_t penalty = -((int32_t)game_random::Random(5) + (int32_t)game_random::Random(15));
-            diplomac::Change_Relations((int16_t)penalty, (int16_t)framed_player_idx, victim_player_idx, diplomacy_mode, planet_idx, (int16_t)target_building);
+            const auto star = game::current_state.planets.at(planet_id).star_index;
+            diplomac::Change_Relations((int16_t)penalty, (int16_t)framed_player_idx, victim_player_idx, diplomacy_mode, star, (int16_t)target_building);
 
             s_report report;
             memset(&report, 0, sizeof(report));
@@ -451,7 +452,7 @@ namespace spy {
             report.action = 1;
             report.d.sabotage.framed_player_idx = (acting_player_idx == (int16_t)framed_player_idx) ? -1 : (int8_t)framed_player_idx;
             report.d.sabotage.victim_player_idx = (uint8_t)victim_player_idx;
-            report.d.sabotage.planet_idx = planet_idx;
+            report.d.sabotage.planet_id = planet_id;
             report.d.sabotage.building_id = (uint8_t)target_building;
             REPORT::Add_Report(&report);
 
@@ -460,7 +461,7 @@ namespace spy {
             report.player_idx = victim_player_idx;
             report.action = 1;
             report.d.enemy_sabotage.enemy_player_idx = (int16_t)framed_player_idx;
-            report.d.enemy_sabotage.planet_idx = planet_idx;
+            report.d.enemy_sabotage.planet_id = planet_id;
             report.d.enemy_sabotage.building_id = (uint8_t)target_building;
             REPORT::Add_Report(&report);
         }

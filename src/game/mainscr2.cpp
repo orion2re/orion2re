@@ -328,9 +328,9 @@ namespace MAINSCR2 {
         RUSS::Mox_Sync_Update();
         fields::Enable_Draw_All_Fields();
 
-        int16_t new_outpost_star_id = MAINPUPS::New_Outpost_Selection_Popup(star_id);
+        const auto new_outpost_planet = MAINPUPS::New_Outpost_Selection_Popup(star_id);
 
-        if (new_outpost_star_id > -1) {
+        if (new_outpost_planet != game::NO_PLANET) {
             bool found_outpost_ship = false;
             int16_t outpost_ship_id = -1;
 
@@ -347,7 +347,7 @@ namespace MAINSCR2 {
             }
 
             if (found_outpost_ship) {
-                COLONIZE::Make_New_Outpost(SERIAL::Decode_Legacy_Planet_Reference(new_outpost_star_id), MOX::PLAYER_NUM);
+                COLONIZE::Make_New_Outpost(new_outpost_planet, MOX::PLAYER_NUM);
                 MOX::ship[outpost_ship_id].status = 5;
                 COLCALC::Update_Player_Stats(&MOX::player[MOX::PLAYER_NUM]);
 
@@ -408,9 +408,9 @@ namespace MAINSCR2 {
         RUSS::Mox_Sync_Update();
         fields::Enable_Draw_All_Fields();
 
-        int16_t planet_idx = MAINPUPS::New_Colony_Selection_Popup(star_idx, 1);
+        const auto planet_idx = MAINPUPS::New_Colony_Selection_Popup(star_idx, 1);
 
-        if (planet_idx > -1) {
+        if (planet_idx != game::NO_PLANET) {
             bool found_colony_ship = false;
             int16_t ship_idx = -1;
 
@@ -430,7 +430,7 @@ namespace MAINSCR2 {
                     do_animation = true;
                 }
 
-                COLONIZE::Make_New_Colony(SERIAL::Decode_Legacy_Planet_Reference(planet_idx), MOX::PLAYER_NUM);
+                COLONIZE::Make_New_Colony(planet_idx, MOX::PLAYER_NUM);
                 MOX::ship[ship_idx].status = 5;
                 COLCALC::Update_Player_Stats(&MOX::player[MOX::PLAYER_NUM]);
 
@@ -445,7 +445,7 @@ namespace MAINSCR2 {
 
         if (do_animation) {
             MOX::screen_data = star_idx;
-            COLONY::orbit_temp = HACCESS::Planet_Orbit(planet_idx);
+            COLONY::orbit_temp = game::current_state.planets.at(planet_idx).orbit;
             COLLAND::Colony_Landing_Screen();
             MISC::Fade_Into_Screen(MAINSCR::Draw_Mini_Main_Screen, &MOX::draw_main_screen_to_back, 0);
         }
@@ -620,10 +620,10 @@ namespace MAINSCR2 {
         RUSS::Mox_Sync_Update();
         fields::Enable_Draw_All_Fields();
 
-        star_id = MAINPUPS::Drop_Troops_Selection_Popup(star_id);
+        const auto planet_id = MAINPUPS::Drop_Troops_Selection_Popup(star_id);
 
-        if (star_id >= 0) {
-            int16_t colony_index = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(star_id)}).colony_index;
+        if (planet_id != game::NO_PLANET) {
+            int16_t colony_index = game::current_state.planets.at(planet_id).colony_index;
             if (colony_index >= 0) {
                 if (MOX::colony[colony_index].owner == MOX::PLAYER_NUM) {
                     int16_t ship_ids[MAX_SHIPS];

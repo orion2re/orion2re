@@ -8,6 +8,8 @@
 #include "game/colony_serialization.h"
 #include "game/settler_serialization.h"
 #include "game/ship_serialization.h"
+#include "game/notice_serialization.h"
+#include "game/event_serialization.h"
 #include "game/savegame.h"
 #include "game/turn_oracle_history.h"
 
@@ -174,7 +176,10 @@ namespace turn_oracle {
             // then 5 bytes per nebula and the fixed game tail before freight.
             const size_t nebulas = ships + 2 + ship_width * ship_count + 163;
             if (ship_count > 10000 || nebulas >= bytes.size()) return false;
-            const size_t tail = nebulas + 1 + bytes[nebulas] * 5 + 4491;
+            const size_t report_count = nebulas + 1 + bytes[nebulas] * 5 + 12;
+            if (report_count + 2 > bytes.size()) return false;
+            const bool wide_notices = (bytes[report_count + 1] & 0x80) != 0;
+            const size_t tail = report_count + 4491 - 12 + (wide_notices ? 2 * (MAX_REPORTS + MAX_MESSAGES) + 4 * EVENT_COUNT : 0);
             if (tail > bytes.size() || extra_records * 8 > bytes.size() - tail) return false;
 
             std::vector<uint8_t> upgraded(bytes.begin(), bytes.begin() + players);
@@ -301,6 +306,57 @@ namespace turn_oracle {
             bytes[ships + 1] |= SERIAL::SHIP_MISSION_PLANETS_FLAG >> 8;
             return true;
         }
+
+        std::optional<size_t> Notice_Count_Offset(const std::vector<uint8_t>& bytes, size_t ships) {
+            const uint16_t field = bytes[ships] | (bytes[ships + 1] << 8);
+            const size_t width = (field & SERIAL::SHIP_MISSION_PLANETS_FLAG)
+                ? SERIAL::SHIP_RECORD_BYTES : SERIAL::LEGACY_SHIP_RECORD_BYTES;
+            const size_t nebulas = ships + 2 + (field & ~SERIAL::SHIP_MISSION_PLANETS_FLAG) * width + 163;
+            if (nebulas >= bytes.size()) return std::nullopt;
+            const size_t count = nebulas + 1 + bytes[nebulas] * 5 + 12;
+            return count + 2 <= bytes.size() ? std::optional{count} : std::nullopt;
+        }
+
+        bool Upgrade_Notices(std::vector<uint8_t>& bytes, size_t count) {
+            const size_t reports = count + 2;
+            const size_t events = reports + MAX_REPORTS * SERIAL::LEGACY_REPORT_BYTES + 1 + 8 + 128;
+            const size_t messages = events + EVENT_COUNT * SERIAL::LEGACY_EVENT_BYTES;
+            if (messages + MAX_MESSAGES * SERIAL::LEGACY_MESSAGE_BYTES > bytes.size()) return false;
+            const auto widen = [&](size_t offset) {
+                const auto id = SERIAL::Decode_Legacy_Planet_Reference(static_cast<int16_t>(
+                    bytes[offset] | (bytes[offset + 1] << 8)));
+                bytes[offset] = static_cast<uint8_t>(id.id);
+                bytes[offset + 1] = static_cast<uint8_t>(id.id >> 8);
+                bytes.insert(bytes.begin() + offset + 2,
+                    {static_cast<uint8_t>(id.id >> 16), static_cast<uint8_t>(id.id >> 24)});
+            };
+            for (size_t i = MAX_MESSAGES; i-- > 0;) {
+                const size_t record = messages + i * SERIAL::LEGACY_MESSAGE_BYTES;
+                if (SERIAL::Message_Targets_Planet(bytes[record])) widen(record + 2);
+                else bytes.insert(bytes.begin() + record + 11, {0, 0});
+            }
+            for (size_t i = EVENT_COUNT; i-- > 0;) {
+                const size_t record = events + i * SERIAL::LEGACY_EVENT_BYTES;
+                const int16_t limit = static_cast<int16_t>(bytes[record + 7] | (bytes[record + 8] << 8));
+                auto id = game::NO_PLANET;
+                if (SERIAL::Legacy_Event_Targets_Planet(i, bytes[record + 1], limit)) {
+                    id = SERIAL::Decode_Legacy_Planet_Reference(static_cast<int16_t>(
+                        bytes[record + 3] | (bytes[record + 4] << 8)));
+                    bytes[record + 3] = bytes[record + 4] = 0xff;
+                }
+                bytes.insert(bytes.begin() + record + SERIAL::LEGACY_EVENT_BYTES, {
+                    static_cast<uint8_t>(id.id), static_cast<uint8_t>(id.id >> 8),
+                    static_cast<uint8_t>(id.id >> 16), static_cast<uint8_t>(id.id >> 24)});
+            }
+            for (size_t i = MAX_REPORTS; i-- > 0;) {
+                const size_t record = reports + i * SERIAL::LEGACY_REPORT_BYTES;
+                const auto type = bytes[record];
+                if (SERIAL::Report_Targets_Planet(type, bytes[record + 3])) widen(record + (type == 3 ? 4 : 6));
+                else bytes.insert(bytes.begin() + record + 9, {0, 0});
+            }
+            bytes[count + 1] |= SERIAL::WIDE_NOTICES_FLAG >> 8;
+            return true;
+        }
     } // namespace
 
     bool Read_File(const std::filesystem::path& path, std::vector<uint8_t>* bytes, std::string* error) {
@@ -400,6 +456,18 @@ namespace turn_oracle {
                          !Normalize_Ship_Missions(actual_bytes, *actual_ships, actual_typed))) {
                         *error = "invalid ship mission section";
                         return false;
+                    }
+                    const auto expected_notices = Notice_Count_Offset(expected_bytes, *expected_ships);
+                    const auto actual_notices = Notice_Count_Offset(actual_bytes, *actual_ships);
+                    if (expected_notices && actual_notices) {
+                        const bool expected_wide = (expected_bytes[*expected_notices + 1] & 0x80) != 0;
+                        const bool actual_wide = (actual_bytes[*actual_notices + 1] & 0x80) != 0;
+                        if (expected_wide != actual_wide &&
+                            !(expected_wide ? Upgrade_Notices(actual_bytes, *actual_notices)
+                                            : Upgrade_Notices(expected_bytes, *expected_notices))) {
+                            *error = "invalid planet notification section";
+                            return false;
+                        }
                     }
                 }
             }

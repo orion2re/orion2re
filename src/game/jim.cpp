@@ -256,7 +256,7 @@ namespace JIM {
         Decode_Text_Message(buffer, -1, -1, -1, -1, -1, -1, field_id, max_len);
     }
 
-    void __cdecl Decode_Text_Message(char* message_buffer, int16_t player1_id, int16_t star_id, int16_t tech_app1_id, int16_t number, int16_t player2_id, int16_t tech_app2_id, int16_t tech_field_id, int16_t max_len) {
+    void __cdecl Decode_Text_Message(char* message_buffer, int16_t player1_id, int16_t star_id, int16_t tech_app1_id, int16_t number, int16_t player2_id, int16_t tech_app2_id, int16_t tech_field_id, int16_t max_len, game::id_planet planet) {
         int16_t dest_len = 0;
         char temp_buf[40];
         char dest_buf[200];
@@ -312,7 +312,7 @@ namespace JIM {
                         src_ptr = temp_buf;
                         break;
                     case 0x8A:
-                        strlcpy(temp_buf, HACCESS::Get_Planet_Name(star_id), sizeof(temp_buf));
+                        strlcpy(temp_buf, HACCESS::Get_Planet_Name(game::current_state, planet), sizeof(temp_buf));
                         src_ptr = temp_buf;
                         break;
                 }

@@ -169,7 +169,7 @@ namespace COLONIZE {
 
                     s_MSG msg = {};
                     msg.msg_type = MSG_TYPE_COLONY;
-                    msg.u.colony.planet_idx = SERIAL::Encode_Legacy_Planet_Reference(colony->planet_id.get());
+                    msg.u.colony.planet_id = colony->planet_id.get();
                     msg.u.colony.subtype = MSG_COLONY_SUBTYPE_BUILDING_SCRAPPED;
                     msg.u.colony.c.scrap.building_id = BUILDING_COLONY_BASE;
                     msg.u.colony.c.scrap.bc = refund16;

@@ -220,7 +220,8 @@ DOCTEST_TEST_CASE_FIXTURE(s_colony_navigation_fixture, "Colonies map clicks clam
     for (int16_t count : {1, 3, 9, 10, 12, 32}) {
         MOX::NUM_COLONIES = count;
         for (int i = 0; i < 32; ++i) colony_list[i] = i < count ? i : -1;
-        stars[0].last_planet_selected[0] = static_cast<int8_t>(count - 1);
+        stars[0].last_planet_selected[0] = 0;
+        stars[0].orbit_planet_ids[0] = game::id_planet{static_cast<uint32_t>(count - 1)};
         MOX::galaxy_map_star_field[0] = 7;
         int16_t clicked = 7;
         int16_t hovered = -1;

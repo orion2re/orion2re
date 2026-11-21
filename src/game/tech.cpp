@@ -952,36 +952,6 @@ namespace TECH {
         }
     }
 
-    /** Builds a star-and-roman-numeral planet name for technology text. */
-    void __cdecl Do_Get_Planet_Name(int16_t planet_idx, char* out_str, uint8_t localized_flag) {
-        char buffer[200];
-
-        strlcpy(buffer, " ", sizeof(buffer));
-
-        int16_t star_idx = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).star_index;
-        char planet_num = HAROLD::Planet_Number(planet_idx);
-
-        const char* numeral_str;
-        if (localized_flag == 0) {
-            numeral_str = MOX::roman_literals[planet_num + 1];
-        } else {
-            numeral_str = MOX::roman_literals[planet_num + 1];
-            if (strcmp(numeral_str, "I") == 0) {
-                numeral_str = HAROLD::H_Message(0xa0);
-            }
-        }
-
-        s_star_data* star = &MOX::star[star_idx];
-
-        snprintf(buffer, sizeof(buffer), "%s %s", star->name, numeral_str);
-
-        if (strlen(buffer) > 30) {
-            buffer[30] = '\0';
-        }
-
-        strlcpy(out_str, buffer, 31);
-    }
-
     int16_t __cdecl Get_Hyper_Tech_App_ID(int16_t tech_id) {
         switch (tech_id) {
             case TECH_FIELD_BIOLOGY:

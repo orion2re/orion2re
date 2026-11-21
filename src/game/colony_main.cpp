@@ -241,7 +241,7 @@ namespace COLONY {
         Draw_Colony_Info_Scanned();
     }
 
-    void __cdecl Draw_Planet_Summary(int16_t x, int16_t y, int16_t planet_idx) {
+    void __cdecl Draw_Planet_Summary(int16_t x, int16_t y, game::id_planet planet_idx) {
         char buffer[2000];
 
         fonts::Set_Font_Style_Shadow_Down(1, &font_color_array);
@@ -280,12 +280,12 @@ namespace COLONY {
 
         star_handle = MOX::screen_data;
         orbit_n = (int32_t)orbit_temp;
-        int16_t planet_idx = HAROLD::Planet_Index(MOX::screen_data, orbit_temp);
+        const auto planet_idx = MOX::star[MOX::screen_data].orbit_planet_ids[orbit_temp].get();
         planet_handle = planet_idx;
 
-        colony_handle = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_handle)}).colony_index;
+        colony_handle = game::current_state.planets.at(planet_handle).colony_index;
         g_scanned_star = -1;
-        g_scanned_planet = -1;
+        g_scanned_planet = game::NO_PLANET;
         sys_disp_star_handle = star_handle;
 
         if (colony_handle == -1) {
@@ -295,7 +295,7 @@ namespace COLONY {
         } else {
             valid_colony = 1;
             drawing_display = 0;
-            g_scanned_planet = -1;
+            g_scanned_planet = game::NO_PLANET;
         }
 
         fields::Clear_Mouse_Buffer();
@@ -815,13 +815,13 @@ namespace COLONY {
         int16_t handle = colony_handle;
 
         if (MOX::colony[handle].occupation_policy == 0) {
-            char* planet_name = HACCESS::Get_Planet_Name(planet_handle);
+            char* planet_name = HACCESS::Get_Planet_Name(game::current_state, planet_handle);
             char* fmt = ESTRINGS::E_Strings(ESTR_ANNIHILATING_S);
             snprintf(buffer, sizeof(buffer), fmt, planet_name);
             int16_t cycle_val = ERIC::Global_Cycler(30, 2);
             Set_Colony_Font_To_Red(4, (uint8_t)cycle_val);
         } else {
-            char* planet_name = HACCESS::Get_Planet_Name(planet_handle);
+            char* planet_name = HACCESS::Get_Planet_Name(game::current_state, planet_handle);
             char* colony_type = Colony_Type(handle);
             char* fmt = ESTRINGS::E_Strings(ESTR_SCOLONY_OF_S);
             snprintf(buffer, sizeof(buffer), fmt, colony_type, planet_name);
@@ -1059,7 +1059,7 @@ namespace COLONY {
             if (drawing_display == 1) {
                 drawing_display = 0;
                 full_draw = 1;
-                g_scanned_planet = -1;
+                g_scanned_planet = game::NO_PLANET;
                 return 1;
             }
         }

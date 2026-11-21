@@ -64,14 +64,14 @@ namespace COLONY {
      */
     void __cdecl Colony_Screen();
 
-    bool __cdecl Colonize_Planet(int16_t planet_idx);
+    bool __cdecl Colonize_Planet(game::id_planet planet_idx);
 
     extern int16_t colony_satellite_fields[10];
 
     extern int16_t colony_saved_screen;
     extern int16_t g_scanned_star;
-    extern int16_t g_scanned_planet;
-    extern int16_t planet_display_handle;
+    extern game::id_planet g_scanned_planet;
+    extern game::id_planet planet_display_handle;
 
     extern uint16_t colonists_count;
 
@@ -123,7 +123,7 @@ namespace COLONY {
 
     extern int16_t pop_fields_ref[3][42];
 
-    extern int16_t planet_handle;
+    extern game::id_planet planet_handle;
     extern int16_t star_handle;
     extern int32_t orbit_n;
     extern uint8_t cheats;
@@ -435,13 +435,13 @@ namespace COLONY {
 
     extern int16_t g_count;
 
-    void __cdecl Draw_Planet_Summary(int16_t x, int16_t y, int16_t planet_index);
+    void __cdecl Draw_Planet_Summary(int16_t x, int16_t y, game::id_planet planet_id);
 
     bool __cdecl Colony_Can_Buy_Product_0(int16_t colony_idx);
 
     void __cdecl Tested_Colony_Buys_Outright(int16_t colony_idx);
 
-    s_animation_header* __cdecl Mini_Planet_Anim(int16_t planet_idx);
+    s_animation_header* __cdecl Mini_Planet_Anim(game::id_planet planet_id);
 
     int16_t __cdecl Bldg_Coords_To_Effective_Frame(int16_t x, int32_t y);
 

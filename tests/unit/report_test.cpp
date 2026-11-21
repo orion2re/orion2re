@@ -139,7 +139,7 @@ DOCTEST_TEST_CASE("technology reports dispatch their payload before being consum
     report = {};
     report.type = 3;
     report.d.artifacts.tech_app_id = TECH_APP_NUCLEAR_BOMB;
-    report.d.artifacts.planet_idx = 4;
+    report.d.artifacts.planet_id = game::id_planet{4};
     REPORT::Add_Report(&report);
     DOCTEST_CHECK(REPORT::Has_Report(0, true) == 2);
     DOCTEST_CHECK(TEST_REPORT::science_kind == 3);

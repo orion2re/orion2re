@@ -112,10 +112,12 @@
       and recall. Preserve orbit and row positions separately. The v8 ship
       codec and multiplayer ship packets serialize the target explicitly;
       historical saves decode the old weapon-slot marker and target.
-- [ ] Widen the remaining narrow key encodings: reports and messages, event
-      payloads, incremental combat packets, and older UI selection records
-      (including the manual colony/outpost picker). These still impose
-      signed or packed width limits;
-      a live-count cap does not bound a monotonic ID.
+- [x] Carry typed planet IDs through manual colony/outpost selection, system
+      display, debug editors, planet naming, and Lua population-growth events.
+      Orbit ordinals, summary rows, and artwork indices remain numbers.
+- [x] Widen planet references in reports, messages, event targets, and combat.
+      Keep non-planet event targets separate and serialize planet keys explicitly
+      in v8 saves and multiplayer. Historical narrow values are converted at
+      the format boundary; the v0–v7 fixtures remain unchanged.
 - [ ] Thread `s_game_state` into the legacy call chains still reading
       `game::current_state` directly (UI, colony rules, combat, and turn events).

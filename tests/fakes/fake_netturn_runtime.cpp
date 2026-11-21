@@ -140,8 +140,8 @@ namespace COMBFIND {
     void __cdecl Client_Combat_Loop() {}
     void __cdecl Do_Net_Combat_Update(bool) {}
     void __cdecl Copy_Target_Info(s_combfind_target*) {}
-    int16_t __cdecl Target_Colony_To_Planet(int16_t colony_idx) {
-        return colony_idx;
+    game::id_planet __cdecl Target_Colony_To_Planet(int16_t colony_idx) {
+        return SERIAL::Decode_Legacy_Planet_Reference(colony_idx);
     }
     void __cdecl Decode_Star_Player_Presence(NETPROTO::Packet_Reader_*, int16_t) {}
     void __cdecl Send_Star_Player_Presence(NETPROTO::Packet_Writer_*, int16_t) {}
@@ -151,7 +151,7 @@ namespace EVENTS {
     s_event_data event_data[36] = {};
     uint32_t last_event_year = 0;
     int16_t event_delay_count = 0;
-    void __cdecl Event_Monster_Update(int16_t, int16_t, int16_t) {}
+    void __cdecl Event_Monster_Update(int16_t, game::id_planet, int16_t) {}
 } // namespace EVENTS
 
 namespace REPORT {

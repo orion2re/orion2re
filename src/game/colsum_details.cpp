@@ -179,10 +179,10 @@ namespace COLSUM {
         char name2[52];
         char* planet_name_ptr;
 
-        planet_name_ptr = HACCESS::Get_Planet_Name_No_Prime(SERIAL::Encode_Legacy_Planet_Reference(MOX::colony[colony_idx_1].planet_id.get()));
+        planet_name_ptr = HACCESS::Get_Planet_Name_No_Prime(game::current_state, MOX::colony[colony_idx_1].planet_id.get());
         strlcpy(name1, planet_name_ptr, sizeof(name1));
 
-        planet_name_ptr = HACCESS::Get_Planet_Name_No_Prime(SERIAL::Encode_Legacy_Planet_Reference(MOX::colony[colony_idx_2].planet_id.get()));
+        planet_name_ptr = HACCESS::Get_Planet_Name_No_Prime(game::current_state, MOX::colony[colony_idx_2].planet_id.get());
         strlcpy(name2, planet_name_ptr, sizeof(name2));
 
         return (int16_t)strcasecmp(name1, name2);
@@ -253,7 +253,7 @@ namespace COLSUM {
     void __cdecl Draw_Colony_Scan_Info(void) {
         int16_t total_roundoff;
         int16_t total_growth;
-        int16_t planet_idx;
+        game::id_planet planet_idx;
         uint8_t climate_idx;
         char buffer[1000];
 
@@ -263,7 +263,7 @@ namespace COLSUM {
         if (COLONY::g_colony_n != -1) {
             s_colony* colony = &MOX::colony[COLONY::g_colony_n];
             climate_idx = (uint8_t)colony->climate;
-            planet_idx = SERIAL::Encode_Legacy_Planet_Reference(colony->planet_id.get());
+            planet_idx = colony->planet_id.get();
 
             int16_t y_pos = 349 /* 0x15d */;
             for (int16_t i = 0; i < ECON_COUNT; ++i) {
@@ -306,7 +306,7 @@ namespace COLSUM {
                            "2";
             }
 
-            s_planet_data* planet = &game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)});
+            s_planet_data* planet = &game::current_state.planets.at(planet_idx);
             int16_t max_pop = COLCALC::Planet_Max_Population_For_Player(planet, MOX::PLAYER_NUM);
             const char* format = ESTRINGS::E_Strings(74 /* 0x4a */);
             if (strstr(format, "%s%d") == nullptr) {

@@ -185,7 +185,7 @@ namespace EVENTS {
         int16_t event_type,
         int16_t event_subtype,
         int16_t colony_idx,
-        int16_t planet_idx,
+        game::id_planet planet_idx,
         int16_t val1,
         int16_t val2,
         int16_t player_idx1,
@@ -217,5 +217,5 @@ namespace EVENTS {
      * @param target_id Target index for a location update, or -1 for a payload-only update.
      * @param player_idx_or_amount Player index for target updates, or amount for payload updates.
      */
-    void __cdecl Event_Monster_Update(int16_t monster_type, int16_t target_id, int16_t player_idx_or_amount);
+    void __cdecl Event_Monster_Update(int16_t monster_type, game::id_planet target_id, int16_t player_idx_or_amount);
 } // namespace EVENTS

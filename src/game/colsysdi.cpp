@@ -36,7 +36,7 @@ namespace COLSYSDI {
                 COLONY::Set_Colony_Font_To(1);
 
                 char summary_text[500];
-                Planet_Summary_String(summary_text, sizeof(summary_text), SERIAL::Encode_Legacy_Planet_Reference(planet_idx), 1);
+                Planet_Summary_String(summary_text, sizeof(summary_text), planet_idx, 1);
 
                 BILL::_Print_Paragraph(x + 28, text_y, 89 - x, summary_text, 0);
             }
@@ -85,7 +85,7 @@ namespace COLSYSDI {
         }
     }
 
-    void __cdecl Planet_Summary_String(char* summary_text, size_t summary_text_size, int16_t planet_idx, int16_t font_player_idx) {
+    void __cdecl Planet_Summary_String(char* summary_text, size_t summary_text_size, game::id_planet planet_idx, int16_t font_player_idx) {
         char* gravity_str[PLANET_GRAVITY_COUNT];
         char* mineral_str[MINERAL_RESOURCE_COUNT];
         char* size_str[PLANET_SIZE_COUNT];
@@ -99,7 +99,7 @@ namespace COLSYSDI {
 
         summary_text[0] = '\0';
 
-        s_planet_data* planet = &game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)});
+        s_planet_data* planet = &game::current_state.planets.at(planet_idx);
         int16_t colony_idx = planet->colony_index;
 
         gravity_str[PLANET_GRAVITY_LOW_G] = ESTRINGS::E_Strings(0x169);

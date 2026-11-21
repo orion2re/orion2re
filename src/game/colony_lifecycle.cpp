@@ -64,7 +64,7 @@ namespace BOMB {
 
             memset(&msg, 0, sizeof(s_MSG));
             msg.msg_type = MSG_TYPE_LOST_COLONY;
-            msg.u.lost_colony.planet_idx = SERIAL::Encode_Legacy_Planet_Reference(colony->planet_id.get());
+            msg.u.lost_colony.planet_id = colony->planet_id.get();
             msg.u.lost_colony.reason = capture_reason;
             msg.u.lost_colony.leader_idx = leader_idx;
             msg.u.lost_colony.colony_or_outpost = colony->outpost_flag;

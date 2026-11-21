@@ -84,7 +84,7 @@ namespace MAINPUPS {
 
     void __cdecl Draw_Selection_Popup();
 
-    int16_t __cdecl Evaluate_Selection_Input(int16_t* selected_field, int16_t* field_data, int16_t* refresh_flag);
+    game::id_planet __cdecl Evaluate_Selection_Input(int16_t* selected_field, int16_t* field_data, int16_t* refresh_flag);
 
     /**
      * Evaluates a system-display click for colony, outpost, troop-drop, or dragon selection popups.
@@ -92,9 +92,9 @@ namespace MAINPUPS {
      * @param mouse_y Current Y-side field scan input.
      * @param selection_confirmed Set to 1 when a valid target is chosen.
      */
-    int16_t __cdecl Check_System_Display_Fields_Selection(int16_t* mouse_x, int16_t* mouse_y, int16_t* selection_confirmed);
+    game::id_planet __cdecl Check_System_Display_Fields_Selection(int16_t* mouse_x, int16_t* mouse_y, int16_t* selection_confirmed);
 
-    int8_t __cdecl New_Colony_Confirmation_Box(int16_t planet_idx);
+    int8_t __cdecl New_Colony_Confirmation_Box(game::id_planet planet_idx);
 
     void __cdecl Load_SLIDER_Popup();
     void __cdecl Load_Slider_Fields();
@@ -180,7 +180,7 @@ namespace MAINPUPS {
 
     void __cdecl Marooned_Officer_Joins_Popup(int16_t star_idx, int16_t officer_idx);
 
-    void __cdecl Build_Generic_Planet_Or_Colony_Description_String_Formatted(int16_t planet_idx, char* buffer, uint32_t buffer_size);
+    void __cdecl Build_Generic_Planet_Or_Colony_Description_String_Formatted(game::id_planet planet_idx, char* buffer, uint32_t buffer_size);
 
     int16_t __cdecl Dragon_New_Star_Popup(int16_t player_idx, int16_t star_idx);
 
@@ -224,10 +224,10 @@ namespace MAINPUPS {
 
     void __cdecl Draw_Officer_Gains_Level_Popup();
 
-    int16_t __cdecl New_Colony_Selection_Popup(int16_t star_idx, uint8_t using_colony_ship);
-    int16_t __cdecl New_Outpost_Selection_Popup(int16_t star_id);
+    game::id_planet __cdecl New_Colony_Selection_Popup(int16_t star_idx, uint8_t using_colony_ship);
+    game::id_planet __cdecl New_Outpost_Selection_Popup(int16_t star_id);
 
-    int16_t __cdecl Drop_Troops_Selection_Popup(int16_t target_idx);
+    game::id_planet __cdecl Drop_Troops_Selection_Popup(int16_t target_idx);
 
     bool __cdecl Random_New_Officer_Popup(int16_t player_idx);
 

@@ -124,15 +124,15 @@ DOCTEST_TEST_CASE("Lucky event selection retains the full random result") {
 
 DOCTEST_TEST_CASE("monster planet updates retain explicit report state") {
     TEST_EVENTS::Reset_();
-    test_planets::Record(3).colony_index = 2;
+    test_planets::Record(70000).colony_index = 2;
     MOX::colony[2].owner = 4;
 
-    EVENTS::Event_Monster_Update(NONPLAYER_SHIP_TYPE_AMOEBA, 3, -1);
+    EVENTS::Event_Monster_Update(NONPLAYER_SHIP_TYPE_AMOEBA, game::id_planet{70000}, -1);
 
     const s_event_data& event = EVENTS::event_data[EVENT_SPACE_AMOEBA];
     // Evaluate packed-field comparisons before doctest can bind operand references.
     DOCTEST_CHECK((event.status == 4));
-    DOCTEST_CHECK((event.target_id == 3));
+    DOCTEST_CHECK(event.planet_target.get() == game::id_planet{70000});
     DOCTEST_CHECK((event.max_amount == 2));
     DOCTEST_CHECK((event.player_idx == 4));
 }
@@ -140,7 +140,7 @@ DOCTEST_TEST_CASE("monster planet updates retain explicit report state") {
 DOCTEST_TEST_CASE("monster death updates retain completion payload") {
     TEST_EVENTS::Reset_();
 
-    EVENTS::Event_Monster_Update(NONPLAYER_SHIP_TYPE_HYDRA, -1, 2);
+    EVENTS::Event_Monster_Update(NONPLAYER_SHIP_TYPE_HYDRA, game::NO_PLANET, 2);
 
     const s_event_data& event = EVENTS::event_data[EVENT_SPACE_HYDRA];
     DOCTEST_CHECK((event.status == 4));
@@ -152,16 +152,17 @@ DOCTEST_TEST_CASE("monster reports use preserved planet identity safely") {
     TEST_EVENTS::Reset_();
     TEST_EVENTS::Set_Event_Message_("Target \x80");
     MOX::colony[2].planet_id = game::NO_PLANET;
+    test_planets::Record(7);
 
     char message[64];
     EVENTS::Get_Event_Message(
-        EVENT_SPACE_AMOEBA + 2, 3, 2, 7,
+        EVENT_SPACE_AMOEBA + 2, 3, 2, game::id_planet{7},
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         message, sizeof(message));
     DOCTEST_CHECK(strcmp(message, "Target Planet 7") == 0);
 
     EVENTS::Get_Event_Message(
-        EVENT_SPACE_AMOEBA + 2, 3, MAX_COLONIES, -1,
+        EVENT_SPACE_AMOEBA + 2, 3, MAX_COLONIES, game::NO_PLANET,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         message, sizeof(message));
     DOCTEST_CHECK(strcmp(message, "Target ") == 0);
@@ -202,7 +203,7 @@ DOCTEST_TEST_CASE("planet event reports preserve vanilla and v150 location token
     }
     s_event_data& event = EVENTS::event_data[event_id];
     event.player_idx = 2;
-    event.target_id = 193;
+    event.planet_target = game::id_planet{193};
     event.status = 5;
 
     for (bool patched : {false, true}) {
@@ -215,7 +216,7 @@ DOCTEST_TEST_CASE("planet event reports preserve vanilla and v150 location token
 
         snprintf(message, sizeof(message), patched ? patched_expected : vanilla_expected, patched ? "Planet 193" : "Gnol");
         DOCTEST_CHECK(strcmp(EVENTS::event_message, message) == 0);
-        DOCTEST_CHECK((event.target_id == 193));
+        DOCTEST_CHECK(event.planet_target.get() == game::id_planet{193});
     }
     MOX::mineral_class_string[MINERAL_RESOURCE_ULTRA_RICH] = nullptr;
 }

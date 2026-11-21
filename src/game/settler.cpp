@@ -180,11 +180,9 @@ namespace SETTLER {
 
             for (const auto& [planet_id, arrival] : arrivals) {
                 if (arrival.count == 0) continue;
-                const auto planet_idx = SERIAL::Encode_Legacy_Planet_Reference(planet_id);
-                if (planet_idx < 0) continue; // Colony messages still use a signed 16-bit field.
                 s_MSG msg = {};
                 msg.msg_type = MSG_TYPE_COLONY;
-                msg.u.colony.planet_idx = planet_idx;
+                msg.u.colony.planet_id = planet_id;
                 msg.u.colony.subtype = MSG_COLONY_SUBTYPE_SETTLERS_ARRIVED;
                 msg.u.colony.c.settlers.settlers = arrival.count;
                 msg.u.colony.c.settlers.over_limit = arrival.over_limit;

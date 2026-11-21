@@ -50,8 +50,8 @@ namespace COLONY {
 
     int16_t colony_saved_screen;
     int16_t g_scanned_star;
-    int16_t g_scanned_planet;
-    int16_t planet_display_handle = -1;
+    game::id_planet g_scanned_planet = game::NO_PLANET;
+    game::id_planet planet_display_handle = game::NO_PLANET;
 
     uint16_t colonists_count;
 
@@ -96,7 +96,7 @@ namespace COLONY {
 
     int16_t pop_fields_ref[3][42];
 
-    int16_t planet_handle;
+    game::id_planet planet_handle = game::NO_PLANET;
     int16_t star_handle;
     int32_t orbit_n;
     uint8_t cheats;
@@ -539,12 +539,12 @@ namespace COLONY {
         }
     }
 
-    bool __cdecl Colonize_Planet(int16_t planet_idx) {
-        if (game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).colony_index == -1) {
+    bool __cdecl Colonize_Planet(game::id_planet planet_idx) {
+        if (game::current_state.planets.at(planet_idx).colony_index == -1) {
             int16_t colony_idx = MOX::NUM_COLONIES;
             MOX::NUM_COLONIES++;
 
-            INITGAME::Init_Colony(colony_idx, SERIAL::Decode_Legacy_Planet_Reference(planet_idx), (uint8_t)MOX::PLAYER_NUM);
+            INITGAME::Init_Colony(colony_idx, planet_idx, (uint8_t)MOX::PLAYER_NUM);
 
             return true;
         }
@@ -971,7 +971,7 @@ namespace COLONY {
         }
 
         if (production_id == COLONY_PRODUCTION_JUST_COLONIZED) {
-            char* planet_name = HACCESS::Get_Planet_Name(SERIAL::Encode_Legacy_Planet_Reference(colony->planet_id.get()));
+            char* planet_name = HACCESS::Get_Planet_Name(game::current_state, colony->planet_id.get());
             char* format = ESTRINGS::E_Strings(ESTR_S_JUST_COLONIZED_PLACE_YOUR_ORDERS_FOR_FUTURE_PRODUCTION);
             snprintf(buffer, sizeof(buffer), format, planet_name);
             GENDRAW::Help(buffer);
@@ -981,7 +981,7 @@ namespace COLONY {
         }
 
         if (production_id == COLONY_PRODUCTION_JUST_CONQUERED) {
-            char* planet_name = HACCESS::Get_Planet_Name(SERIAL::Encode_Legacy_Planet_Reference(colony->planet_id.get()));
+            char* planet_name = HACCESS::Get_Planet_Name(game::current_state, colony->planet_id.get());
             char* format = ESTRINGS::E_Strings(ESTR_S_JUST_CONQUERED_PLACE_YOUR_ORDERS_FOR_FUTURE_PRODUCTION);
             snprintf(buffer, sizeof(buffer), format, planet_name);
             GENDRAW::Help(buffer);
@@ -991,7 +991,7 @@ namespace COLONY {
         }
 
         if (production_id == COLONY_PRODUCTION_JUST_LIBERATED) {
-            char* planet_name = HACCESS::Get_Planet_Name(SERIAL::Encode_Legacy_Planet_Reference(colony->planet_id.get()));
+            char* planet_name = HACCESS::Get_Planet_Name(game::current_state, colony->planet_id.get());
             char* format = ESTRINGS::E_Strings(ESTR_S_JUST_LIBERATED_PLACE_YOUR_ORDERS_FOR_FUTURE_PRODUCTION);
             snprintf(buffer, sizeof(buffer), format, planet_name);
             GENDRAW::Help(buffer);
@@ -1001,7 +1001,7 @@ namespace COLONY {
         }
 
         char* selection_name = COLBLDG::Selection_Name(production_id);
-        char* planet_name = HACCESS::Get_Planet_Name(SERIAL::Encode_Legacy_Planet_Reference(colony->planet_id.get()));
+        char* planet_name = HACCESS::Get_Planet_Name(game::current_state, colony->planet_id.get());
         char* format = ESTRINGS::E_Strings(ESTR_S_FINISHED_BUILDING_S_PLACE_YOUR_ORDERS_FOR_FUTURE_PRODUCTION);
         snprintf(buffer, sizeof(buffer), format, planet_name, selection_name);
         GENDRAW::Help(buffer);
@@ -1279,8 +1279,8 @@ namespace COLONY {
         return result;
     }
 
-    s_animation_header* __cdecl Mini_Planet_Anim(int16_t planet_idx) {
-        s_planet_data* planet = &game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)});
+    s_animation_header* __cdecl Mini_Planet_Anim(game::id_planet planet_idx) {
+        s_planet_data* planet = &game::current_state.planets.at(planet_idx);
         uint8_t climate;
 
         if (planet->colony_index == -1) {
@@ -1679,12 +1679,12 @@ namespace COLONY {
                 for (int16_t i = 0; i < 5; ++i) {
                     if (COLONY::sys_disp_planet_fields[i] == *input_field) {
                         if (COLONY::field_mode == 1) {
-                            int16_t planet_idx = HAROLD::Planet_Index(COLONY::sys_disp_star_handle, i);
-                            COLMOVE::Send_Cluster(game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).colony_index, -1);
+                            const auto planet_idx = MOX::star[COLONY::sys_disp_star_handle].orbit_planet_ids[i].get();
+                            COLMOVE::Send_Cluster(game::current_state.planets.at(planet_idx).colony_index, -1);
                             COLONY::Restore_Control();
                         } else {
-                            int16_t planet_idx = HAROLD::Planet_Index(COLONY::sys_disp_star_handle, i);
-                            int16_t col_idx = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).colony_index;
+                            const auto planet_idx = MOX::star[COLONY::sys_disp_star_handle].orbit_planet_ids[i].get();
+                            int16_t col_idx = game::current_state.planets.at(planet_idx).colony_index;
 
                             if (col_idx != -1 &&
                                 MOX::colony[col_idx].outpost_flag != 1 &&
@@ -1707,14 +1707,14 @@ namespace COLONY {
                             return 1;
                         }
                     } else if (COLONY::sys_disp_summ_fields[i] == *input_field) {
-                        int16_t planet_idx = HAROLD::Planet_Index(COLONY::sys_disp_star_handle, i);
-                        if (game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).planet_type == PLANET_TYPE_PLANET) {
-                            COLONY::planet_display_handle = HAROLD::Planet_Index(COLONY::sys_disp_star_handle, i);
+                        const auto planet_idx = MOX::star[COLONY::sys_disp_star_handle].orbit_planet_ids[i].get();
+                        if (game::current_state.planets.at(planet_idx).planet_type == PLANET_TYPE_PLANET) {
+                            COLONY::planet_display_handle = MOX::star[COLONY::sys_disp_star_handle].orbit_planet_ids[i].get();
                             COLONY::drawing_display = 2;
                             return 1;
                         }
                     } else if (*scan_field == COLONY::sys_disp_planet_fields[i]) {
-                        COLONY::g_scanned_planet = HAROLD::Planet_Index(COLONY::sys_disp_star_handle, i);
+                        COLONY::g_scanned_planet = MOX::star[COLONY::sys_disp_star_handle].orbit_planet_ids[i].get();
                     }
                 }
             }
@@ -1725,7 +1725,7 @@ namespace COLONY {
             if (*input_field == COLONY::galaxy_map_name_field) {
                 COLONY::drawing_display = 0;
                 COLONY::full_draw = 1;
-                COLONY::g_scanned_planet = -1;
+                COLONY::g_scanned_planet = game::NO_PLANET;
             } else if (scan_res == 4) {
                 COLONY::g_scanned_star = scanned_star_out;
             } else if (scan_res == 2) {
@@ -1740,12 +1740,12 @@ namespace COLONY {
                 COLONY::drawing_display = 0;
                 COLONY::full_draw = 1;
                 COLONY::sys_disp_star_handle = scanned_val_out;
-                COLONY::g_scanned_planet = -1;
+                COLONY::g_scanned_planet = game::NO_PLANET;
             }
         } else if (COLONY::drawing_display == 2) {
             MAINPUPS::Build_Generic_Planet_Or_Colony_Description_String_Formatted(COLONY::planet_display_handle, description, sizeof(description));
             COLONY::drawing_display = 0;
-            COLONY::planet_display_handle = -1;
+            COLONY::planet_display_handle = game::NO_PLANET;
             GENDRAW::Help(description);
             COLONY::Restore_Control();
         }
@@ -2031,9 +2031,9 @@ namespace COLONY {
 
     void __cdecl Set_Colony_Globals(int16_t colony_idx) {
         colony_handle = colony_idx;
-        planet_handle = SERIAL::Encode_Legacy_Planet_Reference(MOX::colony[colony_idx].planet_id.get());
-        star_handle = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_handle)}).star_index;
-        orbit_n = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_handle)}).orbit;
+        planet_handle = MOX::colony[colony_idx].planet_id.get();
+        star_handle = game::current_state.planets.at(planet_handle).star_index;
+        orbit_n = game::current_state.planets.at(planet_handle).orbit;
     }
 
     s_animation_header* __cdecl Load_Govt_Anim(int16_t govt_anim_id) {

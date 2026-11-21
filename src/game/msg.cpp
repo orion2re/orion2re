@@ -164,8 +164,7 @@ namespace MSG_ {
         switch (msg->msg_type) {
             case MSG_TYPE_COLONY: {
                 const auto& colony_msg = msg->u.colony;
-                const int16_t planet_idx = colony_msg.planet_idx;
-                const char* planet_name = HACCESS::Get_Planet_Name(planet_idx);
+                const char* planet_name = HACCESS::Get_Planet_Name(current_state, colony_msg.planet_id.get());
 
                 switch (colony_msg.subtype) {
                     case MSG_COLONY_SUBTYPE_BUILDING_SCRAPPED: {
@@ -357,7 +356,7 @@ namespace MSG_ {
             case MSG_TYPE_LOST_COLONY: {
                 const auto& lost_colony_msg = msg->u.lost_colony;
                 const char* reason_text = lost_colony_reason_strings[lost_colony_msg.reason];
-                const char* planet_name = HACCESS::Get_Planet_Name(lost_colony_msg.planet_idx);
+                const char* planet_name = HACCESS::Get_Planet_Name(current_state, lost_colony_msg.planet_id.get());
                 snprintf(out_text, out_text_size, msg_lost_colony_fmt, msg_colony_or_outpost[(uint8_t)lost_colony_msg.colony_or_outpost], planet_name, reason_text);
                 int16_t leader_idx = lost_colony_msg.leader_idx;
                 if (leader_idx != -1) {
@@ -516,7 +515,7 @@ namespace MSG_ {
                 if (EVENTS::Event_Check_Plague(colony_idx) != 0) {
                     memset(&msg, 0, sizeof(msg));
                     msg.msg_type = MSG_TYPE_COLONY;
-                    msg.u.colony.planet_idx = SERIAL::Encode_Legacy_Planet_Reference(MOX::colony[colony_idx].planet_id.get());
+                    msg.u.colony.planet_id = MOX::colony[colony_idx].planet_id.get();
                     msg.u.colony.subtype = MSG_COLONY_SUBTYPE_PLAGUE;
                     Add_Msg(msg, owner);
                 }
@@ -524,7 +523,7 @@ namespace MSG_ {
                 if (EVENTS::Event_Check_Population_Boom(colony_idx) != 0) {
                     memset(&msg, 0, sizeof(msg));
                     msg.msg_type = MSG_TYPE_COLONY;
-                    msg.u.colony.planet_idx = SERIAL::Encode_Legacy_Planet_Reference(MOX::colony[colony_idx].planet_id.get());
+                    msg.u.colony.planet_id = MOX::colony[colony_idx].planet_id.get();
                     msg.u.colony.subtype = MSG_COLONY_SUBTYPE_POPULATION_BOOM;
                     Add_Msg(msg, owner);
                 }
@@ -532,7 +531,7 @@ namespace MSG_ {
                 if (EVENTS::Event_Check_Comet(colony_idx) != 0) {
                     memset(&msg, 0, sizeof(msg));
                     msg.msg_type = MSG_TYPE_COLONY;
-                    msg.u.colony.planet_idx = SERIAL::Encode_Legacy_Planet_Reference(MOX::colony[colony_idx].planet_id.get());
+                    msg.u.colony.planet_id = MOX::colony[colony_idx].planet_id.get();
                     msg.u.colony.subtype = MSG_COLONY_SUBTYPE_COMET;
                     Add_Msg(msg, owner);
                 }
@@ -621,8 +620,8 @@ namespace MSG_ {
      */
     int8_t __cdecl Goto_Msg_Colony(s_MSG* msg) {
         if (msg->msg_type == MSG_TYPE_COLONY) {
-            int16_t planet_idx = msg->u.colony.planet_idx;
-            int16_t colony_idx = current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).colony_index;
+            const auto planet = current_state.planets.find(msg->u.colony.planet_id.get());
+            const auto colony_idx = planet == current_state.planets.end() ? -1 : planet->second.colony_index;
 
             if (colony_idx != -1) {
                 s_colony* colony = &MOX::colony[colony_idx];
