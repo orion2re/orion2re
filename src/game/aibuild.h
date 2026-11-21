@@ -155,7 +155,7 @@ namespace AIBUILD {
     /** Returns a simple industry value estimate for a colony.
      * @param colony Colony to evaluate.
      */
-    int16_t __cdecl Industry_Worth(struct s_colony* colony);
+    int16_t __cdecl Industry_Worth(const s_colony& colony);
 
     /** Returns the display name for a colony production item.
      * @param product_id Building or project id to name.

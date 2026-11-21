@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "legacy_ids.h"
 
 #if defined(ORION2RE_ENABLE_DEBUG_OVERLAY)
 #include <imgui.h>
@@ -22,8 +23,8 @@ namespace debug_game_editors {
             bool open;
             bool focus_requested;
             bool discard_requested;
-            int16_t index;
-            int16_t pending_index;
+            game::id_planet index = game::NO_PLANET;
+            game::id_planet pending_index = game::NO_PLANET;
             s_planet_data baseline;
             s_planet_data draft;
         };
@@ -31,7 +32,7 @@ namespace debug_game_editors {
         s_star_editor_state g_star_editor = {};
         s_planet_editor_state g_planet_editor = {};
         int16_t g_pending_planet_operation = -1;
-        int16_t g_pending_planet_source = -1;
+        game::id_planet g_pending_planet_source = game::NO_PLANET;
         int16_t g_pending_planet_star = -1;
         int16_t g_pending_planet_orbit = -1;
         int8_t g_pending_colony_player = -1;
@@ -43,9 +44,8 @@ namespace debug_game_editors {
                 index < std::clamp<int16_t>(MOX::NUM_STARS, 0, MAX_STARS);
         }
 
-        bool Valid_Planet(int16_t index) {
-            return MOX::planet != nullptr && index >= 0 &&
-                index < std::clamp<int16_t>(MOX::planet_count, 0, MAX_PLANETS);
+        bool Valid_Planet(game::id_planet index) {
+            return game::current_state.planets.contains(index);
         }
 
         void Request_Redraw() {
@@ -61,51 +61,28 @@ namespace debug_game_editors {
             Request_Redraw();
         }
 
-        e_planet_operation_result Create_Colony(int16_t planet_index, int8_t player_index) {
+        e_planet_operation_result Create_Colony(game::id_planet planet_index, int8_t player_index) {
             const int16_t player_count = std::clamp<int16_t>(MOX::NUM_PLAYERS, 0, MAX_PLAYERS);
-            if (!Valid_Planet(planet_index) || MOX::colony == nullptr ||
+            if (!Valid_Planet(planet_index) ||
                 player_index < 0 || player_index >= player_count) {
                 return PLANET_OPERATION_INVALID_RELATION;
             }
 
-            s_planet_data& planet = MOX::planet[planet_index];
-            if (planet.planet_type != PLANET_TYPE_PLANET || planet.colony_index != -1 ||
+            s_planet_data& planet = game::current_state.planets.at(planet_index);
+            if (planet.planet_type != PLANET_TYPE_PLANET || planet.colony_id != game::NO_COLONY ||
                 !Valid_Star(planet.star_index) || planet.orbit < 0 || planet.orbit >= 5 ||
-                MOX::star[planet.star_index].planet_index[planet.orbit] != planet_index) {
+                MOX::star[planet.star_index].orbit_planet_ids[planet.orbit].get() != planet_index) {
                 return PLANET_OPERATION_INVALID_RELATION;
             }
 
-            const int16_t colony_count = std::clamp<int16_t>(MOX::NUM_COLONIES, 0, MAX_COLONIES);
-            int16_t colony_index = -1;
-            for (int16_t index = 0; index < MAX_COLONIES; ++index) {
-                if (MOX::colony[index].allocated_to == player_index) {
-                    const bool free = index >= colony_count || MOX::colony[index].planet == -1;
-                    if (!free) {
-                        return PLANET_OPERATION_INVALID_RELATION;
-                    }
-                    colony_index = index;
-                    break;
-                }
-            }
-            if (colony_index < 0) {
-                for (int16_t index = 0; index < MAX_COLONIES; ++index) {
-                    if (index >= colony_count || MOX::colony[index].planet == -1) {
-                        colony_index = index;
-                        break;
-                    }
-                }
-            }
-            if (colony_index < 0) {
+            if (game::current_state.colonies.size() >= MAX_COLONIES) {
                 return PLANET_OPERATION_NO_COLONY_CAPACITY;
             }
 
-            const int8_t previous_allocation = MOX::colony[colony_index].allocated_to;
-            MOX::colony[colony_index].allocated_to = player_index;
-            COLONIZE::Make_New_Colony(planet_index, player_index);
-            if (planet.colony_index != colony_index ||
-                MOX::colony[colony_index].planet != planet_index ||
-                MOX::colony[colony_index].owner != player_index) {
-                MOX::colony[colony_index].allocated_to = previous_allocation;
+            COLONIZE::Make_Debug_Colony(planet_index, player_index);
+            const auto colony = game::current_state.colonies.find(planet.colony_id);
+            if (colony == game::current_state.colonies.end() || colony->second.planet_id != planet_index ||
+                colony->second.owner != player_index) {
                 return PLANET_OPERATION_INVALID_RELATION;
             }
 
@@ -113,21 +90,21 @@ namespace debug_game_editors {
             return PLANET_OPERATION_OK;
         }
 
-        bool Planet_In_Reports(int16_t planet_index) {
+        bool Planet_In_Reports(game::id_planet planet_index) {
             const int16_t count = std::clamp<int16_t>(REPORT::n_reports, 0, MAX_REPORTS);
             for (int16_t index = 0; index < count; ++index) {
                 const s_report& report = REPORT::reports[index];
                 if (((report.type == 1 || report.type == 2) && report.action == 1 &&
-                        ((report.type == 1 && report.d.sabotage.planet_idx == planet_index) ||
-                            (report.type == 2 && report.d.enemy_sabotage.planet_idx == planet_index))) ||
-                    (report.type == 3 && report.d.artifacts.planet_idx == planet_index)) {
+                        ((report.type == 1 && report.d.sabotage.planet_id.get() == planet_index) ||
+                            (report.type == 2 && report.d.enemy_sabotage.planet_id.get() == planet_index))) ||
+                    (report.type == 3 && report.d.artifacts.planet_id.get() == planet_index)) {
                     return true;
                 }
             }
             return false;
         }
 
-        bool Planet_In_Messages(int16_t planet_index) {
+        bool Planet_In_Messages(game::id_planet planet_index) {
             const int16_t player_count = std::clamp<int16_t>(MOX::NUM_PLAYERS, 0, MAX_PLAYERS);
             for (int16_t player = 0; player < player_count; ++player) {
                 const int32_t first = MSG_::first_msg[player];
@@ -139,9 +116,9 @@ namespace debug_game_editors {
                 for (int32_t offset = 0; offset < count; ++offset) {
                     const s_MSG& message = MSG_::msgs[first + offset];
                     if ((message.msg_type == MSG_TYPE_COLONY &&
-                            message.u.colony.planet_idx == planet_index) ||
+                            message.u.colony.planet_id.get() == planet_index) ||
                         (message.msg_type == MSG_TYPE_LOST_COLONY &&
-                            message.u.lost_colony.planet_idx == planet_index)) {
+                            message.u.lost_colony.planet_id.get() == planet_index)) {
                         return true;
                     }
                 }
@@ -149,12 +126,12 @@ namespace debug_game_editors {
             return false;
         }
 
-        bool Planet_Has_External_Reference(int16_t planet_index) {
+        bool Planet_Has_External_Reference(game::id_planet planet_index) {
             const int16_t star_count = std::clamp<int16_t>(MOX::NUM_STARS, 0, MAX_STARS);
             int32_t star_reference_count = 0;
             for (int16_t star = 0; star < star_count; ++star) {
                 for (int16_t orbit = 0; orbit < 5; ++orbit) {
-                    if (MOX::star[star].planet_index[orbit] == planet_index) {
+                    if (MOX::star[star].orbit_planet_ids[orbit].get() == planet_index) {
                         ++star_reference_count;
                     }
                 }
@@ -166,50 +143,58 @@ namespace debug_game_editors {
             const int16_t player_count = std::clamp<int16_t>(MOX::NUM_PLAYERS, 0, MAX_PLAYERS);
             for (int16_t player = 0; player < player_count; ++player) {
                 const s_player& data = MOX::player[player];
-                if (data.home_planet_id == planet_index || data.sneak_attack_planet == planet_index) {
+                const auto id = planet_index;
+                if (data.home_planet_id.get() == id || data.sneak_attack_planet.get() == id) {
                     return true;
                 }
                 for (int16_t other = 0; other < player_count; ++other) {
-                    if (data.opportunity_planet_num[other] == planet_index) {
+                    if (data.opportunity_planet_id[other].get() == id) {
                         return true;
                     }
                 }
-                for (const s_settler_info& settler : data.settlers) {
-                    if (settler.val != 0 && SETTLER::Get_Dest_Planet(settler.val) == planet_index) {
+                const int freight_count = std::clamp<int>(data.settlers_freighted, 0, MAX_FREIGHTED_SETTLERS);
+                for (int i = 0; i < freight_count; ++i) {
+                    if (data.settlers[i].destination.get() == planet_index) {
                         return true;
                     }
                 }
             }
 
-            const int16_t colony_count = std::clamp<int16_t>(MOX::NUM_COLONIES, 0, MAX_COLONIES);
-            for (int16_t colony = 0; colony < colony_count; ++colony) {
-                if (MOX::colony[colony].planet == planet_index) {
+            for (const auto& [id, colony] : game::current_state.colonies) {
+                if (colony.planet_id == planet_index) {
                     return true;
                 }
             }
 
-            if (NETMOX::net.combat_planet_id == planet_index) {
+            if (NETMOX::net.combat_planet_id.get() == planet_index) {
                 return true;
             }
             for (const s_net_player_info& info : NETMOX::net.player_net_info) {
-                if (info.combat_planet_id == planet_index) {
+                if (info.combat_planet_id.get() == planet_index) {
                     return true;
                 }
             }
             if (NETMOX::net.combat_results_data != nullptr) {
                 const s_battle_results& results = *NETMOX::net.combat_results_data;
-                if (results.planet_id == planet_index ||
-                    results.player_info.combat_planet_id == planet_index ||
-                    results.info.captured_tech_planet_id == planet_index) {
+                if (results.planet_id.get() == planet_index ||
+                    results.player_info.combat_planet_id.get() == planet_index ||
+                    results.info.captured_tech_planet_id.get() == planet_index) {
                     return true;
                 }
+            }
+            for (int i = 0; i < EVENT_COUNT; ++i) {
+                if (EVENTS::event_data[i].status != 0 && EVENTS::event_data[i].status != 3 &&
+                    EVENTS::event_data[i].planet_target.get() == planet_index) return true;
+            }
+            for (int i = 0; i < MOX::NUM_SHIPS; ++i) {
+                if (MOX::ship[i].status < 3 && MOX::ship[i].colonization_target.get() == planet_index) return true;
             }
             return Planet_In_Reports(planet_index) || Planet_In_Messages(planet_index);
         }
 
         void Initialize_Unused_Planet(s_planet_data* planet) {
             memset(planet, 0, sizeof(*planet));
-            planet->colony_index = -1;
+            planet->colony_id = game::NO_COLONY;
             planet->star_index = -1;
         }
 
@@ -308,19 +293,21 @@ namespace debug_game_editors {
                     char label[24];
                     snprintf(label, sizeof(label), "Orbit %d", orbit + 1);
                     ImGui::BeginDisabled();
-                    debug_game_widgets::Planet_Reference(label, &star.planet_index[orbit]);
+                    const auto id = star.orbit_planet_ids[orbit].get();
+                    auto selection = id;
+                    debug_game_widgets::Planet_Reference(label, &selection);
                     ImGui::EndDisabled();
                     ImGui::SameLine();
-                    if (star.planet_index[orbit] >= 0) {
+                    if (id != game::NO_PLANET) {
                         if (ImGui::SmallButton("Open")) {
-                            Open_Planet(star.planet_index[orbit]);
+                            Open_Planet(id);
                         }
                         ImGui::SameLine();
                         ImGui::BeginDisabled(draft_dirty);
                         if (ImGui::SmallButton("Duplicate")) {
                             g_pending_planet_operation = 1;
                             g_planet_operation_popup_requested = true;
-                            g_pending_planet_source = star.planet_index[orbit];
+                            g_pending_planet_source = id;
                             g_pending_planet_star = g_star_editor.index;
                         }
                         ImGui::EndDisabled();
@@ -329,7 +316,7 @@ namespace debug_game_editors {
                         if (ImGui::SmallButton("Add planet")) {
                             g_pending_planet_operation = 0;
                             g_planet_operation_popup_requested = true;
-                            g_pending_planet_source = -1;
+                            g_pending_planet_source = game::NO_PLANET;
                             g_pending_planet_star = g_star_editor.index;
                             g_pending_planet_orbit = (int16_t)orbit;
                         }
@@ -364,12 +351,10 @@ namespace debug_game_editors {
                                          &planet,
                                          &g_planet_editor.baseline,
                                          sizeof(planet)) != 0;
-            const int16_t colony_count = std::clamp<int16_t>(MOX::NUM_COLONIES, 0, MAX_COLONIES);
-            const bool has_colony = MOX::colony != nullptr && planet.colony_index >= 0 &&
-                planet.colony_index < colony_count;
+            const bool has_colony = game::current_state.colonies.contains(planet.colony_id);
             if (has_colony) {
                 char race_name[32];
-                const int8_t owner = MOX::colony[planet.colony_index].owner;
+                const int8_t owner = game::current_state.colonies.at(planet.colony_id).owner;
                 const int16_t player_count = std::clamp<int16_t>(MOX::NUM_PLAYERS, 0, MAX_PLAYERS);
                 if (owner >= 0 && owner < player_count) {
                     HACCESS::Race_Name(owner, race_name, sizeof(race_name));
@@ -379,7 +364,11 @@ namespace debug_game_editors {
                 ImGui::TextColored(ImVec4(0.45f, 0.85f, 0.45f, 1.0f), "Colony: %s", race_name);
             }
             ImGui::BeginDisabled();
-            debug_game_widgets::Colony_Reference("Colony", &planet.colony_index);
+            if (planet.colony_id == game::NO_COLONY) {
+                ImGui::TextUnformatted("Colony ID: None");
+            } else {
+                ImGui::Text("Colony ID: %u", planet.colony_id.id);
+            }
             debug_game_widgets::Star_Reference("Star", &planet.star_index);
             Input_S8("Orbit", &planet.orbit);
             ImGui::EndDisabled();
@@ -389,7 +378,7 @@ namespace debug_game_editors {
             if (has_colony) {
                 ImGui::SameLine();
                 if (ImGui::Button("Open colony")) {
-                    Open_Colony(planet.colony_index);
+                    Open_Colony(planet.colony_id);
                 }
             } else if (planet.planet_type == PLANET_TYPE_PLANET) {
                 ImGui::SameLine();
@@ -488,7 +477,7 @@ namespace debug_game_editors {
             MERGE_STAR_FIELD(has_dimensional_portal);
             MERGE_STAR_FIELD(is_stagepoint);
             MERGE_STAR_FIELD(officer_index);
-            MERGE_STAR_FIELD(planet_index);
+            MERGE_STAR_FIELD(orbit_planet_ids);
             MERGE_STAR_FIELD(relocate_ship_to);
             MERGE_STAR_FIELD(twinkling1);
             MERGE_STAR_FIELD(twinkling2);
@@ -508,7 +497,7 @@ namespace debug_game_editors {
             *merged = live;
             bool valid = true;
 #define MERGE_PLANET_FIELD(field) valid = Merge_Field(baseline.field, draft.field, live.field, &merged->field) && valid
-            MERGE_PLANET_FIELD(colony_index);
+            MERGE_PLANET_FIELD(colony_id);
             MERGE_PLANET_FIELD(star_index);
             MERGE_PLANET_FIELD(orbit);
             MERGE_PLANET_FIELD(planet_type);
@@ -573,21 +562,23 @@ namespace debug_game_editors {
             g_star_editor.focus_requested = true;
         }
 
-        void Load_Planet(int16_t index) {
+        void Load_Planet(game::id_planet index) {
             g_planet_editor.index = index;
-            g_planet_editor.pending_index = -1;
-            g_planet_editor.baseline = MOX::planet[index];
+            g_planet_editor.pending_index = game::NO_PLANET;
+            g_planet_editor.baseline = game::current_state.planets.at(index);
             g_planet_editor.draft = g_planet_editor.baseline;
             g_planet_editor.open = true;
             g_planet_editor.focus_requested = true;
         }
 
+        template <typename Key>
         void Draw_Discard_Popup(
             const char* popup_id,
             bool* discard_requested,
             bool* editor_open,
-            int16_t* pending_index,
-            void (*load_pending)(int16_t)) {
+            Key* pending_index,
+            Key no_selection,
+            void (*load_pending)(Key)) {
             if (*discard_requested) {
                 ImGui::OpenPopup(popup_id);
                 *discard_requested = false;
@@ -595,9 +586,9 @@ namespace debug_game_editors {
             if (ImGui::BeginPopupModal(popup_id, nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
                 ImGui::TextUnformatted("Discard unsaved changes?");
                 if (ImGui::Button("Discard")) {
-                    const int16_t next = *pending_index;
+                    const auto next = *pending_index;
                     ImGui::CloseCurrentPopup();
-                    if (next >= 0) {
+                    if (next != no_selection) {
                         load_pending(next);
                     } else {
                         *editor_open = false;
@@ -605,7 +596,7 @@ namespace debug_game_editors {
                 }
                 ImGui::SameLine();
                 if (ImGui::Button("Keep editing")) {
-                    *pending_index = -1;
+                    *pending_index = no_selection;
                     *editor_open = true;
                     ImGui::CloseCurrentPopup();
                 }
@@ -681,6 +672,7 @@ namespace debug_game_editors {
                 &g_star_editor.discard_requested,
                 &g_star_editor.open,
                 &g_star_editor.pending_index,
+                int16_t{-1},
                 Load_Star);
         }
 
@@ -709,7 +701,7 @@ namespace debug_game_editors {
                     (g_pending_colony_player >= 0 && g_pending_colony_player < MOX::NUM_PLAYERS);
                 ImGui::BeginDisabled(!colony_player_valid);
                 if (ImGui::Button("Confirm")) {
-                    int16_t result_planet = -1;
+                    auto result_planet = game::NO_PLANET;
                     e_planet_operation_result result = PLANET_OPERATION_INVALID_RELATION;
                     if (g_pending_planet_operation == 0) {
                         result = Add_Planet(
@@ -736,7 +728,7 @@ namespace debug_game_editors {
                             g_planet_editor.open = false;
                         } else if (g_pending_planet_operation == 3) {
                             Load_Planet(result_planet);
-                            Open_Colony(MOX::planet[result_planet].colony_index);
+                            Open_Colony(game::current_state.planets.at(result_planet).colony_id);
                         } else {
                             Open_Planet(result_planet);
                         }
@@ -774,7 +766,7 @@ namespace debug_game_editors {
             }
             ImGui::SetNextWindowSize(ImVec2(315.0f, 410.0f), ImGuiCond_FirstUseEver);
             char title[48];
-            snprintf(title, sizeof(title), "Planet Editor [%d]", (int)g_planet_editor.index);
+            snprintf(title, sizeof(title), "Planet Editor [%u]", g_planet_editor.index.id);
             bool open = g_planet_editor.open;
             if (ImGui::Begin(title, &open)) {
                 Draw_Planet_Form(g_planet_editor.draft);
@@ -785,11 +777,11 @@ namespace debug_game_editors {
                 const bool mergeable = Merge_Planet(
                     g_planet_editor.baseline,
                     g_planet_editor.draft,
-                    MOX::planet[g_planet_editor.index],
+                    game::current_state.planets.at(g_planet_editor.index),
                     &merged);
                 ImGui::BeginDisabled(!dirty || !valid || !mergeable);
                 if (ImGui::Button("Save")) {
-                    MOX::planet[g_planet_editor.index] = merged;
+                    game::current_state.planets.at(g_planet_editor.index) = merged;
                     g_planet_editor.baseline = merged;
                     g_planet_editor.draft = merged;
                     Request_Redraw();
@@ -798,7 +790,7 @@ namespace debug_game_editors {
                 ImGui::SameLine();
                 if (ImGui::Button("Cancel")) {
                     if (dirty) {
-                        g_planet_editor.pending_index = -1;
+                        g_planet_editor.pending_index = game::NO_PLANET;
                         g_planet_editor.discard_requested = true;
                     } else {
                         open = false;
@@ -828,7 +820,7 @@ namespace debug_game_editors {
             ImGui::End();
             const bool dirty = Dirty(g_planet_editor.draft, g_planet_editor.baseline);
             if (!open && dirty) {
-                g_planet_editor.pending_index = -1;
+                g_planet_editor.pending_index = game::NO_PLANET;
                 g_planet_editor.discard_requested = true;
                 open = true;
             }
@@ -838,6 +830,7 @@ namespace debug_game_editors {
                 &g_planet_editor.discard_requested,
                 &g_planet_editor.open,
                 &g_planet_editor.pending_index,
+                game::NO_PLANET,
                 Load_Planet);
         }
 
@@ -866,45 +859,40 @@ namespace debug_game_editors {
     e_planet_operation_result Add_Planet(
         int16_t star_index,
         int16_t orbit,
-        int16_t* new_planet_index) {
+        game::id_planet* new_planet_index) {
         if (!Valid_Star(star_index) || orbit < 0 || orbit >= 5 ||
-            MOX::star[star_index].planet_index[orbit] != -1) {
+            MOX::star[star_index].orbit_planet_ids[orbit].get() != game::NO_PLANET) {
             return PLANET_OPERATION_INVALID_RELATION;
         }
-        if (MOX::planet == nullptr || MOX::planet_count < 0 || MOX::planet_count >= MAX_PLANETS) {
+        if (game::current_state.planets.size() >= MAX_PLANETS) {
             return PLANET_OPERATION_NO_CAPACITY;
         }
 
-        const int16_t index = MOX::planet_count;
-        const s_planet_data previous_planet = MOX::planet[index];
-        const int16_t previous_slot = MOX::star[star_index].planet_index[orbit];
-        HOMEGEN::Make_One_Planet(star_index, index, orbit, 0);
-        if (MOX::star[star_index].planet_index[orbit] != index ||
-            MOX::planet[index].star_index != star_index ||
-            MOX::planet[index].orbit != orbit) {
-            MOX::planet[index] = previous_planet;
-            MOX::star[star_index].planet_index[orbit] = previous_slot;
+        const auto planet = HOMEGEN::Make_One_Planet(star_index, orbit, 0);
+        if (planet.star_index != star_index || planet.orbit != orbit) {
             return PLANET_OPERATION_INVALID_RELATION;
         }
-        MOX::planet_count++;
+        const auto id = game::current_state.Create_Planet(planet);
+        if (!id) return PLANET_OPERATION_NO_CAPACITY;
+        MOX::star[star_index].orbit_planet_ids[orbit] = *id;
         if (new_planet_index != nullptr) {
-            *new_planet_index = index;
+            *new_planet_index = *id;
         }
         Request_Relationship_Refresh();
         return PLANET_OPERATION_OK;
     }
 
     e_planet_operation_result Duplicate_Planet(
-        int16_t source_planet_index,
+        game::id_planet source_planet_index,
         int16_t target_star_index,
         int16_t orbit,
-        int16_t* new_planet_index) {
+        game::id_planet* new_planet_index) {
         if (!Valid_Planet(source_planet_index) || !Valid_Star(target_star_index)) {
             return PLANET_OPERATION_INVALID_RELATION;
         }
         if (orbit < 0) {
             for (int16_t candidate = 0; candidate < 5; ++candidate) {
-                if (MOX::star[target_star_index].planet_index[candidate] == -1) {
+                if (MOX::star[target_star_index].orbit_planet_ids[candidate].get() == game::NO_PLANET) {
                     orbit = candidate;
                     break;
                 }
@@ -913,58 +901,54 @@ namespace debug_game_editors {
         if (orbit < 0 || orbit >= 5) {
             return PLANET_OPERATION_NO_FREE_ORBIT;
         }
-        if (MOX::star[target_star_index].planet_index[orbit] != -1) {
+        if (MOX::star[target_star_index].orbit_planet_ids[orbit].get() != game::NO_PLANET) {
             return PLANET_OPERATION_INVALID_RELATION;
         }
-        if (MOX::planet_count < 0 || MOX::planet_count >= MAX_PLANETS) {
+        if (game::current_state.planets.size() >= MAX_PLANETS) {
             return PLANET_OPERATION_NO_CAPACITY;
         }
 
-        const int16_t index = MOX::planet_count;
-        MOX::planet[index] = MOX::planet[source_planet_index];
-        MOX::planet[index].colony_index = -1;
-        MOX::planet[index].star_index = target_star_index;
-        MOX::planet[index].orbit = (int8_t)orbit;
-        MOX::star[target_star_index].planet_index[orbit] = index;
-        MOX::planet_count++;
+        auto copy = game::current_state.planets.at(source_planet_index);
+        copy.colony_id = game::NO_COLONY;
+        copy.star_index = target_star_index;
+        copy.orbit = static_cast<int8_t>(orbit);
+        const auto id = game::current_state.Create_Planet(copy);
+        if (!id) return PLANET_OPERATION_NO_CAPACITY;
+        MOX::star[target_star_index].orbit_planet_ids[orbit] = *id;
         if (new_planet_index != nullptr) {
-            *new_planet_index = index;
+            *new_planet_index = *id;
         }
         Request_Relationship_Refresh();
         return PLANET_OPERATION_OK;
     }
 
-    e_planet_operation_result Delete_Planet(int16_t planet_index) {
+    e_planet_operation_result Delete_Planet(game::id_planet planet_index) {
         if (!Valid_Planet(planet_index)) {
             return PLANET_OPERATION_INVALID_RELATION;
         }
-        if (planet_index != MOX::planet_count - 1) {
-            return PLANET_OPERATION_NOT_DENSE_TAIL;
-        }
-        const s_planet_data planet = MOX::planet[planet_index];
-        if (planet.colony_index != -1) {
+        const s_planet_data planet = game::current_state.planets.at(planet_index);
+        if (planet.colony_id != game::NO_COLONY) {
             return PLANET_OPERATION_HAS_COLONY;
         }
         if (Planet_Has_External_Reference(planet_index)) {
             return PLANET_OPERATION_IS_REFERENCED;
         }
         if (!Valid_Star(planet.star_index) || planet.orbit < 0 || planet.orbit >= 5 ||
-            MOX::star[planet.star_index].planet_index[planet.orbit] != planet_index) {
+            MOX::star[planet.star_index].orbit_planet_ids[planet.orbit].get() != planet_index) {
             return PLANET_OPERATION_INVALID_RELATION;
         }
 
-        MOX::star[planet.star_index].planet_index[planet.orbit] = -1;
-        Initialize_Unused_Planet(&MOX::planet[planet_index]);
-        MOX::planet_count--;
-        struct_::Clear_Bit_Field(PLNTSUM::explored_bitmap, (uint16_t)planet_index);
+        MOX::star[planet.star_index].orbit_planet_ids[planet.orbit] = game::NO_PLANET;
+        game::current_state.Erase_Planet(planet_index);
+        PLNTSUM::explored_planets.erase(planet_index);
         if (COLONY::g_scanned_planet == planet_index) {
-            COLONY::g_scanned_planet = -1;
+            COLONY::g_scanned_planet = game::NO_PLANET;
         }
         if (COLONY::planet_display_handle == planet_index) {
-            COLONY::planet_display_handle = -1;
+            COLONY::planet_display_handle = game::NO_PLANET;
         }
         if (COLONY::planet_handle == planet_index) {
-            COLONY::planet_handle = -1;
+            COLONY::planet_handle = game::NO_PLANET;
         }
         Request_Relationship_Refresh();
         return PLANET_OPERATION_OK;
@@ -1001,7 +985,7 @@ namespace debug_game_editors {
         Load_Star(star_index);
     }
 
-    void Open_Planet(int16_t planet_index) {
+    void Open_Planet(game::id_planet planet_index) {
         if (!Valid_Planet(planet_index)) {
             return;
         }
@@ -1020,7 +1004,7 @@ namespace debug_game_editors {
 } // namespace debug_game_editors
 #else
 namespace debug_game_editors {
-    e_planet_operation_result Add_Planet(int16_t star_index, int16_t orbit, int16_t* new_planet_index) {
+    e_planet_operation_result Add_Planet(int16_t star_index, int16_t orbit, game::id_planet* new_planet_index) {
         (void)star_index;
         (void)orbit;
         (void)new_planet_index;
@@ -1028,10 +1012,10 @@ namespace debug_game_editors {
     }
 
     e_planet_operation_result Duplicate_Planet(
-        int16_t source_planet_index,
+        game::id_planet source_planet_index,
         int16_t target_star_index,
         int16_t orbit,
-        int16_t* new_planet_index) {
+        game::id_planet* new_planet_index) {
         (void)source_planet_index;
         (void)target_star_index;
         (void)orbit;
@@ -1039,7 +1023,7 @@ namespace debug_game_editors {
         return PLANET_OPERATION_INVALID_RELATION;
     }
 
-    e_planet_operation_result Delete_Planet(int16_t planet_index) {
+    e_planet_operation_result Delete_Planet(game::id_planet planet_index) {
         (void)planet_index;
         return PLANET_OPERATION_INVALID_RELATION;
     }
@@ -1053,7 +1037,7 @@ namespace debug_game_editors {
         (void)star_index;
     }
 
-    void Open_Planet(int16_t planet_index) {
+    void Open_Planet(game::id_planet planet_index) {
         (void)planet_index;
     }
 } // namespace debug_game_editors

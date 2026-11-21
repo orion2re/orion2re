@@ -37,7 +37,7 @@ namespace HAROLD {
     /** Verifies that planet/star orbit links are internally consistent. */
     void __cdecl Confirm_Planet_And_Star_Index_Link(const char* unused_context);
 
-    int8_t __cdecl Planet_Number(int16_t planet_index);
+    int8_t Planet_Number(const game::s_game_state& state, game::id_planet id);
 
     void __cdecl Set_All_Visited_Flags();
 
@@ -148,7 +148,7 @@ namespace HAROLD {
     /** Returns whether any planet in the system currently hosts an outpost. */
     bool __cdecl Player_Has_Outpost(int16_t unused_player_num, int16_t star_idx);
 
-    int8_t __cdecl Planet_Has_Outpost(int16_t planet_idx);
+    int8_t __cdecl Planet_Has_Outpost(game::id_planet planet_idx);
 
     uint8_t __cdecl Player_Has_Visited(int16_t player_idx, int16_t star_idx);
 
@@ -166,7 +166,6 @@ namespace HAROLD {
 
     int16_t __cdecl Players_Home_Star(int16_t star_idx);
 
-    int16_t __cdecl Planet_Index(int16_t star_idx, int16_t planet_idx);
 
     extern const char s_after_home_world_gen[];
 

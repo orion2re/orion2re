@@ -1,5 +1,7 @@
 #include "pch.h"
 
+#include "leader_serialization.h"
+#include "legacy_ids.h"
 #include "legacy_world.h"
 #include "string_overrides.h"
 
@@ -15,7 +17,7 @@ namespace INITGAME {
      */
     void Init_Ships_Array() {
         orion2re::lua::game::Reset_Ship_Generations();
-        memset(MOX::ship, 0, MAX_SHIPS * sizeof(s_ship_data));
+        std::fill_n(MOX::ship, MAX_SHIPS, s_ship_data{});
 
         for (MOX::NUM_SHIPS = 0; MOX::NUM_SHIPS < MAX_SHIPS; ++MOX::NUM_SHIPS) {
             s_ship_data& ship = MOX::ship[MOX::NUM_SHIPS];
@@ -34,17 +36,7 @@ namespace INITGAME {
      * Clears the entire array and sets initial sentinel values for owner, planet, and officer.
      */
     void Init_Colonies_Array() {
-        memset(MOX::colony, 0, MAX_COLONIES * sizeof(s_colony));
-
-        for (MOX::NUM_COLONIES = 0; MOX::NUM_COLONIES < MAX_COLONIES; ++MOX::NUM_COLONIES) {
-            s_colony& colony = MOX::colony[MOX::NUM_COLONIES];
-
-            colony.planet = -1;
-            colony.owner = -1;
-            colony.officer = -1;
-        }
-
-        MOX::NUM_COLONIES = 0;
+        game::current_state.Reset_Colonies();
     }
 
     /**
@@ -168,7 +160,7 @@ namespace INITGAME {
             MOX::PLAYER_NUM = 0;
         }
 
-        Init_Leaders();
+        Init_Leaders(game::current_state);
         RUSS::Mox_Update();
         Init_Players();
         RUSS::Mox_Update();
@@ -314,63 +306,64 @@ namespace INITGAME {
         return true;
     }
 
-    void __cdecl Init_Colony(int16_t colony_idx, int16_t planet_idx, uint8_t player_num) {
-        s_colony* colony = &MOX::colony[colony_idx];
+    game::id_colony __cdecl Init_Colony(game::s_game_state& state, game::id_colony colony_id, game::id_planet planet_id, uint8_t player_num) {
+        auto& planet = state.planets.at(planet_id);
+        s_colony colony{.owner = static_cast<int8_t>(player_num), .planet_id = planet_id, .officer = -1};
+        std::ranges::fill(colony.producing, COLONY_PRODUCTION_NONE);
+        colony.occupation_policy = 4;
+        colony.just_produced = COLONY_PRODUCTION_NONE;
+        if (colony_id == game::NO_COLONY) {
+            if (state.colonies.size() >= MAX_COLONIES) return game::NO_COLONY;
+            // Unscheduled creation must not claim an ID held by the round's reservation order.
+            for (const auto& ids : state.colony_reservations) {
+                if (!ids.empty()) state.next_colony_id = std::max(state.next_colony_id, ids.back().id + 1);
+            }
+            const auto created = state.Create_Colony(colony);
+            if (!created) return game::NO_COLONY;
+            colony_id = *created;
+        } else {
+            const auto existing = state.colonies.find(colony_id);
+            if (existing != state.colonies.end() && existing->second.planet_id != planet_id) return game::NO_COLONY;
+            if (!state.colonies.contains(colony_id) && state.colonies.size() >= MAX_COLONIES) return game::NO_COLONY;
+            colony.id = colony_id;
+            state.colonies.insert_or_assign(colony.id, colony);
+            state.next_colony_id = std::max(state.next_colony_id, colony_id.id + 1);
+        }
+        planet.colony_id = colony_id;
 
-        // Zero-initialize the entire colony structure
-        memset(colony, 0, sizeof(s_colony));
-
-        s_planet_data* planet = &MOX::planet[planet_idx];
-        planet->colony_index = colony_idx;
-
-        colony->planet = planet_idx;
-        colony->owner = player_num;
-        colony->officer = -1;
-
-        int16_t star_idx = planet->star_index;
+        int16_t star_idx = planet.star_index;
         // Mark the star system as visited/seen by the player
         uint8_t visited_player_mask = (uint8_t)(1u << (player_num & 0x1f));
         MOX::star[star_idx].visited |= visited_player_mask;
 
-        for (int32_t producing_idx = 0; producing_idx < (int32_t)(sizeof(colony->producing) / sizeof(colony->producing[0])); ++producing_idx) {
-            colony->producing[producing_idx] = COLONY_PRODUCTION_NONE;
-        }
-
-        colony->occupation_policy = 4;
-        colony->just_produced = COLONY_PRODUCTION_NONE;
+        return colony_id;
     }
 
-    void __cdecl Init_Leaders() {
+    void __cdecl Init_Leaders(game::s_game_state& state) {
         char lbx_filename[20];
         HAROLD::Get_Officer_Data_LBX_Name(lbx_filename);
 
-        void* leader_records = farload::Far_Reload_Data(lbx_filename, 0, MOX::screen_seg, 0, MAX_LEADERS, sizeof(s_leader_data));
-
-        memcpy(MOX::leaders, leader_records, MAX_LEADERS * sizeof(s_leader_data));
+        constexpr auto size = MAX_LEADERS * SERIAL::LEGACY_LEADER_BYTES;
+        const void* leader_records = farload::Far_Reload_Data(lbx_filename, 0, MOX::screen_seg, 0, MAX_LEADERS, SERIAL::LEGACY_LEADER_BYTES);
+        SERIAL::Reader_ reader(leader_records, size, "invalid leader resource");
+        SERIAL::Read_Leader_State(state, reader, true);
 
         for (int16_t i = 0; i < MAX_LEADERS; ++i) {
-            // Skill masks are misaligned in the packed leader record, so
-            // generate them in locals and store them afterward.
-            uint32_t special_skills;
-            uint32_t general_skills;
+            auto& leader = state.leaders.at(i);
             if (i == OFFICER::progression.special_leaders.random_skills_colony_leader_id) {
                 // Special handling for leader at index 41
-                OFFICER::Get_Random_Skills(&special_skills, &general_skills, 2, 5, 1);
-                MOX::leaders[i].special_skills = special_skills;
-                MOX::leaders[i].general_skills = general_skills;
+                OFFICER::Get_Random_Skills(&leader.special_skills, &leader.general_skills, 2, 5, 1);
             } else if (i == OFFICER::progression.special_leaders.random_skills_ship_officer_id) {
                 // Special handling for leader at index 52
-                OFFICER::Get_Random_Skills(&special_skills, &general_skills, 1, 5, 1);
-                MOX::leaders[i].special_skills = special_skills;
-                MOX::leaders[i].general_skills = general_skills;
+                OFFICER::Get_Random_Skills(&leader.special_skills, &leader.general_skills, 1, 5, 1);
             } else if (i == 65) {
                 // Special randomized tech application for leader at index 65
-                MOX::leaders[i].tech_application[0] = (uint8_t)game_random::Random(101);
-                MOX::leaders[i].tech_application[1] = (uint8_t)game_random::Random(102) + 101;
+                leader.tech_application[0] = (uint8_t)game_random::Random(101);
+                leader.tech_application[1] = (uint8_t)game_random::Random(102) + 101;
             }
 
             // Calculate and set the skill value for this leader.
-            MOX::leaders[i].skill_value = OFFICER::Officer_Skill_Value(i);
+            leader.skill_value = OFFICER::Officer_Skill_Value(state, i);
 
             // Refresh systems after each leader update.
             RUSS::Mox_Update();
@@ -389,7 +382,7 @@ namespace INITGAME {
             }
 
             // Determine and set the default auto-selection logic for this star
-            int16_t selected_planet_idx;
+            game::id_planet selected_planet_idx;
             HACCESS::Set_Colony_Auto_Select_For_Star(star_idx, MOX::PLAYER_NUM, &selected_planet_idx);
         }
     }
@@ -404,7 +397,7 @@ namespace INITGAME {
             if (star_ptr->system_special == SYSTEM_SPECIAL_SPACE_MONSTER) {
                 int32_t ship_type = game_random::Random(5) + 9;
                 int16_t star_idx = (int16_t)(star_ptr - MOX::star);
-                int16_t planet_idx = HOMEGEN::Random_Planet(star_idx);
+                const auto planet_id = HOMEGEN::Random_Planet(game::current_state, star_idx);
 
                 // Initialize monster ship owner to Neutral/Orion
                 MOX::ship[MOX::NUM_SHIPS].owner = 8;
@@ -414,7 +407,7 @@ namespace INITGAME {
                 star_ptr->system_special = star_ptr->twinkling1;
                 star_ptr->twinkling1 = 0;
 
-                HOMEGEN::Upgrade_Planet_Guarded_By_Monster(&MOX::planet[planet_idx], (int16_t)ship_type);
+                HOMEGEN::Upgrade_Planet_Guarded_By_Monster(&game::current_state.planets.at(planet_id), (int16_t)ship_type);
             }
             star_ptr++;
         }

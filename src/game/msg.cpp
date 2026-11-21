@@ -1,5 +1,7 @@
 #include "pch.h"
 
+using game::current_state;
+
 namespace MSG_ {
     namespace {
         constexpr int16_t DIPLOMACY_MSG_WAR = 0;
@@ -162,8 +164,7 @@ namespace MSG_ {
         switch (msg->msg_type) {
             case MSG_TYPE_COLONY: {
                 const auto& colony_msg = msg->u.colony;
-                const int16_t planet_idx = colony_msg.planet_idx;
-                const char* planet_name = HACCESS::Get_Planet_Name(planet_idx);
+                const char* planet_name = HACCESS::Get_Planet_Name(current_state, colony_msg.planet_id.get());
 
                 switch (colony_msg.subtype) {
                     case MSG_COLONY_SUBTYPE_BUILDING_SCRAPPED: {
@@ -335,7 +336,7 @@ namespace MSG_ {
                 snprintf(out_text, out_text_size, msg_lost_ship_fmt, TECHDATA::hull_data[ship->d.size].name, ship, (int)ship->d.cost, &MOX::star[lost_ship_msg.star_idx]);
                 uint8_t leader_idx = lost_ship_msg.leader_idx;
                 if (leader_idx != 0xFF) {
-                    snprintf(append_text, sizeof(append_text), leader_fate_strings[lost_ship_msg.fate], &MOX::leaders[leader_idx]);
+                    snprintf(append_text, sizeof(append_text), leader_fate_strings[lost_ship_msg.fate], current_state.leaders.at(leader_idx).name);
                     strlcat(out_text, append_text, out_text_size);
                     return;
                 }
@@ -355,11 +356,11 @@ namespace MSG_ {
             case MSG_TYPE_LOST_COLONY: {
                 const auto& lost_colony_msg = msg->u.lost_colony;
                 const char* reason_text = lost_colony_reason_strings[lost_colony_msg.reason];
-                const char* planet_name = HACCESS::Get_Planet_Name(lost_colony_msg.planet_idx);
+                const char* planet_name = HACCESS::Get_Planet_Name(current_state, lost_colony_msg.planet_id.get());
                 snprintf(out_text, out_text_size, msg_lost_colony_fmt, msg_colony_or_outpost[(uint8_t)lost_colony_msg.colony_or_outpost], planet_name, reason_text);
                 int16_t leader_idx = lost_colony_msg.leader_idx;
                 if (leader_idx != -1) {
-                    snprintf(append_text, sizeof(append_text), msg_lost_colony_leader_fmt, &MOX::leaders[leader_idx]);
+                    snprintf(append_text, sizeof(append_text), msg_lost_colony_leader_fmt, current_state.leaders.at(leader_idx).name);
                     strlcat(out_text, append_text, out_text_size);
                     return;
                 }
@@ -383,7 +384,7 @@ namespace MSG_ {
                 snprintf(out_text, out_text_size, msg_hyperspace_beast_ate_your_ship_fmt, &MOX::ship[ship_idx], &MOX::star[star_idx]);
                 uint8_t officer_idx = beast_msg.officer_idx;
                 if (officer_idx != 0xFF) {
-                    snprintf(append_text, sizeof(append_text), leader_fate_strings[(uint8_t)beast_msg.leader_status], &MOX::leaders[officer_idx]);
+                    snprintf(append_text, sizeof(append_text), leader_fate_strings[(uint8_t)beast_msg.leader_status], current_state.leaders.at(officer_idx).name);
                     strlcat(out_text, append_text, out_text_size);
                     return;
                 }
@@ -410,7 +411,7 @@ namespace MSG_ {
                 const auto& artemis_leader_msg = msg->u.artemis_leader;
                 int16_t star_idx = artemis_leader_msg.star_idx;
                 snprintf(out_text, out_text_size, msg_artemis_leader_fmt, &MOX::star[star_idx]);
-                snprintf(append_text, sizeof(append_text), leader_fate_strings[artemis_leader_msg.fate], &MOX::leaders[artemis_leader_msg.leader_idx]);
+                snprintf(append_text, sizeof(append_text), leader_fate_strings[artemis_leader_msg.fate], current_state.leaders.at(artemis_leader_msg.leader_idx).name);
                 strlcat(out_text, append_text, out_text_size);
                 return;
             }
@@ -447,10 +448,10 @@ namespace MSG_ {
                     return;
                 }
                 if (MOX::settings.language == 4) {
-                    snprintf(out_text, out_text_size, msg_spy_assassinated_victim_fmt, &MOX::leaders[(uint8_t)assassination_msg.leader_id], details_text, MOX::player[attacking_player_idx].race_name);
+                    snprintf(out_text, out_text_size, msg_spy_assassinated_victim_fmt, current_state.leaders.at((uint8_t)assassination_msg.leader_id).name, details_text, MOX::player[attacking_player_idx].race_name);
                     return;
                 }
-                snprintf(out_text, out_text_size, msg_spy_assassinated_victim_fmt, &MOX::leaders[(uint8_t)assassination_msg.leader_id], MOX::player[attacking_player_idx].race_name, details_text);
+                snprintf(out_text, out_text_size, msg_spy_assassinated_victim_fmt, current_state.leaders.at((uint8_t)assassination_msg.leader_id).name, MOX::player[attacking_player_idx].race_name, details_text);
                 return;
             }
             case MSG_TYPE_ANOMALY: {
@@ -487,7 +488,7 @@ namespace MSG_ {
                 strlcpy(out_text, msg_april1_fmt, out_text_size);
                 return;
             case MSG_TYPE_SCRAP_LEADER:
-                snprintf(out_text, out_text_size, msg_scrap_leader_fmt, &MOX::leaders[(uint8_t)msg->u.scrap_leader.leader_idx]);
+                snprintf(out_text, out_text_size, msg_scrap_leader_fmt, current_state.leaders.at((uint8_t)msg->u.scrap_leader.leader_idx).name);
                 return;
             default:
                 break;
@@ -508,13 +509,14 @@ namespace MSG_ {
             }
         }
 
-        for (int16_t colony_idx = 0; colony_idx < MOX::NUM_COLONIES; ++colony_idx) {
-            int8_t owner = MOX::colony[colony_idx].owner;
+        for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
+            const auto colony_idx = roster_id;
+            int8_t owner = roster_colony.owner;
             if (owner >= 0) {
                 if (EVENTS::Event_Check_Plague(colony_idx) != 0) {
                     memset(&msg, 0, sizeof(msg));
                     msg.msg_type = MSG_TYPE_COLONY;
-                    msg.u.colony.planet_idx = MOX::colony[colony_idx].planet;
+                    msg.u.colony.planet_id = roster_colony.planet_id;
                     msg.u.colony.subtype = MSG_COLONY_SUBTYPE_PLAGUE;
                     Add_Msg(msg, owner);
                 }
@@ -522,7 +524,7 @@ namespace MSG_ {
                 if (EVENTS::Event_Check_Population_Boom(colony_idx) != 0) {
                     memset(&msg, 0, sizeof(msg));
                     msg.msg_type = MSG_TYPE_COLONY;
-                    msg.u.colony.planet_idx = MOX::colony[colony_idx].planet;
+                    msg.u.colony.planet_id = roster_colony.planet_id;
                     msg.u.colony.subtype = MSG_COLONY_SUBTYPE_POPULATION_BOOM;
                     Add_Msg(msg, owner);
                 }
@@ -530,7 +532,7 @@ namespace MSG_ {
                 if (EVENTS::Event_Check_Comet(colony_idx) != 0) {
                     memset(&msg, 0, sizeof(msg));
                     msg.msg_type = MSG_TYPE_COLONY;
-                    msg.u.colony.planet_idx = MOX::colony[colony_idx].planet;
+                    msg.u.colony.planet_id = roster_colony.planet_id;
                     msg.u.colony.subtype = MSG_COLONY_SUBTYPE_COMET;
                     Add_Msg(msg, owner);
                 }
@@ -619,17 +621,17 @@ namespace MSG_ {
      */
     int8_t __cdecl Goto_Msg_Colony(s_MSG* msg) {
         if (msg->msg_type == MSG_TYPE_COLONY) {
-            int16_t planet_idx = msg->u.colony.planet_idx;
-            int16_t colony_idx = MOX::planet[planet_idx].colony_index;
+            const auto planet = current_state.planets.find(msg->u.colony.planet_id.get());
+            const auto colony_idx = planet == current_state.planets.end() ? game::NO_COLONY : planet->second.colony_id;
 
-            if (colony_idx != -1) {
-                s_colony* colony = &MOX::colony[colony_idx];
+            if (colony_idx != game::NO_COLONY) {
+                s_colony* colony = &game::current_state.colonies.at(colony_idx);
 
                 if (colony->owner == MOX::PLAYER_NUM) {
                     MOX::return_screen = SCREEN_INFO;
                     MOX::current_screen = SCREEN_COLONY;
 
-                    s_planet_data* planet = &MOX::planet[colony->planet];
+                    s_planet_data* planet = &current_state.planets.at(colony->planet_id);
                     MOX::screen_data = planet->star_index;
                     COLONY::orbit_temp = (int16_t)planet->orbit;
 

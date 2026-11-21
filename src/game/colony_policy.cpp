@@ -14,12 +14,12 @@ namespace COLONY {
         ++colony->buildings_scrapped_this_turn;
     }
 
-    bool __cdecl Colony_Has_Natives(int16_t colony_idx) {
-        uint8_t n_pops = MOX::colony[colony_idx].n_pops;
+    bool __cdecl Colony_Has_Natives(game::id_colony colony_idx) {
+        uint8_t n_pops = game::current_state.colonies.at(colony_idx).n_pops;
 
         if (n_pops != 0) {
             for (int16_t i = 0; i < (int16_t)n_pops; i++) {
-                if (POP::Is_Native(MOX::colony[colony_idx].pop[i])) {
+                if (POP::Is_Native(game::current_state.colonies.at(colony_idx).pop[i])) {
                     return true;
                 }
             }
@@ -28,8 +28,8 @@ namespace COLONY {
         return false;
     }
 
-    bool __cdecl Colony_Needs_Occupation_Policy(int16_t colony_idx) {
-        const s_colony* colony = &MOX::colony[colony_idx];
+    bool __cdecl Colony_Needs_Occupation_Policy(game::id_colony colony_idx) {
+        const s_colony* colony = &game::current_state.colonies.at(colony_idx);
         if (colony->occupation_policy != 4) {
             return false;
         }

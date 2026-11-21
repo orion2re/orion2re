@@ -97,10 +97,10 @@ namespace maintain {
                     const game::s_view world{
                         .players = MOX::player,
                         .ships = MOX::ship,
-                        .leaders = MOX::leaders,
+                        .state = &game::current_state,
                         .ship_count = &MOX::NUM_SHIPS,
                     };
-                    aileader::Reassign_Fleet_Officer(&world, legacy_world::Player_Id(player_idx), legacy_world::Leader_Id(officer_idx));
+                    aileader::Reassign_Fleet_Officer(&world, legacy_world::Player_Id(player_idx), officer_idx);
 
                     if (cheapest_ship->officer_index == officer_idx) {
                         OFFICER::Move_Officer_To_Pool(officer_idx);

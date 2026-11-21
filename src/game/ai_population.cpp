@@ -4,8 +4,7 @@
 
 namespace aidudes {
     static void Assign_Blockaded_Non_Farmers(s_colony* colony, AIDATA::s_colony_assignment* colony_info) {
-        const auto legacy_colony = legacy_world::Index(colony_info->colony_id);
-        int16_t is_researching = legacy_colony ? EVENTS::Event_Check_Colony_Researching(*legacy_colony) : 0;
+        int16_t is_researching = EVENTS::Event_Check_Colony_Researching(colony_info->colony_id);
         POP::e_prof prof = is_researching == 0 ? POP::PROF_WORKER : POP::PROF_SCIENTIST;
 
         while ((uint8_t)colony_info->cur_pop_idx < (uint8_t)colony_info->pop_end_idx) {
@@ -17,7 +16,7 @@ namespace aidudes {
     }
 
     void __cdecl Do_Blockaded_Colony(const game::s_view* world, AIDATA::s_colony_assignment* colony_info) {
-        s_colony* colony = &world->colonies[legacy_world::Slot(colony_info->colony_id)];
+        s_colony* colony = &world->state->colonies.at(colony_info->colony_id);
         Assign_Required_Colonists(world, colony_info);
 
         qsort(&colony->pop[(uint8_t)colony_info->first_assignable_pop_idx],
@@ -28,7 +27,7 @@ namespace aidudes {
         if (colony->food2_per_farmer == 0) {
             Assign_Blockaded_Non_Farmers(colony, colony_info);
         } else {
-            COLCALC::Pre_Import_Computing(colony);
+            COLCALC::Pre_Import_Computing(colony_info->colony_id, colony);
 
             while ((uint8_t)colony_info->cur_pop_idx < (uint8_t)colony_info->pop_end_idx) {
                 int32_t total_food_needed = (uint8_t)colony->food2_needed_for_our_empire +
@@ -53,11 +52,11 @@ namespace aidudes {
                     POP::Set_Prof(pop, POP::PROF_WORKER);
                     POP::Set_Assigned(pop, true);
                 }
-                COLCALC::Pre_Import_Computing(colony);
+                COLCALC::Pre_Import_Computing(colony_info->colony_id, colony);
             }
         }
 
-        COLCALC::Pre_Import_Computing(colony);
+        COLCALC::Pre_Import_Computing(colony_info->colony_id, colony);
     }
 
     int16_t __cdecl FI_Worthiness(const s_colony* colony, const uint32_t* pop) {
@@ -90,7 +89,7 @@ namespace aidudes {
     }
 
     void __cdecl Assign_Required_Colonists(const game::s_view* world, AIDATA::s_colony_assignment* colony_info) {
-        s_colony* colony = &world->colonies[legacy_world::Slot(colony_info->colony_id)];
+        s_colony* colony = &world->state->colonies.at(colony_info->colony_id);
         uint32_t* pop_ptr = colony->pop;
         char do_not_research = world->players[(int)colony->owner].do_not_research;
         int16_t non_immune_pops = 0;

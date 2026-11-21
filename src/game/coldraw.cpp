@@ -9,8 +9,8 @@ namespace COLDRAW {
     uint8_t DAT_5a7760;
     uint8_t DAT_5a778a;
 
-    void __cdecl Draw_Info_Morale_Both(int16_t colony_idx, int16_t x, int16_t y, int32_t width, uint8_t is_mini) {
-        s_colony* colony = &MOX::colony[colony_idx];
+    void __cdecl Draw_Info_Morale_Both(game::id_colony colony_idx, int16_t x, int16_t y, int32_t width, uint8_t is_mini) {
+        s_colony* colony = &game::current_state.colonies.at(colony_idx);
         int16_t morale_div2 = (int16_t)((int8_t)colony->morale / 2);
 
         int32_t morale_count_abs = abs((int32_t)morale_div2);
@@ -67,7 +67,7 @@ namespace COLDRAW {
         }
     }
 
-    void __cdecl Draw_Info_Morale(int16_t colony_idx, int16_t x, int16_t y, int32_t width) {
+    void __cdecl Draw_Info_Morale(game::id_colony colony_idx, int16_t x, int16_t y, int32_t width) {
         COLDRAW::Draw_Info_Morale_Both(colony_idx, x, y, width, 0);
     }
 
@@ -103,9 +103,10 @@ namespace COLDRAW {
         video::Clip_Off();
     }
 
-    int16_t __cdecl Do_Colony_Info_Pop_Stuff_For_Pop(
-        int16_t colony_idx, int16_t job_filter, int16_t mode, int16_t left_x, int16_t top_y, int16_t right_x, uint8_t show_farm_shadows, int16_t* pop_index_by_slot, int16_t* last_slot_idx_ptr, int16_t* scroll_value_ptr, int16_t* scroll_field_id_ptr) {
-        const uint8_t colony_n_pops = MOX::colony[colony_idx].n_pops;
+    static int16_t Draw_Colony_Pop_Fields(
+        const s_colony& colony, bool highlight, int16_t job_filter, int16_t mode, int16_t left_x, int16_t top_y, int16_t right_x, uint8_t show_farm_shadows, int16_t* pop_index_by_slot, int16_t* last_slot_idx_ptr, int16_t* scroll_value_ptr, int16_t* scroll_field_id_ptr) {
+        const uint8_t colony_n_pops = colony.n_pops;
+        const uint8_t max_farms = colony.max_farms;
         int16_t pop_order[10];
         pop_order[0] = 9;
         pop_order[1] = 0;
@@ -121,7 +122,7 @@ namespace COLDRAW {
         int16_t pop_draw_index = 0;
 
         if (mode != 2) {
-            Do_Colony_Info_Pop_Stuff_For_Pop(colony_idx, job_filter, 2, left_x, top_y, right_x, show_farm_shadows, pop_index_by_slot, last_slot_idx_ptr, scroll_value_ptr, scroll_field_id_ptr);
+            Draw_Colony_Pop_Fields(colony, highlight, job_filter, 2, left_x, top_y, right_x, show_farm_shadows, pop_index_by_slot, last_slot_idx_ptr, scroll_value_ptr, scroll_field_id_ptr);
         }
 
         int16_t start_idx;
@@ -134,7 +135,7 @@ namespace COLDRAW {
             end_idx = job_filter + 1;
         }
 
-        if (mode == 0 && job_filter == ECON_FOOD && MOX::colony[colony_idx].max_farms == 0) {
+        if (mode == 0 && job_filter == ECON_FOOD && max_farms == 0) {
             COLONY::Set_Colony_Font_To(3);
             if (MOX::settings.language == 1 && MOX::current_screen == SCREEN_COLONY_SUMMARY) {
                 BILL::Squeeze_Print_Paragraph(left_x, top_y - 1, right_x - left_x, 34, ESTRINGS::E_Strings(387 /* ESTR_NO_FARMING */), 2);
@@ -151,23 +152,23 @@ namespace COLDRAW {
                     for (int16_t order_idx = 0; order_idx < 10; order_idx++) {
                         int16_t current_order = pop_order[order_idx];
                         for (int16_t pop_idx = 0; pop_idx < (int16_t)colony_n_pops; pop_idx++) {
-                            uint32_t pop_val = MOX::colony[colony_idx].pop[pop_idx];
+                            const auto pop_val = colony.pop[pop_idx];
                             if ((pop_val & 0xf) == current_order) {
-                                if (COLONY::Pop_To_Pop_State(colony_idx, pop_idx) == state_idx) {
+                                if (COLONY::Pop_To_Pop_State(pop_val) == state_idx) {
                                     if (((pop_val & 0x180) >> 7) == job_idx) {
                                         if ((pop_val & 0x200) != 0) {
                                             if (((pop_val & 0x400) >> 10) == race_idx) {
                                                 switch (mode) {
                                                     case 0:
                                                         COLONY::Set_Colony_Font_To(2);
-                                                        if (pop_idx == COLONY::scanned_pop && COLONY::g_colony_n == colony_idx) {
+                                                        if (pop_idx == COLONY::scanned_pop && highlight) {
                                                             if (ERIC::Global_Cycler(30, 2) != 0) {
-                                                                COLONY::Draw_Pop_Dark((30 - COLONY::step_squish) * pop_draw_index + left_x, top_y, colony_idx, pop_idx);
+                                                                COLONY::Draw_Pop_Dark((30 - COLONY::step_squish) * pop_draw_index + left_x, top_y, colony, pop_idx);
                                                                 break;
                                                             }
                                                         }
                                                         {
-                                                            s_animation_header* anim = COLONY::Colony_Pop_Anim(colony_idx, pop_idx);
+                                                            s_animation_header* anim = COLONY::Colony_Pop_Anim(colony, pop_idx);
                                                             animate::Draw((30 - COLONY::step_squish) * pop_draw_index + left_x, top_y, anim);
                                                         }
                                                         break;
@@ -212,7 +213,6 @@ namespace COLDRAW {
         switch (mode) {
             case 0:
                 if (show_farm_shadows != 0 && job_filter == ECON_FOOD) {
-                    const uint8_t max_farms = MOX::colony[colony_idx].max_farms;
                     if (max_farms != 0xff) {
                         if (pop_draw_index < (int16_t)max_farms) {
                             COLONY::Create_Shadow_Farmer(MOX::PLAYER_NUM);
@@ -233,7 +233,6 @@ namespace COLDRAW {
 
             case 2: {
                 int16_t squish_count = pop_draw_index;
-                const uint8_t max_farms = MOX::colony[colony_idx].max_farms;
                 if (show_farm_shadows != 0 && job_filter == 0 && max_farms != 0xff) {
                     squish_count = (int16_t)max_farms;
                 }
@@ -261,6 +260,13 @@ namespace COLDRAW {
     reset_step_squish_and_return:
         COLONY::Reset_Step_Squish();
         return -1;
+    }
+
+    int16_t __cdecl Do_Colony_Info_Pop_Stuff_For_Pop(
+        game::id_colony colony_idx, int16_t job_filter, int16_t mode, int16_t left_x, int16_t top_y, int16_t right_x, uint8_t show_farm_shadows, int16_t* pop_index_by_slot, int16_t* last_slot_idx_ptr, int16_t* scroll_value_ptr, int16_t* scroll_field_id_ptr) {
+        const auto& colony = game::current_state.colonies.at(colony_idx);
+        return Draw_Colony_Pop_Fields(colony, COLONY::g_colony_n == colony_idx, job_filter, mode, left_x, top_y, right_x,
+            show_farm_shadows, pop_index_by_slot, last_slot_idx_ptr, scroll_value_ptr, scroll_field_id_ptr);
     }
 
     void __cdecl Draw_Simplest_Path(int16_t previous_row, int16_t previous_col, int16_t row, int16_t col, uint8_t* first_segment_out, uint8_t* second_segment_out) {
@@ -447,9 +453,8 @@ namespace COLDRAW {
     }
 
     void __cdecl Build_Veggie_List_Based_On_Bldg_List() {
-        const int16_t initial_planet_index =
-            HAROLD::Planet_Index(MOX::screen_data, COLONY::orbit_temp);
-        (void)COLONY::N_Bldgs(MOX::planet[initial_planet_index].colony_index);
+        const auto initial_planet_index = MOX::star[MOX::screen_data].orbit_planet_ids[COLONY::orbit_temp].get();
+        (void)COLONY::N_Bldgs(game::current_state.planets.at(initial_planet_index).colony_id);
 
         COLDRAW::Clear_Veggie_Draw_Flags();
 
@@ -461,10 +466,9 @@ namespace COLDRAW {
 
                 const int16_t road_count = COLDRAW::N_Roads_Around_CR(row, col);
 
-                const int16_t planet_index =
-                    HAROLD::Planet_Index(MOX::screen_data, COLONY::orbit_temp);
+                const auto planet_index = MOX::star[MOX::screen_data].orbit_planet_ids[COLONY::orbit_temp].get();
                 const int16_t building_count =
-                    COLONY::N_Bldgs(MOX::planet[planet_index].colony_index);
+                    COLONY::N_Bldgs(game::current_state.planets.at(planet_index).colony_id);
 
                 bool should_process_cell = false;
                 if ((int32_t)game_random::Random(7) - 2 < (int32_t)road_count) {
@@ -495,11 +499,10 @@ namespace COLDRAW {
                         continue;
                     }
 
-                    const int16_t veggie_planet_index =
-                        HAROLD::Planet_Index(MOX::screen_data, COLONY::orbit_temp);
+                    const auto veggie_planet_index = MOX::star[MOX::screen_data].orbit_planet_ids[COLONY::orbit_temp].get();
                     const int16_t anim_entry =
                         COLDRAW::Pick_Random_Veggie_Anim_Entry_For_Colony_CR(
-                            MOX::planet[veggie_planet_index].colony_index, row, col);
+                            game::current_state.planets.at(veggie_planet_index).colony_id, row, col);
 
                     COLDRAW::veggie_list[row][col].anim_entries[sprite_index] = anim_entry;
 
@@ -522,7 +525,7 @@ namespace COLDRAW {
         }
     }
 
-    void __cdecl Draw_Info_Wee_Morale(int16_t colony_idx, int16_t x, int16_t y, int32_t width) {
+    void __cdecl Draw_Info_Wee_Morale(game::id_colony colony_idx, int16_t x, int16_t y, int32_t width) {
         Draw_Info_Morale_Both(colony_idx, x, y, width, 1);
     }
 
@@ -573,7 +576,7 @@ namespace COLDRAW {
         }
     }
 
-    int16_t __cdecl Pick_Random_Veggie_Anim_Entry_For_Colony_CR(int16_t colony_idx, int16_t row, int16_t col) {
+    int16_t __cdecl Pick_Random_Veggie_Anim_Entry_For_Colony_CR(game::id_colony colony_idx, int16_t row, int16_t col) {
         int32_t random_entry = (int16_t)(game_random::Random(8) - 1);
         int32_t veggie_type = (int16_t)COLDRAW::Veggie_Type_For_Colony(colony_idx);
 
@@ -585,10 +588,10 @@ namespace COLDRAW {
         return (int16_t)(random_entry + veggie_type * 8);
     }
 
-    int16_t __cdecl Veggie_Type_For_Colony(int16_t colony_idx) {
+    int16_t __cdecl Veggie_Type_For_Colony(game::id_colony colony_idx) {
         int16_t veggie_type = 4;
-        const int16_t planet_idx = MOX::colony[colony_idx].planet;
-        const int32_t climate = MOX::planet[planet_idx].climate;
+        const auto planet_idx = game::current_state.colonies.at(colony_idx).planet_id;
+        const int32_t climate = game::current_state.planets.at(planet_idx).climate;
 
         switch (climate) {
             case PLANET_CLIMATE_TOXIC:

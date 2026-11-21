@@ -4,7 +4,7 @@
 
 namespace COLMOVE {
     void __cdecl Draw_Cluster(int16_t x, int16_t y) {
-        if (cluster_colony_n != -1 && !COLONY::full_draw) {
+        if (cluster_colony_n != game::NO_COLONY && !COLONY::full_draw) {
             if (Get_First_Unemployed(cluster_colony_n) != -1) {
                 if (!HAROLD::Was_Mouse_List_Saved() && g_hacky_dont_draw_cluster_flag != 1) {
                     fields::Enable_Draw_All_Fields();
@@ -17,12 +17,12 @@ namespace COLMOVE {
                     s_animation_header* anim = COLONY::C_Anims(15 /* 0xf */);
                     animate::Draw(x, y, anim);
 
-                    s_colony& col = MOX::colony[cluster_colony_n];
+                    s_colony& col = game::current_state.colonies.at(cluster_colony_n);
                     if (col.n_pops > 0) {
                         int16_t current_x = x + 5;
                         for (int16_t i = 0; i < col.n_pops; ++i) {
                             if (!POP::Is_Assigned(col.pop[i])) {
-                                s_animation_header* pop_anim = COLONY::Colony_Pop_Anim(cluster_colony_n, i);
+                                s_animation_header* pop_anim = COLONY::Colony_Pop_Anim(col, i);
                                 animate::Draw(current_x, y - 10, pop_anim);
                                 current_x += 20; // 0x14
                             }
@@ -41,12 +41,12 @@ namespace COLONY {
     int16_t _shortcut_next_colony;
     int16_t _shortcut_return;
 
-    bool __cdecl Prompt_For_Autobuild_Queue(int16_t colony_idx) {
-        if (colony_idx < 0 || colony_idx >= MOX::NUM_COLONIES) {
+    bool __cdecl Prompt_For_Autobuild_Queue(game::id_colony colony_idx) {
+        if (!game::current_state.colonies.contains(colony_idx)) {
             return false;
         }
 
-        s_colony& colony = MOX::colony[colony_idx];
+        s_colony& colony = game::current_state.colonies.at(colony_idx);
         int preset = BUILD_QUEUE::Decode_Autobuild_Preset(colony.auto_building);
         if (preset < 0) {
             preset = BUILD_QUEUE::autobuild_settings.default_preset;
@@ -241,7 +241,7 @@ namespace COLONY {
         Draw_Colony_Info_Scanned();
     }
 
-    void __cdecl Draw_Planet_Summary(int16_t x, int16_t y, int16_t planet_idx) {
+    void __cdecl Draw_Planet_Summary(int16_t x, int16_t y, game::id_planet planet_idx) {
         char buffer[2000];
 
         fonts::Set_Font_Style_Shadow_Down(1, &font_color_array);
@@ -274,28 +274,28 @@ namespace COLONY {
         bool quit_flag = false;
 
         uint32_t saved_seed = game_random::Get_Random_Seed();
-        game_random::Set_Random_Seed(colony_handle);
+        game_random::Set_Random_Seed(colony_handle.id);
         video::Clip_Off();
         using_colony_screen_palette = 1;
 
         star_handle = MOX::screen_data;
         orbit_n = (int32_t)orbit_temp;
-        int16_t planet_idx = HAROLD::Planet_Index(MOX::screen_data, orbit_temp);
+        const auto planet_idx = MOX::star[MOX::screen_data].orbit_planet_ids[orbit_temp].get();
         planet_handle = planet_idx;
 
-        colony_handle = MOX::planet[planet_handle].colony_index;
+        colony_handle = game::current_state.planets.at(planet_handle).colony_id;
         g_scanned_star = -1;
-        g_scanned_planet = -1;
+        g_scanned_planet = game::NO_PLANET;
         sys_disp_star_handle = star_handle;
 
-        if (colony_handle == -1) {
+        if (colony_handle == game::NO_COLONY) {
             valid_colony = 0;
             drawing_display = 2;
             planet_display_handle = planet_idx;
         } else {
             valid_colony = 1;
             drawing_display = 0;
-            g_scanned_planet = -1;
+            g_scanned_planet = game::NO_PLANET;
         }
 
         fields::Clear_Mouse_Buffer();
@@ -312,7 +312,7 @@ namespace COLONY {
             return;
         }
 
-        MOX::PLAYER_NUM = (int16_t)MOX::colony[colony_handle].owner;
+        MOX::PLAYER_NUM = (int16_t)game::current_state.colonies.at(colony_handle).owner;
 
         Load_Colony_Screen_Seg();
         Load_Planet_Screen();
@@ -490,8 +490,8 @@ namespace COLONY {
         return nullptr;
     }
 
-    s_animation_header* __cdecl Satellite_Anim(int16_t colony_id) {
-        int16_t pic_index = Satellite_Anim_Pic(colony_id);
+    s_animation_header* __cdecl Satellite_Anim(int16_t satellite_id) {
+        int16_t pic_index = Satellite_Anim_Pic(satellite_id);
         return Buffer_Reload_Colony(pic_index);
     }
 
@@ -501,8 +501,8 @@ namespace COLONY {
         switch (anim_id) {
             case 0:
                 return Cache_Load_Planet(
-                    static_cast<int16_t>(static_cast<int8_t>(MOX::planet[MOX::colony[colony_handle].planet].climate_bg_type) +
-                        static_cast<uint8_t>(MOX::colony[colony_handle].climate) * 3));
+                    static_cast<int16_t>(static_cast<int8_t>(game::current_state.planets.at(game::current_state.colonies.at(colony_handle).planet_id).climate_bg_type) +
+                        static_cast<uint8_t>(game::current_state.colonies.at(colony_handle).climate) * 3));
             case 1:
                 return (s_animation_header*)buffer::Buffer_Reload(COLONY2_LBX, 0x31, MOX::global_cache_seg);
             case 2:
@@ -558,9 +558,9 @@ namespace COLONY {
         }
     }
 
-    void __cdecl Make_Bldg_Array_For_Colony(int16_t colony_idx, uint8_t is_ui_view) {
+    void __cdecl Make_Bldg_Array_For_Colony(game::id_colony colony_idx, uint8_t is_ui_view) {
         uint32_t previous_seed = game_random::Get_Random_Seed();
-        game_random::Set_Random_Seed(colony_idx);
+        game_random::Set_Random_Seed(colony_idx.id);
 
         int16_t satellite_count = 0;
         Clear_Colony_Buidlings();
@@ -568,7 +568,7 @@ namespace COLONY {
 
         int bldg_count = 0;
         for (int16_t bldg_id = 0; bldg_id < BUILDING_COUNT; ++bldg_id) {
-            if (MOX::colony[colony_idx].buildings[bldg_id] != 0) {
+            if (game::current_state.colonies.at(colony_idx).buildings[bldg_id] != 0) {
                 if (is_ui_view == 0 || bldg_count < 18) {
                     if (TECHDATA::buildings[bldg_id].group == 7 /* Satellite */) {
                         Insert_Satellite_Into_Array(bldg_id, &satellite_count);
@@ -580,7 +580,7 @@ namespace COLONY {
             }
         }
 
-        int housing_to_add = (static_cast<uint8_t>(MOX::colony[colony_idx].n_pops) / 3) + 1;
+        int housing_to_add = (static_cast<uint8_t>(game::current_state.colonies.at(colony_idx).n_pops) / 3) + 1;
         for (int h = 0; h < housing_to_add; ++h) {
             if (bldg_count < 36) {
                 if (is_ui_view == 0 || (is_ui_view == 1 && bldg_count < 18)) {
@@ -650,13 +650,12 @@ namespace COLONY {
         game_random::Set_Random_Seed(previous_seed);
     }
 
-    void __cdecl Insert_Bldg_Into_Array(int16_t num_houses_delta, int16_t bldg_id, int16_t bldg_type, int8_t use_back_to_front) {
+    void __cdecl Insert_Bldg_Into_Array(game::id_colony colony_id, int16_t bldg_id, int16_t bldg_type, int8_t use_back_to_front) {
         int16_t row = -1;
         int16_t col = -1;
         int16_t n_houses = COLONY::N_Houses_In_Bldg_Array();
 
-        int total = (int)n_houses + (int)num_houses_delta;
-        int16_t house_mod = (int16_t)(total % 4);
+        auto house_mod = (n_houses + colony_id.id) % 4;
 
         if (bldg_type < 36 /* 0x24 */) {
             if (use_back_to_front == 1) {
@@ -750,8 +749,8 @@ namespace COLONY {
         } while (swapped_flag != 0 && ++iteration < 6);
     }
 
-    void __cdecl Tested_Colony_Buys_Outright(int16_t colony_idx) {
-        s_colony* col = &MOX::colony[colony_idx];
+    void __cdecl Tested_Colony_Buys_Outright(game::id_colony colony_idx) {
+        s_colony* col = &game::current_state.colonies.at(colony_idx);
         char buf[500];
 
         if (col->bought_outright != 0) {
@@ -762,7 +761,7 @@ namespace COLONY {
             return;
         }
 
-        int16_t star_idx = MOX::planet[col->planet].star_index;
+        int16_t star_idx = game::current_state.planets.at(col->planet_id).star_index;
         if ((MOX::star[star_idx].blockaded >> (MOX::PLAYER_NUM & 0x1f)) & 1) {
             GENDRAW::Help(ESTRINGS::E_Strings(ESTR_YOU_CANNOT_BUY_WHILE_THIS_STAR_IS_BLOCKADED));
             COLONY::Show_Colony_Screen();
@@ -812,16 +811,16 @@ namespace COLONY {
 
     void Draw_Info_Name_And_Pop() {
         char buffer[104];
-        int16_t handle = colony_handle;
+        game::id_colony handle = colony_handle;
 
-        if (MOX::colony[handle].occupation_policy == 0) {
-            char* planet_name = HACCESS::Get_Planet_Name(planet_handle);
+        if (game::current_state.colonies.at(handle).occupation_policy == 0) {
+            char* planet_name = HACCESS::Get_Planet_Name(game::current_state, planet_handle);
             char* fmt = ESTRINGS::E_Strings(ESTR_ANNIHILATING_S);
             snprintf(buffer, sizeof(buffer), fmt, planet_name);
             int16_t cycle_val = ERIC::Global_Cycler(30, 2);
             Set_Colony_Font_To_Red(4, (uint8_t)cycle_val);
         } else {
-            char* planet_name = HACCESS::Get_Planet_Name(planet_handle);
+            char* planet_name = HACCESS::Get_Planet_Name(game::current_state, planet_handle);
             char* colony_type = Colony_Type(handle);
             char* fmt = ESTRINGS::E_Strings(ESTR_SCOLONY_OF_S);
             snprintf(buffer, sizeof(buffer), fmt, colony_type, planet_name);
@@ -831,8 +830,8 @@ namespace COLONY {
         fonts::Set_Font_Spacing(2);
         fonts::Print_Centered(320, 0, buffer);
 
-        int16_t colony_planet = MOX::colony[handle].planet;
-        int16_t star_idx = MOX::planet[colony_planet].star_index;
+        const auto colony_planet = game::current_state.colonies.at(handle).planet_id;
+        int16_t star_idx = game::current_state.planets.at(colony_planet).star_index;
 
         int16_t status_msg_id = -1;
         if ((MOX::star[star_idx].blockaded >> (MOX::PLAYER_NUM & 0x1F)) & 1) {
@@ -862,8 +861,8 @@ namespace COLONY {
         int sum_roundoff = 0;
         int sum_growth = 0;
         for (int i = 0; i < COLONY_POP_RACE_COUNT; ++i) {
-            sum_roundoff += MOX::colony[handle].pop_roundoff[i];
-            sum_growth += MOX::colony[handle].pop_growth[i];
+            sum_roundoff += game::current_state.colonies.at(handle).pop_roundoff[i];
+            sum_growth += game::current_state.colonies.at(handle).pop_growth[i];
         }
 
         int16_t n_base_pop = static_cast<int16_t>(Sum_Colonists(handle, -1, -1, -1, -1, -1));
@@ -901,7 +900,7 @@ namespace COLONY {
 
     void __cdecl Draw_Info_Build() {
         char name_buffer[100];
-        s_colony& colony = MOX::colony[COLONY::colony_handle];
+        s_colony& colony = game::current_state.colonies.at(COLONY::colony_handle);
         int16_t producing_id = colony.producing[0];
 
         switch (producing_id) {
@@ -1059,15 +1058,15 @@ namespace COLONY {
             if (drawing_display == 1) {
                 drawing_display = 0;
                 full_draw = 1;
-                g_scanned_planet = -1;
+                g_scanned_planet = game::NO_PLANET;
                 return 1;
             }
         }
 
         if (colony_fields[11] == field_val) {
-            int16_t transport_result = COLXPORT::Xport_Popup();
+            game::id_colony transport_result = COLXPORT::Xport_Popup();
             Show_Colony_Screen();
-            if (transport_result != -1) {
+            if (transport_result != game::NO_COLONY) {
                 COLMOVE::Send_Cluster(transport_result, -1);
             }
             Show_Colony_Screen();
@@ -1077,16 +1076,16 @@ namespace COLONY {
 
         if (colony_fields[18] == field_val) {
             if (BUILD_QUEUE::autobuild_settings.enabled != 0) {
-                if (MOX::colony[colony_handle].auto_building !=
+                if (game::current_state.colonies.at(colony_handle).auto_building !=
                     BUILD_QUEUE::AUTOBUILD_DISABLED) {
-                    MOX::colony[colony_handle].auto_building =
+                    game::current_state.colonies.at(colony_handle).auto_building =
                         BUILD_QUEUE::AUTOBUILD_DISABLED;
                 } else {
                     Prompt_For_Autobuild_Queue(colony_handle);
                 }
             } else {
-                MOX::colony[colony_handle].auto_building =
-                    (MOX::colony[colony_handle].auto_building == 0);
+                game::current_state.colonies.at(colony_handle).auto_building =
+                    (game::current_state.colonies.at(colony_handle).auto_building == 0);
             }
             Show_Colony_Screen();
             return 1;
@@ -1149,7 +1148,7 @@ namespace COLONY {
         }
 
         if (colony_fields[6] == field_val || _shortcut_previous_colony == field_val) {
-            int16_t new_colony = Get_Next_Colony(colony_handle, 0);
+            game::id_colony new_colony = Get_Next_Colony(colony_handle, 0);
             if (new_colony != colony_handle) {
                 Set_Colony_Screen_To_New_Colony(new_colony);
                 return 0;
@@ -1162,13 +1161,13 @@ namespace COLONY {
                 return 1;
             }
         } else if (colony_fields[19] == field_val) {
-            s_colony* colony = &MOX::colony[colony_handle];
+            s_colony* colony = &game::current_state.colonies.at(colony_handle);
             colony->production_spent = static_cast<int16_t>(COLCALC::Colony_Producing_Product_Cost(colony));
             MAINSCR::Set_Player_Cheated_Flag(MOX::PLAYER_NUM, 6);
             ERICNET::Mox_Play_Sound(51 /* 0x33 */);
             return 1;
         } else if (colony_fields[7] == field_val || _shortcut_next_colony == field_val) {
-            int16_t new_colony = Get_Next_Colony(colony_handle, 1);
+            game::id_colony new_colony = Get_Next_Colony(colony_handle, 1);
             if (new_colony != colony_handle) {
                 Set_Colony_Screen_To_New_Colony(new_colony);
                 return 0;
@@ -1192,8 +1191,8 @@ namespace COLONY {
         s_animation_header* anim;
         int16_t height;
 
-        military_count = MOX::colony[colony_handle].military[military_index];
-        owner = (int16_t)MOX::colony[colony_handle].owner;
+        military_count = game::current_state.colonies.at(colony_handle).military[military_index];
+        owner = (int16_t)game::current_state.colonies.at(colony_handle).owner;
         step_squish = 0;
 
         if (mode != 2) {
@@ -1261,7 +1260,7 @@ namespace COLONY {
             }
         } else if (mode == 2) {
             int other_index = (military_index + 1) % 2;
-            int total_military = military_count + MOX::colony[colony_handle].military[other_index];
+            int total_military = military_count + game::current_state.colonies.at(colony_handle).military[other_index];
 
             if (total_military < 2) {
                 total_military = 1;

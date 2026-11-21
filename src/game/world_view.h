@@ -1,14 +1,13 @@
 #pragma once
 
 #include <cstdint>
-#include "object_ids.h"
+#include "game_state.h"
 
 struct s_player;
 struct s_ship_data;
 struct s_star_data;
 struct s_colony;
 struct s_planet_data;
-struct s_leader_data;
 struct s_settings;
 
 namespace game {
@@ -17,15 +16,11 @@ namespace game {
         s_player* players = nullptr;
         s_ship_data* ships = nullptr;
         s_star_data* stars = nullptr;
-        s_colony* colonies = nullptr;
-        s_planet_data* planets = nullptr;
-        s_leader_data* leaders = nullptr;
+        s_game_state* state = nullptr;
         const s_settings* settings = nullptr;
         const int16_t* player_count = nullptr;
         const int16_t* ship_count = nullptr;
         const int16_t* star_count = nullptr;
-        const int16_t* colony_count = nullptr;
-        const int16_t* planet_count = nullptr;
         const int32_t* stardate = nullptr;
         const int16_t* combat_x = nullptr;
 
@@ -39,10 +34,10 @@ namespace game {
             return star_count == nullptr ? 0 : *star_count;
         }
         int32_t Colony_Count() const {
-            return colony_count == nullptr ? 0 : *colony_count;
+            return state == nullptr ? 0 : static_cast<int32_t>(state->colonies.size());
         }
         int32_t Planet_Count() const {
-            return planet_count == nullptr ? 0 : *planet_count;
+            return state == nullptr ? 0 : static_cast<int32_t>(state->planets.size());
         }
         int32_t Stardate() const {
             return stardate == nullptr ? 0 : *stardate;

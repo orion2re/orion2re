@@ -1467,9 +1467,9 @@ namespace CMBTDRW1 {
             if (MOX::combat_defender_player == 8) {
                 planet_size = 2;
             } else {
-                int16_t colony_idx = MOX::cmbt_colony_id;
-                int16_t planet_idx = MOX::colony[colony_idx].planet;
-                planet_size = (int16_t)MOX::planet[planet_idx].size;
+                game::id_colony colony_idx = MOX::cmbt_colony_id;
+                const auto planet_idx = game::current_state.colonies.at(colony_idx).planet_id;
+                planet_size = (int16_t)game::current_state.planets.at(planet_idx).size;
             }
 
             int16_t dx = 0, dy = 0;
@@ -1535,9 +1535,9 @@ namespace CMBTDRW1 {
             int16_t planet_size = 2;
 
             if (MOX::combat_defender_player != 8) {
-                int16_t colony_id = MOX::cmbt_colony_id;
-                int16_t planet_idx = MOX::colony[colony_id].planet;
-                planet_size = MOX::planet[planet_idx].size;
+                game::id_colony colony_id = MOX::cmbt_colony_id;
+                const auto planet_idx = game::current_state.colonies.at(colony_id).planet_id;
+                planet_size = game::current_state.planets.at(planet_idx).size;
             }
 
             switch (planet_size) {
@@ -1784,26 +1784,26 @@ namespace CMBTDRW1 {
                 KEN::Ken_Get_Text_Message(0, combat_text_segment, 0x50);
                 strlcpy(colony_status_text, combat_text_segment, sizeof(colony_status_text));
 
-                if (MOX::cmbt_colony_id == -1) {
+                if (MOX::cmbt_colony_id == game::NO_COLONY) {
                     snprintf(value_text, sizeof(value_text), "%i", 0x23);
                 } else {
-                    snprintf(value_text, sizeof(value_text), "%i", MOX::colony[MOX::cmbt_colony_id].n_pops);
+                    snprintf(value_text, sizeof(value_text), "%i", game::current_state.colonies.at(MOX::cmbt_colony_id).n_pops);
                 }
 
                 strlcat(colony_status_text, value_text, sizeof(colony_status_text));
                 strlcat(colony_status_text, "  ", sizeof(colony_status_text));
-                if (MOX::cmbt_colony_id != -1) {
-                    if (MOX::colony[MOX::cmbt_colony_id].military[1] > 0) {
+                if (MOX::cmbt_colony_id != game::NO_COLONY) {
+                    if (game::current_state.colonies.at(MOX::cmbt_colony_id).military[1] > 0) {
                         KEN::Ken_Get_Text_Message(1, combat_text_segment, 0x50);
                         strlcat(colony_status_text, combat_text_segment, sizeof(colony_status_text));
-                        snprintf(value_text, sizeof(value_text), "%i", MOX::colony[MOX::cmbt_colony_id].military[1]);
+                        snprintf(value_text, sizeof(value_text), "%i", game::current_state.colonies.at(MOX::cmbt_colony_id).military[1]);
                         strlcat(colony_status_text, value_text, sizeof(colony_status_text));
                         strlcat(colony_status_text, "  ", sizeof(colony_status_text));
                     }
-                    if (MOX::colony[MOX::cmbt_colony_id].military[0] > 0) {
+                    if (game::current_state.colonies.at(MOX::cmbt_colony_id).military[0] > 0) {
                         KEN::Ken_Get_Text_Message(2, combat_text_segment, 0x50);
                         strlcat(colony_status_text, combat_text_segment, sizeof(colony_status_text));
-                        snprintf(value_text, sizeof(value_text), "%i", MOX::colony[MOX::cmbt_colony_id].military[0]);
+                        snprintf(value_text, sizeof(value_text), "%i", game::current_state.colonies.at(MOX::cmbt_colony_id).military[0]);
                         strlcat(colony_status_text, value_text, sizeof(colony_status_text));
                         strlcat(colony_status_text, "  ", sizeof(colony_status_text));
                     }
@@ -1812,21 +1812,21 @@ namespace CMBTDRW1 {
                 fonts::Print(x + 2, y + 0x48, colony_status_text);
                 colony_status_text[0] = '\0';
 
-                if (MOX::cmbt_colony_id != -1) {
+                if (MOX::cmbt_colony_id != game::NO_COLONY) {
                     int16_t current_y = y + 4;
-                    if (MOX::colony[MOX::cmbt_colony_id].buildings[BUILDING_MISSILE_BASE] != 0) {
+                    if (game::current_state.colonies.at(MOX::cmbt_colony_id).buildings[BUILDING_MISSILE_BASE] != 0) {
                         fonts::Print(x + 2, current_y, TECHDATA::buildings[BUILDING_MISSILE_BASE].name);
                         current_y += 7;
                     }
-                    if (MOX::colony[MOX::cmbt_colony_id].buildings[BUILDING_GROUND_BATTERIES] != 0) {
+                    if (game::current_state.colonies.at(MOX::cmbt_colony_id).buildings[BUILDING_GROUND_BATTERIES] != 0) {
                         fonts::Print(x + 2, current_y, TECHDATA::buildings[BUILDING_GROUND_BATTERIES].name);
                         current_y += 7;
                     }
-                    if (MOX::colony[MOX::cmbt_colony_id].buildings[BUILDING_FIGHTER_GARRISON] != 0) {
+                    if (game::current_state.colonies.at(MOX::cmbt_colony_id).buildings[BUILDING_FIGHTER_GARRISON] != 0) {
                         fonts::Print(x + 2, current_y, TECHDATA::buildings[BUILDING_FIGHTER_GARRISON].name);
                         current_y += 7;
                     }
-                    if (MOX::colony[MOX::cmbt_colony_id].buildings[BUILDING_STELLAR_CONVERTER] != 0) {
+                    if (game::current_state.colonies.at(MOX::cmbt_colony_id).buildings[BUILDING_STELLAR_CONVERTER] != 0) {
                         fonts::Print(x + 2, current_y, TECHDATA::buildings[BUILDING_STELLAR_CONVERTER].name);
                     }
                 }

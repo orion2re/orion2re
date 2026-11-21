@@ -11,7 +11,6 @@
 
 namespace legacy_world {
     game::s_view World();
-    std::optional<game::id_colony> Colony_Id(const game::s_view* world, const s_colony* colony);
 
     inline std::optional<uint32_t> Nonnegative_Slot(int32_t index) {
         if (index < 0) return std::nullopt;
@@ -23,9 +22,8 @@ namespace legacy_world {
         std::vector<int16_t> encoded;
         encoded.reserve(ids.size() + 1);
         for (game::id_ship id : ids) {
-            auto index = Index(id);
-            if (!index) return std::nullopt;
-            encoded.push_back(*index);
+            if (id.id > INT16_MAX) return std::nullopt;
+            encoded.push_back(id.id);
         }
         encoded.push_back(-1);
         return encoded;

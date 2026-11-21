@@ -1,11 +1,12 @@
 #include "pch.h"
+#include "../fixtures/colony_roster.h"
+#include "../fixtures/planet_roster.h"
 
 namespace {
-    s_colony colonies[2];
-    s_planet_data planets[2];
+    test_colonies::Slots<2> colonies;
+
     s_star_data stars[1];
     s_ship_data ships[MAX_SHIPS];
-    s_leader_data leaders[MAX_LEADERS];
     s_player players[MAX_PLAYERS];
 }
 
@@ -18,13 +19,11 @@ namespace test::fakes {
 }
 
 namespace MOX {
-    int16_t NUM_COLONIES = 0;
+
     int16_t NUM_SHIPS = 0;
-    s_colony* colony = colonies;
-    s_planet_data* planet = planets;
+
     s_star_data* star = stars;
     s_ship_data* ship = ships;
-    s_leader_data* leaders = ::leaders;
     s_player* player = players;
     int16_t super_fast_flag;
     s_settings settings = {};
@@ -85,25 +84,28 @@ namespace RUSS {
 namespace COLONY {
     uint8_t debug_flag = 0;
 
-    void __cdecl Set_Colony_Globals(int16_t) {}
+    void __cdecl Set_Colony_Globals(game::id_colony) {}
 }
 
 namespace INITGAME {
-    void __cdecl Init_Colony(int16_t colony_idx, int16_t planet_idx,
+    game::id_colony __cdecl Init_Colony(game::s_game_state& state, game::id_colony colony_id, game::id_planet planet_id,
                               uint8_t player_num) {
-        MOX::colony[colony_idx].planet = planet_idx;
-        MOX::colony[colony_idx].owner = static_cast<int8_t>(player_num);
-        MOX::planet[planet_idx].colony_index = colony_idx;
+        if (colony_id == game::NO_COLONY) colony_id = game::id_colony{state.next_colony_id};
+        const auto colony_idx = colony_id.id;
+        test_colonies::Record(colony_idx).planet_id = planet_id;
+        test_colonies::Record(colony_idx).owner = static_cast<int8_t>(player_num);
+        state.planets.at(planet_id).colony_id = colony_id;
+        return colony_id;
     }
 }
 
 namespace COLBLDG {
-    void __cdecl Delete_From_Colony_Queue(int16_t, int16_t) {}
-    void __cdecl Delete_Prod_From_Colony_Queue(int16_t, int16_t) {}
+    void __cdecl Delete_From_Colony_Queue(game::s_game_state&, game::id_colony, int16_t) {}
+    void __cdecl Delete_Prod_From_Colony_Queue(game::s_game_state&, game::id_colony, int16_t) {}
 
     int16_t __cdecl Create_Ship_From_Design(int16_t player_idx,
                                              const s_ship_design* design,
-                                             int16_t) {
+                                             game::id_colony) {
         int16_t ship_idx = 0;
         while (ship_idx < 8) {
             const s_ship_data& ship = MOX::ship[ship_idx];
@@ -127,7 +129,7 @@ namespace COLBLDG {
     }
 
     int16_t __cdecl Create_Ship(int16_t player_idx, int16_t design_idx,
-                                 int16_t colony_idx) {
+                                 game::id_colony colony_idx) {
         return Create_Ship_From_Design(
             player_idx, &MOX::player[player_idx].ship_designs[design_idx],
             colony_idx);
@@ -140,7 +142,7 @@ namespace COLCALC {
         return 0;
     }
 
-    short __cdecl Colony_Race_Pop_Limit(s_colony*, int16_t) {
+    short __cdecl Colony_Race_Pop_Limit(const s_colony*, int16_t) {
         return 10;
     }
 
@@ -149,7 +151,7 @@ namespace COLCALC {
         test::fakes::environmental_refresh_count++;
         test::fakes::last_environmental_colony = colony;
     }
-    void __cdecl Colony_Calculation(int16_t) {}
+    void __cdecl Colony_Calculation(game::id_colony) {}
 }
 
 namespace INITSHIP {
@@ -173,7 +175,7 @@ namespace invasion {
         return 0;
     }
 
-    void __cdecl Assign_New_Home_Planet(int8_t, int16_t) {}
+    void __cdecl Assign_New_Home_Planet(const game::s_game_state&, int8_t, game::id_colony) {}
     void __cdecl Enforce_Population_Limits_At_Colony(s_colony*) {}
 }
 

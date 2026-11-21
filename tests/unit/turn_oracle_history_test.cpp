@@ -56,3 +56,56 @@ DOCTEST_TEST_CASE("oracle detects truncated or longer saves and missing history"
     DOCTEST_CHECK(error.find("cannot read save") != std::string::npos);
     DOCTEST_CHECK_FALSE(turn_oracle::Write_File(fixture.directory / "missing" / "save.GAM", {1}, &error));
 }
+
+DOCTEST_TEST_CASE("oracle normalizes implicit planet and leader IDs without masking differences") {
+    s_history_fixture fixture;
+    const auto canonical = turn_oracle::Turn_Path(fixture.directory, 0);
+    const auto actual = turn_oracle::Turn_Path(fixture.directory, 1);
+    std::string error;
+
+    // A versioned header, settings, seed, and one record in each leading section.
+    std::vector<uint8_t> v7(605, 0);
+    v7[0] = 0xe1;
+    v7[46] = 7;
+    for (size_t width : {0x16a, 0x12, 0xea}) {
+        v7.insert(v7.end(), {1, 0});
+        v7.insert(v7.end(), width, 0xa5);
+    }
+    auto v8 = v7;
+    v8[46] = 8;
+    for (uint8_t slot = 0; slot < 67; ++slot) {
+        v8.insert(v8.end(), {slot, 0, 0, 0});
+        v7.insert(v7.end(), 59, slot);
+        v8.insert(v8.end(), 59, slot);
+    }
+    v7.insert(v7.end(), {0x34, 0x12});
+    v8.insert(v8.end(), {0x34, 0x12});
+    const auto early_v8 = v8;
+    const size_t planet_count_offset = 605 + 2 + 0x16a;
+    v8[planet_count_offset + 1] = 0x80;
+    const size_t planet_data_offset = planet_count_offset + 2;
+    v8.insert(v8.begin() + planet_data_offset, {1, 0, 0, 0, 0, 0, 0, 0});
+    const size_t leader_offset = planet_data_offset + 8 + 0x12 + 2 + 0xea;
+
+    DOCTEST_REQUIRE(turn_oracle::Write_File(canonical, v7, &error));
+    DOCTEST_REQUIRE(turn_oracle::Write_File(actual, v8, &error));
+    DOCTEST_CHECK(turn_oracle::Compare_Files(canonical, actual, &error));
+    DOCTEST_CHECK(turn_oracle::Compare_Files(actual, canonical, &error));
+
+    DOCTEST_REQUIRE(turn_oracle::Write_File(canonical, early_v8, &error));
+    DOCTEST_CHECK(turn_oracle::Compare_Files(canonical, actual, &error));
+    DOCTEST_CHECK(turn_oracle::Compare_Files(actual, canonical, &error));
+
+    for (size_t offset : {planet_data_offset, planet_data_offset + 4, leader_offset, leader_offset + 4, v8.size() - 1}) {
+        v8[offset] ^= 1;
+        DOCTEST_REQUIRE(turn_oracle::Write_File(actual, v8, &error));
+        DOCTEST_CHECK_FALSE(turn_oracle::Compare_Files(canonical, actual, &error));
+        DOCTEST_CHECK(error.find("first difference at byte " + std::to_string(offset)) != std::string::npos);
+        v8[offset] ^= 1;
+    }
+
+    v7.resize(leader_offset);
+    DOCTEST_REQUIRE(turn_oracle::Write_File(canonical, v7, &error));
+    DOCTEST_CHECK_FALSE(turn_oracle::Compare_Files(canonical, actual, &error));
+    DOCTEST_CHECK(error.find("invalid save prefix, planet section, or leader section") != std::string::npos);
+}

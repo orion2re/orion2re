@@ -1,5 +1,7 @@
 #include "pch.h"
 
+using game::current_state;
+
 namespace spy {
     void __cdecl Compute_Spy_Bonuses(s_player* player, int16_t* defense_bonus_out, int16_t* attack_bonus_out) {
         int32_t telepathic_trait_bonus =
@@ -13,7 +15,7 @@ namespace spy {
         int32_t player_idx = (int32_t)(player - MOX::player);
 
         for (int32_t i = 0; i < MAX_LEADERS; ++i) {
-            s_leader_data* leader = &MOX::leaders[i];
+            auto* leader = &current_state.leaders.at(i);
 
             if (leader->player_index == player_idx) {
                 if (leader->status >= 0 && leader->status <= 2) {
@@ -57,8 +59,8 @@ namespace spy {
             int16_t spies_at_home = BILL::Get_Their_Spy_Number(player_idx, player_idx);
             int32_t total_spies = (int32_t)spies_at_home + (int32_t)spies_at_enemy;
 
-            if (total_spies > 0x3f /* 63 */) {
-                total_spies = 0x3f;
+            if (total_spies > MAX_SPIES_PER_TARGET) {
+                total_spies = MAX_SPIES_PER_TARGET;
             }
 
             BILL::Set_Their_Spy_Number(player_idx, player_idx, (uint8_t)total_spies);
@@ -70,7 +72,7 @@ namespace spy {
         for (int32_t leader_idx = MAX_LEADERS - 1;
              leader_idx >= 0;
              --leader_idx) {
-            s_leader_data* leader = &MOX::leaders[leader_idx];
+            auto* leader = &current_state.leaders.at(leader_idx);
 
             // player_index != -1 and status is active (0) or assigned (1)
             if (leader->player_index != -1 && (leader->status == 0 || leader->status == 1)) {
@@ -84,14 +86,15 @@ namespace spy {
 
                 if (chance != 0) {
                     if ((int16_t)game_random::Random(100) <= chance) {
-                        spy::Leader_Assassinates(leader);
+                        spy::Leader_Assassinates(current_state, leader_idx);
                     }
                 }
             }
         }
     }
 
-    void __cdecl Leader_Assassinates(s_leader_data* leader) {
+    void __cdecl Leader_Assassinates(game::s_game_state& state, int32_t leader_idx) {
+        auto* leader = &state.leaders.at(leader_idx);
         int32_t total_assassins = 0;
         int32_t total_defenders = 0;
         int32_t assassin_plr_a = -1;
@@ -134,7 +137,6 @@ namespace spy {
             msg.u.spy_assasination.plr_a = (int8_t)assassin_plr_a;
             msg.u.spy_assasination.plr_b = (int8_t)assassin_plr_b;
 
-            int32_t leader_idx = (int32_t)(leader - MOX::leaders);
             msg.u.spy_assasination.leader_id = (int8_t)leader_idx;
             msg.u.spy_assasination.victim_id = (int8_t)victim_player_idx;
 

@@ -1,7 +1,8 @@
 #include "pch.h"
+#include "../fixtures/colony_roster.h"
 
 namespace {
-    s_colony colonies[MAX_COLONIES];
+    test_colonies::Slots<MAX_COLONIES> colonies;
     char help_message[] = "help";
     char planet_name[] = "Planet";
 }
@@ -11,36 +12,35 @@ namespace TEST_COLMOVE {
     int16_t settle_call_count;
 
     void Reset_() {
-        memset(colonies, 0, sizeof(colonies));
+        colonies.Reset();
         memset(&MOX::settings, 0, sizeof(MOX::settings));
         help_call_count = 0;
         settle_call_count = 0;
-        COLMOVE::cluster_colony_n = -1;
+        COLMOVE::cluster_colony_n = game::NO_COLONY;
         COLMOVE::native_population_transfer = false;
     }
 }
 
 namespace MOX {
-    s_colony* colony = colonies;
     s_settings settings;
 }
 
 namespace COLONY {
     uint8_t full_draw;
 
-    int16_t __cdecl Pop_To_Pop_State(int16_t, int16_t) {
+    int16_t __cdecl Pop_To_Pop_State(uint32_t) {
         return 0;
     }
 
     int16_t __cdecl Sum_Colonists(
-            int16_t colony_idx,
+            game::id_colony colony_idx,
             int16_t job,
             int16_t,
             int16_t,
             int16_t,
             int16_t) {
         int16_t count = 0;
-        const s_colony& colony = MOX::colony[colony_idx];
+        const s_colony& colony = test_colonies::Record(colony_idx.id);
 
         for (int16_t i = 0; i < colony.n_pops; ++i) {
             const uint32_t pop = colony.pop[i];
@@ -56,7 +56,7 @@ namespace COLONY {
         return nullptr;
     }
 
-    s_animation_header* __cdecl Colony_Pop_Anim(int16_t, int16_t) {
+    s_animation_header* __cdecl Colony_Pop_Anim(const s_colony&, int16_t) {
         return nullptr;
     }
 
@@ -68,7 +68,7 @@ namespace COLONY {
         return help_message;
     }
 
-    char* __cdecl Pop_Race_String(int16_t, int16_t) {
+    char* __cdecl Pop_Race_String(game::id_colony, int16_t) {
         return help_message;
     }
 
@@ -82,7 +82,7 @@ namespace COLONY {
     void __cdecl Clear_Mouse_Picture() {
     }
 
-    void __cdecl Col_Calc_Wrapper(int16_t) {
+    void __cdecl Col_Calc_Wrapper(game::id_colony) {
     }
 
     void __cdecl Reset_Field_Mode() {
@@ -117,27 +117,31 @@ namespace HAROLD {
 }
 
 namespace COLCALC {
-    void __cdecl Colony_Calculation(int16_t) {
+    void __cdecl Colony_Calculation(game::id_colony) {
     }
 }
 
 namespace HACCESS {
-    char* __cdecl Get_Planet_Name(int16_t) {
+    char* Get_Planet_Name(const game::s_game_state&, game::id_planet) {
         return planet_name;
     }
 }
 
 namespace SETTLER {
     void __cdecl Pop_Tries_To_Settle(
-            s_colony*,
+            const game::s_game_state&,
+            game::id_colony,
             int16_t,
-            s_colony*,
+            game::id_colony,
             s_settler_settle_result* result) {
         memset(result, 0, sizeof(*result));
         result->can_settle = 1;
     }
 
-    void __cdecl Settle_Pop(s_colony* source_colony, int16_t pop_idx, s_colony* destination_colony) {
+    void __cdecl Settle_Pop(game::id_colony source_id,
+        int16_t pop_idx, game::id_colony destination_id) {
+        auto* source_colony = &test_colonies::Record(source_id.id);
+        auto* destination_colony = &test_colonies::Record(destination_id.id);
         destination_colony->pop[destination_colony->n_pops] = source_colony->pop[pop_idx];
         ++destination_colony->n_pops;
 

@@ -1,6 +1,7 @@
 #include "pch.h"
 
 #include "lua/lua_game_internal.h"
+#include "game/legacy_ids.h"
 
 #include <climits>
 #include <cstring>
@@ -12,6 +13,8 @@ extern "C" {
 #include <lauxlib.h>
 #include <lua.h>
 }
+
+using game::current_state;
 
 namespace orion2re::lua::game::internal {
     namespace {
@@ -26,7 +29,7 @@ namespace orion2re::lua::game::internal {
             "orion2re.system_planet_collection";
 
         struct s_planet_proxy {
-            std::int16_t planet_id = -1;
+            id_planet planet_id{};
             std::int16_t system_id = -1;
             std::int8_t orbit = -1;
             std::uint64_t topology_generation = 0;
@@ -46,7 +49,7 @@ namespace orion2re::lua::game::internal {
         };
 
         std::uint64_t topology_generation_ = 1;
-        std::uint64_t planet_generations_[MAX_PLANETS] = {};
+        std::unordered_map<id_planet, std::uint64_t> planet_generations_;
         std::uint64_t system_generations_[MAX_STARS] = {};
 
         std::uint64_t Current_Generation_(std::uint64_t* generations,
@@ -61,6 +64,16 @@ namespace orion2re::lua::game::internal {
             if (generations[id] == 0) generations[id] = 1;
         }
 
+        std::uint64_t Planet_Generation_(id_planet planet_id) {
+            const auto it = planet_generations_.find(planet_id);
+            return it == planet_generations_.end() ? 1 : it->second;
+        }
+
+        void Advance_Planet_Generation_(id_planet planet_id) {
+            auto it = planet_generations_.try_emplace(planet_id, 1).first;
+            if (++it->second == 0) it->second = 1;
+        }
+
         bool Valid_System_(std::int16_t system_id) {
             return MOX::star != nullptr && MOX::NUM_STARS >= 0 &&
                 MOX::NUM_STARS <= MAX_STARS && system_id >= 0 &&
@@ -70,28 +83,35 @@ namespace orion2re::lua::game::internal {
                 STAR_CLASS_BLACK_HOLE;
         }
 
-        bool Valid_Planet_Identity_(std::int16_t planet_id,
+        s_planet_data* Resolve_Planet_Record_(id_planet id) {
+            auto& planets = (galaxy_planet_candidate ? *galaxy_planet_candidate : current_state).planets;
+            if (planets.size() > MAX_PLANETS) return nullptr;
+            const auto it = planets.find(id);
+            return it == planets.end() ? nullptr : &it->second;
+        }
+
+        bool Valid_Planet_Identity_(id_planet id, const s_planet_data& planet,
             std::int16_t system_id,
             std::int8_t orbit) {
-            if (MOX::planet == nullptr || MOX::planet_count < 0 ||
-                MOX::planet_count > MAX_PLANETS || planet_id < 0 ||
-                planet_id >= MOX::planet_count || !Valid_System_(system_id) ||
-                orbit < 0 || orbit >= 5) {
-                return false;
+            return Valid_System_(system_id) && orbit >= 0 && orbit < 5 &&
+                planet.star_index == system_id && planet.orbit == orbit &&
+                MOX::star[system_id].orbit_planet_ids[orbit].get() == id;
+        }
+
+        std::array<id_planet, 5> System_Orbits_(int16_t system_id) {
+            std::array<id_planet, 5> orbits;
+            for (size_t orbit = 0; orbit < orbits.size(); ++orbit) {
+                orbits[orbit] = MOX::star[system_id].orbit_planet_ids[orbit].get();
             }
-            const s_planet_data& planet = MOX::planet[planet_id];
-            return planet.star_index == system_id && planet.orbit == orbit &&
-                MOX::star[system_id].planet_index[orbit] == planet_id;
+            return orbits;
         }
 
         bool Valid_Planet_(const s_planet_proxy* proxy) {
-            return proxy != nullptr && proxy->planet_id >= 0 &&
-                proxy->planet_id < MAX_PLANETS &&
-                proxy->topology_generation == topology_generation_ &&
-                proxy->slot_generation ==
-                Current_Generation_(
-                    planet_generations_, proxy->planet_id) &&
-                Valid_Planet_Identity_(proxy->planet_id,
+            if (proxy == nullptr || proxy->topology_generation != topology_generation_) return false;
+            const auto* planet = Resolve_Planet_Record_(proxy->planet_id);
+            return planet &&
+                proxy->slot_generation == Planet_Generation_(proxy->planet_id) &&
+                Valid_Planet_Identity_(proxy->planet_id, *planet,
                     proxy->system_id,
                     proxy->orbit);
         }
@@ -105,72 +125,55 @@ namespace orion2re::lua::game::internal {
             return proxy;
         }
 
-        bool Delete_Colony_(std::int16_t colony_id) {
-            if (colony_id < 0 || colony_id >= MOX::NUM_COLONIES) {
+        bool Delete_Colony_(id_colony colony_id) {
+            if (!current_state.colonies.contains(colony_id)) {
                 return false;
             }
-            const std::int16_t planet_id = MOX::colony[colony_id].planet;
-            if (planet_id < 0 || planet_id >= MOX::planet_count ||
-                MOX::planet[planet_id].colony_index != colony_id) {
+            auto& colony = current_state.colonies.at(colony_id);
+            const auto planet_id = colony.planet_id;
+            auto* planet = Resolve_Planet_Record_(planet_id);
+            if (!planet || planet->colony_id != colony_id) {
                 return false;
             }
-            const std::int16_t officer_id = MOX::colony[colony_id].officer;
+            const auto officer_id = colony.officer;
             if (officer_id >= 0) {
                 if (officer_id >= MAX_LEADERS) return false;
                 const std::int8_t player_id =
-                    MOX::leaders[officer_id].player_index;
+                    current_state.leaders.at(officer_id).player_index;
                 const std::int16_t star_id =
-                    MOX::planet[planet_id].star_index;
+                    planet->star_index;
                 if (player_id >= 0 && player_id < MOX::NUM_PLAYERS &&
                     star_id >= 0 && star_id < MOX::NUM_STARS &&
                     MOX::star[star_id].officer_index[player_id] ==
                         officer_id) {
                     MOX::star[star_id].officer_index[player_id] = -1;
                 }
-                MOX::leaders[officer_id].status = 0;
-                MOX::leaders[officer_id].location = -1;
-                MOX::colony[colony_id].officer = -1;
+                auto& leader = current_state.leaders.at(officer_id);
+                leader.status = 0;
+                leader.location = -1;
             }
-            MOX::planet[planet_id].colony_index = -1;
-            const std::int16_t last_id = --MOX::NUM_COLONIES;
-            if (colony_id != last_id) {
-                MOX::colony[colony_id] = MOX::colony[last_id];
-                const std::int16_t moved_planet =
-                    MOX::colony[colony_id].planet;
-                if (moved_planet < 0 || moved_planet >= MOX::planet_count ||
-                    MOX::planet[moved_planet].colony_index != last_id) {
-                    return false;
-                }
-                MOX::planet[moved_planet].colony_index = colony_id;
-            }
-            memset(&MOX::colony[last_id], 0, sizeof(s_colony));
-            MOX::colony[last_id].planet = -1;
-            MOX::colony[last_id].owner = -1;
-            MOX::colony[last_id].officer = -1;
+            planet->colony_id = NO_COLONY;
+            current_state.colonies.erase(colony_id);
             return true;
         }
 
-        bool Delete_Planet_(std::int16_t planet_id) {
-            if (planet_id < 0 || planet_id >= MOX::planet_count) {
+        bool Delete_Planet_(id_planet id) {
+            auto* planet = Resolve_Planet_Record_(id);
+            if (!planet) {
                 return false;
             }
             for (std::int16_t player_id = 0;
                  player_id < MOX::NUM_PLAYERS;
                  ++player_id) {
-                if (MOX::player[player_id].home_planet_id == planet_id) {
+                if (MOX::player[player_id].home_planet_id.get() == id) {
                     return false;
                 }
             }
-            if (MOX::planet[planet_id].colony_index >= 0 &&
-                !Delete_Colony_(MOX::planet[planet_id].colony_index)) {
+            if (planet->colony_id != NO_COLONY && !Delete_Colony_(planet->colony_id)) {
                 return false;
             }
-            const s_planet_data removed = MOX::planet[planet_id];
-            MOX::star[removed.star_index].planet_index[removed.orbit] = -1;
-            memset(&MOX::planet[planet_id], 0, sizeof(s_planet_data));
-            MOX::planet[planet_id].star_index = -1;
-            MOX::planet[planet_id].colony_index = -1;
-            Advance_Generation_(planet_generations_, planet_id);
+            MOX::star[planet->star_index].orbit_planet_ids[planet->orbit] = NO_PLANET;
+            (galaxy_planet_candidate ? *galaxy_planet_candidate : current_state).Erase_Planet(id);
             return true;
         }
 
@@ -201,18 +204,17 @@ namespace orion2re::lua::game::internal {
             if (orbit < 0 || orbit >= 5) {
                 return luaL_error(lua_state, "planet orbit is outside its domain");
             }
-            s_planet_data& planet = MOX::planet[proxy->planet_id];
-            const std::int16_t occupied =
-                MOX::star[system_id].planet_index[orbit];
-            if (occupied != -1 && occupied != proxy->planet_id) {
+            s_planet_data& planet = *Resolve_Planet_Record_(proxy->planet_id);
+            const auto occupied = System_Orbits_(system_id)[orbit];
+            if (occupied != NO_PLANET && occupied != proxy->planet_id) {
                 return luaL_error(lua_state,
                     "destination system orbit is occupied");
             }
-            MOX::star[planet.star_index].planet_index[planet.orbit] = -1;
+            MOX::star[planet.star_index].orbit_planet_ids[planet.orbit] = NO_PLANET;
+            MOX::star[system_id].orbit_planet_ids[orbit] = proxy->planet_id;
             planet.star_index = system_id;
             planet.orbit = static_cast<std::int8_t>(orbit);
-            MOX::star[system_id].planet_index[orbit] = proxy->planet_id;
-            Advance_Generation_(planet_generations_, proxy->planet_id);
+            Advance_Planet_Generation_(proxy->planet_id);
             return 0;
         }
 
@@ -256,25 +258,25 @@ namespace orion2re::lua::game::internal {
                     "special is not valid for a planet");
             }
 
-            s_planet_data& planet = MOX::planet[proxy->planet_id];
+            s_planet_data& planet = *Resolve_Planet_Record_(proxy->planet_id);
             s_star_data& system = MOX::star[proxy->system_id];
             if (system.system_special != SYSTEM_SPECIAL_NO_SPECIAL &&
                 system.system_special != planet.planet_special) {
                 return luaL_error(lua_state,
                     "planet special conflicts with its system special");
             }
-            for (std::int16_t orbit = 0; orbit < 5; ++orbit) {
-                const std::int16_t planet_id = system.planet_index[orbit];
-                if (planet_id < 0 || planet_id == proxy->planet_id) {
+            const auto orbits = System_Orbits_(proxy->system_id);
+            for (int8_t orbit = 0; orbit < 5; ++orbit) {
+                const auto planet_id = orbits[orbit];
+                if (planet_id == NO_PLANET || planet_id == proxy->planet_id) {
                     continue;
                 }
-                if (planet_id >= MOX::planet_count ||
-                    MOX::planet[planet_id].star_index != proxy->system_id ||
-                    MOX::planet[planet_id].orbit != orbit) {
+                const auto* sibling = Resolve_Planet_Record_(planet_id);
+                if (!sibling || sibling->star_index != proxy->system_id || sibling->orbit != orbit) {
                     return luaL_error(lua_state,
                         "planet system topology is invalid");
                 }
-                if (MOX::planet[planet_id].planet_special !=
+                if (sibling->planet_special !=
                     SYSTEM_SPECIAL_NO_SPECIAL) {
                     return luaL_error(lua_state,
                         "planet special conflicts with another planet");
@@ -294,7 +296,7 @@ namespace orion2re::lua::game::internal {
             }
             const char* key = luaL_checkstring(lua_state, 2);
             const lua_Integer value = luaL_checkinteger(lua_state, 3);
-            s_planet_data& planet = MOX::planet[proxy->planet_id];
+            s_planet_data& planet = *Resolve_Planet_Record_(proxy->planet_id);
             if (strcmp(key, "size") == 0) {
                 if (value < PLANET_SIZE_TINY || value >= PLANET_SIZE_COUNT) {
                     return luaL_error(lua_state,
@@ -343,7 +345,7 @@ namespace orion2re::lua::game::internal {
                 return 1;
             }
             if (strcmp(key, "id") == 0) {
-                lua_pushinteger(lua_state, proxy->planet_id);
+                lua_pushinteger(lua_state, proxy->planet_id.id);
                 return 1;
             }
             if (strcmp(key, "valid") == 0) {
@@ -351,7 +353,7 @@ namespace orion2re::lua::game::internal {
                 return 1;
             }
             Check_Planet_(lua_state, 1);
-            const s_planet_data& planet = MOX::planet[proxy->planet_id];
+            const s_planet_data& planet = *Resolve_Planet_Record_(proxy->planet_id);
             if (strcmp(key, "system") == 0) {
                 Push_System(lua_state, proxy->system_id);
             } else if (strcmp(key, "orbit") == 0) {
@@ -492,13 +494,11 @@ namespace orion2re::lua::game::internal {
                     return luaL_error(lua_state,
                         "system special is outside its domain");
                 }
-                for (std::int16_t orbit = 0; orbit < 5; ++orbit) {
-                    const std::int16_t planet_id =
-                        system.planet_index[orbit];
-                    if (planet_id >= 0 &&
-                        MOX::planet[planet_id].planet_special !=
-                            SYSTEM_SPECIAL_NO_SPECIAL &&
-                        MOX::planet[planet_id].planet_special != value) {
+                for (const auto planet_id : System_Orbits_(proxy->system_id)) {
+                    if (planet_id == NO_PLANET) continue;
+                    const auto* planet = Resolve_Planet_Record_(planet_id);
+                    if (!planet || (planet->planet_special != SYSTEM_SPECIAL_NO_SPECIAL &&
+                        planet->planet_special != value)) {
                         return luaL_error(lua_state,
                             "system special conflicts with a planet special");
                     }
@@ -559,17 +559,16 @@ namespace orion2re::lua::game::internal {
                  ++player_id) {
                 std::int16_t home_system = -1;
                 if (!Resolve_Planet_System(
-                        MOX::player[player_id].home_planet_id,
+                        MOX::player[player_id].home_planet_id.get(),
                         &home_system) ||
                     home_system == system_id) {
                     return luaL_error(lua_state,
                         "player home system cannot be deleted");
                 }
             }
-            for (std::int16_t orbit = 4; orbit >= 0; --orbit) {
-                const std::int16_t planet_id =
-                    MOX::star[system_id].planet_index[orbit];
-                if (planet_id >= 0 && !Delete_Planet_(planet_id)) {
+            const auto orbits = System_Orbits_(system_id);
+            for (auto it = orbits.rbegin(); it != orbits.rend(); ++it) {
+                if (*it != NO_PLANET && !Delete_Planet_(*it)) {
                     return luaL_error(lua_state,
                         "system with a colony cannot be deleted");
                 }
@@ -585,8 +584,9 @@ namespace orion2re::lua::game::internal {
                     const std::int16_t officer_id =
                         MOX::ship[ship_id].officer_index;
                     if (officer_id >= 0 && officer_id < MAX_LEADERS) {
-                        MOX::leaders[officer_id].status = 0;
-                        MOX::leaders[officer_id].location = -1;
+                        auto& leader = current_state.leaders.at(officer_id);
+                        leader.status = 0;
+                        leader.location = -1;
                     }
                     MOX::ship[ship_id].status = 5;
                     MOX::ship[ship_id].location = -1;
@@ -597,26 +597,19 @@ namespace orion2re::lua::game::internal {
                     }
                 }
             }
-            for (std::int16_t leader_id = 0;
-                 leader_id < MAX_LEADERS;
-                 ++leader_id) {
-                if (MOX::leaders[leader_id].status == 5 &&
-                    MOX::leaders[leader_id].location == system_id) {
-                    MOX::leaders[leader_id].status = -1;
-                    MOX::leaders[leader_id].location = -1;
-                } else if (MOX::leaders[leader_id].status == 1 &&
-                    MOX::leaders[leader_id].type == LEADER_TYPE_COLONY &&
-                    MOX::leaders[leader_id].location == system_id) {
-                    MOX::leaders[leader_id].status = 0;
-                    MOX::leaders[leader_id].location = -1;
+            for (auto& leader : current_state.leaders) {
+                if (leader.status == 5 && leader.location == system_id) {
+                    leader.status = -1;
+                    leader.location = -1;
+                } else if (leader.status == 1 && leader.type == LEADER_TYPE_COLONY && leader.location == system_id) {
+                    leader.status = 0;
+                    leader.location = -1;
                 }
             }
             memset(&MOX::star[system_id], 0, sizeof(s_star_data));
             MOX::star[system_id].spectral_class = -1;
             MOX::star[system_id].wormhole_star_id = -1;
-            memset(MOX::star[system_id].planet_index,
-                0xff,
-                sizeof(MOX::star[system_id].planet_index));
+            for (auto& link : MOX::star[system_id].orbit_planet_ids) link = NO_PLANET;
             Advance_Generation_(system_generations_, system_id);
             return 0;
         }
@@ -655,7 +648,7 @@ namespace orion2re::lua::game::internal {
                 return luaL_error(lua_state,
                     "planet creation is available only during galaxy generation");
             }
-            std::int16_t source_id = -1;
+            id_planet source_id{};
             std::int16_t system_id = -1;
             const lua_Integer orbit = luaL_checkinteger(lua_state, 4);
             if (!Read_Planet(lua_state, 2, &source_id) ||
@@ -664,31 +657,18 @@ namespace orion2re::lua::game::internal {
                 return luaL_error(lua_state,
                     "invalid planet copy source or destination");
             }
-            if (MOX::star[system_id].planet_index[orbit] != -1) {
+            if (System_Orbits_(system_id)[orbit] != NO_PLANET) {
                 return luaL_error(lua_state,
                     "planet capacity exceeded or destination orbit is occupied");
             }
-            std::int16_t planet_id = -1;
-            for (std::int16_t candidate = 0;
-                 candidate < MOX::planet_count;
-                 ++candidate) {
-                if (MOX::planet[candidate].star_index < 0) {
-                    planet_id = candidate;
-                    break;
-                }
-            }
-            if (planet_id < 0) {
-                if (MOX::planet_count >= MAX_PLANETS) {
-                    return luaL_error(lua_state, "planet capacity exceeded");
-                }
-                planet_id = MOX::planet_count++;
-            }
-            MOX::planet[planet_id] = MOX::planet[source_id];
-            MOX::planet[planet_id].star_index = system_id;
-            MOX::planet[planet_id].orbit = static_cast<std::int8_t>(orbit);
-            MOX::planet[planet_id].colony_index = -1;
-            MOX::star[system_id].planet_index[orbit] = planet_id;
-            Push_Planet(lua_state, planet_id);
+            s_planet_data copy = *Resolve_Planet_Record_(source_id);
+            copy.star_index = system_id;
+            copy.orbit = static_cast<std::int8_t>(orbit);
+            copy.colony_id = NO_COLONY;
+            const auto id = (galaxy_planet_candidate ? *galaxy_planet_candidate : current_state).Create_Planet(copy);
+            if (!id) return luaL_error(lua_state, "planet capacity exceeded");
+            MOX::star[system_id].orbit_planet_ids[orbit] = *id;
+            Push_Planet(lua_state, *id);
             return 1;
         }
 
@@ -699,11 +679,11 @@ namespace orion2re::lua::game::internal {
                     "game state is unavailable outside a callback");
             }
             const lua_Integer planet_id = luaL_checkinteger(lua_state, 2);
-            if (planet_id < 0 || planet_id > INT16_MAX) {
+            if (planet_id < 0 || planet_id > UINT32_MAX) {
                 lua_pushnil(lua_state);
             } else {
                 Push_Planet(
-                    lua_state, static_cast<std::int16_t>(planet_id));
+                    lua_state, id_planet{static_cast<uint32_t>(planet_id)});
             }
             return 1;
         }
@@ -759,7 +739,7 @@ namespace orion2re::lua::game::internal {
             memset(system.last_planet_selected,
                 0xff,
                 sizeof(system.last_planet_selected));
-            memset(system.planet_index, 0xff, sizeof(system.planet_index));
+            for (auto& link : system.orbit_planet_ids) link = NO_PLANET;
             memset(system.officer_index, 0xff, sizeof(system.officer_index));
             memset(system.relocate_ship_to,
                 0xff,
@@ -775,22 +755,13 @@ namespace orion2re::lua::game::internal {
                 return luaL_error(lua_state,
                     "game state is unavailable outside a callback");
             }
-            if (MOX::planet == nullptr || MOX::planet_count < 0 ||
-                MOX::planet_count > MAX_PLANETS) {
-                return luaL_error(lua_state,
-                    "native planet collection is unavailable");
-            }
-            lua_createtable(lua_state, MOX::planet_count, 0);
-            lua_Integer sequence_index = 1;
-            for (std::int16_t planet_id = 0;
-                 planet_id < MOX::planet_count;
-                 ++planet_id) {
-                Push_Planet(lua_state, planet_id);
-                if (!lua_isnil(lua_state, -1)) {
-                    lua_rawseti(lua_state, -2, sequence_index++);
-                } else {
-                    lua_pop(lua_state, 1);
-                }
+            const auto& order = (galaxy_planet_candidate ? *galaxy_planet_candidate : current_state).planet_order;
+            if (order.size() > MAX_PLANETS) return luaL_error(lua_state, "native planet collection is unavailable");
+            lua_createtable(lua_state, static_cast<int>(order.size()), 0);
+            lua_Integer position = 1;
+            for (const auto id : order) {
+                if (Push_Planet(lua_state, id)) lua_rawseti(lua_state, -2, position++);
+                else lua_pop(lua_state, 1);
             }
             return 1;
         }
@@ -852,10 +823,8 @@ namespace orion2re::lua::game::internal {
             }
             lua_createtable(lua_state, 5, 0);
             lua_Integer sequence_index = 1;
-            for (std::int8_t orbit = 0; orbit < 5; ++orbit) {
-                const std::int16_t planet_id =
-                    MOX::star[collection->system_id].planet_index[orbit];
-                if (planet_id < 0) {
+            for (const auto planet_id : System_Orbits_(collection->system_id)) {
+                if (planet_id == NO_PLANET) {
                     continue;
                 }
                 Push_Planet(lua_state, planet_id);
@@ -958,7 +927,7 @@ namespace orion2re::lua::game::internal {
         if (topology_generation_ == 0) {
             topology_generation_ = 1;
         }
-        memset(planet_generations_, 0, sizeof(planet_generations_));
+        planet_generations_.clear();
         memset(system_generations_, 0, sizeof(system_generations_));
         Reset_Leader_Nebula_Generations();
     }
@@ -969,7 +938,7 @@ namespace orion2re::lua::game::internal {
 
     void Restore_Topology_Generation(std::uint64_t generation) {
         topology_generation_ = generation == 0 ? 1 : generation;
-        memset(planet_generations_, 0, sizeof(planet_generations_));
+        planet_generations_.clear();
         memset(system_generations_, 0, sizeof(system_generations_));
         Reset_Leader_Nebula_Generations();
     }
@@ -988,13 +957,13 @@ namespace orion2re::lua::game::internal {
         luaL_setmetatable(lua_state, SYSTEM_COLLECTION_METATABLE_);
     }
 
-    bool Push_Planet(lua_State* lua_state, std::int16_t planet_id) {
+    bool Push_Planet(lua_State* lua_state, id_planet planet_id) {
         std::int16_t system_id = -1;
         if (!Resolve_Planet_System(planet_id, &system_id)) {
             lua_pushnil(lua_state);
             return false;
         }
-        const s_planet_data& planet = MOX::planet[planet_id];
+        const s_planet_data& planet = *Resolve_Planet_Record_(planet_id);
         auto* proxy = static_cast<s_planet_proxy*>(
             lua_newuserdatauv(lua_state, sizeof(s_planet_proxy), 0));
         *proxy = {
@@ -1002,7 +971,7 @@ namespace orion2re::lua::game::internal {
             system_id,
             planet.orbit,
             topology_generation_,
-            Current_Generation_(planet_generations_, planet_id),
+            Planet_Generation_(planet_id),
         };
         luaL_setmetatable(lua_state, PLANET_METATABLE_);
         return true;
@@ -1010,13 +979,14 @@ namespace orion2re::lua::game::internal {
 
     bool Read_Planet(lua_State* lua_state,
         int index,
-        std::int16_t* planet_id) {
+        id_planet* planet_id, const s_planet_data** record) {
         const auto* proxy = static_cast<s_planet_proxy*>(
             luaL_testudata(lua_state, index, PLANET_METATABLE_));
         if (!Valid_Planet_(proxy) || planet_id == nullptr) {
             return false;
         }
         *planet_id = proxy->planet_id;
+        if (record) *record = Resolve_Planet_Record_(*planet_id);
         return true;
     }
 
@@ -1051,18 +1021,12 @@ namespace orion2re::lua::game::internal {
     }
 
     bool Resolve_Planet_System(
-        std::int16_t planet_id, std::int16_t* system_id) {
-        if (system_id == nullptr || MOX::planet == nullptr ||
-            MOX::planet_count < 0 || MOX::planet_count > MAX_PLANETS ||
-            planet_id < 0 || planet_id >= MOX::planet_count) {
+        id_planet planet_id, std::int16_t* system_id) {
+        const auto* planet = Resolve_Planet_Record_(planet_id);
+        if (!system_id || !planet || !Valid_Planet_Identity_(planet_id, *planet, planet->star_index, planet->orbit)) {
             return false;
         }
-        const s_planet_data& planet = MOX::planet[planet_id];
-        if (!Valid_Planet_Identity_(
-                planet_id, planet.star_index, planet.orbit)) {
-            return false;
-        }
-        *system_id = planet.star_index;
+        *system_id = planet->star_index;
         return true;
     }
 

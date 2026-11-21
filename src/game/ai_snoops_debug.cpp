@@ -44,15 +44,16 @@ namespace AI_SNOOPS_DEBUG {
                 ImGui::TableSetupColumn("Food buildings relevant");
                 ImGui::TableSetupColumn("Pollution controls relevant");
                 ImGui::TableHeadersRow();
-                for (int colony = 0; colony < MOX::NUM_COLONIES; ++colony) {
-                    auto entry = ai->colonies.find(legacy_world::Colony_Id(colony));
+                for (const auto& [id, colony] : game::current_state.colonies) {
+                    auto entry = ai->colonies.find(id);
                     if (entry == ai->colonies.end()) continue;
                     const AIDATA::s_colony_assessment& info = entry->second;
                     ImGui::TableNextRow();
                     ImGui::TableSetColumnIndex(0);
-                    ImGui::PushID(colony);
-                    if (ImGui::Selectable(std::to_string(colony).c_str())) {
-                        debug_game_editors::Open_Colony((int16_t)colony);
+                    const auto label = std::to_string(id.id);
+                    ImGui::PushID(label.c_str());
+                    if (ImGui::Selectable(label.c_str())) {
+                        debug_game_editors::Open_Colony(id);
                     }
                     ImGui::PopID();
                     ImGui::TableSetColumnIndex(1);
@@ -355,8 +356,8 @@ namespace AI_SNOOPS_DEBUG {
                 ImGui::TableSetupColumn("Contextual");
                 ImGui::TableSetupColumn("Stage");
                 ImGui::TableHeadersRow();
-                for (int planet = 0; planet < MOX::planet_count; ++planet) {
-                    auto entry = ai->planets.find(legacy_world::Planet_Id(planet));
+                for (const auto& [id, body] : game::current_state.planets) {
+                    auto entry = ai->planets.find(id);
                     if (entry == ai->planets.end()) continue;
                     const uint16_t base = entry->second.base_values[player];
                     const uint16_t contextual = entry->second.contextual_values[player];
@@ -364,15 +365,15 @@ namespace AI_SNOOPS_DEBUG {
                     if (valued_only && base == 0 && contextual == 0 && stage == 0) continue;
                     ImGui::TableNextRow();
                     ImGui::TableSetColumnIndex(0);
-                    ImGui::PushID(planet);
-                    if (ImGui::Selectable(std::to_string(planet).c_str(), false,
+                    const auto label = std::to_string(id.id);
+                    ImGui::PushID(label.c_str());
+                    if (ImGui::Selectable(label.c_str(), false,
                                           ImGuiSelectableFlags_SpanAllColumns)) {
-                        debug_game_editors::Open_Planet((int16_t)planet);
+                        debug_game_editors::Open_Planet(id);
                     }
                     ImGui::PopID();
                     ImGui::TableSetColumnIndex(1);
-                    ImGui::Text("%d", MOX::planet == nullptr ? -1 :
-                                (int)MOX::planet[planet].star_index);
+                    ImGui::Text("%d", static_cast<int>(body.star_index));
                     ImGui::TableSetColumnIndex(2);
                     ImGui::Text("%u", (unsigned)base);
                     ImGui::TableSetColumnIndex(3);
@@ -505,8 +506,7 @@ namespace AI_SNOOPS_DEBUG {
                     ImGui::TableSetColumnIndex(1);
                     ImGui::PushID(index);
                     if (ImGui::Selectable(std::to_string(legacy_world::Slot(entry.ship_id)).c_str())) {
-                        auto ship_index = legacy_world::Index(entry.ship_id);
-                        if (ship_index) debug_game_editors::Open_Ship(*ship_index);
+                        if (entry.ship_id.id < MAX_SHIPS) debug_game_editors::Open_Ship(entry.ship_id.id);
                     }
                     ImGui::PopID();
                     ImGui::TableSetColumnIndex(2);
@@ -565,9 +565,8 @@ namespace AI_SNOOPS_DEBUG {
                     ImGui::TableNextRow();
                     ImGui::TableSetColumnIndex(0);
                     ImGui::PushID((int)index);
-                    if (ImGui::Selectable(std::to_string(legacy_world::Slot(colony.colony_id)).c_str())) {
-                        auto colony_index = legacy_world::Index(colony.colony_id);
-                        if (colony_index) debug_game_editors::Open_Colony(*colony_index);
+                    if (ImGui::Selectable(std::to_string(colony.colony_id.id).c_str())) {
+                        debug_game_editors::Open_Colony(colony.colony_id);
                     }
                     ImGui::PopID();
                     ImGui::TableSetColumnIndex(1);
@@ -613,9 +612,8 @@ namespace AI_SNOOPS_DEBUG {
                     ImGui::Text("%u", index + 1);
                     ImGui::TableSetColumnIndex(1);
                     ImGui::PushID((int)index);
-                    if (ImGui::Selectable(std::to_string(legacy_world::Slot(planet.planet_id)).c_str())) {
-                        auto planet_index = legacy_world::Index(planet.planet_id);
-                        if (planet_index) debug_game_editors::Open_Planet(*planet_index);
+                    if (ImGui::Selectable(std::to_string(planet.planet_id.id).c_str())) {
+                        debug_game_editors::Open_Planet(planet.planet_id);
                     }
                     ImGui::PopID();
                     ImGui::TableSetColumnIndex(2);

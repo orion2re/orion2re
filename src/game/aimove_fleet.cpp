@@ -52,34 +52,20 @@ namespace AIMOVE {
 
         std::optional<AIDATA::s_route> best;
 
-        s_colony* colony_ptr = world->colonies;
-        if (colony_ptr < world->colonies + world->Colony_Count()) {
-            do {
-                if (colony_ptr->owner == i_ai) {
-                    int16_t current_star_idx = world->planets[colony_ptr->planet].star_index;
+        for (auto& [roster_id, roster_colony] : world->state->colonies) {
+            const auto& colony = roster_colony;
+            if (colony.owner != i_ai) continue;
+            const auto star = legacy_world::Star_Id(world->state->planets.at(colony.planet_id).star_index);
+            if (orbit == star || star == destination_star) continue;
+            ai_compat::Evaluate_Fleet_Move(ships, star, &move_info);
 
-                    if (orbit != legacy_world::Star_Id(current_star_idx) && legacy_world::Star_Id(current_star_idx) != destination_star) {
-                        ai_compat::Evaluate_Fleet_Move(ships, legacy_world::Star_Id(current_star_idx), &move_info);
-
-                        if (move_info.moving != 0) {
-                            // Bug in original game: compares 'moving' flag with 'best_eta' instead of using 'turns_left'
-                            if (!best || move_info.moving < best->turns) {
-                                int16_t leg1_turns_left = (uint8_t)move_info.turns_left;
-                                ai_compat::Evaluate_Fleet_Move(ships, destination_star, &move_info, legacy_world::Star_Id(current_star_idx));
-
-                                if (move_info.moving != 0) {
-                                    leg1_turns_left += (uint8_t)move_info.turns_left;
-
-                                    if (!best || leg1_turns_left < best->turns) {
-                                        best = AIDATA::s_route{legacy_world::Star_Id(current_star_idx), (uint16_t)leg1_turns_left};
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                colony_ptr++;
-            } while (colony_ptr < world->colonies + world->Colony_Count());
+            // Preserve the original comparison of the moving flag against the best ETA.
+            if (move_info.moving == 0 || (best && move_info.moving >= best->turns)) continue;
+            uint16_t eta = static_cast<uint8_t>(move_info.turns_left);
+            ai_compat::Evaluate_Fleet_Move(ships, destination_star, &move_info, star);
+            if (move_info.moving == 0) continue;
+            eta += static_cast<uint8_t>(move_info.turns_left);
+            if (!best || eta < best->turns) best = AIDATA::s_route{star, eta};
         }
 
         return best;

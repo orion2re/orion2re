@@ -1,4 +1,6 @@
 #include "pch.h"
+#include "../fixtures/colony_roster.h"
+#include "../fixtures/planet_roster.h"
 #include "../fixtures/game_state.h"
 #include "game/allocate.h"
 #include "game/vfs.h"
@@ -126,7 +128,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "government economy bonuses apply 
 
     for (int government = 0; government < GOVERNMENT_COUNT; ++government) {
         TEST_GOVERNMENT_BONUS::Reset_();
-        s_colony* colony = &MOX::colony[0];
+        s_colony* colony = &test_colonies::Record(0);
         colony->n_pops = 1;
         colony->pop[0] = 0x200;
 
@@ -151,7 +153,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "government economy bonuses apply 
         DOCTEST_CHECK((breakdown.govt_bonus == 15));
 
         colony->pop[0] = 0;
-        COLCALC::Colony_BC_Production(colony, nullptr);
+        COLCALC::Colony_BC_Production(game::id_colony{0}, colony, nullptr);
         DOCTEST_CHECK((colony->production[ECON_BC] == 2));
     }
 
@@ -179,7 +181,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "Android morale policy applies to 
     for (const s_policy& policy : policies) {
         for (int index = 0; index < 3; ++index) {
             TEST_GOVERNMENT_BONUS::Reset_();
-            s_colony* colony = &MOX::colony[0];
+            s_colony* colony = &test_colonies::Record(0);
             colony->n_pops = 1;
             colony->morale = 10;
             colony->pop[0] = 0x200u | (static_cast<uint32_t>(jobs[index]) << 7) | 8u;
@@ -209,21 +211,21 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "Android morale policy applies to 
 DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured planet special BC bonuses feed colony income") {
     TEST_GOVERNMENT_BONUS::Reset_();
 
-    s_colony* colony = &MOX::colony[0];
+    s_colony* colony = &test_colonies::Record(0);
     colony->n_pops = 5;
     COLCALC::planet_bc_bonus = {7, 13};
 
-    MOX::planet[0].planet_special = SYSTEM_SPECIAL_GOLD_DEPOSITS;
-    COLCALC::Colony_BC_Production(colony, nullptr);
+    test_planets::Record(0).planet_special = SYSTEM_SPECIAL_GOLD_DEPOSITS;
+    COLCALC::Colony_BC_Production(game::id_colony{0}, colony, nullptr);
     DOCTEST_CHECK((colony->production[ECON_BC] == 12));
 
     colony->buildings[BUILDING_SPACEPORT] = 1;
-    COLCALC::Colony_BC_Production(colony, nullptr);
+    COLCALC::Colony_BC_Production(game::id_colony{0}, colony, nullptr);
     DOCTEST_CHECK((colony->production[ECON_BC] == 18));
 
     colony->buildings[BUILDING_SPACEPORT] = 0;
-    MOX::planet[0].planet_special = SYSTEM_SPECIAL_GEM_DEPOSITS;
-    COLCALC::Colony_BC_Production(colony, nullptr);
+    test_planets::Record(0).planet_special = SYSTEM_SPECIAL_GEM_DEPOSITS;
+    COLCALC::Colony_BC_Production(game::id_colony{0}, colony, nullptr);
     DOCTEST_CHECK((colony->production[ECON_BC] == 18));
 
     TEST_GOVERNMENT_BONUS::Cleanup_();
@@ -232,25 +234,25 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured planet special BC bonu
 DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured Trade Goods ratios apply by Fantastic Traders trait") {
     TEST_GOVERNMENT_BONUS::Reset_();
 
-    s_colony* colony = &MOX::colony[0];
+    s_colony* colony = &test_colonies::Record(0);
     colony->n_pops = 1;
     colony->producing[0] = COLONY_PRODUCTION_TRADE_GOODS;
     colony->production[ECON_INDUSTRY] = 9;
 
-    COLCALC::Colony_BC_Production(colony, nullptr);
+    COLCALC::Colony_BC_Production(game::id_colony{0}, colony, nullptr);
     DOCTEST_CHECK((colony->production[ECON_BC] == 6));
 
     MOX::player[0].traits[TRAIT_FANTASTIC_TRADERS] = 1;
-    COLCALC::Colony_BC_Production(colony, nullptr);
+    COLCALC::Colony_BC_Production(game::id_colony{0}, colony, nullptr);
     DOCTEST_CHECK((colony->production[ECON_BC] == 10));
 
     COLCALC::trade_goods_ratio = {40, 175};
     MOX::player[0].traits[TRAIT_FANTASTIC_TRADERS] = 0;
-    COLCALC::Colony_BC_Production(colony, nullptr);
+    COLCALC::Colony_BC_Production(game::id_colony{0}, colony, nullptr);
     DOCTEST_CHECK((colony->production[ECON_BC] == 5));
 
     MOX::player[0].traits[TRAIT_FANTASTIC_TRADERS] = 1;
-    COLCALC::Colony_BC_Production(colony, nullptr);
+    COLCALC::Colony_BC_Production(game::id_colony{0}, colony, nullptr);
     DOCTEST_CHECK((colony->production[ECON_BC] == 17));
 
     TEST_GOVERNMENT_BONUS::Cleanup_();
@@ -260,26 +262,26 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured colony BC bonuses appl
     TEST_GOVERNMENT_BONUS::Reset_();
     const COLCALC::s_bc_bonus saved_bonus = COLCALC::bc_bonus;
 
-    s_colony* colony = &MOX::colony[0];
+    s_colony* colony = &test_colonies::Record(0);
     colony->n_pops = 5;
     COLCALC::bc_bonus = {75, 125, 50};
 
-    COLCALC::Colony_BC_Production(colony, nullptr);
+    COLCALC::Colony_BC_Production(game::id_colony{0}, colony, nullptr);
     DOCTEST_CHECK((colony->production[ECON_BC] == 5));
 
     colony->buildings[BUILDING_SPACEPORT] = 1;
-    COLCALC::Colony_BC_Production(colony, nullptr);
+    COLCALC::Colony_BC_Production(game::id_colony{0}, colony, nullptr);
     DOCTEST_CHECK((colony->production[ECON_BC] == 8));
 
     colony->buildings[BUILDING_SPACEPORT] = 0;
     colony->buildings[BUILDING_STOCK_EXCHANGE] = 1;
-    COLCALC::Colony_BC_Production(colony, nullptr);
+    COLCALC::Colony_BC_Production(game::id_colony{0}, colony, nullptr);
     DOCTEST_CHECK((colony->production[ECON_BC] == 11));
 
     colony->buildings[BUILDING_STOCK_EXCHANGE] = 0;
     MOX::player[0].tech_applications[TECH_APP_GALACTIC_CURRENCY_EXCHANGE] =
         TECH_RESEARCH_STATUS_RESEARCHED;
-    COLCALC::Colony_BC_Production(colony, nullptr);
+    COLCALC::Colony_BC_Production(game::id_colony{0}, colony, nullptr);
     DOCTEST_CHECK((colony->production[ECON_BC] == 7));
 
     COLCALC::bc_bonus = saved_bonus;
@@ -294,8 +296,8 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured research bonuses drive
         7, 11, 13, 17, 19, 23, 29, 31, 37,
     };
 
-    s_colony* colony = &MOX::colony[0];
-    s_planet_data* planet = &MOX::planet[0];
+    s_colony* colony = &test_colonies::Record(0);
+    s_planet_data* planet = &test_planets::Record(0);
     colony->n_pops = 1;
     colony->buildings[BUILDING_ASTRO_UNIVERSITY] = 1;
     colony->buildings[BUILDING_SUPERCOMPUTER] = 1;
@@ -341,7 +343,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured research bonuses drive
     colony->buildings[BUILDING_SUPERCOMPUTER] = 1;
     colony->buildings[BUILDING_GALACTIC_CYBERNET] = 1;
     colony->buildings[BUILDING_AUTOLAB] = 1;
-    COLCALC::Colony_Research_Production(colony, nullptr);
+    COLCALC::Colony_Research_Production(game::id_colony{0}, colony, nullptr);
     DOCTEST_CHECK((colony->production[ECON_RESEARCH] == 184));
 
     TEST_GOVERNMENT_BONUS::Cleanup_();
@@ -360,7 +362,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "hyper-advanced research costs use
                       &player, TECH_FIELD_BIOLOGY) == 49000);
 
     COLCALC::Compute_Player_Total_Known_Tech_Cost(&player);
-    DOCTEST_CHECK(player.total_known_tech_cost == 37000);
+    DOCTEST_CHECK((player.total_known_tech_cost == 37000));
 
     COLCALC::hyper_advanced_cost_increment = saved_increment;
     TECHDATA::technology_fields[TECH_FIELD_BIOLOGY].cost = saved_base_cost;
@@ -418,7 +420,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured pollution reductions p
     for (const s_pollution_case& test_case : cases) {
         TEST_GOVERNMENT_BONUS::Reset_();
 
-        s_colony* colony = &MOX::colony[0];
+        s_colony* colony = &test_colonies::Record(0);
         colony->n_pops = 1;
         colony->pop[0] = 0x280;
         colony->industry_per_worker = 20;
@@ -437,7 +439,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured pollution reductions p
         COLCALC::pollution_processor_ratio = test_case.processor_ratio;
         COLCALC::atmospheric_renewer_ratio = test_case.renewer_ratio;
 
-        COLCALC::Colony_Industry_Production(colony, nullptr);
+        COLCALC::Colony_Industry_Production(game::id_colony{0}, colony, nullptr);
 
         DOCTEST_CHECK(colony->pollution == test_case.expected_pollution);
         DOCTEST_CHECK((
@@ -468,7 +470,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "high Pollution Processor ratios p
     for (const s_ratio_case& test_case : cases) {
         TEST_GOVERNMENT_BONUS::Reset_();
 
-        s_colony* colony = &MOX::colony[0];
+        s_colony* colony = &test_colonies::Record(0);
         colony->n_pops = 1;
         colony->pop[0] = 0x280;
         colony->industry_per_worker = 1;
@@ -476,7 +478,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "high Pollution Processor ratios p
         COLCALC::planet_no_pollution_prod[0] = 0;
         COLCALC::pollution_processor_ratio = test_case.ratio;
 
-        COLCALC::Colony_Industry_Production(colony, nullptr);
+        COLCALC::Colony_Industry_Production(game::id_colony{0}, colony, nullptr);
 
         DOCTEST_CHECK(colony->pollution == test_case.expected_pollution);
         DOCTEST_CHECK((
@@ -497,7 +499,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured worker production stay
     COLCALC::minerals_per_mine[MINERAL_RESOURCE_ULTRA_POOR] = 4;
     COLCALC::production_worker_bonus = {2, 3, 4, 5, 1, 7, 5};
 
-    s_colony* colony = &MOX::colony[0];
+    s_colony* colony = &test_colonies::Record(0);
     colony->buildings[BUILDING_ASTRO_UNIVERSITY] = 1;
     colony->buildings[BUILDING_AUTOMATED_FACTORY] = 1;
     colony->buildings[BUILDING_ROBO_MINER_PLANT] = 1;
@@ -530,7 +532,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured worker production stay
 
     s_potential_colony_info potential = {};
     COLCALC::Compute_Potential_Colony_Info(
-        &MOX::player[0], &MOX::planet[0], &potential);
+        &MOX::player[0], &test_planets::Record(0), &potential);
     DOCTEST_CHECK(potential.industry == 9);
 
     memcpy(COLCALC::minerals_per_mine, saved_worker_base,
@@ -544,14 +546,14 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "worker production cache preserves
 
     for (uint8_t value : values) {
         TEST_GOVERNMENT_BONUS::Reset_();
-        s_colony* colony = &MOX::colony[0];
+        s_colony* colony = &test_colonies::Record(0);
         colony->owner = 0;
-        colony->planet = 0;
-        MOX::planet[0].mineral_class = MINERAL_RESOURCE_ULTRA_POOR;
+        colony->planet_id = game::id_planet{0};
+        test_planets::Record(0).mineral_class = MINERAL_RESOURCE_ULTRA_POOR;
         COLCALC::minerals_per_mine[MINERAL_RESOURCE_ULTRA_POOR] = value;
         COLCALC::production_worker_bonus = {};
 
-        COLCALC::Pre_Import_Computing(colony);
+        COLCALC::Pre_Import_Computing(game::id_colony{0}, colony);
 
         DOCTEST_CHECK(colony->industry_per_worker == value);
         DOCTEST_CHECK(COLCALC::Colony_Empire_Base_Industry_Produced(
@@ -571,12 +573,12 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured fixed production and R
     COLCALC::production_worker_bonus.recyclotron = 5;
     COLCALC::production_colony_bonus = {2, 3, 4, {7, 8, 9, 10, 11}};
 
-    s_colony* colony = &MOX::colony[0];
+    s_colony* colony = &test_colonies::Record(0);
     colony->n_pops = 3;
     colony->pop[0] = 0x200;
     colony->pop[1] = 0x200;
     colony->pop[2] = 0x200;
-    MOX::planet[0].mineral_class = MINERAL_RESOURCE_RICH;
+    test_planets::Record(0).mineral_class = MINERAL_RESOURCE_RICH;
     colony->buildings[BUILDING_AUTOMATED_FACTORY] = 1;
     colony->buildings[BUILDING_ROBO_MINER_PLANT] = 1;
     colony->buildings[BUILDING_DEEP_CORE_MINE] = 1;
@@ -584,7 +586,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured fixed production and R
     colony->buildings[BUILDING_RECYCLOTRON] = 1;
     colony->buildings[BUILDING_CORE_WASTE_DUMP] = 1;
 
-    COLCALC::Colony_Industry_Production(colony, nullptr);
+    COLCALC::Colony_Industry_Production(game::id_colony{0}, colony, nullptr);
 
     DOCTEST_CHECK((colony->production[ECON_INDUSTRY] == 34));
     DOCTEST_CHECK(colony->n_industry_recyclers == 15);
@@ -616,7 +618,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "Scout Lab research uses the confi
 DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured planet climate modifiers change building maintenance") {
     TEST_COLONY_REPLICATORS::Reset_();
 
-    s_colony* colony = &MOX::colony[0];
+    s_colony* colony = &test_colonies::Record(0);
     colony->n_pops = 1;
     colony->buildings[BUILDING_AUTOMATED_FACTORY] = 1;
 
@@ -631,7 +633,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured planet climate modifie
         COLCALC::climate_maintenance_modifiers[PLANET_CLIMATE_TOXIC] =
             test_case.modifier;
         colony->climate = PLANET_CLIMATE_TOXIC;
-        COLCALC::Colony_BC_Maintenance(colony);
+        COLCALC::Colony_BC_Maintenance(game::id_colony{0}, colony);
         DOCTEST_CHECK((uint8_t)colony->maintenance[ECON_BC] ==
                       test_case.expected_maintenance);
     }
@@ -639,15 +641,14 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured planet climate modifie
 
 DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured command-point values and ship usage drive maintenance") {
     TEST_PLAYER_STATS::Reset_();
-    MOX::NUM_COLONIES = 3;
     MOX::NUM_SHIPS = 2;
 
     MOX::player[0].traits[TRAIT_WARLORD] = 1;
     MOX::player[0].tech_applications[TECH_APP_HYPERSPACE_COMMUNICATIONS] =
         TECH_RESEARCH_STATUS_RESEARCHED;
-    MOX::colony[0].buildings[BUILDING_STAR_BASE] = 1;
-    MOX::colony[1].buildings[BUILDING_BATTLESTATION] = 1;
-    MOX::colony[2].buildings[BUILDING_STAR_FORTRESS] = 1;
+    test_colonies::Record(0).buildings[BUILDING_STAR_BASE] = 1;
+    test_colonies::Record(1).buildings[BUILDING_BATTLESTATION] = 1;
+    test_colonies::Record(2).buildings[BUILDING_STAR_FORTRESS] = 1;
 
     COLCALC::command_points = {7, 2, 4, 6, 1, 3, 5, 3};
     const uint8_t usage[SHIP_SIZE_COUNT] = {2, 5, 8, 11, 14, 17};
@@ -690,9 +691,8 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "negative command-point settings r
         DOCTEST_CHECK(strcmp(output, expected) == 0);
 
         TEST_PLAYER_STATS::Reset_();
-        MOX::NUM_COLONIES = 1;
         MOX::NUM_SHIPS = 0;
-        MOX::colony[0].buildings[BUILDING_STAR_BASE] = 1;
+        test_colonies::Record(0).buildings[BUILDING_STAR_BASE] = 1;
         MOX::player[0].tech_applications[TECH_APP_TACHYON_COMMUNICATIONS] =
             TECH_RESEARCH_STATUS_RESEARCHED;
         COLCALC::command_points = {};
@@ -721,7 +721,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "configured Food Replicator PP cos
         TEST_COLONY_REPLICATORS::Reset_();
         COLCALC::replicator_food_pp = test_case.pp_cost;
 
-        s_colony* colony = &MOX::colony[0];
+        s_colony* colony = &test_colonies::Record(0);
         colony->buildings[BUILDING_FOOD_REPLICATORS] = 1;
         colony->production[ECON_INDUSTRY] = 3;
         colony->food2_needed_for_conquered = 3;
@@ -750,13 +750,13 @@ DOCTEST_TEST_CASE_FIXTURE(s_production_state, "Food Replicator BC cost is applie
         TEST_COLONY_REPLICATORS::Reset_();
         COLCALC::replicator_food_bc = test_case.bc_cost;
 
-        s_colony* colony = &MOX::colony[0];
+        s_colony* colony = &test_colonies::Record(0);
         colony->n_pops = 1;
         colony->climate = PLANET_CLIMATE_TOXIC;
         colony->buildings[BUILDING_AUTOMATED_FACTORY] = 1;
         colony->n_food_replicated = 2;
 
-        COLCALC::Colony_BC_Maintenance(colony);
+        COLCALC::Colony_BC_Maintenance(game::id_colony{0}, colony);
 
         DOCTEST_CHECK((uint8_t)colony->maintenance[ECON_BC] == test_case.expected_maintenance);
     }

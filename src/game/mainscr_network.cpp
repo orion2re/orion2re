@@ -1,4 +1,7 @@
 #include "pch.h"
+#include "battle_results_serialization.h"
+#include "game_wire_version.h"
+#include "player_network_serialization.h"
 
 #include "config/config_snapshot.h"
 #include "game/serialization.h"
@@ -29,11 +32,6 @@ namespace MAINSCR {
                 exitm::Exit_With_Message(diagnostic.c_str());
             }
             return true;
-        }
-
-        bool Valid_Setup_Version(const char* version, size_t capacity) {
-            const void* terminator = memchr(version, '\0', capacity);
-            return terminator != nullptr && strcmp(version, GAME_BUILD_DATE) == 0;
         }
 
         void Apply_Setup_Config(const void* payload, uint32_t payload_len, uint32_t prefix_size) {
@@ -79,9 +77,8 @@ namespace MAINSCR {
                 }
                 s_net_pack_start_game pack;
                 memcpy(&pack, payload, sizeof(pack));
-                if (!Valid_Setup_Version(pack.version_string,
-                        sizeof(pack.version_string))) {
-                    exitm::Exit_With_Message("Incompatible network version");
+                if (!NETPROTO::Valid_Setup_Version(pack.version_string)) {
+                    exitm::Exit_With_Message("Incompatible multiplayer protocol version");
                 }
                 if (orion2re::lua::Has_Pending_Lua_Network_Setup()) {
                     if (!Commit_Pending_Lua_Setup(sender_net_id_or_host_id,
@@ -136,8 +133,12 @@ namespace MAINSCR {
                 break;
             }
             case NET_PACKET_PLAYER_SETUP: {
+                if (NETMOX::net.sync_state != NET_SYNC_STATE_HOST_WAITING_FOR_PLAYER_SETUP ||
+                    from_player_id >= MAX_PLAYERS || std::cmp_greater_equal(from_player_id, MOX::NUM_PLAYERS)) break;
+                if (!NETPROTO::Decode_Player(payload, payload_len, MOX::player[from_player_id])) {
+                    exitm::Exit_With_Message("Invalid multiplayer player setup packet. Make sure all players use compatible game versions.");
+                }
                 NETMOX::net.player_connected_flags[from_player_id] = 1;
-                memcpy(&MOX::player[from_player_id], payload, (uint16_t)payload_len);
 
                 if (MOX::NUM_PLAYERS > 0) {
                     for (int i = 0; i < MOX::NUM_PLAYERS; ++i) {
@@ -173,6 +174,9 @@ namespace MAINSCR {
                 break;
             }
             case NET_PACKET_GAME_ORDERS_PAYLOAD: {
+                if (NETMOX::net.sync_state != NET_SYNC_STATE_HOST_RECEIVING_PLAYER_DATA ||
+                    NETMOX::net.host_active_player_id < 0 ||
+                    from_player_id != static_cast<uint32_t>(NETMOX::net.host_active_player_id)) break;
                 NETMOX::Net_Debug_Log(
                     "Main_Receive_Message_: GAME_ORDERS_PAYLOAD from_player=%u bytes=%u host_sync_counter_before=%d",
                     (unsigned int)from_player_id,
@@ -186,16 +190,7 @@ namespace MAINSCR {
                 NETMOX::net.network_data_ptr = allocate::Allocate_Next_Block(MOX::screen_seg, payload_len);
                 memcpy(NETMOX::net.network_data_ptr, payload, payload_len);
                 NETMOX::net.total_bytes_received = payload_len;
-                NETMOX::net.host_sync_counter++;
-                if ((uint8_t)NETMOX::net.host_sync_counter == MOX::NUM_PLAYERS) {
-                    NETMOX::net.sync_state = NET_SYNC_STATE_HOST_BEGIN_TURN;
-                } else {
-                    NETMOX::net.sync_state = NET_SYNC_STATE_HOST_WAITING_FOR_ORDERS;
-                }
-                NETMOX::Net_Debug_Log(
-                    "Main_Receive_Message_: GAME_ORDERS_PAYLOAD complete host_sync_counter_after=%d next_sync=%u",
-                    (int)NETMOX::net.host_sync_counter,
-                    (unsigned int)NETMOX::net.sync_state);
+                NETMOX::net.sync_state = NET_SYNC_STATE_HOST_WAITING_FOR_ORDERS;
                 break;
             }
             case NET_PACKET_HOST_ELECTION_RANK: {
@@ -257,11 +252,16 @@ namespace MAINSCR {
                 break;
             }
             case NET_PACKET_AI_DIPLOMACY_END_STATE: {
+                if (payload_len != sizeof(s_net_pack_end_ai_diplomacy)) break;
                 s_net_pack_end_ai_diplomacy* pack = (s_net_pack_end_ai_diplomacy*)payload;
                 int8_t remote_id = NETMOX::net.player_net_info[from_player_id].diplomacy_target_id;
 
-                memcpy(&MOX::player[remote_id], &pack->target_player, sizeof(s_player));
-                memcpy(&MOX::player[from_player_id], &pack->player, sizeof(s_player));
+                s_player target, sender;
+                if (remote_id < 0 || remote_id >= MOX::NUM_PLAYERS ||
+                    !NETPROTO::Decode_Player(&pack->target_player, sizeof(pack->target_player), target) ||
+                    !NETPROTO::Decode_Player(&pack->player, sizeof(pack->player), sender)) break;
+                MOX::player[remote_id] = target;
+                MOX::player[from_player_id] = sender;
 
                 for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
                     MOX::star[i].surrender_to[remote_id] = pack->surrender_to[i];
@@ -308,11 +308,13 @@ namespace MAINSCR {
                 break;
             }
             case NET_PACKET_COMBAT_TARGET_CHOSEN: {
-                const s_net_pack_combat_target_chosen* packet = (const s_net_pack_combat_target_chosen*)payload;
-                NETMOX::net.player_net_info[from_player_id].combat_defender_id = packet->combat_defender_id;
-                NETMOX::net.player_net_info[from_player_id].combat_planet_id = packet->combat_planet_id;
-                NETMOX::net.player_net_info[from_player_id].combat_target_player_id = packet->combat_target_player_id;
-                NETMOX::net.player_net_info[from_player_id].player_state = NET_PLAYER_STATE_COMBAT_TARGET_CHOSEN;
+                if (payload_len != 8 || from_player_id < 0 || from_player_id >= MAX_PLAYERS) break;
+                SERIAL::Reader_ reader(payload, payload_len, "combat target underflow", true);
+                auto& info = NETMOX::net.player_net_info[from_player_id];
+                info.combat_defender_id = reader.Read_Int16();
+                info.combat_planet_id = game::id_planet{reader.Read_Uint32()};
+                info.combat_target_player_id = reader.Read_Int16();
+                info.player_state = NET_PLAYER_STATE_COMBAT_TARGET_CHOSEN;
                 break;
             }
             case NET_PACKET_YOU_ARE_TARGET_INFO: {
@@ -339,7 +341,9 @@ namespace MAINSCR {
             }
             case NET_PACKET_STRATEGIC_BATTLE_RESULTS:
             case NET_PACKET_STRATEGIC_RESULTS_READY: {
-                memcpy(NETMOX::net.combat_results_data, payload, sizeof(s_battle_results));
+                if (payload_len != SERIAL::BATTLE_RESULTS_BYTES || !NETMOX::net.combat_results_data) break;
+                SERIAL::Reader_ reader(payload, payload_len, "battle results underflow", true);
+                SERIAL::Read_Battle_Results(reader, *NETMOX::net.combat_results_data);
                 if (msg_type == NET_PACKET_STRATEGIC_BATTLE_RESULTS) {
                     NETMOX::net.sync_state = NET_SYNC_STATE_COMBAT_RESULTS_DISPLAY;
                 } else {
@@ -365,9 +369,10 @@ namespace MAINSCR {
                 break;
             }
             case NET_PACKET_REQUEST_HUMAN_DIPLOMACY: {
+                if (payload_len != sizeof(s_net_pack_req_human_diplomacy)) break;
                 s_net_pack_req_human_diplomacy* pack = (s_net_pack_req_human_diplomacy*)payload;
                 if (NETMOX::net.players_hit_next_turn[MOX::PLAYER_NUM] == 0) {
-                    memcpy(&MOX::player[from_player_id], &pack->player, sizeof(s_player));
+                    if (!NETPROTO::Decode_Player(&pack->player, sizeof(pack->player), MOX::player[from_player_id])) break;
 
                     for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
                         MOX::star[i].surrender_to[from_player_id] = pack->surrender_to[i];
@@ -391,7 +396,7 @@ namespace MAINSCR {
                 break;
             }
             case NET_PACKET_ACCEPT_HUMAN_DIPLOMACY: {
-                memcpy(&MOX::player[from_player_id], payload, sizeof(s_player));
+                if (!NETPROTO::Decode_Player(payload, payload_len, MOX::player[from_player_id])) break;
 
                 if (NETMOX::net.sync_state == NET_SYNC_STATE_HUMAN_DIPLOMACY_REQUESTED && NETMOX::net.diplomacy_target_id == from_player_id) {
                     uint8_t mask = ~(1 << (from_player_id & 0x1F));
@@ -448,11 +453,17 @@ namespace MAINSCR {
                 break;
             }
             case NET_PACKET_SYNC_PLAYER_STATE: {
+                if (payload_len != sizeof(s_net_pack_end_ai_diplomacy)) break;
                 s_net_pack_end_ai_diplomacy* pack = (s_net_pack_end_ai_diplomacy*)payload;
                 int target_id = pack->target_player_id;
 
-                memcpy(&MOX::player[target_id], &pack->target_player, sizeof(s_player));
-                memcpy(&MOX::player[pack->player_num], &pack->player, sizeof(s_player));
+                s_player target, sender;
+                if (target_id < 0 || target_id >= MOX::NUM_PLAYERS ||
+                    pack->player_num < 0 || pack->player_num >= MOX::NUM_PLAYERS ||
+                    !NETPROTO::Decode_Player(&pack->target_player, sizeof(pack->target_player), target) ||
+                    !NETPROTO::Decode_Player(&pack->player, sizeof(pack->player), sender)) break;
+                MOX::player[target_id] = target;
+                MOX::player[pack->player_num] = sender;
 
                 for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
                     pack->surrender_to[i] = MOX::star[i].surrender_to[target_id];
@@ -461,7 +472,7 @@ namespace MAINSCR {
             }
             case NET_PACKET_DRAGON_INFO: {
                 NETMOX::net.sync_state = NET_SYNC_STATE_DRAGON_BRIBE_PROMPT;
-                NETMOX::Decode_Dragon_Info((int16_t*)payload, (uint16_t)payload_len);
+                NETMOX::Decode_Dragon_Info(payload, payload_len);
                 break;
             }
             case NET_PACKET_DRAGON_NO_BRIBE: {
@@ -494,9 +505,8 @@ namespace MAINSCR {
                 }
                 s_load_net_screen_packet pack;
                 memcpy(&pack, payload, sizeof(pack));
-                if (!Valid_Setup_Version(pack.version_string,
-                        sizeof(pack.version_string))) {
-                    exitm::Exit_With_Message("Incompatible network version");
+                if (!NETPROTO::Valid_Setup_Version(pack.version_string)) {
+                    exitm::Exit_With_Message("Incompatible multiplayer protocol version");
                 }
                 if (orion2re::lua::Has_Pending_Lua_Network_Setup()) {
                     if (!Commit_Pending_Lua_Setup(sender_net_id_or_host_id,
@@ -556,6 +566,7 @@ namespace MAINSCR {
             }
             case NET_PACKET_PLAYER_ABDICATED:
             case NET_PACKET_PLAYER_SURRENDERED: {
+                if (payload_len != sizeof(s_net_pack_drop_out_info)) break;
                 NETMOX::Decode_Drop_Out_Info(from_player_id, (s_net_pack_drop_out_info*)payload);
                 break;
             }
@@ -587,12 +598,16 @@ namespace MAINSCR {
                 break;
             }
             case NET_PACKET_MONSTER_UPDATE: {
-                if (payload_len != sizeof(s_net_pack_monster_update)) {
+                if (payload_len != 12) {
                     break;
                 }
-                s_net_pack_monster_update monster_update;
-                memcpy(&monster_update, payload, sizeof(monster_update));
-                EVENTS::Event_Monster_Update((int16_t)monster_update.monster_type, monster_update.target_planet_id, (int16_t)monster_update.player_idx_or_amount);
+                SERIAL::Reader_ reader(static_cast<const uint8_t*>(payload), payload_len, "monster update underflow", true);
+                const auto monster = reader.Read_Int32();
+                const game::id_planet target{reader.Read_Uint32()};
+                const auto amount = reader.Read_Int32();
+                if (std::in_range<int16_t>(monster) && std::in_range<int16_t>(amount)) {
+                    EVENTS::Event_Monster_Update(monster, target, amount);
+                }
                 break;
             }
             case NET_PACKET_PLAYER_RACE_DESELECTED: {
@@ -631,7 +646,7 @@ namespace MAINSCR {
                 break;
             }
             case NET_PACKET_HUMAN_DIPLOMACY_READY_DATA: {
-                memcpy(&MOX::player[from_player_id], payload, sizeof(s_player));
+                if (!NETPROTO::Decode_Player(payload, payload_len, MOX::player[from_player_id])) break;
                 if (NETMOX::net.sync_state == NET_SYNC_STATE_HUMAN_DIPLOMACY_CONNECTING && NETMOX::net.diplomacy_target_id == from_player_id) {
                     uint8_t mask = ~(1 << (from_player_id & 0x1F));
                     NETMOX::net.sync_state = NET_SYNC_STATE_HUMAN_DIPLOMACY_READY;

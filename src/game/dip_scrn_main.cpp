@@ -820,30 +820,31 @@ namespace DIP_SCRN {
      *
      * @param star_idx Index of the star system to scan.
      * @param player_idx Index of the player whose colonies to search for.
-     * @param capitol_planet_idx Output: Index of the planet with the player's Capitol, or -1 if none found.
+     * @param capitol Output: ID of the planet with the player's Capitol, or NO_PLANET.
      * @param owned_count Output: Total number of colonies owned by the player in this system.
-     * @param planet_indices Output: Array of indices for the planets owned by the player.
+     * @param planet_ids Output: IDs of the planets owned by the player, in orbit order.
      * @return The player index if colonies exist, otherwise the original star owner.
      */
-    int16_t __cdecl Diplomacy_System_Scan(int16_t star_idx, int16_t player_idx, int16_t* capitol_planet_idx, int16_t* owned_count, int16_t* planet_indices) {
-        *capitol_planet_idx = -1;
+    int16_t Diplomacy_System_Scan(const game::s_game_state& state, int16_t star_idx, int16_t player_idx,
+        game::id_planet* capitol, int16_t* owned_count, game::id_planet* planet_ids) {
+        *capitol = game::NO_PLANET;
         *owned_count = 0;
 
         s_star_data* star = &MOX::star[star_idx];
 
         // Check if the player has any colonies in this system using a bitmask
         if ((star->has_colony >> (uint8_t)player_idx) & 1) {
-            for (int16_t i = 0; i < 5; ++i) {
-                int16_t planet_idx = star->planet_index[i];
-                if (planet_idx != -1) {
-                    int16_t colony_idx = MOX::planet[planet_idx].colony_index;
-                    if (colony_idx != -1) {
-                        s_colony* colony = &MOX::colony[colony_idx];
+            for (const auto& link : star->orbit_planet_ids) {
+                const auto id = link.get();
+                if (id != game::NO_PLANET) {
+                    const auto colony_idx = state.planets.at(id).colony_id;
+                    if (colony_idx != game::NO_COLONY) {
+                        s_colony* colony = &game::current_state.colonies.at(colony_idx);
                         if (colony->owner == (int8_t)player_idx) {
-                            planet_indices[*owned_count] = planet_idx;
+                            planet_ids[*owned_count] = id;
 
                             if (colony->buildings[BUILDING_CAPITOL] != 0) {
-                                *capitol_planet_idx = planet_idx;
+                                *capitol = id;
                             }
 
                             *owned_count = *owned_count + 1;
@@ -986,12 +987,11 @@ namespace DIP_SCRN {
 
                 if (valid_opportunity) {
                     auto attack = AIMOVE::Find_Opportunity_Attack(&AIDATA::state, &game::current, legacy_world::Player_Id(p_idx), legacy_world::Player_Id(target_idx), 100);
-                    auto planet_index = attack ? legacy_world::Index(attack->planet_id) : std::nullopt;
-                    player.opportunity_planet_num[target_idx] = planet_index.value_or(-1);
-                    player.opportunity_planet_value[target_idx] = planet_index ? attack->colony_value : 0;
-                    player.opportunity_actual_attacker_ratio[target_idx] = planet_index ? attack->strength_ratio_percent : 0;
+                    player.opportunity_planet_id[target_idx] = attack ? attack->planet_id : game::NO_PLANET;
+                    player.opportunity_planet_value[target_idx] = attack ? attack->colony_value : 0;
+                    player.opportunity_actual_attacker_ratio[target_idx] = attack ? attack->strength_ratio_percent : 0;
                 } else {
-                    player.opportunity_planet_num[target_idx] = -1;
+                    player.opportunity_planet_id[target_idx] = game::NO_PLANET;
                     player.opportunity_planet_value[target_idx] = 0;
                     player.opportunity_actual_attacker_ratio[target_idx] = 0;
                 }
@@ -1425,8 +1425,8 @@ namespace DIP_SCRN {
                         Diplomacy_Display_Response();
                         break;
                     case 0x6a:
-                        if (MOX::player[current_ambassador].opportunity_planet_num[MOX::PLAYER_NUM] != -1) {
-                            MOX::player[current_ambassador].sneak_attack_planet = MOX::player[current_ambassador].opportunity_planet_num[MOX::PLAYER_NUM];
+                        if (MOX::player[current_ambassador].opportunity_planet_id[MOX::PLAYER_NUM].get() != game::NO_PLANET) {
+                            MOX::player[current_ambassador].sneak_attack_planet = MOX::player[current_ambassador].opportunity_planet_id[MOX::PLAYER_NUM];
                             MOX::player[current_ambassador].sneak_attack_player = (int8_t)MOX::PLAYER_NUM;
                             MOX::player[current_ambassador].sneak_attack_message =
                                 (uint8_t)MOX::player[current_ambassador].diplomacy_demand_rejection_message[MOX::PLAYER_NUM];

@@ -11,9 +11,8 @@ namespace MOX {
     int32_t stardate = 0;
     s_settings settings = {};
     uint8_t NUM_NEBULAS = 0;
-    int16_t NUM_COLONIES = 0;
-    int16_t planet_count = 0;
-    s_planet_data* planet = nullptr;
+
+
     int16_t NUM_SHIPS = 0;
     int16_t max_zoom_count = 0;
     uint8_t star_bg_index = 0;
@@ -21,7 +20,6 @@ namespace MOX {
     int16_t NUM_PLAYERS = 0;
     s_player* player = nullptr;
     s_ship_data* ship = nullptr;
-    s_leader_data* leaders = nullptr;
     s_colony* colony = nullptr;
     s_star_data* star = nullptr;
     int16_t bill_savegame[6] = {};

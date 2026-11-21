@@ -29,10 +29,10 @@ namespace AIDATA {
             player->tech_applications[TECH_APP_STAR_GATE] != TECH_RESEARCH_STATUS_RESEARCHED &&
             world->stars[legacy_world::Slot(source_star)].wormhole_star_id == -1 &&
             world->stars[legacy_world::Slot(destination_star)].wormhole_star_id == -1 && direct) {
-            auto source_index = legacy_world::Index(source_star);
-            auto destination_index = legacy_world::Index(destination_star);
-            if (source_index && destination_index) {
-                const int32_t distance = GEO::Parsecs_Between_Stars(*source_index, *destination_index);
+            const auto source_index = source_star.id;
+            const auto destination_index = destination_star.id;
+            if (source_index < MAX_STARS && destination_index < MAX_STARS) {
+                const int32_t distance = GEO::Parsecs_Between_Stars(source_index, destination_index);
                 const uint16_t turns = (uint8_t)((distance + player->ship_speed - 1) / player->ship_speed);
                 if (*direct <= (distance + player->ship_speed - 1) / player->ship_speed) {
                     const auto destination_assessment = ai->stars.find(destination_star);

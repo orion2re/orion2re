@@ -18,7 +18,7 @@ namespace SCIENCE {
 
     void* science_mouse_bitmap;
 
-    void __cdecl Show_Off_Captured_Tech(int16_t* captured_tech_ids, uint16_t tech_count, int16_t message_arg) {
+    void Show_Off_Captured_Tech_At_Planet(int16_t* captured_tech_ids, uint16_t tech_count, game::id_planet id) {
         char text_buffer[0x100];
 
         allocate::Push_Block(MOX::screen_seg);
@@ -27,7 +27,9 @@ namespace SCIENCE {
         file_ani::Set_File_Animation_Buffer(animation_buffer);
 
         JIM::Get_Text_Message("billtext.lbx", 3, text_buffer, sizeof(text_buffer));
-        JIM::Decode_Text_System(text_buffer, message_arg, sizeof(text_buffer));
+        const auto planet = game::current_state.planets.find(id);
+        const int16_t star = planet == game::current_state.planets.end() ? -1 : planet->second.star_index;
+        JIM::Decode_Text_Message(text_buffer, -1, star, -1, -1, -1, -1, TECH_FIELD_INVALID, sizeof(text_buffer), id);
 
         char* trooper_anim = BILL::Cache_Player_Trooper_Anim();
         SCIENCE::Science_Room(trooper_anim, tech_count, captured_tech_ids, text_buffer);
@@ -38,11 +40,11 @@ namespace SCIENCE {
         JIM::Play_Background_Music();
     }
 
-    void __cdecl Show_Off_Artifact_Tech(uint16_t tech_idx, int16_t planet_idx) {
+    void __cdecl Show_Off_Artifact_Tech(uint16_t tech_idx, game::id_planet planet_idx) {
         int16_t discovered_tech = (int16_t)tech_idx;
 
         if (finds_presented_by_scientist == 0) {
-            Show_Off_Captured_Tech(&discovered_tech, 1, planet_idx);
+            Show_Off_Captured_Tech_At_Planet(&discovered_tech, 1, planet_idx);
             return;
         }
 

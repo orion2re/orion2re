@@ -1,10 +1,10 @@
 #include "pch.h"
+#include "../fixtures/colony_roster.h"
 
 namespace {
-    s_colony colonies[1];
+    test_colonies::Slots<1> colonies;
     s_player players[MAX_PLAYERS];
     s_ship_data ships[3];
-    s_leader_data leaders[1];
     s_star_data stars[1];
     int32_t ship_worths[MAX_SHIPS];
     int pre_import_calls;
@@ -22,8 +22,7 @@ namespace TEST_AIDUDES {
         world.players = players;
         world.ships = ships;
         world.stars = stars;
-        world.colonies = colonies;
-        world.leaders = leaders;
+        world.state = &game::current_state;
         world.settings = &MOX::settings;
         world.ship_count = &MOX::NUM_SHIPS;
         world.stardate = &MOX::stardate;
@@ -39,7 +38,7 @@ namespace TEST_AIDUDES {
     }
 
     void Reset_() {
-        memset(colonies, 0, sizeof(colonies));
+        colonies.Reset();
         memset(players, 0, sizeof(players));
         pre_import_calls = 0;
         colony_researching = false;
@@ -54,7 +53,7 @@ namespace TEST_AIDUDES {
     void Reset_Maintenance_Scrap_(bool add_replacement) {
         memset(players, 0, sizeof(players));
         memset(ships, 0, sizeof(ships));
-        memset(leaders, 0, sizeof(leaders));
+        game::current_state = game::s_game_state{};
         memset(stars, 0, sizeof(stars));
         memset(ship_worths, 0, sizeof(ship_worths));
         memset(&MOX::settings, 0, sizeof(MOX::settings));
@@ -87,10 +86,11 @@ namespace TEST_AIDUDES {
         ships[1].officer_index = -1;
         ship_worths[1] = 1;
 
-        leaders[0].player_index = 0;
-        leaders[0].type = LEADER_TYPE_SHIP;
-        leaders[0].status = 1;
-        leaders[0].location = 0;
+        auto& leader = game::current_state.leaders[0];
+        leader.player_index = 0;
+        leader.type = LEADER_TYPE_SHIP;
+        leader.status = 1;
+        leader.location = 0;
     }
 
     void Reset_Maintenance_Scrap_With_Incomparable_Replacements_() {
@@ -110,7 +110,7 @@ namespace TEST_AIDUDES {
     }
 
     void Reset_Doom_Star_Update_() {
-        memset(colonies, 0, sizeof(colonies));
+        colonies.Reset();
         memset(players, 0, sizeof(players));
         memset(ships, 0, sizeof(ships));
         ai = {};
@@ -119,7 +119,7 @@ namespace TEST_AIDUDES {
         doom_star_load_count = 0;
 
         ai.players[0].colony_work.colonies.resize(1);
-        ai.players[0].colony_work.colonies[0].colony_id = legacy_world::Colony_Id(0);
+        ai.players[0].colony_work.colonies[0].colony_id = game::id_colony{0};
         colonies[0].producing[0] =
             COLBLDG::Colony_Production_From_Ship_Index(0);
         ships[0].d.ship_type = SHIP_TYPE_COMBAT;
@@ -161,10 +161,8 @@ namespace TEST_AIDUDES {
 } // namespace TEST_AIDUDES
 
 namespace MOX {
-    s_colony* colony = colonies;
     s_player* player = players;
     s_ship_data* ship = ships;
-    s_leader_data* leaders = ::leaders;
     s_star_data* star = stars;
     int16_t NUM_SHIPS;
     int32_t stardate;
@@ -199,13 +197,13 @@ namespace INITSHIP {
 } // namespace INITSHIP
 
 namespace EVENTS {
-    int16_t __cdecl Event_Check_Colony_Researching(int16_t) {
+    int16_t __cdecl Event_Check_Colony_Researching(game::id_colony) {
         return TEST_AIDUDES::colony_researching;
     }
 } // namespace EVENTS
 
 namespace COLCALC {
-    void __cdecl Pre_Import_Computing(s_colony* colony) {
+    void __cdecl Pre_Import_Computing(game::id_colony, s_colony* colony) {
         pre_import_calls++;
         colony->food2_per_farmer = 0;
         colony->max_farms = 0;
@@ -245,8 +243,8 @@ namespace OFFICER {
         return true;
     }
 
-    void __cdecl Ai_Assign_Leader_To_Ship(s_player*, s_leader_data* leader, s_ship_data* ship) {
-        int16_t leader_idx = (int16_t)(leader - MOX::leaders);
+    void __cdecl Ai_Assign_Leader_To_Ship(game::s_game_state& state, s_player*, int16_t leader_idx, s_ship_data* ship) {
+        auto* leader = &state.leaders.at(leader_idx);
         int16_t ship_idx = (int16_t)(ship - MOX::ship);
 
         MOX::ship[leader->location].officer_index = -1;
@@ -256,7 +254,7 @@ namespace OFFICER {
     }
 
     void __cdecl Move_Officer_To_Pool(int16_t leader_idx) {
-        s_leader_data* leader = &MOX::leaders[leader_idx];
+        auto* leader = &game::current_state.leaders.at(leader_idx);
         pooled_officer = leader_idx;
 
         if (leader->location >= 0 && MOX::ship[leader->location].officer_index == leader_idx) {

@@ -53,10 +53,10 @@ namespace invasion {
     void __cdecl Compute_Player_Ground_Combat_Bonuses(int player_idx, s_invasion_player_bonuses* bonuses, int8_t is_defender);
 
     /// Checks whether a colony triggers a rebellion this turn.
-    void __cdecl Check_Rebellion(s_colony* colony);
+    void __cdecl Check_Rebellion(game::id_colony colony_id, s_colony* colony);
 
     /// Builds attacker and defender combat state for a colony rebellion.
-    void __cdecl Get_Rebellion_Info(int16_t attacker_player_id, int16_t marines_count, s_colony* colony, s_invasion_side_info* side_a, s_invasion_side_info* side_b);
+    void __cdecl Get_Rebellion_Info(int16_t attacker_player_id, int16_t marines_count, game::id_colony colony_id, s_colony* colony, s_invasion_side_info* side_a, s_invasion_side_info* side_b);
 
     /// Returns the number of militia units a colony can field from its population.
     int __cdecl Colony_N_Militia(s_colony* colony);
@@ -68,10 +68,10 @@ namespace invasion {
     void __cdecl Compute_Colony_Officer_Bonus(s_colony* colony, s_invasion_player_bonuses* bonuses);
 
     /// Transfers a colony to a new owner and records battle-result side effects.
-    void __cdecl Change_Colony_Ownership(s_colony* colony, uint32_t new_owner_idx, s_battle_results_info* results);
+    void __cdecl Change_Colony_Ownership(game::id_colony colony_id, s_colony* colony, uint32_t new_owner_idx, s_battle_results_info* results);
 
     /// Updates colony population ownership flags after a capture.
-    void __cdecl Change_Pop_Ownership(int16_t colony_idx, uint32_t new_owner_idx);
+    void __cdecl Change_Pop_Ownership(game::id_colony colony_idx, uint32_t new_owner_idx);
 
     /// Restores surviving rebel troops to the captured colony.
     void __cdecl Resolve_Rebellion_Troops(s_invasion_side_info info);
@@ -86,7 +86,7 @@ namespace invasion {
     void __cdecl Find_Troops(s_invasion_side_info* side_info);
 
     /// Reassigns a player's home planet after losing their current one.
-    void __cdecl Assign_New_Home_Planet(int8_t player_idx, int16_t excluded_colony_idx);
+    void __cdecl Assign_New_Home_Planet(const game::s_game_state& state, int8_t player_idx, game::id_colony excluded_colony);
 
     /// Converts combat modifiers into per-unit ground combat strength and hit point values.
     void __cdecl Compute_Ground_Combat_Info(s_invasion_side_info* side, s_invasion_player_bonuses* own_mods, s_invasion_player_bonuses* opponent_mods);
@@ -110,17 +110,17 @@ namespace invasion {
     int16_t __cdecl Colony_Infantry_Barracks_Limit(s_colony* colony);
 
     /// Builds attacker and defender combat state for a colony invasion.
-    void __cdecl Get_Invasion_Info(int16_t* ship_list, int16_t n_ships, s_colony* colony, s_invasion_side_info* attacker_side, s_invasion_side_info* defender_side);
+    void __cdecl Get_Invasion_Info(int16_t* ship_list, int16_t n_ships, game::id_colony colony_id, s_colony* colony, s_invasion_side_info* attacker_side, s_invasion_side_info* defender_side);
 
     /// Resolves a full colony invasion and applies the result.
-    void __cdecl Invade(int16_t* ship_list, int16_t n_ships, int16_t colony_idx, s_battle_results_info* results);
+    void __cdecl Invade(int16_t* ship_list, int16_t n_ships, game::id_colony colony_idx, s_battle_results_info* results);
 
     /// Restores surviving invasion troops to a captured colony.
     void __cdecl Resolve_Invasion_Troops(s_invasion_side_info info);
 
     /// Returns whether the invasion setup yields any defending troops.
-    bool __cdecl Has_Defending_Troops(int8_t unused_attacker_id, int16_t* ship_list, int n_ships, int16_t colony_idx);
+    bool __cdecl Has_Defending_Troops(int8_t unused_attacker_id, int16_t* ship_list, int n_ships, game::id_colony colony_idx);
 
     /// Builds ground combat state for an existing colony garrison.
-    void __cdecl Compute_Colony_Ground_Combat_Info(s_colony* colony, s_invasion_side_info* side_info, bool include_rebels);
+    void __cdecl Compute_Colony_Ground_Combat_Info(game::id_colony colony_id, s_colony* colony, s_invasion_side_info* side_info, bool include_rebels);
 } // namespace invasion

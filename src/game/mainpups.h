@@ -10,7 +10,7 @@ struct s_potential_colony_info;
 typedef struct s_colony_combat_popup_data s_colony_combat_popup_data, *Ps_colony_combat_popup_data;
 
 struct s_colony_combat_popup_data {
-    int16_t colony_idx;
+    game::id_colony colony_idx;
     int8_t attacker_player_id;
     int16_t attacker_unit_counts[UNIT_COUNT];
     int8_t has_stellar_converter;
@@ -84,7 +84,7 @@ namespace MAINPUPS {
 
     void __cdecl Draw_Selection_Popup();
 
-    int16_t __cdecl Evaluate_Selection_Input(int16_t* selected_field, int16_t* field_data, int16_t* refresh_flag);
+    game::id_planet __cdecl Evaluate_Selection_Input(int16_t* selected_field, int16_t* field_data, int16_t* refresh_flag);
 
     /**
      * Evaluates a system-display click for colony, outpost, troop-drop, or dragon selection popups.
@@ -92,9 +92,9 @@ namespace MAINPUPS {
      * @param mouse_y Current Y-side field scan input.
      * @param selection_confirmed Set to 1 when a valid target is chosen.
      */
-    int16_t __cdecl Check_System_Display_Fields_Selection(int16_t* mouse_x, int16_t* mouse_y, int16_t* selection_confirmed);
+    game::id_planet __cdecl Check_System_Display_Fields_Selection(int16_t* mouse_x, int16_t* mouse_y, int16_t* selection_confirmed);
 
-    int8_t __cdecl New_Colony_Confirmation_Box(int16_t planet_idx);
+    int8_t __cdecl New_Colony_Confirmation_Box(game::id_planet planet_idx);
 
     void __cdecl Load_SLIDER_Popup();
     void __cdecl Load_Slider_Fields();
@@ -162,7 +162,7 @@ namespace MAINPUPS {
 
     int16_t __cdecl Evaluate_Colony_Combat_Input(int16_t* field_id_ptr, int16_t* unused_input, int16_t* close_popup_flag, int16_t* selection_idx_ptr);
 
-    void __cdecl Load_Combat_Colony_Picture_To_Screen_Seg(int16_t colony_idx);
+    void __cdecl Load_Combat_Colony_Picture_To_Screen_Seg(game::id_colony colony_idx);
 
     void __cdecl Load_System_Discovery_Popup();
 
@@ -180,7 +180,7 @@ namespace MAINPUPS {
 
     void __cdecl Marooned_Officer_Joins_Popup(int16_t star_idx, int16_t officer_idx);
 
-    void __cdecl Build_Generic_Planet_Or_Colony_Description_String_Formatted(int16_t planet_idx, char* buffer, uint32_t buffer_size);
+    void __cdecl Build_Generic_Planet_Or_Colony_Description_String_Formatted(game::id_planet planet_idx, char* buffer, uint32_t buffer_size);
 
     int16_t __cdecl Dragon_New_Star_Popup(int16_t player_idx, int16_t star_idx);
 
@@ -210,7 +210,7 @@ namespace MAINPUPS {
      */
     int16_t __cdecl Check_System_Display_Fields_Defense_Selection(int16_t* mouse_x, int16_t* mouse_y, int16_t* selection_made);
 
-    void __cdecl Player_Attacked_Popup(int16_t attacker_idx, int16_t defender_idx, int16_t star_idx, int16_t colony_idx);
+    void __cdecl Player_Attacked_Popup(int16_t attacker_idx, int16_t defender_idx, int16_t star_idx, game::id_colony colony_idx);
 
     int16_t __cdecl Slider_Popup(int16_t min, int16_t max, int16_t initial_value, char* msg, int16_t popup_style);
 
@@ -224,10 +224,10 @@ namespace MAINPUPS {
 
     void __cdecl Draw_Officer_Gains_Level_Popup();
 
-    int16_t __cdecl New_Colony_Selection_Popup(int16_t star_idx, uint8_t using_colony_ship);
-    int16_t __cdecl New_Outpost_Selection_Popup(int16_t star_id);
+    game::id_planet __cdecl New_Colony_Selection_Popup(int16_t star_idx, uint8_t using_colony_ship);
+    game::id_planet __cdecl New_Outpost_Selection_Popup(int16_t star_id);
 
-    int16_t __cdecl Drop_Troops_Selection_Popup(int16_t target_idx);
+    game::id_planet __cdecl Drop_Troops_Selection_Popup(int16_t target_idx);
 
     bool __cdecl Random_New_Officer_Popup(int16_t player_idx);
 
@@ -249,13 +249,13 @@ namespace MAINPUPS {
      */
     void __cdecl Draw_Special_Info_Popup(int16_t x, int16_t y, s_animation_header* anim, const char* title, const char* text);
 
-    int16_t __cdecl Get_Colony_Best_Shield_Bldg(int16_t colony_idx);
+    int16_t __cdecl Get_Colony_Best_Shield_Bldg(game::id_colony colony_idx);
 
     int16_t __cdecl Colony_Selection_Popup(
         s_invasion_side_info* attacker,
         s_invasion_side_info* defender,
         int32_t random_seed,
-        int16_t colony_idx,
+        game::id_colony colony_idx,
         int16_t bombardment_result,
         int8_t has_stellar_converter);
 
@@ -264,7 +264,7 @@ namespace MAINPUPS {
         s_invasion_side_info* attacker,
         s_invasion_side_info* defender,
         int32_t random_seed,
-        int16_t colony_idx,
+        game::id_colony colony_idx,
         int16_t bombardment_result,
         int8_t has_stellar_converter);
 
@@ -274,7 +274,7 @@ namespace MAINPUPS {
         s_invasion_side_info* attacker,
         s_invasion_side_info* defender,
         int32_t random_seed,
-        int16_t colony_idx,
+        game::id_colony colony_idx,
         int16_t bombing_result,
         int8_t has_stellar_converter);
 
@@ -290,7 +290,7 @@ namespace MAINPUPS {
         s_invasion_side_info* attacker,
         s_invasion_side_info* defender,
         int32_t random_seed,
-        int16_t colony_idx,
+        game::id_colony colony_idx,
         int16_t bombing_result,
         int8_t has_stellar_converter);
 

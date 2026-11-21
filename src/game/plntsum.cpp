@@ -19,8 +19,8 @@ namespace PLNTSUM {
             int16_t y_base = PLNTSUM::plntscrn_delta_y[scroll_row] + 0x27;
             s_plntsum_planet* summary = &PLNTSUM::planet_summary[summary_idx];
 
-            if (summary->explored != -1) {
-                s_planet_data* planet = &MOX::planet[summary->explored];
+            if (summary->planet_id.get() != game::NO_PLANET) {
+                s_planet_data* planet = &game::current_state.planets.at(summary->planet_id.get());
                 int16_t star_idx = planet->star_index;
                 int16_t mineral_class = summary->mineral_class;
                 int16_t climate_idx = summary->climate;
@@ -36,7 +36,7 @@ namespace PLNTSUM {
                 }
 
                 s_colors font_colors;
-                Colony_Owner_Colors(planet->colony_index, &font_colors, color_choice);
+                Colony_Owner_Colors(planet->colony_id, &font_colors, color_choice);
 
                 graphics::Set_Window(0x12, y_base, 0x68, PLNTSUM::plntscrn_delta_y[scroll_row + 1] + y_base);
                 video::Clip_On();
@@ -79,7 +79,7 @@ namespace PLNTSUM {
                 int16_t y_offset = (25 - font_h) - 4;
 
                 char planet_name_buf[32];
-                strlcpy(planet_name_buf, HACCESS::Get_Planet_Name_No_Prime(summary->explored), sizeof(planet_name_buf));
+                strlcpy(planet_name_buf, HACCESS::Get_Planet_Name_No_Prime(game::current_state, summary->planet_id.get()), sizeof(planet_name_buf));
                 MISC::Set_Fitted_Font_Style(planet_name_buf, &font_colors, 2, 2, 0, 0x56, 1);
                 int16_t fitted_name_h = fonts::Get_Font_Height();
                 fonts::Print_Centered(0x3d, y_base + (25 - fitted_name_h) * 2, planet_name_buf);
@@ -87,8 +87,8 @@ namespace PLNTSUM {
                 char owner_label[100];
                 bool has_owner_label = false;
 
-                if (planet->colony_index != -1) {
-                    char* race_name = MOX::player[MOX::colony[planet->colony_index].owner].race_name;
+                if (planet->colony_id != game::NO_COLONY) {
+                    char* race_name = MOX::player[game::current_state.colonies.at(planet->colony_id).owner].race_name;
                     snprintf(owner_label, sizeof(owner_label), "(%s)", race_name);
                     has_owner_label = true;
                 } else if (HAROLD::Star_Guarded_By_Monster(star_idx, &monster_race)) {
@@ -162,7 +162,7 @@ namespace PLNTSUM {
         }
     }
 
-    void __cdecl Send_Nearest_Ship(int16_t planet_idx) {
+    void __cdecl Send_Nearest_Ship(game::id_planet planet_idx) {
         char msg_buffer[120];
         int16_t ship_list[2];
         s_ship_move_info move_info;
@@ -178,7 +178,7 @@ namespace PLNTSUM {
         ship_list[0] = -1;
         ship_list[1] = -1;
 
-        target_star_idx = MOX::planet[planet_idx].star_index;
+        target_star_idx = game::current_state.planets.at(planet_idx).star_index;
         omniscient = HAROLD::Player_Is_Omniscient(MOX::PLAYER_NUM);
         summary_idx = Planet_Summary_Id(planet_idx);
         nearest_ship_idx = Nearest_Ship_Id(summary_idx);
@@ -266,7 +266,7 @@ namespace PLNTSUM {
                     GENDRAW::Message_Box(msg_buffer);
                     PLNTSUM::screen->refresh_fields = true;
                     PLNTSUM::last_ship_moved = best_ship_idx;
-                    PLNTSUM::Set_Auto_Colonize_Flag(&MOX::ship[best_ship_idx], planet_idx);
+                    MOX::ship[best_ship_idx].colonization_target = planet_idx;
                     PLNTSUM::Update_Ship_Etas();
                 }
             }
@@ -344,10 +344,10 @@ namespace PLNTSUM {
         if (count > 0) {
             for (int16_t i = 0; i < (int16_t)count; ++i) {
                 int current_row = first_row + i;
-                int16_t explored_idx = PLNTSUM::planet_summary[current_row].explored;
+                const auto explored_idx = PLNTSUM::planet_summary[current_row].planet_id.get();
 
-                if (explored_idx != -1) {
-                    int16_t star_idx = MOX::planet[explored_idx].star_index;
+                if (explored_idx != game::NO_PLANET) {
+                    int16_t star_idx = game::current_state.planets.at(explored_idx).star_index;
 
                     // Handle interaction: Click on fields/icons
                     if (PLNTSUM::screen->fields[i] == clicked_field_id) {
@@ -372,7 +372,7 @@ namespace PLNTSUM {
                     // Handle interaction: Hover/Input on fields
                     else if (PLNTSUM::screen->fields[i] == input_field_id && current_row < total_rows) {
                         PLNTSUM::box_field_scanned = (int8_t)i;
-                        if (explored_idx > -1) {
+                        if (explored_idx != game::NO_PLANET) {
                             int16_t planet_id = PLNTSUM::Planet_Summary_Id(explored_idx);
                             int16_t ship_id = PLNTSUM::Nearest_Ship_Id(planet_id);
                             if (ship_id != -1 && (PLNTSUM::send_choice == 0 || PLNTSUM::send_choice == 1)) {
@@ -704,10 +704,10 @@ namespace PLNTSUM {
         int32_t count = (int16_t)upper_bound - first_row;
         if (count > 0) {
             for (int16_t i = 0; i < (int16_t)count; ++i) {
-                int16_t explored_planet_idx = PLNTSUM::planet_summary[first_row + i].explored;
+                const auto explored_planet_idx = PLNTSUM::planet_summary[first_row + i].planet_id.get();
 
-                if (explored_planet_idx != -1) {
-                    s_planet_data* planet = &MOX::planet[explored_planet_idx];
+                if (explored_planet_idx != game::NO_PLANET) {
+                    s_planet_data* planet = &game::current_state.planets.at(explored_planet_idx);
 
                     // Planet animation index is determined by climate type and planet size
                     int16_t anim_idx = (int16_t)planet->climate * PLANET_SIZE_COUNT + (int16_t)planet->size;
@@ -1107,11 +1107,11 @@ namespace PLNTSUM {
         return segment;
     }
 
-    void __cdecl Colony_Owner_Colors(int16_t colony_idx, s_colors* colors, int8_t highlight_type) {
+    void __cdecl Colony_Owner_Colors(game::id_colony colony_idx, s_colors* colors, int8_t highlight_type) {
         uint8_t glow_color;
 
-        if (colony_idx != -1) {
-            Player_Colors(MOX::colony[colony_idx].owner, colors, highlight_type, &glow_color);
+        if (colony_idx != game::NO_COLONY) {
+            Player_Colors(game::current_state.colonies.at(colony_idx).owner, colors, highlight_type, &glow_color);
         } else {
             Player_Colors(-1, colors, highlight_type, &glow_color);
         }

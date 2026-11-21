@@ -249,7 +249,7 @@ namespace MOX {
     int16_t combat_attacker_player;
     int16_t combat_defender_player;
     int16_t combat_total_ship_count;
-    int16_t cmbt_colony_id;
+    game::id_colony cmbt_colony_id;
     int16_t in_nebula_flag;
     int16_t cur_combat_x;
     int16_t cur_combat_y;
@@ -427,7 +427,7 @@ namespace BOMB {
 }
 
 namespace ERICNET {
-    void __cdecl Remove_Building(int16_t, int16_t) {
+    void __cdecl Remove_Building(game::s_game_state&, game::id_colony, int16_t) {
     }
 }
 

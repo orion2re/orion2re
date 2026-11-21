@@ -9,7 +9,7 @@ namespace {
     constexpr size_t kCombatMissileBytes = sizeof(s_missile) * MAX_COMBAT_FLYERS;
     void Refresh_Combat_Stats(bool time_warp_only) {
         for (int16_t i = 0; i < MOX::combat_total_ship_count; ++i) {
-            if (i == 0 && MOX::cmbt_colony_id == -1) {
+            if (i == 0 && MOX::cmbt_colony_id == game::NO_COLONY) {
                 continue;
             }
             if (time_warp_only &&
@@ -321,8 +321,8 @@ namespace COMBINIT {
         }
     }
 
-    int8_t __cdecl Colony_Has_Defenses(int16_t colony_idx) {
-        s_colony* col = &MOX::colony[colony_idx];
+    int8_t __cdecl Colony_Has_Defenses(game::id_colony colony_idx) {
+        s_colony* col = &game::current_state.colonies.at(colony_idx);
 
         if (col->buildings[BUILDING_STAR_BASE] != 0 ||
             col->buildings[BUILDING_FIGHTER_GARRISON] != 0 ||
@@ -355,20 +355,20 @@ namespace COMBINIT {
         return -1;
     }
 
-    int16_t __cdecl Type_Of_Space_Station(int16_t colony_idx) {
-        if (MOX::colony[colony_idx].buildings[BUILDING_STAR_BASE] != 0) {
+    int16_t __cdecl Type_Of_Space_Station(game::id_colony colony_idx) {
+        if (game::current_state.colonies.at(colony_idx).buildings[BUILDING_STAR_BASE] != 0) {
             return HULL_STAR_BASE;
         }
-        if (MOX::colony[colony_idx].buildings[BUILDING_BATTLESTATION] != 0) {
+        if (game::current_state.colonies.at(colony_idx).buildings[BUILDING_BATTLESTATION] != 0) {
             return HULL_BATTLESTATION;
         }
-        if (MOX::colony[colony_idx].buildings[BUILDING_STAR_FORTRESS] != 0) {
+        if (game::current_state.colonies.at(colony_idx).buildings[BUILDING_STAR_FORTRESS] != 0) {
             return HULL_STAR_FORTRESS;
         }
         return -1;
     }
 
-    int16_t __cdecl Tactical_Combat(int16_t* plr1_ships, int16_t plr1_ship_count, int16_t* plr2_ships, int16_t plr2_ship_count, int16_t star_idx, int16_t colony_idx, int16_t retreat_flag) {
+    int16_t __cdecl Tactical_Combat(int16_t* plr1_ships, int16_t plr1_ship_count, int16_t* plr2_ships, int16_t plr2_ship_count, int16_t star_idx, game::id_colony colony_idx, int16_t retreat_flag) {
         int8_t abort_tactical = 0;
         bool no_defender_ships = star_idx != MOX::NUM_STARS;
         int16_t has_tractor_beam = 0;
@@ -437,12 +437,12 @@ namespace COMBINIT {
         if (star_idx == MOX::NUM_STARS) {
             MOX::combat_defender_player = MAX_PLAYERS;
             colony_pop = 0;
-        } else if (MOX::cmbt_colony_id == -1) {
+        } else if (MOX::cmbt_colony_id == game::NO_COLONY) {
             MOX::combat_defender_player = MOX::ship[plr2_ships[0]].owner;
             colony_pop = 0;
         } else {
-            MOX::combat_defender_player = MOX::colony[MOX::cmbt_colony_id].owner;
-            colony_pop = MOX::colony[MOX::cmbt_colony_id].n_pops;
+            MOX::combat_defender_player = game::current_state.colonies.at(MOX::cmbt_colony_id).owner;
+            colony_pop = game::current_state.colonies.at(MOX::cmbt_colony_id).n_pops;
         }
 
         if (star_idx == MOX::NUM_STARS) {
@@ -518,7 +518,7 @@ namespace COMBINIT {
         if (no_defender_ships) {
             if (abort_tactical == 0) {
                 if (star_idx != MOX::NUM_STARS) {
-                    if (MOX::cmbt_colony_id == -1 || Colony_Has_Defenses(colony_idx) == 0) {
+                    if (MOX::cmbt_colony_id == game::NO_COLONY || Colony_Has_Defenses(colony_idx) == 0) {
                         combat_winner = 1;
                         abort_tactical = 1;
                     }
@@ -1003,8 +1003,8 @@ namespace COMBINIT {
                     (unsigned int)MOX::combat_done_waiting);
             }
 
-            if (MOX::cmbt_colony_id != -1) {
-                colony_pop -= MOX::colony[MOX::cmbt_colony_id].n_pops;
+            if (MOX::cmbt_colony_id != game::NO_COLONY) {
+                colony_pop -= game::current_state.colonies.at(MOX::cmbt_colony_id).n_pops;
             }
         }
 
@@ -1012,13 +1012,13 @@ namespace COMBINIT {
 
         if (combat_winner == 1 || combat_winner == 0x29A) {
             if (MOX::combat_attacker_player < MAX_PLAYERS && MOX::combat_defender_player >= 10 && MOX::ship[plr2_ships[0]].d.speed > 0) {
-                NETMOX::Russ_Event_Monster_Update(MOX::combat_defender_player, -1, MOX::combat_attacker_player);
+                NETMOX::Russ_Event_Monster_Update(MOX::combat_defender_player, game::NO_PLANET, MOX::combat_attacker_player);
             }
         }
 
         if (combat_winner == -1 || combat_winner == 0x29A) {
             if (MOX::combat_defender_player < MAX_PLAYERS && MOX::combat_attacker_player >= 10 && MOX::ship[plr1_ships[0]].d.speed > 0) {
-                NETMOX::Russ_Event_Monster_Update(MOX::combat_attacker_player, -1, MOX::combat_defender_player);
+                NETMOX::Russ_Event_Monster_Update(MOX::combat_attacker_player, game::NO_PLANET, MOX::combat_defender_player);
             }
         }
 
@@ -1328,13 +1328,13 @@ namespace COMBINIT {
 
         ship_anim = (s_animation_header*)buffer::Buffer_Reload(lbx_filename, lbx_index, MOX::global_cache_seg);
 
-        if (player_idx == MOX::combat_defender_player && player_idx <= MAX_PLAYERS && (MOX::cmbt_colony_id > -1 || player_idx == MAX_PLAYERS)) {
+        if (player_idx == MOX::combat_defender_player && player_idx <= MAX_PLAYERS && (MOX::cmbt_colony_id != game::NO_COLONY || player_idx == MAX_PLAYERS)) {
             if (player_idx == MAX_PLAYERS) {
                 planet_size = 2;
                 player_color = 2;
             } else {
                 player_color = (int16_t)MOX::player[player_idx].color;
-                planet_size = (int16_t)MOX::planet[MOX::colony[MOX::cmbt_colony_id].planet].size;
+                planet_size = (int16_t)game::current_state.planets.at(game::current_state.colonies.at(MOX::cmbt_colony_id).planet_id).size;
             }
 
             if (planet_size > 0) {
@@ -1361,9 +1361,9 @@ namespace COMBINIT {
         }
     }
 
-    void __cdecl Load_Combat_Colony_Picture(int16_t colony_idx) {
-        int16_t planet_idx = MOX::colony[colony_idx].planet;
-        s_planet_data* planet = &MOX::planet[planet_idx];
+    void __cdecl Load_Combat_Colony_Picture(game::id_colony colony_idx) {
+        const auto planet_idx = game::current_state.colonies.at(colony_idx).planet_id;
+        s_planet_data* planet = &game::current_state.planets.at(planet_idx);
 
         int8_t climate = planet->climate;
         int8_t size = planet->size;
@@ -1383,8 +1383,8 @@ namespace COMBINIT {
         }
     }
 
-    void __cdecl Load_Colony_Defense(int16_t colony_idx) {
-        if (colony_idx < 0) {
+    void __cdecl Load_Colony_Defense(game::id_colony colony_idx) {
+        if (colony_idx == game::NO_COLONY) {
             MOX::combat_data->owner = MAX_PLAYERS;
             MOX::combat_data->previous_owner = MAX_PLAYERS;
             MOX::combat_data->ship_idx = -1;
@@ -1399,25 +1399,25 @@ namespace COMBINIT {
         }
     }
 
-    void __cdecl Load_Tactical_Colony(int16_t colony_idx, int16_t load_picture) {
-        char* planet_name = HACCESS::Get_Planet_Name_No_Prime(MOX::colony[colony_idx].planet);
+    void __cdecl Load_Tactical_Colony(game::id_colony colony_idx, int16_t load_picture) {
+        char* planet_name = HACCESS::Get_Planet_Name_No_Prime(game::current_state, game::current_state.colonies.at(colony_idx).planet_id);
         strlcpy(MOX::combat_data->name, planet_name, sizeof(MOX::combat_data->name));
 
-        MOX::combat_data->owner = MOX::colony[colony_idx].owner;
-        MOX::combat_data->previous_owner = MOX::colony[colony_idx].owner;
+        MOX::combat_data->owner = game::current_state.colonies.at(colony_idx).owner;
+        MOX::combat_data->previous_owner = game::current_state.colonies.at(colony_idx).owner;
         MOX::combat_data->ship_idx = -1;
         MOX::combat_data->ftl_type = DRIVE_NO_DRIVE;
         MOX::combat_data->officer_idx = -1;
         MOX::combat_data->is_retreating = 0;
 
         int16_t max_hits = 0;
-        if (MOX::colony[colony_idx].buildings[BUILDING_RADIATION_SHIELD] != 0) {
+        if (game::current_state.colonies.at(colony_idx).buildings[BUILDING_RADIATION_SHIELD] != 0) {
             MOX::combat_data->shield_type = 0x1c;
             max_hits = TECHDATA::planetary_shields[PLANETARY_RADIATION_SHIELD].absorption;
-        } else if (MOX::colony[colony_idx].buildings[BUILDING_BARRIER_SHIELD] != 0) {
+        } else if (game::current_state.colonies.at(colony_idx).buildings[BUILDING_BARRIER_SHIELD] != 0) {
             MOX::combat_data->shield_type = 0x17;
             max_hits = TECHDATA::planetary_shields[PLANETARY_BARRIER_SHIELD].absorption;
-        } else if (MOX::colony[colony_idx].buildings[BUILDING_FLUX_SHIELD] != 0) {
+        } else if (game::current_state.colonies.at(colony_idx).buildings[BUILDING_FLUX_SHIELD] != 0) {
             MOX::combat_data->shield_type = 0x18;
             max_hits = TECHDATA::planetary_shields[PLANETARY_FLUX_SHIELD].absorption;
         } else {
@@ -1433,8 +1433,8 @@ namespace COMBINIT {
         int16_t shield_id = INITSHIP::Best_Ship_Shield(MOX::combat_defender_player);
         MOX::combat_data->shield_arc_current[0] += TECHDATA::shields[shield_id].shield_class;
 
-        MOX::combat_data->computer_type = (int8_t)INITSHIP::Best_Computer(MOX::colony[colony_idx].owner);
-        MOX::combat_data->armor_type = (int8_t)INITSHIP::Best_Armor(MOX::colony[colony_idx].owner);
+        MOX::combat_data->computer_type = (int8_t)INITSHIP::Best_Computer(game::current_state.colonies.at(colony_idx).owner);
+        MOX::combat_data->armor_type = (int8_t)INITSHIP::Best_Armor(game::current_state.colonies.at(colony_idx).owner);
 
         MOX::combat_data->size_class = satellite_size_class_plus_one != 0
             ? SHIP_SIZE_LARGE
@@ -1452,9 +1452,9 @@ namespace COMBINIT {
 
         int16_t weapon_index = 0;
 
-        if (MOX::colony[colony_idx].buildings[BUILDING_GROUND_BATTERIES] != 0) {
+        if (game::current_state.colonies.at(colony_idx).buildings[BUILDING_GROUND_BATTERIES] != 0) {
             int16_t weapon_id_1 = INITSHIP::Best_Beam_Weapon(
-                MOX::colony[colony_idx].owner,
+                game::current_state.colonies.at(colony_idx).owner,
                 WEAPON_MOD_FLAG_HEAVY_MOUNT);
             uint16_t specials_1 = Defense_Weapon_Mods(
                 MOX::combat_defender_player,
@@ -1475,7 +1475,7 @@ namespace COMBINIT {
             MOX::combat_data->weapons[0].status = 0;
 
             int16_t weapon_id_2 = Best_Defense_Point_Defense_Weapon(
-                MOX::colony[colony_idx].owner);
+                game::current_state.colonies.at(colony_idx).owner);
             uint16_t specials_2 = Defense_Weapon_Mods(
                 MOX::combat_defender_player,
                 weapon_id_2,
@@ -1497,14 +1497,14 @@ namespace COMBINIT {
             weapon_index = 2;
         }
 
-        if (MOX::colony[colony_idx].buildings[BUILDING_FIGHTER_GARRISON] != 0) {
+        if (game::current_state.colonies.at(colony_idx).buildings[BUILDING_FIGHTER_GARRISON] != 0) {
             int16_t weapon_id_fg = WEAPON_INTERCEPTOR;
             int16_t count_fg = ground_defense.garrison_interceptors;
 
-            if (MOX::player[MOX::colony[colony_idx].owner].tech_applications[TECH_APP_HEAVY_FIGHTER_BAYS] == TECH_RESEARCH_STATUS_RESEARCHED) {
+            if (MOX::player[game::current_state.colonies.at(colony_idx).owner].tech_applications[TECH_APP_HEAVY_FIGHTER_BAYS] == TECH_RESEARCH_STATUS_RESEARCHED) {
                 weapon_id_fg = WEAPON_HEAVY_FIGHTER;
                 count_fg = ground_defense.garrison_heavy_fighters;
-            } else if (MOX::player[MOX::colony[colony_idx].owner].tech_applications[TECH_APP_BOMBER_BAYS] == TECH_RESEARCH_STATUS_RESEARCHED) {
+            } else if (MOX::player[game::current_state.colonies.at(colony_idx).owner].tech_applications[TECH_APP_BOMBER_BAYS] == TECH_RESEARCH_STATUS_RESEARCHED) {
                 weapon_id_fg = WEAPON_BOMBER;
                 count_fg = ground_defense.garrison_bombers;
             }
@@ -1523,7 +1523,7 @@ namespace COMBINIT {
             }
         }
 
-        if (MOX::colony[colony_idx].buildings[BUILDING_STELLAR_CONVERTER] != 0) {
+        if (game::current_state.colonies.at(colony_idx).buildings[BUILDING_STELLAR_CONVERTER] != 0) {
             MOX::combat_data->weapons[weapon_index].weapon_id = WEAPON_STELLAR_CONVERTER;
             MOX::combat_data->weapons[weapon_index].count =
                 ground_defense.stellar_amount;
@@ -1537,8 +1537,8 @@ namespace COMBINIT {
             weapon_index++;
         }
 
-        if (MOX::colony[colony_idx].buildings[BUILDING_MISSILE_BASE] != 0) {
-            int16_t weapon_id_m = INITSHIP::Best_Missile_Weapon_NT(MOX::colony[colony_idx].owner);
+        if (game::current_state.colonies.at(colony_idx).buildings[BUILDING_MISSILE_BASE] != 0) {
+            int16_t weapon_id_m = INITSHIP::Best_Missile_Weapon_NT(game::current_state.colonies.at(colony_idx).owner);
             uint16_t specials_m = Defense_Weapon_Mods(
                 MOX::combat_defender_player,
                 weapon_id_m,
@@ -1578,7 +1578,7 @@ namespace COMBINIT {
         }
 
         if (weapon_index > 0) {
-            const s_colony* colony = &MOX::colony[colony_idx];
+            const s_colony* colony = &game::current_state.colonies.at(colony_idx);
             const s_player* defender =
                 &MOX::player[MOX::combat_defender_player];
             const bool has_ground_batteries =
@@ -2132,11 +2132,11 @@ namespace COMBINIT {
         int16_t result_offset = 0;
 
         if (ship_idx == 0) {
-            if (MOX::cmbt_colony_id == -1) {
+            if (MOX::cmbt_colony_id == game::NO_COLONY) {
                 result_offset = 60;
             } else {
-                int16_t planet_idx = MOX::colony[MOX::cmbt_colony_id].planet;
-                int8_t planet_size = MOX::planet[planet_idx].size;
+                const auto planet_idx = game::current_state.colonies.at(MOX::cmbt_colony_id).planet_id;
+                int8_t planet_size = game::current_state.planets.at(planet_idx).size;
 
                 switch (planet_size) {
                     case PLANET_SIZE_TINY:

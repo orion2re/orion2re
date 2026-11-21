@@ -16,27 +16,27 @@ namespace debug_game_editors {
             "Active", "In transit", "Moving", "Status 3", "Refitting", "Destroyed", "Building", "Scrap pending", "Scrap pending 2", "Retreating", "Antaran"};
         constexpr const char* k_population_jobs[] = {"Farmer", "Worker", "Scientist"};
 
-        template <typename T>
+        template <typename T, typename Key = int16_t>
         struct s_editor_state {
             bool open;
             bool focus_requested;
             bool discard_requested;
-            int16_t index;
-            int16_t pending_index;
+            Key index;
+            Key pending_index;
             T baseline;
             T draft;
         };
 
         s_editor_state<s_ship_data> g_ship_editor = {};
-        s_editor_state<s_colony> g_colony_editor = {};
+        s_editor_state<s_colony, game::id_colony> g_colony_editor = {};
         int8_t g_new_population_race = 0;
         int8_t g_new_population_job = POP::PROF_FARMER;
         int16_t g_autobuild_preset = 0;
         const char* g_colony_operation_status = nullptr;
         bool g_convert_outpost_requested = false;
-        int16_t g_pending_outpost_colony = -1;
+        game::id_colony g_pending_outpost_colony = game::NO_COLONY;
 
-        void Load_Colony_(int16_t index);
+        void Load_Colony_(game::id_colony index);
 
         bool Valid_Ship_(int16_t index) {
             return MOX::ship != nullptr && index >= 0 &&
@@ -47,9 +47,8 @@ namespace debug_game_editors {
             return ship.status == 5 || ship.status == 7 || ship.status == 8;
         }
 
-        bool Valid_Colony_(int16_t index) {
-            return MOX::colony != nullptr && index >= 0 &&
-                index < std::clamp<int16_t>(MOX::NUM_COLONIES, 0, MAX_COLONIES);
+        bool Valid_Colony_(game::id_colony index) {
+            return game::current_state.colonies.contains(index);
         }
 
         void Request_Redraw_() {
@@ -174,12 +173,16 @@ namespace debug_game_editors {
             return changed;
         }
 
-        template <typename T>
+        template <typename T, typename Key = int16_t>
         bool Dirty_(const s_editor_state<T>& editor) {
             return memcmp(&editor.draft, &editor.baseline, sizeof(T)) != 0;
         }
 
-        template <typename T>
+        bool Dirty_(const s_editor_state<s_colony, game::id_colony>& editor) {
+            return editor.draft != editor.baseline;
+        }
+
+        template <typename T, typename Key = int16_t>
         bool Merge_Field_(const T& baseline, const T& draft, const T& live, T* merged) {
             if (memcmp(&draft, &baseline, sizeof(T)) == 0) {
                 return true;
@@ -241,7 +244,7 @@ namespace debug_game_editors {
 #define MERGE_COLONY_FIELD(field) valid = Merge_Field_(baseline.field, draft.field, live.field, &merged->field) && valid
             MERGE_COLONY_FIELD(owner);
             MERGE_COLONY_FIELD(allocated_to);
-            MERGE_COLONY_FIELD(planet);
+            MERGE_COLONY_FIELD(planet_id);
             MERGE_COLONY_FIELD(officer);
             MERGE_COLONY_FIELD(outpost_flag);
             MERGE_COLONY_FIELD(morale);
@@ -345,9 +348,8 @@ namespace debug_game_editors {
 
         bool Validate_Colony_(const s_colony& colony) {
             const int16_t player_count = std::clamp<int16_t>(MOX::NUM_PLAYERS, 0, MAX_PLAYERS);
-            const int16_t planet_count = std::clamp<int16_t>(MOX::planet_count, 0, MAX_PLANETS);
             return colony.owner >= 0 && colony.owner < player_count &&
-                colony.planet >= 0 && colony.planet < planet_count &&
+                colony.planet_id != game::NO_PLANET && game::current_state.planets.contains(colony.planet_id) &&
                 (colony.allocated_to == -1 ||
                     (colony.allocated_to >= 0 && colony.allocated_to < player_count)) &&
                 colony.officer >= -1 && colony.officer < MAX_LEADERS &&
@@ -454,10 +456,13 @@ namespace debug_game_editors {
             ImGui::Text("Population units: %u", (unsigned)colony.n_pops);
             ImGui::TextUnformatted("Owner and planet are read-only relationship fields.");
             ImGui::BeginDisabled();
-            debug_game_widgets::Planet_Reference("Planet", &colony.planet, false);
+            auto planet_field = colony.planet_id;
+            if (debug_game_widgets::Planet_Reference("Planet", &planet_field, false)) {
+                colony.planet_id = planet_field;
+            }
             ImGui::EndDisabled();
             if (ImGui::Button("Open planet")) {
-                Open_Planet(colony.planet);
+                Open_Planet(colony.planet_id);
             }
             debug_game_widgets::Player_Reference("Allocated to", &colony.allocated_to);
             ImGui::Text("Stored officer: %d (relationship)", (int)colony.officer);
@@ -539,10 +544,10 @@ namespace debug_game_editors {
                     k_population_jobs,
                     3);
                 if (ImGui::Button("Add population")) {
-                    SETTLER::value_type settler = 0;
-                    SETTLER::Set_Race(&settler, (uint32_t)g_new_population_race);
-                    SETTLER::Set_Prof(
-                        &settler, static_cast<POP::e_prof>(g_new_population_job));
+                    const s_settler_info settler{
+                        .race = static_cast<uint8_t>(g_new_population_race),
+                        .profession = static_cast<uint8_t>(g_new_population_job),
+                    };
                     g_colony_operation_status = SETTLER::Add_Settler_To_Colony(
                                                     settler, &colony) != 0
                         ? "Population added to draft."
@@ -633,8 +638,7 @@ namespace debug_game_editors {
                         ImGui::SameLine();
                         ImGui::BeginDisabled(Dirty_(g_colony_editor));
                         if (ImGui::SmallButton("Remove")) {
-                            COLBLDG::Delete_From_Colony_Queue(
-                                g_colony_editor.index, (int16_t)index);
+                            COLBLDG::Delete_From_Colony_Queue(game::current_state, g_colony_editor.index, (int16_t)index);
                             Refresh_Colony_State_();
                             Load_Colony_(g_colony_editor.index);
                             g_colony_operation_status = "Queue item removed.";
@@ -645,21 +649,21 @@ namespace debug_game_editors {
                 }
                 ImGui::BeginDisabled(Dirty_(g_colony_editor));
                 if (ImGui::Button("Clear queue")) {
-                    COLBLDG::Clear_Colony_Queue(g_colony_editor.index);
+                    COLBLDG::Clear_Colony_Queue(game::current_state, g_colony_editor.index);
                     Refresh_Colony_State_();
                     Load_Colony_(g_colony_editor.index);
                     g_colony_operation_status = "Production queue cleared.";
                 }
                 ImGui::SameLine();
-                const s_colony& live_colony = MOX::colony[g_colony_editor.index];
+                const s_colony& live_colony = game::current_state.colonies.at(g_colony_editor.index);
                 const bool can_buy = live_colony.bought_outright == 0 &&
                     live_colony.producing[0] != COLONY_PRODUCTION_NONE &&
                     !BUILD_QUEUE::Colony_Production_Is_Continuous_Project(
                         live_colony.producing[0]) &&
                     COLCALC::Colony_Cost_To_Buy_Producing_Product(
-                        &MOX::colony[g_colony_editor.index]) > 0 &&
+                        &game::current_state.colonies.at(g_colony_editor.index)) > 0 &&
                     !COLCALC::Colony_Is_Blockaded(
-                        &MOX::colony[g_colony_editor.index]) &&
+                        &game::current_state.colonies.at(g_colony_editor.index)) &&
                     COLCALC::Colony_Can_Afford_To_Buy_Product(
                         g_colony_editor.index);
                 ImGui::BeginDisabled(!can_buy);
@@ -674,7 +678,7 @@ namespace debug_game_editors {
                 ImGui::BeginDisabled(live_colony.bought_outright == 0);
                 if (ImGui::Button("Unbuy current product")) {
                     BUILD_QUEUE::Unbuy_Product(
-                        &MOX::colony[g_colony_editor.index]);
+                        &game::current_state.colonies.at(g_colony_editor.index));
                     g_colony_operation_status = "Current product purchase refunded.";
                     Refresh_Colony_State_();
                     Load_Colony_(g_colony_editor.index);
@@ -726,7 +730,7 @@ namespace debug_game_editors {
                     const bool one_shot = One_Shot_Building_((int16_t)index);
                     const bool addition_available = present ||
                         COLCALC::Colony_Can_Build_Product(
-                            &MOX::colony[g_colony_editor.index],
+                            &game::current_state.colonies.at(g_colony_editor.index),
                             (int16_t)index) == 1;
                     const char* name = TECHDATA::buildings[index].name;
                     char label[96];
@@ -746,8 +750,7 @@ namespace debug_game_editors {
                             ERICNET::Add_Building(
                                 g_colony_editor.index, (int16_t)index);
                         } else {
-                            ERICNET::Remove_Building(
-                                g_colony_editor.index, (int16_t)index);
+                            ERICNET::Remove_Building(game::current_state, g_colony_editor.index, (int16_t)index);
                         }
                         apply = true;
                     }
@@ -777,8 +780,12 @@ namespace debug_game_editors {
             }
         }
 
-        template <typename T>
-        void Draw_Discard_Popup_(const char* popup_id, s_editor_state<T>* editor, void (*load_pending)(int16_t)) {
+        template <typename T, typename Key = int16_t>
+        void Draw_Discard_Popup_(const char* popup_id, s_editor_state<T, Key>* editor, void (*load_pending)(Key)) {
+            const auto no_selection = [] {
+                if constexpr (std::is_same_v<Key, game::id_colony>) return game::NO_COLONY;
+                else return Key{-1};
+            }();
             if (editor->discard_requested) {
                 ImGui::OpenPopup(popup_id);
                 editor->discard_requested = false;
@@ -786,9 +793,9 @@ namespace debug_game_editors {
             if (ImGui::BeginPopupModal(popup_id, nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
                 ImGui::TextUnformatted("Discard unsaved changes?");
                 if (ImGui::Button("Discard")) {
-                    const int16_t next = editor->pending_index;
+                    const auto next = editor->pending_index;
                     ImGui::CloseCurrentPopup();
-                    if (next >= 0) {
+                    if (next != no_selection) {
                         load_pending(next);
                     } else {
                         editor->open = false;
@@ -796,7 +803,7 @@ namespace debug_game_editors {
                 }
                 ImGui::SameLine();
                 if (ImGui::Button("Keep editing")) {
-                    editor->pending_index = -1;
+                    editor->pending_index = no_selection;
                     editor->open = true;
                     ImGui::CloseCurrentPopup();
                 }
@@ -813,10 +820,10 @@ namespace debug_game_editors {
             g_ship_editor.focus_requested = true;
         }
 
-        void Load_Colony_(int16_t index) {
+        void Load_Colony_(game::id_colony index) {
             g_colony_editor.index = index;
-            g_colony_editor.pending_index = -1;
-            g_colony_editor.baseline = MOX::colony[index];
+            g_colony_editor.pending_index = game::NO_COLONY;
+            g_colony_editor.baseline = game::current_state.colonies.at(index);
             g_colony_editor.draft = g_colony_editor.baseline;
             g_colony_editor.open = true;
             g_colony_editor.focus_requested = true;
@@ -904,7 +911,7 @@ namespace debug_game_editors {
             }
             ImGui::SetNextWindowSize(ImVec2(350.0f, 450.0f), ImGuiCond_FirstUseEver);
             char title[48];
-            snprintf(title, sizeof(title), "Colony Editor [%d]", (int)g_colony_editor.index);
+            snprintf(title, sizeof(title), "Colony Editor [%u]", g_colony_editor.index.id);
             bool open = true;
             if (ImGui::Begin(title, &open)) {
                 Draw_Colony_Form_(g_colony_editor.draft);
@@ -912,19 +919,19 @@ namespace debug_game_editors {
                 const bool dirty = Dirty_(g_colony_editor);
                 const bool valid = Validate_Colony_(g_colony_editor.draft);
                 s_colony merged;
-                const bool mergeable = Merge_Colony_(g_colony_editor.baseline, g_colony_editor.draft, MOX::colony[g_colony_editor.index], &merged);
+                const bool mergeable = Merge_Colony_(g_colony_editor.baseline, g_colony_editor.draft, game::current_state.colonies.at(g_colony_editor.index), &merged);
                 ImGui::BeginDisabled(!dirty || !valid || !mergeable);
                 if (ImGui::Button("Save")) {
-                    MOX::colony[g_colony_editor.index] = merged;
+                    game::current_state.colonies.at(g_colony_editor.index) = merged;
                     Refresh_Colony_State_();
-                    g_colony_editor.baseline = MOX::colony[g_colony_editor.index];
+                    g_colony_editor.baseline = game::current_state.colonies.at(g_colony_editor.index);
                     g_colony_editor.draft = g_colony_editor.baseline;
                 }
                 ImGui::EndDisabled();
                 ImGui::SameLine();
                 if (ImGui::Button("Cancel")) {
                     if (dirty) {
-                        g_colony_editor.pending_index = -1;
+                        g_colony_editor.pending_index = game::NO_COLONY;
                         g_colony_editor.discard_requested = true;
                     } else {
                         open = false;
@@ -938,7 +945,7 @@ namespace debug_game_editors {
             }
             ImGui::End();
             if (!open && Dirty_(g_colony_editor)) {
-                g_colony_editor.pending_index = -1;
+                g_colony_editor.pending_index = game::NO_COLONY;
                 g_colony_editor.discard_requested = true;
                 open = true;
             }
@@ -954,28 +961,28 @@ namespace debug_game_editors {
                     ImGuiWindowFlags_AlwaysAutoResize)) {
                 ImGui::TextUnformatted("This reinitializes the outpost as a new colony.");
                 const bool can_convert = Valid_Colony_(g_pending_outpost_colony) &&
-                    MOX::colony[g_pending_outpost_colony].outpost_flag != 0 &&
-                    MOX::colony[g_pending_outpost_colony].planet >= 0 &&
-                    MOX::colony[g_pending_outpost_colony].planet < MOX::planet_count &&
-                    MOX::planet[MOX::colony[g_pending_outpost_colony].planet].colony_index ==
+                    game::current_state.colonies.at(g_pending_outpost_colony).outpost_flag != 0 &&
+                    game::current_state.colonies.at(g_pending_outpost_colony).planet_id != game::NO_PLANET &&
+                    game::current_state.planets.contains(game::current_state.colonies.at(g_pending_outpost_colony).planet_id) &&
+                    game::current_state.planets.at(game::current_state.colonies.at(g_pending_outpost_colony).planet_id).colony_id ==
                         g_pending_outpost_colony &&
                     MOX::game_type != 2 && MOX::game_type != 3;
                 ImGui::BeginDisabled(!can_convert);
                 if (ImGui::Button("Convert")) {
-                    const int16_t colony_index = g_pending_outpost_colony;
-                    const int16_t planet_index = MOX::colony[colony_index].planet;
-                    const int8_t owner = MOX::colony[colony_index].owner;
-                    COLONIZE::Make_New_Colony(planet_index, owner);
+                    const game::id_colony colony_index = g_pending_outpost_colony;
+                    const auto planet_index = game::current_state.colonies.at(colony_index).planet_id;
+                    const int8_t owner = game::current_state.colonies.at(colony_index).owner;
+                    COLONIZE::Make_New_Colony(game::current_state.colonies.at(colony_index).planet_id, owner);
                     Refresh_Colony_State_();
                     Load_Colony_(colony_index);
                     g_colony_operation_status = "Outpost converted to a colony.";
-                    g_pending_outpost_colony = -1;
+                    g_pending_outpost_colony = game::NO_COLONY;
                     ImGui::CloseCurrentPopup();
                 }
                 ImGui::EndDisabled();
                 ImGui::SameLine();
                 if (ImGui::Button("Cancel")) {
-                    g_pending_outpost_colony = -1;
+                    g_pending_outpost_colony = game::NO_COLONY;
                     ImGui::CloseCurrentPopup();
                 }
                 ImGui::EndPopup();
@@ -1008,7 +1015,7 @@ namespace debug_game_editors {
         Load_Ship_(ship_index);
     }
 
-    void Open_Colony(int16_t colony_index) {
+    void Open_Colony(game::id_colony colony_index) {
         if (!Valid_Colony_(colony_index)) {
             return;
         }
@@ -1030,7 +1037,7 @@ namespace debug_game_editors {
         (void)ship_index;
     }
 
-    void Open_Colony(int16_t colony_index) {
+    void Open_Colony(game::id_colony colony_index) {
         (void)colony_index;
     }
 } // namespace debug_game_editors

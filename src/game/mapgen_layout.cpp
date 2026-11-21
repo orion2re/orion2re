@@ -1,4 +1,6 @@
 #include "pch.h"
+
+using game::current_state;
 #include "string_overrides.h"
 
 namespace MAPGEN {
@@ -212,8 +214,8 @@ namespace MAPGEN {
 
         if (MOX::NUM_PLAYERS > 0) {
             for (int i = 0; i < MOX::NUM_PLAYERS; ++i) {
-                int16_t home_planet_id = MOX::player[i].home_planet_id;
-                int16_t star_index = MOX::planet[home_planet_id].star_index;
+                const auto home_planet_id = MOX::player[i].home_planet_id.get();
+                int16_t star_index = current_state.planets.at(home_planet_id).star_index;
                 star_used[star_index] = 1;
             }
         }
@@ -251,7 +253,7 @@ namespace MAPGEN {
                 do {
                     int16_t hero_candidate = (int16_t)game_random::Random(38) - 1;
 
-                    if (hero_candidate == 0x41 || MOX::leaders[hero_candidate].status != -1) {
+                    if (hero_candidate == 0x41 || current_state.leaders.at(hero_candidate).status != -1) {
                         attempts++;
                     } else {
                         selected_hero_idx = hero_candidate;
@@ -266,8 +268,9 @@ namespace MAPGEN {
                 if (selected_hero_idx == -1) {
                     MOX::star[star_idx].system_special = SYSTEM_SPECIAL_NO_SPECIAL;
                 } else {
-                    MOX::leaders[selected_hero_idx].status = 5;
-                    MOX::leaders[selected_hero_idx].location = star_idx;
+                    auto& leader = current_state.leaders.at(selected_hero_idx);
+                    leader.status = 5;
+                    leader.location = star_idx;
                 }
             }
         }
@@ -589,7 +592,7 @@ namespace MAPGEN {
     /**
      * Corrects black holes that overlap nebulae by converting them to habitable stars.
      */
-    void __cdecl Black_Hole_Fix(int16_t galaxy_age) {
+    void Black_Hole_Fix(game::s_game_state& state, int16_t galaxy_age) {
         for (int16_t i = 0; i < MOX::NUM_STARS; ++i) {
             s_star_data& star = MOX::star[i];
 
@@ -612,7 +615,7 @@ namespace MAPGEN {
 
                     int16_t satellite_count = Generate_Number_Of_Satellites(i);
                     for (int16_t satellite = 0; satellite < satellite_count; ++satellite) {
-                        Planet_Generation(i);
+                        Planet_Generation(state, i);
                     }
                     star.visited = 0;
                 }
@@ -702,7 +705,6 @@ namespace MAPGEN {
             MOX::star_width = 37;
             MOX::star_height = 37;
             companion_star = 0;
-            memset(MOX::planet, 0, MAX_PLANETS * sizeof(*MOX::planet));
             RUSS::Mox_Update();
 
             name_seg = farload::Far_Reload_Data("starname.lbx", 1, MOX::screen_seg, 0, 0x33D, 0xF);
@@ -791,7 +793,6 @@ namespace MAPGEN {
             RUSS::Mox_Update();
             RUSS::Mox_Update();
 
-            MOX::planet_count = 0;
             Generate_Number_Of_Nebulas(gal_size, nebula_freq);
             if (MOX::NUM_NEBULAS != 0) {
                 Generate_Nebulas();
@@ -817,10 +818,9 @@ namespace MAPGEN {
                 n_stars = 0;
                 n_marooned_heroes = 0;
                 n_wormholes = 0;
-                MOX::NUM_COLONIES = 0;
                 memset(special_count, 0, sizeof(special_count));
-                MOX::planet_count = 0;
-                memset(MOX::planet, 0, MAX_PLANETS * sizeof(*MOX::planet));
+                current_state.Reset_Planets();
+                auto& layout_state = current_state;
                 memset(MOX::star, 0, MAX_STARS * sizeof(*MOX::star));
                 memset(planets_per_star, 0, sizeof(planets_per_star));
 
@@ -854,7 +854,7 @@ namespace MAPGEN {
                     MOX::star[star_count].size = (int8_t)(r_size >= 0 ? r_size : 1);
 
                     MOX::star[star_count].pict_type = (int8_t)(game_random::Random(3) - 1);
-                    memset(MOX::star[star_count].planet_index, 0xFF, sizeof(MOX::star[star_count].planet_index));
+                    for (auto& link : MOX::star[star_count].orbit_planet_ids) link = game::NO_PLANET;
 
                     companion_star = 0;
                     if (HAROLD::Habitable_Spectral_Class(star_count)) {
@@ -864,7 +864,7 @@ namespace MAPGEN {
                             int16_t planet_ctr = n_sat;
                             do {
                                 RUSS::Mox_Update();
-                                Planet_Generation(star_count);
+                                Planet_Generation(layout_state, star_count);
                                 --planet_ctr;
                             } while (planet_ctr != 0);
                         }
@@ -874,7 +874,7 @@ namespace MAPGEN {
                     }
 
                     if (MOX::star[star_count].spectral_class != STAR_CLASS_BLACK_HOLE && planets_per_star[star_count] > 0 && star_count > 0) {
-                        Generate_Star_Special(star_count, &unused_wormhole_flag, special_count);
+                        Generate_Star_Special(layout_state, star_count, &unused_wormhole_flag, special_count);
                     }
 
                     MOX::star[star_count].wormhole_star_id = -1;
@@ -884,7 +884,7 @@ namespace MAPGEN {
                 bool connected = false;
                 do {
                     if (MOX::NUM_NEBULAS != 0) {
-                        Black_Hole_Fix(gal_age);
+                        Black_Hole_Fix(layout_state, gal_age);
                     }
                     GEO::Initialize_Black_Hole_Blocks(45);
                     if (GEO::Map_Is_Connected()) {
@@ -893,6 +893,7 @@ namespace MAPGEN {
                         Set_Star_XYs(grid_x, grid_y, gal_age, 0, 0);
                     }
                 } while (!connected);
+
 
                 if (MOX::n_stats_to_generate != 0) {
                     ++nebula_stat[MOX::NUM_NEBULAS];

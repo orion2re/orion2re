@@ -3,6 +3,10 @@
 struct s_leader_data;
 
 namespace spy {
+    // Each packed spy entry stores the count in the low bits, below the mission.
+    inline constexpr int SPY_COUNT_BITS = 6;
+    inline constexpr int16_t MAX_SPIES_PER_TARGET = (1 << SPY_COUNT_BITS) - 1;
+
     enum e_steal_mode : uint8_t {
         STEAL_MODE_EXCEPT_CURRENT_FIELD,
         STEAL_MODE_EXCEPT_CURRENT_TECH,
@@ -86,7 +90,7 @@ namespace spy {
     /* Resolves a completed assassination attempt against the given leader.
      * @param leader Leader targeted by the assassination event.
      */
-    void __cdecl Leader_Assassinates(s_leader_data* leader);
+    void __cdecl Leader_Assassinates(game::s_game_state& state, int32_t leader_idx);
 
     /* Allocates an AI player's available spies across home and foreign targets.
      * @param player AI player whose spies are being reassigned.

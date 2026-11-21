@@ -115,16 +115,14 @@ namespace AIDATA {
         if (!world->players) return "missing player records";
         if (!world->ships) return "missing ship records";
         if (!world->stars) return "missing star records";
-        if (!world->colonies) return "missing colony records";
-        if (!world->planets) return "missing planet records";
-        if (!world->leaders) return "missing leader records";
+        if (!world->state) return "missing leader records";
         if (!world->settings) return "missing game settings";
         if (!world->stardate) return "missing stardate";
         if (!world->player_count || *world->player_count <= 0 || *world->player_count > MAX_PLAYERS) return "invalid player count";
         if (!world->ship_count || *world->ship_count < 0 || *world->ship_count > MAX_SHIPS) return "invalid ship count";
         if (!world->star_count || *world->star_count < 0 || *world->star_count > MAX_STARS) return "invalid star count";
-        if (!world->colony_count || *world->colony_count < 0 || *world->colony_count > MAX_COLONIES) return "invalid colony count";
-        if (!world->planet_count || *world->planet_count < 0 || *world->planet_count > MAX_PLANETS) return "invalid planet count";
+        if (world->state->colonies.size() > MAX_COLONIES) return "invalid colony count";
+        if (world->state->planets.size() > MAX_PLANETS) return "invalid planet count";
         return nullptr;
     }
 
@@ -232,10 +230,10 @@ namespace AIDATA {
             ext_range_sq[p] = ext_r * ext_r;
         }
 
-        for (int16_t c = 0; c < world->Colony_Count(); ++c) {
-            s_colony& col = world->colonies[c];
-            if (col.planet != -1) {
-                int16_t star_idx = world->planets[col.planet].star_index;
+        for (auto& [roster_id, roster_colony] : world->state->colonies) {
+            s_colony& col = roster_colony;
+            if (col.planet_id != game::NO_PLANET) {
+                int16_t star_idx = world->state->planets.at(col.planet_id).star_index;
                 int16_t sx = world->stars[star_idx].x;
                 int16_t sy = world->stars[star_idx].y;
                 for (int16_t s = 0; s < world->Star_Count(); ++s) {
@@ -291,36 +289,36 @@ namespace AIDATA {
             }
         }
 
-        for (int16_t c = 0; c < world->Colony_Count(); ++c) {
-            s_colony& col = world->colonies[c];
+        for (auto& [roster_id, roster_colony] : world->state->colonies) {
+            s_colony& col = roster_colony;
             if (col.owner != -1) {
-                s_colony_assessment& ai_col = ai->colonies[legacy_world::Colony_Id(c)];
+                s_colony_assessment& ai_col = ai->colonies[roster_id];
                 for (int p_idx = 0; p_idx < col.n_pops; ++p_idx) {
                     if (POP::Is_Conquered(col.pop[p_idx])) {
                         ai_col.conquered_population++;
                     }
                 }
                 ai_col.dominant_race = Colony_Dominant_Player(world->Player_Count(), &col);
-                const auto dominant_index = legacy_world::Index(ai_col.dominant_race);
-                if (!dominant_index) continue;
-                ai_col.population_limit = (int8_t)COLCALC::Colony_Race_Pop_Limit(&col, *dominant_index);
-                if (world->players[*dominant_index].traits[TRAIT_EATS_MINERALS] == 0 || world->players[col.owner].traits[TRAIT_EATS_MINERALS] == 0) {
+                const auto dominant_index = ai_col.dominant_race.id;
+                if (dominant_index >= MAX_PLAYERS) continue;
+                ai_col.population_limit = (int8_t)COLCALC::Colony_Race_Pop_Limit(&col, dominant_index);
+                if (world->players[dominant_index].traits[TRAIT_EATS_MINERALS] == 0 || world->players[col.owner].traits[TRAIT_EATS_MINERALS] == 0) {
                     ai_col.food_buildings_relevant = true;
                 }
-                if (world->players[*dominant_index].traits[TRAIT_ENVIRONMENT_IMMUNE] == 0) {
+                if (world->players[dominant_index].traits[TRAIT_ENVIRONMENT_IMMUNE] == 0) {
                     ai_col.pollution_controls_relevant = true;
                 }
             }
         }
 
-        for (int16_t c = 0; c < world->Colony_Count(); ++c) {
-            s_colony& col = world->colonies[c];
+        for (auto& [roster_id, roster_colony] : world->state->colonies) {
+            s_colony& col = roster_colony;
             if (col.owner != -1) {
                 int owner = col.owner;
-                int16_t star_idx = world->planets[col.planet].star_index;
+                int16_t star_idx = world->state->planets.at(col.planet_id).star_index;
                 for (int p = world->Player_Count() - 1; p >= 0; --p) {
                     if (p != owner && ai->stars[legacy_world::Star_Id(star_idx)].enroute_ships[p][LAST_FORECAST_TURN]) {
-                        ai->colonies[legacy_world::Colony_Id(c)].other_player_arrivals = true;
+                        ai->colonies[roster_id].other_player_arrivals = true;
                         break;
                     }
                 }
@@ -330,7 +328,7 @@ namespace AIDATA {
         for (int16_t s = 0; s < world->Star_Count(); ++s) {
             s_star_neighborhood& ai_star = ai->stars[legacy_world::Star_Id(s)].neighborhood;
             for (int pl_i = 0; pl_i < 5; ++pl_i) {
-                if (world->stars[s].planet_index[pl_i] != -1) {
+                if (world->stars[s].orbit_planet_ids[pl_i].get() != game::NO_PLANET) {
                     ai_star.planet_count++;
                 }
             }
@@ -380,11 +378,11 @@ namespace AIDATA {
             }
         }
 
-        for (int16_t c = 0; c < world->Colony_Count(); ++c) {
-            s_colony& col = world->colonies[c];
+        for (auto& [roster_id, roster_colony] : world->state->colonies) {
+            s_colony& col = roster_colony;
             if (col.owner != -1) {
                 ai->players[(int)col.owner].empire.colony_count++;
-                if ((world->stars[world->planets[col.planet].star_index].blockaded >> col.owner) & 1) {
+                if ((world->stars[world->state->planets.at(col.planet_id).star_index].blockaded >> col.owner) & 1) {
                     ai->players[(int)col.owner].empire.blockaded_colony_count++;
                 }
             }
@@ -488,10 +486,11 @@ namespace AIDATA {
             }
         }
 
-        for (int16_t pl = 0; pl < world->Planet_Count(); ++pl) {
-            if (world->planets[pl].colony_index != -1) {
-                int owner = world->colonies[world->planets[pl].colony_index].owner;
-                ai->planets[legacy_world::Planet_Id(pl)].stage_weights[owner] = ai->planets[legacy_world::Planet_Id(pl)].base_values[owner];
+        for (const auto& [id, body] : world->state->planets) {
+            if (body.colony_id != game::NO_COLONY) {
+                int owner = world->state->colonies.at(body.colony_id).owner;
+                auto& planet = ai->planets[id];
+                planet.stage_weights[owner] = planet.base_values[owner];
             }
         }
 
@@ -519,15 +518,16 @@ namespace AIDATA {
             if (world->stars[s].has_colony) {
                 std::array<std::optional<id_planet>, MAX_PLAYERS> best_planet_at_star{};
                 std::array<int16_t, MAX_PLAYERS> best_planet_val_at_star{};
-                for (int pl_i = 0; pl_i < 5; ++pl_i) {
-                    int16_t pl_idx = world->stars[s].planet_index[pl_i];
-                    if (pl_idx != -1 && world->planets[pl_idx].colony_index != -1) {
-                        int owner = world->colonies[world->planets[pl_idx].colony_index].owner;
-                        int16_t val = ai->planets[legacy_world::Planet_Id(pl_idx)].stage_weights[owner];
-                        if (val > best_planet_val_at_star[owner]) {
-                            best_planet_at_star[owner] = legacy_world::Planet_Id(pl_idx);
-                            best_planet_val_at_star[owner] = val;
-                        }
+                for (const auto& link : world->stars[s].orbit_planet_ids) {
+                    const auto id = link.get();
+                    if (id == game::NO_PLANET) continue;
+                    const auto& planet = world->state->planets.at(id);
+                    if (planet.colony_id == game::NO_COLONY) continue;
+                    const auto owner = world->state->colonies.at(planet.colony_id).owner;
+                    const auto value = ai->planets[id].stage_weights[owner];
+                    if (value > best_planet_val_at_star[owner]) {
+                        best_planet_at_star[owner] = id;
+                        best_planet_val_at_star[owner] = value;
                     }
                 }
                 for (int p_o = 0; p_o < world->Player_Count(); ++p_o) {
@@ -553,11 +553,11 @@ namespace AIDATA {
                             }
                         }
 
-                        for (int16_t pl = 0; pl < world->Planet_Count(); ++pl) {
-                            if (legacy_world::Planet_Id(pl) != *best_planet_at_star[p_o]) {
-                                auto route = Player_N_Turns_From_Star_To_Star_With_Intermediate(ai, world, legacy_world::Player_Id(p_o), legacy_world::Star_Id(s), legacy_world::Star_Id(world->planets[pl].star_index), false);
+                        for (const auto& [id, planet] : world->state->planets) {
+                            if (id != *best_planet_at_star[p_o]) {
+                                auto route = Player_N_Turns_From_Star_To_Star_With_Intermediate(ai, world, legacy_world::Player_Id(p_o), legacy_world::Star_Id(s), legacy_world::Star_Id(planet.star_index), false);
                                 if (route && route->turns < 3) {
-                                    value_sum += ai->planets[legacy_world::Planet_Id(pl)].stage_weights[p_o];
+                                    value_sum += ai->planets[id].stage_weights[p_o];
                                 }
                             }
                         }
@@ -604,12 +604,12 @@ namespace AIDATA {
         for (int16_t star_idx = 0; star_idx < world->Star_Count(); ++star_idx) {
             s_star_neighborhood& ai_info = ai->stars[legacy_world::Star_Id(star_idx)].neighborhood;
 
-            for (int16_t colony_idx = 0; colony_idx < world->Colony_Count(); ++colony_idx) {
-                s_colony& col = world->colonies[colony_idx];
+            for (auto& [roster_id, roster_colony] : world->state->colonies) {
+                s_colony& col = roster_colony;
                 int owner = (int)col.owner;
 
                 if (owner != -1) {
-                    int16_t col_star_idx = world->planets[col.planet].star_index;
+                    int16_t col_star_idx = world->state->planets.at(col.planet_id).star_index;
                     int ship_range = (int)world->players[owner].ship_range;
 
                     if (Star_In_Range_Of_Given_Star(world, legacy_world::Star_Id(star_idx), legacy_world::Star_Id(col_star_idx), ship_range)) {
@@ -682,12 +682,12 @@ namespace AIDATA {
             extended_range_sq[player_idx] = range_sq * 2025;
         }
 
-        for (int16_t colony_idx = 0; colony_idx < world->Colony_Count(); ++colony_idx) {
-            auto& colony = world->colonies[colony_idx];
+        for (auto& [roster_id, roster_colony] : world->state->colonies) {
+            auto& colony = roster_colony;
             int8_t owner = colony.owner;
 
             if (owner != -1 && in_normal_range_out[owner] == 0) {
-                auto& planet = world->planets[colony.planet];
+                auto& planet = world->state->planets.at(colony.planet_id);
                 auto& colony_star = world->stars[planet.star_index];
 
                 int32_t dx = (int32_t)colony_star.x - target_x;
@@ -742,22 +742,22 @@ namespace AIDATA {
         }
 
         for (int16_t player_idx = 0; player_idx < world->Player_Count(); ++player_idx) {
-            for (int16_t planet_idx = 0; planet_idx < world->Planet_Count(); ++planet_idx) {
-                s_planet_data* planet = &world->planets[planet_idx];
+            for (auto& [id, record] : world->state->planets) {
+                auto* planet = &record;
 
                 uint8_t system_visibility_bits = ai->stars[legacy_world::Star_Id(planet->star_index)].in_extended_range;
 
                 if ((system_visibility_bits >> (player_idx & 0x1F)) & 1) {
-                    int16_t col_idx = planet->colony_index;
+                    game::id_colony col_idx = planet->colony_id;
 
                     uint16_t value;
-                    if (col_idx == -1) {
+                    if (col_idx == game::NO_COLONY) {
                         value = AIDATA::Uncolonized_Planet_Worth_To_Player(world, planet, &world->players[player_idx]);
                     } else {
-                        value = Colony_Worth_To_Player(ai, world, legacy_world::Colony_Id(col_idx), &world->colonies[col_idx], &world->players[player_idx]);
+                        value = Colony_Worth_To_Player(ai, world, col_idx, &world->state->colonies.at(col_idx), &world->players[player_idx]);
                     }
 
-                    ai->planets[legacy_world::Planet_Id(planet_idx)].base_values[player_idx] = value;
+                    ai->planets[id].base_values[player_idx] = value;
                 }
             }
         }
@@ -777,16 +777,16 @@ namespace AIDATA {
         }
 
         for (int p = 0; p < (int)world->Player_Count(); ++p) {
-            for (int16_t i = 0; i < world->Planet_Count(); ++i) {
-                uint16_t base_val = ai->planets[legacy_world::Planet_Id(i)].base_values[p];
+            for (auto& [id, record] : world->state->planets) {
+                uint16_t base_val = ai->planets[id].base_values[p];
                 if (base_val <= 0) {
                     continue;
                 }
 
-                s_planet_data* planet = &world->planets[i];
+                const auto* planet = &record;
                 s_star_data* star = &world->stars[planet->star_index];
 
-                uint16_t& contextual_val = ai->planets[legacy_world::Planet_Id(i)].contextual_values[p];
+                uint16_t& contextual_val = ai->planets[id].contextual_values[p];
                 contextual_val = base_val;
 
                 int uncolonized_system_base_sum = 0;
@@ -795,23 +795,19 @@ namespace AIDATA {
                 int enemy_colonies_in_system = 0;
 
                 // Examine all potential planets in the system (up to 5)
-                for (int k = 0; k < 5; ++k) {
-                    int16_t sys_planet_idx = star->planet_index[k];
+                for (const auto& link : star->orbit_planet_ids) {
+                    const auto neighbor_id = link.get();
+                    if (neighbor_id == game::NO_PLANET || neighbor_id == id) continue;
+                    const auto colony_idx = world->state->planets.at(neighbor_id).colony_id;
 
-                    if (sys_planet_idx == -1 || sys_planet_idx == i) {
-                        continue;
-                    }
-
-                    int16_t colony_idx = world->planets[sys_planet_idx].colony_index;
-
-                    if (colony_idx == -1) {
+                    if (colony_idx == game::NO_COLONY) {
                         // Uncolonized planet in system
-                        uncolonized_system_base_sum += ai->planets[legacy_world::Planet_Id(sys_planet_idx)].base_values[p];
+                        uncolonized_system_base_sum += ai->planets[neighbor_id].base_values[p];
                     } else {
-                        if (world->colonies[colony_idx].owner == p) {
+                        if (world->state->colonies.at(colony_idx).owner == p) {
                             // Colony owned by the current player
                             owned_colonies_in_system++;
-                            owned_system_base_sum += ai->planets[legacy_world::Planet_Id(sys_planet_idx)].base_values[p];
+                            owned_system_base_sum += ai->planets[neighbor_id].base_values[p];
                         } else {
                             // Colony owned by an enemy
                             enemy_colonies_in_system++;
@@ -819,7 +815,7 @@ namespace AIDATA {
                     }
                 }
 
-                if (planet->colony_index == -1) {
+                if (planet->colony_id == game::NO_COLONY) {
                     // Current planet is not yet colonized
                     if (owned_colonies_in_system > 0) {
                         // Bonus if we already have a presence in the system

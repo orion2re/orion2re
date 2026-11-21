@@ -1,14 +1,15 @@
 #include "pch.h"
+#include "../fixtures/colony_roster.h"
+#include "../fixtures/planet_roster.h"
 
 #include "lua/lua_game_ship_identity.h"
 
 namespace {
-    s_planet_data planets[MAX_PLANETS];
+
     s_player players[MAX_PLAYERS];
     s_ship_data ships[MAX_SHIPS];
     s_star_data stars[MAX_STARS];
-    s_leader_data leaders[MAX_LEADERS];
-    s_colony colonies[MAX_COLONIES];
+    test_colonies::Slots<MAX_COLONIES> colonies;
 
     bool hyperspace_flux;
     int16_t movement_speed;
@@ -25,16 +26,15 @@ namespace TEST_SHIPMOVE {
     std::vector<int16_t> message_players;
 
     void Reset_() {
-        memset(planets, 0, sizeof(planets));
+        test_planets::Reset(0);
         memset(players, 0, sizeof(players));
         memset(ships, 0, sizeof(ships));
         memset(stars, 0, sizeof(stars));
-        memset(leaders, 0, sizeof(leaders));
-        memset(colonies, 0, sizeof(colonies));
+        game::current_state = game::s_game_state{};
+        colonies.Reset();
         memset(TECHDATA::fuel, 0, sizeof(TECHDATA::fuel));
         memset(best_warp, 0, sizeof(best_warp));
         memset(ftl_speed, 0, sizeof(ftl_speed));
-        MOX::NUM_COLONIES = 0;
         MOX::antarans = {};
         MOX::game_type = 0;
         icon_refresh_count = drive_queries = speed_queries = 0;
@@ -85,8 +85,6 @@ namespace game_random {
 } // namespace game_random
 
 namespace MOX {
-    int16_t NUM_COLONIES;
-    s_colony* colony = colonies;
     s_antaran antarans;
     int8_t game_type;
     int16_t NUM_PLAYERS;
@@ -95,11 +93,9 @@ namespace MOX {
     int16_t PLAYER_NUM;
     int32_t stardate;
 
-    s_planet_data* planet = planets;
     s_player* player = players;
     s_ship_data* ship = ships;
     s_star_data* star = stars;
-    s_leader_data* leaders = ::leaders;
 } // namespace MOX
 
 namespace EVENTS {
@@ -195,16 +191,18 @@ namespace COMBFIND {
 namespace OFFICER {
     void __cdecl Move_Officer_To_Pool(int16_t officer) {
         TEST_SHIPMOVE::pooled_officer = officer;
-        MOX::leaders[officer].status = 4;
-        MOX::leaders[officer].eta = 0;
+        auto& leader = game::current_state.leaders.at(officer);
+        leader.status = 4;
+        leader.eta = 0;
     }
     void __cdecl Kill_Officer(int16_t officer) {
         TEST_SHIPMOVE::killed_officer = officer;
-        MOX::leaders[officer].player_index = -1;
-        MOX::leaders[officer].status = -1;
+        auto& leader = game::current_state.leaders.at(officer);
+        leader.player_index = -1;
+        leader.status = -1;
     }
     int16_t __cdecl Owned_Officer_Level(int16_t leader_idx) {
-        return MOX::leaders[leader_idx].xp;
+        return game::current_state.leaders.at(leader_idx).xp;
     }
 } // namespace OFFICER
 

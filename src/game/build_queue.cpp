@@ -101,22 +101,22 @@ namespace BUILD_QUEUE {
             return queue[1] == COLONY_PRODUCTION_REPEAT ? 2 : 1;
         }
 
-        bool Colony_Base_Available(int16_t colony_idx, const int16_t* queue) {
-            const int16_t star_idx = MOX::planet[MOX::colony[colony_idx].planet].star_index;
+        bool Colony_Base_Available(game::id_colony colony_idx, const int16_t* queue) {
+            const int16_t star_idx = game::current_state.planets.at(game::current_state.colonies.at(colony_idx).planet_id).star_index;
             int available = 0;
             int queued = 0;
             for (int orbit = 0; orbit < 5; ++orbit) {
-                const int16_t planet_idx = MOX::star[star_idx].planet_index[orbit];
-                if (planet_idx == -1 || MOX::planet[planet_idx].planet_type != PLANET_TYPE_PLANET) {
+                const auto planet_idx = MOX::star[star_idx].orbit_planet_ids[orbit].get();
+                if (planet_idx == game::NO_PLANET || game::current_state.planets.at(planet_idx).planet_type != PLANET_TYPE_PLANET) {
                     continue;
                 }
-                const int16_t other_idx = MOX::planet[planet_idx].colony_index;
-                if (other_idx == -1 ||
-                    (MOX::colony[other_idx].outpost_flag != 0 &&
-                        MOX::colony[other_idx].owner == MOX::colony[colony_idx].owner)) {
+                const game::id_colony other_idx = game::current_state.planets.at(planet_idx).colony_id;
+                if (other_idx == game::NO_COLONY ||
+                    (game::current_state.colonies.at(other_idx).outpost_flag != 0 &&
+                        game::current_state.colonies.at(other_idx).owner == game::current_state.colonies.at(colony_idx).owner)) {
                     ++available;
                 }
-                const int16_t* other_queue = other_idx == colony_idx ? queue : (other_idx >= 0 ? MOX::colony[other_idx].producing : nullptr);
+                const int16_t* other_queue = other_idx == colony_idx ? queue : (other_idx != game::NO_COLONY ? game::current_state.colonies.at(other_idx).producing : nullptr);
                 if (other_queue != nullptr) {
                     for (int slot = 0; slot < QUEUE_CAPACITY; ++slot) {
                         queued += other_queue[slot] == BUILDING_COLONY_BASE ? 1 : 0;
@@ -142,8 +142,8 @@ namespace BUILD_QUEUE {
             return true;
         }
 
-        int16_t Product_For_Instruction(int16_t colony_idx, uint8_t instruction, const int16_t* queue) {
-            s_colony& colony = MOX::colony[colony_idx];
+        int16_t Product_For_Instruction(game::id_colony colony_idx, uint8_t instruction, const int16_t* queue) {
+            s_colony& colony = game::current_state.colonies.at(colony_idx);
             int16_t product = COLONY_PRODUCTION_NONE;
             if (Is_Building(instruction)) {
                 product = Building_Product(instruction);
@@ -253,7 +253,7 @@ namespace BUILD_QUEUE {
                 MOX::ship[COLBLDG::Colony_Production_Ship_Index(product)].status == 6;
         }
 
-        bool Insert_At(int16_t colony_idx, int16_t* queue, uint8_t instruction, int position, int previous_position) {
+        bool Insert_At(game::id_colony colony_idx, int16_t* queue, uint8_t instruction, int position, int previous_position) {
             if (position < 0 || position >= QUEUE_CAPACITY ||
                 queue[position] != COLONY_PRODUCTION_NONE) {
                 return false;
@@ -331,8 +331,8 @@ namespace BUILD_QUEUE {
             }
         }
 
-        void Buy(int16_t colony_idx, uint8_t instruction) {
-            s_colony& colony = MOX::colony[colony_idx];
+        void Buy(game::id_colony colony_idx, uint8_t instruction) {
+            s_colony& colony = game::current_state.colonies.at(colony_idx);
             if (colony.bought_outright != 0 || COLCALC::Colony_Is_Blockaded(&colony)) {
                 return;
             }
@@ -355,11 +355,11 @@ namespace BUILD_QUEUE {
             }
         }
 
-        bool Apply(int16_t colony_idx, const uint8_t* list, bool recalculate) {
-            if (colony_idx < 0 || colony_idx >= MOX::NUM_COLONIES || list == nullptr) {
+        bool Apply(game::id_colony colony_idx, const uint8_t* list, bool recalculate) {
+            if (!game::current_state.colonies.contains(colony_idx) || list == nullptr) {
                 return false;
             }
-            s_colony& colony = MOX::colony[colony_idx];
+            s_colony& colony = game::current_state.colonies.at(colony_idx);
             int16_t queue[QUEUE_CAPACITY];
             memcpy(queue, colony.producing, sizeof(queue));
             e_mode mode = MODE_APPEND;
@@ -527,7 +527,7 @@ namespace BUILD_QUEUE {
         return preset;
     }
 
-    bool Apply_Preset_To_Colony(int16_t colony_idx, int preset_idx) {
+    bool Apply_Preset_To_Colony(game::id_colony colony_idx, int preset_idx) {
         return preset_idx >= 0 && preset_idx < PRESET_COUNT &&
             Apply(colony_idx, presets[preset_idx], true);
     }
@@ -536,8 +536,9 @@ namespace BUILD_QUEUE {
         if (preset_idx < 0 || preset_idx >= PRESET_COUNT) {
             return;
         }
-        for (int16_t colony_idx = 0; colony_idx < MOX::NUM_COLONIES; ++colony_idx) {
-            s_colony& colony = MOX::colony[colony_idx];
+        for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
+            const auto colony_idx = roster_id;
+            s_colony& colony = roster_colony;
             if (colony.owner == player_idx && colony.outpost_flag == 0) {
                 Apply(colony_idx, presets[preset_idx], true);
             }
@@ -545,13 +546,13 @@ namespace BUILD_QUEUE {
         COLCALC::Do_Player_Colony_Calculations(player_idx);
     }
 
-    bool Apply_Custom_Autobuild(int16_t colony_idx) {
+    bool Apply_Custom_Autobuild(game::id_colony colony_idx) {
         if (autobuild_settings.enabled == 0 ||
-            colony_idx < 0 || colony_idx >= MOX::NUM_COLONIES) {
+            !game::current_state.colonies.contains(colony_idx)) {
             return false;
         }
         const int preset_idx = Decode_Autobuild_Preset(
-            MOX::colony[colony_idx].auto_building);
+            game::current_state.colonies.at(colony_idx).auto_building);
         return preset_idx >= 0 && Apply(colony_idx, presets[preset_idx], false);
     }
 
@@ -559,8 +560,9 @@ namespace BUILD_QUEUE {
         if (autobuild_settings.enabled == 0) {
             return;
         }
-        for (int16_t colony_idx = 0; colony_idx < MOX::NUM_COLONIES; ++colony_idx) {
-            const s_colony& colony = MOX::colony[colony_idx];
+        for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
+            const auto colony_idx = roster_id;
+            const s_colony& colony = roster_colony;
             if (colony.owner == player_idx && colony.outpost_flag == 0) {
                 Apply_Custom_Autobuild(colony_idx);
             }

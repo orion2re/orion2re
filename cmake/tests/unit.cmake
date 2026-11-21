@@ -63,7 +63,7 @@ target_include_directories(orion2re_test_config_defaults PRIVATE
 target_link_libraries(orion2re_test_config_defaults PRIVATE SDL3::Headers)
 orion2re_enable_sanitizers(orion2re_test_config_defaults)
 
-orion2re_test_shared_sources(ORION2RE_AI_STATE_OBJECTS src/game/aidata_state.cpp src/game/world_view.cpp src/game/legacy_location.cpp src/game/legacy_identity.cpp)
+orion2re_test_shared_sources(ORION2RE_AI_STATE_OBJECTS src/game/aidata_state.cpp src/game/world_view.cpp src/game/legacy_location.cpp)
 add_library(orion2re_test_ai_state STATIC ${ORION2RE_AI_STATE_OBJECTS})
 orion2re_enable_sanitizers(orion2re_test_ai_state)
 
@@ -491,8 +491,8 @@ orion2re_add_unit_test(test_startup_options
 )
 
 orion2re_add_unit_test(test_turn_oracle_history
-    SOURCES tests/unit/turn_oracle_history_test.cpp
-    PRODUCTION_SOURCES src/game/turn_oracle_history.cpp
+    SOURCES tests/unit/turn_oracle_history_test.cpp tests/fakes/fake_exitm.cpp tests/fakes/fake_fields_helpers_runtime.cpp
+    PRODUCTION_SOURCES src/game/turn_oracle_history.cpp src/game/serialization.cpp
 )
 
 # Exercise the debug-only switches against the actual game's compilation.
@@ -609,6 +609,11 @@ orion2re_add_unit_test(test_config_snapshot
 orion2re_add_unit_test(test_pop_helpers
     SOURCES
         tests/unit/pop_test.cpp
+    PRODUCTION_SOURCES
+        src/game/serialization.cpp
+    FAKE_SOURCES
+        tests/fakes/fake_exitm.cpp
+        tests/fakes/fake_fields_helpers_runtime.cpp
 )
 
 orion2re_add_unit_test(test_racecust

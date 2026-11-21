@@ -80,31 +80,32 @@ namespace HOMEGEN {
     void __cdecl Assign_Home_Star_Names();
 
     /** Ensures a home system contains a planet with the requested climate. */
-    void __cdecl Enforce_Climate(int16_t star_idx, int16_t climate_id, int16_t* out_planet_idx);
+    game::id_planet Enforce_Climate(game::s_game_state& state, int16_t star_idx, int16_t climate_id);
 
     /** Clears system and planet specials from the given star system. */
     void __cdecl Remove_Specials(int16_t star_idx);
 
     /** Sets a planet's size field. */
-    void __cdecl Set_Planet_Size(int16_t planet_index, int8_t size);
+    void __cdecl Set_Planet_Size(s_planet_data& planet, int8_t size);
 
     /** Forces a planet to medium size and refreshes dependent farm data. */
-    void __cdecl Enforce_Medium_Planet_Size(int16_t planet_idx);
+    void __cdecl Enforce_Medium_Planet_Size(s_planet_data& planet);
 
     /** Forces the specified body to be a normal planet. */
-    void __cdecl Enforce_Planet_Type(int16_t star_idx, int16_t planet_idx);
+    void __cdecl Enforce_Planet_Type(s_planet_data& planet);
 
     /** Forces a planet to at least abundant mineral richness. */
-    void __cdecl Enforce_Planet_Abundant_Mineral_Class(int16_t planet_idx);
+    void __cdecl Enforce_Planet_Abundant_Mineral_Class(s_planet_data& planet);
 
     /** Forces a planet to the requested mineral richness and adjusts gravity data. */
-    void __cdecl Enforce_Mineral_Richness(int16_t planet_index, int16_t mineral_class);
+    void __cdecl Enforce_Mineral_Richness(s_planet_data& planet, int16_t mineral_class);
 
     /** Marks a planet and its star with the artifacts special. */
-    void __cdecl Set_System_Planet_Artifact_Special(int16_t planet_idx, int16_t star_idx);
+    void __cdecl Set_System_Planet_Artifact_Special(s_planet_data& planet, int16_t star_idx);
 
     /** Sets homeworld gravity and downgrades invalid ultra-rich starts when needed. */
-    void __cdecl Enforce_Gravity(int16_t planet_idx, int8_t gravity_class, int16_t player_idx);
+    void __cdecl Enforce_Gravity(s_planet_data& planet, s_planet_data& mineral_target,
+        int8_t gravity_class, bool heavy_gravity_trait);
 
     /** Guarantees a nearby planet-bearing system within min_dist of a home star. */
     void __cdecl Guarantee_A_Planet_At_Min_Dist(int16_t star_idx, int16_t min_dist, int16_t* home_star_ids);
@@ -113,19 +114,19 @@ namespace HOMEGEN {
     uint8_t __cdecl Ensure_At_Least_1_Food_Planet();
 
     /** Appends planets from a non-food system to planet_list and updates count_in_out. */
-    void __cdecl Add_Non_Food_Planets_To_List(int16_t star_idx, int16_t* planet_list, int16_t* count_in_out);
+    void __cdecl Add_Non_Food_Planets_To_List(int16_t star_idx, game::id_planet* planet_list, int16_t* count_in_out);
 
     /** Chooses a usable orbit slot in a star system. */
     int16_t __cdecl Usable_Orbit(int16_t star_idx);
 
-    /** Creates or rewrites a planet record in the given system orbit. */
-    void __cdecl Make_One_Planet(int16_t star_idx, int16_t planet_idx, int16_t orbit_idx, int8_t is_food_planet);
+    /** Generates the record for a system orbit without allocating or linking it. */
+    s_planet_data __cdecl Make_One_Planet(int16_t star_idx, int16_t orbit_idx, int8_t is_food_planet);
 
     /** Ensures a system contains at least three planetary bodies. */
     void __cdecl Enforce_3_Planet_Minimum(int16_t star_idx);
 
     /** Chooses a random existing planet in the system. */
-    int16_t __cdecl Random_Planet(int16_t star_idx);
+    game::id_planet Random_Planet(const game::s_game_state& state, int16_t star_idx);
 
     /** Assigns a compatible special to a monster-guarded star system. */
     void __cdecl Set_Special_For_Star_Guarded_By_Monster(s_star_data* star, int16_t monster_type);

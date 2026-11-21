@@ -3,6 +3,8 @@
 #include <cstddef>
 #include <vector>
 
+#include "game_state.h"
+
 typedef struct s_skill_data s_skill_data, *Ps_skill_data;
 
 struct s_skill_data {
@@ -374,14 +376,11 @@ namespace MOX {
 
     extern uint8_t NUM_NEBULAS;
 
-    extern int16_t NUM_COLONIES;
 
-    extern int16_t planet_count;
 
     // Suggested name: MOX::climate_modifier_table
     extern int8_t climate_modifier_table[MINERAL_RESOURCE_COUNT];
 
-    extern s_planet_data* planet;
 
     extern const char* roman_literals[21];
 
@@ -585,7 +584,7 @@ namespace MOX {
     extern int16_t combat_attacker_player;
     extern int16_t combat_turn;
     extern uint8_t colony_defense_flags;
-    extern int16_t cmbt_colony_id;
+    extern game::id_colony cmbt_colony_id;
     extern int16_t combat_defender_player;
     extern s_combat_bomb_result combat_bomb_result;
 
@@ -600,7 +599,6 @@ namespace MOX {
     extern void* dimmed_scrap_button_seg;
     extern void* dimmed_officers_button_seg;
 
-    extern s_leader_data* leaders;
 
     extern char* officer_level_names[6];
 
@@ -608,7 +606,6 @@ namespace MOX {
 
     extern s_skill_data skill_data[54];
 
-    extern s_colony* colony;
 
     extern s_animation_header* darkened_turn_button_seg;
 

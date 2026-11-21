@@ -323,8 +323,8 @@ namespace aitech {
     int16_t System_Proximity_Count(const game::s_view* world, game::id_player player, game::id_player other_player) {
         const uint32_t player_id = legacy_world::Slot(player);
         const uint32_t other_player_id = legacy_world::Slot(other_player);
-        const auto legacy_player = legacy_world::Index(player);
-        if (!legacy_player) return 0;
+        const auto legacy_player = player.id;
+        if (legacy_player >= MAX_PLAYERS) return 0;
         uint8_t player_bit = 1 << (player_id & 0x1F);
         uint8_t other_player_bit = 1 << (other_player_id & 0x1F);
         int16_t score = 0;
@@ -336,7 +336,7 @@ namespace aitech {
             if (star->has_colony & other_player_bit) {
                 if (star->has_colony & player_bit) {
                     score += 5;
-                } else if (SHIPMOVE::Star_In_Normal_Range_Of_Player(star, *legacy_player)) {
+                } else if (SHIPMOVE::Star_In_Normal_Range_Of_Player(star, legacy_player)) {
                     score += 1;
                 }
             }

@@ -1,4 +1,6 @@
 #include "pch.h"
+#include "../fixtures/colony_roster.h"
+#include "../fixtures/planet_roster.h"
 
 #include "doctest/doctest.h"
 #include "game/aipower.h"
@@ -9,9 +11,8 @@
 
 namespace {
     s_combat_data combat_data[MAX_COMBAT_SHIPS];
-    s_colony colonies[1];
     s_missile missiles[MAX_COMBAT_FLYERS];
-    s_planet_data planets[1];
+
     s_player players[MAX_PLAYERS];
     s_ship_data ships[MAX_COMBAT_SHIPS];
 
@@ -19,7 +20,7 @@ namespace {
         static const game::s_view world{
             .players = players,
             .ships = ships,
-            .colonies = colonies,
+            .state = &game::current_state,
             .settings = &MOX::settings,
         };
         return &world;
@@ -162,7 +163,7 @@ namespace TEST_STRICT_COMBAT_SEQUENCE {
         memset(MOX::side_end_of_turn, 0, sizeof(MOX::side_end_of_turn));
 
         MOX::NUM_PLAYERS = 2;
-        MOX::cmbt_colony_id = -1;
+        MOX::cmbt_colony_id = game::NO_COLONY;
         MOX::combat_total_ship_count = 4;
         MOX::combat_attacker_player = 0;
         MOX::combat_defender_player = 1;
@@ -208,16 +209,15 @@ namespace TEST_STRICT_COMBAT_SEQUENCE {
 
 namespace MOX {
     s_combat_data* combat_data = ::combat_data;
-    s_colony* colony = colonies;
     s_missile* missile = missiles;
-    s_planet_data* planet = planets;
+
     s_player* player = players;
     s_ship_data* ship = ships;
     s_animation_header* screen_seg;
     s_animation_header* combat_map_planet_seg;
     int16_t ship_frame;
     s_settings settings;
-    int16_t cmbt_colony_id;
+    game::id_colony cmbt_colony_id;
     int16_t combat_total_ship_count;
     int16_t cur_ship;
     s_net_tactical_combat_message new_message;
@@ -632,15 +632,15 @@ DOCTEST_TEST_CASE("fighter garrison AI strength is independent of tactical slot 
 }
 
 DOCTEST_TEST_CASE("Stellar Converter AI strength is independent of tactical amount") {
-    memset(colonies, 0, sizeof(colonies));
+    test_colonies::Reset(1);
     COMBINIT::ground_defense.stellar_amount = 2;
-    MOX::colony[0].buildings[BUILDING_STELLAR_CONVERTER] = 1;
+    test_colonies::Record(0).buildings[BUILDING_STELLAR_CONVERTER] = 1;
 
     MOX::settings.strategic_combat_flag = 1;
-    DOCTEST_CHECK(AIPOWER::Colony_Ground_Strength_Vs_Player(AI_World_(), legacy_world::Colony_Id(0), legacy_world::Player_Id(1)) == 200);
+    DOCTEST_CHECK(AIPOWER::Colony_Ground_Strength_Vs_Player(AI_World_(), game::id_colony{0}, legacy_world::Player_Id(1)) == 200);
 
     MOX::settings.strategic_combat_flag = 0;
-    DOCTEST_CHECK(AIPOWER::Colony_Ground_Strength_Vs_Player(AI_World_(), legacy_world::Colony_Id(0), legacy_world::Player_Id(1)) == 500);
+    DOCTEST_CHECK(AIPOWER::Colony_Ground_Strength_Vs_Player(AI_World_(), game::id_colony{0}, legacy_world::Player_Id(1)) == 500);
 
     COMBINIT::ground_defense.stellar_amount = 1;
 }
@@ -744,11 +744,11 @@ DOCTEST_TEST_CASE("tactical planets use size-specific draw offsets") {
         {PLANET_SIZE_HUGE, 6, 6},
     };
 
-    MOX::cmbt_colony_id = 0;
-    MOX::colony[0].planet = 0;
+    MOX::cmbt_colony_id = game::id_colony{0};
+    test_colonies::Record(0).planet_id = game::id_planet{0};
 
     for (const s_planet_draw_offset_case test_case : cases) {
-        MOX::planet[0].size = test_case.size;
+        test_planets::Record(0).size = test_case.size;
 
         int16_t x = -1;
         int16_t y = -1;
@@ -758,7 +758,7 @@ DOCTEST_TEST_CASE("tactical planets use size-specific draw offsets") {
         DOCTEST_CHECK(y == test_case.y);
     }
 
-    MOX::cmbt_colony_id = -1;
+    MOX::cmbt_colony_id = game::NO_COLONY;
     int16_t x = -1;
     int16_t y = -1;
     CMBTDRW1::Get_Draw_Ship_Offsets(0, &x, &y);
@@ -881,7 +881,7 @@ DOCTEST_TEST_CASE("current ship blip is skipped without a current ship") {
 DOCTEST_TEST_CASE("current ship minimap pulse matches static blips on classic and expanded grids") {
     memset(combat_data, 0, sizeof(combat_data));
     memset(missiles, 0, sizeof(missiles));
-    MOX::cmbt_colony_id = -1;
+    MOX::cmbt_colony_id = game::NO_COLONY;
     MOX::combat_total_ship_count = 2;
     MOX::cur_ship = 1;
     MOX::combat_attacker_player = 0;
@@ -924,8 +924,8 @@ DOCTEST_TEST_CASE("current ship minimap pulse matches static blips on classic an
 DOCTEST_TEST_CASE("current planet minimap pulse matches static planet markers") {
     memset(combat_data, 0, sizeof(combat_data));
     memset(missiles, 0, sizeof(missiles));
-    MOX::cmbt_colony_id = 0;
-    MOX::colony[0].planet = 0;
+    MOX::cmbt_colony_id = game::id_colony{0};
+    test_colonies::Record(0).planet_id = game::id_planet{0};
     MOX::combat_total_ship_count = 1;
     MOX::cur_ship = 0;
     MOX::ship_frame = 2;
@@ -937,7 +937,7 @@ DOCTEST_TEST_CASE("current planet minimap pulse matches static planet markers") 
         MOX::combat_grid_height = height;
         MOX::combat_data[0].y = height / 2;
         for (int8_t size = PLANET_SIZE_TINY; size < PLANET_SIZE_COUNT; ++size) {
-            MOX::planet[0].size = size;
+            test_planets::Record(0).size = size;
             drawn_positions.clear();
             CMBTDRW1::Draw_Reduced_Combat_Map();
             DOCTEST_REQUIRE_FALSE(drawn_positions.empty());
@@ -953,12 +953,12 @@ DOCTEST_TEST_CASE("current planet minimap pulse matches static planet markers") 
         }
     }
     MOX::combat_grid_height = saved_height;
-    MOX::cmbt_colony_id = -1;
+    MOX::cmbt_colony_id = game::NO_COLONY;
 }
 
 DOCTEST_TEST_CASE("high-slot flyers use the expanded minimap scale") {
     memset(missiles, 0, sizeof(missiles));
-    MOX::cmbt_colony_id = -1;
+    MOX::cmbt_colony_id = game::NO_COLONY;
     MOX::combat_total_ship_count = 0;
     const int16_t saved_height = MOX::combat_grid_height;
     MOX::combat_grid_height = MAX_COMBAT_GRID_HEIGHT;

@@ -47,11 +47,11 @@ namespace NEWGAME {
         memcpy(NEWGAME::color_ken.colors, "y{z|||||", sizeof(NEWGAME::color_ken.colors));
 
         struct_::Clear_Structure(MOX::star, MAX_STARS * sizeof(*MOX::star));
-        struct_::Clear_Structure(MOX::planet, MAX_PLANETS * sizeof(*MOX::planet));
-        struct_::Clear_Structure(MOX::colony, MAX_COLONIES * sizeof(*MOX::colony));
-        struct_::Clear_Structure(MOX::ship, MAX_SHIPS * sizeof(*MOX::ship));
+        game::current_state.Reset_Planets();
+        game::current_state.Reset_Colonies();
+        std::fill_n(MOX::ship, MAX_SHIPS, s_ship_data{});
         struct_::Clear_Structure(MOX::player, MAX_PLAYERS * sizeof(*MOX::player));
-        struct_::Clear_Structure(MOX::leaders, MAX_LEADERS * sizeof(*MOX::leaders));
+        game::current_state = game::s_game_state{};
 
         int16_t result = 0;
 

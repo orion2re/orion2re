@@ -1498,7 +1498,7 @@ namespace FLEETPOP {
             ship_idx = MOX::ship_node[current_node].ship_idx;
             if (MOX::ship[ship_idx].d.ship_type == SHIP_TYPE_OUTPOST) {
                 for (int16_t planet_slot = 0; planet_slot < 5; ++planet_slot) {
-                    if (FLEETPOP::Can_Build_Outpost(MOX::star[location].planet_index[planet_slot]) != 0) {
+                    if (FLEETPOP::Can_Build_Outpost(MOX::star[location].orbit_planet_ids[planet_slot].get()) != 0) {
                         can_build_outpost = 1;
                         break;
                     }
@@ -1554,11 +1554,11 @@ namespace FLEETPOP {
 
                     if (MOX::ship[ship_idx].d.ship_type == SHIP_TYPE_TRANSPORT) {
                         for (int16_t planet_slot = 0; planet_slot < 5; ++planet_slot) {
-                            const int16_t planet_idx = MOX::star[star_idx].planet_index[planet_slot];
-                            if (planet_idx != -1) {
-                                const int16_t colony_idx = MOX::planet[planet_idx].colony_index;
-                                if (colony_idx != -1) {
-                                    if (static_cast<int16_t>(MOX::colony[colony_idx].owner) == MOX::PLAYER_NUM) {
+                            const auto planet_idx = MOX::star[star_idx].orbit_planet_ids[planet_slot].get();
+                            if (planet_idx != game::NO_PLANET) {
+                                const game::id_colony colony_idx = game::current_state.planets.at(planet_idx).colony_id;
+                                if (colony_idx != game::NO_COLONY) {
+                                    if (static_cast<int16_t>(game::current_state.colonies.at(colony_idx).owner) == MOX::PLAYER_NUM) {
                                         transport_troops_flag = 1;
                                     }
                                 }
@@ -1666,7 +1666,7 @@ namespace FLEETPOP {
                                 break;
                             }
 
-                            if (FLEETPOP::Planet_Is_Colonizable(MOX::star[star_index].planet_index[planet_slot]) != 0) {
+                            if (FLEETPOP::Planet_Is_Colonizable(MOX::star[star_index].orbit_planet_ids[planet_slot].get()) != 0) {
                                 found_colonizable_planet = true;
                                 colonize_button_flag = 1;
                             }
@@ -1684,12 +1684,12 @@ namespace FLEETPOP {
         return colonize_button_flag;
     }
 
-    uint8_t __cdecl Can_Build_Outpost(int16_t planet_idx) {
-        if (planet_idx <= -1) {
+    uint8_t __cdecl Can_Build_Outpost(game::id_planet planet_idx) {
+        if (planet_idx == game::NO_PLANET) {
             return 0;
         }
 
-        if (MOX::planet[planet_idx].colony_index != -1) {
+        if (game::current_state.planets.at(planet_idx).colony_id != game::NO_COLONY) {
             return 0;
         }
 
@@ -1700,14 +1700,14 @@ namespace FLEETPOP {
         return 1;
     }
 
-    int8_t __cdecl Planet_Is_Colonizable(int16_t planet_idx) {
+    int8_t __cdecl Planet_Is_Colonizable(game::id_planet planet_idx) {
         int8_t is_colonizable = 0;
 
-        if (planet_idx > -1) {
-            s_planet_data* planet = &MOX::planet[planet_idx];
+        if (planet_idx != game::NO_PLANET) {
+            s_planet_data* planet = &game::current_state.planets.at(planet_idx);
             if (planet->planet_type == PLANET_TYPE_PLANET) {
-                int16_t colony_idx = planet->colony_index;
-                if (colony_idx == -1 || MOX::colony[colony_idx].outpost_flag != 0) {
+                game::id_colony colony_idx = planet->colony_id;
+                if (colony_idx == game::NO_COLONY || game::current_state.colonies.at(colony_idx).outpost_flag != 0) {
                     is_colonizable = 1;
                 }
             }

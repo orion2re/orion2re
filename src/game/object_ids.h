@@ -1,5 +1,6 @@
 #pragma once
 
+#include <compare>
 #include <cstdint>
 #include <functional>
 #include <type_traits>
@@ -13,12 +14,14 @@ namespace game {
     };
     struct id_colony {
         uint32_t id;
-        bool operator==(const id_colony&) const = default;
+        auto operator<=>(const id_colony&) const = default;
     };
+    inline constexpr id_colony NO_COLONY{UINT32_MAX};
     struct id_planet {
         uint32_t id;
-        bool operator==(const id_planet&) const = default;
+        auto operator<=>(const id_planet&) const = default;
     };
+    inline constexpr id_planet NO_PLANET{UINT32_MAX};
     struct id_star {
         uint32_t id;
         bool operator==(const id_star&) const = default;
@@ -32,6 +35,7 @@ namespace game {
         uint32_t id;
         bool operator==(const id_leader&) const = default;
     };
+    inline constexpr id_leader NO_LEADER{UINT32_MAX};
 
     static_assert(sizeof(id_ship) == sizeof(uint32_t));
     static_assert(alignof(id_ship) == alignof(uint32_t));

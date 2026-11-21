@@ -142,8 +142,8 @@ namespace spy {
             allocated_home = total_spies;
         }
 
-        if (allocated_home > 0x3f) {
-            allocated_home = 0x3f;
+        if (allocated_home > MAX_SPIES_PER_TARGET) {
+            allocated_home = MAX_SPIES_PER_TARGET;
         }
 
         BILL::Set_Their_Spy_Number(player_idx, player_idx, (uint8_t)allocated_home);
@@ -224,16 +224,16 @@ namespace spy {
 
             if (target == -1) {
                 int32_t sum = remaining_spies + allocated_home;
-                if (sum >= 0x3f) {
-                    BILL::Set_Their_Spy_Number(player_idx, player_idx, 0x3f);
+                if (sum >= MAX_SPIES_PER_TARGET) {
+                    BILL::Set_Their_Spy_Number(player_idx, player_idx, MAX_SPIES_PER_TARGET);
                 } else {
                     BILL::Set_Their_Spy_Number(player_idx, player_idx, (uint8_t)sum);
                 }
                 remaining_spies = 0;
             } else {
-                if (remaining_spies > 0x3f) {
-                    BILL::Set_Their_Spy_Number(player_idx, target, 0x3f);
-                    remaining_spies -= 0x3f;
+                if (remaining_spies > MAX_SPIES_PER_TARGET) {
+                    BILL::Set_Their_Spy_Number(player_idx, target, MAX_SPIES_PER_TARGET);
+                    remaining_spies -= MAX_SPIES_PER_TARGET;
                 } else {
                     BILL::Set_Their_Spy_Number(player_idx, target, (uint8_t)remaining_spies);
                     remaining_spies = 0;
@@ -406,12 +406,12 @@ namespace spy {
     }
 
     void __cdecl Destroy_Random_Building(int16_t acting_player_idx, int16_t victim_player_idx, int32_t framed_player_idx) {
-        int16_t target_colony = -1;
+        game::id_colony target_colony = game::NO_COLONY;
         int32_t target_building = -1;
         int32_t total_weight = 0;
 
-        for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
-            s_colony* colony = &MOX::colony[i];
+        for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
+            s_colony* colony = &roster_colony;
             if (colony->owner == victim_player_idx) {
                 for (int32_t b_idx = 0; b_idx < BUILDING_COUNT; ++b_idx) {
                     s_tech_building_data* building_data = &TECHDATA::buildings[b_idx];
@@ -425,7 +425,7 @@ namespace spy {
                         total_weight += cost;
 
                         if ((int32_t)game_random::Random(total_weight) <= cost) {
-                            target_colony = i;
+                            target_colony = roster_id;
                             target_building = b_idx;
                         }
                     }
@@ -433,14 +433,15 @@ namespace spy {
             }
         }
 
-        if (target_colony != -1) {
-            ERICNET::Remove_Building(target_colony, (int16_t)target_building);
+        if (target_colony != game::NO_COLONY) {
+            ERICNET::Remove_Building(game::current_state, target_colony, (int16_t)target_building);
 
-            int16_t planet_idx = MOX::colony[target_colony].planet;
+            const auto planet_id = game::current_state.colonies.at(target_colony).planet_id;
             int32_t diplomacy_mode = (acting_player_idx == (int16_t)framed_player_idx) ? 3 : 4;
 
             int32_t penalty = -((int32_t)game_random::Random(5) + (int32_t)game_random::Random(15));
-            diplomac::Change_Relations((int16_t)penalty, (int16_t)framed_player_idx, victim_player_idx, diplomacy_mode, planet_idx, (int16_t)target_building);
+            const auto star = game::current_state.planets.at(planet_id).star_index;
+            diplomac::Change_Relations((int16_t)penalty, (int16_t)framed_player_idx, victim_player_idx, diplomacy_mode, star, (int16_t)target_building);
 
             s_report report;
             memset(&report, 0, sizeof(report));
@@ -451,7 +452,7 @@ namespace spy {
             report.action = 1;
             report.d.sabotage.framed_player_idx = (acting_player_idx == (int16_t)framed_player_idx) ? -1 : (int8_t)framed_player_idx;
             report.d.sabotage.victim_player_idx = (uint8_t)victim_player_idx;
-            report.d.sabotage.planet_idx = planet_idx;
+            report.d.sabotage.planet_id = planet_id;
             report.d.sabotage.building_id = (uint8_t)target_building;
             REPORT::Add_Report(&report);
 
@@ -460,7 +461,7 @@ namespace spy {
             report.player_idx = victim_player_idx;
             report.action = 1;
             report.d.enemy_sabotage.enemy_player_idx = (int16_t)framed_player_idx;
-            report.d.enemy_sabotage.planet_idx = planet_idx;
+            report.d.enemy_sabotage.planet_id = planet_id;
             report.d.enemy_sabotage.building_id = (uint8_t)target_building;
             REPORT::Add_Report(&report);
         }

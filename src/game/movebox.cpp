@@ -255,7 +255,8 @@ namespace MOVEBOX {
                 if (off_idx == -1 || !has_colony) {
                     strlcpy(buffer, star.name, sizeof(buffer));
                 } else {
-                    s_leader_data& leader = MOX::leaders[off_idx];
+                    auto& state = game::current_state;
+                    auto& leader = state.leaders.at(off_idx);
                     int8_t eta = leader.eta;
 
                     if (eta <= 0) {

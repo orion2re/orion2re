@@ -42,7 +42,7 @@ namespace TEST_COMBINIT {
     void Set_Defender_Recaptured_Satellite_();
     void Set_Attacker_Captured_Satellite_(bool destroyed = false);
     bool Satellite_Building_Removed_(
-        int16_t colony_idx, int16_t building_idx);
+        game::id_colony colony_idx, int16_t building_idx);
 } // namespace TEST_COMBINIT
 
 namespace TEST_COMBAT_REPAIR {
@@ -127,8 +127,8 @@ DOCTEST_TEST_CASE("attacker victory removes a satellite recaptured by the defend
         COMBINIT::End_Of_Combat(0, 0, 1);
 
         DOCTEST_CHECK(TEST_COMBINIT::Satellite_Building_Removed_(
-            0, BUILDING_STAR_BASE));
-        DOCTEST_CHECK(COMBINIT::Take_Captured_Satellite(0) == -1);
+            game::id_colony{0}, BUILDING_STAR_BASE));
+        DOCTEST_CHECK(COMBINIT::Take_Captured_Satellite(game::id_colony{0}) == -1);
     }
 }
 
@@ -141,8 +141,8 @@ DOCTEST_TEST_CASE("attacker-captured satellite is retained only when enabled") {
         COMBINIT::End_Of_Combat(0, 0, 1);
 
         DOCTEST_CHECK(TEST_COMBINIT::Satellite_Building_Removed_(
-            0, BUILDING_STAR_BASE));
-        DOCTEST_CHECK(COMBINIT::Take_Captured_Satellite(0) ==
+            game::id_colony{0}, BUILDING_STAR_BASE));
+        DOCTEST_CHECK(COMBINIT::Take_Captured_Satellite(game::id_colony{0}) ==
             (capture_enabled != 0 ? BUILDING_STAR_BASE : -1));
     }
 }
@@ -155,8 +155,8 @@ DOCTEST_TEST_CASE("destroyed attacker-captured satellite is not retained") {
     COMBINIT::End_Of_Combat(0, 0, 1);
 
     DOCTEST_CHECK(TEST_COMBINIT::Satellite_Building_Removed_(
-        0, BUILDING_STAR_BASE));
-    DOCTEST_CHECK(COMBINIT::Take_Captured_Satellite(0) == -1);
+        game::id_colony{0}, BUILDING_STAR_BASE));
+    DOCTEST_CHECK(COMBINIT::Take_Captured_Satellite(game::id_colony{0}) == -1);
 }
 
 DOCTEST_TEST_CASE("survival pods recover more than eight leaders after an expanded battle") {
@@ -173,8 +173,9 @@ DOCTEST_TEST_CASE("survival pods recover more than eight leaders after an expand
         destroyed.unit_status = 5;
         destroyed.officer_idx = i;
         MOX::ship[destroyed_idx].officer_index = i;
-        MOX::leaders[i].location = destroyed_idx;
-        MOX::leaders[i].player_index = 0;
+        auto& leader = game::current_state.leaders.at(i);
+        leader.location = destroyed_idx;
+        leader.player_index = 0;
         s_combat_data& surviving = MOX::combat_data[surviving_idx];
         surviving.ship_idx = surviving_idx;
         surviving.owner = 0;
@@ -186,7 +187,7 @@ DOCTEST_TEST_CASE("survival pods recover more than eight leaders after an expand
 
     for (int16_t i = 0; i < leader_count; ++i) {
         const int16_t surviving_idx = leader_count + i + 1;
-        DOCTEST_CHECK((MOX::leaders[i].location == surviving_idx));
+        DOCTEST_CHECK(game::current_state.leaders.at(i).location == surviving_idx);
         DOCTEST_CHECK((MOX::ship[surviving_idx].officer_index == i));
         DOCTEST_CHECK((MOX::combat_data[surviving_idx].officer_idx == i));
     }

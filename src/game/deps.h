@@ -21,6 +21,8 @@
 #include "pop.h"
 #include "settler.h"
 #include "orion2.h"
+#include "legacy_ids.h"
+#include "planet_reference.h"
 
 #include "lbx_types.h"
 #include "sound_types.h"

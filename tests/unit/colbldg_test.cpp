@@ -1,9 +1,42 @@
 #include "pch.h"
+#include "../fixtures/colony_roster.h"
+#include "../fixtures/planet_roster.h"
 
 #include "doctest/doctest.h"
 #include "game/colbldg.h"
 #include "lua/lua_game_ship_identity.h"
 #include "../fixtures/game_state.h"
+
+DOCTEST_TEST_CASE("queue deletion addresses a wide colony ID in the supplied state") {
+    game::s_game_state state;
+    state.next_colony_id = 70000;
+    const auto id = state.Create_Colony({});
+    DOCTEST_REQUIRE(id == game::id_colony{70000});
+    auto& colony = state.colonies.at(*id);
+    std::ranges::fill(colony.producing, COLONY_PRODUCTION_NONE);
+    colony.producing[0] = BUILDING_AUTOMATED_FACTORY;
+    colony.producing[1] = BUILDING_TERRAFORMING;
+    colony.producing[2] = BUILDING_BIOSPHERES;
+
+    COLBLDG::Delete_Prod_From_Colony_Queue(state, *id, BUILDING_TERRAFORMING);
+
+    DOCTEST_CHECK(colony.producing[0] == BUILDING_AUTOMATED_FACTORY);
+    DOCTEST_CHECK(colony.producing[1] == BUILDING_BIOSPHERES);
+    DOCTEST_CHECK(colony.producing[2] == COLONY_PRODUCTION_NONE);
+}
+
+DOCTEST_TEST_CASE("colony navigation wraps over sparse keys and skips outposts") {
+    test::s_game_state fixture;
+    const game::id_colony home{0};
+    const game::id_colony outpost{70000};
+    const game::id_colony other{80000};
+    test_colonies::Record(home.id).owner = 0;
+    test_colonies::Set(outpost.id, {.owner = 0, .outpost_flag = 1});
+    test_colonies::Record(other.id).owner = 0;
+    DOCTEST_CHECK(COLONY::Get_Next_Colony(home, 0) == other);
+    DOCTEST_CHECK(COLONY::Get_Next_Colony(home, 1) == other);
+    DOCTEST_CHECK(COLONY::Get_Next_Colony(other, 0) == home);
+}
 
 namespace {
     struct s_building_state : test::s_game_state {
@@ -16,7 +49,7 @@ namespace {
         test::s_saved_array<int16_t, 4> active{COLBLDG::active_prod};
         int16_t building_count = COLBLDG::n_building_indexes;
         int16_t military_count = COLBLDG::n_military_indexes;
-        int16_t handle = COLONY::colony_handle;
+        game::id_colony handle = COLONY::colony_handle;
         uint8_t cheats = COLONY::cheats;
         uint8_t housing = COLCALC::disable_housing;
         uint8_t mode = COLBLDG::field_mode;
@@ -102,25 +135,25 @@ DOCTEST_TEST_CASE_FIXTURE(s_building_state, "enemy outpost is not a colony base 
     TEST_COLBLDG::Reset_();
 
     for (int16_t i = 0; i < 5; ++i) {
-        MOX::star[0].planet_index[i] = i;
-        MOX::planet[i].planet_type = PLANET_TYPE_PLANET;
+        MOX::star[0].orbit_planet_ids[i] = game::id_planet{static_cast<uint32_t>(i)};
+        test_planets::Record(i).planet_type = PLANET_TYPE_PLANET;
     }
 
-    MOX::planet[0].colony_index = 0;
-    MOX::colony[0].owner = 0;
+    test_planets::Record(0).colony_id = game::id_colony{0};
+    test_colonies::Record(0).owner = 0;
 
-    MOX::planet[1].colony_index = -1;
+    test_planets::Record(1).colony_id = game::NO_COLONY;
 
-    MOX::planet[2].colony_index = 1;
-    MOX::colony[1].owner = 0;
-    MOX::colony[1].outpost_flag = 1;
+    test_planets::Record(2).colony_id = game::id_colony{1};
+    test_colonies::Record(1).owner = 0;
+    test_colonies::Record(1).outpost_flag = 1;
 
-    MOX::planet[3].colony_index = 2;
-    MOX::colony[2].owner = 1;
-    MOX::colony[2].outpost_flag = 1;
+    test_planets::Record(3).colony_id = game::id_colony{2};
+    test_colonies::Record(2).owner = 1;
+    test_colonies::Record(2).outpost_flag = 1;
 
-    MOX::planet[4].colony_index = -1;
-    MOX::planet[4].planet_type = PLANET_TYPE_ASTEROID;
+    test_planets::Record(4).colony_id = game::NO_COLONY;
+    test_planets::Record(4).planet_type = PLANET_TYPE_ASTEROID;
 
     DOCTEST_CHECK(COLBLDG::Star_N_Uncolonized_Worlds(0) == 2);
 }
@@ -128,16 +161,16 @@ DOCTEST_TEST_CASE_FIXTURE(s_building_state, "enemy outpost is not a colony base 
 DOCTEST_TEST_CASE_FIXTURE(s_building_state, "queuing the last legal Colony Base removes it from the military list") {
     TEST_COLBLDG::Reset_();
 
-    MOX::colony[0].owner = 0;
-    MOX::colony[0].planet = 0;
-    MOX::planet[0].colony_index = 0;
-    MOX::planet[0].planet_type = PLANET_TYPE_PLANET;
-    MOX::planet[0].star_index = 0;
-    MOX::planet[1].colony_index = -1;
-    MOX::planet[1].planet_type = PLANET_TYPE_PLANET;
-    MOX::planet[1].star_index = 0;
-    MOX::star[0].planet_index[0] = 0;
-    MOX::star[0].planet_index[1] = 1;
+    test_colonies::Record(0).owner = 0;
+    test_colonies::Record(0).planet_id = game::id_planet{0};
+    test_planets::Record(0).colony_id = game::id_colony{0};
+    test_planets::Record(0).planet_type = PLANET_TYPE_PLANET;
+    test_planets::Record(0).star_index = 0;
+    test_planets::Record(1).colony_id = game::NO_COLONY;
+    test_planets::Record(1).planet_type = PLANET_TYPE_PLANET;
+    test_planets::Record(1).star_index = 0;
+    MOX::star[0].orbit_planet_ids[0] = game::id_planet{0};
+    MOX::star[0].orbit_planet_ids[1] = game::id_planet{1};
     TEST_COLBLDG::Set_Buildable_(BUILDING_COLONY_BASE, true);
 
     COLBLDG::Calculate_Military_Array();
@@ -172,8 +205,8 @@ DOCTEST_TEST_CASE_FIXTURE(s_building_state, "pending refit design owns an indepe
 
 DOCTEST_TEST_CASE_FIXTURE(s_building_state, "ship allocation appends without a pre-seeded owner") {
     TEST_COLBLDG::Reset_();
-    MOX::colony[0].planet = 0;
-    MOX::planet[0].star_index = 0;
+    test_colonies::Record(0).planet_id = game::id_planet{0};
+    test_planets::Record(0).star_index = 0;
     MOX::NUM_SHIPS = 1;
     MOX::ship[0].owner = 0;
     MOX::ship[0].status = 0;
@@ -181,7 +214,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_building_state, "ship allocation appends without a p
     design.ship_type = SHIP_TYPE_OUTPOST;
 
     const int16_t ship_idx =
-        COLBLDG::Create_Ship_From_Design(1, &design, 0);
+        COLBLDG::Create_Ship_From_Design(1, &design, game::id_colony{0});
 
     DOCTEST_REQUIRE(ship_idx == 1);
     DOCTEST_CHECK(MOX::NUM_SHIPS == 2);
@@ -192,8 +225,8 @@ DOCTEST_TEST_CASE_FIXTURE(s_building_state, "ship allocation appends without a p
 
 DOCTEST_TEST_CASE_FIXTURE(s_building_state, "ship allocation reuses only an owner-matched destroyed slot") {
     TEST_COLBLDG::Reset_();
-    MOX::colony[0].planet = 0;
-    MOX::planet[0].star_index = 0;
+    test_colonies::Record(0).planet_id = game::id_planet{0};
+    test_planets::Record(0).star_index = 0;
     MOX::NUM_SHIPS = 2;
     MOX::ship[0].owner = 0;
     MOX::ship[0].status = 5;
@@ -202,7 +235,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_building_state, "ship allocation reuses only an owne
     s_ship_design design = {};
 
     const int16_t ship_idx =
-        COLBLDG::Create_Ship_From_Design(1, &design, 0);
+        COLBLDG::Create_Ship_From_Design(1, &design, game::id_colony{0});
 
     DOCTEST_REQUIRE(ship_idx == 1);
     DOCTEST_CHECK(MOX::NUM_SHIPS == 2);
@@ -212,8 +245,8 @@ DOCTEST_TEST_CASE_FIXTURE(s_building_state, "ship allocation reuses only an owne
 
 DOCTEST_TEST_CASE_FIXTURE(s_building_state, "ship allocation fails when capacity has no reusable slot") {
     TEST_COLBLDG::Reset_();
-    MOX::colony[0].planet = 0;
-    MOX::planet[0].star_index = 0;
+    test_colonies::Record(0).planet_id = game::id_planet{0};
+    test_planets::Record(0).star_index = 0;
     MOX::NUM_SHIPS = MAX_SHIPS;
     for (int16_t ship_idx = 0; ship_idx < MAX_SHIPS; ++ship_idx) {
         MOX::ship[ship_idx].owner = 0;
@@ -221,7 +254,7 @@ DOCTEST_TEST_CASE_FIXTURE(s_building_state, "ship allocation fails when capacity
     }
     s_ship_design design = {};
 
-    DOCTEST_CHECK(COLBLDG::Create_Ship_From_Design(1, &design, 0) == -1);
+    DOCTEST_CHECK(COLBLDG::Create_Ship_From_Design(1, &design, game::id_colony{0}) == -1);
     DOCTEST_CHECK(MOX::NUM_SHIPS == MAX_SHIPS);
 }
 

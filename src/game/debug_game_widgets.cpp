@@ -225,33 +225,30 @@ namespace debug_game_widgets {
 #endif
     }
 
-    bool Planet_Reference(const char* label, int16_t* planet_index, bool allow_none) {
+    bool Planet_Reference(const char* label, game::id_planet* planet_id, bool allow_none) {
 #if defined(ORION2RE_ENABLE_DEBUG_OVERLAY)
-        if (label == nullptr || planet_index == nullptr) {
+        if (label == nullptr || planet_id == nullptr) {
             return false;
         }
-        const int16_t count = MOX::planet == nullptr
-            ? 0
-            : std::clamp<int16_t>(MOX::planet_count, 0, MAX_PLANETS);
         char preview[64];
-        if (*planet_index < 0) {
+        if (*planet_id == game::NO_PLANET) {
             strlcpy(preview, "None", sizeof(preview));
-        } else if (*planet_index < count) {
-            snprintf(preview, sizeof(preview), "Planet %d", (int)*planet_index);
+        } else if (game::current_state.planets.contains(*planet_id)) {
+            snprintf(preview, sizeof(preview), "Planet %u", planet_id->id);
         } else {
             strlcpy(preview, "Invalid", sizeof(preview));
         }
         bool changed = false;
         if (ImGui::BeginCombo(label, preview)) {
-            if (allow_none && ImGui::Selectable("None", *planet_index < 0)) {
-                *planet_index = -1;
+            if (allow_none && ImGui::Selectable("None", *planet_id == game::NO_PLANET)) {
+                *planet_id = game::NO_PLANET;
                 changed = true;
             }
-            for (int16_t index = 0; index < count; ++index) {
+            for (const auto id : game::current_state.planet_order) {
                 char item[64];
-                snprintf(item, sizeof(item), "Planet %d", (int)index);
-                if (ImGui::Selectable(item, *planet_index == index)) {
-                    *planet_index = index;
+                snprintf(item, sizeof(item), "Planet %u", id.id);
+                if (ImGui::Selectable(item, *planet_id == id)) {
+                    *planet_id = id;
                     changed = true;
                 }
             }
@@ -260,37 +257,35 @@ namespace debug_game_widgets {
         return changed;
 #else
         (void)label;
-        (void)planet_index;
+        (void)planet_id;
         (void)allow_none;
         return false;
 #endif
     }
 
-    bool Colony_Reference(const char* label, int16_t* colony_index, bool allow_none) {
+    bool Colony_Reference(const char* label, game::id_colony* colony_index, bool allow_none) {
 #if defined(ORION2RE_ENABLE_DEBUG_OVERLAY)
         if (label == nullptr || colony_index == nullptr) {
             return false;
         }
-        const int16_t count = MOX::colony == nullptr
-            ? 0
-            : std::clamp<int16_t>(MOX::NUM_COLONIES, 0, MAX_COLONIES);
         char preview[48];
-        if (*colony_index < 0) {
+        if (*colony_index == game::NO_COLONY) {
             strlcpy(preview, "None", sizeof(preview));
-        } else if (*colony_index < count) {
-            snprintf(preview, sizeof(preview), "Colony %d (player %d)", (int)*colony_index, (int)MOX::colony[*colony_index].owner);
+        } else if (game::current_state.colonies.contains(*colony_index)) {
+            snprintf(preview, sizeof(preview), "Colony %u (player %d)", colony_index->id, (int)game::current_state.colonies.at(*colony_index).owner);
         } else {
             strlcpy(preview, "Invalid", sizeof(preview));
         }
         bool changed = false;
         if (ImGui::BeginCombo(label, preview)) {
-            if (allow_none && ImGui::Selectable("None", *colony_index < 0)) {
-                *colony_index = -1;
+            if (allow_none && ImGui::Selectable("None", *colony_index == game::NO_COLONY)) {
+                *colony_index = game::NO_COLONY;
                 changed = true;
             }
-            for (int16_t index = 0; index < count; ++index) {
+            for (const auto& [id, colony] : game::current_state.colonies) {
+                const auto index = id;
                 char item[64];
-                snprintf(item, sizeof(item), "Colony %d (player %d)", (int)index, (int)MOX::colony[index].owner);
+                snprintf(item, sizeof(item), "Colony %u (player %d)", id.id, (int)colony.owner);
                 if (ImGui::Selectable(item, *colony_index == index)) {
                     *colony_index = index;
                     changed = true;
@@ -312,11 +307,12 @@ namespace debug_game_widgets {
         if (label == nullptr || officer_index == nullptr) {
             return false;
         }
-        const int16_t count = MOX::leaders == nullptr ? 0 : MAX_LEADERS;
+        const auto& state = game::current_state;
+        const int16_t count = state.leaders.size();
         const char* preview = *officer_index < 0
             ? "None"
             : ((*officer_index < count)
-                      ? Bounded_Name(MOX::leaders[*officer_index].name, sizeof(MOX::leaders[*officer_index].name))
+                      ? Bounded_Name(state.leaders.at(*officer_index).name, sizeof(s_leader_data::name))
                       : "Invalid");
         bool changed = false;
         if (ImGui::BeginCombo(label, preview)) {
@@ -325,7 +321,7 @@ namespace debug_game_widgets {
                 changed = true;
             }
             for (int16_t index = 0; index < count; ++index) {
-                const char* name = Bounded_Name(MOX::leaders[index].name, sizeof(MOX::leaders[index].name));
+                const char* name = Bounded_Name(state.leaders.at(index).name, sizeof(s_leader_data::name));
                 if (ImGui::Selectable(name, *officer_index == index)) {
                     *officer_index = (int8_t)index;
                     changed = true;

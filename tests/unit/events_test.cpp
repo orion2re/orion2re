@@ -1,4 +1,6 @@
 #include "pch.h"
+#include "../fixtures/colony_roster.h"
+#include "../fixtures/planet_roster.h"
 
 #include "doctest/doctest.h"
 #include "game/events.h"
@@ -28,14 +30,13 @@ namespace {
         TEST_EVENTS::Reset_();
         MOX::NUM_PLAYERS = 1;
         MOX::NUM_STARS = 2;
-        MOX::NUM_COLONIES = 1;
         MOX::settings.random_events = 1;
         MOX::settings.game_difficulty = GAME_DIFFICULTY_AVERAGE;
         MOX::stardate = 35500;
         MOX::player[0].total_pop = 10;
-        MOX::colony[0].owner = 0;
-        MOX::colony[0].planet = 0;
-        MOX::planet[0].colony_index = 0;
+        test_colonies::Record(0).owner = 0;
+        test_colonies::Record(0).planet_id = game::id_planet{0};
+        test_planets::Record(0).colony_id = game::id_colony{0};
         EVENTS::last_event_year = 35000;
         EVENTS::event_delay_count = EVENTS::between_events_delay;
         EVENTS::force_event_type = static_cast<uint8_t>(event + 1);
@@ -96,12 +97,12 @@ DOCTEST_TEST_CASE("wormhole selection requires a successful movement result") {
 
 DOCTEST_TEST_CASE("population boom selection excludes a colony at its supplied limit") {
     Prepare_Forced_Event_(EVENT_POPULATION_BOOM);
-    MOX::colony[0].n_pops = 20;
+    test_colonies::Record(0).n_pops = 20;
     EVENTS::Determine_Event();
     DOCTEST_CHECK(TEST_EVENTS::population_calls == 5);
     DOCTEST_CHECK((EVENTS::event_data[EVENT_POPULATION_BOOM].status == 0));
     Prepare_Forced_Event_(EVENT_POPULATION_BOOM);
-    MOX::colony[0].n_pops = 19;
+    test_colonies::Record(0).n_pops = 19;
     EVENTS::Determine_Event();
     DOCTEST_CHECK(TEST_EVENTS::population_calls == 1);
     DOCTEST_CHECK((EVENTS::event_data[EVENT_POPULATION_BOOM].status != 0));
@@ -123,23 +124,61 @@ DOCTEST_TEST_CASE("Lucky event selection retains the full random result") {
 
 DOCTEST_TEST_CASE("monster planet updates retain explicit report state") {
     TEST_EVENTS::Reset_();
-    MOX::planet[3].colony_index = 2;
-    MOX::colony[2].owner = 4;
+    test_planets::Record(70000).colony_id = game::id_colony{80000};
+    test_colonies::Record(80000).owner = 4;
 
-    EVENTS::Event_Monster_Update(NONPLAYER_SHIP_TYPE_AMOEBA, 3, -1);
+    EVENTS::Event_Monster_Update(NONPLAYER_SHIP_TYPE_AMOEBA, game::id_planet{70000}, -1);
 
     const s_event_data& event = EVENTS::event_data[EVENT_SPACE_AMOEBA];
     // Evaluate packed-field comparisons before doctest can bind operand references.
     DOCTEST_CHECK((event.status == 4));
-    DOCTEST_CHECK((event.target_id == 3));
-    DOCTEST_CHECK((event.max_amount == 2));
+    DOCTEST_CHECK(event.planet_target.get() == game::id_planet{70000});
+    DOCTEST_CHECK(event.colony_target.get() == game::id_colony{80000});
     DOCTEST_CHECK((event.player_idx == 4));
+}
+
+DOCTEST_TEST_CASE("plague checks compare colony identities, not slot numbers") {
+    TEST_EVENTS::Reset_();
+    auto& plague = EVENTS::event_data[EVENT_PLAGUE];
+    plague.status = 2;
+    plague.colony_target = game::id_colony{80000};
+    DOCTEST_CHECK(EVENTS::Event_Check_Plague(game::id_colony{80000}) == 1);
+    DOCTEST_CHECK(EVENTS::Event_Check_Colony_Researching(game::id_colony{80000}) == 1);
+    DOCTEST_CHECK(EVENTS::Event_Check_Plague(game::id_colony{0}) == 0);
+    plague.colony_target = game::id_colony{0};
+    DOCTEST_CHECK(EVENTS::Event_Check_Plague(game::id_colony{0}) == 1);
+    plague.colony_target = game::NO_COLONY;
+    DOCTEST_CHECK(EVENTS::Event_Check_Plague(game::NO_COLONY) == 0);
+}
+
+DOCTEST_TEST_CASE("colony destruction preserves finished reports and retires pending hits") {
+    TEST_EVENTS::Reset_();
+    constexpr game::id_colony target{80000};
+    constexpr game::id_planet planet{70000};
+    test_planets::Record(planet.id).star_index = 0;
+    test_colonies::Record(target.id).planet_id = planet;
+    auto& earthquake = EVENTS::event_data[EVENT_EARTHQUAKE];
+    earthquake.status = 5;
+    earthquake.colony_target = target;
+    earthquake.amount = 2;
+    auto& comet = EVENTS::event_data[EVENT_COMET];
+    comet.status = 1;
+    comet.colony_target = target;
+
+    EVENTS::Kill_All_Events_At_Colony(target);
+
+    DOCTEST_CHECK(earthquake.status == 5);
+    DOCTEST_CHECK(earthquake.colony_target.get() == game::NO_COLONY);
+    DOCTEST_CHECK(earthquake.planet_target.get() == planet);
+    DOCTEST_CHECK((earthquake.amount == 2));
+    DOCTEST_CHECK(comet.status == 3);
+    DOCTEST_CHECK(comet.colony_target.get() == game::NO_COLONY);
 }
 
 DOCTEST_TEST_CASE("monster death updates retain completion payload") {
     TEST_EVENTS::Reset_();
 
-    EVENTS::Event_Monster_Update(NONPLAYER_SHIP_TYPE_HYDRA, -1, 2);
+    EVENTS::Event_Monster_Update(NONPLAYER_SHIP_TYPE_HYDRA, game::NO_PLANET, 2);
 
     const s_event_data& event = EVENTS::event_data[EVENT_SPACE_HYDRA];
     DOCTEST_CHECK((event.status == 4));
@@ -150,17 +189,18 @@ DOCTEST_TEST_CASE("monster death updates retain completion payload") {
 DOCTEST_TEST_CASE("monster reports use preserved planet identity safely") {
     TEST_EVENTS::Reset_();
     TEST_EVENTS::Set_Event_Message_("Target \x80");
-    MOX::colony[2].planet = -1;
+    test_colonies::Record(2).planet_id = game::NO_PLANET;
+    test_planets::Record(7);
 
     char message[64];
     EVENTS::Get_Event_Message(
-        EVENT_SPACE_AMOEBA + 2, 3, 2, 7,
+        EVENT_SPACE_AMOEBA + 2, 3, game::id_colony{2}, game::id_planet{7},
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         message, sizeof(message));
     DOCTEST_CHECK(strcmp(message, "Target Planet 7") == 0);
 
     EVENTS::Get_Event_Message(
-        EVENT_SPACE_AMOEBA + 2, 3, MAX_COLONIES, -1,
+        EVENT_SPACE_AMOEBA + 2, 3, game::id_colony{70000}, game::NO_PLANET,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         message, sizeof(message));
     DOCTEST_CHECK(strcmp(message, "Target ") == 0);
@@ -169,11 +209,11 @@ DOCTEST_TEST_CASE("monster reports use preserved planet identity safely") {
 DOCTEST_TEST_CASE("planet event reports preserve vanilla and v150 location tokens") {
     TEST_EVENTS::Reset_();
     MOX::PLAYER_NUM = 0;
-    MOX::colony[0].planet = 188;
-    MOX::colony[3].planet = 193;
-    MOX::planet[193].colony_index = 3;
-    MOX::planet[193].star_index = 54;
-    MOX::planet[193].mineral_class = MINERAL_RESOURCE_ULTRA_RICH;
+    test_colonies::Record(0).planet_id = game::id_planet{188};
+    test_colonies::Record(3).planet_id = game::id_planet{193};
+    test_planets::Record(193).colony_id = game::id_colony{3};
+    test_planets::Record(193).star_index = 54;
+    test_planets::Record(193).mineral_class = MINERAL_RESOURCE_ULTRA_RICH;
     strlcpy(MOX::star[54].name, "Gnol", sizeof(MOX::star[54].name));
     strlcpy(MOX::player[2].race_name, "Gnolam", sizeof(MOX::player[2].race_name));
     char mineral_name[] = "Ultra Rich";
@@ -201,7 +241,7 @@ DOCTEST_TEST_CASE("planet event reports preserve vanilla and v150 location token
     }
     s_event_data& event = EVENTS::event_data[event_id];
     event.player_idx = 2;
-    event.target_id = 193;
+    event.planet_target = game::id_planet{193};
     event.status = 5;
 
     for (bool patched : {false, true}) {
@@ -214,7 +254,7 @@ DOCTEST_TEST_CASE("planet event reports preserve vanilla and v150 location token
 
         snprintf(message, sizeof(message), patched ? patched_expected : vanilla_expected, patched ? "Planet 193" : "Gnol");
         DOCTEST_CHECK(strcmp(EVENTS::event_message, message) == 0);
-        DOCTEST_CHECK((event.target_id == 193));
+        DOCTEST_CHECK(event.planet_target.get() == game::id_planet{193});
     }
     MOX::mineral_class_string[MINERAL_RESOURCE_ULTRA_RICH] = nullptr;
 }
@@ -311,29 +351,31 @@ DOCTEST_TEST_CASE("Pirate Raid calculation avoids signed product overflow") {
 DOCTEST_TEST_CASE("Supernova adds the minimum to total system research") {
     TEST_EVENTS::Reset_();
 
-    MOX::star[0].planet_index[0] = 0;
-    MOX::star[0].planet_index[1] = 1;
-    MOX::planet[0].colony_index = 0;
-    MOX::planet[1].colony_index = 1;
-    MOX::colony[0].production[ECON_RESEARCH] = 4;
-    MOX::colony[1].production[ECON_RESEARCH] = 7;
+    MOX::star[0].orbit_planet_ids[0] = game::id_planet{0};
+    MOX::star[0].orbit_planet_ids[1] = game::id_planet{1};
+    test_planets::Record(0).colony_id = game::id_colony{0};
+    test_planets::Record(1).colony_id = game::id_colony{1};
+    test_colonies::Record(0).production[ECON_RESEARCH] = 4;
+    test_colonies::Record(1).production[ECON_RESEARCH] = 7;
     EVENTS::supernova.minimum_research_per_turn = 10;
 
     DOCTEST_CHECK(EVENTS::Supernova_Research_Requirement(0, 3) == 63);
 }
 
-DOCTEST_TEST_CASE("failed Supernova resets planet environment before destruction") {
+DOCTEST_TEST_CASE("failed Supernova resets planet environment and clears a wide colony link") {
     TEST_EVENTS::Reset_();
 
-    MOX::star[0].planet_index[0] = 0;
-    MOX::star[0].planet_index[1] = 1;
-    MOX::planet[0].colony_index = 0;
-    MOX::planet[0].climate = PLANET_CLIMATE_TERRAN;
-    MOX::planet[0].environmental_alterations = 2;
-    MOX::planet[1].climate = PLANET_CLIMATE_GAIA;
-    MOX::planet[1].environmental_alterations = 2;
-    MOX::colony[0].owner = 0;
-    MOX::colony[0].planet = 0;
+    constexpr game::id_planet colony_planet{70000};
+    MOX::star[0].orbit_planet_ids[0] = colony_planet;
+    MOX::star[0].orbit_planet_ids[1] = game::id_planet{1};
+    auto& colonized = test_planets::Record(colony_planet.id);
+    colonized.colony_id = game::id_colony{0};
+    colonized.climate = PLANET_CLIMATE_TERRAN;
+    colonized.environmental_alterations = 2;
+    test_planets::Record(1).climate = PLANET_CLIMATE_GAIA;
+    test_planets::Record(1).environmental_alterations = 2;
+    test_colonies::Record(0).owner = 0;
+    test_colonies::Record(0).planet_id = colony_planet;
     MOX::food_per_farmer_table[PLANET_CLIMATE_RADIATED] = 7;
 
     s_event_data& event = EVENTS::event_data[EVENT_SUPERNOVA];
@@ -345,13 +387,16 @@ DOCTEST_TEST_CASE("failed Supernova resets planet environment before destruction
     EVENTS::Event_Twiddle();
 
     DOCTEST_CHECK((event.status == 5));
-    for (int planet_idx = 0; planet_idx < 2; ++planet_idx) {
-        DOCTEST_CHECK((MOX::planet[planet_idx].climate == PLANET_CLIMATE_RADIATED));
-        DOCTEST_CHECK((MOX::planet[planet_idx].environmental_alterations == 0));
-        DOCTEST_CHECK((MOX::planet[planet_idx].food_per_farmer == 7));
+    for (const auto id : {colony_planet, game::id_planet{1}}) {
+        const auto& planet = game::current_state.planets.at(id);
+        DOCTEST_CHECK(planet.climate == PLANET_CLIMATE_RADIATED);
+        DOCTEST_CHECK(planet.environmental_alterations == 0);
+        DOCTEST_CHECK(planet.food_per_farmer == 7);
     }
-    DOCTEST_CHECK((MOX::planet[0].colony_index == -1));
-    DOCTEST_CHECK((MOX::colony[0].owner == -1));
+    DOCTEST_CHECK(colonized.colony_id == game::NO_COLONY);
+    DOCTEST_CHECK_FALSE(game::current_state.planets.contains(game::NO_PLANET));
+    DOCTEST_CHECK(test_colonies::Record(0).planet_id == game::NO_PLANET);
+    DOCTEST_CHECK((test_colonies::Record(0).owner == -1));
 }
 
 DOCTEST_TEST_CASE("Antaran victim weights use widened Lucky division") {

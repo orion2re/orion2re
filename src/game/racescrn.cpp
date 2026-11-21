@@ -388,8 +388,8 @@ namespace RACESCRN {
         int16_t num_to_move = g_mouse_group_p->count;
 
         if (num_to_move != 0) {
-            if (target_group->count + num_to_move > 63) {
-                int16_t available_space = 63 - target_group->count;
+            if (target_group->count + num_to_move > spy::MAX_SPIES_PER_TARGET) {
+                int16_t available_space = spy::MAX_SPIES_PER_TARGET - target_group->count;
                 g_spy_xfer_count = num_to_move - available_space;
                 num_to_move = available_space;
             }

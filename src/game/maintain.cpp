@@ -143,8 +143,8 @@ namespace maintain {
         int32_t player_idx = (int32_t)(player - MOX::player);
         bool any_removed = false;
 
-        for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
-            s_colony* colony = &MOX::colony[i];
+        for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
+            s_colony* colony = &roster_colony;
 
             if (colony->owner == player_idx) {
                 for (int32_t j = 0; j < (int32_t)(sizeof(research_building_table) / sizeof(research_building_table[0])); ++j) {
@@ -153,7 +153,7 @@ namespace maintain {
                     if (colony->buildings[building_id] != 0) {
                         int32_t cost = TECHDATA::buildings[building_id].cost;
 
-                        ERICNET::Remove_Building(i, (int16_t)building_id);
+                        ERICNET::Remove_Building(game::current_state, roster_id, (int16_t)building_id);
                         any_removed = true;
 
                         int32_t compensation = cost / 2;
@@ -244,7 +244,8 @@ namespace maintain {
 
             searched_without_removal = true;
             for (int16_t leader_idx = 0; leader_idx < MAX_LEADERS; ++leader_idx) {
-                if (MOX::leaders[leader_idx].player_index == player_idx) {
+                const auto& state = game::current_state;
+                if (state.leaders.at(leader_idx).player_index == player_idx) {
                     if (OFFICER::Officer_Maintenance((int16_t)player_idx, leader_idx) > 0) {
                         OFFICER::Deassign_Officer(leader_idx);
                         searched_without_removal = false;
@@ -328,11 +329,11 @@ namespace maintain {
         while ((player->bc + player->surplus_bc < 0) && !no_more_buildings) {
             int32_t min_worth = 0x7FFF;
             int32_t candidates_count = 0;
-            s_colony* best_colony = nullptr;
+            auto best_colony_id = game::NO_COLONY;
             int32_t best_building = 0;
 
-            for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
-                s_colony* col = &MOX::colony[i];
+            for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
+                s_colony* col = &roster_colony;
                 if (col->owner == (int8_t)player_idx) {
                     for (int32_t building_idx = 0; building_idx < (int32_t)(sizeof(col->buildings) / sizeof(col->buildings[0])); ++building_idx) {
                         if (col->buildings[building_idx] != 0 && can_scrap((int16_t)building_idx)) {
@@ -340,12 +341,12 @@ namespace maintain {
                             if (worth < min_worth) {
                                 min_worth = worth;
                                 candidates_count = 1;
-                                best_colony = col;
+                                best_colony_id = roster_id;
                                 best_building = building_idx;
                             } else if (worth == min_worth) {
                                 candidates_count++;
                                 if (game_random::Random((uint32_t)candidates_count) == 1) {
-                                    best_colony = col;
+                                    best_colony_id = roster_id;
                                     best_building = building_idx;
                                 }
                             }
@@ -354,13 +355,13 @@ namespace maintain {
                 }
             }
 
-            if (best_colony == nullptr) {
+            if (best_colony_id == game::NO_COLONY) {
                 no_more_buildings = true;
             } else {
                 int16_t scrap_value = (int16_t)(TECHDATA::buildings[best_building].cost / 2);
-                int16_t colony_idx = (int16_t)(best_colony - MOX::colony);
+                const auto colony_idx = best_colony_id;
 
-                ERICNET::Remove_Building(colony_idx, (int16_t)best_building);
+                ERICNET::Remove_Building(game::current_state, best_colony_id, (int16_t)best_building);
 
                 player->bc += scrap_value;
                 if (player->objectives != PLAYER_OBJECTIVE_HUMAN) {
@@ -372,7 +373,7 @@ namespace maintain {
                 s_MSG msg;
                 memset(&msg, 0, sizeof(msg));
                 msg.msg_type = MSG_TYPE_COLONY;
-                msg.u.colony.planet_idx = best_colony->planet;
+                msg.u.colony.planet_id = game::current_state.colonies.at(best_colony_id).planet_id;
                 msg.u.colony.subtype = MSG_COLONY_SUBTYPE_BUILDING_SCRAPPED;
                 msg.u.colony.c.scrap.building_id = (int16_t)best_building;
                 msg.u.colony.c.scrap.bc = scrap_value;

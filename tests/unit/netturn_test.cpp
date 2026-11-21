@@ -7,9 +7,11 @@
 #include "doctest/doctest.h"
 
 #include "game/allocate.h"
+#include "game/game_wire_version.h"
 #include "game/mainscr.h"
 #include "game/netmox.h"
 #include "game/netturn.h"
+#include "game/player_network_serialization.h"
 
 namespace MULTPLAY {
     extern void (*g_chat_box_input_loop_hook)();
@@ -58,6 +60,78 @@ namespace {
     };
 
 #ifdef TEST_REAL_MAIN_RECEIVE
+    DOCTEST_TEST_CASE_FIXTURE(Network_Flags_Fixture_, "host does not count a rejected orders packet") {
+        const auto saved_screen = MOX::screen_seg;
+        const auto saved_hook = MULTPLAY::g_chat_box_input_loop_hook;
+        MOX::screen_seg = static_cast<s_animation_header*>(allocate::Allocate_Space(1024));
+        MOX::NUM_PLAYERS = 2;
+        players[0].objectives = PLAYER_OBJECTIVE_HUMAN;
+        players[1].objectives = PLAYER_OBJECTIVE_HUMAN;
+        NETMOX::net.local_net_id = NETMOX::net.net_host_id = players[0].network_player_id;
+        NETMOX::net.host_active_player_id = -1;
+        NETMOX::net.players_hit_next_turn[1] = 1;
+        NETMOX::net.player_is_active_flags[1] = 1;
+        MULTPLAY::g_chat_box_input_loop_hook = [] {
+            if (NETMOX::net.sync_state != NET_SYNC_STATE_HOST_RECEIVING_PLAYER_DATA) return;
+            uint8_t truncated = 0;
+            MAINSCR::Main_Receive_Message(0, 100, NET_PACKET_GAME_ORDERS_PAYLOAD, 1, &truncated);
+            DOCTEST_CHECK((NETMOX::net.network_data_ptr == nullptr));
+            MAINSCR::Main_Receive_Message(1, 101, NET_PACKET_GAME_ORDERS_PAYLOAD, 1, &truncated);
+            DOCTEST_CHECK(NETMOX::net.host_sync_counter == 1);
+        };
+
+        DOCTEST_CHECK_THROWS_WITH(NETTURN::Host_Next_Turn(), "Invalid multiplayer game orders; turn not advanced.");
+        DOCTEST_CHECK(NETMOX::net.host_sync_counter == 1);
+        DOCTEST_CHECK(NETMOX::net.host_orders_received_flags[1] == 0);
+        DOCTEST_CHECK((NETMOX::net.network_data_ptr == nullptr));
+        DOCTEST_CHECK((NETMOX::net.total_bytes_received == 0));
+        std::free(reinterpret_cast<s_alloc_header*>(MOX::screen_seg) - 1);
+        MOX::screen_seg = saved_screen;
+        MULTPLAY::g_chat_box_input_loop_hook = saved_hook;
+    }
+
+    DOCTEST_TEST_CASE_FIXTURE(Network_Flags_Fixture_, "new and loaded games check the wire version before applying setup") {
+        const auto check = [](auto& packet, uint16_t kind) {
+            DOCTEST_CAPTURE(kind);
+            const auto receive = [&] {
+                MAINSCR::Main_Receive_Message(1, 101, kind, sizeof(packet), &packet);
+            };
+
+            std::strcpy(packet.version_string, "Aug 15 2026"); // Legacy build-date token.
+            DOCTEST_CHECK_THROWS_WITH(receive(), "Incompatible multiplayer protocol version");
+
+            NETPROTO::Write_Setup_Version(packet.version_string);
+            std::memset(packet.version_string + sizeof(NETPROTO::GAME_WIRE_VERSION) - 1,
+                'x', sizeof(packet.version_string) - sizeof(NETPROTO::GAME_WIRE_VERSION) + 1);
+            DOCTEST_CHECK_THROWS_WITH(receive(), "Incompatible multiplayer protocol version");
+
+            NETPROTO::Write_Setup_Version(packet.version_string);
+            // A matching version reaches configuration validation. No config follows this prefix.
+            DOCTEST_CHECK_THROWS_WITH(receive(), "network configuration packet missing");
+        };
+
+        s_net_pack_start_game start{};
+        s_load_net_screen_packet load{};
+        check(start, NET_PACKET_START_GAME);
+        check(load, NET_PACKET_LOAD_GAME_START);
+    }
+
+    DOCTEST_TEST_CASE_FIXTURE(Network_Flags_Fixture_, "invalid player setup fails instead of leaving the host waiting") {
+        NETMOX::net.sync_state = NET_SYNC_STATE_HOST_WAITING_FOR_PLAYER_SETUP;
+        s_player player{};
+        player.network_player_id = 101;
+
+        // Older builds sent an untagged player record.
+        DOCTEST_CHECK_THROWS_WITH(MAINSCR::Main_Receive_Message(
+            1, 101, NET_PACKET_PLAYER_SETUP, sizeof(player), &player),
+            "Invalid multiplayer player setup packet. Make sure all players use compatible game versions.");
+        DOCTEST_CHECK(NETMOX::net.player_connected_flags[1] == 0);
+
+        auto packet = NETPROTO::Encode_Player(player);
+        MAINSCR::Main_Receive_Message(1, 101, NET_PACKET_PLAYER_SETUP, sizeof(packet), &packet);
+        DOCTEST_CHECK(NETMOX::net.player_connected_flags[1] == 1);
+    }
+
     DOCTEST_TEST_CASE_FIXTURE(Network_Flags_Fixture_, "network turns reject Lua authority before host or client execution") {
         struct s_authority_scope {
             bool allowed = TEST_LUA_NETWORK::authority_allowed;
@@ -247,7 +321,6 @@ DOCTEST_TEST_CASE("returns no host for empty input") {
 
 DOCTEST_TEST_CASE("client next turn preserves a payload that arrives before the final wait loop") {
     s_player players[2]{};
-    s_leader_data leaders[MAX_LEADERS]{};
     players[0].network_player_id = 176;
     players[0].objectives = PLAYER_OBJECTIVE_HUMAN;
     players[1].network_player_id = 174;
@@ -257,7 +330,7 @@ DOCTEST_TEST_CASE("client next turn preserves a payload that arrives before the 
     MOX::PLAYER_NUM = 1;
     MOX::NUM_PLAYERS = 2;
     MOX::NUM_STARS = 0;
-    MOX::leaders = leaders;
+    game::current_state = game::s_game_state{};
     MOX::game_type = 3;
     MOX::stardate = 35155;
     MOX::screen_seg = static_cast<s_animation_header*>(allocate::Allocate_Space(

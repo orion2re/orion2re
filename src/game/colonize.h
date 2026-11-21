@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include "object_ids.h"
 
 namespace COLONIZE {
     extern uint8_t first_pop_to_production;
@@ -25,9 +26,8 @@ namespace COLONIZE {
     void __cdecl AI_Colonize(int16_t player_idx);
 
     // Creates a new colony for the specified player on the target planet.
-    void __cdecl Make_New_Colony(int16_t planet_idx, int16_t player_idx);
-    // Creates either a colony or an outpost for the specified player on the target planet.
-    void __cdecl Make_New_Colony_Or_Outpost(int16_t planet_idx, int16_t player_idx, int16_t is_outpost);
+    bool __cdecl Make_New_Colony(game::id_planet planet_id, int16_t player_idx);
     // Creates a new outpost for the specified player on the target planet.
-    void __cdecl Make_New_Outpost(int16_t planet_idx, int16_t player_idx);
+    bool __cdecl Make_New_Outpost(game::id_planet planet_id, int16_t player_idx);
+    void Make_Debug_Colony(game::id_planet planet_id, int16_t player_idx);
 } // namespace COLONIZE

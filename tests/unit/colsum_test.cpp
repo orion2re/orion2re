@@ -1,4 +1,6 @@
 #include "pch.h"
+#include "../fixtures/colony_roster.h"
+#include "../fixtures/planet_roster.h"
 
 #include "doctest/doctest.h"
 #include "game/colsum.h"
@@ -15,9 +17,9 @@ namespace {
     s_colony* Prepare_Colony_() {
         TEST_COLONY_SCAN_INFO::Reset_();
 
-        s_colony* colony = &MOX::colony[0];
+        s_colony* colony = &test_colonies::Record(0);
         colony->owner = 0;
-        colony->planet = 0;
+        colony->planet_id = game::id_planet{0};
         colony->climate = PLANET_CLIMATE_TERRAN;
         colony->n_pops = 7;
         colony->pop_roundoff[0] = 250;
@@ -27,16 +29,16 @@ namespace {
         colony->production_spent = 40;
         colony->bought_outright = 10;
 
-        s_planet_data* planet = &MOX::planet[0];
+        s_planet_data* planet = &test_planets::Record(0);
         planet->size = PLANET_SIZE_MEDIUM;
         planet->gravity_class = PLANET_GRAVITY_NORMAL_G;
         planet->mineral_class = MINERAL_RESOURCE_RICH;
 
         s_player* player = &MOX::player[0];
         player->settlers_freighted = 3;
-        SETTLER::Set_Dest_Planet(&player->settlers[0].val, 0);
-        SETTLER::Set_Dest_Planet(&player->settlers[1].val, 0);
-        SETTLER::Set_Dest_Planet(&player->settlers[2].val, 1);
+        player->settlers[0].destination = game::id_planet{0};
+        player->settlers[1].destination = game::id_planet{0};
+        player->settlers[2].destination = game::id_planet{1};
 
         TEST_COLONY_SCAN_INFO::Set_Product_Cost_(120);
         return colony;
@@ -46,50 +48,50 @@ namespace {
 DOCTEST_TEST_CASE("stored production comparison is descending and ignores purchased production") {
     TEST_COLONY_SCAN_INFO::Reset_();
     COLSUM::g_sort_index = 7;
-    MOX::colony[0].production_spent = 32767;
-    MOX::colony[1].production_spent = 0;
-    MOX::colony[1].bought_outright = 32767;
+    test_colonies::Record(0).production_spent = 32767;
+    test_colonies::Record(1).production_spent = 0;
+    test_colonies::Record(1).bought_outright = 32767;
 
-    DOCTEST_CHECK(COLSUM::Switched_cmp(0, 1) < 0);
-    DOCTEST_CHECK(COLSUM::Switched_cmp(1, 0) > 0);
-    DOCTEST_CHECK(COLSUM::Switched_cmp(0, 0) == 0);
-    DOCTEST_CHECK(COLSUM::Switched_cmp(-1, 0) == 0);
-    DOCTEST_CHECK(COLSUM::Switched_cmp(0, -1) == 0);
+    DOCTEST_CHECK(COLSUM::Switched_cmp(game::id_colony{0}, game::id_colony{1}) < 0);
+    DOCTEST_CHECK(COLSUM::Switched_cmp(game::id_colony{1}, game::id_colony{0}) > 0);
+    DOCTEST_CHECK(COLSUM::Switched_cmp(game::id_colony{0}, game::id_colony{0}) == 0);
+    DOCTEST_CHECK(COLSUM::Switched_cmp(game::NO_COLONY, game::id_colony{0}) == 0);
+    DOCTEST_CHECK(COLSUM::Switched_cmp(game::id_colony{0}, game::NO_COLONY) == 0);
 
     COLSUM::g_sort_index = 0;
 }
 
 DOCTEST_TEST_CASE("stored production sort keeps ties stable and allows switching to industry") {
     TEST_COLONY_SCAN_INFO::Reset_();
-    int16_t colony_list[MAX_COLONIES];
-    std::fill_n(colony_list, MAX_COLONIES, static_cast<int16_t>(-1));
+    game::id_colony colony_list[MAX_COLONIES];
+    std::fill_n(colony_list, MAX_COLONIES, game::NO_COLONY);
     for (int16_t i = 0; i < 4; ++i) {
-        colony_list[i] = i;
-        MOX::colony[i].production[ECON_INDUSTRY] = i;
+        colony_list[i] = game::id_colony{static_cast<uint32_t>(i)};
+        test_colonies::Record(i).production[ECON_INDUSTRY] = i;
     }
-    MOX::colony[0].production_spent = 0;
-    MOX::colony[1].production_spent = 100;
-    MOX::colony[2].production_spent = 32767;
-    MOX::colony[3].production_spent = 100;
-    MOX::colony[0].bought_outright = 32767;
+    test_colonies::Record(0).production_spent = 0;
+    test_colonies::Record(1).production_spent = 100;
+    test_colonies::Record(2).production_spent = 32767;
+    test_colonies::Record(3).production_spent = 100;
+    test_colonies::Record(0).bought_outright = 32767;
 
-    int16_t* saved_list = COLXPORT::g_colony_list_ptr;
+    game::id_colony* saved_list = COLXPORT::g_colony_list_ptr;
     COLXPORT::g_colony_list_ptr = colony_list;
     COLSUM::g_sort_index = 7;
     COLSUM::Sort_Col_List();
 
-    DOCTEST_CHECK(colony_list[0] == 2);
-    DOCTEST_CHECK(colony_list[1] == 1);
-    DOCTEST_CHECK(colony_list[2] == 3);
-    DOCTEST_CHECK(colony_list[3] == 0);
+    DOCTEST_CHECK(colony_list[0] == game::id_colony{2});
+    DOCTEST_CHECK(colony_list[1] == game::id_colony{1});
+    DOCTEST_CHECK(colony_list[2] == game::id_colony{3});
+    DOCTEST_CHECK(colony_list[3] == game::id_colony{0});
     for (int i = 4; i < MAX_COLONIES; ++i) {
-        DOCTEST_CHECK(colony_list[i] == -1);
+        DOCTEST_CHECK(colony_list[i] == game::NO_COLONY);
     }
 
     COLSUM::g_sort_index = 3;
     COLSUM::Sort_Col_List();
     for (int i = 0; i < 4; ++i) {
-        DOCTEST_CHECK(colony_list[i] == 3 - i);
+        DOCTEST_CHECK(colony_list[i] == game::id_colony{static_cast<uint32_t>(3 - i)});
     }
 
     COLXPORT::g_colony_list_ptr = saved_list;
@@ -147,7 +149,7 @@ DOCTEST_TEST_CASE("colony detail readouts fall back to English for unsupported l
 
 DOCTEST_TEST_CASE("colony scan details leave the output empty without an active colony") {
     TEST_COLONY_SCAN_INFO::Reset_();
-    COLONY::g_colony_n = -1;
+    COLONY::g_colony_n = game::NO_COLONY;
     COLSUM::Draw_Colony_Scan_Info();
     DOCTEST_CHECK(TEST_COLONY_SCAN_INFO::Output_()[0] == '\0');
     TEST_COLONY_SCAN_INFO::Reset_();

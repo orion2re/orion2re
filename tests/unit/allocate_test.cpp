@@ -68,7 +68,18 @@ DOCTEST_TEST_CASE("header-backed arena exact fits include header and alignment")
 }
 
 DOCTEST_TEST_CASE("global screen space covers expanded non-AI screen structures") {
-    DOCTEST_CHECK(allocate::Global_Screen_Space() == 0x123D668u);
+    constexpr uint32_t legacy_capacity = 0x123D668u;
+    constexpr uint32_t ranked_bytes_saved = MAX_PLAYERS * MAX_PLANETS * (10 - sizeof(s_adv_civ_player_planet));
+    constexpr uint32_t wider_orbits = MAX_STARS * 5 * (sizeof(uint32_t) - sizeof(int16_t));
+    constexpr uint32_t wider_planets = MAX_PLANETS * (sizeof(s_planet_data) - 18);
+    constexpr uint32_t wider_summary_rows = 2 * MAX_PLANETS * (sizeof(uint32_t) - sizeof(int16_t));
+    constexpr uint32_t wider_score_rows = INT16_MAX * (sizeof(s_hiscore_tmp_pop) - 5) +
+        16 * (sizeof(s_hiscore_pop) - 4);
+    constexpr uint32_t bytes_before_rounding = legacy_capacity - ranked_bytes_saved + wider_orbits + wider_planets + wider_summary_rows + wider_score_rows + alignof(s_adv_civ_player) - 1;
+    // The frozen legacy capacity is already rounded up to a four-byte boundary.
+    const uint32_t actual = allocate::Global_Screen_Space();
+    DOCTEST_CHECK(actual >= (bytes_before_rounding & ~3u));
+    DOCTEST_CHECK(actual <= ((bytes_before_rounding + 3) & ~3u));
 }
 
 DOCTEST_TEST_CASE("aligned blocks preserve headers, bounds, and pool restoration") {

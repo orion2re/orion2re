@@ -935,14 +935,15 @@ namespace SCORE {
         s_hiscore_tmp_pop* temp_buffer = (s_hiscore_tmp_pop*)allocate::Allocate_Next_Block(MOX::screen_seg, alloc_size);
         memset(temp_buffer, 0, alloc_size);
 
-        for (int16_t col_idx = 0; col_idx < MOX::NUM_COLONIES; ++col_idx) {
+        for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
+            const auto col_idx = roster_id;
             if (limit_reached) break;
 
-            if (MOX::colony[col_idx].owner == player_idx) {
-                for (int16_t pop_idx = 0; pop_idx < MOX::colony[col_idx].n_pops; ++pop_idx) {
+            if (roster_colony.owner == player_idx) {
+                for (int16_t pop_idx = 0; pop_idx < roster_colony.n_pops; ++pop_idx) {
                     if (limit_reached) break;
 
-                    int16_t effective_player_idx = COLONY::Get_Effective_Pop_Player(col_idx, pop_idx);
+                    int16_t effective_player_idx = COLONY::Get_Effective_Pop_Player(roster_colony, pop_idx);
                     if (effective_player_idx < 0 || effective_player_idx >= MAX_PLAYERS) {
                         continue;
                     }
@@ -991,17 +992,17 @@ namespace SCORE {
                     if (SCORE::hi->reg_pop >= 16) break;
 
                     auto& pop_unit = SCORE::hi->pop_units[SCORE::hi->reg_pop];
-                    int16_t colony_idx = pop_unit.race_id;
                     int16_t pop_idx = pop_unit.icon_id;
 
+                    game::id_colony source_colony = game::NO_COLONY;
                     SCORE::Get_From_Tmp_Pop(
                         temp_buffer,
                         race_id,
                         population_limit,
-                        &colony_idx,
+                        &source_colony,
                         &pop_idx);
 
-                    pop_unit.race_id = colony_idx;
+                    pop_unit.colony_id = source_colony;
                     pop_unit.icon_id = pop_idx;
 
                     SCORE::hi->reg_pop++;
@@ -1125,9 +1126,10 @@ namespace SCORE {
             for (int16_t i = 0; i < current_pop; ++i) {
                 if (i < max_pop * 97) {
                     if (is_captured == 0) {
-                        anim = COLONY::Colony_Pop_Anim(
-                            SCORE::hi->pop_units[i].race_id,
-                            SCORE::hi->pop_units[i].icon_id);
+                        const auto& pop = SCORE::hi->pop_units[i];
+                        const auto colony = game::current_state.colonies.find(pop.colony_id.get());
+                        if (colony == game::current_state.colonies.end()) continue;
+                        anim = COLONY::Colony_Pop_Anim(colony->second, pop.icon_id);
                     } else {
                         anim = COLONY::Colony_Pop_Icon(
                             (uint16_t)(uint8_t)SCORE::hi->captured_pop_race_ids[i]);
@@ -1169,8 +1171,8 @@ namespace SCORE {
         SCORE::hi->next_draw_y += 3;
     }
 
-    void __cdecl Get_From_Tmp_Pop(s_hiscore_tmp_pop* tmp_pop_list, uint16_t race_idx, int16_t entry_count, int16_t* out_colony_idx, int16_t* out_pop_idx) {
-        int16_t first_match_colony = -1;
+    void __cdecl Get_From_Tmp_Pop(s_hiscore_tmp_pop* tmp_pop_list, uint16_t race_idx, int16_t entry_count, game::id_colony* out_colony_idx, int16_t* out_pop_idx) {
+        game::id_colony first_match_colony = game::NO_COLONY;
         int16_t first_match_pop = -1;
         bool found_unused = false;
         int16_t unused_index = 0;
@@ -1179,13 +1181,13 @@ namespace SCORE {
             s_hiscore_tmp_pop* entry = &tmp_pop_list[i];
 
             if (entry->race_idx == (uint8_t)race_idx) {
-                if (first_match_colony == -1) {
-                    first_match_colony = entry->colony_idx;
+                if (first_match_colony == game::NO_COLONY) {
+                    first_match_colony = entry->colony_idx.get();
                     first_match_pop = (int16_t)entry->pop_idx;
                 }
 
                 if (entry->is_used == 0) {
-                    *out_colony_idx = entry->colony_idx;
+                    *out_colony_idx = entry->colony_idx.get();
                     *out_pop_idx = (int16_t)entry->pop_idx;
                     found_unused = true;
                     unused_index = i;
@@ -1195,7 +1197,7 @@ namespace SCORE {
 
         if (found_unused) {
             tmp_pop_list[unused_index].is_used = 1;
-        } else if ((std::uintptr_t)out_colony_idx == (std::uintptr_t)-1) {
+        } else if (first_match_colony != game::NO_COLONY) {
             *out_colony_idx = first_match_colony;
             *out_pop_idx = first_match_pop;
         }

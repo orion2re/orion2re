@@ -2,11 +2,11 @@
 
 namespace aibomb {
 
-    bool __cdecl AI_Invasion_Will_Succeed(int8_t attacker_id, int16_t* ship_list, int32_t n_ships, s_colony* colony) {
+    bool __cdecl AI_Invasion_Will_Succeed(int8_t attacker_id, int16_t* ship_list, int32_t n_ships, game::id_colony colony_id, s_colony* colony) {
         s_invasion_side_info invader;
         s_invasion_side_info defender;
 
-        invasion::Get_Invasion_Info(ship_list, n_ships, colony, &invader, &defender);
+        invasion::Get_Invasion_Info(ship_list, n_ships, colony_id, colony, &invader, &defender);
 
         if (COMBFIND::current_star_has_player[attacker_id].transport_count > 0) {
             invader.current_troop_type_idx = UNIT_MARINES;

@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/colony_roster.h"
 
 #include "doctest/doctest.h"
 
@@ -22,13 +23,13 @@ namespace TEST_AIDUDES {
 DOCTEST_TEST_CASE("blockaded event-research colonies assign non-farmers to science") {
     TEST_AIDUDES::Reset_();
     TEST_AIDUDES::colony_researching = true;
-    MOX::colony[0].food2_per_farmer = 0;
+    test_colonies::Record(0).food2_per_farmer = 0;
     AIDATA::s_colony_assignment info = {};
-    info.colony_id = legacy_world::Colony_Id(0);
+    info.colony_id = game::id_colony{0};
     aidudes::Do_Blockaded_Colony(TEST_AIDUDES::World_(), &info);
     DOCTEST_CHECK(info.cur_pop_idx == 1);
-    DOCTEST_CHECK(POP::Get_Prof(MOX::colony[0].pop[0]) == POP::PROF_SCIENTIST);
-    DOCTEST_CHECK(POP::Is_Assigned(MOX::colony[0].pop[0]));
+    DOCTEST_CHECK(POP::Get_Prof(test_colonies::Record(0).pop[0]) == POP::PROF_SCIENTIST);
+    DOCTEST_CHECK(POP::Is_Assigned(test_colonies::Record(0).pop[0]));
     TEST_AIDUDES::Reset_();
 }
 
@@ -36,14 +37,14 @@ DOCTEST_TEST_CASE("blockaded colony stops assigning farmers when recalculation d
     TEST_AIDUDES::Reset_();
 
     AIDATA::s_colony_assignment colony_info = {};
-    colony_info.colony_id = legacy_world::Colony_Id(0);
+    colony_info.colony_id = game::id_colony{0};
 
     aidudes::Do_Blockaded_Colony(TEST_AIDUDES::World_(), &colony_info);
 
     DOCTEST_CHECK(TEST_AIDUDES::Pre_Import_Calls_() == 2);
     DOCTEST_CHECK(colony_info.cur_pop_idx == 1);
-    DOCTEST_CHECK(POP::Is_Worker(MOX::colony[0].pop[0]));
-    DOCTEST_CHECK(POP::Is_Assigned(MOX::colony[0].pop[0]));
+    DOCTEST_CHECK(POP::Is_Worker(test_colonies::Record(0).pop[0]));
+    DOCTEST_CHECK(POP::Is_Assigned(test_colonies::Record(0).pop[0]));
 }
 
 DOCTEST_TEST_CASE("maintenance marks a ship scrapped before recalculation and reassigns its officer") {
@@ -55,7 +56,7 @@ DOCTEST_TEST_CASE("maintenance marks a ship scrapped before recalculation and re
     DOCTEST_CHECK(MOX::ship[0].status == 7);
     DOCTEST_CHECK(MOX::ship[0].officer_index == -1);
     DOCTEST_CHECK((MOX::ship[1].officer_index == 0));
-    DOCTEST_CHECK((MOX::leaders[0].location == 1));
+    DOCTEST_CHECK(game::current_state.leaders[0].location == 1);
     DOCTEST_CHECK(TEST_AIDUDES::Pooled_Officer_() == -1);
 }
 
@@ -68,7 +69,7 @@ DOCTEST_TEST_CASE("maintenance considers officer replacements in descending ship
     DOCTEST_CHECK(MOX::ship[0].officer_index == -1);
     DOCTEST_CHECK((MOX::ship[1].officer_index == -1));
     DOCTEST_CHECK((MOX::ship[2].officer_index == 0));
-    DOCTEST_CHECK((MOX::leaders[0].location == 2));
+    DOCTEST_CHECK(game::current_state.leaders[0].location == 2);
     DOCTEST_CHECK(TEST_AIDUDES::Pooled_Officer_() == -1);
 }
 
@@ -79,7 +80,7 @@ DOCTEST_TEST_CASE("maintenance pools an officer when the scrapped ship has no re
 
     DOCTEST_CHECK(TEST_AIDUDES::Status_During_Recalculation_() == 7);
     DOCTEST_CHECK(MOX::ship[0].officer_index == -1);
-    DOCTEST_CHECK((MOX::leaders[0].location == -1));
+    DOCTEST_CHECK(game::current_state.leaders[0].location == -1);
     DOCTEST_CHECK(TEST_AIDUDES::Pooled_Officer_() == 0);
 }
 

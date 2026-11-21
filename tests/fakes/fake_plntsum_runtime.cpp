@@ -1,13 +1,15 @@
 #include "pch.h"
+#include "../fixtures/colony_roster.h"
+#include "../fixtures/planet_roster.h"
 
 #include "doctest/doctest.h"
 #include "fake_plntsum_runtime.h"
 
 namespace {
     s_player players[MAX_PLAYERS];
-    s_planet_data planets[MAX_PLANETS];
+
     s_star_data stars[MAX_STARS + 1];
-    s_colony colonies[2];
+    test_colonies::Slots<2> colonies;
     s_ship_data ships[8];
     s_scroll_bar scroll;
     s_plntsum_screen screen;
@@ -20,15 +22,13 @@ namespace {
 
 namespace MOX {
     s_player* player = players;
-    s_planet_data* planet = planets;
+
     s_star_data* star = stars;
-    s_colony* colony = colonies;
     s_ship_data* ship = ships;
-    s_leader_data* leaders = nullptr;
     s_scroll_bar* scroll_bar = &scroll;
     s_animation_header* screen_seg = nullptr;
     int16_t PLAYER_NUM;
-    int16_t planet_count;
+
     int16_t scanned_field;
     int16_t ship_stack_count;
     int16_t NUM_SHIPS;
@@ -59,9 +59,9 @@ namespace TEST_PLNTSUM {
 
     void Reset_() {
         memset(players, 0, sizeof(players));
-        memset(planets, 0, sizeof(planets));
+        test_planets::Reset(0);
         memset(stars, 0, sizeof(stars));
-        memset(colonies, 0, sizeof(colonies));
+        colonies.Reset();
         memset(ships, 0, sizeof(ships));
         memset(&scroll, 0, sizeof(scroll));
         memset(&screen, 0, sizeof(screen));
@@ -82,21 +82,21 @@ namespace TEST_PLNTSUM {
         memset(summary, 0xFF, sizeof(summary));
         memset(MOX::ship_stack_start, 0xFF, sizeof(MOX::ship_stack_start));
         memset(MOX::ship_node, 0xFF, sizeof(MOX::ship_node));
-        for (auto& planet : planets) {
-            planet.colony_index = -1;
+        for (auto& [id, planet] : game::current_state.planets) {
+            planet.colony_id = game::NO_COLONY;
             planet.planet_type = PLANET_TYPE_ASTEROID;
         }
         for (auto& star : stars) {
             memset(star.officer_index, 0xFF, sizeof(star.officer_index));
             for (int orbit = 0; orbit < 5; ++orbit) {
-                star.planet_index[orbit] = -1;
+                star.orbit_planet_ids[orbit] = game::NO_PLANET;
             }
         }
         for (bool& reachable : in_range) {
             reachable = true;
         }
         MOX::PLAYER_NUM = 0;
-        MOX::planet_count = 0;
+        test_planets::Resize_Dense(0);
         MOX::ship_stack_count = 0;
         MOX::NUM_SHIPS = 0;
         MOX::NUM_STARS = 0;
@@ -195,7 +195,7 @@ namespace HACCESS {
         return 0;
     }
 
-    char* __cdecl Get_Planet_Name_No_Prime(int16_t) {
+    char* Get_Planet_Name_No_Prime(const game::s_game_state&, game::id_planet) {
         static char name[] = "Test planet";
         return name;
     }
@@ -210,7 +210,7 @@ namespace COLCALC {
 } // namespace COLCALC
 
 namespace EVENTS {
-    void __cdecl Kill_All_Events_At_Colony(int16_t) {}
+    void __cdecl Kill_All_Events_At_Colony(game::id_colony) {}
 
     int16_t __cdecl Event_Check_Hyperspace_Flux() {
         return TEST_PLNTSUM::hyperspace_flux;
@@ -218,7 +218,7 @@ namespace EVENTS {
 } // namespace EVENTS
 
 namespace COLBLDG {
-    void __cdecl Clear_Colony_Queue(int16_t) {}
+    void __cdecl Clear_Colony_Queue(game::s_game_state&, game::id_colony) {}
 } // namespace COLBLDG
 
 namespace MSG_ {
@@ -226,7 +226,7 @@ namespace MSG_ {
 } // namespace MSG_
 
 namespace invasion {
-    void __cdecl Assign_New_Home_Planet(int8_t, int16_t) {
+    void __cdecl Assign_New_Home_Planet(const game::s_game_state&, int8_t, game::id_colony) {
         DOCTEST_FAIL("Unexpected homeworld in colony destruction fixture");
     }
 } // namespace invasion
@@ -310,7 +310,6 @@ namespace MAINSCR {
 
 namespace SHIPS {
     void __cdecl Clear_Auto_Colonization_Flag(s_ship_data* ship) {
-        ship->d.ship_weapon[1].type = 0;
-        ship->d.ship_weapon[0].type = -1;
+        ship->colonization_target = game::NO_PLANET;
     }
 } // namespace SHIPS

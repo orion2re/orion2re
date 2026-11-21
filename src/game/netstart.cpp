@@ -1,8 +1,10 @@
 #include "pch.h"
+#include "player_network_serialization.h"
 
 #include "config/config_loader.h"
 #include "config/config_snapshot.h"
 #include "game/netstart_roster.h"
+#include "game/game_wire_version.h"
 #include "game/serialization.h"
 #include "lua/lua_mod_runtime.h"
 #include "lua/lua_network.h"
@@ -132,7 +134,8 @@ namespace NETSTART {
         NETMOX::net.network_data_ptr = nullptr;
         NETMOX::net.sync_state = NET_SYNC_STATE_WAITING_FOR_GAME_DATA;
 
-        NETMOX::Mox_Send_Message(NETMOX::net.host_election_id, NET_PACKET_PLAYER_SETUP, local_player, sizeof(*local_player));
+        auto packet = NETPROTO::Encode_Player(*local_player);
+        NETMOX::Mox_Send_Message(NETMOX::net.host_election_id, NET_PACKET_PLAYER_SETUP, &packet, sizeof(packet));
 
         while (NETMOX::net.network_data_ptr == nullptr) {
             fields::Get_Input();
@@ -386,7 +389,7 @@ namespace NETSTART {
         msg.starting_civilization_level = MOX::settings.starting_civilization_level;
         msg.xenons_exist = MOX::settings.xenons_exist;
 
-        strlcpy(msg.version_string, GAME_BUILD_DATE, sizeof(msg.version_string));
+        NETPROTO::Write_Setup_Version(msg.version_string);
 
         memset(RACESEL::color_flag, 0, sizeof(RACESEL::color_flag));
         memset(NETMOX::net.player_connected_flags, 0, sizeof(NETMOX::net.player_connected_flags));
@@ -754,7 +757,7 @@ namespace NETSTART {
             }
         }
 
-        strlcpy(payload.version_string, GAME_BUILD_DATE, sizeof(payload.version_string));
+        NETPROTO::Write_Setup_Version(payload.version_string);
         Send_Configured_Setup_Message(
             NET_PACKET_LOAD_GAME_START, &payload, sizeof(payload));
 

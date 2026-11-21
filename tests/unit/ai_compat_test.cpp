@@ -5,7 +5,6 @@
 #include "../fixtures/game_state.h"
 
 using legacy_world::Star_Id;
-using legacy_world::Colony_Id;
 
 DOCTEST_TEST_CASE("coverage counts do not wrap at the old byte boundary") {
     test::s_game_state game_state;
@@ -19,23 +18,22 @@ DOCTEST_TEST_CASE("coverage counts do not wrap at the old byte boundary") {
         auto& stars = game_state.stars;
         for (auto& star : stars) star.wormhole_star_id = -1;
         std::vector<s_colony> colonies(257);
-        std::vector<s_planet_data> planets(257);
+        game::s_game_state roster;
         for (uint32_t i = 0; i < 257; ++i) {
             colonies[i].owner = 0;
-            colonies[i].planet = (int16_t)i;
-            planets[i].star_index = (int16_t)(i / 5);
+            colonies[i].planet_id = SERIAL::Decode_Legacy_Planet_Reference((int16_t)i);
+            roster.Create_Planet({.star_index = static_cast<int16_t>(i / 5)});
+            if (i < static_cast<uint32_t>(count)) roster.Create_Colony(colonies[i]);
         }
         int16_t players = 1;
         int16_t star_count = 52;
         const game::s_view world{
             .players = &player,
             .stars = stars.data(),
-            .colonies = colonies.data(),
-            .planets = planets.data(),
+            .state = &roster,
             .settings = &settings,
             .player_count = &players,
             .star_count = &star_count,
-            .colony_count = &count,
         };
         AIDATA::Compute_Star_Player_Range_Info(&ai, &world);
         DOCTEST_CHECK(ai.stars.at(Star_Id(0)).neighborhood.per_player[0].covering_colony_count == (uint32_t)count);
@@ -144,7 +142,7 @@ DOCTEST_TEST_CASE("strategic AI input diagnostics identify the failing requireme
     s_star_data star{};
     s_colony colony{};
     s_planet_data planet{};
-    s_leader_data leader{};
+    game::s_game_state state;
     s_settings settings{};
     int16_t players = 1;
     int16_t count = 0;
@@ -153,15 +151,11 @@ DOCTEST_TEST_CASE("strategic AI input diagnostics identify the failing requireme
         .players = &player,
         .ships = &ship,
         .stars = &star,
-        .colonies = &colony,
-        .planets = &planet,
-        .leaders = &leader,
+        .state = &state,
         .settings = &settings,
         .player_count = &players,
         .ship_count = &count,
         .star_count = &count,
-        .colony_count = &count,
-        .planet_count = &count,
         .stardate = &date,
     };
     DOCTEST_CHECK(AIDATA::Validate_Inputs(&world) == nullptr);
@@ -172,13 +166,14 @@ DOCTEST_TEST_CASE("strategic AI input diagnostics identify the failing requireme
 }
 
 DOCTEST_TEST_CASE("production queue removal keeps colony identities and queue positions distinct") {
-    s_colony colonies[3] = {};
-    const game::s_view world{.colonies = colonies};
-    game::id_colony queue[] = {Colony_Id(2), Colony_Id(0), Colony_Id(1)};
+    game::s_game_state state;
+    for (int i = 0; i < 3; ++i) state.Create_Colony({});
+    const game::s_view world{.state = &state};
+    game::id_colony queue[] = {game::id_colony{2}, game::id_colony{0}, game::id_colony{1}};
     int32_t count = 3;
     AIBUILD::Force_Produce(&world, queue, 1, &count, COLONY_PRODUCTION_HOUSING);
     DOCTEST_CHECK(count == 2);
-    DOCTEST_CHECK(queue[0] == Colony_Id(2));
-    DOCTEST_CHECK(queue[1] == Colony_Id(1));
-    DOCTEST_CHECK((int16_t)colonies[0].producing[0] == COLONY_PRODUCTION_HOUSING);
+    DOCTEST_CHECK(queue[0] == game::id_colony{2});
+    DOCTEST_CHECK(queue[1] == game::id_colony{1});
+    DOCTEST_CHECK(state.colonies.at(game::id_colony{0}).producing[0] == COLONY_PRODUCTION_HOUSING);
 }

@@ -53,12 +53,10 @@ namespace MOX {
     s_antaran antarans = {};
     s_nebula* nebula = nullptr;
     uint8_t NUM_NEBULAS = 0;
-    int16_t NUM_COLONIES = 0;
-    int16_t planet_count = 0;
-    s_planet_data* planet = nullptr;
+
+
     int16_t NUM_SHIPS = 0;
     s_ship_data* ship = nullptr;
-    s_leader_data* leaders = nullptr;
     s_colony* colony = nullptr;
     int16_t bill_savegame[6] = {};
 } // namespace MOX
@@ -141,8 +139,8 @@ namespace COMBFIND {
     void __cdecl Client_Combat_Loop() {}
     void __cdecl Do_Net_Combat_Update(bool) {}
     void __cdecl Copy_Target_Info(s_combfind_target*) {}
-    int16_t __cdecl Target_Colony_To_Planet(int16_t colony_idx) {
-        return colony_idx;
+    game::id_planet __cdecl Target_Colony_To_Planet(game::id_colony colony_idx) {
+        return colony_idx == game::NO_COLONY ? game::NO_PLANET : game::id_planet{colony_idx.id};
     }
     void __cdecl Decode_Star_Player_Presence(NETPROTO::Packet_Reader_*, int16_t) {}
     void __cdecl Send_Star_Player_Presence(NETPROTO::Packet_Writer_*, int16_t) {}
@@ -152,7 +150,7 @@ namespace EVENTS {
     s_event_data event_data[36] = {};
     uint32_t last_event_year = 0;
     int16_t event_delay_count = 0;
-    void __cdecl Event_Monster_Update(int16_t, int16_t, int16_t) {}
+    void __cdecl Event_Monster_Update(int16_t, game::id_planet, int16_t) {}
 } // namespace EVENTS
 
 namespace REPORT {
@@ -247,7 +245,7 @@ namespace diplomac {
 } // namespace diplomac
 
 namespace BOMB {
-    void __cdecl Destroy_Colony(s_colony*, int32_t) {}
+    void __cdecl Destroy_Colony(game::s_game_state&, game::id_colony, int32_t) {}
 } // namespace BOMB
 
 namespace RUSS {

@@ -2,9 +2,487 @@
 
 #include <fstream>
 
+#include "game/leader_serialization.h"
+#include "game/planet_serialization.h"
+#include "game/star_serialization.h"
+#include "game/colony_serialization.h"
+#include "game/colony_roster_serialization.h"
+#include "game/settler_serialization.h"
+#include "game/ship_serialization.h"
+#include "game/notice_serialization.h"
+#include "game/event_serialization.h"
+#include "game/savegame.h"
 #include "game/turn_oracle_history.h"
 
 namespace turn_oracle {
+    namespace {
+        constexpr size_t SAVE_VERSION_OFFSET = sizeof(uint32_t) +
+            sizeof(SAVEGAME::s_metadata::description) + sizeof(int32_t) + sizeof(int8_t);
+        constexpr uint16_t VERSION_BEFORE_LEADER_IDS = 7;
+        constexpr uint16_t VERSION_WITH_LEADER_IDS = 8;
+
+        bool Has_Save_Version(const std::vector<uint8_t>& bytes, uint16_t version) {
+            return bytes.size() >= SAVE_VERSION_OFFSET + sizeof(uint16_t) &&
+                bytes[0] == SAVEGAME::VERSIONED_HEADER && bytes[1] == 0 && bytes[2] == 0 && bytes[3] == 0 &&
+                bytes[SAVE_VERSION_OFFSET] == version && bytes[SAVE_VERSION_OFFSET + 1] == 0;
+        }
+
+        bool Normalize_Save_Ids(std::vector<uint8_t>& bytes, bool implicit_leader_ids) {
+            // Frozen v7 and early v8 widths, not sizeof() of the live game records.
+            constexpr size_t settings_bytes = 0x229;
+            constexpr size_t colony_bytes = 0x16a;
+            constexpr size_t planet_bytes = 0x12;
+            constexpr size_t star_bytes = 0xea;
+            constexpr uint16_t max_colonies_and_planets = 5120;
+            constexpr uint16_t max_stars = 1024;
+            size_t offset = SAVE_VERSION_OFFSET + sizeof(uint16_t) + settings_bytes + sizeof(uint32_t);
+            const auto skip_records = [&](size_t record_bytes, uint16_t max_count, bool colonies = false) {
+                if (offset > bytes.size() || bytes.size() - offset < sizeof(uint16_t)) return false;
+                uint16_t count = bytes[offset] | (bytes[offset + 1] << 8);
+                const bool reservations = colonies && (count & SERIAL::COLONY_RESERVATIONS_FLAG);
+                if (colonies && (count & SERIAL::KEYED_COLONY_COUNT_FLAG)) {
+                    count &= ~(SERIAL::KEYED_COLONY_COUNT_FLAG | SERIAL::COLONY_RESERVATIONS_FLAG);
+                    record_bytes = SERIAL::COLONY_BYTES;
+                    offset += 4;
+                } else if (colonies && (count & SERIAL::WIDE_COLONY_PLANET_FLAG)) {
+                    count &= ~SERIAL::WIDE_COLONY_PLANET_FLAG;
+                    record_bytes += 2;
+                }
+                offset += sizeof(uint16_t);
+                if (offset > bytes.size()) return false;
+                const size_t size = count * record_bytes;
+                if (count > max_count || size > bytes.size() - offset) return false;
+                offset += size;
+                if (reservations) {
+                    if (bytes.size() - offset < 2) return false;
+                    const auto reserved = bytes[offset] | (bytes[offset + 1] << 8);
+                    const auto reservation_bytes = 2 + reserved * SERIAL::COLONY_RESERVATION_BYTES;
+                    if (reserved > MAX_COLONIES || reservation_bytes > bytes.size() - offset) return false;
+                    offset += reservation_bytes;
+                }
+                return true;
+            };
+            if (!skip_records(colony_bytes, max_colonies_and_planets, true) ||
+                bytes.size() - offset < sizeof(uint16_t)) return false;
+            const size_t planet_count_offset = offset;
+            const uint16_t count = bytes[offset] | (bytes[offset + 1] << 8);
+            if ((count & SERIAL::KEYED_PLANET_COUNT_FLAG) != 0) return !implicit_leader_ids;
+            if (!skip_records(planet_bytes, max_colonies_and_planets)) return false;
+            const size_t stars_offset = offset;
+            if (!skip_records(star_bytes, max_stars)) return false;
+            const size_t leader_bytes = implicit_leader_ids ? MAX_LEADERS * SERIAL::LEGACY_LEADER_BYTES : SERIAL::LEADER_STATE_BYTES;
+            if (bytes.size() - offset < leader_bytes) return false;
+
+            std::vector<uint8_t> upgraded;
+            upgraded.reserve(bytes.size() + (1 + count + (implicit_leader_ids ? MAX_LEADERS : 0)) * sizeof(uint32_t));
+            upgraded.insert(upgraded.end(), bytes.begin(), bytes.begin() + planet_count_offset + sizeof(uint16_t));
+            upgraded[SAVE_VERSION_OFFSET] = VERSION_WITH_LEADER_IDS;
+            upgraded[planet_count_offset + 1] |= SERIAL::KEYED_PLANET_COUNT_FLAG >> 8;
+            const auto append_id = [&](uint32_t id) {
+                for (unsigned shift = 0; shift < 32; shift += 8) {
+                    upgraded.push_back(static_cast<uint8_t>(id >> shift));
+                }
+            };
+            append_id(count); // Legacy IDs were dense; the next ID was the count.
+            size_t cursor = planet_count_offset + sizeof(uint16_t);
+            for (uint32_t slot = 0; slot < count; ++slot) {
+                append_id(slot);
+                upgraded.insert(upgraded.end(), bytes.begin() + cursor, bytes.begin() + cursor + planet_bytes);
+                cursor += planet_bytes;
+            }
+            upgraded.insert(upgraded.end(), bytes.begin() + stars_offset, bytes.begin() + offset);
+            if (implicit_leader_ids) {
+                for (uint32_t slot = 0; slot < MAX_LEADERS; ++slot) {
+                    append_id(slot);
+                    upgraded.insert(upgraded.end(), bytes.begin() + offset, bytes.begin() + offset + SERIAL::LEGACY_LEADER_BYTES);
+                    offset += SERIAL::LEGACY_LEADER_BYTES;
+                }
+            }
+            upgraded.insert(upgraded.end(), bytes.begin() + offset, bytes.end());
+            bytes = std::move(upgraded);
+            return true;
+        }
+
+        std::optional<size_t> Planet_Count_Offset(const std::vector<uint8_t>& bytes) {
+            constexpr size_t colonies = 605; // Header, settings, and seed in v7/v8.
+            if (bytes.size() < colonies + 2) return std::nullopt;
+            const uint16_t field = bytes[colonies] | (bytes[colonies + 1] << 8);
+            const bool keyed = field & SERIAL::KEYED_COLONY_COUNT_FLAG;
+            const size_t width = keyed ? SERIAL::COLONY_BYTES : field & SERIAL::WIDE_COLONY_PLANET_FLAG ? SERIAL::COLONY_FIELDS_BYTES : SERIAL::LEGACY_COLONY_BYTES;
+            const uint16_t count = field & ~(SERIAL::WIDE_COLONY_PLANET_FLAG | SERIAL::KEYED_COLONY_COUNT_FLAG | SERIAL::COLONY_RESERVATIONS_FLAG);
+            size_t planets = colonies + 2 + (keyed ? 4 : 0) + count * width;
+            if (field & SERIAL::COLONY_RESERVATIONS_FLAG) {
+                if (planets + 2 > bytes.size()) return std::nullopt;
+                const auto reserved = bytes[planets] | (bytes[planets + 1] << 8);
+                if (reserved > MAX_COLONIES) return std::nullopt;
+                planets += 2 + reserved * SERIAL::COLONY_RESERVATION_BYTES;
+            }
+            return count <= MAX_COLONIES && planets + 2 <= bytes.size() ? std::optional{planets} : std::nullopt;
+        }
+
+        bool Strip_Colony_Reservations(std::vector<uint8_t>& bytes) {
+            constexpr size_t header = 605;
+            const auto planets = Planet_Count_Offset(bytes);
+            if (!planets) return false;
+            const uint16_t field = bytes[header] | (bytes[header + 1] << 8);
+            if (!(field & SERIAL::KEYED_COLONY_COUNT_FLAG)) return false;
+            const auto count = field & ~(SERIAL::KEYED_COLONY_COUNT_FLAG | SERIAL::COLONY_RESERVATIONS_FLAG);
+            const size_t start = header + 2 + 4 + count * SERIAL::COLONY_BYTES;
+            bytes.erase(bytes.begin() + start, bytes.begin() + *planets);
+            bytes[header + 1] &= ~(SERIAL::COLONY_RESERVATIONS_FLAG >> 8);
+            return true;
+        }
+
+        std::optional<size_t> Star_Count_Offset(const std::vector<uint8_t>& bytes) {
+            const auto planets = Planet_Count_Offset(bytes);
+            if (!planets) return std::nullopt;
+            const uint16_t field = bytes[*planets] | (bytes[*planets + 1] << 8);
+            const bool keyed = field & SERIAL::KEYED_PLANET_COUNT_FLAG;
+            const uint16_t count = field & ~(SERIAL::KEYED_PLANET_COUNT_FLAG | SERIAL::WIDE_PLANET_COLONY_FLAG);
+            const size_t width = (keyed ? 4 : 0) + ((field & SERIAL::WIDE_PLANET_COLONY_FLAG)
+                ? SERIAL::PLANET_FIELDS_BYTES : SERIAL::NARROW_COLONY_PLANET_BYTES);
+            const size_t stars = *planets + 2 + (keyed ? 4 : 0) + count * width;
+            return count <= MAX_PLANETS && stars + 2 <= bytes.size() ? std::optional{stars} : std::nullopt;
+        }
+
+        bool Upgrade_Planet_Colony_Ids(std::vector<uint8_t>& bytes, size_t planets) {
+            const uint16_t field = bytes[planets] | (bytes[planets + 1] << 8);
+            if (!(field & SERIAL::KEYED_PLANET_COUNT_FLAG) || !Star_Count_Offset(bytes)) return false;
+            const size_t count = field & ~SERIAL::KEYED_PLANET_COUNT_FLAG;
+            constexpr size_t width = sizeof(uint32_t) + SERIAL::NARROW_COLONY_PLANET_BYTES;
+            for (size_t i = count; i-- > 0;) {
+                const size_t offset = planets + 2 + 4 + i * width + sizeof(uint32_t);
+                const auto id = SERIAL::Decode_Legacy_Colony_Reference(static_cast<int16_t>(bytes[offset] | (bytes[offset + 1] << 8)));
+                bytes[offset] = static_cast<uint8_t>(id.id);
+                bytes[offset + 1] = static_cast<uint8_t>(id.id >> 8);
+                bytes.insert(bytes.begin() + offset + 2, {static_cast<uint8_t>(id.id >> 16), static_cast<uint8_t>(id.id >> 24)});
+            }
+            bytes[planets + 1] |= SERIAL::WIDE_PLANET_COLONY_FLAG >> 8;
+            return true;
+        }
+
+        bool Upgrade_Colony_Planet_Ids(std::vector<uint8_t>& bytes) {
+            constexpr size_t count_offset = 605;
+            constexpr size_t start = count_offset + 2;
+            constexpr size_t legacy_width = 0x16a;
+            const size_t count = bytes[count_offset] | (bytes[count_offset + 1] << 8);
+            if (count > 5120 || count * legacy_width > bytes.size() - start) return false;
+            for (size_t colony = count; colony-- > 0;) {
+                const size_t offset = start + colony * legacy_width + 2;
+                const auto id = SERIAL::Decode_Legacy_Planet_Reference(
+                    static_cast<int16_t>(bytes[offset] | (bytes[offset + 1] << 8)));
+                bytes[offset] = static_cast<uint8_t>(id.id);
+                bytes[offset + 1] = static_cast<uint8_t>(id.id >> 8);
+                bytes.insert(bytes.begin() + offset + 2,
+                    {static_cast<uint8_t>(id.id >> 16), static_cast<uint8_t>(id.id >> 24)});
+            }
+            bytes[count_offset + 1] |= SERIAL::WIDE_COLONY_PLANET_FLAG >> 8;
+            return true;
+        }
+
+        bool Upgrade_Colony_Roster(std::vector<uint8_t>& bytes) {
+            constexpr size_t count_offset = 605;
+            const uint16_t field = bytes[count_offset] | (bytes[count_offset + 1] << 8);
+            const uint16_t slots = field & ~SERIAL::WIDE_COLONY_PLANET_FLAG;
+            const auto end = Planet_Count_Offset(bytes);
+            if (!end) return false;
+            const bool wide = field & SERIAL::WIDE_COLONY_PLANET_FLAG;
+            const size_t width = wide ? SERIAL::COLONY_FIELDS_BYTES : SERIAL::LEGACY_COLONY_BYTES;
+            std::vector<uint8_t> keyed(bytes.begin(), bytes.begin() + count_offset + 2);
+            const auto append_key = [&](uint32_t value) {
+                for (unsigned shift = 0; shift < 32; shift += 8) keyed.push_back(static_cast<uint8_t>(value >> shift));
+            };
+            append_key(slots);
+            uint16_t live = 0;
+            for (uint32_t id = 0; id < slots; ++id) {
+                const auto* record = bytes.data() + count_offset + 2 + id * width;
+                const auto link = wide ? game::id_planet{static_cast<uint32_t>(record[2]) |
+                    (static_cast<uint32_t>(record[3]) << 8) | (static_cast<uint32_t>(record[4]) << 16) |
+                    (static_cast<uint32_t>(record[5]) << 24)} : SERIAL::Decode_Legacy_Planet_Reference(
+                        static_cast<int16_t>(record[2] | (record[3] << 8)));
+                if (link == game::NO_PLANET || (record[0] == 0 &&
+                    std::all_of(record + 2, record + width, [](uint8_t b) { return b == 0; }))) continue;
+                ++live;
+                append_key(id);
+                keyed.insert(keyed.end(), record, record + 2);
+                append_key(link.id);
+                keyed.insert(keyed.end(), record + (wide ? 6 : 4), record + width);
+            }
+            const uint16_t count = live | SERIAL::KEYED_COLONY_COUNT_FLAG;
+            keyed[count_offset] = static_cast<uint8_t>(count);
+            keyed[count_offset + 1] = static_cast<uint8_t>(count >> 8);
+            keyed.insert(keyed.end(), bytes.begin() + *end, bytes.end());
+            bytes = std::move(keyed);
+            return true;
+        }
+
+        std::optional<size_t> Player_Count_Offset(const std::vector<uint8_t>& bytes) {
+            const auto stars = Star_Count_Offset(bytes);
+            if (!stars) return std::nullopt;
+            const uint16_t field = bytes[*stars] | (bytes[*stars + 1] << 8);
+            const size_t width = (field & SERIAL::WIDE_ORBIT_IDS_FLAG) ? 0xf4 : 0xea;
+            const auto count = field & ~SERIAL::WIDE_ORBIT_IDS_FLAG;
+            const size_t offset = *stars + 2 + count * width + SERIAL::LEADER_STATE_BYTES;
+            if (count > 1024 || offset + 2 > bytes.size()) return std::nullopt;
+            return offset;
+        }
+
+        bool Upgrade_Orbit_Ids(std::vector<uint8_t>& bytes, size_t stars) {
+            constexpr size_t old_width = 0xea;
+            constexpr size_t orbit_offset = 0xc3;
+            const size_t count = bytes[stars] | (bytes[stars + 1] << 8);
+            const size_t start = stars + 2;
+            if (count > 1024 || count * old_width > bytes.size() - start) return false;
+            bytes[stars + 1] |= SERIAL::WIDE_ORBIT_IDS_FLAG >> 8;
+            for (size_t star = count; star-- > 0;) {
+                for (size_t orbit = 5; orbit-- > 0;) {
+                    const size_t offset = start + star * old_width + orbit_offset + orbit * 2;
+                    const int16_t raw = static_cast<int16_t>(bytes[offset] | (bytes[offset + 1] << 8));
+                    const uint8_t fill = raw < 0 ? 0xff : 0;
+                    if (raw < 0) bytes[offset] = bytes[offset + 1] = fill;
+                    bytes.insert(bytes.begin() + offset + 2, {fill, fill});
+                }
+            }
+            return true;
+        }
+
+        size_t Freight_Record_Bytes(uint16_t flags) {
+            if (flags & SERIAL::WIDE_FREIGHT_COLONY_FLAG) return SERIAL::SETTLER_BYTES;
+            if (flags & SERIAL::FIELD_SETTLERS_FLAG) return SERIAL::NARROW_SOURCE_SETTLER_BYTES;
+            return 8;
+        }
+
+        size_t Player_Record_Bytes(uint16_t flags) {
+            return 0xf0e + 25 * (Freight_Record_Bytes(flags) - 8) +
+                ((flags & SERIAL::WIDE_HOME_PLANET_FLAG) ? 2 : 0) +
+                ((flags & SERIAL::WIDE_ATTACK_PLANETS_FLAG) ? 18 : 0);
+        }
+
+        bool Upgrade_Freight(std::vector<uint8_t>& bytes, size_t player_count_offset) {
+            const uint16_t flags = static_cast<uint16_t>(bytes[player_count_offset + 1] << 8);
+            const size_t player_bytes = Player_Record_Bytes(flags);
+            const size_t freight_bytes = Freight_Record_Bytes(flags);
+            const size_t first_settler = 0x42 + ((flags & SERIAL::WIDE_HOME_PLANET_FLAG) ? 2 : 0);
+            constexpr size_t base_records = 25;
+            constexpr size_t extra_records = 8 * (1000 - base_records);
+            const size_t players = player_count_offset + 2;
+            const size_t ships = players + 8 * player_bytes;
+            if (ships > bytes.size() || bytes.size() - ships < 2) return false;
+            const uint16_t ship_field = bytes[ships] | (bytes[ships + 1] << 8);
+            const auto ship_count = ship_field & ~SERIAL::SHIP_MISSION_PLANETS_FLAG;
+            const size_t ship_width = (ship_field & SERIAL::SHIP_MISSION_PLANETS_FLAG)
+                ? SERIAL::SHIP_RECORD_BYTES : SERIAL::LEGACY_SHIP_RECORD_BYTES;
+            // 129 bytes per ship; fixed game fields through the nebula count;
+            // then 5 bytes per nebula and the fixed game tail before freight.
+            const size_t nebulas = ships + 2 + ship_width * ship_count + 163;
+            if (ship_count > 10000 || nebulas >= bytes.size()) return false;
+            const size_t report_count = nebulas + 1 + bytes[nebulas] * 5 + 12;
+            if (report_count + 2 > bytes.size()) return false;
+            const bool wide_notices = (bytes[report_count + 1] & 0x80) != 0;
+            const size_t tail = report_count + 4491 - 12 + (wide_notices ? 2 * (MAX_REPORTS + MAX_MESSAGES) + 4 * EVENT_COUNT : 0);
+            if (tail > bytes.size() || extra_records * freight_bytes > bytes.size() - tail) return false;
+
+            std::vector<uint8_t> upgraded(bytes.begin(), bytes.begin() + players);
+            upgraded[player_count_offset + 1] |= (SERIAL::FIELD_SETTLERS_FLAG | SERIAL::WIDE_FREIGHT_COLONY_FLAG) >> 8;
+            const auto append = [&](uint32_t value, int size) {
+                for (int i = 0; i < size; ++i) upgraded.push_back(static_cast<uint8_t>(value >> (i * 8)));
+            };
+            const auto records = [&](size_t start, size_t count) {
+                for (size_t i = 0; i < count; ++i) {
+                    if (flags & SERIAL::FIELD_SETTLERS_FLAG) {
+                        const auto source = SERIAL::Decode_Legacy_Colony_Reference(static_cast<int16_t>(
+                            bytes[start] | (bytes[start + 1] << 8)));
+                        append(source.id, 4);
+                        upgraded.insert(upgraded.end(), bytes.begin() + start + 2, bytes.begin() + start + freight_bytes);
+                        start += freight_bytes;
+                        continue;
+                    }
+                    uint64_t word = 0;
+                    for (unsigned j = 0; j < 8; ++j) word |= static_cast<uint64_t>(bytes[start++]) << (j * 8);
+                    const auto settler = SERIAL::Decode_Packed_Settler(word);
+                    append(settler.source_colony.get().id, 4);
+                    append(settler.destination.get().id, 4);
+                    append(settler.race, 1);
+                    append(settler.eta, 1);
+                    append(settler.profession, 1);
+                    append(settler.legacy_flags.get(), 4);
+                }
+            };
+            for (size_t i = 0; i < 8; ++i) {
+                const size_t start = players + i * player_bytes;
+                upgraded.insert(upgraded.end(), bytes.begin() + start, bytes.begin() + start + first_settler);
+                records(start + first_settler, base_records);
+                upgraded.insert(upgraded.end(), bytes.begin() + start + first_settler + base_records * freight_bytes, bytes.begin() + start + player_bytes);
+            }
+            upgraded.insert(upgraded.end(), bytes.begin() + ships, bytes.begin() + tail);
+            records(tail, extra_records);
+            upgraded.insert(upgraded.end(), bytes.begin() + tail + extra_records * freight_bytes, bytes.end());
+            bytes = std::move(upgraded);
+            return true;
+        }
+
+        bool Upgrade_Home_Planet_References(std::vector<uint8_t>& bytes, size_t player_count_offset) {
+            constexpr size_t home_offset = 41;
+            const uint16_t flags = static_cast<uint16_t>(bytes[player_count_offset + 1] << 8);
+            const size_t player_bytes = Player_Record_Bytes(flags);
+            constexpr size_t player_count = 8;
+            const size_t players = player_count_offset + 2;
+            if (bytes.size() - players < player_count * player_bytes) return false;
+            bytes[player_count_offset + 1] |= SERIAL::WIDE_HOME_PLANET_FLAG >> 8;
+            // Work backwards so inserting the high bytes cannot shift the next record to read.
+            for (size_t player = player_count; player-- > 0;) {
+                const size_t home = players + player * player_bytes + home_offset;
+                const int16_t legacy = static_cast<int16_t>(bytes[home] | (bytes[home + 1] << 8));
+                const auto id = SERIAL::Decode_Legacy_Planet_Reference(legacy);
+                bytes[home] = static_cast<uint8_t>(id.id);
+                bytes[home + 1] = static_cast<uint8_t>(id.id >> 8);
+                bytes.insert(bytes.begin() + home + 2, {static_cast<uint8_t>(id.id >> 16), static_cast<uint8_t>(id.id >> 24)});
+            }
+            return true;
+        }
+
+        bool Upgrade_Attack_Planet_References(std::vector<uint8_t>& bytes, size_t player_count_offset) {
+            // Frozen offsets in the v7 player record. Freight and home IDs
+            // may already have been widened by the earlier normalization passes.
+            constexpr size_t legacy_player_bytes = 0xf0e;
+            constexpr size_t sneak_offset = 0x82c;
+            constexpr size_t opportunity_offset = 0x89c;
+            constexpr size_t player_count = 8;
+            const uint16_t flags = static_cast<uint16_t>(bytes[player_count_offset + 1] << 8);
+            const size_t growth = Player_Record_Bytes(flags) - legacy_player_bytes;
+            const size_t players = player_count_offset + 2;
+            const size_t player_bytes = legacy_player_bytes + growth;
+            if (bytes.size() - players < player_count * player_bytes) return false;
+
+            const auto widen = [&](size_t offset) {
+                const auto id = SERIAL::Decode_Legacy_Planet_Reference(
+                    static_cast<int16_t>(bytes[offset] | (bytes[offset + 1] << 8)));
+                bytes[offset] = static_cast<uint8_t>(id.id);
+                bytes[offset + 1] = static_cast<uint8_t>(id.id >> 8);
+                bytes.insert(bytes.begin() + offset + 2,
+                    {static_cast<uint8_t>(id.id >> 16), static_cast<uint8_t>(id.id >> 24)});
+            };
+            // Work backwards so offsets of not-yet-converted fields stay valid.
+            for (size_t player = player_count; player-- > 0;) {
+                const size_t start = players + player * player_bytes + growth;
+                for (size_t target = player_count; target-- > 0;) widen(start + opportunity_offset + 2 * target);
+                widen(start + sneak_offset);
+            }
+            bytes[player_count_offset + 1] |= SERIAL::WIDE_ATTACK_PLANETS_FLAG >> 8;
+            return true;
+        }
+
+        std::optional<size_t> Ship_Count_Offset(const std::vector<uint8_t>& bytes, size_t players) {
+            const uint16_t flags = static_cast<uint16_t>(bytes[players + 1] << 8);
+            const size_t width = Player_Record_Bytes(flags);
+            const size_t ships = players + 2 + 8 * width;
+            return ships + 2 <= bytes.size() ? std::optional{ships} : std::nullopt;
+        }
+
+        bool Normalize_Ship_Missions(std::vector<uint8_t>& bytes, size_t ships, bool typed) {
+            // Frozen offsets in the v7/v8 ship design and ship prefix.
+            constexpr size_t ship_type = 17;
+            constexpr size_t old_target = 28;
+            constexpr size_t old_marker = 36;
+            constexpr size_t status = 100;
+            const size_t count = (bytes[ships] | (bytes[ships + 1] << 8)) & ~SERIAL::SHIP_MISSION_PLANETS_FLAG;
+            const size_t width = typed ? SERIAL::SHIP_RECORD_BYTES : SERIAL::LEGACY_SHIP_RECORD_BYTES;
+            const size_t start = ships + 2;
+            if (count > 10000 || count * width > bytes.size() - start) return false;
+            for (size_t ship = count; ship-- > 0;) {
+                const size_t record = start + ship * width;
+                auto id = game::NO_PLANET;
+                if (bytes[record + ship_type] == SHIP_TYPE_COLONY || bytes[record + ship_type] == SHIP_TYPE_OUTPOST) {
+                    if (!typed && static_cast<int8_t>(bytes[record + status]) < 3 &&
+                        bytes[record + old_marker] == 1 && bytes[record + old_marker + 1] == 0) {
+                        id = SERIAL::Decode_Legacy_Planet_Reference(static_cast<int16_t>(
+                            bytes[record + old_target] | (bytes[record + old_target + 1] << 8)));
+                    }
+                    // These weapon types were mission scratch fields on civilian ships.
+                    bytes[record + old_target] = bytes[record + old_target + 1] = 0xff;
+                    bytes[record + old_marker] = bytes[record + old_marker + 1] = 0;
+                }
+                if (!typed) {
+                    bytes.insert(bytes.begin() + record + width, {
+                        static_cast<uint8_t>(id.id), static_cast<uint8_t>(id.id >> 8),
+                        static_cast<uint8_t>(id.id >> 16), static_cast<uint8_t>(id.id >> 24)});
+                }
+            }
+            bytes[ships + 1] |= SERIAL::SHIP_MISSION_PLANETS_FLAG >> 8;
+            return true;
+        }
+
+        std::optional<size_t> Notice_Count_Offset(const std::vector<uint8_t>& bytes, size_t ships) {
+            const uint16_t field = bytes[ships] | (bytes[ships + 1] << 8);
+            const size_t width = (field & SERIAL::SHIP_MISSION_PLANETS_FLAG)
+                ? SERIAL::SHIP_RECORD_BYTES : SERIAL::LEGACY_SHIP_RECORD_BYTES;
+            const size_t nebulas = ships + 2 + (field & ~SERIAL::SHIP_MISSION_PLANETS_FLAG) * width + 163;
+            if (nebulas >= bytes.size()) return std::nullopt;
+            const size_t count = nebulas + 1 + bytes[nebulas] * 5 + 12;
+            return count + 2 <= bytes.size() ? std::optional{count} : std::nullopt;
+        }
+
+        bool Upgrade_Notices(std::vector<uint8_t>& bytes, size_t count) {
+            const size_t reports = count + 2;
+            const size_t events = reports + MAX_REPORTS * SERIAL::LEGACY_REPORT_BYTES + 1 + 8 + 128;
+            const size_t messages = events + EVENT_COUNT * SERIAL::LEGACY_EVENT_BYTES;
+            if (messages + MAX_MESSAGES * SERIAL::LEGACY_MESSAGE_BYTES > bytes.size()) return false;
+            const auto widen = [&](size_t offset) {
+                const auto id = SERIAL::Decode_Legacy_Planet_Reference(static_cast<int16_t>(
+                    bytes[offset] | (bytes[offset + 1] << 8)));
+                bytes[offset] = static_cast<uint8_t>(id.id);
+                bytes[offset + 1] = static_cast<uint8_t>(id.id >> 8);
+                bytes.insert(bytes.begin() + offset + 2,
+                    {static_cast<uint8_t>(id.id >> 16), static_cast<uint8_t>(id.id >> 24)});
+            };
+            for (size_t i = MAX_MESSAGES; i-- > 0;) {
+                const size_t record = messages + i * SERIAL::LEGACY_MESSAGE_BYTES;
+                if (SERIAL::Message_Targets_Planet(bytes[record])) widen(record + 2);
+                else bytes.insert(bytes.begin() + record + 11, {0, 0});
+            }
+            for (size_t i = EVENT_COUNT; i-- > 0;) {
+                const size_t record = events + i * SERIAL::LEGACY_EVENT_BYTES;
+                const int16_t limit = static_cast<int16_t>(bytes[record + 7] | (bytes[record + 8] << 8));
+                auto id = game::NO_PLANET;
+                if (SERIAL::Legacy_Event_Targets_Planet(i, bytes[record + 1], limit)) {
+                    id = SERIAL::Decode_Legacy_Planet_Reference(static_cast<int16_t>(
+                        bytes[record + 3] | (bytes[record + 4] << 8)));
+                    bytes[record + 3] = bytes[record + 4] = 0xff;
+                }
+                bytes.insert(bytes.begin() + record + SERIAL::LEGACY_EVENT_BYTES, {
+                    static_cast<uint8_t>(id.id), static_cast<uint8_t>(id.id >> 8),
+                    static_cast<uint8_t>(id.id >> 16), static_cast<uint8_t>(id.id >> 24)});
+            }
+            for (size_t i = MAX_REPORTS; i-- > 0;) {
+                const size_t record = reports + i * SERIAL::LEGACY_REPORT_BYTES;
+                const auto type = bytes[record];
+                if (SERIAL::Report_Targets_Planet(type, bytes[record + 3])) widen(record + (type == 3 ? 4 : 6));
+                else bytes.insert(bytes.begin() + record + 9, {0, 0});
+            }
+            bytes[count + 1] |= SERIAL::WIDE_NOTICES_FLAG >> 8;
+            return true;
+        }
+
+        bool Upgrade_Event_Colony_Ids(std::vector<uint8_t>& bytes, size_t count) {
+            const size_t events = count + 2 + MAX_REPORTS * SERIAL::REPORT_BYTES + 1 + 8 + 128;
+            const size_t legacy_size = EVENT_COUNT * SERIAL::PLANET_EVENT_BYTES;
+            if (events + legacy_size > bytes.size()) return false;
+            std::array<uint8_t, EVENT_COUNT * SERIAL::EVENT_BYTES> records{};
+            SERIAL::Reader_ reader(bytes.data() + events, legacy_size, "invalid legacy oracle events", true);
+            SERIAL::Writer_ writer(records.data(), records.size(), "oracle event overflow");
+            for (int type = 0; type < EVENT_COUNT; ++type) {
+                s_event_data record{};
+                SERIAL::Read_Event(reader, record, type, true, false);
+                SERIAL::Write_Event(writer, record, type);
+            }
+            if (reader.Failed()) return false;
+            bytes.erase(bytes.begin() + events, bytes.begin() + events + legacy_size);
+            bytes.insert(bytes.begin() + events, records.begin(), records.end());
+            bytes[count + 1] |= SERIAL::WIDE_EVENT_COLONY_FLAG >> 8;
+            return true;
+        }
+    } // namespace
+
     bool Read_File(const std::filesystem::path& path, std::vector<uint8_t>* bytes, std::string* error) {
         std::ifstream file(path, std::ios::binary | std::ios::ate);
         const std::streamoff size = file ? static_cast<std::streamoff>(file.tellg()) : -1;
@@ -37,6 +515,128 @@ namespace turn_oracle {
         std::vector<uint8_t> expected_bytes;
         std::vector<uint8_t> actual_bytes;
         if (!Read_File(canonical, &expected_bytes, error) || !Read_File(actual, &actual_bytes, error)) return false;
+        const bool expected_v7 = Has_Save_Version(expected_bytes, VERSION_BEFORE_LEADER_IDS);
+        const bool actual_v7 = Has_Save_Version(actual_bytes, VERSION_BEFORE_LEADER_IDS);
+        const bool expected_v8 = Has_Save_Version(expected_bytes, VERSION_WITH_LEADER_IDS);
+        const bool actual_v8 = Has_Save_Version(actual_bytes, VERSION_WITH_LEADER_IDS);
+        if ((expected_v7 || expected_v8) && (actual_v7 || actual_v8) && (expected_v8 || actual_v8)) {
+            if (!Normalize_Save_Ids(expected_bytes, expected_v7) || !Normalize_Save_Ids(actual_bytes, actual_v7)) {
+                *error = "invalid save prefix, planet section, or leader section: " + canonical.string() + " / " + actual.string();
+                return false;
+            }
+            // Older files do not represent the pending queues. Compare them
+            // when both formats carry them, otherwise compare the shared data.
+            constexpr auto reservations_flag = SERIAL::COLONY_RESERVATIONS_FLAG >> 8;
+            const bool expected_reservations = expected_bytes[606] & reservations_flag;
+            const bool actual_reservations = actual_bytes[606] & reservations_flag;
+            if (expected_reservations != actual_reservations &&
+                !Strip_Colony_Reservations(expected_reservations ? expected_bytes : actual_bytes)) {
+                *error = "invalid colony reservation block";
+                return false;
+            }
+            const bool expected_colony_ids = (expected_bytes[606] & 0x80) != 0;
+            const bool actual_colony_ids = (actual_bytes[606] & 0x80) != 0;
+            const bool expected_keyed_colonies = expected_bytes[606] & (SERIAL::KEYED_COLONY_COUNT_FLAG >> 8);
+            const bool actual_keyed_colonies = actual_bytes[606] & (SERIAL::KEYED_COLONY_COUNT_FLAG >> 8);
+            if (expected_keyed_colonies != actual_keyed_colonies) {
+                if (!Upgrade_Colony_Roster(expected_keyed_colonies ? actual_bytes : expected_bytes)) {
+                    *error = "invalid legacy colony roster";
+                    return false;
+                }
+            } else if (expected_colony_ids != actual_colony_ids &&
+                !Upgrade_Colony_Planet_Ids(expected_colony_ids ? actual_bytes : expected_bytes)) {
+                *error = "invalid legacy colony planet references";
+                return false;
+            }
+            const auto expected_planets = Planet_Count_Offset(expected_bytes);
+            const auto actual_planets = Planet_Count_Offset(actual_bytes);
+            if (expected_planets && actual_planets) {
+                constexpr uint8_t wide_flag = SERIAL::WIDE_PLANET_COLONY_FLAG >> 8;
+                const bool expected_wide = expected_bytes[*expected_planets + 1] & wide_flag;
+                const bool actual_wide = actual_bytes[*actual_planets + 1] & wide_flag;
+                if (expected_wide != actual_wide &&
+                    !(expected_wide ? Upgrade_Planet_Colony_Ids(actual_bytes, *actual_planets)
+                                    : Upgrade_Planet_Colony_Ids(expected_bytes, *expected_planets))) {
+                    *error = "invalid legacy planet colony links";
+                    return false;
+                }
+            }
+            const auto expected_stars = Star_Count_Offset(expected_bytes);
+            const auto actual_stars = Star_Count_Offset(actual_bytes);
+            if (expected_stars && actual_stars) {
+                const bool expected_wide = (expected_bytes[*expected_stars + 1] & 0x80) != 0;
+                const bool actual_wide = (actual_bytes[*actual_stars + 1] & 0x80) != 0;
+                if (expected_wide != actual_wide &&
+                    !(expected_wide ? Upgrade_Orbit_Ids(actual_bytes, *actual_stars)
+                                    : Upgrade_Orbit_Ids(expected_bytes, *expected_stars))) {
+                    *error = "invalid legacy star orbit references";
+                    return false;
+                }
+            }
+            const auto expected_offset = Player_Count_Offset(expected_bytes);
+            const auto actual_offset = Player_Count_Offset(actual_bytes);
+            if (expected_offset && actual_offset) {
+                constexpr auto freight_flags = (SERIAL::FIELD_SETTLERS_FLAG | SERIAL::WIDE_FREIGHT_COLONY_FLAG) >> 8;
+                const auto expected_freight = expected_bytes[*expected_offset + 1] & freight_flags;
+                const auto actual_freight = actual_bytes[*actual_offset + 1] & freight_flags;
+                if (expected_freight != actual_freight) {
+                    if ((expected_freight != freight_flags && !Upgrade_Freight(expected_bytes, *expected_offset)) ||
+                        (actual_freight != freight_flags && !Upgrade_Freight(actual_bytes, *actual_offset))) {
+                        *error = "invalid legacy freight section";
+                        return false;
+                    }
+                }
+                const bool expected_wide = (expected_bytes[*expected_offset + 1] & (SERIAL::WIDE_HOME_PLANET_FLAG >> 8)) != 0;
+                const bool actual_wide = (actual_bytes[*actual_offset + 1] & (SERIAL::WIDE_HOME_PLANET_FLAG >> 8)) != 0;
+                if (expected_wide != actual_wide &&
+                    !(expected_wide ? Upgrade_Home_Planet_References(actual_bytes, *actual_offset)
+                                    : Upgrade_Home_Planet_References(expected_bytes, *expected_offset))) {
+                    *error = "invalid legacy home-planet references";
+                    return false;
+                }
+                const bool expected_attack = (expected_bytes[*expected_offset + 1] & (SERIAL::WIDE_ATTACK_PLANETS_FLAG >> 8)) != 0;
+                const bool actual_attack = (actual_bytes[*actual_offset + 1] & (SERIAL::WIDE_ATTACK_PLANETS_FLAG >> 8)) != 0;
+                if (expected_attack != actual_attack &&
+                    !(expected_attack ? Upgrade_Attack_Planet_References(actual_bytes, *actual_offset)
+                                      : Upgrade_Attack_Planet_References(expected_bytes, *expected_offset))) {
+                    *error = "invalid legacy attack-planet references";
+                    return false;
+                }
+                const auto expected_ships = Ship_Count_Offset(expected_bytes, *expected_offset);
+                const auto actual_ships = Ship_Count_Offset(actual_bytes, *actual_offset);
+                if (expected_ships && actual_ships) {
+                    const bool expected_typed = (expected_bytes[*expected_ships + 1] & 0x80) != 0;
+                    const bool actual_typed = (actual_bytes[*actual_ships + 1] & 0x80) != 0;
+                    if (expected_typed != actual_typed &&
+                        (!Normalize_Ship_Missions(expected_bytes, *expected_ships, expected_typed) ||
+                         !Normalize_Ship_Missions(actual_bytes, *actual_ships, actual_typed))) {
+                        *error = "invalid ship mission section";
+                        return false;
+                    }
+                    const auto expected_notices = Notice_Count_Offset(expected_bytes, *expected_ships);
+                    const auto actual_notices = Notice_Count_Offset(actual_bytes, *actual_ships);
+                    if (expected_notices && actual_notices) {
+                        const bool expected_wide = (expected_bytes[*expected_notices + 1] & 0x80) != 0;
+                        const bool actual_wide = (actual_bytes[*actual_notices + 1] & 0x80) != 0;
+                        if (expected_wide != actual_wide &&
+                            !(expected_wide ? Upgrade_Notices(actual_bytes, *actual_notices)
+                                            : Upgrade_Notices(expected_bytes, *expected_notices))) {
+                            *error = "invalid planet notification section";
+                            return false;
+                        }
+                        constexpr auto colony_flag = SERIAL::WIDE_EVENT_COLONY_FLAG >> 8;
+                        const bool expected_colony = expected_bytes[*expected_notices + 1] & colony_flag;
+                        const bool actual_colony = actual_bytes[*actual_notices + 1] & colony_flag;
+                        if (expected_colony != actual_colony &&
+                            !(expected_colony ? Upgrade_Event_Colony_Ids(actual_bytes, *actual_notices)
+                                              : Upgrade_Event_Colony_Ids(expected_bytes, *expected_notices))) {
+                            *error = "invalid colony event section";
+                            return false;
+                        }
+                    }
+                }
+            }
+        }
         size_t offset = 0;
         while (offset < expected_bytes.size() && offset < actual_bytes.size() && expected_bytes[offset] == actual_bytes[offset]) ++offset;
         if (offset == expected_bytes.size() && offset == actual_bytes.size()) return true;

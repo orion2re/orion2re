@@ -3,11 +3,49 @@
 #include "doctest/doctest.h"
 #include "game/legacy_world.h"
 #include "../fixtures/game_state.h"
+#include "../fixtures/planet_roster.h"
 
 using game::id_ship;
 using legacy_world::Ship_Id;
 using legacy_world::Star_Id;
 using legacy_world::Player_Id;
+
+DOCTEST_TEST_CASE("advanced start ranking keeps planet identities attached to scores") {
+    s_adv_civ_player_planet candidates[] = {
+        {.worth = 20, .planet_id = game::id_planet{90001}},
+        {.worth = 5, .planet_id = game::id_planet{12}},
+        {.worth = 30, .planet_id = game::id_planet{70000}},
+    };
+    Legacy_Qsort(candidates, std::size(candidates), sizeof(candidates[0]), ADVCIV::qsort_planet_worth);
+    DOCTEST_CHECK(candidates[0].planet_id == game::id_planet{70000});
+    DOCTEST_CHECK(candidates[1].planet_id == game::id_planet{90001});
+    DOCTEST_CHECK(candidates[2].planet_id == game::id_planet{12});
+}
+
+DOCTEST_TEST_CASE("advanced start candidates resolve sparse orbit IDs in orbit order") {
+    test::s_game_state fixture;
+    MOX::NUM_PLAYERS = 1;
+    game::s_game_state planets;
+    const s_planet_data unoccupied{.colony_id = game::NO_COLONY, .star_index = 1, .planet_type = PLANET_TYPE_PLANET};
+    planets.planets.emplace(game::id_planet{17}, unoccupied);
+    planets.planets.emplace(game::id_planet{70000}, unoccupied);
+    MOX::star[1].orbit_planet_ids[0] = game::id_planet{70000};
+    MOX::star[1].orbit_planet_ids[1] = game::id_planet{18}; // A missing key must not resolve to another record.
+    MOX::star[1].orbit_planet_ids[2] = game::id_planet{17};
+    MOX::star[1].orbit_planet_ids[3] = game::NO_PLANET;
+    MOX::star[1].orbit_planet_ids[4] = game::NO_PLANET;
+
+    s_adv_civ_player candidates{};
+    candidates.stars[1].star_idx = 1;
+    auto* previous = ADVCIV::adv_civ_player;
+    ADVCIV::adv_civ_player = &candidates;
+    ADVCIV::Build_Adv_Civ_Planet_List(planets);
+    ADVCIV::adv_civ_player = previous;
+
+    DOCTEST_REQUIRE(candidates.candidate_planet_count == 2);
+    DOCTEST_CHECK(candidates.planets[0].planet_id == game::id_planet{70000});
+    DOCTEST_CHECK(candidates.planets[1].planet_id == game::id_planet{17});
+}
 
 DOCTEST_TEST_CASE("game-state fixtures bind borrowed views and restore nested bindings") {
     const game::s_view previous = game::current;
@@ -18,9 +56,8 @@ DOCTEST_TEST_CASE("game-state fixtures bind borrowed views and restore nested bi
         DOCTEST_CHECK(game::current.players == outer.players.data());
         DOCTEST_CHECK(game::current.ships == outer.ships.data());
         DOCTEST_CHECK(game::current.stars == outer.stars.data());
-        DOCTEST_CHECK(game::current.colonies == outer.colonies.data());
-        DOCTEST_CHECK(game::current.planets == outer.planets.data());
-        DOCTEST_CHECK(game::current.leaders == outer.leaders.data());
+        DOCTEST_CHECK(game::current.state == &game::current_state);
+        DOCTEST_CHECK(game::current.state == &game::current_state);
         DOCTEST_CHECK(game::current.settings == &MOX::settings);
         MOX::NUM_SHIPS = 2;
         DOCTEST_CHECK(game::current.Ship_Count() == 2);
@@ -40,15 +77,11 @@ DOCTEST_TEST_CASE("game-state fixtures bind borrowed views and restore nested bi
     DOCTEST_CHECK(game::current.players == previous.players);
     DOCTEST_CHECK(game::current.ships == previous.ships);
     DOCTEST_CHECK(game::current.stars == previous.stars);
-    DOCTEST_CHECK(game::current.colonies == previous.colonies);
-    DOCTEST_CHECK(game::current.planets == previous.planets);
-    DOCTEST_CHECK(game::current.leaders == previous.leaders);
+    DOCTEST_CHECK(game::current.state == previous.state);
     DOCTEST_CHECK(game::current.settings == previous.settings);
     DOCTEST_CHECK(game::current.player_count == previous.player_count);
     DOCTEST_CHECK(game::current.ship_count == previous.ship_count);
     DOCTEST_CHECK(game::current.star_count == previous.star_count);
-    DOCTEST_CHECK(game::current.colony_count == previous.colony_count);
-    DOCTEST_CHECK(game::current.planet_count == previous.planet_count);
     DOCTEST_CHECK(game::current.stardate == previous.stardate);
     DOCTEST_CHECK(game::current.combat_x == previous.combat_x);
 }
@@ -104,7 +137,7 @@ DOCTEST_TEST_CASE("star assessments name treaty partners and hostile players by 
     test::s_game_state game_state;
     s_player players[3] = {};
     s_colony colonies[3] = {};
-    s_planet_data planets[3] = {};
+    test_planets::Resize_Dense(3);
     s_star_data stars[1] = {};
     int16_t player_count = 3;
     int16_t colony_count = 3;
@@ -114,7 +147,8 @@ DOCTEST_TEST_CASE("star assessments name treaty partners and hostile players by 
     for (uint32_t i = 0; i < 3; ++i) {
         players[i].ship_range = 6;
         colonies[i].owner = (int8_t)i;
-        colonies[i].planet = (int16_t)i;
+        colonies[i].planet_id = SERIAL::Decode_Legacy_Planet_Reference((int16_t)i);
+        game::current_state.colonies.insert_or_assign(game::id_colony{static_cast<uint32_t>(i)}, colonies[i]);
     }
     players[0].treaty[1] = 1;
     players[0].treaty[2] = 4;
@@ -122,11 +156,9 @@ DOCTEST_TEST_CASE("star assessments name treaty partners and hostile players by 
     game::s_view world{
         .players = players,
         .stars = stars,
-        .colonies = colonies,
-        .planets = planets,
+        .state = &game::current_state,
         .player_count = &player_count,
         .star_count = &star_count,
-        .colony_count = &colony_count,
     };
     AIDATA::Compute_Star_Player_Range_Info(&ai, &world);
     const auto& assessment = ai.stars.at(Star_Id(0)).neighborhood.per_player[0];

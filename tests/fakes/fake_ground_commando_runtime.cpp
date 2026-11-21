@@ -1,13 +1,14 @@
 #include "pch.h"
+#include "../fixtures/colony_roster.h"
+#include "../fixtures/planet_roster.h"
 
 #include "doctest/doctest.h"
 #include "game/officer_roster.h"
 
 namespace {
-    s_leader_data leaders[MAX_LEADERS];
     s_player players[2];
-    s_colony colonies[2];
-    s_planet_data planets[1];
+    test_colonies::Slots<2> colonies;
+
     s_star_data stars[1];
     s_ship_data ships[2];
     int16_t officer_ids[MAX_LEADERS];
@@ -43,19 +44,18 @@ namespace test_ground_commando_runtime {
         MOX::NUM_PLAYERS = 2;
         MOX::NUM_SHIPS = 2;
         OFFICER::leader_page = 0;
-        memset(leaders, 0, sizeof(leaders));
+        game::current_state = game::s_game_state{};
         memset(players, 0, sizeof(players));
-        memset(colonies, 0, sizeof(colonies));
-        memset(planets, 0, sizeof(planets));
+        colonies.Reset();
+        test_planets::Reset(1);
         memset(stars, 0, sizeof(stars));
         memset(ships, 0, sizeof(ships));
         memset(&animation, 0, sizeof(animation));
-        colonies[0].planet = 0;
-        MOX::NUM_COLONIES = 1;
+        colonies[0].planet_id = game::id_planet{0};
         colonies[0].owner = 0;
-        planets[0].star_index = 0;
-        players[0].home_planet_id = -1;
-        players[1].home_planet_id = -1;
+        test_planets::Record(0).star_index = 0;
+        players[0].home_planet_id = game::NO_PLANET;
+        players[1].home_planet_id = game::NO_PLANET;
         for (int skill_idx = 0; skill_idx < 54; ++skill_idx) {
             MOX::skill_data[skill_idx].cost = 0;
         }
@@ -66,9 +66,10 @@ namespace test_ground_commando_runtime {
         MOX::skill_data[28].skill_mask = LEADER_GENERAL_SKILL_MEGAWEALTH;
         MOX::skill_data[29].skill_mask = LEADER_GENERAL_SKILL_MEGAWEALTH2;
         for (int i = 0; i < MAX_LEADERS; ++i) {
-            leaders[i].status = -1;
-            leaders[i].player_index = -1;
-            leaders[i].location = -1;
+            auto& leader = game::current_state.leaders[i];
+            leader.status = -1;
+            leader.player_index = -1;
+            leader.location = -1;
             officer_ids[i] = -1;
         }
         MOX::PLAYER_NUM = 0;
@@ -90,7 +91,7 @@ namespace test_ground_commando_runtime {
     }
 
     s_leader_data* Leader_(int index) {
-        return &leaders[index];
+        return &game::current_state.leaders.at(index);
     }
 
     s_ship_data* Ship_(int index) {
@@ -104,13 +105,16 @@ namespace test_ground_commando_runtime {
     void Set_Officer_Level_(int16_t level) {
         const int16_t level_thresholds[] = {0, 60, 150, 300, 500, 1000};
         int leader_idx = colony_officer >= 0 ? colony_officer : 0;
-        leaders[leader_idx].xp = level_thresholds[level];
+        auto& leader = game::current_state.leaders.at(leader_idx);
+        if (leader.player_index == -1) leader.player_index = 0;
+        leader.xp = level_thresholds[level];
     }
 
     void Set_Leader_(int index, int8_t player, int8_t type, int8_t status) {
-        leaders[index].player_index = player;
-        leaders[index].type = type;
-        leaders[index].status = status;
+        auto& leader = game::current_state.leaders.at(index);
+        leader.player_index = player;
+        leader.type = type;
+        leader.status = status;
     }
 
     const int16_t* Officer_Ids_() {
@@ -142,15 +146,12 @@ namespace buffer {
 } // namespace buffer
 
 namespace MOX {
-    s_leader_data* leaders = ::leaders;
     s_player* player = players;
-    s_colony* colony = colonies;
     s_star_data* star = stars;
     void* global_cache_seg;
-    s_planet_data* planet = planets;
+
     s_ship_data* ship = ships;
     s_settings settings = {};
-    int16_t NUM_COLONIES = 1;
     int16_t NUM_PLAYERS = 2;
     int16_t NUM_SHIPS = 2;
     int16_t PLAYER_NUM = 0;
@@ -203,7 +204,7 @@ namespace COLCALC {
         return colony_officer;
     }
 
-    int16_t __cdecl Colony_Race_Pop_Limit(s_colony*, int16_t) {
+    int16_t __cdecl Colony_Race_Pop_Limit(const s_colony*, int16_t) {
         return MAX_COLONY_POPULATION;
     }
 
@@ -284,7 +285,7 @@ namespace SHIPS {
 namespace MAINSCR {
     void __cdecl Update_Ship_Icons_In_Between_Turns() {
         ++test_ground_commando_runtime::icon_updates;
-        test_ground_commando_runtime::owner_at_icon_update = MOX::colony[0].owner;
+        test_ground_commando_runtime::owner_at_icon_update = test_colonies::Record(0).owner;
     }
 }
 
@@ -296,27 +297,28 @@ namespace MSG_ {
 }
 
 namespace COMBINIT {
-    int16_t __cdecl Take_Captured_Satellite(int16_t) {
+    int16_t __cdecl Take_Captured_Satellite(game::id_colony) {
         return -1;
     }
 } // namespace COMBINIT
 
 namespace ERICNET {
-    void __cdecl Add_Building(int16_t, int16_t) {
+    void __cdecl Add_Building(game::id_colony, int16_t) {
     }
 
-    void __cdecl Remove_Building(int16_t colony_idx, int16_t building_idx) {
-        MOX::colony[colony_idx].buildings[building_idx] = 0;
+    void __cdecl Remove_Building(game::s_game_state&, game::id_colony id, int16_t building_idx) {
+        const auto colony_idx = static_cast<int16_t>(id.id);
+        test_colonies::Record(colony_idx).buildings[building_idx] = 0;
     }
 } // namespace ERICNET
 
 namespace BOMB {
-    int32_t __cdecl Handle_Leader_At_Lost_Colony(s_colony*) {
+    int32_t __cdecl Handle_Leader_At_Lost_Colony(const game::s_game_state&, game::id_colony) {
         return -1;
     }
 } // namespace BOMB
 
 namespace COLBLDG {
-    void __cdecl Clear_Colony_Queue(int16_t) {
+    void __cdecl Clear_Colony_Queue(game::s_game_state&, game::id_colony) {
     }
 } // namespace COLBLDG

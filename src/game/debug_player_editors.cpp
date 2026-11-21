@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "legacy_ids.h"
 
 #if defined(ORION2RE_ENABLE_DEBUG_OVERLAY)
 #include <imgui.h>
@@ -228,7 +229,7 @@ namespace debug_game_editors {
             MERGE_PLAYER_FIELD(war_buildup_duration);
             MERGE_PLAYER_FIELD(last_diplomacy_proposal_turn);
             MERGE_PLAYER_FIELD(diplomacy_proposal_rejection);
-            MERGE_PLAYER_FIELD(opportunity_planet_num);
+            MERGE_PLAYER_FIELD(opportunity_planet_id);
             MERGE_PLAYER_FIELD(opportunity_planet_value);
             MERGE_PLAYER_FIELD(opportunity_actual_attacker_ratio);
             MERGE_PLAYER_FIELD(temp_diplomacy_dummy1);
@@ -331,7 +332,8 @@ namespace debug_game_editors {
                 player.personality >= PLAYER_PERSONALITY_COUNT ||
                 !((player.objectives <= PLAYER_OBJECTIVE_ECOLOGIST) ||
                     player.objectives == PLAYER_OBJECTIVE_HUMAN) ||
-                player.home_planet_id < -1 || player.home_planet_id >= MOX::planet_count ||
+                (player.home_planet_id.get() != game::NO_PLANET &&
+                    !game::current_state.planets.contains(player.home_planet_id.get())) ||
                 player.officer_for_hire < -1 || player.officer_for_hire >= MAX_LEADERS ||
                 player.settlers_freighted < 0 ||
                 player.settlers_freighted > MAX_FREIGHTED_SETTLERS ||
@@ -351,14 +353,12 @@ namespace debug_game_editors {
                 }
             }
             for (int32_t index = 0; index < player.settlers_freighted; ++index) {
-                const SETTLER::value_type value = player.settlers[index].val;
-                const int16_t source = SETTLER::Get_Source_Colony(value);
-                const int16_t destination = SETTLER::Get_Dest_Planet(value);
-                if ((source != SETTLER::SOURCE_COLONY_IN_TRANSIT &&
-                        (source < 0 || source >= MOX::NUM_COLONIES)) ||
-                    destination < 0 || destination >= MOX::planet_count ||
-                    SETTLER::Get_Race(value) > POP::RACE_NATIVE ||
-                    SETTLER::Get_Prof(value) > POP::PROF_SCIENTIST) {
+                const auto& settler = player.settlers[index];
+                const auto source = settler.source_colony.get();
+                if ((source != game::NO_COLONY && !game::current_state.colonies.contains(source)) ||
+                    !game::current_state.planets.contains(settler.destination.get()) ||
+                    settler.race > POP::RACE_NATIVE || settler.eta > 15 ||
+                    settler.profession > POP::PROF_SCIENTIST) {
                     return false;
                 }
             }
@@ -431,8 +431,10 @@ namespace debug_game_editors {
             Input_U8_("color", &player.color);
             Input_U8_("personality", &player.personality);
             Input_U8_("objectives", &player.objectives);
-            debug_game_widgets::Planet_Reference(
-                "home_planet_id", &player.home_planet_id);
+            auto home = player.home_planet_id.get();
+            if (debug_game_widgets::Planet_Reference("home_planet_id", &home)) {
+                player.home_planet_id = home;
+            }
             Input_S16_("network_player_id", &player.network_player_id);
             Input_S8_("player_done_flags", &player.player_done_flags);
             ImGui::Text("dead_field: %d (unknown, read-only)", (int)player.dead_field);
@@ -442,31 +444,30 @@ namespace debug_game_editors {
             ImGui::SliderInt(
                 "Settler slot", &g_settler_slot, 0, MAX_FREIGHTED_SETTLERS - 1);
             s_settler_info& settler = player.settlers[g_settler_slot];
-            int16_t source = SETTLER::Get_Source_Colony(settler.val);
-            int16_t destination = SETTLER::Get_Dest_Planet(settler.val);
-            uint8_t race = (uint8_t)SETTLER::Get_Race(settler.val);
-            uint8_t eta = (uint8_t)SETTLER::Get_Eta(settler.val);
-            int8_t job = (int8_t)SETTLER::Get_Prof(settler.val);
-            if (Input_S16_("source_colony", &source)) {
-                SETTLER::Set_Source_Colony(&settler.val, source);
+            const auto source = settler.source_colony.get();
+            uint32_t source_id = source == game::NO_COLONY ? 0 : source.id;
+            auto destination = settler.destination.get();
+            int8_t job = static_cast<int8_t>(settler.profession);
+            if (ImGui::InputScalar("Source colony ID", ImGuiDataType_U32, &source_id)) {
+                settler.source_colony = game::id_colony{source_id};
+            }
+            bool in_transit = source == game::NO_COLONY;
+            if (ImGui::Checkbox("In transit", &in_transit)) {
+                settler.source_colony = in_transit ? game::NO_COLONY : game::id_colony{source_id};
             }
             if (debug_game_widgets::Planet_Reference(
                     "dest_planet", &destination, false)) {
-                SETTLER::Set_Dest_Planet(&settler.val, destination);
+                settler.destination = destination;
             }
-            if (Input_U8_("race", &race)) {
-                SETTLER::Set_Race(&settler.val, race);
-            }
-            if (Input_U8_("eta", &eta)) {
-                SETTLER::Set_Eta(&settler.val, eta);
-            }
+            Input_U8_("race", &settler.race);
+            Input_U8_("eta", &settler.eta);
             if (debug_game_widgets::Enum(
                     "job", &job, k_population_jobs, 3)) {
-                SETTLER::Set_Prof(&settler.val, (POP::e_prof)job);
+                settler.profession = static_cast<uint8_t>(job);
             }
             ImGui::Text(
-                "Packed: 0x%016llX | %s",
-                (unsigned long long)settler.val,
+                "Destination ID: %u | %s",
+                settler.destination.get().id,
                 g_settler_slot < player.settlers_freighted ? "active" : "inactive");
         }
 
@@ -669,6 +670,15 @@ namespace debug_game_editors {
             }
         }
 
+        void Input_Planet_Id_(const char* label, unaligned::field<game::id_planet>& field) {
+            auto id = field.get();
+            if (ImGui::InputScalar(label, ImGuiDataType_U32, &id.id)) field = id;
+            if (id == game::NO_PLANET) {
+                ImGui::SameLine();
+                ImGui::TextUnformatted("No planet");
+            }
+        }
+
         void Draw_Diplomacy_(s_player& player) {
 #define DIP_S8(field) Input_S8_(#field, &player.field[g_counterparty])
 #define DIP_U8(field) Input_U8_(#field, &player.field[g_counterparty])
@@ -730,7 +740,7 @@ namespace debug_game_editors {
             DIP_S8(stop_blockading_duration);
             DIP_S16(last_diplomacy_proposal_turn);
             DIP_S16(diplomacy_proposal_rejection);
-            DIP_S16(opportunity_planet_num);
+            Input_Planet_Id_("opportunity_planet_id", player.opportunity_planet_id[g_counterparty]);
             DIP_S16(opportunity_planet_value);
             DIP_S32(opportunity_actual_attacker_ratio);
             DIP_S16(temp_diplomacy_dummy1);
@@ -744,7 +754,7 @@ namespace debug_game_editors {
 #undef DIP_S16
 #undef DIP_S32
             ImGui::SeparatorText("Player-wide diplomacy state");
-            Input_S16_("sneak_attack_planet", &player.sneak_attack_planet);
+            Input_Planet_Id_("sneak_attack_planet", player.sneak_attack_planet);
             Input_S8_("sneak_attack_message", &player.sneak_attack_message);
             Input_S8_("sneak_attack_player", &player.sneak_attack_player);
             Input_S8_("council_threat", &player.council_threat);

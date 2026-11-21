@@ -1,4 +1,6 @@
 #include "pch.h"
+
+using game::current_state;
 #include "legacy_location.h"
 #include "legacy_ids.h"
 
@@ -6,12 +8,7 @@
 
 namespace SHIPS {
     void __cdecl Clear_Auto_Colonization_Flag(s_ship_data* ship) {
-        uint8_t ship_type = ship->d.ship_type;
-
-        if (ship_type == SHIP_TYPE_COLONY || ship_type == SHIP_TYPE_OUTPOST) {
-            ship->d.ship_weapon[0].type = -1;
-            ship->d.ship_weapon[1].type = 0;
-        }
+        ship->colonization_target = game::NO_PLANET;
     }
 } // namespace SHIPS
 
@@ -215,8 +212,8 @@ namespace SHIPMOVE {
         }
 
         int colony_production_slots[MAX_PLAYERS] = {0};
-        for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
-            s_colony* col = &MOX::colony[i];
+        for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
+            s_colony* col = &roster_colony;
             if (col->owner != -1 && col->outpost_flag == 0) {
                 for (int j = 0; j < 7; ++j) {
                     if (!COLBLDG::Colony_Production_Is_Queued_Ship(col->producing[j])) {
@@ -562,7 +559,7 @@ namespace SHIPMOVE {
         }
 
         // Initialize ship slot
-        memset(&MOX::ship[i], 0, sizeof(s_ship_data));
+        MOX::ship[i] = {};
 
         if (design != nullptr) {
             memcpy(&MOX::ship[i].d, design, sizeof(s_ship_design));
@@ -711,9 +708,8 @@ namespace SHIPMOVE {
             ship->status = move_status;
 
             if (ship->d.ship_type == SHIP_TYPE_COLONY || ship->d.ship_type == SHIP_TYPE_OUTPOST) {
-                int16_t planet_idx = ship->d.ship_weapon[0].type;
-                if (planet_idx == PLANET_INDEX_NONE ||
-                    MOX::planet[planet_idx].star_index != destination_star_idx) {
+                const auto target = current_state.planets.find(ship->colonization_target.get());
+                if (target == current_state.planets.end() || target->second.star_index != destination_star_idx) {
                     SHIPS::Clear_Auto_Colonization_Flag(ship);
                 }
             }
@@ -943,7 +939,7 @@ namespace SHIPMOVE {
             all_phase_shifters &= has_phase_shifter;
 
             if (ship->officer_index != -1) {
-                s_leader_data* leader = &MOX::leaders[ship->officer_index];
+                auto* leader = &current_state.leaders.at(ship->officer_index);
                 if (leader->eta == 0) {
                     int32_t bonus = 0;
                     if ((leader->special_skills & LEADER_SHIP_SKILL_NAVIGATOR2) != 0) {
@@ -1172,11 +1168,11 @@ namespace SHIPMOVE {
 
     bool __cdecl Confirm_Officer_Change(int16_t leader_idx, int16_t target_ship_idx, int8_t target_eta) {
         if (leader_idx < 0 || leader_idx >= MAX_LEADERS ||
-            MOX::leaders[leader_idx].type != LEADER_TYPE_SHIP) {
+            current_state.leaders.at(leader_idx).type != LEADER_TYPE_SHIP) {
             return true;
         }
 
-        s_leader_data* leader = &MOX::leaders[leader_idx];
+        auto* leader = &current_state.leaders.at(leader_idx);
         int16_t source_ship_idx = leader->location;
         int16_t source_officer_idx = -1;
         int16_t target_officer_idx = -1;
@@ -1283,11 +1279,11 @@ namespace SHIPMOVE {
         }
 
         // Mark player presence via colonies
-        if (MOX::NUM_COLONIES > 0) {
-            for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
-                s_colony* colony = &MOX::colony[i];
+        if (!game::current_state.colonies.empty()) {
+            for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
+                s_colony* colony = &roster_colony;
                 if (colony->owner != -1) {
-                    int16_t star_index = MOX::planet[colony->planet].star_index;
+                    int16_t star_index = current_state.planets.at(colony->planet_id).star_index;
                     presence_mask[star_index] |= (1 << colony->owner);
                 }
             }
@@ -1447,7 +1443,7 @@ namespace SHIPMOVE {
             if (officer_index != -1) {
                 OFFICER::Move_Officer_To_Pool(officer_index);
 
-                s_leader_data* leader = &MOX::leaders[officer_index];
+                auto* leader = &current_state.leaders.at(officer_index);
                 if (leader->eta > 0) {
                     msg.u.hyperspace_beast.leader_status = 1;
                 } else {

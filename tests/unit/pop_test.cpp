@@ -1,6 +1,7 @@
 #include "pch.h"
 
 #include "doctest/doctest.h"
+#include "game/settler_serialization.h"
 
 namespace {
     uint32_t Legacy_Set_Pop_Race(uint32_t pop, uint32_t race) {
@@ -16,8 +17,8 @@ namespace {
     }
 
     POP::value_type Legacy_Add_Settler_To_Pop(
-            POP::value_type initial_pop, SETTLER::legacy_value_type settler_data) {
-        SETTLER::legacy_value_type race_info = settler_data >> 16;
+            POP::value_type initial_pop, uint32_t settler_data) {
+        uint32_t race_info = settler_data >> 16;
         POP::value_type pop = initial_pop;
 
         pop = (pop ^ race_info) & 0x0000000F ^ pop;
@@ -30,20 +31,20 @@ namespace {
     }
 
     POP::value_type Helper_Add_Settler_To_Pop(
-            POP::value_type initial_pop, SETTLER::value_type settler_data) {
+            POP::value_type initial_pop, const s_settler_info& settler_data) {
         POP::value_type pop = initial_pop;
 
-        POP::Set_Race(&pop, SETTLER::Get_Race(settler_data));
-        POP::Set_Original_Owner(&pop, SETTLER::Get_Race(settler_data));
-        POP::Set_Prof(&pop, SETTLER::Get_Prof(settler_data));
+        POP::Set_Race(&pop, settler_data.race);
+        POP::Set_Original_Owner(&pop, settler_data.race);
+        POP::Set_Prof(&pop, static_cast<POP::e_prof>(settler_data.profession));
         POP::Set_Assigned(&pop, true);
         POP::Set_Conquered(&pop, false);
 
         return pop;
     }
 
-    SETTLER::legacy_value_type Legacy_Encode_Settler_From_Pop(POP::value_type pop) {
-        SETTLER::legacy_value_type encoded_settler = pop;
+    uint32_t Legacy_Encode_Settler_From_Pop(POP::value_type pop) {
+        uint32_t encoded_settler = pop;
 
         encoded_settler ^= ((pop << 16) ^ encoded_settler) & 0x000F0000;
         encoded_settler ^= ((pop << 17) ^ encoded_settler) & 0x03000000;
@@ -51,13 +52,8 @@ namespace {
         return encoded_settler;
     }
 
-    SETTLER::value_type Helper_Encode_Settler_From_Pop(POP::value_type pop) {
-        SETTLER::value_type encoded_settler = 0;
-
-        SETTLER::Set_Race(&encoded_settler, POP::Get_Race(pop));
-        SETTLER::Set_Prof(&encoded_settler, POP::Get_Prof(pop));
-
-        return encoded_settler;
+    s_settler_info Helper_Encode_Settler_From_Pop(POP::value_type pop) {
+        return {.race = static_cast<uint8_t>(POP::Get_Race(pop)), .profession = static_cast<uint8_t>(POP::Get_Prof(pop))};
     }
 }
 
@@ -122,23 +118,19 @@ DOCTEST_TEST_CASE("packed pop setters preserve unrelated bits at every word alig
     }
 }
 
-DOCTEST_TEST_CASE("packed settler setters preserve reserved bits and transit sentinel") {
+DOCTEST_TEST_CASE("unaligned settler fields serialize full colony and planet IDs") {
     alignas(uint64_t) uint8_t bytes[24];
     for (size_t offset = 0; offset < alignof(uint64_t); ++offset) {
         memset(bytes, 0xCC, sizeof(bytes));
-        auto* settler = new (bytes + offset) s_settler_info{UINT64_MAX};
-        SETTLER::Set_Source_Colony(&settler->val, SETTLER::SOURCE_COLONY_IN_TRANSIT);
-        SETTLER::Set_Dest_Planet(&settler->val, 1000);
-        SETTLER::Set_Race(&settler->val, 7);
-        SETTLER::Set_Eta(&settler->val, 5);
-        SETTLER::Set_Prof(&settler->val, POP::PROF_WORKER);
-        const SETTLER::value_type value = SETTLER::Load(&settler->val);
-        DOCTEST_CHECK(SETTLER::Get_Source_Colony(value) == SETTLER::SOURCE_COLONY_IN_TRANSIT);
-        DOCTEST_CHECK(SETTLER::Get_Dest_Planet(value) == 1000);
-        DOCTEST_CHECK(SETTLER::Get_Race(value) == 7);
-        DOCTEST_CHECK(SETTLER::Get_Eta(value) == 5);
-        DOCTEST_CHECK(SETTLER::Get_Prof(value) == POP::PROF_WORKER);
-        DOCTEST_CHECK((value & UINT64_C(0xFFFFFC0000000000)) == UINT64_C(0xFFFFFC0000000000));
+        auto* settler = new (bytes + offset) s_settler_info{
+            .source_colony = game::id_colony{80000}, .destination = game::id_planet{70000},
+            .race = 7, .eta = 5, .profession = POP::PROF_WORKER, .legacy_flags = 0x3fffff};
+        std::array<uint8_t, SERIAL::SETTLER_BYTES> encoded{};
+        SERIAL::Writer_ writer(encoded.data(), encoded.size(), "settler overflow");
+        SERIAL::Write_Settler(writer, *settler);
+        SERIAL::Reader_ reader(encoded.data(), encoded.size(), "settler underflow");
+        DOCTEST_CHECK(SERIAL::Read_Settler(reader) == *settler);
+        DOCTEST_CHECK(reader.Remaining() == 0);
         DOCTEST_CHECK(bytes[offset + sizeof(*settler)] == 0xCC);
     }
 }
@@ -165,73 +157,41 @@ DOCTEST_TEST_CASE("pop subfield setters match the legacy masked updates") {
     }
 }
 
-DOCTEST_TEST_CASE("settler subfield helpers preserve independent 64-bit fields") {
-    constexpr int16_t index_values[] = {
-        INT16_MIN, -1, 0, 1, 0xFF, 0x100, 0x3FFF, INT16_MAX,
-    };
-    constexpr SETTLER::value_type settler_values[] = {
-        0, UINT64_MAX, 0x123456789ABCDEF0ull,
-    };
-
-    for (SETTLER::value_type settler_data : settler_values) {
-        for (uint32_t race = 0; race < 16; ++race) {
-            SETTLER::value_type actual = settler_data;
-            SETTLER::Set_Race(&actual, race);
-            DOCTEST_CHECK(SETTLER::Get_Race(actual) == race);
-            DOCTEST_CHECK((actual & ~SETTLER::MASK_RACE) ==
-                          (settler_data & ~SETTLER::MASK_RACE));
-        }
-
-        for (uint32_t prof = 0; prof < 4; ++prof) {
-            SETTLER::value_type actual = settler_data;
-            SETTLER::Set_Prof(&actual, static_cast<POP::e_prof>(prof));
-            DOCTEST_CHECK(SETTLER::Get_Prof(actual) == static_cast<POP::e_prof>(prof));
-            DOCTEST_CHECK((actual & ~SETTLER::MASK_PROF) ==
-                          (settler_data & ~SETTLER::MASK_PROF));
-        }
-
-        for (uint32_t eta = 0; eta < 16; ++eta) {
-            SETTLER::value_type actual = settler_data;
-            SETTLER::Set_Eta(&actual, eta);
-            DOCTEST_CHECK(SETTLER::Get_Eta(actual) == eta);
-            DOCTEST_CHECK((actual & ~SETTLER::MASK_ETA) ==
-                          (settler_data & ~SETTLER::MASK_ETA));
-        }
-
-        for (int16_t source_colony : index_values) {
-            SETTLER::value_type actual = settler_data;
-            SETTLER::Set_Source_Colony(&actual, source_colony);
-            DOCTEST_CHECK(SETTLER::Get_Source_Colony(actual) == source_colony);
-            DOCTEST_CHECK((actual & ~SETTLER::MASK_SOURCE_COLONY) ==
-                          (settler_data & ~SETTLER::MASK_SOURCE_COLONY));
-        }
-
-        for (int16_t dest_planet : index_values) {
-            SETTLER::value_type actual = settler_data;
-            SETTLER::Set_Dest_Planet(&actual, dest_planet);
-            DOCTEST_CHECK(SETTLER::Get_Dest_Planet(actual) == dest_planet);
-            DOCTEST_CHECK((actual & ~SETTLER::MASK_DEST_PLANET) ==
-                          (settler_data & ~SETTLER::MASK_DEST_PLANET));
-        }
-    }
+DOCTEST_TEST_CASE("legacy settler records migrate all fields") {
+    const auto migrated = SERIAL::Decode_Classic_Settler(0xDAB4C382u);
+    DOCTEST_CHECK(migrated.source_colony.get() == game::id_colony{0x82});
+    DOCTEST_CHECK(migrated.destination.get() == game::id_planet{0xC3});
+    DOCTEST_CHECK(migrated.race == 4);
+    DOCTEST_CHECK(migrated.eta == 0xB);
+    DOCTEST_CHECK(migrated.profession == POP::PROF_SCIENTIST);
+    DOCTEST_CHECK(migrated.legacy_flags.get() == 0x36);
+    DOCTEST_CHECK(SERIAL::Decode_Classic_Settler(0xfa).source_colony.get() == game::NO_COLONY);
+    const auto packed = SERIAL::Decode_Packed_Settler(UINT64_MAX);
+    DOCTEST_CHECK(packed.source_colony.get() == game::NO_COLONY);
+    DOCTEST_CHECK(packed.destination.get() == game::id_planet{UINT32_MAX});
+    DOCTEST_CHECK(packed.legacy_flags.get() == 0x3fffff);
 }
 
-DOCTEST_TEST_CASE("legacy settler records migrate all fields") {
-    constexpr SETTLER::legacy_value_type legacy = 0xDAB4C382u;
-    const SETTLER::value_type migrated = SETTLER::From_Legacy(legacy);
-
-    DOCTEST_CHECK(SETTLER::Get_Source_Colony(migrated) == 0x82);
-    DOCTEST_CHECK(SETTLER::Get_Dest_Planet(migrated) == 0xC3);
-    DOCTEST_CHECK(SETTLER::Get_Race(migrated) == 4u);
-    DOCTEST_CHECK(SETTLER::Get_Eta(migrated) == 0xBu);
-    DOCTEST_CHECK(SETTLER::Get_Prof(migrated) == POP::PROF_SCIENTIST);
-    DOCTEST_CHECK((migrated & SETTLER::MASK_RESERVED) == 0x0000D80000000000ull);
-
-    for (uint32_t legacy_source = SETTLER::LEGACY_SOURCE_COLONY_IN_TRANSIT;
-         legacy_source <= UINT8_MAX; ++legacy_source) {
-        const SETTLER::value_type in_transit = SETTLER::From_Legacy(legacy_source);
-        DOCTEST_CHECK(SETTLER::Get_Source_Colony(in_transit) ==
-                      SETTLER::SOURCE_COLONY_IN_TRANSIT);
+DOCTEST_TEST_CASE("earlier v8 freight decodes a narrow source and a wide destination") {
+    for (const auto source : {int16_t{0}, int16_t{12}, int16_t{-1}}) {
+        std::array<uint8_t, SERIAL::NARROW_SOURCE_SETTLER_BYTES> bytes{};
+        SERIAL::Writer_ writer(bytes.data(), bytes.size(), "earlier freight overflow");
+        writer.Write_Int16(source);
+        writer.Write_Uint32(70000);
+        writer.Write_Uint8(3);
+        writer.Write_Uint8(5);
+        writer.Write_Uint8(2);
+        writer.Write_Uint32(0x12345);
+        DOCTEST_REQUIRE(writer.Length() == bytes.size());
+        SERIAL::Reader_ reader(bytes.data(), bytes.size(), "earlier freight underflow");
+        const auto settler = SERIAL::Read_Settler(reader, false);
+        DOCTEST_CHECK(reader.Remaining() == 0);
+        DOCTEST_CHECK(settler.source_colony.get() == (source == -1 ? game::NO_COLONY : game::id_colony{static_cast<uint32_t>(source)}));
+        DOCTEST_CHECK(settler.destination.get() == game::id_planet{70000});
+        DOCTEST_CHECK(settler.race == 3);
+        DOCTEST_CHECK(settler.eta == 5);
+        DOCTEST_CHECK(settler.profession == 2);
+        DOCTEST_CHECK(settler.legacy_flags.get() == 0x12345);
     }
 }
 
@@ -246,10 +206,8 @@ DOCTEST_TEST_CASE("settler-to-pop rewrite matches the original bit twiddling") {
     for (uint32_t initial_pop : initial_values) {
         for (uint32_t race = 0; race < 16; ++race) {
             for (uint32_t prof = 0; prof < 4; ++prof) {
-                SETTLER::value_type settler_data = 0;
-                SETTLER::Set_Race(&settler_data, race);
-                SETTLER::Set_Prof(&settler_data, static_cast<POP::e_prof>(prof));
-                const SETTLER::legacy_value_type legacy_settler_data =
+                const s_settler_info settler_data{.race = static_cast<uint8_t>(race), .profession = static_cast<uint8_t>(prof)};
+                const uint32_t legacy_settler_data =
                         (race << 16) | (prof << 24);
 
                 DOCTEST_CHECK(Helper_Add_Settler_To_Pop(initial_pop, settler_data) ==
@@ -266,12 +224,12 @@ DOCTEST_TEST_CASE("pop-to-settler encoding keeps race and profession equivalent 
             POP::Set_Race(&pop, race);
             POP::Set_Prof(&pop, static_cast<POP::e_prof>(prof));
 
-            const SETTLER::legacy_value_type legacy = Legacy_Encode_Settler_From_Pop(pop);
-            const SETTLER::value_type helper = Helper_Encode_Settler_From_Pop(pop);
-            const SETTLER::value_type migrated = SETTLER::From_Legacy(legacy);
+            const auto legacy = Legacy_Encode_Settler_From_Pop(pop);
+            const auto helper = Helper_Encode_Settler_From_Pop(pop);
+            const auto migrated = SERIAL::Decode_Classic_Settler(legacy);
 
-            DOCTEST_CHECK(SETTLER::Get_Race(helper) == SETTLER::Get_Race(migrated));
-            DOCTEST_CHECK(SETTLER::Get_Prof(helper) == SETTLER::Get_Prof(migrated));
+            DOCTEST_CHECK(helper.race == migrated.race);
+            DOCTEST_CHECK(helper.profession == migrated.profession);
         }
     }
 }

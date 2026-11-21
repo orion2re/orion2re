@@ -1,5 +1,6 @@
 #include "pch.h"
 
+#include "game/game_wire_version.h"
 #include "game/netcode_bootstrap.h"
 #include "game/multplay.h"
 #include "lua/lua_network.h"
@@ -349,7 +350,8 @@ namespace netcode {
             if (player_name != nullptr && player_name[0] != '\0') {
                 network::router::Router_Copy_String(config->client_name, sizeof(config->client_name), player_name);
             }
-            network::router::Router_Copy_String(config->build_string, sizeof(config->build_string), GAME_BUILD_DATE);
+            static_assert(sizeof(config->build_string) >= sizeof(NETPROTO::GAME_WIRE_VERSION));
+            network::router::Router_Copy_String(config->build_string, sizeof(config->build_string), NETPROTO::GAME_WIRE_VERSION);
             return true;
         }
 

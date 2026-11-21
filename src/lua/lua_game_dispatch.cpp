@@ -1,5 +1,7 @@
 #include "pch.h"
 
+#include "game/legacy_ids.h"
+
 #include "lua/lua_game.h"
 
 #include <climits>
@@ -108,7 +110,7 @@ namespace orion2re::lua::game {
             const int object = lua_gettop(lua_state);
             lua_newtable(lua_state);
             const int values = lua_gettop(lua_state);
-            lua_pushinteger(lua_state, event->planet_id);
+            lua_pushinteger(lua_state, event->planet_id.id);
             lua_setfield(lua_state, values, "planet_id");
             lua_newtable(lua_state);
             lua_pushvalue(lua_state, values);
@@ -155,12 +157,12 @@ namespace orion2re::lua::game {
             const int object = lua_gettop(lua_state);
             lua_newtable(lua_state);
             const int values = lua_gettop(lua_state);
-            const auto set_integer = [&](const char* name, std::int16_t value) {
+            const auto set_integer = [&](const char* name, lua_Integer value) {
                 lua_pushinteger(lua_state, value);
                 lua_setfield(lua_state, values, name);
             };
-            set_integer("colony_id", context->colony_id);
-            set_integer("planet_id", context->planet_id);
+            set_integer("colony_id", context->colony_id.id);
+            set_integer("planet_id", context->planet_id.id);
             set_integer("owner_id", context->owner_id);
             set_integer("race_id", context->race_id);
             set_integer("race_population", context->race_population);
@@ -262,18 +264,11 @@ namespace orion2re::lua::game {
         if (runtime_count == 0 || !Setup_Callback_Allowed_()) {
             return;
         }
-        if (event == nullptr || MOX::planet == nullptr ||
-            MOX::star == nullptr || MOX::planet_count < 0 ||
-            MOX::planet_count > MAX_PLANETS || MOX::NUM_STARS < 0 ||
-            MOX::NUM_STARS > MAX_STARS || event->planet_id < 0 ||
-            event->planet_id >= MOX::planet_count) {
+        if (!event) {
             exitm::Exit_With_Message("invalid planet.generated Lua event");
         }
-        const s_planet_data& planet = MOX::planet[event->planet_id];
-        if (planet.star_index < 0 || planet.star_index >= MOX::NUM_STARS ||
-            planet.orbit < 0 || planet.orbit >= 5 ||
-            MOX::star[planet.star_index].planet_index[planet.orbit] !=
-                event->planet_id) {
+        int16_t system;
+        if (!internal::Resolve_Planet_System(event->planet_id, &system)) {
             exitm::Exit_With_Message("invalid planet.generated planet");
         }
 
@@ -389,9 +384,8 @@ namespace orion2re::lua::game {
             return;
         }
         if (event == nullptr || MOX::player == nullptr ||
-            MOX::planet == nullptr || MOX::star == nullptr ||
+            MOX::star == nullptr ||
             MOX::NUM_PLAYERS < 0 || MOX::NUM_PLAYERS > MAX_PLAYERS ||
-            MOX::planet_count < 0 || MOX::planet_count > MAX_PLANETS ||
             MOX::NUM_STARS < 0 || MOX::NUM_STARS > MAX_STARS ||
             event->player_id < 0 ||
             event->player_id >= MOX::NUM_PLAYERS || event->system_id < 0 ||
@@ -399,10 +393,9 @@ namespace orion2re::lua::game {
             exitm::Exit_With_Message(
                 "invalid new_game.home_system_generated Lua event");
         }
-        const std::int16_t home_planet_id =
-            MOX::player[event->player_id].home_planet_id;
-        if (home_planet_id < 0 || home_planet_id >= MOX::planet_count ||
-            MOX::planet[home_planet_id].star_index != event->system_id) {
+        const auto home = MOX::player[event->player_id].home_planet_id.get();
+        int16_t system;
+        if (!internal::Resolve_Planet_System(home, &system) || system != event->system_id) {
             exitm::Exit_With_Message(
                 "invalid new_game.home_system_generated home system");
         }
@@ -483,9 +476,8 @@ namespace orion2re::lua::game {
             (network_game && authoritative_population_growth_depth_ == 0)) {
             return growth;
         }
-        if (context == nullptr || context->colony_id < 0 ||
-            context->colony_id >= MAX_COLONIES || context->planet_id < 0 ||
-            context->planet_id >= MAX_PLANETS || context->owner_id < 0 ||
+        if (context == nullptr || context->colony_id == NO_COLONY ||
+            context->planet_id == NO_PLANET || context->owner_id < 0 ||
             context->owner_id >= MAX_PLAYERS || context->race_id < 0 ||
             context->race_id >= MAX_PLAYERS ||
             context->race_population < 0 ||

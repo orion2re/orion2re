@@ -13,21 +13,21 @@ namespace aileader {
      * @param player_index Owning player index.
      * @param leader_index Leader index in the global leader table.
      */
-    void Assign_Fleet_Officer(const game::s_view* world, game::id_player player_index, game::id_leader leader_index);
+    void Assign_Fleet_Officer(const game::s_view* world, game::id_player player_index, int16_t leader_slot);
 
     /**
      * Assigns an unassigned star officer to the best eligible colony system for a player.
      * @param player_index Owning player index.
      * @param leader_index Leader index in the global leader table.
      */
-    void Assign_Star_Officer(AIDATA::s_state* ai, const game::s_view* world, game::id_player player_index, game::id_leader leader_index);
+    void Assign_Star_Officer(const game::s_view* world, AIDATA::s_state* ai, game::id_player player_index, int16_t leader_slot);
 
     /**
      * Reassigns a fleet officer to a better ship at the same location, or any eligible ship when the current assignment is being scrapped.
      * @param player_index Owning player index.
      * @param leader_index Leader index in the global leader table.
      */
-    void Reassign_Fleet_Officer(const game::s_view* world, game::id_player player_index, game::id_leader leader_index);
+    void Reassign_Fleet_Officer(const game::s_view* world, game::id_player player_index, int16_t leader_slot);
 
     /**
      * Assigns or reassigns any currently owned leaders that are still available for AI use.
