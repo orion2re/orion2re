@@ -59,8 +59,8 @@ namespace spy {
             int16_t spies_at_home = BILL::Get_Their_Spy_Number(player_idx, player_idx);
             int32_t total_spies = (int32_t)spies_at_home + (int32_t)spies_at_enemy;
 
-            if (total_spies > 0x3f /* 63 */) {
-                total_spies = 0x3f;
+            if (total_spies > MAX_SPIES_PER_TARGET) {
+                total_spies = MAX_SPIES_PER_TARGET;
             }
 
             BILL::Set_Their_Spy_Number(player_idx, player_idx, (uint8_t)total_spies);

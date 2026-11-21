@@ -368,7 +368,7 @@ namespace AIBUILD {
 
         needs.spies.additional_wanted = 0;
         if (needs.combat_strength.total > 0) {
-            int32_t spy_limit = 0x3F - BILL::Get_Their_Spy_Number(legacy_player, legacy_player);
+            const int32_t spy_limit = spy::MAX_SPIES_PER_TARGET - BILL::Get_Their_Spy_Number(legacy_player, legacy_player);
             if (info.contact_count > 0 && spy_limit > 0) {
                 int32_t current_spies = needs.spies.current;
                 if (current_spies < max_spies) {

@@ -1,6 +1,11 @@
 #include "pch.h"
 
 namespace BILL {
+    namespace {
+        constexpr uint8_t SPY_COUNT_MASK = spy::MAX_SPIES_PER_TARGET;
+        constexpr uint8_t SPY_MISSION_MASK = static_cast<uint8_t>(~SPY_COUNT_MASK);
+    }
+
     int16_t _pp_max_width;
     int16_t _pp_max_height;
 
@@ -38,28 +43,27 @@ namespace BILL {
     }
 
     int16_t __cdecl Get_Their_Spy_Number(int16_t player_idx, int16_t target_idx) {
-        return (int16_t)(MOX::player[player_idx].spies[target_idx] & 0x3F);
+        return MOX::player[player_idx].spies[target_idx] & SPY_COUNT_MASK;
     }
 
     int16_t __cdecl Add_Their_Spy(int16_t player_idx, int16_t other_player_idx) {
-        const uint16_t spy_count =
-            ((uint8_t)MOX::player[player_idx].spies[other_player_idx] & 0x3f) + 1;
+        const int16_t spy_count = Get_Their_Spy_Number(player_idx, other_player_idx) + 1;
 
-        if (spy_count < 0x40) {
+        if (spy_count <= spy::MAX_SPIES_PER_TARGET) {
             MOX::player[player_idx].spies[other_player_idx] = (uint8_t)spy_count;
-            return (int16_t)spy_count;
+            return spy_count;
         }
 
         return 0;
     }
 
     int16_t __cdecl Get_My_Spy_Number(int16_t spy_idx) {
-        return (int16_t)(MOX::player[MOX::PLAYER_NUM].spies[spy_idx] & 0x3F);
+        return Get_Their_Spy_Number(MOX::PLAYER_NUM, spy_idx);
     }
 
     void __cdecl Set_Their_Spy_Number(int16_t player_idx, int16_t target_player_idx, int16_t count) {
-        MOX::player[player_idx].spies[target_player_idx] &= 0xC0;
-        MOX::player[player_idx].spies[target_player_idx] |= (count & 0x3F);
+        MOX::player[player_idx].spies[target_player_idx] &= SPY_MISSION_MASK;
+        MOX::player[player_idx].spies[target_player_idx] |= count & SPY_COUNT_MASK;
     }
 
     int16_t __cdecl _Get_Paragraph_Max_Width(int16_t width, char* text, int16_t alignment) {
@@ -335,21 +339,20 @@ namespace BILL {
     }
 
     int8_t __cdecl Get_My_Spy_Mission(int16_t target_player_idx) {
-        return (uint8_t)MOX::player[MOX::PLAYER_NUM].spies[target_player_idx] >> 6;
+        return Get_Their_Spy_Mission(MOX::PLAYER_NUM, target_player_idx);
     }
 
     void __cdecl Set_Their_Spy_Mission(int16_t player_idx, int16_t target_player_idx, int8_t mission) {
-        MOX::player[player_idx].spies[target_player_idx] &= 0x3f;
-        MOX::player[player_idx].spies[target_player_idx] |= (mission << 6);
+        MOX::player[player_idx].spies[target_player_idx] &= SPY_COUNT_MASK;
+        MOX::player[player_idx].spies[target_player_idx] |= mission << spy::SPY_COUNT_BITS;
     }
 
     int16_t __cdecl Get_My_Agent_Number() {
-        int16_t player_num = MOX::PLAYER_NUM;
-        return (int16_t)(MOX::player[player_num].spies[player_num] & 0x3f);
+        return Get_My_Spy_Number(MOX::PLAYER_NUM);
     }
 
     int16_t __cdecl Get_Their_Spy_Mission(int16_t player_idx, int16_t target_player_idx) {
-        return (int16_t)((uint8_t)MOX::player[player_idx].spies[target_player_idx] >> 6);
+        return MOX::player[player_idx].spies[target_player_idx] >> spy::SPY_COUNT_BITS;
     }
 
     void __cdecl _Print_1_Or_More_Lines_Centered(int16_t x, int16_t y, int16_t width, const char* text, s_animation_header* bitmap) {
