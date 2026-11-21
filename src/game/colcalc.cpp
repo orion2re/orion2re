@@ -957,7 +957,7 @@ namespace COLCALC {
             }
             orion2re::lua::game::s_population_growth_context context;
             context.colony_id = colony_idx;
-            context.planet_id = SERIAL::Encode_Legacy_Planet_Reference(colony->planet_id.get());
+            context.planet_id = colony->planet_id.get();
             context.owner_id = static_cast<uint8_t>(colony->owner);
             context.race_id = i;
             context.race_population = race_pop_count[i];
@@ -2185,7 +2185,7 @@ namespace COLCALC {
 
                     s_MSG msg = {};
                     msg.msg_type = MSG_TYPE_COLONY;
-                    msg.u.colony.planet_idx = SERIAL::Encode_Legacy_Planet_Reference(colony->planet_id.get());
+                    msg.u.colony.planet_id = colony->planet_id.get();
                     msg.u.colony.subtype = MSG_COLONY_SUBTYPE_GENOCIDE;
                     msg.u.colony.c.assimilation.val = static_cast<uint8_t>(POP::Get_Race(POP::Load(selected_pop)));
 
@@ -2311,7 +2311,7 @@ namespace COLCALC {
             if (food_shortage > 0 || industry_shortage > 0) {
                 s_MSG msg = {};
                 msg.msg_type = MSG_TYPE_COLONY;
-                msg.u.colony.planet_idx = SERIAL::Encode_Legacy_Planet_Reference(colony->planet_id.get());
+                msg.u.colony.planet_id = colony->planet_id.get();
                 msg.u.colony.subtype = MSG_COLONY_SUBTYPE_STARVATION;
 
                 if (food_shortage > 0) {
@@ -3595,7 +3595,7 @@ namespace COLCALC {
 
                         s_MSG msg = {};
                         msg.msg_type = MSG_TYPE_COLONY;
-                        msg.u.colony.planet_idx = SERIAL::Encode_Legacy_Planet_Reference(colony->planet_id.get());
+                        msg.u.colony.planet_id = colony->planet_id.get();
                         msg.u.colony.subtype = MSG_COLONY_SUBTYPE_ASSIMILATION;
                         msg.u.colony.c.assimilation.val =
                             static_cast<uint8_t>(POP::Get_Race(colony->pop[chosen_pop_idx]));
@@ -3692,7 +3692,7 @@ namespace COLCALC {
             if (production_pool >= product_cost) {
                 s_MSG build_msg{};
                 build_msg.msg_type = MSG_TYPE_COLONY;
-                build_msg.u.colony.planet_idx = SERIAL::Encode_Legacy_Planet_Reference(colony->planet_id.get());
+                build_msg.u.colony.planet_id = colony->planet_id.get();
                 build_msg.u.colony.subtype = MSG_COLONY_SUBTYPE_PRODUCTION_COMPLETED;
                 build_msg.u.colony.c.build.build_id = current_product;
 
@@ -3846,7 +3846,7 @@ namespace COLCALC {
                                     } else {
                                         s_MSG pop_removed_msg{};
                                         pop_removed_msg.msg_type = MSG_TYPE_COLONY;
-                                        pop_removed_msg.u.colony.planet_idx = SERIAL::Encode_Legacy_Planet_Reference(colony->planet_id.get());
+                                        pop_removed_msg.u.colony.planet_id = colony->planet_id.get();
                                         pop_removed_msg.u.colony.subtype = MSG_COLONY_SUBTYPE_ANDROID_KILLED_ORGANIC;
                                         pop_removed_msg.u.colony.c.android_killed.race_idx =
                                             static_cast<int8_t>(POP::Get_Race(POP::Load(selected_pop)));
@@ -3879,7 +3879,7 @@ namespace COLCALC {
                                 } else {
                                     s_MSG pop_failed_msg{};
                                     pop_failed_msg.msg_type = MSG_TYPE_COLONY;
-                                    pop_failed_msg.u.colony.planet_idx = SERIAL::Encode_Legacy_Planet_Reference(colony->planet_id.get());
+                                    pop_failed_msg.u.colony.planet_id = colony->planet_id.get();
                                     pop_failed_msg.u.colony.subtype = MSG_COLONY_SUBTYPE_NO_ROOM_FOR_ANDROID;
                                     MSG_::Add_Msg(pop_failed_msg, static_cast<int16_t>(owner_player_idx));
 

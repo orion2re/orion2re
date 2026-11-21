@@ -248,9 +248,9 @@ namespace MAINSCR {
 } // namespace MAINSCR
 
 namespace HACCESS {
-    char* __cdecl Get_Planet_Name(int16_t planet_idx) {
+    char* Get_Planet_Name(const game::s_game_state&, game::id_planet planet) {
         static char name[16];
-        snprintf(name, sizeof(name), "Planet %d", planet_idx);
+        snprintf(name, sizeof(name), "Planet %u", planet.id);
         return name;
     }
 }

@@ -258,12 +258,12 @@ namespace MAINPUPS {
         return TEST_REPORT::accept_officer_offer;
     }
 
-    int16_t __cdecl New_Colony_Selection_Popup(int16_t, uint8_t) {
-        return PLANET_INDEX_NONE;
+    game::id_planet __cdecl New_Colony_Selection_Popup(int16_t, uint8_t) {
+        return game::NO_PLANET;
     }
 
-    int16_t __cdecl New_Outpost_Selection_Popup(int16_t) {
-        return PLANET_INDEX_NONE;
+    game::id_planet __cdecl New_Outpost_Selection_Popup(int16_t) {
+        return game::NO_PLANET;
     }
 }
 
@@ -388,11 +388,11 @@ namespace SCIENCE {
         TEST_REPORT::science_tech = tech;
         TEST_REPORT::science_source = player;
     }
-    void __cdecl Show_Off_Artifact_Tech(uint16_t tech, int16_t planet) {
+    void __cdecl Show_Off_Artifact_Tech(uint16_t tech, game::id_planet planet) {
         ++TEST_REPORT::science_calls;
         TEST_REPORT::science_kind = 3;
         TEST_REPORT::science_tech = tech;
-        TEST_REPORT::science_source = planet;
+        TEST_REPORT::science_source = planet.id;
     }
 }
 

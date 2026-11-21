@@ -755,17 +755,17 @@ namespace INTERNAL_STATE_DEBUG {
             g_event_draft.turn_count = 0;
         }
 
-        int16_t Planet_For_Colony_(int16_t colony) {
-            return Valid_Colony_(colony) ? SERIAL::Encode_Legacy_Planet_Reference(MOX::colony[colony].planet_id.get()) : -1;
+        game::id_planet Planet_For_Colony_(int16_t colony) {
+            return Valid_Colony_(colony) ? MOX::colony[colony].planet_id.get() : game::NO_PLANET;
         }
 
-        bool Planet_Relationship_Valid_(int16_t planet) {
-            if (planet < 0 || !current_state.planets.contains(game::id_planet{static_cast<uint32_t>(planet)})) {
+        bool Planet_Relationship_Valid_(game::id_planet planet) {
+            if (!current_state.planets.contains(planet)) {
                 return false;
             }
-            const int16_t colony = current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet)}).colony_index;
+            const auto colony = current_state.planets.at(planet).colony_index;
             return colony == -1 ||
-                (Valid_Colony_(colony) && SERIAL::Encode_Legacy_Planet_Reference(MOX::colony[colony].planet_id.get()) == planet);
+                (Valid_Colony_(colony) && MOX::colony[colony].planet_id.get() == planet);
         }
 
         bool Colony_Relationship_Valid_(int16_t colony) {
@@ -773,7 +773,7 @@ namespace INTERNAL_STATE_DEBUG {
                 return false;
             }
             const auto planet = MOX::colony[colony].planet_id.get();
-            return Planet_Relationship_Valid_(SERIAL::Encode_Legacy_Planet_Reference(planet)) &&
+            return Planet_Relationship_Valid_(planet) &&
                 current_state.planets.at(planet).colony_index == colony &&
                 Valid_Star_(current_state.planets.at(planet).star_index);
         }
@@ -784,7 +784,7 @@ namespace INTERNAL_STATE_DEBUG {
             }
             for (int16_t orbit = 0; orbit < 5; ++orbit) {
                 const auto planet = MOX::star[star].orbit_planet_ids[orbit].get();
-                if (planet != game::NO_PLANET && (!Planet_Relationship_Valid_(SERIAL::Encode_Legacy_Planet_Reference(planet)) ||
+                if (planet != game::NO_PLANET && (!Planet_Relationship_Valid_(planet) ||
                         current_state.planets.at(planet).star_index != star)) {
                     return false;
                 }
@@ -823,7 +823,7 @@ namespace INTERNAL_STATE_DEBUG {
                     break;
                 case EVENT_CLIMATIC_CHANGE:
                     colony = EVENTS::Get_Event_Climate_Change_Colony(player);
-                    g_event_draft.target_id = Planet_For_Colony_(colony);
+                    g_event_draft.planet_target = Planet_For_Colony_(colony);
                     break;
                 case EVENT_COMET:
                     g_event_draft.target_id = EVENTS::Pick_Random_Colony_No_Capitol(player);
@@ -858,15 +858,15 @@ namespace INTERNAL_STATE_DEBUG {
                     break;
                 case EVENT_INDUSTRIAL_ACCIDENT:
                     colony = EVENTS::Get_Event_Industrial_Accident_Colony(player);
-                    g_event_draft.target_id = Planet_For_Colony_(colony);
+                    g_event_draft.planet_target = Planet_For_Colony_(colony);
                     break;
                 case EVENT_MINERAL_DEPLETION:
                     colony = EVENTS::Get_Event_Mineral_Depletion_Colony(player);
-                    g_event_draft.target_id = Planet_For_Colony_(colony);
+                    g_event_draft.planet_target = Planet_For_Colony_(colony);
                     break;
                 case EVENT_MINERAL_DEPOSIT:
                     colony = EVENTS::Get_Event_Mineral_Deposit_Colony(player);
-                    g_event_draft.target_id = Planet_For_Colony_(colony);
+                    g_event_draft.planet_target = Planet_For_Colony_(colony);
                     break;
                 case EVENT_PIRATE_ACTIVITY:
                     g_event_draft.target_id = EVENTS::Pick_Completely_Random_Star();
@@ -940,7 +940,7 @@ namespace INTERNAL_STATE_DEBUG {
                 case EVENT_TARGET_STAR:
                     return Star_Relationship_Valid_(g_event_draft.target_id);
                 case EVENT_TARGET_PLANET:
-                    return Planet_Relationship_Valid_(g_event_draft.target_id);
+                    return current_state.planets.contains(g_event_draft.planet_target.get());
                 case EVENT_TARGET_COLONY:
                     return Colony_Relationship_Valid_(g_event_draft.target_id);
                 case EVENT_TARGET_SHIP:
@@ -1079,10 +1079,9 @@ namespace INTERNAL_STATE_DEBUG {
                         "Target star", &g_event_draft.target_id, false);
                     break;
                 case EVENT_TARGET_PLANET: {
-                    auto planet_id = SERIAL::Decode_Legacy_Planet_Reference(g_event_draft.target_id);
-                    if (debug_game_widgets::Planet_Reference("Target planet", &planet_id, false) &&
-                        planet_id.id <= INT16_MAX) {
-                        g_event_draft.target_id = SERIAL::Encode_Legacy_Planet_Reference(planet_id);
+                    auto planet_id = g_event_draft.planet_target.get();
+                    if (debug_game_widgets::Planet_Reference("Target planet", &planet_id, false)) {
+                        g_event_draft.planet_target = planet_id;
                     }
                     break;
                 }

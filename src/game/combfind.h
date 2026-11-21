@@ -113,9 +113,9 @@ namespace COMBFIND {
 
     bool __cdecl Planet_Has_Splinter_Colony(s_planet_data* planet);
 
-    int16_t __cdecl Target_Planet_To_Colony(int16_t planet_idx);
+    int16_t __cdecl Target_Planet_To_Colony(game::id_planet planet_idx);
 
-    int16_t __cdecl Target_Colony_To_Planet(int16_t colony_idx);
+    game::id_planet __cdecl Target_Colony_To_Planet(int16_t colony_idx);
 
     /**
      * Resolves one combat at a star and optionally fills a battle-results record.
@@ -126,7 +126,7 @@ namespace COMBFIND {
      * @param result Receives battle results when non-null.
      * @param is_sneak_attack Nonzero when sneak-attack handling applies.
      */
-    int16_t __cdecl Do_1_Combat(int16_t star_idx, int16_t attacker_idx, int16_t defender_idx, int16_t planet_idx, s_battle_results* result, int8_t is_sneak_attack);
+    int16_t __cdecl Do_1_Combat(int16_t star_idx, int16_t attacker_idx, int16_t defender_idx, game::id_planet planet_idx, s_battle_results* result, int8_t is_sneak_attack);
 
     int8_t __cdecl AI_Can_Retreat(int8_t player_idx, int16_t excluded_colony_idx);
 

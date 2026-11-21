@@ -132,7 +132,7 @@ namespace COLSUM {
 
     void __cdecl Colony_Summary_Screen();
 
-    int16_t __cdecl Pick_Best_Planet_To_Goto_At_Star(int16_t star_idx);
+    game::id_planet __cdecl Pick_Best_Planet_To_Goto_At_Star(int16_t star_idx);
 
     int16_t __cdecl Prod_To_Sort_Type(int16_t production_id);
 

@@ -83,7 +83,7 @@ namespace JIM {
      * @param tech_field_id Index used for technology-field substitutions.
      * @param max_len Capacity of message_buffer, including the terminator.
      */
-    void __cdecl Decode_Text_Message(char* message_buffer, int16_t player1_id, int16_t star_id, int16_t tech_app1_id, int16_t number, int16_t player2_id, int16_t tech_app2_id, int16_t tech_field_id, int16_t max_len);
+    void __cdecl Decode_Text_Message(char* message_buffer, int16_t player1_id, int16_t star_id, int16_t tech_app1_id, int16_t number, int16_t player2_id, int16_t tech_app2_id, int16_t tech_field_id, int16_t max_len, game::id_planet planet = game::NO_PLANET);
 
     void __cdecl Decode_Text_Year(char* buffer, int16_t max_len);
 

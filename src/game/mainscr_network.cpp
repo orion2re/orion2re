@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "battle_results_serialization.h"
 #include "player_network_serialization.h"
 
 #include "config/config_snapshot.h"
@@ -314,11 +315,13 @@ namespace MAINSCR {
                 break;
             }
             case NET_PACKET_COMBAT_TARGET_CHOSEN: {
-                const s_net_pack_combat_target_chosen* packet = (const s_net_pack_combat_target_chosen*)payload;
-                NETMOX::net.player_net_info[from_player_id].combat_defender_id = packet->combat_defender_id;
-                NETMOX::net.player_net_info[from_player_id].combat_planet_id = packet->combat_planet_id;
-                NETMOX::net.player_net_info[from_player_id].combat_target_player_id = packet->combat_target_player_id;
-                NETMOX::net.player_net_info[from_player_id].player_state = NET_PLAYER_STATE_COMBAT_TARGET_CHOSEN;
+                if (payload_len != 8 || from_player_id < 0 || from_player_id >= MAX_PLAYERS) break;
+                SERIAL::Reader_ reader(payload, payload_len, "combat target underflow", true);
+                auto& info = NETMOX::net.player_net_info[from_player_id];
+                info.combat_defender_id = reader.Read_Int16();
+                info.combat_planet_id = game::id_planet{reader.Read_Uint32()};
+                info.combat_target_player_id = reader.Read_Int16();
+                info.player_state = NET_PLAYER_STATE_COMBAT_TARGET_CHOSEN;
                 break;
             }
             case NET_PACKET_YOU_ARE_TARGET_INFO: {
@@ -345,7 +348,9 @@ namespace MAINSCR {
             }
             case NET_PACKET_STRATEGIC_BATTLE_RESULTS:
             case NET_PACKET_STRATEGIC_RESULTS_READY: {
-                memcpy(NETMOX::net.combat_results_data, payload, sizeof(s_battle_results));
+                if (payload_len != SERIAL::BATTLE_RESULTS_BYTES || !NETMOX::net.combat_results_data) break;
+                SERIAL::Reader_ reader(payload, payload_len, "battle results underflow", true);
+                SERIAL::Read_Battle_Results(reader, *NETMOX::net.combat_results_data);
                 if (msg_type == NET_PACKET_STRATEGIC_BATTLE_RESULTS) {
                     NETMOX::net.sync_state = NET_SYNC_STATE_COMBAT_RESULTS_DISPLAY;
                 } else {
@@ -601,12 +606,16 @@ namespace MAINSCR {
                 break;
             }
             case NET_PACKET_MONSTER_UPDATE: {
-                if (payload_len != sizeof(s_net_pack_monster_update)) {
+                if (payload_len != 12) {
                     break;
                 }
-                s_net_pack_monster_update monster_update;
-                memcpy(&monster_update, payload, sizeof(monster_update));
-                EVENTS::Event_Monster_Update((int16_t)monster_update.monster_type, monster_update.target_planet_id, (int16_t)monster_update.player_idx_or_amount);
+                SERIAL::Reader_ reader(static_cast<const uint8_t*>(payload), payload_len, "monster update underflow", true);
+                const auto monster = reader.Read_Int32();
+                const game::id_planet target{reader.Read_Uint32()};
+                const auto amount = reader.Read_Int32();
+                if (std::in_range<int16_t>(monster) && std::in_range<int16_t>(amount)) {
+                    EVENTS::Event_Monster_Update(monster, target, amount);
+                }
                 break;
             }
             case NET_PACKET_PLAYER_RACE_DESELECTED: {

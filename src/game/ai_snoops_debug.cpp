@@ -368,7 +368,7 @@ namespace AI_SNOOPS_DEBUG {
                     ImGui::PushID(planet);
                     if (ImGui::Selectable(std::to_string(planet).c_str(), false,
                                           ImGuiSelectableFlags_SpanAllColumns)) {
-                        if (id.id <= INT16_MAX) debug_game_editors::Open_Planet(id.id);
+                        debug_game_editors::Open_Planet(id);
                     }
                     ImGui::PopID();
                     ImGui::TableSetColumnIndex(1);
@@ -612,7 +612,7 @@ namespace AI_SNOOPS_DEBUG {
                     ImGui::TableSetColumnIndex(1);
                     ImGui::PushID((int)index);
                     if (ImGui::Selectable(std::to_string(planet.planet_id.id).c_str())) {
-                        if (planet.planet_id.id <= INT16_MAX) debug_game_editors::Open_Planet(planet.planet_id.id);
+                        debug_game_editors::Open_Planet(planet.planet_id);
                     }
                     ImGui::PopID();
                     ImGui::TableSetColumnIndex(2);

@@ -385,7 +385,7 @@ namespace INITGAME {
             }
 
             // Determine and set the default auto-selection logic for this star
-            int16_t selected_planet_idx;
+            game::id_planet selected_planet_idx;
             HACCESS::Set_Colony_Auto_Select_For_Star(star_idx, MOX::PLAYER_NUM, &selected_planet_idx);
         }
     }

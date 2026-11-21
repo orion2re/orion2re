@@ -38,7 +38,7 @@ namespace NEWPUP {
     void __cdecl Draw_Troop_Popup() {
         int16_t summary_row;
         s_invasion_side_info invasion_info;
-        int16_t planet_index;
+        game::id_planet planet_index;
 
         COLONY::Set_Colony_Font();
 
@@ -53,10 +53,10 @@ namespace NEWPUP {
             animate::Draw(2, 0x149, NEWPUP::anims);
 
             summary_row = 0;
-            planet_index = HAROLD::Planet_Index(MOX::screen_data, COLONY::orbit_temp);
+            planet_index = MOX::star[MOX::screen_data].orbit_planet_ids[COLONY::orbit_temp].get();
 
             invasion::Compute_Colony_Ground_Combat_Info(
-                &MOX::colony[game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_index)}).colony_index],
+                &MOX::colony[game::current_state.planets.at(planet_index).colony_index],
                 &invasion_info,
                 rebel_display != 0);
 

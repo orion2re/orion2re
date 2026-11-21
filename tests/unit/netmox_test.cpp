@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "game/colony_serialization.h"
 #include "game/ship_serialization.h"
+#include "game/battle_results_serialization.h"
 #include "../fixtures/planet_roster.h"
 
 #include "doctest/doctest.h"
@@ -322,7 +323,7 @@ namespace {
         }
 
         for (int i = 0; i < 100; ++i) {
-            MSG_::msgs[i].msg_type = (int8_t)(i % 9);
+            MSG_::msgs[i].msg_type = MSG_TYPE_FINANCIAL;
             MSG_::msgs[i].priority = (uint8_t)(i % 5);
             MSG_::msgs[i].u.financial.a = (int16_t)(500 + i);
             MSG_::msgs[i].u.financial.b = (int16_t)(700 + i);
@@ -385,7 +386,7 @@ DOCTEST_TEST_CASE("large combat payload allocations stay within the shared limit
         sizeof(int16_t);
 
     constexpr uint32_t battle_results_remote_payload_bytes =
-        sizeof(int16_t) * 4 +
+        sizeof(int16_t) * 3 + sizeof(uint32_t) +
         sizeof(int16_t) +
         MAX_PLAYERS * sizeof(s_combfind_star_has_player) +
         sizeof(uint8_t) +
@@ -406,7 +407,7 @@ DOCTEST_TEST_CASE("large combat payload allocations stay within the shared limit
         MAX_LEADERS * (sizeof(int16_t) + SERIAL::LEADER_BYTES) +
         sizeof(int16_t) +
         2 * sizeof(uint8_t) +
-        (sizeof(int16_t) * 3 + sizeof(uint8_t) * 2 + SERIAL::COLONY_BYTES) +
+        (sizeof(int16_t) * 2 + sizeof(uint32_t) + sizeof(uint8_t) * 2 + SERIAL::COLONY_BYTES) +
         sizeof(int16_t) +
         MAX_SHIPS * (sizeof(int16_t) + SERIAL::SHIP_PACKET_BYTES) +
         sizeof(int16_t);
@@ -459,20 +460,20 @@ DOCTEST_TEST_CASE("differential decode requires full shared payload workspace on
 
 DOCTEST_TEST_CASE("network packet structs stay byte packed and size stable") {
     DOCTEST_CHECK(alignof(s_net_pack_combat_target_chosen) == 1);
-    DOCTEST_CHECK(sizeof(s_net_pack_combat_target_chosen) == 6);
+    DOCTEST_CHECK(sizeof(s_net_pack_combat_target_chosen) == 8);
     DOCTEST_CHECK(offsetof(s_net_pack_combat_target_chosen, combat_defender_id) == 0);
     DOCTEST_CHECK(offsetof(s_net_pack_combat_target_chosen, combat_planet_id) == 2);
-    DOCTEST_CHECK(offsetof(s_net_pack_combat_target_chosen, combat_target_player_id) == 4);
+    DOCTEST_CHECK(offsetof(s_net_pack_combat_target_chosen, combat_target_player_id) == 6);
 
     DOCTEST_CHECK(alignof(s_net_pack_change_relation) == 1);
     DOCTEST_CHECK(sizeof(s_net_pack_change_relation) == 12);
     DOCTEST_CHECK(offsetof(s_net_pack_change_relation, incident_value) == 10);
 
     DOCTEST_CHECK(alignof(s_net_pack_monster_update) == 1);
-    DOCTEST_CHECK(sizeof(s_net_pack_monster_update) == 10);
+    DOCTEST_CHECK(sizeof(s_net_pack_monster_update) == 12);
     DOCTEST_CHECK(offsetof(s_net_pack_monster_update, monster_type) == 0);
     DOCTEST_CHECK(offsetof(s_net_pack_monster_update, target_planet_id) == 4);
-    DOCTEST_CHECK(offsetof(s_net_pack_monster_update, player_idx_or_amount) == 6);
+    DOCTEST_CHECK(offsetof(s_net_pack_monster_update, player_idx_or_amount) == 8);
 
     DOCTEST_CHECK(alignof(NETMOX::s_packet_dragon_info) == 1);
     DOCTEST_CHECK(sizeof(NETMOX::s_packet_dragon_info) == sizeof(int16_t));
@@ -504,6 +505,30 @@ DOCTEST_TEST_CASE("network packet structs stay byte packed and size stable") {
     DOCTEST_CHECK(alignof(s_net_pack_end_ai_diplomacy) == 1);
     DOCTEST_CHECK(sizeof(s_net_pack_end_ai_diplomacy) ==
                   sizeof(int32_t) + NETPROTO::PLAYER_BYTES + MAX_STARS * sizeof(int8_t) + sizeof(int32_t) + NETPROTO::PLAYER_BYTES);
+}
+
+DOCTEST_TEST_CASE("battle results preserve all typed planet references") {
+    s_battle_results sent{};
+    sent.planet_id = game::id_planet{70000};
+    sent.player_info.combat_planet_id = game::id_planet{80000};
+    sent.info.captured_tech_planet_id = game::id_planet{90000};
+    sent.info.captured_techs_data[0] = 5;
+    int16_t ships[] = {2, -1};
+    sent.info.attacker_invasion.ship_list = ships;
+
+    std::array<uint8_t, SERIAL::BATTLE_RESULTS_BYTES> bytes{};
+    SERIAL::Writer_ writer(bytes.data(), bytes.size(), "battle results overflow");
+    SERIAL::Write_Battle_Results(writer, sent);
+    DOCTEST_REQUIRE(writer.Length() == bytes.size());
+    SERIAL::Reader_ reader(bytes.data(), bytes.size(), "battle results underflow");
+    s_battle_results received{};
+    SERIAL::Read_Battle_Results(reader, received);
+    DOCTEST_CHECK(reader.Remaining() == 0);
+    DOCTEST_CHECK(received.planet_id.get() == game::id_planet{70000});
+    DOCTEST_CHECK(received.player_info.combat_planet_id.get() == game::id_planet{80000});
+    DOCTEST_CHECK(received.info.captured_tech_planet_id.get() == game::id_planet{90000});
+    DOCTEST_CHECK((received.info.captured_techs_data[0] == 5));
+    DOCTEST_CHECK((received.info.attacker_invasion.ship_list == nullptr));
 }
 
 DOCTEST_TEST_CASE("pick-position packet preserves expanded freight storage") {
@@ -585,6 +610,10 @@ DOCTEST_TEST_CASE("broadcast snapshot encode and decode round trip serialized ga
     game::current_state.planets.at(*wide_planet).colony_index = 0;
     MOX::ship[0].d.ship_type = SHIP_TYPE_COLONY;
     MOX::ship[0].colonization_target = *wide_planet;
+    MSG_::msgs[0] = {};
+    MSG_::msgs[0].msg_type = MSG_TYPE_COLONY;
+    MSG_::msgs[0].u.colony.planet_id = *wide_planet;
+    EVENTS::event_data[EVENT_MINERAL_DEPOSIT].planet_target = *wide_planet;
     std::vector<s_star_data> expected_stars(MOX::star, MOX::star + MAX_STARS + 1);
     std::vector<s_colony> expected_colonies(MOX::colony, MOX::colony + MAX_COLONIES);
     std::vector<s_ship_data> expected_ships(MOX::ship, MOX::ship + MAX_SHIPS);
@@ -667,6 +696,8 @@ DOCTEST_TEST_CASE("broadcast snapshot encode and decode round trip serialized ga
     DOCTEST_CHECK(MOX::star[1].orbit_planet_ids[4].get() == game::NO_PLANET);
     DOCTEST_CHECK(MOX::colony[0].planet_id.get() == *wide_planet);
     DOCTEST_CHECK(MOX::ship[0].colonization_target.get() == *wide_planet);
+    DOCTEST_CHECK(MSG_::msgs[0].u.colony.planet_id.get() == *wide_planet);
+    DOCTEST_CHECK(EVENTS::event_data[EVENT_MINERAL_DEPOSIT].planet_target.get() == *wide_planet);
     DOCTEST_CHECK(std::memcmp(MOX::colony, expected_colonies.data(), MAX_COLONIES * sizeof(s_colony)) == 0);
     DOCTEST_CHECK(std::memcmp(MOX::ship, expected_ships.data(), MAX_SHIPS * sizeof(s_ship_data)) == 0);
     DOCTEST_CHECK(game::current_state == expected_state);
@@ -712,7 +743,7 @@ DOCTEST_TEST_CASE("loaded Lua state extends the current native snapshot") {
 
     SERIAL::Reader_ native(
         envelope.Ptr(), native_size, "invalid test native network snapshot");
-    DOCTEST_CHECK(native.Read_Uint32() == 0x384E324F); // O2N8
+    DOCTEST_CHECK(native.Read_Uint32() == 0x394E324F); // O2N9
     DOCTEST_CHECK(native.Read_Int16() == 306);
     DOCTEST_CHECK(native.Read_Uint32() == 35200);
     native.Skip(sizeof(MOX::settings.random_events) +

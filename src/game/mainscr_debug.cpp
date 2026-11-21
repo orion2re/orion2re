@@ -23,18 +23,18 @@ namespace MAINSCR_DEBUG {
             return -1;
         }
 
-        void Draw_Planet_(int16_t planet_index) {
-            if (planet_index < 0 || !game::current_state.planets.contains(game::id_planet{static_cast<uint32_t>(planet_index)})) {
+        void Draw_Planet_(game::id_planet planet_index) {
+            if (!game::current_state.planets.contains(planet_index)) {
                 return;
             }
 
-            const s_planet_data& planet = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_index)});
+            const s_planet_data& planet = game::current_state.planets.at(planet_index);
             char name[64];
             const int16_t star_count = std::min<int16_t>(MOX::NUM_STARS, MAX_STARS);
             if (MOX::star != nullptr && planet.star_index >= 0 && planet.star_index < star_count) {
-                HACCESS::Do_Get_Planet_Name(planet_index, name, 1);
+                strlcpy(name, HACCESS::Get_Planet_Name(game::current_state, planet_index), sizeof(name));
             } else {
-                snprintf(name, sizeof(name), "Planet %d", (int)planet_index);
+                snprintf(name, sizeof(name), "Planet %d", planet_index.id);
             }
             char label[112];
             const int16_t colony_count = std::clamp<int16_t>(MOX::NUM_COLONIES, 0, MAX_COLONIES);
@@ -45,7 +45,7 @@ namespace MAINSCR_DEBUG {
             } else {
                 strlcpy(label, name, sizeof(label));
             }
-            ImGui::PushID((int32_t)planet_index);
+            ImGui::PushID(static_cast<int32_t>(planet_index.id));
             if (ImGui::Selectable(label)) {
                 debug_game_editors::Open_Planet(planet_index);
             }
@@ -85,7 +85,7 @@ namespace MAINSCR_DEBUG {
             }
 
             for (int32_t orbit = 0; orbit < 5; ++orbit) {
-                Draw_Planet_(SERIAL::Encode_Legacy_Planet_Reference(star.orbit_planet_ids[orbit].get()));
+                Draw_Planet_(star.orbit_planet_ids[orbit].get());
             }
             ImGui::TreePop();
         }

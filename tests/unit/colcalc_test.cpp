@@ -355,7 +355,7 @@ DOCTEST_TEST_CASE("population growth passes the final native value through the L
     const auto& context =
         TEST_COLONY_POP_GROWTH::Population_Growth_Context_();
     DOCTEST_CHECK(context.colony_id == 0);
-    DOCTEST_CHECK(context.planet_id == 0);
+    DOCTEST_CHECK(context.planet_id == game::id_planet{0});
     DOCTEST_CHECK(context.owner_id == 0);
     DOCTEST_CHECK(context.race_id == 0);
     DOCTEST_CHECK(context.race_population == 2);

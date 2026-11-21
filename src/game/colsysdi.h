@@ -18,7 +18,7 @@ namespace COLSYSDI {
     // summary_text_size: Size of the destination buffer in bytes.
     // planet_idx: Planet index to summarize.
     // font_player_idx: Player slot used for colony text colorization, or -1 to skip recoloring.
-    void __cdecl Planet_Summary_String(char* summary_text, size_t summary_text_size, int16_t planet_idx, int16_t font_player_idx);
+    void __cdecl Planet_Summary_String(char* summary_text, size_t summary_text_size, game::id_planet planet_idx, int16_t font_player_idx);
 
     // Draws the scan marker for the colony's currently selected planet row.
     // x: Left edge of the scan-marker column.

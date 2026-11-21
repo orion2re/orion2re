@@ -323,14 +323,14 @@ namespace COMBAT {
 
         if (result >= 1 && MOX::combat_attacker_player < MAX_PLAYERS && MOX::combat_defender_player >= 10) {
             if (MOX::ship[plr2_ships[0]].d.ftl_type > 0) {
-                NETMOX::Russ_Event_Monster_Update(MOX::combat_defender_player, -1, MOX::combat_attacker_player);
+                NETMOX::Russ_Event_Monster_Update(MOX::combat_defender_player, game::NO_PLANET, MOX::combat_attacker_player);
                 result = 1;
             }
         }
 
         if (result <= -1 && MOX::combat_defender_player < MAX_PLAYERS && MOX::combat_attacker_player >= 10) {
             if (MOX::ship[plr1_ships[0]].d.ftl_type > 0) {
-                NETMOX::Russ_Event_Monster_Update(MOX::combat_attacker_player, -1, MOX::combat_defender_player);
+                NETMOX::Russ_Event_Monster_Update(MOX::combat_attacker_player, game::NO_PLANET, MOX::combat_defender_player);
                 result = -1;
             }
         }
@@ -900,7 +900,7 @@ namespace COMBAT {
         } else if (MOX::cmbt_colony_id == -1) {
             location_name = MOX::star[star_idx].name;
         } else {
-            location_name = HACCESS::Get_Planet_Name(SERIAL::Encode_Legacy_Planet_Reference(MOX::colony[MOX::cmbt_colony_id].planet_id.get()));
+            location_name = HACCESS::Get_Planet_Name(game::current_state, MOX::colony[MOX::cmbt_colony_id].planet_id.get());
         }
         strlcat(result_msg, location_name, result_capacity);
 

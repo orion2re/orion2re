@@ -109,13 +109,13 @@ namespace SYS {
         draw_sun_before_planet = 1;
 
         for (int16_t orbit_idx = 0; orbit_idx < 5; ++orbit_idx) {
-            int16_t planet_idx = SERIAL::Encode_Legacy_Planet_Reference(star->orbit_planet_ids[orbit_idx].get());
-            if (planet_idx < 0) {
-                MOX::sys_disp[orbit_idx].orbit = -1;
+            game::id_planet planet_idx = star->orbit_planet_ids[orbit_idx].get();
+            if (planet_idx == game::NO_PLANET) {
+                MOX::sys_disp[orbit_idx].planet_id = game::NO_PLANET;
                 MOX::sys_disp[orbit_idx].x = 999;
                 MOX::sys_disp[orbit_idx].y = 999;
             } else {
-                s_planet_data* planet = &game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)});
+                s_planet_data* planet = &game::current_state.planets.at(planet_idx);
                 int8_t planet_size = planet->size;
                 if (planet->planet_type == PLANET_TYPE_GAS_GIANT) {
                     planet_size = PLANET_SIZE_HUGE;
@@ -135,7 +135,7 @@ namespace SYS {
 
                 MOX::sys_disp[orbit_idx].x = (int16_t)x_out - (int16_t)offset;
                 MOX::sys_disp[orbit_idx].y = (int16_t)y_out - (int16_t)offset;
-                MOX::sys_disp[orbit_idx].orbit = planet_idx;
+                MOX::sys_disp[orbit_idx].planet_id = planet_idx;
                 MOX::sys_disp[orbit_idx].orbit_idx = (int8_t)orbit_idx;
                 MOX::sys_disp[orbit_idx].oribit_pos = (int8_t)orbit_pos_out;
 
@@ -204,11 +204,11 @@ namespace SYS {
         }
     }
 
-    s_animation_header* __cdecl Get_Rotating_Planet_Segment(int16_t planet_idx, int16_t unused_star_idx, int32_t unused_arg) {
+    s_animation_header* __cdecl Get_Rotating_Planet_Segment(game::id_planet planet_idx, int16_t unused_star_idx, int32_t unused_arg) {
         (void)unused_star_idx;
         (void)unused_arg;
 
-        s_planet_data* planet = &game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)});
+        s_planet_data* planet = &game::current_state.planets.at(planet_idx);
         int16_t colony_idx = planet->colony_index;
         uint16_t climate = (uint16_t)(uint8_t)planet->climate;
         int8_t size = planet->size;
@@ -233,7 +233,7 @@ namespace SYS {
         return (s_animation_header*)buffer::Buffer_Reload("BUFFER0.LBX", (int)entry_idx + 0x5c, MOX::global_cache_seg);
     }
 
-    void __cdecl Potential_Colony_Info_Popup(int16_t planet_idx) {
+    void __cdecl Potential_Colony_Info_Popup(game::id_planet planet_idx) {
         char bonus_msg_buf[32];
         char penalty_msg_buf[32];
         char fmt_text[200];
@@ -249,7 +249,7 @@ namespace SYS {
 
         COLCALC::Compute_Potential_Colony_Info(
             &MOX::player[MOX::PLAYER_NUM],
-            &game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}),
+            &game::current_state.planets.at(planet_idx),
             &info);
 
         /* fmtpara: \aM25,30. adjusts paragraph margins, \x1A left-align/right-align control code prefixes the following digit. */
@@ -262,7 +262,7 @@ namespace SYS {
             sizeof(fmt_text));
         strlcat(fmt_text, "%d\n", sizeof(fmt_text));
 
-        int16_t max_pop = COLCALC::Planet_Max_Population_For_Player(&game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}), MOX::PLAYER_NUM);
+        int16_t max_pop = COLCALC::Planet_Max_Population_For_Player(&game::current_state.planets.at(planet_idx), MOX::PLAYER_NUM);
         snprintf(main_text, sizeof(main_text), fmt_text, (int)max_pop);
 
         /* fmtpara: \x1A control code prefixes the following alignment digit. */
@@ -353,7 +353,7 @@ namespace SYS {
         }
 
         strlcpy(fmt_text, HAROLD::H_Message(HESTR_178_COLONY_INFO_FOR_S), sizeof(fmt_text));
-        char* planet_name = HACCESS::Get_Planet_Name_No_Prime(planet_idx);
+        char* planet_name = HACCESS::Get_Planet_Name_No_Prime(game::current_state, planet_idx);
         snprintf(title_text, sizeof(title_text), fmt_text, planet_name);
 
         TEXTBOX::Text_Box(title_text, main_text);
@@ -489,7 +489,7 @@ namespace SYS {
     }
 
     void __cdecl Draw_Planet_With_Pierced_Ring(
-        int16_t planet_idx,
+        game::id_planet planet_idx,
         int16_t sys_disp_idx,
         int16_t x_offset_1,
         int16_t y_offset_1,
@@ -500,7 +500,7 @@ namespace SYS {
         const int32_t sys_slot = static_cast<int32_t>(sys_disp_idx);
         const int16_t orbit_idx = static_cast<int16_t>(MOX::sys_disp[sys_slot].orbit_idx);
         const int16_t orbit_pos = static_cast<int16_t>(MOX::sys_disp[sys_slot].oribit_pos);
-        const int16_t planet_type = static_cast<int16_t>(game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).planet_type);
+        const int16_t planet_type = static_cast<int16_t>(game::current_state.planets.at(planet_idx).planet_type);
         const int32_t planet_x = static_cast<int32_t>(MOX::sys_disp[sys_slot].x);
         const int32_t planet_y = static_cast<int32_t>(MOX::sys_disp[sys_slot].y);
 
@@ -508,7 +508,7 @@ namespace SYS {
 
         int16_t planet_mask_index;
         if (planet_type == PLANET_TYPE_PLANET) {
-            planet_mask_index = static_cast<int16_t>(game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).size);
+            planet_mask_index = static_cast<int16_t>(game::current_state.planets.at(planet_idx).size);
         } else {
             planet_mask_index = PLANET_SIZE_HUGE;
         }
@@ -541,7 +541,7 @@ namespace SYS {
         animate::Set_Animation_Frame(MOX::planet_mask_seg[planet_mask_index], orbit_pos);
 
         MOX::sys_disp[sys_slot].pic = SYS::Get_Rotating_Planet_Segment(
-            MOX::sys_disp[sys_slot].orbit,
+            MOX::sys_disp[sys_slot].planet_id.get(),
             orbit_pos,
             0);
         remap::Calculate_Picture_Remap_Colors(MOX::sys_disp[sys_slot].pic);
@@ -563,7 +563,7 @@ namespace SYS {
         animate::Set_Animation_Frame(MOX::planet_mask_seg[planet_mask_index], orbit_pos);
 
         MOX::sys_disp[sys_slot].pic = SYS::Get_Rotating_Planet_Segment(
-            MOX::sys_disp[sys_slot].orbit,
+            MOX::sys_disp[sys_slot].planet_id.get(),
             orbit_pos,
             0);
 
@@ -583,10 +583,10 @@ namespace SYS {
 
     void __cdecl Draw_System_Display_Planets(int16_t base_x, int16_t base_y, int16_t content_w, int16_t content_h, int16_t y_offset, int16_t x_offset) {
         for (int16_t i = 0; i < 5; ++i) {
-            int16_t planet_idx = MOX::sys_disp[i].orbit;
+            game::id_planet planet_idx = MOX::sys_disp[i].planet_id.get();
             int8_t orbit_idx = MOX::sys_disp[i].orbit_idx;
-            if (planet_idx > -1) {
-                if (game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).planet_type == PLANET_TYPE_PLANET || game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).planet_type == PLANET_TYPE_GAS_GIANT) {
+            if (planet_idx != game::NO_PLANET) {
+                if (game::current_state.planets.at(planet_idx).planet_type == PLANET_TYPE_PLANET || game::current_state.planets.at(planet_idx).planet_type == PLANET_TYPE_GAS_GIANT) {
                     Draw_Planet_With_Pierced_Ring(planet_idx, i, base_x, base_y, content_w, content_h, y_offset, x_offset);
                 } else {
                     MOX::asteroid_seg = (s_animation_header*)buffer::Buffer_Reload("BUFFER0.LBX", 0x5b, (void*)MOX::global_cache_seg);
@@ -623,19 +623,19 @@ namespace SYS {
         MAINPUPS::Draw_Special_Info_Popup(x, y, anim, name, desc);
     }
 
-    void __cdecl Print_Planet_Info_Short(int16_t planet_idx, int16_t* box_width, int16_t* box_height) {
+    void __cdecl Print_Planet_Info_Short(game::id_planet planet_idx, int16_t* box_width, int16_t* box_height) {
         Do_Print_Planet_Info(0, 0, 0, 0, planet_idx, 0, 0, box_width, box_height, 0);
     }
 
-    void __cdecl Print_Planet_Info(int16_t base_x, int16_t base_y, int16_t content_w, int16_t content_h, int16_t planet_idx, int16_t x_offset, int16_t y_offset) {
+    void __cdecl Print_Planet_Info(int16_t base_x, int16_t base_y, int16_t content_w, int16_t content_h, game::id_planet planet_idx, int16_t x_offset, int16_t y_offset) {
         int16_t out_width;
         int16_t out_height;
 
         Do_Print_Planet_Info(base_x, base_y, content_w, content_h, planet_idx, x_offset, y_offset, &out_width, &out_height, 1);
     }
 
-    void __cdecl Draw_System_Highlight(int16_t planet_idx, int16_t rect_w, int16_t rect_h, int16_t x_offset, int16_t y_offset) {
-        int16_t colony_idx = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).colony_index;
+    void __cdecl Draw_System_Highlight(game::id_planet planet_idx, int16_t rect_w, int16_t rect_h, int16_t x_offset, int16_t y_offset) {
+        int16_t colony_idx = game::current_state.planets.at(planet_idx).colony_index;
         MOX::o_highlight_seg = (s_animation_header*)buffer::Buffer_Reload("BUFFER0.LBX", 0x4b, (void*)MOX::global_cache_seg);
         int16_t w = animate::Get_Width(MOX::o_highlight_seg);
         int16_t h = animate::Get_Height(MOX::o_highlight_seg);
@@ -832,8 +832,8 @@ namespace SYS {
 
         for (short orbit_slot = 0; orbit_slot < 5; ++orbit_slot) {
             s_sys_disp* orbit_display = &MOX::sys_disp[orbit_slot];
-            if (orbit_display->orbit > -1) {
-                s_planet_data* planet = &game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(orbit_display->orbit)});
+            if (orbit_display->planet_id.get() != game::NO_PLANET) {
+                s_planet_data* planet = &game::current_state.planets.at(orbit_display->planet_id.get());
                 int8_t planet_size = planet->size;
                 if (planet->planet_type == PLANET_TYPE_GAS_GIANT) {
                     planet_size = PLANET_SIZE_HUGE;
@@ -858,17 +858,17 @@ namespace SYS {
         }
 
         for (short orbit_slot = 0; orbit_slot < 5; ++orbit_slot) {
-            int16_t planet_idx = MOX::sys_disp[orbit_slot].orbit;
-            if (planet_idx > -1) {
-                int8_t planet_size = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).size;
-                if (game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).planet_type == PLANET_TYPE_GAS_GIANT) {
+            game::id_planet planet_idx = MOX::sys_disp[orbit_slot].planet_id.get();
+            if (planet_idx != game::NO_PLANET) {
+                int8_t planet_size = game::current_state.planets.at(planet_idx).size;
+                if (game::current_state.planets.at(planet_idx).planet_type == PLANET_TYPE_GAS_GIANT) {
                     planet_size = PLANET_SIZE_HUGE;
                 }
                 short highlight_x = (short)(MOX::sys_disp[orbit_slot].x + x_offset + content_w + 0x9f + base_x);
                 short highlight_y = (short)(MOX::sys_disp[orbit_slot].y + y_offset + content_h + 0x58 + base_y);
 
                 if (MOX::sys_disp[orbit_slot].orbit_idx == MOX::system_icon_scanned) {
-                    if (game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).planet_type != PLANET_TYPE_ASTEROID) {
+                    if (game::current_state.planets.at(planet_idx).planet_type != PLANET_TYPE_ASTEROID) {
                         uint16_t dim = (uint16_t)MOX::rot_plan_dim[planet_size];
                         Draw_System_Highlight(planet_idx, dim, dim, highlight_x, highlight_y);
                     }
@@ -1268,7 +1268,7 @@ namespace SYS {
         int16_t top,
         int16_t inner_left,
         int16_t inner_top,
-        int16_t planet_idx,
+        game::id_planet planet_idx,
         int16_t text_left,
         int16_t text_top,
         int16_t* max_width,
@@ -1280,7 +1280,7 @@ namespace SYS {
         char title_buffer[60];
         char detail_buffer[80];
 
-        s_planet_data* planet = &game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)});
+        s_planet_data* planet = &game::current_state.planets.at(planet_idx);
         const bool can_show_special_buildings =
             (MOX::player_has_ship_in_system != 0) ||
             HAROLD::Player_Has_Colony(
@@ -1339,7 +1339,7 @@ namespace SYS {
             const uint8_t climate_idx =
                 static_cast<uint8_t>(colony != nullptr ? colony->climate : planet->climate);
 
-            snprintf(title_buffer, sizeof(title_buffer), "%s ", HACCESS::Get_Planet_Name_No_Prime(planet_idx));
+            snprintf(title_buffer, sizeof(title_buffer), "%s ", HACCESS::Get_Planet_Name_No_Prime(game::current_state, planet_idx));
 
             if (colony != nullptr) {
                 snprintf(detail_buffer, sizeof(detail_buffer), "(%s", MOX::player[colony_owner].race_name);
@@ -1737,14 +1737,14 @@ namespace SYS {
         }
 
         for (int16_t orbit_slot = 4; orbit_slot >= 0; --orbit_slot) {
-            const int16_t planet_idx = MOX::sys_disp[orbit_slot].orbit;
+            const game::id_planet planet_idx = MOX::sys_disp[orbit_slot].planet_id.get();
 
-            if (planet_idx <= -1) {
+            if (planet_idx == game::NO_PLANET) {
                 MOX::planet_buttons[orbit_slot] = -1000;
                 continue;
             }
 
-            const s_planet_data& planet = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)});
+            const s_planet_data& planet = game::current_state.planets.at(planet_idx);
             if (planet.planet_type == PLANET_TYPE_ASTEROID) {
                 MOX::planet_buttons[orbit_slot] = -1000;
                 continue;

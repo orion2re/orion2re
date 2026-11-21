@@ -459,7 +459,7 @@ namespace debug_game_editors {
             }
             ImGui::EndDisabled();
             if (ImGui::Button("Open planet")) {
-                Open_Planet(SERIAL::Encode_Legacy_Planet_Reference(colony.planet_id.get()));
+                Open_Planet(colony.planet_id.get());
             }
             debug_game_widgets::Player_Reference("Allocated to", &colony.allocated_to);
             ImGui::Text("Stored officer: %d (relationship)", (int)colony.officer);
@@ -965,7 +965,7 @@ namespace debug_game_editors {
                 ImGui::BeginDisabled(!can_convert);
                 if (ImGui::Button("Convert")) {
                     const int16_t colony_index = g_pending_outpost_colony;
-                    const int16_t planet_index = SERIAL::Encode_Legacy_Planet_Reference(MOX::colony[colony_index].planet_id.get());
+                    const auto planet_index = MOX::colony[colony_index].planet_id.get();
                     const int8_t owner = MOX::colony[colony_index].owner;
                     COLONIZE::Make_New_Colony(MOX::colony[colony_index].planet_id.get(), owner);
                     Refresh_Colony_State_();

@@ -250,7 +250,7 @@ namespace COLXPORT {
             COLONY::Set_Colony_Font_To(4);
         }
 
-        char* planet_name = HACCESS::Get_Planet_Name(SERIAL::Encode_Legacy_Planet_Reference(planet_idx));
+        char* planet_name = HACCESS::Get_Planet_Name(game::current_state, planet_idx);
         int16_t y_pos = entry_idx * 38 + 54;
         BILL::Squeeze_Print_Paragraph(15, y_pos, 130, 28, planet_name, 0);
 

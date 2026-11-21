@@ -7,12 +7,12 @@ namespace OCPOLPUP {
 
     void __cdecl Occupation_Policy_Popup() {
         s_colors font_colors = {{0x9f, 0xa0, 0xa1, 0xa2, 0, 0, 0, 0}};
-        int16_t planet_index;
+        game::id_planet planet_index;
         int16_t colony_index;
         int16_t owner_index;
 
-        planet_index = HAROLD::Planet_Index(MOX::screen_data, COLONY::orbit_temp);
-        colony_index = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_index)}).colony_index;
+planet_index = MOX::star[MOX::screen_data].orbit_planet_ids[COLONY::orbit_temp].get();
+        colony_index = game::current_state.planets.at(planet_index).colony_index;
         occupation_policy_value = (uint16_t)(uint8_t)MOX::colony[colony_index].occupation_policy;
 
         fonts::Set_Font_Style_Shadow_Down(1, &font_colors);
@@ -21,8 +21,8 @@ namespace OCPOLPUP {
         MOX2::Get_Auto_Function(&saved_autofunction);
         fields::Deactivate_Auto_Function();
 
-        planet_index = HAROLD::Planet_Index(MOX::screen_data, COLONY::orbit_temp);
-        colony_index = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_index)}).colony_index;
+planet_index = MOX::star[MOX::screen_data].orbit_planet_ids[COLONY::orbit_temp].get();
+        colony_index = game::current_state.planets.at(planet_index).colony_index;
         owner_index = MOX::colony[colony_index].owner;
 
         if (MOX::player[owner_index].traits[TRAIT_CURRENT_GOVERNMENT] != GOVERNMENT_DEMOCRACY && MOX::player[owner_index].traits[TRAIT_CURRENT_GOVERNMENT] != GOVERNMENT_FEDERATION) {
@@ -35,8 +35,8 @@ namespace OCPOLPUP {
             occupation_policy_value = 3;
         }
 
-        planet_index = HAROLD::Planet_Index(MOX::screen_data, COLONY::orbit_temp);
-        colony_index = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_index)}).colony_index;
+        planet_index = MOX::star[MOX::screen_data].orbit_planet_ids[COLONY::orbit_temp].get();
+        colony_index = game::current_state.planets.at(planet_index).colony_index;
         MOX::colony[colony_index].occupation_policy = (char)occupation_policy_value;
 
         fields::Deactivate_Help_List();

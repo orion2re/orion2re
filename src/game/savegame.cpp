@@ -4,6 +4,8 @@
 #include "planet_serialization.h"
 #include "star_serialization.h"
 #include "ship_serialization.h"
+#include "notice_serialization.h"
+#include "event_serialization.h"
 #include "colony_serialization.h"
 #include "settler_serialization.h"
 
@@ -627,81 +629,6 @@ namespace SAVEGAME {
             nebula->type = reader->Read_Int8();
         }
 
-        void Write_Report(SERIAL::Writer_* writer, const s_report* report) {
-            writer->Write_Uint8(report->type);
-            writer->Write_Int16(report->player_idx);
-            writer->Write_Uint8(report->action);
-            if (report->type == 1 && report->action == 0) {
-                writer->Write_Int8(report->d.steal.framed_player_idx);
-                writer->Write_Uint8(report->d.steal.victim_player_idx);
-                writer->Write_Int16(report->d.steal.tech_app_id);
-                Write_Zeroes(writer, 1);
-            } else if (report->type == 1 && report->action == 1) {
-                writer->Write_Int8(report->d.sabotage.framed_player_idx);
-                writer->Write_Uint8(report->d.sabotage.victim_player_idx);
-                writer->Write_Int16(report->d.sabotage.planet_idx);
-                writer->Write_Uint8(report->d.sabotage.building_id);
-            } else if (report->type == 2 && report->action == 0) {
-                writer->Write_Int16(report->d.enemy_steal.enemy_player_idx);
-                writer->Write_Int16(report->d.enemy_steal.tech_app_id);
-                Write_Zeroes(writer, 1);
-            } else if (report->type == 2 && report->action == 1) {
-                writer->Write_Int16(report->d.enemy_sabotage.enemy_player_idx);
-                writer->Write_Int16(report->d.enemy_sabotage.planet_idx);
-                writer->Write_Uint8(report->d.enemy_sabotage.building_id);
-            } else {
-                writer->Write_Bytes(&report->d, sizeof(report->d));
-            }
-            writer->Write_Bytes(report->reserved, sizeof(report->reserved));
-        }
-
-        void Read_Report(SERIAL::Reader_* reader, s_report* report, uint16_t version) {
-            report->type = reader->Read_Uint8();
-            report->player_idx = reader->Read_Int16();
-            report->action = reader->Read_Uint8();
-            memset(&report->d, 0, sizeof(report->d));
-            if (report->type == 1 && report->action == 0) {
-                report->d.steal.framed_player_idx = reader->Read_Int8();
-                report->d.steal.victim_player_idx = reader->Read_Uint8();
-                report->d.steal.tech_app_id = reader->Read_Int16();
-                if (version != LEGACY_VERSION) reader->Skip(1);
-            } else if (report->type == 1 && report->action == 1) {
-                report->d.sabotage.framed_player_idx = reader->Read_Int8();
-                report->d.sabotage.victim_player_idx = reader->Read_Uint8();
-                report->d.sabotage.planet_idx = version == LEGACY_VERSION ? reader->Read_Uint8() : reader->Read_Int16();
-                report->d.sabotage.building_id = reader->Read_Uint8();
-            } else if (report->type == 2 && report->action == 0) {
-                report->d.enemy_steal.enemy_player_idx = reader->Read_Int16();
-                report->d.enemy_steal.tech_app_id = reader->Read_Int16();
-                if (version != LEGACY_VERSION) reader->Skip(1);
-            } else if (report->type == 2 && report->action == 1) {
-                report->d.enemy_sabotage.enemy_player_idx = reader->Read_Int16();
-                report->d.enemy_sabotage.planet_idx = version == LEGACY_VERSION ? reader->Read_Uint8() : reader->Read_Int16();
-                report->d.enemy_sabotage.building_id = reader->Read_Uint8();
-            } else {
-                reader->Read_Bytes(&report->d, version == LEGACY_VERSION ? 4 : sizeof(report->d));
-            }
-            reader->Read_Bytes(report->reserved, sizeof(report->reserved));
-        }
-
-        void Write_Event(SERIAL::Writer_* writer, const s_event_data* event) {
-            writer->Write_Int8(event->player_idx);
-            writer->Write_Int8(event->status);
-            writer->Write_Int8(event->turn_count);
-            writer->Write_Int16(event->target_id);
-            writer->Write_Int16(event->amount);
-            writer->Write_Int16(event->max_amount);
-        }
-
-        void Read_Event(SERIAL::Reader_* reader, s_event_data* event) {
-            event->player_idx = reader->Read_Int8();
-            event->status = reader->Read_Int8();
-            event->turn_count = reader->Read_Int8();
-            event->target_id = reader->Read_Int16();
-            event->amount = reader->Read_Int16();
-            event->max_amount = reader->Read_Int16();
-        }
-
         bool Loaded_Event_Is_Valid(const game::s_game_state& state, int type, const s_event_data& event) {
             if (event.status < 0 || event.status > 6) return false;
             if (event.status == 0 || event.status == 3) return true;
@@ -709,7 +636,7 @@ namespace SAVEGAME {
 
             const int target = event.target_id;
             const auto targets_planet = [&] {
-                return state.planets.contains(SERIAL::Decode_Legacy_Planet_Reference(event.target_id));
+                return state.planets.contains(event.planet_target.get());
             };
             switch (type) {
                 case EVENT_DERELICT:
@@ -750,10 +677,10 @@ namespace SAVEGAME {
                 case EVENT_SPACE_HYDRA:
                     // Status 1 carries a spawn star; displaying status 6 clears it.
                     // Status 4 carries an attacked planet, not a star.
-                    if (event.status == 1) return target >= 0 && target < MOX::NUM_STARS;
+                    if (event.status == 1 || event.status == 6) return target == -1 || (target >= 0 && target < MOX::NUM_STARS);
                     if (event.status == 5) return true;
-                    if (event.status == 4 || event.max_amount != -1) {
-                        return target == -1 || targets_planet();
+                    if (SERIAL::Legacy_Event_Targets_Planet(type, event.status, event.max_amount)) {
+                        return event.planet_target.get() == game::NO_PLANET || targets_planet();
                     }
                     return target == -1 || (target >= 0 && target < MOX::NUM_STARS) || targets_planet();
                 case EVENT_UNSTABLE_WORMHOLE:
@@ -792,326 +719,6 @@ namespace SAVEGAME {
                 if (!Loaded_Event_Is_Valid(state, i, EVENTS::event_data[i])) return false;
             }
             return true;
-        }
-
-        void Write_Colony_Message(SERIAL::Writer_* writer, const s_MSG_colony* colony) {
-            writer->Write_Int16(colony->planet_idx);
-            writer->Write_Int8(colony->subtype);
-            switch (colony->subtype) {
-                case MSG_COLONY_SUBTYPE_BUILDING_SCRAPPED:
-                    writer->Write_Int16(colony->c.scrap.building_id);
-                    writer->Write_Int16(colony->c.scrap.bc);
-                    Write_Zeroes(writer, 2);
-                    break;
-                case MSG_COLONY_SUBTYPE_PRODUCTION_COMPLETED:
-                    writer->Write_Int16(colony->c.build.build_id);
-                    writer->Write_Int16(colony->c.build.product_id);
-                    writer->Write_Uint8(colony->c.build.is_refit ? 1 : 0);
-                    writer->Write_Int8(colony->c.build.append_fmt);
-                    break;
-                case MSG_COLONY_SUBTYPE_GENOCIDE:
-                case MSG_COLONY_SUBTYPE_ASSIMILATION:
-                    writer->Write_Uint8(colony->c.assimilation.val);
-                    Write_Zeroes(writer, 5);
-                    break;
-                case MSG_COLONY_SUBTYPE_STARVATION:
-                    writer->Write_Int8(colony->c.starvation.a);
-                    writer->Write_Int8(colony->c.starvation.b);
-                    Write_Zeroes(writer, 4);
-                    break;
-                case MSG_COLONY_SUBTYPE_SETTLERS_ARRIVED:
-                    writer->Write_Int8(colony->c.settlers.settlers);
-                    writer->Write_Int8(colony->c.settlers.over_limit);
-                    writer->Write_Uint8(colony->c.settlers.blockaded ? 1 : 0);
-                    Write_Zeroes(writer, 3);
-                    break;
-                case MSG_COLONY_SUBTYPE_REBELLION:
-                    writer->Write_Int8(colony->c.rebels.owner_player);
-                    writer->Write_Int8(colony->c.rebels.rebels);
-                    writer->Write_Int8(colony->c.rebels.lost);
-                    Write_Zeroes(writer, 3);
-                    break;
-                case MSG_COLONY_SUBTYPE_ANDROID_KILLED_ORGANIC:
-                    writer->Write_Int8(colony->c.android_killed.race_idx);
-                    Write_Zeroes(writer, 5);
-                    break;
-                default:
-                    Write_Zeroes(writer, 6);
-                    break;
-            }
-        }
-
-        void Read_Colony_Message(SERIAL::Reader_* reader, s_MSG_colony* colony, uint16_t version) {
-            colony->planet_idx = version == LEGACY_VERSION ? reader->Read_Uint8() : reader->Read_Int16();
-            colony->subtype = static_cast<MSG_COLONY_SUBTYPE>(reader->Read_Int8());
-            switch (colony->subtype) {
-                case MSG_COLONY_SUBTYPE_BUILDING_SCRAPPED:
-                    colony->c.scrap.building_id = reader->Read_Int16();
-                    colony->c.scrap.bc = reader->Read_Int16();
-                    reader->Skip(2);
-                    break;
-                case MSG_COLONY_SUBTYPE_PRODUCTION_COMPLETED:
-                    colony->c.build.build_id = reader->Read_Int16();
-                    colony->c.build.product_id = reader->Read_Int16();
-                    colony->c.build.is_refit = reader->Read_Uint8() != 0;
-                    colony->c.build.append_fmt = reader->Read_Int8();
-                    break;
-                case MSG_COLONY_SUBTYPE_GENOCIDE:
-                case MSG_COLONY_SUBTYPE_ASSIMILATION:
-                    colony->c.assimilation.val = reader->Read_Uint8();
-                    reader->Skip(5);
-                    break;
-                case MSG_COLONY_SUBTYPE_STARVATION:
-                    colony->c.starvation.a = reader->Read_Int8();
-                    colony->c.starvation.b = reader->Read_Int8();
-                    reader->Skip(4);
-                    break;
-                case MSG_COLONY_SUBTYPE_SETTLERS_ARRIVED:
-                    colony->c.settlers.settlers = reader->Read_Int8();
-                    colony->c.settlers.over_limit = reader->Read_Int8();
-                    colony->c.settlers.blockaded = reader->Read_Uint8() != 0;
-                    reader->Skip(3);
-                    break;
-                case MSG_COLONY_SUBTYPE_REBELLION:
-                    colony->c.rebels.owner_player = reader->Read_Int8();
-                    colony->c.rebels.rebels = reader->Read_Int8();
-                    colony->c.rebels.lost = reader->Read_Int8();
-                    reader->Skip(3);
-                    break;
-                case MSG_COLONY_SUBTYPE_ANDROID_KILLED_ORGANIC:
-                    colony->c.android_killed.race_idx = reader->Read_Int8();
-                    reader->Skip(5);
-                    break;
-                default:
-                    reader->Skip(6);
-                    break;
-            }
-        }
-
-        void Write_Message(SERIAL::Writer_* writer, const s_MSG* message) {
-            writer->Write_Int8(message->msg_type);
-            writer->Write_Uint8(message->priority);
-            switch (message->msg_type) {
-                case MSG_TYPE_COLONY:
-                    Write_Colony_Message(writer, &message->u.colony);
-                    break;
-                case MSG_TYPE_DECLARE_ALLIANCE:
-                case MSG_TYPE_DECLARE_WAR:
-                    writer->Write_Int16(message->u.players.player_a_idx);
-                    writer->Write_Int16(message->u.players.player_b_idx);
-                    Write_Zeroes(writer, 5);
-                    break;
-                case MSG_TYPE_FINANCIAL:
-                    writer->Write_Int16(message->u.financial.a);
-                    writer->Write_Int16(message->u.financial.b);
-                    Write_Zeroes(writer, 5);
-                    break;
-                case MSG_TYPE_LOST_SHIP:
-                    writer->Write_Int16(message->u.lost_ship.star_idx);
-                    writer->Write_Int16(message->u.lost_ship.ship_idx);
-                    writer->Write_Int8(message->u.lost_ship.leader_idx);
-                    writer->Write_Int8(message->u.lost_ship.fate);
-                    Write_Zeroes(writer, 3);
-                    break;
-                case MSG_TYPE_SCRAP_SHIP:
-                    writer->Write_Int16(message->u.scrap_ship.where);
-                    writer->Write_Int16(message->u.scrap_ship.bc);
-                    writer->Write_Int16(message->u.scrap_ship.ship_idx);
-                    Write_Zeroes(writer, 3);
-                    break;
-                case MSG_TYPE_LOST_COLONY:
-                    writer->Write_Int16(message->u.lost_colony.planet_idx);
-                    writer->Write_Int16(message->u.lost_colony.reason);
-                    writer->Write_Int16(message->u.lost_colony.leader_idx);
-                    writer->Write_Int8(message->u.lost_colony.colony_or_outpost);
-                    Write_Zeroes(writer, 2);
-                    break;
-                case MSG_TYPE_HYPERSPACE_BEAST:
-                    writer->Write_Int16(message->u.hyperspace_beast.ship_idx);
-                    writer->Write_Int16(message->u.hyperspace_beast.star_idx);
-                    writer->Write_Int8(message->u.hyperspace_beast.officer_idx);
-                    writer->Write_Int8(message->u.hyperspace_beast.leader_status);
-                    writer->Write_Int8(message->u.hyperspace_beast.fate);
-                    writer->Write_Int8(message->u.hyperspace_beast.your_ship);
-                    Write_Zeroes(writer, 1);
-                    break;
-                case MSG_TYPE_LOST_ATTACKING_SPY:
-                    writer->Write_Int16(message->u.lost_attacking_spy.player_idx);
-                    Write_Zeroes(writer, 7);
-                    break;
-                case MSG_TYPE_LOST_DEFENDING_SPY:
-                    writer->Write_Int16(message->u.lost_defending_spy.count);
-                    Write_Zeroes(writer, 7);
-                    break;
-                case MSG_TYPE_ARTEMIS:
-                    writer->Write_Int16(message->u.artemis.star_idx);
-                    Write_Zeroes(writer, 7);
-                    break;
-                case MSG_TYPE_ARTEMIS_LEADER:
-                    writer->Write_Int16(message->u.artemis_leader.star_idx);
-                    writer->Write_Int8(message->u.artemis_leader.leader_idx);
-                    writer->Write_Int8(message->u.artemis_leader.fate);
-                    Write_Zeroes(writer, 5);
-                    break;
-                case MSG_TYPE_FAILED_RETREAT:
-                    writer->Write_Int16(message->u.retreat.star_idx);
-                    writer->Write_Int8(message->u.retreat.reason);
-                    writer->Write_Int16(message->u.retreat.ships_lost);
-                    writer->Write_Int8(message->u.retreat.leader_count);
-                    Write_Zeroes(writer, 3);
-                    break;
-                case MSG_TYPE_SPY_ASSASSINATION:
-                    writer->Write_Int8(message->u.spy_assasination.plr_a);
-                    writer->Write_Int8(message->u.spy_assasination.plr_b);
-                    writer->Write_Int8(message->u.spy_assasination.leader_id);
-                    writer->Write_Int8(message->u.spy_assasination.victim_id);
-                    Write_Zeroes(writer, 5);
-                    break;
-                case MSG_TYPE_ANOMALY:
-                    writer->Write_Int16(message->u.anomaly.star_idx);
-                    Write_Zeroes(writer, 7);
-                    break;
-                case MSG_TYPE_DIPLOMACY:
-                    writer->Write_Int8(message->u.diplomacy.diplomacy_idx);
-                    writer->Write_Int8(message->u.diplomacy.plr_a);
-                    writer->Write_Int8(message->u.diplomacy.plr_b);
-                    Write_Zeroes(writer, 6);
-                    break;
-                case MSG_TYPE_EEL_SPAWNED:
-                case MSG_TYPE_EEL_VANISHED:
-                    writer->Write_Int16(message->u.eel.star_idx);
-                    Write_Zeroes(writer, 7);
-                    break;
-                case MSG_TYPE_ARTIFACTS:
-                    writer->Write_Int16(message->u.artifacts.star_idx);
-                    writer->Write_Int8(message->u.artifacts.tech1);
-                    writer->Write_Int8(message->u.artifacts.tech2);
-                    Write_Zeroes(writer, 5);
-                    break;
-                case MSG_TYPE_SCRAP_LEADER:
-                    writer->Write_Int8(message->u.scrap_leader.leader_idx);
-                    Write_Zeroes(writer, 8);
-                    break;
-                default:
-                    Write_Zeroes(writer, 9);
-                    break;
-            }
-            writer->Write_Bytes(message->reserved, sizeof(message->reserved));
-        }
-
-        void Read_Message(SERIAL::Reader_* reader, s_MSG* message, uint16_t version) {
-            message->msg_type = reader->Read_Int8();
-            message->priority = reader->Read_Uint8();
-            memset(&message->u, 0, sizeof(message->u));
-            switch (message->msg_type) {
-                case MSG_TYPE_COLONY:
-                    Read_Colony_Message(reader, &message->u.colony, version);
-                    break;
-                case MSG_TYPE_DECLARE_ALLIANCE:
-                case MSG_TYPE_DECLARE_WAR:
-                    message->u.players.player_a_idx = reader->Read_Int16();
-                    message->u.players.player_b_idx = reader->Read_Int16();
-                    reader->Skip(version == LEGACY_VERSION ? 4 : 5);
-                    break;
-                case MSG_TYPE_FINANCIAL:
-                    message->u.financial.a = reader->Read_Int16();
-                    message->u.financial.b = reader->Read_Int16();
-                    reader->Skip(version == LEGACY_VERSION ? 4 : 5);
-                    break;
-                case MSG_TYPE_LOST_SHIP:
-                    message->u.lost_ship.star_idx = reader->Read_Int16();
-                    message->u.lost_ship.ship_idx = reader->Read_Int16();
-                    message->u.lost_ship.leader_idx = reader->Read_Int8();
-                    message->u.lost_ship.fate = reader->Read_Int8();
-                    reader->Skip(version == LEGACY_VERSION ? 2 : 3);
-                    break;
-                case MSG_TYPE_SCRAP_SHIP:
-                    message->u.scrap_ship.where = reader->Read_Int16();
-                    if (version == LEGACY_VERSION) {
-                        message->u.scrap_ship.where = Convert_Legacy_Ship_Location(message->u.scrap_ship.where);
-                    }
-                    message->u.scrap_ship.bc = reader->Read_Int16();
-                    message->u.scrap_ship.ship_idx = reader->Read_Int16();
-                    reader->Skip(version == LEGACY_VERSION ? 2 : 3);
-                    break;
-                case MSG_TYPE_LOST_COLONY:
-                    message->u.lost_colony.planet_idx = reader->Read_Int16();
-                    message->u.lost_colony.reason = reader->Read_Int16();
-                    message->u.lost_colony.leader_idx = reader->Read_Int16();
-                    message->u.lost_colony.colony_or_outpost = reader->Read_Int8();
-                    reader->Skip(version == LEGACY_VERSION ? 1 : 2);
-                    break;
-                case MSG_TYPE_HYPERSPACE_BEAST:
-                    message->u.hyperspace_beast.ship_idx = reader->Read_Int16();
-                    message->u.hyperspace_beast.star_idx = version == LEGACY_VERSION ? reader->Read_Int8() : reader->Read_Int16();
-                    message->u.hyperspace_beast.officer_idx = reader->Read_Int8();
-                    message->u.hyperspace_beast.leader_status = reader->Read_Int8();
-                    message->u.hyperspace_beast.fate = reader->Read_Int8();
-                    message->u.hyperspace_beast.your_ship = reader->Read_Int8();
-                    reader->Skip(1);
-                    break;
-                case MSG_TYPE_LOST_ATTACKING_SPY:
-                    message->u.lost_attacking_spy.player_idx = reader->Read_Int16();
-                    reader->Skip(version == LEGACY_VERSION ? 6 : 7);
-                    break;
-                case MSG_TYPE_LOST_DEFENDING_SPY:
-                    message->u.lost_defending_spy.count = reader->Read_Int16();
-                    reader->Skip(version == LEGACY_VERSION ? 6 : 7);
-                    break;
-                case MSG_TYPE_ARTEMIS:
-                    message->u.artemis.star_idx = reader->Read_Int16();
-                    reader->Skip(version == LEGACY_VERSION ? 6 : 7);
-                    break;
-                case MSG_TYPE_ARTEMIS_LEADER:
-                    message->u.artemis_leader.star_idx = version == LEGACY_VERSION ? reader->Read_Int8() : reader->Read_Int16();
-                    message->u.artemis_leader.leader_idx = reader->Read_Int8();
-                    message->u.artemis_leader.fate = reader->Read_Int8();
-                    reader->Skip(5);
-                    break;
-                case MSG_TYPE_FAILED_RETREAT:
-                    message->u.retreat.star_idx = version == LEGACY_VERSION ? reader->Read_Int8() : reader->Read_Int16();
-                    message->u.retreat.reason = reader->Read_Int8();
-                    message->u.retreat.ships_lost = reader->Read_Int16();
-                    message->u.retreat.leader_count = reader->Read_Int8();
-                    reader->Skip(3);
-                    break;
-                case MSG_TYPE_SPY_ASSASSINATION:
-                    message->u.spy_assasination.plr_a = reader->Read_Int8();
-                    message->u.spy_assasination.plr_b = reader->Read_Int8();
-                    message->u.spy_assasination.leader_id = reader->Read_Int8();
-                    message->u.spy_assasination.victim_id = reader->Read_Int8();
-                    reader->Skip(version == LEGACY_VERSION ? 4 : 5);
-                    break;
-                case MSG_TYPE_ANOMALY:
-                    message->u.anomaly.star_idx = version == LEGACY_VERSION ? reader->Read_Uint8() : reader->Read_Int16();
-                    reader->Skip(7);
-                    break;
-                case MSG_TYPE_DIPLOMACY:
-                    message->u.diplomacy.diplomacy_idx = reader->Read_Int8();
-                    message->u.diplomacy.plr_a = reader->Read_Int8();
-                    message->u.diplomacy.plr_b = reader->Read_Int8();
-                    reader->Skip(version == LEGACY_VERSION ? 5 : 6);
-                    break;
-                case MSG_TYPE_EEL_SPAWNED:
-                case MSG_TYPE_EEL_VANISHED:
-                    message->u.eel.star_idx = version == LEGACY_VERSION ? reader->Read_Uint8() : reader->Read_Int16();
-                    reader->Skip(7);
-                    break;
-                case MSG_TYPE_ARTIFACTS:
-                    message->u.artifacts.star_idx = version == LEGACY_VERSION ? reader->Read_Uint8() : reader->Read_Int16();
-                    message->u.artifacts.tech1 = reader->Read_Int8();
-                    message->u.artifacts.tech2 = reader->Read_Int8();
-                    reader->Skip(5);
-                    break;
-                case MSG_TYPE_SCRAP_LEADER:
-                    message->u.scrap_leader.leader_idx = reader->Read_Int8();
-                    reader->Skip(version == LEGACY_VERSION ? 7 : 8);
-                    break;
-                default:
-                    reader->Skip(version == LEGACY_VERSION ? 8 : 9);
-                    break;
-            }
-            reader->Read_Bytes(message->reserved, sizeof(message->reserved));
         }
 
         void Write_Antaran(SERIAL::Writer_* writer, const s_antaran* antaran) {
@@ -1164,13 +771,13 @@ namespace SAVEGAME {
             writer->Write_Uint8(MOX::NUM_NEBULAS);
             for (int i = 0; i < MOX::NUM_NEBULAS; ++i) Write_Nebula(writer, &MOX::nebula[i]);
             Write_Int16_Array(writer, MOX::bill_savegame, 6);
-            writer->Write_Int16(REPORT::n_reports);
-            for (int i = 0; i < MAX_REPORTS; ++i) Write_Report(writer, &REPORT::reports[i]);
+            writer->Write_Uint16(REPORT::n_reports | SERIAL::WIDE_NOTICES_FLAG);
+            for (int i = 0; i < MAX_REPORTS; ++i) SERIAL::Write_Report(writer, &REPORT::reports[i]);
             writer->Write_Uint8(REPORT::done_player_reports);
             writer->Write_Bytes(REPORT::something_interesting_happened, sizeof(REPORT::something_interesting_happened));
             writer->Write_Bytes(REPORT::done_colonize_check, sizeof(REPORT::done_colonize_check));
-            for (int i = 0; i < 36; ++i) Write_Event(writer, &EVENTS::event_data[i]);
-            for (int i = 0; i < MAX_MESSAGES; ++i) Write_Message(writer, &MSG_::msgs[i]);
+            for (int i = 0; i < EVENT_COUNT; ++i) SERIAL::Write_Event(*writer, EVENTS::event_data[i], i);
+            for (int i = 0; i < MAX_MESSAGES; ++i) SERIAL::Write_Message(writer, &MSG_::msgs[i]);
             writer->Write_Bytes(MSG_::first_msg, sizeof(MSG_::first_msg));
             writer->Write_Bytes(MSG_::max_msgs, sizeof(MSG_::max_msgs));
             writer->Write_Bytes(MSG_::n_msgs, sizeof(MSG_::n_msgs));
@@ -1295,15 +902,19 @@ namespace SAVEGAME {
                 }
             }
             Read_Int16_Array(reader, MOX::bill_savegame, 6);
-            REPORT::n_reports = reader->Read_Int16();
-            for (int i = 0; i < MAX_REPORTS; ++i) Read_Report(reader, &REPORT::reports[i], version);
+            const auto report_count = reader->Read_Uint16();
+            const bool wide_notices = version >= 8 && (report_count & SERIAL::WIDE_NOTICES_FLAG);
+            REPORT::n_reports = wide_notices ? report_count & ~SERIAL::WIDE_NOTICES_FLAG : report_count;
+            for (int i = 0; i < MAX_REPORTS; ++i) SERIAL::Read_Report(reader, &REPORT::reports[i], version, wide_notices);
             REPORT::done_player_reports = reader->Read_Uint8();
             reader->Read_Bytes(REPORT::something_interesting_happened, sizeof(REPORT::something_interesting_happened));
             const size_t colonize_check_size = version == LEGACY_VERSION ? BITMAP(ORIGINAL_MAX_STARS) : sizeof(REPORT::done_colonize_check);
             reader->Read_Bytes(REPORT::done_colonize_check, colonize_check_size);
             memset(REPORT::done_colonize_check + colonize_check_size, 0, sizeof(REPORT::done_colonize_check) - colonize_check_size);
-            for (int i = 0; i < 36; ++i) Read_Event(reader, &EVENTS::event_data[i]);
-            for (int i = 0; i < MAX_MESSAGES; ++i) Read_Message(reader, &MSG_::msgs[i], version);
+            for (int i = 0; i < EVENT_COUNT; ++i) SERIAL::Read_Event(*reader, EVENTS::event_data[i], i, wide_notices);
+            for (auto& msg : MSG_::msgs) {
+                SERIAL::Read_Message(reader, &msg, version, wide_notices, Convert_Legacy_Ship_Location);
+            }
             reader->Read_Bytes(MSG_::first_msg, sizeof(MSG_::first_msg));
             reader->Read_Bytes(MSG_::max_msgs, sizeof(MSG_::max_msgs));
             reader->Read_Bytes(MSG_::n_msgs, sizeof(MSG_::n_msgs));

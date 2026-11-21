@@ -4,6 +4,8 @@
 #include "game/planet_serialization.h"
 #include "game/star_serialization.h"
 #include "game/ship_serialization.h"
+#include "game/notice_serialization.h"
+#include "game/event_serialization.h"
 #include "game/colony_serialization.h"
 #include "game/player_network_serialization.h"
 #include "game/netproto.h"
@@ -44,7 +46,7 @@ namespace NETMOX {
         constexpr uint32_t O2GD_MAGIC = 0x4447324F;
         constexpr uint16_t O2GD_VERSION = 1;
         constexpr uint16_t O2GD_HEADER_SIZE = 20;
-        constexpr uint32_t NATIVE_SNAPSHOT_VERSION_TAG = 0x384E324F; // O2N8
+        constexpr uint32_t NATIVE_SNAPSHOT_VERSION_TAG = 0x394E324F; // O2N9
 
         struct Scoped_Net_Update_Suspension_ {
             Scoped_Net_Update_Suspension_() {
@@ -614,19 +616,19 @@ namespace NETMOX {
         SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "netdbg: %s", buffer);
     }
 
-    void __cdecl Russ_Event_Monster_Update(int16_t monster_type, int16_t target_planet_id, int16_t player_idx_or_amount) {
+    void __cdecl Russ_Event_Monster_Update(int16_t monster_type, game::id_planet target_planet_id, int16_t player_idx_or_amount) {
         if (MOX::game_type != 2 /* GAME_TYPE_NETWORK_HOST */ &&
             MOX::game_type != 3 /* GAME_TYPE_NETWORK_CLIENT */) {
             EVENTS::Event_Monster_Update(monster_type, target_planet_id, player_idx_or_amount);
             return;
         }
 
-        s_net_pack_monster_update msg;
-        msg.monster_type = (int32_t)monster_type;
-        msg.target_planet_id = target_planet_id;
-        msg.player_idx_or_amount = (int32_t)player_idx_or_amount;
-
-        NETMOX::Mox_Send_Message(net.local_net_id, NET_PACKET_MONSTER_UPDATE, &msg, sizeof(msg));
+        uint8_t msg[12];
+        SERIAL::Writer_ writer(msg, sizeof(msg), "monster update overflow");
+        writer.Write_Int32(monster_type);
+        writer.Write_Uint32(target_planet_id.id);
+        writer.Write_Int32(player_idx_or_amount);
+        NETMOX::Mox_Send_Message(net.local_net_id, NET_PACKET_MONSTER_UPDATE, msg, sizeof(msg));
     }
 
     void __cdecl Send_Pick_Your_Position(int16_t network_player_id) {
@@ -697,11 +699,9 @@ namespace NETMOX {
 
         writer.Write_Uint16((uint16_t)REPORT::n_reports);
 
-        size = sizeof(REPORT::reports);
-        writer.Write_Bytes(REPORT::reports, size);
+        for (const auto& entry : REPORT::reports) SERIAL::Write_Report(&writer, &entry);
 
-        size = sizeof(EVENTS::event_data);
-        writer.Write_Bytes(EVENTS::event_data, size);
+        for (int i = 0; i < EVENT_COUNT; ++i) SERIAL::Write_Event(writer, EVENTS::event_data[i], i);
 
         size = MOX::NUM_PLAYERS;
         writer.Write_Bytes(MSG_::first_msg, size);
@@ -710,8 +710,7 @@ namespace NETMOX {
 
         writer.Write_Bytes(MSG_::n_msgs, size);
 
-        size = sizeof(MSG_::msgs);
-        writer.Write_Bytes(MSG_::msgs, size);
+        for (const auto& entry : MSG_::msgs) SERIAL::Write_Message(&writer, &entry);
 
         writer.Write_Uint16((uint16_t)diplodef::COUNCIL_FLAG);
 
@@ -925,17 +924,17 @@ namespace NETMOX {
             exitm::Exit_With_Message("invalid broadcast report count");
         }
 
-        reader.Read_Bytes(REPORT::reports, sizeof(REPORT::reports));
+        for (auto& entry : REPORT::reports) SERIAL::Read_Report(&reader, &entry, 8, true);
         REPORT::Client_Initialize_Reports();
 
-        reader.Read_Bytes(EVENTS::event_data, sizeof(EVENTS::event_data));
+        for (int i = 0; i < EVENT_COUNT; ++i) SERIAL::Read_Event(reader, EVENTS::event_data[i], i, true);
         reader.Read_Bytes(MSG_::first_msg, MOX::NUM_PLAYERS);
 
         reader.Read_Bytes(MSG_::max_msgs, MOX::NUM_PLAYERS);
 
         reader.Read_Bytes(MSG_::n_msgs, MOX::NUM_PLAYERS);
 
-        reader.Read_Bytes(MSG_::msgs, sizeof(MSG_::msgs));
+        for (auto& entry : MSG_::msgs) SERIAL::Read_Message(&reader, &entry, 8, true);
         RUSS::Mox_Update();
 
         diplodef::COUNCIL_FLAG = reader.Read_Int16();
@@ -2125,7 +2124,7 @@ namespace NETMOX {
             if (target_colony_id != -1) {
                 MOX::NUM_COLONIES = reader.Read_Int16();
 
-                int16_t planet_idx = reader.Read_Int16();
+                const game::id_planet planet_idx{reader.Read_Uint32()};
 
                 int16_t dummy_col_idx = reader.Read_Int16();
 
@@ -2133,9 +2132,9 @@ namespace NETMOX {
 
                 char p_climate = static_cast<char>(reader.Read_Uint8());
 
-                game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).colony_index = dummy_col_idx;
-                game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).planet_type = p_type;
-                game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).climate = p_climate;
+                game::current_state.planets.at(planet_idx).colony_index = dummy_col_idx;
+                game::current_state.planets.at(planet_idx).planet_type = p_type;
+                game::current_state.planets.at(planet_idx).climate = p_climate;
 
                 SERIAL::Read_Colony(reader, MOX::colony[target_colony_id]);
             }
@@ -2219,7 +2218,7 @@ namespace NETMOX {
 
                 reader.Skip(sizeof(int16_t));
 
-                int16_t combat_planet_idx = reader.Read_Int16();
+                const game::id_planet combat_planet_idx{reader.Read_Uint32()};
 
                 RUSS::Mox_Update();
 
@@ -2252,17 +2251,17 @@ namespace NETMOX {
                 RUSS::Mox_Update();
 
                 // 5. Unpack Colony Fate
-                if (combat_planet_idx != -1) {
-                    int16_t old_colony_index = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(combat_planet_idx)}).colony_index;
+                if (combat_planet_idx != game::NO_PLANET) {
+                    int16_t old_colony_index = game::current_state.planets.at(combat_planet_idx).colony_index;
 
                     int16_t new_colony_index = reader.Read_Int16();
                     int8_t p_type = static_cast<int8_t>(reader.Read_Uint8());
                     char p_climate = static_cast<char>(reader.Read_Uint8());
                     int16_t actual_col_idx = reader.Read_Int16();
 
-                    game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(combat_planet_idx)}).colony_index = new_colony_index;
-                    game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(combat_planet_idx)}).planet_type = p_type;
-                    game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(combat_planet_idx)}).climate = p_climate;
+                    game::current_state.planets.at(combat_planet_idx).colony_index = new_colony_index;
+                    game::current_state.planets.at(combat_planet_idx).planet_type = p_type;
+                    game::current_state.planets.at(combat_planet_idx).climate = p_climate;
 
                     if (actual_col_idx == -1) {
                         if (old_colony_index != -1) {
@@ -2330,7 +2329,7 @@ namespace NETMOX {
 
         const auto planet_idx = MOX::colony[*colony_id_ptr].planet_id.get();
 
-        net.combat_planet_id = SERIAL::Encode_Legacy_Planet_Reference(planet_idx);
+        net.combat_planet_id = planet_idx;
         net.combat_star_id = game::current_state.planets.at(planet_idx).star_index;
     }
 
@@ -2357,7 +2356,7 @@ namespace NETMOX {
         Apply_Drop_Out_Info(packet->player_idx, &packet->drop_out_info, true);
     }
 
-    void __cdecl Send_Battle_Results(int16_t star_id, int16_t player_id, int16_t target_player_id, int16_t combat_defender_id, int16_t combat_planet_id, int16_t combat_result) {
+    void __cdecl Send_Battle_Results(int16_t star_id, int16_t player_id, int16_t target_player_id, int16_t combat_defender_id, game::id_planet combat_planet_id, int16_t combat_result) {
         int16_t player_num = MOX::PLAYER_NUM;
         bool include_remote_state =
             net.local_net_id != net.net_host_id &&
@@ -2380,7 +2379,7 @@ namespace NETMOX {
             COMBFIND::Send_Star_Player_Presence(&writer, -1);
 
             writer.Write_Int16(combat_defender_id);
-            writer.Write_Int16(combat_planet_id);
+            writer.Write_Uint32(combat_planet_id.id);
 
             RUSS::Mox_Update();
 
@@ -2409,11 +2408,11 @@ namespace NETMOX {
 
             RUSS::Mox_Update();
 
-            if (combat_planet_id != -1) {
-                int16_t colony_idx = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(combat_planet_id)}).colony_index;
+            if (combat_planet_id != game::NO_PLANET) {
+                int16_t colony_idx = game::current_state.planets.at(combat_planet_id).colony_index;
                 writer.Write_Int16(colony_idx);
-                writer.Write_Int8(game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(combat_planet_id)}).planet_type);
-                writer.Write_Char(game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(combat_planet_id)}).climate);
+                writer.Write_Int8(game::current_state.planets.at(combat_planet_id).planet_type);
+                writer.Write_Char(game::current_state.planets.at(combat_planet_id).climate);
                 writer.Write_Int16(colony_idx);
 
                 if (colony_idx != -1) {
@@ -2507,7 +2506,7 @@ namespace NETMOX {
                 const auto planet_idx = MOX::colony[colony_idx].planet_id.get();
 
                 writer.Write_Int16((int16_t)MOX::NUM_COLONIES);
-                writer.Write_Int16(SERIAL::Encode_Legacy_Planet_Reference(planet_idx));
+                writer.Write_Uint32(planet_idx.id);
                 writer.Write_Int16(game::current_state.planets.at(planet_idx).colony_index);
                 writer.Write_Int8(game::current_state.planets.at(planet_idx).planet_type);
                 writer.Write_Char(game::current_state.planets.at(planet_idx).climate);

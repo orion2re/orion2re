@@ -8,20 +8,20 @@ namespace COLLAND {
     int32_t pod1d_sfx;
     int16_t fields;
 
-    void __cdecl Print_Planet_Data(int16_t planet_idx) {
+    void __cdecl Print_Planet_Data(game::id_planet planet_idx) {
         char buffer[500];
-        s_planet_data* planet = &game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)});
+        s_planet_data* planet = &game::current_state.planets.at(planet_idx);
 
         COLONY::Set_Colony_Font_To(4);
 
         if (planet->colony_index == -1) {
-            char* planet_name = HACCESS::Get_Planet_Name(planet_idx);
+            char* planet_name = HACCESS::Get_Planet_Name(game::current_state, planet_idx);
             char* fmt = ESTRINGS::E_Strings(0x46 /* ESTR_S1 */);
             snprintf(buffer, sizeof(buffer), fmt, planet_name);
         } else {
             s_colony* colony = &MOX::colony[planet->colony_index];
             char* race_name = MOX::player[colony->owner].race_name;
-            char* planet_name = HACCESS::Get_Planet_Name(planet_idx);
+            char* planet_name = HACCESS::Get_Planet_Name(game::current_state, planet_idx);
             char* fmt = ESTRINGS::E_Strings(0x28 /* ESTR_S__S_COLONY */);
             snprintf(buffer, sizeof(buffer), fmt, planet_name, race_name);
         }
@@ -106,7 +106,7 @@ namespace COLLAND {
 
             COLONY::Set_Colony_Font_To(4);
 
-            char* planet_name = HACCESS::Get_Planet_Name(COLONY::planet_handle);
+            char* planet_name = HACCESS::Get_Planet_Name(game::current_state, COLONY::planet_handle);
             char* title_fmt = ESTRINGS::E_Strings(0xE5 /* ESTR_COLONY_BUILT_ON_S */);
             snprintf(buffer, sizeof(buffer), title_fmt, planet_name);
             fonts::Print_Centered(0x13F, 10, buffer);
@@ -161,8 +161,8 @@ namespace COLLAND {
         COLONY::star_handle = MOX::screen_data;
         COLONY::orbit_n = COLONY::orbit_temp;
 
-        COLONY::planet_handle = HAROLD::Planet_Index(MOX::screen_data, COLONY::orbit_temp);
-        COLONY::colony_handle = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(COLONY::planet_handle)}).colony_index;
+        COLONY::planet_handle = MOX::star[MOX::screen_data].orbit_planet_ids[COLONY::orbit_temp].get();
+        COLONY::colony_handle = game::current_state.planets.at(COLONY::planet_handle).colony_index;
         COLONY::valid_colony = 1;
         COLONY::drawing_display = 0;
         COLONY::sys_disp_star_handle = COLONY::star_handle;

@@ -2091,7 +2091,7 @@ TEST_CASE("population growth rules use package order and immutable context") {
     MOX::game_type = 0;
     orion2re::lua::game::s_population_growth_context context;
     context.colony_id = 1;
-    context.planet_id = 2;
+    context.planet_id = game::id_planet{2};
     context.owner_id = 0;
     context.race_id = 0;
     context.race_population = 3;

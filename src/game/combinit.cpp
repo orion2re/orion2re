@@ -1014,13 +1014,13 @@ namespace COMBINIT {
 
         if (combat_winner == 1 || combat_winner == 0x29A) {
             if (MOX::combat_attacker_player < MAX_PLAYERS && MOX::combat_defender_player >= 10 && MOX::ship[plr2_ships[0]].d.speed > 0) {
-                NETMOX::Russ_Event_Monster_Update(MOX::combat_defender_player, -1, MOX::combat_attacker_player);
+                NETMOX::Russ_Event_Monster_Update(MOX::combat_defender_player, game::NO_PLANET, MOX::combat_attacker_player);
             }
         }
 
         if (combat_winner == -1 || combat_winner == 0x29A) {
             if (MOX::combat_defender_player < MAX_PLAYERS && MOX::combat_attacker_player >= 10 && MOX::ship[plr1_ships[0]].d.speed > 0) {
-                NETMOX::Russ_Event_Monster_Update(MOX::combat_attacker_player, -1, MOX::combat_defender_player);
+                NETMOX::Russ_Event_Monster_Update(MOX::combat_attacker_player, game::NO_PLANET, MOX::combat_defender_player);
             }
         }
 
@@ -1402,7 +1402,7 @@ namespace COMBINIT {
     }
 
     void __cdecl Load_Tactical_Colony(int16_t colony_idx, int16_t load_picture) {
-        char* planet_name = HACCESS::Get_Planet_Name_No_Prime(SERIAL::Encode_Legacy_Planet_Reference(MOX::colony[colony_idx].planet_id.get()));
+        char* planet_name = HACCESS::Get_Planet_Name_No_Prime(game::current_state, MOX::colony[colony_idx].planet_id.get());
         strlcpy(MOX::combat_data->name, planet_name, sizeof(MOX::combat_data->name));
 
         MOX::combat_data->owner = MOX::colony[colony_idx].owner;

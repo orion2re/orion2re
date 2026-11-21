@@ -472,14 +472,14 @@ DOCTEST_TEST_CASE("invalid planet links do not escape the planet and star arrays
     test_planets::Record(0).orbit = 9;
     state.stars[0].orbit_planet_ids[0] = game::id_planet{5000};
     for (int j = 1; j < 5; ++j) state.stars[0].orbit_planet_ids[j] = game::NO_PLANET;
-    DOCTEST_CHECK(HAROLD::Planet_Number(0) == 0);
-    DOCTEST_CHECK(HAROLD::Planet_Number(-1) == 0);
-    DOCTEST_CHECK(HAROLD::Planet_Number(5000) == 0);
+    DOCTEST_CHECK(HAROLD::Planet_Number(game::current_state, game::id_planet{0}) == 0);
+    DOCTEST_CHECK(HAROLD::Planet_Number(game::current_state, game::NO_PLANET) == 0);
+    DOCTEST_CHECK(HAROLD::Planet_Number(game::current_state, game::id_planet{70000}) == 0);
     HAROLD::Confirm_Planet_And_Star_Index_Link("test");
     state.stars[0].orbit_planet_ids[0] = game::id_planet{0};
     HAROLD::Confirm_Planet_And_Star_Index_Link("test");
     test_planets::Record(0).star_index = test_planets::Record(0).orbit = 0;
-    DOCTEST_CHECK(HAROLD::Planet_Number(0) == 0);
+    DOCTEST_CHECK(HAROLD::Planet_Number(game::current_state, game::id_planet{0}) == 0);
 }
 
 DOCTEST_TEST_CASE("session settings recover missing and short files without losing live choices") {

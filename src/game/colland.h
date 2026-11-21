@@ -18,7 +18,7 @@ namespace COLLAND {
     void __cdecl Draw_Colony_Landing_Screen();
 
     /** Prints the selected planet's summary text for the landing screen. */
-    void __cdecl Print_Planet_Data(int16_t planet_idx);
+    void __cdecl Print_Planet_Data(game::id_planet planet_idx);
 
     /** Runs the colony landing screen loop, including palette setup, animation, and exit handling. */
     void __cdecl Colony_Landing_Screen();

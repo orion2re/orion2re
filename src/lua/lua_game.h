@@ -55,7 +55,7 @@ namespace orion2re::lua::game {
 
     struct s_population_growth_context {
         std::int16_t colony_id = -1;
-        std::int16_t planet_id = -1;
+        id_planet planet_id = NO_PLANET;
         std::int16_t owner_id = -1;
         std::int16_t race_id = -1;
         std::int16_t race_population = 0;

@@ -391,7 +391,7 @@ namespace invasion {
 
             s_MSG msg = {};
             msg.msg_type = MSG_TYPE_COLONY;
-            msg.u.colony.planet_idx = SERIAL::Encode_Legacy_Planet_Reference(colony->planet_id.get());
+            msg.u.colony.planet_id = colony->planet_id.get();
             msg.u.colony.subtype = MSG_COLONY_SUBTYPE_REBELLION;
             msg.u.colony.c.rebels.owner_player = (int8_t)rebel_player;
             msg.u.colony.c.rebels.rebels = (int8_t)rebel_count;
@@ -592,7 +592,7 @@ namespace invasion {
 
             memcpy(results->captured_techs_data, captured_techs, captured_count * sizeof(int16_t));
             results->captured_tech_id = (int16_t)captured_count;
-            results->captured_tech_planet_id = SERIAL::Encode_Legacy_Planet_Reference(colony->planet_id.get());
+            results->captured_tech_planet_id = colony->planet_id.get();
         }
     }
 

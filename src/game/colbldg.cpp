@@ -557,10 +557,10 @@ namespace COLBLDG {
         COLONY::star_handle = MOX::screen_data;
         COLONY::orbit_n = COLONY::orbit_temp;
 
-        int16_t planet_idx = HAROLD::Planet_Index(MOX::screen_data, COLONY::orbit_temp);
+        const auto planet_idx = MOX::star[MOX::screen_data].orbit_planet_ids[COLONY::orbit_temp].get();
         COLONY::planet_handle = planet_idx;
 
-        int16_t colony_idx = game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(planet_idx)}).colony_index;
+        int16_t colony_idx = game::current_state.planets.at(planet_idx).colony_index;
         COLONY::colony_handle = colony_idx;
         COLBLDG::last_app = -1;
         COLONY::using_colony_screen_palette = 1;
@@ -1087,7 +1087,7 @@ namespace COLBLDG {
             graphics::Darken_Fill(202, 304, 463, 470);
             animate::Draw(0, 0, COLBLDG::anims[0]);
 
-            char* planet_name = HACCESS::Get_Planet_Name(SERIAL::Encode_Legacy_Planet_Reference(MOX::colony[COLONY::colony_handle].planet_id.get()));
+            char* planet_name = HACCESS::Get_Planet_Name(game::current_state, MOX::colony[COLONY::colony_handle].planet_id.get());
             char* format = ESTRINGS::E_Strings(ESTR_BUILD_LIST_FOR_S);
             snprintf(buffer, sizeof(buffer), format, planet_name);
 

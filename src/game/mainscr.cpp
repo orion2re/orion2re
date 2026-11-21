@@ -1637,7 +1637,7 @@ namespace MAINSCR {
                 const auto planet_idx = colony->planet_id.get();
 
                 if (colony->outpost_flag != 0) {
-                    char* planet_name = HACCESS::Get_Planet_Name(SERIAL::Encode_Legacy_Planet_Reference(planet_idx));
+                    char* planet_name = HACCESS::Get_Planet_Name(game::current_state, planet_idx);
                     const char* format_msg = HAROLD::H_Message(217);
                     char buffer[80];
 
@@ -2091,8 +2091,8 @@ namespace MAINSCR {
 
         // 3. Check for colony button interactions (Click, Right-Click popup, or Hover)
         if (ret_val == -1) {
-            const auto find_orbit = [](int16_t value) -> int16_t {
-                const game::id_planet id{static_cast<uint32_t>(value)};
+            const auto find_orbit = [](game::id_planet id) -> int16_t {
+                if (id == game::NO_PLANET) return -1;
                 for (int16_t orbit = 0; orbit < 5; ++orbit) {
                     if (MOX::star[MOX::system_star_id].orbit_planet_ids[orbit].get() == id) return orbit;
                 }
@@ -2101,19 +2101,20 @@ namespace MAINSCR {
             for (int i = 0; i < 5; ++i) {
                 int16_t btn_id = colony_btns[i];
                 if (input == btn_id) {
-                    *planet_idx = find_orbit(MOX::sys_disp[i].orbit);
+                    *planet_idx = find_orbit(MOX::sys_disp[i].planet_id.get());
                     ret_val = 0;
                     break;
                 }
                 if ((int)input + (int)btn_id == 0) { // Right-click or special interaction
-                    if (game::current_state.planets.at(game::id_planet{static_cast<uint32_t>(MOX::sys_disp[i].orbit)}).planet_type != PLANET_TYPE_GAS_GIANT) {
-                        SYS::Potential_Colony_Info_Popup(MOX::sys_disp[i].orbit);
+                    if (const auto id = MOX::sys_disp[i].planet_id.get(); id != game::NO_PLANET &&
+                        game::current_state.planets.at(id).planet_type != PLANET_TYPE_GAS_GIANT) {
+                        SYS::Potential_Colony_Info_Popup(MOX::sys_disp[i].planet_id.get());
                         MOX::FULL_DRAW_SCREEN_FLAG = 1;
                     }
                     return -1;
                 }
                 if (mouse_input == btn_id) {
-                    *m_planet_idx = find_orbit(MOX::sys_disp[i].orbit);
+                    *m_planet_idx = find_orbit(MOX::sys_disp[i].planet_id.get());
                     ret_val = 4;
                 }
             }
