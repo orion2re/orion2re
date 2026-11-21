@@ -356,7 +356,6 @@ namespace AI_SNOOPS_DEBUG {
                 ImGui::TableSetupColumn("Stage");
                 ImGui::TableHeadersRow();
                 for (const auto& [id, body] : game::current_state.planets) {
-                    const int planet = static_cast<int>(id.id);
                     auto entry = ai->planets.find(id);
                     if (entry == ai->planets.end()) continue;
                     const uint16_t base = entry->second.base_values[player];
@@ -365,8 +364,9 @@ namespace AI_SNOOPS_DEBUG {
                     if (valued_only && base == 0 && contextual == 0 && stage == 0) continue;
                     ImGui::TableNextRow();
                     ImGui::TableSetColumnIndex(0);
-                    ImGui::PushID(planet);
-                    if (ImGui::Selectable(std::to_string(planet).c_str(), false,
+                    const auto label = std::to_string(id.id);
+                    ImGui::PushID(label.c_str());
+                    if (ImGui::Selectable(label.c_str(), false,
                                           ImGuiSelectableFlags_SpanAllColumns)) {
                         debug_game_editors::Open_Planet(id);
                     }
