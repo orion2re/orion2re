@@ -1,16 +1,9 @@
 #include "pch.h"
 
+#include "legacy_sort.h"
 #include "legacy_world.h"
 
 namespace aidudes {
-
-    int __cdecl colony_less_industry_cmp(void* context, const void* p1, const void* p2) {
-        auto& colonies = static_cast<game::s_game_state*>(context)->colonies;
-        int16_t worth1 = AIBUILD::Industry_Worth(&colonies.at(*static_cast<const game::id_colony*>(p1)));
-        int16_t worth2 = AIBUILD::Industry_Worth(&colonies.at(*static_cast<const game::id_colony*>(p2)));
-
-        return (int)worth1 - (int)worth2;
-    }
 
     void Assign_Empire_Building(AIDATA::s_state* ai, const game::s_view* world, game::id_player player_id) {
         const uint32_t player_idx = legacy_world::Slot(player_id);
@@ -180,7 +173,11 @@ namespace aidudes {
             }
         }
 
-        qsort(colony_queue, (uint32_t)colony_queue_count, sizeof(game::id_colony), aidudes::colony_less_industry_cmp, world->state);
+        const auto& colonies = world->state->colonies;
+        Legacy_Sort(std::span{colony_queue, static_cast<size_t>(colony_queue_count)},
+            [&colonies](game::id_colony lhs, game::id_colony rhs) {
+                return AIBUILD::Industry_Worth(colonies.at(lhs)) - AIBUILD::Industry_Worth(colonies.at(rhs));
+            });
 
         if (AIBUILD::rules.strategic.expansion.enabled &&
             p->tech_applications[TECH_APP_COLONY_BASE] == TECH_RESEARCH_STATUS_RESEARCHED) {
@@ -189,7 +186,7 @@ namespace aidudes {
                 i--;
                 s_colony* temp_colony = &world->state->colonies.at(colony_queue[i]);
                 if (!COLCALC::Colony_Is_Blockaded(temp_colony) &&
-                    AIBUILD::Industry_Worth(temp_colony) >=
+                    AIBUILD::Industry_Worth(*temp_colony) >=
                         AIBUILD::rules.strategic.expansion.colony_base_minimum_industry) {
                     const auto& planets = world->state->planets;
                     const auto& colony_planet = planets.at(temp_colony->planet_id);
@@ -219,7 +216,7 @@ namespace aidudes {
                     i--;
                     s_colony* temp_colony = &world->state->colonies.at(colony_queue[i]);
                     if (!COLCALC::Colony_Is_Blockaded(temp_colony) &&
-                        AIBUILD::Industry_Worth(temp_colony) >=
+                        AIBUILD::Industry_Worth(*temp_colony) >=
                             AIBUILD::rules.strategic.expansion.colony_ship_minimum_industry) {
                         if (player_info.colony_deficit + 50 < (int32_t)game_random::Random(100)) {
                             s_ship_design colony_ship_design = {};
@@ -353,7 +350,7 @@ namespace aidudes {
                         bool star_fortress_candidate = false;
                         bool star_base_candidate = false;
 
-                        int ind_worth = AIBUILD::Industry_Worth(temp_colony);
+                        int ind_worth = AIBUILD::Industry_Worth(*temp_colony);
                         const auto& colony_planet = world->state->planets.at(temp_colony->planet_id);
                         const auto& system = ai->stars[legacy_world::Star_Id(colony_planet.star_index)];
                         const auto& pressure = system.neighborhood.per_player[player_idx];
@@ -506,7 +503,7 @@ namespace aidudes {
                         break;
                     }
                     case AIBUILD::ALLOCATION_FREIGHTERS:
-                        if (!COLCALC::Colony_Is_Blockaded(temp_colony) && AIBUILD::Industry_Worth(temp_colony) >= 12) {
+                        if (!COLCALC::Colony_Is_Blockaded(temp_colony) && AIBUILD::Industry_Worth(*temp_colony) >= 12) {
                             AIBUILD::Force_Produce(world, colony_queue, i, &colony_queue_count, COLONY_PRODUCTION_FREIGHTERS);
                             freighter_groups_assigned++;
                             needs.freighter_groups_wanted--;
@@ -535,7 +532,7 @@ namespace aidudes {
 
                                 int16_t cost = AIBUILD::Refit_Cost(p, &s->d, refit_design);
                                 if (cost <= refit_design->cost &&
-                                    cost <= AIBUILD::Industry_Worth(temp_colony) * (war_level + 10)) {
+                                    cost <= AIBUILD::Industry_Worth(*temp_colony) * (war_level + 10)) {
                                     if (s->officer_index != -1) {
                                         OFFICER::Move_Officer_To_Pool(s->officer_index);
                                         s->officer_index = -1;
@@ -558,14 +555,14 @@ namespace aidudes {
                         break;
                     }
                     case AIBUILD::ALLOCATION_SPIES:
-                        if (!COLCALC::Colony_Is_Blockaded(temp_colony) && AIBUILD::Industry_Worth(temp_colony) >= 15) {
+                        if (!COLCALC::Colony_Is_Blockaded(temp_colony) && AIBUILD::Industry_Worth(*temp_colony) >= 15) {
                             AIBUILD::Force_Produce(world, colony_queue, i, &colony_queue_count, COLONY_PRODUCTION_SPY);
                             needs.spies.additional_wanted--;
                         }
                         choice_weights[AIBUILD::ALLOCATION_SPIES] = 0;
                         break;
                     case AIBUILD::ALLOCATION_TRANSPORTS:
-                        if (!COLCALC::Colony_Is_Blockaded(temp_colony) && AIBUILD::Industry_Worth(temp_colony) >= 14) {
+                        if (!COLCALC::Colony_Is_Blockaded(temp_colony) && AIBUILD::Industry_Worth(*temp_colony) >= 14) {
                             if (temp_colony->buildings[BUILDING_MARINE_BARRACKS] == 0) {
                                 AIBUILD::Force_Produce(world, colony_queue, i, &colony_queue_count, BUILDING_MARINE_BARRACKS);
                                 needs.transports.additional_wanted--;

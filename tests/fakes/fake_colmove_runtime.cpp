@@ -28,7 +28,7 @@ namespace MOX {
 namespace COLONY {
     uint8_t full_draw;
 
-    int16_t __cdecl Pop_To_Pop_State(game::id_colony, int16_t) {
+    int16_t __cdecl Pop_To_Pop_State(uint32_t) {
         return 0;
     }
 
@@ -56,7 +56,7 @@ namespace COLONY {
         return nullptr;
     }
 
-    s_animation_header* __cdecl Colony_Pop_Anim(int16_t, int16_t) {
+    s_animation_header* __cdecl Colony_Pop_Anim(const s_colony&, int16_t) {
         return nullptr;
     }
 

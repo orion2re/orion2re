@@ -806,11 +806,12 @@ namespace HOMEGEN {
                     if (nearest_empty_star != -1) {
                         int16_t orbit = Usable_Orbit(nearest_empty_star);
                         auto& link = MOX::star[nearest_empty_star].orbit_planet_ids[orbit];
-                        const auto planet = Make_One_Planet(nearest_empty_star, orbit, 1);
+                        auto planet = Make_One_Planet(nearest_empty_star, orbit, 1);
                         if (link.get() == game::NO_PLANET) {
                             if (const auto id = game::current_state.Create_Planet(planet)) link = *id;
                         } else {
-                            game::current_state.planets.at(link.get()) = planet;
+                            planet.id = link.get();
+                            game::current_state.planets.at(planet.id) = planet;
                         }
                         if (link.get() != game::NO_PLANET) food_star = nearest_empty_star;
                     } else if (nearest_star_in_range != -1 && buffer_count != 0) {
@@ -819,6 +820,7 @@ namespace HOMEGEN {
                         const auto original_special = planet.planet_special;
                         food_star = planet.star_index;
                         planet = Make_One_Planet(food_star, planet.orbit, 1);
+                        planet.id = planet_buffer[choice];
                         planet.planet_special = original_special;
                     }
                 } else {
@@ -967,9 +969,7 @@ namespace HOMEGEN {
         MOX::star[0].y = star_temp.y;
 
         s_planet_data* p = &game::current_state.planets.at(target_id);
-        memset(p, 0, sizeof(s_planet_data));
-
-        p->colony_id = game::NO_COLONY;
+        *p = {.id = target_id};
         p->orbit = (int8_t)selected_orbit;
         p->planet_type = PLANET_TYPE_PLANET;
         p->size = PLANET_SIZE_HUGE;

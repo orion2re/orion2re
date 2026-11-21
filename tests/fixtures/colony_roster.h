@@ -5,7 +5,13 @@
 namespace test_colonies {
     inline s_colony& Record(uint32_t key, game::s_game_state& state = game::current_state) {
         state.next_colony_id = std::max(state.next_colony_id, key + 1);
-        return state.colonies[game::id_colony{key}];
+        const game::id_colony id{key};
+        return state.colonies.try_emplace(id, s_colony{.id = id}).first->second;
+    }
+
+    inline s_colony& Set(uint32_t key, s_colony colony) {
+        colony.id = game::id_colony{key};
+        return Record(key) = colony;
     }
 
     inline void Reset(uint32_t count = 0) {

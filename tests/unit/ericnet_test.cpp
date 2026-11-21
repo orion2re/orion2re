@@ -231,7 +231,7 @@ DOCTEST_TEST_CASE("crew turn updates use the best active colony instructor for e
     } crew_scope;
     Reset_Colony_();
     auto& state = game::current_state;
-    state.leaders = {};
+    state.leaders = game::s_game_state{}.leaders;
     memset(test::fakes::instructor_bonuses, 0, sizeof(test::fakes::instructor_bonuses));
     for (auto& leader : state.leaders) leader.player_index = -1;
     for (int i = 0; i < 6; ++i) {
@@ -358,7 +358,7 @@ DOCTEST_TEST_CASE("Artificial Planets use configured population capacity") {
 
     for (const s_case& test_case : cases) {
         Reset_Colony_();
-        test_planets::Record(1) = {};
+        test_planets::Set(1, {});
         for (int orbit = 0; orbit < 5; ++orbit) {
             MOX::star[0].orbit_planet_ids[orbit] = game::NO_PLANET;
         }

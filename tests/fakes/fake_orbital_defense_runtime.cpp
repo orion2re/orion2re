@@ -22,7 +22,7 @@ namespace AIBUILD {
     int16_t Player_War_Level(const game::s_view*, game::id_player) {
         return 1;
     }
-    int16_t __cdecl Industry_Worth(s_colony*) {
+    int16_t __cdecl Industry_Worth(const s_colony&) {
         return 100;
     }
     bool __cdecl Colony_Is_Conquered(const game::s_view*, s_colony*) {

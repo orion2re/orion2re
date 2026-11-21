@@ -872,7 +872,7 @@ namespace COLONY {
 
             // Branching logic based on language affects the order of components in the final string
             if (MOX::settings.language == 4 /* Localized variant */) {
-                str_state = Pop_State_String(Pop_To_Pop_State(handle_s, COLONY::scanned_pop));
+                str_state = Pop_State_String(Pop_To_Pop_State(pop_data));
                 str_conquered = Conquered_String((bool)((pop_data >> 10) & 1));
                 str_race = Pop_Race_String(handle_s, COLONY::scanned_pop);
                 str_job = Job_String((int16_t)((pop_data >> 7) & 3));
@@ -881,7 +881,7 @@ namespace COLONY {
                 snprintf(buffer, sizeof(buffer), format_str, str_job, str_race, str_conquered, str_state);
             } else {
                 str_job = Job_String((int16_t)((pop_data >> 7) & 3));
-                str_state = Pop_State_String(Pop_To_Pop_State(handle_s, COLONY::scanned_pop));
+                str_state = Pop_State_String(Pop_To_Pop_State(pop_data));
                 str_race = Pop_Race_String(handle_s, COLONY::scanned_pop);
                 str_conquered = Conquered_String((bool)((pop_data >> 10) & 1));
 
@@ -1181,9 +1181,9 @@ namespace COLONY {
         ERIC::Draw_Centered(x, y, COLONY::ship_bitm);
     }
 
-    int16_t __cdecl Pop_To_Pop_State(game::id_colony colony_idx, int16_t pop_idx) {
+    int16_t __cdecl Pop_To_Pop_State(uint32_t pop_value) {
         // Extract the lower nibble of the population data to determine status
-        uint32_t pop_status = game::current_state.colonies.at(colony_idx).pop[pop_idx] & 0xf;
+        const auto pop_status = pop_value & 0xf;
 
         if (pop_status == 9) {
             return 3;
@@ -1198,24 +1198,24 @@ namespace COLONY {
         return 2;
     }
 
-    int16_t __cdecl Get_Effective_Pop_Player(game::id_colony colony_idx, int16_t pop_idx) {
-        uint32_t pop_val = game::current_state.colonies.at(colony_idx).pop[pop_idx];
+    int16_t __cdecl Get_Effective_Pop_Player(const s_colony& colony, int16_t pop_idx) {
+        const auto pop_val = colony.pop[pop_idx];
         uint32_t pop_type = pop_val & 0x0F;
 
         if (pop_type == 8 || pop_type == 9) {
-            return static_cast<int16_t>(game::current_state.colonies.at(colony_idx).owner);
+            return colony.owner;
         }
 
         return static_cast<int16_t>(pop_type);
     }
 
-    s_animation_header* __cdecl Colony_Pop_Anim(game::id_colony colony_idx, int16_t pop_idx) {
-        uint32_t pop_data = game::current_state.colonies.at(colony_idx).pop[pop_idx];
-        int16_t pop_state = static_cast<int16_t>(Pop_To_Pop_State(colony_idx, pop_idx));
+    s_animation_header* __cdecl Colony_Pop_Anim(const s_colony& colony, int16_t pop_idx) {
+        const auto pop_data = colony.pop[pop_idx];
+        int16_t pop_state = Pop_To_Pop_State(pop_data);
 
         uint32_t type = (pop_data >> 7) & 0x3;
 
-        int16_t player_idx = Get_Effective_Pop_Player(colony_idx, pop_idx);
+        int16_t player_idx = Get_Effective_Pop_Player(colony, pop_idx);
         uint32_t race = static_cast<uint32_t>(static_cast<uint8_t>(MOX::player[player_idx].race));
 
         // Check for specific flag in pop data (bit 10 / 0x400)
@@ -1984,7 +1984,7 @@ namespace COLONY {
 
         if (colony->n_pops != 0) {
             for (int16_t i = 0; i < (int16_t)(uint8_t)colony->n_pops; ++i) {
-                int16_t effective_player = Get_Effective_Pop_Player(colony_idx, i);
+                int16_t effective_player = Get_Effective_Pop_Player(*colony, i);
                 uint32_t pop_data = colony->pop[i];
                 uint32_t pop_race_val = pop_data & 0xF;
 
@@ -1998,7 +1998,7 @@ namespace COLONY {
                 }
 
                 if (race_match) {
-                    int16_t pop_state = Pop_To_Pop_State(colony_idx, i);
+                    int16_t pop_state = Pop_To_Pop_State(pop_data);
                     if (pop_state == state || state == -1) {
                         if ((int)((pop_data & 0x180) >> 7) == (int)job || job == -1) {
                             if ((int)((pop_data & 0x400) >> 10) == (int)conquered_flag || conquered_flag == -1) {
@@ -2065,13 +2065,11 @@ namespace COLONY {
      * 
      * @param x The screen X-coordinate.
      * @param y The screen Y-coordinate.
-     * @param colony_idx The index of the colony.
+     * @param colony The colony whose colonist is drawn.
      * @param pop_idx The index of the population unit.
      */
-    void __cdecl Draw_Pop_Dark(int16_t x, int16_t y, game::id_colony colony_idx, int16_t pop_idx) {
-        s_animation_header* anim;
-
-        anim = Colony_Pop_Anim(colony_idx, pop_idx);
+    void __cdecl Draw_Pop_Dark(int16_t x, int16_t y, const s_colony& colony, int16_t pop_idx) {
+        auto* anim = Colony_Pop_Anim(colony, pop_idx);
 
         // Prepare a scratch buffer (30x30) with the darkened population frame
         bitmap::Create_Blank_Bitmap(30, 30, swap_bitm);

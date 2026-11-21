@@ -943,7 +943,7 @@ namespace SCORE {
                 for (int16_t pop_idx = 0; pop_idx < roster_colony.n_pops; ++pop_idx) {
                     if (limit_reached) break;
 
-                    int16_t effective_player_idx = COLONY::Get_Effective_Pop_Player(col_idx, pop_idx);
+                    int16_t effective_player_idx = COLONY::Get_Effective_Pop_Player(roster_colony, pop_idx);
                     if (effective_player_idx < 0 || effective_player_idx >= MAX_PLAYERS) {
                         continue;
                     }
@@ -1127,8 +1127,9 @@ namespace SCORE {
                 if (i < max_pop * 97) {
                     if (is_captured == 0) {
                         const auto& pop = SCORE::hi->pop_units[i];
-                        if (!game::current_state.colonies.contains(pop.colony_id.get())) continue;
-                        anim = COLONY::Colony_Pop_Anim(pop.colony_id.get(), pop.icon_id);
+                        const auto colony = game::current_state.colonies.find(pop.colony_id.get());
+                        if (colony == game::current_state.colonies.end()) continue;
+                        anim = COLONY::Colony_Pop_Anim(colony->second, pop.icon_id);
                     } else {
                         anim = COLONY::Colony_Pop_Icon(
                             (uint16_t)(uint8_t)SCORE::hi->captured_pop_race_ids[i]);

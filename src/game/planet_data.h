@@ -21,6 +21,7 @@ struct s_planet_data {
     uint8_t max_population;
     int8_t planet_special;
     int8_t environmental_alterations;
+    game::id_planet id = game::NO_PLANET;
 
     bool operator==(const s_planet_data&) const = default;
 };

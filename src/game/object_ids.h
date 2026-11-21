@@ -35,6 +35,7 @@ namespace game {
         uint32_t id;
         bool operator==(const id_leader&) const = default;
     };
+    inline constexpr id_leader NO_LEADER{UINT32_MAX};
 
     static_assert(sizeof(id_ship) == sizeof(uint32_t));
     static_assert(alignof(id_ship) == alignof(uint32_t));

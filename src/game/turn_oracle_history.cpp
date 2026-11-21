@@ -42,7 +42,7 @@ namespace turn_oracle {
                 const bool reservations = colonies && (count & SERIAL::COLONY_RESERVATIONS_FLAG);
                 if (colonies && (count & SERIAL::KEYED_COLONY_COUNT_FLAG)) {
                     count &= ~(SERIAL::KEYED_COLONY_COUNT_FLAG | SERIAL::COLONY_RESERVATIONS_FLAG);
-                    record_bytes = SERIAL::KEYED_COLONY_BYTES;
+                    record_bytes = SERIAL::COLONY_BYTES;
                     offset += 4;
                 } else if (colonies && (count & SERIAL::WIDE_COLONY_PLANET_FLAG)) {
                     count &= ~SERIAL::WIDE_COLONY_PLANET_FLAG;
@@ -70,7 +70,7 @@ namespace turn_oracle {
             if (!skip_records(planet_bytes, max_colonies_and_planets)) return false;
             const size_t stars_offset = offset;
             if (!skip_records(star_bytes, max_stars)) return false;
-            const size_t leader_bytes = implicit_leader_ids ? MAX_LEADERS * SERIAL::LEADER_BYTES : SERIAL::LEADER_STATE_BYTES;
+            const size_t leader_bytes = implicit_leader_ids ? MAX_LEADERS * SERIAL::LEGACY_LEADER_BYTES : SERIAL::LEADER_STATE_BYTES;
             if (bytes.size() - offset < leader_bytes) return false;
 
             std::vector<uint8_t> upgraded;
@@ -94,8 +94,8 @@ namespace turn_oracle {
             if (implicit_leader_ids) {
                 for (uint32_t slot = 0; slot < MAX_LEADERS; ++slot) {
                     append_id(slot);
-                    upgraded.insert(upgraded.end(), bytes.begin() + offset, bytes.begin() + offset + SERIAL::LEADER_BYTES);
-                    offset += SERIAL::LEADER_BYTES;
+                    upgraded.insert(upgraded.end(), bytes.begin() + offset, bytes.begin() + offset + SERIAL::LEGACY_LEADER_BYTES);
+                    offset += SERIAL::LEGACY_LEADER_BYTES;
                 }
             }
             upgraded.insert(upgraded.end(), bytes.begin() + offset, bytes.end());
@@ -108,7 +108,7 @@ namespace turn_oracle {
             if (bytes.size() < colonies + 2) return std::nullopt;
             const uint16_t field = bytes[colonies] | (bytes[colonies + 1] << 8);
             const bool keyed = field & SERIAL::KEYED_COLONY_COUNT_FLAG;
-            const size_t width = keyed ? SERIAL::KEYED_COLONY_BYTES : field & SERIAL::WIDE_COLONY_PLANET_FLAG ? SERIAL::COLONY_BYTES : SERIAL::LEGACY_COLONY_BYTES;
+            const size_t width = keyed ? SERIAL::COLONY_BYTES : field & SERIAL::WIDE_COLONY_PLANET_FLAG ? SERIAL::COLONY_FIELDS_BYTES : SERIAL::LEGACY_COLONY_BYTES;
             const uint16_t count = field & ~(SERIAL::WIDE_COLONY_PLANET_FLAG | SERIAL::KEYED_COLONY_COUNT_FLAG | SERIAL::COLONY_RESERVATIONS_FLAG);
             size_t planets = colonies + 2 + (keyed ? 4 : 0) + count * width;
             if (field & SERIAL::COLONY_RESERVATIONS_FLAG) {
@@ -127,7 +127,7 @@ namespace turn_oracle {
             const uint16_t field = bytes[header] | (bytes[header + 1] << 8);
             if (!(field & SERIAL::KEYED_COLONY_COUNT_FLAG)) return false;
             const auto count = field & ~(SERIAL::KEYED_COLONY_COUNT_FLAG | SERIAL::COLONY_RESERVATIONS_FLAG);
-            const size_t start = header + 2 + 4 + count * SERIAL::KEYED_COLONY_BYTES;
+            const size_t start = header + 2 + 4 + count * SERIAL::COLONY_BYTES;
             bytes.erase(bytes.begin() + start, bytes.begin() + *planets);
             bytes[header + 1] &= ~(SERIAL::COLONY_RESERVATIONS_FLAG >> 8);
             return true;
@@ -140,7 +140,7 @@ namespace turn_oracle {
             const bool keyed = field & SERIAL::KEYED_PLANET_COUNT_FLAG;
             const uint16_t count = field & ~(SERIAL::KEYED_PLANET_COUNT_FLAG | SERIAL::WIDE_PLANET_COLONY_FLAG);
             const size_t width = (keyed ? 4 : 0) + ((field & SERIAL::WIDE_PLANET_COLONY_FLAG)
-                ? SERIAL::PLANET_BYTES : SERIAL::NARROW_COLONY_PLANET_BYTES);
+                ? SERIAL::PLANET_FIELDS_BYTES : SERIAL::NARROW_COLONY_PLANET_BYTES);
             const size_t stars = *planets + 2 + (keyed ? 4 : 0) + count * width;
             return count <= MAX_PLANETS && stars + 2 <= bytes.size() ? std::optional{stars} : std::nullopt;
         }
@@ -187,7 +187,7 @@ namespace turn_oracle {
             const auto end = Planet_Count_Offset(bytes);
             if (!end) return false;
             const bool wide = field & SERIAL::WIDE_COLONY_PLANET_FLAG;
-            const size_t width = wide ? SERIAL::COLONY_BYTES : SERIAL::LEGACY_COLONY_BYTES;
+            const size_t width = wide ? SERIAL::COLONY_FIELDS_BYTES : SERIAL::LEGACY_COLONY_BYTES;
             std::vector<uint8_t> keyed(bytes.begin(), bytes.begin() + count_offset + 2);
             const auto append_key = [&](uint32_t value) {
                 for (unsigned shift = 0; shift < 32; shift += 8) keyed.push_back(static_cast<uint8_t>(value >> shift));

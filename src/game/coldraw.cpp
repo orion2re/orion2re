@@ -103,9 +103,10 @@ namespace COLDRAW {
         video::Clip_Off();
     }
 
-    int16_t __cdecl Do_Colony_Info_Pop_Stuff_For_Pop(
-        game::id_colony colony_idx, int16_t job_filter, int16_t mode, int16_t left_x, int16_t top_y, int16_t right_x, uint8_t show_farm_shadows, int16_t* pop_index_by_slot, int16_t* last_slot_idx_ptr, int16_t* scroll_value_ptr, int16_t* scroll_field_id_ptr) {
-        const uint8_t colony_n_pops = game::current_state.colonies.at(colony_idx).n_pops;
+    static int16_t Draw_Colony_Pop_Fields(
+        const s_colony& colony, bool highlight, int16_t job_filter, int16_t mode, int16_t left_x, int16_t top_y, int16_t right_x, uint8_t show_farm_shadows, int16_t* pop_index_by_slot, int16_t* last_slot_idx_ptr, int16_t* scroll_value_ptr, int16_t* scroll_field_id_ptr) {
+        const uint8_t colony_n_pops = colony.n_pops;
+        const uint8_t max_farms = colony.max_farms;
         int16_t pop_order[10];
         pop_order[0] = 9;
         pop_order[1] = 0;
@@ -121,7 +122,7 @@ namespace COLDRAW {
         int16_t pop_draw_index = 0;
 
         if (mode != 2) {
-            Do_Colony_Info_Pop_Stuff_For_Pop(colony_idx, job_filter, 2, left_x, top_y, right_x, show_farm_shadows, pop_index_by_slot, last_slot_idx_ptr, scroll_value_ptr, scroll_field_id_ptr);
+            Draw_Colony_Pop_Fields(colony, highlight, job_filter, 2, left_x, top_y, right_x, show_farm_shadows, pop_index_by_slot, last_slot_idx_ptr, scroll_value_ptr, scroll_field_id_ptr);
         }
 
         int16_t start_idx;
@@ -134,7 +135,7 @@ namespace COLDRAW {
             end_idx = job_filter + 1;
         }
 
-        if (mode == 0 && job_filter == ECON_FOOD && game::current_state.colonies.at(colony_idx).max_farms == 0) {
+        if (mode == 0 && job_filter == ECON_FOOD && max_farms == 0) {
             COLONY::Set_Colony_Font_To(3);
             if (MOX::settings.language == 1 && MOX::current_screen == SCREEN_COLONY_SUMMARY) {
                 BILL::Squeeze_Print_Paragraph(left_x, top_y - 1, right_x - left_x, 34, ESTRINGS::E_Strings(387 /* ESTR_NO_FARMING */), 2);
@@ -151,23 +152,23 @@ namespace COLDRAW {
                     for (int16_t order_idx = 0; order_idx < 10; order_idx++) {
                         int16_t current_order = pop_order[order_idx];
                         for (int16_t pop_idx = 0; pop_idx < (int16_t)colony_n_pops; pop_idx++) {
-                            uint32_t pop_val = game::current_state.colonies.at(colony_idx).pop[pop_idx];
+                            const auto pop_val = colony.pop[pop_idx];
                             if ((pop_val & 0xf) == current_order) {
-                                if (COLONY::Pop_To_Pop_State(colony_idx, pop_idx) == state_idx) {
+                                if (COLONY::Pop_To_Pop_State(pop_val) == state_idx) {
                                     if (((pop_val & 0x180) >> 7) == job_idx) {
                                         if ((pop_val & 0x200) != 0) {
                                             if (((pop_val & 0x400) >> 10) == race_idx) {
                                                 switch (mode) {
                                                     case 0:
                                                         COLONY::Set_Colony_Font_To(2);
-                                                        if (pop_idx == COLONY::scanned_pop && COLONY::g_colony_n == colony_idx) {
+                                                        if (pop_idx == COLONY::scanned_pop && highlight) {
                                                             if (ERIC::Global_Cycler(30, 2) != 0) {
-                                                                COLONY::Draw_Pop_Dark((30 - COLONY::step_squish) * pop_draw_index + left_x, top_y, colony_idx, pop_idx);
+                                                                COLONY::Draw_Pop_Dark((30 - COLONY::step_squish) * pop_draw_index + left_x, top_y, colony, pop_idx);
                                                                 break;
                                                             }
                                                         }
                                                         {
-                                                            s_animation_header* anim = COLONY::Colony_Pop_Anim(colony_idx, pop_idx);
+                                                            s_animation_header* anim = COLONY::Colony_Pop_Anim(colony, pop_idx);
                                                             animate::Draw((30 - COLONY::step_squish) * pop_draw_index + left_x, top_y, anim);
                                                         }
                                                         break;
@@ -212,7 +213,6 @@ namespace COLDRAW {
         switch (mode) {
             case 0:
                 if (show_farm_shadows != 0 && job_filter == ECON_FOOD) {
-                    const uint8_t max_farms = game::current_state.colonies.at(colony_idx).max_farms;
                     if (max_farms != 0xff) {
                         if (pop_draw_index < (int16_t)max_farms) {
                             COLONY::Create_Shadow_Farmer(MOX::PLAYER_NUM);
@@ -233,7 +233,6 @@ namespace COLDRAW {
 
             case 2: {
                 int16_t squish_count = pop_draw_index;
-                const uint8_t max_farms = game::current_state.colonies.at(colony_idx).max_farms;
                 if (show_farm_shadows != 0 && job_filter == 0 && max_farms != 0xff) {
                     squish_count = (int16_t)max_farms;
                 }
@@ -261,6 +260,13 @@ namespace COLDRAW {
     reset_step_squish_and_return:
         COLONY::Reset_Step_Squish();
         return -1;
+    }
+
+    int16_t __cdecl Do_Colony_Info_Pop_Stuff_For_Pop(
+        game::id_colony colony_idx, int16_t job_filter, int16_t mode, int16_t left_x, int16_t top_y, int16_t right_x, uint8_t show_farm_shadows, int16_t* pop_index_by_slot, int16_t* last_slot_idx_ptr, int16_t* scroll_value_ptr, int16_t* scroll_field_id_ptr) {
+        const auto& colony = game::current_state.colonies.at(colony_idx);
+        return Draw_Colony_Pop_Fields(colony, COLONY::g_colony_n == colony_idx, job_filter, mode, left_x, top_y, right_x,
+            show_farm_shadows, pop_index_by_slot, last_slot_idx_ptr, scroll_value_ptr, scroll_field_id_ptr);
     }
 
     void __cdecl Draw_Simplest_Path(int16_t previous_row, int16_t previous_col, int16_t row, int16_t col, uint8_t* first_segment_out, uint8_t* second_segment_out) {

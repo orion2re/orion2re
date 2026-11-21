@@ -551,7 +551,7 @@ namespace AIBUILD {
         context->metrics[production_rules::METRIC_COLONY_FOOD] = colony_food;
         context->metrics[production_rules::METRIC_COLONY_FOOD_DEMAND] = (food2_demand + 1) / 2;
         context->metrics[production_rules::METRIC_PRODUCTION] = colony->production[ECON_INDUSTRY];
-        context->metrics[production_rules::METRIC_INDUSTRY] = Industry_Worth((s_colony*)colony);
+        context->metrics[production_rules::METRIC_INDUSTRY] = Industry_Worth(*colony);
         context->metrics[production_rules::METRIC_POLLUTION] = colony->pollution;
         context->metrics[production_rules::METRIC_FOOD_PER_FARMER] = colony->food2_per_farmer;
         int32_t preferred_gravity = PLANET_GRAVITY_NORMAL_G;
@@ -1138,8 +1138,8 @@ namespace AIBUILD {
         memmove(&id_list[list_index], &id_list[list_index + 1], items_to_move * sizeof(uint32_t));
     }
 
-    int16_t __cdecl Industry_Worth(s_colony* colony) {
-        return (int16_t)(((uint8_t)colony->n_pops >> 3) - (uint8_t)colony->maintenance[1] + colony->production[1]);
+    int16_t __cdecl Industry_Worth(const s_colony& colony) {
+        return (int16_t)(((uint8_t)colony.n_pops >> 3) - (uint8_t)colony.maintenance[1] + colony.production[1]);
     }
 
     char* __cdecl Product_Name(int16_t product_id) {

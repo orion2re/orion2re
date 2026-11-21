@@ -31,7 +31,7 @@ DOCTEST_TEST_CASE("colony navigation wraps over sparse keys and skips outposts")
     const game::id_colony outpost{70000};
     const game::id_colony other{80000};
     test_colonies::Record(home.id).owner = 0;
-    test_colonies::Record(outpost.id) = {.owner = 0, .outpost_flag = 1};
+    test_colonies::Set(outpost.id, {.owner = 0, .outpost_flag = 1});
     test_colonies::Record(other.id).owner = 0;
     DOCTEST_CHECK(COLONY::Get_Next_Colony(home, 0) == other);
     DOCTEST_CHECK(COLONY::Get_Next_Colony(home, 1) == other);
