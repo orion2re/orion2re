@@ -137,7 +137,7 @@ DOCTEST_TEST_CASE("empire surrender transfers assets caps spies and recalculates
     DOCTEST_CHECK((services.population_limits == std::vector<int16_t>{0}));
     DOCTEST_CHECK((services.fleet_etas == std::vector<int16_t>{-1}));
     DOCTEST_CHECK((services.spy_reads == std::vector<std::array<int16_t, 2>>{{1, 1}, {0, 0}, {0, 1}}));
-    DOCTEST_CHECK((services.spies[1][1] == 63));
+    DOCTEST_CHECK((services.spies[1][1] == spy::MAX_SPIES_PER_TARGET));
     DOCTEST_CHECK((MOX::player[1].bc == 125));
     DOCTEST_CHECK((MOX::player[1].n_freighters == 5));
     DOCTEST_CHECK((MOX::player[0].eliminated == 1));

@@ -41,10 +41,10 @@ DOCTEST_TEST_CASE("returning spies preserves the home count cap and clears the f
     BILL::Set_Their_Spy_Number(0, 0, 50);
     BILL::Set_Their_Spy_Number(0, 1, 20);
     spy::Bring_Home_Spies_Vs(0, 1);
-    DOCTEST_CHECK(BILL::Get_Their_Spy_Number(0, 0) == 63);
+    DOCTEST_CHECK(BILL::Get_Their_Spy_Number(0, 0) == spy::MAX_SPIES_PER_TARGET);
     DOCTEST_CHECK(BILL::Get_Their_Spy_Number(0, 1) == 0);
     spy::Bring_Home_Spies_Vs(0, 1);
-    DOCTEST_CHECK(BILL::Get_Their_Spy_Number(0, 0) == 63);
+    DOCTEST_CHECK(BILL::Get_Their_Spy_Number(0, 0) == spy::MAX_SPIES_PER_TARGET);
     DOCTEST_CHECK(TEST_SPY::Random_Call_Count_() == 0);
 }
 

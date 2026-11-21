@@ -3,6 +3,10 @@
 struct s_leader_data;
 
 namespace spy {
+    // Each packed spy entry stores the count in the low bits, below the mission.
+    inline constexpr int SPY_COUNT_BITS = 6;
+    inline constexpr int16_t MAX_SPIES_PER_TARGET = (1 << SPY_COUNT_BITS) - 1;
+
     enum e_steal_mode : uint8_t {
         STEAL_MODE_EXCEPT_CURRENT_FIELD,
         STEAL_MODE_EXCEPT_CURRENT_TECH,

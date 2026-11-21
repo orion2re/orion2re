@@ -2085,8 +2085,8 @@ namespace COLCALC {
             total_spies += BILL::Get_Their_Spy_Number(surrender_id, (int16_t)i);
         }
 
-        if (total_spies > 63) {
-            total_spies = 63;
+        if (total_spies > spy::MAX_SPIES_PER_TARGET) {
+            total_spies = spy::MAX_SPIES_PER_TARGET;
         }
 
         BILL::Set_Their_Spy_Number(receiver_id, receiver_id, (uint8_t)total_spies);

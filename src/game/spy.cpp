@@ -142,8 +142,8 @@ namespace spy {
             allocated_home = total_spies;
         }
 
-        if (allocated_home > 0x3f) {
-            allocated_home = 0x3f;
+        if (allocated_home > MAX_SPIES_PER_TARGET) {
+            allocated_home = MAX_SPIES_PER_TARGET;
         }
 
         BILL::Set_Their_Spy_Number(player_idx, player_idx, (uint8_t)allocated_home);
@@ -224,16 +224,16 @@ namespace spy {
 
             if (target == -1) {
                 int32_t sum = remaining_spies + allocated_home;
-                if (sum >= 0x3f) {
-                    BILL::Set_Their_Spy_Number(player_idx, player_idx, 0x3f);
+                if (sum >= MAX_SPIES_PER_TARGET) {
+                    BILL::Set_Their_Spy_Number(player_idx, player_idx, MAX_SPIES_PER_TARGET);
                 } else {
                     BILL::Set_Their_Spy_Number(player_idx, player_idx, (uint8_t)sum);
                 }
                 remaining_spies = 0;
             } else {
-                if (remaining_spies > 0x3f) {
-                    BILL::Set_Their_Spy_Number(player_idx, target, 0x3f);
-                    remaining_spies -= 0x3f;
+                if (remaining_spies > MAX_SPIES_PER_TARGET) {
+                    BILL::Set_Their_Spy_Number(player_idx, target, MAX_SPIES_PER_TARGET);
+                    remaining_spies -= MAX_SPIES_PER_TARGET;
                 } else {
                     BILL::Set_Their_Spy_Number(player_idx, target, (uint8_t)remaining_spies);
                     remaining_spies = 0;
