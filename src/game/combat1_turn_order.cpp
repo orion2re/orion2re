@@ -89,7 +89,7 @@ namespace COMBAT1 {
             MOX::combat_attacker_player < MOX::NUM_PLAYERS &&
             MOX::player[MOX::combat_attacker_player].objectives == PLAYER_OBJECTIVE_HUMAN;
 
-        if (MOX::cmbt_colony_id != -1 &&
+        if (MOX::cmbt_colony_id != game::NO_COLONY &&
             CMBTFIRE::Does_Combat_Planet_Have_Defenses() == 0 &&
             (!attacker_is_human || MOX::auto_combat_flag[0] == 1) &&
             side_counts[0] > 0) {

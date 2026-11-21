@@ -15,7 +15,7 @@ namespace COMBAT {
      * @param summary Output summary text buffer.
      * @param details Output details text buffer.
      */
-    int16_t __cdecl Strategic_Combat(int16_t* plr1_ships, int16_t plr1_ship_count, int16_t* plr2_ships, int16_t plr2_ship_count, int16_t star_idx, int16_t colony_idx, char* summary, int32_t summary_size, char* details, int32_t details_size);
+    int16_t __cdecl Strategic_Combat(int16_t* plr1_ships, int16_t plr1_ship_count, int16_t* plr2_ships, int16_t plr2_ship_count, int16_t star_idx, game::id_colony colony_idx, char* summary, int32_t summary_size, char* details, int32_t details_size);
 
     /**
      * Scan the supplied ships and record the highest available officer combat bonuses.
@@ -158,7 +158,7 @@ namespace COMBAT {
      * @param attacker_count Number of attacker ships.
      * @param colony_id Target colony index.
      */
-    int16_t __cdecl Strategic_Bombardment(int16_t* attacker_ship_indices, int16_t attacker_count, int16_t colony_id);
+    int16_t __cdecl Strategic_Bombardment(int16_t* attacker_ship_indices, int16_t attacker_count, game::id_colony colony_id);
 
     /**
      * Compare ship indices by descending hull size for bombardment ordering.

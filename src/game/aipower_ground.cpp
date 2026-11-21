@@ -65,9 +65,9 @@ namespace AIPOWER {
     }
 
     uint16_t Colony_Ground_Strength_Vs_Player(const game::s_view* world, game::id_colony colony_id, game::id_player player_id) {
-        const uint32_t colony_idx = legacy_world::Slot(colony_id);
+        const game::id_colony colony_idx = colony_id;
         uint16_t strength = 0;
-        const s_colony* colony = &world->colonies[colony_idx];
+        const s_colony* colony = &world->state->colonies.at(colony_idx);
 
         // BUILDING_MISSILE_BASE: 26
         if (colony->buildings[BUILDING_MISSILE_BASE] != 0) {

@@ -329,14 +329,14 @@ namespace ERIC {
         return 0;
     }
 
-    int8_t __cdecl Player_Can_Mind_Control_Colony(int16_t player_idx, int16_t colony_idx) {
+    int8_t __cdecl Player_Can_Mind_Control_Colony(int16_t player_idx, game::id_colony colony_idx) {
         if (MOX::player[player_idx].traits[TRAIT_TELEPATHIC] != 0) {
-            const auto& colony = MOX::colony[colony_idx];
-            const auto star = game::current_state.planets.at(colony.planet_id.get()).star_index;
+            const auto& colony = game::current_state.colonies.at(colony_idx);
+            const auto star = game::current_state.planets.at(colony.planet_id).star_index;
             if (Player_Has_Ship_Size_Or_Larger_At_Star(player_idx, mind_control_ship_class, star)) {
                 if (!Player_Has_Leader_With_General_Skill_At_Star(colony.owner, 48, star)) {
                     if (!Player_Has_Leader_With_General_Skill_At_Star(colony.owner, 49, star)) {
-                        if (MOX::player[MOX::colony[colony_idx].owner].traits[TRAIT_TELEPATHIC] == 0) {
+                        if (MOX::player[game::current_state.colonies.at(colony_idx).owner].traits[TRAIT_TELEPATHIC] == 0) {
                             return 1;
                         }
                     }
@@ -346,13 +346,13 @@ namespace ERIC {
         return 0;
     }
 
-    int8_t __cdecl Player_Can_Mind_Control_Colony_With_Help(int16_t player_idx, int16_t colony_idx) {
+    int8_t __cdecl Player_Can_Mind_Control_Colony_With_Help(int16_t player_idx, game::id_colony colony_idx) {
         if (MOX::player[player_idx].traits[TRAIT_TELEPATHIC] == 0) {
             GENDRAW::Help(ESTRINGS::E_Strings(0x233));
             return 0;
         }
 
-        const auto planet_idx = MOX::colony[colony_idx].planet_id.get();
+        const auto planet_idx = game::current_state.colonies.at(colony_idx).planet_id;
         int16_t star_idx = game::current_state.planets.at(planet_idx).star_index;
 
         if (Player_Has_Ship_Size_Or_Larger_At_Star(player_idx, mind_control_ship_class, star_idx) == 0) {
@@ -360,7 +360,7 @@ namespace ERIC {
             return 0;
         }
 
-        int16_t owner_idx = MOX::colony[colony_idx].owner;
+        int16_t owner_idx = game::current_state.colonies.at(colony_idx).owner;
 
         if (Player_Has_Leader_With_General_Skill_At_Star(owner_idx, 48, star_idx) != 0 ||
             Player_Has_Leader_With_General_Skill_At_Star(owner_idx, 49, star_idx) != 0) {
@@ -380,24 +380,24 @@ namespace ERIC {
         hacky_need_to_fade_to_colony_palette_flag = flag;
     }
 
-    int16_t __cdecl Player_Capitol_World(int16_t player_idx) {
-        for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
-            if (MOX::colony[i].buildings[BUILDING_CAPITOL] != 0 && MOX::colony[i].owner == player_idx) {
-                return i;
+    game::id_colony __cdecl Player_Capitol_World(int16_t player_idx) {
+        for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
+            if (roster_colony.buildings[BUILDING_CAPITOL] != 0 && roster_colony.owner == player_idx) {
+                return roster_id;
             }
         }
         return Pick_Random_Colony(player_idx);
     }
 
-    int16_t __cdecl Pick_Random_Colony(int16_t owner_idx) {
+    game::id_colony __cdecl Pick_Random_Colony(int16_t owner_idx) {
         int16_t count = 0;
-        int16_t chosen_colony = -1;
+        game::id_colony chosen_colony = game::NO_COLONY;
 
-        for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
-            if (MOX::colony[i].owner == owner_idx) {
+        for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
+            if (roster_colony.owner == owner_idx) {
                 count++;
                 if (game_random::Random(count) == 1) {
-                    chosen_colony = i;
+                    chosen_colony = roster_id;
                 }
             }
         }

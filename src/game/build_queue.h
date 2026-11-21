@@ -101,8 +101,8 @@ namespace BUILD_QUEUE {
         return -1;
     }
 
-    bool Apply_Preset_To_Colony(int16_t colony_idx, int preset_idx);
+    bool Apply_Preset_To_Colony(game::id_colony colony_idx, int preset_idx);
     void Apply_Preset_To_Empire(int16_t player_idx, int preset_idx);
-    bool Apply_Custom_Autobuild(int16_t colony_idx);
+    bool Apply_Custom_Autobuild(game::id_colony colony_idx);
     void Apply_Custom_Autobuild_For_Player(int16_t player_idx);
 } // namespace BUILD_QUEUE

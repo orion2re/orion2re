@@ -18,7 +18,7 @@ namespace ERICNET {
      * @param colony_idx Colony receiving the building.
      * @param building_idx Building identifier to add.
      */
-    void __cdecl Add_Building(int16_t colony_idx, int16_t building_idx);
+    void __cdecl Add_Building(game::id_colony colony_idx, int16_t building_idx);
 
     /**
      * Initializes a starting colony, optionally applying homeworld-only bonuses.
@@ -77,7 +77,7 @@ namespace ERICNET {
      * @param colony_idx Colony losing the building.
      * @param building_idx Building identifier to remove.
      */
-    void __cdecl Remove_Building(int16_t colony_idx, int16_t building_idx);
+    void __cdecl Remove_Building(game::s_game_state& state, game::id_colony colony_id, int16_t building_idx);
 
     /**
      * Computes each player's best instructor bonus from available leaders.

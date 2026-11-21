@@ -11,7 +11,6 @@
 
 namespace legacy_world {
     game::s_view World();
-    std::optional<game::id_colony> Colony_Id(const game::s_view* world, const s_colony* colony);
 
     inline std::optional<uint32_t> Nonnegative_Slot(int32_t index) {
         if (index < 0) return std::nullopt;

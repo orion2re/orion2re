@@ -30,11 +30,11 @@ namespace COMBINIT {
         Reset_Satellite_Capture_State(&satellite_capture_state);
     }
 
-    void __cdecl Record_Captured_Satellite(int16_t colony_idx, int16_t building_idx) {
+    void __cdecl Record_Captured_Satellite(game::id_colony colony_idx, int16_t building_idx) {
         Record_Captured_Satellite_State(&satellite_capture_state, colony_idx, building_idx);
     }
 
-    int16_t __cdecl Take_Captured_Satellite(int16_t colony_idx) {
+    int16_t __cdecl Take_Captured_Satellite(game::id_colony colony_idx) {
         return Take_Captured_Satellite_State(&satellite_capture_state, colony_idx);
     }
 
@@ -471,7 +471,7 @@ namespace COMBINIT {
                     victor_player == MOX::combat_attacker_player ||
                     ship->owner != MOX::combat_defender_player)) {
                 if (star_idx != MOX::NUM_STARS) {
-                    s_colony* col = &MOX::colony[MOX::cmbt_colony_id];
+                    s_colony* col = &game::current_state.colonies.at(MOX::cmbt_colony_id);
                     int16_t satellite_building = -1;
                     if (col->buildings[BUILDING_STAR_BASE] != 0) {
                         satellite_building = BUILDING_STAR_BASE;
@@ -487,7 +487,7 @@ namespace COMBINIT {
                                 ship->owner, victor_player, MOX::combat_attacker_player)) {
                             Record_Captured_Satellite(MOX::cmbt_colony_id, satellite_building);
                         }
-                        ERICNET::Remove_Building(MOX::cmbt_colony_id, satellite_building);
+                        ERICNET::Remove_Building(game::current_state, MOX::cmbt_colony_id, satellite_building);
                     }
                 }
                 continue;
@@ -661,8 +661,8 @@ namespace COMBINIT {
             }
         }
 
-        if (MOX::cmbt_colony_id != -1) {
-            s_colony* col = &MOX::colony[MOX::cmbt_colony_id];
+        if (MOX::cmbt_colony_id != game::NO_COLONY) {
+            s_colony* col = &game::current_state.colonies.at(MOX::cmbt_colony_id);
             if (col->outpost_flag == 0 && col->n_pops == 0) {
                 int16_t has_buildings = 0;
                 for (int16_t i = 0; i < BUILDING_COUNT; ++i) {
@@ -672,7 +672,7 @@ namespace COMBINIT {
                     has_buildings += col->buildings[i];
                 }
                 if (has_buildings == 0) {
-                    BOMB::Destroy_Colony(col, 1);
+                    BOMB::Destroy_Colony(game::current_state, MOX::cmbt_colony_id, 1);
                 }
             }
         }

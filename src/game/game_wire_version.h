@@ -5,7 +5,7 @@
 
 namespace NETPROTO {
     // Bump for incompatible game packets, independently of save and router versions.
-    inline constexpr char GAME_WIRE_VERSION[] = "orion2re-net/1";
+    inline constexpr char GAME_WIRE_VERSION[] = "orion2re-net/8";
 
     template <std::size_t N>
     void Write_Setup_Version(char (&field)[N]) {

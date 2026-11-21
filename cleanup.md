@@ -33,9 +33,66 @@
 
 ## Other game records
 
-- [ ] Players, stars, ships, colonies, and other state still live in
+- [ ] Players, stars, ships, and other state still live in
       legacy globals. Migrate them to ordered ID maps and remove remaining packed
       in-memory records and raw multiplayer transfers as each type is migrated.
+- [ ] When a record no longer requires packed storage, replace its
+      `unaligned::field<T>` wrappers with plain `T` fields and remove the
+      corresponding `.get()` calls. For example, once `s_colony` is unpacked,
+      use `planets.at(colony.planet_id)` with the plain `id_planet` field.
+      Keep save and network layouts independent of native field alignment.
+
+## Colonies
+
+- [x] Separate the unpacked `s_colony` record from its save and network layout.
+      Its `planet_id` is a plain `id_planet`; codec lengths are independent of
+      native padding.
+- [x] Add the ordered colony store, monotonic allocator, and keyed block codec
+      with sparse-ID tests and a historical slot decoder.
+- [x] Widen freight source IDs and Lua population-growth colony IDs. Current
+      v8 freight writes an explicit 32-bit source; old formats decode at the
+      save boundary.
+- [x] Store planet backlinks as `id_colony`, with `NO_COLONY` for an empty
+      link. v8 and multiplayer write an explicit wide backlink.
+- [x] Pass explicit colony IDs into production, destruction, and pop transfer
+      instead of recovering IDs from record addresses. Lua galaxy deletion
+      no longer moves a surviving colony into the deleted slot.
+- [x] Carry the selected colony ID through initialization, including splinter
+      colonies and outpost upgrades.
+- [x] Pass colony IDs through economy and invasion calculations, and carry them
+      in bombardment and invasion results and the explicit strategic results
+      codec. Retain the selected IDs for colony bases and building scrapping.
+      Colony traversal and identity no longer depend on pointer arithmetic.
+- [x] Move live ownership to `s_game_state::colonies` and erase destroyed
+      colonies. Reserve keys in the legacy round-robin order without inserting
+      vacant records. Saves, full multiplayer snapshots, and Lua galaxy staging
+      use the keyed roster. Save version remains 8.
+- [x] Remove `MOX::NUM_COLONIES` and the borrowed colony-count pointer. Iterate
+      the keyed roster directly and keep AI sampling positions separate from IDs.
+      Incremental combat setup transmits the next colony ID, not a slot extent,
+      and the targeted-colony header uses a full key.
+- [x] Store colony event targets separately from numeric event payloads. Decode
+      historical comet, earthquake, plague, population-boom, and monster target
+      fields at the save boundary. Current v8 uses an event layout flag;
+      multiplayer snapshots use the `O2NE` record tag.
+- [x] Carry typed IDs through event checks, colony recalculation, queue removal,
+      building removal, and home-planet selection. Slot numbers in the build
+      queue itself remain positions.
+- [ ] Thread state through the remaining event and colony calculation chains
+      and the star and leader updates invoked by colony destruction. Event
+      storage, player records, and star records still use the runtime singleton.
+- [x] Carry `id_colony` through combat, production, AI, Lua, and UI. Keep row,
+      orbit, and queue positions numeric. Remove the live slot conversion helpers.
+- [x] Serialize combat target lists, Dragon targets, and incremental combat
+      colony updates explicitly with full-width keys. Multiplayer uses
+      `orion2re-net/8`.
+- [x] Persist pending player reservations in keyed snapshots and v8 saves,
+      including failed-load rollback. Founding only consumes ships and colony
+      bases on success. Check reciprocal colony links on load; repair stale
+      links in historical slot-based saves at import.
+- Stable-key traversal intentionally does not reproduce reuse of a vacant
+  historical slot. This can change traversal-dependent choices after deletion
+  and refounding; do not use a slot number as an identity to emulate it.
 
 ## Planets
 

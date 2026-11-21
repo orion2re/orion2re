@@ -193,7 +193,7 @@ namespace PLNTSUM {
 
     void __cdecl Player_Colors(int16_t player_idx, s_colors* colors_out, int8_t type, uint8_t* base_color_out);
 
-    void __cdecl Colony_Owner_Colors(int16_t colony_idx, s_colors* colors, int8_t highlight_type);
+    void __cdecl Colony_Owner_Colors(game::id_colony colony_idx, s_colors* colors, int8_t highlight_type);
 
     void __cdecl Summary_Screen_Print_Scanned();
 

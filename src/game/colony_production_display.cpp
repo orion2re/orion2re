@@ -25,14 +25,14 @@ namespace COLDRAW {
         }
     }
 
-    void __cdecl Draw_Colony_Prod_Both(int16_t colony_idx, int16_t prod_type, int16_t x, int16_t y, int16_t width, int16_t spacing, int8_t frame) {
+    void __cdecl Draw_Colony_Prod_Both(game::id_colony colony_idx, int16_t prod_type, int16_t x, int16_t y, int16_t width, int16_t spacing, int8_t frame) {
         int16_t import_tens = 0;
         int16_t import_units = 0;
         int16_t secondary_tens = 0;
         int16_t secondary_units = 0;
         int16_t drawn_count = 0;
 
-        s_colony* colony = &MOX::colony[colony_idx];
+        s_colony* colony = &game::current_state.colonies.at(colony_idx);
 
         if (prod_type != ECON_INDUSTRY) {
             int32_t imp_val = abs((int32_t)colony->imports[prod_type]);
@@ -172,11 +172,11 @@ namespace COLDRAW {
         video::Clip_Off();
     }
 
-    void __cdecl Draw_Colony_Prod(int16_t colony_idx, int16_t prod_type, int16_t x, int16_t y, int16_t width, int16_t spacing) {
+    void __cdecl Draw_Colony_Prod(game::id_colony colony_idx, int16_t prod_type, int16_t x, int16_t y, int16_t width, int16_t spacing) {
         Draw_Colony_Prod_Both(colony_idx, prod_type, x, y, width, spacing, 0);
     }
 
-    void __cdecl Draw_Colony_Wee_Prod(int16_t colony_idx, int16_t prod_idx, int16_t x, int16_t y, int16_t width, int16_t height) {
+    void __cdecl Draw_Colony_Wee_Prod(game::id_colony colony_idx, int16_t prod_idx, int16_t x, int16_t y, int16_t width, int16_t height) {
         Draw_Colony_Prod_Both(colony_idx, prod_idx, x, y, width, height, 1);
     }
 } // namespace COLDRAW

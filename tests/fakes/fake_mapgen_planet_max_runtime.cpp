@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
 
 using game::current_state;
@@ -14,7 +15,7 @@ namespace {
 
     s_star_data stars[MAX_STARS];
     s_player players[MAX_PLAYERS];
-    s_colony colonies[MAX_COLONIES];
+    test_colonies::Slots<MAX_COLONIES> colonies;
     s_ship_data ships[MAX_SHIPS];
     s_nebula nebulas[MAX_NEBULAS];
     uint32_t allocation_offset;
@@ -60,7 +61,7 @@ namespace TEST_MAPGEN {
         test_planets::Reset(0);
         memset(stars, 0, sizeof(stars));
         memset(players, 0, sizeof(players));
-        memset(colonies, 0, sizeof(colonies));
+        colonies.Reset();
         memset(ships, 0, sizeof(ships));
         game::current_state = game::s_game_state{};
         memset(nebulas, 0, sizeof(nebulas));
@@ -82,13 +83,12 @@ namespace TEST_MAPGEN {
             }
         }
         for (int16_t planet_idx = 0; planet_idx < MAX_PLANETS; ++planet_idx) {
-            test_planets::Record(planet_idx).colony_index = -1;
+            test_planets::Record(planet_idx).colony_id = game::NO_COLONY;
         }
 
         MOX::NUM_STARS = 0;
         MOX::NUM_PLAYERS = 0;
         test_planets::Resize_Dense(0);
-        MOX::NUM_COLONIES = 0;
         MOX::NUM_SHIPS = 0;
         MOX::NUM_NEBULAS = 0;
         MOX::game_type = 0;
@@ -128,11 +128,11 @@ namespace TEST_MAPGEN {
     }
 
     void Set_Planet_(int16_t planet_idx, int16_t star_idx, int8_t orbit,
-                     int8_t planet_type, int16_t colony_idx) {
+                     int8_t planet_type, game::id_colony colony_idx) {
         test_planets::Record(planet_idx).star_index = star_idx;
         test_planets::Record(planet_idx).orbit = orbit;
         test_planets::Record(planet_idx).planet_type = planet_type;
-        test_planets::Record(planet_idx).colony_index = colony_idx;
+        test_planets::Record(planet_idx).colony_id = colony_idx;
         stars[star_idx].orbit_planet_ids[(uint8_t)orbit] = game::id_planet{static_cast<uint32_t>(planet_idx)};
     }
 
@@ -234,7 +234,7 @@ namespace orion2re::lua {
         galaxy_provider_isolated = MOX::star != stars &&
             game::internal::galaxy_planet_candidate == &current_state &&
             MOX::player != players &&
-            MOX::colony != colonies && MOX::ship != ships &&
+            MOX::ship != ships &&
             MOX::nebula != nebulas;
         galaxy_provider_topology_generation =
             game::internal::Topology_Generation();
@@ -357,12 +357,10 @@ namespace MOX {
     int16_t NUM_PLAYERS;
     int16_t NUM_STARS;
     int16_t NUM_SHIPS;
-    int16_t NUM_COLONIES;
 
 
     s_star_data* star = stars;
     s_player* player = players;
-    s_colony* colony = colonies;
     s_ship_data* ship = ships;
     s_nebula* nebula = nebulas;
     uint8_t NUM_NEBULAS;

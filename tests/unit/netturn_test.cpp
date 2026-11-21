@@ -60,6 +60,36 @@ namespace {
     };
 
 #ifdef TEST_REAL_MAIN_RECEIVE
+    DOCTEST_TEST_CASE_FIXTURE(Network_Flags_Fixture_, "host does not count a rejected orders packet") {
+        const auto saved_screen = MOX::screen_seg;
+        const auto saved_hook = MULTPLAY::g_chat_box_input_loop_hook;
+        MOX::screen_seg = static_cast<s_animation_header*>(allocate::Allocate_Space(1024));
+        MOX::NUM_PLAYERS = 2;
+        players[0].objectives = PLAYER_OBJECTIVE_HUMAN;
+        players[1].objectives = PLAYER_OBJECTIVE_HUMAN;
+        NETMOX::net.local_net_id = NETMOX::net.net_host_id = players[0].network_player_id;
+        NETMOX::net.host_active_player_id = -1;
+        NETMOX::net.players_hit_next_turn[1] = 1;
+        NETMOX::net.player_is_active_flags[1] = 1;
+        MULTPLAY::g_chat_box_input_loop_hook = [] {
+            if (NETMOX::net.sync_state != NET_SYNC_STATE_HOST_RECEIVING_PLAYER_DATA) return;
+            uint8_t truncated = 0;
+            MAINSCR::Main_Receive_Message(0, 100, NET_PACKET_GAME_ORDERS_PAYLOAD, 1, &truncated);
+            DOCTEST_CHECK((NETMOX::net.network_data_ptr == nullptr));
+            MAINSCR::Main_Receive_Message(1, 101, NET_PACKET_GAME_ORDERS_PAYLOAD, 1, &truncated);
+            DOCTEST_CHECK(NETMOX::net.host_sync_counter == 1);
+        };
+
+        DOCTEST_CHECK_THROWS_WITH(NETTURN::Host_Next_Turn(), "Invalid multiplayer game orders; turn not advanced.");
+        DOCTEST_CHECK(NETMOX::net.host_sync_counter == 1);
+        DOCTEST_CHECK(NETMOX::net.host_orders_received_flags[1] == 0);
+        DOCTEST_CHECK((NETMOX::net.network_data_ptr == nullptr));
+        DOCTEST_CHECK((NETMOX::net.total_bytes_received == 0));
+        std::free(reinterpret_cast<s_alloc_header*>(MOX::screen_seg) - 1);
+        MOX::screen_seg = saved_screen;
+        MULTPLAY::g_chat_box_input_loop_hook = saved_hook;
+    }
+
     DOCTEST_TEST_CASE_FIXTURE(Network_Flags_Fixture_, "new and loaded games check the wire version before applying setup") {
         const auto check = [](auto& packet, uint16_t kind) {
             DOCTEST_CAPTURE(kind);

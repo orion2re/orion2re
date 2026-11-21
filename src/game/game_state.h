@@ -6,6 +6,7 @@
 #include <optional>
 #include <vector>
 
+#include "colony_data.h"
 #include "consts.h"
 #include "leader_data.h"
 #include "object_ids.h"
@@ -20,6 +21,24 @@ namespace game {
         // Traversal order only; relationships and lookups use the map key.
         std::vector<id_planet> planet_order;
         uint32_t next_planet_id = 0;
+
+        std::map<id_colony, s_colony> colonies;
+        uint32_t next_colony_id = 0;
+        std::array<std::vector<id_colony>, MAX_PLAYERS> colony_reservations;
+
+        void Reset_Colonies() {
+            colonies.clear();
+            next_colony_id = 0;
+            for (auto& reservations : colony_reservations) reservations.clear();
+        }
+
+        std::optional<id_colony> Create_Colony(const s_colony& colony) {
+            const id_colony id{next_colony_id};
+            if (colonies.size() >= MAX_COLONIES || id == NO_COLONY) return std::nullopt;
+            if (!colonies.try_emplace(id, colony).second) return std::nullopt;
+            ++next_colony_id;
+            return id;
+        }
 
         void Reset_Planets() {
             planets.clear();

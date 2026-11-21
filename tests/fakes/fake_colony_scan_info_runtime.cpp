@@ -1,10 +1,11 @@
 #include "pch.h"
+#include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
 
 #include <cstdarg>
 
 namespace {
-    s_colony colonies[MAX_COLONIES];
+    test_colonies::Slots<MAX_COLONIES> colonies;
 
     s_player players[MAX_PLAYERS];
     char output[1000];
@@ -32,7 +33,7 @@ namespace {
 
 namespace TEST_COLONY_SCAN_INFO {
     void Reset_() {
-        memset(colonies, 0, sizeof(colonies));
+        colonies.Reset();
         test_planets::Reset(0);
         memset(players, 0, sizeof(players));
         memset(output, 0, sizeof(output));
@@ -40,7 +41,7 @@ namespace TEST_COLONY_SCAN_INFO {
         breakthrough_chance = 0;
         capture_empire_info = false;
 
-        COLONY::g_colony_n = 0;
+        COLONY::g_colony_n = game::id_colony{0};
         COLSUM::print_research_value = COLSUM::RESEARCH_VALUE_CLASSIC;
         MOX::PLAYER_NUM = 0;
         MOX::settings.language = 0;
@@ -64,7 +65,6 @@ namespace TEST_COLONY_SCAN_INFO {
 }
 
 namespace MOX {
-    s_colony* colony = colonies;
 
     s_player* player = players;
     s_ship_data* ship;
@@ -87,9 +87,9 @@ namespace MOX {
 }
 
 namespace COLONY {
-    int16_t g_colony_n;
+    game::id_colony g_colony_n;
 
-    int16_t __cdecl Calculate_Current_Production_Turn_Count(int16_t) {
+    int16_t __cdecl Calculate_Current_Production_Turn_Count(game::id_colony) {
         return 0;
     }
 
@@ -99,13 +99,13 @@ namespace COLONY {
     void __cdecl Set_Colony_Font() {
     }
 
-    int16_t __cdecl Sum_Colonists(int16_t, int16_t, int16_t, int16_t, int16_t, int16_t) {
+    int16_t __cdecl Sum_Colonists(game::id_colony, int16_t, int16_t, int16_t, int16_t, int16_t) {
         return 0;
     }
 }
 
 namespace COLXPORT {
-    int16_t* g_colony_list_ptr;
+    game::id_colony* g_colony_list_ptr;
 }
 
 namespace HACCESS {
@@ -125,10 +125,10 @@ namespace TECHDATA {
 }
 
 namespace COLDRAW {
-    void __cdecl Draw_Colony_Wee_Prod(int16_t, int16_t, int16_t, int16_t, int16_t, int16_t) {
+    void __cdecl Draw_Colony_Wee_Prod(game::id_colony, int16_t, int16_t, int16_t, int16_t, int16_t) {
     }
 
-    void __cdecl Draw_Info_Wee_Morale(int16_t, int16_t, int16_t, int32_t) {
+    void __cdecl Draw_Info_Wee_Morale(game::id_colony, int16_t, int16_t, int32_t) {
     }
 }
 

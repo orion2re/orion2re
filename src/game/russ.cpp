@@ -256,9 +256,9 @@ namespace RUSS {
 
         INITSHIP::Update_Player_Ship_Designs((int16_t)player_idx);
 
-        for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
-            if (MOX::colony[i].owner == player_idx) {
-                COLBLDG::Clear_Colony_Queue(i);
+        for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
+            if (roster_colony.owner == player_idx) {
+                COLBLDG::Clear_Colony_Queue(game::current_state, roster_id);
             }
         }
 

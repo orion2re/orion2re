@@ -25,7 +25,7 @@ namespace COLSUM {
     extern int16_t slider_bar_position;
 
     extern int16_t list_col_prod_fields[10];
-    extern int16_t list_col[10];
+    extern game::id_colony list_col[10];
 
     extern s_colsum_col_pop_ref list_col_pop_ref[30];
 
@@ -46,7 +46,7 @@ namespace COLSUM {
 
     void __cdecl Add_Fields();
 
-    void __cdecl Add_Fields_Pop_For(int16_t colony_idx);
+    void __cdecl Add_Fields_Pop_For(int16_t row_idx);
 
     void __cdecl Update_Col_List();
 
@@ -68,21 +68,21 @@ namespace COLSUM {
 
     int16_t __cdecl cmp(int16_t lhs, int16_t rhs);
 
-    int16_t __cdecl cmp_Alpha(int16_t colony_idx_1, int16_t colony_idx_2);
+    int16_t __cdecl cmp_Alpha(game::id_colony colony_idx_1, game::id_colony colony_idx_2);
 
-    int16_t __cdecl cmp_Pops(int16_t colony_idx1, int16_t colony_idx2);
+    int16_t __cdecl cmp_Pops(game::id_colony colony_idx1, game::id_colony colony_idx2);
 
-    int16_t __cdecl cmp_Food(int16_t colony_idx1, int16_t colony_idx2);
+    int16_t __cdecl cmp_Food(game::id_colony colony_idx1, game::id_colony colony_idx2);
 
-    int16_t __cdecl cmp_Industry(int16_t colony_idx_1, int16_t colony_idx_2);
+    int16_t __cdecl cmp_Industry(game::id_colony colony_idx_1, game::id_colony colony_idx_2);
 
-    int16_t __cdecl cmp_Research(int16_t colony_idx_1, int16_t colony_idx_2);
+    int16_t __cdecl cmp_Research(game::id_colony colony_idx_1, game::id_colony colony_idx_2);
 
-    int16_t __cdecl cmp_Prod(int16_t colony_idx_1, int16_t colony_idx_2);
+    int16_t __cdecl cmp_Prod(game::id_colony colony_idx_1, game::id_colony colony_idx_2);
 
-    int16_t __cdecl cmp_BC(int16_t colony_idx_1, int16_t colony_idx_2);
+    int16_t __cdecl cmp_BC(game::id_colony colony_idx_1, game::id_colony colony_idx_2);
 
-    int16_t __cdecl Switched_cmp(int16_t a1, int16_t a2);
+    int16_t __cdecl Switched_cmp(game::id_colony a1, game::id_colony a2);
 
     void __cdecl Draw_Colony_Summary_Screen();
 
@@ -110,7 +110,7 @@ namespace COLSUM {
 
     void __cdecl Draw_Colony_Summary_For_Colony(int16_t index);
 
-    void __cdecl Draw_Info_Pop_For(int16_t colony_idx);
+    void __cdecl Draw_Info_Pop_For(int16_t row_idx);
 
     void __cdecl Colsum_Connect_Galaxy_Map_Stars(int16_t star_idx1, int16_t star_idx2, s_colors* pattern);
 
@@ -122,7 +122,7 @@ namespace COLSUM {
 
     void __cdecl Evaluate_Colony_Pop_Input(int16_t* input_field_1, int16_t* input_field_2, int16_t colony_idx_in_list);
 
-    int16_t __cdecl Get_Selected_Pop(int16_t colony_idx, int16_t job_idx);
+    int16_t __cdecl Get_Selected_Pop(int16_t row_idx, int16_t job_idx);
 
     int16_t __cdecl Get_Scanned_Pop(int16_t colony_list_row, int16_t job_type);
 

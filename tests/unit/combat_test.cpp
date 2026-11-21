@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/colony_roster.h"
 
 #include "doctest/doctest.h"
 #include "game/combat.h"
@@ -34,6 +35,7 @@ namespace TEST_BOMBARDMENT_AMMO {
         memset(missiles, 0, sizeof(missiles));
         memset(ships, 0, sizeof(ships));
         memset(colonies, 0, sizeof(colonies));
+        test_colonies::Reset(1);
         memset(players, 0, sizeof(players));
         memset(qcombat_data, 0, sizeof(qcombat_data));
         memset(TECHDATA::hull_data, 0, sizeof(TECHDATA::hull_data));
@@ -53,7 +55,7 @@ namespace TEST_BOMBARDMENT_AMMO {
 
         MOX::qcombat_data = ::qcombat_data;
         MOX::combat_total_ship_count = 2;
-        MOX::cmbt_colony_id = -1;
+        MOX::cmbt_colony_id = game::NO_COLONY;
         MOX::combat_attacker_player = kAttacker;
         random_result = 1;
         random_bound = 0;
@@ -102,7 +104,7 @@ namespace MOX {
     s_missile* missile;
     int16_t fighter_beam_type[9];
     int16_t fighter_bomb_type[9];
-    int16_t cmbt_colony_id;
+    game::id_colony cmbt_colony_id;
     uint16_t apply_damage_to_planet;
     int16_t combat_total_ship_count;
     int16_t combat_attacker_player;
@@ -183,7 +185,7 @@ namespace COMBINIT {
         }
     }
 
-    void __cdecl Load_Tactical_Colony(int16_t, int16_t) {
+    void __cdecl Load_Tactical_Colony(game::id_colony, int16_t) {
         MOX::combat_data[0].structure_max = 100;
     }
 
@@ -219,9 +221,12 @@ DOCTEST_TEST_CASE("tactical bombardment orders supplied ships by descending hull
         ships[i].d.ship_type = SHIP_TYPE_COMBAT;
         ships[i].d.size = sizes[i];
     }
-    s_combat_bomb_result result = {};
+    constexpr game::id_colony wide{70000};
+    test_colonies::Record(wide.id) = game::current_state.colonies.at(game::id_colony{0});
+    s_combat_bomb_result result{.colony_id = wide};
     result.attacker_idx = kAttacker;
     COMBAT::Tactical_Bombardment(indices, 3, &result);
+    DOCTEST_CHECK(MOX::cmbt_colony_id == wide);
     DOCTEST_CHECK(indices[0] == 1);
     DOCTEST_CHECK(indices[1] == 2);
     DOCTEST_CHECK(indices[2] == 0);
@@ -251,7 +256,7 @@ DOCTEST_TEST_CASE("stellar converters choose the strongest active enemy ship wit
 DOCTEST_TEST_CASE("tactical bombardment advances only torpedo cooldown") {
     TEST_BOMBARDMENT_AMMO::Reset_();
     int16_t ship_indices[] = {0};
-    s_combat_bomb_result result = {};
+    s_combat_bomb_result result{.colony_id = game::id_colony{0}};
     result.attacker_idx = kAttacker;
 
     COMBAT::Tactical_Bombardment(ship_indices, 1, &result);
@@ -266,7 +271,7 @@ DOCTEST_TEST_CASE("tactical bombardment advances only torpedo cooldown") {
 DOCTEST_TEST_CASE("tactical bombardment refreshes attacker fighter weapons") {
     TEST_BOMBARDMENT_AMMO::Reset_();
     int16_t ship_indices[] = {0};
-    s_combat_bomb_result result = {};
+    s_combat_bomb_result result{.colony_id = game::id_colony{0}};
     result.attacker_idx = kAttacker;
 
     COMBAT::Tactical_Bombardment(ship_indices, 1, &result);
@@ -286,7 +291,7 @@ DOCTEST_TEST_CASE("tactical bombardment enforces ship caps without counting supp
             ships[i].owner = kAttacker;
             ships[i].d.ship_type = i % 2 == 0 ? SHIP_TYPE_COLONY : SHIP_TYPE_COMBAT;
         }
-        s_combat_bomb_result result = {};
+        s_combat_bomb_result result{.colony_id = game::id_colony{0}};
         result.attacker_idx = kAttacker;
 
         COMBAT::Tactical_Bombardment(ship_indices, MAX_SHIPS, &result);
@@ -323,7 +328,7 @@ DOCTEST_TEST_CASE("strategic target selection supports expanded fleets with one 
 DOCTEST_TEST_CASE("strategic target selection preserves eligible target order") {
     TEST_BOMBARDMENT_AMMO::Reset_();
     MOX::combat_total_ship_count = 8;
-    MOX::cmbt_colony_id = 0;
+    MOX::cmbt_colony_id = game::id_colony{0};
     qcombat_data[1].player = kAttacker;
     qcombat_data[2].player = kAttacker;
     qcombat_data[3].status = 1;
@@ -346,7 +351,7 @@ DOCTEST_TEST_CASE("strategic target selection falls back to colony only for atta
     qcombat_data[1].player = kAttacker;
 
     DOCTEST_CHECK(COMBAT::QGet_Target(1) == -1);
-    MOX::cmbt_colony_id = 0;
+    MOX::cmbt_colony_id = game::id_colony{0};
     DOCTEST_CHECK(COMBAT::QGet_Target(1) == 0);
     qcombat_data[0].status = 1;
     DOCTEST_CHECK(COMBAT::QGet_Target(1) == -1);
@@ -519,7 +524,7 @@ DOCTEST_TEST_CASE("empty tactical bombardment uses the context attacker") {
     TEST_BOMBARDMENT_AMMO::Reset_();
     ships[0].owner = 3;
     int16_t unused_ship_indices[] = {0};
-    s_combat_bomb_result result = {};
+    s_combat_bomb_result result{.colony_id = game::id_colony{0}};
     result.attacker_idx = kAttacker;
 
     COMBAT::Tactical_Bombardment(unused_ship_indices, 0, &result);

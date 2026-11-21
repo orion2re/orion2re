@@ -309,7 +309,7 @@ namespace AIPOWER {
     }
 
     uint16_t Colony_Space_Strength_Vs_Player(const game::s_view* world, game::id_colony colony_id, game::id_player player_id) {
-        const s_colony* colony = &world->colonies[legacy_world::Slot(colony_id)];
+        const s_colony* colony = &world->state->colonies.at(colony_id);
         int16_t building_type = -1;
 
         if (colony->buildings[BUILDING_STAR_BASE] != 0) {

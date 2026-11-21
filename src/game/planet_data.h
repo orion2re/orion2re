@@ -2,8 +2,10 @@
 
 #include <cstdint>
 
+#include "object_ids.h"
+
 struct s_planet_data {
-    int16_t colony_index;
+    game::id_colony colony_id = game::NO_COLONY;
     int16_t star_index;
     int8_t orbit;
     int8_t planet_type;

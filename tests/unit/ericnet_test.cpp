@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
 
 #include "doctest/doctest.h"
@@ -31,14 +32,13 @@ namespace {
     };
 
     void Reset_Colony_() {
-        memset(MOX::colony, 0, sizeof(s_colony) * 2);
+        test_colonies::Reset();
         test_planets::Reset();
         memset(MOX::star, 0, sizeof(s_star_data));
         memset(MOX::ship, 0, sizeof(s_ship_data) * 8);
         memset(MOX::player, 0, sizeof(s_player) * MAX_PLAYERS);
-        MOX::NUM_COLONIES = 0;
         MOX::NUM_SHIPS = 0;
-        MOX::colony[0].planet_id = game::id_planet{0};
+        test_colonies::Record(0).planet_id = game::id_planet{0};
         test_planets::Record(0).star_index = 0;
         test::fakes::environmental_refresh_count = 0;
         test::fakes::colony_can_build_product_count = 0;
@@ -158,15 +158,16 @@ DOCTEST_TEST_CASE("configured starting population stays within colony storage") 
         Reset_Homeworld_(STARTING_CIVILIZATION_LEVEL_AVERAGE);
         ERICNET::starting_ships = 0;
         INITGAME::start.population = population;
-        MOX::colony[0].pop_roundoff[0] = 0;
+        test_colonies::Record(0).pop_roundoff[0] = 0;
 
         ERICNET::Init_Homeworld_Colony(game::id_planet{0}, 0);
 
-        DOCTEST_CHECK((uint8_t)MOX::colony[0].n_pops == population);
+        const auto& colony = game::current_state.colonies.at(test_planets::Record(0).colony_id);
+        DOCTEST_CHECK((uint8_t)colony.n_pops == population);
         for (uint8_t index = 0; index < population; ++index) {
-            DOCTEST_CHECK((MOX::colony[0].pop[index] != 0));
+            DOCTEST_CHECK((colony.pop[index] != 0));
         }
-        DOCTEST_CHECK(MOX::colony[0].pop_roundoff[0] == 0);
+        DOCTEST_CHECK(colony.pop_roundoff[0] == 0);
     }
 
     INITGAME::start = saved;
@@ -184,7 +185,7 @@ DOCTEST_TEST_CASE("configured starting marines use the complete byte domain") {
 
         ERICNET::Init_Homeworld_Colony(game::id_planet{0}, 0);
 
-        DOCTEST_CHECK(MOX::colony[0].military[0] == marine_count);
+        DOCTEST_CHECK(game::current_state.colonies.at(test_planets::Record(0).colony_id).military[0] == marine_count);
     }
 
     INITGAME::start = saved;
@@ -201,7 +202,7 @@ DOCTEST_TEST_CASE("Advanced civilization derives population independently of con
 
         ERICNET::Init_Homeworld_Colony(game::id_planet{0}, 0);
 
-        DOCTEST_CHECK((uint8_t)MOX::colony[0].n_pops == 8);
+        DOCTEST_CHECK((uint8_t)game::current_state.colonies.at(test_planets::Record(0).colony_id).n_pops == 8);
     }
 
     INITGAME::start = saved;
@@ -366,7 +367,7 @@ DOCTEST_TEST_CASE("Artificial Planets use configured population capacity") {
         COLCALC::population_capacity.size[test_case.expected_size] =
             test_case.capacity;
 
-        ERICNET::Add_Building(0, BUILDING_ARTIFICIAL_PLANET);
+        ERICNET::Add_Building(game::id_colony{0}, BUILDING_ARTIFICIAL_PLANET);
 
         DOCTEST_CHECK(test_planets::Record(1).planet_type == PLANET_TYPE_PLANET);
         DOCTEST_CHECK(test_planets::Record(1).size == test_case.expected_size);
@@ -380,14 +381,14 @@ DOCTEST_TEST_SUITE("building combat re-engagement") {
 
 DOCTEST_TEST_CASE("adding an environmental building refreshes the affected colony") {
     Reset_Colony_();
-    MOX::colony[0].climate = PLANET_CLIMATE_ARID;
+    test_colonies::Record(0).climate = PLANET_CLIMATE_ARID;
     test_planets::Record(0).climate = PLANET_CLIMATE_ARID;
 
-    ERICNET::Add_Building(0, BUILDING_TERRAFORMING);
+    ERICNET::Add_Building(game::id_colony{0}, BUILDING_TERRAFORMING);
 
     DOCTEST_CHECK(test_planets::Record(0).climate == PLANET_CLIMATE_TERRAN);
     DOCTEST_CHECK(test::fakes::environmental_refresh_count == 1);
-    DOCTEST_CHECK(test::fakes::last_environmental_colony == &MOX::colony[0]);
+    DOCTEST_CHECK(test::fakes::last_environmental_colony == &test_colonies::Record(0));
 }
 
 DOCTEST_TEST_CASE("default defenses invalidate ignored combat when added or removed") {
@@ -395,13 +396,13 @@ DOCTEST_TEST_CASE("default defenses invalidate ignored combat when added or remo
     for (int16_t building_id : default_reengage_buildings) {
         Reset_Colony_();
         MOX::star[0].ignore_combat_ships = 0x3F;
-        ERICNET::Add_Building(0, building_id);
+        ERICNET::Add_Building(game::id_colony{0}, building_id);
         DOCTEST_CHECK(MOX::star[0].ignore_combat_ships == 0);
 
         Reset_Colony_();
-        MOX::colony[0].buildings[building_id] = 1;
+        test_colonies::Record(0).buildings[building_id] = 1;
         MOX::star[0].ignore_combat_ships = 0x3F;
-        ERICNET::Remove_Building(0, building_id);
+        ERICNET::Remove_Building(game::current_state, game::id_colony{0}, building_id);
         DOCTEST_CHECK(MOX::star[0].ignore_combat_ships == 0);
     }
 }
@@ -411,13 +412,13 @@ DOCTEST_TEST_CASE("planetary shields preserve ignored combat by default") {
     for (int16_t building_id : planetary_shields) {
         Reset_Colony_();
         MOX::star[0].ignore_combat_ships = 0x3F;
-        ERICNET::Add_Building(0, building_id);
+        ERICNET::Add_Building(game::id_colony{0}, building_id);
         DOCTEST_CHECK(MOX::star[0].ignore_combat_ships == 0x3F);
 
         Reset_Colony_();
-        MOX::colony[0].buildings[building_id] = 1;
+        test_colonies::Record(0).buildings[building_id] = 1;
         MOX::star[0].ignore_combat_ships = 0x3F;
-        ERICNET::Remove_Building(0, building_id);
+        ERICNET::Remove_Building(game::current_state, game::id_colony{0}, building_id);
         DOCTEST_CHECK(MOX::star[0].ignore_combat_ships == 0x3F);
     }
 }
@@ -429,18 +430,18 @@ DOCTEST_TEST_CASE("configured building list controls combat invalidation") {
 
     Reset_Colony_();
     MOX::star[0].ignore_combat_ships = 0x3F;
-    ERICNET::Add_Building(0, BUILDING_RADIATION_SHIELD);
+    ERICNET::Add_Building(game::id_colony{0}, BUILDING_RADIATION_SHIELD);
     DOCTEST_CHECK(MOX::star[0].ignore_combat_ships == 0);
 
     Reset_Colony_();
     MOX::star[0].ignore_combat_ships = 0x3F;
-    ERICNET::Add_Building(0, BUILDING_MISSILE_BASE);
+    ERICNET::Add_Building(game::id_colony{0}, BUILDING_MISSILE_BASE);
     DOCTEST_CHECK(MOX::star[0].ignore_combat_ships == 0x3F);
 
     Reset_Colony_();
-    MOX::colony[0].buildings[BUILDING_RADIATION_SHIELD] = 1;
+    test_colonies::Record(0).buildings[BUILDING_RADIATION_SHIELD] = 1;
     MOX::star[0].ignore_combat_ships = 0x3F;
-    ERICNET::Remove_Building(0, BUILDING_RADIATION_SHIELD);
+    ERICNET::Remove_Building(game::current_state, game::id_colony{0}, BUILDING_RADIATION_SHIELD);
     DOCTEST_CHECK(MOX::star[0].ignore_combat_ships == 0);
 
     Restore_Default_Reengage_Buildings_();

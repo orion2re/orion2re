@@ -63,22 +63,22 @@ namespace EVENTS {
     void __cdecl Init_Events();
     int32_t __cdecl Event_Get_Fleet_Strength(int16_t player_idx);
 
-    int16_t __cdecl Event_Check_Comet(int16_t target_id);
+    int16_t __cdecl Event_Check_Comet(game::id_colony colony_id);
 
-    int16_t __cdecl Event_Check_Space_Anomaly(int16_t colony_idx);
+    int16_t __cdecl Event_Check_Space_Anomaly(game::id_colony colony_id);
     int16_t __cdecl Event_Check_Space_Anomaly_At_Star(int16_t star_idx);
 
-    int16_t __cdecl Event_Check_Population_Boom(int16_t colony_idx);
-    int16_t __cdecl Event_Check_Plague(int16_t colony_idx);
+    int16_t __cdecl Event_Check_Population_Boom(game::id_colony colony_id);
+    int16_t __cdecl Event_Check_Plague(game::id_colony colony_id);
 
     int16_t __cdecl Event_Check_Pirate_Activity(uint8_t player_idx);
-    int16_t __cdecl Event_Check_Colony_Researching(int16_t colony_idx);
+    int16_t __cdecl Event_Check_Colony_Researching(game::id_colony colony_id);
 
     int16_t __cdecl Event_Check_Hyperspace_Flux();
 
     void __cdecl Event_Surrender(int8_t player_idx, int16_t target_id);
 
-    int16_t __cdecl Colony_Has_Event(int16_t colony_idx);
+    int16_t __cdecl Colony_Has_Event(game::id_colony colony_id);
 
     /** Clears a monster target retained for all players in a hotseat report pass. */
     void __cdecl Clear_Deferred_Monster_Event_Target();
@@ -103,20 +103,20 @@ namespace EVENTS {
     int16_t __cdecl Supernova_Research_Requirement(int16_t star_idx,
         int16_t turn_count);
 
-    int16_t __cdecl Get_Event_Climate_Change_Colony(int16_t player_idx);
+    game::id_colony __cdecl Get_Event_Climate_Change_Colony(int16_t player_idx);
 
     int16_t __cdecl Pick_Random_Player_In_Contact(int16_t player_idx);
 
     int16_t __cdecl Pick_Random_Ship(int16_t player_idx);
 
-    int16_t __cdecl Get_Event_Industrial_Accident_Colony(int16_t player_idx);
+    game::id_colony __cdecl Get_Event_Industrial_Accident_Colony(int16_t player_idx);
 
-    int16_t __cdecl Get_Event_Mineral_Depletion_Colony(int16_t player_idx);
-    int16_t __cdecl Get_Event_Mineral_Deposit_Colony(int16_t player_idx);
+    game::id_colony __cdecl Get_Event_Mineral_Depletion_Colony(int16_t player_idx);
+    game::id_colony __cdecl Get_Event_Mineral_Deposit_Colony(int16_t player_idx);
 
-    int16_t __cdecl Pick_Random_Colony_No_Capitol(int16_t player_idx);
+    game::id_colony __cdecl Pick_Random_Colony_No_Capitol(int16_t player_idx);
 
-    int16_t __cdecl Pick_Random_Colony_No_Outpost(int8_t player_idx);
+    game::id_colony __cdecl Pick_Random_Colony_No_Outpost(int8_t player_idx);
 
     int16_t __cdecl Pick_Random_Star(int16_t player_idx);
 
@@ -138,13 +138,13 @@ namespace EVENTS {
 
     int16_t __cdecl Ship_Size_Points_At_Star(int16_t star_idx);
 
-    void __cdecl Allocate_Comet_Hit(int16_t colony_idx);
+    void __cdecl Allocate_Comet_Hit(game::id_colony colony_id);
 
-    void __cdecl Allocate_Earthquake_Hit(int16_t colony_idx, int16_t* pop_killed, int16_t* buildings_destroyed_count);
+    void __cdecl Allocate_Earthquake_Hit(game::id_colony colony_id, int16_t* pop_killed, int16_t* buildings_destroyed_count);
 
-    int16_t __cdecl Colony_Research_Points(int16_t colony_idx);
+    int16_t __cdecl Colony_Research_Points(game::id_colony colony_id);
 
-    void __cdecl Allocate_Industrial_Accident_Hit(int16_t colony_idx);
+    void __cdecl Allocate_Industrial_Accident_Hit(game::id_colony colony_id);
 
     int16_t __cdecl Get_Event_Victim(int8_t type);
 
@@ -152,7 +152,7 @@ namespace EVENTS {
     void __cdecl Event_Race_Eliminated(int8_t player_idx);
     int16_t __cdecl Event_Check_Warp_Beast();
 
-    void __cdecl Kill_All_Events_At_Colony(int16_t colony_idx);
+    void __cdecl Kill_All_Events_At_Colony(game::id_colony colony_id);
 
     bool __cdecl Check_For_Event_Message();
 
@@ -184,7 +184,7 @@ namespace EVENTS {
     void __cdecl Get_Event_Message(
         int16_t event_type,
         int16_t event_subtype,
-        int16_t colony_idx,
+        game::id_colony colony_id,
         game::id_planet planet_idx,
         int16_t val1,
         int16_t val2,

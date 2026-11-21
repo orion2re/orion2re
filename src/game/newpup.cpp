@@ -55,8 +55,9 @@ namespace NEWPUP {
             summary_row = 0;
             planet_index = MOX::star[MOX::screen_data].orbit_planet_ids[COLONY::orbit_temp].get();
 
+            const auto colony_id = game::current_state.planets.at(planet_index).colony_id;
             invasion::Compute_Colony_Ground_Combat_Info(
-                &MOX::colony[game::current_state.planets.at(planet_index).colony_index],
+                colony_id, &game::current_state.colonies.at(colony_id),
                 &invasion_info,
                 rebel_display != 0);
 

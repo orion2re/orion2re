@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
 
 #include "doctest/doctest.h"
@@ -6,7 +7,7 @@
 
 namespace {
     s_player players[2];
-    s_colony colonies[2];
+    test_colonies::Slots<2> colonies;
 
     s_star_data stars[1];
     s_ship_data ships[2];
@@ -45,13 +46,12 @@ namespace test_ground_commando_runtime {
         OFFICER::leader_page = 0;
         game::current_state = game::s_game_state{};
         memset(players, 0, sizeof(players));
-        memset(colonies, 0, sizeof(colonies));
+        colonies.Reset();
         test_planets::Reset(1);
         memset(stars, 0, sizeof(stars));
         memset(ships, 0, sizeof(ships));
         memset(&animation, 0, sizeof(animation));
         colonies[0].planet_id = game::id_planet{0};
-        MOX::NUM_COLONIES = 1;
         colonies[0].owner = 0;
         test_planets::Record(0).star_index = 0;
         players[0].home_planet_id = game::NO_PLANET;
@@ -147,13 +147,11 @@ namespace buffer {
 
 namespace MOX {
     s_player* player = players;
-    s_colony* colony = colonies;
     s_star_data* star = stars;
     void* global_cache_seg;
 
     s_ship_data* ship = ships;
     s_settings settings = {};
-    int16_t NUM_COLONIES = 1;
     int16_t NUM_PLAYERS = 2;
     int16_t NUM_SHIPS = 2;
     int16_t PLAYER_NUM = 0;
@@ -206,7 +204,7 @@ namespace COLCALC {
         return colony_officer;
     }
 
-    int16_t __cdecl Colony_Race_Pop_Limit(s_colony*, int16_t) {
+    int16_t __cdecl Colony_Race_Pop_Limit(const s_colony*, int16_t) {
         return MAX_COLONY_POPULATION;
     }
 
@@ -287,7 +285,7 @@ namespace SHIPS {
 namespace MAINSCR {
     void __cdecl Update_Ship_Icons_In_Between_Turns() {
         ++test_ground_commando_runtime::icon_updates;
-        test_ground_commando_runtime::owner_at_icon_update = MOX::colony[0].owner;
+        test_ground_commando_runtime::owner_at_icon_update = test_colonies::Record(0).owner;
     }
 }
 
@@ -299,27 +297,28 @@ namespace MSG_ {
 }
 
 namespace COMBINIT {
-    int16_t __cdecl Take_Captured_Satellite(int16_t) {
+    int16_t __cdecl Take_Captured_Satellite(game::id_colony) {
         return -1;
     }
 } // namespace COMBINIT
 
 namespace ERICNET {
-    void __cdecl Add_Building(int16_t, int16_t) {
+    void __cdecl Add_Building(game::id_colony, int16_t) {
     }
 
-    void __cdecl Remove_Building(int16_t colony_idx, int16_t building_idx) {
-        MOX::colony[colony_idx].buildings[building_idx] = 0;
+    void __cdecl Remove_Building(game::s_game_state&, game::id_colony id, int16_t building_idx) {
+        const auto colony_idx = static_cast<int16_t>(id.id);
+        test_colonies::Record(colony_idx).buildings[building_idx] = 0;
     }
 } // namespace ERICNET
 
 namespace BOMB {
-    int32_t __cdecl Handle_Leader_At_Lost_Colony(s_colony*) {
+    int32_t __cdecl Handle_Leader_At_Lost_Colony(const game::s_game_state&, game::id_colony) {
         return -1;
     }
 } // namespace BOMB
 
 namespace COLBLDG {
-    void __cdecl Clear_Colony_Queue(int16_t) {
+    void __cdecl Clear_Colony_Queue(game::s_game_state&, game::id_colony) {
     }
 } // namespace COLBLDG

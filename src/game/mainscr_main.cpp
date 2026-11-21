@@ -220,11 +220,11 @@ namespace MAINSCR {
                 } else {
                     if (mouse_status == 0 && selected_target_id >= 0) {
                         if (!icon_selected_flag) {
-                            int16_t colony_idx = -1;
+                            game::id_colony colony_idx = game::NO_COLONY;
                             if (MOX::settings.auto_select_colony && MOX::star[selected_target_id].spectral_class != STAR_CLASS_BLACK_HOLE) {
                                 colony_idx = HACCESS::Last_Colony_Selected(selected_target_id, MOX::PLAYER_NUM);
                             }
-                            if (colony_idx == -1) {
+                            if (colony_idx == game::NO_COLONY) {
                                 MAINSCR::Do_System_Popup(selected_target_id);
                             } else {
                                 MAINSCR::Do_Colony_Screen(colony_idx, &exit_flag);
@@ -325,8 +325,8 @@ namespace MAINSCR {
                         if (ship_idx < 0) {
                             const auto p_idx = MOX::star[MOX::moveable_box[0].id].orbit_planet_ids[planet_idx].get();
 
-                            int16_t colony_id = game::current_state.planets.at(p_idx).colony_index;
-                            if (colony_id > -1 && colony_id < MOX::NUM_COLONIES && MOX::colony[colony_id].owner == MOX::PLAYER_NUM) {
+                            game::id_colony colony_id = game::current_state.planets.at(p_idx).colony_id;
+                            if (game::current_state.colonies.contains(colony_id) && game::current_state.colonies.at(colony_id).owner == MOX::PLAYER_NUM) {
                                 MAINSCR::Do_Colony_Screen(colony_id, &exit_flag);
                             }
                         } else {

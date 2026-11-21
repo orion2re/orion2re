@@ -24,7 +24,7 @@ namespace debug_game_editors {
     void Open_Star(int16_t star_index);
     void Open_Planet(game::id_planet planet_index);
     void Open_Ship(int16_t ship_index);
-    void Open_Colony(int16_t colony_index);
+    void Open_Colony(game::id_colony colony_index);
     void Open_Player(int16_t player_index);
     void Open_Antaran();
 } // namespace debug_game_editors

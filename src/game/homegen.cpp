@@ -635,7 +635,6 @@ namespace HOMEGEN {
             }
         }
 
-        MOX::NUM_COLONIES = MOX::NUM_PLAYERS;
         Assign_Home_Star_Names();
         Ensure_At_Least_1_Food_Planet();
     }
@@ -756,10 +755,10 @@ namespace HOMEGEN {
         game::id_planet planet_buffer[MAX_PLANETS];
         uint8_t overall_success = 1;
 
-        for (int16_t colony_idx = 0; colony_idx < MOX::NUM_COLONIES; ++colony_idx) {
-            s_colony& colony = MOX::colony[colony_idx];
+        for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
+            s_colony& colony = roster_colony;
             int8_t owner = colony.owner;
-            const auto planet_idx = colony.planet_id.get();
+            const auto planet_idx = colony.planet_id;
 
             if (planet_idx != game::NO_PLANET && MOX::player[owner].traits[TRAIT_EATS_MINERALS] == 0) {
                 int16_t buffer_count = 0;
@@ -970,7 +969,7 @@ namespace HOMEGEN {
         s_planet_data* p = &game::current_state.planets.at(target_id);
         memset(p, 0, sizeof(s_planet_data));
 
-        p->colony_index = -1;
+        p->colony_id = game::NO_COLONY;
         p->orbit = (int8_t)selected_orbit;
         p->planet_type = PLANET_TYPE_PLANET;
         p->size = PLANET_SIZE_HUGE;

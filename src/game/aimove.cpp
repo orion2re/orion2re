@@ -52,11 +52,11 @@ namespace AIMOVE {
         const auto target_id = p_ai->sneak_attack_planet.get();
         if (world->state->planets.contains(target_id)) {
             const auto& target = world->state->planets.at(target_id);
-            int16_t colony_idx = target.colony_index;
+            game::id_colony colony_idx = target.colony_id;
             const int16_t star_idx = target.star_index;
             uint8_t target_player = (uint8_t)p_ai->sneak_attack_player;
 
-            if (colony_idx != -1 && world->colonies[colony_idx].owner == target_player) {
+            if (colony_idx != game::NO_COLONY && world->state->colonies.at(colony_idx).owner == target_player) {
                 int16_t stage_point = world->players[i_ai].offensive_stagepoint;
 
                 if (ai->players[i_ai].Find_Combat_Ships(legacy_world::Star_Id(stage_point))) {
@@ -306,7 +306,7 @@ namespace AIMOVE {
             const auto* planet = &world->state->planets.at(id);
             // Only consider uncolonized planets.
             // PLANET_TYPE_PLANET is a standard colonizable planet (excluding gas giants, asteroids).
-            if (planet->colony_index == -1 && planet->planet_type == PLANET_TYPE_PLANET) {
+            if (planet->colony_id == game::NO_COLONY && planet->planet_type == PLANET_TYPE_PLANET) {
                 // Each byte in the array represents a star, with bits corresponding to players
                 // who have that star within their extended travel range.
                 int16_t star_idx = planet->star_index;
@@ -346,11 +346,11 @@ namespace AIMOVE {
         }
 
         if (world->players[i_ai].objectives != PLAYER_OBJECTIVE_HUMAN) {
-            for (int16_t i = 0; i < world->Colony_Count(); ++i) {
-                s_colony* colony = &world->colonies[i];
+            for (auto& [roster_id, roster_colony] : world->state->colonies) {
+                s_colony* colony = &roster_colony;
 
                 if (colony->owner == i_ai && colony->producing[0] == BUILDING_COLONY_BASE) {
-                    int16_t colony_star_idx = world->state->planets.at(colony->planet_id.get()).star_index;
+                    int16_t colony_star_idx = world->state->planets.at(colony->planet_id).star_index;
                     bool found = false;
 
                     for (uint32_t j = (uint32_t)candidates->size(); j-- > 0;) {
@@ -819,9 +819,9 @@ namespace AIMOVE {
     }
 
     int32_t Enemy_Colony_Worth_To_Player(AIDATA::s_state* ai, const game::s_view* world, id_colony colony_id, id_player player_id) {
-        const uint32_t colony_idx = legacy_world::Slot(colony_id);
+        const game::id_colony colony_idx = colony_id;
         const uint32_t player_idx = legacy_world::Slot(player_id);
-        int8_t owner = world->colonies[colony_idx].owner;
+        int8_t owner = world->state->colonies.at(colony_idx).owner;
         int32_t weight_player;
         int32_t weight_owner;
 
@@ -841,7 +841,7 @@ namespace AIMOVE {
             weight_owner--;
         }
 
-        const auto planet_idx = world->colonies[colony_idx].planet_id.get();
+        const auto planet_idx = world->state->colonies.at(colony_idx).planet_id;
 
         return (
                    ai->planets[planet_idx].base_values[player_idx] * weight_player +
@@ -911,12 +911,12 @@ namespace AIMOVE {
                                     for (int j = 4; j >= 0; j--) {
                                         const auto planet_idx = world->stars[loc].orbit_planet_ids[j].get();
                                         if (planet_idx != game::NO_PLANET) {
-                                            int16_t colony_idx = world->state->planets.at(planet_idx).colony_index;
-                                            if (colony_idx != -1) {
-                                                s_colony* colony = &world->colonies[colony_idx];
+                                            game::id_colony colony_idx = world->state->planets.at(planet_idx).colony_id;
+                                            if (colony_idx != game::NO_COLONY) {
+                                                s_colony* colony = &world->state->colonies.at(colony_idx);
                                                 if (colony->owner == ai_idx && colony->outpost_flag == 0) {
-                                                    if (ai->colonies[legacy_world::Colony_Id(colony_idx)].other_player_arrivals ||
-                                                        colony->military[0] < ai->colonies[legacy_world::Colony_Id(colony_idx)].conquered_population * 2) {
+                                                    if (ai->colonies[colony_idx].other_player_arrivals ||
+                                                        colony->military[0] < ai->colonies[colony_idx].conquered_population * 2) {
                                                         if (invasion::Unload_Transports(colony, &ship_idx, 1) == 1) {
                                                             break;
                                                         }
@@ -1564,8 +1564,10 @@ namespace AIMOVE {
 
         s_ship_move_info move_info;
         std::vector<uint8_t> visited_stars(world->Star_Count(), 0);
-        std::vector<int8_t> mission_array(world->Colony_Count());
-        std::vector<uint16_t> scores(world->Colony_Count(), 0);
+        std::vector<game::id_colony> candidates;
+        for (const auto& [id, colony] : world->state->colonies) candidates.push_back(id);
+        std::vector<int8_t> mission_array(candidates.size());
+        std::vector<uint16_t> scores(candidates.size(), 0);
         std::vector<id_ship> ship_list;
 
         // Initialize copy of target_info
@@ -1577,9 +1579,10 @@ namespace AIMOVE {
 
         Gather_Player_Ships_At_Star(ai, ctx, ctx->player_idx, star_id, &ship_list);
 
-        if (world->Colony_Count() > 0) {
-            for (int16_t i = 0; i < world->Colony_Count(); i++) {
-                int8_t owner = world->colonies[i].owner;
+        if (!candidates.empty()) {
+            for (size_t i = 0; i < candidates.size(); ++i) {
+                const auto& colony = world->state->colonies.at(candidates[i]);
+                int8_t owner = colony.owner;
 
                 if (owner != -1) {
                     if (target_info == nullptr) {
@@ -1592,7 +1595,7 @@ namespace AIMOVE {
                         }
                     }
 
-                    const auto planet_idx = world->colonies[i].planet_id.get();
+                    const auto planet_idx = colony.planet_id;
                     int16_t target_star = world->state->planets.at(planet_idx).star_index;
 
                     if (visited_stars[target_star] == 0) {
@@ -1600,7 +1603,7 @@ namespace AIMOVE {
                             ai_compat::Evaluate_Fleet_Move(ship_list, legacy_world::Star_Id(target_star), &move_info);
 
                             if (move_info.moving != 0 && (uint8_t)move_info.turns_left < FORECAST_TURN_COUNT) {
-                                uint16_t score = Compute_Attack_Worthiness(ai, ctx, legacy_world::Colony_Id(i), ship_list, (uint8_t)move_info.turns_left, &mission_array[i], &visited_stars[target_star], filtered_attack, min_pop);
+                                uint16_t score = Compute_Attack_Worthiness(ai, ctx, candidates[i], ship_list, (uint8_t)move_info.turns_left, &mission_array[i], &visited_stars[target_star], filtered_attack, min_pop);
                                 scores[i] = score;
 
                                 if (score != 0) {
@@ -1652,21 +1655,21 @@ namespace AIMOVE {
         }
 
         if (valid_target_found && target_info == nullptr) {
-            for (int16_t i = 0; i < world->Colony_Count(); i++) {
+            for (size_t i = 0; i < candidates.size(); ++i) {
                 // Drop scores below 2/3 of maximum
                 if ((uint32_t)scores[i] * 3 < (uint32_t)max_score * 2) {
                     scores[i] = 0;
                 }
             }
 
-            auto best_colony = RUSS::Choose_Weighted_Index_U16(scores.data(), world->Colony_Count());
+            auto best_colony = RUSS::Choose_Weighted_Index_U16(scores.data(), candidates.size());
             if (!best_colony) {
                 return;
             }
-            const uint32_t best_colony_idx = *best_colony;
+            const auto best_position = *best_colony;
 
-            int8_t best_mission = mission_array[best_colony_idx];
-            const auto best_planet_idx = world->colonies[best_colony_idx].planet_id.get();
+            int8_t best_mission = mission_array[best_position];
+            const auto best_planet_idx = world->state->colonies.at(candidates[best_position]).planet_id;
             int16_t best_star_idx = world->state->planets.at(best_planet_idx).star_index;
 
             ai->players[i_ai].combat_ship_groups.erase(star_id);
@@ -1804,13 +1807,13 @@ namespace AIMOVE {
         uint8_t* out_flee,
         s_attack_info* target_info,
         int32_t min_pop) {
-        const uint32_t colony_idx = legacy_world::Slot(colony_id);
+        const game::id_colony colony_idx = colony_id;
         const auto* world = ctx->world;
         const uint32_t i_ai = legacy_world::Slot(ctx->player_idx);
         s_player* p_ai = ctx->player;
-        s_colony* colony = &world->colonies[colony_idx];
+        s_colony* colony = &world->state->colonies.at(colony_idx);
         int8_t owner = colony->owner;
-        const auto planet_idx = colony->planet_id.get();
+        const auto planet_idx = colony->planet_id;
         int16_t star_idx = world->state->planets.at(planet_idx).star_index;
 
         uint32_t attack_worthiness = 0;

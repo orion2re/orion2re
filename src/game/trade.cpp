@@ -169,8 +169,8 @@ namespace TRADE {
             MOX::player[i].n_research_pops = 0;
         }
 
-        for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
-            s_colony& colony = MOX::colony[i];
+        for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
+            s_colony& colony = roster_colony;
 
             if (colony.owner != -1) {
                 int16_t colony_trade_pops = 0;

@@ -11,8 +11,8 @@ namespace aidudes {
         doom_star_design.cost = 0;
 
         for (uint32_t i = 0; i < ctx->work->colonies.size(); ++i) {
-            const uint32_t colony_idx = legacy_world::Slot(ctx->work->colonies[i].colony_id);
-            short producing_id = world->colonies[colony_idx].producing[0];
+            const game::id_colony colony_idx = ctx->work->colonies[i].colony_id;
+            short producing_id = world->state->colonies.at(colony_idx).producing[0];
 
             if (COLBLDG::Colony_Production_Is_Queued_Ship(producing_id)) {
                 int16_t ship_idx = COLBLDG::Colony_Production_Ship_Index(producing_id);

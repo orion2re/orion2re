@@ -5864,12 +5864,12 @@ DOCTEST_TEST_CASE("planetary biological shields and Lithovore Fungi preserve cla
 DOCTEST_TEST_CASE("satellite capture state applies once to the matching colony") {
     COMBINIT::s_satellite_capture_state state;
     COMBINIT::Record_Captured_Satellite_State(
-        &state, 4, BUILDING_BATTLESTATION);
+        &state, game::id_colony{4}, BUILDING_BATTLESTATION);
 
-    DOCTEST_CHECK(COMBINIT::Take_Captured_Satellite_State(&state, 5) == -1);
-    DOCTEST_CHECK(COMBINIT::Take_Captured_Satellite_State(&state, 4) ==
+    DOCTEST_CHECK(COMBINIT::Take_Captured_Satellite_State(&state, game::id_colony{5}) == -1);
+    DOCTEST_CHECK(COMBINIT::Take_Captured_Satellite_State(&state, game::id_colony{4}) ==
         BUILDING_BATTLESTATION);
-    DOCTEST_CHECK(COMBINIT::Take_Captured_Satellite_State(&state, 4) == -1);
+    DOCTEST_CHECK(COMBINIT::Take_Captured_Satellite_State(&state, game::id_colony{4}) == -1);
 }
 
 DOCTEST_TEST_CASE("satellite capture requires an attacker-owned prize") {

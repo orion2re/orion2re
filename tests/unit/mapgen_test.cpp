@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
 
 #include <stdexcept>
@@ -13,7 +14,7 @@
 namespace TEST_MAPGEN {
     void Reset_();
     void Set_Planet_(int16_t planet_idx, int16_t star_idx, int8_t orbit,
-                     int8_t planet_type, int16_t colony_idx);
+                     int8_t planet_type, game::id_colony colony_idx);
     void Set_Food_Star_(int16_t star_idx);
     void Set_Weighted_Choices_(const int16_t* choices, int16_t count);
     int16_t Weighted_Choice_Count_();
@@ -118,7 +119,6 @@ namespace {
     struct s_galaxy_snapshot {
         std::vector<s_star_data> stars;
         std::vector<s_player> players;
-        std::vector<s_colony> colonies;
         std::vector<s_ship_data> ships;
         game::s_game_state state;
         std::vector<s_nebula> nebulas;
@@ -138,7 +138,6 @@ namespace {
         s_galaxy_snapshot snapshot = {
             {MOX::star, MOX::star + MAX_STARS},
             {MOX::player, MOX::player + MAX_PLAYERS},
-            {MOX::colony, MOX::colony + MAX_COLONIES},
             {MOX::ship, MOX::ship + MAX_SHIPS},
             game::current_state,
             {MOX::nebula, MOX::nebula + MAX_NEBULAS},
@@ -149,7 +148,7 @@ namespace {
             MOX::NUM_PLAYERS,
             MOX::NUM_STARS,
             static_cast<int16_t>(game::current_state.planets.size()),
-            MOX::NUM_COLONIES,
+            static_cast<int16_t>(game::current_state.colonies.size()),
             MOX::NUM_SHIPS,
             MOX::NUM_NEBULAS,
         };
@@ -165,9 +164,6 @@ namespace {
         DOCTEST_CHECK(memcmp(MOX::player,
                           expected.players.data(),
                           MAX_PLAYERS * sizeof(s_player)) == 0);
-        DOCTEST_CHECK(memcmp(MOX::colony,
-                          expected.colonies.data(),
-                          MAX_COLONIES * sizeof(s_colony)) == 0);
         DOCTEST_CHECK(memcmp(MOX::ship,
                           expected.ships.data(),
                           MAX_SHIPS * sizeof(s_ship_data)) == 0);
@@ -177,7 +173,7 @@ namespace {
                           MAX_NEBULAS * sizeof(s_nebula)) == 0);
         DOCTEST_CHECK(MOX::NUM_STARS == expected.star_count);
         DOCTEST_CHECK(static_cast<int16_t>(game::current_state.planets.size()) == expected.planet_count);
-        DOCTEST_CHECK(MOX::NUM_COLONIES == expected.colony_count);
+        DOCTEST_CHECK(game::current_state.colonies.size() == expected.colony_count);
         DOCTEST_CHECK(MOX::NUM_SHIPS == expected.ship_count);
         DOCTEST_CHECK(MOX::NUM_NEBULAS == expected.nebula_count);
         DOCTEST_CHECK(orion2re::lua::game::internal::Topology_Generation() ==
@@ -195,9 +191,8 @@ namespace {
         MOX::NUM_STARS = 1;
         MOX::NUM_PLAYERS = 1;
         test_planets::Resize_Dense(1);
-        MOX::NUM_COLONIES = 1;
         TEST_MAPGEN::Set_Planet_(
-            0, 0, 0, PLANET_TYPE_PLANET, 0);
+            0, 0, 0, PLANET_TYPE_PLANET, game::id_colony{0});
         MOX::star[0].x = 10;
         MOX::star[0].y = 20;
         MOX::star[0].spectral_class = STAR_CLASS_G;
@@ -208,8 +203,8 @@ namespace {
         test_planets::Record(0).climate = PLANET_CLIMATE_TERRAN;
         test_planets::Record(0).mineral_class = MINERAL_RESOURCE_ABUNDANT;
         MOX::player[0].home_planet_id = game::id_planet{0};
-        MOX::colony[0].planet_id = game::id_planet{0};
-        MOX::colony[0].owner = 0;
+        test_colonies::Record(0).planet_id = game::id_planet{0};
+        test_colonies::Record(0).owner = 0;
     }
 } // namespace
 
@@ -237,18 +232,18 @@ DOCTEST_TEST_CASE("planet trimming preserves generated Orion and stable referenc
     MOX::NUM_PLAYERS = 1;
     MAPGEN::special_generation_config.generate_orion = 1;
 
-    TEST_MAPGEN::Set_Planet_(0, 1, 0, PLANET_TYPE_PLANET, -1);
-    TEST_MAPGEN::Set_Planet_(1, 0, 1, PLANET_TYPE_PLANET, -1);
-    TEST_MAPGEN::Set_Planet_(2, 2, 0, PLANET_TYPE_PLANET, 0);
-    TEST_MAPGEN::Set_Planet_(3, 2, 1, PLANET_TYPE_PLANET, -1);
-    TEST_MAPGEN::Set_Planet_(4, 3, 0, PLANET_TYPE_PLANET, -1);
-    TEST_MAPGEN::Set_Planet_(5, 1, 1, PLANET_TYPE_GAS_GIANT, -1);
+    TEST_MAPGEN::Set_Planet_(0, 1, 0, PLANET_TYPE_PLANET, game::NO_COLONY);
+    TEST_MAPGEN::Set_Planet_(1, 0, 1, PLANET_TYPE_PLANET, game::NO_COLONY);
+    TEST_MAPGEN::Set_Planet_(2, 2, 0, PLANET_TYPE_PLANET, game::id_colony{0});
+    TEST_MAPGEN::Set_Planet_(3, 2, 1, PLANET_TYPE_PLANET, game::NO_COLONY);
+    TEST_MAPGEN::Set_Planet_(4, 3, 0, PLANET_TYPE_PLANET, game::NO_COLONY);
+    TEST_MAPGEN::Set_Planet_(5, 1, 1, PLANET_TYPE_GAS_GIANT, game::NO_COLONY);
     test_planets::Resize_Dense(6);
 
     MOX::star[0].system_special = SYSTEM_SPECIAL_ORION_STAR;
     test_planets::Record(1).planet_special = SYSTEM_SPECIAL_ORION_STAR;
     MOX::player[0].home_planet_id = game::id_planet{2};
-    MOX::colony[0].planet_id = game::id_planet{2};
+    test_colonies::Record(0).planet_id = game::id_planet{2};
     TEST_MAPGEN::Set_Food_Star_(3);
 
     MAPGEN::Enforce_Planet_Max(5);
@@ -261,7 +256,7 @@ DOCTEST_TEST_CASE("planet trimming preserves generated Orion and stable referenc
     DOCTEST_CHECK(MOX::star[0].orbit_planet_ids[1].get() == game::id_planet{1});
 
     DOCTEST_CHECK(MOX::player[0].home_planet_id.get() == game::id_planet{2});
-    DOCTEST_CHECK(SERIAL::Encode_Legacy_Planet_Reference(MOX::colony[0].planet_id.get()) == 2);
+    DOCTEST_CHECK(SERIAL::Encode_Legacy_Planet_Reference(test_colonies::Record(0).planet_id) == 2);
     DOCTEST_CHECK(MOX::star[2].orbit_planet_ids[0].get() == game::id_planet{2});
     DOCTEST_CHECK(MOX::star[2].orbit_planet_ids[1].get() == game::id_planet{3});
     DOCTEST_CHECK(MOX::star[3].orbit_planet_ids[0].get() == game::id_planet{4});
@@ -275,12 +270,12 @@ DOCTEST_TEST_CASE("planet trimming counts and removes gas giants at the threshol
         MOX::NUM_STARS = 3;
         MOX::NUM_PLAYERS = 1;
         MAPGEN::special_generation_config.generate_orion = 1;
-        TEST_MAPGEN::Set_Planet_(0, 1, 1, PLANET_TYPE_GAS_GIANT, -1);
-        TEST_MAPGEN::Set_Planet_(1, 2, 0, PLANET_TYPE_PLANET, 0);
-        TEST_MAPGEN::Set_Planet_(2, 2, 1, PLANET_TYPE_ASTEROID, -1);
+        TEST_MAPGEN::Set_Planet_(0, 1, 1, PLANET_TYPE_GAS_GIANT, game::NO_COLONY);
+        TEST_MAPGEN::Set_Planet_(1, 2, 0, PLANET_TYPE_PLANET, game::id_colony{0});
+        TEST_MAPGEN::Set_Planet_(2, 2, 1, PLANET_TYPE_ASTEROID, game::NO_COLONY);
         test_planets::Resize_Dense(3);
         MOX::player[0].home_planet_id = game::id_planet{1};
-        MOX::colony[0].planet_id = game::id_planet{1};
+        test_colonies::Record(0).planet_id = game::id_planet{1};
 
         MAPGEN::Enforce_Planet_Max(limit);
 
@@ -288,7 +283,7 @@ DOCTEST_TEST_CASE("planet trimming counts and removes gas giants at the threshol
         DOCTEST_CHECK(static_cast<int16_t>(game::current_state.planets.size()) == (trimmed ? 2 : 3));
         DOCTEST_CHECK(MOX::star[1].orbit_planet_ids[1].get() == (trimmed ? game::NO_PLANET : game::id_planet{0}));
         DOCTEST_CHECK(MOX::player[0].home_planet_id.get() == game::id_planet{1});
-        DOCTEST_CHECK(SERIAL::Encode_Legacy_Planet_Reference(MOX::colony[0].planet_id.get()) == 1);
+        DOCTEST_CHECK(SERIAL::Encode_Legacy_Planet_Reference(test_colonies::Record(0).planet_id) == 1);
         DOCTEST_CHECK(TEST_MAPGEN::Random_Calls_() == (trimmed ? 1 : 0));
     }
 }
@@ -298,15 +293,15 @@ DOCTEST_TEST_CASE("planet trimming retains gas giants in protected systems") {
     MOX::NUM_STARS = 4;
     MOX::NUM_PLAYERS = 1;
     MAPGEN::special_generation_config.generate_orion = 1;
-    TEST_MAPGEN::Set_Planet_(0, 3, 1, PLANET_TYPE_GAS_GIANT, -1);
-    TEST_MAPGEN::Set_Planet_(1, 0, 1, PLANET_TYPE_GAS_GIANT, -1);
-    TEST_MAPGEN::Set_Planet_(2, 1, 0, PLANET_TYPE_PLANET, 0);
-    TEST_MAPGEN::Set_Planet_(3, 1, 1, PLANET_TYPE_GAS_GIANT, -1);
-    TEST_MAPGEN::Set_Planet_(4, 2, 0, PLANET_TYPE_PLANET, -1);
-    TEST_MAPGEN::Set_Planet_(5, 2, 1, PLANET_TYPE_GAS_GIANT, -1);
+    TEST_MAPGEN::Set_Planet_(0, 3, 1, PLANET_TYPE_GAS_GIANT, game::NO_COLONY);
+    TEST_MAPGEN::Set_Planet_(1, 0, 1, PLANET_TYPE_GAS_GIANT, game::NO_COLONY);
+    TEST_MAPGEN::Set_Planet_(2, 1, 0, PLANET_TYPE_PLANET, game::id_colony{0});
+    TEST_MAPGEN::Set_Planet_(3, 1, 1, PLANET_TYPE_GAS_GIANT, game::NO_COLONY);
+    TEST_MAPGEN::Set_Planet_(4, 2, 0, PLANET_TYPE_PLANET, game::NO_COLONY);
+    TEST_MAPGEN::Set_Planet_(5, 2, 1, PLANET_TYPE_GAS_GIANT, game::NO_COLONY);
     test_planets::Resize_Dense(6);
     MOX::player[0].home_planet_id = game::id_planet{2};
-    MOX::colony[0].planet_id = game::id_planet{2};
+    test_colonies::Record(0).planet_id = game::id_planet{2};
     TEST_MAPGEN::Set_Food_Star_(2);
 
     MAPGEN::Enforce_Planet_Max(2);
@@ -317,7 +312,7 @@ DOCTEST_TEST_CASE("planet trimming retains gas giants in protected systems") {
     DOCTEST_CHECK(MOX::star[1].orbit_planet_ids[1].get() == game::id_planet{3});
     DOCTEST_CHECK(MOX::star[2].orbit_planet_ids[1].get() == game::id_planet{5});
     DOCTEST_CHECK(MOX::player[0].home_planet_id.get() == game::id_planet{2});
-    DOCTEST_CHECK(SERIAL::Encode_Legacy_Planet_Reference(MOX::colony[0].planet_id.get()) == 2);
+    DOCTEST_CHECK(SERIAL::Encode_Legacy_Planet_Reference(test_colonies::Record(0).planet_id) == 2);
     DOCTEST_CHECK(TEST_MAPGEN::Random_Calls_() == 1);
 }
 
@@ -327,11 +322,11 @@ DOCTEST_TEST_CASE("planet trimming does not protect star zero when Orion is disa
     MOX::NUM_PLAYERS = 1;
     MAPGEN::special_generation_config.generate_orion = 0;
 
-    TEST_MAPGEN::Set_Planet_(0, 0, 0, PLANET_TYPE_PLANET, -1);
-    TEST_MAPGEN::Set_Planet_(1, 1, 0, PLANET_TYPE_PLANET, 0);
+    TEST_MAPGEN::Set_Planet_(0, 0, 0, PLANET_TYPE_PLANET, game::NO_COLONY);
+    TEST_MAPGEN::Set_Planet_(1, 1, 0, PLANET_TYPE_PLANET, game::id_colony{0});
     test_planets::Resize_Dense(2);
     MOX::player[0].home_planet_id = game::id_planet{1};
-    MOX::colony[0].planet_id = game::id_planet{1};
+    test_colonies::Record(0).planet_id = game::id_planet{1};
 
     MAPGEN::Enforce_Planet_Max(2);
 
@@ -339,7 +334,7 @@ DOCTEST_TEST_CASE("planet trimming does not protect star zero when Orion is disa
     DOCTEST_CHECK_FALSE(game::current_state.planets.contains(game::id_planet{0}));
     DOCTEST_CHECK(game::current_state.planets.at(game::id_planet{1}).star_index == 1);
     DOCTEST_CHECK(MOX::player[0].home_planet_id.get() == game::id_planet{1});
-    DOCTEST_CHECK(SERIAL::Encode_Legacy_Planet_Reference(MOX::colony[0].planet_id.get()) == 1);
+    DOCTEST_CHECK(SERIAL::Encode_Legacy_Planet_Reference(test_colonies::Record(0).planet_id) == 1);
     DOCTEST_CHECK(MOX::star[0].orbit_planet_ids[0].get() == game::NO_PLANET);
     DOCTEST_CHECK(MOX::star[1].orbit_planet_ids[0].get() == game::id_planet{1});
 
@@ -379,7 +374,7 @@ DOCTEST_TEST_CASE("configured planet threshold allows crowded classic galaxies")
                 PLANET_TYPE_ASTEROID,
             };
             TEST_MAPGEN::Set_Planet_(
-                planet, planet / 5, planet % 5, types[planet % 3], -1);
+                planet, planet / 5, planet % 5, types[planet % 3], game::NO_COLONY);
         }
 
         MAPGEN::Enforce_Configured_Planet_Max();
@@ -536,7 +531,7 @@ DOCTEST_TEST_CASE("planet generated event applies after native transformations")
     for (int16_t size = PLANET_SIZE_TINY; size < PLANET_SIZE_COUNT;
          ++size) {
         TEST_MAPGEN::Set_Planet_(
-            size, size, 0, PLANET_TYPE_PLANET, -1);
+            size, size, 0, PLANET_TYPE_PLANET, game::NO_COLONY);
         s_planet_data& planet = test_planets::Record(size);
         planet.size = static_cast<int8_t>(size);
         planet.gravity_class = PLANET_GRAVITY_LOW_G;
@@ -578,7 +573,7 @@ DOCTEST_TEST_CASE(
     MOX::NUM_STARS = 1;
     MOX::NUM_PLAYERS = 1;
     test_planets::Resize_Dense(1);
-    TEST_MAPGEN::Set_Planet_(0, 0, 0, PLANET_TYPE_PLANET, -1);
+    TEST_MAPGEN::Set_Planet_(0, 0, 0, PLANET_TYPE_PLANET, game::NO_COLONY);
     MOX::player[0].home_planet_id = game::id_planet{0};
     test_planets::Record(0).size = PLANET_SIZE_MEDIUM;
     test_planets::Record(0).gravity_class = PLANET_GRAVITY_LOW_G;
@@ -609,8 +604,8 @@ DOCTEST_TEST_CASE("finalization preserves soil enrichment after planet refresh")
     TEST_MAPGEN::Reset_();
     MOX::NUM_STARS = 1;
     test_planets::Resize_Dense(2);
-    TEST_MAPGEN::Set_Planet_(0, 0, 0, PLANET_TYPE_PLANET, -1);
-    TEST_MAPGEN::Set_Planet_(1, 0, 1, PLANET_TYPE_PLANET, -1);
+    TEST_MAPGEN::Set_Planet_(0, 0, 0, PLANET_TYPE_PLANET, game::NO_COLONY);
+    TEST_MAPGEN::Set_Planet_(1, 0, 1, PLANET_TYPE_PLANET, game::NO_COLONY);
     MOX::food_per_farmer_table[PLANET_CLIMATE_TERRAN] = 4;
     for (int16_t planet_idx = 0; planet_idx < static_cast<int16_t>(game::current_state.planets.size()); ++planet_idx) {
         test_planets::Record(planet_idx).size = PLANET_SIZE_MEDIUM;
@@ -634,7 +629,7 @@ DOCTEST_TEST_CASE("soil enrichment survives a home-system climate change") {
     MOX::NUM_STARS = 1;
     MOX::NUM_PLAYERS = 1;
     test_planets::Resize_Dense(1);
-    TEST_MAPGEN::Set_Planet_(0, 0, 0, PLANET_TYPE_PLANET, -1);
+    TEST_MAPGEN::Set_Planet_(0, 0, 0, PLANET_TYPE_PLANET, game::NO_COLONY);
     MOX::player[0].home_planet_id = game::id_planet{0};
     test_planets::Record(0).size = PLANET_SIZE_MEDIUM;
     test_planets::Record(0).climate = PLANET_CLIMATE_TERRAN;
@@ -772,7 +767,7 @@ DOCTEST_TEST_CASE("home-system events dispatch in ascending player order") {
     for (int16_t player_idx = 0; player_idx < MOX::NUM_PLAYERS;
          ++player_idx) {
         TEST_MAPGEN::Set_Planet_(
-            player_idx, player_idx, 0, PLANET_TYPE_PLANET, -1);
+            player_idx, player_idx, 0, PLANET_TYPE_PLANET, game::NO_COLONY);
         MOX::player[player_idx].home_planet_id = game::id_planet{static_cast<uint32_t>(player_idx)};
         test_planets::Record(player_idx).size = PLANET_SIZE_MEDIUM;
         test_planets::Record(player_idx).gravity_class = PLANET_GRAVITY_NORMAL_G;
@@ -798,7 +793,7 @@ DOCTEST_TEST_CASE("planet generated event failure leaves native planets unchange
     for (int16_t planet_idx = 0; planet_idx < static_cast<int16_t>(game::current_state.planets.size());
          ++planet_idx) {
         TEST_MAPGEN::Set_Planet_(
-            planet_idx, 0, planet_idx, PLANET_TYPE_PLANET, -1);
+            planet_idx, 0, planet_idx, PLANET_TYPE_PLANET, game::NO_COLONY);
         s_planet_data& planet = test_planets::Record(planet_idx);
         planet.size = PLANET_SIZE_SMALL;
         planet.gravity_class = PLANET_GRAVITY_LOW_G;

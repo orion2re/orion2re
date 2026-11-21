@@ -48,7 +48,7 @@ namespace INITGAME {
      * @param planet_idx Planet that will host the colony.
      * @param player_num Owning player ID.
      */
-    void __cdecl Init_Colony(int16_t colony_idx, game::id_planet planet_id, uint8_t player_num);
+    game::id_colony __cdecl Init_Colony(game::s_game_state& state, game::id_colony colony_id, game::id_planet planet_id, uint8_t player_num);
 
     /** Resets colony auto-select history and computes the initial per-star selection state. */
     void __cdecl Set_Initial_Colony_Auto_Selects();

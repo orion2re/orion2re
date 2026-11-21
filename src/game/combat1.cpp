@@ -1453,10 +1453,10 @@ namespace COMBAT1 {
 
                     if (ship_idx != active_ship_idx || MOX::skan_flag == 1 || MOX::board_flag == 1) {
                         if (ship_idx == 0) {
-                            if (MOX::cmbt_colony_id == -1) {
+                            if (MOX::cmbt_colony_id == game::NO_COLONY) {
                                 dim = 6;
                             } else {
-                                int8_t planet_size = game::current_state.planets.at(MOX::colony[MOX::cmbt_colony_id].planet_id.get()).size;
+                                int8_t planet_size = game::current_state.planets.at(game::current_state.colonies.at(MOX::cmbt_colony_id).planet_id).size;
                                 switch (planet_size) {
                                     case PLANET_SIZE_TINY: dim = 3; break;
                                     case PLANET_SIZE_SMALL: dim = 4; break;

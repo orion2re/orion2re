@@ -1,9 +1,10 @@
 #include "pch.h"
 #include "../fixtures/planet_roster.h"
+#include "../fixtures/colony_roster.h"
 
 namespace TEST_COLONY_REPLICATORS {
     void Reset_() {
-        memset(MOX::colony, 0, sizeof(s_colony) * MAX_COLONIES);
+        test_colonies::Reset();
         memset(TECHDATA::buildings, 0, sizeof(TECHDATA::buildings));
         TECHDATA::buildings[BUILDING_AUTOMATED_FACTORY].maintenance = 2;
         COLCALC::replicator_food_pp = 2;
@@ -21,17 +22,16 @@ namespace TEST_COLONY_REPLICATORS {
 namespace TEST_GOVERNMENT_BONUS {
     void Reset_() {
         s_player* players = MOX::player;
-        s_colony* colonies = MOX::colony;
         s_star_data* stars = MOX::star;
         memset(players, 0, sizeof(s_player) * MAX_PLAYERS);
-        memset(colonies, 0, sizeof(s_colony) * MAX_COLONIES);
+        test_colonies::Reset(1);
         test_planets::Reset(1);
         memset(stars, 0, sizeof(s_star_data) * (MAX_STARS + 1));
         for (int player = 0; player < MAX_PLAYERS; ++player) {
             stars[0].officer_index[player] = -1;
         }
-        colonies[0].owner = 0;
-        colonies[0].planet_id = game::id_planet{0};
+        test_colonies::Record(0).owner = 0;
+        test_colonies::Record(0).planet_id = game::id_planet{0};
         auto& planet = test_planets::Record(0);
         planet.star_index = 0;
         planet.gravity_class = PLANET_GRAVITY_NORMAL_G;
@@ -49,17 +49,15 @@ namespace TEST_GOVERNMENT_BONUS {
         memcpy(COLCALC::climate_maintenance_modifiers, maintenance,
                sizeof(maintenance));
         MOX::NUM_PLAYERS = 1;
-        MOX::NUM_COLONIES = 1;
     }
 
     void Cleanup_() {
         memset(MOX::player, 0, sizeof(s_player) * MAX_PLAYERS);
-        memset(MOX::colony, 0, sizeof(s_colony) * MAX_COLONIES);
+        test_colonies::Reset();
         test_planets::Reset();
         memset(MOX::star, 0, sizeof(s_star_data) * (MAX_STARS + 1));
         COLCALC::minerals_per_mine[0] = 0;
         MOX::NUM_PLAYERS = 0;
-        MOX::NUM_COLONIES = 0;
     }
 }
 
@@ -76,7 +74,6 @@ namespace TEST_PLAYER_STATS {
             leader.player_index = -1;
         }
         MOX::NUM_PLAYERS = 1;
-        MOX::NUM_COLONIES = 0;
         MOX::NUM_SHIPS = 1;
         const uint8_t defaults[SHIP_SIZE_COUNT] = {1, 2, 4, 8, 16, 32};
         memcpy(COLCALC::scout_lab_research_bonus, defaults, sizeof(defaults));

@@ -1,11 +1,23 @@
 #pragma once
 
 #include "planet_reference.h"
+#include "colony_reference.h"
 #include "serialization.h"
 
 namespace SERIAL {
     inline constexpr size_t LEGACY_EVENT_BYTES = 9;
-    inline constexpr size_t EVENT_BYTES = LEGACY_EVENT_BYTES + sizeof(uint32_t);
+    inline constexpr size_t PLANET_EVENT_BYTES = LEGACY_EVENT_BYTES + sizeof(uint32_t);
+    inline constexpr size_t EVENT_BYTES = PLANET_EVENT_BYTES + sizeof(uint32_t);
+    inline constexpr uint16_t WIDE_EVENT_COLONY_FLAG = 0x4000; // Report count word.
+
+    inline bool Event_Targets_Colony(int type) {
+        return type == EVENT_COMET || type == EVENT_EARTHQUAKE ||
+            type == EVENT_PLAGUE || type == EVENT_POPULATION_BOOM;
+    }
+
+    inline bool Monster_Event(int type) {
+        return type >= EVENT_SPACE_AMOEBA && type <= EVENT_SPACE_HYDRA;
+    }
 
     inline bool Legacy_Event_Targets_Planet(int type, int status, int max_amount) {
         if (status == 0) return false;
@@ -30,14 +42,23 @@ namespace SERIAL {
         writer.Write_Int8(event.player_idx);
         writer.Write_Int8(event.status);
         writer.Write_Int8(event.turn_count);
-        writer.Write_Int16(!wide && Legacy_Event_Targets_Planet(type, event.status, event.max_amount)
-            ? Encode_Legacy_Planet_Reference(event.planet_target.get()) : event.target_id);
+        auto target = event.target_id;
+        auto limit = event.max_amount;
+        if (!wide) {
+            if (Event_Targets_Colony(type)) target = Encode_Legacy_Colony_Reference(event.colony_target.get());
+            if (Monster_Event(type) && event.status != 0) limit = Encode_Legacy_Colony_Reference(event.colony_target.get());
+            if (Legacy_Event_Targets_Planet(type, event.status, limit)) target = Encode_Legacy_Planet_Reference(event.planet_target.get());
+        }
+        writer.Write_Int16(target);
         writer.Write_Int16(event.amount);
-        writer.Write_Int16(event.max_amount);
-        if (wide) writer.Write_Uint32(event.planet_target.get().id);
+        writer.Write_Int16(limit);
+        if (wide) {
+            writer.Write_Uint32(event.planet_target.get().id);
+            writer.Write_Uint32(event.colony_target.get().id);
+        }
     }
 
-    inline void Read_Event(Reader_& reader, s_event_data& event, int type, bool wide) {
+    inline void Read_Event(Reader_& reader, s_event_data& event, int type, bool wide, bool wide_colony = true) {
         event.player_idx = reader.Read_Int8();
         event.status = reader.Read_Int8();
         event.turn_count = reader.Read_Int8();
@@ -51,6 +72,17 @@ namespace SERIAL {
             event.target_id = -1;
         } else {
             event.planet_target = game::NO_PLANET;
+        }
+        if (wide && wide_colony) {
+            event.colony_target = game::id_colony{reader.Read_Uint32()};
+        } else if (Event_Targets_Colony(type)) {
+            event.colony_target = Decode_Legacy_Colony_Reference(event.target_id);
+            event.target_id = -1;
+        } else if (Monster_Event(type) && event.status != 0) {
+            event.colony_target = Decode_Legacy_Colony_Reference(event.max_amount);
+            event.max_amount = -1;
+        } else {
+            event.colony_target = game::NO_COLONY;
         }
     }
 } // namespace SERIAL

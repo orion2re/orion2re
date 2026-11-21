@@ -26,7 +26,8 @@ namespace COLONIZE {
     void __cdecl AI_Colonize(int16_t player_idx);
 
     // Creates a new colony for the specified player on the target planet.
-    void __cdecl Make_New_Colony(game::id_planet planet_id, int16_t player_idx);
+    bool __cdecl Make_New_Colony(game::id_planet planet_id, int16_t player_idx);
     // Creates a new outpost for the specified player on the target planet.
-    void __cdecl Make_New_Outpost(game::id_planet planet_id, int16_t player_idx);
+    bool __cdecl Make_New_Outpost(game::id_planet planet_id, int16_t player_idx);
+    void Make_Debug_Colony(game::id_planet planet_id, int16_t player_idx);
 } // namespace COLONIZE

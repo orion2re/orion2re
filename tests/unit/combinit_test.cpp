@@ -42,7 +42,7 @@ namespace TEST_COMBINIT {
     void Set_Defender_Recaptured_Satellite_();
     void Set_Attacker_Captured_Satellite_(bool destroyed = false);
     bool Satellite_Building_Removed_(
-        int16_t colony_idx, int16_t building_idx);
+        game::id_colony colony_idx, int16_t building_idx);
 } // namespace TEST_COMBINIT
 
 namespace TEST_COMBAT_REPAIR {
@@ -127,8 +127,8 @@ DOCTEST_TEST_CASE("attacker victory removes a satellite recaptured by the defend
         COMBINIT::End_Of_Combat(0, 0, 1);
 
         DOCTEST_CHECK(TEST_COMBINIT::Satellite_Building_Removed_(
-            0, BUILDING_STAR_BASE));
-        DOCTEST_CHECK(COMBINIT::Take_Captured_Satellite(0) == -1);
+            game::id_colony{0}, BUILDING_STAR_BASE));
+        DOCTEST_CHECK(COMBINIT::Take_Captured_Satellite(game::id_colony{0}) == -1);
     }
 }
 
@@ -141,8 +141,8 @@ DOCTEST_TEST_CASE("attacker-captured satellite is retained only when enabled") {
         COMBINIT::End_Of_Combat(0, 0, 1);
 
         DOCTEST_CHECK(TEST_COMBINIT::Satellite_Building_Removed_(
-            0, BUILDING_STAR_BASE));
-        DOCTEST_CHECK(COMBINIT::Take_Captured_Satellite(0) ==
+            game::id_colony{0}, BUILDING_STAR_BASE));
+        DOCTEST_CHECK(COMBINIT::Take_Captured_Satellite(game::id_colony{0}) ==
             (capture_enabled != 0 ? BUILDING_STAR_BASE : -1));
     }
 }
@@ -155,8 +155,8 @@ DOCTEST_TEST_CASE("destroyed attacker-captured satellite is not retained") {
     COMBINIT::End_Of_Combat(0, 0, 1);
 
     DOCTEST_CHECK(TEST_COMBINIT::Satellite_Building_Removed_(
-        0, BUILDING_STAR_BASE));
-    DOCTEST_CHECK(COMBINIT::Take_Captured_Satellite(0) == -1);
+        game::id_colony{0}, BUILDING_STAR_BASE));
+    DOCTEST_CHECK(COMBINIT::Take_Captured_Satellite(game::id_colony{0}) == -1);
 }
 
 DOCTEST_TEST_CASE("survival pods recover more than eight leaders after an expanded battle") {

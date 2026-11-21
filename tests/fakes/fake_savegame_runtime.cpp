@@ -11,7 +11,6 @@ namespace MOX {
     int32_t stardate = 0;
     s_settings settings = {};
     uint8_t NUM_NEBULAS = 0;
-    int16_t NUM_COLONIES = 0;
 
 
     int16_t NUM_SHIPS = 0;

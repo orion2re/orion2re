@@ -197,7 +197,7 @@ namespace COLREFIT {
                     COLONY::full_draw = 1;
                 } else {
                     const auto planet_idx = MOX::star[MOX::screen_data].orbit_planet_ids[COLONY::orbit_temp].get();
-                    if (COLCALC::Colony_Can_Build_Product(&MOX::colony[game::current_state.planets.at(planet_idx).colony_index], COLBLDG::Colony_Production_From_Ship_Index(ship_idx))) {
+                    if (COLCALC::Colony_Can_Build_Product(&game::current_state.colonies.at(game::current_state.planets.at(planet_idx).colony_id), COLBLDG::Colony_Production_From_Ship_Index(ship_idx))) {
                         if (MOX::ship[ship_idx].d.previous_owner == MOX::PLAYER_NUM) {
                             if (MOX::ship[ship_idx].officer_index == -1) {
                                 COLREFIT::esc = 1;
@@ -419,9 +419,9 @@ namespace COLREFIT {
         COLONY::Remap_Draw_Ship_Centered(x_offset + 188, y_offset + 77, ship_idx);
 
         const auto planet_idx = MOX::star[MOX::screen_data].orbit_planet_ids[COLONY::orbit_temp].get();
-        int16_t colony_idx = game::current_state.planets.at(planet_idx).colony_index;
+        game::id_colony colony_idx = game::current_state.planets.at(planet_idx).colony_id;
 
-        if (!COLCALC::Colony_Can_Build_Product(&MOX::colony[colony_idx], COLBLDG::Colony_Production_From_Ship_Index(ship_idx))) {
+        if (!COLCALC::Colony_Can_Build_Product(&game::current_state.colonies.at(colony_idx), COLBLDG::Colony_Production_From_Ship_Index(ship_idx))) {
             COLONY::Set_Colony_Font_To_Red(1, 1);
             char* text = ESTRINGS::E_Strings(0x18B);
             BILL::Squeeze_Paragraph_Centered(x_offset + 161, y_offset + 49, 55, 56, text, 2);

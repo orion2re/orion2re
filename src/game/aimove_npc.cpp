@@ -158,10 +158,10 @@ namespace AIMOVE {
             }
         }
 
-        for (int16_t i = 0; i < world->Colony_Count(); i++) {
-            int8_t owner = world->colonies[i].owner;
+        for (auto& [roster_id, roster_colony] : world->state->colonies) {
+            int8_t owner = roster_colony.owner;
             if (owner != -1) {
-                const auto planet_idx = world->colonies[i].planet_id.get();
+                const auto planet_idx = roster_colony.planet_id;
                 int16_t star_idx = world->state->planets.at(planet_idx).star_index;
 
                 if (ship_location != star_idx && star_flags[star_idx] == 0) {

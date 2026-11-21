@@ -75,15 +75,15 @@ namespace aileader {
 
         uint32_t skills = state.leaders.at(leader_index).special_skills;
 
-        for (int16_t i = 0; i < world->Colony_Count(); ++i) {
-            s_colony* colony = &world->colonies[i];
+        for (auto& [roster_id, roster_colony] : world->state->colonies) {
+            s_colony* colony = &roster_colony;
 
             if (colony->owner == player_index && colony->outpost_flag == 0) {
-                int16_t star_index = world->state->planets.at(colony->planet_id.get()).star_index;
+                int16_t star_index = world->state->planets.at(colony->planet_id).star_index;
 
                 if (world->stars[star_index].officer_index[player_index] == -1) {
                     if ((skills & (LEADER_COLONY_SKILL_ENVIRONMENTALIST | LEADER_COLONY_SKILL_ENVIRONMENTALIST2)) &&
-                        ai->colonies[legacy_world::Colony_Id(i)].pollution_controls_relevant) {
+                        ai->colonies[roster_id].pollution_controls_relevant) {
                         star_scores[star_index] += colony->pollution;
                     }
 
@@ -110,7 +110,7 @@ namespace aileader {
                     }
 
                     if (skills & (LEADER_COLONY_SKILL_MEDICINE | LEADER_COLONY_SKILL_MEDICINE2)) {
-                        int32_t bonus = (uint8_t)ai->colonies[legacy_world::Colony_Id(i)].population_limit - (uint8_t)colony->n_pops;
+                        int32_t bonus = (uint8_t)ai->colonies[roster_id].population_limit - (uint8_t)colony->n_pops;
                         if (bonus > 0) {
                             star_scores[star_index] += bonus;
                         }

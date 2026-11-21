@@ -17,24 +17,24 @@ namespace CONTACT {
             plr->just_established_contact = 0;
         }
 
-        for (int16_t i = 0; i < MOX::NUM_COLONIES; ++i) {
-            s_colony* colony_a = &MOX::colony[i];
-            if (colony_a->planet_id.get() == game::NO_PLANET) {
+        for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
+            s_colony* colony_a = &roster_colony;
+            if (colony_a->planet_id == game::NO_PLANET) {
                 continue;
             }
 
             int8_t owner_a = colony_a->owner;
-            int16_t star_a_idx = game::current_state.planets.at(colony_a->planet_id.get()).star_index;
+            int16_t star_a_idx = game::current_state.planets.at(colony_a->planet_id).star_index;
             s_star_data* star_a = &MOX::star[star_a_idx];
 
-            for (int16_t j = 0; j < i; ++j) {
-                s_colony* colony_b = &MOX::colony[j];
-                if (colony_b->planet_id.get() == game::NO_PLANET) {
+            for (auto it = game::current_state.colonies.begin(); it->first < roster_id; ++it) {
+                auto* colony_b = &it->second;
+                if (colony_b->planet_id == game::NO_PLANET) {
                     continue;
                 }
 
                 int8_t owner_b = colony_b->owner;
-                int16_t star_b_idx = game::current_state.planets.at(colony_b->planet_id.get()).star_index;
+                int16_t star_b_idx = game::current_state.planets.at(colony_b->planet_id).star_index;
                 s_star_data* star_b = &MOX::star[star_b_idx];
                 bool contact_made = false;
 

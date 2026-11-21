@@ -143,7 +143,7 @@ namespace ADVCIV {
                         const auto it = state.planets.find(planet_id);
                         if (it == state.planets.end()) continue;
                         const auto& planet = it->second;
-                        if (planet.planet_type != PLANET_TYPE_PLANET || planet.colony_index != -1) continue;
+                        if (planet.planet_type != PLANET_TYPE_PLANET || planet.colony_id != game::NO_COLONY) continue;
                         if (!candidate_ids[player_idx].insert(planet_id).second) continue;
 
                         auto& candidate = player->planets[player->candidate_planet_count++];

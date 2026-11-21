@@ -485,7 +485,6 @@ DOCTEST_TEST_CASE("colony auto-select preserves a remembered orbit owned by the 
     test::s_game_state state;
     MOX::NUM_STARS = 1;
     MOX::PLAYER_NUM = 0;
-    MOX::NUM_COLONIES = 13;
 
     constexpr game::id_planet remembered{70000};
     constexpr game::id_planet alternative{70001};
@@ -493,19 +492,21 @@ DOCTEST_TEST_CASE("colony auto-select preserves a remembered orbit owned by the 
     selected = 1;
     state.stars[0].orbit_planet_ids[1] = remembered;
     state.stars[0].orbit_planet_ids[3] = alternative;
-    test_planets::Record(remembered.id).colony_index = 12;
-    test_planets::Record(alternative.id).colony_index = 4;
+    test_planets::Record(remembered.id).colony_id = game::id_colony{12};
+    test_planets::Record(alternative.id).colony_id = game::id_colony{4};
     state.colonies[12].owner = MOX::PLAYER_NUM;
     state.colonies[4].owner = MOX::PLAYER_NUM;
 
     HACCESS::Set_All_Colony_Auto_Select_Flags();
     DOCTEST_CHECK(selected == 1);
+    DOCTEST_CHECK(HACCESS::Last_Colony_Selected(0, 0) == game::id_colony{12});
 
     // A foreign colony in record 0 is not owned by player 0.
-    test_planets::Record(remembered.id).colony_index = 0;
+    test_planets::Record(remembered.id).colony_id = game::id_colony{0};
     state.colonies[0].owner = 1;
     HACCESS::Set_All_Colony_Auto_Select_Flags();
     DOCTEST_CHECK(selected == 3);
+    DOCTEST_CHECK(HACCESS::Last_Colony_Selected(0, 0) == game::id_colony{4});
 }
 
 DOCTEST_TEST_CASE("session settings recover missing and short files without losing live choices") {
@@ -553,12 +554,11 @@ DOCTEST_TEST_CASE("successful file save load requests resource reload even when 
     std::vector<s_colony> colonies(MAX_COLONIES);
     std::vector<s_star_data> stars(MAX_STARS);
     std::vector<s_nebula> nebulas(MAX_NEBULAS);
-    MOX::colony = colonies.data();
     MOX::star = stars.data();
     MOX::nebula = nebulas.data();
     MOX::global_data_seg = allocate::Allocate_Space(0x2800 + MAX_SHIPS - ORIGINAL_MAX_SHIPS);
     test_planets::Reset();
-    MOX::NUM_COLONIES = MOX::NUM_STARS = MOX::NUM_SHIPS = 0;
+    MOX::NUM_STARS = MOX::NUM_SHIPS = 0;
     MOX::NUM_NEBULAS = 0;
     MOX::NUM_PLAYERS = 1;
     MOX::PLAYER_NUM = 0;
@@ -597,7 +597,6 @@ DOCTEST_TEST_CASE("successful file save load requests resource reload even when 
     DOCTEST_CHECK(ESTRINGS::E_Strings(126)[0] == 'B');
     free((allocate::s_alloc_header*)MOX::global_data_seg - 1);
     MOX::global_data_seg = nullptr;
-    MOX::colony = nullptr;
     MOX::star = nullptr;
     MOX::nebula = nullptr;
 }

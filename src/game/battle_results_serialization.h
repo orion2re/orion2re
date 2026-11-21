@@ -48,7 +48,7 @@ namespace SERIAL {
         value.officer_idx = reader.Read_Int8();
     }
 
-    inline constexpr size_t INVASION_SIDE_BYTES = 2 * UNIT_COUNT + 2 * UNIT_COUNT + 1 * UNIT_COUNT + INVASION_BONUSES_BYTES + 12;
+    inline constexpr size_t INVASION_SIDE_BYTES = 5 * UNIT_COUNT + INVASION_BONUSES_BYTES + 14;
 
     inline void Write_Invasion_Side(Writer_& writer, const s_invasion_side_info& value) {
         writer.Write_Int16(value.player_id);
@@ -59,7 +59,7 @@ namespace SERIAL {
         writer.Write_Int8(value.current_unit_damage);
         writer.Write_Int8(value.round_hit_unit_type);
         writer.Write_Int8(value.round_killed_unit_type);
-        writer.Write_Int16(value.colony_id);
+        writer.Write_Uint32(value.colony_id.get().id);
         writer.Write_Int16(value.n_ships);
         writer.Write_Int16(value.opponent_player_id);
         Write_Invasion_Bonuses(writer, value.combat_modifiers);
@@ -74,7 +74,7 @@ namespace SERIAL {
         value.current_unit_damage = reader.Read_Int8();
         value.round_hit_unit_type = reader.Read_Int8();
         value.round_killed_unit_type = reader.Read_Int8();
-        value.colony_id = reader.Read_Int16();
+        value.colony_id = game::id_colony{reader.Read_Uint32()};
         value.ship_list = nullptr;
         value.n_ships = reader.Read_Int16();
         value.opponent_player_id = reader.Read_Int16();
@@ -113,11 +113,11 @@ namespace SERIAL {
         value.is_mind_controlled = reader.Read_Int8();
     }
 
-    inline constexpr size_t BOMB_RESULT_BYTES = 1 * BUILDING_COUNT + 25;
+    inline constexpr size_t BOMB_RESULT_BYTES = BUILDING_COUNT + 27;
 
     inline void Write_Bomb_Result(Writer_& writer, const s_combat_bomb_result& value) {
         writer.Write_Int8(value.attacker_idx);
-        writer.Write_Int16(value.colony_idx);
+        writer.Write_Uint32(value.colony_id.get().id);
         writer.Write_Int8(value.is_planetary_hit);
         writer.Write_Int16(value.bomb_hits_remaining);
         writer.Write_Int8(value.is_bio_weapon);
@@ -135,7 +135,7 @@ namespace SERIAL {
 
     inline void Read_Bomb_Result(Reader_& reader, s_combat_bomb_result& value) {
         value.attacker_idx = reader.Read_Int8();
-        value.colony_idx = reader.Read_Int16();
+        value.colony_id = game::id_colony{reader.Read_Uint32()};
         value.is_planetary_hit = reader.Read_Int8();
         value.bomb_hits_remaining = reader.Read_Int16();
         value.is_bio_weapon = reader.Read_Int8();

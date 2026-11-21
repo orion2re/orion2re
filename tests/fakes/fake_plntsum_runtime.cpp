@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
 
 #include "doctest/doctest.h"
@@ -8,7 +9,7 @@ namespace {
     s_player players[MAX_PLAYERS];
 
     s_star_data stars[MAX_STARS + 1];
-    s_colony colonies[2];
+    test_colonies::Slots<2> colonies;
     s_ship_data ships[8];
     s_scroll_bar scroll;
     s_plntsum_screen screen;
@@ -23,7 +24,6 @@ namespace MOX {
     s_player* player = players;
 
     s_star_data* star = stars;
-    s_colony* colony = colonies;
     s_ship_data* ship = ships;
     s_scroll_bar* scroll_bar = &scroll;
     s_animation_header* screen_seg = nullptr;
@@ -61,7 +61,7 @@ namespace TEST_PLNTSUM {
         memset(players, 0, sizeof(players));
         test_planets::Reset(0);
         memset(stars, 0, sizeof(stars));
-        memset(colonies, 0, sizeof(colonies));
+        colonies.Reset();
         memset(ships, 0, sizeof(ships));
         memset(&scroll, 0, sizeof(scroll));
         memset(&screen, 0, sizeof(screen));
@@ -83,7 +83,7 @@ namespace TEST_PLNTSUM {
         memset(MOX::ship_stack_start, 0xFF, sizeof(MOX::ship_stack_start));
         memset(MOX::ship_node, 0xFF, sizeof(MOX::ship_node));
         for (auto& [id, planet] : game::current_state.planets) {
-            planet.colony_index = -1;
+            planet.colony_id = game::NO_COLONY;
             planet.planet_type = PLANET_TYPE_ASTEROID;
         }
         for (auto& star : stars) {
@@ -210,7 +210,7 @@ namespace COLCALC {
 } // namespace COLCALC
 
 namespace EVENTS {
-    void __cdecl Kill_All_Events_At_Colony(int16_t) {}
+    void __cdecl Kill_All_Events_At_Colony(game::id_colony) {}
 
     int16_t __cdecl Event_Check_Hyperspace_Flux() {
         return TEST_PLNTSUM::hyperspace_flux;
@@ -218,7 +218,7 @@ namespace EVENTS {
 } // namespace EVENTS
 
 namespace COLBLDG {
-    void __cdecl Clear_Colony_Queue(int16_t) {}
+    void __cdecl Clear_Colony_Queue(game::s_game_state&, game::id_colony) {}
 } // namespace COLBLDG
 
 namespace MSG_ {
@@ -226,7 +226,7 @@ namespace MSG_ {
 } // namespace MSG_
 
 namespace invasion {
-    void __cdecl Assign_New_Home_Planet(int8_t, int16_t) {
+    void __cdecl Assign_New_Home_Planet(const game::s_game_state&, int8_t, game::id_colony) {
         DOCTEST_FAIL("Unexpected homeworld in colony destruction fixture");
     }
 } // namespace invasion

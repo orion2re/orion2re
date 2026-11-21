@@ -1,11 +1,12 @@
 #include "pch.h"
+#include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
 #include <stdexcept>
 #include "doctest/doctest.h"
 
 namespace test_eric_runtime {
     s_player players[2];
-    s_colony colonies[4];
+    test_colonies::Slots<4> colonies;
 
     s_ship_data ships[MAX_SHIPS];
     int16_t last_help_string;
@@ -108,9 +109,8 @@ namespace test_eric_runtime {
 
     void Reset_() {
         Reset_Utilities_();
-        MOX::NUM_COLONIES = 1;
         memset(players, 0, sizeof(players));
-        memset(colonies, 0, sizeof(colonies));
+        colonies.Reset();
         test_planets::Reset(4);
         memset(ships, 0, sizeof(ships));
         game::current_state = game::s_game_state{};
@@ -160,7 +160,6 @@ namespace test_eric_runtime {
 }
 
 namespace MOX {
-    int16_t NUM_COLONIES;
     int16_t current_screen;
     int8_t previous_screen;
     s_mouse_list mouse_list_none;
@@ -170,7 +169,6 @@ namespace MOX {
     uint16_t FULL_DRAW_SCREEN_FLAG;
     uint8_t dont_draw_main_screen_to_back;
     s_player* player = test_eric_runtime::players;
-    s_colony* colony = test_eric_runtime::colonies;
 
     s_ship_data* ship = test_eric_runtime::ships;
 }

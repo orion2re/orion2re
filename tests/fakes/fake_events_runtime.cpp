@@ -1,10 +1,11 @@
 #include "pch.h"
+#include "../fixtures/colony_roster.h"
 #include "../fixtures/planet_roster.h"
 
 namespace {
     s_star_data stars[MAX_STARS];
 
-    s_colony colonies[MAX_COLONIES];
+    test_colonies::Slots<MAX_COLONIES> colonies;
     s_player players[MAX_PLAYERS];
     s_ship_data ships[MAX_SHIPS];
     char event_message[300];
@@ -28,7 +29,7 @@ namespace TEST_EVENTS {
     void Reset_() {
         memset(stars, 0, sizeof(stars));
         test_planets::Reset(0);
-        memset(colonies, 0, sizeof(colonies));
+        colonies.Reset();
         memset(players, 0, sizeof(players));
         memset(ships, 0, sizeof(ships));
         game::current_state = game::s_game_state{};
@@ -43,13 +44,12 @@ namespace TEST_EVENTS {
             }
         }
         for (auto& [id, planet] : game::current_state.planets) {
-            planet.colony_index = -1;
+            planet.colony_id = game::NO_COLONY;
         }
 
         MOX::NUM_PLAYERS = 0;
         MOX::NUM_SHIPS = 0;
         MOX::NUM_STARS = 0;
-        MOX::NUM_COLONIES = 0;
         MOX::stardate = 35000;
         EVENTS::last_event_year = 35000;
         EVENTS::event_delay_count = 0;
@@ -95,11 +95,9 @@ namespace MOX {
     int16_t NUM_PLAYERS;
     int16_t NUM_SHIPS;
     int16_t NUM_STARS;
-    int16_t NUM_COLONIES;
     uint8_t auto_turn_exit;
     s_star_data* star = stars;
 
-    s_colony* colony = colonies;
     s_player* player = players;
     s_ship_data* ship = ships;
     char* mineral_class_string[MINERAL_RESOURCE_COUNT];
@@ -280,7 +278,7 @@ namespace COLCALC {
         return TEST_EVENTS::max_population;
     }
 
-    void __cdecl Colony_Calculation(int16_t) {
+    void __cdecl Colony_Calculation(game::id_colony) {
     }
 
     void __cdecl Player_Gets_Tech_App(s_player*, int16_t) {
@@ -301,18 +299,19 @@ namespace BOMB {
     void __cdecl Apply_Bomb_Hits(s_combat_bomb_result*) {
     }
 
-    void __cdecl Destroy_Colony(s_colony* colony, int32_t) {
-        const auto id = colony->planet_id.get();
+    void __cdecl Destroy_Colony(game::s_game_state& state, game::id_colony colony_id, int32_t) {
+        auto& colony = test_colonies::Record(colony_id.id);
+        const auto id = colony.planet_id;
         if (id != game::NO_PLANET) {
-            game::current_state.planets.at(id).colony_index = -1;
+            state.planets.at(id).colony_id = game::NO_COLONY;
         }
-        colony->owner = -1;
-        colony->planet_id = game::NO_PLANET;
+        colony.owner = -1;
+        colony.planet_id = game::NO_PLANET;
     }
 }
 
 namespace COLBLDG {
-    void __cdecl Delete_Prod_From_Colony_Queue(int16_t, int16_t) {
+    void __cdecl Delete_Prod_From_Colony_Queue(game::s_game_state&, game::id_colony, int16_t) {
     }
 }
 

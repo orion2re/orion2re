@@ -14,12 +14,12 @@ namespace COLLAND {
 
         COLONY::Set_Colony_Font_To(4);
 
-        if (planet->colony_index == -1) {
+        if (planet->colony_id == game::NO_COLONY) {
             char* planet_name = HACCESS::Get_Planet_Name(game::current_state, planet_idx);
             char* fmt = ESTRINGS::E_Strings(0x46 /* ESTR_S1 */);
             snprintf(buffer, sizeof(buffer), fmt, planet_name);
         } else {
-            s_colony* colony = &MOX::colony[planet->colony_index];
+            s_colony* colony = &game::current_state.colonies.at(planet->colony_id);
             char* race_name = MOX::player[colony->owner].race_name;
             char* planet_name = HACCESS::Get_Planet_Name(game::current_state, planet_idx);
             char* fmt = ESTRINGS::E_Strings(0x28 /* ESTR_S__S_COLONY */);
@@ -30,7 +30,7 @@ namespace COLLAND {
         char* climate_str;
         char* size_str = MOX::planet_size_string[planet->size];
 
-        if (planet->colony_index == -1) {
+        if (planet->colony_id == game::NO_COLONY) {
             if (planet->planet_type != PLANET_TYPE_PLANET) {
                 char* gas_giant_msg = ESTRINGS::E_Strings(0x132 /* ESTR_GAS_GIANT__UNINHABITABLE */);
                 strlcpy(buffer, gas_giant_msg, sizeof(buffer));
@@ -39,7 +39,7 @@ namespace COLLAND {
             }
             climate_str = MOX::planet_climate_string[planet->climate];
         } else {
-            climate_str = MOX::planet_climate_string[(uint8_t)MOX::colony[planet->colony_index].climate];
+            climate_str = MOX::planet_climate_string[(uint8_t)game::current_state.colonies.at(planet->colony_id).climate];
         }
 
         const char* size_climate_fmt;
@@ -162,7 +162,7 @@ namespace COLLAND {
         COLONY::orbit_n = COLONY::orbit_temp;
 
         COLONY::planet_handle = MOX::star[MOX::screen_data].orbit_planet_ids[COLONY::orbit_temp].get();
-        COLONY::colony_handle = game::current_state.planets.at(COLONY::planet_handle).colony_index;
+        COLONY::colony_handle = game::current_state.planets.at(COLONY::planet_handle).colony_id;
         COLONY::valid_colony = 1;
         COLONY::drawing_display = 0;
         COLONY::sys_disp_star_handle = COLONY::star_handle;
@@ -218,7 +218,7 @@ namespace COLLAND {
         sound::Fadeout_Sound(pod1l_sfx, 10);
         sound::Fadeout_Sound(pod2l_sfx, 10);
 
-        const auto planet_idx = MOX::colony[COLONY::colony_handle].planet_id.get();
+        const auto planet_idx = game::current_state.colonies.at(COLONY::colony_handle).planet_id;
         int16_t star_idx = game::current_state.planets.at(planet_idx).star_index;
 
         if (COLCALC::N_Colonies_And_Outposts_At_Star(star_idx) == 1 && MOX::settings.animations_on) {

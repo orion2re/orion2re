@@ -486,8 +486,9 @@ namespace debug_tactical_editor {
                 MOX::combat_defender_player, 0, NONPLAYER_SHIP_TYPE_HYDRA);
             Input_S16_("Combat turn", &MOX::combat_turn);
             debug_game_widgets::Colony_Reference("Colony", &MOX::cmbt_colony_id);
-            MOX::cmbt_colony_id = std::clamp<int16_t>(
-                MOX::cmbt_colony_id, -1, std::max<int16_t>(MOX::NUM_COLONIES - 1, -1));
+            if (!game::current_state.colonies.contains(MOX::cmbt_colony_id)) {
+                MOX::cmbt_colony_id = game::NO_COLONY;
+            }
             Input_S16_("Current ship", &MOX::cur_ship);
             MOX::cur_ship = std::clamp<int16_t>(
                 MOX::cur_ship, -1, MOX::combat_total_ship_count - 1);

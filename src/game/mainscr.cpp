@@ -1629,12 +1629,12 @@ namespace MAINSCR {
         video::Clip_Off();
     }
 
-    void __cdecl Do_Colony_Screen(int16_t colony_idx, int16_t* status_flag) {
-        if (colony_idx >= 0) {
-            s_colony* colony = &MOX::colony[colony_idx];
+    void __cdecl Do_Colony_Screen(game::id_colony colony_idx, int16_t* status_flag) {
+        if (colony_idx != game::NO_COLONY) {
+            s_colony* colony = &game::current_state.colonies.at(colony_idx);
 
             if (colony->owner == MOX::PLAYER_NUM) {
-                const auto planet_idx = colony->planet_id.get();
+                const auto planet_idx = colony->planet_id;
 
                 if (colony->outpost_flag != 0) {
                     char* planet_name = HACCESS::Get_Planet_Name(game::current_state, planet_idx);
@@ -3007,7 +3007,7 @@ namespace MAINSCR {
     }
 
     void __cdecl Check_Function_Keys(int16_t key, int16_t* flag) {
-        int16_t colony_id = -1;
+        game::id_colony colony_id = game::NO_COLONY;
         char msg_buffer[200];
 
         if (key == -1110 /* 0xfbaa */) {
@@ -3047,7 +3047,7 @@ namespace MAINSCR {
                     if (MOX::settings.auto_select_colony != 0) {
                         colony_id = HACCESS::Last_Colony_Selected(MOX::system_star_id_for_auto_select, MOX::PLAYER_NUM);
                     }
-                    if (colony_id > -1) {
+                    if (colony_id != game::NO_COLONY) {
                         MAINSCR::Do_Colony_Screen(colony_id, flag);
                     } else {
                         MOX::moveable_box[0].id = MOX::system_star_id_for_auto_select;
@@ -3062,7 +3062,7 @@ namespace MAINSCR {
                     if (MOX::settings.auto_select_colony != 0) {
                         colony_id = HACCESS::Last_Colony_Selected(MOX::system_star_id_for_auto_select, MOX::PLAYER_NUM);
                     }
-                    if (colony_id > -1) {
+                    if (colony_id != game::NO_COLONY) {
                         MAINSCR::Do_Colony_Screen(colony_id, flag);
                     } else {
                         MOX::moveable_box[0].id = MOX::system_star_id_for_auto_select;

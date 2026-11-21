@@ -376,7 +376,6 @@ namespace MOX {
 
     extern uint8_t NUM_NEBULAS;
 
-    extern int16_t NUM_COLONIES;
 
 
     // Suggested name: MOX::climate_modifier_table
@@ -585,7 +584,7 @@ namespace MOX {
     extern int16_t combat_attacker_player;
     extern int16_t combat_turn;
     extern uint8_t colony_defense_flags;
-    extern int16_t cmbt_colony_id;
+    extern game::id_colony cmbt_colony_id;
     extern int16_t combat_defender_player;
     extern s_combat_bomb_result combat_bomb_result;
 
@@ -607,7 +606,6 @@ namespace MOX {
 
     extern s_skill_data skill_data[54];
 
-    extern s_colony* colony;
 
     extern s_animation_header* darkened_turn_button_seg;
 

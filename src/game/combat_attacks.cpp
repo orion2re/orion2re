@@ -28,7 +28,7 @@ namespace COMBAT {
 
         // If no ship targets were found, check if we can target the fixed defense (index 0)
         // Only the attacker can target the colony/starbase.
-        if (MOX::combat_attacker_player == player && MOX::cmbt_colony_id != -1) {
+        if (MOX::combat_attacker_player == player && MOX::cmbt_colony_id != game::NO_COLONY) {
             if (MOX::qcombat_data[0].status == 0 /* Active */) {
                 return 0;
             }
@@ -281,7 +281,9 @@ namespace COMBAT {
     }
 
     void __cdecl Tactical_Bombardment(int16_t* ship_array, int16_t ship_count, s_combat_bomb_result* bomb_result) {
-        MOX::cmbt_colony_id = bomb_result->colony_idx;
+        const auto colony_id = bomb_result->colony_id.get();
+        if (!game::current_state.colonies.contains(colony_id)) return;
+        MOX::cmbt_colony_id = colony_id;
         MOX::apply_damage_to_planet = 0;
         MOX::combat_total_ship_count = 1;
 
@@ -294,7 +296,7 @@ namespace COMBAT {
         struct_::Clear_Structure(MOX::missile, sizeof(s_missile) * MAX_COMBAT_FLYERS);
 
         MOX::combat_attacker_player = bomb_result->attacker_idx;
-        MOX::combat_defender_player = MOX::colony[MOX::cmbt_colony_id].owner;
+        MOX::combat_defender_player = game::current_state.colonies.at(MOX::cmbt_colony_id).owner;
 
         if ((uint16_t)MOX::combat_attacker_player <= MAX_PLAYERS) {
             const int16_t attacker = MOX::combat_attacker_player;

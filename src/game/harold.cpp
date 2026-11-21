@@ -18,7 +18,7 @@ namespace HAROLD {
             const auto planet_idx = MOX::star[star_idx].orbit_planet_ids[i].get();
 
             if (planet_idx != game::NO_PLANET) {
-                if (game::current_state.planets.at(planet_idx).colony_index != -1) {
+                if (game::current_state.planets.at(planet_idx).colony_id != game::NO_COLONY) {
                     has_colony = 1;
                 }
             }
@@ -94,10 +94,10 @@ namespace HAROLD {
             const auto planet_idx = MOX::star[star_idx].orbit_planet_ids[i].get();
 
             if (planet_idx != game::NO_PLANET) {
-                int16_t colony_idx = game::current_state.planets.at(planet_idx).colony_index;
+                game::id_colony colony_idx = game::current_state.planets.at(planet_idx).colony_id;
 
-                if (colony_idx != -1) {
-                    if (MOX::colony[colony_idx].outpost_flag == 0) {
+                if (colony_idx != game::NO_COLONY) {
+                    if (game::current_state.colonies.at(colony_idx).outpost_flag == 0) {
                         colony_count++;
                     } else {
                         outpost_count++;
@@ -191,10 +191,10 @@ namespace HAROLD {
             const auto planet_idx = MOX::star[star_idx].orbit_planet_ids[i].get();
 
             if (planet_idx != game::NO_PLANET) {
-                int16_t colony_idx = game::current_state.planets.at(planet_idx).colony_index;
+                game::id_colony colony_idx = game::current_state.planets.at(planet_idx).colony_id;
 
-                if (colony_idx > -1) {
-                    int8_t owner_id = MOX::colony[colony_idx].owner;
+                if (colony_idx != game::NO_COLONY) {
+                    int8_t owner_id = game::current_state.colonies.at(colony_idx).owner;
 
                     if (owners_seen[owner_id] == 0) {
                         unique_count++;
@@ -474,9 +474,9 @@ namespace HAROLD {
         for (int i = 0; i < 5; ++i) {
             const auto planet_idx = MOX::star[star_idx].orbit_planet_ids[i].get();
             if (planet_idx != game::NO_PLANET) {
-                int16_t colony_idx = game::current_state.planets.at(planet_idx).colony_index;
-                if (colony_idx > -1) {
-                    int8_t owner = MOX::colony[colony_idx].owner;
+                game::id_colony colony_idx = game::current_state.planets.at(planet_idx).colony_id;
+                if (colony_idx != game::NO_COLONY) {
+                    int8_t owner = game::current_state.colonies.at(colony_idx).owner;
                     if (owner > -1) {
                         bool visible = true;
                         if (have_contact && owner != MOX::PLAYER_NUM) {
@@ -646,10 +646,10 @@ namespace HAROLD {
             const auto planet_idx = MOX::star[star_idx].orbit_planet_ids[i].get();
 
             if (planet_idx != game::NO_PLANET) {
-                int16_t colony_idx = game::current_state.planets.at(planet_idx).colony_index;
+                game::id_colony colony_idx = game::current_state.planets.at(planet_idx).colony_id;
 
-                if (colony_idx > -1) {
-                    int16_t colony_owner = static_cast<int16_t>(MOX::colony[colony_idx].owner);
+                if (colony_idx != game::NO_COLONY) {
+                    int16_t colony_owner = static_cast<int16_t>(game::current_state.colonies.at(colony_idx).owner);
 
                     if (Contact_With_Player(MOX::PLAYER_NUM, colony_owner)) {
                         return 1;
@@ -837,10 +837,10 @@ namespace HAROLD {
 
             const auto planet_idx = MOX::star[star_idx].orbit_planet_ids[i].get();
             if (planet_idx != game::NO_PLANET) {
-                int16_t colony_idx = game::current_state.planets.at(planet_idx).colony_index;
-                if (colony_idx > -1) {
+                game::id_colony colony_idx = game::current_state.planets.at(planet_idx).colony_id;
+                if (colony_idx != game::NO_COLONY) {
                     // Offset 0x6 in s_colony is outpost_flag
-                    if (MOX::colony[colony_idx].outpost_flag != 0) {
+                    if (game::current_state.colonies.at(colony_idx).outpost_flag != 0) {
                         has_outpost = true;
                     }
                 }
@@ -854,9 +854,9 @@ namespace HAROLD {
         int8_t has_outpost = 0;
 
         if (planet_idx != game::NO_PLANET) {
-            const int16_t colony_idx = game::current_state.planets.at(planet_idx).colony_index;
-            if (colony_idx != -1) {
-                if (MOX::colony[colony_idx].outpost_flag != 0) {
+            const game::id_colony colony_idx = game::current_state.planets.at(planet_idx).colony_id;
+            if (colony_idx != game::NO_COLONY) {
+                if (game::current_state.colonies.at(colony_idx).outpost_flag != 0) {
                     has_outpost = 1;
                 }
             }

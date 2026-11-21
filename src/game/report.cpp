@@ -19,24 +19,24 @@ namespace REPORT {
     char* enemy_spy_steals_fmt;
     char* outpost_preselected_planet_fmt;
 
-    s_colony* __cdecl Player_Colony_Base_At_Star(int16_t player_idx, int16_t star_idx) {
+    game::id_colony __cdecl Player_Colony_Base_At_Star(int16_t player_idx, int16_t star_idx) {
         for (int i = 0; i < 5; ++i) {
             const auto planet_idx = MOX::star[star_idx].orbit_planet_ids[i].get();
 
             if (planet_idx != game::NO_PLANET) {
-                int16_t colony_idx = game::current_state.planets.at(planet_idx).colony_index;
+                const auto colony_id = game::current_state.planets.at(planet_idx).colony_id;
 
-                if (colony_idx != -1) {
-                    s_colony* colony = &MOX::colony[colony_idx];
+                if (colony_id != game::NO_COLONY) {
+                    const auto& colony = game::current_state.colonies.at(colony_id);
 
-                    if (colony->owner == player_idx && colony->buildings[BUILDING_COLONY_BASE] > 0) {
-                        return colony;
+                    if (colony.owner == player_idx && colony.buildings[BUILDING_COLONY_BASE] > 0) {
+                        return colony_id;
                     }
                 }
             }
         }
 
-        return nullptr;
+        return game::NO_COLONY;
     }
 
     s_ship_data* __cdecl Player_Ship_Type_At_Star(int16_t owner, int16_t ship_type, int16_t location, int8_t include_just_built) {
@@ -186,7 +186,7 @@ namespace REPORT {
         for (int16_t star_idx = 0; star_idx < MOX::NUM_STARS; ++star_idx) {
             if (MOX::star[star_idx].colonize_player == player_idx) {
                 if (struct_::Test_Bit_Field(done_colonize_check, star_idx) == 0) {
-                    s_colony* colony_base = Player_Colony_Base_At_Star(player_idx, star_idx);
+                    auto colony_base_id = Player_Colony_Base_At_Star(player_idx, star_idx);
                     s_ship_data* colony_ship = Player_Ship_Type_At_Star(player_idx, SHIP_TYPE_COLONY, star_idx, 0);
                     s_ship_data* colony_prompt_ship = colony_ship;
                     s_ship_data* outpost_ship = Player_Ship_Type_At_Star(player_idx, SHIP_TYPE_OUTPOST, star_idx, 0);
@@ -205,19 +205,19 @@ namespace REPORT {
                         has_ships = true;
                     }
 
-                    if (colony_base != nullptr || (has_ships && ((MOX::star[star_idx].ignore_colony_ships >> player_idx) & 1) == 0)) {
+                    if (colony_base_id != game::NO_COLONY || (has_ships && ((MOX::star[star_idx].ignore_colony_ships >> player_idx) & 1) == 0)) {
                         if (show_dialog != 0) {
                             do {
                                 bool is_colony = false;
                                 MOVEBOX::Remove_Box_Check();
 
                                 auto planet_id = game::NO_PLANET;
-                                if (colony_base == nullptr && (colony_prompt_ship == nullptr || outpost_ship != nullptr)) {
+                                if (colony_base_id == game::NO_COLONY && (colony_prompt_ship == nullptr || outpost_ship != nullptr)) {
                                     planet_id = PLNTSUM::Colony_Ship_Auto_Colonization(outpost_ship);
                                     if (planet_id == game::NO_PLANET) {
                                         planet_id = MAINPUPS::New_Outpost_Selection_Popup(star_idx);
                                     } else if (const auto planet = game::current_state.planets.find(planet_id);
-                                        planet != game::current_state.planets.end() && planet->second.colony_index == -1) {
+                                        planet != game::current_state.planets.end() && planet->second.colony_id == game::NO_COLONY) {
                                         char msg[200];
                                         snprintf(msg, sizeof(msg), outpost_preselected_planet_fmt, HACCESS::Get_Planet_Name(game::current_state, planet_id));
                                         if (GENDRAW::Do_Confirmation_Box(msg) == 0) {
@@ -236,10 +236,10 @@ namespace REPORT {
                                     is_colony = true;
                                     bool auto_colonized = false;
 
-                                    if (colony_base == nullptr && PLNTSUM::Colony_Ship_Auto_Colonization(colony_prompt_ship) != game::NO_PLANET) {
+                                    if (colony_base_id == game::NO_COLONY && PLNTSUM::Colony_Ship_Auto_Colonization(colony_prompt_ship) != game::NO_PLANET) {
                                         planet_id = PLNTSUM::Colony_Ship_Auto_Colonization(colony_prompt_ship);
                                         if (const auto planet = game::current_state.planets.find(planet_id);
-                                            planet != game::current_state.planets.end() && planet->second.colony_index == -1) {
+                                            planet != game::current_state.planets.end() && planet->second.colony_id == game::NO_COLONY) {
                                             auto_colonized = true;
                                             char msg[200];
                                             snprintf(msg, sizeof(msg), colonize_preselected_planet_fmt, HACCESS::Get_Planet_Name(game::current_state, planet_id));
@@ -256,26 +256,32 @@ namespace REPORT {
                                     }
 
                                     if (!auto_colonized) {
-                                        planet_id = MAINPUPS::New_Colony_Selection_Popup(star_idx, colony_base == nullptr);
+                                        planet_id = MAINPUPS::New_Colony_Selection_Popup(star_idx, colony_base_id == game::NO_COLONY);
                                     }
 
-                                    while (colony_base != nullptr && planet_id == game::NO_PLANET) {
+                                    while (colony_base_id != game::NO_COLONY && planet_id == game::NO_PLANET) {
                                         int refund = TECHDATA::buildings[BUILDING_COLONY_BASE].cost / 2;
                                         char msg[200];
                                         snprintf(msg, sizeof(msg), really_trash_colony_base_fmt, refund);
                                         if (GENDRAW::Do_Confirmation_Box(msg) == 0) {
-                                            planet_id = MAINPUPS::New_Colony_Selection_Popup(star_idx, colony_base == nullptr);
+                                            planet_id = MAINPUPS::New_Colony_Selection_Popup(star_idx, colony_base_id == game::NO_COLONY);
                                         } else {
                                             do {
                                                 MOX::player[player_idx].bc += refund;
-                                                colony_base->buildings[BUILDING_COLONY_BASE] = 0;
-                                                colony_base = Player_Colony_Base_At_Star(player_idx, star_idx);
-                                            } while (colony_base != nullptr);
+                                                game::current_state.colonies.at(colony_base_id).buildings[BUILDING_COLONY_BASE] = 0;
+                                                colony_base_id = Player_Colony_Base_At_Star(player_idx, star_idx);
+                                            } while (colony_base_id != game::NO_COLONY);
                                             break;
                                         }
                                     }
                                 }
 
+                                if (planet_id != game::NO_PLANET &&
+                                    !(is_colony ? COLONIZE::Make_New_Colony(planet_id, player_idx)
+                                                : COLONIZE::Make_New_Outpost(planet_id, player_idx))) {
+                                    struct_::Set_Bit_Field(done_colonize_check, star_idx);
+                                    break;
+                                }
                                 if (colony_ship != nullptr) {
                                     SHIPS::Clear_Auto_Colonization_Flag(colony_ship);
                                 }
@@ -288,25 +294,24 @@ namespace REPORT {
                                     MOX::star[star_idx].ignore_colony_ships |= (1 << player_idx);
                                 } else {
                                     if (is_colony) {
-                                        COLONIZE::Make_New_Colony(planet_id, player_idx);
-                                        if (colony_base == nullptr) {
+                                        if (colony_base_id == game::NO_COLONY) {
                                             SHIPS::Kill_Ship((int16_t)(colony_ship - MOX::ship));
                                             COLCALC::Update_Player_Stats(&MOX::player[player_idx]);
                                             MAINSCR::Update_Ship_Icons_In_Between_Turns();
-                                            colony_base = nullptr;
+                                            colony_base_id = game::NO_COLONY;
                                         } else {
-                                            ERICNET::Remove_Building((int16_t)(colony_base - MOX::colony), BUILDING_COLONY_BASE);
-                                            colony_base = Player_Colony_Base_At_Star(player_idx, star_idx);
+                                            ERICNET::Remove_Building(game::current_state, colony_base_id, BUILDING_COLONY_BASE);
+                                            colony_base_id = Player_Colony_Base_At_Star(player_idx, star_idx);
                                         }
 
                                         if (COLONIZE::Star_N_Colonizable_Planets_For_Player(&MOX::star[star_idx], player_idx) == 0) {
                                             struct_::Set_Bit_Field(done_colonize_check, star_idx);
-                                            if (colony_base != nullptr) {
+                                            if (colony_base_id != game::NO_COLONY) {
                                                 do {
                                                     MOX::player[player_idx].bc += TECHDATA::buildings[BUILDING_COLONY_BASE].cost / 2;
-                                                    colony_base->buildings[BUILDING_COLONY_BASE] = 0;
-                                                    colony_base = Player_Colony_Base_At_Star(player_idx, star_idx);
-                                                } while (colony_base != nullptr);
+                                                    game::current_state.colonies.at(colony_base_id).buildings[BUILDING_COLONY_BASE] = 0;
+                                                    colony_base_id = Player_Colony_Base_At_Star(player_idx, star_idx);
+                                                } while (colony_base_id != game::NO_COLONY);
                                             }
                                         }
 
@@ -320,13 +325,12 @@ namespace REPORT {
                                         }
                                         return 1;
                                     } else {
-                                        COLONIZE::Make_New_Outpost(planet_id, player_idx);
                                         SHIPS::Kill_Ship((int16_t)(outpost_ship - MOX::ship));
                                         COLCALC::Update_Player_Stats(&MOX::player[player_idx]);
                                         MAINSCR::Update_Ship_Icons_In_Between_Turns();
                                     }
                                 }
-                            } while (colony_base != nullptr);
+                            } while (colony_base_id != game::NO_COLONY);
                         }
                         return 1;
                     } else {
@@ -753,20 +757,18 @@ namespace REPORT {
     }
 
     int8_t __cdecl Need_To_Set_Occupation_Policy(int16_t player_idx, int8_t show_screen) {
-        int16_t num_colonies = MOX::NUM_COLONIES;
-        s_colony* colonies = MOX::colony;
 
-        for (int16_t i = 0; i < num_colonies; ++i) {
-            s_colony* colony = &colonies[i];
+        for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
+            s_colony* colony = &roster_colony;
 
             if (colony->owner == (int8_t)player_idx &&
-                COLONY::Colony_Needs_Occupation_Policy(i)) {
+                COLONY::Colony_Needs_Occupation_Policy(roster_id)) {
                 if (show_screen != 0) {
                     MOVEBOX::Remove_Box_Check();
                     MOX::current_screen = SCREEN_COLONY;
                     MOX::return_screen = SCREEN_REPORTS;
 
-                    const auto planet_idx = colony->planet_id.get();
+                    const auto planet_idx = colony->planet_id;
                     s_planet_data* planet = &game::current_state.planets.at(planet_idx);
 
                     MOX::screen_data = planet->star_index;
@@ -871,10 +873,9 @@ namespace REPORT {
 
     int8_t __cdecl Empty_Colony_Queue(int16_t player_idx, int8_t do_jump) {
         s_colony* target_colony = nullptr;
-        int16_t num_colonies = MOX::NUM_COLONIES;
 
-        for (int16_t i = 0; i < num_colonies; ++i) {
-            s_colony* colony = &MOX::colony[i];
+        for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
+            s_colony* colony = &roster_colony;
             // Check if colony belongs to player, is not an outpost, and its production queue is empty.
             if (colony->owner == player_idx && colony->outpost_flag == 0 && colony->producing[0] == COLONY_PRODUCTION_NONE) {
                 target_colony = colony;
@@ -892,8 +893,8 @@ namespace REPORT {
             MOX::current_screen = SCREEN_COLONY;
 
             // Set up planet specific data for the colony screen jump
-            MOX::screen_data = game::current_state.planets.at(target_colony->planet_id.get()).star_index;
-            COLONY::orbit_temp = (int16_t)game::current_state.planets.at(target_colony->planet_id.get()).orbit;
+            MOX::screen_data = game::current_state.planets.at(target_colony->planet_id).star_index;
+            COLONY::orbit_temp = (int16_t)game::current_state.planets.at(target_colony->planet_id).orbit;
             MOX::global_esc = 1;
         }
 

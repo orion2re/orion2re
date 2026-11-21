@@ -79,7 +79,7 @@ namespace NETMOX {
         int16_t target_player_idx,
         int16_t other_player_idx,
         int16_t defender_id,
-        int16_t colony_idx,
+        game::id_colony colony_id,
         int16_t star_idx);
 
     void __cdecl Send_Pick_Target_Info(int16_t player_idx, int16_t star_idx, s_combfind_target* target_info);
@@ -92,7 +92,7 @@ namespace NETMOX {
 
     int32_t __cdecl Mox_Send_Message(int16_t recipient_net_id, uint16_t msg_type, void* packet, uint32_t packet_len);
 
-    void __cdecl Decode_Game_Orders(void* data, uint32_t len);
+    bool __cdecl Decode_Game_Orders(const void* data, uint32_t len, int16_t expected_player);
 
     uint32_t __cdecl Encode_Broadcast_Game_Data_Snapshot(void* buffer, uint32_t len);
 
@@ -164,9 +164,11 @@ namespace NETMOX {
 
     void __cdecl Decode_Pick_Your_Position(s_net_pack_pick_your_position* packet, uint32_t len);
 
-    void __cdecl Decode_Dragon_Info(int16_t* colony_id_ptr, uint16_t len);
+    void __cdecl Decode_Dragon_Info(const void* payload, uint32_t len);
 
-    void __cdecl Send_Dragon_Info(int16_t colony_id);
+    void __cdecl Send_Dragon_Info(game::id_colony colony_id);
+
+    inline constexpr size_t TARGET_LIST_BYTES = 5 * sizeof(uint32_t) + 17 * sizeof(int16_t);
 
     void __cdecl Decode_Drop_Out_Info(int32_t player_idx, s_net_pack_drop_out_info* drop_out_info);
 
@@ -176,14 +178,14 @@ namespace NETMOX {
 
 #pragma pack(push, 1)
     struct s_packet_dragon_info {
-        int16_t colony_id;
+        unaligned::field<game::id_colony> colony_id;
     };
 
     struct s_packet_0x12 {
         int16_t star_idx;
         int16_t other_player_idx;
         int16_t defender_id;
-        int16_t colony_idx;
+        unaligned::field<game::id_colony> colony_id;
     };
 
     struct s_NET_MSG_SYNC_PLAYER {

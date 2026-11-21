@@ -509,13 +509,14 @@ namespace MSG_ {
             }
         }
 
-        for (int16_t colony_idx = 0; colony_idx < MOX::NUM_COLONIES; ++colony_idx) {
-            int8_t owner = MOX::colony[colony_idx].owner;
+        for (auto& [roster_id, roster_colony] : game::current_state.colonies) {
+            const auto colony_idx = roster_id;
+            int8_t owner = roster_colony.owner;
             if (owner >= 0) {
                 if (EVENTS::Event_Check_Plague(colony_idx) != 0) {
                     memset(&msg, 0, sizeof(msg));
                     msg.msg_type = MSG_TYPE_COLONY;
-                    msg.u.colony.planet_id = MOX::colony[colony_idx].planet_id.get();
+                    msg.u.colony.planet_id = roster_colony.planet_id;
                     msg.u.colony.subtype = MSG_COLONY_SUBTYPE_PLAGUE;
                     Add_Msg(msg, owner);
                 }
@@ -523,7 +524,7 @@ namespace MSG_ {
                 if (EVENTS::Event_Check_Population_Boom(colony_idx) != 0) {
                     memset(&msg, 0, sizeof(msg));
                     msg.msg_type = MSG_TYPE_COLONY;
-                    msg.u.colony.planet_id = MOX::colony[colony_idx].planet_id.get();
+                    msg.u.colony.planet_id = roster_colony.planet_id;
                     msg.u.colony.subtype = MSG_COLONY_SUBTYPE_POPULATION_BOOM;
                     Add_Msg(msg, owner);
                 }
@@ -531,7 +532,7 @@ namespace MSG_ {
                 if (EVENTS::Event_Check_Comet(colony_idx) != 0) {
                     memset(&msg, 0, sizeof(msg));
                     msg.msg_type = MSG_TYPE_COLONY;
-                    msg.u.colony.planet_id = MOX::colony[colony_idx].planet_id.get();
+                    msg.u.colony.planet_id = roster_colony.planet_id;
                     msg.u.colony.subtype = MSG_COLONY_SUBTYPE_COMET;
                     Add_Msg(msg, owner);
                 }
@@ -621,16 +622,16 @@ namespace MSG_ {
     int8_t __cdecl Goto_Msg_Colony(s_MSG* msg) {
         if (msg->msg_type == MSG_TYPE_COLONY) {
             const auto planet = current_state.planets.find(msg->u.colony.planet_id.get());
-            const auto colony_idx = planet == current_state.planets.end() ? -1 : planet->second.colony_index;
+            const auto colony_idx = planet == current_state.planets.end() ? game::NO_COLONY : planet->second.colony_id;
 
-            if (colony_idx != -1) {
-                s_colony* colony = &MOX::colony[colony_idx];
+            if (colony_idx != game::NO_COLONY) {
+                s_colony* colony = &game::current_state.colonies.at(colony_idx);
 
                 if (colony->owner == MOX::PLAYER_NUM) {
                     MOX::return_screen = SCREEN_INFO;
                     MOX::current_screen = SCREEN_COLONY;
 
-                    s_planet_data* planet = &current_state.planets.at(colony->planet_id.get());
+                    s_planet_data* planet = &current_state.planets.at(colony->planet_id);
                     MOX::screen_data = planet->star_index;
                     COLONY::orbit_temp = (int16_t)planet->orbit;
 

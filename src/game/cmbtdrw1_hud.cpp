@@ -15,7 +15,7 @@ namespace CMBTDRW1 {
         int16_t blip_frame = blip_frame_arr[(MOX::ship_frame / 2) % 4];
 
         if (MOX::cur_ship == 0) {
-            int8_t p_size = game::current_state.planets.at(MOX::colony[MOX::cmbt_colony_id].planet_id.get()).size;
+            int8_t p_size = game::current_state.planets.at(game::current_state.colonies.at(MOX::cmbt_colony_id).planet_id).size;
             if (p_size == 0) {
                 Draw_Blip4(blip_x, blip_y, 0x60, blip_frame);
             } else if (p_size > 0 && p_size < PLANET_SIZE_COUNT) {
@@ -59,11 +59,11 @@ namespace CMBTDRW1 {
         int16_t x_pos, y_pos;
         int8_t planet_size;
 
-        if (MOX::cmbt_colony_id != -1) {
+        if (MOX::cmbt_colony_id != game::NO_COLONY) {
             y_pos = Reduced_Map_Y(MOX::combat_data[0].y);
             x_pos = (MOX::combat_data[0].x * 3) / 2 + 500 /* 0x1f4 */;
 
-            planet_size = game::current_state.planets.at(MOX::colony[MOX::cmbt_colony_id].planet_id.get()).size;
+            planet_size = game::current_state.planets.at(game::current_state.colonies.at(MOX::cmbt_colony_id).planet_id).size;
 
             if (planet_size == 0) {
                 Draw_Blip4(x_pos, y_pos, 0x60, 0);

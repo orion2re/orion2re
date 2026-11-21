@@ -38,10 +38,9 @@ namespace MAINSCR_DEBUG {
                 snprintf(name, sizeof(name), "Planet %s", id_label.c_str());
             }
             char label[112];
-            const int16_t colony_count = std::clamp<int16_t>(MOX::NUM_COLONIES, 0, MAX_COLONIES);
-            if (MOX::colony != nullptr && planet.colony_index >= 0 && planet.colony_index < colony_count) {
+            if (game::current_state.colonies.contains(planet.colony_id)) {
                 char race_name[32];
-                Race_Name_(MOX::colony[planet.colony_index].owner, race_name, sizeof(race_name));
+                Race_Name_(game::current_state.colonies.at(planet.colony_id).owner, race_name, sizeof(race_name));
                 snprintf(label, sizeof(label), "%s [Colony: %s]", name, race_name);
             } else {
                 strlcpy(label, name, sizeof(label));

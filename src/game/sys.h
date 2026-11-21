@@ -96,7 +96,7 @@ namespace SYS {
     void __cdecl Print_Planet_Info_Short(game::id_planet planet_idx, int16_t* box_width, int16_t* box_height);
 
     int16_t __cdecl Print_Special_Building_Data(
-        int16_t colony_idx,
+        game::id_colony colony_idx,
         int16_t x,
         int16_t* line_pos,
         int16_t* max_text_width,

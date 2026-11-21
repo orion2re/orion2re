@@ -5,17 +5,19 @@ namespace BOMB {
 
     /**
      * Handles any officer tied to a colony that is being removed.
-     * @param colony Colony that is being lost.
+     * @param state State containing the colony's planet and assigned leader.
+     * @param colony_id Colony that is being lost.
      * @return Killed leader index, or -1 if no leader was killed.
      */
-    int32_t __cdecl Handle_Leader_At_Lost_Colony(s_colony* colony);
+    int32_t __cdecl Handle_Leader_At_Lost_Colony(const game::s_game_state& state, game::id_colony colony_id);
 
     /**
      * Removes a colony and updates related star, message, and homeworld state.
-     * @param colony Colony to destroy.
+     * @param state State containing the colony's planet and assigned leader.
+     * @param colony_id Colony to destroy.
      * @param capturing_player Player that captured the colony, or -1 if it was only destroyed.
      */
-    void __cdecl Destroy_Colony(s_colony* colony, int32_t capturing_player);
+    void __cdecl Destroy_Colony(game::s_game_state& state, game::id_colony colony_id, int32_t capturing_player);
 
     /**
      * Applies one bomb-hit outcome against a colony.

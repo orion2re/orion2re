@@ -837,9 +837,9 @@ namespace DIP_SCRN {
             for (const auto& link : star->orbit_planet_ids) {
                 const auto id = link.get();
                 if (id != game::NO_PLANET) {
-                    const auto colony_idx = state.planets.at(id).colony_index;
-                    if (colony_idx != -1) {
-                        s_colony* colony = &MOX::colony[colony_idx];
+                    const auto colony_idx = state.planets.at(id).colony_id;
+                    if (colony_idx != game::NO_COLONY) {
+                        s_colony* colony = &game::current_state.colonies.at(colony_idx);
                         if (colony->owner == (int8_t)player_idx) {
                             planet_ids[*owned_count] = id;
 

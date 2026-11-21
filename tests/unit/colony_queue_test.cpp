@@ -18,7 +18,7 @@ DOCTEST_TEST_CASE_FIXTURE(test::s_game_state, "colony queue compaction preserves
     };
     for (size_t i = 0; i < std::size(inputs); ++i) {
         for (size_t j = 0; j < 7; ++j) colonies[0].producing[j] = inputs[i][j];
-        COLONY::Fix_Colony_Queue(0);
+        COLONY::Fix_Colony_Queue(game::id_colony{0});
         for (size_t j = 0; j < 7; ++j) DOCTEST_CHECK((colonies[0].producing[j] == expected[i][j]));
     }
 }

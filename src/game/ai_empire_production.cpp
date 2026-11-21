@@ -5,9 +5,9 @@
 namespace aidudes {
 
     int __cdecl colony_less_industry_cmp(void* context, const void* p1, const void* p2) {
-        auto* colonies = static_cast<s_colony*>(context);
-        int16_t worth1 = AIBUILD::Industry_Worth(&colonies[legacy_world::Slot(legacy_world::Read_Colony_Id(p1))]);
-        int16_t worth2 = AIBUILD::Industry_Worth(&colonies[legacy_world::Slot(legacy_world::Read_Colony_Id(p2))]);
+        auto& colonies = static_cast<game::s_game_state*>(context)->colonies;
+        int16_t worth1 = AIBUILD::Industry_Worth(&colonies.at(*static_cast<const game::id_colony*>(p1)));
+        int16_t worth2 = AIBUILD::Industry_Worth(&colonies.at(*static_cast<const game::id_colony*>(p2)));
 
         return (int)worth1 - (int)worth2;
     }
@@ -47,15 +47,15 @@ namespace aidudes {
         game::id_colony* colony_queue = colony_queue_storage.data();
 
         if (world->Colony_Count() > 0) {
-            for (int16_t current_colony_idx = 0; current_colony_idx < world->Colony_Count(); ++current_colony_idx) {
-                s_colony* temp_colony = &world->colonies[current_colony_idx];
+            for (auto& [roster_id, roster_colony] : world->state->colonies) {
+                s_colony* temp_colony = &roster_colony;
 
                 if (temp_colony->owner == (char)player_idx &&
                     temp_colony->outpost_flag == 0 &&
                     temp_colony->n_pops != 0) {
-                    if (EVENTS::Event_Check_Space_Anomaly(current_colony_idx) == 0) {
+                    if (EVENTS::Event_Check_Space_Anomaly(roster_id) == 0) {
                         if (COLCALC::Colony_Is_Blockaded(temp_colony) ||
-                            ai->colonies[legacy_world::Colony_Id(current_colony_idx)].other_player_arrivals ||
+                            ai->colonies[roster_id].other_player_arrivals ||
                             low_money) {
                             bool delete_from_queue = false;
                             int16_t prod = temp_colony->producing[0];
@@ -75,7 +75,7 @@ namespace aidudes {
                             }
 
                             if (delete_from_queue) {
-                                COLBLDG::Delete_From_Colony_Queue(current_colony_idx, 0);
+                                COLBLDG::Delete_From_Colony_Queue(*world->state, roster_id, 0);
                             }
                         }
 
@@ -91,7 +91,7 @@ namespace aidudes {
                         }
 
                         temp_colony->producing[0] = COLONY_PRODUCTION_AI_UNASSIGNED;
-                        colony_queue[colony_queue_count] = legacy_world::Colony_Id(current_colony_idx);
+                        colony_queue[colony_queue_count] = roster_id;
                         colony_queue_count++;
                     }
                 }
@@ -121,12 +121,12 @@ namespace aidudes {
         ship_design.cost = 0;
 
         for (int i = 0; i < colony_queue_count;) {
-            s_colony* temp_colony = &world->colonies[legacy_world::Slot(colony_queue[i])];
+            s_colony* temp_colony = &world->state->colonies.at(colony_queue[i]);
             bool changed = false;
 
             const auto incoming_human_ships = [&] {
                 if (war_level == 0) return false;
-                const auto& planet = world->state->planets.at(temp_colony->planet_id.get());
+                const auto& planet = world->state->planets.at(temp_colony->planet_id);
                 const auto& system = ai->stars[legacy_world::Star_Id(planet.star_index)];
                 return system.enroute_human_ships[AIDATA::LAST_FORECAST_TURN] != 0;
             };
@@ -180,19 +180,19 @@ namespace aidudes {
             }
         }
 
-        qsort(colony_queue, (uint32_t)colony_queue_count, sizeof(game::id_colony), aidudes::colony_less_industry_cmp, world->colonies);
+        qsort(colony_queue, (uint32_t)colony_queue_count, sizeof(game::id_colony), aidudes::colony_less_industry_cmp, world->state);
 
         if (AIBUILD::rules.strategic.expansion.enabled &&
             p->tech_applications[TECH_APP_COLONY_BASE] == TECH_RESEARCH_STATUS_RESEARCHED) {
             int i = colony_queue_count;
             while (want_colony_base && i > 0) {
                 i--;
-                s_colony* temp_colony = &world->colonies[legacy_world::Slot(colony_queue[i])];
+                s_colony* temp_colony = &world->state->colonies.at(colony_queue[i]);
                 if (!COLCALC::Colony_Is_Blockaded(temp_colony) &&
                     AIBUILD::Industry_Worth(temp_colony) >=
                         AIBUILD::rules.strategic.expansion.colony_base_minimum_industry) {
                     const auto& planets = world->state->planets;
-                    const auto& colony_planet = planets.at(temp_colony->planet_id.get());
+                    const auto& colony_planet = planets.at(temp_colony->planet_id);
                     const auto& destination = planets.at(*best_planet);
                     if (colony_planet.star_index == destination.star_index) {
                         if (temp_colony->buildings[BUILDING_COLONY_BASE] != 1) {
@@ -217,15 +217,14 @@ namespace aidudes {
                 int i = colony_queue_count;
                 while (want_colony_base && i > 0) {
                     i--;
-                    s_colony* temp_colony = &world->colonies[legacy_world::Slot(colony_queue[i])];
+                    s_colony* temp_colony = &world->state->colonies.at(colony_queue[i]);
                     if (!COLCALC::Colony_Is_Blockaded(temp_colony) &&
                         AIBUILD::Industry_Worth(temp_colony) >=
                             AIBUILD::rules.strategic.expansion.colony_ship_minimum_industry) {
                         if (player_info.colony_deficit + 50 < (int32_t)game_random::Random(100)) {
                             s_ship_design colony_ship_design = {};
                             INITSHIP::Load_Colony_Ship_Design(legacy_player, &colony_ship_design);
-                            const auto legacy_colony = colony_queue[i].id;
-                            if (legacy_colony >= MAX_COLONIES) return;
+                            const auto legacy_colony = colony_queue[i];
                             int16_t ship_idx = COLBLDG::Create_Ship_From_Design(
                                 legacy_player, &colony_ship_design, legacy_colony);
                             if (ship_idx == -1) {
@@ -244,7 +243,7 @@ namespace aidudes {
         while (colony_queue_count > 0) {
             int prev_count = colony_queue_count;
             int i = colony_queue_count - 1;
-            s_colony* temp_colony = &world->colonies[legacy_world::Slot(colony_queue[i])];
+            s_colony* temp_colony = &world->state->colonies.at(colony_queue[i]);
 
             if (AIBUILD::rules.strategic.economic_emergency.enabled && colony_queue_count > 0 &&
                 p->bc + p->surplus_bc < p->total_maintenance &&
@@ -252,16 +251,14 @@ namespace aidudes {
                 temp_colony->maintenance[1] < temp_colony->production[1]) {
                 const game::id_colony current_colony_idx = colony_queue[i];
                 AIBUILD::Force_Produce(world, colony_queue, i, &colony_queue_count, AIBUILD::rules.strategic.economic_emergency.product);
-                const auto legacy_colony = current_colony_idx.id;
-                if (legacy_colony >= MAX_COLONIES) return;
+                const auto legacy_colony = current_colony_idx;
                 COLCALC::Colony_Calculation(legacy_colony);
                 continue;
             }
 
             int vs_ships_2 = needs.combat_strength.additional_wanted;
             const game::id_colony current_colony_idx = colony_queue[i];
-            const auto legacy_colony = current_colony_idx.id;
-            if (legacy_colony >= MAX_COLONIES) return;
+            const auto legacy_colony = current_colony_idx;
 
             int ship_build_weight = 0;
             if (vs_ships_2 > 0 && p->ship_range != 0 && p->ship_speed != 0 && !no_range_or_speed) {
@@ -357,7 +354,7 @@ namespace aidudes {
                         bool star_base_candidate = false;
 
                         int ind_worth = AIBUILD::Industry_Worth(temp_colony);
-                        const auto& colony_planet = world->state->planets.at(temp_colony->planet_id.get());
+                        const auto& colony_planet = world->state->planets.at(temp_colony->planet_id);
                         const auto& system = ai->stars[legacy_world::Star_Id(colony_planet.star_index)];
                         const auto& pressure = system.neighborhood.per_player[player_idx];
                         if (p->surplus_bc > 5 && p->bc > 50) {
@@ -375,10 +372,10 @@ namespace aidudes {
 
                                 if (temp_colony->buildings[BUILDING_STAR_FORTRESS] == 0) {
                                     if (p->tech_applications[TECH_APP_STAR_FORTRESS] == TECH_RESEARCH_STATUS_RESEARCHED &&
-                                        COLCALC::Colony_Product_Cost(world->colonies, BUILDING_STAR_FORTRESS) <= (war_level * 2 + 31) * ind_worth) {
+                                        COLCALC::Colony_Product_Cost(temp_colony, BUILDING_STAR_FORTRESS) <= (war_level * 2 + 31) * ind_worth) {
                                         star_fortress_candidate = true;
                                         ship_weights[8] = (uint16_t)((pressure.neutral_players_in_range + 2 +
-                                                                         (ai->colonies[legacy_world::Colony_Id(i)].other_player_arrivals + pressure.hostile_players_in_range) * 2) *
+                                                                         (ai->colonies[current_colony_idx].other_player_arrivals + pressure.hostile_players_in_range) * 2) *
                                                                   2 +
                                                               pressure.treaty_partners_in_range) *
                                             2;
@@ -392,9 +389,9 @@ namespace aidudes {
                                 if (temp_colony->buildings[BUILDING_STAR_FORTRESS] == 0 &&
                                     temp_colony->buildings[BUILDING_BATTLESTATION] == 0) {
                                     if (p->tech_applications[TECH_APP_BATTLESTATION] == TECH_RESEARCH_STATUS_RESEARCHED &&
-                                        COLCALC::Colony_Product_Cost(world->colonies, BUILDING_BATTLESTATION) <= cost_threshold_1) {
+                                        COLCALC::Colony_Product_Cost(temp_colony, BUILDING_BATTLESTATION) <= cost_threshold_1) {
                                         battlestation_candidate = true;
-                                        ship_weights[7] = (uint16_t)((ai->colonies[legacy_world::Colony_Id(i)].other_player_arrivals + pressure.hostile_players_in_range) * 2 +
+                                        ship_weights[7] = (uint16_t)((ai->colonies[current_colony_idx].other_player_arrivals + pressure.hostile_players_in_range) * 2 +
                                                               pressure.neutral_players_in_range + 2) *
                                                 5 +
                                             pressure.treaty_partners_in_range * 3;
@@ -405,9 +402,9 @@ namespace aidudes {
 
                                     if (temp_colony->buildings[BUILDING_STAR_BASE] == 0) {
                                         if (p->tech_applications[TECH_APP_STAR_BASE] == TECH_RESEARCH_STATUS_RESEARCHED &&
-                                            COLCALC::Colony_Product_Cost(world->colonies, BUILDING_STAR_BASE) <= (war_level * 2 + 35) * ind_worth) {
+                                            COLCALC::Colony_Product_Cost(temp_colony, BUILDING_STAR_BASE) <= (war_level * 2 + 35) * ind_worth) {
                                             star_base_candidate = true;
-                                            ship_weights[6] = (uint16_t)(ai->colonies[legacy_world::Colony_Id(i)].other_player_arrivals + pressure.hostile_players_in_range) * 10 +
+                                            ship_weights[6] = (uint16_t)(ai->colonies[current_colony_idx].other_player_arrivals + pressure.hostile_players_in_range) * 10 +
                                                 pressure.treaty_partners_in_range * 4 + 12 +
                                                 pressure.neutral_players_in_range * 6;
                                             if (p->command_points < p->command_points_used) {
@@ -517,7 +514,7 @@ namespace aidudes {
                         choice_weights[AIBUILD::ALLOCATION_FREIGHTERS] = 0;
                         break;
                     case AIBUILD::ALLOCATION_REFITS: {
-                        int16_t refit_planet_idx = world->state->planets.at(temp_colony->planet_id.get()).star_index;
+                        int16_t refit_planet_idx = world->state->planets.at(temp_colony->planet_id).star_index;
                         int n_entries = (int)refits.size() - 1;
                         bool refitted = false;
                         for (int j = n_entries; j >= 0; j--) {

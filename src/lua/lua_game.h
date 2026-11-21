@@ -7,7 +7,9 @@
 #include "game/object_ids.h"
 
 namespace orion2re {
+    using game::id_colony;
     using game::id_planet;
+    using game::NO_COLONY;
     using game::NO_PLANET;
 }
 
@@ -54,7 +56,7 @@ namespace orion2re::lua::game {
     };
 
     struct s_population_growth_context {
-        std::int16_t colony_id = -1;
+        id_colony colony_id = NO_COLONY;
         id_planet planet_id = NO_PLANET;
         std::int16_t owner_id = -1;
         std::int16_t race_id = -1;

@@ -82,24 +82,15 @@ namespace PLNTSUM {
     }
 
     bool __cdecl Planet_Is_Outpost_Planet(game::id_planet planet_idx) {
-        int16_t colony_idx = game::current_state.planets.at(planet_idx).colony_index;
-
-        if (colony_idx > -1) {
-            return MOX::colony[colony_idx].outpost_flag != 0;
-        }
-
-        return false;
+        const auto& state = game::current_state;
+        const auto colony = state.colonies.find(state.planets.at(planet_idx).colony_id);
+        return colony != state.colonies.end() && colony->second.outpost_flag != 0;
     }
 
     bool __cdecl Planet_Has_Players_Colony(game::id_planet planet_idx) {
-        int16_t owner_id = -1;
-        int16_t colony_index = game::current_state.planets.at(planet_idx).colony_index;
-
-        if (colony_index != -1) {
-            owner_id = (int16_t)MOX::colony[colony_index].owner;
-        }
-
-        return owner_id == MOX::PLAYER_NUM;
+        const auto& state = game::current_state;
+        const auto colony = state.colonies.find(state.planets.at(planet_idx).colony_id);
+        return colony != state.colonies.end() && colony->second.owner == MOX::PLAYER_NUM;
     }
 
     bool __cdecl Planet_Has_Been_Visited(game::id_planet planet_index) {
@@ -151,11 +142,10 @@ namespace PLNTSUM {
             }
             const auto p_idx = MOX::star[star_idx].orbit_planet_ids[i].get();
             if (p_idx != game::NO_PLANET) {
-                int16_t colony_idx = game::current_state.planets.at(p_idx).colony_index;
-                if (colony_idx > -1) {
-                    if (MOX::colony[colony_idx].owner != MOX::PLAYER_NUM) {
-                        result = true;
-                    }
+                const auto& state = game::current_state;
+                const auto colony = state.colonies.find(state.planets.at(p_idx).colony_id);
+                if (colony != state.colonies.end() && colony->second.owner != MOX::PLAYER_NUM) {
+                    result = true;
                 }
             }
         }
@@ -230,7 +220,7 @@ namespace PLNTSUM {
                     const auto planet_idx = Colony_Ship_Auto_Colonization(&MOX::ship[ship_idx]);
 
                     const auto planet = game::current_state.planets.find(planet_idx);
-                    if (planet == game::current_state.planets.end() || planet->second.colony_index != -1) {
+                    if (planet == game::current_state.planets.end() || planet->second.colony_id != game::NO_COLONY) {
                         continue;
                     }
 

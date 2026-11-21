@@ -421,7 +421,6 @@ namespace MOX {
     void* global_data_seg;
     s_nebula* nebula;
     uint8_t NUM_NEBULAS;
-    int16_t NUM_COLONIES;
     int8_t climate_modifier_table[MINERAL_RESOURCE_COUNT] = {0, 0, 0, -10, -20};
     const char* roman_literals[21] = {
         nullptr,
@@ -643,7 +642,7 @@ namespace MOX {
     int16_t combat_attacker_player;
     int16_t combat_turn;
     uint8_t colony_defense_flags;
-    int16_t cmbt_colony_id;
+    game::id_colony cmbt_colony_id = game::NO_COLONY;
     int16_t combat_defender_player;
     s_combat_bomb_result combat_bomb_result;
 
@@ -720,7 +719,6 @@ namespace MOX {
         {53, 0x8000, 1, 75, 1, 6, nullptr, "+%d"},
     };
 
-    s_colony* colony;
 
     s_animation_header* darkened_turn_button_seg;
 
