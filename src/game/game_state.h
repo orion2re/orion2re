@@ -28,6 +28,7 @@ namespace game {
 
         std::map<id_colony, s_colony> colonies;
         uint32_t next_colony_id = 0;
+        // Traversal order only; relationships and lookups use the map key.
         std::array<std::vector<id_colony>, MAX_PLAYERS> colony_reservations;
 
         void Reset_Colonies() {

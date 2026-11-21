@@ -96,6 +96,12 @@
       including failed-load rollback. Founding only consumes ships and colony
       bases on success. Check reciprocal colony links on load; repair stale
       links in historical slot-based saves at import.
+- [ ] Give each player a disjoint colony ID sequence so clients can assign
+      keys without reserving them in advance. Consider a fixed `MAX_PLAYERS`
+      stride: `base + player_slot + MAX_PLAYERS * local_sequence`. Keep
+      existing IDs, persist allocator counters, and guard against overflow and
+      `NO_COLONY`. Enforce colonization priority and shared colony capacity
+      separately from ID allocation.
 - Stable-key traversal intentionally does not reproduce reuse of a vacant
   historical slot. This can change traversal-dependent choices after deletion
   and refounding; do not use a slot number as an identity to emulate it.
